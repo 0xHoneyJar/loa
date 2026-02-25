@@ -7,6 +7,7 @@ import type { ILLMProvider } from "../ports/llm-provider.js";
 import type { IReviewPoster, ReviewEvent } from "../ports/review-poster.js";
 import type { IOutputSanitizer } from "../ports/output-sanitizer.js";
 import type { ILogger } from "../ports/logger.js";
+import type { IHasher } from "../ports/hasher.js";
 import type { PRReviewTemplate } from "./template.js";
 import type { BridgebuilderContext } from "./context.js";
 import type {
@@ -20,6 +21,7 @@ import type {
   EnrichmentOptions,
 } from "./types.js";
 import { FindingsBlockSchema } from "./schemas.js";
+import { Pass1Cache, computeCacheKey } from "./cache.js";
 import {
   truncateFiles,
   progressiveTruncate,
@@ -80,6 +82,8 @@ function isTokenRejection(err: unknown): boolean {
 export class ReviewPipeline {
   private readonly personaMetadata: PersonaMetadata;
   private ecosystemContext: EcosystemContext | undefined;
+  private readonly pass1Cache: Pass1Cache | null;
+  private readonly hasher: IHasher | null;
 
   constructor(
     private readonly template: PRReviewTemplate,
@@ -92,8 +96,17 @@ export class ReviewPipeline {
     private readonly persona: string,
     private readonly config: BridgebuilderConfig,
     private readonly now: () => number = Date.now,
+    hasher?: IHasher,
   ) {
     this.personaMetadata = ReviewPipeline.parsePersonaMetadata(persona);
+    // Initialize Pass 1 cache when config enables it (AC-8: opt-in, default false)
+    if (config.pass1Cache?.enabled && hasher) {
+      this.pass1Cache = new Pass1Cache(".run/bridge-cache");
+      this.hasher = hasher;
+    } else {
+      this.pass1Cache = null;
+      this.hasher = null;
+    }
   }
 
   /**
@@ -709,6 +722,7 @@ export class ReviewPipeline {
     pass1Duration: number,
     findingsJSON: string,
     pass1Content: string,
+    pass1CacheHit?: boolean,
   ): Promise<ReviewResult> {
     const { owner, repo, pr } = item;
 
@@ -735,6 +749,7 @@ export class ReviewPipeline {
       outputTokens: pass1OutputTokens,
       pass1Output: pass1Content,
       pass1Tokens: { input: pass1InputTokens, output: pass1OutputTokens, duration: pass1Duration },
+      ...(pass1CacheHit != null ? { pass1CacheHit } : {}),
     });
   }
 
@@ -826,63 +841,131 @@ export class ReviewPipeline {
       );
     }
 
-    // LLM Call 1: Convergence
-    this.logger.info("Pass 1: Convergence review", { owner, repo, pr: pr.number });
+    // ═══════════════════════════════════════════════
+    // Pass 1 Cache Check (Sprint 70 — AC-4)
+    // ═══════════════════════════════════════════════
+    const truncationLevel = truncationContext
+      ? 1 // simplified: truncation occurred
+      : 0; // no truncation
 
-    let pass1Response;
-    try {
-      pass1Response = await this.llm.generateReview({
-        systemPrompt: finalConvergenceSystem,
-        userPrompt: finalConvergenceUser,
-        maxOutputTokens: this.config.maxOutputTokens,
-      });
-    } catch (llmErr: unknown) {
-      if (isTokenRejection(llmErr)) {
-        const retryBudget = Math.floor(this.config.maxInputTokens * 0.85);
-        const retryResult = progressiveTruncate(
-          effectiveItem.files, retryBudget, this.config.model,
-          finalConvergenceSystem.length, 2000,
-        );
+    let pass1CacheHit = false;
+    let findingsJSON: string | undefined;
+    let pass1Parsed: { findings: Array<{ id: string; severity: string; category: string; confidence?: number; [key: string]: unknown }> } | undefined;
+    let pass1InputTokens = 0;
+    let pass1OutputTokens = 0;
+    let pass1Content = "";
 
-        if (!retryResult.success) {
-          return this.skipResult(item, "prompt_too_large_after_truncation");
-        }
+    if (this.pass1Cache && this.hasher) {
+      const convergencePromptHash = await this.hasher.sha256(finalConvergenceSystem);
+      const cacheKey = await computeCacheKey(
+        this.hasher, pr.headSha, truncationLevel, convergencePromptHash,
+      );
 
-        truncationContext = {
-          filesExcluded: retryResult.excluded.length,
-          totalFiles: effectiveItem.files.length,
-        };
+      const cached = await this.pass1Cache.get(cacheKey);
+      if (cached) {
+        this.logger.info("Pass 1: Cache HIT — skipping LLM call", {
+          owner, repo, pr: pr.number, cacheKey,
+          hitCount: cached.hitCount,
+        });
+        pass1CacheHit = true;
+        findingsJSON = cached.findings.raw;
+        pass1Parsed = cached.findings.parsed as typeof pass1Parsed;
+        pass1InputTokens = cached.tokens.input;
+        pass1OutputTokens = cached.tokens.output;
+        // Synthesize pass1Content from cached findings for fallback path
+        pass1Content = [
+          "<!-- bridge-findings-start -->",
+          "```json",
+          cached.findings.raw,
+          "```",
+          "<!-- bridge-findings-end -->",
+        ].join("\n");
+      }
+    }
 
-        const retryUser = this.template.buildConvergenceUserPromptFromTruncation(
-          effectiveItem, retryResult, truncated.loaBanner,
-        );
+    // LLM Call 1: Convergence (skipped on cache hit)
+    if (!pass1CacheHit) {
+      this.logger.info("Pass 1: Convergence review", { owner, repo, pr: pr.number });
 
+      let pass1Response;
+      try {
         pass1Response = await this.llm.generateReview({
           systemPrompt: finalConvergenceSystem,
-          userPrompt: retryUser,
+          userPrompt: finalConvergenceUser,
           maxOutputTokens: this.config.maxOutputTokens,
         });
-      } else {
-        throw llmErr;
+      } catch (llmErr: unknown) {
+        if (isTokenRejection(llmErr)) {
+          const retryBudget = Math.floor(this.config.maxInputTokens * 0.85);
+          const retryResult = progressiveTruncate(
+            effectiveItem.files, retryBudget, this.config.model,
+            finalConvergenceSystem.length, 2000,
+          );
+
+          if (!retryResult.success) {
+            return this.skipResult(item, "prompt_too_large_after_truncation");
+          }
+
+          truncationContext = {
+            filesExcluded: retryResult.excluded.length,
+            totalFiles: effectiveItem.files.length,
+          };
+
+          const retryUser = this.template.buildConvergenceUserPromptFromTruncation(
+            effectiveItem, retryResult, truncated.loaBanner,
+          );
+
+          pass1Response = await this.llm.generateReview({
+            systemPrompt: finalConvergenceSystem,
+            userPrompt: retryUser,
+            maxOutputTokens: this.config.maxOutputTokens,
+          });
+        } else {
+          throw llmErr;
+        }
+      }
+
+      pass1InputTokens = pass1Response.inputTokens;
+      pass1OutputTokens = pass1Response.outputTokens;
+      pass1Content = pass1Response.content;
+
+      // Extract findings JSON from Pass 1
+      const pass1Extracted = this.extractFindingsJSON(pass1Response.content);
+      if (!pass1Extracted) {
+        this.logger.warn("Pass 1 produced no parseable findings, falling back to single-pass validation", {
+          owner, repo, pr: pr.number,
+        });
+        // If Pass 1 content is still a valid review format, use it directly
+        if (isValidResponse(pass1Response.content)) {
+          return this.finishWithPass1AsReview(item, pass1Response, this.now() - pass1Start);
+        }
+        return this.skipResult(item, "invalid_llm_response");
+      }
+
+      findingsJSON = pass1Extracted.raw;
+      pass1Parsed = pass1Extracted.parsed;
+
+      // Store in cache on miss (AC-5)
+      if (this.pass1Cache && this.hasher) {
+        const convergencePromptHash = await this.hasher.sha256(finalConvergenceSystem);
+        const cacheKey = await computeCacheKey(
+          this.hasher, pr.headSha, truncationLevel, convergencePromptHash,
+        );
+        await this.pass1Cache.set(cacheKey, {
+          findings: { raw: findingsJSON, parsed: pass1Parsed },
+          tokens: { input: pass1InputTokens, output: pass1OutputTokens, duration: 0 },
+          timestamp: new Date().toISOString(),
+          hitCount: 0,
+        });
       }
     }
 
     const pass1Duration = this.now() - pass1Start;
 
-    // Extract findings JSON from Pass 1
-    const pass1Extracted = this.extractFindingsJSON(pass1Response.content);
-    if (!pass1Extracted) {
-      this.logger.warn("Pass 1 produced no parseable findings, falling back to single-pass validation", {
-        owner, repo, pr: pr.number,
-      });
-      // If Pass 1 content is still a valid review format, use it directly
-      if (isValidResponse(pass1Response.content)) {
-        return this.finishWithPass1AsReview(item, pass1Response, pass1Duration);
-      }
+    // At this point findingsJSON and pass1Parsed are guaranteed set (cache hit or LLM extraction)
+    if (!findingsJSON || !pass1Parsed) {
       return this.skipResult(item, "invalid_llm_response");
     }
-
-    const { raw: findingsJSON, parsed: pass1Parsed } = pass1Extracted;
 
     // Compute confidence statistics from Pass 1 findings (Task 4.4)
     const confidenceValues = pass1Parsed.findings
@@ -900,9 +983,10 @@ export class ReviewPipeline {
     this.logger.info("Pass 1 complete", {
       owner, repo, pr: pr.number,
       duration: pass1Duration,
-      inputTokens: pass1Response.inputTokens,
-      outputTokens: pass1Response.outputTokens,
+      inputTokens: pass1InputTokens,
+      outputTokens: pass1OutputTokens,
       confidenceStats: pass1ConfidenceStats ?? null,
+      cacheHit: pass1CacheHit,
     });
 
     // ═══════════════════════════════════════════════
@@ -940,8 +1024,8 @@ export class ReviewPipeline {
         error: enrichErr instanceof Error ? enrichErr.message : String(enrichErr),
       });
       return this.finishWithUnenrichedOutput(
-        item, pass1Response.inputTokens, pass1Response.outputTokens,
-        pass1Duration, findingsJSON, pass1Response.content,
+        item, pass1InputTokens, pass1OutputTokens,
+        pass1Duration, findingsJSON, pass1Content, pass1CacheHit,
       );
     }
 
@@ -956,8 +1040,8 @@ export class ReviewPipeline {
           owner, repo, pr: pr.number,
         });
         return this.finishWithUnenrichedOutput(
-          item, pass1Response.inputTokens, pass1Response.outputTokens,
-          pass1Duration, findingsJSON, pass1Response.content,
+          item, pass1InputTokens, pass1OutputTokens,
+          pass1Duration, findingsJSON, pass1Content, pass1CacheHit,
         );
       }
     } else {
@@ -966,8 +1050,8 @@ export class ReviewPipeline {
         owner, repo, pr: pr.number,
       });
       return this.finishWithUnenrichedOutput(
-        item, pass1Response.inputTokens, pass1Response.outputTokens,
-        pass1Duration, findingsJSON, pass1Response.content,
+        item, pass1InputTokens, pass1OutputTokens,
+        pass1Duration, findingsJSON, pass1Content, pass1CacheHit,
       );
     }
 
@@ -977,8 +1061,8 @@ export class ReviewPipeline {
         owner, repo, pr: pr.number,
       });
       return this.finishWithUnenrichedOutput(
-        item, pass1Response.inputTokens, pass1Response.outputTokens,
-        pass1Duration, findingsJSON, pass1Response.content,
+        item, pass1InputTokens, pass1OutputTokens,
+        pass1Duration, findingsJSON, pass1Content, pass1CacheHit,
       );
     }
 
@@ -992,12 +1076,13 @@ export class ReviewPipeline {
 
     // Steps 7-9: Shared post-processing (sanitize → recheck → post → finalize)
     return this.postAndFinalize(item, pass2Response.content, {
-      inputTokens: pass1Response.inputTokens + pass2Response.inputTokens,
-      outputTokens: pass1Response.outputTokens + pass2Response.outputTokens,
-      pass1Output: pass1Response.content,
-      pass1Tokens: { input: pass1Response.inputTokens, output: pass1Response.outputTokens, duration: pass1Duration },
+      inputTokens: pass1InputTokens + pass2Response.inputTokens,
+      outputTokens: pass1OutputTokens + pass2Response.outputTokens,
+      pass1Output: pass1Content,
+      pass1Tokens: { input: pass1InputTokens, output: pass1OutputTokens, duration: pass1Duration },
       pass2Tokens: { input: pass2Response.inputTokens, output: pass2Response.outputTokens, duration: pass2Duration },
       pass1ConfidenceStats,
+      pass1CacheHit,
       personaId: this.personaMetadata.id,
       personaHash: this.personaMetadata.hash,
     });

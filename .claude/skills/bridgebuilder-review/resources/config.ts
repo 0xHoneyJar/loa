@@ -59,6 +59,7 @@ export interface YamlConfig {
   persona?: string;
   review_mode?: "two-pass" | "single-pass";
   ecosystem_context_path?: string;
+  pass1_cache_enabled?: boolean;
 }
 
 export interface EnvVars {
@@ -67,6 +68,7 @@ export interface EnvVars {
   BRIDGEBUILDER_DRY_RUN?: string;
   BRIDGEBUILDER_REPO_ROOT?: string;
   LOA_BRIDGE_REVIEW_MODE?: string;
+  BRIDGEBUILDER_PASS1_CACHE?: string;
 }
 
 /**
@@ -272,6 +274,9 @@ async function loadYamlConfig(): Promise<YamlConfig> {
         case "ecosystem_context_path":
           config.ecosystem_context_path = value;
           break;
+        case "pass1_cache_enabled":
+          config.pass1_cache_enabled = value === "true";
+          break;
       }
     }
 
@@ -302,6 +307,21 @@ export function resolveRepoRoot(cli: CLIArgs, env: EnvVars): string | undefined 
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Resolve pass1Cache.enabled: env > yaml > default (false).
+ * Returns boolean or null if no explicit config.
+ */
+function resolvePass1Cache(
+  _cliArgs: CLIArgs,
+  env: EnvVars,
+  yaml: YamlConfig,
+): boolean | null {
+  if (env.BRIDGEBUILDER_PASS1_CACHE === "true") return true;
+  if (env.BRIDGEBUILDER_PASS1_CACHE === "false") return false;
+  if (yaml.pass1_cache_enabled != null) return yaml.pass1_cache_enabled;
+  return null;
 }
 
 /**
@@ -437,6 +457,9 @@ export async function resolveConfig(
     ...(cliArgs.forceFullReview ? { forceFullReview: true } : {}),
     ...(yaml.ecosystem_context_path != null
       ? { ecosystemContextPath: yaml.ecosystem_context_path }
+      : {}),
+    ...(resolvePass1Cache(cliArgs, env, yaml) != null
+      ? { pass1Cache: { enabled: resolvePass1Cache(cliArgs, env, yaml)! } }
       : {}),
     reviewMode:
       cliArgs.reviewMode ??

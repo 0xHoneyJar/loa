@@ -31,6 +31,8 @@ export interface BridgebuilderConfig {
   reviewMode: "two-pass" | "single-pass";
   /** Path to ecosystem context JSON file for cross-repo pattern hints (Pass 0 prototype). */
   ecosystemContextPath?: string;
+  /** Pass 1 convergence cache configuration (Sprint 70). */
+  pass1Cache?: { enabled: boolean };
 }
 
 export interface ReviewItem {
@@ -78,6 +80,8 @@ export interface ReviewResult {
   personaId?: string;
   /** SHA-256 hash of persona content for integrity verification. */
   personaHash?: string;
+  /** Whether Pass 1 findings were served from cache (Sprint 70). */
+  pass1CacheHit?: boolean;
 }
 
 export interface RunSummary {
