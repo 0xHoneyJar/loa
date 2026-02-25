@@ -5,6 +5,80 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **cycle-038**: Organizational Memory Sovereignty — three-zone state architecture with state-dir resolution, migration engine, trajectory redaction, memory pipeline, and federated learning across 6 sprints (#410)
+- **cycle-036**: Quick-Win UX Fixes — state zone merge protection, stealth `.ck/` directory, bridgebuilder `.env` auto-loading, origin-first remote detection (#407)
+- **cycle-035**: Minimal Footprint by Default — submodule-first installation with `/loa eject` for full copy (#406)
+- **cycle-034**: Declarative Execution Router + Adaptive Multi-Pass review pipeline (#404)
+- **cycle-030/031**: UX Redesign + Interview Depth Configuration + BUTTERFREEZONE Skill Provenance Segmentation (#391, #392)
+- **cycle-029**: Construct-Aware Constraint Yielding — constructs can declare gate overrides (#378)
+- **cycle-028**: Security Hardening — Bridgebuilder cross-repository findings (#377)
+- **cycle-027**: Broader QMD Integration across core skills (#373)
+- 5 README updates
+
+## [1.49.0] — 2026-02-18 — Bridgebuilder Model Upgrade
+
+### Changed
+
+- **bridgebuilder**: Upgrade default model to `claude-opus-4-6` for improved review quality (#372)
+
+## [1.48.2] — 2026-02-18 — Bridgebuilder ESM Fix
+
+### Fixed
+
+- **bridgebuilder**: Fix ESM `require()` crash + stale model default (#371)
+
+## [1.48.1] — 2026-02-18 — Hounfour Runtime Bridge
+
+### Fixed
+
+- **hounfour**: Config-driven token param — fixes GPT-5.2+ `model-invoke` (#347)
+
+### Added
+
+- **cycle-026**: Hounfour Runtime Bridge — GoogleAdapter, Deep Research routing, metering, FLockSemaphore for model-heterogeneous agent execution (#368)
+
+## [1.47.1] — 2026-02-17 — Cross-Codebase Feedback Routing
+
+### Fixed
+
+- **update-loa**: Preserve `.claude/constructs/` during framework updates (BUG-361) (#362)
+
+### Added
+
+- **cycle-025**: Cross-Codebase Feedback Routing — attribution engine, redaction, deduplication (#357, #360)
+
+## [1.45.2] — 2026-02-17 — Scoring Engine Syntax Fix
+
+### Fixed
+
+- **scoring-engine**: Remove apostrophe breaking `bash -n` syntax check (#356)
+
+## [1.45.1] — 2026-02-16 — Hygiene Sprint
+
+### Fixed
+
+- **cycle-024**: The Hygiene Sprint — adapter fixes, scoring engine cleanup, cleanup hook (#353)
+
+## [1.45.0] — 2026-02-16 — The Permission Amendment + Gemini Integration
+
+### Added
+
+- **cycle-023**: The Permission Amendment — MAY constraints, REFRAME severity level, Vision-004 speculative exploration (#352)
+- **cycle-021**: Gemini Integration Audit & Activation (#348)
+
+## [1.43.0] — 2026-02-16 — Agent Teams + Enrichment + Release Automation
+
+### Added
+
+- **cycle-020**: TeamCreate Compatibility — Agent Teams Orchestration with lead/teammate role enforcement (#341)
+- **cycle-018**: Ride Enrichment — Gap Tracking & Decision Archaeology (#338)
+- **cycle-017**: BUTTERFREEZONE Excellence — Agent-API Interface Standard (#336)
+- **cycle-016**: Release Automation Excellence — CHANGELOG Generation & Release Quality (#334)
+
 ## [1.39.1] — 2026-02-15 — Collateral Deletion Safeguard + CI Hardening
 
 ### Fixed

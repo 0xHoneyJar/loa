@@ -234,7 +234,7 @@ phase_classify() {
 
     if echo "$labels" | grep -q "cycle"; then
       PR_TYPE="cycle"
-    elif echo "$title" | grep -qE "^(Run Mode|Sprint Plan|feat\(sprint)"; then
+    elif echo "$title" | grep -qE "^(Run Mode|Sprint Plan|feat\(sprint|feat\(cycle|feat:)"; then
       PR_TYPE="cycle"
     elif echo "$title" | grep -qE "^fix"; then
       PR_TYPE="bugfix"
