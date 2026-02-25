@@ -5,6 +5,21 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.59.0] — 2026-02-25 — Two-Pass Bridge Review Pipeline
+
+
+- Implements two-pass bridge review architecture decoupling convergence (finding identification) from enrichment (persona-driven educational prose), per arXiv:2602.11988
+- Pass 1: analytical-only review with INJECTION_HARDENING, no persona — full cognitive budget for finding quality
+- Pass 2: persona + findings JSON + condensed metadata (no diffs) — dedicated enrichment pass with ~26% of Pass 1 context
+- Finding preservation guard validates count, IDs, severities — any modification triggers automatic fallback to Pass 1 unenriched output
+
+### Added
+
+- **cycle-039**: Two-Pass Bridge Review Pipeline (#411)
+
+_Source: PR #411_
+
+
 ## [1.39.1] — 2026-02-15 — Collateral Deletion Safeguard + CI Hardening
 
 ### Fixed
