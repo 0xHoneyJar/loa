@@ -7,6 +7,8 @@ import type {
   ProgressiveTruncationResult,
   PersonaMetadata,
   EcosystemContext,
+  EnrichmentOptions,
+  TruncationContext,
 } from "./types.js";
 import { truncateFiles } from "./truncation.js";
 
@@ -340,15 +342,51 @@ export class PRReviewTemplate {
   /**
    * Build enrichment prompt: persona + condensed PR metadata + Pass 1 findings (SDD 3.3).
    * No full diff — Pass 2 enriches findings with educational depth.
+   *
+   * Overload 1 (options object — preferred, Sprint 69):
+   *   buildEnrichmentPrompt(options: EnrichmentOptions): PromptPair
+   *
+   * Overload 2 (positional params — deprecated, backward compat):
+   *   buildEnrichmentPrompt(findingsJSON, item, persona, truncationContext?, personaMetadata?, ecosystemContext?): PromptPair
    */
+  buildEnrichmentPrompt(options: EnrichmentOptions): PromptPair;
+  /** @deprecated Use options object overload instead. */
   buildEnrichmentPrompt(
     findingsJSON: string,
     item: ReviewItem,
     persona: string,
-    truncationContext?: { filesExcluded: number; totalFiles: number },
+    truncationContext?: TruncationContext,
+    personaMetadata?: PersonaMetadata,
+    ecosystemContext?: EcosystemContext,
+  ): PromptPair;
+  buildEnrichmentPrompt(
+    optionsOrFindings: EnrichmentOptions | string,
+    item?: ReviewItem,
+    persona?: string,
+    truncationContext?: TruncationContext,
     personaMetadata?: PersonaMetadata,
     ecosystemContext?: EcosystemContext,
   ): PromptPair {
+    // Resolve overload: options object vs positional params
+    let opts: EnrichmentOptions;
+    if (typeof optionsOrFindings === "string") {
+      opts = {
+        findingsJSON: optionsOrFindings,
+        item: item!,
+        persona: persona!,
+        truncationContext,
+        personaMetadata,
+        ecosystemContext,
+      };
+    } else {
+      opts = optionsOrFindings;
+    }
+
+    return this.buildEnrichmentPromptFromOptions(opts);
+  }
+
+  private buildEnrichmentPromptFromOptions(opts: EnrichmentOptions): PromptPair {
+    const { findingsJSON, item, persona, truncationContext, personaMetadata, ecosystemContext } = opts;
     const systemPrompt = this.buildSystemPrompt(persona);
 
     const lines: string[] = [];

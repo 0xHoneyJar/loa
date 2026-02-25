@@ -17,7 +17,9 @@ import type {
   RunSummary,
   PersonaMetadata,
   EcosystemContext,
+  EnrichmentOptions,
 } from "./types.js";
+import { FindingsBlockSchema } from "./schemas.js";
 import {
   truncateFiles,
   progressiveTruncate,
@@ -610,6 +612,7 @@ export class ReviewPipeline {
 
   /**
    * Extract findings JSON from content enclosed in bridge-findings markers (SDD 3.5).
+   * Uses zod FindingsBlockSchema for runtime validation (Sprint 69 — schema-first).
    * Returns { raw, parsed } or null if markers/JSON are missing or malformed.
    */
   private extractFindingsJSON(content: string): { raw: string; parsed: { findings: Array<{ id: string; severity: string; category: string; confidence?: number; [key: string]: unknown }> } } | null {
@@ -629,34 +632,35 @@ export class ReviewPipeline {
     const jsonStr = block.replace(/^```json?\s*\n?/, "").replace(/\n?```\s*$/, "");
 
     try {
-      const parsed = JSON.parse(jsonStr);
-      if (!parsed.findings || !Array.isArray(parsed.findings)) {
+      const raw = JSON.parse(jsonStr);
+
+      // Zod validation: validates schema_version, findings array, and each finding's
+      // required fields (id, severity, category) + optional confidence [0,1].
+      // .passthrough() preserves enrichment fields (faang_parallel, metaphor, etc.)
+      const result = FindingsBlockSchema.safeParse(raw);
+
+      if (!result.success) {
         return null;
       }
-      // Runtime validation: filter findings with non-string required fields
-      const validated = parsed.findings
-        .filter(
-          (f: unknown): f is { id: string; severity: string; category: string; [key: string]: unknown } =>
-            f != null &&
-            typeof f === "object" &&
-            typeof (f as Record<string, unknown>).id === "string" &&
-            typeof (f as Record<string, unknown>).severity === "string" &&
-            typeof (f as Record<string, unknown>).category === "string",
-        )
-        .map((f) => {
-          // Normalize confidence: valid number in [0, 1] or strip invalid values
-          const raw = (f as Record<string, unknown>).confidence;
-          if (typeof raw === "number" && raw >= 0 && raw <= 1) {
-            return { ...f, confidence: raw };
-          }
-          // Strip invalid confidence — destructure to omit, return rest
-          const { confidence: _dropped, ...rest } = f as Record<string, unknown>;
-          return rest as typeof f;
-        });
+
+      const validated = result.data.findings;
       if (validated.length === 0) {
         return null;
       }
-      return { raw: jsonStr, parsed: { ...parsed, findings: validated } };
+
+      // Strip confidence from findings where zod validation passed but confidence
+      // was not provided (undefined) — preserve the existing behavior of stripping
+      // invalid confidence values that fall outside [0,1] bounds.
+      // Zod already handles min/max validation, so we only need to handle the case
+      // where confidence was present in raw but stripped by zod's optional() handling.
+      const findings = validated.map((f) => {
+        // If the raw finding had a confidence field that zod dropped (outside bounds),
+        // the validated finding won't have it — this is correct behavior.
+        // Passthrough fields are preserved as-is.
+        return f as { id: string; severity: string; category: string; confidence?: number; [key: string]: unknown };
+      });
+
+      return { raw: jsonStr, parsed: { ...result.data, findings } };
     } catch {
       return null;
     }
@@ -907,8 +911,16 @@ export class ReviewPipeline {
 
     const pass2Start = this.now();
 
+    const enrichmentOptions: EnrichmentOptions = {
+      findingsJSON,
+      item,
+      persona: this.persona,
+      truncationContext,
+      personaMetadata: this.personaMetadata,
+      ecosystemContext: this.ecosystemContext,
+    };
     const { systemPrompt: enrichmentSystem, userPrompt: enrichmentUser } =
-      this.template.buildEnrichmentPrompt(findingsJSON, item, this.persona, truncationContext, this.personaMetadata, this.ecosystemContext);
+      this.template.buildEnrichmentPrompt(enrichmentOptions);
 
     this.logger.info("Pass 2: Enrichment review", {
       owner, repo, pr: pr.number,

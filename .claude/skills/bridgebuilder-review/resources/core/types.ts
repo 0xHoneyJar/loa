@@ -150,6 +150,22 @@ export interface EcosystemContext {
   lastUpdated: string;
 }
 
+/** Truncation context passed from Pass 1 to Pass 2 for enrichment awareness. */
+export interface TruncationContext {
+  filesExcluded: number;
+  totalFiles: number;
+}
+
+/** Consolidated options for the enrichment prompt builder (Sprint 69 — params object pattern). */
+export interface EnrichmentOptions {
+  findingsJSON: string;
+  item: ReviewItem;
+  persona: string;
+  truncationContext?: TruncationContext;
+  personaMetadata?: PersonaMetadata;
+  ecosystemContext?: EcosystemContext;
+}
+
 /** Token estimate broken down by component for calibration logging. */
 export interface TokenEstimateBreakdown {
   persona: number;
