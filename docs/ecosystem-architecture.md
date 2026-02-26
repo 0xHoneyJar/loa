@@ -1,6 +1,6 @@
 # Loa Ecosystem — How It All Fits Together
 
-> **ELI5 guide** to how `loa`, `loa-hounfour`, `loa-freeside`, `loa-finn`, and `loa-dixie` connect as a 5-layer protocol stack for building and operating AI agent economies.
+> **ELI5 guide** to how `loa`, `loa-hounfour`, `loa-freeside`, `loa-finn`, `loa-dixie`, and `loa-constructs` connect as an ecosystem for building and operating AI agent economies.
 
 ## Architecture Diagram
 
@@ -133,6 +133,154 @@ User asks question on Discord
 
 ---
 
+## Where Constructs Network Fits
+
+Constructs aren't a layer in the stack — they're a **cross-cutting distribution plane** that plugs into multiple layers simultaneously. Think of the 5-layer stack as the *infrastructure* and Constructs Network as the *marketplace* that sits alongside it.
+
+```mermaid
+graph TB
+    subgraph "Distribution Plane"
+        CN["🏪 constructs.network<br/>Marketplace + Registry"]
+        API["📡 api.constructs.network<br/>REST API + Git-Sync + Licensing"]
+    end
+
+    subgraph "Construct Repos"
+        OBS["🔬 construct-observer<br/>User Research / Empathy Engine"]
+        GTM["📢 construct-gtm-collective<br/>Go-To-Market"]
+        HRL["📣 construct-herald<br/>Product Comms"]
+        HRD["🛡️ construct-hardening<br/>Security Sentinel"]
+        RUN["🎨 rune<br/>Design Physics"]
+        MEL["💬 melange<br/>Cross-Construct Protocol"]
+    end
+
+    subgraph "Layer 5: Product"
+        DIXIE["🔮 loa-dixie<br/>The Oracle Product"]
+    end
+
+    subgraph "Layer 4: Platform"
+        FREESIDE["🏗️ loa-freeside<br/>API + Billing + Discord/TG"]
+    end
+
+    subgraph "Layer 3: Runtime"
+        FINN["⚡ loa-finn<br/>Agent Execution Engine"]
+    end
+
+    subgraph "Layer 2: Protocol"
+        HOUNFOUR["📜 loa-hounfour<br/>Schemas + Rules + Contracts"]
+    end
+
+    subgraph "Layer 1: Framework"
+        LOA["🛠️ loa<br/>Dev Framework + Skills"]
+    end
+
+    CN -->|"browse + discover"| API
+    API -->|"git-sync from<br/>source repos"| OBS
+    API -->|"git-sync"| GTM
+    API -->|"git-sync"| HRL
+    API -->|"git-sync"| HRD
+
+    OBS -->|"install into"| LOA
+    GTM -->|"install into"| LOA
+    HRL -->|"install into"| LOA
+    HRD -->|"install into"| LOA
+    RUN -->|"install into"| LOA
+
+    MEL -.->|"cross-construct<br/>communication"| OBS
+    MEL -.->|"cross-construct<br/>communication"| GTM
+
+    OBS -->|"emits events via<br/>event envelope schema"| HOUNFOUR
+    DIXIE -->|"consumes constructs<br/>as first customer"| LOA
+
+    FREESIDE -.->|"future: marketplace<br/>distribution channel"| CN
+
+    LOA -.->|"mounted in ALL repos"| FINN
+    LOA -.->|"mounted in ALL repos"| FREESIDE
+    LOA -.->|"mounted in ALL repos"| HOUNFOUR
+    LOA -.->|"mounted in ALL repos"| DIXIE
+
+    DIXIE -->|"queries via platform"| FREESIDE
+    FREESIDE -->|"routes to runtime"| FINN
+    FINN -->|"validates against"| HOUNFOUR
+
+    style CN fill:#f39c12,stroke:#d68910,color:#fff
+    style API fill:#f39c12,stroke:#d68910,color:#fff
+    style LOA fill:#4a9eff,stroke:#2d7cd4,color:#fff
+    style HOUNFOUR fill:#9b59b6,stroke:#7d3c98,color:#fff
+    style FINN fill:#e67e22,stroke:#d35400,color:#fff
+    style FREESIDE fill:#2ecc71,stroke:#27ae60,color:#fff
+    style DIXIE fill:#e74c3c,stroke:#c0392b,color:#fff
+    style OBS fill:#1abc9c,stroke:#16a085,color:#fff
+    style GTM fill:#1abc9c,stroke:#16a085,color:#fff
+    style HRL fill:#1abc9c,stroke:#16a085,color:#fff
+    style HRD fill:#1abc9c,stroke:#16a085,color:#fff
+    style RUN fill:#1abc9c,stroke:#16a085,color:#fff
+    style MEL fill:#95a5a6,stroke:#7f8c8d,color:#fff
+```
+
+---
+
+### ELI5: What Constructs Are
+
+**Think of it as**: An app store, but for AI agent expertise.
+
+A construct is a named, packaged unit of expert knowledge that you can install into any Loa-managed repo. Install the Observer construct and your AI agent suddenly knows how to do hypothesis-first user research. Install GTM Collective and it can plan go-to-market strategies. Each construct carries:
+
+- **Identity** — a persona with cognitive style and voice
+- **Expertise** — domains rated 1-5 with hard boundaries (what it *refuses* to do)
+- **Skills** — executable capabilities that become slash commands
+- **Events** — structured messages for cross-construct communication
+
+> *"If Loa is the operating system, constructs are the apps."*
+
+---
+
+### The Construct Lifecycle
+
+```
+Creator pushes to GitHub repo (e.g., construct-observer)
+        ↓
+api.constructs.network git-syncs from source
+        ↓
+constructs.network marketplace lists it (browse, search, ratings)
+        ↓
+User runs /constructs install observer
+        ↓
+constructs-install.sh: download → extract → symlink → license validate
+        ↓
+Skills appear as /slash-commands in Claude Code
+        ↓
+Agent gains new expertise (user research, gap analysis, etc.)
+```
+
+---
+
+### Known Constructs
+
+| Construct | What It Does | Skills |
+|-----------|-------------|--------|
+| **Observer** | Hypothesis-first user research — the empathy engine | 24 (capture, synthesis, analysis, migration) |
+| **GTM Collective** | Turns what engineers build into what markets buy | 8 (positioning, pricing, devrel, partnerships) |
+| **Herald** | Grounded product communication from code evidence | comms, announcements, stakeholder translation |
+| **Hardening** | Transforms incidents into compounding defensive artifacts | security sentinel, incident response |
+| **Rune** | Design physics for AI-generated UI (5 sub-constructs) | Glyph, Sigil, Rigor, Wyrd, Lore |
+| **Melange** | Cross-construct communication protocol | /send, /inbox, /threads |
+
+---
+
+### Distribution Vision
+
+The vision is `constructs.network` as the **canonical source for entering the Sprawl** — the registry where all expertise enters the ecosystem. Distribution then fans out to:
+
+1. **constructs.network** — self-hosted, canonical registry
+2. **Claude Code marketplace** — construct format maps naturally to slash commands
+3. **MCP registries** — constructs as MCP tool providers
+4. **loa-freeside platform** — token-gated access, conviction-scored distribution
+5. **Direct GitHub** — constructs are just repos, always installable raw
+
+> *The registry is the hounfour — the temple where new spirits enter. Distribution channels are the crossroads where they meet practitioners.*
+
+---
+
 ## Naming — The Scholarly Chain
 
 The naming draws from Haitian Vodou, but specifically through its literary adaptation in William Gibson's Sprawl trilogy (*Neuromancer*, *Count Zero*, *Mona Lisa Overdrive*). Gibson's use of Vodou was itself grounded in anthropological sources — this layering is deliberate and worth understanding precisely.
@@ -189,3 +337,6 @@ Gibson himself noted that Vodou is "not concerned with notions of salvation and 
 | **Cheval** | The "horse" that loa ride (*Count Zero*) | Human vessel possessed by a loa during ceremony | Agent session — the computational vessel the framework rides |
 | **Grimoire** | — | Book of spells and ritual instructions | State directory — accumulated project knowledge |
 | **Beauvoir** | Character who explains Vodou-as-interface (*Count Zero*) | Max Beauvoir, Supreme Chief of Vodou in Haiti | Reviewer persona files that guide code review |
+| **Construct** | ROM construct — preserved consciousness (*Neuromancer*) | — (pure Gibson) | Packaged expert knowledge, installable per-repo |
+| **Melange** | — (cross-reference: the spice from *Dune*) | — | Cross-construct communication protocol |
+| **Rune** | — (magical inscription) | — | Design physics — encoded visual rules |
