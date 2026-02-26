@@ -3,7 +3,7 @@
 **ID**: vision-003
 **Source**: Bridge iteration 1 of bridge-20260214-e8fa94
 **PR**: #324
-**Date**: 2026-02-14
+**Date**: 2026-02-14T00:00:00Z
 **Status**: Exploring
 **Tags**: [security, prompt-injection, context-isolation]
 

@@ -39,6 +39,28 @@ Also revert in:
 - `.claude/scripts/gpt-review-api.sh`: `DEFAULT_MODELS` prd/sdd/sprint back to `gpt-5.2`
 - `.claude/scripts/flatline-orchestrator.sh`: `get_model_secondary()` default back to `gpt-5.2`
 
+## Decisions
+
+| Date | Decision | Rationale |
+|------|----------|-----------|
+| 2026-02-26 | Cache: result stored [key: integrit...] | Source: cache |
+| 2026-02-26 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-02-26 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-02-26 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-02-26 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-02-26 | Cache: result stored [key: test-sec...] | Source: cache |
+| 2026-02-26 | Cache: result stored [key: test-key...] | Source: cache |
+| 2026-02-26 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-02-26 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-02-26 | Cache: result stored [key: integrit...] | Source: cache |
+| 2026-02-26 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-02-26 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-02-26 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-02-26 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-02-26 | Cache: result stored [key: test-sec...] | Source: cache |
+| 2026-02-26 | Cache: result stored [key: test-key...] | Source: cache |
+| 2026-02-26 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-02-26 | Cache: PASS [key: test-key...] | Source: cache |
 ## Blockers
 
 None.

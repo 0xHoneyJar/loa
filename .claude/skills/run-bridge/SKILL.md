@@ -121,11 +121,15 @@ When the `BRIDGEBUILDER_REVIEW` signal fires, execute this 10-step workflow:
    If any section is missing or empty, log WARNING and disable persona enrichment for
    this iteration (fall back to unadorned review).
 
-3. **Lore Load**: Query lore index for relevant entries:
+3. **Lore Load**: Query lore index for relevant entries from both discovered
+   patterns AND elevated visions (closing the autopoietic loop):
    ```bash
    categories=$(yq '.run_bridge.lore.categories[]' .loa.config.yaml 2>/dev/null)
+   # Load from both patterns.yaml (discovered patterns) and visions.yaml (elevated visions)
    ```
    Load `short` fields inline in the review prompt. Use `context` for teaching moments.
+   The visions.yaml source ensures that insights which accumulated enough references
+   through the vision registry feed back into future bridge reviews.
 
 4. **Embody Persona**: Include the persona file content in the review prompt as the
    agent's identity and voice instructions. The persona defines HOW to review, not

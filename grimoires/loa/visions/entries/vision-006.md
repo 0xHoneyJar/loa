@@ -3,7 +3,7 @@
 **ID**: vision-006
 **Source**: Issue #344, Comments 3-6
 **PR**: N/A
-**Date**: 2026-02-15
+**Date**: 2026-02-15T00:00:00Z
 **Status**: Captured
 **Tags**: [orchestration, intent-modeling, symbiotic]
 

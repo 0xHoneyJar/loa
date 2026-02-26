@@ -563,3 +563,85 @@ LORE_EOF
     run grep 'Total implemented:' "$index_file"
     [[ "$output" == *"1"* ]]
 }
+
+# =============================================================================
+# Sprint 4 (cycle-042): Dynamic index statistics
+# =============================================================================
+
+@test "vision_regenerate_index_stats: correctly counts statuses from table" {
+    local test_index="$TEST_TMPDIR/index.md"
+    cat > "$test_index" <<'EOF'
+<!-- schema_version: 1 -->
+# Vision Registry
+
+## Active Visions
+
+| ID | Title | Source | Status | Tags | Refs |
+|----|-------|--------|--------|------|------|
+| vision-001 | Test A | src-a | Captured | arch | 0 |
+| vision-002 | Test B | src-b | Exploring | sec | 0 |
+| vision-003 | Test C | src-c | Exploring | sec | 0 |
+| vision-004 | Test D | src-d | Implemented | arch | 0 |
+| vision-005 | Test E | src-e | Captured | ux | 0 |
+| vision-006 | Test F | src-f | Deferred | misc | 0 |
+
+## Statistics
+
+- Total captured: 999
+- Total exploring: 999
+- Total proposed: 999
+- Total implemented: 999
+- Total deferred: 999
+EOF
+
+    # Source lib and call function directly (not via run, since it's a shell function)
+    _VISION_LIB_LOADED=""
+    source "$PROJECT_ROOT/.claude/scripts/vision-lib.sh"
+    vision_regenerate_index_stats "$test_index"
+
+    # Verify correct counts
+    run grep 'Total captured:' "$test_index"
+    [[ "$output" == *"2"* ]]
+
+    run grep 'Total exploring:' "$test_index"
+    [[ "$output" == *"2"* ]]
+
+    run grep 'Total proposed:' "$test_index"
+    [[ "$output" == *"0"* ]]
+
+    run grep 'Total implemented:' "$test_index"
+    [[ "$output" == *"1"* ]]
+
+    run grep 'Total deferred:' "$test_index"
+    [[ "$output" == *"1"* ]]
+}
+
+@test "vision_regenerate_index_stats: handles empty table (all zeros)" {
+    local test_index="$TEST_TMPDIR/index.md"
+    cat > "$test_index" <<'EOF'
+<!-- schema_version: 1 -->
+# Vision Registry
+
+## Active Visions
+
+| ID | Title | Source | Status | Tags | Refs |
+|----|-------|--------|--------|------|------|
+
+## Statistics
+
+- Total captured: 5
+- Total exploring: 3
+EOF
+
+    # Source lib and call function directly
+    _VISION_LIB_LOADED=""
+    source "$PROJECT_ROOT/.claude/scripts/vision-lib.sh"
+    vision_regenerate_index_stats "$test_index"
+
+    # All counts should be 0
+    run grep 'Total captured:' "$test_index"
+    [[ "$output" == *"0"* ]]
+
+    run grep 'Total exploring:' "$test_index"
+    [[ "$output" == *"0"* ]]
+}

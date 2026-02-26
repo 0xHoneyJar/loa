@@ -3,7 +3,7 @@
 **ID**: vision-008
 **Source**: Bridge iteration 2 of bridge-20260223-b6180e
 **PR**: #404
-**Date**: 2026-02-23
+**Date**: 2026-02-23T00:00:00Z
 **Status**: Captured
 **Tags**: [architecture, routing, framework-primitive]
 

@@ -477,6 +477,9 @@ vision_update_status() {
   }
 
   vision_atomic_write "$index_file" _do_update_status
+
+  # Regenerate statistics after status change
+  vision_regenerate_index_stats "$index_file" 2>/dev/null || true
 }
 
 # =============================================================================
@@ -677,4 +680,55 @@ vision_append_lore_entry() {
   echo "" >> "$lore_file"
   echo "$entry" >> "$lore_file"
   echo "Elevated $vid to lore: $lore_file"
+}
+
+# =============================================================================
+# vision_regenerate_index_stats() — Dynamic statistics from table
+# =============================================================================
+#
+# Recomputes the ## Statistics section in index.md from the actual table rows.
+# Eliminates manually-maintained counts that drift from reality.
+#
+# Input: $1=index_file (optional, defaults to PROJECT_ROOT/grimoires/loa/visions/index.md)
+# Returns: 0 on success, 1 if index not found
+#
+vision_regenerate_index_stats() {
+  local index_file="${1:-${PROJECT_ROOT}/grimoires/loa/visions/index.md}"
+
+  if [[ ! -f "$index_file" ]]; then
+    echo "ERROR: Vision index not found: $index_file" >&2
+    return 1
+  fi
+
+  # Count statuses from the table (grep for status column values)
+  local captured exploring proposed implemented deferred
+  captured=$(grep -c '| Captured |' "$index_file" 2>/dev/null || echo 0)
+  exploring=$(grep -c '| Exploring |' "$index_file" 2>/dev/null || echo 0)
+  proposed=$(grep -c '| Proposed |' "$index_file" 2>/dev/null || echo 0)
+  implemented=$(grep -c '| Implemented |' "$index_file" 2>/dev/null || echo 0)
+  deferred=$(grep -c '| Deferred |' "$index_file" 2>/dev/null || echo 0)
+
+  # Rewrite statistics section using awk (safe, no shell expansion issues)
+  # Note: avoid awk variable names that clash with builtins (exp, log, etc.)
+  local tmp_file="${index_file}.stats.tmp"
+  awk -v n_cap="$captured" -v n_expl="$exploring" -v n_prop="$proposed" \
+      -v n_impl="$implemented" -v n_def="$deferred" '
+    BEGIN { in_stats=0; stats_written=0 }
+    /^## Statistics/ {
+      in_stats=1
+      print
+      print ""
+      print "- Total captured: " n_cap
+      print "- Total exploring: " n_expl
+      print "- Total proposed: " n_prop
+      print "- Total implemented: " n_impl
+      print "- Total deferred: " n_def
+      stats_written=1
+      next
+    }
+    in_stats && /^## / { in_stats=0; print; next }
+    in_stats && /^$/ && stats_written { next }
+    in_stats && /^- Total / { next }
+    !in_stats { print }
+  ' "$index_file" > "$tmp_file" && mv "$tmp_file" "$index_file"
 }

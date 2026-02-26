@@ -3,7 +3,7 @@
 **ID**: vision-007
 **Source**: Issue #344, Comment 3 (Orchestration Philosophy)
 **PR**: N/A
-**Date**: 2026-02-15
+**Date**: 2026-02-15T00:00:00Z
 **Status**: Captured
 **Tags**: [orchestration, ux, progressive-disclosure]
 

@@ -290,10 +290,8 @@ if [[ -f "$OUTPUT_DIR/index.md" ]]; then
     local_num=$((local_num + 1))
   done < <(jq -c '.findings[] | select(.severity == "VISION")' "$FINDINGS_FILE")
 
-  # Update statistics
-  total_captured=$(ls "$entries_dir"/vision-*.md 2>/dev/null | wc -l)
-  safe_total=$(printf '%s' "$total_captured" | sed 's/[\\/&]/\\\\&/g')
-  sed "s/^- Total captured: .*/- Total captured: $safe_total/" "$OUTPUT_DIR/index.md" > "$OUTPUT_DIR/index.md.tmp" && mv "$OUTPUT_DIR/index.md.tmp" "$OUTPUT_DIR/index.md"
+  # Regenerate statistics dynamically from table rows
+  vision_regenerate_index_stats "$OUTPUT_DIR/index.md" 2>/dev/null || true
 fi
 
 echo "$vision_count"

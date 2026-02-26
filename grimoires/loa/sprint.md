@@ -268,3 +268,141 @@ Wire the bridge-to-vision pipeline so future insights are captured automatically
 - T3 depends on T2 (VISION_CAPTURE before LORE_DISCOVERY chain)
 - T4 depends on T2, T3 (pipeline wired before integration tests)
 - T5 depends on all (regression after all changes)
+
+---
+
+## Sprint 4 (Global: Sprint-80) — Excellence Hardening: Bridgebuilder Findings
+
+Address the 3 concrete improvements identified in the [Bridgebuilder review of PR #417](https://github.com/0xHoneyJar/loa/pull/417#issuecomment-3964289055) plus close the autopoietic feedback loop from lore → bridge reviews.
+
+### T1: Lower shadow mode `min_overlap` default for observation
+
+- [ ] **File**: `.claude/scripts/vision-registry-query.sh`
+- [ ] **Problem**: `MIN_OVERLAP` defaults to 2 (line 53), but shadow mode's first run showed `matches_during_shadow: 0` despite 3 entries being findable with `--min-overlap 1`. Most visions share only 1 tag with typical sprint contexts.
+- [ ] **Fix**: When `--shadow` is set and `--min-overlap` was NOT explicitly provided, auto-lower `MIN_OVERLAP` to 1:
+  ```bash
+  # Track whether user explicitly set min_overlap
+  MIN_OVERLAP_EXPLICIT=false
+  # ... in arg parsing:
+  --min-overlap) MIN_OVERLAP="${2:-2}"; MIN_OVERLAP_EXPLICIT=true; shift 2 ;;
+  # ... after arg parsing:
+  if [[ "$SHADOW_MODE" == "true" && "$MIN_OVERLAP_EXPLICIT" == "false" ]]; then
+    MIN_OVERLAP=1  # Shadow mode observes broadly
+  fi
+  ```
+- [ ] Shadow mode is for observation — it should cast a wide net. Active mode keeps the default threshold of 2 for precision.
+- [ ] Update the help text to document shadow mode behavior
+- **Acceptance**: `vision-registry-query.sh --tags security --shadow --json` returns matches for visions with 1 tag overlap; explicit `--min-overlap 2` still overrides
+
+### T2: Dynamic index statistics via `vision_regenerate_index_stats()`
+
+- [ ] **File**: `.claude/scripts/vision-lib.sh` — add new function
+- [ ] **Problem**: The Statistics section in `index.md` is manually maintained:
+  ```
+  - Total captured: 6
+  - Total exploring: 2
+  ```
+  This will drift from reality as `bridge-vision-capture.sh` adds entries and statuses change.
+- [ ] **Fix**: Add `vision_regenerate_index_stats()` that:
+  1. Reads the `## Active Visions` table from `index.md`
+  2. Counts entries by Status column (Captured, Exploring, Proposed, Implemented, Deferred)
+  3. Rewrites the `## Statistics` section with computed values
+  4. Uses `vision_atomic_write()` for safe file mutation
+  ```bash
+  vision_regenerate_index_stats() {
+    local index_file="${1:-${PROJECT_ROOT}/grimoires/loa/visions/index.md}"
+    [[ -f "$index_file" ]] || return 1
+
+    # Count statuses from the table (skip header rows)
+    local captured exploring proposed implemented deferred
+    captured=$(grep -c '| Captured |' "$index_file" 2>/dev/null || echo 0)
+    exploring=$(grep -c '| Exploring |' "$index_file" 2>/dev/null || echo 0)
+    proposed=$(grep -c '| Proposed |' "$index_file" 2>/dev/null || echo 0)
+    implemented=$(grep -c '| Implemented |' "$index_file" 2>/dev/null || echo 0)
+    deferred=$(grep -c '| Deferred |' "$index_file" 2>/dev/null || echo 0)
+
+    # Rewrite statistics section using awk (safe, no shell expansion)
+    local tmp_file="${index_file}.tmp"
+    awk -v cap="$captured" -v exp="$exploring" -v prop="$proposed" \
+        -v impl="$implemented" -v def="$deferred" '
+      /^## Statistics/ { print; found=1; next }
+      found && /^## / { found=0 }  # Next section starts
+      found && /^$/ { found=0 }    # Empty line ends section
+      found { next }               # Skip old statistics lines
+      !found { print }
+      END {
+        if (!found) {
+          print ""
+          print "## Statistics"
+        }
+        print ""
+        print "- Total captured: " cap
+        print "- Total exploring: " exp
+        print "- Total proposed: " prop
+        print "- Total implemented: " impl
+        print "- Total deferred: " def
+      }
+    ' "$index_file" > "$tmp_file" && mv "$tmp_file" "$index_file"
+  }
+  ```
+- [ ] **File**: `.claude/scripts/bridge-vision-capture.sh` — call `vision_regenerate_index_stats` after adding new entries to index
+- [ ] **File**: `.claude/scripts/vision-lib.sh` — call from `vision_update_status()` after status changes
+- **Acceptance**: After any vision entry addition or status change, statistics section is automatically recomputed from the table
+
+### T3: Standardize vision entry dates to ISO 8601 with time
+
+- [ ] **Problem**: Date formats are inconsistent across vision entries:
+  - vision-001: `2026-02-13T03:52:38Z` (ISO 8601 with time)
+  - vision-002: `2026-02-13` (date only)
+  - vision-008: `2026-02-23` (date only)
+- [ ] **Fix 1**: Normalize all 9 existing vision entries to ISO 8601 with time:
+  - Entries with date-only get `T00:00:00Z` appended (unknown time → midnight UTC)
+  - Entries already with time keep their existing timestamp
+- [ ] **Fix 2**: `.claude/scripts/bridge-vision-capture.sh` — verify `date -u +"%Y-%m-%dT%H:%M:%SZ"` is used consistently for all new entry creation (already the case — confirm, no change needed)
+- [ ] **Fix 3**: `.claude/scripts/vision-lib.sh` `vision_validate_entry()` — accept both formats for backward compatibility but add a comment documenting ISO 8601 with time as the canonical format for new entries
+- [ ] Update 8 vision entry files (vision-001 already correct)
+- **Acceptance**: All 9 entries use `YYYY-MM-DDTHH:MM:SSZ` format; `vision_validate_entry()` still passes for all entries
+
+### T4: Close the autopoietic loop — load visions.yaml in bridge lore context
+
+- [ ] **Problem**: The pipeline flows bridge → vision → lore, but lore doesn't flow back to bridge reviews. The `LORE_DISCOVERY` signal writes elevated visions to `.claude/data/lore/discovered/visions.yaml`, but the Bridgebuilder review's Lore Load step (SKILL.md §3.1 step 3) only reads from `patterns.yaml` via configured categories.
+- [ ] **File**: `.claude/scripts/lore-discover.sh` line 219 — already scans both `patterns.yaml` AND `visions.yaml` for reference updates. Confirm this is working.
+- [ ] **File**: `.claude/skills/run-bridge/SKILL.md` — update the "Lore Load" documentation (step 3) to explicitly include `visions.yaml` alongside `patterns.yaml`:
+  ```
+  Load entries from both patterns.yaml (discovered patterns) and
+  visions.yaml (elevated visions). Use `short` fields inline.
+  ```
+- [ ] **File**: `.claude/data/lore/index.yaml` or equivalent lore index — ensure `visions.yaml` is listed as a lore source so category-based queries include it
+- [ ] Verify the bridge review agent loads lore from both files when constructing review context
+- **Acceptance**: A lore query that would match an elevated vision entry in `visions.yaml` returns it alongside `patterns.yaml` entries
+
+### T5: Tests for excellence improvements
+
+- [ ] **File**: `tests/unit/vision-registry-query.bats` (extend, +2 tests)
+  - Test: shadow mode with `--tags security` returns matches at min_overlap=1 (auto-lowered)
+  - Test: shadow mode with explicit `--min-overlap 2 --tags security` respects override (fewer matches)
+- [ ] **File**: `tests/unit/vision-lib.bats` (extend, +2 tests)
+  - Test: `vision_regenerate_index_stats()` correctly counts statuses from a populated index.md
+  - Test: `vision_regenerate_index_stats()` handles empty table (all zeros)
+- [ ] **File**: `tests/unit/template-safety.bats` (extend, +1 test)
+  - Test: date format normalization — all vision entries match ISO 8601 with time pattern
+- [ ] Run full regression suite: all existing vision tests + new tests
+- **Acceptance**: 5 new tests pass, full test suite green
+
+### T6: Full regression
+
+- [ ] Run all vision-lib unit tests (45 existing + 2 new = 47)
+- [ ] Run all vision-registry-query unit tests (21 existing + 2 new = 23)
+- [ ] Run all template-safety unit tests (4 existing + 1 new = 5)
+- [ ] Run all vision-planning integration tests (12 existing)
+- [ ] **Target**: 87 vision-related tests, all passing
+- [ ] Run full bats suite to confirm no regressions in other subsystems
+- **Acceptance**: All tests green
+
+### Dependencies
+- T1 is independent
+- T2 is independent
+- T3 is independent
+- T4 depends on Sprint 3 T3 (visions.yaml lore elevation must be wired)
+- T5 depends on T1, T2, T3
+- T6 depends on all

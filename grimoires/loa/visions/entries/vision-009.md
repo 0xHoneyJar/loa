@@ -3,7 +3,7 @@
 **ID**: vision-009
 **Source**: Bridge review of bridge-20260219-16e623
 **PR**: #368
-**Date**: 2026-02-19
+**Date**: 2026-02-19T00:00:00Z
 **Status**: Captured
 **Tags**: [epistemic-enforcement, security, cheval]
 

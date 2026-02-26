@@ -51,6 +51,7 @@ done
 TAGS=""
 STATUS_FILTER="Captured,Exploring"
 MIN_OVERLAP=2
+MIN_OVERLAP_EXPLICIT=false
 MAX_RESULTS=3
 VISIONS_DIR="${PROJECT_ROOT}/grimoires/loa/visions"
 JSON_OUTPUT=false
@@ -71,6 +72,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --min-overlap)
       MIN_OVERLAP="${2:-2}"
+      MIN_OVERLAP_EXPLICIT=true
       shift 2
       ;;
     --max-results)
@@ -103,6 +105,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --help)
       echo "Usage: vision-registry-query.sh --tags <tags> [--status <statuses>] [--min-overlap N] [--max-results N] [--json] [--include-text] [--shadow]"
+      echo "  --shadow: Shadow mode auto-lowers --min-overlap to 1 (override with explicit --min-overlap)"
       exit 0
       ;;
     *)
@@ -111,6 +114,12 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+# Shadow mode auto-lowers min_overlap to 1 for broader observation
+# (unless user explicitly set --min-overlap)
+if [[ "$SHADOW_MODE" == "true" && "$MIN_OVERLAP_EXPLICIT" == "false" ]]; then
+  MIN_OVERLAP=1
+fi
 
 if [[ -z "$TAGS" ]]; then
   echo "ERROR: --tags is required" >&2

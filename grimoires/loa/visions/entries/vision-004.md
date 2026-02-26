@@ -3,7 +3,7 @@
 **ID**: vision-004
 **Source**: Bridge iteration 1 of bridge-20260216-c020te
 **PR**: #341
-**Date**: 2026-02-16
+**Date**: 2026-02-16T00:00:00Z
 **Status**: Implemented
 **Implementation**: cycle-023 (The Permission Amendment)
 **Tags**: [architecture, constraints, feature-flags]

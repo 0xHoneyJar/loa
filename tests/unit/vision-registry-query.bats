@@ -319,3 +319,82 @@ PRD
     run "$SCRIPT" --tags "architecture" --unknown-flag
     [ "$status" -eq 2 ]
 }
+
+# =============================================================================
+# Sprint 4 (cycle-042): Shadow mode min_overlap auto-lowering
+# =============================================================================
+
+@test "vision-registry-query: shadow mode auto-lowers min_overlap to 1" {
+    skip_if_deps_missing
+
+    # Shadow mode needs trajectory dir under PROJECT_ROOT
+    mkdir -p "$TEST_TMPDIR/grimoires/loa/a2a/trajectory"
+
+    # Create index with entries that have only 1 tag overlap with "security"
+    cat > "$TEST_TMPDIR/visions/index.md" <<'INDEXEOF'
+<!-- schema_version: 1 -->
+# Vision Registry
+
+## Active Visions
+
+| ID | Title | Source | Status | Tags | Refs |
+|----|-------|--------|--------|------|------|
+| vision-001 | Credential Provider | bridge-test / PR #1 | Captured | architecture | 0 |
+| vision-002 | Template Safety | bridge-test / PR #2 | Exploring | security, bash | 0 |
+| vision-003 | Context Isolation | bridge-test / PR #3 | Exploring | security, prompt-injection | 0 |
+
+## Statistics
+
+- Total captured: 1
+- Total exploring: 2
+- Total proposed: 0
+- Total implemented: 0
+- Total deferred: 0
+INDEXEOF
+
+    # Shadow mode with "security" tag — should match vision-002 and vision-003 at min_overlap=1
+    run env PROJECT_ROOT="$TEST_TMPDIR" "$SCRIPT" --tags "security" --visions-dir "$TEST_TMPDIR/visions" --shadow --shadow-cycle "test" --shadow-phase "test" --json
+    [ "$status" -eq 0 ]
+
+    # Should have matches (min_overlap auto-lowered to 1)
+    local match_count
+    match_count=$(echo "$output" | jq 'length')
+    [ "$match_count" -ge 1 ]
+}
+
+@test "vision-registry-query: shadow mode respects explicit --min-overlap 2" {
+    skip_if_deps_missing
+
+    # Shadow mode needs trajectory dir under PROJECT_ROOT
+    mkdir -p "$TEST_TMPDIR/grimoires/loa/a2a/trajectory"
+
+    # Same index as above
+    cat > "$TEST_TMPDIR/visions/index.md" <<'INDEXEOF'
+<!-- schema_version: 1 -->
+# Vision Registry
+
+## Active Visions
+
+| ID | Title | Source | Status | Tags | Refs |
+|----|-------|--------|--------|------|------|
+| vision-001 | Credential Provider | bridge-test / PR #1 | Captured | architecture | 0 |
+| vision-002 | Template Safety | bridge-test / PR #2 | Exploring | security, bash | 0 |
+| vision-003 | Context Isolation | bridge-test / PR #3 | Exploring | security, prompt-injection | 0 |
+
+## Statistics
+
+- Total captured: 1
+- Total exploring: 2
+- Total proposed: 0
+- Total implemented: 0
+- Total deferred: 0
+INDEXEOF
+
+    # Shadow mode with explicit --min-overlap 2 and only 1 matching tag — should find nothing
+    run env PROJECT_ROOT="$TEST_TMPDIR" "$SCRIPT" --tags "security" --min-overlap 2 --visions-dir "$TEST_TMPDIR/visions" --shadow --shadow-cycle "test" --shadow-phase "test" --json
+    [ "$status" -eq 0 ]
+
+    local match_count
+    match_count=$(echo "$output" | jq 'length')
+    [ "$match_count" -eq 0 ]
+}

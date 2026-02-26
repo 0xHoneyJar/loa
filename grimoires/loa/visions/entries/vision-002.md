@@ -3,7 +3,7 @@
 **ID**: vision-002
 **Source**: Bridge iteration 1 of bridge-20260213-c012rt
 **PR**: #317
-**Date**: 2026-02-13
+**Date**: 2026-02-13T00:00:00Z
 **Status**: Exploring
 **Tags**: [security, bash, template-rendering]
 
