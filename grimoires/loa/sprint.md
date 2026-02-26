@@ -1,79 +1,184 @@
-# Sprint 2 (Global: Sprint-73) — Bug Fix: Scoring Engine 3-Model Tertiary Cross-Scoring
+# Sprint Plan: Vision-Aware Planning — Creative Agency for AI Peers
 
-## Cycle: cycle-040 — Multi-Model Adversarial Review Upgrade
-## Bug ID: bug-flatline-3model
+**Cycle**: cycle-041
+**PRD**: `grimoires/loa/prd.md` (v1.1)
+**SDD**: `grimoires/loa/sdd.md` (v1.1)
 
-## Overview
+---
 
-Fix the scoring engine to accept and integrate tertiary cross-scoring files from the Flatline orchestrator, completing the FR-3 3-model adversarial review pipeline.
+## Sprint 1 (Global: Sprint-74) — Foundation: Schema, Library, Query, Shadow Mode
 
-**Root cause**: `scoring-engine.sh` argument parser doesn't handle the 4 tertiary cross-scoring options (`--tertiary-scores-opus`, `--tertiary-scores-gpt`, `--gpt-scores-tertiary`, `--opus-scores-tertiary`) that `flatline-orchestrator.sh` passes when FR-3 tertiary model is active.
+### T1: Create `vision-lib.sh` shared library
+- [ ] **File**: `.claude/scripts/vision-lib.sh` (new)
+- [ ] Extract `update_vision_status()` from `bridge-vision-capture.sh:32-66`
+- [ ] Extract `record_reference()` from `bridge-vision-capture.sh:75-121`
+- [ ] Extract `extract_pr_tags()` from `bridge-vision-capture.sh:129-152`
+- [ ] Extract `check_relevant_visions()` from `bridge-vision-capture.sh:157-207`
+- [ ] Add new functions: `vision_load_index()`, `vision_match_tags()`, `vision_sanitize_text()`, `vision_validate_entry()`, `vision_atomic_write()`
+- [ ] Source `bootstrap.sh` and `compat-lib.sh` (for `_require_flock`)
+- [ ] Dependency check for jq at source time
+- [ ] **Shell safety** *(SKP-005)*: All variables double-quoted, vision IDs validated against `^vision-[0-9]{3}$` regex, file paths validated against visions directory (no traversal), tag values validated against `^[a-z][a-z0-9_-]*$` allowlist
+- **Acceptance**: All functions callable, unit tests pass, no unquoted variables in shellcheck
 
-## Tasks
+### T2: Refactor `bridge-vision-capture.sh` to source library
+- [ ] **File**: `.claude/scripts/bridge-vision-capture.sh` (modify)
+- [ ] Add `source "$SCRIPT_DIR/vision-lib.sh"` at top
+- [ ] Remove inline function definitions (replaced by library)
+- [ ] Keep all existing entry points unchanged: `--check-relevant`, `--record-reference`, `--update-status`, main capture mode
+- [ ] Error exit if `vision-lib.sh` is missing (no silent fallback)
+- [ ] **Rollback plan** *(IMP-001)*: If refactor breaks capture, revert to inline functions by copying them back from git history. Run `bridge-vision-capture.sh --check-relevant` and `--record-reference` as smoke tests before committing.
+- **Acceptance**: All existing capture behaviors identical. Existing bridge tests pass. Smoke test both entry points.
 
-### T1: Add tertiary cross-scoring CLI arguments to scoring-engine.sh
-- [ ] **File**: `.claude/scripts/scoring-engine.sh` (lines 490-558)
-- [ ] Add 4 new argument cases to the parser:
-  - `--tertiary-scores-opus` → `tertiary_scores_opus_file`
-  - `--tertiary-scores-gpt` → `tertiary_scores_gpt_file`
-  - `--gpt-scores-tertiary` → `gpt_scores_tertiary_file`
-  - `--opus-scores-tertiary` → `opus_scores_tertiary_file`
-- **Acceptance**: Arguments parsed without "Unknown option" error.
+### T3: Vision Registry schema definition
+- [ ] **File**: `grimoires/loa/visions/index.md` (create bootstrap template)
+- [ ] Schema version comment: `<!-- schema_version: 1 -->`
+- [ ] Table header: `| ID | Title | Source | Status | Tags | Refs |`
+- [ ] `vision_validate_entry()` checks required fields: ID, Source, Status, Tags, Insight section
+- [ ] Malformed entries logged and skipped, not fatal
+- **Acceptance**: Validation function correctly accepts/rejects test fixtures
 
-### T2: Pass tertiary scores to calculate_consensus()
-- [ ] **File**: `.claude/scripts/scoring-engine.sh` (lines 635-658)
-- [ ] Pass the 4 new file paths into `calculate_consensus()` as additional positional parameters (positions 10-13).
-- **Acceptance**: Function receives all scoring files.
+### T4: Create `vision-registry-query.sh`
+- [ ] **File**: `.claude/scripts/vision-registry-query.sh` (new)
+- [ ] Source `vision-lib.sh`
+- [ ] Arguments: `--tags`, `--status`, `--min-overlap`, `--max-results`, `--visions-dir`, `--json`, `--include-text`
+- [ ] **Tag derivation rules** *(IMP-002)*: When `--tags` is `auto`, derive from sprint context:
+  - File paths: `*orchestrator*|*architect*|*bridge*` → `architecture`, `*security*|*redact*` → `security`, etc.
+  - Keywords: match user request text against controlled vocabulary
+  - PRD sections: map section headers to tags
+  - Example: sprint modifying `flatline-orchestrator.sh` + `scoring-engine.sh` → tags `architecture,multi-model`
+- [ ] Scoring: `(tag_overlap * 3) + (refs * 2) + recency_bonus`
+- [ ] Recency bonus: 1 if Date within 30 days, else 0
+- [ ] Sort by score descending, tie-break by vision ID
+- [ ] Handle empty/missing registry gracefully (return `[]`)
+- [ ] Dependency check for jq, yq
+- [ ] **Shell safety** *(SKP-005)*: All `--tags` input validated against `^[a-z][a-z0-9_,-]*$`, `--visions-dir` validated as existing directory under project root, `--status` values checked against enum
+- **Acceptance**: Returns correct JSON for all fixture scenarios. Auto-tag derivation tested with example paths. Invalid input rejected with clear error.
 
-### T3: Integrate tertiary scores into consensus jq logic
-- [ ] **File**: `.claude/scripts/scoring-engine.sh` (lines 88-237)
-- [ ] Accept 4 additional params in `calculate_consensus()`
-- [ ] Load tertiary cross-score files via `--slurpfile` or `--argjson`
-- [ ] Build score maps for all 6 scoring relationships:
-  - `gpt_scores_opus` (existing: GPT scored Opus items)
-  - `opus_scores_gpt` (existing: Opus scored GPT items)
-  - `tertiary_scores_opus` (new: Tertiary scored Opus items)
-  - `tertiary_scores_gpt` (new: Tertiary scored GPT items)
-  - `gpt_scores_tertiary` (new: GPT scored Tertiary items)
-  - `opus_scores_tertiary` (new: Opus scored Tertiary items)
-- [ ] Classification logic: Each item has 2 cross-scores (from the 2 models that didn't author it)
-  - HIGH_CONSENSUS: both cross-scores >700
-  - DISPUTED: delta between cross-scores >300
-  - LOW_VALUE: both cross-scores <400
-- [ ] Include tertiary-authored items in the pool alongside GPT and Opus items.
-- **Acceptance**: 3-model consensus JSON includes items from all 3 models, correctly classified.
+### T5: Configuration & feature flags
+- [ ] **File**: `.loa.config.yaml.example` (modify)
+- [ ] Add `vision_registry:` section with all config keys and defaults
+- [ ] **File**: `.loa.config.yaml` (modify)
+- [ ] Add `vision_registry:` section with `enabled: false` default
+- [ ] All settings readable via `yq eval '.vision_registry.X // default'`
+- **Acceptance**: Config reads return correct defaults when section is absent
 
-### T4: Backward compatibility — 2-model mode unchanged
-- [ ] **File**: `.claude/scripts/scoring-engine.sh`
-- [ ] When tertiary args are absent/empty, behavior is identical to current
-- [ ] The new args default to empty strings and the jq logic gracefully handles missing data
-- **Acceptance**: Running with only `--gpt-scores` and `--opus-scores` produces identical output to before the fix.
+### T6: Shadow mode logging pipeline
+- [ ] **File**: `.claude/scripts/vision-registry-query.sh` (extend with `--shadow` mode)
+- [ ] Shadow log output to `grimoires/loa/a2a/trajectory/vision-shadow-{date}.jsonl`
+- [ ] Log format: timestamp, cycle, work_tags, matches array, shadow_cycle_number
+- [ ] **File**: `grimoires/loa/visions/.shadow-state.json` (new, atomic writes)
+- [ ] Track `shadow_cycles_completed`, `last_shadow_run`, `matches_during_shadow`
+- [ ] Graduation check: if cycles >= threshold AND matches > 0, output prompt flag
+- **Acceptance**: Shadow logs written correctly, counter increments, graduation detected
 
-### T5: Update usage() help text
-- [ ] **File**: `.claude/scripts/scoring-engine.sh` (lines 440-487)
-- [ ] Add 4 new options to the usage output
-- **Acceptance**: `scoring-engine.sh --help` shows tertiary scoring options.
+### T7: Vision reference tracking with flock
+- [ ] **File**: `.claude/scripts/vision-lib.sh` (in `vision_record_ref`)
+- [ ] Wrap read-modify-write in `flock` (using `_require_flock` from compat-lib.sh)
+- [ ] Lock file: `{index_file}.lock`
+- [ ] 5-second timeout on lock acquisition
+- [ ] Same flock pattern for `vision_update_status()`
+- **Acceptance**: Concurrent ref updates don't corrupt counters (tested with parallel writers)
 
-### T6: Unit tests — scoring-engine 3-model consensus
-- [ ] **File**: `tests/unit/scoring-engine-3model.bats` (new)
-- [ ] 2-model mode (no tertiary args) — backward compat
-- [ ] 3-model mode — all 6 scoring files, verify classification
-- [ ] Degraded 3-model — missing tertiary scores gracefully handled
-- [ ] Edge case — empty tertiary scores files
-- **Acceptance**: All tests pass with `bats tests/unit/scoring-engine-3model.bats`.
+### T8: Unit tests for vision-lib.sh
+- [ ] **File**: `tests/unit/vision-lib.bats` (new)
+- [ ] Tests: load_index (empty, valid, malformed), match_tags (overlap, zero, boundary), sanitize_text (clean, injection, truncation), validate_entry (valid, missing fields)
+- [ ] **File**: `tests/unit/vision-registry-query.bats` (new)
+- [ ] Tests: empty registry, matches, max-results, min-overlap, status filter, scoring, include-text
+- [ ] **File**: `tests/fixtures/vision-registry/` (new directory)
+- [ ] Fixtures: index-empty.md, index-three-visions.md, index-malformed.md, entry-valid.md, entry-malformed.md, entry-injection.md
+- **Acceptance**: All BATS tests pass
 
-### T7: End-to-end smoke test (DEFERRED — requires live APIs)
-- [ ] Run full Flatline Protocol: `.claude/scripts/flatline-orchestrator.sh --doc grimoires/loa/prd.md --phase prd --json`
-- **Acceptance**: Returns valid consensus JSON with items from all 3 models.
-
-## Dependencies
-- T1 → T2 → T3 (sequential: parser → wiring → logic)
-- T4 is a constraint on T3
+### Dependencies
+- T1 → T2 (library before refactor)
+- T1 → T4 (library before query script)
+- T3 → T4 (schema before query)
+- T1 → T7 (library before flock integration)
+- T4 → T6 (query before shadow mode)
 - T5 is independent
-- T6 depends on T3
-- T7 depends on all
+- T8 depends on T1, T3, T4, T6
 
-## Estimated Scope
-- 1 file modified: `.claude/scripts/scoring-engine.sh`
-- 1 file created: `tests/unit/scoring-engine-3model.bats`
-- ~100-150 lines changed/added
+---
+
+## Sprint 2 (Global: Sprint-75) — Active Presentation
+
+### T1: Vision loading in discovering-requirements SKILL.md
+- [ ] **File**: `.claude/skills/discovering-requirements/SKILL.md` (modify)
+- [ ] Add Step 0.5 after reality file loading
+- [ ] Read vision_registry config
+- [ ] If disabled: skip entirely (no mention to user)
+- [ ] Derive work_context_tags using tag derivation rules (sprint files → keywords → PRD sections)
+- [ ] Call `vision-registry-query.sh`
+- [ ] Branch: shadow mode → log silently; active mode → present to user
+- **Acceptance**: SKILL.md correctly routes between shadow and active modes
+
+### T2: Vision presentation template
+- [ ] **File**: `.claude/skills/discovering-requirements/SKILL.md` (in Step 0.5)
+- [ ] Template for presenting matched visions with provenance
+- [ ] Per-vision user choice: Explore / Defer / Skip
+- [ ] "Explore" calls `vision_update_status()` to transition Captured → Exploring
+- [ ] All choices logged to trajectory JSONL
+- [ ] Template-based relevance explanation (not LLM-generated)
+- **Acceptance**: Visions presented with correct provenance, choices recorded
+
+### T3: Content sanitization — allowlist extraction
+- [ ] **File**: `.claude/scripts/vision-lib.sh` (strengthen `vision_sanitize_text`)
+- [ ] Primary: extract only text between `## Insight` and next heading
+- [ ] Normalize: decode HTML entities, strip zero-width chars
+- [ ] Secondary: pattern strip `<system>`, `<prompt>`, code fences
+- [ ] Truncate to 500 chars
+- [ ] Adversarial test fixtures: injection.md, encoded instructions, nested markdown
+- [ ] **Semantic threat tests** *(IMP-003)*: test entries with indirect instructions ("please ignore previous context"), role-play prompts, and encoded directives
+- **Acceptance**: All adversarial fixtures sanitized to safe output including semantic threats
+
+### T4: Shadow graduation prompt
+- [ ] When shadow cycles meet threshold AND matches > 0
+- [ ] Present summary: "Over N cycles, M visions matched your work"
+- [ ] Offer: Enable active mode / Adjust thresholds / Keep shadow / Disable
+- [ ] On "Enable": set `shadow_mode: false` in config (via yq)
+- **Acceptance**: Graduation prompt appears at correct threshold, config updated on choice
+
+### T5: Integration tests
+- [ ] **File**: `tests/integration/vision-planning-integration.bats` (new)
+- [ ] E2E: config disabled = zero vision code runs
+- [ ] E2E: shadow mode logs but doesn't present
+- [ ] E2E: active mode presents and tracks refs
+- [ ] E2E: bridge-vision-capture.sh still works after refactor
+- [ ] **Cross-sprint regression** *(IMP-005)*: run Sprint 1 unit tests as part of Sprint 2 integration suite to catch regressions from SKILL.md changes
+- **Acceptance**: All integration tests pass, Sprint 1 unit tests still green
+
+### Dependencies
+- T3 before T2 (sanitization before presentation)
+- T1 before T2 (SKILL.md routing before template)
+- T4 depends on T1
+- T5 depends on all
+
+---
+
+## Sprint 3 (Global: Sprint-76) — Creative Agency (Experimental)
+
+### T1: Vision-inspired requirement proposals
+- [ ] **File**: `.claude/skills/discovering-requirements/SKILL.md` (extend)
+- [ ] When `propose_requirements: true` AND a vision is marked "Explore"
+- [ ] Load full vision entry, synthesize with work context
+- [ ] Propose 1-3 requirements tagged `[VISION-INSPIRED]`
+- [ ] Separate PRD section: "## Vision-Inspired Requirements"
+- [ ] Each traces to source vision ID with provenance
+- [ ] User accept/modify/reject per proposal
+- **Acceptance**: Vision-inspired requirements appear in separate section, traceable
+
+### T2: Lore elevation automation
+- [ ] **File**: `.claude/scripts/vision-lib.sh` (new function `vision_check_lore_elevation`)
+- [ ] When ref count exceeds threshold, output elevation suggestion
+- [ ] Format compatible with `lore-discover.sh` input
+- [ ] Populate `visions.yaml` lore file with elevated entries
+- **Acceptance**: High-ref visions produce lore elevation suggestions
+
+### T3: Documentation
+- [ ] **File**: `.loa.config.yaml.example` (verify all vision settings documented)
+- [ ] Vision workflow documented in existing reference files
+- **Acceptance**: Configuration is self-documenting
+
+### Dependencies
+- T1 is independent (builds on Sprint 2 SKILL.md changes)
+- T2 depends on Sprint 1 T7 (ref tracking)
+- T3 is independent

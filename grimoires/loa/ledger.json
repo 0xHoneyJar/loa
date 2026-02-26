@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-040",
+  "active_cycle": "cycle-041",
   "cycles": [
     {
       "id": "cycle-036",
@@ -173,8 +173,10 @@
     {
       "id": "cycle-040",
       "label": "Multi-Model Adversarial Review Upgrade — GPT-5.3-Codex + Gemini Tertiary",
-      "status": "active",
+      "status": "archived",
       "created": "2026-02-26T00:00:00Z",
+      "archived": "2026-02-26T14:00:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-26-multi-model-adversarial-review",
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
       "sprints": [
@@ -191,7 +193,35 @@
           "status": "completed"
         }
       ]
+    },
+    {
+      "id": "cycle-041",
+      "label": "Vision-Aware Planning — Creative Agency for AI Peers",
+      "status": "active",
+      "created": "2026-02-26T14:00:00Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 74,
+          "label": "Foundation — Schema, Library, Query, Shadow Mode",
+          "status": "in_progress"
+        },
+        {
+          "local_id": 2,
+          "global_id": 75,
+          "label": "Active Presentation",
+          "status": "planned"
+        },
+        {
+          "local_id": 3,
+          "global_id": 76,
+          "label": "Creative Agency (Experimental)",
+          "status": "planned"
+        }
+      ]
     }
   ],
-  "global_sprint_counter": 73
+  "global_sprint_counter": 76
 }

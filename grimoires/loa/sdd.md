@@ -1,324 +1,592 @@
-# SDD: Multi-Model Adversarial Review Upgrade — GPT-5.3-Codex + Gemini Tertiary
+# SDD: Vision-Aware Planning — Creative Agency for AI Peers
 
 **Version**: 1.1 (post-Flatline review)
-**Cycle**: cycle-040
+**Cycle**: cycle-041
 **PRD**: `grimoires/loa/prd.md`
-**Depends-On**: [PR #413](https://github.com/0xHoneyJar/loa/pull/413) (gpt-5.2-codex → gpt-5.3-codex base upgrade)
-
-**PR #413 Verification Gate**: Before merging, confirm: (1) all test suites pass, (2) Responses API dual-path routing validated with live call, (3) jq fallback chain at `model-adapter.sh.legacy:557-563` tested with both Chat Completions and Responses API payloads
 
 ---
 
 ## 1. Architecture Overview
 
-This is a **configuration and registration upgrade** — no new architectural patterns are introduced. The existing three-layer model routing stack and FR-3 triangular scoring infrastructure already support everything we need. We are:
+This feature adds a **Vision Integration Layer** between the existing Vision Registry (write side, populated by bridge reviews) and the Planning Workflow (read side, `/plan-and-analyze`). The layer consists of:
 
-1. Changing defaults from GPT-5.2 → GPT-5.3-codex across all model selection points
-2. Activating the dormant FR-3 tertiary model slot with Gemini 2.5 Pro
-3. Completing model registration for Gemini 3 variants
-4. Adding a flatline iteration safety cap
-
-### Routing Stack (Unchanged)
+1. **`vision-lib.sh`** — Shared library extracted from `bridge-vision-capture.sh`
+2. **`vision-registry-query.sh`** — Query script for programmatic vision filtering
+3. **Configuration** — New `vision_registry` section in `.loa.config.yaml`
+4. **SKILL.md integration** — Vision-aware context loading in `discovering-requirements`
+5. **Shadow mode** — Silent logging pipeline before active presentation
 
 ```
-.loa.config.yaml (defaults)
-    ↓
-flatline-orchestrator.sh → get_model_primary/secondary/tertiary()
-    ↓
-model-adapter.sh (shim) → MODEL_TO_ALIAS map
-    ↓
-model-adapter.sh.legacy → MODEL_PROVIDERS/MODEL_IDS → call_{openai,anthropic,google}_api()
+┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│  Bridge Reviews   │────▶│  Vision Registry  │────▶│  Planning Phase   │
+│  (Bridgebuilder)  │     │  grimoires/loa/   │     │  /plan-and-analyze │
+│                   │     │  visions/          │     │                   │
+│  WRITES entries   │     │  index.md          │     │  READS + filters  │
+│  via capture.sh   │     │  entries/*.md      │     │  via query.sh     │
+└──────────────────┘     └──────────────────┘     └──────────────────┘
+                                                          │
+                              ┌────────────────────────────┤
+                              ▼                            ▼
+                     ┌──────────────┐            ┌──────────────┐
+                     │ Shadow Mode   │            │ Active Mode   │
+                     │ Log to JSONL  │            │ Present to    │
+                     │ (silent)      │            │ user + track  │
+                     └──────────────┘            └──────────────┘
 ```
 
-### Model Selection After This Cycle
+### Design Principle: Extraction, Not Duplication
 
-| Context | Before | After |
-|---------|--------|-------|
-| Flatline primary | `opus` (Claude Opus 4.6) | `opus` (unchanged) |
-| Flatline secondary | `gpt-5.2` | `gpt-5.3-codex` |
-| Flatline tertiary | (none) | `gemini-2.5-pro` |
-| GPT review (docs) | `gpt-5.2` | `gpt-5.3-codex` |
-| GPT review (code) | `gpt-5.3-codex` (PR #413) | `gpt-5.3-codex` (no change) |
-| Adversarial dissent | `gpt-5.3-codex` (PR #413) | `gpt-5.3-codex` (no change) |
-| Red team attacker secondary | `gpt-5.2` | `gpt-5.3-codex` |
-| Red team defender secondary | `gpt-5.2` | `gpt-5.3-codex` |
-| model-config `reviewer` alias | `openai:gpt-5.2` | `openai:gpt-5.3-codex` |
-| model-config `reasoning` alias | `openai:gpt-5.2` | `openai:gpt-5.3-codex` |
+All shared logic lives in `vision-lib.sh`. Both the write side (`bridge-vision-capture.sh`) and read side (`vision-registry-query.sh`) source this library. No function is duplicated.
 
-## 2. Detailed Design
+## 2. Component Design
 
-### 2.1 Flatline Secondary: GPT-5.2 → GPT-5.3-codex
+### 2.1 `vision-lib.sh` — Shared Library
 
-**Files to modify:**
-
-| File | Location | Change |
-|------|----------|--------|
-| `.loa.config.yaml` | Line 114 | `secondary: gpt-5.2` → `secondary: gpt-5.3-codex` |
-| `.loa.config.yaml.example` | flatline_protocol.models.secondary | Same |
-| `flatline-orchestrator.sh` | Line 196 `get_model_secondary()` | Default `'gpt-5.2'` → `'gpt-5.3-codex'` |
-
-**API routing impact:** GPT-5.3-codex uses the Responses API (`/v1/responses`) instead of Chat Completions (`/v1/chat/completions`). PR #413 already implements the dual-path routing in both:
-- `model-adapter.sh.legacy:249-279` (bash legacy path: `if [[ "$model_id" == *"codex"* ]]`)
-- `openai_adapter.py:31-33` (Python cheval path: `_is_codex_model()`)
-
-**Consensus:** The Responses API returns a different response structure (`output[].content[].text` vs `choices[0].message.content`). PR #413's response parsing at `model-adapter.sh.legacy:557-563` handles both formats with a jq fallback chain.
-
-**Error handling for secondary failures** (Flatline IMP-001): When GPT-5.3-codex calls fail (429, timeout, malformed response), the orchestrator should:
-1. Retry via existing `call_api_with_retry` (3 attempts, exponential backoff)
-2. If retries exhausted: mark model as degraded, log error with stderr capture
-3. Phase 1: continue with available results (2 of 4+ calls sufficient)
-4. Phase 2: skip cross-scoring pairs involving failed model
-5. Consensus: use available scores only — existing scoring engine handles missing files
-6. Never silently swallow empty content — if jq `empty` triggers, log a warning and mark the call as failed
-
-**Known tech debt**: The `*codex*` substring match for API routing is brittle (Flatline SKP-001/002). This is PR #413's pattern and out of scope for this cycle. Future work: replace with explicit `MODEL_API_TYPE` associative array.
-
-### 2.2 Gemini Tertiary Activation
-
-**Files to modify:**
-
-| File | Location | Change |
-|------|----------|--------|
-| `.loa.config.yaml` | Under `hounfour:` | Add `flatline_tertiary_model: gemini-2.5-pro` |
-| `.loa.config.yaml.example` | Under `hounfour:` | Add commented example |
-
-**Existing infrastructure used (no code changes needed):**
-- `flatline-orchestrator.sh:200-203` — `get_model_tertiary()` already reads `.hounfour.flatline_tertiary_model`
-- `flatline-orchestrator.sh:790-800` — FR-3 tertiary validation and `has_tertiary` flag
-- `flatline-orchestrator.sh:822-828,842-848` — Phase 1 tertiary review + skeptic calls
-- `flatline-orchestrator.sh:988-1024` — Phase 2 triangular cross-scoring (6 calls)
-- `flatline-orchestrator.sh` consensus — 3-way agreement calculation
-
-**Tertiary model JSON schema validation** (Flatline IMP-003): The Gemini tertiary must return JSON conforming to the Flatline scoring schema (`{"improvements": [...]}` for review, `{"concerns": [...]}` for skeptic, `{"scores": [...]}` for scoring). Validation steps:
-1. `normalize_json_response()` strips markdown wrappers (existing)
-2. `extract_json_content()` validates required top-level key exists (existing)
-3. If validation fails: treat as call failure, log raw response for debugging, proceed without tertiary scores
-
-**Why gemini-2.5-pro (not gemini-3-pro):**
-- gemini-2.5-pro is a stable, production model with proven JSON output
-- gemini-3-pro is newer and may have JSON formatting inconsistencies
-- User can override to gemini-3-pro via config at any time
-- Both are registered in VALID_FLATLINE_MODELS
-
-**Graceful degradation:** If `GOOGLE_API_KEY` is missing or Gemini API fails, the orchestrator falls back to 2-model mode automatically — `has_tertiary` stays false and all tertiary code paths are skipped.
-
-### 2.3 Gemini 3 Model Registration
-
-**File: `model-adapter.sh.legacy`** — Add to all 4 maps:
+**Path**: `.claude/scripts/vision-lib.sh`
+**Sourced by**: `bridge-vision-capture.sh`, `vision-registry-query.sh`
 
 ```bash
-# MODEL_PROVIDERS (after gemini-2.5-pro line)
-["gemini-3-flash"]="google"
-["gemini-3-pro"]="google"
+#!/usr/bin/env bash
+# vision-lib.sh — Shared vision registry functions
+# Version: 1.0.0
 
-# MODEL_IDS
-["gemini-3-flash"]="gemini-3-flash"
-["gemini-3-pro"]="gemini-3-pro"
-
-# COST_INPUT (per 1K tokens, from model-config.yaml)
-["gemini-3-flash"]="0.0002"     # $0.20/MTok
-["gemini-3-pro"]="0.0025"       # $2.50/MTok
-
-# COST_OUTPUT
-["gemini-3-flash"]="0.0008"     # $0.80/MTok
-["gemini-3-pro"]="0.015"        # $15.00/MTok
+# Functions extracted from bridge-vision-capture.sh:
+# - vision_load_index()     — parse index.md into structured output
+# - vision_match_tags()     — tag overlap matching
+# - vision_record_ref()     — atomic reference counting
+# - vision_validate_entry() — schema validation
+# - vision_sanitize_text()  — content sanitization for context injection
+# - vision_update_status()  — lifecycle transitions
+# - vision_extract_tags()   — file-path-to-tag mapping
 ```
 
-**File: `model-adapter.sh`** — Add to MODEL_TO_ALIAS map:
+#### Key Functions
 
+**`vision_load_index()`**
 ```bash
-["gemini-3-flash"]="google:gemini-3-flash"
-["gemini-3-pro"]="google:gemini-3-pro"
-```
+# Parse index.md table into JSON array
+# Input: $1=visions_dir
+# Output: JSON array to stdout
+# [{"id":"vision-001","title":"...","source":"...","status":"Captured","tags":["a","b"],"refs":3}]
+vision_load_index() {
+  local visions_dir="${1:?}"
+  local index_file="$visions_dir/index.md"
 
-**Validation:** `validate_model_registry()` at `model-adapter.sh.legacy:128-149` will automatically verify all 4 maps are synchronized.
+  [[ -f "$index_file" ]] || { echo "[]"; return 0; }
 
-### 2.4 Model-Config Aliases Update
+  # Parse markdown table rows into JSON
+  grep '^| vision-' "$index_file" 2>/dev/null | while IFS= read -r line; do
+    local id title source status tags_raw refs
+    id=$(echo "$line" | awk -F'|' '{print $2}' | xargs)
+    title=$(echo "$line" | awk -F'|' '{print $3}' | xargs)
+    source=$(echo "$line" | awk -F'|' '{print $4}' | xargs)
+    status=$(echo "$line" | awk -F'|' '{print $5}' | xargs)
+    tags_raw=$(echo "$line" | awk -F'|' '{print $6}' | xargs)
+    refs=$(echo "$line" | awk -F'|' '{print $7}' | xargs)
 
-**File: `.claude/defaults/model-config.yaml`** lines 99-100:
+    # Validate required fields (skip malformed)
+    [[ -n "$id" && -n "$status" ]] || continue
 
-```yaml
-# Before
-reviewer: "openai:gpt-5.2"
-reasoning: "openai:gpt-5.2"
+    # Parse tags
+    local tags_json
+    tags_json=$(echo "$tags_raw" | tr -d '[]' | tr ',' '\n' | \
+      xargs -I{} echo {} | jq -R . | jq -s .)
 
-# After
-reviewer: "openai:gpt-5.3-codex"
-reasoning: "openai:gpt-5.3-codex"
-```
-
-**Cascade effect:** All agent bindings that reference `reviewer` or `reasoning` automatically use GPT-5.3-codex:
-- `flatline-reviewer` (line 132-134)
-- `flatline-skeptic` (line 135-139)
-- `flatline-scorer` (line 140-142)
-- `flatline-dissenter` (line 143-147)
-- `gpt-reviewer` (line 148-150)
-- `reviewing-code` (line 124-126)
-- `jam-reviewer-gpt` (line 177-179)
-- `jam-reviewer-kimi` (line 180-184)
-
-No changes needed to agent binding lines themselves — alias indirection handles it.
-
-### 2.5 GPT Review Document Model Update
-
-**File: `gpt-review-api.sh`** line 25:
-
-```bash
-# Before
-declare -A DEFAULT_MODELS=(["prd"]="gpt-5.2" ["sdd"]="gpt-5.2" ["sprint"]="gpt-5.2" ["code"]="gpt-5.3-codex")
-
-# After
-declare -A DEFAULT_MODELS=(["prd"]="gpt-5.3-codex" ["sdd"]="gpt-5.3-codex" ["sprint"]="gpt-5.3-codex" ["code"]="gpt-5.3-codex")
-```
-
-**Note:** The `code` entry was already updated by PR #413. We're updating `prd`, `sdd`, and `sprint`.
-
-**Protocol doc updates:**
-- `.claude/protocols/gpt-review-integration.md` line 70: `documents: "gpt-5.2"` → `documents: "gpt-5.3-codex"`
-- `.claude/commands/gpt-review.md` line 333: Same change
-
-### 2.6 Red Team Model Update
-
-**File: `.loa.config.yaml`** lines 138-141:
-
-```yaml
-# Before
-models:
-  attacker_primary: opus
-  attacker_secondary: gpt-5.2
-  defender_primary: opus
-  defender_secondary: gpt-5.2
-
-# After
-models:
-  attacker_primary: opus
-  attacker_secondary: gpt-5.3-codex
-  defender_primary: opus
-  defender_secondary: gpt-5.3-codex
-```
-
-**File: `.loa.config.yaml.example`** — Same change.
-
-### 2.7 Flatline Iteration Cap
-
-**File: `.loa.config.yaml`** — Add under `flatline_protocol:`:
-
-```yaml
-flatline_protocol:
-  max_iterations: 5    # Safety cap — exit after 5 loops regardless of consensus
-```
-
-**File: `flatline-orchestrator.sh`** — Add iteration limit enforcement (Flatline IMP-002).
-
-The orchestrator's main loop (in autonomous/simstim mode) needs a guard:
-
-```bash
-# In read_config section (near line 60)
-get_max_iterations() {
-    read_config '.flatline_protocol.max_iterations' '5'
+    jq -n --arg id "$id" --arg title "$title" --arg source "$source" \
+      --arg status "$status" --argjson tags "$tags_json" \
+      --argjson refs "${refs:-0}" \
+      '{id:$id, title:$title, source:$source, status:$status, tags:$tags, refs:$refs}'
+  done | jq -s '.'
 }
 ```
 
-**Termination semantics when cap is hit:**
-1. Log warning: `"Max iterations reached ($MAX_ITERATIONS). Emitting best-available consensus."`
-2. Emit consensus from last completed iteration with `"capped": true` in output JSON
-3. Exit code 0 (success) — capped results are valid but flagged
-4. Downstream consumers (simstim, autonomous mode) check `capped` flag and present it to user
-
-The flatline beads loop in simstim (Phase 6.5) already has a hardcoded `1/6` iteration display, suggesting 6 max. We set the config default to 5 per user requirement.
-
-### 2.8 Reference Documentation Updates
-
-**File: `.claude/loa/reference/flatline-reference.md`** — Update:
-- Model table to show GPT-5.3-codex as secondary, Gemini 2.5 Pro as tertiary
-- Config examples
-- Cost estimates per run
-
-**File: `.claude/protocols/flatline-protocol.md`** — Update:
-- Model names in examples
-- Add `max_iterations` to config reference
-
-## 3. File Change Summary
-
-| File | Changes | Zone |
-|------|---------|------|
-| `.loa.config.yaml` | Secondary → gpt-5.3-codex, tertiary → gemini-2.5-pro, red team models, max_iterations | State |
-| `.loa.config.yaml.example` | Mirror all config changes | State |
-| `.claude/scripts/flatline-orchestrator.sh` | Default secondary, max_iterations function | System |
-| `.claude/scripts/gpt-review-api.sh` | DEFAULT_MODELS prd/sdd/sprint → gpt-5.3-codex | System |
-| `.claude/scripts/model-adapter.sh.legacy` | Add gemini-3-flash/pro to 4 maps | System |
-| `.claude/scripts/model-adapter.sh` | Add gemini-3-flash/pro to MODEL_TO_ALIAS | System |
-| `.claude/defaults/model-config.yaml` | reviewer/reasoning aliases → gpt-5.3-codex | System |
-| `.claude/protocols/gpt-review-integration.md` | Doc model → gpt-5.3-codex | System |
-| `.claude/commands/gpt-review.md` | Doc model → gpt-5.3-codex | System |
-| `.claude/loa/reference/flatline-reference.md` | Model table, config examples | System |
-| `.claude/protocols/flatline-protocol.md` | Model names, max_iterations | System |
-
-**Estimated total:** ~11 files, ~40-50 line changes.
-
-## 4. API Compatibility Notes
-
-### GPT-5.3-codex as Flatline Secondary
-
-The Flatline orchestrator calls `call_model()` which routes to `call_openai_api()` in the legacy path. PR #413's codex detection (`if [[ "$model_id" == *"codex"* ]]`) correctly routes GPT-5.3-codex to the Responses API.
-
-**Key difference from Chat Completions:**
-- Request: `{"model": "gpt-5.3-codex", "input": "...", "reasoning": {"effort": "medium"}}` (no messages array)
-- Response: `{"output": [{"type": "message", "content": [{"type": "output_text", "text": "..."}]}]}` (no choices array)
-
-The response parsing jq at `model-adapter.sh.legacy:557-563` handles both:
+**`vision_match_tags()`**
 ```bash
-content=$(echo "$response" | jq -r '
-    .choices[0].message.content //
-    (.output[] | select(.type == "message") | .content[] | select(.type == "output_text") | .text) //
-    empty
-')
+# Match work context tags against vision tags
+# Input: $1=work_tags (comma-separated), $2=vision_tags_json, $3=min_overlap
+# Output: overlap count to stdout
+vision_match_tags() {
+  local work_tags="$1"
+  local vision_tags_json="$2"
+  local min_overlap="${3:-2}"
+
+  local overlap=0
+  for wtag in $(echo "$work_tags" | tr ',' ' '); do
+    if echo "$vision_tags_json" | jq -e --arg t "$wtag" 'index($t) != null' >/dev/null 2>&1; then
+      overlap=$((overlap + 1))
+    fi
+  done
+  echo "$overlap"
+}
 ```
 
-### Gemini as Tertiary
+**`vision_sanitize_text()`**
+```bash
+# Sanitize vision text for safe context injection (SKP-002)
+# Strips instruction patterns, truncates, extracts structured fields only
+# Input: $1=text
+# Output: sanitized text to stdout
+vision_sanitize_text() {
+  local text="$1"
+  local max_chars="${2:-500}"
 
-Gemini uses the existing `call_google_api()` at `model-adapter.sh.legacy:368-426`:
-- Endpoint: `https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`
-- Auth: API key as URL parameter (not Authorization header)
-- JSON enforced via `responseMimeType: "application/json"`
+  # Strip instruction-like patterns
+  text=$(echo "$text" | sed -E '
+    s/<system[^>]*>[^<]*<\/system[^>]*>//g
+    s/<prompt[^>]*>[^<]*<\/prompt[^>]*>//g
+    s/```[^`]*```//g
+  ')
 
-No changes needed — infrastructure is already working.
+  # Truncate to max chars
+  text="${text:0:$max_chars}"
 
-## 5. Cost Impact
+  # Strip trailing partial word
+  text=$(echo "$text" | sed 's/ [^ ]*$//')
 
-| Model | Input/MTok | Output/MTok | Role |
-|-------|-----------|-------------|------|
-| Claude Opus 4.6 | $5.00 | $25.00 | Primary (unchanged) |
-| GPT-5.3-codex | $1.75 | $14.00 | Secondary (was GPT-5.2 @ $10/$30) |
-| Gemini 2.5 Pro | $1.25 | $10.00 | Tertiary (new) |
+  echo "$text"
+}
+```
 
-**Per Flatline run estimate (3-model):**
-- Phase 1: 6 calls (~$0.40-0.60)
-- Phase 2: 6 calls (~$0.15-0.25)
-- Total: ~$0.55-0.85 per run
+**`vision_record_ref()`** — Extracted from existing `record_reference()` with atomic write:
+```bash
+vision_record_ref() {
+  local vid="$1" bridge_id="$2"
+  local visions_dir="${3:-${PROJECT_ROOT}/grimoires/loa/visions}"
+  local index_file="$visions_dir/index.md"
 
-**Compared to before (2-model):**
-- Phase 1: 4 calls (~$0.50-0.80)
-- Phase 2: 2 calls (~$0.10-0.20)
-- Total: ~$0.60-1.00 per run
+  # ... existing logic from bridge-vision-capture.sh:75-121 ...
+  # Key change: all sed writes use tmp+mv (already the case)
+  # This is the atomic write pattern required by SKP-003
+}
+```
 
-Net cost is **comparable or lower** because GPT-5.3-codex is significantly cheaper than GPT-5.2.
+### 2.2 `vision-registry-query.sh` — Query Script
+
+**Path**: `.claude/scripts/vision-registry-query.sh`
+
+```bash
+#!/usr/bin/env bash
+# vision-registry-query.sh — Query vision registry for planning integration
+# Version: 1.0.0
+#
+# Usage:
+#   vision-registry-query.sh \
+#     --tags "architecture,multi-model" \
+#     --status "Captured,Exploring" \
+#     --min-overlap 2 \
+#     --max-results 3 \
+#     --json
+#
+# Exit Codes:
+#   0 - Success (even if no results)
+#   1 - Error
+#   2 - Missing arguments
+
+set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/vision-lib.sh"
+
+# Dependency check (IMP-003)
+for cmd in jq yq; do
+  if ! command -v "$cmd" &>/dev/null; then
+    echo "ERROR: $cmd is required but not installed" >&2
+    echo "Install: brew install $cmd (macOS) or apt-get install $cmd (Linux)" >&2
+    exit 2
+  fi
+done
+```
+
+**Arguments:**
+
+| Argument | Description | Default |
+|----------|-------------|---------|
+| `--tags` | Comma-separated work context tags | Required |
+| `--status` | Comma-separated status filter | `Captured,Exploring` |
+| `--min-overlap` | Minimum tag overlap | 2 |
+| `--max-results` | Maximum results returned | 3 |
+| `--visions-dir` | Vision registry path | `grimoires/loa/visions` |
+| `--json` | Output JSON (default is human-readable) | false |
+| `--include-text` | Include sanitized insight text | false |
+
+**Output (JSON mode):**
+```json
+[
+  {
+    "id": "vision-003",
+    "title": "Constitutional Governance for Agent Economies",
+    "status": "Captured",
+    "tags": ["architecture", "constraints"],
+    "refs": 4,
+    "score": 7,
+    "matched_tags": ["architecture", "constraints"],
+    "insight": "Configuration governance across model selection..."
+  }
+]
+```
+
+**Scoring algorithm** (per IMP-001):
+```
+score = (tag_overlap * 3) + (refs * 2) + recency_bonus
+recency_bonus = 1 if Date field exists AND within last 30 days, else 0
+```
+*(IMP-004)*: The `Date` field in vision entries is optional in the schema. When absent, `recency_bonus` defaults to 0 (no bonus). This ensures scoring is deterministic regardless of whether Date is populated.
+
+### 2.3 Configuration Schema
+
+**New section in `.loa.config.yaml`:**
+
+```yaml
+# Vision Registry Integration (v1.42.0)
+vision_registry:
+  enabled: false           # Master switch — default OFF, opt-in
+  shadow_mode: true        # Log matches silently before presenting
+  shadow_cycles_before_prompt: 2
+  status_filter:
+    - Captured
+    - Exploring
+  min_tag_overlap: 2
+  max_visions_per_session: 3
+  ref_elevation_threshold: 3
+  propose_requirements: false  # Experimental — behind feature flag
+```
+
+**Config reading pattern** (consistent with existing Loa config style):
+```bash
+vr_enabled=$(yq eval '.vision_registry.enabled // false' .loa.config.yaml 2>/dev/null || echo "false")
+vr_shadow=$(yq eval '.vision_registry.shadow_mode // true' .loa.config.yaml 2>/dev/null || echo "true")
+vr_min_overlap=$(yq eval '.vision_registry.min_tag_overlap // 2' .loa.config.yaml 2>/dev/null || echo "2")
+vr_max=$(yq eval '.vision_registry.max_visions_per_session // 3' .loa.config.yaml 2>/dev/null || echo "3")
+```
+
+### 2.4 SKILL.md Integration
+
+**File**: `.claude/skills/discovering-requirements/SKILL.md`
+
+**Addition to Phase 0 (Context Synthesis)**, after reality file loading:
+
+```markdown
+### Step 0.5: Vision Registry Loading (v1.42.0)
+
+If `vision_registry.enabled: true` in `.loa.config.yaml`:
+
+1. Derive work context tags from:
+   - Sprint plan file paths (if exists)
+   - PRD keywords (if this is a fresh start)
+   - User's original request text (mapped through extract_pr_tags patterns)
+
+2. **Tag derivation rules** *(IMP-001)*: Work context tags are derived in priority order:
+   - From sprint plan: extract file paths, map through `vision_extract_tags()` path-to-tag rules
+   - From user request text: keyword matching against controlled vocabulary (`architecture`, `security`, `constraints`, `multi-model`, `testing`, `philosophy`, `orchestration`)
+   - From PRD sections: section headers mapped to tags (e.g., "Security" → `security`)
+   - Tags are deduplicated and sorted before matching
+
+3. Run vision query:
+   ```bash
+   visions=$(.claude/scripts/vision-registry-query.sh \
+     --tags "$work_tags" \
+     --status "$(yq eval '.vision_registry.status_filter | join(",")' .loa.config.yaml)" \
+     --min-overlap "$(yq eval '.vision_registry.min_tag_overlap // 2' .loa.config.yaml)" \
+     --max-results "$(yq eval '.vision_registry.max_visions_per_session // 3' .loa.config.yaml)" \
+     --include-text \
+     --json)
+   ```
+
+3. **Shadow mode** (`shadow_mode: true`):
+   - Log results to `grimoires/loa/a2a/trajectory/vision-shadow-{date}.jsonl`
+   - Do NOT present to user
+   - Increment shadow cycle counter
+
+4. **Active mode** (`shadow_mode: false`):
+   - Present matched visions per FR-2 template
+   - Record references via `vision_record_ref()`
+   - Wait for user decision per vision (Explore/Defer/Skip)
+```
+
+### 2.5 Shadow Mode Pipeline
+
+**Shadow log format** (`grimoires/loa/a2a/trajectory/vision-shadow-{date}.jsonl`):
+```json
+{
+  "timestamp": "2026-02-26T14:00:00Z",
+  "cycle": "cycle-041",
+  "phase": "plan-and-analyze",
+  "work_tags": ["architecture", "philosophy"],
+  "matches": [
+    {
+      "vision_id": "vision-003",
+      "score": 7,
+      "matched_tags": ["architecture"],
+      "would_have_shown": true
+    }
+  ],
+  "shadow_cycle_number": 1,
+  "total_shadow_cycles": 2
+}
+```
+
+**Shadow cycle counter** *(IMP-002)*: Stored in a separate state file (NOT in `.loa.config.yaml` which is user-edited config):
+
+**File**: `grimoires/loa/visions/.shadow-state.json`
+```json
+{
+  "shadow_cycles_completed": 1,
+  "last_shadow_run": "2026-02-26T14:00:00Z",
+  "matches_during_shadow": 3
+}
+```
+Updates use atomic write (tmp+mv) to prevent corruption from concurrent sessions.
+
+**Graduation check**: After each shadow cycle, if `_shadow_cycles_completed >= shadow_cycles_before_prompt`, the next `/plan-and-analyze` invocation presents the shadow summary and asks the user to graduate to active mode.
+
+## 3. Data Flow
+
+### 3.1 Write Path (Existing — No Changes)
+
+```
+Bridge Review → VISION findings → bridge-vision-capture.sh → vision entry files + index.md
+```
+
+`bridge-vision-capture.sh` will be refactored to source `vision-lib.sh` for shared functions, but its external behavior and arguments are unchanged.
+
+### 3.2 Read Path (New)
+
+```
+/plan-and-analyze Phase 0
+  → Read .loa.config.yaml (vision_registry section)
+  → If disabled: skip entirely
+  → Derive work_context_tags from request/sprint context
+  → Call vision-registry-query.sh
+    → Sources vision-lib.sh
+    → vision_load_index() — parse index.md
+    → Filter by status
+    → vision_match_tags() — score each vision
+    → Sort by score, take top N
+    → If --include-text: vision_sanitize_text() on each
+    → Output JSON
+  → If shadow_mode:
+    → Log to trajectory JSONL
+    → Increment counter
+    → Check graduation
+  → If active_mode:
+    → Present to user
+    → vision_record_ref() for each shown
+    → Process user decisions (Explore/Defer/Skip)
+```
+
+### 3.3 Refactoring `bridge-vision-capture.sh`
+
+The existing script keeps all its current entry points and arguments. The change is internal — functions move to `vision-lib.sh`:
+
+| Function | Current Location | New Location |
+|----------|-----------------|-------------|
+| `update_vision_status()` | capture.sh:32-66 | vision-lib.sh |
+| `record_reference()` | capture.sh:75-121 | vision-lib.sh |
+| `extract_pr_tags()` | capture.sh:129-152 | vision-lib.sh |
+| `check_relevant_visions()` | capture.sh:157-207 | vision-lib.sh |
+
+`bridge-vision-capture.sh` adds at top: `source "$SCRIPT_DIR/vision-lib.sh"` and removes the inline function definitions.
+
+## 4. Vision Registry Schema (FR-1.5)
+
+### Index Format
+
+**File**: `grimoires/loa/visions/index.md`
+
+```markdown
+<!-- schema_version: 1 -->
+# Vision Registry
+
+| ID | Title | Source | Status | Tags | Refs |
+|----|-------|--------|--------|------|------|
+| vision-001 | Example Vision | Bridge iter 2, PR #100 | Captured | architecture, security | 0 |
+```
+
+### Entry Format
+
+**File**: `grimoires/loa/visions/entries/vision-001.md`
+
+Required fields (validated by `vision_validate_entry()`):
+- `**ID**:` — must match filename
+- `**Source**:` — bridge iteration and PR
+- `**Status**:` — one of: Captured, Exploring, Proposed, Implemented, Deferred
+- `**Tags**:` — bracket-enclosed, comma-separated
+- `## Insight` section — the vision description
+- `## Potential` section — why it matters
+
+Optional fields:
+- `**PR**:` — PR number
+- `**Date**:` — ISO 8601
+- `## Connection Points` — links to related findings
+
+### Validation
+
+```bash
+vision_validate_entry() {
+  local entry_file="$1"
+  local errors=()
+
+  [[ -f "$entry_file" ]] || { echo "SKIP: file not found"; return 1; }
+
+  grep -q '^\*\*ID\*\*:' "$entry_file" || errors+=("missing ID field")
+  grep -q '^\*\*Source\*\*:' "$entry_file" || errors+=("missing Source field")
+  grep -q '^\*\*Status\*\*:' "$entry_file" || errors+=("missing Status field")
+  grep -q '^\*\*Tags\*\*:' "$entry_file" || errors+=("missing Tags field")
+  grep -q '^## Insight' "$entry_file" || errors+=("missing Insight section")
+
+  if [[ ${#errors[@]} -gt 0 ]]; then
+    echo "INVALID: ${errors[*]}" >&2
+    return 1
+  fi
+  return 0
+}
+```
+
+## 5. Security Design
+
+### Content Sanitization (SKP-002, SKP-003-blocker)
+
+Vision text passes through a **strict allowlist extraction** pipeline before entering any planning context:
+
+1. **Structured field extraction** (primary defense): Parse entry file, extract ONLY the text between `## Insight` and the next `##` heading. Discard all other content. This is allowlist-based — only known-safe sections are loaded, everything else is dropped.
+2. **Normalization**: Decode HTML entities, strip zero-width characters, normalize whitespace
+3. **Pattern stripping** (secondary defense): Remove `<system>`, `<prompt>`, code fences, and instruction-like patterns from the extracted text
+4. **Length truncation**: 500 chars max per vision insight
+5. **Context boundary**: Vision text is presented as quoted markdown block with explicit delimiters, never as system instructions
+
+**Adversarial test corpus**: Tests include entries with `<system>` tags, encoded instructions, nested markdown, and indirect prompt patterns. See `tests/fixtures/vision-registry/entry-injection.md`.
+
+### Concurrency Safety (SKP-003, SKP-002)
+
+File mutations use `flock` for mutual exclusion plus atomic write (tmp+mv):
+
+```bash
+vision_atomic_write() {
+  local target_file="$1"
+  local lock_file="${target_file}.lock"
+  local tmp_file="${target_file}.tmp"
+
+  # flock around read-modify-write to prevent lost updates
+  (
+    flock -w 5 200 || { echo "ERROR: Could not acquire lock on $lock_file" >&2; return 1; }
+    # Caller's modification runs here with exclusive access
+    "$@"
+  ) 200>"$lock_file"
+}
+```
+
+- `vision_record_ref()` — flock + tmp+mv on index.md
+- `vision_update_status()` — flock + tmp+mv on index.md and entry files
+- Shadow state writes — flock + tmp+mv on `.shadow-state.json`
+- In Agent Teams mode, vision writes additionally serialized through team lead
+- `_require_flock()` from `compat-lib.sh` checks portability (macOS: `brew install util-linux`)
+
+### No External API Calls
+
+Vision processing is entirely local. No vision content is sent to external models. The Flatline Protocol reviews the PRD (which may reference visions), but vision text itself stays in the local planning context.
 
 ## 6. Testing Strategy
 
-1. **Registration validation**: Run `validate_model_registry()` — must pass with zero errors
-2. **Config validation**: `yq` read of all new config keys
-3. **Dry-run Flatline**: `flatline-orchestrator.sh --dry-run` to verify 3-model selection
-4. **Existing test suites**: Run adversarial-review.bats, gpt-review-codex-adapter.bats — should pass after model name updates in test fixtures
-5. **FR-3 triangular scoring validation** (Flatline SKP-003): Run a live 3-model Flatline review against a test document to verify Gemini tertiary participates and consensus includes 3-way scoring. Inspect output JSON for `tertiary-review.json`, `tertiary-skeptic.json`, and all 6 cross-scoring files
-6. **jq fallback chain test**: Verify `model-adapter.sh.legacy:557-563` correctly parses both Chat Completions and Responses API response shapes (part of PR #413 verification gate)
+### Unit Tests
 
-## 7. Rollback
+**File**: `tests/unit/vision-lib.bats`
 
-All changes are config/registration. Rollback = revert the config values:
-- `secondary: gpt-5.2` (restore)
-- Remove `flatline_tertiary_model` line
-- `reviewer`/`reasoning` → `openai:gpt-5.2` (restore)
-- Red team models → `gpt-5.2` (restore)
+| Test | Description |
+|------|-------------|
+| `vision_load_index empty registry` | Returns `[]` for empty/missing index |
+| `vision_load_index parses table` | Correctly extracts all fields from markdown table |
+| `vision_load_index skips malformed` | Skips rows with missing required fields |
+| `vision_match_tags overlap counting` | Correct overlap count for various inputs |
+| `vision_match_tags zero overlap` | Returns 0 when no tags match |
+| `vision_sanitize_text strips instructions` | Removes `<system>` and similar patterns |
+| `vision_sanitize_text truncates` | Respects max character limit |
+| `vision_validate_entry valid` | Returns 0 for well-formed entry |
+| `vision_validate_entry missing fields` | Returns 1 with specific error messages |
 
-No data migration, no schema changes, no API contract changes.
+**File**: `tests/unit/vision-registry-query.bats`
+
+| Test | Description |
+|------|-------------|
+| `query empty registry` | Returns `[]`, exit 0 |
+| `query with matches` | Returns correctly scored and sorted results |
+| `query respects max-results` | Caps output to N entries |
+| `query respects min-overlap` | Excludes below-threshold visions |
+| `query status filter` | Only returns matching statuses |
+| `query --include-text` | Includes sanitized insight text |
+| `query scoring algorithm` | Verifies weight formula produces expected ranking |
+
+### Integration Tests
+
+**File**: `tests/integration/vision-planning-integration.bats`
+
+| Test | Description |
+|------|-------------|
+| `shadow mode logs to trajectory` | Vision matches written to JSONL, not shown |
+| `shadow graduation prompt` | After N cycles, summary appears |
+| `active mode presents visions` | Matched visions shown in Phase 0 output |
+| `ref counter increments` | Surfaced visions get ref count bumped |
+| `config disabled = no change` | When `enabled: false`, zero vision code runs |
+| `bridge-vision-capture still works` | Refactored capture script produces identical output |
+
+### Fixtures
+
+**Directory**: `tests/fixtures/vision-registry/`
+
+| Fixture | Purpose |
+|---------|---------|
+| `index-empty.md` | Empty registry (header only) |
+| `index-three-visions.md` | 3 visions with various statuses and tags |
+| `index-malformed.md` | Contains rows with missing columns |
+| `entry-valid.md` | Well-formed vision entry |
+| `entry-malformed.md` | Missing required sections |
+| `entry-injection.md` | Contains `<system>` tags and code fences |
+
+## 7. File Inventory
+
+### New Files
+
+| File | Purpose |
+|------|---------|
+| `.claude/scripts/vision-lib.sh` | Shared vision library |
+| `.claude/scripts/vision-registry-query.sh` | Query script |
+| `tests/unit/vision-lib.bats` | Library unit tests |
+| `tests/unit/vision-registry-query.bats` | Query unit tests |
+| `tests/integration/vision-planning-integration.bats` | Integration tests |
+| `tests/fixtures/vision-registry/*.md` | Test fixtures |
+
+### Modified Files
+
+| File | Change |
+|------|--------|
+| `.claude/scripts/bridge-vision-capture.sh` | Source `vision-lib.sh`, remove inline functions |
+| `.claude/skills/discovering-requirements/SKILL.md` | Add Step 0.5 vision loading |
+| `.loa.config.yaml.example` | Add `vision_registry` section |
+| `.loa.config.yaml` | Add `vision_registry` section (user's config) |
+
+### Unchanged Files
+
+| File | Why |
+|------|-----|
+| `.claude/data/bridgebuilder-persona.md` | VISION generation is already correct |
+| `.claude/data/constraints.json` | C-PERM-002 already permits vision exploration |
+| `.claude/scripts/flatline-orchestrator.sh` | No vision awareness needed in Flatline |
+
+## 8. Migration & Backward Compatibility
+
+### Zero-Impact Default
+
+When `vision_registry.enabled` is absent or `false`:
+- No vision code executes during `/plan-and-analyze`
+- No new files created
+- No behavioral change whatsoever
+
+### Bootstrap for Existing Registries
+
+If `grimoires/loa/visions/index.md` doesn't exist but `grimoires/loa/visions/entries/` has files:
+- `vision_load_index()` returns `[]` (no crash)
+- A one-time bootstrap can be run: `vision-registry-query.sh --bootstrap` to generate index from entries
+
+### `bridge-vision-capture.sh` Refactoring
+
+The refactoring to source `vision-lib.sh` is backward compatible:
+- All existing entry points (`--check-relevant`, `--record-reference`, `--update-status`, main capture mode) work identically
+- The `source` directive adds ~0ms to script startup
+- If `vision-lib.sh` is missing, capture script exits with error code 2 and a clear message: `"ERROR: vision-lib.sh not found at $SCRIPT_DIR/vision-lib.sh — run /update-loa to restore"` *(IMP-009)*. No silent fallback to inline functions, as that would diverge behavior between write and read paths

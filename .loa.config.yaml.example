@@ -1499,6 +1499,46 @@ post_pr_validation:
     mode: "autonomous"
 
 # =============================================================================
+# Vision Registry Integration (v1.42.0)
+# =============================================================================
+# Weaves captured visions from bridge reviews into planning workflows.
+# Visions are speculative insights captured by Bridgebuilder during reviews.
+# This feature gives agents creative agency to surface relevant past insights
+# during /plan-and-analyze, optionally proposing vision-inspired requirements.
+#
+# Lifecycle: shadow → prompt → active → default
+# Shadow mode logs matches silently. After graduation, visions are presented
+# to the user during planning with Explore/Defer/Skip choices.
+vision_registry:
+  # Master switch — default OFF. All vision code is no-op when false.
+  enabled: false
+
+  # Shadow mode: log matches silently without presenting to user.
+  # After shadow_cycles_before_prompt cycles with matches, a graduation
+  # prompt offers to enable active mode.
+  shadow_mode: true
+  shadow_cycles_before_prompt: 2
+
+  # Status filter: which vision statuses to consider for matching.
+  status_filter:
+    - Captured
+    - Exploring
+
+  # Minimum number of tags that must overlap for a vision to be relevant.
+  min_tag_overlap: 2
+
+  # Maximum visions shown per planning session (active mode).
+  max_visions_per_session: 3
+
+  # Reference count threshold before suggesting lore elevation.
+  ref_elevation_threshold: 3
+
+  # Experimental: propose vision-inspired requirements during /plan-and-analyze.
+  # When true AND a vision is marked "Explore", 1-3 requirements tagged
+  # [VISION-INSPIRED] are proposed in a separate PRD section.
+  propose_requirements: false
+
+# =============================================================================
 # Run Bridge — Autonomous Excellence Loop (v1.34.0)
 # =============================================================================
 # Iterative sprint-plan → Bridgebuilder review → findings → repeat loop.

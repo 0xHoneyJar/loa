@@ -1,0 +1,190 @@
+# Loa Configuration
+# Active: Eval Sandbox (#277)
+
+simstim:
+  enabled: true
+  flatline:
+    auto_accept_high_consensus: true
+    show_disputed: true
+    show_blockers: true
+    phases:
+      - prd
+      - sdd
+      - sprint
+
+run_mode:
+  enabled: true
+  defaults:
+    max_cycles: 20
+    timeout_hours: 8
+  sprint_plan:
+    branch_prefix: "feat/"
+    default_branch_name: "platform-hardening-c015"
+    consolidate_pr: true
+    commit_prefix: "feat"
+    include_commits_by_sprint: true
+
+# Hounfour — Model-Heterogeneous Agent Routing (cycle-026)
+hounfour:
+  flatline_routing: false  # Route Flatline/GPT-review through model-invoke (cheval.py)
+  flatline_tertiary_model: gemini-2.5-pro  # 3-model Flatline: Opus + GPT-5.3-codex + Gemini
+
+  # Per-subsystem feature flags (all default true — opt-out)
+  feature_flags:
+    google_adapter: true     # Enable Google provider adapter
+    deep_research: true      # Enable Deep Research models (Interactions API)
+    flatline_routing: false   # Route Flatline through Hounfour (same as top-level)
+    metering: true           # Enable BudgetEnforcer cost tracking
+    thinking_traces: true    # Include thinking config in request bodies
+    jam_geometry: false      # Enable Jam multi-model parallel review (opt-in)
+
+  # Metering configuration
+  metering:
+    enabled: true
+    ledger_path: .run/cost-ledger.jsonl
+    budget:
+      daily_micro_usd: 500000000  # $500/day default
+      warn_at_percent: 80
+      on_exceeded: downgrade      # block | downgrade | warn
+
+# BUTTERFREEZONE — Cross-Repo Agent Legibility (cycle-017)
+butterfreezone:
+  ecosystem:
+    - repo: 0xHoneyJar/loa-finn
+      role: runtime
+      interface: hounfour-router
+      protocol: loa-hounfour@5.0.0
+    - repo: 0xHoneyJar/loa-hounfour
+      role: protocol
+      interface: npm-package
+      protocol: loa-hounfour@7.0.0
+    - repo: 0xHoneyJar/arrakis
+      role: distribution
+      interface: jwt-auth
+      protocol: loa-hounfour@7.0.0
+  culture:
+    naming_etymology: "Vodou terminology (Loa, Grimoire, Hounfour, Simstim) as cognitive hooks for agent framework concepts"
+    principles:
+      - "Think Before Coding — plan and analyze before implementing"
+      - "Simplicity First — minimum complexity for the current task"
+      - "Surgical Changes — minimal diff, maximum impact"
+      - "Goal-Driven — every action traces to acceptance criteria"
+    methodology: "Agent-driven development with iterative excellence loops (Simstim, Run Bridge, Flatline Protocol)"
+    generative:
+      description: "Creative methodology drawing from cyberpunk fiction, free jazz improvisation, and temporary autonomous zones"
+      references:
+        - "Neuromancer (Gibson) — Simstim as shared consciousness metaphor"
+        - "Flatline Protocol — adversarial multi-model review as creative tension"
+        - "TAZ (Hakim Bey) — temporary spaces for autonomous agent exploration"
+      study_groups: "Knowledge production through collective inquiry — Flatline as multi-model study group"
+
+# Vision Registry Integration (v1.42.0 — cycle-041)
+# Weaves captured visions from bridge reviews into planning workflows.
+# Disabled by default — opt-in via enabled: true.
+vision_registry:
+  enabled: false           # Master switch — default OFF, opt-in
+  shadow_mode: true        # Log matches silently before presenting to user
+  shadow_cycles_before_prompt: 2  # Shadow cycles before graduation prompt
+  status_filter:
+    - Captured
+    - Exploring
+  min_tag_overlap: 2       # Minimum tag overlap for relevance
+  max_visions_per_session: 3  # Cap visions shown per planning session
+  ref_elevation_threshold: 3  # Ref count before lore elevation suggestion
+  propose_requirements: false  # Experimental — vision-inspired requirement proposals
+
+run_bridge:
+  enabled: true
+  defaults:
+    depth: 5
+    per_sprint: false
+    flatline_threshold: 0.05
+    consecutive_flatline: 2
+  bridgebuilder:
+    persona_enabled: true
+    persona_path: .claude/data/bridgebuilder-persona.md
+    enriched_findings: true
+    insights_stream: true
+    praise_findings: true
+    integrity_check: true
+    token_budget:
+      findings_tokens: 5000
+      insights_tokens: 25000
+      total_tokens: 30000
+    size_limits:
+      truncate_bytes: 66560
+      findings_only_bytes: 262144
+    redaction:
+      enabled: true
+      post_redaction_safety: true
+
+flatline_protocol:
+  enabled: true
+  auto_trigger: true
+  phases:
+    prd: true
+    sdd: true
+    sprint: true
+  models:
+    primary: opus
+    secondary: gpt-5.3-codex
+  thresholds:
+    high_consensus: 700
+    disputed_delta: 300
+    low_value: 400
+    blocker_skeptic: 700
+  max_iterations: 5
+  secret_scanning:
+    patterns:
+      - "AIzaSy[A-Za-z0-9_-]{33}"
+  knowledge:
+    local:
+      enabled: true
+      paths:
+        - grimoires/loa/
+        - .claude/protocols/
+    notebooklm:
+      enabled: false
+      notebook_id: ""
+
+# Red Team — Generative Adversarial Security Design (cycle-012)
+red_team:
+  enabled: true
+  mode: standard
+  models:
+    attacker_primary: opus
+    attacker_secondary: gpt-5.3-codex
+    defender_primary: opus
+    defender_secondary: gpt-5.3-codex
+  defaults:
+    attacks_per_model: 10
+    depth: 1
+    focus: null
+  thresholds:
+    confirmed_attack: 700
+    theoretical: 400
+    human_review_gate: 800
+  budgets:
+    quick_max_tokens: 50000
+    standard_max_tokens: 200000
+    deep_max_tokens: 500000
+    max_attacks_total: 20
+  early_stopping:
+    saturation_threshold: 0.8
+    min_novel_per_iteration: 2
+  safety:
+    prohibited_content: true
+    mandatory_redaction: true
+    retention_days_restricted: 30
+    retention_days_internal: 90
+    ci_artifact_scrubbing: true
+  input_sanitization:
+    injection_detection: true
+    context_isolation: true
+    secret_filtering: true
+  surfaces_registry: .claude/data/attack-surfaces.yaml
+  simstim:
+    auto_trigger: false
+    phase: post_sdd
+  bridge:
+    enabled: false
