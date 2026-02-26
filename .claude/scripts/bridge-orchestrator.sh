@@ -466,9 +466,33 @@ bridge_main() {
       fi
     fi
 
-    # 2g: Vision Capture
+    # 2g: Vision Capture (cycle-042: auto-capture VISION findings)
     echo "[VISION] Capturing VISION findings..."
     echo "SIGNAL:VISION_CAPTURE:$iteration"
+
+    local bridge_auto_capture
+    bridge_auto_capture=$(yq '.vision_registry.bridge_auto_capture // false' "$CONFIG_FILE" 2>/dev/null || echo "false")
+    if [[ "$bridge_auto_capture" == "true" && -x "$SCRIPT_DIR/bridge-vision-capture.sh" ]]; then
+      local findings_file="${PROJECT_ROOT}/.run/bridge-reviews/${BRIDGE_ID:-unknown}-iter${iteration}-findings.json"
+      if [[ -f "$findings_file" ]]; then
+        local vision_findings
+        vision_findings=$(jq '[.findings[] | select(.severity == "VISION" or .severity == "SPECULATION")]' "$findings_file" 2>/dev/null) || vision_findings="[]"
+        local vision_count
+        vision_count=$(echo "$vision_findings" | jq 'length' 2>/dev/null) || vision_count=0
+
+        if [[ "$vision_count" -gt 0 ]]; then
+          echo "[VISION] Found $vision_count VISION/SPECULATION findings — capturing..."
+          "$SCRIPT_DIR/bridge-vision-capture.sh" "$findings_file" 2>/dev/null || true
+          echo "[VISION] Captured $vision_count vision entries"
+        else
+          echo "[VISION] No VISION/SPECULATION findings in this iteration"
+        fi
+      else
+        echo "[VISION] No findings file at $findings_file — skipping auto-capture"
+      fi
+    else
+      echo "[VISION] Auto-capture disabled (set vision_registry.bridge_auto_capture: true to enable)"
+    fi
 
     # 2h: GitHub Trail
     echo "[TRAIL] Posting to GitHub..."
@@ -738,6 +762,32 @@ bridge_main() {
       echo "[LORE] Discovered $lore_candidates candidate patterns"
     else
       echo "[LORE] lore-discover.sh not found — skipping"
+    fi
+
+    # Vision-to-lore elevation check (cycle-042)
+    if [[ -f "$SCRIPT_DIR/vision-lib.sh" ]]; then
+      source "$SCRIPT_DIR/vision-lib.sh" 2>/dev/null || true
+      local visions_dir="$PROJECT_ROOT/grimoires/loa/visions"
+      local index_file="$visions_dir/index.md"
+      if [[ -f "$index_file" ]]; then
+        local elevated=0
+        while IFS='|' read -r _ vid _ _ _ _ refs _; do
+          vid=$(echo "$vid" | xargs)
+          refs=$(echo "$refs" | xargs)
+          if [[ "$vid" =~ ^vision-[0-9]{3}$ && "${refs:-0}" -gt 0 ]]; then
+            local elev_result
+            elev_result=$(vision_check_lore_elevation "$vid" "$visions_dir" 2>/dev/null) || continue
+            if [[ "$elev_result" == "ELEVATE" ]]; then
+              echo "[LORE] Elevating $vid to lore..."
+              vision_generate_lore_entry "$vid" "$visions_dir" >> "$PROJECT_ROOT/.claude/data/lore/discovered/visions.yaml" 2>/dev/null || true
+              elevated=$((elevated + 1))
+            fi
+          fi
+        done < <(grep '| vision-' "$index_file" 2>/dev/null)
+        if [[ $elevated -gt 0 ]]; then
+          echo "[LORE] Elevated $elevated vision(s) to lore entries"
+        fi
+      fi
     fi
 
     # Record in bridge state

@@ -259,3 +259,109 @@ EOF
     run bats "$REAL_ROOT/tests/unit/vision-registry-query.bats"
     [ "$status" -eq 0 ]
 }
+
+# =============================================================================
+# Pipeline integration tests (cycle-042, Sprint 3)
+# =============================================================================
+
+@test "pipeline: shadow mode end-to-end with populated registry" {
+    skip_if_deps_missing
+
+    REAL_ROOT="$(cd "$BATS_TEST_DIR/../.." && pwd)"
+    local real_script_dir="$REAL_ROOT/.claude/scripts"
+
+    # Create test visions with known tags
+    cp "$FIXTURES/index-three-visions.md" "$TEST_TMPDIR/grimoires/loa/visions/index.md"
+    cp "$FIXTURES/entry-valid.md" "$TEST_TMPDIR/grimoires/loa/visions/entries/vision-001.md"
+
+    # Create additional entries for tag matching
+    cat > "$TEST_TMPDIR/grimoires/loa/visions/entries/vision-002.md" <<'ENTRY'
+# Vision: Test Security Finding
+
+**ID**: vision-002
+**Source**: test-bridge
+**PR**: #1
+**Date**: 2026-01-01
+**Status**: Captured
+**Tags**: [security, testing]
+
+## Insight
+Test security insight.
+
+## Potential
+Test potential.
+ENTRY
+
+    cat > "$TEST_TMPDIR/grimoires/loa/visions/entries/vision-003.md" <<'ENTRY'
+# Vision: Test Architecture Pattern
+
+**ID**: vision-003
+**Source**: test-bridge
+**PR**: #2
+**Date**: 2026-01-01
+**Status**: Exploring
+**Tags**: [architecture, testing]
+
+## Insight
+Test architecture insight.
+
+## Potential
+Test potential.
+ENTRY
+
+    # Initialize shadow state
+    echo '{"shadow_cycles_completed": 0, "last_shadow_run": null, "matches_during_shadow": 0}' \
+        > "$TEST_TMPDIR/grimoires/loa/visions/.shadow-state.json"
+
+    # Create config
+    cat > "$TEST_TMPDIR/.loa.config.yaml" <<'CONF'
+vision_registry:
+  enabled: true
+  shadow_mode: true
+CONF
+
+    # Run shadow query
+    run bash -c "PROJECT_ROOT='$TEST_TMPDIR' '$real_script_dir/vision-registry-query.sh' \
+        --tags testing --min-overlap 1 --shadow --shadow-cycle test-cycle --shadow-phase test \
+        --visions-dir '$TEST_TMPDIR/grimoires/loa/visions' --json"
+    [ "$status" -eq 0 ]
+
+    # Verify shadow state incremented
+    local shadow_cycles
+    shadow_cycles=$(jq '.shadow_cycles_completed' "$TEST_TMPDIR/grimoires/loa/visions/.shadow-state.json")
+    [ "$shadow_cycles" -eq 1 ]
+
+    # Verify JSONL log created
+    local log_count
+    log_count=$(ls "$TEST_TMPDIR/grimoires/loa/a2a/trajectory"/vision-shadow-*.jsonl 2>/dev/null | wc -l)
+    [ "$log_count" -ge 1 ]
+}
+
+@test "pipeline: lore elevation triggers at ref threshold" {
+    skip_if_deps_missing
+
+    REAL_ROOT="$(cd "$BATS_TEST_DIR/../.." && pwd)"
+    local real_script_dir="$REAL_ROOT/.claude/scripts"
+
+    # Setup: copy index with a high-ref vision
+    cp "$FIXTURES/index-three-visions.md" "$TEST_TMPDIR/grimoires/loa/visions/index.md"
+    cp "$FIXTURES/entry-valid.md" "$TEST_TMPDIR/grimoires/loa/visions/entries/vision-001.md"
+
+    # Manually set refs above threshold (default threshold is 3)
+    sed -i 's/| 0 |$/| 5 |/' "$TEST_TMPDIR/grimoires/loa/visions/index.md"
+
+    # Create config with low threshold
+    cat > "$TEST_TMPDIR/.loa.config.yaml" <<'CONF'
+vision_registry:
+  enabled: true
+  ref_elevation_threshold: 3
+CONF
+
+    # Run elevation check
+    run bash -c "source '$real_script_dir/vision-lib.sh' && \
+        PROJECT_ROOT='$TEST_TMPDIR' \
+        vision_check_lore_elevation 'vision-001' '$TEST_TMPDIR/grimoires/loa/visions'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == "ELEVATE" ]]
+}

@@ -242,13 +242,13 @@
           "local_id": 2,
           "global_id": 78,
           "label": "Security Hardening",
-          "status": "in_progress"
+          "status": "completed"
         },
         {
           "local_id": 3,
           "global_id": 79,
           "label": "Pipeline Wiring",
-          "status": "pending"
+          "status": "completed"
         }
       ]
     }

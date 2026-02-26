@@ -77,10 +77,29 @@ interprets and acts on:
 | `RUN_SPRINT_PLAN` | Execute `/run sprint-plan` |
 | `RUN_PER_SPRINT` | Execute per-sprint mode |
 | `BRIDGEBUILDER_REVIEW` | Invoke Bridgebuilder on changes |
-| `VISION_CAPTURE` | Run `bridge-vision-capture.sh` |
+| `VISION_CAPTURE` | Check findings for VISION/SPECULATION severity → invoke `bridge-vision-capture.sh` (gated by `vision_registry.bridge_auto_capture`) |
 | `GITHUB_TRAIL` | Run `bridge-github-trail.sh` |
 | `FLATLINE_CHECK` | Evaluate flatline condition |
-| `LORE_DISCOVERY` | Run `lore-discover.sh` to extract patterns from bridge reviews (v1.39.0) |
+| `LORE_DISCOVERY` | Run `lore-discover.sh` → call `vision_check_lore_elevation()` for visions with refs > 0 (v1.42.0) |
+
+#### VISION_CAPTURE → LORE_DISCOVERY Chain (v1.42.0)
+
+After `BRIDGEBUILDER_REVIEW` completes and findings are parsed:
+
+1. **VISION_CAPTURE** (conditional):
+   - Only fires when `vision_registry.bridge_auto_capture: true` in `.loa.config.yaml`
+   - Filters parsed findings for VISION or SPECULATION severity
+   - Invokes `bridge-vision-capture.sh` with findings JSON path
+   - Creates vision entries in `grimoires/loa/visions/entries/`
+   - Updates `grimoires/loa/visions/index.md`
+
+2. **LORE_DISCOVERY** (always after VISION_CAPTURE):
+   - Invokes `lore-discover.sh` to extract patterns from bridge reviews
+   - Sources `vision-lib.sh` and calls `vision_check_lore_elevation()` for each vision with `refs > 0`
+   - If elevation threshold met, calls `vision_generate_lore_entry()` and `vision_append_lore_entry()`
+   - Logs elevation events to trajectory JSONL
+
+Data flow: `bridge finding JSON → vision entry → index update → lore elevation check`
 
 ### Phase 3.1: Enriched Bridgebuilder Review
 
