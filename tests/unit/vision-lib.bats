@@ -514,3 +514,52 @@ LORE_EOF
     run bash -c "source '$SCRIPT_DIR/vision-lib.sh' && PROJECT_ROOT='$TEST_TMPDIR' vision_append_lore_entry 'vision-001' '$TEST_TMPDIR'"
     [ "$status" -eq 1 ]
 }
+
+# =============================================================================
+# Vision Registry Seeding tests (cycle-042)
+# =============================================================================
+
+@test "vision seeding: imported entry from ecosystem repo validates" {
+    load_vision_lib
+    local entry_file="$PROJECT_ROOT/grimoires/loa/visions/entries/vision-001.md"
+    [ -f "$entry_file" ] || skip "vision-001.md not present (seeding not yet complete)"
+    run bash -c "source '$SCRIPT_DIR/vision-lib.sh' && vision_validate_entry '$entry_file'"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"VALID"* ]]
+}
+
+@test "vision seeding: status update via vision_update_status works for imported entries" {
+    load_vision_lib
+    # Copy a real entry to temp dir for safe mutation
+    cp "$FIXTURES/index-three-visions.md" "$TEST_TMPDIR/index.md"
+    mkdir -p "$TEST_TMPDIR/entries"
+    cp "$FIXTURES/entry-valid.md" "$TEST_TMPDIR/entries/vision-001.md"
+
+    # Update status from Captured to Exploring
+    run bash -c "source '$SCRIPT_DIR/vision-lib.sh' && vision_update_status 'vision-001' 'Exploring' '$TEST_TMPDIR'"
+    [ "$status" -eq 0 ]
+
+    # Verify the entry file was updated
+    run grep -c 'Exploring' "$TEST_TMPDIR/entries/vision-001.md"
+    [ "$output" -ge 1 ]
+}
+
+@test "vision seeding: index statistics reflect correct counts after population" {
+    load_vision_lib
+    local index_file="$PROJECT_ROOT/grimoires/loa/visions/index.md"
+    [ -f "$index_file" ] || skip "index.md not populated yet"
+
+    # Count entries in the table (lines with | vision- pattern)
+    run grep -c '| vision-' "$index_file"
+    [ "$output" -eq 9 ]
+
+    # Verify statistics
+    run grep 'Total captured:' "$index_file"
+    [[ "$output" == *"6"* ]]
+
+    run grep 'Total exploring:' "$index_file"
+    [[ "$output" == *"2"* ]]
+
+    run grep 'Total implemented:' "$index_file"
+    [[ "$output" == *"1"* ]]
+}
