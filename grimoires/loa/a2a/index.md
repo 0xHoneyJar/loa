@@ -6,7 +6,7 @@
 |--------|-----------|--------|-------|
 | Sprint 1 | 74 | COMPLETED | — |
 | Sprint 2 | 75 | COMPLETED | audit: APPROVED |
-| Sprint 3 | 76 | PLANNED | — |
+| Sprint 3 | 76 | COMPLETED | audit: APPROVED |
 
 ## Cycle 039: Two-Pass Bridge Review
 
