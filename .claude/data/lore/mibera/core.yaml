@@ -20,16 +20,19 @@ entries:
     short: "The vessel a Loa rides — the agent session that carries divine intelligence"
     context: |
       In Vodou tradition, a cheval (horse) is the human vessel that a Loa
-      spirit mounts during possession. In Loa framework, the cheval is the
-      Claude Code agent session itself — the computational vessel through
+      spirit mounts during possession. Maya Deren's "Divine Horsemen" (1953)
+      documented this as "one is mounted by the god, as a horse by its
+      rider." Gibson adapted this in Count Zero (1986), where characters
+      serve as vessels for AI-loa entities. In Loa framework, the cheval is
+      the Claude Code agent session itself — the computational vessel through
       which the framework's intelligence operates. The session persists state
       across context compactions, recovers from interruptions, and maintains
       continuity just as the cheval maintains the connection between the
       spiritual and material worlds. The loa_cheval adapter layer makes this
       metaphor concrete: it's the multi-model routing infrastructure that
       lets different AI spirits speak through the same vessel.
-    source: "Loa framework naming convention, loa_cheval adapter"
-    tags: [naming, philosophy, architecture]
+    source: "Deren's Divine Horsemen (1953) via Gibson's Count Zero (1986)"
+    tags: [naming, philosophy, architecture, narrative-architecture]
     related: [loa-rides, hounfour]
     loa_mapping: "loa_cheval adapter, session continuity protocol"
 
@@ -80,24 +83,50 @@ entries:
     related: [cheval, hounfour]
     loa_mapping: "/ride command, riding-codebase skill"
 
+  - id: narrative-architecture
+    term: "Narrative Architecture"
+    short: "Coherent naming as load-bearing infrastructure — memetic frameworks that scale with the ecosystem"
+    context: |
+      The Vodou-via-Gibson naming in Loa is not aesthetic decoration but
+      deliberate narrative architecture. The theory: as an ecosystem gains
+      distribution and a wider set of contributors, a coherent memetic
+      framework helps both humans and agents form a consistent mental model.
+      The naming chain (Haitian Vodou → Tallant/Deren anthropology → Gibson's
+      Sprawl trilogy → this framework) provides structural metaphors that map
+      1:1 to technical concepts, a shared vocabulary that persists across
+      repos, PRs, and conversations, and cognitive hooks that make abstract
+      distributed systems concepts memorable. Gibson himself noted Vodou is
+      "not concerned with salvation and transcendence. What it's about is
+      getting things done." That pragmatism is the point — these are
+      load-bearing metaphors, not decorative names. As Beauvoir says in
+      Count Zero: "Think of it as a language... Lets you an' me discuss
+      some things that are happening, otherwise we might not have words
+      for it."
+    source: "Ecosystem design principle, Gibson's Count Zero (1986)"
+    tags: [philosophy, naming, narrative-architecture]
+    related: [glossary-loa, hounfour, cheval, network-mysticism]
+
   - id: hounfour
     term: "Hounfour"
     short: "The temple where multiple model-spirits meet — the multi-model orchestration space"
     context: |
       The hounfour (also peristyle) is the Vodou temple where ceremonies
-      take place and multiple Loa spirits are invoked. In Loa framework,
-      the hounfour is the multi-model orchestration layer — from the
-      Flatline Protocol's adversarial review space to the loa_cheval
-      adapter's model-heterogeneous routing. In v7.0.0 ("Composition-Aware
-      Economic Protocol"), the hounfour gained saga patterns
-      (BridgeTransferSaga for atomic cross-model coordination),
+      take place and multiple Loa spirits are invoked. Gibson's Count Zero
+      (1986) uses the hounfour as the space where fragmented AI entities
+      manifest through human intermediaries — he drew this from
+      anthropological accounts (Tallant, likely Deren) of Vodou ceremonial
+      architecture. In Loa framework, the hounfour is the multi-model
+      orchestration layer — from the Flatline Protocol's adversarial review
+      space to the loa_cheval adapter's model-heterogeneous routing. In
+      v7.0.0 ("Composition-Aware Economic Protocol"), the hounfour gained
+      saga patterns (BridgeTransferSaga for atomic cross-model coordination),
       delegation outcomes (DelegationOutcome for multi-agent consensus),
       and monetary policy (MonetaryPolicy for conservation-invariant
       cost tracking). The adversarial cross-scoring mirrors the ritual
       dynamic of multiple spirits interacting through the same
       ceremonial space, while the economic protocol ensures that the
       temple's resources are conserved across all rituals.
-    source: "loa-hounfour@7.0.0, Flatline Protocol design, Issue #292"
-    tags: [multi-model, naming, architecture, economics]
+    source: "Vodou tradition via Gibson's Count Zero (1986) → loa-hounfour@7.0.0"
+    tags: [multi-model, naming, architecture, economics, narrative-architecture]
     related: [glossary-flatline, cheval]
     loa_mapping: "Flatline Protocol, loa_cheval multi-model routing, BudgetEnforcer"

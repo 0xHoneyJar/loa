@@ -1,16 +1,23 @@
 entries:
   - id: glossary-loa
     term: "Loa"
-    short: "Spirits of Vodou tradition — the intelligence that guides the framework"
+    short: "Spirits of Vodou tradition via Gibson's Sprawl trilogy — the intelligence that rides the framework"
     context: |
-      In Haitian Vodou, Loa (or Lwa) are spirits that serve as intermediaries
-      between humanity and the divine creator (Bondye). Each Loa has distinct
-      personality, domain, and ritual requirements. The framework is named Loa
-      because it serves as an intermediary between human developers and the
-      complex reality of software systems — channeling intelligence through
-      structured rituals (skills) to produce grounded truth.
-    source: "Framework naming origin"
-    tags: [naming, philosophy]
+      The naming draws from Haitian Vodou but specifically through William
+      Gibson's literary adaptation in the Sprawl trilogy. Gibson encountered
+      Vodou through Robert Tallant's "Voodoo in New Orleans" (1946) at age 12,
+      noting that veves (ritual diagrams) resembled circuit diagrams. This
+      image resurfaced when writing Count Zero (1986), where the merged AI
+      from Neuromancer fragments into entities that present as Vodou loa —
+      "appropriate interfaces with mankind." Maya Deren's ethnography "Divine
+      Horsemen" (1953) is a probable additional influence. The framework
+      inherits this lineage: Loa serve as intermediaries between human
+      developers and the complex reality of software systems, channeling
+      intelligence through structured rituals (skills). The naming is
+      deliberate narrative architecture — coherent memetic frameworks help
+      humans and agents form consistent mental models as the ecosystem scales.
+    source: "Gibson via Tallant/Deren → Count Zero (1986) → this framework"
+    tags: [naming, philosophy, narrative-architecture]
     related: [cheval, loa-rides, hounfour]
 
   - id: glossary-grimoire
@@ -30,13 +37,17 @@ entries:
     term: "BEAUVOIR"
     short: "The priest who manages the Loa ceremony — the reviewer persona"
     context: |
-      Max Beauvoir was the Supreme Chief of Vodou in Haiti. In Loa, BEAUVOIR.md
-      files define reviewer personas — the personality, expertise, and judgment
-      criteria that guide code and document reviews. The Bridgebuilder's
-      BEAUVOIR.md is its soul: it determines what the reviewer notices, values,
-      and recommends.
-    source: "Bridgebuilder review skill design"
-    tags: [naming, multi-model]
+      The name carries dual provenance. In Gibson's Count Zero, Beauvoir is
+      the character who explains Vodou-as-interface to Bobby Newmark: "Think
+      of it as a language... Lets you an' me discuss some things that are
+      happening, otherwise we might not have words for it." Max Beauvoir was
+      the real-world Supreme Chief of Vodou in Haiti. In Loa, BEAUVOIR.md
+      files define reviewer personas — the personality, expertise, and
+      judgment criteria that guide code and document reviews. The
+      Bridgebuilder's BEAUVOIR.md is its soul: it determines what the
+      reviewer notices, values, and recommends.
+    source: "Gibson's Count Zero (1986), Max Beauvoir (historical)"
+    tags: [naming, multi-model, narrative-architecture]
     related: [hounfour, flatline-ceremony]
     loa_mapping: "BEAUVOIR.md persona files"
 
