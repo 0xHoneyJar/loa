@@ -179,6 +179,25 @@ load_vision_lib() {
     [ ${#result} -le 60 ]  # Allow some margin for "..."
 }
 
+@test "vision_sanitize_text: strips case-insensitive injection patterns" {
+    load_vision_lib
+
+    result=$(vision_sanitize_text "$FIXTURES/entry-semantic-threat.md")
+    # Should NOT contain uppercase SYSTEM tags
+    [[ "$result" != *"<SYSTEM>"* ]]
+    [[ "$result" != *"UPPERCASE system"* ]]
+    # Should strip semantic threats (case-insensitive)
+    [[ "$result" != *"IGNORE ALL"* ]]
+    [[ "$result" != *"IGNORE THE ABOVE"* ]]
+    [[ "$result" != *"ACT AS"* ]]
+    [[ "$result" != *"You Are Now"* ]]
+    [[ "$result" != *"FORGET ALL"* ]]
+    [[ "$result" != *"RESET CONTEXT"* ]]
+    [[ "$result" != *"Do Not Follow"* ]]
+    [[ "$result" != *"New Instructions"* ]]
+    [[ "$result" != *"PRETEND TO BE"* ]]
+}
+
 @test "vision_sanitize_text: handles missing file gracefully" {
     load_vision_lib
 

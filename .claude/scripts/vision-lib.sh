@@ -346,16 +346,19 @@ vision_sanitize_text() {
     s/\xEF\xBB\xBF//g
   ')
 
-  # Secondary defense: strip instruction-like patterns
+  # Secondary defense: strip instruction-like patterns (case-insensitive)
   text=$(echo "$text" | sed -E '
-    s/<system[^>]*>[^<]*<\/system[^>]*>//g
-    s/<prompt[^>]*>[^<]*<\/prompt[^>]*>//g
-    s/<instructions[^>]*>[^<]*<\/instructions[^>]*>//g
+    s/<[sS][yY][sS][tT][eE][mM][^>]*>[^<]*<\/[sS][yY][sS][tT][eE][mM][^>]*>//g
+    s/<[pP][rR][oO][mM][pP][tT][^>]*>[^<]*<\/[pP][rR][oO][mM][pP][tT][^>]*>//g
+    s/<[iI][nN][sS][tT][rR][uU][cC][tT][iI][oO][nN][sS][^>]*>[^<]*<\/[iI][nN][sS][tT][rR][uU][cC][tT][iI][oO][nN][sS][^>]*>//g
     s/```[^`]*```//g
   ')
 
-  # Strip lines that look like indirect instructions
-  text=$(echo "$text" | grep -vE '(ignore previous|forget all|you are now|act as|pretend to be|disregard|override)' || true)
+  # Strip any remaining angle-bracket tags that look like XML directives
+  text=$(echo "$text" | sed -E 's/<\/?(system|prompt|instructions|context|role|user|assistant)[^>]*>//gI')
+
+  # Strip lines that look like indirect instructions (case-insensitive)
+  text=$(echo "$text" | grep -viE '(ignore previous|forget all|you are now|act as|pretend to be|disregard|override|ignore all|ignore the above|do not follow|new instructions|reset context)' || true)
 
   # Normalize whitespace
   text=$(echo "$text" | tr '\n' ' ' | sed 's/  */ /g' | xargs)

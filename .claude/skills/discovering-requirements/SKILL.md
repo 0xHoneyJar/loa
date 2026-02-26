@@ -663,6 +663,132 @@ Should I proceed with these clarifying questions, or would you like to
 correct my understanding first?
 ```
 
+## Step 0.5: Vision Registry Loading (v1.42.0)
+
+**Purpose**: Surface relevant captured visions from previous bridge reviews to inform planning.
+
+### Check Configuration
+
+```bash
+vr_enabled=$(yq eval '.vision_registry.enabled // false' .loa.config.yaml 2>/dev/null || echo "false")
+```
+
+If `vision_registry.enabled` is `false` or absent: **skip this step entirely** — no mention to user, no code runs.
+
+### Derive Work Context Tags
+
+When enabled, derive tags from available context in priority order:
+
+1. **Sprint file paths** (if `grimoires/loa/sprint.md` exists): Extract `**File**: \`...\`` patterns and map through `vision_extract_tags()` path-to-tag rules
+2. **User request keywords**: Match against controlled vocabulary (`architecture`, `security`, `constraints`, `multi-model`, `testing`, `philosophy`, `orchestration`, `configuration`, `eventing`)
+3. **PRD section headers** (if `grimoires/loa/prd.md` exists): Map headers to tags (e.g., "Security" → `security`)
+
+Tags are deduplicated and sorted before matching.
+
+### Query Vision Registry
+
+```bash
+visions=$(.claude/scripts/vision-registry-query.sh \
+  --tags "$work_tags" \
+  --status "$(yq eval '.vision_registry.status_filter | join(",")' .loa.config.yaml 2>/dev/null || echo 'Captured,Exploring')" \
+  --min-overlap "$(yq eval '.vision_registry.min_tag_overlap // 2' .loa.config.yaml 2>/dev/null || echo '2')" \
+  --max-results "$(yq eval '.vision_registry.max_visions_per_session // 3' .loa.config.yaml 2>/dev/null || echo '3')" \
+  --include-text \
+  --json)
+```
+
+### Route by Mode
+
+**Shadow mode** (`vision_registry.shadow_mode: true`):
+
+```bash
+# Log silently — do NOT present to user
+.claude/scripts/vision-registry-query.sh \
+  --tags "$work_tags" \
+  --shadow \
+  --shadow-cycle "$(yq eval '.active_cycle' grimoires/loa/ledger.json 2>/dev/null)" \
+  --shadow-phase "plan-and-analyze" \
+  --json > /dev/null
+```
+
+- Results logged to `grimoires/loa/a2a/trajectory/vision-shadow-{date}.jsonl`
+- Shadow cycle counter incremented in `grimoires/loa/visions/.shadow-state.json`
+- If graduation ready (cycles >= threshold AND matches > 0), present graduation prompt (see Step 0.5b)
+
+**Active mode** (`vision_registry.shadow_mode: false`):
+
+Present matched visions to user using the template below, then process user decisions.
+
+### Vision Presentation Template (Active Mode)
+
+For each matched vision, present:
+
+```markdown
+---
+### Relevant Vision: [title]
+**Source**: [source field — e.g., "Bridge iteration 2, PR #100"]
+**Relevance**: Matched on tags: [matched_tags joined by ", "]
+**Score**: [score] (overlap: [overlap], references: [refs])
+
+> [sanitized insight text — max 500 chars, from vision_sanitize_text()]
+
+**What would you like to do with this vision?**
+- **Explore**: Mark for deeper analysis — may inspire requirements
+- **Defer**: Interesting but not relevant to current work
+- **Skip**: Not useful
+---
+```
+
+**IMPORTANT**: The relevance explanation is template-based (tag match + score), NOT LLM-generated. Do not fabricate a narrative about why the vision is relevant — state the matched tags and score.
+
+### Process User Decisions
+
+For each vision the user responds to:
+
+| Choice | Action |
+|--------|--------|
+| **Explore** | Call `vision_update_status(vision_id, "Exploring", visions_dir)`. Record reference via `vision_record_ref()`. Log choice to trajectory JSONL. |
+| **Defer** | Log choice to trajectory JSONL. No status change. |
+| **Skip** | Log choice to trajectory JSONL. No status change. |
+
+Log format (append to `grimoires/loa/a2a/trajectory/vision-decisions-{date}.jsonl`):
+```json
+{
+  "timestamp": "ISO8601",
+  "cycle": "cycle-NNN",
+  "phase": "plan-and-analyze",
+  "vision_id": "vision-NNN",
+  "decision": "explore|defer|skip",
+  "score": N,
+  "matched_tags": ["tag1", "tag2"]
+}
+```
+
+### Step 0.5b: Shadow Graduation Prompt
+
+When the query script returns `graduation.ready: true`:
+
+```markdown
+## Vision Registry — Shadow Period Complete
+
+Over **N shadow cycles**, **M visions** matched your work context.
+
+The Vision Registry has been silently logging relevance matches during your
+planning sessions. Here's what was found:
+
+[summary of top matches from shadow logs]
+
+**Would you like to:**
+1. **Enable active mode** — Start seeing relevant visions during planning
+2. **Adjust thresholds** — Change tag overlap or max results settings
+3. **Keep shadow mode** — Continue silent logging for more data
+4. **Disable** — Turn off vision registry entirely
+```
+
+On "Enable active mode": Update config via `yq eval '.vision_registry.shadow_mode = false' -i .loa.config.yaml`
+
+---
+
 ## Phase 0.5: Targeted Interview
 
 **For each gap/ambiguity identified:**

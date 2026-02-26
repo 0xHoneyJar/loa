@@ -1,5 +1,13 @@
 # Sprint Status Index
 
+## Cycle 041: Vision-Aware Planning — Creative Agency for AI Peers
+
+| Sprint | Global ID | Status | Phase |
+|--------|-----------|--------|-------|
+| Sprint 1 | 74 | COMPLETED | — |
+| Sprint 2 | 75 | IN_PROGRESS | implement |
+| Sprint 3 | 76 | PLANNED | — |
+
 ## Cycle 039: Two-Pass Bridge Review
 
 | Sprint | Global ID | Status | Phase |

@@ -319,8 +319,8 @@ if [[ "$SHADOW_MODE" == "true" ]]; then
   match_count=$(echo "$final_results" | jq 'length')
   shadow_matches=$((shadow_matches + match_count))
 
-  # Build shadow log entry
-  shadow_entry=$(jq -n \
+  # Build shadow log entry (compact for JSONL — one line per entry)
+  shadow_entry=$(jq -cn \
     --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --arg cycle "${SHADOW_CYCLE:-unknown}" \
     --arg phase "${SHADOW_PHASE:-plan-and-analyze}" \
