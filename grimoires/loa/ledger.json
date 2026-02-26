@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-042",
+  "active_cycle": null,
   "cycles": [
     {
       "id": "cycle-036",
@@ -227,7 +227,7 @@
     {
       "id": "cycle-042",
       "label": "Vision Activation — From Infrastructure to Living Memory",
-      "status": "active",
+      "status": "archived",
       "created": "2026-02-26T18:00:00Z",
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
@@ -256,7 +256,9 @@
           "label": "Excellence Hardening — Bridgebuilder Findings",
           "status": "completed"
         }
-      ]
+      ],
+      "archived": "2026-02-26T07:04:05Z",
+      "archive_path": "grimoires/loa/archive/2026-02-26-cycle-042-vision-activation"
     }
   ],
   "global_sprint_counter": 80
