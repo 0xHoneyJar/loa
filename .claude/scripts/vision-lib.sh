@@ -122,8 +122,9 @@ _vision_validate_dir() {
   local canon_root
   canon_root=$(cd "$project_root" 2>/dev/null && pwd)
 
-  # Ensure dir is under project root
-  if [[ "$canon_dir" != "$canon_root"* ]]; then
+  # Ensure dir is under project root (exact prefix with trailing slash to prevent
+  # /home/user/project-evil matching /home/user/project)
+  if [[ "$canon_dir" != "$canon_root" && "$canon_dir" != "$canon_root"/* ]]; then
     echo "ERROR: Visions directory must be under project root: $dir" >&2
     return 1
   fi
@@ -151,7 +152,7 @@ vision_atomic_write() {
   (
     flock -w 5 200 || {
       echo "ERROR: Could not acquire lock on $lock_file after 5s" >&2
-      return 1
+      exit 1  # exit, not return — inside flock subshell (PR #215 convention)
     }
     "$@"
   ) 200>"$lock_file"

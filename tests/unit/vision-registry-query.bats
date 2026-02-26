@@ -258,6 +258,56 @@ EOF
 # Invalid input tests (SKP-005)
 # =============================================================================
 
+# =============================================================================
+# Auto-tag derivation tests
+# =============================================================================
+
+@test "vision-registry-query: --tags auto derives from sprint plan" {
+    skip_if_deps_missing
+    cp "$FIXTURES/index-three-visions.md" "$TEST_TMPDIR/visions/index.md"
+
+    # Create minimal sprint.md with file paths
+    mkdir -p "$TEST_TMPDIR/grimoires/loa"
+    cat > "$TEST_TMPDIR/grimoires/loa/sprint.md" <<'SPRINT'
+# Sprint Plan
+
+### T1: Fix orchestrator
+- [ ] **File**: `.claude/scripts/flatline-orchestrator.sh` (modify)
+
+### T2: Update constraints
+- [ ] **File**: `.claude/data/constraints.json` (modify)
+SPRINT
+
+    # Create minimal prd.md with keywords
+    cat > "$TEST_TMPDIR/grimoires/loa/prd.md" <<'PRD'
+# PRD
+
+## Architecture
+Multi-model adversarial review system.
+
+## Security
+Input validation and content sanitization.
+PRD
+
+    result=$(PROJECT_ROOT="$TEST_TMPDIR" "$SCRIPT" --tags auto --visions-dir "$TEST_TMPDIR/visions" --min-overlap 1 --json)
+    count=$(echo "$result" | jq 'length')
+    # Should find visions matching derived tags (architecture, multi-model, constraints, security)
+    [ "$count" -ge 1 ]
+}
+
+@test "vision-registry-query: --tags auto with no context returns empty" {
+    skip_if_deps_missing
+    cp "$FIXTURES/index-three-visions.md" "$TEST_TMPDIR/visions/index.md"
+
+    # No sprint.md or prd.md in test dir → no tags derivable
+    result=$(PROJECT_ROOT="$TEST_TMPDIR" "$SCRIPT" --tags auto --visions-dir "$TEST_TMPDIR/visions" --json)
+    [ "$result" = "[]" ]
+}
+
+# =============================================================================
+# Invalid input tests (SKP-005)
+# =============================================================================
+
 @test "vision-registry-query: rejects invalid status value" {
     skip_if_deps_missing
 

@@ -339,3 +339,23 @@ load_vision_lib() {
     run vision_record_ref "vision-999" "bridge-test" "$TEST_TMPDIR"
     [ "$status" -ne 0 ]
 }
+
+@test "vision_record_ref: concurrent writers don't corrupt counters" {
+    load_vision_lib
+    if ! command -v flock &>/dev/null; then
+        skip "flock not available"
+    fi
+    cp "$FIXTURES/index-three-visions.md" "$TEST_TMPDIR/index.md"
+
+    # vision-001 starts at refs=4, run 5 parallel increments
+    for i in $(seq 1 5); do
+        (
+            source "$SCRIPT_DIR/vision-lib.sh"
+            vision_record_ref "vision-001" "bridge-concurrent-$i" "$TEST_TMPDIR"
+        ) &
+    done
+    wait
+
+    refs=$(grep "^| vision-001 " "$TEST_TMPDIR/index.md" | awk -F'|' '{print $7}' | xargs)
+    [ "$refs" -eq 9 ]
+}
