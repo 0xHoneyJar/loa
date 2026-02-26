@@ -249,15 +249,25 @@ call_openai_api() {
         set +x
     fi
 
-    local api_url="https://api.openai.com/v1/chat/completions"
-
-    # Escape for JSON
+    # Codex models use Responses API; standard models use Chat Completions
+    local api_url payload
     local escaped_system escaped_user
     escaped_system=$(printf '%s' "$system_prompt" | jq -Rs .)
     escaped_user=$(printf '%s' "$user_prompt" | jq -Rs .)
 
-    local payload
-    payload=$(cat <<EOF
+    if [[ "$model_id" == *"codex"* ]]; then
+        api_url="https://api.openai.com/v1/responses"
+
+        local combined_input
+        combined_input=$(printf '%s\n\n---\n\n%s\n\n---\n\nRespond with valid JSON only.' "$system_prompt" "$user_prompt")
+        local escaped_input
+        escaped_input=$(printf '%s' "$combined_input" | jq -Rs .)
+
+        payload=$(printf '{"model":"%s","input":%s,"reasoning":{"effort":"medium"}}' "$model_id" "$escaped_input")
+    else
+        api_url="https://api.openai.com/v1/chat/completions"
+
+        payload=$(cat <<EOF
 {
     "model": "${model_id}",
     "messages": [
@@ -269,6 +279,7 @@ call_openai_api() {
 }
 EOF
 )
+    fi
 
     local response
 
@@ -546,7 +557,12 @@ call_api_with_retry() {
         local content
         case "$provider" in
             openai)
-                content=$(echo "$response" | jq -r '.choices[0].message.content // empty')
+                # Responses API (codex) returns .output[].content[].text; Chat Completions returns .choices[0].message.content
+                content=$(echo "$response" | jq -r '
+                    .choices[0].message.content //
+                    (.output[] | select(.type == "message") | .content[] | select(.type == "output_text") | .text) //
+                    empty
+                ')
                 ;;
             anthropic)
                 content=$(echo "$response" | jq -r '.content[0].text // empty')
