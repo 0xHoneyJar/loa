@@ -236,13 +236,13 @@
           "local_id": 1,
           "global_id": 77,
           "label": "Seed & Activate",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "local_id": 2,
           "global_id": 78,
           "label": "Security Hardening",
-          "status": "pending"
+          "status": "in_progress"
         },
         {
           "local_id": 3,

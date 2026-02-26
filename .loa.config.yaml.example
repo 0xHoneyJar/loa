@@ -1538,6 +1538,20 @@ vision_registry:
   # [VISION-INSPIRED] are proposed in a separate PRD section.
   propose_requirements: false
 
+  # Auto-capture VISION-severity findings from bridge reviews as vision entries.
+  # When true, bridge-vision-capture.sh is invoked automatically during bridge
+  # review finalization for findings with VISION or SPECULATION severity.
+  bridge_auto_capture: false
+
+# Prompt Isolation (v1.42.0)
+# De-authorization wrappers for untrusted content in LLM prompts.
+# Wraps external/user content in de-authorization envelope that prevents
+# prompt injection from reviewed documents, PR diffs, and learning content.
+# See vision-003: Context Isolation as Prompt Injection Defense.
+prompt_isolation:
+  # Master switch. When false, isolate_content() passes through unchanged.
+  enabled: true
+
 # =============================================================================
 # Run Bridge — Autonomous Excellence Loop (v1.34.0)
 # =============================================================================

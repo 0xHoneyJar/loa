@@ -240,30 +240,31 @@ while IFS= read -r vision; do
   potential=$(echo "$vision" | jq -r '.potential // "To be explored"')
   finding_id=$(echo "$vision" | jq -r '.id // "unknown"')
 
-  # Create vision entry file
-  cat > "$entries_dir/${vision_id}.md" <<EOF
-# Vision: ${title}
-
-**ID**: ${vision_id}
-**Source**: Bridge iteration ${ITERATION} of ${BRIDGE_ID}
-**PR**: #${PR_NUMBER:-unknown}
-**Date**: ${now}
-**Status**: Captured
-**Tags**: [architecture]
-
-## Insight
-
-${description}
-
-## Potential
-
-${potential}
-
-## Connection Points
-
-- Bridgebuilder finding: ${finding_id}
-- Bridge: ${BRIDGE_ID}, iteration ${ITERATION}
-EOF
+  # Create vision entry file — safe template via jq (no shell expansion, vision-002 fix)
+  jq -n \
+    --arg title "$title" \
+    --arg vid "$vision_id" \
+    --arg source "Bridge iteration ${ITERATION} of ${BRIDGE_ID}" \
+    --arg pr "${PR_NUMBER:-unknown}" \
+    --arg date "$now" \
+    --arg desc "$description" \
+    --arg pot "$potential" \
+    --arg fid "$finding_id" \
+    --arg bid "$BRIDGE_ID" \
+    --arg iter "$ITERATION" \
+    -r '"# Vision: " + $title + "\n\n" +
+      "**ID**: " + $vid + "\n" +
+      "**Source**: " + $source + "\n" +
+      "**PR**: #" + $pr + "\n" +
+      "**Date**: " + $date + "\n" +
+      "**Status**: Captured\n" +
+      "**Tags**: [architecture]\n\n" +
+      "## Insight\n\n" + $desc + "\n\n" +
+      "## Potential\n\n" + $pot + "\n\n" +
+      "## Connection Points\n\n" +
+      "- Bridgebuilder finding: " + $fid + "\n" +
+      "- Bridge: " + $bid + ", iteration " + $iter' \
+    > "$entries_dir/${vision_id}.md"
 
   captured=$((captured + 1))
 done < <(jq -c '.findings[] | select(.severity == "VISION")' "$FINDINGS_FILE")

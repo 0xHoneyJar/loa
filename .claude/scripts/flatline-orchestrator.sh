@@ -48,6 +48,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/bootstrap.sh"
 source "$SCRIPT_DIR/lib/normalize-json.sh"
 source "$SCRIPT_DIR/lib/invoke-diagnostics.sh"
+source "$SCRIPT_DIR/lib/context-isolation-lib.sh"
 
 # Note: bootstrap.sh already handles PROJECT_ROOT canonicalization via realpath
 TRAJECTORY_DIR=$(get_trajectory_dir)
@@ -596,6 +597,12 @@ run_inquiry() {
     local extra_context=""
     if [[ -n "$context_file" && -f "$context_file" && -s "$context_file" ]]; then
         extra_context=$(cat "$context_file" 2>/dev/null | head -500) || extra_context=""
+    fi
+
+    # Apply context isolation wrappers (vision-003: de-authorization for untrusted content)
+    doc_content=$(isolate_content "$doc_content" "DOCUMENT UNDER REVIEW")
+    if [[ -n "$extra_context" ]]; then
+        extra_context=$(isolate_content "$extra_context" "ADDITIONAL CONTEXT")
     fi
 
     # Build inquiry prompts

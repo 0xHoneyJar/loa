@@ -45,6 +45,10 @@ if [[ -f "$LIB_DIR/validation-history.sh" ]]; then
     source "$LIB_DIR/validation-history.sh"
 fi
 
+if [[ -f "$LIB_DIR/context-isolation-lib.sh" ]]; then
+    source "$LIB_DIR/context-isolation-lib.sh"
+fi
+
 # =============================================================================
 # Configuration
 # =============================================================================
@@ -194,11 +198,18 @@ build_validation_prompt() {
     trigger=$(echo "$learning_json" | jq -r '.trigger')
     solution=$(echo "$learning_json" | jq -r '.solution')
 
-    cat <<EOF
+    # Apply context isolation wrappers (vision-003)
+    if command -v isolate_content &>/dev/null; then
+        trigger=$(isolate_content "$trigger" "LEARNING TRIGGER")
+        solution=$(isolate_content "$solution" "LEARNING SOLUTION")
+    fi
+
+    cat <<'PROMPT_EOF'
 Evaluate this learning for inclusion in a framework learning library.
 
-TRIGGER: $trigger
-SOLUTION: $solution
+PROMPT_EOF
+    printf 'TRIGGER: %s\nSOLUTION: %s\n' "$trigger" "$solution"
+    cat <<'PROMPT_EOF'
 
 Assess whether this learning is:
 1. Generalizable (applies beyond a single project)
@@ -212,7 +223,7 @@ Respond with ONLY valid JSON:
   "confidence": 0.0 to 1.0,
   "reasoning": "Brief explanation (max 100 words)"
 }
-EOF
+PROMPT_EOF
 }
 
 # Call GPT for validation

@@ -85,7 +85,9 @@ build_re_review_prompt() {
   local rf="${PROMPTS_DIR}/re-review.md"
   [[ -f "$rf" ]] || { error "Re-review prompt not found: $rf"; exit 2; }
   local sp=""; [[ -n "${3:-}" && -f "${3:-}" ]] && sp="$(cat "$3")"$'\n\n---\n\n'
-  local rp; rp=$(cat "$rf"); rp="${rp//\{\{ITERATION\}\}/$1}"; rp="${rp//\{\{PREVIOUS_FINDINGS\}\}/$2}"
+  local rp; rp=$(cat "$rf")
+  # Safe template rendering via awk — no shell expansion of replacement content (vision-002)
+  rp=$(printf '%s' "$rp" | awk -v iter="$1" -v findings="$2" '{gsub(/\{\{ITERATION\}\}/, iter); gsub(/\{\{PREVIOUS_FINDINGS\}\}/, findings); print}')
   printf '%s%s' "$sp" "$rp"
 }
 

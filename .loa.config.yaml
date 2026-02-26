@@ -92,6 +92,13 @@ vision_registry:
   max_visions_per_session: 3  # Cap visions shown per planning session
   ref_elevation_threshold: 3  # Ref count before lore elevation suggestion
   propose_requirements: false  # Experimental — vision-inspired requirement proposals
+  bridge_auto_capture: false   # Auto-capture VISION findings from bridge reviews (cycle-042)
+
+# Prompt Isolation (v1.42.0 — cycle-042)
+# De-authorization wrappers for untrusted content in LLM prompts.
+# Addresses vision-003: Context Isolation as Prompt Injection Defense.
+prompt_isolation:
+  enabled: true                # Enable context isolation wrappers in prompt construction
 
 run_bridge:
   enabled: true
