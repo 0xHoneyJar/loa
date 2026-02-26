@@ -183,9 +183,15 @@
           "global_id": 72,
           "label": "GPT-5.3-Codex Primary + Gemini Tertiary + Iteration Cap",
           "status": "completed"
+        },
+        {
+          "local_id": 2,
+          "global_id": 73,
+          "label": "Bug Fix — Scoring Engine 3-Model Tertiary Cross-Scoring",
+          "status": "completed"
         }
       ]
     }
   ],
-  "global_sprint_counter": 72
+  "global_sprint_counter": 73
 }

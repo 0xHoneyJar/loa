@@ -1,149 +1,79 @@
-# Sprint Plan: Multi-Model Adversarial Review Upgrade
+# Sprint 2 (Global: Sprint-73) — Bug Fix: Scoring Engine 3-Model Tertiary Cross-Scoring
 
-**Cycle**: cycle-040
-**Sprint**: 1 (single sprint — config/registration + smoke test)
-**Version**: 1.1 (post-Flatline review)
-**PRD**: `grimoires/loa/prd.md`
-**SDD**: `grimoires/loa/sdd.md`
-**Depends-On**: [PR #413](https://github.com/0xHoneyJar/loa/pull/413) (**MERGED** — gpt-5.3-codex base + backward-compat aliases)
+## Cycle: cycle-040 — Multi-Model Adversarial Review Upgrade
+## Bug ID: bug-flatline-3model
 
----
+## Overview
 
-## Sprint Goal
+Fix the scoring engine to accept and integrate tertiary cross-scoring files from the Flatline orchestrator, completing the FR-3 3-model adversarial review pipeline.
 
-Upgrade the default external model from GPT-5.2 to GPT-5.3-codex across all review/audit/flatline contexts, activate Gemini 2.5 Pro as the Flatline tertiary model, complete Gemini 3 model registration, and add a flatline iteration safety cap of 5.
+**Root cause**: `scoring-engine.sh` argument parser doesn't handle the 4 tertiary cross-scoring options (`--tertiary-scores-opus`, `--tertiary-scores-gpt`, `--gpt-scores-tertiary`, `--opus-scores-tertiary`) that `flatline-orchestrator.sh` passes when FR-3 tertiary model is active.
 
-## Task Breakdown
+## Tasks
 
-### T1: Review and merge PR #413
-**Priority**: P0 (blocker)
-**Acceptance Criteria**:
-- PR #413 rigorously reviewed (code correctness, Responses API routing, test coverage)
-- Verify: jq fallback chain at `model-adapter.sh.legacy:557-563` correctly parses both API response shapes
-- Verify: `validate_model_registry()` passes
-- PR #413 merged to main
-- `gpt-5.2-codex` → `gpt-5.3-codex` changes from PR #413 are present on main
+### T1: Add tertiary cross-scoring CLI arguments to scoring-engine.sh
+- [ ] **File**: `.claude/scripts/scoring-engine.sh` (lines 490-558)
+- [ ] Add 4 new argument cases to the parser:
+  - `--tertiary-scores-opus` → `tertiary_scores_opus_file`
+  - `--tertiary-scores-gpt` → `tertiary_scores_gpt_file`
+  - `--gpt-scores-tertiary` → `gpt_scores_tertiary_file`
+  - `--opus-scores-tertiary` → `opus_scores_tertiary_file`
+- **Acceptance**: Arguments parsed without "Unknown option" error.
 
-### T2: Gemini 3 model registration in legacy adapter
-**Priority**: P0
-**Files**: `.claude/scripts/model-adapter.sh.legacy`
-**Acceptance Criteria**:
-- `gemini-3-flash` and `gemini-3-pro` added to all 4 maps (MODEL_PROVIDERS, MODEL_IDS, COST_INPUT, COST_OUTPUT)
-- Pricing: gemini-3-flash $0.20/$0.80 per MTok, gemini-3-pro $2.50/$15.00 per MTok
-- `validate_model_registry()` passes with zero errors
-- Confirm `gemini-2.5-pro` already exists in all 4 maps (it does — verified in exploration; this is the model T5 activates)
+### T2: Pass tertiary scores to calculate_consensus()
+- [ ] **File**: `.claude/scripts/scoring-engine.sh` (lines 635-658)
+- [ ] Pass the 4 new file paths into `calculate_consensus()` as additional positional parameters (positions 10-13).
+- **Acceptance**: Function receives all scoring files.
 
-### T3: Gemini 3 model registration in shim adapter
-**Priority**: P0
-**Files**: `.claude/scripts/model-adapter.sh`
-**Acceptance Criteria**:
-- `gemini-3-flash` and `gemini-3-pro` added to MODEL_TO_ALIAS map
-- Mapped to `google:gemini-3-flash` and `google:gemini-3-pro`
+### T3: Integrate tertiary scores into consensus jq logic
+- [ ] **File**: `.claude/scripts/scoring-engine.sh` (lines 88-237)
+- [ ] Accept 4 additional params in `calculate_consensus()`
+- [ ] Load tertiary cross-score files via `--slurpfile` or `--argjson`
+- [ ] Build score maps for all 6 scoring relationships:
+  - `gpt_scores_opus` (existing: GPT scored Opus items)
+  - `opus_scores_gpt` (existing: Opus scored GPT items)
+  - `tertiary_scores_opus` (new: Tertiary scored Opus items)
+  - `tertiary_scores_gpt` (new: Tertiary scored GPT items)
+  - `gpt_scores_tertiary` (new: GPT scored Tertiary items)
+  - `opus_scores_tertiary` (new: Opus scored Tertiary items)
+- [ ] Classification logic: Each item has 2 cross-scores (from the 2 models that didn't author it)
+  - HIGH_CONSENSUS: both cross-scores >700
+  - DISPUTED: delta between cross-scores >300
+  - LOW_VALUE: both cross-scores <400
+- [ ] Include tertiary-authored items in the pool alongside GPT and Opus items.
+- **Acceptance**: 3-model consensus JSON includes items from all 3 models, correctly classified.
 
-### T4: Flatline secondary model upgrade
-**Priority**: P1
-**Files**: `.loa.config.yaml`, `flatline-orchestrator.sh`
-**Acceptance Criteria**:
-- `.loa.config.yaml` `flatline_protocol.models.secondary` → `gpt-5.3-codex`
-- `get_model_secondary()` default → `'gpt-5.3-codex'`
+### T4: Backward compatibility — 2-model mode unchanged
+- [ ] **File**: `.claude/scripts/scoring-engine.sh`
+- [ ] When tertiary args are absent/empty, behavior is identical to current
+- [ ] The new args default to empty strings and the jq logic gracefully handles missing data
+- **Acceptance**: Running with only `--gpt-scores` and `--opus-scores` produces identical output to before the fix.
 
-### T5: Gemini tertiary model activation
-**Priority**: P1
-**Files**: `.loa.config.yaml`
-**Acceptance Criteria**:
-- `hounfour.flatline_tertiary_model: gemini-2.5-pro` added to `.loa.config.yaml`
-- Flatline Phase 1 would produce 6 calls (3 models × 2 modes)
-- Flatline Phase 2 would produce 6 cross-scoring calls
+### T5: Update usage() help text
+- [ ] **File**: `.claude/scripts/scoring-engine.sh` (lines 440-487)
+- [ ] Add 4 new options to the usage output
+- **Acceptance**: `scoring-engine.sh --help` shows tertiary scoring options.
 
-### T6: Model-config aliases update
-**Priority**: P1
-**Files**: `.claude/defaults/model-config.yaml`
-**Acceptance Criteria**:
-- `reviewer` alias → `openai:gpt-5.3-codex`
-- `reasoning` alias → `openai:gpt-5.3-codex`
-- All downstream agent bindings (flatline-reviewer, flatline-skeptic, flatline-scorer, flatline-dissenter, gpt-reviewer, reviewing-code, jam-reviewer-gpt, jam-reviewer-kimi) inherit via alias
+### T6: Unit tests — scoring-engine 3-model consensus
+- [ ] **File**: `tests/unit/scoring-engine-3model.bats` (new)
+- [ ] 2-model mode (no tertiary args) — backward compat
+- [ ] 3-model mode — all 6 scoring files, verify classification
+- [ ] Degraded 3-model — missing tertiary scores gracefully handled
+- [ ] Edge case — empty tertiary scores files
+- **Acceptance**: All tests pass with `bats tests/unit/scoring-engine-3model.bats`.
 
-### T7: GPT review document model update
-**Priority**: P1
-**Files**: `gpt-review-api.sh`, `gpt-review-integration.md`, `gpt-review.md`
-**Acceptance Criteria**:
-- `DEFAULT_MODELS` prd/sdd/sprint → `gpt-5.3-codex`
-- Protocol doc `documents: "gpt-5.2"` → `documents: "gpt-5.3-codex"`
-- Command doc same change
+### T7: End-to-end smoke test (DEFERRED — requires live APIs)
+- [ ] Run full Flatline Protocol: `.claude/scripts/flatline-orchestrator.sh --doc grimoires/loa/prd.md --phase prd --json`
+- **Acceptance**: Returns valid consensus JSON with items from all 3 models.
 
-### T8: Red team model update
-**Priority**: P1
-**Files**: `.loa.config.yaml`
-**Acceptance Criteria**:
-- `red_team.models.attacker_secondary` → `gpt-5.3-codex`
-- `red_team.models.defender_secondary` → `gpt-5.3-codex`
+## Dependencies
+- T1 → T2 → T3 (sequential: parser → wiring → logic)
+- T4 is a constraint on T3
+- T5 is independent
+- T6 depends on T3
+- T7 depends on all
 
-### T9: Flatline iteration cap
-**Priority**: P1
-**Files**: `.loa.config.yaml`, `flatline-orchestrator.sh`
-**Acceptance Criteria**:
-- `flatline_protocol.max_iterations: 5` in config
-- `get_max_iterations()` function in orchestrator reads this config (default 5)
-- Orchestrator logs warning when cap is reached
-
-### T10: Example config mirror
-**Priority**: P2
-**Files**: `.loa.config.yaml.example`
-**Acceptance Criteria**:
-- All config changes from T4, T5, T8, T9 mirrored in example config
-- Tertiary model shown as commented example with explanation
-
-### T11: Reference documentation update
-**Priority**: P2
-**Files**: `.claude/loa/reference/flatline-reference.md`, `.claude/protocols/flatline-protocol.md`
-**Acceptance Criteria**:
-- Model table updated to show 3-model setup
-- Config examples updated
-- max_iterations documented
-
-### T12: Test fixture updates
-**Priority**: P2
-**Files**: Test fixtures that reference `gpt-5.2` as default
-**Acceptance Criteria**:
-- Any test fixtures with hardcoded `gpt-5.2` (non-codex) model defaults updated
-- Existing test suites still pass
-
-### T13: End-to-end smoke test (Flatline IMP-003, SKP-002)
-**Priority**: P1
-**Acceptance Criteria**:
-- Run a live 3-model Flatline review against a test document (can use the PRD itself)
-- Verify tertiary model (Gemini 2.5 Pro) actually participates: `tertiary-review.json` and `tertiary-skeptic.json` exist and contain valid JSON
-- Verify all 6 Phase 2 cross-scoring files are produced
-- Verify consensus output includes 3-way scoring
-- Run at least one GPT review with `gpt-5.3-codex` for doc phase and verify APPROVED/CHANGES_REQUIRED verdict
-
-### T14: Rollback documentation (Flatline IMP-002)
-**Priority**: P2
-**Acceptance Criteria**:
-- Document single-commit revert strategy: `git revert <commit>` restores all defaults
-- Alternative: ordered manual rollback steps for partial revert (e.g., disable tertiary only)
-
-## Dependency Graph
-
-```
-T1 (review + merge PR #413)
- └→ T2, T3 (Gemini 3 registration — parallel)
-     └→ T4 (flatline secondary)
-         └→ T5 (Gemini tertiary)
-     └→ T6 (model-config aliases)
-         └→ T7 (GPT review docs)
-     └→ T8 (red team)
-     └→ T9 (iteration cap)
-         └→ T10 (example config)
-             └→ T11 (reference docs)
-                 └→ T12 (test fixtures)
-                     └→ T13 (end-to-end smoke test)
-                         └→ T14 (rollback docs)
-```
-
-## Estimated Size
-
-- **Total files**: ~11-15
-- **Total line changes**: ~60-80
-- **Complexity**: Low (config + registration + smoke test, minimal new logic)
-- **Risk**: Low (all changes have instant rollback via single git revert)
+## Estimated Scope
+- 1 file modified: `.claude/scripts/scoring-engine.sh`
+- 1 file created: `tests/unit/scoring-engine-3model.bats`
+- ~100-150 lines changed/added

@@ -1,0 +1,5 @@
+{"scores":[
+  {"id":"IMP-001","score":850,"evaluation":"Strong improvement","would_integrate":true},
+  {"id":"IMP-002","score":400,"evaluation":"Minor improvement","would_integrate":false},
+  {"id":"IMP-003","score":750,"evaluation":"Good improvement","would_integrate":true}
+]}
