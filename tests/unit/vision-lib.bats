@@ -378,3 +378,86 @@ load_vision_lib() {
     refs=$(grep "^| vision-001 " "$TEST_TMPDIR/index.md" | awk -F'|' '{print $7}' | xargs)
     [ "$refs" -eq 9 ]
 }
+
+# =============================================================================
+# vision_check_lore_elevation tests
+# =============================================================================
+
+@test "vision_check_lore_elevation: returns ELEVATE when refs exceed threshold" {
+    load_vision_lib
+    cp "$FIXTURES/index-three-visions.md" "$TEST_TMPDIR/index.md"
+
+    # vision-001 has refs=4, threshold default is 3
+    result=$(vision_check_lore_elevation "vision-001" "$TEST_TMPDIR")
+    [ "$result" = "ELEVATE" ]
+}
+
+@test "vision_check_lore_elevation: returns NO when refs below threshold" {
+    load_vision_lib
+    cp "$FIXTURES/index-three-visions.md" "$TEST_TMPDIR/index.md"
+
+    # vision-002 has refs=1, threshold default is 3
+    result=$(vision_check_lore_elevation "vision-002" "$TEST_TMPDIR")
+    [ "$result" = "NO" ]
+}
+
+@test "vision_check_lore_elevation: returns NO for missing index" {
+    load_vision_lib
+
+    result=$(vision_check_lore_elevation "vision-001" "$TEST_TMPDIR/nonexistent")
+    [ "$result" = "NO" ]
+}
+
+# =============================================================================
+# vision_generate_lore_entry tests
+# =============================================================================
+
+@test "vision_generate_lore_entry: generates YAML for valid vision" {
+    load_vision_lib
+    cp "$FIXTURES/index-three-visions.md" "$TEST_TMPDIR/index.md"
+    mkdir -p "$TEST_TMPDIR/entries"
+    cp "$FIXTURES/entry-valid.md" "$TEST_TMPDIR/entries/vision-001.md"
+
+    result=$(vision_generate_lore_entry "vision-001" "$TEST_TMPDIR")
+
+    # Should contain required YAML fields
+    [[ "$result" == *"id: vision-elevated-vision-001"* ]]
+    [[ "$result" == *"term:"* ]]
+    [[ "$result" == *"short:"* ]]
+    [[ "$result" == *"context:"* ]]
+    [[ "$result" == *"source:"* ]]
+    [[ "$result" == *"tags:"* ]]
+    [[ "$result" == *"vision_id:"* ]]
+}
+
+@test "vision_generate_lore_entry: fails for missing entry file" {
+    load_vision_lib
+    cp "$FIXTURES/index-three-visions.md" "$TEST_TMPDIR/index.md"
+
+    run vision_generate_lore_entry "vision-001" "$TEST_TMPDIR"
+    [ "$status" -eq 1 ]
+}
+
+@test "vision_generate_lore_entry: includes sanitized insight text" {
+    load_vision_lib
+    cp "$FIXTURES/index-three-visions.md" "$TEST_TMPDIR/index.md"
+    mkdir -p "$TEST_TMPDIR/entries"
+    cp "$FIXTURES/entry-valid.md" "$TEST_TMPDIR/entries/vision-001.md"
+
+    result=$(vision_generate_lore_entry "vision-001" "$TEST_TMPDIR")
+
+    # Should contain governance text from entry-valid.md insight
+    [[ "$result" == *"governance"* ]]
+}
+
+@test "vision_generate_lore_entry: includes vision-elevated tag" {
+    load_vision_lib
+    cp "$FIXTURES/index-three-visions.md" "$TEST_TMPDIR/index.md"
+    mkdir -p "$TEST_TMPDIR/entries"
+    cp "$FIXTURES/entry-valid.md" "$TEST_TMPDIR/entries/vision-001.md"
+
+    result=$(vision_generate_lore_entry "vision-001" "$TEST_TMPDIR")
+
+    [[ "$result" == *"vision-elevated"* ]]
+    [[ "$result" == *"discovered"* ]]
+}

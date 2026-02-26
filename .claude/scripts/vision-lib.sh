@@ -571,3 +571,100 @@ vision_check_lore_elevation() {
     echo "NO"
   fi
 }
+
+# =============================================================================
+# vision_generate_lore_entry() — Generate lore YAML for elevated visions
+# =============================================================================
+#
+# When a vision has been referenced enough to warrant lore elevation,
+# generate a YAML entry compatible with lore-discover.sh format.
+#
+# Input: $1=vision_id, $2=visions_dir (optional)
+# Output: YAML entry to stdout (compatible with discovered/visions.yaml)
+# Returns: 0 if entry generated, 1 if vision not found or not eligible
+#
+vision_generate_lore_entry() {
+  local vid="$1"
+  local visions_dir="${2:-${PROJECT_ROOT}/grimoires/loa/visions}"
+
+  _vision_validate_id "$vid" || return 1
+
+  local entry_file="$visions_dir/entries/${vid}.md"
+  if [[ ! -f "$entry_file" ]]; then
+    echo "ERROR: Vision entry file not found: $entry_file" >&2
+    return 1
+  fi
+
+  # Extract fields from entry file
+  local title source tags_raw insight potential
+  title=$(grep '^\*\*ID\*\*:' "$entry_file" | head -1 | sed 's/.*# Vision: //' || true)
+  # Title is in the H1 header
+  title=$(grep '^# Vision:' "$entry_file" | head -1 | sed 's/^# Vision: *//' || true)
+  if [[ -z "$title" ]]; then
+    title=$(grep "^| $vid " "$visions_dir/index.md" 2>/dev/null | awk -F'|' '{print $3}' | xargs || echo "$vid")
+  fi
+
+  source=$(grep '^\*\*Source\*\*:' "$entry_file" | head -1 | sed 's/\*\*Source\*\*: *//')
+  tags_raw=$(grep '^\*\*Tags\*\*:' "$entry_file" | head -1 | sed 's/\*\*Tags\*\*: *//' | tr -d '[]')
+
+  # Extract insight (sanitized)
+  insight=$(vision_sanitize_text "$entry_file" 300)
+
+  # Extract potential section
+  potential=$(awk '/^## Potential/{found=1; next} /^## /{found=0} found{print}' "$entry_file" | head -5 | tr '\n' ' ' | xargs)
+
+  # Generate lore ID from vision ID
+  local lore_id="vision-elevated-${vid}"
+
+  # Build YAML entry using jq for safe escaping, then convert to YAML-like format
+  # Use printf to avoid shell expansion issues
+  cat <<YAML_EOF
+  - id: ${lore_id}
+    term: "$(printf '%s' "$title" | sed 's/"/\\"/g')"
+    short: "$(printf '%s' "$insight" | sed 's/"/\\"/g')"
+    context: |
+      $(printf '%s' "$potential" | sed 's/"/\\"/g')
+      Elevated from Vision Registry entry $vid after crossing reference threshold.
+    source: "$(printf '%s' "$source" | sed 's/"/\\"/g')"
+    tags: [discovered, vision-elevated, $(printf '%s' "$tags_raw" | sed 's/ *, */,/g' | sed 's/,/, /g')]
+    vision_id: "$vid"
+YAML_EOF
+}
+
+# =============================================================================
+# vision_append_lore_entry() — Append elevated vision to visions.yaml
+# =============================================================================
+#
+# Appends a lore entry to discovered/visions.yaml if not already present.
+# Idempotent — checks for existing entry by vision_id.
+#
+# Input: $1=vision_id, $2=visions_dir (optional)
+# Returns: 0 if appended (or already exists), 1 on error
+#
+vision_append_lore_entry() {
+  local vid="$1"
+  local visions_dir="${2:-${PROJECT_ROOT}/grimoires/loa/visions}"
+  local lore_file="${PROJECT_ROOT}/.claude/data/lore/discovered/visions.yaml"
+
+  _vision_validate_id "$vid" || return 1
+
+  # Check if lore file exists
+  if [[ ! -f "$lore_file" ]]; then
+    echo "WARNING: Lore file not found: $lore_file" >&2
+    return 1
+  fi
+
+  # Idempotency: check if vision already elevated
+  if grep -q "vision_id: \"$vid\"" "$lore_file" 2>/dev/null; then
+    echo "Already elevated: $vid"
+    return 0
+  fi
+
+  # Generate and append
+  local entry
+  entry=$(vision_generate_lore_entry "$vid" "$visions_dir") || return 1
+
+  echo "" >> "$lore_file"
+  echo "$entry" >> "$lore_file"
+  echo "Elevated $vid to lore: $lore_file"
+}

@@ -1075,6 +1075,99 @@ DO NOT generate the PRD until the user explicitly confirms.
 When `gate_before_gen` is false:
 Proceed directly to generation with a one-line notice: "Generating PRD based on discovery."
 
+## Step 7.5: Vision-Inspired Requirement Proposals (Experimental, v1.42.0)
+
+**Purpose**: When a user chose "Explore" for a vision in Step 0.5, synthesize it with the work context to propose additional requirements the user may not have considered.
+
+**Gate**: This step ONLY runs when ALL conditions are met:
+1. `vision_registry.enabled: true` in `.loa.config.yaml`
+2. `vision_registry.propose_requirements: true` in `.loa.config.yaml` (default: `false`)
+3. At least one vision was marked "Explore" during Step 0.5
+
+If any condition is false: **skip this step silently**.
+
+### Load Explored Visions
+
+For each vision the user chose "Explore" in Step 0.5:
+
+```bash
+entry_file="grimoires/loa/visions/entries/${vision_id}.md"
+```
+
+Read the full entry file including `## Insight`, `## Potential`, and `## Connection Points` sections.
+
+### Synthesize Proposals
+
+For each explored vision, synthesize with the work context gathered from Phases 1-7 to propose 1-3 requirements. Each proposal must:
+
+1. **Trace to source vision**: `[VISION-INSPIRED: vision-NNN]`
+2. **Connect to work context**: Explain how this vision relates to what the user is building
+3. **Be concrete and actionable**: Not vague — propose specific functional or non-functional requirements
+4. **Respect scope**: Do not propose requirements that contradict user's stated scope
+
+### Present Proposals
+
+```markdown
+---
+## Vision-Inspired Requirements (Experimental)
+
+The following requirements are inspired by architectural visions captured during
+previous bridge reviews. These are proposals — accept, modify, or reject each one.
+
+### Proposal 1: [short title]
+**Source**: [VISION-INSPIRED: vision-NNN] — "[vision title]"
+**Rationale**: [1-2 sentences connecting the vision insight to the current work context]
+
+> **Proposed Requirement**: [specific requirement text]
+
+**Decision**: Accept / Modify / Reject
+
+### Proposal 2: [short title]
+...
+---
+```
+
+### Process Decisions
+
+| Choice | Action |
+|--------|--------|
+| **Accept** | Include in PRD under "## Vision-Inspired Requirements" section. Call `vision_update_status(vision_id, "Proposed", visions_dir)`. Record reference. |
+| **Modify** | User edits the requirement text. Include modified version in PRD. Status → Proposed. Record reference. |
+| **Reject** | Do not include. Log rejection reason to trajectory JSONL. No status change. |
+
+Log all decisions to `grimoires/loa/a2a/trajectory/vision-proposals-{date}.jsonl`:
+```json
+{
+  "timestamp": "ISO8601",
+  "cycle": "cycle-NNN",
+  "vision_id": "vision-NNN",
+  "proposal_title": "short title",
+  "decision": "accept|modify|reject",
+  "rejection_reason": "optional — only for reject"
+}
+```
+
+### PRD Integration
+
+Accepted/modified proposals go in a dedicated PRD section:
+
+```markdown
+## 9. Vision-Inspired Requirements
+
+> These requirements were proposed by the Vision Registry based on patterns
+> observed in previous development cycles. Each traces to a source vision.
+
+### VR-1: [requirement title]
+**Source**: [VISION-INSPIRED: vision-NNN]
+[requirement text]
+
+> Sources: vision-NNN (bridge iteration N, PR #NNN), Phase X confirmation
+```
+
+This section is clearly separated from user-driven requirements and carries full provenance.
+
+---
+
 ## Phase 8: PRD Generation
 
 Only generate PRD when:
