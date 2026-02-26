@@ -2,8 +2,8 @@
 # =============================================================================
 # scoring-engine.sh - Consensus calculation for Flatline Protocol
 # =============================================================================
-# Version: 1.0.0
-# Part of: Flatline Protocol v1.17.0
+# Version: 1.1.0
+# Part of: Flatline Protocol v1.17.0, FR-3 3-Model Consensus v1.40.0
 #
 # Usage:
 #   scoring-engine.sh --gpt-scores <file> --opus-scores <file> [options]
@@ -16,6 +16,10 @@
 #   --skeptic-gpt <file>    GPT skeptic concerns JSON file
 #   --skeptic-opus <file>   Opus skeptic concerns JSON file
 #   --skeptic-tertiary <file> Tertiary model skeptic concerns JSON file (optional)
+#   --tertiary-scores-opus <file>  Tertiary model's scores of Opus improvements (3-model)
+#   --tertiary-scores-gpt <file>   Tertiary model's scores of GPT improvements (3-model)
+#   --gpt-scores-tertiary <file>   GPT's scores of Tertiary improvements (3-model)
+#   --opus-scores-tertiary <file>  Opus's scores of Tertiary improvements (3-model)
 #   --json                  Output as JSON (default)
 #
 # Thresholds (defaults from .loa.config.yaml or built-in):
@@ -84,7 +88,10 @@ get_threshold() {
 # Scoring Logic
 # =============================================================================
 
-# Merge scores from both models and calculate consensus
+# Merge scores from all models and calculate consensus
+# Supports 2-model (GPT + Opus) and 3-model (GPT + Opus + Tertiary) modes.
+# In 3-model mode, tertiary-authored items join the consensus pool, and
+# tertiary cross-scores of existing items provide additional confirmation.
 calculate_consensus() {
     local gpt_scores_file="$1"
     local opus_scores_file="$2"
@@ -95,6 +102,11 @@ calculate_consensus() {
     local skeptic_gpt_file="${7:-}"
     local skeptic_opus_file="${8:-}"
     local skeptic_tertiary_file="${9:-}"
+    # FR-3: Tertiary cross-scoring files (3-model mode)
+    local tertiary_scores_opus_file="${10:-}"
+    local tertiary_scores_gpt_file="${11:-}"
+    local gpt_scores_tertiary_file="${12:-}"
+    local opus_scores_tertiary_file="${13:-}"
 
     # Parse and validate input files (Task 1.2: JSON validation before --argjson)
     local gpt_scores opus_scores
@@ -125,29 +137,68 @@ calculate_consensus() {
         return 1
     fi
 
+    # FR-3: Load tertiary cross-scoring files (graceful degradation if missing/empty)
+    local has_tertiary=false
+    local gpt_scores_tertiary='{"scores":[]}'
+    local opus_scores_tertiary='{"scores":[]}'
+    local tertiary_scores_opus='{"scores":[]}'
+    local tertiary_scores_gpt='{"scores":[]}'
+
+    if [[ -n "$gpt_scores_tertiary_file" && -f "$gpt_scores_tertiary_file" ]]; then
+        if gpt_scores_tertiary=$(jq -c '.' "$gpt_scores_tertiary_file" 2>/dev/null); then
+            has_tertiary=true
+        else
+            log "WARNING: GPT scores of tertiary items invalid JSON, skipping"
+            gpt_scores_tertiary='{"scores":[]}'
+        fi
+    fi
+    if [[ -n "$opus_scores_tertiary_file" && -f "$opus_scores_tertiary_file" ]]; then
+        opus_scores_tertiary=$(jq -c '.' "$opus_scores_tertiary_file" 2>/dev/null) || opus_scores_tertiary='{"scores":[]}'
+    fi
+    if [[ -n "$tertiary_scores_opus_file" && -f "$tertiary_scores_opus_file" ]]; then
+        tertiary_scores_opus=$(jq -c '.' "$tertiary_scores_opus_file" 2>/dev/null) || tertiary_scores_opus='{"scores":[]}'
+    fi
+    if [[ -n "$tertiary_scores_gpt_file" && -f "$tertiary_scores_gpt_file" ]]; then
+        tertiary_scores_gpt=$(jq -c '.' "$tertiary_scores_gpt_file" 2>/dev/null) || tertiary_scores_gpt='{"scores":[]}'
+    fi
+
+    [[ "$has_tertiary" == "true" ]] && log "3-model consensus mode: including tertiary items and cross-scores"
+
     # Merge and calculate consensus using jq
     jq -n \
         --argjson gpt "$gpt_scores" \
         --argjson opus "$opus_scores" \
+        --argjson g_tert "$gpt_scores_tertiary" \
+        --argjson o_tert "$opus_scores_tertiary" \
+        --argjson t_opus "$tertiary_scores_opus" \
+        --argjson t_gpt "$tertiary_scores_gpt" \
         --argjson high "$high_threshold" \
         --argjson delta "$dispute_delta" \
         --argjson low "$low_threshold" \
         --argjson blocker "$blocker_threshold" \
         --argjson gpt_degraded "$gpt_degraded" \
         --argjson opus_degraded "$opus_degraded" \
+        --argjson has_tertiary "$has_tertiary" \
         --slurpfile skeptic_gpt <(if [[ -n "$skeptic_gpt_file" && -f "$skeptic_gpt_file" ]]; then cat "$skeptic_gpt_file"; else echo '{"concerns":[]}'; fi) \
         --slurpfile skeptic_opus <(if [[ -n "$skeptic_opus_file" && -f "$skeptic_opus_file" ]]; then cat "$skeptic_opus_file"; else echo '{"concerns":[]}'; fi) \
         --slurpfile skeptic_tertiary <(if [[ -n "$skeptic_tertiary_file" && -f "$skeptic_tertiary_file" ]]; then cat "$skeptic_tertiary_file"; else echo '{"concerns":[]}'; fi) '
 # Build lookup maps from scores
 def build_score_map:
-    reduce .scores[] as $item ({}; . + {($item.id): $item.score});
+    reduce (.scores // [])[] as $item ({}; . + {($item.id): $item.score});
 
-# Merge items from both models
+# Primary cross-score maps (2-model, always present)
 ($gpt | build_score_map) as $gpt_map |
 ($opus | build_score_map) as $opus_map |
 
-# Get all unique item IDs
-([$gpt.scores[].id, $opus.scores[].id] | unique) as $all_ids |
+# FR-3: Tertiary cross-score maps (3-model, may be empty)
+($g_tert | build_score_map) as $g_tert_map |
+($o_tert | build_score_map) as $o_tert_map |
+($t_opus | build_score_map) as $t_opus_map |
+($t_gpt | build_score_map) as $t_gpt_map |
+
+# Get all unique item IDs (including tertiary-authored items)
+([$gpt.scores[].id, $opus.scores[].id,
+  ($g_tert.scores // [])[].id, ($o_tert.scores // [])[].id] | unique) as $all_ids |
 
 # Classify each item
 (reduce $all_ids[] as $id (
@@ -158,21 +209,59 @@ def build_score_map:
         medium_value: []
     };
 
-    ($gpt_map[$id] // 0) as $g |
-    ($opus_map[$id] // 0) as $o |
-    (($g - $o) | if . < 0 then -. else . end) as $d |
-    (($g + $o) / 2) as $avg |
+    # Primary pair: GPT and Opus cross-scores (existing 2-model behavior)
+    ($gpt_map[$id] // 0) as $g_primary |
+    ($opus_map[$id] // 0) as $o_primary |
 
-    # Find original item details from GPT or Opus
-    (($gpt.scores[] | select(.id == $id)) // ($opus.scores[] | select(.id == $id)) // {id: $id}) as $item |
+    # Tertiary cross-scores of this item (additional signal)
+    ($t_opus_map[$id] // 0) as $t_on_opus |
+    ($t_gpt_map[$id] // 0) as $t_on_gpt |
+
+    # GPT/Opus scores of tertiary items (for tertiary-authored items)
+    ($g_tert_map[$id] // 0) as $g_on_tert |
+    ($o_tert_map[$id] // 0) as $o_on_tert |
+
+    # Resolve effective score pair:
+    # - For existing items (in gpt_map or opus_map): use primary pair
+    # - For tertiary-authored items (in g_tert_map or o_tert_map only): use GPT+Opus scores
+    (if ($g_primary > 0 or $o_primary > 0) then $g_primary
+     elif $g_on_tert > 0 then $g_on_tert
+     else 0 end) as $g |
+    (if ($g_primary > 0 or $o_primary > 0) then $o_primary
+     elif $o_on_tert > 0 then $o_on_tert
+     else 0 end) as $o |
+
+    # Tertiary confirmation: max of tertiary cross-scores for this item
+    ([$t_on_opus, $t_on_gpt] | map(select(. > 0)) | if length > 0 then max else null end) as $tertiary_confirm |
+
+    (($g - $o) | if . < 0 then -. else . end) as $d |
+    (if ($g > 0 and $o > 0) then (($g + $o) / 2)
+     elif ($g > 0) then $g
+     elif ($o > 0) then $o
+     else 0 end) as $avg |
+
+    # Find original item details from any source
+    (($gpt.scores[] | select(.id == $id)) //
+     ($opus.scores[] | select(.id == $id)) //
+     ($g_tert.scores[] | select(.id == $id)) //
+     ($o_tert.scores[] | select(.id == $id)) //
+     {id: $id}) as $item |
+
+    # Determine item source
+    (if ($gpt_map[$id] != null) then "gpt_scored"
+     elif ($opus_map[$id] != null) then "opus_scored"
+     elif ($g_tert_map[$id] != null or $o_tert_map[$id] != null) then "tertiary_authored"
+     else "unknown" end) as $source |
 
     {
         id: $id,
         description: ($item.description // $item.evaluation // ""),
         gpt_score: $g,
         opus_score: $o,
+        tertiary_score: $tertiary_confirm,
         delta: $d,
         average_score: $avg,
+        source: $source,
         would_integrate: (($item.would_integrate // false) or ($g > $high and $o > $high))
     } as $scored_item |
 
@@ -206,6 +295,10 @@ def build_score_map:
 (($classified.high_consensus | length) + ($classified.medium_value | length)) as $agreed |
 (if $total > 0 then ($agreed / $total * 100 | floor) else 0 end) as $agreement_pct |
 
+# Count tertiary-authored items
+([$classified.high_consensus[], $classified.disputed[], $classified.low_value[], $classified.medium_value[]
+  | select(.source == "tertiary_authored")] | length) as $tertiary_items |
+
 # Build final output
 {
     consensus_summary: {
@@ -214,6 +307,8 @@ def build_score_map:
         low_value_count: ($classified.low_value | length),
         blocker_count: ($blockers | length),
         model_agreement_percent: $agreement_pct,
+        models: (if $has_tertiary then 3 else 2 end),
+        tertiary_items: $tertiary_items,
         confidence: (
             if ($gpt_degraded or $opus_degraded) then "degraded"
             elif (($gpt.scores | length) == 0 or ($opus.scores | length) == 0) then "single_model"
@@ -450,6 +545,10 @@ Options:
   --skeptic-gpt <file>    GPT skeptic concerns JSON file
   --skeptic-opus <file>   Opus skeptic concerns JSON file
   --skeptic-tertiary <file> Tertiary model skeptic concerns (optional, 3-model mode)
+  --tertiary-scores-opus <file>  Tertiary scores of Opus improvements (3-model mode)
+  --tertiary-scores-gpt <file>   Tertiary scores of GPT improvements (3-model mode)
+  --gpt-scores-tertiary <file>   GPT scores of Tertiary improvements (3-model mode)
+  --opus-scores-tertiary <file>  Opus scores of Tertiary improvements (3-model mode)
   --attack-mode           Use red team attack classification (4 categories)
   --quick-mode            Quick mode (no CONFIRMED_ATTACK possible)
   --self-test             Run classification self-test against golden set
@@ -495,6 +594,10 @@ main() {
     local skeptic_gpt_file=""
     local skeptic_opus_file=""
     local skeptic_tertiary_file=""
+    local tertiary_scores_opus_file=""
+    local tertiary_scores_gpt_file=""
+    local gpt_scores_tertiary_file=""
+    local opus_scores_tertiary_file=""
     local attack_mode=false
     local quick_mode=false
     local self_test=false
@@ -528,6 +631,22 @@ main() {
                 ;;
             --skeptic-tertiary)
                 skeptic_tertiary_file="$2"
+                shift 2
+                ;;
+            --tertiary-scores-opus)
+                tertiary_scores_opus_file="$2"
+                shift 2
+                ;;
+            --tertiary-scores-gpt)
+                tertiary_scores_gpt_file="$2"
+                shift 2
+                ;;
+            --gpt-scores-tertiary)
+                gpt_scores_tertiary_file="$2"
+                shift 2
+                ;;
+            --opus-scores-tertiary)
+                opus_scores_tertiary_file="$2"
                 shift 2
                 ;;
             --attack-mode)
@@ -647,7 +766,11 @@ main() {
             "$blocker_threshold" \
             "$skeptic_gpt_file" \
             "$skeptic_opus_file" \
-            "$skeptic_tertiary_file")
+            "$skeptic_tertiary_file" \
+            "$tertiary_scores_opus_file" \
+            "$tertiary_scores_gpt_file" \
+            "$gpt_scores_tertiary_file" \
+            "$opus_scores_tertiary_file")
     else
         result=$(calculate_consensus \
             "$gpt_scores_file" \
@@ -655,7 +778,12 @@ main() {
             "$high_threshold" \
             "$dispute_delta" \
             "$low_threshold" \
-            "$blocker_threshold")
+            "$blocker_threshold" \
+            "" "" "" \
+            "$tertiary_scores_opus_file" \
+            "$tertiary_scores_gpt_file" \
+            "$gpt_scores_tertiary_file" \
+            "$opus_scores_tertiary_file")
     fi
 
     # Output result

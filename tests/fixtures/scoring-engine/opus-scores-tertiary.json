@@ -1,0 +1,4 @@
+{"scores":[
+  {"id":"TIMP-001","score":850,"evaluation":"Opus agrees on tertiary item","would_integrate":true},
+  {"id":"TIMP-002","score":300,"evaluation":"Opus also dislikes","would_integrate":false}
+]}
