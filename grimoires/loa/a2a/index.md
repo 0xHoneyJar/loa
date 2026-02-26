@@ -5,7 +5,7 @@
 | Sprint | Global ID | Status | Phase |
 |--------|-----------|--------|-------|
 | Sprint 1 | 74 | COMPLETED | — |
-| Sprint 2 | 75 | IN_PROGRESS | implement |
+| Sprint 2 | 75 | COMPLETED | audit: APPROVED |
 | Sprint 3 | 76 | PLANNED | — |
 
 ## Cycle 039: Two-Pass Bridge Review
