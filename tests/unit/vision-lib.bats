@@ -461,3 +461,56 @@ load_vision_lib() {
     [[ "$result" == *"vision-elevated"* ]]
     [[ "$result" == *"discovered"* ]]
 }
+
+# =============================================================================
+# vision_append_lore_entry tests
+# =============================================================================
+
+@test "vision_append_lore_entry: appends to existing lore file" {
+    load_vision_lib
+    cp "$FIXTURES/index-three-visions.md" "$TEST_TMPDIR/index.md"
+    mkdir -p "$TEST_TMPDIR/entries"
+    cp "$FIXTURES/entry-valid.md" "$TEST_TMPDIR/entries/vision-001.md"
+
+    # Create a minimal lore file structure
+    mkdir -p "$TEST_TMPDIR/.claude/data/lore/discovered"
+    cat > "$TEST_TMPDIR/.claude/data/lore/discovered/visions.yaml" <<'LORE_EOF'
+entries: []
+LORE_EOF
+
+    # Override PROJECT_ROOT for lore file location
+    PROJECT_ROOT="$TEST_TMPDIR" vision_append_lore_entry "vision-001" "$TEST_TMPDIR"
+
+    # Verify entry was appended
+    grep -q "vision-elevated-vision-001" "$TEST_TMPDIR/.claude/data/lore/discovered/visions.yaml"
+}
+
+@test "vision_append_lore_entry: idempotent — does not duplicate" {
+    load_vision_lib
+    cp "$FIXTURES/index-three-visions.md" "$TEST_TMPDIR/index.md"
+    mkdir -p "$TEST_TMPDIR/entries"
+    cp "$FIXTURES/entry-valid.md" "$TEST_TMPDIR/entries/vision-001.md"
+
+    mkdir -p "$TEST_TMPDIR/.claude/data/lore/discovered"
+    cat > "$TEST_TMPDIR/.claude/data/lore/discovered/visions.yaml" <<'LORE_EOF'
+entries: []
+LORE_EOF
+
+    # Append twice
+    PROJECT_ROOT="$TEST_TMPDIR" vision_append_lore_entry "vision-001" "$TEST_TMPDIR"
+    PROJECT_ROOT="$TEST_TMPDIR" vision_append_lore_entry "vision-001" "$TEST_TMPDIR"
+
+    # Should only have one entry
+    count=$(grep -c "vision_id:" "$TEST_TMPDIR/.claude/data/lore/discovered/visions.yaml" || echo "0")
+    [ "$count" -eq 1 ]
+}
+
+@test "vision_append_lore_entry: fails for missing lore file" {
+    load_vision_lib
+    cp "$FIXTURES/index-three-visions.md" "$TEST_TMPDIR/index.md"
+    mkdir -p "$TEST_TMPDIR/entries"
+    cp "$FIXTURES/entry-valid.md" "$TEST_TMPDIR/entries/vision-001.md"
+
+    run bash -c "source '$SCRIPT_DIR/vision-lib.sh' && PROJECT_ROOT='$TEST_TMPDIR' vision_append_lore_entry 'vision-001' '$TEST_TMPDIR'"
+    [ "$status" -eq 1 ]
+}

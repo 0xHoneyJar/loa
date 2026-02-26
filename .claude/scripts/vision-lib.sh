@@ -6,14 +6,17 @@
 # and read side (vision-registry-query.sh) of the Vision Registry.
 #
 # Functions:
-#   vision_load_index()     — Parse index.md into JSON array
-#   vision_match_tags()     — Tag overlap matching with scoring
-#   vision_record_ref()     — Atomic reference counting (flock + tmp+mv)
-#   vision_validate_entry() — Schema validation for vision entries
-#   vision_sanitize_text()  — Allowlist extraction for safe context injection
-#   vision_update_status()  — Lifecycle status transitions (flock + tmp+mv)
-#   vision_extract_tags()   — File-path-to-tag mapping
-#   vision_atomic_write()   — Flock-guarded file mutation wrapper
+#   vision_load_index()          — Parse index.md into JSON array
+#   vision_match_tags()          — Tag overlap matching with scoring
+#   vision_record_ref()          — Atomic reference counting (flock + tmp+mv)
+#   vision_validate_entry()      — Schema validation for vision entries
+#   vision_sanitize_text()       — Allowlist extraction for safe context injection
+#   vision_update_status()       — Lifecycle status transitions (flock + tmp+mv)
+#   vision_extract_tags()        — File-path-to-tag mapping
+#   vision_atomic_write()        — Flock-guarded file mutation wrapper
+#   vision_check_lore_elevation() — Check if vision refs exceed lore threshold
+#   vision_generate_lore_entry() — Generate lore-compatible YAML for a vision
+#   vision_append_lore_entry()   — Idempotent append of elevated vision to lore
 #
 # Usage:
 #   source "$SCRIPT_DIR/vision-lib.sh"
@@ -616,19 +619,26 @@ vision_generate_lore_entry() {
   # Generate lore ID from vision ID
   local lore_id="vision-elevated-${vid}"
 
-  # Build YAML entry using jq for safe escaping, then convert to YAML-like format
-  # Use printf to avoid shell expansion issues
-  cat <<YAML_EOF
-  - id: ${lore_id}
-    term: "$(printf '%s' "$title" | sed 's/"/\\"/g')"
-    short: "$(printf '%s' "$insight" | sed 's/"/\\"/g')"
-    context: |
-      $(printf '%s' "$potential" | sed 's/"/\\"/g')
-      Elevated from Vision Registry entry $vid after crossing reference threshold.
-    source: "$(printf '%s' "$source" | sed 's/"/\\"/g')"
-    tags: [discovered, vision-elevated, $(printf '%s' "$tags_raw" | sed 's/ *, */,/g' | sed 's/,/, /g')]
-    vision_id: "$vid"
-YAML_EOF
+  # Build tags array from raw tags + fixed prefix tags
+  local tags_csv
+  tags_csv=$(printf '%s' "$tags_raw" | sed 's/ *, */,/g')
+
+  # Use jq for safe YAML-like output (no shell expansion of user data)
+  local context_text
+  context_text="${potential} Elevated from Vision Registry entry ${vid} after crossing reference threshold."
+
+  # Emit YAML using printf with pre-sanitized values (no heredoc expansion)
+  # All values passed through jq --arg for safe escaping
+  jq -n \
+    --arg id "$lore_id" \
+    --arg term "$title" \
+    --arg short "$insight" \
+    --arg context "$context_text" \
+    --arg source "$source" \
+    --arg tags_csv "$tags_csv" \
+    --arg vid "$vid" \
+    '{id: $id, term: $term, short: $short, context: $context, source: $source, tags_csv: $tags_csv, vision_id: $vid}' | \
+  jq -r '"  - id: \(.id)\n    term: \"\(.term)\"\n    short: \"\(.short)\"\n    context: |\n      \(.context)\n    source: \"\(.source)\"\n    tags: [discovered, vision-elevated, \(.tags_csv | split(",") | join(", "))]\n    vision_id: \"\(.vision_id)\""'
 }
 
 # =============================================================================
