@@ -79,6 +79,8 @@ declare -A MODEL_PROVIDERS=(
     ["gemini-2.0"]="google"
     ["gemini-2.5-flash"]="google"
     ["gemini-2.5-pro"]="google"
+    ["gemini-3-flash"]="google"
+    ["gemini-3-pro"]="google"
 )
 
 declare -A MODEL_IDS=(
@@ -91,6 +93,8 @@ declare -A MODEL_IDS=(
     ["gemini-2.0"]="gemini-2.0-flash"
     ["gemini-2.5-flash"]="gemini-2.5-flash"
     ["gemini-2.5-pro"]="gemini-2.5-pro"
+    ["gemini-3-flash"]="gemini-3-flash"
+    ["gemini-3-pro"]="gemini-3-pro"
 )
 
 # Cost per 1K tokens (approximate, 2026-02 pricing)
@@ -105,6 +109,8 @@ declare -A COST_INPUT=(
     ["gemini-2.0"]="0.00015"
     ["gemini-2.5-flash"]="0.00015"
     ["gemini-2.5-pro"]="0.00125"
+    ["gemini-3-flash"]="0.0002"
+    ["gemini-3-pro"]="0.0025"
 )
 
 declare -A COST_OUTPUT=(
@@ -117,6 +123,8 @@ declare -A COST_OUTPUT=(
     ["gemini-2.0"]="0.0006"
     ["gemini-2.5-flash"]="0.0006"
     ["gemini-2.5-pro"]="0.01"
+    ["gemini-3-flash"]="0.0008"
+    ["gemini-3-pro"]="0.015"
 )
 
 # =============================================================================

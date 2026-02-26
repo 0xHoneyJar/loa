@@ -59,7 +59,7 @@ setup() {
 # Model selection tests
 # =============================================================================
 
-@test "documents use gpt-5.2 model" {
+@test "documents use gpt-5.3-codex model" {
     cd "$TEST_DIR"
     mock_curl_capture "$BODY_CAPTURE" "$FIXTURES_DIR/mock-responses/approved.json"
 
@@ -68,7 +68,7 @@ setup() {
     # Check request body for model
     [[ -f "$BODY_CAPTURE" ]]
     run cat "$BODY_CAPTURE"
-    [[ "$output" == *"gpt-5.2"* ]] || [[ "$output" == *"gpt-5"* ]]
+    [[ "$output" == *"gpt-5.3-codex"* ]]
 }
 
 @test "code uses gpt-5.3-codex model" {

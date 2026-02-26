@@ -722,7 +722,7 @@ hounfour:
 
   # Flatline tertiary model — enables 3-model triangular cross-scoring
   # Requires GOOGLE_API_KEY to be set in environment
-  # flatline_tertiary_model: gemini-2.5-flash
+  flatline_tertiary_model: gemini-2.5-pro  # 3-model Flatline: Opus + GPT-5.3-codex + Gemini
 
   # Aliases — short names mapping to provider:model-id
   aliases:
@@ -1178,7 +1178,7 @@ flatline_protocol:
   # Model configuration
   models:
     primary: opus        # Claude Opus 4.6 (via claude.ai or API)
-    secondary: gpt-5.2   # OpenAI GPT-5.2 (via API)
+    secondary: gpt-5.3-codex  # OpenAI GPT-5.3-codex (via Responses API)
 
   # Consensus thresholds (0-1000 scale)
   thresholds:
@@ -1186,6 +1186,9 @@ flatline_protocol:
     disputed_delta: 300      # Score delta > this = disputed
     low_value: 400           # Both < this = discard
     blocker_skeptic: 700     # Skeptic concern > this = blocker
+
+  # Iteration safety cap — max Flatline loops before forced termination
+  max_iterations: 5
 
   # Knowledge retrieval for domain context
   knowledge:

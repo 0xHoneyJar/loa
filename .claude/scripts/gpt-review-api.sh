@@ -22,7 +22,7 @@ source "$SCRIPT_DIR/lib-curl-fallback.sh"
 source "$SCRIPT_DIR/lib-multipass.sh"
 source "$SCRIPT_DIR/lib-route-table.sh"
 
-declare -A DEFAULT_MODELS=(["prd"]="gpt-5.2" ["sdd"]="gpt-5.2" ["sprint"]="gpt-5.2" ["code"]="gpt-5.3-codex")
+declare -A DEFAULT_MODELS=(["prd"]="gpt-5.3-codex" ["sdd"]="gpt-5.3-codex" ["sprint"]="gpt-5.3-codex" ["code"]="gpt-5.3-codex")
 declare -A PHASE_KEYS=(["prd"]="prd" ["sdd"]="sdd" ["sprint"]="sprint" ["code"]="implementation")
 DEFAULT_TIMEOUT=300; MAX_RETRIES=3; RETRY_DELAY=5
 DEFAULT_MAX_ITERATIONS=3; DEFAULT_MAX_REVIEW_TOKENS=30000

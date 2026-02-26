@@ -193,13 +193,17 @@ get_model_primary() {
 }
 
 get_model_secondary() {
-    read_config '.flatline_protocol.models.secondary' 'gpt-5.2'
+    read_config '.flatline_protocol.models.secondary' 'gpt-5.3-codex'
 }
 
 # FR-3: Optional tertiary model for 3-model Flatline (e.g., Gemini 3 Pro)
 # Returns empty string when not configured (2-model mode preserved)
 get_model_tertiary() {
     read_config '.hounfour.flatline_tertiary_model' ''
+}
+
+get_max_iterations() {
+    read_config '.flatline_protocol.max_iterations' '5'
 }
 
 # Valid model names accepted by model-adapter.sh.legacy MODEL_PROVIDERS registry.

@@ -96,8 +96,8 @@ providers:
 aliases:
   gemini-2.0: "google:gemini-2.0-flash"  # Backward-compat alias
   native: "claude-code:session"         # Reserved — Claude Code native runtime
-  reviewer: "openai:gpt-5.2"            # Primary review model
-  reasoning: "openai:gpt-5.2"           # Reasoning/skeptic model
+  reviewer: "openai:gpt-5.3-codex"      # Primary review model
+  reasoning: "openai:gpt-5.3-codex"    # Reasoning/skeptic model
   cheap: "anthropic:claude-sonnet-4-6"  # Budget-conscious model
   opus: "anthropic:claude-opus-4-6"     # High-quality model
   deep-thinker: "google:gemini-3-pro"   # Deep thinking with Gemini 3

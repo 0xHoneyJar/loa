@@ -1,279 +1,149 @@
-# Sprint Plan: Two-Pass Bridge Review — Excellence Frontier (cycle-039, Post-Convergence)
+# Sprint Plan: Multi-Model Adversarial Review Upgrade
 
-## Overview
-
-**PRD:** grimoires/loa/prd.md v1.0
-**SDD:** grimoires/loa/sdd.md v1.0
-**Source:** Bridgebuilder Deep Review (PR #411 Parts 1-3) + Iteration 3 SPECULATION-1
-**Sprints:** 3 (extending the converged codebase with forward-looking architectural improvements)
-**Scope:** SPECULATION-level proposals elevated to implementation — striving for excellence at all levels
-
-### Context
-
-The bridge has converged (score 9 → 4 → 0 over 3 iterations, 10 actionable findings addressed). All CRITICAL/HIGH/MEDIUM/LOW findings are resolved. What remains are:
-
-1. **Iteration 3 speculation-1**: Confidence scores for enrichment prioritization
-2. **Deep Review Part 3, Section V**: Metacognition — the system knowing what it knows
-3. **Deep Review Part 2, Section IV (Connection 4)**: Review pluralism via persona slot
-4. **Deep Review Part 3, Permission 1**: Cross-repository perception (Pass 0 prototype)
-5. **Deep Review Part 3, Permission 2**: Speculation exploration loop
-
-These proposals transform the two-pass architecture from a "review pipeline optimization" into the "cognitive architecture for machine reflection" that the deep review identified it to be.
+**Cycle**: cycle-040
+**Sprint**: 1 (single sprint — config/registration + smoke test)
+**Version**: 1.1 (post-Flatline review)
+**PRD**: `grimoires/loa/prd.md`
+**SDD**: `grimoires/loa/sdd.md`
+**Depends-On**: [PR #413](https://github.com/0xHoneyJar/loa/pull/413) (**MERGED** — gpt-5.3-codex base + backward-compat aliases)
 
 ---
 
-## Sprint 4: Metacognition — Confidence-Weighted Enrichment (global sprint-66)
+## Sprint Goal
 
-**Goal**: Implement speculation-1 from iteration 3 — add optional confidence scoring to Pass 1 findings so Pass 2 can allocate enrichment depth proportionally. This is the first step toward machine self-assessment within the review pipeline.
+Upgrade the default external model from GPT-5.2 to GPT-5.3-codex across all review/audit/flatline contexts, activate Gemini 2.5 Pro as the Flatline tertiary model, complete Gemini 3 model registration, and add a flatline iteration safety cap of 5.
 
-**Source**: [speculation-1](https://github.com/0xHoneyJar/loa/pull/411#issuecomment-3955184897) (iter 3), [Deep Review Part 3 Section V](https://github.com/0xHoneyJar/loa/pull/411#issuecomment-3955290750)
+## Task Breakdown
 
-**Scope**: 5 tasks
+### T1: Review and merge PR #413
+**Priority**: P0 (blocker)
+**Acceptance Criteria**:
+- PR #413 rigorously reviewed (code correctness, Responses API routing, test coverage)
+- Verify: jq fallback chain at `model-adapter.sh.legacy:557-563` correctly parses both API response shapes
+- Verify: `validate_model_registry()` passes
+- PR #413 merged to main
+- `gpt-5.2-codex` → `gpt-5.3-codex` changes from PR #413 are present on main
 
-### Deliverables
+### T2: Gemini 3 model registration in legacy adapter
+**Priority**: P0
+**Files**: `.claude/scripts/model-adapter.sh.legacy`
+**Acceptance Criteria**:
+- `gemini-3-flash` and `gemini-3-pro` added to all 4 maps (MODEL_PROVIDERS, MODEL_IDS, COST_INPUT, COST_OUTPUT)
+- Pricing: gemini-3-flash $0.20/$0.80 per MTok, gemini-3-pro $2.50/$15.00 per MTok
+- `validate_model_registry()` passes with zero errors
+- Confirm `gemini-2.5-pro` already exists in all 4 maps (it does — verified in exploration; this is the model T5 activates)
 
-- [ ] Convergence prompt requests optional `confidence` field (0.0-1.0) on each finding
-- [ ] `extractFindingsJSON()` parses and validates confidence values at runtime
-- [ ] Enrichment prompt includes confidence-based depth guidance
-- [ ] `ReviewResult` carries confidence metadata for observability
-- [ ] Tests validate confidence parsing, pass-through, and enrichment depth allocation
+### T3: Gemini 3 model registration in shim adapter
+**Priority**: P0
+**Files**: `.claude/scripts/model-adapter.sh`
+**Acceptance Criteria**:
+- `gemini-3-flash` and `gemini-3-pro` added to MODEL_TO_ALIAS map
+- Mapped to `google:gemini-3-flash` and `google:gemini-3-pro`
 
-### Acceptance Criteria
+### T4: Flatline secondary model upgrade
+**Priority**: P1
+**Files**: `.loa.config.yaml`, `flatline-orchestrator.sh`
+**Acceptance Criteria**:
+- `.loa.config.yaml` `flatline_protocol.models.secondary` → `gpt-5.3-codex`
+- `get_model_secondary()` default → `'gpt-5.3-codex'`
 
-- [ ] AC-1: Convergence prompt schema includes `confidence?: number` guidance with calibration examples
-- [ ] AC-2: `extractFindingsJSON()` validates confidence is a number in [0.0, 1.0] when present, silently drops invalid values
-- [ ] AC-3: `buildEnrichmentPrompt()` includes confidence-aware depth guidance ("high confidence findings get deeper teaching; low confidence get verification focus")
-- [ ] AC-4: `ReviewResult` includes `pass1ConfidenceStats?: { min: number; max: number; mean: number }` for observability
-- [ ] AC-5: Findings without confidence are treated as confidence=0.5 (neutral — same depth as current behavior)
-- [ ] AC-6: Preservation guard does NOT check confidence (confidence is enrichment metadata, not a finding attribute)
-- [ ] AC-7: All existing 380 tests pass with zero modification
-- [ ] AC-8: At least 6 new tests covering: confidence parsing, validation, missing confidence, enrichment depth guidance, stats computation, preservation guard independence
+### T5: Gemini tertiary model activation
+**Priority**: P1
+**Files**: `.loa.config.yaml`
+**Acceptance Criteria**:
+- `hounfour.flatline_tertiary_model: gemini-2.5-pro` added to `.loa.config.yaml`
+- Flatline Phase 1 would produce 6 calls (3 models × 2 modes)
+- Flatline Phase 2 would produce 6 cross-scoring calls
 
-### Technical Tasks
+### T6: Model-config aliases update
+**Priority**: P1
+**Files**: `.claude/defaults/model-config.yaml`
+**Acceptance Criteria**:
+- `reviewer` alias → `openai:gpt-5.3-codex`
+- `reasoning` alias → `openai:gpt-5.3-codex`
+- All downstream agent bindings (flatline-reviewer, flatline-skeptic, flatline-scorer, flatline-dissenter, gpt-reviewer, reviewing-code, jam-reviewer-gpt, jam-reviewer-kimi) inherit via alias
 
-- [ ] **Task 4.1**: Update convergence prompt to request confidence scoring
-  - File: `.claude/skills/bridgebuilder-review/resources/core/template.ts`
-  - In `CONVERGENCE_INSTRUCTIONS` constant, add guidance for optional `confidence` field
-  - Include calibration: "1.0 = certain this is a real issue, 0.5 = moderate confidence, 0.1 = uncertain but worth flagging"
-  - Do NOT make it required — backward compatibility with models that ignore it
-  - **AC**: AC-1, AC-7
+### T7: GPT review document model update
+**Priority**: P1
+**Files**: `gpt-review-api.sh`, `gpt-review-integration.md`, `gpt-review.md`
+**Acceptance Criteria**:
+- `DEFAULT_MODELS` prd/sdd/sprint → `gpt-5.3-codex`
+- Protocol doc `documents: "gpt-5.2"` → `documents: "gpt-5.3-codex"`
+- Command doc same change
 
-- [ ] **Task 4.2**: Parse and validate confidence in `extractFindingsJSON()`
-  - File: `.claude/skills/bridgebuilder-review/resources/core/reviewer.ts`
-  - After runtime type validation, normalize confidence: `typeof f.confidence === 'number' && f.confidence >= 0 && f.confidence <= 1 ? f.confidence : undefined`
-  - Do NOT filter findings lacking confidence — it's optional
-  - Add `confidence?: number` to the finding type in the filter's type guard
-  - **AC**: AC-2, AC-5, AC-7
+### T8: Red team model update
+**Priority**: P1
+**Files**: `.loa.config.yaml`
+**Acceptance Criteria**:
+- `red_team.models.attacker_secondary` → `gpt-5.3-codex`
+- `red_team.models.defender_secondary` → `gpt-5.3-codex`
 
-- [ ] **Task 4.3**: Add confidence-aware depth guidance to enrichment prompt
-  - File: `.claude/skills/bridgebuilder-review/resources/core/template.ts`
-  - In `buildEnrichmentPrompt()`, after the "Your Task" section, add confidence guidance:
-    - "Findings with confidence > 0.8: Focus on deep teaching — FAANG parallels, metaphors, architecture connections"
-    - "Findings with confidence 0.4-0.8: Balance teaching with verification — confirm the analysis before elaborating"
-    - "Findings with confidence < 0.4: Focus on verification — investigate whether this is a real issue before teaching"
-    - "Findings without confidence: Treat as moderate confidence (0.5)"
-  - Only render this section if at least one finding has a confidence value
-  - **AC**: AC-3, AC-5, AC-7
+### T9: Flatline iteration cap
+**Priority**: P1
+**Files**: `.loa.config.yaml`, `flatline-orchestrator.sh`
+**Acceptance Criteria**:
+- `flatline_protocol.max_iterations: 5` in config
+- `get_max_iterations()` function in orchestrator reads this config (default 5)
+- Orchestrator logs warning when cap is reached
 
-- [ ] **Task 4.4**: Add confidence stats to `ReviewResult`
-  - File: `.claude/skills/bridgebuilder-review/resources/core/types.ts`
-  - Add `pass1ConfidenceStats?: { min: number; max: number; mean: number; count: number }` to `ReviewResult`
-  - File: `.claude/skills/bridgebuilder-review/resources/core/reviewer.ts`
-  - In `processItemTwoPass()`, after extracting findings, compute stats from parsed confidence values
-  - Include in result fields passed to `postAndFinalize()`
-  - **AC**: AC-4, AC-7
+### T10: Example config mirror
+**Priority**: P2
+**Files**: `.loa.config.yaml.example`
+**Acceptance Criteria**:
+- All config changes from T4, T5, T8, T9 mirrored in example config
+- Tertiary model shown as commented example with explanation
 
-- [ ] **Task 4.5**: Add comprehensive tests for confidence pipeline
-  - File: `.claude/skills/bridgebuilder-review/resources/__tests__/reviewer.test.ts`
-  - Test 1: Pass 1 output with confidence values → correctly parsed and passed to enrichment
-  - Test 2: Pass 1 output with invalid confidence (negative, >1, string) → silently dropped
-  - Test 3: Pass 1 output with no confidence on any finding → enrichment prompt omits confidence section
-  - Test 4: Mixed findings (some with confidence, some without) → stats computed from available values only
-  - Test 5: Preservation guard passes when confidence differs between Pass 1 and Pass 2 (confidence is NOT a preserved attribute)
-  - Test 6: Confidence stats included in ReviewResult
-  - File: `.claude/skills/bridgebuilder-review/resources/__tests__/template.test.ts`
-  - Test 7: Enrichment prompt includes confidence guidance when findings have confidence
-  - Test 8: Enrichment prompt omits confidence guidance when no findings have confidence
-  - **AC**: AC-6, AC-8
+### T11: Reference documentation update
+**Priority**: P2
+**Files**: `.claude/loa/reference/flatline-reference.md`, `.claude/protocols/flatline-protocol.md`
+**Acceptance Criteria**:
+- Model table updated to show 3-model setup
+- Config examples updated
+- max_iterations documented
 
----
+### T12: Test fixture updates
+**Priority**: P2
+**Files**: Test fixtures that reference `gpt-5.2` as default
+**Acceptance Criteria**:
+- Any test fixtures with hardcoded `gpt-5.2` (non-codex) model defaults updated
+- Existing test suites still pass
 
-## Sprint 5: Persona Provenance + Review Pluralism Foundation (global sprint-67)
+### T13: End-to-end smoke test (Flatline IMP-003, SKP-002)
+**Priority**: P1
+**Acceptance Criteria**:
+- Run a live 3-model Flatline review against a test document (can use the PRD itself)
+- Verify tertiary model (Gemini 2.5 Pro) actually participates: `tertiary-review.json` and `tertiary-skeptic.json` exist and contain valid JSON
+- Verify all 6 Phase 2 cross-scoring files are produced
+- Verify consensus output includes 3-way scoring
+- Run at least one GPT review with `gpt-5.3-codex` for doc phase and verify APPROVED/CHANGES_REQUIRED verdict
 
-**Goal**: Make the persona slot architecture explicit with provenance tracking, laying the foundation for review pluralism. Currently the persona is loaded as a raw string — this sprint adds identity, versioning, and traceability so different communities could deploy different reviewer personas on the same convergence foundation.
+### T14: Rollback documentation (Flatline IMP-002)
+**Priority**: P2
+**Acceptance Criteria**:
+- Document single-commit revert strategy: `git revert <commit>` restores all defaults
+- Alternative: ordered manual rollback steps for partial revert (e.g., disable tertiary only)
 
-**Source**: [Deep Review Part 2, Section IV, Connection 4](https://github.com/0xHoneyJar/loa/pull/411#issuecomment-3955269032) (web4 review pluralism), [praise-6](https://github.com/0xHoneyJar/loa/pull/411#issuecomment-3955184897) (config provenance chain)
+## Dependency Graph
 
-**Scope**: 5 tasks
+```
+T1 (review + merge PR #413)
+ └→ T2, T3 (Gemini 3 registration — parallel)
+     └→ T4 (flatline secondary)
+         └→ T5 (Gemini tertiary)
+     └→ T6 (model-config aliases)
+         └→ T7 (GPT review docs)
+     └→ T8 (red team)
+     └→ T9 (iteration cap)
+         └→ T10 (example config)
+             └→ T11 (reference docs)
+                 └→ T12 (test fixtures)
+                     └→ T13 (end-to-end smoke test)
+                         └→ T14 (rollback docs)
+```
 
-### Deliverables
+## Estimated Size
 
-- [ ] `PersonaMetadata` type with id, version, hash for identity tracking
-- [ ] Persona loaded with metadata extraction from frontmatter
-- [ ] `ReviewResult` includes `personaId` and `personaHash` for provenance
-- [ ] Enrichment output includes persona attribution line
-- [ ] Tests validate persona metadata parsing, provenance tracking, and attribution rendering
-
-### Acceptance Criteria
-
-- [ ] AC-1: `PersonaMetadata` interface: `{ id: string; version: string; hash: string }` extracted from persona frontmatter
-- [ ] AC-2: Persona frontmatter parsing extracts `persona-version` and `agent` from existing `<!-- persona-version: 1.0.0 | agent: bridgebuilder -->` comment
-- [ ] AC-3: `ReviewResult` includes `personaId?: string` and `personaHash?: string`
-- [ ] AC-4: Enrichment prompt footer includes `Reviewed with: {persona.id} v{persona.version}` attribution
-- [ ] AC-5: When persona has no frontmatter, defaults to `{ id: "unknown", version: "0.0.0", hash: sha256(content) }`
-- [ ] AC-6: Persona hash computed via SHA-256 of trimmed content (consistent with existing persona integrity check in run-bridge)
-- [ ] AC-7: All existing tests pass with zero modification
-- [ ] AC-8: At least 6 new tests
-
-### Technical Tasks
-
-- [ ] **Task 5.1**: Create `PersonaMetadata` type and frontmatter parser
-  - File: `.claude/skills/bridgebuilder-review/resources/core/types.ts`
-  - Add `PersonaMetadata` interface: `{ id: string; version: string; hash: string }`
-  - File: `.claude/skills/bridgebuilder-review/resources/core/reviewer.ts`
-  - Add `parsePersonaMetadata(content: string): PersonaMetadata` private method
-  - Parse `<!-- persona-version: X | agent: Y -->` regex from first line of persona content
-  - Compute SHA-256 hash of trimmed content using Node.js `crypto` module
-  - Fallback: `{ id: "unknown", version: "0.0.0", hash: computedHash }`
-  - **AC**: AC-1, AC-2, AC-5, AC-6
-
-- [ ] **Task 5.2**: Wire persona metadata through the pipeline
-  - File: `.claude/skills/bridgebuilder-review/resources/core/reviewer.ts`
-  - In constructor or init, parse persona metadata from `this.persona`
-  - Store as `this.personaMetadata: PersonaMetadata`
-  - In `processItemTwoPass()`, include `personaId` and `personaHash` in result fields passed to `postAndFinalize()`
-  - **AC**: AC-3, AC-7
-
-- [ ] **Task 5.3**: Add persona attribution to enrichment output
-  - File: `.claude/skills/bridgebuilder-review/resources/core/template.ts`
-  - In `buildEnrichmentPrompt()`, add instruction at end of "Your Task" section:
-    - "Include this attribution line at the very end of the review: `*Reviewed with: {personaId} v{personaVersion}*`"
-  - Accept `personaMetadata?: PersonaMetadata` as optional parameter (not breaking)
-  - Only render attribution instruction when personaMetadata is provided
-  - **AC**: AC-4, AC-7
-
-- [ ] **Task 5.4**: Update `ReviewResult` type
-  - File: `.claude/skills/bridgebuilder-review/resources/core/types.ts`
-  - Add `personaId?: string` and `personaHash?: string` to `ReviewResult`
-  - **AC**: AC-3
-
-- [ ] **Task 5.5**: Add comprehensive tests
-  - File: `.claude/skills/bridgebuilder-review/resources/__tests__/reviewer.test.ts`
-  - Test 1: Persona with valid frontmatter → correct id, version, hash extracted
-  - Test 2: Persona with no frontmatter → defaults to unknown/0.0.0 with hash
-  - Test 3: Two-pass ReviewResult includes personaId and personaHash
-  - Test 4: Single-pass ReviewResult does NOT include personaId (no persona loaded)
-  - File: `.claude/skills/bridgebuilder-review/resources/__tests__/template.test.ts`
-  - Test 5: Enrichment prompt includes attribution instruction when personaMetadata provided
-  - Test 6: Enrichment prompt omits attribution instruction when personaMetadata not provided
-  - **AC**: AC-7, AC-8
-
----
-
-## Sprint 6: Ecosystem Context Integration — Pass 0 Prototype (global sprint-68)
-
-**Goal**: Add optional ecosystem context to the enrichment prompt so Pass 2 can draw cross-repository architectural connections. This is the "Cross-Repository Perception" from the deep review — a lightweight Pass 0 that loads pattern hints before enrichment begins.
-
-**Source**: [Deep Review Part 3, Permission 1](https://github.com/0xHoneyJar/loa/pull/411#issuecomment-3955290750) (cross-repository perception), [Deep Review Part 2, Section IV](https://github.com/0xHoneyJar/loa/pull/411#issuecomment-3955269032) (four cross-ecosystem connections)
-
-**Scope**: 5 tasks
-
-### Deliverables
-
-- [ ] `EcosystemContext` type for structured cross-repo pattern hints
-- [ ] `buildEnrichmentPrompt()` renders ecosystem context section when available
-- [ ] Config support for ecosystem context file path
-- [ ] Template helper for formatting ecosystem patterns
-- [ ] Tests validate context rendering, empty context handling, and config resolution
-
-### Acceptance Criteria
-
-- [ ] AC-1: `EcosystemContext` interface with `patterns: Array<{ repo: string; pr?: number; pattern: string; connection: string }>` and `lastUpdated: string`
-- [ ] AC-2: `buildEnrichmentPrompt()` includes "## Ecosystem Context" section when ecosystemContext is provided and non-empty
-- [ ] AC-3: Each pattern rendered as: `- **{repo}** (PR #{pr}): {pattern} — *Connection*: {connection}`
-- [ ] AC-4: When ecosystemContext is undefined or has empty patterns array, section is omitted entirely
-- [ ] AC-5: Config supports `ecosystem_context_path?: string` in YAML config with provenance tracking
-- [ ] AC-6: Ecosystem context is loaded from file path at pipeline start (not per-item) — it's static per run
-- [ ] AC-7: All existing tests pass with zero modification
-- [ ] AC-8: At least 6 new tests
-
-### Technical Tasks
-
-- [ ] **Task 6.1**: Create `EcosystemContext` type
-  - File: `.claude/skills/bridgebuilder-review/resources/core/types.ts`
-  - Add `EcosystemContext` interface:
-    ```
-    patterns: Array<{ repo: string; pr?: number; pattern: string; connection: string }>
-    lastUpdated: string
-    ```
-  - Add `ecosystemContext?: EcosystemContext` to `ReviewItem` (optional — no breaking change)
-  - **AC**: AC-1, AC-7
-
-- [ ] **Task 6.2**: Add ecosystem context rendering to enrichment prompt
-  - File: `.claude/skills/bridgebuilder-review/resources/core/template.ts`
-  - Add private helper: `renderEcosystemContext(ctx: EcosystemContext): string[]`
-  - Renders "## Ecosystem Context" header + pattern list
-  - Each pattern: `- **{repo}** (PR #{pr}): {pattern} — *Connection*: {connection}`
-  - If pr is undefined, omit the `(PR #N)` part
-  - In `buildEnrichmentPrompt()`, accept optional `ecosystemContext?: EcosystemContext`
-  - Render section between PR context and findings (before "## Convergence Findings")
-  - Only render when ecosystemContext has at least one pattern
-  - **AC**: AC-2, AC-3, AC-4, AC-7
-
-- [ ] **Task 6.3**: Add ecosystem context config resolution
-  - File: `.claude/skills/bridgebuilder-review/resources/config.ts`
-  - Add `ecosystem_context_path?: string` to `YamlConfig` interface
-  - Add `ecosystemContextPath` to effective config resolution with provenance
-  - Default: undefined (feature is opt-in)
-  - Env override: `BRIDGEBUILDER_ECOSYSTEM_CONTEXT` (path to JSON file)
-  - **AC**: AC-5, AC-7
-
-- [ ] **Task 6.4**: Load ecosystem context at pipeline initialization
-  - File: `.claude/skills/bridgebuilder-review/resources/core/reviewer.ts`
-  - In `ReviewPipeline` constructor, if `config.ecosystemContextPath` is set:
-    - Read JSON file, validate schema (must have `patterns` array)
-    - Store as `this.ecosystemContext: EcosystemContext | undefined`
-    - On parse error, log warning and continue without ecosystem context
-  - In `processItemTwoPass()`, pass `this.ecosystemContext` to `buildEnrichmentPrompt()`
-  - **AC**: AC-6, AC-7
-
-- [ ] **Task 6.5**: Add comprehensive tests
-  - File: `.claude/skills/bridgebuilder-review/resources/__tests__/template.test.ts`
-  - Test 1: Enrichment prompt includes ecosystem context section when patterns provided
-  - Test 2: Enrichment prompt omits section when ecosystemContext undefined
-  - Test 3: Enrichment prompt omits section when patterns array is empty
-  - Test 4: Pattern with PR number renders correctly
-  - Test 5: Pattern without PR number omits PR reference
-  - File: `.claude/skills/bridgebuilder-review/resources/__tests__/reviewer.test.ts`
-  - Test 6: Pipeline loads ecosystem context from config path
-  - Test 7: Pipeline handles missing/malformed ecosystem context file gracefully
-  - File: `.claude/skills/bridgebuilder-review/resources/__tests__/config.test.ts`
-  - Test 8: Ecosystem context path resolved from YAML config with provenance
-  - **AC**: AC-7, AC-8
-
----
-
-## Risk Assessment
-
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| Confidence scoring degrades convergence pass focus | Medium | Confidence is optional — models can ignore it. Calibration guidance keeps it lightweight. |
-| Persona frontmatter parsing fails on edge cases | Low | Robust fallback to `unknown/0.0.0` with hash. Regex tested against real persona file. |
-| Ecosystem context file schema drift | Low | JSON validation at load time. Graceful fallback on parse error. |
-| Token budget impact from additional prompt sections | Medium | Confidence guidance is ~100 tokens. Ecosystem context is bounded by pattern count. Both are conditional. |
-| Backward compatibility with single-pass mode | Low | All new features are two-pass-only with optional parameters. Single-pass path untouched. |
-
-## Dependencies
-
-- Sprint 4 (confidence) and Sprint 5 (persona provenance) are independent — can execute in parallel
-- Sprint 6 (ecosystem context) depends on Sprint 5 (persona metadata is passed alongside ecosystem context in enrichment prompt) — but only weakly (Sprint 6 can execute without Sprint 5 if needed)
-
-## Success Metrics
-
-| Metric | Target |
-|--------|--------|
-| All existing 380 tests pass | 100% — zero regressions |
-| New test coverage | 20+ new tests across 3 sprints |
-| Confidence field adoption | LLM includes confidence on >50% of findings (measured in next bridge run) |
-| Persona provenance | Every two-pass ReviewResult includes personaId and personaHash |
-| Ecosystem context rendering | Correctly formatted when file exists, silently omitted when not |
+- **Total files**: ~11-15
+- **Total line changes**: ~60-80
+- **Complexity**: Low (config + registration + smoke test, minimal new logic)
+- **Risk**: Low (all changes have instant rollback via single git revert)

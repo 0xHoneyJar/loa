@@ -67,7 +67,7 @@ gpt_review:
   timeout_seconds: 300       # API timeout
   max_iterations: 3          # Auto-approve after this
   models:
-    documents: "gpt-5.2"     # PRD, SDD, Sprint reviews
+    documents: "gpt-5.3-codex"  # PRD, SDD, Sprint reviews
     code: "gpt-5.3-codex"    # Code reviews
   phases:
     prd: true

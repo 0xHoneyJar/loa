@@ -3,7 +3,7 @@ gpt_review:
   timeout_seconds: 300
   max_iterations: 3
   models:
-    documents: "gpt-5.2"
+    documents: "gpt-5.3-codex"
     code: "gpt-5.3-codex"
   phases:
     prd: true

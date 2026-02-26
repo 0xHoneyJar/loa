@@ -54,15 +54,17 @@ flatline_protocol:
   enabled: true
 
   models:
-    primary: opus           # Claude Opus 4.6
-    secondary: gpt-5.2      # OpenAI GPT-5.2
+    primary: opus              # Claude Opus 4.6
+    secondary: gpt-5.3-codex  # OpenAI GPT-5.3-codex
+
+  max_iterations: 5            # Safety cap on Flatline loops
 
   # Consensus thresholds (0-1000 scale)
   thresholds:
-    high_consensus: 700     # Both >700 = auto-integrate
+    high_consensus: 700     # 2-of-3 >700 = auto-integrate
     dispute_delta: 300      # Delta >300 = disputed
-    low_value: 400          # Both <400 = discard
-    blocker: 700            # Skeptic concern >700 = blocker
+    low_value: 400          # All <400 = discard
+    blocker: 700            # Any skeptic concern >700 = blocker
 
   # Knowledge retrieval
   knowledge:
@@ -222,7 +224,7 @@ Options:
 ```bash
 .claude/scripts/model-adapter.sh --model <model> --mode <mode> --input <file> [options]
 
-Models: opus, gpt-5.2, gpt-4o, sonnet
+Models: opus, gpt-5.3-codex, gemini-2.5-pro, gemini-3-pro, gpt-5.2
 Modes: review, skeptic, score
 ```
 

@@ -4,14 +4,14 @@
 
 ## How It Works (v1.22.0)
 
-Multi-model adversarial review using Claude Opus 4.6 + GPT-5.2 for planning document quality assurance.
+Multi-model adversarial review using Claude Opus 4.6 + GPT-5.3-codex + Gemini 2.5 Pro for planning document quality assurance.
 
 | Phase | Description |
 |-------|-------------|
 | Phase 0 | Knowledge retrieval (Tier 1: local + Tier 2: NotebookLM) |
-| Phase 1 | 4 parallel calls: GPT review, Opus review, GPT skeptic, Opus skeptic |
-| Phase 2 | Cross-scoring: GPT scores Opus suggestions, Opus scores GPT suggestions |
-| Phase 3 | Consensus extraction: HIGH/DISPUTED/LOW/BLOCKER classification |
+| Phase 1 | 6 parallel calls: 3 models × 2 modes (review + skeptic) |
+| Phase 2 | 6 cross-scoring calls: each model scores the other two |
+| Phase 3 | Consensus extraction: HIGH/DISPUTED/LOW/BLOCKER (2-of-3 majority) |
 
 ## Consensus Thresholds (0-1000 scale)
 
@@ -81,11 +81,16 @@ flatline_protocol:
   enabled: true
   models:
     primary: opus
-    secondary: gpt-5.2
+    secondary: gpt-5.3-codex
+  max_iterations: 5
   knowledge:
     notebooklm:
       enabled: false
       notebook_id: ""
+
+# Tertiary model (3-model Flatline)
+hounfour:
+  flatline_tertiary_model: gemini-2.5-pro
 
 autonomous_mode:
   enabled: false

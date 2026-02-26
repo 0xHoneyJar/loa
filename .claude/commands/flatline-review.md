@@ -223,7 +223,7 @@ flatline_protocol:
 
   models:
     primary: "opus"
-    secondary: "gpt-5.2"
+    secondary: "gpt-5.3-codex"
 
   thresholds:
     high_consensus: 700

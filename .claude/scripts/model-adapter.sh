@@ -106,6 +106,8 @@ declare -A MODEL_TO_ALIAS=(
     ["gemini-2.0"]="google:gemini-2.0-flash"
     ["gemini-2.5-flash"]="google:gemini-2.5-flash"
     ["gemini-2.5-pro"]="google:gemini-2.5-pro"
+    ["gemini-3-flash"]="google:gemini-3-flash"
+    ["gemini-3-pro"]="google:gemini-3-pro"
 )
 
 # =============================================================================
