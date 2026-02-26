@@ -173,7 +173,7 @@ The project defines 1 specialized agent persona.
 
 ## Culture
 <!-- provenance: OPERATIONAL -->
-**Naming**: Vodou terminology (Loa, Grimoire, Hounfour, Simstim) as cognitive hooks for agent framework concepts.
+**Naming**: Vodou terminology via Gibson's Sprawl trilogy (Loa, Grimoire, Hounfour, Cheval, Beauvoir) and direct cyberpunk concepts (Simstim, ICE, Flatline, Freeside, Finn) as narrative architecture — coherent memetic frameworks that help humans and agents form consistent mental models. Gibson adapted Vodou from anthropological sources (Tallant 1946, likely Deren 1953).
 
 **Principles**: Think Before Coding — plan and analyze before implementing, Simplicity First — minimum complexity for the current task, Surgical Changes — minimal diff, maximum impact, Goal-Driven — every action traces to acceptance criteria.
 

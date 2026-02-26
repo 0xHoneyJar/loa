@@ -21,7 +21,7 @@ Loa is an agent-driven development framework for [Claude Code](https://docs.anth
 
 ### Why "Loa"?
 
-In William Gibson's Sprawl trilogy, Loa are AI entities that "ride" humans through neural interfaces. These agents don't replace you—they **ride with you**, channeling expertise through the interface.
+In William Gibson's Sprawl trilogy (*Neuromancer*, *Count Zero*), Loa are AI entities that "ride" humans through neural interfaces — a metaphor Gibson adapted from Haitian Vodou via the anthropological work of Robert Tallant and (likely) Maya Deren. These agents don't replace you — they **ride with you**, channeling expertise through the interface. See [docs/ecosystem-architecture.md](docs/ecosystem-architecture.md#naming--the-scholarly-chain) for the full naming lineage.
 
 ## Quick Start (~2 minutes)
 

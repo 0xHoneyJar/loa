@@ -1,4 +1,9 @@
-description: "Mappings from Neuromancer/Sprawl Trilogy concepts to Loa framework features"
+description: |
+  Mappings from Neuromancer/Sprawl Trilogy concepts to Loa framework features.
+  Gibson's Vodou terminology originated from anthropological sources — primarily
+  Robert Tallant (1946) and likely Maya Deren (1953). The Vodou concepts became
+  central in Count Zero (1986), where AI entities present as loa. These mappings
+  document how that literary adaptation maps to engineering features.
 
 mappings:
   - concept: ice

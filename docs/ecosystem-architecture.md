@@ -7,35 +7,35 @@
 ```mermaid
 graph TB
     subgraph "Layer 5: Product"
-        DIXIE["🔮 loa-dixie\nThe Oracle Product"]
+        DIXIE["🔮 loa-dixie<br/>The Oracle Product"]
     end
 
     subgraph "Layer 4: Platform"
-        FREESIDE["🏗️ loa-freeside\nAPI + Billing + Discord/TG"]
+        FREESIDE["🏗️ loa-freeside<br/>API + Billing + Discord/TG"]
     end
 
     subgraph "Layer 3: Runtime"
-        FINN["⚡ loa-finn\nAgent Execution Engine"]
+        FINN["⚡ loa-finn<br/>Agent Execution Engine"]
     end
 
     subgraph "Layer 2: Protocol"
-        HOUNFOUR["📜 loa-hounfour\nSchemas + Rules + Contracts"]
+        HOUNFOUR["📜 loa-hounfour<br/>Schemas + Rules + Contracts"]
     end
 
     subgraph "Layer 1: Framework"
-        LOA["🛠️ loa\nDev Framework + Skills"]
+        LOA["🛠️ loa<br/>Dev Framework + Skills"]
     end
 
-    DIXIE -->|"queries knowledge\nvia platform APIs"| FREESIDE
+    DIXIE -->|"queries knowledge<br/>via platform APIs"| FREESIDE
     DIXIE -->|"runs agent sessions"| FINN
     DIXIE -->|"validates types"| HOUNFOUR
 
-    FREESIDE -->|"routes agents\nto model pools"| FINN
-    FREESIDE -->|"npm dependency\nvalidates all data"| HOUNFOUR
+    FREESIDE -->|"routes agents<br/>to model pools"| FINN
+    FREESIDE -->|"npm dependency<br/>validates all data"| HOUNFOUR
 
-    FINN -->|"enforces contracts\nbudget limits"| HOUNFOUR
+    FINN -->|"enforces contracts<br/>budget limits"| HOUNFOUR
 
-    LOA -.->|"mounted as dev framework\nin ALL repos"| FINN
+    LOA -.->|"mounted as dev framework<br/>in ALL repos"| FINN
     LOA -.->|"mounted as dev framework"| FREESIDE
     LOA -.->|"mounted as dev framework"| HOUNFOUR
     LOA -.->|"mounted as dev framework"| DIXIE
@@ -133,14 +133,59 @@ User asks question on Discord
 
 ---
 
-## Naming
+## Naming — The Scholarly Chain
 
-All names come from William Gibson's *Neuromancer* and Haitian Vodou:
+The naming draws from Haitian Vodou, but specifically through its literary adaptation in William Gibson's Sprawl trilogy (*Neuromancer*, *Count Zero*, *Mona Lisa Overdrive*). Gibson's use of Vodou was itself grounded in anthropological sources — this layering is deliberate and worth understanding precisely.
 
-| Name | Origin | Why |
-|------|--------|-----|
-| **Loa** | Vodou spirits | Agent entities that "ride" codebases |
-| **Hounfour** | Vodou temple | The sacred space where spirits (protocols) manifest |
-| **Finn** | *Neuromancer* character — the fence | The broker connecting entities to the physical world |
-| **Freeside** | *Neuromancer* space station | Where all systems converge |
-| **Dixie Flatline** | *Neuromancer* ROM construct | McCoy Pauley's consciousness — institutional memory in queryable form |
+### The Lineage
+
+```
+Haitian Vodou (centuries of living tradition)
+        ↓
+Robert Tallant, "Voodoo in New Orleans" (1946)
+  Gibson read at age 12 — noticed veves (ritual diagrams)
+  looked like circuit diagrams. The image lodged for decades.
+        ↓
+Maya Deren, "Divine Horsemen: The Living Gods of Haiti" (1953)
+  Definitive English ethnography of Vodou possession and loa taxonomy.
+  Probable (unconfirmed) influence — critics note Gibson's accuracy
+  aligns closely with Deren's framework.
+        ↓
+Carole Devillers, National Geographic (March 1985)
+  Gibson found this while stuck writing Count Zero.
+  The veves-as-circuits memory clicked — Vodou became the
+  organizing metaphor for AI entities in cyberspace.
+        ↓
+William Gibson, "Count Zero" (1986)
+  The merged AI from Neuromancer fragments into entities that
+  present as Vodou loa. Key insight: the loa are "appropriate
+  interfaces with mankind" — not worshipped, worked with.
+        ↓
+This framework (2024–)
+  The Vodou-via-Gibson metaphor maps naturally to agent-driven
+  development: spirits that ride vessels, pragmatic ritual,
+  multiple entities in shared ceremonial space.
+```
+
+### Why This Matters
+
+This isn't just aesthetic naming — it's **narrative architecture**. As the ecosystem grows and gains more contributors, a coherent memetic framework helps both humans and AI agents form a consistent mental model. The Vodou-via-Gibson lineage provides:
+
+- **Structural metaphors** that map 1:1 to technical concepts (possession = agent session, riding = codebase analysis, hounfour = multi-model orchestration)
+- **A shared vocabulary** that persists across repos, PRs, and conversations
+- **Cognitive hooks** that make abstract distributed systems concepts memorable and navigable
+
+Gibson himself noted that Vodou is "not concerned with notions of salvation and transcendence. What it's about is getting things done... it's street religion." That pragmatism is the point — these aren't decorative names, they're load-bearing metaphors.
+
+### The Name Map
+
+| Name | Gibson Source | Vodou Root | Framework Meaning |
+|------|-------------|------------|-------------------|
+| **Loa** | AIs that fragment into spirit-like entities (*Count Zero*) | Spirits that serve as intermediaries between humanity and the divine | Agent framework — the intelligence that rides the codebase |
+| **Hounfour** | The ceremonial space where loa manifest (*Count Zero*) | Vodou temple where rituals take place | Protocol library — where schemas and contracts are defined |
+| **Finn** | The Finn — fence and information broker (*Neuromancer*) | — (pure Gibson) | Runtime engine — the broker connecting agents to compute |
+| **Freeside** | Orbital station where all factions converge (*Neuromancer*) | — (pure Gibson) | Platform layer — where users, billing, and distribution converge |
+| **Dixie Flatline** | McCoy Pauley's ROM construct — dead hacker's preserved consciousness (*Neuromancer*) | — (pure Gibson) | Oracle product — institutional memory in queryable form |
+| **Cheval** | The "horse" that loa ride (*Count Zero*) | Human vessel possessed by a loa during ceremony | Agent session — the computational vessel the framework rides |
+| **Grimoire** | — | Book of spells and ritual instructions | State directory — accumulated project knowledge |
+| **Beauvoir** | Character who explains Vodou-as-interface (*Count Zero*) | Max Beauvoir, Supreme Chief of Vodou in Haiti | Reviewer persona files that guide code review |
