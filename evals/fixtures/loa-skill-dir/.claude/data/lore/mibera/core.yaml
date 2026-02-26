@@ -3,19 +3,23 @@ entries:
     term: "Hounfour"
     short: "The temple where spirits are summoned — the model invocation pipeline"
     context: |
-      Named after the Haitian Vodou temple. In Loa, the Hounfour is the abstraction
-      layer that manages model invocation, routing, and orchestration.
-    source: "Loa framework core"
+      Named after the Haitian Vodou temple, via Gibson's Count Zero (1986) where
+      the hounfour is the space where AI-loa entities manifest. Gibson drew from
+      Tallant and likely Deren's anthropological work. In Loa, the Hounfour is
+      the abstraction layer that manages model invocation, routing, and orchestration.
+    source: "Vodou tradition via Gibson's Count Zero (1986)"
     tags: [mibera, architecture]
 
   - id: loa
     term: "Loa"
-    short: "Intermediary spirits — the agent framework itself"
+    short: "Intermediary spirits via Gibson's Sprawl trilogy — the agent framework itself"
     context: |
-      In Vodou tradition, Loa are intermediary spirits between humanity and the divine.
-      The framework serves as intermediary between human intent and machine execution.
-    source: "Loa framework core"
-    tags: [mibera, naming]
+      The naming draws from Haitian Vodou through Gibson's Sprawl trilogy. Gibson
+      adapted Vodou via Tallant (1946) and likely Deren (1953). In Count Zero, AIs
+      fragment into loa — "appropriate interfaces with mankind." The framework
+      serves as intermediary between human intent and machine execution.
+    source: "Gibson via Tallant/Deren → Count Zero (1986)"
+    tags: [mibera, naming, narrative-architecture]
 
   - id: grimoire
     term: "Grimoire"

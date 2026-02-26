@@ -2,6 +2,10 @@
 
 Cultural and philosophical context for agent skills. Each entry provides naming context, architectural metaphors, and philosophical grounding that enriches AI agent interactions.
 
+## Naming Lineage
+
+The framework's Vodou terminology originates from William Gibson's Sprawl trilogy (*Neuromancer*, *Count Zero*, *Mona Lisa Overdrive*), which adapted Haitian Vodou through the anthropological work of Robert Tallant (*Voodoo in New Orleans*, 1946) and likely Maya Deren (*Divine Horsemen*, 1953). This is **narrative architecture** — coherent memetic frameworks that help humans and agents form consistent mental models as the ecosystem scales. See [docs/ecosystem-architecture.md](../../docs/ecosystem-architecture.md#naming--the-scholarly-chain) for the complete scholarly chain.
+
 ## Structure
 
 ```
