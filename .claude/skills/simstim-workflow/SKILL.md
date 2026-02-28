@@ -390,7 +390,7 @@ If only one config flag is set, skip with warning:
 - Display warning: "Design review failed: [reason]. Continuing to Phase 4."
 - Continue to Phase 4 — design review is advisory, not blocking
 
-Proceed to Phase 3.5 (if enabled) or Phase 4.
+Proceed to Phase 4.
 </phase_3_5_bridgebuilder_sdd>
 
 ---
