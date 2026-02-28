@@ -146,7 +146,7 @@ extract_prior_findings() {
     while IFS= read -r line; do
         # Match relevant findings sections
         if [[ "$line" =~ ^##[[:space:]] ]]; then
-            if printf '%s\n' "$line" | grep -iqE '(Findings|Issues|Changes.Required|Security|Concerns|Recommendations)'; then
+            if printf '%s\n' "$line" | grep -iqE '(Findings|Issues|Changes.Required|Security|Concerns|Recommendations|SEC-[0-9]|Audit|Observations)'; then
                 in_section=true
             elif [[ "$in_section" == true ]]; then
                 # Hit a different ## section — stop collecting
