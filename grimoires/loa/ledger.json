@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-044",
+  "active_cycle": "cycle-045",
   "cycles": [
     {
       "id": "cycle-036",
@@ -293,8 +293,10 @@
     {
       "id": "cycle-044",
       "label": "Bridgebuilder Design Review — Pre-Implementation Architectural Intelligence",
-      "status": "active",
+      "status": "archived",
       "created": "2026-02-28T00:00:00Z",
+      "archived": "2026-02-28T07:00:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-28-cycle-044-bridgebuilder-design-review",
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
       "sprints": [
@@ -302,22 +304,50 @@
           "local_id": 1,
           "global_id": 84,
           "label": "Core Phase Integration",
-          "status": "planned"
+          "status": "completed"
         },
         {
           "local_id": 2,
           "global_id": 85,
           "label": "HITL Interaction + Vision Capture",
-          "status": "planned"
+          "status": "completed"
         },
         {
           "local_id": 3,
           "global_id": 86,
           "label": "Hardening + Validation",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "cycle-045",
+      "label": "Review Pipeline Hardening — Gemini Activation, Orchestrator Wiring, Red Team Post-Implementation",
+      "status": "active",
+      "created": "2026-02-28T03:00:00Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 87,
+          "label": "Gemini Verification + State Schema",
+          "status": "planned"
+        },
+        {
+          "local_id": 2,
+          "global_id": 88,
+          "label": "Red Team Code-vs-Design",
+          "status": "planned"
+        },
+        {
+          "local_id": 3,
+          "global_id": 89,
+          "label": "Observability + Hardening",
           "status": "planned"
         }
       ]
     }
   ],
-  "global_sprint_counter": 86
+  "global_sprint_counter": 89
 }
