@@ -1,9 +1,9 @@
-# SDD: Review Pipeline Hardening — Gemini Activation, Orchestrator Wiring, Red Team Post-Implementation
+# SDD: Bridgebuilder Constellation — From Pipeline to Deliberation
 
-> **Cycle**: 045
+> **Cycle**: 046
 > **Created**: 2026-02-28
 > **PRD**: `grimoires/loa/prd.md`
-> **Target**: `.claude/` System Zone (scripts, skills, data) + `.loa.config.yaml`
+> **Target**: `.claude/` System Zone (scripts, skills, data) + `.loa.config.yaml` + `grimoires/loa/lore/`
 
 ---
 
@@ -13,486 +13,375 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Simstim Workflow                          │
-│                                                             │
-│  PHASES array (UNCHANGED):                                  │
-│  preflight → discovery → flatline_prd → architecture →      │
-│  flatline_sdd → planning → flatline_sprint → implementation │
-│                                                             │
-│  Sub-phases (SKILL.md driven):                              │
-│  architecture → [3.5]? → flatline_sdd → [4.5]? → planning  │
-│                  │                        │                  │
-│                  ▼                        ▼                  │
-│         bridgebuilder_sdd          red_team_sdd              │
-│         (existing Phase 3.5)       (existing Phase 4.5)      │
-│                                                             │
-├─────────────────────────────────────────────────────────────┤
 │                    Run Mode Loop                             │
 │                                                             │
-│  implement → review → audit → [RED_TEAM_CODE]? → COMPLETE   │
-│                                    │                         │
-│                                    ▼                         │
-│                           Red Team Code-vs-Design            │
-│                           (NEW — FR-3)                       │
+│  implement → review → audit → RED_TEAM_CODE → COMPLETE      │
+│                │        │          │                          │
+│                │        │          ▼                          │
+│                │        │   --prior-findings  (NEW — FR-2)   │
+│                │        │   ├── engineer-feedback.md          │
+│                │        │   └── auditor-sprint-feedback.md    │
+│                │        │                                    │
+│                ▼        ▼                                    │
+│         engineer-   auditor-                                 │
+│         feedback    feedback                                 │
 │                                                             │
 ├─────────────────────────────────────────────────────────────┤
-│                   Flatline Protocol                          │
+│                 Pipeline Self-Review  (NEW — FR-3)           │
 │                                                             │
-│  Phase 1: Parallel reviews (opus + gpt + [gemini]?)         │
-│  Phase 2: Cross-scoring                                     │
-│  Phase 3: Consensus (2-model or 3-model)                    │
-│           ▲                                                  │
-│           │                                                  │
-│  tertiary_model_used: "gemini-2.5-pro" | null  (NEW — FR-1) │
+│  bridge iteration start →                                    │
+│    detect_pipeline_changes() →                               │
+│      if .claude/ files changed:                              │
+│        resolve_pipeline_sdd() →                              │
+│        red-team-code-vs-design.sh \                          │
+│          --sdd <pipeline-sdd> \                              │
+│          --diff <pipeline-diff>                              │
+│                                                             │
+├─────────────────────────────────────────────────────────────┤
+│              Compliance Gate Profiles (NEW — FR-4)            │
+│                                                             │
+│  .loa.config.yaml:                                          │
+│    compliance_gates:                                         │
+│      security:                                               │
+│        keywords: [Security, Auth*, Validation, ...]          │
+│        prompt_template: security-comparison                  │
+│      accessibility:  (future)                                │
+│        keywords: [Accessibility, ARIA, ...]                  │
+│        prompt_template: a11y-comparison                      │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 1.2 Change Scope
+### 1.2 Data Flow: Deliberative Council
 
-| Component | Change Type | Files Modified |
-|-----------|-------------|----------------|
-| Flatline observability (FR-1) | Additive | `flatline-orchestrator.sh`, `scoring-engine.sh` |
-| State schema (FR-2) | Additive | `simstim-state.sh` |
-| Sub-phase wiring (FR-2) | Verification | `SKILL.md` (verify existing Phase 3.5/4.5) |
-| Red Team code-vs-design (FR-3) | New | `SKILL.md` (run-mode), new script `red-team-code-vs-design.sh` |
-| Config additions (FR-3) | Additive | `.loa.config.yaml` |
-| Observability (FR-4) | Additive | `flatline-orchestrator.sh`, `SKILL.md` (simstim) |
-
----
+```
+                 ┌──────────────┐
+                 │   implement  │
+                 └──────┬───────┘
+                        │
+                        ▼
+                 ┌──────────────┐
+                 │   /review    │──→ engineer-feedback.md
+                 └──────┬───────┘
+                        │
+                        ▼
+                 ┌──────────────┐
+                 │   /audit     │──→ auditor-feedback.md
+                 └──────┬───────┘
+                        │
+                        ▼
+              ┌─────────────────────┐
+              │ RED_TEAM_CODE gate  │
+              │  --sdd <sdd-path>  │
+              │  --diff <code>     │
+              │  --prior-findings  │◄── engineer-feedback.md
+              │    <feedback-path> │◄── auditor-feedback.md
+              └─────────┬──────────┘
+                        │
+                        ▼
+              Findings informed by
+              ALL prior stage context
+```
 
 ## 2. Detailed Design
 
-### 2.1 FR-1: Gemini Flatline Verification
+### 2.1 FR-1: Code Quality Polish
 
-#### 2.1.1 Tertiary Model Observability
+Six surgical fixes, each isolated to a single file.
 
-**File**: `.claude/scripts/flatline-orchestrator.sh`
+#### 2.1.1 JSON-Safe Encoding (flatline-orchestrator.sh)
 
-Add `tertiary_model_used` to output JSON at the consensus phase:
-
+**Before:**
 ```bash
-# After Phase 2 cross-scoring completes
-tertiary_model=$(read_config '.flatline_protocol.models.tertiary' '')
-if [[ -n "$tertiary_model" && "$has_tertiary" == "true" ]]; then
-    tertiary_status="active"
-else
-    tertiary_status="disabled"
-fi
-
-# Add to output JSON
-jq --arg model "$tertiary_model" --arg status "$tertiary_status" \
-    '. + {tertiary_model_used: $model, tertiary_status: $status}' \
-    "$output_file" > "$output_file.tmp" && mv "$output_file.tmp" "$output_file"
+--argjson tertiary_model "$(if [[ -n "${tertiary_model_output:-}" ]]; then printf '"%s"' "$tertiary_model_output"; else echo 'null'; fi)"
 ```
 
-#### 2.1.2 Visible Logging
-
-**File**: `.claude/scripts/flatline-orchestrator.sh`
-
-Add log line during Phase 1 setup:
-
+**After:**
 ```bash
-# Before parallel model invocations
-if [[ -n "$tertiary_model" ]]; then
-    log "Tertiary model: $tertiary_model (active)"
-else
-    log "Tertiary model: none (disabled)"
+--argjson tertiary_model "$(if [[ -n "${tertiary_model_output:-}" ]]; then jq -n --arg m "$tertiary_model_output" '$m'; else echo 'null'; fi)"
+```
+
+Rationale: `jq -n --arg` handles all JSON-special characters (quotes, backslashes, control chars). The `printf '"%s"'` pattern only works for strings without those characters.
+
+#### 2.1.2 Redundant rm -f Removal (red-team-code-vs-design.sh)
+
+Remove lines 313 and 316 (`rm -f "$prompt_file"`). The `trap 'rm -f "$prompt_file"' EXIT` on line 262 handles all exit paths.
+
+#### 2.1.3 Stderr Capture on Failure (red-team-code-vs-design.sh)
+
+**Pattern:**
+```bash
+local stderr_tmp
+stderr_tmp=$(mktemp)
+trap 'rm -f "$prompt_file" "$stderr_tmp"' EXIT
+
+model_output=$("$MODEL_ADAPTER" ... 2>"$stderr_tmp") || exit_code=$?
+if [[ $exit_code -ne 0 ]]; then
+    local stderr_tail
+    stderr_tail=$(tail -5 "$stderr_tmp" 2>/dev/null || echo "(no stderr)")
+    error "Model invocation failed (exit $exit_code): $stderr_tail"
+    exit 1
 fi
 ```
 
-#### 2.1.3 Eval Test
+Update the trap to clean both temp files.
 
-**File**: `.claude/evals/flatline-3model.sh` (new)
+#### 2.1.4 Robust Fence Stripping (red-team-code-vs-design.sh)
 
-Integration test with API key guard:
+**Pattern:** Two-pass approach:
+1. If output starts with `` ```json `` or `` ``` ``, extract content between fences using awk range pattern
+2. Fallback to current sed for edge cases
 
 ```bash
-# Skip if no Google API key
-if [[ -z "${GOOGLE_API_KEY:-}" ]]; then
-    echo "SKIP: GOOGLE_API_KEY not set (integration test)"
-    exit 0
-fi
-
-# Run flatline with tertiary model configured
-output=$(flatline-orchestrator.sh --doc "$TEST_DOC" --phase prd --json)
-
-# Verify 3-model output
-models=$(echo "$output" | jq -r '.models')
-tertiary=$(echo "$output" | jq -r '.tertiary_model_used')
-
-[[ "$models" -eq 3 ]] || fail "Expected 3 models, got $models"
-[[ "$tertiary" == "gemini-2.5-pro" ]] || fail "Expected gemini-2.5-pro, got $tertiary"
+strip_code_fences() {
+    local input="$1"
+    if echo "$input" | head -1 | grep -qE '^\s*```'; then
+        echo "$input" | awk '/^\s*```/{if(f){exit}else{f=1;next}} f'
+    else
+        echo "$input"
+    fi
+}
 ```
 
-#### 2.1.4 Config Addition
+#### 2.1.5 Version Tag Fix (simstim SKILL.md)
 
-**File**: `.loa.config.yaml`
+Replace `(v1.45.0)` with `(cycle-045)` on the line referencing the dynamic phase count computation.
+
+#### 2.1.6 Hounfour Seam Comment (flatline-orchestrator.sh)
+
+Add above `get_model_tertiary()`:
+```bash
+# Provisional resolution — will be replaced by Hounfour router capability
+# query when ModelPort interface is available (see loa-finn #31).
+# The function signature is the durable contract; the config lookup is temporary.
+```
+
+### 2.2 FR-2: Deliberative Council — Prior Findings Integration
+
+#### 2.2.1 New Flag: --prior-findings
+
+Add to red-team-code-vs-design.sh argument parsing:
+
+```bash
+--prior-findings)
+    shift
+    prior_findings_path="$1"
+    ;;
+```
+
+Multiple paths supported via repeated `--prior-findings` flags or comma-separated.
+
+#### 2.2.2 Token Budget Rebalancing
+
+When `--prior-findings` is provided, rebalance the token budget:
+
+| Component | Without prior findings | With prior findings |
+|-----------|----------------------|---------------------|
+| SDD sections | 50% | 33% |
+| Code diff | 50% | 33% |
+| Prior findings | 0% | 33% |
+
+Implementation: `max_section_chars = token_budget * 4 / N` where N is the number of active input channels.
+
+#### 2.2.3 Prior Findings Extraction
+
+Read each prior findings file and extract a summary:
+```bash
+extract_prior_findings() {
+    local path="$1"
+    local max_chars="$2"
+
+    if [[ ! -f "$path" ]]; then
+        return
+    fi
+
+    # Extract findings sections (## Findings, ## Issues, ## Changes Required)
+    local content
+    content=$(grep -A 100 "## Findings\|## Issues\|## Changes Required\|## Security" "$path" | head -c "$max_chars")
+
+    echo "$content"
+}
+```
+
+#### 2.2.4 Prompt Integration
+
+Insert prior findings into the model prompt between the SDD sections and code diff:
+
+```
+=== PRIOR REVIEW FINDINGS ===
+The following findings were identified by earlier review stages. Use these
+to focus your design compliance analysis on areas already flagged as concerns.
+
+[prior findings content]
+
+=== CODE DIFF ===
+[code diff content]
+```
+
+#### 2.2.5 Run Mode SKILL.md Wiring
+
+Update step 7 (RED_TEAM_CODE gate) to pass prior findings:
+
+```bash
+.claude/scripts/red-team-code-vs-design.sh \
+    --sdd grimoires/loa/sdd.md \
+    --diff - \
+    --prior-findings grimoires/loa/a2a/sprint-{N}/engineer-feedback.md \
+    --prior-findings grimoires/loa/a2a/sprint-{N}/auditor-sprint-feedback.md \
+    --output grimoires/loa/a2a/sprint-{N}/red-team-code-findings.json \
+    --sprint sprint-{N}
+```
+
+### 2.3 FR-3: Pipeline Self-Review
+
+#### 2.3.1 Pipeline Change Detection
+
+Function in bridge-orchestrator.sh:
+
+```bash
+detect_pipeline_changes() {
+    local base_branch="${1:-main}"
+    local pipeline_files
+    pipeline_files=$(git diff --name-only "$base_branch"...HEAD -- \
+        '.claude/scripts/' \
+        '.claude/skills/' \
+        '.claude/data/' \
+        '.claude/protocols/' \
+        2>/dev/null || echo "")
+
+    if [[ -n "$pipeline_files" ]]; then
+        echo "$pipeline_files"
+        return 0
+    fi
+    return 1
+}
+```
+
+#### 2.3.2 Pipeline SDD Mapping
+
+Static mapping of pipeline scripts to their governing specifications:
+
+```bash
+# .claude/data/pipeline-sdd-map.json
+{
+    "patterns": [
+        {
+            "glob": ".claude/scripts/flatline-*.sh",
+            "sdd": ".claude/skills/flatline-review/SKILL.md",
+            "sections": ["Protocol", "Phases", "Scoring", "Consensus"]
+        },
+        {
+            "glob": ".claude/scripts/red-team-*.sh",
+            "sdd": ".claude/skills/red-team/SKILL.md",
+            "sections": ["Architecture", "Security", "Input", "Output"]
+        },
+        {
+            "glob": ".claude/scripts/bridge-*.sh",
+            "sdd": ".claude/skills/run-bridge/SKILL.md",
+            "sections": ["Workflow", "Review", "Findings", "State"]
+        },
+        {
+            "glob": ".claude/scripts/simstim-*.sh",
+            "sdd": ".claude/skills/simstim-workflow/SKILL.md",
+            "sections": ["Phases", "State", "Flatline", "Resume"]
+        }
+    ]
+}
+```
+
+#### 2.3.3 Self-Review Trigger in Bridge Orchestrator
+
+Add as optional phase in bridge-orchestrator.sh, before the standard Bridgebuilder review:
+
+```bash
+if [[ "$(read_config '.run_bridge.pipeline_self_review.enabled' 'false')" == "true" ]]; then
+    local pipeline_changes
+    if pipeline_changes=$(detect_pipeline_changes); then
+        log "Pipeline changes detected — running self-review"
+        run_pipeline_self_review "$pipeline_changes"
+    fi
+fi
+```
+
+The self-review produces findings in the same schema as code-vs-design findings, posted as a separate PR comment section.
+
+### 2.4 FR-4: Governance Isomorphism Lore + Compliance Generalization
+
+#### 2.4.1 Lore Entry
+
+Create `grimoires/loa/lore/patterns.yaml` entry:
 
 ```yaml
-flatline_protocol:
-  models:
-    primary: opus
-    secondary: gpt-5.3-codex
-    tertiary: gemini-2.5-pro    # NEW — enables 3-model Flatline
+- id: governance-isomorphism
+  term: Governance Isomorphism
+  short: "Governed access to scarce resources through multi-perspective evaluation with fail-closed semantics"
+  context: |
+    The structural pattern that recurs across economic, knowledge, review, and social
+    governance in the THJ stack. Instances: loa-freeside conservation invariant
+    (committed + reserved + available = limit), loa-dixie ResourceGovernor<T>,
+    loa-hounfour evaluateEconomicBoundary(), loa review pipeline
+    (review + audit + red-team). Conway's Law operating at the protocol level.
+  source: "bridge-20260228-170473 deep-review / PR #429"
+  tags: [architecture, governance, cross-repo, pattern]
 ```
 
----
-
-### 2.2 FR-2: Simstim State Schema Wiring
-
-#### 2.2.1 State Schema Update
-
-**File**: `.claude/scripts/simstim-state.sh` (lines 199-208)
-
-Add sub-phase entries to the phases object. These appear between their parent phases:
-
-```jq
-phases: {
-    preflight: ...,
-    discovery: ...,
-    flatline_prd: ...,
-    architecture: ...,
-    bridgebuilder_sdd: "pending",   // NEW — Phase 3.5
-    flatline_sdd: ...,
-    red_team_sdd: "pending",        // NEW — Phase 4.5
-    planning: ...,
-    flatline_sprint: ...,
-    flatline_beads: "pending",      // NEW — Phase 6.5 (already exists in SKILL.md)
-    implementation: "pending"
-}
-```
-
-**Status logic**: Sub-phases default to `"pending"`. When their config gate is false, the SKILL.md sets them to `"skipped"` at execution time. When enabled and completed, they're set to `"completed"`.
-
-**Backward compatibility**: Existing state files without these keys are handled gracefully — `jq` returns `null` for missing keys, which the SKILL.md treats as `"pending"`.
-
-**Implementation note**: The `simstim-state.sh` jq template (lines 199-208) constructs the phases object inline as a string. New keys must be inserted at the correct position in the template, NOT via a separate `jq` merge, because jq object key order depends on insertion order in the template.
-
-#### 2.2.2 Skip Logic for --from
-
-**File**: `.claude/scripts/simstim-state.sh`
-
-When `--from architect` is used (start_index=3), sub-phases before the start point should be marked `"skipped"`:
-
-```jq
-bridgebuilder_sdd: (
-    if ($phase == "preflight" or $phase == "discovery" or $phase == "architecture")
-    then "pending"
-    else "skipped"
-    end
-),
-red_team_sdd: (
-    if ($phase == "preflight" or $phase == "discovery" or $phase == "architecture" or $phase == "flatline_sdd")
-    then "pending"
-    else "skipped"
-    end
-),
-flatline_beads: (
-    if ($phase != "implementation")
-    then "pending"
-    else "skipped"
-    end
-),
-```
-
-#### 2.2.3 Sub-Phase Verification (SKILL.md)
-
-**File**: `.claude/skills/simstim-workflow/SKILL.md`
-
-Verify existing Phase 3.5 (lines 224-404) and Phase 4.5 (lines 433-476) correctly:
-1. Check config gates before execution
-2. Update state via `simstim-state.sh` calls
-3. Handle the `"pending"` → `"in_progress"` → `"completed"` | `"skipped"` transition
-
-**No SKILL.md changes expected for FR-2** — the sub-phases are already implemented. The gap was only in the state schema and orchestrator awareness.
-
----
-
-### 2.3 FR-3: Red Team Code-vs-Design Gate
-
-#### 2.3.1 Architecture
-
-The Red Team code-vs-design gate is a NEW phase in the `/run` sprint loop. It sits after audit-sprint and before PR creation.
-
-```
-implement → review (loop) → audit (loop) → [red_team_code] (loop) → COMPLETE → PR
-                                                    │
-                                                    ▼
-                                            Compare SDD security
-                                            design to actual code
-                                            diff. Produce findings:
-                                            CONFIRMED_DIVERGENCE,
-                                            PARTIAL_IMPLEMENTATION,
-                                            FULLY_IMPLEMENTED
-```
-
-#### 2.3.2 New Script: red-team-code-vs-design.sh
-
-**File**: `.claude/scripts/red-team-code-vs-design.sh` (new)
-
-**Input**:
-- SDD path (from `.loa.config.yaml` or default `grimoires/loa/sdd.md`)
-- Code diff (from `git diff main...HEAD`)
-- Sprint target (for scoping)
-
-**Process**:
-1. Extract SDD security sections by scanning for headers matching `/^#{1,3}\s.*(Security|Authentication|Authorization|Validation|Error.Handling|Access.Control|Secrets|Encryption)/i` and extracting all content under those headers until the next same-level or higher-level header. Truncate to 5K tokens if SDD is large.
-2. Extract code diff (limited to sprint-modified files via `git diff main...HEAD`)
-3. Generate comparison prompt:
-   - "Compare the security design specifications below to the actual code changes. For each security design requirement, classify as CONFIRMED_DIVERGENCE, PARTIAL_IMPLEMENTATION, or FULLY_IMPLEMENTED."
-4. Invoke model-adapter.sh with the comparison prompt
-5. Parse findings JSON
-
-**Output**: `grimoires/loa/a2a/sprint-{N}/red-team-code-findings.json`
-
-```json
-{
-  "findings": [
-    {
-      "id": "RTC-001",
-      "sdd_section": "§5.2 Input Validation",
-      "sdd_requirement": "All API inputs validated via JSON schema",
-      "code_evidence": "src/api/handler.ts:45 — raw req.body used without validation",
-      "classification": "CONFIRMED_DIVERGENCE",
-      "severity": 750,
-      "recommendation": "Add zod schema validation at API boundary"
-    }
-  ],
-  "summary": {
-    "total": 5,
-    "confirmed_divergence": 1,
-    "partial_implementation": 2,
-    "fully_implemented": 2
-  }
-}
-```
-
-#### 2.3.3 Run Mode Integration
-
-**File**: `.claude/skills/run/SKILL.md`
-
-Insert after audit-sprint in the main loop:
-
-```
-  7. if red_team.code_vs_design.enabled AND sdd_exists AND audit_passed:
-       run red-team-code-vs-design.sh
-       if has_confirmed_divergence:
-         record_cycle(findings)
-         check_circuit_breaker()
-         continue  # Loop back to implement
-  8. COMPLETE
-```
-
-**Circuit breaker**: `red_team_code.max_cycles: 2` (separate from the main circuit breaker). After 2 red-team-code cycles, auto-skip with warning.
-
-#### 2.3.4 State Tracking
-
-**File**: `.run/state.json`
-
-Add to phase tracking:
-
-```json
-{
-  "phase": "RED_TEAM_CODE",
-  "red_team_code": {
-    "cycles": 0,
-    "max_cycles": 2,
-    "findings_total": 0,
-    "divergences_found": 0,
-    "last_findings_hash": null
-  }
-}
-```
-
-#### 2.3.5 Config Section
-
-**File**: `.loa.config.yaml`
+#### 2.4.2 Compliance Gate Config Schema
 
 ```yaml
+# .loa.config.yaml addition
 red_team:
-  code_vs_design:
-    enabled: false                    # Default off
-    max_cycles: 2                     # Circuit breaker
-    skip_if_no_sdd: true             # Skip silently when no SDD exists
-    severity_threshold: 700           # Only divergences >700 trigger re-implementation
-    token_budget: 150000              # 150K token ceiling
+  compliance_gates:
+    security:
+      enabled: true
+      keywords:
+        - Security
+        - Authentication
+        - Authorization
+        - Validation
+        - "Error.Handling"
+        - "Access.Control"
+        - Secrets
+        - Encryption
+        - "Input.Sanitiz"
+      prompt_template: "security-comparison"
+    # Future gates can be added:
+    # accessibility:
+    #   enabled: false
+    #   keywords: [Accessibility, ARIA, "Screen.Reader", ...]
+    #   prompt_template: "a11y-comparison"
 ```
 
----
+#### 2.4.3 Parameterized Header Keywords
 
-### 2.4 FR-4: Observability
-
-#### 2.4.1 Flatline Model Count Reporting
-
-**File**: `.claude/scripts/flatline-orchestrator.sh`
-
-After consensus phase, log:
+Modify `extract_security_sections()` to accept keywords as parameter:
 
 ```bash
-model_count=$(jq '.models' "$output_file")
-if [[ "$model_count" -eq 3 ]]; then
-    log "Flatline: 3-model ($primary + $secondary + $tertiary_model)"
-else
-    log "Flatline: 2-model ($primary + $secondary)"
-fi
+extract_sections_by_keywords() {
+    local sdd_path="$1"
+    local max_chars="$2"
+    local keywords="$3"  # pipe-separated: "Security|Auth|..."
+
+    # Same logic as current extract_security_sections()
+    # but with parameterized regex
+    local header_pattern="^#{1,3}\s.*(${keywords})"
+    ...
+}
 ```
 
-#### 2.4.2 Simstim Phase Count Display
+Default keywords loaded from config, falling back to current hardcoded list.
 
-**File**: `.claude/skills/simstim-workflow/SKILL.md`
+## 3. Security Considerations
 
-In the phase progress display, count enabled sub-phases:
+- Prior findings may contain security-sensitive information — apply the same redaction rules as bridge review content
+- Pipeline SDD mapping is a static file in `.claude/data/` — changes require System Zone access (lead-only)
+- Compliance gate profiles should not be modifiable by teammates in Agent Teams mode
 
-```
-# When bridgebuilder_sdd + red_team_sdd + flatline_beads all enabled:
-[0/11] PREFLIGHT
+## 4. Testing Strategy
 
-# When only base phases:
-[0/8] PREFLIGHT
-```
-
-Compute by reading config gates at preflight time and storing `total_phases` in simstim state.
-
----
-
-## 3. Data Flow
-
-### 3.1 Flatline 3-Model Flow
-
-```
-flatline-orchestrator.sh
-  ├── Phase 1: model-adapter.sh --model opus --mode review
-  ├── Phase 1: model-adapter.sh --model gpt-5.3-codex --mode review
-  ├── Phase 1: model-adapter.sh --model gemini-2.5-pro --mode review  [NEW]
-  ├── Phase 1: model-adapter.sh --model opus --mode skeptic
-  ├── Phase 1: model-adapter.sh --model gpt-5.3-codex --mode skeptic
-  └── Phase 1: model-adapter.sh --model gemini-2.5-pro --mode skeptic [NEW]
-      │
-      ▼
-  Phase 2: scoring-engine.sh
-    ├── --opus-scores <file>
-    ├── --gpt-scores <file>
-    ├── --tertiary-scores-opus <file>   [EXISTING - now populated]
-    ├── --tertiary-scores-gpt <file>    [EXISTING - now populated]
-    ├── --gpt-scores-tertiary <file>    [EXISTING - now populated]
-    └── --opus-scores-tertiary <file>   [EXISTING - now populated]
-      │
-      ▼
-  Phase 3: consensus output
-    └── { models: 3, tertiary_model_used: "gemini-2.5-pro", ... }
-```
-
-### 3.2 Red Team Code-vs-Design Flow
-
-```
-/run sprint-N loop
-  ├── implement → commit
-  ├── review-sprint → (loop if findings)
-  ├── audit-sprint → (loop if findings)
-  └── red-team-code-vs-design.sh         [NEW]
-        ├── Input: grimoires/loa/sdd.md (security sections)
-        ├── Input: git diff main...HEAD (code changes)
-        ├── Process: model-adapter.sh --mode dissent
-        ├── Output: a2a/sprint-N/red-team-code-findings.json
-        └── Decision: CONFIRMED_DIVERGENCE → loop back to implement
-                      PARTIAL/FULLY → continue to COMPLETE
-```
-
----
-
-## 4. Security Considerations
-
-### 4.1 API Key Isolation
-
-Gemini API key (`GOOGLE_API_KEY`) is already handled by model-adapter.sh. No new key management needed.
-
-### 4.2 Token Budget Enforcement
-
-Red Team code-vs-design enforces `token_budget: 150000` via model-adapter.sh `--max-tokens` flag. SDD input is truncated to security sections only (not full SDD) to keep within budget.
-
-### 4.3 Finding Integrity
-
-Red Team code-vs-design findings are written to `a2a/sprint-N/` directory (State Zone) with the same permissions model as existing review/audit findings.
-
----
-
-## 5. Testing Strategy
-
-### 5.1 Unit Tests
-
-| Test | Validates |
-|------|-----------|
-| State schema includes sub-phases | `simstim-state.sh` creates state with bridgebuilder_sdd, red_team_sdd, flatline_beads keys |
-| --from skips sub-phases correctly | `--from sprint-plan` marks bridgebuilder_sdd and red_team_sdd as "skipped" |
-| Config gate logic | Sub-phases skip when disabled, run when enabled |
-| Tertiary model output field | Flatline output JSON includes `tertiary_model_used` |
-
-### 5.2 Integration Tests
-
-| Test | Validates | API Key Required |
-|------|-----------|------------------|
-| 3-model Flatline | gemini-2.5-pro participates in consensus | GOOGLE_API_KEY |
-| Red Team code-vs-design | CONFIRMED_DIVERGENCE produced for known SDD/code mismatch | OPENAI_API_KEY or ANTHROPIC_API_KEY |
-| Full simstim with sub-phases | State file shows bridgebuilder_sdd + red_team_sdd completed | All keys |
-
-### 5.3 Backward Compatibility Tests
-
-| Test | Validates |
-|------|-----------|
-| 2-model Flatline when no tertiary configured | Existing behavior unchanged, `tertiary_model_used: null` |
-| Simstim without sub-phases enabled | PHASES array unchanged, sub-phases marked "skipped" |
-| Run loop without code-vs-design | Audit passes directly to COMPLETE |
-| Existing state file without sub-phase keys | Graceful handling (null → pending) |
-
----
-
-## 6. Migration & Rollback
-
-### 6.1 State File Auto-Upgrade
-
-Existing `.run/simstim-state.json` files without sub-phase keys are handled by treating `null` (missing key) as `"pending"`. No explicit migration script needed.
-
-### 6.2 Config Defaults
-
-All new features default to `false`/disabled:
-- `flatline_protocol.models.tertiary`: not set (2-model remains default)
-- `red_team.code_vs_design.enabled: false`
-- Sub-phases in SKILL.md already have config gates
-
-### 6.3 Rollback
-
-Each feature is independently toggleable via config. Disabling returns to exact previous behavior:
-- Remove `tertiary` from flatline config → 2-model Flatline
-- Set `red_team.code_vs_design.enabled: false` → no code-vs-design in run loop
-- Sub-phase config gates already handle enable/disable
-
----
-
-## 7. File Inventory
-
-### Modified Files
-
-| File | Change |
-|------|--------|
-| `.claude/scripts/flatline-orchestrator.sh` | Add tertiary model logging + output field |
-| `.claude/scripts/simstim-state.sh` | Add bridgebuilder_sdd, red_team_sdd, flatline_beads to state schema |
-| `.claude/skills/run/SKILL.md` | Add RED_TEAM_CODE phase after audit |
-| `.claude/skills/simstim-workflow/SKILL.md` | Add phase count display, verify sub-phase state updates |
-| `.loa.config.yaml` | Add tertiary model + red_team.code_vs_design section |
-
-### New Files
-
-| File | Purpose |
-|------|---------|
-| `.claude/scripts/red-team-code-vs-design.sh` | Code-vs-design comparison script |
-| `.claude/evals/flatline-3model.sh` | Integration test for 3-model Flatline |
-
-### Unchanged Files
-
-| File | Reason |
-|------|--------|
-| `.claude/scripts/simstim-orchestrator.sh` | PHASES array NOT modified (sub-phase pattern) |
-| `.claude/scripts/scoring-engine.sh` | 3-model scoring already works (cycle-040 fix) |
-| `.claude/scripts/model-adapter.sh.legacy` | Gemini already supported |
-| `.claude/scripts/bridge-findings-parser.sh` | No changes needed |
+| Test | Type | Validates |
+|------|------|-----------|
+| JSON encoding safety | Unit (bash) | FR-1.1: jq -n --arg handles special chars |
+| --prior-findings flag | Integration | FR-2.1: flag parsed, content included in prompt |
+| Token budget rebalancing | Unit | FR-2.2: 3-way split when prior findings present |
+| Pipeline change detection | Unit | FR-3.1: detects .claude/ file changes |
+| Compliance gate keywords from config | Unit | FR-4.2: config keywords override defaults |

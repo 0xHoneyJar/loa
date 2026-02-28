@@ -1,157 +1,92 @@
-# PRD: Review Pipeline Hardening — Gemini Activation, Orchestrator Wiring, Red Team Post-Implementation
+# PRD: Bridgebuilder Constellation — From Pipeline to Deliberation
 
-> Cycle-045 | Created: 2026-02-28
-> Sources: User investigation, codebase research (3 parallel agents), .loa.config.yaml, simstim-orchestrator.sh, SKILL.md
+> Cycle-046 | Created: 2026-02-28
+> Sources: PR #429 Bridge Reviews (iter 1-2), Deep Bridgebuilder Review (Parts 1-4), Vision Registry
 
 ## 1. Problem Statement
 
-Three review pipeline components exist in specification but fail to execute in practice:
+PR #429 (Review Pipeline Hardening) achieved convergence with zero actionable findings, but the Bridgebuilder identified three categories of improvements across 2 bridge iterations and 4 deep review parts:
 
-1. **Gemini in Flatline**: Fully configured (API, orchestrator, scoring) but a Phase 3 consensus bug silently dropped tertiary results until cycle-040 fix. Downstream repos (loa-finn, loa-hounfour, loa-freeside, loa-dixie) likely haven't pulled the fix. No verification mechanism exists to confirm 3-model operation.
+1. **Code Quality Polish**: 6 LOW findings from bridge iterations 1-2 that were correctly deferred during convergence but are worth addressing. These include JSON encoding safety, redundant cleanup, stderr suppression, fence stripping robustness, version tagging, and Hounfour seam naming.
 
-2. **Red Team Phase 4.5 + Bridgebuilder Phase 3.5 in Simstim**: Both phases are fully specified in SKILL.md but neither appears in `simstim-orchestrator.sh` PHASES array (line 41) or `simstim-state.sh` state schema (lines 199-207). Even with config enabled, the orchestrator never reaches the phase check code.
+2. **Deliberation Structure**: The deep review identified that the review pipeline operates as a sequential pipeline where each stage is blind to the others' findings. The Red Team code-vs-design gate would produce higher-quality findings if it could read the audit/review findings that preceded it. This is the "deliberative council" pattern — the difference between jurors voting sequentially and jurors discussing.
 
-3. **No post-implementation security design verification**: Audit-sprint checks for implementation security (OWASP, secrets, injection), but nothing verifies that the SDD's security design was actually implemented as specified. A new Red Team Code-vs-Design gate after audit would catch design-to-code divergence.
+3. **Pipeline Self-Awareness**: The pipeline reviews application code but cannot review itself. When a PR modifies `.claude/scripts/` or `.claude/skills/`, the Red Team gate should automatically compare those changes against the pipeline's own SDDs. Pipeline bugs have multiplicative impact.
 
-> Sources: simstim-orchestrator.sh:41-42, simstim-state.sh:199-207, .loa.config.yaml:169-210, SKILL.md:224-476, bug-flatline-3model triage
+4. **Architectural Pattern Codification**: The "Governance Isomorphism" — governed access to scarce resources through multi-perspective evaluation with fail-closed semantics — recurs across loa-freeside, loa-dixie, loa-hounfour, and loa. It should be captured as lore and the compliance gate should be parameterized for reuse.
+
+> Sources: bridge-20260228-170473-iter1-full.md, bridge-20260228-170473-iter2-full.md, bridge-deep-review-part1.md through part4.md
 
 ## 2. Goals & Success Metrics
 
 | Goal | Metric | Target |
 |------|--------|--------|
-| Gemini participates in Flatline | 3 model results in consensus output | 100% of Flatline runs when `flatline_tertiary_model` is set |
-| Phase 3.5 + 4.5 execute when enabled | State file shows `bridgebuilder_sdd: completed` and `red_team_sdd: completed` | First successful simstim run with both enabled |
-| Red Team code-vs-design catches divergence | At least 1 CONFIRMED_DIVERGENCE in test SDD+code scenario | Demonstrated in eval |
-| Zero regression in existing pipeline | All existing evals pass | framework eval: ALL PASS |
+| All carried LOW findings resolved | 0 LOW findings remaining from PR #429 bridge | 6/6 addressed |
+| Red Team gate context-aware | `--prior-findings` flag accepted and used | Findings reference prior review context |
+| Pipeline self-review trigger | Auto-detection of .claude/ changes | Self-review fires when pipeline modified |
+| Governance Isomorphism captured | Lore entry queryable | Pattern discoverable in future bridge reviews |
+| Compliance gate parameterizable | Header keywords from config | Security is one instance, others configurable |
 
-## 3. User & Stakeholder Context
+## 3. Functional Requirements
 
-**Primary user**: Loa framework operators running `/simstim` and `/run-bridge` workflows across the 5-repo ecosystem.
+### FR-1: Code Quality Polish (P1)
 
-**Pain point**: "I have never noticed Gemini actually participate" and "never noticed evidence that the red team process has been actually being used" — invisible quality gates create false confidence.
+Address all 6 carried LOW findings from PR #429's bridge convergence.
 
-**Stakeholder requirement**: Progressive rollout with config gates (default off). Existing workflows must not break.
+| ID | Finding | File | Fix |
+|----|---------|------|-----|
+| FR-1.1 | printf '%s' not JSON-safe for arbitrary strings | flatline-orchestrator.sh:1686 | Use `jq -n --arg` for proper JSON encoding |
+| FR-1.2 | Redundant rm -f after trap EXIT | red-team-code-vs-design.sh:313,316 | Remove manual cleanup; trust the trap |
+| FR-1.3 | Model adapter stderr suppressed | red-team-code-vs-design.sh:310 | Capture stderr to temp file; surface on failure |
+| FR-1.4 | sed fence stripping is line-oriented | red-team-code-vs-design.sh:312 | Add multi-pass extraction for edge cases |
+| FR-1.5 | v1.45.0 version tag in SKILL.md | simstim SKILL.md:95 | Replace with cycle reference |
+| FR-1.6 | get_model_tertiary() seam unnamed | flatline-orchestrator.sh:203-219 | Add comment naming the Hounfour router seam |
 
-## 4. Functional Requirements
+### FR-2: Deliberative Council Pattern (P0)
 
-### FR-1: Gemini Flatline Verification (P0)
+Add context from earlier review stages to the Red Team code-vs-design gate.
 
-**Objective**: Confirm 3-model Flatline operation and provide observable evidence.
+| ID | Requirement |
+|----|------------|
+| FR-2.1 | Add `--prior-findings <path>` flag to red-team-code-vs-design.sh |
+| FR-2.2 | When provided, include prior findings summary in the model prompt |
+| FR-2.3 | Wire the flag in the run-mode SKILL.md — pass engineer-feedback.md and auditor-sprint-feedback.md paths |
+| FR-2.4 | Budget prior findings into the token budget (1/3 SDD, 1/3 diff, 1/3 prior findings) |
 
-| Requirement | Details |
-|-------------|---------|
-| FR-1.1 | Add `tertiary_model_used` field to Flatline output JSON showing which tertiary model ran |
-| FR-1.2 | Add eval test that verifies 3-model consensus output when `flatline_tertiary_model` is configured. Test skips gracefully when `GOOGLE_API_KEY` is not set (integration test, not unit test). |
-| FR-1.3 | Log a visible line during Flatline: "Tertiary model: gemini-2.5-pro (active)" or "Tertiary model: none (disabled)" |
+### FR-3: Pipeline Self-Review (P1)
 
-**Acceptance criteria**: Running `/flatline-review` with gemini configured produces output JSON with `tertiary_model_used: "gemini-2.5-pro"` and 3-model cross-scores.
+Enable the pipeline to review changes to itself.
 
-### FR-2: Simstim Orchestrator Wiring — Phase 3.5 + 4.5 (P0)
+| ID | Requirement |
+|----|------------|
+| FR-3.1 | Detect when PR touches `.claude/scripts/` or `.claude/skills/` files |
+| FR-3.2 | Map pipeline scripts to their governing SDDs/SKILL.md specifications |
+| FR-3.3 | Auto-trigger Red Team gate against pipeline SDDs when pipeline changes detected |
+| FR-3.4 | Integrate into bridge-orchestrator.sh as optional phase |
 
-**Objective**: Wire Bridgebuilder Design Review (3.5) and Red Team SDD (4.5) into the simstim orchestrator and state schema.
+### FR-4: Governance Isomorphism Lore + Compliance Generalization (P1)
 
-| Requirement | Details |
-|-------------|---------|
-| FR-2.1 | Verify `bridgebuilder_sdd` and `red_team_sdd` use the **sub-phase pattern** (SKILL.md config gates) — do NOT add to `PHASES` array in `simstim-orchestrator.sh`. Consistent with Phase 6.5 (flatline_beads) pattern. |
-| FR-2.2 | Add `bridgebuilder_sdd` and `red_team_sdd` to state schema in `simstim-state.sh` (lines 199-207) with default `"pending"` |
-| FR-2.3 | Wire sub-phase execution: SKILL.md Phase 3 completion checks config gate → runs Phase 3.5 inline → proceeds to Phase 4. Similarly Phase 4 → 4.5 → Phase 5. |
-| FR-2.4 | Handle `--from` flag: `--from bridgebuilder_sdd` and `--from red_team_sdd` must work for resume via jump table in SKILL.md |
-| FR-2.5 | Both phases skip silently when their config gates are false (no warning, no delay) |
-| FR-2.6 | State file tracks sub-phase status: `bridgebuilder_sdd` and `red_team_sdd` keys appear in phases object regardless of whether they execute (set to `"skipped"` when disabled) |
+Codify the cross-ecosystem pattern and parameterize the compliance gate.
 
-**Acceptance criteria**: Running `/simstim` with `bridgebuilder_design_review.enabled: true` and `red_team.simstim.auto_trigger: true` produces state file with both phase entries showing `completed`. The `PHASES` array in `simstim-orchestrator.sh` remains UNCHANGED.
+| ID | Requirement |
+|----|------------|
+| FR-4.1 | Create lore entry for Governance Isomorphism pattern |
+| FR-4.2 | Extract security header keywords from red-team-code-vs-design.sh to config |
+| FR-4.3 | Support named compliance gate profiles in .loa.config.yaml |
+| FR-4.4 | Document the cross-repo SDD index schema for future implementation |
 
-### FR-3: Red Team Code-vs-Design Gate (P1)
-
-**Objective**: Add optional Red Team verification after audit-sprint in the `/run` sprint loop that checks whether SDD security design was implemented.
-
-| Requirement | Details |
-|-------------|---------|
-| FR-3.1 | New phase `RED_TEAM_CODE` in `/run` cycle loop, after audit-sprint passes |
-| FR-3.2 | Only triggers when: SDD exists AND `red_team.code_vs_design.enabled: true` AND audit-sprint passed |
-| FR-3.3 | Compares SDD security sections to actual code diff, producing findings categorized as: CONFIRMED_DIVERGENCE, PARTIAL_IMPLEMENTATION, FULLY_IMPLEMENTED |
-| FR-3.4 | CONFIRMED_DIVERGENCE findings feed back into the implement cycle (same as review/audit findings) |
-| FR-3.5 | Config section: `red_team.code_vs_design.enabled: false` (default off), `red_team.code_vs_design.skip_if_no_sdd: true` |
-| FR-3.6 | Circuit breaker: max 2 red-team-code cycles before auto-skip (prevents infinite security loops) |
-
-**Acceptance criteria**: Running `/run sprint-1` with code-vs-design enabled and an SDD that specifies "all API inputs validated via schema" while the code has unvalidated inputs produces a CONFIRMED_DIVERGENCE finding.
-
-### FR-4: Observability Improvements (P2)
-
-**Objective**: Make all review pipeline components visibly active or inactive.
+## 4. Non-Functional Requirements
 
 | Requirement | Details |
 |-------------|---------|
-| FR-4.1 | `/loa` status command shows which review gates are active/inactive with config state |
-| FR-4.2 | Simstim displays phase count including optional phases: "[0/10] PREFLIGHT" when 3.5 + 4.5 enabled, "[0/8] PREFLIGHT" when disabled |
-| FR-4.3 | Bridge loop reports model count: "Flatline: 3-model (opus + gpt-5.3 + gemini-2.5-pro)" |
+| Backward compatibility | All changes must be additive; existing red-team behavior unchanged without new flags |
+| Config-gated | New features (self-review, compliance profiles) default to disabled |
+| Token budget | Prior findings must fit within existing model context window limits |
+| Performance | Pipeline self-review must not add more than 30s to bridge iteration time |
 
-## 5. Technical & Non-Functional Requirements
+## 5. Out of Scope
 
-| NFR | Target |
-|-----|--------|
-| NFR-1: Backward compatibility | All existing workflows produce identical output when new features are disabled (default) |
-| NFR-2: Token budget | Red Team code-vs-design: max 150K tokens per invocation |
-| NFR-3: Performance | Phase 3.5 + 4.5 add max 5 minutes to simstim wall-clock time when enabled |
-| NFR-4: Config isolation | Each feature independently toggleable — enabling Red Team code-vs-design does not require enabling Phase 4.5 |
-| NFR-5: State schema migration | Existing `.run/simstim-state.json` files without new phases must be handled gracefully (auto-upgrade) |
-
-## 6. Scope & Prioritization
-
-### In Scope (P0)
-
-- FR-1: Gemini Flatline verification + observability
-- FR-2: Orchestrator wiring for Phase 3.5 + 4.5
-
-### In Scope (P1)
-
-- FR-3: Red Team code-vs-design gate in sprint loop
-
-### In Scope (P2)
-
-- FR-4: Observability improvements
-
-### Out of Scope
-
-- Red Team in bridge loop (research concluded: redundant with Bridgebuilder + audit)
-- Gemini as Flatline primary model (remains tertiary)
-- Cross-repo Flatline fix propagation (downstream repos pull independently)
-- New attack surface definitions for Red Team (uses existing `attack-surfaces.yaml`)
-
-## 7. Risks & Dependencies
-
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|------------|
-| Orchestrator wiring breaks existing phase transitions | Medium | High | Eval tests cover all existing phase sequences; conditional insertion only when config enabled |
-| Red Team code-vs-design produces false positives | High | Medium | CONFIRMED_DIVERGENCE requires >700 severity from both models; human review gate for >800 |
-| Gemini API rate limits during Flatline | Low | Medium | Existing retry logic in model-adapter.sh; fallback to 2-model if tertiary fails |
-| State schema migration breaks resume | Medium | Medium | Auto-upgrade path: missing phases default to "skipped" status |
-
-## 8. Architecture Hints
-
-### Sub-Phase Pattern (Established)
-
-The `PHASES` array in `simstim-orchestrator.sh` (line 41) is NOT modified. Phase 3.5, 4.5, and 6.5 all use the **sub-phase pattern**: execution is driven by SKILL.md config gates, not by array position. This avoids index-shift breakage and is consistent with how Phase 6.5 (flatline_beads) already works.
-
-```
-PHASES array (unchanged): preflight → discovery → flatline_prd → architecture → flatline_sdd → planning → flatline_sprint → implementation
-Sub-phases (SKILL.md):    architecture → [3.5 bridgebuilder_sdd?] → flatline_sdd → [4.5 red_team_sdd?] → planning
-```
-
-State schema adds `bridgebuilder_sdd` and `red_team_sdd` keys (defaulting to `"pending"`, set to `"skipped"` when disabled).
-
-### Red Team Code-vs-Design Integration
-
-Extends the `/run` main loop:
-```
-while circuit_breaker.state == CLOSED:
-  1. /implement → 2. commit → 3. /review-sprint
-  4. if has_findings: continue
-  5. /audit-sprint
-  6. if has_findings: continue
-  7. if red_team.code_vs_design.enabled AND sdd_exists:
-       /red-team-code → if has_divergence: continue
-  8. COMPLETE
-```
-
-> Sources: User answers (all three workstreams, sprint loop after audit), simstim-orchestrator.sh:41-42, run skill SKILL.md main loop
+- Cross-repository compliance (requires multi-repo infrastructure — strategic, not this cycle)
+- Alternative Flatline topologies (study group, free jazz, rave — requires design RFC)
+- Review pipeline reputation system (requires metrics collection infrastructure)
+- CRDT-style simstim state (requires architectural redesign of state machine)
