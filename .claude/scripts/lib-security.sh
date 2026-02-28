@@ -256,6 +256,14 @@ write_curl_auth_config() {
   local header_name="$1"
   local header_value="$2"
 
+  # Validate header_name: must start with a letter, followed by alphanumeric or hyphen.
+  # Rejects whitespace, newlines, colons, and other special characters that could
+  # enable header injection via the name field.
+  if [[ ! "$header_name" =~ ^[A-Za-z][A-Za-z0-9-]*$ ]]; then
+    echo "[lib-security] ERROR: Invalid header name '$header_name' — must match [A-Za-z][A-Za-z0-9-]*" >&2
+    return 1
+  fi
+
   # Reject keys containing CR (\r), LF (\n), null (\0), or backslash (\)
   # These characters enable header injection attacks
   if [[ "$header_value" == *$'\r'* ]]; then
@@ -266,9 +274,9 @@ write_curl_auth_config() {
     echo "[lib-security] ERROR: API key contains line feed (LF) — possible header injection" >&2
     return 1
   fi
-  # Null byte check: bash strips \0 from variables, so we detect truncation
-  # by comparing printf output length with ${#var} (both count chars).
-  # If the caller somehow passes binary data through env, this catches it.
+  # Null byte detection: compare byte length (wc -c) with character length (${#var}).
+  # A mismatch indicates null byte truncation by bash.
+  # Note: multi-byte UTF-8 keys will also trigger this check as a conservative guard.
   local _byte_len
   _byte_len=$(printf '%s' "$header_value" | wc -c | tr -d ' ')
   if [[ "$_byte_len" -ne "${#header_value}" ]]; then

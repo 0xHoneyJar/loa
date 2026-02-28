@@ -215,21 +215,23 @@ output_json() {
     local status="$1"
     local exit_code="$2"
 
-    # Build providers object
-    local providers_json="{"
-    local first=true
-    for provider in anthropic openai google; do
-        if [[ "$first" == "true" ]]; then
-            first=false
-        else
-            providers_json+=","
-        fi
-        local configured="${PROVIDERS_CONFIGURED[$provider]:-false}"
-        local available="${PROVIDERS_AVAILABLE[$provider]:-false}"
-        local env_var="${PROVIDERS_ENV_VAR[$provider]:-}"
-        providers_json+="\"$provider\":{\"configured\":$configured,\"available\":$available,\"env_var\":\"$env_var\"}"
-    done
-    providers_json+="}"
+    # Build providers object using jq -n to avoid string interpolation injection
+    local providers_json
+    providers_json=$(jq -n \
+        --argjson anthro_configured "${PROVIDERS_CONFIGURED[anthropic]:-false}" \
+        --argjson anthro_available "${PROVIDERS_AVAILABLE[anthropic]:-false}" \
+        --arg anthro_env "${PROVIDERS_ENV_VAR[anthropic]:-}" \
+        --argjson openai_configured "${PROVIDERS_CONFIGURED[openai]:-false}" \
+        --argjson openai_available "${PROVIDERS_AVAILABLE[openai]:-false}" \
+        --arg openai_env "${PROVIDERS_ENV_VAR[openai]:-}" \
+        --argjson google_configured "${PROVIDERS_CONFIGURED[google]:-false}" \
+        --argjson google_available "${PROVIDERS_AVAILABLE[google]:-false}" \
+        --arg google_env "${PROVIDERS_ENV_VAR[google]:-}" \
+        '{
+            anthropic: {configured: $anthro_configured, available: $anthro_available, env_var: $anthro_env},
+            openai: {configured: $openai_configured, available: $openai_available, env_var: $openai_env},
+            google: {configured: $google_configured, available: $google_available, env_var: $google_env}
+        }')
 
     # Build models object
     local models_json

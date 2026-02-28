@@ -214,6 +214,7 @@ strategy_structured_verdict() {
     # Extract core verdict fields
     local verdict severity_counts top_findings_arr full_path
 
+    # Intentionally NOT using extract_verdict() — condense handles .status/.result shapes beyond review pipeline
     verdict=$(echo "$input" | jq -r '.verdict // .status // .result // "UNKNOWN"')
     severity_counts=$(echo "$input" | jq -c '.severity_counts // .severities // {critical: 0, high: 0, medium: 0, low: 0}')
 
@@ -349,6 +350,7 @@ strategy_summary() {
 
     local verdict description item_count
 
+    # Intentionally NOT using extract_verdict() — condense handles .status/.result shapes beyond review pipeline
     verdict=$(echo "$input" | jq -r '.verdict // .status // .result // "completed"')
     description=$(echo "$input" | jq -r '.description // .summary // .message // ""' | head -c 200)
 

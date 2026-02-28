@@ -384,12 +384,17 @@ run_with_timeout() {
   elif command -v perl &>/dev/null; then
     # fork+exec pattern preserves $SIG{ALRM} handler in the parent.
     # bare exec would replace the process image, losing the handler.
+    # IMPORTANT: Extract timeout and fork BEFORE setting alarm —
+    # if alarm fires before fork returns, $pid is undef and
+    # kill(9, undef) sends SIGKILL to process group 0.
     perl -e '
-      $SIG{ALRM} = sub { kill 9, $pid; exit 124 };
-      alarm(shift @ARGV);
-      $pid = fork();
+      my $timeout = shift @ARGV;
+      my $pid = fork();
       if ($pid == 0) { exec @ARGV; die "exec failed: $!" }
+      $SIG{ALRM} = sub { kill 9, $pid; exit 124 };
+      alarm($timeout);
       waitpid($pid, 0);
+      alarm(0);
       exit($? >> 8);
     ' "$timeout_val" "$@"
   else

@@ -98,6 +98,25 @@ Six targeted fixes to the review pipeline, driven by community feedback (Issues 
 
 ---
 
+## Bridge Sprint 5: Bridgebuilder Iteration 1 Fixes
+
+**Global ID**: N/A (bridge iteration)
+**Source**: Bridgebuilder review iteration 1 (PR #435 comment)
+**Rationale**: 3 MEDIUM + 3 LOW findings from Bridgebuilder review.
+
+### Tasks
+
+| ID | Task | Acceptance Criteria |
+|----|------|---------------------|
+| T5.1 | Fix perl alarm race condition (medium-1) | `compat-lib.sh` perl fallback: move `alarm()` after `fork()` so `$pid` is initialized before the handler can fire. Guard handler with `if $pid`. Existing tests pass. |
+| T5.2 | Validate header_name in write_curl_auth_config() (medium-2) | `lib-security.sh` `write_curl_auth_config()` validates header_name against `[A-Za-z0-9-]+` pattern. Rejects names with CR/LF/special chars. Add BATS test for header name validation. |
+| T5.3 | Migrate constructs-install.sh curl config sites (medium-3) | `constructs-install.sh` lines 438 and 769 migrated to `write_curl_auth_config()`. CI lint catches if missed. |
+| T5.4 | Document condense.sh verdict divergence (low-1) | Add comment at `condense.sh` lines 217 and 352 explaining intentional non-migration. |
+| T5.5 | Fix flatline-readiness.sh JSON construction (low-2) | Replace string interpolation with `jq -n --arg/--argjson` for providers object. |
+| T5.6 | Fix null byte detection comment (low-3) | Update comment at `lib-security.sh:270-277` to correctly describe byte vs char comparison. |
+
+---
+
 ## Flatline Sprint Review Log
 
 **Phase**: Sprint plan review (cycle-048 Phase 6)

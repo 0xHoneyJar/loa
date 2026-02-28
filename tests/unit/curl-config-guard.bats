@@ -161,6 +161,30 @@ teardown() {
 }
 
 # =============================================================================
+# Header Name Validation Tests
+# =============================================================================
+
+@test "write_curl_auth_config: valid header name 'Authorization' passes" {
+    local cfg
+    cfg=$(write_curl_auth_config "Authorization" "Bearer test-key")
+    [ -f "$cfg" ]
+    rm -f "$cfg"
+}
+
+@test "write_curl_auth_config: rejects header name with newline" {
+    local bad_name=$'Authorization\nX-Evil'
+    run write_curl_auth_config "$bad_name" "Bearer test-key"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Invalid header name"* ]]
+}
+
+@test "write_curl_auth_config: rejects header name with special chars" {
+    run write_curl_auth_config "Auth: evil" "Bearer test-key"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Invalid header name"* ]]
+}
+
+# =============================================================================
 # Edge Cases
 # =============================================================================
 
