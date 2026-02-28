@@ -35,6 +35,7 @@ declare -A SEVERITY_WEIGHTS=(
   ["VISION"]=0
   ["PRAISE"]=0
   ["SPECULATION"]=0
+  ["REFRAME"]=0
 )
 
 # =============================================================================
@@ -327,7 +328,7 @@ if [[ -z "$findings_block" ]] || [[ "$findings_block" =~ ^[[:space:]]*$ ]]; then
   "schema_version": 1,
   "findings": [],
   "total": 0,
-  "by_severity": {"critical": 0, "high": 0, "medium": 0, "low": 0, "vision": 0, "praise": 0, "speculation": 0},
+  "by_severity": {"critical": 0, "high": 0, "medium": 0, "low": 0, "vision": 0, "praise": 0, "speculation": 0, "reframe": 0},
   "severity_weighted_score": 0
 }
 EOF
@@ -359,6 +360,7 @@ if printf '%s' "$findings_block" | grep -q '```json'; then
     elif .severity == "VISION" then 0
     elif .severity == "PRAISE" then 0
     elif .severity == "SPECULATION" then 0
+    elif .severity == "REFRAME" then 0
     else 0
     end
   )}]')
@@ -376,6 +378,7 @@ by_low=$(printf '%s' "$findings_array" | jq '[.[] | select(.severity == "LOW")] 
 by_vision=$(printf '%s' "$findings_array" | jq '[.[] | select(.severity == "VISION")] | length')
 by_praise=$(printf '%s' "$findings_array" | jq '[.[] | select(.severity == "PRAISE")] | length')
 by_speculation=$(printf '%s' "$findings_array" | jq '[.[] | select(.severity == "SPECULATION")] | length')
+by_reframe=$(printf '%s' "$findings_array" | jq '[.[] | select(.severity == "REFRAME")] | length')
 weighted_score=$(printf '%s' "$findings_array" | jq '[.[].weight] | add // 0')
 
 # Write output
@@ -390,12 +393,13 @@ jq -n \
   --argjson vision "$by_vision" \
   --argjson praise "$by_praise" \
   --argjson speculation "$by_speculation" \
+  --argjson reframe "$by_reframe" \
   --argjson score "$weighted_score" \
   '{
     schema_version: $schema_version,
     findings: $findings,
     total: $total,
-    by_severity: {critical: $critical, high: $high, medium: $medium, low: $low, vision: $vision, praise: $praise, speculation: $speculation},
+    by_severity: {critical: $critical, high: $high, medium: $medium, low: $low, vision: $vision, praise: $praise, speculation: $speculation, reframe: $reframe},
     severity_weighted_score: $score
   }' > "$OUTPUT_FILE"
 

@@ -150,16 +150,16 @@ Directory structure:
 <!-- provenance: DERIVED -->
 | Module | Files | Purpose | Documentation |
 |--------|-------|---------|---------------|
-| `docs/` | 6 | Documentation | \u2014 |
+| `docs/` | 7 | Documentation | \u2014 |
 | `evals/` | 5818 | Benchmarking and regression framework for the Loa agent development system. Ensures framework changes don't degrade agent behavior through | [evals/README.md](evals/README.md) |
-| `grimoires/` | 1264 | Home to all grimoire directories for the Loa | [grimoires/README.md](grimoires/README.md) |
+| `grimoires/` | 1331 | Home to all grimoire directories for the Loa | [grimoires/README.md](grimoires/README.md) |
 | `skills/` | 5112 | Specialized agent skills | \u2014 |
-| `tests/` | 184 | Test suites | \u2014 |
+| `tests/` | 195 | Test suites | \u2014 |
 
 ## Verification
 <!-- provenance: CODE-FACTUAL -->
 - Trust Level: **L2 — CI Verified**
-- 184 test files across 1 suite
+- 195 test files across 1 suite
 - CI/CD: GitHub Actions (11 workflows)
 - Security: SECURITY.md present
 
@@ -173,7 +173,7 @@ The project defines 1 specialized agent persona.
 
 ## Culture
 <!-- provenance: OPERATIONAL -->
-**Naming**: Vodou terminology via Gibson's Sprawl trilogy (Loa, Grimoire, Hounfour, Cheval, Beauvoir) and direct cyberpunk concepts (Simstim, ICE, Flatline, Freeside, Finn) as narrative architecture — coherent memetic frameworks that help humans and agents form consistent mental models. Gibson adapted Vodou from anthropological sources (Tallant 1946, likely Deren 1953).
+**Naming**: Vodou terminology (Loa, Grimoire, Hounfour, Simstim) as cognitive hooks for agent framework concepts.
 
 **Principles**: Think Before Coding — plan and analyze before implementing, Simplicity First — minimum complexity for the current task, Surgical Changes — minimal diff, maximum impact, Goal-Driven — every action traces to acceptance criteria.
 
@@ -207,16 +207,16 @@ claude
 /ship      # Deploy and archive
 ```
 <!-- ground-truth-meta
-head_sha: 63b3f9661f969b40cc0fc53769abf01633381d0a
-generated_at: 2026-02-26T03:15:02Z
+head_sha: 5b381bdb643a74c9c15820d3d14783c291b2f114
+generated_at: 2026-02-28T02:33:00Z
 generator: butterfreezone-gen v1.0.0
 sections:
   agent_context: 2181e030ad7c26375787c2779116509418c11f8dd4cd51c7cbd38d655dbcdf96
   capabilities: ab2576b1f2e7e8141f0e93e807d26ed2b7b155e21c96d787507a3ba933bb9795
   architecture: 970c0549aa208f3f8e0063176776b3fd52798e8d19011897a6a22e6542c2e772
   interfaces: 120e3b3a6d65d4939b251dd049f213e32254a91510d48457be2e4f1b3f7399d3
-  module_map: bbd9aa487c3d9bc25f0ea9be3edc8608bd8c6b8f8925986118a2466f7fcfa91d
-  verification: e8f0acae1d298517bc6fde815119665738f3a60699984a9fa922a01004a89fdf
+  module_map: ef76ec1abd922a05da1a179f20a7b1981dccd8fa3c9bb42b1ec759bbb05cacd0
+  verification: 8f480a2919ffdbe3a5bb2afe73d67fb48d25a5450b137b2d5f2d226fbd8fa2a9
   agents: ca263d1e05fd123434a21ef574fc8d76b559d22060719640a1f060527ef6a0b6
   culture: f73380f93bb4fadf36ccc10d60fc57555914363fc90e4f15b4dc4eb92bd1640f
   quick_start: cfc39883247017c36dd2e9c3f44459a761d8b9e278b85a54584164db643a95ab

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": null,
+  "active_cycle": "cycle-044",
   "cycles": [
     {
       "id": "cycle-036",
@@ -259,7 +259,65 @@
       ],
       "archived": "2026-02-26T07:04:05Z",
       "archive_path": "grimoires/loa/archive/2026-02-26-cycle-042-vision-activation"
+    },
+    {
+      "id": "cycle-043",
+      "label": "DNS Authority Migration & Agent Economy Domain Architecture",
+      "status": "archived",
+      "created": "2026-02-27T00:00:00Z",
+      "archived": "2026-02-28T00:00:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-27-cycle-043-dns-migration",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 81,
+          "label": "Terraform DNS Module + Record Replication",
+          "status": "planned"
+        },
+        {
+          "local_id": 2,
+          "global_id": 82,
+          "label": "Pre-Migration Validation + NS Cutover Support",
+          "status": "planned"
+        },
+        {
+          "local_id": 3,
+          "global_id": 83,
+          "label": "Post-Migration Hardening + Agent Economy",
+          "status": "planned"
+        }
+      ]
+    },
+    {
+      "id": "cycle-044",
+      "label": "Bridgebuilder Design Review — Pre-Implementation Architectural Intelligence",
+      "status": "active",
+      "created": "2026-02-28T00:00:00Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 84,
+          "label": "Core Phase Integration",
+          "status": "planned"
+        },
+        {
+          "local_id": 2,
+          "global_id": 85,
+          "label": "HITL Interaction + Vision Capture",
+          "status": "planned"
+        },
+        {
+          "local_id": 3,
+          "global_id": 86,
+          "label": "Hardening + Validation",
+          "status": "planned"
+        }
+      ]
     }
   ],
-  "global_sprint_counter": 80
+  "global_sprint_counter": 86
 }
