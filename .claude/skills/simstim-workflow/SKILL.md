@@ -91,6 +91,20 @@ Display: `[0/8] PREFLIGHT - Validating configuration...`
 5. If --resume: Jump to <resume_support> section
 
 6. Otherwise: Continue to Phase 1 or specified --from phase
+
+7. **Compute total phases** for progress display (v1.45.0):
+   Base phases: 8. Check config gates to count enabled sub-phases:
+   - `simstim.bridgebuilder_design_review: true` → +1 (Phase 3.5)
+   - `red_team.enabled: true` AND `red_team.simstim.auto_trigger: true` → +1 (Phase 4.5)
+   - beads installed AND `simstim.flatline.beads_loop: true` → +1 (Phase 6.5)
+
+   Store computed `total_phases` in simstim state:
+   ```bash
+   .claude/scripts/simstim-state.sh update total_phases "$total_phases"
+   ```
+
+   Use `[N/$total_phases]` in all subsequent phase progress displays instead of hardcoded `[N/8]`.
+   Example: `[0/11] PREFLIGHT` when all 3 sub-phases enabled, `[0/8] PREFLIGHT` when none.
 </preflight>
 
 ---
