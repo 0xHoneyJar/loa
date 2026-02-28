@@ -197,10 +197,16 @@ get_model_secondary() {
     read_config '.flatline_protocol.models.secondary' 'gpt-5.3-codex'
 }
 
-# FR-3: Optional tertiary model for 3-model Flatline (e.g., Gemini 3 Pro)
+# FR-3: Optional tertiary model for 3-model Flatline (e.g., Gemini 2.5 Pro)
+# Checks hounfour config first (canonical), then flatline_protocol.models.tertiary (cycle-045 alias)
 # Returns empty string when not configured (2-model mode preserved)
 get_model_tertiary() {
-    read_config '.hounfour.flatline_tertiary_model' ''
+    local model
+    model=$(read_config '.hounfour.flatline_tertiary_model' '')
+    if [[ -z "$model" ]]; then
+        model=$(read_config '.flatline_protocol.models.tertiary' '')
+    fi
+    echo "$model"
 }
 
 get_max_iterations() {
@@ -1388,6 +1394,15 @@ main() {
         log "Warning: Mode detection script not found, defaulting to interactive"
     fi
 
+    # FR-1 (cycle-045): Log tertiary model status for observability
+    local tertiary_model_check
+    tertiary_model_check=$(get_model_tertiary)
+    if [[ -n "$tertiary_model_check" ]]; then
+        log "Tertiary model: $tertiary_model_check (active)"
+    else
+        log "Tertiary model: none (disabled)"
+    fi
+
     log "Document: $doc"
     log "Phase: $phase"
     log "Mode: $execution_mode"
@@ -1641,6 +1656,14 @@ main() {
     end_time=$(date +%s)
     local total_latency_ms=$(( (end_time - START_TIME) * 1000 ))
 
+    # FR-1 (cycle-045): Determine tertiary model status for output metadata
+    local tertiary_model_output
+    tertiary_model_output=$(get_model_tertiary)
+    local tertiary_status_output="disabled"
+    if [[ -n "$tertiary_model_output" ]]; then
+        tertiary_status_output="active"
+    fi
+
     # Add metadata to result
     local final_result
     final_result=$(echo "$result" | jq \
@@ -1650,6 +1673,8 @@ main() {
         --arg mode "$execution_mode" \
         --arg mode_reason "$mode_reason" \
         --arg run_id "${run_id:-}" \
+        --arg tertiary_model "${tertiary_model_output:-null}" \
+        --arg tertiary_status "$tertiary_status_output" \
         --argjson latency_ms "$total_latency_ms" \
         --argjson cost_cents "$TOTAL_COST" \
         --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -1657,6 +1682,8 @@ main() {
             phase: $phase,
             document: $doc,
             domain: $domain,
+            tertiary_model_used: (if $tertiary_model == "null" then null else $tertiary_model end),
+            tertiary_status: $tertiary_status,
             execution: {
                 mode: $mode,
                 mode_reason: $mode_reason,
@@ -1676,6 +1703,16 @@ main() {
     # Output result
     echo "$final_result" | jq .
 
+    # FR-4 (cycle-045): Log model count for observability
+    local primary_model_name
+    primary_model_name=$(get_model_primary)
+    local secondary_model_name
+    secondary_model_name=$(get_model_secondary)
+    if [[ -n "$tertiary_model_output" ]]; then
+        log "Flatline: 3-model ($primary_model_name + $secondary_model_name + $tertiary_model_output)"
+    else
+        log "Flatline: 2-model ($primary_model_name + $secondary_model_name)"
+    fi
     log "Flatline Protocol complete. Cost: $TOTAL_COST cents, Latency: ${total_latency_ms}ms"
 }
 

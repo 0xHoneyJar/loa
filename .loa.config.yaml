@@ -147,6 +147,7 @@ flatline_protocol:
   models:
     primary: opus
     secondary: gpt-5.3-codex
+    tertiary: gemini-2.5-pro        # 3-model Flatline (also read from hounfour.flatline_tertiary_model)
   thresholds:
     high_consensus: 700
     disputed_delta: 300
@@ -207,3 +208,10 @@ red_team:
     phase: post_sdd
   bridge:
     enabled: false
+  # Code-vs-Design gate — compares SDD security design to implemented code (cycle-045)
+  code_vs_design:
+    enabled: false                    # Default off — opt-in per FR-3
+    max_cycles: 2                     # Circuit breaker: max re-implementation cycles
+    skip_if_no_sdd: true             # Skip silently when no SDD exists
+    severity_threshold: 700           # Only divergences >700 trigger re-implementation
+    token_budget: 150000              # 150K token ceiling per invocation
