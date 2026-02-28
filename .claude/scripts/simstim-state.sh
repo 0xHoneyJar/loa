@@ -203,7 +203,7 @@ init_state() {
                 architecture: (if $phase == "preflight" or $phase == "discovery" or $phase == "architecture" then "pending" else "skipped" end),
                 bridgebuilder_sdd: (if $phase == "preflight" or $phase == "discovery" or $phase == "architecture" then "pending" else "skipped" end),
                 flatline_sdd: (if $phase == "preflight" or $phase == "discovery" or $phase == "architecture" then "pending" else "skipped" end),
-                red_team_sdd: (if $phase == "preflight" or $phase == "discovery" or $phase == "architecture" then "pending" else "skipped" end),
+                red_team_sdd: (if $phase == "preflight" or $phase == "discovery" or $phase == "architecture" or $phase == "flatline_sdd" then "pending" else "skipped" end),
                 planning: (if $phase != "implementation" then "pending" else "skipped" end),
                 flatline_sprint: (if $phase != "implementation" then "pending" else "skipped" end),
                 flatline_beads: (if $phase != "implementation" then "pending" else "skipped" end),

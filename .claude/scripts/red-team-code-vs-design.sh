@@ -214,12 +214,17 @@ main() {
 
     # Get code diff
     local code_diff=""
-    if [[ -n "$diff_path" && "$diff_path" != "-" && -f "$diff_path" ]]; then
+    if [[ -n "$diff_path" && "$diff_path" != "-" ]]; then
+        # Explicit path provided — fail if it doesn't exist (no silent fallthrough)
+        if [[ ! -f "$diff_path" ]]; then
+            error "Diff file not found: $diff_path"
+            exit 2
+        fi
         code_diff=$(cat "$diff_path")
     elif [[ "$diff_path" == "-" ]]; then
         code_diff=$(cat)
     else
-        # Generate diff from git
+        # No --diff specified — generate from git
         code_diff=$(git diff main...HEAD 2>/dev/null || git diff HEAD~1 2>/dev/null || echo "")
     fi
 
@@ -230,7 +235,13 @@ main() {
     fi
 
     local diff_chars=${#code_diff}
-    log "Code diff: $diff_chars characters"
+    # Truncate diff to remaining token budget (same budget split as sections)
+    if [[ $diff_chars -gt $max_section_chars ]]; then
+        code_diff="${code_diff:0:$max_section_chars}"$'\n[... diff truncated to token budget ...]'
+        log "Code diff: $diff_chars characters (truncated to $max_section_chars)"
+    else
+        log "Code diff: $diff_chars characters"
+    fi
 
     # Dry run
     if [[ "$dry_run" == true ]]; then

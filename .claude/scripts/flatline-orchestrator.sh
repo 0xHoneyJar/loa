@@ -200,12 +200,22 @@ get_model_secondary() {
 # FR-3: Optional tertiary model for 3-model Flatline (e.g., Gemini 2.5 Pro)
 # Checks hounfour config first (canonical), then flatline_protocol.models.tertiary (cycle-045 alias)
 # Returns empty string when not configured (2-model mode preserved)
+# Cache for get_model_tertiary — avoids repeated yq invocations
+_CACHED_TERTIARY_MODEL=""
+_CACHED_TERTIARY_MODEL_SET=false
+
 get_model_tertiary() {
+    if [[ "$_CACHED_TERTIARY_MODEL_SET" == true ]]; then
+        echo "$_CACHED_TERTIARY_MODEL"
+        return
+    fi
     local model
     model=$(read_config '.hounfour.flatline_tertiary_model' '')
     if [[ -z "$model" ]]; then
         model=$(read_config '.flatline_protocol.models.tertiary' '')
     fi
+    _CACHED_TERTIARY_MODEL="$model"
+    _CACHED_TERTIARY_MODEL_SET=true
     echo "$model"
 }
 
@@ -1673,7 +1683,7 @@ main() {
         --arg mode "$execution_mode" \
         --arg mode_reason "$mode_reason" \
         --arg run_id "${run_id:-}" \
-        --arg tertiary_model "${tertiary_model_output:-null}" \
+        --argjson tertiary_model "$(if [[ -n "${tertiary_model_output:-}" ]]; then printf '"%s"' "$tertiary_model_output"; else echo 'null'; fi)" \
         --arg tertiary_status "$tertiary_status_output" \
         --argjson latency_ms "$total_latency_ms" \
         --argjson cost_cents "$TOTAL_COST" \
@@ -1682,7 +1692,7 @@ main() {
             phase: $phase,
             document: $doc,
             domain: $domain,
-            tertiary_model_used: (if $tertiary_model == "null" then null else $tertiary_model end),
+            tertiary_model_used: $tertiary_model,
             tertiary_status: $tertiary_status,
             execution: {
                 mode: $mode,
