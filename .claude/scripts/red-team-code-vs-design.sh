@@ -191,18 +191,23 @@ main() {
     fi
 
     # Extract security sections
-    log "Extracting SDD security sections from: $sdd_path"
+    # Token budget controls input truncation (~4 chars/token); reserve half for code diff
+    local max_section_chars=$(( token_budget * 4 / 2 ))
+    [[ $max_section_chars -gt 100000 ]] && max_section_chars=100000  # cap at 100K chars
+    [[ $max_section_chars -lt 4000 ]] && max_section_chars=4000      # floor at 4K chars
+    log "Extracting SDD security sections from: $sdd_path (max $max_section_chars chars)"
     local security_sections
-    security_sections=$(extract_security_sections "$sdd_path") || {
-        local exit_code=$?
-        if [[ $exit_code -eq 3 ]]; then
+    local extract_exit=0
+    security_sections=$(extract_security_sections "$sdd_path" "$max_section_chars") || extract_exit=$?
+    if [[ $extract_exit -ne 0 ]]; then
+        if [[ $extract_exit -eq 3 ]]; then
             log "No security sections found in SDD, skipping"
             jq -n '{findings: [], summary: {total: 0, confirmed_divergence: 0, partial_implementation: 0, fully_implemented: 0}, skipped: true, reason: "no_security_sections"}' > "$output_path"
             exit 0
         fi
         error "Failed to extract security sections"
         exit 1
-    }
+    fi
 
     local section_chars=${#security_sections}
     log "Extracted $section_chars characters of security content"
@@ -284,18 +289,18 @@ PROMPT
 
     # Invoke model
     log "Invoking model for code-vs-design comparison (budget: $token_budget tokens)"
-    local model_output
+    local model_output exit_code=0
     model_output=$("$MODEL_ADAPTER" \
         --model opus \
         --mode dissent \
         --input "$prompt_file" \
         --timeout 120 \
-        --json 2>/dev/null) || {
-        local exit_code=$?
+        --json 2>/dev/null) || exit_code=$?
+    if [[ $exit_code -ne 0 ]]; then
         error "Model invocation failed (exit $exit_code)"
         rm -f "$prompt_file"
         exit 1
-    }
+    fi
     rm -f "$prompt_file"
 
     # Parse findings from model output
