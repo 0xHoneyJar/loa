@@ -103,6 +103,12 @@
       "sdd": ".claude/loa/reference/protocols-summary.md",
       "label": "Protocols",
       "sections": ["Protocol", "Compliance", "Safety"]
+    },
+    {
+      "glob": ".claude/scripts/pipeline-self-review.sh",
+      "sdd": ".claude/skills/run-bridge/SKILL.md",
+      "label": "Pipeline Self-Review",
+      "sections": ["PIPELINE_SELF_REVIEW", "SDD Resolution"]
     }
   ]
 }

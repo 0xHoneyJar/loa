@@ -217,6 +217,8 @@ red_team:
   # performance) can be added following the same schema.
   compliance_gates:
     security:
+      # Values are grep -E regex patterns. Use "." for single-char wildcard
+      # (e.g., "Error.Handling" matches "Error Handling" and "Error-Handling").
       keywords:
         - Security
         - Authentication
