@@ -69,19 +69,28 @@ read_config() {
 # SDD Section Extraction
 # =============================================================================
 
-# Extract security-related sections from SDD using header regex
-# Matches headers containing security-related keywords
-extract_security_sections() {
-    local sdd_path="$1"
+# Extract sections from a document matching header keywords.
+# Parameterized for reuse across compliance gate profiles (cycle-046 FR-4).
+#
+# Args:
+#   $1 - file path
+#   $2 - max chars (default 20000)
+#   $3 - pipe-separated keyword regex (default: security keywords)
+#
+# Returns:
+#   0 - sections found, output on stdout
+#   1 - file not found
+#   3 - no matching sections found
+extract_sections_by_keywords() {
+    local file_path="$1"
     local max_chars="${2:-20000}"  # ~5K tokens
+    local keywords="${3:-Security|Authentication|Authorization|Validation|Error.Handling|Access.Control|Secrets|Encryption|Input.Sanitiz}"
 
-    if [[ ! -f "$sdd_path" ]]; then
-        error "SDD not found: $sdd_path"
+    if [[ ! -f "$file_path" ]]; then
+        error "File not found: $file_path"
         return 1
     fi
 
-    # Extract sections with security-related headers
-    # Pattern: any markdown header (1-3 #) containing security keywords
     local in_section=false
     local section_level=0
     local output=""
@@ -97,8 +106,8 @@ extract_security_sections() {
                 in_section=false
             fi
 
-            # Check if this header matches security keywords
-            if printf '%s\n' "$line" | grep -iqE '(Security|Authentication|Authorization|Validation|Error.Handling|Access.Control|Secrets|Encryption|Input.Sanitiz)'; then
+            # Check if this header matches the keyword pattern
+            if printf '%s\n' "$line" | grep -iqE "($keywords)"; then
                 in_section=true
                 section_level=$level
             fi
@@ -115,13 +124,31 @@ extract_security_sections() {
                 break
             fi
         fi
-    done < "$sdd_path"
+    done < "$file_path"
 
     if [[ -z "$output" ]]; then
-        return 3  # No security sections found
+        return 3  # No matching sections found
     fi
 
     echo "$output"
+}
+
+# Backward-compatible wrapper — extracts security-related sections from SDD
+extract_security_sections() {
+    local sdd_path="$1"
+    local max_chars="${2:-20000}"
+
+    # Read keywords from config if available, fall back to hardcoded defaults
+    local keywords="Security|Authentication|Authorization|Validation|Error.Handling|Access.Control|Secrets|Encryption|Input.Sanitiz"
+    if command -v yq &>/dev/null && [[ -f "$PROJECT_ROOT/.loa.config.yaml" ]]; then
+        local config_keywords
+        config_keywords=$(yq '.red_team.compliance_gates.security.keywords // [] | join("|")' "$PROJECT_ROOT/.loa.config.yaml" 2>/dev/null || echo "")
+        if [[ -n "$config_keywords" ]]; then
+            keywords="$config_keywords"
+        fi
+    fi
+
+    extract_sections_by_keywords "$sdd_path" "$max_chars" "$keywords"
 }
 
 # =============================================================================
