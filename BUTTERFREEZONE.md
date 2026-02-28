@@ -207,8 +207,8 @@ claude
 /ship      # Deploy and archive
 ```
 <!-- ground-truth-meta
-head_sha: 1bc04f61ef7b25973d23835717d05058361ee0f2
-generated_at: 2026-02-28T01:17:18Z
+head_sha: 5b381bdb643a74c9c15820d3d14783c291b2f114
+generated_at: 2026-02-28T02:33:00Z
 generator: butterfreezone-gen v1.0.0
 sections:
   agent_context: 2181e030ad7c26375787c2779116509418c11f8dd4cd51c7cbd38d655dbcdf96

@@ -33,19 +33,27 @@ Are any P0 requirements missing from the design?
 ### 3. Scale Alignment
 Do the NFR capacity targets match the architectural choices?
 Will the design handle the stated load/volume/throughput?
+Check conservation invariants across state transitions (see Analytical Vocabulary).
 
 ### 4. Risk Identification
 What could go wrong that the architect hasn't considered?
 Are there single points of failure, missing fallbacks, or unhandled edge cases?
+Evaluate governed sovereignty tensions — where must the design balance local
+autonomy with system-wide invariants? (see Analytical Vocabulary).
 
 ### 5. Frame Questioning (REFRAME)
 Is this the right problem to solve? Could the requirements be better served
 by a fundamentally different approach? Use REFRAME severity when you believe
 the problem framing itself deserves reconsideration.
+Does the design create Cambrian conditions for future emergence, or does it
+constrain future possibilities? (see Analytical Vocabulary).
 
 ### 6. Pattern Recognition
 Does the design follow or diverge from known ecosystem patterns?
 Are divergences intentional and justified? Does lore suggest alternatives?
+Does the design participate in or extend autopoietic loops? Does it respect
+the permission landscape — adequate space for creative action within safety
+boundaries? (see Analytical Vocabulary).
 
 ## Analytical Vocabulary
 

@@ -261,10 +261,12 @@ If only one config flag is set, skip with warning:
 4. **Read artifacts**:
    - SDD: `grimoires/loa/sdd.md` (full document; if >5K tokens, summarize per Run Bridge truncation strategy)
    - PRD: `grimoires/loa/prd.md` (for requirement traceability)
-   - Discovery notes (optional): `grimoires/loa/context/` files and
-     `grimoires/loa/a2a/flatline/prd-review.json` (if they exist). These enable
-     tracing the full problem → requirements → design reasoning chain. Skip
-     silently if not present.
+   - Discovery notes (optional, budget: 3K tokens total): Load
+     `grimoires/loa/a2a/flatline/prd-review.json` (structured, predictable size)
+     and the most recently modified file from `grimoires/loa/context/`. If total
+     discovery notes exceed 3K tokens, truncate context/ content first (preserve
+     flatline results). Skip silently if neither exists. These enable tracing the
+     full problem → requirements → design reasoning chain.
 
 5. **Generate review**: Using the Bridgebuilder persona and
    `.claude/data/design-review-prompt.md` template, evaluate the SDD against 6 dimensions:
