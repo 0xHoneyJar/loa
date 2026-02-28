@@ -322,7 +322,7 @@ PROMPT
 
     # Strip markdown code fences if present (two-pass: awk range for multi-line, sed fallback)
     if echo "$findings_json" | head -1 | grep -qE '^\s*```'; then
-        findings_json=$(echo "$findings_json" | awk '/^\s*```/{if(f){exit}else{f=1;next}} f')
+        findings_json=$(echo "$findings_json" | awk '/^[[:space:]]*```/{if(f){exit}else{f=1;next}} f')
     fi
 
     # Validate JSON
