@@ -817,6 +817,7 @@ run_phase1() {
             tertiary_model=""
         else
             has_tertiary=true
+            log "Tertiary model confirmed: $tertiary_model (3-model Flatline active)"
         fi
     fi
 

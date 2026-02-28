@@ -74,12 +74,14 @@ resolve_pipeline_sdd() {
 
     # Match against glob patterns in the map
     # Capture .glob before piping $file to test(), escape dots, anchor pattern
+    # Two-pass glob conversion: ** → .* (recursive), then * → [^/]* (single segment)
+    # This prevents * from matching across / boundaries (F-004 fix, cycle-047)
     jq -r --arg file "$changed_file" '
         .patterns[] |
         .glob as $g |
         select(
             ($file | test(
-                $g | gsub("\\."; "\\.") | gsub("\\*"; ".*") | gsub("\\?"; ".") | ("^" + . + "$")
+                $g | gsub("\\."; "\\.") | gsub("\\*\\*"; ".*") | gsub("\\*"; "[^/]*") | gsub("\\?"; ".") | ("^" + . + "$")
             ))
         ) |
         .sdd

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-046",
+  "active_cycle": "cycle-047",
   "cycles": [
     {
       "id": "cycle-036",
@@ -353,8 +353,10 @@
     {
       "id": "cycle-046",
       "label": "Bridgebuilder Constellation — From Pipeline to Deliberation",
-      "status": "active",
+      "status": "archived",
       "created": "2026-02-28T04:30:00Z",
+      "archived": "2026-02-28T06:30:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-28-cycle-046-bridgebuilder-constellation",
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
       "sprints": [
@@ -362,28 +364,62 @@
           "local_id": 1,
           "global_id": 90,
           "label": "Code Quality Polish",
-          "status": "planned"
+          "status": "completed"
         },
         {
           "local_id": 2,
           "global_id": 91,
           "label": "Deliberative Council — Prior Findings Integration",
-          "status": "planned"
+          "status": "completed"
         },
         {
           "local_id": 3,
           "global_id": 92,
           "label": "Pipeline Self-Review",
-          "status": "planned"
+          "status": "completed"
         },
         {
           "local_id": 4,
           "global_id": 93,
           "label": "Governance Lore + Compliance Generalization",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "cycle-047",
+      "label": "Compassionate Excellence — Bridgebuilder Deep Review Integration",
+      "status": "active",
+      "created": "2026-02-28T06:30:00Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 94,
+          "label": "Verification + Defensive Hardening",
+          "status": "planned"
+        },
+        {
+          "local_id": 2,
+          "global_id": 95,
+          "label": "Constitutional Architecture",
+          "status": "planned"
+        },
+        {
+          "local_id": 3,
+          "global_id": 96,
+          "label": "Shared Library Extraction",
+          "status": "planned"
+        },
+        {
+          "local_id": 4,
+          "global_id": 97,
+          "label": "Adaptive Intelligence + Ecosystem Design",
           "status": "planned"
         }
       ]
     }
   ],
-  "global_sprint_counter": 93
+  "global_sprint_counter": 97
 }

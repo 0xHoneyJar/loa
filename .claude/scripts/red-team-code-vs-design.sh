@@ -411,6 +411,40 @@ PROMPT
     echo "" >> "$prompt_file"
     echo "$code_diff" >> "$prompt_file"
 
+    # Log deliberation metadata for observability (cycle-047 T1.5)
+    # Provides "meeting minutes" — which input channels, their sizes, budget allocation
+    local prior_chars_total=0
+    for pf_path in "${prior_findings_paths[@]:-}"; do
+        if [[ -n "${pf_path:-}" && -f "$pf_path" ]]; then
+            local pf_size
+            pf_size=$(wc -c < "$pf_path" 2>/dev/null || echo "0")
+            prior_chars_total=$((prior_chars_total + pf_size))
+        fi
+    done
+    local meta_dir
+    meta_dir=$(dirname "$output_path")
+    if [[ -d "$meta_dir" ]]; then
+        jq -n \
+            --argjson sdd_chars "$section_chars" \
+            --argjson diff_chars "$diff_chars" \
+            --argjson prior_chars "$prior_chars_total" \
+            --argjson channels "$input_channels" \
+            --argjson budget "$token_budget" \
+            --argjson budget_per_channel "$max_section_chars" \
+            --arg sprint "$sprint_id" \
+            --arg sdd_path "$sdd_path" \
+            '{
+                timestamp: now | strftime("%Y-%m-%dT%H:%M:%SZ"),
+                sprint: $sprint,
+                sdd_path: $sdd_path,
+                input_channels: $channels,
+                char_counts: {sdd: $sdd_chars, diff: $diff_chars, prior_findings: $prior_chars},
+                token_budget: $budget,
+                budget_per_channel: $budget_per_channel,
+                mode: (if $channels == 3 then "deliberative_council" else "standard")
+            }' > "$meta_dir/deliberation-metadata.json" 2>/dev/null || true
+    fi
+
     # Invoke model
     log "Invoking model for code-vs-design comparison (budget: $token_budget tokens)"
     local model_output exit_code=0
@@ -431,8 +465,13 @@ PROMPT
     local findings_json
     findings_json=$(echo "$model_output" | jq -r '.content // ""' 2>/dev/null)
 
-    # Strip markdown code fences if present (two-pass: awk range for multi-line, sed fallback)
-    if echo "$findings_json" | head -1 | grep -qE '^\s*```'; then
+    # Strip markdown code fences if present
+    # Handles both cases: (a) first line is a fence, (b) preamble text before fence (F-007 hardening, cycle-047)
+    if echo "$findings_json" | head -1 | grep -qE '^[[:space:]]*```'; then
+        # Case (a): first line is a code fence — extract content between fences
+        findings_json=$(echo "$findings_json" | awk '/^[[:space:]]*```/{if(f){exit}else{f=1;next}} f')
+    elif echo "$findings_json" | grep -qE '^[[:space:]]*```'; then
+        # Case (b): preamble text before fence — skip to first fence, then extract
         findings_json=$(echo "$findings_json" | awk '/^[[:space:]]*```/{if(f){exit}else{f=1;next}} f')
     fi
 

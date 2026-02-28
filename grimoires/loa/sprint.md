@@ -1,88 +1,89 @@
-# Sprint Plan: Bridgebuilder Constellation — From Pipeline to Deliberation
+# Sprint Plan: Compassionate Excellence — Bridgebuilder Deep Review Integration
 
-> **Cycle**: 046
+> **Cycle**: 047
 > **Created**: 2026-02-28
 > **PRD**: `grimoires/loa/prd.md`
 > **SDD**: `grimoires/loa/sdd.md`
-> **Target**: `.claude/` System Zone (scripts, skills, data) + `.loa.config.yaml` + `grimoires/loa/lore/`
+> **Target**: `.claude/` System Zone (scripts, skills, data, lib) + `.loa.config.yaml` + `grimoires/loa/lore/`
+> **Source Feedback**: PR #433 — Bridge iter 1 (F-001–F-013), Deep Review Parts 1-5 (R-1–R-6, SPEC-1–SPEC-5), User observations
 
 ---
 
 ## Sprint Overview
 
-This cycle implements all actionable suggestions from the Bridgebuilder's review of PR #429, organized from lowest-risk polish to highest-value architectural additions.
+This cycle implements ALL feedback from PR #433's bridge review and deep Bridgebuilder review, organized from verification/hardening through architectural promotion to library extraction and forward-looking design.
 
 | Sprint | Label | Focus | Dependency |
 |--------|-------|-------|------------|
-| 1 | Code Quality Polish | FR-1: 6 LOW findings from bridge convergence | None |
-| 2 | Deliberative Council | FR-2: Prior findings integration into Red Team gate | Sprint 1 (red-team script changes) |
-| 3 | Pipeline Self-Review | FR-3: Auto-review when pipeline files change | Sprint 2 (red-team scripting patterns) |
-| 4 | Governance Lore + Compliance Generalization | FR-4: Lore entry + parameterized gate | Sprint 1 (keyword extraction dependency) |
+| 1 | Verification + Defensive Hardening | FR-1: Gemini trace, Red Team docs, F-004/F-007 fixes, observability | None |
+| 2 | Constitutional Architecture | FR-2: SDD map promotion, reverse mapping, lore lifecycle, discoverability | None |
+| 3 | Shared Library Extraction | FR-3: findings-lib.sh, compliance-lib.sh, gate separation, prompt_template | Sprint 1 (fence stripping function) |
+| 4 | Adaptive Intelligence + Ecosystem Design | FR-4: adaptive budget, cost tracking, economic feedback, cross-repo protocol | Sprint 3 (library functions) |
 
 ---
 
-## Sprint 1: Code Quality Polish
+## Sprint 1: Verification + Defensive Hardening
 
-**Goal**: Address all 6 carried LOW findings from PR #429 bridge iterations. Surgical, isolated fixes.
+**Goal**: Verify that claimed capabilities (Gemini, Red Team) actually work end-to-end. Address accepted LOW findings from bridge review. Add deliberation observability so we can track how the review system makes decisions.
 
 ### Tasks
 
 | ID | Task | Acceptance Criteria |
 |----|------|---------------------|
-| T1.1 | Use `jq -n --arg` for JSON-safe encoding in flatline-orchestrator.sh | The `--argjson tertiary_model` pattern uses `jq -n --arg m "$var" '$m'` instead of `printf '"%s"'`. Model names with quotes/backslashes would be safely encoded (verified by manual test with edge-case input). |
-| T1.2 | Remove redundant `rm -f` calls in red-team-code-vs-design.sh | Lines 313 and 316 (`rm -f "$prompt_file"`) removed. The `trap EXIT` on line 262 is the sole cleanup mechanism. Script still cleans up correctly on all exit paths. |
-| T1.3 | Capture stderr on model adapter failure in red-team-code-vs-design.sh | Create stderr temp file, redirect model adapter stderr to it, update trap to clean both files. On failure, error message includes last 5 lines of stderr. On success, stderr file silently cleaned by trap. |
-| T1.4 | Improve fence stripping robustness in red-team-code-vs-design.sh | Replace line-oriented sed with a `strip_code_fences()` function using awk range pattern as primary and sed as fallback. Handles both inline and multi-line fence formats. |
-| T1.5 | Fix version tag in simstim SKILL.md | Replace `(v1.45.0)` with `(cycle-045)` on the dynamic phase count computation line. |
-| T1.6 | Name the get_model_tertiary() seam in flatline-orchestrator.sh | Add 3-line comment above `get_model_tertiary()` naming it as a provisional resolution that the Hounfour router (loa-finn #31) will replace. The function signature is the durable contract. |
+| T1.1 | Investigate Gemini participation in Flatline Protocol | Trace from `.loa.config.yaml` `flatline_protocol.models.tertiary: gemini-2.5-pro` through `flatline-orchestrator.sh` `get_model_tertiary()` to `model-adapter.sh` API call. Verify `MODEL_PROVIDERS[gemini-2.5-pro]` exists and routes correctly. If wiring is broken, fix it. If working, add a verification log line that confirms Gemini was invoked. Document findings in NOTES.md. |
+| T1.2 | Document Red Team integration in simstim workflow | Add "Red Team Integration" section to `.claude/skills/simstim-workflow/SKILL.md` explaining: (a) current status (`red_team.simstim.auto_trigger: false`), (b) what happens when enabled (fires after /audit-sprint, before bridge review), (c) how to enable (`red_team.simstim.auto_trigger: true` + `red_team.bridge.enabled: true`), (d) what it reviews (code diff against SDD with prior review/audit findings). Update `.loa.config.yaml.example` with documented keys. |
+| T1.3 | Fix F-004: glob `*` matching across `/` boundaries | In `pipeline-self-review.sh` `resolve_pipeline_sdd()`, change the jq glob-to-regex from `gsub("\\*"; ".*")` to a two-pass approach: first `gsub("\\*\\*"; ".*")` for recursive globs, then `gsub("\\*"; "[^/]*")` for single-segment globs. Add comment explaining the distinction. Verify with test paths: `.claude/scripts/flatline-orchestrator.sh` matches `flatline-*.sh` but NOT `.claude/scripts/subdir/flatline-foo.sh`. |
+| T1.4 | Harden F-007: fence stripping with preamble text | Modify `strip_code_fences()` in `red-team-code-vs-design.sh` to handle the case where model output starts with prose before a code fence. If the first line is not a fence but the output contains a fence, scan for the first fence line and extract from there. Add test case: input = `"Here is the analysis:\n\`\`\`json\n{\"score\": 800}\n\`\`\`"` → output = `{"score": 800}`. |
+| T1.5 | Add deliberation observability to Red Team invocations | In `red-team-code-vs-design.sh`, after prompt assembly and before model invocation, log a `deliberation-metadata.json` file to the sprint output directory containing: `input_channels` (count), `char_counts` (sdd, diff, prior_findings), `token_budget`, `budget_per_channel`, `prior_findings_paths` (list of files used). This file provides the "meeting minutes" for each deliberation — enabling institutional learning about what input mixes produce the best outcomes. |
+| T1.6 | Add Red Team placement guidance to run-bridge SKILL.md | Add a "Red Team Gate Placement" subsection documenting: Red Team fires AFTER reviewer + auditor (step 7 in run-mode), as the final quality gate before sprint completion. In run-bridge, it fires within each sprint's implement→review→audit→red-team cycle. Clarify it does NOT replace the Bridgebuilder (which reviews across all sprints at the bridge level). |
 
 ---
 
-## Sprint 2: Deliberative Council — Prior Findings Integration
+## Sprint 2: Constitutional Architecture
 
-**Goal**: Make the Red Team code-vs-design gate context-aware by feeding it findings from earlier review stages. This transforms a sequential pipeline into a deliberative council.
+**Goal**: Promote governance artifacts from data files to constitutional status. Add lifecycle semantics to lore entries so patterns can evolve through challenge and refinement. Enable reverse mapping so we can answer "what implementations does this SDD govern?"
 
 ### Tasks
 
 | ID | Task | Acceptance Criteria |
 |----|------|---------------------|
-| T2.1 | Add `--prior-findings <path>` flag to red-team-code-vs-design.sh | New flag parsed in argument loop. Multiple `--prior-findings` invocations accepted (accumulated into array). Flag is optional — behavior unchanged without it. |
-| T2.2 | Implement `extract_prior_findings()` function | Function reads a feedback file, extracts sections under `## Findings`, `## Issues`, `## Changes Required`, or `## Security`. Respects character budget. Returns empty string for missing/empty files. |
-| T2.3 | Rebalance token budget for 3-way split | When `--prior-findings` is provided, budget splits to 1/3 SDD sections, 1/3 code diff, 1/3 prior findings (floor 4000 chars each, ceiling 100000). Without the flag, existing 50/50 split is unchanged. |
-| T2.4 | Integrate prior findings into model prompt | Prior findings inserted between SDD sections and code diff in the prompt file, with `=== PRIOR REVIEW FINDINGS ===` header and instructional context telling the model to use these to focus its analysis. |
-| T2.5 | Wire `--prior-findings` in run-mode SKILL.md | Step 7 (RED_TEAM_CODE gate) updated to pass `--prior-findings grimoires/loa/a2a/sprint-{N}/engineer-feedback.md` and `--prior-findings grimoires/loa/a2a/sprint-{N}/auditor-sprint-feedback.md`. Paths only passed when files exist. |
-| T2.6 | Update SDD section 2.2 documentation | Document the deliberative council pattern, token budget rebalancing, and the rationale (Google ISSTA 2023 parallel — ML models that see static analysis findings produce better semantic analysis). |
+| T2.1 | Promote pipeline-sdd-map.json to constitutional status | Add `constitutional: true` flag to the pipeline-sdd-map.json's self-referencing entry. In `pipeline-self-review.sh`, when a matched pattern has `constitutional: true`, emit a `CONSTITUTIONAL_CHANGE` marker in the findings JSON output (severity: HIGH, category: "constitutional"). The bridge orchestrator or PR comment should surface this marker prominently. This ensures changes to the governance map itself receive scrutiny proportional to their blast radius. |
+| T2.2 | Implement reverse SDD mapping | Add `resolve_governed_implementations()` function to `pipeline-self-review.sh` that, given an SDD path, returns all glob patterns governed by that SDD. Implementation: `jq -r --arg sdd "$sdd_path" '.patterns[] \| select(.sdd == $sdd) \| .glob' "$map_file"`. Add a `--reverse <sdd-path>` flag to pipeline-self-review.sh for CLI access. This enables the future use case: "when run-bridge/SKILL.md changes, which scripts need re-review?" |
+| T2.3 | Add lifecycle fields to lore entry schema | Extend `grimoires/loa/lore/patterns.yaml` entries with: `status` (enum: Active, Challenged, Deprecated, Superseded; default: Active), `challenges` (array of `{date, source, description}` objects; default: empty), `lineage` (ID of predecessor pattern or null), `superseded_by` (ID of successor pattern or null). Update existing Governance Isomorphism entry with `status: Active`, empty challenges, null lineage. This follows the RFC lifecycle model (Proposed → Active → Deprecated → Historic). |
+| T2.4 | Update lore index with lifecycle metadata | Update `grimoires/loa/lore/index.yaml` to include `status` field for each entry. Add a note documenting the lifecycle states and transition rules: Active → Challenged (when counter-evidence found), Challenged → Active (when challenge resolved), Active → Deprecated (when superseded), Deprecated → Superseded (when replacement is Active). |
+| T2.5 | Add lore discoverability for bridge reviews | In `bridge-orchestrator.sh` (or as a helper function), before the Bridgebuilder review signal, query lore entries for patterns relevant to the changed files. Relevance determined by tag matching: if changed files include `scripts/` → match tags `pipeline`, `review`; if changed files include `lore/` → match tags `governance`, `architecture`. Discovered lore is included in the bridge review context. If no lore entries exist or match, skip silently. |
+| T2.6 | Create Deliberative Council lore entry | Add a new pattern entry to `grimoires/loa/lore/patterns.yaml` for the Deliberative Council pattern discovered in cycle-046 Sprint 2: `id: deliberative-council`, `term: Deliberative Council`, `short: "Later review stages condition on earlier findings, transforming sequential evaluation into structured deliberation"`, `context: (reference Condorcet jury theorem, Google ISSTA Tricorder cascading, jazz ensemble metaphor)`, `source: "bridge-deep-review-part1 / PR #433"`, `tags: [architecture, review, deliberation, pattern]`, `status: Active`. |
 
 ---
 
-## Sprint 3: Pipeline Self-Review
+## Sprint 3: Shared Library Extraction
 
-**Goal**: Enable the review pipeline to review changes to its own code against its own specifications. Pipeline bugs have multiplicative impact — this adds a perceptual modality for self-examination.
+**Goal**: Factor shared functions out of monolithic scripts into importable libraries. Separate compliance gate extraction from evaluation to enable future gate profiles. These libraries become the substrate for cross-repo compliance and capability-driven orchestration.
 
 ### Tasks
 
 | ID | Task | Acceptance Criteria |
 |----|------|---------------------|
-| T3.1 | Create `detect_pipeline_changes()` function | Function in bridge-orchestrator.sh uses `git diff --name-only` to detect changes in `.claude/scripts/`, `.claude/skills/`, `.claude/data/`, `.claude/protocols/`. Returns file list or empty. |
-| T3.2 | Create pipeline SDD mapping file | New file `.claude/data/pipeline-sdd-map.json` mapping glob patterns to their governing SKILL.md/SDD. At minimum: flatline-*.sh, red-team-*.sh, bridge-*.sh, simstim-*.sh. |
-| T3.3 | Implement `resolve_pipeline_sdd()` function | Given a list of changed pipeline files, resolve each to its governing SDD via the mapping file. Uses jq to match globs. Returns unique list of SDDs to check against. |
-| T3.4 | Implement `run_pipeline_self_review()` function | Orchestrates: filter diff to pipeline files only, resolve SDDs, invoke red-team-code-vs-design.sh for each SDD, collect findings. Output as structured JSON matching existing findings schema. |
-| T3.5 | Wire self-review into bridge-orchestrator.sh | New optional phase gated by `run_bridge.pipeline_self_review.enabled` (default: false). Runs before the standard Bridgebuilder review. Findings posted as separate PR comment section with `[Pipeline Self-Review]` prefix. |
-| T3.6 | Add config key and documentation | Add `run_bridge.pipeline_self_review.enabled: false` to .loa.config.yaml. Document in run-bridge SKILL.md and reference docs. |
+| T3.1 | Create `.claude/scripts/lib/findings-lib.sh` | Extract `extract_prior_findings()` from `red-team-code-vs-design.sh` into a new shared library. Include `strip_code_fences()` (the hardened version from T1.4). Library must be sourceable (`source .claude/scripts/lib/findings-lib.sh`) with no side effects on source. Functions maintain identical signatures and behavior. Add header comment explaining purpose and consumers. |
+| T3.2 | Create `.claude/scripts/lib/compliance-lib.sh` | Extract `extract_sections_by_keywords()` and `load_compliance_keywords()` (the config-reading wrapper) from `red-team-code-vs-design.sh` into a shared library. Add `load_compliance_profile()` function that returns both keywords and prompt_template for a named profile. Add `load_prompt_template()` function that returns the prompt template name for a compliance gate profile. Library is sourceable with no side effects. |
+| T3.3 | Update red-team-code-vs-design.sh to source shared libraries | Replace inline function definitions with `source` calls to `findings-lib.sh` and `compliance-lib.sh`. Add backward-compatible wrapper functions that call through to the library functions (e.g., `extract_security_sections()` calls `extract_sections_by_keywords()` with security profile). Script behavior must be identical before and after — zero functional change. Verify by running the existing test cases. |
+| T3.4 | Update pipeline-self-review.sh to source shared libraries | Source `findings-lib.sh` for any findings extraction logic. Source `compliance-lib.sh` for section extraction if used. This reduces code duplication between the two scripts and ensures bug fixes in shared functions propagate to both consumers. |
+| T3.5 | Separate extraction from evaluation in compliance gate design | In `compliance-lib.sh`, document the separation: extraction (`extract_sections_by_keywords()`) returns raw SDD sections as text; evaluation is the model prompt that interprets those sections against code. Add `get_evaluation_context()` function that returns a structured prompt preamble based on the gate profile's `prompt_template` field. For now, only `security-comparison` template exists (the current default behavior). Document how to add new templates. |
+| T3.6 | Add `prompt_template` field to compliance gate config | Update `.loa.config.yaml` to include `prompt_template: "security-comparison"` under `red_team.compliance_gates.security`. Update `.loa.config.yaml.example` with the new field and commented-out examples for future profiles (api_contract, economic_invariant). Document in `compliance-lib.sh` header that template names map to prompt construction patterns. |
 
 ---
 
-## Sprint 4: Governance Lore + Compliance Generalization
+## Sprint 4: Adaptive Intelligence + Ecosystem Design
 
-**Goal**: Codify the Governance Isomorphism pattern as lore and parameterize the compliance gate for extensibility.
+**Goal**: Enable the review system to learn from and optimize its own operation. Design (but do not fully implement) the adaptive token budget, cost tracking, and cross-repo governance protocol. These are the seeds for SPEC-2 (reputation-weighted deliberation) and SPEC-5 (economic governance of review depth).
 
 ### Tasks
 
 | ID | Task | Acceptance Criteria |
 |----|------|---------------------|
-| T4.1 | Create Governance Isomorphism lore entry | New entry in `grimoires/loa/lore/patterns.yaml` with id, term, short, context, source, and tags fields. Discoverable via `memory-query.sh` and loadable by bridge reviews. |
-| T4.2 | Extract security keywords to config | New `.loa.config.yaml` section: `red_team.compliance_gates.security.keywords` containing the current hardcoded keyword list. Script reads from config, falling back to hardcoded defaults. |
-| T4.3 | Parameterize `extract_security_sections()` | Rename to `extract_sections_by_keywords()`. Accept keywords as parameter (pipe-separated regex). Wrapper function `extract_security_sections()` calls it with security keywords for backward compatibility. |
-| T4.4 | Add compliance gate profile schema in config | Document the schema for named compliance gate profiles (name, keywords, prompt_template). Create the `security` profile as the first instance. Other profiles (accessibility, performance) documented as future examples. |
-| T4.5 | Document cross-repo SDD index schema | Create `grimoires/loa/lore/cross-repo-compliance-design.md` documenting the design for cross-repository compliance checking. This is a design document, not implementation — seeds future cycle work. |
-| T4.6 | Update lore index with new patterns | If `grimoires/loa/lore/index.yaml` exists, update it. If not, create the index. Ensure the Governance Isomorphism entry is discoverable by bridge lore loading. |
+| T4.1 | Implement adaptive token budget (config-gated) | In `red-team-code-vs-design.sh`, add `compute_adaptive_budget()` function that weights channel budgets by input size (larger inputs get proportionally more budget, with floor of 4000 chars per channel). Gated by `red_team.adaptive_budget.enabled: false` (default). When disabled, existing equal-split behavior is unchanged. When enabled, budget allocation logged in deliberation-metadata.json with `mode: "adaptive"` vs `mode: "equal"`. |
+| T4.2 | Add cost tracking metadata to bridge state | In `bridge-orchestrator.sh`, after each Red Team invocation, estimate inference cost from char counts (1 token ~ 4 chars) and `COST_INPUT`/`COST_OUTPUT` arrays in model-adapter.sh. Log to `.run/bridge-state.json` under `metrics.cost_estimates[]`: `{iteration, red_team_invocations, estimated_input_tokens, estimated_output_tokens, cost_estimate_usd}`. This provides the data substrate for SPEC-5 (economic governance of review depth). |
+| T4.3 | Create economic feedback signal design | Add to `grimoires/loa/lore/cross-repo-compliance-design.md` a new section: "Economic Feedback for Review Depth". Document the design: after each bridge iteration, compute marginal cost (API spend this iteration) and marginal value (findings addressed / cost). When marginal value drops below threshold (configurable), emit `DIMINISHING_RETURNS` signal. This signal could trigger early flatline or prompt human decision. Design only — not wired into orchestrator. |
+| T4.4 | Document cross-repo governance protocol | Extend `grimoires/loa/lore/cross-repo-compliance-design.md` with "Specification Change Notification" section. Document: (a) how SDD changes in repo A trigger review in dependent repo B, (b) event format (`{sdd_path, diff_summary, source_repo, source_pr}`), (c) transport options (GitHub webhooks, A2A protocol, shared event store), (d) prerequisite: shared SDD index. Reference loa-finn #31 ModelPort for the capability discovery layer. |
+| T4.5 | Document capability-driven orchestration vision | Create `grimoires/loa/lore/capability-orchestration-design.md` documenting the evolution from hardcoded bridge signals to capability-driven discovery. Key concepts: bridge orchestrator queries available review capabilities (security, architecture, contract, economic), composes deliberation chain dynamically, allocates token budgets per capability. Reference: Kubernetes Admission Controllers (composable validation gates), Chromium OWNERS (specification-based review routing). This seeds SPEC-1 (capability markets). |
+| T4.6 | Update lore entries with ecosystem cross-references | Add Deliberative Council connections to existing Governance Isomorphism lore entry context field — reference the Condorcet jury parallel, the Google Tricorder cascading analogy, and the web4 "findings must be scarce but perspectives can be infinite" insight from Part 3. Ensure both entries cross-reference each other. Update index.yaml with the new Deliberative Council entry. |

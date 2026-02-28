@@ -491,6 +491,34 @@ Proceed to Phase 5.
 
 ---
 
+#### Red Team Integration Status (cycle-047)
+
+Phase 4.5 is **off by default** (`red_team.simstim.auto_trigger: false`). This is a
+deliberate progressive rollout — the Red Team gate was introduced in cycle-044 and
+runs as a standalone skill (`/red-team`). Integration into simstim is opt-in until the
+gate has proven stable across multiple cycles.
+
+**To enable Red Team in simstim:**
+
+```yaml
+# .loa.config.yaml
+red_team:
+  enabled: true
+  simstim:
+    auto_trigger: true   # Enable Phase 4.5
+```
+
+**What Phase 4.5 reviews:**
+- SDD security sections against known attack patterns
+- Architecture decisions that may introduce OWASP Top 10 vulnerabilities
+- Trust boundary crossings and privilege escalation paths
+
+**Evidence of execution:** When active, Phase 4.5 logs to `.run/simstim-state.json`
+under `phases.red_team_sdd` and produces attack findings in the Flatline output
+directory (`grimoires/loa/a2a/flatline/`).
+
+---
+
 <phase_5_planning>
 ### Phase 5: PLANNING [5/8]
 

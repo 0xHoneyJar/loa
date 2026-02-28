@@ -77,6 +77,7 @@ interprets and acts on:
 | `RUN_SPRINT_PLAN` | Execute `/run sprint-plan` |
 | `RUN_PER_SPRINT` | Execute per-sprint mode |
 | `PIPELINE_SELF_REVIEW` | Detect .claude/ changes → run Red Team against pipeline SDDs (gated by `run_bridge.pipeline_self_review.enabled`) |
+| `RED_TEAM_CODE` | Run `red-team-code-vs-design.sh` against SDD sections for implemented code (gated by `red_team.code_vs_design.enabled`) |
 | `BRIDGEBUILDER_REVIEW` | Invoke Bridgebuilder on changes |
 | `VISION_CAPTURE` | Check findings for VISION/SPECULATION severity → invoke `bridge-vision-capture.sh` (gated by `vision_registry.bridge_auto_capture`) |
 | `GITHUB_TRAIL` | Run `bridge-github-trail.sh` |
@@ -97,6 +98,41 @@ Before the Bridgebuilder review, the pipeline can review changes to itself:
 
 This addresses the "pipeline bugs have multiplicative impact" insight — the review
 infrastructure should examine itself with the same rigor it examines application code.
+
+#### Red Team Gate Placement (cycle-047)
+
+The Red Team code-vs-design gate (`red-team-code-vs-design.sh`) runs **before** the
+Bridgebuilder review, after code has been implemented. This placement is deliberate:
+
+```
+RUN_SPRINT_PLAN → PIPELINE_SELF_REVIEW → RED_TEAM_CODE → BRIDGEBUILDER_REVIEW → FLATLINE_CHECK
+```
+
+**Why before Bridgebuilder, not after:**
+- Red Team checks code-vs-SDD **compliance** (did the code match the design?)
+- Bridgebuilder reviews **quality and architecture** (is the design evolving well?)
+- Compliance findings should be fixed before the Bridgebuilder sees the code,
+  otherwise the Bridgebuilder wastes attention on compliance drift that will be fixed
+
+**Why after implementation, not before:**
+- Red Team needs actual code diff to compare against the SDD
+- Pre-implementation Red Team is the `/red-team` skill (design-phase, attacks-only)
+- Post-implementation Red Team is `red-team-code-vs-design.sh` (compliance check)
+
+**Relationship to reviewer/auditor in `/run`:**
+- `/run` cycle: implement → `/review-sprint` → `/audit-sprint` (per-sprint quality gates)
+- Bridge cycle: sprint-plan → Red Team → Bridgebuilder (cross-iteration quality gates)
+- These are complementary — `/run` gates check sprint-level quality, bridge gates
+  check iteration-level architectural drift
+
+**Configuration:**
+```yaml
+# .loa.config.yaml
+red_team:
+  enabled: true
+  code_vs_design:
+    enabled: true          # Enable Red Team code-vs-design in bridge iterations
+```
 
 #### VISION_CAPTURE → LORE_DISCOVERY Chain (v1.42.0)
 
