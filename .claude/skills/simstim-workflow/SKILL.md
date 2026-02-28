@@ -261,6 +261,10 @@ If only one config flag is set, skip with warning:
 4. **Read artifacts**:
    - SDD: `grimoires/loa/sdd.md` (full document; if >5K tokens, summarize per Run Bridge truncation strategy)
    - PRD: `grimoires/loa/prd.md` (for requirement traceability)
+   - Discovery notes (optional): `grimoires/loa/context/` files and
+     `grimoires/loa/a2a/flatline/prd-review.json` (if they exist). These enable
+     tracing the full problem → requirements → design reasoning chain. Skip
+     silently if not present.
 
 5. **Generate review**: Using the Bridgebuilder persona and
    `.claude/data/design-review-prompt.md` template, evaluate the SDD against 6 dimensions:
@@ -313,7 +317,10 @@ If only one config flag is set, skip with warning:
      `bridgebuilder_sdd.rework_count` (max 2). After 2 cycles,
      REFRAME findings are presented as accept-minor-only or auto-defer.
    - Reject: Log rationale to trajectory
-   - Defer: Capture as vision entry
+   - Defer: Reclassify finding as VISION (preserving `original_severity: "REFRAME"`
+     in metadata) and capture as vision entry in Step 9. This semantic transition
+     reflects the state change: an active design question becomes a preserved
+     insight for later exploration.
 
    **CRITICAL findings** (mandatory acknowledgment):
    ```
@@ -354,7 +361,8 @@ If only one config flag is set, skip with warning:
 
    **VISION findings**: Auto-capture to vision registry (no user interaction)
 
-9. **Vision capture** (if any VISION/SPECULATION findings and
+9. **Vision capture** (if any VISION/SPECULATION findings — including
+   deferred REFRAMEs reclassified as VISION in Step 8 — and
    `bridgebuilder_design_review.vision_capture: true`):
    ```bash
    .claude/scripts/bridge-vision-capture.sh \
