@@ -97,7 +97,7 @@ extract_security_sections() {
             fi
 
             # Check if this header matches security keywords
-            if echo "$line" | grep -iqE '(Security|Authentication|Authorization|Validation|Error.Handling|Access.Control|Secrets|Encryption|Input.Sanitiz)'; then
+            if printf '%s\n' "$line" | grep -iqE '(Security|Authentication|Authorization|Validation|Error.Handling|Access.Control|Secrets|Encryption|Input.Sanitiz)'; then
                 in_section=true
                 section_level=$level
             fi
@@ -248,6 +248,7 @@ main() {
     # Build comparison prompt
     local prompt_file
     prompt_file=$(mktemp)
+    trap 'rm -f "$prompt_file"' EXIT
     cat > "$prompt_file" << 'PROMPT'
 You are a security design verification agent. Compare the SDD security design specifications below to the actual code changes.
 
