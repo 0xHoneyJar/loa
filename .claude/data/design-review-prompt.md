@@ -15,10 +15,10 @@ checks.
 - **SDD**: The document under review
 - **PRD**: The requirements the SDD must satisfy
 - **Lore**: Accumulated ecosystem patterns (if available)
-- **Discovery notes** (optional): Phase 1 interview transcripts or Flatline PRD
-  review results. When present, enables tracing the full reasoning chain:
-  problem → requirements → design. Without discovery notes, frame questioning
-  is limited to the PRD-to-SDD translation.
+- **Discovery notes** (optional, budget: 3K tokens): Phase 1 interview transcripts
+  or Flatline PRD review results. When present, enables tracing the full reasoning
+  chain: problem → requirements → design. Without discovery notes, frame
+  questioning is limited to the PRD-to-SDD translation.
 
 ## Evaluation Dimensions
 
