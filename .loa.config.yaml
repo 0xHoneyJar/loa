@@ -212,6 +212,22 @@ red_team:
     phase: post_sdd
   bridge:
     enabled: false
+  # Compliance Gate Profiles — parameterized keyword extraction (cycle-046 FR-4)
+  # The 'security' profile is the default. Additional profiles (accessibility,
+  # performance) can be added following the same schema.
+  compliance_gates:
+    security:
+      keywords:
+        - Security
+        - Authentication
+        - Authorization
+        - Validation
+        - Error.Handling
+        - Access.Control
+        - Secrets
+        - Encryption
+        - Input.Sanitiz
+      # prompt_template: null  # Future: custom prompt per profile
   # Code-vs-Design gate — compares SDD security design to implemented code (cycle-045)
   code_vs_design:
     enabled: false                    # Default off — opt-in per FR-3

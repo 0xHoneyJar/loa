@@ -1,0 +1,17 @@
+# Lore Index — Discoverable patterns for bridge reviews and memory queries
+# Updated by: bridge vision elevation, retrospective analysis, manual curation
+# Queried by: bridge lore loading (SKILL.md Phase 3.1 step 3), memory-query.sh
+
+version: 1
+categories:
+  - id: patterns
+    source: patterns.yaml
+    description: Discovered architectural patterns from bridge reviews
+    entries:
+      - governance-isomorphism
+
+  # Future categories (populated by bridge vision elevation):
+  # - id: visions
+  #   source: visions.yaml
+  #   description: Elevated visions from the Vision Registry
+  #   entries: []
