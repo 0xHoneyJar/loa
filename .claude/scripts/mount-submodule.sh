@@ -785,7 +785,7 @@ update_gitignore_for_submodule() {
 
   # Remove .loa/ from gitignore if present (submodule must be tracked)
   if grep -q "^\.loa/$" "$gitignore" 2>/dev/null; then
-    sed -i '/^\.loa\/$/d' "$gitignore"
+    sed '/^\.loa\/$/d' "$gitignore" > "$gitignore.tmp" && mv "$gitignore.tmp" "$gitignore"
     log "  Removed .loa/ from .gitignore (submodule must be tracked)"
   fi
 

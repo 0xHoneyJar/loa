@@ -152,21 +152,12 @@ SKILLS_DIR=$(get_registry_skills_dir)
 PACKS_DIR=$(get_registry_packs_dir)
 
 # --- Portable word-boundary matching (BB-101) ---
-# grep -P (Perl regex \b) is not available on macOS/BSD. Detect and fall back.
-HAS_GREP_P=false
-if printf 'test' | grep -qP '\btest\b' 2>/dev/null; then
-    HAS_GREP_P=true
-fi
-
-# Match a word with word-boundary semantics, case-insensitive
-# Uses grep -P \b when available, falls back to grep -wi (whole-word)
+# Always use POSIX-compatible grep -w for word-boundary semantics.
+# Perl regex word boundaries (\b) are not available on macOS/BSD,
+# but grep -w provides equivalent matching for single-word patterns.
 grep_word_boundary() {
     local word="$1"
-    if [[ "$HAS_GREP_P" == "true" ]]; then
-        grep -qiP -- "\\b${word}\\b" 2>/dev/null
-    else
-        grep -qwi -- "$word" 2>/dev/null
-    fi
+    grep -qwi -- "$word" 2>/dev/null
 }
 
 # --- Scoring function ---
