@@ -3,6 +3,7 @@
 
 simstim:
   enabled: true
+  bridgebuilder_design_review: false  # Phase 3.5 gate
   flatline:
     auto_accept_high_consensus: true
     show_disputed: true
@@ -124,6 +125,17 @@ run_bridge:
     redaction:
       enabled: true
       post_redaction_safety: true
+
+# Bridgebuilder Design Review (cycle-044)
+bridgebuilder_design_review:
+  enabled: false                # Default false — progressive rollout (sole gate)
+  persona_path: ".claude/data/bridgebuilder-persona.md"  # FR-5.2: configurable persona
+  lore_enabled: true            # Load lore context for reviews
+  vision_capture: true          # Capture VISION/SPECULATION to registry
+  token_budget:                 # Inherits run_bridge.bridgebuilder defaults
+    findings_tokens: 5000
+    insights_tokens: 25000
+    total_tokens: 30000         # Output budget only (input context is additional)
 
 flatline_protocol:
   enabled: true

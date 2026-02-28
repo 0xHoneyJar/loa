@@ -208,7 +208,7 @@ fi
 # Extract Vision Findings
 # =============================================================================
 
-vision_count=$(jq '[.findings[] | select(.severity == "VISION")] | length' "$FINDINGS_FILE")
+vision_count=$(jq '[.findings[] | select(.severity == "VISION" or .severity == "SPECULATION")] | length' "$FINDINGS_FILE")
 
 if [[ "$vision_count" -eq 0 ]]; then
   echo "0"
@@ -267,7 +267,7 @@ while IFS= read -r vision; do
     > "$entries_dir/${vision_id}.md"
 
   captured=$((captured + 1))
-done < <(jq -c '.findings[] | select(.severity == "VISION")' "$FINDINGS_FILE")
+done < <(jq -c '.findings[] | select(.severity == "VISION" or .severity == "SPECULATION")' "$FINDINGS_FILE")
 
 # Update index.md
 if [[ -f "$OUTPUT_DIR/index.md" ]]; then
@@ -288,7 +288,7 @@ if [[ -f "$OUTPUT_DIR/index.md" ]]; then
     fi
 
     local_num=$((local_num + 1))
-  done < <(jq -c '.findings[] | select(.severity == "VISION")' "$FINDINGS_FILE")
+  done < <(jq -c '.findings[] | select(.severity == "VISION" or .severity == "SPECULATION")' "$FINDINGS_FILE")
 
   # Regenerate statistics dynamically from table rows
   vision_regenerate_index_stats "$OUTPUT_DIR/index.md" 2>/dev/null || true
