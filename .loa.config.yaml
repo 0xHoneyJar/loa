@@ -8,6 +8,7 @@ simstim:
     auto_accept_high_consensus: true
     show_disputed: true
     show_blockers: true
+    beads_loop: true                    # Phase 6.5: Flatline Beads iterative refinement
     phases:
       - prd
       - sdd

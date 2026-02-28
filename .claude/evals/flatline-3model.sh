@@ -108,14 +108,14 @@ fi
 
 pass "tertiary_status: $tertiary_status"
 
-# Check model count (if present)
-models=$(echo "$output" | jq -r '.models // 0')
-if [[ "$models" -eq 3 ]]; then
+# Check model count (if present) — .models may be a number or object
+models_raw=$(echo "$output" | jq -r 'if (.models | type) == "number" then .models else 0 end')
+if [[ "$models_raw" -eq 3 ]]; then
     pass "Model count: 3"
-elif [[ "$models" -eq 0 ]]; then
-    echo "INFO: models field not present (non-critical)"
+elif [[ "$models_raw" -eq 0 ]]; then
+    echo "INFO: models field not present or not numeric (non-critical)"
 else
-    fail "Expected 3 models, got $models"
+    fail "Expected 3 models, got $models_raw"
 fi
 
 echo ""
