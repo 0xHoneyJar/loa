@@ -8,6 +8,7 @@ simstim:
     auto_accept_high_consensus: true
     show_disputed: true
     show_blockers: true
+    beads_loop: true                    # Phase 6.5: Flatline Beads iterative refinement
     phases:
       - prd
       - sdd
@@ -101,6 +102,12 @@ vision_registry:
 prompt_isolation:
   enabled: true                # Enable context isolation wrappers in prompt construction
 
+# Continuous Learning — Skill Extraction (cycle-046)
+continuous_learning:
+  skills_dir: grimoires/loa/skills
+  pending_dir: grimoires/loa/skills-pending
+  archive_dir: grimoires/loa/skills-archived
+
 run_bridge:
   enabled: true
   defaults:
@@ -125,6 +132,9 @@ run_bridge:
     redaction:
       enabled: true
       post_redaction_safety: true
+  pipeline_self_review:
+    enabled: false              # Default false — progressive rollout
+    base_branch: main           # Branch to diff against
 
 # Bridgebuilder Design Review (cycle-044)
 bridgebuilder_design_review:
@@ -147,6 +157,7 @@ flatline_protocol:
   models:
     primary: opus
     secondary: gpt-5.3-codex
+    tertiary: gemini-2.5-pro        # 3-model Flatline (also read from hounfour.flatline_tertiary_model)
   thresholds:
     high_consensus: 700
     disputed_delta: 300
@@ -207,3 +218,28 @@ red_team:
     phase: post_sdd
   bridge:
     enabled: false
+  # Compliance Gate Profiles — parameterized keyword extraction (cycle-046 FR-4)
+  # The 'security' profile is the default. Additional profiles (accessibility,
+  # performance) can be added following the same schema.
+  compliance_gates:
+    security:
+      # Values are grep -E regex patterns. Use "." for single-char wildcard
+      # (e.g., "Error.Handling" matches "Error Handling" and "Error-Handling").
+      keywords:
+        - Security
+        - Authentication
+        - Authorization
+        - Validation
+        - Error.Handling
+        - Access.Control
+        - Secrets
+        - Encryption
+        - Input.Sanitiz
+      prompt_template: "security-comparison"  # Maps to get_evaluation_context() in compliance-lib.sh
+  # Code-vs-Design gate — compares SDD security design to implemented code (cycle-045)
+  code_vs_design:
+    enabled: false                    # Default off — opt-in per FR-3
+    max_cycles: 2                     # Circuit breaker: max re-implementation cycles
+    skip_if_no_sdd: true             # Skip silently when no SDD exists
+    severity_threshold: 700           # Only divergences >700 trigger re-implementation
+    token_budget: 150000              # 150K token ceiling per invocation

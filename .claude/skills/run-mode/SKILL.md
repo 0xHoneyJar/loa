@@ -87,7 +87,29 @@ while circuit_breaker.state == CLOSED:
   4. If findings → continue loop
   5. /audit-sprint target
   6. If findings → continue loop
-  7. If COMPLETED → break
+  7. RED_TEAM_CODE gate (if enabled):
+     a. Check: red_team.code_vs_design.enabled == true in .loa.config.yaml
+     b. Check: SDD exists at grimoires/loa/sdd.md (or skip_if_no_sdd behavior)
+     c. Invoke: .claude/scripts/red-team-code-vs-design.sh \
+          --sdd grimoires/loa/sdd.md \
+          --diff - \              # pipe git diff main...HEAD
+          --output grimoires/loa/a2a/sprint-{N}/red-team-code-findings.json \
+          --sprint sprint-{N} \
+          --prior-findings grimoires/loa/a2a/sprint-{N}/engineer-feedback.md \
+          --prior-findings grimoires/loa/a2a/sprint-{N}/auditor-sprint-feedback.md
+        Note: --prior-findings paths are only passed when the files exist.
+        This enables the "Deliberative Council" pattern — the Red Team gate
+        sees what the reviewer and auditor already found, enabling focused
+        analysis rather than duplicating earlier findings.
+     d. Parse output: check summary.actionable count
+     e. If actionable > 0 (CONFIRMED_DIVERGENCE above severity_threshold):
+        - Increment red_team_code.cycles in .run/state.json
+        - If red_team_code.cycles >= red_team_code.max_cycles (default 2):
+            Log WARNING: "Red Team code-vs-design max cycles reached, skipping"
+            Continue to COMPLETE
+        - Else: continue loop (back to /implement)
+     f. If no actionable findings → continue to COMPLETE
+  8. If COMPLETED → break
 
 Create draft PR
 Invoke Post-PR Validation (if enabled)
@@ -159,7 +181,7 @@ Before any execution:
 
 ## Circuit Breaker
 
-Four triggers that halt execution:
+Four triggers that halt execution (main loop):
 
 | Trigger | Default Threshold | Description |
 |---------|-------------------|-------------|
@@ -174,6 +196,35 @@ When tripped:
 - Work is committed and pushed
 - Draft PR created marked `[INCOMPLETE]`
 - Resume instructions displayed
+
+### Red Team Code-vs-Design Circuit Breaker
+
+Separate counter from the main circuit breaker, specifically for the RED_TEAM_CODE gate:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `red_team.code_vs_design.max_cycles` | 2 | Max re-implementation cycles triggered by divergence findings |
+| `red_team.code_vs_design.severity_threshold` | 700 | Only CONFIRMED_DIVERGENCE findings above this severity trigger re-implementation |
+
+State tracked in `.run/state.json`:
+
+```json
+{
+  "red_team_code": {
+    "cycles": 0,
+    "max_cycles": 2,
+    "findings_total": 0,
+    "divergences_found": 0,
+    "last_findings_hash": null
+  }
+}
+```
+
+**Behavior**:
+- When `red_team_code.cycles >= max_cycles`: log WARNING "Red Team code-vs-design max cycles reached, skipping" and continue to COMPLETE
+- When `red_team.code_vs_design.enabled: false`: skip RED_TEAM_CODE gate entirely
+- When SDD does not exist AND `skip_if_no_sdd: true`: skip silently
+- When SDD does not exist AND `skip_if_no_sdd: false`: error and HALT
 
 ## ICE (Intrusion Countermeasures Electronics)
 

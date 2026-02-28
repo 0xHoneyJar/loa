@@ -68,11 +68,11 @@ This skill manages its own multi-phase autonomous workflow. DO NOT use Claude Co
 
 ## Constraint Rules
 
-<!-- @constraint-generated: start autonomous_agent_constraints | hash:a11560989942e725 -->
+<!-- @constraint-generated: start autonomous_agent_constraints | hash:5f8c6f804f86cd2c -->
 <!-- DO NOT EDIT — generated from .claude/data/constraints.json -->
 1. NEVER call `EnterPlanMode` — autonomous phases ARE the plan
 2. NEVER jump to implementation after any user confirmation
-3. Each phase MUST complete sequentially: 0→1→2→3→4→5→6→6.5→7→8
+3. Each phase MUST complete sequentially: 0→1→2→3→3.5→4→4.5→5→6→6.5→7→8
 4. This skill orchestrates OTHER skills — each has its own workflow
 5. Implementation phases MUST use `/run sprint-plan`, `/run sprint-N`, or `/bug` — NEVER implement directly
 6. Do NOT use `/implement` without `/run` — `/run` provides the review→audit cycle

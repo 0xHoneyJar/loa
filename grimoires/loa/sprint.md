@@ -1,128 +1,89 @@
-# Sprint Plan: Bridgebuilder Design Review — Pre-Implementation Architectural Intelligence
+# Sprint Plan: Compassionate Excellence — Bridgebuilder Deep Review Integration
 
-> **Cycle**: 044
+> **Cycle**: 047
 > **Created**: 2026-02-28
 > **PRD**: `grimoires/loa/prd.md`
 > **SDD**: `grimoires/loa/sdd.md`
-> **Target**: `.claude/` System Zone (skills, scripts, data) + `.loa.config.yaml`
+> **Target**: `.claude/` System Zone (scripts, skills, data, lib) + `.loa.config.yaml` + `grimoires/loa/lore/`
+> **Source Feedback**: PR #433 — Bridge iter 1 (F-001–F-013), Deep Review Parts 1-5 (R-1–R-6, SPEC-1–SPEC-5), User observations
 
 ---
 
 ## Sprint Overview
 
-This cycle has **3 sprints** covering the full Phase 3.5 implementation. All sprints modify System Zone files (`.claude/`) and the config file.
+This cycle implements ALL feedback from PR #433's bridge review and deep Bridgebuilder review, organized from verification/hardening through architectural promotion to library extraction and forward-looking design.
 
 | Sprint | Label | Focus | Dependency |
 |--------|-------|-------|------------|
-| 1 | Core Phase Integration | SKILL.md, parser, prompt template, config, constraints | None |
-| 2 | HITL Interaction + Vision Capture | Severity-specific interaction, REFRAME transitions, vision capture | Sprint 1 |
-| 3 | Hardening + Validation | Resume, graceful degradation, trajectory logging, bridge validation | Sprint 2 |
+| 1 | Verification + Defensive Hardening | FR-1: Gemini trace, Red Team docs, F-004/F-007 fixes, observability | None |
+| 2 | Constitutional Architecture | FR-2: SDD map promotion, reverse mapping, lore lifecycle, discoverability | None |
+| 3 | Shared Library Extraction | FR-3: findings-lib.sh, compliance-lib.sh, gate separation, prompt_template | Sprint 1 (fence stripping function) |
+| 4 | Adaptive Intelligence + Ecosystem Design | FR-4: adaptive budget, cost tracking, economic feedback, cross-repo protocol | Sprint 3 (library functions) |
 
 ---
 
-## Sprint 1: Core Phase Integration
+## Sprint 1: Verification + Defensive Hardening
 
-**Goal**: Wire Phase 3.5 into the simstim workflow with generation, parsing, and configuration. The phase generates a review and parses findings but does NOT implement HITL interaction yet (that's Sprint 2).
+**Goal**: Verify that claimed capabilities (Gemini, Red Team) actually work end-to-end. Address accepted LOW findings from bridge review. Add deliberation observability so we can track how the review system makes decisions.
 
 ### Tasks
 
 | ID | Task | Acceptance Criteria |
 |----|------|---------------------|
-| T1.1 | Add Phase 3.5 section to `.claude/skills/simstim-workflow/SKILL.md` (steps 1-7, 10-11 from SDD Section 2.1) | Section inserted between `</phase_3_architecture>` and `<phase_4_flatline_sdd>`. Steps: update state, load persona, load lore, read artifacts (SDD summarized if >5K tokens per Run Bridge truncation strategy), generate review, save review (`mkdir -p .run/bridge-reviews/` before write), parse findings, update checksum, complete phase. Include advisory timing note per SDD Section 5.3. Verify `bridgebuilder_sdd` is NOT added to `force_phase()` whitelist (SDD Section 2.5). |
-| T1.2 | Update Phase 3 ending directive in SKILL.md | `Proceed to Phase 3.5 (if enabled) or Phase 4.` replaces `Proceed to Phase 4.` |
-| T1.3 | Update resume jump table in SKILL.md | `bridgebuilder_sdd → Phase 3.5` added between `architecture` and `flatline_sdd` |
-| T1.4 | Update constraint rule in `.claude/data/constraints.json` (C-PHASE-004) AND generated SKILL.md text | `text_variants.skill-md` updated to `0→1→2→3→3.5→4→4.5→5→6→6.5→7→8` in constraints.json (also fixes missing 4.5). Generated constraint text in SKILL.md also updated to match. |
-| T1.5 | Add REFRAME to `.claude/scripts/bridge-findings-parser.sh` severity weight map (line 30-38) | `["REFRAME"]=0` added to `SEVERITY_WEIGHTS` associative array |
-| T1.6 | Add REFRAME to `bridge-findings-parser.sh` jq weight mapping (lines 354-364) | `elif .severity == "REFRAME" then 0` added |
-| T1.7 | Add REFRAME to `bridge-findings-parser.sh` by_severity output | `by_reframe` computation added (after `by_speculation`, ~line 378). `--argjson reframe "$by_reframe"` added to jq output construction. Empty-findings default includes `"reframe": 0`. |
-| T1.8 | Update `.claude/scripts/bridge-vision-capture.sh` jq filters to include SPECULATION | All 3 `select(.severity == "VISION")` filters (lines 211, 270, 291) changed to `select(.severity == "VISION" or .severity == "SPECULATION")` |
-| T1.9 | Create `.claude/data/design-review-prompt.md` | Template per SDD Section 4.2: 6 evaluation dimensions, dual-stream output format, severity guide, token budget (30K output) |
-| T1.10 | Add `bridgebuilder_design_review` config section to `.loa.config.yaml` | Top-level section with: `enabled: false`, `persona_path`, `lore_enabled: true`, `vision_capture: true`, `token_budget` (5K/25K/30K). Placed after `run_bridge:`. |
-| T1.11 | Add `bridgebuilder_design_review: false` under `simstim:` in `.loa.config.yaml` | Single line addition under existing `simstim:` section |
-| T1.12 | Implement config gate validation with mismatch warning in Phase 3.5 trigger | If `bridgebuilder_design_review.enabled` and `simstim.bridgebuilder_design_review` disagree, emit warning with specific guidance. Phase skipped unless both are true. Prevents silent skip from Sprint 1 onward. |
-
-**Exit Criteria**: Phase 3.5 section exists in SKILL.md. REFRAME appears in parser severity map. Config keys present with `false` defaults. Constraint rule updated. Design review prompt template created.
+| T1.1 | Investigate Gemini participation in Flatline Protocol | Trace from `.loa.config.yaml` `flatline_protocol.models.tertiary: gemini-2.5-pro` through `flatline-orchestrator.sh` `get_model_tertiary()` to `model-adapter.sh` API call. Verify `MODEL_PROVIDERS[gemini-2.5-pro]` exists and routes correctly. If wiring is broken, fix it. If working, add a verification log line that confirms Gemini was invoked. Document findings in NOTES.md. |
+| T1.2 | Document Red Team integration in simstim workflow | Add "Red Team Integration" section to `.claude/skills/simstim-workflow/SKILL.md` explaining: (a) current status (`red_team.simstim.auto_trigger: false`), (b) what happens when enabled (fires after /audit-sprint, before bridge review), (c) how to enable (`red_team.simstim.auto_trigger: true` + `red_team.bridge.enabled: true`), (d) what it reviews (code diff against SDD with prior review/audit findings). Update `.loa.config.yaml.example` with documented keys. |
+| T1.3 | Fix F-004: glob `*` matching across `/` boundaries | In `pipeline-self-review.sh` `resolve_pipeline_sdd()`, change the jq glob-to-regex from `gsub("\\*"; ".*")` to a two-pass approach: first `gsub("\\*\\*"; ".*")` for recursive globs, then `gsub("\\*"; "[^/]*")` for single-segment globs. Add comment explaining the distinction. Verify with test paths: `.claude/scripts/flatline-orchestrator.sh` matches `flatline-*.sh` but NOT `.claude/scripts/subdir/flatline-foo.sh`. |
+| T1.4 | Harden F-007: fence stripping with preamble text | Modify `strip_code_fences()` in `red-team-code-vs-design.sh` to handle the case where model output starts with prose before a code fence. If the first line is not a fence but the output contains a fence, scan for the first fence line and extract from there. Add test case: input = `"Here is the analysis:\n\`\`\`json\n{\"score\": 800}\n\`\`\`"` → output = `{"score": 800}`. |
+| T1.5 | Add deliberation observability to Red Team invocations | In `red-team-code-vs-design.sh`, after prompt assembly and before model invocation, log a `deliberation-metadata.json` file to the sprint output directory containing: `input_channels` (count), `char_counts` (sdd, diff, prior_findings), `token_budget`, `budget_per_channel`, `prior_findings_paths` (list of files used). This file provides the "meeting minutes" for each deliberation — enabling institutional learning about what input mixes produce the best outcomes. |
+| T1.6 | Add Red Team placement guidance to run-bridge SKILL.md | Add a "Red Team Gate Placement" subsection documenting: Red Team fires AFTER reviewer + auditor (step 7 in run-mode), as the final quality gate before sprint completion. In run-bridge, it fires within each sprint's implement→review→audit→red-team cycle. Clarify it does NOT replace the Bridgebuilder (which reviews across all sprints at the bridge level). |
 
 ---
 
-## Sprint 2: HITL Interaction + Vision Capture
+## Sprint 2: Constitutional Architecture
 
-**Goal**: Add the HITL interaction model for all severity levels and wire vision capture with synthetic bridge-id.
+**Goal**: Promote governance artifacts from data files to constitutional status. Add lifecycle semantics to lore entries so patterns can evolve through challenge and refinement. Enable reverse mapping so we can answer "what implementations does this SDD govern?"
 
 ### Tasks
 
 | ID | Task | Acceptance Criteria |
 |----|------|---------------------|
-| T2.1 | Add step 8 HITL interaction to Phase 3.5 SKILL.md — REFRAME findings | REFRAME findings presented with 4 options: Accept minor (modify SDD), Accept major (return to Phase 3), Reject (log rationale), Defer (capture as vision). Accept major includes circuit breaker (max 2 rework cycles tracked in `bridgebuilder_sdd.rework_count`). |
-| T2.2 | Add step 8 HITL interaction — CRITICAL findings | CRITICAL findings presented with mandatory acknowledgment: Accept (modify SDD), Return to Architecture, Reject (with rationale). No Defer option — CRITICAL findings demand a decision, not deferral (intentional per SDD). |
-| T2.3 | Add step 8 HITL interaction — HIGH/MEDIUM findings | Presented with Accept/Reject/Defer options. Accepted findings → agent modifies SDD. Deferred → vision capture. |
-| T2.4 | Add step 8 HITL interaction — SPECULATION findings | Presented as "architectural alternatives": Accept (incorporate into SDD), Defer (capture as vision). No Reject option. |
-| T2.5 | Add step 8 HITL interaction — LOW/PRAISE/VISION findings | LOW: display for awareness, no action. PRAISE: display to user. VISION: auto-capture to registry. |
-| T2.6 | Add step 9 vision capture with synthetic bridge-id | `bridge-vision-capture.sh --findings ... --bridge-id "design-review-{simstim_id}" --iteration 1 --output-dir grimoires/loa/visions`. Triggered when VISION or SPECULATION findings exist AND `bridgebuilder_design_review.vision_capture: true`. |
-| T2.7 | Implement REFRAME "accept major" state transition | On accept major: (1) set `bridgebuilder_sdd` to `incomplete`, (2) set `architecture` to `in_progress`, (3) preserve REFRAME context to `.run/bridge-reviews/reframe-context.md`, (4) increment `bridgebuilder_sdd.rework_count`, (5) return to Phase 3. |
-| T2.8 | Implement SDD checksum update after modifications (step 10) | After any SDD modification via accepted findings, run `simstim-state.sh add-artifact sdd grimoires/loa/sdd.md` to refresh checksum. |
-
-**Exit Criteria**: All severity levels have defined HITL interaction. REFRAME accept major correctly transitions state. Vision capture produces entries with `design-review-` provenance. SDD checksum updated after modifications.
+| T2.1 | Promote pipeline-sdd-map.json to constitutional status | Add `constitutional: true` flag to the pipeline-sdd-map.json's self-referencing entry. In `pipeline-self-review.sh`, when a matched pattern has `constitutional: true`, emit a `CONSTITUTIONAL_CHANGE` marker in the findings JSON output (severity: HIGH, category: "constitutional"). The bridge orchestrator or PR comment should surface this marker prominently. This ensures changes to the governance map itself receive scrutiny proportional to their blast radius. |
+| T2.2 | Implement reverse SDD mapping | Add `resolve_governed_implementations()` function to `pipeline-self-review.sh` that, given an SDD path, returns all glob patterns governed by that SDD. Implementation: `jq -r --arg sdd "$sdd_path" '.patterns[] \| select(.sdd == $sdd) \| .glob' "$map_file"`. Add a `--reverse <sdd-path>` flag to pipeline-self-review.sh for CLI access. This enables the future use case: "when run-bridge/SKILL.md changes, which scripts need re-review?" |
+| T2.3 | Add lifecycle fields to lore entry schema | Extend `grimoires/loa/lore/patterns.yaml` entries with: `status` (enum: Active, Challenged, Deprecated, Superseded; default: Active), `challenges` (array of `{date, source, description}` objects; default: empty), `lineage` (ID of predecessor pattern or null), `superseded_by` (ID of successor pattern or null). Update existing Governance Isomorphism entry with `status: Active`, empty challenges, null lineage. This follows the RFC lifecycle model (Proposed → Active → Deprecated → Historic). |
+| T2.4 | Update lore index with lifecycle metadata | Update `grimoires/loa/lore/index.yaml` to include `status` field for each entry. Add a note documenting the lifecycle states and transition rules: Active → Challenged (when counter-evidence found), Challenged → Active (when challenge resolved), Active → Deprecated (when superseded), Deprecated → Superseded (when replacement is Active). |
+| T2.5 | Add lore discoverability for bridge reviews | In `bridge-orchestrator.sh` (or as a helper function), before the Bridgebuilder review signal, query lore entries for patterns relevant to the changed files. Relevance determined by tag matching: if changed files include `scripts/` → match tags `pipeline`, `review`; if changed files include `lore/` → match tags `governance`, `architecture`. Discovered lore is included in the bridge review context. If no lore entries exist or match, skip silently. |
+| T2.6 | Create Deliberative Council lore entry | Add a new pattern entry to `grimoires/loa/lore/patterns.yaml` for the Deliberative Council pattern discovered in cycle-046 Sprint 2: `id: deliberative-council`, `term: Deliberative Council`, `short: "Later review stages condition on earlier findings, transforming sequential evaluation into structured deliberation"`, `context: (reference Condorcet jury theorem, Google ISSTA Tricorder cascading, jazz ensemble metaphor)`, `source: "bridge-deep-review-part1 / PR #433"`, `tags: [architecture, review, deliberation, pattern]`, `status: Active`. |
 
 ---
 
-## Sprint 3: Hardening + Validation
+## Sprint 3: Shared Library Extraction
 
-**Goal**: Ensure resume support, graceful degradation, observability, and validate the review quality.
+**Goal**: Factor shared functions out of monolithic scripts into importable libraries. Separate compliance gate extraction from evaluation to enable future gate profiles. These libraries become the substrate for cross-repo compliance and capability-driven orchestration.
 
 ### Tasks
 
 | ID | Task | Acceptance Criteria |
 |----|------|---------------------|
-| T3.1 | Test resume from `bridgebuilder_sdd` phase | `--resume` with state `phase: bridgebuilder_sdd` correctly routes to Phase 3.5 via jump table. `update_phase bridgebuilder_sdd in_progress` creates state key dynamically. |
-| T3.2 | Verify config gate mismatch warning works end-to-end | Test with: (a) both false → silent skip, (b) only one true → warning + skip, (c) both true → phase runs. Moved implementation to Sprint 1 (T1.12). |
-| T3.3 | Implement graceful degradation on Phase 3.5 failure | If review generation fails: log error, mark phase as `skipped`, display warning to user, continue to Phase 4. No blocking on failure. |
-| T3.4 | Add trajectory logging for vision capture events | After step 9, log to trajectory JSONL: event name, number of vision entries created, bridge-id, findings count by severity. |
-| T3.5 | Add trajectory logging for lore loading | After step 3, log to trajectory JSONL: categories loaded, number of lore entries, fallback status (if lore files missing). |
-| T3.6 | Validate review quality via bridge iteration | Run a bridge iteration with the design review enabled to verify: (a) findings JSON is parseable, (b) severity distribution is reasonable, (c) REFRAME/SPECULATION findings appear when warranted. Document results in NOTES.md. |
-
-**Exit Criteria**: Resume works. Config mismatch produces warning. Failure gracefully degrades. Trajectory logging active. One successful end-to-end design review validated.
+| T3.1 | Create `.claude/scripts/lib/findings-lib.sh` | Extract `extract_prior_findings()` from `red-team-code-vs-design.sh` into a new shared library. Include `strip_code_fences()` (the hardened version from T1.4). Library must be sourceable (`source .claude/scripts/lib/findings-lib.sh`) with no side effects on source. Functions maintain identical signatures and behavior. Add header comment explaining purpose and consumers. |
+| T3.2 | Create `.claude/scripts/lib/compliance-lib.sh` | Extract `extract_sections_by_keywords()` and `load_compliance_keywords()` (the config-reading wrapper) from `red-team-code-vs-design.sh` into a shared library. Add `load_compliance_profile()` function that returns both keywords and prompt_template for a named profile. Add `load_prompt_template()` function that returns the prompt template name for a compliance gate profile. Library is sourceable with no side effects. |
+| T3.3 | Update red-team-code-vs-design.sh to source shared libraries | Replace inline function definitions with `source` calls to `findings-lib.sh` and `compliance-lib.sh`. Add backward-compatible wrapper functions that call through to the library functions (e.g., `extract_security_sections()` calls `extract_sections_by_keywords()` with security profile). Script behavior must be identical before and after — zero functional change. Verify by running the existing test cases. |
+| T3.4 | Update pipeline-self-review.sh to source shared libraries | Source `findings-lib.sh` for any findings extraction logic. Source `compliance-lib.sh` for section extraction if used. This reduces code duplication between the two scripts and ensures bug fixes in shared functions propagate to both consumers. |
+| T3.5 | Separate extraction from evaluation in compliance gate design | In `compliance-lib.sh`, document the separation: extraction (`extract_sections_by_keywords()`) returns raw SDD sections as text; evaluation is the model prompt that interprets those sections against code. Add `get_evaluation_context()` function that returns a structured prompt preamble based on the gate profile's `prompt_template` field. For now, only `security-comparison` template exists (the current default behavior). Document how to add new templates. |
+| T3.6 | Add `prompt_template` field to compliance gate config | Update `.loa.config.yaml` to include `prompt_template: "security-comparison"` under `red_team.compliance_gates.security`. Update `.loa.config.yaml.example` with the new field and commented-out examples for future profiles (api_contract, economic_invariant). Document in `compliance-lib.sh` header that template names map to prompt construction patterns. |
 
 ---
 
-## Cross-Cutting Concerns
+## Sprint 4: Adaptive Intelligence + Ecosystem Design
 
-### File Safety
+**Goal**: Enable the review system to learn from and optimize its own operation. Design (but do not fully implement) the adaptive token budget, cost tracking, and cross-repo governance protocol. These are the seeds for SPEC-2 (reputation-weighted deliberation) and SPEC-5 (economic governance of review depth).
 
-All modified files are in `.claude/` (System Zone) or `.loa.config.yaml`. Per Three-Zone Model, System Zone writes are made by the `/implement` skill. No application code is modified.
+### Tasks
 
-### Backward Compatibility
-
-- Phase 3.5 is disabled by default (`false`). Existing workflows unaffected.
-- `bridge-findings-parser.sh` REFRAME addition is additive — existing findings without REFRAME are unaffected.
-- `bridge-vision-capture.sh` SPECULATION filter is additive — existing VISION-only captures still work.
-- `constraints.json` update fixes existing drift (missing 4.5) while adding 3.5.
-
-### Risk Registry
-
-| Risk | Sprint | Mitigation |
-|------|--------|------------|
-| SKILL.md insertion at wrong location | 1 | Verify `</phase_3_architecture>` tag exists, insert after it |
-| Parser REFRAME breaks existing tests | 1 | REFRAME is additive (weight 0), run existing parser tests |
-| Vision capture silently drops SPECULATION | 1 | T1.8 updates jq filter before T2.6 wires capture |
-| REFRAME accept-major infinite loop | 2 | Circuit breaker (T2.7, max 2 cycles) |
-| Config mismatch confuses users | 3 | Warning message (T3.2) |
-
----
-
-## Implementation Notes
-
-### Where Code Lives
-
-All code is modified in this repo (loa):
-- Skills: `.claude/skills/simstim-workflow/SKILL.md`
-- Scripts: `.claude/scripts/bridge-findings-parser.sh`, `.claude/scripts/bridge-vision-capture.sh`
-- Data: `.claude/data/design-review-prompt.md`, `.claude/data/constraints.json`
-- Config: `.loa.config.yaml`
-
-### Files NOT Modified
-
-- `.claude/scripts/simstim-orchestrator.sh` — zero changes (sub-phase pattern)
-- `.claude/data/bridgebuilder-persona.md` — reused as-is
-- `.claude/scripts/bridge-orchestrator.sh` — Run Bridge unchanged
-- `.claude/scripts/flatline-orchestrator.sh` — Flatline unchanged
+| ID | Task | Acceptance Criteria |
+|----|------|---------------------|
+| T4.1 | Implement adaptive token budget (config-gated) | In `red-team-code-vs-design.sh`, add `compute_adaptive_budget()` function that weights channel budgets by input size (larger inputs get proportionally more budget, with floor of 4000 chars per channel). Gated by `red_team.adaptive_budget.enabled: false` (default). When disabled, existing equal-split behavior is unchanged. When enabled, budget allocation logged in deliberation-metadata.json with `mode: "adaptive"` vs `mode: "equal"`. |
+| T4.2 | Add cost tracking metadata to bridge state | In `bridge-orchestrator.sh`, after each Red Team invocation, estimate inference cost from char counts (1 token ~ 4 chars) and `COST_INPUT`/`COST_OUTPUT` arrays in model-adapter.sh. Log to `.run/bridge-state.json` under `metrics.cost_estimates[]`: `{iteration, red_team_invocations, estimated_input_tokens, estimated_output_tokens, cost_estimate_usd}`. This provides the data substrate for SPEC-5 (economic governance of review depth). |
+| T4.3 | Create economic feedback signal design | Add to `grimoires/loa/lore/cross-repo-compliance-design.md` a new section: "Economic Feedback for Review Depth". Document the design: after each bridge iteration, compute marginal cost (API spend this iteration) and marginal value (findings addressed / cost). When marginal value drops below threshold (configurable), emit `DIMINISHING_RETURNS` signal. This signal could trigger early flatline or prompt human decision. Design only — not wired into orchestrator. |
+| T4.4 | Document cross-repo governance protocol | Extend `grimoires/loa/lore/cross-repo-compliance-design.md` with "Specification Change Notification" section. Document: (a) how SDD changes in repo A trigger review in dependent repo B, (b) event format (`{sdd_path, diff_summary, source_repo, source_pr}`), (c) transport options (GitHub webhooks, A2A protocol, shared event store), (d) prerequisite: shared SDD index. Reference loa-finn #31 ModelPort for the capability discovery layer. |
+| T4.5 | Document capability-driven orchestration vision | Create `grimoires/loa/lore/capability-orchestration-design.md` documenting the evolution from hardcoded bridge signals to capability-driven discovery. Key concepts: bridge orchestrator queries available review capabilities (security, architecture, contract, economic), composes deliberation chain dynamically, allocates token budgets per capability. Reference: Kubernetes Admission Controllers (composable validation gates), Chromium OWNERS (specification-based review routing). This seeds SPEC-1 (capability markets). |
+| T4.6 | Update lore entries with ecosystem cross-references | Add Deliberative Council connections to existing Governance Isomorphism lore entry context field — reference the Condorcet jury parallel, the Google Tricorder cascading analogy, and the web4 "findings must be scarce but perspectives can be infinite" insight from Part 3. Ensure both entries cross-reference each other. Update index.yaml with the new Deliberative Council entry. |

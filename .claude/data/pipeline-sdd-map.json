@@ -1,0 +1,121 @@
+{
+  "$schema": "Pipeline SDD Mapping — maps pipeline scripts to their governing specifications",
+  "version": 1,
+  "patterns": [
+    {
+      "glob": ".claude/scripts/flatline-*.sh",
+      "sdd": ".claude/skills/flatline-review/SKILL.md",
+      "label": "Flatline Protocol",
+      "sections": ["Protocol", "Phases", "Scoring", "Consensus", "Models"]
+    },
+    {
+      "glob": ".claude/scripts/red-team-*.sh",
+      "sdd": ".claude/skills/red-team/SKILL.md",
+      "label": "Red Team",
+      "sections": ["Architecture", "Security", "Input", "Output", "Findings"]
+    },
+    {
+      "glob": ".claude/scripts/bridge-*.sh",
+      "sdd": ".claude/skills/run-bridge/SKILL.md",
+      "label": "Bridge Orchestrator",
+      "sections": ["Workflow", "Review", "Findings", "State", "Signals"]
+    },
+    {
+      "glob": ".claude/scripts/simstim-*.sh",
+      "sdd": ".claude/skills/simstim-workflow/SKILL.md",
+      "label": "Simstim Orchestrator",
+      "sections": ["Phases", "State", "Flatline", "Resume", "Preflight"]
+    },
+    {
+      "glob": ".claude/scripts/run-mode-*.sh",
+      "sdd": ".claude/skills/run-mode/SKILL.md",
+      "label": "Run Mode",
+      "sections": ["Execution", "Circuit Breaker", "State", "ICE"]
+    },
+    {
+      "glob": ".claude/scripts/model-adapter*.sh",
+      "sdd": ".claude/loa/reference/flatline-reference.md",
+      "label": "Model Adapter",
+      "sections": ["Providers", "Models", "Routing", "Cost"]
+    },
+    {
+      "glob": ".claude/scripts/scoring-engine*.sh",
+      "sdd": ".claude/skills/flatline-review/SKILL.md",
+      "label": "Scoring Engine",
+      "sections": ["Scoring", "Cross-Scoring", "Consensus", "Tertiary"]
+    },
+    {
+      "glob": ".claude/scripts/ground-truth-*.sh",
+      "sdd": ".claude/loa/reference/scripts-reference.md",
+      "label": "Ground Truth",
+      "sections": ["Checksums", "Index", "Validation"]
+    },
+    {
+      "glob": ".claude/skills/flatline-review/*",
+      "sdd": ".claude/skills/flatline-review/SKILL.md",
+      "label": "Flatline Skill Spec",
+      "sections": ["Protocol", "Phases", "Scoring", "Consensus"]
+    },
+    {
+      "glob": ".claude/skills/run-bridge/*",
+      "sdd": ".claude/skills/run-bridge/SKILL.md",
+      "label": "Run Bridge Skill Spec",
+      "sections": ["Workflow", "Review", "Signals", "Finalization"]
+    },
+    {
+      "glob": ".claude/skills/simstim-workflow/*",
+      "sdd": ".claude/skills/simstim-workflow/SKILL.md",
+      "label": "Simstim Skill Spec",
+      "sections": ["Phases", "State", "Flatline", "Resume"]
+    },
+    {
+      "glob": ".claude/skills/run-mode/*",
+      "sdd": ".claude/skills/run-mode/SKILL.md",
+      "label": "Run Mode Skill Spec",
+      "sections": ["Execution", "Circuit Breaker", "State"]
+    },
+    {
+      "glob": ".claude/skills/red-team/*",
+      "sdd": ".claude/skills/red-team/SKILL.md",
+      "label": "Red Team Skill Spec",
+      "sections": ["Architecture", "Security", "Findings"]
+    },
+    {
+      "glob": ".claude/data/attack-surfaces.yaml",
+      "sdd": ".claude/skills/red-team/SKILL.md",
+      "label": "Attack Surfaces Registry",
+      "sections": ["Surfaces", "Scoring", "Input"]
+    },
+    {
+      "glob": ".claude/data/bridgebuilder-persona.md",
+      "sdd": ".claude/skills/run-bridge/SKILL.md",
+      "label": "Bridgebuilder Persona",
+      "sections": ["Identity", "Voice", "Review Output Format"]
+    },
+    {
+      "glob": ".claude/data/pipeline-sdd-map.json",
+      "sdd": ".claude/skills/run-bridge/SKILL.md",
+      "label": "Pipeline SDD Map",
+      "constitutional": true,
+      "sections": ["PIPELINE_SELF_REVIEW", "SDD Resolution"]
+    },
+    {
+      "glob": ".claude/protocols/*.md",
+      "sdd": ".claude/loa/reference/protocols-summary.md",
+      "label": "Protocols",
+      "sections": ["Protocol", "Compliance", "Safety"]
+    },
+    {
+      "glob": ".claude/scripts/pipeline-self-review.sh",
+      "sdd": ".claude/skills/run-bridge/SKILL.md",
+      "label": "Pipeline Self-Review",
+      "sections": ["PIPELINE_SELF_REVIEW", "SDD Resolution"]
+    },
+    {
+      "glob": ".claude/scripts/lib/*.sh",
+      "sdd": ".claude/skills/run-bridge/SKILL.md",
+      "label": "Shared Pipeline Libraries",
+      "sections": ["Workflow", "Review", "Findings"]
+    }
+  ]
+}

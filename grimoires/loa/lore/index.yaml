@@ -1,0 +1,31 @@
+# Lore Index — Discoverable patterns for bridge reviews and memory queries
+# Updated by: bridge vision elevation, retrospective analysis, manual curation
+# Queried by: bridge lore loading (SKILL.md Phase 3.1 step 3), memory-query.sh
+
+version: 2
+categories:
+  - id: patterns
+    source: patterns.yaml
+    description: Discovered architectural patterns from bridge reviews
+    entries:
+      - id: governance-isomorphism
+        status: Active
+      - id: deliberative-council
+        status: Active
+
+  # Future categories (populated by bridge vision elevation):
+  # - id: visions
+  #   source: visions.yaml
+  #   description: Elevated visions from the Vision Registry
+  #   entries: []
+
+# Lifecycle States (T2.4, cycle-047 — RFC-style model)
+#
+# Transitions:
+#   Active → Challenged     (counter-evidence found in bridge review)
+#   Challenged → Active     (challenge resolved, pattern reaffirmed)
+#   Active → Deprecated     (superseded by a better pattern)
+#   Deprecated → Superseded (replacement pattern reaches Active)
+#
+# Status enum: Active, Challenged, Deprecated, Superseded
+# Each entry in patterns.yaml carries: status, challenges[], lineage, superseded_by

@@ -52,12 +52,17 @@ jobs:
       # PINNING: SHA verified against actions/checkout v4.3.1 tag
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
+      - name: Configure git identity for tests
+        run: |
+          git config --global user.name "CI Bot"
+          git config --global user.email "ci@example.com"
+
       # PINNING: bats-core v1.13.0 — commit SHA verified after clone
       - name: Install bats-core v1.13.0
         run: |
           git clone --branch v1.13.0 --depth 1 https://github.com/bats-core/bats-core.git /tmp/bats-core
           cd /tmp/bats-core
-          expected="d6a46f2cc2d3025ee3ffb59991c6d93ef903e339"
+          expected="3bca150ec86275d6d9d5a4fd7d48ab8b6c6f3d87"
           actual=$(git rev-parse HEAD)
           if [ "$actual" != "$expected" ]; then
             echo "ERROR: bats-core commit SHA mismatch — expected $expected, got $actual"
@@ -68,9 +73,9 @@ jobs:
 
       - name: Install yq v4.52.4 (pinned + checksum verified)
         run: |
-          wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64
           echo "0c4d965ea944b64b8fddaf7f27779ee3034e5693263786506ccd1c120f184e8c  /usr/local/bin/yq" | sha256sum -c -
-          chmod +x /usr/local/bin/yq
+          sudo chmod +x /usr/local/bin/yq
 
       - name: Run framework unit tests
         run: |

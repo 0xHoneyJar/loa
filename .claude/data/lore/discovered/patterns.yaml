@@ -57,3 +57,46 @@ entries:
     source_model: "claude-opus-4"
     tags: [discovered, architecture, philosophy]
     loa_mapping: "bridge-orchestrator.sh — flatline detection and severity scoring"
+
+  - id: governance-isomorphism
+    term: "Governance Isomorphism"
+    short: "Access to scarce resources governed through multi-perspective evaluation with fail-closed semantics"
+    context: |
+      The review pipeline and the vault share an identical governance shape:
+      multiple independent evaluators must reach consensus before state changes
+      are permitted, with the default being rejection. The Condorcet jury theorem
+      provides the mathematical foundation — majority voting accuracy approaches 1
+      as group size grows. Google's Tricorder cascading demonstrates the same
+      principle at scale. Elinor Ostrom's commons governance principles explain
+      why this pattern works across domains.
+    source: "PR #429, deep review Part 4 / cycle-046"
+    source_model: "claude-opus-4"
+    tags: [discovered, governance, consensus, cross-ecosystem]
+    loa_mapping: "Flatline consensus, Red Team attack/defense, vault multisig"
+    lifecycle:
+      references: 2
+      last_seen: "2026-02-28"
+      seen_in: ["bridge-20260228-cycle046"]
+      repos: ["loa"]
+      significance: recurring
+
+  - id: deliberative-council
+    term: "Deliberative Council"
+    short: "Later review stages condition on earlier findings, transforming sequential evaluation into structured deliberation"
+    context: |
+      When review stage N receives findings from stage N-1, it shifts from
+      independent evaluation to informed deliberation. The Condorcet jury theorem
+      applies: independent evaluators with better-than-random accuracy produce
+      majority decisions approaching certainty. Google's Tricorder system
+      implements this at scale with composable analysis passes. Web4 insight:
+      findings must be scarce but perspectives can be infinite.
+    source: "PR #433, deep review Part 1 / cycle-047"
+    source_model: "claude-opus-4"
+    tags: [discovered, architecture, review, deliberation]
+    loa_mapping: "Red Team → Bridgebuilder review pipeline in bridge-orchestrator.sh"
+    lifecycle:
+      references: 1
+      last_seen: "2026-02-28"
+      seen_in: ["bridge-20260228-cycle047"]
+      repos: ["loa"]
+      significance: one-off

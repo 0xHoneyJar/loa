@@ -1,0 +1,83 @@
+# Lore Patterns — Discovered architectural patterns from bridge reviews
+# Format: YAML entries loadable by bridge lore queries and memory-query.sh
+# Source: Bridgebuilder reviews, vision elevation, retrospective analysis
+
+- id: governance-isomorphism
+  term: Governance Isomorphism
+  short: >-
+    Access to scarce resources governed through multi-perspective evaluation
+    with fail-closed semantics. Appears identically in Flatline (model consensus),
+    Red Team (attack/defense), and HoneyJar vault governance (on-chain multisig).
+  context: >-
+    The review pipeline and the vault share an identical governance shape:
+    multiple independent evaluators must reach consensus before state changes
+    are permitted, with the default being rejection. In Flatline, two+ models
+    must agree before findings auto-integrate. In Red Team, attacker and
+    defender perspectives must both be satisfied. In HoneyJar vaults,
+    multi-sig holders must agree before funds move. This is not coincidence —
+    it is the same pattern applied at different scales. The insight enables
+    cross-pollination: security review patterns from code review can inform
+    on-chain governance design, and vice versa. Elinor Ostrom's commons
+    governance principles (graduated sanctions, collective-choice arrangements)
+    describe why this pattern works across domains. The Condorcet jury theorem
+    provides the mathematical foundation — when individual evaluators are
+    better than random, majority voting accuracy approaches 1 as group size
+    grows. Google's Tricorder cascading (ISSTA 2018) demonstrates the same
+    principle at scale: composable analysis passes where later stages condition
+    on earlier findings.
+  source:
+    bridge_iteration: "PR #429, deep review Part 4"
+    cycle: "cycle-046"
+    date: "2026-02-28"
+  tags:
+    - governance
+    - flatline
+    - red-team
+    - cross-ecosystem
+    - ostrom
+    - vault
+    - consensus
+  # Lifecycle fields (T2.3, cycle-047 — RFC-style status model)
+  status: Active
+  challenges: []
+  lineage: null
+  superseded_by: null
+  related:
+    - deliberative-council
+
+- id: deliberative-council
+  term: Deliberative Council
+  short: >-
+    Later review stages condition on earlier findings, transforming sequential
+    evaluation into structured deliberation where each voice builds on prior voices.
+  context: >-
+    The Red Team code-vs-design gate was designed as a compliance check, but when
+    its findings feed into the Bridgebuilder review as prior context, it becomes
+    the first voice in a structured deliberation. The Condorcet jury theorem
+    provides the mathematical basis — independent evaluators with better-than-random
+    accuracy produce majority decisions approaching certainty. Google's Tricorder
+    system (ISSTA 2018) implements this at scale: composable analysis passes where
+    findings cascade through stages. In jazz, this is the ensemble where each
+    instrument responds to what came before — not unison, but structured
+    improvisation. The bridge review pipeline naturally evolves toward this shape
+    as more review capabilities are added. Web4 insight from cycle-046 deep review:
+    "findings must be scarce but perspectives can be infinite" — the deliberative
+    council maximizes perspective diversity while maintaining finding scarcity
+    through consensus thresholds.
+  source:
+    bridge_iteration: "PR #433, deep review Part 1"
+    cycle: "cycle-047"
+    date: "2026-02-28"
+  tags:
+    - architecture
+    - review
+    - deliberation
+    - pattern
+    - condorcet
+    - tricorder
+  status: Active
+  challenges: []
+  lineage: null
+  superseded_by: null
+  related:
+    - governance-isomorphism

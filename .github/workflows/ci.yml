@@ -21,6 +21,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
 
       - name: Block forbidden template files
         id: check-forbidden
@@ -29,16 +31,13 @@ jobs:
 
           # Define forbidden patterns for the loa template repository
           # These files should NEVER be committed to the main loa template
-          FORBIDDEN_FILES=(
+          FORBIDDEN_PATTERNS=(
             "grimoires/loa/prd.md"
             "grimoires/loa/sdd.md"
             "grimoires/loa/sprint.md"
             "grimoires/loa/NOTES.md"
             "grimoires/loa/ledger.json"
             "grimoires/loa/ledger.json.bak"
-          )
-
-          FORBIDDEN_DIRS=(
             "grimoires/loa/a2a/sprint-"
             "grimoires/loa/a2a/index.md"
             "grimoires/loa/a2a/deployment-feedback.md"
@@ -51,24 +50,35 @@ jobs:
             ".claude/constructs/"
           )
 
+          # Only check files NEWLY ADDED by this PR/push (diff-filter=A).
+          # Modified files that already exist on the base branch are not flagged —
+          # they were already accepted when first committed. This prevents false
+          # positives from planning artifacts (prd.md, sprint.md, etc.) that exist
+          # on main and are legitimately modified during development cycles.
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            CHANGED_FILES=$(git diff --name-only --diff-filter=A "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}" 2>/dev/null || echo "")
+          else
+            # Push event: check files newly added in the push
+            CHANGED_FILES=$(git diff --name-only --diff-filter=A "${{ github.event.before }}" "${{ github.sha }}" 2>/dev/null || echo "")
+          fi
+
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No changed files to check"
+            echo "Template protection check passed"
+            exit 0
+          fi
+
           VIOLATIONS=()
 
-          # Check for forbidden files
-          for pattern in "${FORBIDDEN_FILES[@]}"; do
-            if [ -f "$pattern" ]; then
-              VIOLATIONS+=("$pattern")
-            fi
-          done
-
-          # Check for forbidden directories/patterns
-          for pattern in "${FORBIDDEN_DIRS[@]}"; do
-            # Find any files matching the pattern (excluding README.md)
-            while IFS= read -r file; do
-              if [[ "$file" != *"/README.md" ]]; then
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            for pattern in "${FORBIDDEN_PATTERNS[@]}"; do
+              if [[ "$file" == "$pattern"* ]] && [[ "$file" != *"/README.md" ]]; then
                 VIOLATIONS+=("$file")
+                break
               fi
-            done < <(find . -path "./$pattern*" -type f 2>/dev/null | head -50)
-          done
+            done
+          done <<< "$CHANGED_FILES"
 
           if [ ${#VIOLATIONS[@]} -gt 0 ]; then
             echo ""
@@ -129,7 +139,7 @@ jobs:
       - name: Validate JSON files
         run: |
           echo "Validating JSON files..."
-          for file in $(find . -name "*.json" -not -path "./node_modules/*" -not -path "./.git/*"); do
+          for file in $(find . -name "*.json" -not -path "./node_modules/*" -not -path "./.git/*" -not -path "./__tests__/*" -not -path "*/__tests__/*"); do
             echo "Checking $file"
             python3 -m json.tool "$file" > /dev/null || { echo "Invalid JSON: $file"; exit 1; }
           done

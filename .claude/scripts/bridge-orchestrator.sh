@@ -368,7 +368,7 @@ bridge_main() {
       if [[ -x "$SCRIPT_DIR/cross-repo-query.sh" ]]; then
         local diff_file
         diff_file=$(mktemp "${TMPDIR:-/tmp}/bridge-diff.XXXXXX")
-        git diff "origin/main...HEAD" > "$diff_file" 2>/dev/null || true
+        git diff "main...HEAD" > "$diff_file" 2>/dev/null || true
 
         if [[ -s "$diff_file" ]]; then
           local xr_budget xr_max_repos xr_timeout
@@ -411,7 +411,7 @@ bridge_main() {
       if [[ -x "$SCRIPT_DIR/bridge-vision-capture.sh" ]]; then
         local vcheck_diff
         vcheck_diff=$(mktemp "${TMPDIR:-/tmp}/bridge-vcheck.XXXXXX")
-        git diff "origin/main...HEAD" > "$vcheck_diff" 2>/dev/null || true
+        git diff "main...HEAD" > "$vcheck_diff" 2>/dev/null || true
 
         if [[ -s "$vcheck_diff" ]]; then
           local relevant_visions
@@ -439,6 +439,45 @@ bridge_main() {
     local sprint_goal
     sprint_goal=$(grep -m1 "^## Sprint" "$PROJECT_ROOT/grimoires/loa/sprint.md" 2>/dev/null | sed 's/^## //' || echo "bridge iteration $iteration")
     load_bridge_context "$sprint_goal"
+
+    # 2d.1: Lore discoverability — load relevant patterns for review context (T2.5, cycle-047)
+    local lore_context=""
+    local lore_index="$PROJECT_ROOT/grimoires/loa/lore/index.yaml"
+    local lore_patterns="$PROJECT_ROOT/grimoires/loa/lore/patterns.yaml"
+    if command -v yq &>/dev/null && [[ -f "$lore_patterns" ]]; then
+      # Determine relevant tags from changed files
+      local lore_tags=()
+      local changed_paths
+      changed_paths=$(git diff --name-only "main...HEAD" 2>/dev/null || echo "")
+      if echo "$changed_paths" | grep -q "scripts/"; then
+        lore_tags+=(pipeline review)
+      fi
+      if echo "$changed_paths" | grep -q "lore/"; then
+        lore_tags+=(governance architecture)
+      fi
+      if echo "$changed_paths" | grep -q "skills/"; then
+        lore_tags+=(architecture pattern)
+      fi
+
+      if [[ ${#lore_tags[@]} -gt 0 ]]; then
+        # Load matching lore entries by tag
+        local tag_filter
+        tag_filter=$(printf '"%s",' "${lore_tags[@]}")
+        tag_filter="[${tag_filter%,}]"
+        lore_context=$(yq -o=json '.' "$lore_patterns" 2>/dev/null | \
+          jq -r --argjson tags "$tag_filter" '
+            [.[] | select(.tags as $t | ($tags | any(. as $tag | $t | index($tag))))] |
+            .[] | "LORE[\(.id)]: \(.short)"
+          ' 2>/dev/null || echo "")
+
+        if [[ -n "$lore_context" ]]; then
+          local lore_count
+          lore_count=$(echo "$lore_context" | wc -l)
+          echo "[LORE] Loaded $lore_count relevant pattern(s) for review context"
+          export BRIDGE_LORE_CONTEXT="$lore_context"
+        fi
+      fi
+    fi
 
     # 2e: Bridgebuilder Review
     if [[ -n "$BRIDGE_CONTEXT" ]]; then
@@ -497,6 +536,57 @@ bridge_main() {
     # 2h: GitHub Trail
     echo "[TRAIL] Posting to GitHub..."
     echo "SIGNAL:GITHUB_TRAIL:$iteration"
+
+    # 2h.1: Cost tracking (T4.2, cycle-047)
+    # Aggregate inference cost estimates from deliberation-metadata.json files
+    local meta_files
+    meta_files=$(find "${PROJECT_ROOT}/.run/" -name "deliberation-metadata.json" -newer "$BRIDGE_STATE_FILE" 2>/dev/null || echo "")
+    if [[ -n "$meta_files" ]]; then
+      local total_input_chars=0 total_output_chars=0 invocation_count=0
+      for meta_file in $meta_files; do
+        # Validate metadata file is well-formed JSON with expected fields (MEDIUM-3 fix)
+        if ! jq -e '.char_counts' "$meta_file" &>/dev/null; then
+          echo "[COST] WARNING: Malformed metadata, skipping: $meta_file" >&2
+          continue
+        fi
+        local sdd_c diff_c prior_c
+        sdd_c=$(jq '.char_counts.sdd // 0' "$meta_file" 2>/dev/null) || sdd_c=0
+        diff_c=$(jq '.char_counts.diff // 0' "$meta_file" 2>/dev/null) || diff_c=0
+        prior_c=$(jq '.char_counts.prior_findings // 0' "$meta_file" 2>/dev/null) || prior_c=0
+        total_input_chars=$((total_input_chars + sdd_c + diff_c + prior_c))
+        # Estimate output at ~25% of input (typical for findings JSON)
+        total_output_chars=$((total_output_chars + (sdd_c + diff_c + prior_c) / 4))
+        invocation_count=$((invocation_count + 1))
+      done
+
+      # Estimate tokens (~4 chars/token) and cost (Opus: $15/Mtok input, $75/Mtok output)
+      local est_input_tokens=$((total_input_chars / 4))
+      local est_output_tokens=$((total_output_chars / 4))
+      local cost_input_usd cost_output_usd cost_total_usd
+      # Integer math: multiply by 1000 then divide to get 3 decimal places
+      cost_input_usd=$(echo "$est_input_tokens" | awk '{printf "%.4f", $1 * 15 / 1000000}')
+      cost_output_usd=$(echo "$est_output_tokens" | awk '{printf "%.4f", $1 * 75 / 1000000}')
+      cost_total_usd=$(echo "$cost_input_usd $cost_output_usd" | awk '{printf "%.4f", $1 + $2}')
+
+      echo "[COST] Iteration $iteration: ~$est_input_tokens input tokens, ~$est_output_tokens output tokens (~\$$cost_total_usd)"
+
+      # Append to bridge state cost_estimates array
+      if command -v jq &>/dev/null && [[ -f "$BRIDGE_STATE_FILE" ]]; then
+        jq --argjson iter "$iteration" \
+           --argjson invocations "$invocation_count" \
+           --argjson input_tokens "$est_input_tokens" \
+           --argjson output_tokens "$est_output_tokens" \
+           --arg cost "$cost_total_usd" \
+          '.metrics.cost_estimates = ((.metrics.cost_estimates // []) + [{
+            iteration: $iter,
+            red_team_invocations: $invocations,
+            estimated_input_tokens: $input_tokens,
+            estimated_output_tokens: $output_tokens,
+            cost_estimate_usd: ($cost | tonumber)
+          }])' "$BRIDGE_STATE_FILE" > "$BRIDGE_STATE_FILE.tmp"
+        mv "$BRIDGE_STATE_FILE.tmp" "$BRIDGE_STATE_FILE"
+      fi
+    fi
 
     # 2i: Flatline Detection
     echo "[FLATLINE] Checking flatline condition..."
