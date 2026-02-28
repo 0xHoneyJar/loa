@@ -948,12 +948,52 @@ preflight() {
         exit 0
     fi
 
+    # =========================================================================
+    # Flatline Readiness Check (Issue #430)
+    # =========================================================================
+    # Validate Flatline Protocol readiness independently per cycle.
+    # Prevents stale skip decisions from previous cycles propagating forward.
+    local flatline_status="UNKNOWN"
+    if [[ -x "$SCRIPT_DIR/flatline-readiness.sh" ]]; then
+        local flatline_result
+        flatline_result=$("$SCRIPT_DIR/flatline-readiness.sh" --json 2>/dev/null) || true
+        flatline_status=$(echo "$flatline_result" | jq -r '.status // "UNKNOWN"' 2>/dev/null || echo "UNKNOWN")
+
+        case "$flatline_status" in
+            READY)
+                log "Flatline: READY (multi-model review available)"
+                ;;
+            DEGRADED)
+                local recs
+                recs=$(echo "$flatline_result" | jq -r '.recommendations[0] // ""' 2>/dev/null || echo "")
+                warn "Flatline: DEGRADED — $recs"
+                ;;
+            NO_API_KEYS)
+                warn "Flatline: NO_API_KEYS — review phases will be skipped"
+                warn "Set OPENAI_API_KEY and/or ANTHROPIC_API_KEY for multi-model review"
+                ;;
+            DISABLED)
+                log "Flatline: DISABLED in config"
+                ;;
+            *)
+                warn "Flatline: readiness check returned unknown status: $flatline_status"
+                ;;
+        esac
+
+        log_trajectory "flatline_readiness" "$(jq -c --arg s "$flatline_status" '{status: $s}' <<< '{}')"
+    else
+        log "Flatline: readiness script not found (skipping check)"
+    fi
+    # =========================================================================
+    # End Flatline Readiness Check
+    # =========================================================================
+
     # Create initial state
     local simstim_id
     simstim_id=$(create_initial_state "$from_phase")
 
-    jq -n --arg id "$simstim_id" --arg phase "${PHASES[0]}" \
-        '{action: "start", simstim_id: $id, starting_phase: $phase}'
+    jq -n --arg id "$simstim_id" --arg phase "${PHASES[0]}" --arg flatline "$flatline_status" \
+        '{action: "start", simstim_id: $id, starting_phase: $phase, flatline_status: $flatline}'
 }
 
 # =============================================================================

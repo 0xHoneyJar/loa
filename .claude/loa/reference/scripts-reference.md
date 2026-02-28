@@ -37,6 +37,13 @@ Core scripts in `.claude/scripts/`. Run any script with `--help` for usage detai
 |--------|---------|
 | `mermaid-url.sh` | Beautiful Mermaid preview URL generation |
 
+## Preflight Checks
+
+| Script | Purpose |
+|--------|---------|
+| `beads/beads-health.sh` | Beads infrastructure health check |
+| `flatline-readiness.sh` | Flatline Protocol readiness validation (v1.64.0, #430) |
+
 ## Integrations
 
 | Script | Purpose |

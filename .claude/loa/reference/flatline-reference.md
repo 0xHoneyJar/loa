@@ -61,6 +61,29 @@ Multi-model adversarial review using Claude Opus 4.6 + GPT-5.3-codex + Gemini 2.
 .claude/scripts/flatline-rollback.sh single --integration-id <id> --run-id <run-id>
 ```
 
+## Readiness Check (v1.64.0, #430)
+
+Validates Flatline can execute before a workflow starts. Called automatically by simstim preflight (Phase 0) and available for any workflow boundary.
+
+```bash
+# Quick check
+.claude/scripts/flatline-readiness.sh
+
+# JSON output for scripting
+.claude/scripts/flatline-readiness.sh --json
+```
+
+| Status | Exit Code | Meaning |
+|--------|-----------|---------|
+| `READY` | 0 | All configured provider keys available |
+| `DISABLED` | 1 | `flatline_protocol.enabled: false` in config |
+| `NO_API_KEYS` | 2 | No provider API keys set |
+| `DEGRADED` | 3 | Some but not all provider keys present |
+
+Reads configured models (primary/secondary/tertiary) from `.loa.config.yaml`, maps each to its provider (Anthropic, OpenAI, Google), and checks the corresponding API key env vars. Reports `READY` only when all configured providers have keys.
+
+**Why this exists**: Simstim Phase 0 previously did not validate Flatline readiness. Agents could inherit stale "skip" decisions from previous cycles, causing Flatline phases to be skipped even when API keys were available. This check ensures each cycle validates independently.
+
 ## Usage
 
 ```bash
