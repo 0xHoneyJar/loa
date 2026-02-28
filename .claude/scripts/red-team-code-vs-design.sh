@@ -16,6 +16,7 @@
 #   --diff <file>          Code diff file path (or - for stdin)
 #   --output <path>        Output findings JSON path (required)
 #   --sprint <id>          Sprint ID for context (required)
+#   --prior-findings <path> Prior review/audit findings to inform analysis (repeatable)
 #   --token-budget <n>     Max tokens for model invocation (default from config)
 #   --severity-threshold <n> Min severity to report (default from config)
 #   --dry-run              Validate inputs without calling model
@@ -124,6 +125,49 @@ extract_security_sections() {
 }
 
 # =============================================================================
+# Prior Findings Extraction (Deliberative Council pattern — cycle-046 FR-2)
+# =============================================================================
+
+# Extract actionable findings from prior review/audit feedback files.
+# Looks for ## Findings, ## Issues, ## Changes Required, ## Security sections.
+# Returns truncated content or empty string for missing/empty files.
+extract_prior_findings() {
+    local path="$1"
+    local max_chars="${2:-20000}"
+
+    if [[ ! -f "$path" ]]; then
+        return 0
+    fi
+
+    local content=""
+    local in_section=false
+    local char_count=0
+
+    while IFS= read -r line; do
+        # Match relevant findings sections
+        if [[ "$line" =~ ^##[[:space:]] ]]; then
+            if printf '%s\n' "$line" | grep -iqE '(Findings|Issues|Changes.Required|Security|Concerns|Recommendations)'; then
+                in_section=true
+            elif [[ "$in_section" == true ]]; then
+                # Hit a different ## section — stop collecting
+                in_section=false
+            fi
+        fi
+
+        if [[ "$in_section" == true ]]; then
+            content+="$line"$'\n'
+            char_count=$((char_count + ${#line} + 1))
+            if [[ $char_count -ge $max_chars ]]; then
+                content+=$'\n[... prior findings truncated to token budget ...]\n'
+                break
+            fi
+        fi
+    done < "$path"
+
+    echo "$content"
+}
+
+# =============================================================================
 # Main
 # =============================================================================
 
@@ -135,6 +179,7 @@ main() {
     local token_budget=""
     local severity_threshold=""
     local dry_run=false
+    local prior_findings_paths=()
 
     # Parse arguments
     while [[ $# -gt 0 ]]; do
@@ -143,6 +188,7 @@ main() {
             --diff)          diff_path="$2"; shift 2 ;;
             --output)        output_path="$2"; shift 2 ;;
             --sprint)        sprint_id="$2"; shift 2 ;;
+            --prior-findings) prior_findings_paths+=("$2"); shift 2 ;;
             --token-budget)  token_budget="$2"; shift 2 ;;
             --severity-threshold) severity_threshold="$2"; shift 2 ;;
             --dry-run)       dry_run=true; shift ;;
@@ -191,8 +237,14 @@ main() {
     fi
 
     # Extract security sections
-    # Token budget controls input truncation (~4 chars/token); reserve half for code diff
-    local max_section_chars=$(( token_budget * 4 / 2 ))
+    # Token budget controls input truncation (~4 chars/token)
+    # With prior findings: 3-way split (1/3 each). Without: 2-way split (1/2 each).
+    local input_channels=2
+    if [[ ${#prior_findings_paths[@]} -gt 0 ]]; then
+        input_channels=3
+        log "Prior findings provided (${#prior_findings_paths[@]} files) — 3-way token budget"
+    fi
+    local max_section_chars=$(( token_budget * 4 / input_channels ))
     [[ $max_section_chars -gt 100000 ]] && max_section_chars=100000  # cap at 100K chars
     [[ $max_section_chars -lt 4000 ]] && max_section_chars=4000      # floor at 4K chars
     log "Extracting SDD security sections from: $sdd_path (max $max_section_chars chars)"
@@ -290,11 +342,43 @@ Output ONLY valid JSON in this format:
 Focus on actionable findings. Do not invent requirements not present in the SDD.
 PROMPT
 
-    # Append SDD sections and code diff
+    # Append SDD sections
     echo "" >> "$prompt_file"
     echo "## SDD Security Sections" >> "$prompt_file"
     echo "" >> "$prompt_file"
     echo "$security_sections" >> "$prompt_file"
+
+    # Append prior findings if provided (Deliberative Council pattern)
+    if [[ ${#prior_findings_paths[@]} -gt 0 ]]; then
+        local prior_content=""
+        for pf_path in "${prior_findings_paths[@]}"; do
+            local pf_extracted
+            pf_extracted=$(extract_prior_findings "$pf_path" "$max_section_chars")
+            if [[ -n "$pf_extracted" ]]; then
+                local pf_name
+                pf_name=$(basename "$pf_path")
+                prior_content+="### From $pf_name"$'\n\n'"$pf_extracted"$'\n\n'
+            fi
+        done
+        if [[ -n "$prior_content" ]]; then
+            local prior_chars=${#prior_content}
+            if [[ $prior_chars -gt $max_section_chars ]]; then
+                prior_content="${prior_content:0:$max_section_chars}"$'\n[... prior findings truncated to token budget ...]\n'
+                log "Prior findings: $prior_chars chars (truncated to $max_section_chars)"
+            else
+                log "Prior findings: $prior_chars chars from ${#prior_findings_paths[@]} files"
+            fi
+            echo "" >> "$prompt_file"
+            echo "## Prior Review Findings" >> "$prompt_file"
+            echo "" >> "$prompt_file"
+            echo "The following findings were identified by earlier review stages." >> "$prompt_file"
+            echo "Use these to focus your design compliance analysis on areas already flagged." >> "$prompt_file"
+            echo "" >> "$prompt_file"
+            echo "$prior_content" >> "$prompt_file"
+        fi
+    fi
+
+    # Append code diff
     echo "" >> "$prompt_file"
     echo "## Code Changes (git diff)" >> "$prompt_file"
     echo "" >> "$prompt_file"

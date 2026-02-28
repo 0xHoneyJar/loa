@@ -94,7 +94,13 @@ while circuit_breaker.state == CLOSED:
           --sdd grimoires/loa/sdd.md \
           --diff - \              # pipe git diff main...HEAD
           --output grimoires/loa/a2a/sprint-{N}/red-team-code-findings.json \
-          --sprint sprint-{N}
+          --sprint sprint-{N} \
+          --prior-findings grimoires/loa/a2a/sprint-{N}/engineer-feedback.md \
+          --prior-findings grimoires/loa/a2a/sprint-{N}/auditor-sprint-feedback.md
+        Note: --prior-findings paths are only passed when the files exist.
+        This enables the "Deliberative Council" pattern — the Red Team gate
+        sees what the reviewer and auditor already found, enabling focused
+        analysis rather than duplicating earlier findings.
      d. Parse output: check summary.actionable count
      e. If actionable > 0 (CONFIRMED_DIVERGENCE above severity_threshold):
         - Increment red_team_code.cycles in .run/state.json
