@@ -126,6 +126,9 @@ run_bridge:
     redaction:
       enabled: true
       post_redaction_safety: true
+  pipeline_self_review:
+    enabled: false              # Default false — progressive rollout
+    base_branch: main           # Branch to diff against
 
 # Bridgebuilder Design Review (cycle-044)
 bridgebuilder_design_review:

@@ -1,0 +1,54 @@
+{
+  "$schema": "Pipeline SDD Mapping — maps pipeline scripts to their governing specifications",
+  "version": 1,
+  "patterns": [
+    {
+      "glob": ".claude/scripts/flatline-*.sh",
+      "sdd": ".claude/skills/flatline-review/SKILL.md",
+      "label": "Flatline Protocol",
+      "sections": ["Protocol", "Phases", "Scoring", "Consensus", "Models"]
+    },
+    {
+      "glob": ".claude/scripts/red-team-*.sh",
+      "sdd": ".claude/skills/red-team/SKILL.md",
+      "label": "Red Team",
+      "sections": ["Architecture", "Security", "Input", "Output", "Findings"]
+    },
+    {
+      "glob": ".claude/scripts/bridge-*.sh",
+      "sdd": ".claude/skills/run-bridge/SKILL.md",
+      "label": "Bridge Orchestrator",
+      "sections": ["Workflow", "Review", "Findings", "State", "Signals"]
+    },
+    {
+      "glob": ".claude/scripts/simstim-*.sh",
+      "sdd": ".claude/skills/simstim-workflow/SKILL.md",
+      "label": "Simstim Orchestrator",
+      "sections": ["Phases", "State", "Flatline", "Resume", "Preflight"]
+    },
+    {
+      "glob": ".claude/scripts/run-mode-*.sh",
+      "sdd": ".claude/skills/run-mode/SKILL.md",
+      "label": "Run Mode",
+      "sections": ["Execution", "Circuit Breaker", "State", "ICE"]
+    },
+    {
+      "glob": ".claude/scripts/model-adapter*.sh",
+      "sdd": ".claude/loa/reference/flatline-reference.md",
+      "label": "Model Adapter",
+      "sections": ["Providers", "Models", "Routing", "Cost"]
+    },
+    {
+      "glob": ".claude/scripts/scoring-engine*.sh",
+      "sdd": ".claude/skills/flatline-review/SKILL.md",
+      "label": "Scoring Engine",
+      "sections": ["Scoring", "Cross-Scoring", "Consensus", "Tertiary"]
+    },
+    {
+      "glob": ".claude/scripts/ground-truth-*.sh",
+      "sdd": ".claude/loa/reference/scripts-reference.md",
+      "label": "Ground Truth",
+      "sections": ["Checksums", "Index", "Validation"]
+    }
+  ]
+}

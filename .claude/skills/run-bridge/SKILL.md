@@ -76,11 +76,27 @@ interprets and acts on:
 | `GENERATE_SPRINT_FROM_FINDINGS` | Create sprint plan from parsed findings |
 | `RUN_SPRINT_PLAN` | Execute `/run sprint-plan` |
 | `RUN_PER_SPRINT` | Execute per-sprint mode |
+| `PIPELINE_SELF_REVIEW` | Detect .claude/ changes → run Red Team against pipeline SDDs (gated by `run_bridge.pipeline_self_review.enabled`) |
 | `BRIDGEBUILDER_REVIEW` | Invoke Bridgebuilder on changes |
 | `VISION_CAPTURE` | Check findings for VISION/SPECULATION severity → invoke `bridge-vision-capture.sh` (gated by `vision_registry.bridge_auto_capture`) |
 | `GITHUB_TRAIL` | Run `bridge-github-trail.sh` |
 | `FLATLINE_CHECK` | Evaluate flatline condition |
 | `LORE_DISCOVERY` | Run `lore-discover.sh` → call `vision_check_lore_elevation()` for visions with refs > 0 (v1.42.0) |
+
+#### PIPELINE_SELF_REVIEW (cycle-046)
+
+Before the Bridgebuilder review, the pipeline can review changes to itself:
+
+1. **Gate check**: `run_bridge.pipeline_self_review.enabled: true` in config
+2. **Detection**: `pipeline-self-review.sh --base-branch main --output-dir <output>`
+   - Runs `git diff --name-only main...HEAD -- .claude/scripts/ .claude/skills/ .claude/data/ .claude/protocols/`
+   - If no pipeline files changed → skip silently
+3. **SDD Resolution**: Maps changed files to governing SDDs via `.claude/data/pipeline-sdd-map.json`
+4. **Self-Review**: Invokes `red-team-code-vs-design.sh` against each resolved SDD
+5. **Output**: Findings posted as PR comment with `[Pipeline Self-Review]` prefix
+
+This addresses the "pipeline bugs have multiplicative impact" insight — the review
+infrastructure should examine itself with the same rigor it examines application code.
 
 #### VISION_CAPTURE → LORE_DISCOVERY Chain (v1.42.0)
 
