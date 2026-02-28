@@ -73,10 +73,14 @@ resolve_pipeline_sdd() {
     fi
 
     # Match against glob patterns in the map
+    # Capture .glob before piping $file to test(), escape dots, anchor pattern
     jq -r --arg file "$changed_file" '
         .patterns[] |
+        .glob as $g |
         select(
-            ($file | test(.glob | gsub("\\*"; ".*") | gsub("\\?"; ".")))
+            ($file | test(
+                $g | gsub("\\."; "\\.") | gsub("\\*"; ".*") | gsub("\\?"; ".") | ("^" + . + "$")
+            ))
         ) |
         .sdd
     ' "$PIPELINE_MAP" 2>/dev/null | head -1
@@ -134,6 +138,18 @@ main() {
     if [[ -z "$output_dir" ]]; then
         error "Output directory required (--output-dir)"
         exit 2
+    fi
+
+    # Config gate: check run_bridge.pipeline_self_review.enabled
+    if command -v yq &>/dev/null && [[ -f "$CONFIG_FILE" ]]; then
+        local enabled
+        enabled=$(yq '.run_bridge.pipeline_self_review.enabled // false' "$CONFIG_FILE" 2>/dev/null || echo "false")
+        if [[ "$enabled" != "true" ]]; then
+            log "Pipeline self-review disabled (run_bridge.pipeline_self_review.enabled != true)"
+            exit 0
+        fi
+    else
+        log "WARNING: yq not found or config missing — skipping config gate"
     fi
 
     # Detect pipeline changes

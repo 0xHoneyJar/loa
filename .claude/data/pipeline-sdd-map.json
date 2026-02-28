@@ -49,6 +49,60 @@
       "sdd": ".claude/loa/reference/scripts-reference.md",
       "label": "Ground Truth",
       "sections": ["Checksums", "Index", "Validation"]
+    },
+    {
+      "glob": ".claude/skills/flatline-review/*",
+      "sdd": ".claude/skills/flatline-review/SKILL.md",
+      "label": "Flatline Skill Spec",
+      "sections": ["Protocol", "Phases", "Scoring", "Consensus"]
+    },
+    {
+      "glob": ".claude/skills/run-bridge/*",
+      "sdd": ".claude/skills/run-bridge/SKILL.md",
+      "label": "Run Bridge Skill Spec",
+      "sections": ["Workflow", "Review", "Signals", "Finalization"]
+    },
+    {
+      "glob": ".claude/skills/simstim-workflow/*",
+      "sdd": ".claude/skills/simstim-workflow/SKILL.md",
+      "label": "Simstim Skill Spec",
+      "sections": ["Phases", "State", "Flatline", "Resume"]
+    },
+    {
+      "glob": ".claude/skills/run-mode/*",
+      "sdd": ".claude/skills/run-mode/SKILL.md",
+      "label": "Run Mode Skill Spec",
+      "sections": ["Execution", "Circuit Breaker", "State"]
+    },
+    {
+      "glob": ".claude/skills/red-team/*",
+      "sdd": ".claude/skills/red-team/SKILL.md",
+      "label": "Red Team Skill Spec",
+      "sections": ["Architecture", "Security", "Findings"]
+    },
+    {
+      "glob": ".claude/data/attack-surfaces.yaml",
+      "sdd": ".claude/skills/red-team/SKILL.md",
+      "label": "Attack Surfaces Registry",
+      "sections": ["Surfaces", "Scoring", "Input"]
+    },
+    {
+      "glob": ".claude/data/bridgebuilder-persona.md",
+      "sdd": ".claude/skills/run-bridge/SKILL.md",
+      "label": "Bridgebuilder Persona",
+      "sections": ["Identity", "Voice", "Review Output Format"]
+    },
+    {
+      "glob": ".claude/data/pipeline-sdd-map.json",
+      "sdd": ".claude/skills/run-bridge/SKILL.md",
+      "label": "Pipeline SDD Map",
+      "sections": ["PIPELINE_SELF_REVIEW", "SDD Resolution"]
+    },
+    {
+      "glob": ".claude/protocols/*.md",
+      "sdd": ".claude/loa/reference/protocols-summary.md",
+      "label": "Protocols",
+      "sections": ["Protocol", "Compliance", "Safety"]
     }
   ]
 }
