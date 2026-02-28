@@ -197,10 +197,13 @@ get_model_secondary() {
     read_config '.flatline_protocol.models.secondary' 'gpt-5.3-codex'
 }
 
-# FR-3: Optional tertiary model for 3-model Flatline (e.g., Gemini 2.5 Pro)
-# Checks hounfour config first (canonical), then flatline_protocol.models.tertiary (cycle-045 alias)
+# Provisional resolution — will be replaced by Hounfour router capability
+# query when ModelPort interface is available (see loa-finn #31).
+# The function signature is the durable contract; the config lookup is temporary.
+#
+# Checks hounfour config first (canonical), then flatline_protocol.models.tertiary (alias)
 # Returns empty string when not configured (2-model mode preserved)
-# Cache for get_model_tertiary — avoids repeated yq invocations
+# Cache avoids repeated yq invocations during a single Flatline run
 _CACHED_TERTIARY_MODEL=""
 _CACHED_TERTIARY_MODEL_SET=false
 
@@ -1683,7 +1686,7 @@ main() {
         --arg mode "$execution_mode" \
         --arg mode_reason "$mode_reason" \
         --arg run_id "${run_id:-}" \
-        --argjson tertiary_model "$(if [[ -n "${tertiary_model_output:-}" ]]; then printf '"%s"' "$tertiary_model_output"; else echo 'null'; fi)" \
+        --argjson tertiary_model "$(if [[ -n "${tertiary_model_output:-}" ]]; then jq -n --arg m "$tertiary_model_output" '$m'; else echo 'null'; fi)" \
         --arg tertiary_status "$tertiary_status_output" \
         --argjson latency_ms "$total_latency_ms" \
         --argjson cost_cents "$TOTAL_COST" \

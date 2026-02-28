@@ -257,9 +257,10 @@ main() {
     fi
 
     # Build comparison prompt
-    local prompt_file
+    local prompt_file stderr_tmp
     prompt_file=$(mktemp)
-    trap 'rm -f "$prompt_file"' EXIT
+    stderr_tmp=$(mktemp)
+    trap 'rm -f "$prompt_file" "$stderr_tmp"' EXIT
     cat > "$prompt_file" << 'PROMPT'
 You are a security design verification agent. Compare the SDD security design specifications below to the actual code changes.
 
@@ -307,20 +308,22 @@ PROMPT
         --mode dissent \
         --input "$prompt_file" \
         --timeout 120 \
-        --json 2>/dev/null) || exit_code=$?
+        --json 2>"$stderr_tmp") || exit_code=$?
     if [[ $exit_code -ne 0 ]]; then
-        error "Model invocation failed (exit $exit_code)"
-        rm -f "$prompt_file"
+        local stderr_tail
+        stderr_tail=$(tail -5 "$stderr_tmp" 2>/dev/null || echo "(no stderr)")
+        error "Model invocation failed (exit $exit_code): $stderr_tail"
         exit 1
     fi
-    rm -f "$prompt_file"
 
     # Parse findings from model output
     local findings_json
     findings_json=$(echo "$model_output" | jq -r '.content // ""' 2>/dev/null)
 
-    # Strip markdown code fences if present
-    findings_json=$(echo "$findings_json" | sed -E 's/^```(json)?[[:space:]]*//; s/[[:space:]]*```$//')
+    # Strip markdown code fences if present (two-pass: awk range for multi-line, sed fallback)
+    if echo "$findings_json" | head -1 | grep -qE '^\s*```'; then
+        findings_json=$(echo "$findings_json" | awk '/^\s*```/{if(f){exit}else{f=1;next}} f')
+    fi
 
     # Validate JSON
     if ! echo "$findings_json" | jq '.' > /dev/null 2>&1; then

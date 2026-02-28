@@ -92,7 +92,7 @@ Display: `[0/8] PREFLIGHT - Validating configuration...`
 
 6. Otherwise: Continue to Phase 1 or specified --from phase
 
-7. **Compute total phases** for progress display (v1.45.0):
+7. **Compute total phases** for progress display (cycle-045):
    Base phases: 8. Check config gates to count enabled sub-phases:
    - `simstim.bridgebuilder_design_review: true` → +1 (Phase 3.5)
    - `red_team.enabled: true` AND `red_team.simstim.auto_trigger: true` → +1 (Phase 4.5)
