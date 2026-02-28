@@ -229,7 +229,7 @@ red_team:
         - Secrets
         - Encryption
         - Input.Sanitiz
-      # prompt_template: null  # Future: custom prompt per profile
+      prompt_template: "security-comparison"  # Maps to get_evaluation_context() in compliance-lib.sh
   # Code-vs-Design gate — compares SDD security design to implemented code (cycle-045)
   code_vs_design:
     enabled: false                    # Default off — opt-in per FR-3

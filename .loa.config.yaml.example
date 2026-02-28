@@ -1681,6 +1681,24 @@ run_bridge:
     max_research_iterations: 1      # Maximum research iterations per bridge run
     inquiry_enabled: false          # Also trigger multi-model inquiry (FR-4)
 
+  # Pipeline Self-Review (cycle-046 FR-3) — pipeline code reviews itself
+  pipeline_self_review:
+    enabled: false                  # Enable pipeline self-review during bridge
+
+  # Red Team Compliance Gate Profiles (cycle-047)
+  # Each profile defines keywords for SDD section extraction and a prompt template
+  # for model evaluation. See .claude/scripts/lib/compliance-lib.sh for details.
+  # compliance_gates:
+  #   security:
+  #     keywords: [Security, Authentication, Authorization, Validation]
+  #     prompt_template: "security-comparison"   # Default template
+  #   # api_contract:                            # Future profile
+  #   #   keywords: [API, Endpoint, Contract, Schema, Interface]
+  #   #   prompt_template: "api-contract"
+  #   # economic_invariant:                      # Future profile
+  #   #   keywords: [Economic, Invariant, Token, Governance, Vault]
+  #   #   prompt_template: "economic-invariant"
+
 # =============================================================================
 # Agent Teams Compatibility (v1.39.0)
 # =============================================================================

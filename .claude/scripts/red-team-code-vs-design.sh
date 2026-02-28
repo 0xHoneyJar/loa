@@ -35,6 +35,10 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
 MODEL_ADAPTER="$SCRIPT_DIR/model-adapter.sh"
 
+# Source shared libraries (cycle-047 T3.3)
+source "$SCRIPT_DIR/lib/findings-lib.sh"
+source "$SCRIPT_DIR/lib/compliance-lib.sh"
+
 # =============================================================================
 # Logging
 # =============================================================================
@@ -66,133 +70,24 @@ read_config() {
 }
 
 # =============================================================================
-# SDD Section Extraction
+# SDD Section Extraction — delegated to compliance-lib.sh (cycle-047 T3.3)
 # =============================================================================
 
-# Extract sections from a document matching header keywords.
-# Parameterized for reuse across compliance gate profiles (cycle-046 FR-4).
-#
-# Args:
-#   $1 - file path
-#   $2 - max chars (default 20000)
-#   $3 - pipe-separated keyword regex (default: security keywords)
-#
-# Returns:
-#   0 - sections found, output on stdout
-#   1 - file not found
-#   3 - no matching sections found
-extract_sections_by_keywords() {
-    local file_path="$1"
-    local max_chars="${2:-20000}"  # ~5K tokens
-    local keywords="${3:-Security|Authentication|Authorization|Validation|Error.Handling|Access.Control|Secrets|Encryption|Input.Sanitiz}"
-
-    if [[ ! -f "$file_path" ]]; then
-        error "File not found: $file_path"
-        return 1
-    fi
-
-    local in_section=false
-    local section_level=0
-    local output=""
-    local char_count=0
-
-    while IFS= read -r line; do
-        # Check if this is a header line
-        if [[ "$line" =~ ^(#{1,3})[[:space:]] ]]; then
-            local level=${#BASH_REMATCH[1]}
-
-            # If we're in a section and hit same-or-higher level header, exit section
-            if [[ "$in_section" == true && $level -le $section_level ]]; then
-                in_section=false
-            fi
-
-            # Check if this header matches the keyword pattern
-            if printf '%s\n' "$line" | grep -iqE "($keywords)"; then
-                in_section=true
-                section_level=$level
-            fi
-        fi
-
-        # Collect content when in a matching section
-        if [[ "$in_section" == true ]]; then
-            output+="$line"$'\n'
-            char_count=$((char_count + ${#line} + 1))
-
-            # Truncate if over budget
-            if [[ $char_count -ge $max_chars ]]; then
-                output+=$'\n[... truncated to token budget ...]\n'
-                break
-            fi
-        fi
-    done < "$file_path"
-
-    if [[ -z "$output" ]]; then
-        return 3  # No matching sections found
-    fi
-
-    echo "$output"
-}
-
 # Backward-compatible wrapper — extracts security-related sections from SDD
+# Delegates to compliance-lib.sh with security profile keywords
 extract_security_sections() {
     local sdd_path="$1"
     local max_chars="${2:-20000}"
 
-    # Read keywords from config if available, fall back to hardcoded defaults
-    local keywords="Security|Authentication|Authorization|Validation|Error.Handling|Access.Control|Secrets|Encryption|Input.Sanitiz"
-    if command -v yq &>/dev/null && [[ -f "$PROJECT_ROOT/.loa.config.yaml" ]]; then
-        local config_keywords
-        config_keywords=$(yq '.red_team.compliance_gates.security.keywords // [] | join("|")' "$PROJECT_ROOT/.loa.config.yaml" 2>/dev/null || echo "")
-        if [[ -n "$config_keywords" ]]; then
-            keywords="$config_keywords"
-        fi
-    fi
-
+    local keywords
+    keywords=$(load_compliance_keywords "security" "$CONFIG_FILE")
     extract_sections_by_keywords "$sdd_path" "$max_chars" "$keywords"
 }
 
 # =============================================================================
-# Prior Findings Extraction (Deliberative Council pattern — cycle-046 FR-2)
+# Prior Findings / Code Fence Stripping — delegated to findings-lib.sh (cycle-047 T3.3)
+# extract_prior_findings() and strip_code_fences() now live in findings-lib.sh
 # =============================================================================
-
-# Extract actionable findings from prior review/audit feedback files.
-# Looks for ## Findings, ## Issues, ## Changes Required, ## Security sections.
-# Returns truncated content or empty string for missing/empty files.
-extract_prior_findings() {
-    local path="$1"
-    local max_chars="${2:-20000}"
-
-    if [[ ! -f "$path" ]]; then
-        return 0
-    fi
-
-    local content=""
-    local in_section=false
-    local char_count=0
-
-    while IFS= read -r line; do
-        # Match relevant findings sections
-        if [[ "$line" =~ ^##[[:space:]] ]]; then
-            if printf '%s\n' "$line" | grep -iqE '(Findings|Issues|Changes.Required|Security|Concerns|Recommendations|SEC-[0-9]|Audit|Observations)'; then
-                in_section=true
-            elif [[ "$in_section" == true ]]; then
-                # Hit a different ## section — stop collecting
-                in_section=false
-            fi
-        fi
-
-        if [[ "$in_section" == true ]]; then
-            content+="$line"$'\n'
-            char_count=$((char_count + ${#line} + 1))
-            if [[ $char_count -ge $max_chars ]]; then
-                content+=$'\n[... prior findings truncated to token budget ...]\n'
-                break
-            fi
-        fi
-    done < "$path"
-
-    echo "$content"
-}
 
 # =============================================================================
 # Main
@@ -465,15 +360,8 @@ PROMPT
     local findings_json
     findings_json=$(echo "$model_output" | jq -r '.content // ""' 2>/dev/null)
 
-    # Strip markdown code fences if present
-    # Handles both cases: (a) first line is a fence, (b) preamble text before fence (F-007 hardening, cycle-047)
-    if echo "$findings_json" | head -1 | grep -qE '^[[:space:]]*```'; then
-        # Case (a): first line is a code fence — extract content between fences
-        findings_json=$(echo "$findings_json" | awk '/^[[:space:]]*```/{if(f){exit}else{f=1;next}} f')
-    elif echo "$findings_json" | grep -qE '^[[:space:]]*```'; then
-        # Case (b): preamble text before fence — skip to first fence, then extract
-        findings_json=$(echo "$findings_json" | awk '/^[[:space:]]*```/{if(f){exit}else{f=1;next}} f')
-    fi
+    # Strip markdown code fences if present (delegated to findings-lib.sh, cycle-047 T3.3)
+    findings_json=$(strip_code_fences "$findings_json")
 
     # Validate JSON
     if ! echo "$findings_json" | jq '.' > /dev/null 2>&1; then

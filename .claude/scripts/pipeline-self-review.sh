@@ -31,6 +31,10 @@ CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
 PIPELINE_MAP="$SCRIPT_DIR/../data/pipeline-sdd-map.json"
 RED_TEAM_SCRIPT="$SCRIPT_DIR/red-team-code-vs-design.sh"
 
+# Source shared libraries (cycle-047 T3.4)
+source "$SCRIPT_DIR/lib/findings-lib.sh"
+source "$SCRIPT_DIR/lib/compliance-lib.sh"
+
 # =============================================================================
 # Logging
 # =============================================================================
