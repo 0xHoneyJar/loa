@@ -106,7 +106,9 @@ resolve_all_sdds() {
         fi
     done <<< "$changes"
 
-    printf '%s\n' "${sdds[@]}"
+    if [[ ${#sdds[@]} -gt 0 ]]; then
+        printf '%s\n' "${sdds[@]}"
+    fi
 }
 
 # =============================================================================
@@ -149,7 +151,8 @@ main() {
             exit 0
         fi
     else
-        log "WARNING: yq not found or config missing — skipping config gate"
+        log "WARNING: yq not found or config missing — defaulting to disabled"
+        exit 0
     fi
 
     # Detect pipeline changes
@@ -254,6 +257,7 @@ main() {
             sdds_reviewed: $sdd_count,
             total_divergence_findings: $total_findings
         }' > "$output_dir/pipeline-self-review-summary.json"
+    chmod 600 "$output_dir/pipeline-self-review-summary.json"
 }
 
 main "$@"
