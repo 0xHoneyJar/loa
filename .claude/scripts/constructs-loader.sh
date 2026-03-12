@@ -98,7 +98,8 @@ discover_skills() {
     fi
 
     # Find all directories that look like skills (have index.yaml or SKILL.md)
-    find "$skills_dir" -mindepth 2 -maxdepth 2 -type d 2>/dev/null | while read -r skill_dir; do
+    # -L follows symlinks so construct packs installed via symlink are discovered
+    find -L "$skills_dir" -mindepth 2 -maxdepth 2 -type d 2>/dev/null | while read -r skill_dir; do
         # Check if it looks like a skill directory
         if [[ -f "$skill_dir/index.yaml" ]] || [[ -f "$skill_dir/SKILL.md" ]]; then
             # Extract vendor/skill name from path
@@ -177,9 +178,10 @@ discover_packs() {
         return 0
     fi
 
-    # Find all directories with manifest.json
-    find "$packs_dir" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | while read -r pack_dir; do
-        if [[ -f "$pack_dir/manifest.json" ]]; then
+    # Find all directories with manifest.json or construct.yaml
+    # -L follows symlinks so construct packs installed via symlink are discovered
+    find -L "$packs_dir" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | while read -r pack_dir; do
+        if [[ -f "$pack_dir/manifest.json" ]] || [[ -f "$pack_dir/construct.yaml" ]]; then
             basename "$pack_dir"
         fi
     done
