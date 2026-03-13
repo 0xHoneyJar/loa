@@ -1,40 +1,51 @@
 name: browsing-constructs
-version: "1.0.0"
-description: |
-  Browse and install packs from the Loa Constructs Registry with multi-select UI.
-  Enables composable skill installation per-repo.
-
-model: sonnet
-color: purple
+version: "2.0.0"
+description: Browse, search, and compose constructs from the network
+user_invocable: true
 
 triggers:
-  - pattern: "/constructs"
-    description: "Browse and install packs"
-  - pattern: "/constructs browse"
-    description: "Browse available packs"
-  - pattern: "/constructs install"
-    description: "Install specific pack"
+  - "/constructs"
+  - "find a skill for"
+  - "find a construct"
+  - "I need help with"
+  - "is there a construct that"
+  - "what construct can"
+  - "search constructs"
 
-dependencies: []
+capabilities:
+  model_tier: sonnet
+  danger_level: safe
+  effort_hint: small
+  downgrade_allowed: true
+  execution_hint: sequential
+  requires:
+    native_runtime: false
+    tool_calling: true
+    thinking_traces: false
+    vision: false
 
 inputs:
   - name: action
     type: string
-    description: "Action to perform: browse, install, list, update, uninstall"
+    description: "Action: browse (default), search, compose, install, register, sync, status, auth"
     required: false
     default: "browse"
-  - name: pack
+  - name: query
     type: string
-    description: "Pack slug for install/uninstall actions"
+    description: "Natural language query for search mode"
+    required: false
+  - name: slug
+    type: string
+    description: "Construct slug for install action"
     required: false
 
 outputs:
-  - name: installed_packs
+  - name: constructs
     type: array
-    description: "List of installed pack slugs"
+    description: "List of constructs from API response"
   - name: result
     type: object
-    description: "Installation result with success/error info"
+    description: "Action result with success/error info"
 
 zones:
   system: read
