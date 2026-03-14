@@ -997,6 +997,52 @@ do_validate_pack() {
 # Preload Command
 # =============================================================================
 
+# Check if a pack-based skill is stale (installed_at older than threshold)
+# Emits a one-line stderr warning if stale. Never blocks.
+# Uses existing config: registry.auto_refresh_threshold_hours (default 24)
+check_pack_staleness() {
+    local skill_dir="$1"
+
+    # Only check pack-installed skills (symlinks into .claude/constructs/packs/)
+    local resolved
+    resolved=$(readlink -f "$skill_dir" 2>/dev/null || realpath "$skill_dir" 2>/dev/null || echo "")
+    [[ "$resolved" == *"/constructs/packs/"* ]] || return 0
+
+    # Extract pack slug from resolved path: .../packs/<slug>/skills/...
+    local pack_slug
+    pack_slug=$(echo "$resolved" | sed -n 's|.*/constructs/packs/\([^/]*\)/.*|\1|p')
+    [[ -n "$pack_slug" ]] || return 0
+
+    # Look up installed_at from meta
+    local installed_at
+    installed_at=$(get_registry_meta ".installed_packs.\"$pack_slug\".installed_at" 2>/dev/null)
+    [[ "$installed_at" != "null" && -n "$installed_at" ]] || return 0
+
+    # Compare against threshold (hours)
+    local threshold_hours
+    threshold_hours=$(get_auto_refresh_threshold_hours)
+    local threshold_secs=$((threshold_hours * 3600))
+
+    # Parse installed_at ISO8601 to epoch (macOS date -j, fallback to GNU date)
+    local installed_epoch
+    if date -j -f "%Y-%m-%dT%H:%M:%S" "${installed_at%%.*}" "+%s" &>/dev/null; then
+        installed_epoch=$(date -j -f "%Y-%m-%dT%H:%M:%S" "${installed_at%%.*}" "+%s" 2>/dev/null)
+    elif date -d "$installed_at" "+%s" &>/dev/null; then
+        installed_epoch=$(date -d "$installed_at" "+%s" 2>/dev/null)
+    else
+        return 0  # Can't parse — skip silently
+    fi
+
+    local now_epoch
+    now_epoch=$(date "+%s")
+    local age_secs=$((now_epoch - installed_epoch))
+
+    if [[ $age_secs -gt $threshold_secs ]]; then
+        local age_days=$((age_secs / 86400))
+        print_warning "Pack '$pack_slug' installed ${age_days}d ago — run 'constructs install $pack_slug' to refresh"
+    fi
+}
+
 # Pre-load hook - validate skill before loading
 do_preload() {
     local skill_dir="$1"
@@ -1020,7 +1066,8 @@ do_preload() {
 
     case "$exit_code" in
         0)
-            # Valid - silent success
+            # Valid - check staleness (non-blocking warning to stderr)
+            check_pack_staleness "$skill_dir"
             return 0
             ;;
         1)
