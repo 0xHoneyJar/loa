@@ -57,6 +57,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.70.0] — 2026-03-24
+
 ### Added
 
 - **cycle-038**: Organizational Memory Sovereignty — three-zone state architecture with state-dir resolution, migration engine, trajectory redaction, memory pipeline, and federated learning across 6 sprints (#410)
