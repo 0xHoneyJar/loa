@@ -412,6 +412,10 @@ collect_ledger() {
     fi
 
     if command -v jq &>/dev/null; then
+        # Ensure content is valid JSON for --argjson (empty/missing → null)
+        if [[ -z "$content" ]] || ! echo "$content" | jq empty 2>/dev/null; then
+            content="null"
+        fi
         jq -n \
             --arg path "grimoires/loa/ledger.json" \
             --argjson content "$content" \
@@ -426,7 +430,7 @@ collect_trajectory() {
     local scope="$1"
     local window_size="$2"
     local trajectory_dir="$GRIMOIRE_PATH/a2a/trajectory"
-    local entries=()
+    local entries=""
     local total_entries=0
     local included_entries=0
     local truncated="false"
@@ -555,7 +559,7 @@ generate_output() {
 
     # Deduplicate patterns matched
     local unique_patterns
-    unique_patterns=$(printf '%s\n' "${PATTERNS_MATCHED[@]}" | sort -u | tr '\n' ',' | sed 's/,$//')
+    unique_patterns=$(printf '%s\n' ${PATTERNS_MATCHED[@]+"${PATTERNS_MATCHED[@]}"} | sort -u | tr '\n' ',' | sed 's/,$//')
 
     # Generate final JSON
     if command -v jq &>/dev/null; then
