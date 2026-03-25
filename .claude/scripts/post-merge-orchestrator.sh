@@ -33,6 +33,7 @@ MERGE_SHA=""
 DRY_RUN=false
 SKIP_GT=false
 SKIP_RTFM=false
+DOWNSTREAM=false
 
 # Phase matrix: which phases run for each PR type
 declare -A CYCLE_PHASES=( [classify]=1 [semver]=1 [changelog]=1 [gt_regen]=1 [rtfm]=1 [tag]=1 [release]=1 [notify]=1 )
@@ -57,6 +58,7 @@ Options:
   --dry-run            Validate without executing side effects
   --skip-gt            Skip ground truth regeneration
   --skip-rtfm          Skip RTFM validation
+  --downstream         Filter commits to app-zone only (for downstream repos)
   --help               Show this help
 USAGE
 }
@@ -271,8 +273,13 @@ phase_semver() {
     return 1
   fi
 
+  local semver_args=()
+  if [[ "$DOWNSTREAM" == "true" ]]; then
+    semver_args+=(--downstream)
+  fi
+
   local result
-  if result=$("$semver_script" 2>/dev/null); then
+  if result=$("$semver_script" "${semver_args[@]}" 2>/dev/null); then
     update_phase "semver" "completed" "$result"
     increment_metric "phases_completed"
     local current next bump
@@ -958,10 +965,23 @@ main() {
       --dry-run) DRY_RUN=true; shift ;;
       --skip-gt) SKIP_GT=true; shift ;;
       --skip-rtfm) SKIP_RTFM=true; shift ;;
+      --downstream) DOWNSTREAM=true; shift ;;
       --help|-h) usage; exit 0 ;;
       *) echo "ERROR: Unknown argument: $1" >&2; usage; exit 1 ;;
     esac
   done
+
+  # Auto-detect downstream mode (cycle-052)
+  # If no explicit --downstream flag, check if this is a non-loa repo
+  if [[ "$DOWNSTREAM" == "false" ]]; then
+    local classify_script="${SCRIPT_DIR}/classify-commit-zone.sh"
+    if [[ -f "$classify_script" ]]; then
+      source "$classify_script"
+      if ! is_loa_repo 2>/dev/null; then
+        DOWNSTREAM=true
+      fi
+    fi
+  fi
 
   # Validate required arguments
   if [[ -z "$PR_NUMBER" ]]; then

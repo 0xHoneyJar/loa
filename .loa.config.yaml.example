@@ -478,6 +478,9 @@ feedback:
 # Update Loa / Branch Testing (v1.11.0)
 # -----------------------------------------------------------------------------
 update_loa:
+  # DX Hardening (cycle-052): Emoji "What's New" after /update-loa
+  friendly_summary: true
+
   branch_testing:
     enabled: true
     feature_patterns: ["feature/*", "fix/*", "topic/*", "wip/*", "test/*"]

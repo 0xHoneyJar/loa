@@ -425,6 +425,66 @@ import_upstream_learnings() {
   fi
 }
 
+# === Friendly Release Summary (cycle-052) ===
+# After update, show a user-friendly "What's New" summary
+show_friendly_summary() {
+  # Check config: update_loa.friendly_summary (default: true)
+  local enabled=true
+  if command -v yq &>/dev/null && [[ -f ".loa.config.yaml" ]]; then
+    local config_val
+    config_val=$(yq '.update_loa.friendly_summary // true' .loa.config.yaml 2>/dev/null || echo "true")
+    if [[ "$config_val" == "false" ]]; then
+      enabled=false
+    fi
+  fi
+
+  if [[ "$enabled" != "true" ]]; then
+    return 0
+  fi
+
+  # Get current version from version file
+  local new_version=""
+  if [[ -f "$VERSION_FILE" ]]; then
+    new_version=$(jq -r '.framework_version // ""' "$VERSION_FILE" 2>/dev/null || echo "")
+  fi
+
+  if [[ -z "$new_version" ]]; then
+    return 0
+  fi
+
+  # Strip v prefix if present for version comparison
+  local to_ver="${new_version#v}"
+
+  # Try to find previous version from submodule tags
+  local from_ver=""
+  if [[ -d "$SUBMODULE_PATH" ]]; then
+    # Get the second-latest tag (previous version)
+    from_ver=$(cd "$SUBMODULE_PATH" && git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname 2>/dev/null | \
+      sed -n '2p' | sed 's/^v//')
+  fi
+
+  if [[ -z "$from_ver" ]]; then
+    return 0
+  fi
+
+  # Call generate-release-summary.sh
+  local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local summary_script="${script_dir}/generate-release-summary.sh"
+
+  if [[ ! -x "$summary_script" ]]; then
+    return 0
+  fi
+
+  local summary=""
+  summary=$("$summary_script" --from "$from_ver" --to "$to_ver" 2>/dev/null) || true
+
+  if [[ -n "$summary" ]]; then
+    echo ""
+    log "What's New in v${to_ver}:"
+    echo "$summary"
+  fi
+}
+
 # === Main ===
 main() {
   echo ""
@@ -467,6 +527,9 @@ Run: mount-loa.sh"
 
   # === Downstream Learning Import ===
   import_upstream_learnings
+
+  # === Friendly Release Summary (cycle-052) ===
+  show_friendly_summary
 
   echo ""
   log "Update complete."
