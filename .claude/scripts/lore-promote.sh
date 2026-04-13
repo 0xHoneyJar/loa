@@ -81,6 +81,12 @@ while [[ $# -gt 0 ]]; do
         --journal)
             [[ -z "${2:-}" ]] && { echo "ERROR: --journal requires PATH" >&2; exit 2; }
             JOURNAL_PATH="$2"; shift 2 ;;
+        --lock)
+            [[ -z "${2:-}" ]] && { echo "ERROR: --lock requires PATH" >&2; exit 2; }
+            LOCK_PATH="$2"; shift 2 ;;
+        --trajectory-dir)
+            [[ -z "${2:-}" ]] && { echo "ERROR: --trajectory-dir requires PATH" >&2; exit 2; }
+            TRAJECTORY_DIR="$2"; shift 2 ;;
         --interactive)
             mode="interactive"; shift ;;
         --threshold)
@@ -362,9 +368,10 @@ process_candidate() {
     elif [[ "$mode" == "threshold" ]]; then
         # Count distinct merged PRs for this term
         local merged_pr_count
-        merged_pr_count=$(echo "$ALL_PENDING" | jq -r --arg t "$sterm" '
+        # Read from temp file rather than env var (BB pass-2 F6 fix).
+        merged_pr_count=$(jq -r --arg t "$sterm" '
             select(.finding_content.title == $t or .title == $t) | .pr_number
-        ' 2>/dev/null | sort -u | wc -l | tr -d ' ')
+        ' "$ALL_PENDING_FILE" 2>/dev/null | sort -u | wc -l | tr -d ' ')
         if [[ "$merged_pr_count" -lt "$threshold" ]]; then
             log "Below threshold ($merged_pr_count < $threshold) for '$sterm' — skipping"
             return
@@ -447,7 +454,14 @@ main() {
         exit 0
     fi
 
-    export ALL_PENDING="$all_pending"
+    # Bridgebuilder pass-2 F6 (HIGH, re-raised after pass-1 defer): write
+    # pending set to a temp file rather than env var. Multi-line JSON via env
+    # is brittle (unbounded length, quoting issues with special chars). File
+    # path via env is safe and threshold-mode jq can read it cleanly.
+    ALL_PENDING_FILE=$(mktemp -p "${TMPDIR:-/tmp}" lore-pending.XXXXXX)
+    printf '%s' "$all_pending" > "$ALL_PENDING_FILE"
+    export ALL_PENDING_FILE
+    trap 'rm -f "$ALL_PENDING_FILE"' EXIT
 
     local pending_count
     pending_count=$(echo "$all_pending" | grep -c . || true)
