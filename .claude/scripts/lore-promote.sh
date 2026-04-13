@@ -94,6 +94,13 @@ while [[ $# -gt 0 ]]; do
             [[ "$2" =~ ^[0-9]+$ ]] || { echo "ERROR: --threshold must be integer" >&2; exit 2; }
             [[ "$2" -lt 2 ]] && { echo "ERROR: --threshold floor is 2 (min distinct merged PRs)" >&2; exit 2; }
             mode="threshold"; threshold="$2"; shift 2 ;;
+        --auto)
+            # Cycle-061 (#484): auto mode for post-merge pipeline use.
+            # Implies --threshold 2 (the safe default floor) when no
+            # explicit --threshold provided. No prompts, ever.
+            mode="threshold"
+            [[ "$threshold" -lt 2 ]] && threshold=2
+            shift ;;
         --dry-run)
             dry_run=true; shift ;;
         --help|-h)

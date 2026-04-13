@@ -35,13 +35,16 @@ SKIP_GT=false
 SKIP_RTFM=false
 DOWNSTREAM=false
 
-# Phase matrix: which phases run for each PR type
-declare -A CYCLE_PHASES=( [classify]=1 [semver]=1 [changelog]=1 [gt_regen]=1 [rtfm]=1 [tag]=1 [release]=1 [notify]=1 )
-declare -A BUGFIX_PHASES=( [classify]=1 [semver]=1 [changelog]=1 [tag]=1 [release]=1 [notify]=1 )
-declare -A OTHER_PHASES=( [classify]=1 [semver]=1 [tag]=1 [notify]=1 )
+# Phase matrix: which phases run for each PR type.
+# lore_promote (cycle-061, #484) runs after release for every PR type when
+# enabled in config — turns the operator-triggered HARVEST consumer into a
+# spiral-driven step. Default-disabled in config; opt-in per repo.
+declare -A CYCLE_PHASES=( [classify]=1 [semver]=1 [changelog]=1 [gt_regen]=1 [rtfm]=1 [tag]=1 [release]=1 [lore_promote]=1 [notify]=1 )
+declare -A BUGFIX_PHASES=( [classify]=1 [semver]=1 [changelog]=1 [tag]=1 [release]=1 [lore_promote]=1 [notify]=1 )
+declare -A OTHER_PHASES=( [classify]=1 [semver]=1 [tag]=1 [lore_promote]=1 [notify]=1 )
 
 # Ordered phase list
-PHASE_ORDER=(classify semver changelog gt_regen rtfm tag release notify)
+PHASE_ORDER=(classify semver changelog gt_regen rtfm tag release lore_promote notify)
 
 # =============================================================================
 # Usage
@@ -769,6 +772,62 @@ phase_release() {
     log_error "release" "gh release create failed"
     increment_metric "phases_failed"
     echo "[RELEASE] Failed to create GitHub Release"
+  fi
+}
+
+phase_lore_promote() {
+  # Cycle-061 (#484): consume PRAISE candidates from
+  # .run/bridge-lore-candidates.jsonl and promote vetted entries into
+  # grimoires/loa/lore/patterns.yaml. Default-disabled — opt-in via
+  # post_merge.lore_promote.enabled in .loa.config.yaml.
+  #
+  # Without this phase, lore-promote.sh (v1.80.0) never fires unless an
+  # operator manually invokes it — meaning the autopoietic spiral never
+  # closes. With this phase enabled, every merge auto-promotes patterns
+  # that recurred across ≥2 distinct PRs (the safe-default floor).
+  update_phase "lore_promote" "in_progress"
+
+  local enabled
+  enabled=$(yq '.post_merge.lore_promote.enabled // false' "${PROJECT_ROOT}/.loa.config.yaml" 2>/dev/null || echo "false")
+
+  if [[ "$enabled" != "true" ]]; then
+    update_phase "lore_promote" "skipped" '{"reason": "disabled in config"}'
+    increment_metric "phases_skipped"
+    echo "[LORE_PROMOTE] Skipped — post_merge.lore_promote.enabled is false"
+    return 0
+  fi
+
+  local script="${PROJECT_ROOT}/.claude/scripts/lore-promote.sh"
+  if [[ ! -x "$script" ]]; then
+    update_phase "lore_promote" "skipped" '{"reason": "lore-promote.sh not found or not executable"}'
+    increment_metric "phases_skipped"
+    echo "[LORE_PROMOTE] Skipped — script missing: $script"
+    return 0
+  fi
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    update_phase "lore_promote" "skipped" '{"reason": "dry-run"}'
+    increment_metric "phases_skipped"
+    echo "[LORE_PROMOTE] Skipped — dry-run mode"
+    return 0
+  fi
+
+  local out_log="${PROJECT_ROOT}/.run/post-merge-lore-promote.log"
+  if "$script" --auto > "$out_log" 2>&1; then
+    # Extract counts from log (best-effort)
+    local promoted_count
+    promoted_count=$(grep -c "Promoted " "$out_log" 2>/dev/null || echo 0)
+    update_phase "lore_promote" "completed" "$(jq -nc --argjson n "$promoted_count" '{promoted: $n}')"
+    increment_metric "phases_completed"
+    echo "[LORE_PROMOTE] Completed — promoted $promoted_count pattern(s) (log: $out_log)"
+  else
+    update_phase "lore_promote" "failed" '{"reason": "lore-promote.sh exited non-zero"}'
+    log_error "lore_promote" "lore-promote.sh failed (see $out_log)"
+    increment_metric "phases_failed"
+    echo "[LORE_PROMOTE] Failed — see $out_log"
+    # Per RTFM gap convention from Post-Merge automation: this phase MUST NOT
+    # block the pipeline (lore promotion is informational, not a release blocker)
+    return 0
   fi
 }
 

@@ -1814,6 +1814,19 @@ post_merge:
     # Skip RTFM validation
     skip_rtfm: false
 
+  # Lore promoter (cycle-061, #484)
+  # When enabled, the post-merge pipeline auto-promotes PRAISE candidates
+  # from .run/bridge-lore-candidates.jsonl into grimoires/loa/lore/patterns.yaml
+  # via lore-promote.sh --auto (threshold 2 — pattern must recur across ≥2
+  # distinct merged PRs to qualify). Without this enabled, lore-promote.sh
+  # ships in v1.80.0 but never runs in practice — the autopoietic spiral
+  # never closes.
+  #
+  # Default false — opt-in per repo. Recommended to enable once the
+  # downstream Loa user has reviewed the lore promoter contract.
+  lore_promote:
+    enabled: false
+
   # Notification
   notify:
     # Post pipeline summary as PR comment
