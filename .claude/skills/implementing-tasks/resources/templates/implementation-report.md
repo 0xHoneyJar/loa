@@ -18,6 +18,47 @@
 
 ---
 
+## AC Verification (REQUIRED — Issue #475)
+
+Before this sprint can be marked complete, every acceptance criterion from
+`grimoires/loa/sprint.md` MUST be walked explicitly below. Copy each AC
+verbatim (no paraphrase), mark its status, and provide file:line evidence
+for every `Met` claim. Reviewer will reject missing or unverified ACs.
+
+### Task {N.M} — Acceptance Criteria
+
+**AC-{N.M}.1**: "{verbatim acceptance criterion from sprint.md}"
+- Status: `✓ Met` | `✗ Not met` | `⚠ Partial` | `⏸ [ACCEPTED-DEFERRED]`
+- Evidence: `{path/to/file.ts:LINE}` — {exact symbol or assertion that proves it}
+- Test: `{path/to/test.ts:LINE}` — {test name that exercises it}
+- Notes: {only if Partial/Deferred — explain why and link to decision in NOTES.md}
+
+**AC-{N.M}.2**: "{next verbatim criterion}"
+- Status: ...
+- Evidence: ...
+
+*(Repeat per AC for every task in this sprint.)*
+
+### Deferral Policy
+
+- `✗ Not met` blocks sprint completion. No COMPLETED marker may be written.
+- `⏸ [ACCEPTED-DEFERRED]` requires a matching decision entry in
+  `grimoires/loa/NOTES.md` under "Decision Log" with rationale. Reviewer
+  validates the deferral is logged; an AC cannot be deferred silently.
+- `⚠ Partial` is treated as `✗ Not met` unless paired with an explicit
+  scope-split to a follow-up sprint task with its own sprint plan reference.
+
+### Anti-Vacuous-Satisfaction Rules
+
+Evidence lines must be specific enough that a reviewer can verify without
+re-reading the whole implementation:
+
+- **Good**: `src/batch/runner.ts:42 — pool = new Pool({ user: process.env.BATCH_DB_USER })` (specific symbol, quoted code)
+- **Bad**: "Implemented in src/batch/" (no line, no evidence)
+- **Bad**: "Done" (no file, no assertion)
+
+---
+
 ## Tasks Completed
 
 ### Task {N.M}: {Task Name}

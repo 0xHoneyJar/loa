@@ -362,14 +362,44 @@ Implement sprint tasks from `grimoires/loa/sprint.md` with production-grade code
 ## Verification (E - Easy to Verify)
 **Success** = All acceptance criteria met + comprehensive tests pass + detailed report at expected path
 
-Report MUST include:
+Report MUST include (in this order, enforced):
 - Executive Summary
+- **AC Verification** (REQUIRED — Issue #475, see structural rule below)
 - Tasks Completed (files/lines modified, approach, test coverage)
 - Technical Highlights (architecture, performance, security, integrations)
 - Testing Summary (test files, scenarios, how to run)
 - Known Limitations
 - Verification Steps for reviewer
 - Feedback Addressed section (if iteration after feedback)
+
+### AC Verification Gate (cycle-057, closes #475)
+
+Before writing the `COMPLETED` marker for a sprint, the implementation report
+MUST contain an `## AC Verification` section that walks every acceptance
+criterion from `grimoires/loa/sprint.md`. Each AC requires:
+
+1. **Verbatim quote** — copy the AC text from sprint.md, not a paraphrase
+2. **Status marker** — one of `✓ Met` / `✗ Not met` / `⚠ Partial` / `⏸ [ACCEPTED-DEFERRED]`
+3. **File:line evidence** — for every `Met` claim, a specific path and line
+   pointing to the symbol, assertion, or test that proves the AC is honored
+4. **Deferral rationale** — `[ACCEPTED-DEFERRED]` requires a matching entry
+   in `grimoires/loa/NOTES.md` under the Decision Log
+
+**Skill behavior enforcement**:
+
+- **DO NOT** write a `COMPLETED` marker if any AC has status `✗ Not met` or
+  `⚠ Partial` without an accompanying scope-split to a follow-up sprint task
+- **DO NOT** silently mark ACs as deferred — always pair with a NOTES.md entry
+- **DO NOT** write generic evidence like "implemented in src/batch/" — provide
+  specific file:line references with enough context that the reviewer can
+  verify the AC is honored without re-reading the whole implementation
+
+This gate catches SDD-implementation drift at implement time rather than
+letting it slip through to `/review-sprint`, saving the fix-loop round trip.
+Karpathy-aligned: goal-driven verification, not just code written.
+
+See `resources/templates/implementation-report.md` for the structured
+`## AC Verification` template.
 
 ## Reproducibility (R - Reproducible Results)
 - Write tests with specific assertions: NOT "it works" → "returns 200 status, response includes user.id field"

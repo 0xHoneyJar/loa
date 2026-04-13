@@ -296,10 +296,17 @@ Review sprint implementation for completeness, quality, security. Either approve
 - DO check that proper documentation was updated if integration context requires
 - DO verify context links are preserved (Discord threads, Linear issues) if required
 - DO read ALL context docs before reviewing
+- **DO check for `## AC Verification` section in `reviewer.md`** (cycle-057, Issue #475).
+  Return CHANGES_REQUIRED automatically when:
+  - The `## AC Verification` section is missing entirely
+  - Any AC shows `✗ Not met` without a scope-split to a follow-up sprint task
+  - Any AC shows `⏸ [ACCEPTED-DEFERRED]` without a matching Decision Log entry in `grimoires/loa/NOTES.md`
+  - Evidence for a `Met` claim is vague ("implemented in src/", "done", "yes") — demand file:line + specific symbol
 
 ## Verification (E - Easy to Verify)
 **Approval criteria** (ALL must be true):
-- All sprint tasks completed + all acceptance criteria met
+- `## AC Verification` section is present and complete — every AC from `sprint.md` walked verbatim
+- All sprint tasks completed + all acceptance criteria met (status `✓ Met` or valid `⏸ [ACCEPTED-DEFERRED]`)
 - Code quality is production-ready (readable, maintainable, follows conventions)
 - Tests are comprehensive and meaningful (happy paths, errors, edge cases)
 - No security issues (no hardcoded secrets, proper input validation, auth/authz correct)
