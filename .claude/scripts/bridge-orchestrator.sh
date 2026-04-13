@@ -12,14 +12,17 @@
 # Options:
 #   --depth N          Maximum iterations (default: 3)
 #   --per-sprint       Review after each sprint instead of full plan
-#   --resume           Resume from interrupted bridge
-#   --from PHASE       Start from phase (sprint-plan)
-#   --help             Show help
+#   --resume                 Resume from interrupted bridge
+#   --from PHASE             Start from phase (sprint-plan)
+#   --single-iteration       Process one iteration then exit (Issue #473)
+#   --no-silent-noop-detect  Disable post-loop no-findings check (Issue #473)
+#   --help                   Show help
 #
 # Exit Codes:
-#   0 - Complete (JACKED_OUT)
+#   0 - Complete (JACKED_OUT) or single-iteration step complete
 #   1 - Halted (circuit breaker or error)
 #   2 - Config error
+#   3 - Silent no-op detected (no findings produced)
 
 set -euo pipefail
 
@@ -112,17 +115,22 @@ usage() {
 Usage: bridge-orchestrator.sh [OPTIONS]
 
 Options:
-  --depth N          Maximum iterations (default: 3)
-  --per-sprint       Review after each sprint instead of full plan
-  --resume           Resume from interrupted bridge
-  --from PHASE       Start from phase (sprint-plan)
-  --repo OWNER/REPO  Target repository for gh commands
-  --help             Show help
+  --depth N                  Maximum iterations (default: 3)
+  --per-sprint               Review after each sprint instead of full plan
+  --resume                   Resume from interrupted bridge
+  --from PHASE               Start from phase (sprint-plan)
+  --repo OWNER/REPO          Target repository for gh commands
+  --single-iteration         Process one iteration then exit (Issue #473);
+                             pair with --resume to advance step by step
+  --no-silent-noop-detect    Disable post-loop check that fails when the run
+                             produced zero findings (Issue #473; for tests/CI)
+  --help                     Show help
 
 Exit Codes:
-  0  Complete (JACKED_OUT)
+  0  Complete (JACKED_OUT) or single-iteration step complete
   1  Halted (circuit breaker or error)
   2  Config error
+  3  Silent no-op detected (no findings produced; see --no-silent-noop-detect)
 USAGE
   exit "${1:-0}"
 }
