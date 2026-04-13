@@ -17,9 +17,10 @@ import type {
   ReviewError,
 } from "./types.js";
 import { scoreFindings } from "./scoring.js";
-import type { ModelFindings, ScoringResult } from "./scoring.js";
+import type { ModelFindings, ScoredFinding, ScoringResult } from "./scoring.js";
 import { createAdapter } from "../adapters/adapter-factory.js";
 import { PROVIDER_API_KEY_ENV, validateApiKeys } from "../config.js";
+import type { PRReviewTemplate } from "./template.js";
 
 export interface MultiModelReviewResult {
   /** Per-model review results. */
@@ -45,6 +46,20 @@ export interface PipelineAdapters {
 }
 
 /**
+ * Optional Pass-2 enrichment context. When provided, executeMultiModelReview()
+ * invokes ONE designated "writer" model to produce a human-readable consensus
+ * review with metaphors, FAANG parallels, and teachable moments.
+ *
+ * See bug-20260413-enrich: multi-model posts were unreadable raw JSON.
+ */
+export interface EnrichmentContext {
+  /** Template used to build enrichment prompt. */
+  template: PRReviewTemplate;
+  /** Persona string for enrichment voice. */
+  persona: string;
+}
+
+/**
  * Execute a multi-model review for a single PR item.
  *
  * @param item - The PR review item
@@ -60,6 +75,7 @@ export async function executeMultiModelReview(
   userPrompt: string,
   config: BridgebuilderConfig,
   adapters: PipelineAdapters,
+  enrichment?: EnrichmentContext,
 ): Promise<MultiModelReviewResult> {
   const multiConfig = config.multiModel!;
   const { poster, sanitizer, logger } = adapters;
@@ -228,16 +244,47 @@ export async function executeMultiModelReview(
     unique: consensus.stats.unique,
   });
 
+  // Pass-2 enrichment: generate human-readable consensus review (Option C).
+  // When enrichment context provided, the first primary model writes a prose
+  // review over the consensus findings. Falls back to stats-only if enrichment
+  // fails or is disabled.
+  let consensusBody = formatConsensusSummary(consensus, modelAdapters);
+
+  if (enrichment && findingsPerModel.length > 0 && modelAdapters.length > 0) {
+    try {
+      logger.info("[multi-model] Generating enriched consensus review...");
+      const enrichedContent = await generateEnrichedConsensusReview(
+        item,
+        consensus,
+        modelAdapters,
+        config,
+        enrichment,
+        adapters.sanitizer,
+        adapters.logger,
+      );
+      if (enrichedContent) {
+        // Prepend stats to enriched prose for quick-scan visibility
+        consensusBody = formatEnrichedConsensusSummary(consensus, modelAdapters, enrichedContent);
+        logger.info("[multi-model] Enrichment complete", {
+          enrichedBytes: enrichedContent.length,
+        });
+      }
+    } catch (err) {
+      logger.warn("[multi-model] Enrichment failed, using stats-only summary", {
+        error: (err as Error).message,
+      });
+    }
+  }
+
   // Post consensus summary comment
   let overallPosted = false;
   if (!config.dryRun && poster.postComment && findingsPerModel.length > 1) {
     try {
-      const summaryBody = formatConsensusSummary(consensus, modelAdapters);
       overallPosted = await poster.postComment({
         owner: item.owner,
         repo: item.repo,
         prNumber: item.pr.number,
-        body: summaryBody,
+        body: consensusBody,
       });
     } catch (err) {
       logger.warn("[multi-model] Failed to post consensus summary", {
@@ -395,6 +442,107 @@ function formatConsensusSummary(
     }
     lines.push("");
   }
+
+  return lines.join("\n");
+}
+
+/**
+ * Generate a human-readable enriched review from consensus findings (Option C).
+ *
+ * Takes the scored consensus findings and invokes ONE designated "writer" model
+ * (the first primary model in config.multiModel.models, or first available) to
+ * produce a Pass-2 enriched review with metaphors, FAANG parallels, and teachable
+ * moments. This closes the HITL readability gap — multi-model reviews now
+ * include the educational prose that single-model reviews already have.
+ */
+async function generateEnrichedConsensusReview(
+  item: ReviewItem,
+  consensus: ScoringResult,
+  modelAdapters: Array<{ provider: string; modelId: string; adapter: ILLMProvider }>,
+  config: BridgebuilderConfig,
+  enrichment: EnrichmentContext,
+  sanitizer: IOutputSanitizer,
+  logger: ILogger,
+): Promise<string | null> {
+  // Pick writer: first model with role=primary in config, else first available
+  const multiConfig = config.multiModel!;
+  const primaryEntry = multiConfig.models.find((m) => m.role === "primary");
+  const writerTarget = primaryEntry ?? multiConfig.models[0];
+  const writer = modelAdapters.find(
+    (m) => m.provider === writerTarget.provider && m.modelId === writerTarget.model_id,
+  ) ?? modelAdapters[0];
+
+  if (!writer) {
+    logger.warn("[multi-model] No writer model available for enrichment");
+    return null;
+  }
+
+  // Build findings JSON from consensus (convergence track)
+  // Preserve only the canonical finding from each group
+  const findingsForEnrichment = consensus.convergence.map((scored: ScoredFinding) => ({
+    ...scored.finding,
+    // Add consensus metadata as non-enriched fields
+    agreeing_models: scored.agreeing_models,
+    consensus_classification: scored.classification,
+  }));
+
+  const findingsJSON = JSON.stringify(
+    { schema_version: 1, findings: findingsForEnrichment },
+    null,
+    2,
+  );
+
+  const { systemPrompt, userPrompt } = enrichment.template.buildEnrichmentPrompt({
+    findingsJSON,
+    item,
+    persona: enrichment.persona,
+  });
+
+  logger.info(`[multi-model:enrichment] Writer: ${writer.provider}/${writer.modelId}`);
+  const response = await writer.adapter.generateReview({
+    systemPrompt,
+    userPrompt,
+    maxOutputTokens: config.maxOutputTokens,
+  });
+
+  // Sanitize writer output
+  const sanitized = sanitizer.sanitize(response.content);
+  return sanitized.safe ? response.content : sanitized.sanitizedContent;
+}
+
+/**
+ * Format enriched consensus summary: stats banner + writer-generated prose.
+ */
+function formatEnrichedConsensusSummary(
+  result: ScoringResult,
+  models: Array<{ provider: string; modelId: string }>,
+  enrichedContent: string,
+): string {
+  const lines: string[] = [];
+  const total = models.length + 1;
+
+  lines.push(`**[${total}/${total}] Multi-Model Consensus Review**`);
+  lines.push("");
+  lines.push(`Models: ${models.map((m) => `${m.provider}/${m.modelId}`).join(", ")}`);
+  lines.push("");
+
+  // Quick-scan stats (collapsible)
+  lines.push("<details>");
+  lines.push("<summary>Consensus Statistics</summary>");
+  lines.push("");
+  lines.push("| Classification | Count |");
+  lines.push("|---|---|");
+  lines.push(`| HIGH_CONSENSUS | ${result.stats.high_consensus} |`);
+  lines.push(`| DISPUTED | ${result.stats.disputed} |`);
+  lines.push(`| BLOCKER | ${result.stats.blocker} |`);
+  lines.push(`| LOW_VALUE | ${result.stats.low_value} |`);
+  lines.push(`| Unique perspectives | ${result.stats.unique} |`);
+  lines.push("");
+  lines.push("</details>");
+  lines.push("");
+  lines.push("---");
+  lines.push("");
+  lines.push(enrichedContent);
 
   return lines.join("\n");
 }

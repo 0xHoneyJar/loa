@@ -312,6 +312,7 @@ async function main(): Promise<void> {
         userPrompt,
         config,
         { poster: adapters.poster, sanitizer: adapters.sanitizer, logger: adapters.logger },
+        { template, persona },
       );
 
       for (const mr of mmResult.modelResults) {
