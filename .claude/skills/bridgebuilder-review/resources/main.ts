@@ -19,7 +19,12 @@ import {
 import type { BridgebuilderConfig, RunSummary } from "./core/types.js";
 import { executeMultiModelReview } from "./core/multi-model-pipeline.js";
 import { ProgressReporter } from "./core/progress.js";
-import { buildRatingPrompt, storeRating, createRatingEntry } from "./core/rating.js";
+import {
+  buildRatingPrompt,
+  storeRating,
+  createRatingEntry,
+  readRatingWithTimeout,
+} from "./core/rating.js";
 import { truncateFiles } from "./core/truncation.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -335,16 +340,29 @@ async function main(): Promise<void> {
     progress.reportComplete(Date.now() - now.getTime(), config.multiModel.models.length);
     progress.stop();
 
-    // Rating prompt (Fix #2) — non-blocking, respects timeout
+    // Rating prompt — non-blocking, respects timeout (Issue #464 A1)
     if (config.multiModel.rating.enabled) {
-      const ratingPrompt = buildRatingPrompt(
-        runId,
-        config.multiModel.models.map((m) => m.model_id).join(", "),
-        1,
-      );
+      const modelsLabel = config.multiModel.models.map((m) => m.model_id).join(", ");
+      const ratingPrompt = buildRatingPrompt(runId, modelsLabel, 1);
       console.error(ratingPrompt);
-      // In autonomous mode, rating is logged but not awaited for stdin
-      // The prompt is displayed; the caller can provide input or skip
+
+      try {
+        const { score, timedOut } = await readRatingWithTimeout({
+          timeoutMs: config.multiModel.rating.timeout_seconds * 1000,
+        });
+        if (score !== null) {
+          const entry = createRatingEntry(runId, 1, modelsLabel, score);
+          await storeRating(entry);
+          console.error(`[bridgebuilder] Rating stored: ${score}/5`);
+        } else if (timedOut) {
+          console.error(`[bridgebuilder] Rating prompt timed out after ${config.multiModel.rating.timeout_seconds}s`);
+        } else {
+          console.error("[bridgebuilder] Rating skipped");
+        }
+      } catch (err) {
+        // Rating must never crash the pipeline — log and continue
+        console.error(`[bridgebuilder] Rating capture failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
 
     console.log(JSON.stringify({ runId, mode: "multi-model", items: items.length }, null, 2));

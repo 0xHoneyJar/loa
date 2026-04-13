@@ -66,6 +66,22 @@ export class GoogleAdapter implements ILLMProvider {
       },
     });
 
+    // API key auth via URL query parameter is Google's required pattern for
+    // the Gemini REST API (https://ai.google.dev/gemini-api/docs/api-key).
+    // Unlike OpenAI (Authorization header) and Anthropic (x-api-key header),
+    // Google's public REST endpoint mandates `?key=`. This is not our design
+    // choice — it is the documented auth mechanism.
+    //
+    // Risk: the key appears in the URL and could leak via HTTP access logs,
+    // proxy logs, CDN logs, or error messages that include the full URL.
+    //
+    // Mitigation: this adapter runs in a server-side CLI context (Node.js
+    // fetch, no browser → no Referer header, no CDN/proxy intermediaries in
+    // typical deployments). `streamUrl` is passed to fetch() and never logged.
+    //
+    // CAUTION: do not add `logger.debug(streamUrl)` or include streamUrl in
+    // any error message. If Google's API evolves to support header-based auth,
+    // migrate to that pattern. See Issue #464 A3.
     const streamUrl = `${API_BASE}/${this.model}:streamGenerateContent?key=${this.apiKey}&alt=sse`;
 
     let lastError: Error | undefined;

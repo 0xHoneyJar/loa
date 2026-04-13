@@ -4,6 +4,8 @@
  * Non-blocking with configurable timeout.
  */
 import { appendFile, mkdir } from "node:fs/promises";
+import { createInterface } from "node:readline";
+import type { Readable, Writable } from "node:stream";
 
 export interface RatingEntry {
   timestamp: string;
@@ -114,4 +116,58 @@ export function createRatingEntry(
     category: options?.category ?? "overall",
     comment: options?.comment,
   };
+}
+
+/**
+ * Non-blocking stdin rating capture with timeout.
+ *
+ * Addresses bug-20260413-i464-9d4f51 / Issue #464 A1: the multi-model
+ * pipeline displayed the rating prompt but never read stdin, leaving
+ * FR-5 unimplemented.
+ *
+ * Resolves when either:
+ *   - User enters a value + Enter (score parsed via parseRatingInput)
+ *   - Timeout elapses ({ score: null, timedOut: true })
+ *
+ * Never throws. Never blocks beyond `timeoutMs`. Safe for autonomous mode.
+ *
+ * @param options.input - Readable stream (default: process.stdin)
+ * @param options.output - Writable stream for readline (default: process.stderr)
+ * @param options.timeoutMs - Timeout in milliseconds
+ */
+export async function readRatingWithTimeout(options: {
+  input?: Readable;
+  output?: Writable;
+  timeoutMs: number;
+}): Promise<{ score: number | null; timedOut: boolean }> {
+  const input = options.input ?? process.stdin;
+  const output = options.output ?? process.stderr;
+
+  return new Promise((resolve) => {
+    const rl = createInterface({ input, output, terminal: false });
+    let settled = false;
+
+    const finish = (result: { score: number | null; timedOut: boolean }) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try {
+        rl.close();
+      } catch {
+        // ignore close errors — best-effort cleanup
+      }
+      resolve(result);
+    };
+
+    const timer = setTimeout(() => finish({ score: null, timedOut: true }), options.timeoutMs);
+
+    rl.once("line", (line: string) => {
+      finish({ score: parseRatingInput(line), timedOut: false });
+    });
+
+    rl.once("close", () => {
+      // Stream closed before any input — treat as skip
+      finish({ score: null, timedOut: false });
+    });
+  });
 }

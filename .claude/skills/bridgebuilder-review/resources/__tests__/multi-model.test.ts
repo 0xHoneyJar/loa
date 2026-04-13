@@ -271,3 +271,84 @@ This PR has several issues worth addressing.
     assert.equal(findings.length, 0);
   });
 });
+
+/**
+ * Regression tests for bug-20260413-i464-9d4f51 / Issue #464 A2:
+ *
+ * Multi-model pipeline silently skipped comment posting when the configured
+ * IReviewPoster lacked postComment. HITL could not tell whether comments
+ * failed to post, were blocked, or were simply unsupported. shouldPostComment()
+ * encapsulates the guard and emits a warning when unsupported.
+ */
+describe("shouldPostComment (bug-20260413-i464-9d4f51)", () => {
+  // Import dynamically to avoid pulling executeMultiModelReview's full tree
+  const loadHelper = async () => (await import("../core/multi-model-pipeline.js")).shouldPostComment;
+
+  it("returns true when postComment is defined and not dry-run", async () => {
+    const shouldPostComment = await loadHelper();
+    const warnings: string[] = [];
+    const logger = {
+      info: () => {}, warn: (msg: string) => warnings.push(msg),
+      error: () => {}, debug: () => {},
+    };
+    const poster = {
+      postReview: async () => true,
+      hasExistingReview: async () => false,
+      postComment: async () => true,
+    };
+    const result = shouldPostComment(poster, { dryRun: false }, logger, "per-model");
+    assert.equal(result, true);
+    assert.equal(warnings.length, 0);
+  });
+
+  it("returns false and logs warning when postComment missing in non-dry-run", async () => {
+    const shouldPostComment = await loadHelper();
+    const warnings: string[] = [];
+    const logger = {
+      info: () => {}, warn: (msg: string) => warnings.push(msg),
+      error: () => {}, debug: () => {},
+    };
+    const poster = {
+      postReview: async () => true,
+      hasExistingReview: async () => false,
+      // no postComment
+    };
+    const result = shouldPostComment(poster, { dryRun: false }, logger, "per-model");
+    assert.equal(result, false);
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0], /does not implement postComment/);
+    assert.match(warnings[0], /per-model/);
+  });
+
+  it("returns false with no warning in dry-run mode", async () => {
+    const shouldPostComment = await loadHelper();
+    const warnings: string[] = [];
+    const logger = {
+      info: () => {}, warn: (msg: string) => warnings.push(msg),
+      error: () => {}, debug: () => {},
+    };
+    const poster = {
+      postReview: async () => true,
+      hasExistingReview: async () => false,
+      // no postComment — but dryRun=true so no warning
+    };
+    const result = shouldPostComment(poster, { dryRun: true }, logger, "per-model");
+    assert.equal(result, false);
+    assert.equal(warnings.length, 0);
+  });
+
+  it("includes the context string in the warning message", async () => {
+    const shouldPostComment = await loadHelper();
+    const warnings: string[] = [];
+    const logger = {
+      info: () => {}, warn: (msg: string) => warnings.push(msg),
+      error: () => {}, debug: () => {},
+    };
+    const poster = {
+      postReview: async () => true,
+      hasExistingReview: async () => false,
+    };
+    shouldPostComment(poster, { dryRun: false }, logger, "consensus summary");
+    assert.match(warnings[0], /consensus summary/);
+  });
+});

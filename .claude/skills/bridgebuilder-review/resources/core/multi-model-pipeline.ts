@@ -46,6 +46,27 @@ export interface PipelineAdapters {
 }
 
 /**
+ * Guard helper: returns true when a PR comment should be posted, and logs
+ * a warning if postComment is missing in non-dry-run mode.
+ *
+ * Addresses bug-20260413-i464-9d4f51 / Issue #464 A2: HITL could not
+ * distinguish "comment posting unsupported" from "comment posting failed".
+ */
+export function shouldPostComment(
+  poster: IReviewPoster,
+  config: { dryRun: boolean },
+  logger: ILogger,
+  context: string,
+): boolean {
+  if (config.dryRun) return false;
+  if (!poster.postComment) {
+    logger.warn(`[multi-model] Poster does not implement postComment; ${context} skipped`);
+    return false;
+  }
+  return true;
+}
+
+/**
  * Optional Pass-2 enrichment context. When provided, executeMultiModelReview()
  * invokes ONE designated "writer" model to produce a human-readable consensus
  * review with metaphors, FAANG parallels, and teachable moments.
@@ -181,7 +202,7 @@ export async function executeMultiModelReview(
 
       // Post per-model comment
       let posted = false;
-      if (!config.dryRun && poster.postComment) {
+      if (shouldPostComment(poster, config, logger, "per-model comment") && poster.postComment) {
         try {
           const commentBody = formatModelComment(
             ma.provider,
@@ -278,7 +299,11 @@ export async function executeMultiModelReview(
 
   // Post consensus summary comment
   let overallPosted = false;
-  if (!config.dryRun && poster.postComment && findingsPerModel.length > 1) {
+  if (
+    shouldPostComment(poster, config, logger, "consensus summary") &&
+    poster.postComment &&
+    findingsPerModel.length > 1
+  ) {
     try {
       overallPosted = await poster.postComment({
         owner: item.owner,
