@@ -470,9 +470,14 @@ git_inferred_completion_check() {
     grep_pattern=$(yq '.run_mode.git.sprint_commit_pattern // "^feat\\(sprint-"' "$PROJECT_ROOT/.loa.config.yaml" 2>/dev/null || echo '^feat\(sprint-')
     [[ -z "$grep_pattern" || "$grep_pattern" == "null" ]] && grep_pattern='^feat\(sprint-'
 
-    # Count matching commits between base_branch and HEAD
+    # Count matching commits between base_branch and HEAD.
+    # `grep -c` exits 1 when zero matches — `|| true` swallows that so the
+    # subsequent arithmetic compare sees a clean integer. (Using `|| echo 0`
+    # here would double-print when grep ALSO printed its own "0".)
     local found
-    found=$(git log --oneline --pretty=format:'%s' "${base_branch}..HEAD" 2>/dev/null | grep -cE "$grep_pattern" || echo 0)
+    found=$(git log --pretty=format:'%s' "${base_branch}..HEAD" 2>/dev/null | grep -cE "$grep_pattern" || true)
+    # Safety net: if `found` is empty for any reason, treat as zero.
+    [[ -z "$found" ]] && found=0
     GIT_INFERRED_COMMITS_FOUND=$found
     GIT_INFERRED_COMMITS_EXPECTED=$expected
 
