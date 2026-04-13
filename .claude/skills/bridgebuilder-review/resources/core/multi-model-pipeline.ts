@@ -293,8 +293,9 @@ async function executeWithConcurrency<T, R>(
 
 /**
  * Extract findings from review content by parsing the bridge-findings JSON block.
+ * Exported for testing — see bug-20260413-9f9b39.
  */
-function extractFindingsFromContent(content: string): Array<{
+export function extractFindingsFromContent(content: string): Array<{
   id: string;
   title: string;
   severity: string;

@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { crossScore } from "../core/cross-scorer.js";
 import { detectRefs, parseManualRefs } from "../core/cross-repo.js";
+import { extractFindingsFromContent } from "../core/multi-model-pipeline.js";
 
 describe("crossScore", () => {
   it("returns empty result for single model", () => {
@@ -168,5 +169,105 @@ describe("parseManualRefs", () => {
   it("handles empty array", () => {
     const refs = parseManualRefs([]);
     assert.equal(refs.length, 0);
+  });
+});
+
+/**
+ * Regression tests for bug-20260413-9f9b39:
+ * Multi-model pipeline extracts 0 findings because main.ts uses buildPrompt()
+ * (standard review prose) but extractFindingsFromContent() expects convergence
+ * format with <!-- bridge-findings-start --> JSON markers.
+ *
+ * These tests document the format contract: the extractor ONLY parses
+ * convergence-format output. main.ts MUST use buildConvergenceUserPromptFromTruncation()
+ * (or equivalent) to produce parseable reviews.
+ */
+describe("extractFindingsFromContent (bug-20260413-9f9b39)", () => {
+  it("extracts findings from convergence-format review output", () => {
+    const content = `## Summary
+Review content.
+
+<!-- bridge-findings-start -->
+\`\`\`json
+{
+  "schema_version": 1,
+  "findings": [
+    {
+      "id": "F1",
+      "title": "SQL Injection",
+      "severity": "HIGH",
+      "category": "security",
+      "file": "src/db.ts",
+      "description": "User input interpolated into SQL",
+      "suggestion": "Use parameterized queries"
+    },
+    {
+      "id": "F2",
+      "title": "Missing error handler",
+      "severity": "MEDIUM",
+      "category": "quality",
+      "description": "Promise rejection uncaught"
+    }
+  ]
+}
+\`\`\`
+<!-- bridge-findings-end -->`;
+
+    const findings = extractFindingsFromContent(content);
+    assert.equal(findings.length, 2, "Should extract both findings from convergence format");
+    assert.equal(findings[0].id, "F1");
+    assert.equal(findings[0].severity, "HIGH");
+    assert.equal(findings[1].id, "F2");
+  });
+
+  it("returns empty array for standard prose review (documents the bug)", () => {
+    // This is what template.buildPrompt() asks models to produce:
+    // "Your review MUST contain these sections:
+    //   - ## Summary (2-3 sentences)
+    //   - ## Findings (5-8 items, grouped by dimension, severity-tagged)
+    //   - ## Callouts (positive observations, ~30% of content)"
+    // Models return markdown prose — NOT findings JSON.
+    const standardProseReview = `## Summary
+This PR has several issues worth addressing.
+
+## Findings
+
+### Security
+- **HIGH**: SQL injection vulnerability in src/db.ts:42 — user input is directly interpolated into SQL
+- **MEDIUM**: Missing input validation on the userId parameter
+
+### Quality
+- **LOW**: Inconsistent variable naming
+
+## Callouts
+- Good test coverage across all new modules
+- Clean separation of concerns`;
+
+    const findings = extractFindingsFromContent(standardProseReview);
+    // Bug documented: extractor cannot parse prose format.
+    // main.ts must use convergence prompt builder to produce parseable output.
+    assert.equal(findings.length, 0);
+  });
+
+  it("handles malformed JSON in findings block gracefully", () => {
+    const content = `<!-- bridge-findings-start -->
+\`\`\`json
+{ "schema_version": 1, "findings": [ {broken json
+\`\`\`
+<!-- bridge-findings-end -->`;
+
+    const findings = extractFindingsFromContent(content);
+    assert.equal(findings.length, 0);
+  });
+
+  it("handles missing findings array gracefully", () => {
+    const content = `<!-- bridge-findings-start -->
+\`\`\`json
+{ "schema_version": 1 }
+\`\`\`
+<!-- bridge-findings-end -->`;
+
+    const findings = extractFindingsFromContent(content);
+    assert.equal(findings.length, 0);
   });
 });

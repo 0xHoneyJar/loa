@@ -20,6 +20,7 @@ import type { BridgebuilderConfig, RunSummary } from "./core/types.js";
 import { executeMultiModelReview } from "./core/multi-model-pipeline.js";
 import { ProgressReporter } from "./core/progress.js";
 import { buildRatingPrompt, storeRating, createRatingEntry } from "./core/rating.js";
+import { truncateFiles } from "./core/truncation.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -299,7 +300,11 @@ async function main(): Promise<void> {
     const items = await template.resolveItems();
 
     for (const item of items) {
-      const { systemPrompt, userPrompt } = template.buildPrompt(item, persona);
+      // Use convergence prompt so models return findings JSON parseable by
+      // extractFindingsFromContent() (bug-20260413-9f9b39).
+      const truncated = truncateFiles(item.files, config);
+      const systemPrompt = template.buildConvergenceSystemPrompt();
+      const userPrompt = template.buildConvergenceUserPrompt(item, truncated);
 
       const mmResult = await executeMultiModelReview(
         item,
