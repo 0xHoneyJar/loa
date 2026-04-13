@@ -58,6 +58,24 @@ Check danger level (high) — requires explicit opt-in:
 | per_sprint | `--per-sprint` | false |
 | resume | `--resume` | false |
 | from | `--from PHASE` | — |
+| single_iteration | `--single-iteration` | false (Issue #473) |
+| no_silent_noop_detect | `--no-silent-noop-detect` | false (Issue #473) |
+
+**`--single-iteration`** (cycle-058, Issue #473): processes exactly one
+iteration body and exits. State is preserved so `--resume --single-iteration`
+picks up the next iteration. Use this when the calling skill wants to act
+on the SIGNAL:* lines from each iteration before the next one starts —
+rather than letting all iterations fire in one shell invocation where the
+skill has no chance to intercept.
+
+**Silent-no-op detection** (cycle-058, Issue #473): at the end of a
+completed run, the orchestrator checks `.run/bridge-reviews/` for findings
+files. If zero were produced across all iterations, it fails loud with
+exit 3 and an actionable error message. This prevents the scenario where
+SIGNAL:* lines fire via shell pipe but no skill acts on them, leading to
+silent JACKED_OUT with 0 findings. Pass `--no-silent-noop-detect` to opt
+out (intended for tests and CI scenarios where you want to validate flag
+parsing without producing real reviews).
 
 ### Phase 2: Orchestrator Invocation
 
