@@ -469,36 +469,61 @@ phase_bridgebuilder_review() {
     return 0
   fi
 
-  # Run bridge orchestrator with timeout
-  local bridge_result=0
-  if [[ -x "${SCRIPT_DIR}/bridge-orchestrator.sh" ]]; then
-    run_with_timeout "$TIMEOUT_BRIDGEBUILDER_REVIEW" \
-      "${SCRIPT_DIR}/bridge-orchestrator.sh" --depth "$depth" \
-      || bridge_result=$?
-  else
-    log_info "bridge-orchestrator.sh not found, skipping"
-    "$STATE_SCRIPT" update-phase bridgebuilder_review skipped
-    return 0
-  fi
+  # Kaironic iteration loop (PR #466 v3 lesson): review → triage → convergence
+  # check → (iterate or flatline). Depth is the max iterations before giving up;
+  # convergence short-circuits when FLATLINE is reached.
+  # Demonstrated in PR #466: 3 passes produced HIGH counts 2 → 3 → 0 (flatlined).
+  local max_iters="$depth"
+  local iter=0
+  local convergence_state="KEEP_ITERATING"
+  local convergence_file="$(pwd)/.run/bridge-triage-convergence.json"
+  local review_dir="${LOA_REVIEW_DIR:-$(pwd)/.run/bridge-reviews}"
 
-  # Run triage regardless of bridge exit code — even partial findings are useful.
-  # Pass --review-dir explicitly so triage reads from the same location
-  # bridge-orchestrator wrote to, regardless of script deployment path (Issue #464 H2).
-  if [[ -x "${SCRIPT_DIR}/post-pr-triage.sh" ]]; then
-    log_info "Triaging Bridgebuilder findings for PR #${pr_number}..."
-    local triage_result=0
-    local review_dir="${LOA_REVIEW_DIR:-$(pwd)/.run/bridge-reviews}"
-    "${SCRIPT_DIR}/post-pr-triage.sh" \
-      --pr "$pr_number" \
-      --auto-triage "$auto_triage" \
-      --review-dir "$review_dir" \
-      || triage_result=$?
+  while [[ $iter -lt $max_iters ]] && [[ "$convergence_state" != "FLATLINE" ]]; do
+    iter=$((iter + 1))
+    log_info "Bridgebuilder iteration $iter/$max_iters"
 
-    if [[ $triage_result -ne 0 ]]; then
-      log_info "Triage returned exit=$triage_result (non-fatal)"
+    # Run bridge orchestrator with per-iteration timeout
+    local bridge_result=0
+    if [[ -x "${SCRIPT_DIR}/bridge-orchestrator.sh" ]]; then
+      run_with_timeout "$TIMEOUT_BRIDGEBUILDER_REVIEW" \
+        "${SCRIPT_DIR}/bridge-orchestrator.sh" --depth 1 \
+        || bridge_result=$?
+    else
+      log_info "bridge-orchestrator.sh not found, skipping"
+      "$STATE_SCRIPT" update-phase bridgebuilder_review skipped
+      return 0
     fi
+
+    # Run triage — produces convergence state in .run/bridge-triage-convergence.json
+    if [[ -x "${SCRIPT_DIR}/post-pr-triage.sh" ]]; then
+      local triage_result=0
+      "${SCRIPT_DIR}/post-pr-triage.sh" \
+        --pr "$pr_number" \
+        --auto-triage "$auto_triage" \
+        --review-dir "$review_dir" \
+        || triage_result=$?
+      if [[ $triage_result -ne 0 ]]; then
+        log_info "Triage returned exit=$triage_result (non-fatal)"
+      fi
+    else
+      log_info "post-pr-triage.sh not found; cannot detect convergence — stopping after iter 1"
+      break
+    fi
+
+    # Read convergence state from triage output
+    if [[ -f "$convergence_file" ]]; then
+      convergence_state=$(jq -r '.state // "KEEP_ITERATING"' "$convergence_file" 2>/dev/null || echo "KEEP_ITERATING")
+      local actionable_high
+      actionable_high=$(jq -r '.actionable_high // 0' "$convergence_file" 2>/dev/null || echo "0")
+      log_info "Iteration $iter: state=$convergence_state actionable_high=$actionable_high"
+    fi
+  done
+
+  if [[ "$convergence_state" == "FLATLINE" ]]; then
+    log_success "Kaironic convergence reached after $iter iteration(s) — FLATLINE"
   else
-    log_info "post-pr-triage.sh not found, findings posted to PR but not triaged"
+    log_info "Max iterations ($max_iters) reached without flatline; continuing with final state"
   fi
 
   # Classify outcome

@@ -324,6 +324,49 @@ EOF
     [[ "$bug_id" == *"security-auth-bypass" ]]
 }
 
+# Kaironic termination pattern (PR #466 v3 convergence demo):
+# Triage must write a machine-readable convergence record after processing
+# so callers can short-circuit the iteration loop when FLATLINE is reached.
+@test "triage: emits FLATLINE convergence state when no CRITICAL/BLOCKER findings" {
+    # Only LOW + PRAISE findings → should flatline
+    create_findings_file "bridge-test-iter1-findings.json" "LOW" "low-1" "Minor"
+    run "$TEST_TMPDIR/.claude/scripts/post-pr-triage.sh" --pr 100 --auto-triage true
+    [ "$status" -eq 0 ]
+
+    local convergence_file="$TEST_TMPDIR/.run/bridge-triage-convergence.json"
+    [ -f "$convergence_file" ]
+
+    run jq -r '.state' "$convergence_file"
+    [[ "$output" == "FLATLINE" ]]
+
+    run jq -r '.actionable_high' "$convergence_file"
+    [[ "$output" == "0" ]]
+}
+
+@test "triage: emits KEEP_ITERATING convergence state when CRITICAL findings present" {
+    create_findings_file "bridge-test-iter1-findings.json" "CRITICAL" "crit-1" "Real bug"
+    run "$TEST_TMPDIR/.claude/scripts/post-pr-triage.sh" --pr 100 --auto-triage true
+    [ "$status" -eq 0 ]
+
+    local convergence_file="$TEST_TMPDIR/.run/bridge-triage-convergence.json"
+    [ -f "$convergence_file" ]
+
+    run jq -r '.state' "$convergence_file"
+    [[ "$output" == "KEEP_ITERATING" ]]
+
+    run jq -r '.actionable_high' "$convergence_file"
+    [[ "$output" != "0" ]]
+}
+
+@test "orchestrator: iterates up to depth then short-circuits on FLATLINE" {
+    run grep -c "while \[\[ \$iter -lt \$max_iters" "$PROJECT_ROOT/.claude/scripts/post-pr-orchestrator.sh"
+    [ "$status" -eq 0 ]
+    [[ "$output" -ge 1 ]]
+
+    run grep "Kaironic convergence reached" "$PROJECT_ROOT/.claude/scripts/post-pr-orchestrator.sh"
+    [ "$status" -eq 0 ]
+}
+
 # Bridgebuilder H4 (PR #466 v2 review): default REVIEW_DIR should resolve
 # relative to cwd (not script location) to stay consistent with orchestrator.
 @test "triage: default REVIEW_DIR is cwd-relative (H4 fix)" {

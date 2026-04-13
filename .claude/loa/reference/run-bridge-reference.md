@@ -106,6 +106,31 @@ Every decision writes a JSON line to `grimoires/loa/a2a/trajectory/bridge-triage
 3. Invoke `/bug` with the synthesized context
 4. On success: update the entry's `status` to `dispatched` and record the created bug ID
 
+### Kaironic termination pattern
+
+The post-PR phase is now **iterative with convergence detection** (since cycle-053 PR #466 v3 findings):
+
+```
+for iter in 1..depth:
+  run bridge-orchestrator.sh --depth 1  # one adversarial review
+  run post-pr-triage.sh                  # triage + write .run/bridge-triage-convergence.json
+  read convergence.state:
+    FLATLINE       → break (nothing left to converge on, jack out)
+    KEEP_ITERATING → next iteration
+```
+
+Convergence is signaled by `state: "FLATLINE"` in `.run/bridge-triage-convergence.json` when both `actionable_high == 0` AND `blocker_count == 0`. This matches the Neuromancer-inspired kaironic termination from `/run-bridge`: *the loop jacks out when there is nothing left to converge on.*
+
+Empirical validation (PR #466, three manual passes demonstrating convergence):
+
+| Pass | HIGH_CONSENSUS | DISPUTED | BLOCKER | Action |
+|------|----------------|----------|---------|--------|
+| 1    | 2              | 5        | 0       | Fix 2 HIGH |
+| 2    | 3              | 9        | 0       | Fix 2 HIGH |
+| 3    | **0**          | 7        | 0       | **FLATLINE → jack out** |
+
+The disputed findings that remain after convergence have `delta > 300` across models (one model flags, others don't), which by definition is low-actionable signal. This is the stopping condition: not "all findings resolved" but "no cross-model consensus on HIGH severity."
+
 ### Skip flags
 
 Pass `--skip-bridgebuilder` to `post-pr-orchestrator.sh` to bypass this phase even when enabled.

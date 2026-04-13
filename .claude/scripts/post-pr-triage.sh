@@ -381,6 +381,58 @@ main() {
 
   log "Triage complete — see trajectory logs in $TRAJECTORY_DIR"
 
+  # Kaironic termination check: emit a machine-readable summary so callers
+  # (e.g., iterative post-pr-orchestrator loops or /run-bridge) can decide
+  # whether to continue iterating or jack out.
+  #
+  # Convergence heuristic:
+  #   - actionable_high >0 OR blocker_count >0 → KEEP_ITERATING
+  #   - actionable_high =0 AND blocker_count =0 → FLATLINE (safe to converge)
+  #
+  # This is the "nothing left to converge on" signal from the Neuromancer lore
+  # captured in /run-bridge's kaironic termination pattern.
+  # Count severity/action markers across all trajectory files using awk
+  # (single-line output, no pipefail issues with grep exiting 1 on no-match).
+  local actionable_high=0 blocker_count=0 disputed_count=0
+  local traj_glob_found=false
+  for f in "$TRAJECTORY_DIR"/bridge-triage-*.jsonl; do
+    [[ -f "$f" ]] || continue
+    traj_glob_found=true
+    break
+  done
+  if [[ "$traj_glob_found" == "true" ]]; then
+    actionable_high=$(awk '/"action":"dispatch_bug"/ {c++} END {print c+0}' \
+      "$TRAJECTORY_DIR"/bridge-triage-*.jsonl 2>/dev/null || echo "0")
+    blocker_count=$(awk '/"severity":"BLOCKER"|"severity":"CRITICAL"/ {c++} END {print c+0}' \
+      "$TRAJECTORY_DIR"/bridge-triage-*.jsonl 2>/dev/null || echo "0")
+    disputed_count=$(awk '/"severity":"DISPUTED"|"severity":"HIGH"/ {c++} END {print c+0}' \
+      "$TRAJECTORY_DIR"/bridge-triage-*.jsonl 2>/dev/null || echo "0")
+  fi
+
+  local convergence_state
+  if [[ "$actionable_high" -eq 0 && "$blocker_count" -eq 0 ]]; then
+    convergence_state="FLATLINE"
+  else
+    convergence_state="KEEP_ITERATING"
+  fi
+
+  log "Kaironic state: $convergence_state (actionable_high=$actionable_high, blocker=$blocker_count, disputed/high_logged=$disputed_count)"
+
+  # Write the convergence record to a stable location for downstream consumers
+  if [[ "$DRY_RUN" != "true" ]]; then
+    local convergence_file="$CWD_AT_INVOKE/.run/bridge-triage-convergence.json"
+    mkdir -p "$(dirname "$convergence_file")"
+    jq -nc \
+      --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+      --argjson pr "$PR_NUMBER" \
+      --argjson high "$actionable_high" \
+      --argjson blocker "$blocker_count" \
+      --argjson disputed "$disputed_count" \
+      --arg state "$convergence_state" \
+      '{timestamp: $ts, pr_number: $pr, state: $state, actionable_high: $high, blocker_count: $blocker, disputed_count: $disputed}' \
+      > "$convergence_file"
+  fi
+
   if [[ -f "$BUG_QUEUE" ]] && [[ "$DRY_RUN" != "true" ]]; then
     local pending_count
     pending_count=$(grep -c '^' "$BUG_QUEUE" 2>/dev/null || echo "0")
