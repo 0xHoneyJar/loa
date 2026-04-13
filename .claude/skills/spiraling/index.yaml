@@ -1,0 +1,96 @@
+# Spiraling Skill — /spiral autopoietic meta-orchestrator (cycle-066)
+# RFC-060 (#483) MVP scaffolding
+name: spiraling
+version: "0.1.0"
+description: "Autonomous multi-cycle meta-orchestrator: SEED → SIMSTIM → HARVEST → EVALUATE"
+
+effort_hint: high
+danger_level: high
+categories:
+  - operations
+  - meta-orchestration
+
+inputExamples:
+  - input:
+      command: "--start"
+    description: "Start a new spiral with default config"
+  - input:
+      command: "--start"
+      max_cycles: 5
+      budget_cents: 5000
+    description: "Start with explicit budget override (subject to safety floors)"
+  - input:
+      command: "--status"
+    description: "Show current spiral state"
+  - input:
+      command: "--halt"
+      reason: "operator requested"
+    description: "Gracefully halt an in-progress spiral"
+  - input:
+      command: "--resume"
+    description: "Resume a previously HALTED spiral"
+
+triggers:
+  commands:
+    - "/spiral"
+    - "/spiral-status"
+    - "/spiral-halt"
+    - "/spiral-resume"
+  patterns:
+    - "start spiral"
+    - "kick off spiral"
+    - "autopoietic loop"
+
+inputs:
+  - name: command
+    type: string
+    pattern: "--(start|status|halt|resume|check-stop)"
+    description: "Orchestrator subcommand"
+    required: true
+  - name: max_cycles
+    type: integer
+    default: 3
+    description: "Maximum spiral cycles (clamped to 50)"
+  - name: budget_cents
+    type: integer
+    default: 2000
+    description: "Cost budget in cents (clamped to 10000)"
+  - name: wall_clock_seconds
+    type: integer
+    default: 28800
+    description: "Wall-clock budget in seconds (clamped to 86400)"
+  - name: dry_run
+    type: boolean
+    default: false
+    description: "Validate config without starting"
+  - name: reason
+    type: string
+    description: "Halt reason (for --halt)"
+
+outputs:
+  - name: spiral_state
+    path: ".run/spiral-state.json"
+    description: "Spiral state file"
+  - name: trajectory_log
+    path: "grimoires/loa/a2a/trajectory/spiral-{date}.jsonl"
+    description: "Trajectory log of spiral events"
+
+protocols:
+  - run-mode.md
+  - git-safety.md
+
+scripts:
+  - spiral-orchestrator.sh
+
+config_section: spiral
+
+safety:
+  requires_opt_in: true
+  opt_in_config: "spiral.enabled"
+  # Hardcoded safety floors — CANNOT be overridden by config
+  floors:
+    max_cycles: 50
+    max_cost_cents: 10000
+    max_wall_clock_seconds: 86400
+  # Halt sentinel — creating this file mid-spiral halts gracefully
+  halt_sentinel: ".run/spiral-halt"

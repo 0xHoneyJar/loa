@@ -1602,6 +1602,52 @@ vision_registry:
   # review finalization for findings with VISION or SPECULATION severity.
   bridge_auto_capture: false
 
+# =============================================================================
+# /spiral Autopoietic Meta-Orchestrator (cycle-066, RFC-060 #483)
+# =============================================================================
+# Multi-cycle autonomous development loop. Each cycle runs /simstim; outputs
+# (visions, lore, bridge findings) become the next cycle's inputs via the
+# existing post-merge HARVEST pipeline. Terminates on cycle budget, flatline,
+# cost, wall-clock, quality-gate failure, or HITL halt.
+#
+# SAFETY FLOORS (hardcoded, cannot be overridden by config):
+#   - max_cycles        ≤ 50
+#   - budget_cents      ≤ 10000 ($100)
+#   - wall_clock_seconds ≤ 86400 (24h)
+#
+# Status: v0.1.0 MVP scaffolding. Cycle dispatch wires in cycle-067+.
+# See: grimoires/loa/proposals/rfc-060-spiral.md
+spiral:
+  # Master switch — default OFF. /spiral exits early with guidance when false.
+  enabled: false
+
+  # Default cycle budget
+  default_max_cycles: 3
+
+  # Kaironic convergence: two consecutive cycles below this many new findings
+  # trigger flatline termination.
+  flatline:
+    min_new_findings_per_cycle: 3
+    consecutive_low_cycles: 2
+
+  # Cost budget (cents). Safety floor: 10000 ($100).
+  budget_cents: 2000
+
+  # Wall-clock budget (seconds). Safety floor: 86400 (24h).
+  wall_clock_seconds: 28800
+
+  # SEED phase: pull prior cycle outputs into this cycle's discovery context.
+  # Gated separately because Vision Registry is in shadow_mode (#486).
+  seed:
+    enabled: false
+    include_visions: true
+    include_lore: true
+    include_deferred_findings: true
+    max_seed_tokens: 2000
+
+  # HITL halt sentinel — creating this file mid-spiral halts gracefully.
+  halt_sentinel: ".run/spiral-halt"
+
 # Prompt Isolation (v1.42.0)
 # De-authorization wrappers for untrusted content in LLM prompts.
 # Wraps external/user content in de-authorization envelope that prevents
