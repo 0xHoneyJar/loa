@@ -511,6 +511,13 @@ run_mode:
     auto_push: true
     # Always create PRs as drafts - this is hardcoded and cannot be changed
     create_draft_pr: true
+    # Git-aware sync_run_mode (Issue #474)
+    # Branch to diff against when inferring sprint completion from git history.
+    base_branch: "main"
+    # Regex pattern (grep -E) for sprint commit messages. Default matches
+    # conventional commit markers like "feat(sprint-1): implementation".
+    # Override if your project uses a different commit convention.
+    sprint_commit_pattern: '^feat\(sprint-'
 
 # -----------------------------------------------------------------------------
 # BUTTERFREEZONE — Agent-Grounded README (v1.35.0)

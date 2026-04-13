@@ -428,6 +428,58 @@ set_expected_plan_id() {
         '{expected_plan_id: $plan_id, implementation_started_at: $ts}'
 }
 
+# =============================================================================
+# Git-aware completion inference (Issue #474)
+# =============================================================================
+# Returns 0 (true) when git history shows enough sprint commits to consider
+# the run-mode state stale. Returns non-zero otherwise (run is genuinely
+# in-flight, or git evidence is insufficient to override the state file).
+#
+# Sets globals when returning true (caller reads them):
+#   GIT_INFERRED_COMMITS_FOUND     — number of matching commits seen
+#   GIT_INFERRED_COMMITS_EXPECTED  — number expected from sprint plan total
+#   GIT_INFERRED_BASE_BRANCH       — branch we diff'd against
+#
+# The check is a safe fallback, not a default change: it only fires when
+# the state field already says RUNNING. When state and git agree (e.g.,
+# a genuine in-flight run with no commits yet), the existing behavior is
+# preserved.
+git_inferred_completion_check() {
+    GIT_INFERRED_COMMITS_FOUND=0
+    GIT_INFERRED_COMMITS_EXPECTED=0
+    GIT_INFERRED_BASE_BRANCH=""
+
+    # Need both files to do meaningful inference
+    [[ -f "$RUN_MODE_STATE" ]] || return 1
+
+    # Resolve sprint count from run-mode state (sprints.total or sprints.list length)
+    local expected
+    expected=$(jq -r '.sprints.total // (.sprints.list | length) // 0' "$RUN_MODE_STATE" 2>/dev/null || echo 0)
+    [[ "$expected" -gt 0 ]] || return 1
+
+    # Resolve base branch (default to "main" if not configurable)
+    local base_branch
+    base_branch=$(yq '.run_mode.git.base_branch // "main"' "$PROJECT_ROOT/.loa.config.yaml" 2>/dev/null || echo "main")
+    [[ -z "$base_branch" || "$base_branch" == "null" ]] && base_branch="main"
+    GIT_INFERRED_BASE_BRANCH="$base_branch"
+
+    # Resolve grep pattern (configurable; default matches conventional sprint commits)
+    local grep_pattern
+    # Default pattern uses escaped parens for grep -E (ERE) compatibility.
+    # Users can override via .loa.config.yaml run_mode.git.sprint_commit_pattern.
+    grep_pattern=$(yq '.run_mode.git.sprint_commit_pattern // "^feat\\(sprint-"' "$PROJECT_ROOT/.loa.config.yaml" 2>/dev/null || echo '^feat\(sprint-')
+    [[ -z "$grep_pattern" || "$grep_pattern" == "null" ]] && grep_pattern='^feat\(sprint-'
+
+    # Count matching commits between base_branch and HEAD
+    local found
+    found=$(git log --oneline --pretty=format:'%s' "${base_branch}..HEAD" 2>/dev/null | grep -cE "$grep_pattern" || echo 0)
+    GIT_INFERRED_COMMITS_FOUND=$found
+    GIT_INFERRED_COMMITS_EXPECTED=$expected
+
+    # Inference passes when git evidence meets or exceeds expected sprint count
+    [[ "$found" -ge "$expected" ]]
+}
+
 sync_run_mode() {
     # Check simstim state file exists
     if [[ ! -f "$STATE_FILE" ]]; then
@@ -452,8 +504,38 @@ sync_run_mode() {
     local run_mode_state
     run_mode_state=$(jq -r '.state // "unknown"' "$RUN_MODE_STATE")
 
-    # Don't sync if still running
+    # Don't sync if still running — but cross-check git history first.
+    # Issue #474: when a session loses context mid-implementation, the run-mode
+    # state file can show RUNNING even though git history shows all sprint
+    # commits already landed. Trusting only the state file forces operators
+    # into --force-phase as a last resort. Cross-referencing git as a
+    # secondary source of truth resolves this automatically.
     if [[ "$run_mode_state" == "RUNNING" ]]; then
+        if git_inferred_completion_check; then
+            local commits_found commits_expected base_branch
+            commits_found="$GIT_INFERRED_COMMITS_FOUND"
+            commits_expected="$GIT_INFERRED_COMMITS_EXPECTED"
+            base_branch="$GIT_INFERRED_BASE_BRANCH"
+
+            # Update run-mode state to reflect git reality
+            jq --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+                '.state = "JACKED_OUT" | .git_inferred = true | .git_inferred_at = $ts' \
+                "$RUN_MODE_STATE" > "${RUN_MODE_STATE}.tmp" && \
+                mv "${RUN_MODE_STATE}.tmp" "$RUN_MODE_STATE"
+
+            jq -n \
+                --argjson found "$commits_found" \
+                --argjson expected "$commits_expected" \
+                --arg base "$base_branch" \
+                '{
+                    synced: true,
+                    reason: "git_inferred_completion",
+                    commits_found: $found,
+                    commits_expected: $expected,
+                    base_branch: $base
+                }'
+            return 0
+        fi
         echo '{"synced": false, "reason": "still_running"}'
         return 0
     fi
