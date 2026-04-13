@@ -77,8 +77,10 @@ Options:
   --output-file PATH   Output file for response (required)
   --budget TOKENS      Token budget (0 = unlimited)
   --timeout SECONDS    Timeout in seconds (default: 300)
-  --mock               Use fixture data (default)
-  --live               Use real model via cheval.py (not yet implemented)
+  --mock               Use fixture data (emits WARNING banner on stderr)
+  --live               Use real model via model-invoke (cheval.py)
+                       Requires: hounfour.flatline_routing:true + API key
+                       (default: auto-detect from config + env)
   --self-test          Run built-in validation
   -h, --help           Show this help
 USAGE

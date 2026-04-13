@@ -650,7 +650,23 @@ main() {
     # Resolve adapter mode (--live or --mock) once per pipeline run so
     # every phase invocation uses the same mode. Never silently default.
     ADAPTER_MODE_FLAG=$(resolve_adapter_mode)
+    # Defensive: guarantee a valid flag even if resolve_adapter_mode
+    # produced empty output (e.g., yq failure on malformed config).
+    if [[ "$ADAPTER_MODE_FLAG" != "--live" && "$ADAPTER_MODE_FLAG" != "--mock" ]]; then
+        ADAPTER_MODE_FLAG="--mock"
+    fi
     log "Adapter mode: $ADAPTER_MODE_FLAG"
+
+    # Surface the mock warning at the pipeline level too, so users who
+    # run the pipeline directly (child stderr is /dev/null on adapter
+    # calls for noise control) still see why output looks like fixture.
+    if [[ "$ADAPTER_MODE_FLAG" == "--mock" ]]; then
+        cat >&2 <<'MOCKNOTE'
+[red-team] NOTE: running in MOCK mode — output is fixture data, not live model
+           analysis. To enable live: hounfour.flatline_routing: true + provider
+           API key (ANTHROPIC_API_KEY / OPENAI_API_KEY / GOOGLE_API_KEY).
+MOCKNOTE
+    fi
 
     # Phase 0: Input sanitization
     local phase0_start
