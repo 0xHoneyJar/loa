@@ -490,8 +490,26 @@ export class PRReviewTemplate {
   }
 
   private buildEnrichmentPromptFromOptions(opts: EnrichmentOptions): PromptPair {
-    const { findingsJSON, item, persona, truncationContext, personaMetadata, ecosystemContext } = opts;
-    const systemPrompt = this.buildSystemPrompt(persona);
+    const {
+      findingsJSON,
+      item,
+      persona,
+      truncationContext,
+      personaMetadata,
+      ecosystemContext,
+      loreEntries,
+      multiModelConfig,
+    } = opts;
+    // A5 (#464): when lore entries are provided, build the *enriched* system
+    // prompt so the depth_5.lore_active_weaving flag actually does something.
+    // Falls back to the standard system prompt when no lore is provided —
+    // preserves the legacy single-model enrichment path unchanged.
+    const systemPrompt = loreEntries && loreEntries.length > 0
+      ? this.buildEnrichedSystemPrompt(persona, {
+          loreEntries: loreEntries as LoreEntry[],
+          multiModelConfig,
+        })
+      : this.buildSystemPrompt(persona);
 
     const lines: string[] = [];
     lines.push("## Pull Request Context");

@@ -18,6 +18,8 @@ import {
 } from "./config.js";
 import type { BridgebuilderConfig, RunSummary } from "./core/types.js";
 import { executeMultiModelReview } from "./core/multi-model-pipeline.js";
+import { DEFAULT_LORE_PATH, loadLoreEntries } from "./core/lore-loader.js";
+import type { LoreEntry } from "./core/template.js";
 import { ProgressReporter } from "./core/progress.js";
 import {
   buildRatingPrompt,
@@ -301,6 +303,27 @@ async function main(): Promise<void> {
 
     progress.setPhase("review");
 
+    // A5 (#464): load lore entries once per run when active weaving is enabled.
+    // Loader degrades gracefully — missing file → [] + warning log, never throws
+    // on an absent or empty patterns.yaml.
+    let loreEntries: LoreEntry[] = [];
+    const loreActiveWeaving = config.multiModel.depth?.lore_active_weaving === true;
+    if (loreActiveWeaving) {
+      const lorePath = config.multiModel.depth?.lore_path ?? DEFAULT_LORE_PATH;
+      try {
+        loreEntries = await loadLoreEntries(lorePath, adapters.logger);
+        adapters.logger.info(
+          `[bridgebuilder] Loaded ${loreEntries.length} lore entries from ${lorePath}`,
+        );
+      } catch (err) {
+        // Throwing only happens on truly unexpected conditions (yq fail with
+        // a non-empty file). Log and continue with no lore — review proceeds.
+        adapters.logger.warn(
+          `[bridgebuilder] Lore loading failed: ${err instanceof Error ? err.message : String(err)} — continuing without lore`,
+        );
+      }
+    }
+
     // Resolve review items then execute multi-model review for each
     const items = await template.resolveItems();
 
@@ -317,7 +340,10 @@ async function main(): Promise<void> {
         userPrompt,
         config,
         { poster: adapters.poster, sanitizer: adapters.sanitizer, logger: adapters.logger },
-        { template, persona },
+        // A5 (#464): pass loreEntries through enrichment context. Empty array
+        // when active weaving is disabled — template inclusion is gated by
+        // depth_5.lore_active_weaving, so passing [] is a safe no-op.
+        { template, persona, loreEntries },
       );
 
       for (const mr of mmResult.modelResults) {

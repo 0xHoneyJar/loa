@@ -70,6 +70,12 @@ export interface MultiModelConfig {
         checklist_min_elements: number;
         permission_to_question: boolean;
         lore_active_weaving: boolean;
+        /**
+         * Path to the lore patterns YAML file. Used only when
+         * `lore_active_weaving === true`. Defaults to
+         * `grimoires/loa/lore/patterns.yaml` (DEFAULT_LORE_PATH in lore-loader.ts).
+         */
+        lore_path?: string;
     };
     cross_repo: {
         auto_detect: boolean;
@@ -227,6 +233,29 @@ export interface EnrichmentOptions {
     truncationContext?: TruncationContext;
     personaMetadata?: PersonaMetadata;
     ecosystemContext?: EcosystemContext;
+    /**
+     * Lore entries passed through to `buildEnrichedSystemPrompt`. Only emitted
+     * in the prompt when `multiModelConfig.depth.lore_active_weaving === true`.
+     * Closes #464 A5 — multi-model enrichment now actually weaves lore.
+     */
+    loreEntries?: LoreEntryRef[];
+    /**
+     * Multi-model config. Required to read the `depth.lore_active_weaving`
+     * flag that gates lore inclusion. Optional for backwards compatibility.
+     */
+    multiModelConfig?: MultiModelConfig;
+}
+/**
+ * Local minimal LoreEntry shape (mirrors `LoreEntry` exported by template.ts).
+ * Avoids a circular type import — types.ts is imported by template.ts.
+ */
+export interface LoreEntryRef {
+    id: string;
+    term: string;
+    short: string;
+    context: string;
+    source?: string;
+    tags?: string[];
 }
 /** Token estimate broken down by component for calibration logging. */
 export interface TokenEstimateBreakdown {

@@ -20,7 +20,7 @@ import { scoreFindings } from "./scoring.js";
 import type { ModelFindings, ScoredFinding, ScoringResult } from "./scoring.js";
 import { createAdapter } from "../adapters/adapter-factory.js";
 import { PROVIDER_API_KEY_ENV, validateApiKeys } from "../config.js";
-import type { PRReviewTemplate } from "./template.js";
+import type { LoreEntry, PRReviewTemplate } from "./template.js";
 
 export interface MultiModelReviewResult {
   /** Per-model review results. */
@@ -78,6 +78,12 @@ export interface EnrichmentContext {
   template: PRReviewTemplate;
   /** Persona string for enrichment voice. */
   persona: string;
+  /**
+   * Optional lore entries. When provided AND `depth_5.lore_active_weaving`
+   * is true, the enrichment system prompt includes a Lore Context section.
+   * Closes #464 A5 — load via `core/lore-loader.ts` in main.ts.
+   */
+  loreEntries?: LoreEntry[];
 }
 
 /**
@@ -521,6 +527,10 @@ async function generateEnrichedConsensusReview(
     findingsJSON,
     item,
     persona: enrichment.persona,
+    // A5 (#464): pass lore entries through; template uses them only when
+    // depth_5.lore_active_weaving is enabled in multiModelConfig.
+    loreEntries: enrichment.loreEntries,
+    multiModelConfig: multiConfig,
   });
 
   logger.info(`[multi-model:enrichment] Writer: ${writer.provider}/${writer.modelId}`);
