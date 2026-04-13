@@ -15,6 +15,7 @@
 #   simstim-orchestrator.sh --complete [--pr-url <url>]
 #   simstim-orchestrator.sh --set-expected-plan-id      # Store plan_id before /run sprint-plan
 #   simstim-orchestrator.sh --sync-run-mode             # Sync run-mode completion state
+#   simstim-orchestrator.sh --archive-completed         # Archive terminal state (cycle-063)
 #   simstim-orchestrator.sh --force-phase <phase> --yes # Force phase transition (escape hatch)
 #
 # Exit codes:
@@ -485,6 +486,128 @@ git_inferred_completion_check() {
     [[ "$found" -ge "$expected" ]]
 }
 
+# =============================================================================
+# Terminal-state coalescer (cycle-063, RFC-060 Friction 1+2)
+# =============================================================================
+# When the state machine transitions to a terminal condition (COMPLETED,
+# AWAITING_HITL, or HALTED), enforce invariants so the state file is
+# internally consistent:
+#
+#   - .state       = target_state
+#   - .phase       = "complete" for COMPLETED/AWAITING_HITL (HALTED preserves
+#                    current phase so operators can resume)
+#   - .completed_at = terminal timestamp (set regardless of state variant)
+#
+# Without this, sync_run_mode could set .state = "COMPLETED" while leaving
+# .phase = "implementation" and .completed_at unset — a silent inconsistency
+# that confuses the next operator reading the state file.
+#
+# Arguments:
+#   $1 - target_state (COMPLETED | AWAITING_HITL | HALTED)
+#   $2 - extra_jq_filter (optional additional filter to apply atomically)
+#
+# Callers pass any extra jq filter fragment they want composed into the same
+# atomic update (e.g., sync_run_mode composes implementation.status + pr_url).
+# =============================================================================
+coalesce_terminal_state() {
+    local target_state="$1"
+    local extra_filter="${2:-}"
+
+    local target_phase
+    case "$target_state" in
+        COMPLETED|AWAITING_HITL)
+            target_phase="complete"
+            ;;
+        HALTED)
+            # HALTED preserves current phase so operators can resume.
+            # Use a jq self-reference to keep .phase unchanged.
+            target_phase=""
+            ;;
+        *)
+            error "coalesce_terminal_state: unknown target_state '$target_state'"
+            exit 1
+            ;;
+    esac
+
+    local timestamp
+    timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+    local phase_filter=""
+    if [[ -n "$target_phase" ]]; then
+        phase_filter='| .phase = $target_phase'
+    fi
+
+    local composed_filter=".state = \$target_state $phase_filter | .completed_at = \$ts"
+    if [[ -n "$extra_filter" ]]; then
+        composed_filter+=" | $extra_filter"
+    fi
+
+    atomic_jq_update "$STATE_FILE" \
+        --arg target_state "$target_state" \
+        --arg target_phase "$target_phase" \
+        --arg ts "$timestamp" \
+        "$composed_filter"
+
+    echo "$timestamp"
+}
+
+# =============================================================================
+# Archive terminal state file (cycle-063, RFC-060 Friction 1)
+# =============================================================================
+# Moves a terminal-state simstim-state.json to .run/archive/simstim-{id}-{ts}.json
+# so a fresh /simstim invocation can start without state collision.
+#
+# Refuses (exit 1) when state is not terminal — prevents accidental loss of
+# in-flight work. Idempotent: a second call after archive-already-done
+# returns {"archived": false, "reason": "no_state_file"}.
+# =============================================================================
+archive_completed() {
+    if [[ ! -f "$STATE_FILE" ]]; then
+        echo '{"archived": false, "reason": "no_state_file"}'
+        return 0
+    fi
+
+    # Validate JSON first — a corrupt file shouldn't be silently archived.
+    if ! jq empty "$STATE_FILE" 2>/dev/null; then
+        error "State file exists but is not valid JSON: $STATE_FILE"
+        exit 1
+    fi
+
+    local current_state
+    current_state=$(jq -r '.state // "unknown"' "$STATE_FILE")
+
+    case "$current_state" in
+        COMPLETED|AWAITING_HITL|HALTED)
+            ;; # fall through to archive
+        *)
+            jq -n --arg state "$current_state" \
+                '{archived: false, reason: "state_not_terminal", state: $state}'
+            return 1
+            ;;
+    esac
+
+    local simstim_id
+    simstim_id=$(jq -r '.simstim_id // "unknown"' "$STATE_FILE")
+
+    local archive_dir="$PROJECT_ROOT/.run/archive"
+    mkdir -p "$archive_dir"
+
+    local timestamp
+    timestamp=$(date -u +%Y%m%dT%H%M%SZ)
+
+    local archive_path="$archive_dir/simstim-${simstim_id}-${timestamp}.json"
+    mv "$STATE_FILE" "$archive_path"
+
+    # Best-effort: remove the backup too, if it exists.
+    [[ -f "$STATE_BACKUP" ]] && rm -f "$STATE_BACKUP"
+
+    jq -n \
+        --arg path "$archive_path" \
+        --arg state "$current_state" \
+        --arg id "$simstim_id" \
+        '{archived: true, archive_path: $path, state: $state, simstim_id: $id}'
+}
+
 sync_run_mode() {
     # Check simstim state file exists
     if [[ ! -f "$STATE_FILE" ]]; then
@@ -621,19 +744,24 @@ sync_run_mode() {
 
     backup_state
 
-    local timestamp
-    timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    # cycle-063: delegate to coalescer so .state, .phase, and .completed_at
+    # move together. Extra filter handles simstim-specific fields
+    # (implementation status, pr_url, sync_attempts counter reset).
+    #
+    # Note: $ts is available from coalesce_terminal_state's --arg; we reuse
+    # it for the implementation.synced_at marker via the composed filter.
+    local extra_filter
+    extra_filter=".phases.implementation.status = \"$impl_status\""
+    extra_filter+=" | .phases.implementation.synced_at = \$ts"
+    if [[ -n "$pr_url" ]]; then
+        extra_filter+=" | .pr_url = \"$pr_url\""
+    else
+        extra_filter+=" | .pr_url = null"
+    fi
+    extra_filter+=" | .sync_attempts = 0"
 
-    atomic_jq_update "$STATE_FILE" \
-        --arg state "$simstim_state" \
-        --arg impl_status "$impl_status" \
-        --arg pr_url "$pr_url" \
-        --arg ts "$timestamp" \
-        '.state = $state |
-         .phases.implementation.status = $impl_status |
-         .phases.implementation.synced_at = $ts |
-         .pr_url = (if $pr_url == "" then null else $pr_url end) |
-         .sync_attempts = 0'
+    local timestamp
+    timestamp=$(coalesce_terminal_state "$simstim_state" "$extra_filter")
 
     log_trajectory "run_mode_synced" "$(jq -n \
         --arg run_mode_state "$run_mode_state" \
@@ -1340,6 +1468,11 @@ main() {
             ;;
         --sync-run-mode)
             sync_run_mode
+            ;;
+        --archive-completed)
+            # cycle-063 (RFC-060 Friction 1): archive a terminal-state
+            # simstim-state.json so a fresh /simstim can start cleanly.
+            archive_completed
             ;;
         --force-phase)
             if [[ $# -lt 1 ]]; then
