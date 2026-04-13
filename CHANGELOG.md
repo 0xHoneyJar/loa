@@ -5,6 +5,71 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.78.0] - 2026-04-13 — Process Feedback Sweep
+
+Three independent framework improvements driven by observations from a recent multi-cycle development run. All three fix friction points where the framework's contracts were under-enforced or its failure modes were silent. Filed as issues [#473](https://github.com/0xHoneyJar/loa/issues/473), [#474](https://github.com/0xHoneyJar/loa/issues/474), [#475](https://github.com/0xHoneyJar/loa/issues/475); shipped as cycles 056/057/058. The post-merge auto-pipeline tagged each as its own minor bump (v1.76.0, v1.77.0, v1.78.0); this release rolls them together with curated narrative.
+
+### Fixed
+
+- **simstim `sync_run_mode` now cross-references git history** (#474, cycle-056, was v1.76.0)
+  - Previously the sync trusted `sprint-plan-state.json` unconditionally; when context compaction left the file at `state: "RUNNING"` despite git showing all sprint commits already landed, operators were forced to use the documented last-resort `--force-phase complete --yes` escape hatch.
+  - New `git_inferred_completion_check` helper greps `git log ${base_branch}..HEAD` for matching sprint commits using a configurable pattern (default `^feat\(sprint-`). When `commits_found >= sprints.total`, the sync auto-marks the state `JACKED_OUT` with a `git_inferred: true` flag and returns `synced: true, reason: "git_inferred_completion"` with diagnostic counts.
+  - Fallback only fires when state already says `RUNNING` AND commit count meets the threshold — existing behavior preserved for genuine in-flight runs and partial completions.
+  - Configurable via `.loa.config.yaml` `run_mode.git.{base_branch,sprint_commit_pattern}`.
+  - Tests: 5 BATS cases covering stale-with-commits, no-commits, partial commits, state-update assertion, sprints.list fallback.
+
+- **Bridge orchestrator silent-no-op now fails loud** (#473, cycle-058, was v1.78.0)
+  - When `bridge-orchestrator.sh --depth N` ran without an acting skill on the other end of the pipe, all `SIGNAL:*` lines fired in seconds and the script exited cleanly with `JACKED_OUT` state — but zero findings, zero sprints executed. Silent success is the worst kind of failure.
+  - Post-loop check: when `.run/bridge-reviews/` contains zero findings files after a full-depth run, exits `3` with an actionable error message listing three remediation paths. Default `DETECT_SILENT_NOOP=true`. Opt out via `--no-silent-noop-detect` (intended for tests/CI).
+
+### Added
+
+- **`/implement` enforces structural AC verification** (#475, cycle-057, was v1.77.0)
+  - Prior to this release, acceptance criteria were exhortation, not enforcement. SDD-implementation drift routinely escaped past `/implement` into `/review-sprint`, costing a full fix-loop round trip.
+  - `implementing-tasks/SKILL.md` now requires every AC from `sprint.md` to be walked verbatim in the `## AC Verification` section of `reviewer.md`, with status (`✓ Met` / `✗ Not met` / `⚠ Partial` / `⏸ [ACCEPTED-DEFERRED]`) and **file:line evidence** for every Met claim.
+  - `reviewing-code/SKILL.md` auto-returns `CHANGES_REQUIRED` when the AC Verification section is missing, when any AC shows `Not met` without a scope-split, when deferrals lack a matching NOTES.md Decision Log entry, or when evidence is vague ("implemented in src/", "done").
+  - `implementation-report.md` template includes the structured section with anti-vacuous-satisfaction examples (good vs bad evidence).
+  - Karpathy "goal-driven" enforcement: verifies the contract was honored, not just that code was written.
+  - No new scripts, no new tests — discipline enforced by the existing review skill flow.
+
+- **Bridge orchestrator `--single-iteration` re-entrancy flag** (#473, cycle-058)
+  - Processes exactly one iteration body and exits with state preserved; pair with `--resume --single-iteration` to advance step by step. Restores the mid-loop intercept point that was missing for skills wanting to act on `SIGNAL:*` lines per-iteration rather than letting all iterations fire in one shell invocation.
+  - Default `SINGLE_ITERATION=false` preserves the one-shot contract for existing callers.
+  - 7 BATS test cases covering flag recognition, defaults, banner/error text presence.
+
+### Changed
+
+- **`bridge-orchestrator.sh` exit codes documented**: code `3` is now reserved for "silent no-op detected". Codes `0`, `1`, `2` unchanged. Listed in both `--help` output and the file-header comment block.
+
+### Known Issues / Future Work
+
+- **Bridge orchestrator full re-entrant rewrite still pending** (noted in #473 commit). The `--single-iteration` flag narrows the intercept window to one iteration's worth of signals, but multiple `SIGNAL:*` lines still fire within a single iteration before the calling skill can act. The asymptote — emit one signal per invocation — remains valuable future work and would warrant its own RFC cycle.
+- **AC verification deferrals are agent-validated, not script-validated** (#475 audit). The check that `[ACCEPTED-DEFERRED]` has a matching Decision Log entry relies on the reviewing agent reading `NOTES.md`, consistent with how all other gates in Loa work (agent-executed).
+- **Git-aware sync count-based inference can fire early** (#474 docs). A sprint that produced multiple matching commits (e.g., review-feedback fix commits with the same prefix) can satisfy the count check before all sprints are truly done. Empirically rare under squash-merge workflows. Beads-based authoritative alternative noted as a future enhancement.
+
+### Migration Notes
+
+**None required.** All three changes are additive or default-preserving:
+- Git-aware sync only fires when state already says `RUNNING` (existing behavior preserved)
+- AC verification gate is enforced by the review skill — implementations that don't include the section get auto-rejected, but this matches the intent (the framework now catches drift instead of silently approving it)
+- Bridge orchestrator new flags default to off; silent-no-op detection defaults to on with opt-out
+
+### Quality Gates
+
+| Cycle | Senior Review | Cypherpunk Audit | Tests |
+|-------|---------------|------------------|-------|
+| 056 (#474) | APPROVED (3 concerns addressed: grep double-zero, dead --oneline, missing docs) | APPROVED (5/5 vectors clear) | 5/5 BATS |
+| 057 (#475) | APPROVED (combined review+audit) | APPROVED (no injection surface) | N/A (SKILL.md only) |
+| 058 (#473) | APPROVED (combined review+audit) | APPROVED (PROJECT_ROOT-bounded find, no injection) | 7/7 BATS |
+
+### Source
+
+- Cycles: 056, 057, 058
+- PRs: #476, #477, #478
+- Issues closed: #473, #474, #475
+
+---
+
 ## [1.75.0] - 2026-04-13 — Cross-Repo Context + Lore Active Weaving
 
 Closes [#464](https://github.com/0xHoneyJar/loa/issues/464) Part A entirely. The last two "written but unwired" exports from `v1.72.0`'s multi-model Bridgebuilder pipeline are now actually invoked. Two config flags that were previously no-ops (`cross_repo.auto_detect`, `depth_5.lore_active_weaving`) now produce real behavior.
