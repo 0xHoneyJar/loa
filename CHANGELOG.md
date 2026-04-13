@@ -5,6 +5,59 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.74.1] - 2026-04-13 — Closed-Loop Adversarial Review
+
+Completes the multi-cycle arc that began with `v1.72.0` (multi-model Bridgebuilder) and `v1.73.0` (Amendment 1 post-PR loop). Both adversarial review systems — Bridgebuilder and Red Team — now actually run end-to-end against live models.
+
+### Fixed
+
+- **Red Team live model invocation** (#469, sprint-bug-102)
+  - `invoke_live()` in `.claude/scripts/red-team-model-adapter.sh` was a hardcoded stub returning `exit 1` with a "requires cheval.py (Hounfour integration)" error, even though `cheval.py` has been in-production use by Flatline and Bridgebuilder since `v1.65.0`. Wired to `.claude/scripts/model-invoke` with role→agent and model→provider:model-id mapping (mirrors `flatline-orchestrator.sh` pattern).
+  - Pipeline (`.claude/scripts/red-team-pipeline.sh`) now propagates an explicit `--live`/`--mock` flag to every adapter invocation, resolved once via `resolve_adapter_mode()`. Previously all three call sites (phases 1/2/4) relied on the adapter's silent default, which was hardcoded to `mock`.
+  - Config-driven default mode detection: `live` when `hounfour.flatline_routing: true` AND `model-invoke` is executable AND at least one provider API key is present (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`, `GEMINI_API_KEY`). Falls back to `mock` otherwise — safe default prevents accidental API billing on half-configured installs.
+  - Unmissable WARNING banner on stderr whenever mock mode runs, with the three steps to enable live mode. Pipeline also emits a mode notice so users see the banner even when child stderr is suppressed.
+  - Impact: Users running `/red-team` against their SDD now actually receive real adversarial analysis from the configured model, not fixture data from Loa's own development history.
+
+### Added
+
+- **`red_team:` block in `.loa.config.yaml.example`** (#469) — was absent; mounted projects had no template for enabling the skill.
+- **`tests/unit/red-team-model-adapter.bats`** (#469) — 6 BATS regression tests covering stub removal, explicit mode propagation, banner emission, config documentation, explicit `--mock` honoring, and self-test integrity. Post-merge Bridgebuilder 4-pass convergence validated the suite.
+
+### Changed
+
+- **Post-PR Bridgebuilder Review enabled on this repository** (#468, cycle-054, Option A from #467) — `post_pr_validation.phases.bridgebuilder_review.enabled: true` in `.loa.config.yaml`. The iterative kaironic-convergence loop from `v1.73.0` now runs automatically after every PR's `FLATLINE_PR` phase. False positives are accepted during experimental rollout per HITL design decision logged in #467.
+- **Stale `dist/` synchronized** (#468) — `.claude/skills/bridgebuilder-review/resources/dist/` was out of date when `v1.72.0` merged; rebuilt and committed.
+
+### Known Issues
+
+- **BATS Tests suite status on `main`**: Pre-existing failures in `adversarial-review.bats`, `butterfreezone-validate.bats`, `gpt-review-api.bats`, and others. None relate to this release. Tracked as technical debt; not introduced by #468/#469.
+- **`.git/hooks/pre-commit` and `.git/hooks/post-merge`** still reference the legacy `bd` binary for users who migrated to `br` (beads_rust) before the hook scripts were updated. These hooks are per-clone (not version-controlled), so `install-br.sh` cannot rewrite them. Manual fix: replace `bd` with `br` in both files, and `bd import -i` with `br sync --import-only`. A future version of `install-br.sh` should emit a migration warning.
+
+### Migration Notes
+
+None required. All changes are additive or opt-in:
+- `red_team.enabled: false` in the new config example template (opt-in).
+- `post_pr_validation.phases.bridgebuilder_review.enabled: true` only applies to this repository's `.loa.config.yaml`; downstream consumers retain their existing settings.
+- `invoke_live` signature extended with new positional args (`prompt_file`, `output_file`, `budget`, `timeout`) — the adapter's external CLI interface (`--role`, `--model`, `--prompt-file`, `--output-file`, `--mock`/`--live`) is unchanged.
+
+### Quality Gates
+
+| Gate | Status |
+|------|--------|
+| Senior tech-lead review | APPROVED (with noted concerns addressed) |
+| Cypherpunk security audit | APPROVED (2 informational LOW, 1 pre-existing) |
+| Bridgebuilder post-PR convergence | FLATLINE at pass 4 — 0 HIGH, 2 PRAISE |
+
+Full convergence trajectory: `grimoires/loa/a2a/trajectory/bridge-triage-2026-04-13.jsonl`.
+
+### Source
+
+- PRs: #468, #469
+- Commits: 2 on main (1 fix, 1 feat)
+- Refs: #464, #467
+
+---
+
 ## [1.67.0] - 2026-03-25
 
 ### Added
