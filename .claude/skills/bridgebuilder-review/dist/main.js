@@ -262,22 +262,31 @@ async function main() {
         }
         // Resolve review items then execute multi-model review for each
         const items = await template.resolveItems();
-        // A4 (#464): pre-resolve manual cross-repo refs once per run. Auto-detect
-        // happens per-item below since title/body vary by PR.
+        // A4 (#464): pre-resolve manual cross-repo refs once per run.
+        // Bridgebuilder pass-1 FIND-002: also pre-FETCH manual refs once per run
+        // since they're loop-invariant. Previously a run with N PRs and M manual
+        // refs made N×M redundant network calls. Auto-detected refs still vary
+        // per-item and are fetched inside the loop.
         const manualRefsRaw = config.multiModel.cross_repo?.manual_refs ?? [];
         const manualRefs = manualRefsRaw.length > 0 ? parseManualRefs(manualRefsRaw) : [];
         const autoDetectEnabled = config.multiModel.cross_repo?.auto_detect === true;
+        let manualRefContext = null;
+        if (manualRefs.length > 0) {
+            const manualFetchStart = Date.now();
+            manualRefContext = await fetchCrossRepoContext(manualRefs, adapters.logger);
+            adapters.logger.info(`[bridgebuilder] cross-repo (manual, hoisted): fetched ${manualRefContext.context.length}/${manualRefs.length} refs ` +
+                `(${manualRefContext.errors.length} errors) in ${Date.now() - manualFetchStart}ms`);
+        }
         for (const item of items) {
             // Use convergence prompt so models return findings JSON parseable by
             // extractFindingsFromContent() (bug-20260413-9f9b39).
             const truncated = truncateFiles(item.files, config);
             const systemPrompt = template.buildConvergenceSystemPrompt();
-            // A4 (#464): collect cross-repo refs (manual + auto-detected from PR
-            // title/body), fetch context with the documented 5s/30s timeouts,
-            // render markdown section, inject into user prompt. Failures degrade
-            // to "successful refs + error notes" rather than blocking the review.
+            // A4 (#464): per-item cross-repo wiring. Manual refs were fetched once
+            // before the loop (FIND-002 fix); here we only fetch the auto-detected
+            // refs (which vary per PR) and merge with the cached manual context.
             let crossRepoSection = "";
-            if (autoDetectEnabled || manualRefs.length > 0) {
+            if (autoDetectEnabled || manualRefContext) {
                 const currentRepo = `${item.owner}/${item.repo}`;
                 // PullRequest carries title but not body in this skill's port type.
                 // Auto-detection scans the title (PR titles commonly include refs
@@ -285,13 +294,33 @@ async function main() {
                 const detected = autoDetectEnabled
                     ? detectRefs(item.pr.title, currentRepo)
                     : [];
-                const allRefs = dedupeRefs([...manualRefs, ...detected]);
-                if (allRefs.length > 0) {
+                // Dedupe detected against manual to avoid double-fetching the same ref.
+                const manualKeys = new Set(manualRefs.map((r) => `${r.owner}/${r.repo}#${r.number ?? ""}`));
+                const detectedNew = detected.filter((r) => !manualKeys.has(`${r.owner}/${r.repo}#${r.number ?? ""}`));
+                let detectedContext = null;
+                if (detectedNew.length > 0) {
                     const fetchStart = Date.now();
-                    const result = await fetchCrossRepoContext(allRefs, adapters.logger);
-                    adapters.logger.info(`[bridgebuilder] cross-repo: fetched ${result.context.length}/${allRefs.length} refs ` +
-                        `(${result.errors.length} errors) in ${Date.now() - fetchStart}ms`);
-                    crossRepoSection = renderCrossRepoSection(result);
+                    detectedContext = await fetchCrossRepoContext(detectedNew, adapters.logger);
+                    adapters.logger.info(`[bridgebuilder] cross-repo (auto, per-item): fetched ${detectedContext.context.length}/${detectedNew.length} refs ` +
+                        `(${detectedContext.errors.length} errors) in ${Date.now() - fetchStart}ms`);
+                }
+                // Merge cached manual + per-item detected into a single result.
+                const merged = {
+                    refs: [
+                        ...(manualRefContext?.refs ?? []),
+                        ...(detectedContext?.refs ?? []),
+                    ],
+                    context: [
+                        ...(manualRefContext?.context ?? []),
+                        ...(detectedContext?.context ?? []),
+                    ],
+                    errors: [
+                        ...(manualRefContext?.errors ?? []),
+                        ...(detectedContext?.errors ?? []),
+                    ],
+                };
+                if (merged.refs.length > 0) {
+                    crossRepoSection = renderCrossRepoSection(merged);
                 }
             }
             const userPrompt = template.buildConvergenceUserPrompt(item, truncated, crossRepoSection);

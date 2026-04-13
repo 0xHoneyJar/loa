@@ -5,13 +5,30 @@
  * would have caused either a no-op (silent miss) or a hard crash, and produces
  * valid LoreEntry[] for well-formed input.
  */
-import { describe, it, beforeEach, afterEach } from "node:test";
+import { describe, it, beforeEach, afterEach, before } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { execFileSync } from "node:child_process";
 import { loadLoreEntries, DEFAULT_LORE_PATH } from "../core/lore-loader.js";
 import type { ILogger } from "../ports/logger.js";
+
+/**
+ * Bridgebuilder pass-1 FIND-007: lore-loader uses `yq` to convert YAML→JSON.
+ * Skip the suite (with a clear message) when yq is not installed instead of
+ * failing with an opaque execFile error. yq is a hard prerequisite of the
+ * Loa framework, but CI containers / fresh dev machines may not have it.
+ */
+let yqAvailable = false;
+before(() => {
+  try {
+    execFileSync("yq", ["--version"], { stdio: "ignore" });
+    yqAvailable = true;
+  } catch {
+    yqAvailable = false;
+  }
+});
 
 class CapturingLogger implements ILogger {
   warns: Array<{ msg: string; ctx?: unknown }> = [];
@@ -27,7 +44,11 @@ describe("lore-loader", () => {
   let tmpDir: string;
   let logger: CapturingLogger;
 
-  beforeEach(() => {
+  beforeEach((t) => {
+    if (!yqAvailable) {
+      t.skip("yq not installed — install with `brew install yq` (macOS) or `apt install yq` (Debian/Ubuntu)");
+      return;
+    }
     tmpDir = mkdtempSync(join(tmpdir(), "lore-loader-test-"));
     logger = new CapturingLogger();
   });
