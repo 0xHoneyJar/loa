@@ -52,7 +52,7 @@ Each spiral iteration runs four phases:
 |-------|---------|--------|---------|
 | **SEED** | Pull prior cycle's harvested context into this cycle's discovery | Vision registry, lore patterns, deferred findings queue | Enriched planning context |
 | **SIMSTIM** | Execute one full `/simstim` cycle | Enriched context + user intent | PRD, SDD, sprint, code, PR |
-| **HARVEST** | Route all outputs (visions, lore candidates, bugs, PRAISE) into typed queues | Bridge findings, trajectory events | `.run/bridge-pending-bugs.jsonl`, `.run/bridge-lore-candidates.jsonl`, `grimoires/loa/visions/entries/` |
+| **HARVEST** | Trigger the existing post-merge pipeline (`post-merge-orchestrator.sh`) which routes outputs into typed queues. `/spiral` is a consumer, not a re-implementation of HARVEST. | Bridge findings already routed by post-PR triage (v1.79.0) + lore-promote (v1.81.0) | `.run/bridge-pending-bugs.jsonl`, `.run/bridge-lore-candidates.jsonl`, `grimoires/loa/visions/entries/`, `grimoires/loa/lore/patterns.yaml` |
 | **EVALUATE** | Decide: terminate, continue, or escalate to HITL | Cycle outcomes + stopping conditions | State transition |
 
 ### Stopping conditions
@@ -61,11 +61,12 @@ A spiral terminates when ANY of:
 
 | Condition | Threshold | Rationale |
 |-----------|-----------|-----------|
-| **Cycle budget exhausted** | Configurable, default 3 | Prevent runaway |
+| **Cycle budget exhausted** | Configurable, default 3 | Prevent runaway; primary backstop for plateau-at-N (where flatline can't fire because findings stay exactly at threshold) |
 | **Flatline**: two consecutive cycles yield < N new findings | N=3, default | No new signal means we've reached the current design's plateau |
 | **HITL halt** | Explicit user command | Escape hatch |
 | **Quality gate failure** | Any cycle fails review AND audit | Stop before compounding errors |
 | **Cost budget exhausted** | Configurable in cents | Don't burn money on divergent signals |
+| **Total wall-clock budget** | Configurable, default 8h | Second backstop for cases where cycle count is low but each cycle balloons (e.g., bridge iterations multiplying) |
 
 ### State model
 
@@ -103,13 +104,22 @@ A spiral terminates when ANY of:
 
 ## Acceptance Criteria (for closing #483)
 
-1. [x] **`/spiral` skill exists and runs end-to-end on a real issue** — cycle-066 (scaffolding)
+1. [ ] **`/spiral` skill exists and runs end-to-end on a real issue** — requires cycle-066 (scaffolding) — **PENDING**
 2. [x] **HARVEST is continuous (lore promotion fires post-merge, not operator-triggered)** — shipped cycle-061 (#484)
-3. [ ] **Cross-cycle memory loads relevant visions/lore into next cycle's discovery** — SEED phase, needs wiring
-4. [x] **Stopping conditions are explicit and tested** — specified in this RFC, enforced in `/spiral` skill
+3. [ ] **Cross-cycle memory loads relevant visions/lore into next cycle's discovery** — SEED phase, needs wiring (cycle-067+)
+4. [x] **Stopping conditions are explicit AND tested** — specified in this RFC; BATS coverage lands in cycle-066
 5. [ ] **At least 3 spiral cycles have run end-to-end without HITL intervention** — requires `/spiral` MVP (cycle-066)
 
-Items 3 and 5 are blocked on cycle-066 (`/spiral` skill MVP scaffolding). The infrastructure for 1-2 and 4 is now in place.
+Only AC 2 is shipped today. AC 4 is design-complete. AC 1, 3, 5 block on cycle-066 and cycle-067.
+
+### Evidence tally for AC 5 (end-to-end Loa cycles, not yet spiral cycles)
+
+| Cycle | Date | Scope | Kind |
+|-------|------|-------|------|
+| 059 | 2026-04-12 | AC verification gate | `/simstim` |
+| 060 | 2026-04-13 | Lore promoter HARVEST | `/simstim` |
+
+Cycle-065 (this RFC) is design work, not a spiral cycle — doesn't count toward AC 5. AC 5 requires three **spiral** runs after `/spiral` ships.
 
 ---
 
@@ -134,11 +144,13 @@ The SEED phase is gated on `spiral.seed.enabled: true` (default **false**). Reas
 
 **Upgrade path**: when #486 graduates, flip `spiral.seed.enabled: true` globally.
 
-### AD-4: Stopping conditions are composable
+### AD-4: Stopping conditions are composable with a mandatory floor
 
-Each stopping condition is a separate predicate; the spiral halts on the first match. This makes the exit policy debuggable and lets operators disable specific conditions (e.g., "run until I say stop, ignore flatline").
+Each stopping condition is a separate predicate; the spiral halts on the first match. This makes the exit policy debuggable.
 
-**Consequence**: configuration becomes sprawling. Mitigated with sensible defaults in `.loa.config.yaml.example`.
+**Operator latitude vs safety floor**: operators can relax individual thresholds (e.g., `max_cycles: 20`, `flatline.consecutive_low_cycles: 5`) but CANNOT disable the cycle budget, cost budget, or wall-clock budget entirely. Each retains a hardcoded maximum floor (cycle ≤ 50, cost ≤ $100, wall-clock ≤ 24h) that silently caps operator overrides. This prevents "disable everything and run forever" configurations.
+
+**Consequence**: configuration becomes sprawling (now 12+ keys). Mitigated with sensible defaults in `.loa.config.yaml.example` plus the safety floor. The progressive-disclosure pattern (most users touch only `enabled: true` and `max_cycles`) keeps the simple path simple.
 
 ### AD-5: HITL escape at every phase boundary
 
@@ -178,7 +190,12 @@ spiral:
     consecutive_low_cycles: 2
 
   # Cost budget (cents). Summed across all embedded /simstim + review calls.
+  # Safety floor: hardcoded max $100 regardless of config value.
   budget_cents: 2000  # $20 per spiral
+
+  # Wall-clock budget (seconds). Second backstop for plateau-at-N.
+  # Safety floor: hardcoded max 86400s (24h) regardless of config value.
+  wall_clock_seconds: 28800  # 8h per spiral
 
   # SEED phase: pull prior cycle outputs into this cycle's discovery context.
   # Gated separately because Vision Registry is in shadow_mode (#486).
@@ -228,7 +245,11 @@ spiral:
 
 4. **HARVEST integrity**: lore promotion from `.run/bridge-lore-candidates.jsonl` already has its own review gate (threshold mode with floor 2). `/spiral` inherits that gate; no bypass.
 
-5. **SEED integrity**: visions pulled into discovery context are treated as *advisory*, never authoritative. The `discovering-requirements` skill already applies factual-grounding rules to all context inputs.
+5. **SEED integrity**: visions pulled into discovery context are treated as *advisory*, never authoritative. The `discovering-requirements` skill applies factual-grounding rules to all context inputs via the `<factual_grounding>` section in `.claude/skills/discovering-requirements/SKILL.md` (lines ~230-260) — every claim must cite a source file:line or be flagged `[ASSUMPTION]`. SEED-surfaced visions inherit this rule; they cannot become implicit requirements without grounding. Poisoned-vision attacks therefore require passing both the vision capture gate (Bridgebuilder review at SDD) AND the factual-grounding gate at discovery — defense-in-depth.
+
+6. **Resume semantics**: a spiral that crashes mid-cycle leaves `.run/spiral-state.json` at the last-persisted phase. On operator re-invocation with `/spiral --resume`, the spiral reads the state file, inspects the last cycle's embedded `/simstim` state via the state coalescer (cycle-063), and continues from the correct phase. A spiral whose state file is corrupted or missing cannot be resumed; operator must archive-and-restart. The state file is persisted at every phase boundary (not just cycle boundary) so resume granularity is phase-level.
+
+7. **Context window**: each embedded `/simstim` invocation runs in a fresh context (separate Claude Code session for autonomous runs; separate subagent for scripted). The spiral's orchestrator does NOT accumulate per-cycle context into a growing window — only the compact `.run/spiral-state.json` metadata crosses cycle boundaries. Cross-cycle memory (AC 3) is mediated by files (visions, lore, trajectory), not by in-memory context. This is why the spiral can run indefinitely within budget without OOMing.
 
 ---
 
@@ -250,8 +271,8 @@ spiral:
 
 ---
 
-## Why "kaironic" is the right word
+## Appendix: Why "kaironic"
 
-Chronos is calendar time. Kairos is the right moment. The spiral is kaironic because it exits when the moment for termination has arrived — not after a fixed number of seconds, not after a fixed number of dollar spent, but when the signal says "this is as far as this configuration can take us." The flatline detector, the review+audit gate, and the HITL halt are all kaironic sensors: they say "now" rather than "at time T."
+Chronos is calendar time. Kairos is the right moment. The spiral is kaironic because it exits when the moment for termination has arrived — the flatline detector, the review+audit gate, and the HITL halt are kaironic sensors (they say "now") rather than chronic sensors (which say "at time T"). `/spiral` generalizes the pattern one level up from the Bridgebuilder kaironic loop (v1.35.0).
 
-This is the design pattern that Loa has been converging on since the Bridgebuilder kaironic loop (v1.35.0). `/spiral` generalizes it one level up.
+(Design context, not a gate for this RFC. Moved here to keep the review surface focused on mechanics.)
