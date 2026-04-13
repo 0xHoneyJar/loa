@@ -147,6 +147,13 @@ detect_silent_noop_flatline() {
                 exit 7
             fi
             ;;
+        *)
+            # Defense-in-depth: unknown mode should never reach the helper,
+            # but if it does, refuse rather than silently skip validation.
+            error "Silent no-op helper called with unknown mode: $mode"
+            error "Expected one of: red-team, inquiry, review."
+            exit 7
+            ;;
     esac
 }
 
@@ -1791,6 +1798,12 @@ main() {
                 cost_usd: ($cost_cents / 100)
             }
         }')
+
+    # cycle-062 follow-up (#485): silent-no-op detection for review mode.
+    # Wires the helper branch that was defined but previously unused.
+    if [[ "$detect_silent_noop" == "true" ]]; then
+        detect_silent_noop_flatline "review" "$final_result"
+    fi
 
     # Log to trajectory
     log_trajectory "complete" "$final_result"

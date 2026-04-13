@@ -129,6 +129,75 @@ setup() {
     [ "$status" -eq 7 ]
 }
 
+# T13 (follow-up): helper accepts valid inquiry-mode result
+@test "flatline: detect_silent_noop_flatline accepts valid inquiry-mode JSON" {
+    run bash -c "
+        awk '/^detect_silent_noop_flatline\\(\\)/,/^}$/' '$ORCH' > /tmp/silent-noop-helper.sh
+        error() { echo \"ERROR: \$*\" >&2; }
+        export -f error
+        source /tmp/silent-noop-helper.sh
+        detect_silent_noop_flatline inquiry '{\"orchestrator_mode\":\"inquiry\",\"findings\":[]}'
+    "
+    [ "$status" -eq 0 ]
+}
+
+# T14 (follow-up): helper rejects inquiry result missing orchestrator_mode
+@test "flatline: detect_silent_noop_flatline rejects inquiry result missing orchestrator_mode" {
+    run bash -c "
+        awk '/^detect_silent_noop_flatline\\(\\)/,/^}$/' '$ORCH' > /tmp/silent-noop-helper.sh
+        error() { echo \"ERROR: \$*\" >&2; }
+        export -f error
+        source /tmp/silent-noop-helper.sh
+        detect_silent_noop_flatline inquiry '{\"mode\":\"inquiry\"}'
+    "
+    # Wrong field name (.mode vs .orchestrator_mode) — must be rejected.
+    [ "$status" -eq 7 ]
+}
+
+# T15 (follow-up): helper accepts valid review-mode result
+@test "flatline: detect_silent_noop_flatline accepts valid review-mode JSON" {
+    run bash -c "
+        awk '/^detect_silent_noop_flatline\\(\\)/,/^}$/' '$ORCH' > /tmp/silent-noop-helper.sh
+        error() { echo \"ERROR: \$*\" >&2; }
+        export -f error
+        source /tmp/silent-noop-helper.sh
+        detect_silent_noop_flatline review '{\"phase\":\"sdd\",\"timestamp\":\"2026-04-14T00:00:00Z\"}'
+    "
+    [ "$status" -eq 0 ]
+}
+
+# T16 (follow-up): helper rejects review result missing phase
+@test "flatline: detect_silent_noop_flatline rejects review result missing phase" {
+    run bash -c "
+        awk '/^detect_silent_noop_flatline\\(\\)/,/^}$/' '$ORCH' > /tmp/silent-noop-helper.sh
+        error() { echo \"ERROR: \$*\" >&2; }
+        export -f error
+        source /tmp/silent-noop-helper.sh
+        detect_silent_noop_flatline review '{\"timestamp\":\"2026-04-14T00:00:00Z\"}'
+    "
+    [ "$status" -eq 7 ]
+}
+
+# T17 (follow-up): helper rejects unknown mode (default case branch)
+@test "flatline: detect_silent_noop_flatline rejects unknown mode" {
+    run bash -c "
+        awk '/^detect_silent_noop_flatline\\(\\)/,/^}$/' '$ORCH' > /tmp/silent-noop-helper.sh
+        error() { echo \"ERROR: \$*\" >&2; }
+        export -f error
+        source /tmp/silent-noop-helper.sh
+        detect_silent_noop_flatline quantum-mode '{\"phase\":\"x\",\"timestamp\":\"y\"}'
+    "
+    [ "$status" -eq 7 ]
+    [[ "$output" == *"unknown mode"* ]]
+}
+
+# T18 (follow-up): silent-no-op detection invoked in review mode
+@test "flatline: silent-no-op detection invoked in review mode" {
+    # Simple presence check — the helper is called with "review" in the review
+    # mode code path. Paired with T6/T7/T8 which cover red-team/inquiry.
+    grep -qF 'detect_silent_noop_flatline "review"' "$ORCH"
+}
+
 teardown() {
     rm -f /tmp/silent-noop-helper.sh
 }
