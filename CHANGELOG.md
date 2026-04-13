@@ -300,6 +300,8 @@ Full convergence trajectory: `grimoires/loa/a2a/trajectory/bridge-triage-2026-04
 
 ## [Unreleased]
 
+## [1.83.0] — 2026-04-13
+
 ### Added
 
 - **cycle-038**: Organizational Memory Sovereignty — three-zone state architecture with state-dir resolution, migration engine, trajectory redaction, memory pipeline, and federated learning across 6 sprints (#410)
