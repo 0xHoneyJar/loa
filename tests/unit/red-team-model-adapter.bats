@@ -57,12 +57,15 @@ teardown() {
     # Negative: must not contain the legacy stub error string
     [[ "$output" != *"requires cheval.py (Hounfour integration)"* ]]
     [[ "$output" != *"Install Hounfour and configure model routing first"* ]]
-    # Positive: must exit non-zero (model-invoke path refuses without API key)
-    [ "$status" -ne 0 ]
-    # Positive: stderr must indicate the live path was taken — either a
-    # model-invoke/API-key-related error or the "requires at least one
-    # provider API key" message from our has_any_api_key guard.
-    [[ "$output" == *"API key"* ]] || [[ "$output" == *"model-invoke"* ]] || [[ "$output" == *"api_key"* ]]
+    # Positive: exit 1 (not any non-zero) — the live path's API-key guard
+    # specifically returns 1 via has_any_api_key failure.
+    [ "$status" -eq 1 ]
+    # Positive: assert the EXACT contractual error prefix emitted by
+    # invoke_live's has_any_api_key guard. No OR-chain — the adapter is
+    # contractually required to emit this specific string. If it changes,
+    # the contract changed and the test should fail to force a review.
+    # (Bridgebuilder pass-3 F2: replaced permissive OR chain with canonical match.)
+    [[ "$output" == *"Live mode requires at least one provider API key"* ]]
 }
 
 # -----------------------------------------------------------------------------
@@ -129,9 +132,16 @@ teardown() {
         --prompt-file "$2" --output-file "$3" --mock 2>&1' \
         _ "$ADAPTER" "$TEST_TMPDIR/prompt.md" "$TEST_TMPDIR/out.json"
     [ "$status" -eq 0 ]
-    # Banner must mention the critical words: MOCK and WARNING (or equivalent)
-    [[ "$output" == *"MOCK"* ]] || [[ "$output" == *"mock mode"* ]]
-    [[ "$output" == *"WARNING"* ]] || [[ "$output" == *"not real"* ]] || [[ "$output" == *"fixture"* ]]
+    # Bridgebuilder pass-3 F3: assert the exact canonical banner line,
+    # no OR-chain. The banner is defined in emit_mock_banner() and its
+    # first header line is invariant. If the banner text changes,
+    # emit_mock_banner() is the single source of truth and this assertion
+    # must update — keeping test and implementation locked together.
+    [[ "$output" == *"WARNING: red-team adapter running in MOCK mode"* ]]
+    # Also verify the banner includes actionable remediation guidance
+    # (the "To enable live model invocation" section is part of the
+    # canonical banner body, not optional).
+    [[ "$output" == *"To enable live model invocation:"* ]]
 }
 
 # -----------------------------------------------------------------------------
@@ -169,7 +179,15 @@ teardown() {
 # Verify the adapter's own self-test still passes after the fix.
 @test "adapter self-test passes end-to-end" {
     run "$ADAPTER" --self-test
+    # Bridgebuilder pass-3 F6: the old assertion was vacuously satisfiable.
+    # `[[ output != *FAIL* ]] || [[ output == *"0 failed"* ]]` would accept
+    # output like "3 FAIL, 0 failed" because the second clause matches.
+    # Tighter contract: exit 0 is the real signal (self-test returns 0
+    # only when every sub-test passes); also assert the canonical summary
+    # line "0 failed" explicitly, which the self-test always emits last.
     [ "$status" -eq 0 ]
-    [[ "$output" == *"passed"* ]]
-    [[ "$output" != *"FAIL"* ]] || [[ "$output" == *"0 failed"* ]]
+    [[ "$output" == *"0 failed"* ]]
+    # Must NOT contain a non-zero failure count. Using a regex to reject
+    # any digit 1-9 preceding " failed" (would catch "3 failed", "12 failed", etc.)
+    ! [[ "$output" =~ [1-9][0-9]*" failed" ]]
 }
