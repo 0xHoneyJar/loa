@@ -481,13 +481,17 @@ phase_bridgebuilder_review() {
     return 0
   fi
 
-  # Run triage regardless of bridge exit code — even partial findings are useful
+  # Run triage regardless of bridge exit code — even partial findings are useful.
+  # Pass --review-dir explicitly so triage reads from the same location
+  # bridge-orchestrator wrote to, regardless of script deployment path (Issue #464 H2).
   if [[ -x "${SCRIPT_DIR}/post-pr-triage.sh" ]]; then
     log_info "Triaging Bridgebuilder findings for PR #${pr_number}..."
     local triage_result=0
+    local review_dir="${LOA_REVIEW_DIR:-$(pwd)/.run/bridge-reviews}"
     "${SCRIPT_DIR}/post-pr-triage.sh" \
       --pr "$pr_number" \
       --auto-triage "$auto_triage" \
+      --review-dir "$review_dir" \
       || triage_result=$?
 
     if [[ $triage_result -ne 0 ]]; then

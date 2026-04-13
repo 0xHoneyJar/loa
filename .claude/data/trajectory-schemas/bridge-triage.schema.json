@@ -39,8 +39,8 @@
     },
     "auto_dispatched_bug_id": {
       "type": "string",
-      "pattern": "^[0-9]{8}-[a-z0-9]+",
-      "description": "Bug ID created via auto-dispatch (only present when action=dispatch_bug succeeded)"
+      "pattern": "^[0-9]{8}-[a-z0-9][a-z0-9-]*$",
+      "description": "Bug ID created via auto-dispatch (only present when action=dispatch_bug succeeded). Format: YYYYMMDD-<slug>, where slug is lowercase alphanumeric with optional hyphens (e.g., '20260413-autobridge-critical-1')."
     },
     "review_file": {
       "type": "string",

@@ -255,3 +255,33 @@ EOF
     # "reasoning" is in the required array (index >= 0)
     [ "$output" != "null" ]
 }
+
+# Bridgebuilder H1 (PR #466 review): generated bug IDs MUST match the schema's
+# auto_dispatched_bug_id pattern. Previously the schema rejected hyphens after
+# the YYYYMMDD prefix; generator produces "20260413-autobridge-<finding_id>"
+# which includes hyphens. Schema updated to allow hyphens; test verifies.
+@test "schema: auto_dispatched_bug_id pattern accepts generated bug IDs" {
+    local schema="$PROJECT_ROOT/.claude/data/trajectory-schemas/bridge-triage.schema.json"
+    local pattern
+    pattern=$(jq -r '.properties.auto_dispatched_bug_id.pattern' "$schema")
+
+    # Sample bug IDs the generator produces
+    local ids=(
+        "20260413-autobridge-critical-1"
+        "20260413-autobridge-high-2"
+        "20260101-autobridge-f3"
+    )
+    for id in "${ids[@]}"; do
+        run bash -c "echo '$id' | grep -qE '$pattern'"
+        [ "$status" -eq 0 ] || { echo "Pattern rejected valid ID: $id" >&2; return 1; }
+    done
+}
+
+# Bridgebuilder H2 (PR #466 review): orchestrator must pass --review-dir to
+# triage so the script reads from wherever bridge-orchestrator wrote, regardless
+# of script deployment path.
+@test "orchestrator: passes --review-dir to post-pr-triage.sh" {
+    run grep -A 6 "post-pr-triage.sh" "$PROJECT_ROOT/.claude/scripts/post-pr-orchestrator.sh"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--review-dir"* ]]
+}
