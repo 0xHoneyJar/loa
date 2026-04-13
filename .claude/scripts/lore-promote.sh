@@ -149,9 +149,10 @@ sanitize() {
         echo "LENGTH_LIMIT" >&2
         return 1
     fi
-    # Injection scan
+    # Injection scan. Bridgebuilder F10 (LOW): use grep <<< heredoc instead of
+    # echo|grep to handle values starting with `-` (echo would treat as flag).
     for pattern in "${INJECTION_PATTERNS[@]}"; do
-        if echo "$text" | grep -qiE "$pattern"; then
+        if grep -qiE -- "$pattern" <<< "$text"; then
             echo "INJECTION:$pattern" >&2
             return 1
         fi
@@ -172,7 +173,10 @@ generate_id() {
     local base
     base=$(slugify "$term")
     [[ -z "$base" ]] && base="unnamed"
-    if [[ -f "$LORE_PATH" ]] && yq ".[] | select(.id == \"$base\")" "$LORE_PATH" 2>/dev/null | grep -q .; then
+    # Bridgebuilder F2/F7 (CRITICAL/HIGH): bind via env, not string interpolation.
+    # Mike Farah yq (Loa default) doesn't support --arg; use strenv() instead.
+    # Even though slugify limits the character set, defense-in-depth wins.
+    if [[ -f "$LORE_PATH" ]] && LOOKUP_ID="$base" yq '.[] | select(.id == strenv(LOOKUP_ID))' "$LORE_PATH" 2>/dev/null | grep -q .; then
         local short=${content_hash:0:6}
         echo "${base}-${short}"
     else
@@ -223,23 +227,51 @@ append_lore_entry() {
     local id="$1" term="$2" short="$3" context="$4" pr="$5" finding_id="$6" tags_json="$7"
     ensure_lore_file
     local promoted_at; promoted_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    # Build YAML entry
-    local tmp; tmp=$(mktemp)
+    # Build YAML entry safely. Bridgebuilder F2 (CRITICAL): the previous
+    # implementation interpolated $term/$short/$context directly into the
+    # yq expression, allowing yq-syntax injection if any field contained
+    # quotes or expression characters (sanitize() blocks the worst patterns
+    # but defense-in-depth is the right move).
+    #
+    # Strategy: build a JSON object with --argjson via jq (which escapes
+    # all string content correctly), then yq merges it into the YAML file.
+    local tmp; tmp=$(mktemp -p "${TMPDIR:-/tmp}" lore-promote.XXXXXX)
     cp "$LORE_PATH" "$tmp"
-    # Use yq to append a new entry to the YAML array
-    yq eval -i ". += [{
-        \"id\": \"$id\",
-        \"term\": \"$term\",
-        \"short\": \"$short\",
-        \"context\": \"$context\",
-        \"source\": {
-            \"pr\": $pr,
-            \"finding_id\": \"$finding_id\",
-            \"cycle\": \"cycle-060\",
-            \"promoted_at\": \"$promoted_at\"
-        },
-        \"tags\": $tags_json
-    }]" "$tmp"
+
+    local entry_json
+    entry_json=$(jq -nc \
+        --arg id "$id" \
+        --arg term "$term" \
+        --arg short "$short" \
+        --arg context "$context" \
+        --argjson pr "$pr" \
+        --arg finding_id "$finding_id" \
+        --arg promoted_at "$promoted_at" \
+        --argjson tags "$tags_json" \
+        '{
+            id: $id,
+            term: $term,
+            short: $short,
+            context: $context,
+            source: {
+                pr: $pr,
+                finding_id: $finding_id,
+                cycle: "cycle-060",
+                promoted_at: $promoted_at
+            },
+            tags: $tags
+        }')
+
+    # Mike Farah yq: write JSON entry to a separate file, then merge via
+    # eval-all. fileIndex selectors mean no attacker-influenceable content
+    # ever flows into the yq expression itself — the values come from the
+    # parsed JSON file. This is the injection-safe pattern.
+    local entry_file; entry_file=$(mktemp -p "${TMPDIR:-/tmp}" lore-entry.XXXXXX.json)
+    printf '%s' "$entry_json" > "$entry_file"
+    yq ea -i 'select(fi==0) + [select(fi==1)]' "$tmp" "$entry_file"
+    rm -f "$entry_file"
+    # Reformat to block style for readability (best-effort)
+    yq -i '... style=""' "$tmp" 2>/dev/null || true
     mv "$tmp" "$LORE_PATH"
 }
 
@@ -269,14 +301,17 @@ process_candidate() {
 
     # Sanitize each field. On rejection, log + journal + return.
     local sterm sshort scontext rejection_reason=""
-    if ! sterm=$(sanitize "$term" $MAX_TERM_LEN 2>/tmp/lp-rej.$$); then
-        rejection_reason="term: $(cat /tmp/lp-rej.$$)"
-    elif ! sshort=$(sanitize "$short" $MAX_SHORT_LEN 2>/tmp/lp-rej.$$); then
-        rejection_reason="short: $(cat /tmp/lp-rej.$$)"
-    elif ! scontext=$(sanitize "$context" $MAX_CONTEXT_LEN 2>/tmp/lp-rej.$$); then
-        rejection_reason="context: $(cat /tmp/lp-rej.$$)"
+    # Bridgebuilder F1 (HIGH): use mktemp for the rejection-reason capture
+    # rather than predictable /tmp/lp-rej.$$ to avoid race + symlink attack.
+    local rej_tmp; rej_tmp=$(mktemp -p "${TMPDIR:-/tmp}" lp-rej.XXXXXX)
+    if ! sterm=$(sanitize "$term" $MAX_TERM_LEN 2>"$rej_tmp"); then
+        rejection_reason="term: $(cat "$rej_tmp")"
+    elif ! sshort=$(sanitize "$short" $MAX_SHORT_LEN 2>"$rej_tmp"); then
+        rejection_reason="short: $(cat "$rej_tmp")"
+    elif ! scontext=$(sanitize "$context" $MAX_CONTEXT_LEN 2>"$rej_tmp"); then
+        rejection_reason="context: $(cat "$rej_tmp")"
     fi
-    rm -f /tmp/lp-rej.$$
+    rm -f "$rej_tmp"
 
     if [[ -n "$rejection_reason" ]]; then
         warn "Rejected candidate $candidate_key — $rejection_reason"
@@ -290,7 +325,7 @@ process_candidate() {
     local id; id=$(generate_id "$sterm" "$content_hash")
 
     # Idempotency check: if id already exists in patterns.yaml, skip + journal
-    if [[ -f "$LORE_PATH" ]] && yq ".[] | select(.id == \"$id\")" "$LORE_PATH" 2>/dev/null | grep -q .; then
+    if [[ -f "$LORE_PATH" ]] && LOOKUP_ID="$id" yq '.[] | select(.id == strenv(LOOKUP_ID))' "$LORE_PATH" 2>/dev/null | grep -q .; then
         log "Skipping $candidate_key — id '$id' already in patterns.yaml (back-filling journal)"
         if [[ "$dry_run" == "false" ]]; then
             journal_append "$candidate_key" "promoted" "$id" "back-filled (already in lore)" "$pr"
@@ -309,9 +344,10 @@ process_candidate() {
         echo "Tags: $(echo "$tags_json" | jq -r '. | join(", ")')" >&2
         echo "" >&2
         printf '[A]ccept / [R]eject / [S]kip / [E]dit (deferred) / [Q]uit? ' >&2
-        # Use FD 3 — the outer while loop's `done 3<<< "$all_pending"` binds
-        # the loop input to FD 3, leaving stdin (FD 0) free for interactive
-        # prompts. This works in both real terminals and piped-test scenarios.
+        # The outer while loop binds its input to FD 3 (`done 3<<<`), leaving
+        # stdin (FD 0) free for this interactive read. Works in both real
+        # terminals and piped-test scenarios. (Bridgebuilder F9 — comment
+        # rewritten for accuracy.)
         local choice; read -r choice
         # tr to lowercase for portability (avoids ${var,,} bash 4+ requirement)
         choice=$(echo "$choice" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
