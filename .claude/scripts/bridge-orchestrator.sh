@@ -47,6 +47,50 @@ CLI_FLATLINE_THRESHOLD=""
 BRIDGE_REPO=""
 
 # =============================================================================
+# Multi-Model Routing (Sprint 3 — T3.6)
+# =============================================================================
+
+# Check if this iteration should use multi-model review based on iteration_strategy.
+# Reads from .loa.config.yaml via yq. Falls back to false if yq unavailable.
+#
+# Strategies:
+#   "every"  — every iteration uses multi-model
+#   "final"  — only the last iteration uses multi-model
+#   [1,3,5]  — specific iteration numbers use multi-model
+is_multi_model_iteration() {
+  local iteration="$1"
+
+  # Check if multi_model is enabled
+  local enabled
+  enabled=$(yq eval '.run_bridge.bridgebuilder.multi_model.enabled // false' .loa.config.yaml 2>/dev/null) || enabled="false"
+  if [[ "$enabled" != "true" ]]; then
+    return 1
+  fi
+
+  local strategy
+  strategy=$(yq eval '.run_bridge.bridgebuilder.multi_model.iteration_strategy // "final"' .loa.config.yaml 2>/dev/null) || strategy="final"
+
+  case "$strategy" in
+    "every")
+      return 0
+      ;;
+    "final")
+      if [[ "$iteration" -ge "$DEPTH" ]]; then
+        return 0
+      fi
+      return 1
+      ;;
+    *)
+      # Array of iteration numbers (e.g., "[1, 3, 5]")
+      if echo "$strategy" | jq -e --argjson iter "$iteration" 'index($iter) != null' >/dev/null 2>&1; then
+        return 0
+      fi
+      return 1
+      ;;
+  esac
+}
+
+# =============================================================================
 # Usage
 # =============================================================================
 
@@ -483,8 +527,15 @@ bridge_main() {
     if [[ -n "$BRIDGE_CONTEXT" ]]; then
       echo "[CONTEXT] QMD context loaded (${#BRIDGE_CONTEXT} bytes)"
     fi
-    echo "[REVIEW] Invoking Bridgebuilder review..."
-    echo "SIGNAL:BRIDGEBUILDER_REVIEW:$iteration"
+
+    # Multi-model iteration strategy routing (Sprint 3 — T3.6)
+    if is_multi_model_iteration "$iteration"; then
+      echo "[REVIEW] Invoking multi-model Bridgebuilder review..."
+      echo "SIGNAL:BRIDGEBUILDER_REVIEW_MULTI:$iteration"
+    else
+      echo "[REVIEW] Invoking Bridgebuilder review..."
+      echo "SIGNAL:BRIDGEBUILDER_REVIEW:$iteration"
+    fi
 
     # 2f: Lore Reference Scan (FR-5)
     echo "[LORE REFS] Scanning review for lore references..."

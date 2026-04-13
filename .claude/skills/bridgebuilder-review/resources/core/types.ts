@@ -33,6 +33,56 @@ export interface BridgebuilderConfig {
   ecosystemContextPath?: string;
   /** Pass 1 convergence cache configuration (Sprint 70). */
   pass1Cache?: { enabled: boolean };
+  /** Multi-model review configuration. When enabled, multiple models review in parallel. */
+  multiModel?: MultiModelConfig;
+}
+
+/** Multi-model provider configuration entry. */
+export interface MultiModelProviderEntry {
+  provider: string;
+  model_id: string;
+  role: "primary" | "reviewer";
+}
+
+/** Multi-model Bridgebuilder configuration. */
+export interface MultiModelConfig {
+  enabled: boolean;
+  models: MultiModelProviderEntry[];
+  iteration_strategy: "every" | "final" | number[];
+  api_key_mode: "graceful" | "strict";
+  consensus: {
+    enabled: boolean;
+    scoring_thresholds: {
+      high_consensus: number;
+      disputed_delta: number;
+      low_value: number;
+      blocker: number;
+    };
+  };
+  token_budget: {
+    per_model: number | null;
+    total: number | null;
+  };
+  depth: {
+    structural_checklist: boolean;
+    checklist_min_elements: number;
+    permission_to_question: boolean;
+    lore_active_weaving: boolean;
+  };
+  cross_repo: {
+    auto_detect: boolean;
+    manual_refs: string[];
+  };
+  rating: {
+    enabled: boolean;
+    timeout_seconds: number;
+    retrospective_command: boolean;
+  };
+  progress: {
+    verbose: boolean;
+  };
+  max_concurrency?: number;
+  cost_rates?: Record<string, { input: number; output: number }>;
 }
 
 export interface ReviewItem {
