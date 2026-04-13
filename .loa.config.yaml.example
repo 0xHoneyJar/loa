@@ -1455,14 +1455,28 @@ post_pr_validation:
       # Mode for Flatline review
       mode: "hitl"    # hitl | autonomous
 
+    # Bridgebuilder post-PR review with auto-triage (Amendment 1, cycle-053)
+    # Closes the loop between external adversarial review and Loa state.
+    # Runs bridge-orchestrator.sh against the current PR after PR creation,
+    # parses findings via post-pr-triage.sh, and dispatches /bug for BLOCKERs.
+    # Feature-flagged OFF for progressive rollout — opt-in per Issue #464 Part B.
+    bridgebuilder_review:
+      enabled: false  # Default off; enable per-repo after validation
+      # Auto-dispatch /bug triage for BLOCKER findings in autonomous mode.
+      # Per HITL design decision #1: autonomous acts with logged reasoning.
+      auto_triage_blockers: true
+      # Bridge iteration depth (inherited from /run-bridge default)
+      depth: 5
+
   # -------------------------------------------------------------------------
   # Per-Phase Timeouts (seconds)
   # -------------------------------------------------------------------------
   timeouts:
-    post_pr_audit: 600    # 10 minutes
-    context_clear: 60     # 1 minute
-    e2e_testing: 1200     # 20 minutes
-    flatline_pr: 300      # 5 minutes
+    post_pr_audit: 600         # 10 minutes
+    context_clear: 60          # 1 minute
+    e2e_testing: 1200          # 20 minutes
+    flatline_pr: 300           # 5 minutes
+    bridgebuilder_review: 600  # 10 minutes (Amendment 1)
 
   # -------------------------------------------------------------------------
   # Circuit Breakers

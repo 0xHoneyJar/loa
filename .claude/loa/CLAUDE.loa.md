@@ -213,6 +213,19 @@ Session-spanning observations in `grimoires/loa/memory/observations.jsonl`. Quer
 
 **Reference**: `.claude/loa/reference/memory-reference.md`
 
+## Post-PR Bridgebuilder Loop (cycle-053, Amendment 1)
+
+When `post_pr_validation.phases.bridgebuilder_review.enabled: true` (default off), the post-PR orchestrator runs the multi-model Bridgebuilder against the current PR after `FLATLINE_PR`. Findings are classified by `post-pr-triage.sh`:
+
+- **CRITICAL/BLOCKER** → queued to `.run/bridge-pending-bugs.jsonl` for next `/bug` invocation to consume
+- **HIGH** → logged to `grimoires/loa/a2a/trajectory/bridge-triage-*.jsonl` (no gate in autonomous mode per HITL design decision #1)
+- **PRAISE** → queued to `.run/bridge-lore-candidates.jsonl` for pattern mining
+- Every decision carries a **mandatory reasoning field** per schema `.claude/data/trajectory-schemas/bridge-triage.schema.json`
+
+Full phase sequence: `POST_PR_AUDIT → CONTEXT_CLEAR → E2E_TESTING → FLATLINE_PR → BRIDGEBUILDER_REVIEW → READY_FOR_HITL`
+
+**Reference**: `grimoires/loa/proposals/close-bridgebuilder-loop.md`
+
 ## Post-Merge Automation (v1.36.0)
 
 Automated pipeline on merge to main: classify → semver → changelog → GT → RTFM → tag → release → notify.

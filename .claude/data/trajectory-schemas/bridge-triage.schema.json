@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.github.io/loa/schemas/bridge-triage.schema.json",
+  "title": "Bridge Triage Trajectory Entry",
+  "description": "Schema for trajectory log entries emitted by post-pr-triage.sh when classifying and acting on Bridgebuilder findings. Mandatory reasoning field per HITL design decision #1 — autonomous mode may act on findings only when reasoning is logged.",
+  "type": "object",
+  "required": ["timestamp", "pr_number", "finding_id", "severity", "action", "reasoning"],
+  "additionalProperties": false,
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp when the triage decision was made"
+    },
+    "pr_number": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "GitHub PR number the finding was raised against"
+    },
+    "finding_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Finding identifier from the Bridgebuilder review (e.g., \"high-1\", \"critical-2\")"
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "PRAISE", "SPECULATION", "REFRAME", "BLOCKER", "HIGH_CONSENSUS", "DISPUTED", "LOW_VALUE"],
+      "description": "Finding severity or consensus classification"
+    },
+    "action": {
+      "type": "string",
+      "enum": ["dispatch_bug", "log_only", "lore_candidate", "defer", "skip_false_positive"],
+      "description": "Action taken by the triage: dispatch_bug (BLOCKER auto-dispatch), log_only (HIGH+ in autonomous mode), lore_candidate (PRAISE → mining queue), defer (manual HITL review), skip_false_positive (heuristic filter)"
+    },
+    "reasoning": {
+      "type": "string",
+      "minLength": 10,
+      "description": "Explicit reasoning for the action taken. Required by HITL design decision #1 — autonomous mode MUST log reasoning so humans can audit decisions post-hoc."
+    },
+    "auto_dispatched_bug_id": {
+      "type": "string",
+      "pattern": "^[0-9]{8}-[a-z0-9]+",
+      "description": "Bug ID created via auto-dispatch (only present when action=dispatch_bug succeeded)"
+    },
+    "review_file": {
+      "type": "string",
+      "description": "Path to the source findings file (e.g., .run/bridge-reviews/bridge-XXXX-iter1-findings.json)"
+    },
+    "review_iteration": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Bridge review iteration number"
+    }
+  }
+}

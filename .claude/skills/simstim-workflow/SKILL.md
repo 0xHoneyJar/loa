@@ -739,6 +739,19 @@ The post-PR validation loop includes:
    - Uses HITL mode (blockers prompt user, not auto-halt)
    - Creates `.PR-VALIDATED` marker
 
+5. **BRIDGEBUILDER_REVIEW** (optional, Amendment 1 — cycle-053): Post-PR Bridgebuilder closed-loop
+   - Runs if `post_pr_validation.phases.bridgebuilder_review.enabled: true`
+   - Invokes `bridge-orchestrator.sh` (depth 5 by default) to post multi-model review to PR
+   - `post-pr-triage.sh` classifies findings and logs reasoning per finding
+   - BLOCKER findings → queued to `.run/bridge-pending-bugs.jsonl` for auto-dispatch
+   - HIGH findings → logged to `grimoires/loa/a2a/trajectory/bridge-triage-*.jsonl`
+   - PRAISE findings → queued to `.run/bridge-lore-candidates.jsonl` for lore mining
+   - Per HITL design decision #1: autonomous mode acts with logged reasoning, no HITL gate
+   - Closes the feedback loop between external Bridgebuilder and Loa internal state
+   - See `grimoires/loa/proposals/close-bridgebuilder-loop.md` for full design rationale
+
+**Full phase sequence**: `POST_PR_AUDIT → CONTEXT_CLEAR → E2E_TESTING → FLATLINE_PR → BRIDGEBUILDER_REVIEW → READY_FOR_HITL`
+
 **Resume from context clear:**
 
 When user runs `/simstim --resume` after context clear:

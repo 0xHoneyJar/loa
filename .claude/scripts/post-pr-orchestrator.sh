@@ -44,6 +44,7 @@ readonly TIMEOUT_POST_PR_AUDIT="${TIMEOUT_POST_PR_AUDIT:-600}"    # 10 min
 readonly TIMEOUT_CONTEXT_CLEAR="${TIMEOUT_CONTEXT_CLEAR:-60}"     # 1 min
 readonly TIMEOUT_E2E_TESTING="${TIMEOUT_E2E_TESTING:-1200}"       # 20 min
 readonly TIMEOUT_FLATLINE_PR="${TIMEOUT_FLATLINE_PR:-300}"        # 5 min
+readonly TIMEOUT_BRIDGEBUILDER_REVIEW="${TIMEOUT_BRIDGEBUILDER_REVIEW:-600}"  # 10 min (Amendment 1)
 
 # State machine states
 readonly STATE_PR_CREATED="PR_CREATED"
@@ -53,6 +54,7 @@ readonly STATE_CONTEXT_CLEAR="CONTEXT_CLEAR"
 readonly STATE_E2E_TESTING="E2E_TESTING"
 readonly STATE_FIX_E2E="FIX_E2E"
 readonly STATE_FLATLINE_PR="FLATLINE_PR"
+readonly STATE_BRIDGEBUILDER_REVIEW="BRIDGEBUILDER_REVIEW"
 readonly STATE_READY_FOR_HITL="READY_FOR_HITL"
 readonly STATE_HALTED="HALTED"
 
@@ -422,6 +424,100 @@ phase_flatline_pr() {
 }
 
 # ============================================================================
+# Phase: Bridgebuilder Review (Amendment 1, cycle-053 — Issue #464 Part B)
+# ============================================================================
+#
+# Runs bridge-orchestrator.sh against the current PR, captures findings to
+# .run/bridge-reviews/, and invokes post-pr-triage.sh to classify + act on
+# findings. Feature-flagged off by default.
+#
+# Per HITL design decision (2026-04-13):
+#   - Autonomous mode may auto-dispatch /bug for BLOCKERs (with logged reasoning)
+#   - HIGH findings logged but don't gate
+#   - False positives acceptable during experimentation
+#   - depth=5 (inherit from /run-bridge)
+#   - No budget gating (yet)
+phase_bridgebuilder_review() {
+  log_phase "BRIDGEBUILDER_REVIEW"
+
+  # Feature flag check (default OFF per progressive rollout plan)
+  local enabled
+  enabled=$(yq '.post_pr_validation.phases.bridgebuilder_review.enabled // false' .loa.config.yaml 2>/dev/null || echo "false")
+
+  if [[ "$enabled" != "true" ]]; then
+    log_info "Bridgebuilder review disabled (feature flag off), skipping"
+    "$STATE_SCRIPT" update-phase bridgebuilder_review skipped
+    return 0
+  fi
+
+  "$STATE_SCRIPT" update-phase bridgebuilder_review in_progress
+  update_state "$STATE_BRIDGEBUILDER_REVIEW"
+
+  local depth auto_triage
+  depth=$(yq '.post_pr_validation.phases.bridgebuilder_review.depth // 5' .loa.config.yaml 2>/dev/null || echo "5")
+  auto_triage=$(yq '.post_pr_validation.phases.bridgebuilder_review.auto_triage_blockers // true' .loa.config.yaml 2>/dev/null || echo "true")
+
+  log_info "Bridgebuilder review starting (depth=$depth, auto_triage=$auto_triage)"
+
+  # Resolve PR number from state (stored by phase_post_pr_audit)
+  local pr_number
+  pr_number=$("$STATE_SCRIPT" get pr_number 2>/dev/null || echo "")
+
+  if [[ -z "$pr_number" ]]; then
+    log_info "No PR number in state, skipping Bridgebuilder review"
+    "$STATE_SCRIPT" update-phase bridgebuilder_review skipped
+    return 0
+  fi
+
+  # Run bridge orchestrator with timeout
+  local bridge_result=0
+  if [[ -x "${SCRIPT_DIR}/bridge-orchestrator.sh" ]]; then
+    run_with_timeout "$TIMEOUT_BRIDGEBUILDER_REVIEW" \
+      "${SCRIPT_DIR}/bridge-orchestrator.sh" --depth "$depth" \
+      || bridge_result=$?
+  else
+    log_info "bridge-orchestrator.sh not found, skipping"
+    "$STATE_SCRIPT" update-phase bridgebuilder_review skipped
+    return 0
+  fi
+
+  # Run triage regardless of bridge exit code — even partial findings are useful
+  if [[ -x "${SCRIPT_DIR}/post-pr-triage.sh" ]]; then
+    log_info "Triaging Bridgebuilder findings for PR #${pr_number}..."
+    local triage_result=0
+    "${SCRIPT_DIR}/post-pr-triage.sh" \
+      --pr "$pr_number" \
+      --auto-triage "$auto_triage" \
+      || triage_result=$?
+
+    if [[ $triage_result -ne 0 ]]; then
+      log_info "Triage returned exit=$triage_result (non-fatal)"
+    fi
+  else
+    log_info "post-pr-triage.sh not found, findings posted to PR but not triaged"
+  fi
+
+  # Classify outcome
+  case $bridge_result in
+    0)
+      "$STATE_SCRIPT" update-phase bridgebuilder_review completed
+      log_success "Bridgebuilder review complete"
+      return 0
+      ;;
+    124)
+      log_info "Bridgebuilder review timed out after ${TIMEOUT_BRIDGEBUILDER_REVIEW}s, continuing"
+      "$STATE_SCRIPT" update-phase bridgebuilder_review skipped
+      return 0
+      ;;
+    *)
+      log_info "Bridgebuilder review failed (exit: $bridge_result), continuing"
+      "$STATE_SCRIPT" update-phase bridgebuilder_review skipped
+      return 0
+      ;;
+  esac
+}
+
+# ============================================================================
 # Main Orchestration
 # ============================================================================
 
@@ -522,6 +618,17 @@ run_orchestration() {
 
     "$STATE_FLATLINE_PR")
       if [[ "$(get_state)" != "$STATE_HALTED" ]]; then
+        if [[ "$SKIP_BRIDGEBUILDER" != "true" ]]; then
+          phase_bridgebuilder_review || return $?
+        else
+          log_info "Skipping Bridgebuilder review phase (SKIP_BRIDGEBUILDER=true)"
+          "$STATE_SCRIPT" update-phase bridgebuilder_review skipped
+        fi
+      fi
+      ;&  # Fall through
+
+    "$STATE_BRIDGEBUILDER_REVIEW")
+      if [[ "$(get_state)" != "$STATE_HALTED" ]]; then
         update_state "$STATE_READY_FOR_HITL"
         log_success "Post-PR validation complete - READY_FOR_HITL"
         return 0
@@ -558,6 +665,7 @@ main() {
   SKIP_AUDIT="false"
   SKIP_E2E="false"
   SKIP_FLATLINE="false"
+  SKIP_BRIDGEBUILDER="false"
   DRY_RUN="false"
   RESUME="false"
 
@@ -582,6 +690,10 @@ main() {
         ;;
       --skip-flatline)
         SKIP_FLATLINE="true"
+        shift
+        ;;
+      --skip-bridgebuilder)
+        SKIP_BRIDGEBUILDER="true"
         shift
         ;;
       --dry-run)
