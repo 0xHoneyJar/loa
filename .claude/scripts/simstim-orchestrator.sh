@@ -503,15 +503,27 @@ git_inferred_completion_check() {
 # that confuses the next operator reading the state file.
 #
 # Arguments:
-#   $1 - target_state (COMPLETED | AWAITING_HITL | HALTED)
-#   $2 - extra_jq_filter (optional additional filter to apply atomically)
+#   $1           - target_state (COMPLETED | AWAITING_HITL | HALTED)
+#   $2           - extra_jq_filter (optional jq filter fragment)
+#   $3, $4, ...  - additional --arg NAME VALUE pairs forwarded to jq so the
+#                  caller can reference variables (e.g., $impl_status) in its
+#                  extra_filter using jq's safe parameter binding. This avoids
+#                  bash string interpolation into the filter, matching the
+#                  project convention: "NEVER interpolate user input into jq
+#                  filter strings — use --arg parameter binding" (MEMORY.md).
 #
-# Callers pass any extra jq filter fragment they want composed into the same
-# atomic update (e.g., sync_run_mode composes implementation.status + pr_url).
+# Example:
+#   coalesce_terminal_state "COMPLETED" '.pr_url = $pr_url' \
+#       --arg pr_url "$pr_url_value"
 # =============================================================================
 coalesce_terminal_state() {
     local target_state="$1"
     local extra_filter="${2:-}"
+    shift
+    if [[ $# -gt 0 ]]; then
+        shift
+    fi
+    local -a extra_args=("$@")
 
     local target_phase
     case "$target_state" in
@@ -546,6 +558,7 @@ coalesce_terminal_state() {
         --arg target_state "$target_state" \
         --arg target_phase "$target_phase" \
         --arg ts "$timestamp" \
+        ${extra_args[@]+"${extra_args[@]}"} \
         "$composed_filter"
 
     echo "$timestamp"
@@ -588,6 +601,13 @@ archive_completed() {
 
     local simstim_id
     simstim_id=$(jq -r '.simstim_id // "unknown"' "$STATE_FILE")
+
+    # Sanitize simstim_id for filesystem safety — strip any character outside
+    # [A-Za-z0-9_-]. Defends against a crafted state file with path-traversal
+    # characters (e.g., simstim_id = "../../etc/passwd") causing the mv to
+    # write outside .run/archive/. An empty result falls back to "unknown".
+    simstim_id="${simstim_id//[^A-Za-z0-9_-]/}"
+    simstim_id="${simstim_id:-unknown}"
 
     local archive_dir="$PROJECT_ROOT/.run/archive"
     mkdir -p "$archive_dir"
@@ -748,20 +768,19 @@ sync_run_mode() {
     # move together. Extra filter handles simstim-specific fields
     # (implementation status, pr_url, sync_attempts counter reset).
     #
-    # Note: $ts is available from coalesce_terminal_state's --arg; we reuse
-    # it for the implementation.synced_at marker via the composed filter.
+    # All dynamic values flow through jq --arg parameter binding — matches
+    # the project convention from MEMORY.md ("NEVER interpolate user input
+    # into jq filter strings"). $ts is reused from the coalescer's own --arg.
     local extra_filter
-    extra_filter=".phases.implementation.status = \"$impl_status\""
-    extra_filter+=" | .phases.implementation.synced_at = \$ts"
-    if [[ -n "$pr_url" ]]; then
-        extra_filter+=" | .pr_url = \"$pr_url\""
-    else
-        extra_filter+=" | .pr_url = null"
-    fi
-    extra_filter+=" | .sync_attempts = 0"
+    extra_filter='.phases.implementation.status = $impl_status'
+    extra_filter+=' | .phases.implementation.synced_at = $ts'
+    extra_filter+=' | .pr_url = (if $pr_url == "" then null else $pr_url end)'
+    extra_filter+=' | .sync_attempts = 0'
 
     local timestamp
-    timestamp=$(coalesce_terminal_state "$simstim_state" "$extra_filter")
+    timestamp=$(coalesce_terminal_state "$simstim_state" "$extra_filter" \
+        --arg impl_status "$impl_status" \
+        --arg pr_url "$pr_url")
 
     log_trajectory "run_mode_synced" "$(jq -n \
         --arg run_mode_state "$run_mode_state" \

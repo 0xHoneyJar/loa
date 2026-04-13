@@ -246,6 +246,67 @@ EOF
 }
 
 # =============================================================================
+# T_inj: pr_url with jq-injection chars is stored verbatim, not executed
+# =============================================================================
+@test "coalescer: pr_url with injection chars is bound via --arg (not interpolated)" {
+    write_simstim_state "implementation"
+
+    # Craft a pr_url that would inject an extra jq expression if the filter
+    # composed it via bash string interpolation instead of --arg binding.
+    cat > "$RUN_MODE_STATE" <<EOF
+{
+  "plan_id": "plan-test-001",
+  "state": "JACKED_OUT",
+  "sprints": { "total": 1 },
+  "pr_url": "evil\" | .secret_leak = \"pwned",
+  "timestamps": {
+    "started": "2026-04-14T00:05:00Z",
+    "last_activity": "2026-04-14T00:30:00Z"
+  }
+}
+EOF
+
+    env PROJECT_ROOT="$PROJECT_ROOT" "$SCRIPT" --sync-run-mode >/dev/null 2>&1
+
+    # The injection attempt must be stored as a literal string, NOT executed
+    # as a jq operation. Confirm by:
+    #   1. .pr_url contains the raw string (verbatim)
+    #   2. .secret_leak field does NOT exist (not injected)
+    local stored_pr_url
+    stored_pr_url=$(jq -r '.pr_url' "$STATE_FILE")
+    [[ "$stored_pr_url" == 'evil" | .secret_leak = "pwned' ]]
+
+    local injected
+    injected=$(jq -r 'has("secret_leak")' "$STATE_FILE")
+    [ "$injected" = "false" ]
+}
+
+# =============================================================================
+# T_trav: simstim_id with path-traversal chars is sanitized for archive path
+# =============================================================================
+@test "archive: simstim_id with path-traversal chars is sanitized" {
+    write_simstim_state "complete"
+    # Poison simstim_id with path-traversal characters
+    jq '.state = "COMPLETED" | .simstim_id = "../../etc/passwd"' "$STATE_FILE" \
+        > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+
+    env PROJECT_ROOT="$PROJECT_ROOT" "$SCRIPT" --archive-completed >/dev/null 2>&1
+
+    # Archive must land strictly inside .run/archive/, not elsewhere
+    [ -d "$PROJECT_ROOT/.run/archive" ]
+    # No file should have been written outside the archive dir
+    [ ! -f "$PROJECT_ROOT/etc/passwd" ]
+    [ ! -f "/tmp/pwned" ]
+    # The archived file must exist inside .run/archive/
+    local archive_count
+    archive_count=$(ls "$PROJECT_ROOT/.run/archive/" | wc -l | tr -d ' ')
+    [ "$archive_count" -ge 1 ]
+    # Filename must not contain ../ — sanitization should have stripped slashes
+    ! ls "$PROJECT_ROOT/.run/archive/" | grep -q '\.\./'
+    ! ls "$PROJECT_ROOT/.run/archive/" | grep -q '/'
+}
+
+# =============================================================================
 # T12: archive path contains timestamp for traceability
 # =============================================================================
 @test "archive: path includes ISO-like timestamp" {
