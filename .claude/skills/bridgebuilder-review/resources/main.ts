@@ -13,8 +13,12 @@ import {
   resolveConfig,
   resolveRepos,
   formatEffectiveConfig,
+  loadMultiModelConfig,
+  validateApiKeys,
 } from "./config.js";
 import type { BridgebuilderConfig, RunSummary } from "./core/types.js";
+import { executeMultiModelReview } from "./core/multi-model-pipeline.js";
+import { ProgressReporter } from "./core/progress.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -229,6 +233,22 @@ async function main(): Promise<void> {
   if (personaResult.model && provenance.model !== "cli") {
     config.model = personaResult.model;
     console.error(`[bridgebuilder] Model override: ${personaResult.model} (from persona:${personaResult.source})`);
+  }
+
+  // Load multi-model config (Sprint 1: T1.4)
+  const multiModelConfig = loadMultiModelConfig();
+  if (multiModelConfig.enabled) {
+    config.multiModel = multiModelConfig;
+    const keyStatus = validateApiKeys(multiModelConfig);
+    console.error(
+      `[bridgebuilder] Multi-model: ${keyStatus.valid.length} provider(s) available, ` +
+      `${keyStatus.missing.length} missing (mode: ${multiModelConfig.api_key_mode})`,
+    );
+    if (keyStatus.missing.length > 0) {
+      console.error(
+        `[bridgebuilder] Missing API keys: ${keyStatus.missing.map((m) => `${m.provider} (${m.envVar})`).join(", ")}`,
+      );
+    }
   }
 
   // Create adapters
