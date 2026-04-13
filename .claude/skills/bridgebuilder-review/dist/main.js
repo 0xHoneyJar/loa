@@ -128,23 +128,6 @@ export async function loadPersona(config, logger) {
         }
     }
 }
-/**
- * Deduplicate cross-repo refs by owner/repo/number tuple. Manual refs win
- * (they appear first in the input). Used by the multi-model main loop to
- * combine `cross_repo.manual_refs` with auto-detected refs from PR text.
- */
-function dedupeRefs(refs) {
-    const seen = new Set();
-    const out = [];
-    for (const ref of refs) {
-        const key = `${ref.owner}/${ref.repo}#${ref.number ?? ""}`;
-        if (seen.has(key))
-            continue;
-        seen.add(key);
-        out.push(ref);
-    }
-    return out;
-}
 function printSummary(summary) {
     // Build skip reason distribution
     const skipReasons = {};

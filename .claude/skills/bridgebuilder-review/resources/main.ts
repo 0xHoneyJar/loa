@@ -21,7 +21,6 @@ import { executeMultiModelReview } from "./core/multi-model-pipeline.js";
 import { DEFAULT_LORE_PATH, loadLoreEntries } from "./core/lore-loader.js";
 import type { LoreEntry } from "./core/template.js";
 import { detectRefs, parseManualRefs, fetchCrossRepoContext } from "./core/cross-repo.js";
-import type { CrossRepoRef } from "./core/cross-repo.js";
 import { renderCrossRepoSection } from "./core/cross-repo-render.js";
 import { ProgressReporter } from "./core/progress.js";
 import {
@@ -162,23 +161,6 @@ export async function loadPersona(
       );
     }
   }
-}
-
-/**
- * Deduplicate cross-repo refs by owner/repo/number tuple. Manual refs win
- * (they appear first in the input). Used by the multi-model main loop to
- * combine `cross_repo.manual_refs` with auto-detected refs from PR text.
- */
-function dedupeRefs(refs: CrossRepoRef[]): CrossRepoRef[] {
-  const seen = new Set<string>();
-  const out: CrossRepoRef[] = [];
-  for (const ref of refs) {
-    const key = `${ref.owner}/${ref.repo}#${ref.number ?? ""}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(ref);
-  }
-  return out;
 }
 
 function printSummary(summary: RunSummary): void {
