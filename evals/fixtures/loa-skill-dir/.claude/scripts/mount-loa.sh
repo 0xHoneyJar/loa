@@ -3,6 +3,67 @@
 # The Loa mounts your repository and rides alongside your project
 set -euo pipefail
 
+# === Pipe Detection (curl | bash) ===
+# When piped from curl, BASH_SOURCE[0] is unset and set -u triggers
+# "unbound variable". Detect this, download scripts to a temp dir,
+# and re-execute so BASH_SOURCE resolves correctly.
+#
+# How it works with `bash -s --`:
+#   curl ... | bash -s -- --tag v1.39.0
+#   -s tells bash to read script from stdin, -- separates bash opts
+#   from script args, so $1=--tag $2=v1.39.0 are available here.
+if [[ -z "${BASH_SOURCE[0]:-}" ]] && [[ -z "${_LOA_MOUNT_REEXEC:-}" ]]; then
+  # Determine which ref to download from args (without consuming them)
+  _loa_ref="main"
+  for (( _i=1; _i<=$#; _i++ )); do
+    case "${!_i}" in
+      --tag|--ref|--branch)
+        _j=$(( _i + 1 ))
+        [[ $_j -le $# ]] && _loa_ref="${!_j}"
+        ;;
+    esac
+  done
+
+  _loa_tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/loa-mount.XXXXXX")
+  # I1: Trap signals during downloads so Ctrl+C cleans up temp dir.
+  # Replaced by the script's normal traps after exec.
+  trap 'rm -rf "$_loa_tmpdir" 2>/dev/null' EXIT INT TERM HUP
+
+  _loa_base="https://raw.githubusercontent.com/0xHoneyJar/loa/${_loa_ref}/.claude/scripts"
+
+  # B1/S1: Use printf '%s' to avoid ANSI escape injection from _loa_ref
+  printf '\033[0;32m[loa]\033[0m Pipe detected — downloading mount scripts (ref: %s)...\n' "$_loa_ref"
+
+  # Download required scripts (I2: no stderr suppression so curl errors are visible)
+  # I3: compat-lib.sh is required — sourced by mount-loa.sh after re-exec
+  mkdir -p "$_loa_tmpdir/lib"
+  _loa_ok=true
+  for _f in mount-loa.sh mount-submodule.sh compat-lib.sh; do
+    if ! curl -fsSL -o "$_loa_tmpdir/$_f" -- "$_loa_base/$_f"; then
+      _loa_ok=false
+    fi
+  done
+
+  if [[ "$_loa_ok" != "true" ]]; then
+    printf '\033[0;31m[loa]\033[0m ERROR: Failed to download mount scripts for ref '\''%s'\''\n' "$_loa_ref" >&2
+    printf '\033[0;31m[loa]\033[0m Try downloading manually:\n' >&2
+    printf '\033[0;31m[loa]\033[0m   curl -fsSL %s/mount-loa.sh -o /tmp/mount-loa.sh\n' "$_loa_base" >&2
+    printf '\033[0;31m[loa]\033[0m   bash /tmp/mount-loa.sh %s\n' "$*" >&2
+    rm -rf "$_loa_tmpdir"
+    exit 1
+  fi
+
+  # Download auxiliary scripts (non-fatal if missing in older versions)
+  for _f in bootstrap.sh bash-version-guard.sh lib/symlink-manifest.sh; do
+    curl -fsSL -o "$_loa_tmpdir/$_f" -- "$_loa_base/$_f" 2>/dev/null || true
+  done
+  chmod +x "$_loa_tmpdir"/*.sh "$_loa_tmpdir/lib"/*.sh 2>/dev/null || true
+
+  export _LOA_MOUNT_REEXEC=1
+  export _LOA_MOUNT_TMPDIR="$_loa_tmpdir"
+  exec bash "$_loa_tmpdir/mount-loa.sh" "$@"
+fi
+
 # Source cross-platform compatibility utilities (run_with_timeout, etc.)
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/compat-lib.sh"
 
@@ -157,6 +218,10 @@ detect_repo_state() {
 # === EXIT Trap for Unexpected Failures ===
 _exit_handler() {
   local exit_code=$?
+  # Clean up curl-pipe temp directory if present
+  if [[ -n "${_LOA_MOUNT_TMPDIR:-}" ]] && [[ -d "${_LOA_MOUNT_TMPDIR}" ]]; then
+    rm -rf "${_LOA_MOUNT_TMPDIR}"
+  fi
   if [[ $exit_code -eq 0 ]]; then
     return
   fi
