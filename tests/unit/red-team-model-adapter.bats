@@ -48,12 +48,12 @@ teardown() {
     # Force live mode with a prompt that would route through model-invoke.
     # With no API key set, this must fail — but NOT with the stub message.
     unset ANTHROPIC_API_KEY OPENAI_API_KEY GOOGLE_API_KEY GEMINI_API_KEY
-    # Explicit 2>&1 merge for portability across BATS versions (Bridgebuilder F1):
-    # default merge behavior varies by version; explicit merge is bulletproof.
-    run bash -c "'$ADAPTER' --role attacker --model opus \
-        --prompt-file '$TEST_TMPDIR/prompt.md' \
-        --output-file '$TEST_TMPDIR/out.json' \
-        --live 2>&1"
+    # Explicit 2>&1 merge for BATS version portability (pass-2 F1/F2).
+    # Positional args (not string interpolation) avoid shell-quoting injection
+    # if paths ever contain single quotes (pass-3 HIGH finding).
+    run bash -c '"$1" --role attacker --model opus \
+        --prompt-file "$2" --output-file "$3" --live 2>&1' \
+        _ "$ADAPTER" "$TEST_TMPDIR/prompt.md" "$TEST_TMPDIR/out.json"
     # Negative: must not contain the legacy stub error string
     [[ "$output" != *"requires cheval.py (Hounfour integration)"* ]]
     [[ "$output" != *"Install Hounfour and configure model routing first"* ]]
@@ -122,13 +122,12 @@ teardown() {
 # Pre-fix: invoke_mock silently returns fixture data. Post-fix: it must emit
 # a clear banner so users understand the output is not from a live model.
 @test "mock mode emits a visible WARNING banner on stderr" {
-    # Explicit 2>&1 merge for BATS version portability (Bridgebuilder F2):
-    # older BATS may not merge streams by default. Explicit merge guarantees
-    # stderr content lands in $output regardless of framework version.
-    run bash -c "'$ADAPTER' --role attacker --model opus \
-        --prompt-file '$TEST_TMPDIR/prompt.md' \
-        --output-file '$TEST_TMPDIR/out.json' \
-        --mock 2>&1"
+    # Explicit 2>&1 merge for BATS version portability (pass-2 F1/F2).
+    # Positional args (not string interpolation) avoid shell-quoting injection
+    # if paths ever contain single quotes (pass-3 HIGH finding).
+    run bash -c '"$1" --role attacker --model opus \
+        --prompt-file "$2" --output-file "$3" --mock 2>&1' \
+        _ "$ADAPTER" "$TEST_TMPDIR/prompt.md" "$TEST_TMPDIR/out.json"
     [ "$status" -eq 0 ]
     # Banner must mention the critical words: MOCK and WARNING (or equivalent)
     [[ "$output" == *"MOCK"* ]] || [[ "$output" == *"mock mode"* ]]
