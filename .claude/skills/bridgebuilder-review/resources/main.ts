@@ -20,6 +20,9 @@ import type { BridgebuilderConfig, RunSummary } from "./core/types.js";
 import { executeMultiModelReview } from "./core/multi-model-pipeline.js";
 import { DEFAULT_LORE_PATH, loadLoreEntries } from "./core/lore-loader.js";
 import type { LoreEntry } from "./core/template.js";
+import { detectRefs, parseManualRefs, fetchCrossRepoContext } from "./core/cross-repo.js";
+import type { CrossRepoRef } from "./core/cross-repo.js";
+import { renderCrossRepoSection } from "./core/cross-repo-render.js";
 import { ProgressReporter } from "./core/progress.js";
 import {
   buildRatingPrompt,
@@ -159,6 +162,23 @@ export async function loadPersona(
       );
     }
   }
+}
+
+/**
+ * Deduplicate cross-repo refs by owner/repo/number tuple. Manual refs win
+ * (they appear first in the input). Used by the multi-model main loop to
+ * combine `cross_repo.manual_refs` with auto-detected refs from PR text.
+ */
+function dedupeRefs(refs: CrossRepoRef[]): CrossRepoRef[] {
+  const seen = new Set<string>();
+  const out: CrossRepoRef[] = [];
+  for (const ref of refs) {
+    const key = `${ref.owner}/${ref.repo}#${ref.number ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(ref);
+  }
+  return out;
 }
 
 function printSummary(summary: RunSummary): void {
@@ -327,12 +347,44 @@ async function main(): Promise<void> {
     // Resolve review items then execute multi-model review for each
     const items = await template.resolveItems();
 
+    // A4 (#464): pre-resolve manual cross-repo refs once per run. Auto-detect
+    // happens per-item below since title/body vary by PR.
+    const manualRefsRaw = config.multiModel.cross_repo?.manual_refs ?? [];
+    const manualRefs = manualRefsRaw.length > 0 ? parseManualRefs(manualRefsRaw) : [];
+    const autoDetectEnabled = config.multiModel.cross_repo?.auto_detect === true;
+
     for (const item of items) {
       // Use convergence prompt so models return findings JSON parseable by
       // extractFindingsFromContent() (bug-20260413-9f9b39).
       const truncated = truncateFiles(item.files, config);
       const systemPrompt = template.buildConvergenceSystemPrompt();
-      const userPrompt = template.buildConvergenceUserPrompt(item, truncated);
+
+      // A4 (#464): collect cross-repo refs (manual + auto-detected from PR
+      // title/body), fetch context with the documented 5s/30s timeouts,
+      // render markdown section, inject into user prompt. Failures degrade
+      // to "successful refs + error notes" rather than blocking the review.
+      let crossRepoSection = "";
+      if (autoDetectEnabled || manualRefs.length > 0) {
+        const currentRepo = `${item.owner}/${item.repo}`;
+        // PullRequest carries title but not body in this skill's port type.
+        // Auto-detection scans the title (PR titles commonly include refs
+        // like "fix(auth): close #123" or "ports forge/x#456 fix").
+        const detected = autoDetectEnabled
+          ? detectRefs(item.pr.title, currentRepo)
+          : [];
+        const allRefs = dedupeRefs([...manualRefs, ...detected]);
+        if (allRefs.length > 0) {
+          const fetchStart = Date.now();
+          const result = await fetchCrossRepoContext(allRefs, adapters.logger);
+          adapters.logger.info(
+            `[bridgebuilder] cross-repo: fetched ${result.context.length}/${allRefs.length} refs ` +
+            `(${result.errors.length} errors) in ${Date.now() - fetchStart}ms`,
+          );
+          crossRepoSection = renderCrossRepoSection(result);
+        }
+      }
+
+      const userPrompt = template.buildConvergenceUserPrompt(item, truncated, crossRepoSection);
 
       const mmResult = await executeMultiModelReview(
         item,
