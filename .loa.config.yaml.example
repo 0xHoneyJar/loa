@@ -1247,6 +1247,41 @@ flatline_protocol:
       - "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 
 # -----------------------------------------------------------------------------
+# Red Team — Generative Adversarial Security Design (cycle-012, sprint-bug-102)
+# -----------------------------------------------------------------------------
+# Invoked via /red-team. Generates creative attack scenarios against design
+# documents (PRD/SDD) and synthesizes architectural counter-designs.
+#
+# IMPORTANT: Live model invocation requires:
+#   1. hounfour.flatline_routing: true  (see Hounfour section above)
+#   2. At least one provider API key: ANTHROPIC_API_KEY / OPENAI_API_KEY /
+#      GOOGLE_API_KEY / GEMINI_API_KEY
+#   3. .claude/scripts/model-invoke is executable
+#
+# When any of those is missing, the pipeline falls back to MOCK mode (fixture
+# data). Mock mode emits a visible WARNING banner so results aren't mistaken
+# for real analysis. To force a mode explicitly, the adapter accepts --live
+# or --mock.
+red_team:
+  enabled: false                # Opt-in — set true to enable /red-team
+  mode: standard                # quick | standard | deep (see SKILL.md)
+  thresholds:
+    confirmed_attack: 700       # Both models >700 → CONFIRMED_ATTACK
+    theoretical: 400
+    human_review_gate: 800      # Severity >800 requires human acknowledgment
+  budgets:
+    quick_max_tokens: 50000
+    standard_max_tokens: 200000
+    deep_max_tokens: 500000
+  # Optional: route red team through Hounfour (same routing as Flatline).
+  # If unset, inherits from hounfour.flatline_routing. Set false here to
+  # force mock mode even when Flatline runs live.
+  # routing_enabled: true
+  simstim:
+    auto_trigger: false         # Run as Phase 4.5 of /simstim
+    phase: post_sdd
+
+# -----------------------------------------------------------------------------
 # Autonomous Flatline Mode (v1.22.0)
 # -----------------------------------------------------------------------------
 # Enable Flatline Protocol to operate within autonomous workflows (/autonomous,

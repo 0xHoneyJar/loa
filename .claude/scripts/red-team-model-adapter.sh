@@ -3,8 +3,16 @@
 # red-team-model-adapter.sh — Model adapter for red team pipeline
 # =============================================================================
 # Thin adapter between pipeline phases and model invocation.
-# Currently: returns mock responses from fixtures.
-# Future: delegates to cheval.py via Hounfour model routing.
+# Two modes:
+#   --mock  returns fixture data (or minimal empty response); emits a visible
+#           WARNING banner so callers understand output is not live analysis
+#   --live  delegates to `.claude/scripts/model-invoke` (cheval.py) using
+#           role→agent mapping and model→provider:model-id mapping
+#
+# Default mode when neither flag is passed is computed by detect_default_mode:
+#   live  if hounfour.flatline_routing: true AND model-invoke is executable
+#         AND at least one provider API key is present
+#   mock  otherwise
 #
 # Exit codes:
 #   0  Success
@@ -18,6 +26,33 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/bootstrap.sh"
 
 FIXTURES_DIR="$PROJECT_ROOT/.claude/data/red-team-fixtures"
+MODEL_INVOKE="$SCRIPT_DIR/model-invoke"
+CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
+
+# Role → agent alias mapping for model-invoke routing.
+# Red team doesn't have dedicated agent bindings yet; reuse flatline aliases
+# whose personas are closest in spirit (attacker=skeptic, evaluator=reviewer,
+# defender=dissenter). Callers can override via --model if different model
+# selection is needed.
+declare -A ROLE_TO_AGENT=(
+    ["attacker"]="flatline-skeptic"
+    ["evaluator"]="flatline-reviewer"
+    ["defender"]="flatline-dissenter"
+)
+
+# Legacy model name → provider:model-id for model-invoke --model override.
+# Mirrors flatline-orchestrator.sh MODEL_TO_PROVIDER_ID.
+declare -A MODEL_TO_PROVIDER_ID=(
+    ["gpt"]="openai:gpt-5.3-codex"
+    ["gpt-5.2"]="openai:gpt-5.2"
+    ["gpt-5.3-codex"]="openai:gpt-5.3-codex"
+    ["opus"]="anthropic:claude-opus-4-6"
+    ["claude-opus-4.6"]="anthropic:claude-opus-4-6"
+    ["gemini"]="google:gemini-2.5-pro"
+    ["gemini-2.5-pro"]="google:gemini-2.5-pro"
+    ["kimi"]="kimi:kimi-k2"
+    ["qwen"]="qwen:qwen3-coder-plus"
+)
 
 # =============================================================================
 # Logging
@@ -79,12 +114,33 @@ load_fixture() {
 # Mock invocation
 # =============================================================================
 
+emit_mock_banner() {
+    local role="$1"
+    local model="$2"
+    # Explicit, unmissable banner so callers (and humans reading logs) know
+    # the output is fixture data, not real model analysis.
+    cat >&2 <<BANNER
+==============================================================================
+WARNING: red-team adapter running in MOCK mode (role=$role model=$model)
+  Output is FIXTURE data, not real model analysis.
+  Findings are not specific to your document.
+  To enable live model invocation:
+    1. Set hounfour.flatline_routing: true in .loa.config.yaml
+    2. Export a provider API key (ANTHROPIC_API_KEY / OPENAI_API_KEY / GOOGLE_API_KEY)
+    3. Ensure .claude/scripts/model-invoke is executable
+  Or pass --live explicitly to this adapter.
+==============================================================================
+BANNER
+}
+
 invoke_mock() {
     local role="$1"
     local model="$2"
     local prompt_file="$3"
     local output_file="$4"
     local budget="$5"
+
+    emit_mock_banner "$role" "$model"
 
     local fixture_data
     fixture_data=$(load_fixture "$role" "$model") || {
@@ -159,17 +215,199 @@ invoke_mock() {
 }
 
 # =============================================================================
-# Live invocation (future — Hounfour/cheval.py)
+# Live invocation — delegates to model-invoke (cheval.py)
 # =============================================================================
+
+# Detect whether at least one provider API key is set. Used by
+# detect_default_mode to decide whether live mode is feasible.
+has_any_api_key() {
+    [[ -n "${ANTHROPIC_API_KEY:-}" ]] && return 0
+    [[ -n "${OPENAI_API_KEY:-}" ]] && return 0
+    [[ -n "${GOOGLE_API_KEY:-}" ]] && return 0
+    [[ -n "${GEMINI_API_KEY:-}" ]] && return 0
+    return 1
+}
+
+# Read hounfour.flatline_routing from config, honoring env override.
+# Red team lives under the same routing flag because both subsystems
+# share the cheval.py invocation path.
+is_routing_enabled() {
+    if [[ "${HOUNFOUR_FLATLINE_ROUTING:-}" == "true" ]]; then
+        return 0
+    fi
+    if [[ "${HOUNFOUR_FLATLINE_ROUTING:-}" == "false" ]]; then
+        return 1
+    fi
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        return 1
+    fi
+    local value
+    value=$(yq '.hounfour.flatline_routing // false' "$CONFIG_FILE" 2>/dev/null || echo "false")
+    [[ "$value" == "true" ]]
+}
+
+# Decide default mode when caller passes neither --live nor --mock.
+# Returns: echoes "live" or "mock".
+detect_default_mode() {
+    if is_routing_enabled && [[ -x "$MODEL_INVOKE" ]] && has_any_api_key; then
+        echo "live"
+    else
+        echo "mock"
+    fi
+}
+
+# Wrap model-invoke content into the response shape the pipeline expects.
+# Attackers/defenders emit JSON findings; we parse them if valid, otherwise
+# pass through the raw content as a single free-text attack/design entry so
+# the pipeline can still complete.
+wrap_live_response() {
+    local role="$1"
+    local model="$2"
+    local content="$3"
+    local tokens_input="$4"
+    local tokens_output="$5"
+    local output_file="$6"
+
+    local total_tokens=$((tokens_input + tokens_output))
+
+    # If content parses as JSON, merge it into the response envelope;
+    # otherwise wrap it as a free-text note.
+    local parsed
+    if parsed=$(echo "$content" | jq -c . 2>/dev/null) && [[ -n "$parsed" && "$parsed" != "null" ]]; then
+        # Strip markdown fences if the model wrapped JSON in ```json ... ```
+        :
+    else
+        # Try to extract JSON from a fenced code block
+        parsed=$(echo "$content" | sed -n '/```json/,/```/p' | sed '1d;$d' | jq -c . 2>/dev/null || echo "")
+    fi
+
+    case "$role" in
+        attacker)
+            if [[ -n "$parsed" ]] && echo "$parsed" | jq -e '.attacks' >/dev/null 2>&1; then
+                echo "$parsed" | jq \
+                    --arg m "$model" \
+                    --argjson t "$total_tokens" \
+                    '. + {model: $m, tokens_used: $t, mock: false}' > "$output_file"
+            else
+                jq -n --arg m "$model" --arg c "$content" --argjson t "$total_tokens" '{
+                    attacks: [],
+                    summary: $c,
+                    models_used: 1,
+                    tokens_used: $t,
+                    model: $m,
+                    mock: false,
+                    note: "Model returned non-JSON content; raw content in summary field"
+                }' > "$output_file"
+            fi
+            ;;
+        evaluator)
+            if [[ -n "$parsed" ]]; then
+                echo "$parsed" | jq \
+                    --arg m "$model" \
+                    --argjson t "$total_tokens" \
+                    '. + {evaluated: true, model: $m, tokens_used: $t, mock: false}' > "$output_file"
+            else
+                jq -n --arg m "$model" --arg c "$content" --argjson t "$total_tokens" '{
+                    attacks: [],
+                    evaluated: true,
+                    summary: $c,
+                    tokens_used: $t,
+                    model: $m,
+                    mock: false
+                }' > "$output_file"
+            fi
+            ;;
+        defender)
+            if [[ -n "$parsed" ]] && echo "$parsed" | jq -e '.counter_designs' >/dev/null 2>&1; then
+                echo "$parsed" | jq \
+                    --arg m "$model" \
+                    --argjson t "$total_tokens" \
+                    '. + {model: $m, tokens_used: $t, mock: false}' > "$output_file"
+            else
+                jq -n --arg m "$model" --arg c "$content" --argjson t "$total_tokens" '{
+                    counter_designs: [],
+                    summary: $c,
+                    tokens_used: $t,
+                    model: $m,
+                    mock: false,
+                    note: "Model returned non-JSON content; raw content in summary field"
+                }' > "$output_file"
+            fi
+            ;;
+    esac
+}
 
 invoke_live() {
     local role="$1"
     local model="$2"
+    local prompt_file="$3"
+    local output_file="$4"
+    local budget="$5"
+    local timeout="$6"
 
-    error "Live model invocation requires cheval.py (Hounfour integration)"
-    error "Install Hounfour and configure model routing first"
-    error "See: grimoires/loa/sdd.md Section 6 — Hounfour Integration"
-    return 1
+    if [[ ! -x "$MODEL_INVOKE" ]]; then
+        error "Live mode requires executable model-invoke at: $MODEL_INVOKE"
+        return 1
+    fi
+    if ! has_any_api_key; then
+        error "Live mode requires at least one provider API key"
+        error "  Set ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY, or GEMINI_API_KEY"
+        return 1
+    fi
+
+    local agent="${ROLE_TO_AGENT[$role]:-flatline-reviewer}"
+    local model_override="${MODEL_TO_PROVIDER_ID[$model]:-$model}"
+
+    log "Live invocation: role=$role agent=$agent model=$model_override"
+
+    local response_file
+    response_file=$(mktemp)
+    local stderr_file
+    stderr_file=$(mktemp)
+    local exit_code=0
+
+    "$MODEL_INVOKE" \
+        --agent "$agent" \
+        --input "$prompt_file" \
+        --model "$model_override" \
+        --output-format json \
+        --json-errors \
+        --timeout "$timeout" \
+        > "$response_file" 2>"$stderr_file" || exit_code=$?
+
+    if [[ $exit_code -ne 0 ]]; then
+        error "model-invoke failed (exit $exit_code) for role=$role model=$model"
+        if [[ -s "$stderr_file" ]]; then
+            error "stderr: $(head -c 500 "$stderr_file")"
+        fi
+        rm -f "$response_file" "$stderr_file"
+        return "$exit_code"
+    fi
+
+    # Parse model-invoke JSON envelope
+    local content tokens_input tokens_output
+    content=$(jq -r '.content // empty' "$response_file" 2>/dev/null || echo "")
+    tokens_input=$(jq -r '.usage.input_tokens // 0' "$response_file" 2>/dev/null || echo 0)
+    tokens_output=$(jq -r '.usage.output_tokens // 0' "$response_file" 2>/dev/null || echo 0)
+
+    if [[ -z "$content" ]]; then
+        error "model-invoke returned empty content"
+        rm -f "$response_file" "$stderr_file"
+        return 5
+    fi
+
+    wrap_live_response "$role" "$model" "$content" "$tokens_input" "$tokens_output" "$output_file"
+
+    # Budget check
+    local total_tokens=$((tokens_input + tokens_output))
+    if [[ "$budget" -gt 0 ]] && (( total_tokens > budget )); then
+        log "Budget exceeded: ${total_tokens} tokens > budget ${budget}"
+        rm -f "$response_file" "$stderr_file"
+        return 2
+    fi
+
+    rm -f "$response_file" "$stderr_file"
+    return 0
 }
 
 # =============================================================================
@@ -231,13 +469,22 @@ run_self_test() {
         fail=$((fail + 1))
     fi
 
-    # Test 4: Live mode returns error
-    if "$0" --role attacker --model opus --prompt-file "$tmpdir/prompt.md" --output-file "$tmpdir/out4.json" --live 2>/dev/null; then
-        echo "  FAIL: Live mode should fail without cheval.py"
-        fail=$((fail + 1))
-    else
-        echo "  PASS: Live mode correctly errors without cheval.py"
+    # Test 4: Live mode errors gracefully when no API key is available.
+    # (Pre-fix this was "Live mode returns error — cheval.py not available".
+    # Post-fix live is wired, but without API keys it must still fail cleanly.)
+    (
+        unset ANTHROPIC_API_KEY OPENAI_API_KEY GOOGLE_API_KEY GEMINI_API_KEY
+        if "$0" --role attacker --model opus --prompt-file "$tmpdir/prompt.md" --output-file "$tmpdir/out4.json" --live 2>/dev/null; then
+            exit 1
+        fi
+        exit 0
+    )
+    if [[ $? -eq 0 ]]; then
+        echo "  PASS: Live mode errors cleanly when no API keys are set"
         pass=$((pass + 1))
+    else
+        echo "  FAIL: Live mode should fail with exit non-zero when API keys missing"
+        fail=$((fail + 1))
     fi
 
     # Test 5: Fixture loading (if fixtures exist)
@@ -276,7 +523,7 @@ main() {
     local output_file=""
     local budget=0
     local timeout=300
-    local mode="mock"
+    local mode=""   # empty = detect default based on config + env
     local self_test=false
 
     while [[ $# -gt 0 ]]; do
@@ -319,10 +566,17 @@ main() {
         exit 1
     fi
 
+    # Resolve default mode when neither --mock nor --live was passed
+    if [[ -z "$mode" ]]; then
+        mode=$(detect_default_mode)
+        log "Auto-detected mode: $mode (pass --live or --mock to override)"
+    fi
+
     # Dispatch to invocation mode
     case "$mode" in
         mock) invoke_mock "$role" "$model" "$prompt_file" "$output_file" "$budget" ;;
-        live) invoke_live "$role" "$model" ;;
+        live) invoke_live "$role" "$model" "$prompt_file" "$output_file" "$budget" "$timeout" ;;
+        *) error "Unknown mode: $mode"; exit 1 ;;
     esac
 }
 
