@@ -23,6 +23,45 @@ Optionally include: confidence (number 0.0-1.0) — your calibrated confidence t
   - 0.1 = uncertain but worth flagging
   - Omit if you have no strong signal either way.
 DO NOT include: faang_parallel, metaphor, teachable_moment, connection fields.`;
+/**
+ * Permission to Question directive (Condition 3) — enrichment-only.
+ * Encourages the reviewer to question the framing of the PR, not just the code.
+ */
+const PERMISSION_TO_QUESTION = `
+## Permission to Question the Question
+
+You have explicit permission — and are encouraged — to question the framing of this pull request.
+If the PR solves a problem but you believe the problem itself may be incorrectly framed,
+or if there's a fundamentally different approach worth considering, say so.
+
+Good reframes:
+- "This PR adds caching, but should we question whether the upstream query needs optimization first?"
+- "The feature flag approach works, but what if the real question is about the deployment pipeline?"
+
+Mark such observations with severity REFRAME. They are valued even if speculative.`;
+/**
+ * Structural depth expectations — enrichment-only.
+ * Guides models to produce the 8 depth elements tracked by the depth checker.
+ */
+const DEPTH_EXPECTATIONS = `
+## Structural Depth Expectations
+
+Your review should demonstrate depth across multiple dimensions. Where warranted, include:
+
+1. **FAANG Parallels**: Cite specific systems, papers, or practices from major tech companies
+   (e.g., "Netflix's Chaos Monkey", "Google's Borg scheduler", "Meta's Sapling VCS")
+2. **Metaphors**: Accessible analogies that illuminate technical concepts for broader audiences
+3. **Teachable Moments**: Lessons that extend beyond this specific fix — patterns worth remembering
+4. **Tech History**: Evolution context — when a pattern originated, how it evolved, why it persists
+5. **Business/Revenue Impact**: Connect technical decisions to business outcomes, SLAs, or user experience
+6. **Social/Team Dynamics**: Conway's Law implications, cognitive load, developer experience effects
+7. **Cross-Repository Connections**: Patterns seen in related repos or the broader ecosystem
+8. **Frame Questioning**: Step back and ask whether the problem is correctly framed (use REFRAME severity)
+
+Not every dimension applies to every PR. Aim for depth over breadth — 5+ dimensions with substance
+is better than 8 shallow mentions.`;
+/** Truncation priority order for context window heterogeneity. */
+export const TRUNCATION_PRIORITY = ["persona", "lore", "crossRepo", "diff"];
 export class PRReviewTemplate {
     git;
     hasher;
@@ -62,9 +101,44 @@ export class PRReviewTemplate {
     }
     /**
      * Build system prompt: persona with injection hardening prefix.
+     * For single-model or basic mode — no depth enhancements.
      */
     buildSystemPrompt(persona) {
         return INJECTION_HARDENING + persona;
+    }
+    /**
+     * Build enriched system prompt with Permission to Question, depth expectations,
+     * and optionally woven lore entries (T2.3, T2.4, T2.6).
+     *
+     * Used for Pass 2 (enrichment) in multi-model and enhanced single-model modes.
+     * Respects truncation priority: persona > lore > cross-repo > diff.
+     *
+     * @param persona - The persona content
+     * @param options - Optional lore entries and multi-model config
+     * @param tokenBudget - Optional per-provider token budget for context window management
+     */
+    buildEnrichedSystemPrompt(persona, options, tokenBudget) {
+        const parts = [];
+        // Layer 1 (highest priority): Persona + injection hardening
+        parts.push({ layer: "persona", content: INJECTION_HARDENING + persona });
+        // Layer 2: Lore context (if active weaving enabled and entries provided)
+        const loreEntries = options?.loreEntries;
+        const depthConfig = options?.multiModelConfig?.depth;
+        if (depthConfig?.lore_active_weaving && loreEntries && loreEntries.length > 0) {
+            parts.push({ layer: "lore", content: buildLoreSection(loreEntries) });
+        }
+        // Permission to Question + Depth Expectations (always included in enriched mode)
+        if (depthConfig?.permission_to_question !== false) {
+            parts.push({ layer: "persona", content: PERMISSION_TO_QUESTION });
+        }
+        if (depthConfig?.structural_checklist !== false) {
+            parts.push({ layer: "persona", content: DEPTH_EXPECTATIONS });
+        }
+        // Apply truncation budget if specified (context window heterogeneity)
+        if (tokenBudget && tokenBudget > 0) {
+            return applyTruncationPriority(parts, tokenBudget, options?.provider);
+        }
+        return parts.map((p) => p.content).join("\n");
     }
     /**
      * Build user prompt: PR metadata + truncated diffs.
@@ -425,5 +499,61 @@ export class PRReviewTemplate {
         lines.push("");
         return lines.join("\n");
     }
+}
+/**
+ * Build a lore context section from lore entries for weaving into the system prompt (T2.4).
+ * Uses `short` for inline naming and `context` for deeper framing.
+ */
+function buildLoreSection(entries) {
+    if (entries.length === 0)
+        return "";
+    const lines = [];
+    lines.push("");
+    lines.push("## Project Lore — Contextual Patterns");
+    lines.push("");
+    lines.push("The following project-specific patterns and terminology should inform your review.");
+    lines.push("Weave these naturally into your analysis where relevant — do not force-fit.");
+    lines.push("");
+    for (const entry of entries) {
+        lines.push(`### ${entry.term} (${entry.short})`);
+        lines.push(entry.context);
+        if (entry.source) {
+            lines.push(`_Source: ${entry.source}_`);
+        }
+        lines.push("");
+    }
+    return lines.join("\n");
+}
+/**
+ * Apply truncation priority when context window is constrained (T2.6).
+ * Priority: persona > lore > cross-repo > diff.
+ * Drops lowest-priority layers first to fit within the token budget.
+ *
+ * Uses a rough 4 chars/token estimate (same coefficient as truncation.ts).
+ */
+function applyTruncationPriority(parts, tokenBudget, provider) {
+    const charBudget = tokenBudget * 4; // Conservative estimate
+    let totalChars = parts.reduce((sum, p) => sum + p.content.length, 0);
+    if (totalChars <= charBudget) {
+        return parts.map((p) => p.content).join("\n");
+    }
+    // Drop layers in reverse priority order (diff first, then crossRepo, then lore)
+    const droppable = ["diff", "crossRepo", "lore"];
+    const dropped = [];
+    for (const layer of droppable) {
+        if (totalChars <= charBudget)
+            break;
+        const layerParts = parts.filter((p) => p.layer === layer);
+        for (const lp of layerParts) {
+            totalChars -= lp.content.length;
+            dropped.push(layer);
+        }
+        parts = parts.filter((p) => p.layer !== layer);
+    }
+    if (dropped.length > 0 && provider) {
+        const msg = `[bridgebuilder:${provider}] Context window truncation: dropped layers [${[...new Set(dropped)].join(", ")}]`;
+        console.error(msg);
+    }
+    return parts.map((p) => p.content).join("\n");
 }
 //# sourceMappingURL=template.js.map

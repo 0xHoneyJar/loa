@@ -19,6 +19,8 @@ export declare function createLocalAdapters(config: BridgebuilderConfig, anthrop
 export { GitHubCLIAdapter } from "./github-cli.js";
 export type { GitHubCLIAdapterConfig } from "./github-cli.js";
 export { AnthropicAdapter } from "./anthropic.js";
+export { OpenAIAdapter } from "./openai.js";
+export { GoogleAdapter } from "./google.js";
 export { PatternSanitizer } from "./sanitizer.js";
 export { NodeHasher } from "./node-hasher.js";
 export { ConsoleLogger } from "./console-logger.js";

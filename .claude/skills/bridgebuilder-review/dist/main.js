@@ -3,7 +3,11 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ReviewPipeline, PRReviewTemplate, BridgebuilderContext, } from "./core/index.js";
 import { createLocalAdapters } from "./adapters/index.js";
-import { parseCLIArgs, resolveConfig, resolveRepos, formatEffectiveConfig, } from "./config.js";
+import { parseCLIArgs, resolveConfig, resolveRepos, formatEffectiveConfig, loadMultiModelConfig, validateApiKeys, } from "./config.js";
+import { executeMultiModelReview } from "./core/multi-model-pipeline.js";
+import { ProgressReporter } from "./core/progress.js";
+import { buildRatingPrompt, storeRating, createRatingEntry, readRatingWithTimeout, } from "./core/rating.js";
+import { truncateFiles } from "./core/truncation.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 /** Persona pack directory relative to this module. */
 const PERSONAS_DIR = resolve(__dirname, "personas");
@@ -185,6 +189,17 @@ async function main() {
         config.model = personaResult.model;
         console.error(`[bridgebuilder] Model override: ${personaResult.model} (from persona:${personaResult.source})`);
     }
+    // Load multi-model config (Sprint 1: T1.4)
+    const multiModelConfig = loadMultiModelConfig();
+    if (multiModelConfig.enabled) {
+        config.multiModel = multiModelConfig;
+        const keyStatus = validateApiKeys(multiModelConfig);
+        console.error(`[bridgebuilder] Multi-model: ${keyStatus.valid.length} provider(s) available, ` +
+            `${keyStatus.missing.length} missing (mode: ${multiModelConfig.api_key_mode})`);
+        if (keyStatus.missing.length > 0) {
+            console.error(`[bridgebuilder] Missing API keys: ${keyStatus.missing.map((m) => `${m.provider} (${m.envVar})`).join(", ")}`);
+        }
+    }
     // Create adapters
     const apiKey = process.env.ANTHROPIC_API_KEY ?? "";
     const adapters = createLocalAdapters(config, apiKey);
@@ -197,12 +212,78 @@ async function main() {
     const ts = now.toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "");
     const hex = Math.random().toString(16).slice(2, 6);
     const runId = `bridgebuilder-${ts}-${hex}`;
-    const summary = await pipeline.run(runId);
-    // Output
-    printSummary(summary);
-    // Exit code: 1 if any errors occurred
-    if (summary.errors > 0) {
-        process.exit(1);
+    // Multi-model routing: dispatch to multi-model pipeline when enabled (Fix #1)
+    if (config.multiModel?.enabled) {
+        // Progress reporter (Fix #3)
+        const progress = new ProgressReporter({
+            verbose: config.multiModel.progress.verbose,
+        });
+        progress.start();
+        for (const entry of config.multiModel.models) {
+            progress.registerModel(entry.provider, entry.model_id);
+        }
+        progress.setPhase("review");
+        // Resolve review items then execute multi-model review for each
+        const items = await template.resolveItems();
+        for (const item of items) {
+            // Use convergence prompt so models return findings JSON parseable by
+            // extractFindingsFromContent() (bug-20260413-9f9b39).
+            const truncated = truncateFiles(item.files, config);
+            const systemPrompt = template.buildConvergenceSystemPrompt();
+            const userPrompt = template.buildConvergenceUserPrompt(item, truncated);
+            const mmResult = await executeMultiModelReview(item, systemPrompt, userPrompt, config, { poster: adapters.poster, sanitizer: adapters.sanitizer, logger: adapters.logger }, { template, persona });
+            for (const mr of mmResult.modelResults) {
+                progress.updateModel(mr.provider, mr.model, {
+                    phase: mr.error ? "error" : "complete",
+                    latencyMs: mr.response?.latencyMs,
+                    inputTokens: mr.response?.inputTokens,
+                    outputTokens: mr.response?.outputTokens,
+                });
+            }
+            progress.reportScoring({
+                total: mmResult.consensus.stats.total_findings,
+                highConsensus: mmResult.consensus.stats.high_consensus,
+                disputed: mmResult.consensus.stats.disputed,
+                blocker: mmResult.consensus.stats.blocker,
+            });
+        }
+        progress.reportComplete(Date.now() - now.getTime(), config.multiModel.models.length);
+        progress.stop();
+        // Rating prompt — non-blocking, respects timeout (Issue #464 A1)
+        if (config.multiModel.rating.enabled) {
+            const modelsLabel = config.multiModel.models.map((m) => m.model_id).join(", ");
+            const ratingPrompt = buildRatingPrompt(runId, modelsLabel, 1);
+            console.error(ratingPrompt);
+            try {
+                const { score, timedOut } = await readRatingWithTimeout({
+                    timeoutMs: config.multiModel.rating.timeout_seconds * 1000,
+                });
+                if (score !== null) {
+                    const entry = createRatingEntry(runId, 1, modelsLabel, score);
+                    await storeRating(entry);
+                    console.error(`[bridgebuilder] Rating stored: ${score}/5`);
+                }
+                else if (timedOut) {
+                    console.error(`[bridgebuilder] Rating prompt timed out after ${config.multiModel.rating.timeout_seconds}s`);
+                }
+                else {
+                    console.error("[bridgebuilder] Rating skipped");
+                }
+            }
+            catch (err) {
+                // Rating must never crash the pipeline — log and continue
+                console.error(`[bridgebuilder] Rating capture failed: ${err instanceof Error ? err.message : String(err)}`);
+            }
+        }
+        console.log(JSON.stringify({ runId, mode: "multi-model", items: items.length }, null, 2));
+    }
+    else {
+        // Single-model path — existing behavior, unchanged
+        const summary = await pipeline.run(runId);
+        printSummary(summary);
+        if (summary.errors > 0) {
+            process.exit(1);
+        }
     }
 }
 main().catch((err) => {

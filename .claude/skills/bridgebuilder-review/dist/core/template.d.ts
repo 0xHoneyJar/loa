@@ -1,6 +1,6 @@
 import type { IGitProvider } from "../ports/git-provider.js";
 import type { IHasher } from "../ports/hasher.js";
-import type { BridgebuilderConfig, ReviewItem, TruncationResult, ProgressiveTruncationResult, PersonaMetadata, EcosystemContext, EnrichmentOptions, TruncationContext } from "./types.js";
+import type { BridgebuilderConfig, ReviewItem, TruncationResult, ProgressiveTruncationResult, PersonaMetadata, EcosystemContext, EnrichmentOptions, TruncationContext, MultiModelConfig } from "./types.js";
 export interface PromptPair {
     systemPrompt: string;
     userPrompt: string;
@@ -9,6 +9,18 @@ export interface PromptPairWithMeta extends PromptPair {
     allExcluded: boolean;
     loaBanner?: string;
 }
+/** Lore entry structure matching grimoires/loa/lore/patterns.yaml schema. */
+export interface LoreEntry {
+    id: string;
+    term: string;
+    short: string;
+    context: string;
+    source?: string;
+    tags?: string[];
+}
+/** Truncation priority order for context window heterogeneity. */
+export declare const TRUNCATION_PRIORITY: readonly ["persona", "lore", "crossRepo", "diff"];
+export type TruncationLayer = typeof TRUNCATION_PRIORITY[number];
 export declare class PRReviewTemplate {
     private readonly git;
     private readonly hasher;
@@ -21,8 +33,25 @@ export declare class PRReviewTemplate {
     resolveItems(): Promise<ReviewItem[]>;
     /**
      * Build system prompt: persona with injection hardening prefix.
+     * For single-model or basic mode — no depth enhancements.
      */
     buildSystemPrompt(persona: string): string;
+    /**
+     * Build enriched system prompt with Permission to Question, depth expectations,
+     * and optionally woven lore entries (T2.3, T2.4, T2.6).
+     *
+     * Used for Pass 2 (enrichment) in multi-model and enhanced single-model modes.
+     * Respects truncation priority: persona > lore > cross-repo > diff.
+     *
+     * @param persona - The persona content
+     * @param options - Optional lore entries and multi-model config
+     * @param tokenBudget - Optional per-provider token budget for context window management
+     */
+    buildEnrichedSystemPrompt(persona: string, options?: {
+        loreEntries?: LoreEntry[];
+        multiModelConfig?: MultiModelConfig;
+        provider?: string;
+    }, tokenBudget?: number): string;
     /**
      * Build user prompt: PR metadata + truncated diffs.
      * Returns the PromptPair ready for LLM submission.

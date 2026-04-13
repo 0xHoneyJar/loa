@@ -30,6 +30,8 @@ export function createLocalAdapters(config, anthropicApiKey) {
 // Re-export individual adapters for testing
 export { GitHubCLIAdapter } from "./github-cli.js";
 export { AnthropicAdapter } from "./anthropic.js";
+export { OpenAIAdapter } from "./openai.js";
+export { GoogleAdapter } from "./google.js";
 export { PatternSanitizer } from "./sanitizer.js";
 export { NodeHasher } from "./node-hasher.js";
 export { ConsoleLogger } from "./console-logger.js";

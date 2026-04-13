@@ -136,6 +136,18 @@ run_bridge:
     enabled: false              # Default false — progressive rollout
     base_branch: main           # Branch to diff against
 
+# Post-PR Validation — Amendment 1 enablement (cycle-053, Issue #467)
+# The BRIDGEBUILDER_REVIEW phase runs after FLATLINE_PR, performs iterative
+# adversarial review with kaironic termination. Feature enabled here for
+# real-world observation per Option A from Issue #467 roadmap.
+post_pr_validation:
+  enabled: true
+  phases:
+    bridgebuilder_review:
+      enabled: true              # ← Enabling Option A (was false default)
+      auto_triage_blockers: true # Autonomous dispatch with logged reasoning (HITL decision #1)
+      depth: 5                   # Inherit from /run-bridge default; kaironic short-circuit on FLATLINE
+
 # Bridgebuilder Design Review (cycle-044)
 bridgebuilder_design_review:
   enabled: true                 # Enabled for cycle-048 — progressive rollout (sole gate)

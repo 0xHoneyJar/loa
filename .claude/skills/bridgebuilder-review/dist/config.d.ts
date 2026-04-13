@@ -1,4 +1,81 @@
-import type { BridgebuilderConfig } from "./core/types.js";
+import { z } from "zod/v4";
+import type { BridgebuilderConfig, MultiModelConfig } from "./core/types.js";
+export declare const MultiModelConfigSchema: z.ZodObject<{
+    enabled: z.ZodDefault<z.ZodBoolean>;
+    models: z.ZodDefault<z.ZodArray<z.ZodObject<{
+        provider: z.ZodString;
+        model_id: z.ZodString;
+        role: z.ZodDefault<z.ZodEnum<{
+            primary: "primary";
+            reviewer: "reviewer";
+        }>>;
+    }, z.core.$strip>>>;
+    iteration_strategy: z.ZodDefault<z.ZodUnion<readonly [z.ZodEnum<{
+        every: "every";
+        final: "final";
+    }>, z.ZodArray<z.ZodNumber>]>>;
+    api_key_mode: z.ZodDefault<z.ZodEnum<{
+        strict: "strict";
+        graceful: "graceful";
+    }>>;
+    consensus: z.ZodDefault<z.ZodObject<{
+        enabled: z.ZodDefault<z.ZodBoolean>;
+        scoring_thresholds: z.ZodDefault<z.ZodObject<{
+            high_consensus: z.ZodDefault<z.ZodNumber>;
+            disputed_delta: z.ZodDefault<z.ZodNumber>;
+            low_value: z.ZodDefault<z.ZodNumber>;
+            blocker: z.ZodDefault<z.ZodNumber>;
+        }, z.core.$strip>>;
+    }, z.core.$strip>>;
+    token_budget: z.ZodDefault<z.ZodObject<{
+        per_model: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+        total: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+    }, z.core.$strip>>;
+    depth: z.ZodDefault<z.ZodObject<{
+        structural_checklist: z.ZodDefault<z.ZodBoolean>;
+        checklist_min_elements: z.ZodDefault<z.ZodNumber>;
+        permission_to_question: z.ZodDefault<z.ZodBoolean>;
+        lore_active_weaving: z.ZodDefault<z.ZodBoolean>;
+    }, z.core.$strip>>;
+    cross_repo: z.ZodDefault<z.ZodObject<{
+        auto_detect: z.ZodDefault<z.ZodBoolean>;
+        manual_refs: z.ZodDefault<z.ZodArray<z.ZodString>>;
+    }, z.core.$strip>>;
+    rating: z.ZodDefault<z.ZodObject<{
+        enabled: z.ZodDefault<z.ZodBoolean>;
+        timeout_seconds: z.ZodDefault<z.ZodNumber>;
+        retrospective_command: z.ZodDefault<z.ZodBoolean>;
+    }, z.core.$strip>>;
+    progress: z.ZodDefault<z.ZodObject<{
+        verbose: z.ZodDefault<z.ZodBoolean>;
+    }, z.core.$strip>>;
+    max_concurrency: z.ZodOptional<z.ZodNumber>;
+    cost_rates: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
+        input: z.ZodNumber;
+        output: z.ZodNumber;
+    }, z.core.$strip>>>;
+}, z.core.$strip>;
+/**
+ * Load multi-model configuration from .loa.config.yaml using yq CLI (SDD Section 2.7).
+ * Falls back to defaults (enabled: false) if yq is missing or config absent.
+ */
+export declare function loadMultiModelConfig(): MultiModelConfig;
+/** Environment variable to API key mapping for multi-model providers. */
+export declare const PROVIDER_API_KEY_ENV: Record<string, string>;
+/**
+ * Validate API keys for configured multi-model providers.
+ * Returns available and missing provider lists.
+ */
+export declare function validateApiKeys(config: MultiModelConfig): {
+    valid: Array<{
+        provider: string;
+        modelId: string;
+    }>;
+    missing: Array<{
+        provider: string;
+        envVar: string;
+    }>;
+};
 export interface CLIArgs {
     dryRun?: boolean;
     repos?: string[];
