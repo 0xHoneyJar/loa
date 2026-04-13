@@ -285,3 +285,60 @@ EOF
     [ "$status" -eq 0 ]
     [[ "$output" == *"--review-dir"* ]]
 }
+
+# Bridgebuilder H2 (PR #466 v2 review): finding IDs with uppercase/underscores
+# would produce bug_seed_id that fails schema pattern validation. Sanitization
+# must lowercase, replace underscores with hyphens, and strip invalid chars.
+@test "triage: sanitizes uppercase finding IDs before composing bug_seed_id" {
+    create_findings_file "bridge-test-iter1-findings.json" "CRITICAL" "HIGH-Security-Issue-1" "Uppercase ID"
+    run "$TEST_TMPDIR/.claude/scripts/post-pr-triage.sh" --pr 100 --auto-triage true
+    [ "$status" -eq 0 ]
+
+    local bug_id
+    bug_id=$(jq -r '.suggested_bug_id' "$TEST_TMPDIR/.run/bridge-pending-bugs.jsonl")
+
+    # Must match schema pattern ^[0-9]{8}-[a-z0-9][a-z0-9-]*$
+    local schema_pattern="^[0-9]{8}-[a-z0-9][a-z0-9-]*$"
+    run bash -c "echo '$bug_id' | grep -qE '$schema_pattern'"
+    [ "$status" -eq 0 ] || { echo "Bug ID $bug_id does not match schema pattern" >&2; return 1; }
+
+    # Must contain the sanitized finding ID as a suffix
+    [[ "$bug_id" == *"high-security-issue-1" ]]
+}
+
+@test "triage: sanitizes underscores in finding IDs to hyphens" {
+    create_findings_file "bridge-test-iter1-findings.json" "CRITICAL" "security_auth_bypass" "Underscore ID"
+    run "$TEST_TMPDIR/.claude/scripts/post-pr-triage.sh" --pr 100 --auto-triage true
+    [ "$status" -eq 0 ]
+
+    local bug_id
+    bug_id=$(jq -r '.suggested_bug_id' "$TEST_TMPDIR/.run/bridge-pending-bugs.jsonl")
+
+    # Must match schema pattern
+    local schema_pattern="^[0-9]{8}-[a-z0-9][a-z0-9-]*$"
+    run bash -c "echo '$bug_id' | grep -qE '$schema_pattern'"
+    [ "$status" -eq 0 ]
+
+    # Underscores converted to hyphens
+    [[ "$bug_id" != *"_"* ]]
+    [[ "$bug_id" == *"security-auth-bypass" ]]
+}
+
+# Bridgebuilder H4 (PR #466 v2 review): default REVIEW_DIR should resolve
+# relative to cwd (not script location) to stay consistent with orchestrator.
+@test "triage: default REVIEW_DIR is cwd-relative (H4 fix)" {
+    # Copy the script to a location OUTSIDE the normal .claude/scripts path
+    local alt_script_dir="$TEST_TMPDIR/alt-install"
+    mkdir -p "$alt_script_dir"
+    cp "$PROJECT_ROOT/.claude/scripts/post-pr-triage.sh" "$alt_script_dir/"
+
+    # Run from $TEST_TMPDIR — default paths should resolve relative to cwd
+    create_findings_file "bridge-test-iter1-findings.json" "HIGH" "h1" "Test H4"
+    run "$alt_script_dir/post-pr-triage.sh" --pr 100 --auto-triage true
+    [ "$status" -eq 0 ]
+
+    # Trajectory should land in $TEST_TMPDIR (cwd), not alt_script_dir's parent
+    local traj_count
+    traj_count=$(ls "$TEST_TMPDIR/grimoires/loa/a2a/trajectory/"bridge-triage-*.jsonl 2>/dev/null | wc -l)
+    [ "$traj_count" -ge 1 ]
+}

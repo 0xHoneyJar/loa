@@ -23,7 +23,12 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# Default paths resolve relative to cwd (not script location) to stay consistent
+# with how post-pr-orchestrator.sh passes paths and with how bridge-orchestrator.sh
+# writes findings (Bridgebuilder H4 from PR #466 v2 review).
+# Set LOA_REVIEW_DIR etc. to override.
+CWD_AT_INVOKE="$(pwd)"
 
 # ============================================================================
 # Defaults
@@ -31,10 +36,10 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 PR_NUMBER=""
 AUTO_TRIAGE="true"
-REVIEW_DIR="$PROJECT_ROOT/.run/bridge-reviews"
-TRAJECTORY_DIR="$PROJECT_ROOT/grimoires/loa/a2a/trajectory"
-LORE_QUEUE="$PROJECT_ROOT/.run/bridge-lore-candidates.jsonl"
-BUG_QUEUE="$PROJECT_ROOT/.run/bridge-pending-bugs.jsonl"
+REVIEW_DIR="${LOA_REVIEW_DIR:-$CWD_AT_INVOKE/.run/bridge-reviews}"
+TRAJECTORY_DIR="${LOA_TRAJECTORY_DIR:-$CWD_AT_INVOKE/grimoires/loa/a2a/trajectory}"
+LORE_QUEUE="${LOA_LORE_QUEUE:-$CWD_AT_INVOKE/.run/bridge-lore-candidates.jsonl}"
+BUG_QUEUE="${LOA_BUG_QUEUE:-$CWD_AT_INVOKE/.run/bridge-pending-bugs.jsonl}"
 DRY_RUN="false"
 
 # ============================================================================
@@ -174,8 +179,25 @@ queue_pending_bug() {
 
   mkdir -p "$(dirname "$BUG_QUEUE")"
 
+  # Sanitize finding ID so the resulting bug_seed_id matches the schema's
+  # auto_dispatched_bug_id pattern ^[0-9]{8}-[a-z0-9][a-z0-9-]*$:
+  # - lowercase everything
+  # - replace underscores and other separators with hyphens
+  # - strip anything not in [a-z0-9-]
+  # - collapse runs of hyphens; trim leading/trailing hyphens
+  # (Bridgebuilder H2 from PR #466 v2 review)
+  local raw_id sanitized_id
+  raw_id="$(echo "$finding_json" | jq -r '.id')"
+  sanitized_id="$(echo "$raw_id" \
+    | tr '[:upper:]' '[:lower:]' \
+    | tr '_' '-' \
+    | tr -cd 'a-z0-9-' \
+    | sed -E 's/-+/-/g; s/^-+|-+$//g')"
+  # Safety fallback — if sanitization left us with empty string, use "unknown"
+  [[ -z "$sanitized_id" ]] && sanitized_id="unknown"
+
   local bug_seed_id
-  bug_seed_id="$(date -u +"%Y%m%d")-autobridge-$(echo "$finding_json" | jq -r '.id')"
+  bug_seed_id="$(date -u +"%Y%m%d")-autobridge-${sanitized_id}"
 
   local entry
   entry=$(jq -nc \
