@@ -48,12 +48,12 @@ teardown() {
     # Force live mode with a prompt that would route through model-invoke.
     # With no API key set, this must fail — but NOT with the stub message.
     unset ANTHROPIC_API_KEY OPENAI_API_KEY GOOGLE_API_KEY GEMINI_API_KEY
-    run "$ADAPTER" \
-        --role attacker \
-        --model opus \
-        --prompt-file "$TEST_TMPDIR/prompt.md" \
-        --output-file "$TEST_TMPDIR/out.json" \
-        --live
+    # Explicit 2>&1 merge for portability across BATS versions (Bridgebuilder F1):
+    # default merge behavior varies by version; explicit merge is bulletproof.
+    run bash -c "'$ADAPTER' --role attacker --model opus \
+        --prompt-file '$TEST_TMPDIR/prompt.md' \
+        --output-file '$TEST_TMPDIR/out.json' \
+        --live 2>&1"
     # Negative: must not contain the legacy stub error string
     [[ "$output" != *"requires cheval.py (Hounfour integration)"* ]]
     [[ "$output" != *"Install Hounfour and configure model routing first"* ]]
@@ -109,7 +109,11 @@ teardown() {
     [ "$missing_count" -eq 0 ]
     # And if $ADAPTER_MODE_FLAG is the mechanism, the pipeline must resolve
     # it to a literal --live or --mock (defensive guard in main()).
-    grep -qE 'ADAPTER_MODE_FLAG=("--live"|"--mock"|\$\(resolve_adapter_mode)' "$PIPELINE"
+    # Bridgebuilder F4: split into explicit alternatives to avoid the
+    # unescaped-paren ERE group bug in the previous regex.
+    grep -qE 'ADAPTER_MODE_FLAG="--live"' "$PIPELINE" \
+        || grep -qE 'ADAPTER_MODE_FLAG="--mock"' "$PIPELINE" \
+        || grep -qE 'ADAPTER_MODE_FLAG=\$\(resolve_adapter_mode\)' "$PIPELINE"
 }
 
 # -----------------------------------------------------------------------------
@@ -118,12 +122,13 @@ teardown() {
 # Pre-fix: invoke_mock silently returns fixture data. Post-fix: it must emit
 # a clear banner so users understand the output is not from a live model.
 @test "mock mode emits a visible WARNING banner on stderr" {
-    run "$ADAPTER" \
-        --role attacker \
-        --model opus \
-        --prompt-file "$TEST_TMPDIR/prompt.md" \
-        --output-file "$TEST_TMPDIR/out.json" \
-        --mock
+    # Explicit 2>&1 merge for BATS version portability (Bridgebuilder F2):
+    # older BATS may not merge streams by default. Explicit merge guarantees
+    # stderr content lands in $output regardless of framework version.
+    run bash -c "'$ADAPTER' --role attacker --model opus \
+        --prompt-file '$TEST_TMPDIR/prompt.md' \
+        --output-file '$TEST_TMPDIR/out.json' \
+        --mock 2>&1"
     [ "$status" -eq 0 ]
     # Banner must mention the critical words: MOCK and WARNING (or equivalent)
     [[ "$output" == *"MOCK"* ]] || [[ "$output" == *"mock mode"* ]]
