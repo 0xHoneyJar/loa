@@ -1,229 +1,252 @@
-# SDD: cycle-059 — Bridge Triage Analyzer
+# SDD: Lore Promoter — HARVEST phase consumer
 
-**PRD**: grimoires/loa/prd.md
-**Cycle**: cycle-059
+**PRD**: grimoires/loa/prd.md (v1.0)
+**Cycle**: cycle-060
+**Issue**: [#481](https://github.com/0xHoneyJar/loa/issues/481)
 **Date**: 2026-04-13
 
 ---
 
 ## 1. Architecture Overview
 
-Single shell script that reads JSONL trajectory files, aggregates via `jq`, emits either markdown or JSON. No daemon, no state, no side effects (except the optional `--comment-issue` network call).
+Single shell script (`.claude/scripts/lore-promote.sh`) driven by `jq` + `yq` + `flock`. Reads candidate queue + decisions journal, prompts user (or auto-decides via threshold), writes atomically to `patterns.yaml` and journal. No daemon, no long-lived state, no network except optional `gh` calls for merge-status gating.
 
 ```
-┌─────────────────────────────────────────────┐
-│  bridge-triage-stats.sh [--flags] [glob]   │
-└───────────────┬─────────────────────────────┘
-                │
-                ├──► Parse flags (bash case)
-                │
-                ├──► Resolve glob → list of .jsonl files
-                │
-                ├──► Concatenate + filter via jq
-                │    - skip malformed lines
-                │    - apply --pr filter
-                │    - apply --since filter
-                │
-                ├──► Aggregate into summary object
-                │    (total, per-pr, actions, severities, fp_proxy)
-                │
-                └──► Format:
-                     ├── --json: print summary as JSON
-                     └── default: render markdown tables
-
-Optional: --comment-issue N
-    text output ─► gh issue comment N --body-file -
+┌────────────────────────────────────────────────────────────┐
+│  lore-promote.sh [--flags]                                 │
+└────────┬───────────────────────────────────────────────────┘
+         │
+         ├─► Acquire flock on a SHARED lockfile (.run/lore-promote.lock)
+         │   covering BOTH patterns.yaml AND journal writes (Flatline SDD blocker #1)
+         │   10s timeout → abort with clear error (blocker #2: documented)
+         │
+         ├─► Load queue (.run/bridge-lore-candidates.jsonl)
+         ├─► Load decisions journal (.run/lore-promote-journal.jsonl)
+         ├─► Compute undecided candidates = queue - (journal decisions)
+         │
+         ├─► Mode dispatch:
+         │     ├─ --interactive (default): per-candidate prompt
+         │     │     user choice: A/R/S/E/Q
+         │     │
+         │     └─ --threshold N: auto-promote if merged-PR count ≥ N
+         │
+         ├─► For each Accepted/auto-promoted candidate:
+         │     1. Sanitize all free-text fields
+         │     2. Check merge status of source PR (gh pr view)
+         │     3. Generate id (slugify + collision disambiguation)
+         │     4. Append to patterns.yaml.tmp
+         │     5. mv patterns.yaml.tmp → patterns.yaml
+         │     6. Append {id, action: "promoted", pr, decided_at} to journal
+         │
+         ├─► For each Rejected candidate:
+         │     Append {id, action: "rejected", pr, reason, decided_at} to journal
+         │
+         ├─► Release flock
+         └─► Print summary + exit 0
 ```
 
 ## 2. Component Design
 
-### 2.1 Flag parsing
-Standard bash `case` loop. Defaults:
-- Glob: `grimoires/loa/a2a/trajectory/bridge-triage-*.jsonl`
-- Output: text
-- `--pr`, `--since`: unset (no filter)
+### 2.1 CLI surface
+Per PRD FR-1. Standard bash `case` loop, strict validation for each flag (numeric checks, file existence).
 
-### 2.2 File ingestion
+### 2.2 Queue state machine (Flatline SDD blocker #4 — accepted)
+A candidate is in one of three states at any time:
+- **Pending**: in queue, no journal decision yet
+- **Promoted**: journal has `{candidate_key, action: "promoted"}`, entry is in `patterns.yaml`
+- **Rejected**: journal has `{candidate_key, action: "rejected", reason: "..."}`
+
+**Candidate key**: queue entries do not have a top-level `id` field (they have `finding_id` + `pr_number`). The canonical `candidate_key` is the composite `"{pr_number}:{finding_id}"` — unique per finding per PR. This is the key used for set-difference computation, not the promoted lore `id` (which is generated on promotion per FR-2.1 and is about the *lore entry*, not the *candidate decision*).
+
+Computing pending set:
+```bash
+all_candidate_keys = [for entry in queue: "${pr_number}:${finding_id}"]
+decided_keys       = [for entry in journal: .candidate_key]
+pending            = all_candidate_keys - decided_keys
+```
+
+Journal entries include both `candidate_key` (for decision tracking) and `id` (for promoted lore entries — null when rejected).
+
+Journal is append-only and the source of truth for what's been decided. Queue file never mutates after `post-pr-triage.sh` writes it.
+
+### 2.3 ID generation with collision handling (PRD FR-2.1)
 
 ```bash
-resolve_files() {
-  local glob="$1"
-  # Expand glob via compgen for hidden-safe matching
-  local files=( $glob )
-  if [[ ! -f "${files[0]:-}" ]]; then
-    return 1   # caller handles "no files" path
-  fi
-  printf '%s\n' "${files[@]}"
+generate_id() {
+    local term="$1"
+    local content_hash="$2"  # sha256 of full candidate content
+    local base
+    base=$(echo "$term" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-\|-$//g')
+    if yq ".[] | select(.id == \"$base\")" "$LORE_PATH" 2>/dev/null | grep -q .; then
+        # Collision — append short hash
+        local short=${content_hash:0:6}
+        echo "${base}-${short}"
+    else
+        echo "$base"
+    fi
 }
 ```
 
-Concatenation: `cat "${files[@]}" | jq -c '.'` with `--slurpfile` equivalents would require all-in-memory. For < 10k decisions the overhead is trivial — prefer simplicity.
+Unit test: two candidates with `term: "Governance Isomorphism"` but different `context` values must produce different ids (second one gets `-<hash>` suffix).
 
-### 2.3 Malformed-line handling
+### 2.4 Sanitization pipeline (PRD FR-5)
 
-`jq -cR 'fromjson? // empty'` — the `?` swallows parse errors and `// empty` drops null results. Bash warning is emitted separately via a pre-pass `wc -l` on valid vs total.
+Applied to every free-text field in order:
 
 ```bash
-total_lines=$(cat "${files[@]}" | wc -l)
-valid_lines=$(cat "${files[@]}" | jq -cR 'fromjson? // empty' | wc -l)
-skipped=$((total_lines - valid_lines))
-if [[ $skipped -gt 0 ]]; then
-    warn "Skipped $skipped malformed JSONL line(s)"
+sanitize() {
+    local text="$1"
+    local max_chars="$2"
+
+    # 1. Strip ANSI escape sequences
+    text=$(echo "$text" | sed 's/\x1b\[[0-9;]*m//g')
+
+    # 2. Strip null bytes and control chars (except tab/LF/CR)
+    text=$(echo "$text" | tr -d '\000-\010\013\014\016-\037\177')
+
+    # 3. Scan for injection patterns → reject
+    for pattern in "${INJECTION_PATTERNS[@]}"; do
+        if echo "$text" | grep -qiE "$pattern"; then
+            log_rejection "injection pattern matched: $pattern"
+            return 1
+        fi
+    done
+
+    # 4. Enforce length
+    if [[ ${#text} -gt $max_chars ]]; then
+        log_rejection "exceeds length limit ($max_chars chars)"
+        return 1
+    fi
+
+    printf '%s' "$text"
+}
+```
+
+`INJECTION_PATTERNS` = array of regex patterns loaded from `.claude/data/injection-patterns.yaml` (if present) else hardcoded baseline:
+- `Ignore previous instructions`
+- `You are now|From now on`
+- `^(system|user|assistant):`
+- `<script|<iframe|javascript:`
+
+### 2.5 Two-phase write with journal (PRD NFR-3)
+
+Per SDD diagram. The key safety property: **any crash between steps leaves the system in a recoverable state** because the journal is the source of truth.
+
+- Crash between step 1 (`.tmp` written) and step 2 (`mv`): `.tmp` file orphaned, next run detects & cleans up, no journal entry means no re-prompt needed
+- Crash between step 2 (`mv` done) and step 3 (journal append): `patterns.yaml` has the entry but journal doesn't. Next run recomputes pending = queue - journal and would re-prompt. BUT: checking `id` uniqueness against `patterns.yaml` detects the pre-existing entry → skip + log reconciliation message → journal is back-filled
+- Crash between step 3 and 4: journal has decision, queue marker doesn't matter (queue file is effectively read-only post-`post-pr-triage.sh`)
+
+### 2.6 Merge-status gating (PRD NFR-4 defense layer 4)
+
+Before auto-promoting a candidate in threshold mode:
+```bash
+pr_state=$(gh pr view "$pr_number" --json state --jq '.state' 2>/dev/null || echo "UNKNOWN")
+if [[ "$pr_state" != "MERGED" ]]; then
+    log "Skipping pr=$pr_number — not merged (state=$pr_state)"
+    return 1
 fi
 ```
 
-### 2.4 Aggregation (single jq pass)
+Interactive mode informs the user of PR state but does not block — human judgment can accept an open PR's finding if appropriate.
 
-One jq program, fed from the clean stream, emits the summary object:
+## 3. Data Model
 
-```jq
-# After filters (--pr, --since) applied
+### 3.1 Input: candidate queue entry (existing)
+
+Per `.claude/data/trajectory-schemas/bridge-triage.schema.json`. Relevant fields:
+
+```json
 {
-  total_decisions: length,
-  prs: (group_by(.pr_number) | map({
-    pr: .[0].pr_number,
-    total: length,
-    severities: (group_by(.severity) | map({(.[0].severity): length}) | add),
-    actions: (group_by(.action) | map({(.[0].action): length}) | add)
-  })),
-  actions: (group_by(.action) | map({(.[0].action): length}) | add),
-  severities: (group_by(.severity) | map({(.[0].severity): length}) | add),
-  fp_proxy: {
-    disputes: map(select(.action == "dispute")) | length,
-    defers:   map(select(.action == "defer"))   | length,
-    noise:    map(select(.action == "noise"))   | length,
-    total:    length
+  "timestamp": "2026-04-13T12:00:00Z",
+  "pr_number": 469,
+  "finding_id": "F6",
+  "severity": "PRAISE",
+  "action": "lore_candidate",
+  "reasoning": "...",
+  "finding_content": {
+    "title": "...",
+    "description": "...",
+    "tags": ["...", "..."]
   }
 }
 ```
 
-Post-jq, the bash layer computes FP rate as `(disputes + defers + noise) / total` and attaches it.
+### 3.2 Output: lore entry
 
-### 2.5 Convergence trajectory
-
-If multiple passes exist for the same PR, they can be detected by looking at the finding_id suffix convention (`-pass1`, `-pass2`, `-pass3`) used in the existing logs. When present, we group by PR + pass and emit a per-pass severity count. When absent, we emit a single-row `all` pass. This is an observational feature, not schema-mandated.
-
-```jq
-# Convergence grouping (best-effort)
-group_by(.pr_number) | map({
-  pr: .[0].pr_number,
-  passes: (
-    map(.finding_id // "") |
-    map(capture("-pass(?<n>[0-9]+)") // {n: "0"}) |
-    map(.n) | unique
-  )
-})
+```yaml
+- id: governance-isomorphism-a3b5c2
+  term: Governance Isomorphism
+  short: Multi-perspective evaluation with fail-closed semantics appears identically across Flatline, Red Team, and vault governance.
+  context: |
+    The review pipeline and the vault share an identical governance shape: multiple independent evaluators must reach consensus before state changes are permitted. This pattern enables cross-pollination: security review patterns from code review can inform on-chain governance design.
+  source:
+    pr: 469
+    finding_id: F6
+    bridge_iteration: "PR #469 pass 2"
+    cycle: cycle-060
+    promoted_at: "2026-04-13T14:30:00Z"
+  tags:
+    - governance
+    - flatline
+    - red-team
+    - cross-ecosystem
 ```
 
-### 2.6 Output rendering
+### 3.3 Decisions journal entry
 
-**Text (default)** — markdown tables, 5 sections:
-1. Summary counts (total, PRs, decisions)
-2. Per-PR breakdown (severity mix per PR)
-3. Severity distribution (global)
-4. Action distribution (global)
-5. FP proxy (disputes+defers+noise / total, with percentage)
-
-**JSON (`--json`)** — emit the jq-produced summary object verbatim with the FP rate attached.
-
-### 2.7 `--comment-issue` flow
-
-```bash
-if [[ -n "$comment_issue" ]]; then
-  # Use text output regardless of --json flag (humans read issue comments)
-  local formatted
-  formatted=$(format_text_output)
-  echo "## Bridge Triage Stats (auto-generated by bridge-triage-stats.sh)" | \
-    gh issue comment "$comment_issue" --body-file -
-  # Actual body assembled via process substitution:
-  gh issue comment "$comment_issue" --body-file <(printf '%s\n' \
-    "## Bridge Triage Stats — $(date -u +%Y-%m-%d)" \
-    "" \
-    "$formatted" \
-    "" \
-    "_Generated by \`.claude/scripts/bridge-triage-stats.sh\`_")
-fi
-```
-
-## 3. Data Model
-
-### 3.1 Input: bridge-triage JSONL entry (existing schema)
-
-Per `.claude/data/trajectory-schemas/bridge-triage.schema.json`:
-```json
-{
-  "timestamp": "ISO8601",
-  "pr_number": 469,
-  "finding_id": "F1-pass2",
-  "severity": "HIGH",
-  "action": "dispute",
-  "reasoning": "...",
-  "auto_dispatched_bug_id": "optional"
-}
-```
-
-### 3.2 Output: analyzer summary (JSON schema)
-
-```json
-{
-  "generated_at": "2026-04-13T12:30:00Z",
-  "input_files": ["grimoires/loa/a2a/trajectory/bridge-triage-2026-04-13.jsonl"],
-  "filters_applied": {"pr": null, "since": null},
-  "total_decisions": 118,
-  "skipped_malformed_lines": 0,
-  "prs": [
-    {"pr": 100, "total": 78, "severities": {"HIGH": 5, ...}, "actions": {...}}
-  ],
-  "severities": {"HIGH": 8, "MEDIUM": 25, ...},
-  "actions": {"log_only": 50, "dispute": 5, ...},
-  "fp_proxy": {"disputes": 5, "defers": 10, "noise": 2, "total": 118, "rate": 0.144}
-}
+```jsonl
+{"decided_at":"2026-04-13T14:30:00Z","id":"governance-isomorphism-a3b5c2","action":"promoted","pr":469,"finding_id":"F6","tool_version":"cycle-060"}
+{"decided_at":"2026-04-13T14:31:00Z","id":"bad-pattern-xyz","action":"rejected","pr":470,"finding_id":"F2","reason":"injection_pattern_matched","tool_version":"cycle-060"}
 ```
 
 ## 4. Testing Strategy
 
-BATS suite at `tests/unit/bridge-triage-stats.bats`:
+BATS suite at `tests/unit/lore-promote.bats`. Minimum 12 cases:
 
-| Test | Coverage |
-|------|----------|
-| T1 | Default glob with synthetic valid entries → expected counts |
-| T2 | Empty glob → exit 0, no output, stderr warning |
-| T3 | Malformed lines → skipped + warned, valid entries still counted |
-| T4 | `--pr 469` filter → only PR 469 in output |
-| T5 | `--since 2026-04-13` → only entries on/after that date |
-| T6 | `--json` → valid JSON with expected top-level keys |
-| T7 | `--help` → exit 0, usage text |
-| T8 | FP rate arithmetic: disputes=5, defers=10, noise=2, total=100 → rate=0.17 |
-| T9 | Multi-file glob concatenates correctly |
-| T10 | Unknown flag → exit 2 with error |
+| # | Test | Coverage |
+|---|------|----------|
+| T1 | Happy path: one candidate, interactive accept | FR-3, FR-8 |
+| T2 | Interactive reject logs to journal with reason | FR-3 |
+| T3 | Interactive skip leaves candidate pending | FR-3 |
+| T4 | Idempotency: re-run doesn't duplicate promoted entries | FR-6 |
+| T5 | Sanitization rejects injection pattern | FR-5 |
+| T6 | Length limit enforced on `short` and `context` | FR-5 |
+| T7 | ID collision triggers hash suffix | FR-2.1 |
+| T8 | Empty queue exits 0 with info message | FR-7 |
+| T9 | Missing `patterns.yaml` auto-created | FR-7 |
+| T10 | Threshold mode requires ≥2 merged PRs | NFR-4 |
+| T11 | Unknown flag exits 2 | FR-1 |
+| T12 | Crash recovery: journal + yaml desync reconciled | NFR-3 |
 
 ## 5. Security Design
 
-Threat model: the analyzer reads attacker-influenceable JSONL content (Bridgebuilder review findings can be influenced by third-party PR titles/bodies). All fields are emitted through `jq` (which escapes on output) or echoed to stderr (human-read). **No `eval`, no command substitution of JSONL content, no templating.** The `--comment-issue` flow uses `gh issue comment --body-file -` which treats stdin as literal markdown — no shell expansion.
+Threat model: malicious PR author crafts PRAISE-shaped content designed to inject into future Bridgebuilder/Flatline prompts via `patterns.yaml` → `buildEnrichedSystemPrompt()`.
 
-Defense-in-depth:
-- `jq` for all parse/emit
-- Validated numeric inputs (`--pr N`: `[[ "$N" =~ ^[0-9]+$ ]]`)
-- Validated date input (`--since`: `[[ "$date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]`)
-- Glob expansion uses bash native (no shell-out to `find` with untrusted input)
+Defense layers (PRD NFR-4):
+1. Pattern scan (FR-5) — primary filter
+2. Length limits — blast-radius cap
+3. Schema validation — structural guard
+4. Merge gating (merge status check) — trust signal
+5. Interactive default — human judgment
+
+Each layer alone is defeatable; in combination they raise the adversarial bar significantly. Not proven-secure; documented as Known Limitation.
 
 ## 6. Performance
 
-For the current dataset (118 decisions, 1 file): sub-100ms. For 10,000 decisions across 50 files: estimated sub-2s. `jq -s` slurp mode is the dominant cost; streaming mode would be faster but adds complexity we don't need at this scale.
+For ≤1000 pending candidates: interactive mode dominated by human decision latency; threshold mode completes in < 5s. Bottleneck is `gh pr view` calls (one per auto-promotion candidate). Cache merge status in a session-local dict to avoid repeated calls for the same PR.
 
-## 7. Rollback Plan
+## 7. Rollback
 
-Script is standalone with no state writes outside stdout. Rollback = `git revert` the single commit. No data migration, no schema change, no hook integration — nothing to undo.
+Single script; `git revert` removes it. No schema changes, no migration. Journal + patterns.yaml are additive — rolling back the promoter doesn't invalidate entries already in `patterns.yaml` (they continue to be consumed by `core/lore-loader.ts`).
 
 ## 8. Integration Points
 
-| Integration | How |
-|-------------|-----|
-| [#467](https://github.com/0xHoneyJar/loa/issues/467) decision-gate | `--comment-issue 467` posts the stats |
-| Future `retrospective` skill | Can invoke the analyzer as a data source |
-| Future Option D (pattern aggregation) | Uses this analyzer's JSON output as its ingest |
-| Run-bridge SKILL.md | Add a "See also: bridge-triage-stats.sh" note under the kaironic termination section |
+- **Input**: `.run/bridge-lore-candidates.jsonl` (produced by `post-pr-triage.sh` since v1.73.0) + new `.run/lore-promote-journal.jsonl` (written by this script)
+- **Output**: `grimoires/loa/lore/patterns.yaml` (consumed by v1.75.0 `core/lore-loader.ts`)
+- **Observability**: `bridge-triage-stats.sh --since ...` shows the producer side; this cycle adds the consumer side
+- **Cross-reference**: run-bridge SKILL.md should link to this as the HARVEST-phase consumer pattern
+- **Required follow-up (Bridgebuilder Design Review F1-REFRAME)**: wire `lore-promote.sh --threshold 2` into `post-merge-orchestrator.sh` so promotion becomes as continuous as the producer. Without this hook, the consumer remains operator-triggered and the spiral never closes. Not in scope for this cycle (MVP delivers the script itself), but MUST be the next cycle. Tracked separately.
 
 ---
 
-*Source: PRD cycle-059 sections 1-7, existing `.claude/data/trajectory-schemas/bridge-triage.schema.json`, existing trajectory samples.*
+*Sources: PRD cycle-060 §§1-7, existing trajectory schema, existing `patterns.yaml` as format anchor, Flatline PRD review (6 blockers addressed in PRD revisions).*
