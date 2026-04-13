@@ -1,131 +1,175 @@
-# Sprint Plan: Community Feedback — Review Pipeline Hardening
+# Sprint Plan: Multi-Model Bridgebuilder Review
 
-**Cycle**: cycle-048
-**PRD**: grimoires/loa/prd.md
+**PRD**: grimoires/loa/prd.md (v1.1)
 **SDD**: grimoires/loa/sdd.md
-**Created**: 2026-02-28
-**Sprints**: 4 (global IDs: 98-101)
-**Total FRs**: 6
-
-## Sprint Overview
-
-Six targeted fixes to the review pipeline, driven by community feedback (Issues #425, #426, #427, #430). All changes are in the `.claude/scripts/` System Zone (authorized for this cycle). The sprint order follows dependency chains: curl guard → error surfacing → verdict normalization, with TypeScript and independent scripts interleaved for balanced sizing.
-
-| Sprint | Label | FRs | Dependency |
-|--------|-------|-----|------------|
-| 1 | Foundation — Curl Guard, Error Surfacing, YAML Regex | FR-6, FR-4, FR-2 | None |
-| 2 | Verdict Centralization & Flatline Readiness | FR-1, FR-3 | Sprint 1 (FR-4 before FR-1) |
-| 3 | Timeout Consolidation & Migration | FR-5 | None |
-| 4 | Integration Testing, CI Lint, Protocol Docs | Cross-cutting | Sprints 1-3 |
+**Date**: 2026-04-13
+**Sprints**: 4 (Global IDs: 103-106)
+**Total Tasks**: 29 + 1 E2E validation
 
 ---
 
-## Sprint 1: Foundation — Curl Guard, Error Surfacing, YAML Regex
+## Sprint 1: Foundation — Config Extension, Adapter Interface, Factory
 
-**Global ID**: 98
-**FRs**: FR-6, FR-4, FR-2
-**Rationale**: FR-6 (curl guard) is a dependency for FR-4 (error surfacing uses the same curl pipeline). FR-2 (TypeScript regex) is isolated and placed early to minimize dist/ merge conflicts with concurrent PRs.
+**Global ID**: 103
+**Scope**: MEDIUM (6 tasks)
+**FRs**: FR-1 (partial), FR-6
+**Goal**: Establish the multi-model configuration system and adapter factory so provider implementations can be built on a validated foundation.
 
 ### Tasks
 
-| ID | Task | Acceptance Criteria |
-|----|------|---------------------|
-| T1.1 | Create `write_curl_auth_config()` in lib-security.sh (FR-6) | Function in `.claude/scripts/lib-security.sh`. Rejects keys containing CR/LF/null/backslash with clear error. Escapes double quotes. Uses `mktemp` + `chmod 600` + `printf`. Accepts valid base64 chars (+, /, =). Returns config file path on stdout. |
-| T1.2 | Migrate curl config sites to `write_curl_auth_config()` (FR-6) | **10 sites** migrated across 7 files: `lib-curl-fallback.sh` (211-215), `constructs-auth.sh` (156-159), `constructs-browse.sh` (117-120, 179-182), `flatline-proposal-review.sh` (169-170, 232), `flatline-validate-learning.sh` (256-257, 321), `flatline-learning-extractor.sh` (307-308), `flatline-semantic-similarity.sh` (186-187). All use centralized helper. Existing functionality preserved. _(Flatline SPR-01: expanded from 4 to 10 sites)_ |
-| T1.3 | Write curl config guard BATS tests (FR-6) | `tests/unit/curl-config-guard.bats` created. Tests: valid key, CR rejection, LF rejection, null rejection, backslash rejection, quote escaping, base64 chars accepted, file permissions 0600. All pass in isolation. |
-| T1.4 | Surface API error messages in 401 handler (FR-4) | `lib-curl-fallback.sh` `call_api()` 401 handler extracts `.error.message` from response. Error passed through `redact_log_output()` (positional arg). Non-JSON bodies fall back gracefully. Uses if/else (specific OR generic, not both). |
-| T1.5 | Write API error surfacing BATS tests (FR-4) | `tests/unit/api-error-surfacing.bats` created. Tests: JSON error body, HTML body fallback, empty body fallback, key fragment redaction, JSON without `.error` fallback. All pass in isolation. |
-| T1.6 | Fix bridgebuilder YAML parser regex (FR-2) | config.ts line 189 regex inner capture: `\s+` → `[ \t]+`. `bridgebuilder_design_review:` NOT matched by `bridgebuilder:` regex. Existing config.test.ts passes. |
-| T1.7 | Add `loadYamlConfig()` tests for section ordering (FR-2) | New tests in config.test.ts call `loadYamlConfig()` directly. Tests: bridgebuilder before/after red_team, `bridgebuilder_design_review:` not captured. All tests pass. |
-| T1.8 | Rebuild dist/ and commit (FR-2) | `npm run build` succeeds. Built dist/ committed alongside TypeScript changes. |
+| ID | Task | File(s) | FR | Goal |
+|----|------|---------|-----|------|
+| T1.1 | Extend `ReviewResponse` with optional `provider?`, `latencyMs?`, `estimatedCostUsd?`, `errorState?` fields. Extend `LLMProviderErrorCode` with `TIMEOUT`, `AUTH_ERROR`, `PROVIDER_ERROR` | `ports/llm-provider.ts` | FR-1 | G-3 |
+| T1.2 | Add `postComment(owner, repo, prNumber, body): Promise<boolean>` to `IReviewPoster` interface | `ports/review-poster.ts` | FR-2 | G-2 |
+| T1.3 | Add `MultiModelConfig` type and `MultiModelConfigSchema` zod validation schema | `core/types.ts`, `config.ts` | FR-6 | G-3 |
+| T1.4 | Implement `loadMultiModelConfig()` using `yq` CLI extraction with yq availability check, integrate into `resolveConfig()` | `config.ts` | FR-6 | G-3 |
+| T1.5 | Create `AdapterFactory` with `createAdapter(config): ILLMProvider` dispatching to anthropic/openai/google | `adapters/adapter-factory.ts` (new) | FR-1 | G-2, G-3 |
+| T1.6 | Tests: config parsing (various YAML inputs, defaults, yq missing), adapter factory dispatch | `__tests__/config.test.ts`, `__tests__/adapter-factory.test.ts` | FR-1, FR-6 | G-3 |
+
+### Acceptance Criteria
+- [ ] `multi_model.enabled: false` produces identical behavior
+- [ ] Config loading validates all nested fields with sensible defaults
+- [ ] Clear error if yq missing when multi_model config detected
+- [ ] API key validation respects graceful/strict mode
+- [ ] All existing tests pass unchanged
 
 ---
 
-## Sprint 2: Verdict Centralization & Flatline Readiness
+## Sprint 2: Provider Adapters + Depth Enhancement
 
-**Global ID**: 99
-**FRs**: FR-1, FR-3
-**Rationale**: FR-1 depends on FR-4 being complete (both modify lib-curl-fallback.sh). FR-3 is independent but grouped here for balanced sprint sizing.
+**Global ID**: 104
+**Scope**: LARGE (9 tasks)
+**FRs**: FR-1 (completion), FR-3, FR-7, FR-8
+**Goal**: Implement OpenAI and Google adapters following the Anthropic SSE streaming pattern, and enhance review prompts with Permission to Question, FAANG parallels, lore weaving, and structural depth validation.
 
 ### Tasks
 
-| ID | Task | Acceptance Criteria |
-|----|------|---------------------|
-| T2.1 | Create `extract_verdict()` in normalize-json.sh (FR-1) | Function in `.claude/scripts/lib/normalize-json.sh`. Accepts JSON via positional arg or stdin. Returns `.verdict` (priority) or `.overall_verdict` fallback. Exit 1 if neither present. |
-| T2.2 | Migrate verdict check sites to `extract_verdict()` (FR-1) | **10 sites** migrated across 6 files: `gpt-review-api.sh` (116, 131), `lib-curl-fallback.sh` (318), `lib-route-table.sh` (202, 581), `normalize-json.sh` (250), `post-pr-audit.sh` (370, 491), `cache-manager.sh` (580, 581). `condense.sh` left unchanged (triple-fallback). **Semantic migration notes**: Sites using `jq -e '.verdict'` (exit code check) must change to `if verdict=$(extract_verdict "$json")` pattern. `cache-manager.sh:581` uses `"stored"` default — use `verdict=$(extract_verdict "$json") || verdict="stored"` pattern. Each site needs individual exit-code semantic verification. _(Flatline SPR-07: semantic migration risk)_ |
-| T2.3 | Update existing BATS test assertions (FR-1) | 22 assertion locations across `test-gpt-review-integration.bats`, `test-gpt-review-codex-adapter.bats`, `test-gpt-review-multipass.bats` updated to test both `.verdict` and `.overall_verdict` response shapes. |
-| T2.4 | Write `extract_verdict()` BATS tests (FR-1) | `tests/unit/extract-verdict.bats` created. Tests: `.verdict` present, `.overall_verdict` present, both present (`.verdict` wins), neither (exit 1), null verdict (exit 1). All pass in isolation. |
-| T2.5 | Create `flatline-readiness.sh` (FR-3) | `.claude/scripts/flatline-readiness.sh` created (executable). Reads models from config via yq. Maps models→providers→env vars. Exit codes: 0=READY, 1=DISABLED, 2=NO_API_KEYS, 3=DEGRADED. GEMINI_API_KEY alias with deprecation warning. `--json` and `--quick` flags. `PROJECT_ROOT` override. |
-| T2.6 | Write flatline readiness BATS tests (FR-3) | `tests/unit/flatline-readiness.bats` created. Tests: READY, DISABLED, NO_API_KEYS, DEGRADED, GEMINI_API_KEY alias, --json structure, PROJECT_ROOT override. All pass in isolation. |
-| T2.7 | Integrate `flatline-readiness.sh` into simstim preflight (FR-3) | `simstim-orchestrator.sh` Phase 0 calls `flatline-readiness.sh --json`. Status logged to trajectory JSONL. DEGRADED triggers warning but does not block. DISABLED/NO_API_KEYS logged with recommendation. _(Flatline SPR-12: missing integration task)_ |
+| ID | Task | File(s) | FR | Goal |
+|----|------|---------|-----|------|
+| T2.1 | Create OpenAI adapter: SSE streaming `/v1/chat/completions`, system prompt in `messages[0]`, backoff (1s->2s->4s), 2 retries, timeout | `adapters/openai.ts` (new) | FR-1 | G-2 |
+| T2.2 | Create Google adapter: SSE streaming `/v1beta/models/{model}:streamGenerateContent`, `systemInstruction.parts[0].text`, backoff, 2 retries | `adapters/google.ts` (new) | FR-1 | G-2 |
+| T2.3 | Enhance `buildSystemPrompt()`: "Permission to Question the Question" directive (Condition 3), depth expectations (FAANG, metaphors, tech history, revenue, social/business, cross-repo) | `core/template.ts` | FR-3, FR-8 | G-1, G-4 |
+| T2.4 | Lore integration: include lore entries in system prompt, weave naturally, use `short` for inline naming, `context` for deeper framing | `core/template.ts` | FR-7 | G-1, G-4 |
+| T2.5 | Create depth checker: 8 boolean elements, pattern matching, configurable min threshold (default 5), JSONL logging | `core/depth-checker.ts` (new) | FR-3 | G-1, G-4 |
+| T2.6 | Context window heterogeneity: truncation priority (persona > lore > cross-repo > diff), per-provider logging | `core/template.ts` | FR-3 | G-1 |
+| T2.7 | OpenAI adapter tests: mock HTTP, SSE parsing, retry on 429/5xx, timeout | `__tests__/openai.test.ts` (new) | FR-1 | G-3 |
+| T2.8 | Google adapter tests: mock HTTP, SSE Google format, system prompt handling, retry | `__tests__/google.test.ts` (new) | FR-1 | G-3 |
+| T2.9 | Depth checker tests: pattern detection for 8 elements, min threshold, edge cases | `__tests__/depth-checker.test.ts` (new) | FR-3 | G-1, G-3 |
+
+### Acceptance Criteria
+- [ ] Each adapter produces valid ReviewResponse from mock API responses
+- [ ] Per-provider system prompt placement: Anthropic `system`, OpenAI `messages[0]`, Google `systemInstruction`
+- [ ] Depth checker detects >= 6/8 elements in a rich review sample
+- [ ] Enhanced prompts apply to both single-model and multi-model modes
+- [ ] Each adapter's `estimatedCostUsd` computed from configurable rates
+
+**Dependencies**: Sprint 1
 
 ---
 
-## Sprint 3: Timeout Consolidation & Migration
+## Sprint 3: Multi-Model Pipeline + Consensus
 
-**Global ID**: 100
-**FRs**: FR-5
-**Rationale**: Independent of other FRs. Involves migration of 3 existing ad-hoc implementations to a canonical helper.
+**Global ID**: 105
+**Scope**: LARGE (8 tasks)
+**FRs**: FR-2, FR-4, FR-9, FR-10
+**Goal**: Orchestrate N parallel model reviews with dual-track consensus, cross-repo context, and iteration strategy routing.
 
 ### Tasks
 
-| ID | Task | Acceptance Criteria |
-|----|------|---------------------|
-| T3.1 | Add canonical `run_with_timeout()` to compat-lib.sh (FR-5) | Function in `.claude/scripts/compat-lib.sh`. Fallback: `timeout` → `gtimeout` → `perl` alarm (using fork+exec pattern, NOT bare exec, to preserve exit 124 convention) → warn and run without. Runtime detection (not cached). Array-based execution (`"$@"`). **Note**: bare `exec @ARGV` in perl replaces the process image and loses the `$SIG{ALRM}` handler — must use `system()` or fork+waitpid pattern instead. _(Flatline SPR-11: perl alarm exit code fix)_ |
-| T3.2 | Migrate `post-pr-orchestrator.sh` timeout (FR-5) | Local `run_with_timeout()` at lines 104-133 removed. Sources `compat-lib.sh`. Calls canonical helper. Behavior preserved. |
-| T3.3 | Migrate `post-pr-e2e.sh` timeout (FR-5) | Local timeout logic at lines 103-142 removed. `validate_command()` security allowlist preserved separately. Sources `compat-lib.sh` for timeout. Behavior preserved. |
-| T3.4 | Migrate `golden-path.sh` bare `timeout` (FR-5) | Bare `timeout 2` at line 403 replaced with `run_with_timeout 2`. Sources `compat-lib.sh`. Works on macOS via fallback. |
-| T3.6 | Migrate `butterfreezone-gen.sh` and `mount-loa.sh` bare `timeout` (FR-5) | `butterfreezone-gen.sh:345` (`timeout 30 grep`) and `mount-loa.sh:1706` (`timeout 5 git ls-remote`) migrated to `run_with_timeout`. Both source `compat-lib.sh`. _(Flatline SPR-02: 2 additional migration sites)_ |
-| T3.5 | Write timeout helper BATS tests (FR-5) | `tests/unit/run-with-timeout.bats` created. Tests via PATH manipulation: timeout available, only gtimeout, only perl, none (warning). Tests: timeout fires, exit code preserved. All pass in isolation. |
+| ID | Task | File(s) | FR | Goal |
+|----|------|---------|-----|------|
+| T3.1 | Create `MultiModelPipeline`: parallel execution via `Promise.allSettled()`, per-model two-pass, graceful/strict failure handling, concurrency limiting (default 3) | `core/multi-model-pipeline.ts` (new) | FR-2 | G-2 |
+| T3.2 | Create `BridgebuilderScorer`: dual-track — Track 1 (convergence: HIGH_CONSENSUS/DISPUTED/LOW_VALUE/BLOCKER), Track 2 (diversity: dedup via Levenshtein, preserve unique perspectives) | `core/scoring.ts` (new) | FR-4 | G-2 |
+| T3.3 | Create `CrossScorer`: pairwise fan-out N*(N-1) calls, bounded 4K output, 1 retry with 2x backoff, graceful fallback to no-consensus | `core/cross-scorer.ts` (new) | FR-4 | G-2 |
+| T3.4 | Create `CrossRepoContext`: auto-detect GitHub refs from PR/commits, fetch via `gh` CLI (5s/ref, 30s total), manual refs from config, skip inaccessible with warning | `core/cross-repo.ts` (new) | FR-9 | G-1 |
+| T3.5 | Extend GitHub CLI adapter: `postComment()` with 65K char splitting, continuation headers (`[1/4]`), sequential posting for ordering | `adapters/github-cli.ts` | FR-2 | G-2, G-4 |
+| T3.6 | Modify bridge orchestrator: read `iteration_strategy` via yq, add `is_multi_model_iteration()` function, emit `SIGNAL:BRIDGEBUILDER_REVIEW_MULTI:$iteration` | `bridge-orchestrator.sh` | FR-10 | G-2 |
+| T3.7 | Pipeline integration tests: mock adapters, parallel execution, scoring, comment ordering, graceful degradation, strict failure, feature-off parity | `__tests__/multi-model.test.ts` (new) | FR-2 | G-2, G-3 |
+| T3.8 | Scoring tests: consensus math matches scoring-engine.sh for same inputs, dual-track classification, threshold configurability | `__tests__/scoring.test.ts` (new) | FR-4 | G-2 |
+
+### Acceptance Criteria
+- [ ] 3-model parallel review completes with all models posting separate comments
+- [ ] Comments posted sequentially with `[1/4]` numbering
+- [ ] Consensus summary correctly classifies findings with model attribution
+- [ ] Dual-track: convergence for code findings, diversity for educational depth
+- [ ] Cross-repo context adds references from linked issues
+- [ ] `enabled: false` produces identical output to current pipeline
+- [ ] Concurrency limited to `Math.min(models.length, 3)`
+
+**Dependencies**: Sprint 2
 
 ---
 
-## Sprint 4: Integration Testing, CI Lint, Protocol Docs
+## Sprint 4: Integration, Rating, Progress, E2E Validation
 
-**Global ID**: 101
-**FRs**: Cross-cutting (all FRs)
-**Rationale**: Final sprint validates all FRs work together, adds CI regression prevention, and documents new patterns.
+**Global ID**: 106
+**Scope**: MEDIUM (6 tasks + E2E)
+**FRs**: FR-5, FR-11, E2E all FRs
+**Goal**: Complete the feedback loop with human rating, progress visibility, main.ts wiring, and end-to-end validation.
 
 ### Tasks
 
-| ID | Task | Acceptance Criteria |
-|----|------|---------------------|
-| T4.1 | Create review pipeline integration test | `tests/unit/review-pipeline-integration.bats` created. Flow: curl config (FR-6) → mock 401 with JSON error (FR-4) → mock success with `.overall_verdict` (FR-1). Verifies error surfaced with redaction, verdict extracted, config validated. Passes in isolation. |
-| T4.2 | Add CI lint for bare `timeout` usage (FR-5) | Lint rule flags bare `timeout` command invocations (pattern: `^\s*timeout [0-9]` or `\btimeout [0-9]` with word boundary) in `.claude/scripts/*.sh` excluding compat-lib.sh. Must NOT false-positive on `--timeout` flags, variable names, or comments. Added to CI workflow. _(Flatline SPR-02: tightened regex)_ |
-| T4.3 | Add CI lint for raw curl config patterns (FR-6) | Lint rule flags raw `Authorization.*Bearer` in `.claude/scripts/*.sh` excluding lib-security.sh and comments. Added to CI workflow. |
-| T4.4 | Update cross-platform-shell.md protocol (FR-5, FR-6) | `.claude/protocols/cross-platform-shell.md` documents `run_with_timeout()` (usage, fallbacks, migration) and `write_curl_auth_config()` (usage, validation, SHELL-002 ref). |
-| T4.5 | Update SKILL.md with flatline readiness warning (FR-3) | Simstim SKILL.md documents fresh-per-cycle validation, references `flatline-readiness.sh` and exit codes, documents DEGRADED behavior. |
+| ID | Task | File(s) | FR | Goal |
+|----|------|---------|-----|------|
+| T4.1 | Create rating system: `RatingEntry` interface, JSONL storage in `grimoires/loa/ratings/`, per-iteration 1-5 prompt, configurable timeout, non-blocking, rubric per SKP-006 | `core/rating.ts` (new) | FR-5 | G-1 |
+| T4.2 | Create progress reporter: stderr output, per-phase + per-model activity, configurable verbosity, no gaps > 30s | `core/progress.ts` (new) | FR-11 | G-1, G-4 |
+| T4.3 | Wire `main.ts`: load multi-model config, validate API keys, route to MultiModelPipeline or ReviewPipeline based on `enabled` flag | `main.ts` | FR-2 | G-2, G-3 |
+| T4.4 | Token budget enforcement: pre-flight input estimation, progressive truncation, runtime cumulative check | `core/multi-model-pipeline.ts` | FR-6 | G-1 |
+| T4.5 | Update `createLocalAdapters()` for multiple providers via adapter factory when multi-model enabled, single-adapter path when disabled | `adapters/index.ts` | FR-1 | G-3 |
+| T4.6 | Tests: rating storage/retrieval/timeout, progress formatting/verbosity | `__tests__/rating.test.ts`, `__tests__/progress.test.ts` (new) | FR-5, FR-11 | G-1, G-3 |
+
+### E2E Goal Validation
+
+| Goal | Validation | Expected Result |
+|------|-----------|-----------------|
+| G-1 | Run multi-model review, check depth checklist, capture rating | Depth >= 5/8 elements; rating prompt appears |
+| G-2 | Run 3-model review, verify consensus summary | HIGH_CONSENSUS present; model attribution correct |
+| G-3 | Run full test suite with `enabled: false` | All existing tests pass; output identical |
+| G-4 | Verify metaphors, FAANG parallels, business insights in output | Structural depth checklist pass |
+
+### Acceptance Criteria
+- [ ] Rating prompt appears after review with timeout
+- [ ] Rating never blocks autonomous execution
+- [ ] Progress updates every <= 30s with model activity details
+- [ ] `main.ts` correctly routes based on config
+- [ ] Token budget enforcement works when configured
+- [ ] All 11 FRs pass acceptance criteria
+- [ ] All 4 PRD goals validated
+
+**Dependencies**: Sprint 3
 
 ---
 
-## Bridge Sprint 5: Bridgebuilder Iteration 1 Fixes
+## PRD Goal Mapping
 
-**Global ID**: N/A (bridge iteration)
-**Source**: Bridgebuilder review iteration 1 (PR #435 comment)
-**Rationale**: 3 MEDIUM + 3 LOW findings from Bridgebuilder review.
-
-### Tasks
-
-| ID | Task | Acceptance Criteria |
-|----|------|---------------------|
-| T5.1 | Fix perl alarm race condition (medium-1) | `compat-lib.sh` perl fallback: move `alarm()` after `fork()` so `$pid` is initialized before the handler can fire. Guard handler with `if $pid`. Existing tests pass. |
-| T5.2 | Validate header_name in write_curl_auth_config() (medium-2) | `lib-security.sh` `write_curl_auth_config()` validates header_name against `[A-Za-z0-9-]+` pattern. Rejects names with CR/LF/special chars. Add BATS test for header name validation. |
-| T5.3 | Migrate constructs-install.sh curl config sites (medium-3) | `constructs-install.sh` lines 438 and 769 migrated to `write_curl_auth_config()`. CI lint catches if missed. |
-| T5.4 | Document condense.sh verdict divergence (low-1) | Add comment at `condense.sh` lines 217 and 352 explaining intentional non-migration. |
-| T5.5 | Fix flatline-readiness.sh JSON construction (low-2) | Replace string interpolation with `jq -n --arg/--argjson` for providers object. |
-| T5.6 | Fix null byte detection comment (low-3) | Update comment at `lib-security.sh:270-277` to correctly describe byte vs char comparison. |
+| Goal | Contributing Tasks | Validation |
+|------|-------------------|------------|
+| G-1: Review depth parity | T2.3, T2.4, T2.5, T2.6, T3.4, T4.1, T4.2, T4.4 | E2E |
+| G-2: Multi-model confidence | T1.2, T1.5, T2.1, T2.2, T3.1-T3.8, T4.3 | E2E |
+| G-3: Zero regression | T1.1, T1.3, T1.4, T1.6, T2.7-T2.9, T3.7, T4.3, T4.5 | E2E |
+| G-4: Stakeholder accessibility | T2.3, T2.4, T2.5, T3.5, T4.2 | E2E |
 
 ---
 
-## Flatline Sprint Review Log
+## Risk Register
 
-**Phase**: Sprint plan review (cycle-048 Phase 6)
-**Findings**: 15 total (5 HIGH, 7 MEDIUM, 1 LOW, 2 PRAISE)
-**HIGH_CONSENSUS**: 5 findings auto-integrated:
-- SPR-01: Curl config migration expanded from 4 to 10 sites (T1.2)
-- SPR-02: Bare timeout migration expanded by 2 sites + CI lint regex tightened (T3.6, T4.2)
-- SPR-07: Verdict extraction semantic migration notes added per-site (T2.2)
-- SPR-11: Perl alarm fork+exec pattern noted to preserve exit 124 (T3.1)
-- SPR-12: Missing simstim integration task added (T2.7)
-**DISPUTED**: 0
-**BLOCKERS**: 0 (SPR-01/SPR-02 resolved by scope expansion)
+| Risk | Sprint | Probability | Impact | Mitigation |
+|------|--------|-------------|--------|------------|
+| OpenAI/Google API format differences | 2 | Medium | Medium | Per-provider adapter tests with mock responses |
+| Cross-scoring latency | 3 | Medium | Medium | Bounded output (4K), 1 retry, fallback to no-consensus |
+| CI runner OOM from parallel reviews | 3 | Low | High | Concurrency limit (default 3), configurable |
+| Scoring math divergence from scoring-engine.sh | 3 | Medium | Medium | Validate TS port against shell output for identical inputs |
+| yq dependency availability | 1 | Medium | Medium | Clear error + fallback to single-model |
+| GitHub comment rate limiting | 3 | Low | Medium | Sequential posting with backoff |
+
+---
+
+## Assumptions
+
+1. Cycle-048 authorizes System Zone writes to `.claude/skills/bridgebuilder-review/resources/`
+2. `zod` dependency available in Bridgebuilder build chain (confirmed: `schemas.ts` imports `"zod/v4"`)
+3. `yq` CLI available in dev and CI environments
+
+---
+
+*4 sprints, 29 tasks + E2E, all 11 FRs covered, all 4 PRD goals mapped*
