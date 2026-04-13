@@ -346,6 +346,11 @@ cmd_start() {
         return 0
     fi
 
+    # Clear any stale halt sentinel from a previous run. Without this,
+    # the first evaluate_stopping_conditions() call in the new spiral
+    # would instantly report hitl_halt as a ghost-halt. Review feedback.
+    rm -f "$HALT_SENTINEL"
+
     local spiral_id
     spiral_id=$(init_state \
         "$max_cycles" "$budget_cents" "$wall_clock_seconds" \

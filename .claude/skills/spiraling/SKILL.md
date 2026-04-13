@@ -55,14 +55,14 @@ SEED → SIMSTIM → HARVEST → EVALUATE → (next cycle OR terminate)
 
 A spiral terminates when ANY of:
 
-| Condition | Default | Floor | Rationale |
-|-----------|---------|-------|-----------|
-| `cycle_budget_exhausted` | 3 cycles | 50 | Primary runaway backstop |
-| `flatline_convergence` | 2 consecutive cycles < 3 findings | — | Kaironic signal: plateau reached |
-| `cost_budget_exhausted` | $20 | $100 | Credit exhaustion guard |
-| `wall_clock_exhausted` | 8h | 24h | Second backstop for plateau-at-N |
-| `hitl_halt` | sentinel file | — | Operator escape hatch |
-| `quality_gate_failure` | review AND audit fail | — | Prevent error compounding |
+| Condition | Default | Floor | Status | Rationale |
+|-----------|---------|-------|--------|-----------|
+| `cycle_budget_exhausted` | 3 cycles | 50 | ✅ implemented | Primary runaway backstop |
+| `flatline_convergence` | 2 consecutive cycles < 3 findings | — | ✅ implemented | Kaironic signal: plateau reached |
+| `cost_budget_exhausted` | $20 | $100 | ✅ implemented | Credit exhaustion guard |
+| `wall_clock_exhausted` | 8h | 24h | ✅ implemented | Second backstop for plateau-at-N |
+| `hitl_halt` | sentinel file | — | ✅ implemented | Operator escape hatch |
+| `quality_gate_failure` | review AND audit fail | — | ⏳ deferred to cycle-067 | Prevent error compounding (requires embedded `/simstim` dispatch to observe review+audit outcomes) |
 
 **Safety floor note**: the floors (50 cycles / $100 / 24h) are hardcoded. Operators can relax values within those floors but cannot disable stopping conditions entirely.
 
