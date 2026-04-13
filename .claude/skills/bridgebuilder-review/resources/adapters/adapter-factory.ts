@@ -1,5 +1,7 @@
 import type { ILLMProvider } from "../ports/llm-provider.js";
 import { AnthropicAdapter } from "./anthropic.js";
+import { OpenAIAdapter } from "./openai.js";
+import { GoogleAdapter } from "./google.js";
 
 /**
  * Configuration for creating a provider adapter.
@@ -9,6 +11,7 @@ export interface AdapterConfig {
   modelId: string;
   apiKey: string;
   timeoutMs?: number;
+  costRates?: { input: number; output: number };
 }
 
 /**
@@ -17,13 +20,14 @@ export interface AdapterConfig {
  */
 const ADAPTER_REGISTRY: Record<
   string,
-  (apiKey: string, modelId: string, timeoutMs: number) => ILLMProvider
+  (apiKey: string, modelId: string, timeoutMs: number, costRates?: { input: number; output: number }) => ILLMProvider
 > = {
   anthropic: (apiKey, modelId, timeoutMs) =>
     new AnthropicAdapter(apiKey, modelId, timeoutMs),
-  // openai and google adapters will be registered in Sprint 2
-  // openai: (apiKey, modelId, timeoutMs) => new OpenAIAdapter(apiKey, modelId, timeoutMs),
-  // google: (apiKey, modelId, timeoutMs) => new GoogleAdapter(apiKey, modelId, timeoutMs),
+  openai: (apiKey, modelId, timeoutMs, costRates) =>
+    new OpenAIAdapter(apiKey, modelId, timeoutMs, costRates ? { costRates } : undefined),
+  google: (apiKey, modelId, timeoutMs, costRates) =>
+    new GoogleAdapter(apiKey, modelId, timeoutMs, costRates ? { costRates } : undefined),
 };
 
 /**
@@ -41,7 +45,7 @@ export function createAdapter(config: AdapterConfig): ILLMProvider {
       `Unknown provider: "${config.provider}". Available providers: ${available}`,
     );
   }
-  return factory(config.apiKey, config.modelId, config.timeoutMs ?? 120_000);
+  return factory(config.apiKey, config.modelId, config.timeoutMs ?? 120_000, config.costRates);
 }
 
 /**
