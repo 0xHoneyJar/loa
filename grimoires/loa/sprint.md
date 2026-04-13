@@ -1,118 +1,82 @@
-# Sprint Plan: cycle-055 — Bridgebuilder A4 + A5 Completions
+# Sprint Plan: cycle-059 — Bridge Triage Analyzer
 
-**Cycle**: cycle-055-bridgebuilder-a4-a5
-**Branch**: feat/cycle-055-bridgebuilder-a4-a5
-**PRD**: Issue 0xHoneyJar/loa#464 (Part A items A4 and A5)
-**Roadmap**: Issue 0xHoneyJar/loa#467 (Option C)
+**Cycle**: cycle-059
+**Branch**: feat/cycle-059-bridge-triage-analyzer
+**PRD**: grimoires/loa/prd.md
+**SDD**: grimoires/loa/sdd.md
+**Issue**: [#467](https://github.com/0xHoneyJar/loa/issues/467) Option B/D decision-gate tooling
 **Date**: 2026-04-13
 
 ---
 
 ## Cycle Summary
 
-Complete the last two open items from #464's Part A follow-up list. Both are "written but unwired" features in the multi-model Bridgebuilder that have ineffective config flags today:
+Build `.claude/scripts/bridge-triage-stats.sh` — a small shell analyzer that aggregates `grimoires/loa/a2a/trajectory/bridge-triage-*.jsonl` into actionable signal (per-PR severity mix, action distribution, FP proxy, convergence trajectory). Output in markdown (default) or JSON. Optional `--comment-issue N` one-liner closes the data-gating loop on [#467](https://github.com/0xHoneyJar/loa/issues/467).
 
-- **A4**: `core/cross-repo.ts` exports (`detectRefs`, `parseManualRefs`, `fetchCrossRepoContext`) are unit-tested but never invoked from the multi-model review path. `config.cross_repo.auto_detect` + `config.cross_repo.manual_refs` are effectively no-ops.
-- **A5**: `template.buildEnrichedSystemPrompt()` accepts `loreEntries` but no code loads `grimoires/loa/lore/patterns.yaml`. `config.depth_5.lore_active_weaving` is a no-op.
+Enables data-gated decisions on [#467](https://github.com/0xHoneyJar/loa/issues/467) Options B and D which have been waiting on Option A signal data since v1.73.0.
 
-Both features have concrete acceptance criteria already written in #464. No PRD/SDD needed — this sprint plan goes straight from #464 into `/run sprint-plan`.
+## Sprint 1: Analyzer + Tests + Docs
 
----
-
-## Sprint 1: A5 — Lore Active Weaving
-
-**Scope**: SMALL (3 tasks)
-**FRs**: FR-A5.1 (loader), FR-A5.2 (wiring), FR-A5.3 (tests)
-**Goal**: When `depth_5.lore_active_weaving: true`, load `grimoires/loa/lore/patterns.yaml`, parse entries into `LoreEntry[]`, pass through `executeMultiModelReview()` to `template.buildEnrichedSystemPrompt()`.
-
-### Rationale for ordering A5 first
-
-A5 is self-contained (pure function: read file → parse → return typed entries). No network, no timeouts, no failure cases beyond "file missing" or "malformed YAML." Lower risk than A4 which has network egress. Getting A5 green first proves the wiring path before we add A4's complexity.
+**Scope**: MEDIUM (5 tasks)
+**FRs**: FR-1 (surface), FR-2 (aggregation), FR-3 (formats), FR-4 (graceful degradation), FR-5 (comment helper)
+**Goal**: Ship a standalone `bridge-triage-stats.sh` with full BATS coverage, no new deps.
 
 ### Tasks
 
 | ID | Task | File(s) | FR | Goal |
 |----|------|---------|-----|------|
-| T1 | Create `core/lore-loader.ts`. Export `loadLoreEntries(path: string): Promise<LoreEntry[]>` that reads YAML, parses, validates required fields (id, term, short, context), and returns typed entries. Handle missing file → `[]` + logger.warn. Handle malformed YAML → throw with actionable message. | `.claude/skills/bridgebuilder-review/resources/core/lore-loader.ts` (new) | FR-A5.1 | G-1 |
-| T2 | Wire `loadLoreEntries()` into `main.ts` multi-model path: load once per review run (not per item), pass `loreEntries` through `executeMultiModelReview()` into `EnrichmentContext`, thread to `buildEnrichedSystemPrompt()`. Only invoke when `config.depth_5.lore_active_weaving === true`. Path configurable via `config.depth_5.lore_path` with default `grimoires/loa/lore/patterns.yaml`. | `.claude/skills/bridgebuilder-review/resources/main.ts`, `.claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts` | FR-A5.2 | G-1 |
-| T3 | Unit tests for `loadLoreEntries`: (a) parses valid YAML with multiple entries, (b) validates required fields, (c) empty file → `[]`, (d) missing file → `[]` + warning logged, (e) malformed YAML → throws with helpful message. Node test runner + tsx. | `.claude/skills/bridgebuilder-review/resources/core/__tests__/lore-loader.test.ts` (new) | FR-A5.3 | G-3 |
+| T1 | Create `.claude/scripts/bridge-triage-stats.sh`. Flag parser (`--json`, `--pr`, `--since`, `--comment-issue`, `--help`), glob resolution, malformed-line warning. Bash strict mode (`set -euo pipefail`) with the documented patterns (array-safe expansion, arithmetic-with-set-e). | `.claude/scripts/bridge-triage-stats.sh` (new) | FR-1, FR-4 | G-1 |
+| T2 | Single-jq aggregator: per-PR breakdown, global severities, global actions, FP proxy counts. Emit JSON object. | Same file (T1) | FR-2 | G-1 |
+| T3 | Text formatter: render JSON summary as markdown tables (5 sections per SDD §2.6). | Same file (T1) | FR-3 | G-1 |
+| T4 | `--comment-issue N` flow: pipe text output through `gh issue comment N --body-file -`. Validate `$N` is numeric. | Same file (T1) | FR-5 | G-2 |
+| T5 | BATS tests at `tests/unit/bridge-triage-stats.bats`. 10 cases per SDD §4. Include: happy path, empty glob, malformed lines, `--pr`, `--since`, `--json`, `--help`, FP arithmetic, multi-file, unknown flag. | `tests/unit/bridge-triage-stats.bats` (new) | — | G-3 |
 
-### Acceptance Criteria (A5)
+### Acceptance Criteria
 
-- [ ] `loadLoreEntries()` exists and is exported from `core/lore-loader.ts`
-- [ ] `main.ts` calls loader when `lore_active_weaving` is true, skips otherwise
-- [ ] Lore entries reach `buildEnrichedSystemPrompt()` via `EnrichmentContext`
-- [ ] `lore_path` config default works; override works
-- [ ] Missing `patterns.yaml` does NOT crash — loader returns `[]` with warning
-- [ ] Unit tests pass (5 tests in Node test runner)
-- [ ] Existing Bridgebuilder unit tests still pass
-- [ ] `npm run build` succeeds; `dist/` committed
+- [ ] `bridge-triage-stats.sh` exists, executable, passes `bash -n` syntax check
+- [ ] Default invocation against real trajectory data produces sensible markdown output
+- [ ] `--json` produces valid JSON with top-level keys: `total_decisions`, `prs`, `severities`, `actions`, `fp_proxy`
+- [ ] `--pr N` filters entries to the specified PR
+- [ ] `--since YYYY-MM-DD` filters entries by timestamp
+- [ ] `--comment-issue N` posts to `gh issue comment` when invoked (mockable in tests via `GH_BIN` env override)
+- [ ] Empty glob → exit 0, stderr warning, no spurious output
+- [ ] Malformed JSONL lines skipped with stderr count, valid lines still processed
+- [ ] Unknown flag → exit 2 with error
+- [ ] All 10 BATS cases pass
+- [ ] Inline usage header lists every flag with one-line description + exit codes
+- [ ] No new package dependencies (uses only `bash`, `jq`, `date`, optional `gh`)
 
----
-
-## Sprint 2: A4 — Cross-Repo Context Wiring
-
-**Scope**: MEDIUM (4 tasks)
-**FRs**: FR-A4.1 (auto-detect), FR-A4.2 (manual refs), FR-A4.3 (prompt injection), FR-A4.4 (tests)
-**Goal**: Wire `core/cross-repo.ts` into multi-model review. `config.cross_repo.auto_detect: true` triggers `detectRefs()` against PR title+body. `config.cross_repo.manual_refs: [...]` passes through `parseManualRefs()`. Both feed `fetchCrossRepoContext()` with its documented per-ref (5s) and total (30s) timeouts. Fetched context is appended to the review user prompt under a clearly-marked section.
-
-### Tasks
-
-| ID | Task | File(s) | FR | Goal |
-|----|------|---------|-----|------|
-| T1 | Add cross-repo resolution step in `main.ts` multi-model path, BEFORE `executeMultiModelReview`: combine `auto_detect` results (from PR title + body) with `manual_refs`. Deduplicate. Call `fetchCrossRepoContext()`. Capture timings for observability. | `.claude/skills/bridgebuilder-review/resources/main.ts` | FR-A4.1, FR-A4.2 | G-2 |
-| T2 | Thread `crossRepoContext` through `executeMultiModelReview()` signature and down to `template.buildConvergenceUserPrompt()`. Append a `## Cross-Repository Context` section when non-empty. Truncate to a configurable max bytes (default 20KB) to protect input token budget. | `.claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts`, `.claude/skills/bridgebuilder-review/resources/core/template.ts` | FR-A4.3 | G-2 |
-| T3 | Graceful degradation: if any ref fetch times out, include successful fetches + warning note in context (`[timeout fetching <ref>]`). Do NOT fail the review. Log per-ref latencies. | `.claude/skills/bridgebuilder-review/resources/main.ts` | FR-A4.3 | G-4 |
-| T4 | Integration tests: (a) no refs → context empty, prompt unchanged; (b) detected ref + successful fetch → context appears in user prompt; (c) timeout → successful refs included, timeout note present. Use mock `fetchRef` to avoid real network in CI. | `.claude/skills/bridgebuilder-review/resources/core/__tests__/cross-repo-wiring.test.ts` (new) | FR-A4.4 | G-3 |
-
-### Acceptance Criteria (A4)
-
-- [ ] `auto_detect: true` surfaces refs from PR title/body into fetch step
-- [ ] `manual_refs: [...]` passes through `parseManualRefs()` and joins auto-detected
-- [ ] `fetchCrossRepoContext()` called with documented 5s/30s timeouts (already its defaults)
-- [ ] Successful context appears in review user prompt under marked section
-- [ ] Partial-failure mode: timeouts don't break the review
-- [ ] Context truncation prevents blowing the input token budget
-- [ ] Integration tests pass (3 scenarios)
-- [ ] Existing cross-repo unit tests still pass
-- [ ] `npm run build` succeeds; `dist/` committed
-
----
-
-## Goals
-
-- **G-1**: Ship the missing wiring — config flags `lore_active_weaving` and `cross_repo.auto_detect` stop being no-ops
-- **G-2**: Minimal signature changes — additive parameters, backwards-compatible call sites
-- **G-3**: Test coverage — every new code path has a test that would fail without it
-- **G-4**: Graceful degradation — network failures and missing files do not break reviews
-
-## Risks & Mitigations
+### Risks & Mitigations
 
 | Risk | Mitigation |
-|------|------------|
-| Cross-repo fetch timeouts cascade | Per-ref 5s + total 30s already in `fetchCrossRepoContext`. Sprint 2 T3 explicitly handles partial failures. |
-| Lore file grows unbounded; prompt tokens explode | A5 T1 loader does not apply size limit; A5 T2 wiring respects `buildEnrichedSystemPrompt` existing truncation. Future optimization if needed. |
-| Injection via cross-repo content | Existing `INJECTION_HARDENING` in template.ts treats all external content as untrusted; cross-repo context goes through the same layer. |
-| Review prompt token blow-out | A4 T2 truncates cross-repo context to 20KB (configurable). |
-| Stale `dist/` after TS changes | Every sprint ends with `npm run build` + commit; `Fixture Sync Check` CI catches drift. |
+|------|-----------|
+| jq regex `capture` syntax differs across jq versions | Use best-effort with `// {n: "0"}` fallback; don't rely on convergence detection for core aggregation |
+| `date` portability (GNU vs BSD) for `--since` comparison | Use lexical `YYYY-MM-DD` comparison (ISO-8601 strings sort chronologically), avoiding `date -d` |
+| `gh` CLI not available in test env for `--comment-issue` | Mock via `GH_BIN` env var → `echo` for BATS; real `gh` used only in production |
+| Glob expansion finding zero files under `set -u` | Use `shopt -s nullglob` or array-safe fallback |
 
-## Dependencies
+### Goals
 
-- PR #463 (multi-model pipeline) — merged in `bfe7ade`
-- PR #465 (A1+A2+A3) — merged in `916836d`
-- Issue #464 Part A items A1-A3 — **closed** by #465
-- Issue #464 Part B (close-the-loop) — **closed** by #466 + #468
+- **G-1**: Analyzer is standalone and useful today against real data
+- **G-2**: Closes the feedback loop on [#467](https://github.com/0xHoneyJar/loa/issues/467) via one-shot comment
+- **G-3**: Test coverage prevents silent regression as trajectory schema evolves
 
-## Zone & Authorization
+### Dependencies
 
-**System Zone writes required**: `.claude/skills/bridgebuilder-review/resources/core/*.ts`, `.claude/skills/bridgebuilder-review/resources/main.ts`, `.claude/skills/bridgebuilder-review/resources/core/__tests__/*.test.ts`, `.claude/skills/bridgebuilder-review/resources/dist/*` (build artifacts).
+- Cycle-053 trajectory schema (already shipped, v1.73.0)
+- Existing JSONL samples at `grimoires/loa/a2a/trajectory/bridge-triage-2026-04-13.jsonl`
+- `gh`, `jq`, `date` (all already Loa hard prereqs)
 
-Cycle-level authorization: cycle-055 sprint plan authorizes System Zone writes for the Bridgebuilder skill's TypeScript source only. No changes to other `.claude/` subtrees (no shell scripts, no hooks, no data files).
+### Zone & Authorization
 
-## Execution Note
+**System Zone writes required**: `.claude/scripts/bridge-triage-stats.sh` (new file).
+**Tests**: `tests/unit/bridge-triage-stats.bats` (outside System Zone, freely writable).
+Cycle-level authorization: cycle-059 authorizes a single new System Zone file at the above path — no modifications to existing `.claude/` scripts or skills in this sprint. (The run-bridge SKILL.md cross-reference note from SDD §8 is a single-line addition that can land in this sprint or deferred.)
 
-Using `/run sprint-plan` with default `consolidate_pr: true` so A4 + A5 ship as a single PR with per-sprint commit markers (`feat(sprint-1): ...` and `feat(sprint-2): ...`). This matches the pattern used by cycle-052 (#463) which shipped 4 sprints in one consolidated PR.
+## AC Verification (Required — Issue #475)
+
+Before writing COMPLETED marker, the implementation report MUST include an `## AC Verification` section walking each acceptance criterion verbatim with file:line evidence per the gate introduced in cycle-057 (v1.77.0). This sprint is the first real-world exercise of that gate.
 
 ---
 
-*2 sprints, 7 tasks total (3 + 4), closes Issue #464 Part A completely*
+*1 sprint, 5 tasks, closes [#467](https://github.com/0xHoneyJar/loa/issues/467) Option A tooling prerequisite*
