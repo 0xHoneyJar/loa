@@ -5,6 +5,78 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.75.0] - 2026-04-13 — Cross-Repo Context + Lore Active Weaving
+
+Closes [#464](https://github.com/0xHoneyJar/loa/issues/464) Part A entirely. The last two "written but unwired" exports from `v1.72.0`'s multi-model Bridgebuilder pipeline are now actually invoked. Two config flags that were previously no-ops (`cross_repo.auto_detect`, `depth_5.lore_active_weaving`) now produce real behavior.
+
+### Added
+
+- **Cross-repo context wiring** (#471, cycle-055 sprint 2 — closes #464 A4)
+  - `core/cross-repo.ts` exports (`detectRefs`, `parseManualRefs`, `fetchCrossRepoContext`) are now invoked from the multi-model review path. Previously unit-tested but never reached at runtime.
+  - `auto_detect: true` scans the PR title for `owner/repo#NNN` references; `manual_refs: [...]` passes a configured list through `parseManualRefs`.
+  - `fetchCrossRepoContext` runs with the documented per-ref (5s) and total (30s) timeouts. Manual refs are hoisted out of the per-PR loop (cached once per run); only auto-detected refs are fetched per-item.
+  - Fetched issue/PR titles, bodies (truncated to 1KB at the source, then again at render), and labels are formatted into a `## Cross-Repository Context` markdown section with a 20KB byte budget and an "untrusted data" header. Failed fetches surface as a "Cross-Repo Fetch Failures" subsection rather than blocking the review.
+  - New `core/cross-repo-render.ts` keeps the template a pure formatter; main.ts handles the resolution + fetch + render flow.
+
+- **Lore active weaving** (#471, cycle-055 sprint 1 — closes #464 A5)
+  - New `core/lore-loader.ts`. `loadLoreEntries(path?, logger?)` shells out to `yq` (already a Loa hard prerequisite) to convert YAML → JSON, validates required fields (`id`, `term`, `short`, `context`), flattens object-form `source` (cycle/bridge_iteration/date) to a single string. Default path: `grimoires/loa/lore/patterns.yaml`; configurable via `depth.lore_path`.
+  - When `depth_5.lore_active_weaving: true`, lore entries are loaded once per run and threaded through `EnrichmentContext` to `template.buildEnrichedSystemPrompt()`. The template's `lore_active_weaving` gate (which had been waiting for entries to actually arrive) now fires.
+  - Degrades gracefully: missing file → `[]` + warning, malformed entries → skipped per-entry with explicit logs, yq subprocess failure → throws with actionable message that the orchestrator catches and continues without lore.
+
+- **`tests/unit/red-team-model-adapter.bats`** (v1.74.1, #469) — 6-test regression suite catching the original mock-mode-only bug, with negative-and-positive assertions guarded by `bash -c` positional-args (injection-safe across BATS versions).
+
+- **`red_team:` block in `.loa.config.yaml.example`** (v1.74.1, #469) — was absent; mounted projects had no template for enabling the skill.
+
+- **Bridgebuilder unit test coverage** (#471) — 16 new tests (8 lore-loader + 8 cross-repo-render). Bridgebuilder skill is now at 609/609 passing.
+
+### Fixed
+
+- **Red Team live model invocation** (v1.74.1, #469, sprint-bug-102) — `invoke_live()` was a hardcoded stub; wired to `.claude/scripts/model-invoke` (cheval.py). Pipeline now passes explicit `--live`/`--mock` flag to all three adapter call sites and resolves the default mode via `hounfour.flatline_routing` + provider API key presence. Mock mode emits an unmissable WARNING banner so fixture data can't be mistaken for live analysis.
+
+- **Manual cross-repo refs no longer re-fetched per PR** (#471, Bridgebuilder pass-1 FIND-002) — surfaced by the multi-model review of this PR itself; manual refs were originally inside the per-PR loop, making N×M redundant network calls. Hoisted above the loop with per-item dedup against the manual cache.
+
+- **Lore-loader test now skips cleanly when `yq` is missing** (#471, Bridgebuilder pass-1 FIND-007) — `before` hook probes `yq --version` once; `beforeEach` skips with install instructions. Replaces opaque `execFile` errors in CI containers without yq.
+
+### Changed
+
+- **Post-PR Bridgebuilder Review enabled on this repository** (v1.74.0, #468, cycle-054, Option A from #467) — `post_pr_validation.phases.bridgebuilder_review.enabled: true` in `.loa.config.yaml`. The kaironic-convergence loop from `v1.73.0` now runs automatically after every PR's `FLATLINE_PR` phase. False positives accepted during experimental rollout per HITL design decision logged in #467.
+
+### Known Issues
+
+- **Auto-detection scans PR title only** (#471 FIND-006) — `PullRequest` port type does not carry the body field. Requires port-type extension to scan body too. Filed as follow-up.
+- **`lore_path` path-traversal defense-in-depth** (#469 + #471 cycle-055 audit) — config is operator-controlled (`.loa.config.yaml`), not user input, so accepted as informational. A path-jail check could be added in a follow-up micro-PR.
+- **Pre-existing BATS Tests failures on `main`** persist (`adversarial-review.bats`, `butterfreezone-validate.bats`, `gpt-review-api.bats`). None relate to this release.
+- **Legacy `bd` hooks** in `.git/hooks/pre-commit` and `post-merge` for users who installed before the `br` (beads_rust) migration. Hooks are per-clone, so `install-br.sh` cannot rewrite them. Manual fix:
+  ```bash
+  sed -i 's/\bbd\b/br/g' .git/hooks/pre-commit .git/hooks/post-merge
+  sed -i 's|br import -i "$BEADS_DIR/issues.jsonl"|br sync --import-only|' .git/hooks/post-merge
+  ```
+
+### Migration Notes
+
+**None required.** All changes are additive or opt-in:
+- `cross_repo.auto_detect: false` and `depth_5.lore_active_weaving: false` defaults preserve existing behavior.
+- `red_team.enabled: false` in the new config example template (opt-in).
+- `post_pr_validation.phases.bridgebuilder_review.enabled: true` only applies to this repository's `.loa.config.yaml`; downstream consumers retain their existing settings.
+
+### Quality Gates
+
+| Gate | v1.74.1 (#469) | v1.75.0 (#471) |
+|------|----------------|----------------|
+| Senior tech-lead review | APPROVED | APPROVED (with noted concerns addressed) |
+| Cypherpunk security audit | APPROVED | APPROVED (2 LOW informational, no blockers) |
+| Bridgebuilder convergence | FLATLINE @ pass 4 | FLATLINE @ pass 2 (HIGH 1→0) |
+| Test suite | 609/609 | 609/609 |
+
+The v1.75.0 cycle's Bridgebuilder dogfood pass surfaced its own dead code (the `dedupeRefs` helper became unused after the FIND-002 hoisting fix replaced its caller) — caught and removed before merge. Clean closed-loop demonstration.
+
+### Source
+
+- PRs: #468, #469, #470, #471
+- Refs: #464 (closed Part A), #467 Option C (completed), #467 Option A (in production observation)
+
+---
+
 ## [1.74.1] - 2026-04-13 — Closed-Loop Adversarial Review
 
 Completes the multi-cycle arc that began with `v1.72.0` (multi-model Bridgebuilder) and `v1.73.0` (Amendment 1 post-PR loop). Both adversarial review systems — Bridgebuilder and Red Team — now actually run end-to-end against live models.
