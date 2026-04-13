@@ -19,6 +19,7 @@ import {
 import type { BridgebuilderConfig, RunSummary } from "./core/types.js";
 import { executeMultiModelReview } from "./core/multi-model-pipeline.js";
 import { ProgressReporter } from "./core/progress.js";
+import { buildRatingPrompt, storeRating, createRatingEntry } from "./core/rating.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -279,14 +280,76 @@ async function main(): Promise<void> {
   const ts = now.toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "");
   const hex = Math.random().toString(16).slice(2, 6);
   const runId = `bridgebuilder-${ts}-${hex}`;
-  const summary = await pipeline.run(runId);
 
-  // Output
-  printSummary(summary);
+  // Multi-model routing: dispatch to multi-model pipeline when enabled (Fix #1)
+  if (config.multiModel?.enabled) {
+    // Progress reporter (Fix #3)
+    const progress = new ProgressReporter({
+      verbose: config.multiModel.progress.verbose,
+    });
+    progress.start();
 
-  // Exit code: 1 if any errors occurred
-  if (summary.errors > 0) {
-    process.exit(1);
+    for (const entry of config.multiModel.models) {
+      progress.registerModel(entry.provider, entry.model_id);
+    }
+
+    progress.setPhase("review");
+
+    // Resolve review items then execute multi-model review for each
+    const items = await template.resolveItems();
+
+    for (const item of items) {
+      const { systemPrompt, userPrompt } = template.buildPrompt(item, persona);
+
+      const mmResult = await executeMultiModelReview(
+        item,
+        systemPrompt,
+        userPrompt,
+        config,
+        { poster: adapters.poster, sanitizer: adapters.sanitizer, logger: adapters.logger },
+      );
+
+      for (const mr of mmResult.modelResults) {
+        progress.updateModel(mr.provider, mr.model, {
+          phase: mr.error ? "error" : "complete",
+          latencyMs: mr.response?.latencyMs,
+          inputTokens: mr.response?.inputTokens,
+          outputTokens: mr.response?.outputTokens,
+        });
+      }
+
+      progress.reportScoring({
+        total: mmResult.consensus.stats.total_findings,
+        highConsensus: mmResult.consensus.stats.high_consensus,
+        disputed: mmResult.consensus.stats.disputed,
+        blocker: mmResult.consensus.stats.blocker,
+      });
+    }
+
+    progress.reportComplete(Date.now() - now.getTime(), config.multiModel.models.length);
+    progress.stop();
+
+    // Rating prompt (Fix #2) — non-blocking, respects timeout
+    if (config.multiModel.rating.enabled) {
+      const ratingPrompt = buildRatingPrompt(
+        runId,
+        config.multiModel.models.map((m) => m.model_id).join(", "),
+        1,
+      );
+      console.error(ratingPrompt);
+      // In autonomous mode, rating is logged but not awaited for stdin
+      // The prompt is displayed; the caller can provide input or skip
+    }
+
+    console.log(JSON.stringify({ runId, mode: "multi-model", items: items.length }, null, 2));
+  } else {
+    // Single-model path — existing behavior, unchanged
+    const summary = await pipeline.run(runId);
+    printSummary(summary);
+
+    if (summary.errors > 0) {
+      process.exit(1);
+    }
   }
 }
 
