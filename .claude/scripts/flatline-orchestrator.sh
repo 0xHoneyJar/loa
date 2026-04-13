@@ -21,6 +21,7 @@
 #   --timeout <seconds>    Overall timeout (default: 300)
 #   --budget <cents>       Cost budget in cents (default: 300 = $3.00)
 #   --json                 Output as JSON
+#   --no-silent-noop-detect  Disable post-run silent-no-op detection (cycle-062, #485)
 #
 # Mode Detection Precedence:
 #   1. CLI flags (--interactive, --autonomous)
@@ -40,6 +41,7 @@
 #   4 - Timeout exceeded
 #   5 - Budget exceeded
 #   6 - Partial success (degraded mode)
+#   7 - Silent no-op detected (no findings/attacks produced; see --no-silent-noop-detect)
 # =============================================================================
 
 set -euo pipefail
@@ -84,6 +86,68 @@ log() {
 
 error() {
     echo "ERROR: $*" >&2
+}
+
+# =============================================================================
+# Silent-no-op detection (cycle-062, #485)
+# =============================================================================
+# Extends the cycle-058 pattern from bridge-orchestrator to flatline. Guards
+# against the class of bug where jq construction fails (e.g., parser error)
+# yet the script still exits 0 because the empty result was swallowed.
+#
+# For each orchestrator mode, verifies the final_result is non-empty valid JSON
+# with mode-specific required fields. On failure, emits a clear diagnostic and
+# exits non-zero.
+#
+# Arguments:
+#   $1 - orchestrator mode (review|red-team|inquiry)
+#   $2 - final_result JSON string
+# =============================================================================
+detect_silent_noop_flatline() {
+    local mode="$1"
+    local result="$2"
+
+    # Non-empty result required.
+    if [[ -z "$result" ]]; then
+        error "Silent no-op detected in mode=$mode: final_result is empty."
+        error "This usually indicates jq construction failed without a hard exit."
+        error "Re-run with logs enabled or pass --no-silent-noop-detect to bypass."
+        exit 7
+    fi
+
+    # Valid JSON required.
+    if ! echo "$result" | jq -e . >/dev/null 2>&1; then
+        error "Silent no-op detected in mode=$mode: final_result is not valid JSON."
+        error "This usually means the jq pipeline emitted a parse/type error."
+        error "Re-run with logs enabled or pass --no-silent-noop-detect to bypass."
+        exit 7
+    fi
+
+    # Mode-specific required fields.
+    case "$mode" in
+        red-team)
+            # Red-team runs MUST produce a mode="red-team" field and an attacks
+            # object (may be empty if model legitimately found no vulnerabilities —
+            # that is valid). We only check structural integrity here.
+            if ! echo "$result" | jq -e '.mode == "red-team"' >/dev/null 2>&1; then
+                error "Silent no-op in red-team mode: missing .mode=\"red-team\" field."
+                exit 7
+            fi
+            ;;
+        inquiry)
+            if ! echo "$result" | jq -e '.orchestrator_mode == "inquiry"' >/dev/null 2>&1; then
+                error "Silent no-op in inquiry mode: missing .orchestrator_mode=\"inquiry\" field."
+                exit 7
+            fi
+            ;;
+        review)
+            # Review mode result should have a phase and timestamp at minimum.
+            if ! echo "$result" | jq -e '(.phase != null) and (.timestamp != null)' >/dev/null 2>&1; then
+                error "Silent no-op in review mode: missing required .phase or .timestamp."
+                exit 7
+            fi
+            ;;
+    esac
 }
 
 # Strip markdown code blocks from JSON content (some models wrap JSON in ```json ... ```)
@@ -1233,6 +1297,7 @@ main() {
     local rt_surface=""
     local rt_depth=1
     local rt_execution_mode="standard"
+    local detect_silent_noop=true
 
     # Parse arguments
     while [[ $# -gt 0 ]]; do
@@ -1303,6 +1368,12 @@ main() {
                 ;;
             --json)
                 json_output=true
+                shift
+                ;;
+            --no-silent-noop-detect)
+                # cycle-062 (#485): opt out of the post-run no-findings check
+                # (for tests/CI). Extends cycle-058's pattern to flatline.
+                detect_silent_noop=false
                 shift
                 ;;
             -h|--help)
@@ -1526,11 +1597,16 @@ main() {
                     run_id: $run_id
                 },
                 timestamp: $timestamp,
-                metrics: (.metrics // {}) + {
+                metrics: ((.metrics // {}) + {
                     total_latency_ms: $latency_ms,
                     cost_cents: $cost_cents
-                }
+                })
             }')
+
+        # cycle-062 (#485): silent-no-op detection extension.
+        if [[ "$detect_silent_noop" == "true" ]]; then
+            detect_silent_noop_flatline "red-team" "$final_result"
+        fi
 
         log_trajectory "complete" "$final_result"
         echo "$final_result" | jq .
@@ -1582,12 +1658,17 @@ main() {
                     run_id: $run_id
                 },
                 timestamp: $timestamp,
-                metrics: (.metrics // {}) + {
+                metrics: ((.metrics // {}) + {
                     total_latency_ms: $latency_ms,
                     cost_cents: $cost_cents,
                     cost_usd: ($cost_cents / 100)
-                }
+                })
             }')
+
+        # cycle-062 (#485): silent-no-op detection extension.
+        if [[ "$detect_silent_noop" == "true" ]]; then
+            detect_silent_noop_flatline "inquiry" "$final_result"
+        fi
 
         # Save to output directory
         local output_dir="$PROJECT_ROOT/grimoires/loa/a2a/flatline"
