@@ -180,10 +180,33 @@ cmd_init() {
 
     mkdir -p "$CYCLES_DIR"
     ensure_cycle_dir "$id"
+
+    # Pre-flight validation: verify every top-level artifact migration is
+    # safe before we mutate anything (review feedback — partial-failure
+    # atomicity). If ANY artifact would collide with the active cycle's
+    # slot, refuse the whole operation up-front.
+    #
+    # Temporarily point active at the target cycle so -s checks inside
+    # wire_top_level_symlink's precheck resolve through the symlink chain.
+    local prior_active
+    prior_active=$(get_active_cycle)
     set_active_cycle "$id"
 
-    # Wire top-level symlinks for each artifact
     local artifact
+    for artifact in "${ARTIFACTS[@]}"; do
+        if ! precheck_top_level_symlink "$artifact"; then
+            # Roll back active symlink so user isn't left with a half-
+            # switched workspace.
+            if [[ -n "$prior_active" ]]; then
+                set_active_cycle "$prior_active"
+            else
+                rm -f "$ACTIVE_LINK"
+            fi
+            return 2
+        fi
+    done
+
+    # All migrations validated — apply them.
     for artifact in "${ARTIFACTS[@]}"; do
         wire_top_level_symlink "$artifact" || return $?
     done
@@ -192,6 +215,27 @@ cmd_init() {
         --arg id "$id" \
         --arg cycle_dir "$CYCLES_DIR/$id" \
         '{initialized: true, cycle_id: $id, cycle_dir: $cycle_dir}'
+}
+
+# Returns 0 if wire_top_level_symlink would succeed, non-zero otherwise.
+# Used by cmd_init to validate the full migration plan before mutating.
+precheck_top_level_symlink() {
+    local artifact="$1"
+    local top_level="$_GRIMOIRE_DIR/$artifact"
+    local active_target="$CYCLES_DIR/active/$artifact"
+
+    if [[ -L "$top_level" ]]; then
+        return 0 # Already a symlink, nothing to migrate
+    fi
+
+    if [[ -f "$top_level" ]] && [[ -s "$active_target" ]]; then
+        # Collision: top-level is a real file AND active slot has content.
+        error "Cannot migrate $artifact: active cycle's slot already has content"
+        error "Resolve manually: compare $top_level vs $active_target"
+        return 2
+    fi
+
+    return 0
 }
 
 cmd_switch() {
@@ -219,7 +263,9 @@ cmd_list() {
         return 0
     fi
 
-    find "$CYCLES_DIR" -maxdepth 1 -mindepth 1 -type d -printf '%f\n' 2>/dev/null \
+    # POSIX-portable: `find -printf '%f'` is GNU-only. Use `basename` via
+    # -exec for BSD/macOS compatibility (review feedback).
+    find "$CYCLES_DIR" -maxdepth 1 -mindepth 1 -type d -exec basename {} \; 2>/dev/null \
         | sort \
         | jq -R . \
         | jq -s .

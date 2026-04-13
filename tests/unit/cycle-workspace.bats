@@ -257,6 +257,40 @@ teardown() {
 }
 
 # =============================================================================
+# T16 (follow-up): init is atomic — failed migration rolls back cleanly
+# =============================================================================
+@test "init: migration failure rolls back active symlink (atomicity)" {
+    # First init establishes a clean cycle-a workspace
+    env LOA_GRIMOIRE_DIR="$LOA_GRIMOIRE_DIR" "$SCRIPT" init cycle-a >/dev/null
+
+    # Seed cycle-b's prd slot with content AND plant a conflicting
+    # top-level file. The prd migration will collide; sdd/sprint would
+    # have been fine. Atomicity requires we abort WITHOUT half-wiring.
+    mkdir -p "$LOA_GRIMOIRE_DIR/cycles/cycle-b"
+    echo "cycle-b prd content" > "$LOA_GRIMOIRE_DIR/cycles/cycle-b/prd.md"
+    touch "$LOA_GRIMOIRE_DIR/cycles/cycle-b/sdd.md"
+    touch "$LOA_GRIMOIRE_DIR/cycles/cycle-b/sprint.md"
+
+    # Break the symlink invariant: remove top-level prd.md symlink and
+    # replace with a regular file that would collide with cycle-b's slot.
+    rm -f "$LOA_GRIMOIRE_DIR/prd.md"
+    echo "top-level conflict content" > "$LOA_GRIMOIRE_DIR/prd.md"
+
+    # Attempt init cycle-b — must fail with exit 2
+    set +e
+    env LOA_GRIMOIRE_DIR="$LOA_GRIMOIRE_DIR" "$SCRIPT" init cycle-b >/dev/null 2>&1
+    exit_code=$?
+    set -e
+    [ "$exit_code" -eq 2 ]
+
+    # Atomicity: active must still point at cycle-a (rolled back)
+    [ "$(readlink "$LOA_GRIMOIRE_DIR/cycles/active")" = "cycle-a" ]
+
+    # Top-level file content must be preserved intact (no data loss)
+    grep -q "top-level conflict content" "$LOA_GRIMOIRE_DIR/prd.md"
+}
+
+# =============================================================================
 # T15: validates usage help output
 # =============================================================================
 @test "cli: help output documents all commands" {
