@@ -207,6 +207,17 @@ flatline_protocol:
     notebooklm:
       enabled: false
       notebook_id: ""
+  # Round-Robin Arbiter (cycle-070 FR-4)
+  # Autonomous decision-making for DISPUTED/BLOCKER findings.
+  # Replaces HITL prompts when SIMSTIM_AUTONOMOUS=1.
+  autonomous_arbiter:
+    enabled: false                     # Opt-in (graduates to true when proven stable)
+    rotation:                          # Model rotation per Flatline phase
+      - opus                           # PRD arbiter
+      - gpt-5.3-codex                  # SDD arbiter
+      - gemini-2.5-pro                 # Sprint arbiter
+    fallback: "reject"                 # Conservative fallback when all models fail
+    max_arbiter_tokens: 4000           # Token budget for arbiter response
 
 # Red Team — Generative Adversarial Security Design (cycle-012)
 red_team:

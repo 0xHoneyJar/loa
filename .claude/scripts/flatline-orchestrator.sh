@@ -1751,6 +1751,172 @@ main() {
             }')
     fi
 
+    # =========================================================================
+    # Phase 3: Round-Robin Arbiter (cycle-070 FR-4)
+    # When autonomous mode + arbiter enabled, a single model arbitrates
+    # DISPUTED and BLOCKER findings instead of HITL prompts.
+    # =========================================================================
+
+    local arbiter_enabled
+    arbiter_enabled=$(yq eval '.flatline_protocol.autonomous_arbiter.enabled // false' "$PROJECT_ROOT/.loa.config.yaml" 2>/dev/null || echo "false")
+
+    if [[ "$arbiter_enabled" == "true" && "${SIMSTIM_AUTONOMOUS:-0}" == "1" ]]; then
+        local disputed_count blocker_count
+        disputed_count=$(echo "$result" | jq '.consensus_summary.disputed_count // 0')
+        blocker_count=$(echo "$result" | jq '.consensus_summary.blocker_count // 0')
+
+        if [[ "$disputed_count" -gt 0 || "$blocker_count" -gt 0 ]]; then
+            log "Arbiter: $((disputed_count + blocker_count)) findings require arbitration (phase: $phase)"
+
+            # Select arbiter model (round-robin by phase)
+            local arbiter_model
+            local rotation_raw
+            rotation_raw=$(yq eval '.flatline_protocol.autonomous_arbiter.rotation[]' "$PROJECT_ROOT/.loa.config.yaml" 2>/dev/null || true)
+            local rotation=()
+            if [[ -n "$rotation_raw" ]]; then
+                mapfile -t rotation <<< "$rotation_raw"
+            fi
+            [[ ${#rotation[@]} -lt 3 ]] && rotation=("opus" "gpt-5.3-codex" "gemini-2.5-pro")
+
+            case "$phase" in
+                prd)    arbiter_model="${rotation[0]}" ;;
+                sdd)    arbiter_model="${rotation[1]}" ;;
+                sprint) arbiter_model="${rotation[2]}" ;;
+                *)      arbiter_model="${rotation[0]}" ;;
+            esac
+
+            # Build arbiter prompt
+            local arbiter_prompt_file
+            arbiter_prompt_file=$(mktemp)
+            chmod 600 "$arbiter_prompt_file"
+
+            local doc_excerpt=""
+            if [[ -f "$doc" ]]; then
+                doc_excerpt=$(head -c 2048 "$doc")
+            fi
+
+            local findings_to_arbitrate
+            findings_to_arbitrate=$(echo "$result" | jq '[(.disputed // [])[], (.blockers // [])[]]')
+
+            jq -n \
+                --arg doc_excerpt "$doc_excerpt" \
+                --arg phase "$phase" \
+                --argjson findings "$findings_to_arbitrate" \
+                '"You are the arbiter for this Flatline review. For each finding below, decide: accept (integrate the suggestion) or reject (with rationale). Your decision is final.\n\nDocument (" + $phase + ") excerpt:\n" + $doc_excerpt[0:2048] + "\n\nFindings requiring your decision:\n" + ($findings | tojson) + "\n\nRespond with a JSON array:\n[{\"finding_id\": \"...\", \"decision\": \"accept\"|\"reject\", \"rationale\": \"...\"}]"' \
+                | jq -r '.' > "$arbiter_prompt_file"
+
+            # Invoke with provider cascade (SKP-006)
+            local arbiter_result="" arbiter_success=false cascade_attempts=0
+            local try_models=("$arbiter_model")
+            # Build cascade: designated → others
+            for m in "${rotation[@]}"; do
+                [[ "$m" != "$arbiter_model" ]] && try_models+=("$m")
+            done
+
+            for try_model in "${try_models[@]}"; do
+                cascade_attempts=$((cascade_attempts + 1))
+                log "Arbiter: trying $try_model (attempt $cascade_attempts)"
+
+                local max_arbiter_tokens
+                max_arbiter_tokens=$(yq eval '.flatline_protocol.autonomous_arbiter.max_arbiter_tokens // 4000' "$PROJECT_ROOT/.loa.config.yaml" 2>/dev/null || echo "4000")
+
+                arbiter_result=$("$SCRIPT_DIR/model-adapter.sh" \
+                    --mode "review" \
+                    --model "$try_model" \
+                    --input "$arbiter_prompt_file" \
+                    --timeout 120 \
+                    2>/dev/null) && {
+                    arbiter_success=true
+                    log "Arbiter: $try_model decided (phase: $phase)"
+                    break
+                }
+                log "WARNING: Arbiter $try_model failed, cascading..."
+            done
+
+            rm -f "$arbiter_prompt_file"
+
+            # Apply arbiter decisions
+            if [[ "$arbiter_success" == "true" ]]; then
+                # Extract JSON decisions from arbiter response
+                local decisions
+                decisions=$(echo "$arbiter_result" | jq -r '.content // .' 2>/dev/null | \
+                    grep -oE '\[.*\]' | head -1 | jq '.' 2>/dev/null || echo "[]")
+
+                if echo "$decisions" | jq -e 'type == "array"' >/dev/null 2>&1; then
+                    # Process each decision
+                    local accepted_ids rejected_ids
+                    accepted_ids=$(echo "$decisions" | jq -r '[.[] | select(.decision == "accept") | .finding_id] | join(",")')
+                    rejected_ids=$(echo "$decisions" | jq -r '[.[] | select(.decision == "reject") | .finding_id] | join(",")')
+
+                    # Modify consensus: accepted findings → high_consensus, rejected → arbiter_rejected
+                    result=$(echo "$result" | jq --arg accepted "$accepted_ids" --arg rejected "$rejected_ids" '
+                        . as $orig |
+                        ($accepted | split(",") | map(select(. != ""))) as $acc |
+                        ($rejected | split(",") | map(select(. != ""))) as $rej |
+
+                        # Move accepted blockers/disputed to high_consensus
+                        .high_consensus = (.high_consensus + [
+                            (.disputed[]? | select(.id as $id | $acc | index($id))),
+                            (.blockers[]? | select(.id as $id | $acc | index($id)))
+                        ] | map(. + {arbiter_accepted: true})) |
+
+                        # Move rejected to arbiter_rejected
+                        .arbiter_rejected = [
+                            (.disputed[]? | select(.id as $id | $rej | index($id))),
+                            (.blockers[]? | select(.id as $id | $rej | index($id)))
+                        ] |
+
+                        # Remove arbitrated items from disputed/blockers
+                        .disputed = [.disputed[]? | select(.id as $id | ($acc + $rej) | index($id) | not)] |
+                        .blockers = [.blockers[]? | select(.id as $id | ($acc + $rej) | index($id) | not)] |
+
+                        # Recalculate summary
+                        .consensus_summary.high_consensus_count = (.high_consensus | length) |
+                        .consensus_summary.disputed_count = (.disputed | length) |
+                        .consensus_summary.blocker_count = (.blockers | length) |
+                        .consensus_summary.arbiter_accepted_count = ([$acc | length] | .[0]) |
+                        .consensus_summary.arbiter_rejected_count = ([$rej | length] | .[0])
+                    ')
+
+                    # Trajectory logging (NFR-4)
+                    local trajectory_dir
+                    trajectory_dir=$(get_trajectory_dir 2>/dev/null || echo "$PROJECT_ROOT/grimoires/loa/a2a/trajectory")
+                    mkdir -p "$trajectory_dir"
+                    local arbiter_log="$trajectory_dir/flatline-arbiter-$(date +%Y-%m-%d).jsonl"
+
+                    echo "$decisions" | jq -c --arg phase "$phase" --arg model "$arbiter_model" \
+                        --argjson attempts "$cascade_attempts" '.[] | {
+                            type: "flatline_arbiter",
+                            phase: $phase,
+                            arbiter_model: $model,
+                            finding_id: .finding_id,
+                            decision: .decision,
+                            rationale: .rationale,
+                            cascade_attempts: $attempts,
+                            timestamp: (now | strftime("%Y-%m-%dT%H:%M:%SZ"))
+                        }' >> "$arbiter_log" 2>/dev/null || true
+
+                    log "Arbiter: $(echo "$decisions" | jq 'length') decisions applied"
+                else
+                    log "WARNING: Arbiter returned malformed JSON, treating as failure"
+                    arbiter_success=false
+                fi
+            fi
+
+            if [[ "$arbiter_success" != "true" ]]; then
+                # Conservative fallback: auto-reject all blockers
+                log "WARNING: All arbiter models failed, auto-rejecting blockers"
+                result=$(echo "$result" | jq '
+                    .arbiter_rejected = .blockers |
+                    .blockers = [] |
+                    .consensus_summary.blocker_count = 0 |
+                    .consensus_summary.arbiter_rejected_count = (.arbiter_rejected | length) |
+                    .consensus_summary.arbiter_fallback = true
+                ')
+            fi
+        fi
+    fi
+
     set_state "DONE"
 
     # Calculate final metrics
