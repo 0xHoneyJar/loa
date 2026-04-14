@@ -272,6 +272,38 @@ JSON
 # =============================================================================
 # validate_sidecar_schema: unsupported version → returns 3
 # =============================================================================
+# =============================================================================
+# T32: compute_flatline_signature — identical inputs → identical output
+# =============================================================================
+@test "compute_flatline_signature: identical inputs → identical output" {
+    local sig1 sig2
+    sig1=$(compute_flatline_signature "APPROVED" "APPROVED" '{"blocker":0,"high":1,"medium":2,"low":3}' 'sha256:aaa')
+    sig2=$(compute_flatline_signature "APPROVED" "APPROVED" '{"blocker":0,"high":1,"medium":2,"low":3}' 'sha256:aaa')
+    [ "$sig1" = "$sig2" ]
+    [[ "$sig1" == sha256:* ]]
+}
+
+# =============================================================================
+# T33: compute_flatline_signature — differing count → different sig
+# =============================================================================
+@test "compute_flatline_signature: differing findings count → different sig" {
+    local sig1 sig2
+    sig1=$(compute_flatline_signature "APPROVED" "APPROVED" '{"blocker":0,"high":1,"medium":2,"low":3}' 'sha256:aaa')
+    sig2=$(compute_flatline_signature "APPROVED" "APPROVED" '{"blocker":0,"high":2,"medium":2,"low":3}' 'sha256:aaa')
+    [ "$sig1" != "$sig2" ]
+}
+
+# =============================================================================
+# T36: compute_flatline_signature — same counts, different content_hash → different sig
+# =============================================================================
+@test "compute_flatline_signature: same counts, different content_hash → different sig" {
+    local sig1 sig2
+    sig1=$(compute_flatline_signature "APPROVED" "APPROVED" '{"blocker":0,"high":1,"medium":2,"low":3}' 'sha256:aaa')
+    sig2=$(compute_flatline_signature "APPROVED" "APPROVED" '{"blocker":0,"high":1,"medium":2,"low":3}' 'sha256:bbb')
+    [ "$sig1" != "$sig2" ]
+}
+
+# =============================================================================
 @test "validate_sidecar_schema: unsupported version → returns 3" {
     _write_valid_sidecar
     jq '."$schema_version" = 99' "$CYCLE_DIR/cycle-outcome.json" > "$CYCLE_DIR/cycle-outcome.json.tmp"
