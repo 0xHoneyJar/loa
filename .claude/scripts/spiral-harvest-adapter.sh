@@ -481,7 +481,8 @@ _extract_verdict() {
     local header_rx="$2"
     local value_rx="$3"
 
-    awk -v header="$header_rx" -v value="$value_rx" '
+    local result
+    result=$(awk -v header="$header_rx" -v value="$value_rx" '
         BEGIN { found_header = 0 }
         $0 ~ header { found_header = 1; next }
         found_header && $0 ~ value {
@@ -492,7 +493,13 @@ _extract_verdict() {
         }
         found_header && /^#/ { exit }  # Next section, verdict not found
         found_header && /^[[:space:]]*$/ { next }  # Skip blank lines
-    ' "$file" 2>/dev/null || echo "null"
+    ' "$file" 2>/dev/null) || true
+
+    if [[ -z "$result" ]]; then
+        echo "null"
+    else
+        echo "$result"
+    fi
 }
 
 # _extract_findings_counts <file>
