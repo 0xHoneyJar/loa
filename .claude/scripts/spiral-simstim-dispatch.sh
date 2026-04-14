@@ -161,6 +161,7 @@ log "  parent_pr: ${parent_pr:-none}"
 local_exit=0
 timeout "$local_timeout" \
     claude -p "$prompt" \
+        --allow-dangerously-skip-permissions \
         --dangerously-skip-permissions \
         --max-budget-usd "$local_budget" \
         --model opus \
@@ -189,8 +190,9 @@ log "Dispatch complete: exit=$local_exit, pr=${pr_url:-none}"
 source "$SCRIPT_DIR/spiral-harvest-adapter.sh" 2>/dev/null || true
 
 if type -t emit_cycle_outcome_sidecar &>/dev/null; then
-    local review_v="null" audit_v="null"
-    local findings_json='{"blocker":0,"high":0,"medium":0,"low":0}'
+    review_v="null"
+    audit_v="null"
+    findings_json='{"blocker":0,"high":0,"medium":0,"low":0}'
 
     # Try to extract verdicts from artifacts the subprocess may have created
     if [[ -f "$cycle_dir/reviewer.md" ]] && type -t _extract_verdict &>/dev/null; then
@@ -202,7 +204,7 @@ if type -t emit_cycle_outcome_sidecar &>/dev/null; then
             "${SPIRAL_RX_AUDIT_VERDICT:-}" "${SPIRAL_RX_AUDIT_VALUE:-}")
     fi
 
-    local exit_status="success"
+    exit_status="success"
     if [[ "$local_exit" -ne 0 ]]; then
         exit_status="failed"
     fi
