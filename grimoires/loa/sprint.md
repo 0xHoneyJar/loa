@@ -1,176 +1,223 @@
-# Sprint Plan: Cycle-069 — Vision Registry Graduation
+# Sprint Plan: Cycle-070 — Spiral End-to-End Autonomous
 
-**Cycle**: 069
-**Issue**: #486
+**Cycle**: 070
 **PRD**: `grimoires/loa/prd.md`
 **SDD**: `grimoires/loa/sdd.md`
 **Date**: 2026-04-14
 
 ---
 
-## Sprint 1: Foundation — Octal Fix, State Extensions, Query CLI
+## Sprint 1: Dispatch + Autonomous Simstim
 
-**Goal**: Fix the blocking octal bug, extend vision-lib.sh for new states, and build the query CLI with index rebuild.
+**Goal**: Rewrite dispatch to use `claude -p`, add `--autonomous` flag, wire config, implement branch chaining.
 
-### Task 1.1: Octal Bug Fix (FR-4)
+### Task 1.1: Config — `spiral.enabled` + Task Passthrough (FR-3)
 
-**File**: `.claude/scripts/bridge-vision-capture.sh:227`
-**Change**: `next_number=$((local_max + 1))` → `next_number=$((10#$local_max + 1))`
-**Test**: `tests/unit/vision-octal.bats` — verify IDs 008, 009, 010+ created without error
-**AC**:
-- [ ] `local_max` of `008` produces `next_number=9`
-- [ ] `local_max` of `009` produces `next_number=10`
-- [ ] `local_max` of `099` produces `next_number=100`
-- [ ] Existing vision capture flow unchanged for non-edge-case IDs
-
-### Task 1.2: Extend vision-lib.sh States (SDD 3.3)
-
-**File**: `.claude/scripts/vision-lib.sh`
+**File**: `.claude/scripts/spiral-orchestrator.sh`, `.loa.config.yaml`
 **Changes**:
-- `vision_update_status()` line 447: add `Archived|Rejected` to case statement
-- `vision_validate_entry()` line 414: add `Archived|Rejected` to case statement
-- `vision_load_index()` line 210: add `Archived|Rejected` to case statement
-- `vision_regenerate_index_stats()`: add Archived and Rejected counts
+- Add `spiral.enabled: true` to config
+- `cmd_start()` accepts task as positional arg, stores in `spiral-state.json`
+- Add `spiral.max_budget_per_cycle_usd`, `spiral.max_total_budget_usd`, `spiral.step_timeouts.*` to config
 **AC**:
-- [ ] `vision_update_status` accepts Archived and Rejected
-- [ ] `vision_validate_entry` validates Archived and Rejected as legal
-- [ ] `vision_regenerate_index_stats` counts all 7 statuses
-- [ ] No regression in existing vision tests
+- [ ] `spiral.enabled: true` in config
+- [ ] `/spiral --start "task"` stores task in state
+- [ ] `spiral.max_budget_per_cycle_usd` defaults to 10
+- [ ] `spiral.max_total_budget_usd` defaults to 50
 
-### Task 1.3: Vision Query CLI (FR-1, SDD 3.1)
+### Task 1.2: Dispatch Rewrite — `claude -p` (FR-1)
 
-**File**: `.claude/scripts/vision-query.sh` (new)
-**Functions**: `_parse_entry()`, `_match_filters()`, `_rebuild_index()`
-**Features**:
-- Parse frontmatter from entry files (not index) via awk + jq --arg
-- Filter by: `--tags`, `--status` (comma-list), `--source` (grep -Fi --), `--since`/`--before` (UTC ISO-8601), `--min-refs`
-- Output: `--format json|table|ids`, `--count`, `--limit`
-- Exit codes: 0 success, 1 no results, 2 bad args, 3 parse error, 4 I/O error
-- Non-strict quarantine for malformed entries (parse_error: true)
-**Test**: `tests/unit/vision-query.bats`
+**File**: `.claude/scripts/spiral-simstim-dispatch.sh` (rewrite)
+**Changes**:
+- Replace `setsid simstim-orchestrator.sh` with `claude -p` invocation
+- Validate `claude` CLI on PATH (exit 127 if missing)
+- Prompt construction via `jq --arg` (safe, no shell expansion)
+- Output parsing: `--output-format json`, regex PR URL extraction
+- `--dangerously-skip-permissions` + `--max-budget-usd` from config
+- `--model opus` for planning quality
+- stdout → `cycle_dir/claude-stdout.json`, stderr → `cycle_dir/claude-stderr.log`
+- Mid-cycle failure semantics per PRD IMP-002 exit code table
+- Branch name passed to subprocess prompt (not created in parent — Bridgebuilder MEDIUM-3)
 **AC**:
-- [ ] `--tags security` returns only security-tagged visions
-- [ ] `--status Captured,Exploring` returns both statuses
-- [ ] `--since 2026-04-01` filters by date correctly
-- [ ] `--format json` output validates with `jq .`
-- [ ] `--format table` produces pipe-delimited rows
-- [ ] `--source` uses fixed-string matching (no regex injection)
-- [ ] Malformed entry quarantined in non-strict mode
-- [ ] Exit code 1 for zero results, 2 for bad args
+- [ ] `claude` not on PATH → exit 127
+- [ ] Prompt includes task + seed context + cycle ID + branch instruction
+- [ ] `--max-budget-usd` from `spiral.max_budget_per_cycle_usd`
+- [ ] `--dangerously-skip-permissions` passed
+- [ ] stdout/stderr captured to cycle_dir
+- [ ] PR URL extracted from output JSON via regex
+- [ ] Missing PR URL → `completed_no_pr` (not failure)
+- [ ] Exit 126/127 → abort spiral
+- [ ] Dispatch wrapped in `timeout(1)` using `spiral.step_timeouts.simstim_sec` (Flatline SDD SKP-006)
 
-### Task 1.4: Index Rebuild (FR-5, SDD 3.1)
+### Task 1.3: Simstim `--autonomous` Flag (FR-2)
 
-**File**: `.claude/scripts/vision-query.sh` (--rebuild-index flag)
-**Features**:
-- Scan all entry files, parse, generate pipe-delimited table
-- Regenerate statistics section with all 7 statuses
-- Atomic write via `vision_atomic_write()`
-- `--dry-run` flag: diff current vs rebuilt, report discrepancies
-- Scan-time consistency: mtime check pre/post parse
+**File**: `.claude/scripts/simstim-orchestrator.sh`
+**Changes**:
+- Accept `--autonomous` in preflight arg parsing (~line 922)
+- Export `SIMSTIM_AUTONOMOUS=1` env var
+- Record `"mode": "autonomous"` in simstim-state.json
 **AC**:
-- [ ] `--rebuild-index` regenerates index.md matching actual entry files
-- [ ] Statistics section counts all statuses correctly
-- [ ] `--rebuild-index --dry-run` shows diff without writing
-- [ ] Idempotent: running twice produces identical output
-- [ ] Quarantined entries skipped with warning
-- [ ] Atomic write failure (disk full, permission denied) exits with code 4 and leaves original index intact (Flatline IMP-002)
+- [ ] `--autonomous` flag accepted without error
+- [ ] `SIMSTIM_AUTONOMOUS=1` exported
+- [ ] State JSON records `"mode": "autonomous"`
+- [ ] Existing HITL mode unaffected when flag absent
+
+### Task 1.4: Branch Chaining + PR Idempotency (FR-5)
+
+**File**: `.claude/scripts/spiral-simstim-dispatch.sh`
+**Changes**:
+- Compute branch name `feat/spiral-{id}-cycle-{N}`
+- Check existing branch via `git rev-parse --verify` (idempotency, SKP-005)
+- Check existing PR via `gh pr list --head <branch>` (idempotency)
+- Pass parent PR URL from previous cycle's sidecar to dispatch prompt
+- Prompt instructs subprocess to reference parent PR in description
+**AC**:
+- [ ] Branch name follows `feat/spiral-{id}-cycle-{N}` pattern
+- [ ] Existing branch detected and reused
+- [ ] Existing PR detected and not duplicated
+- [ ] Parent PR URL passed to subsequent cycles
+
+### Task 1.5: Status Artifact + Cumulative Budget (IMP-007, Bridgebuilder MEDIUM-5)
+
+**File**: `.claude/scripts/spiral-simstim-dispatch.sh`
+**Changes**:
+- Write `.run/spiral-status.txt` after each cycle (human-readable)
+- Track cumulative spend in `spiral-state.json` field `budget.spent_usd`
+- Before dispatch: check `spent_usd >= max_total_budget_usd` → halt
+**AC**:
+- [ ] `.run/spiral-status.txt` updated after each cycle
+- [ ] Status shows cycle number, state, last PR, budget remaining
+- [ ] Cumulative spend tracked in state JSON
+- [ ] Budget exceeded → spiral halts with `budget_exceeded`
+
+### Task 1.6: Sprint 1 Tests
+
+**File**: `tests/unit/spiral-dispatch.bats` (new), `tests/unit/simstim-autonomous.bats` (new)
+**AC**:
+- [ ] Dispatch: claude CLI validation, prompt construction, output parsing, exit codes
+- [ ] Dispatch: branch idempotency, budget passthrough
+- [ ] Autonomous: flag detection, env var export, state recording
 
 ---
 
-## Sprint 2: Lifecycle CLI + Spiral Integration
+## Sprint 2: Round-Robin Flatline Arbiter
 
-**Goal**: Build lifecycle management and wire seed_phase() full mode.
+**Goal**: Add Phase 3 arbiter to Flatline, with rotation, cascade fallback, and trajectory logging.
 
-### Task 2.1: Vision Lifecycle CLI (FR-2, SDD 3.2)
+### Task 2.1: Arbiter Model Selection (FR-4)
 
-**File**: `.claude/scripts/vision-lifecycle.sh` (new)
-**Commands**: `promote`, `archive`, `reject`, `explore`, `propose`, `defer`
-**Features**:
-- Global lifecycle lock (`grimoires/loa/visions/.lifecycle.lock`) wraps entire command via `flock -w 10` (10s timeout). Stale lock recovery: flock is kernel-level — lock auto-releases on process death (Flatline IMP-001). No PID file needed since flock handles crash recovery natively.
-- Promote: ordered writes (lore append → status update → index rebuild → trajectory)
-- Archive/Reject: add reason to frontmatter, update status
-- Reject requires `--reason`
-- Input sanitization: `_sanitize_reason()` strips `|`, newlines, control chars
-- Terminal state blocking (Implemented, Archived, Rejected) → exit code 5
-- Exit codes: 0-5 per SDD spec
-**Test**: `tests/unit/vision-lifecycle.bats`
-**AC**:
-- [ ] `promote vision-003` creates lore entry + updates status to Implemented + rebuilds index
-- [ ] Lore path delegated to `vision_append_lore_entry()` (not hardcoded)
-- [ ] `promote` on terminal state exits with code 5
-- [ ] `reject` without `--reason` exits with code 2
-- [ ] `archive --reason "stale"` adds Archived-Reason to frontmatter
-- [ ] Reason text with `|` and newlines is sanitized
-- [ ] Double-promote is idempotent
-- [ ] Partial promote failure (crash after lore append, before status update) recoverable by re-running (Flatline IMP-003, SDD 5.1)
-- [ ] `defer` transitions Proposed → Deferred
-- [ ] Global lifecycle lock prevents concurrent operations
-
-### Task 2.2: seed_phase() Full Mode (FR-3, SDD 3.5)
-
-**File**: `.claude/scripts/spiral-orchestrator.sh` (modify seed_phase())
-**Changes**: Replace demotion fallback at line ~515 with registry query logic
-**Features**:
-- Tag derivation from HARVEST sidecar with deterministic mapping (SDD 7.2)
-- Sidecar validation: `jq -e '.findings | type == "array"'`
-- Fallback to `spiral.seed.default_tags` config
-- Query: `vision-query.sh --tags <tags> --status Captured,Exploring,Proposed --format json --limit <max>`
-- Zero results → cold start (not degraded)
-- Relevance scoring via jq float arithmetic (zero-tag safe)
-- Budget enforcement: 4KB, drop lowest-ranked visions
-- Structured seed context JSON per SDD 2.3 schema
-- Trajectory: `seed_full` event with query params and stats
-**Test**: `tests/unit/vision-seed-full.bats`
-**AC**:
-- [ ] With HARVEST sidecar: tags derived from findings categories
-- [ ] Without sidecar: falls back to default_tags
-- [ ] Invalid sidecar (missing findings): falls back with warning
-- [ ] `vision_registry.enabled` checked before querying — falls back to degraded if disabled (Flatline SKP-010)
-- [ ] Zero query results: cold-start, logs `seed_cold`
-- [ ] Budget exceeded: lowest-ranked visions dropped, `truncated: true`
-- [ ] Relevance scoring: jq float math, zero-tag-safe
-- [ ] Seed context JSON validates against schema
-- [ ] Trajectory event logged with query parameters
-
-### Task 2.3: Config Updates (FR-6, SDD 7.1)
-
-**File**: `.loa.config.yaml`
+**File**: `.claude/scripts/flatline-orchestrator.sh`
 **Changes**:
-- `vision_registry.enabled: true` (was false)
-- `spiral.seed.mode: "full"` (was "degraded")
-- Add `spiral.seed.default_tags` and `spiral.seed.max_seed_visions`
+- New function `_select_arbiter()` with phase-based rotation
+- Config reading via `mapfile` for YAML list (Bridgebuilder HIGH-2)
+- Defaults: opus/gpt-5.3-codex/gemini-2.5-pro
 **AC**:
-- [ ] Config keys present and correctly typed
-- [ ] `read_config` resolves new keys with defaults
+- [ ] PRD phase → opus selected
+- [ ] SDD phase → gpt-5.3-codex selected
+- [ ] Sprint phase → gemini-2.5-pro selected
+- [ ] Empty config → defaults used
 
-### Task 2.4: Run Existing Tests
+### Task 2.2: Arbiter Prompt + Invocation (FR-4)
+
+**File**: `.claude/scripts/flatline-orchestrator.sh`
+**Changes**:
+- Build arbiter prompt: document excerpt + all findings + all scores
+- Invoke via model-adapter.sh `--mode review` (Bridgebuilder LOW-6)
+- Parse JSON decisions array from arbiter response
+- Max tokens from `flatline_protocol.autonomous_arbiter.max_arbiter_tokens`
+**AC**:
+- [ ] Prompt includes document, findings, and scores
+- [ ] model-adapter.sh invoked with correct `--mode review` interface
+- [ ] Arbiter response parsed as JSON decisions array
+- [ ] Malformed JSON → treated as model failure (cascade)
+
+### Task 2.3: Provider Cascade (FR-4, SKP-006)
+
+**File**: `.claude/scripts/flatline-orchestrator.sh`
+**Changes**:
+- `_invoke_arbiter_with_cascade()`: try designated → next → next → auto-reject
+- Each fallback logged to trajectory
+**AC**:
+- [ ] Designated model fails → cascades to next in rotation
+- [ ] All 3 fail → conservative auto-reject with logged rationale
+- [ ] Each cascade attempt logged
+
+### Task 2.4: Decision Application (FR-4)
+
+**File**: `.claude/scripts/flatline-orchestrator.sh`
+**Changes**:
+- After arbiter returns, modify consensus JSON:
+  - `accept` → move finding to `high_consensus` (arbiter-accepted)
+  - `reject` → move to new `arbiter_rejected` array
+- Recalculate `consensus_summary` counts
+**AC**:
+- [ ] Accepted findings appear in `high_consensus` with `arbiter_accepted: true`
+- [ ] Rejected findings appear in `arbiter_rejected`
+- [ ] Summary counts updated correctly
+- [ ] Original findings preserved (not overwritten)
+
+### Task 2.5: Trajectory Logging (FR-4, NFR-4)
+
+**File**: `.claude/scripts/flatline-orchestrator.sh`
+**Changes**:
+- Log each decision to `grimoires/loa/a2a/trajectory/flatline-arbiter-{date}.jsonl`
+- Include: finding_id, phase, arbiter_model, decision, rationale, cascade_attempts
+**AC**:
+- [ ] Each arbiter decision logged as separate JSONL line
+- [ ] Includes finding_id, model, decision, rationale
+- [ ] File created with umask 077
+
+### Task 2.6: Config Gate + Integration (FR-6)
+
+**File**: `.loa.config.yaml`, `.claude/scripts/flatline-orchestrator.sh`
+**Changes**:
+- `flatline_protocol.autonomous_arbiter.enabled` config gate
+- Arbiter only invoked when gate is true AND `SIMSTIM_AUTONOMOUS=1`
+- Config defaults: enabled: false, rotation: [opus, gpt-5.3-codex, gemini-2.5-pro]
+**AC**:
+- [ ] `autonomous_arbiter.enabled: false` → arbiter skipped
+- [ ] `autonomous_arbiter.enabled: true` + `SIMSTIM_AUTONOMOUS=1` → arbiter runs
+- [ ] HITL mode unaffected regardless of config
+
+### Task 2.7: Sprint 2 Tests
+
+**File**: `tests/unit/flatline-arbiter.bats` (new)
+**AC**:
+- [ ] Arbiter rotation tested for all 3 phases
+- [ ] Cascade fallback tested (1 failure, 2 failures, all failures)
+- [ ] Decision parsing tested (valid JSON, malformed JSON)
+- [ ] Config gate tested (enabled/disabled)
+- [ ] Trajectory logging tested
+
+### Task 2.8: Regression Tests
 
 **AC**:
-- [ ] All existing vision tests pass
-- [ ] All existing spiral tests pass
-- [ ] No regressions
+- [ ] All existing spiral tests pass (44)
+- [ ] All existing vision tests pass (190)
+- [ ] All existing Flatline scoring tests pass (if any)
 
 ---
 
 ## Dependencies
 
 ```
-T1.1 (octal fix)     ─┐
-T1.2 (state extend)   ├─→ T1.3 (query CLI) ─→ T1.4 (rebuild)
-                       │                           │
-                       └───────────────────────────┘
-                                                    │
-                            T2.1 (lifecycle) ←──────┘
-                            T2.2 (seed full) ←── T1.3
-                            T2.3 (config)
-                            T2.4 (regression)
+T1.1 (config) ─────→ T1.2 (dispatch rewrite)
+                      T1.3 (autonomous flag)
+                      T1.4 (branch chaining) ──→ T1.5 (status + budget)
+                                                  T1.6 (sprint 1 tests)
+
+T2.1 (arbiter select) ─→ T2.2 (prompt + invoke) ─→ T2.3 (cascade)
+                                                     T2.4 (decision apply)
+                                                     T2.5 (trajectory)
+T2.6 (config gate) ─────────────────────────────────→ T2.7 (tests)
+                                                       T2.8 (regression)
 ```
 
 ## Verification Criteria
 
-- All new tests pass (4 test files)
-- All existing tests pass (no regression)
-- `vision-query.sh --rebuild-index` fixes the current index drift
-- `vision-lifecycle.sh promote` creates a real lore entry
-- `seed_phase()` full mode queries registry and produces structured context
-- Octal bug verified fixed for IDs 008, 009
+- Dispatch invokes `claude -p` with correct flags (validated in test, not E2E)
+- `--autonomous` flag flows through to simstim state
+- Arbiter rotation produces correct model per phase
+- Provider cascade works through 3 levels to auto-reject
+- All existing tests pass
+- Branch naming follows pattern, PR idempotency works
+- Budget tracking prevents overspend

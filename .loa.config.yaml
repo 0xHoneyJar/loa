@@ -96,15 +96,24 @@ vision_registry:
   propose_requirements: false  # Experimental — vision-inspired requirement proposals
   bridge_auto_capture: false   # Auto-capture VISION findings from bridge reviews (cycle-042)
 
-# Spiral Seed Configuration (cycle-069, #486)
-# Controls how seed_phase() derives cross-cycle context for spiral iterations.
+# Spiral Configuration (cycle-069 seed, cycle-070 e2e)
+# Autonomous multi-cycle development loop.
 spiral:
+  enabled: true                    # Master switch for /spiral --start
+  task: ""                         # Set dynamically by --start "task description"
+  max_budget_per_cycle_usd: 10     # Per-cycle cost cap passed to claude -p
+  max_total_budget_usd: 50         # Spiral-level hard stop across all cycles
+  status_file: ".run/spiral-status.txt"  # Human-readable status artifact
   seed:
     mode: "full"                   # "full" (Vision Registry queries), "degraded" (text-blob), "cold" (no context)
     default_tags:                  # Fallback tags when HARVEST sidecar has no mappable categories
       - architecture
       - security
     max_seed_visions: 10           # Max visions included in seed context
+  step_timeouts:
+    seed_sec: 30
+    simstim_sec: 7200              # 2 hours per cycle dispatch
+    harvest_sec: 60
 
 # Prompt Isolation (v1.42.0 — cycle-042)
 # De-authorization wrappers for untrusted content in LLM prompts.

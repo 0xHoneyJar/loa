@@ -1,281 +1,297 @@
-# PRD: Vision Registry Graduation — Query API, Lifecycle, Spiral Integration
+# PRD: Spiral End-to-End — Autonomous Dispatch + Round-Robin Arbiter
 
-**Issue**: #486
-**Cycle**: 069
-**Parent**: RFC-060 (#483, AC 3 — cross-cycle memory via Vision Registry)
-**Dependencies**: cycle-067 (vision-lib.sh), cycle-068 (spiral real dispatch)
+**Cycle**: 070
+**Parent**: RFC-060 (#483), cycles 063-069
+**Depends on**: PR #496 (cycle-069, Vision Registry graduation)
 **Date**: 2026-04-14
 
 **Flatline PRD Review (2026-04-14, 3-model consensus, 100% agreement)**:
-- 5 HIGH_CONSENSUS auto-integrated (exit codes, tag mapping, seed schema, ranking AC, frontmatter schema)
-- 3 blockers overridden (concurrent races — single-user model; multi-file txn — ordered writes + idempotent recovery; escaping — sanitization added)
-- 2 blockers rejected (status semantics — already resolved by IMP; parsing brittleness — already resolved by IMP-008)
+- 6 HIGH_CONSENSUS auto-integrated (quality metrics, failure semantics, cost hard stop, output schema, status artifact, graceful stop)
+- 6 blockers overridden (permissions mitigated, quality parity metrics added, crash recovery exists, MVP bar valid, provider fallback, assumptions section)
+- 2 blockers rejected (output parsing already addressed, trajectory logging already safe)
 
 ---
 
 ## 1. Problem Statement
 
-The Vision Registry is an **append-only store**. Visions are captured during Bridgebuilder reviews and written to `grimoires/loa/visions/entries/vision-NNN.md`, but they are never read back programmatically. The `seed_phase()` in `spiral-orchestrator.sh` has a `full` mode path (line 515) that checks for the Vision Registry — but it immediately demotes to `degraded` because no query API exists. This means:
+The spiral infrastructure (cycles 063-069) has all the machinery — state machine, stopping conditions, HARVEST contract, crash recovery, Vision Registry seed context — but cannot run a real multi-cycle loop. Two gaps:
 
-1. **Cross-cycle memory is text blobs**: degraded mode copies a `seed-context.md` text dump between cycles. No structure, no filtering, no relevance scoring.
-2. **Visions accumulate without lifecycle**: 9 visions exist (vision-001 through vision-009), but none have been promoted to lore, archived, or rejected. `vision_check_lore_elevation()` exists but nothing invokes it in a workflow.
-3. **Index drifts from entries**: the index.md table shows different content than the actual entry files (e.g., vision-001 index row says "Pluggable credential provider registry" but the file contains a spiral SEED observation). No rebuild mechanism exists.
-4. **Octal arithmetic bug**: `bridge-vision-capture.sh:236` uses `printf "%03d"` to zero-pad vision IDs, but downstream bash arithmetic interprets `008`/`009` as invalid octal. The 10th vision will fail.
+1. **Dispatch gap**: `spiral-simstim-dispatch.sh` calls `simstim-orchestrator.sh` as a shell script, but simstim is an LLM-driven workflow. Each cycle needs a Claude Code session to drive PRD→SDD→Sprint→Implement→Review→Audit. Fix: invoke `claude -p` (non-interactive CLI) per cycle.
 
-Graduating the Vision Registry unblocks `spiral.seed.mode: full` — replacing text-blob SEED handoffs with structured queries that filter visions by relevance to the current cycle's context.
+2. **HITL bottleneck**: Simstim pauses for Flatline blocker decisions. An autonomous spiral can't pause for human input mid-cycle. Fix: add `--autonomous` simstim mode with a round-robin Flatline arbiter that replaces HITL blocker prompts with model-arbitrated decisions.
 
-> Source: `spiral-orchestrator.sh:515` — full mode demotion; `vision-lib.sh` — 11 functions, no CLI query interface
+Together these close the loop: the user runs `/spiral --start "Build X"`, walks away, and returns to a completed PR with Bridgebuilder review.
+
+> Source: `spiral-simstim-dispatch.sh:71` — calls shell script, not LLM
+> Source: `simstim SKILL.md Phase 2` — HITL blocker prompts block autonomous execution
 
 ## 2. Goals & Success Metrics
 
 | # | Goal | Metric | Target |
 |---|------|--------|--------|
-| G1 | Query visions by tag, severity, source, date, status | `vision-query.sh --tags security --status Captured` returns matching entries | Functional |
-| G2 | Lifecycle management: promote, archive, reject | `vision-lifecycle.sh promote vision-003` elevates to lore + updates status | Functional |
-| G3 | `seed_phase()` full mode uses registry queries | Full mode queries visions by tags derived from current cycle context | Traceable in trajectory |
-| G4 | Index rebuild/reconciliation | `vision-query.sh --rebuild-index` regenerates index.md from entry files | Index matches entries |
-| G5 | Octal bug fixed | Vision IDs 008, 009, 010+ created without arithmetic errors | No regression |
-| G6 | No regression in existing vision/spiral tests | All existing tests remain green | 100% pass |
+| G1 | `/spiral --start` runs real multi-cycle loop | At least 1 real cycle completes (PRD→PR) | Functional |
+| G2 | Each cycle dispatches via `claude -p` subprocess | Subprocess invoked, produces artifacts, exits | Traceable in trajectory |
+| G3 | Simstim `--autonomous` auto-proceeds through all phases | No HITL pauses during autonomous execution | Functional |
+| G4 | Flatline round-robin arbiter replaces HITL blocker prompts | Arbiter model decides per-finding, rotates per phase | Quality parity with HITL |
+| G5 | Cost safety: per-cycle budget cap | `--max-budget-usd` enforced per cycle | Default $10 |
+| G6 | Branch chaining: each cycle creates linked PR | PR description references parent cycle's PR | Functional |
+| G7 | No regression in existing spiral/simstim tests | All existing tests pass | 190+ tests green |
 
-**Closes**: #486, RFC-060 AC 3 (cross-cycle memory via Vision Registry)
+**Non-goals**: parallel spiral cycles, real-time progress UI, modifying the quality gates themselves (review/audit pipeline preserved).
 
-**Non-goals**: migration of degraded-mode text blobs into vision entries (per cycle-067 design decision: full mode cold-starts explicitly), UI/dashboard for visions, real-time vision streaming.
+**Quality parity contract** (Flatline IMP-001): "Quality parity with HITL" is measured by:
+- Flatline arbiter decisions logged with full rationale (auditable post-hoc)
+- Review/audit cycle preserved (same gates as HITL mode)
+- Rollback trigger: if 2 consecutive cycles produce CHANGES_REQUIRED from review, spiral halts and escalates to HITL
+- First 3 cycles of any new spiral run generate comparison metrics vs HITL baselines in trajectory
+
+**Graceful stop/resume** (Flatline IMP-009): `/spiral --halt` sets state to HALTED, which is checked between cycles. The currently-running `claude -p` subprocess completes its cycle (not killed mid-work), but no new cycle starts. `/spiral --resume` continues from the halted state.
 
 ## 3. User & Stakeholder Context
 
-**Primary user**: Loa maintainer running `/spiral --start` in full mode. The spiral's `seed_phase()` queries the Vision Registry for relevant cross-cycle insights, producing higher-quality seed context than text-blob handoff.
+**Primary user**: Loa maintainer who runs `/spiral --start "Graduate the Vision Registry"`, walks away, and returns to a PR with Bridgebuilder review posted.
 
-**Secondary user**: Loa maintainer running `/review` or Bridgebuilder reviews. Visions accumulate and can now be managed — promoted to lore patterns when they prove their worth, archived when stale, rejected when invalid.
+**The contract**: The autonomous pipeline must produce the same quality artifacts as the HITL pipeline. The round-robin arbiter ensures multi-model adversarial review happens — just without human blocking.
 
 ## 4. Functional Requirements
 
-### FR-1 — Vision Query CLI (`vision-query.sh`)
+### FR-1 — `claude -p` Dispatch in spiral-simstim-dispatch.sh
 
-New script `.claude/scripts/vision-query.sh` wrapping `vision-lib.sh` functions:
+Replace the shell-script invocation at line 71 with a `claude -p` subprocess call:
 
-| Flag | Type | Description |
-|------|------|-------------|
-| `--tags <t1,t2>` | filter | Match visions containing ANY of the specified tags |
-| `--status <s>` | filter | Match visions with this status (Captured, Exploring, Proposed, Implemented, Deferred, Archived, Rejected) |
-| `--source <pattern>` | filter | Grep-match against Source field |
-| `--since <date>` | filter | Visions created on or after ISO date |
-| `--before <date>` | filter | Visions created before ISO date |
-| `--min-refs <n>` | filter | Visions with >= n references |
-| `--format json\|table\|ids` | output | JSON array (default), pipe-delimited table, or newline-separated IDs |
-| `--rebuild-index` | action | Regenerate index.md from entry files (G4) |
-| `--count` | output | Return count of matching visions instead of listing |
-| `--limit <n>` | output | Max results (default: 50) |
-
-**Status filter grammar** (Flatline SKP-001): `--status` accepts a comma-separated list. `--status Captured,Exploring,Proposed` matches visions in any of those states. Normalized to lowercase internally. This is required by FR-3's multi-status query.
-
-**Composability**: Filters are AND-combined. `--tags security --status Captured --since 2026-04-01` returns security-tagged visions captured since April 1st.
-
-**Implementation**: Parse frontmatter from each `grimoires/loa/visions/entries/vision-*.md` via awk/sed (no jq dependency on markdown). For `--format json`, emit structured JSON. For `--rebuild-index`, regenerate the pipe-delimited table and statistics section.
-
-**Exit codes** (Flatline IMP-001):
-
-| Exit code | Meaning |
-|-----------|---------|
-| 0 | Success (results found, or rebuild complete) |
-| 1 | No results matching filters (not an error — empty JSON array on stdout) |
-| 2 | Invalid arguments (bad flag, unknown status, malformed date) |
-| 3 | Parse error (corrupt entry file, quarantined — see NFR-7) |
-| 4 | I/O error (permission denied, missing visions directory) |
-
-**Frontmatter schema contract** (Flatline IMP-008): Entries MUST conform to this canonical schema:
-
-```markdown
-# Vision: <TITLE>
-
-**ID**: vision-NNN
-**Source**: <free-text source reference>
-**PR**: #<number> | (omitted)
-**Date**: <ISO-8601 UTC timestamp>
-**Status**: Captured|Exploring|Proposed|Implemented|Deferred|Archived|Rejected
-**Tags**: [comma-separated, lowercase-hyphenated]
-```
-
-Parser behavior on malformed entries: log warning, skip entry (not fail), report via exit code 3 if `--strict` flag. Non-strict mode (default) quarantines invalid entries in output as `"parse_error": true` and continues.
-
-**Performance**: File-scan approach is fine — we have <100 visions. If this grows, a future cycle can add a JSON index cache.
-
-### FR-2 — Vision Lifecycle CLI (`vision-lifecycle.sh`)
-
-New script `.claude/scripts/vision-lifecycle.sh` managing lifecycle transitions:
-
-| Command | Transition | Effect |
-|---------|-----------|--------|
-| `promote <id>` | Any → Implemented | Generate lore entry via `vision_generate_lore_entry()`, append to `grimoires/loa/lore/discovered/visions.yaml`, update vision status to `Implemented`, update index |
-| `archive <id> [--reason <text>]` | Any non-terminal → Archived | Update vision status, add `Archived-Reason` to frontmatter, update index |
-| `reject <id> --reason <text>` | Any non-terminal → Rejected | Update vision status, add `Rejected-Reason` to frontmatter (reason required), update index |
-| `explore <id>` | Captured → Exploring | Update vision status, update index |
-| `propose <id>` | Exploring → Proposed | Update vision status, update index |
-
-**Transition rules**:
-- Terminal states: `Implemented`, `Archived`, `Rejected` — no further transitions
-- `promote` can be called from any non-terminal state (shortcut for visions that prove valuable quickly)
-- `reject` requires `--reason` (prevents casual rejection without explanation)
-- All transitions use `vision_update_status()` from vision-lib.sh (atomic flock-guarded writes)
-- All transitions update index.md via `vision-query.sh --rebuild-index`
-- **Input sanitization** (Flatline SKP-005): `--reason` text stripped of pipe `|` characters (break markdown tables), newlines (break frontmatter), and control characters. All reason text written to JSONL via `jq --arg`. Vision content flowing to YAML uses `vision_sanitize_text()` (existing allowlist extractor)
-
-**Exit codes** (Flatline IMP-001): Same table as FR-1, plus exit code 5 for invalid transition (e.g., promoting an already-Rejected vision).
-
-**Lore elevation on promote**:
-1. Call `vision_generate_lore_entry()` to create YAML entry
-2. Append to `grimoires/loa/lore/discovered/visions.yaml` via `vision_append_lore_entry()` (idempotent — checks vision_id)
-3. Log `vision_promoted` trajectory event with vision_id, lore_entry_id
-
-### FR-3 — Spiral seed_phase() Full Mode Integration
-
-Replace the demotion fallback in `spiral-orchestrator.sh:515` with actual registry queries:
-
-1. **Mode selection** (existing logic): read `spiral.seed.mode` from config
-2. **Full mode path** (new):
-   - Extract tags from current cycle context (PRD keywords, previous cycle's findings)
-   - Query registry: `vision-query.sh --tags <derived_tags> --status Captured,Exploring,Proposed --format json --limit 10`
-   - If zero results, fall back to cold start (not degraded) — full mode that finds nothing is still full mode
-   - Build structured seed context from query results: vision ID, title, insight excerpt (first 200 chars), tags
-   - Write `seed-context.md` with structured format (Flatline IMP-004):
-     ```json
-     {
-       "mode": "full",
-       "query": {"tags": ["security"], "statuses": ["Captured","Exploring"], "limit": 10},
-       "visions": [
-         {
-           "id": "vision-009",
-           "title": "Audit-Mode Context Filtering",
-           "tags": ["security", "epistemic-enforcement"],
-           "status": "Captured",
-           "date": "2026-02-19T...",
-           "insight_excerpt": "First 200 chars of ## Insight section...",
-           "relevance_score": 0.8
-         }
-       ],
-       "total_bytes": 1234,
-       "budget_bytes": 4096,
-       "truncated": false
-     }
-     ```
-   - Log `seed_full` trajectory event with query parameters, result count, total context bytes
-3. **Tag derivation strategy** (Flatline IMP-002): Extract tags from the cycle's HARVEST sidecar (`cycle-outcome.json`) if available. Deterministic mapping:
-
-   | HARVEST category | Vision tag |
-   |-----------------|------------|
-   | `security` | `security` |
-   | `architecture` | `architecture` |
-   | `performance` | `performance` |
-   | `reliability` | `reliability` |
-   | `testing` | `testing` |
-   | `code-quality` | `code-quality` |
-   | `documentation` | `documentation` |
-   | (unmapped) | Skipped with warning log |
-
-   Fallback: use configured default tags from `.loa.config.yaml` (`spiral.seed.default_tags`). If HARVEST sidecar has no `findings[].category` fields, fall back to default tags.
-4. **Context budget**: 4KB max for seed context (same as degraded mode). If query results exceed budget, prioritize by: (a) tag overlap score via `vision_match_tags()`, (b) recency.
-
-**Design decision** (cycle-067): full mode cold-starts explicitly. No degraded→full reconciliation. If a cycle ran in degraded mode and produced a `seed-context.md` text blob, switching to full mode ignores it and queries the registry fresh.
-
-### FR-4 — Octal Bug Fix
-
-`bridge-vision-capture.sh:236`:
-
-**Current** (buggy):
 ```bash
-vision_id=$(printf "vision-%03d" "$local_num")
+claude -p "$prompt" \
+  --dangerously-skip-permissions \
+  --max-budget-usd "$budget" \
+  --model opus \
+  --output-format json \
+  2>"$cycle_dir/claude-stderr.log"
 ```
 
-Where `local_num` is derived from filename parsing that can produce zero-padded strings like `009`.
+**Prompt construction**: The dispatch prompt must include:
+- The task description (from spiral config or CLI arg)
+- Seed context (from `seed-context.md` if available)
+- Instruction to run `/simstim --autonomous` with the task
+- Instruction to create a PR on completion
 
-**Fix**: Force base-10 interpretation before arithmetic:
-```bash
-local_num=$((10#$local_max + 1))
-vision_id=$(printf "vision-%03d" "$local_num")
+**Subprocess isolation**:
+- Each cycle gets its own `claude -p` invocation (fresh context window)
+- `--dangerously-skip-permissions` for autonomous operation
+- `--max-budget-usd` from `spiral.max_budget_per_cycle_usd` config (default: $10)
+- stdout captured for artifact extraction, stderr logged to `cycle_dir/claude-stderr.log`
+- Exit code: 0 = success (PR created), non-zero = cycle failed
+
+**Output parsing**: `--output-format json` returns structured output. Parse for:
+- PR URL (extract from final message)
+- Artifact presence (reviewer.md, auditor-sprint-feedback.md in working dir)
+
+**Timeout**: Wrapped by spiral's `with_step_timeout` using `spiral.step_timeouts.simstim_sec` (default: 7200 = 2 hours).
+
+**Mid-cycle failure semantics** (Flatline IMP-002): When `claude -p` subprocess fails:
+- Exit 0: success — harvest artifacts
+- Exit 1-125: application error — mark cycle failed, proceed to HARVEST (fail-closed quality gate stops spiral)
+- Exit 124: timeout from `timeout(1)` — same as application error
+- Exit 126/127: CLI not found/executable — abort spiral with `dispatch_error`
+- Partial artifacts: if PR was created but review/audit incomplete, the PR URL is still harvested and logged. Next cycle's seed context includes the partial state.
+
+**Output parsing contract** (Flatline IMP-004): `claude -p --output-format json` returns structured JSON. Define strict completion schema:
+```json
+{"type": "result", "result": "<final message text>"}
+```
+Parse PR URL via regex `https://github.com/[^/]+/[^/]+/pull/[0-9]+` from result text. If no PR URL found after successful exit, log warning and mark cycle as `completed_no_pr`. Fail hard only on malformed JSON (not missing PR URL — the subprocess may have succeeded but not created a PR if review/audit failed).
+
+### FR-2 — Simstim `--autonomous` Flag
+
+New flag for the simstim workflow that auto-proceeds through all phases:
+
+**Structured assumptions** (Flatline SKP-008): Autonomous PRD generation MUST include an `## Assumptions` section listing what the agent assumed in the absence of human Q&A. This surfaces potential misunderstandings for the Flatline arbiter to catch.
+
+| Phase | HITL Behavior | Autonomous Behavior |
+|-------|--------------|---------------------|
+| 1 (Discovery) | Interactive Q&A | Auto-generate PRD from task description + seed context (with ## Assumptions) |
+| 2 (Flatline PRD) | Present blockers | Arbiter decides (FR-4) |
+| 3 (Architecture) | Interactive Q&A | Auto-generate SDD from PRD |
+| 3.5 (Bridgebuilder) | Present findings | Auto-integrate accepted, auto-defer REFRAME |
+| 4 (Flatline SDD) | Present blockers | Arbiter decides (FR-4) |
+| 4.5 (Red Team) | Prompt Y/n | Auto-skip (red team is opt-in) |
+| 5 (Planning) | Interactive Q&A | Auto-generate sprint plan from PRD+SDD |
+| 6 (Flatline Sprint) | Present blockers | Arbiter decides (FR-4) |
+| 7 (Implementation) | Prompt Continue? | Auto-proceed to `/run sprint-plan` |
+
+**Detection**: The `--autonomous` flag sets `SIMSTIM_AUTONOMOUS=1` env var, which simstim checks at each HITL decision point.
+
+**State tracking**: `simstim-state.json` records `"mode": "autonomous"` for recovery.
+
+### FR-3 — `spiral.enabled` Config + Task Passthrough
+
+Wire `spiral.enabled: true` in config. Add `spiral.task` field for the task description that passes through to each cycle's simstim:
+
+```yaml
+spiral:
+  enabled: true
+  task: "Graduate the Vision Registry"  # Set by /spiral --start or config
+  max_budget_per_cycle_usd: 10
+  step_timeouts:
+    seed_sec: 30
+    simstim_sec: 7200
+    harvest_sec: 60
 ```
 
-This ensures `009` is parsed as decimal 9, not invalid octal.
+The `/spiral --start "task description"` CLI stores the task in `.run/spiral-state.json` and passes it to each cycle's dispatch prompt.
 
-### FR-5 — Index Rebuild Mechanism
+### FR-4 — Flatline Round-Robin Arbiter
 
-`vision-query.sh --rebuild-index`:
+New Phase 3 in the Flatline Protocol for autonomous decision-making:
 
-1. Scan all `grimoires/loa/visions/entries/vision-*.md` files
-2. Parse frontmatter from each (ID, Title from `# Vision:` header, Source, Status, Tags)
-3. Read ref count from `vision_record_ref()` data (or default 0)
-4. Regenerate `grimoires/loa/visions/index.md` with:
-   - Schema version comment
-   - Pipe-delimited table sorted by ID
-   - Accurate statistics section (count by status)
-5. Atomic write via `vision_atomic_write()`
+**Current flow** (Phase 1 → Phase 2 → HITL):
+```
+Phase 1: 3 models review independently
+Phase 2: 3 models cross-score
+→ HIGH_CONSENSUS: auto-integrate
+→ DISPUTED: present to human
+→ BLOCKER: present to human
+```
 
-**Idempotent**: Running rebuild twice produces identical output.
+**New flow** (Phase 1 → Phase 2 → Phase 3 arbiter):
+```
+Phase 1: 3 models review independently
+Phase 2: 3 models cross-score
+Phase 3: Arbiter model sees all findings + scores, decides per-finding
+→ HIGH_CONSENSUS: auto-integrate (unchanged)
+→ DISPUTED: arbiter decides accept/reject with rationale
+→ BLOCKER: arbiter decides override(+rationale)/reject with rationale
+```
+
+**Arbiter rotation** (round-robin per Flatline phase):
+
+| Flatline Phase | Arbiter Model | Rationale |
+|---------------|---------------|-----------|
+| PRD review | Opus | Strongest architectural reasoning |
+| SDD review | GPT | Different perspective for architecture |
+| Sprint review | Gemini | Third perspective for planning |
+
+Rotation prevents any single model's biases from dominating across the full pipeline. The arbiter has seen all other models' scores, so it makes an informed decision — not a vote, but a reasoned judgment with full context.
+
+**Arbiter prompt**: Receives:
+- The original document being reviewed
+- All findings (with scores from all models)
+- Consensus classification (HIGH_CONSENSUS, DISPUTED, BLOCKER)
+- Instruction: "For each DISPUTED or BLOCKER finding, decide: ACCEPT (integrate the suggestion), REJECT (with rationale). Your decision is final for this phase."
+
+**Output**: JSON array of decisions:
+```json
+[
+  {"finding_id": "SKP-001", "decision": "accept", "rationale": "Valid security concern..."},
+  {"finding_id": "IMP-005", "decision": "reject", "rationale": "Already addressed by..."}
+]
+```
+
+**Trajectory logging**: All arbiter decisions logged with full context (finding, scores, rationale) to `grimoires/loa/a2a/trajectory/flatline-arbiter-{date}.jsonl`.
+
+**Config gate**:
+```yaml
+flatline_protocol:
+  autonomous_arbiter:
+    enabled: true
+    rotation: [opus, gpt-5.3-codex, gemini-2.5-pro]
+```
+
+**Fallback** (Flatline SKP-006): If arbiter call fails (timeout, API error), cascade to next model in rotation. If all 3 fail, fall back to conservative auto-reject for BLOCKERs. Log each fallback attempt to trajectory.
+
+**Provider cascade**: Opus fails → try GPT → try Gemini → auto-reject. This 3-model cascade ensures arbiter availability even with single-provider outages.
+
+### FR-5 — Branch Chaining for Multi-Cycle PRs
+
+Each spiral cycle creates a new branch and PR that chains back to the previous:
+
+**Branch naming**: `feat/spiral-{spiral_id}-cycle-{N}` (e.g., `feat/spiral-abc123-cycle-1`)
+
+**Idempotency** (Flatline SKP-005): Before creating branch, check `git branch --list "feat/spiral-*-cycle-$N"`. Before creating PR, check `gh pr list --head <branch> --json number`. If branch/PR already exist, reuse them instead of creating duplicates.
+
+**PR description includes**:
+- Parent PR reference: `Parent: #NNN` (links to previous cycle's PR)
+- Cycle number and spiral ID for traceability
+- Seed context summary (what findings from the previous cycle informed this one)
+
+**Implementation in dispatch wrapper**:
+1. Before invoking `claude -p`, create the branch from current HEAD
+2. Pass `--branch` info to the simstim prompt
+3. After cycle completes, harvest the PR URL from the subprocess output
+4. Store in `cycle-outcome.json` sidecar as `pr_url` field
+5. Next cycle's seed context includes the previous PR URL for linking
 
 ### FR-6 — Config Extensions
 
-New config keys in `.loa.config.yaml`:
-
 ```yaml
-vision_registry:
-  enabled: true                     # Graduate from false to true
-  # ... existing keys unchanged ...
-
 spiral:
-  seed:
-    mode: "full"                    # Graduate from "degraded" to "full"
-    default_tags: ["architecture", "security"]  # Fallback tags when no HARVEST context
-    max_seed_visions: 10            # Max visions in seed context
+  enabled: true
+  task: ""                              # Set dynamically by --start
+  max_budget_per_cycle_usd: 10          # Per-cycle cost cap
+  max_total_budget_usd: 50              # Spiral-level hard stop (Flatline IMP-003)
+  status_file: ".run/spiral-status.txt" # Lightweight status artifact (Flatline IMP-007)
+  step_timeouts:
+    seed_sec: 30
+    simstim_sec: 7200                   # 2 hours per cycle
+    harvest_sec: 60
+
+flatline_protocol:
+  autonomous_arbiter:
+    enabled: false                      # Opt-in (graduates to true when proven)
+    rotation:
+      - opus
+      - gpt-5.3-codex
+      - gemini-2.5-pro
+    fallback: "reject"                  # Conservative fallback on arbiter failure
+    max_arbiter_tokens: 4000            # Budget for arbiter response
 ```
 
 ## 5. Technical & Non-Functional Requirements
 
 | NFR | Requirement |
 |-----|-------------|
-| NFR-1 | Zero new dependencies (bash/jq/awk/sed only) |
-| NFR-2 | All file mutations via `vision_atomic_write()` (flock-guarded) |
-| NFR-3 | All JSON construction via `jq --arg`/`--argjson` (no heredoc interpolation) |
-| NFR-4 | Query script completes in <2s for 100 vision entries |
-| NFR-5 | Lifecycle transitions logged to trajectory JSONL |
-| NFR-6 | Index rebuild is idempotent |
-| NFR-7 | Vision entry frontmatter parsing tolerant of minor format variations |
+| NFR-1 | `claude` CLI must be on PATH (validated at dispatch time) |
+| NFR-2 | Each cycle subprocess fully isolated (own context, own state) |
+| NFR-3 | Arbiter API call budget: single call per Flatline phase (~$0.50) |
+| NFR-4 | All arbiter decisions logged to trajectory JSONL |
+| NFR-5 | Existing HITL mode unchanged — autonomous is opt-in via flag |
+| NFR-6 | `--dangerously-skip-permissions` only used in spiral subprocess, not main session |
 
 ## 6. Risks & Dependencies
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| Frontmatter parsing fragility | Medium | Medium | Strict format validation via `vision_validate_entry()`, rebuild normalizes |
-| Tag derivation produces irrelevant matches | Medium | Low | Cold-start fallback if zero results; context budget limits noise |
-| Index rebuild overwrites manual edits | Low | Low | Index is generated, not hand-edited; rebuild is the source of truth |
-| Full mode produces worse seed than degraded | Low | Medium | Trajectory logging enables comparison; can revert to degraded via config |
+| `claude -p` subprocess fails mid-cycle | Medium | Medium | HARVEST fail-closed; cycle marked failed; spiral continues to next |
+| Arbiter makes poor decisions | Medium | Medium | Trajectory logging enables post-hoc review; fallback to conservative reject |
+| Context window insufficient for single cycle | Low | High | Simstim autonomous uses same phases; context managed by Claude Code |
+| Cost overrun across cycles | Medium | Low | Per-cycle budget cap + spiral-level hard stop (IMP-003) |
+| `--dangerously-skip-permissions` security concern | Low | Medium | Subprocess runs in same directory with same user permissions; no escalation |
 
-**Dependencies**: vision-lib.sh (cycle-067, stable), spiral-orchestrator.sh (cycle-068, merged), bridge-vision-capture.sh (existing).
+**Dependencies**: PR #496 (Vision Registry, seed_phase full mode), `claude` CLI on PATH.
 
 ## 7. Acceptance Criteria
 
-- [ ] `vision-query.sh` filters by tag, status, source, date, min-refs and returns correct results
-- [ ] `vision-query.sh --format json` emits valid JSON array
-- [ ] `vision-query.sh --rebuild-index` regenerates index.md matching actual entry files
-- [ ] `vision-lifecycle.sh promote` creates lore entry and updates status to Implemented
-- [ ] `vision-lifecycle.sh archive` and `reject` update status with reason tracking
-- [ ] Terminal states (Implemented, Archived, Rejected) block further transitions
-- [ ] `reject` requires `--reason` flag
-- [ ] `seed_phase()` full mode queries registry and builds structured seed context
-- [ ] Full mode with zero query results falls back to cold start (not degraded)
-- [ ] Seed context respects 4KB budget with tag-overlap + recency prioritization
-- [ ] Ranking: visions with higher tag overlap score appear before lower (Flatline IMP-007)
-- [ ] Truncation: when results exceed 4KB budget, lowest-ranked visions are dropped (not truncated mid-entry)
-- [ ] Seed context JSON validates against the schema defined in FR-3
-- [ ] Octal bug fixed: vision IDs 008, 009, 010+ work correctly
-- [ ] Index statistics are accurate after rebuild
-- [ ] All existing vision/spiral tests pass
-- [ ] New tests cover query filtering, lifecycle transitions, full-mode seed, octal edge case
-- [ ] Sub-agent review + audit APPROVED
-- [ ] PR merged to main
+- [ ] `spiral-simstim-dispatch.sh` invokes `claude -p` with correct flags
+- [ ] `claude` CLI availability validated before dispatch (exit 127 if missing)
+- [ ] Per-cycle budget cap enforced via `--max-budget-usd`
+- [ ] Subprocess stdout/stderr captured to cycle_dir logs
+- [ ] Simstim `--autonomous` flag auto-proceeds through all phases
+- [ ] Autonomous discovery generates PRD from task + seed context without Q&A
+- [ ] Autonomous Flatline uses arbiter instead of HITL prompts
+- [ ] Arbiter rotation: Opus→PRD, GPT→SDD, Gemini→Sprint
+- [ ] Arbiter decisions logged to trajectory with full context
+- [ ] Arbiter fallback to conservative reject on failure
+- [ ] `spiral.enabled: true` wired in config
+- [ ] `spiral.task` passes through to dispatch prompt
+- [ ] Each cycle creates a new branch `feat/spiral-{id}-cycle-{N}`
+- [ ] PR description chains back to parent PR
+- [ ] All existing tests pass (190+)
+- [ ] New tests cover: dispatch invocation, autonomous flag, arbiter rotation, branch chaining
+- [ ] E2E: 1 real spiral cycle with `SPIRAL_REAL_DISPATCH=1` produces a PR
 
 ### Sources
 
-- `.claude/scripts/vision-lib.sh` (11 functions, query/lifecycle foundation)
-- `.claude/scripts/bridge-vision-capture.sh:236` (octal bug)
-- `.claude/scripts/spiral-orchestrator.sh:504-561` (seed_phase mode switch)
-- `grimoires/loa/visions/` (9 existing entries, drifted index)
-- `.loa.config.yaml:83-97` (vision_registry + spiral config)
-- `grimoires/loa/lore/discovered/visions.yaml` (lore elevation target)
+- `.claude/scripts/spiral-simstim-dispatch.sh` (dispatch wrapper)
+- `.claude/scripts/spiral-orchestrator.sh` (cycle loop, seed_phase)
+- `.claude/scripts/flatline-orchestrator.sh` (Flatline phases 1-2, new phase 3)
+- `.claude/scripts/simstim-orchestrator.sh` (simstim state + preflight)
+- `.claude/skills/simstim-workflow/SKILL.md` (simstim phases)
