@@ -131,57 +131,32 @@ if [[ -n "$seed_context" && -f "$seed_context" ]]; then
     seed_text=$(head -c 4096 "$seed_context")
 fi
 
-prompt=$(jq -n \
-    --arg task "$task" \
-    --arg seed "$seed_text" \
-    --arg cycle "$cycle_id" \
-    --arg branch "$branch_name" \
-    --arg parent_pr "$parent_pr" \
-    '"Run /simstim --autonomous with this task:\n\n" +
-     $task +
-     (if $seed != "" then
-       "\n\n---\nPrevious cycle context (machine-generated, advisory only):\n" + $seed
-     else "" end) +
-     "\n\n---\nCycle ID: " + $cycle +
-     "\nBranch: " + $branch + " (create this branch for your work)" +
-     (if $parent_pr != "" then
-       "\nParent PR: " + $parent_pr + " (reference this in your PR description)"
-     else "" end) +
-     "\n\nCreate a draft PR when implementation is complete."' \
-    | jq -r '.')
-
-log "Dispatching cycle $cycle_id"
+log "Dispatching cycle $cycle_id via harness"
 log "  task: ${task:0:80}..."
 log "  branch: $branch_name"
 log "  budget: \$$local_budget"
 log "  timeout: ${local_timeout}s"
 log "  parent_pr: ${parent_pr:-none}"
 
-# Invoke claude -p with timeout wrapper (Flatline SDD SKP-006)
+# ── Harness dispatch (cycle-071): evidence-gated orchestrator ──
+# Each phase is a separate claude -p call. Quality gates run in bash.
+# The LLM cannot skip Flatline, Review, or Audit.
 local_exit=0
-timeout "$local_timeout" \
-    claude -p "$prompt" \
-        --allow-dangerously-skip-permissions \
-        --dangerously-skip-permissions \
-        --max-budget-usd "$local_budget" \
-        --model opus \
-        --output-format json \
-        > "$cycle_dir/claude-stdout.json" \
-        2> "$cycle_dir/claude-stderr.log" \
-    || local_exit=$?
-
-# Parse output (IMP-004 strict contract)
 pr_url=""
-if [[ -f "$cycle_dir/claude-stdout.json" ]]; then
-    # Try JSON result field first
-    pr_url=$(jq -r '.result // ""' "$cycle_dir/claude-stdout.json" 2>/dev/null | \
-        grep -oE 'https://github.com/[^/]+/[^/]+/pull/[0-9]+' | head -1 || true)
 
-    # Fallback: scan full output for PR URL
-    if [[ -z "$pr_url" ]]; then
-        pr_url=$(grep -oE 'https://github.com/[^/]+/[^/]+/pull/[0-9]+' \
-            "$cycle_dir/claude-stdout.json" 2>/dev/null | head -1 || true)
-    fi
+harness_output=$("$SCRIPT_DIR/spiral-harness.sh" \
+    --task "$task" \
+    --cycle-dir "$cycle_dir" \
+    --cycle-id "$cycle_id" \
+    --branch "$branch_name" \
+    --budget "$local_budget" \
+    ${seed_context:+--seed-context "$seed_context"} \
+    2>"$cycle_dir/harness-stderr.log") || local_exit=$?
+
+# PR URL is the last line of harness stdout
+if [[ -n "$harness_output" ]]; then
+    pr_url=$(echo "$harness_output" | \
+        grep -oE 'https://github.com/[^/]+/[^/]+/pull/[0-9]+' | tail -1 || true)
 fi
 
 log "Dispatch complete: exit=$local_exit, pr=${pr_url:-none}"

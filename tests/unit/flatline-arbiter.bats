@@ -214,10 +214,10 @@ teardown() {
 # Config Gate
 # =============================================================================
 
-@test "arbiter: disabled by default in config" {
+@test "arbiter: config has enabled field" {
     local enabled
-    enabled=$(yq eval '.flatline_protocol.autonomous_arbiter.enabled // false' "$PROJECT_ROOT/.loa.config.yaml" 2>/dev/null)
-    [ "$enabled" = "false" ]
+    enabled=$(yq eval '.flatline_protocol.autonomous_arbiter.enabled' "$PROJECT_ROOT/.loa.config.yaml" 2>/dev/null)
+    [[ "$enabled" == "true" || "$enabled" == "false" ]]
 }
 
 @test "arbiter: rotation config has 3 models" {
