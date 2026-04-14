@@ -488,12 +488,395 @@ log_trajectory() {
 }
 
 # =============================================================================
+# Phase Helpers (cycle-067)
+# =============================================================================
+
+# Source the HARVEST adapter
+ADAPTER_SCRIPT="$SCRIPT_DIR/spiral-harvest-adapter.sh"
+if [[ -f "$ADAPTER_SCRIPT" ]]; then
+    source "$ADAPTER_SCRIPT"
+fi
+
+# seed_phase <cycle_dir> <cycle_id> <prev_cycle_dir>
+# FR-5: Degraded mode — reads previous cycle's sidecar and writes seed-context.md
+seed_phase() {
+    local cycle_dir="$1"
+    local cycle_id="$2"
+    local prev_cycle_dir="${3:-}"
+
+    local seed_mode
+    seed_mode=$(read_config "spiral.seed.mode" "degraded")
+
+    # Full mode without Vision Registry → degrade with warning
+    if [[ "$seed_mode" == "full" ]]; then
+        log "WARNING: seed.mode=full but Vision Registry (#486) not available. Degrading to degraded mode."
+        seed_mode="degraded"
+        log_trajectory "seed_mode_transition" \
+            "$(jq -n --arg c "$cycle_id" '{cycle_id: $c, from: "full", to: "degraded", action: "cold_start"}')"
+    fi
+
+    if [[ "$seed_mode" == "degraded" ]] && [[ -n "$prev_cycle_dir" ]] && [[ -d "$prev_cycle_dir" ]]; then
+        local prev_sidecar="${prev_cycle_dir}/${SPIRAL_SIDECAR_FILENAME:-cycle-outcome.json}"
+        if [[ -f "$prev_sidecar" ]]; then
+            # Read previous sidecar and compose seed context
+            local prev_cycle_id review_v audit_v findings_summary
+            prev_cycle_id=$(basename "$prev_cycle_dir")
+            review_v=$(jq -r '.review_verdict // "unknown"' "$prev_sidecar" 2>/dev/null)
+            audit_v=$(jq -r '.audit_verdict // "unknown"' "$prev_sidecar" 2>/dev/null)
+            findings_summary=$(jq -r '
+                "- Blocker: \(.findings.blocker // 0), High: \(.findings.high // 0), Medium: \(.findings.medium // 0), Low: \(.findings.low // 0)"
+            ' "$prev_sidecar" 2>/dev/null)
+            local sig
+            sig=$(jq -r '.flatline_signature // "none"' "$prev_sidecar" 2>/dev/null)
+
+            cat > "${cycle_dir}/seed-context.md" <<SEEDEOF
+# Seed Context for ${cycle_id}
+
+**Source**: previous cycle \`${prev_cycle_id}\` (harvest sidecar v1)
+
+## Verdicts
+- Review: ${review_v}
+- Audit: ${audit_v}
+
+## Findings Summary
+${findings_summary}
+
+## Flatline Signature
+${sig}
+
+## Pointer
+Previous reviewer: ${prev_cycle_dir}/reviewer.md
+Previous auditor:  ${prev_cycle_dir}/auditor-sprint-feedback.md
+SEEDEOF
+
+            local context_bytes
+            context_bytes=$(wc -c < "${cycle_dir}/seed-context.md")
+            log_trajectory "seed_degraded" \
+                "$(jq -n --arg c "$cycle_id" --arg src "$prev_cycle_id" --argjson bytes "$context_bytes" \
+                    '{cycle_id: $c, source_cycle_id: $src, context_bytes: $bytes}')"
+            return 0
+        fi
+        # Previous sidecar missing (corrupt/truncated) → fall through to cold
+    fi
+
+    # Cold start (first cycle or no valid predecessor)
+    log_trajectory "seed_cold" \
+        "$(jq -n --arg c "$cycle_id" --arg r "no_predecessor_or_first_cycle" \
+            '{cycle_id: $c, reason: $r}')"
+}
+
+# simstim_phase <cycle_dir> <cycle_id>
+# FR-1.1: Stub dispatch — writes mock artifacts + sidecar
+simstim_phase() {
+    local cycle_dir="$1"
+    local cycle_id="$2"
+
+    local stub_findings="${SPIRAL_STUB_FINDINGS:-3}"
+    # Validate: integer ≥ 0, default 3 on malformed (Flatline IMP-005)
+    if ! [[ "$stub_findings" =~ ^[0-9]+$ ]]; then
+        stub_findings=3
+    fi
+
+    log "STUB: simstim dispatch not yet wired — cycle-068"
+
+    # Write mock reviewer.md
+    cat > "${cycle_dir}/reviewer.md" <<REVEOF
+# Stub Review — ${cycle_id}
+
+## Verdict
+
+APPROVED
+
+## Findings Summary
+
+| Severity | Count |
+|----------|-------|
+| Blocker | 0 |
+| High | ${stub_findings} |
+| Medium | 0 |
+| Low | 0 |
+REVEOF
+
+    # Write mock auditor-sprint-feedback.md
+    cat > "${cycle_dir}/auditor-sprint-feedback.md" <<AUDEOF
+# Stub Audit — ${cycle_id}
+
+## Final Verdict
+
+APPROVED
+
+## Findings Summary
+
+| Severity | Count |
+|----------|-------|
+| Blocker | 0 |
+| High | 0 |
+| Medium | 0 |
+| Low | 0 |
+AUDEOF
+
+    # Emit sidecar via adapter
+    local findings_json
+    findings_json=$(jq -n --argjson h "$stub_findings" \
+        '{blocker: 0, high: $h, medium: 0, low: 0}')
+
+    if type -t emit_cycle_outcome_sidecar &>/dev/null; then
+        emit_cycle_outcome_sidecar "$cycle_dir" "APPROVED" "APPROVED" \
+            "$findings_json" "null" "1" "success" >/dev/null
+    fi
+
+    log_trajectory "simstim_stub" \
+        "$(jq -n --arg c "$cycle_id" --argjson f "$stub_findings" \
+            '{cycle_id: $c, mock_findings: $f}')"
+}
+
+# harvest_phase <cycle_dir> <cycle_id>
+# FR-8: Parse cycle outcome via adapter (3-tier precedence)
+harvest_phase() {
+    local cycle_dir="$1"
+    local cycle_id="$2"
+    local start_ms
+    start_ms=$(date +%s%N 2>/dev/null | cut -b1-13 || date +%s)
+
+    local result
+    if type -t parse_cycle_outcome &>/dev/null; then
+        result=$(parse_cycle_outcome "$cycle_dir" "$PROJECT_ROOT/.run" "$cycle_id" 2>/dev/null)
+    else
+        # Adapter not loaded — fail-closed
+        log "WARNING: harvest adapter not loaded"
+        result=$(jq -n --arg c "$cycle_id" '{
+            cycle_id: $c, review_verdict: null, audit_verdict: null,
+            findings_critical: 0, findings_minor: 0, exit_status: "failed",
+            parse_source: "adapter_missing"
+        }')
+    fi
+
+    local end_ms
+    end_ms=$(date +%s%N 2>/dev/null | cut -b1-13 || date +%s)
+    local duration=$((end_ms - start_ms))
+
+    local parse_source
+    parse_source=$(echo "$result" | jq -r '.parse_source // "unknown"')
+
+    log_trajectory "harvest_parsed" \
+        "$(jq -n --arg c "$cycle_id" --arg src "$parse_source" --argjson dur "$duration" \
+            '{cycle_id: $c, parse_source: $src, duration_ms: $dur}')"
+
+    echo "$result"
+}
+
+# append_cycle_record <cycle_id> <harvest_result_json>
+# Appends cycle to .cycles, idempotent by cycle_id (FR-9.4: dedup on resume)
+append_cycle_record() {
+    local cycle_id="$1"
+    local harvest_json="$2"
+
+    local timestamp
+    timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+    # Check for existing cycle_id (dedup)
+    local existing
+    existing=$(jq -r --arg cid "$cycle_id" '[.cycles[] | select(.cycle_id == $cid)] | length' "$STATE_FILE" 2>/dev/null)
+    if [[ "$existing" -gt 0 ]]; then
+        log "Cycle $cycle_id already in state (dedup on resume)"
+        return 0
+    fi
+
+    local cycle_index
+    cycle_index=$(jq -r '.cycles | length' "$STATE_FILE")
+
+    atomic_state_write \
+        --arg cid "$cycle_id" \
+        --argjson idx "$cycle_index" \
+        --arg ts "$timestamp" \
+        --argjson harvest "$harvest_json" \
+        '
+        .cycles += [{
+            cycle_id: $cid,
+            index: $idx,
+            started_at: $ts,
+            completed_at: $ts,
+            review_verdict: $harvest.review_verdict,
+            audit_verdict: $harvest.audit_verdict,
+            findings_critical: ($harvest.findings_critical // 0),
+            findings_minor: ($harvest.findings_minor // 0),
+            flatline_signature: ($harvest.flatline_signature // null),
+            content_hash: ($harvest.content_hash // null),
+            elapsed_sec: ($harvest.elapsed_sec // null),
+            exit_status: ($harvest.exit_status // "success"),
+            checkpoint: "INIT",
+            skipped: false
+        }] |
+        .cycle_index = ($idx + 1)
+        '
+}
+
+# run_single_cycle <cycle_index> <prev_cycle_dir>
+# Executes one spiral iteration: SEED → SIMSTIM → HARVEST → EVALUATE
+run_single_cycle() {
+    local i="$1"
+    local prev_cycle_dir="${2:-}"
+
+    local cycle_id
+    cycle_id="cycle-$(date -u +%s | tail -c 7)$(head -c 2 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+
+    local cycle_dir="${PROJECT_ROOT}/cycles/${cycle_id}"
+    mkdir -p "$cycle_dir"
+
+    # Read step timeouts from config
+    local t_workspace t_seed t_simstim t_harvest t_state t_evaluate
+    t_workspace=$(read_config "spiral.step_timeouts.workspace_init_sec" "10")
+    t_seed=$(read_config "spiral.step_timeouts.seed_sec" "5")
+    t_simstim=$(read_config "spiral.step_timeouts.simstim_sec" "3600")
+    t_harvest=$(read_config "spiral.step_timeouts.harvest_sec" "30")
+    t_state=$(read_config "spiral.step_timeouts.state_append_sec" "5")
+    t_evaluate=$(read_config "spiral.step_timeouts.evaluate_sec" "5")
+
+    # Append initial cycle record for checkpoint tracking
+    local init_harvest
+    init_harvest=$(jq -n '{review_verdict: null, audit_verdict: null, findings_critical: 0, findings_minor: 0, exit_status: "pending"}')
+    append_cycle_record "$cycle_id" "$init_harvest"
+
+    # Step 1: INIT checkpoint
+    write_checkpoint "$cycle_id" "INIT"
+
+    # Step 2: Workspace
+    if [[ -x "$SCRIPT_DIR/cycle-workspace.sh" ]]; then
+        with_step_timeout "workspace_init" "$t_workspace" \
+            "$SCRIPT_DIR/cycle-workspace.sh" init "$cycle_id" 2>/dev/null || true
+    fi
+    write_checkpoint "$cycle_id" "WORKSPACE"
+
+    # Step 3: SEED
+    with_step_timeout "seed" "$t_seed" \
+        seed_phase "$cycle_dir" "$cycle_id" "$prev_cycle_dir"
+    update_phase "SEED"
+    write_checkpoint "$cycle_id" "SEED"
+
+    # Step 4: SIMSTIM
+    update_phase "SIMSTIM"
+    with_step_timeout "simstim" "$t_simstim" \
+        simstim_phase "$cycle_dir" "$cycle_id"
+    write_checkpoint "$cycle_id" "SIMSTIM"
+
+    # Step 5: HARVEST
+    update_phase "HARVEST"
+    local harvest_result
+    harvest_result=$(with_step_timeout "harvest" "$t_harvest" \
+        harvest_phase "$cycle_dir" "$cycle_id")
+
+    # Update cycle record with harvest data
+    atomic_state_write \
+        --arg cid "$cycle_id" \
+        --argjson harvest "$harvest_result" \
+        '
+        .cycles = [.cycles[] |
+            if .cycle_id == $cid then
+                .review_verdict = $harvest.review_verdict |
+                .audit_verdict = $harvest.audit_verdict |
+                .findings_critical = ($harvest.findings_critical // 0) |
+                .findings_minor = ($harvest.findings_minor // 0) |
+                .flatline_signature = ($harvest.flatline_signature // null) |
+                .content_hash = ($harvest.content_hash // null) |
+                .exit_status = ($harvest.exit_status // "success")
+            else . end
+        ]
+        '
+
+    write_checkpoint "$cycle_id" "HARVEST"
+
+    # Step 6: EVALUATE
+    update_phase "EVALUATE"
+    local stop_reason
+    stop_reason=$(evaluate_stopping_conditions)
+    write_checkpoint "$cycle_id" "EVALUATE"
+
+    log_trajectory "cycle_completed" \
+        "$(jq -n --arg c "$cycle_id" --argjson idx "$i" \
+            '{cycle_id: $c, index: $idx}')"
+
+    write_checkpoint "$cycle_id" "COMPLETE"
+
+    # Return stop reason (empty = continue)
+    echo "$stop_reason"
+    echo "$cycle_dir"  # second line: cycle dir for SEED chaining
+}
+
+# run_cycle_loop
+# Main loop: dispatches run_single_cycle for each iteration
+run_cycle_loop() {
+    local max_cycles
+    max_cycles=$(jq -r '.max_cycles' "$STATE_FILE")
+
+    local prev_cycle_dir=""
+    local i=0
+
+    while [[ "$i" -lt "$max_cycles" ]]; do
+        i=$((i + 1))
+        log "Cycle $i / $max_cycles"
+
+        local output
+        output=$(run_single_cycle "$i" "$prev_cycle_dir")
+
+        local stop_reason cycle_dir
+        stop_reason=$(echo "$output" | head -1)
+        cycle_dir=$(echo "$output" | tail -1)
+
+        prev_cycle_dir="$cycle_dir"
+
+        if [[ -n "$stop_reason" ]]; then
+            log "Stopping: $stop_reason (cycle $i)"
+            coalesce_spiral_terminal_state "COMPLETED" "$stop_reason"
+            return 0
+        fi
+    done
+
+    # max_cycles reached
+    log "All $max_cycles cycles completed"
+    coalesce_spiral_terminal_state "COMPLETED" "cycle_budget_exhausted"
+}
+
+# spiral_crash_handler <exit_code>
+# Async-signal-safe trap handler (Bridgebuilder MEDIUM-1)
+spiral_crash_handler() {
+    local exit_code="${1:-0}"
+
+    # Normal exit → skip (Flatline SKP-003)
+    if [[ "$exit_code" -eq 0 ]]; then
+        return 0
+    fi
+
+    # Check if we're in a terminal state already
+    local current_state
+    current_state=$(jq -r '.state // "unknown"' "$STATE_FILE" 2>/dev/null) || current_state="unknown"
+    case "$current_state" in
+        COMPLETED|FAILED|HALTED|CRASHED) return 0 ;;
+    esac
+
+    # Write crash diagnostic via printf (async-signal-safe, no jq)
+    local crash_file="${PROJECT_ROOT}/.run/spiral-crash-$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || echo unknown).json"
+    local pid_val="$$"
+    local phase_val
+    phase_val=$(jq -r '.phase // "unknown"' "$STATE_FILE" 2>/dev/null) || phase_val="unknown"
+
+    printf '{"exit_code":%d,"pid":%d,"last_phase":"%s","crashed_at":"%s"}\n' \
+        "$exit_code" "$pid_val" "$phase_val" "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)" \
+        > "$crash_file" 2>/dev/null || true
+
+    # Skip state update if jq was in flight (Bridgebuilder MEDIUM-1)
+    if [[ "$_SPIRAL_JQ_IN_FLIGHT" -eq 1 ]] || [[ -f "${STATE_FILE}.tmp" ]]; then
+        return 0
+    fi
+
+    # Coalesce to CRASHED
+    coalesce_spiral_terminal_state "CRASHED" "signal_${exit_code}" 2>/dev/null || true
+}
+
+# =============================================================================
 # Commands
 # =============================================================================
 
 cmd_start() {
-    # MVP scaffolding: initializes state, validates config, runs preflight,
-    # and returns control. Full cycle dispatch lives in cycle-067+.
 
     if ! is_enabled; then
         error "/spiral is disabled. Set spiral.enabled: true in .loa.config.yaml"
@@ -519,12 +902,14 @@ cmd_start() {
 
     # Parse CLI overrides
     local dry_run=false
+    local init_only=false
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --max-cycles) max_cycles="$2"; shift 2 ;;
             --budget-cents) budget_cents="$2"; shift 2 ;;
             --wall-clock-seconds) wall_clock_seconds="$2"; shift 2 ;;
             --dry-run) dry_run=true; shift ;;
+            --init-only) init_only=true; shift ;;
             *) error "Unknown --start option: $1"; return 1 ;;
         esac
     done
@@ -571,10 +956,36 @@ cmd_start() {
 
     log_trajectory "spiral_started" "$(jq -n --arg id "$spiral_id" '{spiral_id: $id}')"
 
+    # Init-only mode: return after state creation (for tests + internal use)
+    if [[ "$init_only" == "true" ]]; then
+        jq -n \
+            --arg id "$spiral_id" \
+            --argjson max_cycles "$max_cycles" \
+            '{started: true, spiral_id: $id, max_cycles: $max_cycles, init_only: true}'
+        return 0
+    fi
+
+    # Record PID for guard (Flatline IMP-001)
+    record_pid
+
+    # Detect timeout availability (Bridgebuilder MEDIUM-2)
+    require_timeout
+
+    # Install crash trap (FR-9.2) — BEFORE loop (NFR-8)
+    trap 'spiral_crash_handler $?' EXIT INT TERM ERR
+
+    # Dispatch cycle loop (cycle-067: replaces MVP scaffolding)
+    run_cycle_loop
+
+    # Disable trap on normal exit
+    trap - EXIT INT TERM ERR
+
     jq -n \
         --arg id "$spiral_id" \
         --argjson max_cycles "$max_cycles" \
-        '{started: true, spiral_id: $id, max_cycles: $max_cycles, note: "MVP scaffolding — cycle dispatch lands in cycle-067+"}'
+        --arg state "$(jq -r '.state' "$STATE_FILE")" \
+        --arg condition "$(jq -r '.stopping_condition // "none"' "$STATE_FILE")" \
+        '{completed: true, spiral_id: $id, max_cycles: $max_cycles, state: $state, stopping_condition: $condition}'
 }
 
 cmd_status() {
@@ -639,13 +1050,29 @@ cmd_resume() {
     local current_state
     current_state=$(jq -r '.state' "$STATE_FILE")
 
-    if [[ "$current_state" == "RUNNING" ]]; then
-        error "Spiral is already RUNNING. No resume needed."
-        return 3
-    fi
+    case "$current_state" in
+        RUNNING)
+            # Check PID liveness — might be stale (orphan detection)
+            local existing_pid
+            existing_pid=$(jq -r '.pid // 0' "$STATE_FILE")
+            if [[ "$existing_pid" -gt 0 ]] && kill -0 "$existing_pid" 2>/dev/null; then
+                error "Spiral is already RUNNING (PID $existing_pid). No resume needed."
+                return 3
+            fi
+            # Stale RUNNING → treat as crash
+            log "Stale RUNNING detected (PID $existing_pid dead). Auto-coalescing to CRASHED."
+            coalesce_spiral_terminal_state "CRASHED" "orphan_detected"
+            current_state="CRASHED"
+            ;;
+        COMPLETED|FAILED)
+            error "Cannot resume from terminal state: $current_state. Use --start for a new spiral."
+            return 1
+            ;;
+    esac
 
-    if [[ "$current_state" != "HALTED" ]]; then
-        error "Cannot resume from state: $current_state (only HALTED resumable)"
+    # Resumable states: HALTED, CRASHED
+    if [[ "$current_state" != "HALTED" && "$current_state" != "CRASHED" ]]; then
+        error "Cannot resume from state: $current_state"
         return 1
     fi
 
@@ -653,20 +1080,36 @@ cmd_resume() {
     rm -f "$HALT_SENTINEL"
 
     # Transition back to RUNNING
-    local tmp="${STATE_FILE}.tmp"
     local timestamp
     timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    jq --arg ts "$timestamp" \
-        '.state = "RUNNING" |
-         .stopping_condition = null |
-         .timestamps.completed_at = null |
-         .timestamps.last_activity = $ts' \
-        "$STATE_FILE" > "$tmp"
-    mv "$tmp" "$STATE_FILE"
+    atomic_state_write --arg ts "$timestamp" '
+        .state = "RUNNING" |
+        .stopping_condition = null |
+        .timestamps.completed_at = null |
+        .timestamps.last_activity = $ts
+    '
 
-    log_trajectory "spiral_resumed" "{}"
+    # Record new PID
+    record_pid
 
-    jq -n '{resumed: true}'
+    log_trajectory "spiral_resumed" \
+        "$(jq -n --arg from "$current_state" '{from_state: $from}')"
+
+    # Detect timeout availability
+    require_timeout
+
+    # Install crash trap
+    trap 'spiral_crash_handler $?' EXIT INT TERM ERR
+
+    # Resume cycle loop from where it left off
+    run_cycle_loop
+
+    trap - EXIT INT TERM ERR
+
+    jq -n \
+        --arg state "$(jq -r '.state' "$STATE_FILE")" \
+        --arg condition "$(jq -r '.stopping_condition // "none"' "$STATE_FILE")" \
+        '{resumed: true, completed: true, state: $state, stopping_condition: $condition}'
 }
 
 cmd_check_stop() {
