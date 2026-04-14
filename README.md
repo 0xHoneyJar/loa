@@ -2,22 +2,22 @@
 
 <!-- AGENT-CONTEXT: Loa is an agent-driven development framework for Claude Code.
 Primary interface: 5 Golden Path commands (/loa, /plan, /build, /review, /ship).
-Power user interface: 47 slash commands (truenames).
+Power user interface: 48 slash commands (truenames).
 Architecture: Three-zone model (System: .claude/, State: grimoires/ + .beads/, App: src/).
 Configuration: .loa.config.yaml (user-owned, never modified by framework).
 Health check: /loa doctor
-Version: 1.36.0
+Version: 1.88.0
 -->
 
-[![Version](https://img.shields.io/badge/version-1.67.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.88.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE.md)
-[![Release](https://img.shields.io/badge/release-Post--Merge%20Automation-purple.svg)](CHANGELOG.md#1360---2026-02-13)
+[![Release](https://img.shields.io/badge/release-Spiral%20Autopoietic%20Orchestrator-purple.svg)](CHANGELOG.md#1880---2026-04-15)
 
 > *"The Loa are pragmatic entities... They're not worshipped for salvation—they're worked with for practical results."*
 
 ## What Is This?
 
-Loa is an agent-driven development framework for [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) (Anthropic's official CLI). It adds 17 specialized AI agents, quality gates, persistent memory, and structured workflows on top of Claude Code. Works on macOS and Linux. Created by [@janitooor](https://github.com/janitooor) at [The Honey Jar](https://0xhoneyjar.xyz).
+Loa is an agent-driven development framework for [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) (Anthropic's official CLI). It adds 18 specialized AI agents, quality gates, persistent memory, and structured workflows on top of Claude Code — including a self-improving [spiral orchestrator](#spiral-autopoietic-orchestrator) that can autonomously plan, build, review, and learn across multiple development cycles. Works on macOS and Linux. Created by [@janitooor](https://github.com/janitooor) at [The Honey Jar](https://0xhoneyjar.xyz).
 
 ### Why "Loa"?
 
@@ -60,10 +60,11 @@ New project? See **[INSTALLATION.md](INSTALLATION.md#method-2-clone-template)** 
 **The solution**: Loa adds structure without ceremony. Each phase produces a traceable artifact (PRD, SDD, Sprint Plan, Code, Review, Audit) using specialized AI agents. Your code gets reviewed by a Tech Lead agent *and* a Security Auditor agent before it ships.
 
 **Key differentiators**:
-- **Multi-agent orchestration**: 17 specialized skills, not one general-purpose prompt
+- **Multi-agent orchestration**: 18 specialized skills, not one general-purpose prompt
 - **Quality gates**: Two-phase review (code + security) prevents unreviewed code from shipping
 - **Session persistence**: Beads task graph + persistent memory survive context clears
-- **Adversarial review**: Flatline Protocol uses cross-model dissent (Opus + GPT-5.2) for planning QA
+- **Adversarial review**: Flatline Protocol uses cross-model dissent (Opus + GPT) for planning QA
+- **Self-improving spiral**: `/spiral` dispatches autonomous development cycles with evidence-gated quality gates that the LLM cannot skip — [benchmarked](grimoires/loa/reports/spiral-harness-benchmark-report.md) and validated
 - **Zero-config start**: Mount onto any repo, type `/plan`, start building
 
 ## The Workflow
@@ -103,11 +104,11 @@ For fine-grained control, use the underlying commands directly:
 | 5.5 | `/audit-sprint sprint-N` | Security Approval |
 | 6 | `/deploy-production` | Infrastructure |
 
-**47 total commands.** Type `/loa` for the Golden Path or see [PROCESS.md](PROCESS.md) for all commands.
+**48 total commands.** Type `/loa` for the Golden Path or see [PROCESS.md](PROCESS.md) for all commands.
 
 ## The Agents
 
-Seventeen specialized skills that ride alongside you:
+Eighteen specialized skills that ride alongside you:
 
 | Skill | Role |
 |-------|------|
@@ -123,12 +124,41 @@ Seventeen specialized skills that ride alongside you:
 | run-mode | Autonomous Executor |
 | run-bridge | Excellence Loop Operator |
 | simstim-workflow | HITL Orchestrator |
+| spiraling | Autopoietic Meta-Orchestrator |
 | riding-codebase | Codebase Analyst |
 | continuous-learning | Learning Extractor |
 | flatline-knowledge | Knowledge Retriever |
 | browsing-constructs | Construct Browser |
 | mounting-framework | Framework Installer |
 | autonomous-agent | Autonomous Agent |
+
+## Spiral Autopoietic Orchestrator
+
+The spiral (`/spiral`) is a self-improving meta-loop that dispatches autonomous development cycles. Each cycle runs the full Loa workflow (plan, build, review, audit), then harvests lessons to seed the next cycle. The system learns from its own output.
+
+```
+/spiral --start "Build feature X"
+│
+├── SEED    — query Vision Registry for relevant prior insights
+├── SIMSTIM — dispatch full cycle (PRD → SDD → Sprint → Implement → Review → Audit → PR)
+├── HARVEST — extract learnings, promote patterns, capture visions
+└── EVALUATE — check stopping conditions, decide whether to continue
+```
+
+Quality gates are **evidence-gated**: a bash orchestrator sequences phases as separate `claude -p` subprocesses, with Flatline multi-model review, independent code review, and independent security audit running in bash between phases. The LLM cannot skip gates because it is not the LLM's decision.
+
+**Cost optimization**: Sonnet handles planning and implementation (~5x cheaper tokens), Opus handles review and audit (judgment quality). [Benchmarked](grimoires/loa/reports/spiral-harness-benchmark-report.md) at equivalent output quality across both models. Default budget: $15/cycle.
+
+```yaml
+# .loa.config.yaml — enable the spiral
+spiral:
+  enabled: true
+  harness:
+    executor_model: sonnet    # planning + implementation
+    advisor_model: opus       # review + audit
+```
+
+See [RFC-060](grimoires/loa/proposals/rfc-060-spiral.md) for the design, [harness architecture](grimoires/loa/proposals/spiral-harness-architecture.md) for the engineering pattern, and [benchmark report](grimoires/loa/reports/spiral-harness-benchmark-report.md) for the data.
 
 ## Architecture
 
@@ -161,7 +191,10 @@ Loa uses a **three-zone model** inspired by AWS Projen and Google's ADK:
 | **Run Mode** | Autonomous sprint execution with draft PRs | [CLAUDE.md](CLAUDE.md#run-mode) |
 | **Run Bridge** | Iterative excellence loop with Bridgebuilder review and flatline detection | [CLAUDE.md](CLAUDE.md#run-bridge) |
 | **Lore Knowledge Base** | Cultural/philosophical context for agent skills (Mibera + Neuromancer) | [Data](.claude/data/lore/) |
-| **Vision Registry** | Speculative insight capture from bridge iterations | [Visions](grimoires/loa/visions/) |
+| **Spiral Orchestrator** | Self-improving meta-loop: plan → build → review → harvest → repeat | [RFC-060](grimoires/loa/proposals/rfc-060-spiral.md) |
+| **Evidence-Gated Harness** | Bash-enforced quality gates that LLMs cannot skip — flight recorder audit trail | [Architecture](grimoires/loa/proposals/spiral-harness-architecture.md) |
+| **Advisor Strategy** | Sonnet executes (~5x cheaper), Opus judges (review/audit quality) | [Benchmark](grimoires/loa/reports/spiral-harness-benchmark-report.md) |
+| **Vision Registry** | Speculative insight capture from bridge iterations, graduated to active mode | [Visions](grimoires/loa/visions/) |
 | **Grounded Truth** | Checksum-verified codebase summaries extending `/ride` | [Script](.claude/scripts/ground-truth-gen.sh) |
 | **Simstim** | HITL accelerated development (PRD -> SDD -> Sprint -> Run) | [Command](.claude/commands/simstim.md) |
 | **Compound Learning** | Cross-session pattern detection + feedback loop | [CHANGELOG.md](CHANGELOG.md) |

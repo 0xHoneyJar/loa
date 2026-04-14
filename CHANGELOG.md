@@ -5,6 +5,141 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.88.0] - 2026-04-15 — Spiral Autopoietic Orchestrator
+
+Loa can now improve itself. The Spiral Autopoietic Orchestrator (`/spiral`) is a self-improving meta-loop that dispatches full development cycles (plan, build, review, audit), harvests lessons from each cycle, and feeds them into the next. This release ships the complete infrastructure across 13 cycles of development (059–071), culminating in an evidence-gated harness architecture that was validated through A/B benchmarking of Sonnet vs Opus executor models.
+
+The key architectural insight: **LLMs skip quality gates when self-supervising.** Cycle-070's E2E test proved it — a monolithic `claude -p` session self-certified every gate in 4 seconds. The fix is harness engineering: bash controls sequencing, the LLM does scoped work within bounded tasks. Flatline, Review, and Audit run between phases in bash — the model cannot skip them because it is not the model's decision.
+
+### Added
+
+- **`/spiral` autopoietic meta-orchestrator** (cycles 063–068, [RFC-060](grimoires/loa/proposals/rfc-060-spiral.md), PRs [#490](https://github.com/0xHoneyJar/loa/pull/490)–[#495](https://github.com/0xHoneyJar/loa/pull/495))
+  - Full lifecycle: SEED → SIMSTIM → HARVEST → EVALUATE across multiple cycles
+  - Six composable stopping conditions: cycle budget, Flatline convergence, cost budget, wall-clock, HITL halt, quality gate failure
+  - State machine: INIT → RUNNING → COMPLETED | HALTED | FAILED with crash recovery
+  - Per-cycle workspace isolation (`.run/cycles/cycle-N/`) — eliminates single-slot artifact collision
+  - SEED phase queries Vision Registry for relevant speculative insights from prior cycles
+  - HARVEST phase feeds accepted Flatline findings and Bridgebuilder praise into the next cycle's context
+  - State-machine coalescer + `--archive-completed` for clean cycle transitions
+  - Config: `spiral.enabled: true` in `.loa.config.yaml` (opt-in, default off)
+
+- **Evidence-gated harness architecture** (cycles 070–071, [proposal](grimoires/loa/proposals/spiral-harness-architecture.md), PRs [#500](https://github.com/0xHoneyJar/loa/pull/500)–[#502](https://github.com/0xHoneyJar/loa/pull/502))
+  - Replaces monolithic `claude -p` dispatch with Phase-as-subprocess + Gate-as-script pattern
+  - Each phase is a separate `claude -p` call with scoped prompt and per-phase budget cap
+  - Quality gates run in bash between phases — Flatline multi-model review, independent Review session, independent Security Audit session, Bridgebuilder PR review
+  - **Flight recorder**: append-only JSONL (`flight-recorder.jsonl`) logging every action with sequence numbers, timestamps, sha256 checksums, costs, durations, and verdicts — complete audit trail for every cycle
+  - Evidence verification: artifact existence, minimum size, content-addressed checksums linking inputs → outputs across phases
+  - Circuit breaker: configurable max retries per gate (default 3), exits on repeated failure
+  - Budget enforcement: per-phase caps + cumulative tracking, exits before overspend
+  - Scripts: `.claude/scripts/spiral-harness.sh` (orchestrator), `.claude/scripts/spiral-evidence.sh` (verification + flight recorder)
+
+- **Advisor Strategy: Sonnet executes, Opus judges** (cycle-071 cost optimization, PR [#501](https://github.com/0xHoneyJar/loa/pull/501))
+  - Execution phases (PRD, SDD, Sprint Plan, Implementation) use Sonnet at ~5x cheaper tokens
+  - Judgment phases (Review, Security Audit) use Opus where reasoning quality matters
+  - Projected ~60% cost reduction vs all-Opus: ~$6.50/cycle (execution) + ~$4 (judgment) vs ~$16/cycle previously
+  - Config: `spiral.harness.executor_model: sonnet`, `spiral.harness.advisor_model: opus`
+  - Validated via [A/B benchmark](grimoires/loa/reports/spiral-harness-benchmark-report.md): equivalent output quality, both APPROVED first try, functionally identical code
+
+- **Vision Registry graduation: shadow_mode → active** (cycle-069, [#486](https://github.com/0xHoneyJar/loa/issues/486), PR [#496](https://github.com/0xHoneyJar/loa/pull/496))
+  - Visions captured during Bridgebuilder Design Reviews now feed into subsequent cycles' `/plan-and-analyze` context
+  - Query API: `vision-query.sh --tag`, `--status`, `--health` for registry health reporting
+  - Lifecycle management: `vision-lifecycle.sh promote|archive|reject|explore|propose|defer`
+  - Spiral SEED integration: queries relevant visions by tag to seed each cycle's planning context
+  - 190 tests across vision registry scripts
+
+- **HARVEST phase consumer** (cycles 059–061, PRs [#481](https://github.com/0xHoneyJar/loa/pull/481), [#484](https://github.com/0xHoneyJar/loa/pull/484))
+  - `lore-promote.sh`: vetted PRAISE findings from Bridgebuilder reviews → `grimoires/loa/lore/patterns.yaml`
+  - Wired into post-merge-orchestrator as a pipeline phase (continuous HARVEST)
+  - Bridge triage stats aggregator for cross-PR pattern analysis
+
+- **Spiral harness benchmark report** (PR [#505](https://github.com/0xHoneyJar/loa/pull/505))
+  - Data-driven comparison of Sonnet vs Opus as executor model across 3 flight recorder cycles
+  - Flatline consensus analysis across 6 planning gates with model agreement percentages
+  - Recommended defaults, budget sizing guide, and debugging checklist
+  - Full report: [`grimoires/loa/reports/spiral-harness-benchmark-report.md`](grimoires/loa/reports/spiral-harness-benchmark-report.md)
+
+### Fixed
+
+- **Flatline jq 1.7 parser error** in red-team/inquiry metrics merge (cycle-062, PR [#488](https://github.com/0xHoneyJar/loa/pull/488))
+- **Flatline review-mode wiring** — inquiry tests and default case handling (cycle-062, PR [#489](https://github.com/0xHoneyJar/loa/pull/489))
+- **Harness system zone override** — `--append-system-prompt` authorization for `.claude/scripts/` edits during authorized cycles (PR [#502](https://github.com/0xHoneyJar/loa/pull/502))
+- **Harness verdict grep** — case-insensitive broad match for APPROVED/CHANGES_REQUIRED in any Markdown formatting (PR [#501](https://github.com/0xHoneyJar/loa/pull/501))
+- **Harness budget sizing** — default raised from $10 to $15 after E2E testing proved $10 exhausts at Audit phase (PR [#501](https://github.com/0xHoneyJar/loa/pull/501))
+- **Flatline stderr capture** — redirected to evidence directory for debugging silent failures (PR [#501](https://github.com/0xHoneyJar/loa/pull/501))
+
+### Changed
+
+- **Simstim dispatch** now routes through `spiral-harness.sh` instead of monolithic `claude -p` when `spiral.harness.enabled: true` (default) — quality gates enforced by bash, not the LLM
+- **Vision Registry** default mode changed from `shadow_mode: true` to `shadow_mode: false` — visions now actively surface during planning
+- **Per-phase budget caps** are now configurable via `.loa.config.yaml` — `planning_budget_usd` ($1), `implement_budget_usd` ($5), `review_budget_usd` ($2), `audit_budget_usd` ($2)
+
+### Benchmark Data (Sonnet vs Opus Executor)
+
+| Metric | Sonnet Executor | Opus Executor |
+|--------|----------------|---------------|
+| Total budget | $12 | $12 |
+| Token efficiency | ~5x cheaper | baseline |
+| PRD Flatline | 2 HIGH, 2 BLOCKER, 70% agreement | 3 HIGH, 7 BLOCKER, 70% agreement |
+| SDD Flatline | 3 HIGH, 4 BLOCKER, 80% agreement | 1 HIGH, 3 BLOCKER, 40% agreement |
+| Sprint Flatline | 4 HIGH, 3 BLOCKER, 90% agreement | 2 HIGH, 5 BLOCKER, 80% agreement |
+| Implementation | 141 lines, APPROVED 1st try | 143 lines, APPROVED 1st try |
+| Audit | APPROVED 1st try | APPROVED 1st try |
+| Wall clock | ~18.5 min | ~18 min |
+
+**Verdict**: Sonnet is the right default executor. Quality is equivalent for bounded tasks. The evidence-gated architecture catches issues regardless of model — gates are mechanical, not model-dependent. Full analysis in [benchmark report](grimoires/loa/reports/spiral-harness-benchmark-report.md).
+
+### Known Issues / Future Work
+
+- **Benchmark covers simple tasks only.** The Sonnet-equivalent-to-Opus finding was validated on a well-scoped feature (add `--version` flag). Complex architectural work may benefit from Opus executor — revisit if Sonnet implementations start failing review at higher rates.
+- **No retry-from-CHANGES_REQUIRED path benchmarked.** Both runs achieved APPROVED on first try. The retry mechanism (max 3 attempts per gate) was validated in pre-benchmark test cycles but the recovery loop hasn't been load-tested.
+- **Budget tracking records caps, not actual token spend.** Flight recorder logs the per-phase budget allocation ($1, $5, etc.), not the actual API cost. Token-level cost tracking would require parsing Claude API response metadata.
+- **Arbiter is round-robin, not adaptive.** The Flatline arbiter rotates models (PRD→Opus, SDD→GPT, Sprint→Gemini) — it doesn't learn which model is best for which document type.
+
+### Migration Notes
+
+**Opt-in.** The spiral orchestrator is disabled by default (`spiral.enabled: false`). To enable:
+
+```yaml
+# .loa.config.yaml
+spiral:
+  enabled: true
+  max_budget_per_cycle_usd: 15     # minimum for clean run
+  max_total_budget_usd: 50         # hard stop across all cycles
+  harness:
+    enabled: true                   # evidence-gated pipeline (recommended)
+    executor_model: sonnet          # ~5x cheaper, equivalent quality
+    advisor_model: opus             # judgment quality for review/audit
+```
+
+All existing workflows (`/plan`, `/build`, `/review`, `/ship`, `/run`) continue to work unchanged. `/spiral` is a new command that wraps them in a self-improving loop.
+
+### Quality Gates
+
+| Cycle | What | Senior Review | Security Audit | Tests | PR |
+|-------|------|---------------|----------------|-------|----|
+| 059 | Lore promoter | Yes | Yes | - | [#481](https://github.com/0xHoneyJar/loa/pull/481) |
+| 060 | Post-merge HARVEST wiring | Yes | Yes | - | [#484](https://github.com/0xHoneyJar/loa/pull/484) |
+| 061 | Bridge triage aggregator | Yes | Yes | - | [#467](https://github.com/0xHoneyJar/loa/issues/467) |
+| 062 | Flatline jq/review-mode fixes | Yes | Yes | Yes | [#488](https://github.com/0xHoneyJar/loa/pull/488), [#489](https://github.com/0xHoneyJar/loa/pull/489) |
+| 063 | State coalescer | Yes | Yes | Yes | [#490](https://github.com/0xHoneyJar/loa/pull/490) |
+| 064 | Per-cycle workspace | Yes | Yes | Yes | [#491](https://github.com/0xHoneyJar/loa/pull/491) |
+| 065 | RFC-060 design | Yes | - | - | [#492](https://github.com/0xHoneyJar/loa/pull/492) |
+| 066 | /spiral MVP scaffolding | Yes | Yes | Yes | [#493](https://github.com/0xHoneyJar/loa/pull/493) |
+| 067 | /spiral completion | Yes | Yes | 66 tests | [#494](https://github.com/0xHoneyJar/loa/pull/494) |
+| 068 | Real /simstim dispatch | Yes | Yes | Yes | [#495](https://github.com/0xHoneyJar/loa/pull/495) |
+| 069 | Vision Registry graduation | Yes | Yes | 190 tests | [#496](https://github.com/0xHoneyJar/loa/pull/496) |
+| 070+071 | Harness architecture + E2E | Yes | Yes | E2E validated | [#500](https://github.com/0xHoneyJar/loa/pull/500)–[#502](https://github.com/0xHoneyJar/loa/pull/502) |
+| Benchmark | Sonnet vs Opus A/B | - | - | 3 flight recorder cycles | [#503](https://github.com/0xHoneyJar/loa/pull/503), [#504](https://github.com/0xHoneyJar/loa/pull/504) |
+
+### Source
+
+- Design: [RFC-060](grimoires/loa/proposals/rfc-060-spiral.md), [Harness Architecture Proposal](grimoires/loa/proposals/spiral-harness-architecture.md)
+- Benchmark: [Spiral Harness Benchmark Report](grimoires/loa/reports/spiral-harness-benchmark-report.md)
+- Issues: [#486](https://github.com/0xHoneyJar/loa/issues/486) (Vision Registry), [#481](https://github.com/0xHoneyJar/loa/issues/481) (Lore Promoter), [#484](https://github.com/0xHoneyJar/loa/issues/484) (HARVEST Wiring), [#483](https://github.com/0xHoneyJar/loa/issues/483) (RFC-060 Umbrella)
+- PRs: [#481](https://github.com/0xHoneyJar/loa/pull/481), [#484](https://github.com/0xHoneyJar/loa/pull/484), [#488](https://github.com/0xHoneyJar/loa/pull/488)–[#496](https://github.com/0xHoneyJar/loa/pull/496), [#500](https://github.com/0xHoneyJar/loa/pull/500)–[#505](https://github.com/0xHoneyJar/loa/pull/505)
+
+---
+
 ## [1.78.0] - 2026-04-13 — Process Feedback Sweep
 
 Three independent framework improvements driven by observations from a recent multi-cycle development run. All three fix friction points where the framework's contracts were under-enforced or its failure modes were silent. Filed as issues [#473](https://github.com/0xHoneyJar/loa/issues/473), [#474](https://github.com/0xHoneyJar/loa/issues/474), [#475](https://github.com/0xHoneyJar/loa/issues/475); shipped as cycles 056/057/058. The post-merge auto-pipeline tagged each as its own minor bump (v1.76.0, v1.77.0, v1.78.0); this release rolls them together with curated narrative.
