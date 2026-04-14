@@ -211,7 +211,7 @@ flatline_protocol:
   # Autonomous decision-making for DISPUTED/BLOCKER findings.
   # Replaces HITL prompts when SIMSTIM_AUTONOMOUS=1.
   autonomous_arbiter:
-    enabled: false                     # Opt-in (graduates to true when proven stable)
+    enabled: true                      # Enabled cycle-070 — round-robin arbiter active in autonomous mode
     rotation:                          # Model rotation per Flatline phase
       - opus                           # PRD arbiter
       - gpt-5.3-codex                  # SDD arbiter
