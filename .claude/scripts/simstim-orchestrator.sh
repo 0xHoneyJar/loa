@@ -916,6 +916,7 @@ preflight() {
     local dry_run=false
     local no_clean=false
     local yes_flag=false
+    local seed_context_path=""
 
     # Parse arguments
     while [[ $# -gt 0 ]]; do
@@ -926,9 +927,15 @@ preflight() {
             --dry-run) dry_run=true; shift ;;
             --no-clean) no_clean=true; shift ;;
             --yes) yes_flag=true; shift ;;
+            --seed-context) seed_context_path="$2"; shift 2 ;;
             *) shift ;;
         esac
     done
+
+    # Store seed context path for Phase 1 consumption (cycle-068 FR-2)
+    if [[ -n "$seed_context_path" ]]; then
+        export _SIMSTIM_SEED_CONTEXT_PATH="$seed_context_path"
+    fi
 
     # Handle abort first
     if [[ "$abort" == "true" ]]; then

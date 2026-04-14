@@ -561,8 +561,40 @@ seed_phase() {
 }
 
 # simstim_phase <cycle_dir> <cycle_id>
-# FR-1.1: Stub dispatch — writes mock artifacts + sidecar
+# Dispatches either stub or real simstim based on env var truth table (cycle-068)
 simstim_phase() {
+    local cycle_dir="$1"
+    local cycle_id="$2"
+
+    local dispatch_mode
+    dispatch_mode=$(_resolve_dispatch_mode)
+
+    # Dispatch mode banner (Flatline SKP-001)
+    log "Dispatch mode: $dispatch_mode"
+
+    case "$dispatch_mode" in
+        STUB) _simstim_stub "$cycle_dir" "$cycle_id" ;;
+        REAL) _simstim_real "$cycle_dir" "$cycle_id" ;;
+    esac
+}
+
+# _resolve_dispatch_mode — FR-3 truth table (cycle-068)
+# SPIRAL_USE_STUB=1 always wins. SPIRAL_REAL_DISPATCH=1 → REAL. Neither → STUB default.
+_resolve_dispatch_mode() {
+    if [[ "${SPIRAL_USE_STUB:-0}" == "1" ]]; then
+        echo "STUB"
+    elif [[ "${SPIRAL_REAL_DISPATCH:-0}" == "1" ]]; then
+        echo "REAL"
+    else
+        if [[ -z "${CI:-}" ]]; then
+            log "WARNING: Dispatch mode: STUB (default — set SPIRAL_REAL_DISPATCH=1 for real execution)"
+        fi
+        echo "STUB"
+    fi
+}
+
+# _simstim_stub — cycle-067 stub dispatcher (extracted, unchanged)
+_simstim_stub() {
     local cycle_dir="$1"
     local cycle_id="$2"
 
@@ -572,7 +604,7 @@ simstim_phase() {
         stub_findings=3
     fi
 
-    log "STUB: simstim dispatch not yet wired — cycle-068"
+    log "STUB: simstim dispatch not yet wired"
 
     # Write mock reviewer.md
     cat > "${cycle_dir}/reviewer.md" <<REVEOF
@@ -623,6 +655,60 @@ AUDEOF
     log_trajectory "simstim_stub" \
         "$(jq -n --arg c "$cycle_id" --argjson f "$stub_findings" \
             '{cycle_id: $c, mock_findings: $f}')"
+}
+
+# _simstim_real — real dispatch via external wrapper (cycle-068 FR-1)
+_simstim_real() {
+    local cycle_dir="$1"
+    local cycle_id="$2"
+
+    # Clean stale artifacts (SKP-003)
+    rm -f "$cycle_dir/reviewer.md" "$cycle_dir/auditor-sprint-feedback.md" \
+          "$cycle_dir/cycle-outcome.json"
+
+    # Resolve seed context path
+    local seed_context=""
+    if [[ -f "$cycle_dir/seed-context.md" ]]; then
+        seed_context="$cycle_dir/seed-context.md"
+    fi
+
+    local dispatch_script="$SCRIPT_DIR/spiral-simstim-dispatch.sh"
+    if [[ ! -x "$dispatch_script" ]]; then
+        error "Dispatch script not found or not executable: $dispatch_script"
+        log_trajectory "simstim_dispatch_error" \
+            "$(jq -n --arg c "$cycle_id" '{cycle_id: $c, reason: "dispatch_script_missing"}')"
+        return 127
+    fi
+
+    local start_sec
+    start_sec=$(date +%s)
+
+    # External script — timeout(1) wraps it (FR-5)
+    local exit_code=0
+    "$dispatch_script" "$cycle_dir" "$cycle_id" "$seed_context" || exit_code=$?
+
+    local elapsed=$(($(date +%s) - start_sec))
+
+    # FR-6 exit code handling
+    case "$exit_code" in
+        0) ;;
+        126|127)
+            error "Dispatch failed: exit $exit_code (not found/executable)"
+            log_trajectory "simstim_dispatch_error" \
+                "$(jq -n --arg c "$cycle_id" --argjson e "$exit_code" \
+                    '{cycle_id: $c, exit_code: $e, reason: "dispatch_error"}')"
+            return "$exit_code"
+            ;;
+        *)
+            log "WARNING: simstim exited $exit_code (cycle $cycle_id, ${elapsed}s)"
+            ;;
+    esac
+
+    log_trajectory "simstim_dispatched" \
+        "$(jq -n --arg c "$cycle_id" --arg m "real" --argjson e "$exit_code" --argjson el "$elapsed" \
+            '{cycle_id: $c, dispatch_mode: $m, exit_code: $e, elapsed_sec: $el}')"
+
+    return "$exit_code"
 }
 
 # harvest_phase <cycle_dir> <cycle_id>

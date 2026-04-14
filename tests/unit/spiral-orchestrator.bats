@@ -675,3 +675,111 @@ EOF
     output=$("$SCRIPT" --status --json 2>&1)
     echo "$output" | jq -e '.state == "RUNNING"' >/dev/null
 }
+
+# =============================================================================
+# Cycle-068: Dispatch Mode Tests (T43-T48)
+# =============================================================================
+
+# T43: SPIRAL_USE_STUB=1 → STUB
+@test "dispatch_mode: SPIRAL_USE_STUB=1 → STUB" {
+    source "$BATS_TEST_DIRNAME/../../.claude/scripts/bootstrap.sh"
+    source "$BATS_TEST_DIRNAME/../../.claude/scripts/spiral-orchestrator.sh"
+
+    export SPIRAL_USE_STUB=1
+    export SPIRAL_REAL_DISPATCH=0
+    local mode
+    mode=$(_resolve_dispatch_mode 2>/dev/null)
+    [ "$mode" = "STUB" ]
+    unset SPIRAL_USE_STUB SPIRAL_REAL_DISPATCH
+}
+
+# T44: SPIRAL_REAL_DISPATCH=1 → REAL
+@test "dispatch_mode: SPIRAL_REAL_DISPATCH=1 → REAL" {
+    source "$BATS_TEST_DIRNAME/../../.claude/scripts/bootstrap.sh"
+    source "$BATS_TEST_DIRNAME/../../.claude/scripts/spiral-orchestrator.sh"
+
+    export SPIRAL_USE_STUB=0
+    export SPIRAL_REAL_DISPATCH=1
+    local mode
+    mode=$(_resolve_dispatch_mode 2>/dev/null)
+    [ "$mode" = "REAL" ]
+    unset SPIRAL_USE_STUB SPIRAL_REAL_DISPATCH
+}
+
+# T45: Both set → STUB wins
+@test "dispatch_mode: USE_STUB=1 + REAL_DISPATCH=1 → STUB wins" {
+    source "$BATS_TEST_DIRNAME/../../.claude/scripts/bootstrap.sh"
+    source "$BATS_TEST_DIRNAME/../../.claude/scripts/spiral-orchestrator.sh"
+
+    export SPIRAL_USE_STUB=1
+    export SPIRAL_REAL_DISPATCH=1
+    local mode
+    mode=$(_resolve_dispatch_mode 2>/dev/null)
+    [ "$mode" = "STUB" ]
+    unset SPIRAL_USE_STUB SPIRAL_REAL_DISPATCH
+}
+
+# T46: Neither set → STUB default
+@test "dispatch_mode: neither set → STUB default" {
+    source "$BATS_TEST_DIRNAME/../../.claude/scripts/bootstrap.sh"
+    source "$BATS_TEST_DIRNAME/../../.claude/scripts/spiral-orchestrator.sh"
+
+    unset SPIRAL_USE_STUB SPIRAL_REAL_DISPATCH
+    export CI=1  # suppress WARNING log
+    local mode
+    mode=$(_resolve_dispatch_mode 2>/dev/null)
+    [ "$mode" = "STUB" ]
+    unset CI
+}
+
+# T47: _simstim_real with missing dispatch script → exit 127
+@test "simstim_real: missing dispatch script → exit 127" {
+    source "$BATS_TEST_DIRNAME/../../.claude/scripts/bootstrap.sh"
+    source "$BATS_TEST_DIRNAME/../../.claude/scripts/spiral-orchestrator.sh"
+    export STATE_FILE="$PROJECT_ROOT/.run/spiral-state.json"
+
+    "$SCRIPT" --start --init-only >/dev/null 2>&1
+
+    # Override SCRIPT_DIR to point to nonexistent dir
+    SCRIPT_DIR="/tmp/nonexistent-$RANDOM"
+
+    local cycle_dir="$PROJECT_ROOT/cycles/cycle-test-dispatch"
+    mkdir -p "$cycle_dir"
+
+    set +e
+    _simstim_real "$cycle_dir" "cycle-test-dispatch" 2>/dev/null
+    local exit_code=$?
+    set -e
+
+    [ "$exit_code" -eq 127 ]
+}
+
+# T48: _simstim_real cleans stale artifacts before dispatch
+@test "simstim_real: cleans stale artifacts before dispatch" {
+    source "$BATS_TEST_DIRNAME/../../.claude/scripts/bootstrap.sh"
+    source "$BATS_TEST_DIRNAME/../../.claude/scripts/spiral-orchestrator.sh"
+    export STATE_FILE="$PROJECT_ROOT/.run/spiral-state.json"
+
+    "$SCRIPT" --start --init-only >/dev/null 2>&1
+
+    local cycle_dir="$PROJECT_ROOT/cycles/cycle-test-clean"
+    mkdir -p "$cycle_dir"
+
+    # Create stale artifacts
+    echo "stale" > "$cycle_dir/reviewer.md"
+    echo "stale" > "$cycle_dir/auditor-sprint-feedback.md"
+    echo "stale" > "$cycle_dir/cycle-outcome.json"
+
+    # SCRIPT_DIR doesn't have dispatch script → will fail at 127
+    # but cleanup should happen BEFORE the script check
+    SCRIPT_DIR="/tmp/nonexistent-$RANDOM"
+
+    set +e
+    _simstim_real "$cycle_dir" "cycle-test-clean" 2>/dev/null
+    set -e
+
+    # Stale artifacts should be cleaned even though dispatch failed
+    [ ! -f "$cycle_dir/reviewer.md" ]
+    [ ! -f "$cycle_dir/auditor-sprint-feedback.md" ]
+    [ ! -f "$cycle_dir/cycle-outcome.json" ]
+}
