@@ -114,6 +114,13 @@ spiral:
     seed_sec: 30
     simstim_sec: 7200              # 2 hours per cycle dispatch
     harvest_sec: 60
+  harness:                           # Evidence-gated orchestrator (cycle-071)
+    enabled: true                    # Use harness vs monolithic dispatch
+    max_phase_retries: 3             # Retries per gate on failure
+    planning_budget_usd: 1           # Per-phase budget for PRD/SDD/Sprint
+    implement_budget_usd: 5          # Budget for implementation session
+    review_budget_usd: 2             # Budget for independent review session
+    audit_budget_usd: 2              # Budget for independent audit session
 
 # Prompt Isolation (v1.42.0 — cycle-042)
 # De-authorization wrappers for untrusted content in LLM prompts.

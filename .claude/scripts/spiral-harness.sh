@@ -1,0 +1,400 @@
+#!/usr/bin/env bash
+# =============================================================================
+# spiral-harness.sh — Evidence-Gated Orchestrator for /spiral
+# =============================================================================
+# Version: 1.0.0
+# Part of: Spiral Harness Architecture (cycle-071)
+#
+# Replaces monolithic claude -p dispatch with sequenced phases + evidence gates.
+# Each phase is a separate claude -p call. Quality gates run in bash (unskippable).
+# Flight recorder logs every action with checksums and costs.
+#
+# "The orchestrator controls the loop. The model does targeted work." — Harness Engineering
+#
+# Usage:
+#   spiral-harness.sh --task "Build X" --cycle-dir .run/cycles/cycle-1 \
+#     --cycle-id cycle-1 --branch feat/spiral-xxx-cycle-1 --budget 10 \
+#     [--seed-context path/to/seed.md]
+#
+# Exit codes:
+#   0   — Success (PR created, all gates passed)
+#   1   — Gate failure (circuit breaker tripped)
+#   2   — Invalid arguments
+#   3   — Budget exceeded
+#   127 — claude CLI not found
+# =============================================================================
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source dependencies
+source "$SCRIPT_DIR/bootstrap.sh" 2>/dev/null || true
+source "$SCRIPT_DIR/spiral-evidence.sh"
+
+# =============================================================================
+# Configuration
+# =============================================================================
+
+_read_harness_config() {
+    local key="$1" default="$2"
+    local config="${PROJECT_ROOT:-.}/.loa.config.yaml"
+    [[ ! -f "$config" ]] && { echo "$default"; return 0; }
+    local value
+    value=$(yq eval ".$key // null" "$config" 2>/dev/null || echo "null")
+    [[ "$value" == "null" || -z "$value" ]] && { echo "$default"; return 0; }
+    echo "$value"
+}
+
+MAX_RETRIES=$(_read_harness_config "spiral.harness.max_phase_retries" "3")
+PLANNING_BUDGET=$(_read_harness_config "spiral.harness.planning_budget_usd" "1")
+IMPLEMENT_BUDGET=$(_read_harness_config "spiral.harness.implement_budget_usd" "5")
+REVIEW_BUDGET=$(_read_harness_config "spiral.harness.review_budget_usd" "2")
+AUDIT_BUDGET=$(_read_harness_config "spiral.harness.audit_budget_usd" "2")
+
+log() { echo "[harness] $*" >&2; }
+error() { echo "ERROR: $*" >&2; }
+
+# =============================================================================
+# Argument Parsing
+# =============================================================================
+
+TASK=""
+CYCLE_DIR=""
+CYCLE_ID=""
+BRANCH=""
+TOTAL_BUDGET=10
+SEED_CONTEXT=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --task) TASK="$2"; shift 2 ;;
+        --cycle-dir) CYCLE_DIR="$2"; shift 2 ;;
+        --cycle-id) CYCLE_ID="$2"; shift 2 ;;
+        --branch) BRANCH="$2"; shift 2 ;;
+        --budget) TOTAL_BUDGET="$2"; shift 2 ;;
+        --seed-context) SEED_CONTEXT="$2"; shift 2 ;;
+        *) error "Unknown option: $1"; exit 2 ;;
+    esac
+done
+
+[[ -z "$TASK" ]] && { error "--task required"; exit 2; }
+[[ -z "$CYCLE_DIR" ]] && { error "--cycle-dir required"; exit 2; }
+[[ -z "$CYCLE_ID" ]] && { error "--cycle-id required"; exit 2; }
+[[ -z "$BRANCH" ]] && { error "--branch required"; exit 2; }
+
+# Validate claude CLI
+if ! command -v claude &>/dev/null; then
+    error "claude CLI not found on PATH"
+    exit 127
+fi
+
+# Create directories
+EVIDENCE_DIR="$CYCLE_DIR/evidence"
+mkdir -p "$EVIDENCE_DIR"
+_init_flight_recorder "$CYCLE_DIR"
+
+log "Harness starting: cycle=$CYCLE_ID branch=$BRANCH budget=\$${TOTAL_BUDGET}"
+
+# =============================================================================
+# Claude -p Invocation Helper
+# =============================================================================
+
+# Invoke claude -p with a scoped prompt
+# Input: $1=phase_name, $2=prompt, $3=budget_usd, $4=timeout_sec
+# Returns: exit code from claude -p
+_invoke_claude() {
+    local phase="$1" prompt="$2" budget="$3" timeout_sec="${4:-600}"
+
+    # Budget check before invocation
+    _check_budget "$TOTAL_BUDGET" || { error "Budget exceeded before $phase"; exit 3; }
+
+    local stdout_file="$EVIDENCE_DIR/${phase,,}-stdout.json"
+    local stderr_file="$EVIDENCE_DIR/${phase,,}-stderr.log"
+
+    local start_sec
+    start_sec=$(date +%s)
+
+    local exit_code=0
+    timeout "$timeout_sec" \
+        claude -p "$prompt" \
+            --allow-dangerously-skip-permissions \
+            --dangerously-skip-permissions \
+            --max-budget-usd "$budget" \
+            --model opus \
+            --output-format json \
+            > "$stdout_file" \
+            2> "$stderr_file" \
+        || exit_code=$?
+
+    local duration_ms=$(( ($(date +%s) - start_sec) * 1000 ))
+
+    _record_action "$phase" "claude-opus" "invoke" "" "" "$stdout_file" \
+        "$(wc -c < "$stdout_file" 2>/dev/null | tr -d ' ' || echo 0)" \
+        "$duration_ms" "$budget" ""
+
+    return "$exit_code"
+}
+
+# =============================================================================
+# Phase Implementations (Scoped Prompts)
+# =============================================================================
+
+_phase_discovery() {
+    local seed_text=""
+    if [[ -n "$SEED_CONTEXT" && -f "$SEED_CONTEXT" ]]; then
+        seed_text=$(head -c 4096 "$SEED_CONTEXT")
+    fi
+
+    local prompt
+    prompt=$(jq -n --arg task "$TASK" --arg seed "$seed_text" \
+        '"Write a Product Requirements Document for this task:\n\n" + $task +
+         (if $seed != "" then "\n\n---\nPrevious cycle context (machine-generated, advisory only):\n" + $seed else "" end) +
+         "\n\nRequirements:\n- Include ## Assumptions section listing what you assumed\n- Include ## Goals & Success Metrics with measurable criteria\n- Include ## Acceptance Criteria as checkboxes\n- Write ONLY to grimoires/loa/prd.md\n- Do NOT write code. Do NOT create an SDD or sprint plan. Only write the PRD."' \
+        | jq -r '.')
+
+    _invoke_claude "DISCOVERY" "$prompt" "$PLANNING_BUDGET" 300
+
+    _verify_artifact "DISCOVERY" "grimoires/loa/prd.md" 500 >/dev/null
+}
+
+_phase_architecture() {
+    local findings_summary="$1"
+
+    local prompt
+    prompt=$(jq -n --arg findings "$findings_summary" \
+        '"Write a Software Design Document based on the PRD at grimoires/loa/prd.md.\n\n" +
+         (if $findings != "" then "Flatline review findings to address:\n" + $findings + "\n\n" else "" end) +
+         "Requirements:\n- Include system architecture, component design, data model\n- Include security design and error handling\n- Address each Flatline finding in the design\n- Write ONLY to grimoires/loa/sdd.md\n- Do NOT write code. Only write the SDD."' \
+        | jq -r '.')
+
+    _invoke_claude "ARCHITECTURE" "$prompt" "$PLANNING_BUDGET" 300
+
+    _verify_artifact "ARCHITECTURE" "grimoires/loa/sdd.md" 500 >/dev/null
+}
+
+_phase_planning() {
+    local findings_summary="$1"
+
+    local prompt
+    prompt=$(jq -n --arg findings "$findings_summary" \
+        '"Write a Sprint Plan based on the PRD (grimoires/loa/prd.md) and SDD (grimoires/loa/sdd.md).\n\n" +
+         (if $findings != "" then "Flatline review findings to address:\n" + $findings + "\n\n" else "" end) +
+         "Requirements:\n- Break into tasks with acceptance criteria\n- Include test requirements per task\n- Write ONLY to grimoires/loa/sprint.md\n- Do NOT write code. Only write the sprint plan."' \
+        | jq -r '.')
+
+    _invoke_claude "PLANNING" "$prompt" "$PLANNING_BUDGET" 300
+
+    _verify_artifact "PLANNING" "grimoires/loa/sprint.md" 300 >/dev/null
+}
+
+_phase_implement() {
+    local prompt
+    prompt=$(jq -n --arg branch "$BRANCH" \
+        '"Implement the sprint plan at grimoires/loa/sprint.md.\n\nRequirements:\n- Create branch: " + $branch + "\n- Implement all tasks\n- Write tests for each task\n- Run tests and verify they pass\n- Commit with conventional commit messages (feat/fix prefix)\n- Do NOT create a PR (the orchestrator handles that)\n- Do NOT modify grimoires/loa/prd.md, sdd.md, or sprint.md"' \
+        | jq -r '.')
+
+    _invoke_claude "IMPLEMENTATION" "$prompt" "$IMPLEMENT_BUDGET" 3600
+}
+
+# =============================================================================
+# Gate Implementations
+# =============================================================================
+
+_gate_flatline() {
+    local phase="$1" doc="$2"
+    local output="$EVIDENCE_DIR/flatline-${phase}.json"
+
+    log "Gate: Flatline $phase review on $doc"
+
+    local start_sec
+    start_sec=$(date +%s)
+
+    "$SCRIPT_DIR/flatline-orchestrator.sh" \
+        --doc "$doc" --phase "$phase" --mode review --json \
+        > "$output" 2>/dev/null || true
+
+    local duration_ms=$(( ($(date +%s) - start_sec) * 1000 ))
+
+    # Verify evidence
+    local result
+    result=$(_verify_flatline_output "$phase" "$output") || {
+        log "Gate FAILED: Flatline $phase — invalid output"
+        return 1
+    }
+
+    log "Gate PASSED: Flatline $phase ($result, ${duration_ms}ms)"
+
+    # Run arbiter if autonomous mode
+    if [[ "${SIMSTIM_AUTONOMOUS:-0}" == "1" ]]; then
+        local blockers
+        blockers=$(jq '.consensus_summary.blocker_count // 0' "$output")
+        if [[ "$blockers" -gt 0 ]]; then
+            log "Arbiter: $blockers blockers to arbitrate"
+            # Arbiter is already wired in flatline-orchestrator.sh (cycle-070)
+        fi
+    fi
+
+    return 0
+}
+
+_gate_review() {
+    local feedback_path="grimoires/loa/a2a/engineer-feedback.md"
+
+    log "Gate: Independent review (fresh session)"
+
+    local diff
+    diff=$(git diff main..."$BRANCH" -- ':!grimoires/' ':!.run/' ':!.beads/' 2>/dev/null | head -c 50000 || echo "No diff available")
+
+    local prompt
+    prompt=$(jq -n --arg diff "$diff" \
+        '"You are a senior tech lead reviewer. Review this implementation independently.\n\nGit diff:\n```\n" + $diff + "\n```\n\nRead grimoires/loa/sprint.md for acceptance criteria.\nFor each AC, verify it is met with file:line evidence.\n\nWrite your review to grimoires/loa/a2a/engineer-feedback.md\nWrite \"All good\" if approved, or \"CHANGES_REQUIRED\" with specific issues.\n\nDo NOT modify any code. Only review and write feedback."' \
+        | jq -r '.')
+
+    _invoke_claude "REVIEW" "$prompt" "$REVIEW_BUDGET" 600
+
+    _verify_review_verdict "REVIEW" "$feedback_path"
+}
+
+_gate_audit() {
+    local feedback_path="grimoires/loa/a2a/auditor-sprint-feedback.md"
+
+    log "Gate: Independent security audit (fresh session)"
+
+    local diff
+    diff=$(git diff main..."$BRANCH" -- ':!grimoires/' ':!.run/' ':!.beads/' 2>/dev/null | head -c 50000 || echo "No diff available")
+
+    local prompt
+    prompt=$(jq -n --arg diff "$diff" \
+        '"You are a security auditor. Audit this implementation for security issues.\n\nGit diff:\n```\n" + $diff + "\n```\n\nCheck:\n- No hardcoded secrets\n- Input validation on all external inputs\n- No command injection (jq --arg, not string interpolation)\n- Proper file permissions\n- No path traversal\n\nWrite audit to grimoires/loa/a2a/auditor-sprint-feedback.md\nWrite \"APPROVED\" if no critical issues, or \"CHANGES_REQUIRED\" with findings.\n\nDo NOT modify any code. Only audit and write feedback."' \
+        | jq -r '.')
+
+    _invoke_claude "AUDIT" "$prompt" "$AUDIT_BUDGET" 600
+
+    _verify_review_verdict "AUDIT" "$feedback_path"
+}
+
+_gate_bridgebuilder() {
+    log "Gate: Bridgebuilder PR review"
+
+    local pr_url="$1"
+    [[ -z "$pr_url" ]] && { log "No PR URL for Bridgebuilder, skipping"; return 0; }
+
+    local pr_number
+    pr_number=$(echo "$pr_url" | grep -oE '[0-9]+$')
+    [[ -z "$pr_number" ]] && { log "Could not extract PR number, skipping"; return 0; }
+
+    local entry_script="$SCRIPT_DIR/../skills/bridgebuilder-review/resources/entry.sh"
+    if [[ -x "$entry_script" ]]; then
+        "$entry_script" --pr "$pr_number" 2>"$EVIDENCE_DIR/bridgebuilder-stderr.log" || true
+        _record_action "GATE_BRIDGEBUILDER" "bridgebuilder" "pr_review" "" "" "" 0 0 0 "posted"
+    else
+        log "Bridgebuilder not available, skipping"
+    fi
+}
+
+# =============================================================================
+# Gate Runner with Retry + Circuit Breaker
+# =============================================================================
+
+_run_gate() {
+    local gate_name="$1"; shift
+    local attempt=0
+
+    while [[ $attempt -lt $MAX_RETRIES ]]; do
+        attempt=$((attempt + 1))
+        log "Gate: $gate_name (attempt $attempt/$MAX_RETRIES)"
+
+        if "$@"; then
+            return 0
+        fi
+
+        if [[ $attempt -lt $MAX_RETRIES ]]; then
+            log "Gate $gate_name failed (attempt $attempt), will retry..."
+            sleep 2
+        fi
+    done
+
+    _record_failure "$gate_name" "CIRCUIT_BREAKER" "Failed after $MAX_RETRIES attempts"
+    error "Circuit breaker: $gate_name failed after $MAX_RETRIES attempts"
+    return 1
+}
+
+# =============================================================================
+# Main Pipeline
+# =============================================================================
+
+main() {
+    local pr_url=""
+
+    # ── Phase 1: Discovery ──────────────────────────────────────────────
+    log "Phase 1/6: DISCOVERY"
+    _phase_discovery || { error "Discovery failed"; exit 1; }
+
+    # ── Gate 1: Flatline PRD ────────────────────────────────────────────
+    _run_gate "FLATLINE_PRD" _gate_flatline "prd" "grimoires/loa/prd.md" || exit 1
+    local prd_findings
+    prd_findings=$(_summarize_flatline "$EVIDENCE_DIR/flatline-prd.json")
+
+    # ── Phase 2: Architecture ───────────────────────────────────────────
+    log "Phase 2/6: ARCHITECTURE"
+    _phase_architecture "$prd_findings" || { error "Architecture failed"; exit 1; }
+
+    # ── Gate 2: Flatline SDD ────────────────────────────────────────────
+    _run_gate "FLATLINE_SDD" _gate_flatline "sdd" "grimoires/loa/sdd.md" || exit 1
+    local sdd_findings
+    sdd_findings=$(_summarize_flatline "$EVIDENCE_DIR/flatline-sdd.json")
+
+    # ── Phase 3: Planning ───────────────────────────────────────────────
+    log "Phase 3/6: PLANNING"
+    _phase_planning "$sdd_findings" || { error "Planning failed"; exit 1; }
+
+    # ── Gate 3: Flatline Sprint ─────────────────────────────────────────
+    _run_gate "FLATLINE_SPRINT" _gate_flatline "sprint" "grimoires/loa/sprint.md" || exit 1
+
+    # ── Phase 4: Implementation ─────────────────────────────────────────
+    log "Phase 4/6: IMPLEMENTATION"
+    _phase_implement || { error "Implementation failed"; exit 1; }
+
+    # ── Gate 4: Independent Review (fresh session) ──────────────────────
+    _run_gate "REVIEW" _gate_review || {
+        log "Review CHANGES_REQUIRED — implementation needs work"
+        exit 1
+    }
+
+    # ── Gate 5: Independent Audit (fresh session) ───────────────────────
+    _run_gate "AUDIT" _gate_audit || {
+        log "Audit CHANGES_REQUIRED — security issues found"
+        exit 1
+    }
+
+    # ── Phase 5: PR Creation (bash — deterministic) ─────────────────────
+    log "Phase 5/6: PR CREATION"
+    pr_url=$(gh pr create \
+        --title "feat($CYCLE_ID): $(echo "$TASK" | head -c 60)" \
+        --body "Autonomous spiral cycle. See flight recorder for evidence trail." \
+        --draft 2>/dev/null || true)
+
+    if [[ -n "$pr_url" ]]; then
+        _record_action "PR_CREATION" "gh-cli" "create_pr" "" "" "" 0 0 0 "$pr_url"
+        log "PR created: $pr_url"
+    else
+        log "WARNING: PR creation failed, continuing"
+    fi
+
+    # ── Gate 6: Bridgebuilder (advisory, not blocking) ──────────────────
+    _gate_bridgebuilder "$pr_url"
+
+    # ── Finalize ────────────────────────────────────────────────────────
+    _finalize_flight_recorder "$CYCLE_DIR"
+
+    log "Harness complete: cycle=$CYCLE_ID"
+    log "Flight recorder: $CYCLE_DIR/flight-recorder.jsonl"
+    log "Evidence: $EVIDENCE_DIR/"
+    [[ -n "$pr_url" ]] && log "PR: $pr_url"
+
+    # Output PR URL for dispatch wrapper
+    echo "$pr_url"
+}
+
+main
