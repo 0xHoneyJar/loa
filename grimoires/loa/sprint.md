@@ -1,43 +1,139 @@
-# Sprint Plan: Vision Query Health Check
+# Sprint Plan: Cycle-071 — Spiral Harness Architecture
 
-**Cycle**: cycle-1 (spiral-e2e-test-001)
+**Cycle**: 071
+**PRD**: `grimoires/loa/prd.md`
+**SDD**: `grimoires/loa/sdd.md`
+**Date**: 2026-04-14
 
-## Sprint 1: `--health` flag implementation
+---
 
-### T1.1: Add `--health` argument parsing and mutual exclusivity check
-- Add `DO_HEALTH=false` variable
-- Add `--health)` case in arg parser
-- After parsing, validate `--health` is not combined with `--rebuild-index` or any filter flags
-- Exit 2 with clear error if combined
-- **AC**: `--health` accepted, `--health --tags foo` exits 2
+## Sprint 1: Evidence Library + Flight Recorder
 
-### T1.2: Implement `_health_report()` function
-- Scan `$ENTRIES_DIR/vision-*.md` files
-- Parse each with `_parse_entry()`, skip quarantined entries
-- Count entries by status using associative-style counting
-- Find newest file mtime via `stat -c %Y` (GNU coreutils)
-- Convert epoch to ISO-8601 via `date -u -d @epoch`
-- Build JSON via `jq -n --argjson`
-- Exit 0 if total > 0, exit 1 if total == 0
-- **AC**: JSON output matches PRD schema, correct exit codes
+**Goal**: Build the evidence verification and flight recorder infrastructure.
 
-### T1.3: Add `--health` to usage help
-- Add line to `_usage()` function
-- **AC**: `--help` shows `--health` option
+### Task 1.1: `spiral-evidence.sh` — Evidence Library
 
-### T1.4: Write unit tests
-- Test: `--health` returns valid JSON with expected fields
-- Test: `--health` reports correct total count
-- Test: `--health` reports correct by_status breakdown
-- Test: `--health` with empty registry exits 1 with `healthy: false`
-- Test: `--health` with populated registry exits 0 with `healthy: true`
-- Test: `--health --tags` exits 2 (mutual exclusivity)
-- Test: `--health --rebuild-index` exits 2 (mutual exclusivity)
-- Test: `--health` newest_entry_modified is valid ISO timestamp
-- **AC**: All tests pass, no regressions in existing tests
+**File**: `.claude/scripts/spiral-evidence.sh` (new)
+**Functions**:
+- `_init_flight_recorder()` — create JSONL file, set seq=0
+- `_record_action()` — append entry with seq, timestamp, phase, actor, checksums, cost
+- `_record_failure()` — record gate failure with reason
+- `_record_evidence()` — record artifact verification
+- `_verify_artifact()` — check file exists, min size, return sha256
+- `_verify_flatline_output()` — check valid JSON, has consensus_summary
+- `_verify_review_verdict()` — check APPROVED or CHANGES_REQUIRED
+- `_get_cumulative_cost()` — sum cost_usd from flight recorder
+- `_summarize_flatline()` — extract findings summary for prompt cascading
+**AC**:
+- [ ] Flight recorder JSONL created at cycle_dir/flight-recorder.jsonl
+- [ ] Entries append-only (never modify existing)
+- [ ] Seq numbers monotonically increase
+- [ ] Checksums computed via sha256sum
+- [ ] Missing artifact → return 1 + recorded failure
+- [ ] Invalid Flatline JSON → return 1 + recorded failure
+- [ ] APPROVED verdict detected, CHANGES_REQUIRED detected, missing verdict → return 1
+- [ ] Cumulative cost sums correctly from JSONL entries
+- [ ] Flatline summary extracts HIGH_CONSENSUS + BLOCKER descriptions
 
-## Verification
+### Task 1.2: Evidence Tests
 
-```bash
-bats tests/unit/vision-query.bats
+**File**: `tests/unit/spiral-evidence.bats` (new)
+**AC**:
+- [ ] Flight recorder init creates file with 600 permissions
+- [ ] _record_action appends valid JSONL
+- [ ] Seq numbers increment monotonically
+- [ ] _verify_artifact passes for valid file, fails for missing/empty
+- [ ] _verify_flatline_output passes for valid consensus, fails for invalid
+- [ ] _verify_review_verdict detects "All good", "CHANGES_REQUIRED", missing verdict
+- [ ] _get_cumulative_cost sums correctly
+- [ ] _summarize_flatline extracts findings text
+
+---
+
+## Sprint 2: Harness Orchestrator + Integration
+
+**Goal**: Build the harness, wire it into dispatch, run E2E.
+
+### Task 2.1: `spiral-harness.sh` — Main Orchestrator
+
+**File**: `.claude/scripts/spiral-harness.sh` (new)
+**Interface**: `--task`, `--cycle-dir`, `--cycle-id`, `--branch`, `--budget`, `--seed-context`
+**Features**:
+- Sources `spiral-evidence.sh` for flight recorder
+- Sequences 6 phases + 6 gates
+- Each phase calls scoped `claude -p` with bounded prompt
+- Each gate calls bash scripts (Flatline, Bridgebuilder) or independent `claude -p` (Review, Audit)
+- `_run_gate()` with retry (max 3) + circuit breaker
+- Flatline findings cascade to next phase's prompt via `_summarize_flatline()`
+- Budget enforcement via `_get_cumulative_cost()` check before each phase
+**AC**:
+- [ ] Phases execute in correct order: DISCOVERY → FLATLINE_PRD → ARCHITECTURE → FLATLINE_SDD → PLANNING → FLATLINE_SPRINT → IMPLEMENT → REVIEW → AUDIT → PR → BRIDGEBUILDER
+- [ ] Each `claude -p` call uses `--allow-dangerously-skip-permissions --dangerously-skip-permissions`
+- [ ] Flatline gates call `flatline-orchestrator.sh` directly (bash, not LLM)
+- [ ] Review/Audit are independent sessions (diff-based, no implementation context)
+- [ ] Gate failure retries preceding phase (max 3)
+- [ ] 3 consecutive failures → circuit breaker halt
+- [ ] Budget exceeded → halt with BUDGET_EXCEEDED in flight recorder
+
+### Task 2.2: Scoped Prompts
+
+**In**: `spiral-harness.sh`
+**Prompts for**: Discovery, Architecture, Planning, Implementation, Review, Audit
+**AC**:
+- [ ] Each prompt instructs ONE task only (no "run the whole pipeline")
+- [ ] Each prompt includes "Do NOT" constraints for out-of-scope actions
+- [ ] Architecture prompt includes Flatline PRD findings summary
+- [ ] Planning prompt includes Flatline SDD findings summary
+- [ ] Review prompt receives git diff, not implementation session context
+- [ ] All prompts constructed via `jq --arg` (safe)
+
+### Task 2.3: Dispatch Integration
+
+**File**: `.claude/scripts/spiral-simstim-dispatch.sh` (modify)
+**Change**: Replace `claude -p "$prompt"` with `spiral-harness.sh` invocation
+**AC**:
+- [ ] Dispatch calls harness with correct args (task, cycle-dir, branch, budget)
+- [ ] Harness exit code flows through to dispatch exit handling
+- [ ] Sidecar emission reads artifacts from harness output
+- [ ] Flight recorder copied to cycle_dir for HARVEST
+
+### Task 2.4: Config
+
+**File**: `.loa.config.yaml`
+**AC**:
+- [ ] `spiral.harness.enabled: true`
+- [ ] Budget keys: planning_budget_usd, implement_budget_usd, review_budget_usd, audit_budget_usd
+- [ ] max_phase_retries: 3
+- [ ] evidence_dir: .run/spiral-evidence
+
+### Task 2.5: Harness Tests
+
+**File**: `tests/unit/spiral-harness.bats` (new)
+**AC**:
+- [ ] Arg parsing validates required flags
+- [ ] Phase sequencing calls in correct order (mock claude -p with stub)
+- [ ] Gate retry on failure (mock failing gate → retry → pass)
+- [ ] Circuit breaker after 3 failures
+- [ ] Budget check prevents overspend
+- [ ] Evidence dir created with proper permissions
+
+### Task 2.6: Regression Tests
+
+**AC**:
+- [ ] All existing spiral tests pass (44)
+- [ ] All existing vision tests pass (190)
+- [ ] All cycle-070 tests pass (38)
+
+---
+
+## Dependencies
+
+```
+T1.1 (evidence lib) → T1.2 (evidence tests)
+                    → T2.1 (harness uses evidence)
+T2.1 (harness) → T2.2 (prompts)
+              → T2.3 (dispatch integration)
+              → T2.4 (config)
+              → T2.5 (harness tests)
+              → T2.6 (regression)
 ```
