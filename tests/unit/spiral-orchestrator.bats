@@ -496,6 +496,93 @@ _source_orchestrator() {
     export STATE_FILE="$PROJECT_ROOT/.run/spiral-state.json"
 }
 
+# T35: seed_phase full mode → degrades to degraded with warning
+@test "seed_phase: full mode without Vision Registry degrades to degraded" {
+    source "$BATS_TEST_DIRNAME/../../.claude/scripts/bootstrap.sh"
+    source "$BATS_TEST_DIRNAME/../../.claude/scripts/spiral-orchestrator.sh"
+    export STATE_FILE="$PROJECT_ROOT/.run/spiral-state.json"
+
+    "$SCRIPT" --start --init-only >/dev/null 2>&1
+
+    # Set seed.mode to full
+    cat > "$PROJECT_ROOT/.loa.config.yaml" <<'EOF'
+spiral:
+  enabled: true
+  seed:
+    mode: full
+EOF
+
+    # Create a previous cycle dir with valid sidecar
+    local prev_dir="$PROJECT_ROOT/cycles/cycle-prev"
+    local cur_dir="$PROJECT_ROOT/cycles/cycle-cur"
+    mkdir -p "$prev_dir" "$cur_dir"
+    echo '{"$schema_version":1,"cycle_id":"cycle-prev","review_verdict":"APPROVED","audit_verdict":"APPROVED","findings":{"blocker":0,"high":1,"medium":0,"low":0},"flatline_signature":null,"content_hash":null,"elapsed_sec":1,"exit_status":"success"}' > "$prev_dir/cycle-outcome.json"
+
+    # Call seed_phase — should degrade to degraded + produce seed-context.md
+    local stderr_output
+    stderr_output=$(seed_phase "$cur_dir" "cycle-cur" "$prev_dir" 2>&1 >/dev/null)
+
+    # Should log WARNING about degrading
+    [[ "$stderr_output" == *"WARNING"* ]] || [[ "$stderr_output" == *"seed.mode=full"* ]]
+
+    # Should still write seed-context.md (degraded behavior)
+    [ -f "$cur_dir/seed-context.md" ]
+
+    # Trajectory should have seed_mode_transition event
+    local trajectory_file
+    trajectory_file=$(ls "$PROJECT_ROOT/grimoires/loa/a2a/trajectory"/spiral-*.jsonl 2>/dev/null | head -1)
+    [ -n "$trajectory_file" ]
+    grep -q "seed_mode_transition" "$trajectory_file"
+}
+
+# T41: SPIRAL_STUB_FINDINGS malformed input defaults to 3
+@test "simstim_phase: malformed SPIRAL_STUB_FINDINGS defaults to 3" {
+    source "$BATS_TEST_DIRNAME/../../.claude/scripts/bootstrap.sh"
+    source "$BATS_TEST_DIRNAME/../../.claude/scripts/spiral-orchestrator.sh"
+    export STATE_FILE="$PROJECT_ROOT/.run/spiral-state.json"
+
+    "$SCRIPT" --start --init-only >/dev/null 2>&1
+
+    local cycle_dir="$PROJECT_ROOT/cycles/cycle-stubtest"
+    mkdir -p "$cycle_dir"
+
+    # Set malformed env var
+    export SPIRAL_STUB_FINDINGS="not_a_number"
+    simstim_phase "$cycle_dir" "cycle-stubtest" 2>/dev/null
+
+    # Check sidecar was written with default findings (high=3)
+    [ -f "$cycle_dir/cycle-outcome.json" ]
+    local high_count
+    high_count=$(jq -r '.findings.high' "$cycle_dir/cycle-outcome.json")
+    [ "$high_count" -eq 3 ]
+
+    unset SPIRAL_STUB_FINDINGS
+}
+
+# T42: write_checkpoint rejects non-monotonic transition
+@test "write_checkpoint: rejects backward transition HARVEST → SEED" {
+    source "$BATS_TEST_DIRNAME/../../.claude/scripts/bootstrap.sh"
+    source "$BATS_TEST_DIRNAME/../../.claude/scripts/spiral-orchestrator.sh"
+    export STATE_FILE="$PROJECT_ROOT/.run/spiral-state.json"
+
+    "$SCRIPT" --start --init-only >/dev/null 2>&1
+
+    # Create a cycle record with checkpoint at HARVEST
+    local tmp="${STATE_FILE}.tmp"
+    jq '.cycles = [{"cycle_id": "cycle-mono", "checkpoint": "HARVEST"}]' "$STATE_FILE" > "$tmp"
+    mv "$tmp" "$STATE_FILE"
+
+    # Attempt backward transition: HARVEST → SEED
+    set +e
+    local error_output
+    error_output=$(write_checkpoint "cycle-mono" "SEED" 2>&1)
+    local exit_code=$?
+    set -e
+
+    [ "$exit_code" -eq 1 ]
+    [[ "$error_output" == *"Non-monotonic"* ]]
+}
+
 # T34: with_step_timeout — command exceeds budget → returns 124
 @test "with_step_timeout: command exceeding budget returns 124" {
     source "$BATS_TEST_DIRNAME/../../.claude/scripts/bootstrap.sh"

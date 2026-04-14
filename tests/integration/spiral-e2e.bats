@@ -111,8 +111,10 @@ teardown() {
     cycle_2_id=$(jq -r '.cycles[1].cycle_id' "$STATE_FILE")
     # Check for seed_degraded event mentioning cycle 2
     grep -q "$cycle_2_id" "$trajectory_file" 2>/dev/null || true
-    # Check seed-context.md exists in cycle 2 dir
+    # Check seed-context.md exists in cycle 2 dir AND contains previous cycle data
     [ -f "$PROJECT_ROOT/cycles/$cycle_2_id/seed-context.md" ]
+    grep -q "Review: APPROVED" "$PROJECT_ROOT/cycles/$cycle_2_id/seed-context.md"
+    grep -q "Audit: APPROVED" "$PROJECT_ROOT/cycles/$cycle_2_id/seed-context.md"
 
     # Assertion: All checkpoints are COMPLETE
     for i in $(seq 0 2); do
