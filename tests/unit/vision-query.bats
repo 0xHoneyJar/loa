@@ -383,3 +383,93 @@ ENTRY
     [ -n "$excerpt" ]
     [[ "$excerpt" != "null" ]]
 }
+
+# =============================================================================
+# Health Report
+# =============================================================================
+
+@test "vision-query: --health returns valid JSON" {
+    run "$SCRIPT" --health
+    [ "$status" -eq 0 ]
+    echo "$output" | jq empty
+}
+
+@test "vision-query: --health reports correct total" {
+    run "$SCRIPT" --health
+    [ "$status" -eq 0 ]
+    local total
+    total=$(echo "$output" | jq '.total')
+    [ "$total" -eq 3 ]
+}
+
+@test "vision-query: --health reports correct by_status breakdown" {
+    run "$SCRIPT" --health
+    [ "$status" -eq 0 ]
+    local captured exploring implemented
+    captured=$(echo "$output" | jq '.by_status.Captured')
+    exploring=$(echo "$output" | jq '.by_status.Exploring')
+    implemented=$(echo "$output" | jq '.by_status.Implemented')
+    [ "$captured" -eq 1 ]
+    [ "$exploring" -eq 1 ]
+    [ "$implemented" -eq 1 ]
+}
+
+@test "vision-query: --health by_status has all seven keys" {
+    run "$SCRIPT" --health
+    [ "$status" -eq 0 ]
+    echo "$output" | jq -e '.by_status | has("Captured","Exploring","Proposed","Implemented","Deferred","Archived","Rejected")'
+}
+
+@test "vision-query: --health exits 0 when entries exist (healthy true)" {
+    run "$SCRIPT" --health
+    [ "$status" -eq 0 ]
+    local healthy
+    healthy=$(echo "$output" | jq '.healthy')
+    [ "$healthy" = "true" ]
+}
+
+@test "vision-query: --health exits 1 when no entries (healthy false)" {
+    rm -f "$TEST_TMPDIR/grimoires/loa/visions/entries/"*.md
+    run "$SCRIPT" --health
+    [ "$status" -eq 1 ]
+    local healthy total
+    healthy=$(echo "$output" | jq '.healthy')
+    total=$(echo "$output" | jq '.total')
+    [ "$healthy" = "false" ]
+    [ "$total" -eq 0 ]
+}
+
+@test "vision-query: --health newest_entry_modified is valid ISO timestamp" {
+    run "$SCRIPT" --health
+    [ "$status" -eq 0 ]
+    local ts
+    ts=$(echo "$output" | jq -r '.newest_entry_modified')
+    [[ "$ts" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]
+}
+
+@test "vision-query: --health newest_entry_modified is null when empty" {
+    rm -f "$TEST_TMPDIR/grimoires/loa/visions/entries/"*.md
+    run "$SCRIPT" --health
+    [ "$status" -eq 1 ]
+    local ts
+    ts=$(echo "$output" | jq -r '.newest_entry_modified')
+    [ "$ts" = "null" ]
+}
+
+@test "vision-query: --health --tags exits 2 (mutual exclusivity)" {
+    run "$SCRIPT" --health --tags security
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"cannot be combined"* ]]
+}
+
+@test "vision-query: --health --rebuild-index exits 2 (mutual exclusivity)" {
+    run "$SCRIPT" --health --rebuild-index
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"cannot be combined"* ]]
+}
+
+@test "vision-query: --health --status exits 2 (mutual exclusivity)" {
+    run "$SCRIPT" --health --status Captured
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"cannot be combined"* ]]
+}

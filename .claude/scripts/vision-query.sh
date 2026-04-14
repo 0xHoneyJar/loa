@@ -2,7 +2,7 @@
 # =============================================================================
 # vision-query.sh — Vision Registry Query CLI
 # =============================================================================
-# Version: 1.0.0
+# Version: 1.1.0
 # Part of: Vision Registry Graduation (cycle-069, #486)
 #
 # Query and filter visions from entry files. Rebuild index from entries.
@@ -13,10 +13,11 @@
 #                   [--since date] [--before date] [--min-refs n]
 #                   [--format json|table|ids] [--count] [--limit n]
 #                   [--strict] [--rebuild-index [--dry-run]]
+#                   [--health]
 #
 # Exit codes:
-#   0 - Success (results found, or rebuild complete)
-#   1 - No results matching filters
+#   0 - Success (results found, or rebuild complete, or health with entries)
+#   1 - No results matching filters (or health with no entries)
 #   2 - Invalid arguments
 #   3 - Parse error (quarantined entries)
 #   4 - I/O error
@@ -55,6 +56,7 @@ OUTPUT_COUNT=false
 OUTPUT_LIMIT="$DEFAULT_LIMIT"
 STRICT_MODE=false
 DO_REBUILD=false
+DO_HEALTH=false
 DRY_RUN=false
 
 _usage() {
@@ -73,6 +75,7 @@ _usage() {
   echo "  --strict           Fail on parse errors (exit 3)" >&2
   echo "  --rebuild-index    Regenerate index.md from entries" >&2
   echo "  --dry-run          With --rebuild-index: show diff only" >&2
+  echo "  --health           JSON health report (total, by_status, newest)" >&2
   exit 2
 }
 
@@ -121,12 +124,23 @@ while [[ $# -gt 0 ]]; do
       OUTPUT_LIMIT="$2"; shift 2 ;;
     --strict) STRICT_MODE=true; shift ;;
     --rebuild-index) DO_REBUILD=true; shift ;;
+    --health) DO_HEALTH=true; shift ;;
     --dry-run) DRY_RUN=true; shift ;;
     --help|-h) _usage ;;
     *)
       echo "ERROR: Unknown option: $1" >&2; exit 2 ;;
   esac
 done
+
+# Validate --health mutual exclusivity
+if [[ "$DO_HEALTH" == "true" ]]; then
+  if [[ "$DO_REBUILD" == "true" || -n "$FILTER_TAGS" || -n "$FILTER_STATUS" || \
+        -n "$FILTER_SOURCE" || -n "$FILTER_SINCE" || -n "$FILTER_BEFORE" || \
+        "$FILTER_MIN_REFS" -gt 0 || "$OUTPUT_COUNT" == "true" ]]; then
+    echo "ERROR: --health cannot be combined with filters, --count, or --rebuild-index" >&2
+    exit 2
+  fi
+fi
 
 # Validate --status values
 if [[ -n "$FILTER_STATUS" ]]; then
@@ -468,6 +482,114 @@ _rebuild_index() {
 }
 
 # =============================================================================
+# Health Report
+# =============================================================================
+
+_health_report() {
+  if [[ ! -d "$ENTRIES_DIR" ]]; then
+    # No entries directory — empty registry
+    jq -n \
+      --argjson total 0 \
+      --argjson by_status '{"Captured":0,"Exploring":0,"Proposed":0,"Implemented":0,"Deferred":0,"Archived":0,"Rejected":0}' \
+      '{total: $total, by_status: $by_status, newest_entry_modified: null, healthy: false}'
+    exit 1
+  fi
+
+  local total=0
+  local captured=0 exploring=0 proposed=0 implemented=0 deferred=0 archived=0 rejected=0
+  local newest_mtime=0
+  local newest_ts="null"
+
+  for entry_file in "$ENTRIES_DIR"/vision-*.md; do
+    [[ -f "$entry_file" ]] || continue
+
+    # Extract status directly (lightweight — no full _parse_entry needed)
+    local status
+    status=$(grep '^\*\*Status\*\*:' "$entry_file" 2>/dev/null | head -1 | sed 's/\*\*Status\*\*: *//' || true)
+
+    # Skip entries without a valid status
+    if [[ -z "$status" ]]; then
+      continue
+    fi
+
+    local status_valid=false
+    for valid in $VALID_STATUSES; do
+      if [[ "$status" == "$valid" ]]; then
+        status_valid=true
+        break
+      fi
+    done
+    if [[ "$status_valid" == "false" ]]; then
+      continue
+    fi
+
+    total=$((total + 1))
+
+    case "$status" in
+      Captured)    captured=$((captured + 1)) ;;
+      Exploring)   exploring=$((exploring + 1)) ;;
+      Proposed)    proposed=$((proposed + 1)) ;;
+      Implemented) implemented=$((implemented + 1)) ;;
+      Deferred)    deferred=$((deferred + 1)) ;;
+      Archived)    archived=$((archived + 1)) ;;
+      Rejected)    rejected=$((rejected + 1)) ;;
+    esac
+
+    # Track newest file mtime (epoch seconds)
+    local file_mtime
+    file_mtime=$(stat -c %Y "$entry_file" 2>/dev/null || stat -f %m "$entry_file" 2>/dev/null || echo "0")
+    if [[ "$file_mtime" -gt "$newest_mtime" ]]; then
+      newest_mtime="$file_mtime"
+    fi
+  done
+
+  # Convert newest mtime to ISO-8601 if we found entries
+  if [[ "$newest_mtime" -gt 0 ]]; then
+    newest_ts=$(date -u -d "@$newest_mtime" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || \
+                date -u -r "$newest_mtime" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || \
+                echo "null")
+  fi
+
+  local healthy=false
+  if [[ "$total" -gt 0 ]]; then
+    healthy=true
+  fi
+
+  # Build by_status JSON object
+  local by_status_json
+  by_status_json=$(jq -n \
+    --argjson captured "$captured" \
+    --argjson exploring "$exploring" \
+    --argjson proposed "$proposed" \
+    --argjson implemented "$implemented" \
+    --argjson deferred "$deferred" \
+    --argjson archived "$archived" \
+    --argjson rejected "$rejected" \
+    '{Captured:$captured, Exploring:$exploring, Proposed:$proposed, Implemented:$implemented, Deferred:$deferred, Archived:$archived, Rejected:$rejected}')
+
+  # Handle newest_ts: null (no quotes) vs string (quoted)
+  if [[ "$newest_ts" == "null" ]]; then
+    jq -n \
+      --argjson total "$total" \
+      --argjson by_status "$by_status_json" \
+      --argjson healthy "$healthy" \
+      '{total: $total, by_status: $by_status, newest_entry_modified: null, healthy: $healthy}'
+  else
+    jq -n \
+      --argjson total "$total" \
+      --argjson by_status "$by_status_json" \
+      --arg newest "$newest_ts" \
+      --argjson healthy "$healthy" \
+      '{total: $total, by_status: $by_status, newest_entry_modified: $newest, healthy: $healthy}'
+  fi
+
+  if [[ "$total" -eq 0 ]]; then
+    exit 1
+  fi
+  exit 0
+}
+
+# =============================================================================
 # Output Formatting
 # =============================================================================
 
@@ -499,6 +621,11 @@ _format_output() {
 # =============================================================================
 # Main
 # =============================================================================
+
+# Handle health check
+if [[ "$DO_HEALTH" == "true" ]]; then
+  _health_report
+fi
 
 # Handle rebuild
 if [[ "$DO_REBUILD" == "true" ]]; then
