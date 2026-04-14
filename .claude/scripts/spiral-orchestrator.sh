@@ -228,10 +228,66 @@ check_hitl_halt() {
     [[ -f "$HALT_SENTINEL" ]]
 }
 
+# check_quality_gate — FR-2 (cycle-067)
+# Returns 0 if gate should STOP spiral (fail-closed on missing/invalid).
+# Returns 1 if spiral should CONTINUE.
+check_quality_gate() {
+    local last_cycle review_v audit_v
+    last_cycle=$(jq -c '.cycles[-1] // null' "$STATE_FILE" 2>/dev/null)
+    if [[ "$last_cycle" == "null" || -z "$last_cycle" ]]; then
+        log_trajectory "quality_gate_decision" \
+            "$(jq -n '{decision: "continue", reason: "no_cycle_yet"}')"
+        return 1
+    fi
+
+    review_v=$(echo "$last_cycle" | jq -r '.review_verdict // "null"')
+    audit_v=$(echo "$last_cycle" | jq -r '.audit_verdict // "null"')
+
+    # Null/missing → fail-closed
+    if [[ "$review_v" == "null" ]] || [[ "$audit_v" == "null" ]]; then
+        log_trajectory "quality_gate_indeterminate" \
+            "$(jq -n --arg r "$review_v" --arg a "$audit_v" \
+                '{decision: "stop", review: $r, audit: $a, reason: "null_verdict"}')"
+        return 0
+    fi
+
+    # Invalid enum → fail-closed
+    case "$review_v" in APPROVED|REQUEST_CHANGES) ;;
+        *)
+            log_trajectory "quality_gate_invalid_verdict" \
+                "$(jq -n --arg r "$review_v" '{decision: "stop", review: $r, field: "review_verdict"}')"
+            return 0
+            ;;
+    esac
+    case "$audit_v" in APPROVED|CHANGES_REQUIRED) ;;
+        *)
+            log_trajectory "quality_gate_invalid_verdict" \
+                "$(jq -n --arg a "$audit_v" '{decision: "stop", audit: $a, field: "audit_verdict"}')"
+            return 0
+            ;;
+    esac
+
+    # Both-fail → stop (only stopping combo)
+    if [[ "$review_v" == "REQUEST_CHANGES" && "$audit_v" == "CHANGES_REQUIRED" ]]; then
+        log_trajectory "quality_gate_decision" \
+            "$(jq -n '{decision: "stop", reason: "both_gates_failed"}')"
+        return 0
+    fi
+
+    log_trajectory "quality_gate_decision" \
+        "$(jq -n --arg r "$review_v" --arg a "$audit_v" \
+            '{decision: "continue", review: $r, audit: $a}')"
+    return 1
+}
+
 # Returns the triggered stopping condition name, or empty string if none.
 evaluate_stopping_conditions() {
     if check_hitl_halt; then
         echo "hitl_halt"
+        return 0
+    fi
+    if check_quality_gate; then
+        echo "quality_gate_failure"
         return 0
     fi
     if check_cycle_budget; then

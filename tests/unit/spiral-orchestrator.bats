@@ -342,3 +342,118 @@ teardown() {
 
     echo "$output" | jq -e '.condition == "hitl_halt"' >/dev/null
 }
+
+# =============================================================================
+# Quality Gate Truth Table Tests (T24-T31) — cycle-067 FR-2
+# =============================================================================
+
+# Helper: init state and inject a cycle record with given verdicts
+_init_with_cycle() {
+    local review_v="$1"
+    local audit_v="$2"
+
+    "$SCRIPT" --start >/dev/null 2>&1
+
+    # Inject a cycle record with given verdicts
+    # Need to handle null verdicts
+    local review_json audit_json
+    if [[ "$review_v" == "null" ]]; then
+        review_json="null"
+    else
+        review_json="\"$review_v\""
+    fi
+    if [[ "$audit_v" == "null" ]]; then
+        audit_json="null"
+    else
+        audit_json="\"$audit_v\""
+    fi
+
+    local tmp="${STATE_FILE}.tmp"
+    jq --argjson rv "$review_json" --argjson av "$audit_json" '
+        .cycles = [{
+            "cycle_id": "cycle-test",
+            "index": 1,
+            "review_verdict": $rv,
+            "audit_verdict": $av,
+            "findings_critical": 0,
+            "findings_minor": 0
+        }] |
+        .cycle_index = 1
+    ' "$STATE_FILE" > "$tmp"
+    mv "$tmp" "$STATE_FILE"
+}
+
+# T24: both fail → stop
+@test "quality_gate: REQUEST_CHANGES + CHANGES_REQUIRED → quality_gate_failure" {
+    _init_with_cycle "REQUEST_CHANGES" "CHANGES_REQUIRED"
+
+    local output
+    output=$("$SCRIPT" --check-stop 2>&1)
+    echo "$output" | jq -e '.condition == "quality_gate_failure"' >/dev/null
+}
+
+# T25: review fail / audit approve → continue
+@test "quality_gate: REQUEST_CHANGES + APPROVED → no stop (continues)" {
+    _init_with_cycle "REQUEST_CHANGES" "APPROVED"
+
+    local output
+    output=$("$SCRIPT" --check-stop 2>&1)
+    # Should NOT trigger quality gate; next in chain is cycle_budget
+    # With max_cycles=3 and cycle_index=1, should not hit cycle_budget either
+    echo "$output" | jq -e '.condition != "quality_gate_failure"' >/dev/null
+}
+
+# T26: audit fail / review approve → continue
+@test "quality_gate: APPROVED + CHANGES_REQUIRED → no stop (continues)" {
+    _init_with_cycle "APPROVED" "CHANGES_REQUIRED"
+
+    local output
+    output=$("$SCRIPT" --check-stop 2>&1)
+    echo "$output" | jq -e '.condition != "quality_gate_failure"' >/dev/null
+}
+
+# T27: both approve → continue
+@test "quality_gate: APPROVED + APPROVED → no stop (continues)" {
+    _init_with_cycle "APPROVED" "APPROVED"
+
+    local output
+    output=$("$SCRIPT" --check-stop 2>&1)
+    echo "$output" | jq -e '.condition != "quality_gate_failure"' >/dev/null
+}
+
+# T28: null review → stop
+@test "quality_gate: null review → quality_gate_failure (fail-closed)" {
+    _init_with_cycle "null" "APPROVED"
+
+    local output
+    output=$("$SCRIPT" --check-stop 2>&1)
+    echo "$output" | jq -e '.condition == "quality_gate_failure"' >/dev/null
+}
+
+# T29: null audit → stop
+@test "quality_gate: APPROVED + null audit → quality_gate_failure (fail-closed)" {
+    _init_with_cycle "APPROVED" "null"
+
+    local output
+    output=$("$SCRIPT" --check-stop 2>&1)
+    echo "$output" | jq -e '.condition == "quality_gate_failure"' >/dev/null
+}
+
+# T30: unrecognized verdict → stop
+@test "quality_gate: unrecognized review verdict → quality_gate_failure" {
+    _init_with_cycle "BANANA" "APPROVED"
+
+    local output
+    output=$("$SCRIPT" --check-stop 2>&1)
+    echo "$output" | jq -e '.condition == "quality_gate_failure"' >/dev/null
+}
+
+# T31: no cycles yet → continue
+@test "quality_gate: no cycles → no quality_gate_failure" {
+    "$SCRIPT" --start >/dev/null 2>&1
+
+    local output
+    output=$("$SCRIPT" --check-stop 2>&1)
+    # No cycles, quality gate returns 1 (continue), so shouldn't fire
+    echo "$output" | jq -e '.condition != "quality_gate_failure"' >/dev/null
+}
