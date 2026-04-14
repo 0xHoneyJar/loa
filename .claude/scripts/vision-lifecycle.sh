@@ -78,11 +78,16 @@ _log_trajectory() {
     '{type:$type, event:$event, timestamp:$timestamp, data:$data}' >> "$log_file"
 }
 
-# Sanitize reason text (Flatline SKP-005)
+# Sanitize reason text (Flatline SKP-005, review fix #1: escape sed-breaking chars)
 _sanitize_reason() {
   local text="$1"
   # Strip pipe chars (break markdown tables)
   text="${text//|/-}"
+  # Strip forward slashes and ampersands (break sed delimiters/backreferences)
+  text="${text////-}"
+  text="${text//&/and}"
+  # Strip backslashes (break sed/awk escape sequences)
+  text="${text//\\/}"
   # Strip newlines (break frontmatter)
   text=$(printf '%s' "$text" | tr '\n' ' ')
   # Strip control characters
@@ -117,25 +122,35 @@ _get_status() {
 }
 
 # Add a reason field to entry frontmatter
+# Uses awk instead of sed for portability (review fix #2: GNU sed /a\ not portable)
+# and injection safety (review fix #1: no delimiter conflicts with awk -v)
 _add_reason_field() {
   local vid="$1"
   local field_name="$2"
   local reason="$3"
   local entry_file="$ENTRIES_DIR/${vid}.md"
 
+  if [[ ! -f "$entry_file" ]]; then
+    echo "ERROR: Entry file not found: $entry_file" >&2
+    return 4
+  fi
+
   local sanitized
   sanitized=$(_sanitize_reason "$reason")
 
   # Check if field already exists
   if grep -q "^\*\*${field_name}\*\*:" "$entry_file" 2>/dev/null; then
-    # Update existing
-    sed "s/^\*\*${field_name}\*\*: .*/**${field_name}**: ${sanitized}/" \
-      "$entry_file" > "${entry_file}.tmp" && mv "${entry_file}.tmp" "$entry_file"
+    # Update existing — awk -v passes value safely (no delimiter injection)
+    awk -v field="$field_name" -v val="$sanitized" '
+      $0 ~ "^\\*\\*" field "\\*\\*:" { print "**" field "**: " val; next }
+      { print }
+    ' "$entry_file" > "${entry_file}.tmp" && mv "${entry_file}.tmp" "$entry_file"
   else
-    # Insert after Status line
-    sed "/^\*\*Status\*\*:/a\\
-**${field_name}**: ${sanitized}" \
-      "$entry_file" > "${entry_file}.tmp" && mv "${entry_file}.tmp" "$entry_file"
+    # Insert after Status line — portable awk append (no GNU sed /a\ needed)
+    awk -v field="$field_name" -v val="$sanitized" '
+      { print }
+      /^\*\*Status\*\*:/ { print "**" field "**: " val }
+    ' "$entry_file" > "${entry_file}.tmp" && mv "${entry_file}.tmp" "$entry_file"
   fi
 }
 

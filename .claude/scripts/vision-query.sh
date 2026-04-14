@@ -399,8 +399,9 @@ _rebuild_index() {
 
     local id title source status tags_display refs
     id=$(echo "$entry_json" | jq -r '.id')
-    title=$(echo "$entry_json" | jq -r '.title')
-    source=$(echo "$entry_json" | jq -r '.source')
+    # Review fix #5: escape pipes in title/source to prevent markdown table breakage
+    title=$(echo "$entry_json" | jq -r '.title | gsub("\\|"; "-")')
+    source=$(echo "$entry_json" | jq -r '.source | gsub("\\|"; "-")')
     status=$(echo "$entry_json" | jq -r '.status')
     tags_display=$(echo "$entry_json" | jq -r '.tags | join(", ")')
     refs=$(echo "$entry_json" | jq -r '.refs')

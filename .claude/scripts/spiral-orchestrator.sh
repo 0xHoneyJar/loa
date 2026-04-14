@@ -548,13 +548,24 @@ seed_phase() {
             local max_visions
             max_visions=$(read_config "spiral.seed.max_seed_visions" "10")
 
-            # Query registry
-            local query_result
+            # Query registry (review fix #3: distinguish no-results from real errors)
+            local query_result="" query_exit=0
             query_result=$("$SCRIPT_DIR/vision-query.sh" \
                 --tags "$query_tags" \
                 --status "Captured,Exploring,Proposed" \
                 --format json \
-                --limit "$max_visions" 2>/dev/null) || query_result="[]"
+                --limit "$max_visions" 2>/dev/null) || query_exit=$?
+
+            if [[ "$query_exit" -gt 1 ]]; then
+                # Exit 2=bad args, 3=parse error, 4=I/O error — real failures
+                log "WARNING: vision-query.sh failed (exit $query_exit), cold-starting"
+                log_trajectory "seed_full_query_error" \
+                    "$(jq -n --arg c "$cycle_id" --argjson ec "$query_exit" \
+                        '{cycle_id: $c, query_exit_code: $ec}')"
+                return 0
+            fi
+            # Exit 0=results found, exit 1=no results — both safe
+            query_result="${query_result:-[]}"
 
             local vision_count
             vision_count=$(echo "$query_result" | jq 'length' 2>/dev/null || echo "0")
@@ -606,13 +617,14 @@ seed_phase() {
                 }')
 
             # Budget enforcement: drop lowest-ranked visions until under budget (IMP-007)
+            # Review fix #4: measure full JSON size, not just visions array
             local total_bytes
             total_bytes=$(printf '%s' "$seed_json" | wc -c)
 
             if [[ "$total_bytes" -gt "$budget" ]]; then
                 seed_json=$(echo "$seed_json" | jq --argjson budget "$budget" '
                     .truncated = true |
-                    until((.visions | tojson | length) <= $budget or (.visions | length) <= 1;
+                    until((. | tojson | length) <= $budget or (.visions | length) <= 1;
                         .visions |= .[:-1]
                     )
                 ')
