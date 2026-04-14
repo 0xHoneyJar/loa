@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "spiral-cycle-outcome-v1",
+  "type": "object",
+  "required": ["$schema_version", "cycle_id", "review_verdict", "audit_verdict", "findings", "exit_status"],
+  "properties": {
+    "$schema_version": { "const": 1 },
+    "cycle_id": { "type": "string", "pattern": "^cycle-[a-f0-9]+$" },
+    "review_verdict": { "enum": ["APPROVED", "REQUEST_CHANGES", null] },
+    "audit_verdict": { "enum": ["APPROVED", "CHANGES_REQUIRED", null] },
+    "findings": {
+      "type": "object",
+      "required": ["blocker", "high", "medium", "low"],
+      "properties": {
+        "blocker": { "type": "integer", "minimum": 0 },
+        "high":    { "type": "integer", "minimum": 0 },
+        "medium":  { "type": "integer", "minimum": 0 },
+        "low":     { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "artifacts": {
+      "type": "object",
+      "properties": {
+        "reviewer_md":  { "type": ["string", "null"] },
+        "auditor_md":   { "type": ["string", "null"] },
+        "pr_url":       { "type": ["string", "null"] }
+      }
+    },
+    "flatline_signature": { "type": ["string", "null"], "pattern": "^sha256:[a-f0-9]{64}$" },
+    "content_hash":       { "type": ["string", "null"], "pattern": "^sha256:[a-f0-9]{64}$" },
+    "elapsed_sec":        { "type": ["integer", "null"], "minimum": 0 },
+    "exit_status":        { "enum": ["success", "partial", "failed"] }
+  },
+  "additionalProperties": false
+}
