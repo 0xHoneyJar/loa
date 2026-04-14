@@ -5,7 +5,7 @@
 
 | ID | Title | Source | Status | Tags | Refs |
 |----|-------|--------|--------|------|------|
-| vision-001 | Degraded SEED creates a parallel memory lane | Bridge iteration 1 of design-review-simstim-20260414-1b0cf8f9 | Captured | architecture | 0 |
+| vision-001 | Pluggable credential provider registry | Bridge iteration 1 of bridge-20260213-8d24fa | Captured | architecture | 0 |
 | vision-002 | Shell scripts as typed-contract-first subsystems | Bridge iteration 1 of design-review-simstim-20260414-1b0cf8f9 | Captured | architecture | 0 |
 | vision-003 | Context Isolation as Prompt Injection Defense | Bridge iteration 1 of bridge-20260214-e8fa94 | Exploring | security, prompt-injection, context-isolation | 0 |
 | vision-004 | Conditional Constraints for Feature-Flagged Behavior | Bridge iteration 1 of bridge-20260216-c020te | Implemented | architecture, constraints, feature-flags | 0 |

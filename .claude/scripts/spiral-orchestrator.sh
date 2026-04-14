@@ -511,12 +511,135 @@ seed_phase() {
     local seed_mode
     seed_mode=$(read_config "spiral.seed.mode" "degraded")
 
-    # Full mode without Vision Registry → degrade with warning
+    # Full mode: query Vision Registry for relevant cross-cycle visions (#486, cycle-069)
     if [[ "$seed_mode" == "full" ]]; then
-        log "WARNING: seed.mode=full but Vision Registry (#486) not available. Degrading to degraded mode."
-        seed_mode="degraded"
-        log_trajectory "seed_mode_transition" \
-            "$(jq -n --arg c "$cycle_id" '{cycle_id: $c, from: "full", to: "degraded", action: "cold_start"}')"
+        # Check vision_registry.enabled (Flatline SKP-010: defensive guard)
+        local vr_enabled
+        vr_enabled=$(read_config "vision_registry.enabled" "false")
+        if [[ "$vr_enabled" != "true" ]]; then
+            log "WARNING: seed.mode=full but vision_registry.enabled=false. Degrading to degraded mode."
+            seed_mode="degraded"
+            log_trajectory "seed_mode_transition" \
+                "$(jq -n --arg c "$cycle_id" '{cycle_id: $c, from: "full", to: "degraded", reason: "vision_registry_disabled"}')"
+        else
+            # Tag derivation from HARVEST sidecar (Flatline IMP-002)
+            local query_tags=""
+            local harvest_sidecar="${prev_cycle_dir:+${prev_cycle_dir}/}${SPIRAL_SIDECAR_FILENAME:-cycle-outcome.json}"
+            if [[ -n "$prev_cycle_dir" && -f "$harvest_sidecar" ]]; then
+                # Validate sidecar structure (Flatline IMP-006)
+                if jq -e '.findings | type == "array"' "$harvest_sidecar" >/dev/null 2>&1; then
+                    query_tags=$(jq -r '
+                        [.findings[]?.category // empty] | unique |
+                        map(select(. as $c | ["security","architecture","performance",
+                            "reliability","testing","code-quality","documentation"]
+                            | index($c))) |
+                        join(",")
+                    ' "$harvest_sidecar" 2>/dev/null || true)
+                else
+                    log "WARNING: HARVEST sidecar has unexpected structure, using default tags"
+                fi
+            fi
+
+            # Fallback to configured default tags
+            if [[ -z "$query_tags" ]]; then
+                query_tags=$(read_config "spiral.seed.default_tags" "architecture,security" | tr -d '[]" ' | tr '\n' ',')
+            fi
+
+            local max_visions
+            max_visions=$(read_config "spiral.seed.max_seed_visions" "10")
+
+            # Query registry
+            local query_result
+            query_result=$("$SCRIPT_DIR/vision-query.sh" \
+                --tags "$query_tags" \
+                --status "Captured,Exploring,Proposed" \
+                --format json \
+                --limit "$max_visions" 2>/dev/null) || query_result="[]"
+
+            local vision_count
+            vision_count=$(echo "$query_result" | jq 'length' 2>/dev/null || echo "0")
+
+            if [[ "$vision_count" -eq 0 ]]; then
+                # Full mode with zero results → cold start (not degraded)
+                log "Full SEED: no relevant visions found, cold-starting"
+                log_trajectory "seed_cold" \
+                    "$(jq -n --arg c "$cycle_id" --arg tags "$query_tags" \
+                        '{cycle_id: $c, reason: "full_mode_zero_results", query_tags: $tags}')"
+                return 0
+            fi
+
+            # Compute relevance scores via jq (float-safe — Bridgebuilder MEDIUM-1)
+            local total_tags
+            total_tags=$(echo "$query_tags" | tr ',' '\n' | grep -c . || echo "0")
+
+            local scored_result
+            scored_result=$(echo "$query_result" | jq --arg qtags "$query_tags" --argjson total "$total_tags" '
+                [.[] | . + {
+                    relevance_score: (
+                        if $total == 0 then 0
+                        else
+                            ([.tags[] | select(. as $t | ($qtags | split(",")) | index($t))] | length) / $total
+                        end
+                    )
+                }] | sort_by(-.relevance_score, .date) | reverse
+            ')
+
+            # Build structured seed context JSON (Flatline IMP-004 schema)
+            local budget=4096
+            local seed_json
+            seed_json=$(echo "$scored_result" | jq --arg tags "$query_tags" \
+                --argjson limit "$max_visions" \
+                --argjson budget "$budget" \
+                '{
+                    mode: "full",
+                    query: {tags: ($tags | split(",")), statuses: ["Captured","Exploring","Proposed"], limit: $limit},
+                    visions: [.[] | {
+                        id: .id,
+                        title: .title,
+                        tags: .tags,
+                        status: .status,
+                        date: .date,
+                        insight_excerpt: (.insight_excerpt // "")[0:200],
+                        relevance_score: .relevance_score
+                    }],
+                    budget_bytes: $budget
+                }')
+
+            # Budget enforcement: drop lowest-ranked visions until under budget (IMP-007)
+            local total_bytes
+            total_bytes=$(printf '%s' "$seed_json" | wc -c)
+
+            if [[ "$total_bytes" -gt "$budget" ]]; then
+                seed_json=$(echo "$seed_json" | jq --argjson budget "$budget" '
+                    .truncated = true |
+                    until((.visions | tojson | length) <= $budget or (.visions | length) <= 1;
+                        .visions |= .[:-1]
+                    )
+                ')
+                total_bytes=$(printf '%s' "$seed_json" | wc -c)
+            fi
+
+            seed_json=$(echo "$seed_json" | jq --argjson tb "$total_bytes" \
+                '.total_bytes = $tb | .truncated = (.truncated // false)')
+
+            # Write seed context as human-readable markdown wrapping JSON
+            local seed_file="${cycle_dir}/seed-context.md"
+            {
+                printf '# Seed Context (Full Mode — Vision Registry)\n\n'
+                printf 'Previous cycle context (machine-generated, advisory only):\n\n'
+                printf '```json\n'
+                printf '%s\n' "$seed_json"
+                printf '```\n'
+            } > "$seed_file"
+
+            log "Full SEED: ${vision_count} visions, ${total_bytes} bytes, tags=${query_tags}"
+            log_trajectory "seed_full" \
+                "$(jq -n --arg c "$cycle_id" --arg tags "$query_tags" \
+                    --argjson count "$vision_count" --argjson bytes "$total_bytes" \
+                    --argjson budget "$budget" \
+                    '{cycle_id: $c, query_tags: $tags, vision_count: $count, total_bytes: $bytes, budget_bytes: $budget}')"
+            return 0
+        fi
     fi
 
     if [[ "$seed_mode" == "degraded" ]] && [[ -n "$prev_cycle_dir" ]] && [[ -d "$prev_cycle_dir" ]]; then

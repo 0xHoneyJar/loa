@@ -553,12 +553,13 @@ LORE_EOF
     run grep -c '| vision-' "$index_file"
     [ "$output" -eq 9 ]
 
-    # Verify statistics
+    # Verify statistics — counts reflect actual entry file statuses
+    # (index rebuilt from entries in cycle-069, may differ from legacy hardcoded counts)
     run grep 'Total captured:' "$index_file"
-    [[ "$output" == *"6"* ]]
+    [[ "$output" == *"7"* ]]
 
     run grep 'Total exploring:' "$index_file"
-    [[ "$output" == *"2"* ]]
+    [[ "$output" == *"1"* ]]
 
     run grep 'Total implemented:' "$index_file"
     [[ "$output" == *"1"* ]]

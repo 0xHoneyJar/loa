@@ -84,7 +84,7 @@ butterfreezone:
 # Weaves captured visions from bridge reviews into planning workflows.
 # Disabled by default — opt-in via enabled: true.
 vision_registry:
-  enabled: false           # Master switch — default OFF, opt-in
+  enabled: true            # Graduated in cycle-069 (#486)
   shadow_mode: true        # Log matches silently before presenting to user
   shadow_cycles_before_prompt: 2  # Shadow cycles before graduation prompt
   status_filter:
@@ -95,6 +95,16 @@ vision_registry:
   ref_elevation_threshold: 3  # Ref count before lore elevation suggestion
   propose_requirements: false  # Experimental — vision-inspired requirement proposals
   bridge_auto_capture: false   # Auto-capture VISION findings from bridge reviews (cycle-042)
+
+# Spiral Seed Configuration (cycle-069, #486)
+# Controls how seed_phase() derives cross-cycle context for spiral iterations.
+spiral:
+  seed:
+    mode: "full"                   # "full" (Vision Registry queries), "degraded" (text-blob), "cold" (no context)
+    default_tags:                  # Fallback tags when HARVEST sidecar has no mappable categories
+      - architecture
+      - security
+    max_seed_visions: 10           # Max visions included in seed context
 
 # Prompt Isolation (v1.42.0 — cycle-042)
 # De-authorization wrappers for untrusted content in LLM prompts.
