@@ -217,7 +217,7 @@ write_checkpoint() {
         (.cycles[] | select(.cycle_id == $cid) | .checkpoint) // "NONE"
     ' "$STATE_FILE" 2>/dev/null) || current="NONE"
 
-    if [[ "$current" != "NONE" ]]; then
+    if [[ "$current" != "NONE" && "$current" != "null" ]]; then
         local cur_idx new_idx
         cur_idx=$(checkpoint_ordinal "$current")
         new_idx=$(checkpoint_ordinal "$new_phase")
@@ -280,7 +280,11 @@ with_step_timeout() {
     local budget_sec="$2"
     shift 2
 
-    if [[ -z "$_TIMEOUT_CMD" ]] || [[ "$budget_sec" -le 0 ]]; then
+    # timeout(1) can only execute external commands, not bash functions.
+    # Detect functions and skip timeout — wall-clock provides outer safety net.
+    local cmd_type
+    cmd_type=$(type -t "$1" 2>/dev/null || echo "external")
+    if [[ -z "$_TIMEOUT_CMD" ]] || [[ "$budget_sec" -le 0 ]] || [[ "$cmd_type" == "function" ]]; then
         "$@"
         return $?
     fi
@@ -704,7 +708,7 @@ append_cycle_record() {
             content_hash: ($harvest.content_hash // null),
             elapsed_sec: ($harvest.elapsed_sec // null),
             exit_status: ($harvest.exit_status // "success"),
-            checkpoint: "INIT",
+            checkpoint: null,
             skipped: false
         }] |
         .cycle_index = ($idx + 1)
