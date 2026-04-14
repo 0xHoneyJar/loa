@@ -224,6 +224,8 @@ if ls "$entries_dir"/vision-*.md 1>/dev/null 2>&1; then
   local_max=$(ls "$entries_dir"/vision-*.md 2>/dev/null | \
     sed 's/.*vision-\([0-9]*\)\.md/\1/' | \
     sort -n | tail -1)
+  # Default to 0 if sed pipeline produced empty output (audit fix: prevents $((10#$ + 1)) syntax error)
+  local_max="${local_max:-0}"
   next_number=$((10#$local_max + 1))
 fi
 
