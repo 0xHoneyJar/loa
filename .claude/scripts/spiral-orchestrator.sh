@@ -533,25 +533,16 @@ seed_phase() {
             local sig
             sig=$(jq -r '.flatline_signature // "none"' "$prev_sidecar" 2>/dev/null)
 
-            cat > "${cycle_dir}/seed-context.md" <<SEEDEOF
-# Seed Context for ${cycle_id}
-
-**Source**: previous cycle \`${prev_cycle_id}\` (harvest sidecar v1)
-
-## Verdicts
-- Review: ${review_v}
-- Audit: ${audit_v}
-
-## Findings Summary
-${findings_summary}
-
-## Flatline Signature
-${sig}
-
-## Pointer
-Previous reviewer: ${prev_cycle_dir}/reviewer.md
-Previous auditor:  ${prev_cycle_dir}/auditor-sprint-feedback.md
-SEEDEOF
+            # Write seed context — quoted heredoc prevents shell expansion (security audit O-3)
+            {
+                printf '# Seed Context for %s\n\n' "$cycle_id"
+                printf '**Source**: previous cycle `%s` (harvest sidecar v1)\n\n' "$prev_cycle_id"
+                printf '## Verdicts\n- Review: %s\n- Audit: %s\n\n' "$review_v" "$audit_v"
+                printf '## Findings Summary\n%s\n\n' "$findings_summary"
+                printf '## Flatline Signature\n%s\n\n' "$sig"
+                printf '## Pointer\nPrevious reviewer: %s/reviewer.md\n' "$prev_cycle_dir"
+                printf 'Previous auditor:  %s/auditor-sprint-feedback.md\n' "$prev_cycle_dir"
+            } > "${cycle_dir}/seed-context.md"
 
             local context_bytes
             context_bytes=$(wc -c < "${cycle_dir}/seed-context.md")
