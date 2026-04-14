@@ -917,6 +917,7 @@ preflight() {
     local no_clean=false
     local yes_flag=false
     local seed_context_path=""
+    local autonomous=false
 
     # Parse arguments
     while [[ $# -gt 0 ]]; do
@@ -928,6 +929,7 @@ preflight() {
             --no-clean) no_clean=true; shift ;;
             --yes) yes_flag=true; shift ;;
             --seed-context) seed_context_path="$2"; shift 2 ;;
+            --autonomous) autonomous=true; shift ;;
             *) shift ;;
         esac
     done
@@ -935,6 +937,12 @@ preflight() {
     # Store seed context path for Phase 1 consumption (cycle-068 FR-2)
     if [[ -n "$seed_context_path" ]] && [[ -f "$seed_context_path" ]]; then
         export _SIMSTIM_SEED_CONTEXT_PATH="$seed_context_path"
+    fi
+
+    # Autonomous mode (cycle-070 FR-2): export env var for simstim skill to detect
+    if [[ "$autonomous" == "true" ]]; then
+        export SIMSTIM_AUTONOMOUS=1
+        log "Autonomous mode: ENABLED (Flatline blockers will use arbiter)"
     fi
 
     # Handle abort first
@@ -1192,6 +1200,12 @@ preflight() {
     # Create initial state
     local simstim_id
     simstim_id=$(create_initial_state "$from_phase")
+
+    # Record autonomous mode in state (cycle-070 FR-2)
+    if [[ "$autonomous" == "true" ]]; then
+        jq '.mode = "autonomous"' "$STATE_FILE" > "${STATE_FILE}.tmp" \
+            && mv "${STATE_FILE}.tmp" "$STATE_FILE"
+    fi
 
     jq -n --arg id "$simstim_id" --arg phase "${PHASES[0]}" \
         '{action: "start", simstim_id: $id, starting_phase: $phase}'

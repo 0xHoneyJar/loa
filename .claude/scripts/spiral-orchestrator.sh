@@ -108,6 +108,7 @@ init_state() {
     local wall_clock_seconds="$3"
     local flatline_min="$4"
     local flatline_consec="$5"
+    local task="${6:-}"
 
     mkdir -p "$(dirname "$STATE_FILE")"
 
@@ -116,19 +117,28 @@ init_state() {
     local timestamp
     timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
+    # Read per-cycle and total budget caps (cycle-070 FR-3)
+    local max_budget_per_cycle_usd max_total_budget_usd
+    max_budget_per_cycle_usd=$(read_config "spiral.max_budget_per_cycle_usd" "10")
+    max_total_budget_usd=$(read_config "spiral.max_total_budget_usd" "50")
+
     jq -n \
         --arg id "$spiral_id" \
         --arg ts "$timestamp" \
+        --arg task "$task" \
         --argjson max_cycles "$max_cycles" \
         --argjson budget_cents "$budget_cents" \
         --argjson wall_clock_seconds "$wall_clock_seconds" \
         --argjson flatline_min "$flatline_min" \
         --argjson flatline_consec "$flatline_consec" \
+        --argjson per_cycle_usd "$max_budget_per_cycle_usd" \
+        --argjson total_usd "$max_total_budget_usd" \
         '{
             schema_version: 1,
             spiral_id: $id,
             state: "RUNNING",
             phase: "SEED",
+            task: $task,
             cycle_index: 0,
             max_cycles: $max_cycles,
             cycles: [],
@@ -145,7 +155,10 @@ init_state() {
             budget: {
                 budget_cents: $budget_cents,
                 cost_cents: 0,
-                wall_clock_seconds: $wall_clock_seconds
+                wall_clock_seconds: $wall_clock_seconds,
+                max_per_cycle_usd: $per_cycle_usd,
+                max_total_usd: $total_usd,
+                spent_usd: 0
             },
             stopping_condition: null,
             timestamps: {
@@ -1119,6 +1132,7 @@ cmd_start() {
     # Parse CLI overrides
     local dry_run=false
     local init_only=false
+    local spiral_task=""
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --max-cycles) max_cycles="$2"; shift 2 ;;
@@ -1126,9 +1140,22 @@ cmd_start() {
             --wall-clock-seconds) wall_clock_seconds="$2"; shift 2 ;;
             --dry-run) dry_run=true; shift ;;
             --init-only) init_only=true; shift ;;
-            *) error "Unknown --start option: $1"; return 1 ;;
+            --task) spiral_task="$2"; shift 2 ;;
+            *)
+                # Positional arg = task description (cycle-070 FR-3)
+                if [[ -z "$spiral_task" && "$1" != --* ]]; then
+                    spiral_task="$1"; shift
+                else
+                    error "Unknown --start option: $1"; return 1
+                fi
+                ;;
         esac
     done
+
+    # Read task from config if not provided via CLI
+    if [[ -z "$spiral_task" ]]; then
+        spiral_task=$(read_config "spiral.task" "")
+    fi
 
     # Apply safety floors (AD-4)
     max_cycles=$(clamp_to_floor "$max_cycles" "$MAX_CYCLES_FLOOR")
@@ -1168,7 +1195,7 @@ cmd_start() {
     local spiral_id
     spiral_id=$(init_state \
         "$max_cycles" "$budget_cents" "$wall_clock_seconds" \
-        "$flatline_min" "$flatline_consec")
+        "$flatline_min" "$flatline_consec" "$spiral_task")
 
     log_trajectory "spiral_started" "$(jq -n --arg id "$spiral_id" '{spiral_id: $id}')"
 
