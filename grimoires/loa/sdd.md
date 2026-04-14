@@ -1,6 +1,6 @@
-# SDD: Spiral End-to-End — Autonomous Dispatch + Round-Robin Arbiter
+# SDD: Spiral Harness — Evidence-Gated Orchestrator with Flight Recorder
 
-**Cycle**: 070
+**Cycle**: 071
 **PRD**: `grimoires/loa/prd.md`
 **Date**: 2026-04-14
 
@@ -8,461 +8,392 @@
 
 ## 1. System Architecture
 
-### 1.1 Component Overview
-
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    /spiral CLI (existing)                        │
-│  spiral-orchestrator.sh                                         │
-│  cmd_start() → cycle loop → seed → dispatch → harvest → gate   │
-└───────────────────────┬─────────────────────────────────────────┘
-                        │ invokes per cycle
-                        ▼
-┌─────────────────────────────────────────────────────────────────┐
-│              Dispatch Layer (MODIFIED — FR-1)                    │
-│  spiral-simstim-dispatch.sh                                     │
-│  OLD: setsid simstim-orchestrator.sh --preflight                │
-│  NEW: claude -p "/simstim --autonomous ..." --dangerously-skip  │
-│       --max-budget-usd $10 --output-format json                 │
-└───────────────────────┬─────────────────────────────────────────┘
-                        │ subprocess (fresh context)
-                        ▼
-┌─────────────────────────────────────────────────────────────────┐
-│           Simstim Autonomous Mode (NEW — FR-2)                  │
-│  /simstim --autonomous "task description"                       │
-│  Phases 1-8 auto-proceed, no HITL pauses                        │
-│  Flatline uses arbiter instead of human prompts                 │
-└───────────────────────┬─────────────────────────────────────────┘
-                        │ for DISPUTED/BLOCKER findings
-                        ▼
-┌─────────────────────────────────────────────────────────────────┐
-│           Flatline Phase 3: Arbiter (NEW — FR-4)                │
-│  flatline-orchestrator.sh                                       │
-│  Phase 1: 3 models review → Phase 2: cross-score               │
-│  Phase 3: arbiter sees all findings+scores, decides per-finding │
-│  Rotation: PRD→Opus, SDD→GPT, Sprint→Gemini                    │
-│  Cascade: designated→next→next→auto-reject                      │
-└─────────────────────────────────────────────────────────────────┘
+spiral-orchestrator.sh (existing — cycle loop)
+  │
+  └── spiral-simstim-dispatch.sh (modified — calls harness)
+        │
+        └── spiral-harness.sh (NEW — THE orchestrator)
+              │
+              ├─ claude -p "Write PRD"       ──→ prd.md
+              ├─ GATE: flatline-orchestrator.sh ──→ flatline-prd.json  [VERIFY]
+              ├─ claude -p "Write SDD"       ──→ sdd.md
+              ├─ GATE: flatline-orchestrator.sh ──→ flatline-sdd.json  [VERIFY]
+              ├─ claude -p "Write Sprint"    ──→ sprint.md
+              ├─ GATE: flatline-orchestrator.sh ──→ flatline-sprint.json [VERIFY]
+              ├─ claude -p "Implement"       ──→ code + tests
+              ├─ GATE: claude -p "Review"    ──→ feedback.md [VERIFY APPROVED]
+              ├─ GATE: claude -p "Audit"     ──→ audit.md   [VERIFY APPROVED]
+              ├─ gh pr create (bash)         ──→ PR URL
+              └─ GATE: bridgebuilder         ──→ review posted
+              │
+              └── spiral-evidence.sh (NEW — evidence library)
+                    ├─ _record_action()       → flight-recorder.jsonl
+                    ├─ _verify_artifact()     → checksum + size
+                    ├─ _verify_flatline()     → valid consensus JSON
+                    └─ _verify_verdict()      → APPROVED or CHANGES_REQUIRED
 ```
 
-### 1.2 File Inventory
+### File Inventory
 
-| File | Action | Zone | Authorization |
-|------|--------|------|---------------|
-| `.claude/scripts/spiral-simstim-dispatch.sh` | **Rewrite** | System | PRD cycle-070 FR-1 |
-| `.claude/scripts/flatline-orchestrator.sh` | **Modify** | System | PRD cycle-070 FR-4 |
-| `.claude/scripts/simstim-orchestrator.sh` | **Modify** | System | PRD cycle-070 FR-2 |
-| `.claude/scripts/spiral-orchestrator.sh` | **Modify** | System | PRD cycle-070 FR-3 |
-| `.loa.config.yaml` | **Modify** | State | PRD cycle-070 FR-6 |
-| `tests/unit/spiral-dispatch.bats` | **New** | App | Standard |
-| `tests/unit/flatline-arbiter.bats` | **New** | App | Standard |
-| `tests/unit/simstim-autonomous.bats` | **New** | App | Standard |
+| File | Action | Zone |
+|------|--------|------|
+| `.claude/scripts/spiral-harness.sh` | **New** | System |
+| `.claude/scripts/spiral-evidence.sh` | **New** | System |
+| `.claude/scripts/spiral-simstim-dispatch.sh` | **Modify** | System |
+| `.loa.config.yaml` | **Modify** | State |
+| `tests/unit/spiral-harness.bats` | **New** | App |
+| `tests/unit/spiral-evidence.bats` | **New** | App |
 
 ## 2. Component Design
 
-### 2.1 Dispatch Rewrite — `spiral-simstim-dispatch.sh` (FR-1)
+### 2.1 `spiral-harness.sh` — The Orchestrator
 
-**Current** (line 71): `setsid "$SIMSTIM_SCRIPT" "${simstim_flags[@]}"`
-**New**: `claude -p "$prompt" <flags>`
+**Interface**:
+```bash
+spiral-harness.sh \
+    --task "Build feature X" \
+    --cycle-dir .run/cycles/cycle-1 \
+    --cycle-id cycle-1 \
+    --branch feat/spiral-xxx-cycle-1 \
+    --budget 10 \
+    [--seed-context path/to/seed.md]
+```
 
-**Dispatch flow**:
+**Main loop** — sequential phases with gates:
 
 ```bash
-_dispatch_cycle() {
-  local cycle_dir="$1" cycle_id="$2" task="$3" seed_context="$4"
-
-  # 1. Validate claude CLI
-  if ! command -v claude &>/dev/null; then
-    error "claude CLI not found on PATH"
-    return 127
-  fi
-
-  # 2. Build prompt
-  local prompt
-  prompt=$(_build_dispatch_prompt "$task" "$seed_context" "$cycle_id")
-
-  # 3. Read budget from config
-  # Note: spiral-orchestrator.sh uses spiral.budget_cents (cents, default 2000) for
-  # the spiral-level stopping condition. Per-cycle dispatch uses dollars for claude -p.
-  # Convert: budget_cents / 100, capped by max_budget_per_cycle_usd (Bridgebuilder HIGH-1)
-  local budget
-  budget=$(read_config "spiral.max_budget_per_cycle_usd" "10")
-
-  # 4. Branch name computed here, but creation happens INSIDE the subprocess
-  # (Bridgebuilder MEDIUM-3: branch checkout in parent causes git working tree
-  # contention with harvest phase reading files concurrently)
-  local branch_name="feat/spiral-${SPIRAL_ID}-cycle-${CYCLE_NUM}"
-
-  # 5. Invoke claude -p (branch creation is part of the prompt instruction)
-  local exit_code=0
-  # Dispatch timeout via timeout(1) (Flatline SDD SKP-006)
-  local dispatch_timeout
-  dispatch_timeout=$(read_config "spiral.step_timeouts.simstim_sec" "7200")
-
-  timeout "$dispatch_timeout" \
-    claude -p "$prompt" \
-      --dangerously-skip-permissions \
-      --max-budget-usd "$budget" \
-      --model opus \
-      --output-format json \
-      > "$cycle_dir/claude-stdout.json" \
-      2> "$cycle_dir/claude-stderr.log" \
-      || exit_code=$?
-
-  # 6. Parse output (IMP-004 contract)
-  local pr_url=""
-  if [[ "$exit_code" -eq 0 && -f "$cycle_dir/claude-stdout.json" ]]; then
-    pr_url=$(jq -r '.result // ""' "$cycle_dir/claude-stdout.json" | \
-      grep -oE 'https://github.com/[^/]+/[^/]+/pull/[0-9]+' | head -1 || true)
-  fi
-
-  # 7. Write status artifact (IMP-007)
-  _write_status "$cycle_id" "$exit_code" "$pr_url"
-
-  return "$exit_code"
+main() {
+    local task="$1" cycle_dir="$2" cycle_id="$3" branch="$4" budget="$5" seed="$6"
+    
+    local evidence_dir="$cycle_dir/evidence"
+    mkdir -p "$evidence_dir"
+    
+    _init_flight_recorder "$cycle_dir"
+    
+    # Phase 1: Discovery
+    _run_phase "DISCOVERY" \
+        _phase_discovery "$task" "$seed" "$evidence_dir"
+    
+    # Gate 1: Flatline PRD
+    _run_gate "FLATLINE_PRD" \
+        _gate_flatline "prd" "grimoires/loa/prd.md" "$evidence_dir"
+    
+    # Phase 2: Architecture
+    local prd_findings=$(_summarize_flatline "$evidence_dir/flatline-prd.json")
+    _run_phase "ARCHITECTURE" \
+        _phase_architecture "$prd_findings" "$evidence_dir"
+    
+    # Gate 2: Flatline SDD
+    _run_gate "FLATLINE_SDD" \
+        _gate_flatline "sdd" "grimoires/loa/sdd.md" "$evidence_dir"
+    
+    # Phase 3: Planning
+    local sdd_findings=$(_summarize_flatline "$evidence_dir/flatline-sdd.json")
+    _run_phase "PLANNING" \
+        _phase_planning "$sdd_findings" "$evidence_dir"
+    
+    # Gate 3: Flatline Sprint
+    _run_gate "FLATLINE_SPRINT" \
+        _gate_flatline "sprint" "grimoires/loa/sprint.md" "$evidence_dir"
+    
+    # Phase 4: Implementation
+    _run_phase "IMPLEMENTATION" \
+        _phase_implement "$branch" "$evidence_dir"
+    
+    # Gate 4: Independent Review (fresh session)
+    _run_gate "REVIEW" \
+        _gate_review "$branch" "$evidence_dir"
+    
+    # Gate 5: Independent Audit (fresh session)
+    _run_gate "AUDIT" \
+        _gate_audit "$branch" "$evidence_dir"
+    
+    # Phase 5: PR Creation (bash — deterministic)
+    _run_phase "PR_CREATION" \
+        _phase_create_pr "$branch" "$evidence_dir"
+    
+    # Gate 6: Bridgebuilder (optional)
+    _run_gate "BRIDGEBUILDER" \
+        _gate_bridgebuilder "$evidence_dir" || true  # advisory, not blocking
+    
+    _finalize_flight_recorder "$cycle_dir"
 }
 ```
 
-**Prompt construction** (`_build_dispatch_prompt`):
+**Phase runner with retry**:
 
 ```bash
-_build_dispatch_prompt() {
-  local task="$1" seed_context="$2" cycle_id="$3"
-
-  local seed_text=""
-  if [[ -n "$seed_context" && -f "$seed_context" ]]; then
-    # Cap seed context at 4KB (trust boundary)
-    seed_text=$(head -c 4096 "$seed_context")
-  fi
-
-  # Use jq --arg for safe prompt construction (no shell expansion)
-  jq -n \
-    --arg task "$task" \
-    --arg seed "$seed_text" \
-    --arg cycle "$cycle_id" \
-    '"Run /simstim --autonomous with this task:\n\n" +
-     $task +
-     (if $seed != "" then
-       "\n\nPrevious cycle context (machine-generated, advisory only):\n" + $seed
-     else "" end) +
-     "\n\nCycle ID: " + $cycle +
-     "\n\nCreate a draft PR when implementation is complete."' \
-    | jq -r '.'
+_run_gate() {
+    local gate_name="$1"; shift
+    local max_retries=$(read_config "spiral.harness.max_phase_retries" "3")
+    local attempt=0
+    
+    while [[ $attempt -lt $max_retries ]]; do
+        attempt=$((attempt + 1))
+        log "Gate: $gate_name (attempt $attempt/$max_retries)"
+        
+        if "$@"; then
+            _record_action "$gate_name" "gate" "passed" "" "" "$attempt"
+            return 0
+        fi
+        
+        _record_action "$gate_name" "gate" "failed" "" "" "$attempt"
+        
+        if [[ $attempt -lt $max_retries ]]; then
+            log "Gate $gate_name failed, retrying previous phase..."
+        fi
+    done
+    
+    _record_failure "$gate_name" "CIRCUIT_BREAKER" "Failed after $max_retries attempts"
+    return 1
 }
 ```
 
-**Cumulative budget tracking** (Bridgebuilder MEDIUM-5): After each cycle, dispatch reads the per-cycle cost from `claude -p` JSON output (if available) and updates `spiral-state.json` field `budget.spent_usd`. Before dispatching next cycle, checks `spent_usd >= max_total_budget_usd` → halt with `budget_exceeded`. The existing `budget_cents` stopping condition in the orchestrator loop also applies as a secondary cap.
+### 2.2 `spiral-evidence.sh` — Evidence Library
 
-**Status artifact** (Flatline IMP-007): `.run/spiral-status.txt` — human-readable, updated per cycle:
-```
-Spiral: spiral-abc123
-Cycle: 3/5
-Status: RUNNING
-Last cycle: cycle-3 (APPROVED, PR #502)
-Started: 2026-04-14T10:00:00Z
-Budget: $7.50 / $50.00 remaining
-```
-
-### 2.2 Simstim `--autonomous` Flag (FR-2)
-
-**Detection**: `simstim-orchestrator.sh --preflight` accepts `--autonomous` flag, exports `SIMSTIM_AUTONOMOUS=1`.
-
-**State tracking**: `simstim-state.json` includes `"mode": "autonomous"`.
-
-**HITL bypass points in the simstim workflow** (the agent checks `SIMSTIM_AUTONOMOUS`):
-
-| Phase | Current HITL | Autonomous behavior |
-|-------|-------------|---------------------|
-| 1 (Discovery) | Agent asks user questions | Agent auto-generates PRD from task + seed. Includes `## Assumptions` section (SKP-008). |
-| 2 (Flatline PRD) | Present BLOCKER/DISPUTED to user | Invoke arbiter (FR-4). Auto-integrate arbiter decisions. |
-| 3 (Architecture) | Agent asks user questions | Agent auto-generates SDD from PRD. |
-| 3.5 (Bridgebuilder) | Present findings to user | Auto-integrate CRITICAL/HIGH, auto-defer REFRAME/SPECULATION. |
-| 4 (Flatline SDD) | Present BLOCKER/DISPUTED to user | Invoke arbiter (FR-4). |
-| 4.5 (Red Team) | Prompt Y/n | Auto-skip. |
-| 5 (Planning) | Agent asks user questions | Agent auto-generates sprint plan from PRD+SDD. |
-| 6 (Flatline Sprint) | Present BLOCKER/DISPUTED to user | Invoke arbiter (FR-4). |
-| 7 (Implementation) | Prompt Continue? | Auto-proceed to `/run sprint-plan`. |
-
-**Implementation**: This is NOT code in `simstim-orchestrator.sh` — it's behavioral guidance for the LLM agent running `/simstim`. The `--autonomous` flag signals to the agent that it should auto-proceed rather than waiting for human input. The flag is passed through the dispatch prompt: `"Run /simstim --autonomous"`.
-
-The `simstim-orchestrator.sh` changes are minimal:
-1. Accept `--autonomous` flag in preflight arg parsing (~line 922)
-2. Export `SIMSTIM_AUTONOMOUS=1` env var
-3. Record `"mode": "autonomous"` in state JSON
-
-### 2.3 Flatline Phase 3: Round-Robin Arbiter (FR-4)
-
-**Location**: `flatline-orchestrator.sh`, new section after consensus calculation (~line 1235).
-
-**Trigger**: Only when `flatline_protocol.autonomous_arbiter.enabled: true` AND `SIMSTIM_AUTONOMOUS=1` (autonomous mode). In HITL mode, existing behavior unchanged — human decides on blockers. (Bridgebuilder MEDIUM-4: corrected from erroneous `hitl` trigger condition.)
-
-**Flow**:
-
-```
-Consensus calculated (line 1235)
-  ↓
-if autonomous_arbiter.enabled AND (disputed_count > 0 OR blocker_count > 0):
-  ↓
-  Select arbiter model (rotation based on phase)
-  ↓
-  Build arbiter prompt: document + all findings + all scores
-  ↓
-  Invoke arbiter via model-adapter.sh (single API call)
-  ↓
-  Parse arbiter decisions JSON
-  ↓
-  Apply decisions: accept→move to high_consensus, reject→remove from blockers
-  ↓
-  Log all decisions to trajectory
-  ↓
-  Recalculate consensus summary with arbiter modifications
-```
-
-**Arbiter model selection**:
+**Flight recorder append**:
 
 ```bash
-_select_arbiter() {
-  local phase="$1"
-  # read_config returns YAML list as newline-delimited string, not bash array
-  # (Bridgebuilder HIGH-2: must use mapfile, not direct indexing)
-  local rotation_raw
-  rotation_raw=$(read_config "flatline_protocol.autonomous_arbiter.rotation" "")
-  local rotation=()
-  if [[ -n "$rotation_raw" ]]; then
-    mapfile -t rotation < <(echo "$rotation_raw" | sed 's/^- //')
-  fi
+_FLIGHT_RECORDER=""  # Set by _init_flight_recorder
+_SEQ=0               # Monotonic sequence counter
 
-  # Defaults if config empty
-  [[ ${#rotation[@]} -lt 3 ]] && rotation=("opus" "gpt-5.3-codex" "gemini-2.5-pro")
+_init_flight_recorder() {
+    local cycle_dir="$1"
+    _FLIGHT_RECORDER="$cycle_dir/flight-recorder.jsonl"
+    _SEQ=0
+    touch "$_FLIGHT_RECORDER"
+    chmod 600 "$_FLIGHT_RECORDER"
+}
 
-  # Phase-based selection
-  case "$phase" in
-    prd)    echo "${rotation[0]}" ;;
-    sdd)    echo "${rotation[1]}" ;;
-    sprint) echo "${rotation[2]}" ;;
-    *)      echo "${rotation[0]}" ;;
-  esac
+_record_action() {
+    local phase="$1" actor="$2" action="$3"
+    local input_checksum="${4:-null}" output_checksum="${5:-null}"
+    local output_path="${6:-null}" output_bytes="${7:-0}"
+    local duration_ms="${8:-0}" cost_usd="${9:-0}" verdict="${10:-null}"
+    
+    _SEQ=$((_SEQ + 1))
+    
+    jq -n \
+        --argjson seq "$_SEQ" \
+        --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        --arg phase "$phase" \
+        --arg actor "$actor" \
+        --arg action "$action" \
+        --arg in_ck "$input_checksum" \
+        --arg out_ck "$output_checksum" \
+        --arg out_path "$output_path" \
+        --argjson out_bytes "$output_bytes" \
+        --argjson duration_ms "$duration_ms" \
+        --argjson cost_usd "$cost_usd" \
+        --arg verdict "$verdict" \
+        '{seq:$seq, ts:$ts, phase:$phase, actor:$actor, action:$action,
+          input_checksum:(if $in_ck == "null" then null else $in_ck end),
+          output_checksum:(if $out_ck == "null" then null else $out_ck end),
+          output_path:(if $out_path == "null" then null else $out_path end),
+          output_bytes:$out_bytes, duration_ms:$duration_ms,
+          cost_usd:$cost_usd,
+          verdict:(if $verdict == "null" then null else $verdict end)}' \
+        >> "$_FLIGHT_RECORDER"
 }
 ```
 
-**Arbiter prompt structure**:
-
-```
-You are the arbiter for this Flatline review. You have seen all models'
-independent reviews and cross-scores. For each DISPUTED or BLOCKER finding,
-make a final decision.
-
-Document under review: [phase] - [truncated document, max 2K tokens]
-
-Findings requiring your decision:
-[JSON array of disputed + blocker findings with all scores]
-
-For each finding, respond with a JSON array:
-[{"finding_id": "...", "decision": "accept"|"reject", "rationale": "..."}]
-
-Decide based on: (1) strength of evidence, (2) severity of concern,
-(3) whether the concern is already addressed elsewhere in the document.
-Err on the side of accepting well-reasoned suggestions and rejecting
-concerns that are theoretical without practical impact.
-```
-
-**Arbiter invocation** via model-adapter.sh:
+**Artifact verification**:
 
 ```bash
-_invoke_arbiter() {
-  local arbiter_model="$1"
-  local prompt_file="$2"
-  local max_tokens
-  max_tokens=$(read_config "flatline_protocol.autonomous_arbiter.max_arbiter_tokens" "4000")
+_verify_artifact() {
+    local phase="$1" artifact="$2" min_bytes="${3:-500}"
+    
+    if [[ ! -f "$artifact" ]]; then
+        _record_failure "$phase" "MISSING_ARTIFACT" "$artifact"
+        return 1
+    fi
+    
+    local bytes
+    bytes=$(wc -c < "$artifact")
+    if [[ "$bytes" -lt "$min_bytes" ]]; then
+        _record_failure "$phase" "ARTIFACT_TOO_SMALL" "$bytes < $min_bytes"
+        return 1
+    fi
+    
+    local checksum
+    checksum=$(sha256sum "$artifact" | awk '{print $1}')
+    echo "$checksum"
+}
 
-  # model-adapter.sh uses --mode (not --agent) and --model for provider:id
-  # (Bridgebuilder LOW-6: corrected interface to match actual adapter API)
-  "$SCRIPT_DIR/model-adapter.sh" \
-    --mode "review" \
-    --model "$arbiter_model" \
-    --input "$prompt_file" \
-    --timeout 120 \
-    --max-tokens "$max_tokens"
+_verify_flatline_output() {
+    local phase="$1" output="$2"
+    
+    [[ -f "$output" ]] || { _record_failure "$phase" "NO_FLATLINE_OUTPUT"; return 1; }
+    jq empty "$output" 2>/dev/null || { _record_failure "$phase" "INVALID_JSON"; return 1; }
+    jq -e '.consensus_summary' "$output" >/dev/null 2>&1 || { _record_failure "$phase" "NO_CONSENSUS"; return 1; }
+    
+    local high blockers
+    high=$(jq '.consensus_summary.high_consensus_count // 0' "$output")
+    blockers=$(jq '.consensus_summary.blocker_count // 0' "$output")
+    
+    echo "high=$high blockers=$blockers"
+}
+
+_verify_review_verdict() {
+    local phase="$1" feedback="$2"
+    
+    [[ -f "$feedback" ]] || { _record_failure "$phase" "NO_FEEDBACK"; return 1; }
+    
+    if grep -qi "All good\|APPROVED" "$feedback"; then
+        return 0
+    elif grep -qi "CHANGES_REQUIRED" "$feedback"; then
+        return 1
+    else
+        _record_failure "$phase" "NO_VERDICT"
+        return 1
+    fi
+}
+
+_get_cumulative_cost() {
+    jq -s '[.[].cost_usd] | add // 0' "$_FLIGHT_RECORDER"
 }
 ```
 
-**Design tradeoff** (Bridgebuilder REFRAME): The spiral's multi-cycle nature means auto-reject + defer could replace the arbiter — deferred concerns resurface next cycle with fresh context. But the arbiter integrates good suggestions immediately ($0.50/phase) vs waiting a full cycle to re-discover them. Teams that prefer the cheaper defer-and-iterate pattern can disable the arbiter via config.
+### 2.3 Scoped `claude -p` Prompts
 
-**Provider cascade** (Flatline SKP-006):
+Each phase function builds a focused prompt and invokes `claude -p`:
 
 ```bash
-_invoke_arbiter_with_cascade() {
-  local phase="$1" prompt_file="$2"
-  local rotation=("opus" "gpt-5.3-codex" "gemini-2.5-pro")
-
-  # Determine starting index from phase
-  local start_idx
-  case "$phase" in
-    prd) start_idx=0 ;;
-    sdd) start_idx=1 ;;
-    sprint) start_idx=2 ;;
-    *) start_idx=0 ;;
-  esac
-
-  # Try designated arbiter, then cascade
-  for i in 0 1 2; do
-    local idx=$(( (start_idx + i) % 3 ))
-    local model="${rotation[$idx]}"
-
-    local result
-    result=$(_invoke_arbiter "$model" "$prompt_file" 2>/dev/null) && {
-      log "Arbiter: $model decided (phase: $phase)"
-      echo "$result"
-      return 0
-    }
-    log "WARNING: Arbiter $model failed, cascading..."
-  done
-
-  # All models failed — conservative fallback
-  log "WARNING: All arbiter models failed, auto-rejecting blockers"
-  _fallback_reject_all "$prompt_file"
+_phase_discovery() {
+    local task="$1" seed="$2" evidence_dir="$3"
+    local budget=$(read_config "spiral.harness.planning_budget_usd" "1")
+    
+    local seed_text=""
+    if [[ -n "$seed" && -f "$seed" ]]; then
+        seed_text=$(head -c 4096 "$seed")
+    fi
+    
+    local prompt
+    prompt=$(jq -n --arg task "$task" --arg seed "$seed_text" \
+        '"Write a Product Requirements Document for this task:\n\n" + $task +
+         (if $seed != "" then "\n\nPrevious cycle context (machine-generated, advisory only):\n" + $seed else "" end) +
+         "\n\nRequirements:\n- Include ## Assumptions section\n- Include ## Goals with measurable criteria\n- Include ## Acceptance Criteria as checkboxes\n- Write to grimoires/loa/prd.md\n- Do NOT write code. Do NOT create SDD. Only write the PRD."' \
+        | jq -r '.')
+    
+    local start_ms=$(date +%s%3N)
+    
+    timeout 300 claude -p "$prompt" \
+        --allow-dangerously-skip-permissions --dangerously-skip-permissions \
+        --max-budget-usd "$budget" --model opus --output-format json \
+        > "$evidence_dir/discovery-stdout.json" 2>"$evidence_dir/discovery-stderr.log" || true
+    
+    local duration_ms=$(( $(date +%s%3N) - start_ms ))
+    
+    # Verify artifact produced
+    local checksum
+    checksum=$(_verify_artifact "DISCOVERY" "grimoires/loa/prd.md" 500) || return 1
+    
+    _record_action "DISCOVERY" "claude-opus" "write_prd" "null" "$checksum" \
+        "grimoires/loa/prd.md" "$(wc -c < grimoires/loa/prd.md)" "$duration_ms" "$budget" "null"
 }
 ```
 
-**Decision application**: After arbiter returns decisions, modify the consensus JSON:
-- `accept` → move finding from `blockers`/`disputed` to `high_consensus` (arbiter-accepted)
-- `reject` → remove from `blockers`/`disputed`, add to a new `arbiter_rejected` array
+Review and Audit prompts receive the diff, not implementation context:
 
-**Trajectory logging**: Each arbiter decision logged to `grimoires/loa/a2a/trajectory/flatline-arbiter-{date}.jsonl`:
-```json
-{
-  "type": "flatline_arbiter",
-  "phase": "prd",
-  "arbiter_model": "opus",
-  "finding_id": "SKP-001",
-  "original_classification": "BLOCKER",
-  "decision": "accept",
-  "rationale": "Valid security concern...",
-  "cascade_attempts": 1,
-  "timestamp": "2026-04-14T..."
+```bash
+_gate_review() {
+    local branch="$1" evidence_dir="$2"
+    local budget=$(read_config "spiral.harness.review_budget_usd" "2")
+    
+    local diff
+    diff=$(git diff main..."$branch" -- ':!grimoires/' ':!.run/' 2>/dev/null | head -c 50000)
+    
+    local prompt
+    prompt=$(jq -n --arg diff "$diff" \
+        '"You are a senior tech lead reviewer. Review this implementation.\n\nGit diff:\n```\n" + $diff + "\n```\n\nRead grimoires/loa/sprint.md for acceptance criteria.\nFor each AC, verify with file:line evidence.\nWrite review to grimoires/loa/a2a/engineer-feedback.md.\nWrite \"All good\" if approved or \"CHANGES_REQUIRED\" with specific issues."' \
+        | jq -r '.')
+    
+    timeout 600 claude -p "$prompt" \
+        --allow-dangerously-skip-permissions --dangerously-skip-permissions \
+        --max-budget-usd "$budget" --model opus --output-format json \
+        > "$evidence_dir/review-stdout.json" 2>"$evidence_dir/review-stderr.log" || true
+    
+    _verify_review_verdict "REVIEW" "grimoires/loa/a2a/engineer-feedback.md"
 }
 ```
 
-### 2.4 Spiral Config + Task Passthrough (FR-3)
+### 2.4 Flatline Findings Integration
 
-**`spiral-orchestrator.sh` changes**:
-
-1. `cmd_start()` accepts task as positional arg: `/spiral --start "Build feature X"`
-2. Task stored in `spiral-state.json` as `"task": "Build feature X"`
-3. Each cycle reads task from state and passes to dispatch
-4. `spiral.enabled: true` checked at startup (existing pattern)
-
-### 2.5 Branch Chaining (FR-5)
-
-**Per-cycle branch creation** in dispatch wrapper:
+After each Flatline gate, summarize findings for the next phase:
 
 ```bash
-local branch_name="feat/spiral-${SPIRAL_ID}-cycle-${CYCLE_NUM}"
-
-# Idempotency: check existing branch/PR (SKP-005)
-if git rev-parse --verify "$branch_name" &>/dev/null; then
-  log "Branch $branch_name already exists, reusing"
-  git checkout "$branch_name"
-else
-  git checkout -b "$branch_name"
-fi
+_summarize_flatline() {
+    local flatline_json="$1"
+    [[ -f "$flatline_json" ]] || { echo ""; return; }
+    
+    jq -r '
+        "Flatline findings:\n" +
+        "HIGH_CONSENSUS (auto-integrated):\n" +
+        ([.high_consensus[]? | "- " + .description] | join("\n")) +
+        "\n\nBLOCKERS (arbiter-decided):\n" +
+        ([(.arbiter_rejected // .blockers)[]? | "- [REJECTED] " + (.concern // .description)] | join("\n"))
+    ' "$flatline_json" 2>/dev/null || echo ""
+}
 ```
 
-**PR chaining**: The dispatch prompt includes instruction to reference parent PR:
+This feeds into the next `claude -p` prompt so the SDD addresses PRD findings, the Sprint addresses SDD findings, etc.
+
+## 3. Integration
+
+### 3.1 Dispatch Wrapper Change
+
+`spiral-simstim-dispatch.sh` calls harness instead of direct `claude -p`:
+
+```bash
+# OLD:
+timeout "$local_timeout" claude -p "$prompt" --dangerously-skip-permissions ...
+
+# NEW:
+"$SCRIPT_DIR/spiral-harness.sh" \
+    --task "$task" \
+    --cycle-dir "$cycle_dir" \
+    --cycle-id "$cycle_id" \
+    --branch "$branch_name" \
+    --budget "$local_budget" \
+    ${seed_context:+--seed-context "$seed_context"}
 ```
-If this is cycle 2+, reference the parent PR in the description:
-Parent: #{parent_pr_number}
+
+### 3.2 Config
+
+```yaml
+spiral:
+  harness:
+    enabled: true
+    max_phase_retries: 3
+    planning_budget_usd: 1
+    implement_budget_usd: 5
+    review_budget_usd: 2
+    audit_budget_usd: 2
+    evidence_dir: ".run/spiral-evidence"
 ```
 
-Parent PR number read from previous cycle's `cycle-outcome.json` sidecar `pr_url` field.
-
-## 3. Security Design
-
-| Input | Risk | Mitigation |
-|-------|------|------------|
-| Task text (from user) | Prompt injection into `claude -p` | Task comes from user who invoked `/spiral` — trusted by definition |
-| Seed context (from HARVEST) | Indirect prompt injection | `vision_sanitize_text()` applied; prefixed "machine-generated, advisory only" |
-| `--dangerously-skip-permissions` | Unrestricted tool access | Same user workspace, same permissions. Safety hooks (`block-destructive-bash.sh`) still active. |
-| Arbiter prompt | Manipulation via crafted findings | Findings come from our own Flatline models, not external input |
-| Config values | Path injection | `read_config` returns strings passed to `--arg` in jq, not shell-expanded |
-
-## 4. Error Handling
-
-### 4.1 Dispatch Failure Recovery
-
-| Exit Code | Meaning | Spiral Action |
-|-----------|---------|---------------|
-| 0 | Success | Harvest artifacts, continue |
-| 1-125 | Application error | Mark cycle failed, HARVEST (fail-closed gate stops spiral) |
-| 124 | Timeout | Same as application error |
-| 126/127 | CLI missing | Abort spiral with `dispatch_error` |
-
-### 4.2 Arbiter Failure Recovery
-
-| Failure | Action |
-|---------|--------|
-| Designated model timeout | Cascade to next model in rotation |
-| All 3 models fail | Conservative auto-reject for all BLOCKERs |
-| Malformed arbiter JSON | Log error, treat as model failure, cascade |
-| Arbiter accepts everything | Valid — arbiter has full context to make this call |
-
-### 4.3 Quality Parity Rollback (IMP-001)
-
-If 2 consecutive cycles produce CHANGES_REQUIRED from review:
-1. Spiral halts with `quality_escalation` state
-2. Status artifact updated: "ESCALATED — 2 consecutive review failures"
-3. User must run `/spiral --resume` with HITL override to continue
-
-## 5. Testing Strategy
-
-### 5.1 Test Files
+## 4. Testing Strategy
 
 | File | Coverage |
 |------|----------|
-| `tests/unit/spiral-dispatch.bats` | FR-1: claude CLI validation, prompt construction, output parsing, exit code handling, branch idempotency |
-| `tests/unit/flatline-arbiter.bats` | FR-4: arbiter rotation, cascade fallback, decision parsing, trajectory logging |
-| `tests/unit/simstim-autonomous.bats` | FR-2: autonomous flag detection, state recording, env var export |
+| `tests/unit/spiral-evidence.bats` | Flight recorder append, seq monotonicity, artifact verification, Flatline output verification, verdict parsing, cumulative cost |
+| `tests/unit/spiral-harness.bats` | Phase sequencing, gate retry logic, circuit breaker, prompt construction, evidence dir creation |
 
-### 5.2 Key Test Cases
+## 5. Implementation Order
 
-**Dispatch**:
-- `claude` not on PATH → exit 127
-- Prompt includes task + seed context + cycle ID
-- Output JSON parsed for PR URL regex
-- Missing PR URL → `completed_no_pr` (not failure)
-- Branch already exists → reuse (idempotent)
-- Budget passed through from config
+### Sprint 1: Evidence Library + Flight Recorder
+1. T1.1: `spiral-evidence.sh` — _record_action, _verify_artifact, _verify_flatline_output, _verify_review_verdict, _get_cumulative_cost
+2. T1.2: Flight recorder JSONL — init, append, seq numbering, flock safety
+3. T1.3: Evidence tests (`spiral-evidence.bats`)
 
-**Arbiter**:
-- PRD phase → Opus selected as arbiter
-- SDD phase → GPT selected
-- Sprint phase → Gemini selected
-- Designated model fails → cascades to next
-- All 3 fail → conservative auto-reject
-- Arbiter decisions modify consensus JSON correctly
-- Each decision logged to trajectory
-
-**Autonomous**:
-- `--autonomous` flag sets `SIMSTIM_AUTONOMOUS=1`
-- State records `"mode": "autonomous"`
-- Flag survives preflight and reaches state JSON
-
-## 6. Implementation Order
-
-### Sprint 1: Dispatch + Autonomous Simstim
-1. **T1.1**: `spiral.enabled` config + task passthrough in spiral-orchestrator.sh
-2. **T1.2**: Rewrite `spiral-simstim-dispatch.sh` — `claude -p` invocation, prompt construction, output parsing
-3. **T1.3**: `--autonomous` flag in simstim-orchestrator.sh (flag parsing, env var, state)
-4. **T1.4**: Branch chaining + PR idempotency in dispatch wrapper
-5. **T1.5**: Status artifact (`.run/spiral-status.txt`)
-6. **T1.6**: Tests for dispatch + autonomous flag
-
-### Sprint 2: Round-Robin Arbiter
-7. **T2.1**: Arbiter model selection (`_select_arbiter`) with phase-based rotation
-8. **T2.2**: Arbiter prompt construction + invocation via model-adapter.sh
-9. **T2.3**: Provider cascade (`_invoke_arbiter_with_cascade`)
-10. **T2.4**: Decision application — modify consensus JSON (accept/reject)
-11. **T2.5**: Trajectory logging for arbiter decisions
-12. **T2.6**: Config gate (`flatline_protocol.autonomous_arbiter.enabled`)
-13. **T2.7**: Tests for arbiter rotation, cascade, decision parsing
-14. **T2.8**: Config updates + integration test
+### Sprint 2: Harness Orchestrator + Integration
+4. T2.1: `spiral-harness.sh` — main loop, phase/gate sequencing
+5. T2.2: Scoped `claude -p` prompts (6 phases)
+6. T2.3: Gate implementations — _gate_flatline, _gate_review, _gate_audit, _gate_bridgebuilder
+7. T2.4: Retry logic + circuit breaker
+8. T2.5: Flatline findings summarization + cascading context
+9. T2.6: Modify `spiral-simstim-dispatch.sh` to call harness
+10. T2.7: Config additions
+11. T2.8: Harness tests (`spiral-harness.bats`)
+12. T2.9: Regression tests

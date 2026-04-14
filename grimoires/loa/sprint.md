@@ -1,223 +1,139 @@
-# Sprint Plan: Cycle-070 — Spiral End-to-End Autonomous
+# Sprint Plan: Cycle-071 — Spiral Harness Architecture
 
-**Cycle**: 070
+**Cycle**: 071
 **PRD**: `grimoires/loa/prd.md`
 **SDD**: `grimoires/loa/sdd.md`
 **Date**: 2026-04-14
 
 ---
 
-## Sprint 1: Dispatch + Autonomous Simstim
+## Sprint 1: Evidence Library + Flight Recorder
 
-**Goal**: Rewrite dispatch to use `claude -p`, add `--autonomous` flag, wire config, implement branch chaining.
+**Goal**: Build the evidence verification and flight recorder infrastructure.
 
-### Task 1.1: Config — `spiral.enabled` + Task Passthrough (FR-3)
+### Task 1.1: `spiral-evidence.sh` — Evidence Library
 
-**File**: `.claude/scripts/spiral-orchestrator.sh`, `.loa.config.yaml`
-**Changes**:
-- Add `spiral.enabled: true` to config
-- `cmd_start()` accepts task as positional arg, stores in `spiral-state.json`
-- Add `spiral.max_budget_per_cycle_usd`, `spiral.max_total_budget_usd`, `spiral.step_timeouts.*` to config
+**File**: `.claude/scripts/spiral-evidence.sh` (new)
+**Functions**:
+- `_init_flight_recorder()` — create JSONL file, set seq=0
+- `_record_action()` — append entry with seq, timestamp, phase, actor, checksums, cost
+- `_record_failure()` — record gate failure with reason
+- `_record_evidence()` — record artifact verification
+- `_verify_artifact()` — check file exists, min size, return sha256
+- `_verify_flatline_output()` — check valid JSON, has consensus_summary
+- `_verify_review_verdict()` — check APPROVED or CHANGES_REQUIRED
+- `_get_cumulative_cost()` — sum cost_usd from flight recorder
+- `_summarize_flatline()` — extract findings summary for prompt cascading
 **AC**:
-- [ ] `spiral.enabled: true` in config
-- [ ] `/spiral --start "task"` stores task in state
-- [ ] `spiral.max_budget_per_cycle_usd` defaults to 10
-- [ ] `spiral.max_total_budget_usd` defaults to 50
+- [ ] Flight recorder JSONL created at cycle_dir/flight-recorder.jsonl
+- [ ] Entries append-only (never modify existing)
+- [ ] Seq numbers monotonically increase
+- [ ] Checksums computed via sha256sum
+- [ ] Missing artifact → return 1 + recorded failure
+- [ ] Invalid Flatline JSON → return 1 + recorded failure
+- [ ] APPROVED verdict detected, CHANGES_REQUIRED detected, missing verdict → return 1
+- [ ] Cumulative cost sums correctly from JSONL entries
+- [ ] Flatline summary extracts HIGH_CONSENSUS + BLOCKER descriptions
 
-### Task 1.2: Dispatch Rewrite — `claude -p` (FR-1)
+### Task 1.2: Evidence Tests
 
-**File**: `.claude/scripts/spiral-simstim-dispatch.sh` (rewrite)
-**Changes**:
-- Replace `setsid simstim-orchestrator.sh` with `claude -p` invocation
-- Validate `claude` CLI on PATH (exit 127 if missing)
-- Prompt construction via `jq --arg` (safe, no shell expansion)
-- Output parsing: `--output-format json`, regex PR URL extraction
-- `--dangerously-skip-permissions` + `--max-budget-usd` from config
-- `--model opus` for planning quality
-- stdout → `cycle_dir/claude-stdout.json`, stderr → `cycle_dir/claude-stderr.log`
-- Mid-cycle failure semantics per PRD IMP-002 exit code table
-- Branch name passed to subprocess prompt (not created in parent — Bridgebuilder MEDIUM-3)
+**File**: `tests/unit/spiral-evidence.bats` (new)
 **AC**:
-- [ ] `claude` not on PATH → exit 127
-- [ ] Prompt includes task + seed context + cycle ID + branch instruction
-- [ ] `--max-budget-usd` from `spiral.max_budget_per_cycle_usd`
-- [ ] `--dangerously-skip-permissions` passed
-- [ ] stdout/stderr captured to cycle_dir
-- [ ] PR URL extracted from output JSON via regex
-- [ ] Missing PR URL → `completed_no_pr` (not failure)
-- [ ] Exit 126/127 → abort spiral
-- [ ] Dispatch wrapped in `timeout(1)` using `spiral.step_timeouts.simstim_sec` (Flatline SDD SKP-006)
-
-### Task 1.3: Simstim `--autonomous` Flag (FR-2)
-
-**File**: `.claude/scripts/simstim-orchestrator.sh`
-**Changes**:
-- Accept `--autonomous` in preflight arg parsing (~line 922)
-- Export `SIMSTIM_AUTONOMOUS=1` env var
-- Record `"mode": "autonomous"` in simstim-state.json
-**AC**:
-- [ ] `--autonomous` flag accepted without error
-- [ ] `SIMSTIM_AUTONOMOUS=1` exported
-- [ ] State JSON records `"mode": "autonomous"`
-- [ ] Existing HITL mode unaffected when flag absent
-
-### Task 1.4: Branch Chaining + PR Idempotency (FR-5)
-
-**File**: `.claude/scripts/spiral-simstim-dispatch.sh`
-**Changes**:
-- Compute branch name `feat/spiral-{id}-cycle-{N}`
-- Check existing branch via `git rev-parse --verify` (idempotency, SKP-005)
-- Check existing PR via `gh pr list --head <branch>` (idempotency)
-- Pass parent PR URL from previous cycle's sidecar to dispatch prompt
-- Prompt instructs subprocess to reference parent PR in description
-**AC**:
-- [ ] Branch name follows `feat/spiral-{id}-cycle-{N}` pattern
-- [ ] Existing branch detected and reused
-- [ ] Existing PR detected and not duplicated
-- [ ] Parent PR URL passed to subsequent cycles
-
-### Task 1.5: Status Artifact + Cumulative Budget (IMP-007, Bridgebuilder MEDIUM-5)
-
-**File**: `.claude/scripts/spiral-simstim-dispatch.sh`
-**Changes**:
-- Write `.run/spiral-status.txt` after each cycle (human-readable)
-- Track cumulative spend in `spiral-state.json` field `budget.spent_usd`
-- Before dispatch: check `spent_usd >= max_total_budget_usd` → halt
-**AC**:
-- [ ] `.run/spiral-status.txt` updated after each cycle
-- [ ] Status shows cycle number, state, last PR, budget remaining
-- [ ] Cumulative spend tracked in state JSON
-- [ ] Budget exceeded → spiral halts with `budget_exceeded`
-
-### Task 1.6: Sprint 1 Tests
-
-**File**: `tests/unit/spiral-dispatch.bats` (new), `tests/unit/simstim-autonomous.bats` (new)
-**AC**:
-- [ ] Dispatch: claude CLI validation, prompt construction, output parsing, exit codes
-- [ ] Dispatch: branch idempotency, budget passthrough
-- [ ] Autonomous: flag detection, env var export, state recording
+- [ ] Flight recorder init creates file with 600 permissions
+- [ ] _record_action appends valid JSONL
+- [ ] Seq numbers increment monotonically
+- [ ] _verify_artifact passes for valid file, fails for missing/empty
+- [ ] _verify_flatline_output passes for valid consensus, fails for invalid
+- [ ] _verify_review_verdict detects "All good", "CHANGES_REQUIRED", missing verdict
+- [ ] _get_cumulative_cost sums correctly
+- [ ] _summarize_flatline extracts findings text
 
 ---
 
-## Sprint 2: Round-Robin Flatline Arbiter
+## Sprint 2: Harness Orchestrator + Integration
 
-**Goal**: Add Phase 3 arbiter to Flatline, with rotation, cascade fallback, and trajectory logging.
+**Goal**: Build the harness, wire it into dispatch, run E2E.
 
-### Task 2.1: Arbiter Model Selection (FR-4)
+### Task 2.1: `spiral-harness.sh` — Main Orchestrator
 
-**File**: `.claude/scripts/flatline-orchestrator.sh`
-**Changes**:
-- New function `_select_arbiter()` with phase-based rotation
-- Config reading via `mapfile` for YAML list (Bridgebuilder HIGH-2)
-- Defaults: opus/gpt-5.3-codex/gemini-2.5-pro
+**File**: `.claude/scripts/spiral-harness.sh` (new)
+**Interface**: `--task`, `--cycle-dir`, `--cycle-id`, `--branch`, `--budget`, `--seed-context`
+**Features**:
+- Sources `spiral-evidence.sh` for flight recorder
+- Sequences 6 phases + 6 gates
+- Each phase calls scoped `claude -p` with bounded prompt
+- Each gate calls bash scripts (Flatline, Bridgebuilder) or independent `claude -p` (Review, Audit)
+- `_run_gate()` with retry (max 3) + circuit breaker
+- Flatline findings cascade to next phase's prompt via `_summarize_flatline()`
+- Budget enforcement via `_get_cumulative_cost()` check before each phase
 **AC**:
-- [ ] PRD phase → opus selected
-- [ ] SDD phase → gpt-5.3-codex selected
-- [ ] Sprint phase → gemini-2.5-pro selected
-- [ ] Empty config → defaults used
+- [ ] Phases execute in correct order: DISCOVERY → FLATLINE_PRD → ARCHITECTURE → FLATLINE_SDD → PLANNING → FLATLINE_SPRINT → IMPLEMENT → REVIEW → AUDIT → PR → BRIDGEBUILDER
+- [ ] Each `claude -p` call uses `--allow-dangerously-skip-permissions --dangerously-skip-permissions`
+- [ ] Flatline gates call `flatline-orchestrator.sh` directly (bash, not LLM)
+- [ ] Review/Audit are independent sessions (diff-based, no implementation context)
+- [ ] Gate failure retries preceding phase (max 3)
+- [ ] 3 consecutive failures → circuit breaker halt
+- [ ] Budget exceeded → halt with BUDGET_EXCEEDED in flight recorder
 
-### Task 2.2: Arbiter Prompt + Invocation (FR-4)
+### Task 2.2: Scoped Prompts
 
-**File**: `.claude/scripts/flatline-orchestrator.sh`
-**Changes**:
-- Build arbiter prompt: document excerpt + all findings + all scores
-- Invoke via model-adapter.sh `--mode review` (Bridgebuilder LOW-6)
-- Parse JSON decisions array from arbiter response
-- Max tokens from `flatline_protocol.autonomous_arbiter.max_arbiter_tokens`
+**In**: `spiral-harness.sh`
+**Prompts for**: Discovery, Architecture, Planning, Implementation, Review, Audit
 **AC**:
-- [ ] Prompt includes document, findings, and scores
-- [ ] model-adapter.sh invoked with correct `--mode review` interface
-- [ ] Arbiter response parsed as JSON decisions array
-- [ ] Malformed JSON → treated as model failure (cascade)
+- [ ] Each prompt instructs ONE task only (no "run the whole pipeline")
+- [ ] Each prompt includes "Do NOT" constraints for out-of-scope actions
+- [ ] Architecture prompt includes Flatline PRD findings summary
+- [ ] Planning prompt includes Flatline SDD findings summary
+- [ ] Review prompt receives git diff, not implementation session context
+- [ ] All prompts constructed via `jq --arg` (safe)
 
-### Task 2.3: Provider Cascade (FR-4, SKP-006)
+### Task 2.3: Dispatch Integration
 
-**File**: `.claude/scripts/flatline-orchestrator.sh`
-**Changes**:
-- `_invoke_arbiter_with_cascade()`: try designated → next → next → auto-reject
-- Each fallback logged to trajectory
+**File**: `.claude/scripts/spiral-simstim-dispatch.sh` (modify)
+**Change**: Replace `claude -p "$prompt"` with `spiral-harness.sh` invocation
 **AC**:
-- [ ] Designated model fails → cascades to next in rotation
-- [ ] All 3 fail → conservative auto-reject with logged rationale
-- [ ] Each cascade attempt logged
+- [ ] Dispatch calls harness with correct args (task, cycle-dir, branch, budget)
+- [ ] Harness exit code flows through to dispatch exit handling
+- [ ] Sidecar emission reads artifacts from harness output
+- [ ] Flight recorder copied to cycle_dir for HARVEST
 
-### Task 2.4: Decision Application (FR-4)
+### Task 2.4: Config
 
-**File**: `.claude/scripts/flatline-orchestrator.sh`
-**Changes**:
-- After arbiter returns, modify consensus JSON:
-  - `accept` → move finding to `high_consensus` (arbiter-accepted)
-  - `reject` → move to new `arbiter_rejected` array
-- Recalculate `consensus_summary` counts
+**File**: `.loa.config.yaml`
 **AC**:
-- [ ] Accepted findings appear in `high_consensus` with `arbiter_accepted: true`
-- [ ] Rejected findings appear in `arbiter_rejected`
-- [ ] Summary counts updated correctly
-- [ ] Original findings preserved (not overwritten)
+- [ ] `spiral.harness.enabled: true`
+- [ ] Budget keys: planning_budget_usd, implement_budget_usd, review_budget_usd, audit_budget_usd
+- [ ] max_phase_retries: 3
+- [ ] evidence_dir: .run/spiral-evidence
 
-### Task 2.5: Trajectory Logging (FR-4, NFR-4)
+### Task 2.5: Harness Tests
 
-**File**: `.claude/scripts/flatline-orchestrator.sh`
-**Changes**:
-- Log each decision to `grimoires/loa/a2a/trajectory/flatline-arbiter-{date}.jsonl`
-- Include: finding_id, phase, arbiter_model, decision, rationale, cascade_attempts
+**File**: `tests/unit/spiral-harness.bats` (new)
 **AC**:
-- [ ] Each arbiter decision logged as separate JSONL line
-- [ ] Includes finding_id, model, decision, rationale
-- [ ] File created with umask 077
+- [ ] Arg parsing validates required flags
+- [ ] Phase sequencing calls in correct order (mock claude -p with stub)
+- [ ] Gate retry on failure (mock failing gate → retry → pass)
+- [ ] Circuit breaker after 3 failures
+- [ ] Budget check prevents overspend
+- [ ] Evidence dir created with proper permissions
 
-### Task 2.6: Config Gate + Integration (FR-6)
-
-**File**: `.loa.config.yaml`, `.claude/scripts/flatline-orchestrator.sh`
-**Changes**:
-- `flatline_protocol.autonomous_arbiter.enabled` config gate
-- Arbiter only invoked when gate is true AND `SIMSTIM_AUTONOMOUS=1`
-- Config defaults: enabled: false, rotation: [opus, gpt-5.3-codex, gemini-2.5-pro]
-**AC**:
-- [ ] `autonomous_arbiter.enabled: false` → arbiter skipped
-- [ ] `autonomous_arbiter.enabled: true` + `SIMSTIM_AUTONOMOUS=1` → arbiter runs
-- [ ] HITL mode unaffected regardless of config
-
-### Task 2.7: Sprint 2 Tests
-
-**File**: `tests/unit/flatline-arbiter.bats` (new)
-**AC**:
-- [ ] Arbiter rotation tested for all 3 phases
-- [ ] Cascade fallback tested (1 failure, 2 failures, all failures)
-- [ ] Decision parsing tested (valid JSON, malformed JSON)
-- [ ] Config gate tested (enabled/disabled)
-- [ ] Trajectory logging tested
-
-### Task 2.8: Regression Tests
+### Task 2.6: Regression Tests
 
 **AC**:
 - [ ] All existing spiral tests pass (44)
 - [ ] All existing vision tests pass (190)
-- [ ] All existing Flatline scoring tests pass (if any)
+- [ ] All cycle-070 tests pass (38)
 
 ---
 
 ## Dependencies
 
 ```
-T1.1 (config) ─────→ T1.2 (dispatch rewrite)
-                      T1.3 (autonomous flag)
-                      T1.4 (branch chaining) ──→ T1.5 (status + budget)
-                                                  T1.6 (sprint 1 tests)
-
-T2.1 (arbiter select) ─→ T2.2 (prompt + invoke) ─→ T2.3 (cascade)
-                                                     T2.4 (decision apply)
-                                                     T2.5 (trajectory)
-T2.6 (config gate) ─────────────────────────────────→ T2.7 (tests)
-                                                       T2.8 (regression)
+T1.1 (evidence lib) → T1.2 (evidence tests)
+                    → T2.1 (harness uses evidence)
+T2.1 (harness) → T2.2 (prompts)
+              → T2.3 (dispatch integration)
+              → T2.4 (config)
+              → T2.5 (harness tests)
+              → T2.6 (regression)
 ```
-
-## Verification Criteria
-
-- Dispatch invokes `claude -p` with correct flags (validated in test, not E2E)
-- `--autonomous` flag flows through to simstim state
-- Arbiter rotation produces correct model per phase
-- Provider cascade works through 3 levels to auto-reject
-- All existing tests pass
-- Branch naming follows pattern, PR idempotency works
-- Budget tracking prevents overspend
