@@ -206,7 +206,7 @@ _verify_review_verdict() {
         return 1
     fi
 
-    if grep -qi "All good\|APPROVED.*LETS" "$feedback"; then
+    if grep -qi "All good\|APPROVED" "$feedback"; then
         local checksum
         checksum=$(sha256sum "$feedback" | awk '{print $1}')
         _record_action "GATE_${phase}" "claude-opus" "verdict" "" "$checksum" "$feedback" \

@@ -101,7 +101,7 @@ vision_registry:
 spiral:
   enabled: true                    # Master switch for /spiral --start
   task: ""                         # Set dynamically by --start "task description"
-  max_budget_per_cycle_usd: 10     # Per-cycle cost cap passed to claude -p
+  max_budget_per_cycle_usd: 15     # Per-cycle cost cap (3x Flatline + implement + review + audit)
   max_total_budget_usd: 50         # Spiral-level hard stop across all cycles
   status_file: ".run/spiral-status.txt"  # Human-readable status artifact
   seed:
@@ -121,6 +121,10 @@ spiral:
     implement_budget_usd: 5          # Budget for implementation session
     review_budget_usd: 2             # Budget for independent review session
     audit_budget_usd: 2              # Budget for independent audit session
+    # Advisor Strategy: Sonnet executes (cheap), Opus judges (quality)
+    # ~60% cost reduction vs all-Opus. See https://claude.com/blog/the-advisor-strategy
+    executor_model: sonnet           # PRD, SDD, Sprint, Implementation
+    advisor_model: opus              # Review, Audit (judgment quality)
 
 # Prompt Isolation (v1.42.0 — cycle-042)
 # De-authorization wrappers for untrusted content in LLM prompts.

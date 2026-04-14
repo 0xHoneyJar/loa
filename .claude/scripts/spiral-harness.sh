@@ -52,6 +52,12 @@ IMPLEMENT_BUDGET=$(_read_harness_config "spiral.harness.implement_budget_usd" "5
 REVIEW_BUDGET=$(_read_harness_config "spiral.harness.review_budget_usd" "2")
 AUDIT_BUDGET=$(_read_harness_config "spiral.harness.audit_budget_usd" "2")
 
+# Advisor Strategy (cycle-071): Sonnet executes, Opus judges
+# Execution phases (PRD, SDD, Sprint, Implementation) use cheaper Sonnet
+# Judgment phases (Review, Audit) use Opus for reasoning quality
+EXECUTOR_MODEL=$(_read_harness_config "spiral.harness.executor_model" "sonnet")
+ADVISOR_MODEL=$(_read_harness_config "spiral.harness.advisor_model" "opus")
+
 log() { echo "[harness] $*" >&2; }
 error() { echo "ERROR: $*" >&2; }
 
@@ -101,10 +107,10 @@ log "Harness starting: cycle=$CYCLE_ID branch=$BRANCH budget=\$${TOTAL_BUDGET}"
 # =============================================================================
 
 # Invoke claude -p with a scoped prompt
-# Input: $1=phase_name, $2=prompt, $3=budget_usd, $4=timeout_sec
+# Input: $1=phase_name, $2=prompt, $3=budget_usd, $4=timeout_sec, $5=model (optional)
 # Returns: exit code from claude -p
 _invoke_claude() {
-    local phase="$1" prompt="$2" budget="$3" timeout_sec="${4:-600}"
+    local phase="$1" prompt="$2" budget="$3" timeout_sec="${4:-600}" model="${5:-$EXECUTOR_MODEL}"
 
     # Budget check before invocation
     _check_budget "$TOTAL_BUDGET" || { error "Budget exceeded before $phase"; exit 3; }
@@ -121,7 +127,7 @@ _invoke_claude() {
             --allow-dangerously-skip-permissions \
             --dangerously-skip-permissions \
             --max-budget-usd "$budget" \
-            --model opus \
+            --model "$model" \
             --output-format json \
             > "$stdout_file" \
             2> "$stderr_file" \
@@ -129,7 +135,7 @@ _invoke_claude() {
 
     local duration_ms=$(( ($(date +%s) - start_sec) * 1000 ))
 
-    _record_action "$phase" "claude-opus" "invoke" "" "" "$stdout_file" \
+    _record_action "$phase" "claude-${model}" "invoke" "" "" "$stdout_file" \
         "$(wc -c < "$stdout_file" 2>/dev/null | tr -d ' ' || echo 0)" \
         "$duration_ms" "$budget" ""
 
@@ -191,7 +197,7 @@ _phase_planning() {
 _phase_implement() {
     local prompt
     prompt=$(jq -n --arg branch "$BRANCH" \
-        '"Implement the sprint plan at grimoires/loa/sprint.md.\n\nRequirements:\n- Create branch: " + $branch + "\n- Implement all tasks\n- Write tests for each task\n- Run tests and verify they pass\n- Commit with conventional commit messages (feat/fix prefix)\n- Do NOT create a PR (the orchestrator handles that)\n- Do NOT modify grimoires/loa/prd.md, sdd.md, or sprint.md"' \
+        '"Implement the sprint plan at grimoires/loa/sprint.md.\n\nRequirements:\n- Create branch: " + $branch + "\n- Implement all tasks\n- Write tests for each task\n- Run tests and verify they pass\n- Commit with conventional commit messages (feat/fix prefix)\n- Push the branch: git push -u origin " + $branch + "\n- Do NOT create a PR (the orchestrator handles that)\n- Do NOT modify grimoires/loa/prd.md, sdd.md, or sprint.md"' \
         | jq -r '.')
 
     _invoke_claude "IMPLEMENTATION" "$prompt" "$IMPLEMENT_BUDGET" 3600
@@ -212,7 +218,7 @@ _gate_flatline() {
 
     "$SCRIPT_DIR/flatline-orchestrator.sh" \
         --doc "$doc" --phase "$phase" --mode review --json \
-        > "$output" 2>/dev/null || true
+        > "$output" 2>"$EVIDENCE_DIR/flatline-${phase}-stderr.log" || true
 
     local duration_ms=$(( ($(date +%s) - start_sec) * 1000 ))
 
@@ -251,7 +257,8 @@ _gate_review() {
         '"You are a senior tech lead reviewer. Review this implementation independently.\n\nGit diff:\n```\n" + $diff + "\n```\n\nRead grimoires/loa/sprint.md for acceptance criteria.\nFor each AC, verify it is met with file:line evidence.\n\nWrite your review to grimoires/loa/a2a/engineer-feedback.md\nWrite \"All good\" if approved, or \"CHANGES_REQUIRED\" with specific issues.\n\nDo NOT modify any code. Only review and write feedback."' \
         | jq -r '.')
 
-    _invoke_claude "REVIEW" "$prompt" "$REVIEW_BUDGET" 600
+    # Review uses ADVISOR_MODEL (Opus) — judgment quality matters
+    _invoke_claude "REVIEW" "$prompt" "$REVIEW_BUDGET" 600 "$ADVISOR_MODEL"
 
     _verify_review_verdict "REVIEW" "$feedback_path"
 }
@@ -269,7 +276,8 @@ _gate_audit() {
         '"You are a security auditor. Audit this implementation for security issues.\n\nGit diff:\n```\n" + $diff + "\n```\n\nCheck:\n- No hardcoded secrets\n- Input validation on all external inputs\n- No command injection (jq --arg, not string interpolation)\n- Proper file permissions\n- No path traversal\n\nWrite audit to grimoires/loa/a2a/auditor-sprint-feedback.md\nWrite \"APPROVED\" if no critical issues, or \"CHANGES_REQUIRED\" with findings.\n\nDo NOT modify any code. Only audit and write feedback."' \
         | jq -r '.')
 
-    _invoke_claude "AUDIT" "$prompt" "$AUDIT_BUDGET" 600
+    # Audit uses ADVISOR_MODEL (Opus) — security judgment quality matters
+    _invoke_claude "AUDIT" "$prompt" "$AUDIT_BUDGET" 600 "$ADVISOR_MODEL"
 
     _verify_review_verdict "AUDIT" "$feedback_path"
 }
