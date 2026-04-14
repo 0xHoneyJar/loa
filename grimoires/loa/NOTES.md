@@ -96,6 +96,13 @@ Also revert in:
 | 2026-02-26 | Cache: result stored [key: test-key...] | Source: cache |
 | 2026-02-26 | Cache: PASS [key: test-key...] | Source: cache |
 | 2026-02-26 | Cache: PASS [key: test-key...] | Source: cache |
+## Version Governance: vision-lifecycle.sh
+
+- **Owner**: @janitooor (primary maintainer per CLAUDE.md)
+- **When to bump**: On any behavioral change to `vision-lifecycle.sh` — new flags, changed exit codes, modified subcommand semantics. Bug fixes that don't change the CLI contract do not require a bump.
+- **How to bump**: Update the `VERSION=` variable in the script. Semver rules: MAJOR for breaking changes, MINOR for new features (like `--version`), PATCH for bug fixes.
+- **Review checklist**: PRs modifying `vision-lifecycle.sh` must verify whether `VERSION` needs bumping. Reviewer checks: "Does this PR change CLI behavior? If yes, is VERSION bumped?"
+
 ## Blockers
 
 None.
