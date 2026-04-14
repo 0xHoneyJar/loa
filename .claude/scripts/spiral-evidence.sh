@@ -2,8 +2,8 @@
 # =============================================================================
 # spiral-evidence.sh — Evidence verification + Flight Recorder for Spiral Harness
 # =============================================================================
-# Version: 1.0.0
-# Part of: Spiral Harness Architecture (cycle-071)
+# Version: 1.1.0
+# Part of: Spiral Harness Architecture (cycle-071, cost optimization cycle-072)
 #
 # Provides:
 #   - Append-only flight recorder (JSONL)
@@ -273,6 +273,85 @@ _summarize_flatline() {
             ([(.arbiter_rejected // .blockers // [])[] | "- " + (.concern // .description // "No description")] | join("\n"))
         else "- None" end)
     ' "$flatline_json" 2>/dev/null || echo ""
+}
+
+# =============================================================================
+# Deterministic Pre-Checks (cycle-072 cost optimization)
+# Fail fast at $0 cost before spending $2-4 on LLM review/audit sessions.
+# =============================================================================
+
+# Validate planning artifacts exist before implementation phase
+# Returns: 0 if ready, 1 if missing required artifacts
+_pre_check_implementation() {
+    local ok=0
+
+    if [[ ! -f "grimoires/loa/prd.md" ]]; then
+        echo "PRE-CHECK FAIL: grimoires/loa/prd.md not found" >&2
+        ok=1
+    fi
+    if [[ ! -f "grimoires/loa/sdd.md" ]]; then
+        echo "PRE-CHECK FAIL: grimoires/loa/sdd.md not found" >&2
+        ok=1
+    fi
+    if [[ ! -f "grimoires/loa/sprint.md" ]]; then
+        echo "PRE-CHECK FAIL: grimoires/loa/sprint.md not found" >&2
+        ok=1
+    fi
+
+    # Sprint plan must have acceptance criteria (checkboxes)
+    if [[ -f "grimoires/loa/sprint.md" ]]; then
+        if ! grep -qE '^\- \[' "grimoires/loa/sprint.md" 2>/dev/null; then
+            echo "PRE-CHECK WARN: sprint.md has no acceptance criteria checkboxes" >&2
+        fi
+    fi
+
+    [[ -n "$_FLIGHT_RECORDER" ]] && \
+        _record_action "PRE_CHECK" "evidence-gate" "implementation_ready" "" "" "" 0 0 0 \
+            "$([ "$ok" -eq 0 ] && echo 'PASS' || echo 'FAIL')"
+
+    return "$ok"
+}
+
+# Validate implementation output before spending $2-4 on LLM review/audit
+# Checks: branch has commits, diff is non-empty, tests exist, no obvious secrets
+# Returns: 0 if ready for review, 1 if structural issues detected
+_pre_check_review() {
+    local branch="${BRANCH:-HEAD}"
+    local issues=0
+
+    # 1. Branch has commits ahead of main
+    local ahead
+    ahead=$(git rev-list --count "main..${branch}" 2>/dev/null || echo "0")
+    if [[ "$ahead" -eq 0 ]]; then
+        echo "PRE-CHECK FAIL: no commits ahead of main on $branch" >&2
+        issues=$((issues + 1))
+    fi
+
+    # 2. Git diff is non-empty (actual code changes exist)
+    local diff_lines
+    diff_lines=$(git diff "main...${branch}" --stat 2>/dev/null | wc -l | tr -d ' ')
+    if [[ "$diff_lines" -eq 0 ]]; then
+        echo "PRE-CHECK FAIL: no diff between main and $branch" >&2
+        issues=$((issues + 1))
+    fi
+
+    # 3. Tests exist in the diff (warn, not block)
+    if ! git diff "main...${branch}" --name-only 2>/dev/null | grep -qiE 'test|spec|\.bats'; then
+        echo "PRE-CHECK WARN: no test files in diff (expected for most tasks)" >&2
+    fi
+
+    # 4. No obvious secrets in diff (block on match)
+    if git diff "main...${branch}" 2>/dev/null | \
+        grep -qiE '(password|secret|api_key|private_key)\s*[:=]\s*["\x27][^"\x27]{8,}'; then
+        echo "PRE-CHECK FAIL: possible secret detected in diff" >&2
+        issues=$((issues + 1))
+    fi
+
+    [[ -n "$_FLIGHT_RECORDER" ]] && \
+        _record_action "PRE_CHECK" "evidence-gate" "review_ready" "" "" "" 0 0 0 \
+            "$([ "$issues" -eq 0 ] && echo 'PASS' || echo "FAIL:${issues}_issues")"
+
+    [[ "$issues" -eq 0 ]]
 }
 
 # =============================================================================

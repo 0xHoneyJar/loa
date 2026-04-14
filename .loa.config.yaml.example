@@ -1648,6 +1648,45 @@ spiral:
   # HITL halt sentinel — creating this file mid-spiral halts gracefully.
   halt_sentinel: ".run/spiral-halt"
 
+  # ── Evidence-Gated Harness (cycle-071) ──────────────────────────────
+  # Phase-as-subprocess: each phase is a separate claude -p call.
+  # Gate-as-script: Flatline/Review/Audit run in bash (LLM cannot skip).
+  harness:
+    enabled: true                    # Use harness vs monolithic dispatch
+    max_phase_retries: 3             # Retries per gate on failure
+
+    # Per-phase budget caps (claude -p --max-budget-usd)
+    planning_budget_usd: 1           # PRD, SDD, Sprint (each)
+    implement_budget_usd: 5          # Code + tests + commit
+    review_budget_usd: 2             # Independent review session
+    audit_budget_usd: 2              # Independent audit session
+
+    # Advisor Strategy: Sonnet executes (~5x cheaper), Opus judges.
+    # See: grimoires/loa/reports/spiral-harness-benchmark-report.md
+    executor_model: sonnet           # PRD, SDD, Sprint, Implementation
+    advisor_model: opus              # Review, Audit (judgment quality)
+
+    # Pipeline Profiles (cycle-072): match intensity to task complexity.
+    # full     = all 3 Flatline gates + Opus advisor ($15 budget)
+    # standard = Sprint Flatline only + Opus advisor ($12 budget) [DEFAULT]
+    # light    = no Flatline + Sonnet advisor ($8 budget)
+    # Override per-cycle: --profile light
+    pipeline_profile: standard
+
+  # ── Off-Hours Scheduling (cycle-072) ────────────────────────────────
+  # Run spiral cycles during AFK/sleep windows against included token
+  # allowances instead of burning paid overage.
+  # Entry point: .claude/scripts/spiral-scheduler.sh
+  # Schedule via: CronCreate, RemoteTrigger, or /schedule skill
+  scheduling:
+    enabled: false                   # Must opt-in
+    windows:
+      - start_utc: "02:00"          # When to begin (HH:MM UTC)
+        end_utc: "08:00"            # When to halt gracefully
+        days: [mon, tue, wed, thu, fri]
+    strategy: fill                   # "fill" = use full window; "single" = one cycle only
+    max_cycles_per_window: 3         # Safety cap per scheduling window
+
 # Prompt Isolation (v1.42.0)
 # De-authorization wrappers for untrusted content in LLM prompts.
 # Wraps external/user content in de-authorization envelope that prevents

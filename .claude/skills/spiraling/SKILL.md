@@ -2,20 +2,16 @@
 
 ## Status
 
-**MVP scaffolding (v0.1.0)**. This skill provides the state machine, stopping-condition enforcement, and CLI surface for `/spiral`. **Cycle dispatch is not yet wired** — `--start` initializes state and validates config but does not yet invoke embedded `/simstim` cycles. That lands in a follow-up cycle (067+).
-
-Use this skill today for:
-- Understanding the spiral state model
-- Testing stopping-condition logic
-- Preparing `.loa.config.yaml` for production use
-
-Full autonomous multi-cycle dispatch coming soon.
+**Production (v1.1.0)**. Full autonomous multi-cycle dispatch with evidence-gated harness, pipeline profiles for cost optimization, and off-hours scheduling.
 
 ## Reference
 
 - RFC-060 design doc: `grimoires/loa/proposals/rfc-060-spiral.md`
+- Harness architecture: `grimoires/loa/proposals/spiral-harness-architecture.md`
+- Cost optimization: `grimoires/loa/proposals/spiral-cost-optimization.md`
+- Benchmark report: `grimoires/loa/reports/spiral-harness-benchmark-report.md`
 - Umbrella issue: #483
-- Script: `.claude/scripts/spiral-orchestrator.sh`
+- Scripts: `.claude/scripts/spiral-orchestrator.sh`, `spiral-harness.sh`, `spiral-scheduler.sh`
 
 ## Usage
 
@@ -135,9 +131,59 @@ All spiral events log to `grimoires/loa/a2a/trajectory/spiral-{date}.jsonl`:
 
 `/spiral` is the meta-layer that composes these. It does NOT reimplement any of them.
 
-## Known Limitations (v0.1.0)
+## Pipeline Profiles (cycle-072)
 
-- Embedded `/simstim` dispatch is stubbed — `--start` initializes state only
-- SEED phase context-loading not yet wired (blocked on vision registry graduation #486)
-- No auto-retry on embedded cycle failure (operator resolves, then `--resume`)
+Match pipeline intensity to task complexity. Default: `standard`.
+
+| Profile | Flatline Gates | Advisor Model | Budget | Use For |
+|---------|----------------|---------------|--------|---------|
+| `full` | PRD + SDD + Sprint | Opus | $15 | Architecture, security-critical |
+| `standard` | Sprint only | Opus | $12 | Feature work (default) |
+| `light` | None | Sonnet | $8 | Bug fixes, flags, config |
+
+```bash
+# Override per-cycle via CLI
+spiral-harness.sh --task "..." --profile light ...
+
+# Or set default in config
+spiral.harness.pipeline_profile: standard
+```
+
+**Rationale**: Benchmark data (PRs #503/#504) proved PRD/SDD Flatline gates generate debate but don't improve final output for bounded tasks. Sprint Flatline catches AC gaps — never skip. Review+Audit independence is essential.
+
+## Off-Hours Scheduling (cycle-072)
+
+Run spiral cycles during AFK/sleep windows against included token allowances.
+
+```yaml
+spiral:
+  scheduling:
+    enabled: true
+    windows:
+      - start_utc: "02:00"        # When to begin
+        end_utc: "08:00"          # When to halt gracefully
+        days: [mon, tue, wed, thu, fri]
+    strategy: fill                  # Use full window
+    max_cycles_per_window: 3
+```
+
+**How it works**:
+1. Cron fires at window start (e.g., 02:00 UTC)
+2. `spiral-scheduler.sh` checks for HALTED spiral to resume, or starts new one
+3. Spiral runs until `token_window_exhausted` stopping condition fires at window end
+4. Next window: picks up where it stopped via `--resume`
+
+Schedule via Claude Code:
+```bash
+# Session-scoped (leave Claude Code open)
+CronCreate: schedule "0 2 * * *", task "spiral-scheduler.sh"
+
+# Persistent (runs even offline)
+/schedule create --name spiral-nightly --cron "0 2 * * *"
+```
+
+## Known Limitations
+
 - Single-operator, single-repo only
+- Scheduling requires Claude Code session (CronCreate) or remote trigger (/schedule)
+- Token window tracking uses wall-clock time, not actual token counts (Anthropic API does not expose remaining quota programmatically)

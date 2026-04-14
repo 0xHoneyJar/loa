@@ -2,8 +2,8 @@
 # =============================================================================
 # spiral-harness.sh — Evidence-Gated Orchestrator for /spiral
 # =============================================================================
-# Version: 1.0.0
-# Part of: Spiral Harness Architecture (cycle-071)
+# Version: 1.1.0
+# Part of: Spiral Harness Architecture (cycle-071, cost optimization cycle-072)
 #
 # Replaces monolithic claude -p dispatch with sequenced phases + evidence gates.
 # Each phase is a separate claude -p call. Quality gates run in bash (unskippable).
@@ -58,6 +58,42 @@ AUDIT_BUDGET=$(_read_harness_config "spiral.harness.audit_budget_usd" "2")
 EXECUTOR_MODEL=$(_read_harness_config "spiral.harness.executor_model" "sonnet")
 ADVISOR_MODEL=$(_read_harness_config "spiral.harness.advisor_model" "opus")
 
+# Pipeline Profiles (cycle-072): match intensity to task complexity
+# full    = all 3 Flatline gates + Opus advisor ($15, architecture/security)
+# standard = Sprint Flatline only + Opus advisor ($12, most features) [DEFAULT]
+# light   = no Flatline + Sonnet advisor ($8, bug fixes/flags/config)
+PIPELINE_PROFILE=$(_read_harness_config "spiral.harness.pipeline_profile" "standard")
+
+# Resolve profile to concrete settings
+_resolve_profile() {
+    case "$PIPELINE_PROFILE" in
+        full)
+            FLATLINE_GATES="prd,sdd,sprint"
+            # advisor stays as configured (Opus)
+            ;;
+        standard)
+            FLATLINE_GATES="sprint"
+            # advisor stays as configured (Opus)
+            ;;
+        light)
+            FLATLINE_GATES=""
+            ADVISOR_MODEL="$EXECUTOR_MODEL"  # Sonnet reviews too
+            ;;
+        *)
+            log "Unknown profile '$PIPELINE_PROFILE', falling back to standard"
+            PIPELINE_PROFILE="standard"
+            FLATLINE_GATES="sprint"
+            ;;
+    esac
+}
+_resolve_profile
+
+# Check if a Flatline gate should run for the given phase
+_should_run_flatline() {
+    local phase="$1"
+    [[ ",$FLATLINE_GATES," == *",$phase,"* ]]
+}
+
 log() { echo "[harness] $*" >&2; }
 error() { echo "ERROR: $*" >&2; }
 
@@ -80,6 +116,7 @@ while [[ $# -gt 0 ]]; do
         --branch) BRANCH="$2"; shift 2 ;;
         --budget) TOTAL_BUDGET="$2"; shift 2 ;;
         --seed-context) SEED_CONTEXT="$2"; shift 2 ;;
+        --profile) PIPELINE_PROFILE="$2"; _resolve_profile; shift 2 ;;
         *) error "Unknown option: $1"; exit 2 ;;
     esac
 done
@@ -100,7 +137,8 @@ EVIDENCE_DIR="$CYCLE_DIR/evidence"
 mkdir -p "$EVIDENCE_DIR"
 _init_flight_recorder "$CYCLE_DIR"
 
-log "Harness starting: cycle=$CYCLE_ID branch=$BRANCH budget=\$${TOTAL_BUDGET}"
+log "Harness starting: cycle=$CYCLE_ID branch=$BRANCH budget=\$${TOTAL_BUDGET} profile=$PIPELINE_PROFILE"
+log "Flatline gates: ${FLATLINE_GATES:-none}  Advisor: $ADVISOR_MODEL"
 
 # =============================================================================
 # Claude -p Invocation Helper
@@ -335,35 +373,66 @@ _run_gate() {
 
 main() {
     local pr_url=""
+    local prd_findings="" sdd_findings=""
+
+    _record_action "CONFIG" "spiral-harness" "profile" "" "" "" 0 0 0 \
+        "profile=$PIPELINE_PROFILE gates=${FLATLINE_GATES:-none} advisor=$ADVISOR_MODEL"
 
     # ── Phase 1: Discovery ──────────────────────────────────────────────
-    log "Phase 1/6: DISCOVERY"
+    log "Phase 1: DISCOVERY"
     _phase_discovery || { error "Discovery failed"; exit 1; }
 
-    # ── Gate 1: Flatline PRD ────────────────────────────────────────────
-    _run_gate "FLATLINE_PRD" _gate_flatline "prd" "grimoires/loa/prd.md" || exit 1
-    local prd_findings
-    prd_findings=$(_summarize_flatline "$EVIDENCE_DIR/flatline-prd.json")
+    # ── Gate 1: Flatline PRD (conditional) ──────────────────────────────
+    if _should_run_flatline "prd"; then
+        _run_gate "FLATLINE_PRD" _gate_flatline "prd" "grimoires/loa/prd.md" || exit 1
+        prd_findings=$(_summarize_flatline "$EVIDENCE_DIR/flatline-prd.json")
+    else
+        log "Skipping Flatline PRD (profile=$PIPELINE_PROFILE)"
+        _record_action "GATE_prd" "spiral-harness" "skipped" "" "" "" 0 0 0 "profile=$PIPELINE_PROFILE"
+    fi
 
     # ── Phase 2: Architecture ───────────────────────────────────────────
-    log "Phase 2/6: ARCHITECTURE"
+    log "Phase 2: ARCHITECTURE"
     _phase_architecture "$prd_findings" || { error "Architecture failed"; exit 1; }
 
-    # ── Gate 2: Flatline SDD ────────────────────────────────────────────
-    _run_gate "FLATLINE_SDD" _gate_flatline "sdd" "grimoires/loa/sdd.md" || exit 1
-    local sdd_findings
-    sdd_findings=$(_summarize_flatline "$EVIDENCE_DIR/flatline-sdd.json")
+    # ── Gate 2: Flatline SDD (conditional) ──────────────────────────────
+    if _should_run_flatline "sdd"; then
+        _run_gate "FLATLINE_SDD" _gate_flatline "sdd" "grimoires/loa/sdd.md" || exit 1
+        sdd_findings=$(_summarize_flatline "$EVIDENCE_DIR/flatline-sdd.json")
+    else
+        log "Skipping Flatline SDD (profile=$PIPELINE_PROFILE)"
+        _record_action "GATE_sdd" "spiral-harness" "skipped" "" "" "" 0 0 0 "profile=$PIPELINE_PROFILE"
+    fi
 
     # ── Phase 3: Planning ───────────────────────────────────────────────
-    log "Phase 3/6: PLANNING"
+    log "Phase 3: PLANNING"
     _phase_planning "$sdd_findings" || { error "Planning failed"; exit 1; }
 
-    # ── Gate 3: Flatline Sprint ─────────────────────────────────────────
-    _run_gate "FLATLINE_SPRINT" _gate_flatline "sprint" "grimoires/loa/sprint.md" || exit 1
+    # ── Gate 3: Flatline Sprint (conditional) ───────────────────────────
+    if _should_run_flatline "sprint"; then
+        _run_gate "FLATLINE_SPRINT" _gate_flatline "sprint" "grimoires/loa/sprint.md" || exit 1
+    else
+        log "Skipping Flatline Sprint (profile=$PIPELINE_PROFILE)"
+        _record_action "GATE_sprint" "spiral-harness" "skipped" "" "" "" 0 0 0 "profile=$PIPELINE_PROFILE"
+    fi
+
+    # ── Pre-check: Deterministic validation before Implementation ───────
+    log "Pre-check: validating planning artifacts"
+    if ! _pre_check_implementation; then
+        error "Pre-check failed: planning artifacts incomplete"
+        exit 1
+    fi
 
     # ── Phase 4: Implementation ─────────────────────────────────────────
-    log "Phase 4/6: IMPLEMENTATION"
+    log "Phase 4: IMPLEMENTATION"
     _phase_implement || { error "Implementation failed"; exit 1; }
+
+    # ── Pre-check: Deterministic validation before Review ───────────────
+    log "Pre-check: validating implementation before review"
+    if ! _pre_check_review; then
+        error "Pre-check failed: implementation has structural issues"
+        exit 1
+    fi
 
     # ── Gate 4: Independent Review (fresh session) ──────────────────────
     _run_gate "REVIEW" _gate_review || {
@@ -378,10 +447,10 @@ main() {
     }
 
     # ── Phase 5: PR Creation (bash — deterministic) ─────────────────────
-    log "Phase 5/6: PR CREATION"
+    log "Phase 5: PR CREATION"
     pr_url=$(gh pr create \
         --title "feat($CYCLE_ID): $(echo "$TASK" | head -c 60)" \
-        --body "Autonomous spiral cycle. See flight recorder for evidence trail." \
+        --body "Autonomous spiral cycle. Profile: $PIPELINE_PROFILE. See flight recorder for evidence trail." \
         --draft 2>/dev/null || true)
 
     if [[ -n "$pr_url" ]]; then
@@ -397,7 +466,7 @@ main() {
     # ── Finalize ────────────────────────────────────────────────────────
     _finalize_flight_recorder "$CYCLE_DIR"
 
-    log "Harness complete: cycle=$CYCLE_ID"
+    log "Harness complete: cycle=$CYCLE_ID profile=$PIPELINE_PROFILE"
     log "Flight recorder: $CYCLE_DIR/flight-recorder.jsonl"
     log "Evidence: $EVIDENCE_DIR/"
     [[ -n "$pr_url" ]] && log "PR: $pr_url"
