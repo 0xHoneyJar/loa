@@ -542,7 +542,7 @@ seed_phase() {
 
             # Fallback to configured default tags
             if [[ -z "$query_tags" ]]; then
-                query_tags=$(read_config "spiral.seed.default_tags" "architecture,security" | tr -d '[]" ' | tr '\n' ',')
+                query_tags=$(read_config "spiral.seed.default_tags" "architecture,security" | sed 's/^- //;s/^-//' | tr -d '[]" ' | tr '\n' ',' | sed 's/,$//')
             fi
 
             local max_visions
