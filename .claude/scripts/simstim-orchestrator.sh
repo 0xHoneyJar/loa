@@ -933,7 +933,7 @@ preflight() {
     done
 
     # Store seed context path for Phase 1 consumption (cycle-068 FR-2)
-    if [[ -n "$seed_context_path" ]]; then
+    if [[ -n "$seed_context_path" ]] && [[ -f "$seed_context_path" ]]; then
         export _SIMSTIM_SEED_CONTEXT_PATH="$seed_context_path"
     fi
 
