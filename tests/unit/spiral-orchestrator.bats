@@ -344,6 +344,29 @@ teardown() {
 }
 
 # =============================================================================
+# T23: Wall-clock exhaustion test — cycle-067 FR-3
+# =============================================================================
+@test "check-stop: wall-clock exhaustion triggers stop" {
+    "$SCRIPT" --start >/dev/null 2>&1
+
+    # Manipulate timestamps.started to 60000s ago, budget to 30000s
+    local past
+    past=$(date -u -d "60000 seconds ago" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+        || date -u -v-60000S +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)
+
+    local tmp="${STATE_FILE}.tmp"
+    jq --arg ts "$past" --argjson budget 30000 '
+        .timestamps.started = $ts |
+        .budget.wall_clock_seconds = $budget
+    ' "$STATE_FILE" > "$tmp"
+    mv "$tmp" "$STATE_FILE"
+
+    local output
+    output=$("$SCRIPT" --check-stop 2>&1)
+    echo "$output" | jq -e '.condition == "wall_clock_exhausted"' >/dev/null
+}
+
+# =============================================================================
 # Quality Gate Truth Table Tests (T24-T31) — cycle-067 FR-2
 # =============================================================================
 
