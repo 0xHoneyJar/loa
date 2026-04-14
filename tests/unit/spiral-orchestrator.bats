@@ -480,3 +480,108 @@ _init_with_cycle() {
     # No cycles, quality gate returns 1 (continue), so shouldn't fire
     echo "$output" | jq -e '.condition != "quality_gate_failure"' >/dev/null
 }
+
+# =============================================================================
+# Cycle-067 Helper Tests (T34, T37, T39, T40)
+# =============================================================================
+
+# Helper: source orchestrator functions for direct testing
+_source_orchestrator() {
+    # Source the script to get access to functions
+    source "$BATS_TEST_DIRNAME/../../.claude/scripts/spiral-orchestrator.sh" --source-only 2>/dev/null || true
+    # Re-export state file location
+    export STATE_FILE="$PROJECT_ROOT/.run/spiral-state.json"
+}
+
+# T34: with_step_timeout — command exceeds budget → returns 124
+@test "with_step_timeout: command exceeding budget returns 124" {
+    source "$BATS_TEST_DIRNAME/../../.claude/scripts/bootstrap.sh"
+    source "$BATS_TEST_DIRNAME/../../.claude/scripts/spiral-orchestrator.sh"
+    export STATE_FILE="$PROJECT_ROOT/.run/spiral-state.json"
+
+    # Initialize state for trajectory logging
+    "$SCRIPT" --start >/dev/null 2>&1
+
+    require_timeout
+    if [[ -z "$_TIMEOUT_CMD" ]]; then
+        skip "timeout/gtimeout not available"
+    fi
+
+    set +e
+    with_step_timeout "test_step" 1 sleep 10
+    local exit_code=$?
+    set -e
+
+    [ "$exit_code" -eq 124 ]
+}
+
+# T37: PID guard detects stale RUNNING
+@test "pid_guard: detects stale RUNNING and coalesces to CRASHED" {
+    "$SCRIPT" --start >/dev/null 2>&1
+
+    # Inject a dead PID
+    local tmp="${STATE_FILE}.tmp"
+    jq '.pid = 999999 | .start_time = "2026-01-01T00:00:00Z"' "$STATE_FILE" > "$tmp"
+    mv "$tmp" "$STATE_FILE"
+
+    # Verify state is RUNNING
+    local state
+    state=$(jq -r '.state' "$STATE_FILE")
+    [ "$state" = "RUNNING" ]
+
+    # Source and run PID guard
+    source "$BATS_TEST_DIRNAME/../../.claude/scripts/bootstrap.sh"
+    source "$BATS_TEST_DIRNAME/../../.claude/scripts/spiral-orchestrator.sh"
+    export STATE_FILE="$PROJECT_ROOT/.run/spiral-state.json"
+
+    set +e
+    check_pid_guard 2>/dev/null
+    local exit_code=$?
+    set -e
+
+    [ "$exit_code" -eq 0 ]
+    # State should now be CRASHED
+    state=$(jq -r '.state' "$STATE_FILE")
+    [ "$state" = "CRASHED" ]
+}
+
+# T39: atomic_state_write handles jq failure
+@test "atomic_state_write: returns 1 on jq error and cleans up tmp" {
+    "$SCRIPT" --start >/dev/null 2>&1
+
+    source "$BATS_TEST_DIRNAME/../../.claude/scripts/bootstrap.sh"
+    source "$BATS_TEST_DIRNAME/../../.claude/scripts/spiral-orchestrator.sh"
+    export STATE_FILE="$PROJECT_ROOT/.run/spiral-state.json"
+
+    set +e
+    # Pass invalid jq expression
+    atomic_state_write 'INVALID_JQ_THAT_WILL_FAIL' 2>/dev/null
+    local exit_code=$?
+    set -e
+
+    [ "$exit_code" -eq 1 ]
+    # .tmp should not exist
+    [ ! -f "${STATE_FILE}.tmp" ]
+    # Original state should be intact
+    jq -e '.state == "RUNNING"' "$STATE_FILE" >/dev/null
+}
+
+# T40: Backward compat — cycle-066 state (no .pid, no .checkpoint) reads without error
+@test "backward_compat: cycle-066 state without .pid or .checkpoint reads cleanly" {
+    "$SCRIPT" --start >/dev/null 2>&1
+
+    # State from cycle-066 won't have .pid or .start_time
+    local tmp="${STATE_FILE}.tmp"
+    jq 'del(.pid) | del(.start_time)' "$STATE_FILE" > "$tmp" 2>/dev/null
+    mv "$tmp" "$STATE_FILE"
+
+    # Verify fields are absent
+    local pid_val
+    pid_val=$(jq -r '.pid // "missing"' "$STATE_FILE")
+    [ "$pid_val" = "missing" ]
+
+    # Status should still work
+    local output
+    output=$("$SCRIPT" --status --json 2>&1)
+    echo "$output" | jq -e '.state == "RUNNING"' >/dev/null
+}

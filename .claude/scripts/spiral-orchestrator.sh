@@ -188,6 +188,163 @@ coalesce_spiral_terminal_state() {
 }
 
 # =============================================================================
+# Cycle-067 Helpers: Checkpoint, Timeout, Atomic Write, PID Guard
+# =============================================================================
+
+# Checkpoint monotonicity (Bridgebuilder HIGH-2)
+readonly CHECKPOINT_ORDER=(INIT WORKSPACE SEED SIMSTIM HARVEST EVALUATE COMPLETE)
+
+checkpoint_ordinal() {
+    local phase="$1"
+    local i
+    for i in "${!CHECKPOINT_ORDER[@]}"; do
+        if [[ "${CHECKPOINT_ORDER[$i]}" == "$phase" ]]; then
+            echo "$i"
+            return 0
+        fi
+    done
+    echo "-1"
+}
+
+# write_checkpoint <cycle_id> <phase>
+# Writes checkpoint to the last cycle in .cycles, enforcing monotonicity.
+write_checkpoint() {
+    local cycle_id="$1"
+    local new_phase="$2"
+
+    local current
+    current=$(jq -r --arg cid "$cycle_id" '
+        (.cycles[] | select(.cycle_id == $cid) | .checkpoint) // "NONE"
+    ' "$STATE_FILE" 2>/dev/null) || current="NONE"
+
+    if [[ "$current" != "NONE" ]]; then
+        local cur_idx new_idx
+        cur_idx=$(checkpoint_ordinal "$current")
+        new_idx=$(checkpoint_ordinal "$new_phase")
+        if [[ "$cur_idx" -ge "$new_idx" ]]; then
+            error "Non-monotonic checkpoint: $current → $new_phase (cycle $cycle_id)"
+            return 1
+        fi
+    fi
+
+    atomic_state_write --arg cid "$cycle_id" --arg cp "$new_phase" '
+        .cycles = [.cycles[] | if .cycle_id == $cid then .checkpoint = $cp else . end]
+    '
+}
+
+# atomic_state_write <jq_args...>
+# Wraps jq > .tmp && mv with error handling (Flatline IMP-002).
+# Sets _SPIRAL_JQ_IN_FLIGHT for trap safety (Bridgebuilder MEDIUM-1).
+_SPIRAL_JQ_IN_FLIGHT=0
+
+atomic_state_write() {
+    local tmp="${STATE_FILE}.tmp"
+    _SPIRAL_JQ_IN_FLIGHT=1
+
+    if ! jq "$@" "$STATE_FILE" > "$tmp" 2>/dev/null; then
+        _SPIRAL_JQ_IN_FLIGHT=0
+        rm -f "$tmp"
+        error "State write failed (jq error)"
+        return 1
+    fi
+
+    if ! mv "$tmp" "$STATE_FILE" 2>/dev/null; then
+        _SPIRAL_JQ_IN_FLIGHT=0
+        error "State write failed (mv error). Stale .tmp may exist: $tmp"
+        return 1
+    fi
+
+    _SPIRAL_JQ_IN_FLIGHT=0
+    return 0
+}
+
+# require_timeout — detect timeout/gtimeout for step watchdogs (Bridgebuilder MEDIUM-2)
+_TIMEOUT_CMD=""
+
+require_timeout() {
+    if command -v timeout &>/dev/null; then
+        _TIMEOUT_CMD="timeout"
+    elif command -v gtimeout &>/dev/null; then
+        _TIMEOUT_CMD="gtimeout"
+    else
+        log "WARNING: timeout/gtimeout not found. Step timeouts disabled."
+        log "  Install: brew install coreutils (macOS) or apt install coreutils (Linux)"
+        _TIMEOUT_CMD=""
+    fi
+}
+
+# with_step_timeout <step_name> <seconds> <command...>
+# Wraps command in timeout(1). Returns 124 on timeout.
+with_step_timeout() {
+    local step_name="$1"
+    local budget_sec="$2"
+    shift 2
+
+    if [[ -z "$_TIMEOUT_CMD" ]] || [[ "$budget_sec" -le 0 ]]; then
+        "$@"
+        return $?
+    fi
+
+    local exit_code=0
+    "$_TIMEOUT_CMD" --signal=TERM --kill-after=10 "$budget_sec" "$@" || exit_code=$?
+
+    if [[ "$exit_code" -eq 124 ]]; then
+        log_trajectory "step_timeout" \
+            "$(jq -n --arg step "$step_name" --argjson budget "$budget_sec" \
+                '{step: $step, budget_sec: $budget, timed_out: true}')"
+    fi
+    return "$exit_code"
+}
+
+# PID guard (Flatline IMP-001 + SKP-004)
+# Checks if a spiral is already running, detects stale RUNNING via PID liveness.
+check_pid_guard() {
+    if [[ ! -f "$STATE_FILE" ]]; then
+        return 0  # No state → safe to start
+    fi
+
+    local existing_state existing_pid existing_start_time
+    existing_state=$(jq -r '.state // "unknown"' "$STATE_FILE" 2>/dev/null) || return 0
+    existing_pid=$(jq -r '.pid // 0' "$STATE_FILE" 2>/dev/null) || existing_pid=0
+    existing_start_time=$(jq -r '.start_time // ""' "$STATE_FILE" 2>/dev/null) || existing_start_time=""
+
+    if [[ "$existing_state" == "RUNNING" ]]; then
+        if [[ "$existing_pid" -gt 0 ]] && kill -0 "$existing_pid" 2>/dev/null; then
+            # Process alive — check start_time to guard against PID reuse (Flatline SKP-002)
+            if [[ -n "$existing_start_time" ]] && [[ -d "/proc/$existing_pid" ]]; then
+                local proc_start
+                proc_start=$(stat -c %Y "/proc/$existing_pid" 2>/dev/null) || proc_start=0
+                local state_start_epoch
+                state_start_epoch=$(date -u -d "$existing_start_time" +%s 2>/dev/null) || state_start_epoch=0
+                local diff=$(( proc_start - state_start_epoch ))
+                # Allow 5s tolerance
+                if [[ "${diff#-}" -gt 5 ]]; then
+                    log "WARNING: PID $existing_pid reused (start_time mismatch). Treating as stale."
+                    coalesce_spiral_terminal_state "CRASHED" "orphan_detected_pid_reuse"
+                    return 0
+                fi
+            fi
+            error "Spiral already RUNNING (PID $existing_pid). Use --halt or --resume."
+            return 3
+        fi
+        # PID dead → stale RUNNING
+        log "WARNING: stale RUNNING state (PID $existing_pid dead). Treating as crash."
+        coalesce_spiral_terminal_state "CRASHED" "orphan_detected"
+        return 0
+    fi
+
+    return 0
+}
+
+# Record PID + start_time in state
+record_pid() {
+    local timestamp
+    timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    atomic_state_write --argjson pid "$$" --arg st "$timestamp" \
+        '.pid = $pid | .start_time = $st'
+}
+
+# =============================================================================
 # Stopping-condition predicates (RFC-060 AD-4)
 # =============================================================================
 
@@ -559,4 +716,7 @@ main() {
     esac
 }
 
-main "$@"
+# Only run main when executed directly (not sourced for testing)
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi
