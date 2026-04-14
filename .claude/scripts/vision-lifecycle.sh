@@ -2,7 +2,6 @@
 # =============================================================================
 # vision-lifecycle.sh — Vision Registry Lifecycle CLI
 # =============================================================================
-# Version: 1.0.0
 # Part of: Vision Registry Graduation (cycle-069, #486)
 #
 # Manage vision lifecycle transitions: promote, archive, reject, explore,
@@ -24,6 +23,17 @@
 # =============================================================================
 
 set -euo pipefail
+
+# Single source of truth for script version.
+# Bump policy: maintainer bumps on release following semver (MAJOR.MINOR.PATCH).
+VERSION="1.0.0"
+
+# --version: early exit before any dependency sourcing or lock acquisition.
+# Matches $1 only (SDD 2.2). Output to stdout; stderr stays empty.
+if [[ "${1:-}" == "--version" ]]; then
+  echo "vision-lifecycle.sh $VERSION"
+  exit 0
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/bootstrap.sh"
