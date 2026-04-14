@@ -102,7 +102,12 @@ trap 'rm -f "$LOCK_FILE"' EXIT
 # =============================================================================
 
 # Verify we're within a configured scheduling window
+# strategy=continuous bypasses window check entirely
 _in_window() {
+    local strategy
+    strategy=$(_read_config "spiral.scheduling.strategy" "fill")
+    [[ "$strategy" == "continuous" ]] && return 0  # Continuous mode — always in window
+
     local start_utc end_utc
     start_utc=$(_read_config "spiral.scheduling.windows[0].start_utc" "")
     end_utc=$(_read_config "spiral.scheduling.windows[0].end_utc" "")

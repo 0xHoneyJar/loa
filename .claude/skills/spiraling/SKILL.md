@@ -163,7 +163,7 @@ spiral:
       - start_utc: "02:00"        # When to begin
         end_utc: "08:00"          # When to halt gracefully
         days: [mon, tue, wed, thu, fri]
-    strategy: fill                  # Use full window
+    strategy: fill                  # "fill" | "single" | "continuous" (ignores window, runs until cost/cycles/halt)
     max_cycles_per_window: 3
 ```
 
@@ -187,3 +187,4 @@ CronCreate: schedule "0 2 * * *", task "spiral-scheduler.sh"
 - Single-operator, single-repo only
 - Scheduling requires Claude Code session (CronCreate) or remote trigger (/schedule)
 - Token window tracking uses wall-clock time, not actual token counts (Anthropic API does not expose remaining quota programmatically)
+- `strategy: continuous` ignores scheduling windows — spiral runs until cost budget, cycle budget, wall-clock, or HITL halt stops it

@@ -1684,7 +1684,7 @@ spiral:
       - start_utc: "02:00"          # When to begin (HH:MM UTC)
         end_utc: "08:00"            # When to halt gracefully
         days: [mon, tue, wed, thu, fri]
-    strategy: fill                   # "fill" = use full window; "single" = one cycle only
+    strategy: fill                   # "fill" = use full window; "single" = one cycle; "continuous" = ignore window, run until other conditions stop
     max_cycles_per_window: 3         # Safety cap per scheduling window
 
 # Prompt Isolation (v1.42.0)

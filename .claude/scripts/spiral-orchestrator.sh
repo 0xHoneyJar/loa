@@ -404,8 +404,14 @@ check_hitl_halt() {
 
 # check_token_window — cycle-072 scheduling
 # Returns 0 (STOP) if current time is past the configured scheduling window end.
-# Returns 1 (CONTINUE) if no window configured or still within window.
+# Returns 1 (CONTINUE) if no window configured, continuous mode, or still within window.
 check_token_window() {
+    # Continuous mode: operator wants scheduler to keep running without time bounds.
+    # Other stopping conditions (cost, cycles, wall-clock, HITL halt) still apply.
+    local strategy
+    strategy=$(read_config "spiral.scheduling.strategy" "fill")
+    [[ "$strategy" == "continuous" ]] && return 1  # Never triggers — run until other conditions stop
+
     local window_end_utc
     window_end_utc=$(read_config "spiral.scheduling.windows[0].end_utc" "")
     [[ -z "$window_end_utc" ]] && return 1  # No window configured — never triggers
