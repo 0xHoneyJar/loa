@@ -207,7 +207,7 @@ vision_load_index() {
 
     # Validate status value
     case "$status" in
-      Captured|Exploring|Proposed|Implemented|Deferred) ;;
+      Captured|Exploring|Proposed|Implemented|Deferred|Archived|Rejected) ;;
       *)
         echo "WARNING: Skipping entry with invalid status: $id ($status)" >&2
         continue
@@ -412,7 +412,7 @@ vision_validate_entry() {
   local status
   status=$(grep '^\*\*Status\*\*:' "$entry_file" | sed 's/\*\*Status\*\*: *//')
   case "$status" in
-    Captured|Exploring|Proposed|Implemented|Deferred) ;;
+    Captured|Exploring|Proposed|Implemented|Deferred|Archived|Rejected) ;;
     *)
       echo "INVALID: unknown status '$status'" >&2
       echo "INVALID: unknown status '$status'"
@@ -444,7 +444,7 @@ vision_update_status() {
   _vision_validate_id "$vid" || return 1
 
   case "$new_status" in
-    Captured|Exploring|Proposed|Implemented|Deferred) ;;
+    Captured|Exploring|Proposed|Implemented|Deferred|Archived|Rejected) ;;
     *) echo "ERROR: Invalid status: $new_status" >&2; return 1 ;;
   esac
 
@@ -701,18 +701,21 @@ vision_regenerate_index_stats() {
   fi
 
   # Count statuses from the table (grep for status column values)
-  local captured exploring proposed implemented deferred
+  local captured exploring proposed implemented deferred archived rejected
   captured=$(grep -c '| Captured |' "$index_file" 2>/dev/null || echo 0)
   exploring=$(grep -c '| Exploring |' "$index_file" 2>/dev/null || echo 0)
   proposed=$(grep -c '| Proposed |' "$index_file" 2>/dev/null || echo 0)
   implemented=$(grep -c '| Implemented |' "$index_file" 2>/dev/null || echo 0)
   deferred=$(grep -c '| Deferred |' "$index_file" 2>/dev/null || echo 0)
+  archived=$(grep -c '| Archived |' "$index_file" 2>/dev/null || echo 0)
+  rejected=$(grep -c '| Rejected |' "$index_file" 2>/dev/null || echo 0)
 
   # Rewrite statistics section using awk (safe, no shell expansion issues)
   # Note: avoid awk variable names that clash with builtins (exp, log, etc.)
   local tmp_file="${index_file}.stats.tmp"
   awk -v n_cap="$captured" -v n_expl="$exploring" -v n_prop="$proposed" \
-      -v n_impl="$implemented" -v n_def="$deferred" '
+      -v n_impl="$implemented" -v n_def="$deferred" \
+      -v n_arch="$archived" -v n_rej="$rejected" '
     BEGIN { in_stats=0; stats_written=0 }
     /^## Statistics/ {
       in_stats=1
@@ -723,6 +726,8 @@ vision_regenerate_index_stats() {
       print "- Total proposed: " n_prop
       print "- Total implemented: " n_impl
       print "- Total deferred: " n_def
+      print "- Total archived: " n_arch
+      print "- Total rejected: " n_rej
       stats_written=1
       next
     }

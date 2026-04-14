@@ -224,7 +224,7 @@ if ls "$entries_dir"/vision-*.md 1>/dev/null 2>&1; then
   local_max=$(ls "$entries_dir"/vision-*.md 2>/dev/null | \
     sed 's/.*vision-\([0-9]*\)\.md/\1/' | \
     sort -n | tail -1)
-  next_number=$((local_max + 1))
+  next_number=$((10#$local_max + 1))
 fi
 
 # Create vision entries

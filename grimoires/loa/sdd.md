@@ -1,252 +1,489 @@
-# SDD: Lore Promoter — HARVEST phase consumer
+# SDD: Vision Registry Graduation — Query API, Lifecycle, Spiral Integration
 
-**PRD**: grimoires/loa/prd.md (v1.0)
-**Cycle**: cycle-060
-**Issue**: [#481](https://github.com/0xHoneyJar/loa/issues/481)
-**Date**: 2026-04-13
+**Issue**: #486
+**Cycle**: 069
+**PRD**: `grimoires/loa/prd.md`
+**Date**: 2026-04-14
 
 ---
 
-## 1. Architecture Overview
+## 1. System Architecture
 
-Single shell script (`.claude/scripts/lore-promote.sh`) driven by `jq` + `yq` + `flock`. Reads candidate queue + decisions journal, prompts user (or auto-decides via threshold), writes atomically to `patterns.yaml` and journal. No daemon, no long-lived state, no network except optional `gh` calls for merge-status gating.
+### 1.1 Component Overview
 
 ```
-┌────────────────────────────────────────────────────────────┐
-│  lore-promote.sh [--flags]                                 │
-└────────┬───────────────────────────────────────────────────┘
-         │
-         ├─► Acquire flock on a SHARED lockfile (.run/lore-promote.lock)
-         │   covering BOTH patterns.yaml AND journal writes (Flatline SDD blocker #1)
-         │   10s timeout → abort with clear error (blocker #2: documented)
-         │
-         ├─► Load queue (.run/bridge-lore-candidates.jsonl)
-         ├─► Load decisions journal (.run/lore-promote-journal.jsonl)
-         ├─► Compute undecided candidates = queue - (journal decisions)
-         │
-         ├─► Mode dispatch:
-         │     ├─ --interactive (default): per-candidate prompt
-         │     │     user choice: A/R/S/E/Q
-         │     │
-         │     └─ --threshold N: auto-promote if merged-PR count ≥ N
-         │
-         ├─► For each Accepted/auto-promoted candidate:
-         │     1. Sanitize all free-text fields
-         │     2. Check merge status of source PR (gh pr view)
-         │     3. Generate id (slugify + collision disambiguation)
-         │     4. Append to patterns.yaml.tmp
-         │     5. mv patterns.yaml.tmp → patterns.yaml
-         │     6. Append {id, action: "promoted", pr, decided_at} to journal
-         │
-         ├─► For each Rejected candidate:
-         │     Append {id, action: "rejected", pr, reason, decided_at} to journal
-         │
-         ├─► Release flock
-         └─► Print summary + exit 0
+┌─────────────────────────────────────────────────────────┐
+│                    CLI Layer (new)                       │
+│  vision-query.sh          vision-lifecycle.sh            │
+│  (filter/format/rebuild)  (promote/archive/reject/etc)   │
+└────────────┬─────────────────────┬──────────────────────┘
+             │   sources           │   sources
+             ▼                     ▼
+┌─────────────────────────────────────────────────────────┐
+│                 Library Layer (existing)                  │
+│  vision-lib.sh                                           │
+│  (11 functions: load, match, validate, sanitize,         │
+│   update_status, atomic_write, lore elevation, etc.)     │
+│  + modified: Archived/Rejected status support            │
+└────────────┬─────────────────────┬──────────────────────┘
+             │   reads/writes      │
+             ▼                     ▼
+┌─────────────────────────────────────────────────────────┐
+│                   Data Layer (existing)                   │
+│  grimoires/loa/visions/                                  │
+│  ├── index.md            (pipe-delimited table)          │
+│  └── entries/            (vision-NNN.md files)           │
+│                                                          │
+│  grimoires/loa/lore/discovered/visions.yaml (elevation)  │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│              Integration Layer (modified)                 │
+│  spiral-orchestrator.sh  seed_phase() full mode          │
+│  bridge-vision-capture.sh  octal bug fix                 │
+└─────────────────────────────────────────────────────────┘
 ```
 
-## 2. Component Design
+### 1.2 File Inventory
 
-### 2.1 CLI surface
-Per PRD FR-1. Standard bash `case` loop, strict validation for each flag (numeric checks, file existence).
+| File | Action | Zone | Authorization |
+|------|--------|------|---------------|
+| `.claude/scripts/vision-query.sh` | **New** | System | PRD cycle-069 |
+| `.claude/scripts/vision-lifecycle.sh` | **New** | System | PRD cycle-069 |
+| `.claude/scripts/vision-lib.sh` | **Modify** | System | PRD cycle-069 |
+| `.claude/scripts/bridge-vision-capture.sh` | **Modify** | System | PRD FR-4 |
+| `.claude/scripts/spiral-orchestrator.sh` | **Modify** | System | PRD FR-3 |
+| `grimoires/loa/visions/index.md` | **Rebuild** | State | Standard |
+| `.loa.config.yaml` | **Modify** | State | PRD FR-6 |
+| `tests/unit/vision-query.bats` | **New** | App | Standard |
+| `tests/unit/vision-lifecycle.bats` | **New** | App | Standard |
+| `tests/unit/vision-seed-full.bats` | **New** | App | Standard |
 
-### 2.2 Queue state machine (Flatline SDD blocker #4 — accepted)
-A candidate is in one of three states at any time:
-- **Pending**: in queue, no journal decision yet
-- **Promoted**: journal has `{candidate_key, action: "promoted"}`, entry is in `patterns.yaml`
-- **Rejected**: journal has `{candidate_key, action: "rejected", reason: "..."}`
+## 2. Data Model
 
-**Candidate key**: queue entries do not have a top-level `id` field (they have `finding_id` + `pr_number`). The canonical `candidate_key` is the composite `"{pr_number}:{finding_id}"` — unique per finding per PR. This is the key used for set-difference computation, not the promoted lore `id` (which is generated on promotion per FR-2.1 and is about the *lore entry*, not the *candidate decision*).
+### 2.1 Vision Entry Schema (Canonical — Flatline IMP-008)
 
-Computing pending set:
-```bash
-all_candidate_keys = [for entry in queue: "${pr_number}:${finding_id}"]
-decided_keys       = [for entry in journal: .candidate_key]
-pending            = all_candidate_keys - decided_keys
+```markdown
+# Vision: <TITLE>
+
+**ID**: vision-NNN
+**Source**: <free-text source reference>
+**PR**: #<number> | (omitted)
+**Date**: <ISO-8601 UTC timestamp>
+**Status**: Captured|Exploring|Proposed|Implemented|Deferred|Archived|Rejected
+**Tags**: [comma-separated, lowercase-hyphenated]
+**Archived-Reason**: <text>       (present only when Status=Archived)
+**Rejected-Reason**: <text>       (present only when Status=Rejected)
+
+## Insight
+<Content — this section is the only text extracted for context injection>
+
+## Potential
+<Exploration opportunities>
+
+## Connection Points
+- <Provenance references>
 ```
 
-Journal entries include both `candidate_key` (for decision tracking) and `id` (for promoted lore entries — null when rejected).
+### 2.2 Frontmatter Parser Contract
 
-Journal is append-only and the source of truth for what's been decided. Queue file never mutates after `post-pr-triage.sh` writes it.
+The parser extracts key-value pairs from `**Key**: Value` lines between the H1 header and the first `## ` section heading. Rules:
 
-### 2.3 ID generation with collision handling (PRD FR-2.1)
+- Keys: case-sensitive exact match (`**ID**:`, `**Status**:`, etc.)
+- Values: everything after `: ` to end of line, trimmed
+- Tags: strip `[]`, split on `,`, trim each, lowercase
+- Missing optional fields (`PR`, `Archived-Reason`, `Rejected-Reason`): omitted from output, not null
+- Malformed entries: quarantined (`parse_error: true` in JSON output), not fatal
+- Invalid status values: quarantined
 
-```bash
-generate_id() {
-    local term="$1"
-    local content_hash="$2"  # sha256 of full candidate content
-    local base
-    base=$(echo "$term" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-\|-$//g')
-    if yq ".[] | select(.id == \"$base\")" "$LORE_PATH" 2>/dev/null | grep -q .; then
-        # Collision — append short hash
-        local short=${content_hash:0:6}
-        echo "${base}-${short}"
-    else
-        echo "$base"
-    fi
-}
-```
-
-Unit test: two candidates with `term: "Governance Isomorphism"` but different `context` values must produce different ids (second one gets `-<hash>` suffix).
-
-### 2.4 Sanitization pipeline (PRD FR-5)
-
-Applied to every free-text field in order:
-
-```bash
-sanitize() {
-    local text="$1"
-    local max_chars="$2"
-
-    # 1. Strip ANSI escape sequences
-    text=$(echo "$text" | sed 's/\x1b\[[0-9;]*m//g')
-
-    # 2. Strip null bytes and control chars (except tab/LF/CR)
-    text=$(echo "$text" | tr -d '\000-\010\013\014\016-\037\177')
-
-    # 3. Scan for injection patterns → reject
-    for pattern in "${INJECTION_PATTERNS[@]}"; do
-        if echo "$text" | grep -qiE "$pattern"; then
-            log_rejection "injection pattern matched: $pattern"
-            return 1
-        fi
-    done
-
-    # 4. Enforce length
-    if [[ ${#text} -gt $max_chars ]]; then
-        log_rejection "exceeds length limit ($max_chars chars)"
-        return 1
-    fi
-
-    printf '%s' "$text"
-}
-```
-
-`INJECTION_PATTERNS` = array of regex patterns loaded from `.claude/data/injection-patterns.yaml` (if present) else hardcoded baseline:
-- `Ignore previous instructions`
-- `You are now|From now on`
-- `^(system|user|assistant):`
-- `<script|<iframe|javascript:`
-
-### 2.5 Two-phase write with journal (PRD NFR-3)
-
-Per SDD diagram. The key safety property: **any crash between steps leaves the system in a recoverable state** because the journal is the source of truth.
-
-- Crash between step 1 (`.tmp` written) and step 2 (`mv`): `.tmp` file orphaned, next run detects & cleans up, no journal entry means no re-prompt needed
-- Crash between step 2 (`mv` done) and step 3 (journal append): `patterns.yaml` has the entry but journal doesn't. Next run recomputes pending = queue - journal and would re-prompt. BUT: checking `id` uniqueness against `patterns.yaml` detects the pre-existing entry → skip + log reconciliation message → journal is back-filled
-- Crash between step 3 and 4: journal has decision, queue marker doesn't matter (queue file is effectively read-only post-`post-pr-triage.sh`)
-
-### 2.6 Merge-status gating (PRD NFR-4 defense layer 4)
-
-Before auto-promoting a candidate in threshold mode:
-```bash
-pr_state=$(gh pr view "$pr_number" --json state --jq '.state' 2>/dev/null || echo "UNKNOWN")
-if [[ "$pr_state" != "MERGED" ]]; then
-    log "Skipping pr=$pr_number — not merged (state=$pr_state)"
-    return 1
-fi
-```
-
-Interactive mode informs the user of PR state but does not block — human judgment can accept an open PR's finding if appropriate.
-
-## 3. Data Model
-
-### 3.1 Input: candidate queue entry (existing)
-
-Per `.claude/data/trajectory-schemas/bridge-triage.schema.json`. Relevant fields:
+### 2.3 Seed Context Schema (Flatline IMP-004)
 
 ```json
 {
-  "timestamp": "2026-04-13T12:00:00Z",
-  "pr_number": 469,
-  "finding_id": "F6",
-  "severity": "PRAISE",
-  "action": "lore_candidate",
-  "reasoning": "...",
-  "finding_content": {
-    "title": "...",
-    "description": "...",
-    "tags": ["...", "..."]
-  }
+  "mode": "full",
+  "query": {
+    "tags": ["security", "architecture"],
+    "statuses": ["Captured", "Exploring", "Proposed"],
+    "limit": 10
+  },
+  "visions": [
+    {
+      "id": "vision-009",
+      "title": "Audit-Mode Context Filtering",
+      "tags": ["security", "epistemic-enforcement"],
+      "status": "Captured",
+      "date": "2026-02-19T...",
+      "insight_excerpt": "First 200 chars...",
+      "relevance_score": 0.8
+    }
+  ],
+  "total_bytes": 1234,
+  "budget_bytes": 4096,
+  "truncated": false
 }
 ```
 
-### 3.2 Output: lore entry
+### 2.4 Status Lifecycle State Machine
+
+```
+                 ┌──────────┐
+                 │ Captured │
+                 └────┬─────┘
+                      │ explore
+                      ▼
+                 ┌──────────┐
+                 │ Exploring│
+                 └────┬─────┘
+                      │ propose
+                      ▼
+                 ┌──────────┐
+           ┌─────│ Proposed │─────┐
+           │     └──────────┘     │
+           │ (implement)          │ defer
+           ▼                      ▼
+    ┌─────────────┐        ┌──────────┐
+    │ Implemented │        │ Deferred │
+    └─────────────┘        └──────────┘
+         (terminal)
+
+    From ANY non-terminal state:
+    ├── promote ──→ Implemented (shortcut, creates lore entry)
+    ├── archive ──→ Archived    (terminal, reason optional)
+    └── reject  ──→ Rejected    (terminal, reason required)
+
+    Terminal states: Implemented, Archived, Rejected
+    No transitions out of terminal states (exit code 5).
+```
+
+## 3. Component Design
+
+### 3.1 `vision-query.sh` — Query CLI
+
+**Location**: `.claude/scripts/vision-query.sh`
+
+**Dependencies**: sources `vision-lib.sh`, `bootstrap.sh`
+
+**Flow**:
+1. Parse CLI flags into filter variables
+2. If `--rebuild-index`: call `_rebuild_index()`, exit
+3. Scan `grimoires/loa/visions/entries/vision-*.md` (glob, not index)
+4. For each file: parse frontmatter via `_parse_entry()`
+5. Apply filters (AND-combined): tags, status, source, date range, min-refs
+6. Sort by date descending (default)
+7. Apply `--limit`
+8. Format output per `--format` flag
+
+**Key functions**:
+
+```bash
+_parse_entry() {
+  # Input: $1=entry_file_path
+  # Output: JSON object to stdout, or empty on parse failure
+  # Extracts: id, title, source, pr, date, status, tags[], insight_excerpt
+  # Uses awk for frontmatter extraction, jq --arg for JSON construction
+}
+
+_match_filters() {
+  # Input: JSON entry on stdin, filter variables from environment
+  # Output: entry JSON if matches, empty if not
+  # Status: comma-split, case-insensitive match
+  # Tags: ANY-match (vision has at least one of the query tags)
+  # Source: grep -i pattern match
+  # Date: ISO string comparison (lexicographic works for ISO-8601)
+  # Min-refs: numeric comparison
+}
+
+_rebuild_index() {
+  # Scan all entry files, parse, generate pipe-delimited table
+  # Regenerate statistics section
+  # Atomic write via vision_atomic_write()
+  # Idempotent: deterministic output from same inputs
+  # If --dry-run: diff current index vs rebuilt, report discrepancies, don't write
+  #   (Bridgebuilder HIGH-2: visibility into what changed before overwriting)
+  #
+  # Scan-time consistency (Flatline IMP-005): rebuild takes a snapshot of all
+  # entry files at scan start. Files modified during scan are detected via
+  # mtime comparison (pre-scan vs post-parse). If any entry was modified
+  # during the scan, log a warning but proceed (single-user model makes
+  # this vanishingly rare). The global lifecycle lock prevents concurrent
+  # lifecycle ops from modifying entries during rebuild.
+}
+```
+
+**Exit codes** (per PRD IMP-001):
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | No results (empty JSON array on stdout) |
+| 2 | Invalid arguments |
+| 3 | Parse error (entry quarantined, non-strict mode continues) |
+| 4 | I/O error |
+
+### 3.2 `vision-lifecycle.sh` — Lifecycle CLI
+
+**Location**: `.claude/scripts/vision-lifecycle.sh`
+
+**Dependencies**: sources `vision-lib.sh`, `bootstrap.sh`
+
+**Commands**:
+
+```bash
+vision-lifecycle.sh promote <vision-id>
+vision-lifecycle.sh archive <vision-id> [--reason <text>]
+vision-lifecycle.sh reject  <vision-id> --reason <text>
+vision-lifecycle.sh explore <vision-id>
+vision-lifecycle.sh propose <vision-id>
+vision-lifecycle.sh defer   <vision-id> [--reason <text>]
+```
+
+**Promote flow** (ordered writes per SKP-002 override):
+
+```
+1. Validate: vision exists, not in terminal state
+2. Generate lore entry → vision_generate_lore_entry()
+3. Append to lore YAML → vision_append_lore_entry()  [idempotent]
+4. Update status → vision_update_status() to "Implemented"  [flock atomic]
+5. Rebuild index → vision-query.sh --rebuild-index  [idempotent]
+6. Log trajectory → "vision_promoted" event
+```
+
+Recovery: if crash after step 3 but before step 4, lore has the entry but status is stale. Running promote again: step 3 is idempotent (vision_id check), step 4 updates status. Running `--rebuild-index` fixes any index drift.
+
+**Lore path resolution** (Bridgebuilder CRITICAL-1): The promote flow delegates lore file path to `vision_append_lore_entry()` which reads from `$PROJECT_ROOT/.claude/data/lore/discovered/visions.yaml`. The CLI script MUST NOT hardcode this path — it calls the library function which owns path resolution.
+
+**Archive/Reject flow**:
+
+```
+1. Validate: vision exists, not in terminal state
+2. Sanitize reason text: strip |, newlines, control chars (SKP-005)
+3. Add Archived-Reason/Rejected-Reason to entry frontmatter
+4. Update status via vision_update_status()  [flock atomic]
+5. Rebuild index
+6. Log trajectory
+```
+
+**Input sanitization** (Flatline SKP-005):
+
+```bash
+_sanitize_reason() {
+  local text="$1"
+  # Strip pipe chars (break markdown tables)
+  text="${text//|/-}"
+  # Strip newlines (break frontmatter)
+  text=$(echo "$text" | tr '\n' ' ')
+  # Strip control characters
+  text=$(echo "$text" | tr -d '\000-\037')
+  # Trim
+  echo "$text" | xargs
+}
+```
+
+**Lifecycle lock scope** (Flatline IMP-001): Each lifecycle command acquires a global registry lock (`grimoires/loa/visions/.lifecycle.lock`) via flock before beginning the multi-step flow. This prevents concurrent promote + archive from interleaving. The lock wraps the entire command (validate → write → rebuild → log), not individual steps.
+
+```bash
+_with_lifecycle_lock() {
+  local lock_file="${VISIONS_DIR}/.lifecycle.lock"
+  (
+    flock -w 10 200 || { echo "ERROR: Could not acquire lifecycle lock" >&2; exit 1; }
+    "$@"
+  ) 200>"$lock_file"
+}
+```
+
+**Exit codes**: Same as vision-query.sh, plus code 5 for invalid transition.
+
+### 3.3 `vision-lib.sh` Modifications
+
+**Changes to existing code**:
+
+1. **`vision_update_status()` (line 447)**: Add `Archived` and `Rejected` to the valid status case statement
+2. **`vision_validate_entry()` (line 414)**: Add `Archived` and `Rejected` to valid statuses
+3. **`vision_load_index()` (line 210)**: Add `Archived` and `Rejected` to valid statuses
+4. **`vision_regenerate_index_stats()` (line 705-708)**: Add Archived and Rejected counts
+
+**No new functions added to vision-lib.sh** — the CLI scripts handle their own logic and call existing library functions.
+
+**Note** (Bridgebuilder MEDIUM-2): `vision_load_index()` remains for backward compatibility (used by `bridge-orchestrator.sh`) but is eventually-consistent with respect to lifecycle transitions. Between status update (step 4) and index rebuild (step 5) in promote flow, index readers see stale data. Callers needing current data should use `vision-query.sh` (file-scan) instead.
+
+### 3.4 `bridge-vision-capture.sh` Octal Fix
+
+**Line 227** — current:
+```bash
+next_number=$((local_max + 1))
+```
+
+**Fixed**:
+```bash
+next_number=$((10#$local_max + 1))
+```
+
+Forces base-10 interpretation. `009` → decimal 9 → `next_number=10`.
+
+### 3.5 `spiral-orchestrator.sh` — seed_phase() Full Mode
+
+**Location**: Lines 515-520 (current demotion fallback), inside `seed_phase()`.
+
+**Current full mode path** (demotion):
+```bash
+log "WARNING: Full SEED mode requires Vision Registry (issue #486)"
+log_trajectory "seed_mode_transition" '...'
+seed_mode="degraded"
+```
+
+**Replacement logic**:
+
+1. Extract tags from HARVEST sidecar (`cycle-outcome.json`) via deterministic mapping (Section 7.2)
+2. **Sidecar validation** (Flatline IMP-006): Before extracting categories, validate sidecar has expected structure: `jq -e '.findings | type == "array"'`. If missing or wrong type, log warning and fall back to default tags (not hard fail — sidecar schema may evolve across cycles)
+3. Fallback to `spiral.seed.default_tags` config if no sidecar or no mappable categories
+3. Query registry: `vision-query.sh --tags <tags> --status Captured,Exploring,Proposed --format json --limit <max>`
+4. Zero results → cold start with `seed_cold` trajectory event (not demotion to degraded)
+5. Results found → build seed context JSON per schema (Section 2.3), write to `seed-context.md`
+6. Budget enforcement: if JSON exceeds 4KB, drop lowest-relevance visions from end of array until under budget
+7. Log `seed_full` trajectory event with query parameters and result stats
+
+**Relevance scoring** (Bridgebuilder MEDIUM-1 + Flatline IMP-002): `vision_match_tags()` returns integer overlap count. Normalize to 0.0-1.0 float via jq arithmetic (bash integer division truncates to 0):
+```bash
+relevance=$(jq -n --argjson overlap "$overlap" --argjson total "$total_tags" \
+  'if $total == 0 then 0 else ($overlap / $total) end')
+```
+**Zero-tag edge case**: If query has zero tags (empty default_tags config), all visions score 0.0. Sort falls through to date-only ordering (most recent first). This is correct behavior — no tags means no relevance signal, so recency is the only discriminator.
+
+Sort descending by relevance score, then by date descending (tiebreaker).
+
+## 4. Security Design
+
+### 4.1 Input Sanitization
+
+| Input | Sanitization | Target format |
+|-------|-------------|---------------|
+| `--reason` text | Strip `\|`, newlines, control chars | Markdown frontmatter |
+| `--tags` filter | Validate `^[a-z][a-z0-9_-]*$` per tag | CLI argument |
+| `--source` filter | Fixed-string match via `grep -Fi --` (Flatline SKP-004: no regex injection) | grep -Fi argument |
+| `--status` filter | Validate against enum, case-insensitive | CLI argument |
+| `--since`/`--before` | Validate ISO-8601 UTC format `^\d{4}-\d{2}-\d{2}`. Dates stored and compared as UTC only (Flatline SKP-005: lexicographic comparison correct for same-format UTC ISO-8601) | String comparison |
+| Vision content → seed | `vision_sanitize_text()` (existing allowlist) | JSON via jq --arg |
+| Lore YAML content | `jq --arg` for all values (existing pattern) | YAML via jq template |
+
+### 4.2 Trust Boundaries
+
+- Seed context from registry: marked `"machine-generated, advisory only"` (same as degraded mode)
+- Vision entry content: only `## Insight` section extracted via `vision_sanitize_text()` allowlist
+- Instruction injection patterns stripped by existing secondary defense in `vision_sanitize_text()`
+- No shell expansion of any user-provided or vision-derived content
+
+## 5. Error Handling
+
+### 5.1 Ordered Write Recovery (SKP-002)
+
+For multi-file lifecycle operations (promote):
+
+| Step | File | Recovery |
+|------|------|----------|
+| 1. Lore append | `discovered/visions.yaml` | Idempotent (vision_id check) |
+| 2. Status update | `entries/vision-NNN.md` | Flock atomic (tmp+mv) |
+| 3. Index rebuild | `index.md` | Idempotent (deterministic from entries) |
+| 4. Trajectory log | JSONL | Append-only, no rollback needed |
+
+If crash between steps: re-run the lifecycle command. Idempotent steps skip, pending steps execute.
+
+### 5.2 Parse Error Quarantine
+
+When `_parse_entry()` encounters a malformed vision file:
+
+- **Non-strict mode** (default): log warning, set `parse_error: true` in JSON output, continue
+- **Strict mode** (`--strict`): log error, exit with code 3 after processing all files (report all errors, not just first)
+- Quarantined entries included in `--format json` output with `parse_error: true` field
+- Quarantined entries excluded from `--format table` output (clean display)
+- `--rebuild-index` skips quarantined entries with warning
+
+## 6. Testing Strategy
+
+### 6.1 Test Files
+
+| File | Coverage |
+|------|----------|
+| `tests/unit/vision-query.bats` | FR-1: filter combinations, multi-status, date range, format output, exit codes, rebuild, quarantine |
+| `tests/unit/vision-lifecycle.bats` | FR-2: promote flow, archive/reject with reasons, terminal state blocking, input sanitization |
+| `tests/unit/vision-seed-full.bats` | FR-3: tag derivation, query integration, budget truncation, cold-start fallback |
+| `tests/unit/vision-octal.bats` | FR-4: octal bug fix for IDs 008, 009, 010+ |
+
+### 6.2 Key Test Cases
+
+**Query**:
+- `--tags security` returns only security-tagged visions
+- `--status Captured,Exploring` returns both statuses (comma-list)
+- `--since 2026-04-01` filters by date
+- `--format json` output validates with `jq .`
+- `--format table` produces pipe-delimited rows
+- `--rebuild-index` regenerates index matching entries
+- Malformed entry quarantined in non-strict, error in strict
+
+**Lifecycle**:
+- `promote vision-003` creates lore entry + updates status + rebuilds index
+- `promote` on terminal state exits with code 5
+- `reject` without `--reason` exits with code 2
+- `archive --reason "stale"` adds Archived-Reason to frontmatter
+- Reason text with `|` and newlines is sanitized
+- Double-promote is idempotent (lore append checks vision_id)
+
+**Seed Full Mode**:
+- With HARVEST sidecar: tags derived from findings categories
+- Without HARVEST sidecar: falls back to configured default_tags
+- Zero query results: cold-start (not degraded)
+- Budget exceeded: lowest-ranked visions dropped, `truncated: true`
+- Output validates against seed context schema
+
+**Octal**:
+- `local_max` of `007`: next = 8 (no issue)
+- `local_max` of `008`: next = 9 (was octal error, now fixed)
+- `local_max` of `009`: next = 10 (was octal error, now fixed)
+- `local_max` of `099`: next = 100 (3-digit boundary)
+
+## 7. Configuration
+
+### 7.1 New Config Keys
 
 ```yaml
-- id: governance-isomorphism-a3b5c2
-  term: Governance Isomorphism
-  short: Multi-perspective evaluation with fail-closed semantics appears identically across Flatline, Red Team, and vault governance.
-  context: |
-    The review pipeline and the vault share an identical governance shape: multiple independent evaluators must reach consensus before state changes are permitted. This pattern enables cross-pollination: security review patterns from code review can inform on-chain governance design.
-  source:
-    pr: 469
-    finding_id: F6
-    bridge_iteration: "PR #469 pass 2"
-    cycle: cycle-060
-    promoted_at: "2026-04-13T14:30:00Z"
-  tags:
-    - governance
-    - flatline
-    - red-team
-    - cross-ecosystem
+# .loa.config.yaml additions
+vision_registry:
+  enabled: true                     # Graduate: false → true
+
+spiral:
+  seed:
+    mode: "full"                    # Graduate: "degraded" → "full"
+    default_tags:                   # Fallback when no HARVEST context
+      - architecture
+      - security
+    max_seed_visions: 10            # Max visions in seed context
 ```
 
-### 3.3 Decisions journal entry
+### 7.2 HARVEST Category → Vision Tag Mapping (Flatline IMP-002)
 
-```jsonl
-{"decided_at":"2026-04-13T14:30:00Z","id":"governance-isomorphism-a3b5c2","action":"promoted","pr":469,"finding_id":"F6","tool_version":"cycle-060"}
-{"decided_at":"2026-04-13T14:31:00Z","id":"bad-pattern-xyz","action":"rejected","pr":470,"finding_id":"F2","reason":"injection_pattern_matched","tool_version":"cycle-060"}
-```
+| HARVEST category | Vision tag |
+|-----------------|------------|
+| `security` | `security` |
+| `architecture` | `architecture` |
+| `performance` | `performance` |
+| `reliability` | `reliability` |
+| `testing` | `testing` |
+| `code-quality` | `code-quality` |
+| `documentation` | `documentation` |
+| (unmapped) | Skipped with warning |
 
-## 4. Testing Strategy
+Mapping hardcoded in `seed_phase()`. Future cycle can externalize to config if more categories emerge.
 
-BATS suite at `tests/unit/lore-promote.bats`. Minimum 12 cases:
+## 8. Architectural Pattern
 
-| # | Test | Coverage |
-|---|------|----------|
-| T1 | Happy path: one candidate, interactive accept | FR-3, FR-8 |
-| T2 | Interactive reject logs to journal with reason | FR-3 |
-| T3 | Interactive skip leaves candidate pending | FR-3 |
-| T4 | Idempotency: re-run doesn't duplicate promoted entries | FR-6 |
-| T5 | Sanitization rejects injection pattern | FR-5 |
-| T6 | Length limit enforced on `short` and `context` | FR-5 |
-| T7 | ID collision triggers hash suffix | FR-2.1 |
-| T8 | Empty queue exits 0 with info message | FR-7 |
-| T9 | Missing `patterns.yaml` auto-created | FR-7 |
-| T10 | Threshold mode requires ≥2 merged PRs | NFR-4 |
-| T11 | Unknown flag exits 2 | FR-1 |
-| T12 | Crash recovery: journal + yaml desync reconciled | NFR-3 |
+**Append-Only Log with Decisions Layer** (Bridgebuilder REFRAME): The Vision Registry is structurally an append-only log (vision entries are captured, never mutated) with a decisions layer (lifecycle transitions annotate entries with outcomes). This is the same shape as the event bus DLQ pattern and the `append-only-queue-with-decisions-journal` lore pattern. The query CLI reads the log; the lifecycle CLI records decisions about log entries. Future systems needing this shape (e.g., DLQ entry management, lore pattern lifecycle) can inherit this architecture rather than reinventing it.
 
-## 5. Security Design
+## 9. Implementation Order
 
-Threat model: malicious PR author crafts PRAISE-shaped content designed to inject into future Bridgebuilder/Flatline prompts via `patterns.yaml` → `buildEnrichedSystemPrompt()`.
-
-Defense layers (PRD NFR-4):
-1. Pattern scan (FR-5) — primary filter
-2. Length limits — blast-radius cap
-3. Schema validation — structural guard
-4. Merge gating (merge status check) — trust signal
-5. Interactive default — human judgment
-
-Each layer alone is defeatable; in combination they raise the adversarial bar significantly. Not proven-secure; documented as Known Limitation.
-
-## 6. Performance
-
-For ≤1000 pending candidates: interactive mode dominated by human decision latency; threshold mode completes in < 5s. Bottleneck is `gh pr view` calls (one per auto-promotion candidate). Cache merge status in a session-local dict to avoid repeated calls for the same PR.
-
-## 7. Rollback
-
-Single script; `git revert` removes it. No schema changes, no migration. Journal + patterns.yaml are additive — rolling back the promoter doesn't invalidate entries already in `patterns.yaml` (they continue to be consumed by `core/lore-loader.ts`).
-
-## 8. Integration Points
-
-- **Input**: `.run/bridge-lore-candidates.jsonl` (produced by `post-pr-triage.sh` since v1.73.0) + new `.run/lore-promote-journal.jsonl` (written by this script)
-- **Output**: `grimoires/loa/lore/patterns.yaml` (consumed by v1.75.0 `core/lore-loader.ts`)
-- **Observability**: `bridge-triage-stats.sh --since ...` shows the producer side; this cycle adds the consumer side
-- **Cross-reference**: run-bridge SKILL.md should link to this as the HARVEST-phase consumer pattern
-- **Required follow-up (Bridgebuilder Design Review F1-REFRAME)**: wire `lore-promote.sh --threshold 2` into `post-merge-orchestrator.sh` so promotion becomes as continuous as the producer. Without this hook, the consumer remains operator-triggered and the spiral never closes. Not in scope for this cycle (MVP delivers the script itself), but MUST be the next cycle. Tracked separately.
-
----
-
-*Sources: PRD cycle-060 §§1-7, existing trajectory schema, existing `patterns.yaml` as format anchor, Flatline PRD review (6 blockers addressed in PRD revisions).*
+1. **FR-4**: Octal bug fix (1 line, low-risk warm-up)
+2. **vision-lib.sh**: Add Archived/Rejected states to existing functions
+3. **FR-1**: `vision-query.sh` (core query + parser, tests)
+4. **FR-5**: Index rebuild via `--rebuild-index` (depends on query parser)
+5. **FR-2**: `vision-lifecycle.sh` (depends on query for rebuild)
+6. **FR-3**: `seed_phase()` full mode (depends on query CLI)
+7. **FR-6**: Config updates
+8. Integration tests across components

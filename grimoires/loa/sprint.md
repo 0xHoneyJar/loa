@@ -1,81 +1,176 @@
-# Sprint Plan: cycle-060 — Lore Promoter
+# Sprint Plan: Cycle-069 — Vision Registry Graduation
 
-**Cycle**: cycle-060
-**PRD**: grimoires/loa/prd.md
-**SDD**: grimoires/loa/sdd.md
-**Issue**: [#481](https://github.com/0xHoneyJar/loa/issues/481)
-**Branch**: feat/cycle-060-lore-promoter
-**Date**: 2026-04-13
-
----
-
-## Cycle Summary
-
-Build `.claude/scripts/lore-promote.sh` — the consumer for `.run/bridge-lore-candidates.jsonl` that promotes vetted PRAISE findings into `grimoires/loa/lore/patterns.yaml`. Closes Gap 1 of the HARVEST phase from RFC-060 `/spiral` design. Interactive mode default; threshold mode for high-confidence patterns; sanitization + merge gating defense-in-depth.
-
-## Sprint 1 — Lore promoter MVP
-
-**Scope**: MEDIUM (5 tasks)
-**FRs**: FR-1 through FR-8 (per PRD)
-**Goal**: Ship `lore-promote.sh` with crash-consistent two-phase write, journal-as-source-of-truth, sanitization pipeline, BATS test coverage.
-
-### Tasks
-
-| ID | Task | Files | FR | Goal |
-|----|------|-------|-----|------|
-| T1 | Create `.claude/scripts/lore-promote.sh`. Flag parser (`--queue`, `--lore`, `--interactive`, `--threshold N`, `--dry-run`, `--help`). Strict mode (`set -euo pipefail`). Resolve queue + journal paths; acquire flock on `.run/lore-promote.lock` covering both files. | `.claude/scripts/lore-promote.sh` (new) | FR-1 | G-1 |
-| T2 | Queue state machine: load queue, load journal, compute pending = candidate_keys - decided_keys (composite `pr_number:finding_id` per Flatline SDD blocker #4 fix). | Same file | FR-6 | G-1 |
-| T3 | Sanitization pipeline: ANSI strip → control-char strip → injection pattern scan → length limits. Reject candidate on any failure with logged reason. | Same file | FR-5, NFR-4 | G-2 |
-| T4 | Two-phase write: sanitize → write `patterns.yaml.tmp` → atomic mv → append journal entry. Recovery logic: detect `id` already in `patterns.yaml` but missing journal entry → backfill. ID generation per FR-2.1 (slug + collision suffix). | Same file | FR-2, FR-2.1, NFR-3, FR-8 | G-1 |
-| T5 | BATS tests at `tests/unit/lore-promote.bats`. 12 cases per SDD §4: happy-path interactive, reject, skip, idempotency, sanitization rejection, length limits, ID collision, empty queue, missing yaml auto-create, threshold ≥2 PRs floor, unknown flag, crash recovery. | `tests/unit/lore-promote.bats` (new) | — | G-3 |
-
-### Acceptance Criteria
-
-- [ ] `lore-promote.sh` exists, executable, passes `bash -n`
-- [ ] Default invocation against synthetic queue produces interactive prompts
-- [ ] Threshold mode (`--threshold 2`) auto-promotes patterns from ≥2 distinct merged PRs
-- [ ] Sanitization rejects injection patterns; rejection logged with reason
-- [ ] ID collision triggers `-<6-char-hash>` suffix; collision unit test passes
-- [ ] Re-running the promoter is idempotent (no duplicate `patterns.yaml` entries)
-- [ ] Missing `patterns.yaml` auto-created with empty array + comment header
-- [ ] Empty queue exits 0 with stderr "no candidates queued"
-- [ ] All 12 BATS cases pass
-- [ ] Inline usage header lists every flag + exit codes
-- [ ] No new package dependencies (uses `bash`, `jq`, `yq`, `flock`, `gh` optional)
-- [ ] AC Verification section in `reviewer.md` per cycle-057 gate (#475)
-
-### Risks & Mitigations
-
-| Risk | Mitigation |
-|------|-----------|
-| `flock` not available on macOS | Document `brew install util-linux`; fail with clear error if missing |
-| `yq` v3 vs v4 incompatibility | Pin to v4 syntax (already Loa hard prereq); test in CI |
-| Real candidates queue is empty (no PRAISE findings have flowed yet via post-PR loop) | Synthetic fixtures in BATS suite; manual end-to-end test deferred to once real queue accumulates |
-| Threshold mode auto-promotion accidentally fires on adversarial content | NFR-4 defense layers + min-2-merged-PRs floor; interactive default |
-
-### Goals
-
-- **G-1**: Closes the HARVEST loop for PRAISE findings (consumer side)
-- **G-2**: Promotion is safe by default — no auto-promotion of unsanitized content from un-merged PRs
-- **G-3**: Test coverage prevents silent regression as candidate format evolves
-
-### Dependencies
-
-- `post-pr-triage.sh` (v1.73.0) — produces queue
-- `core/lore-loader.ts` (v1.75.0) — consumes patterns.yaml
-- `bridge-triage-stats.sh` (v1.79.0) — observes queue state
-- `flock`, `yq`, `jq`, `gh` (existing prereqs)
-
-### Zone & Authorization
-
-**System Zone writes**: `.claude/scripts/lore-promote.sh` (new). Cycle-060 authorization.
-**State Zone writes**: `grimoires/loa/lore/patterns.yaml` (script output), `grimoires/loa/a2a/trajectory/lore-promote-*.jsonl`.
-**Tests** at `tests/unit/lore-promote.bats` (test zone, freely writable).
-
-## AC Verification (per cycle-057 gate)
-
-The `reviewer.md` for this cycle MUST include `## AC Verification` section walking each acceptance criterion verbatim with file:line evidence. Auto-rejection by `/review-sprint` if missing or vague (per #475).
+**Cycle**: 069
+**Issue**: #486
+**PRD**: `grimoires/loa/prd.md`
+**SDD**: `grimoires/loa/sdd.md`
+**Date**: 2026-04-14
 
 ---
 
-*1 sprint, 5 tasks, closes #481, dogfoods cycle-057 AC gate (#475) for the second time*
+## Sprint 1: Foundation — Octal Fix, State Extensions, Query CLI
+
+**Goal**: Fix the blocking octal bug, extend vision-lib.sh for new states, and build the query CLI with index rebuild.
+
+### Task 1.1: Octal Bug Fix (FR-4)
+
+**File**: `.claude/scripts/bridge-vision-capture.sh:227`
+**Change**: `next_number=$((local_max + 1))` → `next_number=$((10#$local_max + 1))`
+**Test**: `tests/unit/vision-octal.bats` — verify IDs 008, 009, 010+ created without error
+**AC**:
+- [ ] `local_max` of `008` produces `next_number=9`
+- [ ] `local_max` of `009` produces `next_number=10`
+- [ ] `local_max` of `099` produces `next_number=100`
+- [ ] Existing vision capture flow unchanged for non-edge-case IDs
+
+### Task 1.2: Extend vision-lib.sh States (SDD 3.3)
+
+**File**: `.claude/scripts/vision-lib.sh`
+**Changes**:
+- `vision_update_status()` line 447: add `Archived|Rejected` to case statement
+- `vision_validate_entry()` line 414: add `Archived|Rejected` to case statement
+- `vision_load_index()` line 210: add `Archived|Rejected` to case statement
+- `vision_regenerate_index_stats()`: add Archived and Rejected counts
+**AC**:
+- [ ] `vision_update_status` accepts Archived and Rejected
+- [ ] `vision_validate_entry` validates Archived and Rejected as legal
+- [ ] `vision_regenerate_index_stats` counts all 7 statuses
+- [ ] No regression in existing vision tests
+
+### Task 1.3: Vision Query CLI (FR-1, SDD 3.1)
+
+**File**: `.claude/scripts/vision-query.sh` (new)
+**Functions**: `_parse_entry()`, `_match_filters()`, `_rebuild_index()`
+**Features**:
+- Parse frontmatter from entry files (not index) via awk + jq --arg
+- Filter by: `--tags`, `--status` (comma-list), `--source` (grep -Fi --), `--since`/`--before` (UTC ISO-8601), `--min-refs`
+- Output: `--format json|table|ids`, `--count`, `--limit`
+- Exit codes: 0 success, 1 no results, 2 bad args, 3 parse error, 4 I/O error
+- Non-strict quarantine for malformed entries (parse_error: true)
+**Test**: `tests/unit/vision-query.bats`
+**AC**:
+- [ ] `--tags security` returns only security-tagged visions
+- [ ] `--status Captured,Exploring` returns both statuses
+- [ ] `--since 2026-04-01` filters by date correctly
+- [ ] `--format json` output validates with `jq .`
+- [ ] `--format table` produces pipe-delimited rows
+- [ ] `--source` uses fixed-string matching (no regex injection)
+- [ ] Malformed entry quarantined in non-strict mode
+- [ ] Exit code 1 for zero results, 2 for bad args
+
+### Task 1.4: Index Rebuild (FR-5, SDD 3.1)
+
+**File**: `.claude/scripts/vision-query.sh` (--rebuild-index flag)
+**Features**:
+- Scan all entry files, parse, generate pipe-delimited table
+- Regenerate statistics section with all 7 statuses
+- Atomic write via `vision_atomic_write()`
+- `--dry-run` flag: diff current vs rebuilt, report discrepancies
+- Scan-time consistency: mtime check pre/post parse
+**AC**:
+- [ ] `--rebuild-index` regenerates index.md matching actual entry files
+- [ ] Statistics section counts all statuses correctly
+- [ ] `--rebuild-index --dry-run` shows diff without writing
+- [ ] Idempotent: running twice produces identical output
+- [ ] Quarantined entries skipped with warning
+- [ ] Atomic write failure (disk full, permission denied) exits with code 4 and leaves original index intact (Flatline IMP-002)
+
+---
+
+## Sprint 2: Lifecycle CLI + Spiral Integration
+
+**Goal**: Build lifecycle management and wire seed_phase() full mode.
+
+### Task 2.1: Vision Lifecycle CLI (FR-2, SDD 3.2)
+
+**File**: `.claude/scripts/vision-lifecycle.sh` (new)
+**Commands**: `promote`, `archive`, `reject`, `explore`, `propose`, `defer`
+**Features**:
+- Global lifecycle lock (`grimoires/loa/visions/.lifecycle.lock`) wraps entire command via `flock -w 10` (10s timeout). Stale lock recovery: flock is kernel-level — lock auto-releases on process death (Flatline IMP-001). No PID file needed since flock handles crash recovery natively.
+- Promote: ordered writes (lore append → status update → index rebuild → trajectory)
+- Archive/Reject: add reason to frontmatter, update status
+- Reject requires `--reason`
+- Input sanitization: `_sanitize_reason()` strips `|`, newlines, control chars
+- Terminal state blocking (Implemented, Archived, Rejected) → exit code 5
+- Exit codes: 0-5 per SDD spec
+**Test**: `tests/unit/vision-lifecycle.bats`
+**AC**:
+- [ ] `promote vision-003` creates lore entry + updates status to Implemented + rebuilds index
+- [ ] Lore path delegated to `vision_append_lore_entry()` (not hardcoded)
+- [ ] `promote` on terminal state exits with code 5
+- [ ] `reject` without `--reason` exits with code 2
+- [ ] `archive --reason "stale"` adds Archived-Reason to frontmatter
+- [ ] Reason text with `|` and newlines is sanitized
+- [ ] Double-promote is idempotent
+- [ ] Partial promote failure (crash after lore append, before status update) recoverable by re-running (Flatline IMP-003, SDD 5.1)
+- [ ] `defer` transitions Proposed → Deferred
+- [ ] Global lifecycle lock prevents concurrent operations
+
+### Task 2.2: seed_phase() Full Mode (FR-3, SDD 3.5)
+
+**File**: `.claude/scripts/spiral-orchestrator.sh` (modify seed_phase())
+**Changes**: Replace demotion fallback at line ~515 with registry query logic
+**Features**:
+- Tag derivation from HARVEST sidecar with deterministic mapping (SDD 7.2)
+- Sidecar validation: `jq -e '.findings | type == "array"'`
+- Fallback to `spiral.seed.default_tags` config
+- Query: `vision-query.sh --tags <tags> --status Captured,Exploring,Proposed --format json --limit <max>`
+- Zero results → cold start (not degraded)
+- Relevance scoring via jq float arithmetic (zero-tag safe)
+- Budget enforcement: 4KB, drop lowest-ranked visions
+- Structured seed context JSON per SDD 2.3 schema
+- Trajectory: `seed_full` event with query params and stats
+**Test**: `tests/unit/vision-seed-full.bats`
+**AC**:
+- [ ] With HARVEST sidecar: tags derived from findings categories
+- [ ] Without sidecar: falls back to default_tags
+- [ ] Invalid sidecar (missing findings): falls back with warning
+- [ ] `vision_registry.enabled` checked before querying — falls back to degraded if disabled (Flatline SKP-010)
+- [ ] Zero query results: cold-start, logs `seed_cold`
+- [ ] Budget exceeded: lowest-ranked visions dropped, `truncated: true`
+- [ ] Relevance scoring: jq float math, zero-tag-safe
+- [ ] Seed context JSON validates against schema
+- [ ] Trajectory event logged with query parameters
+
+### Task 2.3: Config Updates (FR-6, SDD 7.1)
+
+**File**: `.loa.config.yaml`
+**Changes**:
+- `vision_registry.enabled: true` (was false)
+- `spiral.seed.mode: "full"` (was "degraded")
+- Add `spiral.seed.default_tags` and `spiral.seed.max_seed_visions`
+**AC**:
+- [ ] Config keys present and correctly typed
+- [ ] `read_config` resolves new keys with defaults
+
+### Task 2.4: Run Existing Tests
+
+**AC**:
+- [ ] All existing vision tests pass
+- [ ] All existing spiral tests pass
+- [ ] No regressions
+
+---
+
+## Dependencies
+
+```
+T1.1 (octal fix)     ─┐
+T1.2 (state extend)   ├─→ T1.3 (query CLI) ─→ T1.4 (rebuild)
+                       │                           │
+                       └───────────────────────────┘
+                                                    │
+                            T2.1 (lifecycle) ←──────┘
+                            T2.2 (seed full) ←── T1.3
+                            T2.3 (config)
+                            T2.4 (regression)
+```
+
+## Verification Criteria
+
+- All new tests pass (4 test files)
+- All existing tests pass (no regression)
+- `vision-query.sh --rebuild-index` fixes the current index drift
+- `vision-lifecycle.sh promote` creates a real lore entry
+- `seed_phase()` full mode queries registry and produces structured context
+- Octal bug verified fixed for IDs 008, 009
