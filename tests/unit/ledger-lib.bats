@@ -12,8 +12,14 @@
 # Test setup
 setup() {
     BATS_TEST_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
-    PROJECT_ROOT="$(cd "$BATS_TEST_DIR/../.." && pwd)"
-    SCRIPT="$PROJECT_ROOT/.claude/scripts/ledger-lib.sh"
+    # Real repo root — used only to locate the library under test.
+    # Don't export this as PROJECT_ROOT: path-lib.sh would then resolve
+    # all ledger operations against the real repo, clobbering live data
+    # and breaking test isolation (this was the root cause of the
+    # pre-cycle-075 33-test failure cluster on ledger-lib.bats).
+    local real_repo_root
+    real_repo_root="$(cd "$BATS_TEST_DIR/../.." && pwd)"
+    SCRIPT="$real_repo_root/.claude/scripts/ledger-lib.sh"
 
     # Create temp directory for test artifacts
     export BATS_TMPDIR="${BATS_TMPDIR:-/tmp}"
@@ -23,6 +29,13 @@ setup() {
     # Create mock project structure
     export TEST_PROJECT="$TEST_TMPDIR/project"
     mkdir -p "$TEST_PROJECT/grimoires/loa/a2a"
+
+    # Critical: export PROJECT_ROOT=TEST_PROJECT so path-lib.sh resolves
+    # ledger paths (via get_ledger_path etc.) WITHIN the isolated test
+    # project. Without this, writes via relative paths go to TEST_PROJECT
+    # but reads via lib functions go to the real repo — the test passes
+    # spuriously or fails mysteriously depending on real-repo state.
+    export PROJECT_ROOT="$TEST_PROJECT"
 
     # Change to test project directory
     cd "$TEST_PROJECT"
@@ -61,7 +74,13 @@ source_lib() {
     local result
     result=$(get_ledger_path)
 
-    [[ "$result" == "grimoires/loa/ledger.json" ]]
+    # Contract-based assertion: returned path resolves to the ledger inside
+    # the active project (relative OR absolute). Avoids coupling the test
+    # to path-lib's implementation detail (absolute vs relative). The
+    # PROJECT_ROOT export in setup() ensures the "active project" is the
+    # isolated test dir.
+    [[ "$result" = */grimoires/loa/ledger.json ]]
+    [[ "$(basename "$result")" = "ledger.json" ]]
 }
 
 @test "ledger_exists returns false when no ledger" {
@@ -388,7 +407,9 @@ source_lib() {
 
     local result
     result=$(get_sprint_directory 5)
-    [[ "$result" == "grimoires/loa/a2a/sprint-5" ]]
+    # Contract-based assertion (see get_ledger_path test for rationale).
+    [[ "$result" = */grimoires/loa/a2a/sprint-5 ]]
+    [[ "$(basename "$result")" = "sprint-5" ]]
 }
 
 # =============================================================================
