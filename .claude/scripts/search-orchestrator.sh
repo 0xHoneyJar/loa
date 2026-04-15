@@ -61,11 +61,16 @@ if ! [[ "${THRESHOLD}" =~ ^[0-9]*\.?[0-9]+$ ]]; then
     exit 1
 fi
 
-# SECURITY: Validate regex syntax for regex search type (prevents ReDoS).
+# Validate regex syntax for regex search type.
 # grep exit codes: 0 = match, 1 = no match (regex valid), >=2 = error (bad
 # regex). The previous check used `! grep -E "$QUERY" ...` on empty input,
 # which treated "no match in empty string" as failure — rejecting every
 # valid regex that doesn't match "". We only want to reject SYNTAX errors.
+#
+# NOTE: this is NOT ReDoS prevention (the prior comment incorrectly claimed
+# that). Syntactically valid regexes can still be catastrophic-backtracking
+# patterns like `(a+)+$`. Real ReDoS mitigation would require a timeout
+# wrapper or pattern-complexity analysis; tracked as follow-up.
 if [[ "${SEARCH_TYPE}" == "regex" ]]; then
     regex_check_exit=0
     echo "" | grep -E "${QUERY}" >/dev/null 2>&1 || regex_check_exit=$?
