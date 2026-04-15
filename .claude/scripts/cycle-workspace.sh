@@ -89,8 +89,9 @@ validate_cycle_id() {
 }
 
 # Returns the currently active cycle id, or empty string if no active symlink.
-# Uses `readlink` (not `readlink -f`) so we just read the link target, not the
-# resolved path — the target is the cycle-id relative to CYCLES_DIR.
+# Uses plain `readlink` (without the fully-resolve flag) so we just read the
+# link target, not the resolved path — the target is the cycle-id relative
+# to CYCLES_DIR.
 get_active_cycle() {
     if [[ ! -L "$ACTIVE_LINK" ]]; then
         echo ""
