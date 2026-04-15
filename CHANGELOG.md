@@ -5,6 +5,90 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.90.0] - 2026-04-15 — Config Transparency & Safety Enforcement
+
+Configuration now has the same documentation rigor as the features it controls. This release ships a comprehensive configuration reference (~1,000 lines covering every `.loa.config.yaml` option with ELI5 explanations, per-invocation costs, risks in both directions, and setup requirements), an interactive `/loa setup` onboarding wizard, and concrete safety enforcement for the security invariants that previously existed only as documentation warnings. It also closes a long-standing gap where all the framework's safety hooks had been defined but never wired into the settings file Claude Code actually reads — meaning spiral dispatch guards, destructive bash blockers, mutation loggers, and compact recovery had all been silently inert. They now fire at the platform level.
+
+The central tension resolved in this release: **documentation that describes dangerous options without enforcing safety invariants is a map that shows the minefield but leaves the gates open.** The new CONFIG_REFERENCE.md is the map; the runtime overrides and hook wiring are the gates.
+
+### Added
+
+- **`docs/CONFIG_REFERENCE.md`** — comprehensive configuration reference (cycle-073, [#510](https://github.com/0xHoneyJar/loa/issues/510), PR [#511](https://github.com/0xHoneyJar/loa/pull/511))
+  - Cost Matrix: per-invocation low/high, monthly estimates at moderate workflow, models used, for every cost-bearing feature (Flatline, Simstim, Spiral, Run Bridge, Post-PR Validation, Red Team, Continuous Learning, Prompt Enhancement)
+  - Decision Guide: Mermaid flowchart + plaintext fallback table routing users to a recommended feature set by budget tier, team size, and workflow pace
+  - Per-feature documentation follows a consistent pattern: ELI5 → version introduced → recommendation → default → cost warning → sub-keys table → cost details → risks-if-enabled → risks-if-disabled → setup requirements → see-also
+  - Safety hooks table documents the non-configurable platform-level guards (deny rules for `~/.ssh/`, `~/.aws/`, `~/.kube/`, `~/.gnupg/`)
+  - Pricing footnotes with verification date and "recheck before large commitments" warnings
+- **`/loa setup` onboarding wizard** — interactive configuration generator (cycle-073, PR [#511](https://github.com/0xHoneyJar/loa/pull/511))
+  - Detects available provider API keys (Anthropic, OpenAI, Google)
+  - Questionnaire: usage tier (solo / team / enterprise), budget comfort level, workflow preference (HITL / semi-auto / fully auto)
+  - Generates a recommended `.loa.config.yaml` matched to answers with explanations for each enabled feature
+  - Idempotent: re-running on an existing config shows current settings with recommendations rather than overwriting
+  - Refuses to set security invariants (e.g., `secret_scanning.enabled: false`) to unsafe values
+- **README cost warning** — prominent callout listing the three most expensive features (Flatline, Simstim, Spiral) with per-invocation cost ranges and instructions to run `/loa setup` before enabling autonomous modes
+- **Auto-sentinel hook** (`spiral-skill-sentinel.sh`) — creates `.run/spiral-dispatch-active` automatically when `/spiraling` is invoked, closing the last mechanical enforcement gap where agents could forget to activate the dispatch guard
+- **Pipeline profiles + scheduling for Spiral** (cycle-072, PR [#508](https://github.com/0xHoneyJar/loa/pull/508))
+  - Three profiles: `light` (~$8, no Flatline, Sonnet advisor), `standard` (~$12, Sprint Flatline only, Opus advisor), `full` (~$20–35, all 3 Flatline gates, Opus advisor)
+  - Auto-escalation: detects security/system/schema paths in task description or sprint plan and upgrades profile automatically
+  - Off-hours scheduling via `spiral-scheduler.sh` with configurable UTC windows
+  - Mechanical dispatch guard: Write/Edit to code files blocked unless the spiral harness has been dispatched
+
+### Fixed
+
+- **Safety hooks now actually fire** — all 11 hooks defined in `.claude/hooks/settings.hooks.json` were never merged into `.claude/settings.json` (the file Claude Code actually reads). Spiral dispatch guards, destructive bash blockers, team role guards, mutation loggers, compact recovery hooks, and run-mode stop guards have all been silently inert. Merged the full hook registration into the active settings file. Detection: the post-merge pipeline ran for PRs #507 and #508 without ever firing the stop guard it was supposed to enforce.
+- **`secret_scanning.enabled` is now a security invariant** — `flatline_protocol.secret_scanning.enabled: false` previously would have sent raw code to OpenAI for Flatline review. The docs said "never disable" but the config loader respected the user value. Runtime now overrides `false` → `true` with a CRITICAL log in both `adversarial-review.sh` and `flatline-snapshot.sh` (the latter unconditionally returns true). The config key remains for forward compatibility but cannot disable scanning.
+- **Default daily budget cap reduced from $500/day to $10/day** — the original default could burn $15,000/month if an autonomous workflow ran amok. Tiered guidance now recommends `$1/day` for solo $0–10/mo, `$10/day` for moderate use (new default), `$50/day` for active autonomous workflows.
+- **README/config consistency** — README claimed Flatline Protocol, Simstim, and Spiral were all "disabled by default"; actually Flatline and Simstim are `enabled: true` (gated on API keys) and only Spiral defaults to `false`. README now reflects this accurately.
+- **Dispatch guard documentation** — `/spiraling` invocations now carry explicit dispatch instructions. The skill loads as context, never as an orchestrator. (PR [#507](https://github.com/0xHoneyJar/loa/pull/507))
+- **Post-PR Flatline cost inconsistency** — sub-keys table said `~$1.50` while the Cost Warning said `~$5–15`. Reconciled to `~$5–15 depending on diff size`.
+- **Spiral safety "floor" misnomer** — `budget_cents` and `wall_clock_seconds` were documented as "floors" but are actually hard ceilings (values above are clamped). Renamed with explicit clamping semantics.
+- **Missing `prompt_enhancement` documentation** — referenced in Cost Matrix and Decision Guide but had no dedicated section. Added full section with sub-keys, costs, and risks.
+
+### Changed
+
+- `hounfour.metering.budget.daily_micro_usd` default: `500000000` ($500/day) → `10000000` ($10/day)
+- `hounfour.flatline_routing` documented as canonical key; `feature_flags.flatline_routing` documented as alias with precedence rule (top-level wins)
+- `hounfour.metering.budget.on_exceeded` behavior documented: `block` (hard-stop), `downgrade` (Opus→Sonnet), `warn` (log + continue)
+- Bridgebuilder `auto_triage_blockers` rate-limiting behavior documented: findings queue to `.run/bridge-pending-bugs.jsonl`, dispatched one at a time through `/bug` with circuit breaker (same finding 3× = HITL escalation)
+- Model names throughout CONFIG_REFERENCE are documented as runtime-configured via Hounfour, not hardcoded contracts
+
+### Security
+
+- Secret-scanning invariant now enforced in runtime (not just documented)
+- Hook wiring fix closes 11 dormant safety hooks that were silently not firing
+- `/loa setup` wizard refuses to set security invariants to unsafe values
+
+### Process
+
+This release was produced through the `/spiraling` autopoietic pipeline with kaironic Bridgebuilder convergence:
+
+- 3 Bridgebuilder iterations on PR [#511](https://github.com/0xHoneyJar/loa/pull/511)
+- Iteration 1: 11 findings (4 actionable, mean confidence 0.79) → all resolved
+- Iteration 2: 11 findings (4 actionable, mean confidence 0.61) → 3 resolved (SEC-001 runtime enforcement, RISK-001 documentation, DOC-003 ceiling clarification)
+- Iteration 3: 11 findings (3 actionable, mean confidence 0.73) → 3 resolved (missing prompt_enhancement section, budget ceiling clarification, on_exceeded behavior)
+- Convergence: 0 HIGH findings, remaining MEDIUMs are code-change proposals tracked in follow-up issues
+
+Issue [#512](https://github.com/0xHoneyJar/loa/issues/512) filed to automate this kaironic loop inside `spiral-harness.sh` — the harness currently runs Bridgebuilder as a terminal advisory step; the follow-up teaches it to iterate until convergence the way `/run-bridge` does standalone.
+
+### Versions Consolidated
+
+This release bundles changes from intermediate tags:
+
+- `v1.88.1` — PR [#507](https://github.com/0xHoneyJar/loa/pull/507): spiral dispatch guard documentation
+- `v1.89.0` — PR [#508](https://github.com/0xHoneyJar/loa/pull/508), cycle-072: pipeline profiles + scheduling + mechanical dispatch guard
+- `v1.89.1` — auto-sentinel hook
+- `v1.89.2` — hook wiring fix (safety hooks now actually fire)
+- `v1.90.0` — this release (cycle-073: config transparency + security enforcement + bundled changes)
+
+### References
+
+- Config reference: [`docs/CONFIG_REFERENCE.md`](docs/CONFIG_REFERENCE.md)
+- Setup wizard skill: [`.claude/skills/loa-setup/`](.claude/skills/loa-setup/)
+- Cycle-073 PRD/SDD/Sprint: [`grimoires/loa/prd.md`](grimoires/loa/prd.md), [`grimoires/loa/sdd.md`](grimoires/loa/sdd.md), [`grimoires/loa/sprint.md`](grimoires/loa/sprint.md)
+- Follow-up work: [#512](https://github.com/0xHoneyJar/loa/issues/512) (harness kaironic BB loop)
+
+---
+
 ## [1.88.0] - 2026-04-15 — Spiral Autopoietic Orchestrator
 
 Loa can now improve itself. The Spiral Autopoietic Orchestrator (`/spiral`) is a self-improving meta-loop that dispatches full development cycles (plan, build, review, audit), harvests lessons from each cycle, and feeds them into the next. This release ships the complete infrastructure across 13 cycles of development (059–071), culminating in an evidence-gated harness architecture that was validated through A/B benchmarking of Sonnet vs Opus executor models.
