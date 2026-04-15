@@ -1,15 +1,21 @@
 # Spiraling — /spiral Autopoietic Meta-Orchestrator
 
+## DISPATCH GUARD — READ THIS FIRST
+
+**When this skill is invoked with a task, you MUST dispatch through the harness pipeline. You MUST NOT implement code directly in conversation.**
+
+Route to ONE of:
+1. `/run sprint-plan` — if a sprint plan already exists
+2. `/simstim` — for full single-cycle plan→build→review→audit
+3. `spiral-harness.sh` — for evidence-gated autonomous execution
+
+**Why**: This skill loads as context, not as an orchestrator. If you implement directly, you bypass Flatline, independent Review, independent Audit, and Bridgebuilder — all quality gates become self-certification. This is the fox-guarding-the-henhouse antipattern (cycle-070 E2E Lesson #1).
+
+Research and design exploration (reading code, web search, writing proposals) is fine in conversation. Writing or modifying application/framework code is not.
+
 ## Status
 
-**MVP scaffolding (v0.1.0)**. This skill provides the state machine, stopping-condition enforcement, and CLI surface for `/spiral`. **Cycle dispatch is not yet wired** — `--start` initializes state and validates config but does not yet invoke embedded `/simstim` cycles. That lands in a follow-up cycle (067+).
-
-Use this skill today for:
-- Understanding the spiral state model
-- Testing stopping-condition logic
-- Preparing `.loa.config.yaml` for production use
-
-Full autonomous multi-cycle dispatch coming soon.
+**Production (v1.1.0)**. Full autonomous multi-cycle dispatch with evidence-gated harness.
 
 ## Reference
 
