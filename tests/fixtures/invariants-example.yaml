@@ -1,0 +1,39 @@
+schema_version: 1
+protocol: loa-hounfour@8.3.1
+# Fixture invariants for testing verify-invariants.sh.
+#
+# References framework files that are stable and exist in the loa repo.
+# Does NOT represent real loa invariants — project-specific invariants.yaml
+# was moved to consumer projects in cycle-035 (#406 "Minimal Footprint by
+# Default — Submodule-First Installation"). This fixture exists only to
+# exercise the verification script's code paths in CI.
+#
+# Adding references: pick symbols that appear as literal text in stable
+# files under .claude/scripts/ or .claude/schemas/. The verification script
+# uses grep, so any textual match counts — function names, variable names,
+# or distinctive strings all work.
+invariants:
+  - id: INV-FIX-001
+    description: "path-lib provides grimoire and ledger path resolution"
+    severity: advisory
+    category: conservation
+    properties:
+      - "get_ledger_path returns canonical ledger.json path"
+      - "get_grimoire_dir resolves the grimoire root"
+    verified_in:
+      - repo: loa
+        file: ".claude/scripts/path-lib.sh"
+        symbol: "get_ledger_path"
+      - repo: loa
+        file: ".claude/scripts/path-lib.sh"
+        symbol: "get_grimoire_dir"
+  - id: INV-FIX-002
+    description: "Bootstrap provides project-root detection function"
+    severity: advisory
+    category: bounded
+    properties:
+      - "bootstrap.sh detects PROJECT_ROOT via _detect_project_root"
+    verified_in:
+      - repo: loa
+        file: ".claude/scripts/bootstrap.sh"
+        symbol: "_detect_project_root"

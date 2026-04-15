@@ -154,6 +154,11 @@ grimoires/loa/a2a/compound/*.json
 grimoires/loa/a2a/compound/review-markers/*
 !grimoires/loa/a2a/compound/.gitkeep
 !grimoires/loa/a2a/compound/review-markers/.gitkeep
+# Subagent reports (runtime outputs; directory is committed as an empty
+# placeholder so subagent write targets exist at framework mount time)
+!grimoires/loa/a2a/subagent-reports/
+grimoires/loa/a2a/subagent-reports/*.md
+!grimoires/loa/a2a/subagent-reports/.gitkeep
 
 # Deployment artifacts (project-specific)
 grimoires/loa/deployment/*

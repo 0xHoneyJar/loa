@@ -12,9 +12,13 @@
 setup() {
     export PROJECT_ROOT="${BATS_TEST_DIRNAME}/../.."
     export SCRIPT="${PROJECT_ROOT}/.claude/scripts/verify-invariants.sh"
-    export INVARIANTS_FILE="${PROJECT_ROOT}/grimoires/loa/invariants.yaml"
+    # Project-specific invariants.yaml was moved to consumer repos in cycle-035
+    # (#406 "Minimal Footprint by Default — Submodule-First Installation"). The
+    # verification script is a reusable framework utility; tests exercise it
+    # against a committed fixture rather than consumer-supplied data.
+    export FIXTURE="${PROJECT_ROOT}/tests/fixtures/invariants-example.yaml"
 
-    # Create temp directory for test fixtures
+    # Create temp directory for ad-hoc test fixtures (used by negative-path tests)
     export TMPDIR_BATS="$(mktemp -d)"
 }
 
@@ -30,8 +34,8 @@ teardown() {
     [ -x "$SCRIPT" ]
 }
 
-@test "invariants.yaml exists" {
-    [ -f "$INVARIANTS_FILE" ]
+@test "fixture invariants file exists" {
+    [ -f "$FIXTURE" ]
 }
 
 @test "invariants schema exists" {
@@ -43,33 +47,36 @@ teardown() {
 # =============================================================================
 
 @test "all declared invariants pass in valid codebase" {
-    run "$SCRIPT" --quiet
+    run "$SCRIPT" --file "$FIXTURE" --quiet
     [ "$status" -eq 0 ]
 }
 
 @test "all declared invariants pass (JSON output)" {
-    run "$SCRIPT" --json
+    run "$SCRIPT" --file "$FIXTURE" --json
     [ "$status" -eq 0 ]
     echo "$output" | jq -e '.status == "pass"'
     echo "$output" | jq -e '.failures == 0'
 }
 
 @test "JSON output contains check entries for every reference" {
-    run "$SCRIPT" --json
+    run "$SCRIPT" --file "$FIXTURE" --json
     [ "$status" -eq 0 ]
-    # We expect at least 15 checks (17 references in invariants.yaml)
+    # Fixture declares 3 refs across 2 invariants. Assert ≥ 1 to stay robust
+    # against future fixture tweaks while still verifying the checks array is
+    # populated (i.e., script did not short-circuit).
     local count
     count=$(echo "$output" | jq '.checks | length')
-    [ "$count" -ge 15 ]
+    [ "$count" -ge 1 ]
 }
 
-@test "all 5 invariants are verified" {
-    run "$SCRIPT" --json
+@test "all fixture invariants are verified" {
+    run "$SCRIPT" --file "$FIXTURE" --json
     [ "$status" -eq 0 ]
-    # Extract unique INV IDs from check names
+    # Extract unique INV IDs from check names. Fixture has 2 invariants
+    # (INV-FIX-001, INV-FIX-002). Pinned to fixture shape.
     local inv_count
     inv_count=$(echo "$output" | jq '[.checks[].name | split(":")[0]] | unique | length')
-    [ "$inv_count" -eq 5 ]
+    [ "$inv_count" -eq 2 ]
 }
 
 # =============================================================================
@@ -253,7 +260,7 @@ YAML
 # =============================================================================
 
 @test "exit 0 for all-pass" {
-    run "$SCRIPT" --quiet
+    run "$SCRIPT" --file "$FIXTURE" --quiet
     [ "$status" -eq 0 ]
 }
 
