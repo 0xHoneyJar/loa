@@ -107,8 +107,9 @@ grep_to_jsonl() {
             file="${PROJECT_ROOT}/${file}"
         fi
 
-        # Output JSONL - use --arg for strings (jq handles escaping internally)
-        jq -n \
+        # Output JSONL — use -c for compact output (one line per record,
+        # required for JSONL). --arg for strings (jq handles escaping).
+        jq -cn \
             --arg file "${file}" \
             --argjson line "${line}" \
             --arg snippet "${snippet}" \

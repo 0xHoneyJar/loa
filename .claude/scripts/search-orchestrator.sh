@@ -21,9 +21,16 @@ if [[ -f "${PROJECT_ROOT}/.claude/scripts/preflight.sh" ]]; then
     "${PROJECT_ROOT}/.claude/scripts/preflight.sh" || exit 1
 fi
 
-# Parse arguments
+# Parse arguments.
+# NOTE: use ${2:-} (with default fallback) rather than ${2} — under
+# `set -u` above, accessing $2 when only one arg was passed crashes with
+# "unbound variable" BEFORE the required-arg check below can produce the
+# user-friendly "Error: Query is required" message. With the default
+# fallback, $2 expands to empty string and the -z check handles it
+# gracefully. Same treatment below for other positional args that
+# already use ${N:-DEFAULT} — only $2 was missing its fallback.
 SEARCH_TYPE="${1:-semantic}"  # semantic|hybrid|regex
-QUERY="${2}"
+QUERY="${2:-}"
 SEARCH_PATH="${3:-${PROJECT_ROOT}/src}"
 TOP_K="${4:-20}"
 THRESHOLD="${5:-0.4}"
@@ -54,9 +61,15 @@ if ! [[ "${THRESHOLD}" =~ ^[0-9]*\.?[0-9]+$ ]]; then
     exit 1
 fi
 
-# SECURITY: Validate regex syntax for regex search type (prevents ReDoS)
+# SECURITY: Validate regex syntax for regex search type (prevents ReDoS).
+# grep exit codes: 0 = match, 1 = no match (regex valid), >=2 = error (bad
+# regex). The previous check used `! grep -E "$QUERY" ...` on empty input,
+# which treated "no match in empty string" as failure — rejecting every
+# valid regex that doesn't match "". We only want to reject SYNTAX errors.
 if [[ "${SEARCH_TYPE}" == "regex" ]]; then
-    if ! echo "" | grep -E "${QUERY}" >/dev/null 2>&1; then
+    regex_check_exit=0
+    echo "" | grep -E "${QUERY}" >/dev/null 2>&1 || regex_check_exit=$?
+    if [[ "${regex_check_exit}" -ge 2 ]]; then
         echo "Error: Invalid regex pattern" >&2
         exit 1
     fi
@@ -90,7 +103,7 @@ TRAJECTORY_FILE="${TRAJECTORY_DIR}/$(date +%Y-%m-%d).jsonl"
 mkdir -p "${TRAJECTORY_DIR}"
 
 # Log intent BEFORE search
-jq -n \
+jq -cn \
     --arg ts "$(date -Iseconds)" \
     --arg agent "${LOA_AGENT_NAME:-unknown}" \
     --arg phase "intent" \
@@ -114,7 +127,7 @@ if [[ "${LOA_SEARCH_MODE}" == "ck" ]]; then
                 --threshold "${THRESHOLD}" \
                 --jsonl \
                 "${SEARCH_PATH}" 2>/dev/null || echo "")
-            RESULT_COUNT=$(echo "${SEARCH_RESULTS}" | grep -c '^{' 2>/dev/null || echo 0)
+            RESULT_COUNT=$(printf '%s' "${SEARCH_RESULTS}" | awk '/^{/{c++} END{print c+0}')
             RESULT_COUNT="${RESULT_COUNT:-0}"
             echo "${SEARCH_RESULTS}"
             ;;
@@ -124,7 +137,7 @@ if [[ "${LOA_SEARCH_MODE}" == "ck" ]]; then
                 --threshold "${THRESHOLD}" \
                 --jsonl \
                 "${SEARCH_PATH}" 2>/dev/null || echo "")
-            RESULT_COUNT=$(echo "${SEARCH_RESULTS}" | grep -c '^{' 2>/dev/null || echo 0)
+            RESULT_COUNT=$(printf '%s' "${SEARCH_RESULTS}" | awk '/^{/{c++} END{print c+0}')
             RESULT_COUNT="${RESULT_COUNT:-0}"
             echo "${SEARCH_RESULTS}"
             ;;
@@ -132,7 +145,7 @@ if [[ "${LOA_SEARCH_MODE}" == "ck" ]]; then
             SEARCH_RESULTS=$(ck --regex "${QUERY}" \
                 --jsonl \
                 "${SEARCH_PATH}" 2>/dev/null || echo "")
-            RESULT_COUNT=$(echo "${SEARCH_RESULTS}" | grep -c '^{' 2>/dev/null || echo 0)
+            RESULT_COUNT=$(printf '%s' "${SEARCH_RESULTS}" | awk '/^{/{c++} END{print c+0}')
             RESULT_COUNT="${RESULT_COUNT:-0}"
             echo "${SEARCH_RESULTS}"
             ;;
@@ -157,7 +170,7 @@ else
                     --include="*.sh" --include="*.bash" --include="*.md" --include="*.yaml" \
                     --include="*.yml" --include="*.json" --include="*.toml" \
                     "${SEARCH_PATH}" 2>/dev/null | head -n "${TOP_K}" || echo "")
-                RESULT_COUNT=$(echo "${SEARCH_RESULTS}" | grep -c '.' || echo 0)
+                RESULT_COUNT=$(printf '%s' "${SEARCH_RESULTS}" | awk 'NF{c++} END{print c+0}')
                 echo "${SEARCH_RESULTS}"
             else
                 echo "" # Empty query
@@ -171,7 +184,7 @@ else
                 --include="*.sh" --include="*.bash" --include="*.md" --include="*.yaml" \
                 --include="*.yml" --include="*.json" --include="*.toml" \
                 "${SEARCH_PATH}" 2>/dev/null | head -n "${TOP_K}" || echo "")
-            RESULT_COUNT=$(echo "${SEARCH_RESULTS}" | grep -c '.' || echo 0)
+            RESULT_COUNT=$(printf '%s' "${SEARCH_RESULTS}" | awk 'NF{c++} END{print c+0}')
             echo "${SEARCH_RESULTS}"
             ;;
         *)
@@ -183,7 +196,7 @@ else
 fi
 
 # Log execution result
-jq -n \
+jq -cn \
     --arg ts "$(date -Iseconds)" \
     --arg agent "${LOA_AGENT_NAME:-unknown}" \
     --arg phase "execute" \
