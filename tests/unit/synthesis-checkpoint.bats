@@ -10,7 +10,7 @@ setup() {
     export PROJECT_ROOT="$TEST_DIR"
 
     # Create directory structure
-    mkdir -p "${TEST_DIR}/loa-grimoire/a2a/trajectory"
+    mkdir -p "${TEST_DIR}/grimoires/loa/a2a/trajectory"
     mkdir -p "${TEST_DIR}/.claude/scripts"
 
     # Copy scripts for testing
@@ -19,7 +19,7 @@ setup() {
     chmod +x "${TEST_DIR}/.claude/scripts/"*.sh
 
     # Create NOTES.md
-    cat > "${TEST_DIR}/loa-grimoire/NOTES.md" << 'EOF'
+    cat > "${TEST_DIR}/grimoires/loa/NOTES.md" << 'EOF'
 # NOTES.md
 
 ## Session Continuity
@@ -40,7 +40,7 @@ teardown() {
 create_trajectory() {
     local agent="${1:-implementing-tasks}"
     local date="${2:-$(date +%Y-%m-%d)}"
-    local file="${TEST_DIR}/loa-grimoire/a2a/trajectory/${agent}-${date}.jsonl"
+    local file="${TEST_DIR}/grimoires/loa/a2a/trajectory/${agent}-${date}.jsonl"
     cat > "$file"
     echo "$file"
 }
@@ -167,7 +167,7 @@ EOF
 }
 
 @test "step 5 creates handoff log entry" {
-    local trajectory="${TEST_DIR}/loa-grimoire/a2a/trajectory/implementing-tasks-$(date +%Y-%m-%d).jsonl"
+    local trajectory="${TEST_DIR}/grimoires/loa/a2a/trajectory/implementing-tasks-$(date +%Y-%m-%d).jsonl"
 
     run bash "$SCRIPT" implementing-tasks
 
@@ -244,7 +244,7 @@ EOF
 }
 
 @test "handles empty trajectory file" {
-    local trajectory="${TEST_DIR}/loa-grimoire/a2a/trajectory/implementing-tasks-$(date +%Y-%m-%d).jsonl"
+    local trajectory="${TEST_DIR}/grimoires/loa/a2a/trajectory/implementing-tasks-$(date +%Y-%m-%d).jsonl"
     touch "$trajectory"
 
     run bash "$SCRIPT" implementing-tasks

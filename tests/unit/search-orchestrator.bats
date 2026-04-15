@@ -9,7 +9,7 @@ setup() {
 
     # Create test directory structure
     mkdir -p "${TEST_TMPDIR}/src"
-    mkdir -p "${TEST_TMPDIR}/loa-grimoire/a2a/trajectory"
+    mkdir -p "${TEST_TMPDIR}/grimoires/loa/a2a/trajectory"
     mkdir -p "${TEST_TMPDIR}/.claude/scripts"
 
     # Create test files
@@ -54,8 +54,8 @@ teardown() {
     run "${PROJECT_ROOT}/.claude/scripts/search-orchestrator.sh" "semantic" "test query" "src/"
 
     # Check if grep mode was selected (verify by checking trajectory log)
-    if [ -f "${TEST_TMPDIR}/loa-grimoire/a2a/trajectory/$(date +%Y-%m-%d).jsonl" ]; then
-        run grep '"mode":"grep"' "${TEST_TMPDIR}/loa-grimoire/a2a/trajectory/$(date +%Y-%m-%d).jsonl"
+    if [ -f "${TEST_TMPDIR}/grimoires/loa/a2a/trajectory/$(date +%Y-%m-%d).jsonl" ]; then
+        run grep '"mode":"grep"' "${TEST_TMPDIR}/grimoires/loa/a2a/trajectory/$(date +%Y-%m-%d).jsonl"
         [ "$status" -eq 0 ]
     fi
 }
@@ -105,8 +105,8 @@ teardown() {
     run "${PROJECT_ROOT}/.claude/scripts/search-orchestrator.sh" "semantic" "test" "src/"
 
     # Check trajectory log has absolute path
-    if [ -f "${TEST_TMPDIR}/loa-grimoire/a2a/trajectory/$(date +%Y-%m-%d).jsonl" ]; then
-        run grep '"path":"'"${TEST_TMPDIR}"'/src/"' "${TEST_TMPDIR}/loa-grimoire/a2a/trajectory/$(date +%Y-%m-%d).jsonl"
+    if [ -f "${TEST_TMPDIR}/grimoires/loa/a2a/trajectory/$(date +%Y-%m-%d).jsonl" ]; then
+        run grep '"path":"'"${TEST_TMPDIR}"'/src/"' "${TEST_TMPDIR}/grimoires/loa/a2a/trajectory/$(date +%Y-%m-%d).jsonl"
         [ "$status" -eq 0 ]
     fi
 }
@@ -122,7 +122,7 @@ teardown() {
     run "${PROJECT_ROOT}/.claude/scripts/search-orchestrator.sh" "semantic" "authentication" "src/" 20 0.4
 
     # Check trajectory file exists
-    trajectory_file="${TEST_TMPDIR}/loa-grimoire/a2a/trajectory/$(date +%Y-%m-%d).jsonl"
+    trajectory_file="${TEST_TMPDIR}/grimoires/loa/a2a/trajectory/$(date +%Y-%m-%d).jsonl"
     [ -f "$trajectory_file" ]
 
     # Check trajectory contains intent phase
@@ -139,7 +139,7 @@ teardown() {
 
     run "${PROJECT_ROOT}/.claude/scripts/search-orchestrator.sh" "hybrid" "test query" "src/"
 
-    trajectory_file="${TEST_TMPDIR}/loa-grimoire/a2a/trajectory/$(date +%Y-%m-%d).jsonl"
+    trajectory_file="${TEST_TMPDIR}/grimoires/loa/a2a/trajectory/$(date +%Y-%m-%d).jsonl"
     if [ -f "$trajectory_file" ]; then
         run grep '"search_type":"hybrid"' "$trajectory_file"
         [ "$status" -eq 0 ]
@@ -152,7 +152,7 @@ teardown() {
     export LOA_SEARCH_MODE="grep"
     run "${PROJECT_ROOT}/.claude/scripts/search-orchestrator.sh" "semantic" "test" "src/"
 
-    trajectory_file="${TEST_TMPDIR}/loa-grimoire/a2a/trajectory/$(date +%Y-%m-%d).jsonl"
+    trajectory_file="${TEST_TMPDIR}/grimoires/loa/a2a/trajectory/$(date +%Y-%m-%d).jsonl"
     if [ -f "$trajectory_file" ]; then
         run grep '"mode":"grep"' "$trajectory_file"
         [ "$status" -eq 0 ]
@@ -161,11 +161,11 @@ teardown() {
 
 @test "search-orchestrator creates trajectory directory if missing" {
     cd "${TEST_TMPDIR}"
-    rm -rf "${TEST_TMPDIR}/loa-grimoire/a2a/trajectory"
+    rm -rf "${TEST_TMPDIR}/grimoires/loa/a2a/trajectory"
 
     run "${PROJECT_ROOT}/.claude/scripts/search-orchestrator.sh" "semantic" "test" "src/"
 
-    [ -d "${TEST_TMPDIR}/loa-grimoire/a2a/trajectory" ]
+    [ -d "${TEST_TMPDIR}/grimoires/loa/a2a/trajectory" ]
 }
 
 # =============================================================================
@@ -285,7 +285,7 @@ teardown() {
     run "${PROJECT_ROOT}/.claude/scripts/search-orchestrator.sh" "semantic" "test" "src/" 50
 
     # Check trajectory log has top_k=50
-    trajectory_file="${TEST_TMPDIR}/loa-grimoire/a2a/trajectory/$(date +%Y-%m-%d).jsonl"
+    trajectory_file="${TEST_TMPDIR}/grimoires/loa/a2a/trajectory/$(date +%Y-%m-%d).jsonl"
     if [ -f "$trajectory_file" ]; then
         run grep '"top_k":50' "$trajectory_file"
         [ "$status" -eq 0 ]
@@ -298,7 +298,7 @@ teardown() {
     run "${PROJECT_ROOT}/.claude/scripts/search-orchestrator.sh" "semantic" "test" "src/" 20 0.7
 
     # Check trajectory log has threshold=0.7
-    trajectory_file="${TEST_TMPDIR}/loa-grimoire/a2a/trajectory/$(date +%Y-%m-%d).jsonl"
+    trajectory_file="${TEST_TMPDIR}/grimoires/loa/a2a/trajectory/$(date +%Y-%m-%d).jsonl"
     if [ -f "$trajectory_file" ]; then
         run grep '"threshold":0.7' "$trajectory_file"
         [ "$status" -eq 0 ]
@@ -311,7 +311,7 @@ teardown() {
     run "${PROJECT_ROOT}/.claude/scripts/search-orchestrator.sh" "semantic" "test"
 
     # Check trajectory log has defaults (top_k=20, threshold=0.4)
-    trajectory_file="${TEST_TMPDIR}/loa-grimoire/a2a/trajectory/$(date +%Y-%m-%d).jsonl"
+    trajectory_file="${TEST_TMPDIR}/grimoires/loa/a2a/trajectory/$(date +%Y-%m-%d).jsonl"
     if [ -f "$trajectory_file" ]; then
         run grep '"top_k":20' "$trajectory_file"
         [ "$status" -eq 0 ]

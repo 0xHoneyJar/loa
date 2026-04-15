@@ -16,12 +16,12 @@ setup() {
     git config user.name "Test"
 
     # Create initial structure
-    mkdir -p loa-grimoire/a2a/trajectory
+    mkdir -p grimoires/loa/a2a/trajectory
     mkdir -p .beads
     mkdir -p .claude/scripts
 
     # Create initial NOTES.md
-    cat > loa-grimoire/NOTES.md << 'EOF'
+    cat > grimoires/loa/NOTES.md << 'EOF'
 # Agent Working Memory (NOTES.md)
 
 ## Session Continuity
@@ -70,7 +70,7 @@ teardown() {
     cd "$TEST_DIR"
 
     # Remove NOTES.md
-    rm loa-grimoire/NOTES.md
+    rm grimoires/loa/NOTES.md
 
     run bash "$SCRIPT" --check-only
 
@@ -79,7 +79,7 @@ teardown() {
     [[ "$output" == *"NOTES.md is missing"* ]]
 
     # File should still be missing
-    [[ ! -f "loa-grimoire/NOTES.md" ]]
+    [[ ! -f "grimoires/loa/NOTES.md" ]]
 }
 
 @test "verbose mode shows more details" {
@@ -98,12 +98,12 @@ teardown() {
     cd "$TEST_DIR"
 
     # Remove NOTES.md
-    rm loa-grimoire/NOTES.md
+    rm grimoires/loa/NOTES.md
 
     run bash "$SCRIPT"
 
     [[ "$status" -eq 0 ]]
-    [[ -f "loa-grimoire/NOTES.md" ]]
+    [[ -f "grimoires/loa/NOTES.md" ]]
     [[ "$output" == *"Recovered from git"* ]] || [[ "$output" == *"Created from template"* ]]
 }
 
@@ -111,14 +111,14 @@ teardown() {
     cd "$TEST_DIR"
 
     # Remove NOTES.md and clear git tracking
-    rm loa-grimoire/NOTES.md
-    git rm --cached loa-grimoire/NOTES.md --quiet 2>/dev/null || true
+    rm grimoires/loa/NOTES.md
+    git rm --cached grimoires/loa/NOTES.md --quiet 2>/dev/null || true
     git commit -m "Remove NOTES.md" --quiet 2>/dev/null || true
 
     run bash "$SCRIPT"
 
     [[ "$status" -eq 0 ]]
-    [[ -f "loa-grimoire/NOTES.md" ]]
+    [[ -f "grimoires/loa/NOTES.md" ]]
     [[ "$output" == *"Created from template"* ]]
 }
 
@@ -126,38 +126,38 @@ teardown() {
     cd "$TEST_DIR"
 
     # Remove NOTES.md and prevent git recovery
-    rm loa-grimoire/NOTES.md
-    git rm --cached loa-grimoire/NOTES.md --quiet 2>/dev/null || true
+    rm grimoires/loa/NOTES.md
+    git rm --cached grimoires/loa/NOTES.md --quiet 2>/dev/null || true
 
     run bash "$SCRIPT"
 
     [[ "$status" -eq 0 ]]
-    [[ -f "loa-grimoire/NOTES.md" ]]
+    [[ -f "grimoires/loa/NOTES.md" ]]
 
     # Check required sections
-    grep -q "Active Sub-Goals" loa-grimoire/NOTES.md
-    grep -q "Session Continuity" loa-grimoire/NOTES.md
-    grep -q "Decision Log" loa-grimoire/NOTES.md
+    grep -q "Active Sub-Goals" grimoires/loa/NOTES.md
+    grep -q "Session Continuity" grimoires/loa/NOTES.md
+    grep -q "Decision Log" grimoires/loa/NOTES.md
 }
 
 # =============================================================================
 # Directory Healing Tests
 # =============================================================================
 
-@test "creates loa-grimoire/ when missing" {
+@test "creates grimoires/loa/ when missing" {
     cd "$TEST_DIR"
 
-    # Remove entire loa-grimoire
-    rm -rf loa-grimoire
-    git rm -rf loa-grimoire --quiet 2>/dev/null || true
-    git commit -m "Remove loa-grimoire" --quiet 2>/dev/null || true
+    # Remove entire grimoires/loa
+    rm -rf grimoires/loa
+    git rm -rf grimoires/loa --quiet 2>/dev/null || true
+    git commit -m "Remove grimoires/loa" --quiet 2>/dev/null || true
 
     run bash "$SCRIPT"
 
     [[ "$status" -eq 0 ]]
-    [[ -d "loa-grimoire" ]]
-    [[ -d "loa-grimoire/a2a" ]]
-    [[ -d "loa-grimoire/a2a/trajectory" ]]
+    [[ -d "grimoires/loa" ]]
+    [[ -d "grimoires/loa/a2a" ]]
+    [[ -d "grimoires/loa/a2a/trajectory" ]]
 }
 
 @test "creates .beads/ when missing" {
@@ -177,12 +177,12 @@ teardown() {
     cd "$TEST_DIR"
 
     # Remove trajectory
-    rm -rf loa-grimoire/a2a/trajectory
+    rm -rf grimoires/loa/a2a/trajectory
 
     run bash "$SCRIPT"
 
     [[ "$status" -eq 0 ]]
-    [[ -d "loa-grimoire/a2a/trajectory" ]]
+    [[ -d "grimoires/loa/a2a/trajectory" ]]
 }
 
 # =============================================================================
@@ -193,28 +193,28 @@ teardown() {
     cd "$TEST_DIR"
 
     # Create empty file
-    : > loa-grimoire/NOTES.md
+    : > grimoires/loa/NOTES.md
 
     run bash "$SCRIPT"
 
     [[ "$status" -eq 0 ]]
     # Should recover from git or template
-    [[ -s "loa-grimoire/NOTES.md" ]]  # File should have content now
+    [[ -s "grimoires/loa/NOTES.md" ]]  # File should have content now
 }
 
 @test "handles multiple missing components" {
     cd "$TEST_DIR"
 
     # Remove multiple things
-    rm loa-grimoire/NOTES.md
-    rm -rf loa-grimoire/a2a/trajectory
+    rm grimoires/loa/NOTES.md
+    rm -rf grimoires/loa/a2a/trajectory
     rm -rf .beads
 
     run bash "$SCRIPT"
 
     [[ "$status" -eq 0 ]]
-    [[ -f "loa-grimoire/NOTES.md" ]]
-    [[ -d "loa-grimoire/a2a/trajectory" ]]
+    [[ -f "grimoires/loa/NOTES.md" ]]
+    [[ -d "grimoires/loa/a2a/trajectory" ]]
     [[ -d ".beads" ]]
 }
 
@@ -259,7 +259,7 @@ teardown() {
     cd "$TEST_DIR"
 
     # Remove NOTES.md to trigger healing
-    rm loa-grimoire/NOTES.md
+    rm grimoires/loa/NOTES.md
 
     run bash "$SCRIPT"
 
@@ -267,7 +267,7 @@ teardown() {
 
     # Check trajectory log
     local today=$(date +%Y-%m-%d)
-    local log_file="loa-grimoire/a2a/trajectory/system-${today}.jsonl"
+    local log_file="grimoires/loa/a2a/trajectory/system-${today}.jsonl"
 
     [[ -f "$log_file" ]]
     grep -q "self_heal" "$log_file"
@@ -345,11 +345,11 @@ teardown() {
     cd "$TEST_DIR"
 
     # Remove everything but keep git
-    rm -rf loa-grimoire .beads .ck
+    rm -rf grimoires/loa .beads .ck
 
     run bash "$SCRIPT"
 
     [[ "$status" -eq 0 ]]
-    [[ -d "loa-grimoire" ]]
+    [[ -d "grimoires/loa" ]]
     [[ -d ".beads" ]]
 }

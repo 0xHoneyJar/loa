@@ -10,7 +10,7 @@ setup() {
     export PROJECT_ROOT="$TEST_DIR"
 
     # Create trajectory directory
-    mkdir -p "${TEST_DIR}/loa-grimoire/a2a/trajectory"
+    mkdir -p "${TEST_DIR}/grimoires/loa/a2a/trajectory"
 
     # Store original PATH
     export ORIGINAL_PATH="$PATH"
@@ -33,7 +33,7 @@ teardown() {
 create_trajectory() {
     local agent="${1:-implementing-tasks}"
     local date="${2:-$(date +%Y-%m-%d)}"
-    local file="${TEST_DIR}/loa-grimoire/a2a/trajectory/${agent}-${date}.jsonl"
+    local file="${TEST_DIR}/grimoires/loa/a2a/trajectory/${agent}-${date}.jsonl"
     cat > "$file"
     echo "$file"
 }
@@ -93,7 +93,7 @@ EOF
 
 @test "ratio exactly at threshold passes" {
     # Create trajectory with exactly 95% grounded (19/20)
-    local file="${TEST_DIR}/loa-grimoire/a2a/trajectory/implementing-tasks-$(date +%Y-%m-%d).jsonl"
+    local file="${TEST_DIR}/grimoires/loa/a2a/trajectory/implementing-tasks-$(date +%Y-%m-%d).jsonl"
 
     # 19 grounded claims
     for i in {1..19}; do
@@ -158,7 +158,7 @@ EOF
 
 @test "handles empty trajectory file gracefully" {
     # Create empty trajectory file
-    local file="${TEST_DIR}/loa-grimoire/a2a/trajectory/implementing-tasks-$(date +%Y-%m-%d).jsonl"
+    local file="${TEST_DIR}/grimoires/loa/a2a/trajectory/implementing-tasks-$(date +%Y-%m-%d).jsonl"
     touch "$file"
 
     run bash "$SCRIPT" implementing-tasks 0.95

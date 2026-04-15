@@ -9,7 +9,7 @@ setup() {
 
     # Create test directory structure
     mkdir -p "${TEST_TMPDIR}/src"
-    mkdir -p "${TEST_TMPDIR}/loa-grimoire/a2a/trajectory"
+    mkdir -p "${TEST_TMPDIR}/grimoires/loa/a2a/trajectory"
     mkdir -p "${TEST_TMPDIR}/.claude/scripts"
 
     # Create test files
