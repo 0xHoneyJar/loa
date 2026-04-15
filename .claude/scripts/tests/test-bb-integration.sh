@@ -27,7 +27,8 @@ mkdir -p "$MOCK_BIN"
 # Call 2+ (re-review): empty
 PARSER_COUNT="$TEST_TMPDIR/parser-count"
 echo "0" > "$PARSER_COUNT"
-cat > "$TEST_TMPDIR/bridge-findings-parser.sh" << 'PARSEREOF'
+mkdir -p "$TEST_TMPDIR/bin"
+cat > "$TEST_TMPDIR/bin/bridge-findings-parser.sh" << 'PARSEREOF'
 #!/usr/bin/env bash
 INPUT=""; OUTPUT=""
 while [[ $# -gt 0 ]]; do
@@ -41,8 +42,8 @@ case "$c" in
 esac
 exit 0
 PARSEREOF
-sed -i "s|PCFILE_PLACEHOLDER|$PARSER_COUNT|g" "$TEST_TMPDIR/bridge-findings-parser.sh"
-chmod +x "$TEST_TMPDIR/bridge-findings-parser.sh"
+sed -i "s|PCFILE_PLACEHOLDER|$PARSER_COUNT|g" "$TEST_TMPDIR/bin/bridge-findings-parser.sh"
+chmod +x "$TEST_TMPDIR/bin/bridge-findings-parser.sh"
 
 # Mock claude: returns cost=0.25
 cat > "$MOCK_BIN/claude" << 'CLAUDEEOF'
@@ -75,16 +76,16 @@ GITEOF
 chmod +x "$MOCK_BIN/git"
 
 # Mock entry.sh: always produces empty review (FLATLINE after first fix cycle)
-mkdir -p "$TEST_TMPDIR/../skills/bridgebuilder-review/resources"
-cat > "$TEST_TMPDIR/../skills/bridgebuilder-review/resources/entry.sh" << 'ENTRYEOF'
+mkdir -p "$TEST_TMPDIR/skills/bridgebuilder-review/resources"
+cat > "$TEST_TMPDIR/skills/bridgebuilder-review/resources/entry.sh" << 'ENTRYEOF'
 #!/usr/bin/env bash
 echo "No findings."
 exit 0
 ENTRYEOF
-chmod +x "$TEST_TMPDIR/../skills/bridgebuilder-review/resources/entry.sh"
+chmod +x "$TEST_TMPDIR/skills/bridgebuilder-review/resources/entry.sh"
 
 # Mock post-pr-triage.sh: always returns FLATLINE
-cat > "$TEST_TMPDIR/post-pr-triage.sh" << 'TRIAGEEOF'
+cat > "$TEST_TMPDIR/bin/post-pr-triage.sh" << 'TRIAGEEOF'
 #!/usr/bin/env bash
 CWD_AT_INVOKE="$(pwd)"
 mkdir -p "$CWD_AT_INVOKE/.run"
@@ -92,7 +93,7 @@ printf '{"state":"FLATLINE","ts":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     > "$CWD_AT_INVOKE/.run/bridge-triage-convergence.json"
 exit 0
 TRIAGEEOF
-chmod +x "$TEST_TMPDIR/post-pr-triage.sh"
+chmod +x "$TEST_TMPDIR/bin/post-pr-triage.sh"
 
 # ── Test Environment Setup ─────────────────────────────────────────────────
 export PATH="$MOCK_BIN:$PATH"
@@ -103,6 +104,7 @@ CYCLE_DIR="$TEST_TMPDIR"
 BRANCH="feat/test-bb"
 EXECUTOR_MODEL="sonnet"
 BB_FIX_BUDGET="3"
+TOTAL_BUDGET="10"
 BB_MAX_ITERATIONS="3"
 _BB_SPEND_USD="0"
 _BB_CURRENT_ITER=1
@@ -116,9 +118,10 @@ _BB_REMAINING_IDS=()
 _FLIGHT_RECORDER="$TEST_TMPDIR/flight-recorder.jsonl"
 touch "$_FLIGHT_RECORDER"
 mkdir -p "$EVIDENCE_DIR" "$TEST_TMPDIR/.run"
-SCRIPT_DIR="$TEST_TMPDIR"
+SCRIPT_DIR="$TEST_TMPDIR/bin"
 
 log() { echo "[test] $*" >&2; }
+_check_budget() { return 0; }  # budget always ok in integration test
 _record_action() {
     printf '{"phase":"%s","actor":"%s","action":"%s","verdict":"%s"}\n' \
         "$1" "$2" "$3" "${10:-}" >> "$_FLIGHT_RECORDER"

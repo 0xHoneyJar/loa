@@ -36,6 +36,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Source dependencies
 source "$SCRIPT_DIR/bootstrap.sh" 2>/dev/null || true
 source "$SCRIPT_DIR/spiral-evidence.sh"
+source "$SCRIPT_DIR/compat-lib.sh" 2>/dev/null || true
 
 # =============================================================================
 # Configuration
@@ -213,7 +214,7 @@ _invoke_claude() {
     start_sec=$(date +%s)
 
     local exit_code=0
-    timeout "$timeout_sec" \
+    run_with_timeout "$timeout_sec" \
         claude -p "$prompt" \
             --allow-dangerously-skip-permissions \
             --dangerously-skip-permissions \
@@ -541,6 +542,11 @@ _bb_detect_stuck_findings() {
 _bb_dispatch_fix_cycle() {
     local iteration_number="$1"
 
+    # Pre-dispatch budget gate (F-001)
+    if ! _check_budget "$TOTAL_BUDGET"; then
+        return 1
+    fi
+
     # Step A: Write context to temp file
     local context_file="$EVIDENCE_DIR/bb-fix-context-iter-${iteration_number}.json"
     printf '%s\n' "$_BB_ACTIONABLE_JSON" > "$context_file"
@@ -572,7 +578,7 @@ _bb_dispatch_fix_cycle() {
     # Step D: Invoke claude -p
     local output_file="$EVIDENCE_DIR/bb-fix-output-iter-${iteration_number}.json"
     local fix_exit=0
-    timeout 1800 \
+    run_with_timeout 1800 \
         claude -p "$fix_prompt" \
             --allow-dangerously-skip-permissions \
             --dangerously-skip-permissions \
@@ -585,6 +591,7 @@ _bb_dispatch_fix_cycle() {
     # Step E: Accumulate cost
     local cycle_cost
     cycle_cost=$(jq -r '.cost_usd // 0' "$output_file" 2>/dev/null || echo "0")
+    echo "$cycle_cost" | grep -qE '^[0-9]+\.?[0-9]*$' || cycle_cost=0
     _BB_SPEND_USD=$(echo "${_BB_SPEND_USD:-0} + $cycle_cost" | bc)
 
     # Step F: Branch safety check before push
@@ -592,7 +599,7 @@ _bb_dispatch_fix_cycle() {
     current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
     if [[ "$current_branch" != "$BRANCH" ]]; then
         log "ERROR: Fix cycle changed branch ($current_branch != $BRANCH), skipping push"
-        _record_action "BB_FIX_CYCLE_COMPLETE" "claude-${EXECUTOR_MODEL}" "fix_cycle" "" "" "" 0 0 0 \
+        _record_action "BB_FIX_CYCLE_COMPLETE" "claude-${EXECUTOR_MODEL}" "fix_cycle" "" "" "" 0 0 "$cycle_cost" \
             "iter=$iteration_number exit=BRANCH_MISMATCH spend_usd=$cycle_cost"
         return 0
     fi
@@ -602,7 +609,7 @@ _bb_dispatch_fix_cycle() {
         || log "WARNING: git push failed after fix cycle (iteration $iteration_number)"
 
     # Step G: Emit BB_FIX_CYCLE_COMPLETE
-    _record_action "BB_FIX_CYCLE_COMPLETE" "claude-${EXECUTOR_MODEL}" "fix_cycle" "" "" "" 0 0 0 \
+    _record_action "BB_FIX_CYCLE_COMPLETE" "claude-${EXECUTOR_MODEL}" "fix_cycle" "" "" "" 0 0 "$cycle_cost" \
         "iter=$iteration_number exit=$fix_exit spend_usd=$cycle_cost"
 
     return 0
@@ -840,7 +847,12 @@ _phase_bb_fix_loop() {
             "iter=$_BB_CURRENT_ITER findings=$actionable_csv"
 
         # Step h: Dispatch fix cycle (includes push)
-        _bb_dispatch_fix_cycle "$_BB_CURRENT_ITER"
+        if ! _bb_dispatch_fix_cycle "$_BB_CURRENT_ITER"; then
+            stop_reason="budget_exhausted"
+            _record_action "BB_BUDGET_EXHAUSTED" "bb-fix-loop" "budget_exhausted" "" "" "" 0 0 0 \
+                "iter=$_BB_CURRENT_ITER spend_usd=$_BB_SPEND_USD budget=$TOTAL_BUDGET reason=TOTAL_BUDGET_EXCEEDED"
+            break
+        fi
 
         # Step i: Re-invoke entry.sh for next iteration
         local next_iter

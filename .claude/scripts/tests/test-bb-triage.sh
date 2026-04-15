@@ -246,6 +246,28 @@ _bb_track_resolved_incremental
 
 "$r1_ok"     && pass "TC-R1: multi-iteration incremental resolved tracking"     || fail "TC-R1: resolved=${_BB_RESOLVED_IDS[*]:-none} count=${#_BB_RESOLVED_IDS[@]}"
 
+# ── pre-dispatch budget gate ──────────────────────────────────────────────────
+echo ""
+echo "=== pre-dispatch budget gate ==="
+echo ""
+
+# TC-B1: pre-dispatch budget gate — no claude when budget exhausted
+TOTAL_BUDGET="1.00"
+_get_cumulative_cost() { echo "1.50"; }
+_check_budget() {
+    local max_budget="$1"
+    local spent; spent=$(_get_cumulative_cost)
+    [[ $(echo "$spent >= $max_budget" | bc 2>/dev/null || echo 0) -eq 1 ]] && return 1 || return 0
+}
+_claude_was_called=0
+claude() { _claude_was_called=1; return 0; }
+_BB_ACTIONABLE_JSON='[{"id":"F001","severity":"HIGH","confidence":0.9,"file":"a.sh","title":"H","description":"x","suggestion":"fix","weight":5}]'
+dispatch_rc=0
+_bb_dispatch_fix_cycle 1 2>/dev/null || dispatch_rc=$?
+[[ "$dispatch_rc" -ne 0 && "$_claude_was_called" -eq 0 ]] \
+    && pass "TC-B1: pre-dispatch budget gate — non-zero return and claude not invoked" \
+    || fail "TC-B1: expected non-zero return (got $dispatch_rc) and no claude (was_called=$_claude_was_called)"
+
 # ── Summary ────────────────────────────────────────────────────────────────
 echo ""
 echo "Results: ${PASS_COUNT} passed, ${FAIL_COUNT} failed"
