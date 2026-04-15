@@ -2,19 +2,24 @@
 # =============================================================================
 # spiral-harness.sh — Evidence-Gated Orchestrator for /spiral
 # =============================================================================
-# Version: 1.0.0
-# Part of: Spiral Harness Architecture (cycle-071)
+# Version: 1.1.0
+# Part of: Spiral Harness Architecture (cycle-071, cost optimization cycle-072)
 #
 # Replaces monolithic claude -p dispatch with sequenced phases + evidence gates.
 # Each phase is a separate claude -p call. Quality gates run in bash (unskippable).
 # Flight recorder logs every action with checksums and costs.
+#
+# Pipeline Profiles (cycle-072):
+#   full     = all 3 Flatline gates + Opus advisor ($15)
+#   standard = Sprint Flatline only + Opus advisor ($12) [DEFAULT]
+#   light    = no Flatline + Sonnet advisor ($8)
 #
 # "The orchestrator controls the loop. The model does targeted work." — Harness Engineering
 #
 # Usage:
 #   spiral-harness.sh --task "Build X" --cycle-dir .run/cycles/cycle-1 \
 #     --cycle-id cycle-1 --branch feat/spiral-xxx-cycle-1 --budget 10 \
-#     [--seed-context path/to/seed.md]
+#     [--seed-context path/to/seed.md] [--profile standard]
 #
 # Exit codes:
 #   0   — Success (PR created, all gates passed)
@@ -53,10 +58,86 @@ REVIEW_BUDGET=$(_read_harness_config "spiral.harness.review_budget_usd" "2")
 AUDIT_BUDGET=$(_read_harness_config "spiral.harness.audit_budget_usd" "2")
 
 # Advisor Strategy (cycle-071): Sonnet executes, Opus judges
-# Execution phases (PRD, SDD, Sprint, Implementation) use cheaper Sonnet
-# Judgment phases (Review, Audit) use Opus for reasoning quality
 EXECUTOR_MODEL=$(_read_harness_config "spiral.harness.executor_model" "sonnet")
 ADVISOR_MODEL=$(_read_harness_config "spiral.harness.advisor_model" "opus")
+
+# Pipeline Profiles (cycle-072): match intensity to task complexity
+# full    = all 3 Flatline gates + Opus advisor ($15, architecture/security)
+# standard = Sprint Flatline only + Opus advisor ($12, most features) [DEFAULT]
+# light   = no Flatline + Sonnet advisor ($8, bug fixes/flags/config)
+PIPELINE_PROFILE=$(_read_harness_config "spiral.harness.pipeline_profile" "standard")
+FLATLINE_GATES=""
+_PROFILE_EXPLICITLY_SET=false
+
+# Resolve profile to concrete settings
+_resolve_profile() {
+    case "$PIPELINE_PROFILE" in
+        full)
+            FLATLINE_GATES="prd,sdd,sprint"
+            ;;
+        standard)
+            FLATLINE_GATES="sprint"
+            ;;
+        light)
+            FLATLINE_GATES=""
+            ADVISOR_MODEL="$EXECUTOR_MODEL"  # Sonnet reviews too
+            ;;
+        *)
+            log "Unknown profile '$PIPELINE_PROFILE', falling back to standard"
+            PIPELINE_PROFILE="standard"
+            FLATLINE_GATES="sprint"
+            ;;
+    esac
+}
+_resolve_profile
+
+# Check if a Flatline gate should run for the given phase
+_should_run_flatline() {
+    local phase="$1"
+    [[ ",$FLATLINE_GATES," == *",$phase,"* ]]
+}
+
+# Auto-escalation classifier (cycle-072, Bridgebuilder HIGH-1: runs at startup)
+# Escalates light/standard → full when security/system/schema paths detected
+_auto_escalate_profile() {
+    local task="$1"
+    local escalation_reason=""
+
+    # Skip if operator explicitly set --profile (operator has final say)
+    [[ "$_PROFILE_EXPLICITLY_SET" == "true" ]] && return 0
+
+    # Pattern-based escalation from task description
+    if echo "$task" | grep -qiE 'auth|crypto|secret|token|key|cert|permission|security'; then
+        escalation_reason="security-keyword-in-task"
+    fi
+
+    # Sprint plan path check (if exists at startup)
+    if [[ -z "$escalation_reason" && -f "grimoires/loa/sprint.md" ]]; then
+        if grep -qiE '\.claude/scripts|\.claude/protocols|auth|crypto|migration|schema' \
+            "grimoires/loa/sprint.md" 2>/dev/null; then
+            escalation_reason="security-path-in-sprint-plan"
+        fi
+    fi
+
+    if [[ -n "$escalation_reason" && "$PIPELINE_PROFILE" != "full" ]]; then
+        log "Auto-escalating profile: $PIPELINE_PROFILE → full (reason: $escalation_reason)"
+        _record_action "CONFIG" "auto-escalation" "profile_escalated" "" "" "" 0 0 0 \
+            "from=$PIPELINE_PROFILE to=full reason=$escalation_reason"
+        PIPELINE_PROFILE="full"
+        _resolve_profile
+    fi
+
+    # Conservative default: if no diff available and profile is light, escalate to standard
+    if [[ "$PIPELINE_PROFILE" == "light" ]]; then
+        if ! git rev-parse --verify "main" &>/dev/null; then
+            log "Auto-escalating light → standard (no main branch for diff)"
+            _record_action "CONFIG" "auto-escalation" "profile_escalated" "" "" "" 0 0 0 \
+                "from=light to=standard reason=no-diff-available"
+            PIPELINE_PROFILE="standard"
+            _resolve_profile
+        fi
+    fi
+}
 
 log() { echo "[harness] $*" >&2; }
 error() { echo "ERROR: $*" >&2; }
@@ -80,6 +161,7 @@ while [[ $# -gt 0 ]]; do
         --branch) BRANCH="$2"; shift 2 ;;
         --budget) TOTAL_BUDGET="$2"; shift 2 ;;
         --seed-context) SEED_CONTEXT="$2"; shift 2 ;;
+        --profile) PIPELINE_PROFILE="$2"; _PROFILE_EXPLICITLY_SET=true; _resolve_profile; shift 2 ;;
         *) error "Unknown option: $1"; exit 2 ;;
     esac
 done
@@ -100,19 +182,19 @@ EVIDENCE_DIR="$CYCLE_DIR/evidence"
 mkdir -p "$EVIDENCE_DIR"
 _init_flight_recorder "$CYCLE_DIR"
 
-log "Harness starting: cycle=$CYCLE_ID branch=$BRANCH budget=\$${TOTAL_BUDGET}"
+# Run auto-escalation before any gates
+_auto_escalate_profile "$TASK"
+
+log "Harness starting: cycle=$CYCLE_ID branch=$BRANCH budget=\$${TOTAL_BUDGET} profile=$PIPELINE_PROFILE"
+log "Flatline gates: ${FLATLINE_GATES:-none}  Advisor: $ADVISOR_MODEL"
 
 # =============================================================================
 # Claude -p Invocation Helper
 # =============================================================================
 
-# Invoke claude -p with a scoped prompt
-# Input: $1=phase_name, $2=prompt, $3=budget_usd, $4=timeout_sec, $5=model (optional)
-# Returns: exit code from claude -p
 _invoke_claude() {
     local phase="$1" prompt="$2" budget="$3" timeout_sec="${4:-600}" model="${5:-$EXECUTOR_MODEL}"
 
-    # Budget check before invocation
     _check_budget "$TOTAL_BUDGET" || { error "Budget exceeded before $phase"; exit 3; }
 
     local stdout_file="$EVIDENCE_DIR/${phase,,}-stdout.json"
@@ -223,7 +305,6 @@ _gate_flatline() {
 
     local duration_ms=$(( ($(date +%s) - start_sec) * 1000 ))
 
-    # Verify evidence
     local result
     result=$(_verify_flatline_output "$phase" "$output") || {
         log "Gate FAILED: Flatline $phase — invalid output"
@@ -232,13 +313,11 @@ _gate_flatline() {
 
     log "Gate PASSED: Flatline $phase ($result, ${duration_ms}ms)"
 
-    # Run arbiter if autonomous mode
     if [[ "${SIMSTIM_AUTONOMOUS:-0}" == "1" ]]; then
         local blockers
         blockers=$(jq '.consensus_summary.blocker_count // 0' "$output")
         if [[ "$blockers" -gt 0 ]]; then
             log "Arbiter: $blockers blockers to arbitrate"
-            # Arbiter is already wired in flatline-orchestrator.sh (cycle-070)
         fi
     fi
 
@@ -248,7 +327,7 @@ _gate_flatline() {
 _gate_review() {
     local feedback_path="grimoires/loa/a2a/engineer-feedback.md"
 
-    log "Gate: Independent review (fresh session)"
+    log "Gate: Independent review (fresh session, model=$ADVISOR_MODEL)"
 
     local diff
     diff=$(git diff main..."$BRANCH" -- ':!grimoires/' ':!.run/' ':!.beads/' 2>/dev/null | head -c 50000 || echo "No diff available")
@@ -258,7 +337,6 @@ _gate_review() {
         '"You are a senior tech lead reviewer. Review this implementation independently.\n\nGit diff:\n```\n" + $diff + "\n```\n\nRead grimoires/loa/sprint.md for acceptance criteria.\nFor each AC, verify it is met with file:line evidence.\n\nWrite your review to grimoires/loa/a2a/engineer-feedback.md\nWrite \"All good\" if approved, or \"CHANGES_REQUIRED\" with specific issues.\n\nDo NOT modify any code. Only review and write feedback."' \
         | jq -r '.')
 
-    # Review uses ADVISOR_MODEL (Opus) — judgment quality matters
     _invoke_claude "REVIEW" "$prompt" "$REVIEW_BUDGET" 600 "$ADVISOR_MODEL"
 
     _verify_review_verdict "REVIEW" "$feedback_path"
@@ -267,7 +345,7 @@ _gate_review() {
 _gate_audit() {
     local feedback_path="grimoires/loa/a2a/auditor-sprint-feedback.md"
 
-    log "Gate: Independent security audit (fresh session)"
+    log "Gate: Independent security audit (fresh session, model=$ADVISOR_MODEL)"
 
     local diff
     diff=$(git diff main..."$BRANCH" -- ':!grimoires/' ':!.run/' ':!.beads/' 2>/dev/null | head -c 50000 || echo "No diff available")
@@ -277,7 +355,6 @@ _gate_audit() {
         '"You are a security auditor. Audit this implementation for security issues.\n\nGit diff:\n```\n" + $diff + "\n```\n\nCheck:\n- No hardcoded secrets\n- Input validation on all external inputs\n- No command injection (jq --arg, not string interpolation)\n- Proper file permissions\n- No path traversal\n\nWrite audit to grimoires/loa/a2a/auditor-sprint-feedback.md\nWrite \"APPROVED\" if no critical issues, or \"CHANGES_REQUIRED\" with findings.\n\nDo NOT modify any code. Only audit and write feedback."' \
         | jq -r '.')
 
-    # Audit uses ADVISOR_MODEL (Opus) — security judgment quality matters
     _invoke_claude "AUDIT" "$prompt" "$AUDIT_BUDGET" 600 "$ADVISOR_MODEL"
 
     _verify_review_verdict "AUDIT" "$feedback_path"
@@ -335,35 +412,76 @@ _run_gate() {
 
 main() {
     local pr_url=""
+    local prd_findings="" sdd_findings=""
+
+    _record_action "CONFIG" "spiral-harness" "profile" "" "" "" 0 0 0 \
+        "profile=$PIPELINE_PROFILE gates=${FLATLINE_GATES:-none} advisor=$ADVISOR_MODEL"
 
     # ── Phase 1: Discovery ──────────────────────────────────────────────
-    log "Phase 1/6: DISCOVERY"
+    log "Phase 1: DISCOVERY"
     _phase_discovery || { error "Discovery failed"; exit 1; }
 
-    # ── Gate 1: Flatline PRD ────────────────────────────────────────────
-    _run_gate "FLATLINE_PRD" _gate_flatline "prd" "grimoires/loa/prd.md" || exit 1
-    local prd_findings
-    prd_findings=$(_summarize_flatline "$EVIDENCE_DIR/flatline-prd.json")
+    # ── Gate 1: Flatline PRD (conditional) ──────────────────────────────
+    if _should_run_flatline "prd"; then
+        _run_gate "FLATLINE_PRD" _gate_flatline "prd" "grimoires/loa/prd.md" || exit 1
+        prd_findings=$(_summarize_flatline "$EVIDENCE_DIR/flatline-prd.json")
+    else
+        log "Skipping Flatline PRD (profile=$PIPELINE_PROFILE)"
+        _record_action "GATE_prd" "spiral-harness" "skipped" "" "" "" 0 0 0 "profile=$PIPELINE_PROFILE"
+    fi
 
     # ── Phase 2: Architecture ───────────────────────────────────────────
-    log "Phase 2/6: ARCHITECTURE"
+    log "Phase 2: ARCHITECTURE"
     _phase_architecture "$prd_findings" || { error "Architecture failed"; exit 1; }
 
-    # ── Gate 2: Flatline SDD ────────────────────────────────────────────
-    _run_gate "FLATLINE_SDD" _gate_flatline "sdd" "grimoires/loa/sdd.md" || exit 1
-    local sdd_findings
-    sdd_findings=$(_summarize_flatline "$EVIDENCE_DIR/flatline-sdd.json")
+    # ── Gate 2: Flatline SDD (conditional) ──────────────────────────────
+    if _should_run_flatline "sdd"; then
+        _run_gate "FLATLINE_SDD" _gate_flatline "sdd" "grimoires/loa/sdd.md" || exit 1
+        sdd_findings=$(_summarize_flatline "$EVIDENCE_DIR/flatline-sdd.json")
+    else
+        log "Skipping Flatline SDD (profile=$PIPELINE_PROFILE)"
+        _record_action "GATE_sdd" "spiral-harness" "skipped" "" "" "" 0 0 0 "profile=$PIPELINE_PROFILE"
+    fi
 
     # ── Phase 3: Planning ───────────────────────────────────────────────
-    log "Phase 3/6: PLANNING"
+    log "Phase 3: PLANNING"
     _phase_planning "$sdd_findings" || { error "Planning failed"; exit 1; }
 
-    # ── Gate 3: Flatline Sprint ─────────────────────────────────────────
-    _run_gate "FLATLINE_SPRINT" _gate_flatline "sprint" "grimoires/loa/sprint.md" || exit 1
+    # ── Gate 3: Flatline Sprint (conditional) ───────────────────────────
+    if _should_run_flatline "sprint"; then
+        _run_gate "FLATLINE_SPRINT" _gate_flatline "sprint" "grimoires/loa/sprint.md" || exit 1
+    else
+        log "Skipping Flatline Sprint (profile=$PIPELINE_PROFILE)"
+        _record_action "GATE_sprint" "spiral-harness" "skipped" "" "" "" 0 0 0 "profile=$PIPELINE_PROFILE"
+    fi
+
+    # ── Pre-check: Deterministic validation before Implementation ───────
+    log "Pre-check: validating planning artifacts"
+    if ! _pre_check_implementation; then
+        error "Pre-check failed: planning artifacts incomplete"
+        exit 1
+    fi
 
     # ── Phase 4: Implementation ─────────────────────────────────────────
-    log "Phase 4/6: IMPLEMENTATION"
+    log "Phase 4: IMPLEMENTATION"
     _phase_implement || { error "Implementation failed"; exit 1; }
+
+    # ── Post-implementation auto-escalation check ───────────────────────
+    if git diff "main...${BRANCH}" --name-only 2>/dev/null | \
+        grep -qiE '(auth|crypto|secrets|\.claude/scripts|\.claude/protocols|schema\.json|migrations|deploy)'; then
+        if [[ "$PIPELINE_PROFILE" != "full" ]]; then
+            log "WARNING: Implementation touched security-sensitive paths but profile=$PIPELINE_PROFILE (not full)"
+            _record_action "CONFIG" "auto-escalation" "post_impl_warning" "" "" "" 0 0 0 \
+                "profile=$PIPELINE_PROFILE paths_touched=security advisory=consider-full-profile-next-cycle"
+        fi
+    fi
+
+    # ── Pre-check: Deterministic validation before Review ───────────────
+    log "Pre-check: validating implementation before review"
+    if ! _pre_check_review; then
+        error "Pre-check failed: implementation has structural issues"
+        exit 1
+    fi
 
     # ── Gate 4: Independent Review (fresh session) ──────────────────────
     _run_gate "REVIEW" _gate_review || {
@@ -377,32 +495,53 @@ main() {
         exit 1
     }
 
-    # ── Phase 5: PR Creation (bash — deterministic) ─────────────────────
-    log "Phase 5/6: PR CREATION"
-    pr_url=$(gh pr create \
-        --title "feat($CYCLE_ID): $(echo "$TASK" | head -c 60)" \
-        --body "Autonomous spiral cycle. See flight recorder for evidence trail." \
-        --draft 2>/dev/null || true)
+    # ── Phase 5: PR Creation (idempotent — check before create) ─────────
+    log "Phase 5: PR CREATION"
+    local existing_pr
+    existing_pr=$(gh pr list --head "$BRANCH" --json number,url --jq '.[0].url // empty' 2>/dev/null || true)
 
-    if [[ -n "$pr_url" ]]; then
-        _record_action "PR_CREATION" "gh-cli" "create_pr" "" "" "" 0 0 0 "$pr_url"
-        log "PR created: $pr_url"
+    if [[ -n "$existing_pr" ]]; then
+        pr_url="$existing_pr"
+        log "Reusing existing PR: $pr_url"
+        local pr_number
+        pr_number=$(echo "$pr_url" | grep -oE '[0-9]+$')
+        gh api "repos/{owner}/{repo}/pulls/$pr_number" -X PATCH \
+            -f body="Autonomous spiral cycle (updated). Profile: $PIPELINE_PROFILE. See flight recorder." \
+            --jq '.html_url' 2>/dev/null || true
+        _record_action "PR_CREATION" "gh-cli" "reused_pr" "" "" "" 0 0 0 "$pr_url"
     else
-        log "WARNING: PR creation failed, continuing"
+        pr_url=$(gh pr create \
+            --title "feat($CYCLE_ID): $(echo "$TASK" | head -c 60)" \
+            --body "Autonomous spiral cycle. Profile: $PIPELINE_PROFILE. See flight recorder for evidence trail." \
+            --draft 2>/dev/null || true)
+        if [[ -n "$pr_url" ]]; then
+            _record_action "PR_CREATION" "gh-cli" "create_pr" "" "" "" 0 0 0 "$pr_url"
+            log "PR created: $pr_url"
+        else
+            log "WARNING: PR creation failed, continuing"
+        fi
     fi
 
     # ── Gate 6: Bridgebuilder (advisory, not blocking) ──────────────────
     _gate_bridgebuilder "$pr_url"
 
+    # ── Cost sidecar (cycle-072: cross-cycle reconciliation) ────────────
+    local total_cost
+    total_cost=$(_get_cumulative_cost)
+    local cost_sidecar="$CYCLE_DIR/cycle-cost.json"
+    local cost_tmp="${cost_sidecar}.tmp"
+    jq -n --argjson cost "$total_cost" --arg profile "$PIPELINE_PROFILE" \
+        '{cycle_cost_usd: $cost, profile: $profile, source: "flight_recorder"}' \
+        > "$cost_tmp" && mv "$cost_tmp" "$cost_sidecar"
+
     # ── Finalize ────────────────────────────────────────────────────────
     _finalize_flight_recorder "$CYCLE_DIR"
 
-    log "Harness complete: cycle=$CYCLE_ID"
+    log "Harness complete: cycle=$CYCLE_ID profile=$PIPELINE_PROFILE cost=\$${total_cost}"
     log "Flight recorder: $CYCLE_DIR/flight-recorder.jsonl"
     log "Evidence: $EVIDENCE_DIR/"
     [[ -n "$pr_url" ]] && log "PR: $pr_url"
 
-    # Output PR URL for dispatch wrapper
     echo "$pr_url"
 }
 

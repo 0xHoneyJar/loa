@@ -402,6 +402,39 @@ check_hitl_halt() {
     [[ -f "$HALT_SENTINEL" ]]
 }
 
+# check_token_window — cycle-072 scheduling
+# Returns 0 (STOP) if current time is past the configured scheduling window end.
+# Returns 1 (CONTINUE) if no window configured, continuous mode, or still within window.
+check_token_window() {
+    local strategy
+    strategy=$(read_config "spiral.scheduling.strategy" "fill")
+    [[ "$strategy" == "continuous" ]] && return 1  # Never triggers in continuous mode
+
+    local window_end_utc
+    window_end_utc=$(read_config "spiral.scheduling.windows[0].end_utc" "")
+    [[ -z "$window_end_utc" ]] && return 1  # No window configured
+
+    local today_date now_epoch end_epoch
+    today_date=$(date -u +%Y-%m-%d)
+    now_epoch=$(date -u +%s)
+    end_epoch=$(date -u -d "${today_date}T${window_end_utc}:00Z" +%s 2>/dev/null \
+        || date -u -j -f "%Y-%m-%dT%H:%M:%SZ" "${today_date}T${window_end_utc}:00Z" +%s 2>/dev/null \
+        || echo "0")
+
+    if [[ "$end_epoch" -eq 0 ]]; then
+        log "WARNING: could not parse scheduling window end '$window_end_utc'"
+        return 1
+    fi
+
+    if [[ "$now_epoch" -ge "$end_epoch" ]]; then
+        log_trajectory "token_window_exhausted" \
+            "$(jq -n --arg end "$window_end_utc" --arg now "$(date -u +%H:%M)" \
+                '{decision: "stop", window_end: $end, current_time: $now}')"
+        return 0
+    fi
+    return 1
+}
+
 # check_quality_gate — FR-2 (cycle-067)
 # Returns 0 if gate should STOP spiral (fail-closed on missing/invalid).
 # Returns 1 if spiral should CONTINUE.
@@ -478,6 +511,10 @@ evaluate_stopping_conditions() {
     fi
     if check_wall_clock; then
         echo "wall_clock_exhausted"
+        return 0
+    fi
+    if check_token_window; then
+        echo "token_window_exhausted"
         return 0
     fi
     echo ""

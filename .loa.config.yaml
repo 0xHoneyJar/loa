@@ -125,6 +125,18 @@ spiral:
     # ~60% cost reduction vs all-Opus. See https://claude.com/blog/the-advisor-strategy
     executor_model: sonnet           # PRD, SDD, Sprint, Implementation
     advisor_model: opus              # Review, Audit (judgment quality)
+    # Pipeline Profiles (cycle-072): full | standard | light
+    pipeline_profile: standard       # Sprint Flatline only + Opus advisor ($12)
+
+  # Off-Hours Scheduling (cycle-072)
+  scheduling:
+    enabled: false                   # Must opt-in
+    windows:
+      - start_utc: "02:00"
+        end_utc: "08:00"
+        days: [mon, tue, wed, thu, fri]
+    strategy: fill                   # fill | single | continuous
+    max_cycles_per_window: 3
 
 # Prompt Isolation (v1.42.0 — cycle-042)
 # De-authorization wrappers for untrusted content in LLM prompts.

@@ -1,399 +1,480 @@
-# SDD: Spiral Harness — Evidence-Gated Orchestrator with Flight Recorder
+# SDD: Spiral Cost Optimization + Mechanical Dispatch
 
-**Cycle**: 071
+**Cycle**: 072
 **PRD**: `grimoires/loa/prd.md`
-**Date**: 2026-04-14
+**Date**: 2026-04-15
+
+---
+
+## Bridgebuilder Design Review Integrations
+
+| Finding | Severity | Resolution |
+|---------|----------|------------|
+| CRITICAL-1: Rate-limit header data path doesn't exist (flatline-orchestrator.sh not authorized) | CRITICAL | Descoped to local-accounting fallback. Headers deferred to follow-up cycle requiring flatline-orchestrator.sh modification. AC-13 rewritten. |
+| HIGH-1: Auto-escalation fires too late to add Flatline gates retroactively | HIGH | Fixed: classify at startup from task keywords + sprint plan references, not post-implementation git diff. Section 2.2 revised. |
+| HIGH-2: Dual cost-tracking (orchestrator vs harness) with no reconciliation | HIGH | Fixed: defined cost authority boundary. Harness writes cycle cost to sidecar, orchestrator reads it. Section 2.4 revised. |
+| REFRAME-1: "Mechanical dispatch" is three layers of asking nicely | REFRAME | AC-1 rewritten to "three-layer soft enforcement with negative test." Hard gate (PreToolUse hook) noted as future work. |
+| PRAISE-1: Pre-checks are exactly right | PRAISE | Shipped as designed. |
+| SPECULATION-1: Profiles may be premature abstraction | SPECULATION | Kept as DX convenience; documented as syntactic sugar over `flatline_gates` + `advisor_model` primitives. |
 
 ---
 
 ## 1. System Architecture
 
+### 1.1 Component Overview
+
 ```
-spiral-orchestrator.sh (existing — cycle loop)
+User invokes /spiraling with task
   │
-  └── spiral-simstim-dispatch.sh (modified — calls harness)
+  ├── SKILL.md dispatch guard (agent-level, layer 1)
+  │     "You MUST invoke spiral-harness.sh"
+  │
+  ├── C-PROC-017 constraint (agent-level, layer 2)
+  │     "NEVER implement directly"
+  │
+  └── spiral-harness.sh (mechanical, layer 3)
         │
-        └── spiral-harness.sh (NEW — THE orchestrator)
-              │
-              ├─ claude -p "Write PRD"       ──→ prd.md
-              ├─ GATE: flatline-orchestrator.sh ──→ flatline-prd.json  [VERIFY]
-              ├─ claude -p "Write SDD"       ──→ sdd.md
-              ├─ GATE: flatline-orchestrator.sh ──→ flatline-sdd.json  [VERIFY]
-              ├─ claude -p "Write Sprint"    ──→ sprint.md
-              ├─ GATE: flatline-orchestrator.sh ──→ flatline-sprint.json [VERIFY]
-              ├─ claude -p "Implement"       ──→ code + tests
-              ├─ GATE: claude -p "Review"    ──→ feedback.md [VERIFY APPROVED]
-              ├─ GATE: claude -p "Audit"     ──→ audit.md   [VERIFY APPROVED]
-              ├─ gh pr create (bash)         ──→ PR URL
-              └─ GATE: bridgebuilder         ──→ review posted
-              │
-              └── spiral-evidence.sh (NEW — evidence library)
-                    ├─ _record_action()       → flight-recorder.jsonl
-                    ├─ _verify_artifact()     → checksum + size
-                    ├─ _verify_flatline()     → valid consensus JSON
-                    └─ _verify_verdict()      → APPROVED or CHANGES_REQUIRED
+        ├── Profile resolver (full/standard/light)
+        │     └── Auto-escalation classifier
+        │
+        ├── Pipeline phases (conditional on profile)
+        │     ├── DISCOVERY → claude -p (PRD)
+        │     ├── GATE: Flatline PRD [if profile=full]
+        │     ├── ARCHITECTURE → claude -p (SDD)
+        │     ├── GATE: Flatline SDD [if profile=full]
+        │     ├── PLANNING → claude -p (Sprint)
+        │     ├── GATE: Flatline Sprint [if profile=full|standard]
+        │     ├── PRE-CHECK: implementation artifacts
+        │     ├── IMPLEMENTATION → claude -p (code)
+        │     ├── PRE-CHECK: review readiness + secret scan
+        │     ├── REVIEW → claude -p (fresh session, advisor model)
+        │     └── AUDIT → claude -p (fresh session, advisor model)
+        │
+        ├── PR creation (idempotent — check before create)
+        ├── Bridgebuilder (advisory)
+        └── Flight recorder (append-only JSONL with profile + rate-limit data)
+
+spiral-scheduler.sh (cron/trigger entry point)
+  │
+  ├── Window check (or continuous bypass)
+  ├── flock-based exclusive lock
+  ├── Resume HALTED or start new
+  └── spiral-orchestrator.sh --start/--resume
+        └── check_token_window() stopping condition
+        └── check_rate_limit() stopping condition
+
+spiral-benchmark.sh (comparison tool)
+  └── Reads two flight-recorder.jsonl files → Markdown report
 ```
 
-### File Inventory
+### 1.2 File Map
 
-| File | Action | Zone |
-|------|--------|------|
-| `.claude/scripts/spiral-harness.sh` | **New** | System |
-| `.claude/scripts/spiral-evidence.sh` | **New** | System |
-| `.claude/scripts/spiral-simstim-dispatch.sh` | **Modify** | System |
-| `.loa.config.yaml` | **Modify** | State |
-| `tests/unit/spiral-harness.bats` | **New** | App |
-| `tests/unit/spiral-evidence.bats` | **New** | App |
+| File | Action | Lines (est.) | Purpose |
+|------|--------|-------------|---------|
+| `.claude/scripts/spiral-harness.sh` | Modify | +120 | Pipeline profiles, auto-escalation, pre-checks, idempotent PR, rate-limit logging |
+| `.claude/scripts/spiral-evidence.sh` | Modify | +80 | Pre-check functions, secret scanning, rate-limit header parsing |
+| `.claude/scripts/spiral-orchestrator.sh` | Modify | +40 | `check_token_window()`, `check_rate_limit()` stopping conditions |
+| `.claude/scripts/spiral-scheduler.sh` | New | ~160 | Scheduling wrapper with flock, window check, resume/start logic |
+| `.claude/scripts/spiral-benchmark.sh` | New | ~120 | Flight recorder comparison → Markdown report |
+| `.claude/skills/spiraling/SKILL.md` | Modify | +60 | Mechanical dispatch instructions, profiles, scheduling docs |
+| `.claude/skills/spiraling/index.yaml` | Modify | +10 | Add task input, profile input, harness script reference |
+| `.loa.config.yaml` | Modify | +15 | Pipeline profile, scheduling config |
+| `.loa.config.yaml.example` | Modify | +40 | Full documented config sections |
+| `tests/unit/spiral-profiles.bats` | New | ~150 | Profile resolution, auto-escalation, gate skipping |
+| `tests/unit/spiral-prechecks.bats` | New | ~120 | Pre-check functions, secret scanning |
+| `tests/unit/spiral-scheduler.bats` | New | ~100 | Scheduler logic, window check, locking |
+| `tests/unit/spiral-benchmark.bats` | New | ~80 | Benchmark comparison tool |
+
+---
 
 ## 2. Component Design
 
-### 2.1 `spiral-harness.sh` — The Orchestrator
+### 2.1 Pipeline Profile Resolver
 
-**Interface**:
-```bash
-spiral-harness.sh \
-    --task "Build feature X" \
-    --cycle-dir .run/cycles/cycle-1 \
-    --cycle-id cycle-1 \
-    --branch feat/spiral-xxx-cycle-1 \
-    --budget 10 \
-    [--seed-context path/to/seed.md]
-```
-
-**Main loop** — sequential phases with gates:
+**Location**: `spiral-harness.sh`, after config read, before argument parsing
 
 ```bash
-main() {
-    local task="$1" cycle_dir="$2" cycle_id="$3" branch="$4" budget="$5" seed="$6"
-    
-    local evidence_dir="$cycle_dir/evidence"
-    mkdir -p "$evidence_dir"
-    
-    _init_flight_recorder "$cycle_dir"
-    
-    # Phase 1: Discovery
-    _run_phase "DISCOVERY" \
-        _phase_discovery "$task" "$seed" "$evidence_dir"
-    
-    # Gate 1: Flatline PRD
-    _run_gate "FLATLINE_PRD" \
-        _gate_flatline "prd" "grimoires/loa/prd.md" "$evidence_dir"
-    
-    # Phase 2: Architecture
-    local prd_findings=$(_summarize_flatline "$evidence_dir/flatline-prd.json")
-    _run_phase "ARCHITECTURE" \
-        _phase_architecture "$prd_findings" "$evidence_dir"
-    
-    # Gate 2: Flatline SDD
-    _run_gate "FLATLINE_SDD" \
-        _gate_flatline "sdd" "grimoires/loa/sdd.md" "$evidence_dir"
-    
-    # Phase 3: Planning
-    local sdd_findings=$(_summarize_flatline "$evidence_dir/flatline-sdd.json")
-    _run_phase "PLANNING" \
-        _phase_planning "$sdd_findings" "$evidence_dir"
-    
-    # Gate 3: Flatline Sprint
-    _run_gate "FLATLINE_SPRINT" \
-        _gate_flatline "sprint" "grimoires/loa/sprint.md" "$evidence_dir"
-    
-    # Phase 4: Implementation
-    _run_phase "IMPLEMENTATION" \
-        _phase_implement "$branch" "$evidence_dir"
-    
-    # Gate 4: Independent Review (fresh session)
-    _run_gate "REVIEW" \
-        _gate_review "$branch" "$evidence_dir"
-    
-    # Gate 5: Independent Audit (fresh session)
-    _run_gate "AUDIT" \
-        _gate_audit "$branch" "$evidence_dir"
-    
-    # Phase 5: PR Creation (bash — deterministic)
-    _run_phase "PR_CREATION" \
-        _phase_create_pr "$branch" "$evidence_dir"
-    
-    # Gate 6: Bridgebuilder (optional)
-    _run_gate "BRIDGEBUILDER" \
-        _gate_bridgebuilder "$evidence_dir" || true  # advisory, not blocking
-    
-    _finalize_flight_recorder "$cycle_dir"
+# Profile resolution: config default → CLI override → auto-escalation
+PIPELINE_PROFILE=$(_read_harness_config "spiral.harness.pipeline_profile" "standard")
+
+_resolve_profile() {
+    case "$PIPELINE_PROFILE" in
+        full)    FLATLINE_GATES="prd,sdd,sprint" ;;
+        standard) FLATLINE_GATES="sprint" ;;
+        light)   FLATLINE_GATES=""; ADVISOR_MODEL="$EXECUTOR_MODEL" ;;
+        *)       PIPELINE_PROFILE="standard"; FLATLINE_GATES="sprint" ;;
+    esac
+}
+
+_should_run_flatline() {
+    local phase="$1"
+    [[ ",$FLATLINE_GATES," == *",$phase,"* ]]
 }
 ```
 
-**Phase runner with retry**:
+### 2.2 Auto-Escalation Classifier
+
+**Location**: `spiral-harness.sh`, after profile resolution, uses task description + git state
 
 ```bash
-_run_gate() {
-    local gate_name="$1"; shift
-    local max_retries=$(read_config "spiral.harness.max_phase_retries" "3")
-    local attempt=0
+_auto_escalate_profile() {
+    local task="$1"
+    local escalation_reason=""
     
-    while [[ $attempt -lt $max_retries ]]; do
-        attempt=$((attempt + 1))
-        log "Gate: $gate_name (attempt $attempt/$max_retries)"
-        
-        if "$@"; then
-            _record_action "$gate_name" "gate" "passed" "" "" "$attempt"
-            return 0
-        fi
-        
-        _record_action "$gate_name" "gate" "failed" "" "" "$attempt"
-        
-        if [[ $attempt -lt $max_retries ]]; then
-            log "Gate $gate_name failed, retrying previous phase..."
-        fi
-    done
-    
-    _record_failure "$gate_name" "CIRCUIT_BREAKER" "Failed after $max_retries attempts"
-    return 1
-}
-```
-
-### 2.2 `spiral-evidence.sh` — Evidence Library
-
-**Flight recorder append**:
-
-```bash
-_FLIGHT_RECORDER=""  # Set by _init_flight_recorder
-_SEQ=0               # Monotonic sequence counter
-
-_init_flight_recorder() {
-    local cycle_dir="$1"
-    _FLIGHT_RECORDER="$cycle_dir/flight-recorder.jsonl"
-    _SEQ=0
-    touch "$_FLIGHT_RECORDER"
-    chmod 600 "$_FLIGHT_RECORDER"
-}
-
-_record_action() {
-    local phase="$1" actor="$2" action="$3"
-    local input_checksum="${4:-null}" output_checksum="${5:-null}"
-    local output_path="${6:-null}" output_bytes="${7:-0}"
-    local duration_ms="${8:-0}" cost_usd="${9:-0}" verdict="${10:-null}"
-    
-    _SEQ=$((_SEQ + 1))
-    
-    jq -n \
-        --argjson seq "$_SEQ" \
-        --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-        --arg phase "$phase" \
-        --arg actor "$actor" \
-        --arg action "$action" \
-        --arg in_ck "$input_checksum" \
-        --arg out_ck "$output_checksum" \
-        --arg out_path "$output_path" \
-        --argjson out_bytes "$output_bytes" \
-        --argjson duration_ms "$duration_ms" \
-        --argjson cost_usd "$cost_usd" \
-        --arg verdict "$verdict" \
-        '{seq:$seq, ts:$ts, phase:$phase, actor:$actor, action:$action,
-          input_checksum:(if $in_ck == "null" then null else $in_ck end),
-          output_checksum:(if $out_ck == "null" then null else $out_ck end),
-          output_path:(if $out_path == "null" then null else $out_path end),
-          output_bytes:$out_bytes, duration_ms:$duration_ms,
-          cost_usd:$cost_usd,
-          verdict:(if $verdict == "null" then null else $verdict end)}' \
-        >> "$_FLIGHT_RECORDER"
-}
-```
-
-**Artifact verification**:
-
-```bash
-_verify_artifact() {
-    local phase="$1" artifact="$2" min_bytes="${3:-500}"
-    
-    if [[ ! -f "$artifact" ]]; then
-        _record_failure "$phase" "MISSING_ARTIFACT" "$artifact"
-        return 1
+    # Pattern-based escalation from task description
+    if echo "$task" | grep -qiE 'auth|crypto|secret|token|key|cert|permission'; then
+        escalation_reason="security-keyword-in-task"
     fi
     
-    local bytes
-    bytes=$(wc -c < "$artifact")
-    if [[ "$bytes" -lt "$min_bytes" ]]; then
-        _record_failure "$phase" "ARTIFACT_TOO_SMALL" "$bytes < $min_bytes"
-        return 1
+    # File-pattern escalation from git state (if branch exists)
+    if git diff "main...${BRANCH}" --name-only 2>/dev/null | \
+        grep -qiE '(auth|crypto|secrets|\.claude/scripts|\.claude/protocols|schema\.json|migrations|deploy)'; then
+        escalation_reason="security-path-in-diff"
     fi
     
-    local checksum
-    checksum=$(sha256sum "$artifact" | awk '{print $1}')
-    echo "$checksum"
+    if [[ -n "$escalation_reason" && "$PIPELINE_PROFILE" != "full" ]]; then
+        log "Auto-escalating profile: $PIPELINE_PROFILE → full (reason: $escalation_reason)"
+        _record_action "CONFIG" "auto-escalation" "profile_escalated" "" "" "" 0 0 0 \
+            "from=$PIPELINE_PROFILE to=full reason=$escalation_reason"
+        PIPELINE_PROFILE="full"
+        _resolve_profile
+    fi
 }
+```
 
-_verify_flatline_output() {
-    local phase="$1" output="$2"
-    
-    [[ -f "$output" ]] || { _record_failure "$phase" "NO_FLATLINE_OUTPUT"; return 1; }
-    jq empty "$output" 2>/dev/null || { _record_failure "$phase" "INVALID_JSON"; return 1; }
-    jq -e '.consensus_summary' "$output" >/dev/null 2>&1 || { _record_failure "$phase" "NO_CONSENSUS"; return 1; }
-    
-    local high blockers
-    high=$(jq '.consensus_summary.high_consensus_count // 0' "$output")
-    blockers=$(jq '.consensus_summary.blocker_count // 0' "$output")
-    
-    echo "high=$high blockers=$blockers"
-}
+**Timing** (revised per Bridgebuilder HIGH-1): Both checks run at startup, BEFORE any Flatline gates:
+- Task-keyword check: runs immediately from `$TASK` string
+- Sprint-plan path check: if `grimoires/loa/sprint.md` exists, scan it for security-path references
+- Post-implementation verification: after implementation, if git diff touches escalation paths that weren't caught at startup, log a WARNING to flight recorder (advisory, does not retroactively add gates)
 
-_verify_review_verdict() {
-    local phase="$1" feedback="$2"
-    
-    [[ -f "$feedback" ]] || { _record_failure "$phase" "NO_FEEDBACK"; return 1; }
-    
-    if grep -qi "All good\|APPROVED" "$feedback"; then
-        return 0
-    elif grep -qi "CHANGES_REQUIRED" "$feedback"; then
-        return 1
+This ensures escalation from `light` → `full` adds all three Flatline gates before any are skipped.
+
+### 2.3 Deterministic Pre-Checks
+
+**Location**: `spiral-evidence.sh`, new section before Finalization
+
+**`_pre_check_implementation()`**:
+- Validates: prd.md exists, sdd.md exists, sprint.md exists
+- Validates: sprint.md contains `- [` checkbox pattern (AC present)
+- Returns: 0 (pass) or 1 (fail)
+- Records: `PRE_CHECK` action to flight recorder
+
+**`_pre_check_review()`**:
+- Validates: commits ahead of main > 0
+- Validates: git diff non-empty
+- Warns: no test files in diff (non-blocking)
+- Blocks: secret scan match
+- Secret scanning chain:
+  1. `gitleaks detect --no-git --source <(git diff main...HEAD)` if available
+  2. `trufflehog filesystem --directory . --since-commit main` if available
+  3. Regex fallback: `grep -qiE '(password|secret|api_key|private_key)\s*[:=]\s*["\x27][^"\x27]{8,}'`
+  4. Allowlist: skip matches found in `.claude/data/secret-scan-allowlist.txt`
+- Returns: 0 (pass) or 1 (fail with issue count)
+- Records: `PRE_CHECK` action to flight recorder with PASS/FAIL and detail
+
+### 2.4 Cost Tracking & Rate-Limit Awareness
+
+**Cost authority boundary** (revised per Bridgebuilder HIGH-2):
+- **Harness** (`spiral-harness.sh`): owns within-cycle cost. Tracks via `_get_cumulative_cost()` in flight recorder. Enforces per-phase budget caps.
+- **Orchestrator** (`spiral-orchestrator.sh`): owns cross-cycle cost. Reads harness cost from cycle outcome sidecar (`.run/cycles/{id}/cycle-cost.json`). Enforces spiral-level budget.
+- **Reconciliation**: At cycle end, harness writes `cycle-cost.json` with total spend. Orchestrator reads it and adds to cumulative `budget.cost_cents` in spiral state.
+
+```bash
+# Harness writes at finalization:
+jq -n --argjson cost "$total_cost" '{cycle_cost_usd: $cost, source: "flight_recorder"}' \
+    > "$CYCLE_DIR/cycle-cost.json"
+```
+
+**Rate-limit tracking** (revised per Bridgebuilder CRITICAL-1):
+- `flatline-orchestrator.sh` does not currently expose Anthropic response headers, and modifying it is out of scope for this cycle (not in FR-6 authorized file list).
+- **This cycle**: Rate-limit awareness uses local token accounting only — cumulative cost from flight recorder as budget guard via existing `_check_budget()`.
+- **Future cycle**: Modify `flatline-orchestrator.sh` to pass `--dump-header` and expose headers to caller. Then `_parse_rate_limit_headers()` can provide real-time data.
+- The `rate_limit_exhausted` stopping condition is **deferred** — it requires header data. For now, `cost_budget_exhausted` serves as the budget safety net.
+
+**What ships this cycle**: Local cost accounting, per-phase budget caps, cross-cycle cost reconciliation via sidecar file. No Anthropic header parsing.
+
+### 2.5 Idempotent PR Creation
+
+**Location**: `spiral-harness.sh`, replace current PR creation block
+
+```bash
+# Check if PR already exists for this branch
+existing_pr=$(gh pr list --head "$BRANCH" --json number,url --jq '.[0].url // empty' 2>/dev/null)
+
+if [[ -n "$existing_pr" ]]; then
+    pr_url="$existing_pr"
+    log "Reusing existing PR: $pr_url"
+    # Update PR body with latest flight recorder summary
+    local pr_number
+    pr_number=$(echo "$pr_url" | grep -oE '[0-9]+$')
+    gh api "repos/{owner}/{repo}/pulls/$pr_number" -X PATCH \
+        -f body="Autonomous spiral cycle (updated). Profile: $PIPELINE_PROFILE. See flight recorder." \
+        --jq '.html_url' 2>/dev/null || true
+    _record_action "PR_CREATION" "gh-cli" "reused_pr" "" "" "" 0 0 0 "$pr_url"
+else
+    pr_url=$(gh pr create --title "..." --body "..." --draft 2>/dev/null || true)
+    # ... existing creation logic
+fi
+```
+
+### 2.6 Scheduler with flock Locking
+
+**Location**: `spiral-scheduler.sh` (new file)
+
+Uses the existing `flatline-lock.sh` pattern for flock-based locking:
+
+```bash
+LOCK_FILE="${PROJECT_ROOT:-.}/.run/spiral-scheduler.lock"
+LOCK_TIMEOUT=60  # seconds
+
+# Acquire exclusive lock
+exec 200>"$LOCK_FILE"
+if ! flock -w "$LOCK_TIMEOUT" 200; then
+    # Check if lock holder is alive
+    local holder_pid
+    holder_pid=$(cat "$LOCK_FILE.pid" 2>/dev/null || echo "")
+    if [[ -n "$holder_pid" ]] && ! kill -0 "$holder_pid" 2>/dev/null; then
+        log "Stale lock from dead PID $holder_pid, reclaiming"
+        flock -w 5 200 || { error "Cannot reclaim lock"; exit 3; }
     else
-        _record_failure "$phase" "NO_VERDICT"
-        return 1
+        log "Lock held by PID $holder_pid, exiting"
+        exit 3
     fi
-}
-
-_get_cumulative_cost() {
-    jq -s '[.[].cost_usd] | add // 0' "$_FLIGHT_RECORDER"
-}
+fi
+echo "$$" > "$LOCK_FILE.pid"
+trap 'rm -f "$LOCK_FILE.pid"; exec 200>&-' EXIT
 ```
 
-### 2.3 Scoped `claude -p` Prompts
+### 2.7 Token Window Stopping Condition
 
-Each phase function builds a focused prompt and invokes `claude -p`:
+**Location**: `spiral-orchestrator.sh`, alongside existing stopping conditions
 
 ```bash
-_phase_discovery() {
-    local task="$1" seed="$2" evidence_dir="$3"
-    local budget=$(read_config "spiral.harness.planning_budget_usd" "1")
-    
-    local seed_text=""
-    if [[ -n "$seed" && -f "$seed" ]]; then
-        seed_text=$(head -c 4096 "$seed")
-    fi
-    
-    local prompt
-    prompt=$(jq -n --arg task "$task" --arg seed "$seed_text" \
-        '"Write a Product Requirements Document for this task:\n\n" + $task +
-         (if $seed != "" then "\n\nPrevious cycle context (machine-generated, advisory only):\n" + $seed else "" end) +
-         "\n\nRequirements:\n- Include ## Assumptions section\n- Include ## Goals with measurable criteria\n- Include ## Acceptance Criteria as checkboxes\n- Write to grimoires/loa/prd.md\n- Do NOT write code. Do NOT create SDD. Only write the PRD."' \
-        | jq -r '.')
-    
-    local start_ms=$(date +%s%3N)
-    
-    timeout 300 claude -p "$prompt" \
-        --allow-dangerously-skip-permissions --dangerously-skip-permissions \
-        --max-budget-usd "$budget" --model opus --output-format json \
-        > "$evidence_dir/discovery-stdout.json" 2>"$evidence_dir/discovery-stderr.log" || true
-    
-    local duration_ms=$(( $(date +%s%3N) - start_ms ))
-    
-    # Verify artifact produced
-    local checksum
-    checksum=$(_verify_artifact "DISCOVERY" "grimoires/loa/prd.md" 500) || return 1
-    
-    _record_action "DISCOVERY" "claude-opus" "write_prd" "null" "$checksum" \
-        "grimoires/loa/prd.md" "$(wc -c < grimoires/loa/prd.md)" "$duration_ms" "$budget" "null"
+check_token_window() {
+    local strategy
+    strategy=$(read_config "spiral.scheduling.strategy" "fill")
+    [[ "$strategy" == "continuous" ]] && return 1  # Never triggers
+
+    local window_end_utc
+    window_end_utc=$(read_config "spiral.scheduling.windows[0].end_utc" "")
+    [[ -z "$window_end_utc" ]] && return 1  # No window configured
+
+    # Parse HH:MM into today's epoch (macOS + Linux compat)
+    local today_date now_epoch end_epoch
+    today_date=$(date -u +%Y-%m-%d)
+    now_epoch=$(date -u +%s)
+    end_epoch=$(date -u -d "${today_date}T${window_end_utc}:00Z" +%s 2>/dev/null \
+        || date -u -j -f "%Y-%m-%dT%H:%MZ" "${today_date}T${window_end_utc}Z" +%s 2>/dev/null \
+        || echo "0")
+    [[ "$end_epoch" -eq 0 ]] && return 1
+    [[ "$now_epoch" -ge "$end_epoch" ]]
 }
 ```
 
-Review and Audit prompts receive the diff, not implementation context:
+**Evaluation order** in `evaluate_stopping_conditions()`:
+1. `hitl_halt` (immediate operator override)
+2. `quality_gate_failure` (both gates failed)
+3. `cycle_budget_exhausted` (max cycles)
+4. `flatline_convergence` (plateau)
+5. `cost_budget_exhausted` (dollar limit)
+6. `wall_clock_exhausted` (time limit)
+7. `token_window_exhausted` (scheduling window end) — **new**
 
-```bash
-_gate_review() {
-    local branch="$1" evidence_dir="$2"
-    local budget=$(read_config "spiral.harness.review_budget_usd" "2")
-    
-    local diff
-    diff=$(git diff main..."$branch" -- ':!grimoires/' ':!.run/' 2>/dev/null | head -c 50000)
-    
-    local prompt
-    prompt=$(jq -n --arg diff "$diff" \
-        '"You are a senior tech lead reviewer. Review this implementation.\n\nGit diff:\n```\n" + $diff + "\n```\n\nRead grimoires/loa/sprint.md for acceptance criteria.\nFor each AC, verify with file:line evidence.\nWrite review to grimoires/loa/a2a/engineer-feedback.md.\nWrite \"All good\" if approved or \"CHANGES_REQUIRED\" with specific issues."' \
-        | jq -r '.')
-    
-    timeout 600 claude -p "$prompt" \
-        --allow-dangerously-skip-permissions --dangerously-skip-permissions \
-        --max-budget-usd "$budget" --model opus --output-format json \
-        > "$evidence_dir/review-stdout.json" 2>"$evidence_dir/review-stderr.log" || true
-    
-    _verify_review_verdict "REVIEW" "grimoires/loa/a2a/engineer-feedback.md"
-}
+Note: `rate_limit_exhausted` is **deferred** — requires Anthropic header data from `flatline-orchestrator.sh` modification (future cycle).
+
+### 2.8 Benchmark Comparison Tool
+
+**Location**: `spiral-benchmark.sh` (new file)
+
+**Input**: Two flight recorder JSONL paths
+**Output**: Markdown comparison to stdout (redirect to file)
+
+**Comparison dimensions**:
+
+| Dimension | Source | Comparison Method |
+|-----------|--------|-------------------|
+| Phase durations | `duration_ms` per entry | Side-by-side table |
+| Costs | `cost_usd` per entry | Sum + per-phase |
+| Gate verdicts | `verdict` field | Present/absent/value |
+| Blocker counts | Flatline `high=N blockers=M` | Numeric comparison |
+| Retry counts | Count of same-phase entries | Numeric |
+| Profile used | CONFIG action `profile=X` | String comparison |
+| Evidence artifacts | Count of files in evidence dir | Numeric |
+| Code output | Git diff stat (if branches available) | Lines added/removed |
+
+**For PR #506 comparison**: Since #506 has no flight recorder (raw-Claude), the benchmark tool handles missing data gracefully — reports "N/A" for absent dimensions and highlights the gap.
+
+### 2.9 Mechanical Dispatch in SKILL.md
+
+The spiraling skill cannot execute bash directly — it's loaded as context for the agent. The mechanical dispatch works via explicit instruction at the top of SKILL.md:
+
+```markdown
+## DISPATCH GUARD — READ THIS FIRST
+
+When this skill is invoked with a task, execute:
+
+\```bash
+.claude/scripts/spiral-harness.sh \
+  --task "$TASK" \
+  --cycle-dir .run/cycles/cycle-072 \
+  --cycle-id cycle-072 \
+  --branch feat/spiral-cost-opt-cycle-072 \
+  --budget 15 \
+  --profile standard
+\```
+
+Do NOT implement in conversation. Route through the harness.
 ```
 
-### 2.4 Flatline Findings Integration
+**Why this is "mechanical enough"**: The agent reads the SKILL.md and sees an explicit bash command to execute. Combined with C-PROC-017 (NEVER rule) and the PR #507 guard, there are three independent layers that must all fail for bypass to occur. The negative test (AC-26) verifies the guard fires.
 
-After each Flatline gate, summarize findings for the next phase:
+---
 
-```bash
-_summarize_flatline() {
-    local flatline_json="$1"
-    [[ -f "$flatline_json" ]] || { echo ""; return; }
-    
-    jq -r '
-        "Flatline findings:\n" +
-        "HIGH_CONSENSUS (auto-integrated):\n" +
-        ([.high_consensus[]? | "- " + .description] | join("\n")) +
-        "\n\nBLOCKERS (arbiter-decided):\n" +
-        ([(.arbiter_rejected // .blockers)[]? | "- [REJECTED] " + (.concern // .description)] | join("\n"))
-    ' "$flatline_json" 2>/dev/null || echo ""
-}
+## 3. Data Model
+
+### 3.1 Flight Recorder Extensions
+
+New fields in flight recorder JSONL entries:
+
+```jsonl
+{"seq":1,"ts":"...","phase":"CONFIG","actor":"spiral-harness","action":"profile",
+ "verdict":"profile=standard gates=sprint advisor=opus"}
+{"seq":2,"ts":"...","phase":"CONFIG","actor":"auto-escalation","action":"profile_escalated",
+ "verdict":"from=standard to=full reason=security-path-in-diff"}
+{"seq":N,"ts":"...","phase":"GATE_prd","actor":"spiral-harness","action":"skipped",
+ "verdict":"profile=standard"}
+{"seq":N,"ts":"...","phase":"PRE_CHECK","actor":"evidence-gate","action":"review_ready",
+ "verdict":"PASS"}
+{"seq":N,"ts":"...","phase":"RATE_LIMIT","actor":"flatline-orchestrator","action":"header_parsed",
+ "verdict":"remaining=450000 reset=2026-04-15T01:00:00Z source=header"}
 ```
 
-This feeds into the next `claude -p` prompt so the SDD addresses PRD findings, the Sprint addresses SDD findings, etc.
-
-## 3. Integration
-
-### 3.1 Dispatch Wrapper Change
-
-`spiral-simstim-dispatch.sh` calls harness instead of direct `claude -p`:
-
-```bash
-# OLD:
-timeout "$local_timeout" claude -p "$prompt" --dangerously-skip-permissions ...
-
-# NEW:
-"$SCRIPT_DIR/spiral-harness.sh" \
-    --task "$task" \
-    --cycle-dir "$cycle_dir" \
-    --cycle-id "$cycle_id" \
-    --branch "$branch_name" \
-    --budget "$local_budget" \
-    ${seed_context:+--seed-context "$seed_context"}
-```
-
-### 3.2 Config
+### 3.2 Scheduling Config Schema
 
 ```yaml
 spiral:
   harness:
-    enabled: true
-    max_phase_retries: 3
-    planning_budget_usd: 1
-    implement_budget_usd: 5
-    review_budget_usd: 2
-    audit_budget_usd: 2
-    evidence_dir: ".run/spiral-evidence"
+    pipeline_profile: standard        # full | standard | light
+    # ... existing fields ...
+  scheduling:
+    enabled: false                     # Master switch
+    windows:
+      - start_utc: "02:00"            # HH:MM UTC
+        end_utc: "08:00"
+        days: [mon, tue, wed, thu, fri]
+    strategy: fill                     # fill | single | continuous
+    max_cycles_per_window: 3
+    rate_limit_warn_threshold_pct: 10  # Warn when tokens-remaining < 10%
 ```
 
-## 4. Testing Strategy
+---
 
-| File | Coverage |
-|------|----------|
-| `tests/unit/spiral-evidence.bats` | Flight recorder append, seq monotonicity, artifact verification, Flatline output verification, verdict parsing, cumulative cost |
-| `tests/unit/spiral-harness.bats` | Phase sequencing, gate retry logic, circuit breaker, prompt construction, evidence dir creation |
+## 4. Security Design
 
-## 5. Implementation Order
+### 4.1 Secret Scanning
 
-### Sprint 1: Evidence Library + Flight Recorder
-1. T1.1: `spiral-evidence.sh` — _record_action, _verify_artifact, _verify_flatline_output, _verify_review_verdict, _get_cumulative_cost
-2. T1.2: Flight recorder JSONL — init, append, seq numbering, flock safety
-3. T1.3: Evidence tests (`spiral-evidence.bats`)
+Detection chain (ordered by reliability):
+1. **gitleaks** (if on PATH): `gitleaks detect --no-git --pipe < <(git diff main...HEAD)` — entropy + pattern-based, industry standard
+2. **trufflehog** (if on PATH): `trufflehog git file://. --since-commit $(git merge-base main HEAD) --only-verified` — verified credentials only
+3. **Regex fallback**: High-confidence patterns only — `(password|secret|api_key|private_key|aws_access_key_id)\s*[:=]\s*["'][^"']{8,}`
+4. **Allowlist**: `.claude/data/secret-scan-allowlist.txt` — YAML format with governance fields:
+   ```yaml
+   - pattern: "test_api_key.*=.*fake"
+     owner: "@janitooor"
+     reason: "Test fixture, not a real key"
+     expires: "2026-12-31"
+   ```
+   Expired entries are ignored with a warning. Entries without `owner` or `reason` are rejected.
 
-### Sprint 2: Harness Orchestrator + Integration
-4. T2.1: `spiral-harness.sh` — main loop, phase/gate sequencing
-5. T2.2: Scoped `claude -p` prompts (6 phases)
-6. T2.3: Gate implementations — _gate_flatline, _gate_review, _gate_audit, _gate_bridgebuilder
-7. T2.4: Retry logic + circuit breaker
-8. T2.5: Flatline findings summarization + cascading context
-9. T2.6: Modify `spiral-simstim-dispatch.sh` to call harness
-10. T2.7: Config additions
-11. T2.8: Harness tests (`spiral-harness.bats`)
-12. T2.9: Regression tests
+### 4.2 System Zone Authorization
+
+This cycle modifies files in `.claude/scripts/` (System Zone). Per PRD FR-6, authorization is **scoped to specific files** listed in the PRD. The harness `--append-system-prompt` override grants `.claude/scripts/` access to `claude -p` subprocesses only during this cycle.
+
+### 4.3 Scheduler Security
+
+- flock prevents concurrent execution
+- PID tracking enables stale lock recovery
+- Window bounds limit unattended execution time
+- Cost budget, cycle budget, and rate-limit conditions provide defense-in-depth against runaway spend
+- Trajectory logging records all scheduler events for audit
+
+---
+
+## 5. Test Design
+
+### 5.1 Test Files
+
+| File | Tests | Covers |
+|------|-------|--------|
+| `tests/unit/spiral-profiles.bats` | 8 | Profile resolution, auto-escalation, gate conditional, flight recorder logging |
+| `tests/unit/spiral-prechecks.bats` | 7 | Pre-impl check, pre-review check, secret scanning, allowlist |
+| `tests/unit/spiral-scheduler.bats` | 6 | Window check, continuous bypass, flock, resume detection, disabled config |
+| `tests/unit/spiral-benchmark.bats` | 5 | Comparison output, missing data handling, dimension coverage |
+
+**Total: 26 test cases** (exceeds AC-16 target of 20)
+
+### 5.2 Test Strategy
+
+Tests source the scripts being tested and validate function behavior in isolation:
+
+```bash
+# Example: profile resolution test
+@test "standard profile resolves to sprint-only gates" {
+    PIPELINE_PROFILE="standard"
+    _resolve_profile
+    [[ "$FLATLINE_GATES" == "sprint" ]]
+}
+
+@test "auto-escalation triggers on auth keyword in task" {
+    PIPELINE_PROFILE="light"
+    BRANCH="test-branch"
+    _auto_escalate_profile "Implement authentication middleware"
+    [[ "$PIPELINE_PROFILE" == "full" ]]
+}
+
+@test "pre-check review fails when no commits ahead" {
+    # Mock git to return 0 commits ahead
+    run _pre_check_review
+    [[ "$status" -ne 0 ]]
+}
+```
+
+### 5.3 Negative Test: Dispatch Guard (AC-26)
+
+Verify that the dispatch guard text is present in SKILL.md and contains the expected routing instruction:
+
+```bash
+@test "SKILL.md dispatch guard routes to spiral-harness.sh" {
+    local skill_md=".claude/skills/spiraling/SKILL.md"
+    grep -q "DISPATCH GUARD" "$skill_md"
+    grep -q "spiral-harness.sh" "$skill_md"
+    grep -q "MUST NOT implement code directly" "$skill_md"
+}
+```
+
+---
+
+## 6. Error Handling
+
+| Error | Handler | Recovery |
+|-------|---------|----------|
+| Profile unknown | Fall back to `standard`, log warning | Automatic |
+| Pre-check fails | Record failure, skip phase, exit 1 | Operator fixes issue, re-runs |
+| Flatline gate timeout | Record skip, continue pipeline | Advisory only |
+| Secret detected | Block review, exit 1 | Operator removes secret, re-runs |
+| Lock contention | Wait up to 60s, then stale-check | Reclaim stale lock or exit 3 |
+| 429 from Flatline API | Exponential backoff (existing retry.py) | Automatic, max 3 retries |
+| PR already exists | Reuse PR, update body | Automatic |
+| gitleaks/trufflehog not found | Fall back to regex | Automatic, logged |
+| Window end reached | Graceful halt at phase boundary | Resume next window |
+
+---
+
+## 7. Migration Notes
+
+**Backward compatible.** All new features are opt-in:
+- `pipeline_profile: standard` is the default — matches current behavior minus PRD/SDD Flatline (which the benchmark proved are insurance, not load-bearing)
+- `scheduling.enabled: false` is the default — no scheduling unless configured
+- Pre-checks are additive — they prevent wasted spend but don't change the happy path
+- Rate-limit tracking is passive — logs data but doesn't change behavior unless threshold exceeded
+- Benchmark tool is standalone — doesn't affect any existing workflow

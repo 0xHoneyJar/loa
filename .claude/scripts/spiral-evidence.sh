@@ -2,8 +2,8 @@
 # =============================================================================
 # spiral-evidence.sh — Evidence verification + Flight Recorder for Spiral Harness
 # =============================================================================
-# Version: 1.0.0
-# Part of: Spiral Harness Architecture (cycle-071)
+# Version: 1.1.0
+# Part of: Spiral Harness Architecture (cycle-071, cost optimization cycle-072)
 #
 # Provides:
 #   - Append-only flight recorder (JSONL)
@@ -11,6 +11,8 @@
 #   - Flatline output validation
 #   - Review/audit verdict parsing
 #   - Cumulative cost tracking
+#   - Deterministic pre-checks (cycle-072: fail fast at $0)
+#   - Secret scanning chain (cycle-072: gitleaks → trufflehog → regex)
 #
 # Usage:
 #   source spiral-evidence.sh
@@ -36,8 +38,6 @@ _FLIGHT_RECORDER_SEQ=0
 # Flight Recorder — Append-Only JSONL
 # =============================================================================
 
-# Initialize flight recorder for a cycle
-# Input: $1=cycle_dir
 _init_flight_recorder() {
     local cycle_dir="$1"
     _FLIGHT_RECORDER="$cycle_dir/flight-recorder.jsonl"
@@ -47,8 +47,6 @@ _init_flight_recorder() {
     chmod 600 "$_FLIGHT_RECORDER"
 }
 
-# Append an action entry to the flight recorder
-# All values passed via jq --arg (safe, no shell expansion)
 _record_action() {
     local phase="$1"
     local actor="$2"
@@ -65,10 +63,8 @@ _record_action() {
 
     _FLIGHT_RECORDER_SEQ=$((_FLIGHT_RECORDER_SEQ + 1))
 
-    # Validate numeric fields (prevent jq errors)
     [[ "$output_bytes" =~ ^[0-9]+$ ]] || output_bytes=0
     [[ "$duration_ms" =~ ^[0-9]+$ ]] || duration_ms=0
-    # cost_usd can be decimal
     echo "$cost_usd" | grep -qE '^[0-9]+\.?[0-9]*$' || cost_usd=0
 
     jq -n -c \
@@ -100,7 +96,6 @@ _record_action() {
         }' >> "$_FLIGHT_RECORDER"
 }
 
-# Record a gate failure
 _record_failure() {
     local phase="$1"
     local reason="$2"
@@ -113,10 +108,6 @@ _record_failure() {
 # Artifact Verification
 # =============================================================================
 
-# Verify an artifact file exists, meets minimum size, and compute checksum
-# Input: $1=phase, $2=artifact_path, $3=min_bytes (default 500)
-# Output: sha256 checksum to stdout
-# Returns: 0 if valid, 1 if not
 _verify_artifact() {
     local phase="$1"
     local artifact="$2"
@@ -139,7 +130,6 @@ _verify_artifact() {
     local checksum
     checksum=$(sha256sum "$artifact" | awk '{print $1}')
 
-    # Record successful verification
     _record_action "$phase" "evidence-gate" "verified" "" "$checksum" "$artifact" "$bytes" 0 0 "OK"
 
     echo "$checksum"
@@ -149,10 +139,6 @@ _verify_artifact() {
 # Flatline Output Verification
 # =============================================================================
 
-# Verify Flatline output is valid JSON with expected consensus structure
-# Input: $1=phase, $2=flatline_output_path
-# Output: "high=N blockers=M" to stdout
-# Returns: 0 if valid, 1 if not
 _verify_flatline_output() {
     local phase="$1"
     local output="$2"
@@ -163,14 +149,12 @@ _verify_flatline_output() {
         return 1
     fi
 
-    # Must be valid JSON
     if ! jq empty "$output" 2>/dev/null; then
         _record_failure "$phase" "INVALID_JSON" "$output"
         echo "ERROR: Invalid JSON in Flatline output: $output" >&2
         return 1
     fi
 
-    # Must have consensus_summary
     if ! jq -e '.consensus_summary' "$output" >/dev/null 2>&1; then
         _record_failure "$phase" "NO_CONSENSUS" "$output"
         echo "ERROR: No consensus_summary in Flatline output" >&2
@@ -193,9 +177,6 @@ _verify_flatline_output() {
 # Review/Audit Verdict Verification
 # =============================================================================
 
-# Verify a review or audit feedback file contains a verdict
-# Input: $1=phase_name ("REVIEW" or "AUDIT"), $2=feedback_file_path
-# Returns: 0 if APPROVED, 1 if CHANGES_REQUIRED or missing
 _verify_review_verdict() {
     local phase="$1"
     local feedback="$2"
@@ -227,17 +208,12 @@ _verify_review_verdict() {
 # Cost Tracking
 # =============================================================================
 
-# Get cumulative cost from all flight recorder entries
-# Output: total cost as decimal to stdout
 _get_cumulative_cost() {
     [[ -z "$_FLIGHT_RECORDER" || ! -f "$_FLIGHT_RECORDER" ]] && { echo "0"; return; }
 
     jq -s '[.[].cost_usd // 0] | add // 0' "$_FLIGHT_RECORDER" 2>/dev/null || echo "0"
 }
 
-# Check if cumulative cost exceeds budget
-# Input: $1=max_budget_usd
-# Returns: 0 if within budget, 1 if exceeded
 _check_budget() {
     local max_budget="$1"
     local spent
@@ -255,9 +231,6 @@ _check_budget() {
 # Flatline Findings Summarization
 # =============================================================================
 
-# Summarize Flatline findings for cascading to next phase prompt
-# Input: $1=flatline_json_path
-# Output: human-readable summary to stdout
 _summarize_flatline() {
     local flatline_json="$1"
     [[ -f "$flatline_json" ]] || { echo ""; return; }
@@ -276,10 +249,113 @@ _summarize_flatline() {
 }
 
 # =============================================================================
+# Deterministic Pre-Checks (cycle-072)
+# Fail fast at $0 before spending $2-4 on LLM review/audit sessions.
+# =============================================================================
+
+# Validate planning artifacts exist before implementation phase
+_pre_check_implementation() {
+    local ok=0
+
+    if [[ ! -f "grimoires/loa/prd.md" ]]; then
+        echo "PRE-CHECK FAIL: grimoires/loa/prd.md not found" >&2
+        ok=1
+    fi
+    if [[ ! -f "grimoires/loa/sdd.md" ]]; then
+        echo "PRE-CHECK FAIL: grimoires/loa/sdd.md not found" >&2
+        ok=1
+    fi
+    if [[ ! -f "grimoires/loa/sprint.md" ]]; then
+        echo "PRE-CHECK FAIL: grimoires/loa/sprint.md not found" >&2
+        ok=1
+    fi
+
+    if [[ -f "grimoires/loa/sprint.md" ]]; then
+        if ! grep -qE '^\- \[' "grimoires/loa/sprint.md" 2>/dev/null; then
+            echo "PRE-CHECK WARN: sprint.md has no acceptance criteria checkboxes" >&2
+        fi
+    fi
+
+    [[ -n "$_FLIGHT_RECORDER" ]] && \
+        _record_action "PRE_CHECK" "evidence-gate" "implementation_ready" "" "" "" 0 0 0 \
+            "$([ "$ok" -eq 0 ] && echo 'PASS' || echo 'FAIL')"
+
+    return "$ok"
+}
+
+# Validate implementation output before spending $2-4 on LLM review/audit
+_pre_check_review() {
+    local branch="${BRANCH:-HEAD}"
+    local issues=0
+
+    # 1. Branch has commits ahead of main
+    local ahead
+    ahead=$(git rev-list --count "main..${branch}" 2>/dev/null || echo "0")
+    if [[ "$ahead" -eq 0 ]]; then
+        echo "PRE-CHECK FAIL: no commits ahead of main on $branch" >&2
+        issues=$((issues + 1))
+    fi
+
+    # 2. Git diff is non-empty
+    local diff_lines
+    diff_lines=$(git diff "main...${branch}" --stat 2>/dev/null | wc -l | tr -d ' ')
+    if [[ "$diff_lines" -eq 0 ]]; then
+        echo "PRE-CHECK FAIL: no diff between main and $branch" >&2
+        issues=$((issues + 1))
+    fi
+
+    # 3. Tests exist in the diff (warn, not block)
+    if ! git diff "main...${branch}" --name-only 2>/dev/null | grep -qiE 'test|spec|\.bats'; then
+        echo "PRE-CHECK WARN: no test files in diff (expected for most tasks)" >&2
+    fi
+
+    # 4. Secret scanning (gitleaks → trufflehog → regex fallback → allowlist)
+    local secret_found=false
+    if command -v gitleaks &>/dev/null; then
+        if git diff "main...${branch}" 2>/dev/null | gitleaks detect --no-git --pipe 2>/dev/null; then
+            secret_found=true
+        fi
+    elif command -v trufflehog &>/dev/null; then
+        if trufflehog git "file://." --since-commit "$(git merge-base main "${branch}" 2>/dev/null)" \
+            --only-verified --json 2>/dev/null | jq -e '.' >/dev/null 2>&1; then
+            secret_found=true
+        fi
+    else
+        # Regex fallback
+        if git diff "main...${branch}" 2>/dev/null | \
+            grep -qiE '(password|secret|api_key|private_key|aws_access_key_id)\s*[:=]\s*["'"'"'][^"'"'"']{8,}'; then
+            secret_found=true
+        fi
+    fi
+
+    # Check allowlist if secret found
+    if [[ "$secret_found" == "true" ]]; then
+        local allowlist="${PROJECT_ROOT:-.}/.claude/data/secret-scan-allowlist.yaml"
+        if [[ -f "$allowlist" ]]; then
+            # Check if all findings match allowlist patterns (simplified: if allowlist exists, downgrade to warning)
+            local expired_count
+            expired_count=$(yq eval '[.[] | select(.expires != null and .expires < now)] | length' "$allowlist" 2>/dev/null || echo "0")
+            if [[ "$expired_count" -gt 0 ]]; then
+                echo "PRE-CHECK WARN: $expired_count expired allowlist entries" >&2
+            fi
+            echo "PRE-CHECK WARN: potential secret detected but allowlist present — manual review recommended" >&2
+        else
+            echo "PRE-CHECK FAIL: possible secret detected in diff (no allowlist at $allowlist)" >&2
+            issues=$((issues + 1))
+        fi
+    fi
+
+    [[ -n "$_FLIGHT_RECORDER" ]] && \
+        _record_action "PRE_CHECK" "evidence-gate" "review_ready" "" "" "" 0 0 0 \
+            "$([ "$issues" -eq 0 ] && echo 'PASS' || echo "FAIL:${issues}_issues")"
+
+    [[ "$issues" -eq 0 ]]
+}
+
+# =============================================================================
 # Finalization
 # =============================================================================
 
-# Finalize flight recorder with summary entry
 _finalize_flight_recorder() {
     local cycle_dir="$1"
 
