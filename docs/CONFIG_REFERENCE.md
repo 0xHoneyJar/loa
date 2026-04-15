@@ -224,7 +224,7 @@ See individual skill costs: Flatline ($15–25/planning cycle), Bridgebuilder ($
 | `metering.ledger_path` | string | `.run/cost-ledger.jsonl` | JSONL append-only cost ledger |
 | `metering.budget.daily_micro_usd` | int | `10000000` | Daily budget cap in micro-USD ($10/day) |
 | `metering.budget.warn_at_percent` | int | `80` | Warn when spend exceeds this % of daily budget |
-| `metering.budget.on_exceeded` | string | `"downgrade"` | Action when budget exceeded: `block`, `downgrade`, `warn` |
+| `metering.budget.on_exceeded` | string | `"downgrade"` | Action when budget exceeded: `block` (hard-stop all API calls), `downgrade` (switch expensive models to cheaper alternatives, e.g., Opus→Sonnet), `warn` (log warning but continue spending) |
 
 #### Cost
 
@@ -307,7 +307,7 @@ No external API calls. Vision matching is local tag overlap. Only `propose_requi
 **Recommendation**: Start with `harness.pipeline_profile: standard` and `budget_cents: 2000` ($20). Increase budget only after validating quality gates work in your repo.  
 **Default**: `enabled: false`
 
-> **Cost Warning**: Spiral's `standard` profile costs **$10–15/cycle**, `full` profile **$20–35/cycle**. A 3-cycle run at standard = **~$30–45**. A 5-cycle full run would cost ~$100–175 but **the hard ceiling of $100 (`budget_cents: 10000`) will terminate the spiral mid-run when the budget is exhausted**. To run 5 full-profile cycles, you must explicitly raise `budget_cents` (the ceiling clamps at 10000). Hard ceilings are enforced: max 50 cycles, $100 budget cap, 24h wall clock.
+> **Cost Warning**: Spiral's `standard` profile costs **$10–15/cycle**, `full` profile **$20–35/cycle**. A 3-cycle run at standard = **~$30–45**. A 5-cycle full run would cost ~$100–175 but **the hard ceiling of $100 (`budget_cents: 10000`) will terminate the spiral mid-run when the budget is exhausted**. The ceiling is a hard maximum — you cannot configure higher. Plan your cycle count to fit within it. Hard ceilings: max 50 cycles, $100 budget cap, 24h wall clock.
 
 #### Sub-keys
 
@@ -471,6 +471,48 @@ Without optional phases: minimal (local checks + Sonnet for audit). With `flatli
 
 - `.claude/loa/reference/flatline-reference.md`
 - `.claude/loa/reference/run-bridge-reference.md`
+
+---
+
+### prompt_enhancement
+
+> **ELI5**: Prompt Enhancement automatically improves your prompts before they reach skill execution. When you invoke a skill, your input is silently refined for clarity, specificity, and completeness — like having an editor polish your instructions before handing them to a contractor. You never see the enhancement unless you enable `show_analysis`.
+
+**Version introduced**: v1.14.0 (explicit), v1.17.0 (invisible mode)  
+**Recommendation**: Leave enabled (default). The cost is negligible and the quality improvement is meaningful. Disable only if you need exact prompt passthrough for debugging.  
+**Default**: `enabled: true`
+
+#### Sub-keys
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `enabled` | bool | `true` | Master toggle |
+| `auto_enhance_threshold` | int | `4` | Minimum prompt token count before enhancement kicks in (very short prompts pass through) |
+| `show_analysis` | bool | `true` | Show the enhancement analysis in trajectory logs |
+| `max_refinement_iterations` | int | `3` | Maximum refinement passes before accepting the enhanced prompt |
+
+#### Cost
+
+Per invocation: <$0.05–$0.10 (Sonnet 4.6, small context). Monthly at moderate workflow: ~$1–5.  
+Enhancement runs once per skill invocation with a small prompt — token usage is minimal.
+
+#### Risks if enabled
+
+- None significant. Enhancement is invisible and non-blocking.
+- `show_analysis: true` adds verbose output to trajectory logs.
+
+#### Risks if disabled
+
+- Skill prompts are not refined — ambiguous or incomplete prompts produce lower-quality outputs.
+- Particularly noticeable in `/plan-and-analyze` and `/architect` where prompt quality directly affects artifact quality.
+
+#### Setup requirements
+
+- `ANTHROPIC_API_KEY` (uses Sonnet for enhancement — included in base Claude Code usage)
+
+#### See also
+
+- `.claude/skills/enhancing-prompts/SKILL.md`
 
 ---
 
