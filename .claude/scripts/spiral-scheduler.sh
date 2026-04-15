@@ -28,9 +28,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/bootstrap.sh" 2>/dev/null || true
 
-STATE_FILE="${PROJECT_ROOT:-.}/.run/spiral-state.json"
-CONFIG="${PROJECT_ROOT:-.}/.loa.config.yaml"
-LOCK_FILE="${PROJECT_ROOT:-.}/.run/spiral-scheduler.lock"
+STATE_FILE="${STATE_FILE:-${PROJECT_ROOT:-.}/.run/spiral-state.json}"
+CONFIG="${CONFIG:-${PROJECT_ROOT:-.}/.loa.config.yaml}"
+LOCK_FILE="${LOCK_FILE:-${PROJECT_ROOT:-.}/.run/spiral-scheduler.lock}"
 LOCK_PID_FILE="${LOCK_FILE}.pid"
 LOCK_TIMEOUT=60
 STALE_LOCK_AGE_SEC=300  # 5 minutes
@@ -55,32 +55,38 @@ _read_config() {
 # Arguments
 # =============================================================================
 
-PROFILE=$(_read_config "spiral.harness.pipeline_profile" "standard")
-MAX_CYCLES=$(_read_config "spiral.scheduling.max_cycles_per_window" "3")
+PROFILE=""
+MAX_CYCLES=""
 
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --profile) PROFILE="$2"; shift 2 ;;
-        --max-cycles) MAX_CYCLES="$2"; shift 2 ;;
-        *) error "Unknown option: $1"; exit 1 ;;
-    esac
-done
+_parse_scheduler_args() {
+    PROFILE=$(_read_config "spiral.harness.pipeline_profile" "standard")
+    MAX_CYCLES=$(_read_config "spiral.scheduling.max_cycles_per_window" "3")
 
-# =============================================================================
-# Guards
-# =============================================================================
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --profile) PROFILE="$2"; shift 2 ;;
+            --max-cycles) MAX_CYCLES="$2"; shift 2 ;;
+            *) error "Unknown option: $1"; return 1 ;;
+        esac
+    done
+}
 
-scheduling_enabled=$(_read_config "spiral.scheduling.enabled" "false")
-if [[ "$scheduling_enabled" != "true" ]]; then
-    log "Scheduling disabled (spiral.scheduling.enabled != true)"
-    exit 2
-fi
+_check_guards() {
+    local scheduling_enabled
+    scheduling_enabled=$(_read_config "spiral.scheduling.enabled" "false")
+    if [[ "$scheduling_enabled" != "true" ]]; then
+        log "Scheduling disabled (spiral.scheduling.enabled != true)"
+        return 2
+    fi
 
-spiral_enabled=$(_read_config "spiral.enabled" "false")
-if [[ "$spiral_enabled" != "true" ]]; then
-    log "Spiral disabled (spiral.enabled != true)"
-    exit 2
-fi
+    local spiral_enabled
+    spiral_enabled=$(_read_config "spiral.enabled" "false")
+    if [[ "$spiral_enabled" != "true" ]]; then
+        log "Spiral disabled (spiral.enabled != true)"
+        return 2
+    fi
+    return 0
+}
 
 # =============================================================================
 # flock-based Locking (with stale recovery)
@@ -176,6 +182,10 @@ _log_event() {
 # Main
 # =============================================================================
 
+_scheduler_main() {
+
+_parse_scheduler_args "$@" || exit $?
+_check_guards || exit $?
 _acquire_lock
 
 if ! _in_window; then
@@ -219,4 +229,10 @@ log "Starting new spiral: profile=$PROFILE max-cycles=$MAX_CYCLES"
     --max-cycles "$MAX_CYCLES" \
     --budget-cents "$(_read_config "spiral.max_total_budget_usd" "50")00"
 
-exit $?
+}  # end _scheduler_main
+
+# Main guard: allow sourcing for tests without executing
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    _scheduler_main "$@"
+    exit $?
+fi

@@ -146,47 +146,48 @@ error() { echo "ERROR: $*" >&2; }
 # Argument Parsing
 # =============================================================================
 
+# Global state (set by _parse_args, used by phase functions)
 TASK=""
 CYCLE_DIR=""
 CYCLE_ID=""
 BRANCH=""
 TOTAL_BUDGET=10
 SEED_CONTEXT=""
+EVIDENCE_DIR=""
 
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --task) TASK="$2"; shift 2 ;;
-        --cycle-dir) CYCLE_DIR="$2"; shift 2 ;;
-        --cycle-id) CYCLE_ID="$2"; shift 2 ;;
-        --branch) BRANCH="$2"; shift 2 ;;
-        --budget) TOTAL_BUDGET="$2"; shift 2 ;;
-        --seed-context) SEED_CONTEXT="$2"; shift 2 ;;
-        --profile) PIPELINE_PROFILE="$2"; _PROFILE_EXPLICITLY_SET=true; _resolve_profile; shift 2 ;;
-        *) error "Unknown option: $1"; exit 2 ;;
-    esac
-done
+_parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --task) TASK="$2"; shift 2 ;;
+            --cycle-dir) CYCLE_DIR="$2"; shift 2 ;;
+            --cycle-id) CYCLE_ID="$2"; shift 2 ;;
+            --branch) BRANCH="$2"; shift 2 ;;
+            --budget) TOTAL_BUDGET="$2"; shift 2 ;;
+            --seed-context) SEED_CONTEXT="$2"; shift 2 ;;
+            --profile) PIPELINE_PROFILE="$2"; _PROFILE_EXPLICITLY_SET=true; _resolve_profile; shift 2 ;;
+            *) error "Unknown option: $1"; return 2 ;;
+        esac
+    done
 
-[[ -z "$TASK" ]] && { error "--task required"; exit 2; }
-[[ -z "$CYCLE_DIR" ]] && { error "--cycle-dir required"; exit 2; }
-[[ -z "$CYCLE_ID" ]] && { error "--cycle-id required"; exit 2; }
-[[ -z "$BRANCH" ]] && { error "--branch required"; exit 2; }
+    [[ -z "$TASK" ]] && { error "--task required"; return 2; }
+    [[ -z "$CYCLE_DIR" ]] && { error "--cycle-dir required"; return 2; }
+    [[ -z "$CYCLE_ID" ]] && { error "--cycle-id required"; return 2; }
+    [[ -z "$BRANCH" ]] && { error "--branch required"; return 2; }
 
-# Validate claude CLI
-if ! command -v claude &>/dev/null; then
-    error "claude CLI not found on PATH"
-    exit 127
-fi
+    if ! command -v claude &>/dev/null; then
+        error "claude CLI not found on PATH"
+        return 127
+    fi
 
-# Create directories
-EVIDENCE_DIR="$CYCLE_DIR/evidence"
-mkdir -p "$EVIDENCE_DIR"
-_init_flight_recorder "$CYCLE_DIR"
+    EVIDENCE_DIR="$CYCLE_DIR/evidence"
+    mkdir -p "$EVIDENCE_DIR"
+    _init_flight_recorder "$CYCLE_DIR"
 
-# Run auto-escalation before any gates
-_auto_escalate_profile "$TASK"
+    _auto_escalate_profile "$TASK"
 
-log "Harness starting: cycle=$CYCLE_ID branch=$BRANCH budget=\$${TOTAL_BUDGET} profile=$PIPELINE_PROFILE"
-log "Flatline gates: ${FLATLINE_GATES:-none}  Advisor: $ADVISOR_MODEL"
+    log "Harness starting: cycle=$CYCLE_ID branch=$BRANCH budget=\$${TOTAL_BUDGET} profile=$PIPELINE_PROFILE"
+    log "Flatline gates: ${FLATLINE_GATES:-none}  Advisor: $ADVISOR_MODEL"
+}
 
 # =============================================================================
 # Claude -p Invocation Helper
@@ -411,6 +412,8 @@ _run_gate() {
 # =============================================================================
 
 main() {
+    _parse_args "$@" || exit $?
+
     local pr_url=""
     local prd_findings="" sdd_findings=""
 
@@ -545,4 +548,7 @@ main() {
     echo "$pr_url"
 }
 
-main
+# Main guard: allow sourcing for tests without executing pipeline
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi

@@ -92,10 +92,10 @@ teardown() {
     git commit -m "add secret" -q
 
     BRANCH="test-branch"
-    # This should detect the secret via regex (gitleaks not available in test env)
+    # Should detect the secret and fail (SPIRAL-006: tight assertion)
     run _pre_check_review
-    # Either FAIL from secret detection or FAIL from no allowlist
-    [[ "$status" -ne 0 || "$output" == *"secret"* ]]
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"secret"* ]]
 }
 
 # ---------------------------------------------------------------------------
@@ -124,8 +124,8 @@ ALLOWLIST
     BRANCH="test-branch"
     PROJECT_ROOT="$TEST_TMPDIR"
     run _pre_check_review
-    # Should warn but not fail (allowlist present)
-    [[ "$output" == *"allowlist present"* || "$status" -eq 0 ]]
+    # Should warn about allowlist (SPIRAL-007: verify allowlist path exercised)
+    [[ "$output" == *"allowlist present"* ]]
 }
 
 # ---------------------------------------------------------------------------
