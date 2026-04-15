@@ -1330,6 +1330,32 @@
         }
       ],
       "severity": "low"
+    },
+    {
+      "id": "C-PROC-017",
+      "name": "spiral_must_dispatch_through_harness",
+      "category": "process",
+      "rule_type": "NEVER",
+      "text": "implement code directly in conversation when `/spiraling` is invoked with a task — dispatch through `/run sprint-plan`, `/simstim`, or `spiral-harness.sh` instead",
+      "text_variants": {
+        "claude-loa-md": "NEVER implement code directly when `/spiraling` is invoked with a task — dispatch through the harness pipeline (`/run sprint-plan`, `/simstim`, or `spiral-harness.sh`)"
+      },
+      "why": "`/spiraling` loads as context, not as an orchestrator. Without mechanical dispatch, the agent bypasses all quality gates (Flatline, Review, Audit, Bridgebuilder) — the fox-guarding-the-henhouse antipattern that the harness was built to prevent.",
+      "order": 5,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "process_compliance_never",
+          "render_as": "table_row"
+        },
+        {
+          "target": "skill-md",
+          "skills": ["spiraling"],
+          "render_as": "constraint_rule"
+        }
+      ],
+      "severity": "critical",
+      "source_incident": "#506"
     }
   ]
 }
