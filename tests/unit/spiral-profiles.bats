@@ -10,9 +10,15 @@ setup() {
     # Source the real harness functions (main guard prevents execution)
     export PROJECT_ROOT
     TEST_TMPDIR="$(mktemp -d)"
+    ORIG_DIR="$PWD"
     source "$PROJECT_ROOT/.claude/scripts/spiral-evidence.sh"
     _init_flight_recorder "$TEST_TMPDIR"
     source "$PROJECT_ROOT/.claude/scripts/spiral-harness.sh"
+}
+
+teardown() {
+    cd "$ORIG_DIR"  # Restore working directory (F-008/F-011)
+    rm -rf "$TEST_TMPDIR"
 }
 
 # ---------------------------------------------------------------------------

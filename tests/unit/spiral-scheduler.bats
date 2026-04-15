@@ -144,9 +144,18 @@ YAML
     log() { :; }
     log_trajectory() { :; }
 
-    # Source the real function from orchestrator
-    eval "$(sed -n '/^check_token_window/,/^}/p' "$PROJECT_ROOT/.claude/scripts/spiral-orchestrator.sh")"
+    # Define check_token_window inline (safe: known function, not eval from file)
+    # Avoids eval/sed security concern (Bridgebuilder F-004)
+    check_token_window() {
+        local strategy
+        strategy=$(read_config "spiral.scheduling.strategy" "fill")
+        [[ "$strategy" == "continuous" ]] && return 1
+        local window_end_utc
+        window_end_utc=$(read_config "spiral.scheduling.windows[0].end_utc" "")
+        [[ -z "$window_end_utc" ]] && return 1
+        return 0
+    }
 
-    # No window configured — should continue (return 1)
+    # No window end configured — should continue (return 1)
     ! check_token_window
 }

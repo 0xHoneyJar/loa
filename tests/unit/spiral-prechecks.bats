@@ -18,6 +18,7 @@ setup() {
 }
 
 teardown() {
+    cd "$PROJECT_ROOT"  # Restore working directory (F-008)
     rm -rf "$TEST_TMPDIR"
 }
 
@@ -124,8 +125,9 @@ ALLOWLIST
     BRANCH="test-branch"
     PROJECT_ROOT="$TEST_TMPDIR"
     run _pre_check_review
-    # Should warn about allowlist (SPIRAL-007: verify allowlist path exercised)
+    # Should warn about allowlist AND pass (secret allowed through) (F-003: assert both)
     [[ "$output" == *"allowlist present"* ]]
+    [[ "$status" -eq 0 ]]
 }
 
 # ---------------------------------------------------------------------------
