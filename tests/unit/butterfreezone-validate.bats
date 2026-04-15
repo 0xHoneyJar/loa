@@ -8,6 +8,13 @@ setup() {
     SCRIPT="$PROJECT_ROOT/.claude/scripts/butterfreezone-validate.sh"
     GEN_SCRIPT="$PROJECT_ROOT/.claude/scripts/butterfreezone-gen.sh"
 
+    # Lower the word-count minimum for tests. The mock repo has trivial
+    # content, so butterfreezone-gen naturally produces ~150-word output
+    # — well below the production 500-word quality gate. Override keeps
+    # tests exercising the validator logic without requiring a large
+    # synthetic repo.
+    export LOA_BUTTERFREEZONE_MIN_WORDS=50
+
     export BATS_TMPDIR="${BATS_TMPDIR:-/tmp}"
     export TEST_TMPDIR="$BATS_TMPDIR/butterfreezone-validate-test-$$"
     mkdir -p "$TEST_TMPDIR"
@@ -33,9 +40,30 @@ teardown() {
     fi
 }
 
-# Helper: generate a valid BUTTERFREEZONE.md
+# Helper: generate a valid BUTTERFREEZONE.md.
+#
+# Also seeds two fixtures the generator doesn't produce for a trivial
+# mock repo:
+#   - .claude/data/core-skills.json (validator warns if missing)
+#   - "## Key Capabilities" section (generator skips for repos with
+#     no real capabilities to describe)
+#
+# Without these, validate exits 2 (warnings) and tests that assert
+# exit 0 fail. The additions make the fixture meet the validator's
+# "clean pass" criteria without requiring a rich synthetic repo.
 generate_valid() {
+    mkdir -p "$MOCK_REPO/.claude/data"
+    echo '{"skills":[]}' > "$MOCK_REPO/.claude/data/core-skills.json"
     "$GEN_SCRIPT" --output "$MOCK_REPO/BUTTERFREEZONE.md" 2>/dev/null
+    if ! grep -q "^## Key Capabilities" "$MOCK_REPO/BUTTERFREEZONE.md"; then
+        cat >> "$MOCK_REPO/BUTTERFREEZONE.md" <<'EOF'
+
+## Key Capabilities
+<!-- provenance: DERIVED -->
+
+- **Test fixture capability**: Placeholder capability for validator tests.
+EOF
+    fi
 }
 
 # =============================================================================
