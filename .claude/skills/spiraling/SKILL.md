@@ -4,6 +4,20 @@
 
 **When this skill is invoked with a task, you MUST dispatch through the harness pipeline. You MUST NOT implement code directly in conversation.**
 
+**MECHANICAL ENFORCEMENT**: A PreToolUse hook (`spiral-dispatch-guard.sh`) blocks Write/Edit to code files when this skill is active. To activate the guard and signal your intent to implement:
+
+```bash
+# Step 1: Activate the dispatch guard (MANDATORY before any implementation)
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > .run/spiral-dispatch-active
+```
+
+This creates a sentinel file that the hook checks. Write/Edit to code files will be BLOCKED until the harness is dispatched. The harness creates `.run/spiral-harness-dispatched` which allows writes within the pipeline.
+
+**To deactivate** (after pipeline completes or for research-only invocations):
+```bash
+rm -f .run/spiral-dispatch-active .run/spiral-harness-dispatched
+```
+
 Route to ONE of:
 1. `/simstim` — for full HITL cycle: plan→build→review→audit (recommended)
 2. `/run sprint-plan` — if a sprint plan already exists

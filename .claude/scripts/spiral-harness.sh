@@ -185,6 +185,10 @@ _parse_args() {
 
     _auto_escalate_profile "$TASK"
 
+    # Signal to dispatch guard hook that harness is running (mechanical enforcement)
+    echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) pid=$$ cycle=$CYCLE_ID" > "${PROJECT_ROOT:-.}/.run/spiral-harness-dispatched"
+    trap 'rm -f "${PROJECT_ROOT:-.}/.run/spiral-harness-dispatched" "${PROJECT_ROOT:-.}/.run/spiral-dispatch-active"' EXIT
+
     log "Harness starting: cycle=$CYCLE_ID branch=$BRANCH budget=\$${TOTAL_BUDGET} profile=$PIPELINE_PROFILE"
     log "Flatline gates: ${FLATLINE_GATES:-none}  Advisor: $ADVISOR_MODEL"
 }
