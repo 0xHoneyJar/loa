@@ -330,6 +330,12 @@ validate_min_words() {
     local total_words min_words
     total_words=$(wc -w < "$FILE" 2>/dev/null | tr -d ' ')
     min_words="${LOA_BUTTERFREEZONE_MIN_WORDS:-500}"
+    # Guard against misuse: reject 0, negative, empty, or non-numeric values.
+    # Falls back to the production default (500) so the quality gate cannot
+    # be silently disabled by exporting LOA_BUTTERFREEZONE_MIN_WORDS=0 or a
+    # malformed value. Only positive integers are accepted. (Addresses post-
+    # hoc review finding MEDIUM on PR #527.)
+    [[ "$min_words" =~ ^[1-9][0-9]*$ ]] || min_words=500
 
     if (( total_words < min_words )); then
         log_fail "min_words" "Output too sparse: $total_words words (minimum: $min_words)" "sparse: $total_words < $min_words"
