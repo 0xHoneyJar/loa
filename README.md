@@ -33,7 +33,7 @@ In William Gibson's Sprawl trilogy (*Neuromancer*, *Count Zero*), Loa are AI ent
 > - **Simstim** — HITL-accelerated full cycle (~$25–65 per cycle, Opus + GPT-5.3-codex + Gemini)
 > - **Spiral** — autonomous multi-cycle orchestrator (~$10–35 per cycle depending on profile)
 >
-> These features are **disabled by default**. See [`docs/CONFIG_REFERENCE.md`](docs/CONFIG_REFERENCE.md#cost-matrix) for the full cost table. Run `/loa setup` inside Claude Code before enabling autonomous modes to choose a budget-appropriate configuration.
+> **Flatline Protocol** and **Simstim** are **enabled by default** but require API keys (`OPENAI_API_KEY`, `GOOGLE_API_KEY`) to function — without them, multi-model review phases are skipped. **Spiral** is **disabled by default** and must be explicitly enabled. See [`docs/CONFIG_REFERENCE.md`](docs/CONFIG_REFERENCE.md#cost-matrix) for the full cost table. Run `/loa setup` inside Claude Code before enabling autonomous modes to choose a budget-appropriate configuration.
 
 ```bash
 # Install (one command, any existing repo — adds Loa as git submodule)

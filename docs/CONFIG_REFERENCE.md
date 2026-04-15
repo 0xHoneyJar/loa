@@ -24,6 +24,8 @@ All price estimates assume the models and token volumes documented in the **Pric
 
 > [!NOTE]
 > All costs are approximate and based on Anthropic, OpenAI, and Google published pricing as of 2026-04-15. Actual costs depend on your specific usage patterns, context sizes, and model API pricing which changes over time. Recheck before large commitments — see [Pricing Footnotes](#pricing-footnotes).
+>
+> Model names in this document (Opus 4.6, Sonnet 4.6, GPT-5.3-codex, Gemini 2.5 Pro) reflect the models configured in Hounfour at the time of writing. Your actual models depend on your `.loa.config.yaml` settings and `model-adapter.sh` registry. If model names or pricing have changed, update the Hounfour config and refer to your provider's current pricing page.
 
 | Feature | Per-Invocation Low | Per-Invocation High | Models Used | Monthly at Moderate Workflow[^1] |
 |---------|-------------------|---------------------|-------------|----------------------------------|
@@ -83,7 +85,7 @@ flowchart TD
 | Solo/Team | $50–$200/mo | Fully auto | `spiral` (standard) + `run_bridge` |
 | Any | $200+/mo | Fully auto | All features + `hounfour` metering with daily cap |
 
-> **Always set a budget cap.** Enable `hounfour.metering.enabled: true` and set `hounfour.metering.budget.daily_micro_usd` before running autonomous modes overnight. See [`### hounfour`](#hounfour) for setup.
+> **Always set a budget cap appropriate for your usage tier.** Enable `hounfour.metering.enabled: true` and set `hounfour.metering.budget.daily_micro_usd` before running autonomous modes overnight. Recommended values: `1000000` ($1/day) for solo $0–10/mo tier, `10000000` ($10/day, the default) for moderate use, `50000000` ($50/day) for active autonomous workflows. See [`### hounfour`](#hounfour) for setup.
 
 Run `/loa setup` to have the wizard walk you through this decision interactively.
 
@@ -214,13 +216,13 @@ See individual skill costs: Flatline ($15–25/planning cycle), Bridgebuilder ($
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `flatline_routing` | bool | `false` | Route Flatline through Hounfour provider selection |
+| `flatline_routing` | bool | `false` | Route Flatline through Hounfour provider selection (canonical key) |
 | `feature_flags.metering` | bool | `true` | Enable BudgetEnforcer cost tracking |
 | `feature_flags.google_adapter` | bool | `true` | Enable Google provider |
-| `feature_flags.flatline_routing` | bool | `false` | Route Flatline via Hounfour |
+| `feature_flags.flatline_routing` | bool | `false` | Alias for top-level `flatline_routing` — top-level key takes precedence if both are set |
 | `metering.enabled` | bool | `true` | Enable cost tracking |
 | `metering.ledger_path` | string | `.run/cost-ledger.jsonl` | JSONL append-only cost ledger |
-| `metering.budget.daily_micro_usd` | int | `500000000` | Daily budget cap in micro-USD ($500/day) |
+| `metering.budget.daily_micro_usd` | int | `10000000` | Daily budget cap in micro-USD ($10/day) |
 | `metering.budget.warn_at_percent` | int | `80` | Warn when spend exceeds this % of daily budget |
 | `metering.budget.on_exceeded` | string | `"downgrade"` | Action when budget exceeded: `block`, `downgrade`, `warn` |
 
@@ -232,6 +234,7 @@ No direct API cost. Hounfour is a routing and metering layer. Cost comes from th
 
 - Misconfigured `daily_micro_usd: 0` will block all API calls immediately. Use a nonzero value.
 - `on_exceeded: block` will hard-stop autonomous workflows mid-cycle if budget is hit.
+- The default daily cap of $10/day is conservative. Solo developers running occasional Flatline reviews will stay well within this. If you run autonomous overnight workflows (Spiral, Run Bridge), you may need to raise it — `50000000` ($50/day) is reasonable for active autonomous use, `500000000` ($500/day) for enterprise with heavy multi-cycle Spiral runs.
 
 #### Risks if disabled
 
@@ -314,8 +317,8 @@ No external API calls. Vision matching is local tag overlap. Only `propose_requi
 | `default_max_cycles` | int | `3` | Cycle budget per spiral run |
 | `flatline.min_new_findings_per_cycle` | int | `3` | Minimum new findings before kaironic termination |
 | `flatline.consecutive_low_cycles` | int | `2` | Consecutive low-finding cycles before stopping |
-| `budget_cents` | int | `2000` | Cost budget in cents ($20). Safety floor: 10000 ($100 max) |
-| `wall_clock_seconds` | int | `28800` | Max wall-clock time (8h). Safety floor: 86400 (24h max) |
+| `budget_cents` | int | `2000` | Cost budget in cents ($20). Hard ceiling: 10000 ($100) — values above are clamped |
+| `wall_clock_seconds` | int | `28800` | Max wall-clock time (8h). Hard ceiling: 86400 (24h) — values above are clamped |
 | `seed.enabled` | bool | `false` | Pull prior cycle outputs into discovery context |
 | `halt_sentinel` | string | `.run/spiral-halt` | Create this file to halt gracefully mid-spiral |
 | `harness.enabled` | bool | `true` | Use evidence-gated harness (required for quality gates) |
@@ -439,7 +442,7 @@ Models: Opus 4.6 (Bridgebuilder review), GPT-5.3-codex (cross-review dissent).
 | `phases.audit.min_severity` | string | `"medium"` | Skip findings below this severity |
 | `phases.context_clear.enabled` | bool | `true` | Clear context for fresh-eyes review |
 | `phases.e2e.enabled` | bool | `true` | E2E testing with fresh context |
-| `phases.flatline.enabled` | bool | `false` | Optional Flatline PR review (~$1.50) |
+| `phases.flatline.enabled` | bool | `false` | Optional Flatline PR review (~$5–15 depending on diff size) |
 | `phases.flatline.mode` | string | `"hitl"` | `hitl` or `autonomous` |
 | `phases.bridgebuilder_review.enabled` | bool | `false` | Post-PR Bridgebuilder loop (opt-in) |
 | `phases.bridgebuilder_review.auto_triage_blockers` | bool | `true` | Auto-dispatch `/bug` for BLOCKER findings |
@@ -656,7 +659,7 @@ Models: Opus 4.6 (primary), GPT-5.3-codex (secondary/cross-review).
 
 #### Risks if enabled
 
-- `secret_scanning.enabled: false` would send raw code to OpenAI — never disable.
+- `secret_scanning.enabled: false` would send raw code to OpenAI — **never disable**. This is a security invariant, not a user preference. The `/loa setup` wizard refuses to set this to `false`, and the Flatline orchestrator logs a CRITICAL warning if it detects this value is `false` at runtime. A future version will hardcode this as always-on.
 - BLOCKER findings halt autonomous workflows until resolved.
 - `max_iterations: 5` creates a loop that may be long for complex documents.
 

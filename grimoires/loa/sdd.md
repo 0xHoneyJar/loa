@@ -1,21 +1,34 @@
-# SDD: Spiral Cost Optimization + Mechanical Dispatch
+# SDD: Config Documentation + Onboarding Wizard
 
-**Cycle**: 072
+**Cycle**: 073
+**Issue**: #510
 **PRD**: `grimoires/loa/prd.md`
 **Date**: 2026-04-15
+**Status**: Draft
 
 ---
 
 ## Bridgebuilder Design Review Integrations
 
+_PRD is in Draft status. No Flatline review has been run yet. This table will be populated after the first bridge review of this SDD._
+
 | Finding | Severity | Resolution |
 |---------|----------|------------|
-| CRITICAL-1: Rate-limit header data path doesn't exist (flatline-orchestrator.sh not authorized) | CRITICAL | Descoped to local-accounting fallback. Headers deferred to follow-up cycle requiring flatline-orchestrator.sh modification. AC-13 rewritten. |
-| HIGH-1: Auto-escalation fires too late to add Flatline gates retroactively | HIGH | Fixed: classify at startup from task keywords + sprint plan references, not post-implementation git diff. Section 2.2 revised. |
-| HIGH-2: Dual cost-tracking (orchestrator vs harness) with no reconciliation | HIGH | Fixed: defined cost authority boundary. Harness writes cycle cost to sidecar, orchestrator reads it. Section 2.4 revised. |
-| REFRAME-1: "Mechanical dispatch" is three layers of asking nicely | REFRAME | AC-1 rewritten to "three-layer soft enforcement with negative test." Hard gate (PreToolUse hook) noted as future work. |
-| PRAISE-1: Pre-checks are exactly right | PRAISE | Shipped as designed. |
-| SPECULATION-1: Profiles may be premature abstraction | SPECULATION | Kept as DX convenience; documented as syntactic sugar over `flatline_gates` + `advisor_model` primitives. |
+| — | — | — |
+
+---
+
+## Open Question Resolutions
+
+The PRD surface five open questions. All are resolved here before architecture begins.
+
+| # | Question | Resolution |
+|---|----------|------------|
+| OQ-1 | Where does CONFIG_REFERENCE.md live? | `docs/CONFIG_REFERENCE.md`. Create `docs/` as the user-facing documentation directory. Distinct from agent-facing `.claude/loa/reference/`. |
+| OQ-2 | How is `/loa` ambient output generated? | The `loa` skill's SKILL.md drives the output. FR-4 is implemented by adding a "Cost Awareness" section to `SKILL.md` that instructs Claude to read `.loa.config.yaml` for expensive feature flags and surface cost lines conditionally. No separate script is required. |
+| OQ-3 | Template or patch for config generation? | Section-based template approach. The wizard builds a YAML document section by section from canonical templates (one per feature) and writes them together. Idempotency is handled by loading the existing file, preserving unchanged sections verbatim, and only inserting/replacing sections the user confirmed. |
+| OQ-4 | Monthly workflow assumption? | 2 planning cycles/week, 4 PRs/week as stated in PRD. Flagged as "assumed moderate workflow" in the cost matrix with instructions to recalibrate after maintainer confirmation (NFR-2 timestamp requirement). |
+| OQ-5 | Extend RTFM scope to `docs/`? | Yes. The `rtfm-testing` skill scope extends to `docs/` in this cycle. This is a SKILL.md-only change (no script modification needed); the skill reads the target path from the invocation context. |
 
 ---
 
@@ -23,434 +36,531 @@
 
 ### 1.1 Component Overview
 
+This cycle is **documentation-only** — no pipeline behavior changes. All five deliverables are content or skill-instruction files.
+
 ```
-User invokes /spiraling with task
-  │
-  ├── SKILL.md dispatch guard (agent-level, layer 1)
-  │     "You MUST invoke spiral-harness.sh"
-  │
-  ├── C-PROC-017 constraint (agent-level, layer 2)
-  │     "NEVER implement directly"
-  │
-  └── spiral-harness.sh (mechanical, layer 3)
-        │
-        ├── Profile resolver (full/standard/light)
-        │     └── Auto-escalation classifier
-        │
-        ├── Pipeline phases (conditional on profile)
-        │     ├── DISCOVERY → claude -p (PRD)
-        │     ├── GATE: Flatline PRD [if profile=full]
-        │     ├── ARCHITECTURE → claude -p (SDD)
-        │     ├── GATE: Flatline SDD [if profile=full]
-        │     ├── PLANNING → claude -p (Sprint)
-        │     ├── GATE: Flatline Sprint [if profile=full|standard]
-        │     ├── PRE-CHECK: implementation artifacts
-        │     ├── IMPLEMENTATION → claude -p (code)
-        │     ├── PRE-CHECK: review readiness + secret scan
-        │     ├── REVIEW → claude -p (fresh session, advisor model)
-        │     └── AUDIT → claude -p (fresh session, advisor model)
-        │
-        ├── PR creation (idempotent — check before create)
-        ├── Bridgebuilder (advisory)
-        └── Flight recorder (append-only JSONL with profile + rate-limit data)
+Deliverable 1: docs/CONFIG_REFERENCE.md (new file)
+  ├── Cost Matrix table (10 features, approximate ranges)
+  ├── Decision Guide (Mermaid flowchart)
+  ├── 11 primary sections (simstim → flatline_protocol)
+  └── 13 secondary sections
 
-spiral-scheduler.sh (cron/trigger entry point)
+Deliverable 2: .claude/skills/loa-setup/SKILL.md (new skill)
   │
-  ├── Window check (or continuous bypass)
-  ├── flock-based exclusive lock
-  ├── Resume HALTED or start new
-  └── spiral-orchestrator.sh --start/--resume
-        └── check_token_window() stopping condition
-        └── check_rate_limit() stopping condition
+  ├── Phase 1: Environment Detection (non-interactive)
+  │     ├── loa-setup-check.sh --json (existing script, read-only)
+  │     ├── API key presence check (boolean, no values logged)
+  │     └── .loa.config.yaml existence check → idempotency branch
+  │
+  ├── Phase 2: Profile Questionnaire (≤6 questions, ≤10 turns total)
+  │     ├── Q1: Usage tier (solo / small team / enterprise)
+  │     ├── Q2: Monthly budget tier ($0-10 / $10-50 / $50-200 / $200+)
+  │     ├── Q3: Workflow pace (HITL / semi-auto / full-auto)
+  │     ├── Q4: API keys confirmed (from Phase 1 detection)
+  │     ├── Q5: Quality posture (must-have / nice-to-have / not needed)
+  │     └── Q6: Scheduling (only if budget ≥ $50/month)
+  │
+  ├── Phase 3: Config Generation
+  │     ├── Profile → feature set mapping (see §3.2)
+  │     ├── Cost summary display (per enabled feature ≥$5)
+  │     ├── Confirmation gate before any write
+  │     ├── Idempotency: section diff for existing config
+  │     └── yq YAML validation before writing
+  │
+  └── Phase 4: Post-Config Explanation
+        ├── Feature summary (enabled / disabled)
+        ├── Next-step command guidance
+        └── Link to docs/CONFIG_REFERENCE.md
 
-spiral-benchmark.sh (comparison tool)
-  └── Reads two flight-recorder.jsonl files → Markdown report
+Deliverable 3: README.md update (existing file, additive)
+  └── > [!WARNING] "Before You Spend" callout in Quick Start
+
+Deliverable 4: .claude/skills/loa/SKILL.md update (existing skill, additive)
+  └── Cost-awareness section: conditional cost lines from .loa.config.yaml
+
+Deliverable 5: SKILL.md updates — 5 existing skills (additive ## Cost sections)
+  ├── .claude/skills/simstim-workflow/SKILL.md
+  ├── .claude/skills/spiraling/SKILL.md
+  ├── .claude/skills/run-bridge/SKILL.md
+  ├── .claude/skills/red-teaming/SKILL.md
+  └── .claude/skills/run-mode/SKILL.md
 ```
 
 ### 1.2 File Map
 
-| File | Action | Lines (est.) | Purpose |
-|------|--------|-------------|---------|
-| `.claude/scripts/spiral-harness.sh` | Modify | +120 | Pipeline profiles, auto-escalation, pre-checks, idempotent PR, rate-limit logging |
-| `.claude/scripts/spiral-evidence.sh` | Modify | +80 | Pre-check functions, secret scanning, rate-limit header parsing |
-| `.claude/scripts/spiral-orchestrator.sh` | Modify | +40 | `check_token_window()`, `check_rate_limit()` stopping conditions |
-| `.claude/scripts/spiral-scheduler.sh` | New | ~160 | Scheduling wrapper with flock, window check, resume/start logic |
-| `.claude/scripts/spiral-benchmark.sh` | New | ~120 | Flight recorder comparison → Markdown report |
-| `.claude/skills/spiraling/SKILL.md` | Modify | +60 | Mechanical dispatch instructions, profiles, scheduling docs |
-| `.claude/skills/spiraling/index.yaml` | Modify | +10 | Add task input, profile input, harness script reference |
-| `.loa.config.yaml` | Modify | +15 | Pipeline profile, scheduling config |
-| `.loa.config.yaml.example` | Modify | +40 | Full documented config sections |
-| `tests/unit/spiral-profiles.bats` | New | ~150 | Profile resolution, auto-escalation, gate skipping |
-| `tests/unit/spiral-prechecks.bats` | New | ~120 | Pre-check functions, secret scanning |
-| `tests/unit/spiral-scheduler.bats` | New | ~100 | Scheduler logic, window check, locking |
-| `tests/unit/spiral-benchmark.bats` | New | ~80 | Benchmark comparison tool |
+| File | Action | Purpose |
+|------|--------|---------|
+| `docs/CONFIG_REFERENCE.md` | New | Comprehensive configuration reference with cost matrix |
+| `.claude/skills/loa-setup/SKILL.md` | New | Wizard skill instructions |
+| `.claude/skills/loa-setup/index.yaml` | New | Skill registration metadata |
+| `README.md` | Modify (+~15 lines) | Add "Before You Spend" callout in Quick Start |
+| `.claude/skills/loa/SKILL.md` | Modify (+~20 lines) | Add cost-awareness section for `/loa` ambient |
+| `.claude/skills/simstim-workflow/SKILL.md` | Modify (+~100 words) | Add `## Cost` section |
+| `.claude/skills/spiraling/SKILL.md` | Modify (+~100 words) | Add `## Cost` section |
+| `.claude/skills/run-bridge/SKILL.md` | Modify (+~100 words) | Add `## Cost` section |
+| `.claude/skills/red-teaming/SKILL.md` | Modify (+~100 words) | Add `## Cost` section |
+| `.claude/skills/run-mode/SKILL.md` | Modify (+~100 words) | Add `## Cost` section |
+
+No scripts are created or modified. No pipeline behavior changes.
 
 ---
 
 ## 2. Component Design
 
-### 2.1 Pipeline Profile Resolver
+### 2.1 CONFIG_REFERENCE.md Document Structure
 
-**Location**: `spiral-harness.sh`, after config read, before argument parsing
+The document follows a strict section order matching `.loa.config.yaml.example` (FR-1.2). Each section is self-contained so users can navigate directly to the key they are configuring.
 
-```bash
-# Profile resolution: config default → CLI override → auto-escalation
-PIPELINE_PROFILE=$(_read_harness_config "spiral.harness.pipeline_profile" "standard")
+**Document skeleton (in order)**:
 
-_resolve_profile() {
-    case "$PIPELINE_PROFILE" in
-        full)    FLATLINE_GATES="prd,sdd,sprint" ;;
-        standard) FLATLINE_GATES="sprint" ;;
-        light)   FLATLINE_GATES=""; ADVISOR_MODEL="$EXECUTOR_MODEL" ;;
-        *)       PIPELINE_PROFILE="standard"; FLATLINE_GATES="sprint" ;;
-    esac
-}
+```
+# Loa Configuration Reference
 
-_should_run_flatline() {
-    local phase="$1"
-    [[ ",$FLATLINE_GATES," == *",$phase,"* ]]
-}
+> _Pricing verified: YYYY-MM-DD. Prices change — recheck before large commitments._
+
+## Overview
+
+## Cost Matrix
+
+| Feature | Per-Invocation Low | Per-Invocation High | Models | Monthly at Moderate Workflow |
+...
+
+## Decision Guide
+
+[Mermaid flowchart or decision table]
+
+## Primary Sections
+
+### simstim
+### run_mode
+### hounfour
+### vision_registry
+### spiral
+### run_bridge
+### post_pr_validation
+### prompt_isolation
+### continuous_learning
+### red_team
+### flatline_protocol
+
+### Safety Hooks (reference — not a YAML key)
+
+## Secondary Sections
+
+### paths
+### ride
+### plan_and_analyze
+### interview
+### autonomous_agent
+### workspace_cleanup
+### goal_traceability
+### effort
+### context_editing
+### memory_schema
+### skills
+### oracle
+### visual_communication
+### butterfreezone
+### bridgebuilder_design_review
+
+## Pricing Footnotes
 ```
 
-### 2.2 Auto-Escalation Classifier
-
-**Location**: `spiral-harness.sh`, after profile resolution, uses task description + git state
-
-```bash
-_auto_escalate_profile() {
-    local task="$1"
-    local escalation_reason=""
-    
-    # Pattern-based escalation from task description
-    if echo "$task" | grep -qiE 'auth|crypto|secret|token|key|cert|permission'; then
-        escalation_reason="security-keyword-in-task"
-    fi
-    
-    # File-pattern escalation from git state (if branch exists)
-    if git diff "main...${BRANCH}" --name-only 2>/dev/null | \
-        grep -qiE '(auth|crypto|secrets|\.claude/scripts|\.claude/protocols|schema\.json|migrations|deploy)'; then
-        escalation_reason="security-path-in-diff"
-    fi
-    
-    if [[ -n "$escalation_reason" && "$PIPELINE_PROFILE" != "full" ]]; then
-        log "Auto-escalating profile: $PIPELINE_PROFILE → full (reason: $escalation_reason)"
-        _record_action "CONFIG" "auto-escalation" "profile_escalated" "" "" "" 0 0 0 \
-            "from=$PIPELINE_PROFILE to=full reason=$escalation_reason"
-        PIPELINE_PROFILE="full"
-        _resolve_profile
-    fi
-}
-```
-
-**Timing** (revised per Bridgebuilder HIGH-1): Both checks run at startup, BEFORE any Flatline gates:
-- Task-keyword check: runs immediately from `$TASK` string
-- Sprint-plan path check: if `grimoires/loa/sprint.md` exists, scan it for security-path references
-- Post-implementation verification: after implementation, if git diff touches escalation paths that weren't caught at startup, log a WARNING to flight recorder (advisory, does not retroactively add gates)
-
-This ensures escalation from `light` → `full` adds all three Flatline gates before any are skipped.
-
-### 2.3 Deterministic Pre-Checks
-
-**Location**: `spiral-evidence.sh`, new section before Finalization
-
-**`_pre_check_implementation()`**:
-- Validates: prd.md exists, sdd.md exists, sprint.md exists
-- Validates: sprint.md contains `- [` checkbox pattern (AC present)
-- Returns: 0 (pass) or 1 (fail)
-- Records: `PRE_CHECK` action to flight recorder
-
-**`_pre_check_review()`**:
-- Validates: commits ahead of main > 0
-- Validates: git diff non-empty
-- Warns: no test files in diff (non-blocking)
-- Blocks: secret scan match
-- Secret scanning chain:
-  1. `gitleaks detect --no-git --source <(git diff main...HEAD)` if available
-  2. `trufflehog filesystem --directory . --since-commit main` if available
-  3. Regex fallback: `grep -qiE '(password|secret|api_key|private_key)\s*[:=]\s*["\x27][^"\x27]{8,}'`
-  4. Allowlist: skip matches found in `.claude/data/secret-scan-allowlist.txt`
-- Returns: 0 (pass) or 1 (fail with issue count)
-- Records: `PRE_CHECK` action to flight recorder with PASS/FAIL and detail
-
-### 2.4 Cost Tracking & Rate-Limit Awareness
-
-**Cost authority boundary** (revised per Bridgebuilder HIGH-2):
-- **Harness** (`spiral-harness.sh`): owns within-cycle cost. Tracks via `_get_cumulative_cost()` in flight recorder. Enforces per-phase budget caps.
-- **Orchestrator** (`spiral-orchestrator.sh`): owns cross-cycle cost. Reads harness cost from cycle outcome sidecar (`.run/cycles/{id}/cycle-cost.json`). Enforces spiral-level budget.
-- **Reconciliation**: At cycle end, harness writes `cycle-cost.json` with total spend. Orchestrator reads it and adds to cumulative `budget.cost_cents` in spiral state.
-
-```bash
-# Harness writes at finalization:
-jq -n --argjson cost "$total_cost" '{cycle_cost_usd: $cost, source: "flight_recorder"}' \
-    > "$CYCLE_DIR/cycle-cost.json"
-```
-
-**Rate-limit tracking** (revised per Bridgebuilder CRITICAL-1):
-- `flatline-orchestrator.sh` does not currently expose Anthropic response headers, and modifying it is out of scope for this cycle (not in FR-6 authorized file list).
-- **This cycle**: Rate-limit awareness uses local token accounting only — cumulative cost from flight recorder as budget guard via existing `_check_budget()`.
-- **Future cycle**: Modify `flatline-orchestrator.sh` to pass `--dump-header` and expose headers to caller. Then `_parse_rate_limit_headers()` can provide real-time data.
-- The `rate_limit_exhausted` stopping condition is **deferred** — it requires header data. For now, `cost_budget_exhausted` serves as the budget safety net.
-
-**What ships this cycle**: Local cost accounting, per-phase budget caps, cross-cycle cost reconciliation via sidecar file. No Anthropic header parsing.
-
-### 2.5 Idempotent PR Creation
-
-**Location**: `spiral-harness.sh`, replace current PR creation block
-
-```bash
-# Check if PR already exists for this branch
-existing_pr=$(gh pr list --head "$BRANCH" --json number,url --jq '.[0].url // empty' 2>/dev/null)
-
-if [[ -n "$existing_pr" ]]; then
-    pr_url="$existing_pr"
-    log "Reusing existing PR: $pr_url"
-    # Update PR body with latest flight recorder summary
-    local pr_number
-    pr_number=$(echo "$pr_url" | grep -oE '[0-9]+$')
-    gh api "repos/{owner}/{repo}/pulls/$pr_number" -X PATCH \
-        -f body="Autonomous spiral cycle (updated). Profile: $PIPELINE_PROFILE. See flight recorder." \
-        --jq '.html_url' 2>/dev/null || true
-    _record_action "PR_CREATION" "gh-cli" "reused_pr" "" "" "" 0 0 0 "$pr_url"
-else
-    pr_url=$(gh pr create --title "..." --body "..." --draft 2>/dev/null || true)
-    # ... existing creation logic
-fi
-```
-
-### 2.6 Scheduler with flock Locking
-
-**Location**: `spiral-scheduler.sh` (new file)
-
-Uses the existing `flatline-lock.sh` pattern for flock-based locking:
-
-```bash
-LOCK_FILE="${PROJECT_ROOT:-.}/.run/spiral-scheduler.lock"
-LOCK_TIMEOUT=60  # seconds
-
-# Acquire exclusive lock
-exec 200>"$LOCK_FILE"
-if ! flock -w "$LOCK_TIMEOUT" 200; then
-    # Check if lock holder is alive
-    local holder_pid
-    holder_pid=$(cat "$LOCK_FILE.pid" 2>/dev/null || echo "")
-    if [[ -n "$holder_pid" ]] && ! kill -0 "$holder_pid" 2>/dev/null; then
-        log "Stale lock from dead PID $holder_pid, reclaiming"
-        flock -w 5 200 || { error "Cannot reclaim lock"; exit 3; }
-    else
-        log "Lock held by PID $holder_pid, exiting"
-        exit 3
-    fi
-fi
-echo "$$" > "$LOCK_FILE.pid"
-trap 'rm -f "$LOCK_FILE.pid"; exec 200>&-' EXIT
-```
-
-### 2.7 Token Window Stopping Condition
-
-**Location**: `spiral-orchestrator.sh`, alongside existing stopping conditions
-
-```bash
-check_token_window() {
-    local strategy
-    strategy=$(read_config "spiral.scheduling.strategy" "fill")
-    [[ "$strategy" == "continuous" ]] && return 1  # Never triggers
-
-    local window_end_utc
-    window_end_utc=$(read_config "spiral.scheduling.windows[0].end_utc" "")
-    [[ -z "$window_end_utc" ]] && return 1  # No window configured
-
-    # Parse HH:MM into today's epoch (macOS + Linux compat)
-    local today_date now_epoch end_epoch
-    today_date=$(date -u +%Y-%m-%d)
-    now_epoch=$(date -u +%s)
-    end_epoch=$(date -u -d "${today_date}T${window_end_utc}:00Z" +%s 2>/dev/null \
-        || date -u -j -f "%Y-%m-%dT%H:%MZ" "${today_date}T${window_end_utc}Z" +%s 2>/dev/null \
-        || echo "0")
-    [[ "$end_epoch" -eq 0 ]] && return 1
-    [[ "$now_epoch" -ge "$end_epoch" ]]
-}
-```
-
-**Evaluation order** in `evaluate_stopping_conditions()`:
-1. `hitl_halt` (immediate operator override)
-2. `quality_gate_failure` (both gates failed)
-3. `cycle_budget_exhausted` (max cycles)
-4. `flatline_convergence` (plateau)
-5. `cost_budget_exhausted` (dollar limit)
-6. `wall_clock_exhausted` (time limit)
-7. `token_window_exhausted` (scheduling window end) — **new**
-
-Note: `rate_limit_exhausted` is **deferred** — requires Anthropic header data from `flatline-orchestrator.sh` modification (future cycle).
-
-### 2.8 Benchmark Comparison Tool
-
-**Location**: `spiral-benchmark.sh` (new file)
-
-**Input**: Two flight recorder JSONL paths
-**Output**: Markdown comparison to stdout (redirect to file)
-
-**Comparison dimensions**:
-
-| Dimension | Source | Comparison Method |
-|-----------|--------|-------------------|
-| Phase durations | `duration_ms` per entry | Side-by-side table |
-| Costs | `cost_usd` per entry | Sum + per-phase |
-| Gate verdicts | `verdict` field | Present/absent/value |
-| Blocker counts | Flatline `high=N blockers=M` | Numeric comparison |
-| Retry counts | Count of same-phase entries | Numeric |
-| Profile used | CONFIG action `profile=X` | String comparison |
-| Evidence artifacts | Count of files in evidence dir | Numeric |
-| Code output | Git diff stat (if branches available) | Lines added/removed |
-
-**For PR #506 comparison**: Since #506 has no flight recorder (raw-Claude), the benchmark tool handles missing data gracefully — reports "N/A" for absent dimensions and highlights the gap.
-
-### 2.9 Mechanical Dispatch in SKILL.md
-
-The spiraling skill cannot execute bash directly — it's loaded as context for the agent. The mechanical dispatch works via explicit instruction at the top of SKILL.md:
+**Per-section entry template** (FR-1.1):
 
 ```markdown
-## DISPATCH GUARD — READ THIS FIRST
+### section_name
 
-When this skill is invoked with a task, execute:
+> **ELI5**: [≤3 sentences, plain English, no jargon]
 
-\```bash
-.claude/scripts/spiral-harness.sh \
-  --task "$TASK" \
-  --cycle-dir .run/cycles/cycle-072 \
-  --cycle-id cycle-072 \
-  --branch feat/spiral-cost-opt-cycle-072 \
-  --budget 15 \
-  --profile standard
-\```
+**Version introduced**: vX.Y.Z / cycle-NNN
+**Recommendation**: [Recommended for all | Recommended for teams | Power user / opt-in | Experimental]
+**Default**: [value and rationale]
 
-Do NOT implement in conversation. Route through the harness.
+> **Cost Warning**: [For features ≥$5/invocation only — includes provider list, estimated range, hounfour.metering pointer]
+
+#### Sub-keys
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+
+#### Cost
+- **Per invocation**: $X–$Y
+- **Monthly (moderate workflow)**: $X–$Y
+- **Models used**: [list]
+
+#### Risks if enabled
+- [bullet list]
+
+#### Risks if disabled
+- [bullet list]
+
+#### Setup requirements
+- [bullet list]
+
+#### See also
+- Protocol: [path if exists]
+- Reference: [path if exists]
+- Skill: [path if exists]
 ```
 
-**Why this is "mechanical enough"**: The agent reads the SKILL.md and sees an explicit bash command to execute. Combined with C-PROC-017 (NEVER rule) and the PR #507 guard, there are three independent layers that must all fail for bypass to occur. The negative test (AC-26) verifies the guard fires.
+### 2.2 Decision Guide Flowchart
+
+The Decision Guide is a Mermaid `flowchart TD` that routes users from a starting question to a recommended feature set. It uses the same three axes as the wizard questionnaire (usage tier, budget, workflow pace).
+
+```
+Start
+  → Solo developer? → Budget < $50/month? → HITL workflow?
+    → Recommended: beads + prompt_enhancement + run_mode (HITL)
+    → Semi/auto workflow? → Recommended: add simstim
+  → Small team? → ...
+  → Enterprise? → Recommended: full feature set (all quality gates enabled)
+```
+
+The flowchart renders in GitHub Markdown preview (AC: renders correctly in GH preview). If Mermaid fails to render, a fallback decision table covers the same content.
+
+### 2.3 `/loa setup` Wizard Phases
+
+#### Phase 1: Environment Detection
+
+Runs non-interactively. Claude executes `loa-setup-check.sh --json` via Bash tool and parses the JSONL output. Detection results:
+
+- `anthropic_key_present`: boolean (from step 1 in check script)
+- `openai_key_present`: `OPENAI_API_KEY` env var set (boolean)
+- `google_key_present`: `GOOGLE_API_KEY` env var set (boolean)
+- `beads_installed`: boolean
+- `ck_installed`: boolean
+- `yq_installed`: boolean (required for config validation)
+- `config_exists`: `.loa.config.yaml` file presence
+- `required_deps_ok`: jq, yq, git all present (from step 2)
+
+If `config_exists: true`, the wizard branches into idempotency mode (§2.3.5).
+
+API key detection uses a simple env var presence check via `loa-setup-check.sh`. Claude never reads, echoes, or logs key values — only the boolean output from the script is consumed.
+
+#### Phase 2: Profile Questionnaire
+
+Questions are presented one at a time (FR-2.3). Questions 4 and 6 are conditional:
+
+```
+Q1: Usage tier
+  Answer gates: team features in recommendation (agent teams, post_pr_validation)
+
+Q2: Budget tier
+  Answer gates: which expensive features (≥$5/invocation) are offered
+  - $0-$10/month:  no expensive features recommended
+  - $10-$50/month: run_mode (HITL) + run_bridge (depth 1)
+  - $50-$200/month: add flatline_protocol, simstim
+  - $200+/month:   add spiral, red_team
+
+Q3: Workflow pace
+  Answer maps to config values:
+  - HITL → run_mode.enabled: true, simstim.enabled: false, spiral.enabled: false
+  - Semi-auto → run_mode.enabled: true, simstim.enabled: true, spiral.enabled: false
+  - Fully auto → all three enabled
+
+Q4: API keys confirmation (conditional — only asked if Q2 budget ≥ $10/month)
+  Pre-populated from Phase 1 detection results.
+  User confirms which providers to wire into hounfour routing.
+  Only shown if at least one key was detected.
+
+Q5: Quality posture
+  Maps to: flatline_protocol.enabled, red_team.enabled
+  - must-have  → both enabled (gated by budget from Q2)
+  - nice-to-have → flatline_protocol only (gated by budget)
+  - not needed  → both disabled
+
+Q6: Off-hours scheduling (conditional — only asked if Q2 budget ≥ $50/month)
+  Maps to: spiral.scheduling.enabled
+```
+
+Maximum turns to reach config generation: 6 questions + 1 confirmation = 7 turns (well within NFR-3 ≤10).
+
+#### Phase 3: Config Generation
+
+**Feature set derivation** (see §3.2 for full mapping table):
+
+1. Take answers from Q1–Q6
+2. Look up each answer in the Profile → Feature matrix
+3. For each enabled feature, load the canonical section template (see §3.3)
+4. Assemble sections in YAML key order matching `.loa.config.yaml.example`
+
+**Pre-write display**:
+
+Before writing any file, Claude displays a human-readable summary:
+- One line per enabled feature: `[ENABLED] flatline_protocol — Multi-model adversarial review (~$25/planning cycle)`
+- One line per disabled feature: `[DISABLED] spiral — Off-hours autonomous cycles`
+- Total estimated monthly cost range based on enabled features
+
+For each feature with cost ≥$5/invocation, the summary includes the cost range explicitly.
+
+**Confirmation gate**:
+
+Claude presents the summary and asks: "Write this configuration to `.loa.config.yaml`? (yes / no / show full YAML)". Writing does not proceed without explicit "yes".
+
+#### Phase 3 (Idempotency Branch)
+
+When `.loa.config.yaml` already exists:
+
+1. Claude reads the existing file
+2. For each section the wizard would modify, parse the current value from the file using `yq`
+3. Present a diff-style summary: "Section `flatline_protocol`: current value `enabled: false`, proposed value `enabled: true`"
+4. Ask per-section: "Update this section? (yes / no / skip all)"
+5. Sections the user declines are preserved verbatim
+6. Only explicitly confirmed sections are written
+
+This is implemented as SKILL.md instructions to Claude — not as a shell script. Claude uses the Read tool to load the existing config and constructs the diff in conversation.
+
+#### Phase 3 (YAML Validation)
+
+After generating the YAML string and before writing, Claude runs:
+
+```
+yq '.' <(echo "$generated_yaml") > /dev/null
+```
+
+If `yq` parses without error, proceed. If it fails, Claude reports the parse error and does not write the file.
+
+If `yq` is not installed (detected in Phase 1), Claude performs a structural check using `jq` with `--yaml-output` as fallback. If neither is available, warn the user and ask to confirm before writing (NFR cannot be fully met without yq).
+
+#### Phase 4: Post-Config Explanation
+
+After writing, Claude prints:
+- Summary table: feature → enabled/disabled
+- One-sentence description of each enabled feature
+- The recommended next command (`/loa` for status, `/run sprint-plan` for autonomous, `/simstim` for HITL)
+- "For full configuration reference, see `docs/CONFIG_REFERENCE.md`"
+
+### 2.4 `/loa` Ambient Cost Awareness
+
+The `loa` skill's SKILL.md is updated to include a "Cost Awareness" section with these instructions to Claude:
+
+1. Read `.loa.config.yaml` using the Read tool (if it exists)
+2. Check each of the five expensive feature flags:
+   - `flatline_protocol.enabled`
+   - `spiral.enabled`
+   - `run_bridge.enabled`
+   - `post_pr_validation.phases.bridgebuilder_review.enabled`
+   - `red_team.enabled`
+3. For each flag that is `true`, output one cost-awareness line with the feature name and estimated per-cycle cost
+4. If `hounfour.metering.enabled: true` and `hounfour.metering.ledger_path` is set, read today's spend from the ledger and show it vs. the daily budget
+5. If no expensive features are enabled, output nothing (FR-4.4)
+
+**Output format** (FR-4.2):
+```
+Active expensive features: Flatline (~$25/planning cycle), Spiral (~$12/cycle) | Budget cap: $500/day | Run /loa setup to adjust
+```
+
+The `hounfour.metering.ledger_path` is read and the last entry's `cumulative_usd` for today's date is surfaced. If the ledger doesn't exist or today has no entries, skip the spend line rather than erroring.
+
+### 2.5 Skill-Level Cost Sections (FR-5)
+
+Each of the five SKILL.md files receives an additive `## Cost` section immediately after their first substantive section (following `## Overview` or equivalent). The section is ≤150 words (NFR-7).
+
+**Template**:
+
+```markdown
+## Cost
+
+**Estimated per invocation**: $X–$Y (see [Cost Matrix](../../../docs/CONFIG_REFERENCE.md#cost-matrix))
+**External providers called**: [list of models and providers]
+**To cap spend**: Set `hounfour.metering.budget.daily_micro_usd` in `.loa.config.yaml`. Budget enforcement is active when `hounfour.metering.enabled: true`.
+**If cost is a concern**: Run `/loa setup` — the wizard will guide you to a budget-appropriate configuration.
+
+_Pricing verified: 2026-04-15. Prices change — recheck before large commitments._
+```
+
+Existing content in each SKILL.md is preserved verbatim. The `## Cost` section is inserted additively. If any SKILL.md already has a `## Cost` section, it is updated in place rather than duplicated.
 
 ---
 
 ## 3. Data Model
 
-### 3.1 Flight Recorder Extensions
+### 3.1 Wizard Session State
 
-New fields in flight recorder JSONL entries:
+The wizard maintains state in conversation context only — no files are written during Phases 1 or 2. All state is discarded after Phase 4. There is no persistent wizard state file.
 
-```jsonl
-{"seq":1,"ts":"...","phase":"CONFIG","actor":"spiral-harness","action":"profile",
- "verdict":"profile=standard gates=sprint advisor=opus"}
-{"seq":2,"ts":"...","phase":"CONFIG","actor":"auto-escalation","action":"profile_escalated",
- "verdict":"from=standard to=full reason=security-path-in-diff"}
-{"seq":N,"ts":"...","phase":"GATE_prd","actor":"spiral-harness","action":"skipped",
- "verdict":"profile=standard"}
-{"seq":N,"ts":"...","phase":"PRE_CHECK","actor":"evidence-gate","action":"review_ready",
- "verdict":"PASS"}
-{"seq":N,"ts":"...","phase":"RATE_LIMIT","actor":"flatline-orchestrator","action":"header_parsed",
- "verdict":"remaining=450000 reset=2026-04-15T01:00:00Z source=header"}
+```
+wizard_state {
+  # Phase 1 outputs
+  detection: {
+    anthropic_key: bool
+    openai_key: bool
+    google_key: bool
+    beads_installed: bool
+    ck_installed: bool
+    yq_installed: bool
+    config_exists: bool
+    required_deps_ok: bool
+  }
+
+  # Phase 2 outputs
+  answers: {
+    usage_tier: "solo" | "team" | "enterprise"
+    budget_tier: "low" | "medium" | "high" | "unlimited"
+    workflow_pace: "hitl" | "semi_auto" | "full_auto"
+    providers: { anthropic: bool, openai: bool, google: bool }
+    quality_posture: "must_have" | "nice_to_have" | "not_needed"
+    scheduling_enabled: bool  # only set if budget_tier >= high
+  }
+
+  # Phase 3 derived
+  feature_set: { [feature_key: string]: bool }
+  generated_yaml: string
+  idempotency_mode: bool
+  sections_to_preserve: string[]  # keys to pass through from existing config
+}
 ```
 
-### 3.2 Scheduling Config Schema
+### 3.2 Profile → Feature Mapping Matrix
+
+| Budget Tier | Workflow | Quality | Features Enabled |
+|-------------|----------|---------|-----------------|
+| low ($0-10) | any | any | `run_mode` (HITL defaults), `beads`, `prompt_enhancement` |
+| medium ($10-50) | HITL | not_needed | `run_mode`, `beads`, `prompt_enhancement`, `run_bridge` (depth 1) |
+| medium ($10-50) | semi_auto | not_needed | + `simstim` |
+| medium ($10-50) | any | nice_to_have | + `flatline_protocol` (sprint only) |
+| high ($50-200) | HITL | any | medium_set + `flatline_protocol` (full) |
+| high ($50-200) | semi_auto | any | + `simstim`, `post_pr_validation` |
+| high ($50-200) | full_auto | must_have | + `red_team` (standard) |
+| unlimited ($200+) | full_auto | must_have | all features, `spiral` (standard profile) |
+| + scheduling | — | — | `spiral.scheduling.enabled: true` (if Q6 = yes) |
+
+**Provider routing**: `hounfour.flatline_routing` is set to `true` only if at least one of `openai_key` or `google_key` is detected and at least one expensive multi-model feature is enabled. If only `anthropic_key` is present, `flatline_routing` stays `false` (Flatline uses native Opus only).
+
+### 3.3 Config Section Templates
+
+Each feature maps to a canonical YAML section template. Templates are the minimal correct configuration for that feature — they do not include every sub-key, only those required for the feature to work as the user expressed. Optional sub-keys with sensible defaults are omitted (NFR-5).
+
+**Example: flatline_protocol minimal template** (when `quality_posture: nice_to_have` and `budget: medium`):
+
+```yaml
+flatline_protocol:
+  enabled: true
+  auto_trigger: true
+  phases:
+    prd: false
+    sdd: false
+    sprint: true   # Sprint only at medium budget
+  models:
+    primary: opus
+    secondary: gpt-5.3-codex
+```
+
+**Example: spiral minimal template** (when `workflow: full_auto` and `budget: unlimited`):
 
 ```yaml
 spiral:
+  enabled: true
+  default_max_cycles: 3
+  budget_cents: 2000
+  wall_clock_seconds: 28800
   harness:
-    pipeline_profile: standard        # full | standard | light
-    # ... existing fields ...
-  scheduling:
-    enabled: false                     # Master switch
-    windows:
-      - start_utc: "02:00"            # HH:MM UTC
-        end_utc: "08:00"
-        days: [mon, tue, wed, thu, fri]
-    strategy: fill                     # fill | single | continuous
-    max_cycles_per_window: 3
-    rate_limit_warn_threshold_pct: 10  # Warn when tokens-remaining < 10%
+    enabled: true
+    pipeline_profile: standard
 ```
+
+### 3.4 Cost Matrix Data
+
+The cost matrix is static content in `docs/CONFIG_REFERENCE.md`. Pricing assumptions are footnoted with the verification date (NFR-2).
+
+| Feature | Per-Invocation Low | Per-Invocation High | Models Used | Monthly (moderate) |
+|---------|-------------------|--------------------|--------------|--------------------|
+| Flatline Protocol (3-phase) | $20 | $45 | Opus + GPT-5.3-codex + Gemini | $160–$360 |
+| Simstim (full cycle) | $25 | $65 | Opus + GPT-5.3-codex + Gemini | $200–$520 |
+| Spiral (standard profile) | $10 | $15 | Sonnet (exec) + Opus (judge) | $80–$120 (3 cycles/sprint) |
+| Spiral (full profile) | $20 | $35 | All models | $160–$280 |
+| Run Bridge (depth 5) | $10 | $20 | Opus + GPT-5.3-codex | $40–$80/PR |
+| Post-PR Validation (Bridgebuilder) | $5 | $15 | Opus + GPT-5.3-codex | $20–$60/PR |
+| Red Team (standard mode) | $5 | $15 | Opus + GPT-5.3-codex | varies |
+| Red Team (deep mode) | $15 | $30 | Opus + GPT-5.3-codex | varies |
+| Continuous Learning (Flatline integration) | $1 | $5 | Opus | $8–$40/week |
+| Prompt Enhancement (invisible mode) | <$0.10 | $0.50 | Sonnet | negligible |
+
+> Moderate workflow assumption: 2 planning cycles/week, 4 PRs/week. Monthly estimates are approximate. Verify at implementation time against current provider pricing. Spot-check variance target: ≤2× measured vs. documented (AC: Cost matrix accuracy).
 
 ---
 
 ## 4. Security Design
 
-### 4.1 Secret Scanning
+### 4.1 API Key Handling
 
-Detection chain (ordered by reliability):
-1. **gitleaks** (if on PATH): `gitleaks detect --no-git --pipe < <(git diff main...HEAD)` — entropy + pattern-based, industry standard
-2. **trufflehog** (if on PATH): `trufflehog git file://. --since-commit $(git merge-base main HEAD) --only-verified` — verified credentials only
-3. **Regex fallback**: High-confidence patterns only — `(password|secret|api_key|private_key|aws_access_key_id)\s*[:=]\s*["'][^"']{8,}`
-4. **Allowlist**: `.claude/data/secret-scan-allowlist.txt` — YAML format with governance fields:
-   ```yaml
-   - pattern: "test_api_key.*=.*fake"
-     owner: "@janitooor"
-     reason: "Test fixture, not a real key"
-     expires: "2026-12-31"
-   ```
-   Expired entries are ignored with a warning. Entries without `owner` or `reason` are rejected.
+**Zero key material** (NFR-6, aligned with loa-setup-check.sh NFR-8):
 
-### 4.2 System Zone Authorization
+- The wizard calls `loa-setup-check.sh --json` and consumes only the `status` boolean from each check result
+- Claude must never read environment variables directly (e.g., `echo $ANTHROPIC_API_KEY`) — all detection goes through the check script
+- The generated `.loa.config.yaml` uses template placeholders (`{env:ANTHROPIC_API_KEY}`) for provider auth, never literal key values
+- Wizard output displayed to the user contains no key content — only "ANTHROPIC_API_KEY detected: yes/no" style messages
+- SKILL.md instructions for Phase 1 explicitly state: "Do not read, log, or display the content of any API key environment variable"
 
-This cycle modifies files in `.claude/scripts/` (System Zone). Per PRD FR-6, authorization is **scoped to specific files** listed in the PRD. The harness `--append-system-prompt` override grants `.claude/scripts/` access to `claude -p` subprocesses only during this cycle.
+### 4.2 Config File Safety
 
-### 4.3 Scheduler Security
+**YAML injection prevention**: Config sections are constructed from hardcoded templates with only feature toggles and boolean values substituted. User-supplied strings (answers to Q1–Q6) map to enumerated values, not free-form text that could appear in the YAML output.
 
-- flock prevents concurrent execution
-- PID tracking enables stale lock recovery
-- Window bounds limit unattended execution time
-- Cost budget, cycle budget, and rate-limit conditions provide defense-in-depth against runaway spend
-- Trajectory logging records all scheduler events for audit
+**Before writing**: Validate the generated YAML is parseable via `yq '.' <(echo "$yaml")`. Reject and report if validation fails — do not write a malformed config.
+
+**Idempotency write safety**: The idempotency branch reads the existing config, applies only confirmed section changes, and produces a merged output. The merged output is also validated via `yq` before writing.
+
+**File permissions**: The wizard writes `.loa.config.yaml` using the Write tool. No `chmod` is performed — the file inherits the user's umask. This is standard behavior for config files.
+
+### 4.3 Prompt Injection in Wizard Inputs
+
+The wizard answers (Q1–Q6) are constrained to enumerated choices. Claude must not accept free-form text as an answer that modifies template logic. If a user provides an unexpected answer, Claude presents the valid options again rather than treating the unexpected input as a feature toggle.
+
+This matters because answers drive the feature-set matrix in §3.2. A malicious or malformed answer (e.g., injecting YAML syntax via a "budget" answer) cannot affect the generated config because answers are mapped through the fixed matrix, not interpolated.
+
+### 4.4 README Content Safety
+
+The `> [!WARNING]` callout added to the README is informational text only. It contains no executable instructions or links to external services that could be compromised. The costs listed are documented ranges, not API calls.
+
+### 4.5 SKILL.md Content Safety
+
+The `## Cost` sections added to SKILL.md files are read-only advisory text. They do not expand to code execution. They point users to `/loa setup` and `docs/CONFIG_REFERENCE.md`, both of which are local.
 
 ---
 
 ## 5. Test Design
 
-### 5.1 Test Files
+### 5.1 Test Strategy
 
-| File | Tests | Covers |
-|------|-------|--------|
-| `tests/unit/spiral-profiles.bats` | 8 | Profile resolution, auto-escalation, gate conditional, flight recorder logging |
-| `tests/unit/spiral-prechecks.bats` | 7 | Pre-impl check, pre-review check, secret scanning, allowlist |
-| `tests/unit/spiral-scheduler.bats` | 6 | Window check, continuous bypass, flock, resume detection, disabled config |
-| `tests/unit/spiral-benchmark.bats` | 5 | Comparison output, missing data handling, dimension coverage |
+This cycle is documentation-only. Automated test files are not required. Acceptance criteria are validated via:
 
-**Total: 26 test cases** (exceeds AC-16 target of 20)
+1. **Manual check list** (AC tables in PRD §Acceptance Criteria) — verified by reviewer before merge
+2. **Grep-based checks** for structural requirements:
+   - All 11 primary sections present in CONFIG_REFERENCE.md
+   - All 13 secondary sections present
+   - Cost Warning callouts present for each ≥$5 feature
+   - `## Cost` section present in each of the 5 SKILL.md files
+3. **YAML parse check** for generated config: `yq '.' .loa.config.yaml` must exit 0
+4. **Manual wizard walkthrough**: fresh repo → wizard → working config → `/loa` reports correctly
 
-### 5.2 Test Strategy
+### 5.2 Structural Validation Checks
 
-Tests source the scripts being tested and validate function behavior in isolation:
+The following checks can be scripted as one-off validations (not part of the test suite, but executable for verification):
 
-```bash
-# Example: profile resolution test
-@test "standard profile resolves to sprint-only gates" {
-    PIPELINE_PROFILE="standard"
-    _resolve_profile
-    [[ "$FLATLINE_GATES" == "sprint" ]]
-}
+| Check | Command |
+|-------|---------|
+| CONFIG_REFERENCE.md exists | `test -f docs/CONFIG_REFERENCE.md` |
+| All 11 primary sections present | `grep -c '^### ' docs/CONFIG_REFERENCE.md` ≥ 11 |
+| Cost Matrix table rows | `grep -c '^\|' docs/CONFIG_REFERENCE.md` ≥ 12 (10 rows + 2 header) |
+| Cost Warning callouts (≥7) | `grep -c 'Cost Warning' docs/CONFIG_REFERENCE.md` ≥ 7 |
+| loa-setup SKILL.md exists | `test -f .claude/skills/loa-setup/SKILL.md` |
+| 5 SKILL.md `## Cost` sections | `grep -l '^## Cost' .claude/skills/{simstim-workflow,spiraling,run-bridge,red-teaming,run-mode}/SKILL.md \| wc -l` = 5 |
+| README has [!WARNING] admonition | `grep -c '\[!WARNING\]' README.md` ≥ 1 |
+| Pricing verified timestamp present | `grep -c 'Pricing verified' docs/CONFIG_REFERENCE.md` ≥ 1 |
 
-@test "auto-escalation triggers on auth keyword in task" {
-    PIPELINE_PROFILE="light"
-    BRANCH="test-branch"
-    _auto_escalate_profile "Implement authentication middleware"
-    [[ "$PIPELINE_PROFILE" == "full" ]]
-}
+### 5.3 Manual Wizard Test Cases
 
-@test "pre-check review fails when no commits ahead" {
-    # Mock git to return 0 commits ahead
-    run _pre_check_review
-    [[ "$status" -ne 0 ]]
-}
-```
-
-### 5.3 Negative Test: Dispatch Guard (AC-26)
-
-Verify that the dispatch guard text is present in SKILL.md and contains the expected routing instruction:
-
-```bash
-@test "SKILL.md dispatch guard routes to spiral-harness.sh" {
-    local skill_md=".claude/skills/spiraling/SKILL.md"
-    grep -q "DISPATCH GUARD" "$skill_md"
-    grep -q "spiral-harness.sh" "$skill_md"
-    grep -q "MUST NOT implement code directly" "$skill_md"
-}
-```
+| Test | Expected |
+|------|----------|
+| Fresh repo, budget=$0-10, HITL | Config: run_mode only, no external providers |
+| Fresh repo, budget=$50-200, semi-auto, must-have quality | Config: simstim + flatline_protocol + run_bridge |
+| Existing config, decline all updates | Config file unchanged |
+| Existing config, accept flatline update | Only flatline_protocol section updated |
+| wizard with no yq installed | Warning shown, user confirms before write |
+| wizard with openai key present | hounfour configured with openai provider |
+| wizard with no expensive features enabled | `/loa` shows no cost line |
+| wizard with flatline enabled | `/loa` shows "Active expensive features: Flatline (~$25/planning cycle)" |
 
 ---
 
@@ -458,23 +568,29 @@ Verify that the dispatch guard text is present in SKILL.md and contains the expe
 
 | Error | Handler | Recovery |
 |-------|---------|----------|
-| Profile unknown | Fall back to `standard`, log warning | Automatic |
-| Pre-check fails | Record failure, skip phase, exit 1 | Operator fixes issue, re-runs |
-| Flatline gate timeout | Record skip, continue pipeline | Advisory only |
-| Secret detected | Block review, exit 1 | Operator removes secret, re-runs |
-| Lock contention | Wait up to 60s, then stale-check | Reclaim stale lock or exit 3 |
-| 429 from Flatline API | Exponential backoff (existing retry.py) | Automatic, max 3 retries |
-| PR already exists | Reuse PR, update body | Automatic |
-| gitleaks/trufflehog not found | Fall back to regex | Automatic, logged |
-| Window end reached | Graceful halt at phase boundary | Resume next window |
+| `loa-setup-check.sh` not found | Report error, ask user to verify installation, skip Phase 1 output | Continue with manual API key questions |
+| `loa-setup-check.sh` exits non-zero | Report which required deps failed, list install instructions | User installs deps, re-runs wizard |
+| No API keys detected | Disable multi-model feature recommendations, warn user | User sets env vars and re-runs |
+| `yq` not installed | Fall back to jq structural check; if jq also missing, warn and ask confirmation | User installs yq for full validation |
+| YAML parse error on generated config | Report parse error line, do not write | User reports issue; wizard re-generates |
+| Existing config parse error | Report which section failed to parse, skip that section in idempotency diff | User manually fixes config, re-runs |
+| User declines all wizard questions | Do not write config; suggest reading CONFIG_REFERENCE.md directly | No action needed |
+| `/loa` skill reads missing `.loa.config.yaml` | Skip cost awareness line entirely (no error, no output) | User runs /loa setup |
+| Metering ledger not found during `/loa` | Skip spend line, show only active features | No action needed |
+| SKILL.md missing `## Overview` section | Insert `## Cost` before next heading | Additive, no existing content removed |
 
 ---
 
 ## 7. Migration Notes
 
-**Backward compatible.** All new features are opt-in:
-- `pipeline_profile: standard` is the default — matches current behavior minus PRD/SDD Flatline (which the benchmark proved are insurance, not load-bearing)
-- `scheduling.enabled: false` is the default — no scheduling unless configured
-- Pre-checks are additive — they prevent wasted spend but don't change the happy path
-- Rate-limit tracking is passive — logs data but doesn't change behavior unless threshold exceeded
-- Benchmark tool is standalone — doesn't affect any existing workflow
+**Fully backward-compatible.** All deliverables are additive:
+
+- `docs/CONFIG_REFERENCE.md` is a new directory and file — no existing paths affected
+- `loa-setup` SKILL.md is a new skill — no existing skill behavior changed
+- README and SKILL.md updates are additive sections — no existing content removed
+- `/loa` cost awareness is conditional — surfaces only when expensive features are enabled, invisible otherwise
+- `.loa.config.yaml` is only written when the user explicitly confirms — no automatic migration
+
+Users with existing configs are not affected until they run `/loa setup`. At that point, the idempotency branch ensures their existing settings are preserved unless they explicitly approve changes.
+
+The `docs/` directory is new. Projects that have a `docs/` directory with different content are not affected — the wizard creates `docs/CONFIG_REFERENCE.md` only, and does not modify existing files in `docs/`.
