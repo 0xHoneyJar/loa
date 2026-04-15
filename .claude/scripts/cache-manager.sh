@@ -20,17 +20,20 @@ DEFAULT_CACHE_ENABLED="true"
 DEFAULT_MAX_SIZE_MB="100"
 DEFAULT_TTL_DAYS="30"
 
-# Secret patterns to detect (simple patterns for shell validation)
+# Secret patterns to detect. Use [=:] character class to match both
+# shell-style (KEY=value) and JSON/YAML-style (KEY: value) key-value
+# pairs. Previously these patterns only matched `=` — missing JSON
+# content, which is the dominant format for cached agent output.
 SECRET_PATTERNS=(
     'PRIVATE.KEY'
     'BEGIN RSA'
     'BEGIN EC PRIVATE'
-    'password.*='
-    'secret.*='
-    'api_key.*='
-    'apikey.*='
-    'access_token.*='
-    'bearer.*='
+    'password.*[=:]'
+    'secret.*[=:]'
+    'api_key.*[=:]'
+    'apikey.*[=:]'
+    'access_token.*[=:]'
+    'bearer.*[=:]'
 )
 
 # Colors for output
