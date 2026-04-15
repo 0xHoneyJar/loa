@@ -460,6 +460,28 @@
         ]
       }
     ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/pre-compact-marker.sh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/post-compact-reminder.sh"
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Skill(plan-and-analyze.*)",
@@ -467,6 +489,58 @@
           {
             "type": "command",
             "command": ".claude/scripts/cleanup-context.sh --prompt"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/safety/block-destructive-bash.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/safety/team-role-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/safety/team-role-guard-write.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/safety/spiral-dispatch-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/safety/team-role-guard-write.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/safety/spiral-dispatch-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/safety/team-skill-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/safety/spiral-skill-sentinel.sh"
           }
         ]
       }
@@ -478,6 +552,48 @@
           {
             "type": "command",
             "command": ".claude/scripts/gpt-review-hook.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/audit/mutation-logger.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/audit/write-mutation-logger.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/audit/write-mutation-logger.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/safety/run-mode-stop-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/hygiene/settings-cleanup.sh"
           }
         ]
       }
