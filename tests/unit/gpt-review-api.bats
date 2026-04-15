@@ -3,10 +3,22 @@
 #
 # Tests configuration toggles, error handling, and input validation.
 # Uses hermetic curl mocking via shared helper.
+#
+# DEPRECATED (2026-04-15, cycle-075 W2c): /gpt-review is scheduled for
+# retirement no earlier than 2026-07-15. See .claude/commands/gpt-review.md
+# for the full deprecation notice and migration path. These tests have been
+# broken since shortly after introduction (see cycle-075 triage for the
+# archaeology — contradictions between the design note in main() and the
+# test suite, further broken by the cycle-034 #404 script rewrite). Rather
+# than fix tests for a subsystem we plan to retire, we skip them pending
+# the sunset. Set LOA_RUN_DEPRECATED_TESTS=1 to attempt the tests anyway.
 
 load '../helpers/gpt-review-setup'
 
 setup() {
+    if [[ "${LOA_RUN_DEPRECATED_TESTS:-0}" != "1" ]]; then
+        skip "deprecated — /gpt-review superseded by Flatline Protocol; see .claude/commands/gpt-review.md (sunset ≥2026-07-15)"
+    fi
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     GPT_REVIEW="$PROJECT_ROOT/.claude/scripts/gpt-review-api.sh"

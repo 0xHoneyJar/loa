@@ -1,5 +1,32 @@
 # /gpt-review Command
 
+> [!WARNING]
+> **DEPRECATED as of 2026-04-15** — scheduled for retirement **no earlier than 2026-07-15**.
+>
+> This command is superseded by the **Flatline Protocol** (multi-model adversarial
+> review — Opus + GPT-5.3-codex + optionally Gemini) which is integrated into every
+> planning/review/audit cycle by default. `/gpt-review` has no remaining automated
+> callers — it survives only as a manual utility that has been broken in subtle ways
+> since shortly after its introduction (see the cycle-075 CI triage for details).
+>
+> **If you rely on `/gpt-review`**, please let us know before it is removed so we can
+> understand your use case and, if warranted, stage a replacement:
+>
+> - Run `/feedback` to submit usage context
+> - Or file an issue at https://github.com/0xHoneyJar/loa/issues with the `deprecation` label
+>
+> **Migration path**:
+> - For autonomous cross-model review: use `/flatline-review` or rely on the
+>   Flatline gates that run automatically inside `/run sprint-plan`, `/run-bridge`,
+>   and `/audit-sprint`. See `.claude/loa/reference/flatline-reference.md`.
+> - For PR-level multi-model review: `/run-bridge` integrates Bridgebuilder's
+>   kaironic fix loop (multi-model deliberation + educational enrichment).
+>
+> This command will continue to function until the sunset date (no earlier than
+> 2026-07-15). Following CLI guidelines ([clig.dev](https://clig.dev/#backwards-compatibility)),
+> the sunset date will not be advanced without a separate announcement PR; the
+> exact removal depends on community feedback received in the meantime.
+
 Cross-model review using GPT 5.2 to catch issues Claude might miss.
 
 ## Usage

@@ -2,10 +2,17 @@
 # Tests for GPT review API request construction
 #
 # Verifies API requests are constructed correctly using mock curl capture.
+#
+# DEPRECATED (2026-04-15, cycle-075 W2c): see tests/unit/gpt-review-api.bats
+# for the full deprecation notice. Set LOA_RUN_DEPRECATED_TESTS=1 to
+# attempt the tests anyway.
 
 load '../helpers/gpt-review-setup'
 
 setup() {
+    if [[ "${LOA_RUN_DEPRECATED_TESTS:-0}" != "1" ]]; then
+        skip "deprecated — /gpt-review superseded by Flatline Protocol; see .claude/commands/gpt-review.md (sunset ≥2026-07-15)"
+    fi
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     GPT_REVIEW="$PROJECT_ROOT/.claude/scripts/gpt-review-api.sh"

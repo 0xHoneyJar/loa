@@ -5,6 +5,20 @@ All notable changes to Loa will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Deprecated
+
+- **`/gpt-review` and `/toggle-gpt-review` commands soft-deprecated** (cycle-075 W2c) — scheduled for retirement **no earlier than 2026-07-15** (minimum 3-month runway per [clig.dev](https://clig.dev/#backwards-compatibility) guidance).
+  - Superseded by the **Flatline Protocol** (multi-model adversarial review — Opus + GPT-5.3-codex + optionally Gemini) which is integrated into every planning/review/audit cycle by default. No remaining automated callers.
+  - **Runtime warning** added to `gpt-review-api.sh` — prints a one-shot deprecation notice to stderr on every invocation that does real work. Suppressible via `LOA_SUPPRESS_GPT_REVIEW_DEPRECATION=1` for automation.
+  - **Prominent deprecation headers** added to `.claude/commands/gpt-review.md`, `.claude/commands/toggle-gpt-review.md`, and `.claude/protocols/gpt-review-integration.md`.
+  - **Failing test suites skipped** (`tests/unit/gpt-review-{api,prompts,request}.bats`) via `skip` in `setup()`. Set `LOA_RUN_DEPRECATED_TESTS=1` to attempt anyway. These tests had been broken since shortly after introduction (see cycle-075 triage for the archaeology — the script's original `main()` documented "no config check here" but the tests asserted config-based SKIPPED behavior; the tests were never wired to reality).
+  - **Phantom `context_files` entries removed** from `/plan-and-analyze`, `/architect`, `/sprint-plan`, `/implement` commands. They pointed to `.claude/context/gpt-review-active.md` which was deleted long ago.
+  - **`gpt-review-hook.sh` hook registration removed** from `.claude/settings.json`. The hook was a no-op with `gpt_review: null` config, but its registration was misleading.
+  - **Migration path**: use `/flatline-review` or rely on Flatline gates that run automatically inside `/run sprint-plan`, `/run-bridge`, and `/audit-sprint`. See `.claude/loa/reference/flatline-reference.md`.
+  - **If you rely on `/gpt-review`**, please let us know before sunset: run `/feedback` or file an issue at https://github.com/0xHoneyJar/loa/issues with the `deprecation` label.
+
 ## [1.90.0] - 2026-04-15 — Config Transparency & Safety Enforcement
 
 Configuration now has the same documentation rigor as the features it controls. This release ships a comprehensive configuration reference (~1,000 lines covering every `.loa.config.yaml` option with ELI5 explanations, per-invocation costs, risks in both directions, and setup requirements), an interactive `/loa setup` onboarding wizard, and concrete safety enforcement for the security invariants that previously existed only as documentation warnings. It also closes a long-standing gap where all the framework's safety hooks had been defined but never wired into the settings file Claude Code actually reads — meaning spiral dispatch guards, destructive bash blockers, mutation loggers, and compact recovery had all been silently inert. They now fire at the platform level.
