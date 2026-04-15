@@ -28,8 +28,14 @@ setup() {
 @test "documentation-coherence has valid YAML frontmatter" {
     # First line should be ---
     head -1 "$DOC_SUBAGENT" | grep -q "^---$"
-    # Second occurrence should be within first 20 lines (frontmatter closing)
-    head -20 "$DOC_SUBAGENT" | grep -c "^---$" | grep -q "2"
+    # At least 2 `^---$` lines within first 20 (opening + closing frontmatter
+    # delimiters). Subagent bodies may use additional `---` as thematic
+    # section separators; that's valid markdown, not a frontmatter violation.
+    # Same fix class as subagent-loader.bats / subagent-reports.bats in PR #520
+    # — the previous `wc -l | grep -q "2"` was a substring match that would
+    # trivially pass on 12/20/22 but fail on 1/3/8, currently hidden because
+    # head -20 limits scope to exactly 2 delimiters.
+    [[ $(head -20 "$DOC_SUBAGENT" | grep -c "^---$") -ge 2 ]]
 }
 
 @test "documentation-coherence has name field" {
