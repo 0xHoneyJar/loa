@@ -108,6 +108,12 @@ load_adversarial_config() {
   CONF_MAX_FILE_BYTES=$(yq eval ".flatline_protocol.context_escalation.max_file_bytes // 51200" "$CONFIG_FILE" 2>/dev/null || echo "51200")
   CONF_SECRET_SCANNING=$(yq eval ".flatline_protocol.secret_scanning.enabled // true" "$CONFIG_FILE" 2>/dev/null || echo "true")
 
+  # Security invariant: secret_scanning MUST be on. Override if config says false.
+  if [[ "$CONF_SECRET_SCANNING" != "true" ]]; then
+    echo "CRITICAL: secret_scanning.enabled is false — overriding to true. Raw code must never be sent to external providers without redaction." >&2
+    CONF_SECRET_SCANNING="true"
+  fi
+
   # Load allowlist patterns — content matching these is restored after redaction.
   # Wires config to runtime. See: Bridgebuilder Review Finding #4
   local allowlist_raw

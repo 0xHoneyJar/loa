@@ -124,9 +124,10 @@ is_git_hooks_enabled() {
 }
 
 is_secret_scanning_enabled() {
-    local enabled
-    enabled=$(read_config '.autonomous_mode.snapshots.secret_scanning' 'true')
-    [[ "$enabled" == "true" ]]
+    # Security invariant: always returns true. Config value is ignored.
+    # Secret scanning must never be disabled — raw code sent to external
+    # providers without redaction is a data leak.
+    return 0
 }
 
 get_max_count() {

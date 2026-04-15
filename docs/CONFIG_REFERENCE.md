@@ -307,7 +307,7 @@ No external API calls. Vision matching is local tag overlap. Only `propose_requi
 **Recommendation**: Start with `harness.pipeline_profile: standard` and `budget_cents: 2000` ($20). Increase budget only after validating quality gates work in your repo.  
 **Default**: `enabled: false`
 
-> **Cost Warning**: Spiral's `standard` profile costs **$10–15/cycle**, `full` profile **$20–35/cycle**. A 3-cycle run at standard = **~$30–45**. A 5-cycle full run = **~$100–175**. Safety floors are hardcoded: max 50 cycles, $100 budget, 24h wall clock.
+> **Cost Warning**: Spiral's `standard` profile costs **$10–15/cycle**, `full` profile **$20–35/cycle**. A 3-cycle run at standard = **~$30–45**. A 5-cycle full run would cost ~$100–175 but **the hard ceiling of $100 (`budget_cents: 10000`) will terminate the spiral mid-run when the budget is exhausted**. To run 5 full-profile cycles, you must explicitly raise `budget_cents` (the ceiling clamps at 10000). Hard ceilings are enforced: max 50 cycles, $100 budget cap, 24h wall clock.
 
 #### Sub-keys
 
@@ -454,7 +454,7 @@ Without optional phases: minimal (local checks + Sonnet for audit). With `flatli
 
 #### Risks if enabled
 
-- `auto_triage_blockers: true` will autonomously create bug fix PRs for BLOCKER findings.
+- `auto_triage_blockers: true` will autonomously create bug fix PRs for BLOCKER findings. Findings are queued to `.run/bridge-pending-bugs.jsonl` and dispatched one at a time through `/bug` — not batch-created. The circuit breaker in `/bug` (same finding 3x = escalate to HITL) limits runaway triage. If Bridgebuilder produces many BLOCKERs in a single review, they queue but only the next `/bug` invocation consumes one.
 - `phases.flatline.mode: autonomous` runs without human confirmation.
 
 #### Risks if disabled
@@ -650,7 +650,7 @@ Models: Opus 4.6 + GPT-5.3-codex.
 | `code_review.enabled` | bool | `false` | Opt-in dissent for `/review-sprint` |
 | `security_audit.enabled` | bool | `false` | Opt-in dissent for `/audit-sprint` |
 | `inquiry.budget_cents` | int | `500` | Cost cap per inquiry invocation |
-| `secret_scanning.enabled` | bool | `true` | Redact secrets before sending to external models |
+| `secret_scanning.enabled` | bool | `true` | Redact secrets before sending to external models. **Security invariant** — setting to `false` is overridden to `true` at runtime with a CRITICAL log |
 
 #### Cost
 
@@ -659,7 +659,7 @@ Models: Opus 4.6 (primary), GPT-5.3-codex (secondary/cross-review).
 
 #### Risks if enabled
 
-- `secret_scanning.enabled: false` would send raw code to OpenAI — **never disable**. This is a security invariant, not a user preference. The `/loa setup` wizard refuses to set this to `false`, and the Flatline orchestrator logs a CRITICAL warning if it detects this value is `false` at runtime. A future version will hardcode this as always-on.
+- `secret_scanning.enabled` is a **security invariant** — the runtime overrides `false` to `true` and logs a CRITICAL warning. This config key exists for forward compatibility but cannot be disabled. Raw code must never be sent to external providers without redaction.
 - BLOCKER findings halt autonomous workflows until resolved.
 - `max_iterations: 5` creates a loop that may be long for complex documents.
 
