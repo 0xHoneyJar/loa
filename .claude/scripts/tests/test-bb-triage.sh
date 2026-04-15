@@ -213,6 +213,39 @@ ev="${ev:-0}"
     && pass "TC-S4: empty prev → no stuck, no events" \
     || fail "TC-S4: stuck=$sc events=$ev"
 
+
+# ── _bb_track_resolved_incremental ────────────────────────────────────────────
+echo ""
+echo "=== _bb_track_resolved_incremental ==="
+echo ""
+
+# TC-R1: multi-iteration incremental resolved tracking
+_BB_PREV_ACTIONABLE_IDS=()
+_BB_ACTIONABLE_IDS=()
+_BB_RESOLVED_IDS=()
+
+# Transition: iter1 [F001,F002,F003] -> iter2 [F002]
+_BB_PREV_ACTIONABLE_IDS=(F001 F002 F003)
+_BB_ACTIONABLE_IDS=(F002)
+_bb_track_resolved_incremental
+
+r1_ok=true
+[[ " ${_BB_RESOLVED_IDS[*]:-} " == *" F001 "* ]] || { r1_ok=false; }
+[[ " ${_BB_RESOLVED_IDS[*]:-} " == *" F003 "* ]] || { r1_ok=false; }
+[[ " ${_BB_RESOLVED_IDS[*]:-} " != *" F002 "* ]] || { r1_ok=false; }
+
+# Transition: iter2 [F002] -> iter3 []
+_BB_PREV_ACTIONABLE_IDS=(F002)
+_BB_ACTIONABLE_IDS=()
+_bb_track_resolved_incremental
+
+[[ " ${_BB_RESOLVED_IDS[*]:-} " == *" F001 "* ]] || { r1_ok=false; }
+[[ " ${_BB_RESOLVED_IDS[*]:-} " == *" F002 "* ]] || { r1_ok=false; }
+[[ " ${_BB_RESOLVED_IDS[*]:-} " == *" F003 "* ]] || { r1_ok=false; }
+[[ ${#_BB_RESOLVED_IDS[@]} -eq 3 ]] || { r1_ok=false; }
+
+"$r1_ok"     && pass "TC-R1: multi-iteration incremental resolved tracking"     || fail "TC-R1: resolved=${_BB_RESOLVED_IDS[*]:-none} count=${#_BB_RESOLVED_IDS[@]}"
+
 # ── Summary ────────────────────────────────────────────────────────────────
 echo ""
 echo "Results: ${PASS_COUNT} passed, ${FAIL_COUNT} failed"

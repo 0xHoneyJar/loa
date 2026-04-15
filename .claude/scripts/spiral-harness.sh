@@ -625,7 +625,6 @@ _bb_post_final_comment() {
     if [[ -z "$resolved_ids_csv" ]]; then
         resolved_section="— none —"
     else
-        resolved_section=$(printf '%s' "$resolved_ids_csv" | tr ',' '\n' | sed 's/^/- /' | tr '\n' '\n' || echo "- $resolved_ids_csv")
         resolved_section=$(printf '- %s' "$resolved_ids_csv" | sed 's/,/\n- /g')
     fi
 
@@ -664,6 +663,42 @@ _bb_post_final_comment() {
         "pr=$pr_number exit=$post_exit stop_reason=$stop_reason"
 
     return 0
+}
+
+# _bb_track_resolved_incremental
+#
+# Incremental resolved-ID tracking. Called each loop iteration after
+# _bb_triage_findings. Diffs _BB_PREV_ACTIONABLE_IDS against
+# _BB_ACTIONABLE_IDS; IDs that dropped out of the actionable set are
+# appended to _BB_RESOLVED_IDS (with duplicate guard). No-op on the
+# first iteration where prev is empty.
+#
+# Reads/writes in caller scope: _BB_PREV_ACTIONABLE_IDS, _BB_ACTIONABLE_IDS,
+#   _BB_RESOLVED_IDS
+_bb_track_resolved_incremental() {
+    [[ ${#_BB_PREV_ACTIONABLE_IDS[@]} -gt 0 ]] || return 0
+    local _prev_id _cur_id _rid _still_present _already_resolved
+    for _prev_id in "${_BB_PREV_ACTIONABLE_IDS[@]}"; do
+        _still_present=0
+        for _cur_id in ${_BB_ACTIONABLE_IDS[@]+"${_BB_ACTIONABLE_IDS[@]}"}; do
+            if [[ "$_cur_id" == "$_prev_id" ]]; then
+                _still_present=1
+                break
+            fi
+        done
+        if [[ $_still_present -eq 0 ]]; then
+            _already_resolved=0
+            for _rid in ${_BB_RESOLVED_IDS[@]+"${_BB_RESOLVED_IDS[@]}"}; do
+                if [[ "$_rid" == "$_prev_id" ]]; then
+                    _already_resolved=1
+                    break
+                fi
+            done
+            if [[ $_already_resolved -eq 0 ]]; then
+                _BB_RESOLVED_IDS+=("$_prev_id")
+            fi
+        fi
+    done
 }
 
 # _phase_bb_fix_loop <pr_number>
@@ -744,6 +779,9 @@ _phase_bb_fix_loop() {
         # Step a: Triage findings
         _bb_triage_findings "$findings_path"
 
+        # Step a.1: Incremental resolved-ID tracking (diff prev vs current)
+        _bb_track_resolved_incremental
+
         # Step b: Detect stuck findings (skip first iteration — prev list is empty)
         if [[ ${#_BB_PREV_ACTIONABLE_IDS[@]} -gt 0 ]]; then
             _bb_detect_stuck_findings
@@ -752,7 +790,6 @@ _phase_bb_fix_loop() {
         # Step c: Remove stuck findings from actionable list
         if [[ ${#_BB_STUCK_IDS[@]} -gt 0 ]]; then
             local filtered_ids=()
-            local filtered_json="[]"
             for id in ${_BB_ACTIONABLE_IDS[@]+"${_BB_ACTIONABLE_IDS[@]}"}; do
                 local is_stuck=false
                 for stuck_id in ${_BB_STUCK_IDS[@]+"${_BB_STUCK_IDS[@]}"}; do
@@ -760,7 +797,6 @@ _phase_bb_fix_loop() {
                 done
                 if [[ "$is_stuck" == "false" ]]; then
                     filtered_ids+=("$id")
-                    filtered_json=$(jq -c --arg fid "$id" '. + [($fid as $i | ($fid))]' <<< "$filtered_json" 2>/dev/null || echo "$filtered_json")
                 fi
             done
             # Replace actionable with filtered (use jq to filter the JSON properly)
