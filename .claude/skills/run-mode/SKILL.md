@@ -14,6 +14,15 @@ capabilities:
 cost-profile: unbounded
 ---
 
+## Cost
+
+**Estimated per invocation**: Run Mode itself is low-cost (orchestration only). Cost comes from the sub-skills it invokes: Flatline Protocol (~$15–25/planning cycle), Bridgebuilder review (~$10–20/run), and implementation sessions (see [Cost Matrix](../../../docs/CONFIG_REFERENCE.md#cost-matrix)).
+**External providers called**: None directly — delegates to Flatline (Opus 4.6 + GPT-5.3-codex) and Bridgebuilder (Opus 4.6 + GPT-5.3-codex) when those features are enabled.
+**To cap spend**: Set `run_mode.defaults.max_cycles` and `hounfour.metering.budget.daily_micro_usd` in `.loa.config.yaml`. Budget enforcement is active when `hounfour.metering.enabled: true`.
+**If cost is a concern**: Run `/loa setup` — the wizard will guide you to a budget-appropriate configuration.
+
+_Pricing verified: 2026-04-15. Prices change — recheck before large commitments._
+
 <input_guardrails>
 ## Pre-Execution Validation
 

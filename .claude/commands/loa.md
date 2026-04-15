@@ -474,6 +474,53 @@ The `/loa` command integrates with:
   Deploy to production and archive the cycle.
 ```
 
+
+## Cost Awareness
+
+When `/loa` is invoked, surface cost information if expensive features are enabled. This keeps users informed about ongoing spend without requiring them to check a separate tool.
+
+### Step: Check feature flags
+
+Read `.loa.config.yaml` via Read tool if it exists. If the file does not exist, skip cost awareness silently — do not show an error.
+
+Check these five expensive feature flags:
+
+1. `flatline_protocol.enabled`
+2. `spiral.enabled`
+3. `run_bridge.enabled`
+4. `post_pr_validation.phases.bridgebuilder_review.enabled`
+5. `red_team.enabled`
+
+For each flag that is `true`, prepare one cost-awareness line using the estimated per-cycle cost from the Cost Matrix in `docs/CONFIG_REFERENCE.md`:
+
+| Feature | Estimated cost |
+|---------|---------------|
+| Flatline Protocol | ~$15–25/planning cycle |
+| Spiral | ~$10–15/cycle (standard) or ~$20–35/cycle (full) |
+| Run Bridge | ~$10–20/depth-5 run |
+| Post-PR Validation (Bridgebuilder) | ~$10–20/PR |
+| Red Team | ~$5–15/invocation (standard) |
+
+### Step: Check metering ledger
+
+If `hounfour.metering.enabled: true` and `hounfour.metering.ledger_path` is set:
+
+1. Read today's entries from the ledger file (format: JSONL at the configured path)
+2. Sum the `cost_micro_usd` fields where `timestamp` date matches today
+3. Read `hounfour.metering.budget.daily_micro_usd` for the daily cap
+4. If today has entries, prepare: `Budget cap: $X/day, spent: $Y today`
+5. If the ledger file is missing or today has no entries, skip this line gracefully — do not show an error
+
+### Output format
+
+When at least one expensive feature is enabled, output one line immediately before the journey bar:
+
+```
+Active expensive features: Flatline (~$25/planning cycle), Spiral (~$12/cycle) | Budget cap: $500/day | Run /loa setup to adjust
+```
+
+**When all five expensive feature flags are disabled**: output nothing for cost awareness. Do not show a "no active features" line — silence is the correct output.
+
 ## Configuration
 
 ```yaml

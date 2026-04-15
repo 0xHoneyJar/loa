@@ -36,6 +36,15 @@ Research and design exploration (reading code, web search, writing proposals) is
 
 ## Status
 
+## Cost
+
+**Estimated per invocation**: $10–$15/cycle (standard profile) or $20–$35/cycle (full profile) (see [Cost Matrix](../../../docs/CONFIG_REFERENCE.md#cost-matrix))
+**External providers called**: Sonnet 4.6 (executor), Opus 4.6 (advisor/judge); full profile also calls GPT-5.3-codex and Gemini 2.5 Pro
+**To cap spend**: Set `spiral.budget_cents` and `hounfour.metering.budget.daily_micro_usd` in `.loa.config.yaml`. Safety floors are hardcoded: max $100/run, 24h wall clock.
+**If cost is a concern**: Run `/loa setup` — the wizard will guide you to a budget-appropriate configuration.
+
+_Pricing verified: 2026-04-15. Prices change — recheck before large commitments._
+
 **Production (v1.1.0)**. Full autonomous multi-cycle dispatch with evidence-gated harness.
 
 ## Reference

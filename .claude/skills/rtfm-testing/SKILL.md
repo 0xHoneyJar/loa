@@ -41,6 +41,8 @@ Spawn a zero-context agent to test documentation usability. The tester operates 
 This is a hermetic documentation test — the agent equivalent of a hermetic build. No implicit dependencies, no ambient state. If the zero-context agent can't follow the docs, the docs have gaps.
 </objective>
 
+> **Scope note (OQ-5)**: When invoked, include `docs/` in the documentation paths checked alongside any other paths already in scope. The `docs/CONFIG_REFERENCE.md` and related files in `docs/` are first-class documentation artifacts subject to RTFM validation.
+
 <zone_constraints>
 Orchestrator (the agent executing this skill):
 - READ: Documentation files specified by user (any path)

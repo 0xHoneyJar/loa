@@ -1,0 +1,31 @@
+---
+name: loa-setup
+version: "1.0.0"
+description: "Interactive onboarding wizard — guides new users from cloned repo to working .loa.config.yaml in \u226410 conversational turns"
+trigger: "/loa setup"
+command_alias: "loa-setup"
+effort_hint: low
+danger_level: low
+categories:
+  - setup
+  - onboarding
+  - configuration
+capabilities:
+  schema_version: 1
+  read_files: true
+  search_code: false
+  write_files: true
+  execute_commands:
+    allowed:
+      - command: ".claude/scripts/loa-setup-check.sh"
+        args: ["--json"]
+      - command: "yq"
+        args: [".", "*"]
+      - command: "jq"
+        args: [".", "*"]
+    deny_raw_shell: true
+  web_access: false
+  user_interaction: true
+  agent_spawn: false
+  task_management: false
+cost-profile: minimal

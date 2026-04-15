@@ -42,6 +42,15 @@ Each iteration leaves a GitHub trail (PR comments, vision links) and captures
 speculative insights in the Vision Registry. On completion, Grounded Truth is
 regenerated and RTFM validation runs as a final gate.
 
+
+## Cost
+
+**Estimated per invocation**: $10–$20/depth-5 run (see [Cost Matrix](../../../docs/CONFIG_REFERENCE.md#cost-matrix))
+**External providers called**: Claude Opus 4.6 (Bridgebuilder review), GPT-5.3-codex (cross-review dissent)
+**To cap spend**: Set `hounfour.metering.budget.daily_micro_usd` in `.loa.config.yaml`. Budget enforcement is active when `hounfour.metering.enabled: true`.
+**If cost is a concern**: Run `/loa setup` — the wizard will guide you to a budget-appropriate configuration.
+
+_Pricing verified: 2026-04-15. Prices change — recheck before large commitments._
 ## Workflow
 
 ### Phase 0: Input Guardrails
