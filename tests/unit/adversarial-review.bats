@@ -559,9 +559,20 @@ EOF
 @test "secret_scan: temp files are cleaned up" {
     local content="AKIAIOSFODNN7EXAMPLE1 is a test key"
     local before_count after_count
-    before_count=$(ls /tmp/tmp.* 2>/dev/null | wc -l || echo 0)
+    local tmp_files
+    # Use shopt nullglob + array to count matching temp files.
+    # Avoids the `ls ... | wc -l || echo 0` pattern, which under
+    # set -o pipefail (enabled by bats) produces "0\n0" when the
+    # pipeline fails — wc's "0" reaches stdout before pipefail
+    # signals failure, then the `|| echo 0` fallback also emits,
+    # and $(...) concatenates both.
+    shopt -s nullglob
+    tmp_files=(/tmp/tmp.*)
+    before_count=${#tmp_files[@]}
     result=$(secret_scan_content "$content")
-    after_count=$(ls /tmp/tmp.* 2>/dev/null | wc -l || echo 0)
+    tmp_files=(/tmp/tmp.*)
+    after_count=${#tmp_files[@]}
+    shopt -u nullglob
     # Should not leak temp files
     [[ "$after_count" -le "$before_count" ]]
 }
