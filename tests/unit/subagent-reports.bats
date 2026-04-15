@@ -17,7 +17,10 @@ setup() {
 
 @test "security-scanner.md has valid YAML frontmatter" {
     head -1 "$SUBAGENTS_DIR/security-scanner.md" | grep -q "^---$"
-    grep -n "^---$" "$SUBAGENTS_DIR/security-scanner.md" | wc -l | grep -q "2"
+    # At least 2 `^---$` lines (opening + closing frontmatter delimiters).
+    # Subagent bodies may use additional `---` as thematic section separators;
+    # that's valid markdown, not a frontmatter violation.
+    [[ $(grep -c "^---$" "$SUBAGENTS_DIR/security-scanner.md") -ge 2 ]]
 }
 
 @test "security-scanner has name field" {
@@ -114,7 +117,10 @@ setup() {
 
 @test "test-adequacy-reviewer.md has valid YAML frontmatter" {
     head -1 "$SUBAGENTS_DIR/test-adequacy-reviewer.md" | grep -q "^---$"
-    grep -n "^---$" "$SUBAGENTS_DIR/test-adequacy-reviewer.md" | wc -l | grep -q "2"
+    # At least 2 `^---$` lines (opening + closing frontmatter delimiters).
+    # Subagent bodies may use additional `---` as thematic section separators;
+    # that's valid markdown, not a frontmatter violation.
+    [[ $(grep -c "^---$" "$SUBAGENTS_DIR/test-adequacy-reviewer.md") -ge 2 ]]
 }
 
 @test "test-adequacy-reviewer has name field" {

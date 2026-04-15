@@ -40,8 +40,10 @@ setup() {
 @test "architecture-validator.md has valid YAML frontmatter" {
     # Check for YAML frontmatter delimiters
     head -1 "$SUBAGENTS_DIR/architecture-validator.md" | grep -q "^---$"
-    # Check frontmatter closes
-    grep -n "^---$" "$SUBAGENTS_DIR/architecture-validator.md" | wc -l | grep -q "2"
+    # At least 2 `^---$` lines (opening + closing frontmatter delimiters).
+    # Subagent bodies may use additional `---` as thematic section separators;
+    # that's valid markdown, not a frontmatter violation.
+    [[ $(grep -c "^---$" "$SUBAGENTS_DIR/architecture-validator.md") -ge 2 ]]
 }
 
 @test "architecture-validator has name field" {
