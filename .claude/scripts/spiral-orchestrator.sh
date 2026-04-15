@@ -1008,8 +1008,13 @@ run_single_cycle() {
 
     # Step 2: Workspace
     if [[ -x "$SCRIPT_DIR/cycle-workspace.sh" ]]; then
+        # cycle-workspace.sh init prints a JSON status object to stdout.
+        # run_single_cycle uses its own stdout as a channel (stop_reason +
+        # cycle_dir, parsed via head -1 / tail -1 in run_cycle_loop). Without
+        # this redirection, cycle-workspace's JSON leaks in and the caller
+        # parses "{" as the stop reason, terminating the spiral after cycle 1.
         with_step_timeout "workspace_init" "$t_workspace" \
-            "$SCRIPT_DIR/cycle-workspace.sh" init "$cycle_id" 2>/dev/null || true
+            "$SCRIPT_DIR/cycle-workspace.sh" init "$cycle_id" >/dev/null 2>&1 || true
     fi
     write_checkpoint "$cycle_id" "WORKSPACE"
 
