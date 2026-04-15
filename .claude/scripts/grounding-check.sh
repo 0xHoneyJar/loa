@@ -59,18 +59,25 @@ if [[ ! -f "$TRAJECTORY" ]]; then
     exit 0
 fi
 
-# Count claims by type
-# Look for citation phase entries in trajectory
-total_claims=$(grep -c '"phase":"cite"' "$TRAJECTORY" 2>/dev/null || echo "0")
+# Count claims by type.
+# NOTE: use awk, not `grep -c ... || echo "0"`. The latter produces
+# "0\n0" when grep matches nothing: grep still emits its own "0" on
+# stdout AND exits 1, so the fallback echo also fires and $(...)
+# concatenates both counts. Arithmetic then fails with "syntax error
+# in expression (error token is '0')" on line 70 below. awk always
+# prints a single integer (c+0 → 0 when no matches) and exits 0.
+# Same bug class as W1d (adversarial-review) and W2e (search-
+# orchestrator) in this cycle's CI triage.
+total_claims=$(awk '/"phase":"cite"/{c++} END{print c+0}' "$TRAJECTORY" 2>/dev/null || echo 0)
 
-# Count grounded claims (citation or code_reference)
-grounded_citations=$(grep -c '"grounding":"citation"' "$TRAJECTORY" 2>/dev/null || echo "0")
-grounded_references=$(grep -c '"grounding":"code_reference"' "$TRAJECTORY" 2>/dev/null || echo "0")
-grounded_user_input=$(grep -c '"grounding":"user_input"' "$TRAJECTORY" 2>/dev/null || echo "0")
+# Count grounded claims (citation or code_reference or user_input)
+grounded_citations=$(awk '/"grounding":"citation"/{c++} END{print c+0}' "$TRAJECTORY" 2>/dev/null || echo 0)
+grounded_references=$(awk '/"grounding":"code_reference"/{c++} END{print c+0}' "$TRAJECTORY" 2>/dev/null || echo 0)
+grounded_user_input=$(awk '/"grounding":"user_input"/{c++} END{print c+0}' "$TRAJECTORY" 2>/dev/null || echo 0)
 grounded_claims=$((grounded_citations + grounded_references + grounded_user_input))
 
 # Count assumptions (ungrounded claims)
-assumptions=$(grep -c '"grounding":"assumption"' "$TRAJECTORY" 2>/dev/null || echo "0")
+assumptions=$(awk '/"grounding":"assumption"/{c++} END{print c+0}' "$TRAJECTORY" 2>/dev/null || echo 0)
 
 # Handle zero-claim sessions
 if [[ "$total_claims" -eq 0 ]]; then

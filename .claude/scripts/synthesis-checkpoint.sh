@@ -131,8 +131,8 @@ check_negative_grounding() {
 
     # Count unverified ghost features
     local unverified high_ambiguity
-    unverified=$(grep -c '"status":"unverified"' "$TRAJECTORY" 2>/dev/null || echo "0")
-    high_ambiguity=$(grep -c '"status":"high_ambiguity"' "$TRAJECTORY" 2>/dev/null || echo "0")
+    unverified=$(awk '/"status":"unverified"/{c++} END{print c+0}' "$TRAJECTORY" 2>/dev/null || echo 0)
+    high_ambiguity=$(awk '/"status":"high_ambiguity"/{c++} END{print c+0}' "$TRAJECTORY" 2>/dev/null || echo 0)
 
     echo "  Unverified ghosts: $unverified"
     echo "  High ambiguity: $high_ambiguity"
@@ -177,7 +177,7 @@ update_decision_log() {
 
     # Count decisions to sync
     local decision_count
-    decision_count=$(grep -c '"phase":"cite"' "$TRAJECTORY" 2>/dev/null || echo "0")
+    decision_count=$(awk '/"phase":"cite"/{c++} END{print c+0}' "$TRAJECTORY" 2>/dev/null || echo 0)
 
     if [[ "$decision_count" -eq 0 ]]; then
         echo "  Status: SKIPPED (no decisions to sync)"
@@ -284,7 +284,7 @@ verify_edd() {
 
     # Count test scenarios
     local test_scenarios
-    test_scenarios=$(grep -c '"type":"test_scenario"' "$TRAJECTORY" 2>/dev/null || echo "0")
+    test_scenarios=$(awk '/"type":"test_scenario"/{c++} END{print c+0}' "$TRAJECTORY" 2>/dev/null || echo 0)
 
     echo "  Test scenarios documented: $test_scenarios"
     echo "  Minimum required: $EDD_MIN_SCENARIOS"
