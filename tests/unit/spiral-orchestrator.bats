@@ -844,9 +844,9 @@ EOF
 }
 
 # =============================================================================
-# T-MC3: trajectory contains spiral_stopped event after multi-cycle run
+# T-MC3: trajectory contains cycle_completed events for all cycles
 # =============================================================================
-@test "multi-cycle: trajectory logs spiral_stopped event with correct condition" {
+@test "multi-cycle: trajectory logs cycle_completed for each cycle" {
     export SPIRAL_USE_STUB=1
 
     "$SCRIPT" --start --max-cycles 2 >/dev/null 2>&1
