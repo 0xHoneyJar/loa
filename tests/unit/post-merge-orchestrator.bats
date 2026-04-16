@@ -184,14 +184,14 @@ skip_if_deps_missing() {
     [ "$matrix_skipped" = "0" ]
 }
 
-@test "post-merge: bugfix type skips changelog, gt_regen, rtfm, release" {
+@test "post-merge: bugfix type skips gt_regen, rtfm" {
     skip_if_deps_missing
     run "$TEST_SCRIPT" --pr 42 --type bugfix --sha "$MERGE_SHA" --dry-run
     [ "$status" -eq 0 ]
 
-    # Bugfix only runs: classify, semver, tag, notify
-    # So changelog, gt_regen, rtfm, release should be matrix-skipped
-    for phase in changelog gt_regen rtfm release; do
+    # Bugfix runs: classify, semver, changelog, tag, release, lore_promote, notify
+    # Only gt_regen and rtfm are matrix-skipped
+    for phase in gt_regen rtfm; do
         local reason
         reason=$(jq -r ".phases.${phase}.result.reason // empty" "$TEST_REPO/.run/post-merge-state.json")
         [[ "$reason" == "not in phase matrix for this PR type" ]]
@@ -323,10 +323,10 @@ skip_if_deps_missing() {
     run "$TEST_SCRIPT" --pr 55 --type bugfix --sha "$MERGE_SHA" --dry-run
     [ "$status" -eq 0 ]
 
-    # changelog, gt_regen, rtfm, release should be matrix-skipped
+    # gt_regen, rtfm should be matrix-skipped (bugfix includes changelog, tag, release, lore_promote)
     local skipped_count
     skipped_count=$(jq '[.phases[] | select(.result.reason == "not in phase matrix for this PR type")] | length' "$TEST_REPO/.run/post-merge-state.json")
-    [ "$skipped_count" -eq 4 ]
+    [ "$skipped_count" -eq 2 ]
 }
 
 @test "post-merge-int: semver computes correct version from tags" {
@@ -482,7 +482,8 @@ CLEOF
     skipped=$(jq -r '.metrics.phases_skipped // 0' "$TEST_REPO/.run/post-merge-state.json")
     failed=$(jq -r '.metrics.phases_failed // 0' "$TEST_REPO/.run/post-merge-state.json")
     total=$((completed + skipped + failed))
-    [ "$total" -eq 8 ]
+    # PHASE_ORDER has 9 phases: classify, semver, changelog, gt_regen, rtfm, tag, release, lore_promote, notify
+    [ "$total" -eq 9 ]
 }
 
 @test "post-merge-int: all flags combined" {
