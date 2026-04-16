@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.91.7] — 2026-04-16
+
 ### Deprecated
 
 - **`/gpt-review` and `/toggle-gpt-review` commands soft-deprecated** (cycle-075 W2c) — scheduled for retirement **no earlier than 2026-07-15** (minimum 3-month runway per [clig.dev](https://clig.dev/#backwards-compatibility) guidance).
@@ -532,6 +534,8 @@ Full convergence trajectory: `grimoires/loa/a2a/trajectory/bridge-triage-2026-04
 - ATK-011: Blocks `unset LOA_TEAM_MEMBER` and `env -u` privilege escalation in Agent Teams
 
 ## [Unreleased]
+
+## [1.91.7] — 2026-04-16
 
 ### Added
 
