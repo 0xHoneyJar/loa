@@ -979,6 +979,15 @@ append_cycle_record() {
 
 # run_single_cycle <cycle_index> <prev_cycle_dir>
 # Executes one spiral iteration: SEED → SIMSTIM → HARVEST → EVALUATE
+#
+# WARNING: stdout is the return channel (line 1=stop_reason, line 2=cycle_dir).
+# run_cycle_loop captures this output via command substitution and parses with
+# head -1 / tail -1. Any command within this function that writes to stdout will
+# corrupt the return value. All helper invocations MUST either:
+#   (a) capture output in a variable (e.g., var=$(some_cmd)),
+#   (b) redirect to a file (e.g., some_cmd > file), or
+#   (c) redirect stdout to /dev/null (e.g., some_cmd >/dev/null).
+# See: Issue #514 — cycle-workspace.sh init stdout pollution (cycle-077).
 run_single_cycle() {
     local i="$1"
     local prev_cycle_dir="${2:-}"
@@ -1009,7 +1018,7 @@ run_single_cycle() {
     # Step 2: Workspace
     if [[ -x "$SCRIPT_DIR/cycle-workspace.sh" ]]; then
         with_step_timeout "workspace_init" "$t_workspace" \
-            "$SCRIPT_DIR/cycle-workspace.sh" init "$cycle_id" 2>/dev/null || true
+            "$SCRIPT_DIR/cycle-workspace.sh" init "$cycle_id" >/dev/null 2>&1 || true
     fi
     write_checkpoint "$cycle_id" "WORKSPACE"
 

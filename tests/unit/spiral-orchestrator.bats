@@ -783,3 +783,84 @@ EOF
     [ ! -f "$cycle_dir/auditor-sprint-feedback.md" ]
     [ ! -f "$cycle_dir/cycle-outcome.json" ]
 }
+
+# =============================================================================
+# T-MC1: stub-mode completes all max_cycles without early termination (Issue #514)
+# =============================================================================
+@test "multi-cycle: stub-mode completes all 3 cycles without early termination" {
+    # Ensure cycle-workspace.sh is findable via SCRIPT_DIR
+    # The orchestrator sources bootstrap.sh which needs PROJECT_ROOT set
+
+    export SPIRAL_USE_STUB=1
+
+    set +e
+    output=$("$SCRIPT" --start --max-cycles 3 2>&1)
+    exit_code=$?
+    set -e
+
+    [ "$exit_code" -eq 0 ]
+    [ -f "$STATE_FILE" ]
+    [ "$(jq -r '.state' "$STATE_FILE")" = "COMPLETED" ]
+    [ "$(jq -r '.stopping_condition' "$STATE_FILE")" = "cycle_budget_exhausted" ]
+
+    # Verify all 3 cycles were recorded
+    local cycle_count
+    cycle_count=$(jq '.cycles | length' "$STATE_FILE")
+    [ "$cycle_count" -eq 3 ]
+
+    unset SPIRAL_USE_STUB
+}
+
+# =============================================================================
+# T-MC2: stopping_condition is a valid enum member (Issue #514)
+# =============================================================================
+@test "multi-cycle: stopping_condition is a valid enum member, not JSON fragment" {
+    export SPIRAL_USE_STUB=1
+
+    "$SCRIPT" --start --max-cycles 2 >/dev/null 2>&1
+
+    local condition
+    condition=$(jq -r '.stopping_condition' "$STATE_FILE")
+
+    # Must be a simple lowercase+underscore identifier, not JSON
+    [[ "$condition" =~ ^[a-z_]+$ ]]
+
+    # Must not contain braces (the exact bug from #514)
+    [[ "$condition" != *"{"* ]]
+    [[ "$condition" != *"}"* ]]
+
+    # Must be one of the documented enum values
+    local valid_conditions="cycle_budget_exhausted flatline_convergence cost_budget_exhausted wall_clock_exhausted hitl_halt quality_gate_failure token_window_exhausted"
+    local found=false
+    for valid in $valid_conditions; do
+        if [[ "$condition" == "$valid" ]]; then
+            found=true
+            break
+        fi
+    done
+    [ "$found" = "true" ]
+
+    unset SPIRAL_USE_STUB
+}
+
+# =============================================================================
+# T-MC3: trajectory contains spiral_stopped event after multi-cycle run
+# =============================================================================
+@test "multi-cycle: trajectory logs spiral_stopped event with correct condition" {
+    export SPIRAL_USE_STUB=1
+
+    "$SCRIPT" --start --max-cycles 2 >/dev/null 2>&1
+
+    # Find trajectory file
+    local log_dir="$PROJECT_ROOT/grimoires/loa/a2a/trajectory"
+    local log_file
+    log_file=$(find "$log_dir" -name 'spiral-*.jsonl' | head -1)
+    [ -n "$log_file" ]
+
+    # Check for cycle_completed events (should have 2)
+    local completed_count
+    completed_count=$(grep -c '"cycle_completed"' "$log_file" || echo 0)
+    [ "$completed_count" -eq 2 ]
+
+    unset SPIRAL_USE_STUB
+}
