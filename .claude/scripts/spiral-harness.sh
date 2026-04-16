@@ -553,7 +553,10 @@ _bb_dispatch_fix_cycle() {
     local iteration_number="$1"
 
     # Pre-dispatch budget gate (F-001)
-    if ! _check_budget "$TOTAL_BUDGET"; then
+    # Use reduced cap to preserve audit reserve (Issue #515, Bridgebuilder MEDIUM-1)
+    local effective_cap
+    effective_cap=$(jq -n --argjson total "$TOTAL_BUDGET" --argjson reserve "$AUDIT_RESERVE" '$total - $reserve')
+    if ! _check_budget "$effective_cap"; then
         return 1
     fi
 
