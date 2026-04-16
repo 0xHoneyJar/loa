@@ -239,8 +239,8 @@ _invoke_claude() {
     local duration_ms=$(( ($(date +%s) - start_sec) * 1000 ))
 
     _record_action "$phase" "claude-${model}" "invoke" "" "" "$stdout_file" \
-        "$(wc -c < "$stdout_file" 2>/dev/null | tr -d ' ' || echo 0)" \
-        "$duration_ms" "$budget" ""
+        "$({ wc -c < "$stdout_file" 2>/dev/null || echo 0; } | tr -d ' ')" \
+        "$duration_ms" "$budget" "" || true
 
     return "$exit_code"
 }
@@ -960,11 +960,36 @@ _phase_bb_fix_loop() {
 
 
 # =============================================================================
+# ERR Trap Handler
+# =============================================================================
+
+_harness_err_handler() {
+    local lineno="$1" cmd="$2"
+    echo "[FATAL] spiral-harness.sh: ERR at line ${lineno}: ${cmd}" >&2
+    if [[ -n "${_FLIGHT_RECORDER:-}" ]]; then
+        local seq
+        seq=$(( ${_FLIGHT_RECORDER_SEQ:-0} + 1 ))
+        local ts
+        ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "unknown")
+        jq -n -c \
+            --argjson seq "$seq" \
+            --arg ts "$ts" \
+            --arg verdict "ERR at line ${lineno}: ${cmd}" \
+            '{seq:$seq,ts:$ts,phase:"FATAL",actor:"spiral-harness",action:"ERR_TRAP",
+              input_checksum:null,output_checksum:null,output_path:null,
+              output_bytes:0,duration_ms:0,cost_usd:0,verdict:$verdict}' \
+            >> "$_FLIGHT_RECORDER" 2>/dev/null || true
+    fi
+}
+
+# =============================================================================
 # Main Pipeline
 # =============================================================================
 
 main() {
     _parse_args "$@" || exit $?
+
+    trap '_harness_err_handler $LINENO "$BASH_COMMAND"' ERR
 
     local pr_url=""
     local prd_findings="" sdd_findings=""
