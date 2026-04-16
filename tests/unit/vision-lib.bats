@@ -4,16 +4,19 @@
 
 setup() {
     BATS_TEST_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
-    PROJECT_ROOT="$(cd "$BATS_TEST_DIR/../.." && pwd)"
-    SCRIPT_DIR="$PROJECT_ROOT/.claude/scripts"
-    FIXTURES="$PROJECT_ROOT/tests/fixtures/vision-registry"
+    local real_repo_root
+    real_repo_root="$(cd "$BATS_TEST_DIR/../.." && pwd)"
+    SCRIPT_DIR="$real_repo_root/.claude/scripts"
+    FIXTURES="$real_repo_root/tests/fixtures/vision-registry"
 
     export BATS_TMPDIR="${BATS_TMPDIR:-/tmp}"
     export TEST_TMPDIR="$BATS_TMPDIR/vision-lib-test-$$"
     mkdir -p "$TEST_TMPDIR"
     mkdir -p "$TEST_TMPDIR/entries"
+    mkdir -p "$TEST_TMPDIR/.claude"
+    ln -sf "$real_repo_root/.claude/scripts" "$TEST_TMPDIR/.claude/scripts"
 
-    export PROJECT_ROOT
+    export PROJECT_ROOT="$TEST_TMPDIR"
 }
 
 teardown() {

@@ -5,15 +5,21 @@
 
 setup() {
     BATS_TEST_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
-    PROJECT_ROOT="$(cd "$BATS_TEST_DIR/../.." && pwd)"
+    local real_repo_root
+    real_repo_root="$(cd "$BATS_TEST_DIR/../.." && pwd)"
+
+    TEST_TMPDIR="$(mktemp -d)"
+    export PROJECT_ROOT="$TEST_TMPDIR"
+    ORIG_DIR="$PWD"
+
+    # Copy SKILL.md so test assertions on PROJECT_ROOT/.claude/skills/spiraling/SKILL.md pass
+    mkdir -p "$TEST_TMPDIR/.claude/skills/spiraling"
+    cp "$real_repo_root/.claude/skills/spiraling/SKILL.md" "$TEST_TMPDIR/.claude/skills/spiraling/"
 
     # Source the real harness functions (main guard prevents execution)
-    export PROJECT_ROOT
-    TEST_TMPDIR="$(mktemp -d)"
-    ORIG_DIR="$PWD"
-    source "$PROJECT_ROOT/.claude/scripts/spiral-evidence.sh"
+    source "$real_repo_root/.claude/scripts/spiral-evidence.sh"
     _init_flight_recorder "$TEST_TMPDIR"
-    source "$PROJECT_ROOT/.claude/scripts/spiral-harness.sh"
+    source "$real_repo_root/.claude/scripts/spiral-harness.sh"
 }
 
 teardown() {

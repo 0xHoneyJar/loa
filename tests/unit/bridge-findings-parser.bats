@@ -5,15 +5,15 @@
 
 setup() {
     BATS_TEST_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
-    PROJECT_ROOT="$(cd "$BATS_TEST_DIR/../.." && pwd)"
-    SCRIPT="$PROJECT_ROOT/.claude/scripts/bridge-findings-parser.sh"
+    local real_repo_root
+    real_repo_root="$(cd "$BATS_TEST_DIR/../.." && pwd)"
+    SCRIPT="$real_repo_root/.claude/scripts/bridge-findings-parser.sh"
 
     export BATS_TMPDIR="${BATS_TMPDIR:-/tmp}"
     export TEST_TMPDIR="$BATS_TMPDIR/findings-parser-test-$$"
     mkdir -p "$TEST_TMPDIR"
 
-    # Override PROJECT_ROOT
-    export PROJECT_ROOT
+    export PROJECT_ROOT="$TEST_TMPDIR"
 }
 
 teardown() {
