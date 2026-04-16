@@ -1,86 +1,33 @@
-# Sprint Plan: Cycle-077 — Fix spiral-orchestrator stdout pollution (#514)
+# Sprint Plan: Cycle-078 — Fix spiral-harness budget boundary (#515)
 
 **PRD**: `grimoires/loa/prd.md`
 **SDD**: `grimoires/loa/sdd.md`
-**Issue**: [#514](https://github.com/0xHoneyJar/loa/issues/514)
-**Branch**: `fix/spiral-stdout-pollution-514`
+**Issue**: [#515](https://github.com/0xHoneyJar/loa/issues/515)
+**Branch**: `fix/harness-budget-boundary-515`
 
-## Sprint 1 (single sprint — targeted fix)
+## Sprint 1 (single sprint)
 
-### Task 1: Apply stdout redirect fix
-**File**: `.claude/scripts/spiral-orchestrator.sh`
-**Lines**: 1010-1012
+### Task 1: Change `>=` to `>` in `_check_budget`
+**File**: `.claude/scripts/spiral-evidence.sh` line 222
+- Change `'$spent >= $max'` to `'$spent > $max'`
+- Update error message to match: `>` not `>=`
 
-Change:
-```bash
-"$SCRIPT_DIR/cycle-workspace.sh" init "$cycle_id" 2>/dev/null || true
-```
-To:
-```bash
-"$SCRIPT_DIR/cycle-workspace.sh" init "$cycle_id" >/dev/null 2>&1 || true
-```
+### Task 2: Add audit reserve logic to harness
+**File**: `.claude/scripts/spiral-harness.sh`
+- Add `AUDIT_RESERVE="$AUDIT_BUDGET"` after line 59
+- Modify `_invoke_claude` to pass `TOTAL_BUDGET - AUDIT_RESERVE` for non-AUDIT phases
+- AUDIT phase passes `TOTAL_BUDGET` directly
 
-**Acceptance criteria**:
-- [ ] `>/dev/null 2>&1` replaces `2>/dev/null`
-- [ ] No other lines changed in the function
+### Task 3: Raise light profile default budget to $12
+**File**: `.claude/scripts/spiral-harness.sh` line 159
+- Change `TOTAL_BUDGET=10` to `TOTAL_BUDGET=12`
 
-### Task 2: Add guard comment above run_single_cycle
-**File**: `.claude/scripts/spiral-orchestrator.sh`
-**Lines**: ~980 (above function definition)
+### Task 4: Add regression tests
+**Files**: `tests/unit/spiral-evidence.bats`, `tests/unit/spiral-harness.bats`
+- T-BUD1: `_check_budget` passes when spent equals exactly max (the #515 boundary)
+- T-BUD2: `_check_budget` fails when spent strictly exceeds max
+- T-BUD3: light profile default budget is 12
 
-Add comment block documenting that stdout is a return channel and all commands must either capture output or redirect stdout.
-
-**Acceptance criteria**:
-- [ ] Comment placed immediately above `run_single_cycle()` definition
-- [ ] References Issue #514
-
-### Task 3: Add multi-cycle stub BATS regression test
-**File**: `tests/unit/spiral-orchestrator.bats` (extend existing, ~785 lines)
-
-Add test section at end of file with:
-
-**Test T-MC1**: `"stub-mode completes all max_cycles without early termination"`
-- Setup: config with explicit `default_max_cycles: 3` (test controls the value, not inherited)
-- Run `SPIRAL_USE_STUB=1 spiral-orchestrator.sh --start`
-- Assert exit code 0
-- Assert `.run/spiral-state.json` `.state == "COMPLETED"`
-- Assert `.stopping_condition == "cycle_budget_exhausted"`
-- Assert `.cycles | length == 3` (matches the test's explicit `default_max_cycles`)
-- Assert trajectory file contains `spiral_stopped` event
-
-**Test T-MC2**: `"stopping_condition is a valid enum member"`
-- After stub run, extract `stopping_condition`
-- Assert it matches one of the PRD Section 8 enum values: `cycle_budget_exhausted`, `flatline_convergence`, `cost_budget_exhausted`, `wall_clock_exhausted`, `hitl_halt`, `quality_gate_failure`, `token_window_exhausted`
-- Assert it does NOT contain `{`, `}`, or whitespace
-
-**Test T-MC3**: `"run_single_cycle stdout contract: line 1=stop_reason, line 2=cycle_dir"`
-- Source the orchestrator functions
-- **Mocking strategy**: Create a mock `cycle-workspace.sh` in test's PATH that outputs JSON to stdout (simulating the bug trigger). Mock `simstim_phase` and `harvest_phase` as no-ops. Set up minimal state file.
-- Capture all stdout from `run_single_cycle`
-- **Stdout contract**: Line 1 is either empty string (continue) or a member of the stopping_condition enum. Line 2 is a directory path matching `*/cycles/*`.
-- Assert exactly 2 lines emitted
-- Assert line 1 is empty or matches enum (not `{`, not JSON)
-- Assert line 2 is a valid directory path
-
-**Acceptance criteria**:
-- [ ] All 3 tests pass
-- [ ] Tests use existing `setup`/`teardown` fixtures
-- [ ] No changes to existing tests
-- [ ] Tests run in <10s total
-
-### Task 4: Verify existing tests still pass
-**Command**: `bats tests/unit/spiral-orchestrator.bats`
-
-**Acceptance criteria**:
-- [ ] All existing tests pass (no regressions)
-- [ ] New tests pass
-- [ ] Exit code 0
-
-### Task 5: Create PR
-**Branch**: `fix/spiral-stdout-pollution-514`
-**Target**: `main`
-
-**Acceptance criteria**:
-- [ ] PR references issue #514
-- [ ] PR description includes root cause summary
-- [ ] Review requested from @janitooor
+### Task 5: Verify all tests pass + create PR
+- Run `bats tests/unit/spiral-evidence.bats tests/unit/spiral-harness.bats`
+- Create PR referencing #515

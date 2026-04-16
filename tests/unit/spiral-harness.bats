@@ -211,3 +211,20 @@ teardown() {
     run yq eval '.spiral.harness.planning_budget_usd' "$REAL_ROOT/.loa.config.yaml"
     [ "$output" = "1" ]
 }
+
+# =============================================================================
+# Budget boundary (Issue #515)
+# =============================================================================
+
+@test "harness: default TOTAL_BUDGET is 12 (Issue #515)" {
+    # Source the harness to read the default — need minimal config
+    source "$BATS_TEST_DIR/../../.claude/scripts/spiral-evidence.sh"
+    source "$BATS_TEST_DIR/../../.claude/scripts/spiral-harness.sh" 2>/dev/null || true
+    [ "$TOTAL_BUDGET" = "12" ]
+}
+
+@test "harness: AUDIT_RESERVE equals AUDIT_BUDGET" {
+    source "$BATS_TEST_DIR/../../.claude/scripts/spiral-evidence.sh"
+    source "$BATS_TEST_DIR/../../.claude/scripts/spiral-harness.sh" 2>/dev/null || true
+    [ "$AUDIT_RESERVE" = "$AUDIT_BUDGET" ]
+}

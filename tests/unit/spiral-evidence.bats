@@ -253,6 +253,32 @@ teardown() {
 }
 
 # =============================================================================
+# Budget boundary (Issue #515): spent == max should PASS, not fail
+# =============================================================================
+
+@test "evidence: check_budget passes when spent equals exactly max (Issue #515)" {
+    _init_flight_recorder "$TEST_TMPDIR/cycle-test"
+    # Simulate exactly $10 cumulative spend (the #515 boundary condition)
+    _record_action "DISCOVERY" "test" "test" "" "" "" 0 0 1.00 ""
+    _record_action "ARCHITECTURE" "test" "test" "" "" "" 0 0 1.00 ""
+    _record_action "PLANNING" "test" "test" "" "" "" 0 0 1.00 ""
+    _record_action "IMPLEMENTATION" "test" "test" "" "" "" 0 0 5.00 ""
+    _record_action "REVIEW" "test" "test" "" "" "" 0 0 2.00 ""
+
+    # Total = $10.00, max = $10 → should PASS (strictly greater, not >=)
+    _check_budget 10
+    [ $? -eq 0 ]
+}
+
+@test "evidence: check_budget fails when spent is strictly greater than max" {
+    _init_flight_recorder "$TEST_TMPDIR/cycle-test"
+    _record_action "P1" "test" "test" "" "" "" 0 0 10.01 ""
+
+    run _check_budget 10
+    [ "$status" -eq 1 ]
+}
+
+# =============================================================================
 # Flatline Summary
 # =============================================================================
 

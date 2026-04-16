@@ -58,6 +58,10 @@ IMPLEMENT_BUDGET=$(_read_harness_config "spiral.harness.implement_budget_usd" "5
 REVIEW_BUDGET=$(_read_harness_config "spiral.harness.review_budget_usd" "2")
 AUDIT_BUDGET=$(_read_harness_config "spiral.harness.audit_budget_usd" "2")
 
+# Audit reserve (cycle-078, Issue #515): subtract from effective budget for pre-AUDIT phases
+# so AUDIT always has headroom. AUDIT itself uses the full TOTAL_BUDGET.
+AUDIT_RESERVE="$AUDIT_BUDGET"
+
 # BB Fix Loop config (cycle-074): budget and iteration caps for the fix loop
 BB_FIX_BUDGET=$(_read_harness_config "spiral.harness.bb_fix_budget_usd" "3")
 BB_MAX_ITERATIONS=$(_read_harness_config "spiral.harness.bb_max_iterations" "3")
@@ -69,7 +73,7 @@ ADVISOR_MODEL=$(_read_harness_config "spiral.harness.advisor_model" "opus")
 # Pipeline Profiles (cycle-072): match intensity to task complexity
 # full    = all 3 Flatline gates + Opus advisor ($15, architecture/security)
 # standard = Sprint Flatline only + Opus advisor ($12, most features) [DEFAULT]
-# light   = no Flatline + Sonnet advisor ($8, bug fixes/flags/config)
+# light   = no Flatline + Sonnet advisor ($12, bug fixes/flags/config)
 PIPELINE_PROFILE=$(_read_harness_config "spiral.harness.pipeline_profile" "standard")
 FLATLINE_GATES=""
 _PROFILE_EXPLICITLY_SET=false
@@ -156,7 +160,7 @@ TASK=""
 CYCLE_DIR=""
 CYCLE_ID=""
 BRANCH=""
-TOTAL_BUDGET=10
+TOTAL_BUDGET=12
 SEED_CONTEXT=""
 EVIDENCE_DIR=""
 
@@ -205,7 +209,13 @@ _parse_args() {
 _invoke_claude() {
     local phase="$1" prompt="$2" budget="$3" timeout_sec="${4:-600}" model="${5:-$EXECUTOR_MODEL}"
 
-    _check_budget "$TOTAL_BUDGET" || { error "Budget exceeded before $phase"; exit 3; }
+    # Issue #515: AUDIT uses full budget; all other phases use reduced cap
+    # so AUDIT always has headroom regardless of prior cumulative spend.
+    local effective_cap="$TOTAL_BUDGET"
+    if [[ "$phase" != "AUDIT" ]]; then
+        effective_cap=$(jq -n --argjson total "$TOTAL_BUDGET" --argjson reserve "$AUDIT_RESERVE" '$total - $reserve')
+    fi
+    _check_budget "$effective_cap" || { error "Budget exceeded before $phase"; exit 3; }
 
     local stdout_file="$EVIDENCE_DIR/${phase,,}-stdout.json"
     local stderr_file="$EVIDENCE_DIR/${phase,,}-stderr.log"

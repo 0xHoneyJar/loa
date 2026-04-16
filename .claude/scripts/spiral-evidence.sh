@@ -219,9 +219,9 @@ _check_budget() {
     local spent
     spent=$(_get_cumulative_cost)
 
-    if jq -n --argjson spent "$spent" --argjson max "$max_budget" '$spent >= $max' 2>/dev/null | grep -q true; then
+    if jq -n --argjson spent "$spent" --argjson max "$max_budget" '$spent > $max' 2>/dev/null | grep -q true; then
         _record_failure "BUDGET" "EXCEEDED" "spent=$spent max=$max_budget"
-        echo "ERROR: Budget exceeded: \$${spent} >= \$${max_budget}" >&2
+        echo "ERROR: Budget exceeded: \$${spent} > \$${max_budget}" >&2
         return 1
     fi
     return 0
