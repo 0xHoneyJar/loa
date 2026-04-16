@@ -1,56 +1,35 @@
-# Software Design Document: Fix spiral-harness budget boundary (#515)
+# Software Design Document: Shell-lint rule for grep -c || echo 0 (#531)
 
 **Date**: 2026-04-16
-**PRD**: `grimoires/loa/prd.md`
-**Issue**: [#515](https://github.com/0xHoneyJar/loa/issues/515)
-**Cycle**: cycle-078
+**Issue**: [#531](https://github.com/0xHoneyJar/loa/issues/531)
+**Cycle**: cycle-079
 
-## 1. Changes
+## 1. Change
 
-### Change 1: Strict-greater comparison in `_check_budget` (PRIMARY)
+Add a new WARNING rule section to `.github/workflows/shell-compat-lint.yml` following the existing pattern (sed -i, readlink -f, grep -P, etc.).
 
-**File**: `.claude/scripts/spiral-evidence.sh` line 222
+### Detection patterns
 
-**Before**: `'$spent >= $max'` — blocks when spent equals max
-**After**: `'$spent > $max'` — allows phase to START at exact budget
-
-This is the minimal fix: a phase that starts when `spent == max` will run with its own per-phase `--max-budget-usd` cap from `_invoke_claude`. It can't overshoot the total because `claude -p` enforces per-call budgets.
-
-### Change 2: Audit reserve in harness pipeline
-
-**File**: `.claude/scripts/spiral-harness.sh`
-
-Add an `AUDIT_RESERVE` variable that reduces the effective budget cap for pre-AUDIT phases:
-
-```bash
-# Reserve audit budget from the total so AUDIT always has headroom
-AUDIT_RESERVE="$AUDIT_BUDGET"  # $2 by default
+```
+grep -c ... || echo
+wc -l ... || echo
 ```
 
-Modify `_invoke_claude` to use an effective budget when the phase is NOT AUDIT:
-- Pre-AUDIT phases: check against `TOTAL_BUDGET - AUDIT_RESERVE`
-- AUDIT phase: check against `TOTAL_BUDGET` (full cap)
+Regex: `(grep\s+-c.*\|\|\s*echo|wc\s+-l.*\|\|\s*echo)`
 
-Implementation: pass the effective cap to `_check_budget` based on phase name.
+### Allowlist
 
-### Change 3: Raise light profile default budget
+- Test files: `*test*`, `*.bats`
+- Inline suppression: lines containing `# lint:allow-grep-c-fallback`
+- The lint rule file itself
 
-**File**: `.claude/scripts/spiral-harness.sh` line 159
+### Severity
 
-**Before**: `TOTAL_BUDGET=10`
-**After**: `TOTAL_BUDGET=12`
+WARNING (not ERROR) — existing ~55 sites would block all PRs otherwise.
 
-This matches observed real-world cumulative costs and provides margin.
+### Recommended fix (in lint output)
 
-### Change 4: Regression tests
-
-**File**: `tests/unit/spiral-evidence.bats` — extend with:
-- Test: `_check_budget` passes when spent equals exactly max (boundary case)
-- Test: `_check_budget` fails when spent exceeds max
-
-**File**: `tests/unit/spiral-harness.bats` — extend with:
-- Test: light profile default budget is 12 (not 10)
-
-## 2. System Zone Write Authorization
-
-Per PRD Section 7. Files: `.claude/scripts/spiral-evidence.sh`, `.claude/scripts/spiral-harness.sh`, test files.
+```
+Use: count=$(awk '/pattern/{c++} END{print c+0}' FILE)
+Instead of: count=$(grep -c 'pattern' FILE 2>/dev/null || echo 0)
+```
