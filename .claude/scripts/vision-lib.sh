@@ -702,13 +702,13 @@ vision_regenerate_index_stats() {
 
   # Count statuses from the table (grep for status column values)
   local captured exploring proposed implemented deferred archived rejected
-  captured=$(grep -c '| Captured |' "$index_file" 2>/dev/null || echo 0)
-  exploring=$(grep -c '| Exploring |' "$index_file" 2>/dev/null || echo 0)
-  proposed=$(grep -c '| Proposed |' "$index_file" 2>/dev/null || echo 0)
-  implemented=$(grep -c '| Implemented |' "$index_file" 2>/dev/null || echo 0)
-  deferred=$(grep -c '| Deferred |' "$index_file" 2>/dev/null || echo 0)
-  archived=$(grep -c '| Archived |' "$index_file" 2>/dev/null || echo 0)
-  rejected=$(grep -c '| Rejected |' "$index_file" 2>/dev/null || echo 0)
+  captured=$(awk '/\| Captured \|/{c++} END{print c+0}' "$index_file" 2>/dev/null || echo 0)
+  exploring=$(awk '/\| Exploring \|/{c++} END{print c+0}' "$index_file" 2>/dev/null || echo 0)
+  proposed=$(awk '/\| Proposed \|/{c++} END{print c+0}' "$index_file" 2>/dev/null || echo 0)
+  implemented=$(awk '/\| Implemented \|/{c++} END{print c+0}' "$index_file" 2>/dev/null || echo 0)
+  deferred=$(awk '/\| Deferred \|/{c++} END{print c+0}' "$index_file" 2>/dev/null || echo 0)
+  archived=$(awk '/\| Archived \|/{c++} END{print c+0}' "$index_file" 2>/dev/null || echo 0)
+  rejected=$(awk '/\| Rejected \|/{c++} END{print c+0}' "$index_file" 2>/dev/null || echo 0)
 
   # Rewrite statistics section using awk (safe, no shell expansion issues)
   # Note: avoid awk variable names that clash with builtins (exp, log, etc.)
