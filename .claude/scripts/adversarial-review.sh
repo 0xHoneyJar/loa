@@ -159,7 +159,7 @@ secret_scan_content() {
           printf '%s\t%s\n' "$placeholder" "$match" >> "${scan_tmp}.allowlist"
           # Replace in file (literal match via perl to avoid regex in match)
           perl -i -pe "s/\Q${match}\E/${placeholder}/g" "$scan_tmp" 2>/dev/null || true
-          ((al_idx++))
+          al_idx=$((al_idx + 1))
         done <<< "$matches"
       fi
     done
@@ -427,7 +427,7 @@ assemble_dissent_context() {
 
       escalated_content+=$'\n'"--- FULL FILE: $filepath (P0 escalated) ---"$'\n'"$file_content"$'\n'
       escalated_tokens=$(( escalated_tokens + file_tokens ))
-      ((escalated_count++))
+      escalated_count=$((escalated_count + 1))
       escalation_used="true"
       log "Escalated P0 file: $filepath ($file_tokens tokens, $escalated_count/$MAX_ESCALATED_FILES)"
     done <<< "$diff_files"
@@ -608,7 +608,7 @@ process_findings() {
     else
       log "Rejected invalid finding at index $i"
     fi
-    ((i++))
+    i=$((i + 1))
   done
 
   # Extract token/cost metadata from model-adapter response
@@ -674,7 +674,7 @@ merge_findings() {
       fid=$(compute_finding_id "$anchor" "$category" "$i")
       finding=$(echo "$finding" | jq --arg fid "$fid" '. + {finding_id: $fid, source: "dissenter"}')
       result=$(echo "$result" | jq --argjson f "$finding" '. + [$f]')
-      ((i++))
+      i=$((i + 1))
     done
     echo "$result"
     return 0
@@ -733,7 +733,7 @@ merge_findings() {
       # New finding
       merged=$(echo "$merged" | jq --argjson f "$finding" '. + [$f]')
     fi
-    ((i++))
+    i=$((i + 1))
   done
 
   echo "$merged"
@@ -787,7 +787,7 @@ write_output() {
     local lock_dir="${trajectory_file}.lockdir"
     local max_wait=5 waited=0
     while ! mkdir "$lock_dir" 2>/dev/null; do
-      ((waited++))
+      waited=$((waited + 1))
       if [[ $waited -ge $max_wait ]]; then
         log "WARNING: Could not acquire lock, writing without lock"
         echo "$trajectory_entry" >> "$trajectory_file"

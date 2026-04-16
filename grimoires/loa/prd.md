@@ -1,35 +1,23 @@
-# Product Requirements Document: Harden cache-manager secret detection (#530)
+# Product Requirements Document: Fix (( var++ )) under set -e + lint rule (QoL)
 
 **Date**: 2026-04-16
-**Issue**: [#530](https://github.com/0xHoneyJar/loa/issues/530)
-**Cycle**: cycle-080
+**Cycle**: cycle-081
 
-## 1. Problem Statement
+## 1. Problem
 
-PR #525 broadened `cache-manager.sh` secret patterns from `KEY.*=` to `KEY.*[=:]` to catch JSON/YAML secrets. The bare `secret.*[=:]` pattern now false-positives on legitimate content: `{"secret_scanning": true}`, `kind: Secret` (K8s), `"no_secret": false`, code comments.
+`(( var++ ))` exits with status 1 when `var=0` (POSIX: arithmetic evaluating to 0 is falsy). Under `set -e` or `set -euo pipefail`, this silently terminates the script. 71 unguarded sites across 15 scripts with `set -e`.
 
 ## 2. Goals
 
-1. Narrow the `secret` pattern with word-boundary-like anchoring to reduce false positives
-2. Add parameterized BATS tests covering all 9 secret patterns individually
-3. Add false-positive regression tests for known legitimate content
+1. Add lint detector script (`lint-arithmetic-increment.sh`) matching the `lint-grep-c-fallback.sh` pattern
+2. Fix all unguarded `(( var++ ))` and `(( var-- ))` in non-test `.claude/scripts/` files
+3. Replacement: `var=$((var + 1))` (always exits 0)
 
 ## 3. Non-Goals
 
-- Porting the full allowlist mechanism from `adversarial-review.sh` (overkill for cache-manager's simpler detect-and-reject model)
-- Changing patterns other than `secret.*[=:]` (the others are specific enough)
+- Fixing test files (they manage their own error handling)
+- Fixing sites already guarded with `|| true`
 
-## 4. Success Criteria
+## 4. System Zone Write Authorization
 
-| ID | Criterion | Verification |
-|----|-----------|-------------|
-| SC-1 | `{"secret_scanning": true}` does NOT trigger rejection | BATS test |
-| SC-2 | `kind: Secret` (K8s manifest) does NOT trigger rejection | BATS test |
-| SC-3 | `secret_key=abc123` DOES trigger rejection | BATS test |
-| SC-4 | `"secret": "mypassword"` DOES trigger rejection | BATS test |
-| SC-5 | All 9 secret patterns have individual test coverage | BATS test |
-| SC-6 | All existing cache-manager tests pass | CI green |
-
-## 5. System Zone Write Authorization
-
-Authorized for cycle-080: `.claude/scripts/cache-manager.sh`, `tests/unit/cache-manager.bats`
+Authorized for cycle-081: `.claude/scripts/*.sh`, `.claude/scripts/**/*.sh`

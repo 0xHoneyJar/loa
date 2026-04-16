@@ -354,7 +354,7 @@ redact_secrets() {
     # Count redactions by comparing lengths (rough estimate)
     local new_length=${#redacted}
     if [[ $original_length -ne $new_length ]]; then
-        ((REDACTION_COUNT++))
+        REDACTION_COUNT=$((REDACTION_COUNT + 1))
     fi
 
     echo "$redacted"

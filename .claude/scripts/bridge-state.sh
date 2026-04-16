@@ -101,7 +101,7 @@ _acquire_lock_mkdir() {
     fi
 
     sleep 0.2
-    (( elapsed++ ))
+    elapsed=$((elapsed + 1))
     if (( elapsed >= attempts )); then
       echo "ERROR: Lock acquisition timed out after ${timeout}s" >&2
       return 1

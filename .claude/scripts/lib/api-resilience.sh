@@ -129,7 +129,7 @@ record_circuit_failure() {
 
     local failures
     failures=$(jq -r '.failures // 0' "$state_file")
-    ((failures++))
+    failures=$((failures + 1))
 
     if (( failures >= CIRCUIT_FAILURE_THRESHOLD )); then
         # Open the circuit
@@ -355,7 +355,7 @@ call_api_with_retry() {
     local response status_code error_class
 
     while (( attempt < API_MAX_RETRIES )); do
-        ((attempt++))
+        attempt=$((attempt + 1))
 
         log_debug "API call attempt $attempt/$API_MAX_RETRIES to $endpoint"
 

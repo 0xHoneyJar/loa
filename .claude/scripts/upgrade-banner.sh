@@ -116,7 +116,7 @@ get_version_highlights() {
         local count=0
         for h in "${highlights[@]}"; do
             echo "$h"
-            ((count++))
+            count=$((count + 1))
             [[ $count -ge 5 ]] && break
         done
         return 0

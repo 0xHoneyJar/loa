@@ -311,7 +311,7 @@ acquire_lock_mkdir() {
         if [[ $backoff -gt 30 ]]; then
             backoff=30
         fi
-        ((attempt++))
+        attempt=$((attempt + 1))
     done
 
     log "Lock acquisition failed after $max_retries attempts: $resource"
@@ -561,7 +561,7 @@ cleanup_locks() {
             local lock_dir="${info_file%.info}.lock.d"
             rm -f "$lock_path" "$info_file"
             rm -rf "$lock_dir" 2>/dev/null || true
-            ((cleaned++))
+            cleaned=$((cleaned + 1))
         fi
     done < <(find "$LOCK_DIR" -name "*.info" -print0 2>/dev/null)
 

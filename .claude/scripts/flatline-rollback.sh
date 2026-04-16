@@ -326,9 +326,9 @@ rollback_run() {
         log "Rolling back: $integration_id"
 
         if rollback_single "$integration_id" "$run_id" "$dry_run" "$force"; then
-            ((rolled_back++))
+            rolled_back=$((rolled_back + 1))
         else
-            ((failed++))
+            failed=$((failed + 1))
             if [[ "$force" != "true" ]]; then
                 error "Rollback failed for $integration_id, stopping"
                 break

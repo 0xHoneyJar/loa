@@ -335,7 +335,7 @@ index_skills() {
                 "indexed_at": (now | strftime("%Y-%m-%dT%H:%M:%SZ"))
             }]')
 
-        ((count++))
+        count=$((count + 1))
     done < <(find .claude/skills -name "*.md" -type f -print0 2>/dev/null)
 
     echo "$output" > "$SKILLS_INDEX"
@@ -397,7 +397,7 @@ index_feedback() {
             fi
         fi
 
-        ((count++))
+        count=$((count + 1))
     done < <(find grimoires/loa/feedback -maxdepth 1 -name "*.yaml" -type f -print0 2>/dev/null)
 
     echo "$output" > "$FEEDBACK_INDEX"
@@ -438,7 +438,7 @@ index_decisions() {
                 id=$(echo "$line" | sed 's/.*id:\s*//')
                 output=$(echo "$output" | jq --arg id "$id" \
                     '. + [{"type": "decision", "id": $id, "source_file": "grimoires/loa/decisions.yaml"}]')
-                ((count++))
+                count=$((count + 1))
             fi
         done < "$decisions_file"
     fi
@@ -963,10 +963,10 @@ validate_learnings() {
         if command -v yq &> /dev/null && command -v ajv &> /dev/null; then
             if yq -o=json "$file" | ajv validate -s "$schema_file" -d - &> /dev/null; then
                 echo -e "${GREEN}✓${NC}"
-                ((valid++))
+                valid=$((valid + 1))
             else
                 echo -e "${RED}✗${NC}"
-                ((invalid++))
+                invalid=$((invalid + 1))
             fi
         else
             echo -e "${YELLOW}skipped (yq/ajv not available)${NC}"

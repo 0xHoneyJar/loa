@@ -208,7 +208,7 @@ create_manifest() {
         if ! check_run_collision "$run_id"; then
             break
         fi
-        ((attempts++))
+        attempts=$((attempts + 1))
         if [[ $attempts -gt 10 ]]; then
             error "Failed to generate unique run ID after 10 attempts"
             return 1

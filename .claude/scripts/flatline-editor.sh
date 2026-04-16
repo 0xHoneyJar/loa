@@ -248,7 +248,7 @@ find_section_end() {
                 return 0
             fi
         fi
-        ((current_line++))
+        current_line=$((current_line + 1))
     done
 
     # Section goes to end of file

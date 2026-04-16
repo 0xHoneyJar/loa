@@ -462,7 +462,7 @@ cmd_sync() {
 
         log_info "Syncing collection: $name"
         if index_collection "$name" "$path" "$includes" "$force"; then
-            ((synced++))
+            synced=$((synced + 1))
         fi
     done < <(echo "$collections" | jq -c '.[]' 2>/dev/null)
 

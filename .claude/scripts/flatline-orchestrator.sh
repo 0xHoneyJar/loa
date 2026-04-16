@@ -972,7 +972,7 @@ run_phase1() {
     local failed_labels=()
     for i in "${!pids[@]}"; do
         if ! wait "${pids[$i]}"; then
-            ((failed++))
+            failed=$((failed + 1))
             failed_labels+=("${pid_labels[$i]}")
         fi
     done
@@ -1122,7 +1122,7 @@ run_phase2() {
     local failed=0
     for pid in "${pids[@]}"; do
         if ! wait "$pid"; then
-            ((failed++))
+            failed=$((failed + 1))
         fi
     done
 

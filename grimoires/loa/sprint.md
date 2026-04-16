@@ -1,14 +1,13 @@
-# Sprint Plan: Cycle-080 — Harden cache-manager secret detection (#530)
+# Sprint Plan: Cycle-081 — Fix (( var++ )) under set -e
 
-**Issue**: [#530](https://github.com/0xHoneyJar/loa/issues/530)
-**Branch**: `fix/cache-manager-secret-patterns-530`
+**Branch**: `fix/arithmetic-increment-set-e`
 
 ## Sprint 1
 
-### Task 1: Narrow `secret` pattern in SECRET_PATTERNS array
-Replace the single broad `'secret.*[=:]'` with two specific patterns.
+### Task 1: Create lint detector script
+`.claude/scripts/lint-arithmetic-increment.sh` — detect `(( var++ ))` and `(( var-- ))` without `|| true` guard in scripts with `set -e`.
 
-### Task 2: Add parameterized BATS tests for each secret pattern
-Individual test per pattern + false-positive regression tests.
+### Task 2: Bulk fix all unguarded sites
+Mechanical sed replacement across 15 scripts, ~71 sites.
 
-### Task 3: Verify all tests pass + create PR
+### Task 3: Verify tests pass + create PR

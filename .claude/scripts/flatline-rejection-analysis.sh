@@ -128,7 +128,7 @@ classify_rejection() {
         # Count keyword matches
         for keyword in $(echo "$keywords" | tr '|' ' '); do
             if [[ "$reason_lower" == *"$keyword"* ]]; then
-                ((score++))
+                score=$((score + 1))
             fi
         done
 

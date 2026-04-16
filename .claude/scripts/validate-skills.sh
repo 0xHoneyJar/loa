@@ -66,18 +66,18 @@ for skill_dir in "$SKILLS_DIR"/*/; do
     skill_name=$(basename "$skill_dir")
     index_file="$skill_dir/index.yaml"
 
-    ((total++))
+    total=$((total + 1))
 
     if [[ ! -f "$index_file" ]]; then
         echo -e "${YELLOW}SKIP${NC}: $skill_name (no index.yaml)"
-        ((warnings++))
+        warnings=$((warnings + 1))
         continue
     fi
 
     # Convert YAML to JSON
     json_content=$(yq -o=json "$index_file" 2>&1) || {
         echo -e "${RED}FAIL${NC}: $skill_name - YAML parse error"
-        ((failed++))
+        failed=$((failed + 1))
         continue
     }
 
@@ -141,7 +141,7 @@ for skill_dir in "$SKILLS_DIR"/*/; do
 
     # If ajv is available, run full schema validation
     if [[ "$has_ajv" == "true" ]]; then
-        temp_file=$(mktemp) || { echo -e "${RED}FAIL${NC}: $skill_name - mktemp failed"; ((failed++)); continue; }
+        temp_file=$(mktemp) || { echo -e "${RED}FAIL${NC}: $skill_name - mktemp failed"; failed=$((failed + 1)); continue; }
         chmod 600 "$temp_file"  # CRITICAL-001 FIX
         echo "$json_content" > "$temp_file"
 
@@ -160,13 +160,13 @@ for skill_dir in "$SKILLS_DIR"/*/; do
     # Report results
     if [[ ${#errors[@]} -eq 0 ]]; then
         echo -e "${GREEN}PASS${NC}: $skill_name"
-        ((passed++))
+        passed=$((passed + 1))
     else
         echo -e "${RED}FAIL${NC}: $skill_name"
         for err in "${errors[@]}"; do
             echo "       - $err"
         done
-        ((failed++))
+        failed=$((failed + 1))
     fi
 done
 

@@ -89,7 +89,7 @@ sync_pack() {
                     warn "Failed to register ${skill_slug}"
                 fi
             fi
-            ((added++))
+            added=$((added + 1))
         fi
     done <<< "$declared_skills"
 }

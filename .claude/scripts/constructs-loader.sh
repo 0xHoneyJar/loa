@@ -1182,7 +1182,7 @@ do_check_updates() {
         if [[ -z "$response" ]]; then
             # Network error or skill not found
             print_status "$icon_unknown" "$skill_slug ($current_version) [unable to check]"
-            ((errors++))
+            errors=$((errors + 1))
             continue
         fi
 
@@ -1200,7 +1200,7 @@ do_check_updates() {
 
         if [[ -z "$latest_version" ]]; then
             print_status "$icon_unknown" "$skill_slug ($current_version) [parse error]"
-            ((errors++))
+            errors=$((errors + 1))
             continue
         fi
 
@@ -1212,7 +1212,7 @@ do_check_updates() {
             1)
                 # Update available
                 print_status "$icon_warning" "$skill_slug: $current_version → $latest_version (update available)"
-                ((updates_available++))
+                updates_available=$((updates_available + 1))
                 ;;
             0)
                 # Up to date
@@ -1224,7 +1224,7 @@ do_check_updates() {
                 ;;
         esac
 
-        ((skills_checked++))
+        skills_checked=$((skills_checked + 1))
     done <<< "$skills"
 
     echo ""

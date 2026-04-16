@@ -223,7 +223,7 @@ retry_command() {
     local last_output=""
 
     while [[ $attempt -lt $max_attempts ]]; do
-        ((attempt++))
+        attempt=$((attempt + 1))
         log "Attempt $attempt of $max_attempts: $*"
 
         # Execute command

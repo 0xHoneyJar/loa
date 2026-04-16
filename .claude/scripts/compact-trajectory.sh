@@ -108,7 +108,7 @@ while IFS= read -r -d '' file; do
             echo "  [DRY RUN] Would compress to ${file}.gz"
         fi
         
-        ((COMPRESS_COUNT++))
+        COMPRESS_COUNT=$((COMPRESS_COUNT + 1))
     fi
 done < <(find "${TRAJECTORY_DIR}" -maxdepth 1 -name "*.jsonl" -type f -print0 2>/dev/null || true)
 
@@ -138,7 +138,7 @@ while IFS= read -r -d '' file; do
             echo "  [DRY RUN] Would delete"
         fi
         
-        ((PURGE_COUNT++))
+        PURGE_COUNT=$((PURGE_COUNT + 1))
     fi
 done < <(find "${TRAJECTORY_DIR}" -name "*.jsonl.gz" -type f -print0 2>/dev/null || true)
 
@@ -182,7 +182,7 @@ if [[ -d "$STATE_ARCHIVE_DIR" ]]; then
                 echo "  [DRY RUN] Would delete"
             fi
 
-            ((EXPORT_PURGE_COUNT++))
+            EXPORT_PURGE_COUNT=$((EXPORT_PURGE_COUNT + 1))
         fi
     done < <(find "${STATE_ARCHIVE_DIR}" -maxdepth 1 \( -name "*.json" -o -name "*.json.gz" \) -type f -print0 2>/dev/null || true)
 fi

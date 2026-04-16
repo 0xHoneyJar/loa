@@ -250,7 +250,7 @@ search_context_docs() {
             --argjson weight 0.8 \
             '{type: $type, title: $title, description: $desc, source: $src, weight: $weight}')")
 
-        ((count++))
+        count=$((count + 1))
     # Security: Use grep -F (fixed strings) to prevent regex injection
     done < <(grep -Fril "$domain" "$CONTEXT_DIR"/*.md 2>/dev/null || true)
 
@@ -328,7 +328,7 @@ search_feedback() {
                     --argjson weight 0.7 \
                     '{type: $type, title: $title, description: $desc, source: $src, weight: $weight}')")
 
-                ((count++))
+                count=$((count + 1))
             fi
         fi
     done

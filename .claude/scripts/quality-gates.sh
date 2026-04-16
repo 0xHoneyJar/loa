@@ -506,7 +506,7 @@ validate_borderline_with_flatline() {
       continue
     }
 
-    ((validated_count++))
+    validated_count=$((validated_count + 1))
 
     # Apply validation result
     local action consensus
@@ -517,17 +517,17 @@ validate_borderline_with_flatline() {
       promote)
         # Mark as passing
         result=$(echo "$result" | jq '.passes = true | .flatline_validated = true | .flatline_action = "promote"')
-        ((promoted_count++))
+        promoted_count=$((promoted_count + 1))
         ;;
       demote)
         # Mark as low_value
         result=$(echo "$result" | jq '.passes = false | .flatline_validated = true | .flatline_action = "demote" | .low_value = true')
-        ((demoted_count++))
+        demoted_count=$((demoted_count + 1))
         ;;
       human_review)
         # Flag for review
         result=$(echo "$result" | jq '.flatline_validated = true | .flatline_action = "human_review" | .requires_review = true')
-        ((disputed_count++))
+        disputed_count=$((disputed_count + 1))
         ;;
     esac
 

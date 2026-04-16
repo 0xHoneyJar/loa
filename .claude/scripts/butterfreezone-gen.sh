@@ -931,11 +931,11 @@ extract_header() {
     if [[ "$tier" -le 2 ]]; then
         local lang_count=0
         local langs="" skill_count=0
-        [[ -n "$(find . -maxdepth 3 \( -name '*.ts' -o -name '*.js' \) 2>/dev/null | head -1)" ]] && { langs="${langs}TypeScript/JavaScript, "; ((lang_count++)); }
-        [[ -n "$(find . -maxdepth 3 -name '*.py' 2>/dev/null | head -1)" ]] && { langs="${langs}Python, "; ((lang_count++)); }
-        [[ -n "$(find . -maxdepth 3 -name '*.rs' 2>/dev/null | head -1)" ]] && { langs="${langs}Rust, "; ((lang_count++)); }
-        [[ -n "$(find . -maxdepth 3 -name '*.go' 2>/dev/null | head -1)" ]] && { langs="${langs}Go, "; ((lang_count++)); }
-        [[ -n "$(find . -maxdepth 3 -name '*.sh' 2>/dev/null | head -1)" ]] && { langs="${langs}Shell, "; ((lang_count++)); }
+        [[ -n "$(find . -maxdepth 3 \( -name '*.ts' -o -name '*.js' \) 2>/dev/null | head -1)" ]] && { langs="${langs}TypeScript/JavaScript, "; lang_count=$((lang_count + 1)); }
+        [[ -n "$(find . -maxdepth 3 -name '*.py' 2>/dev/null | head -1)" ]] && { langs="${langs}Python, "; lang_count=$((lang_count + 1)); }
+        [[ -n "$(find . -maxdepth 3 -name '*.rs' 2>/dev/null | head -1)" ]] && { langs="${langs}Rust, "; lang_count=$((lang_count + 1)); }
+        [[ -n "$(find . -maxdepth 3 -name '*.go' 2>/dev/null | head -1)" ]] && { langs="${langs}Go, "; lang_count=$((lang_count + 1)); }
+        [[ -n "$(find . -maxdepth 3 -name '*.sh' 2>/dev/null | head -1)" ]] && { langs="${langs}Shell, "; lang_count=$((lang_count + 1)); }
         langs=$(echo "$langs" | sed 's/, $//')
 
         # Count skills for framework projects
@@ -1136,7 +1136,7 @@ extract_architecture() {
             id=$(echo "$dir" | tr -cs '[:alnum:]' '_' | sed 's/_$//')
             ids+=("$id")
             mermaid="${mermaid}"$'\n'"    ${id}[${dir}]"
-            ((idx++))
+            idx=$((idx + 1))
         done <<< "$top_dirs"
 
         # Connect major components to a central node if >2 dirs

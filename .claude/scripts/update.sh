@@ -215,10 +215,10 @@ show_dry_run_preview() {
     local existing="${SYSTEM_DIR}/${rel_path}"
 
     if [[ ! -f "$existing" ]]; then
-      ((new_files++))
+      new_files=$((new_files + 1))
       echo -e "  ${GREEN}+ $rel_path${NC}"
     elif ! diff -q "$file" "$existing" >/dev/null 2>&1; then
-      ((modified_files++))
+      modified_files=$((modified_files + 1))
       echo -e "  ${YELLOW}~ $rel_path${NC}"
     fi
   done < <(find "$staging_dir" -type f -print0 2>/dev/null | head -100)
@@ -234,7 +234,7 @@ show_dry_run_preview() {
       [[ "$rel_path" == constructs/* ]] && continue
 
       if [[ ! -f "$staging_file" ]]; then
-        ((deleted_files++))
+        deleted_files=$((deleted_files + 1))
         echo -e "  ${RED}- $rel_path${NC}"
       fi
     done < <(find "$SYSTEM_DIR" -type f ! -path "*/overrides/*" ! -path "*/constructs/*" -print0 2>/dev/null | head -100)
@@ -508,21 +508,21 @@ preflight_check() {
   while IFS= read -r -d '' f; do
     # Try to validate YAML with whichever yq is installed
     if yq --version 2>&1 | grep -q "mikefarah"; then
-      yq eval '.' "$f" > /dev/null 2>&1 || { warn "Invalid YAML: $f"; ((errors++)); }
+      yq eval '.' "$f" > /dev/null 2>&1 || { warn "Invalid YAML: $f"; errors=$((errors + 1)); }
     else
-      yq . "$f" > /dev/null 2>&1 || { warn "Invalid YAML: $f"; ((errors++)); }
+      yq . "$f" > /dev/null 2>&1 || { warn "Invalid YAML: $f"; errors=$((errors + 1)); }
     fi
   done < <(find "$STAGING_DIR" -name "*.yaml" -print0 2>/dev/null)
 
   while IFS= read -r -d '' f; do
     if ! bash -n "$f" 2>/dev/null; then
       warn "Invalid shell script: $f"
-      ((errors++))
+      errors=$((errors + 1))
     fi
   done < <(find "$STAGING_DIR" -name "*.sh" -print0 2>/dev/null)
 
-  [[ -d "$STAGING_DIR/skills" ]] || { warn "Missing skills directory"; ((errors++)); }
-  [[ -d "$STAGING_DIR/commands" ]] || { warn "Missing commands directory"; ((errors++)); }
+  [[ -d "$STAGING_DIR/skills" ]] || { warn "Missing skills directory"; errors=$((errors + 1)); }
+  [[ -d "$STAGING_DIR/commands" ]] || { warn "Missing commands directory"; errors=$((errors + 1)); }
 
   [[ $errors -gt 0 ]] && err "Pre-flight failed with $errors errors"
   log "Pre-flight checks passed"

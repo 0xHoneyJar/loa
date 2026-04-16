@@ -230,7 +230,7 @@ symlink_pack_commands() {
 
         # Create symlink
         ln -sf "$relative_path" "$target_link"
-        ((linked++))
+        linked=$((linked + 1))
     done
 
     echo "$linked"
@@ -267,7 +267,7 @@ unlink_pack_commands() {
             existing_target=$(readlink "$target_link" 2>/dev/null || echo "")
             if [[ "$existing_target" == *"constructs/packs/$pack_slug"* ]]; then
                 rm -f "$target_link"
-                ((unlinked++))
+                unlinked=$((unlinked + 1))
             fi
         fi
     done
@@ -334,7 +334,7 @@ symlink_pack_skills() {
 
         # Create symlink
         ln -sf "$relative_path" "$target_link"
-        ((linked++))
+        linked=$((linked + 1))
     done
 
     echo "$linked"

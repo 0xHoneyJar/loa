@@ -198,7 +198,7 @@ sync_notes() {
 
         # Skip empty or very short content
         if [[ ${#content} -lt 10 ]]; then
-            ((skipped++))
+            skipped=$((skipped + 1))
             continue
         fi
 
@@ -208,13 +208,13 @@ sync_notes() {
 
         if [[ "$exists" -gt 0 ]]; then
             log_info "Skipping duplicate: ${content:0:50}..."
-            ((skipped++))
+            skipped=$((skipped + 1))
             continue
         fi
 
         # Add memory
         if "$MEMORY_ADMIN" add "$content" --type "$type" --source "NOTES.md" >/dev/null 2>&1; then
-            ((synced++))
+            synced=$((synced + 1))
             log_trajectory "notes_sync" "$content"
         else
             log_warn "Failed to add: ${content:0:50}..."
@@ -278,7 +278,7 @@ sync_retrospective() {
 
         # Skip very short content
         if [[ ${#content} -lt 10 ]]; then
-            ((skipped++))
+            skipped=$((skipped + 1))
             continue
         fi
 
@@ -288,13 +288,13 @@ sync_retrospective() {
 
         if [[ "$exists" -gt 0 ]]; then
             log_info "Skipping duplicate: ${content:0:50}..."
-            ((skipped++))
+            skipped=$((skipped + 1))
             continue
         fi
 
         # Add memory
         if "$MEMORY_ADMIN" add "$content" --type "$type" --source "retrospective" >/dev/null 2>&1; then
-            ((synced++))
+            synced=$((synced + 1))
             log_trajectory "retrospective_extract" "$content"
         fi
     done < <(extract_from_retrospective "$input")
