@@ -192,6 +192,11 @@ teardown() {
     [[ "$status" -ne 0 ]]
 }
 
+@test "secret: rejects client_secret=value (OAuth)" {
+    run "$CACHE_MANAGER" set --key "t-sec-10" --condensed '{"client_secret": "abc123def456"}'
+    [[ "$status" -ne 0 ]]
+}
+
 # =============================================================================
 # False-positive regression tests (Issue #530)
 # =============================================================================

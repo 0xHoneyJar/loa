@@ -31,6 +31,7 @@ SECRET_PATTERNS=(
     'password.*[=:]'
     'secret[_ ]?(key|value|token|password)[[:space:]]*[=:]'
     '"secret"[[:space:]]*[=:]'
+    'client_secret[[:space:]]*[=:]'
     'api_key.*[=:]'
     'apikey.*[=:]'
     'access_token.*[=:]'
