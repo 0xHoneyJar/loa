@@ -26,8 +26,8 @@ ADAPTER_MODE_FLAG=""
 # Config
 CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
 ATTACK_SURFACES="$PROJECT_ROOT/.claude/data/attack-surfaces.yaml"
-ATTACK_TEMPLATE="$PROJECT_ROOT/.claude/templates/flatline-red-team.md.template"
-COUNTER_TEMPLATE="$PROJECT_ROOT/.claude/templates/flatline-counter-design.md.template"
+ATTACK_TEMPLATE="$SCRIPT_DIR/../templates/flatline-red-team.md.template"
+COUNTER_TEMPLATE="$SCRIPT_DIR/../templates/flatline-counter-design.md.template"
 GOLDEN_SET="$PROJECT_ROOT/.claude/data/red-team-golden-set.json"
 
 # =============================================================================
