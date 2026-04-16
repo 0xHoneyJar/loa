@@ -143,6 +143,79 @@ teardown() {
     [[ "$output" == *"Secret patterns detected"* ]]
 }
 
+# =============================================================================
+# Per-pattern secret detection tests (Issue #530)
+# =============================================================================
+
+@test "secret: rejects PRIVATE.KEY" {
+    run "$CACHE_MANAGER" set --key "t-sec-1" --condensed 'PRIVATE KEY data here'
+    [[ "$status" -ne 0 ]]
+}
+
+@test "secret: rejects BEGIN RSA" {
+    run "$CACHE_MANAGER" set --key "t-sec-2" --condensed '-----BEGIN RSA PRIVATE KEY-----'
+    [[ "$status" -ne 0 ]]
+}
+
+@test "secret: rejects password=value (shell-style)" {
+    run "$CACHE_MANAGER" set --key "t-sec-3" --condensed 'DB_PASSWORD=hunter2'
+    [[ "$status" -ne 0 ]]
+}
+
+@test "secret: rejects password: value (YAML-style)" {
+    run "$CACHE_MANAGER" set --key "t-sec-4" --condensed 'password: hunter2'
+    [[ "$status" -ne 0 ]]
+}
+
+@test "secret: rejects secret_key=value" {
+    run "$CACHE_MANAGER" set --key "t-sec-5" --condensed 'SECRET_KEY=abc123def456'
+    [[ "$status" -ne 0 ]]
+}
+
+@test "secret: rejects \"secret\": \"value\" (JSON)" {
+    run "$CACHE_MANAGER" set --key "t-sec-6" --condensed '{"secret": "mypassword"}'
+    [[ "$status" -ne 0 ]]
+}
+
+@test "secret: rejects api_key=value" {
+    run "$CACHE_MANAGER" set --key "t-sec-7" --condensed 'API_KEY=sk-1234567890'
+    [[ "$status" -ne 0 ]]
+}
+
+@test "secret: rejects access_token=value" {
+    run "$CACHE_MANAGER" set --key "t-sec-8" --condensed 'access_token=ghp_abcdef'
+    [[ "$status" -ne 0 ]]
+}
+
+@test "secret: rejects bearer=value" {
+    run "$CACHE_MANAGER" set --key "t-sec-9" --condensed 'bearer=eyJhbGciOiJIUzI1NiJ9'
+    [[ "$status" -ne 0 ]]
+}
+
+# =============================================================================
+# False-positive regression tests (Issue #530)
+# =============================================================================
+
+@test "secret: allows secret_scanning: true (not a secret)" {
+    run "$CACHE_MANAGER" set --key "t-fp-1" --condensed '{"secret_scanning": true}'
+    [[ "$status" -eq 0 ]]
+}
+
+@test "secret: allows kind: Secret (K8s manifest, not a secret)" {
+    run "$CACHE_MANAGER" set --key "t-fp-2" --condensed '{"kind": "Secret", "apiVersion": "v1"}'
+    [[ "$status" -eq 0 ]]
+}
+
+@test "secret: allows no_secret: false (compound word, not a secret)" {
+    run "$CACHE_MANAGER" set --key "t-fp-3" --condensed '{"no_secret": false}'
+    [[ "$status" -eq 0 ]]
+}
+
+@test "secret: allows code comment about secrets (not a secret)" {
+    run "$CACHE_MANAGER" set --key "t-fp-4" --condensed '{"comment": "Secret handling: see crypto.ts"}'
+    [[ "$status" -eq 0 ]]
+}
+
 @test "stats shows cache statistics" {
     # Add some entries
     "$CACHE_MANAGER" set --key "stats-test-1" --condensed '{"a":1}'

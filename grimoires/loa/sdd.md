@@ -1,35 +1,29 @@
-# Software Design Document: Shell-lint rule for grep -c || echo 0 (#531)
+# Software Design Document: Harden cache-manager secret detection (#530)
 
 **Date**: 2026-04-16
-**Issue**: [#531](https://github.com/0xHoneyJar/loa/issues/531)
-**Cycle**: cycle-079
+**Issue**: [#530](https://github.com/0xHoneyJar/loa/issues/530)
+**Cycle**: cycle-080
 
-## 1. Change
+## 1. Pattern Change
 
-Add a new WARNING rule section to `.github/workflows/shell-compat-lint.yml` following the existing pattern (sed -i, readlink -f, grep -P, etc.).
+**Current** (line 32): `'secret.*[=:]'`
+- Matches: `secret_scanning: true` (false positive), `kind: Secret` (false positive)
 
-### Detection patterns
+**Proposed**: `'(^|[^a-zA-Z_])secret[_]?(key|value|token|password)?[[:space:]]*[=:]'`
+- Requires `secret` to NOT be preceded by a letter/underscore (pseudo word boundary)
+- Optionally followed by `_key`, `_value`, `_token`, `_password`
+- Then whitespace + `=` or `:`
+- Rejects: `secret_key=abc`, `"secret": "pass"`, `secret_value: x`
+- Allows: `secret_scanning: true` (preceded by nothing problematic, but `_scanning` doesn't match suffix list)
 
-```
-grep -c ... || echo
-wc -l ... || echo
-```
+Actually, simpler approach: use two narrower patterns instead of one broad one:
+1. `'secret[_]?(key|value|token|password)[[:space:]]*[=:]'` — `secret_key=`, `secret_value:`, etc.
+2. `'"secret"[[:space:]]*[=:]'` — JSON `"secret": "value"` (quoted key)
 
-Regex: `(grep\s+-c.*\|\|\s*echo|wc\s+-l.*\|\|\s*echo)`
+This catches actual secrets while excluding `secret_scanning`, `kind: Secret`, compound words.
 
-### Allowlist
+## 2. Test additions
 
-- Test files: `*test*`, `*.bats`
-- Inline suppression: lines containing `# lint:allow-grep-c-fallback`
-- The lint rule file itself
-
-### Severity
-
-WARNING (not ERROR) — existing ~55 sites would block all PRs otherwise.
-
-### Recommended fix (in lint output)
-
-```
-Use: count=$(awk '/pattern/{c++} END{print c+0}' FILE)
-Instead of: count=$(grep -c 'pattern' FILE 2>/dev/null || echo 0)
-```
+Extend `tests/unit/cache-manager.bats` with:
+- Individual tests per pattern (PRIVATE.KEY, BEGIN RSA, password, secret variants, api_key, apikey, access_token, bearer)
+- False-positive regression tests for `secret_scanning`, `kind: Secret`
