@@ -131,7 +131,7 @@ skip_if_deps_missing() {
     # Set up a HALTED bridge state with 2 completed iterations
     source "$TEST_TMPDIR/.claude/scripts/bootstrap.sh"
     source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
-    init_bridge_state "bridge-resume-test" 5 false 0.05 "feature/test-bridge"
+    init_bridge_state "bridge-20260101-abcdef" 5 false 0.05 "feature/test-bridge"
     update_bridge_state "JACK_IN"
     update_bridge_state "ITERATING"
     update_iteration 1 "completed" "existing"

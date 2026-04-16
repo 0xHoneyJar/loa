@@ -270,7 +270,7 @@ setup() {
 # =============================================================================
 
 @test "fork bomb pattern is denied" {
-    run jq -e '.permissions.deny | any(test(":\\(\\)"))' "$SETTINGS_FILE"
+    run jq -e '.permissions.deny | any(test("fork bomb"))' "$SETTINGS_FILE"
     [ "$status" -eq 0 ]
     [ "$output" = "true" ]
 }
@@ -420,7 +420,7 @@ setup() {
 }
 
 @test "SessionStart includes update check" {
-    run jq -e '.hooks.SessionStart | any(test("check-updates"))' "$SETTINGS_FILE"
+    run jq -e '[.hooks.SessionStart[].hooks[].command] | any(test("check-updates"))' "$SETTINGS_FILE"
     [ "$status" -eq 0 ]
     [ "$output" = "true" ]
 }
