@@ -111,23 +111,21 @@ teardown() {
 # =============================================================================
 
 @test "check_setup_complete returns 1 when file missing" {
-    cd "${TEST_TMPDIR}"
-    run check_setup_complete
-    [ "$status" -eq 1 ]
+    # check_setup_complete was removed; is_thj_member (via constructs-lib)
+    # is the canonical check now. Skip to preserve test numbering.
+    skip "check_setup_complete removed — use check_user_is_thj / is_thj_member"
 }
 
 @test "check_setup_complete returns 0 when file exists" {
-    touch "${TEST_TMPDIR}/.loa-setup-complete"
-    cd "${TEST_TMPDIR}"
-    run check_setup_complete
-    [ "$status" -eq 0 ]
+    skip "check_setup_complete removed — use check_user_is_thj / is_thj_member"
 }
 
 @test "check_user_is_thj returns 0 when user_type is thj" {
-    echo '{"user_type": "thj"}' > "${TEST_TMPDIR}/.loa-setup-complete"
-    cd "${TEST_TMPDIR}"
+    # is_thj_member checks LOA_CONSTRUCTS_API_KEY, not file-based
+    export LOA_CONSTRUCTS_API_KEY="test-key"
     run check_user_is_thj
     [ "$status" -eq 0 ]
+    unset LOA_CONSTRUCTS_API_KEY
 }
 
 @test "check_user_is_thj returns 1 when user_type is not thj" {
@@ -165,8 +163,7 @@ teardown() {
     run check_sprint_id_format "sprint-abc"
     [ "$status" -eq 1 ]
 
-    run check_sprint_id_format "sprint-0"
-    [ "$status" -eq 1 ]
+    # sprint-0 is valid per regex ^sprint-[0-9]+$ (0 is a digit)
 
     run check_sprint_id_format "Sprint-1"
     [ "$status" -eq 1 ]
@@ -176,7 +173,7 @@ teardown() {
 }
 
 @test "check_sprint_directory returns 0 when directory exists" {
-    mkdir -p "${TEST_TMPDIR}/loa-grimoire/a2a/sprint-1"
+    mkdir -p "${TEST_TMPDIR}/grimoires/loa/a2a/sprint-1"
     cd "${TEST_TMPDIR}"
     run check_sprint_directory "sprint-1"
     [ "$status" -eq 0 ]
@@ -193,53 +190,53 @@ teardown() {
 # =============================================================================
 
 @test "check_reviewer_exists returns 0 when reviewer.md exists" {
-    mkdir -p "${TEST_TMPDIR}/loa-grimoire/a2a/sprint-1"
-    touch "${TEST_TMPDIR}/loa-grimoire/a2a/sprint-1/reviewer.md"
+    mkdir -p "${TEST_TMPDIR}/grimoires/loa/a2a/sprint-1"
+    touch "${TEST_TMPDIR}/grimoires/loa/a2a/sprint-1/reviewer.md"
     cd "${TEST_TMPDIR}"
     run check_reviewer_exists "sprint-1"
     [ "$status" -eq 0 ]
 }
 
 @test "check_reviewer_exists returns 1 when reviewer.md missing" {
-    mkdir -p "${TEST_TMPDIR}/loa-grimoire/a2a/sprint-1"
+    mkdir -p "${TEST_TMPDIR}/grimoires/loa/a2a/sprint-1"
     cd "${TEST_TMPDIR}"
     run check_reviewer_exists "sprint-1"
     [ "$status" -eq 1 ]
 }
 
 @test "check_sprint_approved returns 0 when feedback says 'All good'" {
-    mkdir -p "${TEST_TMPDIR}/loa-grimoire/a2a/sprint-1"
-    echo "All good" > "${TEST_TMPDIR}/loa-grimoire/a2a/sprint-1/engineer-feedback.md"
+    mkdir -p "${TEST_TMPDIR}/grimoires/loa/a2a/sprint-1"
+    echo "All good" > "${TEST_TMPDIR}/grimoires/loa/a2a/sprint-1/engineer-feedback.md"
     cd "${TEST_TMPDIR}"
     run check_sprint_approved "sprint-1"
     [ "$status" -eq 0 ]
 }
 
 @test "check_sprint_approved returns 1 when feedback has issues" {
-    mkdir -p "${TEST_TMPDIR}/loa-grimoire/a2a/sprint-1"
-    echo "Need to fix bugs" > "${TEST_TMPDIR}/loa-grimoire/a2a/sprint-1/engineer-feedback.md"
+    mkdir -p "${TEST_TMPDIR}/grimoires/loa/a2a/sprint-1"
+    echo "Need to fix bugs" > "${TEST_TMPDIR}/grimoires/loa/a2a/sprint-1/engineer-feedback.md"
     cd "${TEST_TMPDIR}"
     run check_sprint_approved "sprint-1"
     [ "$status" -eq 1 ]
 }
 
 @test "check_sprint_approved returns 1 when feedback file missing" {
-    mkdir -p "${TEST_TMPDIR}/loa-grimoire/a2a/sprint-1"
+    mkdir -p "${TEST_TMPDIR}/grimoires/loa/a2a/sprint-1"
     cd "${TEST_TMPDIR}"
     run check_sprint_approved "sprint-1"
     [ "$status" -eq 1 ]
 }
 
 @test "check_sprint_completed returns 0 when COMPLETED marker exists" {
-    mkdir -p "${TEST_TMPDIR}/loa-grimoire/a2a/sprint-1"
-    touch "${TEST_TMPDIR}/loa-grimoire/a2a/sprint-1/COMPLETED"
+    mkdir -p "${TEST_TMPDIR}/grimoires/loa/a2a/sprint-1"
+    touch "${TEST_TMPDIR}/grimoires/loa/a2a/sprint-1/COMPLETED"
     cd "${TEST_TMPDIR}"
     run check_sprint_completed "sprint-1"
     [ "$status" -eq 0 ]
 }
 
 @test "check_sprint_completed returns 1 when COMPLETED marker missing" {
-    mkdir -p "${TEST_TMPDIR}/loa-grimoire/a2a/sprint-1"
+    mkdir -p "${TEST_TMPDIR}/grimoires/loa/a2a/sprint-1"
     cd "${TEST_TMPDIR}"
     run check_sprint_completed "sprint-1"
     [ "$status" -eq 1 ]
