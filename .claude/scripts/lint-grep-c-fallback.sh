@@ -31,6 +31,7 @@
 # =============================================================================
 
 set -euo pipefail
+shopt -s globstar 2>/dev/null || true  # Required for ** to recurse beyond one level
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
@@ -81,7 +82,7 @@ while IFS=: read -r file line content; do
         echo "           ${content}"
         echo ""
     fi
-done < <(grep -rn -E '(grep\s+-c.*\|\|\s*echo|wc\s+-l.*\|\|\s*echo)' \
+done < <(grep -rn -E '(grep\s+-c.*\|\|\s*echo|wc\s+-[lc].*\|\|\s*echo)' \
     "$PROJECT_ROOT/.claude/scripts/"*.sh \
     "$PROJECT_ROOT/.claude/scripts/"**/*.sh \
     2>/dev/null || true)
