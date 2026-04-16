@@ -8,13 +8,32 @@
 
 setup() {
     BATS_TEST_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
-    PROJECT_ROOT="$(cd "$BATS_TEST_DIR/../.." && pwd)"
-    export PROJECT_ROOT
-    SCRIPT="$PROJECT_ROOT/.claude/scripts/flatline-readiness.sh"
+    local real_repo_root
+    real_repo_root="$(cd "$BATS_TEST_DIR/../.." && pwd)"
+    SCRIPT="$real_repo_root/.claude/scripts/flatline-readiness.sh"
 
     export BATS_TMPDIR="${BATS_TMPDIR:-/tmp}"
     export TEST_TMPDIR="$BATS_TMPDIR/flatline-readiness-test-$$"
-    mkdir -p "$TEST_TMPDIR"
+    mkdir -p "$TEST_TMPDIR/.claude/scripts"
+
+    # Pre-populate scripts so _create_test_config can copy from PROJECT_ROOT
+    cp "$real_repo_root/.claude/scripts/bootstrap.sh" "$TEST_TMPDIR/.claude/scripts/"
+    [[ -f "$real_repo_root/.claude/scripts/path-lib.sh" ]] && \
+        cp "$real_repo_root/.claude/scripts/path-lib.sh" "$TEST_TMPDIR/.claude/scripts/"
+    [[ -f "$real_repo_root/.claude/scripts/bash-version-guard.sh" ]] && \
+        cp "$real_repo_root/.claude/scripts/bash-version-guard.sh" "$TEST_TMPDIR/.claude/scripts/"
+    cp "$SCRIPT" "$TEST_TMPDIR/.claude/scripts/"
+
+    # Minimal config so flatline-readiness.sh can read settings from PROJECT_ROOT
+    cat > "$TEST_TMPDIR/.loa.config.yaml" << 'CONFIG'
+flatline_protocol:
+  enabled: true
+  models:
+    primary: claude-opus-4-6
+    secondary: gpt-5.3-codex
+CONFIG
+
+    export PROJECT_ROOT="$TEST_TMPDIR"
 
     # Save original env vars so we can restore in teardown
     _ORIG_ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}"

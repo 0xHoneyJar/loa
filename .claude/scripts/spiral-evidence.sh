@@ -321,8 +321,9 @@ _pre_check_review() {
             secret_found=true
         fi
     else
-        # Regex fallback
+        # Regex fallback — only scan added lines (^+, excluding +++ headers)
         if git diff "main...${branch}" 2>/dev/null | \
+            grep -E '^\+([^+]|$)' | \
             grep -qiE '(password|secret|api_key|private_key|aws_access_key_id)\s*[:=]\s*["'"'"'][^"'"'"']{8,}'; then
             secret_found=true
         fi
