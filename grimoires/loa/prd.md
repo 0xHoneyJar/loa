@@ -1,23 +1,51 @@
-# Product Requirements Document: Fix (( var++ )) under set -e + lint rule (QoL)
+# Product Requirements Document: Test Task
 
 **Date**: 2026-04-16
-**Cycle**: cycle-081
+**Branch**: fix/harness-silent-exit-516
 
-## 1. Problem
+---
 
-`(( var++ ))` exits with status 1 when `var=0` (POSIX: arithmetic evaluating to 0 is falsy). Under `set -e` or `set -euo pipefail`, this silently terminates the script. 71 unguarded sites across 15 scripts with `set -e`.
+## Problem
 
-## 2. Goals
+A test task is required to validate the PRD generation workflow. This document serves as a minimal, well-formed PRD demonstrating required sections and structure.
 
-1. Add lint detector script (`lint-arithmetic-increment.sh`) matching the `lint-grep-c-fallback.sh` pattern
-2. Fix all unguarded `(( var++ ))` and `(( var-- ))` in non-test `.claude/scripts/` files
-3. Replacement: `var=$((var + 1))` (always exits 0)
+---
 
-## 3. Non-Goals
+## Assumptions
 
-- Fixing test files (they manage their own error handling)
-- Fixing sites already guarded with `|| true`
+- The "test task" has no external dependencies on other in-flight work.
+- Success is defined by the presence and correctness of this document, not by any code change.
+- The audience for this PRD is the implementing engineer and the automated review pipeline.
+- No user-facing UI changes are involved.
+- The task scope is intentionally narrow — one deliverable, one acceptance criterion per requirement.
+- Existing tooling (BATS, beads, spiral-harness) remains unchanged by this task.
 
-## 4. System Zone Write Authorization
+---
 
-Authorized for cycle-081: `.claude/scripts/*.sh`, `.claude/scripts/**/*.sh`
+## Goals & Success Metrics
+
+| # | Goal | Measurable Success Criterion |
+|---|------|------------------------------|
+| G1 | PRD is well-formed | Document passes `butterfreezone-validate.sh` lint with zero warnings |
+| G2 | Required sections are present | Grep for `## Assumptions`, `## Goals & Success Metrics`, `## Acceptance Criteria` all return a match |
+| G3 | Acceptance criteria are actionable | Each checkbox maps 1:1 to a verifiable, observable outcome — no vague language |
+| G4 | Document is scoped to `grimoires/loa/prd.md` only | No other files are created or modified as a result of writing this PRD |
+
+---
+
+## Acceptance Criteria
+
+- [ ] `grimoires/loa/prd.md` exists and is non-empty.
+- [ ] The file contains an `## Assumptions` section with at least three listed assumptions.
+- [ ] The file contains a `## Goals & Success Metrics` section with a Markdown table and at least one measurable criterion per goal.
+- [ ] The file contains an `## Acceptance Criteria` section with GitHub-flavored Markdown checkboxes (`- [ ]`).
+- [ ] No code files, SDD, or sprint plan files are created as part of this task.
+- [ ] The document is written in plain Markdown with no embedded shell commands or code blocks containing implementation logic.
+
+---
+
+## Non-Goals
+
+- Implementing any code — this PRD describes a documentation artifact only.
+- Creating an SDD or sprint plan from this document.
+- Modifying any files outside of `grimoires/loa/prd.md`.

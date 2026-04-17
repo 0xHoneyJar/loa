@@ -1,5 +1,25 @@
 # Loa Project Notes
 
+## Session Continuity — 2026-04-16 (cycle-076)
+
+### Current state
+- **cycle-076** (PR #536) — Wave-3 BATS cleanup: 32 failures across 7 test files
+  - Branch: `feat/wave3-bats-cleanup-cycle-076`
+  - Issue: #534
+  - Bridgebuilder: kaironic completion (2 iterations, 3 PRAISE, 2 LOW, 0 actionable)
+
+### Production bugs discovered (System Zone — cannot fix in test PRs)
+- `release-notes-gen.sh`: `grep` in pipeline + `set -eo pipefail` crashes when no git tags exist
+- `rlm-benchmark.sh:676`: `delta_pct` unbound variable in `log_trajectory` call
+- `post-merge-orchestrator.sh`: BUGFIX_PHASES includes `changelog` — may be intentional, tests updated to match
+
+### Key triage verdicts
+- 27/32 = TEST wrong (stale expectations, wrong BATS idioms, incorrect paths)
+- 5/32 = PRODUCTION bug discovered (documented in commits, not fixed)
+- spiral-dispatch.bats (40 failures) and lore-promote.bats (1 failure) self-resolved via PR #535
+
+---
+
 ## Session Continuity — 2026-04-13 (cycles 052-054)
 
 ### Current state
@@ -78,6 +98,178 @@ Also revert in:
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
+| 2026-04-16 | Cache: result stored [key: integrit...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-4...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-3...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-2...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-1...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: integrit...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-4...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-3...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-2...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-1...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: integrit...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-4...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-3...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-2...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-1...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: integrit...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-4...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-3...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-2...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-1...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: integrit...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-4...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-3...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-2...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-1...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-cs...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: integrit...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-4...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-3...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-2...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-1...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-sec-10...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: integrit...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-4...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-3...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-2...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-1...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-sec-10...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: integrit...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-4...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-3...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-2...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-1...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-sec-10...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: integrit...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-4...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-3...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-2...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-1...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-k8s...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: integrit...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-3...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: t-fp-1...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: integrit...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: integrit...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: integrit...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: integrit...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-16 | Cache: result stored [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-16 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-15 | Cache: result stored [key: integrit...] | Source: cache |
+| 2026-04-15 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-15 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-15 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-15 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-15 | Cache: result stored [key: test-key...] | Source: cache |
+| 2026-04-15 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-15 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-15 | Cache: result stored [key: integrit...] | Source: cache |
+| 2026-04-15 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-15 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-04-15 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-15 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-04-15 | Cache: result stored [key: test-key...] | Source: cache |
+| 2026-04-15 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-15 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-04-15 | Cache: result stored [key: test-sec...] | Source: cache |
 | 2026-02-26 | Cache: result stored [key: integrit...] | Source: cache |
 | 2026-02-26 | Cache: result stored [key: clear-te...] | Source: cache |
 | 2026-02-26 | Cache: result stored [key: clear-te...] | Source: cache |
