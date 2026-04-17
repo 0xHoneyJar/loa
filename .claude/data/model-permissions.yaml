@@ -142,7 +142,38 @@ model_permissions:
       different context engineering for optimal performance.
 
   # -------------------------------------------------------------------------
-  # Claude Opus 4.6 — Remote model, review and generation
+  # Claude Opus 4.7 — Remote model, primary top-review (current default)
+  # -------------------------------------------------------------------------
+  anthropic:claude-opus-4-7:
+    trust_level: high
+    trust_scopes:
+      data_access: none
+      financial: none
+      delegation: none
+      model_selection: none
+      governance: none
+      external_communication: none
+      context_access:
+        architecture: full
+        business_logic: full
+        security: redacted
+        lore: full
+    execution_mode: remote_model
+    capabilities:
+      file_read: false
+      file_write: false
+      command_execution: false
+      network_access: false
+    notes: >
+      Used for Flatline Protocol primary review (cycle-082 migration from 4.6).
+      Receives documents via API, returns structured analysis. Higher trust_level
+      than other remote models due to Anthropic's safety training, but all
+      trust_scopes none when used as a remote model — no direct side effects.
+      Trust asymmetry (high trust_level, none scopes) reflects the distinction
+      between inherent model trustworthiness and operational permissions.
+
+  # -------------------------------------------------------------------------
+  # Claude Opus 4.6 — Pinnable fallback (cycle-082 PRD §13)
   # -------------------------------------------------------------------------
   anthropic:claude-opus-4-6:
     trust_level: high
@@ -165,12 +196,10 @@ model_permissions:
       command_execution: false
       network_access: false
     notes: >
-      Used for Flatline Protocol primary review. Receives documents via
-      API, returns structured analysis. Higher trust_level than other
-      remote models due to Anthropic's safety training, but all trust_scopes
-      none when used as a remote model — no direct side effects. Trust
-      asymmetry (high trust_level, none scopes) reflects the distinction
-      between inherent model trustworthiness and operational permissions.
+      Retained as pinnable fallback after cycle-082 migration to 4.7.
+      Operators who need exact 4.6 behavior (historical baselines, rollback)
+      use `anthropic:claude-opus-4-6` in .loa.config.yaml overrides. Trust
+      scopes match 4.7 entry above — same remote-model trust model.
 
   # -------------------------------------------------------------------------
   # Google Gemini 2.5 Pro — Remote model, standard generation

@@ -25,19 +25,19 @@ All price estimates assume the models and token volumes documented in the **Pric
 > [!NOTE]
 > All costs are approximate and based on Anthropic, OpenAI, and Google published pricing as of 2026-04-15. Actual costs depend on your specific usage patterns, context sizes, and model API pricing which changes over time. Recheck before large commitments — see [Pricing Footnotes](#pricing-footnotes).
 >
-> Model names in this document (Opus 4.6, Sonnet 4.6, GPT-5.3-codex, Gemini 2.5 Pro) reflect the models configured in Hounfour at the time of writing. Your actual models depend on your `.loa.config.yaml` settings and `model-adapter.sh` registry. If model names or pricing have changed, update the Hounfour config and refer to your provider's current pricing page.
+> Model names in this document (Opus 4.7, Sonnet 4.6, GPT-5.3-codex, Gemini 2.5 Pro) reflect the models configured in Hounfour at the time of writing. Your actual models depend on your `.loa.config.yaml` settings and `model-adapter.sh` registry. If model names or pricing have changed, update the Hounfour config and refer to your provider's current pricing page.
 
 | Feature | Per-Invocation Low | Per-Invocation High | Models Used | Monthly at Moderate Workflow[^1] |
 |---------|-------------------|---------------------|-------------|----------------------------------|
-| Flatline Protocol | $15 | $25 | Opus 4.6 + GPT-5.3-codex | ~$120–200 |
-| Simstim | $25 | $65 | Opus 4.6 + GPT-5.3-codex + Gemini 2.5 Pro | ~$200–520 |
-| Spiral (standard profile) | $10 | $15 | Sonnet 4.6 (exec) + Opus 4.6 (judge) | ~$40–60 |
-| Spiral (full profile) | $20 | $35 | Sonnet 4.6 + Opus 4.6 + GPT-5.3-codex + Gemini | ~$80–140 |
-| Run Bridge | $10 | $20 | Opus 4.6 + GPT-5.3-codex | ~$40–80 |
-| Post-PR Validation | $5 | $15 | Opus 4.6 | ~$80–240 |
-| Red Team (standard) | $5 | $15 | Opus 4.6 + GPT-5.3-codex | ~$20–60 |
-| Red Team (deep) | $15 | $30 | Opus 4.6 + GPT-5.3-codex | ~$30–60 |
-| Continuous Learning (Flatline integration) | $2 | $8 | Opus 4.6 | ~$32–128 |
+| Flatline Protocol | $15 | $25 | Opus 4.7 + GPT-5.3-codex | ~$120–200 |
+| Simstim | $25 | $65 | Opus 4.7 + GPT-5.3-codex + Gemini 2.5 Pro | ~$200–520 |
+| Spiral (standard profile) | $10 | $15 | Sonnet 4.6 (exec) + Opus 4.7 (judge) | ~$40–60 |
+| Spiral (full profile) | $20 | $35 | Sonnet 4.6 + Opus 4.7 + GPT-5.3-codex + Gemini | ~$80–140 |
+| Run Bridge | $10 | $20 | Opus 4.7 + GPT-5.3-codex | ~$40–80 |
+| Post-PR Validation | $5 | $15 | Opus 4.7 | ~$80–240 |
+| Red Team (standard) | $5 | $15 | Opus 4.7 + GPT-5.3-codex | ~$20–60 |
+| Red Team (deep) | $15 | $30 | Opus 4.7 + GPT-5.3-codex | ~$30–60 |
+| Continuous Learning (Flatline integration) | $2 | $8 | Opus 4.7 | ~$32–128 |
 | Prompt Enhancement | <$0.05 | $0.10 | Sonnet 4.6 | ~$1–5 |
 
 [^1]: Moderate workflow assumption: 2 planning cycles/week (≈8/month), 4 PRs/week (≈16/month). Your actual costs will vary based on PR volume, planning frequency, and context size.
@@ -105,7 +105,7 @@ These sections configure features that invoke external AI APIs. Each section doc
 **Recommendation**: Enable when you want AI-accelerated HITL development with multi-model quality gates at each phase.  
 **Default**: `enabled: true`
 
-> **Cost Warning**: Simstim invokes Opus 4.6, GPT-5.3-codex, and Gemini 2.5 Pro at each phase gate. A full cycle (PRD → SDD → Sprint → Implementation) costs **$25–$65**. Set `hounfour.metering.budget.daily_micro_usd` before running unattended sessions.
+> **Cost Warning**: Simstim invokes Opus 4.7, GPT-5.3-codex, and Gemini 2.5 Pro at each phase gate. A full cycle (PRD → SDD → Sprint → Implementation) costs **$25–$65**. Set `hounfour.metering.budget.daily_micro_usd` before running unattended sessions.
 
 #### Sub-keys
 
@@ -124,7 +124,7 @@ These sections configure features that invoke external AI APIs. Each section doc
 #### Cost
 
 Per invocation: $25–$65 (full PRD→Implementation cycle). Monthly at moderate workflow: ~$200–520.  
-Models: Opus 4.6 (primary review), GPT-5.3-codex (cross-review), Gemini 2.5 Pro (tertiary).  
+Models: Opus 4.7 (primary review), GPT-5.3-codex (cross-review), Gemini 2.5 Pro (tertiary).  
 Requires: `ANTHROPIC_API_KEY` + `OPENAI_API_KEY` + optionally `GOOGLE_API_KEY`.
 
 #### Risks if enabled
@@ -339,7 +339,7 @@ No external API calls. Vision matching is local tag overlap. Only `propose_requi
 #### Cost
 
 Per cycle: $10–15 (standard), $20–35 (full). Monthly at moderate workflow (4 cycles): ~$40–60 (standard), ~$80–140 (full).  
-Models: Sonnet 4.6 (executor), Opus 4.6 (advisor). Full profile adds GPT-5.3-codex + Gemini.
+Models: Sonnet 4.6 (executor), Opus 4.7 (advisor). Full profile adds GPT-5.3-codex + Gemini.
 
 #### Risks if enabled
 
@@ -375,7 +375,7 @@ Models: Sonnet 4.6 (executor), Opus 4.6 (advisor). Full profile adds GPT-5.3-cod
 **Recommendation**: Enable for production codebases where PR quality matters. Start with `defaults.depth: 3` (3 iterations) and tune based on convergence speed.  
 **Default**: `enabled: false`
 
-> **Cost Warning**: Each bridge iteration invokes Opus 4.6 and GPT-5.3-codex for review. A depth-5 run costs **$10–20 total**. Long iterations on large codebases cost more.
+> **Cost Warning**: Each bridge iteration invokes Opus 4.7 and GPT-5.3-codex for review. A depth-5 run costs **$10–20 total**. Long iterations on large codebases cost more.
 
 #### Sub-keys
 
@@ -397,7 +397,7 @@ Models: Sonnet 4.6 (executor), Opus 4.6 (advisor). Full profile adds GPT-5.3-cod
 #### Cost
 
 Per depth-5 run: $10–20. Monthly at moderate workflow (1 bridge/week): ~$40–80.  
-Models: Opus 4.6 (Bridgebuilder review), GPT-5.3-codex (cross-review dissent).
+Models: Opus 4.7 (Bridgebuilder review), GPT-5.3-codex (cross-review dissent).
 
 #### Risks if enabled
 
@@ -621,7 +621,7 @@ None. Local text wrapping, no API calls.
 **Recommendation**: Run in `standard` mode after each SDD. Reserve `deep` mode for security-critical components.  
 **Default**: `enabled: false`
 
-> **Cost Warning**: Standard mode invokes Opus 4.6 + GPT-5.3-codex at **$5–15 per invocation**. Deep mode at **$15–30**. Enable only when you have API keys configured.
+> **Cost Warning**: Standard mode invokes Opus 4.7 + GPT-5.3-codex at **$5–15 per invocation**. Deep mode at **$15–30**. Enable only when you have API keys configured.
 
 #### Sub-keys
 
@@ -640,7 +640,7 @@ None. Local text wrapping, no API calls.
 #### Cost
 
 Standard: $5–15 per invocation. Deep: $15–30 per invocation. Monthly at moderate workflow (4 invocations): ~$20–60 (standard), ~$30–60 (deep).  
-Models: Opus 4.6 + GPT-5.3-codex.
+Models: Opus 4.7 + GPT-5.3-codex.
 
 #### Risks if enabled
 
@@ -672,7 +672,7 @@ Models: Opus 4.6 + GPT-5.3-codex.
 **Recommendation**: Enable for any team running planning-heavy workflows. HIGH_CONSENSUS findings auto-integrate so it doesn't slow you down — only DISPUTED findings require your attention.  
 **Default**: `enabled: true`
 
-> **Cost Warning**: Flatline invokes Opus 4.6 + GPT-5.3-codex per review phase. A full planning cycle (PRD + SDD + Sprint) costs **$15–25**. With `code_review.enabled: true` and `security_audit.enabled: true`, add ~$3 per PR.
+> **Cost Warning**: Flatline invokes Opus 4.7 + GPT-5.3-codex per review phase. A full planning cycle (PRD + SDD + Sprint) costs **$15–25**. With `code_review.enabled: true` and `security_audit.enabled: true`, add ~$3 per PR.
 
 #### Sub-keys
 
@@ -697,7 +697,7 @@ Models: Opus 4.6 + GPT-5.3-codex.
 #### Cost
 
 Per planning cycle: $15–25. With `code_review` + `security_audit` enabled: +$3 per PR. Monthly at moderate workflow (8 planning cycles): ~$120–200.  
-Models: Opus 4.6 (primary), GPT-5.3-codex (secondary/cross-review).
+Models: Opus 4.7 (primary), GPT-5.3-codex (secondary/cross-review).
 
 #### Risks if enabled
 
@@ -976,7 +976,7 @@ These sections configure lower-cost or cost-free features. They use a lighter do
 **Recommendation**: Use `live_model: false` (default) for cost-free analysis. Enable `live_model: true` only for deep architectural analysis on complex codebases.  
 **Default**: `live_model: false`
 
-> **Cost Warning**: With `live_model: true`, Oracle invokes Opus 4.6 for analysis. Cost depends on codebase size — estimate $2–10 per invocation.
+> **Cost Warning**: With `live_model: true`, Oracle invokes Opus 4.7 for analysis. Cost depends on codebase size — estimate $2–10 per invocation.
 
 #### Sub-keys
 
@@ -1065,7 +1065,7 @@ All prices are approximate as of 2026-04-15. **Always recheck before committing 
 
 | Provider | Model | Input (per MTok) | Output (per MTok) | Notes |
 |----------|-------|-----------------|-------------------|----|
-| Anthropic | Claude Opus 4.6 | $15 | $75 | Primary model for review/audit |
+| Anthropic | Claude Opus 4.7 | $5 | $25 | Primary model for review/audit |
 | Anthropic | Claude Sonnet 4.6 | $3 | $15 | Default executor for spiral/run |
 | OpenAI | GPT-5.3-codex | ~$1.75 | ~$14 | Cross-review dissent model |
 | Google | Gemini 2.5 Pro | ~$1.25 | ~$10 | Tertiary model (simstim/full spiral) |

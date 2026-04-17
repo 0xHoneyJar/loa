@@ -717,12 +717,20 @@ hounfour:
     anthropic:
       auth: "{env:ANTHROPIC_API_KEY}"
       models:
-        claude-opus-4-6:
+        claude-opus-4-7:
           capabilities: [chat, tools, function_calling, thinking_traces]
           context_window: 200000
           pricing:
             input_per_mtok: 5000000     # $5.00/M tokens
             output_per_mtok: 25000000   # $25.00/M tokens
+        claude-opus-4-6:
+          # Retained as pinnable fallback (cycle-082 PRD §13).
+          # Pin via `opus: "anthropic:claude-opus-4-6"` in your aliases to route to 4.6 specifically.
+          capabilities: [chat, tools, function_calling, thinking_traces]
+          context_window: 200000
+          pricing:
+            input_per_mtok: 5000000
+            output_per_mtok: 25000000
         claude-sonnet-4-6:
           capabilities: [chat, tools, function_calling]
           context_window: 200000
@@ -740,7 +748,7 @@ hounfour:
     reviewer: "openai:gpt-5.2"            # Primary review model
     reasoning: "openai:gpt-5.2"           # Reasoning/skeptic model
     cheap: "anthropic:claude-sonnet-4-6"  # Budget-conscious model
-    opus: "anthropic:claude-opus-4-6"     # High-quality model
+    opus: "anthropic:claude-opus-4-7"     # High-quality model (retargeted from 4-6 in cycle-082)
 
   # Agent bindings — which model each agent uses + requirements
   # Agents not listed here use the system defaults from model-config.yaml
@@ -1169,7 +1177,7 @@ invisible_retrospective:
 # -----------------------------------------------------------------------------
 # Flatline Protocol (v1.17.0)
 # -----------------------------------------------------------------------------
-# Multi-model adversarial review using Claude Opus 4.6 + GPT-5.2 for planning
+# Multi-model adversarial review using Claude Opus 4.7 + GPT-5.2 for planning
 # document quality assurance. Phase 1: parallel reviews, Phase 2: cross-scoring,
 # Phase 3: consensus extraction with HIGH/DISPUTED/LOW/BLOCKER classification.
 flatline_protocol:
@@ -1187,7 +1195,7 @@ flatline_protocol:
 
   # Model configuration
   models:
-    primary: opus        # Claude Opus 4.6 (via claude.ai or API)
+    primary: opus        # Claude Opus 4.7 (alias resolves to 4.7 per cycle-082)
     secondary: gpt-5.3-codex  # OpenAI GPT-5.3-codex (via Responses API)
 
   # Consensus thresholds (0-1000 scale)

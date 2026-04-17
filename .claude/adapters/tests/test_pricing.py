@@ -93,7 +93,7 @@ class TestCalculateTotalCost:
 
     ANTHROPIC_PRICING = PricingEntry(
         provider="anthropic",
-        model="claude-opus-4-6",
+        model="claude-opus-4-7",     # cycle-082: renamed from 4-6, pricing identical (parity)
         input_per_mtok=5_000_000,     # $5/1M
         output_per_mtok=25_000_000,   # $25/1M
         reasoning_per_mtok=25_000_000,

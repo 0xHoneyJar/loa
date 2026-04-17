@@ -2,7 +2,7 @@
   "id": "msg_abc123",
   "type": "message",
   "role": "assistant",
-  "model": "claude-opus-4-6",
+  "model": "claude-opus-4-7",
   "content": [
     {
       "type": "text",

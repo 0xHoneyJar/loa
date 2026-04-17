@@ -29,7 +29,7 @@ setup() {
 flatline_protocol:
   enabled: true
   models:
-    primary: claude-opus-4-6
+    primary: claude-opus-4-7
     secondary: gpt-5.3-codex
 CONFIG
 

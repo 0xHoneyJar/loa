@@ -299,7 +299,7 @@ get_max_iterations() {
 
 # Valid model names accepted by model-adapter.sh.legacy MODEL_PROVIDERS registry.
 # Keep in sync with MODEL_PROVIDERS in model-adapter.sh.legacy (line ~69).
-VALID_FLATLINE_MODELS=(opus gpt-5.2 gpt-5.3-codex claude-opus-4.6 claude-opus-4.5 gemini-2.0 gemini-2.5-flash gemini-2.5-pro gemini-3-flash gemini-3-pro gemini-3.1-pro)
+VALID_FLATLINE_MODELS=(opus gpt-5.2 gpt-5.3-codex claude-opus-4.7 claude-opus-4-7 claude-opus-4.6 claude-opus-4-6 claude-opus-4.5 gemini-2.0 gemini-2.5-flash gemini-2.5-pro gemini-3-flash gemini-3-pro gemini-3.1-pro)
 
 validate_model() {
     local model="$1"
@@ -372,8 +372,11 @@ declare -A MODE_TO_AGENT=(
 declare -A MODEL_TO_PROVIDER_ID=(
     ["gpt-5.2"]="openai:gpt-5.2"
     ["gpt-5.3-codex"]="openai:gpt-5.3-codex"
-    ["opus"]="anthropic:claude-opus-4-6"
-    ["claude-opus-4.6"]="anthropic:claude-opus-4-6"
+    ["opus"]="anthropic:claude-opus-4-7"
+    ["claude-opus-4.7"]="anthropic:claude-opus-4-7"
+    ["claude-opus-4-7"]="anthropic:claude-opus-4-7"
+    ["claude-opus-4.6"]="anthropic:claude-opus-4-7"    # Retargeted in bash layer (cycle-082)
+    ["claude-opus-4-6"]="anthropic:claude-opus-4-7"    # Retargeted in bash layer (cycle-082)
     ["gemini-2.0"]="google:gemini-2.0-flash"
     ["gemini-2.5-flash"]="google:gemini-2.5-flash"
     ["gemini-2.5-pro"]="google:gemini-2.5-pro"

@@ -78,7 +78,7 @@ For API integration, schemas can be passed directly to the Claude API:
 
 ```python
 response = client.messages.create(
-    model="claude-opus-4-6",
+    model="claude-opus-4-7",
     messages=[...],
     response_format={
         "type": "json_schema",

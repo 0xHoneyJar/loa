@@ -61,7 +61,7 @@ Set in `.loa.config.yaml` under `bridgebuilder:` section, or via environment var
 | Setting | Env Var | Default |
 |---------|---------|---------|
 | repos | `BRIDGEBUILDER_REPOS` | Auto-detected from git remote |
-| model | `BRIDGEBUILDER_MODEL` | `claude-opus-4-6` |
+| model | `BRIDGEBUILDER_MODEL` | `claude-opus-4-7` |
 | dry_run | `BRIDGEBUILDER_DRY_RUN` | `false` |
 | max_prs | — | `10` |
 | max_files_per_pr | — | `50` |

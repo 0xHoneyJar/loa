@@ -158,7 +158,7 @@ describe("resolveConfig precedence", () => {
       {},
       { enabled: true, repos: ["test/repo"] },
     );
-    assert.equal(config.model, "claude-opus-4-6");
+    assert.equal(config.model, "claude-opus-4-7");
     assert.equal(provenance.model, "default");
   });
 

@@ -46,7 +46,7 @@ regenerated and RTFM validation runs as a final gate.
 ## Cost
 
 **Estimated per invocation**: $10–$20/depth-5 run (see [Cost Matrix](../../../docs/CONFIG_REFERENCE.md#cost-matrix))
-**External providers called**: Claude Opus 4.6 (Bridgebuilder review), GPT-5.3-codex (cross-review dissent)
+**External providers called**: Claude Opus 4.7 (Bridgebuilder review), GPT-5.3-codex (cross-review dissent)
 **To cap spend**: Set `hounfour.metering.budget.daily_micro_usd` in `.loa.config.yaml`. Budget enforcement is active when `hounfour.metering.enabled: true`.
 **If cost is a concern**: Run `/loa setup` — the wizard will guide you to a budget-appropriate configuration.
 

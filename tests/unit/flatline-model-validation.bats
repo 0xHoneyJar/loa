@@ -34,6 +34,16 @@ setup() {
     [ "$status" -eq 0 ]
 }
 
+@test "validate_model accepts 'claude-opus-4.7' (cycle-082)" {
+    run validate_model "claude-opus-4.7" "primary"
+    [ "$status" -eq 0 ]
+}
+
+@test "validate_model accepts 'claude-opus-4-7' (cycle-082 canonical)" {
+    run validate_model "claude-opus-4-7" "primary"
+    [ "$status" -eq 0 ]
+}
+
 @test "validate_model accepts 'gemini-2.0'" {
     run validate_model "gemini-2.0" "primary"
     [ "$status" -eq 0 ]

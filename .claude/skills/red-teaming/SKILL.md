@@ -23,7 +23,7 @@ Use the Flatline Protocol's red team mode to generate creative attack scenarios 
 ## Cost
 
 **Estimated per invocation**: $5–$15/standard run or $15–$30/deep run (see [Cost Matrix](../../../docs/CONFIG_REFERENCE.md#cost-matrix))
-**External providers called**: Claude Opus 4.6 (primary attacker), GPT-5.3-codex (cross-review dissent)
+**External providers called**: Claude Opus 4.7 (primary attacker), GPT-5.3-codex (cross-review dissent)
 **To cap spend**: Set `red_team.budgets.standard_max_tokens` and `hounfour.metering.budget.daily_micro_usd` in `.loa.config.yaml`. Budget enforcement is active when `hounfour.metering.enabled: true`.
 **If cost is a concern**: Run `/loa setup` — the wizard will guide you to a budget-appropriate configuration.
 

@@ -103,7 +103,7 @@ class TestAnthropicResponseParsing:
         assert result.thinking is None  # No thinking block in this fixture
         assert result.usage.input_tokens == 50
         assert result.usage.output_tokens == 12
-        assert result.model == "claude-opus-4-6"
+        assert result.model == "claude-opus-4-7"
 
     def test_thinking_trace_extraction(self):
         fixture = json.loads((FIXTURES / "anthropic_thinking_response.json").read_text())

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Opus 4.7 promoted to top-review default** (cycle-082) — `opus` alias retargeted from `anthropic:claude-opus-4-6` to `anthropic:claude-opus-4-7` across all adapters (bash, Python, TypeScript, YAML). Affects Flatline Protocol primary, Bridgebuilder enriched review, red-team adapter advisor role, spiral advisor/judge. Pricing verified identical to 4.6 ($5/$25 per Mtok input/output); no cost-ledger or budget impact. Sonnet 4.6 executor default unchanged.
+  - **Backward compatibility**: `anthropic:claude-opus-4-6` registry entry retained in `.claude/defaults/model-config.yaml` + `.claude/data/model-permissions.yaml` as a pinnable fallback. Operators who want exact 4.6 behavior (historical baselines, rollback) can pin `opus: "anthropic:claude-opus-4-6"` in their `.loa.config.yaml` overrides; the Python/YAML resolution path will resolve to 4.6. Bash adapter layer retargets all legacy IDs (including `claude-opus-4-6`) to 4.7 for alias ergonomics, per PR #207 precedent.
+  - **Legacy alias retarget flag**: `claude-opus-4.5`, `claude-opus-4-5`, `claude-opus-4.1`, `claude-opus-4-1`, `claude-opus-4.0`, `claude-opus-4-0` (in both dotted and hyphenated forms) now resolve to Opus 4.7 via the bash alias layer. If you relied on a specific legacy model for historical benchmarks or compliance baselines, you MUST pin the canonical provider-prefixed form (`anthropic:claude-opus-4-6` etc.) via `.loa.config.yaml` — aliases are backward-compat convenience, not a reproducibility guarantee.
+  - **Rollback**: `git revert <merge-commit-sha>`. Single-PR, atomic, no state-mutation dependencies. Operators can also pin 4.6 in config as a no-maintainer-action override.
+  - **Deferred**: formal quality-benchmark harness (vision-010), auto-generated bash adapter maps from YAML (vision-011), role-based alias renaming (vision-012).
+
 ## [1.92.0] — 2026-04-16 — Shell Hardening & QoL Cycle
 
 Eight PRs (#537–#544) addressing 6 tracked issues plus 2 codebase-wide QoL improvements. This cycle eliminated three classes of shell bugs, added two lint detectors for ongoing prevention, and closed all open spiral-harness reliability bugs.

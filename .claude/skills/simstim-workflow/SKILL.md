@@ -27,7 +27,7 @@ interactively while HIGH_CONSENSUS findings auto-integrate.
 ## Cost
 
 **Estimated per invocation**: $25–$65/full cycle (see [Cost Matrix](../../../docs/CONFIG_REFERENCE.md#cost-matrix))
-**External providers called**: Claude Opus 4.6 (primary), GPT-5.3-codex (cross-review), Gemini 2.5 Pro (tertiary)
+**External providers called**: Claude Opus 4.7 (primary), GPT-5.3-codex (cross-review), Gemini 2.5 Pro (tertiary)
 **To cap spend**: Set `hounfour.metering.budget.daily_micro_usd` in `.loa.config.yaml`. Budget enforcement is active when `hounfour.metering.enabled: true`.
 **If cost is a concern**: Run `/loa setup` — the wizard will guide you to a budget-appropriate configuration.
 

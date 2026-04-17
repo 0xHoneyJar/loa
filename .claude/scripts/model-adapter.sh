@@ -100,14 +100,17 @@ declare -A MODEL_TO_ALIAS=(
     ["gpt-5.2"]="openai:gpt-5.2"
     ["gpt-5.3-codex"]="openai:gpt-5.3-codex"
     ["gpt-5.2-codex"]="openai:gpt-5.3-codex"    # Backward compat alias
-    ["opus"]="anthropic:claude-opus-4-6"
-    ["claude-opus-4.6"]="anthropic:claude-opus-4-6"
-    ["claude-opus-4.5"]="anthropic:claude-opus-4-6"
-    ["claude-opus-4-5"]="anthropic:claude-opus-4-6"    # Hyphenated → current
-    ["claude-opus-4.1"]="anthropic:claude-opus-4-6"    # Legacy → current
-    ["claude-opus-4-1"]="anthropic:claude-opus-4-6"    # Legacy hyphenated → current
-    ["claude-opus-4.0"]="anthropic:claude-opus-4-6"    # Legacy → current
-    ["claude-opus-4-0"]="anthropic:claude-opus-4-6"    # Legacy hyphenated → current
+    ["opus"]="anthropic:claude-opus-4-7"
+    ["claude-opus-4.7"]="anthropic:claude-opus-4-7"
+    ["claude-opus-4-7"]="anthropic:claude-opus-4-7"    # Current canonical (cycle-082)
+    ["claude-opus-4.6"]="anthropic:claude-opus-4-7"    # Retargeted to current (bash path); YAML preserves 4.6 for pinning
+    ["claude-opus-4-6"]="anthropic:claude-opus-4-7"    # Retargeted to current (bash path); YAML preserves 4.6 for pinning
+    ["claude-opus-4.5"]="anthropic:claude-opus-4-7"
+    ["claude-opus-4-5"]="anthropic:claude-opus-4-7"    # Hyphenated → current
+    ["claude-opus-4.1"]="anthropic:claude-opus-4-7"    # Legacy → current
+    ["claude-opus-4-1"]="anthropic:claude-opus-4-7"    # Legacy hyphenated → current
+    ["claude-opus-4.0"]="anthropic:claude-opus-4-7"    # Legacy → current
+    ["claude-opus-4-0"]="anthropic:claude-opus-4-7"    # Legacy hyphenated → current
     ["gemini-2.0"]="google:gemini-2.0-flash"
     ["gemini-2.5-flash"]="google:gemini-2.5-flash"
     ["gemini-2.5-pro"]="google:gemini-2.5-pro"
@@ -171,7 +174,7 @@ hounfour.flatline_routing is enabled, otherwise uses legacy adapter.
 Models:
   gpt-5.2                    OpenAI GPT-5.2
   gpt-5.3-codex              OpenAI GPT-5.3 Codex
-  opus, claude-opus-4.6      Claude Opus 4.6
+  opus, claude-opus-4.7      Claude Opus 4.7 (current; 4.6 alias retargeted to 4.7 in bash layer)
   (Full model list depends on routing path)
 
 Modes:

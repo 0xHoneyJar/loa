@@ -4,7 +4,7 @@
 
 ## How It Works (v1.22.0)
 
-Multi-model adversarial review using Claude Opus 4.6 + GPT-5.3-codex + Gemini 2.5 Pro for planning document quality assurance.
+Multi-model adversarial review using Claude Opus 4.7 + GPT-5.3-codex + Gemini 2.5 Pro for planning document quality assurance.
 
 | Phase | Description |
 |-------|-------------|

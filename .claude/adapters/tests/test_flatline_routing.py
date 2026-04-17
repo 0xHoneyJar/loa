@@ -299,7 +299,7 @@ class TestModelAdapterShim:
         """Legacy model names correctly translate to provider:model-id."""
         tests = [
             ("gpt-5.2", "openai", "gpt-5.2"),
-            ("opus", "anthropic", "claude-opus-4-6"),
+            ("opus", "anthropic", "claude-opus-4-7"),  # cycle-082: retargeted from 4-6
         ]
         for model, expected_provider, expected_model in tests:
             result = self._run_adapter(
