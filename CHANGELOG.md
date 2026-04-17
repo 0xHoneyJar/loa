@@ -7,7 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.94.0] — 2026-04-17
+## [1.94.0] — 2026-04-17 — Adversarial Review Enforcement Gate
+
+### Added
+
+- **Adversarial review enforcement gate** (#552) — `PreToolUse:Write` hook blocks `*/COMPLETED` marker writes when `flatline_protocol.{code_review,security_audit}.enabled: true` in config but the corresponding `adversarial-{review,audit}.json` artefact is missing or structurally invalid. Closes the silent-skip failure mode where `reviewing-code` / `auditing-security` skills executing inline could bypass Phase 2.5 under token pressure while still writing `COMPLETED`.
+  - **Structural validation** raises bypass cost beyond `touch artefact.json`: the artefact must parse as JSON and contain `.metadata.type` + `.metadata.model` — fields that `adversarial-review.sh` writes on every code path (success, api_failure, malformed_response, skipped_by_config). Empty files and hand-crafted placeholders no longer satisfy the gate.
+  - **CWD-independent config resolution**: walks upward from the sprint directory to locate `.loa.config.yaml` instead of relying on `./` (PreToolUse hooks don't pin CWD; the `./` form silently missed from subagents and worktrees).
+  - **Fail-open on infrastructure faults** (missing `yq`, jq parse errors, malformed config) with stderr warning; **fails closed** when `.loa.config.yaml` cannot be resolved at all — an unresolvable config means enforcement requirements can't be evaluated, which is the silent-skip mode the gate exists to block.
+  - **Trajectory visibility**: `adversarial-review.sh` now emits a trajectory entry with outcome `skipped_by_config` when disabled rather than exiting silently. Absence of reviews becomes observable in the audit trail.
+  - **Test coverage**: `.claude/tests/adversarial-review-gate.test.sh` — 11 cases covering block/allow paths, the structural bypass (`touch`), opt-out env var, yq-missing fail-open, walk-up config discovery, and unresolvable-config fail-closed. All passing.
+  - **Emergency override**: `LOA_ADVERSARIAL_REVIEW_ENFORCE=false` preserved for break-glass scenarios; `LOA_CONFIG_PATH_OVERRIDE` for tests and edge cases.
+
+### Fixed
+
+- **Stale test assertion** (60bdef7) — `tests/unit/gpt-review-hook.bats` referenced the deprecated `gpt-5.2` model; updated to `gpt-5.3-codex` to match the current dissenter default.
 
 ## [1.93.0] — 2026-04-17 — Opus 4.7 Top-Review Migration
 
