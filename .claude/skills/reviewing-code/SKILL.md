@@ -427,7 +427,7 @@ Verify implementation follows the four principles:
 
 ## Phase 2.5: Adversarial Cross-Model Review
 
-**Condition**: Only runs if `flatline_protocol.code_review.enabled: true` in `.loa.config.yaml`.
+**MANDATORY when enabled.** Runs if `flatline_protocol.code_review.enabled: true` in `.loa.config.yaml`. Skipping this phase triggers a `PreToolUse:Write` gate block at `COMPLETED` marker write time (see `.claude/hooks/safety/adversarial-review-gate.sh`). Emergency override only via `LOA_ADVERSARIAL_REVIEW_ENFORCE=false` — document in sprint notes.
 
 **Objective**: Invoke a cross-model dissenter to catch reviewer blind spots before the final decision.
 
@@ -447,6 +447,8 @@ Verify implementation follows the four principles:
    - If BLOCKING findings exist: incorporate into Phase 4 decision (forces CHANGES_REQUIRED)
    - If ADVISORY findings only: append as "Cross-Model Observations" section in feedback
 4. Clean up temp files
+
+**Failure must produce a record.** If `adversarial-review.sh` fails (timeout, API error, budget exceeded), write `grimoires/loa/a2a/{sprint_id}/adversarial-review.json` with `{"findings": [], "metadata": {"status": "failed", "reason": "..."}}` BEFORE proceeding. Do NOT silently skip — the gate hook has no way to distinguish "not attempted" from "attempted and failed", and the distinction matters for audit trail.
 
 **Parameter Derivation**:
 | Script Parameter | SKILL Derivation |

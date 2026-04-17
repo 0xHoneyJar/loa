@@ -481,7 +481,7 @@ Check for stored data that becomes dangerous when retrieved:
 
 ## Phase 1C: Security Dissenter Analysis
 
-**Condition**: Only runs if `flatline_protocol.security_audit.enabled: true` in `.loa.config.yaml`.
+**MANDATORY when enabled.** Runs if `flatline_protocol.security_audit.enabled: true` in `.loa.config.yaml`. Skipping this phase triggers a `PreToolUse:Write` gate block at `COMPLETED` marker write time (see `.claude/hooks/safety/adversarial-review-gate.sh`). Emergency override only via `LOA_ADVERSARIAL_REVIEW_ENFORCE=false` — document in sprint notes.
 
 **Objective**: Run independent security-focused cross-model review. The dissenter does NOT receive any Phase 1A/1B findings — it evaluates the code independently to prevent anchoring bias (per FR-2.5).
 
@@ -504,7 +504,7 @@ Check for stored data that becomes dangerous when retrieved:
 
 **Output**: Findings written to `grimoires/loa/a2a/{sprint_id}/adversarial-audit.json`
 
-**Failure mode**: If unavailable (timeout, API error, budget exceeded), proceed with single-model audit. Set `DEGRADED_SECURITY_REVIEW` marker if sprint completes without dissenter input (per FR-6.4). Empty findings = normal success, no DEGRADED marker.
+**Failure mode**: If unavailable (timeout, API error, budget exceeded), write `grimoires/loa/a2a/{sprint_id}/adversarial-audit.json` with `{"findings": [], "metadata": {"status": "failed", "reason": "..."}}` BEFORE proceeding — the gate hook checks for the file's presence, not its contents, so a failure record satisfies the gate while preserving the audit trail. Set `DEGRADED_SECURITY_REVIEW` marker if sprint completes without dissenter input (per FR-6.4). Empty findings = normal success, no DEGRADED marker.
 
 ## Phase 1: Systematic Audit
 

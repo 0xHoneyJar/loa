@@ -844,7 +844,25 @@ main() {
   # Check enabled
   if [[ "$CONF_ENABLED" != "true" ]]; then
     log "Adversarial $type review is disabled"
-    jq -n --arg type "$type" '{findings: [], metadata: {type: $type, status: "disabled"}}'
+    local disabled_result
+    disabled_result=$(jq -n --arg type "$type" --arg sid "$sprint_id" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      '{findings: [], metadata: {type: $type, sprint_id: $sid, timestamp: $ts, status: "skipped_by_config", model: null, cost_usd: 0}}')
+    # Emit trajectory line so the absence of adversarial output is explainable
+    # rather than a silent void. The gate hook does not require the full output
+    # file here because config says disabled, but visibility still matters.
+    local trajectory_dir="$PROJECT_ROOT/grimoires/loa/a2a/trajectory"
+    mkdir -p "$trajectory_dir"
+    local trajectory_file="$trajectory_dir/adversarial-$(date -u +%Y-%m-%d).jsonl"
+    echo "$disabled_result" | jq -c '{
+      timestamp: .metadata.timestamp,
+      type: .metadata.type,
+      model: .metadata.model,
+      sprint_id: .metadata.sprint_id,
+      status: .metadata.status,
+      finding_count: 0,
+      cost_usd: 0
+    }' >> "$trajectory_file" 2>/dev/null || true
+    echo "$disabled_result"
     exit 1
   fi
 

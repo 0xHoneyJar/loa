@@ -49,6 +49,10 @@
           {
             "type": "command",
             "command": ".claude/hooks/safety/spiral-dispatch-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/safety/adversarial-review-gate.sh"
           }
         ]
       },
