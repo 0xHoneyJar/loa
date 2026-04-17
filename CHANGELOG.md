@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.94.0] — 2026-04-17
+
 ## [1.93.0] — 2026-04-17 — Opus 4.7 Top-Review Migration
 
 ### Changed
@@ -574,6 +576,8 @@ Full convergence trajectory: `grimoires/loa/a2a/trajectory/bridge-triage-2026-04
 - ATK-011: Blocks `unset LOA_TEAM_MEMBER` and `env -u` privilege escalation in Agent Teams
 
 ## [Unreleased]
+
+## [1.94.0] — 2026-04-17
 
 ## [1.91.7] — 2026-04-16
 
