@@ -2,7 +2,7 @@
 
 **ID**: vision-010
 **Source**: Flatline PRD review of Opus 4.7 migration (simstim-20260417-4a16c55f)
-**PR**: TBD (Opus 4.7 migration)
+**PR**: [#547](https://github.com/0xHoneyJar/loa/pull/547) (Opus 4.7 migration, cycle-082)
 **Date**: 2026-04-17T00:00:00Z
 **Status**: Captured
 **Tags**: [quality-validation, review-regression, benchmarks, flatline, model-migration]

@@ -2,7 +2,7 @@
 
 **ID**: vision-012
 **Source**: Bridgebuilder SDD review of Opus 4.7 migration (simstim-20260417-4a16c55f), finding SPECULATION-001
-**PR**: TBD (Opus 4.7 migration)
+**PR**: [#547](https://github.com/0xHoneyJar/loa/pull/547) (Opus 4.7 migration, cycle-082)
 **Date**: 2026-04-17T00:00:00Z
 **Status**: Captured (original_severity: SPECULATION)
 **Tags**: [alias-design, semantic-stability, model-migrations, API-contracts]

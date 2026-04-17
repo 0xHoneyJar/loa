@@ -227,12 +227,32 @@ class TestRemoteModelScopes(unittest.TestCase):
                 self.assertEqual(scopes.get(dim), "none")
 
     def test_anthropic_all_none(self):
-        """anthropic:claude-opus-4-6 has all-none scopes (remote model)."""
+        """anthropic:claude-opus-4-6 has all-none scopes (remote model, pinnable fallback)."""
         entry = self.models.get("anthropic:claude-opus-4-6", {})
         scopes = entry.get("trust_scopes", {})
         for dim in VALID_DIMENSIONS:
             with self.subTest(dimension=dim):
                 self.assertEqual(scopes.get(dim), "none")
+
+    def test_anthropic_opus_4_7_all_none(self):
+        """anthropic:claude-opus-4-7 has all-none scopes (cycle-082 current default)."""
+        entry = self.models.get("anthropic:claude-opus-4-7", {})
+        self.assertTrue(entry, "claude-opus-4-7 block missing from model-permissions.yaml")
+        scopes = entry.get("trust_scopes", {})
+        for dim in VALID_DIMENSIONS:
+            with self.subTest(dimension=dim):
+                self.assertEqual(scopes.get(dim), "none")
+
+    def test_anthropic_opus_4_7_parity_with_4_6(self):
+        """claude-opus-4-7 permission block mirrors 4-6 structure (no field placeholder drift)."""
+        entry_47 = self.models.get("anthropic:claude-opus-4-7", {})
+        entry_46 = self.models.get("anthropic:claude-opus-4-6", {})
+        self.assertEqual(entry_47.get("trust_level"), entry_46.get("trust_level"))
+        self.assertEqual(entry_47.get("execution_mode"), entry_46.get("execution_mode"))
+        self.assertEqual(entry_47.get("capabilities"), entry_46.get("capabilities"))
+        self.assertEqual(set(entry_47.get("trust_scopes", {}).keys()),
+                         set(entry_46.get("trust_scopes", {}).keys()),
+                         "trust_scopes dimensions must match between 4-6 and 4-7")
 
 
 class TestGoogleModelScopes(unittest.TestCase):
