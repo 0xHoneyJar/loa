@@ -11,6 +11,10 @@ from loa_cheval.providers.base import (
     enforce_context_window,
     http_post,
 )
+from loa_cheval.grounding import (
+    parse_openrouter_annotations,
+    validate_openrouter_response,
+)
 from loa_cheval.types import (
     CompletionRequest,
     CompletionResult,
@@ -159,7 +163,13 @@ class OpenAIAdapter(ProviderAdapter):
         )
 
     def _parse_response(self, resp: Dict[str, Any], latency_ms: int) -> CompletionResult:
-        """Extract CompletionResult from OpenAI response (SDD §4.2.5)."""
+        """Extract CompletionResult from OpenAI response (SDD §4.2.5).
+
+        When the response includes `choices[0].message.annotations[]` (OpenRouter
+        :online grounded mode), validate against openrouter-response-v1.json
+        (SDD §12.3) and attach a GroundedResult to the result. Validation
+        failure raises GROUNDING_MALFORMED → failover chain handles it in §6.2.
+        """
         choices = resp.get("choices", [])
         if not choices:
             raise InvalidInputError("OpenAI response contains no choices")
@@ -180,6 +190,15 @@ class OpenAIAdapter(ProviderAdapter):
             source="actual" if usage_data else "estimated",
         )
 
+        # Grounded parse (SDD §3.1, §3.4, §12.3). Only attempt when the
+        # response advertises grounding via annotations[] or inline markers;
+        # otherwise pass through unchanged so non-grounded calls are unaffected.
+        grounded = None
+        has_annotations = bool(message.get("annotations"))
+        if has_annotations:
+            validate_openrouter_response(resp)
+            grounded = parse_openrouter_annotations(message, content, latency_ms)
+
         return CompletionResult(
             content=content,
             tool_calls=tool_calls,
@@ -188,6 +207,7 @@ class OpenAIAdapter(ProviderAdapter):
             model=resp.get("model", "unknown"),
             latency_ms=latency_ms,
             provider=self.provider,
+            grounded=grounded,
         )
 
     def validate_config(self) -> List[str]:

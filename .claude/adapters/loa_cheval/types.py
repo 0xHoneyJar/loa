@@ -34,6 +34,7 @@ class CompletionResult:
     latency_ms: int
     provider: str
     interaction_id: Optional[str] = None  # Deep Research interaction ID for deduplication
+    grounded: Optional["GroundedResult"] = None  # SDD §3.1 — populated when adapter parses grounding
 
 
 @dataclass

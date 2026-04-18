@@ -20,6 +20,7 @@ from loa_cheval.providers.base import (
     enforce_context_window,
     http_post,
 )
+from loa_cheval.grounding import parse_google_grounding
 from loa_cheval.types import (
     CompletionRequest,
     CompletionResult,
@@ -598,6 +599,11 @@ def _parse_response(resp, model_id, latency_ms, provider, model_config,
         usage.output_tokens,
     )
 
+    # Grounded parse (FR-2, SDD §3.1). Lift of dig-search.ts:261-287 —
+    # populates GroundedResult when groundingMetadata is present on the
+    # candidate. Silent no-op otherwise so non-grounded calls pass through.
+    grounded = parse_google_grounding(candidate, content, latency_ms)
+
     return CompletionResult(
         content=content,
         tool_calls=None,  # Tool calls not supported in standard path yet
@@ -606,6 +612,7 @@ def _parse_response(resp, model_id, latency_ms, provider, model_config,
         model=model_id,
         latency_ms=latency_ms,
         provider=provider,
+        grounded=grounded,
     )
 
 
