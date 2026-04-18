@@ -174,6 +174,28 @@ run_bridge:
     redaction:
       enabled: true
       post_redaction_safety: true
+    # Multi-model Bridgebuilder (parity with PR #558, will merge cleanly)
+    multi_model:
+      enabled: true
+      models:
+        - provider: anthropic
+          model_id: claude-opus-4-7
+          role: primary
+        - provider: openai
+          model_id: gpt-5.3-codex
+          role: reviewer
+        - provider: google
+          model_id: gemini-2.5-pro
+          role: reviewer
+      iteration_strategy: final
+      api_key_mode: graceful
+      consensus:
+        enabled: true
+        scoring_thresholds:
+          high_consensus: 700
+          disputed_delta: 300
+          low_value: 400
+          blocker: 700
   pipeline_self_review:
     enabled: false              # Default false — progressive rollout
     base_branch: main           # Branch to diff against
