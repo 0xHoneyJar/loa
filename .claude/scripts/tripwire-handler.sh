@@ -122,15 +122,19 @@ perform_rollback() {
     # See: .claude/rules/stash-safety.md
     local stash_name="guardrail-rollback-$(date +%s)"
     local stash_count_before stash_count_after
-    # `|| echo "0"` fallback keeps this safe under pipefail when git stash
-    # list is unavailable (e.g., repo in bad state). See #555 DISS-001.
-    stash_count_before=$(git stash list 2>/dev/null | wc -l | tr -d ' ' || echo "0")
+    # Use if/else to avoid `|| echo 0` duplication under pipefail when the
+    # pipeline already emits "0" from wc (see stash-safety.sh _stash_count).
+    if ! stash_count_before=$(git stash list 2>/dev/null | wc -l | tr -d ' '); then
+        stash_count_before="0"
+    fi
     stash_count_before=${stash_count_before:-0}
     # stdout → stderr so `perform_rollback`'s capture-via-$() sees only the
     # final echo (true/false/no_changes). Stderr still surfaces stash
     # diagnostics for debugging. Fixes DISS-001 from Phase 2.5 review.
     if git stash push -m "$stash_name" --include-untracked >&2; then
-        stash_count_after=$(git stash list 2>/dev/null | wc -l | tr -d ' ' || echo "0")
+        if ! stash_count_after=$(git stash list 2>/dev/null | wc -l | tr -d ' '); then
+            stash_count_after="0"
+        fi
         stash_count_after=${stash_count_after:-0}
         # Integrity check: did the stash actually advance?
         if [[ "$stash_count_after" -ne "$((stash_count_before + 1))" ]]; then

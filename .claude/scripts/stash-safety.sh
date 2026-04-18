@@ -38,9 +38,14 @@ _STASH_SAFETY_SH_SOURCED=1
 # under `set -euo pipefail` don't blow up on pre-check.
 # -----------------------------------------------------------------------------
 _stash_count() {
+    # If/else instead of `|| echo 0` to avoid accumulating "0\n0" under
+    # pipefail when the underlying pipeline also emits "0" from wc.
     local out
-    out=$(git stash list 2>/dev/null | wc -l | tr -d ' ' || echo "0")
-    echo "${out:-0}"
+    if out=$(git stash list 2>/dev/null | wc -l | tr -d ' '); then
+        echo "${out:-0}"
+    else
+        echo "0"
+    fi
 }
 
 # -----------------------------------------------------------------------------
