@@ -24,6 +24,7 @@ _ADAPTERS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _ADAPTERS_DIR not in sys.path:
     sys.path.insert(0, _ADAPTERS_DIR)
 
+from loa_cheval import CONTRACT_VERSION
 from loa_cheval.types import (
     BudgetExceededError,
     ChevalError,
@@ -439,6 +440,28 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         return EXIT_CODES["API_ERROR"]
 
 
+def cmd_capabilities(args: argparse.Namespace) -> int:
+    """Print capability manifest (SDD §12.2 + §13.1).
+
+    Shim probes this once per process; caches result; falls back per §12.2
+    table when a capability is missing. schema_version is the shared
+    contract version and must match construct-k-hole's
+    `compatible_contract_versions`.
+
+    Sprint 1 lands grounded_result (types + schemas + adapter parse).
+    Sprint 2 flips failover_chain, cost_log, governance_enforcement to true.
+    """
+    manifest = {
+        "schema_version": CONTRACT_VERSION,
+        "grounded_result": True,
+        "failover_chain": False,
+        "cost_log": False,
+        "governance_enforcement": False,
+    }
+    print(json.dumps(manifest), file=sys.stdout)
+    return EXIT_CODES["SUCCESS"]
+
+
 def cmd_print_config(args: argparse.Namespace) -> int:
     """Print effective merged config with source annotations."""
     config, sources = load_config(cli_args=vars(args))
@@ -572,10 +595,13 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true", dest="dry_run", help="Validate and print resolved model, don't call API")
     parser.add_argument("--print-effective-config", action="store_true", dest="print_config", help="Print merged config with source annotations")
     parser.add_argument("--validate-bindings", action="store_true", dest="validate_bindings", help="Validate all agent bindings")
+    parser.add_argument("--capabilities", action="store_true", dest="capabilities", help="Print capability manifest (SDD §12.2 + §13.1), exit 0")
 
     args = parser.parse_args()
 
     # Route to subcommand
+    if args.capabilities:
+        return cmd_capabilities(args)
     if args.print_config:
         return cmd_print_config(args)
     if args.validate_bindings:
