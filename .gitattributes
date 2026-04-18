@@ -18,6 +18,15 @@ CHANGELOG.md merge=ours
 BUTTERFREEZONE.md merge=ours
 
 # =============================================================================
+# FRAMEWORK-MANAGED VERSION MARKERS (Issue #554)
+# =============================================================================
+# .loa-version.json looks like project config but describes framework identity.
+# merge=ours keeps the local file during merge (no conflict prompt); the
+# /update-loa Phase 5.6 bump step is what refreshes the content post-merge
+# via `update-loa-bump-version.sh`. Without Phase 5.6, the marker goes stale.
+.loa-version.json merge=ours
+
+# =============================================================================
 # STATE ZONE FILES (grimoires/)
 # =============================================================================
 # These files are project-specific planning artifacts in the State Zone.

@@ -297,6 +297,27 @@ fi
 
 > **Why?** GitHub requires the `workflow` OAuth scope to push changes to `.github/workflows/`. Most downstream users don't have this scope. The `.gitattributes` `merge=ours` rule protects existing workflow files, but new workflow files added upstream still propagate via merge. This step catches both cases. (Defense-in-depth: Phase 5.3 already handles workflow file deletions, but this phase additionally catches new and modified workflow files.)
 
+### Phase 5.6: Bump Version Markers (v1.95+, Issue #554)
+
+Framework-managed version markers (`.loa-version.json` + `CLAUDE.loa.md:1` header) are project-owned under the default merge resolver, so the merge keeps the local (stale) version. This phase idempotently rewrites both with the target release tag so downstream `/loa`, `loa-status.sh`, and issue triage report the correct version.
+
+```bash
+if [[ -x ".claude/scripts/update-loa-bump-version.sh" ]]; then
+  # Target resolution: tag on FETCH_HEAD → upstream .loa-version.json → short SHA.
+  # The script is idempotent — no-op when already at target.
+  if .claude/scripts/update-loa-bump-version.sh; then
+    # Stage the refreshed markers into the merge commit, if they changed.
+    git add .loa-version.json .claude/loa/CLAUDE.loa.md 2>/dev/null || true
+  else
+    echo "Warning: version marker bump failed (non-blocking)" >&2
+  fi
+fi
+```
+
+> **Why?** `/update-loa` Phases 5.3/5.5 protect project state and workflows. The version markers look like config but describe framework identity. Without this phase, downstream reports a stale `framework_version` across multiple updates, and the `update_available` nag fires for updates already installed. The script fails open (non-blocking) — a bump failure should not halt the merge.
+>
+> **Fixes**: [#554](https://github.com/0xHoneyJar/loa/issues/554) — `.loa-version.json` + `CLAUDE.loa.md` markers not refreshed by `/update-loa` merge resolution.
+
 ### Phase 5.7: Commit the Safeguarded Merge
 
 After all safeguards have run, create the merge commit:
