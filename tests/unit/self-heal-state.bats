@@ -38,9 +38,11 @@ EOF
     # Copy the script + its sourced dependencies so the test harness can
     # source bootstrap.sh and path-lib.sh from the relative path the script
     # expects. Mirrors the pattern in release-notes-gen.bats setup.
+    # Fail loudly if any required file is missing — obscuring missing deps
+    # would mask real breakage under a future refactor.
     cp "${BATS_TEST_DIRNAME}/../../.claude/scripts/self-heal-state.sh" .claude/scripts/
-    cp "${BATS_TEST_DIRNAME}/../../.claude/scripts/bootstrap.sh" .claude/scripts/ 2>/dev/null || true
-    cp "${BATS_TEST_DIRNAME}/../../.claude/scripts/path-lib.sh" .claude/scripts/ 2>/dev/null || true
+    cp "${BATS_TEST_DIRNAME}/../../.claude/scripts/bootstrap.sh" .claude/scripts/
+    cp "${BATS_TEST_DIRNAME}/../../.claude/scripts/path-lib.sh" .claude/scripts/
     chmod +x .claude/scripts/self-heal-state.sh
 
     export SCRIPT=".claude/scripts/self-heal-state.sh"
