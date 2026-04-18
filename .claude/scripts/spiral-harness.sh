@@ -74,9 +74,26 @@ ADVISOR_MODEL=$(_read_harness_config "spiral.harness.advisor_model" "opus")
 # for non-trivial specs (>15 KB seed → claude -p needed >5min, artifact
 # emerged 0 bytes, evidence gate failed). New defaults chosen to clear
 # observed-failure window while staying well under simstim_sec=7200 cap.
-DISCOVERY_TIMEOUT=$(_read_harness_config "spiral.harness.discovery_timeout_sec" "1200")
-ARCHITECTURE_TIMEOUT=$(_read_harness_config "spiral.harness.architecture_timeout_sec" "1200")
-PLANNING_TIMEOUT=$(_read_harness_config "spiral.harness.planning_timeout_sec" "600")
+# Validate values are positive integers; fall back to the safe default
+# otherwise (prevents garbage config from crashing `timeout` downstream).
+_validate_timeout_sec() {
+    local val="$1" fallback="$2" key="$3"
+    if [[ ! "$val" =~ ^[1-9][0-9]*$ ]]; then
+        echo "[spiral-harness] WARN: invalid $key='$val' (expected positive integer), using fallback $fallback" >&2
+        echo "$fallback"
+    else
+        echo "$val"
+    fi
+}
+DISCOVERY_TIMEOUT=$(_validate_timeout_sec \
+    "$(_read_harness_config "spiral.harness.discovery_timeout_sec" "1200")" \
+    "1200" "spiral.harness.discovery_timeout_sec")
+ARCHITECTURE_TIMEOUT=$(_validate_timeout_sec \
+    "$(_read_harness_config "spiral.harness.architecture_timeout_sec" "1200")" \
+    "1200" "spiral.harness.architecture_timeout_sec")
+PLANNING_TIMEOUT=$(_validate_timeout_sec \
+    "$(_read_harness_config "spiral.harness.planning_timeout_sec" "600")" \
+    "600" "spiral.harness.planning_timeout_sec")
 
 # Pipeline Profiles (cycle-072): match intensity to task complexity
 # full    = all 3 Flatline gates + Opus advisor ($15, architecture/security)
