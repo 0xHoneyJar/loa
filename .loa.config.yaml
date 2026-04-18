@@ -174,7 +174,10 @@ run_bridge:
     redaction:
       enabled: true
       post_redaction_safety: true
-    # Multi-model Bridgebuilder (parity with PR #558, will merge cleanly)
+    # Multi-model Bridgebuilder (cycle-052 PR #463 architecture)
+    # Three-model kaironic review: Opus + GPT-5.3-codex + Gemini 2.5 Pro.
+    # Consensus scoring + iterative convergence (findings stabilize → kaironic termination).
+    # api_key_mode: graceful — missing keys degrade gracefully rather than blocking review.
     multi_model:
       enabled: true
       models:
@@ -241,8 +244,11 @@ flatline_protocol:
     blocker_skeptic: 700
   max_iterations: 5
   # Phase 2.5: Adversarial cross-model review (PR #552 enforcement gate)
-  # Duplicated from PR #558's branch — will merge cleanly (same content)
-  # after that PR lands. Enabling here so this sprint's quality gates fire.
+  # When enabled, `/review-sprint` and `/audit-sprint` invoke a cross-model
+  # dissenter (gpt-5.3-codex by default) and produce adversarial-{review,audit}.json.
+  # The PreToolUse:Write hook at .claude/hooks/safety/adversarial-review-gate.sh
+  # blocks COMPLETED marker writes when enabled but the artifact is missing.
+  # Emergency override: LOA_ADVERSARIAL_REVIEW_ENFORCE=false.
   code_review:
     enabled: true
     model: gpt-5.3-codex

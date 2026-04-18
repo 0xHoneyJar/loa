@@ -280,3 +280,206 @@ cost-profile: lightweight
     [ "$status" -eq 0 ]
     [[ "$output" == *"correlation mismatch"* ]]
 }
+
+# =========================================================================
+# SC-T-AGENT-1: write_files true + agent: Plan → ERROR (Issue #553)
+# =========================================================================
+
+@test "write_files true with agent: Plan is ERROR" {
+    create_skill "plan-write-conflict" "---
+name: planwrite
+description: Plan agent with write capability
+agent: Plan
+capabilities:
+  schema_version: 1
+  read_files: true
+  search_code: true
+  write_files: true
+  execute_commands: false
+  web_access: false
+  user_interaction: false
+  agent_spawn: false
+  task_management: false
+cost-profile: moderate
+---
+# Plan Write Conflict"
+
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill plan-write-conflict
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"agent type 'Plan'"* ]]
+    [[ "$output" == *"Write"* ]]
+}
+
+# =========================================================================
+# SC-T-AGENT-2: write_files true + agent: Explore → ERROR (Issue #553)
+# =========================================================================
+
+@test "write_files true with agent: Explore is ERROR" {
+    create_skill "explore-write-conflict" "---
+name: explorewrite
+description: Explore agent with write capability
+agent: Explore
+capabilities:
+  schema_version: 1
+  read_files: true
+  search_code: true
+  write_files: true
+  execute_commands: false
+  web_access: false
+  user_interaction: false
+  agent_spawn: false
+  task_management: false
+cost-profile: moderate
+---
+# Explore Write Conflict"
+
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill explore-write-conflict
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"agent type 'Explore'"* ]]
+    [[ "$output" == *"excludes Write/Edit"* ]]
+}
+
+# =========================================================================
+# SC-T-AGENT-3: write_files true + agent: general-purpose → PASS
+# =========================================================================
+
+@test "write_files true with agent: general-purpose passes" {
+    create_skill "gp-write-ok" "---
+name: gpwrite
+description: General-purpose agent with write capability
+agent: general-purpose
+capabilities:
+  schema_version: 1
+  read_files: true
+  search_code: true
+  write_files: true
+  execute_commands: false
+  web_access: false
+  user_interaction: false
+  agent_spawn: false
+  task_management: false
+cost-profile: moderate
+---
+# GP Write OK"
+
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill gp-write-ok
+    [ "$status" -eq 0 ]
+}
+
+# =========================================================================
+# SC-T-AGENT-4: write_files true + no agent key → PASS (foreground has Write)
+# =========================================================================
+
+@test "write_files true with no agent key passes" {
+    create_skill "no-agent-write-ok" "---
+name: noagent
+description: No agent type declared
+capabilities:
+  schema_version: 1
+  read_files: true
+  search_code: true
+  write_files: true
+  execute_commands: false
+  web_access: false
+  user_interaction: false
+  agent_spawn: false
+  task_management: false
+cost-profile: moderate
+---
+# No Agent Write OK"
+
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill no-agent-write-ok
+    [ "$status" -eq 0 ]
+}
+
+# =========================================================================
+# SC-T-AGENT-5: write_files false + agent: Plan → PASS (no contradiction)
+# =========================================================================
+
+@test "write_files false with agent: Plan passes" {
+    create_skill "plan-read-only" "---
+name: planro
+description: Plan agent read-only
+agent: Plan
+capabilities:
+  schema_version: 1
+  read_files: true
+  search_code: true
+  write_files: false
+  execute_commands: false
+  web_access: false
+  user_interaction: false
+  agent_spawn: false
+  task_management: false
+cost-profile: moderate
+---
+# Plan Read Only"
+
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill plan-read-only
+    [ "$status" -eq 0 ]
+}
+
+# =========================================================================
+# SC-T-AGENT-6: allowed-tools: Write + agent: Plan → ERROR
+# =========================================================================
+
+@test "allowed-tools contains Write with agent: Plan is ERROR" {
+    create_skill "plan-allowed-tools-write" "---
+name: planallowedwrite
+description: Plan agent with Write in allowed-tools
+agent: Plan
+allowed-tools: Read, Grep, Write
+capabilities:
+  schema_version: 1
+  read_files: true
+  search_code: true
+  write_files: true
+  execute_commands: false
+  web_access: false
+  user_interaction: false
+  agent_spawn: false
+  task_management: false
+cost-profile: moderate
+---
+# Plan Allowed-Tools Write Conflict"
+
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill plan-allowed-tools-write
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"agent type 'Plan'"* ]]
+    [[ "$output" == *"excludes Write/Edit"* ]]
+}
+
+# =========================================================================
+# SC-T-AGENT-7: allowed-tools: Edit + agent: Plan → ERROR (DISS-001 coverage)
+# =========================================================================
+# Addresses Phase 2.5 advisory: SC-T-AGENT-6 exercises the Write path. This
+# test covers the symmetric Edit path and asserts the agent-type error
+# message specifically (distinct from the existing write_files-vs-allowed-tools
+# security-violation message), proving the new invariant check fires
+# regardless of which write-capable tool is declared.
+
+@test "allowed-tools contains Edit with agent: Plan is ERROR (agent-invariant)" {
+    create_skill "plan-allowed-tools-edit" "---
+name: planallowededit
+description: Plan agent with Edit in allowed-tools
+agent: Plan
+allowed-tools: Read, Grep, Edit
+capabilities:
+  schema_version: 1
+  read_files: true
+  search_code: true
+  write_files: true
+  execute_commands: false
+  web_access: false
+  user_interaction: false
+  agent_spawn: false
+  task_management: false
+cost-profile: moderate
+---
+# Plan Allowed-Tools Edit Conflict"
+
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill plan-allowed-tools-edit
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"agent type 'Plan'"* ]]
+    [[ "$output" == *"excludes Write/Edit"* ]]
+}

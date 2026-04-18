@@ -13,7 +13,6 @@ capabilities:
   task_management: false
 cost-profile: moderate
 context: fork
-agent: Plan
 parallel_threshold: null
 timeout_minutes: 60
 zones:

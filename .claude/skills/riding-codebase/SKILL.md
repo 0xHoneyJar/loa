@@ -2,7 +2,6 @@
 name: ride
 description: Analyze codebase to extract reality into Loa artifacts
 context: fork
-agent: Explore
 allowed-tools: Read, Grep, Glob, Write, Bash(git *)
 capabilities:
   schema_version: 1
