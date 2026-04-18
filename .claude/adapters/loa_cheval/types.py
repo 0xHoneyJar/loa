@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 
 # --- Completion Request/Result ---
@@ -180,3 +180,50 @@ class InvalidInputError(ChevalError):
 
     def __init__(self, message: str):
         super().__init__("INVALID_INPUT", message, retryable=False)
+
+
+# --- Grounded Search Contract (SDD §3.1, FR-2, SKP-005) ---
+
+GroundingProvenance = Literal["google_search", "exa", "native", "none"]
+
+
+@dataclass
+class Citation:
+    """Single citation from grounded search (SDD §3.1)."""
+
+    title: str
+    url: str
+    snippet: str
+    publisher: Optional[str] = None
+    snippet_chars: int = 0
+    rank: Optional[int] = None
+    extra: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class GroundedQuality:
+    """Computed at adapter parse time. Shim surfaces; tests assert (SDD §3.1)."""
+
+    citation_count: int
+    executed_query_count: int
+    text_chars: int
+    citation_urls_parseable: bool
+    citation_urls_unique: bool
+    coverage_estimate: float
+    reachability_checked: bool = False
+    reachability_reachable_ratio: Optional[float] = None
+
+
+@dataclass
+class GroundedResult:
+    """Provider-agnostic grounded-search result (SDD §3.1, FR-2)."""
+
+    text: str
+    citations: List[Citation]
+    executed_queries: List[str]
+    grounding_provenance: GroundingProvenance
+    grounded_runtime: str
+    retrieved_at: str
+    latency_ms: int
+    quality: GroundedQuality
+    extra: Dict[str, Any] = field(default_factory=dict)
