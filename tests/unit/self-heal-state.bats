@@ -35,8 +35,12 @@ EOF
     git add .
     git commit -m "Initial commit" --quiet
 
-    # Copy the script
+    # Copy the script + its sourced dependencies so the test harness can
+    # source bootstrap.sh and path-lib.sh from the relative path the script
+    # expects. Mirrors the pattern in release-notes-gen.bats setup.
     cp "${BATS_TEST_DIRNAME}/../../.claude/scripts/self-heal-state.sh" .claude/scripts/
+    cp "${BATS_TEST_DIRNAME}/../../.claude/scripts/bootstrap.sh" .claude/scripts/ 2>/dev/null || true
+    cp "${BATS_TEST_DIRNAME}/../../.claude/scripts/path-lib.sh" .claude/scripts/ 2>/dev/null || true
     chmod +x .claude/scripts/self-heal-state.sh
 
     export SCRIPT=".claude/scripts/self-heal-state.sh"

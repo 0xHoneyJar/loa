@@ -211,8 +211,11 @@ generate_from_commits() {
 
   local range="${prev_tag:+${prev_tag}..}v${version}"
 
+  # Absorb `grep -vE` no-match exits (triggers `set -eo pipefail` otherwise when
+  # the log range is empty or the filter rejects everything). Empty output is a
+  # valid state handled by the next branch.
   local commits
-  commits=$(git -C "$PROJECT_ROOT" log "${range}" --format='- %s' 2>/dev/null | grep -vE '^- (Merge|chore\(release\))' | head -20)
+  commits=$({ git -C "$PROJECT_ROOT" log "${range}" --format='- %s' 2>/dev/null | grep -vE '^- (Merge|chore\(release\))' | head -20; } || true)
 
   if [[ -z "$commits" ]]; then
     echo "Release v${version}."

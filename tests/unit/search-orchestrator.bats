@@ -259,8 +259,10 @@ teardown() {
 
     run "${PROJECT_ROOT}/.claude/scripts/search-orchestrator.sh" "semantic" "test" "/nonexistent/path/"
 
-    # Should not crash, may return empty results
-    [ "$status" -eq 0 ] || [ "$status" -eq 127 ]
+    # Preflight security check rejects paths outside PROJECT_ROOT with exit 1.
+    # Out-of-scope paths are a valid rejection target (no traversal outside
+    # the project). Other valid outcomes: no-op exit 0 or missing-tool 127.
+    [ "$status" -eq 0 ] || [ "$status" -eq 1 ] || [ "$status" -eq 127 ]
 }
 
 @test "search-orchestrator calls preflight check before search" {

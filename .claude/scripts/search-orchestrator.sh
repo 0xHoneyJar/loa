@@ -161,7 +161,28 @@ if [[ "${LOA_SEARCH_MODE}" == "ck" ]]; then
             ;;
     esac
 else
-    # Grep fallback
+    # Grep fallback — emits JSONL with {file, line, snippet} fields so the
+    # output schema matches ck mode and the downstream jq consumers.
+    # Previously emitted raw `file:line:content` which broke JSONL parsing.
+    _emit_grep_jsonl() {
+        # Converts `file:line:content` stream on stdin to JSONL on stdout.
+        # Uses jq --arg for safe interpolation (no injection via filename/content).
+        while IFS= read -r raw; do
+            [[ -z "$raw" ]] && continue
+            local file line snippet
+            file="${raw%%:*}"
+            local rest="${raw#*:}"
+            line="${rest%%:*}"
+            snippet="${rest#*:}"
+            [[ -z "$file" || -z "$line" ]] && continue
+            jq -cn \
+                --arg f "$file" \
+                --argjson l "${line}" \
+                --arg s "$snippet" \
+                '{file: $f, line: $l, snippet: $s}' 2>/dev/null || true
+        done
+    }
+
     case "${SEARCH_TYPE}" in
         semantic|hybrid)
             # Convert semantic query to keyword patterns
@@ -169,12 +190,13 @@ else
             KEYWORDS=$(echo "${QUERY}" | tr '[:space:]' '\n' | grep -v '^$' | sort -u | paste -sd '|' -)
 
             if [[ -n "${KEYWORDS}" ]]; then
-                SEARCH_RESULTS=$(grep -rn -E "${KEYWORDS}" \
+                RAW_RESULTS=$(grep -rn -E "${KEYWORDS}" \
                     --include="*.js" --include="*.ts" --include="*.py" --include="*.go" \
                     --include="*.rs" --include="*.java" --include="*.cpp" --include="*.c" \
                     --include="*.sh" --include="*.bash" --include="*.md" --include="*.yaml" \
                     --include="*.yml" --include="*.json" --include="*.toml" \
                     "${SEARCH_PATH}" 2>/dev/null | head -n "${TOP_K}" || echo "")
+                SEARCH_RESULTS=$(printf '%s' "${RAW_RESULTS}" | _emit_grep_jsonl)
                 RESULT_COUNT=$(printf '%s' "${SEARCH_RESULTS}" | awk 'NF{c++} END{print c+0}')
                 echo "${SEARCH_RESULTS}"
             else
@@ -183,12 +205,13 @@ else
             fi
             ;;
         regex)
-            SEARCH_RESULTS=$(grep -rn -E "${QUERY}" \
+            RAW_RESULTS=$(grep -rn -E "${QUERY}" \
                 --include="*.js" --include="*.ts" --include="*.py" --include="*.go" \
                 --include="*.rs" --include="*.java" --include="*.cpp" --include="*.c" \
                 --include="*.sh" --include="*.bash" --include="*.md" --include="*.yaml" \
                 --include="*.yml" --include="*.json" --include="*.toml" \
                 "${SEARCH_PATH}" 2>/dev/null | head -n "${TOP_K}" || echo "")
+            SEARCH_RESULTS=$(printf '%s' "${RAW_RESULTS}" | _emit_grep_jsonl)
             RESULT_COUNT=$(printf '%s' "${SEARCH_RESULTS}" | awk 'NF{c++} END{print c+0}')
             echo "${SEARCH_RESULTS}"
             ;;
