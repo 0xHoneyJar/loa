@@ -65,9 +65,51 @@ setup() {
 # =========================================================================
 
 @test "config keys under spiral.harness.{phase}_timeout_sec" {
+    # At least 3 references (one per key via _read_harness_config). Validation
+    # and error messages may add more — we just want the keys present.
     run grep -cE 'spiral\.harness\.(discovery|architecture|planning)_timeout_sec' "$HARNESS"
     [ "$status" -eq 0 ]
-    [ "$output" -eq 3 ]
+    [ "$output" -ge 3 ]
+}
+
+# =========================================================================
+# PT-T6: garbage config values fall back to safe defaults (DISS-001)
+# =========================================================================
+
+@test "_validate_timeout_sec rejects non-integer input" {
+    run bash -c "
+        source <(awk '/^_validate_timeout_sec\\(\\)/,/^}\$/' '$HARNESS')
+        _validate_timeout_sec 'not-a-number' '600' 'test.key'
+    "
+    [ "$status" -eq 0 ]
+    [ "$output" = "600" ]
+}
+
+@test "_validate_timeout_sec accepts positive integers" {
+    run bash -c "
+        source <(awk '/^_validate_timeout_sec\\(\\)/,/^}\$/' '$HARNESS')
+        _validate_timeout_sec '1800' '600' 'test.key'
+    "
+    [ "$status" -eq 0 ]
+    [ "$output" = "1800" ]
+}
+
+@test "_validate_timeout_sec rejects zero" {
+    run bash -c "
+        source <(awk '/^_validate_timeout_sec\\(\\)/,/^}\$/' '$HARNESS')
+        _validate_timeout_sec '0' '600' 'test.key'
+    "
+    [ "$status" -eq 0 ]
+    [ "$output" = "600" ]
+}
+
+@test "_validate_timeout_sec rejects negative values" {
+    run bash -c "
+        source <(awk '/^_validate_timeout_sec\\(\\)/,/^}\$/' '$HARNESS')
+        _validate_timeout_sec '-1' '600' 'test.key'
+    "
+    [ "$status" -eq 0 ]
+    [ "$output" = "600" ]
 }
 
 # =========================================================================
