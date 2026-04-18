@@ -237,14 +237,25 @@ phase_classify() {
     title=$(echo "$pr_json" | jq -r '.title // ""')
     labels=$(echo "$pr_json" | jq -r '[.labels[]?.name] | join(",")' 2>/dev/null || echo "")
 
-    if echo "$labels" | grep -q "cycle"; then
-      PR_TYPE="cycle"
-    elif echo "$title" | grep -qE "^(Run Mode|Sprint Plan|feat\(sprint|feat\(cycle|feat:)"; then
-      PR_TYPE="cycle"
-    elif echo "$title" | grep -qE "^fix"; then
-      PR_TYPE="bugfix"
+    # Classify via shared helper — single source of truth (Issue #550).
+    # The pre-existing `|feat:` catch-all false-positived on every feat PR
+    # as a full cycle. New classifier uses `\bcycle-[0-9]+\b` instead.
+    local classifier="${SCRIPT_DIR}/classify-pr-type.sh"
+    if [[ -f "$classifier" ]]; then
+      # shellcheck source=classify-pr-type.sh
+      source "$classifier"
+      PR_TYPE=$(classify_pr_type "$title" "$labels")
     else
-      PR_TYPE="other"
+      # Defensive fallback
+      if echo "$labels" | grep -qi "cycle"; then
+        PR_TYPE="cycle"
+      elif echo "$title" | grep -qE '\bcycle-[0-9]+\b|^(Run Mode|Sprint Plan|feat\(sprint|feat\(cycle)'; then
+        PR_TYPE="cycle"
+      elif echo "$title" | grep -qE "^fix"; then
+        PR_TYPE="bugfix"
+      else
+        PR_TYPE="other"
+      fi
     fi
 
     local result
