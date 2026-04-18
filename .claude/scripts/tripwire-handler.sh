@@ -108,8 +108,14 @@ is_rollback_enabled() {
 perform_rollback() {
     local rollback_result="false"
 
-    # Check for uncommitted changes
-    if git diff --quiet 2>/dev/null && git diff --cached --quiet 2>/dev/null; then
+    # Check for uncommitted changes. `git diff` only sees tracked files —
+    # we also need to detect untracked-only cases (new files not yet added)
+    # so they get preserved via the backup stash below. Without the third
+    # clause, a worktree containing only untracked files would skip the
+    # backup entirely and the user could lose their content. Fixes #563.
+    if git diff --quiet 2>/dev/null \
+       && git diff --cached --quiet 2>/dev/null \
+       && [[ -z "$(git ls-files --others --exclude-standard 2>/dev/null)" ]]; then
         echo "no_changes"
         return
     fi
@@ -349,4 +355,9 @@ main() {
     fi
 }
 
-main "$@"
+# Only run main when executed as a script (not when sourced for testing).
+# Enables `source tripwire-handler.sh; perform_rollback` from BATS without
+# triggering the CLI arg parser. See tests/unit/tripwire-handler-rollback.bats.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi
