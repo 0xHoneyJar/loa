@@ -213,11 +213,12 @@ generate_from_commits() {
 
   # Absorb `grep -vE` no-match exits (triggers `set -eo pipefail` otherwise when
   # the log range is empty or the filter rejects everything). Narrow the
-  # suppression to the grep step only, so genuine git log failures still
-  # surface as pipefail (DISS-002 dissent — previous `|| true` on the whole
-  # pipeline masked more than just the no-match case).
+  # suppression to the grep step so genuine git log failures still surface.
+  # Use -20 on git log instead of a trailing `head -20` to eliminate the
+  # SIGPIPE-on-early-close edge case that can propagate through pipefail.
+  # Empty output is handled by the next branch.
   local commits
-  commits=$(git -C "$PROJECT_ROOT" log "${range}" --format='- %s' 2>/dev/null | { grep -vE '^- (Merge|chore\(release\))' || true; } | head -20)
+  commits=$(git -C "$PROJECT_ROOT" log -20 "${range}" --format='- %s' 2>/dev/null | { grep -vE '^- (Merge|chore\(release\))' || true; }) || commits=""
 
   if [[ -z "$commits" ]]; then
     echo "Release v${version}."
