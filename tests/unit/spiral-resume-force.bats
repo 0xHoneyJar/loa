@@ -18,9 +18,15 @@ teardown() {
     rm -rf "$TEST_DIR" 2>/dev/null || true
 }
 
-# Extract just the first `case` block of cmd_resume that we're testing — we
-# don't want to wire up the full orchestrator machinery (coalesce, state
-# writes, PID tracking) for a narrow behavior test.
+# Extract the shipped _resume_terminal_decision function from spiral-orchestrator.sh
+# so tests exercise the actual shipped code, not a re-implementation (addresses
+# Bridgebuilder F1 HIGH finding). The function is pure — no globals, no side
+# effects — so it sources cleanly without the rest of the orchestrator machinery.
+extract_decision_fn() {
+    local orch="$PROJECT_ROOT/.claude/scripts/spiral-orchestrator.sh"
+    awk '/^# _resume_terminal_decision — pure decision/,/^}$/' "$orch" > "$TEST_DIR/decision.sh"
+}
+
 make_isolated_cmd() {
     local state="$1" stop_reason="$2"
     local state_file="$TEST_DIR/state.json"
@@ -34,27 +40,17 @@ EOF
 }
 
 resume_gate() {
-    # Simulate the exact case-block logic added in spiral-orchestrator.sh
-    # for --resume's handling of terminal states. Returns the outcome as
-    # stdout: "accept", "refuse", or "pass_through".
+    # Calls the shipped _resume_terminal_decision via the extracted source.
+    # State file is read via jq (matching cmd_resume's own extraction).
     local state_file="$1"
+    extract_decision_fn
+    # shellcheck source=/dev/null
+    source "$TEST_DIR/decision.sh"
     local current_state stop_reason force_flag
     current_state=$(jq -r '.state' "$state_file")
     stop_reason=$(jq -r '.stopping_condition // ""' "$state_file")
     force_flag="${SPIRAL_RESUME_FORCE:-false}"
-
-    case "$current_state" in
-        COMPLETED|FAILED)
-            if [[ "$force_flag" == "true" && "$stop_reason" == "quality_gate_failure" ]]; then
-                echo "accept"; return 0
-            else
-                echo "refuse"; return 1
-            fi
-            ;;
-        *)
-            echo "pass_through"; return 0
-            ;;
-    esac
+    _resume_terminal_decision "$current_state" "$stop_reason" "$force_flag"
 }
 
 # =========================================================================

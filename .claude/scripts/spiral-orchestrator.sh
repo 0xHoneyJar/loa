@@ -1330,6 +1330,28 @@ cmd_halt() {
     jq -n --arg reason "$reason" '{halted: true, reason: $reason}'
 }
 
+# _resume_terminal_decision — pure decision function for the COMPLETED/FAILED
+# case in cmd_resume. Extracted so tests can exercise it directly against the
+# shipped logic (not a simulation). Outputs one of:
+#   accept       — force-override applies; caller should treat as CRASHED
+#   refuse       — terminal state rejected (return 1)
+#   pass_through — non-terminal state; caller handles elsewhere
+# Exit codes: 0 for accept/pass_through, 1 for refuse.
+_resume_terminal_decision() {
+    local state="$1" stop_reason="$2" force="$3"
+    case "$state" in
+        COMPLETED|FAILED)
+            if [[ "$force" == "true" && "$stop_reason" == "quality_gate_failure" ]]; then
+                echo "accept"; return 0
+            fi
+            echo "refuse"; return 1
+            ;;
+        *)
+            echo "pass_through"; return 0
+            ;;
+    esac
+}
+
 cmd_resume() {
     if [[ ! -f "$STATE_FILE" ]]; then
         error "No spiral state to resume. Use --start."
@@ -1354,15 +1376,14 @@ cmd_resume() {
             current_state="CRASHED"
             ;;
         COMPLETED|FAILED)
-            # #546: allow narrow --force override when the stopping condition is
-            # `quality_gate_failure` (reviewer/auditor disagreement that the
-            # operator has judged recoverable). Refuses to override any other
-            # terminal state or any other stopping condition — those represent
-            # true end-of-spiral conditions.
-            local stop_reason force_flag
+            # #546: narrow --force override for quality_gate_failure only.
+            # Decision logic extracted to _resume_terminal_decision so tests
+            # call the shipped function, not a simulation.
+            local stop_reason force_flag decision
             stop_reason=$(jq -r '.stopping_condition // ""' "$STATE_FILE" 2>/dev/null || echo "")
             force_flag="${SPIRAL_RESUME_FORCE:-false}"
-            if [[ "$force_flag" == "true" && "$stop_reason" == "quality_gate_failure" ]]; then
+            decision=$(_resume_terminal_decision "$current_state" "$stop_reason" "$force_flag")
+            if [[ "$decision" == "accept" ]]; then
                 log "Resume --force: accepting terminal state $current_state with stopping_condition=quality_gate_failure"
                 current_state="CRASHED"
             else
