@@ -218,6 +218,22 @@ flatline_protocol:
     low_value: 400
     blocker_skeptic: 700
   max_iterations: 5
+  # Phase 2.5: Adversarial cross-model review (PR #552 enforcement gate)
+  # When enabled, `/review-sprint` and `/audit-sprint` invoke a cross-model
+  # dissenter (gpt-5.3-codex by default) and produce adversarial-{review,audit}.json.
+  # The PreToolUse:Write hook at .claude/hooks/safety/adversarial-review-gate.sh
+  # blocks COMPLETED marker writes when enabled but the artifact is missing.
+  # Emergency override: LOA_ADVERSARIAL_REVIEW_ENFORCE=false.
+  code_review:
+    enabled: true
+    model: gpt-5.3-codex
+    budget_cents: 150
+    timeout_seconds: 60
+  security_audit:
+    enabled: true
+    model: gpt-5.3-codex
+    budget_cents: 150
+    timeout_seconds: 60
   secret_scanning:
     patterns:
       - "AIzaSy[A-Za-z0-9_-]{33}"

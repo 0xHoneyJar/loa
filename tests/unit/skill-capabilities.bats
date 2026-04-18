@@ -446,3 +446,38 @@ cost-profile: moderate
     [ "$status" -eq 1 ]
     [[ "$output" == *"agent type 'Plan'"* ]]
 }
+
+# =========================================================================
+# SC-T-AGENT-7: allowed-tools: Edit + agent: Plan → ERROR (DISS-001 coverage)
+# =========================================================================
+# Addresses Phase 2.5 advisory: SC-T-AGENT-6 exercises the Write path. This
+# test covers the symmetric Edit path and asserts the agent-type error
+# message specifically (distinct from the existing write_files-vs-allowed-tools
+# security-violation message), proving the new invariant check fires
+# regardless of which write-capable tool is declared.
+
+@test "allowed-tools contains Edit with agent: Plan is ERROR (agent-invariant)" {
+    create_skill "plan-allowed-tools-edit" "---
+name: planallowededit
+description: Plan agent with Edit in allowed-tools
+agent: Plan
+allowed-tools: Read, Grep, Edit
+capabilities:
+  schema_version: 1
+  read_files: true
+  search_code: true
+  write_files: true
+  execute_commands: false
+  web_access: false
+  user_interaction: false
+  agent_spawn: false
+  task_management: false
+cost-profile: moderate
+---
+# Plan Allowed-Tools Edit Conflict"
+
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill plan-allowed-tools-edit
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"agent type 'Plan'"* ]]
+    [[ "$output" == *"excludes Write/Edit"* ]]
+}
