@@ -1,11 +1,11 @@
-# RFC-061: Polycentric Model-Calibration Pack (v3, Flatline-addressed)
+# RFC-061: Polycentric Model-Calibration Pack (v3.1, Flatline-iterated)
 
-**Status**: Draft (supersedes v1 closed #572, v2 closed #580)
+**Status**: Draft (supersedes v1 closed #572, v2 closed #580; v3 → v3.1 in same PR #581)
 **Tracker**: [#556](https://github.com/0xHoneyJar/loa/issues/556)
 **Meta tracker**: [#557](https://github.com/0xHoneyJar/loa/issues/557) (Tier 3)
 **Author**: Agent (proposal for maintainer review)
 **Date**: 2026-04-18
-**Review provenance**: Flatline 3-model adversarial review on v2 surfaced 9 BLOCKERs + 6 HIGH_CONSENSUS at 100% agreement / full confidence. v3 addresses all 15.
+**Review provenance**: Flatline 3-model adversarial review on v2 → v3 (9 BLOCKER + 6 HIGH_CONSENSUS). v3 re-Flatlined → 7 BLOCKER + 5 HIGH_CONSENSUS (now finer-grained). v3.1 addresses those 12.
 
 ---
 
@@ -85,6 +85,25 @@ Python consumes via `jsonschema.validate(instance, schema)` at load time. Bash c
 
 **Load-time validation, not compile-time.** The schema ensures: required fields present, types correct, enum values within allowed set, regex patterns match. Ill-formed instances fail at `/loa calibrate --apply` or `--audit-calibration` — not at some theoretical compile step.
 
+**Bash getter safety discipline** (closes SKP-003, IMP-001): generated `calibration-getters.sh` follows strict rules:
+
+- Values read via `jq -r '.field'` **only**; never `source` pack content or `eval` any string derived from it
+- Emit via `printf '%s\n' "$value"`, never unquoted expansion
+- All arguments to generated functions quoted double at every expansion
+- Test harness (`tests/unit/calibration-getter-safety.bats`) fires a fuzz corpus (shell-metachars, newlines, null bytes, unicode edge cases) at getters; any non-literal echo is a test failure
+- Threat model documented: getters operate on JSON that passed schema validation; if the schema didn't catch a value, the getter must still emit it as a literal string, never execute it
+
+```bash
+# Generated getter pattern (what v3.1 emits)
+calibration_get_interview_mode() {
+    local cal_path="$1"  # Path to validated calibration JSON
+    jq -r '.interview.default_mode // "minimal"' "$cal_path"
+    # Never: `eval "$(jq -r ... )"` or `source <(... )`
+}
+```
+
+**Codegen staleness check** (closes IMP-005): `gen-calibration-bindings.sh --check` runs in CI; emits non-zero if the checked-in generated files don't match regenerated output. Prevents schema/runtime drift.
+
 ### P2. Golden corpus with stochastic-tolerant semantics
 
 **Was**: "skills pass this calibration's goldens" — implicit exact-match.
@@ -115,7 +134,13 @@ Python consumes via `jsonschema.validate(instance, schema)` at load time. Bash c
 
 **Bootstrap strategy**: the **first** calibration's goldens are authored by a human reviewer, not captured from current production. Subsequent calibrations can bootstrap goldens via diff against a pinned reference calibration (explicitly documented as "regression baseline" — no blind institutionalization).
 
-**Stochasticity tolerance**: each golden evaluates pass-rate over N invocations (default N=3, operator-configurable). A golden "passes" if ≥⌈2N/3⌉ pass the rubric. Pins a floor for consistency without requiring determinism.
+**Stochasticity tolerance**: each golden evaluates pass-rate over N invocations (**default N=5**, operator-configurable, minimum N=3). A golden "passes" if ≥⌈2N/3⌉ pass the rubric. N=5/threshold=4 gives reasonable binomial confidence; operators optimizing for speed can drop to N=3; production-grade calibrations should use N=10.
+
+**Judge model pinning** (closes IMP-002): to avoid invalidating eval runs across judge drift, every rubric specifies the judge's **model_id + version + temperature (= 0) + seed (if supported)**. Rubric schema enforces pinning — unpinned judge rejected at load time.
+
+**LLM-as-judge circularity** (closes SKP-001 judge-circularity): first 3-5 calibrations in the pack ship with **human-authored reference outputs**. The judge model is chosen from a **different model family** than the calibration being evaluated (Opus judges Gemini calibrations; Gemini judges Claude; GPT judges both). Ensemble threshold: when semantic score is within ±1 of the pass boundary, a second judge from a third family breaks the tie.
+
+**Fail-closed on judge unavailability** (closes SKP-002 fail-open): if the pinned judge model is unreachable, `--apply` **refuses** with exit 13. Operator can `--force` with logged reason; telemetry captures the override. No silent fall-through to structural-only — that class of gap approves weak calibrations.
 
 ### P3. Shadow evaluation with specified threshold
 
@@ -176,12 +201,13 @@ Skill wrappers log `active_calibration_id + calibration_hash` to trajectory. Qua
 | Change class | Permitted without version bump? | Reader behavior |
 |--------------|----------------------------------|-----------------|
 | Add optional field | ✓ | v1 readers ignore |
-| Add required field with a default in the schema | ✓ | v1 readers ignore; downstream defaults apply |
-| Add required field WITHOUT default | ✗ — requires major bump | — |
+| Add required field (any form) | ✗ — **always requires major bump** (SKP-004 tightened v3 → v3.1: readers without the field semantics can't safely default) | v1 readers reject unknown required fields |
 | Remove field | ✗ — requires major bump; field stays as `deprecated: true` for 2 minor cycles | v1 readers warn on deprecated, refuse after 2 cycles |
 | Change field type | ✗ — requires major bump | — |
 | Tighten enum values | ✗ — requires major bump | — |
-| Loosen enum values (add value) | ✓ | v1 readers may encounter unknown values; schema says how to handle (reject, passthrough, warn — specified per field) |
+| Loosen enum values (add value) | ✓ but requires **per-field policy in schema**: `onUnknownValue: reject | warn | passthrough` (defaults to reject). Schema MUST specify this for every string-enum field. |
+
+**Reader/writer divergence guard** (closes SKP-004): the schema itself carries machine-readable semantics for each loosenable change — no reader needs to guess what to do with an unknown enum value. Writers bumping a minor version of the pack must also bump schema if any field's policy changes.
 
 Explicit rule: if a pack's `required_schema_version` > local Loa's `schema_version`, `/loa calibrate --apply` **refuses** with message pointing at the needed upgrade.
 
@@ -195,7 +221,7 @@ Explicit on each failure path:
 | Hash mismatch on `pinned_hash` | Refuse apply; print "Pinned hash doesn't match computed. Pack may have been tampered with, or pin is stale." | 11 |
 | Schema version skew (pack > local) | Refuse apply; print "Pack needs Loa ≥ $minimum_version. Run /update-loa." | 12 |
 | Golden run fails (structural) | Emit finding, mark calibration `status: failing_goldens`; downstream `audit-calibration` reports | 0 (soft) |
-| Golden run fails (semantic judge unavailable) | Skip semantic checks, emit WARN, fall through to structural-only | 0 (soft) |
+| Golden run fails (semantic judge unavailable) | **Refuse apply** (v3.1 tightened from fall-through). Operator `--force` allows with logged reason. | 13 without force, 0 with |
 | Shadow eval unavailable (Flatline down) | `--require-shadow-pass` refuses apply; `--force` allows with logged reason | 13 without force, 0 with |
 | Calibration file missing from pack | Refuse apply; print available calibrations in the pack | 14 |
 
@@ -233,6 +259,27 @@ Explicit on each failure path:
 - Block merge on calibration mismatch (warn in `/update-loa`, don't refuse)
 - Sandbox untrusted pack content (beyond hash + MVP posture of "don't source raw YAML as bash")
 - Auto-detect vendor model releases (Phase 2+)
+
+## Supply-chain scope (v3.1 acknowledgment)
+
+Flatline's SKP-001 (score 910) is right: SHA256 alone prevents accidental tampering but does not establish publisher authenticity. v3.1's honest scope:
+
+- **MVP (mandatory)**: SHA256 verification — catches integrity breaks, not authorship attacks
+- **Phase 2 (post-MVP)**: Sigstore signing — attests authorship
+- **Interim bridge (no code needed)**: downstream operators can gate pack adoption on GitHub's `gh attestation verify` against PRs that add calibrations. Not enforced in MVP, but a documented option for security-conscious operators until Phase 2 lands
+
+The v2 framing that implied SHA256 closed the supply-chain gap was wrong. v3.1 explicitly scopes: integrity yes, authenticity no — until Phase 2.
+
+## Bootstrap authoring standards (closes IMP-006)
+
+The first calibration's goldens are the anchor for all downstream bootstrapping. Authoring requirements:
+
+- **Human-reviewed reference outputs** — not captured from current production. An operator writes the "ideal PRD for this prompt" by hand, informed by the calibration's stated posture (interview mode, thinking budget, etc.)
+- **Rubric specificity** — structural rubric MUST include ≥3 observable predicates; semantic rubric MUST include ≥2 criteria with explicit pass/fail thresholds
+- **One full worked example** ships in the pack's `docs/bootstrap-example.md` — shows how task-001 was authored from raw prompt → rubric → reference output, including judge selection rationale
+- **Review stage** — each new golden passes independent review (Flatline on the rubric itself) before being accepted into the pack
+
+Subsequent calibrations (the 2nd onward) can diff-bootstrap from the pinned reference. The diff visualizer (`/loa calibrate --diff-goldens ref:<id> target:<id>`) shows how the candidate's rubric shifts from the reference, so human reviewers judge the delta.
 
 ## Anti-Patterns Cited by Flatline, Not Introduced in v3
 
