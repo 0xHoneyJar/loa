@@ -179,6 +179,10 @@ _emit_cost_map() {
         | $p.value.models | to_entries[] as $m
         | "\($m.key)\t\($m.value.pricing[$f] // 0)"
     ' | while IFS=$'\t' read -r model micro; do
+        # Note: variables inside piped `while` run in a subshell; no `local`
+        # needed (and avoids a portability pitfall on older bash). The subshell
+        # contract is to emit lines to stdout — we never need to propagate
+        # state back to the function.
         [[ "$micro" == "0" ]] && continue
         printf '    ["%s"]="%s"\n' "$model" "$(_micro_usd_to_per_1k "$micro")"
     done
@@ -190,9 +194,8 @@ _emit_cost_map() {
         | select(.value | test("^[^:]+:"))
         | "\(.key)\t\(.value)"
     ' | while IFS=$'\t' read -r alias provider_model; do
-        local provider="${provider_model%%:*}"
-        local model="${provider_model#*:}"
-        local micro
+        provider="${provider_model%%:*}"
+        model="${provider_model#*:}"
         micro=$(yq eval ".providers[\"$provider\"].models[\"$model\"].pricing.$field // 0" "$CONFIG_FILE")
         [[ "$micro" == "0" || "$micro" == "null" ]] && continue
         printf '    ["%s"]="%s"\n' "$alias" "$(_micro_usd_to_per_1k "$micro")"
@@ -202,9 +205,8 @@ _emit_cost_map() {
     yq eval -o=json '.backward_compat_aliases // {}' "$CONFIG_FILE" | jq -r '
         to_entries[] | "\(.key)\t\(.value)"
     ' | while IFS=$'\t' read -r alias provider_model; do
-        local provider="${provider_model%%:*}"
-        local model="${provider_model#*:}"
-        local micro
+        provider="${provider_model%%:*}"
+        model="${provider_model#*:}"
         micro=$(yq eval ".providers[\"$provider\"].models[\"$model\"].pricing.$field // 0" "$CONFIG_FILE")
         [[ "$micro" == "0" || "$micro" == "null" ]] && continue
         printf '    ["%s"]="%s"\n' "$alias" "$(_micro_usd_to_per_1k "$micro")"
