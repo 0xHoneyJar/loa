@@ -539,9 +539,25 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260418-i545-e2c781/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260418-i545-e2c781/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260418-i548-a2460c",
+      "label": "Bug Fix — vision-011 + cycle-082 deferred gates bundle (#548)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/548",
+      "meta_issue": "https://github.com/0xHoneyJar/loa/issues/557",
+      "cycle": "cycle-087",
+      "tier": 3,
+      "created_at": "2026-04-18T08:08:32Z",
+      "sprints": [
+        "sprint-bug-108"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260418-i548-a2460c/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260418-i548-a2460c/sprint.md"
     }
   ],
-  "global_sprint_counter": 107,
+  "global_sprint_counter": 108,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",

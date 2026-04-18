@@ -16,15 +16,20 @@ providers:
         context_window: 128000
         token_param: max_completion_tokens
         pricing:
-          input_per_mtok: 10000    # $10.00 per million tokens (micro-USD)
-          output_per_mtok: 30000   # $30.00 per million tokens
+          # Unit: micro-USD per million tokens (1_000_000 micro-USD = $1).
+          # Unified unit across all entries per sprint-bug-108 / vision-011 —
+          # previously mixed milli-USD (OpenAI/Anthropic) and micro-USD (Gemini).
+          # The Python metering in .claude/adapters/loa_cheval/metering/pricing.py
+          # expects micro-USD; the old milli-USD values undercounted by 1000x.
+          input_per_mtok: 10000000    # $10.00 per million tokens
+          output_per_mtok: 30000000   # $30.00 per million tokens
       gpt-5.3-codex:
         capabilities: [chat, tools, function_calling, code]
         context_window: 400000
         token_param: max_completion_tokens
         pricing:
-          input_per_mtok: 1750     # $1.75 per million tokens
-          output_per_mtok: 14000   # $14.00 per million tokens
+          input_per_mtok: 1750000     # $1.75 per million tokens
+          output_per_mtok: 14000000   # $14.00 per million tokens
 
   google:
     type: google
@@ -90,8 +95,9 @@ providers:
         context_window: 200000
         token_param: max_tokens
         pricing:
-          input_per_mtok: 5000
-          output_per_mtok: 25000
+          # Unit: micro-USD per million tokens (see gpt-5.2 note above).
+          input_per_mtok: 5000000    # $5.00 per million tokens
+          output_per_mtok: 25000000  # $25.00 per million tokens
       claude-opus-4-6:
         # Retained as pinnable fallback (PRD cycle-082 §13).
         # Operators who want exact 4.6 behavior use `anthropic:claude-opus-4-6` in .loa.config.yaml.
@@ -99,15 +105,15 @@ providers:
         context_window: 200000
         token_param: max_tokens
         pricing:
-          input_per_mtok: 5000
-          output_per_mtok: 25000
+          input_per_mtok: 5000000    # $5.00 per million tokens
+          output_per_mtok: 25000000  # $25.00 per million tokens
       claude-sonnet-4-6:
         capabilities: [chat, tools, function_calling]
         context_window: 200000
         token_param: max_tokens
         pricing:
-          input_per_mtok: 3000
-          output_per_mtok: 15000
+          input_per_mtok: 3000000    # $3.00 per million tokens
+          output_per_mtok: 15000000  # $15.00 per million tokens
 
 # Aliases (short names → provider:model-id)
 aliases:
@@ -121,6 +127,27 @@ aliases:
   deep-thinker: "google:gemini-3-pro"   # Deep thinking with Gemini 3
   fast-thinker: "google:gemini-3-flash" # Fast thinking with Gemini 3
   researcher: "google:deep-research-pro" # Deep Research model
+
+# Backward-compat aliases (legacy model IDs → canonical provider:model-id)
+# Used by gen-adapter-maps.sh to reproduce the hand-maintained bash map
+# entries that retarget historical IDs to current canonical models.
+# Added in sprint-bug-108 (issue #548, vision-011) so the YAML is the
+# single source of truth for bash adapter maps.
+backward_compat_aliases:
+  # OpenAI legacy alias
+  "gpt-5.2-codex": "openai:gpt-5.3-codex"
+  # Anthropic Opus history — all retarget to 4-7 (cycle-082)
+  "claude-opus-4.7": "anthropic:claude-opus-4-7"
+  "claude-opus-4.6": "anthropic:claude-opus-4-7"
+  "claude-opus-4-6": "anthropic:claude-opus-4-7"
+  "claude-opus-4.5": "anthropic:claude-opus-4-7"
+  "claude-opus-4-5": "anthropic:claude-opus-4-7"
+  "claude-opus-4.1": "anthropic:claude-opus-4-7"
+  "claude-opus-4-1": "anthropic:claude-opus-4-7"
+  "claude-opus-4.0": "anthropic:claude-opus-4-7"
+  "claude-opus-4-0": "anthropic:claude-opus-4-7"
+  # Gemini dot-notation aliases
+  "gemini-3.1-pro": "google:gemini-3.1-pro-preview"
 
 # Agent bindings (agent name → model + requirements)
 # Conservative profile: maximize quality, most agents on native (PRD FR-4)
