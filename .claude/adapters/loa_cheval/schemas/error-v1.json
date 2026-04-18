@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://loa.local/schemas/error-v1.json",
+  "title": "model-invoke error envelope v1",
+  "description": "Error envelope for cheval.py stdout on failure. SDD-khole-hounfour §3.3 + §12.1. v1.0 frozen after M4 sign-off; enum extensions ADD only; new fields MUST be optional with additionalProperties: true for backward compat.",
+  "type": "object",
+  "required": ["ok", "error"],
+  "additionalProperties": true,
+  "properties": {
+    "ok": {"const": false},
+    "schema_version": {"type": "string", "const": "1.0"},
+    "error": {
+      "type": "object",
+      "required": ["code", "message", "retryable"],
+      "additionalProperties": true,
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "INVALID_INPUT",
+            "INVALID_CONFIG",
+            "NATIVE_RUNTIME_REQUIRED",
+            "RATE_LIMITED",
+            "PROVIDER_UNAVAILABLE",
+            "PROVIDER_TIMEOUT",
+            "RETRIES_EXHAUSTED",
+            "BUDGET_EXCEEDED",
+            "CONTEXT_TOO_LARGE",
+            "PAYLOAD_TOO_LARGE",
+            "GROUNDING_EMPTY",
+            "GROUNDING_MALFORMED",
+            "PROVIDER_FAILOVER_EXHAUSTED",
+            "GOVERNANCE_MISSING",
+            "GOVERNANCE_CONTENT_REJECTED",
+            "GOVERNANCE_CONSENT_MISSING"
+          ]
+        },
+        "message": {"type": "string"},
+        "retryable": {"type": "boolean"},
+        "retry_after_ms": {"type": "integer", "minimum": 0},
+        "provider": {"type": "string"},
+        "attempt": {"type": "integer", "minimum": 1},
+        "chain": {
+          "type": "array",
+          "description": "Per-hop failover history — populated for PROVIDER_FAILOVER_EXHAUSTED and intermediate retries.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "provider": {"type": "string"},
+              "code": {"type": "string"},
+              "attempt": {"type": "integer", "minimum": 1}
+            },
+            "additionalProperties": true
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://loa.local/schemas/request-v1.json",
+  "title": "model-invoke request body v1",
+  "description": "Request body sent from TS shim to cheval.py via stdin JSON. SDD-khole-hounfour §12.7 (IMP-001). Validated both sides — shim pre-spawn, cheval.py post stdin-read. Wire format: snake_case per §13.3.",
+  "type": "object",
+  "required": ["version", "prompt", "agent"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {"const": "1.0"},
+    "prompt": {
+      "type": "string",
+      "maxLength": 10485760,
+      "description": "User prompt; maxLength=10MB. Exceeding → PAYLOAD_TOO_LARGE per §3.3."
+    },
+    "tools": {
+      "type": "array",
+      "items": {"enum": ["grounded_search", "vision"]}
+    },
+    "images": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": ["mime", "data"],
+            "properties": {
+              "mime": {"type": "string"},
+              "data": {
+                "type": "string",
+                "description": "Base64-encoded image bytes."
+              }
+            },
+            "additionalProperties": true
+          },
+          {
+            "type": "object",
+            "required": ["mime", "path"],
+            "properties": {
+              "mime": {"type": "string"},
+              "path": {
+                "type": "string",
+                "description": "Filesystem path to image; read by cheval.py."
+              }
+            },
+            "additionalProperties": true
+          }
+        ]
+      }
+    },
+    "model": {
+      "type": "string",
+      "description": "Provider-prefixed model ID, e.g. 'openrouter/google/gemini-3-flash-preview:online'."
+    },
+    "agent": {
+      "type": "string",
+      "description": "Agent identifier used for routing + governance attribution."
+    },
+    "session_id": {
+      "type": "string",
+      "description": "Session ID for cost log correlation + flock-protected budget (§12.4)."
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Free-form per-caller metadata; never forwarded to provider.",
+      "additionalProperties": true
+    }
+  }
+}

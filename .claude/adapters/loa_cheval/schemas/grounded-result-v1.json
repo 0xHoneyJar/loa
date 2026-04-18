@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://loa.local/schemas/grounded-result-v1.json",
+  "title": "grounded search result v1",
+  "description": "Snake_case wire format of GroundedResult dataclass (SDD §3.1). TS shim's camelCase GroundedResult interface must have one-for-one parity with these fields — enforced by contract-parity CI (SDD §13.3 item 4).",
+  "type": "object",
+  "required": [
+    "text",
+    "citations",
+    "executed_queries",
+    "grounding_provenance",
+    "grounded_runtime",
+    "retrieved_at",
+    "latency_ms",
+    "quality"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "text": {"type": "string"},
+    "citations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["title", "url", "snippet"],
+        "additionalProperties": true,
+        "properties": {
+          "title": {"type": "string"},
+          "url": {"type": "string"},
+          "snippet": {"type": "string"},
+          "publisher": {"type": ["string", "null"]},
+          "snippet_chars": {"type": "integer", "minimum": 0},
+          "rank": {"type": ["integer", "null"], "minimum": 0},
+          "extra": {"type": "object", "additionalProperties": true}
+        }
+      }
+    },
+    "executed_queries": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "grounding_provenance": {
+      "type": "string",
+      "enum": ["google_search", "exa", "native", "none"]
+    },
+    "grounded_runtime": {
+      "type": "string",
+      "description": "e.g. 'openrouter:online' | 'gemini:native' | 'openrouter:web_search_tool'"
+    },
+    "retrieved_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp when provider response was received."
+    },
+    "latency_ms": {"type": "integer", "minimum": 0},
+    "quality": {
+      "type": "object",
+      "required": [
+        "citation_count",
+        "executed_query_count",
+        "text_chars",
+        "citation_urls_parseable",
+        "citation_urls_unique",
+        "coverage_estimate"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "citation_count": {"type": "integer", "minimum": 0},
+        "executed_query_count": {"type": "integer", "minimum": 0},
+        "text_chars": {"type": "integer", "minimum": 0},
+        "citation_urls_parseable": {"type": "boolean"},
+        "citation_urls_unique": {"type": "boolean"},
+        "coverage_estimate": {"type": "number", "minimum": 0, "maximum": 1},
+        "reachability_checked": {"type": "boolean"},
+        "reachability_reachable_ratio": {"type": ["number", "null"], "minimum": 0, "maximum": 1}
+      }
+    },
+    "extra": {"type": "object", "additionalProperties": true}
+  }
+}
