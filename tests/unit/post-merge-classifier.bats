@@ -89,6 +89,39 @@ setup() {
 }
 
 # =========================================================================
+# PCT-T-MID-1: cycle-NNN in middle of title (Bridgebuilder DISPUTED finding)
+# =========================================================================
+# Triangulates the "anywhere" regex claim — start/middle/end must all match.
+
+@test "cycle-NNN mid-title matches — triangulation" {
+    run "$CLASSIFIER" --title "feat: implement cycle-099 features"
+    [ "$status" -eq 0 ]
+    [ "$output" = "cycle" ]
+}
+
+@test "cycle-NNN with content after also matches" {
+    run "$CLASSIFIER" --title "chore: cycle-042 release prep and final doc update"
+    [ "$status" -eq 0 ]
+    [ "$output" = "cycle" ]
+}
+
+# =========================================================================
+# PCT-T-BOUNDARY: word-boundary negative cases
+# =========================================================================
+
+@test "precycle-082 (no word boundary before 'cycle') does NOT match" {
+    run "$CLASSIFIER" --title "feat: rebuild precycle-082 scaffold"
+    [ "$status" -eq 0 ]
+    [ "$output" = "other" ]
+}
+
+@test "cycle-abc (non-numeric suffix) does NOT match" {
+    run "$CLASSIFIER" --title "feat: cycle-abc branch protection"
+    [ "$status" -eq 0 ]
+    [ "$output" = "other" ]
+}
+
+# =========================================================================
 # PCT-T14..PCT-T16: bugfix routing
 # =========================================================================
 
