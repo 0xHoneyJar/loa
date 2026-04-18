@@ -65,6 +65,11 @@ if ! command -v yq >/dev/null 2>&1; then
     exit 1
 fi
 
+if ! command -v jq >/dev/null 2>&1; then
+    echo "ERROR: jq is required but not on PATH" >&2
+    exit 1
+fi
+
 # YAML carries micro-USD per million tokens (5000 = $5/Mtok).
 # Bash legacy carries USD per 1K tokens (0.005).
 # Conversion: micro_per_mtok / 1_000_000 = USD per 1K tokens.
