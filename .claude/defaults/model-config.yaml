@@ -36,6 +36,14 @@ providers:
     endpoint: "https://generativelanguage.googleapis.com/v1beta"
     auth: "{env:GOOGLE_API_KEY}"
     models:
+      gemini-2.0-flash:
+        # Legacy model retained for backward-compat via `gemini-2.0` alias.
+        # Pricing matches gemini-2.5-flash (both are Google flash-tier).
+        capabilities: [chat]
+        context_window: 1048576
+        pricing:
+          input_per_mtok: 150000     # $0.15 per million tokens (micro-USD)
+          output_per_mtok: 600000    # $0.60 per million tokens
       gemini-2.5-flash:
         capabilities: [chat]
         context_window: 1048576

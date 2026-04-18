@@ -21,26 +21,26 @@
         {
           "local_id": 2,
           "global_id": 53,
-          "label": "Bridgebuilder Findings — Excellence Hardening",
+          "label": "Bridgebuilder Findings \u2014 Excellence Hardening",
           "status": "completed"
         },
         {
           "local_id": 3,
           "global_id": 54,
-          "label": "CI Hardening — Bridge Iteration 2",
+          "label": "CI Hardening \u2014 Bridge Iteration 2",
           "status": "completed"
         },
         {
           "local_id": 4,
           "global_id": 55,
-          "label": "CI Integrity — Bridge Iteration 3",
+          "label": "CI Integrity \u2014 Bridge Iteration 3",
           "status": "completed"
         }
       ]
     },
     {
       "id": "cycle-037",
-      "label": "Bridgebuilder Deep Review — Architectural Fixes",
+      "label": "Bridgebuilder Deep Review \u2014 Architectural Fixes",
       "status": "archived",
       "created": "2026-02-24T08:40:00Z",
       "prd": "grimoires/loa/prd.md",
@@ -58,7 +58,7 @@
     },
     {
       "id": "cycle-038",
-      "label": "Organizational Memory Sovereignty — Three-Zone State Architecture",
+      "label": "Organizational Memory Sovereignty \u2014 Three-Zone State Architecture",
       "status": "archived",
       "created": "2026-02-24T21:00:00Z",
       "archived": "2026-02-25T12:00:00Z",
@@ -106,7 +106,7 @@
     },
     {
       "id": "cycle-039",
-      "label": "Two-Pass Bridge Review — Decouple Convergence from Enrichment",
+      "label": "Two-Pass Bridge Review \u2014 Decouple Convergence from Enrichment",
       "status": "archived",
       "created": "2026-02-25T12:30:00Z",
       "archived": "2026-02-26T00:00:00Z",
@@ -123,19 +123,19 @@
         {
           "local_id": 2,
           "global_id": 64,
-          "label": "Excellence Hardening — Bridge Iteration 2",
+          "label": "Excellence Hardening \u2014 Bridge Iteration 2",
           "status": "completed"
         },
         {
           "local_id": 3,
           "global_id": 65,
-          "label": "Final Polish — Bridge Iteration 3",
+          "label": "Final Polish \u2014 Bridge Iteration 3",
           "status": "completed"
         },
         {
           "local_id": 4,
           "global_id": 66,
-          "label": "Metacognition — Confidence-Weighted Enrichment",
+          "label": "Metacognition \u2014 Confidence-Weighted Enrichment",
           "status": "completed"
         },
         {
@@ -147,32 +147,32 @@
         {
           "local_id": 6,
           "global_id": 68,
-          "label": "Ecosystem Context Integration — Pass 0 Prototype",
+          "label": "Ecosystem Context Integration \u2014 Pass 0 Prototype",
           "status": "completed"
         },
         {
           "local_id": 7,
           "global_id": 69,
-          "label": "Enrichment Pipeline Ergonomics — Schema-First Architecture",
+          "label": "Enrichment Pipeline Ergonomics \u2014 Schema-First Architecture",
           "status": "completed"
         },
         {
           "local_id": 8,
           "global_id": 70,
-          "label": "Pass 1 Convergence Cache — Cost Intelligence",
+          "label": "Pass 1 Convergence Cache \u2014 Cost Intelligence",
           "status": "completed"
         },
         {
           "local_id": 9,
           "global_id": 71,
-          "label": "Dynamic Ecosystem Context — From Static Hints to Living Memory",
+          "label": "Dynamic Ecosystem Context \u2014 From Static Hints to Living Memory",
           "status": "completed"
         }
       ]
     },
     {
       "id": "cycle-040",
-      "label": "Multi-Model Adversarial Review Upgrade — GPT-5.3-Codex + Gemini Tertiary",
+      "label": "Multi-Model Adversarial Review Upgrade \u2014 GPT-5.3-Codex + Gemini Tertiary",
       "status": "archived",
       "created": "2026-02-26T00:00:00Z",
       "archived": "2026-02-26T14:00:00Z",
@@ -189,14 +189,14 @@
         {
           "local_id": 2,
           "global_id": 73,
-          "label": "Bug Fix — Scoring Engine 3-Model Tertiary Cross-Scoring",
+          "label": "Bug Fix \u2014 Scoring Engine 3-Model Tertiary Cross-Scoring",
           "status": "completed"
         }
       ]
     },
     {
       "id": "cycle-041",
-      "label": "Vision-Aware Planning — Creative Agency for AI Peers",
+      "label": "Vision-Aware Planning \u2014 Creative Agency for AI Peers",
       "status": "archived",
       "created": "2026-02-26T14:00:00Z",
       "archived": "2026-02-26T18:00:00Z",
@@ -207,7 +207,7 @@
         {
           "local_id": 1,
           "global_id": 74,
-          "label": "Foundation — Schema, Library, Query, Shadow Mode",
+          "label": "Foundation \u2014 Schema, Library, Query, Shadow Mode",
           "status": "completed"
         },
         {
@@ -226,7 +226,7 @@
     },
     {
       "id": "cycle-042",
-      "label": "Vision Activation — From Infrastructure to Living Memory",
+      "label": "Vision Activation \u2014 From Infrastructure to Living Memory",
       "status": "archived",
       "created": "2026-02-26T18:00:00Z",
       "prd": "grimoires/loa/prd.md",
@@ -253,7 +253,7 @@
         {
           "local_id": 4,
           "global_id": 80,
-          "label": "Excellence Hardening — Bridgebuilder Findings",
+          "label": "Excellence Hardening \u2014 Bridgebuilder Findings",
           "status": "completed"
         }
       ],
@@ -292,7 +292,7 @@
     },
     {
       "id": "cycle-044",
-      "label": "Bridgebuilder Design Review — Pre-Implementation Architectural Intelligence",
+      "label": "Bridgebuilder Design Review \u2014 Pre-Implementation Architectural Intelligence",
       "status": "archived",
       "created": "2026-02-28T00:00:00Z",
       "archived": "2026-02-28T07:00:00Z",
@@ -322,7 +322,7 @@
     },
     {
       "id": "cycle-045",
-      "label": "Review Pipeline Hardening — Gemini Activation, Orchestrator Wiring, Red Team Post-Implementation",
+      "label": "Review Pipeline Hardening \u2014 Gemini Activation, Orchestrator Wiring, Red Team Post-Implementation",
       "status": "archived",
       "created": "2026-02-28T03:00:00Z",
       "prd": "grimoires/loa/prd.md",
@@ -352,7 +352,7 @@
     },
     {
       "id": "cycle-046",
-      "label": "Bridgebuilder Constellation — From Pipeline to Deliberation",
+      "label": "Bridgebuilder Constellation \u2014 From Pipeline to Deliberation",
       "status": "archived",
       "created": "2026-02-28T04:30:00Z",
       "archived": "2026-02-28T06:30:00Z",
@@ -369,7 +369,7 @@
         {
           "local_id": 2,
           "global_id": 91,
-          "label": "Deliberative Council — Prior Findings Integration",
+          "label": "Deliberative Council \u2014 Prior Findings Integration",
           "status": "completed"
         },
         {
@@ -388,7 +388,7 @@
     },
     {
       "id": "cycle-047",
-      "label": "Compassionate Excellence — Bridgebuilder Deep Review Integration",
+      "label": "Compassionate Excellence \u2014 Bridgebuilder Deep Review Integration",
       "status": "archived",
       "created": "2026-02-28T06:30:00Z",
       "prd": "grimoires/loa/prd.md",
@@ -424,7 +424,7 @@
     },
     {
       "id": "cycle-048",
-      "label": "Community Feedback — Review Pipeline Hardening",
+      "label": "Community Feedback \u2014 Review Pipeline Hardening",
       "status": "active",
       "created": "2026-02-28T08:50:00Z",
       "prd": "grimoires/loa/prd.md",
@@ -433,7 +433,7 @@
         {
           "local_id": 1,
           "global_id": 98,
-          "label": "Foundation — Curl Guard, Error Surfacing, YAML Regex",
+          "label": "Foundation \u2014 Curl Guard, Error Surfacing, YAML Regex",
           "status": "planned"
         },
         {
@@ -458,7 +458,7 @@
     },
     {
       "id": "cycle-bug-20260418-i553-cb632b",
-      "label": "Bug Fix — agent: Plan blocks Write in /architect and /sprint-plan",
+      "label": "Bug Fix \u2014 agent: Plan blocks Write in /architect and /sprint-plan",
       "type": "bugfix",
       "status": "active",
       "source_issue": "https://github.com/0xHoneyJar/loa/issues/553",
@@ -479,7 +479,7 @@
     },
     {
       "id": "cycle-bug-20260418-i549-1aaa93",
-      "label": "Bug Fix — Shell Tests 20+ pre-existing failures on main (5 clusters)",
+      "label": "Bug Fix \u2014 Shell Tests 20+ pre-existing failures on main (5 clusters)",
       "type": "bugfix",
       "status": "active",
       "source_issue": "https://github.com/0xHoneyJar/loa/issues/549",
@@ -498,7 +498,7 @@
     },
     {
       "id": "cycle-bug-20260418-i555-5560f6",
-      "label": "Bug Fix — Silent data loss via git stash -k / git stash pop",
+      "label": "Bug Fix \u2014 Silent data loss via git stash -k / git stash pop",
       "type": "bugfix",
       "status": "active",
       "source_issue": "https://github.com/0xHoneyJar/loa/issues/555",
@@ -518,7 +518,7 @@
     },
     {
       "id": "cycle-bug-20260418-i545-e2c781",
-      "label": "Bug Fix — Spiral REVIEW gate fix-loop + quality_gate recovery (#545 + #546)",
+      "label": "Bug Fix \u2014 Spiral REVIEW gate fix-loop + quality_gate recovery (#545 + #546)",
       "type": "bugfix",
       "status": "active",
       "source_issues": [
@@ -542,7 +542,7 @@
     },
     {
       "id": "cycle-bug-20260418-i548-a2460c",
-      "label": "Bug Fix — vision-011 + cycle-082 deferred gates bundle (#548)",
+      "label": "Bug Fix \u2014 vision-011 + cycle-082 deferred gates bundle (#548)",
       "type": "bugfix",
       "status": "active",
       "source_issue": "https://github.com/0xHoneyJar/loa/issues/548",
@@ -558,7 +558,7 @@
     },
     {
       "id": "cycle-bug-20260418-i563-39dbdf",
-      "label": "Bug Fix — tripwire-handler rollback precheck misses untracked-only changes",
+      "label": "Bug Fix \u2014 tripwire-handler rollback precheck misses untracked-only changes",
       "type": "bugfix",
       "status": "active",
       "source_issue": "https://github.com/0xHoneyJar/loa/issues/563",
@@ -570,7 +570,7 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260418-i563-39dbdf/sprint.md"
     }
   ],
-  "global_sprint_counter": 109,
+  "global_sprint_counter": 110,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
@@ -601,6 +601,22 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260418-i550-3512f6/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260418-i550-3512f6/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260418-c05b25",
+      "label": "Bug Fix - model-adapter.sh.legacy runtime swap to generated-model-maps.sh (vision-011 activation)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": null,
+      "meta_issue": "https://github.com/0xHoneyJar/loa/issues/557",
+      "parent_cycle": "cycle-087",
+      "created_at": "2026-04-18T09:41:44Z",
+      "sprints": [
+        "sprint-bug-110"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260418-c05b25/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260418-c05b25/sprint.md",
+      "predecessor_pr": "https://github.com/0xHoneyJar/loa/pull/566"
     }
   ]
 }
