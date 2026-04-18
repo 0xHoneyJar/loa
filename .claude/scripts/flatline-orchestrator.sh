@@ -309,9 +309,11 @@ VALID_FLATLINE_MODELS=(opus gpt-5.2 gpt-5.3-codex claude-opus-4.7 claude-opus-4-
 
 # Forward-compat patterns for provider-side verified models not yet in
 # the explicit allowlist. Operators running newer models (gpt-5.4-codex,
-# gemini-3-flash-live, claude-opus-4-8) can set them in config and the
+# gemini-3.0-pro, claude-opus-4-8) can set them in config and the
 # pattern admits them; provider-side validation at API call time catches
 # typos/invalid names with a clearer error than a pre-runtime allowlist.
+# Note: gemini pattern requires X.Y (with dot). Variants like gemini-3-flash
+# don't match and must wait for explicit allowlist addition.
 VALID_MODEL_PATTERNS=(
     '^gpt-[0-9]+\.[0-9]+(-codex)?$'          # openai: gpt-5.2, gpt-5.3-codex, gpt-5.4-codex, gpt-6.0
     '^claude-(opus|sonnet|haiku)-[0-9]+[-.][0-9]+$'  # anthropic: claude-opus-4-7, claude-sonnet-4-6
