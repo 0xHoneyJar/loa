@@ -91,10 +91,12 @@ JSON
 # instead of the bare `--task required` from downstream spiral-harness.sh.
 
 @test "dispatcher emits FATAL when task cannot be resolved" {
-    # Grep confirms the FATAL message is present in the dispatcher source.
+    # Grep confirms the FATAL message is present in the dispatcher source
+    # and points to the actual fix path (the orchestrator).
     run grep -E "FATAL.*task is empty" "$DISPATCH"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Set SPIRAL_TASK"* ]]
+    run grep -E "orchestrator.*should have exported" "$DISPATCH"
+    [ "$status" -eq 0 ]
 }
 
 # =========================================================================
