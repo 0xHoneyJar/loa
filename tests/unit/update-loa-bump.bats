@@ -229,3 +229,62 @@ EOF
     [ "$status" -eq 0 ]
     [ "$(jq -r '.framework_version' "$VERSION_FILE")" = "2.5.0+build.5" ]
 }
+
+# =========================================================================
+# UB-T17..UB-T22: Lock down validation regex boundary (Bridgebuilder F5)
+# =========================================================================
+# Per Bridgebuilder kaironic review: "When untrusted input is written into
+# a structured document (markdown, YAML, JSON), the test corpus should
+# mirror the document's escape sequences — for markdown headers, that's
+# newlines and comment terminators."
+
+@test "--target rejects embedded newline" {
+    run "$BUMP_SCRIPT" --target $'1.0.0\n<!-- injected'
+    [ "$status" -eq 3 ]
+    [[ "$output" == *"failed validation"* ]]
+}
+
+@test "--target rejects HTML comment terminator" {
+    run "$BUMP_SCRIPT" --target "1.0.0 -->"
+    [ "$status" -eq 3 ]
+}
+
+@test "--target rejects shell command substitution" {
+    run "$BUMP_SCRIPT" --target '1.0.0$(echo hi)'
+    [ "$status" -eq 3 ]
+}
+
+@test "--target rejects leading whitespace" {
+    run "$BUMP_SCRIPT" --target " 1.0.0"
+    [ "$status" -eq 3 ]
+}
+
+@test "--target rejects 6-char hex (below min SHA length)" {
+    run "$BUMP_SCRIPT" --target "abc123"
+    [ "$status" -eq 3 ]
+}
+
+@test "--target accepts 40-char full SHA" {
+    run "$BUMP_SCRIPT" --target "1234567890abcdef1234567890abcdef12345678"
+    [ "$status" -eq 0 ]
+    [ "$(jq -r '.framework_version' "$VERSION_FILE")" = "1234567890abcdef1234567890abcdef12345678" ]
+}
+
+# =========================================================================
+# UB-T23: Idempotency — CLAUDE.loa.md untouched on second identical run
+# =========================================================================
+# Addresses Bridgebuilder low-idempotency-check-incomplete: idempotency
+# should mean "leaves no footprints" (no mtime churn for build systems).
+
+@test "idempotent bump does not rewrite CLAUDE.loa.md content unchanged" {
+    "$BUMP_SCRIPT" --target "2.5.0"
+    local checksum_before
+    checksum_before=$(md5sum "$CLAUDE_LOA_FILE" | awk '{print $1}')
+
+    run "$BUMP_SCRIPT" --target "2.5.0"
+    [ "$status" -eq 0 ]
+
+    local checksum_after
+    checksum_after=$(md5sum "$CLAUDE_LOA_FILE" | awk '{print $1}')
+    [ "$checksum_before" = "$checksum_after" ]
+}
