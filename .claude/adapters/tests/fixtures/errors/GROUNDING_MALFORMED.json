@@ -1,0 +1,10 @@
+{
+  "ok": false,
+  "schema_version": "1.0",
+  "error": {
+    "code": "GROUNDING_MALFORMED",
+    "message": "OpenRouter response schema mismatch: 'choices' is not of type 'array'",
+    "retryable": false,
+    "provider": "openrouter"
+  }
+}

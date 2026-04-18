@@ -1,0 +1,9 @@
+{
+  "ok": false,
+  "schema_version": "1.0",
+  "error": {
+    "code": "CONTEXT_TOO_LARGE",
+    "message": "Input ~200000 tokens exceeds available 128000 tokens",
+    "retryable": false
+  }
+}

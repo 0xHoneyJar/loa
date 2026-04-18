@@ -1,0 +1,10 @@
+{
+  "ok": false,
+  "schema_version": "1.0",
+  "error": {
+    "code": "RETRIES_EXHAUSTED",
+    "message": "Failed after 3 attempts: last=500",
+    "retryable": false,
+    "attempt": 3
+  }
+}

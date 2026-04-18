@@ -1,0 +1,26 @@
+{
+  "ok": false,
+  "schema_version": "1.0",
+  "error": {
+    "code": "PROVIDER_FAILOVER_EXHAUSTED",
+    "message": "All providers in chain failed",
+    "retryable": false,
+    "chain": [
+      {
+        "provider": "openrouter",
+        "code": "PROVIDER_UNAVAILABLE",
+        "attempt": 2
+      },
+      {
+        "provider": "google",
+        "code": "PROVIDER_UNAVAILABLE",
+        "attempt": 2
+      },
+      {
+        "provider": "anthropic",
+        "code": "PROVIDER_UNAVAILABLE",
+        "attempt": 2
+      }
+    ]
+  }
+}

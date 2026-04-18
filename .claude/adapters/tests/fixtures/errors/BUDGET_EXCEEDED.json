@@ -1,0 +1,9 @@
+{
+  "ok": false,
+  "schema_version": "1.0",
+  "error": {
+    "code": "BUDGET_EXCEEDED",
+    "message": "Budget exceeded: 1050 >= 1000 micro-USD",
+    "retryable": false
+  }
+}

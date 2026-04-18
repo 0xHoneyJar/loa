@@ -1,0 +1,9 @@
+{
+  "ok": false,
+  "schema_version": "1.0",
+  "error": {
+    "code": "GOVERNANCE_CONSENT_MISSING",
+    "message": "Non-interactive run without K_HOLE_DATA_CONSENT=acknowledged",
+    "retryable": false
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "ok": false,
+  "schema_version": "1.0",
+  "error": {
+    "code": "PROVIDER_TIMEOUT",
+    "message": "HTTP read timeout after 30s",
+    "retryable": true,
+    "provider": "google"
+  }
+}

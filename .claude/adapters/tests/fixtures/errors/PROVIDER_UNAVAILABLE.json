@@ -1,0 +1,10 @@
+{
+  "ok": false,
+  "schema_version": "1.0",
+  "error": {
+    "code": "PROVIDER_UNAVAILABLE",
+    "message": "Provider 'openrouter' unavailable: HTTP 503",
+    "retryable": true,
+    "provider": "openrouter"
+  }
+}

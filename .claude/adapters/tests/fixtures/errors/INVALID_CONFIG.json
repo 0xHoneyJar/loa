@@ -1,0 +1,9 @@
+{
+  "ok": false,
+  "schema_version": "1.0",
+  "error": {
+    "code": "INVALID_CONFIG",
+    "message": "provider 'openrouter' missing endpoint",
+    "retryable": false
+  }
+}

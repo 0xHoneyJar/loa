@@ -1,0 +1,10 @@
+{
+  "ok": false,
+  "schema_version": "1.0",
+  "error": {
+    "code": "GROUNDING_EMPTY",
+    "message": "No citations extracted from openrouter grounded response",
+    "retryable": false,
+    "provider": "openrouter"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "ok": false,
+  "schema_version": "1.0",
+  "error": {
+    "code": "RATE_LIMITED",
+    "message": "Rate limited by openrouter",
+    "retryable": true,
+    "retry_after_ms": 2000,
+    "provider": "openrouter",
+    "attempt": 3
+  }
+}
