@@ -336,6 +336,7 @@ cost-profile: moderate
     SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill explore-write-conflict
     [ "$status" -eq 1 ]
     [[ "$output" == *"agent type 'Explore'"* ]]
+    [[ "$output" == *"excludes Write/Edit"* ]]
 }
 
 # =========================================================================
@@ -445,6 +446,7 @@ cost-profile: moderate
     SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill plan-allowed-tools-write
     [ "$status" -eq 1 ]
     [[ "$output" == *"agent type 'Plan'"* ]]
+    [[ "$output" == *"excludes Write/Edit"* ]]
 }
 
 # =========================================================================
