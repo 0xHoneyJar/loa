@@ -84,9 +84,12 @@ generate() {
     # Pre-flight: detect duplicate keys across aliases + backward_compat_aliases.
     # Bash last-write-wins so behavior is safe, but duplicates are unnecessary
     # noise and may indicate an editor mistake. Warn to stderr; don't fail.
-    local dup_keys
-    dup_keys=$(yq eval -o=json '{aliases: (.aliases // {}), compat: (.backward_compat_aliases // {})}' "$CONFIG_FILE" \
-        | jq -r '(.aliases | keys) as $a | (.compat | keys) as $c | ($a + $c) | group_by(.) | map(select(length > 1) | .[0]) | .[]' 2>/dev/null || true)
+    local aliases_json compat_json dup_keys
+    aliases_json=$(yq eval -o=json '.aliases // {}' "$CONFIG_FILE")
+    compat_json=$(yq eval -o=json '.backward_compat_aliases // {}' "$CONFIG_FILE")
+    dup_keys=$(jq -r --argjson a "$aliases_json" --argjson c "$compat_json" -n \
+        '($a | keys) + ($c | keys) | group_by(.) | map(select(length > 1) | .[0]) | .[]' \
+        2>/dev/null || true)
     if [[ -n "$dup_keys" ]]; then
         while IFS= read -r key; do
             echo "WARN: key '$key' appears in both aliases and backward_compat_aliases (last-write-wins, but remove duplicate for clarity)" >&2
