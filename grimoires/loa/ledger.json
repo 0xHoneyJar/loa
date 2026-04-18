@@ -594,9 +594,27 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260418-i570-83c0b5/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260418-i570-83c0b5/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260418-i573-cb3351",
+      "label": "Bug Fix — Flatline model allowlist hygiene & graceful degradation (#573+#574)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/573",
+      "source_issues_bundled": [
+        "#573",
+        "#574"
+      ],
+      "parent_tracker": "#557",
+      "created_at": "2026-04-18T12:31:26Z",
+      "sprints": [
+        "sprint-bug-113"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260418-i573-cb3351/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260418-i573-cb3351/sprint.md"
     }
   ],
-  "global_sprint_counter": 112,
+  "global_sprint_counter": 113,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",

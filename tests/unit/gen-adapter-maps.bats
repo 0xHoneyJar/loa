@@ -54,7 +54,8 @@ setup() {
 }
 
 @test "generated MODEL_PROVIDERS includes all canonical models" {
-    run bash -c "source '$GENERATED'; for m in gpt-5.2 gpt-5.3-codex claude-opus-4-7 claude-opus-4-6 claude-sonnet-4-6 gemini-2.5-pro gemini-3-pro; do echo \"\$m=\${MODEL_PROVIDERS[\$m]:-MISSING}\"; done"
+    # Gemini 3 models pruned per #574 (phantom on Google v1beta).
+    run bash -c "source '$GENERATED'; for m in gpt-5.2 gpt-5.3-codex claude-opus-4-7 claude-opus-4-6 claude-sonnet-4-6 gemini-2.5-pro gemini-2.5-flash; do echo \"\$m=\${MODEL_PROVIDERS[\$m]:-MISSING}\"; done"
     [ "$status" -eq 0 ]
     [[ "$output" != *"MISSING"* ]]
 }

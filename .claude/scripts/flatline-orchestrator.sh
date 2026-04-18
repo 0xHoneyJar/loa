@@ -297,9 +297,27 @@ get_max_iterations() {
     read_config '.flatline_protocol.max_iterations' '5'
 }
 
-# Valid model names accepted by model-adapter.sh.legacy MODEL_PROVIDERS registry.
-# Keep in sync with MODEL_PROVIDERS in model-adapter.sh.legacy (line ~69).
-VALID_FLATLINE_MODELS=(opus gpt-5.2 gpt-5.3-codex claude-opus-4.7 claude-opus-4-7 claude-opus-4.6 claude-opus-4-6 claude-opus-4.5 gemini-2.0 gemini-2.5-flash gemini-2.5-pro gemini-3-flash gemini-3-pro gemini-3.1-pro)
+# Valid model names — known-good models verified against live APIs.
+# Phantom Gemini 3 entries (gemini-3-pro, gemini-3-flash, gemini-3.1-pro)
+# removed per #574: they passed allowlist but Google v1beta returned
+# NOT_FOUND at runtime, collapsing the Flatline review.
+#
+# Forward-compat regex VALID_MODEL_PATTERNS admits new model versions
+# without requiring code edits (per #573 operator experience with
+# gpt-5.4-codex). The regex structure ensures typos still fail fast.
+VALID_FLATLINE_MODELS=(opus gpt-5.2 gpt-5.3-codex claude-opus-4.7 claude-opus-4-7 claude-opus-4.6 claude-opus-4-6 claude-opus-4.5 claude-sonnet-4-6 gemini-2.0 gemini-2.5-flash gemini-2.5-pro)
+
+# Forward-compat patterns for provider-side verified models not yet in
+# the explicit allowlist. Operators running newer models (gpt-5.4-codex,
+# gemini-3-flash-live, claude-opus-4-8) can set them in config and the
+# pattern admits them; provider-side validation at API call time catches
+# typos/invalid names with a clearer error than a pre-runtime allowlist.
+VALID_MODEL_PATTERNS=(
+    '^gpt-[0-9]+\.[0-9]+(-codex)?$'          # openai: gpt-5.2, gpt-5.3-codex, gpt-5.4-codex, gpt-6.0
+    '^claude-(opus|sonnet|haiku)-[0-9]+[-.][0-9]+$'  # anthropic: claude-opus-4-7, claude-sonnet-4-6
+    '^gemini-[0-9]+\.[0-9]+(-flash|-pro)?$'  # google: gemini-2.5-pro, gemini-2.5-flash
+    '^opus|sonnet|haiku$'                    # short anthropic aliases
+)
 
 validate_model() {
     local model="$1"
@@ -311,22 +329,29 @@ validate_model() {
         return 1
     fi
 
-    local valid=false
+    # Explicit allowlist match
     for valid_model in "${VALID_FLATLINE_MODELS[@]}"; do
         if [[ "$model" == "$valid_model" ]]; then
-            valid=true
-            break
+            return 0
         fi
     done
 
-    if [[ "$valid" != "true" ]]; then
-        error "Unknown flatline model: '$model' (from flatline_protocol.models.$config_key in .loa.config.yaml)"
-        error "Valid models: ${VALID_FLATLINE_MODELS[*]}"
-        error "Note: '$model' may be an agent alias, not a model name. Check .claude/defaults/model-config.yaml for alias mappings."
-        return 1
-    fi
+    # Forward-compat pattern match — accept plausible model names so operators
+    # running new vendor releases don't need to wait for a Loa update. The
+    # provider-side call will reject actually-invalid names with a clearer
+    # error than a pre-runtime allowlist.
+    for pattern in "${VALID_MODEL_PATTERNS[@]}"; do
+        if [[ "$model" =~ $pattern ]]; then
+            log "Flatline model '$model' (config_key=$config_key) accepted via forward-compat pattern" >&2
+            return 0
+        fi
+    done
 
-    return 0
+    error "Unknown flatline model: '$model' (from flatline_protocol.models.$config_key in .loa.config.yaml)"
+    error "Known-good models: ${VALID_FLATLINE_MODELS[*]}"
+    error "Forward-compat patterns also accepted: gpt-X.Y(-codex), claude-{opus|sonnet|haiku}-X-Y, gemini-X.Y(-flash|-pro)"
+    error "Note: '$model' may be an agent alias, not a model name. Check .claude/defaults/model-config.yaml for alias mappings."
+    return 1
 }
 
 is_notebooklm_enabled() {
@@ -368,7 +393,10 @@ declare -A MODE_TO_AGENT=(
     ["dissent"]="flatline-dissenter"
 )
 
-# Legacy model name → provider:model-id for model-invoke --model override
+# Legacy model name → provider:model-id for model-invoke --model override.
+# Phantom Gemini 3 entries (gemini-3-flash, gemini-3-pro) removed per #574 —
+# they passed allowlist but Google v1beta returned NOT_FOUND at runtime.
+# Re-add when vendor confirms availability (smoke test via live API first).
 declare -A MODEL_TO_PROVIDER_ID=(
     ["gpt-5.2"]="openai:gpt-5.2"
     ["gpt-5.3-codex"]="openai:gpt-5.3-codex"
@@ -377,11 +405,10 @@ declare -A MODEL_TO_PROVIDER_ID=(
     ["claude-opus-4-7"]="anthropic:claude-opus-4-7"
     ["claude-opus-4.6"]="anthropic:claude-opus-4-7"    # Retargeted in bash layer (cycle-082)
     ["claude-opus-4-6"]="anthropic:claude-opus-4-7"    # Retargeted in bash layer (cycle-082)
+    ["claude-sonnet-4-6"]="anthropic:claude-sonnet-4-6"
     ["gemini-2.0"]="google:gemini-2.0-flash"
     ["gemini-2.5-flash"]="google:gemini-2.5-flash"
     ["gemini-2.5-pro"]="google:gemini-2.5-pro"
-    ["gemini-3-flash"]="google:gemini-3-flash"
-    ["gemini-3-pro"]="google:gemini-3-pro"
 )
 
 # Unified model call: routes through model-invoke (direct) or model-adapter.sh (legacy)
