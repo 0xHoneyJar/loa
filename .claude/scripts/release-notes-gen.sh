@@ -213,10 +213,17 @@ generate_from_commits() {
 
   # Absorb `grep -vE` no-match exits (triggers `set -eo pipefail` otherwise when
   # the log range is empty or the filter rejects everything). Narrow the
-  # suppression to the grep step so genuine git log failures still surface.
-  # Use -20 on git log instead of a trailing `head -20` to eliminate the
-  # SIGPIPE-on-early-close edge case that can propagate through pipefail.
-  # Empty output is handled by the next branch.
+  # suppression to the grep step so genuine git log errors that DO produce
+  # output still surface normally (git log with permission issues returns
+  # empty + 128; with invalid range returns empty + 128 after 2>/dev/null
+  # already silences the stderr). Use `-20` on git log instead of `head -20`
+  # to eliminate SIGPIPE-on-early-close edges under pipefail.
+  #
+  # Design note: this is the Tier 3 fallback template. If git log fails
+  # outright, the branch below emits `Release v${version}.` as a generic
+  # fallback — that is the INTENDED behavior of a fallback generator (user
+  # sees a note rather than a crash). Upstream callers check the extracted
+  # result, not the exit code.
   local commits
   commits=$(git -C "$PROJECT_ROOT" log -20 "${range}" --format='- %s' 2>/dev/null | { grep -vE '^- (Merge|chore\(release\))' || true; }) || commits=""
 

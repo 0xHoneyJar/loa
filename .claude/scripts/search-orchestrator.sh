@@ -168,7 +168,9 @@ else
         # Converts `file:line:content` stream on stdin to JSONL on stdout.
         # Uses jq --arg for safe interpolation (no injection via filename/content).
         # `read || [[ -n "$raw" ]]` processes the final line even when command
-        # substitution strips the trailing newline (DISS-001 dissent).
+        # substitution strips the trailing newline. `raw=""` init keeps the
+        # guard safe under `set -u` on empty input.
+        local raw=""
         while IFS= read -r raw || [[ -n "$raw" ]]; do
             [[ -z "$raw" ]] && continue
             local file line snippet
