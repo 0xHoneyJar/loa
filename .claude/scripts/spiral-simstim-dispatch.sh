@@ -131,8 +131,13 @@ fi
 
 # If task is STILL empty, fail with a clear, actionable message rather than
 # letting spiral-harness.sh emit a bare `ERROR: --task required`.
+# This dispatcher is invoked BY spiral-orchestrator.sh, so the fix path is
+# always "make the orchestrator export SPIRAL_TASK". Point users there.
 if [[ -z "$task" ]]; then
-    echo "FATAL: spiral-simstim-dispatch.sh: task is empty. Set SPIRAL_TASK env var, pass --task to orchestrator, or populate spiral.task in .loa.config.yaml." >&2
+    echo "FATAL: spiral-simstim-dispatch.sh: task is empty." >&2
+    echo "  Expected SPIRAL_TASK env var or .task in the spiral state file." >&2
+    echo "  The orchestrator (spiral-orchestrator.sh) should have exported this." >&2
+    echo "  Upstream fix: set spiral.task in .loa.config.yaml or pass --task to --start." >&2
     exit 2
 fi
 

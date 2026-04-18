@@ -1268,7 +1268,7 @@ cmd_start() {
     # ${SPIRAL_TASK:-} as empty and spiral-harness.sh exits `ERROR: --task required`.
     # Read from STATE_FILE (authoritative) so resume and start both go through
     # the same propagation path.
-    SPIRAL_TASK=$(jq -r '.task // ""' "$STATE_FILE" 2>/dev/null)
+    SPIRAL_TASK=$(jq -r '.task // ""' "$STATE_FILE" 2>/dev/null || echo "")
     export SPIRAL_TASK
 
     # Dispatch cycle loop (cycle-067: replaces MVP scaffolding)
@@ -1434,7 +1434,7 @@ cmd_resume() {
 
     # #568 fix: export SPIRAL_TASK on resume too — the dispatch subprocess
     # needs it and the previous resume path didn't re-export.
-    SPIRAL_TASK=$(jq -r '.task // ""' "$STATE_FILE" 2>/dev/null)
+    SPIRAL_TASK=$(jq -r '.task // ""' "$STATE_FILE" 2>/dev/null || echo "")
     export SPIRAL_TASK
 
     # Resume cycle loop from where it left off
