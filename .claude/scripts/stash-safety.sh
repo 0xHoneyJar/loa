@@ -33,10 +33,24 @@ _STASH_SAFETY_SH_SOURCED=1
 # -----------------------------------------------------------------------------
 # _stash_count — count entries in `git stash list`
 # -----------------------------------------------------------------------------
-# Returns the numeric count on stdout. Exits 0 always (count of 0 is valid).
+# Returns the numeric count on stdout. Defaults to "0" on any failure
+# (outside a git worktree, stash command unavailable, etc.) so callers
+# under `set -euo pipefail` don't blow up on pre-check.
 # -----------------------------------------------------------------------------
 _stash_count() {
-    git stash list 2>/dev/null | wc -l | tr -d ' '
+    local out
+    out=$(git stash list 2>/dev/null | wc -l | tr -d ' ' || echo "0")
+    echo "${out:-0}"
+}
+
+# -----------------------------------------------------------------------------
+# _stash_top_message — read message of the topmost stash entry (stash@{0})
+# -----------------------------------------------------------------------------
+# Empty string if no stash or error. Used to verify the top stash is the
+# one our caller just pushed (mid-flight intruder detection).
+# -----------------------------------------------------------------------------
+_stash_top_message() {
+    git stash list -n 1 --format='%s' 2>/dev/null || echo ""
 }
 
 # -----------------------------------------------------------------------------
@@ -105,11 +119,26 @@ stash_with_guard() {
     local cb_status=0
     "$@" || cb_status=$?
 
-    # Pop — surface all output, preserve exit; detect mid-flight stash shift.
-    # Capture status explicitly to avoid the `if !` trap (where `$?` inside
-    # the then-branch reflects the inverted test, not the original command).
+    # Before popping, verify the top stash is still ours (DISS-002 defense
+    # against another process pushing a stash between our push and pop).
+    # Count-delta catches the wrong-slot case too, but verifying the
+    # message makes the check redundant in a good way — a second independent
+    # signal for the same class of failure.
+    local top_msg
+    top_msg=$(_stash_top_message)
+    if [[ "$top_msg" != *"$stash_msg"* ]]; then
+        echo "STASH_SAFETY_VIOLATION: top stash is not ours (expected message to contain '$stash_msg', got '$top_msg')" >&2
+        echo "Recovery: git stash list  # to locate our stash by message" >&2
+        return 11
+    fi
+
+    # Pop with --index so staged content is restored to the index (not just
+    # the worktree). Without --index, files that were staged before our push
+    # become unstaged on pop — silently mutating the user's staging state.
+    # Surface all output; preserve exit via explicit `|| status=$?` to avoid
+    # the `if !` trap (where $? inside then-branch reflects the inverted test).
     local pop_status=0
-    git stash pop || pop_status=$?
+    git stash pop --index || pop_status=$?
     if [[ "$pop_status" -ne 0 ]]; then
         echo "STASH_SAFETY_VIOLATION: stash pop failed (exit $pop_status; see output above)" >&2
         # Do NOT return here — still check count and emit recovery hint
