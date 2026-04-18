@@ -581,9 +581,22 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260418-i568-740715/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260418-i568-740715/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260418-i570-83c0b5",
+      "label": "Bug Fix — spiral-harness hardcoded 300s planning timeouts",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/570",
+      "created_at": "2026-04-18T00:00:00Z",
+      "sprints": [
+        "sprint-bug-112"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260418-i570-83c0b5/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260418-i570-83c0b5/sprint.md"
     }
   ],
-  "global_sprint_counter": 111,
+  "global_sprint_counter": 112,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",

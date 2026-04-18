@@ -70,6 +70,14 @@ BB_MAX_ITERATIONS=$(_read_harness_config "spiral.harness.bb_max_iterations" "3")
 EXECUTOR_MODEL=$(_read_harness_config "spiral.harness.executor_model" "sonnet")
 ADVISOR_MODEL=$(_read_harness_config "spiral.harness.advisor_model" "opus")
 
+# #570 — planning-phase timeouts. Previously hardcoded 300s was too tight
+# for non-trivial specs (>15 KB seed → claude -p needed >5min, artifact
+# emerged 0 bytes, evidence gate failed). New defaults chosen to clear
+# observed-failure window while staying well under simstim_sec=7200 cap.
+DISCOVERY_TIMEOUT=$(_read_harness_config "spiral.harness.discovery_timeout_sec" "1200")
+ARCHITECTURE_TIMEOUT=$(_read_harness_config "spiral.harness.architecture_timeout_sec" "1200")
+PLANNING_TIMEOUT=$(_read_harness_config "spiral.harness.planning_timeout_sec" "600")
+
 # Pipeline Profiles (cycle-072): match intensity to task complexity
 # full    = all 3 Flatline gates + Opus advisor ($15, architecture/security)
 # standard = Sprint Flatline only + Opus advisor ($12, most features) [DEFAULT]
@@ -262,7 +270,7 @@ _phase_discovery() {
          "\n\nRequirements:\n- Include ## Assumptions section listing what you assumed\n- Include ## Goals & Success Metrics with measurable criteria\n- Include ## Acceptance Criteria as checkboxes\n- Write ONLY to grimoires/loa/prd.md\n- Do NOT write code. Do NOT create an SDD or sprint plan. Only write the PRD."' \
         | jq -r '.')
 
-    _invoke_claude "DISCOVERY" "$prompt" "$PLANNING_BUDGET" 300
+    _invoke_claude "DISCOVERY" "$prompt" "$PLANNING_BUDGET" "$DISCOVERY_TIMEOUT"
 
     _verify_artifact "DISCOVERY" "grimoires/loa/prd.md" 500 >/dev/null
 }
@@ -277,7 +285,7 @@ _phase_architecture() {
          "Requirements:\n- Include system architecture, component design, data model\n- Include security design and error handling\n- Address each Flatline finding in the design\n- Write ONLY to grimoires/loa/sdd.md\n- Do NOT write code. Only write the SDD."' \
         | jq -r '.')
 
-    _invoke_claude "ARCHITECTURE" "$prompt" "$PLANNING_BUDGET" 300
+    _invoke_claude "ARCHITECTURE" "$prompt" "$PLANNING_BUDGET" "$ARCHITECTURE_TIMEOUT"
 
     _verify_artifact "ARCHITECTURE" "grimoires/loa/sdd.md" 500 >/dev/null
 }
@@ -292,7 +300,7 @@ _phase_planning() {
          "Requirements:\n- Break into tasks with acceptance criteria\n- Include test requirements per task\n- Write ONLY to grimoires/loa/sprint.md\n- Do NOT write code. Only write the sprint plan."' \
         | jq -r '.')
 
-    _invoke_claude "PLANNING" "$prompt" "$PLANNING_BUDGET" 300
+    _invoke_claude "PLANNING" "$prompt" "$PLANNING_BUDGET" "$PLANNING_TIMEOUT"
 
     _verify_artifact "PLANNING" "grimoires/loa/sprint.md" 300 >/dev/null
 }
