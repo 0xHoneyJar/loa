@@ -185,3 +185,47 @@ EOF
     [ "$(jq -r '.framework_version' "$VERSION_FILE")" = "c258c4af" ]
     head -n 1 "$CLAUDE_LOA_FILE" | grep -qF "version: c258c4af"
 }
+
+# =========================================================================
+# UB-T12: --target without value exits 2 with clear error (DISS-002)
+# =========================================================================
+# Addresses Phase 2.5 advisory: arg parsing did not guard `$2` access under
+# `set -u`, producing unbound-variable errors instead of usage errors.
+
+@test "--target without a value exits 2 with clear error" {
+    run "$BUMP_SCRIPT" --target
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"--target requires a value"* ]]
+}
+
+# =========================================================================
+# UB-T13: --target rejects malicious/malformed version strings (audit DISS-002)
+# =========================================================================
+# A malicious upstream tag like "1.0.0 --> injected content" must not be
+# written into the managed instruction-file header without validation.
+
+@test "--target rejects injection-shaped target" {
+    run "$BUMP_SCRIPT" --target "1.0.0 --> <!-- injected"
+    [ "$status" -eq 3 ]
+    [[ "$output" == *"failed validation"* ]]
+    # Files should remain unmodified
+    [ "$(jq -r '.framework_version' "$VERSION_FILE")" = "1.0.0" ]
+}
+
+@test "--target rejects empty-ish garbage" {
+    run "$BUMP_SCRIPT" --target "not-a-version"
+    [ "$status" -eq 3 ]
+    [[ "$output" == *"failed validation"* ]]
+}
+
+@test "--target accepts pre-release semver" {
+    run "$BUMP_SCRIPT" --target "2.5.0-rc1"
+    [ "$status" -eq 0 ]
+    [ "$(jq -r '.framework_version' "$VERSION_FILE")" = "2.5.0-rc1" ]
+}
+
+@test "--target accepts semver with build metadata" {
+    run "$BUMP_SCRIPT" --target "2.5.0+build.5"
+    [ "$status" -eq 0 ]
+    [ "$(jq -r '.framework_version' "$VERSION_FILE")" = "2.5.0+build.5" ]
+}

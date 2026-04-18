@@ -37,7 +37,13 @@ VERBOSE="${LOA_BUMP_VERBOSE:-false}"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --target) TARGET_VERSION="$2"; shift 2 ;;
+        --target)
+            # DISS-002: guard against `--target` with no value (unbound $2 under set -u)
+            if [[ $# -lt 2 ]]; then
+                echo "ERROR: --target requires a value (e.g., --target 1.94.0)" >&2
+                exit 2
+            fi
+            TARGET_VERSION="$2"; shift 2 ;;
         --dry-run) DRY_RUN=true; shift ;;
         --verbose) VERBOSE=true; shift ;;
         -h|--help)
@@ -177,6 +183,36 @@ bump_claude_loa_header() {
 }
 
 # -----------------------------------------------------------------------------
+# validate_target_format — reject malicious/malformed version strings
+# -----------------------------------------------------------------------------
+# Addresses audit DISS-002: an unvalidated TARGET_VERSION from upstream gets
+# written directly into the managed instruction-file header. A malicious tag
+# like "1.0.0 --> <!-- injected content" would corrupt parser assumptions.
+#
+# Accepted formats:
+#   - Semver with optional pre-release/build: 1.2.3, 1.2.3-rc1, 1.2.3+build.5
+#   - Short git SHA: abc1234 (7-40 hex chars)
+#
+# Returns 0 if valid, 1 (with stderr message) if invalid.
+# -----------------------------------------------------------------------------
+validate_target_format() {
+    local target="$1"
+
+    # Semver-ish: digits.digits.digits, optional -pre or +build with alphanumerics
+    if [[ "$target" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][A-Za-z0-9._-]+)?(\+[A-Za-z0-9.-]+)?$ ]]; then
+        return 0
+    fi
+
+    # Short git SHA: 7-40 hex chars
+    if [[ "$target" =~ ^[0-9a-f]{7,40}$ ]]; then
+        return 0
+    fi
+
+    echo "ERROR: target version '$target' failed validation (expected semver or git SHA)" >&2
+    return 1
+}
+
+# -----------------------------------------------------------------------------
 # main — when run as a script (not sourced)
 # -----------------------------------------------------------------------------
 main() {
@@ -186,6 +222,8 @@ main() {
             exit 1
         }
     fi
+
+    validate_target_format "$TARGET_VERSION" || exit 3
 
     bump_version_json "$TARGET_VERSION"
     bump_claude_loa_header "$TARGET_VERSION"

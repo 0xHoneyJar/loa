@@ -218,6 +218,19 @@ flatline_protocol:
     low_value: 400
     blocker_skeptic: 700
   max_iterations: 5
+  # Phase 2.5: Adversarial cross-model review (PR #552 enforcement gate)
+  # Duplicated from PR #558's branch — will merge cleanly (same content)
+  # after that PR lands. Enabling here so this sprint's quality gates fire.
+  code_review:
+    enabled: true
+    model: gpt-5.3-codex
+    budget_cents: 150
+    timeout_seconds: 60
+  security_audit:
+    enabled: true
+    model: gpt-5.3-codex
+    budget_cents: 150
+    timeout_seconds: 60
   secret_scanning:
     patterns:
       - "AIzaSy[A-Za-z0-9_-]{33}"

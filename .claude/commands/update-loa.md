@@ -302,16 +302,59 @@ fi
 Framework-managed version markers (`.loa-version.json` + `CLAUDE.loa.md:1` header) are project-owned under the default merge resolver, so the merge keeps the local (stale) version. This phase idempotently rewrites both with the target release tag so downstream `/loa`, `loa-status.sh`, and issue triage report the correct version.
 
 ```bash
-if [[ -x ".claude/scripts/update-loa-bump-version.sh" ]]; then
-  # Target resolution: tag on FETCH_HEAD → upstream .loa-version.json → short SHA.
-  # The script is idempotent — no-op when already at target.
-  if .claude/scripts/update-loa-bump-version.sh; then
-    # Stage the refreshed markers into the merge commit, if they changed.
-    git add .loa-version.json .claude/loa/CLAUDE.loa.md 2>/dev/null || true
-  else
-    echo "Warning: version marker bump failed (non-blocking)" >&2
+# Security: inline the bump using only trusted local utilities (jq, sed,
+# awk, git) — never execute shell scripts from the just-merged tree.
+# This closes the supply-chain injection path that `bash
+# .claude/scripts/update-loa-bump-version.sh` would open. The sourceable
+# script remains for unit testing and standalone/manual bumps; this
+# inline version is the /update-loa invocation path.
+_loa_bump_target=""
+# Resolution chain: tag on FETCH_HEAD → upstream .loa-version.json → short SHA
+if git rev-parse --verify FETCH_HEAD >/dev/null 2>&1; then
+  _loa_bump_target=$(git tag --points-at FETCH_HEAD 2>/dev/null | grep -E '^v[0-9]+\.' | head -1 | sed 's/^v//' || true)
+  if [[ -z "$_loa_bump_target" ]] && git show "FETCH_HEAD:.loa-version.json" >/dev/null 2>&1; then
+    _loa_bump_target=$(git show "FETCH_HEAD:.loa-version.json" 2>/dev/null | jq -r '.framework_version // empty' 2>/dev/null || true)
+  fi
+  if [[ -z "$_loa_bump_target" ]]; then
+    _loa_bump_target=$(git rev-parse --short FETCH_HEAD 2>/dev/null || true)
   fi
 fi
+
+# Strict format validation (semver or 7-40 hex SHA) — reject injection shapes
+_loa_bump_valid=false
+if [[ "$_loa_bump_target" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][A-Za-z0-9._-]+)?(\+[A-Za-z0-9.-]+)?$ ]]; then
+  _loa_bump_valid=true
+elif [[ "$_loa_bump_target" =~ ^[0-9a-f]{7,40}$ ]]; then
+  _loa_bump_valid=true
+fi
+
+if [[ "$_loa_bump_valid" == "true" ]]; then
+  # Bump .loa-version.json (idempotent, atomic)
+  if [[ -f .loa-version.json ]] && command -v jq >/dev/null 2>&1; then
+    _loa_current=$(jq -r '.framework_version // empty' .loa-version.json 2>/dev/null || true)
+    if [[ "$_loa_current" != "$_loa_bump_target" ]]; then
+      _loa_now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+      jq --arg v "$_loa_bump_target" --arg t "$_loa_now" \
+        '.framework_version = $v | .last_sync = $t' \
+        .loa-version.json > .loa-version.json.tmp.$$ && \
+        mv .loa-version.json.tmp.$$ .loa-version.json
+    fi
+  fi
+  # Bump CLAUDE.loa.md:1 header (preserve hash + PLACEHOLDER)
+  if [[ -f .claude/loa/CLAUDE.loa.md ]]; then
+    _loa_header=$(head -n 1 .claude/loa/CLAUDE.loa.md)
+    if [[ "$_loa_header" == *"@loa-managed: true"* ]]; then
+      awk -v target="$_loa_bump_target" 'NR==1 {
+        sub(/version:[[:space:]]*[^[:space:]|]+/, "version: " target)
+      } { print }' .claude/loa/CLAUDE.loa.md > .claude/loa/CLAUDE.loa.md.tmp.$$ && \
+        mv .claude/loa/CLAUDE.loa.md.tmp.$$ .claude/loa/CLAUDE.loa.md
+    fi
+  fi
+  git add .loa-version.json .claude/loa/CLAUDE.loa.md 2>/dev/null || true
+else
+  echo "Note: version marker bump skipped — could not resolve valid target version" >&2
+fi
+unset _loa_bump_target _loa_bump_valid _loa_current _loa_now _loa_header
 ```
 
 > **Why?** `/update-loa` Phases 5.3/5.5 protect project state and workflows. The version markers look like config but describe framework identity. Without this phase, downstream reports a stale `framework_version` across multiple updates, and the `update_available` nag fires for updates already installed. The script fails open (non-blocking) — a bump failure should not halt the merge.
