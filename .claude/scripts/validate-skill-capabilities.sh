@@ -56,6 +56,20 @@ should_skip() {
     return 1
 }
 
+# --- Agent types that include Write/Edit in their tool allowlist (Issue #553) ---
+# When a skill declares write capability (capabilities.write_files: true OR
+# allowed-tools lists Write/Edit), its agent: frontmatter key MUST be unset
+# or set to one of these. See .claude/rules/skill-invariants.md.
+WRITE_CAPABLE_AGENTS=("general-purpose")
+
+is_write_capable_agent() {
+    local agent="$1"
+    for a in "${WRITE_CAPABLE_AGENTS[@]}"; do
+        [[ "$agent" == "$a" ]] && return 0
+    done
+    return 1
+}
+
 # --- Counters ---
 total=0
 errors=0
@@ -233,6 +247,29 @@ validate_skill() {
         wf=$(echo "$frontmatter" | yq eval '.capabilities.write_files' - 2>/dev/null) || wf="null"
         if [[ "$wf" == "true" ]]; then
             log_warning "$skill_name" "cost-profile: lightweight but capabilities.write_files: true (correlation mismatch)" || has_error=true
+        fi
+    fi
+
+    # --- Agent type vs write-capability invariant (Issue #553) ---
+    # When agent: is set to a restricted type (e.g. Plan, Explore) but the skill
+    # declares write capability via capabilities.write_files: true OR allowed-tools
+    # containing Write/Edit, the agent-type allowlist wins and silently blocks
+    # the skill from persisting its output. See .claude/rules/skill-invariants.md.
+    local agent_type
+    agent_type=$(echo "$frontmatter" | yq eval '.agent' - 2>/dev/null) || agent_type="null"
+    if [[ "$agent_type" != "null" && -n "$agent_type" ]] && ! is_write_capable_agent "$agent_type"; then
+        local needs_write=false
+        local wf_check
+        wf_check=$(echo "$frontmatter" | yq eval '.capabilities.write_files' - 2>/dev/null) || wf_check="null"
+        if [[ "$wf_check" == "true" ]]; then
+            needs_write=true
+        fi
+        if [[ -n "$allowed_tools" ]] && { has_tool "$allowed_tools" "Write" || has_tool "$allowed_tools" "Edit"; }; then
+            needs_write=true
+        fi
+        if [[ "$needs_write" == "true" ]]; then
+            log_error "$skill_name" "agent type '$agent_type' excludes Write/Edit tools but skill declares write capability (capabilities.write_files: true or allowed-tools contains Write/Edit) — remove agent: key or use a write-capable agent type (${WRITE_CAPABLE_AGENTS[*]})"
+            has_error=true
         fi
     fi
 
