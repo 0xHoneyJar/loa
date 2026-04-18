@@ -77,9 +77,10 @@ setup() {
 # =========================================================================
 
 @test "_validate_timeout_sec rejects non-integer input" {
+    # Suppress WARN (stderr) so we can check stdout-only against fallback
     run bash -c "
         source <(awk '/^_validate_timeout_sec\\(\\)/,/^}\$/' '$HARNESS')
-        _validate_timeout_sec 'not-a-number' '600' 'test.key'
+        _validate_timeout_sec 'not-a-number' '600' 'test.key' 2>/dev/null
     "
     [ "$status" -eq 0 ]
     [ "$output" = "600" ]
@@ -97,7 +98,7 @@ setup() {
 @test "_validate_timeout_sec rejects zero" {
     run bash -c "
         source <(awk '/^_validate_timeout_sec\\(\\)/,/^}\$/' '$HARNESS')
-        _validate_timeout_sec '0' '600' 'test.key'
+        _validate_timeout_sec '0' '600' 'test.key' 2>/dev/null
     "
     [ "$status" -eq 0 ]
     [ "$output" = "600" ]
@@ -106,7 +107,7 @@ setup() {
 @test "_validate_timeout_sec rejects negative values" {
     run bash -c "
         source <(awk '/^_validate_timeout_sec\\(\\)/,/^}\$/' '$HARNESS')
-        _validate_timeout_sec '-1' '600' 'test.key'
+        _validate_timeout_sec '-1' '600' 'test.key' 2>/dev/null
     "
     [ "$status" -eq 0 ]
     [ "$output" = "600" ]
