@@ -167,7 +167,9 @@ else
     _emit_grep_jsonl() {
         # Converts `file:line:content` stream on stdin to JSONL on stdout.
         # Uses jq --arg for safe interpolation (no injection via filename/content).
-        while IFS= read -r raw; do
+        # `read || [[ -n "$raw" ]]` processes the final line even when command
+        # substitution strips the trailing newline (DISS-001 dissent).
+        while IFS= read -r raw || [[ -n "$raw" ]]; do
             [[ -z "$raw" ]] && continue
             local file line snippet
             file="${raw%%:*}"
