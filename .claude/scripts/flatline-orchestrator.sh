@@ -316,7 +316,7 @@ VALID_MODEL_PATTERNS=(
     '^gpt-[0-9]+\.[0-9]+(-codex)?$'          # openai: gpt-5.2, gpt-5.3-codex, gpt-5.4-codex, gpt-6.0
     '^claude-(opus|sonnet|haiku)-[0-9]+[-.][0-9]+$'  # anthropic: claude-opus-4-7, claude-sonnet-4-6
     '^gemini-[0-9]+\.[0-9]+(-flash|-pro)?$'  # google: gemini-2.5-pro, gemini-2.5-flash
-    '^opus|sonnet|haiku$'                    # short anthropic aliases
+    '^(opus|sonnet|haiku)$'                  # short anthropic aliases (DISS-002: anchored alternation)
 )
 
 validate_model() {

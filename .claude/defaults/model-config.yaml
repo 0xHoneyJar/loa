@@ -191,12 +191,15 @@ agents:
     requires:
       deep_research: required
   deep-thinker:
-    model: deep-thinker
+    # Retargeted to gemini-2.5-pro per #574 (phantom gemini-3-pro pruned).
+    # Re-point at Gemini 3 alias when vendor confirms v1beta availability.
+    model: gemini-2.5-pro
     temperature: 0.4
     requires:
       thinking_traces: required
   fast-thinker:
-    model: fast-thinker
+    # Retargeted to gemini-2.5-flash per #574 (phantom gemini-3-flash pruned).
+    model: gemini-2.5-flash
     temperature: 0.5
   literature-reviewer:
     model: researcher
