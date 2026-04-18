@@ -40,7 +40,6 @@ declare -A MODEL_PROVIDERS=(
     ["claude-opus-4-1"]="anthropic"
     ["claude-opus-4.0"]="anthropic"
     ["claude-opus-4-0"]="anthropic"
-    ["gemini-3.1-pro"]="google"
 )
 
 declare -A MODEL_IDS=(
@@ -74,7 +73,6 @@ declare -A MODEL_IDS=(
     ["claude-opus-4-1"]="claude-opus-4-7"
     ["claude-opus-4.0"]="claude-opus-4-7"
     ["claude-opus-4-0"]="claude-opus-4-7"
-    ["gemini-3.1-pro"]="gemini-3.1-pro-preview"
 )
 
 declare -A COST_INPUT=(
@@ -107,7 +105,6 @@ declare -A COST_INPUT=(
     ["claude-opus-4-1"]="0.005"
     ["claude-opus-4.0"]="0.005"
     ["claude-opus-4-0"]="0.005"
-    ["gemini-3.1-pro"]="0.002"
 )
 
 declare -A COST_OUTPUT=(
@@ -140,5 +137,4 @@ declare -A COST_OUTPUT=(
     ["claude-opus-4-1"]="0.025"
     ["claude-opus-4.0"]="0.025"
     ["claude-opus-4-0"]="0.025"
-    ["gemini-3.1-pro"]="0.012"
 )

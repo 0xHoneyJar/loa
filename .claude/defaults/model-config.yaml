@@ -136,7 +136,10 @@ aliases:
 backward_compat_aliases:
   # OpenAI legacy alias
   "gpt-5.2-codex": "openai:gpt-5.3-codex"
-  # Anthropic Opus history — all retarget to 4-7 (cycle-082)
+  # Anthropic Opus history — all retarget to 4-7 (cycle-082).
+  # claude-opus-4-6 is ALSO listed in providers.anthropic.models but the
+  # legacy bash adapter retargets the BASH-level resolution to 4-7 per
+  # PR #207 pattern. The YAML/Python path preserves 4-6 for pinning.
   "claude-opus-4.7": "anthropic:claude-opus-4-7"
   "claude-opus-4.6": "anthropic:claude-opus-4-7"
   "claude-opus-4-6": "anthropic:claude-opus-4-7"
@@ -146,8 +149,10 @@ backward_compat_aliases:
   "claude-opus-4-1": "anthropic:claude-opus-4-7"
   "claude-opus-4.0": "anthropic:claude-opus-4-7"
   "claude-opus-4-0": "anthropic:claude-opus-4-7"
-  # Gemini dot-notation aliases
-  "gemini-3.1-pro": "google:gemini-3.1-pro-preview"
+  # NOTE: gemini-3.1-pro is NOT listed here — it's already in the main
+  # `aliases` section. Duplicates across aliases + backward_compat_aliases
+  # emit the same key twice into the generated bash maps (behaviorally
+  # harmless since last-write-wins, but unnecessary noise).
 
 # Agent bindings (agent name → model + requirements)
 # Conservative profile: maximize quality, most agents on native (PRD FR-4)
