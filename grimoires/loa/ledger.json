@@ -515,9 +515,33 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260418-i555-5560f6/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260418-i555-5560f6/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260418-i545-e2c781",
+      "label": "Bug Fix — Spiral REVIEW gate fix-loop + quality_gate recovery (#545 + #546)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issues": [
+        "https://github.com/0xHoneyJar/loa/issues/545",
+        "https://github.com/0xHoneyJar/loa/issues/546"
+      ],
+      "meta_tracker": "https://github.com/0xHoneyJar/loa/issues/557",
+      "parent_cycle": "cycle-084",
+      "created_at": "2026-04-18T07:41:02Z",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 107,
+          "sprint_id": "sprint-bug-107",
+          "label": "REVIEW fix-loop + quality_gate recovery",
+          "status": "active"
+        }
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260418-i545-e2c781/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260418-i545-e2c781/sprint.md"
     }
   ],
-  "global_sprint_counter": 106,
+  "global_sprint_counter": 107,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",

@@ -1354,8 +1354,21 @@ cmd_resume() {
             current_state="CRASHED"
             ;;
         COMPLETED|FAILED)
-            error "Cannot resume from terminal state: $current_state. Use --start for a new spiral."
-            return 1
+            # #546: allow narrow --force override when the stopping condition is
+            # `quality_gate_failure` (reviewer/auditor disagreement that the
+            # operator has judged recoverable). Refuses to override any other
+            # terminal state or any other stopping condition — those represent
+            # true end-of-spiral conditions.
+            local stop_reason force_flag
+            stop_reason=$(jq -r '.stopping_condition // ""' "$STATE_FILE" 2>/dev/null || echo "")
+            force_flag="${SPIRAL_RESUME_FORCE:-false}"
+            if [[ "$force_flag" == "true" && "$stop_reason" == "quality_gate_failure" ]]; then
+                log "Resume --force: accepting terminal state $current_state with stopping_condition=quality_gate_failure"
+                current_state="CRASHED"
+            else
+                error "Cannot resume from terminal state: $current_state. Use --start for a new spiral."
+                return 1
+            fi
             ;;
     esac
 
@@ -1434,7 +1447,18 @@ main() {
         --start) cmd_start "$@" ;;
         --status) cmd_status "$@" ;;
         --halt) cmd_halt "$@" ;;
-        --resume) cmd_resume ;;
+        --resume)
+            # #546: --resume accepts a narrow --force override for
+            # quality_gate_failure terminal states. Parsed here so
+            # cmd_resume can read SPIRAL_RESUME_FORCE without coupling
+            # to the main arg loop.
+            for arg in "$@"; do
+                if [[ "$arg" == "--force" ]]; then
+                    export SPIRAL_RESUME_FORCE=true
+                fi
+            done
+            cmd_resume
+            ;;
         --check-stop) cmd_check_stop ;;
         -h|--help|help|"")
             usage

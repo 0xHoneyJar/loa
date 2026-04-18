@@ -306,6 +306,78 @@ _phase_implement() {
     _invoke_claude "IMPLEMENTATION" "$prompt" "$IMPLEMENT_BUDGET" 3600
 }
 
+# _phase_implement_with_feedback — re-implementation pass informed by review (#545)
+#
+# Invoked by _review_fix_loop when REVIEW returns CHANGES_REQUIRED. Reads the
+# review's engineer-feedback.md and passes it as explicit context so the
+# implementer addresses the specific findings rather than rewriting blindly.
+_phase_implement_with_feedback() {
+    local feedback_path="grimoires/loa/a2a/engineer-feedback.md"
+    local feedback
+
+    if [[ -f "$feedback_path" ]]; then
+        feedback=$(head -c 5000 "$feedback_path" 2>/dev/null || echo "No feedback available")
+    else
+        feedback="(Review produced CHANGES_REQUIRED but no feedback file was found; check engineer-feedback.md)"
+    fi
+
+    local prompt
+    prompt=$(jq -n --arg branch "$BRANCH" --arg fb "$feedback" \
+        '"You previously implemented the sprint. An independent review found issues. Address the feedback and re-push.\n\nPREVIOUS REVIEW FEEDBACK:\n" + $fb + "\n\nIMPORTANT: You have EXPLICIT AUTHORIZATION to edit files in .claude/scripts/ for this cycle. Do NOT refuse to edit .claude/ files — this is an authorized spiral cycle.\n\nRequirements:\n- Remain on branch " + $branch + "\n- Address each CHANGES_REQUIRED item in the feedback above\n- Do NOT re-run the entire sprint plan — ONLY fix the issues flagged by the reviewer\n- Run tests and verify they pass after your fixes\n- Commit with a fix-prefixed message referencing the review feedback\n- Push the branch to origin/" + $branch + "\n- Do NOT modify grimoires/loa/prd.md, sdd.md, or sprint.md"' \
+        | jq -r '.')
+
+    _invoke_claude "IMPLEMENTATION_FIX" "$prompt" "$IMPLEMENT_BUDGET" 3600
+}
+
+# _review_fix_loop — review with automatic implementation-side fix iterations (#545)
+#
+# Wraps _gate_review with a fix loop: when CHANGES_REQUIRED, re-invokes
+# _phase_implement_with_feedback so the implementer actually addresses the
+# review findings. Budget-capped by REVIEW_MAX_ITERATIONS (default 2).
+#
+# Previously, _run_gate "REVIEW" retried the REVIEW gate itself up to MAX_RETRIES
+# times — but the implementation was never touched, so the reviewer saw the same
+# broken code on every retry and rightly kept saying CHANGES_REQUIRED until the
+# circuit breaker tripped. Observed in cycle-367687f8de.
+#
+# This mirrors the BB fix loop pattern (cycle-074, PR #512) at the review gate.
+#
+# Env overrides (defaults in brackets):
+#   REVIEW_MAX_ITERATIONS  [2]  — total REVIEW attempts including the first
+_review_fix_loop() {
+    local max_iters="${REVIEW_MAX_ITERATIONS:-2}"
+    local iter=1
+
+    while [[ $iter -le $max_iters ]]; do
+        log "Review fix loop: iteration $iter/$max_iters"
+
+        if _run_gate "REVIEW" _gate_review; then
+            log "Review PASSED on iteration $iter/$max_iters"
+            return 0
+        fi
+
+        if [[ $iter -ge $max_iters ]]; then
+            log "Review FAILED: exhausted $max_iters fix iterations"
+            _record_action "REVIEW_FIX_LOOP_EXHAUSTED" "review-fix-loop" "changes_required" "" "" "" 0 0 0 \
+                "max_iterations=$max_iters" 2>/dev/null || true
+            return 1
+        fi
+
+        log "Review CHANGES_REQUIRED — dispatching implementation fix (iteration $((iter + 1))/$max_iters)"
+        _record_action "REVIEW_FIX_DISPATCH" "review-fix-loop" "fix_dispatched" "" "" "" 0 0 0 \
+            "iter=$iter" 2>/dev/null || true
+
+        if ! _phase_implement_with_feedback; then
+            log "Review fix loop: implementation-fix pass FAILED at iteration $iter"
+            return 1
+        fi
+
+        iter=$((iter + 1))
+    done
+
+    return 1
+}
+
 # =============================================================================
 # Gate Implementations
 # =============================================================================
@@ -1063,9 +1135,13 @@ main() {
         exit 1
     fi
 
-    # ── Gate 4: Independent Review (fresh session) ──────────────────────
-    _run_gate "REVIEW" _gate_review || {
-        log "Review CHANGES_REQUIRED — implementation needs work"
+    # ── Gate 4: Independent Review with IMPL fix-loop (#545) ────────────
+    # _review_fix_loop wraps _run_gate REVIEW with re-invocations of
+    # _phase_implement_with_feedback so the implementer actually addresses
+    # the reviewer's findings instead of the reviewer seeing the same
+    # broken code on every retry until circuit-breaker.
+    _review_fix_loop || {
+        log "Review CHANGES_REQUIRED — implementation needs work (fix loop exhausted)"
         exit 1
     }
 
