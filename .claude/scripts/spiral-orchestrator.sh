@@ -1263,6 +1263,14 @@ cmd_start() {
     # Install crash trap (FR-9.2) — BEFORE loop (NFR-8)
     trap 'spiral_crash_handler $?' EXIT INT TERM ERR
 
+    # #568 fix: export SPIRAL_TASK so spiral-simstim-dispatch.sh + spiral-harness.sh
+    # see the task that was stored in state. Without this, dispatch reads
+    # ${SPIRAL_TASK:-} as empty and spiral-harness.sh exits `ERROR: --task required`.
+    # Read from STATE_FILE (authoritative) so resume and start both go through
+    # the same propagation path.
+    SPIRAL_TASK=$(jq -r '.task // ""' "$STATE_FILE" 2>/dev/null)
+    export SPIRAL_TASK
+
     # Dispatch cycle loop (cycle-067: replaces MVP scaffolding)
     run_cycle_loop
 
@@ -1423,6 +1431,11 @@ cmd_resume() {
 
     # Install crash trap
     trap 'spiral_crash_handler $?' EXIT INT TERM ERR
+
+    # #568 fix: export SPIRAL_TASK on resume too — the dispatch subprocess
+    # needs it and the previous resume path didn't re-export.
+    SPIRAL_TASK=$(jq -r '.task // ""' "$STATE_FILE" 2>/dev/null)
+    export SPIRAL_TASK
 
     # Resume cycle loop from where it left off
     run_cycle_loop
