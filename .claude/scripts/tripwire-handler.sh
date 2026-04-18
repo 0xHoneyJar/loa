@@ -126,7 +126,10 @@ perform_rollback() {
     # list is unavailable (e.g., repo in bad state). See #555 DISS-001.
     stash_count_before=$(git stash list 2>/dev/null | wc -l | tr -d ' ' || echo "0")
     stash_count_before=${stash_count_before:-0}
-    if git stash push -m "$stash_name" --include-untracked; then
+    # stdout → stderr so `perform_rollback`'s capture-via-$() sees only the
+    # final echo (true/false/no_changes). Stderr still surfaces stash
+    # diagnostics for debugging. Fixes DISS-001 from Phase 2.5 review.
+    if git stash push -m "$stash_name" --include-untracked >&2; then
         stash_count_after=$(git stash list 2>/dev/null | wc -l | tr -d ' ' || echo "0")
         stash_count_after=${stash_count_after:-0}
         # Integrity check: did the stash actually advance?
