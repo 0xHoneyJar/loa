@@ -57,7 +57,11 @@ EOF
     write_candidate 469 "F2" "Bad Pattern" "Should reject"
     GH_BIN=true run bash -c "printf 'r\\nnot useful\\n' | '$SCRIPT' --queue '$QUEUE' --lore '$LORE' --journal '$JOURNAL' --lock '$LOCK' --trajectory-dir '$TRAJ'"
     [ "$status" -eq 0 ] || { echo "$output"; false; }
-    [ -f .run/lore-promote-journal.jsonl ] || [ -f "$TEST_TMPDIR/lore-promote-journal.jsonl" ]
+    # Assert against the $JOURNAL path that was actually passed to the script.
+    # Previously asserted `.run/lore-promote-journal.jsonl` or `$TEST_TMPDIR/lore-promote-journal.jsonl`
+    # — neither matched the --journal argument; local passed only because
+    # `.run/` existed in the repo root and was side-effect-populated by other tests.
+    [ -f "$JOURNAL" ]
 }
 
 # T3: skip leaves candidate undecided

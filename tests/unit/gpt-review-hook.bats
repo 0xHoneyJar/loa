@@ -29,16 +29,17 @@ setup() {
 }
 
 @test "hook is registered in settings.json" {
-    [[ -f "$SETTINGS_FILE" ]]
-    run grep -q "PostToolUse" "$SETTINGS_FILE"
-    [[ "$status" -eq 0 ]]
-    run grep -q "gpt-review-hook.sh" "$SETTINGS_FILE"
-    [[ "$status" -eq 0 ]]
+    # /gpt-review was soft-retired in PR #523 (cycle-075, commit e25128b).
+    # The hook script is preserved for backward-compatibility of external
+    # callers, but the PostToolUse registration was intentionally removed
+    # from settings.json. This registration test no longer reflects intended
+    # behavior — skipped with reference to the deprecation.
+    skip "gpt-review PostToolUse hook was retired in PR #523 (cycle-075); see commit e25128b"
 }
 
 @test "hook matcher uses Edit|Write pattern" {
-    run grep -E '"Edit\|Write"' "$SETTINGS_FILE"
-    [[ "$status" -eq 0 ]]
+    # See above — hook is no longer registered; matcher is absent by design.
+    skip "gpt-review PostToolUse hook was retired in PR #523 (cycle-075); see commit e25128b"
 }
 
 # =============================================================================
