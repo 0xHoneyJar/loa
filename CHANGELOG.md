@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.97.1] — 2026-04-19 — Bridgebuilder OpenAI codex routing fix
+
+### Fixed
+
+- **Multi-model Bridgebuilder degraded to single-model on codex OpenAI reviews** (#585, [PR #586](https://github.com/0xHoneyJar/loa/pull/586)) — The TypeScript adapter at `.claude/skills/bridgebuilder-review/resources/adapters/openai.ts` hardcoded `/v1/chat/completions` for all OpenAI models. Codex variants (`gpt-5.3-codex` and future codex models) require `/v1/responses` — the chat endpoint returns 404 with "This is not a chat model...". On PR #583, only Gemini produced a review; Anthropic returned 400 (separate billing exhaustion) and OpenAI returned 404. The Python adapter at `.claude/adapters/loa_cheval/providers/openai_adapter.py` (used by Flatline) already had the correct routing split; this PR ports the pattern to the TypeScript adapter.
+  - **Routing**: `isCodexModel(model)` detection (case-insensitive `/codex/i`) → codex to `/v1/responses`, non-codex to `/v1/chat/completions`
+  - **Codex body shape**: `{model, input: "<system>\n\n---\n\n<user>", stream: true}` (single input string, not messages array)
+  - **Codex stream parsing**: `response.output_text.delta` for content, `response.completed` for usage, `response.created` for model fallback; reasoning deltas (`response.reasoning_text.delta`, `response.reasoning_summary_text.delta`) are deliberately ignored by the content accumulator to prevent silent over-translation
+  - **Tests**: 8 new BATS-equivalent Jest tests (5 routing + 3 hardening per Gemini 2.5 Pro HIGH finding on the fix PR itself) locking the URL split, body shape, SSE vocabulary, reasoning-event ignore, 4xx error surface, and 5xx retry policy — 617/617 passing
+  - **Self-verified**: multi-model Bridgebuilder re-run against PR #586 had all 3 models succeed (Anthropic ✓ + OpenAI ✓ + Gemini ✓), 8 findings produced including 1 consensus + 3 disputed + 2 praise
+  - **Dist tracking**: `dist/adapters/openai.{js,js.map,d.ts,d.ts.map}` now committed (matches the precedent already set by `anthropic.js` + `github-cli.js`), so downstream operators get the fix without a local `npm run build`
+  - **Not addressed in this patch**: The Anthropic 400 in the original run was **billing exhaustion** ("Your credit balance is too low"), surfaced by the adapter as generic "API 400". Parsing the Anthropic error envelope for a clearer "credits exhausted" message is a separate UX follow-up.
+
 ## [1.97.0] — 2026-04-19 — cycle-088 — Framework Boundary Fixes + Spiral Hardening + Adapter Generator
 
 **Consolidation release rolling up 14 PRs that shipped as auto-patches (v1.94.1 through v1.96.5).** The post-merge automation tagged each non-cycle PR with a patch bump but did not produce a CHANGELOG entry per the classifier's cycle-only rule (see #550 for the classifier fix shipped mid-cycle). This entry consolidates the accumulated work into a single coherent cycle record.
