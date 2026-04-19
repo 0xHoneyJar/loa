@@ -1299,20 +1299,117 @@ cmd_status() {
     fi
 
     if [[ "$json_mode" == "true" ]]; then
-        cat "$STATE_FILE"
-    else
-        local state phase cycle_index max_cycles spiral_id
-        state=$(jq -r '.state' "$STATE_FILE")
-        phase=$(jq -r '.phase' "$STATE_FILE")
-        cycle_index=$(jq -r '.cycle_index' "$STATE_FILE")
-        max_cycles=$(jq -r '.max_cycles' "$STATE_FILE")
-        spiral_id=$(jq -r '.spiral_id' "$STATE_FILE")
-        cat <<EOF
+        # JSON mode: merge spiral state with dashboard snapshot (if present)
+        # so downstream consumers get one blob with everything.
+        local state_json dashboard_json combined
+        state_json=$(cat "$STATE_FILE")
+        dashboard_json=$(_find_latest_dashboard)
+        if [[ -n "$dashboard_json" ]]; then
+            combined=$(jq -n \
+                --argjson state "$state_json" \
+                --argjson dashboard "$dashboard_json" \
+                '$state + {dashboard: $dashboard}' 2>/dev/null || echo "$state_json")
+            echo "$combined"
+        else
+            echo "$state_json"
+        fi
+        return 0
+    fi
+
+    # Pretty mode: spiral state + observability metrics from dashboard (#569)
+    local state phase cycle_index max_cycles spiral_id
+    state=$(jq -r '.state' "$STATE_FILE")
+    phase=$(jq -r '.phase' "$STATE_FILE")
+    cycle_index=$(jq -r '.cycle_index' "$STATE_FILE")
+    max_cycles=$(jq -r '.max_cycles' "$STATE_FILE")
+    spiral_id=$(jq -r '.spiral_id' "$STATE_FILE")
+    cat <<EOF
 Spiral: $spiral_id
 State:  $state
 Phase:  $phase
 Cycle:  $cycle_index / $max_cycles
 EOF
+
+    local dashboard_json
+    dashboard_json=$(_find_latest_dashboard)
+    if [[ -n "$dashboard_json" ]]; then
+        _format_dashboard_pretty "$dashboard_json"
+    fi
+}
+
+# _find_latest_dashboard — walks the most recent cycle dir(s) and returns the
+# contents of dashboard-latest.json, or empty string if none exists.
+# Handles both .run/cycles/cycle-NNN/ and ad-hoc cycle paths recorded in
+# state. Failures are silent — dashboard is best-effort.
+_find_latest_dashboard() {
+    # First try cycle_dir from state file (most accurate)
+    local cycle_dir=""
+    if [[ -f "$STATE_FILE" ]]; then
+        cycle_dir=$(jq -r '.cycle_dir // empty' "$STATE_FILE" 2>/dev/null || true)
+    fi
+
+    # Fallback: find the most recent cycle under .run/cycles/
+    if [[ -z "$cycle_dir" ]]; then
+        if [[ -d ".run/cycles" ]]; then
+            cycle_dir=$(ls -td .run/cycles/*/ 2>/dev/null | head -1 | sed 's:/*$::')
+        fi
+    fi
+
+    [[ -z "$cycle_dir" || ! -d "$cycle_dir" ]] && return 0
+
+    local dashboard="$cycle_dir/dashboard-latest.json"
+    if [[ -f "$dashboard" ]]; then
+        cat "$dashboard" 2>/dev/null || true
+    fi
+}
+
+# _format_dashboard_pretty — render a dashboard-latest.json payload as
+# terminal-friendly text. Handles missing fields gracefully so partial
+# snapshots still print useful information.
+_format_dashboard_pretty() {
+    local dashboard="$1"
+
+    [[ -z "$dashboard" ]] && return 0
+    echo "$dashboard" | jq -e . >/dev/null 2>&1 || return 0
+
+    local totals current_phase snap_ts
+    snap_ts=$(echo "$dashboard" | jq -r '.ts // "—"')
+    current_phase=$(echo "$dashboard" | jq -r '.current_phase // "—"')
+
+    local actions failures cost dur budget_cap budget_rem fix_loops bb_cycles circuit
+    actions=$(echo "$dashboard" | jq -r '.totals.actions // 0')
+    failures=$(echo "$dashboard" | jq -r '.totals.failures // 0')
+    cost=$(echo "$dashboard" | jq -r '.totals.cost_usd // 0')
+    dur=$(echo "$dashboard" | jq -r '.totals.duration_ms // 0')
+    budget_cap=$(echo "$dashboard" | jq -r '.totals.budget_cap_usd // "—"')
+    budget_rem=$(echo "$dashboard" | jq -r '.totals.budget_remaining_usd // "—"')
+    fix_loops=$(echo "$dashboard" | jq -r '.totals.fix_loop_events // 0')
+    bb_cycles=$(echo "$dashboard" | jq -r '.totals.bb_fix_cycles // 0')
+    circuit=$(echo "$dashboard" | jq -r '.totals.circuit_breaks // 0')
+
+    # Duration in seconds (1 decimal) for human reading
+    local dur_s
+    dur_s=$(awk "BEGIN { printf \"%.1f\", ${dur} / 1000 }" 2>/dev/null || echo "0")
+
+    cat <<EOF
+
+Metrics (as of $snap_ts, dashboard current: $current_phase):
+  Actions:         $actions  (failures: $failures)
+  Cost (USD):      $cost     (cap: $budget_cap, remaining: $budget_rem)
+  Duration:        ${dur_s}s
+  Fix-loops:       $fix_loops  (BB cycles: $bb_cycles, circuit-breaks: $circuit)
+EOF
+
+    # Per-phase breakdown, sorted by first_ts so the table reads top-to-bottom
+    # in the order phases ran.
+    local per_phase_count
+    per_phase_count=$(echo "$dashboard" | jq '.per_phase | length // 0')
+    if [[ "$per_phase_count" -gt 0 ]]; then
+        echo ""
+        echo "Per-phase (phase / actions / duration / cost):"
+        echo "$dashboard" | jq -r '.per_phase | sort_by(.first_ts // "") | .[] |
+            "  \(.phase | tostring)\t\(.actions)\t\((.duration_ms / 1000) | . * 10 | round / 10)s\t$\(.cost_usd)"' 2>/dev/null | \
+            column -t -s $'\t' 2>/dev/null || true
     fi
 }
 

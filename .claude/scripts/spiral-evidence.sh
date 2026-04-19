@@ -371,4 +371,120 @@ _finalize_flight_recorder() {
 
     _record_action "SUMMARY" "spiral-harness" "finalize" "" "" "" 0 0 "$total_cost" \
         "actions=${total_actions} failures=${failures} cost=${total_cost}"
+
+    # Final dashboard snapshot so external consumers see the complete picture
+    # without needing a live harness process.
+    _emit_dashboard_snapshot "FINALIZED" "$cycle_dir"
+}
+
+# =============================================================================
+# Observability Dashboard (#569)
+# =============================================================================
+#
+# Aggregates the raw flight-recorder.jsonl event stream into an operator-
+# friendly dashboard snapshot. Appends one JSON line per call to
+# dashboard.jsonl (append-only audit trail of observations) and overwrites
+# dashboard-latest.json (cheap read for /spiral --status consumers).
+#
+# Usage:
+#   _emit_dashboard_snapshot <current_phase> [cycle_dir]
+#
+# - current_phase is a string like "IMPLEMENT" or "FLATLINE_PRD". Appears in
+#   the snapshot so readers know what was active when the snapshot was taken.
+# - cycle_dir defaults to the dirname of $_FLIGHT_RECORDER.
+#
+# Environment:
+#   SPIRAL_TOTAL_BUDGET — if exported by the caller (spiral-harness main()
+#     exports this), the snapshot includes budget_cap_usd and remaining budget.
+#
+# Fail-safe: any jq/shell error is swallowed so instrumentation cannot
+# break the pipeline. Dashboard is best-effort observability.
+
+_emit_dashboard_snapshot() {
+    local current_phase="${1:-}"
+    local cycle_dir="${2:-}"
+
+    [[ -z "$_FLIGHT_RECORDER" || ! -f "$_FLIGHT_RECORDER" ]] && return 0
+
+    if [[ -z "$cycle_dir" ]]; then
+        cycle_dir="$(dirname "$_FLIGHT_RECORDER")"
+    fi
+
+    [[ ! -d "$cycle_dir" ]] && return 0
+
+    local dashboard_jsonl="$cycle_dir/dashboard.jsonl"
+    local dashboard_latest="$cycle_dir/dashboard-latest.json"
+
+    # Budget cap from env (set by spiral-harness main()). Fall back to 0 if unset.
+    local budget_cap="${SPIRAL_TOTAL_BUDGET:-0}"
+    # Guard against non-numeric values
+    [[ "$budget_cap" =~ ^[0-9]+(\.[0-9]+)?$ ]] || budget_cap=0
+
+    # Compute snapshot from flight-recorder. All numeric aggregation happens
+    # inside jq so we don't round-trip floats through shell arithmetic.
+    # -c emits compact JSON (one line per snapshot for dashboard.jsonl).
+    local snapshot
+    snapshot=$(jq -s -c \
+        --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        --arg current_phase "$current_phase" \
+        --argjson budget_cap "$budget_cap" \
+        '
+        def safe_sum(path): [.[] | path // 0] | add // 0;
+        def safe_num(v): if (v | type) == "number" then v else 0 end;
+
+        . as $all
+        | (
+            # Per-phase rollup — group by .phase, sum metrics
+            group_by(.phase) | map({
+                phase: .[0].phase,
+                actions: length,
+                duration_ms: (map(safe_num(.duration_ms)) | add // 0),
+                bytes: (map(safe_num(.output_bytes)) | add // 0),
+                cost_usd: (map(safe_num(.cost_usd)) | add // 0),
+                failures: (map(select(.verdict | tostring | startswith("FAIL"))) | length),
+                first_ts: ([.[] | .ts] | min),
+                last_ts: ([.[] | .ts] | max)
+            })
+          ) as $per_phase
+        | (safe_sum(.cost_usd)) as $total_cost
+        | (safe_sum(.duration_ms)) as $total_duration_ms
+        | ($all | length) as $total_actions
+        | ([$all[] | select(.verdict | tostring | startswith("FAIL"))] | length) as $total_failures
+        | (if $budget_cap > 0 then ($budget_cap - $total_cost) else null end) as $remaining
+        | ([$all[] | select(.action == "REVIEW_FIX_DISPATCH" or .phase == "REVIEW_FIX_LOOP_EXHAUSTED")] | length) as $fix_loop_events
+        | ([$all[] | select(.phase | tostring | startswith("BB_FIX_CYCLE"))] | length) as $bb_fix_cycles
+        | ([$all[] | select(.action == "CIRCUIT_BREAKER")] | length) as $circuit_breaks
+        | ([$all[0].ts]) as $start_ts
+        | ([$all | last | .ts]) as $last_ts
+        | {
+            schema: "spiral.dashboard.v1",
+            ts: $ts,
+            current_phase: (if $current_phase == "" then null else $current_phase end),
+            totals: {
+                actions: $total_actions,
+                failures: $total_failures,
+                cost_usd: $total_cost,
+                duration_ms: $total_duration_ms,
+                budget_cap_usd: (if $budget_cap > 0 then $budget_cap else null end),
+                budget_remaining_usd: $remaining,
+                fix_loop_events: $fix_loop_events,
+                bb_fix_cycles: $bb_fix_cycles,
+                circuit_breaks: $circuit_breaks,
+                first_action_ts: ($start_ts[0] // null),
+                last_action_ts: ($last_ts[0] // null)
+            },
+            per_phase: $per_phase
+          }
+        ' "$_FLIGHT_RECORDER" 2>/dev/null) || snapshot=""
+
+    [[ -z "$snapshot" ]] && return 0
+
+    # Append to rolling journal + overwrite latest pointer. Both writes are
+    # atomic per call (jq produces complete JSON; >> and > are atomic for
+    # small writes on POSIX).
+    echo "$snapshot" >> "$dashboard_jsonl" 2>/dev/null || true
+    echo "$snapshot" > "${dashboard_latest}.tmp" 2>/dev/null && \
+        mv "${dashboard_latest}.tmp" "$dashboard_latest" 2>/dev/null || true
+
+    return 0
 }

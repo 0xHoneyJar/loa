@@ -217,6 +217,10 @@ _parse_args() {
     mkdir -p "$EVIDENCE_DIR"
     _init_flight_recorder "$CYCLE_DIR"
 
+    # Export budget cap so _emit_dashboard_snapshot can compute remaining
+    # budget without re-reading config (#569 observability).
+    export SPIRAL_TOTAL_BUDGET="$TOTAL_BUDGET"
+
     _auto_escalate_profile "$TASK"
 
     # Signal to dispatch guard hook that harness is running (mechanical enforcement)
@@ -1093,13 +1097,16 @@ main() {
 
     _record_action "CONFIG" "spiral-harness" "profile" "" "" "" 0 0 0 \
         "profile=$PIPELINE_PROFILE gates=${FLATLINE_GATES:-none} advisor=$ADVISOR_MODEL"
+    _emit_dashboard_snapshot "START"
 
     # ── Phase 1: Discovery ──────────────────────────────────────────────
     log "Phase 1: DISCOVERY"
+    _emit_dashboard_snapshot "DISCOVERY"
     _phase_discovery || { error "Discovery failed"; exit 1; }
 
     # ── Gate 1: Flatline PRD (conditional) ──────────────────────────────
     if _should_run_flatline "prd"; then
+        _emit_dashboard_snapshot "FLATLINE_PRD"
         _run_gate "FLATLINE_PRD" _gate_flatline "prd" "grimoires/loa/prd.md" || exit 1
         prd_findings=$(_summarize_flatline "$EVIDENCE_DIR/flatline-prd.json")
     else
@@ -1109,10 +1116,12 @@ main() {
 
     # ── Phase 2: Architecture ───────────────────────────────────────────
     log "Phase 2: ARCHITECTURE"
+    _emit_dashboard_snapshot "ARCHITECTURE"
     _phase_architecture "$prd_findings" || { error "Architecture failed"; exit 1; }
 
     # ── Gate 2: Flatline SDD (conditional) ──────────────────────────────
     if _should_run_flatline "sdd"; then
+        _emit_dashboard_snapshot "FLATLINE_SDD"
         _run_gate "FLATLINE_SDD" _gate_flatline "sdd" "grimoires/loa/sdd.md" || exit 1
         sdd_findings=$(_summarize_flatline "$EVIDENCE_DIR/flatline-sdd.json")
     else
@@ -1122,6 +1131,7 @@ main() {
 
     # ── Phase 3: Planning ───────────────────────────────────────────────
     log "Phase 3: PLANNING"
+    _emit_dashboard_snapshot "PLANNING"
     _phase_planning "$sdd_findings" || { error "Planning failed"; exit 1; }
 
     # ── Gate 3: Flatline Sprint (conditional) ───────────────────────────
@@ -1141,6 +1151,7 @@ main() {
 
     # ── Phase 4: Implementation ─────────────────────────────────────────
     log "Phase 4: IMPLEMENTATION"
+    _emit_dashboard_snapshot "IMPLEMENT"
     _phase_implement || { error "Implementation failed"; exit 1; }
 
     # ── Post-implementation auto-escalation check ───────────────────────
