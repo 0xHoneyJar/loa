@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.101.0] — 2026-04-19 — Spiral SEED environment gate
+
+### Added
+
+- **`_pre_check_seed` environment-invariant gate** (#575 item 3, [PR #594](https://github.com/0xHoneyJar/loa/pull/594)) — Mirrors existing `_pre_check_implementation` / `_pre_check_review` which validate post-conditions for later phases. The SEED seam had no counterpart — environment invariants only surfaced mid-cycle as confusing `"grimoires/loa/prd.md not found"` errors AFTER discovery had already written to the wrong location. Empirical justification: cycle-084 CWD-mismatch (reviewer subprocess ran in `.loa/` submodule CWD instead of main repo).
+  - **Hard-fail checks**: CWD inside a git work tree, `grimoires/loa/` present from CWD (cycle-084 class), cycle dir (or parent if dir missing) writable.
+  - **Warn checks**: `$SEED_CONTEXT` path exists + readable + non-empty when set. Non-blocking by default.
+  - **Strict mode**: `SPIRAL_PRE_CHECK_SEED_STRICT=true` promotes warnings to errors (useful for CI).
+  - **Wire-up**: `spiral-harness.sh main()` invokes `_pre_check_seed "$CYCLE_DIR"` before Phase 1 Discovery. Failures `exit 1` with the specific FAIL reason on stderr — no silent fallthrough that would waste an LLM invocation.
+  - **Tests**: 14 new BATS (`tests/unit/spiral-pre-check-seed.bats`) covering happy path, each hard-fail class with specific messages, warn cases with non-blocking semantics, strict-mode promotion, trajectory recording, and edge cases.
+
 ## [1.99.2] — 2026-04-19 — Spiral SEED failure-ingestion
 
 ### Added
