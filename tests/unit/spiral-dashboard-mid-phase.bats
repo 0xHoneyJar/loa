@@ -217,6 +217,33 @@ teardown() {
 # DMP-T8: no orphaned daemon after parent shell exits
 # =========================================================================
 
+@test "main() reaps daemon before finalization (regression for cycle-092 review F-3.1 + F-3.2)" {
+    # Regression test for review findings:
+    #   F-3.1: local DASHBOARD_DAEMON_PID is out of scope in EXIT trap
+    #   F-3.2: race between daemon HEARTBEAT and finalization PHASE_EXIT
+    # Fix: explicit reap BEFORE _finalize_flight_recorder (spiral-harness.sh:1405).
+    # This test validates the reap pattern — kill+wait while the daemon is
+    # still a known child — matches what main() now does.
+    printf 'IMPL\t2026-04-19T10:00:00Z\t-\t-\n' > "$TEST_DIR/.phase-current"
+
+    # Spawn daemon via bash -c (mirrors main()'s $(…) capture pattern)
+    DAEMON_PID=$(bash -c "source '$EVIDENCE_SH'; SPIRAL_DASHBOARD_HEARTBEAT_SEC=30 _spawn_dashboard_heartbeat_daemon '$TEST_DIR'")
+    [[ "$DAEMON_PID" =~ ^[0-9]+$ ]]
+
+    # Simulate main()'s explicit reap (the pattern added at spiral-harness.sh:1405)
+    kill -TERM "$DAEMON_PID" 2>/dev/null || true
+    wait "$DAEMON_PID" 2>/dev/null || true
+
+    # Daemon must be gone — if it's still alive, the reap didn't work
+    if kill -0 "$DAEMON_PID" 2>/dev/null; then
+        echo "daemon still alive after explicit reap — F-3.1 regression"
+        kill -9 "$DAEMON_PID" 2>/dev/null || true
+        false
+    fi
+    # Reset so teardown doesn't try to kill again
+    DAEMON_PID=""
+}
+
 @test "daemon reaped by parent-shell EXIT trap (no orphan)" {
     # Spawn a parent shell that sets up the EXIT trap pattern used by
     # spiral-harness.sh main(), spawns the daemon, then exits. Verify

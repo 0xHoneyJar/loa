@@ -1402,6 +1402,17 @@ main() {
         '{cycle_cost_usd: $cost, profile: $profile, source: "flight_recorder"}' \
         > "$cost_tmp" && mv "$cost_tmp" "$cost_sidecar"
 
+    # cycle-092 Sprint 3 review F-3.1 + F-3.2: reap heartbeat daemon BEFORE
+    # finalization so (a) the kill actually fires while DASHBOARD_DAEMON_PID
+    # is still in scope (local vars are gone once main() returns and EXIT
+    # trap fires), (b) the daemon's next HEARTBEAT write can't race the
+    # PHASE_EXIT final write from _finalize_flight_recorder.
+    if [[ -n "$DASHBOARD_DAEMON_PID" ]]; then
+        kill -TERM "$DASHBOARD_DAEMON_PID" 2>/dev/null || true
+        wait "$DASHBOARD_DAEMON_PID" 2>/dev/null || true
+        DASHBOARD_DAEMON_PID=""
+    fi
+
     # ── Finalize ────────────────────────────────────────────────────────
     _finalize_flight_recorder "$CYCLE_DIR"
 
