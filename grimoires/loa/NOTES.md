@@ -1,5 +1,20 @@
 # Loa Project Notes
 
+## Decision Log — 2026-04-19 (cycle-092)
+
+### System Zone write authorization
+- **Scope**: `.claude/scripts/spiral-harness.sh`, `.claude/scripts/spiral-evidence.sh`, `.claude/scripts/spiral-simstim-dispatch.sh`, `.claude/hooks/hooks.yaml`, new `.claude/scripts/spiral-heartbeat.sh`
+- **Authorization trail**:
+  1. Issues #598, #599, #600 filed by @zkSoju explicitly target these spiral harness files as the subject of the bugs
+  2. Sprint plan (`grimoires/loa/sprint.md` lines 65-322) drafted 2026-04-19 enumerates these files as the subject of Sprints 1–4
+  3. User invoked `/run sprint-plan --allow-high` after reading the plan
+  4. Precedent: recent merges #588, #592, #594 modified the same files under the same pattern (cycle-level authorization via sprint plan + PR review)
+- **Why this satisfies zone-system.md "explicit cycle-level approval"**: In lieu of a formal PRD (this is bug-track work extracted from issue bodies per sprint.md Non-Goals §4), the sprint plan itself is the cycle-level approval artifact. The `--allow-high` invocation is the equivalent of PRD sign-off.
+- **How to apply**: Writes to these paths are authorized for cycle-092 only. Subsequent cycles must re-authorize via their own sprint plan.
+
+### Stale sprint artifact cleanup
+- Moved stale cycle-053 sprint-1/ → sprint-1-cycle-053; similarly sprint-2/3/4 preserved under dated names. Fresh sprint-N/ directories created for cycle-092 artifacts.
+
 ## Session Continuity — 2026-04-13 (cycles 052-054)
 
 ### Current state
