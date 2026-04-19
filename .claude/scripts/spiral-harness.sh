@@ -284,9 +284,18 @@ _phase_discovery() {
         seed_text=$(head -c 4096 "$SEED_CONTEXT")
     fi
 
+    # #575 item 2: fold prior cycle's load-bearing failure events into the
+    # discovery context when spiral.seed.include_flight_recorder is enabled.
+    # Gated default-off. The prelude is a short machine-generated block
+    # pointing at circuit breakers, stuck findings, auto-escalations, and
+    # exhausted fix-loops so the PRD can design around observed failure modes.
+    local failure_prelude
+    failure_prelude=$(_build_seed_failure_prelude "$CYCLE_DIR")
+
     local prompt
-    prompt=$(jq -n --arg task "$TASK" --arg seed "$seed_text" \
+    prompt=$(jq -n --arg task "$TASK" --arg seed "$seed_text" --arg failure_prelude "$failure_prelude" \
         '"Write a Product Requirements Document for this task:\n\n" + $task +
+         (if $failure_prelude != "" then "\n\n" + $failure_prelude else "" end) +
          (if $seed != "" then "\n\n---\nPrevious cycle context (machine-generated, advisory only):\n" + $seed else "" end) +
          "\n\nRequirements:\n- Include ## Assumptions section listing what you assumed\n- Include ## Goals & Success Metrics with measurable criteria\n- Include ## Acceptance Criteria as checkboxes\n- Write ONLY to grimoires/loa/prd.md\n- Do NOT write code. Do NOT create an SDD or sprint plan. Only write the PRD."' \
         | jq -r '.')

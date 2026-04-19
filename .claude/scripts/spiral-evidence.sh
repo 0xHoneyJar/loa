@@ -378,6 +378,158 @@ _finalize_flight_recorder() {
 }
 
 # =============================================================================
+# Prior Cycle Failure Summary (#575 item 2)
+# =============================================================================
+#
+# When a new spiral cycle starts, the previous cycle's flight-recorder.jsonl
+# contains load-bearing failure events (circuit breakers, stuck findings,
+# auto-escalations, exhausted fix-loops) that currently no downstream phase
+# reads. The operator would have to hand-curate these into the SEED. These
+# helpers extract and summarize them so the discovery phase can learn from
+# prior failure modes automatically.
+#
+# Feature flag: spiral.seed.include_flight_recorder (default false — safe
+# rollout; operators who want learning-across-cycles enable it explicitly).
+
+# _find_prior_cycle — locate the most recent cycle directory that ran before
+# the current one. Looks under .run/cycles/ and returns the lexicographically
+# previous entry. Returns empty if no prior cycle exists or the layout is
+# unexpected.
+_find_prior_cycle() {
+    local current_cycle_dir="$1"
+    local cycles_root
+    cycles_root="$(dirname "$current_cycle_dir")"
+
+    [[ ! -d "$cycles_root" ]] && { echo ""; return 0; }
+
+    local current_name
+    current_name="$(basename "$current_cycle_dir")"
+
+    # List sibling cycle dirs, sort lexicographically, pick the one before.
+    # Guard against directories that aren't actual cycles (no flight-recorder).
+    local prior=""
+    local prior_candidate
+    while IFS= read -r candidate; do
+        [[ -z "$candidate" ]] && continue
+        local cand_name
+        cand_name="$(basename "$candidate")"
+
+        # Skip the current cycle itself
+        [[ "$cand_name" == "$current_name" ]] && continue
+
+        # Only consider directories that have a flight-recorder (real cycles)
+        [[ ! -f "$candidate/flight-recorder.jsonl" ]] && continue
+
+        # Must sort before current_name (we want the predecessor)
+        [[ "$cand_name" < "$current_name" ]] || continue
+
+        prior_candidate="$candidate"
+        # Keep iterating — the last `prior_candidate` that's < current wins
+        # (dirs sorted ascending, so the last one before current is the
+        # immediate predecessor).
+        prior="$prior_candidate"
+    done < <(find "$cycles_root" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | sort)
+
+    echo "$prior"
+}
+
+# _summarize_prior_cycle_failures — scan a prior cycle's flight-recorder for
+# load-bearing failure events and emit a markdown summary suitable for
+# injection into discovery phase prompts.
+#
+# Events surfaced (load-bearing per #575):
+#   - CIRCUIT_BREAKER: gate tripped after MAX_RETRIES
+#   - BB_FINDING_STUCK: Bridgebuilder finding that can't be fixed
+#   - AUTO_ESCALATION: profile escalated mid-cycle (signals coverage gap)
+#   - REVIEW_FIX_LOOP_EXHAUSTED: fix-loop ran out of iterations
+#   - BUDGET (FAILED): budget exceeded
+#   - Any phase with verdict starting with "FAIL"
+#
+# Usage:
+#   _summarize_prior_cycle_failures <prior_cycle_dir>
+#
+# Emits markdown to stdout, or empty string if the prior cycle ran cleanly
+# (no load-bearing events found). Truncates output at ~2000 chars to avoid
+# inflating the discovery prompt.
+_summarize_prior_cycle_failures() {
+    local prior_cycle_dir="$1"
+
+    [[ -z "$prior_cycle_dir" || ! -d "$prior_cycle_dir" ]] && { echo ""; return 0; }
+
+    local fr="$prior_cycle_dir/flight-recorder.jsonl"
+    [[ ! -f "$fr" ]] && { echo ""; return 0; }
+
+    # Extract load-bearing events with verdict/action filtering.
+    # Using jq -s for streaming + array ops.
+    local events
+    events=$(jq -s -r '
+        def is_load_bearing:
+            (.phase // "") as $p
+            | (.action // "") as $a
+            | (.verdict // "") as $v
+            | ($p == "CIRCUIT_BREAKER")
+              or ($p | tostring | startswith("BB_FINDING_STUCK"))
+              or ($p | tostring | startswith("AUTO_ESCALATION"))
+              or ($p == "REVIEW_FIX_LOOP_EXHAUSTED")
+              or ($a == "CIRCUIT_BREAKER")
+              or ($p == "BUDGET" and ($v | tostring | startswith("FAIL")))
+              or (($v | tostring | startswith("FAIL")) and ($p != "BUDGET"));
+
+        [.[] | select(is_load_bearing)]
+        | if length == 0 then empty
+          else
+            "**Load-bearing events from prior cycle:**",
+            "",
+            (.[] | "- [\(.phase // "?")] \(.action // "?")\(if .verdict and (.verdict | tostring | length > 0) then " → \(.verdict)" else "" end)")
+          end
+    ' "$fr" 2>/dev/null || echo "")
+
+    # Truncate to avoid bloating discovery prompts
+    if [[ -n "$events" ]]; then
+        echo "$events" | head -c 2000
+    fi
+}
+
+# _build_seed_failure_prelude — if the feature is enabled and a prior cycle
+# exists, emits a full prelude block suitable for prepending to the SEED
+# context. Returns empty string when disabled or no prior data.
+#
+# Usage:
+#   _build_seed_failure_prelude <current_cycle_dir>
+_build_seed_failure_prelude() {
+    local current_cycle_dir="$1"
+
+    [[ -z "$current_cycle_dir" ]] && { echo ""; return 0; }
+
+    # Feature gate — default off for safe rollout. _read_harness_config is
+    # defined in spiral-harness.sh; check availability so spiral-evidence.sh
+    # can be sourced standalone (for tests) without a command-not-found error.
+    local include_fr
+    if declare -f _read_harness_config >/dev/null 2>&1; then
+        include_fr=$(_read_harness_config "spiral.seed.include_flight_recorder" "false" 2>/dev/null || echo "false")
+    else
+        include_fr="${SPIRAL_SEED_INCLUDE_FLIGHT_RECORDER:-false}"
+    fi
+    [[ "$include_fr" != "true" ]] && { echo ""; return 0; }
+
+    local prior_cycle
+    prior_cycle=$(_find_prior_cycle "$current_cycle_dir")
+    [[ -z "$prior_cycle" ]] && { echo ""; return 0; }
+
+    local summary
+    summary=$(_summarize_prior_cycle_failures "$prior_cycle")
+    [[ -z "$summary" ]] && { echo ""; return 0; }
+
+    # Wrap in a labeled block so the model knows what it's looking at
+    cat <<EOF
+---
+Prior cycle observability (from $(basename "$prior_cycle")):
+$summary
+---
+EOF
+}
+
+# =============================================================================
 # Observability Dashboard (#569)
 # =============================================================================
 #
