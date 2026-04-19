@@ -308,6 +308,13 @@ red_team:
   early_stopping:
     saturation_threshold: 0.8
     min_novel_per_iteration: 2
+  # #582: fail closed when the primary reviewer (Opus) scores a qualifying
+  # majority of attacks at 0 — signal that the domain extractor grounded
+  # poorly and the attacker model filled in from its prior rather than
+  # engaging the actual target document.
+  grounding_failure:
+    opus_zero_threshold: 0.8   # ≥80% of scored attacks at opus_score=0 trips the guard
+    min_attacks: 3             # small-N guard; don't trip on 1-2 attack runs
   safety:
     prohibited_content: true
     mandatory_redaction: true
