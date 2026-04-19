@@ -346,6 +346,7 @@ export function applyLoaTierExclusion(files, loaPatterns) {
 export const TOKEN_BUDGETS = {
     "claude-sonnet-4-6": { maxInput: 200_000, maxOutput: 8_192, coefficient: 0.25 },
     "claude-sonnet-4-5-20250929": { maxInput: 200_000, maxOutput: 8_192, coefficient: 0.25 },
+    "claude-opus-4-7": { maxInput: 200_000, maxOutput: 8_192, coefficient: 0.25 },
     "claude-opus-4-6": { maxInput: 200_000, maxOutput: 8_192, coefficient: 0.25 },
     "gpt-5.2": { maxInput: 128_000, maxOutput: 4_096, coefficient: 0.23 },
     default: { maxInput: 100_000, maxOutput: 4_096, coefficient: 0.25 },

@@ -131,7 +131,7 @@ export function validateApiKeys(config) {
 /** Built-in defaults per PRD FR-4 (lowest priority). */
 const DEFAULTS = {
     repos: [],
-    model: "claude-opus-4-6",
+    model: "claude-opus-4-7",
     maxPrs: 10,
     maxFilesPerPr: 50,
     maxDiffBytes: 512_000,

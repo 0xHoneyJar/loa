@@ -88,7 +88,7 @@ export declare class PRReviewTemplate {
      * Build convergence user prompt: PR metadata + diffs + findings-only format instructions.
      * Reuses the existing PR metadata/diff rendering but replaces the output format section (SDD 3.2).
      */
-    buildConvergenceUserPrompt(item: ReviewItem, truncated: TruncationResult): string;
+    buildConvergenceUserPrompt(item: ReviewItem, truncated: TruncationResult, crossRepoSection?: string): string;
     /**
      * Build convergence user prompt from progressive truncation result (SDD 3.2 + 3.7 binding).
      */
