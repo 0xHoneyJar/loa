@@ -206,7 +206,7 @@ Display: `[2/8] FLATLINE PRD - Multi-model adversarial review...`
 
 1. Run Flatline Protocol:
    ```bash
-   result=$(.claude/scripts/flatline-orchestrator.sh --doc grimoires/loa/prd.md --phase prd --mode hitl --json)
+   result=$(.claude/scripts/flatline-orchestrator.sh --doc grimoires/loa/prd.md --phase prd --json)
    ```
 
 2. Process results in HITL mode:
@@ -482,7 +482,7 @@ Display: `[4/8] FLATLINE SDD - Multi-model adversarial review...`
 
 Follow same HITL process as Phase 2, but for SDD:
 ```bash
-result=$(.claude/scripts/flatline-orchestrator.sh --doc grimoires/loa/sdd.md --phase sdd --mode hitl --json)
+result=$(.claude/scripts/flatline-orchestrator.sh --doc grimoires/loa/sdd.md --phase sdd --json)
 ```
 
 Process HIGH_CONSENSUS, DISPUTED, BLOCKER items as in Phase 2.
@@ -616,7 +616,7 @@ Display: `[6/8] FLATLINE SPRINT - Multi-model adversarial review...`
 
 Follow same HITL process as Phase 2, but for sprint plan:
 ```bash
-result=$(.claude/scripts/flatline-orchestrator.sh --doc grimoires/loa/sprint.md --phase sprint --mode hitl --json)
+result=$(.claude/scripts/flatline-orchestrator.sh --doc grimoires/loa/sprint.md --phase sprint --json)
 ```
 
 Process HIGH_CONSENSUS, DISPUTED, BLOCKER items as in Phase 2.

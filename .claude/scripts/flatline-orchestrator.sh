@@ -1279,7 +1279,7 @@ Required:
   --phase <type>         Phase type: prd, sdd, sprint, beads
 
 Options:
-  --mode <type>          Mode: review (default), red-team
+  --mode <type>          Mode: review (default), red-team, inquiry
   --domain <text>        Domain for knowledge retrieval (auto-extracted if not provided)
   --dry-run              Validate without executing reviews
   --skip-knowledge       Skip knowledge retrieval
@@ -1641,6 +1641,64 @@ main() {
                     cost_cents: $cost_cents
                 })
             }')
+
+        # #582: fail closed when primary reviewer rejects the whole attack set.
+        # If the red-team domain extractor grounds poorly, the secondary model
+        # generates off-target attacks that the primary scores 0 across the
+        # board. Detect that pattern and halt rather than returning noise.
+        local rtg_threshold rtg_min_attacks
+        rtg_threshold=$(yq -r '.red_team.grounding_failure.opus_zero_threshold // 0.8' "$CONFIG_FILE" 2>/dev/null || echo "0.8")
+        rtg_min_attacks=$(yq -r '.red_team.grounding_failure.min_attacks // 3' "$CONFIG_FILE" 2>/dev/null || echo "3")
+
+        local grounding_stats
+        grounding_stats=$(echo "$final_result" | jq -c --argjson threshold "$rtg_threshold" --argjson min "$rtg_min_attacks" '
+            def scored_attacks:
+                [ (.attacks.confirmed // [])[],
+                  (.attacks.theoretical // [])[],
+                  (.attacks.creative // [])[],
+                  (.attacks.defended // [])[]
+                ];
+            (scored_attacks) as $all
+            | ($all | length) as $total
+            | ([$all[] | select(.opus_score == 0 or .opus_score == "0")] | length) as $opus_zero
+            | (if $total > 0 then ($opus_zero / $total) else 0 end) as $ratio
+            | {
+                total: $total,
+                opus_zero: $opus_zero,
+                opus_zero_ratio: $ratio,
+                threshold: $threshold,
+                min_attacks: $min,
+                grounding_failure: ($total >= $min and $ratio >= $threshold)
+            }
+        ' 2>/dev/null || echo '{"grounding_failure":false}')
+
+        local grounding_failure
+        grounding_failure=$(echo "$grounding_stats" | jq -r '.grounding_failure // false')
+
+        if [[ "$grounding_failure" == "true" ]]; then
+            local gf_total gf_zero gf_ratio
+            gf_total=$(echo "$grounding_stats" | jq -r '.total')
+            gf_zero=$(echo "$grounding_stats" | jq -r '.opus_zero')
+            gf_ratio=$(echo "$grounding_stats" | jq -r '.opus_zero_ratio')
+
+            final_result=$(echo "$final_result" | jq --argjson stats "$grounding_stats" '
+                . + {
+                    grounding_failure: true,
+                    grounding_stats: $stats
+                }
+            ')
+
+            error "Red team grounding failure: $gf_zero/$gf_total attacks scored opus_score=0 (ratio $gf_ratio >= threshold $rtg_threshold)."
+            error "The primary reviewer found none of the attacks grounded in the target document."
+            error "Likely cause: domain extractor produced a weak domain string, and the attacker model generated off-target attacks from its prior."
+            error "Action: inspect '$doc' section headings and opening paragraph; re-run with --domain '<specific domain text>' to override extraction."
+            error "See GitHub issue #582 for context."
+
+            log_trajectory "grounding_failure" "$final_result"
+            echo "$final_result" | jq .
+            log "Red team HALTED (grounding failure). Run ID: $rt_run_id, Cost: $TOTAL_COST cents"
+            exit 3
+        fi
 
         # cycle-062 (#485): silent-no-op detection extension.
         if [[ "$detect_silent_noop" == "true" ]]; then
