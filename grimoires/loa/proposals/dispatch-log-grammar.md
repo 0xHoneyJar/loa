@@ -235,15 +235,34 @@ Pre-review artifact-coverage gate declared by Sprint 2 (#600). Emitted by `_pre_
 
 **Stability contract**: Both shapes are API-stable. Heartbeat emitters (#598 Sprint 4) read `impl-evidence-missing` payload via flight-recorder `verdict` field (format `FAIL:N_missing:path1,path2,...`) to surface `phase_verb=🔧 fixing intent="missing artifacts: ..."`. Monitors parsing the log line may assume comma-separated path list and stable preamble.
 
+### Dashboard events
+
+Sprint 3 (#599) extends `_emit_dashboard_snapshot` in `.claude/scripts/spiral-evidence.sh` to emit three distinct event types. The `event_type` field is an additive JSON key on existing `spiral.dashboard.v1` snapshots — pre-cycle-092 consumers ignore it cleanly. Schema version unchanged.
+
+| event_type | Emit site | Trigger | Purpose |
+|------------|-----------|---------|---------|
+| `PHASE_START` | spiral-harness.sh:main() at phase transition | synchronous, caller-driven | Phase entry marker; sets fresh first_ts; default when `event_type` arg unspecified |
+| `PHASE_HEARTBEAT` | `_spawn_dashboard_heartbeat_daemon` background loop | every `SPIRAL_DASHBOARD_HEARTBEAT_SEC` (default 60, clamped [30, 300]) | Mid-phase observability; updates `last_action_ts` and running `cost_usd` from flight-recorder tail so `dashboard-latest.json` doesn't freeze during long phases (cycle-091 scenario) |
+| `PHASE_EXIT` | `_finalize_flight_recorder` at harness exit | once per cycle | Authoritative final totals; closes the dashboard.jsonl rolling journal |
+
+**Daemon lifecycle**: `_spawn_dashboard_heartbeat_daemon $CYCLE_DIR` returns a PID. The harness EXIT trap (spiral-harness.sh:1207) kills the PID on any exit path so no orphaned daemon remains after the cycle. Daemon reads `$CYCLE_DIR/.phase-current` (Sprint 1) as truth source — if the file is absent, daemon exits cleanly (harness is idle or done). Staleness guard: if `.phase-current` mtime is older than `SPIRAL_DASHBOARD_STALE_SEC` (default 1800s), daemon skips the emit (phase suspected-stuck; Sprint 4 heartbeat handles the `🔴 stuck` signal).
+
+**Line-shape addition** (Sprint 3, declared):
+
+| Shape | Line / site | Regex | Stability | Example |
+|-------|-------------|-------|-----------|---------|
+| `phase-current-cleared` | EXIT trap at `spiral-harness.sh:1207` — fires once per cycle exit | `^\[harness\] \.phase-current cleared$` | API | `[harness] .phase-current cleared` |
+
+Consumers (e.g., Sprint 4 heartbeat monitor) can use this line as the terminal-state signal that the harness has fully exited and observability state files will not update further.
+
 ## Reserved shapes
 
-Two shapes reserved by Sprint 1 for Sprints 3/4. The downstream sprint owns the emit site; the grammar spec reserves the name + shape to prevent divergence.
+Two shapes reserved by Sprint 1 for Sprint 4. (`phase-current-cleared` was promoted to declared by Sprint 3 — see §Dashboard events above.)
 
 | Shape | Sprint | Line (proposed) | Regex | Stability | Example |
 |-------|--------|-----------------|-------|-----------|---------|
 | `phase-heartbeat-emitted` | 4 (#598) | Sprint 4 `spiral-heartbeat.sh` | `^\[HEARTBEAT [^\]]+\] phase=\S+ phase_verb=\S+ .+$` | reserved → API | `[HEARTBEAT 2026-04-19T07:22:00Z] phase=REVIEW phase_verb=reviewing phase_elapsed_sec=180 total_elapsed_sec=3900 cost_usd=70.00 budget_usd=80 files=44 ins=7696 del=4882 activity=quiet confidence=attempt_2_of_3 pace=on_pace` |
 | `phase-intent-change` | 4 (#598) | Sprint 4 `spiral-heartbeat.sh`, fires on phase boundary | `^\[INTENT [^\]]+\] phase=\S+ intent="[^"]+" source=\S+$` | reserved → API | `[INTENT 2026-04-19T07:22:00Z] phase=REVIEW intent="checking amendment compliance against the implementation" source=grimoires/loa/a2a/engineer-feedback.md` |
-| `phase-current-cleared` | 3 (#599) | EXIT trap in spiral-harness.sh main() | `^\[harness\] .phase-current cleared$` | reserved → internal | `[harness] .phase-current cleared` |
 
 ## Grammar extension policy
 

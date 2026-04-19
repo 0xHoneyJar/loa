@@ -798,7 +798,7 @@ _finalize_flight_recorder() {
 
     # Final dashboard snapshot so external consumers see the complete picture
     # without needing a live harness process.
-    _emit_dashboard_snapshot "FINALIZED" "$cycle_dir"
+    _emit_dashboard_snapshot "FINALIZED" "PHASE_EXIT" "$cycle_dir"
 }
 
 # =============================================================================
@@ -963,11 +963,18 @@ EOF
 # dashboard-latest.json (cheap read for /spiral --status consumers).
 #
 # Usage:
-#   _emit_dashboard_snapshot <current_phase> [cycle_dir]
+#   _emit_dashboard_snapshot <current_phase> [event_type] [cycle_dir]
 #
 # - current_phase is a string like "IMPLEMENT" or "FLATLINE_PRD". Appears in
 #   the snapshot so readers know what was active when the snapshot was taken.
+# - event_type (cycle-092 Sprint 3, #599): PHASE_START | PHASE_HEARTBEAT |
+#   PHASE_EXIT. Additive JSON field, defaults to PHASE_START. Lets consumers
+#   distinguish mid-phase heartbeats from phase-entry/phase-exit writes.
 # - cycle_dir defaults to the dirname of $_FLIGHT_RECORDER.
+#
+# Backward compatibility: existing 2-arg callers `_emit_dashboard_snapshot
+# <phase> <cycle_dir>` must be migrated to 3-arg form. A legacy-detection
+# fallback treats arg 2 as cycle_dir if it contains `/` (path-like).
 #
 # Environment:
 #   SPIRAL_TOTAL_BUDGET — if exported by the caller (spiral-harness main()
@@ -978,7 +985,19 @@ EOF
 
 _emit_dashboard_snapshot() {
     local current_phase="${1:-}"
-    local cycle_dir="${2:-}"
+    local event_type="${2:-PHASE_START}"
+    local cycle_dir="${3:-}"
+
+    # Legacy 2-arg form: `_emit_dashboard_snapshot <phase> <cycle_dir>`.
+    # Detect by checking if arg 2 is a path (contains `/`) and not a known
+    # event_type keyword. This keeps pre-cycle-092 callers working.
+    case "$event_type" in
+        PHASE_START|PHASE_HEARTBEAT|PHASE_EXIT) ;;
+        */*|*.*)
+            cycle_dir="$event_type"
+            event_type="PHASE_START"
+            ;;
+    esac
 
     [[ -z "$_FLIGHT_RECORDER" || ! -f "$_FLIGHT_RECORDER" ]] && return 0
 
@@ -1003,6 +1022,7 @@ _emit_dashboard_snapshot() {
     snapshot=$(jq -s -c \
         --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
         --arg current_phase "$current_phase" \
+        --arg event_type "$event_type" \
         --argjson budget_cap "$budget_cap" \
         '
         def safe_sum(path): [.[] | path // 0] | add // 0;
@@ -1036,6 +1056,7 @@ _emit_dashboard_snapshot() {
             schema: "spiral.dashboard.v1",
             ts: $ts,
             current_phase: (if $current_phase == "" then null else $current_phase end),
+            event_type: $event_type,
             totals: {
                 actions: $total_actions,
                 failures: $total_failures,
@@ -1063,4 +1084,91 @@ _emit_dashboard_snapshot() {
         mv "${dashboard_latest}.tmp" "$dashboard_latest" 2>/dev/null || true
 
     return 0
+}
+
+# =============================================================================
+# Dashboard Mid-Phase Heartbeat Daemon (cycle-092 Sprint 3 — #599)
+# =============================================================================
+#
+# Spawns a background process that emits PHASE_HEARTBEAT dashboard snapshots
+# on a configurable interval while the harness is running. Reads
+# $cycle_dir/.phase-current (Sprint 1 state file) as the truth source for
+# "what phase now?". Daemon dies on SIGTERM/SIGINT (EXIT trap in harness
+# main() sends SIGTERM at pipeline exit).
+#
+# Fixes the cycle-091 observed regression: dashboard-latest.json froze at
+# PRE_CHECK's $15 during the 36-min IMPL phase because phase-EXIT was the
+# only write site.
+#
+# Usage:
+#   daemon_pid=$(_spawn_dashboard_heartbeat_daemon "$cycle_dir" [interval_sec])
+#
+# Env overrides:
+#   SPIRAL_DASHBOARD_HEARTBEAT_SEC  [60]   — default interval, clamped [30,300]
+#   SPIRAL_DASHBOARD_STALE_SEC      [1800] — if .phase-current mtime older
+#                                             than this, daemon skips the
+#                                             emit (suspected-stuck phase)
+
+_spawn_dashboard_heartbeat_daemon() {
+    local cycle_dir="${1:-}"
+    local interval_sec="${2:-${SPIRAL_DASHBOARD_HEARTBEAT_SEC:-60}}"
+    local stale_sec="${SPIRAL_DASHBOARD_STALE_SEC:-1800}"
+
+    [[ -z "$cycle_dir" ]] && return 1
+    [[ ! -d "$cycle_dir" ]] && return 1
+
+    # Clamp interval to [30, 300]. Non-numeric falls back to 60.
+    if ! [[ "$interval_sec" =~ ^[0-9]+$ ]]; then
+        interval_sec=60
+    fi
+    if (( interval_sec < 30 )); then
+        interval_sec=30
+    elif (( interval_sec > 300 )); then
+        interval_sec=300
+    fi
+
+    # Backgrounded while-loop. Inherits _FLIGHT_RECORDER and function defs
+    # from parent shell. Sleep-first so PHASE_START (emitted by main() before
+    # spawn completes) isn't immediately clobbered.
+    # Signal responsiveness: `sleep & wait` pattern so SIGTERM interrupts
+    # the sleep immediately instead of waiting up to interval_sec for the
+    # next loop iteration.
+    (
+        trap 'kill $SLEEP_PID 2>/dev/null; exit 0' TERM INT
+        SLEEP_PID=""
+        while true; do
+            sleep "$interval_sec" &
+            SLEEP_PID=$!
+            wait "$SLEEP_PID" 2>/dev/null || true
+            SLEEP_PID=""
+            # Read .phase-current — if absent, harness is idle or exited.
+            # Exit cleanly (daemon has no work to do).
+            if [[ ! -f "$cycle_dir/.phase-current" ]]; then
+                exit 0
+            fi
+            # mtime staleness check — if .phase-current hasn't been touched
+            # in stale_sec, phase is suspected stuck. Skip emit (the Sprint 4
+            # heartbeat surface handles "stuck" signaling separately).
+            local mtime now age
+            mtime=$(stat -c %Y "$cycle_dir/.phase-current" 2>/dev/null || \
+                    stat -f %m "$cycle_dir/.phase-current" 2>/dev/null || echo 0)
+            now=$(date +%s)
+            age=$((now - mtime))
+            if (( age > stale_sec )); then
+                continue
+            fi
+            # Extract phase_label (first tab-separated field) and emit.
+            local phase_label
+            phase_label=$(awk -F'\t' '{print $1; exit}' \
+                          "$cycle_dir/.phase-current" 2>/dev/null)
+            if [[ -n "$phase_label" ]]; then
+                _emit_dashboard_snapshot "$phase_label" "PHASE_HEARTBEAT" \
+                    "$cycle_dir" 2>/dev/null || true
+            fi
+        done
+    ) </dev/null >/dev/null 2>&1 &
+    # Note: stdin/stdout/stderr all redirected so `$(_spawn_...)` command
+    # substitution in callers returns immediately rather than waiting for
+    # the backgrounded subshell to finish. Return daemon PID via this echo.
+    echo "$!"
 }

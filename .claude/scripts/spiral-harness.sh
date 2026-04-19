@@ -1204,14 +1204,29 @@ main() {
     # cycle-092 Sprint 1 (#599): clear .phase-current on any exit path (success,
     # failure, crash) so external monitors never observe a stale "in-flight" file
     # after the harness is gone. Log via harness log() for grammar compliance.
-    trap '_phase_current_clear "${CYCLE_DIR:-}" 2>/dev/null; log ".phase-current cleared"' EXIT
+    # cycle-092 Sprint 3 (#599) extension: reap the dashboard heartbeat daemon
+    # so long-running background processes don't leak into the operator shell.
+    trap '_phase_current_clear "${CYCLE_DIR:-}" 2>/dev/null; \
+          [[ -n "${DASHBOARD_DAEMON_PID:-}" ]] && kill -TERM "$DASHBOARD_DAEMON_PID" 2>/dev/null; \
+          log ".phase-current cleared"' EXIT
 
     local pr_url=""
     local prd_findings="" sdd_findings=""
+    local DASHBOARD_DAEMON_PID=""
 
     _record_action "CONFIG" "spiral-harness" "profile" "" "" "" 0 0 0 \
         "profile=$PIPELINE_PROFILE gates=${FLATLINE_GATES:-none} advisor=$ADVISOR_MODEL"
-    _emit_dashboard_snapshot "START"
+
+    # cycle-092 Sprint 3 (#599): spawn dashboard heartbeat daemon so
+    # dashboard-latest.json stays fresh during long phases (IMPL especially).
+    # Daemon polls .phase-current every SPIRAL_DASHBOARD_HEARTBEAT_SEC (default
+    # 60, clamped [30, 300]) and emits PHASE_HEARTBEAT snapshots. Reaped by
+    # EXIT trap above.
+    DASHBOARD_DAEMON_PID=$(_spawn_dashboard_heartbeat_daemon "$CYCLE_DIR" 2>/dev/null || echo "")
+    [[ -n "$DASHBOARD_DAEMON_PID" ]] && \
+        _record_action "DASHBOARD_DAEMON" "spiral-harness" "spawned" "" "" "" 0 0 0 "pid=$DASHBOARD_DAEMON_PID"
+
+    _emit_dashboard_snapshot "START" "PHASE_START"
 
     # ── Pre-check: SEED environment invariants (#575 item 3) ────────────
     # Catches cycle-084 class defects (wrong CWD, unwritable cycle dir,
