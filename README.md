@@ -157,6 +157,8 @@ Quality gates are **evidence-gated**: a bash orchestrator sequences phases as se
 
 **Cost optimization**: Sonnet handles planning and implementation (~5x cheaper tokens), Opus handles review and audit (judgment quality). [Benchmarked](grimoires/loa/reports/spiral-harness-benchmark-report.md) at equivalent output quality across both models. Default budget: $15/cycle.
 
+**Kaironic termination**: unlike most agentic pipelines that only stop when wall-clock caps fire (budget / max iterations / timeout), the spiral observes its own findings-rate and halts on `flatline_convergence` — 2 consecutive cycles producing < 3 new findings each. The loop decides "we've reached a plateau" and terminates *before* exhausting budget. Second-order cybernetic convergence; see `.claude/skills/spiraling/SKILL.md` for the distinction between chronos (wall-clock) and kairos (signal-exhaustion) stopping conditions.
+
 ```yaml
 # .loa.config.yaml — enable the spiral
 spiral:
