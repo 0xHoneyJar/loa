@@ -106,6 +106,25 @@ teardown() {
     [ "$status" -eq 1 ]
 }
 
+# cycle-092 Sprint 1 review F-3: phase_label input validation
+@test "write rejects phase_label containing tab (prevents field corruption)" {
+    run bash -c "
+        source '$EVIDENCE_SH'
+        _phase_current_write '$TEST_DIR' \$'REVIEW\tMALICIOUS' '1' '-'
+    "
+    [ "$status" -eq 1 ]
+    [[ ! -f "$TEST_DIR/.phase-current" ]]
+}
+
+@test "write rejects phase_label containing newline (prevents single-line break)" {
+    run bash -c "
+        source '$EVIDENCE_SH'
+        _phase_current_write '$TEST_DIR' \$'REVIEW\nEXTRA_LINE' '1' '-'
+    "
+    [ "$status" -eq 1 ]
+    [[ ! -f "$TEST_DIR/.phase-current" ]]
+}
+
 # =========================================================================
 # PC-T2: _phase_current_touch — sub-state updates
 # =========================================================================

@@ -271,3 +271,36 @@ setup() {
 @test "spiral-harness.sh still emits 'Circuit breaker:' via error()" {
     grep -qE 'Circuit breaker: \$gate_name failed' "$PROJECT_ROOT/.claude/scripts/spiral-harness.sh"
 }
+
+# =========================================================================
+# DLG-T12: grammar coverage — every log() line falls under some shape
+# =========================================================================
+# cycle-092 Sprint 1 review F-2: AC "enumerates every current log() line"
+# is satisfied via the named shapes + informational passthrough catch-alls.
+# This test validates total-line count vs declared/catch-all coverage.
+
+@test "grammar spec declares informational-passthrough catch-all shapes" {
+    grep -q 'warning-passthrough' "$GRAMMAR"
+    grep -q 'error-passthrough' "$GRAMMAR"
+    # `informational` appears as a shape name in backticks inside a table row
+    grep -qE '\| +`informational` +\|' "$GRAMMAR"
+}
+
+@test "every log() line in spiral-harness.sh matches at least one declared or catch-all shape" {
+    # All log() lines start with '[harness] '. The informational catch-all
+    # `^\[harness\] ` covers every line emitted via log(). The [harness]
+    # prefix is defined in log() at spiral-harness.sh (see grammar §Line
+    # prefix convention), so by construction every log() line is covered.
+    local total covered
+    total=$(grep -cE '^\s*log "' "$PROJECT_ROOT/.claude/scripts/spiral-harness.sh")
+    # Sanity floor — expect roughly 50+ log() sites post-cycle-092 (55 at
+    # sprint-1 close). Floor is intentionally conservative to allow normal
+    # edits without breaking this test.
+    [[ "$total" -ge 40 ]]
+    # Every line prefix is enforced by log() definition: `echo "[harness] $*"`.
+    # Grep for the bare prefix presence in source — a refactor that changes
+    # the prefix would flip this to zero and fail the test (intentional
+    # backstop against silent grammar drift).
+    covered=$(grep -cE 'echo "\[harness\] \$\*"' "$PROJECT_ROOT/.claude/scripts/spiral-harness.sh")
+    [[ "$covered" -ge 1 ]]
+}

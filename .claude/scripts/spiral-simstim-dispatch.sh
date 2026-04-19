@@ -166,8 +166,14 @@ local_exit=0
 pr_url=""
 
 # cycle-092 Sprint 1 (#598/#599): dispatch log migrated from harness-stderr.log
-# to dispatch.log. Compat symlink created for one cycle so external monitors
-# still watching the old path don't silently break — drop in cycle-094.
+# to dispatch.log. Compat symlink created BEFORE harness invocation so external
+# monitors polling harness-stderr.log see a valid path throughout the run
+# (symlinks to not-yet-created targets are valid — the file appears at the
+# target as the harness writes via 2>$cycle_dir/dispatch.log). Best effort —
+# on filesystems without symlink support, this is a silent no-op (the
+# redirection below is authoritative). Drop this compat in cycle-094.
+ln -sf dispatch.log "$cycle_dir/harness-stderr.log" 2>/dev/null || true
+
 harness_output=$("$SCRIPT_DIR/spiral-harness.sh" \
     --task "$task" \
     --cycle-dir "$cycle_dir" \
@@ -176,12 +182,6 @@ harness_output=$("$SCRIPT_DIR/spiral-harness.sh" \
     --budget "$local_budget" \
     ${seed_context:+--seed-context "$seed_context"} \
     2>"$cycle_dir/dispatch.log") || local_exit=$?
-
-# Compat symlink: operators running monitors against harness-stderr.log during
-# the cycle-092 transition window get a functional path. Best effort — on
-# filesystems without symlink support, this is a silent no-op (the redirection
-# above is authoritative).
-ln -sf dispatch.log "$cycle_dir/harness-stderr.log" 2>/dev/null || true
 
 # PR URL is the last line of harness stdout
 if [[ -n "$harness_output" ]]; then

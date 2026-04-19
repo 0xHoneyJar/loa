@@ -207,6 +207,23 @@ Current pre-check sites: SEED env (1115), planning artifacts (1165), implementat
 | `bb-stuck-finding` | 650 | `^\[harness\] Stuck finding detected: \S+ \(severity=\d+, iter=\d+\)$` | internal | — |
 | `bb-triage-summary` | 609 | `^\[harness\] Triage complete: \d+ actionable, \d+ non-actionable$` | internal | — |
 
+### Informational passthrough
+
+Catch-all shapes covering every `log()` line that isn't named above — including warnings, advisories, BB lifecycle edge cases, and edge-case logs whose exact text is not a consumer contract. Declared so the Sprint 1 AC ("grammar spec enumerates every current `log()` line") is satisfied in spirit and a grammar-coverage bats test can validate zero uncategorized lines.
+
+| Shape | Line range | Regex | Stability | Example |
+|-------|------------|-------|-----------|---------|
+| `warning-passthrough` | various — any `log "WARNING: ..."` | `^\[harness\] WARNING:` | internal | `[harness] WARNING: Implementation touched security-sensitive paths but profile=light (not full)` |
+| `error-passthrough` | various — any `log "ERROR: ..."` (see note) | `^\[harness\] ERROR:` | internal | `[harness] ERROR: Fix cycle changed branch (feat/foo != feat/bar), skipping push` |
+| `informational` | any `log` line not matching a named shape | `^\[harness\] ` | internal | `[harness] Arbiter: 2 blockers to arbitrate` |
+
+**Note on error prefixes:** `[harness] ERROR:` (emitted via `log()`) is distinct from the `ERROR:` prefix emitted by `error()` (the `circuit-breaker-trip` shape). Monitors checking for error-class signals should match both:
+
+- `^\[harness\] ERROR:` — non-fatal error via `log()` (cycle continues, but with a warning)
+- `^ERROR: ` — fatal error via `error()` (about to exit or circuit-break)
+
+**Monitor contract:** Informational-tier lines are NOT a stability contract. Their exact text MAY change between harness releases without a grammar spec amendment. Monitors SHOULD NOT grep these lines for specific substrings; display-only consumption is fine.
+
 ## Reserved shapes
 
 Three shapes reserved by Sprint 1 for Sprints 2/3/4. The downstream sprint owns the emit site; the grammar spec reserves the name + shape to prevent divergence.

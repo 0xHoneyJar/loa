@@ -1125,7 +1125,7 @@ main() {
     # cycle-092 Sprint 1 (#599): clear .phase-current on any exit path (success,
     # failure, crash) so external monitors never observe a stale "in-flight" file
     # after the harness is gone. Log via harness log() for grammar compliance.
-    trap '_phase_current_clear "$CYCLE_DIR" 2>/dev/null; log ".phase-current cleared"' EXIT
+    trap '_phase_current_clear "${CYCLE_DIR:-}" 2>/dev/null; log ".phase-current cleared"' EXIT
 
     local pr_url=""
     local prd_findings="" sdd_findings=""

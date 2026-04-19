@@ -492,6 +492,11 @@ _phase_current_write() {
     local attempt_num="${3:-}"
     local fix_iter="${4:-}"
     [[ -z "$cycle_dir" || -z "$phase_label" ]] && return 1
+    # cycle-092 Sprint 1 review F-3: reject phase_label containing tab or
+    # newline — the file format is tab-separated single-line, and corrupting
+    # either would silently break downstream IFS=$'\t' read parsers in the
+    # heartbeat (#598) and dashboard (#599) consumers.
+    [[ "$phase_label" == *$'\t'* || "$phase_label" == *$'\n'* ]] && return 1
     [[ ! -d "$cycle_dir" ]] && return 1
     [[ -w "$cycle_dir" ]] || return 1
 
@@ -527,6 +532,10 @@ _phase_current_touch() {
 
     local phase_label start_ts old_attempt old_fix_iter
     IFS=$'\t' read -r phase_label start_ts old_attempt old_fix_iter < "$file" 2>/dev/null || return 1
+    # cycle-092 Sprint 1 review F-3: if the file already contains a corrupted
+    # phase_label (tab/newline injected by a bypass of _phase_current_write's
+    # validation), refuse to re-write — fail loud instead of propagating.
+    [[ "$phase_label" == *$'\t'* || "$phase_label" == *$'\n'* ]] && return 1
 
     local attempt_out="${new_attempt:-$old_attempt}"
     local fix_out="${new_fix_iter:-$old_fix_iter}"
