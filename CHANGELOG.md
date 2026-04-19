@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.99.0] — 2026-04-19 — Spiral observability dashboard
+
+### Added
+
+- **Spiral observability dashboard — default-on metrics emission** (#569, [PR #589](https://github.com/0xHoneyJar/loa/pull/589)) — Closes the observability gap surfaced by @zkSoju during a live cycle-084 run. Until now, operators had to stand up ad-hoc Monitor wrappers mid-cycle to watch phase transitions, cost, and budget pressure. The flight-recorder exposed raw events; no aggregated view existed.
+  - **`_emit_dashboard_snapshot(current_phase, cycle_dir)`** in `spiral-evidence.sh` aggregates `flight-recorder.jsonl` into operator-friendly snapshots. Appends to `<cycle-dir>/dashboard.jsonl` (append-only journal) and overwrites `<cycle-dir>/dashboard-latest.json` (cheap read pointer).
+  - **Automatic emission at each phase boundary** in `spiral-harness.sh` (START / DISCOVERY / FLATLINE_PRD / ARCHITECTURE / FLATLINE_SDD / PLANNING / IMPLEMENT / FINALIZED). No flag needed — default-on per issue request.
+  - **Schema `spiral.dashboard.v1`** with totals (actions, failures, cost_usd, duration_ms, budget_cap_usd, budget_remaining_usd, fix_loop_events, bb_fix_cycles, circuit_breaks, first/last_action_ts) and per_phase rollup (actions, duration_ms, bytes, cost_usd, failures, first/last_ts grouped by phase).
+  - **`SPIRAL_TOTAL_BUDGET`** exported from harness `main()` so snapshots compute budget remaining without re-reading config.
+  - **`cmd_status` enhanced**: `--json` merges dashboard into state output as `.dashboard`; pretty mode renders "Metrics" block + "Per-phase" table below the existing state/phase/cycle summary.
+  - **Fail-safe**: swallows errors (jq / shell failures cannot break the pipeline); no-op when flight recorder unset or cycle_dir missing.
+  - **Tests**: 18 new BATS tests (`tests/unit/spiral-dashboard.bats`) covering snapshot structure, totals rollup math, budget computation (including non-numeric `SPIRAL_TOTAL_BUDGET` defaulting to 0), per-phase grouping, fix-loop + BB-cycle counters, append-only journal + overwrite-pointer behavior, and `cmd_status --json` integration.
+  - **Deferred** (tracked as follow-ups): context-size-per-phase instrumentation (requires `claude -p` hooks), regression fixtures (known SEED → known cycle outcome, CI-enforced), external sinks (Grafana/Honeycomb/OTEL — hook points exist via `dashboard.jsonl` consumption), background per-N-seconds emission (phase-boundary covers the observable moments).
+
+## [1.98.0] — 2026-04-19 — Bridgebuilder persona discovery + resolution trace
+
+### Added
+
+- **Persona discovery + resolution trace CLI flags** (#396, [PR #588](https://github.com/0xHoneyJar/loa/pull/588)) — Closes the primary DX friction points around Bridgebuilder personas. Previously, operators had no way to list available packs without browsing the filesystem, and the 5-level resolution cascade (CLI flag > config name > config path > repo override > built-in default) was invisible — "which persona is actually active?" required guessing.
+  - **`--list-personas`** — lists built-in packs with H1 titles extracted from each persona file (parses YAML frontmatter, reads first `#` heading), then exits before config resolution so it works even with a broken config.
+  - **`--show-persona-resolution`** — traces the 5-level cascade showing `[active]` (winning level), `[shadow]` (provided but a higher level won), `[skip]` (not provided), or `[missing]` (provided but file not found). Makes the previously-silent Level 4 (repo override) fallthrough visible.
+  - **`readPersonaTitle(name)`**, **`traceResolution(config)`**, **`formatResolutionTrace(steps)`** — exported from `main.ts` so tests and downstream tooling can inspect without invoking the CLI.
+  - **Tests**: 14 new Jest tests (617 → 631 total) covering title extraction with frontmatter stripping, state matrix across L1/L3/L4/L5 (skip/active/shadow/missing), and trace rendering markers.
+  - **Not in scope** (per #396 scope split; follow-ups): warn-instead-of-throw on `persona_path` miss (Level 3 already throws with a clear message; Level 4's silent fallthrough is now visible via `--show-persona-resolution`); run-bridge persona inheritance from bridgebuilder config (separate config refactor).
+
 ## [1.97.1] — 2026-04-19 — Bridgebuilder OpenAI codex routing fix
 
 ### Fixed
