@@ -171,6 +171,44 @@ strip_markdown_json() {
     '
 }
 
+# #582: compute grounding-failure stats from a red-team result JSON.
+#
+# Pure function — no side effects, no exits. Takes the red-team final_result
+# on stdin and emits `{total, opus_zero, opus_zero_ratio, threshold,
+# min_attacks, grounding_failure}` on stdout. Callers interpret the
+# `grounding_failure` boolean to decide whether to halt.
+#
+# Exposed as a function (not inline) so BATS can exercise the runtime
+# exit behavior against known fixtures — addresses Gemini's PR #583
+# review finding M001 ("exit 3 is grep-verified, not runtime-verified").
+#
+# Usage: echo "$final_result_json" | compute_grounding_stats <threshold> <min_attacks>
+compute_grounding_stats() {
+    local threshold="${1:-0.8}"
+    local min_attacks="${2:-3}"
+
+    jq -c --argjson threshold "$threshold" --argjson min "$min_attacks" '
+        def scored_attacks:
+            [ (.attacks.confirmed // [])[],
+              (.attacks.theoretical // [])[],
+              (.attacks.creative // [])[],
+              (.attacks.defended // [])[]
+            ];
+        (scored_attacks) as $all
+        | ($all | length) as $total
+        | ([$all[] | select(.opus_score == 0 or .opus_score == "0")] | length) as $opus_zero
+        | (if $total > 0 then ($opus_zero / $total) else 0 end) as $ratio
+        | {
+            total: $total,
+            opus_zero: $opus_zero,
+            opus_zero_ratio: $ratio,
+            threshold: $threshold,
+            min_attacks: $min,
+            grounding_failure: ($total >= $min and $ratio >= $threshold)
+        }
+    ' 2>/dev/null || echo '{"grounding_failure":false}'
+}
+
 # Extract and parse JSON content from model response
 # Uses centralized normalize_json_response() from lib/normalize-json.sh
 extract_json_content() {
@@ -1651,26 +1689,7 @@ main() {
         rtg_min_attacks=$(yq -r '.red_team.grounding_failure.min_attacks // 3' "$CONFIG_FILE" 2>/dev/null || echo "3")
 
         local grounding_stats
-        grounding_stats=$(echo "$final_result" | jq -c --argjson threshold "$rtg_threshold" --argjson min "$rtg_min_attacks" '
-            def scored_attacks:
-                [ (.attacks.confirmed // [])[],
-                  (.attacks.theoretical // [])[],
-                  (.attacks.creative // [])[],
-                  (.attacks.defended // [])[]
-                ];
-            (scored_attacks) as $all
-            | ($all | length) as $total
-            | ([$all[] | select(.opus_score == 0 or .opus_score == "0")] | length) as $opus_zero
-            | (if $total > 0 then ($opus_zero / $total) else 0 end) as $ratio
-            | {
-                total: $total,
-                opus_zero: $opus_zero,
-                opus_zero_ratio: $ratio,
-                threshold: $threshold,
-                min_attacks: $min,
-                grounding_failure: ($total >= $min and $ratio >= $threshold)
-            }
-        ' 2>/dev/null || echo '{"grounding_failure":false}')
+        grounding_stats=$(echo "$final_result" | compute_grounding_stats "$rtg_threshold" "$rtg_min_attacks")
 
         local grounding_failure
         grounding_failure=$(echo "$grounding_stats" | jq -r '.grounding_failure // false')
@@ -2080,4 +2099,7 @@ main() {
     log "Flatline Protocol complete. Cost: $TOTAL_COST cents, Latency: ${total_latency_ms}ms"
 }
 
-main "$@"
+# Only invoke main when executed directly; sourcing exposes functions for tests.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi
