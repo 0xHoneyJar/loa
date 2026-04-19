@@ -159,11 +159,15 @@ _confidence_cue() {
 
 _heartbeat_intent_source() {
     local phase="${1:-}"
+    # cycle-092 Sprint 4 review F-4.2: anchor to $PROJECT_ROOT (set by
+    # spiral-harness.sh's bootstrap.sh) so daemon works regardless of CWD.
+    # Fall back to "." for library-mode callers that don't set PROJECT_ROOT.
+    local root="${PROJECT_ROOT:-.}"
     case "$phase" in
         IMPLEMENT|IMPLEMENTATION|IMPL_FIX|*fix*)
-            echo "grimoires/loa/a2a/engineer-feedback.md" ;;
+            echo "$root/grimoires/loa/a2a/engineer-feedback.md" ;;
         AUDIT)
-            echo "grimoires/loa/a2a/auditor-sprint-feedback.md" ;;
+            echo "$root/grimoires/loa/a2a/auditor-sprint-feedback.md" ;;
         *)
             echo "" ;;   # static string below — no file source
     esac
@@ -219,6 +223,11 @@ _heartbeat_intent_text() {
             # Strip newlines + tabs per security note in sprint.md §Risks
             line="${line//$'\n'/ }"
             line="${line//$'\t'/ }"
+            # cycle-092 Sprint 4 review F-4.1: strip embedded quotes + CR so
+            # the emitted intent="..." log line stays parseable. Replacements
+            # chosen to preserve meaning: " → ' (soft quote), CR → space.
+            line="${line//\"/\'}"
+            line="${line//$'\r'/ }"
             echo "$line"
             return 0
         fi

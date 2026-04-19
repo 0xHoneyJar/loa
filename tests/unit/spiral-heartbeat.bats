@@ -157,7 +157,10 @@ _seed_cycle_dir() {
 
 Some more details...
 EOF
-    run bash -c "cd '$TEST_DIR' && source '$HEARTBEAT_SH' && _emit_intent '$TEST_DIR' && cat '$TEST_DIR/dispatch.log'"
+    # cycle-092 Sprint 4 fix (F-4.2): _heartbeat_intent_source now anchors
+    # paths to $PROJECT_ROOT — override to TEST_DIR so the test fixture
+    # file is found (bats setup() exports PROJECT_ROOT to the real repo).
+    run bash -c "cd '$TEST_DIR' && export PROJECT_ROOT='$TEST_DIR' && source '$HEARTBEAT_SH' && _emit_intent '$TEST_DIR' && cat '$TEST_DIR/dispatch.log'"
     [ "$status" -eq 0 ]
     [[ "$output" == *"[INTENT"* ]]
     [[ "$output" == *"Fix the broken authentication"* ]]
@@ -237,6 +240,51 @@ EOF
     run bash -c "source '$HEARTBEAT_SH'; _emit_heartbeat '$TEST_DIR'; cat '$TEST_DIR/dispatch.log'"
     [ "$status" -eq 0 ]
     [[ "$output" == *"phase_verb=🔧 fixing"* ]]
+}
+
+# =========================================================================
+# Regression tests for cycle-092 Sprint 4 review (F-4.1 + F-4.2)
+# =========================================================================
+
+@test "intent strips embedded quotes from extracted feedback text (F-4.1 regression)" {
+    _seed_cycle_dir IMPLEMENT
+    mkdir -p "$TEST_DIR/grimoires/loa/a2a"
+    cat > "$TEST_DIR/grimoires/loa/a2a/engineer-feedback.md" <<'EOF'
+# Feedback
+
+## Critical Issues (BLOCKING)
+
+### CRITICAL — Blocking
+
+### 1. Fix "encoding" issue with embedded quotes in src/foo.ts
+EOF
+    run bash -c "cd '$TEST_DIR' && source '$HEARTBEAT_SH' && _emit_intent '$TEST_DIR' && cat '$TEST_DIR/dispatch.log'"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"[INTENT"* ]]
+    # Parseable — closing " appears after intent text
+    local intent_field
+    intent_field=$(echo "$output" | grep -oE 'intent="[^"]+"' | head -1)
+    [[ -n "$intent_field" ]]
+    # Embedded quotes should have been replaced (no literal `"encoding"` pair)
+    [[ "$output" != *'"encoding"'* ]]
+}
+
+@test "intent source paths resolve via PROJECT_ROOT when daemon CWD differs (F-4.2 regression)" {
+    _seed_cycle_dir IMPLEMENT
+    mkdir -p "$TEST_DIR/grimoires/loa/a2a"
+    cat > "$TEST_DIR/grimoires/loa/a2a/engineer-feedback.md" <<'EOF'
+## Critical Issues (BLOCKING)
+
+### CRITICAL — Blocking
+
+### 1. Specific finding that should appear in intent
+EOF
+    # CWD is NOT TEST_DIR — cd to /tmp before invocation. Set PROJECT_ROOT=TEST_DIR.
+    run bash -c "cd /tmp && export PROJECT_ROOT='$TEST_DIR' && source '$HEARTBEAT_SH' && _emit_intent '$TEST_DIR' && cat '$TEST_DIR/dispatch.log'"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"[INTENT"* ]]
+    # PROJECT_ROOT-anchored path resolution should have succeeded, extracting the finding text
+    [[ "$output" == *"Specific finding"* ]]
 }
 
 # =========================================================================
