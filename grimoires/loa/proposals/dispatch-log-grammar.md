@@ -90,7 +90,7 @@ REVIEW	2026-04-19T07:22:00Z	2	1
 
 | Field | Type | Default | Meaning |
 |-------|------|---------|---------|
-| `phase_label` | enum | _(required)_ | One of: `PRE_CHECK_SEED`, `DISCOVERY`, `FLATLINE_PRD`, `ARCHITECTURE`, `FLATLINE_SDD`, `PLANNING`, `FLATLINE_SPRINT`, `PRE_CHECK_IMPL`, `IMPLEMENT`, `PRE_CHECK_REVIEW`, `REVIEW`, `AUDIT`, `PR_CREATION`, `BRIDGEBUILDER`, `BB_FIX_LOOP`, `IMPL_FIX` |
+| `phase_label` | enum | _(required)_ | One of: `PRE_CHECK_SEED`, `DISCOVERY`, `FLATLINE_PRD`, `ARCHITECTURE`, `FLATLINE_SDD`, `PLANNING`, `FLATLINE_SPRINT`, `PRE_CHECK_IMPL`, `IMPLEMENT`, `PRE_CHECK_IMPL_EVIDENCE`, `PRE_CHECK_REVIEW`, `REVIEW`, `AUDIT`, `PR_CREATION`, `BRIDGEBUILDER`, `BB_FIX_LOOP`, `IMPL_FIX` |
 | `start_ts` | ISO-8601 | _(required)_ | UTC timestamp of phase entry. Source for kaironic-clock calculation |
 | `attempt_num` | int\|`-` | `-` | For gated phases (REVIEW, AUDIT, FLATLINE_*): current attempt within `_run_gate` 1..`MAX_RETRIES`. `-` for non-gated |
 | `fix_iter` | int\|`-` | `-` | For review fix loop: current iteration 1..`REVIEW_MAX_ITERATIONS`. `-` outside fix loop |
@@ -224,14 +224,23 @@ Catch-all shapes covering every `log()` line that isn't named above — includin
 
 **Monitor contract:** Informational-tier lines are NOT a stability contract. Their exact text MAY change between harness releases without a grammar spec amendment. Monitors SHOULD NOT grep these lines for specific substrings; display-only consumption is fine.
 
+### Evidence gates
+
+Pre-review artifact-coverage gate declared by Sprint 2 (#600). Emitted by `_pre_check_implementation_evidence` in `.claude/scripts/spiral-evidence.sh` after the implementation phase commits — validates that every SEED-enumerated deliverable path from `grimoires/loa/sprint.md` exists non-empty on disk. On failure, `_impl_evidence_fix_loop` in `.claude/scripts/spiral-harness.sh` re-dispatches IMPL (max 2 iterations) before circuit-breaking.
+
+| Shape | Line / site | Regex | Stability | Example |
+|-------|-------------|-------|-----------|---------|
+| `impl-evidence-missing` | `.claude/scripts/spiral-evidence.sh:_pre_check_implementation_evidence` | `^\[harness\] IMPL_EVIDENCE_MISSING — [0-9]+ sprint-plan paths not produced: \S+` | API | `[harness] IMPL_EVIDENCE_MISSING — 2 sprint-plan paths not produced: src/lib/scenes/Reliquary.svelte,src/routes/(rooms)/reliquary/+page.svelte` |
+| `impl-evidence-trivial` | advisory emitted alongside `impl-evidence-missing` when paths exist but <20 lines or match known-stub regex | `^\[harness\] IMPL_EVIDENCE_TRIVIAL — [0-9]+ paths below content threshold: \S+` | API | `[harness] IMPL_EVIDENCE_TRIVIAL — 1 paths below content threshold: src/lib/stub.ts` |
+
+**Stability contract**: Both shapes are API-stable. Heartbeat emitters (#598 Sprint 4) read `impl-evidence-missing` payload via flight-recorder `verdict` field (format `FAIL:N_missing:path1,path2,...`) to surface `phase_verb=🔧 fixing intent="missing artifacts: ..."`. Monitors parsing the log line may assume comma-separated path list and stable preamble.
+
 ## Reserved shapes
 
-Three shapes reserved by Sprint 1 for Sprints 2/3/4. The downstream sprint owns the emit site; the grammar spec reserves the name + shape to prevent divergence.
+Two shapes reserved by Sprint 1 for Sprints 3/4. The downstream sprint owns the emit site; the grammar spec reserves the name + shape to prevent divergence.
 
 | Shape | Sprint | Line (proposed) | Regex | Stability | Example |
 |-------|--------|-----------------|-------|-----------|---------|
-| `impl-evidence-missing` | 2 (#600) | TBD in Sprint 2 Task 2.3 | `^\[harness\] IMPL_EVIDENCE_MISSING — \d+ sprint-plan paths not produced: \S+` | reserved → API | `[harness] IMPL_EVIDENCE_MISSING — 2 sprint-plan paths not produced: src/lib/scenes/Reliquary.svelte,src/routes/(rooms)/reliquary/+page.svelte` |
-| `impl-evidence-trivial` | 2 (#600) | Advisory emit alongside `impl-evidence-missing` | `^\[harness\] IMPL_EVIDENCE_TRIVIAL — \d+ paths below content threshold: \S+` | reserved → API | `[harness] IMPL_EVIDENCE_TRIVIAL — 1 paths below content threshold: src/lib/stub.ts` |
 | `phase-heartbeat-emitted` | 4 (#598) | Sprint 4 `spiral-heartbeat.sh` | `^\[HEARTBEAT [^\]]+\] phase=\S+ phase_verb=\S+ .+$` | reserved → API | `[HEARTBEAT 2026-04-19T07:22:00Z] phase=REVIEW phase_verb=reviewing phase_elapsed_sec=180 total_elapsed_sec=3900 cost_usd=70.00 budget_usd=80 files=44 ins=7696 del=4882 activity=quiet confidence=attempt_2_of_3 pace=on_pace` |
 | `phase-intent-change` | 4 (#598) | Sprint 4 `spiral-heartbeat.sh`, fires on phase boundary | `^\[INTENT [^\]]+\] phase=\S+ intent="[^"]+" source=\S+$` | reserved → API | `[INTENT 2026-04-19T07:22:00Z] phase=REVIEW intent="checking amendment compliance against the implementation" source=grimoires/loa/a2a/engineer-feedback.md` |
 | `phase-current-cleared` | 3 (#599) | EXIT trap in spiral-harness.sh main() | `^\[harness\] .phase-current cleared$` | reserved → internal | `[harness] .phase-current cleared` |

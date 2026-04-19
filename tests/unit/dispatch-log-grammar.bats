@@ -286,6 +286,24 @@ setup() {
     grep -qE '\| +`informational` +\|' "$GRAMMAR"
 }
 
+# cycle-092 Sprint 2 (#600) — promoted shapes: impl-evidence-missing + impl-evidence-trivial
+@test "impl-evidence-missing is declared API shape (promoted from reserved)" {
+    # Should appear in Evidence gates section (declared), not Reserved shapes
+    grep -q "### Evidence gates" "$GRAMMAR"
+    grep -qE "impl-evidence-missing.*API.*IMPL_EVIDENCE_MISSING" "$GRAMMAR"
+    # Should NOT appear as "reserved →" in the Reserved shapes table
+    ! grep -qE "^\| \`impl-evidence-missing\` \| 2.*reserved → API" "$GRAMMAR"
+}
+
+@test "impl-evidence-trivial is declared API shape (promoted from reserved)" {
+    grep -qE "impl-evidence-trivial.*API.*IMPL_EVIDENCE_TRIVIAL" "$GRAMMAR"
+    ! grep -qE "^\| \`impl-evidence-trivial\` \| 2.*reserved → API" "$GRAMMAR"
+}
+
+@test "grammar phase enum includes PRE_CHECK_IMPL_EVIDENCE (Sprint 2 addition)" {
+    grep -q "PRE_CHECK_IMPL_EVIDENCE" "$GRAMMAR"
+}
+
 @test "every log() line in spiral-harness.sh matches at least one declared or catch-all shape" {
     # All log() lines start with '[harness] '. The informational catch-all
     # `^\[harness\] ` covers every line emitted via log(). The [harness]

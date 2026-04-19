@@ -374,6 +374,85 @@ _phase_implement_with_feedback() {
     _invoke_claude "IMPLEMENTATION_FIX" "$prompt" "$IMPLEMENT_BUDGET" 3600
 }
 
+# _impl_evidence_fix_loop — guard _phase_implement output against SEED-named
+# artifact omissions (#600, cycle-092 Sprint 2).
+#
+# Mirrors _review_fix_loop pattern but with a narrower surface: only
+# re-dispatches IMPL with a targeted "produce these N paths" feedback when
+# the artifact-coverage gate fails. Max 2 iterations (narrower than
+# _review_fix_loop's 3 — if 2 targeted passes can't produce the named
+# paths, operator context is required per issue #600 §Suggested fix item 4).
+#
+# Env overrides:
+#   IMPL_EVIDENCE_MAX_ITERATIONS  [2]  — max fix-loop iterations
+_impl_evidence_fix_loop() {
+    local max_iters="${IMPL_EVIDENCE_MAX_ITERATIONS:-2}"
+    local iter=1
+    local feedback_file="grimoires/loa/a2a/engineer-feedback.md"
+
+    while [[ $iter -le $max_iters ]]; do
+        if _pre_check_implementation_evidence; then
+            return 0
+        fi
+
+        if [[ $iter -ge $max_iters ]]; then
+            log "IMPL evidence fix loop: exhausted $max_iters iterations"
+            _record_action "IMPL_EVIDENCE_EXHAUSTED" "evidence-fix-loop" "circuit_breaker" \
+                "" "" "" 0 0 0 "max_iterations=$max_iters"
+            return 1
+        fi
+
+        # Parse flight-recorder tail for the FAIL verdict to extract missing
+        # paths. Format per _pre_check_implementation_evidence:
+        #   verdict = "FAIL:N_missing:path1,path2,..."
+        local missing_verdict
+        missing_verdict=$(tail -20 "${_FLIGHT_RECORDER:-/dev/null}" 2>/dev/null | \
+            jq -r 'select(.phase=="PRE_CHECK_IMPL_EVIDENCE" and (.verdict|tostring|startswith("FAIL"))) | .verdict' \
+            2>/dev/null | tail -1)
+        local missing_paths
+        missing_paths=$(echo "$missing_verdict" | sed -E 's/^FAIL:[0-9]+_missing://' | tr ',' '\n')
+
+        # Synthesize engineer-feedback.md with CHANGES_REQUIRED format so
+        # _phase_implement_with_feedback reads it as reviewer-feedback and
+        # re-implements with a focused "produce these N paths" instruction.
+        cat > "$feedback_file" <<FEEDBACK_EOF
+# Engineer Feedback — IMPL Evidence Gate (#600)
+
+**Verdict: CHANGES_REQUIRED**
+
+The IMPL phase committed work but omitted SEED-enumerated deliverable paths
+from grimoires/loa/sprint.md. These paths MUST be produced before the review
+gate can dispatch:
+
+$(echo "$missing_paths" | sed 's/^/- /')
+
+**Action required**: Produce the missing files with real, non-trivial content.
+Do NOT commit empty stubs. The pre-review evidence gate runs test -s on each
+path and will fail again if they're absent or zero bytes.
+
+**Scope**: ONLY add the missing paths. Do not rewrite the rest of the
+implementation; the review-fix-loop handles other findings.
+FEEDBACK_EOF
+
+        local missing_count
+        missing_count=$(echo "$missing_paths" | grep -c . 2>/dev/null || echo 0)
+        log "IMPL evidence fix loop: iteration $iter/$max_iters — dispatching fix for $missing_count missing paths"
+        _record_action "IMPL_EVIDENCE_FIX_DISPATCH" "evidence-fix-loop" "fix_dispatched" \
+            "" "" "" 0 0 0 "iter=$iter missing=$missing_count"
+
+        if ! _phase_implement_with_feedback; then
+            log "IMPL evidence fix loop: implementation-fix pass FAILED at iteration $iter"
+            _record_action "IMPL_EVIDENCE_FIX_FAIL" "evidence-fix-loop" "fix_impl_failed" \
+                "" "" "" 0 0 0 "iter=$iter"
+            return 1
+        fi
+
+        iter=$((iter + 1))
+    done
+
+    return 1
+}
+
 # _review_fix_loop — review with automatic implementation-side fix iterations (#545)
 #
 # Wraps _gate_review with a fix loop: when CHANGES_REQUIRED, re-invokes
@@ -1216,6 +1295,19 @@ main() {
             _record_action "CONFIG" "auto-escalation" "post_impl_warning" "" "" "" 0 0 0 \
                 "profile=$PIPELINE_PROFILE paths_touched=security advisory=consider-full-profile-next-cycle"
         fi
+    fi
+
+    # ── Pre-check: IMPL artifact coverage (cycle-092 Sprint 2 #600) ─────
+    # After IMPL commits, verify all SEED-enumerated deliverable paths from
+    # sprint.md exist non-empty. On failure, _impl_evidence_fix_loop
+    # re-dispatches IMPL with missing-path list as targeted feedback
+    # (max 2 iterations). Prevents the cycle-091 defect: review burn-through
+    # on a commit that ships logic-layer output but omits visible surfaces.
+    log "Pre-check: validating implementation artifact coverage"
+    _phase_current_write "$CYCLE_DIR" "PRE_CHECK_IMPL_EVIDENCE" 2>/dev/null || true
+    if ! _impl_evidence_fix_loop; then
+        error "Circuit breaker: IMPL_EVIDENCE_MISSING after ${IMPL_EVIDENCE_MAX_ITERATIONS:-2} fix iterations"
+        exit 1
     fi
 
     # ── Pre-check: Deterministic validation before Review ───────────────
