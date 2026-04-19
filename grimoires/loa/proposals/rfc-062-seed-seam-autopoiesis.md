@@ -1,6 +1,6 @@
 # RFC-062: SEED Seam Autopoiesis — Auto-Drafting + Failure-Dependency Gating
 
-**Status**: DRAFT v2 (Flatline round 1 findings addressed)
+**Status**: DRAFT v4 (Flatline round 3 findings addressed; plateau reached — ready for operator review)
 **Authors**: Claude Opus 4.7 (drafting) on behalf of operator work plan
 **Date**: 2026-04-19
 **Cycle**: 089 (SEED-seam autopoiesis design)
@@ -9,6 +9,10 @@
 - RFC-060 (spiral meta-orchestrator)
 - Items 2, 3, 5, 6 shipped in v1.96.2 / v1.99.1 / v1.99.2 / v1.101.0
 **Supersedes**: nothing — additive
+
+**v4 revisions** (2026-04-19, post Flatline round 3 — plateau reached at 5 blockers; documenting as accepted design constraints):
+- **R3-B4**: Sanitizer `none` mode — removed from production configs; only available via `LOA_SPIRAL_SANITIZER_NONE_TESTING_ONLY=true` env var with security warning (§1.10 v4 update)
+- **R3-B1, B2, B3, B5**: documented as Acknowledged Design Constraints (AC-1 through AC-4) — journal atomicity under adversarial concurrency, HMAC key-management rigor, default-mode marketing vs reality, scope-aware gating boundary brittleness. These are structural trade-offs deliberately accepted within single-operator threat model + backcompat constraints.
 
 **v3 revisions** (2026-04-19, post Flatline round 2 with 3-model agreement at 90%):
 - **R2-B1**: Defer-with-rationale gaming — TTL + rationale schema + revalidation (§2.10)
@@ -420,8 +424,9 @@ CI step runs the sanitizer against every corpus entry; any entry with `expected_
 
 **Sunset the regex-only default**: v3 makes the sanitizer opt-in for a grace period. The config field becomes `spiral.seed.sanitizer_mode`:
 - `strict` (default after grace): all 3 layers active; any bypass of the corpus fails CI
-- `v1-regex` (deprecated): legacy regex-only path for operators mid-migration; emits deprecation warning
-- `none`: disables sanitization entirely (hard-deprecated; only for testing)
+- `v1-regex` (deprecated): legacy regex-only path for operators mid-migration; emits deprecation warning; hard sunset 6 months post-ship
+
+**v4 update (Flatline R3-B4)**: The `none` mode is **removed from production configurations**. `none` can only be set via env var `LOA_SPIRAL_SANITIZER_NONE_TESTING_ONLY=true` AND startup logs `SECURITY-WARN: sanitizer disabled for testing; refuse production use`. Any config file or non-env-var path setting `sanitizer_mode: none` causes startup failure with actionable error. Sanitizer cannot be silently disabled in production.
 
 ### Part 2 — Failure-Typed Bead Escalation (#575 item 4)
 
@@ -1022,6 +1027,68 @@ These are mentioned in #575 but deliberately excluded from this RFC:
 - **Taste loop** (from #310) — requires construct-level integration.
 - **Agent team persona inheritance** — distinct concern.
 - **Heuristic emergence extraction** — conservative initial design; revisit based on operator feedback (OQ-4).
+
+---
+
+## Acknowledged Design Constraints (post Flatline round 3)
+
+The Flatline multi-model review converged through rounds 1-3 (6 → 5 → 5 blockers with identifier rotation as finer concerns surfaced once coarse ones resolved). Round 3 surfaced four concerns that are **design constraints deliberately accepted**, not fixable bugs within this RFC's scope:
+
+### AC-1 — Failure journal is not transactionally atomic under concurrency/crash injection
+
+**Flatline concern**: The append-only JSONL journal with idempotency keys handles the common-case crash window, but adversarial crash injection with concurrent writers could still leave the journal in an inconsistent state. True atomicity requires a transactional DB or WAL.
+
+**Accepted because**:
+- Spiral dispatches are single-operator by design (NG-5); no concurrent writers in the current model.
+- Introducing a transactional DB into spiral-evidence.sh is a larger architectural shift than #575 item 4 warrants.
+- The file-lock-based mitigations Flatline suggests (flock, fsync) are valuable **as implementation detail** and WILL ship in Sprint 3; the RFC signals they're required but doesn't over-specify.
+
+**Implementation deliverable**: Sprint 3 tests include `kill -9` crash injection at 5 points in the `_create_failure_bead` path; journal must remain parseable and reconcilable.
+
+### AC-2 — HMAC authenticity model lacks full key-management rigor
+
+**Flatline concern**: HMAC protects against tampering-at-rest but not local machine compromise. Missing: explicit file ownership check at runtime, hash-chain of rotation events, OS keychain integration.
+
+**Accepted because**:
+- Threat model is single-operator trust (AC-1 related). If the operator's machine is compromised, game over at a higher layer.
+- OS keychain integration (macOS Keychain, Linux Secret Service, Windows Credential Manager) is substantial engineering scope for a narrow threat.
+- Hash-chained rotation logs are a nice-to-have; the archived `.spiral-signing-key.rotated-<ISO-8601>` files already give a partial chain.
+
+**Future work**: if multi-operator team mode is designed (out of scope per NG-5), asymmetric signing + keychain backing become a genuine requirement. File an RFC at that point.
+
+### AC-3 — "Hard-dependency" claim is not enforceable in default deployments
+
+**Flatline concern**: The default `enforce_on_dispatch: warn` means most operators have a non-hard dependency; the marketing and reality drift.
+
+**Accepted because**:
+- Existing operators have existing spirals; flipping to strict by default breaks them on update. Backcompat > marketing purity.
+- v3 §2.11 ships three controls that narrow the gap meaningfully: (1) startup banner makes mode visible, (2) new-install loa-setup wizard prompts to enable strict, (3) config-validation prevents strict-plus-missing-beads silent no-ops.
+- An operator who cares about hard deps can flip to strict; one who doesn't stays safe from update-induced breakage.
+
+**Migration plan**: 6 months after ship, evaluate observational data. If > 60% of new-install operators enable strict during setup wizard, consider flipping the **existing-install default** via an opt-out migration in a later cycle.
+
+### AC-4 — Scope-aware gating has inherent brittleness at scope boundaries
+
+**Flatline concern**: `spiral:scope:<repo>:<branch>` can both over-block (different feature branches of the same repo) and under-block (project renames, repo forks). Canonical scope IDs (UUID-based) would be more rigorous.
+
+**Accepted because**:
+- The `scope_strictness` config knob (exact / repo / project) lets operators tune for their workflow. Brittleness at boundaries is a trade-off they explicitly make.
+- Canonical scope IDs require operator cooperation to generate + maintain; they're a future refinement if real-world operation surfaces actual over/under-block incidents.
+
+**Observability**: the dashboard gains a `failure_beads_gated_out` counter per dispatch so operators can see how many beads didn't block because they were out of scope. If this count grows suspicious, scope config can be tightened.
+
+---
+
+### Summary: what the Flatline plateau means
+
+RFC-061 hit the same plateau pattern (6 blockers → 7 → 9 as finer concerns rotated in). The lesson, per `grimoires/loa/memory/feedback_harness_lessons.md` / similar: *remaining blockers are design constraints deliberately accepted, not fixable bugs within scope*. Stopping here is the responsible move. Further Flatline rounds would either:
+
+- Keep surfacing the same class of concerns (transactional atomicity, stronger authenticity, hardening completeness) at finer grain
+- Expand scope into adjacent systems (OS keychains, canonical IDs, multi-operator threading)
+
+Both are diminishing-returns investment relative to shipping Sprint 1 and observing real-world data.
+
+**Round 4 and beyond are deferred until implementation feedback flags a concrete failure that one of these accepted constraints blocks from fixing.**
 
 ---
 
