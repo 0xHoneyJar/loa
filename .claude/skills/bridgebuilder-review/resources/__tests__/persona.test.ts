@@ -3,7 +3,15 @@ import assert from "node:assert/strict";
 import { writeFileSync, mkdirSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { loadPersona, discoverPersonas, parsePersonaFrontmatter } from "../main.js";
+import {
+  loadPersona,
+  discoverPersonas,
+  parsePersonaFrontmatter,
+  readPersonaTitle,
+  traceResolution,
+  formatResolutionTrace,
+  type PersonaResolutionStep,
+} from "../main.js";
 import type { BridgebuilderConfig } from "../core/types.js";
 
 function mockConfig(overrides?: Partial<BridgebuilderConfig>): BridgebuilderConfig {
@@ -338,5 +346,153 @@ describe("parsePersonaFrontmatter", () => {
     const result = parsePersonaFrontmatter("---\n\n---\n# Persona\nContent.");
     assert.equal(result.model, undefined);
     assert.equal(result.content, "# Persona\nContent.");
+  });
+});
+
+// --- readPersonaTitle (#396) ---
+
+describe("readPersonaTitle", () => {
+  it("extracts the H1 title from a known pack", async () => {
+    const title = await readPersonaTitle("default");
+    assert.match(title, /Bridgebuilder/);
+  });
+
+  it("strips frontmatter before finding H1", async () => {
+    // quick.md has a frontmatter model field; title is below
+    const title = await readPersonaTitle("quick");
+    assert.match(title, /Quick Triage/);
+    assert.ok(!title.includes("---"));
+    assert.ok(!title.includes("model:"));
+  });
+
+  it("falls back to pack name when file missing", async () => {
+    const title = await readPersonaTitle("nonexistent-pack");
+    assert.equal(title, "nonexistent-pack");
+  });
+});
+
+// --- traceResolution (#396) ---
+
+describe("traceResolution", () => {
+  it("returns 4 steps (L1, L3, L4, L5) always", async () => {
+    const steps = await traceResolution(mockConfig());
+    assert.equal(steps.length, 4);
+    assert.deepEqual(
+      steps.map((s) => s.level),
+      [1, 3, 4, 5],
+    );
+  });
+
+  it("marks L1 skip + L5 active when no persona config provided", async () => {
+    const steps = await traceResolution(
+      mockConfig({ repoOverridePath: "does-not-exist.md" }),
+    );
+    const [l1, _l3, l4, l5] = steps;
+    assert.equal(l1.state, "skip");
+    assert.equal(l4.state, "missing");
+    assert.equal(l5.state, "active");
+  });
+
+  it("marks L1 active + L5 shadow when --persona is set", async () => {
+    const steps = await traceResolution(
+      mockConfig({ persona: "default", repoOverridePath: "does-not-exist.md" }),
+    );
+    const [l1, _l3, _l4, l5] = steps;
+    assert.equal(l1.state, "active");
+    assert.equal(l5.state, "shadow");
+  });
+
+  it("marks L1 missing when --persona points at unknown pack", async () => {
+    const steps = await traceResolution(
+      mockConfig({ persona: "nonexistent", repoOverridePath: "does-not-exist.md" }),
+    );
+    const l1 = steps[0];
+    assert.equal(l1.state, "missing");
+    assert.ok(l1.reason?.includes("pack file not found"));
+  });
+
+  it("marks L3 active when personaFilePath exists (no L1)", async () => {
+    // ESM test files don't have __dirname. Write a tempfile instead.
+    const tmpDir = tmpdir();
+    const customPath = join(tmpDir, "test-persona-custom.md");
+    writeFileSync(customPath, "---\n---\n# Custom Test Persona\n");
+    try {
+      const steps = await traceResolution(
+        mockConfig({
+          personaFilePath: customPath,
+          repoOverridePath: "does-not-exist.md",
+        }),
+      );
+      const [l1, l3, _l4, l5] = steps;
+      assert.equal(l1.state, "skip");
+      assert.equal(l3.state, "active");
+      assert.equal(l5.state, "shadow");
+    } finally {
+      rmSync(customPath, { force: true });
+    }
+  });
+
+  it("marks L3 missing when personaFilePath doesn't exist", async () => {
+    const steps = await traceResolution(
+      mockConfig({
+        personaFilePath: "/nonexistent/custom-persona.md",
+        repoOverridePath: "does-not-exist.md",
+      }),
+    );
+    const l3 = steps[1];
+    assert.equal(l3.state, "missing");
+    assert.ok(l3.reason?.includes("file not found"));
+  });
+});
+
+// --- formatResolutionTrace (#396) ---
+
+describe("formatResolutionTrace", () => {
+  it("starts with header line", () => {
+    const steps: PersonaResolutionStep[] = [
+      { level: 5, name: "built-in default", state: "active", value: "/path/to/default.md" },
+    ];
+    const output = formatResolutionTrace(steps);
+    assert.match(output, /^persona resolution:/);
+  });
+
+  it("includes [active] marker for active level", () => {
+    const steps: PersonaResolutionStep[] = [
+      { level: 1, name: "--persona flag", state: "active", value: "default" },
+    ];
+    const output = formatResolutionTrace(steps);
+    assert.match(output, /\[active\]/);
+  });
+
+  it("includes [shadow] marker for shadowed level", () => {
+    const steps: PersonaResolutionStep[] = [
+      { level: 1, name: "--persona", state: "active", value: "default" },
+      { level: 5, name: "built-in", state: "shadow", value: "/x.md" },
+    ];
+    const output = formatResolutionTrace(steps);
+    assert.match(output, /\[shadow\]/);
+  });
+
+  it("includes [missing] marker with reason", () => {
+    const steps: PersonaResolutionStep[] = [
+      {
+        level: 4,
+        name: "repo override",
+        state: "missing",
+        value: "grimoires/x.md",
+        reason: "file not found: grimoires/x.md",
+      },
+    ];
+    const output = formatResolutionTrace(steps);
+    assert.match(output, /\[missing\]/);
+    assert.ok(output.includes("file not found"));
+  });
+
+  it("uses [skip] marker for skipped levels", () => {
+    const steps: PersonaResolutionStep[] = [
+      { level: 1, name: "--persona", state: "skip", reason: "not provided" },
+    ];
+    const output = formatResolutionTrace(steps);
+    assert.match(output, /\[skip\]/);
   });
 });

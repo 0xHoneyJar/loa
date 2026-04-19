@@ -13,6 +13,31 @@ export declare function parsePersonaFrontmatter(raw: string): {
  */
 export declare function discoverPersonas(): Promise<string[]>;
 /**
+ * Read the H1 title from a persona file (after YAML frontmatter).
+ * Returns the title text without the leading "# " marker, or the pack name
+ * fallback if no H1 is found. Used by --list-personas to give users a
+ * one-line description of each pack.
+ */
+export declare function readPersonaTitle(packName: string): Promise<string>;
+/**
+ * Summarize the persona resolution cascade for `--show-persona-resolution`.
+ * Returns an ordered list of cascade levels with whether each is active,
+ * skipped (input not provided), or shadowed (input provided but a higher
+ * level won). The active level is the one `loadPersona()` will return.
+ */
+export interface PersonaResolutionStep {
+    level: number;
+    name: string;
+    state: "active" | "skip" | "shadow" | "missing";
+    value?: string;
+    reason?: string;
+}
+export declare function traceResolution(config: BridgebuilderConfig): Promise<PersonaResolutionStep[]>;
+/**
+ * Format persona resolution steps for terminal display.
+ */
+export declare function formatResolutionTrace(steps: PersonaResolutionStep[]): string;
+/**
  * Load persona using 5-level CLI-wins precedence chain:
  * 1. --persona <name> CLI flag → resources/personas/<name>.md
  * 2. persona: <name> YAML config → resources/personas/<name>.md

@@ -49,6 +49,166 @@ export async function discoverPersonas() {
     }
 }
 /**
+ * Read the H1 title from a persona file (after YAML frontmatter).
+ * Returns the title text without the leading "# " marker, or the pack name
+ * fallback if no H1 is found. Used by --list-personas to give users a
+ * one-line description of each pack.
+ */
+export async function readPersonaTitle(packName) {
+    const packPath = resolve(PERSONAS_DIR, `${packName}.md`);
+    try {
+        const raw = await readFile(packPath, "utf-8");
+        const { content } = parsePersonaFrontmatter(raw);
+        const firstLine = content.split("\n").find((l) => l.trim().length > 0) ?? "";
+        const titleMatch = firstLine.match(/^#\s+(.+?)\s*$/);
+        return titleMatch ? titleMatch[1] : packName;
+    }
+    catch {
+        return packName;
+    }
+}
+export async function traceResolution(config) {
+    const packName = config.persona;
+    const customPath = config.personaFilePath;
+    const repoOverridePath = config.repoOverridePath;
+    const steps = [];
+    let activeFound = false;
+    // Level 1: --persona CLI flag / Level 2: persona: YAML (both resolve to pack name)
+    if (packName) {
+        const packPath = resolve(PERSONAS_DIR, `${packName}.md`);
+        let packExists = false;
+        try {
+            await readFile(packPath, "utf-8");
+            packExists = true;
+        }
+        catch {
+            packExists = false;
+        }
+        steps.push({
+            level: 1,
+            name: "--persona flag / persona: YAML",
+            state: packExists ? "active" : "missing",
+            value: packName,
+            reason: packExists
+                ? `pack file: ${packPath}`
+                : `pack file not found: ${packPath}`,
+        });
+        if (packExists)
+            activeFound = true;
+    }
+    else {
+        steps.push({
+            level: 1,
+            name: "--persona flag / persona: YAML",
+            state: "skip",
+            reason: "not provided",
+        });
+    }
+    // Level 3: persona_path → custom file
+    if (customPath) {
+        let customExists = false;
+        try {
+            await readFile(customPath, "utf-8");
+            customExists = true;
+        }
+        catch {
+            customExists = false;
+        }
+        const state = activeFound
+            ? "shadow"
+            : customExists
+                ? "active"
+                : "missing";
+        steps.push({
+            level: 3,
+            name: "persona_path: YAML",
+            state,
+            value: customPath,
+            reason: customExists
+                ? undefined
+                : state === "missing"
+                    ? `file not found: ${customPath}`
+                    : undefined,
+        });
+        if (state === "active")
+            activeFound = true;
+    }
+    else {
+        steps.push({
+            level: 3,
+            name: "persona_path: YAML",
+            state: "skip",
+            reason: "not provided",
+        });
+    }
+    // Level 4: repo override (grimoires/bridgebuilder/BEAUVOIR.md)
+    if (repoOverridePath) {
+        let repoExists = false;
+        try {
+            await readFile(repoOverridePath, "utf-8");
+            repoExists = true;
+        }
+        catch {
+            repoExists = false;
+        }
+        const state = activeFound
+            ? "shadow"
+            : repoExists
+                ? "active"
+                : "missing";
+        steps.push({
+            level: 4,
+            name: "repo override (BEAUVOIR.md)",
+            state,
+            value: repoOverridePath,
+            reason: repoExists
+                ? undefined
+                : state === "missing"
+                    ? `file not found: ${repoOverridePath}`
+                    : undefined,
+        });
+        if (state === "active")
+            activeFound = true;
+    }
+    else {
+        steps.push({
+            level: 4,
+            name: "repo override (BEAUVOIR.md)",
+            state: "skip",
+            reason: "not provided",
+        });
+    }
+    // Level 5: built-in default
+    const defaultPath = resolve(PERSONAS_DIR, "default.md");
+    steps.push({
+        level: 5,
+        name: "built-in default",
+        state: activeFound ? "shadow" : "active",
+        value: defaultPath,
+    });
+    return steps;
+}
+/**
+ * Format persona resolution steps for terminal display.
+ */
+export function formatResolutionTrace(steps) {
+    const lines = ["persona resolution:"];
+    for (const step of steps) {
+        const marker = step.state === "active"
+            ? "[active]"
+            : step.state === "shadow"
+                ? "[shadow]"
+                : step.state === "missing"
+                    ? "[missing]"
+                    : "[skip]  ";
+        const head = `  ${marker} L${step.level} ${step.name}`;
+        const tail = step.value ? `: ${step.value}` : "";
+        const note = step.reason ? `  (${step.reason})` : "";
+        lines.push(`${head}${tail}${note}`);
+    }
+    return lines.join("\n");
+}
+/**
  * Load persona using 5-level CLI-wins precedence chain:
  * 1. --persona <name> CLI flag → resources/personas/<name>.md
  * 2. persona: <name> YAML config → resources/personas/<name>.md
@@ -161,14 +321,33 @@ async function main() {
         console.log("Usage: bridgebuilder [--dry-run] [--repo owner/repo] [--pr N] [--persona NAME] [--exclude PATTERN]");
         console.log("");
         console.log("Options:");
-        console.log("  --dry-run            Run without posting reviews");
-        console.log("  --repo owner/repo    Target repository (can be repeated)");
-        console.log("  --pr N               Target specific PR number");
-        console.log("  --persona NAME       Use persona pack (default, security, dx, architecture, quick)");
-        console.log("  --exclude PATTERN    Exclude file pattern (can be repeated, additive)");
-        console.log("  --no-auto-detect     Skip auto-detection of current repo");
-        console.log("  --force-full-review  Skip incremental review, review all files");
-        console.log("  --help, -h           Show this help");
+        console.log("  --dry-run                   Run without posting reviews");
+        console.log("  --repo owner/repo           Target repository (can be repeated)");
+        console.log("  --pr N                      Target specific PR number");
+        console.log("  --persona NAME              Use persona pack (see --list-personas)");
+        console.log("  --list-personas             List built-in persona packs with titles, then exit");
+        console.log("  --show-persona-resolution   Show the 5-level persona cascade (active/shadow/skip), then exit");
+        console.log("  --exclude PATTERN           Exclude file pattern (can be repeated, additive)");
+        console.log("  --no-auto-detect            Skip auto-detection of current repo");
+        console.log("  --force-full-review         Skip incremental review, review all files");
+        console.log("  --help, -h                  Show this help");
+        process.exit(0);
+    }
+    // --list-personas: print built-in packs with one-line titles, exit (#396).
+    // Runs before config resolution so users don't need valid config to discover.
+    if (argv.includes("--list-personas")) {
+        const packs = await discoverPersonas();
+        if (packs.length === 0) {
+            console.error("No persona packs found.");
+            process.exit(1);
+        }
+        console.log("Available persona packs:");
+        for (const p of packs) {
+            const title = await readPersonaTitle(p);
+            console.log(`  ${p.padEnd(14)} ${title}`);
+        }
+        console.log("");
+        console.log("Select one via --persona NAME or config: bridgebuilder.persona: NAME");
         process.exit(0);
     }
     const cliArgs = parseCLIArgs(argv);
@@ -179,6 +358,14 @@ async function main() {
     });
     // Validate --pr + repos combination
     resolveRepos(config, cliArgs.pr);
+    // --show-persona-resolution: trace the 5-level cascade against resolved
+    // config and exit without performing a review (#396). Reads config but
+    // doesn't invoke APIs or post anywhere — safe diagnostic.
+    if (argv.includes("--show-persona-resolution")) {
+        const steps = await traceResolution(config);
+        console.log(formatResolutionTrace(steps));
+        process.exit(0);
+    }
     // Log effective config with provenance annotations
     console.error(formatEffectiveConfig(config, provenance));
     // Load persona via 5-level precedence chain
