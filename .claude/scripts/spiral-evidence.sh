@@ -353,6 +353,104 @@ _pre_check_review() {
     [[ "$issues" -eq 0 ]]
 }
 
+
+
+# =============================================================================
+# SEED Pre-Check (#575 item 3)
+# =============================================================================
+#
+# Validates environment invariants BEFORE the discovery phase dispatches,
+# mirroring _pre_check_implementation / _pre_check_review which validate
+# post-conditions for later phases. Catches classes of failure that are
+# visible pre-dispatch but currently only surface as confusing mid-cycle
+# errors.
+#
+# Empirical justification: cycle-084 CWD-mismatch (reviewer subprocess
+# running in .loa/ submodule CWD vs main repo) was catchable pre-dispatch
+# but currently surfaces as "grimoires/loa/prd.md not found" after discovery
+# runs and writes to the wrong location.
+#
+# Checks (in order):
+#   1. CWD is a git repository AND has grimoires/loa/ directory (hard-fail —
+#      this is the cycle-084 class of defect)
+#   2. Cycle dir is writable or creatable (hard-fail)
+#   3. SEED_CONTEXT file exists when path provided (warn, not block — the
+#      operator may have intended a standalone run)
+#
+# Returns 0 on pass (possibly with warnings), 1 on hard-fail.
+#
+# Usage:
+#   _pre_check_seed <cycle_dir>
+#
+# Env:
+#   SPIRAL_PRE_CHECK_SEED_STRICT=true — promote warnings to errors
+_pre_check_seed() {
+    local cycle_dir="${1:-}"
+    local issues=0
+    local warnings=0
+    local strict="${SPIRAL_PRE_CHECK_SEED_STRICT:-false}"
+
+    # 1. CWD must be a git repository root with grimoires/loa/ present.
+    #    This is the cycle-084 failure: CWD was .loa/ (a submodule) not the
+    #    main repo, so any grimoires/loa/prd.md write went to the wrong path.
+    if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        echo "PRE-CHECK-SEED FAIL: CWD $(pwd) is not inside a git work tree" >&2
+        issues=$((issues + 1))
+    fi
+
+    if [[ ! -d "grimoires/loa" ]]; then
+        echo "PRE-CHECK-SEED FAIL: grimoires/loa/ not found from CWD $(pwd) — likely wrong CWD (cycle-084 class)" >&2
+        issues=$((issues + 1))
+    fi
+
+    # 2. Cycle dir must exist or be creatable (check parent writable).
+    if [[ -n "$cycle_dir" ]]; then
+        if [[ ! -d "$cycle_dir" ]]; then
+            local parent
+            parent="$(dirname "$cycle_dir")"
+            if [[ ! -d "$parent" ]]; then
+                # Try to create it; if that fails, hard-fail
+                if ! mkdir -p "$parent" 2>/dev/null; then
+                    echo "PRE-CHECK-SEED FAIL: cannot create cycle parent: $parent" >&2
+                    issues=$((issues + 1))
+                fi
+            elif [[ ! -w "$parent" ]]; then
+                echo "PRE-CHECK-SEED FAIL: cycle parent not writable: $parent" >&2
+                issues=$((issues + 1))
+            fi
+        elif [[ ! -w "$cycle_dir" ]]; then
+            echo "PRE-CHECK-SEED FAIL: cycle dir not writable: $cycle_dir" >&2
+            issues=$((issues + 1))
+        fi
+    fi
+
+    # 3. SEED_CONTEXT file existence — warn if operator specified a path that's missing
+    if [[ -n "${SEED_CONTEXT:-}" ]]; then
+        if [[ ! -f "$SEED_CONTEXT" ]]; then
+            echo "PRE-CHECK-SEED WARN: SEED_CONTEXT path does not resolve: $SEED_CONTEXT" >&2
+            warnings=$((warnings + 1))
+        elif [[ ! -r "$SEED_CONTEXT" ]]; then
+            echo "PRE-CHECK-SEED WARN: SEED_CONTEXT file not readable: $SEED_CONTEXT" >&2
+            warnings=$((warnings + 1))
+        elif [[ ! -s "$SEED_CONTEXT" ]]; then
+            echo "PRE-CHECK-SEED WARN: SEED_CONTEXT file is empty: $SEED_CONTEXT" >&2
+            warnings=$((warnings + 1))
+        fi
+    fi
+
+    # Strict mode: promote warnings to errors
+    if [[ "$strict" == "true" ]]; then
+        issues=$((issues + warnings))
+    fi
+
+    # Record trajectory (if flight recorder is active)
+    [[ -n "${_FLIGHT_RECORDER:-}" ]] && \
+        _record_action "PRE_CHECK_SEED" "evidence-gate" "seed_ready" "" "" "" 0 0 0 \
+            "$([ "$issues" -eq 0 ] && echo "PASS:warnings=$warnings" || echo "FAIL:${issues}_issues_warnings=${warnings}")"
+
+    [[ "$issues" -eq 0 ]]
+}
+
 # =============================================================================
 # Finalization
 # =============================================================================

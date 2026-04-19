@@ -1108,6 +1108,16 @@ main() {
         "profile=$PIPELINE_PROFILE gates=${FLATLINE_GATES:-none} advisor=$ADVISOR_MODEL"
     _emit_dashboard_snapshot "START"
 
+    # ── Pre-check: SEED environment invariants (#575 item 3) ────────────
+    # Catches cycle-084 class defects (wrong CWD, unwritable cycle dir,
+    # missing SEED_CONTEXT file) BEFORE discovery dispatches an expensive
+    # LLM call that writes artefacts to the wrong location.
+    log "Pre-check: validating SEED environment"
+    if ! _pre_check_seed "$CYCLE_DIR"; then
+        error "SEED pre-check failed: environment invariants violated"
+        exit 1
+    fi
+
     # ── Phase 1: Discovery ──────────────────────────────────────────────
     log "Phase 1: DISCOVERY"
     _emit_dashboard_snapshot "DISCOVERY"
