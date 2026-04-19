@@ -452,6 +452,139 @@ _pre_check_seed() {
 }
 
 # =============================================================================
+# Phase-Current State File (cycle-092, Sprint 1 — #598/#599)
+# =============================================================================
+#
+# `.phase-current` is a single-line tab-separated state file at
+# $CYCLE_DIR/.phase-current indicating which harness phase is in-flight right
+# now. Monitors (Sprint 4 heartbeat, Sprint 3 dashboard, external operator
+# scripts) read it as the single truth source for "what phase now?" queries,
+# avoiding the brittle dispatch.log grep pattern that stranded cycle-092's
+# reference monitor at '⚙️ preparing' for 5 pulses.
+#
+# Format (see grimoires/loa/proposals/dispatch-log-grammar.md §.phase-current):
+#   <phase_label>\t<start_ts>\t<attempt_num>\t<fix_iter>
+#
+# Lifecycle:
+#   - _phase_current_write at phase START (overwrite semantics)
+#   - _phase_current_touch when attempt/iter sub-state changes within a phase
+#   - _phase_current_clear at phase EXIT and from EXIT trap on crash
+#
+# All helpers are fail-safe: missing cycle_dir, unwritable paths, or IO errors
+# return non-zero without raising under `set -euo pipefail`. Follows the
+# _pre_check_seed pattern (spiral-evidence.sh:387).
+
+_phase_current_file() {
+    local cycle_dir="${1:-}"
+    [[ -z "$cycle_dir" ]] && return 1
+    echo "$cycle_dir/.phase-current"
+}
+
+# _phase_current_write <cycle_dir> <phase_label> [attempt_num] [fix_iter]
+#
+# Overwrite .phase-current with a fresh phase record. start_ts is captured at
+# call time (UTC ISO-8601). attempt_num and fix_iter default to "-" (hyphen)
+# when unspecified, matching the grammar spec's "default when N/A" rule.
+# Atomic via .tmp + mv.
+_phase_current_write() {
+    local cycle_dir="${1:-}"
+    local phase_label="${2:-}"
+    local attempt_num="${3:-}"
+    local fix_iter="${4:-}"
+    [[ -z "$cycle_dir" || -z "$phase_label" ]] && return 1
+    [[ ! -d "$cycle_dir" ]] && return 1
+    [[ -w "$cycle_dir" ]] || return 1
+
+    local ts
+    ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    [[ -z "$attempt_num" ]] && attempt_num="-"
+    [[ -z "$fix_iter" ]] && fix_iter="-"
+
+    local file tmp
+    file="$(_phase_current_file "$cycle_dir")"
+    tmp="$file.tmp"
+    printf '%s\t%s\t%s\t%s\n' "$phase_label" "$ts" "$attempt_num" "$fix_iter" \
+        > "$tmp" 2>/dev/null || return 1
+    mv "$tmp" "$file" 2>/dev/null || return 1
+    return 0
+}
+
+# _phase_current_touch <cycle_dir> [attempt_num] [fix_iter]
+#
+# Update attempt_num and/or fix_iter on an existing .phase-current record
+# without disturbing phase_label or start_ts. Empty args preserve the existing
+# value for that field. Returns 1 if .phase-current does not exist (no phase
+# currently in-flight).
+_phase_current_touch() {
+    local cycle_dir="${1:-}"
+    local new_attempt="${2:-}"
+    local new_fix_iter="${3:-}"
+    [[ -z "$cycle_dir" ]] && return 1
+
+    local file
+    file="$(_phase_current_file "$cycle_dir")"
+    [[ -f "$file" && -w "$file" ]] || return 1
+
+    local phase_label start_ts old_attempt old_fix_iter
+    IFS=$'\t' read -r phase_label start_ts old_attempt old_fix_iter < "$file" 2>/dev/null || return 1
+
+    local attempt_out="${new_attempt:-$old_attempt}"
+    local fix_out="${new_fix_iter:-$old_fix_iter}"
+
+    local tmp="$file.tmp"
+    printf '%s\t%s\t%s\t%s\n' "$phase_label" "$start_ts" "$attempt_out" "$fix_out" \
+        > "$tmp" 2>/dev/null || return 1
+    mv "$tmp" "$file" 2>/dev/null || return 1
+    return 0
+}
+
+# _phase_current_clear <cycle_dir>
+#
+# Remove .phase-current. Called at phase-EXIT and from the EXIT trap in
+# spiral-harness.sh main() so abnormal exits don't leave a stale in-flight
+# signal for monitors. Idempotent — returns 0 even when the file is absent.
+_phase_current_clear() {
+    local cycle_dir="${1:-}"
+    [[ -z "$cycle_dir" ]] && return 1
+    local file
+    file="$(_phase_current_file "$cycle_dir")"
+    rm -f "$file" 2>/dev/null
+    return 0
+}
+
+# _phase_current_read <cycle_dir> [field]
+#
+# Read .phase-current. Without a field arg, outputs the raw tab-separated
+# line. With field (phase_label | start_ts | attempt_num | fix_iter), outputs
+# the specific field's value. Returns 1 if .phase-current is missing.
+_phase_current_read() {
+    local cycle_dir="${1:-}"
+    local field="${2:-}"
+    [[ -z "$cycle_dir" ]] && return 1
+
+    local file
+    file="$(_phase_current_file "$cycle_dir")"
+    [[ -f "$file" ]] || return 1
+
+    if [[ -z "$field" ]]; then
+        cat "$file" 2>/dev/null || return 1
+        return 0
+    fi
+
+    local phase_label start_ts attempt_num fix_iter
+    IFS=$'\t' read -r phase_label start_ts attempt_num fix_iter < "$file" 2>/dev/null || return 1
+
+    case "$field" in
+        phase_label) echo "$phase_label" ;;
+        start_ts)    echo "$start_ts" ;;
+        attempt_num) echo "$attempt_num" ;;
+        fix_iter)    echo "$fix_iter" ;;
+        *) return 1 ;;
+    esac
+    return 0
+}
+
+# =============================================================================
 # Finalization
 # =============================================================================
 

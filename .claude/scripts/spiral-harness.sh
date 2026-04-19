@@ -353,6 +353,13 @@ _phase_implement_with_feedback() {
     local feedback_path="grimoires/loa/a2a/engineer-feedback.md"
     local feedback
 
+    # cycle-092 Sprint 1 (#598): IMPL_FIX is its own phase for observability
+    # (distinct from IMPLEMENT). Preserves fix_iter field from the calling
+    # _review_fix_loop context via _phase_current_read.
+    local current_fix_iter
+    current_fix_iter="$(_phase_current_read "${CYCLE_DIR:-}" fix_iter 2>/dev/null || echo "-")"
+    _phase_current_write "${CYCLE_DIR:-}" "IMPL_FIX" "-" "$current_fix_iter" 2>/dev/null || true
+
     if [[ -f "$feedback_path" ]]; then
         feedback=$(head -c 5000 "$feedback_path" 2>/dev/null || echo "No feedback available")
     else
@@ -388,11 +395,18 @@ _review_fix_loop() {
 
     while [[ $iter -le $max_iters ]]; do
         log "Review fix loop: iteration $iter/$max_iters"
+        # cycle-092 Sprint 1 (#598/#599): record fix-loop iteration in
+        # .phase-current. _run_gate below will overwrite phase_label=REVIEW
+        # with its own attempt tracking; we re-touch fix_iter after it returns
+        # so the file reflects both dimensions while REVIEW is in flight.
+        _phase_current_touch "${CYCLE_DIR:-}" "" "$iter" 2>/dev/null || true
 
         if _run_gate "REVIEW" _gate_review; then
+            _phase_current_touch "${CYCLE_DIR:-}" "" "$iter" 2>/dev/null || true
             log "Review PASSED on iteration $iter/$max_iters"
             return 0
         fi
+        _phase_current_touch "${CYCLE_DIR:-}" "" "$iter" 2>/dev/null || true
 
         if [[ $iter -ge $max_iters ]]; then
             log "Review FAILED: exhausted $max_iters fix iterations"
@@ -522,6 +536,14 @@ _run_gate() {
     while [[ $attempt -lt $MAX_RETRIES ]]; do
         attempt=$((attempt + 1))
         log "Gate: $gate_name (attempt $attempt/$MAX_RETRIES)"
+        # cycle-092 Sprint 1 (#599): write phase_label=<gate_name> on first
+        # attempt (fresh start_ts), touch attempt_num on subsequent retries so
+        # start_ts stays anchored to the first attempt of this gate instance.
+        if [[ $attempt -eq 1 ]]; then
+            _phase_current_write "${CYCLE_DIR:-}" "$gate_name" "$attempt" "-" 2>/dev/null || true
+        else
+            _phase_current_touch "${CYCLE_DIR:-}" "$attempt" "" 2>/dev/null || true
+        fi
 
         if "$@"; then
             return 0
@@ -1100,6 +1122,10 @@ main() {
     _parse_args "$@" || exit $?
 
     trap '_harness_err_handler $LINENO "$BASH_COMMAND"' ERR
+    # cycle-092 Sprint 1 (#599): clear .phase-current on any exit path (success,
+    # failure, crash) so external monitors never observe a stale "in-flight" file
+    # after the harness is gone. Log via harness log() for grammar compliance.
+    trap '_phase_current_clear "$CYCLE_DIR" 2>/dev/null; log ".phase-current cleared"' EXIT
 
     local pr_url=""
     local prd_findings="" sdd_findings=""
@@ -1113,6 +1139,7 @@ main() {
     # missing SEED_CONTEXT file) BEFORE discovery dispatches an expensive
     # LLM call that writes artefacts to the wrong location.
     log "Pre-check: validating SEED environment"
+    _phase_current_write "$CYCLE_DIR" "PRE_CHECK_SEED" 2>/dev/null || true
     if ! _pre_check_seed "$CYCLE_DIR"; then
         error "SEED pre-check failed: environment invariants violated"
         exit 1
@@ -1120,11 +1147,13 @@ main() {
 
     # ── Phase 1: Discovery ──────────────────────────────────────────────
     log "Phase 1: DISCOVERY"
+    _phase_current_write "$CYCLE_DIR" "DISCOVERY" 2>/dev/null || true
     _emit_dashboard_snapshot "DISCOVERY"
     _phase_discovery || { error "Discovery failed"; exit 1; }
 
     # ── Gate 1: Flatline PRD (conditional) ──────────────────────────────
     if _should_run_flatline "prd"; then
+        _phase_current_write "$CYCLE_DIR" "FLATLINE_PRD" 2>/dev/null || true
         _emit_dashboard_snapshot "FLATLINE_PRD"
         _run_gate "FLATLINE_PRD" _gate_flatline "prd" "grimoires/loa/prd.md" || exit 1
         prd_findings=$(_summarize_flatline "$EVIDENCE_DIR/flatline-prd.json")
@@ -1135,11 +1164,13 @@ main() {
 
     # ── Phase 2: Architecture ───────────────────────────────────────────
     log "Phase 2: ARCHITECTURE"
+    _phase_current_write "$CYCLE_DIR" "ARCHITECTURE" 2>/dev/null || true
     _emit_dashboard_snapshot "ARCHITECTURE"
     _phase_architecture "$prd_findings" || { error "Architecture failed"; exit 1; }
 
     # ── Gate 2: Flatline SDD (conditional) ──────────────────────────────
     if _should_run_flatline "sdd"; then
+        _phase_current_write "$CYCLE_DIR" "FLATLINE_SDD" 2>/dev/null || true
         _emit_dashboard_snapshot "FLATLINE_SDD"
         _run_gate "FLATLINE_SDD" _gate_flatline "sdd" "grimoires/loa/sdd.md" || exit 1
         sdd_findings=$(_summarize_flatline "$EVIDENCE_DIR/flatline-sdd.json")
@@ -1150,11 +1181,13 @@ main() {
 
     # ── Phase 3: Planning ───────────────────────────────────────────────
     log "Phase 3: PLANNING"
+    _phase_current_write "$CYCLE_DIR" "PLANNING" 2>/dev/null || true
     _emit_dashboard_snapshot "PLANNING"
     _phase_planning "$sdd_findings" || { error "Planning failed"; exit 1; }
 
     # ── Gate 3: Flatline Sprint (conditional) ───────────────────────────
     if _should_run_flatline "sprint"; then
+        _phase_current_write "$CYCLE_DIR" "FLATLINE_SPRINT" 2>/dev/null || true
         _run_gate "FLATLINE_SPRINT" _gate_flatline "sprint" "grimoires/loa/sprint.md" || exit 1
     else
         log "Skipping Flatline Sprint (profile=$PIPELINE_PROFILE)"
@@ -1163,6 +1196,7 @@ main() {
 
     # ── Pre-check: Deterministic validation before Implementation ───────
     log "Pre-check: validating planning artifacts"
+    _phase_current_write "$CYCLE_DIR" "PRE_CHECK_IMPL" 2>/dev/null || true
     if ! _pre_check_implementation; then
         error "Pre-check failed: planning artifacts incomplete"
         exit 1
@@ -1170,6 +1204,7 @@ main() {
 
     # ── Phase 4: Implementation ─────────────────────────────────────────
     log "Phase 4: IMPLEMENTATION"
+    _phase_current_write "$CYCLE_DIR" "IMPLEMENT" 2>/dev/null || true
     _emit_dashboard_snapshot "IMPLEMENT"
     _phase_implement || { error "Implementation failed"; exit 1; }
 
@@ -1185,6 +1220,7 @@ main() {
 
     # ── Pre-check: Deterministic validation before Review ───────────────
     log "Pre-check: validating implementation before review"
+    _phase_current_write "$CYCLE_DIR" "PRE_CHECK_REVIEW" 2>/dev/null || true
     if ! _pre_check_review; then
         error "Pre-check failed: implementation has structural issues"
         exit 1
@@ -1195,12 +1231,16 @@ main() {
     # _phase_implement_with_feedback so the implementer actually addresses
     # the reviewer's findings instead of the reviewer seeing the same
     # broken code on every retry until circuit-breaker.
+    # .phase-current (phase=REVIEW with fix_iter) is maintained inside
+    # _review_fix_loop for per-iteration sub-state visibility.
     _review_fix_loop || {
         log "Review CHANGES_REQUIRED — implementation needs work (fix loop exhausted)"
         exit 1
     }
 
     # ── Gate 5: Independent Audit (fresh session) ───────────────────────
+    # .phase-current (phase=AUDIT with attempt_num) is maintained inside
+    # _run_gate for per-attempt sub-state visibility.
     _run_gate "AUDIT" _gate_audit || {
         log "Audit CHANGES_REQUIRED — security issues found"
         exit 1
@@ -1208,6 +1248,7 @@ main() {
 
     # ── Phase 5: PR Creation (idempotent — check before create) ─────────
     log "Phase 5: PR CREATION"
+    _phase_current_write "$CYCLE_DIR" "PR_CREATION" 2>/dev/null || true
     local existing_pr
     existing_pr=$(gh pr list --head "$BRANCH" --json number,url --jq '.[0].url // empty' 2>/dev/null || true)
 
