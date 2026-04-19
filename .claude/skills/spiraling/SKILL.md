@@ -93,18 +93,25 @@ SEED → SIMSTIM → HARVEST → EVALUATE → (next cycle OR terminate)
 
 ## Stopping Conditions
 
-A spiral terminates when ANY of:
+A spiral terminates when ANY of the conditions below fire. Stopping conditions come in two kinds — **chronos-coded** (wall-clock caps set in advance: max cycles, budget ceiling, runtime limit) and **kaironic** (the loop observes its own output rate and decides to terminate when signal exhausts).
 
-| Condition | Default | Floor | Status | Rationale |
-|-----------|---------|-------|--------|-----------|
-| `cycle_budget_exhausted` | 3 cycles | 50 | ✅ implemented | Primary runaway backstop |
-| `flatline_convergence` | 2 consecutive cycles < 3 findings | — | ✅ implemented | Kaironic signal: plateau reached |
-| `cost_budget_exhausted` | $20 | $100 | ✅ implemented | Credit exhaustion guard |
-| `wall_clock_exhausted` | 8h | 24h | ✅ implemented | Second backstop for plateau-at-N |
-| `hitl_halt` | sentinel file | — | ✅ implemented | Operator escape hatch |
-| `quality_gate_failure` | review AND audit fail | — | ⏳ deferred to cycle-067 | Prevent error compounding (requires embedded `/simstim` dispatch to observe review+audit outcomes) |
+**Kaironic termination is rare in agentic pipelines** — most only have chronos caps ("retry until budget runs out"). Second-order cybernetic convergence, where the loop is measuring its own findings-rate and opting to halt when the rate plateaus, is architecturally distinctive:
 
-**Safety floor note**: the floors (50 cycles / $100 / 24h) are hardcoded. Operators can relax values within those floors but cannot disable stopping conditions entirely.
+> Cycle N produces 8 findings. Cycle N+1 produces 2. Cycle N+2 produces 1.
+> The spiral does not continue to cycle N+3 even if budget remains — the work itself has said "we have reached a plateau."
+
+`flatline_convergence` in the table below is the kaironic condition. The rest are chronos backstops that prevent runaway.
+
+| Condition | Kind | Default | Floor | Status | Rationale |
+|-----------|------|---------|-------|--------|-----------|
+| `flatline_convergence` | **kaironic** | 2 consecutive cycles < 3 findings | — | ✅ implemented | Loop observes its own output-rate and halts when signal exhausts |
+| `cycle_budget_exhausted` | chronos | 3 cycles | 50 | ✅ implemented | Primary runaway backstop |
+| `cost_budget_exhausted` | chronos | $20 | $100 | ✅ implemented | Credit exhaustion guard |
+| `wall_clock_exhausted` | chronos | 8h | 24h | ✅ implemented | Second backstop for plateau-at-N |
+| `hitl_halt` | operator | sentinel file | — | ✅ implemented | Operator escape hatch |
+| `quality_gate_failure` | chronos | review AND audit fail | — | ⏳ deferred to cycle-067 | Prevent error compounding (requires embedded `/simstim` dispatch to observe review+audit outcomes) |
+
+**Safety floor note**: the chronos floors (50 cycles / $100 / 24h) are hardcoded. Operators can relax values within those floors but cannot disable stopping conditions entirely. The kaironic condition has no floor — if the system observes convergence, it trusts that signal.
 
 ## Configuration
 
