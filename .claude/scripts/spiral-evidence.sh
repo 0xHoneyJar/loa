@@ -594,6 +594,190 @@ _phase_current_read() {
 }
 
 # =============================================================================
+# Pre-Review Artifact-Coverage Evidence Gate (cycle-092 Sprint 2 — #600)
+# =============================================================================
+#
+# Catches the cycle-091 defect class: IMPL subprocess commits "all N sprints
+# complete" but silently omits SEED-enumerated visible-surface artefacts
+# (Svelte scenes, Page components). Runs AFTER _phase_implement but BEFORE
+# _pre_check_review so a targeted fix-loop can re-dispatch IMPL with a
+# narrower "produce these N paths" prompt — cheaper and more deterministic
+# than surfacing the gap via a 3-attempt semantic REVIEW that burns $60.
+#
+# Deterministic checks only: filesystem test -s. LLM input costs $0.
+
+# _parse_sprint_paths <sprint_md> [sprint_id]
+#
+# Extract deliverable paths from a sprint.md file.
+#
+# Handles the two formats observed in cycles 082/091/092:
+#   1. Backtick-wrapped paths containing at least one `/` (excludes bare
+#      filename references like `\`spiral-harness.sh\`` which are prose):
+#      `- [ ] \`src/lib/scenes/Reliquary.svelte\` — scene component`
+#   2. Bare paths rooted at well-known repo prefixes (src/, tests/, etc.).
+#
+# If sprint_id is supplied (e.g. "sprint-2"), path extraction is scoped to
+# the matching `## Sprint N:` section — prevents false-positives where a
+# sprint.md enumerates deliverables for multiple sprints. Without sprint_id,
+# the whole file is parsed (spiral-harness default, matches cycle-091 scope).
+#
+# Returns deduped paths via stdout, one per line. Missing or unreadable
+# sprint_md returns 1 with no output.
+_parse_sprint_paths() {
+    local sprint_md="${1:-grimoires/loa/sprint.md}"
+    local sprint_id="${2:-}"
+    [[ -f "$sprint_md" && -r "$sprint_md" ]] || return 1
+
+    # Scope content to a specific sprint section if sprint_id provided.
+    # Matches `## Sprint N:` header; extraction runs until the next
+    # `## Sprint` header or `---` separator or EOF. When a `### Deliverables`
+    # subsection exists within that sprint, narrow further — prose references
+    # (Technical Tasks, Risks, etc.) elsewhere in the section often mention
+    # example paths that aren't actual deliverables.
+    local content
+    if [[ -n "$sprint_id" ]]; then
+        local sprint_num="${sprint_id#sprint-}"
+        local sprint_section
+        sprint_section=$(awk -v n="$sprint_num" '
+            $0 ~ "^## Sprint " n ":" { in_section=1; next }
+            in_section && /^## Sprint [0-9]/ { in_section=0 }
+            in_section && /^---$/ { in_section=0 }
+            in_section { print }
+        ' "$sprint_md" 2>/dev/null)
+        [[ -z "$sprint_section" ]] && return 1
+
+        # Look for a `### Deliverables` subsection and scope to it. If absent,
+        # use the whole sprint section as a fallback (older sprint.md formats).
+        local deliverables_section
+        deliverables_section=$(echo "$sprint_section" | awk '
+            /^### Deliverables[[:space:]]*$/ { in_deliv=1; next }
+            in_deliv && /^### / { in_deliv=0 }
+            in_deliv { print }
+        ' 2>/dev/null)
+        if [[ -n "$deliverables_section" ]]; then
+            content="$deliverables_section"
+        else
+            content="$sprint_section"
+        fi
+    else
+        content=$(cat "$sprint_md" 2>/dev/null) || return 1
+    fi
+
+    # Known source file extensions worth gating on. Markdown/yaml/json are
+    # included so doc/config deliverables (e.g. grammar spec) are covered.
+    local ext_re='(svelte|ts|tsx|js|jsx|vue|py|rs|go|sh|bats|md|yaml|yml|json)'
+
+    {
+        # Pattern 1: backtick-wrapped paths with at least one `/` before the
+        # extension. The `/` requirement excludes bare filename prose like
+        # `\`spiral-harness.sh\`` (which is a reference, not a deliverable
+        # declaration). Accepts `.claude/scripts/...`, `src/...`, etc.
+        echo "$content" | grep -oE "\`[^\`]*/[^\`]+\.${ext_re}\`" 2>/dev/null | \
+            sed 's/^`//; s/`$//'
+        # Pattern 2: bare paths rooted at well-known *top-level* repo prefixes.
+        # Anchored to start-of-line or whitespace/non-path-char to prevent
+        # substring matches within longer paths — without the anchor,
+        # `src/lib/scenes/tests/foo.ts` would match both as `src/...` (full)
+        # AND `tests/foo.ts` (substring). Leading boundary char is stripped.
+        # Trailing charclass includes `/` (path separator), `.` (multi-dot
+        # filenames like foo.test.ts), `+` (SvelteKit route convention like
+        # +page.svelte), `()` (SvelteKit route groups like `(rooms)`).
+        # Trailing `-` sits last in the class so it's literal, not a range.
+        echo "$content" | grep -oE "(^|[^a-zA-Z0-9_/.-])(src|tests|\.claude/scripts|\.claude/hooks|grimoires)/[a-zA-Z0-9_/.+()-]+\.${ext_re}" \
+            2>/dev/null | \
+            sed -E 's/^[^a-zA-Z.]//'
+    } | sort -u
+}
+
+# _pre_check_implementation_evidence [sprint_md]
+#
+# Validate that every sprint.md-enumerated deliverable path exists and is
+# non-empty on disk AFTER the implementation phase committed. Emits a
+# grammar-shaped `IMPL_EVIDENCE_MISSING` log line on failure with the
+# missing-path list; advisory `IMPL_EVIDENCE_TRIVIAL` on paths present but
+# suspiciously small. Records flight-recorder action for Sprint 4 heartbeat
+# consumption.
+#
+# Returns:
+#   0 — all enumerated paths present and non-trivial
+#   0 with advisory — paths present, some flagged as trivial (advisory-only)
+#   1 — at least one enumerated path is missing or empty
+_pre_check_implementation_evidence() {
+    local sprint_md="${1:-grimoires/loa/sprint.md}"
+    local sprint_id="${2:-}"
+    local missing=()
+    local trivial=()
+
+    # Parse sprint.md paths. If parsing fails (missing sprint.md or empty
+    # sprint section), record and pass — absence of enumerated paths is an
+    # upstream concern, not an evidence gap.
+    local paths_raw
+    paths_raw="$(_parse_sprint_paths "$sprint_md" "$sprint_id" 2>/dev/null || true)"
+    if [[ -z "$paths_raw" ]]; then
+        [[ -n "${_FLIGHT_RECORDER:-}" ]] && \
+            _record_action "PRE_CHECK_IMPL_EVIDENCE" "evidence-gate" "artifact_coverage" "" "" "" 0 0 0 \
+                "PASS:no_enumerated_paths"
+        return 0
+    fi
+
+    # Classify each path: missing (not present or zero bytes) vs trivial
+    # (present but <20 lines, or matches known-stub regex).
+    local path line_count
+    while IFS= read -r path; do
+        [[ -z "$path" ]] && continue
+        if [[ ! -s "$path" ]]; then
+            missing+=("$path")
+            continue
+        fi
+        # wc -l on stdin redirected from a file emits just the count (no
+        # filename suffix). Use pure-bash whitespace strip to avoid depending
+        # on `tr` being in PATH (some shell init contexts — notably zsh
+        # sourced-in-function-scope — can mask it).
+        line_count=$(wc -l < "$path" 2>/dev/null)
+        line_count="${line_count// /}"
+        line_count="${line_count:-0}"
+        if [[ "$line_count" -lt 20 ]] || \
+           grep -qE '^[[:space:]]*<script>[[:space:]]*</script>' "$path" 2>/dev/null || \
+           grep -qE '^[[:space:]]*TODO[[:space:]]*$' "$path" 2>/dev/null; then
+            trivial+=("$path")
+        fi
+    done <<< "$paths_raw"
+
+    # Join arrays for log emission. Use IFS=, in a subshell so outer IFS stays
+    # unchanged (set -u safe).
+    local joined_missing="" joined_trivial=""
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        joined_missing="$(IFS=,; echo "${missing[*]}")"
+    fi
+    if [[ ${#trivial[@]} -gt 0 ]]; then
+        joined_trivial="$(IFS=,; echo "${trivial[*]}")"
+    fi
+
+    # Blocking: missing paths
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        echo "[harness] IMPL_EVIDENCE_MISSING — ${#missing[@]} sprint-plan paths not produced: $joined_missing" >&2
+        [[ -n "${_FLIGHT_RECORDER:-}" ]] && \
+            _record_action "PRE_CHECK_IMPL_EVIDENCE" "evidence-gate" "artifact_coverage" "" "" "" 0 0 0 \
+                "FAIL:${#missing[@]}_missing:${joined_missing}"
+        return 1
+    fi
+
+    # Advisory: trivial paths present. Non-blocking; pass with annotation.
+    if [[ ${#trivial[@]} -gt 0 ]]; then
+        echo "[harness] IMPL_EVIDENCE_TRIVIAL — ${#trivial[@]} paths below content threshold: $joined_trivial" >&2
+        [[ -n "${_FLIGHT_RECORDER:-}" ]] && \
+            _record_action "PRE_CHECK_IMPL_EVIDENCE" "evidence-gate" "artifact_coverage" "" "" "" 0 0 0 \
+                "PASS:${#trivial[@]}_trivial:${joined_trivial}"
+        return 0
+    fi
+
+    # Happy path
+    [[ -n "${_FLIGHT_RECORDER:-}" ]] && \
+        _record_action "PRE_CHECK_IMPL_EVIDENCE" "evidence-gate" "artifact_coverage" "" "" "" 0 0 0 "PASS"
+    return 0
+}
+
+# =============================================================================
 # Finalization
 # =============================================================================
 
