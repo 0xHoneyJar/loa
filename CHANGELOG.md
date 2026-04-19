@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.99.2] — 2026-04-19 — Spiral SEED failure-ingestion
+
+### Added
+
+- **Prior-cycle failure events fold into next cycle's discovery context** (#575 item 2, [PR #592](https://github.com/0xHoneyJar/loa/pull/592)) — Closes one of the autopoietic-loop gaps identified in @zksoju's three-lens audit. Prior cycles produce observability (`flight-recorder.jsonl`) but next cycle's discovery phase never read it; operators had to hand-curate failure modes into the SEED or (more commonly) not bother, so the same failure patterns recurred. Builds on the #569 dashboard infrastructure — both read flight-recorder, different lens.
+  - **`_find_prior_cycle(current)`** in `spiral-evidence.sh` locates the lexicographically previous cycle dir, skipping incomplete siblings.
+  - **`_summarize_prior_cycle_failures(prior)`** scans the prior flight-recorder for load-bearing events: `CIRCUIT_BREAKER`, `BB_FINDING_STUCK`, `AUTO_ESCALATION`, `REVIEW_FIX_LOOP_EXHAUSTED`, `BUDGET FAIL`, and any phase with `FAIL:` verdict. Emits short markdown bullet list truncated at 2000 chars.
+  - **`_build_seed_failure_prelude(current)`** is the gated entry point: feature flag + prior-cycle lookup + summary composition + `---...---` delimiter wrapping.
+  - **`_phase_discovery`** in `spiral-harness.sh` weaves the prelude into the PRD prompt between the task description and the existing SEED context block.
+  - **Feature flag** (default off, safe rollout): `spiral.seed.include_flight_recorder: true` in `.loa.config.yaml`, or env var `SPIRAL_SEED_INCLUDE_FLIGHT_RECORDER=true`. Enabled operators get the learning loop; existing operators see no behavior change.
+  - **Tests**: 20 new BATS (`tests/unit/spiral-seed-ingestion.bats`) covering predecessor lookup (skip-incomplete, first-cycle-has-no-prior), event extraction (5 categories + clean-cycle + missing-recorder + missing-dir + truncation), and prelude gating (feature-off-default, strict "true" comparison, delimiter wrapper).
+
+## [1.99.1] — 2026-04-19 — Kaironic termination docs
+
+### Changed
+
+- **Name kaironic termination publicly** (#575 item 5, [PR #591](https://github.com/0xHoneyJar/loa/pull/591)) — The `flatline_convergence` stopping condition (cycle-066) was already implemented as "Kaironic signal: plateau reached" in a table cell, but the architectural rarity wasn't called out. Most agentic pipelines have only chronos caps (budget / max iterations / timeout); second-order cybernetic convergence where the loop observes its own findings-rate and halts when signal exhausts is distinctive. Lean into it:
+  - `.claude/skills/spiraling/SKILL.md` Stopping Conditions section now distinguishes chronos (wall-clock caps) from kaironic (signal-exhaustion), marks `flatline_convergence` as the kaironic condition explicitly via a new "Kind" column, and notes no safety floor for the kaironic condition (the system trusts the signal).
+  - `README.md` Spiral Autopoietic Orchestrator section adds a paragraph-length explainer below the Cost optimization note.
+  - No behavior change; docs-only.
+
 ## [1.99.0] — 2026-04-19 — Spiral observability dashboard
 
 ### Added
