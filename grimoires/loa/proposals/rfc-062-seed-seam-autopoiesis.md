@@ -1,6 +1,6 @@
 # RFC-062: SEED Seam Autopoiesis — Auto-Drafting + Failure-Dependency Gating
 
-**Status**: DRAFT (design phase)
+**Status**: DRAFT v2 (Flatline round 1 findings addressed)
 **Authors**: Claude Opus 4.7 (drafting) on behalf of operator work plan
 **Date**: 2026-04-19
 **Cycle**: 089 (SEED-seam autopoiesis design)
@@ -9,6 +9,14 @@
 - RFC-060 (spiral meta-orchestrator)
 - Items 2, 3, 5, 6 shipped in v1.96.2 / v1.99.1 / v1.99.2 / v1.101.0
 **Supersedes**: nothing — additive
+
+**v2 revisions** (2026-04-19, post Flatline round 1 with 3-model agreement at 100%):
+- **B1**: Rubber-stamp risk — operator intent statement is MANDATORY, not auto-drafted; draft acceptance requires explicit diff review (§3.1.6)
+- **B2**: Beads enforcement when CLI unavailable — strict/warn mode split with startup prerequisite check (§3.2.6)
+- **B3**: Non-atomic bead creation — append-only failure journal + idempotency key + reconciliation on startup (§3.2.7)
+- **B4**: Global blocking too coarse — scope-aware gating via `spiral:scope:<repo>:<area>` labels; blanket block is now opt-in (§3.2.8, OQ-5 updated)
+- **B5**: Stale draft replay — cryptographic lineage binding (source/target cycle IDs + content hash in frontmatter); `--force-stale-draft` override (§3.1.7)
+- **B6**: Prompt injection in auto-ingested text — sanitizer pass with directive stripping + content caps + explicit human confirmation for high-risk surfaces (§3.1.8)
 
 ---
 
@@ -233,6 +241,85 @@ Now auto-drafted SEEDs naturally surface actionable visions as emergence for nex
 
 Feature gate: `spiral.seed.include_visions: true` (distinct from `auto_draft`). Default off initially.
 
+#### 1.6 Anti-rubber-stamp: mandatory operator intent (addresses Flatline B1)
+
+**Flatline round 1 finding (100% model consensus)**: Auto-drafting creates a rubber-stamp dynamic. If the entire SEED is scaffolded, operator attention degrades; scaffolding errors compound across cycles because no human speed bump catches them.
+
+**Mitigation**: make operator attention **mandatory, not optional**. Split the SEED into two sections — one auto-drafted (scaffolded context + threads + emergence) and one operator-required (cycle intent statement). The harness refuses to dispatch a draft where the operator-required section is empty or unchanged from placeholder.
+
+Template v2:
+
+```markdown
+## Proposed cycle-<N+1> intent
+
+<!-- OPERATOR-REQUIRED: replace the placeholder below with a ≥ 1-sentence
+     intent statement. Dispatch will refuse to proceed until this section
+     is edited (hash of this section must differ from the placeholder hash
+     that shipped with the template). -->
+
+_(placeholder — replace me)_
+```
+
+Dispatch logic (`spiral-orchestrator.sh cmd_start`) checks that the intent section SHA256 does not equal the known placeholder SHA256. Mismatch → dispatch. Match → refuse with:
+
+> `ERROR: cycle-<N+1> intent section still holds the placeholder. Edit seed-draft.md and write what you actually want this cycle to do (one sentence minimum).`
+
+**Diff confirmation**: when `--edit` is used, the flight-recorder records the unified diff between the scaffold and the operator's edits. This makes "how much did the operator actually engage with the draft" observable — and, critically, retrospectively auditable. If several consecutive cycles show minimal edits (< 2 lines), the system emits an advisory warning: "auto-draft may not be serving you; consider disabling or re-authoring intent from scratch."
+
+#### 1.7 Lineage binding to prevent stale draft replay (addresses Flatline B5)
+
+**Flatline round 1 finding**: `--seed-from-draft <path>` accepts any draft without verifying it came from the most recent cycle, risking stale replay.
+
+**Mitigation**: cryptographic lineage binding in `seed-draft.md` frontmatter.
+
+```markdown
+---
+source_cycle: cycle-088
+target_cycle: cycle-089
+drafted_at: 2026-04-19T15:22:31Z
+source_sidecar_hash: sha256:abc123...
+draft_content_hash: sha256:def456...
+---
+# SEED draft — cycle-089
+...
+```
+
+`cmd_start --seed-from-draft <path>` validates:
+1. `target_cycle` matches the computed next-cycle ID (from ledger + current state)
+2. `source_sidecar_hash` matches the actual sidecar file hash at `<source_cycle_dir>/cycle-outcome.json`
+3. `draft_content_hash` matches SHA256 of the draft body (everything after the frontmatter close)
+4. `drafted_at` is not older than N days (config: `spiral.seed.draft_max_age_days`, default 7)
+
+Any mismatch → refuse with specific reason:
+```
+ERROR: --seed-from-draft rejected: source_sidecar_hash mismatch
+  Expected: sha256:abc123... (current cycle-outcome.json)
+  Got:      sha256:xyz789... (from draft frontmatter)
+This usually means the source cycle's outputs were modified after the draft
+was written. Regenerate the draft with: /spiral --redraft-seed cycle-088
+```
+
+Override: `--force-stale-draft` flag bypasses validation (logged in trajectory with `override_reason` field; operator expected to provide via CLI: `--force-stale-draft --reason "re-running with patched outputs"`).
+
+#### 1.8 Sanitization for injected HARVEST content (addresses Flatline B6)
+
+**Flatline round 1 finding**: HARVEST output (reviewer.md, audit-sprint-feedback.md, flatline findings) becomes next-cycle LLM input. These documents contain content from prior LLM runs that, in an adversarial scenario, could contain instruction-like text that the next cycle's discovery phase interprets as instructions rather than as data.
+
+**Mitigation**: explicit sanitizer pass before inclusion in `seed-draft.md` or `SEED_CONTEXT`.
+
+Sanitizer transforms (in order):
+
+1. **Strip HTML/XML directive patterns**: `<script>`, `<style>`, `<!-- INSTRUCT:`, `<!-- SYSTEM:`, `<meta>`, `<iframe>`, and similar.
+2. **Strip agent-like directives**: lines matching `^(SYSTEM|USER|ASSISTANT|INSTRUCTION): ` (case-insensitive) → prefixed with literal `> QUARANTINED:`.
+3. **Strip prompt-injection tell patterns**: `ignore previous instructions`, `disregard the above`, `you are now`, → replaced with `[redacted]`.
+4. **Cap content per field**: existing 2000-char cap on pull-thread question + emergence pattern retained; enforce new 500-char cap per `cite` field.
+5. **Markdown-escape `cite` fields**: backticks around to prevent cite strings from becoming executable blocks.
+6. **Attribute source with provenance**: each injected block ends with footer `Source: <artifact_path>, sanitizer: v1, sanitized_at: <ISO-8601>`.
+
+High-risk surface escalation: if the sanitizer detects a pattern that matched any directive (step 1-3), the draft frontmatter gains `sanitizer_flags: ["quarantined_directive_found"]` and the harness requires an explicit `--i-have-reviewed-draft` flag at dispatch. This forces a human to visually inspect the draft before dispatch when suspicious content was sanitized.
+
+Sanitizer lives in `.claude/scripts/spiral-seed-sanitizer.sh` and is unit-testable standalone. Feature cannot be disabled (no escape hatch for sanitization) — this is a **defense-in-depth primitive**, not a configurable policy.
+
 ### Part 2 — Failure-Typed Bead Escalation (#575 item 4)
 
 #### 2.1 Circuit-breaker → bead creation
@@ -382,6 +469,153 @@ These surface in the #569 dashboard (`dashboard.jsonl` + `dashboard-latest.json`
 ```
 
 Adds two integer fields to the existing `_emit_dashboard_snapshot` aggregator. Zero risk to existing consumers (additive only).
+
+#### 2.6 Strict-mode enforcement when beads unavailable (addresses Flatline B2)
+
+**Flatline round 1 finding**: The dispatch gate depends on `br` CLI. If beads isn't installed, the gate silently no-ops — contradicting "hard dependency" semantics. Operators who believe the gate is protecting them aren't.
+
+**Mitigation**: three-mode enforcement config with explicit prerequisite check.
+
+```yaml
+spiral:
+  failure_beads:
+    # Gate semantics when beads is unavailable:
+    #   off     — feature disabled entirely; no bead creation, no gating
+    #   warn    — best-effort; warns on missing beads but proceeds (current default)
+    #   strict  — beads MUST be available for dispatch; gate hard-fails if missing
+    enforce_on_dispatch: warn
+```
+
+Startup prerequisite check runs at `cmd_start`:
+
+```bash
+_check_failure_beads_prerequisite() {
+    local mode
+    mode=$(_read_harness_config "spiral.failure_beads.enforce_on_dispatch" "warn")
+
+    case "$mode" in
+        off)
+            return 0  # Not enforcing; no prerequisite
+            ;;
+        warn)
+            if ! command -v br &>/dev/null; then
+                log "WARN: spiral.failure_beads.enforce_on_dispatch=warn but beads CLI not found"
+                log "WARN: failures will not be recorded as dependencies"
+                log "WARN: install: cargo install beads_rust; configure: spiral.failure_beads.enforce_on_dispatch=off"
+            fi
+            return 0  # warn allows missing beads
+            ;;
+        strict)
+            if ! command -v br &>/dev/null; then
+                error "spiral.failure_beads.enforce_on_dispatch=strict but beads CLI not found"
+                error "strict mode requires beads. Options:"
+                error "  1. Install beads: cargo install beads_rust"
+                error "  2. Downgrade to warn: spiral.failure_beads.enforce_on_dispatch=warn"
+                error "  3. Disable feature: spiral.failure_beads.enforce_on_dispatch=off"
+                return 1  # strict fails closed
+            fi
+            # Also verify br health
+            if ! br health --json 2>&1 | jq -e '.status == "HEALTHY"' >/dev/null; then
+                error "strict mode requires healthy beads; current status: $(br health 2>&1 | head -1)"
+                return 1
+            fi
+            return 0
+            ;;
+        *)
+            error "Invalid spiral.failure_beads.enforce_on_dispatch mode: $mode (expected: off|warn|strict)"
+            return 1
+            ;;
+    esac
+}
+```
+
+Default mode stays `warn` (matches current no-op-when-unavailable behavior, preserving backcompat). Operators who want hard guarantees explicitly opt into `strict`.
+
+#### 2.7 Atomic failure journal with idempotency (addresses Flatline B3)
+
+**Flatline round 1 finding**: `_create_failure_bead` uses two sequential operations — `_record_failure` (flight-recorder) and `br create` (beads DB). If the first succeeds and the second fails (network, SIGINT, crash), the spiral has a recorded failure that the gate won't detect, silently breaking the dependency chain.
+
+**Mitigation**: append-only journal + idempotency key + reconciliation on startup.
+
+```
+.run/spiral-failure-journal.jsonl
+```
+
+Each circuit break writes an ENTRY in this order:
+
+1. **Pre-escalation entry** (BEFORE calling `br create`):
+   ```jsonc
+   {"seq": 42, "ts": "...", "cycle_id": "cycle-088", "idempotency_key": "cycle-088:REVIEW_FIX_LOOP:1", "phase": "PENDING", "classification": "review-fix-exhausted", "detail": "..."}
+   ```
+2. **Post-escalation entry** (AFTER bead created, with bead ID captured):
+   ```jsonc
+   {"seq": 43, "ts": "...", "idempotency_key": "cycle-088:REVIEW_FIX_LOOP:1", "phase": "ESCALATED", "bead_id": "bug-042"}
+   ```
+   Or on failure:
+   ```jsonc
+   {"seq": 43, "ts": "...", "idempotency_key": "cycle-088:REVIEW_FIX_LOOP:1", "phase": "ESCALATION_FAILED", "error": "br create exited 1: network error"}
+   ```
+
+Idempotency key format: `<cycle_id>:<gate_name>:<attempt_number>`. Attempt number is the sequence within the cycle (a cycle can have multiple circuit breaks at different gates).
+
+**Reconciliation on startup** (runs in `cmd_start` before dispatch gate):
+
+1. Scan `spiral-failure-journal.jsonl` for entries with `phase: PENDING` that have no matching `ESCALATED` or `ESCALATION_FAILED` entry with the same `idempotency_key`.
+2. For each pending entry: attempt to re-create the bead (beads has its own de-dup by `external_ref` — idempotent retry safe).
+3. Write `ESCALATED` (or `ESCALATION_FAILED`) follow-up entry.
+4. If reconciliation fails after 3 attempts, write `ESCALATION_ABANDONED` and emit a loud warning visible to operator — but do NOT block dispatch (operator can intervene manually).
+
+This gives the transaction semantics Flatline demanded without requiring a transactional DB. The journal is the SoT; beads is a downstream consumer. If beads and journal disagree, journal wins and beads gets reconciled.
+
+#### 2.8 Scope-aware gating (addresses Flatline B4)
+
+**Flatline round 1 finding**: global blocking (all unresolved failure beads block all dispatches across all scopes) creates false blockers and workflow deadlocks. Operator running a spiral on a different project can't dispatch because of failures from an unrelated project.
+
+**Mitigation**: scope metadata on beads + scope-aware gate check.
+
+At bead creation, label with scope:
+
+```bash
+br create ... \
+  --label "spiral:circuit-break,spiral:$classification,spiral:scope:$REPO:$BRANCH"
+```
+
+Scope format: `<repo>:<branch>` (for MVP). Future extension: `<repo>:<branch>:<component>` for finer granularity.
+
+At dispatch gate, filter to current scope:
+
+```bash
+local current_scope
+current_scope=$(_compute_current_scope)  # e.g., "0xHoneyJar/loa:main"
+
+unresolved=$(br list \
+    --label spiral:circuit-break \
+    --label "spiral:scope:$current_scope" \
+    --status "open,in-progress" \
+    --json 2>/dev/null)
+```
+
+Operator can configure the scope hierarchy:
+
+```yaml
+spiral:
+  failure_beads:
+    scope_strictness: exact       # exact | repo | project
+```
+
+- `exact` — block only on `<repo>:<branch>` match (recommended default)
+- `repo` — block on any failure from the same repo (stricter)
+- `project` — block on any failure (blanket — preserves original design, backcompat)
+
+**OQ-5 resolution** (updated from draft v1): the `exact` mode is the new recommendation. `project` mode (blanket block) remains available for operators who want the stricter safety contract.
+
+#### 2.9 Trajectory + observability (continued from 2.5)
+
+In addition to the FAILURE_BEAD_CREATED / FAILURE_BEAD_GATE_CHECK actions (§2.5), the journal-based reconciliation emits:
+
+- `FAILURE_JOURNAL_RECONCILE_START` — reconciliation loop begins at cmd_start
+- `FAILURE_JOURNAL_RECONCILE_RESULT` — per-idempotency-key outcome: RECONCILED | ABANDONED | ALREADY_ESCALATED
+- `FAILURE_JOURNAL_CORRUPTED` — journal has unparseable lines (rare; operator intervention needed)
 
 ---
 
