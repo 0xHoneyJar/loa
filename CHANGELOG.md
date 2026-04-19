@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Simstim skill documents invalid `--mode hitl`** (#579) — Three Flatline invocations in `.claude/skills/simstim-workflow/SKILL.md` (phases 2/4/6 for PRD/SDD/sprint) used `--mode hitl`, which `flatline-orchestrator.sh` rejects with exit 1. Agents following the skill literally would escalate the error or retry with wrong mode values. HITL semantics are already delivered by the orchestrator's auto-detection from `.run/simstim-state.json`, so the flag is redundant. Removed from all three invocations. Drive-by: `--help` listed modes as "review (default), red-team" but the validator also accepts `inquiry`; help text now matches validator.
+- **Red team grounding failure silently returned off-target findings** (#582, Option C) — When the Flatline red-team domain extractor produces a weak domain string (typically on SDDs with abstract section headings like "Component Architecture"), the secondary attacker model generates attacks from its prior rather than engaging the actual document — the primary reviewer (Opus) scores them all 0. Added a fail-closed guard in the red-team path: when ≥80% of scored attacks have `opus_score == 0` and total attacks ≥ 3, the orchestrator halts with exit code 3, injects `grounding_failure: true` into the JSON output, and logs an operator-actionable message pointing at the likely cause (weak domain extraction) and remediation (`--domain` override). Threshold and minimum-attack count are configurable via `red_team.grounding_failure.{opus_zero_threshold, min_attacks}` in `.loa.config.yaml` (defaults 0.8 / 3). Option A (domain extractor rewrite) deferred as structural follow-up.
+  - **Testability**: Grounding-failure computation extracted to `compute_grounding_stats()` — a pure function callable by sourcing the orchestrator. `BASH_SOURCE[0] == $0` guard added at the bottom so sourcing doesn't trigger `main()`. Enables dynamic BATS testing of the real runtime path rather than grep-only static checks (PR #583 Bridgebuilder finding M001).
+
 ## [1.94.0] — 2026-04-17 — Adversarial Review Enforcement Gate
 
 ### Added
