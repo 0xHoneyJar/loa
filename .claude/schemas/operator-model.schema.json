@@ -1,0 +1,63 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://constructs.network/schemas/operator-model.schema.json",
+  "title": "Operator-Model",
+  "description": "Operator knowledge/expertise map. Doctrine §14.2 (5th stream primitive). Sourced from ~/hivemind/ + session context + explicit operator utterances. Every pipe stage reads this alongside its domain input so output register calibrates to operator expertise.",
+  "type": "object",
+  "schema_version": "1.0.0",
+  "additionalProperties": true,
+  "required": ["stream_type", "schema_version", "timestamp"],
+  "properties": {
+    "stream_type": {
+      "const": "Operator-Model"
+    },
+    "schema_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "operator": {
+      "type": "string",
+      "description": "Operator identifier. Default implicit when single-operator context."
+    },
+    "expertise": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Declared or inferred domains of expertise (e.g. design-engineering, solidity, convex)."
+    },
+    "mode": {
+      "type": "string",
+      "description": "Current Operator-OS mode if any (e.g. FEEL, ARCH, DIG, SHIP, FRAME, TEND). Orientation hint, not dispatch requirement."
+    },
+    "lenses": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Active lenses layered over mode (e.g. craft, keeper, canon, weaver)."
+    },
+    "references": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Things the operator has named this session — projects, people, code refs. Consumers may avoid re-explaining these."
+    },
+    "register": {
+      "type": "string",
+      "enum": ["novice", "intermediate", "expert", "mixed"],
+      "description": "Optional calibration tier for output depth. Consumers may expand on novice, shortcut on expert."
+    },
+    "hivemind_sources": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Paths to hivemind entries loaded into context (personal + organizational). Provenance for any operator-facing claim."
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "read_mode": {
+      "type": "string",
+      "enum": ["glance", "orient", "intervene"]
+    }
+  }
+}
