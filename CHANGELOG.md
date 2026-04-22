@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **mount-loa**: optional `--with-constructs` / `--no-constructs` / `--constructs-pack <slug>` flags. When opted in, installs a construct-network bundle after a successful mount via the already-bundled `constructs-install.sh`. Non-fatal on install failure — a failed bundle install does not invalidate an otherwise-valid mount. Default: off. Paves the onramp documented in [0xHoneyJar/loa-constructs cycle-005 SEED](https://github.com/0xHoneyJar/loa-constructs/blob/main/grimoires/loa-constructs-seed-2026-04-21/cycle-005-SEED-runtime-integration.md) L5 (#615)
+- **/loa-setup**: new Step 5 offers optional construct-network install through the wizard — default bundle, choose-a-different-pack, or skip. Wizard completes even if the installer is missing or returns non-zero (#615)
 - **cycle-038**: Organizational Memory Sovereignty — three-zone state architecture with state-dir resolution, migration engine, trajectory redaction, memory pipeline, and federated learning across 6 sprints (#410)
 - **cycle-036**: Quick-Win UX Fixes — state zone merge protection, stealth `.ck/` directory, bridgebuilder `.env` auto-loading, origin-first remote detection (#407)
 - **cycle-035**: Minimal Footprint by Default — submodule-first installation with `/loa eject` for full copy (#406)
