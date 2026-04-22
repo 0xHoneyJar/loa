@@ -101,7 +101,34 @@ If user selected features (and did NOT select "Keep current settings"):
 
 If user selected "Keep current settings", skip configuration changes.
 
-### Step 5: Summary
+### Step 5: Construct Network Tools (optional)
+
+If the project has `.claude/scripts/constructs-install.sh` available, offer to install the construct-network bundle. Present via AskUserQuestion:
+
+```yaml
+question: "Install the construct-network tools?"
+header: "Constructs"
+options:
+  - label: "Yes, install the default bundle"
+    description: "Runs constructs install construct-network-tools — adds browse/compose/publish + registry hooks"
+  - label: "Choose a different pack"
+    description: "Prompts for a slug (e.g. artisan, observer, k-hole)"
+  - label: "Skip"
+    description: "I'll run /constructs install manually later"
+multiSelect: false
+```
+
+If user selects "Yes, install the default bundle":
+1. Run `.claude/scripts/constructs-install.sh pack construct-network-tools` via the Bash tool.
+2. Surface any warnings; do NOT fail the whole wizard on install errors (construct-network is optional — mount remains valid).
+
+If user selects "Choose a different pack":
+1. Prompt for a slug via a second AskUserQuestion or text input.
+2. Run `.claude/scripts/constructs-install.sh pack <slug>` with the same non-fatal error handling.
+
+If the installer is missing (older Loa versions without constructs-install.sh bundled), skip this step silently.
+
+### Step 6: Summary
 
 Display a summary with next steps:
 
@@ -109,6 +136,7 @@ Display a summary with next steps:
 Setup complete! Next steps:
   1. Start planning: /plan
   2. Or check status: /loa
+  3. Browse packs: /constructs
 ```
 
 ## Security
