@@ -1,0 +1,63 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://constructs.network/schemas/verdict.schema.json",
+  "title": "Verdict",
+  "description": "Evaluated judgment stream row. Doctrine §3.2. Per-invocation (one invocation → one verdict row). Composes with feedback-v3.schema.json — a Verdict row at this level is equivalent to a feedback-v3 entry with an explicit stream_type.",
+  "type": "object",
+  "schema_version": "1.0.0",
+  "additionalProperties": true,
+  "required": ["stream_type", "schema_version", "timestamp", "source", "verdict"],
+  "properties": {
+    "stream_type": {
+      "const": "Verdict"
+    },
+    "schema_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source": {
+      "type": "string",
+      "description": "Emitting persona or construct slug (e.g. ALEXANDER, observer)."
+    },
+    "verdict": {
+      "type": "string",
+      "description": "Core evaluated judgment — actionable, operator-legible."
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["info", "low", "medium", "high", "critical"],
+      "description": "Operator-facing severity tag. Consumers may filter by severity tier."
+    },
+    "evidence": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Supporting signals or file:line references. Should cite observable reality, not speculation."
+    },
+    "subject": {
+      "type": "string",
+      "description": "Optional target of the verdict — file path, component name, entity id."
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "read_mode": {
+      "type": "string",
+      "enum": ["glance", "orient", "intervene"]
+    },
+    "glance": {
+      "type": "string",
+      "description": "Single-line variant of this verdict (≤ 120 chars). Satisfies glance-latency consumers."
+    },
+    "orient": {
+      "type": "string",
+      "description": "3-5 line variant of this verdict. Satisfies orient-latency consumers."
+    }
+  }
+}
