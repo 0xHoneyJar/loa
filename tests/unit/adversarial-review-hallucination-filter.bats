@@ -25,7 +25,9 @@ setup() {
     # Use a small extraction pattern: read from the anchor comment to the end
     # of _apply_hallucination_filter. The file uses `set -euo pipefail`, so we
     # cannot source the whole thing (it parses CLI args at load).
-    local script_path="/home/merlin/Documents/thj/code/loa/.claude/scripts/adversarial-review.sh"
+    local repo_root
+    repo_root="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)"
+    local script_path="$repo_root/.claude/scripts/adversarial-review.sh"
     # Extract the filter block between the cycle-093 anchor and the next major
     # section banner (Finding ID Computation).
     sed -n '/# Dissenter Hallucination Filter/,/# Finding ID Computation/p' "$script_path" > ext.sh
