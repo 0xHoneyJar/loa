@@ -490,7 +490,8 @@ _registry_models() {
 # -----------------------------------------------------------------------------
 # HTTP helpers
 # -----------------------------------------------------------------------------
-# _curl_json  url  auth_header  auth_value  [method]  [body_file]
+# _curl_json  url  auth_type  api_key  [method]  [body_file]
+# auth_type: "bearer" | "x-api-key" | "x-goog-api-key"
 # Sets globals: HTTP_STATUS, RESPONSE_BODY
 # Callers read the globals directly (do NOT use $() — that would fork a subshell
 # and drop the global updates).
@@ -499,8 +500,8 @@ HTTP_STATUS=0
 RESPONSE_BODY=""
 _curl_json() {
     local url="$1"
-    local header_name="$2"
-    local header_value="$3"
+    local auth_type="$2"
+    local api_key="$3"
     local method="${4:-GET}"
     local body_file="${5:-}"
 
@@ -523,17 +524,23 @@ _curl_json() {
         return 0
     fi
 
-    # Build secure curl config file via lib-security if available; otherwise inline.
-    local cfg
-    if [[ -f "$SCRIPT_DIR/lib-security.sh" ]]; then
-        # shellcheck source=./lib-security.sh
-        source "$SCRIPT_DIR/lib-security.sh"
-        cfg=$(write_curl_auth_config "$header_name" "$header_value") || return 1
-    else
-        cfg=$(mktemp) || return 1
-        chmod 600 "$cfg"
-        printf 'header = "%s: %s"\n' "$header_name" "$header_value" > "$cfg"
+    # Build secure curl config file via lib-security. The header construction
+    # and write_curl_auth_config call MUST be on the same logical line so the
+    # shell-compat-lint allowlist matches (raw curl auth is a lint error; the
+    # secure helper pattern is allowlisted).
+    if [[ ! -f "$SCRIPT_DIR/lib-security.sh" ]]; then
+        log_error "lib-security.sh not found — refusing to proceed without secure auth helper"
+        return 1
     fi
+    # shellcheck source=./lib-security.sh
+    source "$SCRIPT_DIR/lib-security.sh"
+    local cfg
+    case "$auth_type" in
+        bearer)          cfg=$(write_curl_auth_config "Authorization" "Bearer $api_key") || return 1 ;;
+        x-api-key)       cfg=$(write_curl_auth_config "x-api-key" "$api_key") || return 1 ;;
+        x-goog-api-key)  cfg=$(write_curl_auth_config "x-goog-api-key" "$api_key") || return 1 ;;
+        *)               log_error "unknown auth_type: $auth_type"; return 1 ;;
+    esac
 
     local out_body
     out_body=$(mktemp)
@@ -631,7 +638,7 @@ _probe_openai() {
 
     local t0 t1
     t0=$(date +%s%3N 2>/dev/null || date +%s000)
-    _curl_json "https://api.openai.com/v1/models" "Authorization" "Bearer $OPENAI_API_KEY"
+    _curl_json "https://api.openai.com/v1/models" "bearer" "$OPENAI_API_KEY"
     local body="$RESPONSE_BODY"
     t1=$(date +%s%3N 2>/dev/null || date +%s000)
     PROBE_LATENCY_MS=$((t1 - t0))
@@ -693,7 +700,8 @@ _probe_google() {
 
     local t0 t1
     t0=$(date +%s%3N 2>/dev/null || date +%s000)
-    _curl_json "https://generativelanguage.googleapis.com/v1beta/models?key=$GOOGLE_API_KEY" "x-goog-api-key" "$GOOGLE_API_KEY"
+    # Audit M-1 remediation: header-only auth (drops ?key= query string that leaked via ps aux)
+    _curl_json "https://generativelanguage.googleapis.com/v1beta/models" "x-goog-api-key" "$GOOGLE_API_KEY"
     local list_body="$RESPONSE_BODY"
     t1=$(date +%s%3N 2>/dev/null || date +%s000)
     PROBE_LATENCY_MS=$((t1 - t0))
@@ -778,6 +786,8 @@ _probe_anthropic() {
     local t0 t1
     t0=$(date +%s%3N 2>/dev/null || date +%s000)
     _curl_json "https://api.anthropic.com/v1/messages" "x-api-key" "$ANTHROPIC_API_KEY" POST "$body_file"
+    # NOTE: Anthropic also requires an anthropic-version header (Audit L-1, review Concern).
+    # Tracked for sprint-3B before live-API CI gate engages.
     local resp="$RESPONSE_BODY"
     t1=$(date +%s%3N 2>/dev/null || date +%s000)
     PROBE_LATENCY_MS=$((t1 - t0))
