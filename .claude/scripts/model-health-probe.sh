@@ -49,6 +49,8 @@
 #   LOA_PROBE_INVOCATION_TIMEOUT  Override total timeout seconds (default 120)
 #   LOA_PROBE_PER_CALL_TIMEOUT    Override per-call timeout seconds (default 30)
 #   LOA_CACHE_DIR                 Override cache directory (default .run)
+#   LOA_TRAJECTORY_DIR            Override trajectory-log directory (test isolation)
+#   LOA_AUDIT_LOG                 Override audit-log path (test isolation)
 # =============================================================================
 
 set -euo pipefail
@@ -62,8 +64,9 @@ PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 MODEL_REGISTRY_YAML="${MODEL_REGISTRY_YAML:-$PROJECT_ROOT/.claude/defaults/model-config.yaml}"
 LOA_CACHE_DIR="${LOA_CACHE_DIR:-$PROJECT_ROOT/.run}"
 CACHE_PATH_DEFAULT="$LOA_CACHE_DIR/model-health-cache.json"
-TRAJECTORY_DIR="$PROJECT_ROOT/.run/trajectory"
-AUDIT_LOG="$PROJECT_ROOT/.run/audit.jsonl"
+# Env-overridable for test isolation (Bridgebuilder F8/F-002/F-003):
+TRAJECTORY_DIR="${LOA_TRAJECTORY_DIR:-$PROJECT_ROOT/.run/trajectory}"
+AUDIT_LOG="${LOA_AUDIT_LOG:-$PROJECT_ROOT/.run/audit.jsonl}"
 CACHE_SCHEMA_VERSION="1.0"
 
 # Hard-stop budgets (Flatline IMP-006 — all exit 5 on breach)

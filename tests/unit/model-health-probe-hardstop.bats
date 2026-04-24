@@ -14,6 +14,8 @@ setup() {
 
     TEST_DIR="$(mktemp -d)"
     export LOA_CACHE_DIR="$TEST_DIR"
+    export LOA_TRAJECTORY_DIR="$TEST_DIR/trajectory"
+    export LOA_AUDIT_LOG="$TEST_DIR/audit.jsonl"
     export OPENAI_API_KEY="test-openai"
     export GOOGLE_API_KEY="test-google"
     export ANTHROPIC_API_KEY="test-anthropic"
@@ -29,11 +31,12 @@ teardown() {
     unset LOA_PROBE_MAX_PROBES LOA_PROBE_MAX_COST_CENTS LOA_PROBE_INVOCATION_TIMEOUT
     unset LOA_PROBE_MOCK_MODE LOA_PROBE_MOCK_HTTP_STATUS
     unset LOA_PROBE_MOCK_OPENAI LOA_PROBE_MOCK_GOOGLE LOA_PROBE_MOCK_ANTHROPIC
+    unset LOA_TRAJECTORY_DIR LOA_AUDIT_LOG
 }
 
-# Find the probe-<date>.jsonl file under TRAJECTORY_DIR (inside PROJECT_ROOT)
+# Find the probe-<date>.jsonl file under the hermetic $TEST_DIR trajectory (Bridgebuilder F8)
 _latest_trajectory_for_probe() {
-    local dir="$PROJECT_ROOT/.run/trajectory"
+    local dir="$TEST_DIR/trajectory"
     local today
     today="$(date -u +%Y-%m-%d)"
     echo "$dir/probe-$today.jsonl"

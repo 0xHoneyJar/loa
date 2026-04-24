@@ -12,9 +12,11 @@ setup() {
     PROBE="$PROJECT_ROOT/.claude/scripts/model-health-probe.sh"
     FIXTURES="$PROJECT_ROOT/.claude/tests/fixtures/provider-responses"
 
-    # Isolated cache + trajectory for each test
+    # Isolated cache + trajectory + audit log for each test (Bridgebuilder F-002)
     TEST_DIR="$(mktemp -d)"
     export LOA_CACHE_DIR="$TEST_DIR"
+    export LOA_TRAJECTORY_DIR="$TEST_DIR/trajectory"
+    export LOA_AUDIT_LOG="$TEST_DIR/audit.jsonl"
     export OPT_CACHE_PATH=""
 
     # Stub API keys so the "missing key" early-return doesn't fire in tests
@@ -362,15 +364,13 @@ teardown() {
 @test "legacy-behavior fallback: emits mandatory audit-log entry" {
     run env LOA_PROBE_LEGACY_BEHAVIOR=1 \
         LOA_CACHE_DIR="$TEST_DIR" \
+        LOA_AUDIT_LOG="$TEST_DIR/audit.jsonl" \
         OPENAI_API_KEY=test \
         "$PROBE" --provider openai --model gpt-5.3-codex --quiet --output json
     [ "$status" -eq 0 ]
-    # Audit log path lives under PROJECT_ROOT/.run/audit.jsonl by default
-    # We can't easily redirect it in tests without code changes; just assert
-    # the behavior succeeded (non-blocking, per design).
-    [ -f "$PROJECT_ROOT/.run/audit.jsonl" ]
-    # Newest line mentioning probe_legacy_bypass
-    grep -q 'probe_legacy_bypass' "$PROJECT_ROOT/.run/audit.jsonl"
+    # Hermetic audit log check via LOA_AUDIT_LOG override (Bridgebuilder F-002)
+    [ -f "$TEST_DIR/audit.jsonl" ]
+    grep -q 'probe_legacy_bypass' "$TEST_DIR/audit.jsonl"
 }
 
 # -----------------------------------------------------------------------------
