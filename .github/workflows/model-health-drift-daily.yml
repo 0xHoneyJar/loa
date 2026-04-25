@@ -88,11 +88,17 @@ jobs:
               labels: ['model-health-drift'],
             });
 
-      - name: Post-job secret scanner (Flatline SKP-005)
+      - name: Post-job secret scanner — TruffleHog (Flatline SKP-005, primary)
         if: always()
-        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7  # v2.3.9
+        uses: trufflesecurity/trufflehog@7f4e37db2d928c18ddd7ddf0604f8f7d1f5793ec  # v3.93.0
         with:
-          config-path: .gitleaks.toml
+          path: ./
+          # Daily cron has no PR base; scan working tree against itself.
+          extra_args: --only-verified
+
+      - name: Post-job secret scanner — GitLeaks (Flatline SKP-005, conditional)
+        if: always() && env.GITLEAKS_LICENSE != ''
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7  # v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_NOTIFY_USER_LIST: ''
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}

@@ -68,11 +68,18 @@ jobs:
         run: |
           bats tests/unit/secret-redaction.bats
 
-      - name: Post-job secret scanner (Flatline SKP-005)
-        if: always()
-        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7  # v2.3.9
+      - name: Post-job secret scanner — TruffleHog (Flatline SKP-005, primary)
+        if: always() && matrix.os == 'ubuntu-latest'    # avoid double-running on macOS matrix leg
+        uses: trufflesecurity/trufflehog@7f4e37db2d928c18ddd7ddf0604f8f7d1f5793ec  # v3.93.0
         with:
-          config-path: .gitleaks.toml
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --only-verified
+
+      - name: Post-job secret scanner — GitLeaks (Flatline SKP-005, conditional)
+        if: always() && matrix.os == 'ubuntu-latest' && env.GITLEAKS_LICENSE != ''
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7  # v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_NOTIFY_USER_LIST: ''
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}

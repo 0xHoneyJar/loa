@@ -9,7 +9,7 @@ Health check: /loa doctor
 Version: 1.88.0
 -->
 
-[![Version](https://img.shields.io/badge/version-1.101.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.102.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE.md)
 [![Release](https://img.shields.io/badge/release-Spiral%20Autopoietic%20Orchestrator-purple.svg)](CHANGELOG.md#1880---2026-04-15)
 
