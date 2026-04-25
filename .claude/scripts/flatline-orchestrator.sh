@@ -343,7 +343,20 @@ get_max_iterations() {
 # Forward-compat regex VALID_MODEL_PATTERNS admits new model versions
 # without requiring code edits (per #573 operator experience with
 # gpt-5.4-codex). The regex structure ensures typos still fail fast.
-VALID_FLATLINE_MODELS=(opus gpt-5.2 gpt-5.3-codex claude-opus-4.7 claude-opus-4-7 claude-opus-4.6 claude-opus-4-6 claude-opus-4.5 claude-sonnet-4-6 gemini-2.0 gemini-2.5-flash gemini-2.5-pro)
+# VALID_FLATLINE_MODELS — Sprint-4 T4.2 (closes SDD §1.4 C4 SSOT coverage gap).
+# Now derived from .claude/defaults/model-config.yaml via gen-adapter-maps.sh
+# rather than hand-maintained. Source the generated file if available;
+# fall back to a stub allowlist if the generator hasn't run (model-adapter
+# tooling will surface the actual error path on use).
+_GENERATED_MAPS="$(dirname "${BASH_SOURCE[0]}")/generated-model-maps.sh"
+if [[ -f "$_GENERATED_MAPS" ]]; then
+    # shellcheck source=generated-model-maps.sh
+    source "$_GENERATED_MAPS"
+else
+    # Fallback (should never trigger in checked-in state — generator is run
+    # alongside YAML edits per SDD §4.3 Flow 1).
+    declare -a VALID_FLATLINE_MODELS=(opus gpt-5.3-codex claude-opus-4-7 claude-sonnet-4-6 gemini-2.5-pro)
+fi
 
 # Forward-compat patterns for provider-side verified models not yet in
 # the explicit allowlist. Operators running newer models (gpt-5.4-codex,

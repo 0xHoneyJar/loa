@@ -743,12 +743,21 @@ hounfour:
   flatline_tertiary_model: gemini-2.5-pro  # 3-model Flatline: Opus + GPT-5.3-codex + Gemini
 
   # Aliases — short names mapping to provider:model-id
+  #
+  # Cycle-093 sprint-4 advisory (T3.1):
+  # If you have `gpt-5.2` pinned in your `.loa.config.yaml`, consider migrating
+  # to `gpt-5.3-codex`. The 5.3 model line is on the current OpenAI Responses
+  # API path (better tool-calling, more recent training cutoff) and is what the
+  # framework's adversarial-review + bridgebuilder paths default to. The
+  # examples below have been updated to reflect this preference; gpt-5.2
+  # remains supported for operators with workload-specific reasons to pin it.
   aliases:
-    native: "claude-code:session"         # Reserved — Claude Code native runtime
-    reviewer: "openai:gpt-5.2"            # Primary review model
-    reasoning: "openai:gpt-5.2"           # Reasoning/skeptic model
-    cheap: "anthropic:claude-sonnet-4-6"  # Budget-conscious model
-    opus: "anthropic:claude-opus-4-7"     # High-quality model (retargeted from 4-6 in cycle-082)
+    native: "claude-code:session"          # Reserved — Claude Code native runtime
+    reviewer: "openai:gpt-5.3-codex"       # Primary review model (gpt-5.2 → 5.3 per T3.1)
+    reasoning: "openai:gpt-5.3-codex"      # Reasoning/skeptic model (gpt-5.2 → 5.3 per T3.1)
+    cheap: "anthropic:claude-sonnet-4-6"   # Budget-conscious model
+    opus: "anthropic:claude-opus-4-7"      # High-quality model (retargeted from 4-6 in cycle-082)
+    deep-thinker: "google:gemini-3.1-pro-preview"   # Re-added cycle-093 sprint-4
 
   # Agent bindings — which model each agent uses + requirements
   # Agents not listed here use the system defaults from model-config.yaml
