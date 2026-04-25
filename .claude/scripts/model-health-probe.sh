@@ -304,35 +304,38 @@ _circuit_update() {
 
     _require_flock || return 1
     local lock="${cache_file}.lock"
-    exec {_cb_lock_fd}>"$lock" || return 1
-    flock -w 5 "$_cb_lock_fd" || { exec {_cb_lock_fd}>&-; return 1; }
 
-    local now_iso updated tmp
-    now_iso="$(_iso_timestamp)"
-    if [[ "$delta" == "failure" ]]; then
-        updated=$(jq --arg p "$provider" \
-            --argjson threshold "$CIRCUIT_FAILURE_THRESHOLD" \
-            --argjson reset "$CIRCUIT_RESET_SECONDS" \
-            --arg now "$now_iso" '
-            .provider_circuit_state //= {} |
-            .provider_circuit_state[$p] //= {consecutive_failures:0, open_until:null} |
-            .provider_circuit_state[$p].consecutive_failures += 1 |
-            if .provider_circuit_state[$p].consecutive_failures >= $threshold then
-                .provider_circuit_state[$p].open_until =
-                    (($now | fromdateiso8601) + $reset | todateiso8601)
-            else . end' "$cache_file" 2>/dev/null) || { exec {_cb_lock_fd}>&-; return 1; }
-    else
-        updated=$(jq --arg p "$provider" '
-            .provider_circuit_state //= {} |
-            .provider_circuit_state[$p] = {consecutive_failures:0, open_until:null}
-        ' "$cache_file" 2>/dev/null) || { exec {_cb_lock_fd}>&-; return 1; }
-    fi
-    tmp="$(mktemp "${cache_file}.tmp.XXXXXX")"
-    printf '%s\n' "$updated" > "$tmp"
-    sync "$tmp" 2>/dev/null || true
-    mv -f "$tmp" "$cache_file"
+    # bash-3.2 portability: macOS default bash does not support the named-fd
+    # variable form `exec {_var}>file`. Use a subshell with hardcoded fd 9
+    # (sprint-3B iter-4 — closes the macos-latest CI matrix failure).
+    (
+        flock -w 5 9 || exit 1
 
-    exec {_cb_lock_fd}>&-
+        local now_iso updated tmp
+        now_iso="$(_iso_timestamp)"
+        if [[ "$delta" == "failure" ]]; then
+            updated=$(jq --arg p "$provider" \
+                --argjson threshold "$CIRCUIT_FAILURE_THRESHOLD" \
+                --argjson reset "$CIRCUIT_RESET_SECONDS" \
+                --arg now "$now_iso" '
+                .provider_circuit_state //= {} |
+                .provider_circuit_state[$p] //= {consecutive_failures:0, open_until:null} |
+                .provider_circuit_state[$p].consecutive_failures += 1 |
+                if .provider_circuit_state[$p].consecutive_failures >= $threshold then
+                    .provider_circuit_state[$p].open_until =
+                        (($now | fromdateiso8601) + $reset | todateiso8601)
+                else . end' "$cache_file" 2>/dev/null) || exit 1
+        else
+            updated=$(jq --arg p "$provider" '
+                .provider_circuit_state //= {} |
+                .provider_circuit_state[$p] = {consecutive_failures:0, open_until:null}
+            ' "$cache_file" 2>/dev/null) || exit 1
+        fi
+        tmp="$(mktemp "${cache_file}.tmp.XXXXXX")"
+        printf '%s\n' "$updated" > "$tmp"
+        sync "$tmp" 2>/dev/null || true
+        mv -f "$tmp" "$cache_file"
+    ) 9>"$lock"
 }
 
 # Staleness cutoff per SDD §3.5.
@@ -520,25 +523,28 @@ _cache_atomic_write() {
 
     _require_flock || return 2
 
-    exec {_lock_fd}>"$lockfile"
-    if ! flock -w "$timeout" "$_lock_fd"; then
-        log_error "cache lock timeout after ${timeout}s"
-        exec {_lock_fd}>&-
-        return 1
-    fi
+    # bash-3.2 portability: macOS default bash does not support the named-fd
+    # variable form `exec {_var}>file`. Use a subshell with hardcoded fd 9
+    # (sprint-3B iter-4 — closes the macos-latest CI matrix failure).
+    local rc=0
+    (
+        flock -w "$timeout" 9 || {
+            log_error "cache lock timeout after ${timeout}s"
+            exit 1
+        }
 
-    local tmpfile
-    tmpfile="$(mktemp "${cache}.tmp.XXXXXX")"
-    cat "$payload_file" > "$tmpfile"
-    sync "$tmpfile" 2>/dev/null || true   # best-effort fsync via coreutils sync
-    if ! mv -f "$tmpfile" "$cache"; then
-        log_error "atomic rename failed; discarding write"
-        rm -f "$tmpfile"
-        exec {_lock_fd}>&-
-        return 2
-    fi
-    exec {_lock_fd}>&-
-    return 0
+        local tmpfile
+        tmpfile="$(mktemp "${cache}.tmp.XXXXXX")"
+        cat "$payload_file" > "$tmpfile"
+        sync "$tmpfile" 2>/dev/null || true   # best-effort fsync via coreutils sync
+        if ! mv -f "$tmpfile" "$cache"; then
+            log_error "atomic rename failed; discarding write"
+            rm -f "$tmpfile"
+            exit 2
+        fi
+    ) 9>"$lockfile"
+    rc=$?
+    return "$rc"
 }
 
 # _cache_read — stdout: cache JSON (or empty-shell on parse failure/absence)
