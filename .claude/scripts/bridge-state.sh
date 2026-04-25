@@ -156,19 +156,45 @@ atomic_state_update() {
 #   11  flock acquire timeout (only this triggers stale-lock recovery)
 #   12  jq transformation failed
 #   13  mv (atomic rename) failed
+# Cached capability detection for `flock -E <code>` (util-linux 2.26+).
+# (cycle-094 review iter-4, DISS-202 fix; mirrors model-health-probe.sh
+# helper of the same name.)
+_flock_supports_dash_e() {
+  if [[ -z "${_LOA_FLOCK_HAS_E:-}" ]]; then
+    if flock --help 2>&1 | grep -q -- '--conflict-exit-code'; then
+      _LOA_FLOCK_HAS_E=1
+    else
+      _LOA_FLOCK_HAS_E=0
+    fi
+  fi
+  [[ "$_LOA_FLOCK_HAS_E" == "1" ]]
+}
+
 _atomic_state_update_flock_attempt() {
   local jq_filter="$1"
   shift
+  # Compute -E args once outside the subshell so the capability check is
+  # cached across the entire run.
+  local flock_e_args=""
+  if _flock_supports_dash_e; then
+    flock_e_args="-E 11"
+  fi
   (
-    # `-E 11`: exit 11 ONLY on timeout (or `-n` conflict). Other flock
-    # failures (kernel error, unsupported fs, bad fd) preserve their own
-    # exit code (typically 1) — they are NOT timeouts and must NOT trigger
-    # stale-lock recovery (cycle-094 review iter-3, DISS-002 fix).
-    flock -E 11 -w 5 9 2>/dev/null
+    # `-E 11` (when supported): exit 11 ONLY on timeout (or `-n` conflict).
+    # Other flock failures (kernel error, unsupported fs, bad fd) preserve
+    # their own exit code (typically 1) — they are NOT timeouts and must
+    # NOT trigger stale-lock recovery. On flock without -E (very old or
+    # non-util-linux builds), behavior matches pre-iter-3 — any flock
+    # failure exits 1; the case-routing below treats only 11 as timeout, so
+    # rc=1 propagates as a real failure (lockfile preserved). The semantic
+    # difference is that on -E-less flock we lose the ability to distinguish
+    # a true timeout from a flock-internal error, but neither code path
+    # removes the lockfile in that case (rc=1 is NOT 11 → falls into the
+    # `*` branch). (cycle-094 review iter-3 DISS-002 + iter-4 DISS-202.)
+    # shellcheck disable=SC2086  # intentional word-split on flock_e_args
+    flock $flock_e_args -w 5 9 2>/dev/null
     local frc=$?
     if [[ "$frc" -ne 0 ]]; then
-      # If flock exited 11, we propagate that as the lock-timeout signal.
-      # Any other non-zero is a flock-runtime failure — propagate as-is.
       exit "$frc"
     fi
     local tmp_file="${BRIDGE_STATE_FILE}.tmp.$$"

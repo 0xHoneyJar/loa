@@ -139,6 +139,21 @@ _require_flock() {
     return 0
 }
 
+# Cached capability detection for `flock -E <code>` (util-linux 2.26+).
+# Returns 0 if `-E` is supported, 1 otherwise. Result memoized in
+# _LOA_FLOCK_HAS_E so the help-grep only runs once per process.
+# (cycle-094 review iter-4, DISS-202 fix.)
+_flock_supports_dash_e() {
+    if [[ -z "${_LOA_FLOCK_HAS_E:-}" ]]; then
+        if flock --help 2>&1 | grep -q -- '--conflict-exit-code'; then
+            _LOA_FLOCK_HAS_E=1
+        else
+            _LOA_FLOCK_HAS_E=0
+        fi
+    fi
+    [[ "$_LOA_FLOCK_HAS_E" == "1" ]]
+}
+
 # -----------------------------------------------------------------------------
 # Telemetry — structured JSONL append to .run/trajectory/<date>.jsonl
 # -----------------------------------------------------------------------------
@@ -543,13 +558,24 @@ _cache_atomic_write() {
     # variable assignment form for the exec/redirect builtin. Use a subshell
     # with a hardcoded fd 9 instead (sprint-3B iter-4 — closes the
     # macos-latest CI matrix failure; cycle-094 G-2 sweep).
+    # Compute -E args once outside the subshell so the capability check is
+    # cached across the whole probe invocation, not re-checked per cache write.
+    local flock_e_args=""
+    if _flock_supports_dash_e; then
+        flock_e_args="-E 1"
+    fi
+
     local rc=0
     (
-        # `-E 1`: exit 1 only on timeout. Other flock failures (kernel error,
-        # unsupported fs) preserve their own exit code so callers can
-        # distinguish them from a true stale-lock signal in the future
-        # (cycle-094 review iter-3, DISS-002 fix; mirrors bridge-state.sh).
-        flock -E 1 -w "$timeout" 9 2>/dev/null
+        # `-E 1` (when supported): exit 1 only on timeout. Other flock failures
+        # preserve their own exit code so callers can distinguish them from a
+        # true timeout signal. On flock without -E (very old / non-util-linux
+        # builds; gated by _flock_supports_dash_e), behavior matches pre-iter-3
+        # — any flock failure exits 1, which is the existing caller contract
+        # for cache-write failure. (cycle-094 review iter-4, DISS-202 fix
+        # builds on iter-3 DISS-002 fix.)
+        # shellcheck disable=SC2086  # intentional word-split on flock_e_args
+        flock $flock_e_args -w "$timeout" 9 2>/dev/null
         local frc=$?
         if [[ "$frc" -eq 1 ]]; then
             log_error "cache lock timeout after ${timeout}s"
