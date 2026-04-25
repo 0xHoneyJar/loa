@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.103.0] — 2026-04-25
+
 ## [1.102.0] — 2026-04-25 — Cycle-093 stabilization (sprints 1–3A)
 
 Three Tier-1 silent-failure issues closed plus the keystone health-probe foundation. The probe is implemented and tested but not yet wired into runtime — sprint-3B (resilience + CI workflows + runtime integration) and sprint-4 (registry currency + E2E gate) follow.
@@ -746,6 +748,8 @@ Full convergence trajectory: `grimoires/loa/a2a/trajectory/bridge-triage-2026-04
 - ATK-011: Blocks `unset LOA_TEAM_MEMBER` and `env -u` privilege escalation in Agent Teams
 
 ## [Unreleased]
+
+## [1.103.0] — 2026-04-25
 
 ## [1.94.0] — 2026-04-17
 
