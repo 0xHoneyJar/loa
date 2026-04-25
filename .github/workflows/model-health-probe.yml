@@ -90,6 +90,18 @@ jobs:
         run: |
           set +x  # never trace shell while secrets are in env (SKP-005)
           chmod +x .claude/scripts/model-health-probe.sh
+
+          # Pre-flight: skip the probe entirely when no provider keys are
+          # configured (fork PRs, fresh forks, repos without org secrets).
+          # IMP-009 + SDD §1.9: missing secrets → UNKNOWN warn, not fail.
+          # (sprint-3B iter-5 — closes the empty-output failure on PR #629.)
+          if [[ -z "${OPENAI_API_KEY:-}" && -z "${GOOGLE_API_KEY:-}" && -z "${ANTHROPIC_API_KEY:-}" ]]; then
+            echo "::warning::No provider API keys configured in repo secrets — probe skipped, all models marked UNKNOWN."
+            printf '{"summary":{"available":0,"unavailable":0,"unknown":0,"skipped":true},"entries":{},"reason":"no_api_keys"}\n' > probe-result.json
+            echo "probe_exit_code=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           # `set -e` (GHA default) would exit before we capture exit_code if the
           # probe returns 2; use `|| exit_code=$?` so output is always written
           # (review iter-2 S-3 — symmetric with drift-daily B-1 fix).
@@ -112,7 +124,21 @@ jobs:
           script: |
             const fs = require('fs');
             if (!fs.existsSync('probe-result.json')) return;
-            const result = JSON.parse(fs.readFileSync('probe-result.json', 'utf8'));
+            const raw = fs.readFileSync('probe-result.json', 'utf8').trim();
+            // Probe may exit before producing JSON (e.g., hardstop budget, missing
+            // API key secrets, pre-flight error). Skip the comment in that case
+            // — the Run probe step's exit code will already surface the failure.
+            if (!raw) {
+              core.warning('probe-result.json is empty — probe exited before JSON output. Skipping PR comment.');
+              return;
+            }
+            let result;
+            try {
+              result = JSON.parse(raw);
+            } catch (err) {
+              core.warning(`probe-result.json is not valid JSON (${err.message}). Skipping PR comment.`);
+              return;
+            }
             const summary = result.summary || {};
             const unavailable = Object.entries(result.entries || {})
               .filter(([_, e]) => e.state === 'UNAVAILABLE')

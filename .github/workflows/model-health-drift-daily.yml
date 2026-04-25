@@ -34,6 +34,17 @@ jobs:
         run: |
           set +x   # never trace shell with secrets in env
           chmod +x .claude/scripts/model-health-probe.sh
+
+          # Pre-flight (sprint-3B iter-5): skip the probe entirely when no
+          # provider keys are configured. Daily cron on a fresh fork has no
+          # org secrets — bail cleanly rather than tripping the cost hardstop.
+          if [[ -z "${OPENAI_API_KEY:-}" && -z "${GOOGLE_API_KEY:-}" && -z "${ANTHROPIC_API_KEY:-}" ]]; then
+            echo "::warning::No provider API keys in repo secrets — drift cron skipped this run."
+            printf '{"summary":{"available":0,"unavailable":0,"unknown":0,"skipped":true},"entries":{},"reason":"no_api_keys"}\n' > probe-result.json
+            echo "exit_code=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           # GitHub Actions runs with `bash --noprofile --norc -eo pipefail` by default.
           # The probe exits 2 on UNAVAILABLE — the case we want this cron to handle.
           # Use `|| exit_code=$?` with `exit_code` initialized so `set -e` does not
@@ -53,7 +64,22 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const result = JSON.parse(fs.readFileSync('probe-result.json', 'utf8'));
+            if (!fs.existsSync('probe-result.json')) {
+              core.warning('probe-result.json missing — probe exited before JSON output. No drift issue opened.');
+              return;
+            }
+            const raw = fs.readFileSync('probe-result.json', 'utf8').trim();
+            if (!raw) {
+              core.warning('probe-result.json is empty — probe exited before JSON output. No drift issue opened.');
+              return;
+            }
+            let result;
+            try {
+              result = JSON.parse(raw);
+            } catch (err) {
+              core.warning(`probe-result.json is not valid JSON (${err.message}). No drift issue opened.`);
+              return;
+            }
             const unavailable = Object.entries(result.entries || {})
               .filter(([_, e]) => e.state === 'UNAVAILABLE')
               .map(([k, e]) => `- \`${k}\`: ${e.reason || 'no reason'}`).join('\n');
