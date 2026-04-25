@@ -168,6 +168,45 @@ teardown() {
     echo "$output" | jq -e '.entries["openai:b"].reason == "b"' >/dev/null
 }
 
+# -----------------------------------------------------------------------------
+# G-3 (cycle-094, #626): writable-cache pre-flight surfaces actionable error
+# -----------------------------------------------------------------------------
+@test "G-3: _cache_atomic_write returns 1 with actionable error when cache dir not writable" {
+    # Create a read-only directory and point the cache at a path inside it.
+    local ro_dir="$TEST_DIR/readonly"
+    mkdir -p "$ro_dir"
+    chmod 555 "$ro_dir"
+    OPT_CACHE_PATH="$ro_dir/cache.json"
+
+    # Stage a payload to write
+    local payload="$TEST_DIR/payload.json"
+    printf '{"schema_version":"1.0","entries":{},"provider_circuit_state":{}}\n' > "$payload"
+
+    run _cache_atomic_write "$payload"
+    # Restore perms before assertions so teardown can clean up
+    chmod 755 "$ro_dir"
+
+    [ "$status" -eq 1 ]
+    [[ "$output" =~ "cache directory not writable" ]]
+    [[ "$output" =~ "$ro_dir" ]]
+}
+
+@test "G-3: _cache_atomic_write does NOT emit unbound-variable diagnostic on read-only cache" {
+    local ro_dir="$TEST_DIR/readonly2"
+    mkdir -p "$ro_dir"
+    chmod 555 "$ro_dir"
+    OPT_CACHE_PATH="$ro_dir/cache.json"
+    local payload="$TEST_DIR/payload.json"
+    printf '{"schema_version":"1.0","entries":{},"provider_circuit_state":{}}\n' > "$payload"
+
+    run _cache_atomic_write "$payload"
+    chmod 755 "$ro_dir"
+
+    # The actionable error must surface, not the cryptic unbound-variable trace
+    [[ ! "$output" =~ "unbound variable" ]]
+    [[ ! "$output" =~ "_lock_fd" ]]
+}
+
 @test "cache: invalidate with no arg wipes everything" {
     OPT_CACHE_PATH="$TEST_DIR/wipe.json"
     _cache_merge_entry openai x '{"state":"AVAILABLE"}'

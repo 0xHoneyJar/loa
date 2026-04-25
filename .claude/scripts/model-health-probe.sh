@@ -306,8 +306,9 @@ _circuit_update() {
     local lock="${cache_file}.lock"
 
     # bash-3.2 portability: macOS default bash does not support the named-fd
-    # variable form `exec {_var}>file`. Use a subshell with hardcoded fd 9
-    # (sprint-3B iter-4 — closes the macos-latest CI matrix failure).
+    # variable assignment form for the exec/redirect builtin. Use a subshell
+    # with a hardcoded fd 9 instead (sprint-3B iter-4 — closes the
+    # macos-latest CI matrix failure; cycle-094 G-2 sweep).
     (
         flock -w 5 9 || exit 1
 
@@ -519,13 +520,29 @@ _cache_atomic_write() {
     cache="$(_cache_path)"
     local lockfile
     lockfile="$(_cache_lock_path)"
-    mkdir -p "$(dirname "$cache")"
+    local cache_dir
+    cache_dir="$(dirname "$cache")"
+
+    # Pre-flight: ensure cache directory exists and is writable. Without this
+    # check, the subshell `9>"$lockfile"` redirect below fails with a confusing
+    # diagnostic (e.g. "_lock_fd: unbound variable" on bash variants that
+    # promote the failed redirect into the named-fd context). Surface the
+    # actionable cause directly. (cycle-094 G-3, closes #626.)
+    if ! mkdir -p "$cache_dir" 2>/dev/null; then
+        log_error "cache directory not writable: $cache_dir"
+        return 1
+    fi
+    if [[ ! -w "$cache_dir" ]]; then
+        log_error "cache directory not writable: $cache_dir"
+        return 1
+    fi
 
     _require_flock || return 2
 
     # bash-3.2 portability: macOS default bash does not support the named-fd
-    # variable form `exec {_var}>file`. Use a subshell with hardcoded fd 9
-    # (sprint-3B iter-4 — closes the macos-latest CI matrix failure).
+    # variable assignment form for the exec/redirect builtin. Use a subshell
+    # with a hardcoded fd 9 instead (sprint-3B iter-4 — closes the
+    # macos-latest CI matrix failure; cycle-094 G-2 sweep).
     local rc=0
     (
         flock -w "$timeout" 9 || {
@@ -1149,10 +1166,17 @@ _probe_one_model() {
             ;;
     esac
 
-    PROBES_USED=$((PROBES_USED + 1))
-    # Each probe charges a nominal 1 cent estimate (conservative). Real cost-tracking
-    # would need token-accurate metering; this is a coarse cap gate.
-    COST_CENTS_USED=$((COST_CENTS_USED + 1))
+    # Skip cost increment when the probe never made an HTTP call. The no-API-key
+    # path returns from `_probe_<provider>` after only setting PROBE_ERROR_CLASS=auth
+    # with PROBE_HTTP empty (cleared by _reset_probe_result). Real auth failures
+    # carry PROBE_HTTP=401/403 and still consume budget. Without this guard, fork
+    # PRs (no secrets) trip the cost hardstop after 5 unmade probes. (G-1, cycle-094)
+    if [[ "$PROBE_ERROR_CLASS" != "auth" ]] || [[ -n "$PROBE_HTTP" && "$PROBE_HTTP" != "0" ]]; then
+        PROBES_USED=$((PROBES_USED + 1))
+        # Each probe charges a nominal 1 cent estimate (conservative). Real cost-tracking
+        # would need token-accurate metering; this is a coarse cap gate.
+        COST_CENTS_USED=$((COST_CENTS_USED + 1))
+    fi
 
     # Cache the result (skip UNKNOWN — TTL=0)
     if [[ "$PROBE_STATE" != "UNKNOWN" ]]; then

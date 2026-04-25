@@ -167,3 +167,73 @@ _latest_trajectory_for_probe() {
     [ "$status" -eq 0 ]
     echo "$output" | jq -e '.entries["openai:gpt-5.3-codex"].state == "AVAILABLE"' >/dev/null
 }
+
+# -----------------------------------------------------------------------------
+# G-1 (cycle-094): No-API-key probes do not consume budget
+# Fork PRs without provider keys were tripping the cost hardstop after 5
+# unmade probes. The probe must skip increments when ERROR_CLASS=auth + no HTTP.
+# -----------------------------------------------------------------------------
+@test "G-1: single no-API-key probe does NOT trigger any budget hardstop" {
+    # No keys exported in this run on purpose. The setup() exports keys, so we
+    # explicitly unset them via env -i and re-export only what's needed for
+    # mock mode and hermetic test paths.
+    run env -i \
+        PATH="$PATH" HOME="$HOME" \
+        LOA_PROBE_MOCK_MODE=1 \
+        LOA_CACHE_DIR="$TEST_DIR" \
+        LOA_TRAJECTORY_DIR="$TEST_DIR/trajectory" \
+        LOA_AUDIT_LOG="$TEST_DIR/audit.jsonl" \
+        PROJECT_ROOT="$PROJECT_ROOT" \
+        "$PROBE" --provider openai --model gpt-5.3-codex --quiet --output json
+    [ "$status" -eq 0 ]
+    echo "$output" | jq -e '.entries["openai:gpt-5.3-codex"].state == "UNKNOWN"' >/dev/null
+    echo "$output" | jq -e '.entries["openai:gpt-5.3-codex"].reason | test("API_KEY")' >/dev/null
+    # Trajectory must NOT contain a budget_hardstop event of any kind.
+    local traj
+    traj="$(_latest_trajectory_for_probe)"
+    if [[ -f "$traj" ]]; then
+        run jq -c 'select(.event == "budget_hardstop")' "$traj"
+        [ -z "$output" ]
+    fi
+}
+
+@test "G-1: full no-key registry probe does NOT trip 5-cent cost hardstop" {
+    # The default openai provider has 4+ models. Without the G-1 guard, each
+    # unmade probe would charge 1 cent; iterating through openai+google+anthropic
+    # at default 5-cent cap would exit 5. With the guard: 0 increments, exit 0.
+    run env -i \
+        PATH="$PATH" HOME="$HOME" \
+        LOA_PROBE_MOCK_MODE=1 \
+        LOA_CACHE_DIR="$TEST_DIR" \
+        LOA_TRAJECTORY_DIR="$TEST_DIR/trajectory" \
+        LOA_AUDIT_LOG="$TEST_DIR/audit.jsonl" \
+        PROJECT_ROOT="$PROJECT_ROOT" \
+        "$PROBE" --quiet --output json
+    [ "$status" -ne 5 ]
+    # All probed entries should be UNKNOWN (no-key path)
+    run jq -e '[.entries[] | select(.state == "UNKNOWN")] | length > 0' <<< "$output"
+    [ "$status" -eq 0 ]
+}
+
+@test "G-1: 401 auth failure with HTTP=401 STILL consumes budget" {
+    # Regression guard: a legitimate auth failure from the provider must
+    # consume budget (HTTP_STATUS=401, ERROR_CLASS=auth). Only the no-network
+    # path (HTTP=0/empty + ERROR_CLASS=auth) gets the free pass.
+    # We set MAX_PROBES=1 so a second budget-pre-flight check after the first
+    # probe must observe PROBES_USED=1 and trip exit 5 if the second model
+    # is attempted. Since openai has multiple models, exit 5 confirms the
+    # increment fired on the 401 path.
+    run env LOA_PROBE_MAX_PROBES=1 \
+        LOA_PROBE_MOCK_MODE=1 \
+        LOA_PROBE_MOCK_HTTP_STATUS=401 \
+        LOA_PROBE_MOCK_OPENAI="$FIXTURES/openai/available.json" \
+        LOA_CACHE_DIR="$TEST_DIR" \
+        OPENAI_API_KEY=test-bad-key \
+        "$PROBE" --provider openai --quiet --output json
+    [ "$status" -eq 5 ]
+    local traj
+    traj="$(_latest_trajectory_for_probe)"
+    [ -f "$traj" ]
+    run jq -c 'select(.event == "budget_hardstop" and .payload.kind == "max_probes")' "$traj"
+    [ -n "$output" ]
+}

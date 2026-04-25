@@ -153,37 +153,53 @@ _atomic_state_update_flock() {
 
   mkdir -p "$(dirname "$BRIDGE_STATE_LOCK")"
 
-  local lock_fd
-  exec {lock_fd}>"$BRIDGE_STATE_LOCK"
+  # bash-3.2 portability: macOS default bash does not support the named-fd
+  # variable assignment form for the exec/redirect builtin. Use a subshell
+  # with a hardcoded fd 9 instead (cycle-094 G-2; mirrors
+  # model-health-probe.sh _cache_atomic_write).
+  # Exit codes from the subshell:
+  #   0 success
+  #   1 lock-acquisition timeout (treated as stale lock → retry)
+  #   2 jq transformation failed (do not retry)
+  local rc=0
+  (
+    flock -w 5 9 2>/dev/null || exit 1
+    local tmp_file="${BRIDGE_STATE_FILE}.tmp.$$"
+    if ! jq "$jq_filter" "$@" "$BRIDGE_STATE_FILE" > "$tmp_file" 2>/dev/null; then
+      rm -f "$tmp_file"
+      echo "ERROR: jq transformation failed" >&2
+      exit 2
+    fi
+    mv "$tmp_file" "$BRIDGE_STATE_FILE"
+  ) 9>"$BRIDGE_STATE_LOCK"
+  rc=$?
 
-  # Acquire lock with 5s timeout; detect stale locks (Flatline SKP-004)
-  if ! flock -w 5 "$lock_fd" 2>/dev/null; then
+  if [[ "$rc" -eq 1 ]]; then
+    # Lock-acquisition timeout — assume stale lock, clean up and retry once.
     echo "ERROR: Failed to acquire state lock within 5s — possible stale lock" >&2
     echo "ERROR: Lock file: $BRIDGE_STATE_LOCK" >&2
-    # Clean up stale lock and retry once
     rm -f "$BRIDGE_STATE_LOCK"
-    exec {lock_fd}>"$BRIDGE_STATE_LOCK"
-    if ! flock -w 5 "$lock_fd" 2>/dev/null; then
+    (
+      flock -w 5 9 2>/dev/null || exit 1
+      local tmp_file="${BRIDGE_STATE_FILE}.tmp.$$"
+      if ! jq "$jq_filter" "$@" "$BRIDGE_STATE_FILE" > "$tmp_file" 2>/dev/null; then
+        rm -f "$tmp_file"
+        echo "ERROR: jq transformation failed" >&2
+        exit 2
+      fi
+      mv "$tmp_file" "$BRIDGE_STATE_FILE"
+    ) 9>"$BRIDGE_STATE_LOCK"
+    rc=$?
+    if [[ "$rc" -eq 1 ]]; then
       echo "ERROR: Still cannot acquire lock after cleanup — aborting" >&2
       return 1
     fi
-    echo "WARNING: Recovered from stale lock" >&2
+    if [[ "$rc" -eq 0 ]]; then
+      echo "WARNING: Recovered from stale lock" >&2
+    fi
   fi
 
-  # Write to temp file + atomic rename (crash safety)
-  local tmp_file="${BRIDGE_STATE_FILE}.tmp.$$"
-  if ! jq "$jq_filter" "$@" "$BRIDGE_STATE_FILE" > "$tmp_file" 2>/dev/null; then
-    rm -f "$tmp_file"
-    eval "exec ${lock_fd}>&-"
-    echo "ERROR: jq transformation failed" >&2
-    return 1
-  fi
-
-  # Atomic rename
-  mv "$tmp_file" "$BRIDGE_STATE_FILE"
-
-  # Release lock
-  eval "exec ${lock_fd}>&-"
+  return "$rc"
 }
 
 _atomic_state_update_mkdir() {
