@@ -317,6 +317,13 @@ teardown() {
     [ "$PROBE_ERROR_CLASS" = "transient" ]
 }
 
+@test "anthropic auth: x-api-key path appends anthropic-version header (Audit L-1 / iter-3 fix)" {
+    # Static guard: verify _curl_json's x-api-key branch appends the
+    # anthropic-version header. Catches accidental removal of the iter-3
+    # BLOCKING fix that closed the spec-compliance gap with /v1/messages.
+    grep -A 6 'x-api-key)$' "$PROBE" | grep -q 'anthropic-version: 2023-06-01'
+}
+
 # -----------------------------------------------------------------------------
 # --canary non-blocking smoke mode (Flatline SKP-002)
 # -----------------------------------------------------------------------------

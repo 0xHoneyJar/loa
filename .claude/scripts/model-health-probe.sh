@@ -536,10 +536,22 @@ _curl_json() {
     source "$SCRIPT_DIR/lib-security.sh"
     local cfg
     case "$auth_type" in
-        bearer)          cfg=$(write_curl_auth_config "Authorization" "Bearer $api_key") || return 1 ;;
-        x-api-key)       cfg=$(write_curl_auth_config "x-api-key" "$api_key") || return 1 ;;
-        x-goog-api-key)  cfg=$(write_curl_auth_config "x-goog-api-key" "$api_key") || return 1 ;;
-        *)               log_error "unknown auth_type: $auth_type"; return 1 ;;
+        bearer)
+            cfg=$(write_curl_auth_config "Authorization" "Bearer $api_key") || return 1
+            ;;
+        x-api-key)
+            cfg=$(write_curl_auth_config "x-api-key" "$api_key") || return 1
+            # Anthropic /v1/messages requires anthropic-version on every call.
+            # Audit L-1 / Bridgebuilder iter-3 BLOCKING fix; tempfile is 0600.
+            printf 'header = "anthropic-version: 2023-06-01"\n' >> "$cfg"
+            ;;
+        x-goog-api-key)
+            cfg=$(write_curl_auth_config "x-goog-api-key" "$api_key") || return 1
+            ;;
+        *)
+            log_error "unknown auth_type: $auth_type"
+            return 1
+            ;;
     esac
 
     local out_body
@@ -785,20 +797,14 @@ _probe_anthropic() {
 
     local t0 t1
     t0=$(date +%s%3N 2>/dev/null || date +%s000)
+    # _curl_json adds the anthropic-version: 2023-06-01 header automatically
+    # for the x-api-key auth_type (closes Audit L-1 / Bridgebuilder iter-3 BLOCKING).
     _curl_json "https://api.anthropic.com/v1/messages" "x-api-key" "$ANTHROPIC_API_KEY" POST "$body_file"
-    # NOTE: Anthropic also requires an anthropic-version header (Audit L-1, review Concern).
-    # Tracked for sprint-3B before live-API CI gate engages.
     local resp="$RESPONSE_BODY"
     t1=$(date +%s%3N 2>/dev/null || date +%s000)
     PROBE_LATENCY_MS=$((t1 - t0))
     PROBE_HTTP="$HTTP_STATUS"
     rm -f "$body_file"
-
-    # Anthropic also requires anthropic-version header; add via body_file approach:
-    # NOTE: above _curl_json passes content-type but not anthropic-version. In real operation,
-    # anthropic requires "anthropic-version: 2023-06-01". For this script, we use x-api-key
-    # auth + content-type and expect the API to accept a default version. If not, body parse
-    # below will yield schema_mismatch → UNKNOWN (safe default).
 
     case "$HTTP_STATUS" in
         200)
