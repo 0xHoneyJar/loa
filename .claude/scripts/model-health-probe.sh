@@ -59,7 +59,14 @@ set -euo pipefail
 # Constants & paths
 # -----------------------------------------------------------------------------
 MODEL_HEALTH_PROBE_VERSION="1.0.0"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# SCRIPT_DIR resolution: in real runs BASH_SOURCE[0] points to this file; under
+# the sed-based bats source pattern (eval), BASH_SOURCE[0] points to the test
+# file instead, which gives a wrong SCRIPT_DIR. Validate by looking for the
+# probe script itself, and fall back to $PROJECT_ROOT/.claude/scripts otherwise.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd 2>/dev/null || pwd)"
+if [[ ! -f "$SCRIPT_DIR/model-health-probe.sh" && -n "${PROJECT_ROOT:-}" && -d "$PROJECT_ROOT/.claude/scripts" ]]; then
+    SCRIPT_DIR="$PROJECT_ROOT/.claude/scripts"
+fi
 PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 MODEL_REGISTRY_YAML="${MODEL_REGISTRY_YAML:-$PROJECT_ROOT/.claude/defaults/model-config.yaml}"
 LOA_CACHE_DIR="${LOA_CACHE_DIR:-$PROJECT_ROOT/.run}"
@@ -115,17 +122,11 @@ _gen_run_id() {
     fi
 }
 
-# _redact_secrets — scrub API key patterns from a string
-# Minimal inline implementation; lib-security.sh has a broader one we could source later.
-_redact_secrets() {
-    local text="$1"
-    # shellcheck disable=SC2001
-    echo "$text" \
-        | sed -E 's/sk-[A-Za-z0-9_-]{20,}/sk-REDACTED/g' \
-        | sed -E 's/AIza[A-Za-z0-9_-]{20,}/AIza-REDACTED/g' \
-        | sed -E 's/ghp_[A-Za-z0-9_-]{20,}/ghp_REDACTED/g' \
-        | sed -E 's/Bearer [A-Za-z0-9._-]{20,}/Bearer REDACTED/g'
-}
+# Centralized scrubber — Flatline sprint-review SKP-005 closure.
+# All log/audit paths route through `_redact_secrets` from the shared library so
+# regex updates land in one place. The library is idempotent-source-safe.
+# shellcheck source=lib/secret-redaction.sh
+source "$SCRIPT_DIR/lib/secret-redaction.sh"
 
 # -----------------------------------------------------------------------------
 # flock requirement (macOS operators need util-linux)
@@ -159,6 +160,8 @@ _emit_trajectory() {
 }
 
 # _emit_audit_log — structured JSONL append to .run/audit.jsonl (security-relevant events)
+# Sprint 3B: extended with optional webhook fan-out (Flatline sprint-review SKP-003)
+# and routes the entry through `_redact_secrets` as defense-in-depth.
 _emit_audit_log() {
     local action="$1"
     local detail_json="$2"
@@ -166,10 +169,220 @@ _emit_audit_log() {
     local entry
     entry=$(jq -n \
         --arg ts "$(_iso_timestamp)" \
+        --arg actor "${USER:-${GITHUB_ACTOR:-unknown}}" \
+        --arg run_id "$PROBE_RUN_ID" \
         --arg action "$action" \
         --argjson detail "$detail_json" \
-        '{timestamp: $ts, action: $action, detail: $detail}')
-    printf '%s\n' "$entry" >> "$AUDIT_LOG"
+        '{timestamp: $ts, actor: $actor, run_id: $run_id, action: $action, detail: $detail}')
+    _redact_secrets "$entry" >> "$AUDIT_LOG"
+    printf '\n' >> "$AUDIT_LOG"
+
+    # Optional webhook (Flatline sprint-review SKP-003 — alert fan-out).
+    # Fire-and-forget; never block the probe on webhook latency.
+    local webhook
+    webhook="$(_config_get '.model_health_probe.alert_webhook_url' '')"
+    if [[ -n "$webhook" ]]; then
+        ( curl -sS -X POST -H "Content-Type: application/json" --data "$entry" \
+              --max-time 5 "$webhook" >/dev/null 2>&1 || true ) &
+        disown 2>/dev/null || true
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Resilience layer (Sprint 3B — SDD §4.1, closes Flatline SKP-003/004 + SDD §3.5)
+# -----------------------------------------------------------------------------
+LOA_CONFIG="${LOA_CONFIG:-$PROJECT_ROOT/.loa.config.yaml}"
+LOA_PROBE_BYPASS_TTL_HOURS="${LOA_PROBE_BYPASS_TTL_HOURS:-24}"
+CIRCUIT_FAILURE_THRESHOLD=5
+CIRCUIT_RESET_SECONDS=300
+
+# _config_get KEY [DEFAULT] — read a value from .loa.config.yaml via yq.
+# Returns DEFAULT (or empty) if config missing, key absent, or value null.
+_config_get() {
+    local key="$1" default="${2-}"
+    if [[ -f "$LOA_CONFIG" ]] && command -v yq >/dev/null 2>&1; then
+        local val
+        val="$(yq eval "$key" "$LOA_CONFIG" 2>/dev/null)"
+        if [[ -n "$val" && "$val" != "null" ]]; then
+            printf '%s' "$val"
+            return 0
+        fi
+    fi
+    printf '%s' "$default"
+}
+
+# Feature flag (master switch). Default ON.
+_probe_enabled() {
+    local v
+    v="$(_config_get '.model_health_probe.enabled' 'true')"
+    [[ "$v" == "true" ]]
+}
+
+# degraded_ok behavior. Default ON — proceed with last-known-good when probe
+# infra fails. When false, probe-infra failure with no usable cache is fatal.
+_degraded_ok() {
+    local v
+    v="$(_config_get '.model_health_probe.degraded_ok' 'true')"
+    [[ "$v" == "true" ]]
+}
+
+# Bypass governance: LOA_PROBE_BYPASS=1 with mandatory reason + 24h TTL.
+# Returns:
+#   0 — bypass active and valid; probe should be skipped
+#   1 — no bypass requested; probe proceeds normally
+#   2 — bypass requested but invalid (no reason); caller should error
+_check_bypass() {
+    [[ "${LOA_PROBE_BYPASS:-0}" == "1" ]] || return 1
+
+    local reason="${LOA_PROBE_BYPASS_REASON:-}"
+    if [[ -z "$reason" ]]; then
+        log_error "LOA_PROBE_BYPASS=1 set without LOA_PROBE_BYPASS_REASON. Bypass denied; aborting."
+        _emit_audit_log "probe_bypass_denied" "$(jq -n '{reason:"missing LOA_PROBE_BYPASS_REASON"}')"
+        return 2
+    fi
+
+    local sentinel="$LOA_CACHE_DIR/probe-bypass.stamp"
+    local now_epoch ttl_sec set_epoch
+    now_epoch="$(date +%s)"
+    ttl_sec=$(( LOA_PROBE_BYPASS_TTL_HOURS * 3600 ))
+
+    if [[ -f "$sentinel" ]]; then
+        set_epoch="$(head -n1 "$sentinel" 2>/dev/null || echo 0)"
+        if [[ -n "$set_epoch" && "$set_epoch" -gt 0 ]] && (( now_epoch - set_epoch < ttl_sec )); then
+            local age=$(( now_epoch - set_epoch ))
+            _emit_audit_log "probe_bypass_active" \
+                "$(jq -n --arg reason "$reason" --argjson age "$age" \
+                    '{reason:$reason, age_seconds:$age, ttl_hours:'"$LOA_PROBE_BYPASS_TTL_HOURS"'}')"
+            return 0
+        fi
+        # TTL expired — clear and re-engage probe.
+        log_warn "LOA_PROBE_BYPASS expired (>${LOA_PROBE_BYPASS_TTL_HOURS}h); re-engaging probe."
+        rm -f "$sentinel"
+        _emit_audit_log "probe_bypass_expired" \
+            "$(jq -n --argjson age $((now_epoch - set_epoch)) '{age_seconds:$age}')"
+        return 1
+    fi
+
+    # First time bypass requested in this TTL window — record stamp.
+    mkdir -p "$LOA_CACHE_DIR"
+    printf '%s\n' "$now_epoch" > "$sentinel"
+    _emit_audit_log "probe_bypass_set" \
+        "$(jq -n --arg reason "$reason" \
+            '{reason:$reason, ttl_hours:'"$LOA_PROBE_BYPASS_TTL_HOURS"'}')"
+    return 0
+}
+
+# _circuit_open_for PROVIDER — true if the circuit is OPEN (skip probe).
+# Reads provider_circuit_state from cache; respects open_until ISO timestamp.
+_circuit_open_for() {
+    local provider="$1"
+    local cache; cache="$(_cache_read 2>/dev/null)" || return 1
+    local open_until
+    open_until="$(printf '%s' "$cache" | jq -r --arg p "$provider" '.provider_circuit_state[$p].open_until // empty' 2>/dev/null)"
+    [[ -z "$open_until" ]] && return 1
+    local now ts
+    now="$(date +%s)"
+    ts="$(date -u -d "$open_until" +%s 2>/dev/null || \
+         date -ju -f "%Y-%m-%dT%H:%M:%SZ" "$open_until" +%s 2>/dev/null || \
+         echo 0)"
+    [[ "$ts" -eq 0 ]] && return 1
+    (( now < ts ))
+}
+
+# Update circuit state in cache (read-modify-write under flock).
+# DELTA: "failure" | "success"
+_circuit_update() {
+    local provider="$1" delta="$2"
+    local cache_file; cache_file="$(_cache_path)"
+    [[ -f "$cache_file" ]] || return 0
+
+    _require_flock || return 1
+    local lock="${cache_file}.lock"
+    exec {_cb_lock_fd}>"$lock" || return 1
+    flock -w 5 "$_cb_lock_fd" || { exec {_cb_lock_fd}>&-; return 1; }
+
+    local now_iso updated tmp
+    now_iso="$(_iso_timestamp)"
+    if [[ "$delta" == "failure" ]]; then
+        updated=$(jq --arg p "$provider" \
+            --argjson threshold "$CIRCUIT_FAILURE_THRESHOLD" \
+            --argjson reset "$CIRCUIT_RESET_SECONDS" \
+            --arg now "$now_iso" '
+            .provider_circuit_state //= {} |
+            .provider_circuit_state[$p] //= {consecutive_failures:0, open_until:null} |
+            .provider_circuit_state[$p].consecutive_failures += 1 |
+            if .provider_circuit_state[$p].consecutive_failures >= $threshold then
+                .provider_circuit_state[$p].open_until =
+                    (($now | fromdateiso8601) + $reset | todateiso8601)
+            else . end' "$cache_file" 2>/dev/null) || { exec {_cb_lock_fd}>&-; return 1; }
+    else
+        updated=$(jq --arg p "$provider" '
+            .provider_circuit_state //= {} |
+            .provider_circuit_state[$p] = {consecutive_failures:0, open_until:null}
+        ' "$cache_file" 2>/dev/null) || { exec {_cb_lock_fd}>&-; return 1; }
+    fi
+    tmp="$(mktemp "${cache_file}.tmp.XXXXXX")"
+    printf '%s\n' "$updated" > "$tmp"
+    sync "$tmp" 2>/dev/null || true
+    mv -f "$tmp" "$cache_file"
+
+    exec {_cb_lock_fd}>&-
+}
+
+# Staleness cutoff per SDD §3.5.
+# Returns 0 if entry usable; 2 if past max_stale_hours AND !degraded_ok.
+# Always emits audit alert at alert_on_stale_hours threshold.
+_check_staleness() {
+    local probed_at_iso="$1" model_id="${2:-unknown}"
+    [[ -z "$probed_at_iso" || "$probed_at_iso" == "null" ]] && return 0
+
+    local max_h alert_h
+    max_h="$(_config_get '.model_health_probe.max_stale_hours' '72')"
+    alert_h="$(_config_get '.model_health_probe.alert_on_stale_hours' '24')"
+
+    local probed_epoch now age_h
+    probed_epoch="$(date -u -d "$probed_at_iso" +%s 2>/dev/null || \
+                   date -ju -f "%Y-%m-%dT%H:%M:%SZ" "$probed_at_iso" +%s 2>/dev/null || \
+                   echo 0)"
+    [[ "$probed_epoch" -eq 0 ]] && return 0
+    now="$(date +%s)"
+    age_h=$(( (now - probed_epoch) / 3600 ))
+
+    if (( age_h >= max_h )); then
+        _emit_audit_log "cache_stale_cutoff" \
+            "$(jq -n --arg model "$model_id" --argjson age "$age_h" --argjson cutoff "$max_h" \
+                '{model_id:$model, age_hours:$age, cutoff_hours:$cutoff}')"
+        _degraded_ok || return 2
+    elif (( age_h >= alert_h )); then
+        _emit_audit_log "cache_stale_alert" \
+            "$(jq -n --arg model "$model_id" --argjson age "$age_h" --argjson alert "$alert_h" \
+                '{model_id:$model, age_hours:$age, alert_hours:$alert}')"
+    fi
+    return 0
+}
+
+# Retry with exponential backoff + ±25% jitter (SDD §6.4).
+# Usage: _retry_with_backoff <max_attempts> <command> [args...]
+_retry_with_backoff() {
+    local max_attempts="${1:-3}"; shift
+    local attempt=0 delay=1 max_delay=16
+    local rc=0
+    while (( attempt < max_attempts )); do
+        "$@" && return 0
+        rc=$?
+        attempt=$((attempt + 1))
+        (( attempt >= max_attempts )) && return "$rc"
+        # ±25% jitter computed in ms.
+        local jitter_ms=$(( (RANDOM % (delay * 500 + 1)) - (delay * 250) ))
+        local sleep_ms=$(( delay * 1000 + jitter_ms ))
+        (( sleep_ms < 0 )) && sleep_ms=0
+        local sleep_s
+        sleep_s="$(awk -v ms="$sleep_ms" 'BEGIN{printf "%.3f", ms/1000}')"
+        sleep "$sleep_s"
+        delay=$(( delay * 2 ))
+        (( delay > max_delay )) && delay=$max_delay
+    done
+    return "$rc"
 }
 
 # -----------------------------------------------------------------------------
@@ -439,19 +652,34 @@ _spawn_bg_probe_if_none_running() {
     sentinel="$(_bg_probe_sentinel_path "$provider")"
     mkdir -p "$(dirname "$sentinel")"
 
+    # Stale-sentinel cleanup (Sprint 3B Task 3B.concurrency_stress).
+    # If the recorded PID is dead, remove the sentinel so the atomic-create
+    # below can claim the slot. Sentinels older than 10 minutes are also
+    # considered stale even if the PID is somehow alive (defensive cleanup).
     if [[ -f "$sentinel" ]]; then
-        local existing_pid
+        local existing_pid age_s
         existing_pid="$(cat "$sentinel" 2>/dev/null || echo "")"
-        if [[ -n "$existing_pid" ]] && kill -0 "$existing_pid" 2>/dev/null; then
-            # Probe already running for this provider — dedup
-            log_debug "bg probe for $provider already running (pid=$existing_pid); skipping"
+        age_s=$(( $(date +%s) - $(stat -c %Y "$sentinel" 2>/dev/null || stat -f %m "$sentinel" 2>/dev/null || echo 0) ))
+        if [[ -n "$existing_pid" ]] && kill -0 "$existing_pid" 2>/dev/null && (( age_s < 600 )); then
+            log_debug "bg probe for $provider already running (pid=$existing_pid, age=${age_s}s); skipping"
             return 0
         fi
-        log_debug "stale sentinel for $provider (pid=$existing_pid); cleaning"
+        log_debug "stale sentinel for $provider (pid=$existing_pid, age=${age_s}s); cleaning"
         rm -f "$sentinel"
     fi
 
+    # Atomic claim — `set -C` (noclobber) makes `>` fail if the file exists
+    # already, closing the TOCTOU race when multiple callers reach this point
+    # simultaneously. Only the first caller wins; the rest dedup silently.
+    if ! ( set -C; echo "$$" > "$sentinel" ) 2>/dev/null; then
+        log_debug "lost race to claim sentinel for $provider; another caller is starting the probe"
+        return 0
+    fi
+
     (
+        # The first writer (above) is this caller's PID; replace with the
+        # subshell's PID so kill -0 inside the dedup check correctly reports
+        # whether the probe child is alive.
         echo "$$" > "$sentinel"
         trap 'rm -f "$sentinel"' EXIT
         "$SCRIPT_DIR/model-health-probe.sh" --provider "$provider" --once --quiet
@@ -968,8 +1196,23 @@ _probe_all() {
             continue
         fi
 
+        # Circuit breaker (Sprint 3B Task 3B.1) — short-circuit OPEN providers.
+        if _circuit_open_for "$provider"; then
+            PROBE_RESULTS+=("$provider|$model_id|UNKNOWN|circuit_breaker_open")
+            _emit_trajectory "circuit_breaker_skipped" \
+                "$(jq -n --arg provider "$provider" --arg model "$model_id" \
+                    '{provider:$provider, model:$model}')"
+            continue
+        fi
+
         _probe_one_model "$provider" "$model_id"
         PROBE_RESULTS+=("$provider|$model_id|$PROBE_STATE|$PROBE_REASON")
+
+        # Update circuit breaker based on probe outcome.
+        case "$PROBE_ERROR_CLASS" in
+            ok|hard_404|listing_miss) _circuit_update "$provider" success ;;
+            transient|auth)           _circuit_update "$provider" failure ;;
+        esac
     done < <(_registry_models "$scope_provider")
 }
 
@@ -1116,6 +1359,25 @@ main() {
             exit 1
         fi
     fi
+
+    # Feature flag (Sprint 3B Task 3B.1) — operator master switch.
+    if ! _probe_enabled; then
+        log_info "model_health_probe.enabled=false; skipping probe (feature flag)"
+        _emit_audit_log "probe_disabled" "$(jq -n '{reason:"model_health_probe.enabled=false"}')"
+        exit 0
+    fi
+
+    # Bypass governance (Sprint 3B Task 3B.bypass_governance) — LOA_PROBE_BYPASS w/ TTL+reason.
+    # Use explicit rc capture so `set -e` does not exit on the "no bypass requested" branch (rc=1).
+    local _bypass_rc=0
+    _check_bypass || _bypass_rc=$?
+    case "$_bypass_rc" in
+        0)  log_info "LOA_PROBE_BYPASS active; probe skipped (reason: ${LOA_PROBE_BYPASS_REASON})"
+            exit 0
+            ;;
+        2)  exit 64 ;;
+        # 1: no bypass — proceed normally.
+    esac
 
     # Probe loop
     _probe_all || true

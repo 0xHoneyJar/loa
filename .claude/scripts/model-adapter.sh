@@ -132,6 +132,126 @@ error() {
 }
 
 # =============================================================================
+# Probe-cache integration (Sprint 3B Task 3B.7 — SDD §5.1 row 4-5, §6.2)
+# =============================================================================
+
+PROBE_CACHE_PATH="${LOA_CACHE_DIR:-.run}/model-health-cache.json"
+PROBE_SCRIPT="${LOA_PROBE_SCRIPT:-$(dirname "${BASH_SOURCE[0]}")/model-health-probe.sh}"
+
+# Honor LOA_PROBE_BYPASS in the adapter as well — the probe script handles the
+# audit + TTL on bypass set; the adapter only reads the env var to decide
+# whether to consult the cache at all. The probe-side `_check_bypass` already
+# refused-with-audit when no reason is given.
+_adapter_bypass_active() {
+    [[ "${LOA_PROBE_BYPASS:-0}" == "1" ]] && [[ -n "${LOA_PROBE_BYPASS_REASON:-}" ]]
+}
+
+# Lock-free cache read with one parse-retry (SDD §3.6 Pattern 2).
+# Stdout: full cache JSON, or empty shell on read/parse failure.
+_adapter_cache_read() {
+    local attempt=0 cache
+    [[ -f "$PROBE_CACHE_PATH" ]] || { echo '{"schema_version":"1.0","entries":{}}'; return 0; }
+    while [[ $attempt -lt 2 ]]; do
+        cache="$(cat "$PROBE_CACHE_PATH" 2>/dev/null)" || { attempt=$((attempt+1)); sleep 0.05; continue; }
+        if echo "$cache" | jq empty 2>/dev/null; then
+            echo "$cache"
+            return 0
+        fi
+        attempt=$((attempt+1))
+        sleep 0.05
+    done
+    # Two failed attempts -> treat as cold-start; never block adapter on read.
+    echo '{"schema_version":"1.0","entries":{}}'
+}
+
+# Spawn a background re-probe if no probe is already running for the provider.
+# Uses the same PID sentinel as model-health-probe.sh's _spawn_bg_probe_if_none_running.
+_adapter_spawn_bg_probe() {
+    local provider="$1"
+    local sentinel="${LOA_CACHE_DIR:-.run}/model-health-probe.${provider}.pid"
+    if [[ -f "$sentinel" ]]; then
+        local pid; pid="$(cat "$sentinel" 2>/dev/null || echo "")"
+        if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+            return 0  # already running
+        fi
+        rm -f "$sentinel"
+    fi
+    [[ -x "$PROBE_SCRIPT" ]] || return 0  # probe missing -> no-op
+    (
+        echo "$$" > "$sentinel"
+        trap 'rm -f "$sentinel"' EXIT
+        "$PROBE_SCRIPT" --provider "$provider" --once --quiet >/dev/null 2>&1 || true
+    ) &
+    disown 2>/dev/null || true
+}
+
+# Pre-flight cache consult — SDD §5.1 row 4-5, §6.2.
+# Returns 0 if model is OK to use; returns 1 with actionable stderr otherwise.
+# Best-effort: cache absent / jq missing / parse failure -> fail-open.
+_probe_cache_check() {
+    local provider_model_id="$1"
+    [[ -z "$provider_model_id" || "$provider_model_id" != *":"* ]] && return 0
+
+    if _adapter_bypass_active; then
+        log "LOA_PROBE_BYPASS=1 with reason; skipping cache check"
+        return 0
+    fi
+
+    command -v jq >/dev/null 2>&1 || return 0  # jq missing -> fail-open
+    [[ -f "$PROBE_CACHE_PATH" ]] || return 0   # cold-start -> fail-open
+
+    local cache state reason probed_at
+    cache="$(_adapter_cache_read)"
+    state="$(echo "$cache" | jq -r --arg k "$provider_model_id" '.entries[$k].state // empty')"
+    reason="$(echo "$cache" | jq -r --arg k "$provider_model_id" '.entries[$k].reason // empty')"
+    probed_at="$(echo "$cache" | jq -r --arg k "$provider_model_id" '.entries[$k].probed_at // empty')"
+
+    # Async re-probe if entry exists and is stale-ish (>= positive_ttl).
+    if [[ -n "$state" ]]; then
+        local provider="${provider_model_id%%:*}"
+        local probed_epoch now age_h
+        probed_epoch="$(date -u -d "$probed_at" +%s 2>/dev/null || date -ju -f "%Y-%m-%dT%H:%M:%SZ" "$probed_at" +%s 2>/dev/null || echo 0)"
+        if [[ "$probed_epoch" -gt 0 ]]; then
+            now="$(date +%s)"
+            age_h=$(( (now - probed_epoch) / 3600 ))
+            # Spawn bg re-probe if entry is older than ~24h (positive_ttl boundary).
+            if (( age_h >= 24 )); then
+                _adapter_spawn_bg_probe "$provider"
+            fi
+        fi
+    fi
+
+    case "$state" in
+        AVAILABLE|"")
+            return 0
+            ;;
+        UNAVAILABLE)
+            error "Model '$provider_model_id' marked UNAVAILABLE by probe on ${probed_at}: ${reason}"
+            error "  Run: .claude/scripts/model-health-probe.sh --invalidate ${provider_model_id##*:}"
+            error "  Or:  set LOA_PROBE_BYPASS=1 with LOA_PROBE_BYPASS_REASON to override (24h TTL, audit-logged)"
+            return 1
+            ;;
+        UNKNOWN)
+            local degraded_ok="true"
+            if command -v yq >/dev/null 2>&1 && [[ -f "${LOA_CONFIG:-.loa.config.yaml}" ]]; then
+                local v
+                v="$(yq eval '.model_health_probe.degraded_ok' "${LOA_CONFIG:-.loa.config.yaml}" 2>/dev/null)"
+                [[ "$v" == "false" ]] && degraded_ok="false"
+            fi
+            if [[ "$degraded_ok" == "true" ]]; then
+                log "Model '$provider_model_id' state UNKNOWN; proceeding (degraded_ok=true; reason: ${reason})"
+                return 0
+            else
+                error "Model '$provider_model_id' state UNKNOWN and degraded_ok=false: ${reason}"
+                error "  Run: .claude/scripts/model-health-probe.sh --invalidate ${provider_model_id##*:}"
+                return 1
+            fi
+            ;;
+    esac
+    return 0
+}
+
+# =============================================================================
 # Output Format Translation
 # =============================================================================
 
@@ -326,6 +446,14 @@ main() {
 
     log "Mode '$mode' → Agent '$agent'"
     log "Model: $model → $model_override, Phase: $phase"
+
+    # Probe-cache pre-flight (Sprint 3B Task 3B.7) — short-circuit on
+    # UNAVAILABLE before spending an API call. Skipped in mock and dry-run.
+    if [[ "${FLATLINE_MOCK_MODE:-}" != "true" ]] && [[ "$dry_run" != "true" ]]; then
+        if ! _probe_cache_check "$model_override"; then
+            exit 4   # Same code as missing-key family — model not usable
+        fi
+    fi
 
     # Mock mode — delegate to legacy which has mock fixtures
     if [[ "${FLATLINE_MOCK_MODE:-}" == "true" ]]; then

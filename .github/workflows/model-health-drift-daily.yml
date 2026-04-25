@@ -1,0 +1,92 @@
+name: Model Health Drift (daily cron)
+
+# Sprint 3B Task 3B.4 — SDD §5.3.2
+# Detects upstream model availability drift on main once per day.
+# Opens auto-issue with `model-health-drift` label on UNAVAILABLE finding.
+
+on:
+  schedule:
+    - cron: '0 14 * * *'   # 14:00 UTC daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write    # auto-open drift issue on failure
+
+concurrency:
+  group: model-health-drift-daily
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+
+      - name: Run probe
+        id: probe
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          set +x   # never trace shell with secrets in env
+          chmod +x .claude/scripts/model-health-probe.sh
+          .claude/scripts/model-health-probe.sh --once --output json --quiet > probe-result.json
+          exit_code=$?
+          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+          jq -r '.summary | "available=\(.available) unavailable=\(.unavailable) unknown=\(.unknown)"' probe-result.json
+          # Don't fail the job here — we open an issue instead. Always exit 0.
+          exit 0
+
+      - name: Open drift issue when UNAVAILABLE detected
+        if: steps.probe.outputs.exit_code == '2'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          script: |
+            const fs = require('fs');
+            const result = JSON.parse(fs.readFileSync('probe-result.json', 'utf8'));
+            const unavailable = Object.entries(result.entries || {})
+              .filter(([_, e]) => e.state === 'UNAVAILABLE')
+              .map(([k, e]) => `- \`${k}\`: ${e.reason || 'no reason'}`).join('\n');
+            if (!unavailable) return;
+            const today = new Date().toISOString().split('T')[0];
+
+            // Idempotency — don't open duplicate issues for the same day.
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'model-health-drift',
+              state: 'open',
+              since: `${today}T00:00:00Z`,
+            });
+            const todayTitle = `Model health drift detected (${today})`;
+            if (existing.data.some(i => i.title === todayTitle)) {
+              core.info(`Drift issue for ${today} already exists — skipping create.`);
+              return;
+            }
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: todayTitle,
+              body: [
+                `Daily drift cron found UNAVAILABLE models on \`main\`:`,
+                ``,
+                unavailable,
+                ``,
+                `**Action:** investigate per \`.claude/docs/runbooks/model-health-probe-incident.md\` and either remove from registry or file upstream.`,
+              ].join('\n'),
+              labels: ['model-health-drift'],
+            });
+
+      - name: Post-job secret scanner (Flatline SKP-005)
+        if: always()
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7  # v2.3.9
+        with:
+          config-path: .gitleaks.toml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_NOTIFY_USER_LIST: ''

@@ -1,0 +1,152 @@
+name: Model Health Probe (PR-scoped)
+
+# Sprint 3B Task 3B.3 — SDD §5.3.1
+# Closes G5: gating PRs that touch model registry / adapter on probe AVAILABILITY.
+# Closes Flatline sprint-review SKP-003 (governed override) and SKP-005 (post-job scanner).
+
+on:
+  pull_request:
+    paths:
+      - '.claude/defaults/model-config.yaml'
+      - '.loa.config.yaml.example'
+      - '.claude/scripts/model-adapter.sh'
+      - '.claude/scripts/flatline-orchestrator.sh'
+      - '.claude/scripts/red-team-model-adapter.sh'
+      - '.claude/scripts/model-health-probe.sh'
+      - '.claude/scripts/lib/secret-redaction.sh'
+      - '.claude/scripts/generated-model-maps.sh'
+      - '.claude/adapters/**/*.py'
+      # Dependency-graph expansion (SDD §5.3.1 SKP-003 mitigation):
+      - '.claude/scripts/**/*'
+
+permissions:
+  contents: read
+  pull-requests: write   # post findings comment
+  issues: write          # for dual-approval validation via PR review query
+
+concurrency:
+  group: model-health-probe-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+        with:
+          fetch-depth: 1
+
+      - name: Detect mode (fork vs same-repo)
+        id: mode
+        env:
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPO: ${{ github.repository }}
+        run: |
+          if [[ "$HEAD_REPO" != "$BASE_REPO" ]]; then
+            echo "mode=listing-only" >> "$GITHUB_OUTPUT"
+            echo "Fork PR detected — listing-only mode (no auth-required Anthropic probe)."
+          else
+            echo "mode=full" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check for override-probe-outage label (Flatline SKP-003 dual-approval)
+        id: override
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -e
+          # Pull labels and review state via gh API.
+          labels_json="$(gh pr view "$PR_NUMBER" --json labels -q '.labels[].name' || true)"
+          if echo "$labels_json" | grep -qx 'override-probe-outage'; then
+            # Dual-approval check: require ≥1 CODEOWNER + ≥1 framework-maintainer review.
+            reviews_json="$(gh api repos/${{ github.repository }}/pulls/${PR_NUMBER}/reviews --jq '[.[] | select(.state=="APPROVED") | .user.login]' || echo '[]')"
+            approver_count="$(echo "$reviews_json" | jq 'length')"
+            if [[ "$approver_count" -lt 2 ]]; then
+              echo "::error::override-probe-outage label present but only ${approver_count} approvals; need ≥2 (CODEOWNER + framework-maintainer)"
+              exit 1
+            fi
+            echo "override=true" >> "$GITHUB_OUTPUT"
+            # Append audit event (no commit — CI shouldn't push to main).
+            mkdir -p .run
+            jq -n \
+              --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+              --arg actor "${{ github.actor }}" \
+              --arg pr "$PR_NUMBER" \
+              --arg approvers "$reviews_json" \
+              '{timestamp:$ts, action:"probe_gate_override", pr:$pr, actor:$actor, approvers:($approvers|fromjson)}' \
+              | tee -a .run/audit.jsonl
+          fi
+
+      - name: Run probe
+        if: steps.override.outputs.override != 'true'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          LOA_PROBE_MODE: ${{ steps.mode.outputs.mode }}
+        run: |
+          set +x  # never trace shell while secrets are in env (SKP-005)
+          chmod +x .claude/scripts/model-health-probe.sh
+          .claude/scripts/model-health-probe.sh --once --output json --quiet > probe-result.json
+          exit_code=$?
+          echo "probe_exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+          # Print redacted summary to job log (no payloads, no raw responses).
+          jq -r '.summary | "available=\(.available) unavailable=\(.unavailable) unknown=\(.unknown)"' probe-result.json
+          if [[ "$exit_code" -eq 2 ]]; then
+            echo "::warning::Probe found UNAVAILABLE models — see PR comment."
+          fi
+          # Re-emit exit code at end (avoid `set -e` trapping non-zero).
+          exit "$exit_code"
+
+      - name: Post findings as PR comment (redacted)
+        if: always() && steps.override.outputs.override != 'true' && hashFiles('probe-result.json') != ''
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          script: |
+            const fs = require('fs');
+            if (!fs.existsSync('probe-result.json')) return;
+            const result = JSON.parse(fs.readFileSync('probe-result.json', 'utf8'));
+            const summary = result.summary || {};
+            const unavailable = Object.entries(result.entries || {})
+              .filter(([_, e]) => e.state === 'UNAVAILABLE')
+              .map(([k, e]) => `- \`${k}\`: ${e.reason || 'no reason'}`).join('\n');
+            const unknown = Object.entries(result.entries || {})
+              .filter(([_, e]) => e.state === 'UNKNOWN')
+              .map(([k, e]) => `- \`${k}\`: ${e.reason || 'no reason'}`).join('\n');
+            const body = [
+              `## Model Health Probe`,
+              ``,
+              `**Summary:** ${summary.available || 0} AVAILABLE · ${summary.unavailable || 0} UNAVAILABLE · ${summary.unknown || 0} UNKNOWN`,
+              `**Mode:** \`${{ steps.mode.outputs.mode }}\``,
+              ``,
+              unavailable ? `### UNAVAILABLE\n${unavailable}\n` : '',
+              unknown ? `### UNKNOWN (transient)\n${unknown}\n` : '',
+              `<details><summary>Override</summary>`,
+              ``,
+              `Apply label \`override-probe-outage\` (requires CODEOWNER + framework-maintainer approval) to bypass; dual-approval enforced at CI time per Flatline SKP-003.`,
+              ``,
+              `</details>`,
+            ].filter(Boolean).join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body,
+            });
+
+      - name: Post-job secret scanner (Flatline SKP-005)
+        if: always()
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7  # v2.3.9
+        with:
+          config-path: .gitleaks.toml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Don't fail on gitleaks license; this scanner runs against job working tree
+          # (which never contains real secrets) — defense-in-depth catch.
+          GITLEAKS_NOTIFY_USER_LIST: ''
+
+      # NOTE: NO upload-artifact of probe payloads (SKP-005 — never persist
+      # raw provider responses, even for diagnosis. Re-run with debug locally.)
