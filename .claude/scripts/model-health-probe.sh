@@ -545,10 +545,19 @@ _cache_atomic_write() {
     # macos-latest CI matrix failure; cycle-094 G-2 sweep).
     local rc=0
     (
-        flock -w "$timeout" 9 || {
+        # `-E 1`: exit 1 only on timeout. Other flock failures (kernel error,
+        # unsupported fs) preserve their own exit code so callers can
+        # distinguish them from a true stale-lock signal in the future
+        # (cycle-094 review iter-3, DISS-002 fix; mirrors bridge-state.sh).
+        flock -E 1 -w "$timeout" 9 2>/dev/null
+        local frc=$?
+        if [[ "$frc" -eq 1 ]]; then
             log_error "cache lock timeout after ${timeout}s"
             exit 1
-        }
+        elif [[ "$frc" -ne 0 ]]; then
+            log_error "cache lock acquisition failed (flock rc=$frc; not a timeout)"
+            exit "$frc"
+        fi
 
         local tmpfile
         tmpfile="$(mktemp "${cache}.tmp.XXXXXX")"

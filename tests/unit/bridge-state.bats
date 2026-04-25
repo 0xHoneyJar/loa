@@ -752,6 +752,43 @@ SHIM
     [[ "$output" == *"atomic rename failed"* || "$output" == *"shim mv"* ]]
 }
 
+@test "C-1: lock-acquisition timeout returns exit 11 specifically (DISS-002 fix)" {
+    skip_if_deps_missing
+    if ! command -v flock &>/dev/null; then
+        skip "flock not available"
+    fi
+    # Verify -E 11 is honored: a timed-out lock must produce rc=11, not generic 1.
+    if ! flock --help 2>&1 | grep -q -- '--conflict-exit-code'; then
+        skip "flock too old (no -E flag)"
+    fi
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-20260426-cc0004" 3
+
+    # Hold the lock from a background sleeper so the foreground times out
+    local hold_script="$TEST_TMPDIR/hold-lock.sh"
+    cat > "$hold_script" <<EOF
+#!/usr/bin/env bash
+exec 9>"$BRIDGE_STATE_LOCK"
+flock -x 9
+sleep 12
+EOF
+    chmod +x "$hold_script"
+    "$hold_script" &
+    local hold_pid=$!
+    sleep 0.5  # let the holder grab the lock
+
+    # Direct call to the helper (skips outer caller's case-routing) so we can
+    # observe the raw timeout exit code.
+    _LOCK_STRATEGY="flock"
+    run _atomic_state_update_flock_attempt '.state = "PROBE"'
+
+    kill "$hold_pid" 2>/dev/null || true
+    wait "$hold_pid" 2>/dev/null || true
+
+    [ "$status" -eq 11 ]
+}
+
 @test "C-1: jq failure does NOT remove lockfile (exit 12 path)" {
     # Companion test: jq failure (invalid filter) must also propagate without
     # triggering stale-lock recovery.

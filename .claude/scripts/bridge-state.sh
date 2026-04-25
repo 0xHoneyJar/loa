@@ -160,7 +160,17 @@ _atomic_state_update_flock_attempt() {
   local jq_filter="$1"
   shift
   (
-    flock -w 5 9 2>/dev/null || exit 11
+    # `-E 11`: exit 11 ONLY on timeout (or `-n` conflict). Other flock
+    # failures (kernel error, unsupported fs, bad fd) preserve their own
+    # exit code (typically 1) — they are NOT timeouts and must NOT trigger
+    # stale-lock recovery (cycle-094 review iter-3, DISS-002 fix).
+    flock -E 11 -w 5 9 2>/dev/null
+    local frc=$?
+    if [[ "$frc" -ne 0 ]]; then
+      # If flock exited 11, we propagate that as the lock-timeout signal.
+      # Any other non-zero is a flock-runtime failure — propagate as-is.
+      exit "$frc"
+    fi
     local tmp_file="${BRIDGE_STATE_FILE}.tmp.$$"
     if ! jq "$jq_filter" "$@" "$BRIDGE_STATE_FILE" > "$tmp_file" 2>/dev/null; then
       rm -f "$tmp_file"
