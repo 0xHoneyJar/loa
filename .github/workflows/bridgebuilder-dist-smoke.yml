@@ -1,0 +1,90 @@
+# cycle-093 Sprint 2 T1.2 / #607 — pack-release smoke test
+#
+# Guards against a regression where dist/core/*.js files go un-tracked
+# (e.g., because a new .gitignore pattern silently excludes them). The
+# #607 root cause was: .gitignore had a bare `dist/` pattern that ignored
+# newer dist modules like multi-model-pipeline.js; older files were tracked
+# only because they predate the rule.
+#
+# This smoke test catches the class by verifying the shipped dist imports
+# cleanly from a fresh checkout — the same failure mode a submodule
+# consumer would see.
+name: bridgebuilder-dist-smoke
+
+on:
+  pull_request:
+    paths:
+      - '.claude/skills/bridgebuilder-review/**'
+      - '.gitignore'
+      - '.github/workflows/bridgebuilder-dist-smoke.yml'
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (no submodules — mirror consumer context)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '20'
+
+      - name: Verify dist/core/multi-model-pipeline.js is tracked
+        run: |
+          set -euo pipefail
+          dist_file=".claude/skills/bridgebuilder-review/dist/core/multi-model-pipeline.js"
+          if ! git ls-files --error-unmatch "$dist_file" > /dev/null 2>&1; then
+            echo "::error::$dist_file is not tracked by git"
+            echo "::error::This is the #607 regression class. Check .gitignore rules around 'dist/'."
+            exit 1
+          fi
+          echo "✓ $dist_file is tracked"
+
+      - name: Import smoke test (no ERR_MODULE_NOT_FOUND)
+        run: |
+          set -euo pipefail
+          cd .claude/skills/bridgebuilder-review
+          # Syntax check first — fast failure if the file itself is malformed
+          node --check dist/main.js
+          # Import test — verifies ALL transitive imports resolve.
+          # Skill errors after imports are fine here (no API keys in CI);
+          # we only care that ERR_MODULE_NOT_FOUND does NOT fire.
+          node --input-type=module -e "
+            try {
+              await import('./dist/main.js');
+              console.log('import OK');
+            } catch (e) {
+              if (e && e.code === 'ERR_MODULE_NOT_FOUND') {
+                console.error('REGRESSION: ' + e.message);
+                process.exit(1);
+              }
+              // Any other error is acceptable — imports resolved
+              console.log('imports resolved (post-import error tolerated in CI)');
+            }
+          " || {
+            rc=$?
+            if [[ "$rc" -ne 0 ]]; then
+              echo "::error::Import smoke test failed — likely ERR_MODULE_NOT_FOUND regression"
+              exit "$rc"
+            fi
+          }
+
+      - name: Verify dist/core/ file count vs resources/core/ (catch silent drops)
+        run: |
+          set -euo pipefail
+          src_count=$(find .claude/skills/bridgebuilder-review/resources/core -maxdepth 1 -name '*.ts' | wc -l)
+          dist_count=$(find .claude/skills/bridgebuilder-review/dist/core -maxdepth 1 -name '*.js' | wc -l)
+          echo "resources/core: $src_count .ts files"
+          echo "dist/core: $dist_count .js files"
+          if [[ "$dist_count" -lt "$src_count" ]]; then
+            echo "::error::dist/core has fewer .js files ($dist_count) than resources/core has .ts files ($src_count)"
+            echo "::error::Some modules were dropped from the shipped bundle"
+            exit 1
+          fi
+          echo "✓ dist/core/ covers all resources/core/ modules"
