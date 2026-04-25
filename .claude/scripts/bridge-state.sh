@@ -147,6 +147,34 @@ atomic_state_update() {
   esac
 }
 
+# _atomic_state_update_flock_attempt — single subshell + flock + jq + mv attempt.
+# Stdout: nothing. Stderr: error messages naming the actual cause.
+# Exit codes (disjoint per failure class — cycle-094 review-iter-2 fix for
+# DISS-001; original collapsed-to-1 form misclassified mv failures as
+# stale-lock, triggering erroneous lockfile removal):
+#   0   success
+#   11  flock acquire timeout (only this triggers stale-lock recovery)
+#   12  jq transformation failed
+#   13  mv (atomic rename) failed
+_atomic_state_update_flock_attempt() {
+  local jq_filter="$1"
+  shift
+  (
+    flock -w 5 9 2>/dev/null || exit 11
+    local tmp_file="${BRIDGE_STATE_FILE}.tmp.$$"
+    if ! jq "$jq_filter" "$@" "$BRIDGE_STATE_FILE" > "$tmp_file" 2>/dev/null; then
+      rm -f "$tmp_file"
+      echo "ERROR: jq transformation failed" >&2
+      exit 12
+    fi
+    if ! mv "$tmp_file" "$BRIDGE_STATE_FILE"; then
+      rm -f "$tmp_file"
+      echo "ERROR: atomic rename failed (write-layer cause; lockfile preserved)" >&2
+      exit 13
+    fi
+  ) 9>"$BRIDGE_STATE_LOCK"
+}
+
 _atomic_state_update_flock() {
   local jq_filter="$1"
   shift
@@ -157,49 +185,38 @@ _atomic_state_update_flock() {
   # variable assignment form for the exec/redirect builtin. Use a subshell
   # with a hardcoded fd 9 instead (cycle-094 G-2; mirrors
   # model-health-probe.sh _cache_atomic_write).
-  # Exit codes from the subshell:
-  #   0 success
-  #   1 lock-acquisition timeout (treated as stale lock → retry)
-  #   2 jq transformation failed (do not retry)
+  #
+  # Failure routing: only flock-acquisition timeout (exit 11) triggers
+  # stale-lock recovery. All other non-zero exits (jq=12, mv=13) propagate
+  # without removing the lockfile — incorrectly removing it on a non-lock
+  # failure would break mutual exclusion across processes (different inode
+  # for any subsequent open) and create a write-race window.
   local rc=0
-  (
-    flock -w 5 9 2>/dev/null || exit 1
-    local tmp_file="${BRIDGE_STATE_FILE}.tmp.$$"
-    if ! jq "$jq_filter" "$@" "$BRIDGE_STATE_FILE" > "$tmp_file" 2>/dev/null; then
-      rm -f "$tmp_file"
-      echo "ERROR: jq transformation failed" >&2
-      exit 2
-    fi
-    mv "$tmp_file" "$BRIDGE_STATE_FILE"
-  ) 9>"$BRIDGE_STATE_LOCK"
+  _atomic_state_update_flock_attempt "$jq_filter" "$@"
   rc=$?
 
-  if [[ "$rc" -eq 1 ]]; then
-    # Lock-acquisition timeout — assume stale lock, clean up and retry once.
-    echo "ERROR: Failed to acquire state lock within 5s — possible stale lock" >&2
-    echo "ERROR: Lock file: $BRIDGE_STATE_LOCK" >&2
-    rm -f "$BRIDGE_STATE_LOCK"
-    (
-      flock -w 5 9 2>/dev/null || exit 1
-      local tmp_file="${BRIDGE_STATE_FILE}.tmp.$$"
-      if ! jq "$jq_filter" "$@" "$BRIDGE_STATE_FILE" > "$tmp_file" 2>/dev/null; then
-        rm -f "$tmp_file"
-        echo "ERROR: jq transformation failed" >&2
-        exit 2
-      fi
-      mv "$tmp_file" "$BRIDGE_STATE_FILE"
-    ) 9>"$BRIDGE_STATE_LOCK"
-    rc=$?
-    if [[ "$rc" -eq 1 ]]; then
-      echo "ERROR: Still cannot acquire lock after cleanup — aborting" >&2
-      return 1
-    fi
-    if [[ "$rc" -eq 0 ]]; then
-      echo "WARNING: Recovered from stale lock" >&2
-    fi
-  fi
-
-  return "$rc"
+  case "$rc" in
+    0) return 0 ;;
+    11)
+      # Lock-acquisition timeout — assume stale lock, clean up and retry once.
+      echo "ERROR: Failed to acquire state lock within 5s — possible stale lock" >&2
+      echo "ERROR: Lock file: $BRIDGE_STATE_LOCK" >&2
+      rm -f "$BRIDGE_STATE_LOCK"
+      _atomic_state_update_flock_attempt "$jq_filter" "$@"
+      rc=$?
+      case "$rc" in
+        0)  echo "WARNING: Recovered from stale lock" >&2; return 0 ;;
+        11) echo "ERROR: Still cannot acquire lock after cleanup — aborting" >&2; return 1 ;;
+        *)  return "$rc" ;;
+      esac
+      ;;
+    *)
+      # 12, 13, or any other non-zero — real data-layer failure. Do NOT
+      # remove the lockfile. Propagate the original code so callers can
+      # distinguish jq vs mv vs unknown.
+      return "$rc"
+      ;;
+  esac
 }
 
 _atomic_state_update_mkdir() {

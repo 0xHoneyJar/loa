@@ -1296,6 +1296,18 @@ _format_json() {
             --arg reason "$reason" \
             '.[$key] = {state:$state, reason:$reason}')
     done
+    # cycle-094 G-1 (AC1 literal): emit `summary.skipped: true` when no probe
+    # made an HTTP call AND the result set is non-empty all-UNKNOWN. This is the
+    # fork-PR / no-keys signal — distinct from "0 entries probed" (registry
+    # filter excluded everything) and from "some unknown" (partial keys).
+    local skipped="false"
+    if [[ "$PROBES_USED" -eq 0 ]] && \
+       [[ "$summary_unknown" -gt 0 ]] && \
+       [[ "$summary_available" -eq 0 ]] && \
+       [[ "$summary_unavailable" -eq 0 ]]; then
+        skipped="true"
+    fi
+
     jq -n \
         --arg schema "$CACHE_SCHEMA_VERSION" \
         --arg ts "$(_iso_timestamp)" \
@@ -1303,9 +1315,10 @@ _format_json() {
         --argjson avail "$summary_available" \
         --argjson unavail "$summary_unavailable" \
         --argjson unknown "$summary_unknown" \
+        --argjson skipped "$skipped" \
         --argjson exit_code "$1" \
         '{schema_version:$schema, probed_at:$ts,
-          summary:{available:$avail, unavailable:$unavail, unknown:$unknown},
+          summary:{available:$avail, unavailable:$unavail, unknown:$unknown, skipped:$skipped},
           entries:$entries, exit_code:$exit_code}'
 }
 

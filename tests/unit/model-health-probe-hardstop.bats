@@ -201,18 +201,63 @@ _latest_trajectory_for_probe() {
     # The default openai provider has 4+ models. Without the G-1 guard, each
     # unmade probe would charge 1 cent; iterating through openai+google+anthropic
     # at default 5-cent cap would exit 5. With the guard: 0 increments, exit 0.
-    run env -i \
+    local out
+    out="$(env -i \
         PATH="$PATH" HOME="$HOME" \
         LOA_PROBE_MOCK_MODE=1 \
         LOA_CACHE_DIR="$TEST_DIR" \
         LOA_TRAJECTORY_DIR="$TEST_DIR/trajectory" \
         LOA_AUDIT_LOG="$TEST_DIR/audit.jsonl" \
         PROJECT_ROOT="$PROJECT_ROOT" \
-        "$PROBE" --quiet --output json
-    [ "$status" -ne 5 ]
+        "$PROBE" --quiet --output json)"
+    local rc=$?
+    [ "$rc" -ne 5 ]
     # All probed entries should be UNKNOWN (no-key path)
-    run jq -e '[.entries[] | select(.state == "UNKNOWN")] | length > 0' <<< "$output"
-    [ "$status" -eq 0 ]
+    echo "$out" | jq -e '[.entries[] | select(.state == "UNKNOWN")] | length > 0' >/dev/null
+
+    # N-3: verify the guard actually fired by checking the trajectory has NO
+    # budget_hardstop event (the count would otherwise be > 0 by the time the
+    # registry iterator reached its 6th openai model with the 1-cent-per-probe
+    # increment unprotected by the guard).
+    local traj
+    traj="$(_latest_trajectory_for_probe)"
+    if [[ -f "$traj" ]]; then
+        run jq -c 'select(.event == "budget_hardstop")' "$traj"
+        [ -z "$output" ]
+    fi
+}
+
+@test "G-1: AC1-literal — summary.skipped:true when all probes skipped (no keys)" {
+    # AC1 literal text: produces `summary.skipped: true` (or all-UNKNOWN for
+    # partial keys). With zero keys set, both conditions hold.
+    local out
+    out="$(env -i \
+        PATH="$PATH" HOME="$HOME" \
+        LOA_PROBE_MOCK_MODE=1 \
+        LOA_CACHE_DIR="$TEST_DIR" \
+        LOA_TRAJECTORY_DIR="$TEST_DIR/trajectory" \
+        LOA_AUDIT_LOG="$TEST_DIR/audit.jsonl" \
+        PROJECT_ROOT="$PROJECT_ROOT" \
+        "$PROBE" --quiet --output json)"
+    [ "$?" -eq 0 ]
+    echo "$out" | jq -e '.summary.skipped == true' >/dev/null
+    echo "$out" | jq -e '.summary.available == 0' >/dev/null
+    echo "$out" | jq -e '.summary.unavailable == 0' >/dev/null
+    echo "$out" | jq -e '.summary.unknown > 0' >/dev/null
+}
+
+@test "G-1: AC1-partial — summary.skipped:false when some probes consumed budget" {
+    # With OPENAI_API_KEY set + valid mock response, probes go through.
+    # summary.skipped must be false (not all-UNKNOWN).
+    local out
+    out="$(env LOA_PROBE_MOCK_MODE=1 \
+        LOA_PROBE_MOCK_HTTP_STATUS=200 \
+        LOA_PROBE_MOCK_OPENAI="$FIXTURES/openai/available.json" \
+        LOA_CACHE_DIR="$TEST_DIR" \
+        OPENAI_API_KEY=test-openai \
+        "$PROBE" --provider openai --model gpt-5.3-codex --quiet --output json)"
+    [ "$?" -eq 0 ]
+    echo "$out" | jq -e '.summary.skipped == false' >/dev/null
 }
 
 @test "G-1: 401 auth failure with HTTP=401 STILL consumes budget" {

@@ -23,7 +23,7 @@ setup() {
     # exercise the pattern are excluded (none currently exist; if added, list
     # them in the EXCLUDE array below).
     local matches
-    matches="$(grep -rnE 'exec \{[a-z_]+\}>' "$PROJECT_ROOT/.claude/scripts/" 2>/dev/null || true)"
+    matches="$(grep -rnE 'exec \{[a-zA-Z_]+\}>[^>]' "$PROJECT_ROOT/.claude/scripts/" 2>/dev/null || true)"
     if [[ -n "$matches" ]]; then
         echo "Forbidden named-fd patterns found:" >&2
         echo "$matches" >&2
@@ -35,7 +35,7 @@ setup() {
 
 @test "G-2: no exec {var}>>file (append form) either" {
     local matches
-    matches="$(grep -rnE 'exec \{[a-z_]+\}>>' "$PROJECT_ROOT/.claude/scripts/" 2>/dev/null || true)"
+    matches="$(grep -rnE 'exec \{[a-zA-Z_]+\}>>' "$PROJECT_ROOT/.claude/scripts/" 2>/dev/null || true)"
     [[ -z "$matches" ]] || { echo "$matches" >&2; return 1; }
 }
 

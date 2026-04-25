@@ -691,3 +691,91 @@ EOF
     tmp_count=$(find "$TEST_TMPDIR/.run" -name "bridge-state.json.tmp*" 2>/dev/null | wc -l)
     [ "$tmp_count" = "0" ]
 }
+
+# -----------------------------------------------------------------------------
+# C-1 (cycle-094 review-iter-2, DISS-001): non-lock failures must NOT trigger
+# stale-lock recovery. The original collapsed-to-1 exit code aliased mv failures
+# as lock timeouts, causing the lockfile to be removed under another process's
+# nose. Disjoint exit codes (11/12/13) prevent this.
+# -----------------------------------------------------------------------------
+@test "C-1: mv failure does NOT remove lockfile (disjoint exit codes)" {
+    skip_if_deps_missing
+    if ! command -v flock &>/dev/null; then
+        skip "flock not available"
+    fi
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-20260426-cc0001" 3
+
+    # Pre-warm the lockfile so we can assert it survives the mv failure
+    : > "$BRIDGE_STATE_LOCK"
+    local lock_inode_before
+    lock_inode_before=$(stat -c '%i' "$BRIDGE_STATE_LOCK" 2>/dev/null || stat -f '%i' "$BRIDGE_STATE_LOCK")
+
+    # Inject a failing `mv` shim. The function uses bare `mv` (subject to PATH
+    # lookup), so prepending shim_dir to PATH shadows it. We invoke the
+    # function directly in this shell so $_LOCK_STRATEGY (set by setup) and
+    # the sourced helpers stay in scope.
+    local shim_dir="$TEST_TMPDIR/shim-bin"
+    mkdir -p "$shim_dir"
+    cat > "$shim_dir/mv" <<'SHIM'
+#!/usr/bin/env bash
+echo "shim mv: simulated failure" >&2
+exit 1
+SHIM
+    chmod +x "$shim_dir/mv"
+
+    # Force flock strategy explicitly (setup may have selected mkdir on macos)
+    _LOCK_STRATEGY="flock"
+
+    local saved_path="$PATH"
+    PATH="$shim_dir:$PATH"
+    run _atomic_state_update_flock '.state = "PROBE"'
+    PATH="$saved_path"
+
+    # Must fail (non-zero exit). Must NOT be 0 (silent success) and must NOT
+    # be 1 (which would be the stale-lock-cleanup-failure code in the rewrite).
+    [ "$status" -ne 0 ]
+    [ "$status" != "0" ]
+    [ "$status" != "1" ]
+
+    # The lockfile must STILL exist (no stale-lock cleanup triggered)
+    [ -f "$BRIDGE_STATE_LOCK" ]
+
+    # And the inode must be unchanged (no recreate)
+    local lock_inode_after
+    lock_inode_after=$(stat -c '%i' "$BRIDGE_STATE_LOCK" 2>/dev/null || stat -f '%i' "$BRIDGE_STATE_LOCK")
+    [ "$lock_inode_before" = "$lock_inode_after" ]
+
+    # The error output should mention the actual cause, not stale-lock
+    [[ "$output" != *"stale lock"* ]]
+    [[ "$output" == *"atomic rename failed"* || "$output" == *"shim mv"* ]]
+}
+
+@test "C-1: jq failure does NOT remove lockfile (exit 12 path)" {
+    # Companion test: jq failure (invalid filter) must also propagate without
+    # triggering stale-lock recovery.
+    skip_if_deps_missing
+    if ! command -v flock &>/dev/null; then
+        skip "flock not available"
+    fi
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-20260426-cc0003" 3
+
+    : > "$BRIDGE_STATE_LOCK"
+    local lock_inode_before
+    lock_inode_before=$(stat -c '%i' "$BRIDGE_STATE_LOCK" 2>/dev/null || stat -f '%i' "$BRIDGE_STATE_LOCK")
+
+    _LOCK_STRATEGY="flock"
+    run _atomic_state_update_flock 'this | is | not | valid | jq'
+
+    [ "$status" -ne 0 ]
+    [ "$status" != "1" ]   # not the spurious stale-lock-cleanup-failure code
+    [ -f "$BRIDGE_STATE_LOCK" ]
+    local lock_inode_after
+    lock_inode_after=$(stat -c '%i' "$BRIDGE_STATE_LOCK" 2>/dev/null || stat -f '%i' "$BRIDGE_STATE_LOCK")
+    [ "$lock_inode_before" = "$lock_inode_after" ]
+    [[ "$output" != *"stale lock"* ]]
+    [[ "$output" == *"jq transformation failed"* ]]
+}
