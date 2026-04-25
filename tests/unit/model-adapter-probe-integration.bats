@@ -194,3 +194,34 @@ EOF
     sleep 0.2
     [ ! -f "$TEST_DIR/probe-SHOULD-NOT-FIRE.flag" ]
 }
+
+# -----------------------------------------------------------------------------
+# Iter-2 B-2 regression: TOCTOU race in adapter's _adapter_spawn_bg_probe
+# -----------------------------------------------------------------------------
+@test "bg-probe: 5 parallel adapter spawns yield ≤ 1 probe (B-2 race fix)" {
+    cat > "$CACHE" <<EOF
+{"schema_version":"1.0","entries":{}}
+EOF
+    rm -f "$TEST_DIR/model-health-probe.openai.pid"
+
+    local stub="$TEST_DIR/probe-stub.sh"
+    cat > "$stub" <<'EOF'
+#!/usr/bin/env bash
+echo "fired-$$" >> "$LOA_CACHE_DIR/spawn-log"
+sleep 0.5
+EOF
+    chmod +x "$stub"
+    PROBE_SCRIPT="$stub"
+
+    # Burst 5 parallel adapter spawn calls.
+    local i
+    for i in 1 2 3 4 5; do
+        ( _adapter_spawn_bg_probe openai ) &
+    done
+    wait
+    sleep 0.7   # let the winning stub run + exit
+
+    local fires
+    fires="$(wc -l < "$TEST_DIR/spawn-log" 2>/dev/null || echo 0)"
+    [ "$fires" -le 1 ]
+}

@@ -90,15 +90,19 @@ jobs:
         run: |
           set +x  # never trace shell while secrets are in env (SKP-005)
           chmod +x .claude/scripts/model-health-probe.sh
-          .claude/scripts/model-health-probe.sh --once --output json --quiet > probe-result.json
-          exit_code=$?
+          # `set -e` (GHA default) would exit before we capture exit_code if the
+          # probe returns 2; use `|| exit_code=$?` so output is always written
+          # (review iter-2 S-3 — symmetric with drift-daily B-1 fix).
+          exit_code=0
+          .claude/scripts/model-health-probe.sh --once --output json --quiet > probe-result.json \
+            || exit_code=$?
           echo "probe_exit_code=$exit_code" >> "$GITHUB_OUTPUT"
           # Print redacted summary to job log (no payloads, no raw responses).
           jq -r '.summary | "available=\(.available) unavailable=\(.unavailable) unknown=\(.unknown)"' probe-result.json
           if [[ "$exit_code" -eq 2 ]]; then
             echo "::warning::Probe found UNAVAILABLE models — see PR comment."
           fi
-          # Re-emit exit code at end (avoid `set -e` trapping non-zero).
+          # Propagate exit 2 to fail the workflow as intended.
           exit "$exit_code"
 
       - name: Post findings as PR comment (redacted)

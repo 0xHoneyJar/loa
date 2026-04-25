@@ -161,23 +161,39 @@ _adapter_cache_read() {
         sleep 0.05
     done
     # Two failed attempts -> treat as cold-start; never block adapter on read.
+    # Surface to stderr (review iter-2 S-2 — observability gap fix).
+    error "model-health-cache.json corrupt or torn after retry; treating as cold-start. Run \`.claude/scripts/model-health-probe.sh --invalidate\` to regenerate."
     echo '{"schema_version":"1.0","entries":{}}'
 }
 
 # Spawn a background re-probe if no probe is already running for the provider.
-# Uses the same PID sentinel as model-health-probe.sh's _spawn_bg_probe_if_none_running.
+# Uses the same PID sentinel as model-health-probe.sh's _spawn_bg_probe_if_none_running,
+# including the `set -C` atomic-claim race fix (review iter-2 B-2).
 _adapter_spawn_bg_probe() {
     local provider="$1"
     local sentinel="${LOA_CACHE_DIR:-.run}/model-health-probe.${provider}.pid"
+    [[ -x "$PROBE_SCRIPT" ]] || return 0  # probe missing -> no-op
+
+    # Stale-sentinel cleanup: PID dead OR file >10min old (defensive).
     if [[ -f "$sentinel" ]]; then
-        local pid; pid="$(cat "$sentinel" 2>/dev/null || echo "")"
-        if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
-            return 0  # already running
+        local pid age_s
+        pid="$(cat "$sentinel" 2>/dev/null || echo "")"
+        age_s=$(( $(date +%s) - $(stat -c %Y "$sentinel" 2>/dev/null || stat -f %m "$sentinel" 2>/dev/null || echo 0) ))
+        if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null && (( age_s < 600 )); then
+            return 0   # already running
         fi
         rm -f "$sentinel"
     fi
-    [[ -x "$PROBE_SCRIPT" ]] || return 0  # probe missing -> no-op
+
+    # Atomic claim — `set -C` (noclobber) makes `>` fail if the file exists,
+    # closing the TOCTOU race when multiple adapter calls reach this point
+    # simultaneously. First caller wins; the rest dedup silently.
+    if ! ( set -C; echo "$$" > "$sentinel" ) 2>/dev/null; then
+        return 0
+    fi
+
     (
+        # Replace the parent's PID with the subshell's so kill -0 reflects probe liveness.
         echo "$$" > "$sentinel"
         trap 'rm -f "$sentinel"' EXIT
         "$PROBE_SCRIPT" --provider "$provider" --once --quiet >/dev/null 2>&1 || true

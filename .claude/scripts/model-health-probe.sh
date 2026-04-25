@@ -174,15 +174,19 @@ _emit_audit_log() {
         --arg action "$action" \
         --argjson detail "$detail_json" \
         '{timestamp: $ts, actor: $actor, run_id: $run_id, action: $action, detail: $detail}')
-    _redact_secrets "$entry" >> "$AUDIT_LOG"
-    printf '\n' >> "$AUDIT_LOG"
+    # Redact ONCE — both the audit log and the webhook get the same scrubbed
+    # payload (review iter-2 B-3 — defense-in-depth gap fix; previously the
+    # webhook received the raw entry while the audit log got the redacted one).
+    local redacted
+    redacted="$(_redact_secrets "$entry")"
+    printf '%s\n' "$redacted" >> "$AUDIT_LOG"
 
     # Optional webhook (Flatline sprint-review SKP-003 — alert fan-out).
     # Fire-and-forget; never block the probe on webhook latency.
     local webhook
     webhook="$(_config_get '.model_health_probe.alert_webhook_url' '')"
     if [[ -n "$webhook" ]]; then
-        ( curl -sS -X POST -H "Content-Type: application/json" --data "$entry" \
+        ( curl -sS -X POST -H "Content-Type: application/json" --data "$redacted" \
               --max-time 5 "$webhook" >/dev/null 2>&1 || true ) &
         disown 2>/dev/null || true
     fi
@@ -248,7 +252,9 @@ _check_bypass() {
 
     if [[ -f "$sentinel" ]]; then
         set_epoch="$(head -n1 "$sentinel" 2>/dev/null || echo 0)"
-        if [[ -n "$set_epoch" && "$set_epoch" -gt 0 ]] && (( now_epoch - set_epoch < ttl_sec )); then
+        # Reject non-numeric content (review iter-2 S-1 — tamper resistance).
+        [[ "$set_epoch" =~ ^[0-9]+$ ]] || set_epoch=0
+        if [[ "$set_epoch" -gt 0 ]] && (( now_epoch - set_epoch < ttl_sec )); then
             local age=$(( now_epoch - set_epoch ))
             _emit_audit_log "probe_bypass_active" \
                 "$(jq -n --arg reason "$reason" --argjson age "$age" \

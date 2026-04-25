@@ -321,3 +321,31 @@ EOF
     [ "$status" -eq 1 ]
     [ "$(cat "$counter_file")" -eq 3 ]
 }
+
+# -----------------------------------------------------------------------------
+# Iter-2 B-3 regression: _emit_audit_log redacts before webhook fan-out
+# -----------------------------------------------------------------------------
+@test "audit-log: secret-shaped detail field is redacted in audit log (B-3 fix)" {
+    # Plant a fake-but-secret-shaped string in the detail JSON.
+    local fake_key='sk-FAKE_TEST_KEY_NOT_REAL_xxxxxxxxxxxxxx'
+    local detail
+    detail="$(jq -n --arg k "$fake_key" '{leaked_secret:$k}')"
+    _emit_audit_log "test_action" "$detail"
+
+    [ -f "$AUDIT_LOG" ]
+    # Audit log must not contain the raw key.
+    ! grep -F "$fake_key" "$AUDIT_LOG"
+    # Audit log MUST contain the redacted form.
+    grep -q 'sk-REDACTED' "$AUDIT_LOG"
+}
+
+@test "audit-log: PEM private-key block in detail is redacted (B-3 fix)" {
+    local pem='-----BEGIN PRIVATE KEY-----MIIEpAIBAAKCAQEAabc-----END PRIVATE KEY-----'
+    local detail
+    detail="$(jq -n --arg p "$pem" '{leaked_pem:$p}')"
+    _emit_audit_log "test_pem" "$detail"
+
+    [ -f "$AUDIT_LOG" ]
+    ! grep -F "MIIEpAIB" "$AUDIT_LOG"
+    grep -q 'REDACTED-PEM' "$AUDIT_LOG"
+}

@@ -34,11 +34,17 @@ jobs:
         run: |
           set +x   # never trace shell with secrets in env
           chmod +x .claude/scripts/model-health-probe.sh
-          .claude/scripts/model-health-probe.sh --once --output json --quiet > probe-result.json
-          exit_code=$?
+          # GitHub Actions runs with `bash --noprofile --norc -eo pipefail` by default.
+          # The probe exits 2 on UNAVAILABLE — the case we want this cron to handle.
+          # Use `|| exit_code=$?` with `exit_code` initialized so `set -e` does not
+          # exit before we reach `GITHUB_OUTPUT` and the issue-creation branch
+          # (review iter-2 B-1 fix; closes a defect that disabled drift detection).
+          exit_code=0
+          .claude/scripts/model-health-probe.sh --once --output json --quiet > probe-result.json \
+            || exit_code=$?
           echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
           jq -r '.summary | "available=\(.available) unavailable=\(.unavailable) unknown=\(.unknown)"' probe-result.json
-          # Don't fail the job here — we open an issue instead. Always exit 0.
+          # Don't propagate non-zero — the issue-creation step handles UNAVAILABLE.
           exit 0
 
       - name: Open drift issue when UNAVAILABLE detected
