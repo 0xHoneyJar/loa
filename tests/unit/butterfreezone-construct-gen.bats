@@ -192,6 +192,74 @@ MD
     diff -q "$BATS_TEST_TMPDIR/r1.md" "$BATS_TEST_TMPDIR/r2.md"
 }
 
+# Bridgebuilder iter-2 F-007: single-element idempotency can mask unstable
+# map iteration. Add a fixture with multiple skills, commands, and personas
+# (declared out of alphabetical order to expose any sort dependency) and
+# repeat the byte-identical assertion.
+@test "bfz-construct-gen: idempotency holds with multi-entry pack and out-of-order declarations" {
+    cat > "$PACK/construct.yaml" <<'YAML'
+schema_version: "1.0.0"
+slug: multi-pack
+name: Multi Pack
+version: "0.1.0"
+description: Pack with multiple entities (out-of-order) for idempotency stress-test.
+short_description: Multi-entry idempotency fixture
+author: Tests
+license: MIT
+personas:
+  - ZED
+  - ALEXANDER
+  - MARGOT
+skills:
+  - slug: zooming-out
+    path: skills/zooming-out/
+  - slug: arranging-things
+    path: skills/arranging-things/
+  - slug: marking-up
+    path: skills/marking-up/
+commands:
+  - name: zoom
+    path: commands/zoom.md
+  - name: arrange
+    path: commands/arrange.md
+  - name: mark
+    path: commands/mark.md
+reads:
+  - Artifact
+  - Signal
+writes:
+  - Verdict
+grimoires:
+  reads:
+    - grimoires/multi/in/
+  writes:
+    - grimoires/multi/out/
+YAML
+    for s in zooming-out arranging-things marking-up; do
+        mkdir -p "$PACK/skills/$s"
+        printf -- '---\nname: %s\ndescription: Skill %s.\n---\n# %s\n' "$s" "$s" "$s" > "$PACK/skills/$s/SKILL.md"
+    done
+    mkdir -p "$PACK/commands"
+    for c in zoom arrange mark; do
+        printf -- '---\nname: %s\ndescription: Command %s.\n---\n' "$c" "$c" > "$PACK/commands/$c.md"
+    done
+    mkdir -p "$PACK/identity"
+    for p in ZED ALEXANDER MARGOT; do
+        printf '# %s\nPersona %s.\n' "$p" "$p" > "$PACK/identity/$p.md"
+    done
+    cat > "$PACK/CLAUDE.md" <<'MD'
+# Multi Pack
+Reads from grimoires/multi/in/
+Writes to grimoires/multi/out/
+MD
+
+    "$SCRIPT" "$PACK" --output "$BATS_TEST_TMPDIR/r1.md" >/dev/null
+    "$SCRIPT" "$PACK" --output "$BATS_TEST_TMPDIR/r2.md" >/dev/null
+    "$SCRIPT" "$PACK" --output "$BATS_TEST_TMPDIR/r3.md" >/dev/null
+    diff -q "$BATS_TEST_TMPDIR/r1.md" "$BATS_TEST_TMPDIR/r2.md"
+    diff -q "$BATS_TEST_TMPDIR/r2.md" "$BATS_TEST_TMPDIR/r3.md"
+}
+
 @test "bfz-construct-gen: --timestamp adds a 'Generated at:' line" {
     build_pack
     "$SCRIPT" "$PACK" --timestamp --output "$BATS_TEST_TMPDIR/ts.md" >/dev/null

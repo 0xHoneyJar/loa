@@ -118,6 +118,10 @@ MD
     run "$SCRIPT" "$PACK"
     [ "$status" -eq 1 ]
     [[ "$output" == *"description"* ]]
+    # Iter-2 F-001-codex: lock severity classification. Without this, a
+    # regression that demoted required-field findings to LOW would still
+    # match the "description" substring check above.
+    [[ "$output" == *"high"* ]]
 }
 
 @test "construct-validate: skills[].path that doesn't resolve -> high, exit 1" {

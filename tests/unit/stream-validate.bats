@@ -81,46 +81,38 @@ setup() {
 }
 
 @test "stream-validate: Artifact required fields -> exit 0" {
-    # Probe schema for required fields, then build a minimum-viable payload.
-    local schema="$SCHEMA_DIR/artifact.schema.json"
-    [ -f "$schema" ]
-    # Build payload covering all top-level required fields with placeholder values.
-    local payload
-    payload=$(jq -nc \
-        --arg ts "2026-04-26T12:00:00Z" \
-        --arg sv "1.0.0" \
-        '{stream_type:"Artifact",schema_version:$sv,timestamp:$ts,source:"test",artifact_type:"file",path:"/tmp/x"}')
+    # Bridgebuilder iter-2 F-003: assert exit 0 strictly. Schema's required[]
+    # is ["stream_type","schema_version","timestamp","path"] — payload covers
+    # exactly those. Permissive escapes were masking real regressions.
+    local payload='{"stream_type":"Artifact","schema_version":"1.0.0","timestamp":"2026-04-26T12:00:00Z","path":"/tmp/artifact"}'
     run "$SCRIPT" Artifact "$payload"
-    # Some Artifact required fields are schema-specific; we accept either pass
-    # (fallback ignores unknown fields it doesn't have in 'required') or a
-    # specific missing-field complaint that names a field present in the schema.
-    if [ "$status" -ne 0 ]; then
-        # If it failed, verify it failed for a *legit* schema reason — not a
-        # tooling crash.
-        [[ "$output" == *"INVALID"* || "$output" == *"missing required field"* ]]
-    fi
+    [ "$status" -eq 0 ]
 }
 
-@test "stream-validate: Intent required fields -> exit 0 (or schema-specific failure)" {
-    local payload
-    payload=$(jq -nc \
-        --arg ts "2026-04-26T12:00:00Z" \
-        '{stream_type:"Intent",schema_version:"1.0.0",timestamp:$ts,source:"test",intent:"run probes"}')
+@test "stream-validate: Intent required fields -> exit 0" {
+    # Schema required: stream_type, schema_version, timestamp, intent
+    local payload='{"stream_type":"Intent","schema_version":"1.0.0","timestamp":"2026-04-26T12:00:00Z","intent":"run probes"}'
     run "$SCRIPT" Intent "$payload"
-    if [ "$status" -ne 0 ]; then
-        [[ "$output" == *"INVALID"* || "$output" == *"missing required field"* ]]
-    fi
+    [ "$status" -eq 0 ]
 }
 
-@test "stream-validate: Operator-Model required fields -> exit 0 (or schema-specific failure)" {
-    local payload
-    payload=$(jq -nc \
-        --arg ts "2026-04-26T12:00:00Z" \
-        '{stream_type:"Operator-Model",schema_version:"1.0.0",timestamp:$ts,source:"test",operator_id:"alice"}')
+@test "stream-validate: Operator-Model required fields -> exit 0" {
+    # Schema required: stream_type, schema_version, timestamp
+    local payload='{"stream_type":"Operator-Model","schema_version":"1.0.0","timestamp":"2026-04-26T12:00:00Z"}'
     run "$SCRIPT" Operator-Model "$payload"
-    if [ "$status" -ne 0 ]; then
-        [[ "$output" == *"INVALID"* || "$output" == *"missing required field"* ]]
-    fi
+    [ "$status" -eq 0 ]
+}
+
+@test "stream-validate: Artifact missing 'path' -> exit 1" {
+    local payload='{"stream_type":"Artifact","schema_version":"1.0.0","timestamp":"2026-04-26T12:00:00Z"}'
+    run "$SCRIPT" Artifact "$payload"
+    [ "$status" -eq 1 ]
+}
+
+@test "stream-validate: Intent missing 'intent' -> exit 1" {
+    local payload='{"stream_type":"Intent","schema_version":"1.0.0","timestamp":"2026-04-26T12:00:00Z"}'
+    run "$SCRIPT" Intent "$payload"
+    [ "$status" -eq 1 ]
 }
 
 # -----------------------------------------------------------------------------

@@ -185,6 +185,10 @@ chain:
     # Compose pretty-prints the final payload across multiple lines; parse the
     # whole stdout as one JSON object and assert the Verdict declaration.
     echo "$stdout" | jq -e '.stream_type == "Verdict"' >/dev/null
+    # Iter-2 F-009: eat our own dogfood. Pipe stdout through stream-validate.sh
+    # so the test asserts end-to-end schema conformance, not just the
+    # stream_type field.
+    echo "$stdout" | "$PROJECT_ROOT/.claude/scripts/stream-validate.sh" Verdict -
 }
 
 @test "construct-compose: --orient summary prints per-stage durations" {
