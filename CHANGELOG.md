@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Construct onramp + connectivity tooling migration** (cycle-005 L5 + cycle-006 L-migrate, [PR #617](https://github.com/0xHoneyJar/loa/pull/617)) — opt-in path for operators to receive the construct-network tools at mount or via `/loa-setup`, plus relocation of construct connectivity tooling from `loa-constructs` into `loa` proper.
+  - **Mount onramp** (`mount-loa.sh`): three new flags — `--with-constructs`, `--no-constructs`, `--constructs-pack <slug>`. Default behavior is byte-clean for non-construct users; the only mount-time hint fires when constructs aren't already installed AND `LOA_MOUNT_CONSTRUCTS_HINT` isn't `off`. Failure to install the bundle is non-fatal.
+  - **`/loa-setup` Step 5** (`.claude/commands/loa-setup.md`): an optional AskUserQuestion step offering to install the default construct bundle, choose a different pack, or skip. The summary's "Browse packs: /constructs" line is now gated to projects where constructs are actually in use.
+  - **Five new connectivity scripts** in `.claude/scripts/`:
+    - `construct-compose.sh` — composition pipe runner with chain-build-time type compatibility checks (Signal / Verdict / Artifact / Intent / Operator-Model)
+    - `construct-invoke.sh` — paired entry/exit trajectory emission with session_id matching (explicit value-passing recommended; temp-file fallback deprecated and tracked in [#636](https://github.com/0xHoneyJar/loa/issues/636))
+    - `construct-validate.sh` — pre-install / pre-publish manifest linter emitting Verdict-typed findings
+    - `stream-validate.sh` — JSON-Schema validator for the five canonical stream types (full Draft-07 via python3+jsonschema, jq fallback otherwise)
+    - `butterfreezone-construct-gen.sh` — per-pack `CONSTRUCT-README.md` generator, idempotent modulo an opt-in timestamp footer
+  - **Five new schemas** at `.claude/schemas/{signal,verdict,artifact,intent,operator-model}.schema.json` — the typed-stream primitives. All schemas use `additionalProperties: true` so authors can extend.
+  - **One new skill**: `.claude/skills/validating-construct-manifest/` — wraps `construct-validate.sh` with skill metadata.
+  - **94 new BATS tests** across 5 files (`tests/unit/construct-{validate,compose,invoke}.bats`, `tests/unit/stream-validate.bats`, `tests/unit/butterfreezone-construct-gen.bats`) plus 1 opt-in characterization test (`LOA_TEST_DOCUMENT_RACE=1`). Covers happy paths, failure modes, JSON output shape, idempotency, race-resistance under explicit session_id passing.
+  - **Six-iteration kaironic Bridgebuilder review** drove three rounds of hardening: tool-skip guards, strict assertions over permissive escapes, end-to-end schema dogfooding, race-condition mitigation with explicit value-passing as the recommended path. Final iter clean modulo the residual race tracked in [#636](https://github.com/0xHoneyJar/loa/issues/636).
+
 ## [1.102.0] — 2026-04-25 — Cycle-093 stabilization (sprints 1–3A)
 
 Three Tier-1 silent-failure issues closed plus the keystone health-probe foundation. The probe is implemented and tested but not yet wired into runtime — sprint-3B (resilience + CI workflows + runtime integration) and sprint-4 (registry currency + E2E gate) follow.

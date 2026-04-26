@@ -1,0 +1,51 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://constructs.network/schemas/signal.schema.json",
+  "title": "Signal",
+  "description": "Raw observation stream row. Doctrine §3.1. Append-only JSONL. Producers: observer, beehive, dig-search, feedback-widget. Consumers: archivists, analyzers, scoring constructs.",
+  "type": "object",
+  "schema_version": "1.0.0",
+  "additionalProperties": true,
+  "required": ["stream_type", "schema_version", "timestamp", "source", "observation"],
+  "properties": {
+    "stream_type": {
+      "const": "Signal"
+    },
+    "schema_version": {
+      "type": "string",
+      "description": "Semver of the row shape. Rows with forward-compatible minor bumps MUST continue to validate; breaking shape changes require a major bump.",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp (e.g. 2026-04-22T12:34:56Z)."
+    },
+    "source": {
+      "type": "string",
+      "description": "Producer identity — usually construct slug or pack-scoped skill handle (e.g. observer/observing-users)."
+    },
+    "observation": {
+      "type": "string",
+      "description": "Free-form observation text. Glance/orient consumers read this directly."
+    },
+    "tags": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Optional tag set for filtering."
+    },
+    "session_id": {
+      "type": "string",
+      "description": "Optional paired trajectory session_id if this Signal originated inside a construct invocation."
+    },
+    "run_id": {
+      "type": "string",
+      "description": "Optional composition run_id if this Signal was emitted inside a composition chain."
+    },
+    "read_mode": {
+      "type": "string",
+      "enum": ["glance", "orient", "intervene"],
+      "description": "Tiered output level per doctrine §14.3. Consumers at glance-latency read only rows tagged glance; intervene-level rows carry full detail."
+    }
+  }
+}

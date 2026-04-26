@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://constructs.network/schemas/artifact.schema.json",
+  "title": "Artifact",
+  "description": "Produced material stream row. Doctrine §3.3. File-at-path with content-hash + metadata. Content-addressable — multiple constructs may read the same artifact; writers commit to versioned paths.",
+  "type": "object",
+  "schema_version": "1.0.0",
+  "additionalProperties": true,
+  "required": ["stream_type", "schema_version", "timestamp", "path"],
+  "properties": {
+    "stream_type": {
+      "const": "Artifact"
+    },
+    "schema_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "path": {
+      "type": "string",
+      "description": "Filesystem or URI path to the material."
+    },
+    "content_hash": {
+      "type": "string",
+      "description": "Optional content hash (sha256 hex preferred) for content-addressable lookup."
+    },
+    "media_type": {
+      "type": "string",
+      "description": "MIME type or informal type tag (e.g. text/markdown, application/yaml, image/png)."
+    },
+    "producer": {
+      "type": "string",
+      "description": "Construct slug or pack-scoped skill handle that produced this artifact."
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "derived_from": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Optional list of upstream artifact paths or content-hashes this artifact was derived from."
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Free-form producer metadata — descriptions, tags, version labels.",
+      "additionalProperties": true
+    }
+  }
+}
