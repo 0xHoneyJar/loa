@@ -238,24 +238,17 @@ teardown() {
     [[ "$output" != *"DEPRECATION"* ]]
 }
 
-@test "construct-invoke: race regression — explicit session_id survives concurrent entries from another process" {
-    # Simulate the race: a second 'entry' call with the same (persona, construct)
-    # overwrites the temp file. The original caller still gets its correct
-    # session_id IF it captured the value from entry's stdout and threads it
-    # explicitly into exit. The temp-file fallback would lose.
+@test "construct-invoke: explicit session_id survives concurrent entries that would race the temp-file fallback" {
+    # The invariant under test: when a caller threads the session_id
+    # explicitly through to exit, that session_id is preserved end-to-end
+    # regardless of what other callers do to the (persona, construct)
+    # temp file. This is the actual contract — the proper-fix-survives
+    # property — that issue #636's full migration must also satisfy.
     local first_sid second_sid
     first_sid=$("$SCRIPT" entry ALEXANDER artisan)
-    # A "concurrent" second entry stomps on the temp file.
+    # A "concurrent" second entry stomps the temp file.
     second_sid=$("$SCRIPT" entry ALEXANDER artisan)
     [ "$first_sid" != "$second_sid" ]
-
-    # Without explicit-pass, exit reads whatever the temp file currently
-    # holds — i.e. the second_sid. (Demonstrates the race.)
-    rm -f "$LOA_TRAJECTORY_FILE"
-    "$SCRIPT" exit ALEXANDER artisan 100 completed >/dev/null
-    local raced_sid
-    raced_sid=$(jq -r '.session_id' "$LOA_TRAJECTORY_FILE")
-    [ "$raced_sid" = "$second_sid" ]   # temp-file race lost the first call
 
     # With explicit-pass, the first caller's session_id is preserved
     # regardless of what the temp file contains.
@@ -264,4 +257,28 @@ teardown() {
     local preserved_sid
     preserved_sid=$(jq -r '.session_id' "$LOA_TRAJECTORY_FILE")
     [ "$preserved_sid" = "$first_sid" ]
+}
+
+# Bridgebuilder iter-5 F-002: a separate test that *characterizes* the
+# current temp-file-fallback race. Gated behind LOA_TEST_DOCUMENT_RACE=1
+# so a future fix (e.g., issue #636's fallback removal) doesn't trip on
+# this test for the wrong reason. The assertion encodes the OBSERVED
+# bug-shaped behavior, not an intended contract — a navigable bookmark
+# rather than a tripwire.
+@test "construct-invoke: [characterization] temp-file fallback exhibits last-writer-wins (gated, issue #636)" {
+    [ "${LOA_TEST_DOCUMENT_RACE:-0}" = "1" ] || skip "characterization test — set LOA_TEST_DOCUMENT_RACE=1 to run; will fail (correctly) when issue #636 lands"
+    local first_sid second_sid
+    first_sid=$("$SCRIPT" entry ALEXANDER artisan)
+    second_sid=$("$SCRIPT" entry ALEXANDER artisan)
+    [ "$first_sid" != "$second_sid" ]
+
+    # Without explicit-pass, exit reads whatever the temp file currently
+    # holds — last-writer-wins. This documents the racy behavior under
+    # the temp-file-fallback path. When issue #636 removes that fallback,
+    # this assertion will need to be updated (or the test deleted).
+    rm -f "$LOA_TRAJECTORY_FILE"
+    "$SCRIPT" exit ALEXANDER artisan 100 completed >/dev/null 2>&1
+    local raced_sid
+    raced_sid=$(jq -r '.session_id' "$LOA_TRAJECTORY_FILE")
+    [ "$raced_sid" = "$second_sid" ]
 }
