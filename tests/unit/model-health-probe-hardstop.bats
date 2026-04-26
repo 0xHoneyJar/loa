@@ -198,10 +198,45 @@ _latest_trajectory_for_probe() {
 }
 
 @test "G-1: full no-key registry probe does NOT trip 5-cent cost hardstop" {
-    # The default openai provider has 4+ models. Without the G-1 guard, each
-    # unmade probe would charge 1 cent; iterating through openai+google+anthropic
-    # at default 5-cent cap would exit 5. With the guard: 0 increments, exit 0.
-    local out
+    # Bridgebuilder F1: previously this test relied on the registry having
+    # ≥5 models, so the default 5-cent cap would trip without the G-1 guard.
+    # That coupling is brittle — a registry shrink masks the bug. We now
+    # set MAX_PROBES=1: with the guard, no probe attempts → exit 0; without
+    # the guard, the second model attempt trips exit 5 regardless of registry
+    # size. The original cost-cap path is still exercised below as a
+    # secondary check.
+    local out rc
+    out="$(env -i \
+        PATH="$PATH" HOME="$HOME" \
+        LOA_PROBE_MOCK_MODE=1 \
+        LOA_PROBE_MAX_PROBES=1 \
+        LOA_CACHE_DIR="$TEST_DIR" \
+        LOA_TRAJECTORY_DIR="$TEST_DIR/trajectory" \
+        LOA_AUDIT_LOG="$TEST_DIR/audit.jsonl" \
+        PROJECT_ROOT="$PROJECT_ROOT" \
+        "$PROBE" --quiet --output json)"
+    rc=$?
+    # Direct invariant: no probe attempted across the entire registry.
+    # If any model attempted a probe, MAX_PROBES=1 would have tripped on the
+    # second attempt with exit 5.
+    [ "$rc" -ne 5 ]
+    # All probed entries should be UNKNOWN (no-key path)
+    echo "$out" | jq -e '[.entries[] | select(.state == "UNKNOWN")] | length > 0' >/dev/null
+
+    # The trajectory must NOT contain a budget_hardstop event of any kind.
+    local traj
+    traj="$(_latest_trajectory_for_probe)"
+    if [[ -f "$traj" ]]; then
+        run jq -c 'select(.event == "budget_hardstop")' "$traj"
+        [ -z "$output" ]
+    fi
+}
+
+@test "G-1: full no-key registry probe does NOT trip default cost cap (registry-size companion)" {
+    # Companion to the MAX_PROBES=1 invariant test above: also exercise the
+    # original cost-cap path. Defaults: 5-cent cap, ~7 default registry models.
+    # Without the guard, exit 5; with the guard, exit 0.
+    local out rc
     out="$(env -i \
         PATH="$PATH" HOME="$HOME" \
         LOA_PROBE_MOCK_MODE=1 \
@@ -210,21 +245,8 @@ _latest_trajectory_for_probe() {
         LOA_AUDIT_LOG="$TEST_DIR/audit.jsonl" \
         PROJECT_ROOT="$PROJECT_ROOT" \
         "$PROBE" --quiet --output json)"
-    local rc=$?
+    rc=$?
     [ "$rc" -ne 5 ]
-    # All probed entries should be UNKNOWN (no-key path)
-    echo "$out" | jq -e '[.entries[] | select(.state == "UNKNOWN")] | length > 0' >/dev/null
-
-    # N-3: verify the guard actually fired by checking the trajectory has NO
-    # budget_hardstop event (the count would otherwise be > 0 by the time the
-    # registry iterator reached its 6th openai model with the 1-cent-per-probe
-    # increment unprotected by the guard).
-    local traj
-    traj="$(_latest_trajectory_for_probe)"
-    if [[ -f "$traj" ]]; then
-        run jq -c 'select(.event == "budget_hardstop")' "$traj"
-        [ -z "$output" ]
-    fi
 }
 
 @test "G-1: AC1-literal — summary.skipped:true when all probes skipped (no keys)" {

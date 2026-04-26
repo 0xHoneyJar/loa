@@ -716,10 +716,18 @@ EOF
     # lookup), so prepending shim_dir to PATH shadows it. We invoke the
     # function directly in this shell so $_LOCK_STRATEGY (set by setup) and
     # the sourced helpers stay in scope.
+    #
+    # Bridgebuilder F3 witness: the shim touches a marker file. We assert the
+    # marker exists after the run, which proves the shim actually fired
+    # (rather than being silently bypassed by a refactor that switches `mv`
+    # to a builtin or a fully-qualified `/bin/mv` call). Without the witness,
+    # a refactor can disarm the test and leave it green.
     local shim_dir="$TEST_TMPDIR/shim-bin"
+    local shim_marker="$TEST_TMPDIR/mv-shim-fired"
     mkdir -p "$shim_dir"
-    cat > "$shim_dir/mv" <<'SHIM'
+    cat > "$shim_dir/mv" <<SHIM
 #!/usr/bin/env bash
+touch "$shim_marker"
 echo "shim mv: simulated failure" >&2
 exit 1
 SHIM
@@ -732,6 +740,12 @@ SHIM
     PATH="$shim_dir:$PATH"
     run _atomic_state_update_flock '.state = "PROBE"'
     PATH="$saved_path"
+
+    # Witness assertion (Bridgebuilder F3): the shim must have actually fired.
+    # If this fails, the function is no longer routing through PATH-resolved
+    # `mv` (e.g., switched to `/bin/mv` or a builtin), and the test below is
+    # not exercising the failure path it claims to.
+    [ -f "$shim_marker" ]
 
     # Must fail (non-zero exit). Must NOT be 0 (silent success) and must NOT
     # be 1 (which would be the stale-lock-cleanup-failure code in the rewrite).
@@ -776,15 +790,17 @@ EOF
     chmod +x "$hold_script"
     "$hold_script" &
     local hold_pid=$!
+    # Bridgebuilder F4: install the cleanup trap BEFORE the timing-sensitive
+    # body so an assertion failure can't leak the holder process. The previous
+    # form put `kill $hold_pid` after the assertions; bats short-circuits on
+    # failure, leaving a 12-second sleeper alive for every flake.
+    trap 'kill '"$hold_pid"' 2>/dev/null || true; wait '"$hold_pid"' 2>/dev/null || true' EXIT
     sleep 0.5  # let the holder grab the lock
 
     # Direct call to the helper (skips outer caller's case-routing) so we can
     # observe the raw timeout exit code.
     _LOCK_STRATEGY="flock"
     run _atomic_state_update_flock_attempt '.state = "PROBE"'
-
-    kill "$hold_pid" 2>/dev/null || true
-    wait "$hold_pid" 2>/dev/null || true
 
     [ "$status" -eq 11 ]
 }

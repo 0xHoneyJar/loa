@@ -237,3 +237,19 @@ qrstuvwxABCDEFGH
     out="$(_redact_secrets "Authorization: Bearer sk-abcdefghijklmnopqrstuvwxyz1234")"
     [[ "$out" != *"sk-abc"* ]]
 }
+
+# -----------------------------------------------------------------------------
+# G-4 (Bridgebuilder F2): the probe-sourcing trick used by the test above
+# rewrites a specific guard line via sed. Pin the canonical guard text so
+# any future restructure of the probe's main-vs-sourced gate breaks one
+# focused test instead of silently passing the G-4 regression assertions.
+# When this test fails, update the sed pattern in the test setup AND the
+# canonical text below in lockstep.
+# -----------------------------------------------------------------------------
+@test "G-4: probe still carries the canonical 'BASH_SOURCE == 0' main-script guard" {
+    local probe="$PROJECT_ROOT/.claude/scripts/model-health-probe.sh"
+    # The sed pattern in the source-without-execute trick targets this exact
+    # line at the start of a line (anchored with ^...$). Loosening either side
+    # of the match would silently disarm the trick across the test suite.
+    grep -qxE 'if \[\[ "\$\{BASH_SOURCE\[0\]\}" == "\$\{0\}" \]\]; then' "$probe"
+}

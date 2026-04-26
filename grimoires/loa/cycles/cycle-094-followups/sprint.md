@@ -59,6 +59,35 @@ Close the production-impacting issues from cycle-093: probe cost-hardstop trip o
 
 ---
 
+## Sprint 1 Amendment: Bridgebuilder review hardening
+
+**Trigger:** PR #632 multi-model Bridgebuilder review (run `bridgebuilder-20260426T004443-cbe6`) returned 7 actionable test-quality findings (0 BLOCKER, 2 MEDIUM, 5 LOW). All target the Sprint-1 test files added in this PR; addressing them in-place keeps the PR's test surface coherent before merge.
+**Scope:** Test-only. No production-code changes. Goal: tests assert what they claim to assert, and survive root execution + host bash drift.
+**Duration:** ~1.5h
+
+### Acceptance Criteria (Amendment)
+
+- [x] **A1** Both G-3 read-only-cache tests skip with a clear message when `id -u == 0` (resolves F-001).
+- [x] **A2** `bash32-portability.bats` either runs `bash -n` against an actual 3.2 binary when one exists on the host, or emits a loud `skip` documenting the gap (resolves F-002).
+- [x] **A3** G-1 no-key probe test asserts on the cost-counter / probe-attempt invariant directly rather than via registry size (resolves F1).
+- [x] **A4** G-4 secret-redaction test pins the canonical guard text via a focused micro-test, so a script restructure breaks one test instead of silently passing G-4 (resolves F2).
+- [x] **A5** C-1 mv-shim test installs a witness marker that the shim asserts via `touch`, with a post-shim assertion that the marker exists (resolves F3).
+- [x] **A6** C-1 timeout test moves holder-process cleanup into `trap '...' EXIT` so an assertion failure can't leak the holder (resolves F4).
+- [x] **A7** `bash32-portability.bats` named-fd grep widened to cover `<`, `<>`, and digit-suffixed names (`exec[[:space:]]+\{[a-zA-Z_][a-zA-Z0-9_]*\}[<>]`), with a comment documenting why the EXCLUDE pattern lacks an implementation (resolves F5).
+- [x] All 157 sprint-1 bats tests still green after amendment. (Net: 160/160 — +3 new tests.)
+
+### Technical Tasks (Amendment)
+
+- [x] **Task A.1** [F-001]: Add `[ "$(id -u)" = 0 ] && skip "chmod-based test invalid as root"` at the top of the two G-3 tests in `tests/unit/model-health-probe.bats`.
+- [x] **Task A.2** [F-002]: In `tests/unit/bash32-portability.bats`, detect a 3.2 binary (`/bin/bash` on macOS or `LOA_BASH32_PATH` override) and run `bash -n` against it; otherwise emit `skip "bash 3.2 not available; gate is host-bash-only"`.
+- [x] **Task A.3** [F1]: Reworked the G-1 no-key full-registry test in `tests/unit/model-health-probe-hardstop.bats` to assert via `LOA_PROBE_MAX_PROBES=1` (any probe attempt → exit 5; with guard → exit ≠ 5), making the invariant independent of registry size. Original cost-cap path retained as a companion test.
+- [x] **Task A.4** [F2]: Added focused regression test in `tests/unit/secret-redaction.bats` (`G-4: probe still carries the canonical 'BASH_SOURCE == 0' main-script guard`) that pins the exact guard text via `grep -qxE`.
+- [x] **Task A.5** [F3]: C-1 mv-shim test now `touch`es `$TEST_TMPDIR/mv-shim-fired` and asserts the marker exists immediately after the run.
+- [x] **Task A.6** [F4]: C-1 lock-acquisition timeout test now installs `trap 'kill $hold_pid …; wait …' EXIT` before the timing-sensitive body.
+- [x] **Task A.7** [F5]: Named-fd grep broadened to `exec[[:space:]]+\{[a-zA-Z_][a-zA-Z0-9_]*\}[<>]` (covers `<`, `>`, `<>`, digit-suffixed names) with an inline comment explaining why the EXCLUDE array is currently documentation-only.
+
+---
+
 ## Sprint 2: Test infra + filter + SSOT close-out
 
 **Global Sprint ID:** 120

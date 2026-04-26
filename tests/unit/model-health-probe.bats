@@ -172,6 +172,10 @@ teardown() {
 # G-3 (cycle-094, #626): writable-cache pre-flight surfaces actionable error
 # -----------------------------------------------------------------------------
 @test "G-3: _cache_atomic_write returns 1 with actionable error when cache dir not writable" {
+    # chmod 555 has no effect on uid 0; the writable-pre-flight will pass
+    # under root and the test asserts the wrong path. Skip cleanly instead.
+    [ "$(id -u)" = 0 ] && skip "chmod-based test invalid as root (CI rootful containers)"
+
     # Create a read-only directory and point the cache at a path inside it.
     local ro_dir="$TEST_DIR/readonly"
     mkdir -p "$ro_dir"
@@ -192,6 +196,8 @@ teardown() {
 }
 
 @test "G-3: _cache_atomic_write does NOT emit unbound-variable diagnostic on read-only cache" {
+    [ "$(id -u)" = 0 ] && skip "chmod-based test invalid as root (CI rootful containers)"
+
     local ro_dir="$TEST_DIR/readonly2"
     mkdir -p "$ro_dir"
     chmod 555 "$ro_dir"
