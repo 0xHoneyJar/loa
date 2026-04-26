@@ -402,6 +402,11 @@ check_hitl_halt() {
     [[ -f "$HALT_SENTINEL" ]]
 }
 
+# Clock-injection seams (sprint-bug-622-623 iter-1 BB F2). Tests override
+# these to inject deterministic timestamps; production callers see no change.
+_spiral_now_epoch() { date -u +%s; }
+_spiral_today_utc() { date -u +%Y-%m-%d; }
+
 # check_token_window — cycle-072 scheduling
 # Returns 0 (STOP) if current time is past the configured scheduling window end.
 # Returns 1 (CONTINUE) if scheduling disabled, no window configured, continuous
@@ -424,9 +429,13 @@ check_token_window() {
     window_end_utc=$(read_config "spiral.scheduling.windows[0].end_utc" "")
     [[ -z "$window_end_utc" ]] && return 1  # No window configured
 
+    # Iter-1 BB F2 fix: clock-injection seam. Tests can override
+    # `_spiral_now_epoch` and `_spiral_today_utc` to inject deterministic
+    # times instead of relying on wall-clock comparisons + skip-if-edge.
+    # Default implementation is `date -u`; production behavior unchanged.
     local today_date now_epoch end_epoch
-    today_date=$(date -u +%Y-%m-%d)
-    now_epoch=$(date -u +%s)
+    today_date=$(_spiral_today_utc)
+    now_epoch=$(_spiral_now_epoch)
     end_epoch=$(date -u -d "${today_date}T${window_end_utc}:00Z" +%s 2>/dev/null \
         || date -u -j -f "%Y-%m-%dT%H:%M:%SZ" "${today_date}T${window_end_utc}:00Z" +%s 2>/dev/null \
         || echo "0")

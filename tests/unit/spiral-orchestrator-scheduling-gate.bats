@@ -78,19 +78,20 @@ _source_with_stubs() {
 # =============================================================================
 
 # AC-622-1: enabled=false short-circuits, regardless of window state.
+# Iter-1 BB F2 fix: use the clock-injection seam (_spiral_now_epoch /
+# _spiral_today_utc) to pin a deterministic "after-the-window-end" time
+# instead of depending on wall-clock + skip-if-edge.
 @test "#622: check_token_window returns 1 (continue) when scheduling.enabled=false (default)" {
-    # Window end at 00:01 UTC — almost certainly in the past during a real
-    # test run, so without the enabled-check fix the function would return 0
-    # (STOP) and trip the bug. With the fix, return 1 (continue) regardless.
-    if ! date -u -d "2026-01-01T00:00:00Z" +%s &>/dev/null; then
-        skip "GNU date -d unavailable; cannot reliably exercise past-window bug"
+    if ! date -u -d "2026-01-01T08:00:00Z" +%s &>/dev/null; then
+        skip "GNU date -d unavailable; cannot compute injected epoch"
     fi
-    local current_minute
-    current_minute=$(date -u +%M)
-    [[ "$current_minute" -le 1 ]] && skip "Within 00:00-00:01 UTC; window is not past"
-
-    _write_config "false" "fill" "00:01"
+    _write_config "false" "fill" "08:00"
     _source_with_stubs
+    # Inject a "now" 1 hour past the configured window end (08:00). Without
+    # the enabled-check fix, this past-window combination would trip the
+    # gate and return 0. With the fix, return 1 regardless.
+    _spiral_today_utc() { echo "2026-04-26"; }
+    _spiral_now_epoch() { date -u -d "2026-04-26T09:00:00Z" +%s; }
     run check_token_window
     [ "$status" -ne 0 ]   # return 1 = continue, NOT stop
 }
@@ -112,24 +113,32 @@ _source_with_stubs() {
 }
 
 # AC-622-3 regression: enabled=true + fill + window-past still STOPS (no regression).
-# We can't reliably compare against actual current time without flake; instead
-# verify the function reaches the date-comparison branch by setting the window
-# end to a far-past time AND a config helper that confirms enabled is read.
+# Iter-1 BB F2 fix: use clock-injection seam — pin the test against an
+# injected "now" past the window end. Eliminates the wall-clock skip path.
 @test "#622: check_token_window returns 0 with enabled=true + fill + window-past (regression)" {
-    # Skip when GNU date isn't available — same caveat as the existing
-    # spiral-scheduler test for window comparisons.
-    if ! date -u -d "2026-01-01T00:00:00Z" +%s &>/dev/null; then
-        skip "GNU date -d unavailable; cannot test window-past comparison"
+    if ! date -u -d "2026-04-26T09:00:00Z" +%s &>/dev/null; then
+        skip "GNU date -d unavailable; cannot compute injected epoch"
     fi
-    # Window end at 00:01 UTC. Skip if we're in that one-minute window.
-    local current_minute
-    current_minute=$(date -u +%M)
-    [[ "$current_minute" -le 1 ]] && skip "Running within 00:00-00:01 UTC; cannot test past-window"
-
-    _write_config "true" "fill" "00:01"
+    _write_config "true" "fill" "08:00"
     _source_with_stubs
+    _spiral_today_utc() { echo "2026-04-26"; }
+    _spiral_now_epoch() { date -u -d "2026-04-26T09:00:00Z" +%s; }   # 1h past window end
     run check_token_window
     [ "$status" -eq 0 ]   # window past → STOP
+}
+
+# AC-622 companion: enabled=true + fill + window-future still CONTINUES.
+# Same seam — inject "now" before the window end.
+@test "#622: check_token_window returns 1 with enabled=true + fill + window-future (regression)" {
+    if ! date -u -d "2026-04-26T09:00:00Z" +%s &>/dev/null; then
+        skip "GNU date -d unavailable; cannot compute injected epoch"
+    fi
+    _write_config "true" "fill" "23:00"
+    _source_with_stubs
+    _spiral_today_utc() { echo "2026-04-26"; }
+    _spiral_now_epoch() { date -u -d "2026-04-26T12:00:00Z" +%s; }   # 11h before window end
+    run check_token_window
+    [ "$status" -ne 0 ]   # within window → CONTINUE
 }
 
 # AC-622-1 (additional): the enabled-check fires BEFORE the strategy lookup.
@@ -137,12 +146,17 @@ _source_with_stubs() {
 # strategy check above the enabled check, this test would still catch the
 # original bug.
 @test "#622: enabled-check fires before strategy/window resolution (read order)" {
+    if ! date -u -d "2026-04-26T09:00:00Z" +%s &>/dev/null; then
+        skip "GNU date -d unavailable; cannot compute injected epoch"
+    fi
     # Set strategy and window such that without the enabled check, the function
     # would either (a) return 1 via continuous, or (b) reach the window-past
-    # branch. We choose (b) — fill + a window in the past — so any leakage of
-    # the original bug surfaces as exit 0 (STOP).
-    _write_config "false" "fill" "00:01"
+    # branch. We choose (b) — fill + a window in the past (via clock injection)
+    # so any leakage of the original bug surfaces as exit 0 (STOP).
+    _write_config "false" "fill" "08:00"
     _source_with_stubs
+    _spiral_today_utc() { echo "2026-04-26"; }
+    _spiral_now_epoch() { date -u -d "2026-04-26T23:00:00Z" +%s; }   # past 08:00 window end
     run check_token_window
     [ "$status" -ne 0 ]   # enabled-gate must short-circuit BEFORE the date logic
 }
@@ -173,16 +187,38 @@ SHIM
     chmod +x "$shim_dir/spiral-simstim-dispatch.sh"
 }
 
-# AC-623-1: SPIRAL_ID is exported and resolves to the spiral_id from state file.
-@test "#623: SPIRAL_ID is exported from STATE_FILE next to existing SPIRAL_TASK" {
-    # The orchestrator hard-codes STATE_FILE at line 36 of the script; after
-    # sourcing we restore the test path so jq reads our fixture, not the
-    # production .run/spiral-state.json (which doesn't exist in the test).
+# AC-623-1 (static contract pin): the export block exists verbatim in the
+# orchestrator. Catches deletion of either export line by future refactors.
+# Iter-1 BB F1: pinning the production source AND functionally exercising
+# run_cycle_loop (next test) is the two-layer defense — static catches
+# deletion, functional catches "block exists but doesn't propagate".
+@test "#623: orchestrator source contains SPIRAL_ID export at start AND resume paths (static pin)" {
+    local script="$PROJECT_ROOT/.claude/scripts/spiral-orchestrator.sh"
+    # Start-path export (companion to existing SPIRAL_TASK export from #568)
+    grep -qE '^[[:space:]]*SPIRAL_ID=\$\(jq -r .\.spiral_id // ""' "$script"
+    # Both exports MUST appear with `export SPIRAL_ID` immediately after.
+    # Count: one for start-path, one for resume-path.
+    local export_count
+    export_count=$(grep -cE '^[[:space:]]*export SPIRAL_ID[[:space:]]*$' "$script")
+    [ "$export_count" -ge 2 ]
+    # Companion SPIRAL_CYCLE_NUM per-cycle export inside run_cycle_loop
+    grep -qE '^[[:space:]]*export SPIRAL_CYCLE_NUM=' "$script"
+}
+
+# AC-623-2 (functional, iter-1 BB F1 fix): invoke the REAL run_cycle_loop
+# with run_single_cycle stubbed to a no-op that captures env vars. This
+# exercises the production export-per-cycle code path instead of reproducing
+# it inline in the test.
+@test "#623: run_cycle_loop exports SPIRAL_CYCLE_NUM per cycle (functional, exercises production code)" {
+    local capture_log="$TEST_TMPDIR/cycle-capture.jsonl"
+    : > "$capture_log"
+
+    # Pre-state: the orchestrator's run_cycle_loop reads max_cycles from STATE_FILE.
     local test_state_file="$STATE_FILE"
     cat > "$test_state_file" <<'JSON'
 {
-  "spiral_id": "spiral-20260426-deadbe",
-  "task": "test task",
+  "spiral_id": "spiral-functional-1",
+  "task": "functional test",
   "state": "RUNNING",
   "phase": "SEED",
   "max_cycles": 3,
@@ -191,78 +227,47 @@ SHIM
 }
 JSON
 
-    # Source orchestrator and re-establish STATE_FILE for our jq calls below.
     _source_with_stubs
     STATE_FILE="$test_state_file"
 
-    # Apply the export block directly (mirrors lines 1271-1272 + the new
-    # SPIRAL_ID line we're adding for #623)
-    SPIRAL_ID=$(jq -r '.spiral_id // ""' "$STATE_FILE" 2>/dev/null || echo "")
-    export SPIRAL_ID
-    SPIRAL_TASK=$(jq -r '.task // ""' "$STATE_FILE" 2>/dev/null || echo "")
-    export SPIRAL_TASK
+    # Stub run_single_cycle to capture the env vars at call-site and return
+    # an empty stop_reason / cycle_dir pair (so the loop continues until
+    # max_cycles). This is the seam: run_cycle_loop is the function being
+    # tested; everything inside run_single_cycle is irrelevant for this AC.
+    run_single_cycle() {
+        printf '{"i_arg":"%s","cycle_num_env":"%s","spiral_id_env":"%s","task_env":"%s"}\n' \
+            "$1" "${SPIRAL_CYCLE_NUM:-unset}" "${SPIRAL_ID:-unset}" "${SPIRAL_TASK:-unset}" \
+            >> "$capture_log"
+        # Two-line output: empty stop_reason on line 1, cycle_dir on line 2
+        echo ""
+        echo "$TEST_TMPDIR/dummy-cycle-$1"
+    }
+    coalesce_spiral_terminal_state() { :; }   # stub the terminal state hook
 
-    [ "$SPIRAL_ID" = "spiral-20260426-deadbe" ]
-    [ "$SPIRAL_TASK" = "test task" ]
-    # Both must be in the EXPORTED env (visible to subprocesses)
-    local exported
-    exported=$(bash -c 'echo "spiral_id=$SPIRAL_ID; task=$SPIRAL_TASK"')
-    [[ "$exported" == *"spiral_id=spiral-20260426-deadbe"* ]]
-    [[ "$exported" == *"task=test task"* ]]
-}
+    # Set the upstream exports the way cmd_start would (we test that
+    # run_cycle_loop *propagates* SPIRAL_CYCLE_NUM each iteration).
+    export SPIRAL_ID="spiral-functional-1"
+    export SPIRAL_TASK="functional test"
+    unset SPIRAL_CYCLE_NUM
 
-# AC-623-2: SPIRAL_CYCLE_NUM is exported per cycle (driven by the run_cycle_loop counter).
-# We verify by stub-dispatching and inspecting the capture log.
-@test "#623: SPIRAL_CYCLE_NUM is exported per cycle and increments across cycles" {
-    # Build a minimal config + state for a 3-cycle run
-    cat > "$CONFIG" <<'YAML'
-spiral:
-  enabled: true
-  default_max_cycles: 3
-  scheduling:
-    enabled: false
-YAML
-    cat > "$STATE_FILE" <<'JSON'
-{
-  "spiral_id": "spiral-20260426-cyclet",
-  "task": "cycle-num test",
-  "state": "RUNNING",
-  "phase": "SEED",
-  "max_cycles": 3,
-  "cycle_index": 0,
-  "cycles": []
-}
-JSON
+    run_cycle_loop
 
-    # Source orchestrator with stubs
-    _source_with_stubs
-
-    # Simulate the run_cycle_loop's per-cycle export pattern. The real
-    # implementation will set + export SPIRAL_CYCLE_NUM on each iteration.
-    local capture_log="$TEST_TMPDIR/dispatch-capture.jsonl"
-    : > "$capture_log"
-    local shim_dir="$TEST_TMPDIR/shim-bin"
-    _shim_dispatch_capture "$capture_log" "$shim_dir"
-
-    # Export SPIRAL_ID once (per the start-time export), then loop +
-    # export SPIRAL_CYCLE_NUM per cycle. Each iteration calls the shim.
-    export SPIRAL_ID="spiral-20260426-cyclet"
-    export SPIRAL_TASK="cycle-num test"
-    local i
-    for i in 1 2 3; do
-        export SPIRAL_CYCLE_NUM="$i"
-        "$shim_dir/spiral-simstim-dispatch.sh"
-    done
-
-    # Verify capture log: 3 entries with cycle_num 1, 2, 3 in order
+    # 3 entries captured (one per cycle)
     [ "$(wc -l < "$capture_log")" = "3" ]
-    [ "$(jq -r '.cycle_num' < "$capture_log" | sed -n '1p')" = "1" ]
-    [ "$(jq -r '.cycle_num' < "$capture_log" | sed -n '2p')" = "2" ]
-    [ "$(jq -r '.cycle_num' < "$capture_log" | sed -n '3p')" = "3" ]
-    # All entries must carry the correct spiral_id (not "unknown")
-    local distinct_ids
-    distinct_ids=$(jq -r '.spiral_id' < "$capture_log" | sort -u)
-    [ "$distinct_ids" = "spiral-20260426-cyclet" ]
+    # cycle_num env var increments 1, 2, 3 — proves run_cycle_loop performed the export
+    [ "$(jq -r '.cycle_num_env' < "$capture_log" | sed -n '1p')" = "1" ]
+    [ "$(jq -r '.cycle_num_env' < "$capture_log" | sed -n '2p')" = "2" ]
+    [ "$(jq -r '.cycle_num_env' < "$capture_log" | sed -n '3p')" = "3" ]
+    # The i argument matches the env var (proves the export tracks the loop counter)
+    [ "$(jq -r '.i_arg' < "$capture_log" | sed -n '1p')" = "1" ]
+    [ "$(jq -r '.i_arg' < "$capture_log" | sed -n '2p')" = "2" ]
+    [ "$(jq -r '.i_arg' < "$capture_log" | sed -n '3p')" = "3" ]
+    # SPIRAL_ID + SPIRAL_TASK survive across cycles
+    local distinct_ids distinct_tasks
+    distinct_ids=$(jq -r '.spiral_id_env' < "$capture_log" | sort -u)
+    distinct_tasks=$(jq -r '.task_env' < "$capture_log" | sort -u)
+    [ "$distinct_ids" = "spiral-functional-1" ]
+    [ "$distinct_tasks" = "functional test" ]
 }
 
 # AC-623-3: branch_name distinct per cycle when SPIRAL_ID + SPIRAL_CYCLE_NUM
