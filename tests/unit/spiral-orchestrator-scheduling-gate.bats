@@ -184,13 +184,35 @@ _source_with_stubs() {
 # awk to extract each function body and assert the export occurs WITHIN
 # its scope. Closes the "fire extinguisher in the closet" failure mode.
 _extract_fn() {
-    # Print body of function "$1" from "$2", from `<name>() {` line through
-    # the matching closing `}` at column 0. Bash convention in this
-    # orchestrator: every top-level function uses that exact closing form.
+    # Print body of function "$1" from "$2". Iter-4 BB F-001 fix: track
+    # brace depth from the function header so a nested heredoc, case block,
+    # or stylistic shift cannot terminate extraction early. Increments depth
+    # on every `{`, decrements on every `}`, exits when depth returns to 0
+    # AFTER having entered the function. Counts `{` `}` per character so
+    # multi-brace lines (e.g., `for x in {1..3}; do`) don't desync.
     awk -v fn="$1" '
-        $0 ~ "^"fn"\\(\\) \\{" { in_fn = 1 }
-        in_fn { print }
-        in_fn && /^\}$/ { exit }
+        BEGIN { in_fn = 0; depth = 0 }
+        !in_fn && $0 ~ "^"fn"\\(\\) \\{" {
+            in_fn = 1
+            depth = 0
+            for (i = 1; i <= length($0); i++) {
+                c = substr($0, i, 1)
+                if (c == "{") depth++
+                else if (c == "}") depth--
+            }
+            print
+            if (depth == 0) exit
+            next
+        }
+        in_fn {
+            print
+            for (i = 1; i <= length($0); i++) {
+                c = substr($0, i, 1)
+                if (c == "{") depth++
+                else if (c == "}") depth--
+            }
+            if (depth <= 0) exit
+        }
     ' "$2"
 }
 
