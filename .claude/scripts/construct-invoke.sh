@@ -6,8 +6,15 @@
 # observability. Supports paired entry/exit rows matched by session_id.
 #
 # Usage:
-#   construct-invoke.sh entry <persona> <construct_slug>
-#   construct-invoke.sh exit  <persona> <construct_slug> <duration_ms> <outcome>
+#   construct-invoke.sh entry <persona> <construct_slug> [trigger]
+#   construct-invoke.sh exit  <persona> <construct_slug> [duration_ms] [outcome] [trigger] [session_id]
+#
+# Concurrency:
+#   The default correlator between entry and exit is a temp file keyed by
+#   (persona, construct_slug). Callers that may run parallel entries with
+#   the same key MUST capture the session_id from entry's stdout and pass
+#   it explicitly to exit (positional arg 6, or via LOA_SESSION_ID env).
+#   The temp-file fallback is racy under that condition.
 #
 # Exit Codes:
 #   0 = success (JSONL write failure is non-fatal — logs warning)
@@ -150,6 +157,12 @@ do_exit() {
   local duration_ms="${3:-}"
   local outcome="${4:-completed}"
   local trigger="${5:-}"
+  # Bridgebuilder iter-3 HIGH_CONSENSUS: explicit session_id passing is the
+  # robust correlator. Callers that need concurrency-safe pairing capture
+  # the session_id from entry's stdout and pass it via $6 (or
+  # LOA_SESSION_ID env). Filesystem-as-shared-memory remains the fallback
+  # for callers that don't yet thread the value through.
+  local explicit_session_id="${6:-${LOA_SESSION_ID:-}}"
 
   # Derive trigger from persona name if not supplied
   if [[ -z "$trigger" ]]; then
@@ -161,16 +174,27 @@ do_exit() {
     esac
   fi
 
-  # Read session_id from temp file
-  local key
-  key=$(session_key "$persona" "$construct_slug")
-  local temp_path
-  temp_path=$(session_temp_path "$key")
-
   local session_id=""
-  if [[ -f "$temp_path" ]]; then
-    session_id=$(cat "$temp_path" 2>/dev/null || echo "")
-    rm -f "$temp_path" 2>/dev/null || true
+  if [[ -n "$explicit_session_id" ]]; then
+    # Explicit value-passing — preferred, race-free correlation.
+    session_id="$explicit_session_id"
+    # Best-effort cleanup of any stale temp file from a prior run.
+    local key
+    key=$(session_key "$persona" "$construct_slug")
+    rm -f "$(session_temp_path "$key")" 2>/dev/null || true
+  else
+    # Fallback: filesystem-as-shared-memory, keyed by (persona, construct).
+    # Race-prone under parallel entry calls with the same key — see
+    # Bridgebuilder PR #617 iter-3 HIGH_CONSENSUS finding. Callers should
+    # migrate to explicit value-passing.
+    local key
+    key=$(session_key "$persona" "$construct_slug")
+    local temp_path
+    temp_path=$(session_temp_path "$key")
+    if [[ -f "$temp_path" ]]; then
+      session_id=$(cat "$temp_path" 2>/dev/null || echo "")
+      rm -f "$temp_path" 2>/dev/null || true
+    fi
   fi
 
   if [[ -z "$session_id" ]]; then
@@ -240,13 +264,17 @@ main() {
       do_entry "$2" "$3" "${4:-}"
       ;;
     exit)
-      [[ $# -ge 3 ]] || { echo "Usage: construct-invoke.sh exit <persona> <construct_slug> [duration_ms] [outcome] [trigger]" >&2; exit 1; }
-      do_exit "$2" "$3" "${4:-}" "${5:-completed}" "${6:-}"
+      [[ $# -ge 3 ]] || { echo "Usage: construct-invoke.sh exit <persona> <construct_slug> [duration_ms] [outcome] [trigger] [session_id]" >&2; exit 1; }
+      do_exit "$2" "$3" "${4:-}" "${5:-completed}" "${6:-}" "${7:-}"
       ;;
     -h|--help)
       echo "Usage: construct-invoke.sh entry|exit <persona> <construct_slug> [args...]"
       echo "  entry <persona> <slug> [trigger]"
-      echo "  exit  <persona> <slug> [duration_ms] [outcome] [trigger]"
+      echo "  exit  <persona> <slug> [duration_ms] [outcome] [trigger] [session_id]"
+      echo ""
+      echo "Concurrency: pass session_id explicitly (or via LOA_SESSION_ID env)"
+      echo "for race-free correlation under parallel callers. Without it, the"
+      echo "fallback temp-file lookup races on (persona, construct) collisions."
       exit 0
       ;;
     *)

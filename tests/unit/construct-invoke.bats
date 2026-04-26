@@ -177,3 +177,66 @@ teardown() {
     chmod 755 "$ro_dir"
     [ "$status" -eq 0 ]
 }
+
+# -----------------------------------------------------------------------------
+# Bridgebuilder PR #617 iter-3 HIGH_CONSENSUS: race condition in session-id
+# storage. Filesystem-as-shared-memory keyed by (persona, construct) is
+# race-prone — parallel entry calls with the same key overwrite each other,
+# and the first process's exit then emits the second process's session_id.
+# Mitigation: callers can pass session_id explicitly via positional arg 6 or
+# LOA_SESSION_ID env var; that path bypasses the temp file entirely.
+# -----------------------------------------------------------------------------
+@test "construct-invoke: exit accepts explicit session_id as positional arg 6" {
+    local sid="explicit-fixed-uuid-12345"
+    "$SCRIPT" exit ALEXANDER artisan 100 completed "" "$sid" >/dev/null
+    local emitted_sid
+    emitted_sid=$(jq -r '.session_id' "$LOA_TRAJECTORY_FILE")
+    [ "$emitted_sid" = "$sid" ]
+    # Should NOT have emitted the no-session-id-found warning, since explicit
+    # value-passing skips the temp-file lookup entirely.
+}
+
+@test "construct-invoke: LOA_SESSION_ID env is honored when no explicit arg" {
+    local sid="env-passed-uuid-67890"
+    LOA_SESSION_ID="$sid" "$SCRIPT" exit ALEXANDER artisan 100 completed >/dev/null
+    local emitted_sid
+    emitted_sid=$(jq -r '.session_id' "$LOA_TRAJECTORY_FILE")
+    [ "$emitted_sid" = "$sid" ]
+}
+
+@test "construct-invoke: explicit positional session_id beats env var" {
+    local positional_sid="positional-wins"
+    local env_sid="env-loses"
+    LOA_SESSION_ID="$env_sid" "$SCRIPT" exit ALEXANDER artisan 100 completed "" "$positional_sid" >/dev/null
+    local emitted_sid
+    emitted_sid=$(jq -r '.session_id' "$LOA_TRAJECTORY_FILE")
+    [ "$emitted_sid" = "$positional_sid" ]
+}
+
+@test "construct-invoke: race regression — explicit session_id survives concurrent entries from another process" {
+    # Simulate the race: a second 'entry' call with the same (persona, construct)
+    # overwrites the temp file. The original caller still gets its correct
+    # session_id IF it captured the value from entry's stdout and threads it
+    # explicitly into exit. The temp-file fallback would lose.
+    local first_sid second_sid
+    first_sid=$("$SCRIPT" entry ALEXANDER artisan)
+    # A "concurrent" second entry stomps on the temp file.
+    second_sid=$("$SCRIPT" entry ALEXANDER artisan)
+    [ "$first_sid" != "$second_sid" ]
+
+    # Without explicit-pass, exit reads whatever the temp file currently
+    # holds — i.e. the second_sid. (Demonstrates the race.)
+    rm -f "$LOA_TRAJECTORY_FILE"
+    "$SCRIPT" exit ALEXANDER artisan 100 completed >/dev/null
+    local raced_sid
+    raced_sid=$(jq -r '.session_id' "$LOA_TRAJECTORY_FILE")
+    [ "$raced_sid" = "$second_sid" ]   # temp-file race lost the first call
+
+    # With explicit-pass, the first caller's session_id is preserved
+    # regardless of what the temp file contains.
+    rm -f "$LOA_TRAJECTORY_FILE"
+    "$SCRIPT" exit ALEXANDER artisan 100 completed "" "$first_sid" >/dev/null
+    local preserved_sid
+    preserved_sid=$(jq -r '.session_id' "$LOA_TRAJECTORY_FILE")
+    [ "$preserved_sid" = "$first_sid" ]
+}
