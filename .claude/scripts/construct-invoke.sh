@@ -183,10 +183,14 @@ do_exit() {
     key=$(session_key "$persona" "$construct_slug")
     rm -f "$(session_temp_path "$key")" 2>/dev/null || true
   else
-    # Fallback: filesystem-as-shared-memory, keyed by (persona, construct).
-    # Race-prone under parallel entry calls with the same key — see
-    # Bridgebuilder PR #617 iter-3 HIGH_CONSENSUS finding. Callers should
-    # migrate to explicit value-passing.
+    # DEPRECATED FALLBACK: filesystem-as-shared-memory, keyed by
+    # (persona, construct). Race-prone under parallel entry calls with the
+    # same key — see Bridgebuilder PR #617 iter-3 HIGH_CONSENSUS finding +
+    # iter-4 escalation. Tracked for removal in issue #636. Until then we
+    # emit a per-call warning
+    # to nudge callers toward explicit value-passing. Set
+    # LOA_INVOKE_FALLBACK_QUIET=1 to suppress (e.g., when the caller is
+    # known to be sequential and the noise is undesirable).
     local key
     key=$(session_key "$persona" "$construct_slug")
     local temp_path
@@ -194,6 +198,9 @@ do_exit() {
     if [[ -f "$temp_path" ]]; then
       session_id=$(cat "$temp_path" 2>/dev/null || echo "")
       rm -f "$temp_path" 2>/dev/null || true
+      if [[ "${LOA_INVOKE_FALLBACK_QUIET:-0}" != "1" ]]; then
+        echo "[construct-invoke] DEPRECATION: relying on temp-file session-id correlation for $persona/$construct_slug. This path is race-prone under parallel callers. Pass session_id explicitly (positional arg 6 or LOA_SESSION_ID env). Set LOA_INVOKE_FALLBACK_QUIET=1 to suppress." >&2
+      fi
     fi
   fi
 

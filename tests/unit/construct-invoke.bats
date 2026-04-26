@@ -213,6 +213,31 @@ teardown() {
     [ "$emitted_sid" = "$positional_sid" ]
 }
 
+@test "construct-invoke: temp-file fallback emits deprecation warning by default" {
+    # Iter-4 escalation: the temp-file fallback path is documented as racy
+    # under concurrency. Make the racy path noisy so callers see it and
+    # migrate to explicit session_id passing.
+    "$SCRIPT" entry ALEXANDER artisan >/dev/null
+    run "$SCRIPT" exit ALEXANDER artisan 100 completed
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"DEPRECATION"* ]]
+    [[ "$output" == *"explicit"* ]]
+}
+
+@test "construct-invoke: LOA_INVOKE_FALLBACK_QUIET=1 silences the deprecation warning" {
+    "$SCRIPT" entry ALEXANDER artisan >/dev/null
+    LOA_INVOKE_FALLBACK_QUIET=1 run "$SCRIPT" exit ALEXANDER artisan 100 completed
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"DEPRECATION"* ]]
+}
+
+@test "construct-invoke: explicit session_id never triggers the deprecation warning" {
+    local sid="explicit-no-warn"
+    run "$SCRIPT" exit ALEXANDER artisan 100 completed "" "$sid"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"DEPRECATION"* ]]
+}
+
 @test "construct-invoke: race regression — explicit session_id survives concurrent entries from another process" {
     # Simulate the race: a second 'entry' call with the same (persona, construct)
     # overwrites the temp file. The original caller still gets its correct
