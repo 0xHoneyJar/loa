@@ -365,13 +365,16 @@ setup() {
 
 @test "every declared grammar shape: regex matches its own example line" {
     # Iter-6 BB F-005-low fix: PCRE-grep probe with explicit skip rather than
-    # silent vacuous-pass. macOS BSD grep + minimal Alpine lack -P; without
-    # this probe, the test's `grep -qP` invocations would silently fail and
-    # every row would skip into "no mismatch" — a false-green. The probe
-    # actually exercises a known-good PCRE pattern; if it fails, skip loudly.
-    if ! echo 'test1' | grep -qP '\d' 2>/dev/null; then
-        skip "grep -P (PCRE) not supported in this environment — grammar conformance test requires PCRE syntax (\\d, \\S) used in spec"
-    fi
+    # silent vacuous-pass on PCRE-less environments (macOS BSD grep, minimal
+    # Alpine). Iter-8 BB F-002-codex fix: switched from `grep -qP` to `perl`
+    # for PCRE matching. Perl is universally available where bats is
+    # installable (its CI matrix already includes perl), so no skip is
+    # needed — the test runs everywhere or fails-closed on `perl`-missing.
+    # `grep -P` was the platform-fragile dependency, not perl.
+    command -v perl >/dev/null 2>&1 || {
+        echo "perl required for grammar conformance test (cross-platform PCRE matching)"
+        false
+    }
 
     # Extract grammar rows of shape: | `name` | line(s) | `regex` | API/internal | `example` |
     # awk parses the markdown table, splits on `|`, strips backticks,
@@ -417,11 +420,10 @@ setup() {
 
     # For each row, assert example matches regex. Failure prints the
     # offending row so the maintainer sees exactly which contract broke.
-    # Uses grep -P (PCRE) because the grammar regexes use PCRE syntax
-    # (\d, \S) — POSIX ERE (bash =~, grep -E) doesn't support those
-    # character classes. This matches the runtime monitor contract:
-    # grammar regexes are parsed by PCRE-aware consumers.
-    command -v grep >/dev/null  # ensure grep available
+    # Uses perl (universally PCRE-capable) because the grammar regexes use
+    # PCRE syntax (\d, \S) — POSIX ERE (bash =~, grep -E) doesn't support
+    # those character classes, and grep -P is platform-fragile (missing on
+    # macOS BSD grep, minimal Alpine images).
     local failures=0
     while IFS=$'\t' read -r name regex example; do
         # Skip rows where the example column is genuinely a placeholder
@@ -430,7 +432,11 @@ setup() {
         local trimmed
         trimmed=$(echo "$example" | sed 's/^ *//; s/ *$//')
         [[ "$trimmed" == "—" ]] && continue
-        if ! echo "$example" | grep -qP "$regex" 2>/dev/null; then
+        # perl regex passed via env var so shell interpolation doesn't
+        # mangle special chars; -e idiom (assign $ENV{REGEX} to a scalar
+        # first) is needed because Perl can't directly use a hash element
+        # as a regex; exit 0 on match, 1 otherwise.
+        if ! REGEX="$regex" perl -e 'my $r=$ENV{REGEX}; while(<>) { exit 0 if /$r/; } exit 1' <<< "$example"; then
             echo "GRAMMAR DRIFT: shape='$name' example='$example' does not match regex='$regex'"
             failures=$((failures + 1))
         fi
@@ -452,15 +458,19 @@ setup() {
     # known-skip rows by name and assert exact set equality. Any deviation
     # — new row, removal, rename — surfaces here for explicit reconciliation.
     #
-    # Known skip set as of cycle-092 close (3 rows):
-    #   harness-evidence-path     — regex contains literal `|` alternation
-    #                               (`(Flight recorder|Evidence|PR)`) which
-    #                               awk -F'|' splits incorrectly
-    #   phase-heartbeat-emitted   — Sprint 4 row has extra column ("Sprint 4
-    #                               `spiral-heartbeat.sh`") shifting regex out
-    #                               of field 4
-    #   phase-intent-change       — same Sprint 4 column-shift as above
-    local known_skips=(harness-evidence-path phase-heartbeat-emitted phase-intent-change)
+    # Iter-8 BB cluster fix: Sprint 4 rows reformatted from 6-column to
+    # 5-column layout — both `phase-heartbeat-emitted` and `phase-intent-change`
+    # now pass conformance. Known skip set reduced from 3 to 1.
+    #
+    # Remaining skip (1 row):
+    #   harness-evidence-path — regex contains literal `|` alternation
+    #                           (`(Flight recorder|Evidence|PR)`) which
+    #                           awk -F'|' splits incorrectly. Fixing without
+    #                           losing markdown readability would require
+    #                           pipe-escape (`\|`) or moving the grammar to
+    #                           a YAML/JSON sidecar — deferred to a future
+    #                           cycle (see NOTES.md follow-ups).
+    local known_skips=(harness-evidence-path)
     local actual_skips
     actual_skips=$(awk -F'|' '
         $2 ~ /^[[:space:]]*`[a-z][a-z0-9-]+`[[:space:]]*$/ {

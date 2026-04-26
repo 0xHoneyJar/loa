@@ -261,10 +261,10 @@ Consumers (e.g., Sprint 4 heartbeat monitor) can use this line as the terminal-s
 
 Two shapes reserved by Sprint 1 for Sprint 4. (`phase-current-cleared` was promoted to declared by Sprint 3 — see §Dashboard events above.)
 
-| Shape | Sprint | Line (proposed) | Regex | Stability | Example |
-|-------|--------|-----------------|-------|-----------|---------|
-| `phase-heartbeat-emitted` | 4 (#598) | Sprint 4 `spiral-heartbeat.sh` | `^\[HEARTBEAT [^\]]+\] phase=\S+ phase_verb=\S+ .+$` | reserved → API | `[HEARTBEAT 2026-04-19T07:22:00Z] phase=REVIEW phase_verb=reviewing phase_elapsed_sec=180 total_elapsed_sec=3900 cost_usd=70.00 budget_usd=80 files=44 ins=7696 del=4882 activity=quiet confidence=attempt_2_of_3 pace=on_pace` |
-| `phase-intent-change` | 4 (#598) | Sprint 4 `spiral-heartbeat.sh`, fires on phase boundary | `^\[INTENT [^\]]+\] phase=\S+ intent="[^"]+" source=\S+$` | reserved → API | `[INTENT 2026-04-19T07:22:00Z] phase=REVIEW intent="checking amendment compliance against the implementation" source=grimoires/loa/a2a/engineer-feedback.md` |
+| Shape | Line / site | Regex | Stability | Example |
+|-------|-------------|-------|-----------|---------|
+| `phase-heartbeat-emitted` | Sprint 4 (#598) `spiral-heartbeat.sh` | `^\[HEARTBEAT [^\]]+\] phase=\S+ phase_verb=\S+ .+$` | reserved → API | `[HEARTBEAT 2026-04-19T07:22:00Z] phase=REVIEW phase_verb=reviewing phase_elapsed_sec=180 total_elapsed_sec=3900 cost_usd=70.00 budget_usd=80 files=44 ins=7696 del=4882 activity=quiet confidence=attempt_2_of_3 pace=on_pace` |
+| `phase-intent-change` | Sprint 4 (#598) `spiral-heartbeat.sh`, fires on phase boundary | `^\[INTENT [^\]]+\] phase=\S+ intent="[^"]+" source=\S+$` | reserved → API | `[INTENT 2026-04-19T07:22:00Z] phase=REVIEW intent="checking amendment compliance against the implementation" source=grimoires/loa/a2a/engineer-feedback.md` |
 
 ## Grammar extension policy
 
