@@ -21,6 +21,20 @@ setup() {
     STATE_FILE="$TEST_TMPDIR/spiral-state.json"
     export CONFIG STATE_FILE PROJECT_ROOT
 
+    # Iter-2 BB F3/F-001 fix: hardcoded epoch constants for clock injection.
+    # Pre-cycle-094 these tests used `date -u -d "<iso>" +%s` which is GNU-only;
+    # macOS BSD date silently skipped, weakening regression coverage on dev
+    # machines. Hardcoding the epochs makes the tests fully portable and
+    # eliminates the GNU-date dependency. Values computed once via:
+    #   date -u -d "2026-04-26T08:00:00Z" +%s  → 1777190400 (window-end 08:00)
+    #   date -u -d "2026-04-26T09:00:00Z" +%s  → 1777194000 (1h past 08:00)
+    #   date -u -d "2026-04-26T12:00:00Z" +%s  → 1777204800 (4h past 08:00)
+    #   date -u -d "2026-04-26T23:00:00Z" +%s  → 1777244400 (15h past 08:00)
+    EPOCH_2026_04_26_08_00_UTC=1777190400
+    EPOCH_2026_04_26_09_00_UTC=1777194000
+    EPOCH_2026_04_26_12_00_UTC=1777204800
+    EPOCH_2026_04_26_23_00_UTC=1777244400
+
     # Stubs the orchestrator's read_config will look for
     # (the real read_config reads .loa.config.yaml; we override the path
     # via $CONFIG and re-define read_config in the sourced shell)
@@ -82,16 +96,13 @@ _source_with_stubs() {
 # _spiral_today_utc) to pin a deterministic "after-the-window-end" time
 # instead of depending on wall-clock + skip-if-edge.
 @test "#622: check_token_window returns 1 (continue) when scheduling.enabled=false (default)" {
-    if ! date -u -d "2026-01-01T08:00:00Z" +%s &>/dev/null; then
-        skip "GNU date -d unavailable; cannot compute injected epoch"
-    fi
     _write_config "false" "fill" "08:00"
     _source_with_stubs
     # Inject a "now" 1 hour past the configured window end (08:00). Without
     # the enabled-check fix, this past-window combination would trip the
     # gate and return 0. With the fix, return 1 regardless.
     _spiral_today_utc() { echo "2026-04-26"; }
-    _spiral_now_epoch() { date -u -d "2026-04-26T09:00:00Z" +%s; }
+    _spiral_now_epoch() { echo 1777194000; }   # 09:00 UTC, 1h past 08:00 window end
     run check_token_window
     [ "$status" -ne 0 ]   # return 1 = continue, NOT stop
 }
@@ -116,13 +127,10 @@ _source_with_stubs() {
 # Iter-1 BB F2 fix: use clock-injection seam — pin the test against an
 # injected "now" past the window end. Eliminates the wall-clock skip path.
 @test "#622: check_token_window returns 0 with enabled=true + fill + window-past (regression)" {
-    if ! date -u -d "2026-04-26T09:00:00Z" +%s &>/dev/null; then
-        skip "GNU date -d unavailable; cannot compute injected epoch"
-    fi
     _write_config "true" "fill" "08:00"
     _source_with_stubs
     _spiral_today_utc() { echo "2026-04-26"; }
-    _spiral_now_epoch() { date -u -d "2026-04-26T09:00:00Z" +%s; }   # 1h past window end
+    _spiral_now_epoch() { echo 1777194000; }   # 09:00 UTC, 1h past 08:00 window end
     run check_token_window
     [ "$status" -eq 0 ]   # window past → STOP
 }
@@ -130,13 +138,10 @@ _source_with_stubs() {
 # AC-622 companion: enabled=true + fill + window-future still CONTINUES.
 # Same seam — inject "now" before the window end.
 @test "#622: check_token_window returns 1 with enabled=true + fill + window-future (regression)" {
-    if ! date -u -d "2026-04-26T09:00:00Z" +%s &>/dev/null; then
-        skip "GNU date -d unavailable; cannot compute injected epoch"
-    fi
     _write_config "true" "fill" "23:00"
     _source_with_stubs
     _spiral_today_utc() { echo "2026-04-26"; }
-    _spiral_now_epoch() { date -u -d "2026-04-26T12:00:00Z" +%s; }   # 11h before window end
+    _spiral_now_epoch() { echo 1777204800; }   # 12:00 UTC, 11h before 23:00 window end
     run check_token_window
     [ "$status" -ne 0 ]   # within window → CONTINUE
 }
@@ -146,9 +151,6 @@ _source_with_stubs() {
 # strategy check above the enabled check, this test would still catch the
 # original bug.
 @test "#622: enabled-check fires before strategy/window resolution (read order)" {
-    if ! date -u -d "2026-04-26T09:00:00Z" +%s &>/dev/null; then
-        skip "GNU date -d unavailable; cannot compute injected epoch"
-    fi
     # Set strategy and window such that without the enabled check, the function
     # would either (a) return 1 via continuous, or (b) reach the window-past
     # branch. We choose (b) — fill + a window in the past (via clock injection)
@@ -156,7 +158,7 @@ _source_with_stubs() {
     _write_config "false" "fill" "08:00"
     _source_with_stubs
     _spiral_today_utc() { echo "2026-04-26"; }
-    _spiral_now_epoch() { date -u -d "2026-04-26T23:00:00Z" +%s; }   # past 08:00 window end
+    _spiral_now_epoch() { echo 1777244400; }   # 23:00 UTC, 15h past 08:00 window end
     run check_token_window
     [ "$status" -ne 0 ]   # enabled-gate must short-circuit BEFORE the date logic
 }
@@ -171,37 +173,22 @@ _source_with_stubs() {
 # we can inspect — same pattern as the existing #568 SPIRAL_TASK fix.
 # =============================================================================
 
-# Helper: shim spiral-simstim-dispatch.sh to capture env vars per call.
-_shim_dispatch_capture() {
-    # Build a stub script that records SPIRAL_ID + SPIRAL_CYCLE_NUM + SPIRAL_TASK
-    # to a JSONL file each time it's invoked. Real dispatch is bypassed.
-    local capture_log="$1"
-    local shim_dir="$2"
-    mkdir -p "$shim_dir"
-    cat > "$shim_dir/spiral-simstim-dispatch.sh" <<SHIM
-#!/usr/bin/env bash
-printf '{"spiral_id":"%s","cycle_num":"%s","task":"%s"}\n' \
-    "\${SPIRAL_ID:-unset}" "\${SPIRAL_CYCLE_NUM:-unset}" "\${SPIRAL_TASK:-unset}" \
-    >> "$capture_log"
-SHIM
-    chmod +x "$shim_dir/spiral-simstim-dispatch.sh"
-}
-
 # AC-623-1 (static contract pin): the export block exists verbatim in the
 # orchestrator. Catches deletion of either export line by future refactors.
 # Iter-1 BB F1: pinning the production source AND functionally exercising
 # run_cycle_loop (next test) is the two-layer defense — static catches
 # deletion, functional catches "block exists but doesn't propagate".
-@test "#623: orchestrator source contains SPIRAL_ID export at start AND resume paths (static pin)" {
+# Iter-2 BB F4 fix: assert intent (assignment + export of each var) rather
+# than literal jq tokens, so cosmetic refactors don't trigger false failures.
+@test "#623: orchestrator source contains SPIRAL_ID + SPIRAL_CYCLE_NUM exports (static pin)" {
     local script="$PROJECT_ROOT/.claude/scripts/spiral-orchestrator.sh"
-    # Start-path export (companion to existing SPIRAL_TASK export from #568)
-    grep -qE '^[[:space:]]*SPIRAL_ID=\$\(jq -r .\.spiral_id // ""' "$script"
-    # Both exports MUST appear with `export SPIRAL_ID` immediately after.
-    # Count: one for start-path, one for resume-path.
+    # SPIRAL_ID is assigned (any RHS) then exported. Two pairs are required:
+    # one for the start path and one for the resume path.
+    grep -qE '^[[:space:]]*SPIRAL_ID=' "$script"
     local export_count
     export_count=$(grep -cE '^[[:space:]]*export SPIRAL_ID[[:space:]]*$' "$script")
     [ "$export_count" -ge 2 ]
-    # Companion SPIRAL_CYCLE_NUM per-cycle export inside run_cycle_loop
+    # SPIRAL_CYCLE_NUM is exported with a value (per-cycle assignment + export)
     grep -qE '^[[:space:]]*export SPIRAL_CYCLE_NUM=' "$script"
 }
 
@@ -270,51 +257,10 @@ JSON
     [ "$distinct_tasks" = "functional test" ]
 }
 
-# AC-623-3: branch_name distinct per cycle when SPIRAL_ID + SPIRAL_CYCLE_NUM
-# are properly exported. This is the symptom-level invariant zkSoju reported.
-@test "#623: dispatch sees distinct branch names per cycle (no feat/spiral-unknown-cycle-1 collision)" {
-    # The dispatch script normally computes:
-    #   branch_name="feat/spiral-${spiral_id}-cycle-${cycle_num}"
-    # with both falling back to "unknown" / "1" when env vars are unset.
-    # Verify the env-export discipline produces 3 distinct branches.
-    local shim_dir="$TEST_TMPDIR/shim-bin"
-    mkdir -p "$shim_dir"
-    cat > "$shim_dir/spiral-simstim-dispatch.sh" <<'SHIM'
-#!/usr/bin/env bash
-spiral_id="${SPIRAL_ID:-unknown}"
-cycle_num="${SPIRAL_CYCLE_NUM:-1}"
-echo "feat/spiral-${spiral_id}-cycle-${cycle_num}"
-SHIM
-    chmod +x "$shim_dir/spiral-simstim-dispatch.sh"
-
-    export SPIRAL_ID="spiral-20260426-branch"
-    local branches=()
-    local i
-    for i in 1 2 3; do
-        export SPIRAL_CYCLE_NUM="$i"
-        branches+=("$("$shim_dir/spiral-simstim-dispatch.sh")")
-    done
-
-    [ "${branches[0]}" = "feat/spiral-spiral-20260426-branch-cycle-1" ]
-    [ "${branches[1]}" = "feat/spiral-spiral-20260426-branch-cycle-2" ]
-    [ "${branches[2]}" = "feat/spiral-spiral-20260426-branch-cycle-3" ]
-
-    # Three distinct values — no collision.
-    local distinct
-    distinct=$(printf '%s\n' "${branches[@]}" | sort -u | wc -l | tr -d ' ')
-    [ "$distinct" = "3" ]
-}
-
-# AC-623-4 regression: SPIRAL_ID export survives a fork-PR-style env clean.
-# Verifies the export is real (visible to bash -c subshells) not just shell-local.
-@test "#623: SPIRAL_ID + SPIRAL_CYCLE_NUM are EXPORTED (visible to subshells)" {
-    export SPIRAL_ID="visible-from-subshell"
-    export SPIRAL_CYCLE_NUM="42"
-
-    # bash -c spawns a fresh subshell; only EXPORTED vars survive
-    local subshell_id subshell_num
-    subshell_id=$(bash -c 'echo "$SPIRAL_ID"')
-    subshell_num=$(bash -c 'echo "$SPIRAL_CYCLE_NUM"')
-    [ "$subshell_id" = "visible-from-subshell" ]
-    [ "$subshell_num" = "42" ]
-}
+# Iter-2 BB F-003 + F5 (Amazon "Bar Raiser"-style cleanup): the pre-iter-2
+# AC-623-3 ("dispatch sees distinct branch names") and AC-623-4 ("vars are
+# EXPORTED visible to subshells") were testing bash language semantics +
+# a hand-rolled shim, not orchestrator code. AC-623-2 (functional, exercises
+# run_cycle_loop directly) and AC-623-1 (static pin on the export lines)
+# already cover both the structural and behavioral contract. Removed.
+# The unused _shim_dispatch_capture helper was deleted with them.
