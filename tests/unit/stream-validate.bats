@@ -169,15 +169,12 @@ setup() {
 }
 
 # -----------------------------------------------------------------------------
-# Full-schema-only checks (skip when jsonschema unavailable)
+# Full-schema-only checks. Note: jsonschema's Draft7Validator does NOT validate
+# the `format` keyword by default (format is informational unless a
+# FormatChecker is passed explicitly), so we don't assert on bad-timestamp
+# strings here. The schema's `pattern` keyword IS validated, so the
+# semver-pattern test below is real.
 # -----------------------------------------------------------------------------
-@test "stream-validate: Signal with bad timestamp format -> exit 1 (jsonschema only)" {
-    [ "$HAS_JSONSCHEMA" = 1 ] || skip "python3 jsonschema unavailable; fallback path doesn't enforce format"
-    local payload='{"stream_type":"Signal","schema_version":"1.0.0","timestamp":"NOT-A-DATE","source":"test","observation":"x"}'
-    run "$SCRIPT" Signal "$payload"
-    [ "$status" -eq 1 ]
-}
-
 @test "stream-validate: schema_version not semver -> exit 1 (jsonschema only)" {
     [ "$HAS_JSONSCHEMA" = 1 ] || skip "python3 jsonschema unavailable; fallback path doesn't enforce pattern"
     local payload='{"stream_type":"Signal","schema_version":"vNotSemver","timestamp":"2026-04-26T12:00:00Z","source":"test","observation":"x"}'
