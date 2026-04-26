@@ -5,6 +5,13 @@
 # identity/ + CLAUDE.md. Idempotent modulo the optional --timestamp footer.
 # =============================================================================
 
+setup_file() {
+    # Bridgebuilder F-001: clear skip when external tooling is missing.
+    # butterfreezone-construct-gen.sh requires both yq and jq.
+    command -v yq >/dev/null 2>&1 || skip "yq required (the script under test depends on it)"
+    command -v jq >/dev/null 2>&1 || skip "jq required (the script under test depends on it)"
+}
+
 setup() {
     BATS_TEST_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$BATS_TEST_DIR/../.." && pwd)"

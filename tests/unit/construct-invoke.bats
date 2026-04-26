@@ -6,6 +6,12 @@
 # tempfile keyed by persona+construct so the exit row can find it.
 # =============================================================================
 
+setup_file() {
+    # Bridgebuilder F-001: clear skip signal when external tooling is missing.
+    # construct-invoke.sh uses jq for JSONL row construction.
+    command -v jq >/dev/null 2>&1 || skip "jq required (the script under test depends on it)"
+}
+
 setup() {
     BATS_TEST_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$BATS_TEST_DIR/../.." && pwd)"

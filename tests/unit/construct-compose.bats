@@ -8,6 +8,14 @@
 # 3 stage exec fail · 4 final-output schema fail.
 # =============================================================================
 
+setup_file() {
+    # Bridgebuilder F-001: emit a clear "skipped: <tool> missing" signal when
+    # external tooling is unavailable, instead of red failures that look like
+    # real regressions. construct-compose.sh requires both yq and jq.
+    command -v yq >/dev/null 2>&1 || skip "yq required (the script under test depends on it)"
+    command -v jq >/dev/null 2>&1 || skip "jq required (the script under test depends on it)"
+}
+
 setup() {
     BATS_TEST_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$BATS_TEST_DIR/../.." && pwd)"
@@ -167,9 +175,11 @@ chain:
 '
     write_composition single "$body"
     # Capture stdout-only (compose prints final JSON to stdout, summary to stderr)
+    # F-003: use $BATS_TEST_TMPDIR rather than /tmp/x — the latter assumes a
+    # writable shared /tmp which fails on read-only-root containers.
     local stdout
     stdout=$("$SCRIPT" --compositions-dir "$LOA_COMPOSITIONS_DIR" \
-        --target /tmp/x --run-id test-single single 2>/dev/null)
+        --target "$BATS_TEST_TMPDIR/target" --run-id test-single single 2>/dev/null)
     local rc=$?
     [ "$rc" -eq 0 ]
     # Compose pretty-prints the final payload across multiple lines; parse the

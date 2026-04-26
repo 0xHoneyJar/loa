@@ -11,6 +11,13 @@
 # skip when jsonschema is unavailable.
 # =============================================================================
 
+setup_file() {
+    # Bridgebuilder F-001: clear skip when external tooling is missing.
+    # stream-validate.sh always needs jq (final-payload sanity-check). The
+    # python3+jsonschema path is optional and gated separately at test scope.
+    command -v jq >/dev/null 2>&1 || skip "jq required (the script under test depends on it)"
+}
+
 setup() {
     TEST_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$TEST_DIR/../.." && pwd)"

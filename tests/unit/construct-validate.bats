@@ -5,6 +5,14 @@
 # validator's exit code, output severity, and JSON shape.
 # =============================================================================
 
+setup_file() {
+    # Bridgebuilder F-001: skip with a clear reason when external tooling is
+    # missing, so CI distinguishes "skipped: <tool> missing" from a real
+    # regression. construct-validate.sh requires both yq and jq.
+    command -v yq >/dev/null 2>&1 || skip "yq required (the script under test depends on it)"
+    command -v jq >/dev/null 2>&1 || skip "jq required (the script under test depends on it)"
+}
+
 setup() {
     BATS_TEST_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$BATS_TEST_DIR/../.." && pwd)"
