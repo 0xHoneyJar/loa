@@ -173,23 +173,49 @@ _source_with_stubs() {
 # we can inspect — same pattern as the existing #568 SPIRAL_TASK fix.
 # =============================================================================
 
-# AC-623-1 (static contract pin): the export block exists verbatim in the
-# orchestrator. Catches deletion of either export line by future refactors.
+# AC-623-1 (static contract pin, iter-3 BB F-002 fix): the export lines must
+# live INSIDE the right functions, not in dead code or unrelated scopes.
 # Iter-1 BB F1: pinning the production source AND functionally exercising
 # run_cycle_loop (next test) is the two-layer defense — static catches
 # deletion, functional catches "block exists but doesn't propagate".
-# Iter-2 BB F4 fix: assert intent (assignment + export of each var) rather
-# than literal jq tokens, so cosmetic refactors don't trigger false failures.
-@test "#623: orchestrator source contains SPIRAL_ID + SPIRAL_CYCLE_NUM exports (static pin)" {
+# Iter-2 BB F4: assert intent (assignment + export) over literal jq tokens.
+# Iter-3 BB F-002: previous version ran grep over the whole file, so an
+# export accidentally moved to a dead helper would still pass. Now we use
+# awk to extract each function body and assert the export occurs WITHIN
+# its scope. Closes the "fire extinguisher in the closet" failure mode.
+_extract_fn() {
+    # Print body of function "$1" from "$2", from `<name>() {` line through
+    # the matching closing `}` at column 0. Bash convention in this
+    # orchestrator: every top-level function uses that exact closing form.
+    awk -v fn="$1" '
+        $0 ~ "^"fn"\\(\\) \\{" { in_fn = 1 }
+        in_fn { print }
+        in_fn && /^\}$/ { exit }
+    ' "$2"
+}
+
+@test "#623: SPIRAL_ID + SPIRAL_CYCLE_NUM exports anchored within correct functions (static pin)" {
     local script="$PROJECT_ROOT/.claude/scripts/spiral-orchestrator.sh"
-    # SPIRAL_ID is assigned (any RHS) then exported. Two pairs are required:
-    # one for the start path and one for the resume path.
-    grep -qE '^[[:space:]]*SPIRAL_ID=' "$script"
-    local export_count
-    export_count=$(grep -cE '^[[:space:]]*export SPIRAL_ID[[:space:]]*$' "$script")
-    [ "$export_count" -ge 2 ]
-    # SPIRAL_CYCLE_NUM is exported with a value (per-cycle assignment + export)
-    grep -qE '^[[:space:]]*export SPIRAL_CYCLE_NUM=' "$script"
+
+    # cmd_start MUST contain both the SPIRAL_ID assignment AND export
+    local start_body
+    start_body=$(_extract_fn "cmd_start" "$script")
+    [ -n "$start_body" ]
+    echo "$start_body" | grep -qE '^[[:space:]]*SPIRAL_ID='
+    echo "$start_body" | grep -qE '^[[:space:]]*export SPIRAL_ID[[:space:]]*$'
+
+    # cmd_resume MUST contain both the SPIRAL_ID assignment AND export
+    local resume_body
+    resume_body=$(_extract_fn "cmd_resume" "$script")
+    [ -n "$resume_body" ]
+    echo "$resume_body" | grep -qE '^[[:space:]]*SPIRAL_ID='
+    echo "$resume_body" | grep -qE '^[[:space:]]*export SPIRAL_ID[[:space:]]*$'
+
+    # run_cycle_loop MUST contain the per-cycle SPIRAL_CYCLE_NUM export
+    local loop_body
+    loop_body=$(_extract_fn "run_cycle_loop" "$script")
+    [ -n "$loop_body" ]
+    echo "$loop_body" | grep -qE '^[[:space:]]*export SPIRAL_CYCLE_NUM='
 }
 
 # AC-623-2 (functional, iter-1 BB F1 fix): invoke the REAL run_cycle_loop
