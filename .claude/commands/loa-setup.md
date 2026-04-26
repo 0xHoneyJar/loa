@@ -103,40 +103,39 @@ If user selected "Keep current settings", skip configuration changes.
 
 ### Step 5: Construct Network Tools (optional)
 
-If the project has `.claude/scripts/constructs-install.sh` available, offer to install the construct-network bundle. Present via AskUserQuestion:
+Constructs are an optional ecosystem of installable packs (skills, commands, schemas) on top of Loa. If the operator does not work with constructs, this step is pure no-op — answer "Skip" and the wizard continues unchanged.
+
+If the project has `.claude/scripts/constructs-install.sh` available, offer to install a construct pack. Present via AskUserQuestion:
 
 ```yaml
-question: "Install the construct-network tools?"
-header: "Constructs"
+question: "Install a construct pack?"
+header: "Constructs (optional)"
 options:
-  - label: "Yes, install the default bundle"
-    description: "Runs constructs install construct-network-tools — adds browse/compose/publish + registry hooks"
+  - label: "Install the default bundle (construct-network-tools)"
+    description: "Tries `constructs install construct-network-tools` from the registry. If the pack is not yet published, the install is a non-fatal no-op and the wizard continues."
   - label: "Choose a different pack"
-    description: "Prompts for a slug (e.g. artisan, observer, k-hole)"
+    description: "Prompts for a slug (e.g. gtm-collective, artisan, observer)"
   - label: "Skip"
-    description: "I'll run /constructs install manually later"
+    description: "I'll run /constructs install manually later, or never"
 multiSelect: false
 ```
 
-If user selects "Yes, install the default bundle":
-1. Run `.claude/scripts/constructs-install.sh pack construct-network-tools` via the Bash tool.
-2. Surface any warnings; do NOT fail the whole wizard on install errors (construct-network is optional — mount remains valid).
+**Notes for the wizard implementation:**
 
-If user selects "Choose a different pack":
-1. Prompt for a slug via a second AskUserQuestion or text input.
-2. Run `.claude/scripts/constructs-install.sh pack <slug>` with the same non-fatal error handling.
-
-If the installer is missing (older Loa versions without constructs-install.sh bundled), skip this step silently.
+- The `construct-network-tools` slug is the *intended* default bundle for the construct onramp. As of cycle-005 it may not yet exist in the registry; if `constructs-install.sh` returns exit code 3 (not found) the wizard MUST surface a single-line hint ("default bundle not yet published — try `/constructs` to browse what's available") and continue. Mount remains valid either way.
+- For "Choose a different pack": prompt for a slug via a second AskUserQuestion. Validate against `[a-z0-9-]+` before invoking the installer; reject empty input.
+- All install errors are non-fatal — a failed pack install does NOT invalidate the wizard run.
+- If the installer is missing (older Loa versions without `constructs-install.sh` bundled), skip this step silently.
 
 ### Step 6: Summary
 
-Display a summary with next steps:
+Display a summary with next steps. The third line about constructs SHOULD only appear when constructs were installed in Step 5 OR when `.run/construct-index.yaml` exists (i.e., when constructs are part of this project's reality):
 
 ```
 Setup complete! Next steps:
   1. Start planning: /plan
   2. Or check status: /loa
-  3. Browse packs: /constructs
+  3. Browse packs: /constructs        # only when constructs are in use
 ```
 
 ## Security

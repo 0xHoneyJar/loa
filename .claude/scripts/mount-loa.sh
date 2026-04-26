@@ -2184,13 +2184,24 @@ EOF
 }
 
 # Install the construct-network bundle when --with-constructs was passed.
-# Opt-in by default: if WITH_CONSTRUCTS=false, we print a one-liner hint
-# pointing operators at /loa-setup for the optional install later.
+# Opt-in by default. When WITH_CONSTRUCTS=false we stay quiet by default —
+# a hint only fires for the small subset of mounts where it's actually
+# actionable (no constructs already installed AND no .loa.config.yaml hint
+# suppression). This keeps every-mount UX byte-clean for users who don't
+# work with constructs.
 # Failure here MUST NOT fail the mount — construct-network is optional.
 post_mount_constructs_install() {
   if [[ "$WITH_CONSTRUCTS" != "true" ]]; then
-    log "  Construct network: not installed (run with --with-constructs,"
-    log "                      or /loa-setup to configure later)."
+    # Suppress the hint when constructs are already in use (the user has
+    # discovered the system) or when explicitly silenced via config.
+    local hint_silent="${LOA_MOUNT_CONSTRUCTS_HINT:-auto}"
+    if [[ "$hint_silent" == "off" ]]; then
+      return 0
+    fi
+    if [[ -f ".run/construct-index.yaml" ]] && [[ "$hint_silent" != "always" ]]; then
+      return 0
+    fi
+    log "  Constructs available — see mount-loa.sh --with-constructs or /loa-setup."
     return 0
   fi
 
