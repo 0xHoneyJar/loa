@@ -190,6 +190,16 @@ _extract_fn() {
     # on every `{`, decrements on every `}`, exits when depth returns to 0
     # AFTER having entered the function. Counts `{` `}` per character so
     # multi-brace lines (e.g., `for x in {1..3}; do`) don't desync.
+    #
+    # Iter-5 BB F-001 (accepted trade-off): the brace counter is character-
+    # naive — it does not skip braces inside strings, comments, or regex
+    # literals. A future orchestrator change introducing a string like
+    # `"text with } character"` could miscount. Mitigations: (1) the static
+    # pin is one of two layers — the functional run_cycle_loop test below
+    # is the authoritative behavior contract; (2) the orchestrator currently
+    # has no in-string braces in the scoped functions; (3) any miscount fails
+    # loudly on the next CI run, not silently. We accept the trade-off
+    # rather than reach for a full bash AST parser in awk.
     awk -v fn="$1" '
         BEGIN { in_fn = 0; depth = 0 }
         !in_fn && $0 ~ "^"fn"\\(\\) \\{" {
@@ -269,6 +279,13 @@ JSON
     # an empty stop_reason / cycle_dir pair (so the loop continues until
     # max_cycles). This is the seam: run_cycle_loop is the function being
     # tested; everything inside run_single_cycle is irrelevant for this AC.
+    #
+    # CONTRACT (iter-5 BB F5): run_cycle_loop calls run_single_cycle and
+    # parses its stdout via `head -1` (stop_reason) + `tail -1` (cycle_dir).
+    # See spiral-orchestrator.sh run_cycle_loop body — the two-line stdout
+    # shape is the production contract; this stub mirrors it. If the
+    # orchestrator switches to JSON or single-line output, both this stub
+    # AND the orchestrator parsing must change together.
     run_single_cycle() {
         printf '{"i_arg":"%s","cycle_num_env":"%s","spiral_id_env":"%s","task_env":"%s"}\n' \
             "$1" "${SPIRAL_CYCLE_NUM:-unset}" "${SPIRAL_ID:-unset}" "${SPIRAL_TASK:-unset}" \
