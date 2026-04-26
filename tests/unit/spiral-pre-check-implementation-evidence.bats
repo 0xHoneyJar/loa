@@ -241,13 +241,11 @@ EOF
 
 @test "empty <script> tag Svelte stub: emits IMPL_EVIDENCE_TRIVIAL" {
     mkdir -p "$TEST_DIR/src/lib"
-    # Make the file ≥20 lines so only the stub-regex triggers trivial
-    {
-        echo "<script>"
-        echo "</script>"
-        for i in $(seq 1 25); do echo "<!-- placeholder $i -->"; done
-    } > "$TEST_DIR/src/lib/Stub.svelte"
-    # Override the <script></script> to be on one line at the start
+    # Iter-5 BB e98e4f50 fix: file written once. Previous version wrote a
+    # multi-line <script>...</script> form, then immediately overwrote it
+    # with a single-line form — first heredoc was dead code.
+    # The single-line `<script></script>` form is what the stub-regex
+    # triggers on, so >=20 lines is satisfied via the placeholder padding.
     {
         echo "<script></script>"
         for i in $(seq 1 25); do echo "<!-- placeholder $i -->"; done

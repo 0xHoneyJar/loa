@@ -133,47 +133,103 @@ teardown() {
 # DMP-T4: heartbeat cadence (fast test via low interval)
 # =========================================================================
 
-@test "daemon emits PHASE_HEARTBEAT after interval_sec (fast test)" {
-    # Write .phase-current to trigger emission
+@test "daemon emits PHASE_HEARTBEAT to dashboard-latest.json after interval_sec elapses" {
+    # Iter-5 BB F-002 fix: previously this test only checked liveness after
+    # 1s, despite its name claiming to verify HEARTBEAT emission. Now it
+    # actually verifies the contract — uses LOA_TEST_HEARTBEAT_INTERVAL=1
+    # to bypass the 30s clamp, then asserts dashboard-latest.json was
+    # updated with a PHASE_HEARTBEAT event_type during the daemon's lifetime.
     printf 'IMPL\t2026-04-19T10:00:00Z\t-\t-\n' > "$TEST_DIR/.phase-current"
 
-    # Use minimum interval (30s clamp) — but we can't wait 30s in a test.
-    # Instead, spawn daemon with interval=30 and verify initial sleep +
-    # subsequent emit by polling dashboard-latest.json for event_type change.
-    # This is a light integration test; deep cadence test is in DMP-T5.
-    DAEMON_PID=$(bash -c "source '$EVIDENCE_SH'; _spawn_dashboard_heartbeat_daemon '$TEST_DIR' 30")
+    local dashboard="$TEST_DIR/dashboard-latest.json"
+
+    # Spawn daemon with 1-second test interval (bypasses 30s clamp).
+    # _FLIGHT_RECORDER must be set AFTER sourcing — the script resets it to
+    # "" on load (see spiral-evidence.sh:34). Without this, _emit_dashboard_snapshot
+    # silently returns 0 on the empty-recorder guard.
+    DAEMON_PID=$(bash -c "source '$EVIDENCE_SH'; export _FLIGHT_RECORDER='$_FLIGHT_RECORDER'; LOA_TEST_HEARTBEAT_INTERVAL=1 _spawn_dashboard_heartbeat_daemon '$TEST_DIR'")
     [[ "$DAEMON_PID" =~ ^[0-9]+$ ]]
 
-    # Daemon is alive initially (ps -p reports 0 exit when process exists)
-    sleep 1
-    if kill -0 "$DAEMON_PID" 2>/dev/null; then
-        local alive=1
-    else
-        local alive=0
-    fi
+    # Poll for the PHASE_HEARTBEAT event in dashboard-latest.json. 4-second
+    # deadline absorbs one interval + write latency + jq parse jitter.
+    local deadline=$(( $(date +%s) + 4 ))
+    local saw_heartbeat=0
+    while (( $(date +%s) < deadline )); do
+        if [[ -f "$dashboard" ]]; then
+            local et
+            et=$(jq -r '.event_type // ""' "$dashboard" 2>/dev/null || echo "")
+            if [[ "$et" == "PHASE_HEARTBEAT" ]]; then
+                saw_heartbeat=1
+                break
+            fi
+        fi
+        sleep 0.1
+    done
+
+    # Reap before asserting (don't leak a daemon if the assert fails)
     kill -TERM "$DAEMON_PID" 2>/dev/null || true
-    wait "$DAEMON_PID" 2>/dev/null || true
-    [[ "$alive" -eq 1 ]]
+
+    [ "$saw_heartbeat" -eq 1 ] || { echo "no PHASE_HEARTBEAT event observed in dashboard-latest.json within 4s"; cat "$dashboard" 2>&1 || true; false; }
 }
 
 # =========================================================================
-# DMP-T5: interval clamp enforcement
+# DMP-T5: interval clamp enforcement (Iter-4/5 BB F2 + non_behavioral_clamp_test
+# fix: behavioral assertions on the _clamp_heartbeat_interval helper instead
+# of greping source for clamp literals. The helper IS the contract; grepping
+# the implementation couples the test to text shape rather than behavior.)
 # =========================================================================
 
-@test "interval clamp: setting below 30 uses 30" {
-    # Clamp logic is in two adjacent lines; grep each separately.
-    grep -qE 'interval_sec < 30' "$EVIDENCE_SH"
-    grep -qE 'interval_sec=30' "$EVIDENCE_SH"
+# Boundary table — input → expected effective interval after clamp.
+# Each row is asserted independently so a failure points at the boundary.
+
+@test "interval clamp: 0 → 30 (below-min)" {
+    bash -c "source '$EVIDENCE_SH'; _clamp_heartbeat_interval 0" > "$BATS_TEST_TMPDIR/out"
+    [ "$(cat "$BATS_TEST_TMPDIR/out")" = "30" ]
 }
 
-@test "interval clamp: setting above 300 uses 300" {
-    grep -qE 'interval_sec > 300' "$EVIDENCE_SH"
-    grep -qE 'interval_sec=300' "$EVIDENCE_SH"
+@test "interval clamp: 29 → 30 (just-below-min)" {
+    bash -c "source '$EVIDENCE_SH'; _clamp_heartbeat_interval 29" > "$BATS_TEST_TMPDIR/out"
+    [ "$(cat "$BATS_TEST_TMPDIR/out")" = "30" ]
 }
 
-@test "interval clamp: non-numeric falls back to 60" {
-    run bash -c "grep -qE 'interval_sec=60' '$EVIDENCE_SH'"
-    [ "$status" -eq 0 ]
+@test "interval clamp: 30 → 30 (at-min, identity)" {
+    bash -c "source '$EVIDENCE_SH'; _clamp_heartbeat_interval 30" > "$BATS_TEST_TMPDIR/out"
+    [ "$(cat "$BATS_TEST_TMPDIR/out")" = "30" ]
+}
+
+@test "interval clamp: 60 → 60 (mid-range, identity)" {
+    bash -c "source '$EVIDENCE_SH'; _clamp_heartbeat_interval 60" > "$BATS_TEST_TMPDIR/out"
+    [ "$(cat "$BATS_TEST_TMPDIR/out")" = "60" ]
+}
+
+@test "interval clamp: 300 → 300 (at-max, identity)" {
+    bash -c "source '$EVIDENCE_SH'; _clamp_heartbeat_interval 300" > "$BATS_TEST_TMPDIR/out"
+    [ "$(cat "$BATS_TEST_TMPDIR/out")" = "300" ]
+}
+
+@test "interval clamp: 301 → 300 (just-above-max)" {
+    bash -c "source '$EVIDENCE_SH'; _clamp_heartbeat_interval 301" > "$BATS_TEST_TMPDIR/out"
+    [ "$(cat "$BATS_TEST_TMPDIR/out")" = "300" ]
+}
+
+@test "interval clamp: 9999 → 300 (way-above-max)" {
+    bash -c "source '$EVIDENCE_SH'; _clamp_heartbeat_interval 9999" > "$BATS_TEST_TMPDIR/out"
+    [ "$(cat "$BATS_TEST_TMPDIR/out")" = "300" ]
+}
+
+@test "interval clamp: empty → 60 (default fallback)" {
+    bash -c "source '$EVIDENCE_SH'; _clamp_heartbeat_interval ''" > "$BATS_TEST_TMPDIR/out"
+    [ "$(cat "$BATS_TEST_TMPDIR/out")" = "60" ]
+}
+
+@test "interval clamp: 'abc' → 60 (non-numeric fallback)" {
+    bash -c "source '$EVIDENCE_SH'; _clamp_heartbeat_interval 'abc'" > "$BATS_TEST_TMPDIR/out"
+    [ "$(cat "$BATS_TEST_TMPDIR/out")" = "60" ]
+}
+
+@test "interval clamp: '12abc' → 60 (mixed alpha-numeric fallback)" {
+    bash -c "source '$EVIDENCE_SH'; _clamp_heartbeat_interval '12abc'" > "$BATS_TEST_TMPDIR/out"
+    [ "$(cat "$BATS_TEST_TMPDIR/out")" = "60" ]
 }
 
 # =========================================================================
@@ -194,23 +250,54 @@ teardown() {
 # DMP-T7: daemon exits when .phase-current goes missing
 # =========================================================================
 
-@test "daemon exits cleanly when .phase-current disappears" {
-    # Start daemon with .phase-current present, then remove it. Daemon's
-    # next wake should observe the missing file and exit 0.
+@test "daemon self-terminates when .phase-current disappears (no external signal)" {
+    # Iter-5 BB 993540fc fix: previous version deleted the file AND sent
+    # SIGTERM, so it only proved "daemon is killable" — not "daemon detects
+    # file absence and self-exits". The fix: wait for PID self-exit with a
+    # bounded timeout, NEVER sending a signal. If the daemon dies, it died
+    # because of the file-absence path.
+    #
+    # Uses LOA_TEST_HEARTBEAT_INTERVAL=1 to bypass the 30-second clamp so
+    # the file-absence check fires within ~2s rather than ~30s. The bypass
+    # is test-only (not operator-facing).
     printf 'IMPL\t2026-04-19T10:00:00Z\t-\t-\n' > "$TEST_DIR/.phase-current"
-    DAEMON_PID=$(bash -c "source '$EVIDENCE_SH'; SPIRAL_DASHBOARD_HEARTBEAT_SEC=30 _spawn_dashboard_heartbeat_daemon '$TEST_DIR'")
+    DAEMON_PID=$(bash -c "source '$EVIDENCE_SH'; LOA_TEST_HEARTBEAT_INTERVAL=1 _spawn_dashboard_heartbeat_daemon '$TEST_DIR'")
     [[ "$DAEMON_PID" =~ ^[0-9]+$ ]]
 
-    # Remove .phase-current and send TERM to force the daemon to check exit
-    rm -f "$TEST_DIR/.phase-current"
-    kill -TERM "$DAEMON_PID" 2>/dev/null || true
-    wait "$DAEMON_PID" 2>/dev/null || true
+    # Confirm the daemon is alive before removal (so we know we're racing
+    # the file-absence path, not a startup failure).
+    sleep 0.3
+    kill -0 "$DAEMON_PID"
 
-    # Daemon should now be gone
-    if kill -0 "$DAEMON_PID" 2>/dev/null; then
-        echo "daemon still alive"
-        false
-    fi
+    # Remove the file — this is the ONLY trigger the daemon receives.
+    rm -f "$TEST_DIR/.phase-current"
+
+    # Poll for self-exit with a 5-second deadline. Generous enough to absorb
+    # one full interval cycle plus stat() jitter, tight enough to fail loudly
+    # if the file-absence check is broken. NO kill -TERM is sent — the test
+    # passes only if the daemon exits on its own.
+    #
+    # Note: the daemon is spawned via `bash -c` so it's a grandchild of this
+    # shell, not a direct child — `wait` would error with "not a child".
+    # The behavioral contract being asserted is "PID disappeared without an
+    # external signal", which is sufficient to prove file-absence detection
+    # works (the only OTHER way the PID could disappear is a daemon crash,
+    # which we'd want to surface separately and which the surrounding
+    # parent-shell EXIT-trap test catches).
+    local deadline=$(( $(date +%s) + 5 ))
+    while (( $(date +%s) < deadline )); do
+        if ! kill -0 "$DAEMON_PID" 2>/dev/null; then
+            return 0  # daemon self-terminated
+        fi
+        sleep 0.1
+    done
+
+    # Daemon did NOT self-terminate within 5s of file removal. The
+    # file-absence path is broken. Clean up the runaway daemon to keep
+    # the test-suite hermetic, then fail with a specific signal.
+    kill -TERM "$DAEMON_PID" 2>/dev/null || true
+    echo "daemon did not self-terminate after .phase-current removal"
+    false
 }
 
 # =========================================================================

@@ -322,3 +322,119 @@ setup() {
     covered=$(grep -cE 'echo "\[harness\] \$\*"' "$PROJECT_ROOT/.claude/scripts/spiral-harness.sh")
     [[ "$covered" -ge 1 ]]
 }
+
+# =========================================================================
+# DLG-T13: behavioral grammar-conformance test (Iter-5 BB F-001 fix)
+# =========================================================================
+# Every row in the grammar table provides a regex AND an example line. Both
+# are part of the documented contract. This test parses the table and asserts
+# that each example line matches its declared regex — closing the loop on
+# "grammar coverage" as a behavioral assertion rather than a source-grep
+# tautology. If a future edit weakens a regex or breaks an example, this
+# test surfaces it specifically (which row, which regex, which example).
+#
+# Replaces the previous DLG-T12 "log() helper exists" tautology with an
+# actual contract verification.
+# =========================================================================
+
+@test "every declared grammar shape: regex matches its own example line" {
+    # Extract grammar rows of shape: | `name` | line(s) | `regex` | API/internal | `example` |
+    # awk parses the markdown table, splits on `|`, strips backticks,
+    # and emits one "name<TAB>regex<TAB>example" per row to stdout.
+    #
+    # The example column may itself contain pipe characters (rare —
+    # used in error messages quoting alternatives). Empirically the
+    # grammar today uses one pipe per example, but to be robust we
+    # take everything between the 4th and final `|` as the example.
+    local extracted
+    extracted=$(awk -F'|' '
+        # Match table rows starting with | `name` |
+        $2 ~ /^[[:space:]]*`[a-z][a-z0-9-]+`[[:space:]]*$/ {
+            # Skip the table header separator and example column header
+            if ($4 ~ /shape regex|^[[:space:]]*-+[[:space:]]*$/) next
+            name = $2; gsub(/^[[:space:]]*`|`[[:space:]]*$/, "", name)
+            regex = $4; gsub(/^[[:space:]]*`|`[[:space:]]*$/, "", regex)
+            example = $6; gsub(/^[[:space:]]*`|`[[:space:]]*$/, "", example)
+            # Only emit rows that look like the standard 5-column shape:
+            # regex must look like a regex (starts with `^` after trim) AND
+            # have balanced parens (truncation by awks `|` field-split is
+            # detected via paren imbalance).
+            # This filters out:
+            #  - rows where the regex contains a literal `|` that splits awk fields
+            #    (e.g. flight recorder example). Those would have
+            #    unbalanced parens after extraction
+            #  - rows with extra columns (Sprint 4 entries) where field 4 is not the regex
+            regex_tmp = regex
+            opens = gsub(/[(]/, "X", regex_tmp)
+            regex_tmp = regex
+            closes = gsub(/[)]/, "X", regex_tmp)
+            if (name && regex && example && regex ~ /^\^/ && opens == closes) {
+                print name "\t" regex "\t" example
+            }
+        }
+    ' "$GRAMMAR")
+    [ -n "$extracted" ]
+
+    # Sanity floor: expect at least 30 conforming rows in the grammar
+    local row_count
+    row_count=$(echo "$extracted" | wc -l)
+    [[ "$row_count" -ge 30 ]] || { echo "expected >=30 grammar rows, got $row_count"; false; }
+
+    # For each row, assert example matches regex. Failure prints the
+    # offending row so the maintainer sees exactly which contract broke.
+    # Uses grep -P (PCRE) because the grammar regexes use PCRE syntax
+    # (\d, \S) — POSIX ERE (bash =~, grep -E) doesn't support those
+    # character classes. This matches the runtime monitor contract:
+    # grammar regexes are parsed by PCRE-aware consumers.
+    command -v grep >/dev/null  # ensure grep available
+    local failures=0
+    while IFS=$'\t' read -r name regex example; do
+        # Skip rows where the example column is genuinely a placeholder
+        # (em-dash means "no example yet"). Those are doc-todo, not test
+        # failures — flagged separately by an explicit no-em-dash test.
+        local trimmed
+        trimmed=$(echo "$example" | sed 's/^ *//; s/ *$//')
+        [[ "$trimmed" == "—" ]] && continue
+        if ! echo "$example" | grep -qP "$regex" 2>/dev/null; then
+            echo "GRAMMAR DRIFT: shape='$name' example='$example' does not match regex='$regex'"
+            failures=$((failures + 1))
+        fi
+    done <<< "$extracted"
+    [ "$failures" -eq 0 ] || { echo "$failures grammar row(s) have regex/example mismatch"; false; }
+}
+
+@test "grammar regex column survives extraction without truncation (table-format invariant)" {
+    # Sibling check to the conformance test: catch grammar rows whose
+    # extracted regex has unbalanced parens (a sign that awk's pipe-split
+    # truncated mid-regex due to a literal `|` in an alternation), or
+    # whose row has extra columns shifting the regex out of position.
+    # If this test fails, the doc's table format has drifted and the
+    # conformance test silently dropped rows from coverage.
+    #
+    # Counts the number of rows skipped by the conformance test's filter
+    # and asserts it stays within an expected ceiling. As of cycle-092
+    # close: 3 known-skip rows (harness-evidence-path with pipe-in-regex,
+    # phase-heartbeat-emitted + phase-intent-change with extra columns).
+    local skipped
+    skipped=$(awk -F'|' '
+        $2 ~ /^[[:space:]]*`[a-z][a-z0-9-]+`[[:space:]]*$/ {
+            if ($4 ~ /shape regex|^[[:space:]]*-+[[:space:]]*$/) next
+            name = $2; gsub(/^[[:space:]]*`|`[[:space:]]*$/, "", name)
+            regex = $4; gsub(/^[[:space:]]*`|`[[:space:]]*$/, "", regex)
+            example = $6; gsub(/^[[:space:]]*`|`[[:space:]]*$/, "", example)
+            regex_tmp = regex
+            opens = gsub(/[(]/, "X", regex_tmp)
+            regex_tmp = regex
+            closes = gsub(/[)]/, "X", regex_tmp)
+            # Count rows that the conformance test would skip
+            if (!(regex ~ /^\^/) || opens != closes) {
+                if (name) print name
+            }
+        }
+    ' "$GRAMMAR" | wc -l)
+    # Ceiling: 3 known-skip rows. If this fails, either:
+    #  - a new non-conforming row was added → reformat it
+    #  - one of the 3 was reformatted → bump the ceiling down
+    # Either way, surfaces table-format drift to the maintainer.
+    [[ "$skipped" -le 3 ]] || { echo "$skipped grammar rows skipped by conformance test (expected <=3)"; false; }
+}

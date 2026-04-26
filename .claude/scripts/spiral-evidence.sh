@@ -1109,6 +1109,26 @@ _emit_dashboard_snapshot() {
 #                                             than this, daemon skips the
 #                                             emit (suspected-stuck phase)
 
+# Clamp a raw interval-seconds input to the heartbeat valid range.
+# Echoes the effective interval. Behavioral contract — tests call this
+# directly with boundary inputs and assert on stdout (Iter-4/5 BB F2 +
+# non_behavioral_clamp_test fix: replace source-grep with execute-and-observe).
+#   $1 = raw interval string (may be empty / non-numeric)
+# Echoes the clamped integer to stdout.
+_clamp_heartbeat_interval() {
+    local raw="${1:-}"
+    local v="$raw"
+    if ! [[ "$v" =~ ^[0-9]+$ ]]; then
+        v=60
+    fi
+    if (( v < 30 )); then
+        v=30
+    elif (( v > 300 )); then
+        v=300
+    fi
+    printf '%s\n' "$v"
+}
+
 _spawn_dashboard_heartbeat_daemon() {
     local cycle_dir="${1:-}"
     local interval_sec="${2:-${SPIRAL_DASHBOARD_HEARTBEAT_SEC:-60}}"
@@ -1118,13 +1138,17 @@ _spawn_dashboard_heartbeat_daemon() {
     [[ ! -d "$cycle_dir" ]] && return 1
 
     # Clamp interval to [30, 300]. Non-numeric falls back to 60.
-    if ! [[ "$interval_sec" =~ ^[0-9]+$ ]]; then
-        interval_sec=60
-    fi
-    if (( interval_sec < 30 )); then
-        interval_sec=30
-    elif (( interval_sec > 300 )); then
-        interval_sec=300
+    # TEST-ONLY: $LOA_TEST_HEARTBEAT_INTERVAL bypasses the clamp so daemon
+    # self-termination tests can observe file-absence detection in <2s
+    # instead of waiting 30s. Honored only when set; otherwise standard
+    # production clamp applies. This satisfies iter-5 BB MEDIUM 993540fc:
+    # daemon self-termination must be tested via PID-wait on file-absence,
+    # not via SIGTERM (which proves "killable", not "self-exits cleanly").
+    if [[ -n "${LOA_TEST_HEARTBEAT_INTERVAL:-}" ]] && \
+       [[ "$LOA_TEST_HEARTBEAT_INTERVAL" =~ ^[0-9]+$ ]]; then
+        interval_sec="$LOA_TEST_HEARTBEAT_INTERVAL"
+    else
+        interval_sec=$(_clamp_heartbeat_interval "$interval_sec")
     fi
 
     # Backgrounded while-loop. Inherits _FLIGHT_RECORDER and function defs
