@@ -317,18 +317,26 @@ teardown() {
     DAEMON_PID=$(bash -c "source '$EVIDENCE_SH'; SPIRAL_DASHBOARD_HEARTBEAT_SEC=30 _spawn_dashboard_heartbeat_daemon '$TEST_DIR'")
     [[ "$DAEMON_PID" =~ ^[0-9]+$ ]]
 
-    # Simulate main()'s explicit reap (the pattern added at spiral-harness.sh:1405)
+    # Simulate main()'s explicit reap (the pattern added at spiral-harness.sh:1405).
+    # Daemon is a grandchild (spawned via bash -c subshell) so `wait $PID` fails
+    # immediately with "not a child" — we can't wait on it. Instead poll for
+    # process disappearance with a 2s deadline. This was previously racy: kill
+    # -0 immediately after kill -TERM occasionally caught the daemon before
+    # its TERM-trap had time to fire under suite-wide load.
     kill -TERM "$DAEMON_PID" 2>/dev/null || true
-    wait "$DAEMON_PID" 2>/dev/null || true
+    local deadline=$(( $(date +%s) + 2 ))
+    while (( $(date +%s) < deadline )); do
+        if ! kill -0 "$DAEMON_PID" 2>/dev/null; then
+            DAEMON_PID=""  # gone — stop teardown from re-killing
+            return 0
+        fi
+        sleep 0.05
+    done
 
-    # Daemon must be gone — if it's still alive, the reap didn't work
-    if kill -0 "$DAEMON_PID" 2>/dev/null; then
-        echo "daemon still alive after explicit reap — F-3.1 regression"
-        kill -9 "$DAEMON_PID" 2>/dev/null || true
-        false
-    fi
-    # Reset so teardown doesn't try to kill again
-    DAEMON_PID=""
+    # Still alive after 2s of TERM — the reap failed, F-3.1 regression
+    echo "daemon still alive after explicit reap — F-3.1 regression"
+    kill -9 "$DAEMON_PID" 2>/dev/null || true
+    false
 }
 
 @test "daemon reaped by parent-shell EXIT trap (no orphan)" {

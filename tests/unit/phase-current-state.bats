@@ -58,9 +58,22 @@ teardown() {
     [[ "$output" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]
 }
 
-@test "write is atomic (uses .tmp + rename — no .tmp leftover)" {
-    # After a successful write, .phase-current exists and no .tmp file remains.
-    # ls doesn't show dotfiles by default, so check via filesystem directly.
+@test ".tmp does not leak after successful write (atomic-rename success path)" {
+    # Iter-6 BB F-011 fix: previously named "write is atomic". That promised
+    # crash-mid-write atomicity, but the body only verifies the .tmp file is
+    # gone after a successful write — which is the END STATE of atomic
+    # rename, not a proof of atomicity itself. The interrupted-write
+    # failure mode (the entire reason atomic rename matters) is covered
+    # separately by PC-T6 below ("rapid sequential writes ... do not
+    # corrupt the file"). Rename clarifies that this test exercises the
+    # success path — temp file cleanup — not the crash path.
+    #
+    # Crash-mid-write atomicity for SIGKILL during _phase_current_write
+    # would require process-instrumentation that's brittle in a unit test
+    # (the rename syscall is the atomic boundary; killing during a single
+    # syscall is racy). PC-T6's rapid-sequential-writes test catches the
+    # adjacent failure mode (interleaved writes) which is what users would
+    # actually hit in practice.
     run bash -c "
         source '$EVIDENCE_SH'
         _phase_current_write '$TEST_DIR' 'REVIEW' '1' '-'

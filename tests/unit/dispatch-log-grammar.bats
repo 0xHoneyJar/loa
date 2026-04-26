@@ -252,8 +252,34 @@ setup() {
 # Not a full run — just verify the format strings in source match the
 # regex fixtures above.
 
-@test "spiral-harness.sh still defines log() with [harness] prefix" {
-    grep -q 'log() { echo "\[harness\] \$\*" >&2; }' "$PROJECT_ROOT/.claude/scripts/spiral-harness.sh"
+@test "log() helper produces [harness]-prefixed output to stderr (behavioral, iter-6 BB F-001-codex fix)" {
+    # Iter-6 BB F-001-codex: previous version was `grep -q 'log() { echo "\[harness\] \$\*" >&2; }'`,
+    # which fails on harmless reformat (printf instead of echo, function keyword,
+    # shellcheck-friendly quote nudges). Tests the byte shape, not behavior.
+    # Now: actually invoke log() and verify (1) output goes to stderr, (2) prefix
+    # is `[harness] `, (3) the message body is preserved verbatim.
+    #
+    # Sources spiral-harness.sh in --probe mode equivalent: extract just the
+    # log() body and run it. We can't source the whole file (too many side
+    # effects), but log() is self-contained.
+    #
+    # Approach: extract the function body via a narrow grep and re-eval in a
+    # subshell. This is more behavior-coupled than the previous test (we run
+    # it instead of byte-matching it) without requiring a full harness boot.
+    local fn_body
+    fn_body=$(awk '/^log\(\) \{/,/^\}$/' "$PROJECT_ROOT/.claude/scripts/spiral-harness.sh")
+    # Sanity: the function exists and is one line (current shape) — the test
+    # is meaningful regardless of byte details.
+    [ -n "$fn_body" ]
+
+    # Run log() with a known message; assert behavior, not source bytes.
+    local stdout_capture stderr_capture
+    stdout_capture=$(bash -c "$fn_body; log 'TEST_MESSAGE_42'" 2>/dev/null)
+    stderr_capture=$(bash -c "$fn_body; log 'TEST_MESSAGE_42'" 2>&1 >/dev/null)
+
+    # Behavioral assertions: contract verified, not byte shape.
+    [ -z "$stdout_capture" ]                                  # nothing on stdout
+    [[ "$stderr_capture" == "[harness] TEST_MESSAGE_42" ]]    # prefixed + verbatim payload, on stderr
 }
 
 @test "spiral-harness.sh still emits 'Phase N:' transitions" {
@@ -304,21 +330,23 @@ setup() {
     grep -q "PRE_CHECK_IMPL_EVIDENCE" "$GRAMMAR"
 }
 
-@test "every log() line in spiral-harness.sh matches at least one declared or catch-all shape" {
-    # All log() lines start with '[harness] '. The informational catch-all
-    # `^\[harness\] ` covers every line emitted via log(). The [harness]
-    # prefix is defined in log() at spiral-harness.sh (see grammar §Line
-    # prefix convention), so by construction every log() line is covered.
+@test "spiral-harness.sh has >=40 log() call sites and a [harness]-prefix helper (floor sanity)" {
+    # Iter-6 BB F-002-codex (HIGH_CONSENSUS) fix: previously named "every log()
+    # line matches at least one declared or catch-all shape" — that name promised
+    # behavioral grammar conformance, but the body only checked (1) log() helper
+    # exists (2) call-site count >= floor. This is a FLOOR SANITY CHECK, not a
+    # conformance pass. Renaming to match what it actually does.
+    #
+    # The real per-row conformance pass is DLG-T13 ("every declared grammar
+    # shape: regex matches its own example line") below — which iterates the
+    # grammar table and validates each declared regex against its example.
+    #
+    # This test remains as a backstop: if log() ever loses its [harness] prefix
+    # OR the call-site count crashes below 40, that's a structural change worth
+    # surfacing separately from the row-by-row conformance pass.
     local total covered
     total=$(grep -cE '^\s*log "' "$PROJECT_ROOT/.claude/scripts/spiral-harness.sh")
-    # Sanity floor — expect roughly 50+ log() sites post-cycle-092 (55 at
-    # sprint-1 close). Floor is intentionally conservative to allow normal
-    # edits without breaking this test.
     [[ "$total" -ge 40 ]]
-    # Every line prefix is enforced by log() definition: `echo "[harness] $*"`.
-    # Grep for the bare prefix presence in source — a refactor that changes
-    # the prefix would flip this to zero and fail the test (intentional
-    # backstop against silent grammar drift).
     covered=$(grep -cE 'echo "\[harness\] \$\*"' "$PROJECT_ROOT/.claude/scripts/spiral-harness.sh")
     [[ "$covered" -ge 1 ]]
 }
@@ -338,6 +366,15 @@ setup() {
 # =========================================================================
 
 @test "every declared grammar shape: regex matches its own example line" {
+    # Iter-6 BB F-005-low fix: PCRE-grep probe with explicit skip rather than
+    # silent vacuous-pass. macOS BSD grep + minimal Alpine lack -P; without
+    # this probe, the test's `grep -qP` invocations would silently fail and
+    # every row would skip into "no mismatch" — a false-green. The probe
+    # actually exercises a known-good PCRE pattern; if it fails, skip loudly.
+    if ! echo 'test1' | grep -qP '\d' 2>/dev/null; then
+        skip "grep -P (PCRE) not supported in this environment — grammar conformance test requires PCRE syntax (\\d, \\S) used in spec"
+    fi
+
     # Extract grammar rows of shape: | `name` | line(s) | `regex` | API/internal | `example` |
     # awk parses the markdown table, splits on `|`, strips backticks,
     # and emits one "name<TAB>regex<TAB>example" per row to stdout.
@@ -411,12 +448,23 @@ setup() {
     # If this test fails, the doc's table format has drifted and the
     # conformance test silently dropped rows from coverage.
     #
-    # Counts the number of rows skipped by the conformance test's filter
-    # and asserts it stays within an expected ceiling. As of cycle-092
-    # close: 3 known-skip rows (harness-evidence-path with pipe-in-regex,
-    # phase-heartbeat-emitted + phase-intent-change with extra columns).
-    local skipped
-    skipped=$(awk -F'|' '
+    # Iter-6 BB F-003-codex fix: previously the test asserted skip-count <= 3
+    # without naming the rows, so a NEW non-conforming row could replace a
+    # known-skip row and the test would still pass. Now we enumerate the
+    # known-skip rows by name and assert exact set equality. Any deviation
+    # — new row, removal, rename — surfaces here for explicit reconciliation.
+    #
+    # Known skip set as of cycle-092 close (3 rows):
+    #   harness-evidence-path     — regex contains literal `|` alternation
+    #                               (`(Flight recorder|Evidence|PR)`) which
+    #                               awk -F'|' splits incorrectly
+    #   phase-heartbeat-emitted   — Sprint 4 row has extra column ("Sprint 4
+    #                               `spiral-heartbeat.sh`") shifting regex out
+    #                               of field 4
+    #   phase-intent-change       — same Sprint 4 column-shift as above
+    local known_skips=(harness-evidence-path phase-heartbeat-emitted phase-intent-change)
+    local actual_skips
+    actual_skips=$(awk -F'|' '
         $2 ~ /^[[:space:]]*`[a-z][a-z0-9-]+`[[:space:]]*$/ {
             if ($4 ~ /shape regex|^[[:space:]]*-+[[:space:]]*$/) next
             name = $2; gsub(/^[[:space:]]*`|`[[:space:]]*$/, "", name)
@@ -426,15 +474,27 @@ setup() {
             opens = gsub(/[(]/, "X", regex_tmp)
             regex_tmp = regex
             closes = gsub(/[)]/, "X", regex_tmp)
-            # Count rows that the conformance test would skip
             if (!(regex ~ /^\^/) || opens != closes) {
                 if (name) print name
             }
         }
-    ' "$GRAMMAR" | wc -l)
-    # Ceiling: 3 known-skip rows. If this fails, either:
-    #  - a new non-conforming row was added → reformat it
-    #  - one of the 3 was reformatted → bump the ceiling down
-    # Either way, surfaces table-format drift to the maintainer.
-    [[ "$skipped" -le 3 ]] || { echo "$skipped grammar rows skipped by conformance test (expected <=3)"; false; }
+    ' "$GRAMMAR" | sort -u)
+
+    # Build expected sorted list
+    local expected_skips
+    expected_skips=$(printf '%s\n' "${known_skips[@]}" | sort -u)
+
+    # Exact set equality. Asymmetric diff prints both directions for clarity.
+    if [[ "$actual_skips" != "$expected_skips" ]]; then
+        echo "Expected skipped rows:"
+        printf '  %s\n' "${known_skips[@]}"
+        echo "Actual skipped rows:"
+        printf '  %s\n' $actual_skips
+        echo "diff (expected vs actual):"
+        diff <(echo "$expected_skips") <(echo "$actual_skips") || true
+        false
+    fi
+    # the test fails loudly with a name-level diff. The maintainer must
+    # then update the known_skips list AND ideally fix the underlying
+    # table format so the row CAN be conformance-tested.
 }
