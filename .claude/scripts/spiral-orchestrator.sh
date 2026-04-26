@@ -402,10 +402,25 @@ check_hitl_halt() {
     [[ -f "$HALT_SENTINEL" ]]
 }
 
+# Clock-injection seams (sprint-bug-622-623 iter-1 BB F2). Tests override
+# these to inject deterministic timestamps; production callers see no change.
+_spiral_now_epoch() { date -u +%s; }
+_spiral_today_utc() { date -u +%Y-%m-%d; }
+
 # check_token_window — cycle-072 scheduling
 # Returns 0 (STOP) if current time is past the configured scheduling window end.
-# Returns 1 (CONTINUE) if no window configured, continuous mode, or still within window.
+# Returns 1 (CONTINUE) if scheduling disabled, no window configured, continuous
+# mode, or still within window.
 check_token_window() {
+    # #622 fix (sprint-bug-622-623): honor `spiral.scheduling.enabled`. Without
+    # this short-circuit, the function trips on `windows[0].end_utc` even when
+    # scheduling is disabled — making `/spiral --start` unusable for the ~16
+    # hours/day past 08:00 UTC under the default config (enabled=false +
+    # default end_utc=08:00). Master-switch belongs at the top of the gate.
+    local enabled
+    enabled=$(read_config "spiral.scheduling.enabled" "false")
+    [[ "$enabled" != "true" ]] && return 1  # Scheduling disabled — never triggers
+
     local strategy
     strategy=$(read_config "spiral.scheduling.strategy" "fill")
     [[ "$strategy" == "continuous" ]] && return 1  # Never triggers in continuous mode
@@ -414,9 +429,13 @@ check_token_window() {
     window_end_utc=$(read_config "spiral.scheduling.windows[0].end_utc" "")
     [[ -z "$window_end_utc" ]] && return 1  # No window configured
 
+    # Iter-1 BB F2 fix: clock-injection seam. Tests can override
+    # `_spiral_now_epoch` and `_spiral_today_utc` to inject deterministic
+    # times instead of relying on wall-clock comparisons + skip-if-edge.
+    # Default implementation is `date -u`; production behavior unchanged.
     local today_date now_epoch end_epoch
-    today_date=$(date -u +%Y-%m-%d)
-    now_epoch=$(date -u +%s)
+    today_date=$(_spiral_today_utc)
+    now_epoch=$(_spiral_now_epoch)
     end_epoch=$(date -u -d "${today_date}T${window_end_utc}:00Z" +%s 2>/dev/null \
         || date -u -j -f "%Y-%m-%dT%H:%M:%SZ" "${today_date}T${window_end_utc}:00Z" +%s 2>/dev/null \
         || echo "0")
@@ -1090,6 +1109,13 @@ run_cycle_loop() {
         i=$((i + 1))
         log "Cycle $i / $max_cycles"
 
+        # #623 fix (sprint-bug-622-623): export SPIRAL_CYCLE_NUM per cycle so
+        # spiral-simstim-dispatch.sh + spiral-harness.sh build distinct branch
+        # names (feat/spiral-${SPIRAL_ID}-cycle-${SPIRAL_CYCLE_NUM}) for each
+        # iteration. Without this, all cycles collapse to cycle-1 and post-#1
+        # cycles either push to a stale branch tip or hit a merged-PR branch.
+        export SPIRAL_CYCLE_NUM="$i"
+
         local output
         output=$(run_single_cycle "$i" "$prev_cycle_dir")
 
@@ -1270,6 +1296,13 @@ cmd_start() {
     # the same propagation path.
     SPIRAL_TASK=$(jq -r '.task // ""' "$STATE_FILE" 2>/dev/null || echo "")
     export SPIRAL_TASK
+
+    # #623 fix (sprint-bug-622-623): export SPIRAL_ID so the dispatch
+    # subprocess + harness can build per-cycle branch names instead of
+    # collapsing to feat/spiral-unknown-cycle-N. Companion to #568. Read
+    # from STATE_FILE (authoritative) — same pattern as SPIRAL_TASK.
+    SPIRAL_ID=$(jq -r '.spiral_id // ""' "$STATE_FILE" 2>/dev/null || echo "")
+    export SPIRAL_ID
 
     # Dispatch cycle loop (cycle-067: replaces MVP scaffolding)
     run_cycle_loop
@@ -1533,6 +1566,11 @@ cmd_resume() {
     # needs it and the previous resume path didn't re-export.
     SPIRAL_TASK=$(jq -r '.task // ""' "$STATE_FILE" 2>/dev/null || echo "")
     export SPIRAL_TASK
+
+    # #623 fix: companion SPIRAL_ID export on the resume path so multi-cycle
+    # spirals resumed from a halt also see distinct branch names per cycle.
+    SPIRAL_ID=$(jq -r '.spiral_id // ""' "$STATE_FILE" 2>/dev/null || echo "")
+    export SPIRAL_ID
 
     # Resume cycle loop from where it left off
     run_cycle_loop

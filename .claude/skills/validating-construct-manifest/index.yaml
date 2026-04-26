@@ -1,0 +1,84 @@
+name: validating-construct-manifest
+version: "1.0.0"
+description: |
+  Pre-install and pre-publish manifest linter for construct packs. Checks
+  required manifest fields, skill/command path resolution, route declaration
+  closure (a pack must expose either commands or personas, otherwise the
+  operator can only route by slug/name), stream declarations, and the
+  CLAUDE.md grimoires-section convention. Emits Verdict stream rows per
+  finding.
+
+model: haiku
+color: yellow
+
+triggers:
+  - pattern: "/validate-construct"
+    description: "Run manifest checks against a construct pack path"
+
+capabilities:
+  model_tier: haiku
+  danger_level: safe
+  effort_hint: small
+  downgrade_allowed: true
+  execution_hint: sequential
+  requires:
+    native_runtime: false
+    tool_calling: true
+    thinking_traces: false
+    vision: false
+
+dependencies:
+  - tool: yq
+    min_version: "4.0.0"
+    rationale: "Parses construct.yaml"
+  - tool: jq
+    rationale: "Emits Verdict rows + JSON report mode"
+
+inputs:
+  - name: path
+    type: string
+    description: "Path to construct pack directory (contains construct.yaml)"
+    required: true
+  - name: strict
+    type: boolean
+    description: "Treat MEDIUM findings as blocking (exit 1)"
+    required: false
+    default: false
+  - name: json
+    type: boolean
+    description: "Emit findings as a JSON array of Verdict rows on stdout"
+    required: false
+    default: false
+
+outputs:
+  - name: findings
+    type: array
+    description: "List of Verdict stream rows, one per finding"
+  - name: worst_severity
+    type: string
+    description: "Highest severity seen (critical|high|medium|low|info)"
+  - name: exit_code
+    type: integer
+    description: "0 = clean, 1 = has HIGH/CRITICAL (or MEDIUM with --strict), 2 = pack missing"
+
+zones:
+  system: read
+  state: read
+  app: none
+
+streams:
+  reads:
+    - Artifact
+  writes:
+    - Verdict
+
+composes_with:
+  # publishing-constructs is a forward reference — lands in a follow-up cycle.
+  # Until then this entry only declares the intended composition edge.
+  - publishing-constructs
+  - browsing-constructs
+
+related:
+  - script: .claude/scripts/construct-validate.sh
+  - schema: .claude/schemas/verdict.schema.json
+  - stream_schemas: .claude/schemas/{signal,verdict,artifact,intent,operator-model}.schema.json

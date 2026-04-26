@@ -1,0 +1,130 @@
+name: Model Health Drift (daily cron)
+
+# Sprint 3B Task 3B.4 — SDD §5.3.2
+# Detects upstream model availability drift on main once per day.
+# Opens auto-issue with `model-health-drift` label on UNAVAILABLE finding.
+
+on:
+  schedule:
+    - cron: '0 14 * * *'   # 14:00 UTC daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write    # auto-open drift issue on failure
+
+concurrency:
+  group: model-health-drift-daily
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+
+      - name: Run probe
+        id: probe
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          set +x   # never trace shell with secrets in env
+          chmod +x .claude/scripts/model-health-probe.sh
+
+          # Pre-flight (sprint-3B iter-5): skip the probe entirely when no
+          # provider keys are configured. Daily cron on a fresh fork has no
+          # org secrets — bail cleanly rather than tripping the cost hardstop.
+          if [[ -z "${OPENAI_API_KEY:-}" && -z "${GOOGLE_API_KEY:-}" && -z "${ANTHROPIC_API_KEY:-}" ]]; then
+            echo "::warning::No provider API keys in repo secrets — drift cron skipped this run."
+            printf '{"summary":{"available":0,"unavailable":0,"unknown":0,"skipped":true},"entries":{},"reason":"no_api_keys"}\n' > probe-result.json
+            echo "exit_code=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # GitHub Actions runs with `bash --noprofile --norc -eo pipefail` by default.
+          # The probe exits 2 on UNAVAILABLE — the case we want this cron to handle.
+          # Use `|| exit_code=$?` with `exit_code` initialized so `set -e` does not
+          # exit before we reach `GITHUB_OUTPUT` and the issue-creation branch
+          # (review iter-2 B-1 fix; closes a defect that disabled drift detection).
+          exit_code=0
+          .claude/scripts/model-health-probe.sh --once --output json --quiet > probe-result.json \
+            || exit_code=$?
+          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+          jq -r '.summary | "available=\(.available) unavailable=\(.unavailable) unknown=\(.unknown)"' probe-result.json
+          # Don't propagate non-zero — the issue-creation step handles UNAVAILABLE.
+          exit 0
+
+      - name: Open drift issue when UNAVAILABLE detected
+        if: steps.probe.outputs.exit_code == '2'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          script: |
+            const fs = require('fs');
+            if (!fs.existsSync('probe-result.json')) {
+              core.warning('probe-result.json missing — probe exited before JSON output. No drift issue opened.');
+              return;
+            }
+            const raw = fs.readFileSync('probe-result.json', 'utf8').trim();
+            if (!raw) {
+              core.warning('probe-result.json is empty — probe exited before JSON output. No drift issue opened.');
+              return;
+            }
+            let result;
+            try {
+              result = JSON.parse(raw);
+            } catch (err) {
+              core.warning(`probe-result.json is not valid JSON (${err.message}). No drift issue opened.`);
+              return;
+            }
+            const unavailable = Object.entries(result.entries || {})
+              .filter(([_, e]) => e.state === 'UNAVAILABLE')
+              .map(([k, e]) => `- \`${k}\`: ${e.reason || 'no reason'}`).join('\n');
+            if (!unavailable) return;
+            const today = new Date().toISOString().split('T')[0];
+
+            // Idempotency — don't open duplicate issues for the same day.
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'model-health-drift',
+              state: 'open',
+              since: `${today}T00:00:00Z`,
+            });
+            const todayTitle = `Model health drift detected (${today})`;
+            if (existing.data.some(i => i.title === todayTitle)) {
+              core.info(`Drift issue for ${today} already exists — skipping create.`);
+              return;
+            }
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: todayTitle,
+              body: [
+                `Daily drift cron found UNAVAILABLE models on \`main\`:`,
+                ``,
+                unavailable,
+                ``,
+                `**Action:** investigate per \`.claude/docs/runbooks/model-health-probe-incident.md\` and either remove from registry or file upstream.`,
+              ].join('\n'),
+              labels: ['model-health-drift'],
+            });
+
+      - name: Post-job secret scanner — TruffleHog (Flatline SKP-005, primary)
+        if: always()
+        uses: trufflesecurity/trufflehog@7f4e37db2d928c18ddd7ddf0604f8f7d1f5793ec  # v3.93.0
+        with:
+          path: ./
+          # Daily cron has no PR base; scan working tree against itself.
+          extra_args: --only-verified
+
+      - name: Post-job secret scanner — GitLeaks (Flatline SKP-005, conditional)
+        if: always() && env.GITLEAKS_LICENSE != ''
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7  # v2.3.9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}

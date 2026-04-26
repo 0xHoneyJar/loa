@@ -147,43 +147,112 @@ atomic_state_update() {
   esac
 }
 
+# _atomic_state_update_flock_attempt — single subshell + flock + jq + mv attempt.
+# Stdout: nothing. Stderr: error messages naming the actual cause.
+# Exit codes (disjoint per failure class — cycle-094 review-iter-2 fix for
+# DISS-001; original collapsed-to-1 form misclassified mv failures as
+# stale-lock, triggering erroneous lockfile removal):
+#   0   success
+#   11  flock acquire timeout (only this triggers stale-lock recovery)
+#   12  jq transformation failed
+#   13  mv (atomic rename) failed
+# Cached capability detection for `flock -E <code>` (util-linux 2.26+).
+# (cycle-094 review iter-4, DISS-202 fix; mirrors model-health-probe.sh
+# helper of the same name.)
+_flock_supports_dash_e() {
+  if [[ -z "${_LOA_FLOCK_HAS_E:-}" ]]; then
+    if flock --help 2>&1 | grep -q -- '--conflict-exit-code'; then
+      _LOA_FLOCK_HAS_E=1
+    else
+      _LOA_FLOCK_HAS_E=0
+    fi
+  fi
+  [[ "$_LOA_FLOCK_HAS_E" == "1" ]]
+}
+
+_atomic_state_update_flock_attempt() {
+  local jq_filter="$1"
+  shift
+  # Compute -E args once outside the subshell so the capability check is
+  # cached across the entire run.
+  local flock_e_args=""
+  if _flock_supports_dash_e; then
+    flock_e_args="-E 11"
+  fi
+  (
+    # `-E 11` (when supported): exit 11 ONLY on timeout (or `-n` conflict).
+    # Other flock failures (kernel error, unsupported fs, bad fd) preserve
+    # their own exit code (typically 1) — they are NOT timeouts and must
+    # NOT trigger stale-lock recovery. On flock without -E (very old or
+    # non-util-linux builds), behavior matches pre-iter-3 — any flock
+    # failure exits 1; the case-routing below treats only 11 as timeout, so
+    # rc=1 propagates as a real failure (lockfile preserved). The semantic
+    # difference is that on -E-less flock we lose the ability to distinguish
+    # a true timeout from a flock-internal error, but neither code path
+    # removes the lockfile in that case (rc=1 is NOT 11 → falls into the
+    # `*` branch). (cycle-094 review iter-3 DISS-002 + iter-4 DISS-202.)
+    # shellcheck disable=SC2086  # intentional word-split on flock_e_args
+    flock $flock_e_args -w 5 9 2>/dev/null
+    local frc=$?
+    if [[ "$frc" -ne 0 ]]; then
+      exit "$frc"
+    fi
+    local tmp_file="${BRIDGE_STATE_FILE}.tmp.$$"
+    if ! jq "$jq_filter" "$@" "$BRIDGE_STATE_FILE" > "$tmp_file" 2>/dev/null; then
+      rm -f "$tmp_file"
+      echo "ERROR: jq transformation failed" >&2
+      exit 12
+    fi
+    if ! mv "$tmp_file" "$BRIDGE_STATE_FILE"; then
+      rm -f "$tmp_file"
+      echo "ERROR: atomic rename failed (write-layer cause; lockfile preserved)" >&2
+      exit 13
+    fi
+  ) 9>"$BRIDGE_STATE_LOCK"
+}
+
 _atomic_state_update_flock() {
   local jq_filter="$1"
   shift
 
   mkdir -p "$(dirname "$BRIDGE_STATE_LOCK")"
 
-  local lock_fd
-  exec {lock_fd}>"$BRIDGE_STATE_LOCK"
+  # bash-3.2 portability: macOS default bash does not support the named-fd
+  # variable assignment form for the exec/redirect builtin. Use a subshell
+  # with a hardcoded fd 9 instead (cycle-094 G-2; mirrors
+  # model-health-probe.sh _cache_atomic_write).
+  #
+  # Failure routing: only flock-acquisition timeout (exit 11) triggers
+  # stale-lock recovery. All other non-zero exits (jq=12, mv=13) propagate
+  # without removing the lockfile — incorrectly removing it on a non-lock
+  # failure would break mutual exclusion across processes (different inode
+  # for any subsequent open) and create a write-race window.
+  local rc=0
+  _atomic_state_update_flock_attempt "$jq_filter" "$@"
+  rc=$?
 
-  # Acquire lock with 5s timeout; detect stale locks (Flatline SKP-004)
-  if ! flock -w 5 "$lock_fd" 2>/dev/null; then
-    echo "ERROR: Failed to acquire state lock within 5s — possible stale lock" >&2
-    echo "ERROR: Lock file: $BRIDGE_STATE_LOCK" >&2
-    # Clean up stale lock and retry once
-    rm -f "$BRIDGE_STATE_LOCK"
-    exec {lock_fd}>"$BRIDGE_STATE_LOCK"
-    if ! flock -w 5 "$lock_fd" 2>/dev/null; then
-      echo "ERROR: Still cannot acquire lock after cleanup — aborting" >&2
-      return 1
-    fi
-    echo "WARNING: Recovered from stale lock" >&2
-  fi
-
-  # Write to temp file + atomic rename (crash safety)
-  local tmp_file="${BRIDGE_STATE_FILE}.tmp.$$"
-  if ! jq "$jq_filter" "$@" "$BRIDGE_STATE_FILE" > "$tmp_file" 2>/dev/null; then
-    rm -f "$tmp_file"
-    eval "exec ${lock_fd}>&-"
-    echo "ERROR: jq transformation failed" >&2
-    return 1
-  fi
-
-  # Atomic rename
-  mv "$tmp_file" "$BRIDGE_STATE_FILE"
-
-  # Release lock
-  eval "exec ${lock_fd}>&-"
+  case "$rc" in
+    0) return 0 ;;
+    11)
+      # Lock-acquisition timeout — assume stale lock, clean up and retry once.
+      echo "ERROR: Failed to acquire state lock within 5s — possible stale lock" >&2
+      echo "ERROR: Lock file: $BRIDGE_STATE_LOCK" >&2
+      rm -f "$BRIDGE_STATE_LOCK"
+      _atomic_state_update_flock_attempt "$jq_filter" "$@"
+      rc=$?
+      case "$rc" in
+        0)  echo "WARNING: Recovered from stale lock" >&2; return 0 ;;
+        11) echo "ERROR: Still cannot acquire lock after cleanup — aborting" >&2; return 1 ;;
+        *)  return "$rc" ;;
+      esac
+      ;;
+    *)
+      # 12, 13, or any other non-zero — real data-layer failure. Do NOT
+      # remove the lockfile. Propagate the original code so callers can
+      # distinguish jq vs mv vs unknown.
+      return "$rc"
+      ;;
+  esac
 }
 
 _atomic_state_update_mkdir() {

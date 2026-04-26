@@ -585,4 +585,11 @@ main() {
     esac
 }
 
-main "$@"
+# Cycle-094 G-5 + sprint-2 BB iter-1 F3 fix: only run main when invoked
+# directly. Tests source this file to introspect MODEL_TO_PROVIDER_ID
+# natively (bash is the only robust parser of bash data); without this
+# guard the sourced load runs main and exits on missing required args,
+# leaving the test unable to read the array.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi

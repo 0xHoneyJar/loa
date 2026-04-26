@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://constructs.network/schemas/intent.schema.json",
+  "title": "Intent",
+  "description": "Operator routing signal. Doctrine §3.4 + §14.4 (structured-slot amendment). The entry point — every pipe chain begins with an Intent. Producers: operator (the only source). Consumers: orchestration layer.",
+  "type": "object",
+  "schema_version": "1.0.0",
+  "additionalProperties": true,
+  "required": ["stream_type", "schema_version", "timestamp", "intent"],
+  "properties": {
+    "stream_type": {
+      "const": "Intent"
+    },
+    "schema_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "intent": {
+      "type": "string",
+      "description": "Operator utterance — free-form prose framing the ask."
+    },
+    "intent_class": {
+      "type": "string",
+      "description": "Optional classification enum (e.g. audit, implement, review, plan, dispatch). Orchestrator may use it for composition selection."
+    },
+    "context": {
+      "type": "object",
+      "description": "Inline typed slots — artifact refs, entity handles, mode hints. Doctrine §14.4 multi-modal slot pattern.",
+      "additionalProperties": true
+    },
+    "constraints": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Hard guardrails from the operator (e.g. 'no admin-merge', 'shell-first only')."
+    },
+    "feedback_on": {
+      "type": "string",
+      "description": "Optional reference — prior artifact, verdict, or run_id — this intent reacts to. Feedback-as-pipe-input per doctrine §6."
+    },
+    "operator": {
+      "type": "string",
+      "description": "Optional operator identifier for multi-operator contexts."
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "read_mode": {
+      "type": "string",
+      "enum": ["glance", "orient", "intervene"]
+    }
+  }
+}

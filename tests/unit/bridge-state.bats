@@ -691,3 +691,144 @@ EOF
     tmp_count=$(find "$TEST_TMPDIR/.run" -name "bridge-state.json.tmp*" 2>/dev/null | wc -l)
     [ "$tmp_count" = "0" ]
 }
+
+# -----------------------------------------------------------------------------
+# C-1 (cycle-094 review-iter-2, DISS-001): non-lock failures must NOT trigger
+# stale-lock recovery. The original collapsed-to-1 exit code aliased mv failures
+# as lock timeouts, causing the lockfile to be removed under another process's
+# nose. Disjoint exit codes (11/12/13) prevent this.
+# -----------------------------------------------------------------------------
+@test "C-1: mv failure does NOT remove lockfile (disjoint exit codes)" {
+    skip_if_deps_missing
+    if ! command -v flock &>/dev/null; then
+        skip "flock not available"
+    fi
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-20260426-cc0001" 3
+
+    # Pre-warm the lockfile so we can assert it survives the mv failure
+    : > "$BRIDGE_STATE_LOCK"
+    local lock_inode_before
+    lock_inode_before=$(stat -c '%i' "$BRIDGE_STATE_LOCK" 2>/dev/null || stat -f '%i' "$BRIDGE_STATE_LOCK")
+
+    # Inject a failing `mv` shim. The function uses bare `mv` (subject to PATH
+    # lookup), so prepending shim_dir to PATH shadows it. We invoke the
+    # function directly in this shell so $_LOCK_STRATEGY (set by setup) and
+    # the sourced helpers stay in scope.
+    #
+    # Bridgebuilder F3 witness: the shim touches a marker file. We assert the
+    # marker exists after the run, which proves the shim actually fired
+    # (rather than being silently bypassed by a refactor that switches `mv`
+    # to a builtin or a fully-qualified `/bin/mv` call). Without the witness,
+    # a refactor can disarm the test and leave it green.
+    local shim_dir="$TEST_TMPDIR/shim-bin"
+    local shim_marker="$TEST_TMPDIR/mv-shim-fired"
+    mkdir -p "$shim_dir"
+    cat > "$shim_dir/mv" <<SHIM
+#!/usr/bin/env bash
+touch "$shim_marker"
+echo "shim mv: simulated failure" >&2
+exit 1
+SHIM
+    chmod +x "$shim_dir/mv"
+
+    # Force flock strategy explicitly (setup may have selected mkdir on macos)
+    _LOCK_STRATEGY="flock"
+
+    local saved_path="$PATH"
+    PATH="$shim_dir:$PATH"
+    run _atomic_state_update_flock '.state = "PROBE"'
+    PATH="$saved_path"
+
+    # Witness assertion (Bridgebuilder F3): the shim must have actually fired.
+    # If this fails, the function is no longer routing through PATH-resolved
+    # `mv` (e.g., switched to `/bin/mv` or a builtin), and the test below is
+    # not exercising the failure path it claims to.
+    [ -f "$shim_marker" ]
+
+    # Must fail (non-zero exit). Must NOT be 0 (silent success) and must NOT
+    # be 1 (which would be the stale-lock-cleanup-failure code in the rewrite).
+    [ "$status" -ne 0 ]
+    [ "$status" != "0" ]
+    [ "$status" != "1" ]
+
+    # The lockfile must STILL exist (no stale-lock cleanup triggered)
+    [ -f "$BRIDGE_STATE_LOCK" ]
+
+    # And the inode must be unchanged (no recreate)
+    local lock_inode_after
+    lock_inode_after=$(stat -c '%i' "$BRIDGE_STATE_LOCK" 2>/dev/null || stat -f '%i' "$BRIDGE_STATE_LOCK")
+    [ "$lock_inode_before" = "$lock_inode_after" ]
+
+    # The error output should mention the actual cause, not stale-lock
+    [[ "$output" != *"stale lock"* ]]
+    [[ "$output" == *"atomic rename failed"* || "$output" == *"shim mv"* ]]
+}
+
+@test "C-1: lock-acquisition timeout returns exit 11 specifically (DISS-002 fix)" {
+    skip_if_deps_missing
+    if ! command -v flock &>/dev/null; then
+        skip "flock not available"
+    fi
+    # Verify -E 11 is honored: a timed-out lock must produce rc=11, not generic 1.
+    if ! flock --help 2>&1 | grep -q -- '--conflict-exit-code'; then
+        skip "flock too old (no -E flag)"
+    fi
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-20260426-cc0004" 3
+
+    # Hold the lock from a background sleeper so the foreground times out
+    local hold_script="$TEST_TMPDIR/hold-lock.sh"
+    cat > "$hold_script" <<EOF
+#!/usr/bin/env bash
+exec 9>"$BRIDGE_STATE_LOCK"
+flock -x 9
+sleep 12
+EOF
+    chmod +x "$hold_script"
+    "$hold_script" &
+    local hold_pid=$!
+    # Bridgebuilder F4: install the cleanup trap BEFORE the timing-sensitive
+    # body so an assertion failure can't leak the holder process. The previous
+    # form put `kill $hold_pid` after the assertions; bats short-circuits on
+    # failure, leaving a 12-second sleeper alive for every flake.
+    trap 'kill '"$hold_pid"' 2>/dev/null || true; wait '"$hold_pid"' 2>/dev/null || true' EXIT
+    sleep 0.5  # let the holder grab the lock
+
+    # Direct call to the helper (skips outer caller's case-routing) so we can
+    # observe the raw timeout exit code.
+    _LOCK_STRATEGY="flock"
+    run _atomic_state_update_flock_attempt '.state = "PROBE"'
+
+    [ "$status" -eq 11 ]
+}
+
+@test "C-1: jq failure does NOT remove lockfile (exit 12 path)" {
+    # Companion test: jq failure (invalid filter) must also propagate without
+    # triggering stale-lock recovery.
+    skip_if_deps_missing
+    if ! command -v flock &>/dev/null; then
+        skip "flock not available"
+    fi
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-20260426-cc0003" 3
+
+    : > "$BRIDGE_STATE_LOCK"
+    local lock_inode_before
+    lock_inode_before=$(stat -c '%i' "$BRIDGE_STATE_LOCK" 2>/dev/null || stat -f '%i' "$BRIDGE_STATE_LOCK")
+
+    _LOCK_STRATEGY="flock"
+    run _atomic_state_update_flock 'this | is | not | valid | jq'
+
+    [ "$status" -ne 0 ]
+    [ "$status" != "1" ]   # not the spurious stale-lock-cleanup-failure code
+    [ -f "$BRIDGE_STATE_LOCK" ]
+    local lock_inode_after
+    lock_inode_after=$(stat -c '%i' "$BRIDGE_STATE_LOCK" 2>/dev/null || stat -f '%i' "$BRIDGE_STATE_LOCK")
+    [ "$lock_inode_before" = "$lock_inode_after" ]
+    [[ "$output" != *"stale lock"* ]]
+    [[ "$output" == *"jq transformation failed"* ]]
+}

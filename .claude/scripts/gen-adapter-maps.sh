@@ -176,7 +176,45 @@ EOF
 
     cat <<EOF
 )
+
+# VALID_FLATLINE_MODELS — Sprint-4 T4.2 (closes SDD §1.4 C4 SSOT coverage gap).
+# Hand-maintained array in flatline-orchestrator.sh historically drifted from
+# the YAML during model migrations (cycle-082, cycle-093). Now derived from
+# the same source-of-truth as MODEL_PROVIDERS / MODEL_IDS / COST_*.
+#
+# Contents: union of provider model IDs + aliases + backward-compat aliases.
+# Excludes claude-code: synthetic provider (Claude Code native runtime).
+declare -a VALID_FLATLINE_MODELS=(
 EOF
+
+    _emit_flatline_allowlist
+
+    cat <<EOF
+)
+EOF
+}
+
+_emit_flatline_allowlist() {
+    # Concatenate canonical model IDs across all providers, plus alias keys
+    # and backward-compat alias keys. Sort + dedupe for deterministic output.
+    {
+        yq eval -o=json '.providers' "$CONFIG_FILE" | jq -r '
+            to_entries[] as $p
+            | $p.value.models | keys[]
+        '
+        yq eval -o=json '.aliases // {}' "$CONFIG_FILE" | jq -r '
+            to_entries[]
+            | select((.value | split(":")[0]) != "claude-code")
+            | select(.value | test("^[^:]+:"))
+            | .key
+        '
+        yq eval -o=json '.backward_compat_aliases // {}' "$CONFIG_FILE" | jq -r '
+            to_entries[] | .key
+        '
+    } | sort -u | while IFS= read -r model; do
+        [[ -z "$model" ]] && continue
+        printf '    %s\n' "$model"
+    done
 }
 
 _emit_cost_map() {

@@ -251,6 +251,10 @@ NO_AUTO_INSTALL=false
 SUBMODULE_MODE=true
 MIGRATE_TO_SUBMODULE=false
 MIGRATE_APPLY=false
+# Construct-network bundle (cycle-005 L5) — opt-in by default to avoid
+# surprising operators; flips on when --with-constructs is passed.
+WITH_CONSTRUCTS=false
+CONSTRUCTS_PACK="construct-network-tools"
 
 # === Argument Parsing ===
 while [[ $# -gt 0 ]]; do
@@ -306,6 +310,21 @@ while [[ $# -gt 0 ]]; do
       SUBMODULE_REF="$2"
       shift 2
       ;;
+    --with-constructs)
+      # cycle-005 L5 — opt-in bundle install after mount
+      WITH_CONSTRUCTS=true
+      shift
+      ;;
+    --no-constructs)
+      # Explicit opt-out (future-proof when default flips)
+      WITH_CONSTRUCTS=false
+      shift
+      ;;
+    --constructs-pack)
+      # Override default bundle slug
+      CONSTRUCTS_PACK="$2"
+      shift 2
+      ;;
     -h|--help)
       echo "Usage: mount-loa.sh [OPTIONS]"
       echo ""
@@ -327,6 +346,11 @@ while [[ $# -gt 0 ]]; do
       echo "  --skip-beads      Don't install/initialize Beads CLI"
       echo "  --no-auto-install Don't auto-install missing dependencies (jq, yq)"
       echo "  --no-commit       Skip creating git commit after mount"
+      echo ""
+      echo "Construct Network (optional):"
+      echo "  --with-constructs          Install the construct-network bundle after mount"
+      echo "  --no-constructs            Explicit opt-out (future-proof if default flips)"
+      echo "  --constructs-pack <slug>   Override bundle slug (default: construct-network-tools)"
       echo ""
       echo "Migration:"
       echo "  --migrate-to-submodule  Migrate vendored install to submodule mode"
@@ -2151,8 +2175,54 @@ EOF
   fi
   log "Loa mounted successfully."
   echo ""
+
+  # === Optional construct-network bundle install (cycle-005 L5) ===
+  post_mount_constructs_install
+
   log "  Next: Start Claude Code and type /plan"
   echo ""
+}
+
+# Install the construct-network bundle when --with-constructs was passed.
+# Opt-in by default. When WITH_CONSTRUCTS=false we stay quiet by default —
+# a hint only fires for the small subset of mounts where it's actually
+# actionable (no constructs already installed AND no .loa.config.yaml hint
+# suppression). This keeps every-mount UX byte-clean for users who don't
+# work with constructs.
+# Failure here MUST NOT fail the mount — construct-network is optional.
+post_mount_constructs_install() {
+  if [[ "$WITH_CONSTRUCTS" != "true" ]]; then
+    # Suppress the hint when constructs are already in use (the user has
+    # discovered the system) or when explicitly silenced via config.
+    local hint_silent="${LOA_MOUNT_CONSTRUCTS_HINT:-auto}"
+    if [[ "$hint_silent" == "off" ]]; then
+      return 0
+    fi
+    if [[ -f ".run/construct-index.yaml" ]] && [[ "$hint_silent" != "always" ]]; then
+      return 0
+    fi
+    log "  Constructs available — see mount-loa.sh --with-constructs or /loa-setup."
+    return 0
+  fi
+
+  local installer=".claude/scripts/constructs-install.sh"
+  if [[ ! -x "$installer" ]]; then
+    warn "Construct network: installer not available ($installer missing)."
+    warn "                   Skipping bundle install. Re-mount on a Loa"
+    warn "                   version with constructs-install.sh bundled."
+    return 0
+  fi
+
+  step "Installing construct-network bundle: $CONSTRUCTS_PACK"
+  if "$installer" pack "$CONSTRUCTS_PACK"; then
+    log "  Construct network: $CONSTRUCTS_PACK installed."
+  else
+    local rc=$?
+    warn "Construct network: $CONSTRUCTS_PACK install returned $rc."
+    warn "                   This does not invalidate your Loa mount."
+    warn "                   Re-run: constructs install $CONSTRUCTS_PACK"
+    warn "                   or pick a different bundle via --constructs-pack."
+  fi
 }
 
 main "$@"

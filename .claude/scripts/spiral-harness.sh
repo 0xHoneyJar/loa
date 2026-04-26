@@ -547,6 +547,91 @@ _gate_flatline() {
     return 0
 }
 
+#
+# _run_adversarial_dissent — post-hoc adversarial wiring (cycle-093 T1.1 / #605)
+#
+# Invokes adversarial-review.sh as a post-hoc dissent pass when the operator
+# has enabled `flatline_protocol.code_review.enabled` (for REVIEW) or
+# `flatline_protocol.security_audit.enabled` (for AUDIT) in .loa.config.yaml.
+#
+# Why this exists: before cycle-093, the harness REVIEW/AUDIT gates invoked
+# claude -p directly and never consulted flatline_protocol.*.enabled config
+# flags. Operators who enabled adversarial dissent saw zero runtime effect —
+# a silent config no-op reported as issue #605. This helper closes that gap
+# by producing adversarial-{review,audit}.json evidence artifacts that the
+# adversarial-review-gate.sh PostToolUse hook (v1.94.0) expects.
+#
+# Failure mode: adversarial dissent failures MUST NOT block gate progression.
+# The dissenter provides additional signal; the primary advisor verdict is
+# still the gate-level decision. All failures logged to evidence dir + stderr.
+#
+# Args:
+#   $1 — dissent type: "review" or "audit"
+#
+_run_adversarial_dissent() {
+    local dissent_type="$1"
+    local config_key
+    case "$dissent_type" in
+        review) config_key="code_review" ;;
+        audit)  config_key="security_audit" ;;
+        *) log "Adversarial dissent: invalid type '$dissent_type' (expected review|audit)"; return 0 ;;
+    esac
+
+    # Respect operator config — gated opt-in per PRD T1.1 preferred fallback
+    local enabled
+    enabled=$(yq eval ".flatline_protocol.${config_key}.enabled // false" .loa.config.yaml 2>/dev/null || echo "false")
+    if [[ "$enabled" != "true" ]]; then
+        return 0  # Silent no-op when flag off; matches pre-093 behavior
+    fi
+
+    local adversarial_script="$SCRIPT_DIR/adversarial-review.sh"
+    if [[ ! -x "$adversarial_script" ]]; then
+        log "Adversarial dissent: $adversarial_script not executable, skipping"
+        return 0
+    fi
+
+    local evidence_dir="${EVIDENCE_DIR:-.run/cycles/${CYCLE_ID}/evidence}"
+    mkdir -p "$evidence_dir"
+    local diff_file="$evidence_dir/adversarial-${dissent_type}-diff.patch"
+    local output_file="$evidence_dir/adversarial-${dissent_type}.json"
+
+    # Reuse the same diff scope as the primary gate: branch vs main, exclude
+    # state zones. Size matches REVIEW/AUDIT prompt extraction (50KB cap).
+    git diff main..."$BRANCH" -- ':!grimoires/' ':!.run/' ':!.beads/' 2>/dev/null | head -c 50000 > "$diff_file"
+
+    if [[ ! -s "$diff_file" ]]; then
+        log "Adversarial dissent ($dissent_type): empty diff, skipping"
+        return 0
+    fi
+
+    # sprint-id: harness doesn't have a formal sprint id; use cycle id + dissent type
+    local sprint_id="${CYCLE_ID}-${dissent_type}"
+    local model
+    model=$(yq eval ".flatline_protocol.${config_key}.model // \"gpt-5.3-codex\"" .loa.config.yaml 2>/dev/null || echo "gpt-5.3-codex")
+
+    log "Adversarial dissent ($dissent_type): invoking $adversarial_script model=$model"
+
+    # Non-blocking: failures logged but do not halt the gate
+    local stderr_file="$evidence_dir/adversarial-${dissent_type}-stderr.log"
+    if "$adversarial_script" \
+        --type "$dissent_type" \
+        --sprint-id "$sprint_id" \
+        --diff-file "$diff_file" \
+        --model "$model" \
+        --json \
+        > "$output_file" \
+        2> "$stderr_file"; then
+        log "Adversarial dissent ($dissent_type): artifact emitted to $output_file"
+    else
+        local rc=$?
+        log "Adversarial dissent ($dissent_type): exit $rc (non-blocking); see $stderr_file"
+        # Emit a minimal artifact so adversarial-review-gate.sh hook sees something
+        jq -n --arg type "$dissent_type" --arg err "dissenter exit $rc" \
+            '{type: $type, status: "failed", error: $err, findings: []}' > "$output_file" || true
+    fi
+    return 0
+}
+
 _gate_review() {
     local feedback_path="grimoires/loa/a2a/engineer-feedback.md"
 
@@ -561,6 +646,11 @@ _gate_review() {
         | jq -r '.')
 
     _invoke_claude "REVIEW" "$prompt" "$REVIEW_BUDGET" 600 "$ADVISOR_MODEL"
+
+    # cycle-093 T1.1 / #605: post-hoc adversarial dissent when config flag on.
+    # Runs AFTER the primary advisor review so the advisor's feedback file
+    # exists before the dissenter produces a parallel artifact.
+    _run_adversarial_dissent "review"
 
     _verify_review_verdict "REVIEW" "$feedback_path"
 }
@@ -579,6 +669,9 @@ _gate_audit() {
         | jq -r '.')
 
     _invoke_claude "AUDIT" "$prompt" "$AUDIT_BUDGET" 600 "$ADVISOR_MODEL"
+
+    # cycle-093 T1.1 / #605: post-hoc adversarial dissent when config flag on.
+    _run_adversarial_dissent "audit"
 
     _verify_review_verdict "AUDIT" "$feedback_path"
 }
