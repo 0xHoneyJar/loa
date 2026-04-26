@@ -15,7 +15,9 @@ Verified by direct probe: `bash -c 'source .claude/scripts/model-health-probe.sh
 
 The G-4 canonical-guard pin test in `secret-redaction.bats` was retained as the safety net — any restructure of the BASH_SOURCE comparison would break that one focused test instead of silently letting tests source the probe AND run main.
 
-#### G-6 (T2.2): Hallucination filter metadata always-on
+#### G-6 (T2.2): Hallucination filter metadata always-on (schema bump — contract change for downstream consumers)
+
+> **Contract change**: `metadata.hallucination_filter` is now ALWAYS present on the result of `_apply_hallucination_filter()`. Pre-cycle-094-sprint-2 it was conditionally present (only when the filter traversed findings). Tolerant JSON consumers see no behavior change (the new key is additive). Strict-schema validators, snapshot tests, or dashboards that reject unknown keys will need to extend their schema. Iter-1 Bridgebuilder F7 noted this; documented here so future maintainers find the rationale next to the code.
 
 `_apply_hallucination_filter()` in `.claude/scripts/adversarial-review.sh` had three early-return paths that wrote NO metadata, leaving consumers unable to distinguish "filter ran with 0 downgrades" from "filter never ran". Closes by emitting `metadata.hallucination_filter` on every code path:
 

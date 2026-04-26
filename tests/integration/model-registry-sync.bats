@@ -144,36 +144,72 @@ setup() {
 # catch a key mismatch — only that "openai:gpt-5.3-codex" is a real pair.
 # -----------------------------------------------------------------------------
 @test "red-team: shared keys agree on provider with generated MODEL_PROVIDERS (G-7)" {
+    # Iter-1 BB F3/e43e (MEDIUM, vacuous-pass risk): the previous version of
+    # this test re-parsed the bash associative array via `awk` + regex.
+    # If the source formatting drifted (line-break shuffles, multi-pair lines,
+    # quoting style) the parser would silently extract zero entries and the
+    # test would pass without asserting anything — a drift detector that
+    # silently fails to detect drift.
+    #
+    # Fix per Bridgebuilder F3 + e43e: bash is the only robust parser of bash
+    # data. Source the red-team adapter in a clean subshell to populate
+    # MODEL_TO_PROVIDER_ID natively, then iterate via "${!MODEL_TO_PROVIDER_ID[@]}".
+    # Add a `compared > 0` guard at the end so a silent zero-iteration regression
+    # surfaces as a real test failure rather than a passing-but-vacuous run.
+
     # shellcheck disable=SC1090
     source "$GENERATED"
 
-    # Parse keys + values from red-team adapter's MODEL_TO_PROVIDER_ID block.
-    # Form: ["alias"]="provider:model-id"  (each entry on its own line)
-    local mismatches=()
-    while IFS= read -r line; do
-        # Match the bash assoc-array entry shape:  ["KEY"]="VALUE"
-        local key value
-        if [[ "$line" =~ ^[[:space:]]*\[\"([^\"]+)\"\]=\"([^\"]+)\"[[:space:]]*$ ]]; then
-            key="${BASH_REMATCH[1]}"
-            value="${BASH_REMATCH[2]}"
-        else
-            continue
-        fi
+    # The red-team adapter has a `case "$1" in --self-test) ...; ;; esac`
+    # at the top of `main` and a `if [[ ... ]]; then main "$@"; fi` guard
+    # at the bottom — sourcing without args runs only the declarations.
+    # Stash and restore the pre-existing array (if any) to avoid leaking
+    # state across tests.
+    local -a saved_keys=()
+    if declare -p MODEL_TO_PROVIDER_ID >/dev/null 2>&1; then
+        saved_keys=("${!MODEL_TO_PROVIDER_ID[@]}")
+    fi
+    # shellcheck disable=SC1090
+    source "$REDTEAM"
+
+    [[ -n "$(declare -p MODEL_TO_PROVIDER_ID 2>/dev/null)" ]] || {
+        echo "MODEL_TO_PROVIDER_ID not defined after sourcing $REDTEAM" >&2
+        return 1
+    }
+
+    local -a mismatches=()
+    local compared=0
+    local key
+    for key in "${!MODEL_TO_PROVIDER_ID[@]}"; do
+        local value="${MODEL_TO_PROVIDER_ID[$key]}"
         local rt_provider="${value%%:*}"
 
         # Only validate keys that ALSO exist in the generated MODEL_PROVIDERS.
         # Red-team-only aliases (gpt, gemini, kimi, qwen) are intentionally
         # not in the generated map; skip them.
         if [[ -n "${MODEL_PROVIDERS[$key]+x}" ]]; then
+            compared=$((compared + 1))
             local gen_provider="${MODEL_PROVIDERS[$key]}"
             if [[ "$rt_provider" != "$gen_provider" ]]; then
                 mismatches+=("$key: red-team='$rt_provider' vs generated='$gen_provider'")
             fi
         fi
-    done < <(awk '/^declare -A MODEL_TO_PROVIDER_ID=\(/,/^\)/' "$REDTEAM")
+    done
+
+    # Vacuous-pass guard (Bridgebuilder F3): if zero shared keys were compared,
+    # the test asserts nothing. The red-team adapter currently has at least
+    # 6 keys present in MODEL_PROVIDERS (gpt-5.2, gpt-5.3-codex, opus,
+    # gemini-2.5-pro, claude-opus-4-7, claude-opus-4-6); a count below 4 is
+    # almost certainly a parse/source regression worth surfacing.
+    (( compared >= 4 )) || {
+        echo "Vacuous-pass guard tripped: compared=$compared (expected >= 4 shared keys)" >&2
+        echo "Likely cause: red-team adapter restructured, MODEL_TO_PROVIDER_ID renamed, OR" >&2
+        echo "the generator dropped canonical aliases that the adapter still references." >&2
+        return 1
+    }
 
     if (( ${#mismatches[@]} > 0 )); then
-        printf 'Provider drift between red-team adapter and generated map:\n' >&2
+        printf 'Provider drift between red-team adapter and generated map (compared=%d):\n' "$compared" >&2
         printf '  %s\n' "${mismatches[@]}" >&2
         return 1
     fi

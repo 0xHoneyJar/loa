@@ -245,7 +245,16 @@ _make_result() {
     # Iterate every code path: missing diff, empty findings, dirty diff,
     # clean diff with downgrade, clean diff without downgrade.
     echo 'clean diff' > clean.patch
+    # "Dirty" here means: the diff itself contains the {{DOCUMENT_CONTENT}}
+    # canary token (e.g., a doc/template file that legitimately discusses
+    # the placeholder). Token-presence-in-finding can't distinguish a
+    # hallucinated finding from a legitimate citation in this case, so the
+    # filter short-circuits with reason=diff_contains_token. (Iter-1 BB F6.)
     echo '{{DOCUMENT_CONTENT}} legitimate' > dirty.patch
+    # Iter-1 BB F5 (LOW): the flat 4-tuple array layout is fragile to row
+    # misalignment. Add a modulo-4 guard so a missing/extra column trips a
+    # clear failure instead of silently shifting subsequent cases by one
+    # position (which would produce nonsensical-but-passing tests).
     local cases=(
         # diff_path           findings_json                                                                                              expected_applied  expected_reason
         'no_such.patch'       '[{"description":"x","severity":"HIGH","category":"X"}]'                                                   'false'           'no_diff_file'
@@ -254,6 +263,10 @@ _make_result() {
         'clean.patch'         '[{"description":"flag {{DOCUMENT_CONTENT}}","severity":"BLOCKING","category":"X"}]'                       'true'            ''
         'clean.patch'         '[{"description":"normal finding","severity":"HIGH","category":"X"}]'                                      'true'            ''
     )
+    (( ${#cases[@]} % 4 == 0 )) || {
+        echo "cases array misaligned: length=${#cases[@]} not divisible by 4 (4 fields per case)" >&2
+        return 1
+    }
     local i=0
     while [[ $i -lt ${#cases[@]} ]]; do
         local diff_path="${cases[$i]}"

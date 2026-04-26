@@ -239,9 +239,14 @@ teardown() {
     # cleanup path is deterministic: after _spawn_bg_probe_if_none_running
     # for a dead sentinel, the sentinel file should NOT still contain 99999999.
     # We run the function in a subshell that immediately exits to avoid actual spawn.
+    # Sprint-2 BB iter-1 F2: use the canonical `_` placeholder for $0 in
+    # bash -c invocations so positional args land at $1..$N as expected.
+    # Previously `cd "$0"` happened to work (positional 0 carried PROJECT_ROOT
+    # while args were named) but the shape was semantically wrong — $0 in
+    # bash -c is the program name slot, not an argument slot.
     LOA_PROBE_MOCK_MODE=1 \
-        bash -c 'cd "$0"; source "$1"; LOA_CACHE_DIR="$2" _spawn_bg_probe_if_none_running openai' \
-        "$PROJECT_ROOT" "$PROBE" "$TEST_DIR" &
+        bash -c 'cd "$1"; source "$2"; LOA_CACHE_DIR="$3" _spawn_bg_probe_if_none_running openai' \
+        _ "$PROJECT_ROOT" "$PROBE" "$TEST_DIR" &
     wait
     # Sentinel may be replaced with new PID or removed. Either way, 99999999 should be gone.
     if [[ -f "$sentinel" ]]; then
