@@ -334,7 +334,11 @@ EOF
 # EG-T8: no enumerated paths = non-blocking pass
 # =========================================================================
 
-@test "empty deliverables section: passes silently (no enumerated paths = no evidence to check)" {
+@test "empty deliverables section: passes with IMPL_EVIDENCE_NO_DELIVERABLES advisory signal" {
+    # Iter-7 BB F-007-opus fix: previously this path passed silently — monitors
+    # could not distinguish "gate ran, all good" from "gate ran, nothing to
+    # check". Now emits a distinct visibility signal (advisory, exit 0
+    # preserved) so external observers can detect the absence-of-input case.
     cat > "$TEST_DIR/sprint.md" <<'EOF'
 ## Sprint 1: Docs-only
 
@@ -344,10 +348,19 @@ EOF
     run bash -c "cd '$TEST_DIR' && source '$EVIDENCE_SH' && _pre_check_implementation_evidence sprint.md sprint-1 2>&1"
     [ "$status" -eq 0 ]
     [[ "$output" != *"IMPL_EVIDENCE_MISSING"* ]]
+    # New signal: distinct from IMPL_EVIDENCE_MISSING, indicates no deliverables
+    [[ "$output" == *"IMPL_EVIDENCE_NO_DELIVERABLES"* ]]
 }
 
-@test "missing sprint.md: passes (upstream concern, not evidence gap)" {
+@test "missing sprint.md: passes with IMPL_EVIDENCE_NO_SPRINT_PLAN advisory signal" {
+    # Iter-7 BB F-007-opus fix: same fail-open-but-visible discipline. The
+    # cycle-091 regression that motivated this gate was a missing-deliverable
+    # scenario; if a future bug deletes sprint.md, the gate previously fell
+    # silent. Now emits IMPL_EVIDENCE_NO_SPRINT_PLAN so the absence is
+    # visible to monitors (Borgmon "no signal vs all-good signal" pattern).
     run bash -c "cd '$TEST_DIR' && source '$EVIDENCE_SH' && _pre_check_implementation_evidence '$TEST_DIR/never.md' sprint-1 2>&1"
     [ "$status" -eq 0 ]
     [[ "$output" != *"IMPL_EVIDENCE_MISSING"* ]]
+    # New signal: distinct from IMPL_EVIDENCE_MISSING, indicates upstream gap
+    [[ "$output" == *"IMPL_EVIDENCE_NO_SPRINT_PLAN"* ]]
 }

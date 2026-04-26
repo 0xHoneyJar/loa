@@ -252,32 +252,30 @@ setup() {
 # Not a full run — just verify the format strings in source match the
 # regex fixtures above.
 
-@test "log() helper produces [harness]-prefixed output to stderr (behavioral, iter-6 BB F-001-codex fix)" {
+@test "log() helper produces [harness]-prefixed output to stderr (behavioral, source-and-call)" {
     # Iter-6 BB F-001-codex: previous version was `grep -q 'log() { echo "\[harness\] \$\*" >&2; }'`,
     # which fails on harmless reformat (printf instead of echo, function keyword,
     # shellcheck-friendly quote nudges). Tests the byte shape, not behavior.
-    # Now: actually invoke log() and verify (1) output goes to stderr, (2) prefix
-    # is `[harness] `, (3) the message body is preserved verbatim.
     #
-    # Sources spiral-harness.sh in --probe mode equivalent: extract just the
-    # log() body and run it. We can't source the whole file (too many side
-    # effects), but log() is self-contained.
+    # Iter-7 BB F-001-codex (HIGH_CONSENSUS, security): the iter-6 version of
+    # this test extracted the function body via awk and executed it via
+    # `bash -c "$fn_body; log ..."` — repository-controlled text becoming
+    # test-runtime code. Any extraction drift (heredoc, nested brace, etc.)
+    # would silently change what executes; an unrelated edit could turn the
+    # test from "assert log() shape" into "execute whatever log()-region
+    # extraction returned".
     #
-    # Approach: extract the function body via a narrow grep and re-eval in a
-    # subshell. This is more behavior-coupled than the previous test (we run
-    # it instead of byte-matching it) without requiring a full harness boot.
-    local fn_body
-    fn_body=$(awk '/^log\(\) \{/,/^\}$/' "$PROJECT_ROOT/.claude/scripts/spiral-harness.sh")
-    # Sanity: the function exists and is one line (current shape) — the test
-    # is meaningful regardless of byte details.
-    [ -n "$fn_body" ]
-
-    # Run log() with a known message; assert behavior, not source bytes.
+    # Now: source spiral-harness.sh directly. The script has a BASH_SOURCE
+    # guard at the bottom (`if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then main "$@"; fi`)
+    # that prevents main() from running when sourced. Top-level statements
+    # (`set -euo pipefail`, source bootstrap/evidence/compat-lib) are safe
+    # under source. log() is then a normal function call — no eval, no
+    # text-extraction, no test/impl-boundary drift surface.
     local stdout_capture stderr_capture
-    stdout_capture=$(bash -c "$fn_body; log 'TEST_MESSAGE_42'" 2>/dev/null)
-    stderr_capture=$(bash -c "$fn_body; log 'TEST_MESSAGE_42'" 2>&1 >/dev/null)
+    stdout_capture=$(bash -c "source '$PROJECT_ROOT/.claude/scripts/spiral-harness.sh'; log 'TEST_MESSAGE_42'" 2>/dev/null)
+    stderr_capture=$(bash -c "source '$PROJECT_ROOT/.claude/scripts/spiral-harness.sh'; log 'TEST_MESSAGE_42'" 2>&1 >/dev/null)
 
-    # Behavioral assertions: contract verified, not byte shape.
+    # Behavioral assertions: contract verified by direct invocation.
     [ -z "$stdout_capture" ]                                  # nothing on stdout
     [[ "$stderr_capture" == "[harness] TEST_MESSAGE_42" ]]    # prefixed + verbatim payload, on stderr
 }

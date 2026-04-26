@@ -710,13 +710,27 @@ _pre_check_implementation_evidence() {
 
     # Parse sprint.md paths. If parsing fails (missing sprint.md or empty
     # sprint section), record and pass — absence of enumerated paths is an
-    # upstream concern, not an evidence gap.
+    # upstream concern, not an evidence gap. BUT emit a distinct visible
+    # signal so monitors can distinguish "gate ran, no input to check" from
+    # "gate ran, all good" (Iter-7 BB F-007-opus fix: fail-open is fine,
+    # fail-silent is not — Borgmon "no signal vs all-good signal" rule).
     local paths_raw
     paths_raw="$(_parse_sprint_paths "$sprint_md" "$sprint_id" 2>/dev/null || true)"
     if [[ -z "$paths_raw" ]]; then
+        # Distinguish missing sprint.md from present-but-empty-deliverables.
+        # Match the [harness]-prefix convention of MISSING/TRIVIAL signals
+        # below — same emit pattern (echo to stderr) for monitor consistency.
+        local reason
+        if [[ ! -f "$sprint_md" ]]; then
+            reason="sprint_md_not_found"
+            echo "[harness] IMPL_EVIDENCE_NO_SPRINT_PLAN — sprint.md not found at $sprint_md (gate cannot enumerate deliverables; advisory only)" >&2
+        else
+            reason="no_enumerated_paths"
+            echo "[harness] IMPL_EVIDENCE_NO_DELIVERABLES — sprint.md found but no deliverable paths enumerated (gate satisfied vacuously; advisory only)" >&2
+        fi
         [[ -n "${_FLIGHT_RECORDER:-}" ]] && \
             _record_action "PRE_CHECK_IMPL_EVIDENCE" "evidence-gate" "artifact_coverage" "" "" "" 0 0 0 \
-                "PASS:no_enumerated_paths"
+                "PASS:$reason"
         return 0
     fi
 
@@ -989,13 +1003,24 @@ _emit_dashboard_snapshot() {
     local cycle_dir="${3:-}"
 
     # Legacy 2-arg form: `_emit_dashboard_snapshot <phase> <cycle_dir>`.
-    # Detect by checking if arg 2 is a path (contains `/`) and not a known
-    # event_type keyword. This keeps pre-cycle-092 callers working.
+    # Iter-7 BB 2195dfb4-gemini fix: previous discriminator was `*/*|*.*`
+    # which would misroute future event_type values containing `.`
+    # (e.g. PHASE_START.V1) as paths. The new test: an event_type is
+    # whatever isn't a real directory on disk. Backward compat preserved
+    # for legacy callers passing a real path; future-proof against
+    # event_type names containing `/` or `.`.
     case "$event_type" in
         PHASE_START|PHASE_HEARTBEAT|PHASE_EXIT) ;;
-        */*|*.*)
-            cycle_dir="$event_type"
-            event_type="PHASE_START"
+        *)
+            # If arg 2 is a real directory, the caller is using the
+            # legacy 2-arg form (event_type defaults; cycle_dir was passed
+            # in arg 2's slot). Otherwise treat as a future event_type
+            # name we don't yet recognize and let downstream proceed —
+            # event_type values are emitted as-is to consumers.
+            if [[ -d "$event_type" ]]; then
+                cycle_dir="$event_type"
+                event_type="PHASE_START"
+            fi
             ;;
     esac
 

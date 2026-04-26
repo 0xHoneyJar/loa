@@ -92,8 +92,11 @@ teardown() {
 
 @test "legacy 2-arg form (path as arg 2) auto-detected as cycle_dir" {
     # Pre-cycle-092 callers invoked _emit_dashboard_snapshot <phase> <cycle_dir>.
-    # The dispatch logic checks if arg 2 contains `/` or `.` — if so, treat
-    # as cycle_dir. event_type defaults to PHASE_START.
+    # Iter-7 BB 2195dfb4-gemini fix: discriminator was changed from string-shape
+    # heuristic (`*/*|*.*`) to filesystem check (`[[ -d "$2" ]]`). This test
+    # validates the legacy path is still detected when arg 2 is a real
+    # directory; a sibling test below proves event_type containing `.` is
+    # NOT misrouted to cycle_dir.
     run bash -c "
         source '$EVIDENCE_SH'
         _init_flight_recorder '$TEST_DIR'
@@ -102,6 +105,26 @@ teardown() {
         [[ -f '$TEST_DIR/dashboard-latest.json' ]] || exit 1
         event_type=\$(jq -r '.event_type' '$TEST_DIR/dashboard-latest.json')
         [[ \"\$event_type\" == 'PHASE_START' ]]
+    "
+    [ "$status" -eq 0 ]
+}
+
+@test "future event_type containing '.' is not misrouted to cycle_dir (iter-7 BB 2195dfb4-gemini)" {
+    # Regression: previous discriminator was `*/*|*.*` which matched any string
+    # containing `/` or `.`. A future event_type like `PHASE_START.V1` would
+    # have been misread as a path. The new filesystem-check discriminator
+    # `[[ -d "$2" ]]` only routes to cycle_dir when arg 2 is a REAL directory.
+    # This test passes a `.`-containing event_type that does NOT correspond to
+    # a real directory and verifies it's preserved as-is in the snapshot.
+    run bash -c "
+        source '$EVIDENCE_SH'
+        _init_flight_recorder '$TEST_DIR'
+        printf '{\"seq\":1,\"ts\":\"2026-04-19T10:00:00Z\",\"phase\":\"INIT\",\"actor\":\"t\",\"action\":\"a\",\"output_bytes\":0,\"duration_ms\":0,\"cost_usd\":0,\"verdict\":\"PASS\"}\n' >> \"\$_FLIGHT_RECORDER\"
+        _emit_dashboard_snapshot 'TEST_PHASE' 'PHASE_START.V1' '$TEST_DIR'
+        [[ -f '$TEST_DIR/dashboard-latest.json' ]] || exit 1
+        event_type=\$(jq -r '.event_type' '$TEST_DIR/dashboard-latest.json')
+        # The dotted event_type must be preserved, not collapsed to PHASE_START
+        [[ \"\$event_type\" == 'PHASE_START.V1' ]]
     "
     [ "$status" -eq 0 ]
 }
