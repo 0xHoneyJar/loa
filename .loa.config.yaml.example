@@ -1672,6 +1672,36 @@ spiral:
     enabled: true                    # Use harness vs monolithic dispatch
     max_phase_retries: 3             # Retries per gate on failure
 
+    # cycle-092 Sprint 4 (#598) — SIMSTIM heartbeat (editor of intent in-flight)
+    heartbeat:
+      enabled: true                  # Spawn heartbeat emitter daemon during cycles
+      interval_sec: 60               # Emit [HEARTBEAT] every N seconds (clamp [30, 300])
+      budget_usd: 80                 # Budget displayed in heartbeat line
+      format: editor                 # editor (3-line, default) | compact | json (S5 stretch — editor fallback + warning)
+      intent:
+        enabled: true                # Emit [INTENT <ts>] lines on phase boundary
+        sources:                     # Per-phase source-file mapping for intent text
+          IMPLEMENTATION: grimoires/loa/a2a/engineer-feedback.md
+          IMPL_FIX:       grimoires/loa/a2a/engineer-feedback.md
+          AUDIT:          grimoires/loa/a2a/auditor-sprint-feedback.md
+      confidence_cues: true          # Surface "attempt N of 3 · last chance" etc.
+      pace_baselines_min:            # Per-phase baseline for pace classification (minutes)
+        discovery: 4
+        architecture: 4
+        planning: 4
+        flatline: 2
+        implementation: 18
+        review: 4
+        audit: 4
+        impl_fix: 10
+      # SpiralPhaseComplete hook — operator-configurable per-phase notification.
+      # Deferred to post-cycle-092 work: schema reserved for forward compat,
+      # but actual dispatching from _emit_dashboard_snapshot(PHASE_EXIT) is
+      # scope-split. Env vars at dispatch time: PHASE, COST, DURATION_SEC, CYCLE_ID.
+      phase_complete_hook:
+        enabled: false               # Post-cycle-092 follow-up
+        command: ""                  # e.g. 'osascript -e ... notification' on macOS
+
     # Per-phase budget caps (claude -p --max-budget-usd)
     planning_budget_usd: 1           # PRD, SDD, Sprint (each)
     implement_budget_usd: 5          # Code + tests + commit
