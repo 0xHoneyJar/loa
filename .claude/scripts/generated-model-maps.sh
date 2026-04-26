@@ -12,9 +12,12 @@
 declare -A MODEL_PROVIDERS=(
     ["gpt-5.2"]="openai"
     ["gpt-5.3-codex"]="openai"
+    ["gpt-5.5"]="openai"
+    ["gpt-5.5-pro"]="openai"
     ["gemini-2.0-flash"]="google"
     ["gemini-2.5-flash"]="google"
     ["gemini-2.5-pro"]="google"
+    ["gemini-3.1-pro-preview"]="google"
     ["deep-research-pro"]="google"
     ["claude-opus-4-7"]="anthropic"
     ["claude-opus-4-6"]="anthropic"
@@ -24,6 +27,8 @@ declare -A MODEL_PROVIDERS=(
     ["reasoning"]="openai"
     ["cheap"]="anthropic"
     ["opus"]="anthropic"
+    ["deep-thinker"]="google"
+    ["gemini-3.1-pro"]="google"
     ["researcher"]="google"
     ["gpt-5.2-codex"]="openai"
     ["claude-opus-4.7"]="anthropic"
@@ -40,9 +45,12 @@ declare -A MODEL_PROVIDERS=(
 declare -A MODEL_IDS=(
     ["gpt-5.2"]="gpt-5.2"
     ["gpt-5.3-codex"]="gpt-5.3-codex"
+    ["gpt-5.5"]="gpt-5.5"
+    ["gpt-5.5-pro"]="gpt-5.5-pro"
     ["gemini-2.0-flash"]="gemini-2.0-flash"
     ["gemini-2.5-flash"]="gemini-2.5-flash"
     ["gemini-2.5-pro"]="gemini-2.5-pro"
+    ["gemini-3.1-pro-preview"]="gemini-3.1-pro-preview"
     ["deep-research-pro"]="deep-research-pro"
     ["claude-opus-4-7"]="claude-opus-4-7"
     ["claude-opus-4-6"]="claude-opus-4-6"
@@ -52,6 +60,8 @@ declare -A MODEL_IDS=(
     ["reasoning"]="gpt-5.3-codex"
     ["cheap"]="claude-sonnet-4-6"
     ["opus"]="claude-opus-4-7"
+    ["deep-thinker"]="gemini-3.1-pro-preview"
+    ["gemini-3.1-pro"]="gemini-3.1-pro-preview"
     ["researcher"]="deep-research-pro"
     ["gpt-5.2-codex"]="gpt-5.3-codex"
     ["claude-opus-4.7"]="claude-opus-4-7"
@@ -68,9 +78,12 @@ declare -A MODEL_IDS=(
 declare -A COST_INPUT=(
     ["gpt-5.2"]="0.01"
     ["gpt-5.3-codex"]="0.00175"
+    ["gpt-5.5"]="0.005"
+    ["gpt-5.5-pro"]="0.03"
     ["gemini-2.0-flash"]="0.00015"
     ["gemini-2.5-flash"]="0.00015"
     ["gemini-2.5-pro"]="0.00125"
+    ["gemini-3.1-pro-preview"]="0.00125"
     ["deep-research-pro"]="0.005"
     ["claude-opus-4-7"]="0.005"
     ["claude-opus-4-6"]="0.005"
@@ -80,6 +93,8 @@ declare -A COST_INPUT=(
     ["reasoning"]="0.00175"
     ["cheap"]="0.003"
     ["opus"]="0.005"
+    ["deep-thinker"]="0.00125"
+    ["gemini-3.1-pro"]="0.00125"
     ["researcher"]="0.005"
     ["gpt-5.2-codex"]="0.00175"
     ["claude-opus-4.7"]="0.005"
@@ -96,9 +111,12 @@ declare -A COST_INPUT=(
 declare -A COST_OUTPUT=(
     ["gpt-5.2"]="0.03"
     ["gpt-5.3-codex"]="0.014"
+    ["gpt-5.5"]="0.03"
+    ["gpt-5.5-pro"]="0.18"
     ["gemini-2.0-flash"]="0.0006"
     ["gemini-2.5-flash"]="0.0006"
     ["gemini-2.5-pro"]="0.01"
+    ["gemini-3.1-pro-preview"]="0.01"
     ["deep-research-pro"]="0.02"
     ["claude-opus-4-7"]="0.025"
     ["claude-opus-4-6"]="0.025"
@@ -108,6 +126,8 @@ declare -A COST_OUTPUT=(
     ["reasoning"]="0.014"
     ["cheap"]="0.015"
     ["opus"]="0.025"
+    ["deep-thinker"]="0.01"
+    ["gemini-3.1-pro"]="0.01"
     ["researcher"]="0.02"
     ["gpt-5.2-codex"]="0.014"
     ["claude-opus-4.7"]="0.025"
@@ -119,4 +139,43 @@ declare -A COST_OUTPUT=(
     ["claude-opus-4-1"]="0.025"
     ["claude-opus-4.0"]="0.025"
     ["claude-opus-4-0"]="0.025"
+)
+
+# VALID_FLATLINE_MODELS — Sprint-4 T4.2 (closes SDD §1.4 C4 SSOT coverage gap).
+# Hand-maintained array in flatline-orchestrator.sh historically drifted from
+# the YAML during model migrations (cycle-082, cycle-093). Now derived from
+# the same source-of-truth as MODEL_PROVIDERS / MODEL_IDS / COST_*.
+#
+# Contents: union of provider model IDs + aliases + backward-compat aliases.
+# Excludes claude-code: synthetic provider (Claude Code native runtime).
+declare -a VALID_FLATLINE_MODELS=(
+    cheap
+    claude-opus-4-0
+    claude-opus-4.0
+    claude-opus-4-1
+    claude-opus-4.1
+    claude-opus-4-5
+    claude-opus-4.5
+    claude-opus-4-6
+    claude-opus-4.6
+    claude-opus-4-7
+    claude-opus-4.7
+    claude-sonnet-4-6
+    deep-research-pro
+    deep-thinker
+    gemini-2.0
+    gemini-2.0-flash
+    gemini-2.5-flash
+    gemini-2.5-pro
+    gemini-3.1-pro
+    gemini-3.1-pro-preview
+    gpt-5.2
+    gpt-5.2-codex
+    gpt-5.3-codex
+    gpt-5.5
+    gpt-5.5-pro
+    opus
+    reasoning
+    researcher
+    reviewer
 )

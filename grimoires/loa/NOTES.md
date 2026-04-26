@@ -1,5 +1,102 @@
 # Loa Project Notes
 
+## Decision Log — 2026-04-25 (cycle-093 sprint-4 — E2E goal validation)
+
+### Sprint-4 closure (T2.1 + T2.3 + T3.1 + T4.E2E)
+
+- **Branch**: `feature/sprint-4` (this run)
+- **Built on**: sprint-3A (130294e on main, v1.102.0); sprint-3B (#629 draft, audit-approved, CI in iter-3)
+- **gpt-5.2 hard-default audit (T3.1)**: 10 files reference `gpt-5.2`. Categorization:
+  - **YAML / generated maps (legitimate)**: `model-config.yaml:14` (canonical pricing entry), `generated-model-maps.sh` (provider/id/cost lines — derived from YAML), `red-team-model-adapter.sh:47` (provider:model-id value referenced for back-compat)
+  - **Documentation (legitimate)**: `protocols/flatline-protocol.md:227` (lists gpt-5.2 in supported models), `protocols/gpt-review-integration.md:244` (gpt-review-api docs), `model-permissions.yaml:59` (permission scoping)
+  - **Adversarial-review note (legitimate)**: `adversarial-review.sh:635` — comment notes gpt-5.2's higher hallucination rate on ampersand-adjacent diffs (T1.3 hallucination filter is the fix)
+  - **Forward-compat regex (legitimate)**: `flatline-orchestrator.sh:369` — pattern `^gpt-[0-9]+\.[0-9]+(-codex)?$` admits gpt-5.2 + future versions; not a default pin
+  - **Operator-facing example (FIXED)**: `.loa.config.yaml.example:748,749` — `reviewer: openai:gpt-5.2`, `reasoning: openai:gpt-5.2`. Updated to `gpt-5.3-codex` per T3.1 with operator advisory comment about migration.
+  - **Compat shim documentation**: `model-adapter.sh:96,100,175` (legacy adapter docstring + alias map + usage). Backward-compat alias retained; not a default migration target.
+  - **Library fallback**: `lib-curl-fallback.sh:124,126` — explicit case branches for `gpt-5.2` and `gpt-5.2-codex`. These are necessary for backward-compatible callers; remove only when no .loa.config.yaml uses them.
+- **Conclusion**: No blocking findings. The default dissenter is already `gpt-5.3-codex` (`adversarial-review.sh:74,102`). Cycle-093 T3.1 closure is the operator advisory in `.loa.config.yaml.example` updates — landed in this commit.
+- **Why**: T3.1 was scope-reduced at cycle inception (per "T3.1 scope reduction" note above) — confirmed minimal during audit. No follow-up bug issues required.
+- **How to apply**: Future cycles touching `gpt-5.x` defaults should preserve the forward-compat regex pattern and the backward-compat aliases — both serve real operator workloads.
+
+### Task 4.E2E — End-to-End Goal Validation (G1–G6 evidence)
+
+| Goal | Verdict | Evidence |
+|---|---|---|
+| **G-1** Close #605 (harness adversarial wiring) | ✓ Met | Sprint-1 commit `ab237bd`. `spiral-harness.sh::_gate_review`/`_gate_audit` now post-hoc invoke `adversarial-review.sh` when `flatline_protocol.code_review.enabled: true`. The hook `.claude/hooks/safety/adversarial-review-gate.sh` blocks the COMPLETED marker write if `adversarial-review.json` is missing — verified via 5/5 sprint-1 BATS tests. |
+| **G-2** Close #607 (bridgebuilder dist) | ✓ Met | Sprint-2 commits `5c39bfc` + `cbd0a98`. `.claude/skills/bridgebuilder-review/dist/` un-ignored and 36 compiled JS/d.ts/map files force-added. `.github/workflows/bridgebuilder-dist-smoke.yml` smoke-tests fresh-checkout submodule consumers (PR #630 — pushed this session). |
+| **G-3** Close #618 (dissenter filter) | ✓ Met | Sprint-2 + sprint-3B's hallucination filter caught 2 false-positive `{{DOCUMENT_CONTENT}}`-family hallucinations during sprint-3A's own kaironic Bridgebuilder review (per CHANGELOG v1.102.0). Filter has 6 normalization variants + 15 BATS tests. |
+| **G-4** Gemini 3.1 Pro Preview routable | ✓ Met | T4.1 added `providers.google.models.gemini-3.1-pro-preview` with full pricing + capabilities. Aliases `deep-thinker` and `gemini-3.1-pro` resolve via `generated-model-maps.sh`. Probe-integration test `T4.1: gemini-3.1-pro-preview AVAILABLE when listed in v1beta/models` green (`tests/integration/probe-integration-sprint4.bats:42`). Allowlist resolves via `flatline-orchestrator.sh` → `generated-model-maps.sh` (T4.2 SSOT). |
+| **G-5** Health-probe invariant | ✓ Met | Sprint-3A + sprint-3B shipped the probe + adapter + 2 CI workflows. Sprint-4 invariant `model-registry-sync.bats` (10/10 green) provides cheap CI-time text-diff check across YAML / generated maps / flatline / red-team. Probe regression-defense test `T4.1 (regression-defense): gemini-3.1-pro-preview UNAVAILABLE if delisted` green. Audit-approved sprint-3B PR #629 carries the runtime fail-fast + actionable stderr citation per SDD §6.2. |
+| **G-6** GPT-5.5 infrastructure readiness (re-scoped per Flatline SKP-002 HIGH) | ✓ Met | T4.5 added `providers.openai.models.gpt-5.5` and `gpt-5.5-pro` with `probe_required: true`. Fixture `gpt-5.5-listed.json` simulates the API-ship moment. Three integration tests prove the transition: (1) gpt-5.5 UNAVAILABLE on default fixture; (2) gpt-5.5 AVAILABLE on swapped fixture; (3) gpt-5.5-pro AVAILABLE on swapped fixture. **Live validation deferred** to a follow-up cycle when OpenAI `/v1/models` actually returns `gpt-5.5` (R27 tracks this). |
+
+### Test summary (sprint-4)
+- `tests/integration/model-registry-sync.bats` — **10/10** green (Task 4.4 invariant)
+- `tests/integration/probe-integration-sprint4.bats` — **5/5** green (Task 4.7 + E2E G4/G6)
+- Sprint-3B regression: `tests/unit/model-health-probe-resilience.bats` — **25/25** green
+- Sprint-3A regression: `tests/unit/model-health-probe.bats` — **46/46** green (`gen-adapter-maps.sh --check` exits 0)
+
+### Files changed (sprint-4)
+- `.claude/defaults/model-config.yaml` — added gemini-3.1-pro-preview + gpt-5.5/gpt-5.5-pro + deep-thinker/gemini-3.1-pro aliases
+- `.claude/scripts/gen-adapter-maps.sh` — extended to emit `VALID_FLATLINE_MODELS` array (T4.2)
+- `.claude/scripts/generated-model-maps.sh` — regenerated; carries 26 entries in VALID_FLATLINE_MODELS (T4.3)
+- `.claude/scripts/flatline-orchestrator.sh` — sources generated maps; falls back to stub allowlist if generator hasn't run (T4.2)
+- `.claude/tests/fixtures/provider-responses/openai/gpt-5.5-listed.json` — new fixture for fixture-swap test (T4.5)
+- `.claude/tests/fixtures/provider-responses/google/gemini-3.1-listed.json` — new fixture (T4.7)
+- `.loa.config.yaml.example` — operator advisory for gpt-5.2 → 5.3-codex migration (T3.1)
+- `tests/integration/model-registry-sync.bats` — 10-test SSOT invariant (T4.4)
+- `tests/integration/probe-integration-sprint4.bats` — 5-test probe-integration verification (T4.7 + G6)
+- `grimoires/loa/NOTES.md` — this section (T4.E2E evidence + T3.1 audit)
+
+## Decision Log — 2026-04-24 (cycle-093-stabilization)
+
+### Flatline sprint-plan integration — 3→3A/3B split, bypass governance, parser defenses (2026-04-24)
+- **Trigger**: Flatline sprint-plan review flagged Sprint 3 as dangerously oversized (13 tasks, 2-3 days budget) with 3 CRITICAL blockers concentrated on keystone. User approved "apply all integrations."
+- **Structural change**: Sprint 3 split into 3A (core probe + cache, global ID 116) and 3B (resilience + CI + integration + runbook, global ID 117). Sprint 4 renumbered to global ID 118. Cycle grows from 4 to 5 sprints.
+- **Ledger**: `grimoires/loa/ledger.json` updated — `global_sprint_counter: 118`, cycle-093 sprints array now has 5 entries with `local_id: "3A"` and `"3B"` (mixed int + string local_ids).
+- **Tasks added** (8 new from Flatline sprint review): 3A.canary (live-provider non-blocking smoke), 3A.rollback_flag (LOA_PROBE_LEGACY_BEHAVIOR=1), 3A.hardstop_tests (budget exit 5 enforcement); 3B.bypass_governance (dual-approval label + 24h TTL + mandatory reason), 3B.bypass_audit (audit alerts + webhook), 3B.centralized_scrubber (SKP-005 single-source redaction), 3B.secret_scanner (post-job gitleaks), 3B.concurrency_stress (N=10 parallel + stale-PID cleanup), 3B.platform_matrix (macOS+Linux CI), 3B.runbook (added rollback + key rotation sections).
+- **Risks added (R22–R27)**: split integration lag, bypass friction, parser rollback-flag crutch, macOS divergence, secret scanner false positives, GPT-5.5 non-ship.
+- **G-6 re-scope**: "GPT-5.5 operational" → "GPT-5.5 infrastructure ready". Live validation deferred to follow-up cycle.
+- **Testing language shift**: replace "80% line coverage" with "100% critical paths + every BLOCKER has regression test" (DISPUTED IMP-004 resolution).
+- **Meta-finding banked**: Across 3 Flatline runs (PRD+SDD+Sprint), **19/19 blockers sourced from tertiary skeptic (Gemini 2.5 Pro)**. Strongest empirical case yet for 3-model Flatline protocol + Gemini 3.1 Pro upgrade in T2.1.
+- **How to apply**: 5-sprint cycle with canonical merge order 1→2→3A→3B→4, 6h rebase slack per dependent sprint.
+
+### Cycle inception — Loa Stabilization & Model-Currency Architecture
+- **Scope**: Close silent failures #605 (harness adversarial bypass), #607 (bridgebuilder dist gap), #618 (dissenter hallucination). Re-add Gemini 3.1 Pro Preview. Ship provider health-probe (#574 Option C) as keystone. Latent GPT-5.5 registry entry for auto-onboarding on API ship.
+- **Artifact isolation**: `grimoires/loa/cycles/cycle-093-stabilization/` — parallel-cycle pattern per #601 recommendation; keeps cycle-092 PR #603 artifacts (`grimoires/loa/prd.md` etc.) untouched during HITL review.
+- **Branch plan**: stay on current cycle-092 branch during PRD/SDD/sprint drafting (artifacts isolated, no collision); split off to `feature/cycle-093-stabilization` from fresh `main` after PR #603 merges.
+- **Out-of-scope (deferred)**: #601 (parallel-cycle doctrine), #443 (cross-compaction amnesia), #606 (Self-Refine / Reflexion redesign) — each warrants its own cycle.
+- **Interview mode**: minimal (scope pre-briefed exhaustively from open-issue analysis + preceding turn's file-surface audit).
+- **T3.1 scope reduction**: Confirmed `gpt-5.3-codex` is already the default dissenter in both `.loa.config.yaml.example:1236,1241` and `adversarial-review.sh:74,102`. T3.1 reduces to "audit + operator-advisory for pinned gpt-5.2 configs" — no migration code needed.
+- **Why this satisfies zone-system.md "explicit cycle-level approval"**: cycle-093 PRD at `grimoires/loa/cycles/cycle-093-stabilization/prd.md` authorizes System Zone writes to the enumerated file surfaces for this cycle only.
+- **How to apply**: Subsequent cycles (cycle-094+) must re-authorize via their own PRD.
+
+## Decision Log — 2026-04-19 (cycle-092)
+
+### System Zone write authorization
+- **Scope**: `.claude/scripts/spiral-harness.sh`, `.claude/scripts/spiral-evidence.sh`, `.claude/scripts/spiral-simstim-dispatch.sh`, `.claude/hooks/hooks.yaml`, new `.claude/scripts/spiral-heartbeat.sh`
+- **Authorization trail**:
+  1. Issues #598, #599, #600 filed by @zkSoju explicitly target these spiral harness files as the subject of the bugs
+  2. Sprint plan (`grimoires/loa/sprint.md` lines 65-322) drafted 2026-04-19 enumerates these files as the subject of Sprints 1–4
+  3. User invoked `/run sprint-plan --allow-high` after reading the plan
+  4. Precedent: recent merges #588, #592, #594 modified the same files under the same pattern (cycle-level authorization via sprint plan + PR review)
+- **Why this satisfies zone-system.md "explicit cycle-level approval"**: In lieu of a formal PRD (this is bug-track work extracted from issue bodies per sprint.md Non-Goals §4), the sprint plan itself is the cycle-level approval artifact. The `--allow-high` invocation is the equivalent of PRD sign-off.
+- **How to apply**: Writes to these paths are authorized for cycle-092 only. Subsequent cycles must re-authorize via their own sprint plan.
+
+### Stale sprint artifact cleanup
+- Moved stale cycle-053 sprint-1/ → sprint-1-cycle-053; similarly sprint-2/3/4 preserved under dated names. Fresh sprint-N/ directories created for cycle-092 artifacts.
+
+### SpiralPhaseComplete hook — runtime dispatch deferred (cycle-092 Sprint 4, #598)
+- **Scope**: operator-configurable per-phase notification hook declared in sprint.md AC for Sprint 4
+- **Status**: ⏸ [ACCEPTED-DEFERRED] — schema reserved, runtime exec out of scope
+- **Why deferred**: Hook firing requires modifying `_emit_dashboard_snapshot` in `.claude/scripts/spiral-evidence.sh` (Sprint 3's territory) to invoke operator-configured shell commands at `event_type=PHASE_EXIT`. Sprint 4's scope was emitter-only (spiral-heartbeat.sh + config schema + bats tests). Sprint 3 code should not be retouched in Sprint 4 per sprint plan §Scope constraints.
+- **What shipped**: `.loa.config.yaml.example:1688-1692` — schema for `spiral.harness.heartbeat.phase_complete_hook.{enabled,command}` with `enabled: false` default. Forward-compatible: future cycle can wire the `exec $command` call without config migration.
+- **How to apply**: When a follow-up cycle is scoped, add ~10 lines to `_emit_dashboard_snapshot` at the `event_type == "PHASE_EXIT"` branch:
+  1. Read `spiral.harness.heartbeat.phase_complete_hook.enabled` from `.loa.config.yaml`
+  2. If true, read `spiral.harness.heartbeat.phase_complete_hook.command`
+  3. Export `PHASE`, `COST`, `DURATION_SEC`, `CYCLE_ID` as env vars
+  4. Exec the command (`eval` or `bash -c` depending on desired shell semantics)
+- **Tracking**: Flagged in Sprint 4 reviewer.md §Known Limitations item #1. Non-blocking for cycle-092; operators who want per-phase notifications today can tail dispatch.log for `Phase N:` transitions manually.
+
 ## Session Continuity — 2026-04-13 (cycles 052-054)
 
 ### Current state

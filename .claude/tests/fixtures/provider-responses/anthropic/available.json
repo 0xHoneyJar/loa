@@ -1,0 +1,9 @@
+{
+  "id": "msg_01ABC",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-opus-4-7",
+  "content": [{"type": "text", "text": "pong"}],
+  "stop_reason": "end_turn",
+  "usage": {"input_tokens": 3, "output_tokens": 1}
+}

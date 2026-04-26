@@ -1,0 +1,10 @@
+{
+  "object": "list",
+  "data": [
+    {"id": "gpt-5.2", "object": "model", "created": 1726000000, "owned_by": "openai"},
+    {"id": "gpt-5.3-codex", "object": "model", "created": 1728000000, "owned_by": "openai"},
+    {"id": "gpt-5.5", "object": "model", "created": 1735000000, "owned_by": "openai"},
+    {"id": "gpt-5.5-pro", "object": "model", "created": 1735000000, "owned_by": "openai"},
+    {"id": "gpt-4o", "object": "model", "created": 1719000000, "owned_by": "openai"}
+  ]
+}

@@ -16,6 +16,14 @@ build/
 dist/
 out/
 
+# Bridgebuilder ships its compiled dist to submodule consumers
+# (#607: multi-model-pipeline.js and other newer modules were getting
+# silently ignored by the `dist/` pattern above, causing ERR_MODULE_NOT_FOUND
+# when the skill runs from a submodule consumer). The skill's dist/ IS
+# shipping infrastructure — un-ignore it explicitly.
+!.claude/skills/bridgebuilder-review/dist/
+!.claude/skills/bridgebuilder-review/dist/**
+
 # Environment variables
 .env
 .env.local

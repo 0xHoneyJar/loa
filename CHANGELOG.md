@@ -14,13 +14,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **`/loa-setup` Step 5** (`.claude/commands/loa-setup.md`): an optional AskUserQuestion step offering to install the default construct bundle, choose a different pack, or skip. The summary's "Browse packs: /constructs" line is now gated to projects where constructs are actually in use.
   - **Five new connectivity scripts** in `.claude/scripts/`:
     - `construct-compose.sh` — composition pipe runner with chain-build-time type compatibility checks (Signal / Verdict / Artifact / Intent / Operator-Model)
-    - `construct-invoke.sh` — paired entry/exit trajectory emission with session_id matching
+    - `construct-invoke.sh` — paired entry/exit trajectory emission with session_id matching (explicit value-passing recommended; temp-file fallback deprecated and tracked in [#636](https://github.com/0xHoneyJar/loa/issues/636))
     - `construct-validate.sh` — pre-install / pre-publish manifest linter emitting Verdict-typed findings
     - `stream-validate.sh` — JSON-Schema validator for the five canonical stream types (full Draft-07 via python3+jsonschema, jq fallback otherwise)
     - `butterfreezone-construct-gen.sh` — per-pack `CONSTRUCT-README.md` generator, idempotent modulo an opt-in timestamp footer
   - **Five new schemas** at `.claude/schemas/{signal,verdict,artifact,intent,operator-model}.schema.json` — the typed-stream primitives. All schemas use `additionalProperties: true` so authors can extend.
   - **One new skill**: `.claude/skills/validating-construct-manifest/` — wraps `construct-validate.sh` with skill metadata.
-  - **84 new BATS tests** across 5 files (`tests/unit/construct-{validate,compose,invoke}.bats`, `tests/unit/stream-validate.bats`, `tests/unit/butterfreezone-construct-gen.bats`) covering happy paths, failure modes, JSON output shape, and idempotency.
+  - **94 new BATS tests** across 5 files (`tests/unit/construct-{validate,compose,invoke}.bats`, `tests/unit/stream-validate.bats`, `tests/unit/butterfreezone-construct-gen.bats`) plus 1 opt-in characterization test (`LOA_TEST_DOCUMENT_RACE=1`). Covers happy paths, failure modes, JSON output shape, idempotency, race-resistance under explicit session_id passing.
+  - **Six-iteration kaironic Bridgebuilder review** drove three rounds of hardening: tool-skip guards, strict assertions over permissive escapes, end-to-end schema dogfooding, race-condition mitigation with explicit value-passing as the recommended path. Final iter clean modulo the residual race tracked in [#636](https://github.com/0xHoneyJar/loa/issues/636).
+
+## [1.102.0] — 2026-04-25 — Cycle-093 stabilization (sprints 1–3A)
+
+Three Tier-1 silent-failure issues closed plus the keystone health-probe foundation. The probe is implemented and tested but not yet wired into runtime — sprint-3B (resilience + CI workflows + runtime integration) and sprint-4 (registry currency + E2E gate) follow.
+
+### Added
+
+- **Provider health-probe foundation** (T2.2 part 1, sprint-3A) — `.claude/scripts/model-health-probe.sh` (1146+ lines) classifies each registered model as `AVAILABLE | UNAVAILABLE | UNKNOWN` against live provider APIs. Three per-provider adapters (OpenAI `/v1/models`, Google `/v1beta/models`, Anthropic `POST /v1/messages` with `max_tokens:1`), explicit state machine, atomic-write JSON cache (`temp + fsync + mv` under `flock`), lock-free reader retry, per-provider PID sentinel for background-probe dedup, hard-stop budget enforcement (10 probes/run, $0.05 cost cap, 120s total / 30s per call — each emits a `budget_hardstop` trajectory event before exit 5), `--canary` non-blocking smoke mode, `LOA_PROBE_LEGACY_BEHAVIOR=1` emergency fallback with mandatory `probe_legacy_bypass` audit-log entry, env-overridable cache/trajectory/audit paths for hermetic testing. 54 BATS tests (45 main + 8 hardstop + 1 iter-3 regression guard).
+- **Spiral harness adversarial wiring** (T1.1, sprint-1, [#605](https://github.com/0xHoneyJar/loa/issues/605)) — `_run_adversarial_dissent` post-hoc dispatch in `spiral-harness.sh::_gate_review`/`_gate_audit`. Closes the silent no-op gap where `flatline_protocol.code_review.enabled: true` was set but no adversarial pass actually ran.
+- **Bridgebuilder dist artifacts now committed** (T1.2, sprint-2, [#607](https://github.com/0xHoneyJar/loa/issues/607)) — un-ignored `.claude/skills/bridgebuilder-review/dist/` and force-added 36 compiled JS/d.ts/map files. Closes the `ERR_MODULE_NOT_FOUND` failure on first invocation in fresh clones.
+- **Dissenter hallucination filter** (T1.3, sprint-2, [#618](https://github.com/0xHoneyJar/loa/issues/618)) — bidirectional token-match semantics in `adversarial-review.sh` that downgrade dissenter findings claiming `{{DOCUMENT_CONTENT}}` tokens absent from the diff. 6 normalization variants + 15 BATS tests. Earns its keep immediately: caught 2 false-positive hallucinations during sprint-3A's own kaironic Bridgebuilder review.
+
+### Fixed
+
+- **SKP-001 — Anthropic ambiguous-4xx → UNKNOWN** (sprint-3A) — `_probe_anthropic` now rejects any `4xx` lacking explicit `model`-field reference instead of misclassifying as `AVAILABLE`. Two paired regression tests enforce the discriminator.
+- **Anthropic `anthropic-version` header on `/v1/messages`** (sprint-3A iter-3, Audit L-1, [PR #624](https://github.com/0xHoneyJar/loa/pull/624)) — `_curl_json` now appends `header = "anthropic-version: 2023-06-01"` to the secure tempfile when `auth_type=x-api-key`. Without this, every live Anthropic probe degraded to `UNKNOWN`. Static-grep BATS regression guard prevents accidental removal.
+- **Google API key no longer in URL query string** (sprint-3A audit M-1) — `_probe_google` switched to header-only auth (`x-goog-api-key`). The previous `?key=` query parameter leaked via `ps aux`, proxy logs, and CDN access logs.
+- **Hermetic test isolation** (sprint-3A Bridgebuilder iter-1 F8/F-002/F-003) — `LOA_TRAJECTORY_DIR` and `LOA_AUDIT_LOG` env-var overrides on the probe; tests point them at `$TEST_DIR`. Prior tests asserted against `$PROJECT_ROOT/.run/` and could false-pass on stale entries.
+- **`adversarial-review-hallucination-filter.bats` portability** (sprint-2 Bridgebuilder iter-2 HIGH) — replaced hard-coded `/home/merlin/Documents/thj/code/loa/...` path with `$BATS_TEST_FILENAME`-relative resolution. Test now portable for other contributors and CI.
+
+### Quality gates
+
+- **53 + 1 new BATS tests** for sprint-3A; 84 existing adversarial-review and hallucination-filter tests pass with no regression.
+- **Bridgebuilder kaironic review**: 4 iterations, ~$0.05 total. Iter-1 found 3 sprint-3A `MEDIUM` (closed). Iter-2 surfaced 1 sprint-2 `HIGH` (hardcoded path, closed). Iter-3 surfaced 1 `BLOCKING` (anthropic-version header, closed). Iter-4 clean (0 findings).
+- **Adversarial cross-model review** (GPT-5.3-codex via `adversarial-review.sh`) on sprint-3A produced 2 findings, both correctly downgraded by the new sprint-2 hallucination filter — meta-validation of T1.3 within the same release.
+
+### Notes
+
+- Probe is **dead code on `main`** until sprint-3B wires it into `model-adapter.sh` runtime. No production behavior change for operators on this release except for closing #605/#607/#618. Operators currently relying on the hand-allowlist behavior remain unaffected.
+- Tracked follow-ups for sprint-3B: bash error UX on unwritable `--cache-path` (audit L-2), dead `_redact_secrets` cleanup (L-3), sed-based BATS test sourcing pattern (structural, project-wide).
 
 ## [1.101.0] — 2026-04-19 — Spiral SEED environment gate
 

@@ -630,6 +630,120 @@ process_findings() {
 }
 
 # =============================================================================
+# Dissenter Hallucination Filter — cycle-093 T1.3 / #618
+# =============================================================================
+# Certain dissenter models (notably gpt-5.2 in ampersand-adjacent bash/TS
+# contexts) hallucinate literal `{{DOCUMENT_CONTENT}}` tokens into findings
+# that never appeared in the source. At 50% rate on shell/TS diffs this
+# drives ~10 min/review of manual triage per the #618 field report.
+#
+# This filter applies bidirectional token-match semantics per Flatline IMP-003:
+#
+#   | Diff contains token | Finding contains token | Action                      |
+#   |---------------------|------------------------|-----------------------------|
+#   | No                  | Yes                    | Downgrade to ADVISORY       |
+#   | No                  | No                     | No-op                       |
+#   | Yes                 | Yes                    | No-op (legitimate doc/tpl)  |
+#   | Yes                 | No                     | No-op                       |
+#
+# Normalization per SDD §3.7 recognizes variants the model emits:
+# canonical, escaped ({{DOCUMENT_CONTENT}}, \{\{DOCUMENT_CONTENT\}\}),
+# spaced ({{ DOCUMENT_CONTENT }}), case variants, and bare DOCUMENT_CONTENT
+# token outside braces.
+
+# _normalize_doc_content_tokens — stdin → stdout
+# Normalizes escape/spacing/case variants to canonical {{DOCUMENT_CONTENT}}.
+_normalize_doc_content_tokens() {
+    sed -E '
+        s/\\\{\\\{/{{/g;
+        s/\\\}\\\}/}}/g;
+        s/\{\{[[:space:]]*([Dd][Oo][Cc][Uu][Mm][Ee][Nn][Tt]_[Cc][Oo][Nn][Tt][Ee][Nn][Tt])[[:space:]]*\}\}/{{DOCUMENT_CONTENT}}/g;
+    '
+}
+
+# _text_contains_doc_content_token <text> — returns 0 if any variant present
+_text_contains_doc_content_token() {
+    local text="$1"
+    local normalized
+    normalized=$(printf '%s' "$text" | _normalize_doc_content_tokens)
+    # Match canonical brace form OR bare-word DOCUMENT_CONTENT (case-insensitive)
+    echo "$normalized" | grep -qiE '\{\{DOCUMENT_CONTENT\}\}|\bDOCUMENT_CONTENT\b'
+}
+
+# _apply_hallucination_filter <process_findings_result> <diff_file_path>
+# → stdout: modified result with suspect findings downgraded.
+# Non-fatal on all errors: on any failure, returns input unchanged (safe default).
+_apply_hallucination_filter() {
+    local result="$1"
+    local diff_file="$2"
+
+    # Defensive: missing diff file → return unmodified
+    if [[ -z "$diff_file" ]] || [[ ! -f "$diff_file" ]]; then
+        printf '%s' "$result"
+        return 0
+    fi
+
+    # Short-circuit: no findings → nothing to filter
+    local finding_count
+    finding_count=$(echo "$result" | jq '.findings | length' 2>/dev/null || echo "0")
+    if [[ "$finding_count" == "0" ]]; then
+        printf '%s' "$result"
+        return 0
+    fi
+
+    # Check if diff legitimately contains the token (handles docs/templates that discuss it)
+    local diff_has_token="false"
+    if _text_contains_doc_content_token "$(cat "$diff_file")"; then
+        diff_has_token="true"
+    fi
+
+    # If diff DIRTY, any finding mentioning the token could be legitimate — no-op
+    if [[ "$diff_has_token" == "true" ]]; then
+        printf '%s' "$result"
+        return 0
+    fi
+
+    # Diff CLEAN: iterate findings, downgrade any that mention the token family
+    local filtered='[]'
+    local downgrade_count=0
+    local i=0
+    while [[ $i -lt $finding_count ]]; do
+        local finding description suggested_fix combined
+        finding=$(echo "$result" | jq ".findings[$i]")
+        description=$(echo "$finding" | jq -r '.description // ""')
+        suggested_fix=$(echo "$finding" | jq -r '.suggested_fix // ""')
+        combined="$description $suggested_fix"
+
+        if _text_contains_doc_content_token "$combined"; then
+            # Downgrade: severity → ADVISORY, category → MODEL_ARTEFACT_SUSPECTED,
+            # prefix description with downgrade marker so reviewers see it fired
+            finding=$(echo "$finding" | jq '
+                .severity = "ADVISORY"
+                | .category = "MODEL_ARTEFACT_SUSPECTED"
+                | .description = "[downgraded: dissenter-output contained {{DOCUMENT_CONTENT}} token that is absent from the diff] " + (.description // "")
+            ')
+            downgrade_count=$((downgrade_count + 1))
+        fi
+
+        filtered=$(echo "$filtered" | jq --argjson f "$finding" '. + [$f]')
+        i=$((i + 1))
+    done
+
+    if [[ "$downgrade_count" -gt 0 ]]; then
+        log "Hallucination filter downgraded $downgrade_count finding(s) to ADVISORY (#618 mitigation)"
+        result=$(echo "$result" | jq \
+            --argjson filtered "$filtered" \
+            --argjson downgraded "$downgrade_count" \
+            '.findings = $filtered
+             | .metadata.hallucination_filter = {applied: true, downgraded: $downgraded}')
+    else
+        result=$(echo "$result" | jq '.metadata.hallucination_filter = {applied: true, downgraded: 0}')
+    fi
+
+    printf '%s' "$result"
+}
+
+# =============================================================================
 # Finding ID Computation (unified — Bridgebuilder Review Finding #2)
 # =============================================================================
 # Single function, single scheme (sha256), used by all code paths.
@@ -925,6 +1039,12 @@ main() {
   # Process findings (4-state machine)
   local result
   result=$(process_findings "$raw_response" "$type" "$model" "$sprint_id" "$api_exit" "$diff_files")
+
+  # cycle-093 T1.3 (#618): post-process hallucination filter.
+  # Downgrades findings that reference `{{DOCUMENT_CONTENT}}`-family tokens
+  # absent from the source diff. Bidirectional + normalization per SDD §3.7.
+  # Non-fatal: on any error or missing diff, returns input unchanged.
+  result=$(_apply_hallucination_filter "$result" "$diff_file")
 
   # Write output
   write_output "$result" "$sprint_id" "$type"

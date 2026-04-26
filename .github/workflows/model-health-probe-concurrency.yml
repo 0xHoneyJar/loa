@@ -1,0 +1,85 @@
+name: Model Health Probe — Concurrency Stress (matrix)
+
+# Sprint 3B Task 3B.concurrency_stress + Task 3B.platform_matrix
+# Closes Flatline sprint-review SKP-004 HIGH (concurrency fragility on macOS).
+# Runs the cache atomic-write + PID-sentinel stress tests on Ubuntu + macOS.
+
+on:
+  pull_request:
+    paths:
+      - '.claude/scripts/model-health-probe.sh'
+      - '.claude/scripts/lib/secret-redaction.sh'
+      - 'tests/integration/model-health-probe-concurrency.bats'
+      - '.github/workflows/model-health-probe-concurrency.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.claude/scripts/model-health-probe.sh'
+      - '.claude/scripts/lib/secret-redaction.sh'
+      - 'tests/integration/model-health-probe-concurrency.bats'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: model-health-probe-concurrency-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  stress:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+
+      - name: Install bats (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y bats jq
+
+      - name: Install bats + flock (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install bats-core jq util-linux
+          echo "/opt/homebrew/opt/util-linux/bin" >> "$GITHUB_PATH"
+          echo "/usr/local/opt/util-linux/bin" >> "$GITHUB_PATH"
+
+      - name: Verify flock availability
+        run: |
+          which flock
+          flock --version || flock -V
+
+      - name: Run concurrency stress tests
+        run: |
+          chmod +x .claude/scripts/model-health-probe.sh
+          bats tests/integration/model-health-probe-concurrency.bats
+
+      - name: Run resilience unit tests (sanity)
+        run: |
+          bats tests/unit/model-health-probe-resilience.bats
+
+      - name: Run secret-redaction unit tests
+        run: |
+          bats tests/unit/secret-redaction.bats
+
+      - name: Post-job secret scanner — TruffleHog (Flatline SKP-005, primary)
+        if: always() && matrix.os == 'ubuntu-latest'    # avoid double-running on macOS matrix leg
+        uses: trufflesecurity/trufflehog@7f4e37db2d928c18ddd7ddf0604f8f7d1f5793ec  # v3.93.0
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --only-verified
+
+      - name: Post-job secret scanner — GitLeaks (Flatline SKP-005, conditional)
+        if: always() && matrix.os == 'ubuntu-latest' && env.GITLEAKS_LICENSE != ''
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7  # v2.3.9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
