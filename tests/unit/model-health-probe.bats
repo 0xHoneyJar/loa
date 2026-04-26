@@ -27,9 +27,13 @@ setup() {
     # Default: mock mode on
     export LOA_PROBE_MOCK_MODE=1
 
-    # Source the script functions (without running main)
+    # Source the script functions (without running main).
+    # The probe's `if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then main "$@"; fi`
+    # guard at the bottom prevents main() from running when sourced. Top-level
+    # statements (variable initializations, set -euo pipefail) are pure
+    # declarations with no I/O side effects — safe under `source`.
     # shellcheck disable=SC1090
-    eval "$(sed 's|^if \[\[ "${BASH_SOURCE\[0\]}" == "${0}" \]\]; then$|if false; then|' "$PROBE")"
+    source "$PROBE"
 
     # Override trajectory dir so test writes stay in TEST_DIR
     TRAJECTORY_DIR="$TEST_DIR/trajectory"
@@ -236,9 +240,8 @@ teardown() {
     # for a dead sentinel, the sentinel file should NOT still contain 99999999.
     # We run the function in a subshell that immediately exits to avoid actual spawn.
     LOA_PROBE_MOCK_MODE=1 \
-        bash -c 'cd '"$PROJECT_ROOT"'; \
-            eval "$(sed '"'"'s|^if \[\[ \"${BASH_SOURCE\[0\]}\" == \"${0}\" \]\]; then$|if false; then|'"'"' '"$PROBE"')"; \
-            LOA_CACHE_DIR='"$TEST_DIR"' _spawn_bg_probe_if_none_running openai' &
+        bash -c 'cd "$0"; source "$1"; LOA_CACHE_DIR="$2" _spawn_bg_probe_if_none_running openai' \
+        "$PROJECT_ROOT" "$PROBE" "$TEST_DIR" &
     wait
     # Sentinel may be replaced with new PID or removed. Either way, 99999999 should be gone.
     if [[ -f "$sentinel" ]]; then

@@ -33,10 +33,10 @@ model_health_probe:
 EOF
     export LOA_CONFIG="$HERMETIC_CONFIG"
 
-    # Source the probe script (sed strips the main-runner guard so functions
-    # are available without invoking main).
+    # Source the probe script. The probe's BASH_SOURCE main-guard at the
+    # bottom prevents main() from running on source.
     # shellcheck disable=SC1090
-    eval "$(sed 's|^if \[\[ "${BASH_SOURCE\[0\]}" == "${0}" \]\]; then$|if false; then|' "$PROBE")"
+    source "$PROBE"
 
     # Override script-internal constants so writes stay in TEST_DIR.
     TRAJECTORY_DIR="$TEST_DIR/trajectory"

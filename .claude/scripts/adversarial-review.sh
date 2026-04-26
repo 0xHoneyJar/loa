@@ -671,23 +671,36 @@ _text_contains_doc_content_token() {
 }
 
 # _apply_hallucination_filter <process_findings_result> <diff_file_path>
-# → stdout: modified result with suspect findings downgraded.
+# → stdout: modified result with suspect findings downgraded, AND with
+#   `metadata.hallucination_filter` ALWAYS populated (cycle-094 G-6).
 # Non-fatal on all errors: on any failure, returns input unchanged (safe default).
+#
+# Metadata schema:
+#   metadata.hallucination_filter = {
+#     applied: bool,             // did the filter traverse findings?
+#     downgraded: int,           // number of findings downgraded (0 if !applied)
+#     reason: string (optional)  // present when applied=false; one of:
+#                                //   "no_diff_file", "no_findings", "diff_contains_token"
+#   }
 _apply_hallucination_filter() {
     local result="$1"
     local diff_file="$2"
 
-    # Defensive: missing diff file → return unmodified
+    # Defensive: missing diff file → emit metadata with reason, return.
+    # G-6 (cycle-094): metadata is always present on the result; absence
+    # was previously ambiguous between "filter not run" and "filter ran with
+    # no downgrades". Now `applied: false, reason: "no_diff_file"` makes
+    # the early-return state legible.
     if [[ -z "$diff_file" ]] || [[ ! -f "$diff_file" ]]; then
-        printf '%s' "$result"
+        printf '%s' "$result" | jq '.metadata.hallucination_filter = {applied: false, downgraded: 0, reason: "no_diff_file"}'
         return 0
     fi
 
-    # Short-circuit: no findings → nothing to filter
+    # Short-circuit: no findings → nothing to filter, but emit metadata.
     local finding_count
     finding_count=$(echo "$result" | jq '.findings | length' 2>/dev/null || echo "0")
     if [[ "$finding_count" == "0" ]]; then
-        printf '%s' "$result"
+        printf '%s' "$result" | jq '.metadata.hallucination_filter = {applied: false, downgraded: 0, reason: "no_findings"}'
         return 0
     fi
 
@@ -697,9 +710,12 @@ _apply_hallucination_filter() {
         diff_has_token="true"
     fi
 
-    # If diff DIRTY, any finding mentioning the token could be legitimate — no-op
+    # If diff DIRTY, any finding mentioning the token could be legitimate —
+    # no-op on findings, but emit metadata so downstream consumers can
+    # distinguish "filter ran and decided not to downgrade" from
+    # "filter never ran".
     if [[ "$diff_has_token" == "true" ]]; then
-        printf '%s' "$result"
+        printf '%s' "$result" | jq '.metadata.hallucination_filter = {applied: false, downgraded: 0, reason: "diff_contains_token"}'
         return 0
     fi
 

@@ -128,6 +128,58 @@ setup() {
 }
 
 # -----------------------------------------------------------------------------
+# G-7 (cycle-094 sprint-2): Cross-file key invariant. The hand-maintained
+# MODEL_TO_PROVIDER_ID in red-team-model-adapter.sh is the FALLBACK seam from
+# the SSOT plan: instead of refactoring the adapter to source generated maps
+# (which would require adding red-team-only aliases like "gpt", "gemini",
+# "kimi", "qwen" to model-config.yaml), we tighten the invariant test to
+# catch provider-drift between the two files.
+#
+# Invariant: for every key K shared between MODEL_TO_PROVIDER_ID (red-team
+# adapter) and MODEL_PROVIDERS (generated from YAML), the provider component
+# of the red-team value MUST equal MODEL_PROVIDERS[K].
+#
+# Catches drift like: generator says `opus → anthropic`, adapter says
+# `opus → openai:gpt-5.3-codex`. Pre-G-7 the values-only test would not
+# catch a key mismatch — only that "openai:gpt-5.3-codex" is a real pair.
+# -----------------------------------------------------------------------------
+@test "red-team: shared keys agree on provider with generated MODEL_PROVIDERS (G-7)" {
+    # shellcheck disable=SC1090
+    source "$GENERATED"
+
+    # Parse keys + values from red-team adapter's MODEL_TO_PROVIDER_ID block.
+    # Form: ["alias"]="provider:model-id"  (each entry on its own line)
+    local mismatches=()
+    while IFS= read -r line; do
+        # Match the bash assoc-array entry shape:  ["KEY"]="VALUE"
+        local key value
+        if [[ "$line" =~ ^[[:space:]]*\[\"([^\"]+)\"\]=\"([^\"]+)\"[[:space:]]*$ ]]; then
+            key="${BASH_REMATCH[1]}"
+            value="${BASH_REMATCH[2]}"
+        else
+            continue
+        fi
+        local rt_provider="${value%%:*}"
+
+        # Only validate keys that ALSO exist in the generated MODEL_PROVIDERS.
+        # Red-team-only aliases (gpt, gemini, kimi, qwen) are intentionally
+        # not in the generated map; skip them.
+        if [[ -n "${MODEL_PROVIDERS[$key]+x}" ]]; then
+            local gen_provider="${MODEL_PROVIDERS[$key]}"
+            if [[ "$rt_provider" != "$gen_provider" ]]; then
+                mismatches+=("$key: red-team='$rt_provider' vs generated='$gen_provider'")
+            fi
+        fi
+    done < <(awk '/^declare -A MODEL_TO_PROVIDER_ID=\(/,/^\)/' "$REDTEAM")
+
+    if (( ${#mismatches[@]} > 0 )); then
+        printf 'Provider drift between red-team adapter and generated map:\n' >&2
+        printf '  %s\n' "${mismatches[@]}" >&2
+        return 1
+    fi
+}
+
+# -----------------------------------------------------------------------------
 # Stable sort + dedupe ordering (deterministic invariant)
 # -----------------------------------------------------------------------------
 @test "generator: VALID_FLATLINE_MODELS is sorted and deduplicated" {

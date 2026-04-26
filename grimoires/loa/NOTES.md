@@ -1,5 +1,82 @@
 # Loa Project Notes
 
+## Decision Log — 2026-04-26 (cycle-094 sprint-2 — test infra + filter + SSOT close-out)
+
+### Sprint-2 closure (T2.1 + T2.2 + T2.3 + T2.4)
+
+- **Branch**: `feature/cycle-094-sprint-2-test-infra-filter-ssot`
+- **Built on**: cycle-094 sprint-1 (#632 merged at 7ae3a12); cycle-005 + cycle-006 onramp (#617 merged at 43b9fe1)
+
+#### G-5 (T2.1): Native source pattern — replaced sed-strip eval
+
+The sed-strip pattern in 4 bats files (`tests/unit/model-health-probe.bats`, `model-health-probe-resilience.bats`, `secret-redaction.bats`, plus the inline pid-sentinel test) was REDUNDANT — the probe script's `if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then main "$@"; fi` guard at the bottom of `model-health-probe.sh` already prevents `main()` from running when sourced. Top-level statements (`set -euo pipefail`, variable initializations) are pure declarations with no I/O side effects, safe under `source`.
+
+Verified by direct probe: `bash -c 'source .claude/scripts/model-health-probe.sh; echo $MODEL_HEALTH_PROBE_VERSION; type _transition'` → variables set, functions defined, no `main()` execution.
+
+The G-4 canonical-guard pin test in `secret-redaction.bats` was retained as the safety net — any restructure of the BASH_SOURCE comparison would break that one focused test instead of silently letting tests source the probe AND run main.
+
+#### G-6 (T2.2): Hallucination filter metadata always-on
+
+`_apply_hallucination_filter()` in `.claude/scripts/adversarial-review.sh` had three early-return paths that wrote NO metadata, leaving consumers unable to distinguish "filter ran with 0 downgrades" from "filter never ran". Closes by emitting `metadata.hallucination_filter` on every code path:
+
+| Path | applied | downgraded | reason |
+|------|---------|------------|--------|
+| Missing diff file | false | 0 | `no_diff_file` |
+| Empty findings | false | 0 | `no_findings` |
+| Diff legitimately contains the token | false | 0 | `diff_contains_token` |
+| Findings traversed, none downgraded | true | 0 | (omitted) |
+| Findings traversed, N downgraded | true | N | (omitted) |
+
+Two new G-6 BATS tests in `tests/unit/adversarial-review-hallucination-filter.bats`:
+- One enumerates every code path and asserts the metadata shape
+- One satisfies the verbatim AC: "synthetic clean diff + planted finding with `{{DOCUMENT_CONTENT}}` token → metadata.hallucination_filter.applied == true"
+
+Updated existing Q3 test (line 124) to assert the new metadata-present behavior — previously it asserted absence as the documented short-circuit semantic.
+
+#### G-7 (T2.3): SSOT — fallback path (invariant tightening)
+
+The plan offered two paths:
+1. Refactor `red-team-model-adapter.sh` to source generated-model-maps.sh
+2. Fallback: keep hand-maintained `MODEL_TO_PROVIDER_ID` + tighten the cross-file invariant test
+
+Took path 2. Path 1 would require adding red-team-only aliases (`gpt`, `gemini`, `kimi`, `qwen`) to `model-config.yaml`, which expands the YAML's role beyond its current "production-pricing-canonical" scope. Disproportionate to the goal.
+
+Tightened `tests/integration/model-registry-sync.bats` with a new G-7 test that catches provider drift between the two files. For every key K shared between the red-team adapter's `MODEL_TO_PROVIDER_ID` and the generated `MODEL_PROVIDERS`, the provider component of the red-team value MUST equal `MODEL_PROVIDERS[K]`. Pre-G-7, the values-only test could not catch a key mismatch — only that "openai:gpt-5.3-codex" was a real provider:model-id pair.
+
+#### G-E2E (T2.4): Fork-PR no-keys smoke
+
+Smoke command (local, fork-PR-equivalent):
+
+```bash
+env -i PATH="$PATH" HOME="$HOME" PROJECT_ROOT="$(pwd)" \
+    LOA_CACHE_DIR="$(mktemp -d)" \
+    LOA_TRAJECTORY_DIR="$(mktemp -d)" \
+    .claude/scripts/model-health-probe.sh --once --output json --quiet | \
+  jq '{summary, entry_count: (.entries | length)}'
+```
+
+Expected output:
+
+```json
+{
+  "summary": {
+    "available": 0,
+    "unavailable": 0,
+    "unknown": 12,
+    "skipped": true
+  },
+  "entry_count": 12
+}
+```
+
+Exit code: 0. The G-1 fix from cycle-094 sprint-1 (no-key probes don't increment cost/probe counters) is what makes this work; without it, the iterative no-key probes would have tripped the 5-cent cost hardstop and exited 5.
+
+CI verification path: `.github/workflows/model-health-probe.yml` lines 98-103 short-circuit at the workflow level when no provider keys are in the env (fork PRs, fresh forks, repos without org secrets). It writes a sentinel JSON `{"summary":{...,"skipped":true},"entries":{},"reason":"no_api_keys"}` and exits 0. The script-side path verified above is the redundant second-defense — both layers handle no-keys gracefully.
+
+Direct CI re-run on a fork-shaped PR is intentionally out-of-scope: the workflow only triggers on `pull_request` (no `workflow_dispatch`), and forking from a fresh-secrets repo would require infra setup beyond this sprint. The local smoke + workflow-YAML code-inspection covers the AC.
+
+---
+
 ## Decision Log — 2026-04-25 (cycle-093 sprint-4 — E2E goal validation)
 
 ### Sprint-4 closure (T2.1 + T2.3 + T3.1 + T4.E2E)

@@ -228,9 +228,12 @@ qrstuvwxABCDEFGH
 @test "G-4: probe-sourced _redact_secrets is the lib implementation" {
     # When the probe is loaded into a shell, _redact_secrets must come from the
     # library. Verify it has the lib's idempotency sentinel after sourcing.
+    # G-5 (sprint-2): native source replaces the cycle-094 sed-strip pattern.
+    # The probe's BASH_SOURCE main-guard at the bottom of the file prevents
+    # main() from running.
     local probe="$PROJECT_ROOT/.claude/scripts/model-health-probe.sh"
     # shellcheck disable=SC1090
-    eval "$(sed 's|^if \[\[ "${BASH_SOURCE\[0\]}" == "${0}" \]\]; then$|if false; then|' "$probe")"
+    source "$probe"
     [[ -n "${_LOA_SECRET_REDACTION_SOURCED:-}" ]]
     # And the function still works
     local out
@@ -239,17 +242,21 @@ qrstuvwxABCDEFGH
 }
 
 # -----------------------------------------------------------------------------
-# G-4 (Bridgebuilder F2): the probe-sourcing trick used by the test above
-# rewrites a specific guard line via sed. Pin the canonical guard text so
-# any future restructure of the probe's main-vs-sourced gate breaks one
-# focused test instead of silently passing the G-4 regression assertions.
-# When this test fails, update the sed pattern in the test setup AND the
-# canonical text below in lockstep.
+# G-4 (Bridgebuilder F2): native `source` of the probe relies on the
+# main-guard at the bottom of model-health-probe.sh to prevent main() from
+# running. Pin the canonical guard text so any future restructure that
+# changes the guard's anchor or comparison form breaks this one focused
+# test instead of silently letting tests source the probe AND run main.
+#
+# Cycle-094 sprint-2 G-5 replaced the sed-rewrite source pattern with
+# native `source`; the canonical-guard assertion below is the safety net
+# that catches drift in the gate.
 # -----------------------------------------------------------------------------
 @test "G-4: probe still carries the canonical 'BASH_SOURCE == 0' main-script guard" {
     local probe="$PROJECT_ROOT/.claude/scripts/model-health-probe.sh"
-    # The sed pattern in the source-without-execute trick targets this exact
-    # line at the start of a line (anchored with ^...$). Loosening either side
-    # of the match would silently disarm the trick across the test suite.
+    # The native-source pattern in the bats setup blocks depends on this
+    # exact line at the start of a line (anchored with ^...$). Loosening
+    # either side of the match would silently disarm the gate across the
+    # test suite — main() would run during source.
     grep -qxE 'if \[\[ "\$\{BASH_SOURCE\[0\]\}" == "\$\{0\}" \]\]; then' "$probe"
 }
