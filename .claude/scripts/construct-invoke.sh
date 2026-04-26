@@ -13,9 +13,7 @@
 #   0 = success (JSONL write failure is non-fatal — logs warning)
 #   1 = invalid subcommand
 #
-# SEED: grimoires/loa-constructs-seed-2026-04-21/SEED-loa-constructs-infrastructure-cycle.md
-# Leg D: Construct Trajectory Emission
-# Cycle: loa-constructs-cycle-001
+# Cycle: loa-constructs-cycle-001 (Leg D — Construct Trajectory Emission)
 # =============================================================================
 
 set -euo pipefail

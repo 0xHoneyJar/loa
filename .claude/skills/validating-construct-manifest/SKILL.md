@@ -1,11 +1,11 @@
 ---
 name: validating-construct-manifest
-description: Pre-install / pre-publish manifest linter for construct packs. Emits Verdict stream rows on findings. Gates `constructs install` and `constructs publish` against F28-class breakage and SEED §12 grimoires-convention drift.
+description: Pre-install / pre-publish manifest linter for construct packs. Emits Verdict stream rows on findings. Checks required manifest fields, path resolution, route declarations, and the CLAUDE.md grimoires-section convention.
 ---
 
 # Validating Construct Manifest
 
-> Caught at install-time is cheap. Caught at publish-time still cheap. Caught by an operator at `/feel` not resolving is expensive.
+> Caught at install-time is cheap. Caught at publish-time still cheap. Caught by an operator at a slash command not resolving is expensive.
 
 ## Purpose
 
@@ -13,11 +13,19 @@ Validate a construct pack directory before it lands in a registry or a local ins
 
 1. **Required-field gates** — missing `schema_version`, `slug`, `name`, `version`, `description` in `construct.yaml`
 2. **Path resolution** — `skills[].path` and `commands[].path` entries that don't resolve
-3. **F28 closure** — pack declares neither `commands:` nor persona handles (operator can only route by slug/name)
-4. **Stream declarations** — empty `reads:` / `writes:` arrays (doctrine §3 pipe compatibility is ambiguous)
-5. **SEED §12 grimoires convention** — `CLAUDE.md` must contain an explicit `grimoires/<path>` read/write declaration; known drift surfaces here
+3. **Route declaration** — pack declares neither `commands:` nor persona handles, so an operator can only route by slug/name (skill bindings unreachable)
+4. **Stream declarations** — empty `reads:` / `writes:` arrays make pipe composition ambiguous
+5. **Grimoires-section convention** — `CLAUDE.md` must contain an explicit `grimoires/<path>` read/write declaration so the pack's interface contract is legible
 
-Each finding is a **Verdict stream row** (doctrine §3.2) — severity-tagged, evidence-cited, pipeable downstream.
+Each finding is a **Verdict stream row** — severity-tagged, evidence-cited, pipeable downstream into another construct or a CI lint job.
+
+## Concepts referenced by these checks
+
+The validator's checks operationalize three conventions used by the construct typed-stream model:
+
+- **Typed streams**: stream rows carry `stream_type`, `schema_version`, `timestamp`, `source`. The five canonical stream types — `Signal`, `Verdict`, `Artifact`, `Intent`, `Operator-Model` — have schemas at `.claude/schemas/<type>.schema.json`. Packs declare which stream types they `reads:` and `writes:` so a composition runner can verify pipe compatibility before stages execute.
+- **Route declaration (Check 5)**: a pack must expose at least one *operator-callable* entry point — either via the `commands:` array in `construct.yaml`, or via a persona definition (a `personas:` list in `construct.yaml`, or `identity/<HANDLE>.md` files where `<HANDLE>` is uppercase). Without either, the operator can't dispatch into the pack's skills directly. This was a routing-gap class of breakage observed during cycle-004.
+- **Grimoires-section convention (Check 7)**: the pack's `CLAUDE.md` is the operator-facing description, and the `grimoires/<path>` declarations in it are the pack's interface contract — they tell every other construct in the network what state this pack reads and writes. CLAUDE.md without a grimoires section means the pack is opaque to composition planning.
 
 ## Invocation
 
@@ -30,16 +38,16 @@ Each finding is a **Verdict stream row** (doctrine §3.2) — severity-tagged, e
 
 Install / publish integration:
 
-- `constructs-install.sh` calls the validator after license check. Findings print to the console. Set `LOA_STRICT_VALIDATION=1` to abort install on HIGH/CRITICAL.
-- `constructs-publish.sh` adds a `manifest_validate` check to the 10-point pre-publish report.
+- `constructs-install.sh` does **not yet** call this validator. Wiring it in (after the existing license check) is tracked for a follow-up cycle. Until then, run `construct-validate.sh` manually before publishing.
+- `constructs-publish.sh` (when it lands) is the natural integration point — a `manifest_validate` check fits cleanly in its pre-publish report.
 
 ## Severity tiers
 
-| Tier | Meaning | Install behavior | Publish behavior |
+| Tier | Meaning | Install behavior (when wired) | Publish behavior (when wired) |
 |------|---------|------------------|------------------|
 | `critical` | `construct.yaml` missing or unparseable | Always blocks | Always blocks |
 | `high`     | Required field missing / broken path | Warn by default, block with `LOA_STRICT_VALIDATION=1` | Blocks |
-| `medium`   | F28 route gap, §12 grimoires drift | Advisory | Advisory (unless `--strict`) |
+| `medium`   | Route gap, grimoires-section drift | Advisory | Advisory (unless `--strict`) |
 | `low`      | Empty stream declarations | Advisory | Advisory |
 | `info`     | All checks passed | — | — |
 
@@ -59,32 +67,30 @@ Every entry in `skills: [{path}]` must resolve to a directory (or symlink) under
 
 ### 4 · Command path resolution (`high`)
 
-Every entry in `commands: [{path}]` must resolve to a file. Rosenzu-class breakage (commands pointing at skill directories) surfaces here.
+Every entry in `commands: [{path}]` must resolve to a **file**. A common drift class is commands pointing at skill *directories* — that fails resolution at install time.
 
-### 5 · F28 route declaration (`medium`)
+### 5 · Route declaration (`medium`)
 
-If the pack declares no `commands:` AND no persona handles (either via `personas:` in yaml or `identity/<HANDLE>.md` filenames), the operator can only route by slug/name. This surfaces the gap that made `/feel` un-resolvable in cycle-004.
+If the pack declares no `commands:` AND no persona handles (either via `personas:` in yaml or `identity/<HANDLE>.md` filenames), the operator can only route by slug/name. Cycle-004 surfaced this as the gap that made certain commands unresolvable.
 
 ### 6 · Stream declarations (`low`)
 
-Per doctrine §3, packs should declare `reads:` and `writes:` stream types so the composition runner can verify pipe compatibility. Empty arrays are advisory-level.
+Packs should declare `reads:` and `writes:` stream types so the composition runner can verify pipe compatibility. Empty arrays are advisory-level — composition still runs, but with no edge-of-pipe type guarantee.
 
-### 7 · SEED §12 grimoires convention (`medium`)
+### 7 · Grimoires-section convention (`medium`)
 
-`CLAUDE.md` must reference `grimoires/<path>` AND include at least one of: `Writes to`, `Reads from`, `writes:`, `reads:`. This is the convention the `construct-base` template already enforces; installed packs that pre-date the template drifted.
-
-The canary here is `artisan` — its `construct.yaml` declares grimoire paths, but its `CLAUDE.md` does not mirror them. L6 butterfreezone adapter regenerates the missing section.
+`CLAUDE.md` must reference `grimoires/<path>` AND include at least one of: `Writes to`, `Reads from`, `writes:`, `reads:`. This is the convention the `construct-base` template enforces; installed packs that pre-date that template tend to drift.
 
 ## Output shape
 
 Default (human-readable):
 
 ```
-# construct-validate · /Users/.../packs/artisan
+# construct-validate · /path/to/packs/example-pack
   [low] [streams] construct declares no 'reads:' stream types — pipe composition will be ambiguous
-    → /Users/.../packs/artisan/construct.yaml
-  [medium] [grimoires_section] CLAUDE.md contains no grimoires/ path reference — SEED §12
-    → /Users/.../packs/artisan/CLAUDE.md
+    → /path/to/packs/example-pack/construct.yaml
+  [medium] [grimoires_section] CLAUDE.md contains no grimoires/ path reference
+    → /path/to/packs/example-pack/CLAUDE.md
 # worst: medium · total: 2
 ```
 
@@ -117,6 +123,5 @@ Downstream tools (e.g. `constructs-publish.sh`, dashboard surfaces, CI lint jobs
 
 - Script: `.claude/scripts/construct-validate.sh`
 - Schema: `.claude/schemas/verdict.schema.json`
-- Doctrine: `grimoires/loa-constructs-seed-2026-04-21/bonfire-construct-pipe-doctrine.md` §3.2, §14.2
-- SEED: `grimoires/loa-constructs-seed-2026-04-21/cycle-005-SEED-runtime-integration.md` L4 + §12
-- Sibling skills: `publishing-constructs`, `browsing-constructs`
+- Stream-type schemas: `.claude/schemas/{signal,verdict,artifact,intent,operator-model}.schema.json`
+- Sibling skills: `browsing-constructs` (existing). A `publishing-constructs` skill is referenced for forward composition; it lands in a follow-up cycle.

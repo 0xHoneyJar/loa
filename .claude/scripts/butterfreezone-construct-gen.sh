@@ -319,7 +319,7 @@ doc+='```'$'\n\n'
 doc+="## Provenance"$'\n\n'
 doc+="- Canonical spec: \`construct.yaml\`"$'\n'
 doc+="- Generator: \`.claude/scripts/butterfreezone-construct-gen.sh\`"$'\n'
-doc+="- Doctrine: \`bonfire-construct-pipe-doctrine.md\` §3 typed streams · §4 composition · §14.2 Operator-Model"$'\n'
+doc+="- Conventions: typed streams (Signal/Verdict/Artifact/Intent/Operator-Model) · composition pipes · grimoires-as-interface"$'\n'
 if (( WITH_TIMESTAMP )); then
   ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   doc+="- Generated at: $ts"$'\n'

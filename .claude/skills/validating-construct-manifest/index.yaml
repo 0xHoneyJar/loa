@@ -1,10 +1,12 @@
 name: validating-construct-manifest
 version: "1.0.0"
 description: |
-  Pre-install and pre-publish manifest linter for construct packs. Runs
-  F28-class checks (commands / personas declaration), SEED §12 grimoires
-  read/write convention check on CLAUDE.md, and required-field gates on
-  construct.yaml. Emits Verdict stream rows (doctrine §3.2) per finding.
+  Pre-install and pre-publish manifest linter for construct packs. Checks
+  required manifest fields, skill/command path resolution, route declaration
+  closure (a pack must expose either commands or personas, otherwise the
+  operator can only route by slug/name), stream declarations, and the
+  CLAUDE.md grimoires-section convention. Emits Verdict stream rows per
+  finding.
 
 model: haiku
 color: yellow
@@ -71,10 +73,12 @@ streams:
     - Verdict
 
 composes_with:
+  # publishing-constructs is a forward reference — lands in a follow-up cycle.
+  # Until then this entry only declares the intended composition edge.
   - publishing-constructs
   - browsing-constructs
 
 related:
   - script: .claude/scripts/construct-validate.sh
-  - doctrine: grimoires/loa-constructs-seed-2026-04-21/bonfire-construct-pipe-doctrine.md §3.2 §14.2
-  - seed: grimoires/loa-constructs-seed-2026-04-21/cycle-005-SEED-runtime-integration.md L4 + §12
+  - schema: .claude/schemas/verdict.schema.json
+  - stream_schemas: .claude/schemas/{signal,verdict,artifact,intent,operator-model}.schema.json

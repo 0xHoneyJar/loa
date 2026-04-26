@@ -2,10 +2,12 @@
 # =============================================================================
 # construct-validate.sh — pre-install / pre-publish manifest validator (cycle-005 L4)
 # =============================================================================
-# Validates a construct pack directory against the cycle-005 checks surfaced
-# by F28 (missing commands declarations) and SEED §12 (grimoires read/write
-# convention on CLAUDE.md). Emits Verdict stream rows per doctrine §3 on
-# failure; each finding carries severity and evidence.
+# Validates a construct pack directory against the cycle-005 manifest checks:
+# required fields, path resolution, route-declaration closure (commands or
+# personas must exist; otherwise the operator can only route by slug/name),
+# stream declarations, and the CLAUDE.md grimoires-section convention.
+# Emits Verdict-typed stream rows on failure; each finding carries severity
+# and evidence.
 #
 # Usage:
 #   construct-validate.sh <pack-path> [--json] [--strict]
@@ -15,14 +17,15 @@
 #   2. required fields: schema_version, slug, name, version, description
 #   3. skills[].path resolves to a filesystem directory
 #   4. persona routes declared: identity/<HANDLE>.md file OR personas: list
-#   5. /-commands OR persona handles exist (F28 closure gate)
+#   5. /-commands OR persona handles exist (route-declaration closure)
 #   6. streams declared: reads / writes not empty (warn only)
-#   7. CLAUDE.md contains an explicit grimoires read/write declaration (SEED §12)
+#   7. CLAUDE.md contains an explicit grimoires read/write declaration
+#      (the grimoires-section convention — the pack's interface contract)
 #
 # Severity tiers:
 #   critical — missing construct.yaml / unparseable
 #   high     — missing required field, broken skill path
-#   medium   — no routes (F28), missing grimoires section (§12)
+#   medium   — no routes declared, missing grimoires section
 #   low      — empty stream declarations (advisory)
 #   info     — pack passes all hard checks
 #
@@ -139,18 +142,22 @@ else
   fi
 fi
 
-# SEED §12 — CLAUDE.md must carry explicit grimoires read/write declaration
+# Grimoires-section convention — CLAUDE.md must carry an explicit
+# grimoires/<path> declaration paired with a read/write directive. The
+# grimoire-path declarations ARE the pack's interface contract: every other
+# construct in the network reads them to learn what state this pack reads
+# and writes.
 CLAUDE_MD="$PACK_PATH/CLAUDE.md"
 if [[ -f "$CLAUDE_MD" ]]; then
   if ! grep -qiE 'grimoires?/' "$CLAUDE_MD"; then
     emit_finding medium grimoires_section \
-      "CLAUDE.md contains no grimoires/ path reference — SEED §12 convention: 'grimoire path IS the interface'" \
+      "CLAUDE.md contains no grimoires/ path reference — the grimoire path IS the pack's interface contract" \
       "$CLAUDE_MD"
   else
     # Must reference at least one of: 'Writes to', 'Reads from', 'writes:' or 'reads:'
     if ! grep -qiE '(writes to|reads from|writes:|reads:)' "$CLAUDE_MD"; then
       emit_finding medium grimoires_section \
-        "CLAUDE.md mentions grimoires/ but lacks explicit read/write declaration — SEED §12" \
+        "CLAUDE.md mentions grimoires/ but lacks explicit read/write declaration" \
         "$CLAUDE_MD"
     fi
   fi
