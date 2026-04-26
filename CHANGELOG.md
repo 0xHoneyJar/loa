@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.106.0] — 2026-04-26
+
 ### Added
 
 - **Construct onramp + connectivity tooling migration** (cycle-005 L5 + cycle-006 L-migrate, [PR #617](https://github.com/0xHoneyJar/loa/pull/617)) — opt-in path for operators to receive the construct-network tools at mount or via `/loa-setup`, plus relocation of construct connectivity tooling from `loa-constructs` into `loa` proper.
@@ -762,6 +764,8 @@ Full convergence trajectory: `grimoires/loa/a2a/trajectory/bridge-triage-2026-04
 - ATK-011: Blocks `unset LOA_TEAM_MEMBER` and `env -u` privilege escalation in Agent Teams
 
 ## [Unreleased]
+
+## [1.106.0] — 2026-04-26
 
 ## [1.94.0] — 2026-04-17
 
