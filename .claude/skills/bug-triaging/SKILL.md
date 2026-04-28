@@ -550,12 +550,21 @@ Invalid transitions (e.g., TRIAGE → AUDITING) must be rejected with an error.
 ### Micro-Sprint Creation
 
 ```
-1. Get global sprint counter from ledger.json
-   counter = ledger.global_sprint_counter + 1
+1. Pick the next safe sprint id via the helper script:
+   sprint_id="$(.claude/scripts/next-bug-sprint-id.sh)"
 
-2. sprint_id = "sprint-bug-{counter}"
+   The script is the source-of-truth for next-id picking. It returns
+   `sprint-bug-{N}` where N is one greater than the maximum of:
+     a) local ledger.json's global_sprint_counter
+     b) max sprint-bug-N referenced on disk in any
+        grimoires/loa/a2a/bug-*/sprint.md
+     c) origin/main's ledger.json's global_sprint_counter (best-effort)
+   This avoids the collision wart where multiple `/bug` invocations
+   from the same starting commit would all pick the same N+1 because
+   they each only consulted local ledger state. See
+   tests/unit/next-bug-sprint-id.bats for the contract.
 
-3. Create micro-sprint file from template:
+2. Create micro-sprint file from template:
    Path: grimoires/loa/a2a/bug-{bug_id}/sprint.md
    Template: .claude/skills/bug-triaging/resources/templates/micro-sprint.md
    Fill placeholders: {bug_title}, {bug_id}, {sprint_id}, {test_type},
@@ -585,7 +594,10 @@ Invalid transitions (e.g., TRIAGE → AUDITING) must be rejected with an error.
      "triage": "grimoires/loa/a2a/bug-{bug_id}/triage.md",
      "sprint_plan": "grimoires/loa/a2a/bug-{bug_id}/sprint.md"
    }
-3. Increment global_sprint_counter
+3. Set global_sprint_counter to the integer N from sprint_id
+   (NOT just `+= 1` from local — the helper may have picked a higher
+   N from disk-scan or origin/main, so the ledger must catch up to it).
+   Pattern: `counter = sprint_id.split("-")[-1] | tonumber`
 4. Write using atomic temp + rename pattern
 ```
 
