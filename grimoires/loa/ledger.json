@@ -682,9 +682,22 @@
           "status": "planned"
         }
       ]
+    },
+    {
+      "id": "cycle-bug-20260428-i637-20ddd6",
+      "label": "Bug Fix — bridgebuilder-dist-smoke CI lane fails because workflow does not run npm ci (#637)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/637",
+      "created_at": "2026-04-28T10:24:06Z",
+      "sprints": [
+        "sprint-bug-121"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260428-i637-20ddd6/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260428-i637-20ddd6/sprint.md"
     }
   ],
-  "global_sprint_counter": 120,
+  "global_sprint_counter": 121,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
