@@ -697,7 +697,7 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i637-20ddd6/sprint.md"
     }
   ],
-  "global_sprint_counter": 122,
+  "global_sprint_counter": 123,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
@@ -744,6 +744,19 @@
       "triage": "grimoires/loa/a2a/bug-20260418-c05b25/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260418-c05b25/sprint.md",
       "predecessor_pr": "https://github.com/0xHoneyJar/loa/pull/566"
+    },
+    {
+      "id": "cycle-bug-20260428-i641-227a8f",
+      "label": "Bug Fix - cheval Anthropic temperature gate + Google API key allowlist (#641)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/641",
+      "created_at": "2026-04-28T00:00:00Z",
+      "sprints": [
+        "sprint-bug-123"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260428-i641-227a8f/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260428-i641-227a8f/sprint.md"
     }
   ],
   "bugfixes": [

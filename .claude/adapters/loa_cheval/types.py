@@ -98,6 +98,12 @@ class ModelConfig:
     pricing: Optional[Dict[str, int]] = None  # {input_per_mtok, output_per_mtok} in micro-USD
     api_mode: Optional[str] = None  # "standard" (default) | "interactions" (Deep Research)
     extra: Optional[Dict[str, Any]] = None  # Provider-specific config (thinking_level, api_version, etc.)
+    # Wire-protocol parameter gates (#641): controls which optional fields the
+    # adapter serializes into the request body. Distinct from `extra` (provider-
+    # specific feature config) — `params` flips wire-level inclusion. Currently:
+    #   temperature_supported: bool (default True). Set False for Opus 4 family
+    #   which rejects requests carrying `temperature` with HTTP 400.
+    params: Optional[Dict[str, Any]] = None
 
 
 # --- Error Types ---

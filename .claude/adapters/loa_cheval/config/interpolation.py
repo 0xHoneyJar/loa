@@ -26,6 +26,8 @@ _CORE_ENV_PATTERNS = [
     re.compile(r"^OPENAI_API_KEY$"),
     re.compile(r"^ANTHROPIC_API_KEY$"),
     re.compile(r"^MOONSHOT_API_KEY$"),
+    re.compile(r"^GOOGLE_API_KEY$"),
+    re.compile(r"^GEMINI_API_KEY$"),
 ]
 
 # Regex for interpolation tokens
@@ -251,7 +253,8 @@ def interpolate_value(
             if not _check_env_allowed(source_ref, extra_env_patterns):
                 raise ConfigError(
                     f"Environment variable '{source_ref}' is not in the allowlist. "
-                    f"Allowed: ^LOA_.*, ^OPENAI_API_KEY$, ^ANTHROPIC_API_KEY$, ^MOONSHOT_API_KEY$"
+                    f"Allowed: ^LOA_.*, ^OPENAI_API_KEY$, ^ANTHROPIC_API_KEY$, "
+                    f"^MOONSHOT_API_KEY$, ^GOOGLE_API_KEY$, ^GEMINI_API_KEY$"
                 )
             val = _resolve_env(source_ref, project_root)
             if val is None:

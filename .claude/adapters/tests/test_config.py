@@ -111,6 +111,19 @@ class TestEnvAllowlist:
     def test_moonshot_key_allowed(self):
         assert _check_env_allowed("MOONSHOT_API_KEY") is True
 
+    def test_google_key_allowed(self):
+        # Issue #641 (B): GOOGLE_API_KEY must be in core allowlist —
+        # the Google adapter is shipped first-class but the allowlist
+        # excluded it, breaking 3-model Flatline default config.
+        assert _check_env_allowed("GOOGLE_API_KEY") is True
+
+    def test_gemini_key_allowed(self):
+        # Issue #641 (B): GEMINI_API_KEY is the alternate name some
+        # Google CLI tooling uses; ship as core-allowed alongside
+        # GOOGLE_API_KEY so users can pick whichever name their
+        # environment supplies.
+        assert _check_env_allowed("GEMINI_API_KEY") is True
+
     def test_random_var_rejected(self):
         assert _check_env_allowed("PATH") is False
         assert _check_env_allowed("HOME") is False

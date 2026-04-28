@@ -292,6 +292,75 @@ class TestOpenAIRequestBodyConstruction:
         assert body["max_tokens"] == 2048
 
 
+class TestAnthropicRequestBodyConstruction:
+    """Issue #641 (A): Opus 4 rejects requests with `temperature` (HTTP 400, 'temperature
+    is deprecated for this model'). Adapter must gate the temperature serialization on a
+    new `model_config.params.temperature_supported` flag (default True for back-compat
+    with Claude 3 / 3.5 / pre-4 Opus models)."""
+
+    def _capture_body(self, params=None, model_id="claude-opus-4-7"):
+        """Build an Anthropic adapter, mock http_post, return the captured request body.
+
+        params: dict passed to ModelConfig.params, or None to test the default-back-compat path.
+        """
+        config = ProviderConfig(
+            name="anthropic",
+            type="anthropic",
+            endpoint="https://api.example.com/v1",
+            auth="test-key",
+            models={
+                model_id: ModelConfig(
+                    capabilities=["chat", "tools"],
+                    context_window=200000,
+                    token_param="max_tokens",
+                    params=params,
+                ),
+            },
+        )
+        adapter = AnthropicAdapter(config)
+        request = CompletionRequest(
+            messages=[{"role": "user", "content": "Hello"}],
+            model=model_id,
+            max_tokens=4096,
+            temperature=0.7,
+        )
+        mock_response = {
+            "id": "msg_test",
+            "type": "message",
+            "role": "assistant",
+            "model": model_id,
+            "content": [{"type": "text", "text": "ok"}],
+            "stop_reason": "end_turn",
+            "usage": {"input_tokens": 5, "output_tokens": 2},
+        }
+        with patch("loa_cheval.providers.anthropic_adapter.http_post", return_value=(200, mock_response)) as mock:
+            adapter.complete(request)
+            return mock.call_args[1]["body"]
+
+    def test_temperature_omitted_when_unsupported(self):
+        """Opus 4 family: params.temperature_supported=False → no temperature in body."""
+        body = self._capture_body(params={"temperature_supported": False})
+        assert "temperature" not in body, (
+            "Anthropic body must NOT include 'temperature' when "
+            "model_config.params.temperature_supported is False (Opus 4 deprecation)"
+        )
+
+    def test_temperature_included_when_supported(self):
+        """Older Anthropic models: params.temperature_supported=True → temperature in body."""
+        body = self._capture_body(params={"temperature_supported": True})
+        assert "temperature" in body
+        assert body["temperature"] == 0.7
+
+    def test_temperature_default_is_supported_for_back_compat(self):
+        """params=None: default behavior keeps temperature in body — protects Claude 3 / 3.5."""
+        body = self._capture_body(params=None)
+        assert "temperature" in body, (
+            "Default ModelConfig (params=None) must keep temperature in body — "
+            "back-compat invariant for older Anthropic models"
+        )
+        assert body["temperature"] == 0.7
+
+
 class TestContextWindowEnforcement:
     def test_within_limits(self):
         request = CompletionRequest(
