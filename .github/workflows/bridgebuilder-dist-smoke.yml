@@ -65,6 +65,11 @@ jobs:
             try {
               await import('./dist/main.js');
               console.log('import OK');
+              // dist/main.js is a CLI: top-level imports succeed, then the
+              // CLI's deferred main() runs (env checks, process.exit on
+              // missing API keys). We only care about resolution — exit
+              // before the CLI's deferred main() can run with rc != 0.
+              process.exit(0);
             } catch (e) {
               if (e && e.code === 'ERR_MODULE_NOT_FOUND') {
                 console.error('REGRESSION: ' + e.message);
@@ -72,6 +77,7 @@ jobs:
               }
               // Any other error is acceptable — imports resolved
               console.log('imports resolved (post-import error tolerated in CI)');
+              process.exit(0);
             }
           " || {
             rc=$?
