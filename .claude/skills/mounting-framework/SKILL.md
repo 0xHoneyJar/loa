@@ -130,10 +130,28 @@ fi
 
 ### Step 4: Create Version Manifest
 
+The manifest's `framework_version` is resolved from the upstream HEAD that is being mounted. The skill writes a `__PENDING__` placeholder and then delegates to `.claude/scripts/update-loa-bump-version.sh` — the same resolver `/update-loa` uses (Phase 5.6). This makes `/mount` and `/update-loa` share a single source of truth so the version stamp can never go stale relative to the framework files just checked out.
+
 ```bash
+# Resolve target version from the upstream HEAD the user just checked out.
+# Source priority: upstream's .loa-version.json → upstream tag → short SHA fallback.
+# Uses the remote/branch already configured by Step 1 (LOA_REMOTE_NAME=loa-upstream,
+# LOA_BRANCH defaults to main). NOT the same as $LOA_UPSTREAM env var which Step 1
+# overloads as the remote URL — name collision avoided here by composing the ref
+# from the remote name + branch directly.
+LOA_UPSTREAM_REF="loa-upstream/${LOA_BRANCH:-main}"
+TARGET_VERSION=""
+if git show "${LOA_UPSTREAM_REF}":.loa-version.json 2>/dev/null | jq -er '.framework_version' >/dev/null 2>&1; then
+  TARGET_VERSION=$(git show "${LOA_UPSTREAM_REF}":.loa-version.json | jq -r '.framework_version')
+elif git tag --points-at "${LOA_UPSTREAM_REF}" 2>/dev/null | grep -qE '^v[0-9]+\.'; then
+  TARGET_VERSION=$(git tag --points-at "${LOA_UPSTREAM_REF}" | grep -E '^v[0-9]+\.' | head -1 | sed 's/^v//')
+else
+  TARGET_VERSION="0.0.0-unknown-$(git rev-parse --short "${LOA_UPSTREAM_REF}" 2>/dev/null || echo 'nosha')"
+fi
+
 cat > .loa-version.json << EOF
 {
-  "framework_version": "0.6.0",
+  "framework_version": "__PENDING__",
   "schema_version": 2,
   "last_sync": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "zones": {
@@ -148,7 +166,10 @@ cat > .loa-version.json << EOF
   }
 }
 EOF
-echo "✓ Version manifest created"
+
+# Replace placeholder via the SAME resolver /update-loa uses (single source of truth).
+.claude/scripts/update-loa-bump-version.sh --target "$TARGET_VERSION"
+echo "✓ Version manifest created (resolved: $TARGET_VERSION)"
 ```
 
 ### Step 5: Generate Checksums (Anti-Tamper)
@@ -303,19 +324,28 @@ Log mount action to trajectory:
 ```bash
 MOUNT_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 TRAJECTORY_FILE="grimoires/loa/a2a/trajectory/mounting-$(date +%Y%m%d).jsonl"
+# Read the resolved version BACK from the manifest written in Step 4.
+# Never re-template a literal here — this is how prior recurrences (#56, #123, #640) regressed.
+RESOLVED_VERSION=$(jq -r '.framework_version' .loa-version.json)
 
-echo '{"timestamp":"'$MOUNT_DATE'","agent":"mounting-framework","action":"mount","status":"complete","version":"0.6.0"}' >> "$TRAJECTORY_FILE"
+echo '{"timestamp":"'$MOUNT_DATE'","agent":"mounting-framework","action":"mount","status":"complete","version":"'"$RESOLVED_VERSION"'"}' >> "$TRAJECTORY_FILE"
 ```
 
 ---
 
 ## NOTES.md Update
 
-After successful mount, add entry to NOTES.md:
+After successful mount, add an entry to NOTES.md. The version field MUST be read from `.loa-version.json` (NOT templated as a literal — that is how prior recurrences #56, #123, and #640 regressed). The agent that runs this step should resolve `${RESOLVED_VERSION}` via:
+
+```bash
+RESOLVED_VERSION=$(jq -r '.framework_version' .loa-version.json)
+```
+
+…and then append the row, substituting the variable into the markdown:
 
 ```markdown
 ## Session Continuity
 | Timestamp | Agent | Summary |
 |-----------|-------|---------|
-| [now] | mounting-framework | Mounted Loa v0.6.0 on repository |
+| [now] | mounting-framework | Mounted Loa v${RESOLVED_VERSION} on repository |
 ```
