@@ -168,7 +168,23 @@ cat > .loa-version.json << EOF
 EOF
 
 # Replace placeholder via the SAME resolver /update-loa uses (single source of truth).
-.claude/scripts/update-loa-bump-version.sh --target "$TARGET_VERSION"
+# Fail-loud: if the resolver fails, the manifest is left at __PENDING__ and would
+# poison the trajectory log + NOTES.md. Delete the manifest and exit so the user
+# gets a clear failure instead of a silent stale-stamp.
+if ! .claude/scripts/update-loa-bump-version.sh --target "$TARGET_VERSION"; then
+  echo "❌ Failed to resolve framework_version via update-loa-bump-version.sh"
+  rm -f .loa-version.json
+  exit 1
+fi
+
+# Defense-in-depth: verify the placeholder was actually replaced. Guards against
+# a resolver that exits 0 without patching (e.g., target-validation rejects the
+# value silently, or bump_version_json no-ops on an unexpected match).
+if [[ "$(jq -r '.framework_version' .loa-version.json 2>/dev/null)" == "__PENDING__" ]]; then
+  echo "❌ Resolver returned 0 but framework_version is still __PENDING__"
+  rm -f .loa-version.json
+  exit 1
+fi
 echo "✓ Version manifest created (resolved: $TARGET_VERSION)"
 ```
 
@@ -328,7 +344,12 @@ TRAJECTORY_FILE="grimoires/loa/a2a/trajectory/mounting-$(date +%Y%m%d).jsonl"
 # Never re-template a literal here — this is how prior recurrences (#56, #123, #640) regressed.
 RESOLVED_VERSION=$(jq -r '.framework_version' .loa-version.json)
 
-echo '{"timestamp":"'$MOUNT_DATE'","agent":"mounting-framework","action":"mount","status":"complete","version":"'"$RESOLVED_VERSION"'"}' >> "$TRAJECTORY_FILE"
+# Use jq to construct the JSON line. String concatenation breaks on unusual
+# chars in $RESOLVED_VERSION (quote, newline, backslash) and could produce a
+# malformed JSONL row that breaks downstream parsers. jq handles encoding.
+jq -nc --arg ts "$MOUNT_DATE" --arg v "$RESOLVED_VERSION" \
+  '{timestamp:$ts, agent:"mounting-framework", action:"mount", status:"complete", version:$v}' \
+  >> "$TRAJECTORY_FILE"
 ```
 
 ---
