@@ -360,6 +360,22 @@ class TestAnthropicRequestBodyConstruction:
         )
         assert body["temperature"] == 0.7
 
+    def test_temperature_safe_when_params_is_malformed(self):
+        """Adversarial-finding fix: dataclass type hints aren't enforced at runtime,
+        so YAML like `params: "false"` or `params: [x]` constructs ModelConfig but
+        would raise AttributeError on `.get()`. Adapter must guard with isinstance
+        and gracefully degrade to the back-compat default (include temperature),
+        not crash the request."""
+        # Non-dict truthy value — pre-fix would raise AttributeError
+        body = self._capture_body(params="some-malformed-string")
+        assert "temperature" in body, (
+            "Malformed params (non-dict) must gracefully default to "
+            "temperature_supported=True — not crash with AttributeError"
+        )
+        # List value — same hazard class
+        body = self._capture_body(params=["temperature_supported"])
+        assert "temperature" in body
+
 
 class TestContextWindowEnforcement:
     def test_within_limits(self):
