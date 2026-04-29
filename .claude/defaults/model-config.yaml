@@ -117,6 +117,13 @@ providers:
         capabilities: [chat, tools, function_calling, thinking_traces]
         context_window: 200000
         token_param: max_tokens
+        # Wire-protocol gates (#641): Anthropic deprecated `temperature` for
+        # Opus 4 and rejects requests carrying it with HTTP 400. The cheval
+        # adapter consults `params.temperature_supported` per request and
+        # omits the field when False. See
+        # .claude/adapters/loa_cheval/providers/anthropic_adapter.py
+        params:
+          temperature_supported: false
         pricing:
           # Unit: micro-USD per million tokens (see gpt-5.2 note above).
           input_per_mtok: 5000000    # $5.00 per million tokens
@@ -150,6 +157,13 @@ aliases:
   # via the SSOT generator. Sprint-3 health-probe gates runtime use.
   deep-thinker: "google:gemini-3.1-pro-preview"  # Thinking-traces tier
   gemini-3.1-pro: "google:gemini-3.1-pro-preview"  # Bare alias (parity with gemini-2.5-pro)
+  # Bare aliases for gemini-2.5 tier — agent bindings (deep-thinker, fast-thinker)
+  # were retargeted to these per #574 (phantom gemini-3-pro/flash pruned), but
+  # the alias entries were missing, causing `model-invoke --validate-bindings`
+  # to fail with "Unknown alias: gemini-2.5-pro/flash". Restored here so the
+  # bindings resolve cleanly.
+  gemini-2.5-pro: "google:gemini-2.5-pro"
+  gemini-2.5-flash: "google:gemini-2.5-flash"
   researcher: "google:deep-research-pro" # Deep Research model
 
 # Backward-compat aliases (legacy model IDs → canonical provider:model-id)
