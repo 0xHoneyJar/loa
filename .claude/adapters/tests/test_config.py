@@ -579,6 +579,40 @@ class TestEndpointFamilyValidation:
         with pytest.raises(ConfigError, match="LOA_LEGACY_ENDPOINT_FAMILY_DEFAULT"):
             load_config(project_root=root)
 
+    def test_non_dict_entry_raises_with_diagnostic(self, tmp_path, monkeypatch):
+        """Adversarial review DISS-001: malformed non-dict entries must raise
+        with a precise pointer, not silently fall through to runtime."""
+        from loa_cheval.config.loader import _reset_warning_state_for_tests, clear_config_cache
+
+        clear_config_cache()
+        _reset_warning_state_for_tests()
+        monkeypatch.delenv("LOA_LEGACY_ENDPOINT_FAMILY_DEFAULT", raising=False)
+        monkeypatch.delenv("LOA_FORCE_LEGACY_ALIASES", raising=False)
+
+        # Scalar (string) where a mapping is expected.
+        root = _write_synthetic_project(
+            str(tmp_path),
+            openai_models={"gpt-bad-shape": "openai:gpt-bad-shape"},  # scalar
+        )
+        with pytest.raises(ConfigError, match="must be a mapping"):
+            load_config(project_root=root)
+
+    def test_non_dict_list_entry_raises(self, tmp_path, monkeypatch):
+        """List shape (also wrong) raises with a similar diagnostic."""
+        from loa_cheval.config.loader import _reset_warning_state_for_tests, clear_config_cache
+
+        clear_config_cache()
+        _reset_warning_state_for_tests()
+        monkeypatch.delenv("LOA_LEGACY_ENDPOINT_FAMILY_DEFAULT", raising=False)
+        monkeypatch.delenv("LOA_FORCE_LEGACY_ALIASES", raising=False)
+
+        root = _write_synthetic_project(
+            str(tmp_path),
+            openai_models={"gpt-list-shape": ["responses", "chat"]},  # list
+        )
+        with pytest.raises(ConfigError, match="must be a mapping"):
+            load_config(project_root=root)
+
 
 class TestForceLegacyAliases:
     """SDD §1.4.5 — kill-switch replaces aliases:: with the pre-cycle-095
@@ -672,3 +706,56 @@ class TestForceLegacyAliases:
         )
         with pytest.raises(ConfigError, match="aliases-legacy.yaml is missing"):
             load_config(project_root=root)
+
+    def test_kill_switch_unresolved_alias_target_raises(self, tmp_path, monkeypatch):
+        """Adversarial review DISS-002: kill-switch must validate that every
+        restored alias target resolves in the merged config. Restoring an
+        alias pointing to a removed model would worsen the outage the
+        kill-switch is meant to fix.
+        """
+        from loa_cheval.config.loader import _reset_warning_state_for_tests, clear_config_cache
+
+        clear_config_cache()
+        _reset_warning_state_for_tests()
+        monkeypatch.setenv("LOA_FORCE_LEGACY_ALIASES", "1")
+        monkeypatch.delenv("LOA_LEGACY_ENDPOINT_FAMILY_DEFAULT", raising=False)
+
+        # Merged config has gpt-5.5 only — gpt-5.3-codex is REMOVED to simulate
+        # an operator who pruned legacy models from their custom registry.
+        models = {
+            "gpt-5.5": {"capabilities": ["chat"], "context_window": 400000, "endpoint_family": "responses"},
+        }
+        root = _write_synthetic_project(
+            str(tmp_path),
+            openai_models=models,
+            aliases={"reviewer": "openai:gpt-5.5"},
+            legacy_snapshot={
+                "reviewer": "openai:gpt-5.3-codex",  # not in merged providers
+            },
+        )
+        with pytest.raises(ConfigError, match="restore aliases pointing to models that no longer exist"):
+            load_config(project_root=root)
+
+    def test_kill_switch_resolves_native_runtime_alias(self, tmp_path, monkeypatch):
+        """The reserved 'claude-code:session' tag is treated as resolvable
+        even though it has no providers.<...> entry (Claude Code native
+        runtime; existed in the pre-cycle-095 alias snapshot)."""
+        from loa_cheval.config.loader import _reset_warning_state_for_tests, clear_config_cache
+
+        clear_config_cache()
+        _reset_warning_state_for_tests()
+        monkeypatch.setenv("LOA_FORCE_LEGACY_ALIASES", "1")
+        monkeypatch.delenv("LOA_LEGACY_ENDPOINT_FAMILY_DEFAULT", raising=False)
+
+        root = _write_synthetic_project(
+            str(tmp_path),
+            openai_models=self._baseline_models(),
+            aliases={"reviewer": "openai:gpt-5.5"},
+            legacy_snapshot={
+                "reviewer": "openai:gpt-5.3-codex",  # resolves
+                "native": "claude-code:session",     # reserved, resolves
+            },
+        )
+        merged, _ = load_config(project_root=root)
+        assert merged["aliases"]["reviewer"] == "openai:gpt-5.3-codex"
+        assert merged["aliases"]["native"] == "claude-code:session"

@@ -54,8 +54,14 @@ _ALLOWED_ENDPOINT_FAMILIES = ("chat", "responses")
 class OpenAIAdapter(ProviderAdapter):
     """Adapter for OpenAI and OpenAI-compatible APIs (SDD §4.2.3, §4.2.5)."""
 
-    # Module-level state for once-per-process WARN deduplication. Stored on
-    # the class so subclasses (per-test instances) share dedup.
+    # cycle-095 Sprint 1: once-per-process WARN deduplication for unknown
+    # /v1/responses output[].type values seen under degrade policy. Stored
+    # at class-level so all OpenAIAdapter instances in one process share the
+    # dedup set — that's the documented intent ("once per unique unknown
+    # type per process"). Tests must call OpenAIAdapter._unknown_shape_warned
+    # .clear() in fixtures to avoid cross-test bleed. Production cheval is
+    # single-threaded CLI-driven (loader docstring); under multi-threaded
+    # use, the worst case is a duplicate WARN, not data loss.
     _unknown_shape_warned: set[str] = set()
 
     def _route_decision(self, model_config: ModelConfig, model_id: str) -> str:

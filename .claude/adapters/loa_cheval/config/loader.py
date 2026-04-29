@@ -268,7 +268,12 @@ _LEGACY_ALIASES_FILENAME = "aliases-legacy.yaml"
 
 
 def _force_legacy_aliases_active(merged: Dict[str, Any]) -> bool:
-    """Return True if either the env var or experimental config flag is set."""
+    """Return True if either the env var or experimental config flag is set.
+
+    Precedence: env var wins on conflict. If LOA_FORCE_LEGACY_ALIASES is set
+    to a truthy value, the kill-switch fires regardless of the config flag —
+    matching the documented "operator-side incident escape hatch" semantics.
+    """
     env = os.environ.get("LOA_FORCE_LEGACY_ALIASES", "").strip().lower()
     if env in ("1", "true", "yes", "on"):
         return True
@@ -276,6 +281,26 @@ def _force_legacy_aliases_active(merged: Dict[str, Any]) -> bool:
     if isinstance(flag, str):
         flag = flag.strip().lower() in ("true", "yes", "on", "1")
     return bool(flag)
+
+
+def _alias_target_resolves(target: Any, merged: Dict[str, Any]) -> bool:
+    """Check whether an alias target resolves to an existing model entry.
+
+    Accepts the canonical 'provider:model_id' form. Special-cases the reserved
+    'claude-code:session' (Claude Code native runtime — no provider entry).
+    Anything else is rejected.
+    """
+    if not isinstance(target, str) or ":" not in target:
+        return False
+    provider, model_id = target.split(":", 1)
+    if not provider or not model_id:
+        return False
+    if provider == "claude-code":
+        # Reserved native-runtime tag — no providers.<...> entry expected.
+        return model_id == "session"
+    providers = (merged.get("providers") or {}).get(provider) or {}
+    models = providers.get("models") or {}
+    return isinstance(models, dict) and model_id in models
 
 
 def _maybe_apply_force_legacy_aliases(
@@ -311,6 +336,25 @@ def _maybe_apply_force_legacy_aliases(
         raise ConfigError(
             f"{snapshot_path} does not contain a non-empty `aliases:` block. "
             f"Restore the file from the cycle-095 release."
+        )
+
+    # cycle-095 Sprint 1 review-iter-2 (DISS-002): validate that every restored
+    # alias target still resolves to an existing model entry in the merged
+    # config. Without this gate, an operator who removed a model from their
+    # custom config would have the kill-switch restore an alias pointing
+    # nowhere — the rollback designed to RESTORE service would WORSEN the
+    # outage by routing traffic to unresolvable models.
+    unresolved = []
+    for alias_name, target in legacy_aliases.items():
+        if not _alias_target_resolves(target, merged):
+            unresolved.append(f"{alias_name} -> {target}")
+    if unresolved:
+        raise ConfigError(
+            f"LOA_FORCE_LEGACY_ALIASES would restore aliases pointing to "
+            f"models that no longer exist in this config: "
+            f"{', '.join(unresolved)}. Either re-add the missing models OR "
+            f"unset the kill-switch and use per-alias pins via aliases: "
+            f"{{...}} in .loa.config.yaml."
         )
 
     if not _force_legacy_warned:
@@ -365,8 +409,17 @@ def _validate_endpoint_family(merged: Dict[str, Any]) -> None:
         )
 
     for model_id, model_data in openai_models.items():
+        # cycle-095 Sprint 1 review-iter-2 (DISS-001): non-dict entries are a
+        # config-shape error, not a deferral target. Raising here gives the
+        # operator a precise pointer to the malformed YAML; deferring to the
+        # adapter produced opaque AttributeError-style failures (PRD R-13).
         if not isinstance(model_data, dict):
-            continue  # malformed entry; skip — adapter will fail at runtime
+            raise ConfigError(
+                f"providers.openai.models.{model_id} must be a mapping with "
+                f"endpoint_family + capabilities + ..., got "
+                f"{type(model_data).__name__} ({model_data!r}). "
+                f"Check your .loa.config.yaml or System Zone defaults file."
+            )
         family = model_data.get("endpoint_family")
         if family is None:
             if backstop_active:
