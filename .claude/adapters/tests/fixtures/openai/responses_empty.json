@@ -1,0 +1,13 @@
+{
+  "id": "resp_fixture_empty_001",
+  "object": "response",
+  "model": "gpt-5.5",
+  "status": "completed",
+  "output": [],
+  "usage": {
+    "input_tokens": 8,
+    "output_tokens": 0,
+    "output_tokens_details": {"reasoning_tokens": 0},
+    "total_tokens": 8
+  }
+}

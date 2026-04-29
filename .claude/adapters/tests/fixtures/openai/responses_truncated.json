@@ -1,0 +1,24 @@
+{
+  "id": "resp_fixture_truncated_001",
+  "object": "response",
+  "model": "gpt-5.5",
+  "status": "incomplete",
+  "incomplete_details": {"reason": "max_output_tokens"},
+  "output": [
+    {
+      "type": "message",
+      "id": "msg_fixture_004",
+      "role": "assistant",
+      "status": "incomplete",
+      "content": [
+        {"type": "output_text", "text": "This response was truncated before completion because it hit the max", "annotations": []}
+      ]
+    }
+  ],
+  "usage": {
+    "input_tokens": 14,
+    "output_tokens": 100,
+    "output_tokens_details": {"reasoning_tokens": 0},
+    "total_tokens": 114
+  }
+}

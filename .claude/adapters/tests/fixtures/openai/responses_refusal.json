@@ -1,0 +1,23 @@
+{
+  "id": "resp_fixture_refusal_001",
+  "object": "response",
+  "model": "gpt-5.5",
+  "status": "completed",
+  "output": [
+    {
+      "type": "message",
+      "id": "msg_fixture_003",
+      "role": "assistant",
+      "status": "completed",
+      "content": [
+        {"type": "refusal", "refusal": "I'm sorry, but I can't help with that request."}
+      ]
+    }
+  ],
+  "usage": {
+    "input_tokens": 22,
+    "output_tokens": 14,
+    "output_tokens_details": {"reasoning_tokens": 0},
+    "total_tokens": 36
+  }
+}

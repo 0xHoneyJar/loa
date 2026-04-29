@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-094-followups",
+  "active_cycle": "cycle-095-model-currency",
   "cycles": [
     {
       "id": "cycle-036",
@@ -695,6 +695,35 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260428-i637-20ddd6/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i637-20ddd6/sprint.md"
+    },
+    {
+      "id": "cycle-095-model-currency",
+      "label": "Model Currency — gpt-5.5 + Haiku 4.5 + Gemini 3 + cost guardrails",
+      "status": "active",
+      "created": "2026-04-29T20:30:00Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprint_plan": "grimoires/loa/sprint.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 124,
+          "label": "Routing Infrastructure + Response Normalization + Kill-Switch",
+          "status": "in_progress"
+        },
+        {
+          "local_id": 2,
+          "global_id": 125,
+          "label": "Alias Flips + New Tiers + Cost Guardrails + Immutable Self-Map + Fallback Chain",
+          "status": "planned"
+        },
+        {
+          "local_id": 3,
+          "global_id": 126,
+          "label": "prefer_pro_models Activation + override_user_aliases Opt-In + Dry-Run Full Activation (post-soak)",
+          "status": "planned"
+        }
+      ]
     }
   ],
   "global_sprint_counter": 123,

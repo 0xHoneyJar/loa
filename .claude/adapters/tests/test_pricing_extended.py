@@ -720,3 +720,113 @@ class TestOverflowGuard:
         cost, remainder = calculate_cost_micro(0, 15_000_000)
         assert cost == 0
         assert remainder == 0
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# cycle-095 Sprint 1 — Reasoning-tokens billing semantics (PRD §3.1, SDD §5.5)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestReasoningTokensBilling:
+    """Round-trip the gpt-5.5-pro fixture through the cost calculator and assert
+    cost = output_tokens × output_per_mtok / 1M (NOT summed with reasoning_tokens).
+
+    This is the load-bearing invariant of cycle-095: OpenAI's `/v1/responses`
+    documents `output_tokens` as the INCLUSIVE total (visible + reasoning).
+    Adding reasoning_tokens to the cost would double-charge.
+    """
+
+    GPT55_PRO_PRICING = PricingEntry(
+        provider="openai",
+        model="gpt-5.5-pro",
+        input_per_mtok=30_000_000,    # $30/M
+        output_per_mtok=180_000_000,  # $180/M (per cycle-095 SDD §5.5)
+        reasoning_per_mtok=0,         # Critical: 0 — never bill reasoning separately
+        pricing_mode="token",
+    )
+
+    def _pro_fixture_usage(self):
+        """Return (input_tokens, output_tokens, reasoning_tokens) from the
+        gpt-5.5-pro golden fixture."""
+        fixtures_root = (
+            Path(__file__).resolve().parent
+            / "fixtures"
+            / "openai"
+            / "responses_pro_reasoning_tokens.json"
+        )
+        usage = json.loads(fixtures_root.read_text())["usage"]
+        return (
+            usage["input_tokens"],
+            usage["output_tokens"],
+            usage["output_tokens_details"]["reasoning_tokens"],
+        )
+
+    def test_cost_matches_output_tokens_only(self):
+        in_tok, out_tok, reas_tok = self._pro_fixture_usage()
+        # Sanity: fixture has reasoning_tokens > 0 so the test is meaningful.
+        assert reas_tok > 0
+        breakdown = calculate_total_cost(
+            input_tokens=in_tok,
+            output_tokens=out_tok,
+            reasoning_tokens=reas_tok,
+            pricing=self.GPT55_PRO_PRICING,
+        )
+        # Expected: floor(2400 * 180_000_000 / 1_000_000) = 432_000_000 micro-USD
+        expected_output_cost = (out_tok * 180_000_000) // 1_000_000
+        expected_input_cost = (in_tok * 30_000_000) // 1_000_000
+        assert breakdown.output_cost_micro == expected_output_cost
+        assert breakdown.reasoning_cost_micro == 0
+        assert breakdown.total_cost_micro == expected_input_cost + expected_output_cost
+
+    def test_naive_summing_would_overcharge(self):
+        """Regression sentinel: if a future change reintroduces reasoning_tokens
+        as a billable category for OpenAI by accident, the cost would jump
+        beyond the visible-output-only baseline.  This test pins the contract
+        that we never sum reasoning_tokens into the bill on a 0-priced
+        reasoning_per_mtok entry.
+        """
+        in_tok, out_tok, reas_tok = self._pro_fixture_usage()
+        breakdown = calculate_total_cost(
+            input_tokens=in_tok,
+            output_tokens=out_tok,
+            reasoning_tokens=reas_tok,
+            pricing=self.GPT55_PRO_PRICING,
+        )
+        naive_summed = (
+            ((out_tok + reas_tok) * 180_000_000) // 1_000_000
+            + (in_tok * 30_000_000) // 1_000_000
+        )
+        # The correct cost is strictly less than the naive-summed cost.
+        assert breakdown.total_cost_micro < naive_summed
+        # And the gap is exactly the reasoning_tokens × output_per_mtok product
+        # — i.e., what we would have over-charged.
+        gap = naive_summed - breakdown.total_cost_micro
+        assert gap == (reas_tok * 180_000_000) // 1_000_000
+
+    def test_usage_carries_reasoning_tokens_for_observability(self):
+        """The Usage dataclass surfaces reasoning_tokens for ledger/observability
+        even though we don't bill on it.  This is the "tokens_reasoning" field
+        in cost-ledger.jsonl entries (SDD §5.5)."""
+        from loa_cheval.providers.openai_adapter import OpenAIAdapter
+        from loa_cheval.types import ModelConfig, ProviderConfig
+
+        # Minimal adapter for normalizer call.
+        config = ProviderConfig(
+            name="openai",
+            type="openai",
+            endpoint="https://api.example.com/v1",
+            auth="test-key",
+            models={"gpt-5.5-pro": ModelConfig(endpoint_family="responses")},
+        )
+        adapter = OpenAIAdapter(config)
+        fixture = json.loads(
+            (
+                Path(__file__).resolve().parent
+                / "fixtures"
+                / "openai"
+                / "responses_pro_reasoning_tokens.json"
+            ).read_text()
+        )
+        result = adapter._parse_responses_response(fixture, latency_ms=10)
+        assert result.usage.reasoning_tokens == 1800
+        assert result.usage.output_tokens == 2400

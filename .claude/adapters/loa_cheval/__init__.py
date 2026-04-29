@@ -12,6 +12,8 @@ from loa_cheval.types import (
     CompletionResult,
     ConfigError,
     ContextTooLargeError,
+    CostBudgetExceeded,
+    InvalidConfigError,
     InvalidInputError,
     ModelConfig,
     NativeRuntimeRequired,
@@ -20,6 +22,7 @@ from loa_cheval.types import (
     RateLimitError,
     ResolvedModel,
     RetriesExhaustedError,
+    UnsupportedResponseShapeError,
     Usage,
 )
 
@@ -32,6 +35,8 @@ __all__ = [
     "CompletionResult",
     "ConfigError",
     "ContextTooLargeError",
+    "CostBudgetExceeded",
+    "InvalidConfigError",
     "InvalidInputError",
     "ModelConfig",
     "NativeRuntimeRequired",
@@ -40,5 +45,6 @@ __all__ = [
     "RateLimitError",
     "ResolvedModel",
     "RetriesExhaustedError",
+    "UnsupportedResponseShapeError",
     "Usage",
 ]

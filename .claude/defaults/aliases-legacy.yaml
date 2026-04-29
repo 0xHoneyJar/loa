@@ -1,0 +1,32 @@
+# Pre-cycle-095 alias snapshot — operational rollback target for the
+# LOA_FORCE_LEGACY_ALIASES=1 kill-switch (or hounfour.experimental.force_legacy_aliases: true).
+#
+# This file freezes the alias resolution state from BEFORE cycle-095 promoted
+# gpt-5.5 to the reviewer / reasoning tiers. When the kill-switch fires, the
+# config loader REPLACES the merged `aliases:` block with this snapshot AND
+# short-circuits the tier_groups apply step (SDD §1.4.5).
+#
+# Critical invariant: each restored alias still routes per its OWN model entry's
+# `endpoint_family` field — there is no endpoint-force layer here. So
+# `reviewer: openai:gpt-5.3-codex` resolves to gpt-5.3-codex, which has
+# `endpoint_family: responses` in the live registry — adapter calls
+# /v1/responses for it. The kill-switch reverts ALIAS targets, NOT routing
+# behavior.
+#
+# Authored by: cycle-095 Sprint 1 (Task 1.7), captured from main branch
+# at PR creation time. Do NOT hand-edit unless you genuinely intend to
+# rewrite the legacy snapshot — operators rely on this being the
+# unmodified pre-cycle-095 state.
+
+aliases:
+  gemini-2.0: "google:gemini-2.0-flash"
+  native: "claude-code:session"
+  reviewer: "openai:gpt-5.3-codex"
+  reasoning: "openai:gpt-5.3-codex"
+  cheap: "anthropic:claude-sonnet-4-6"
+  opus: "anthropic:claude-opus-4-7"
+  deep-thinker: "google:gemini-3.1-pro-preview"
+  gemini-3.1-pro: "google:gemini-3.1-pro-preview"
+  gemini-2.5-pro: "google:gemini-2.5-pro"
+  gemini-2.5-flash: "google:gemini-2.5-flash"
+  researcher: "google:deep-research-pro"

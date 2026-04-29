@@ -20,11 +20,14 @@ from loa_cheval.providers.anthropic_adapter import (
 from loa_cheval.providers.base import estimate_tokens, enforce_context_window
 from loa_cheval.types import (
     CompletionRequest,
+    CompletionResult,
     ContextTooLargeError,
+    InvalidConfigError,
     InvalidInputError,
     ModelConfig,
     ProviderConfig,
     RateLimitError,
+    UnsupportedResponseShapeError,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -233,6 +236,9 @@ class TestOpenAIRequestBodyConstruction:
                     capabilities=["chat", "tools"],
                     context_window=128000,
                     token_param=token_param,
+                    # cycle-095 Sprint 1: endpoint_family required on every
+                    # OpenAI entry that can flow through complete().
+                    endpoint_family="chat",
                 ),
             },
         )
@@ -272,7 +278,8 @@ class TestOpenAIRequestBodyConstruction:
             type="openai",
             endpoint="https://api.example.com/v1",
             auth="test-key",
-            models={"gpt-legacy": ModelConfig()},
+            # cycle-095 Sprint 1: endpoint_family required on every OpenAI entry.
+            models={"gpt-legacy": ModelConfig(endpoint_family="chat")},
         )
         adapter = OpenAIAdapter(config)
         request = CompletionRequest(
@@ -443,3 +450,318 @@ class TestAdapterValidation:
         adapter = AnthropicAdapter(config)
         errors = adapter.validate_config()
         assert any("type" in e for e in errors)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# cycle-095 Sprint 1 — Routing infrastructure + response normalization
+# ─────────────────────────────────────────────────────────────────────────────
+
+OPENAI_FIXTURES = FIXTURES / "openai"
+
+
+def _make_openai_provider_with_families() -> ProviderConfig:
+    """ProviderConfig mirroring the cycle-095 .claude/defaults/model-config.yaml
+    OpenAI block — every entry carries explicit endpoint_family.
+    """
+    return ProviderConfig(
+        name="openai",
+        type="openai",
+        endpoint="https://api.example.com/v1",
+        auth="test-key",
+        models={
+            "gpt-5.2": ModelConfig(
+                capabilities=["chat", "tools"],
+                context_window=128000,
+                token_param="max_completion_tokens",
+                endpoint_family="chat",
+                pricing={"input_per_mtok": 10000000, "output_per_mtok": 30000000},
+            ),
+            "gpt-5.3-codex": ModelConfig(
+                capabilities=["chat", "tools", "code"],
+                context_window=400000,
+                token_param="max_completion_tokens",
+                endpoint_family="responses",
+                pricing={"input_per_mtok": 1750000, "output_per_mtok": 14000000},
+            ),
+            "gpt-5.5": ModelConfig(
+                capabilities=["chat", "tools", "code"],
+                context_window=400000,
+                token_param="max_completion_tokens",
+                endpoint_family="responses",
+                pricing={"input_per_mtok": 5000000, "output_per_mtok": 30000000},
+            ),
+            "gpt-5.5-pro": ModelConfig(
+                capabilities=["chat", "tools", "code"],
+                context_window=400000,
+                token_param="max_completion_tokens",
+                endpoint_family="responses",
+                pricing={"input_per_mtok": 30000000, "output_per_mtok": 180000000},
+            ),
+            "gpt-broken-no-family": ModelConfig(
+                # Deliberately missing endpoint_family — used to assert the
+                # adapter-runtime defense-in-depth raise.
+                capabilities=["chat"],
+                context_window=128000,
+            ),
+            "gpt-broken-bad-family": ModelConfig(
+                capabilities=["chat"],
+                context_window=128000,
+                endpoint_family="bogus",
+            ),
+        },
+    )
+
+
+class TestOpenAIResponsesEndpointRouting:
+    """SDD §7.3 Sprint 1 — TestOpenAIResponsesEndpointRouting (cases a-f).
+
+    These are unit tests of complete()'s URL routing decision.  They mock
+    http_post so no network call fires.  The assertion is on which URL the
+    adapter chose — proving cycle-095's metadata-driven routing.
+    """
+
+    def _request(self, model: str) -> CompletionRequest:
+        return CompletionRequest(
+            messages=[{"role": "user", "content": "hello"}],
+            model=model,
+            temperature=0.0,
+            max_tokens=64,
+        )
+
+    def _capturing_http_post(self, fixture_name: str):
+        """Return (mock_fn, captured_calls). The mock returns a fixture body."""
+        captured = []
+        body = json.loads((OPENAI_FIXTURES / fixture_name).read_text())
+
+        def fake_http_post(url, headers, body, **_kwargs):
+            captured.append({"url": url, "body": body})
+            return 200, json.loads((OPENAI_FIXTURES / fixture_name).read_text())
+
+        # Need to also patch where it's bound inside the adapter module.
+        return fake_http_post, captured
+
+    def test_a_gpt55_routes_to_responses_endpoint(self):
+        adapter = OpenAIAdapter(_make_openai_provider_with_families())
+        fake, captured = self._capturing_http_post("responses_multiblock_text.json")
+        with patch("loa_cheval.providers.openai_adapter.http_post", side_effect=fake):
+            adapter.complete(self._request("gpt-5.5"))
+        assert captured, "http_post was not called"
+        assert captured[0]["url"].endswith("/responses")
+        # Body must use the /v1/responses shape — 'input' key, not 'messages'.
+        assert "input" in captured[0]["body"]
+        assert "messages" not in captured[0]["body"]
+        assert captured[0]["body"]["max_output_tokens"] == 64
+
+    def test_b_gpt53_codex_still_routes_to_responses(self):
+        adapter = OpenAIAdapter(_make_openai_provider_with_families())
+        fake, captured = self._capturing_http_post("responses_multiblock_text.json")
+        with patch("loa_cheval.providers.openai_adapter.http_post", side_effect=fake):
+            adapter.complete(self._request("gpt-5.3-codex"))
+        assert captured[0]["url"].endswith("/responses")
+
+    def test_c_gpt52_routes_to_chat_completions(self):
+        adapter = OpenAIAdapter(_make_openai_provider_with_families())
+        # Fixture for chat completions reuses existing openai_response.json
+        body = json.loads((FIXTURES / "openai_response.json").read_text())
+        captured = []
+
+        def fake(url, headers, body, **_kwargs):
+            captured.append({"url": url, "body": body})
+            return 200, json.loads((FIXTURES / "openai_response.json").read_text())
+
+        with patch("loa_cheval.providers.openai_adapter.http_post", side_effect=fake):
+            adapter.complete(self._request("gpt-5.2"))
+        assert captured[0]["url"].endswith("/chat/completions")
+        assert "messages" in captured[0]["body"]
+
+    def test_d_missing_endpoint_family_raises(self):
+        adapter = OpenAIAdapter(_make_openai_provider_with_families())
+        with pytest.raises(InvalidConfigError, match="endpoint_family"):
+            adapter.complete(self._request("gpt-broken-no-family"))
+
+    def test_e_unknown_endpoint_family_raises(self):
+        adapter = OpenAIAdapter(_make_openai_provider_with_families())
+        with pytest.raises(InvalidConfigError, match="invalid endpoint_family"):
+            adapter.complete(self._request("gpt-broken-bad-family"))
+
+    def test_f_legacy_aliases_kill_switch_does_not_force_endpoint(self):
+        """Regression: LOA_FORCE_LEGACY_ALIASES restores ALIAS targets only.
+
+        Each restored alias still routes per its OWN model entry's
+        endpoint_family.  E.g., when the kill-switch makes `reviewer` resolve
+        to gpt-5.3-codex, the adapter still calls /v1/responses (gpt-5.3-codex's
+        own family), NOT /v1/chat/completions.  This test proves there is NO
+        endpoint-force layer — only an alias-substitution layer.
+        """
+        adapter = OpenAIAdapter(_make_openai_provider_with_families())
+        body = json.loads((OPENAI_FIXTURES / "responses_multiblock_text.json").read_text())
+        captured = []
+
+        def fake(url, headers, body, **_kwargs):
+            captured.append({"url": url})
+            return 200, json.loads(
+                (OPENAI_FIXTURES / "responses_multiblock_text.json").read_text()
+            )
+
+        # The alias resolution happens in the loader/resolver, not the adapter.
+        # We simulate the kill-switch result here — `reviewer` resolved to
+        # gpt-5.3-codex — and assert routing uses gpt-5.3-codex's metadata.
+        with patch("loa_cheval.providers.openai_adapter.http_post", side_effect=fake):
+            adapter.complete(self._request("gpt-5.3-codex"))
+        assert captured[0]["url"].endswith("/responses")
+
+
+class TestOpenAIResponsesNormalization:
+    """SDD §7.3 Sprint 1 — one assertion per §5.4 shape (7 fixtures)."""
+
+    def _adapter(self) -> OpenAIAdapter:
+        return OpenAIAdapter(_make_openai_provider_with_families())
+
+    def test_shape1_multiblock_text(self):
+        fixture = json.loads((OPENAI_FIXTURES / "responses_multiblock_text.json").read_text())
+        result = self._adapter()._parse_responses_response(fixture, latency_ms=10)
+        # \n\n join across two output_text parts
+        assert result.content == "First paragraph of the response.\n\nSecond paragraph follows."
+        assert result.tool_calls is None
+        assert result.thinking is None
+        assert result.metadata.get("refused") is not True
+        assert result.usage.output_tokens == 24
+        assert result.usage.reasoning_tokens == 0
+
+    def test_shape2_tool_call_normalization(self):
+        fixture = json.loads((OPENAI_FIXTURES / "responses_tool_call.json").read_text())
+        result = self._adapter()._parse_responses_response(fixture, latency_ms=10)
+        assert result.content == ""
+        assert result.tool_calls is not None and len(result.tool_calls) == 1
+        tc = result.tool_calls[0]
+        # call_id from /v1/responses maps to canonical id field.
+        assert tc["id"] == "call_abc123"
+        assert tc["type"] == "function"
+        assert tc["function"]["name"] == "search"
+        # Arguments preserved as the source-string JSON (not eagerly parsed).
+        assert "loa cycle-095" in tc["function"]["arguments"]
+
+    def test_shape3_reasoning_summary_extracted_into_thinking(self):
+        fixture = json.loads(
+            (OPENAI_FIXTURES / "responses_reasoning_summary.json").read_text()
+        )
+        result = self._adapter()._parse_responses_response(fixture, latency_ms=10)
+        assert result.content == "The answer is forty-two."
+        assert result.thinking is not None
+        assert "Analyzed the question" in result.thinking
+        # reasoning_tokens > 0 but billing only on output_tokens (SDD §5.5)
+        assert result.usage.reasoning_tokens == 250
+        assert result.usage.output_tokens == 264
+
+    def test_shape4_refusal_sets_metadata_flag(self):
+        fixture = json.loads((OPENAI_FIXTURES / "responses_refusal.json").read_text())
+        result = self._adapter()._parse_responses_response(fixture, latency_ms=10)
+        assert result.metadata.get("refused") is True
+        assert "can't help" in result.content
+
+    def test_shape5_empty_output_warns_does_not_raise(self, caplog):
+        fixture = json.loads((OPENAI_FIXTURES / "responses_empty.json").read_text())
+        with caplog.at_level("WARNING", logger="loa_cheval.providers.openai"):
+            result = self._adapter()._parse_responses_response(fixture, latency_ms=10)
+        assert result.content == ""
+        assert result.tool_calls is None
+        assert any("empty output" in rec.message for rec in caplog.records)
+
+    def test_shape6_truncated_sets_metadata_flag(self):
+        fixture = json.loads((OPENAI_FIXTURES / "responses_truncated.json").read_text())
+        result = self._adapter()._parse_responses_response(fixture, latency_ms=10)
+        assert result.metadata.get("truncated") is True
+        assert result.metadata.get("truncation_reason") == "max_output_tokens"
+        assert result.content.startswith("This response was truncated")
+
+    def test_pro_fixture_reasoning_tokens_carried(self):
+        """The load-bearing pro fixture: reasoning_tokens populated on Usage."""
+        fixture = json.loads(
+            (OPENAI_FIXTURES / "responses_pro_reasoning_tokens.json").read_text()
+        )
+        result = self._adapter()._parse_responses_response(fixture, latency_ms=10)
+        assert result.usage.reasoning_tokens == 1800
+        assert result.usage.output_tokens == 2400  # INCLUSIVE of reasoning
+        assert result.content == "QED."
+        # reasoning summary surfaced as thinking trace
+        assert result.thinking and "step by step" in result.thinking
+
+
+class TestUnsupportedResponseShape:
+    """SDD §7.3 Sprint 1 — TestUnsupportedResponseShape: forward-compat fail-loud."""
+
+    def _adapter(self) -> OpenAIAdapter:
+        return OpenAIAdapter(_make_openai_provider_with_families())
+
+    def _unknown_fixture(self) -> dict:
+        return {
+            "id": "resp_unknown_001",
+            "object": "response",
+            "model": "gpt-5.5",
+            "status": "completed",
+            "output": [
+                {"type": "audio_segment", "data": "base64-XXXX"}  # not in §5.4 matrix
+            ],
+            "usage": {
+                "input_tokens": 5,
+                "output_tokens": 10,
+                "output_tokens_details": {"reasoning_tokens": 0},
+            },
+        }
+
+    def test_strict_default_raises(self, monkeypatch):
+        monkeypatch.delenv("LOA_RESPONSES_UNKNOWN_SHAPE_POLICY", raising=False)
+        # Reset the warned-set so prior tests don't leak.
+        OpenAIAdapter._unknown_shape_warned.clear()
+        with pytest.raises(UnsupportedResponseShapeError, match="audio_segment"):
+            self._adapter()._parse_responses_response(self._unknown_fixture(), latency_ms=10)
+
+    def test_degrade_policy_skips_unknown_block_and_warns_once(self, monkeypatch, caplog):
+        monkeypatch.setenv("LOA_RESPONSES_UNKNOWN_SHAPE_POLICY", "degrade")
+        OpenAIAdapter._unknown_shape_warned.clear()
+        adapter = self._adapter()
+        # Add a sibling text block so the result has *some* content.
+        fixture = self._unknown_fixture()
+        fixture["output"].append({
+            "type": "message",
+            "id": "m1",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "fallback text", "annotations": []}],
+        })
+        with caplog.at_level("WARNING", logger="loa_cheval.providers.openai"):
+            result = adapter._parse_responses_response(fixture, latency_ms=10)
+        assert result.content == "fallback text"
+        assert result.metadata["unknown_shapes_present"] is True
+        assert "audio_segment" in result.metadata["unknown_shapes"]
+        warned = [r for r in caplog.records if "audio_segment" in r.message]
+        assert len(warned) == 1
+
+
+class TestForceLegacyAliasesRouting:
+    """SDD §7.3 Sprint 1 — TestForceLegacyAliases case f.
+
+    The kill-switch substitutes alias targets at config-load time; routing
+    happens later per the substituted target's own endpoint_family.  This
+    test asserts that gpt-5.3-codex (the legacy reviewer target) routes to
+    /v1/responses post-substitution, NOT /v1/chat/completions.
+    """
+
+    def test_legacy_target_routes_per_own_metadata(self):
+        adapter = OpenAIAdapter(_make_openai_provider_with_families())
+        captured = []
+
+        def fake(url, headers, body, **_kwargs):
+            captured.append(url)
+            return 200, json.loads(
+                (OPENAI_FIXTURES / "responses_multiblock_text.json").read_text()
+            )
+
+        request = CompletionRequest(
+            messages=[{"role": "user", "content": "x"}],
+            model="gpt-5.3-codex",
+            max_tokens=32,
+        )
+        with patch("loa_cheval.providers.openai_adapter.http_post", side_effect=fake):
+            adapter.complete(request)
+        assert captured[0].endswith("/responses")
+

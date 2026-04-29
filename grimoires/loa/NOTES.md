@@ -126,6 +126,32 @@ Direct CI re-run on a fork-shaped PR is intentionally out-of-scope: the workflow
 - `tests/integration/probe-integration-sprint4.bats` — 5-test probe-integration verification (T4.7 + G6)
 - `grimoires/loa/NOTES.md` — this section (T4.E2E evidence + T3.1 audit)
 
+## Decision Log — 2026-04-29 (cycle-095 Sprint 1 / global sprint-124)
+
+- **`gemini-2.5-pro` / `gemini-2.5-flash` bash-mirror drift (pre-existing).**
+  These aliases were added to `.claude/defaults/model-config.yaml` in a prior
+  cycle but `.claude/scripts/generated-model-maps.sh` was never regenerated.
+  Sprint 1's regeneration picks up an 8-line additive delta. Functionally a
+  no-op for cycle-095; mechanically required for `model-registry-sync.bats`
+  to pass.
+- **`params` field never wired through `_build_provider_config`.** Found
+  during Sprint 1 grounding: `.claude/adapters/cheval.py:_build_provider_config`
+  copied 6 ModelConfig fields from raw YAML dict but silently dropped `params`
+  (added in #641 for the Opus 4 temperature gate). With it dropped,
+  `model_config.params` was always `None` in production, defeating the
+  `temperature_supported: false` gate. Sprint 1 wires it alongside the three
+  new cycle-095 fields (endpoint_family, fallback_chain, probe_required) —
+  the four-line constructor-call fix is shipped together because omitting
+  `params` next to three new wirings would look like deliberate scope-trim
+  to a reviewer.
+- **`id` vs `call_id` correction in `_parse_responses_response`.** SDD §5.4
+  example showed `item.get("id") or item.get("call_id", "")` for tool/function
+  call normalization, but `/v1/responses` splits the two: `id` is the response
+  item ID; `call_id` is the threading identifier the next request must
+  reference. Canonical `CompletionResult.tool_calls[].id` MUST be the
+  threading ID. Implementation prefers `call_id` when both are present.
+  Caught by the Sprint 1 fixture test (`test_shape2_tool_call_normalization`).
+
 ## Decision Log — 2026-04-24 (cycle-093-stabilization)
 
 ### Flatline sprint-plan integration — 3→3A/3B split, bypass governance, parser defenses (2026-04-24)

@@ -1,0 +1,30 @@
+{
+  "id": "resp_fixture_reasoning_001",
+  "object": "response",
+  "model": "gpt-5.5-pro",
+  "status": "completed",
+  "output": [
+    {
+      "type": "reasoning",
+      "id": "rs_001",
+      "summary": [
+        {"type": "summary_text", "text": "Analyzed the question, identified key constraints, considered alternatives."}
+      ]
+    },
+    {
+      "type": "message",
+      "id": "msg_fixture_002",
+      "role": "assistant",
+      "status": "completed",
+      "content": [
+        {"type": "output_text", "text": "The answer is forty-two.", "annotations": []}
+      ]
+    }
+  ],
+  "usage": {
+    "input_tokens": 18,
+    "output_tokens": 264,
+    "output_tokens_details": {"reasoning_tokens": 250},
+    "total_tokens": 282
+  }
+}

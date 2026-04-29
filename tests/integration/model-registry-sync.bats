@@ -228,3 +228,20 @@ setup() {
     sorted="$(printf '%s\n' "$list" | LC_ALL=C sort -u)"
     [ "$list" = "$sorted" ]
 }
+
+# -----------------------------------------------------------------------------
+# cycle-095 Sprint 1 (SDD §3.4) — endpoint_family invariant on OpenAI models
+# -----------------------------------------------------------------------------
+@test "endpoint_family: every OpenAI model declares chat or responses" {
+    local missing
+    missing="$(yq eval -o=json '.providers.openai.models' "$CONFIG" \
+        | jq -r 'to_entries[]
+                 | select(.value.endpoint_family == null
+                          or (.value.endpoint_family | test("^(chat|responses)$") | not))
+                 | "\(.key)=\(.value.endpoint_family // "MISSING")"')"
+    if [[ -n "$missing" ]]; then
+        echo "OpenAI entries with missing/invalid endpoint_family:" >&2
+        echo "$missing" >&2
+        return 1
+    fi
+}

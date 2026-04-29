@@ -1,0 +1,22 @@
+{
+  "id": "resp_fixture_toolcall_001",
+  "object": "response",
+  "model": "gpt-5.5",
+  "status": "completed",
+  "output": [
+    {
+      "type": "function_call",
+      "id": "fc_001",
+      "call_id": "call_abc123",
+      "name": "search",
+      "arguments": "{\"query\":\"loa cycle-095 endpoint family\",\"top_k\":3}",
+      "status": "completed"
+    }
+  ],
+  "usage": {
+    "input_tokens": 28,
+    "output_tokens": 18,
+    "output_tokens_details": {"reasoning_tokens": 0},
+    "total_tokens": 46
+  }
+}

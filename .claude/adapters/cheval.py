@@ -175,6 +175,10 @@ def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> Provid
             pricing=model_data.get("pricing"),
             api_mode=model_data.get("api_mode"),
             extra=extra,
+            params=model_data.get("params"),
+            endpoint_family=model_data.get("endpoint_family"),
+            fallback_chain=model_data.get("fallback_chain"),
+            probe_required=model_data.get("probe_required", False),
         )
 
     return ProviderConfig(

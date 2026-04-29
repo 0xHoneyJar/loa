@@ -15,6 +15,11 @@ providers:
         capabilities: [chat, tools, function_calling]
         context_window: 128000
         token_param: max_completion_tokens
+        # cycle-095 Sprint 1 (SDD §3.4): endpoint_family is REQUIRED on every
+        # OpenAI registry entry; loader.py rejects missing/unknown values.
+        # Operators with custom OpenAI entries can use
+        # LOA_LEGACY_ENDPOINT_FAMILY_DEFAULT=chat as a one-shot migration backstop.
+        endpoint_family: chat
         pricing:
           # Unit: micro-USD per million tokens (1_000_000 micro-USD = $1).
           # Unified unit across all entries per sprint-bug-108 / vision-011 —
@@ -27,6 +32,7 @@ providers:
         capabilities: [chat, tools, function_calling, code]
         context_window: 400000
         token_param: max_completion_tokens
+        endpoint_family: responses    # codex models route to /v1/responses
         pricing:
           input_per_mtok: 1750000     # $1.75 per million tokens
           output_per_mtok: 14000000   # $14.00 per million tokens
@@ -41,18 +47,20 @@ providers:
         capabilities: [chat, tools, function_calling, code]
         context_window: 400000          # placeholder; update at ship time
         token_param: max_completion_tokens
-        probe_required: true            # latent until OpenAI /v1/models confirms
+        endpoint_family: responses      # cycle-095 Sprint 1: gpt-5.5 only routes through /v1/responses
+        probe_required: true            # latent until OpenAI /v1/models confirms; Sprint 2 removes this
         pricing:
-          input_per_mtok: 5000000       # placeholder $5.00 per million tokens
-          output_per_mtok: 30000000     # placeholder $30.00 per million tokens
+          input_per_mtok: 5000000       # $5.00 per million tokens (confirmed 2026-04-29)
+          output_per_mtok: 30000000     # $30.00 per million tokens (output_tokens INCLUSIVE of reasoning_tokens; SDD §5.5)
       gpt-5.5-pro:
         capabilities: [chat, tools, function_calling, code]
         context_window: 400000          # placeholder
         token_param: max_completion_tokens
-        probe_required: true
+        endpoint_family: responses      # cycle-095 Sprint 1
+        probe_required: true            # Sprint 2 removes
         pricing:
-          input_per_mtok: 30000000      # placeholder $30.00 per million tokens
-          output_per_mtok: 180000000    # placeholder $180.00 per million tokens
+          input_per_mtok: 30000000      # $30.00 per million tokens (confirmed 2026-04-29)
+          output_per_mtok: 180000000    # $180.00 per million tokens (includes reasoning_tokens — SDD §5.5)
 
   google:
     type: google

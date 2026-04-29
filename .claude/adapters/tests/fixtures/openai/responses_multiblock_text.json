@@ -1,0 +1,24 @@
+{
+  "id": "resp_fixture_multiblock_001",
+  "object": "response",
+  "model": "gpt-5.5",
+  "status": "completed",
+  "output": [
+    {
+      "type": "message",
+      "id": "msg_fixture_001",
+      "role": "assistant",
+      "status": "completed",
+      "content": [
+        {"type": "output_text", "text": "First paragraph of the response.", "annotations": []},
+        {"type": "output_text", "text": "Second paragraph follows.", "annotations": []}
+      ]
+    }
+  ],
+  "usage": {
+    "input_tokens": 12,
+    "output_tokens": 24,
+    "output_tokens_details": {"reasoning_tokens": 0},
+    "total_tokens": 36
+  }
+}

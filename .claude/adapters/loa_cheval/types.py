@@ -34,6 +34,10 @@ class CompletionResult:
     latency_ms: int
     provider: str
     interaction_id: Optional[str] = None  # Deep Research interaction ID for deduplication
+    # cycle-095 Sprint 1 (SDD §5.6): adapter-emitted out-of-band signals.
+    # Documented keys: refused (bool), truncated (bool), truncation_reason (str),
+    # unknown_shapes_present (bool), unknown_shapes (list[str]).
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -104,6 +108,16 @@ class ModelConfig:
     #   temperature_supported: bool (default True). Set False for Opus 4 family
     #   which rejects requests carrying `temperature` with HTTP 400.
     params: Optional[Dict[str, Any]] = None
+    # cycle-095 Sprint 1 (SDD §3.4, §5.2): OpenAI endpoint routing metadata.
+    # REQUIRED on every providers.openai.models.* entry (validated in loader);
+    # ignored for non-OpenAI providers. Allowed values: "chat" | "responses".
+    endpoint_family: Optional[str] = None
+    # cycle-095 Sprint 2 (SDD §3.5): probe-driven fallback chain.
+    # Each entry is "provider:model_id". Optional; absence = no fallback.
+    fallback_chain: Optional[List[str]] = None
+    # Latency-formalization of an existing YAML field. Probe-gated entries are
+    # treated as UNAVAILABLE until model-health-probe.sh confirms reachability.
+    probe_required: bool = False
 
 
 # --- Error Types ---
@@ -186,3 +200,30 @@ class InvalidInputError(ChevalError):
 
     def __init__(self, message: str):
         super().__init__("INVALID_INPUT", message, retryable=False)
+
+
+# cycle-095 Sprint 1 (SDD §5.6): adapter-runtime defense-in-depth for missing
+# endpoint_family. Config-load validation (loader.py) is the primary gate;
+# this exception fires only if a request reaches the adapter without it.
+class InvalidConfigError(ChevalError):
+    """Registry / config-shape error caught at adapter request-time."""
+
+    def __init__(self, message: str):
+        super().__init__("INVALID_CONFIG", message, retryable=False)
+
+
+# cycle-095 Sprint 1 (SDD §5.4, §5.4.1): the strict-default raise for
+# /v1/responses output[].type values not in the §5.4 normalization matrix.
+# Operators who need a one-shot escape hatch can set
+# hounfour.experimental.responses_unknown_shape_policy: degrade.
+class UnsupportedResponseShapeError(ChevalError):
+    """Adapter encountered a response shape not in §5.4 normalization matrix."""
+
+    def __init__(self, message: str):
+        super().__init__("UNSUPPORTED_RESPONSE_SHAPE", message, retryable=False)
+
+
+# cycle-095 Sprint 2 (SDD §5.6): forward-compat alias for PRD wording (FR-5/FR-5a).
+# The pre-call cost-cap guard raises this name; existing per-day budget code
+# keeps using BudgetExceededError directly.
+CostBudgetExceeded = BudgetExceededError
