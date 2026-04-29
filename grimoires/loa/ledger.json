@@ -709,7 +709,7 @@
           "local_id": 1,
           "global_id": 124,
           "label": "Routing Infrastructure + Response Normalization + Kill-Switch",
-          "status": "in_progress"
+          "status": "completed"
         },
         {
           "local_id": 2,

@@ -186,6 +186,14 @@ def load_config(
     # env-var backstop with WARN per affected entry.
     _validate_endpoint_family(merged)
 
+    # cycle-095 Sprint 2 post-merge step C — fold backward_compat_aliases
+    # into the resolved aliases: dict so the Python resolver can chain
+    # through legacy keys (matches the bash adapter's gen-adapter-maps.sh
+    # behavior). Existing aliases win on key collision — SSOT precedence
+    # (SDD §6.3 + Task 2.2). The resolver gets the legacy-key set so it
+    # can emit one-time INFO logs on first resolution.
+    _fold_backward_compat_aliases(merged)
+
     # Resolve secret interpolation
     extra_env_patterns = []
     for pattern_str in merged.get("secret_env_allowlist", []):
@@ -446,6 +454,42 @@ def _validate_endpoint_family(merged: Dict[str, Any]) -> None:
                 f"endpoint_family={family!r}. Allowed values: "
                 f"{', '.join(_ALLOWED_ENDPOINT_FAMILIES)}."
             )
+
+
+def _fold_backward_compat_aliases(merged: Dict[str, Any]) -> None:
+    """Merge backward_compat_aliases into aliases (existing aliases win).
+
+    Mirrors the bash mirror's behavior in gen-adapter-maps.sh: the union of
+    aliases + backward_compat_aliases is what alias resolution consults.
+    Hands the legacy-key set to the resolver for once-per-process INFO
+    logging.
+    """
+    bcompat_raw = merged.get("backward_compat_aliases") or {}
+    if not isinstance(bcompat_raw, dict) or not bcompat_raw:
+        # Either no entries or malformed — clear any prior state (matters for
+        # tests that re-load with different configs).
+        from loa_cheval.routing.resolver import set_legacy_alias_keys
+
+        set_legacy_alias_keys(set())
+        return
+
+    aliases = merged.setdefault("aliases", {})
+    if not isinstance(aliases, dict):
+        # Malformed; let resolver fail loud later. Don't try to merge.
+        return
+
+    folded_keys: set[str] = set()
+    for key, target in bcompat_raw.items():
+        if not isinstance(key, str) or not isinstance(target, str):
+            continue
+        # Existing aliases entry wins on collision (SSOT precedence).
+        if key not in aliases:
+            aliases[key] = target
+        folded_keys.add(key)
+
+    from loa_cheval.routing.resolver import set_legacy_alias_keys
+
+    set_legacy_alias_keys(folded_keys)
 
 
 # --- Config cache (one per process) ---

@@ -765,3 +765,299 @@ class TestForceLegacyAliasesRouting:
             adapter.complete(request)
         assert captured[0].endswith("/responses")
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# cycle-095 Sprint 2 — Google fallback chain (SDD §3.5, §5.8)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _make_google_provider_with_chain() -> ProviderConfig:
+    """ProviderConfig with gemini-3-flash-preview → fallback → gemini-2.5-flash."""
+    return ProviderConfig(
+        name="google",
+        type="google",
+        endpoint="https://generativelanguage.googleapis.com/v1beta",
+        auth="test-key",
+        models={
+            "gemini-3-flash-preview": ModelConfig(
+                capabilities=["chat"],
+                context_window=1048576,
+                fallback_chain=["google:gemini-2.5-flash"],
+                pricing={"input_per_mtok": 150000, "output_per_mtok": 600000},
+            ),
+            "gemini-2.5-flash": ModelConfig(
+                capabilities=["chat"],
+                context_window=1048576,
+                pricing={"input_per_mtok": 150000, "output_per_mtok": 600000},
+            ),
+        },
+    )
+
+
+class TestFallbackChain:
+    """SDD §5.8 — probe-driven demotion + cooldown hysteresis."""
+
+    def _make_request(self, model: str = "gemini-3-flash-preview") -> CompletionRequest:
+        return CompletionRequest(
+            messages=[{"role": "user", "content": "ping"}],
+            model=model,
+            max_tokens=16,
+        )
+
+    def test_primary_available_returns_primary(self, monkeypatch):
+        from loa_cheval.providers.google_adapter import GoogleAdapter
+        adapter = GoogleAdapter(_make_google_provider_with_chain())
+        # Mock _is_available to always return True (primary AVAILABLE).
+        monkeypatch.setattr(adapter, "_is_available", lambda *a: True)
+        active = adapter._resolve_active_model(
+            self._make_request(), adapter._get_model_config("gemini-3-flash-preview")
+        )
+        assert active == "gemini-3-flash-preview"
+
+    def test_primary_unavailable_falls_back_and_warns_once(self, monkeypatch, caplog):
+        from loa_cheval.providers.google_adapter import GoogleAdapter
+        adapter = GoogleAdapter(_make_google_provider_with_chain())
+
+        def _avail(provider, model_id):
+            # Primary UNAVAILABLE; fallback AVAILABLE.
+            return model_id != "gemini-3-flash-preview"
+
+        monkeypatch.setattr(adapter, "_is_available", _avail)
+        with caplog.at_level("WARNING", logger="loa_cheval.providers.google"):
+            active = adapter._resolve_active_model(
+                self._make_request(),
+                adapter._get_model_config("gemini-3-flash-preview"),
+            )
+        assert active == "gemini-2.5-flash"
+        warns = [r for r in caplog.records if "Demoting" in r.message]
+        assert len(warns) == 1
+
+        # Second call — same demotion, no second WARN.
+        caplog.clear()
+        with caplog.at_level("WARNING", logger="loa_cheval.providers.google"):
+            adapter._resolve_active_model(
+                self._make_request(),
+                adapter._get_model_config("gemini-3-flash-preview"),
+            )
+        warns_2 = [r for r in caplog.records if "Demoting" in r.message]
+        assert len(warns_2) == 0
+
+    def test_recovery_after_cooldown_promotes_back(self, monkeypatch):
+        import time as _time
+        from loa_cheval.providers.google_adapter import GoogleAdapter
+        adapter = GoogleAdapter(_make_google_provider_with_chain())
+
+        # Stage 1: primary UNAVAILABLE → demote.
+        avail_state = {"primary_available": False}
+
+        def _avail(provider, model_id):
+            if model_id == "gemini-3-flash-preview":
+                return avail_state["primary_available"]
+            return True
+
+        monkeypatch.setattr(adapter, "_is_available", _avail)
+        adapter._cooldown_seconds = 0.01  # tiny cooldown for test
+        active1 = adapter._resolve_active_model(
+            self._make_request(),
+            adapter._get_model_config("gemini-3-flash-preview"),
+        )
+        assert active1 == "gemini-2.5-flash"
+
+        # Stage 2: primary AVAILABLE again, but still inside cooldown.
+        avail_state["primary_available"] = True
+        adapter._cooldown_seconds = 999  # high cooldown — stay demoted
+        active2 = adapter._resolve_active_model(
+            self._make_request(),
+            adapter._get_model_config("gemini-3-flash-preview"),
+        )
+        assert active2 == "gemini-2.5-flash"
+
+        # Stage 3: cooldown expired → promote back.
+        adapter._cooldown_seconds = 0.0
+        # Wait one tick of monotonic time to ensure (now - unavailable_since) > 0
+        _time.sleep(0.01)
+        active3 = adapter._resolve_active_model(
+            self._make_request(),
+            adapter._get_model_config("gemini-3-flash-preview"),
+        )
+        assert active3 == "gemini-3-flash-preview"
+
+    def test_all_unavailable_raises_provider_unavailable(self, monkeypatch):
+        from loa_cheval.providers.google_adapter import GoogleAdapter
+        from loa_cheval.types import ProviderUnavailableError
+        adapter = GoogleAdapter(_make_google_provider_with_chain())
+        monkeypatch.setattr(adapter, "_is_available", lambda *a: False)
+        with pytest.raises(ProviderUnavailableError, match="all fallback chain UNAVAILABLE"):
+            adapter._resolve_active_model(
+                self._make_request(),
+                adapter._get_model_config("gemini-3-flash-preview"),
+            )
+
+
+class TestProbeCacheTrustBoundary:
+    """SDD §3.5 SKP-003: probe cache trust check (file owner UID + mode 0600)."""
+
+    def test_loose_mode_treated_as_unknown(self, tmp_path, monkeypatch, caplog):
+        from loa_cheval.providers.google_adapter import GoogleAdapter
+        import os as _os, json as _json_mod, stat as _stat
+        adapter = GoogleAdapter(_make_google_provider_with_chain())
+
+        cache = tmp_path / "model-health-cache.json"
+        cache.write_text(_json_mod.dumps({"models": {"google:gemini-3-flash-preview": "UNAVAILABLE"}}))
+        # Loose mode (group-readable) → trust check fails → UNKNOWN → AVAILABLE.
+        _os.chmod(str(cache), 0o644)
+
+        # Patch the hardcoded path so our adapter looks at our temp cache.
+        original_is_available = adapter._is_available
+
+        def _patched_is_available(provider, model_id):
+            # Manually replicate the probe path with our temp cache.
+            if not adapter._probe_cache_trust_check(str(cache)):
+                return True  # Trust fail → UNKNOWN → assume AVAILABLE
+            return original_is_available(provider, model_id)
+
+        with caplog.at_level("ERROR", logger="loa_cheval.providers.google"):
+            ok = _patched_is_available("google", "gemini-3-flash-preview")
+        assert ok is True
+        # Trust-check error log surfaced
+        errs = [r for r in caplog.records if "loose mode" in r.message]
+        assert errs
+
+    def test_strict_mode_passes_trust_check(self, tmp_path):
+        from loa_cheval.providers.google_adapter import GoogleAdapter
+        import os as _os
+        adapter = GoogleAdapter(_make_google_provider_with_chain())
+        cache = tmp_path / "model-health-cache.json"
+        cache.write_text("{}")
+        _os.chmod(str(cache), 0o600)
+        assert adapter._probe_cache_trust_check(str(cache)) is True
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# cycle-095 Sprint 2 — tier_groups schema + cost cap (FR-5a)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestTierGroupsCostCap:
+    """SDD §1.4.4 — pre-call session cap raises CostBudgetExceeded BEFORE API call."""
+
+    def test_under_cap_passes(self, tmp_path):
+        from loa_cheval.metering.budget import check_session_cap_pre
+
+        ledger = tmp_path / "ledger.jsonl"
+        # Empty ledger — no spend yet.
+        check_session_cap_pre(
+            trace_id="tr-1",
+            ledger_path=str(ledger),
+            cap_micro=100_000_000,    # $100 cap
+            request_estimate_micro=10_000_000,  # $10 estimate
+        )
+
+    def test_over_cap_raises_pre_call(self, tmp_path):
+        from loa_cheval.metering.budget import check_session_cap_pre
+        from loa_cheval.types import CostBudgetExceeded
+
+        ledger = tmp_path / "ledger.jsonl"
+        # Pre-load a $90 spend on tr-1.
+        ledger.write_text(
+            json.dumps({"trace_id": "tr-1", "cost_micro_usd": 90_000_000}) + "\n"
+        )
+        # $90 + $20 estimate would exceed $100 cap.
+        with pytest.raises(CostBudgetExceeded, match="BUDGET_EXCEEDED"):
+            check_session_cap_pre(
+                trace_id="tr-1",
+                ledger_path=str(ledger),
+                cap_micro=100_000_000,
+                request_estimate_micro=20_000_000,
+            )
+
+    def test_null_cap_no_enforcement(self, tmp_path):
+        from loa_cheval.metering.budget import check_session_cap_pre
+        ledger = tmp_path / "ledger.jsonl"
+        ledger.write_text(json.dumps({"trace_id": "tr-1", "cost_micro_usd": 999_999_000_000}) + "\n")
+        # cap_micro=None → no enforcement
+        check_session_cap_pre("tr-1", str(ledger), None, 100_000_000)
+
+    def test_other_trace_id_does_not_count(self, tmp_path):
+        from loa_cheval.metering.budget import check_session_cap_pre
+        ledger = tmp_path / "ledger.jsonl"
+        # Pre-load a $90 spend on a DIFFERENT trace_id.
+        ledger.write_text(json.dumps({"trace_id": "tr-other", "cost_micro_usd": 90_000_000}) + "\n")
+        # Per-trace_id session cap — tr-1 has $0 spend, $20 estimate fits in $100.
+        check_session_cap_pre("tr-1", str(ledger), 100_000_000, 20_000_000)
+
+
+class TestPreferProDryrun:
+    """SDD §5.9 — dryrun_preview surfaces what apply_tier_groups WOULD do."""
+
+    def test_flag_off_emits_off_preview(self):
+        from loa_cheval.routing.tier_groups import dryrun_preview
+        config = {"hounfour": {"prefer_pro_models": False}, "tier_groups": {"mappings": {"reviewer": "gpt-5.5-pro"}}}
+        lines = dryrun_preview(config)
+        assert any("off" in line for line in lines)
+
+    def test_flag_on_empty_mappings(self):
+        from loa_cheval.routing.tier_groups import dryrun_preview
+        config = {"hounfour": {"prefer_pro_models": True}, "tier_groups": {"mappings": {}}}
+        lines = dryrun_preview(config)
+        assert any("empty" in line.lower() or "no remaps" in line for line in lines)
+
+    def test_flag_on_with_mappings(self):
+        from loa_cheval.routing.tier_groups import dryrun_preview
+        config = {
+            "hounfour": {"prefer_pro_models": True},
+            "tier_groups": {"mappings": {"reviewer": "openai:gpt-5.5-pro"}},
+            "aliases": {"reviewer": "openai:gpt-5.5"},
+        }
+        lines = dryrun_preview(config)
+        # Should show reviewer: openai:gpt-5.5 -> openai:gpt-5.5-pro
+        assert any("reviewer" in line and "gpt-5.5-pro" in line for line in lines)
+
+    def test_denylist_skips(self):
+        from loa_cheval.routing.tier_groups import dryrun_preview
+        config = {
+            "hounfour": {"prefer_pro_models": True},
+            "tier_groups": {"mappings": {"reviewer": "openai:gpt-5.5-pro"}, "denylist": ["reviewer"]},
+            "aliases": {"reviewer": "openai:gpt-5.5"},
+        }
+        lines = dryrun_preview(config)
+        assert any("reviewer" in line and "denylist" in line for line in lines)
+
+    def test_validate_tier_groups_clean(self):
+        from loa_cheval.routing.tier_groups import validate_tier_groups
+        config = {
+            "tier_groups": {"mappings": {"reviewer": "openai:gpt-5.5-pro"}, "denylist": [], "max_cost_per_session_micro_usd": None},
+            "aliases": {"reviewer": "openai:gpt-5.5"},
+        }
+        warnings = validate_tier_groups(config)
+        assert warnings == []
+
+    def test_validate_tier_groups_unknown_denylist_warns(self):
+        from loa_cheval.routing.tier_groups import validate_tier_groups
+        config = {
+            "tier_groups": {"mappings": {}, "denylist": ["nonexistent-alias"]},
+            "aliases": {"reviewer": "openai:gpt-5.5"},
+        }
+        warnings = validate_tier_groups(config)
+        assert any("nonexistent-alias" in w for w in warnings)
+
+    def test_validate_tier_groups_invalid_cap_raises(self):
+        from loa_cheval.routing.tier_groups import validate_tier_groups
+        from loa_cheval.types import ConfigError
+        config = {
+            "tier_groups": {"max_cost_per_session_micro_usd": -1},
+        }
+        with pytest.raises(ConfigError, match="max_cost_per_session_micro_usd"):
+            validate_tier_groups(config)
+
+    def test_dryrun_env_var(self, monkeypatch):
+        from loa_cheval.routing.tier_groups import is_dryrun_active
+        monkeypatch.delenv("LOA_PREFER_PRO_DRYRUN", raising=False)
+        assert is_dryrun_active() is False
+        monkeypatch.setenv("LOA_PREFER_PRO_DRYRUN", "1")
+        assert is_dryrun_active() is True
+        monkeypatch.setenv("LOA_PREFER_PRO_DRYRUN", "true")
+        assert is_dryrun_active() is True
+        monkeypatch.setenv("LOA_PREFER_PRO_DRYRUN", "0")
+        assert is_dryrun_active() is False
+

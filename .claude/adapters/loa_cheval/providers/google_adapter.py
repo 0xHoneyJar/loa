@@ -48,18 +48,48 @@ class GoogleAdapter(ProviderAdapter):
     Supports:
     - Standard generateContent (Gemini 2.5/3)
     - Deep Research via Interactions API (Sprint 2 stub)
+    - cycle-095 Sprint 2 (Task 2.5 / SDD §3.5, §5.8): probe-driven
+      fallback_chain demotion with cooldown hysteresis.
     """
+
+    # cycle-095 Sprint 2: per-instance state for fallback hysteresis.
+    # in-process only by default; persist_state opt-in deferred.
 
     def __init__(self, config):
         # type: (Any) -> None
         super().__init__(config)
         # API version pinned, configurable via model extra (Flatline SKP-003)
         self._api_version = "v1beta"
+        # cycle-095 Sprint 2: fallback hysteresis state.
+        # _demoted_state: model_id -> first-unavailable timestamp (monotonic)
+        # _last_fallback_used: primary model_id -> the fallback chosen
+        # _demotion_warned: (primary, fallback) pairs already WARN'd this process
+        # _recovery_logged: model_ids already INFO'd for recovery this process
+        self._demoted_state = {}        # type: Dict[str, float]
+        self._last_fallback_used = {}   # type: Dict[str, str]
+        self._demotion_warned = set()   # type: set
+        self._recovery_logged = set()   # type: set
+        # Cooldown default 300s (SDD §3.5); operator override via fallback config
+        self._cooldown_seconds = 300.0
 
     def complete(self, request):
         # type: (CompletionRequest) -> CompletionResult
         """Route to standard or Deep Research based on api_mode."""
         model_config = self._get_model_config(request.model)
+
+        # cycle-095 Sprint 2: substitute the active model_id based on probe state.
+        # If primary is UNAVAILABLE and fallback_chain is set, demote to first
+        # AVAILABLE entry. The resolved model_id is what gets called.
+        active_model = self._resolve_active_model(request, model_config)
+        if active_model != request.model:
+            # Re-fetch the model_config for the resolved model so token_param,
+            # context_window, pricing, etc. all reflect the active target.
+            model_config = self._get_model_config(active_model)
+            # Mutate the request's model field so downstream URL build + ledger
+            # entries use the resolved model. CompletionRequest is a dataclass
+            # but not frozen — direct attribute set is the documented mutation
+            # path (matches existing #641 anthropic params handling).
+            request.model = active_model
 
         # Check api_mode: "interactions" routes to Deep Research (Sprint 2)
         api_mode = model_config.api_mode or "standard"
@@ -67,6 +97,142 @@ class GoogleAdapter(ProviderAdapter):
             return self._complete_deep_research(request, model_config)
 
         return self._complete_standard(request, model_config)
+
+    # --- cycle-095 Sprint 2: probe-driven fallback chain (SDD §3.5, §5.8) ---
+
+    def _resolve_active_model(self, request, primary_config):
+        # type: (CompletionRequest, Any) -> str
+        """Return the model_id to actually call after fallback consideration.
+
+        Walks the primary's fallback_chain on UNAVAILABLE; promotes back to
+        primary after cooldown_seconds when probe recovers (hysteresis).
+        Raises ProviderUnavailableError if all chain entries are UNAVAILABLE.
+
+        See SDD §5.8 for the algorithm; SDD §3.5 for the trust boundary.
+        """
+        primary = request.model
+        chain = getattr(primary_config, "fallback_chain", None) or []
+        if not chain:
+            return primary
+
+        primary_available = self._is_available(self.provider, primary)
+        now = time.monotonic()
+
+        if primary_available:
+            # Primary AVAILABLE — consider promoting back from fallback (hysteresis).
+            if primary in self._demoted_state:
+                unavailable_since = self._demoted_state[primary]
+                if (now - unavailable_since) >= self._cooldown_seconds:
+                    if primary not in self._recovery_logged:
+                        logger.info(
+                            "Probe recovered for %s; promoting back from fallback",
+                            primary,
+                        )
+                        self._recovery_logged.add(primary)
+                    self._demoted_state.pop(primary, None)
+                    self._last_fallback_used.pop(primary, None)
+                    return primary
+                # Still in cooldown — stay on the most-recently-chosen fallback.
+                return self._last_fallback_used.get(primary, primary)
+            return primary
+
+        # Primary UNAVAILABLE — record demotion start time and walk chain.
+        self._demoted_state.setdefault(primary, now)
+        # Recovery logging is now stale — clear so next recovery re-logs.
+        self._recovery_logged.discard(primary)
+
+        for entry in chain:
+            if not isinstance(entry, str):
+                continue
+            if ":" in entry:
+                _provider, candidate = entry.split(":", 1)
+            else:
+                candidate = entry
+            if self._is_available(self.provider, candidate):
+                pair = (primary, candidate)
+                if pair not in self._demotion_warned:
+                    logger.warning(
+                        "Demoting %s -> %s (probe state UNAVAILABLE for primary)",
+                        primary,
+                        candidate,
+                    )
+                    self._demotion_warned.add(pair)
+                self._last_fallback_used[primary] = candidate
+                return candidate
+
+        raise ProviderUnavailableError(
+            self.provider,
+            "all fallback chain UNAVAILABLE: primary=%s, chain=%s" % (primary, chain),
+        )
+
+    def _is_available(self, provider, model_id):
+        # type: (str, str) -> bool
+        """Read probe state from the cache file with trust-boundary check.
+
+        Returns True if the cache says AVAILABLE; False if UNAVAILABLE OR
+        if the cache is missing OR if the cache fails the trust check
+        (defense against attacker-written cache files manipulating routing —
+        SDD §3.5 SKP-003 HIGH 770).
+
+        Cache schema: {"models": {"google:gemini-3-flash-preview": "AVAILABLE"|"UNAVAILABLE", ...}}
+        Missing entry → treated as UNKNOWN; we conservatively return True
+        (i.e., assume primary is reachable until proven otherwise) so the
+        fallback chain only fires on actively-confirmed UNAVAILABLE state.
+        """
+        cache_path = ".run/model-health-cache.json"
+        try:
+            if not os.path.exists(cache_path):
+                return True  # No probe state = no demotion signal
+            if not self._probe_cache_trust_check(cache_path):
+                # Trust check failed — log ERROR and treat as UNKNOWN.
+                # No fallback fires (UNKNOWN ≠ UNAVAILABLE), and the operator
+                # gets a noisy ERROR log to investigate.
+                return True
+            with open(cache_path) as f:
+                cache = _json.load(f)
+            models = cache.get("models", {})
+            key = "%s:%s" % (provider, model_id)
+            state = models.get(key)
+            if state == "UNAVAILABLE":
+                return False
+            return True
+        except Exception as exc:
+            # Any read/parse error → fail safe to AVAILABLE (no spurious demotion).
+            logger.warning("probe cache read failed (%s); treating %s as AVAILABLE", exc, model_id)
+            return True
+
+    def _probe_cache_trust_check(self, cache_path):
+        # type: (str) -> bool
+        """Verify file owner UID matches process UID and mode is 0600 or stricter.
+
+        Defends against an attacker-writable cache file manipulating routing
+        decisions. On Windows / non-POSIX systems, skip the check
+        (file ownership semantics differ; UNKNOWN behavior is the safe path).
+        """
+        try:
+            stat = os.stat(cache_path)
+            # Only enforce on POSIX systems where ownership/mode are meaningful.
+            if not hasattr(os, "geteuid"):
+                return True
+            if stat.st_uid != os.geteuid():
+                logger.error(
+                    "probe cache %s owned by uid=%d (expected %d); "
+                    "treating as UNKNOWN. Investigate possible tampering.",
+                    cache_path, stat.st_uid, os.geteuid(),
+                )
+                return False
+            mode_other_world = stat.st_mode & 0o077  # any g/o permission bits
+            if mode_other_world != 0:
+                logger.error(
+                    "probe cache %s has loose mode %#o (expected 0600 or stricter); "
+                    "treating as UNKNOWN.",
+                    cache_path, stat.st_mode & 0o777,
+                )
+                return False
+            return True
+        except OSError:
+            # stat failed — treat as missing/unreadable, not malicious.
+            return False
 
     def validate_config(self):
         # type: () -> List[str]

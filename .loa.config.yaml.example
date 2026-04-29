@@ -2139,3 +2139,38 @@ qmd_context:
 #   thread_archive_days: 30   # Auto-archive open threads after N days
 #   local_source_paths:       # Local clone search paths for /constructs install
 #     - ~/Documents/GitHub/construct-{slug}
+
+# -----------------------------------------------------------------------------
+# cycle-095 — Model Currency operator surface (Sprints 1+2)
+# -----------------------------------------------------------------------------
+# All blocks are commented (defaults preserve previous behavior). Uncomment
+# to opt in.
+#
+# Pro-tier opt-in: retargets aliases declared in tier_groups.mappings to
+# their *-pro counterparts when prefer_pro_models: true. Default false
+# (cost-safety). Sprint 3 wires the flag into the config loader.
+# WARNING: enables ~5-10x cost increase on reasoning_tokens-charged calls.
+#
+# hounfour:
+#   prefer_pro_models: false        # Sprint 3 — opt-in flag
+#   experimental:
+#     # Operational kill-switch: restore pre-cycle-095 alias resolution
+#     # at config-load time. Equivalent to LOA_FORCE_LEGACY_ALIASES=1.
+#     force_legacy_aliases: false
+#     # Forward-compat policy for /v1/responses output[].type values not
+#     # in the §5.4 normalization matrix. Default "strict" raises
+#     # UnsupportedResponseShapeError; "degrade" skips the unknown block
+#     # with a once-per-process WARN.
+#     responses_unknown_shape_policy: strict
+#
+# tier_groups:
+#   mappings: {}                    # Sprint 3 populates with reviewer/reasoning -> *-pro targets
+#   denylist: []                    # alias names to opt out of retargeting
+#   max_cost_per_session_micro_usd: null   # set integer for hard per-session cap (e.g., 100000000 = $100)
+#   override_user_aliases: false    # Sprint 3 — when true, mappings WIN over user pins
+#
+# Environment-variable equivalents:
+#   LOA_FORCE_LEGACY_ALIASES=1            # operator escape hatch (alias rollback)
+#   LOA_LEGACY_ENDPOINT_FAMILY_DEFAULT=chat  # one-shot migration backstop for custom OpenAI entries
+#   LOA_RESPONSES_UNKNOWN_SHAPE_POLICY=degrade  # one-shot graceful degradation
+#   LOA_PREFER_PRO_DRYRUN=1               # preview retargets without applying (Sprint 2)

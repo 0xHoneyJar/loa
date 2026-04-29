@@ -4,6 +4,12 @@ Implements BudgetHook protocol from retry.py:
 - Pre-call: Check daily spend vs budget, return ALLOW/WARN/DOWNGRADE/BLOCK
 - Post-call: Record cost to ledger and update daily spend counter
 - Atomic pre-call: flock-protected check+reserve (Sprint 3 Task 3.3)
+
+cycle-095 Sprint 2 (Task 2.7 / SDD §1.4.4): per-session cost-cap primitive
+with two-phase atomicity. check_session_cap_pre raises CostBudgetExceeded
+BEFORE the API call when the prospective cost (current_session_total +
+worst-case estimate) would exceed the cap. check_session_cap_post is
+observability-only.
 """
 
 from __future__ import annotations
@@ -12,6 +18,7 @@ import fcntl
 import json
 import logging
 import os
+import threading
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Set
 
@@ -21,9 +28,20 @@ from loa_cheval.metering.ledger import (
     read_daily_spend,
     record_cost,
 )
-from loa_cheval.types import BudgetExceededError, CompletionRequest, CompletionResult
+from loa_cheval.types import (
+    BudgetExceededError,
+    CompletionRequest,
+    CompletionResult,
+    CostBudgetExceeded,  # forward-compat alias for BudgetExceededError
+)
 
 logger = logging.getLogger("loa_cheval.metering.budget")
+
+# cycle-095 Sprint 2 (SDD §1.4.4): single process-wide lock that serializes
+# the read-then-check window of the session cap. Multi-process consistency
+# is operator-action territory (documented soft-cap nature in CHANGELOG +
+# loa-setup SKILL example).
+_SESSION_CAP_LOCK = threading.Lock()
 
 
 # Budget status values
@@ -240,3 +258,96 @@ def check_budget(
         return WARN
 
     return ALLOW
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# cycle-095 Sprint 2 (Task 2.7 / SDD §1.4.4) — per-session cap primitive
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _read_session_total(ledger_path: str, trace_id: str) -> int:
+    """Sum cost_micro_usd across all entries with the given trace_id.
+
+    Naive ledger scan; acceptable for cycle-095 because session ledgers
+    are bounded (1 process, hours of runtime, ~thousands of entries max).
+    Sprint 3 may add a session-spend counter analogous to daily-spend.
+    """
+    if not os.path.exists(ledger_path):
+        return 0
+    total = 0
+    try:
+        with open(ledger_path) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if entry.get("trace_id") != trace_id:
+                    continue
+                total += int(entry.get("cost_micro_usd", 0) or 0)
+    except OSError:
+        return 0
+    return total
+
+
+def check_session_cap_pre(
+    trace_id: str,
+    ledger_path: str,
+    cap_micro: Optional[int],
+    request_estimate_micro: int,
+) -> None:
+    """Pre-call session cap check (SDD §1.4.4 hard-guard).
+
+    Raises CostBudgetExceeded if (current session total + worst-case estimate)
+    would exceed `cap_micro`. The estimate is `input_tokens × input_per_mtok +
+    max_output_tokens × output_per_mtok` — caller computes via
+    `metering.pricing.calculate_cost_micro` or equivalent.
+
+    cap_micro=None or <= 0 → no enforcement (returns immediately).
+
+    Concurrency: a single threading.Lock serializes the read+check window so
+    multiple in-flight calls in one process can't both pass the gate at the
+    same time. Multi-process consistency is operator-action territory.
+    """
+    if cap_micro is None or cap_micro <= 0:
+        return
+    if request_estimate_micro < 0:
+        request_estimate_micro = 0
+
+    with _SESSION_CAP_LOCK:
+        current_total = _read_session_total(ledger_path, trace_id)
+        prospective = current_total + request_estimate_micro
+        if prospective > cap_micro:
+            raise CostBudgetExceeded(
+                spent=current_total,
+                limit=cap_micro,
+            )
+
+
+def check_session_cap_post(
+    trace_id: str,
+    ledger_path: str,
+    cap_micro: Optional[int],
+) -> None:
+    """Post-call session cap reconciliation (SDD §1.4.4 observability).
+
+    Logs WARN if actual session total exceeds cap. Should not fire in
+    practice — the pre-call estimate is a worst-case upper bound, so the
+    actual cost is always ≤ prospective. If this WARN fires, it means
+    either (a) the pre-call estimate was wrong, or (b) the multi-process
+    soft-cap nature manifested. Both are operator-investigation signals.
+    """
+    if cap_micro is None or cap_micro <= 0:
+        return
+    actual_total = _read_session_total(ledger_path, trace_id)
+    if actual_total > cap_micro:
+        logger.warning(
+            "Session cap reconciliation: trace_id=%s actual=%d > cap=%d. "
+            "If single-process: investigate pre-call estimate accuracy. "
+            "If multi-process: per-process caps don't share — coordinate trace_id "
+            "manually for shared-budget workflows.",
+            trace_id, actual_total, cap_micro,
+        )

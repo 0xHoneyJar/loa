@@ -45,19 +45,22 @@ providers:
       # single-line edits at ship time.
       gpt-5.5:
         capabilities: [chat, tools, function_calling, code]
-        context_window: 400000          # placeholder; update at ship time
+        context_window: 400000
         token_param: max_completion_tokens
         endpoint_family: responses      # cycle-095 Sprint 1: gpt-5.5 only routes through /v1/responses
-        probe_required: true            # latent until OpenAI /v1/models confirms; Sprint 2 removes this
+        # cycle-095 Sprint 2: probe_required dropped — gpt-5.5 is GA on /v1/models
+        # since 2026-04-23. Probe-gated fail-fast still applies via the
+        # generic AVAILABLE/UNAVAILABLE state in .run/model-health-cache.json
+        # (see PRD G-7 + Sprint 1 probe_required clarification block in sprint.md).
         pricing:
           input_per_mtok: 5000000       # $5.00 per million tokens (confirmed 2026-04-29)
           output_per_mtok: 30000000     # $30.00 per million tokens (output_tokens INCLUSIVE of reasoning_tokens; SDD §5.5)
       gpt-5.5-pro:
         capabilities: [chat, tools, function_calling, code]
-        context_window: 400000          # placeholder
+        context_window: 400000
         token_param: max_completion_tokens
         endpoint_family: responses      # cycle-095 Sprint 1
-        probe_required: true            # Sprint 2 removes
+        # cycle-095 Sprint 2: probe_required dropped (same rationale as gpt-5.5).
         pricing:
           input_per_mtok: 30000000      # $30.00 per million tokens (confirmed 2026-04-29)
           output_per_mtok: 180000000    # $180.00 per million tokens (includes reasoning_tokens — SDD §5.5)
@@ -81,6 +84,18 @@ providers:
         pricing:
           input_per_mtok: 150000     # $0.15 per million tokens (micro-USD)
           output_per_mtok: 600000    # $0.60 per million tokens
+      # cycle-095 Sprint 2 (Task 2.4): gemini-3-flash-preview promoted from
+      # OQ-1 default (SDD §10). Pricing live-confirmed 2026-04-29 — Gemini 3
+      # flash-tier preview matches 2.5 flash baseline; revisit on GA.
+      # fallback_chain triggers _resolve_active_model demotion when probe
+      # state goes UNAVAILABLE (SDD §3.5 + §5.8).
+      gemini-3-flash-preview:
+        capabilities: [chat]
+        context_window: 1048576
+        fallback_chain: ["google:gemini-2.5-flash"]
+        pricing:
+          input_per_mtok: 150000     # $0.15 per million tokens (frozen 2026-04-29)
+          output_per_mtok: 600000    # $0.60 per million tokens (frozen 2026-04-29)
       gemini-2.5-pro:
         capabilities: [chat, thinking_traces]
         context_window: 1048576
@@ -152,15 +167,32 @@ providers:
         pricing:
           input_per_mtok: 3000000    # $3.00 per million tokens
           output_per_mtok: 15000000  # $15.00 per million tokens
+      # cycle-095 Sprint 2 (Task 2.3): Haiku 4.5 ships as the new `tiny` tier.
+      # Pricing live-fetched ONCE at sprint execution (2026-04-29) and frozen
+      # in YAML per PRD FR-3 AC + SDD §5.7. Refresh cadence: quarterly or on
+      # release-bound reminder per Sprint 2 risks (Flatline iter-2 SKP-004).
+      claude-haiku-4-5-20251001:
+        capabilities: [chat, tools, function_calling]
+        context_window: 200000
+        token_param: max_tokens
+        pricing:
+          input_per_mtok: 1000000    # $1.00 per million tokens (frozen 2026-04-29)
+          output_per_mtok: 5000000   # $5.00 per million tokens (frozen 2026-04-29)
 
 # Aliases (short names → provider:model-id)
 aliases:
   gemini-2.0: "google:gemini-2.0-flash"  # Backward-compat alias
   native: "claude-code:session"         # Reserved — Claude Code native runtime
-  reviewer: "openai:gpt-5.3-codex"      # Primary review model
-  reasoning: "openai:gpt-5.3-codex"    # Reasoning/skeptic model
+  # cycle-095 Sprint 2 (Task 2.1): reviewer + reasoning flip from gpt-5.3-codex
+  # to gpt-5.5 (cost-safe non-pro default). Pro tier opt-in only via Sprint 3's
+  # prefer_pro_models flag (defaults false). Pre-cycle-095 state preserved in
+  # .claude/defaults/aliases-legacy.yaml (LOA_FORCE_LEGACY_ALIASES kill-switch).
+  reviewer: "openai:gpt-5.5"
+  reasoning: "openai:gpt-5.5"
   cheap: "anthropic:claude-sonnet-4-6"  # Budget-conscious model
   opus: "anthropic:claude-opus-4-7"     # High-quality model (retargeted from 4-6 to 4-7, cycle-082)
+  # cycle-095 Sprint 2 (Task 2.3): tiny tier alias points at Haiku 4.5.
+  tiny: "anthropic:claude-haiku-4-5-20251001"
   # Gemini 3.1 Pro Preview re-added cycle-093 sprint-4 (T2.1 — closes G4)
   # via the SSOT generator. Sprint-3 health-probe gates runtime use.
   deep-thinker: "google:gemini-3.1-pro-preview"  # Thinking-traces tier
@@ -172,6 +204,10 @@ aliases:
   # bindings resolve cleanly.
   gemini-2.5-pro: "google:gemini-2.5-pro"
   gemini-2.5-flash: "google:gemini-2.5-flash"
+  # cycle-095 Sprint 2 (Task 2.4): gemini-3-flash bare alias for the new
+  # fast-thinker target. Backed by gemini-3-flash-preview with
+  # fallback_chain to gemini-2.5-flash on probe demotion.
+  gemini-3-flash: "google:gemini-3-flash-preview"
   researcher: "google:deep-research-pro" # Deep Research model
 
 # Backward-compat aliases (legacy model IDs → canonical provider:model-id)
@@ -182,6 +218,12 @@ aliases:
 backward_compat_aliases:
   # OpenAI legacy alias
   "gpt-5.2-codex": "openai:gpt-5.3-codex"
+  # cycle-095 Sprint 2 (Task 2.2): immutable self-map. Operators / configs
+  # pinning `gpt-5.3-codex` literally must continue resolving to that exact
+  # model — NOT silently retargeted to gpt-5.5. Loader emits one INFO log
+  # per process on first resolution to surface the legacy pin (Flatline
+  # cluster 1 / SKP-001 CRITICAL).
+  "gpt-5.3-codex": "openai:gpt-5.3-codex"
   # Anthropic Opus history — all retarget to 4-7 (cycle-082).
   # claude-opus-4-6 is ALSO listed in providers.anthropic.models but the
   # legacy bash adapter retargets the BASH-level resolution to 4-7 per
@@ -257,8 +299,11 @@ agents:
     requires:
       thinking_traces: required
   fast-thinker:
-    # Retargeted to gemini-2.5-flash per #574 (phantom gemini-3-flash pruned).
-    model: gemini-2.5-flash
+    # cycle-095 Sprint 2 (Task 2.4): retargeted from gemini-2.5-flash to
+    # gemini-3-flash. Backed by gemini-3-flash-preview with fallback_chain
+    # to gemini-2.5-flash — _resolve_active_model demotes to fallback when
+    # probe state goes UNAVAILABLE (SDD §5.8).
+    model: gemini-3-flash
     temperature: 0.5
   literature-reviewer:
     model: researcher
@@ -284,6 +329,19 @@ agents:
   jam-synthesizer:
     model: cheap
     temperature: 0.3
+
+# cycle-095 Sprint 2 (Task 2.6): tier_groups schema (FR-5a foundation).
+# Sprint 2 ships the structural block with mappings: EMPTY plus the
+# denylist + cost-cap fields. Sprint 3 populates mappings with reviewer →
+# gpt-5.5-pro and wires apply_tier_groups() into the loader (post-merge,
+# AFTER force_legacy_aliases short-circuit per SDD §1.4.5). Sprint 2 ships
+# the cost-cap enforcement primitive (metering/budget.py) AND the
+# LOA_PREFER_PRO_DRYRUN preview flag so Sprint 3 lands on guardrails that
+# already exist (Flatline iter-2 SKP-003 "guardrails-after-the-flip" race).
+tier_groups:
+  mappings: {}                          # Sprint 3 populates
+  denylist: []                          # operator opt-out — alias names; populated in user .loa.config.yaml
+  max_cost_per_session_micro_usd: null  # null = no enforcement; integer >= 0 for hard cap
 
 # Routing
 routing:

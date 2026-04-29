@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, Iterable, List, Optional, Set
 
 from loa_cheval.types import (
     AgentBinding,
@@ -19,6 +19,43 @@ logger = logging.getLogger("loa_cheval.routing")
 NATIVE_ALIAS = "native"
 NATIVE_PROVIDER = "claude-code"
 NATIVE_MODEL = "session"
+
+# cycle-095 Sprint 2 (Task 2.2 / SDD §6.3): once-per-process INFO logging
+# for resolutions that traverse a key from `backward_compat_aliases:`. The
+# loader populates `_legacy_alias_keys` after merging backward_compat into
+# the resolved aliases dict; resolve_alias() consults the set during chain
+# traversal and emits the INFO log on first resolution per key.
+_legacy_alias_keys: Set[str] = set()
+_legacy_alias_logged: Set[str] = set()
+
+
+def set_legacy_alias_keys(keys: Iterable[str]) -> None:
+    """Loader-only hook: register the keys that came from backward_compat_aliases.
+
+    Called once per process at config-load time. Resetting (e.g., from
+    tests) clears the once-per-process logged set so re-loaded configs can
+    re-emit the INFO log.
+    """
+    global _legacy_alias_keys
+    _legacy_alias_keys = set(keys)
+    _legacy_alias_logged.clear()
+
+
+def _reset_legacy_alias_state_for_tests() -> None:
+    """Test fixture hook — clears module-level state."""
+    _legacy_alias_keys.clear()
+    _legacy_alias_logged.clear()
+
+
+def _maybe_log_legacy_resolution(alias: str) -> None:
+    if alias in _legacy_alias_keys and alias not in _legacy_alias_logged:
+        logger.info(
+            "Legacy alias %r resolved via backward_compat_aliases. "
+            "Consider migrating .loa.config.yaml to use the canonical "
+            "alias target directly.",
+            alias,
+        )
+        _legacy_alias_logged.add(alias)
 
 
 def resolve_alias(
@@ -63,6 +100,10 @@ def resolve_alias(
 
         if current not in aliases:
             raise ConfigError(f"Unknown alias: '{current}'. Available aliases: {sorted(aliases.keys())}")
+
+        # cycle-095 Sprint 2: emit one-time INFO log when chain traversal
+        # touches a backward_compat_aliases key (SDD §6.3).
+        _maybe_log_legacy_resolution(current)
 
         target = aliases[current]
 

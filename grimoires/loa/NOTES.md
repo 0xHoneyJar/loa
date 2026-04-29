@@ -126,6 +126,36 @@ Direct CI re-run on a fork-shaped PR is intentionally out-of-scope: the workflow
 - `tests/integration/probe-integration-sprint4.bats` — 5-test probe-integration verification (T4.7 + G6)
 - `grimoires/loa/NOTES.md` — this section (T4.E2E evidence + T3.1 audit)
 
+## Decision Log — 2026-04-29 (cycle-095 Sprint 2 / global sprint-125)
+
+- **`fallback.persist_state` opt-in deferred.** SDD §3.5 specifies an
+  opt-in feature for cross-process fallback state via `.run/fallback-state.json`
+  with `flock`. Sprint 2 ships in-process state only (the dominant single-
+  process Loa workflow). Multi-process consistency is documented as
+  operator-action territory in CHANGELOG. Defer until a concrete operator
+  request surfaces. Single-process workflow is fully covered by
+  `TestFallbackChain` (4 cases: AVAILABLE, UNAVAILABLE→fallback,
+  recovery-after-cooldown, all-UNAVAILABLE→raise).
+- **`tests/integration/cycle095-backwardcompat.bats` deferred.** The FR-6
+  invariant (legacy pin resolves correctly via immutable self-map) is
+  exercised by Python tests covering `loader._fold_backward_compat_aliases`
+  + `resolver._maybe_log_legacy_resolution` + `test_flatline_routing.py`
+  (asserts post-cycle-095 reviewer = gpt-5.5 while gpt-5.3-codex pin still
+  resolves literally via the self-map). Standalone bats fixture project
+  at v1.92.0-equivalent legacy pin can be added in a follow-up if
+  downstream consumers report regressions during the soak window.
+- **CLI `--dryrun` flag wiring deferred to Sprint 3.** Sprint 2 ships the
+  underlying `dryrun_preview()` function + `is_dryrun_active()` env-var
+  check (`routing/tier_groups.py`). Sprint 3 wires both into
+  `model-invoke --validate-bindings --dryrun` per Sprint plan §4.2 row 2.
+- **`backward_compat_aliases` Python parity bug fixed.** Pre-cycle-095, the
+  bash mirror consumed `backward_compat_aliases` but the Python resolver
+  did NOT — operators pinning legacy IDs in `.loa.config.yaml` would hit
+  "Unknown alias" errors via cheval while bash worked fine. Sprint 2's
+  `loader._fold_backward_compat_aliases` fixes this. Existing aliases
+  win on key collision (SSOT precedence), matching gen-adapter-maps.sh's
+  documented "last-write-wins" semantics.
+
 ## Decision Log — 2026-04-29 (cycle-095 Sprint 1 / global sprint-124)
 
 - **`gemini-2.5-pro` / `gemini-2.5-flash` bash-mirror drift (pre-existing).**
