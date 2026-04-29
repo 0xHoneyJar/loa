@@ -1,325 +1,423 @@
-# Sprint Plan — Cycle-092: Spiral Harness Live-Visibility Seam
+# Sprint Plan — Cycle-095: Model Currency
 
 **Version:** 1.0
-**Date:** 2026-04-19
-**Author:** Sprint Planner Agent
-**Scope:** Issues [#600](https://github.com/0xHoneyJar/loa/issues/600), [#599](https://github.com/0xHoneyJar/loa/issues/599), [#598](https://github.com/0xHoneyJar/loa/issues/598)
-**Reporter:** @zkSoju (all three filed 2026-04-19 during cycle-091)
-**Prior cycle context:**
-- `grimoires/loa/proposals/rfc-062-seed-seam-autopoiesis.md` — RFC-062 (sibling doctrine; landed via PR #596)
-- `.claude/scripts/spiral-evidence.sh:387` — `_pre_check_seed` (landed via PR #594 for issue #575 item 3)
-- `.claude/scripts/spiral-evidence.sh:653` — `_emit_dashboard_snapshot` (the freezing bug site)
-- `.claude/scripts/spiral-harness.sh:1109-1173` — main pipeline where phase transitions are logged
+**Date:** 2026-04-29
+**Author:** Sprint Planner Agent (deep-name + Claude Opus 4.7 1M)
+**PRD Reference:** `grimoires/loa/prd.md` (Flatline-iter6-cleared, kaironic stop)
+**SDD Reference:** `grimoires/loa/sdd.md` (Flatline-iter2-cleared, kaironic stop)
+**Pre-flight intel:** `grimoires/loa/context/model-currency-cycle-preflight.md`
 
 ---
 
 ## Executive Summary
 
-All three issues extend the cycle-088 observability + hardening surface that shipped in PR #589 (dashboard default-on), PR #592 (fold prior-cycle failure events into SEED), and PR #594 (`_pre_check_seed`). They share two cross-cutting concerns — **dispatch-log vocabulary** and **cycle state-file conventions** — which means the cheapest path ships a **shared-infrastructure sprint first**, then one sprint per issue consuming that infra.
+Cycle-095 promotes OpenAI's gpt-5.5 family to the standard `reviewer` and `reasoning` aliases (cost-safe, non-pro default), introduces `claude-haiku-4-5-20251001` as a new `tiny` tier, and upgrades the `fast-thinker` agent from `gemini-2.5-flash` to a probe-fallback-protected Gemini 3 fast variant. The structural pivot is gpt-5.5's mandatory routing through OpenAI's `/v1/responses` endpoint — driven by a new registry-metadata field `endpoint_family`, NOT name regex, with a Sprint 1 same-commit migration step and a `LOA_LEGACY_ENDPOINT_FAMILY_DEFAULT` env-var backstop for operator-defined custom OpenAI entries.
 
-This sprint-split avoids the alternative (three parallel issue-sprints each redefining the grammar) which is how cycle-091 burned $60 and 3 REVIEW passes: the same vocabulary getting reimplemented inconsistently across sibling features.
+The cycle is split into **three sprints with a 48-hour soak window** between Sprint 2 and Sprint 3:
 
-**Doctrinal framing**: RFC-062 is the **seed seam** (operator edits intent at cycle N→N+1 boundary). #598 is the **in-flight seam** (operator reads intent during cycle N). Same doctrine (editor-of-intent), two seams, shared infrastructure (cycle state files + log-line grammar).
+- **Sprint 1** (independently mergeable, no defaults flip): ships the routing infrastructure (endpoint_family, response normalization for all six §3.1/§5.4 shapes, alias-level kill-switch, golden fixtures, env-var backstop).
+- **Sprint 2** (independently mergeable, lands MVP user-facing): flips `reviewer`/`reasoning` to gpt-5.5, adds Haiku 4.5 + `tiny` tier, adds Gemini 3 fast variant + fallback chain, ships FR-5a cost-guardrail primitives (denylist + max_cost_per_session_micro_usd cost-cap with **pre-call atomicity** + `LOA_PREFER_PRO_DRYRUN` env var), regenerates bash maps, updates 8 caller files, locks `gpt-5.3-codex` as immutable self-map.
+- **Soak**: 48-hour observation window after Sprint 2 — monitor cost ledger, downstream consumer issues, probe state.
+- **Sprint 3** (opt-in convenience, mergeable post-soak): activates the `prefer_pro_models` flag with `tier_groups.mappings:` populated and `tier_groups.override_user_aliases` opt-in for flag-wins-over-pin precedence.
 
-**Total Sprints:** 4
-**Sprint Sizing:** Sprint 1 = MEDIUM (6 tasks, shared infra); Sprints 2–4 = one per issue, MEDIUM each
-**Total Tasks:** 22
-**Estimated Completion:** One cycle (landable as single PR; sprints sequenced so each builds on the prior)
+**Total Sprints:** 3
+**Sprint Sizing:** Sprint 1 = LARGE (10 tasks); Sprint 2 = LARGE (10 tasks); Sprint 3 = MEDIUM (6 tasks)
+**Total Tasks:** 26
+**Estimated Completion:** 2026-05-05 (per PRD §Timeline)
 
-### Non-Goals (explicit)
+### Phase-gated rollout
 
-Per the task framing:
-- **Not** building full RFC-062 seed-seam autopoiesis (PR #596 opened that thread, still in progress)
-- **Not** refactoring the underlying spiral state machine
-- **Not** expanding #598 to JSON-only format (Sprint 4 keeps the 3-line `editor` format primary; `compact` and `json` are S5 stretch scope per issue body)
-- **Not** expanding PRD/SDD — issue bodies contain the proposals; this is bug/enhancement work against the existing harness
+Each sprint is independently mergeable per PRD HARD constraint. No Sprint-N depends on Sprint-(N+M) being merged first. Each merge gate is its own circuit breaker: Sprint 1 can land alone (operators see no behavior change unless they explicitly migrate); Sprint 2 lands without the pro-flag (cost-safe defaults active); Sprint 3 lands the opt-in pro flag on top of guardrails that already exist.
+
+### Migration ordering invariant (load-bearing)
+
+Sprint 1 commit MUST add `endpoint_family: chat` to every existing OpenAI registry entry **in the same commit** that activates strict validation (PRD FR-1 AC + SDD §3.4 + Flatline iter-3 IMP-003). The `LOA_LEGACY_ENDPOINT_FAMILY_DEFAULT=chat` env-var backstop is the operator-side safety net for custom user-config entries that haven't been migrated.
+
+**Loa-specific deployment scope** (Flatline sprint-iter1 SKP-003): the migration invariant is enforceable here because Loa's `.claude/` directory ships as a single git commit consumed by downstream submodule users. There is no split between code and config rollout — both move atomically. The "non-atomic deployment" risk pattern from typical CI/CD pipelines (where code can roll out before config catches up) does NOT apply to Loa's distribution model. For downstream consumers running their own custom CI on top, the migration invariant translates to "your `git submodule update` brings both code and config together; if you stage Loa updates non-atomically with your own config, set `LOA_LEGACY_ENDPOINT_FAMILY_DEFAULT=chat` during the staging window."
+
+### Sprint kickoff: API stability re-probe (Flatline sprint-iter1 SKP-002)
+
+Each sprint kickoff begins with a 5-minute API re-probe to detect provider-side drift since PRD/SDD writing:
+
+```bash
+# Re-probe each provider's models endpoint
+curl -sS -H "Authorization: Bearer $OPENAI_API_KEY" https://api.openai.com/v1/models | jq -r '.data[].id' | grep -E "gpt-5\.5"
+curl -sS -H "x-api-key: $ANTHROPIC_API_KEY" -H "anthropic-version: 2023-06-01" https://api.anthropic.com/v1/models | jq -r '.data[].id' | grep -i haiku
+curl -sS "https://generativelanguage.googleapis.com/v1beta/models?key=$GOOGLE_API_KEY" | jq -r '.models[].name' | grep -E "gemini-3"
+
+# Roundtrip probe each target model
+for model in gpt-5.5 gpt-5.5-pro claude-haiku-4-5-20251001 gemini-3-flash-preview; do
+  echo "=== $model ==="
+  # provider-specific minimal call (see grimoires/loa/context/model-currency-cycle-preflight.md for templates)
+done
+```
+
+If any target model is no longer reachable OR the response shape has changed materially since the SDD §5.4 spec was locked, sprint kickoff blocks pending PRD/SDD revision. Otherwise, proceed.
 
 ---
 
 ## Sprint Overview
 
-| Sprint | Theme | Size | Key Deliverables | Primary Issue | Dependencies |
-|--------|-------|------|------------------|---------------|--------------|
-| 1 | Shared observability infrastructure | MEDIUM (6) | Log-line grammar spec, `.phase-current` state file, dispatch-log path convention, grammar test fixtures | Cross-cutting | None (foundation) |
-| 2 | Pre-review artifact-coverage evidence gate | MEDIUM (5) | `_pre_check_implementation_evidence`, sprint.md path parser, targeted IMPL fix-loop on `IMPL_EVIDENCE_MISSING` | #600 | Sprint 1 (grammar for new verdict) |
-| 3 | Dashboard mid-phase writes + `.phase-current` consumer | MEDIUM (5) | Dashboard writer emits phase-start rows, mid-phase heartbeat from flight-recorder tail, phase-current integration | #599 | Sprint 1 (`.phase-current` state file) |
-| 4 | SIMSTIM heartbeat (editor-of-intent in-flight) | MEDIUM (6) | Heartbeat emitter daemon, intent extractor, confidence-cue parser, `SpiralPhaseComplete` hook, `.loa.config.yaml` schema | #598 | Sprint 1 (grammar); Sprint 2 verdict (`IMPL_EVIDENCE_MISSING` surfaces as phase verb); Sprint 3 (`.phase-current` is heartbeat's truth source) |
+| Sprint | Theme | Size | Key Deliverables | Primary FRs | Dependencies |
+|--------|-------|------|------------------|-------------|--------------|
+| 1 | Routing infrastructure + response normalization + kill-switch | LARGE (10) | `endpoint_family` field + strict validation + Sprint 1 migration step + `_route_decision` + six-shape `_parse_responses_response` + `aliases-legacy.yaml` + `LOA_FORCE_LEGACY_ALIASES` + `LOA_LEGACY_ENDPOINT_FAMILY_DEFAULT` backstop + 7 golden fixtures + Sprint 1 pytests | FR-1 (partial: routing only — defaults stay) | None |
+| 2 | Alias flips + new tiers + cost guardrails + immutable self-map + fallback chain + 8 callers + bash regen | LARGE (10) | `reviewer`/`reasoning` → `openai:gpt-5.5`; `gpt-5.3-codex` immutable self-map; `tiny` → Haiku 4.5; Gemini 3 fast w/ `fallback_chain`; `_resolve_active_model` + cooldown + persistence opt-in; FR-5a `tier_groups` block (denylist + cap + dry-run) with **pre-call atomic guard**; 8 caller files; `generated-model-maps.sh` regenerated | FR-2, FR-3, FR-4, FR-5a, FR-6 | Sprint 1 (routing must work) |
+| Soak | 48h observation, no code | n/a | Monitor cost ledger, probe state, downstream consumer issues | n/a | Sprint 2 |
+| 3 | `prefer_pro_models` activation + `override_user_aliases` opt-in + dry-run full activation | MEDIUM (6) | `tier_groups.mappings:` populated; `apply_tier_groups()` with **user-pin-wins default** + `override_user_aliases` opt-in; `--dryrun` activation; mandatory WARN log; loa-setup SKILL doc update; E2E goal validation | FR-5 | Sprint 2 + soak window clean |
 
-**Critical path**: Sprint 1 → Sprint 2 → Sprint 3 → Sprint 4. Sprint 1 is the foundation; everything downstream depends on its grammar + state file.
-
----
-
-## Goals (extracted from issue bodies)
-
-Since no PRD exists for this cycle (bug/enhancement track), goals are extracted directly from issue bodies and enumerated here as first-class G-IDs:
-
-| ID | Goal | Source | Measurement |
-|----|------|--------|-------------|
-| G-1 | IMPL subprocess cannot ship "all N sprints" while omitting SEED-named visible artifacts; failures surface pre-review, not post-review | #600 | Synthetic repro of cycle-091 (backend-only commit against sprint.md with named `.svelte` deliverables) exits with `IMPL_EVIDENCE_MISSING` before REVIEW dispatches |
-| G-2 | `dashboard-latest.json` reflects in-flight phase state within 60s of a mid-phase event, not frozen at the prior phase-EXIT write | #599 | During a simulated 10-min IMPL, polling dashboard-latest.json every 60s shows monotonically increasing `last_action_ts` and `cost_usd` |
-| G-3 | Operator reading Claude Code ambient UI during a spiral cycle receives a `[HEARTBEAT]` line every 60s with phase verb, intent, confidence cue, kaironic/chronic clocks, budget, diff, pace — makes operator an editor-of-intent not a spectator | #598 | Hermetic dispatch emits ≥30 heartbeats during a 30-min synthetic cycle; each carries all 11 required keys; intent changes on phase boundary |
-| G-4 | Log-line grammar + path convention is consistent across #598 parser, #599 monitor, and #600 gate output; adding a new phase verdict ripples to all three without divergence | Cross-cutting | Grammar test fixtures in Sprint 1 exercised by Sprints 2/3/4; no sprint adds a regex that isn't declared in the shared grammar table |
+**Critical path**: Sprint 1 → Sprint 2 → Soak → Sprint 3. Sprint 1 is the foundation; Sprint 2 ships MVP; Sprint 3 is opt-in convenience.
 
 ---
 
-## Sprint 1: Shared Observability Infrastructure
+## Goals (from PRD §Goals & Success Metrics)
+
+| ID | Goal | Measurement | Validation |
+|----|------|-------------|-----------|
+| G-1 | gpt-5.5 + gpt-5.5-pro callable through cheval Anthropic-style request flow | Round-trip from cheval to OpenAI `/v1/responses` returns valid `CompletionResult` | New pytests in `test_providers.py::TestOpenAIResponsesEndpointRouting` |
+| G-2 | `reviewer` AND `reasoning` both resolve to `openai:gpt-5.5` (cost-safe default; pro tier opt-in only) | `model-invoke --validate-bindings` returns `valid: true` with new aliases | bats / pytest assertion |
+| G-3 | `tiny` tier alias added pointing at Haiku 4.5 | Registry has the alias entry; round-trip test calls Haiku 4.5 successfully | New pytest |
+| G-4 | `fast-thinker` agent binding upgraded to Gemini 3 fast variant | Agent binding YAML updated; probe confirms AVAILABLE; agent invocation succeeds | bats: `validate_bindings_includes_new_agents` + minimal generation probe |
+| G-5 | `hounfour.prefer_pro_models: true` retargets all `*-pro`-eligible aliases | Config-load test: with flag set, `reviewer` resolves to `gpt-5.5-pro`, etc. | New pytest in `test_config.py::TestPreferProModels` |
+| G-6 | Zero regression for downstream consumers pinning `gpt-5.3-codex` | Backward-compat alias resolves correctly; `update-loa` smoke against fixture project doesn't error | Existing + new pytest, fixture-project smoke |
+| G-7 | Probe-gated fail-fast preserved | Setting `probe_required: true` on a synthetic UNAVAILABLE model still triggers adapter fail-fast | Existing `model-health-probe.bats` coverage retained |
+
+---
+
+## Sprint 1: Routing Infrastructure + Response Normalization + Kill-Switch
+
+**Size:** LARGE (10 tasks)
+**Duration:** 2.5 days
+**Dates:** 2026-04-30 → 2026-05-01
+**Mergeable independently:** YES — operators see no behavior change unless they explicitly migrate
+
+### Sprint Goal
+Ship the `endpoint_family`-driven OpenAI routing, complete `/v1/responses` six-shape normalizer, alias-level kill-switch primitive, and operator-side env-var backstop — without flipping any user-facing defaults — so Sprint 2's alias flip lands on a known-good runtime.
+
+### Deliverables
+- [ ] `ModelConfig` dataclass extended with `endpoint_family: Optional[str] = None` and `metadata: Dict[str, Any] = field(default_factory=dict)` on `CompletionResult` (additive, types.py)
+- [ ] `endpoint_family: chat` added to **every existing** OpenAI registry entry in `.claude/defaults/model-config.yaml` (gpt-5.3-codex → `responses`, gpt-5.2 → `chat`, etc.) **in the same commit** as strict validation
+- [ ] `endpoint_family: responses` added to gpt-5.5 and gpt-5.5-pro entries (with `probe_required: true` retained — Sprint 2 drops it)
+- [ ] Strict validation activated in `loader.py`: missing/unknown `endpoint_family` on OpenAI entries → `InvalidConfigError` (loud, not silent)
+- [ ] `LOA_LEGACY_ENDPOINT_FAMILY_DEFAULT=chat` env-var backstop honored by validator with WARN identifying each affected entry (operator-migration safety net per SDD §3.4)
+- [ ] `_route_decision(model_config)` replaces `_is_codex_model` regex check in `openai_adapter.py`
+- [ ] `_build_responses_body` rewritten per SDD §5.3 (instructions, max_output_tokens, typed message blocks, tool_call_id → call_id, simple-string optimization)
+- [ ] `_parse_responses_response` rewritten per SDD §5.4 (six-shape normalizer) with strict `UnsupportedResponseShapeError` default + `responses_unknown_shape_policy: degrade` opt-in
+- [ ] `aliases-legacy.yaml` snapshot file at `.claude/defaults/` capturing pre-cycle-095 alias state
+- [ ] `LOA_FORCE_LEGACY_ALIASES=1` env / `hounfour.experimental.force_legacy_aliases: true` config kill-switch wired into `loader.py` post-merge with one-time WARN log
+- [ ] Seven golden fixtures at `.claude/adapters/tests/fixtures/openai/`: `responses_multiblock_text.json`, `responses_tool_call.json`, `responses_reasoning_summary.json`, `responses_refusal.json`, `responses_empty.json`, `responses_truncated.json`, `responses_pro_reasoning_tokens.json`
+- [ ] Sprint 1 pytests + bats green (per §7.3 Sprint 1 row)
+
+### Acceptance Criteria
+- [ ] `pytest .claude/adapters/tests/test_providers.py::TestOpenAIResponsesEndpointRouting` passes all six cases (a-f from SDD §7.3 Sprint 1)
+- [ ] `pytest .claude/adapters/tests/test_providers.py::TestOpenAIResponsesNormalization` passes — one test per fixture (7 total)
+- [ ] `pytest .claude/adapters/tests/test_providers.py::TestUnsupportedResponseShape` proves loud-fail path (default strict)
+- [ ] `pytest .claude/adapters/tests/test_pricing_extended.py::TestReasoningTokensBilling` proves cost = `output_tokens × output_per_mtok / 1M` (NOT summed with reasoning_tokens)
+- [ ] `tests/integration/cycle095-migration.bats` (NEW): (a) Sprint 1 pre-strict-validation file has all OpenAI entries with `endpoint_family`; (b) `model-invoke --validate-bindings` exits 0 post-migration; (c) exits non-zero if `endpoint_family` deleted on any OpenAI entry; (d) `LOA_LEGACY_ENDPOINT_FAMILY_DEFAULT=chat` env var converts validation FAIL → WARN
+- [ ] `tests/integration/model-registry-sync.bats` extended: assert every `providers.openai.models.*` has explicit `endpoint_family`
+- [ ] `pytest .claude/adapters/tests/test_config.py::TestForceLegacyAliases` proves `LOA_FORCE_LEGACY_ALIASES=1` resolves to legacy snapshot AND each restored alias routes per its own metadata (gpt-5.3-codex → /v1/responses; NOT a forced endpoint switch)
+- [ ] No regression in full `pytest .claude/adapters/tests/` run
+- [ ] `flatline-model-validation.bats` 15/15 pass
+- [ ] No live API call required for CI gate (live tests opt-in via `pytest -m live`)
+- [ ] 0 BLOCKING findings on adversarial review of the Sprint 1 PR
+
+### probe_required semantics (Flatline sprint-iter2 SKP-002 760)
+
+Sprint 2 will remove `probe_required: true` from gpt-5.5 / gpt-5.5-pro registry entries. **This is NOT a relaxation of fail-fast guarantees.** Clarification:
+
+- **Before removal**: `probe_required: true` + UNAVAILABLE → adapter rejects request with `ProviderUnavailableError` AND (since the entry is latent) does not even attempt routing. Latent entries are essentially gated-off.
+- **After removal**: `probe_required` is no longer set → entry is treated as a normal model entry. The probe still runs on its cadence and updates `model-health-cache.json`. Adapter STILL respects probe state: AVAILABLE → call; UNAVAILABLE → fail-fast (or fallback if `fallback_chain` set). This matches every other registry entry (e.g., gpt-5.3-codex has no `probe_required` and works correctly).
+
+The probe-gated fail-fast invariant from PRD G-7 is preserved by Task 1.10's `model-health-probe.bats` regression tests (these tests verify UNAVAILABLE → adapter raises, regardless of `probe_required` value).
+
+### Technical Tasks
+
+<!-- Goal annotations: see Appendix C for goal-to-task mapping -->
+
+- [ ] **Task 1.1**: Extend `loa_cheval.types.ModelConfig` with `endpoint_family: Optional[str] = None`; extend `CompletionResult` with `metadata: Dict[str, Any] = field(default_factory=dict)`; add `InvalidConfigError` and `UnsupportedResponseShapeError` exception classes (per SDD §5.6) → **[G-1]**
+- [ ] **Task 1.2**: Migrate `.claude/defaults/model-config.yaml` — add explicit `endpoint_family` to every `providers.openai.models.*` entry (gpt-5.5/gpt-5.5-pro: `responses`; gpt-5.3-codex: `responses`; gpt-5.2 and any other existing OpenAI entries: `chat`). **Same commit** as Task 1.3. → **[G-1, G-7]**
+- [ ] **Task 1.3**: Activate strict validation in `.claude/adapters/loa_cheval/config/loader.py` — post-merge walk over `providers.openai.models.*`; raise `ConfigError("Missing endpoint_family on openai model X")` if absent or not in `{chat, responses}`. Honor `LOA_LEGACY_ENDPOINT_FAMILY_DEFAULT=chat` env-var as one-shot backward-compat with WARN per affected entry (SDD §3.4). → **[G-1]**
+- [ ] **Task 1.4**: Replace `_is_codex_model` regex check at `openai_adapter.py:32-34` with `_route_decision(model_config, model_id)` per SDD §5.2 — returns `"chat"` or `"responses"` or raises `InvalidConfigError`. → **[G-1]**
+- [ ] **Task 1.5**: Replace `_build_responses_body` at `openai_adapter.py:108-126` per SDD §5.3 — handles `system → instructions`, multi-message → `input` typed blocks, `tool_call_id → call_id`, `max_completion_tokens → max_output_tokens`, simple-string optimization for single-user-message-no-tool-results. → **[G-1]**
+- [ ] **Task 1.6**: Replace `_parse_responses_response` per SDD §5.4 — six-shape normalizer (multi-block text, tool_call/function_call, reasoning summary, refusal, empty, truncated). Map `output_tokens_details.reasoning_tokens` → `Usage.reasoning_tokens`. Implement strict default + `hounfour.experimental.responses_unknown_shape_policy: degrade` opt-in (§5.4.1). Implement >5% visible-token-divergence WARN (PRD §3.1 edge-case). → **[G-1]**
+- [ ] **Task 1.7**: Create `.claude/defaults/aliases-legacy.yaml` snapshot capturing pre-cycle-095 alias state (`reviewer: openai:gpt-5.3-codex`, `reasoning: openai:gpt-5.3-codex`, `fast-thinker → gemini-2.5-flash`, etc.). Snapshot captured at Sprint 1 PR creation time from main branch. → **[G-2, G-4, G-6]**
+- [ ] **Task 1.8**: Wire `LOA_FORCE_LEGACY_ALIASES=1` env / `hounfour.experimental.force_legacy_aliases: true` config kill-switch into `loader.py` post-merge step — replace `aliases:` block with `aliases-legacy.yaml` content; emit WARN once per process; short-circuit before tier_groups (PRD FR-1 AC + SDD §1.4.5). Critical: each restored alias still routes per its own `endpoint_family` (NO endpoint-force layer). → **[G-2, G-6]**
+- [ ] **Task 1.9**: Ship 7 golden fixtures at `.claude/adapters/tests/fixtures/openai/` per SDD §7.2 (six §5.4 shapes + one gpt-5.5-pro reasoning_tokens-bearing). Each fixture carries known-token `usage` for billing validation. → **[G-1]**
+- [ ] **Task 1.10**: Author Sprint 1 pytests per SDD §7.3 Sprint 1 row: `TestOpenAIResponsesEndpointRouting` (6 cases including `LOA_FORCE_LEGACY_ALIASES` regression); `TestOpenAIResponsesNormalization` (7 cases per fixture); `TestUnsupportedResponseShape`; `TestReasoningTokensBilling`; `TestForceLegacyAliases`. NEW bats: `tests/integration/cycle095-migration.bats`. Extend `model-registry-sync.bats`. → **[G-1, G-2, G-6, G-7]**
+
+### Dependencies
+- None — first sprint of cycle-095. Probe entries already exist in registry from cycle-093 sprint-4.
+- External: OpenAI `/v1/responses` endpoint stability (live-probe-confirmed 2026-04-29T01:15Z).
+
+### Security Considerations
+- **Trust boundaries**: No new credential surface. `LOA_LEGACY_ENDPOINT_FAMILY_DEFAULT` and `LOA_FORCE_LEGACY_ALIASES` are operator-controlled env vars (same risk profile as existing `LOA_PROBE_LEGACY_BEHAVIOR=1`).
+- **External dependencies**: No new pip/npm packages. `httpx`/`urllib` and `pyyaml`/`yq` already present.
+- **Sensitive data**: PII filters in trajectory logs unchanged. Probe budget caps preserved (`LOA_PROBE_MAX_COST_CENTS=5`, 30s timeout).
+- **System Zone authorization**: `.claude/defaults/model-config.yaml` and `.claude/defaults/aliases-legacy.yaml` writes authorized by this PRD/SDD pair.
+- **Defense-in-depth**: Adapter-runtime `InvalidConfigError` is belt-and-suspenders; config-load validation is the primary gate.
+
+### Risks & Mitigation
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+| Migration ordering inversion (strict validation lands before `endpoint_family` migration) | Low | High | Tasks 1.2 and 1.3 MUST land in same commit (PRD FR-1 AC + SDD §3.4); `cycle095-migration.bats` enforces |
+| Operator with custom OpenAI entries hits `ConfigError` post-merge | Medium | High | `LOA_LEGACY_ENDPOINT_FAMILY_DEFAULT=chat` env-var backstop with WARN; CHANGELOG migration note; `--validate-bindings --suggest-migrations` (deferred to Sprint 2 or follow-up) |
+| 7th `/v1/responses` shape arrives in production traffic | Medium | High | `UnsupportedResponseShapeError` is the chosen failure mode (loud > silent); `responses_unknown_shape_policy: degrade` opt-in escape hatch; `TestUnsupportedResponseShape` proves the loud-fail path |
+| `aliases-legacy.yaml` drifts from "true pre-cycle-095 state" | Low | Medium | Snapshot captured at Sprint 1 PR creation time from main branch; integration test asserts snapshot ≠ post-Sprint-2 aliases (sanity check) |
+| Token-accounting divergence on future OpenAI variants | Low | High | >5% divergence WARN catches drift; unit test asserts WARN fires when fixture intentionally has divergence |
+
+### Success Metrics
+- 100% line + branch coverage on new `_route_decision`, `_build_responses_body`, `_parse_responses_response`, `aliases-legacy.yaml` loader (per SDD §7.6)
+- 100% golden-fixture coverage of all six §5.4 shapes
+- Sprint 1 pytest suite ≤30s wall time (CI gate, no live calls)
+- 0 BLOCKING findings on Bridgebuilder + Flatline review of the Sprint 1 PR
+
+---
+
+## Sprint 2: Alias Flips + New Tiers + Cost Guardrails + Immutable Self-Map + Fallback Chain
+
+**Size:** LARGE (10 tasks)
+**Duration:** 2.5 days
+**Dates:** 2026-05-01 → 2026-05-02
+**Mergeable independently:** YES (depends on Sprint 1 routing existing in main)
+
+### Sprint Goal
+Flip user-facing defaults to gpt-5.5 (cost-safe non-pro) AND add the new tier aliases (Haiku 4.5 + Gemini 3 fast) AND ship the cost-guardrail primitives (denylist + cap + dry-run) so they exist BEFORE Sprint 3's pro-tier flag — addressing Flatline iter-2 SKP-003's "guardrails-after-the-flip" race.
+
+### Deliverables
+- [ ] `aliases.reviewer: openai:gpt-5.5` and `aliases.reasoning: openai:gpt-5.5` (NOT `-pro`) in `.claude/defaults/model-config.yaml`
+- [ ] `probe_required: true` removed from gpt-5.5 / gpt-5.5-pro entries
+- [ ] `gpt-5.3-codex` immutable self-map in `backward_compat_aliases:` (`"gpt-5.3-codex": "openai:gpt-5.3-codex"` — literal, NOT a retarget to 5.5)
+- [ ] One-time INFO log on first resolution of legacy `gpt-5.3-codex` alias
+- [ ] `claude-haiku-4-5-20251001` registry entry under `providers.anthropic.models` with capabilities, context_window, token_param, **frozen** pricing (live-fetch ONCE at sprint execution time, then committed)
+- [ ] `tiny: anthropic:claude-haiku-4-5-20251001` alias
+- [ ] `gemini-3-flash-preview` registry entry (default per SDD OQ-1) under `providers.google.models` with `fallback_chain: ["google:gemini-2.5-flash"]`
+- [ ] `gemini-3-flash: google:gemini-3-flash-preview` bare alias
+- [ ] `fast-thinker` agent binding updated to use new alias
+- [ ] Google adapter `_resolve_active_model` (probe-driven demotion + hysteresis cooldown=300s default + optional `fallback.persist_state` + probe-cache trust boundary)
+- [ ] `tier_groups:` block in YAML (structurally, with `mappings:` empty for Sprint 2; populated in Sprint 3)
+- [ ] `tier_groups.denylist:` field validation in cheval config loader
+- [ ] `tier_groups.max_cost_per_session_micro_usd:` enforcement in `metering/budget.py` with **two-phase atomicity** (pre-call estimate guard raises `CostBudgetExceeded` BEFORE API call; post-call reconciliation logs)
+- [ ] `LOA_PREFER_PRO_DRYRUN=1` env / `--dryrun` flag printing remap impact preview (without applying)
+- [ ] 8 caller files updated to reference new defaults (PRD §FR-2 AC; pre-flight intel:106-113 list)
+- [ ] `.claude/scripts/generated-model-maps.sh` regenerated via `gen-adapter-maps.sh` — extended with `MODEL_ENDPOINT_FAMILY` array
+- [ ] `.loa.config.yaml.example` updated with new operator surface (per SDD §4.3)
+- [ ] CHANGELOG entry with cost comparison: 5.3-codex baseline vs 5.5 vs 5.5-pro (~5-10× input/output baseline due to reasoning_tokens)
+
+### Acceptance Criteria
+- [ ] `model-invoke --validate-bindings` returns `valid: true`
+- [ ] `tests/integration/flatline-model-validation.bats` 15/15 pass
+- [ ] `pytest .claude/adapters/tests/test_chains.py` passes including: `reviewer`/`reasoning` resolve to `openai:gpt-5.5`; `gpt-5.3-codex` self-map resolves LITERALLY (no silent flip to 5.5); cost-ledger entries reflect 5.3-codex pricing for legacy resolutions
+- [ ] `pytest .claude/adapters/tests/test_haiku.py` (NEW) passes including frozen-pricing snapshot test
+- [ ] `pytest .claude/adapters/tests/test_providers.py::TestFallbackChain` passes all four cases (primary AVAILABLE; primary UNAVAILABLE → fallback; recovery after cooldown; all UNAVAILABLE → `ProviderUnavailableError`)
+- [ ] `pytest .claude/adapters/tests/test_providers.py::TestProbeCacheTrustBoundary` (per SDD §3.5) — wrong owner/mode falls through to UNKNOWN
+- [ ] `pytest .claude/adapters/tests/test_providers.py::TestFallbackPersistState` (per SDD §3.5) — opt-in persistence works across simulated restarts
+- [ ] `pytest .claude/adapters/tests/test_providers.py::TestTierGroupsCostCap` (NEW, FR-5a) — pre-call estimate exceeds cap → `CostBudgetExceeded` raised BEFORE API call; under cap → ok
+- [ ] `pytest .claude/adapters/tests/test_providers.py::TestPreferProDryrun` (NEW, FR-5a) — `LOA_PREFER_PRO_DRYRUN=1` + `validate-bindings` prints expected remap; does NOT actually retarget
+- [ ] `tests/integration/cycle095-backwardcompat.bats` (NEW, FR-6) — fixture project at v1.92.0-equivalent legacy pin: alias resolution unchanged for legacy IDs; cost-ledger pricing matches 5.3-codex
+- [ ] `test_validate_bindings_includes_new_agents` passes (post-cycle-094)
+- [ ] All 8 caller files reference new defaults; bash mirror in sync (drift detection green)
+- [ ] Manual 3-model Flatline (Opus + gpt-5.5 + Gemini 3) round-trip succeeds (operator-side smoke)
+- [ ] No regression in full `pytest .claude/adapters/tests/` run
+- [ ] 0 BLOCKING findings on Bridgebuilder + Flatline review of the Sprint 2 PR
+
+### Technical Tasks
+
+- [ ] **Task 2.1**: Update `.claude/defaults/model-config.yaml` aliases section: `reviewer: openai:gpt-5.5`, `reasoning: openai:gpt-5.5` (NOT pro). Drop `probe_required: true` from gpt-5.5 / gpt-5.5-pro entries. → **[G-1, G-2]**
+- [ ] **Task 2.2**: Add immutable-self-map: `backward_compat_aliases: {"gpt-5.3-codex": "openai:gpt-5.3-codex"}`. Implement one-time INFO log emission on first resolution per process per alias (per SDD §6.3). → **[G-2, G-6]**
+- [ ] **Task 2.3**: Add `claude-haiku-4-5-20251001` to `providers.anthropic.models` with capabilities `[chat, tools, function_calling]`, `context_window: 200000`, `token_param: max_tokens`. Live-fetch pricing ONCE during sprint execution, then **freeze** values into YAML as committed source-of-truth (PRD FR-3 AC + SDD §5.7). Add `tiny: anthropic:claude-haiku-4-5-20251001` alias. → **[G-3]**
+- [ ] **Task 2.4**: Add `gemini-3-flash-preview` to `providers.google.models` (default per SDD OQ-1; live-fetch + freeze pricing) with `fallback_chain: ["google:gemini-2.5-flash"]`. Add `gemini-3-flash: google:gemini-3-flash-preview` bare alias. Update `fast-thinker` agent binding. Retain `gemini-2.5-flash` registry entry as bare alias (backward-compat + fallback target). → **[G-4, G-7]**
+- [ ] **Task 2.5**: Implement Google adapter `_resolve_active_model` per SDD §5.8 — probe-driven demotion + hysteresis (`fallback.cooldown_seconds: 300` default) + optional `fallback.persist_state: true` (with `flock` for multi-process safety) + probe-cache trust boundary (file owner UID match + mode 0600 — per SDD §3.5 + iter-1 SKP-003 HIGH 770). WARN-once-per-(primary,fallback)-per-process on demotion; INFO-once on recovery; ERROR on cache trust check fail. → **[G-4, G-7]**
+- [ ] **Task 2.6**: Implement `tier_groups:` schema block (PRD FR-5a + SDD §3.6) — structurally with `mappings:` EMPTY, `denylist: []`, `max_cost_per_session_micro_usd: null`. Add `denylist` validation: each entry must be a known alias (unknown → WARN, not error). → **[G-5]**
+- [ ] **Task 2.7**: Implement `tier_groups.max_cost_per_session_micro_usd:` enforcement in `.claude/adapters/loa_cheval/metering/budget.py` per SDD §1.4.4 — **two-phase atomicity**: (a) pre-call `check_session_cap_pre()` computes `prospective_cost = current_total + (input_tokens × input_per_mtok + max_output_tokens × output_per_mtok)` worst-case; raises `CostBudgetExceeded` BEFORE API call if breached; (b) post-call `check_session_cap_post()` is observability-only. `threading.Lock` serializes the cap-check window. → **[G-5]**
+- [ ] **Task 2.8**: Implement `LOA_PREFER_PRO_DRYRUN=1` env / `--dryrun` flag on `model-invoke --validate-bindings` per FR-5a. Prints alias remap preview given current `tier_groups:` config WITHOUT enabling. Even with empty `mappings:` in Sprint 2, dry-run shape works (prints "no remaps configured"). → **[G-5]**
+- [ ] **Task 2.9**: Update 8 caller files to reference new defaults. Source list: `grimoires/loa/context/model-currency-cycle-preflight.md:106-113`. Includes yq fallback strings, agent bindings, doc samples. Each caller's reference must use SSOT-derived value, not hardcoded model ID. → **[G-2]**
+- [ ] **Task 2.10**: Run `gen-adapter-maps.sh` to regenerate `.claude/scripts/generated-model-maps.sh` — extended with `MODEL_ENDPOINT_FAMILY` associative array (per SDD §1.4.6). Update `.loa.config.yaml.example` with new operator surface (denylist, cap, dryrun, kill-switch examples per SDD §4.3). Author CHANGELOG entry with cost-comparison table per PRD FR-2 AC. NEW bats `cycle095-backwardcompat.bats` (FR-6 fixture project at legacy pin); extend `model-registry-sync.bats`. NEW pytests: `test_haiku.py` (Haiku 4.5 round-trip + pricing freeze); `TestFallbackChain`, `TestProbeCacheTrustBoundary`, `TestFallbackPersistState`, `TestTierGroupsCostCap`, `TestPreferProDryrun` in `test_providers.py`. → **[G-3, G-4, G-6, G-7]**
+
+### Dependencies
+- **Sprint 1**: routing must work or callers will hit HTTP 400 (PRD FR-2 dependency).
+- **External**: Anthropic `claude-haiku-4-5-20251001` snapshot remains live; Google `/v1beta` keeps returning `gemini-3-flash-preview`. Both probe-confirmed 2026-04-29.
+
+### Security Considerations
+- **Trust boundaries**: Probe cache (`.run/model-health-cache.json`) gains explicit ownership/mode trust check (defense against attacker writing the file to manipulate routing — SDD iter-1 SKP-003 HIGH 770). On mismatch, treat cache as missing (probe state UNKNOWN, no fallback) and emit ERROR log.
+- **External dependencies**: No new pip/npm packages.
+- **Sensitive data**: Pricing values frozen into YAML (System Zone) at sprint execution time; live-fetch happens once, never at runtime — desync between live API price and committed config is operator-action territory (follow-up PR).
+- **System Zone authorization**: `.claude/defaults/model-config.yaml`, `.claude/scripts/generated-model-maps.sh` (regenerated), `.claude/adapters/loa_cheval/providers/google_adapter.py`, `.claude/adapters/loa_cheval/metering/budget.py`, `.claude/adapters/loa_cheval/routing/tier_groups.py`, `.loa.config.yaml.example` writes authorized by this PRD/SDD pair.
+- **Pricing freshness cadence** (Flatline sprint-iter2 SKP-004 710): pricing values in `.claude/defaults/model-config.yaml` are frozen once (live-fetched at sprint execution time per FR-3 AC). The frozen values can drift if OpenAI/Anthropic/Google change rates. Mitigation: a quarterly or release-bound refresh task (`task pricing-refresh` or equivalent) re-runs the live fetch and emits a diff for operator review. Documented in Sprint 2 deliverables. Sprint 3's mandatory WARN log on `prefer_pro_models` activation reminds operators to verify cost expectations against current pricing. The frozen-pricing snapshot date is documented in CHANGELOG so operators can audit staleness.
+- **Cost-cap atomicity** — explicit semantics (Flatline sprint-iter1 SKP-004 CRITICAL 895):
+  - **Hard guarantee within a single Loa process**: pre-call estimate uses `max_output_tokens` ceiling; `threading.Lock` serializes the cap-check window. Cap is never exceeded by more than one call's worst-case overshoot.
+  - **Soft semantics across multiple Loa processes** (parallel `/run`, CI workers, etc.): each process tracks its own session cap independently. Operators wanting cross-process consistency must use a shared ledger file via `flock` AND a coordinated `trace_id`. CHANGELOG calls this out explicitly: "If you run multiple Loa processes concurrently against a shared budget, each process's cap is independent — sum their caps OR coordinate trace_id manually for true cross-process enforcement."
+  - **Documented in CHANGELOG + `loa-setup` SKILL example**: Sprint 2 deliverable. Quoted operator guidance: "max_cost_per_session_micro_usd is a per-process hard guard, not a distributed lock. Multi-process workflows require explicit operator coordination."
+
+### Risks & Mitigation
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+| Cost cap soft-cap nature surprises operators (multi-process, shared ledger) | Medium | Medium | SDD §1.4.4 documents soft-cap nature explicitly; `threading.Lock` serializes single-process; multi-process is operator-action territory (`flock` on shared ledger documented) |
+| Fallback chain hysteresis cooldown=300s wrong for some operators | Low | Low | Cooldown is config-overridable (`fallback.cooldown_seconds`); documentation includes tuning guidance |
+| Probe-cache trust check fails in container env (UID mismatch from rootless container) | Medium | Low | Falls through to UNKNOWN behavior (no fallback fires); ERROR log surfaces it; documented as accepted limitation |
+| 8 caller files list incomplete (more references hardcode `gpt-5.3-codex`) | Medium | Medium | Cross-reference grep `gpt-5.3-codex` across entire `.claude/` and `grimoires/` trees during Task 2.9; bash regen drift detection (`gen-adapter-maps.sh --check`) catches |
+| Pricing freeze drifts from Anthropic/Google live rates | Low | Low | Live-fetch happens at sprint execution; YAML commit is the source-of-truth; rate change is operator-action (follow-up PR) |
+| Backward-compat smoke against legacy pin reveals additional regressions | Low | Medium | Sprint 2 launch criterion includes the smoke test; failures gate the merge |
+| Schedule slip into soak window | Low | Low | Each sprint is independently mergeable per PRD HARD constraint; soak window can absorb 1 day slip without breaking Sprint 3 |
+
+### Success Metrics
+- `flatline-model-validation.bats` 15/15
+- 100% line + branch coverage on `_resolve_active_model`, `tier_groups` validator, `check_session_cap_pre`/`_post`
+- `model-invoke --validate-bindings` exits 0 with new aliases
+- All 8 caller files traced via grep to use SSOT references; 0 hardcoded `gpt-5.3-codex` strings outside backward-compat machinery
+- 0 BLOCKING findings on Bridgebuilder + Flatline review of the Sprint 2 PR
+- Manual 3-model Flatline smoke succeeds (operator-side)
+
+---
+
+## Soak: 48-Hour Observation Window (PRD §Timeline 2026-05-02 → 2026-05-04)
+
+**Size:** N/A (no code change)
+**Duration:** 48 hours
+**Dates:** 2026-05-02 (Sprint 2 merge) → 2026-05-04 (Sprint 3 start)
+
+### Soak Goal
+Allow downstream consumer pin-bumps and routine framework usage to surface unexpected issues with the Sprint 2 changes (alias flip, immutable self-map, fallback chain, cost guardrails) BEFORE adding the pro-tier opt-in flag in Sprint 3.
+
+### Decision Authority (Flatline IMP-002)
+
+**Decider**: @deep-name (project maintainer per CLAUDE.md). Default to maintainer when only one person; if multiple maintainers in scope, name a single soak-decider per-cycle in the Sprint 2 merge commit message.
+
+**Response time**: triage signal → decision within 4 business hours. If decider is unavailable (PTO, unreachable), Sprint 3 start defers automatically — no implicit "silence is consent" rollover.
+
+**Escalation path** (issue severity tiers):
+- **Sev-1** (any data corruption, cost-ledger NaN, downstream consumer breakage): immediate triage; consider immediate kill-switch + rollback PR
+- **Sev-2** (probe instability, fallback thrashing, log noise but no incorrect output): triage within 4h; mitigate but don't necessarily block Sprint 3
+- **Sev-3** (cosmetic, doc, minor): track in NOTES.md, address in cleanup PR
+
+### Observation Targets — Quantitative Gates (Flatline IMP-001)
+
+| Target | Metric | Pass threshold | Source |
+|---|---|---|---|
+| Cost-ledger sanity | `jq` over `grimoires/loa/a2a/cost-ledger.jsonl` for 48h window — count entries with `cost_micro_usd <= 0` OR `cost_micro_usd > 100_000_000` (>$100/call sanity) | 0 anomalies | manual run at soak end |
+| `reasoning_tokens` correctness | For each pro-tier call (if any): `tokens_reasoning <= tokens_out` (subset invariant) | 100% of pro-tier entries | jq filter |
+| Probe state churn | Probe state transitions per model in `grimoires/loa/a2a/trajectory/probe-*.jsonl` | ≤ 5 transitions per model per 48h (more = thrash) | grep + count |
+| Adapter HTTP 400s on gpt-5.5* | grep adapter logs for HTTP 400 with model startswith gpt-5.5 | 0 | grep |
+| Adapter HTTP 4xx on /v1/responses (excl 429) | grep | 0 (or each instance investigated for shape-handling gap) | grep |
+| Kill-switch invocations | grep for `LOA_FORCE_LEGACY_ALIASES` activation logs | 0 (any activation = soak-blocking issue, investigate before Sprint 3) | grep |
+| Downstream consumer issues filed | `gh issue list --search "label:cycle-095"` for new entries since Sprint 2 merge | 0 | gh CLI |
+| Existing test suite drift | `bats tests/unit/flatline-model-validation.bats` + `tests/unit/mount-version-resolver.bats` + `pytest .claude/adapters/tests/` (full run) | 100% pass on main HEAD | CI run |
+| `model-invoke --validate-bindings` | Run on a fresh `.loa.config.yaml` clone | `valid: true` | CLI |
+
+Soak-end checklist (decider runs at T+48h):
+1. Pull latest main
+2. Run each metric query above
+3. If all pass: green-light Sprint 3 in Sprint 3's PR description, link to soak-evidence file
+4. If any fail: file `/bug` with cluster of evidence; Sprint 3 start defers until cleared
+
+Evidence preserved at `grimoires/loa/a2a/cycle-095/soak-evidence-{date}.md` (manually authored by decider).
+
+### Soak Exit Criteria
+- [ ] All quantitative observation targets pass (above table)
+- [ ] Decider explicitly signs off in Sprint 3 PR description
+- [ ] If issues surface: triage via `/bug`; soak window does NOT silently extend — explicit re-evaluation gate
+- [ ] If kill-switch (`LOA_FORCE_LEGACY_ALIASES=1`) needed at any point: any activation = soak-blocking issue, investigate root cause, do NOT proceed to Sprint 3 until cleared
+
+---
+
+## Sprint 3: prefer_pro_models Activation + override_user_aliases Opt-In + Dry-Run Full Activation
 
 **Size:** MEDIUM (6 tasks)
-**Duration:** 2.5 days
-**Dates:** Day 1–3 of cycle
+**Duration:** 1 day
+**Dates:** 2026-05-04 → 2026-05-05
+**Mergeable independently:** YES (depends on Sprint 2 alias targets + FR-5a guardrails existing in main)
 
 ### Sprint Goal
-Formalize the dispatch-log line grammar, `.phase-current` state file, and path convention that all three downstream issues depend on — so Sprints 2/3/4 consume a stable shared surface instead of re-inventing it.
+Activate the `hounfour.prefer_pro_models: true` opt-in flag with full retargeting via populated `tier_groups.mappings:`, with **user-pin-wins precedence by default** + opt-in `override_user_aliases: true` for operators who want flag-wins-over-pin behavior — building entirely on top of Sprint 2's already-shipped guardrails (denylist, cost cap, dry-run primitive).
 
 ### Deliverables
-- [ ] `grimoires/loa/proposals/dispatch-log-grammar.md` — canonical grammar spec documenting every current `[harness]`-emitted line shape plus the three new verdicts (`IMPL_EVIDENCE_MISSING`, phase-start, heartbeat)
-- [ ] `.claude/scripts/spiral-evidence.sh` — new helpers `_phase_current_write <cycle_dir> <phase_label> <attempt_num> <fix_iter>`, `_phase_current_touch <cycle_dir>`, `_phase_current_clear <cycle_dir>`, `_phase_current_read <cycle_dir>`
-- [ ] `.claude/scripts/spiral-harness.sh` — calls to `_phase_current_write` at every `log "Phase N: …"` / `log "Gate: …"` / `log "Pre-check: …"` site; `_phase_current_clear` at `main()` exit (success AND failure paths via trap)
-- [ ] Path convention decision documented in the grammar spec: `${CYCLE_DIR}/dispatch.log` (migrating from current `harness-stderr.log` sibling pattern, per @zkSoju's comment on #598)
-- [ ] `tests/unit/dispatch-log-grammar.bats` — fixture-based tests asserting the grammar table: given line X, parser Y should extract field Z
-- [ ] `tests/unit/phase-current-state.bats` — state file lifecycle tests (written at phase-START, mtime updated on sub-events, deleted at phase-EXIT, deleted on crash via trap)
+- [ ] `tier_groups.mappings:` populated in `.claude/defaults/model-config.yaml` with `reviewer: gpt-5.5-pro` and `reasoning: gpt-5.5-pro`
+- [ ] `.claude/adapters/loa_cheval/routing/tier_groups.py` (NEW) implementing `apply_tier_groups()` per SDD §5.9 with **user-pin-wins default** precedence (SDD iter-2 SKP-005 fix)
+- [ ] `tier_groups.override_user_aliases: false` (default) honored — explicit user `aliases:` pins WIN over flag-driven retargeting unless override is set
+- [ ] `tier_groups.override_user_aliases: true` opt-in — flag wins over user pins (denylist still wins over override)
+- [ ] `apply_tier_groups()` wired into `loader.py` post-merge AFTER kill-switch short-circuit (per SDD §1.4.5)
+- [ ] `--dryrun` mode on `model-invoke --validate-bindings` fully activated — prints all alias resolutions per the SDD §5.10 precedence examples table
+- [ ] Mandatory WARN log emitted ONCE per process when `prefer_pro_models: true` activates: "prefer_pro_models is enabled — N aliases retargeted to pro variants; expected cost impact ~5-10× on reasoning_tokens-charged calls. Use tier_groups.denylist to opt specific aliases out, or set tier_groups.max_cost_per_session_micro_usd for hard cap."
+- [ ] `.claude/skills/loa-setup/SKILL.md` example shows the flag with denylist + cap configuration
+- [ ] CHANGELOG entry on cost impact and opt-in semantics
 
 ### Acceptance Criteria
-- [ ] Grammar spec enumerates every current `log()` line in `spiral-harness.sh` with a named shape (e.g., `phase-transition`, `gate-attempt`, `pre-check-start`, `review-fix-iteration`, `circuit-breaker-trip`)
-- [ ] Spec reserves three new shapes for downstream sprints: `impl-evidence-missing` (Sprint 2), `phase-heartbeat-emitted` (Sprint 4), `phase-current-cleared` (Sprint 3 dashboard writer hook)
-- [ ] `.phase-current` file format: single line `<phase_label>\t<start_ts>\t<attempt_num>\t<fix_iter>` (tab-separated, fields default to `-` when not applicable) — per #599 issue body spec
-- [ ] Harness `main()` sets up `trap 'rm -f "$CYCLE_DIR/.phase-current"' EXIT` so abnormal exits clear the state file (no stale "in-flight" signal)
-- [ ] Path migration: `harness-stderr.log` is renamed to `dispatch.log`; `spiral-simstim-dispatch.sh:175` redirection updated; no other scripts reference the old path
-- [ ] grammar test fixtures cover: phase transitions 1–6, Gate REVIEW/AUDIT attempts 1/3–3/3, Review fix loop iterations 1/2–2/2, Circuit breaker trip, Pre-check start/pass/fail
-- [ ] Grammar spec explicitly marks which fields are stable API (consumed by #598/#599/#600 parsers) vs. which are informational-only
+- [ ] `pytest .claude/adapters/tests/test_config.py::TestPreferProModels` (NEW) passes all six cases: (a) flag default false: behavior unchanged; (b) flag true + tier_groups.mappings: aliases retarget; (c) override precedence with `override_user_aliases: false` (default) → user pin WINS; (d) override precedence with `override_user_aliases: true` → flag WINS; (e) denylist: alias listed in denylist NOT retargeted (denylist wins over override); (f) WARN log emitted once per process; dry-run preview output matches §5.10 examples table
+- [ ] `tests/integration/cycle095-prefer-pro-e2e.bats` (NEW): with flag on + no user pin, `model-invoke reviewing-code` resolves to `gpt-5.5-pro`; ledger entry uses pro pricing
+- [ ] `model-invoke --validate-bindings --dryrun` prints all five precedence rows from SDD §5.10 examples table when given matching synthetic configs
+- [ ] All four guardrail interactions tested: denylist + override + flag + cap
+- [ ] No regression in Sprint 2 tests; full `pytest .claude/adapters/tests/` run green
+- [ ] 0 BLOCKING findings on Bridgebuilder + Flatline review of the Sprint 3 PR
+- [ ] E2E goal validation task (Task 3.E2E) passes for all seven PRD goals
 
 ### Technical Tasks
 
-- [ ] **Task 1.1**: Audit current `log()` call-sites in `spiral-harness.sh` and `spiral-evidence.sh`; enumerate line shapes and emit an inventory table (line number, shape name, regex, example) → **[G-4]**
-- [ ] **Task 1.2**: Draft `grimoires/loa/proposals/dispatch-log-grammar.md` with: (a) stability API marker per shape, (b) the three reserved shapes for downstream sprints, (c) deprecation note on the old `harness-stderr.log` path → **[G-4]**
-- [ ] **Task 1.3**: Implement `_phase_current_write`/`_touch`/`_clear`/`_read` in `.claude/scripts/spiral-evidence.sh`, following the `_pre_check_seed` style (fail-safe, traps jq errors, never breaks the pipeline) → **[G-2, G-3]**
-- [ ] **Task 1.4**: Wire `_phase_current_*` calls into `spiral-harness.sh` at every phase transition site (1109–1239); add EXIT trap in `main()` → **[G-2, G-3]**
-- [ ] **Task 1.5**: Migrate dispatch-log path from `$cycle_dir/harness-stderr.log` to `$cycle_dir/dispatch.log` in `spiral-simstim-dispatch.sh:175`; grep repo for other consumers of `harness-stderr.log` and update → **[G-4]**
-- [ ] **Task 1.6**: Write `tests/unit/dispatch-log-grammar.bats` (grammar fixtures) and `tests/unit/phase-current-state.bats` (state-file lifecycle incl. crash-trap) → **[G-4]**
+- [ ] **Task 3.1**: Populate `tier_groups.mappings:` in `.claude/defaults/model-config.yaml` with `reviewer: gpt-5.5-pro` and `reasoning: gpt-5.5-pro` (per SDD §3.2). → **[G-5]**
+- [ ] **Task 3.2**: Implement `.claude/adapters/loa_cheval/routing/tier_groups.py::apply_tier_groups()` per SDD §5.9 — pure config transformation. Critical precedence (SDD §5.10 + iter-2 SKP-005 fix): walk `mappings:`; SKIP if base in denylist; SKIP if base in user-overrides AND `override_user_aliases: false` (default). Implement `_detect_user_alias_overrides()` helper. Populate `validate_tier_groups()` per §3.6 (mappings keys validated, denylist alias-existence WARN, cost-cap type check). → **[G-5]**
+- [ ] **Task 3.3**: Wire `apply_tier_groups()` into `.claude/adapters/loa_cheval/config/loader.py` post-merge — AFTER `force_legacy_aliases` short-circuit per SDD §1.4.5. Emit mandatory WARN once per process when retargeting fires (≥1 mapping applied, NOT counting skipped denylist/user-override). → **[G-5]**
+- [ ] **Task 3.4**: Activate full `--dryrun` mode on `model-invoke --validate-bindings` per SDD §4.2 — prints all alias resolutions including the precedence-decision lineage ("base → mapping → denylist-skip / user-pin-skip / FINAL"). Does NOT mutate config. Builds on Sprint 2 FR-5a primitive. → **[G-5]**
+- [ ] **Task 3.5**: Update `.claude/skills/loa-setup/SKILL.md` example with the flag, denylist, and cost cap. Update `.loa.config.yaml.example` with `tier_groups.mappings:` populated section commented out as opt-in example. Author CHANGELOG entry on cost impact and opt-in semantics. → **[G-5]**
+- [ ] **Task 3.6**: Author Sprint 3 pytests per SDD §7.3 Sprint 3 row: `test_config.py::TestPreferProModels` (six cases including precedence + denylist + WARN + dry-run); NEW bats `tests/integration/cycle095-prefer-pro-e2e.bats`. **Plus explicit kill-switch precedence test cases (Flatline sprint-iter1 IMP-006 800):** `TestKillSwitchPrecedence` covers (a) `LOA_FORCE_LEGACY_ALIASES=1` + `prefer_pro_models: true` → kill-switch wins, aliases revert to legacy targets (NOT retargeted to pro); (b) `LOA_FORCE_LEGACY_ALIASES=1` + user pin + `prefer_pro_models: true` → kill-switch still wins (legacy snapshot used regardless of user-config or flag); (c) confirms loader short-circuit ordering per SDD §1.4.5. → **[G-5, G-6]**
+
+### Task 3.E2E: End-to-End Goal Validation
+
+**Priority:** P0 (Must Complete)
+**Goal Contribution:** All goals (G-1 through G-7)
+
+**Description:**
+Validate that all PRD goals are achieved through the complete cycle-095 implementation (Sprint 1 + Sprint 2 + Sprint 3). This is the final gate before cycle archive.
+
+**Validation Steps:**
+
+| Goal ID | Goal | Validation Action | Expected Result |
+|---------|------|-------------------|-----------------|
+| G-1 | gpt-5.5 + gpt-5.5-pro callable through cheval | Run `pytest -m live test_providers.py::TestOpenAIResponsesEndpointRouting` (or fixture replay if no key); inspect ledger entry for round-trip | `CompletionResult` returned; ledger entry has correct micro-USD cost; `reasoning_tokens` populated for pro call |
+| G-2 | `reviewer` AND `reasoning` resolve to `openai:gpt-5.5` (cost-safe default) | `model-invoke --validate-bindings`; inspect resolved alias targets | `reviewer → openai:gpt-5.5`; `reasoning → openai:gpt-5.5`; `valid: true` |
+| G-3 | `tiny` tier alias points at Haiku 4.5; round-trip works | `pytest test_haiku.py`; `model-invoke --validate-bindings` shows alias | `tiny → anthropic:claude-haiku-4-5-20251001`; round-trip ledger entry has Haiku 4.5 pricing |
+| G-4 | `fast-thinker` agent binding upgraded; probe AVAILABLE | `pytest TestFallbackChain`; `model-invoke --validate-bindings`; minimal Gemini 3 generation probe | `fast-thinker → google:gemini-3-flash-preview`; fallback chain populated; generation probe returns 200 OK |
+| G-5 | `prefer_pro_models: true` retargets aliases | `pytest TestPreferProModels`; `model-invoke --validate-bindings --dryrun` with synthetic flag-on config | `reviewer → gpt-5.5-pro`; `reasoning → gpt-5.5-pro`; WARN log emitted once; user pin wins by default; denylist + override_user_aliases + cap interact correctly |
+| G-6 | Zero regression for `gpt-5.3-codex` pin | `pytest test_chains.py` self-map case; `tests/integration/cycle095-backwardcompat.bats`; `update-loa` smoke against fixture project at legacy pin | Legacy alias resolves LITERALLY; cost-ledger uses 5.3-codex pricing; `update-loa` smoke clean |
+| G-7 | Probe-gated fail-fast preserved | Synthetic UNAVAILABLE probe state on a model with `probe_required: true`; adapter call should raise `ProviderUnavailableError` | Adapter fails fast; existing `model-health-probe.bats` tests green |
+
+**Acceptance Criteria:**
+- [ ] Each goal validated with documented evidence (ledger entry, pytest output, bats output)
+- [ ] Integration points verified end-to-end (alias → adapter routing → API call → ledger write → CompletionResult)
+- [ ] No goal marked as "not achieved" without explicit justification
+- [ ] Rollback playbook (PRD §Rollback Playbook) executable in <60s for steps 1-4 (verifiable via dry-run of each step)
 
 ### Dependencies
-- None (foundation sprint)
+- **Sprint 2**: alias targets must exist (`gpt-5.5-pro` is the retarget destination; FR-5a guardrails in place).
+- **Soak window clean**: no rollback signals from Sprint 2 cost ledger or probe state.
 
 ### Security Considerations
-- **Trust boundaries**: `.phase-current` is internal state — not consumed across process boundaries except by monitors reading via filesystem mtime. No untrusted input touches the grammar parser.
-- **External dependencies**: None added. Grammar spec is a markdown doc; state file is plain text.
-- **Sensitive data**: None. Phase labels, timestamps, attempt numbers are all internal.
+- **Trust boundaries**: `prefer_pro_models` flag is operator-controlled config. No new credential surface.
+- **Override precedence (SDD iter-2 SKP-005 fix)**: User pin-wins-by-default protects operators from silent retargeting of their own pins; `override_user_aliases: true` is the explicit opt-in for the inverted behavior.
+- **Cost amplification awareness**: Mandatory WARN at config-load is the user-facing surface for the 5-10× cost impact. Combined with Sprint 2's `max_cost_per_session_micro_usd` cap, operators have both observability and a hard guard.
+- **System Zone authorization**: `.claude/defaults/model-config.yaml` (mappings populated), `.claude/adapters/loa_cheval/routing/tier_groups.py`, `.claude/adapters/loa_cheval/config/loader.py`, `.claude/skills/loa-setup/SKILL.md`, `.loa.config.yaml.example` writes authorized by this PRD/SDD pair.
 
 ### Risks & Mitigation
 | Risk | Probability | Impact | Mitigation |
 |------|-------------|--------|------------|
-| Existing scripts reference `harness-stderr.log` beyond `spiral-simstim-dispatch.sh` and break on rename | Med | Med | Grep is cheap and deterministic — do it in Task 1.5 before committing rename; also keep a symlink for one cycle as compat layer |
-| `.phase-current` state file races with harness crash leaving stale "in-flight" signal | Med | Low | EXIT trap in Task 1.4; belt-and-suspenders: monitors treat `.phase-current` older than 2× `baseline_sec` as stale |
-| Grammar spec freezes premature — downstream sprints find they need a shape not yet declared | Med | Low | Spec explicitly reserves three shapes for downstream sprints; extension requires grammar spec amendment PR before consumer lands |
+| Tier-groups override precedence subtlety surprises operators (custom alias overwritten by mappings) | Medium | Medium | User-pin-wins is the DEFAULT (revised post-iter-2 SKP-005); `override_user_aliases: true` is opt-in; `--dryrun` mode surfaces remap with full precedence-decision lineage |
+| `prefer_pro_models` triggers cost-cap exception mid-session and breaks downstream workflow | Medium | Medium | `BudgetExceededError` documented in PRD §Constraints as the safety net; downstream callers already handle it; CHANGELOG includes calibration guidance |
+| Operator enables flag without setting cost cap, hits surprise cost spike | Medium | High | Mandatory WARN log on activation directs operator to denylist + cap; documentation example shows recommended pattern; soak-window pre-deployment ensures Sprint 2 guardrails are battle-tested before flag activates |
+| Soak window surfaces issue requiring Sprint 2 fix | Low | Medium | Sprint 3 start is gated on clean soak observation; `/bug` triage path is the standard recovery |
 
 ### Success Metrics
-- Grammar spec merged to `grimoires/loa/proposals/`
-- `.phase-current` state file present during every `[harness] Phase N:` log and absent at harness exit (validated by `phase-current-state.bats`)
-- Zero references to `harness-stderr.log` remain outside compat symlink
-- 100% of current `log()` lines have a named grammar shape
+- 100% line + branch coverage on `tier_groups.py` (`apply_tier_groups`, `validate_tier_groups`, `_detect_user_alias_overrides`)
+- 100% of SDD §5.10 precedence-table examples covered in pytest
+- E2E goal validation: 7/7 goals validated with documented evidence
+- 0 BLOCKING findings on Bridgebuilder + Flatline review of the Sprint 3 PR
+- v1.108.0 minor release tag created with consolidated CHANGELOG (per PRD §Timeline)
 
 ---
 
-## Sprint 2: Pre-Review Artifact-Coverage Evidence Gate (#600)
+### Flatline Iteration Closeout (kaironic stop, 2 sprint-plan iters)
 
-**Size:** MEDIUM (5 tasks)
-**Duration:** 2 days
-**Dates:** Day 3–5 of cycle
+Sprint plan passed through 2 Flatline iterations 2026-04-29. Real fixes integrated:
 
-### Sprint Goal
-Catch "IMPL subprocess committed all-N-sprints but omitted SEED-named visible surfaces" failures *before* REVIEW/AUDIT dispatches, via a deterministic `test -s` gate that runs against sprint.md-enumerated paths.
+- **iter-1 BLOCKERs (5)**: Quantitative soak exit gates + decision authority (§Soak), cost-cap multi-process semantics clarification (§Sprint 2 Risks), kill-switch precedence test cases added to Task 3.6, sprint-kickoff API re-probe (§Migration), Loa-specific atomic-deployment scope (§Migration).
+- **iter-2 BLOCKERs (6)**: probe_required semantics clarification (§Sprint 1), pricing-freshness cadence (§Sprint 2 Risks). Other 4 are REFRAMEs of design tensions already resolved in PRD/SDD.
 
-> From #600: *"A sprint-plan-aware audit would have flagged Sprint 8's `TheReliquaryScene.svelte` + Sprint 9's visible reveal beat as missing deliverables. Running the dev server shows all existing scenes but nothing new for cycle-091."*
-
-### Deliverables
-- [ ] `.claude/scripts/spiral-evidence.sh` — new `_pre_check_implementation_evidence` function following the `_pre_check_review` pattern
-- [ ] `.claude/scripts/spiral-evidence.sh` — new helper `_parse_sprint_paths <sprint_md>` that extracts enumerated paths from `grimoires/loa/sprint.md` (globs + explicit files)
-- [ ] `.claude/scripts/spiral-harness.sh` — `main()` calls `_pre_check_implementation_evidence` after `_phase_implement` and before `_pre_check_review`; on failure emits `IMPL_EVIDENCE_MISSING` per Sprint 1 grammar
-- [ ] `.claude/scripts/spiral-harness.sh` — targeted IMPL fix-loop on `IMPL_EVIDENCE_MISSING`: dispatches a narrower prompt than semantic review ("these N paths from sprint.md are missing; produce them"), reusing `_phase_implement_with_feedback` plumbing with a new feedback type
-- [ ] `tests/unit/spiral-pre-check-implementation-evidence.bats` — covers: (a) happy path (all paths present), (b) missing-path emits `IMPL_EVIDENCE_MISSING`, (c) empty-stub detection (`test -s` fails on zero-byte), (d) path-parser handles globs + explicit files + code-block listings
-
-### Acceptance Criteria
-- [ ] `_pre_check_implementation_evidence` returns 0 when all sprint.md-enumerated paths exist and are non-empty (`test -s`), returns 1 otherwise with a diagnostic listing the missing paths
-- [ ] On failure, harness records a flight-recorder event `{verdict: "IMPL_EVIDENCE_MISSING", missing_paths: [...]}` — consumable by Sprint 4 heartbeat's phase-verb extractor
-- [ ] Targeted fix-loop runs max 2 iterations (narrower than Review fix-loop's 3 — the surface is smaller, and failure after 2 is unlikely to succeed on 3); if still failing, circuit-break with operator intervention requested per issue-body §Suggested fix item 4
-- [ ] Hermetic regression test: reproduce cycle-091 scenario (sprint.md names `src/lib/scenes/Reliquary.svelte`, IMPL subprocess commits only backend/tests) → `_pre_check_implementation_evidence` returns 1 with `Reliquary.svelte` in diagnostic output
-- [ ] Does NOT replace `/review-sprint`'s own enumeration — it runs first, catches the gross case, saves review budget. Issue body §Suggested fix item 1 note: "Extend /review-sprint … same artifact coverage check" is explicitly deferred to a future cycle.
-- [ ] Advisory for trivial-content detection: emit `IMPL_EVIDENCE_TRIVIAL` warning (not block) when a path exists but has <20 lines or matches known-stub regexes (`<script>\s*</script>`, `TODO`); issue body §Suggested fix item 2 defers hard-enforcement to the audit phase
-
-### Technical Tasks
-
-- [ ] **Task 2.1**: Implement `_parse_sprint_paths` — tolerates sprint.md formats observed in cycle-082/091: checkbox lists (`- [ ] ... path: src/...`), code-block file enumerations, inline `path:` mentions. Returns deduped path list → **[G-1]**
-- [ ] **Task 2.2**: Implement `_pre_check_implementation_evidence` per `_pre_check_review` pattern — loops `_parse_sprint_paths` output, runs `test -s` on each, accumulates missing-path list, emits grammar-shaped log line on fail → **[G-1]**
-- [ ] **Task 2.3**: Wire into `spiral-harness.sh:1174` (between `_phase_implement` and `_pre_check_review`) with conditional targeted fix-loop: on `IMPL_EVIDENCE_MISSING`, dispatch `_phase_implement_with_feedback` but with `FEEDBACK_TYPE=missing_artifacts` and the missing-path list as the prompt payload → **[G-1]**
-- [ ] **Task 2.4**: Write `tests/unit/spiral-pre-check-implementation-evidence.bats` (4 scenarios above) + synthetic cycle-091 regression test fixture → **[G-1, G-4]**
-- [ ] **Task 2.5**: Add `IMPL_EVIDENCE_MISSING` and `IMPL_EVIDENCE_TRIVIAL` to Sprint 1's grammar spec; confirm Sprint 4 heartbeat extractor can read them as phase-verb inputs → **[G-4]**
-
-### Dependencies
-- **Sprint 1**: grammar spec reserves `IMPL_EVIDENCE_MISSING`/`IMPL_EVIDENCE_TRIVIAL` shapes; Task 2.5 amends the spec concretely
-- Existing `_phase_implement_with_feedback` plumbing — Task 2.3 reuses it
-
-### Security Considerations
-- **Trust boundaries**: `sprint.md` is treated as trusted input (it's written by planning agents, not external attackers). Path traversal is not a concern because paths are consumed only by `test -s`, which is a filesystem stat — no shell interpolation.
-- **External dependencies**: None added.
-- **Sensitive data**: None. sprint.md is grimoire state, readable by all agents in the cycle.
-
-### Risks & Mitigation
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| `_parse_sprint_paths` false-negatives (misses a listed artifact, so gate passes even though IMPL shipped gap) | High | Med | Tests cover all observed sprint.md formats; when a new format is added, parser must extend before the cycle lands |
-| Targeted fix-loop dispatches twice and still fails → cycle stalls with operator intervention needed | Med | High | Circuit-break is intentional per issue-body §Suggested fix item 4 (operator context is required — retries won't invent the missing artifact). Halt emits a clear actionable verdict line. |
-| Glob patterns in sprint.md (`src/**/*.svelte`) expand to nothing on a fresh branch — false-positive `IMPL_EVIDENCE_MISSING` | Med | Low | Parser distinguishes glob from explicit path: globs that expand to zero files emit `IMPL_EVIDENCE_GLOB_UNMATCHED` warning, not a hard fail |
-
-### Success Metrics
-- Synthetic cycle-091 scenario emits `IMPL_EVIDENCE_MISSING` before REVIEW, verdict logged to flight-recorder
-- Gate runtime <5 seconds for typical sprint.md with 10–30 enumerated paths
-- Zero false-negatives on the three sprint.md formats observed in cycles 082/091/092 (test fixtures)
-- Fix-loop iteration reduces missing-path count monotonically (if it doesn't, circuit-break rather than retry)
-
----
-
-## Sprint 3: Dashboard Mid-Phase Writes (#599)
-
-**Size:** MEDIUM (5 tasks)
-**Duration:** 2 days
-**Dates:** Day 5–7 of cycle
-
-### Sprint Goal
-Un-freeze `dashboard-latest.json` during long phases (IMPL especially) by adding phase-start writes + mid-phase heartbeat writes, and consuming Sprint 1's `.phase-current` state file as the authoritative "phase is in-flight right now" signal for external monitors.
-
-> From #599: *"dashboard-latest.json stayed frozen at ts=2026-04-19T04:39:50Z (the prior PRE_CHECK review_ready write). My 23 heartbeat pulses across 35 minutes all reported phase=IMPLEMENT cost=$15. A human watching the dashboard would have concluded the cycle stalled; in reality it finished successfully."*
-
-### Deliverables
-- [ ] `.claude/scripts/spiral-evidence.sh` — `_emit_dashboard_snapshot` accepts new event types: `PHASE_START`, `PHASE_HEARTBEAT`, `PHASE_EXIT` (explicit; current default is just phase-label flip)
-- [ ] `.claude/scripts/spiral-evidence.sh` — new `_spawn_dashboard_heartbeat_daemon <cycle_dir> <interval_sec>` — background process that emits `PHASE_HEARTBEAT` dashboard snapshots every N sec by tailing flight-recorder
-- [ ] `.claude/scripts/spiral-harness.sh` — spawns heartbeat daemon on `main()` entry, reaps it on EXIT trap
-- [ ] `grimoires/loa/proposals/rfc-062-seed-seam-autopoiesis.md` — update §Observability section with phase-start-vs-exit semantic (minor docs update)
-- [ ] `tests/unit/spiral-dashboard-mid-phase.bats` — simulates 5-min IMPL subprocess, asserts dashboard-latest.json `last_action_ts` advances at heartbeat cadence
-
-### Acceptance Criteria
-- [ ] Dashboard snapshot emitted at 3 distinct event types:
-    1. **PHASE_START** — at every phase transition (matches `current_phase` flip); clears stale per-phase totals; sets `first_ts` for the new phase
-    2. **PHASE_HEARTBEAT** — every 60s during long phases; updates `last_action_ts` + running `cost_usd` from flight-recorder tail
-    3. **PHASE_EXIT** — at flight-recorder verdict emission; authoritative totals (this is the current behavior)
-- [ ] `dashboard-latest.json` schema unchanged (still `spiral.dashboard.v1`); new `event_type` field is additive (existing consumers ignore it cleanly)
-- [ ] Heartbeat daemon reads `.phase-current` from Sprint 1 — if file is absent, daemon exits cleanly (no stray snapshots during pre/post pipeline)
-- [ ] Heartbeat interval configurable via `SPIRAL_DASHBOARD_HEARTBEAT_SEC` (default 60; clamp to [30, 300])
-- [ ] Hermetic repro of #599 scenario: simulate 5-min IMPL phase; poll dashboard-latest.json at 61s, 121s, 181s, 241s, 301s — `last_action_ts` strictly increases across every poll
-- [ ] Daemon does NOT call `_emit_dashboard_snapshot` if `.phase-current` mtime is older than `2 × baseline_sec` (phase is suspected stuck — let Sprint 4 heartbeat surface the `🔴 stuck` signal instead)
-- [ ] Daemon reaped on EXIT trap in `main()` — no orphaned daemons after pipeline exits (success OR crash)
-
-### Technical Tasks
-
-- [ ] **Task 3.1**: Extend `_emit_dashboard_snapshot` signature: `_emit_dashboard_snapshot <current_phase> [event_type] [cycle_dir]` (new optional middle arg, default `PHASE_START` for backwards compat) → **[G-2]**
-- [ ] **Task 3.2**: Implement `_spawn_dashboard_heartbeat_daemon` — backgrounded while-loop that reads `.phase-current`, computes running totals from flight-recorder tail, calls `_emit_dashboard_snapshot $phase PHASE_HEARTBEAT`, sleeps N sec → **[G-2]**
-- [ ] **Task 3.3**: Wire daemon spawn into `spiral-harness.sh:main()` (line 1109 after `_record_action CONFIG`) + reap in EXIT trap (Sprint 1 already adds trap for `.phase-current`; extend to kill daemon PID) → **[G-2]**
-- [ ] **Task 3.4**: Write `tests/unit/spiral-dashboard-mid-phase.bats` — uses `SPIRAL_DASHBOARD_HEARTBEAT_SEC=2` and a 10-second synthetic phase to exercise heartbeat cadence in bounded time → **[G-2, G-4]**
-- [ ] **Task 3.5**: Update `grimoires/loa/proposals/rfc-062-seed-seam-autopoiesis.md` §Observability to document the 3-event dashboard semantic; note that dashboard-latest.json is now "live in-flight" not "phase-exit-only" → **[G-2]**
-
-### Dependencies
-- **Sprint 1**: `.phase-current` state file is the daemon's truth source; EXIT trap plumbing (Sprint 1 Task 1.4) extends to reap daemon PID
-- Existing `_emit_dashboard_snapshot` infrastructure
-
-### Security Considerations
-- **Trust boundaries**: Background daemon reads only from `.phase-current`, flight-recorder, and cycle-dir — all internal state. No network, no untrusted input.
-- **External dependencies**: None added. Daemon is pure bash + jq.
-- **Sensitive data**: None. Dashboard snapshots contain cost/duration/phase — all internal telemetry.
-- **Process hygiene**: Daemon PID is captured and reaped via EXIT trap. A crash during pipeline should not leak a daemon process (validated by test).
-
-### Risks & Mitigation
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| Backgrounded daemon leaks into operator shell on crash | Med | Med | EXIT trap reaps by PID file; also `trap '...kill $DAEMON_PID 2>/dev/null' EXIT` — covers both clean and crash paths |
-| Heartbeat daemon races with phase-exit snapshot → two concurrent jq writes on dashboard-latest.json | Med | Low | Existing `_emit_dashboard_snapshot` already uses `.tmp + mv` atomic pattern (spiral-evidence.sh:737); atomicity prevents torn writes. Last-write-wins is acceptable. |
-| Heartbeat writes inflate `dashboard.jsonl` (append-only log) to disk-filling size for long cycles | Low | Med | Heartbeat at 60s × 3-hour cycle = 180 entries of ~1KB each = 180KB. Well within tolerance. No compaction needed. |
-| Daemon CPU cost is non-trivial across 36-min IMPL | Low | Low | Per-heartbeat cost: one flight-recorder read + one jq. ~10ms. Over 36 minutes: 36 heartbeats × 10ms = 360ms total. Negligible. |
-
-### Success Metrics
-- During synthetic 10-min IMPL, dashboard-latest.json `ts` increments 10× (one per 60s heartbeat)
-- `last_action_ts` gap between heartbeats ≤65s (60s interval + 5s scheduling slack)
-- Zero leaked daemons after 10 back-to-back synthetic cycles (validated via `pgrep dashboard-heartbeat`)
-- Issue #599 reproduction: poll dashboard during IMPL, see `cost_usd` advancing, not frozen at $15
-
----
-
-## Sprint 4: SIMSTIM Heartbeat — Editor of Intent In-Flight (#598)
-
-**Size:** MEDIUM (6 tasks)
-**Duration:** 2.5 days
-**Dates:** Day 7–9 of cycle
-
-### Sprint Goal
-Emit `[INTENT <ISO>]` and `[HEARTBEAT <ISO>]` lines to dispatch.log at 60s cadence during spiral cycles, sourced from harness's own live artifacts — converting the operator from spectator to editor-of-intent per RFC-062 sibling doctrine.
-
-> From #598: *"Reading line 2 is what makes the operator an editor: 'ah, the reviewer caught §A3 — I can accept the fix direction or redirect.' Before line 2 existed, the operator had to reverse-engineer intent from mechanics."*
-
-### Deliverables
-- [ ] `.claude/scripts/spiral-heartbeat.sh` — new standalone emitter (daemon + library functions)
-- [ ] `.claude/scripts/spiral-heartbeat.sh` — `_emit_heartbeat` function: reads `.phase-current` (Sprint 1) + flight-recorder tail + git diff vs main, emits 1-line structured `[HEARTBEAT <ISO>] key=value …` with 11 keys per issue body
-- [ ] `.claude/scripts/spiral-heartbeat.sh` — `_emit_intent` function: maps phase label → source file (per-phase table), extracts one sentence of intent, emits `[INTENT <ISO>] phase=… intent="…" source=…`
-- [ ] `.claude/scripts/spiral-heartbeat.sh` — `_confidence_cue` parser: reads dispatch.log tail for Gate attempt / fix iteration / circuit-break state; outputs cue string
-- [ ] `.claude/hooks/` — new `SpiralPhaseComplete` hook registration in `.claude/hooks/hooks.yaml`; fires on `PHASE_EXIT` dashboard event with `$PHASE`, `$COST`, `$DURATION_SEC` env
-- [ ] `.loa.config.yaml.example` — `spiral.harness.heartbeat.*` schema per issue body §Configuration section
-- [ ] `tests/unit/spiral-heartbeat.bats` — covers emitter cadence, intent extraction per phase, confidence cue state machine, config-schema honoring
-
-### Acceptance Criteria
-- [ ] Heartbeat emits exactly 11 keys per issue body:
-      `phase phase_verb phase_elapsed_sec total_elapsed_sec cost_usd budget_usd files ins del activity confidence pace`
-- [ ] Intent extractor covers 4 sources per issue body §Proposal:
-    - `IMPLEMENTATION` / IMPL-fix → `grimoires/loa/a2a/engineer-feedback.md` (first CRITICAL-Blocking finding's title, truncated to 90 chars)
-    - `REVIEW` → static string `"checking amendment compliance against the implementation"` (engineer-feedback is from reviewer; phrasing is load-bearing)
-    - `AUDIT` → `grimoires/loa/a2a/auditor-sprint-feedback.md` (first `## `-heading, truncated to 90 chars)
-    - `FLATLINE`, `PLANNING`, `ARCHITECTURE`, `DISCOVERY` — static strings per issue body reference implementation
-- [ ] Confidence cue state machine matches issue body table exactly:
-    - `Gate attempt 1/3 or 2/3` → `· attempt N of 3`
-    - `Gate attempt 3/3` → `· attempt 3 of 3 · last chance`
-    - `Fix iteration 1/2` → `· iteration 1 of 2`
-    - `Fix iteration 2/2` → `· iteration 2 of 2 · last fix`
-- [ ] Pace baselines configurable per issue body §Configuration; default values honored (`implementation: 18`, `review: 4`, etc.)
-- [ ] Pace color convention matches issue body §Ops-correct colors:
-    - 🔵 on pace / advancing / 🟡 slow (2× baseline) / 🔴 stuck (3× baseline) / 🟢 writing
-- [ ] Heartbeat reads `.phase-current` from Sprint 1 as truth source — does NOT grep dispatch.log for phase label (more reliable; no false "stuck at 'preparing'" as @zkSoju's comment observed during cycle-092)
-- [ ] Path convention: dispatch.log is read from `${CYCLE_DIR}/dispatch.log` per Sprint 1's migration — not the old sibling path
-- [ ] `SpiralPhaseComplete` hook fires exactly once per phase (not per Gate attempt within a phase); hook env includes `PHASE`, `COST`, `DURATION_SEC`, `CYCLE_ID`
-- [ ] Sprint 2's `IMPL_EVIDENCE_MISSING` verdict surfaces in heartbeat as phase_verb=`🔧 fixing` with intent="missing artifacts: {first 2 paths}" — Sprint 2/4 grammar handshake validated by end-to-end test
-- [ ] `format: editor` is default (3-line); `format: compact` and `format: json` are deferred to post-cycle-092 work (documented in `spiral-heartbeat.sh` as TODO; honored in config schema but returns `editor` with warning log for now — per issue body §Suggested sprint scope S5)
-
-### Technical Tasks
-
-- [ ] **Task 4.1**: Author `.claude/scripts/spiral-heartbeat.sh` skeleton: daemon entry point, argument parsing, signal handling (SIGTERM→clean exit); library mode (sourced by tests) vs daemon mode (backgrounded by harness) → **[G-3]**
-- [ ] **Task 4.2**: Implement `_emit_heartbeat` (11 keys, reads `.phase-current` + flight-recorder tail + git diff) → **[G-3, G-4]**
-- [ ] **Task 4.3**: Implement `_emit_intent` phase→source table + extractors (4 sources); fires only on phase change (compares against last-emitted phase in `.heartbeat-state`) → **[G-3]**
-- [ ] **Task 4.4**: Implement `_confidence_cue` dispatch.log parser per state machine table → **[G-3, G-4]**
-- [ ] **Task 4.5**: Register `SpiralPhaseComplete` hook in `.claude/hooks/hooks.yaml`; fire from `_emit_dashboard_snapshot` at `PHASE_EXIT` event type (Sprint 3 Task 3.1) → **[G-3]**
-- [ ] **Task 4.6**: Add `.loa.config.yaml.example` schema block + write `tests/unit/spiral-heartbeat.bats` covering all 4 acceptance criterion clusters + the E2E cross-sprint test (Sprint 2 verdict → Sprint 4 heartbeat phase_verb handshake) → **[G-3, G-4]**
-
-### Dependencies
-- **Sprint 1**: grammar spec reserves `phase-heartbeat-emitted` + `phase-intent-change` shapes; `.phase-current` state file is heartbeat's truth source (not grep of dispatch.log); `dispatch.log` path convention
-- **Sprint 2**: `IMPL_EVIDENCE_MISSING` verdict consumed as heartbeat phase_verb input
-- **Sprint 3**: `PHASE_EXIT` dashboard event is the `SpiralPhaseComplete` hook trigger
-
-### Security Considerations
-- **Trust boundaries**: Heartbeat daemon reads only from cycle-internal state (flight-recorder, `.phase-current`, grimoires feedback files, git diff). No external input. Feedback files are written by LLMs — treat as semi-trusted: intent extractor truncates to 90 chars + strips newlines to prevent injection of fake `[HEARTBEAT]` lines that parsers could mis-attribute.
-- **External dependencies**: None added. Pure bash + jq + git.
-- **Sensitive data**: Feedback file content could contain credentials if a previous phase leaked them. Intent extractor's 90-char truncation + first-line-only rule bounds exposure; operators should treat dispatch.log as cycle-internal (not published). Documented as known limitation.
-- **Hook command injection**: `SpiralPhaseComplete` hook env vars (`$PHASE`, `$COST`) are bash-interpolated into user-configured commands. Values are harness-internal strings (phase label enum, numeric cost) — not user input. Operators configure their own hook commands; responsibility matches Claude Code hooks pattern.
-
-### Risks & Mitigation
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| Heartbeat daemon races with harness, emits stale phase when harness has already transitioned | Med | Low | `.phase-current` mtime check — if older than heartbeat interval × 2, emit `pace=unchanged` rather than stale phase label |
-| Intent extractor injection (LLM-written feedback file contains `[HEARTBEAT …]` line that confuses monitors) | Low | Med | Strip newlines + truncate to 90 chars in `_emit_intent`; monitors should use structural parse (field prefix match) not blind regex |
-| `SpiralPhaseComplete` hook fires multiple times per phase (once per Gate attempt) | Med | Low | Hook guard: only fires when `PHASE_EXIT` event_type (not `PHASE_HEARTBEAT`); event_type is authoritative (Sprint 3 Task 3.1) |
-| Config schema changes break existing `.loa.config.yaml` (additive) | Low | High | Schema is additive only (`spiral.harness.heartbeat.*` is new subtree); missing config falls through to defaults; no existing key renamed |
-| Operator enables `format: json` expecting JSON output, gets editor format with warning | Low | Low | S5 deferral is explicitly documented in issue body; config honors with warning is the right UX; post-cycle-092 work adds format dispatcher |
-
-### Success Metrics
-- During a 30-min synthetic cycle, heartbeat emits ≥30 lines (60s cadence)
-- Each heartbeat carries all 11 keys; missing keys → test failure
-- Intent line changes on phase boundary (1 intent per phase transition; not per heartbeat)
-- Confidence cue correctly reflects dispatch.log state across 8 scenarios (attempt 1/2/3, fix iter 1/2, circuit-break, clean transition, pre-check)
-- E2E: cycle-091 repro → heartbeat at the gate shows `phase_verb=🔧 fixing intent="missing artifacts: src/lib/scenes/Reliquary.svelte, src/routes/(rooms)/reliquary/+page.svelte"`
-- `SpiralPhaseComplete` hook fires 6 times on a 6-phase cycle (once per PHASE_EXIT)
+Stop signal per `feedback_kaironic_flatline_signals.md`: HIGH_CONSENSUS plateau (4→3); BLOCKER count flat (5→6 with rotation); iter-2 SKP-005 reframes the same strict-vs-degrade tension covered in PRD/SDD with `degrade` opt-in already shipped. Residual concerns are accepted operational realities (multi-process cost-cap requires operator coordination; frozen-pricing carries documented refresh expectation; timeline slip handled by independent-mergeability of each sprint). Iteration outputs preserved at `grimoires/loa/a2a/flatline/sprint-review-iter{1,2}.json`.
 
 ---
 
@@ -327,13 +425,22 @@ Emit `[INTENT <ISO>]` and `[HEARTBEAT <ISO>]` lines to dispatch.log at 60s caden
 
 | ID | Risk | Sprint | Probability | Impact | Mitigation | Owner |
 |----|------|--------|-------------|--------|------------|-------|
-| R1 | Path migration breaks external monitors still watching `harness-stderr.log` | 1 | Med | Med | Compat symlink for one cycle; document in CHANGELOG; grep all consumers before rename | Infra |
-| R2 | Grammar spec is too narrow — downstream sprints need a shape not declared | 1 | Med | Low | Spec reserves 3 shapes for Sprints 2/3/4; extension requires amendment PR before consumer lands | Infra |
-| R3 | `_pre_check_implementation_evidence` false-negative (misses listed artifact) | 2 | High | Med | Test fixtures cover all observed sprint.md formats; new format → parser must extend first | #600 |
-| R4 | Heartbeat daemon leaks into operator shell after harness crash | 3, 4 | Med | Med | EXIT trap reaps PID; `trap` belt-and-suspenders; test validates no orphaned daemons after 10 cycles | Infra |
-| R5 | Intent extractor injection from LLM-written feedback | 4 | Low | Med | 90-char truncation + newline strip; monitors use structural parse not regex | #598 |
-| R6 | Cycle stalls at circuit-break on `IMPL_EVIDENCE_MISSING` → 2 failed fix iterations → operator intervention | 2 | Med | High | Intentional per issue #600 §Suggested fix item 4; circuit-break emits clear actionable verdict line, heartbeat shows `🚨 recovering` (Sprint 4) | Ops |
-| R7 | Sprint 1 grammar lands but Sprint 2/3/4 each diverge in edge cases | Cross | Med | High | Shared grammar test fixtures (Sprint 1 Task 1.6); CI requires Sprints 2/3/4 exercise them; any new regex must be declared in grammar spec first | Infra |
+| R-1 | OpenAI `/v1/responses` contract changes mid-flight | 1-2 | Low | High | Pin pytests to dated snapshot `gpt-5.5-2026-04-23` for fixtures; rolling tag for runtime; alias-level kill-switch as escape hatch | Implementer |
+| R-2 | Migration ordering inversion (validation before migration) | 1 | Low | High | Tasks 1.2 + 1.3 same commit; `cycle095-migration.bats` enforces; documented in PRD §Risks endpoint-family-mis-config | Implementer |
+| R-3 | Operator with custom OpenAI entries hits `ConfigError` post-merge | 1 | Medium | High | `LOA_LEGACY_ENDPOINT_FAMILY_DEFAULT=chat` env-var backstop; CHANGELOG migration note; `--validate-bindings --suggest-migrations` | Implementer |
+| R-4 | gpt-5.5 quality regression vs 5.3-codex on some workloads | 2 | Low | Medium | `gpt-5.3-codex` immutable self-map preserved; CHANGELOG cost+capability comparison helps inform | Implementer |
+| R-5 | Cost explosion from `prefer_pro_models` flip | 3 | Medium | High | Mandatory WARN at config-load; per-alias denylist; optional `max_cost_per_session_micro_usd` hard cap (Sprint 2 ships); dry-run mode shows remap impact before enabling | Implementer |
+| R-6 | `reasoning_tokens` silent under-billing | 1 | Medium | Medium | `Usage.reasoning_tokens` field; explicit normalization §5.4; cost-ledger logs reasoning_tokens separately; Sprint 1 fixture coverage validates billing math | Implementer |
+| R-7 | `/v1/responses` parser breaks on edge shape (refusal, empty, tool-use) | 1 | Medium | High | §5.4 Response Contract Matrix locks all six shapes; golden fixtures Sprint 1; `UnsupportedResponseShapeError` for 7th shape; `responses_unknown_shape_policy: degrade` opt-in escape hatch | Implementer |
+| R-8 | Probe race during Sprint 2 alias flip | 2 | Low | Medium | Sprint 1 confirms probe stability separately; Sprint 2 gates merge on freshly-passing probe; kill-switch as escape hatch | Implementer |
+| R-9 | Gemini 3 fast variant `-preview` instability | 2 | Medium | Low | `fallback_chain: ["google:gemini-2.5-flash"]` declared; probe-driven automatic demotion; WARN log on demote | Implementer |
+| R-10 | Three-array ledger schema fragmentation | 1-3 | Low | Low | This cycle uses `/run sprint-plan` cleanly; no new fragmentation introduced | Implementer |
+| R-11 | `@deep-name` doc-rename uncommitted dirt re-emerges | 1-3 | Medium | Low | Selectively stage only this cycle's files (precedent: cycle-094-followups merge process) | Implementer |
+| R-12 | Downstream consumer breaks on submodule update | 2 | Low | High | FR-6 hard constraint with backward-compat tests; immutable-self-map for `gpt-5.3-codex`; manual smoke against fixture project at legacy pin | Implementer |
+| R-13 | Endpoint-family routing mis-configured | 1 | Low | High | `model-invoke --validate-bindings` REJECTS missing/unknown `endpoint_family` (validation FAIL, not silent default); Sprint 1 migration step adds explicit `endpoint_family: chat` to all existing OpenAI registry entries IN SAME COMMIT as strict validation | Implementer |
+| R-14 | Probe cache trust boundary fails in container env | 2 | Medium | Low | Falls through to UNKNOWN behavior (no fallback fires); ERROR log surfaces it; documented as accepted limitation (SDD iter-1 SKP-003) | Implementer |
+| R-15 | Tier-groups precedence subtlety surprises operators | 3 | Medium | Medium | User-pin-wins by default (revised post-iter-2 SKP-005); `override_user_aliases: true` is opt-in; `--dryrun` surfaces full precedence lineage | Implementer |
+| R-16 | Soak window surfaces issue requiring Sprint 2 fix | 2-3 | Low | Medium | Sprint 3 start is gated on clean soak observation; `/bug` triage path | Operator |
 
 ---
 
@@ -341,112 +448,148 @@ Emit `[INTENT <ISO>]` and `[HEARTBEAT <ISO>]` lines to dispatch.log at 60s caden
 
 | Metric | Target | Measurement Method | Sprint |
 |--------|--------|-------------------|--------|
-| cycle-091 scenario repros with `IMPL_EVIDENCE_MISSING` before REVIEW | PASS | Synthetic test fixture | 2 |
-| dashboard-latest.json `last_action_ts` advances during 10-min IMPL | +10 updates | Poll every 60s during synthetic cycle | 3 |
-| Heartbeat line present in dispatch.log every 60s ±5s | ≥30 heartbeats in 30-min cycle | `grep -c '\[HEARTBEAT' dispatch.log` | 4 |
-| Intent line changes on phase boundary | 1 per transition | Grammar test assertion | 4 |
-| Grammar test fixtures exercised by all 3 downstream sprints | 100% | CI check: every Sprint 2/3/4 parser consumes fixtures from Sprint 1 | 1 |
-| No orphaned background daemons after 10 back-to-back cycles | 0 | `pgrep dashboard-heartbeat\|spiral-heartbeat` after cycle exit | 3, 4 |
-| Zero references to `harness-stderr.log` outside compat symlink | 0 | `grep -r harness-stderr.log .claude/` | 1 |
+| `flatline-model-validation.bats` pass rate | 15/15 | bats run | 1, 2 |
+| `test_validate_bindings_includes_new_agents` | passing | pytest run | 2 |
+| Cost-ledger entries for gpt-5.5 calls | non-zero, non-NaN, micro-USD | grep post-smoke | 2, 3 |
+| Pre-merge BUTTERFREEZONE / Bridgebuilder review | 0 BLOCKING findings per sprint | adversarial-review.json | 1, 2, 3 |
+| New cheval modules coverage | 100% line + 100% branch | `pytest --cov` | 1, 2, 3 |
+| Six §5.4 shapes coverage | 100% golden-fixture coverage | pytest | 1 |
+| 8 caller files updated | 100% reference SSOT | grep audit | 2 |
+| Zero rollback PRs filed | 0 | git log | 7 days post-merge |
+| Manual 3-model Flatline smoke | succeeds | operator-side run | 2 |
+| E2E goal validation | 7/7 goals validated | Task 3.E2E | 3 |
+| v1.108.0 release tag created | 1 tag | post-merge orchestrator | 3 |
 
 ---
 
 ## Dependencies Map
 
 ```
-Sprint 1: Shared infra (grammar + .phase-current + path)
-    |
-    +--------------> Sprint 2: Artifact-coverage gate (#600)
-    |                        |
-    |                        +-- IMPL_EVIDENCE_MISSING verdict --+
-    |                        |                                   |
-    +--------------> Sprint 3: Dashboard mid-phase (#599)        |
-    |                        |                                   |
-    |                        +-- PHASE_EXIT event -------------+  |
-    |                        |                                |  |
-    +--------------> Sprint 4: Heartbeat (#598) <-------------+--+
-                             (consumes both upstream verdict
-                              and PHASE_EXIT hook trigger)
+Sprint 1 ─────────▶ Sprint 2 ─────────▶ Soak (48h) ─────────▶ Sprint 3
+   │                   │                       │                  │
+   │ Routing infra     │ Alias flips +         │ Observation      │ prefer_pro_models
+   │ + kill-switch     │ tiers + guardrails    │ window           │ activation
+   │ + golden fixtures │ + 8 callers + bash    │ (no code)        │ + override opt-in
+   │                   │                       │                  │
+   └─ FR-1 (partial)   └─ FR-2/3/4/5a/6        └─ Cost ledger     └─ FR-5
+                                                  Probe state
+                                                  Downstream pin
 ```
+
+**Critical path**: Sprint 1 → Sprint 2 → Soak → Sprint 3. Each sprint independently mergeable per PRD HARD constraint; no Sprint-N depends on Sprint-(N+M) being merged.
+
+**Inter-sprint contract surfaces**:
+- Sprint 1 → Sprint 2: `endpoint_family` field exists; routing works for all OpenAI models; kill-switch operational; aliases-legacy.yaml snapshot available.
+- Sprint 2 → Sprint 3: `gpt-5.5-pro` registry entry + alias targets exist; `tier_groups:` block structurally present; FR-5a guardrails (denylist, cap, dryrun primitive) operational.
+- Soak → Sprint 3: Cost ledger clean; probe state stable; no kill-switch invocations.
 
 ---
 
 ## Appendix
 
-### A. Issue Body Mapping (in lieu of PRD)
+### A. PRD Feature Mapping
 
-| Issue | Section | Sprint | Status |
-|-------|---------|--------|--------|
-| #600 §Expected behavior item 1 (parse sprint.md) | Sprint 2 Task 2.1 | 2 | Planned |
-| #600 §Expected behavior item 2 (verify exists) | Sprint 2 Task 2.2 | 2 | Planned |
-| #600 §Expected behavior item 3 (non-trivial content) | Sprint 2 AC (advisory `IMPL_EVIDENCE_TRIVIAL`) | 2 | Planned |
-| #600 §Expected behavior item 4 (fail gate w/ path) | Sprint 2 Task 2.2 | 2 | Planned |
-| #600 §Suggested fix item 3 (pre-review evidence gate) | Sprint 2 Task 2.3 | 2 | Planned |
-| #600 §Suggested fix item 4 (circuit-break on evidence fail) | Sprint 2 AC + targeted fix-loop max 2 iter | 2 | Planned |
-| #599 §Expected item 1 (phase-START write) | Sprint 3 Task 3.1 + Sprint 1 `.phase-current` | 1, 3 | Planned |
-| #599 §Expected item 2 (mid-phase heartbeat) | Sprint 3 Task 3.2 | 3 | Planned |
-| #599 §Expected item 3 (phase-EXIT authoritative) | Existing behavior preserved via Sprint 3 Task 3.1 | 3 | Planned |
-| #599 §Suggested (`.phase-current` state file) | Sprint 1 Task 1.3–1.4 | 1 | Planned |
-| #598 §Proposal (`[INTENT]` on change) | Sprint 4 Task 4.3 | 4 | Planned |
-| #598 §Proposal (`[HEARTBEAT]` 60s) | Sprint 4 Task 4.2 | 4 | Planned |
-| #598 §Confidence cues table | Sprint 4 Task 4.4 | 4 | Planned |
-| #598 §Ops-color convention | Sprint 4 Task 4.2 `activity` + `pace` keys | 4 | Planned |
-| #598 §Configuration schema | Sprint 4 Task 4.6 | 4 | Planned |
-| #598 §Companion hook (`SpiralPhaseComplete`) | Sprint 4 Task 4.5 | 4 | Planned |
-| #598 §Suggested sprint scope S1 (heartbeat emitter) | Sprint 4 Task 4.1–4.2 | 4 | Planned |
-| #598 §Suggested sprint scope S2 (intent extractor) | Sprint 4 Task 4.3 | 4 | Planned |
-| #598 §Suggested sprint scope S3 (confidence-cue parser) | Sprint 4 Task 4.4 | 4 | Planned |
-| #598 §Suggested sprint scope S4 (hook + config schema) | Sprint 4 Task 4.5–4.6 | 4 | Planned |
-| #598 §Suggested sprint scope S5 (`compact`/`json` formats) | **Deferred** to post-cycle-092 (honored in config schema w/ warning) | — | Deferred |
-| #598 Comment (path correction: `${CYCLE_DIR}/dispatch.log`) | Sprint 1 Task 1.5 | 1 | Planned |
+| PRD Feature (FR-X) | Sprint | Tasks | Status |
+|--------------------|--------|-------|--------|
+| FR-1: OpenAI adapter routes via `endpoint_family` | Sprint 1 | 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 1.10 | Planned |
+| FR-2: Flip `reviewer`/`reasoning` to gpt-5.5 | Sprint 2 | 2.1, 2.9, 2.10 | Planned |
+| FR-3: `tiny` tier alias for Haiku 4.5 | Sprint 2 | 2.3 | Planned |
+| FR-4: `fast-thinker` to Gemini 3 fast w/ fallback | Sprint 2 | 2.4, 2.5 | Planned |
+| FR-5a: Cost-guardrail primitives (foundation) | Sprint 2 | 2.6, 2.7, 2.8 | Planned |
+| FR-5: `prefer_pro_models` flag activation | Sprint 3 | 3.1, 3.2, 3.3, 3.4, 3.5, 3.6 | Planned |
+| FR-6: Backward-compat (immutable self-map) | Sprint 2 | 2.2, 2.10 | Planned |
 
-### B. SDD Component Mapping (in lieu of SDD — grounded in current harness)
+### B. SDD Component Mapping
 
-| Existing Component | Sprint | Change |
-|--------------------|--------|--------|
-| `.claude/scripts/spiral-harness.sh:main()` (line 1099) | 1, 2, 3 | Add `.phase-current` writes, evidence gate, heartbeat daemon spawn |
-| `.claude/scripts/spiral-evidence.sh::_pre_check_review` (line 287) | 2 | Sibling `_pre_check_implementation_evidence` function follows same pattern |
-| `.claude/scripts/spiral-evidence.sh::_pre_check_seed` (line 387) | 1 | Sibling `_phase_current_write` helpers follow same pattern |
-| `.claude/scripts/spiral-evidence.sh::_emit_dashboard_snapshot` (line 653) | 3 | Accept `event_type` arg; spawn daemon for `PHASE_HEARTBEAT` |
-| `.claude/scripts/spiral-simstim-dispatch.sh:175` | 1 | `harness-stderr.log` → `dispatch.log` migration |
-| `.claude/scripts/spiral-heartbeat.sh` (NEW) | 4 | Standalone emitter daemon + library |
-| `.claude/hooks/hooks.yaml` | 4 | Register `SpiralPhaseComplete` hook |
-| `.loa.config.yaml.example` | 4 | Add `spiral.harness.heartbeat.*` schema |
-| `grimoires/loa/proposals/dispatch-log-grammar.md` (NEW) | 1 | Canonical grammar spec |
+| SDD Component | Sprint | Tasks | Status |
+|---------------|--------|-------|--------|
+| §1.4.1 OpenAI Adapter (modified) | Sprint 1 | 1.4, 1.5, 1.6 | Planned |
+| §1.4.2 Google Adapter (modified) | Sprint 2 | 2.5 | Planned |
+| §1.4.3 Tier Groups Module (NEW) | Sprint 3 | 3.2, 3.3 | Planned |
+| §1.4.4 Cost-Cap Enforcer (modified) | Sprint 2 | 2.7 | Planned |
+| §1.4.5 Loader (modified) | Sprint 1 + 3 | 1.3, 1.8, 3.3 | Planned |
+| §1.4.6 Generated bash maps (regenerated) | Sprint 2 | 2.10 | Planned |
+| §1.4.7 model-invoke CLI (modified) | Sprint 2 + 3 | 2.8, 3.4 | Planned |
+| §3.2 Registry schema (extended) | Sprint 1 + 2 + 3 | 1.2, 2.1-2.4, 2.6, 3.1 | Planned |
+| §3.4 endpoint_family validation | Sprint 1 | 1.3 | Planned |
+| §3.5 fallback_chain field | Sprint 2 | 2.4, 2.5 | Planned |
+| §3.6 tier_groups validation | Sprint 2 + 3 | 2.6, 3.2 | Planned |
+| §5.2 _route_decision | Sprint 1 | 1.4 | Planned |
+| §5.3 Body transformation | Sprint 1 | 1.5 | Planned |
+| §5.4 Six-shape normalizer | Sprint 1 | 1.6 | Planned |
+| §5.5 Cost-ledger billing semantics | Sprint 1 | 1.6, 1.10 | Planned |
+| §5.8 Google adapter fallback | Sprint 2 | 2.5 | Planned |
+| §5.9 apply_tier_groups | Sprint 3 | 3.2 | Planned |
+| §5.10 Override precedence | Sprint 3 | 3.2, 3.4 | Planned |
+| §6 Error handling (new exception classes) | Sprint 1 | 1.1, 1.6 | Planned |
+| §7 Testing strategy (golden fixtures + tests) | All sprints | 1.9, 1.10, 2.10, 3.6 | Planned |
 
-### C. Goal Mapping
+### C. PRD Goal Mapping
 
-| Goal ID | Goal Description | Contributing Tasks | Validation |
-|---------|------------------|-------------------|------------|
-| G-1 | IMPL cannot ship missing SEED-named artifacts | Sprint 2: 2.1, 2.2, 2.3, 2.4 | Sprint 2 synthetic cycle-091 repro test; targeted fix-loop E2E test |
-| G-2 | `dashboard-latest.json` reflects in-flight state | Sprint 1: 1.3, 1.4 (`.phase-current`); Sprint 3: 3.1, 3.2, 3.3, 3.4 | Sprint 3 10-min synthetic cycle test: `last_action_ts` increments every 60s |
-| G-3 | Operator becomes editor-of-intent via `[HEARTBEAT]` + `[INTENT]` | Sprint 4: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6 | Sprint 4 30-min synthetic cycle: ≥30 heartbeats with 11 keys each; intent changes on phase boundary |
-| G-4 | Grammar + path + state-file conventions are shared across all three features | Sprint 1: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6; Sprint 2: 2.5; Sprint 3: 3.4 (fixture reuse); Sprint 4: 4.2, 4.4, 4.6 (fixture reuse) | Sprint 1 grammar test fixtures exercised by Sprints 2/3/4 in CI; no new regex outside grammar spec |
+| Goal ID | Goal Description | Contributing Tasks | Validation Task |
+|---------|------------------|-------------------|-----------------|
+| **G-1** | gpt-5.5 + gpt-5.5-pro callable through cheval Anthropic-style request flow | Sprint 1: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.9, 1.10 + Sprint 2: 2.1 | Sprint 3: Task 3.E2E |
+| **G-2** | `reviewer` AND `reasoning` resolve to `openai:gpt-5.5` (cost-safe default) | Sprint 1: 1.7, 1.8, 1.10 + Sprint 2: 2.1, 2.2, 2.9 | Sprint 3: Task 3.E2E |
+| **G-3** | `tiny` tier alias added pointing at Haiku 4.5 | Sprint 2: 2.3, 2.10 | Sprint 3: Task 3.E2E |
+| **G-4** | `fast-thinker` agent binding upgraded to Gemini 3 fast variant | Sprint 2: 2.4, 2.5, 2.10 | Sprint 3: Task 3.E2E |
+| **G-5** | `hounfour.prefer_pro_models: true` retargets all `*-pro`-eligible aliases | Sprint 2: 2.6, 2.7, 2.8 + Sprint 3: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6 | Sprint 3: Task 3.E2E |
+| **G-6** | Zero regression for downstream consumers pinning `gpt-5.3-codex` | Sprint 1: 1.7, 1.8, 1.10 + Sprint 2: 2.2, 2.10 | Sprint 3: Task 3.E2E |
+| **G-7** | Probe-gated fail-fast preserved | Sprint 1: 1.2, 1.10 + Sprint 2: 2.4, 2.5, 2.10 | Sprint 3: Task 3.E2E |
 
 **Goal Coverage Check:**
-- [x] All 4 goals have at least one contributing task
-- [x] All goals have validation in their respective sprint (no single E2E sprint — validation is distributed per-goal, appropriate for bug/enhancement scope)
-- [x] No orphan tasks — every task in Sprints 1–4 maps to ≥1 goal
+- [x] All 7 PRD goals have at least one contributing task
+- [x] All 7 goals have validation in Task 3.E2E (final sprint)
+- [x] No orphan tasks — every task in Sprints 1, 2, 3 contributes to ≥1 goal
 
 **Per-Sprint Goal Contribution:**
-- Sprint 1: G-2 (foundation), G-3 (foundation), G-4 (primary)
-- Sprint 2: G-1 (primary), G-4 (fixture reuse)
-- Sprint 3: G-2 (primary), G-4 (fixture reuse)
-- Sprint 4: G-3 (primary), G-4 (fixture reuse)
 
-**Cross-sprint E2E validation** (in lieu of a dedicated final E2E sprint, since this is bug/enhancement work against a pre-existing harness):
-- Sprint 2's `IMPL_EVIDENCE_MISSING` verdict is consumed by Sprint 4's heartbeat phase_verb extractor; cross-sprint handshake validated by an E2E test in Sprint 4 Task 4.6
-- Sprint 3's `PHASE_EXIT` event triggers Sprint 4's `SpiralPhaseComplete` hook; cross-sprint handshake validated by an E2E test in Sprint 4 Task 4.6
+- Sprint 1: G-1 (foundation: routing infra), G-2 (kill-switch + legacy snapshot), G-6 (kill-switch + legacy snapshot), G-7 (migration step preserves existing probe-gated entries)
+- Sprint 2: G-1 (defaults flip), G-2 (alias flip + 8 callers), G-3 (Haiku 4.5 + tiny tier complete), G-4 (Gemini 3 fast complete), G-5 (FR-5a guardrail primitives), G-6 (immutable self-map complete), G-7 (fallback chain hardens probe-gated semantics)
+- Sprint 3: G-5 (full activation: mappings populated + apply_tier_groups + dry-run + WARN); E2E validation of G-1 through G-7
 
-### D. Design Decisions (locked)
+### D. Operator-Facing Artifacts (cycle-095 surface)
 
-1. **Shared-infra sprint first, not parallel issue-sprints**: Alternative rejected because parallel sprints would each redefine log-line grammar inconsistently — exactly the class of defect cycle-091 exhibited.
-2. **Path migration now, not later**: `harness-stderr.log` → `dispatch.log` is cheap (grep + rename + compat symlink), deferring it would leave the @zkSoju comment's cycle-092 confusion recurring.
-3. **`.phase-current` state file over dispatch.log grep**: More reliable (no false "stuck at 'preparing'"), cheaper to parse (single-line stat vs multi-line grep), matches `_pre_check_seed` file-based pattern.
-4. **`format: compact | json` deferred to post-cycle-092**: Issue body §Suggested sprint scope S5 explicitly flags these as stretch; keeping `editor` primary preserves the editor-of-intent doctrine, and the config schema honors compact/json with a warning so operators can opt in when it lands.
-5. **No separate E2E sprint**: This is bug/enhancement work against an existing harness; E2E validation is distributed per-goal and happens in the sprint that owns each goal, with explicit cross-sprint handshake tests in Sprint 4 Task 4.6. A dedicated E2E sprint would add overhead without additional coverage.
-6. **Targeted IMPL fix-loop has 2 iterations max, not 3**: Narrower surface than Review fix-loop → failure after 2 iterations signals operator-context is required (per #600 §Suggested fix item 4 rationale).
+Per SDD §4.1 — these are the new operator-facing surfaces shipped by this cycle:
+
+| Surface | Where | Sprint |
+|---------|-------|--------|
+| `endpoint_family` field | `.claude/defaults/model-config.yaml`, optionally `.loa.config.yaml` | 1 |
+| `aliases-legacy.yaml` snapshot | `.claude/defaults/aliases-legacy.yaml` | 1 |
+| `LOA_FORCE_LEGACY_ALIASES=1` env | shell environment | 1 |
+| `LOA_LEGACY_ENDPOINT_FAMILY_DEFAULT=chat` env (operator backstop) | shell environment | 1 |
+| `hounfour.experimental.force_legacy_aliases: true` | `.loa.config.yaml` | 1 |
+| `hounfour.experimental.responses_unknown_shape_policy: degrade` | `.loa.config.yaml` | 1 |
+| `reviewer: openai:gpt-5.5` (default flip) | `.claude/defaults/model-config.yaml` | 2 |
+| `tiny` alias | `.claude/defaults/model-config.yaml` | 2 |
+| `gemini-3-flash` alias | `.claude/defaults/model-config.yaml` | 2 |
+| `tier_groups:` block (empty/structural) | `.claude/defaults/model-config.yaml` | 2 |
+| `tier_groups.denylist:` | `.loa.config.yaml` | 2 |
+| `tier_groups.max_cost_per_session_micro_usd:` | `.loa.config.yaml` | 2 |
+| `LOA_PREFER_PRO_DRYRUN=1` env (preview only) | shell environment | 2 |
+| `fallback.cooldown_seconds:` (config) | `.loa.config.yaml` | 2 |
+| `fallback.persist_state: true` (opt-in) | `.loa.config.yaml` | 2 |
+| `tier_groups.mappings:` populated | `.claude/defaults/model-config.yaml` | 3 |
+| `hounfour.prefer_pro_models: true` activation | `.loa.config.yaml` | 3 |
+| `tier_groups.override_user_aliases: true` opt-in | `.loa.config.yaml` | 3 |
+| `model-invoke --validate-bindings --dryrun` (full) | CLI | 3 |
+
+### E. Rollback Playbook (mirrors PRD §Rollback Playbook)
+
+If incident occurs post-merge, in order of escalating intervention:
+
+1. **Symptom-only investigation** (no code change): Check `grimoires/loa/a2a/trajectory/probe-*.jsonl`, cost-ledger entries, `model-invoke --validate-bindings`
+2. **Alias-level rollback** (no PR): Set `LOA_FORCE_LEGACY_ALIASES=1` env var (or `hounfour.experimental.force_legacy_aliases: true`)
+3. **Per-alias pin** (no PR): User pins `aliases: { reviewer: openai:gpt-5.3-codex }` in `.loa.config.yaml`
+4. **Provider-level disable** (no PR): `tier_groups.denylist: [reviewer, reasoning]` (Sprint 2+)
+5. **Endpoint-family operator backstop** (no PR): `LOA_LEGACY_ENDPOINT_FAMILY_DEFAULT=chat` for custom OpenAI entries
+6. **Revert PR** (last resort): Standard `git revert` of the merged sprint PR
+
+Each step verifiable in <60s. Steps 1-5 require no merge.
 
 ---
 
-*Generated by Sprint Planner Agent · Grounded in issues #598, #599, #600 + cycle-088 CHANGELOG entries + current harness source at `.claude/scripts/spiral-harness.sh` and `.claude/scripts/spiral-evidence.sh`*
+*Generated by Sprint Planner Agent (deep-name + Claude Opus 4.7 1M) 2026-04-29.*
+*PRD: `grimoires/loa/prd.md` (Flatline-iter6-cleared, kaironic stop).*
+*SDD: `grimoires/loa/sdd.md` (Flatline-iter2-cleared, kaironic stop).*
+*Pre-flight intel: `grimoires/loa/context/model-currency-cycle-preflight.md`.*
+*Next phase: `/flatline-review` on this sprint plan, then `/run sprint-plan` to begin implementation (Sprint 1 first).*
