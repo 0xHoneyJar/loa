@@ -979,12 +979,49 @@ class TestTierGroupsCostCap:
         check_session_cap_pre("tr-1", str(ledger), None, 100_000_000)
 
     def test_other_trace_id_does_not_count(self, tmp_path):
-        from loa_cheval.metering.budget import check_session_cap_pre
+        from loa_cheval.metering.budget import check_session_cap_pre, _reset_session_reservations_for_tests
+        _reset_session_reservations_for_tests()
         ledger = tmp_path / "ledger.jsonl"
         # Pre-load a $90 spend on a DIFFERENT trace_id.
         ledger.write_text(json.dumps({"trace_id": "tr-other", "cost_micro_usd": 90_000_000}) + "\n")
         # Per-trace_id session cap — tr-1 has $0 spend, $20 estimate fits in $100.
         check_session_cap_pre("tr-1", str(ledger), 100_000_000, 20_000_000)
+
+    def test_reservation_blocks_concurrent_pre_call(self, tmp_path):
+        """Adversarial review DISS-001 (Sprint 2): two parallel pre_call
+        invocations must NOT both pass when their combined estimate would
+        exceed the cap. The in-process reservation tracker prevents this race.
+        """
+        from loa_cheval.metering.budget import (
+            check_session_cap_pre,
+            release_session_reservation,
+            _reset_session_reservations_for_tests,
+        )
+        from loa_cheval.types import CostBudgetExceeded
+
+        _reset_session_reservations_for_tests()
+        ledger = tmp_path / "ledger.jsonl"
+        # Cap = $100. Two requests at $60 each. Sequentially-modeled.
+        # Request A: passes, reserves $60.
+        check_session_cap_pre("tr-race", str(ledger), 100_000_000, 60_000_000)
+        # Request B: would push total to $120 (0 ledger + 60 pending + 60 estimate);
+        # MUST raise even though ledger shows $0 spent.
+        with pytest.raises(CostBudgetExceeded):
+            check_session_cap_pre("tr-race", str(ledger), 100_000_000, 60_000_000)
+        # Release request A's reservation.
+        release_session_reservation("tr-race", 60_000_000)
+        # Now a fresh $60 request fits.
+        check_session_cap_pre("tr-race", str(ledger), 100_000_000, 60_000_000)
+        release_session_reservation("tr-race", 60_000_000)
+
+    def test_release_idempotent_when_no_reservation(self, tmp_path):
+        """release_session_reservation must be safe to call without prior pre_call."""
+        from loa_cheval.metering.budget import release_session_reservation, _reset_session_reservations_for_tests
+        _reset_session_reservations_for_tests()
+        # Should not raise.
+        release_session_reservation("never-reserved", 1000)
+        release_session_reservation("never-reserved", -1)
+        release_session_reservation("never-reserved", 0)
 
 
 class TestPreferProDryrun:

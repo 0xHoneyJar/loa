@@ -43,6 +43,14 @@ logger = logging.getLogger("loa_cheval.metering.budget")
 # loa-setup SKILL example).
 _SESSION_CAP_LOCK = threading.Lock()
 
+# cycle-095 Sprint 2 review-iter-2 (DISS-001 fix): in-process reservation
+# tracking. Without this, two parallel pre_call invocations can both pass
+# against the same ledger total before either post_call records cost,
+# violating the hard-cap semantics. trace_id -> reserved_micro_usd.
+# Caller MUST invoke release_session_reservation(trace_id, reserved_micro)
+# after the API call resolves (on success OR failure) to free the slot.
+_SESSION_RESERVATIONS: Dict[str, int] = {}
+
 
 # Budget status values
 ALLOW = "ALLOW"
@@ -299,18 +307,25 @@ def check_session_cap_pre(
     cap_micro: Optional[int],
     request_estimate_micro: int,
 ) -> None:
-    """Pre-call session cap check (SDD §1.4.4 hard-guard).
+    """Pre-call session cap check (SDD §1.4.4 hard-guard) with reservation.
 
-    Raises CostBudgetExceeded if (current session total + worst-case estimate)
-    would exceed `cap_micro`. The estimate is `input_tokens × input_per_mtok +
-    max_output_tokens × output_per_mtok` — caller computes via
-    `metering.pricing.calculate_cost_micro` or equivalent.
+    Raises CostBudgetExceeded if (ledger session total + pending reservations
+    + worst-case estimate) would exceed `cap_micro`. On pass, ATOMICALLY
+    increments the in-process reservation tracker so a concurrent pre_call
+    sees the slot taken.
 
-    cap_micro=None or <= 0 → no enforcement (returns immediately).
+    cap_micro=None or <= 0 → no enforcement (no-op).
 
-    Concurrency: a single threading.Lock serializes the read+check window so
-    multiple in-flight calls in one process can't both pass the gate at the
-    same time. Multi-process consistency is operator-action territory.
+    Concurrency: a single threading.Lock serializes the read+check+reserve
+    window. The caller MUST invoke release_session_reservation(trace_id,
+    request_estimate_micro) after the API call resolves (success OR failure)
+    to free the slot — otherwise reservations accumulate and eventually
+    block legitimate calls.
+
+    Multi-process consistency: each process tracks its own reservations
+    independently — operators wanting cross-process consistency must use
+    a shared ledger file via flock AND coordinate trace_id manually
+    (documented in CHANGELOG cycle-095 multi-process section).
     """
     if cap_micro is None or cap_micro <= 0:
         return
@@ -319,12 +334,40 @@ def check_session_cap_pre(
 
     with _SESSION_CAP_LOCK:
         current_total = _read_session_total(ledger_path, trace_id)
-        prospective = current_total + request_estimate_micro
+        pending = _SESSION_RESERVATIONS.get(trace_id, 0)
+        prospective = current_total + pending + request_estimate_micro
         if prospective > cap_micro:
             raise CostBudgetExceeded(
-                spent=current_total,
+                spent=current_total + pending,
                 limit=cap_micro,
             )
+        # Reserve the slot — atomic with the check above.
+        _SESSION_RESERVATIONS[trace_id] = pending + request_estimate_micro
+
+
+def release_session_reservation(trace_id: str, reservation_micro: int) -> None:
+    """Release an in-process reservation taken by check_session_cap_pre.
+
+    Idempotent and safe to call when no reservation exists (releases 0).
+    Caller MUST call this on the success AND failure path of the API call —
+    otherwise reservations accumulate and eventually block legitimate calls.
+    Recommended pattern: try/finally around the API call.
+    """
+    if reservation_micro <= 0:
+        return
+    with _SESSION_CAP_LOCK:
+        current = _SESSION_RESERVATIONS.get(trace_id, 0)
+        new = max(0, current - reservation_micro)
+        if new == 0:
+            _SESSION_RESERVATIONS.pop(trace_id, None)
+        else:
+            _SESSION_RESERVATIONS[trace_id] = new
+
+
+def _reset_session_reservations_for_tests() -> None:
+    """Test fixture hook — clears the in-process reservation tracker."""
+    with _SESSION_CAP_LOCK:
+        _SESSION_RESERVATIONS.clear()
 
 
 def check_session_cap_post(
