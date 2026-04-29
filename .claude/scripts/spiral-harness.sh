@@ -353,6 +353,13 @@ _phase_implement_with_feedback() {
     local feedback_path="grimoires/loa/a2a/engineer-feedback.md"
     local feedback
 
+    # cycle-092 Sprint 1 (#598): IMPL_FIX is its own phase for observability
+    # (distinct from IMPLEMENT). Preserves fix_iter field from the calling
+    # _review_fix_loop context via _phase_current_read.
+    local current_fix_iter
+    current_fix_iter="$(_phase_current_read "${CYCLE_DIR:-}" fix_iter 2>/dev/null || echo "-")"
+    _phase_current_write "${CYCLE_DIR:-}" "IMPL_FIX" "-" "$current_fix_iter" 2>/dev/null || true
+
     if [[ -f "$feedback_path" ]]; then
         feedback=$(head -c 5000 "$feedback_path" 2>/dev/null || echo "No feedback available")
     else
@@ -365,6 +372,85 @@ _phase_implement_with_feedback() {
         | jq -r '.')
 
     _invoke_claude "IMPLEMENTATION_FIX" "$prompt" "$IMPLEMENT_BUDGET" 3600
+}
+
+# _impl_evidence_fix_loop — guard _phase_implement output against SEED-named
+# artifact omissions (#600, cycle-092 Sprint 2).
+#
+# Mirrors _review_fix_loop pattern but with a narrower surface: only
+# re-dispatches IMPL with a targeted "produce these N paths" feedback when
+# the artifact-coverage gate fails. Max 2 iterations (narrower than
+# _review_fix_loop's 3 — if 2 targeted passes can't produce the named
+# paths, operator context is required per issue #600 §Suggested fix item 4).
+#
+# Env overrides:
+#   IMPL_EVIDENCE_MAX_ITERATIONS  [2]  — max fix-loop iterations
+_impl_evidence_fix_loop() {
+    local max_iters="${IMPL_EVIDENCE_MAX_ITERATIONS:-2}"
+    local iter=1
+    local feedback_file="grimoires/loa/a2a/engineer-feedback.md"
+
+    while [[ $iter -le $max_iters ]]; do
+        if _pre_check_implementation_evidence; then
+            return 0
+        fi
+
+        if [[ $iter -ge $max_iters ]]; then
+            log "IMPL evidence fix loop: exhausted $max_iters iterations"
+            _record_action "IMPL_EVIDENCE_EXHAUSTED" "evidence-fix-loop" "circuit_breaker" \
+                "" "" "" 0 0 0 "max_iterations=$max_iters"
+            return 1
+        fi
+
+        # Parse flight-recorder tail for the FAIL verdict to extract missing
+        # paths. Format per _pre_check_implementation_evidence:
+        #   verdict = "FAIL:N_missing:path1,path2,..."
+        local missing_verdict
+        missing_verdict=$(tail -20 "${_FLIGHT_RECORDER:-/dev/null}" 2>/dev/null | \
+            jq -r 'select(.phase=="PRE_CHECK_IMPL_EVIDENCE" and (.verdict|tostring|startswith("FAIL"))) | .verdict' \
+            2>/dev/null | tail -1)
+        local missing_paths
+        missing_paths=$(echo "$missing_verdict" | sed -E 's/^FAIL:[0-9]+_missing://' | tr ',' '\n')
+
+        # Synthesize engineer-feedback.md with CHANGES_REQUIRED format so
+        # _phase_implement_with_feedback reads it as reviewer-feedback and
+        # re-implements with a focused "produce these N paths" instruction.
+        cat > "$feedback_file" <<FEEDBACK_EOF
+# Engineer Feedback — IMPL Evidence Gate (#600)
+
+**Verdict: CHANGES_REQUIRED**
+
+The IMPL phase committed work but omitted SEED-enumerated deliverable paths
+from grimoires/loa/sprint.md. These paths MUST be produced before the review
+gate can dispatch:
+
+$(echo "$missing_paths" | sed 's/^/- /')
+
+**Action required**: Produce the missing files with real, non-trivial content.
+Do NOT commit empty stubs. The pre-review evidence gate runs test -s on each
+path and will fail again if they're absent or zero bytes.
+
+**Scope**: ONLY add the missing paths. Do not rewrite the rest of the
+implementation; the review-fix-loop handles other findings.
+FEEDBACK_EOF
+
+        local missing_count
+        missing_count=$(echo "$missing_paths" | grep -c . 2>/dev/null || echo 0)
+        log "IMPL evidence fix loop: iteration $iter/$max_iters — dispatching fix for $missing_count missing paths"
+        _record_action "IMPL_EVIDENCE_FIX_DISPATCH" "evidence-fix-loop" "fix_dispatched" \
+            "" "" "" 0 0 0 "iter=$iter missing=$missing_count"
+
+        if ! _phase_implement_with_feedback; then
+            log "IMPL evidence fix loop: implementation-fix pass FAILED at iteration $iter"
+            _record_action "IMPL_EVIDENCE_FIX_FAIL" "evidence-fix-loop" "fix_impl_failed" \
+                "" "" "" 0 0 0 "iter=$iter"
+            return 1
+        fi
+
+        iter=$((iter + 1))
+    done
+
+    return 1
 }
 
 # _review_fix_loop — review with automatic implementation-side fix iterations (#545)
@@ -388,11 +474,18 @@ _review_fix_loop() {
 
     while [[ $iter -le $max_iters ]]; do
         log "Review fix loop: iteration $iter/$max_iters"
+        # cycle-092 Sprint 1 (#598/#599): record fix-loop iteration in
+        # .phase-current. _run_gate below will overwrite phase_label=REVIEW
+        # with its own attempt tracking; we re-touch fix_iter after it returns
+        # so the file reflects both dimensions while REVIEW is in flight.
+        _phase_current_touch "${CYCLE_DIR:-}" "" "$iter" 2>/dev/null || true
 
         if _run_gate "REVIEW" _gate_review; then
+            _phase_current_touch "${CYCLE_DIR:-}" "" "$iter" 2>/dev/null || true
             log "Review PASSED on iteration $iter/$max_iters"
             return 0
         fi
+        _phase_current_touch "${CYCLE_DIR:-}" "" "$iter" 2>/dev/null || true
 
         if [[ $iter -ge $max_iters ]]; then
             log "Review FAILED: exhausted $max_iters fix iterations"
@@ -615,6 +708,14 @@ _run_gate() {
     while [[ $attempt -lt $MAX_RETRIES ]]; do
         attempt=$((attempt + 1))
         log "Gate: $gate_name (attempt $attempt/$MAX_RETRIES)"
+        # cycle-092 Sprint 1 (#599): write phase_label=<gate_name> on first
+        # attempt (fresh start_ts), touch attempt_num on subsequent retries so
+        # start_ts stays anchored to the first attempt of this gate instance.
+        if [[ $attempt -eq 1 ]]; then
+            _phase_current_write "${CYCLE_DIR:-}" "$gate_name" "$attempt" "-" 2>/dev/null || true
+        else
+            _phase_current_touch "${CYCLE_DIR:-}" "$attempt" "" 2>/dev/null || true
+        fi
 
         if "$@"; then
             return 0
@@ -1193,19 +1294,39 @@ main() {
     _parse_args "$@" || exit $?
 
     trap '_harness_err_handler $LINENO "$BASH_COMMAND"' ERR
+    # cycle-092 Sprint 1 (#599): clear .phase-current on any exit path (success,
+    # failure, crash) so external monitors never observe a stale "in-flight" file
+    # after the harness is gone. Log via harness log() for grammar compliance.
+    # cycle-092 Sprint 3 (#599) extension: reap the dashboard heartbeat daemon
+    # so long-running background processes don't leak into the operator shell.
+    trap '_phase_current_clear "${CYCLE_DIR:-}" 2>/dev/null; \
+          [[ -n "${DASHBOARD_DAEMON_PID:-}" ]] && kill -TERM "$DASHBOARD_DAEMON_PID" 2>/dev/null; \
+          log ".phase-current cleared"' EXIT
 
     local pr_url=""
     local prd_findings="" sdd_findings=""
+    local DASHBOARD_DAEMON_PID=""
 
     _record_action "CONFIG" "spiral-harness" "profile" "" "" "" 0 0 0 \
         "profile=$PIPELINE_PROFILE gates=${FLATLINE_GATES:-none} advisor=$ADVISOR_MODEL"
-    _emit_dashboard_snapshot "START"
+
+    # cycle-092 Sprint 3 (#599): spawn dashboard heartbeat daemon so
+    # dashboard-latest.json stays fresh during long phases (IMPL especially).
+    # Daemon polls .phase-current every SPIRAL_DASHBOARD_HEARTBEAT_SEC (default
+    # 60, clamped [30, 300]) and emits PHASE_HEARTBEAT snapshots. Reaped by
+    # EXIT trap above.
+    DASHBOARD_DAEMON_PID=$(_spawn_dashboard_heartbeat_daemon "$CYCLE_DIR" 2>/dev/null || echo "")
+    [[ -n "$DASHBOARD_DAEMON_PID" ]] && \
+        _record_action "DASHBOARD_DAEMON" "spiral-harness" "spawned" "" "" "" 0 0 0 "pid=$DASHBOARD_DAEMON_PID"
+
+    _emit_dashboard_snapshot "START" "PHASE_START"
 
     # ── Pre-check: SEED environment invariants (#575 item 3) ────────────
     # Catches cycle-084 class defects (wrong CWD, unwritable cycle dir,
     # missing SEED_CONTEXT file) BEFORE discovery dispatches an expensive
     # LLM call that writes artefacts to the wrong location.
     log "Pre-check: validating SEED environment"
+    _phase_current_write "$CYCLE_DIR" "PRE_CHECK_SEED" 2>/dev/null || true
     if ! _pre_check_seed "$CYCLE_DIR"; then
         error "SEED pre-check failed: environment invariants violated"
         exit 1
@@ -1213,11 +1334,13 @@ main() {
 
     # ── Phase 1: Discovery ──────────────────────────────────────────────
     log "Phase 1: DISCOVERY"
+    _phase_current_write "$CYCLE_DIR" "DISCOVERY" 2>/dev/null || true
     _emit_dashboard_snapshot "DISCOVERY"
     _phase_discovery || { error "Discovery failed"; exit 1; }
 
     # ── Gate 1: Flatline PRD (conditional) ──────────────────────────────
     if _should_run_flatline "prd"; then
+        _phase_current_write "$CYCLE_DIR" "FLATLINE_PRD" 2>/dev/null || true
         _emit_dashboard_snapshot "FLATLINE_PRD"
         _run_gate "FLATLINE_PRD" _gate_flatline "prd" "grimoires/loa/prd.md" || exit 1
         prd_findings=$(_summarize_flatline "$EVIDENCE_DIR/flatline-prd.json")
@@ -1228,11 +1351,13 @@ main() {
 
     # ── Phase 2: Architecture ───────────────────────────────────────────
     log "Phase 2: ARCHITECTURE"
+    _phase_current_write "$CYCLE_DIR" "ARCHITECTURE" 2>/dev/null || true
     _emit_dashboard_snapshot "ARCHITECTURE"
     _phase_architecture "$prd_findings" || { error "Architecture failed"; exit 1; }
 
     # ── Gate 2: Flatline SDD (conditional) ──────────────────────────────
     if _should_run_flatline "sdd"; then
+        _phase_current_write "$CYCLE_DIR" "FLATLINE_SDD" 2>/dev/null || true
         _emit_dashboard_snapshot "FLATLINE_SDD"
         _run_gate "FLATLINE_SDD" _gate_flatline "sdd" "grimoires/loa/sdd.md" || exit 1
         sdd_findings=$(_summarize_flatline "$EVIDENCE_DIR/flatline-sdd.json")
@@ -1243,11 +1368,13 @@ main() {
 
     # ── Phase 3: Planning ───────────────────────────────────────────────
     log "Phase 3: PLANNING"
+    _phase_current_write "$CYCLE_DIR" "PLANNING" 2>/dev/null || true
     _emit_dashboard_snapshot "PLANNING"
     _phase_planning "$sdd_findings" || { error "Planning failed"; exit 1; }
 
     # ── Gate 3: Flatline Sprint (conditional) ───────────────────────────
     if _should_run_flatline "sprint"; then
+        _phase_current_write "$CYCLE_DIR" "FLATLINE_SPRINT" 2>/dev/null || true
         _run_gate "FLATLINE_SPRINT" _gate_flatline "sprint" "grimoires/loa/sprint.md" || exit 1
     else
         log "Skipping Flatline Sprint (profile=$PIPELINE_PROFILE)"
@@ -1256,6 +1383,7 @@ main() {
 
     # ── Pre-check: Deterministic validation before Implementation ───────
     log "Pre-check: validating planning artifacts"
+    _phase_current_write "$CYCLE_DIR" "PRE_CHECK_IMPL" 2>/dev/null || true
     if ! _pre_check_implementation; then
         error "Pre-check failed: planning artifacts incomplete"
         exit 1
@@ -1263,6 +1391,7 @@ main() {
 
     # ── Phase 4: Implementation ─────────────────────────────────────────
     log "Phase 4: IMPLEMENTATION"
+    _phase_current_write "$CYCLE_DIR" "IMPLEMENT" 2>/dev/null || true
     _emit_dashboard_snapshot "IMPLEMENT"
     _phase_implement || { error "Implementation failed"; exit 1; }
 
@@ -1276,8 +1405,22 @@ main() {
         fi
     fi
 
+    # ── Pre-check: IMPL artifact coverage (cycle-092 Sprint 2 #600) ─────
+    # After IMPL commits, verify all SEED-enumerated deliverable paths from
+    # sprint.md exist non-empty. On failure, _impl_evidence_fix_loop
+    # re-dispatches IMPL with missing-path list as targeted feedback
+    # (max 2 iterations). Prevents the cycle-091 defect: review burn-through
+    # on a commit that ships logic-layer output but omits visible surfaces.
+    log "Pre-check: validating implementation artifact coverage"
+    _phase_current_write "$CYCLE_DIR" "PRE_CHECK_IMPL_EVIDENCE" 2>/dev/null || true
+    if ! _impl_evidence_fix_loop; then
+        error "Circuit breaker: IMPL_EVIDENCE_MISSING after ${IMPL_EVIDENCE_MAX_ITERATIONS:-2} fix iterations"
+        exit 1
+    fi
+
     # ── Pre-check: Deterministic validation before Review ───────────────
     log "Pre-check: validating implementation before review"
+    _phase_current_write "$CYCLE_DIR" "PRE_CHECK_REVIEW" 2>/dev/null || true
     if ! _pre_check_review; then
         error "Pre-check failed: implementation has structural issues"
         exit 1
@@ -1288,12 +1431,16 @@ main() {
     # _phase_implement_with_feedback so the implementer actually addresses
     # the reviewer's findings instead of the reviewer seeing the same
     # broken code on every retry until circuit-breaker.
+    # .phase-current (phase=REVIEW with fix_iter) is maintained inside
+    # _review_fix_loop for per-iteration sub-state visibility.
     _review_fix_loop || {
         log "Review CHANGES_REQUIRED — implementation needs work (fix loop exhausted)"
         exit 1
     }
 
     # ── Gate 5: Independent Audit (fresh session) ───────────────────────
+    # .phase-current (phase=AUDIT with attempt_num) is maintained inside
+    # _run_gate for per-attempt sub-state visibility.
     _run_gate "AUDIT" _gate_audit || {
         log "Audit CHANGES_REQUIRED — security issues found"
         exit 1
@@ -1301,6 +1448,7 @@ main() {
 
     # ── Phase 5: PR Creation (idempotent — check before create) ─────────
     log "Phase 5: PR CREATION"
+    _phase_current_write "$CYCLE_DIR" "PR_CREATION" 2>/dev/null || true
     local existing_pr
     existing_pr=$(gh pr list --head "$BRANCH" --json number,url --jq '.[0].url // empty' 2>/dev/null || true)
 
@@ -1346,6 +1494,17 @@ main() {
     jq -n --argjson cost "$total_cost" --arg profile "$PIPELINE_PROFILE" \
         '{cycle_cost_usd: $cost, profile: $profile, source: "flight_recorder"}' \
         > "$cost_tmp" && mv "$cost_tmp" "$cost_sidecar"
+
+    # cycle-092 Sprint 3 review F-3.1 + F-3.2: reap heartbeat daemon BEFORE
+    # finalization so (a) the kill actually fires while DASHBOARD_DAEMON_PID
+    # is still in scope (local vars are gone once main() returns and EXIT
+    # trap fires), (b) the daemon's next HEARTBEAT write can't race the
+    # PHASE_EXIT final write from _finalize_flight_recorder.
+    if [[ -n "$DASHBOARD_DAEMON_PID" ]]; then
+        kill -TERM "$DASHBOARD_DAEMON_PID" 2>/dev/null || true
+        wait "$DASHBOARD_DAEMON_PID" 2>/dev/null || true
+        DASHBOARD_DAEMON_PID=""
+    fi
 
     # ── Finalize ────────────────────────────────────────────────────────
     _finalize_flight_recorder "$CYCLE_DIR"
