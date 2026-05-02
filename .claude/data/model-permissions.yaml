@@ -339,3 +339,91 @@ model_permissions:
       polling. delegation: limited because the model autonomously searches and
       synthesizes from web sources during research, effectively delegating the
       information gathering task. All other scopes none.
+
+  # ===========================================================================
+  # AWS Bedrock-routed Anthropic Models — cycle-096 (issue #652)
+  # ===========================================================================
+  # Trust scopes mirror anthropic:claude-* entries above. Bedrock is just a
+  # different transport for the same Anthropic models — operational trust
+  # posture is identical (remote model, no side effects, no IAM/STS in v1).
+  # The provider:model-id namespace deliberately distinguishes routing path
+  # so cost-ledger entries and audit logs separate cleanly.
+  #
+  # Source: cycle-096 Sprint 1 FR-5 + Sprint 0 G-S0-2 probe-locked IDs.
+
+  bedrock:us.anthropic.claude-opus-4-7:
+    trust_level: high
+    trust_scopes:
+      data_access: none
+      financial: none
+      delegation: none
+      model_selection: none
+      governance: none
+      external_communication: none
+      context_access:
+        architecture: full
+        business_logic: full
+        security: redacted
+        lore: full
+    execution_mode: remote_model
+    capabilities:
+      file_read: false
+      file_write: false
+      command_execution: false
+      network_access: false
+    notes: >
+      Bedrock-routed Claude Opus 4.7. Same operational trust posture as
+      anthropic:claude-opus-4-7 — high trust_level (Anthropic safety
+      training), all operational scopes none (remote review oracle, no
+      side effects). Routing distinguishes by provider prefix so cost
+      ledger / audit logs / compliance fallback can branch cleanly.
+
+  bedrock:us.anthropic.claude-sonnet-4-6:
+    trust_level: high
+    trust_scopes:
+      data_access: none
+      financial: none
+      delegation: none
+      model_selection: none
+      governance: none
+      external_communication: none
+      context_access:
+        architecture: full
+        business_logic: full
+        security: redacted
+        lore: full
+    execution_mode: remote_model
+    capabilities:
+      file_read: false
+      file_write: false
+      command_execution: false
+      network_access: false
+    notes: >
+      Bedrock-routed Claude Sonnet 4.6. Mirrors anthropic:claude-sonnet-4-6
+      trust scopes. Cycle-096 Day-1 model — `cheap` tier user override path.
+
+  bedrock:us.anthropic.claude-haiku-4-5-20251001-v1:0:
+    trust_level: high
+    trust_scopes:
+      data_access: none
+      financial: none
+      delegation: none
+      model_selection: none
+      governance: none
+      external_communication: none
+      context_access:
+        architecture: full
+        business_logic: full
+        security: redacted
+        lore: full
+    execution_mode: remote_model
+    capabilities:
+      file_read: false
+      file_write: false
+      command_execution: false
+      network_access: false
+    notes: >
+      Bedrock-routed Claude Haiku 4.5. Note model ID retains the older
+      datestamp + `-v1:0` suffix convention (newer Anthropic models on
+      Bedrock drop this — Opus 4.7 + Sonnet 4.6 are bare). Trust scopes
+      mirror anthropic:claude-haiku-4-5-20251001. Cycle-096 Day-1 model.

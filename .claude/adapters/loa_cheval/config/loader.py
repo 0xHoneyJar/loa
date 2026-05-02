@@ -20,6 +20,7 @@ import json
 import logging
 import os
 import re
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -193,6 +194,14 @@ def load_config(
     # (SDD §6.3 + Task 2.2). The resolver gets the legacy-key set so it
     # can emit one-time INFO logs on first resolution.
     _fold_backward_compat_aliases(merged)
+
+    # cycle-096 Sprint 1 post-merge step D — Bedrock compliance_profile
+    # defaulting (SDD §5.6, Task 1.5). 4-step deterministic rule replaces
+    # null with bedrock_only / prefer_bedrock / unset based on env-var state.
+    # Also enforces the SKP-003 gate: prefer_bedrock requires explicit
+    # fallback_to on every model (no heuristic name matching).
+    _resolve_bedrock_compliance_profile(merged)
+    _reject_unsupported_bedrock_auth_modes(merged)
 
     # Resolve secret interpolation
     extra_env_patterns = []
@@ -490,6 +499,163 @@ def _fold_backward_compat_aliases(merged: Dict[str, Any]) -> None:
     from loa_cheval.routing.resolver import set_legacy_alias_keys
 
     set_legacy_alias_keys(folded_keys)
+
+
+# ---------------------------------------------------------------------------
+# cycle-096 Sprint 1 Task 1.5 — Bedrock compliance_profile defaulting (SDD §5.6)
+# ---------------------------------------------------------------------------
+
+# Module-level latch: emit the migration notice exactly once per process.
+_bedrock_migration_notice_emitted: bool = False
+
+
+def _resolve_bedrock_compliance_profile(merged: Dict[str, Any]) -> None:
+    """Apply the 4-step deterministic rule for ``providers.bedrock.compliance_profile``.
+
+    The rule (SDD §5.6, PRD §G-S0-3):
+
+    1. If user ``.loa.config.yaml`` explicitly sets the field → keep it.
+    2. Else if ``AWS_BEARER_TOKEN_BEDROCK`` is set AND ``ANTHROPIC_API_KEY``
+       is NOT set → default to ``bedrock_only`` (single-provider posture;
+       fail-closed protects compliance).
+    3. Else if both env vars are set → default to ``prefer_bedrock``
+       (warned-fallback never silent).
+    4. Else if ``AWS_BEARER_TOKEN_BEDROCK`` is unset → leave None
+       (Bedrock provider unused).
+
+    Mutates ``merged`` in place: writes the resolved value back to the
+    bedrock provider entry. The first time defaulting fires (rule 2 or 3),
+    we emit a one-shot stderr notice gated by a sentinel file at
+    ``${LOA_CACHE_DIR:-.run}/bedrock-migration-acked.sentinel``.
+    """
+    providers = (merged.get("providers") or {})
+    bedrock = providers.get("bedrock")
+    if not isinstance(bedrock, dict):
+        return  # No bedrock provider configured.
+
+    explicit = bedrock.get("compliance_profile")
+    if isinstance(explicit, str) and explicit:
+        # Rule 1 — explicit override wins; validate and keep.
+        if explicit not in ("bedrock_only", "prefer_bedrock", "none"):
+            raise ConfigError(
+                f"providers.bedrock.compliance_profile must be one of "
+                f"'bedrock_only' | 'prefer_bedrock' | 'none' (got {explicit!r})"
+            )
+        # Validate prefer_bedrock invariant before returning.
+        if explicit == "prefer_bedrock":
+            _enforce_prefer_bedrock_fallback_to(bedrock)
+        return
+
+    has_bedrock_token = bool(os.environ.get("AWS_BEARER_TOKEN_BEDROCK"))
+    has_anthropic_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
+
+    if not has_bedrock_token:
+        # Rule 4 — Bedrock provider not in use; field stays None.
+        bedrock["compliance_profile"] = None
+        return
+
+    if has_bedrock_token and not has_anthropic_key:
+        resolved = "bedrock_only"  # Rule 2.
+    else:
+        resolved = "prefer_bedrock"  # Rule 3.
+
+    bedrock["compliance_profile"] = resolved
+
+    if resolved == "prefer_bedrock":
+        # Validate fallback_to is declared on every Bedrock model
+        # (Flatline BLOCKER SKP-003 — no heuristic name matching).
+        _enforce_prefer_bedrock_fallback_to(bedrock)
+
+    _maybe_emit_bedrock_migration_notice(merged, resolved)
+
+
+def _enforce_prefer_bedrock_fallback_to(bedrock: Dict[str, Any]) -> None:
+    """Reject prefer_bedrock when any Bedrock model lacks fallback_to.
+
+    Per Flatline v1.1 BLOCKER SKP-003 (SDD §6.2): no heuristic name matching;
+    the operator must declare an explicit ``provider:model_id`` fallback per
+    model entry. Loader fails loud at load time so the operator sees the
+    problem before any request fires.
+    """
+    models = bedrock.get("models") or {}
+    if not isinstance(models, dict):
+        return
+    missing = [
+        model_id
+        for model_id, mc in models.items()
+        if isinstance(mc, dict) and not mc.get("fallback_to")
+    ]
+    if missing:
+        raise ConfigError(
+            "providers.bedrock.compliance_profile=prefer_bedrock requires "
+            "every Bedrock model entry to declare `fallback_to: <provider>:<model_id>`. "
+            f"Missing on: {missing}. "
+            "(Flatline BLOCKER SKP-003 — no heuristic name matching; operator "
+            "must declare equivalence explicitly.)"
+        )
+
+
+def _maybe_emit_bedrock_migration_notice(merged: Dict[str, Any], resolved: str) -> None:
+    """One-shot stderr notice on first defaulting, gated by sentinel file.
+
+    Sentinel path honors ``LOA_CACHE_DIR`` (default ``.run``). Submodule
+    consumers can pre-create the sentinel to silence the notice in CI.
+    """
+    global _bedrock_migration_notice_emitted
+    if _bedrock_migration_notice_emitted:
+        return
+
+    cache_dir = os.environ.get("LOA_CACHE_DIR") or ".run"
+    sentinel_path = Path(cache_dir) / "bedrock-migration-acked.sentinel"
+    if sentinel_path.exists():
+        _bedrock_migration_notice_emitted = True
+        return
+
+    sys.stderr.write(
+        f"[loa-cheval] Bedrock provider defaulting compliance_profile to "
+        f"{resolved!r} (SDD §5.6 / PRD G-S0-3). Override in .loa.config.yaml: "
+        f"hounfour.bedrock.compliance_profile: bedrock_only | prefer_bedrock | none. "
+        f"Suppress this notice by touching {sentinel_path}.\n"
+    )
+
+    # Try to create the sentinel so subsequent processes silently skip.
+    try:
+        sentinel_path.parent.mkdir(parents=True, exist_ok=True)
+        sentinel_path.touch()
+    except OSError:
+        # Best-effort; if we can't create the sentinel (read-only FS, etc.),
+        # the notice will print again next process. Acceptable v1.
+        pass
+
+    _bedrock_migration_notice_emitted = True
+
+
+def _reject_unsupported_bedrock_auth_modes(merged: Dict[str, Any]) -> None:
+    """Reject `auth_modes` lists that v1 cannot actually honor.
+
+    Schema allows `[api_key, sigv4]` for forward compat with FR-4 v2, but
+    v1 only honors `api_key`. If the operator sets `auth_modes: [sigv4]`
+    (no api_key), we surface a loud error rather than silently defaulting
+    to api_key behavior.
+    """
+    providers = (merged.get("providers") or {})
+    bedrock = providers.get("bedrock")
+    if not isinstance(bedrock, dict):
+        return
+    modes = bedrock.get("auth_modes")
+    if modes is None:
+        return
+    if not isinstance(modes, list):
+        raise ConfigError(
+            f"providers.bedrock.auth_modes must be a list, got {type(modes).__name__}"
+        )
+    if "api_key" not in modes:
+        raise ConfigError(
+            "providers.bedrock.auth_modes must include 'api_key' in v1. "
+            "SigV4/IAM auth is designed not built — track v2 status in "
+            "grimoires/loa/proposals/bedrock-sigv4-v2.md (Sprint 2 stub) "
+            "and the next-cycle planning."
+        )
 
 
 # --- Config cache (one per process) ---
