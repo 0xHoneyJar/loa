@@ -202,6 +202,7 @@ def load_config(
     # fallback_to on every model (no heuristic name matching).
     _resolve_bedrock_compliance_profile(merged)
     _reject_unsupported_bedrock_auth_modes(merged)
+    _reject_unsupported_bedrock_auth_lifetime(merged)
 
     # Resolve secret interpolation
     extra_env_patterns = []
@@ -656,6 +657,45 @@ def _reject_unsupported_bedrock_auth_modes(merged: Dict[str, Any]) -> None:
             "grimoires/loa/proposals/bedrock-sigv4-v2.md (Sprint 2 stub) "
             "and the next-cycle planning."
         )
+
+
+def _reject_unsupported_bedrock_auth_lifetime(merged: Dict[str, Any]) -> None:
+    """Reject `auth_lifetime: short` per SDD §9 NFR-Sec11.
+
+    The `auth_lifetime` schema field is documented for forward compat with
+    short-lived (≤12h) token rotation flows, but v1 does not implement the
+    rotation-window enforcement code path. Silently accepting `short` would
+    let operators believe they have rotation enforcement when they do not.
+
+    Honored values v1: `long` (default), absent (treated as `long`).
+    Rejected values v1: `short` (with pointer to the next-cycle proposal).
+    """
+    providers = (merged.get("providers") or {})
+    bedrock = providers.get("bedrock")
+    if not isinstance(bedrock, dict):
+        return
+    lifetime = bedrock.get("auth_lifetime")
+    if lifetime is None:
+        return
+    if not isinstance(lifetime, str):
+        raise ConfigError(
+            f"providers.bedrock.auth_lifetime must be a string, got "
+            f"{type(lifetime).__name__}"
+        )
+    if lifetime == "long":
+        return
+    if lifetime == "short":
+        raise ConfigError(
+            "providers.bedrock.auth_lifetime: short is documented in "
+            "SDD §9 NFR-Sec11 but not implemented in v1 — the rotation-"
+            "window enforcement path is designed not built. Use 'long' "
+            "(or omit the field) until short-mode lands. Track v2 in "
+            "grimoires/loa/proposals/bedrock-sigv4-v2.md."
+        )
+    raise ConfigError(
+        f"providers.bedrock.auth_lifetime must be 'long' or 'short', got "
+        f"{lifetime!r}. v1 honors only 'long'; 'short' is reserved for v2."
+    )
 
 
 # --- Config cache (one per process) ---

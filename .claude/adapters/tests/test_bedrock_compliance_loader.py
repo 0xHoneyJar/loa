@@ -27,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from loa_cheval.config.loader import (  # noqa: E402
     _enforce_prefer_bedrock_fallback_to,
+    _reject_unsupported_bedrock_auth_lifetime,
     _reject_unsupported_bedrock_auth_modes,
     _resolve_bedrock_compliance_profile,
 )
@@ -252,6 +253,44 @@ def test_auth_modes_optional_when_omitted():
     # Strip the auth_modes key entirely.
     merged["providers"]["bedrock"].pop("auth_modes", None)
     _reject_unsupported_bedrock_auth_modes(merged)  # no raise
+
+
+# ---------------------------------------------------------------------------
+# auth_lifetime invariant (NC-9, cycle-097 quick win)
+# ---------------------------------------------------------------------------
+
+
+def test_auth_lifetime_short_is_rejected():
+    merged = {"providers": {"bedrock": {"type": "bedrock", "auth_lifetime": "short"}}}
+    with pytest.raises(ConfigError, match="not implemented in v1"):
+        _reject_unsupported_bedrock_auth_lifetime(merged)
+
+
+def test_auth_lifetime_long_passes():
+    merged = {"providers": {"bedrock": {"type": "bedrock", "auth_lifetime": "long"}}}
+    _reject_unsupported_bedrock_auth_lifetime(merged)  # no raise
+
+
+def test_auth_lifetime_omitted_passes():
+    merged = {"providers": {"bedrock": {"type": "bedrock"}}}
+    _reject_unsupported_bedrock_auth_lifetime(merged)  # no raise
+
+
+def test_auth_lifetime_must_be_string():
+    merged = {"providers": {"bedrock": {"type": "bedrock", "auth_lifetime": 12}}}
+    with pytest.raises(ConfigError, match="must be a string"):
+        _reject_unsupported_bedrock_auth_lifetime(merged)
+
+
+def test_auth_lifetime_unknown_value_rejected():
+    merged = {"providers": {"bedrock": {"type": "bedrock", "auth_lifetime": "medium"}}}
+    with pytest.raises(ConfigError, match="must be 'long' or 'short'"):
+        _reject_unsupported_bedrock_auth_lifetime(merged)
+
+
+def test_auth_lifetime_no_op_when_bedrock_absent():
+    merged = {"providers": {"openai": {"type": "openai"}}}
+    _reject_unsupported_bedrock_auth_lifetime(merged)  # no raise
 
 
 # ---------------------------------------------------------------------------
