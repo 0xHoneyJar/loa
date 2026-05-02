@@ -33,6 +33,10 @@ teardown() {
 @test "FOPP-T1: --phase pr is NOT rejected as Invalid phase" {
     cd "$PROJECT_ROOT"
     run "$FLATLINE" --doc "$DOC_FILE" --phase pr --dry-run
+    # Bridgebuilder F005 (PR #670): assert exit status to detect silent
+    # crashes that would otherwise pass the absence-of-"Invalid phase" check
+    # vacuously. --dry-run should exit 0 cleanly when args are valid.
+    [ "$status" -eq 0 ]
     # Must NOT contain the "Invalid phase: pr" error
     [[ "$output" != *"Invalid phase: pr"* ]]
     [[ "$output" != *"Invalid phase: pr (expected"* ]]
@@ -49,30 +53,35 @@ teardown() {
 @test "FOPP-T3: --phase prd still accepted (regression guard)" {
     cd "$PROJECT_ROOT"
     run "$FLATLINE" --doc "$DOC_FILE" --phase prd --dry-run
+    [ "$status" -eq 0 ]
     [[ "$output" != *"Invalid phase: prd"* ]]
 }
 
 @test "FOPP-T4: --phase sdd still accepted (regression guard)" {
     cd "$PROJECT_ROOT"
     run "$FLATLINE" --doc "$DOC_FILE" --phase sdd --dry-run
+    [ "$status" -eq 0 ]
     [[ "$output" != *"Invalid phase: sdd"* ]]
 }
 
 @test "FOPP-T5: --phase sprint still accepted (regression guard)" {
     cd "$PROJECT_ROOT"
     run "$FLATLINE" --doc "$DOC_FILE" --phase sprint --dry-run
+    [ "$status" -eq 0 ]
     [[ "$output" != *"Invalid phase: sprint"* ]]
 }
 
 @test "FOPP-T6: --phase beads still accepted (regression guard)" {
     cd "$PROJECT_ROOT"
     run "$FLATLINE" --doc "$DOC_FILE" --phase beads --dry-run
+    [ "$status" -eq 0 ]
     [[ "$output" != *"Invalid phase: beads"* ]]
 }
 
 @test "FOPP-T7: --phase spec still accepted (regression guard)" {
     cd "$PROJECT_ROOT"
     run "$FLATLINE" --doc "$DOC_FILE" --phase spec --dry-run
+    [ "$status" -eq 0 ]
     [[ "$output" != *"Invalid phase: spec"* ]]
 }
 

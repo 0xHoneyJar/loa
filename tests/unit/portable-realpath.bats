@@ -48,37 +48,56 @@ teardown() {
 # =========================================================================
 
 @test "PRP-T3: BSD-stub realpath (no -m) → existing path still resolves" {
-    # Install BSD-flavored stub: rejects -m, succeeds otherwise
+    # Bridgebuilder F007 (PR #670): the previous BSD stub delegated to
+    # /usr/bin/realpath, which is absent on Homebrew-only macOS systems
+    # and on minimal Alpine images. Replace with a pure-shell BSD
+    # equivalent (cd + pwd + basename) — works without /usr/bin/realpath
+    # being present on the target host.
     cat >"$STUB_BIN/realpath" <<'STUB'
 #!/usr/bin/env bash
 if [[ "$1" == "-m" ]]; then
     echo "realpath: illegal option -- m" >&2
     exit 1
 fi
-# Delegate to system realpath via /usr/bin
-exec /usr/bin/realpath "$@"
+# Pure-shell BSD-equivalent canonical resolution (POSIX-portable)
+target="$1"
+if [[ -d "$target" ]]; then
+    cd "$target" 2>/dev/null && pwd
+elif [[ -e "$target" ]]; then
+    parent="$(cd "$(dirname "$target")" 2>/dev/null && pwd)"
+    [[ -n "$parent" ]] && echo "$parent/$(basename "$target")"
+else
+    exit 1
+fi
 STUB
     chmod +x "$STUB_BIN/realpath"
 
-    # Clear cached probe and re-source under stubbed PATH
     local f="$TMPDIR_TEST/realfile"
     : >"$f"
     run env PATH="$STUB_BIN:/usr/bin:/bin" \
         bash -c "unset _PORTABLE_REALPATH_HAS_M; source '$LIB' && resolve_path_portable '$f'"
     [ "$status" -eq 0 ]
     [[ "$output" == *"$f" ]]
-    # Critical regression: must NOT silently produce empty output
     [ -n "$output" ]
 }
 
 @test "PRP-T4: BSD-stub + non-existent file in existing parent → manual resolution" {
+    # Bridgebuilder F007 (PR #670): pure-shell BSD stub (no /usr/bin/realpath dep).
     cat >"$STUB_BIN/realpath" <<'STUB'
 #!/usr/bin/env bash
 if [[ "$1" == "-m" ]]; then
     echo "realpath: illegal option -- m" >&2
     exit 1
 fi
-exec /usr/bin/realpath "$@"
+target="$1"
+if [[ -d "$target" ]]; then
+    cd "$target" 2>/dev/null && pwd
+elif [[ -e "$target" ]]; then
+    parent="$(cd "$(dirname "$target")" 2>/dev/null && pwd)"
+    [[ -n "$parent" ]] && echo "$parent/$(basename "$target")"
+else
+    exit 1
+fi
 STUB
     chmod +x "$STUB_BIN/realpath"
 

@@ -5,7 +5,7 @@ purpose: Loa is an agent-driven development framework for [Claude Code](https://
 key_files: [CLAUDE.md, .claude/loa/CLAUDE.loa.md, .loa.config.yaml, .claude/scripts/, .claude/skills/]
 interfaces:
   core: [/auditing-security, /autonomous-agent, /bridgebuilder-review, /browsing-constructs, /bug-triaging]
-  project: [/loa-setup, /spiraling]
+  project: [/loa-setup, /spiraling, /validating-construct-manifest]
 dependencies: [git, jq, yq]
 ecosystem:
   - repo: 0xHoneyJar/loa-finn
@@ -27,7 +27,7 @@ capability_requirements:
   - git: read_write
   - shell: execute
   - github_api: read_write (scope: external)
-version: v1.91.12
+version: v1.109.1
 installation_mode: unknown
 trust_level: L2-verified
 -->
@@ -37,7 +37,7 @@ trust_level: L2-verified
 <!-- provenance: DERIVED -->
 Loa is an agent-driven development framework for [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) (Anthropic's official CLI).
 
-The framework provides 31 specialized skills, built with TypeScript/JavaScript, Python, Shell.
+The framework provides 32 specialized skills, built with TypeScript/JavaScript, Python, Shell.
 
 ## Key Capabilities
 <!-- provenance: DERIVED -->
@@ -46,27 +46,27 @@ The project exposes 15 key entry points across its public API surface.
 ### .claude/adapters
 
 - **_build_provider_config** — Build ProviderConfig from merged hounfour config. (`.claude/adapters/cheval.py:152`)
-- **_check_feature_flags** — Check feature flags. (`.claude/adapters/cheval.py:192`)
+- **_check_feature_flags** — Check feature flags. (`.claude/adapters/cheval.py:204`)
 - **_error_json** — Format error as JSON for stderr (SDD §4.2.2 Error Taxonomy). (`.claude/adapters/cheval.py:77`)
 - **_load_persona** — Load persona.md for the given agent with optional system merge (SDD §4.3.2). (`.claude/adapters/cheval.py:96`)
-- **cmd_cancel** — Cancel a Deep Research interaction. (`.claude/adapters/cheval.py:511`)
-- **cmd_invoke** — Main invocation: resolve agent → call provider → return response. (`.claude/adapters/cheval.py:211`)
-- **cmd_poll** — Poll a Deep Research interaction. (`.claude/adapters/cheval.py:467`)
-- **cmd_print_config** — Print effective merged config with source annotations. (`.claude/adapters/cheval.py:442`)
-- **cmd_validate_bindings** — Validate all agent bindings. (`.claude/adapters/cheval.py:453`)
-- **main** — CLI entry point. (`.claude/adapters/cheval.py:547`)
+- **cmd_cancel** — Cancel a Deep Research interaction. (`.claude/adapters/cheval.py:523`)
+- **cmd_invoke** — Main invocation: resolve agent → call provider → return response. (`.claude/adapters/cheval.py:223`)
+- **cmd_poll** — Poll a Deep Research interaction. (`.claude/adapters/cheval.py:479`)
+- **cmd_print_config** — Print effective merged config with source annotations. (`.claude/adapters/cheval.py:454`)
+- **cmd_validate_bindings** — Validate all agent bindings. (`.claude/adapters/cheval.py:465`)
+- **main** — CLI entry point. (`.claude/adapters/cheval.py:559`)
 
 ### .claude/adapters/loa_cheval/config
 
-- **LazyValue** — Deferred interpolation token. (`.claude/adapters/loa_cheval/config/interpolation.py:41`)
-- **_check_env_allowed** — Check if env var name is in the allowlist. (`.claude/adapters/loa_cheval/config/interpolation.py:122`)
-- **_check_file_allowed** — Validate and resolve a file path for secret reading. (`.claude/adapters/loa_cheval/config/interpolation.py:133`)
-- **_get_credential_provider** — Get the credential provider chain (lazily initialized, thread-safe). (`.claude/adapters/loa_cheval/config/interpolation.py:192`)
-- **_matches_lazy_path** — Check if a dotted config key path matches any lazy path pattern. (`.claude/adapters/loa_cheval/config/interpolation.py:275`)
+- **LazyValue** — Deferred interpolation token. (`.claude/adapters/loa_cheval/config/interpolation.py:43`)
+- **_check_env_allowed** — Check if env var name is in the allowlist. (`.claude/adapters/loa_cheval/config/interpolation.py:124`)
+- **_check_file_allowed** — Validate and resolve a file path for secret reading. (`.claude/adapters/loa_cheval/config/interpolation.py:135`)
+- **_get_credential_provider** — Get the credential provider chain (lazily initialized, thread-safe). (`.claude/adapters/loa_cheval/config/interpolation.py:194`)
+- **_matches_lazy_path** — Check if a dotted config key path matches any lazy path pattern. (`.claude/adapters/loa_cheval/config/interpolation.py:278`)
 
 ## Architecture
 <!-- provenance: DERIVED -->
-The architecture follows a three-zone model: System (`.claude/`) contains framework-managed scripts and skills, State (`grimoires/`, `.beads/`) holds project-specific artifacts and memory, and App (`src/`, `lib/`) contains developer-owned application code. The framework orchestrates 31 specialized skills through slash commands.
+The architecture follows a three-zone model: System (`.claude/`) contains framework-managed scripts and skills, State (`grimoires/`, `.beads/`) holds project-specific artifacts and memory, and App (`src/`, `lib/`) contains developer-owned application code. The framework orchestrates 32 specialized skills through slash commands.
 ```mermaid
 graph TD
     docs[docs]
@@ -150,6 +150,7 @@ Directory structure:
 
 - **/loa-setup** — /loa setup — Onboarding Wizard
 - **/spiraling** — Spiraling
+- **/validating-construct-manifest** — Validate a construct pack directory before it lands in a registry or a local install. Surfaces:
 
 ## Module Map
 <!-- provenance: DERIVED -->
@@ -157,15 +158,15 @@ Directory structure:
 |--------|-------|---------|---------------|
 | `docs/` | 8 | Documentation | \u2014 |
 | `evals/` | 5818 | Benchmarking and regression framework for the Loa agent development system. Ensures framework changes don't degrade agent behavior through | [evals/README.md](evals/README.md) |
-| `grimoires/` | 1807 | Home to all grimoire directories for the Loa | [grimoires/README.md](grimoires/README.md) |
+| `grimoires/` | 2140 | Home to all grimoire directories for the Loa | [grimoires/README.md](grimoires/README.md) |
 | `skills/` | 5112 | Specialized agent skills | \u2014 |
-| `tests/` | 248 | Test suites | \u2014 |
+| `tests/` | 317 | Test suites | \u2014 |
 
 ## Verification
 <!-- provenance: CODE-FACTUAL -->
 - Trust Level: **L2 — CI Verified**
-- 248 test files across 1 suite
-- CI/CD: GitHub Actions (11 workflows)
+- 317 test files across 1 suite
+- CI/CD: GitHub Actions (16 workflows)
 - Security: SECURITY.md present
 
 ## Agents
@@ -212,16 +213,16 @@ curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts
 # Start Claude Code
 claude
 <!-- ground-truth-meta
-head_sha: 1d7801b27f778aba2a4816df842a7fb0f44ecb0d
-generated_at: 2026-04-16T09:49:11Z
+head_sha: 44f4ad2f9ef2fb620aaf59bcf3f76c7472787ba7
+generated_at: 2026-05-02T08:23:20Z
 generator: butterfreezone-gen v1.0.0
 sections:
-  agent_context: ebccb0a293df847ae07a79e7c3bc50ea9fce121d35adff937f8550e107154d00
-  capabilities: ab2576b1f2e7e8141f0e93e807d26ed2b7b155e21c96d787507a3ba933bb9795
-  architecture: b94a16a20653a8044281f17bbec71ab6157304c70bf714bd3f919b740ba64395
-  interfaces: e1614216b4bf8865fe3cb288722c6b8950d0923f334212c8db39e6e8e2aed003
-  module_map: af9e868bd3426d96dd18d73300f34574440e01bf988b581de6d3164809d367c7
-  verification: cef97b2825e4bacf7c8e2ba1c4e1757e65e5b3dc7cf8651ae4f07399a44674df
+  agent_context: 3f023b009fed4dd17bbe0b6e6bf5a5c88144e3ee58bdebfd4fc6f602cb3a3707
+  capabilities: 47ac985b77b8c6e796289f04b814f7584c332bc17d581a36b955318c07ead1fd
+  architecture: d9ca2ac15a4bd38bb116258db028b1ede111d9df5888efe24da993242c479de0
+  interfaces: 03209c67c64699f552933b1917ca1b74d43fa8effd92da9169d018ed75f9d3e3
+  module_map: 5e0aca799038a293f22592ecadebb2c631dd019608c2c7669cfea7b2948f10c4
+  verification: 4aabe232be71cfca5f8bde485bcf7af7497a63a22c6af60bcf70262d39607484
   agents: ca263d1e05fd123434a21ef574fc8d76b559d22060719640a1f060527ef6a0b6
   culture: f73380f93bb4fadf36ccc10d60fc57555914363fc90e4f15b4dc4eb92bd1640f
   quick_start: a0610fe388635f2d1bfb520955ad321c783b6ee3f7af21b0fed5809e757c2664

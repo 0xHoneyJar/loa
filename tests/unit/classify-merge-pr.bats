@@ -126,8 +126,12 @@ STUB
     run "$WRAPPER" --merge-msg "feat(cycle-097): quick wins (#666)" --pr-number 666
     [ "$status" -eq 0 ]
     [[ "$output" == *"pr_type=cycle"* ]]
-    # gh failure must surface in stderr — do not silently swallow
-    [[ "$output" == *"WARN"* ]] || [[ "$output" == *"error"* ]] || [[ "$output" == *"API rate"* ]]
+    # Bridgebuilder F003 (PR #670): require the wrapper-emitted prefix
+    # specifically. The previous disjunction matched the stub's stderr
+    # ('error: API rate limit exceeded') passing the test even if the
+    # wrapper silently swallowed gh stderr. The strict prefix asserts the
+    # wrapper actively emitted the WARN line.
+    [[ "$output" == *"[classify-merge-pr] WARN: gh pr view failed"* ]]
 }
 
 @test "CMP-T8: gh fails for chore subject — still classifies as other (not silent crash)" {

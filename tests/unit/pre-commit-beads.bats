@@ -79,11 +79,32 @@ _stub_br_missing() {
     [[ "$output" != *"upstream beads_rust"* ]]
 }
 
-@test "PCB-T2: br missing → hook exits 0 (graceful)" {
+@test "PCB-T2: br missing → hook exits 0 with skip message" {
+    # Bridgebuilder F004 (PR #670): the previous test included /usr/bin and
+    # /bin on PATH, so a host-installed `br` would silently satisfy the
+    # lookup. Build a hermetic minimal-PATH that contains ONLY the
+    # utilities the hook needs (git, sed, mktemp, grep) — and explicitly
+    # NOT br. Then assert the skip-branch output prefix to confirm we
+    # actually exercised the missing-br path.
     _stub_br_missing
-    # Need bash to PATH-find the stub; use a wrapper to ensure no `br` in PATH
-    run env PATH="$STUB_BIN:/usr/bin:/bin" "$HOOK"
+    local safe_bin="$TMPDIR_TEST/safe-bin"
+    mkdir -p "$safe_bin"
+    for tool in git sed mktemp grep dirname basename; do
+        if command -v "$tool" >/dev/null 2>&1; then
+            ln -sf "$(command -v "$tool")" "$safe_bin/$tool"
+        fi
+    done
+
+    # Verify the test PATH genuinely lacks br (skip if host has br on this minimal PATH)
+    if PATH="$safe_bin" command -v br >/dev/null 2>&1; then
+        skip "minimal PATH unexpectedly resolved br; test infrastructure issue"
+    fi
+
+    cd "$TEST_REPO"
+    run env PATH="$safe_bin" "$HOOK"
     [ "$status" -eq 0 ]
+    # Positive evidence the skip-branch was exercised
+    [[ "$output" == *"br command not found"* ]]
 }
 
 # =========================================================================

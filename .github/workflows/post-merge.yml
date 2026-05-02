@@ -43,13 +43,16 @@ jobs:
           # rather than relying solely on `gh pr view` API state. The wrapper
           # surfaces gh failures loudly to stderr instead of silently
           # falling through to "other".
+          #
+          # Bridgebuilder F001 (PR #670): the wrapper writes pr_type and
+          # pr_number to $GITHUB_OUTPUT directly. Capture stdout for log
+          # readability only — do NOT re-parse $GITHUB_OUTPUT (it's a
+          # producer-write, runner-read contract; reading it back inverts
+          # GitHub's intent and breaks if the wrapper ever uses heredoc syntax).
           chmod +x .claude/scripts/classify-merge-pr.sh
-          .claude/scripts/classify-merge-pr.sh --merge-sha "$MERGE_SHA"
-
-          # Echo the resolved type for log readability
-          PR_TYPE=$(grep '^pr_type=' "$GITHUB_OUTPUT" | tail -1 | cut -d'=' -f2)
-          PR_NUMBER=$(grep '^pr_number=' "$GITHUB_OUTPUT" | tail -1 | cut -d'=' -f2)
-          echo "Classified PR #${PR_NUMBER} as: ${PR_TYPE}"
+          RESULT=$(.claude/scripts/classify-merge-pr.sh --merge-sha "$MERGE_SHA")
+          echo "Classifier output:"
+          echo "$RESULT"
 
   # =============================================================================
   # SIMPLE RELEASE — For bugfix/other PRs: semver + tag only (shell-only)
