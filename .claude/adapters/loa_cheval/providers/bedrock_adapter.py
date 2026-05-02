@@ -119,7 +119,14 @@ class QuotaExceededError(BedrockError):
     initiates a new process).
     """
 
-    def __init__(self, message: str = "Bedrock daily quota exceeded — circuit breaker tripped"):
+    DEFAULT_MESSAGE = (
+        "Bedrock daily quota exceeded — circuit breaker tripped. "
+        "AWS Bedrock per-account daily quotas reset at 00:00 UTC; restart "
+        "the process after reset, or fail over to a different provider via "
+        "compliance_profile: prefer_bedrock + fallback_to mapping."
+    )
+
+    def __init__(self, message: str = DEFAULT_MESSAGE):
         super().__init__("BEDROCK_DAILY_QUOTA", message, retryable=False)
 
 

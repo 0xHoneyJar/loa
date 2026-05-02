@@ -380,6 +380,18 @@ def test_circuit_breaker_uses_threading_event_for_concurrency():
     assert isinstance(_DAILY_QUOTA_EXCEEDED, threading.Event)
 
 
+def test_quota_error_default_message_includes_reset_guidance():
+    """NC-5 (cycle-097): default error message must point operator at the
+    AWS quota reset cadence and the fallback path so the surface is
+    actionable, not just a circuit-breaker notice.
+    """
+    err = QuotaExceededError()
+    msg = str(err)
+    assert "00:00 UTC" in msg
+    assert "restart" in msg.lower()
+    assert "fallback" in msg.lower() or "prefer_bedrock" in msg
+
+
 # ---------------------------------------------------------------------------
 # Tool schema wrapping (FR-1 / Sprint 0 G-S0-2 probe #3)
 # ---------------------------------------------------------------------------
