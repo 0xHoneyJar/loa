@@ -757,9 +757,30 @@
       "source_issue": "https://github.com/0xHoneyJar/loa/issues/652",
       "archived": "2026-05-02T06:11:32Z",
       "archive_path": "grimoires/loa/archive/2026-05-02-cycle-096-aws-bedrock"
+    },
+    {
+      "id": "cycle-bug-20260502-i669-55150d",
+      "label": "Bug Fix — post-merge automation: orchestrator scripts ship without an invoking workflow template",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/669",
+      "created_at": "2026-05-02T08:46:16Z",
+      "prd": null,
+      "sdd": null,
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 130,
+          "label": "post-merge workflow scaffold gap on downstream installs",
+          "status": "planned",
+          "bug_id": "20260502-i669-55150d",
+          "triage": "grimoires/loa/a2a/bug-20260502-i669-55150d/triage.md",
+          "sprint_plan": "grimoires/loa/a2a/bug-20260502-i669-55150d/sprint.md"
+        }
+      ]
     }
   ],
-  "global_sprint_counter": 129,
+  "global_sprint_counter": 130,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
