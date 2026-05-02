@@ -179,6 +179,10 @@ def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> Provid
             endpoint_family=model_data.get("endpoint_family"),
             fallback_chain=model_data.get("fallback_chain"),
             probe_required=model_data.get("probe_required", False),
+            # cycle-096 Sprint 1 (Task 1.2 / FR-1) — Bedrock-specific fields.
+            api_format=model_data.get("api_format"),
+            fallback_to=model_data.get("fallback_to"),
+            fallback_mapping_version=model_data.get("fallback_mapping_version"),
         )
 
     return ProviderConfig(
@@ -190,6 +194,10 @@ def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> Provid
         connect_timeout=prov.get("connect_timeout", 10.0),
         read_timeout=prov.get("read_timeout", 120.0),
         write_timeout=prov.get("write_timeout", 30.0),
+        # cycle-096 Sprint 1 (Task 1.2 / FR-1) — Bedrock-specific provider fields.
+        region_default=prov.get("region_default"),
+        auth_modes=prov.get("auth_modes"),
+        compliance_profile=prov.get("compliance_profile"),
     )
 
 
