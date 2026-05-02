@@ -436,6 +436,39 @@ Each artifact: 1 Flatline pass → integrate findings → stop per Kaironic find
 ### Confidential reference (still applies)
 A friend's pattern was shared offline — used only for context-grounding, not cited. Validated env var name + URL encoding + Bearer auth approach (all also confirmed via my own probes today).
 
+## Cycle-096 Sprint 1 implementation — 2026-05-02 (sprint-127, in_progress)
+
+### Commits on `feat/cycle-096-aws-bedrock` (PR #662)
+- c741e49 — Sprint 0 partial close
+- c4c197f — Task 1.1 Phase A (parser foundation)
+- 090596a — Task 1.1 Phase C (gen-adapter-maps fix)
+- de5db56 — Task 1.2 (bedrock provider in YAML SSOT)
+- a0bca7f — Task 1.3 (bedrock_adapter.py + schema extensions)
+- a4b1444 — FR-5 + Task 1.5 (trust scopes + compliance loader)
+- f63ecc1 — Task 1.6 + Task 1.A (two-layer redaction + adversarial tests)
+- a588f36 — Live integration test (3/3 against real Bedrock)
+- 82e42f3 — NFR-Sec11 (token age sentinel)
+
+### Test totals
+- 154 new tests this sprint (bash + Python + cross-language + live + adversarial + token-age)
+- 723 total tests pass (664 pre-cycle-096 + 59 sprint-1)
+- Zero regressions on existing test suite
+- Live Bedrock 3/3 pass against real AWS account
+
+### Decision Log entries (cycle-096 sprint-1)
+- **[ACCEPTED-DEFERRED] Phase B/C/D limited to gen-adapter-maps.sh**: lookup-table callsites (model-adapter, red-team-model-adapter, flatline-orchestrator) don't actually parse — they use MODEL_TO_PROVIDER_ID hash. Phase B/C/D applied to the one callsite that needed it.
+- **[ACCEPTED-DEFERRED] colon-bearing-model-ids.bats subset (d) MODEL_TO_ALIAS test**: `model-adapter.sh` is a lookup table not a parser; if it ever migrates to the helper, the test will be added then.
+- **[ACCEPTED-DEFERRED] auth_lifetime: short rejection**: Sprint 2 follow-up alongside FR-4 SigV4 schema work.
+- **[ACCEPTED-DEFERRED] Bedrock pricing live-fetch verification**: Used direct-Anthropic on-demand rates (publicly documented to match Bedrock-Anthropic). Quarterly refresh per NFR-Sec6 cadence.
+
+### Implementation report
+`grimoires/loa/a2a/sprint-127/reviewer.md` (local-only per a2a/ gitignore convention) walks every Sprint 1 acceptance criterion with verbatim quotes + status + file:line evidence.
+
+### Pending Sprint 1 closure
+- /review-sprint pass — pending
+- /audit-sprint pass — pending after /review-sprint
+- Post-merge: cycle-096 ships when sprint-127 lands; Sprint 2 follow-on.
+
 ### v1.0 → v1.1 changes
 - Added Sprint 0 "Contract Verification Spike" with 5 gates (G-S0-1..5) blocking Sprint 1
 - NFR-R1 revised to compliance-aware fallback (default `bedrock_only` fail-closed)
