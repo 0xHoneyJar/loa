@@ -19,3 +19,8 @@ cheval = "loa_cheval.__main__:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["loa_cheval*"]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: tests that require live network access or external services (deselect with '-m \"not integration\"')",
+]
