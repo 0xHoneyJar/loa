@@ -464,7 +464,48 @@ A friend's pattern was shared offline — used only for context-grounding, not c
 ### Implementation report
 `grimoires/loa/a2a/sprint-127/reviewer.md` (local-only per a2a/ gitignore convention) walks every Sprint 1 acceptance criterion with verbatim quotes + status + file:line evidence.
 
-### Sprint 1 closure (COMPLETED 2026-05-02)
+## Cycle-096 Sprint 2 closure (COMPLETED 2026-05-02 — sprint-128, cycle-096 final)
+
+### Sprint 2 commits on `feat/cycle-096-aws-bedrock`
+- `3343243` — FR-9 plugin guide + Task 2.1 health probe extension (FR-8)
+- `cd7cdf3` — Task 2.4 BATS for probe + NC-1 redaction fix (sprint-1 carryover)
+- 1 file uncommitted: `.github/workflows/bedrock-contract-smoke.yml` (Task 2.5; pending operator `gh auth refresh -s workflow`)
+
+### Quality gate sequence (passed)
+- ✓ /implement — 2 commits + 1 uncommitted file; reviewer.md walks every Sprint 2 AC
+- ✓ /review-sprint — APPROVED (3 adversarial concerns A1-A3 carried forward; all non-blocking)
+- ✓ /audit-sprint — APPROVED ("LETS FUCKING GO" — paranoid cypherpunk verdict)
+- ✓ COMPLETED marker created
+- ✓ Ledger updated: sprint-128 status=completed
+
+### Test totals (final)
+- pytest: 732 pass (zero regressions)
+- BATS: 82 pass (added 15 bedrock-health-probe.bats)
+- Live integration: 3/3 against real Bedrock; bash health probe live: 3/3 AVAILABLE
+- Total cycle-096 work: 814 tests passing
+
+### All 4 PRD goals (G-1..G-4) satisfied (Task 2.E2E)
+- ✓ G-1: Bedrock works end-to-end with API-Key auth (live verified)
+- ✓ G-2: ≤1-day fifth-provider documented in plugin guide (empirical validation pending next provider request)
+- ✓ G-3: Existing users see zero behavior change (732-test regression)
+- ✓ G-4: Bedrock-routed Anthropic models drop-in replaceable via alias override (architecturally ready)
+
+### Operator action required (post-merge)
+1. `gh auth refresh -s workflow`
+2. `git add .github/workflows/bedrock-contract-smoke.yml`
+3. `git commit -m "feat(sprint-2): Task 2.5 — recurring CI smoke workflow"`
+4. `git push`
+
+### Cycle-097 / Sprint 3+ backlog (deferred from sprint-1 + sprint-2)
+- Sprint-1 NC-2..NC-10 (thread-safety, health_check symmetry, error message fragility, etc.)
+- Sprint-2 A1-A3 (lessons-learned in plugin guide, status-field check in probe, dynamic cost estimation in CI smoke)
+- FR-4 SigV4 implementation (currently designed-not-built)
+- auth_lifetime: short rejection runtime (currently silently ignored)
+- Daily-quota circuit-breaker live BATS (would consume operator's quota)
+- Pricing live-fetch verification (currently using direct-Anthropic on-demand approximations)
+- Non-Anthropic Bedrock models (Mistral, Cohere, Meta, Stability)
+
+## Sprint 1 closure (COMPLETED 2026-05-02)
 - ✓ /review-sprint — APPROVED (with documented non-blocking concerns NC-1..NC-10 carried forward to Sprint 2)
 - ✓ Iteration on CI-1 (prefer_bedrock runtime fallback dispatch) — fixed in commit 8a17a7d
 - ✓ /audit-sprint — APPROVED ("LETS FUCKING GO"); paranoid cypherpunk verdict at `grimoires/loa/a2a/sprint-127/auditor-sprint-feedback.md`

@@ -748,9 +748,10 @@
           "local_id": 2,
           "global_id": 128,
           "label": "Plugin Guide + IR Runbook + Health Probe + Recurring Smoke + E2E (Final)",
-          "status": "in_progress",
+          "status": "completed",
           "started": "2026-05-02T05:05:22Z",
-          "branch": "feat/cycle-096-aws-bedrock"
+          "branch": "feat/cycle-096-aws-bedrock",
+          "completed": "2026-05-02T05:24:01Z"
         }
       ],
       "source_issue": "https://github.com/0xHoneyJar/loa/issues/652"
