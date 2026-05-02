@@ -253,30 +253,18 @@ relocate_memory_stack() {
   log "Memory Stack relocated: .loa/ -> .loa-state/ ($source_count files)"
 }
 
-# Issue #669: scaffold post-merge automation workflow from the submodule's
-# in-tree copy. Submodule mode copies (not symlinks) the workflow file into
-# the consumer repo's .github/workflows/ — GitHub Actions ignores symlinked
-# workflow files, and consumer-side customization should be possible. The
-# scaffolded workflow's actions/checkout MUST set `submodules: recursive`
-# (baked into the upstream workflow file) so the .claude/scripts/* symlinks
-# resolve at runtime. Idempotent (preserves user-customized workflow).
-scaffold_post_merge_workflow() {
-  local source_path="${1:-$SUBMODULE_PATH/.github/workflows/post-merge.yml}"
-  local target=".github/workflows/post-merge.yml"
+# Issue #669 / Bridgebuilder F6 (PR #671): scaffold helper sourced from the
+# canonical lib. Submodule mode passes the in-tree submodule path as
+# default source. Submodule installs copy (not symlink) the workflow file
+# into the consumer's .github/workflows/ — GH Actions ignores symlinked
+# workflow files, and consumer-side customization should be possible.
+# shellcheck source=lib/scaffold-post-merge-workflow.sh
+SCRIPT_DIR_FOR_SCAFFOLD="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR_FOR_SCAFFOLD}/lib/scaffold-post-merge-workflow.sh"
 
-  if [[ -f "$target" ]]; then
-    log "$target already exists, preserving..."
-    return 0
-  fi
-
-  if [[ ! -f "$source_path" ]]; then
-    warn "post-merge.yml not in submodule ($source_path), skipping (post-merge automation will be inert)"
-    return 0
-  fi
-
-  mkdir -p .github/workflows
-  cp "$source_path" "$target"
-  log "Scaffolded $target from $source_path"
+# Submodule mode wrapper — defaults source path to the in-tree submodule copy
+scaffold_post_merge_workflow_submodule() {
+    scaffold_post_merge_workflow "${1:-$SUBMODULE_PATH/.github/workflows/post-merge.yml}"
 }
 
 # === Auto-Init Submodule (post-clone recovery) ===
@@ -957,7 +945,7 @@ main() {
   create_config
   create_manifest
   init_state_zone
-  scaffold_post_merge_workflow
+  scaffold_post_merge_workflow_submodule
   create_commit
 
   echo ""

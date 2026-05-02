@@ -883,34 +883,11 @@ sync_optional_file() {
   }
 }
 
-# Issue #669: scaffold post-merge automation workflow on first mount.
-# Idempotent (preserves user-customized workflow). Mode-agnostic helper:
-# direct-mode callers omit $1 to fall through to the upstream git checkout;
-# submodule-mode callers pass the in-tree submodule path.
-scaffold_post_merge_workflow() {
-  local source_path="${1:-}"
-  local target=".github/workflows/post-merge.yml"
-
-  if [[ -f "$target" ]]; then
-    log "$target already exists, preserving..."
-    return 0
-  fi
-
-  mkdir -p .github/workflows
-
-  if [[ -n "$source_path" && -f "$source_path" ]]; then
-    cp "$source_path" "$target"
-    log "Scaffolded $target from $source_path"
-    return 0
-  fi
-
-  log "Scaffolding $target from upstream..."
-  if git checkout "$LOA_REMOTE_NAME/$LOA_BRANCH" -- "$target" 2>/dev/null; then
-    log "Scaffolded $target"
-  else
-    warn "post-merge.yml not in upstream, skipping (post-merge automation will be inert)"
-  fi
-}
+# Issue #669 / Bridgebuilder F6 (PR #671): scaffold helper extracted to
+# .claude/scripts/lib/scaffold-post-merge-workflow.sh as single source of
+# truth (sourced by both installers AND the bats test).
+# shellcheck source=lib/scaffold-post-merge-workflow.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/scaffold-post-merge-workflow.sh"
 
 # Orchestrate root file synchronization
 sync_root_files() {

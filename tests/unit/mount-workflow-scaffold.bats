@@ -17,6 +17,14 @@ setup() {
     TEST_DIR="$(mktemp -d)"
     export TARGET_DIR="$TEST_DIR"
 
+    # Bridgebuilder F2/F6 (PR #671): test exercises the REAL production
+    # function via lib/scaffold-post-merge-workflow.sh. No more inline
+    # fixture copy — drift between test and production is impossible
+    # because they are now the same code.
+    PROJECT_ROOT="$BATS_TEST_DIRNAME/../.."
+    # shellcheck source=../../.claude/scripts/lib/scaffold-post-merge-workflow.sh
+    source "$PROJECT_ROOT/.claude/scripts/lib/scaffold-post-merge-workflow.sh"
+
     # Fixture upstream workflow file — represents what `git checkout
     # $REMOTE/$BRANCH -- .github/workflows/post-merge.yml` would produce
     # OR what a submodule mode mount would copy from $SUBMODULE_PATH.
@@ -43,6 +51,9 @@ jobs:
         run: .claude/scripts/classify-merge-pr.sh --merge-sha "$MERGE_SHA"
 YAML
 
+    # Ensure the lib's git-checkout fallback is inert in the test environment
+    unset LOA_REMOTE_NAME LOA_BRANCH
+
     cd "$TEST_DIR"
 }
 
@@ -50,30 +61,6 @@ teardown() {
     if [[ -n "${TEST_DIR:-}" && -d "$TEST_DIR" ]]; then
         rm -rf "$TEST_DIR"
     fi
-}
-
-# =============================================================================
-# Function under test — keep in sync with mount-loa.sh / mount-submodule.sh
-# implementations. The shape is intentionally minimal: one source-aware
-# helper, idempotent, mode-agnostic.
-# =============================================================================
-scaffold_post_merge_workflow() {
-    local source_path="${1:-}"
-    local target=".github/workflows/post-merge.yml"
-
-    if [[ -f "$target" ]]; then
-        return 0
-    fi
-
-    mkdir -p .github/workflows
-
-    if [[ -n "$source_path" && -f "$source_path" ]]; then
-        cp "$source_path" "$target"
-        return 0
-    fi
-
-    # Fallback: not provided + no git remote → graceful no-op (caller logs)
-    return 0
 }
 
 # =========================================================================
@@ -141,29 +128,50 @@ scaffold_post_merge_workflow() {
 @test "MWS-T8: repo's .github/workflows/post-merge.yml has submodules: recursive on every actions/checkout" {
     local upstream_workflow="$BATS_TEST_DIRNAME/../../.github/workflows/post-merge.yml"
     [ -f "$upstream_workflow" ]
-    # Count actions/checkout invocations and submodules: recursive entries
+    # Bridgebuilder F4 (PR #671): drop the redundant `|| echo 0` from grep -c.
+    # `grep -cE` already prints 0 when no matches; the `|| true` keeps
+    # bash strict-mode pipefail from aborting on empty results.
     local checkout_count submodules_count
-    checkout_count=$(grep -cE "uses:\s*actions/checkout" "$upstream_workflow" || echo 0)
-    submodules_count=$(grep -cE "submodules:\s*recursive" "$upstream_workflow" || echo 0)
-    # Every checkout must have a matching submodules: recursive
+    checkout_count=$(grep -cE "uses:\s*actions/checkout" "$upstream_workflow" || true)
+    submodules_count=$(grep -cE "submodules:\s*recursive" "$upstream_workflow" || true)
+    # Every checkout must have a matching submodules: recursive (3 of each
+    # in the live workflow as of #669)
     [ "$checkout_count" -gt 0 ]
     [ "$submodules_count" -ge "$checkout_count" ]
 }
 
 # =========================================================================
-# MWS-T9: mount-loa.sh defines scaffold_post_merge_workflow
+# MWS-T9: mount-loa.sh sources the canonical scaffold lib
 # =========================================================================
 
-@test "MWS-T9: mount-loa.sh defines scaffold_post_merge_workflow" {
+@test "MWS-T9: mount-loa.sh sources scaffold-post-merge-workflow lib" {
     local script="$BATS_TEST_DIRNAME/../../.claude/scripts/mount-loa.sh"
-    grep -qE "^scaffold_post_merge_workflow\(\)" "$script"
+    grep -qE "scaffold-post-merge-workflow\.sh" "$script"
 }
 
 # =========================================================================
-# MWS-T10: mount-submodule.sh defines scaffold_post_merge_workflow
+# MWS-T10: mount-submodule.sh sources the canonical scaffold lib
 # =========================================================================
 
-@test "MWS-T10: mount-submodule.sh defines scaffold_post_merge_workflow" {
+@test "MWS-T10: mount-submodule.sh sources scaffold-post-merge-workflow lib" {
     local script="$BATS_TEST_DIRNAME/../../.claude/scripts/mount-submodule.sh"
-    grep -qE "^scaffold_post_merge_workflow\(\)" "$script"
+    grep -qE "scaffold-post-merge-workflow\.sh" "$script"
+}
+
+# =========================================================================
+# MWS-T11: lib is the single source of truth (no inline defs in installers)
+# Bridgebuilder F2/F6 (PR #671): drift between test and prod is impossible
+# when both source the same lib. Verify no inline scaffold_post_merge_workflow()
+# function definition remains in either installer (would shadow the lib).
+# =========================================================================
+
+@test "MWS-T11: no inline scaffold_post_merge_workflow body in mount-loa.sh" {
+    local script="$BATS_TEST_DIRNAME/../../.claude/scripts/mount-loa.sh"
+    # Allow comment references to the function name; reject standalone definitions
+    ! grep -qE "^scaffold_post_merge_workflow\(\)\s*\{" "$script"
+}
+
+@test "MWS-T12: no inline scaffold_post_merge_workflow body in mount-submodule.sh" {
+    local script="$BATS_TEST_DIRNAME/../../.claude/scripts/mount-submodule.sh"
+    ! grep -qE "^scaffold_post_merge_workflow\(\)\s*\{" "$script"
 }

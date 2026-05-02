@@ -5,6 +5,29 @@ on:
   push:
     branches: [main]
 
+# =============================================================================
+# Issue #669 / Bridgebuilder F-001 (PR #671): submodule recursion decision trail
+# =============================================================================
+# All `actions/checkout` steps below set `submodules: recursive`. Required for
+# Loa's submodule install mode where `.claude/scripts/*` are symlinks into the
+# `.loa/` submodule — without recursion, runtime hits `exit-127: No such file
+# or directory: .claude/scripts/classify-pr-type.sh`.
+#
+# Trade-off (security): consumers with their own (non-Loa) submodules will now
+# also fetch them on every post-merge run. Mitigations:
+#   1. GH Actions runner does NOT execute submodule post-checkout hooks; the
+#      recursive fetch only places source files on the runner disk.
+#   2. The workflow token's permissions (`contents: write, pull-requests:
+#      write, actions: read`) bound the blast radius of any malicious
+#      submodule content.
+#   3. Consumers should review their `.gitmodules` before adding new entries
+#      to avoid pinning untrusted sources.
+#
+# If a future job demonstrably does not need submodules, downgrade to
+# `submodules: false` for that job specifically — but keep the default at
+# `recursive` so the symlink-resolution failure mode does not return.
+# =============================================================================
+
 # Permissions required for tag creation, release, PR comments
 permissions:
   contents: write
