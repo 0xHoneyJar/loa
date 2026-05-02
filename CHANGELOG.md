@@ -40,6 +40,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **94 new BATS tests** across 5 files (`tests/unit/construct-{validate,compose,invoke}.bats`, `tests/unit/stream-validate.bats`, `tests/unit/butterfreezone-construct-gen.bats`) plus 1 opt-in characterization test (`LOA_TEST_DOCUMENT_RACE=1`). Covers happy paths, failure modes, JSON output shape, idempotency, race-resistance under explicit session_id passing.
   - **Six-iteration kaironic Bridgebuilder review** drove three rounds of hardening: tool-skip guards, strict assertions over permissive escapes, end-to-end schema dogfooding, race-condition mitigation with explicit value-passing as the recommended path. Final iter clean modulo the residual race tracked in [#636](https://github.com/0xHoneyJar/loa/issues/636).
 
+## [1.109.4] — 2026-05-02 — Post-merge workflow scaffold on mount (sprint-bug-130)
+
+### Fixed
+
+- **#669 — Post-merge automation orchestrator scripts shipped without an invoking workflow template** (sprint-bug-130, [PR #671](https://github.com/0xHoneyJar/loa/pull/671)) — downstream consumer repos installing Loa via `mount-loa.sh` (direct) or `mount-submodule.sh` (symlink) had `post_merge.enabled: true` do nothing because `.github/workflows/post-merge.yml` was never scaffolded into the consumer's `.github/workflows/`. For submodule mode specifically, even copy-pasting the workflow failed with `exit-127: No such file or directory: .claude/scripts/classify-pr-type.sh` because `actions/checkout` without `submodules: recursive` left `.claude/scripts/*` as dangling symlinks.
+  - **Single source of truth**: `submodules: recursive` added to all 3 `actions/checkout` steps in `.github/workflows/post-merge.yml` with a workflow-level decision-trail comment block. No-op for direct-mode consumers; required for submodule-mode consumers.
+  - **Idempotent scaffold helper**: `.claude/scripts/lib/scaffold-post-merge-workflow.sh` (new) — sourced from both installers AND the bats test (Bridgebuilder F2/F6 — eliminates three-way duplication; tests now exercise the real production function). Direct mode pulls via `git checkout $LOA_REMOTE_NAME/$LOA_BRANCH`; submodule mode copies from `$SUBMODULE_PATH/.github/workflows/post-merge.yml`. Both modes preserve user-customized workflow on re-mount (`sync_optional_file` semantics).
+  - **12 new bats tests** in `tests/unit/mount-workflow-scaffold.bats` (10 functional + 2 regression guards against re-introducing inline duplicates).
+  - Live verification deferred to next downstream consumer mount.
+
+## [1.109.3] — 2026-05-02 — Bug batch — post-PR + post-merge + portability (sprint-bug-124..129)
+
+### Fixed
+
+- **6-bug batch** ([PR #670](https://github.com/0xHoneyJar/loa/pull/670)) — six independent framework defects landed in one branch with full quality cycle (implement → review → audit → bridgebuilder), 70 new bats tests + 155 adjacent regression tests pass.
+  - **#668 — Post-merge classifier silently classifies cycle PRs as 'other'** (sprint-bug-124) — new `.claude/scripts/classify-merge-pr.sh` wrapper uses merge commit subject as PRIMARY signal (in-tree state, never empty); `gh pr view` failures surface to stderr instead of silently routing to `other`. Delegates classification rules to existing `classify-pr-type.sh` (Issue #550). Workflow no longer re-parses `$GITHUB_OUTPUT` (Bridgebuilder F001 cleanup).
+  - **#664 — `post-pr-state.sh` rejects `bridgebuilder_review` phase** (sprint-bug-125) — one-line addition to `valid_phases` at `post-pr-state.sh:492` plus new `_update_phase` wrapper around 8 sites in `post-pr-orchestrator.sh`. Wrapper always returns 0 (true best-effort under `set -e`). Future taxonomy drift surfaces in workflow log.
+  - **#663 — `post-pr-orchestrator` passes invalid `--phase pr` to flatline-orchestrator (false `flatline_blocker` halt)** (sprint-bug-126) — `pr` added to flatline-orchestrator validator at line 1512 plus new `lib/flatline-exit-classifier.sh` distinguishes validation errors (`halt_reason: flatline_orchestrator_error`) from real flatline blockers (`halt_reason: flatline_blocker`) via stderr pattern-match + exit code.
+  - **#665 — Post-PR Bridgebuilder MEDIUM findings auto-triage to `log_only` without operator visibility** (sprint-bug-127) — new `lib/bridge-mediums-summary.sh` emits `[WARN] N MEDIUM findings logged...` line + structured `.run/post-pr-mediums-summary.json` after `phase_bridgebuilder_review()`. Convergence semantics unchanged (visibility-only patch per triage scope).
+  - **#661 — beads_rust 0.2.1 pre-commit hook fails: NOT NULL constraint failed: dirty_issues.marked_at** (sprint-bug-128) — defensive in-repo workaround. Source-of-truth template at `.claude/scripts/git-hooks/pre-commit-beads` captures stderr and emits structured diagnostic on the upstream signature. Installer at `.claude/scripts/install-beads-precommit.sh`. `beads-health.sh` extended with non-mutating sqlite3 PRAGMA probe → `MIGRATION_NEEDED` on detect. Root cause is upstream `beads_rust 0.2.1`; this fix only improves operator visibility.
+  - **#660 — `mount-submodule.sh --reconcile` silently skips creating missing symlinks on macOS (BSD `realpath` lacks `-m`)** (sprint-bug-129) — new `lib/portable-realpath.sh` probes for `realpath -m` once at source time; 3-layer fallback (GNU `-m` → BSD plain → bash parameter expansion). Reconcile partial-failure now exits non-zero with explicit warn line — CI / downstream automation can detect partial reconcile via exit code.
+
+## [1.109.2] — 2026-05-02 — CHANGELOG backfill — cycle-096 + cycle-097 entries
+
+### Changed
+
+- **Documentation-only release** ([PR #667](https://github.com/0xHoneyJar/loa/pull/667)) — backfilled CHANGELOG entries for v1.109.0 (cycle-096 — AWS Bedrock provider) and v1.109.1 (cycle-097 — quick-win finding remediations) that had been tagged but lacked CHANGELOG documentation. No functional changes.
+
 ## [1.109.1] — 2026-05-02 — Cycle-097 — quick-win finding remediations
 
 Five non-blocking findings from cycle-096 sprint-127/sprint-128 review feedback, surfaced by Bridgebuilder review of [PR #662](https://github.com/0xHoneyJar/loa/pull/662) and explicitly deferred to follow-up by the senior reviewer + paranoid auditor. Shipped as [PR #666](https://github.com/0xHoneyJar/loa/pull/666).
