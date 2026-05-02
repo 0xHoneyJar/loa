@@ -464,10 +464,15 @@ A friend's pattern was shared offline — used only for context-grounding, not c
 ### Implementation report
 `grimoires/loa/a2a/sprint-127/reviewer.md` (local-only per a2a/ gitignore convention) walks every Sprint 1 acceptance criterion with verbatim quotes + status + file:line evidence.
 
-### Pending Sprint 1 closure
-- /review-sprint pass — pending
-- /audit-sprint pass — pending after /review-sprint
-- Post-merge: cycle-096 ships when sprint-127 lands; Sprint 2 follow-on.
+### Sprint 1 closure (COMPLETED 2026-05-02)
+- ✓ /review-sprint — APPROVED (with documented non-blocking concerns NC-1..NC-10 carried forward to Sprint 2)
+- ✓ Iteration on CI-1 (prefer_bedrock runtime fallback dispatch) — fixed in commit 8a17a7d
+- ✓ /audit-sprint — APPROVED ("LETS FUCKING GO"); paranoid cypherpunk verdict at `grimoires/loa/a2a/sprint-127/auditor-sprint-feedback.md`
+- ✓ COMPLETED marker created
+- ✓ Ledger updated: sprint-127 status=completed
+- 12 commits on `feat/cycle-096-aws-bedrock`; PR #662 ready for merge
+- 729 pytest + 67 BATS pass; 3 live Bedrock tests green; zero regressions
+- Sprint 2 follow-on items: NC-1..NC-10 from review feedback + AC verification deferrals (auth_lifetime: short rejection, pricing live-fetch, recurring CI smoke workflow)
 
 ### v1.0 → v1.1 changes
 - Added Sprint 0 "Contract Verification Spike" with 5 gates (G-S0-1..5) blocking Sprint 1

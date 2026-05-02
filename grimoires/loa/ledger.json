@@ -739,9 +739,10 @@
           "local_id": 1,
           "global_id": 127,
           "label": "Bedrock v1 Functional + Centralized Parser",
-          "status": "in_progress",
+          "status": "completed",
           "started": "2026-05-02T04:36:39Z",
-          "branch": "feat/cycle-096-aws-bedrock"
+          "branch": "feat/cycle-096-aws-bedrock",
+          "completed": "2026-05-02T04:59:34Z"
         }
       ],
       "source_issue": "https://github.com/0xHoneyJar/loa/issues/652"
