@@ -230,6 +230,27 @@ setup() {
 }
 
 # -----------------------------------------------------------------------------
+# cycle-096 Sprint 1 Task 1.1 (SDD §5.4) — colon-bearing model_id parser fix
+# -----------------------------------------------------------------------------
+# Regression test: gen-adapter-maps.sh used to do `split(":")[1]` which
+# silently dropped trailing colons in model IDs (e.g., the `:0` suffix on
+# Bedrock Haiku 4.5: `bedrock:us.anthropic.claude-haiku-4-5-20251001-v1:0`).
+# Cycle-096 Sprint 1 Task 1.1 Phase C replaced this with
+# `(split(":")[1:] | join(":"))` to preserve everything after the first colon.
+@test "colon-bearing-aliases: synthetic colon-bearing alias preserves trailing colons" {
+    local input='{"tiny-bedrock":"bedrock:us.anthropic.claude-haiku-4-5-20251001-v1:0"}'
+    local expected='    ["tiny-bedrock"]="us.anthropic.claude-haiku-4-5-20251001-v1:0"'
+    local actual
+    actual="$(echo "$input" | jq -r '
+        to_entries[]
+        | select((.value | split(":")[0]) != "claude-code")
+        | select(.value | test("^[^:]+:"))
+        | "    [\"\(.key)\"]=\"\(.value | (split(":")[1:] | join(":")))\""
+    ')"
+    [ "$actual" = "$expected" ]
+}
+
+# -----------------------------------------------------------------------------
 # cycle-095 Sprint 1 (SDD §3.4) — endpoint_family invariant on OpenAI models
 # -----------------------------------------------------------------------------
 @test "endpoint_family: every OpenAI model declares chat or responses" {

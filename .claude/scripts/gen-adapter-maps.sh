@@ -150,12 +150,12 @@ EOF
         to_entries[]
         | select((.value | split(":")[0]) != "claude-code")
         | select(.value | test("^[^:]+:"))
-        | "    [\"\(.key)\"]=\"\(.value | split(":")[1])\""
+        | "    [\"\(.key)\"]=\"\(.value | (split(":")[1:] | join(":")))\""
     '
 
     yq eval -o=json '.backward_compat_aliases // {}' "$CONFIG_FILE" | jq -r '
         to_entries[]
-        | "    [\"\(.key)\"]=\"\(.value | split(":")[1])\""
+        | "    [\"\(.key)\"]=\"\(.value | (split(":")[1:] | join(":")))\""
     '
 
     cat <<EOF
