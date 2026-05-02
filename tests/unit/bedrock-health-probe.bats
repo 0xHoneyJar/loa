@@ -21,7 +21,13 @@ setup() {
 
     # CRITICAL: override _curl_json AFTER sourcing the probe (which defines
     # the real one). State is pre-populated by _mock_curl in each test.
+    # F002 (cycle-097): set _CURL_JSON_CALLED=1 inside the override so tests
+    # can assert the probe actually invoked it. Prevents silent passing if
+    # the probe ever stops calling _curl_json (e.g., a refactor that fails
+    # an early-return guard) — the mock's pre-populated HTTP_STATUS would
+    # otherwise still drive an apparently-correct PROBE_STATE.
     _curl_json() {
+        _CURL_JSON_CALLED=1
         return 0
     }
 
@@ -45,6 +51,7 @@ setup() {
     PROBE_HTTP=""
     PROBE_LATENCY_MS=""
     PROBE_ERROR_CLASS=""
+    _CURL_JSON_CALLED=0
 }
 
 # --- Auth-missing path ---
@@ -56,6 +63,9 @@ setup() {
     [ "$PROBE_CONFIDENCE" = "low" ]
     [ "$PROBE_ERROR_CLASS" = "auth" ]
     [[ "$PROBE_REASON" == *"AWS_BEARER_TOKEN_BEDROCK not set"* ]]
+    # F002: probe must short-circuit BEFORE the network call when auth is
+    # missing — confirms we don't accidentally start leaking unauth requests.
+    [ "$_CURL_JSON_CALLED" = "0" ]
 }
 
 # --- 200 OK paths ---
@@ -67,6 +77,10 @@ setup() {
     [ "$PROBE_STATE" = "AVAILABLE" ]
     [ "$PROBE_CONFIDENCE" = "high" ]
     [ "$PROBE_ERROR_CLASS" = "ok" ]
+    # F002: ensure the probe actually issued the network call. Without this,
+    # the assertion above could pass on stale RESPONSE_BODY/HTTP_STATUS state
+    # if the probe ever short-circuits unexpectedly.
+    [ "$_CURL_JSON_CALLED" = "1" ]
 }
 
 @test "probe_bedrock: 200 OK without model in listing → UNAVAILABLE high" {
