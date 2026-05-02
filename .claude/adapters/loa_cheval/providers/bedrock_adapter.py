@@ -39,6 +39,8 @@ from loa_cheval.providers.base import (
     enforce_context_window,
     http_post,
 )
+from loa_cheval.providers.bedrock_token_age import record_token_use
+from loa_cheval.config.redaction import register_value_redaction
 from loa_cheval.types import (
     ChevalError,
     CompletionRequest,
@@ -211,6 +213,21 @@ class BedrockAdapter(ProviderAdapter):
             "Content-Type": "application/json",
             "Authorization": f"Bearer {auth}",
         }
+
+        # Two-layer redaction registration (NFR-Sec10) + token age tracking
+        # (NFR-Sec11). Both are best-effort; failures do not gate the request.
+        # Idempotent: register_value_redaction dedupes via set membership;
+        # record_token_use writes the sentinel at most once per call.
+        register_value_redaction(auth)
+        # max_age_days: read from provider extras if present, else default 90.
+        # Schema lives at hounfour.bedrock.token_max_age_days; for now we read
+        # via os.environ since there's no plumbing for arbitrary provider-level
+        # config in ProviderConfig today. Cycle-097 can promote to first-class.
+        try:
+            max_age = int(os.environ.get("LOA_BEDROCK_TOKEN_MAX_AGE_DAYS", "90"))
+        except (TypeError, ValueError):
+            max_age = 90
+        record_token_use(auth, max_age_days=max_age)
 
         # Issue the request with empty-content single-retry semantics.
         return self._post_with_empty_retry(

@@ -31,12 +31,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from loa_cheval.providers.bedrock_adapter import (  # noqa: E402
     BedrockAdapter,
     OnDemandNotSupportedError,
+    _DAILY_QUOTA_EXCEEDED,
 )
 from loa_cheval.types import (  # noqa: E402
     CompletionRequest,
     ModelConfig,
     ProviderConfig,
 )
+
+
+@pytest.fixture(autouse=True)
+def _reset_circuit_breaker():
+    """Daily-quota circuit breaker is process-scoped; clear before each test
+    to isolate from other test modules that may have set it."""
+    _DAILY_QUOTA_EXCEEDED.clear()
+    yield
+    _DAILY_QUOTA_EXCEEDED.clear()
 
 
 # ---------------------------------------------------------------------------

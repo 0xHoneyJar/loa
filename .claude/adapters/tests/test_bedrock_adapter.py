@@ -648,12 +648,14 @@ def test_transform_messages_handles_string_user_content():
 
 
 def test_adapter_module_does_not_import_boto3():
-    """v1 must not pull in boto3/botocore — Bearer-only path."""
-    import importlib
+    """v1 must not pull in boto3/botocore — Bearer-only path.
+
+    Reads the source file directly rather than importlib.reload to avoid
+    refreshing the exception class identity (which would cause downstream
+    tests' `pytest.raises(OnDemandNotSupportedError)` to fail to match).
+    """
     import loa_cheval.providers.bedrock_adapter as mod
 
-    # Reload to ensure top-level imports are exercised.
-    importlib.reload(mod)
     src = Path(mod.__file__).read_text()
     assert "import boto3" not in src
     assert "import botocore" not in src
