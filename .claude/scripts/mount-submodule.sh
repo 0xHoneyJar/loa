@@ -409,6 +409,10 @@ safe_symlink() {
 # To add a new symlink target, change ONLY the library file — all consumers inherit.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/symlink-manifest.sh"
+# Issue #660: GNU/BSD portable realpath. macOS/BSD lacks `realpath -m` and
+# the previous inline call silently produced empty strings on every macOS
+# operator's first reconcile, falsely declaring `0 fixed` for missing links.
+source "${SCRIPT_DIR}/lib/portable-realpath.sh"
 
 # === Create Symlinks ===
 # Consumes get_symlink_manifest() — single source of truth for symlink topology.
@@ -846,9 +850,10 @@ verify_and_reconcile_symlinks() {
         local parent_dir
         parent_dir=$(dirname "$full_link")
         mkdir -p "$parent_dir"
-        # Only create if target exists in submodule
+        # Issue #660: portable resolver — works on both GNU and BSD/macOS.
+        # Previously: `realpath -m` silently failed on BSD with empty output.
         local resolved_target
-        resolved_target=$(cd "$(dirname "$full_link")" 2>/dev/null && realpath -m "$target" 2>/dev/null || echo "")
+        resolved_target=$(cd "$(dirname "$full_link")" 2>/dev/null && resolve_path_portable "$target" || echo "")
         if [[ -n "$resolved_target" && -e "$resolved_target" ]]; then
           ln -sf "$target" "$full_link"
           fixed=$((fixed + 1))
@@ -862,7 +867,15 @@ verify_and_reconcile_symlinks() {
   echo ""
   log "Symlink health: ${ok} ok, ${dangling} dangling, ${stale} missing, ${fixed} fixed"
 
-  if [[ $((dangling + stale)) -gt 0 && "$reconcile" != "true" ]]; then
+  # Issue #660 part 2: reconcile partial-success must surface as non-zero.
+  # Previously, when reconcile=true but `fixed < (dangling + stale)`, the
+  # function silently returned 0 — CI / downstream automation had no way
+  # to detect that some symlinks remained broken.
+  if [[ "$reconcile" != "true" && $((dangling + stale)) -gt 0 ]]; then
+    return 1
+  fi
+  if [[ "$reconcile" == "true" && $fixed -lt $((dangling + stale)) ]]; then
+    warn "Reconcile partial failure: ${fixed} fixed but ${dangling} dangling + ${stale} missing remained"
     return 1
   fi
   return 0

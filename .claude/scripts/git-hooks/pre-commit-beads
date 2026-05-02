@@ -1,0 +1,96 @@
+#!/bin/sh
+#
+# pre-commit-beads — hardened beads_rust pre-commit hook (Issue #661)
+# =============================================================================
+# Source-of-truth template for the beads_rust pre-commit hook. Operators
+# install via .claude/scripts/install-beads-precommit.sh which copies this
+# file into .git/hooks/pre-commit (per-clone).
+#
+# Differences from the upstream br-managed template:
+#  1. Captures `br sync --flush-only` stderr to a temp file rather than
+#     redirecting to /dev/null. The original swallowed diagnostic stderr
+#     and emitted only a canned "Failed to flush" message — operators had
+#     to re-run the command separately to see the actual VDBE error.
+#  2. On failure, pattern-matches the captured stderr for the known upstream
+#     migration-bug signature ("NOT NULL constraint failed: dirty_issues.marked_at")
+#     and emits a structured diagnostic block linking to issue #661 and
+#     the recommended workaround.
+#  3. On unmatched failures, passes through the verbatim stderr so operators
+#     see the actual error rather than a canned message.
+#
+# Per-clone install — file is gitignored at the canonical .git/hooks/pre-commit
+# path. The source-of-truth lives here in version control.
+# =============================================================================
+
+# Check if br is available
+if ! command -v br >/dev/null 2>&1; then
+    echo "Warning: br command not found, skipping pre-commit flush" >&2
+    exit 0
+fi
+
+# Locate .beads (handles worktrees)
+BEADS_DIR=""
+if git rev-parse --git-dir >/dev/null 2>&1; then
+    if [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]; then
+        MAIN_REPO_ROOT="$(git rev-parse --git-common-dir)"
+        MAIN_REPO_ROOT="$(dirname "$MAIN_REPO_ROOT")"
+        if [ -d "$MAIN_REPO_ROOT/.beads" ]; then
+            BEADS_DIR="$MAIN_REPO_ROOT/.beads"
+        fi
+    else
+        if [ -d .beads ]; then
+            BEADS_DIR=".beads"
+        fi
+    fi
+fi
+
+if [ -z "$BEADS_DIR" ]; then
+    exit 0  # Not a br workspace
+fi
+
+# Capture stderr to a temp file rather than swallowing it
+br_stderr=$(mktemp)
+trap 'rm -f "$br_stderr"' EXIT
+
+if br sync --flush-only >/dev/null 2>"$br_stderr"; then
+    # Success path — stage updated JSONL if applicable
+    if [ -f "$BEADS_DIR/issues.jsonl" ]; then
+        if [ "$(git rev-parse --git-dir)" = "$(git rev-parse --git-common-dir)" ]; then
+            git add "$BEADS_DIR/issues.jsonl" 2>/dev/null || true
+        fi
+    fi
+    exit 0
+fi
+
+# Failure path. Pattern-match for the known upstream migration bug.
+if grep -q "NOT NULL constraint failed: dirty_issues.marked_at" "$br_stderr" 2>/dev/null; then
+    cat <<'DIAG' >&2
+=============================================================================
+br migration error detected (upstream beads_rust 0.2.1)
+=============================================================================
+The local beads database has a schema migration that fails when the upstream
+beads_rust crate adds a NOT NULL column without a DEFAULT value to the
+dirty_issues table. This is an upstream bug, NOT a problem with your commit.
+
+Captured stderr:
+DIAG
+    sed 's/^/  /' "$br_stderr" >&2
+    cat <<'DIAG' >&2
+
+Recommended workaround:
+  Use 'git commit --no-verify' for this commit only. Loa will surface the
+  diagnostic again on subsequent commits until the upstream fix lands.
+
+Tracking:
+  https://github.com/0xHoneyJar/loa/issues/661
+=============================================================================
+DIAG
+    exit 1
+fi
+
+# Unmatched failure — pass through the verbatim stderr (no swallowing)
+echo "Error: br sync --flush-only failed; captured stderr:" >&2
+sed 's/^/  /' "$br_stderr" >&2
+echo "" >&2
+echo "Run 'br sync --flush-only' manually to reproduce." >&2
+exit 1

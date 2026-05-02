@@ -164,6 +164,49 @@ check_schema() {
     return 0
 }
 
+# Issue #661: detect the upstream beads_rust 0.2.1 migration bug where
+# dirty_issues.marked_at is declared NOT NULL without a DEFAULT value.
+# This pre-flight inspection is non-mutating (sqlite3 PRAGMA only) and
+# emits MIGRATION_NEEDED status with a structured diagnostic when matched.
+check_dirty_issues_migration() {
+    local db_path="${BEADS_DIR}/beads.db"
+
+    if [[ ! -f "${db_path}" ]]; then
+        CHECKS["dirty_issues_migration"]="no_database"
+        return 0
+    fi
+
+    # PRAGMA table_info row format: cid|name|type|notnull|dflt_value|pk
+    # The bug: marked_at column with notnull=1 and dflt_value empty/NULL.
+    # Match the marked_at row exactly and check the notnull + default fields.
+    local row
+    row=$(sqlite3 "${db_path}" "PRAGMA table_info(dirty_issues);" 2>/dev/null \
+          | awk -F'|' '$2 == "marked_at" { print }' \
+          | head -1 || true)
+
+    if [[ -z "$row" ]]; then
+        # Table or column doesn't exist — older schema, no bug
+        CHECKS["dirty_issues_migration"]="ok"
+        return 0
+    fi
+
+    # Parse fields
+    local notnull dflt
+    notnull=$(echo "$row" | awk -F'|' '{print $4}')
+    dflt=$(echo "$row" | awk -F'|' '{print $5}')
+
+    if [[ "$notnull" == "1" && -z "$dflt" ]]; then
+        CHECKS["dirty_issues_migration"]="needs_repair"
+        RECOMMENDATIONS+=("MIGRATION BUG DETECTED (Issue #661): dirty_issues.marked_at is NOT NULL with no DEFAULT — upstream beads_rust 0.2.1 bug")
+        RECOMMENDATIONS+=("Workaround: 'git commit --no-verify' (immediate); install hardened pre-commit via .claude/scripts/install-beads-precommit.sh")
+        RECOMMENDATIONS+=("Tracking: https://github.com/0xHoneyJar/loa/issues/661")
+        return 3
+    fi
+
+    CHECKS["dirty_issues_migration"]="ok"
+    return 0
+}
+
 check_doctor() {
     if [[ "${QUICK}" == true ]]; then
         CHECKS["doctor"]="skipped"
@@ -243,6 +286,11 @@ determine_status() {
         return 3
     fi
 
+    if [[ "${CHECKS[dirty_issues_migration]:-}" == "needs_repair" ]]; then
+        echo "MIGRATION_NEEDED"
+        return 3
+    fi
+
     if [[ "${CHECKS[database]:-}" == "corrupted" ]]; then
         echo "UNHEALTHY"
         return 5
@@ -296,6 +344,7 @@ output_json() {
     "database": "${CHECKS[database]:-unknown}",
     "db_size_mb": ${CHECKS[db_size_mb]:-0},
     "schema": "${CHECKS[schema]:-unknown}",
+    "dirty_issues_migration": "${CHECKS[dirty_issues_migration]:-unknown}",
     "doctor": "${CHECKS[doctor]:-unknown}",
     "jsonl": "${CHECKS[jsonl]:-unknown}",
     "jsonl_size_mb": ${CHECKS[jsonl_size_mb]:-0},
@@ -373,6 +422,7 @@ main() {
     # Run remaining checks
     check_database || true
     check_schema || true
+    check_dirty_issues_migration || true
     check_doctor || true
     check_jsonl_sync || true
 

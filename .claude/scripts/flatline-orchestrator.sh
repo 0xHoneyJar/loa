@@ -10,7 +10,7 @@
 #
 # Options:
 #   --doc <path>           Document to review (required)
-#   --phase <type>         Phase type: prd, sdd, sprint, beads (required)
+#   --phase <type>         Phase type: prd, sdd, sprint, beads, spec, pr (required)
 #   --domain <text>        Domain for knowledge retrieval (auto-extracted if not provided)
 #   --interactive          Force interactive mode (overrides auto-detection)
 #   --autonomous           Force autonomous mode (overrides auto-detection)
@@ -1327,7 +1327,7 @@ Usage: flatline-orchestrator.sh --doc <path> --phase <type> [options]
 
 Required:
   --doc <path>           Document to review
-  --phase <type>         Phase type: prd, sdd, sprint, beads
+  --phase <type>         Phase type: prd, sdd, sprint, beads, spec, pr
 
 Options:
   --mode <type>          Mode: review (default), red-team, inquiry
@@ -1509,8 +1509,8 @@ main() {
         exit 1
     fi
 
-    if [[ "$phase" != "prd" && "$phase" != "sdd" && "$phase" != "sprint" && "$phase" != "beads" && "$phase" != "spec" ]]; then
-        error "Invalid phase: $phase (expected: prd, sdd, sprint, beads, spec)"
+    if [[ "$phase" != "prd" && "$phase" != "sdd" && "$phase" != "sprint" && "$phase" != "beads" && "$phase" != "spec" && "$phase" != "pr" ]]; then
+        error "Invalid phase: $phase (expected: prd, sdd, sprint, beads, spec, pr)"
         exit 1
     fi
 

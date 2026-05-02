@@ -573,6 +573,50 @@ A friend's pattern was shared offline — used only for context-grounding, not c
 7. Region selection: per-provider config or per-model?
 8. Testing approach: live API contract, mocks, or both?
 
+## Bug Triage Batch — 2026-05-02 (issues #668, #665, #664, #663, #661, #660)
+
+Six issues triaged in parallel via `/bug` skill. All accepted (eligibility scores 3-4); 6 micro-sprints created (sprint-bug-124 through sprint-bug-129). Ledger updated with 6 new bugfix_cycles entries; `global_sprint_counter` advanced from 123 → 129.
+
+| Issue | Bug ID | Sprint | Severity | Class | Test Type |
+|-------|--------|--------|----------|-------|-----------|
+| #668 | 20260502-i668-3b9765 | sprint-bug-124 | high | regression / silent-failure (CI workflow) | unit |
+| #664 | 20260502-i664-653da7 | sprint-bug-125 | medium | regression / taxonomy drift (one-line fix + orchestrator hardening) | unit |
+| #663 | 20260502-i663-ec337e | sprint-bug-126 | high | false-positive halt / interface mismatch | unit |
+| #665 | 20260502-i665-3962d9 | sprint-bug-127 | medium | silent default / process-discipline gap (visibility-only fix in scope) | unit |
+| #661 | 20260502-i661-cd5f4f | sprint-bug-128 | high | external dep / defensive diagnostic (root cause is upstream beads_rust) | unit |
+| #660 | 20260502-i660-dd4514 | sprint-bug-129 | high | portability defect (BSD realpath) + silent reconcile exit | unit |
+
+### Beads task creation skipped
+
+`br create` failed with the exact migration error described in #661: `VDBE halted with code 19: NOT NULL constraint failed: dirty_issues.marked_at`. Continued without beads tracking per skill protocol's graceful-fallback rule. The triage and sprint files are the source-of-truth; `/implement <sprint-id>` will resolve the global ID via the ledger.
+
+### Cross-bug observations
+- **#663 + #664 are mutually-blocking for the post-PR Bridgebuilder loop**: #663 halts FLATLINE_PR with a false blocker before BRIDGEBUILDER_REVIEW can run; #664 silently drops the phase status when it does run. They could ship in either order, but should ship together to validate the loop works end-to-end.
+- **#665 partially overlaps with #664/#663**: the visibility surface from #665 needs the Bridgebuilder loop to run (gated by #663) and the phase status to record (gated by #664). Recommend implementing #663 → #664 → #665 in that order, or batching all three into a single PR.
+- **#668 is independent** (post-merge workflow, not post-PR).
+- **#661 is independent** but has diagnostic-only scope; root cause needs an upstream beads_rust PR.
+- **#660 is independent** (initial-mount portability, not post-PR/post-merge related).
+
 ## Blockers
 
-None.
+- **Beads workspace migration error** (#661) blocks any `br create / br update` from this workspace. Workaround: rely on the ledger as authoritative source of truth for triage state until the upstream `beads_rust` migration is fixed or the local DB is rebuilt outside the broken migration path.
+
+## Bug Implementation Batch — 2026-05-02 (sprint-bug-124..129)
+
+All six bug sprints implemented test-first on branch `fix/sprint-bug-124-129`. State files updated TRIAGE → COMPLETE. 70 new bats tests pass; 125 existing related tests pass with no regressions.
+
+| Sprint | Issue | Files Changed | New Tests |
+|--------|-------|---------------|-----------|
+| sprint-bug-124 | #668 | `.github/workflows/post-merge.yml`, `.claude/scripts/classify-merge-pr.sh` (new) | classify-merge-pr.bats (13) |
+| sprint-bug-125 | #664 | `.claude/scripts/post-pr-state.sh` (1 line), `.claude/scripts/post-pr-orchestrator.sh` (helper + 8 sites) | post-pr-state.bats (9) |
+| sprint-bug-126 | #663 | `.claude/scripts/flatline-orchestrator.sh` (validator + usage docs), `.claude/scripts/post-pr-orchestrator.sh:phase_flatline_pr()`, `.claude/scripts/lib/flatline-exit-classifier.sh` (new) | flatline-orchestrator-phase-pr.bats (9), flatline-exit-classifier.bats (12) |
+| sprint-bug-127 | #665 | `.claude/scripts/lib/bridge-mediums-summary.sh` (new), `.claude/scripts/post-pr-orchestrator.sh:phase_bridgebuilder_review()` | bridge-mediums-summary.bats (10) |
+| sprint-bug-128 | #661 | `.claude/scripts/git-hooks/pre-commit-beads` (new template), `.claude/scripts/install-beads-precommit.sh` (new), `.claude/scripts/beads/beads-health.sh` (extended) | pre-commit-beads.bats (6), beads-health-migration.bats (5) |
+| sprint-bug-129 | #660 | `.claude/scripts/lib/portable-realpath.sh` (new), `.claude/scripts/mount-submodule.sh:851,865-867` | portable-realpath.bats (6) |
+
+### Lessons learned
+
+- **Existing classifier was already extracted** (Issue #550 had landed `classify-pr-type.sh`); the post-merge.yml workflow had been left with the inline duplicate. Sprint-bug-124's wrapper delegates to the existing rules engine — no rule duplication.
+- **Pattern: lib + unit-test in isolation** worked well for fixes where the orchestrator logic is hard to test directly. Three new libs (`lib/flatline-exit-classifier.sh`, `lib/bridge-mediums-summary.sh`, `lib/portable-realpath.sh`) all follow the source-from-bash + bats-test-from-shim pattern.
+- **`replace_all=true` worked cleanly** for the 8 bridgebuilder_review sites in post-pr-orchestrator.sh — single-pattern replacement is safer than 8 individual edits.
+- **awk-based `finding_id` extraction had off-by-one**: switched to `jq -sr '.[] | select(...)|.finding_id'` (trajectory files are JSONL with stable schema). jq is the right tool when input is structured.

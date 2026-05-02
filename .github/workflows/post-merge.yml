@@ -39,42 +39,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           MERGE_SHA: ${{ github.sha }}
         run: |
-          MERGE_MSG=$(git log -1 --format='%s' "$MERGE_SHA")
-          echo "Merge message: $MERGE_MSG"
+          # Issue #668: classify by merge commit subject (PRIMARY, in-tree)
+          # rather than relying solely on `gh pr view` API state. The wrapper
+          # surfaces gh failures loudly to stderr instead of silently
+          # falling through to "other".
+          chmod +x .claude/scripts/classify-merge-pr.sh
+          .claude/scripts/classify-merge-pr.sh --merge-sha "$MERGE_SHA"
 
-          # Extract PR number from merge commit message
-          PR_NUMBER=$(echo "$MERGE_MSG" | grep -oP '#\K[0-9]+' | head -1 || echo "")
-
-          if [[ -z "$PR_NUMBER" ]]; then
-            echo "No PR number found in commit message"
-            echo "pr_number=" >> "$GITHUB_OUTPUT"
-            echo "pr_type=other" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
-
-          # Fetch PR metadata
-          PR_JSON=$(gh pr view "$PR_NUMBER" --json title,labels 2>/dev/null || echo '{}')
-          TITLE=$(echo "$PR_JSON" | jq -r '.title // ""')
-          LABELS=$(echo "$PR_JSON" | jq -r '[.labels[]?.name] | join(",")' 2>/dev/null || echo "")
-
-          echo "PR title: $TITLE"
-          echo "PR labels: $LABELS"
-
-          # Classify based on labels first, then title
-          if echo "$LABELS" | grep -qi "cycle"; then
-            PR_TYPE="cycle"
-          elif echo "$TITLE" | grep -qE "^(Run Mode|Sprint Plan|feat\(sprint|feat\(cycle)"; then
-            PR_TYPE="cycle"
-          elif echo "$TITLE" | grep -qE "^fix"; then
-            PR_TYPE="bugfix"
-          else
-            PR_TYPE="other"
-          fi
-
-          echo "pr_type=$PR_TYPE" >> "$GITHUB_OUTPUT"
-          echo "Classified as: $PR_TYPE"
+          # Echo the resolved type for log readability
+          PR_TYPE=$(grep '^pr_type=' "$GITHUB_OUTPUT" | tail -1 | cut -d'=' -f2)
+          PR_NUMBER=$(grep '^pr_number=' "$GITHUB_OUTPUT" | tail -1 | cut -d'=' -f2)
+          echo "Classified PR #${PR_NUMBER} as: ${PR_TYPE}"
 
   # =============================================================================
   # SIMPLE RELEASE — For bugfix/other PRs: semver + tag only (shell-only)
