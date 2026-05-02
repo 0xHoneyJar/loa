@@ -179,6 +179,75 @@ providers:
           input_per_mtok: 1000000    # $1.00 per million tokens (frozen 2026-04-29)
           output_per_mtok: 5000000   # $5.00 per million tokens (frozen 2026-04-29)
 
+  # ===========================================================================
+  # AWS Bedrock — cycle-096 (issue #652)
+  # ===========================================================================
+  # Provider plugin contract: SDD §1.4 + §3.1 + §5.1.
+  # Auth: Bearer-token API key (FR-3); SigV4 designed-not-built (FR-4 v2).
+  # Required for Day-1 Anthropic models — bare anthropic.* IDs return HTTP 400
+  # ("on-demand throughput isn't supported"); inference profile IDs (us.* or
+  # global.*) are mandatory. Verified live 2026-05-02 via Sprint 0 G-S0-2
+  # probes; capture at tests/fixtures/bedrock/contract/v1.json.
+  bedrock:
+    type: bedrock                                    # Adapter discriminator (NEW)
+    endpoint: "https://bedrock-runtime.{region}.amazonaws.com"
+    region_default: us-east-1                        # Override via .loa.config.yaml or AWS_BEDROCK_REGION
+    auth: "{env:AWS_BEARER_TOKEN_BEDROCK}"           # v1: Bearer-token API key
+    auth_modes:
+      - api_key                                      # v1 implemented (Task 1.4)
+      - sigv4                                        # v2 designed only — loader rejects with documented error
+    compliance_profile: null                         # 4-step defaulting in loader (PRD §G-S0-3 / SDD §5.6)
+                                                     # Allowed: bedrock_only | prefer_bedrock | none
+    connect_timeout: 10
+    read_timeout: 120                                # Vision-capable; matches base default
+    models:
+      # Day-1 inference profile IDs (from Sprint 0 G-S0-2 probe #1 ListInferenceProfiles)
+      "us.anthropic.claude-opus-4-7":                # Newest convention: no -v1:0 suffix
+        capabilities: [chat, tools, function_calling, thinking_traces]
+        context_window: 200000
+        token_param: max_tokens
+        api_format:                                  # Per-capability dispatch (PRD FR-1 / SDD §3.1)
+          chat: converse
+          tools: converse
+          thinking_traces: converse                  # Bedrock requires `thinking.type: adaptive` (NOT direct-Anthropic `enabled`+budget_tokens)
+          function_calling: converse
+        params:
+          temperature_supported: false               # Mirrors direct Anthropic Opus 4 (#641)
+        pricing:
+          input_per_mtok: 5000000                    # $5.00/Mtok (matches direct Anthropic on-demand; verify quarterly per NFR-Sec6)
+          output_per_mtok: 25000000                  # $25.00/Mtok
+        # NEW v1.1 (Flatline BLOCKER SKP-003): Versioned fallback mapping for
+        # compliance_profile: prefer_bedrock. Loader rejects prefer_bedrock if
+        # fallback_to is missing — no heuristic name matching.
+        fallback_to: "anthropic:claude-opus-4-7"
+        fallback_mapping_version: 1
+      "us.anthropic.claude-sonnet-4-6":              # No -v1:0 suffix on newest
+        capabilities: [chat, tools, function_calling]
+        context_window: 200000
+        token_param: max_tokens
+        api_format:
+          chat: converse
+          tools: converse
+          function_calling: converse
+        pricing:
+          input_per_mtok: 3000000                    # $3.00/Mtok
+          output_per_mtok: 15000000                  # $15.00/Mtok
+        fallback_to: "anthropic:claude-sonnet-4-6"
+        fallback_mapping_version: 1
+      "us.anthropic.claude-haiku-4-5-20251001-v1:0": # Older convention: keeps datestamp + v1:0 suffix (colon-bearing!)
+        capabilities: [chat, tools, function_calling]
+        context_window: 200000
+        token_param: max_tokens
+        api_format:
+          chat: converse
+          tools: converse
+          function_calling: converse
+        pricing:
+          input_per_mtok: 1000000                    # $1.00/Mtok (frozen 2026-05-02)
+          output_per_mtok: 5000000                   # $5.00/Mtok
+        fallback_to: "anthropic:claude-haiku-4-5-20251001"
+        fallback_mapping_version: 1
+
 # Aliases (short names → provider:model-id)
 aliases:
   gemini-2.0: "google:gemini-2.0-flash"  # Backward-compat alias

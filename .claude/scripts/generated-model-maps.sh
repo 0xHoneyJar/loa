@@ -24,6 +24,9 @@ declare -A MODEL_PROVIDERS=(
     ["claude-opus-4-6"]="anthropic"
     ["claude-sonnet-4-6"]="anthropic"
     ["claude-haiku-4-5-20251001"]="anthropic"
+    ["us.anthropic.claude-opus-4-7"]="bedrock"
+    ["us.anthropic.claude-sonnet-4-6"]="bedrock"
+    ["us.anthropic.claude-haiku-4-5-20251001-v1:0"]="bedrock"
     ["gemini-2.0"]="google"
     ["reviewer"]="openai"
     ["reasoning"]="openai"
@@ -64,6 +67,9 @@ declare -A MODEL_IDS=(
     ["claude-opus-4-6"]="claude-opus-4-6"
     ["claude-sonnet-4-6"]="claude-sonnet-4-6"
     ["claude-haiku-4-5-20251001"]="claude-haiku-4-5-20251001"
+    ["us.anthropic.claude-opus-4-7"]="us.anthropic.claude-opus-4-7"
+    ["us.anthropic.claude-sonnet-4-6"]="us.anthropic.claude-sonnet-4-6"
+    ["us.anthropic.claude-haiku-4-5-20251001-v1:0"]="us.anthropic.claude-haiku-4-5-20251001-v1:0"
     ["gemini-2.0"]="gemini-2.0-flash"
     ["reviewer"]="gpt-5.5"
     ["reasoning"]="gpt-5.5"
@@ -104,6 +110,9 @@ declare -A COST_INPUT=(
     ["claude-opus-4-6"]="0.005"
     ["claude-sonnet-4-6"]="0.003"
     ["claude-haiku-4-5-20251001"]="0.001"
+    ["us.anthropic.claude-opus-4-7"]="0.005"
+    ["us.anthropic.claude-sonnet-4-6"]="0.003"
+    ["us.anthropic.claude-haiku-4-5-20251001-v1:0"]="0.001"
     ["gemini-2.0"]="0.00015"
     ["reviewer"]="0.005"
     ["reasoning"]="0.005"
@@ -144,6 +153,9 @@ declare -A COST_OUTPUT=(
     ["claude-opus-4-6"]="0.025"
     ["claude-sonnet-4-6"]="0.015"
     ["claude-haiku-4-5-20251001"]="0.005"
+    ["us.anthropic.claude-opus-4-7"]="0.025"
+    ["us.anthropic.claude-sonnet-4-6"]="0.015"
+    ["us.anthropic.claude-haiku-4-5-20251001-v1:0"]="0.005"
     ["gemini-2.0"]="0.0006"
     ["reviewer"]="0.03"
     ["reasoning"]="0.03"
@@ -210,4 +222,7 @@ declare -a VALID_FLATLINE_MODELS=(
     researcher
     reviewer
     tiny
+    us.anthropic.claude-haiku-4-5-20251001-v1:0
+    us.anthropic.claude-opus-4-7
+    us.anthropic.claude-sonnet-4-6
 )
