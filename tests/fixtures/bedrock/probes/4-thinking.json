@@ -1,1 +1,3 @@
-{"message":"Invocation of model ID anthropic.claude-opus-4-7 with on-demand throughput isn’t supported. Retry your request with the ID or ARN of an inference profile that contains this model."}
+{
+  "message": "Invocation of model ID anthropic.claude-opus-4-7 with on-demand throughput isn’t supported. Retry your request with the ID or ARN of an inference profile that contains this model."
+}

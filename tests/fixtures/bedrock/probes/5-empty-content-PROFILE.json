@@ -1,1 +1,3 @@
-{"message":"The text field in the ContentBlock object at messages.0.content.0 is blank. Add text to the text field, and try again."}
+{
+  "message": "The text field in the ContentBlock object at messages.0.content.0 is blank. Add text to the text field, and try again."
+}

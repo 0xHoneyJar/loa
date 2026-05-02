@@ -137,7 +137,7 @@
     "operator_choice": "hounfour.bedrock.inference_profile_namespace: us | global (default: us)"
   },
   "redaction_notes": {
-    "account_id_redacted": "All <acct> placeholders in source probes replace real account ID 761222121843 (visible in token base64 payload)",
+    "account_id_redacted": "All <acct> placeholders in source probes replace the operator's real AWS account ID, which is visible in the Bedrock API Key's base64 payload but redacted from every committed artifact",
     "timing_rounded": "Latency values omitted from this fixture (would fingerprint specific accounts)",
     "model_arns": "Foundation-model ARNs in inference-profiles probe contain account-scoped paths; not stored in this fixture"
   }
