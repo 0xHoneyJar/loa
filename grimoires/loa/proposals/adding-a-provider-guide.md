@@ -437,4 +437,49 @@ When you commit fixture files (probe captures, contract versioned snapshots):
 
 ---
 
+## Lessons learned (cycle-096 — what the polished steps don't show)
+
+The walkthrough above presents cycle-096 as a tidy six-edit-site pipeline. It wasn't. Future contributors should know what the iteration cost actually looked like so they budget accordingly and don't blame themselves when the same patterns surface again.
+
+**The PRD/SDD changelog is the honest version of this guide.** Read these entries in order — each one is a finding that overturned a prior assumption:
+
+- **PRD v1.0 → v1.1** (Flatline pass): added FR-12 region-prefix sanity, FR-13 thinking-trace translation, NFR-Sec8 token-age sentinel. Surfaced 5 BLOCKERS we did not see in the initial draft.
+- **PRD v1.1 → v1.2**: added FR-11 daily-quota circuit breaker, NFR-Sec11 token lifecycle controls. Surfaced after live probes against operator account revealed quota semantics that public docs did not describe.
+- **PRD v1.2 → v1.3**: added compliance_profile 4-step deterministic defaulting rule. Surfaced when prefer_bedrock without explicit fallback_to was found to be footgun-shaped under hostile config.
+- **SDD v1.0 → v1.1** (Flatline pass): versioned `fallback_to` mapping field, value-based redaction promoted to PRIMARY (regex demoted to SECONDARY), threading.Event circuit breaker, Sprint 0 G-S0-CONTRACT artifact gate.
+- **SDD v1.1 → v1.2**: §6.7 Bedrock feature flag (`hounfour.bedrock.enabled`) + migration sentinel after seeing how silently the defaulting rule changed operator behavior.
+
+**Discoveries that arrived only via probes** (Sprint 0 G-S0-2), not by reading docs:
+
+- **Bare `anthropic.*` model IDs are rejected** — Bedrock requires `us.anthropic.*` / `global.anthropic.*` inference profile IDs. The error is HTTP 400 ("on-demand throughput unsupported"), not 404.
+- **`thinking.type=enabled` is rejected** by Bedrock-routed Opus 4.7 — Bedrock requires `adaptive`, with `output_config.effort` instead of `budget_tokens`. Adapter must translate.
+- **`tools` schema requires `inputSchema.json` envelope wrapping** — direct-Anthropic accepts the schema directly; Bedrock wraps it.
+- **Token format is `ABSKR…` (5-char prefix), 40+ chars** — important for the value-based redaction path and the secret_env_allowlist regex.
+- **End-of-life models return HTTP 404** while invalid identifiers return HTTP 400 — error-classifier must branch on body content, not just status code (see `tests/fixtures/bedrock/probes/E2-404-not-found.json` vs `E3-404-end-of-life.json`).
+
+**Process patterns that paid off**:
+
+- **Two-pass Flatline review on PRD/SDD before sprint planning** — caught structural issues that would have cascaded through implementation.
+- **Live probes (Sprint 0) before any code** — cycle-096 G-S0-CONTRACT artifact (`tests/fixtures/bedrock/contract/v1.json`) became the single source of truth across the implementation. Future providers should follow the same pattern.
+- **Bridgebuilder review on the cycle-096 PR** caught fixture hygiene findings (account ID prose leak in `redaction_notes`, mislabeled E3 fixture status code) that escaped both the senior reviewer and the security auditor.
+
+**What this guide cannot anticipate** for the next provider:
+
+- Vendor onboarding (account setup, IAM, billing approvals)
+- Domain-specific I/O shape edge cases (Mistral's chat templates, Cohere reranking models)
+- Regression cost when `model-permissions.yaml` trust scopes need to widen
+
+Treat the "≤1-day" target as aspirational until cycle-097+ provides empirical data. Update *this guide* — not just your own NOTES.md — when you discover the next missed pattern.
+
+**Cycle-096 artifact pointers** (read these before starting):
+
+- **PR #662** (`feat/cycle-096-aws-bedrock`) — full diff, review/audit comments, Bridgebuilder findings. The git history is the durable record (`grimoires/loa/archive/` is gitignored).
+- `tests/fixtures/bedrock/contract/v1.json` and `tests/fixtures/bedrock/probes/README.md` (the contract you are extending — committed in cycle-096)
+- `git log --grep="cycle-096" --oneline` — 18 cycle-096 commits show the iteration order: probes first, then PRD/SDD, then implementation, then hardening
+- Specific learning commits worth reading:
+  - `73431db feat(cycle-095): model currency` — sets up the model registry that cycle-096 extends
+  - `e9e5805 fix(cheval): Opus 4 temperature gate + Google/Gemini API key allowlist` — the multi-provider redaction patterns cycle-096's two-layer redaction generalizes
+
+---
+
 *This guide is the FR-9 deliverable for cycle-096 Sprint 2 (Task 2.3). When the next provider lands and uncovers a missed pattern, please update this guide rather than discovering it again.*
