@@ -251,10 +251,13 @@ def test_regex_only_layer_catches_unknown_token_with_absk_prefix():
 
 def test_length_fallback_layer_catches_very_long_base64ish_strings():
     """Layer 3 (length-based) catches base64-shaped strings >= 60 chars even
-    without prefix. Conservative threshold avoids false-positives."""
+    without prefix, BUT only when the string contains at least one base64-
+    distinct character (`+`, `/`, `=`). Pure-hex strings pass through —
+    that's NC-1's correctness fix per cycle-096 review."""
     clear_registered_values()
-    # A 70-char base64-shaped string (no ABSK prefix; longer than threshold).
-    suspicious = "Xy" + "Z" * 68
+    # 70-char base64-shaped string with `+/=` chars (no ABSK prefix).
+    suspicious = "Xyz" + "+" * 30 + "/" + "=" * 30 + "abc"
+    assert len(suspicious) >= 60
     leak = f"some context {suspicious} more context"
     redacted = redact_string(leak)
     # The 70-char string is replaced by REDACTED.
@@ -268,6 +271,37 @@ def test_short_strings_are_NOT_falsely_redacted_by_length_fallback():
     leak = f"request_id: {benign_short}"
     redacted = redact_string(leak)
     assert benign_short in redacted  # must NOT be redacted
+
+
+def test_sha256_hex_digest_is_NOT_falsely_redacted():
+    """NC-1 regression: pure-hex SHA-256 (64 chars) was over-matched by
+    the original `\\b[A-Za-z0-9+/=]{60,}\\b` pattern. Refined pattern
+    requires at least one base64-distinct char (`+`, `/`, `=`)."""
+    clear_registered_values()
+    sha256_hex = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    assert len(sha256_hex) == 64
+    leak = f"checksum: {sha256_hex}"
+    redacted = redact_string(leak)
+    assert sha256_hex in redacted  # must NOT be redacted (pure hex, no base64-distinct char)
+
+
+def test_sha512_hex_digest_is_NOT_falsely_redacted():
+    """NC-1 regression: SHA-512 (128 chars hex) also passes through."""
+    clear_registered_values()
+    sha512_hex = "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e"
+    assert len(sha512_hex) == 128
+    leak = f"hash: {sha512_hex}"
+    redacted = redact_string(leak)
+    assert sha512_hex in redacted  # must NOT be redacted (pure hex)
+
+
+def test_base64_shaped_string_with_distinct_chars_IS_redacted():
+    """Sanity check: refined pattern still catches actual base64-shaped tokens."""
+    clear_registered_values()
+    base64_token = "X" * 30 + "+/=" + "Y" * 30  # has +/=, length 63
+    leak = f"token: {base64_token}"
+    redacted = redact_string(leak)
+    assert base64_token not in redacted  # MUST be redacted
 
 
 # ---------------------------------------------------------------------------

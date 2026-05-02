@@ -49,8 +49,18 @@ _BEDROCK_API_KEY_PATTERN = re.compile(r"ABSK[A-Za-z0-9+/=]{36,}")
 
 # Layer 3 (length fallback) defense — catches base64-shaped strings of plausible
 # token length when the regex prefix doesn't match (e.g., AWS evolves prefix).
-# Conservative bound (60+ chars) to avoid false-positive on normal log text.
-_BEDROCK_LENGTH_FALLBACK_PATTERN = re.compile(r"\b[A-Za-z0-9+/=]{60,}\b")
+#
+# Cycle-096 NC-1 (review feedback) — original `\b[A-Za-z0-9+/=]{60,}\b` over-
+# matched: SHA-256 hex digests (64 chars) and SHA-512 hex digests (128 chars)
+# are pure A-F+digits and would trip the regex, redacting legitimate hashes.
+#
+# Refined pattern requires at least one base64-distinct character (`+`, `/`,
+# or `=`) AND a minimum length of 60 chars. Pure-hex strings (which use only
+# A-F and digits) pass through; base64-shaped tokens (which use the full
+# A-Za-z0-9+/= alphabet) get caught.
+_BEDROCK_LENGTH_FALLBACK_PATTERN = re.compile(
+    r"\b(?=[A-Za-z0-9+/=]*[+/=])[A-Za-z0-9+/=]{60,}\b"
+)
 
 REDACTED = "***REDACTED***"
 
