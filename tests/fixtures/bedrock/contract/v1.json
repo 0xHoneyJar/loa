@@ -1,0 +1,144 @@
+{
+  "version": 1,
+  "captured_at": "2026-05-02T12:50:00Z",
+  "captured_by": "@janitooor",
+  "cycle": "cycle-096-aws-bedrock",
+  "source_probes": "tests/fixtures/bedrock/probes/",
+  "endpoints": {
+    "runtime": "https://bedrock-runtime.{region}.amazonaws.com/model/{url_quoted_model_id}/converse",
+    "control_plane_models": "https://bedrock.{region}.amazonaws.com/foundation-models",
+    "control_plane_inference_profiles": "https://bedrock.{region}.amazonaws.com/inference-profiles"
+  },
+  "auth": {
+    "header_format": "Authorization: Bearer {AWS_BEARER_TOKEN_BEDROCK}",
+    "sample_token_prefix_observed": "ABSKR (5 chars; safe regex: ABSK[A-Za-z0-9+/=]{36,})",
+    "bare_model_ids_supported": false,
+    "bare_model_ids_error": "HTTP 400 — Invocation of model ID X with on-demand throughput isn't supported. Retry your request with the ID or ARN of an inference profile that contains this model."
+  },
+  "url_encoding": {
+    "rule": "Model IDs containing colons MUST be URL-encoded (`%3A`). Newer models without datestamp suffix do not contain colons.",
+    "examples": {
+      "no_encoding_needed": "us.anthropic.claude-opus-4-7",
+      "must_encode": "us.anthropic.claude-haiku-4-5-20251001-v1%3A0"
+    }
+  },
+  "day_1_models": [
+    {
+      "direct_anthropic_id": "claude-opus-4-7",
+      "bedrock_inference_profile_us": "us.anthropic.claude-opus-4-7",
+      "bedrock_inference_profile_global": "global.anthropic.claude-opus-4-7",
+      "regions": ["us-east-1", "us-east-2", "us-west-2"],
+      "probe_status": "PASS",
+      "probe_response_size_bytes": 259
+    },
+    {
+      "direct_anthropic_id": "claude-sonnet-4-6",
+      "bedrock_inference_profile_us": "us.anthropic.claude-sonnet-4-6",
+      "bedrock_inference_profile_global": "global.anthropic.claude-sonnet-4-6",
+      "regions": ["us-east-1", "us-east-2", "us-west-2"],
+      "probe_status": "PASS",
+      "probe_response_size_bytes": 315
+    },
+    {
+      "direct_anthropic_id": "claude-haiku-4-5-20251001",
+      "bedrock_inference_profile_us": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "bedrock_inference_profile_global": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "regions": ["us-east-1", "us-east-2", "us-west-2"],
+      "probe_status": "PASS",
+      "probe_response_size_bytes": 313
+    }
+  ],
+  "request_body_shape": {
+    "messages": "[{role: 'user'|'assistant', content: [{text: string} | {toolUse: ...} | {toolResult: ...} | {image: ...}]}]",
+    "inferenceConfig": {
+      "maxTokens": "integer",
+      "temperature": "number — NOT supported on Opus 4 (Anthropic-side gate per #641; same on Bedrock-routed Opus 4.7)"
+    },
+    "system": "[{text: string}] (optional)",
+    "toolConfig": {
+      "tools": "[{toolSpec: {name, description, inputSchema: {json: <JSON-Schema>}}}] — Bedrock requires the `inputSchema.json` wrapping (distinct from direct-Anthropic which takes the schema directly)",
+      "toolChoice": "{auto: {}} | {tool: {name}} | {any: {}}"
+    },
+    "additionalModelRequestFields_thinking": {
+      "type": "'adaptive' — Bedrock-specific. Direct-Anthropic 'enabled' + budget_tokens returns HTTP 400 'not supported for this model' on Bedrock-routed Opus 4.7",
+      "adapter_translation": "Adapter must translate caller-side thinking-trace requests into Bedrock adaptive form per FR-13",
+      "output_config_effort": "string — controls thinking depth; replaces budget_tokens"
+    }
+  },
+  "response_body_shape": {
+    "output": {
+      "message": {
+        "role": "'assistant'",
+        "content": "[{text: string} | {toolUse: {input, name, toolUseId, type}}]"
+      }
+    },
+    "stopReason": "'end_turn' | 'tool_use' | 'max_tokens' | 'content_filter'",
+    "usage": {
+      "inputTokens": "integer — camelCase, DIFFERENT from direct-Anthropic `input_tokens`",
+      "outputTokens": "integer",
+      "totalTokens": "integer (sum, includes cache)",
+      "cacheReadInputTokens": "integer — prompt-cache; new vs direct Anthropic Bedrock surface",
+      "cacheWriteInputTokens": "integer",
+      "cacheReadInputTokenCount": "integer — alias (schema evolution artifact)",
+      "cacheWriteInputTokenCount": "integer — alias",
+      "serverToolUsage": "object — server-side tool execution accounting"
+    },
+    "metrics": {
+      "latencyMs": "integer"
+    }
+  },
+  "error_taxonomy": {
+    "on_demand_not_supported": {
+      "http_status": 400,
+      "sentinel_message": "Invocation of model ID X with on-demand throughput isn't supported",
+      "retry_decision": "no_retry",
+      "surface_as": "ConfigurationError",
+      "remediation": "Use inference profile ID (us.* or global.*) instead of bare anthropic.* ID"
+    },
+    "invalid_model_identifier": {
+      "http_status": 400,
+      "sentinel_message": "The provided model identifier is invalid",
+      "retry_decision": "no_retry",
+      "surface_as": "ResourceNotFoundError",
+      "note": "Bedrock returns 400 here, not 404 — error-classifier branches on body content"
+    },
+    "end_of_life": {
+      "http_status": 404,
+      "sentinel_message": "This model version has reached the end of its life",
+      "retry_decision": "no_retry",
+      "surface_as": "ModelRetiredError"
+    },
+    "blank_text_field": {
+      "http_status": 400,
+      "sentinel_message": "The text field in the ContentBlock object at messages.X.content.X is blank",
+      "retry_decision": "no_retry",
+      "surface_as": "ValidationError"
+    },
+    "throttling": {
+      "http_status": 429,
+      "sentinel_message": "ThrottlingException",
+      "retry_decision": "retry_exp_backoff_jitter_max_3",
+      "probe_status": "not_directly_probed_cycle_096_documented_from_aws"
+    },
+    "service_unavailable": {
+      "http_status": "5xx",
+      "retry_decision": "retry_exp_backoff_jitter_max_3"
+    },
+    "daily_quota": {
+      "http_status": 200,
+      "sentinel_pattern": "body contains 'too many tokens per day' | 'daily' | 'quota'",
+      "retry_decision": "circuit_break_process_lifetime",
+      "note": "Not probed (would consume quota); pattern documented from public reports"
+    }
+  },
+  "inference_profile_namespaces": {
+    "us": "us.anthropic.* — US-region multi-region (us-east-1, us-east-2, us-west-2)",
+    "global": "global.anthropic.* — cross-region including non-US availability",
+    "operator_choice": "hounfour.bedrock.inference_profile_namespace: us | global (default: us)"
+  },
+  "redaction_notes": {
+    "account_id_redacted": "All <acct> placeholders in source probes replace real account ID 761222121843 (visible in token base64 payload)",
+    "timing_rounded": "Latency values omitted from this fixture (would fingerprint specific accounts)",
+    "model_arns": "Foundation-model ARNs in inference-profiles probe contain account-scoped paths; not stored in this fixture"
+  }
+}

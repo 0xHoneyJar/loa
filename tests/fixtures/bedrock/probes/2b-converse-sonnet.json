@@ -1,0 +1,1 @@
+{"message":"Invocation of model ID anthropic.claude-sonnet-4-6 with on-demand throughput isn’t supported. Retry your request with the ID or ARN of an inference profile that contains this model."}

@@ -1,0 +1,1 @@
+{"message":"The model returned the following errors: \"thinking.type.enabled\" is not supported for this model. Use \"thinking.type.adaptive\" and \"output_config.effort\" to control thinking behavior."}

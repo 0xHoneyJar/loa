@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-095-model-currency",
+  "active_cycle": "cycle-096-aws-bedrock",
   "cycles": [
     {
       "id": "cycle-036",
@@ -699,7 +699,7 @@
     {
       "id": "cycle-095-model-currency",
       "label": "Model Currency — gpt-5.5 + Haiku 4.5 + Gemini 3 + cost guardrails",
-      "status": "active",
+      "status": "archived",
       "created": "2026-04-29T20:30:00Z",
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
@@ -723,7 +723,19 @@
           "label": "prefer_pro_models Activation + override_user_aliases Opt-In + Dry-Run Full Activation (post-soak)",
           "status": "planned"
         }
-      ]
+      ],
+      "archived": "2026-05-01T15:35:43Z",
+      "archive_path": "grimoires/loa/archive/2026-05-02-cycle-095-model-currency"
+    },
+    {
+      "id": "cycle-096-aws-bedrock",
+      "label": "AWS Bedrock Provider + Provider-Plugin Hardening (issue #652)",
+      "status": "active",
+      "created": "2026-05-01T15:36:04Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [],
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/652"
     }
   ],
   "global_sprint_counter": 123,
