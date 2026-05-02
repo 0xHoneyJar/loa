@@ -1916,6 +1916,12 @@ agent_teams:
 # =============================================================================
 # Automated post-merge pipeline triggered on push to main.
 # 3-layer architecture: GH Actions → claude-code-action → shell orchestrator.
+#
+# Workflow file `.github/workflows/post-merge.yml` is scaffolded automatically
+# by `mount-loa.sh` / `mount-submodule.sh` on first install (Issue #669) and
+# preserved on re-mount. Submodule installs require `submodules: recursive`
+# on actions/checkout (baked into the upstream template) so symlinked
+# `.claude/scripts/*` paths resolve at runtime.
 post_merge:
   # Master toggle — must be true for GH Actions workflow to process merges
   enabled: false

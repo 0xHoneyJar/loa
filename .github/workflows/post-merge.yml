@@ -32,6 +32,11 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 0
+          # Issue #669: submodule installs symlink .claude/scripts/* into the
+          # submodule. Without `submodules: recursive`, runtime invocation
+          # fails with `exit-127: No such file or directory`. No-op on
+          # non-submodule consumer repos.
+          submodules: recursive
 
       - name: Classify PR type
         id: classify
@@ -67,6 +72,11 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 0
+          # Issue #669: submodule installs symlink .claude/scripts/* into the
+          # submodule. Without `submodules: recursive`, runtime invocation
+          # fails with `exit-127: No such file or directory`. No-op on
+          # non-submodule consumer repos.
+          submodules: recursive
 
       - name: Install jq
         run: sudo apt-get install -y jq
@@ -136,6 +146,11 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 0
+          # Issue #669: submodule installs symlink .claude/scripts/* into the
+          # submodule. Without `submodules: recursive`, runtime invocation
+          # fails with `exit-127: No such file or directory`. No-op on
+          # non-submodule consumer repos.
+          submodules: recursive
 
       - name: Configure git identity
         run: |

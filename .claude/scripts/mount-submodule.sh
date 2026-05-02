@@ -253,6 +253,32 @@ relocate_memory_stack() {
   log "Memory Stack relocated: .loa/ -> .loa-state/ ($source_count files)"
 }
 
+# Issue #669: scaffold post-merge automation workflow from the submodule's
+# in-tree copy. Submodule mode copies (not symlinks) the workflow file into
+# the consumer repo's .github/workflows/ — GitHub Actions ignores symlinked
+# workflow files, and consumer-side customization should be possible. The
+# scaffolded workflow's actions/checkout MUST set `submodules: recursive`
+# (baked into the upstream workflow file) so the .claude/scripts/* symlinks
+# resolve at runtime. Idempotent (preserves user-customized workflow).
+scaffold_post_merge_workflow() {
+  local source_path="${1:-$SUBMODULE_PATH/.github/workflows/post-merge.yml}"
+  local target=".github/workflows/post-merge.yml"
+
+  if [[ -f "$target" ]]; then
+    log "$target already exists, preserving..."
+    return 0
+  fi
+
+  if [[ ! -f "$source_path" ]]; then
+    warn "post-merge.yml not in submodule ($source_path), skipping (post-merge automation will be inert)"
+    return 0
+  fi
+
+  mkdir -p .github/workflows
+  cp "$source_path" "$target"
+  log "Scaffolded $target from $source_path"
+}
+
 # === Auto-Init Submodule (post-clone recovery) ===
 auto_init_submodule() {
   if [[ -f ".gitmodules" ]] && grep -q "$SUBMODULE_PATH" .gitmodules 2>/dev/null; then
@@ -931,6 +957,7 @@ main() {
   create_config
   create_manifest
   init_state_zone
+  scaffold_post_merge_workflow
   create_commit
 
   echo ""

@@ -616,6 +616,10 @@ sync_zones() {
   # Create .reviewignore template for review scope filtering (FR-4, #303)
   create_reviewignore
 
+  # Scaffold post-merge automation workflow (#669). Idempotent: preserves a
+  # user-customized .github/workflows/post-merge.yml on re-mount.
+  scaffold_post_merge_workflow ""
+
   mkdir -p .beads
   touch .beads/.gitkeep
 
@@ -877,6 +881,35 @@ sync_optional_file() {
   git checkout "$LOA_REMOTE_NAME/$LOA_BRANCH" -- "$file" 2>/dev/null || {
     warn "No $file in upstream, skipping..."
   }
+}
+
+# Issue #669: scaffold post-merge automation workflow on first mount.
+# Idempotent (preserves user-customized workflow). Mode-agnostic helper:
+# direct-mode callers omit $1 to fall through to the upstream git checkout;
+# submodule-mode callers pass the in-tree submodule path.
+scaffold_post_merge_workflow() {
+  local source_path="${1:-}"
+  local target=".github/workflows/post-merge.yml"
+
+  if [[ -f "$target" ]]; then
+    log "$target already exists, preserving..."
+    return 0
+  fi
+
+  mkdir -p .github/workflows
+
+  if [[ -n "$source_path" && -f "$source_path" ]]; then
+    cp "$source_path" "$target"
+    log "Scaffolded $target from $source_path"
+    return 0
+  fi
+
+  log "Scaffolding $target from upstream..."
+  if git checkout "$LOA_REMOTE_NAME/$LOA_BRANCH" -- "$target" 2>/dev/null; then
+    log "Scaffolded $target"
+  else
+    warn "post-merge.yml not in upstream, skipping (post-merge automation will be inert)"
+  fi
 }
 
 # Orchestrate root file synchronization
