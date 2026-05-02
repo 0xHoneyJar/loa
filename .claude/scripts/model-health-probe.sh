@@ -18,7 +18,7 @@
 #   --once                    Run once, exit (default behavior)
 #   --dry-run                 Parse config/registry; do NOT call provider APIs
 #   --invalidate [MODEL_ID]   Clear a cache entry (or full cache if omitted)
-#   --provider PROVIDER       Probe only one provider (openai|google|anthropic)
+#   --provider PROVIDER       Probe only one provider (openai|google|anthropic|bedrock)
 #   --model MODEL_ID          Probe only one model-id (use with --provider)
 #   --cache-path PATH         Override cache file path
 #   --output FORMAT           "text" (default) | "json"
@@ -1162,6 +1162,77 @@ _probe_anthropic() {
 }
 
 # -----------------------------------------------------------------------------
+# Bedrock probe (cycle-096 Sprint 2 Task 2.1 / FR-8)
+# -----------------------------------------------------------------------------
+# Uses ListFoundationModels control-plane endpoint with Bearer auth — no
+# token consumption per call (cheaper than the Anthropic /messages probe).
+# Bedrock-specific: model_id check is by listing membership, not minimal
+# Converse call, because Converse against a known-good ID still spends
+# tokens whereas listing is pure metadata.
+_probe_bedrock() {
+    local model_id="$1"
+    _reset_probe_result
+    if [[ -z "${AWS_BEARER_TOKEN_BEDROCK:-}" ]]; then
+        PROBE_STATE="UNKNOWN"; PROBE_CONFIDENCE="low"
+        PROBE_REASON="AWS_BEARER_TOKEN_BEDROCK not set"
+        PROBE_ERROR_CLASS="auth"
+        return 0
+    fi
+
+    local region="${AWS_BEDROCK_REGION:-${AWS_REGION:-us-east-1}}"
+    local list_url="https://bedrock.${region}.amazonaws.com/inference-profiles"
+
+    local t0 t1
+    t0=$(date +%s%3N 2>/dev/null || date +%s000)
+    # Use _curl_json with auth_type "Authorization" — but bedrock takes Bearer prefix.
+    # Mirror the Anthropic pattern but with Bearer header construction.
+    _curl_json "$list_url" "bearer" "$AWS_BEARER_TOKEN_BEDROCK" GET ""
+    local resp="$RESPONSE_BODY"
+    t1=$(date +%s%3N 2>/dev/null || date +%s000)
+    PROBE_LATENCY_MS=$((t1 - t0))
+    PROBE_HTTP="$HTTP_STATUS"
+
+    case "$HTTP_STATUS" in
+        200)
+            # Verify the requested model_id appears in the inference-profiles
+            # response. Membership = AVAILABLE; absence = UNAVAILABLE.
+            if echo "$resp" | jq -e --arg m "$model_id" \
+                '.inferenceProfileSummaries[]? | select(.inferenceProfileId == $m)' >/dev/null 2>&1; then
+                PROBE_STATE="AVAILABLE"; PROBE_CONFIDENCE="high"
+                PROBE_REASON="model_id present in inference-profiles listing"
+                PROBE_ERROR_CLASS="ok"
+            else
+                # Model ID not in the listing — could be wrong region, retired,
+                # or genuinely not enabled in this account. Treat as UNAVAILABLE
+                # high-confidence because the response was successful but the
+                # model isn't there.
+                PROBE_STATE="UNAVAILABLE"; PROBE_CONFIDENCE="high"
+                PROBE_REASON="model_id not in inference-profiles listing for region $region"
+                PROBE_ERROR_CLASS="model_not_listed"
+            fi
+            ;;
+        401|403)
+            PROBE_STATE="UNKNOWN"; PROBE_CONFIDENCE="low"
+            PROBE_REASON="auth-level failure ($HTTP_STATUS) — token may be revoked"
+            PROBE_ERROR_CLASS="auth"
+            ;;
+        408|429|5??|0)
+            PROBE_STATE="UNKNOWN"; PROBE_CONFIDENCE="low"
+            PROBE_REASON="transient $HTTP_STATUS"
+            PROBE_ERROR_CLASS="transient"
+            ;;
+        *)
+            # SKP-001 — reject ambiguous 4xx for forward-compat.
+            PROBE_STATE="UNKNOWN"; PROBE_CONFIDENCE="low"
+            PROBE_REASON="ambiguous $HTTP_STATUS; SKP-001 guard"
+            PROBE_ERROR_CLASS="transient"
+            ;;
+    esac
+    return 0
+}
+
+
+# -----------------------------------------------------------------------------
 # Probe-one-model orchestrator
 # -----------------------------------------------------------------------------
 _probe_one_model() {
@@ -1192,6 +1263,7 @@ _probe_one_model() {
         openai)    _probe_openai "$model_id" ;;
         google)    _probe_google "$model_id" ;;
         anthropic) _probe_anthropic "$model_id" ;;
+        bedrock)   _probe_bedrock "$model_id" ;;
         *)
             # Unknown provider passthrough (Flatline IMP-006 / SKP-004 #4)
             PROBE_STATE="UNKNOWN"; PROBE_CONFIDENCE="low"
@@ -1401,9 +1473,9 @@ _parse_args() {
     # Validate mutually-exclusive / sanity
     if [[ -n "$OPT_PROVIDER" ]]; then
         case "$OPT_PROVIDER" in
-            openai|google|anthropic) ;;
+            openai|google|anthropic|bedrock) ;;
             *)
-                log_error "invalid provider: $OPT_PROVIDER (allowed: openai|google|anthropic)"
+                log_error "invalid provider: $OPT_PROVIDER (allowed: openai|google|anthropic|bedrock)"
                 exit 64
                 ;;
         esac
