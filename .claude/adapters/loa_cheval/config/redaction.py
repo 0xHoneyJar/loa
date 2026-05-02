@@ -28,6 +28,10 @@ _SECRET_ENV_VARS = [
     "OPENAI_API_KEY",
     "ANTHROPIC_API_KEY",
     "MOONSHOT_API_KEY",
+    "GOOGLE_API_KEY",
+    # cycle-096 Sprint 1 Task 1.6 (NFR-Sec2 + NFR-Sec10) — Bedrock
+    "AWS_BEARER_TOKEN_BEDROCK",
+    "AWS_SECRET_ACCESS_KEY",  # SigV4 v2 path; redact pre-emptively
 ]
 
 # URL query parameter patterns to redact
@@ -37,37 +41,97 @@ _URL_PARAM_PATTERN = re.compile(r"([?&])(api[_-]?key|token|secret|auth)=([^&\s]+
 _AUTH_HEADER_PATTERN = re.compile(r"(Authorization:\s*Bearer\s+)\S+", re.IGNORECASE)
 _XAPI_KEY_PATTERN = re.compile(r"(x-api-key:\s*)\S+", re.IGNORECASE)
 
+# cycle-096 Sprint 1 Task 1.6 (NFR-Sec2) — Bedrock API Key prefix.
+# Layer 2 (regex) defense — secondary to value-based redaction. Probe-confirmed
+# 2026-05-02 the trial token starts ABSKR; safe match uses 4-char prefix to
+# accommodate prefix evolution.
+_BEDROCK_API_KEY_PATTERN = re.compile(r"ABSK[A-Za-z0-9+/=]{36,}")
+
+# Layer 3 (length fallback) defense — catches base64-shaped strings of plausible
+# token length when the regex prefix doesn't match (e.g., AWS evolves prefix).
+# Conservative bound (60+ chars) to avoid false-positive on normal log text.
+_BEDROCK_LENGTH_FALLBACK_PATTERN = re.compile(r"\b[A-Za-z0-9+/=]{60,}\b")
+
 REDACTED = "***REDACTED***"
+
+
+# cycle-096 Sprint 1 Task 1.6 (NFR-Sec10) — runtime value registry.
+# Adapter __init__ calls register_value_redaction() with the resolved auth
+# value; subsequent redact_string() calls scrub the literal value regardless
+# of regex match. Defense-in-depth over the prefix-based regex.
+_REGISTERED_VALUES: Set[str] = set()
+
+
+def register_value_redaction(value: Optional[str]) -> None:
+    """Register a literal secret value for value-based redaction.
+
+    Called by adapter __init__ with the resolved env-var value. Subsequent
+    ``redact_string()`` calls replace any occurrence of the literal value
+    with ``REDACTED``, regardless of whether the regex pattern matches.
+
+    No-op for None/empty/short values (avoids over-eager redaction of
+    arbitrary substrings; Bedrock tokens are >> 8 chars so 16 is safe).
+    """
+    if not isinstance(value, str) or len(value) < 16:
+        return
+    _REGISTERED_VALUES.add(value)
+
+
+def clear_registered_values() -> None:
+    """Clear the registered-value set (token-rotation cache invalidation)."""
+    _REGISTERED_VALUES.clear()
 
 
 def redact_string(value: str) -> str:
     """Redact known secret patterns from a string value.
 
-    Replaces:
-    - Env var values from known secret env vars
-    - Authorization: Bearer headers
-    - x-api-key headers
-    - URL query parameters (api_key, token, secret, auth)
+    Layer order (cycle-096 Sprint 1 Task 1.6 / SDD §6.4.1):
+
+    * **Layer 1 (PRIMARY)**: value-based redaction — registered values
+      (via :func:`register_value_redaction`) and known-env-var values are
+      scrubbed regardless of whether they match a regex. This catches all
+      valid token leaks, not just AWS-pattern-matching ones.
+    * **Layer 2 (SECONDARY)**: regex match — Authorization/x-api-key headers,
+      URL query params, and the Bedrock API Key prefix pattern.
+    * **Layer 3 (TERTIARY)**: length-based fallback for base64-shaped strings
+      that could be tokens. Intentionally low-precision; false-positive
+      redaction is acceptable.
+
+    Both layers fire on every call — neither is sufficient alone.
     """
     result = value
 
-    # Redact known env var values
+    # Layer 1a — explicitly registered secret values (NFR-Sec10).
+    for registered in _REGISTERED_VALUES:
+        if registered and registered in result:
+            result = result.replace(registered, REDACTED)
+
+    # Layer 1b — known env var values
     for env_var in _SECRET_ENV_VARS:
         env_val = os.environ.get(env_var)
         if env_val and env_val in result:
             result = result.replace(env_val, REDACTED)
 
-    # Also check LOA_ prefixed vars
+    # Layer 1c — LOA_ prefixed vars
     for key, val in os.environ.items():
         if key.startswith("LOA_") and val and len(val) > 8 and val in result:
             result = result.replace(val, REDACTED)
 
-    # Redact Authorization headers
+    # Layer 2 — header patterns
     result = _AUTH_HEADER_PATTERN.sub(rf"\1{REDACTED}", result)
     result = _XAPI_KEY_PATTERN.sub(rf"\1{REDACTED}", result)
 
-    # Redact URL query parameters
+    # Layer 2 — URL query parameters
     result = _URL_PARAM_PATTERN.sub(rf"\1\2={REDACTED}", result)
+
+    # Layer 2 — Bedrock API Key prefix (NFR-Sec2)
+    result = _BEDROCK_API_KEY_PATTERN.sub(REDACTED, result)
+
+    # Layer 3 — length-based fallback (only fires on long base64-shaped
+    # strings; conservative threshold avoids false-positive on normal text).
+    # We do NOT redact short-but-base64-shaped strings because that would
+    # over-redact legitimate IDs / hashes / etc.
+    result = _BEDROCK_LENGTH_FALLBACK_PATTERN.sub(REDACTED, result)
 
     return result
 

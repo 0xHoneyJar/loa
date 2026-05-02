@@ -46,6 +46,8 @@ readonly _SECRET_PATTERNS=(
   'ghs_[0-9A-Za-z]{36,}'              # GitHub server tokens
   'ghr_[0-9A-Za-z]{36,}'              # GitHub refresh tokens
   'AKIA[0-9A-Z]{16}'                  # AWS access key IDs
+  'ASIA[0-9A-Z]{16}'                  # AWS STS short-term keys
+  'ABSK[A-Za-z0-9+/=]{36,}'           # cycle-096 — AWS Bedrock API Keys (probe-confirmed prefix ABSKR; broad 4-char match for prefix evolution)
   'eyJ[0-9A-Za-z_-]{10,}\.[0-9A-Za-z_-]{10,}\.[0-9A-Za-z_-]{10,}' # JWT tokens
 )
 
