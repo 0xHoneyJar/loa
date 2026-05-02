@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 import threading
 import time
 from typing import Any, Dict, List, Optional, Tuple
@@ -41,6 +42,7 @@ from loa_cheval.providers.base import (
 )
 from loa_cheval.providers.bedrock_token_age import record_token_use
 from loa_cheval.config.redaction import register_value_redaction
+from loa_cheval.types import parse_provider_model_id  # noqa: F401  # used in _fallback_to_direct
 from loa_cheval.types import (
     ChevalError,
     CompletionRequest,
@@ -140,18 +142,37 @@ class BedrockAdapter(ProviderAdapter):
     _DAILY_QUOTA_EXCEEDED = _DAILY_QUOTA_EXCEEDED
 
     def complete(self, request: CompletionRequest) -> CompletionResult:
-        """Send a Converse request, normalize the response.
+        """Send a Converse request; fallback to direct provider per compliance_profile.
+
+        On transient Bedrock failure (RateLimitError, ProviderUnavailableError),
+        and only when ``self.config.compliance_profile`` is ``prefer_bedrock`` or
+        ``none``, look up the per-model ``fallback_to`` mapping and re-issue
+        the request via the direct-provider adapter.
 
         Raises:
             QuotaExceededError: circuit breaker tripped from a prior call.
             NotImplementedError: streaming requested (v1 explicit non-support).
-            OnDemandNotSupportedError: bare model ID used.
-            ModelEndOfLifeError: model retired by AWS.
-            RegionMismatchError: region/profile mismatch.
+            OnDemandNotSupportedError: bare model ID used (NEVER triggers fallback —
+                a config error, not a transient outage).
+            ModelEndOfLifeError: model retired by AWS (NEVER triggers fallback).
+            RegionMismatchError: region/profile mismatch (NEVER triggers fallback).
             EmptyResponseError: two consecutive empty-content responses.
-            RateLimitError, ProviderUnavailableError, InvalidInputError:
-                standard adapter error surface (SDD §5.1).
+            RateLimitError, ProviderUnavailableError: surface to caller when
+                ``compliance_profile=bedrock_only`` (default; fail-closed).
+                Trigger fallback when ``compliance_profile in (prefer_bedrock, none)``.
+            InvalidInputError: standard adapter error surface (SDD §5.1).
         """
+        try:
+            return self._complete_bedrock(request)
+        except (ProviderUnavailableError, RateLimitError) as exc:
+            cp = self.config.compliance_profile
+            if cp in ("prefer_bedrock", "none"):
+                return self._fallback_to_direct(request, exc, cp)
+            # bedrock_only (or unknown / missing) → re-raise for fail-closed behavior.
+            raise
+
+    def _complete_bedrock(self, request: CompletionRequest) -> CompletionResult:
+        """Inner Bedrock-only path. Wrapped by complete() for fallback handling."""
         # Streaming explicit non-support (HIGH-CONSENSUS IMP-007).
         if request.metadata and request.metadata.get("stream"):
             raise NotImplementedError(
@@ -236,6 +257,127 @@ class BedrockAdapter(ProviderAdapter):
             body=body,
             request_model=request.model,
         )
+
+    # ------------------------------------------------------------------
+    # Compliance-aware fallback (NFR-R1, FR-1.5)
+    # ------------------------------------------------------------------
+
+    def _fallback_to_direct(
+        self,
+        request: CompletionRequest,
+        original_error: Exception,
+        compliance_profile: str,
+    ) -> CompletionResult:
+        """Dispatch to the direct-provider equivalent per ``fallback_to`` mapping.
+
+        Only invoked when ``compliance_profile`` is ``prefer_bedrock`` or
+        ``none``. Loader pre-validates ``fallback_to`` is set on every model
+        when ``prefer_bedrock`` is active (Flatline BLOCKER SKP-003).
+
+        Audit log + cost-ledger entries follow the NFR-Sec8 schema:
+        - ``event_type: fallback_cross_provider`` (cost ledger)
+        - ``category: compliance, subcategory: fallback_cross_provider_warned``
+          (audit log) for ``prefer_bedrock``; silent for ``none``.
+        """
+        model_config = self._get_model_config(request.model)
+        fallback_target = model_config.fallback_to
+        if not fallback_target:
+            # No declared mapping; re-raise the original error.
+            logger.warning(
+                "Bedrock %s failed; no fallback_to declared for %s. Re-raising.",
+                type(original_error).__name__, request.model,
+            )
+            raise original_error
+
+        # Parse the canonical "provider:model_id" string.
+        try:
+            fallback_provider, fallback_model_id = parse_provider_model_id(fallback_target)
+        except Exception as exc:
+            logger.warning(
+                "Bedrock fallback_to %r is malformed (%s); re-raising original error.",
+                fallback_target, exc,
+            )
+            raise original_error
+
+        # v1 only supports Anthropic as a fallback target. Other providers can be
+        # added in cycle-097 by extending this branch.
+        if fallback_provider != "anthropic":
+            logger.warning(
+                "Bedrock fallback_to provider %r not yet supported (v1: anthropic only); "
+                "re-raising original error.",
+                fallback_provider,
+            )
+            raise original_error
+
+        # Emit operator-visible warning + audit log per compliance posture.
+        self._emit_fallback_audit(
+            request_model=request.model,
+            fallback_target=fallback_target,
+            original_error=original_error,
+            compliance_profile=compliance_profile,
+        )
+
+        # Construct minimal AnthropicAdapter via the public factory; reads
+        # ANTHROPIC_API_KEY from env at request time. Imported lazily to avoid
+        # circular import at module load.
+        from loa_cheval.providers.anthropic_adapter import AnthropicAdapter
+        from loa_cheval.types import ProviderConfig as _ProviderConfig
+
+        fallback_provider_config = _ProviderConfig(
+            name="anthropic",
+            type="anthropic",
+            endpoint="https://api.anthropic.com/v1",
+            auth=os.environ.get("ANTHROPIC_API_KEY", ""),
+            models={},  # AnthropicAdapter falls back to default ModelConfig
+        )
+        fallback_adapter = AnthropicAdapter(fallback_provider_config)
+
+        # Re-issue the request with the fallback model. Preserve everything
+        # else (messages, tools, tool_choice, max_tokens, etc.) so behavior is
+        # equivalent from the caller's perspective.
+        from dataclasses import replace
+        fallback_request = replace(request, model=fallback_model_id)
+
+        result = fallback_adapter.complete(fallback_request)
+
+        # Tag the result so downstream consumers can detect the fallback
+        # (cost-ledger entry tagging keys off this).
+        if not isinstance(result.metadata, dict):
+            result.metadata = {}
+        result.metadata.setdefault("fallback", "cross_provider")
+        result.metadata.setdefault("original_provider", "bedrock")
+        result.metadata.setdefault("original_error_type", type(original_error).__name__)
+        return result
+
+    @staticmethod
+    def _emit_fallback_audit(
+        *,
+        request_model: str,
+        fallback_target: str,
+        original_error: Exception,
+        compliance_profile: str,
+    ) -> None:
+        """Stderr warning + audit logger entry per compliance posture.
+
+        ``prefer_bedrock`` emits a stderr warning and an audit-category log
+        line. ``none`` is silent (operator opted into silent fallback).
+        """
+        if compliance_profile == "prefer_bedrock":
+            sys.stderr.write(
+                f"[loa-cheval] Bedrock unavailable; falling back to direct "
+                f"{fallback_target} per compliance_profile=prefer_bedrock. "
+                f"Original error: {type(original_error).__name__}: {original_error}\n"
+            )
+            logger.warning(
+                "compliance_fallback_cross_provider_warned: bedrock %s -> %s (reason=%s)",
+                request_model, fallback_target, type(original_error).__name__,
+            )
+        # `none`: silent fallback; only the structured logger entry, no stderr.
+        else:
+            logger.info(
+                "compliance_fallback_cross_provider_silent: bedrock %s -> %s (reason=%s)",
+                request_model, fallback_target, type(original_error).__name__,
+            )
 
     # ------------------------------------------------------------------
     # Region resolution + verification

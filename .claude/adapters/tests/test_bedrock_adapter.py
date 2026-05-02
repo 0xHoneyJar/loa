@@ -664,6 +664,169 @@ def test_adapter_module_does_not_import_boto3():
 
 
 # ---------------------------------------------------------------------------
+# Compliance-aware fallback dispatch (NFR-R1, Task 1.5 runtime)
+# ---------------------------------------------------------------------------
+
+
+def _mock_anthropic_complete_success():
+    """Helper: create a CompletionResult that AnthropicAdapter.complete would return."""
+    from loa_cheval.types import CompletionResult, Usage
+    return CompletionResult(
+        content="ok-from-anthropic",
+        tool_calls=None,
+        thinking=None,
+        usage=Usage(input_tokens=10, output_tokens=4, reasoning_tokens=0, source="actual"),
+        model="claude-opus-4-7",
+        latency_ms=200,
+        provider="anthropic",
+    )
+
+
+def test_compliance_bedrock_only_re_raises_on_outage(monkeypatch):
+    """Default mode: ProviderUnavailableError propagates to caller (fail-closed)."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "anth-test-key")
+    config = _make_provider_config(
+        compliance_profile="bedrock_only",
+        models={"us.anthropic.claude-opus-4-7": _make_model_config()},
+    )
+    adapter = BedrockAdapter(config)
+
+    with patch(
+        "loa_cheval.providers.bedrock_adapter.http_post",
+        return_value=(503, {"message": "ServiceUnavailableException"}),
+    ):
+        with pytest.raises(ProviderUnavailableError):
+            adapter.complete(_make_request())
+
+
+def test_compliance_prefer_bedrock_falls_back_to_anthropic(monkeypatch, capsys):
+    """`prefer_bedrock` mode: Bedrock 503 → AnthropicAdapter.complete is invoked."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "anth-test-key")
+    config = _make_provider_config(
+        compliance_profile="prefer_bedrock",
+        models={"us.anthropic.claude-opus-4-7": _make_model_config()},
+    )
+    adapter = BedrockAdapter(config)
+
+    fake_anth_result = _mock_anthropic_complete_success()
+    # Make Bedrock fail; mock AnthropicAdapter.complete on the class.
+    with patch(
+        "loa_cheval.providers.bedrock_adapter.http_post",
+        return_value=(503, {"message": "ServiceUnavailableException"}),
+    ):
+        with patch(
+            "loa_cheval.providers.anthropic_adapter.AnthropicAdapter.complete",
+            return_value=fake_anth_result,
+        ) as anth_mock:
+            result = adapter.complete(_make_request())
+
+    # Anthropic adapter was actually called.
+    assert anth_mock.call_count == 1
+    # Caller-visible result is the Anthropic one.
+    assert result.content == "ok-from-anthropic"
+    assert result.provider == "anthropic"
+    # Result is tagged so caller can see the fallback happened.
+    assert result.metadata["fallback"] == "cross_provider"
+    assert result.metadata["original_provider"] == "bedrock"
+    assert result.metadata["original_error_type"] == "ProviderUnavailableError"
+    # Stderr warning was emitted (warned-fallback per NFR-R1).
+    captured = capsys.readouterr()
+    assert "falling back to direct" in captured.err
+    assert "prefer_bedrock" in captured.err
+
+
+def test_compliance_none_falls_back_silently(monkeypatch, capsys):
+    """`none` mode: fallback dispatches but emits NO stderr warning."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "anth-test-key")
+    config = _make_provider_config(
+        compliance_profile="none",
+        models={"us.anthropic.claude-opus-4-7": _make_model_config()},
+    )
+    adapter = BedrockAdapter(config)
+
+    fake_anth_result = _mock_anthropic_complete_success()
+    with patch(
+        "loa_cheval.providers.bedrock_adapter.http_post",
+        return_value=(503, {"message": "ServiceUnavailableException"}),
+    ):
+        with patch(
+            "loa_cheval.providers.anthropic_adapter.AnthropicAdapter.complete",
+            return_value=fake_anth_result,
+        ) as anth_mock:
+            result = adapter.complete(_make_request())
+
+    assert anth_mock.call_count == 1
+    assert result.provider == "anthropic"
+    captured = capsys.readouterr()
+    assert "falling back" not in captured.err  # silent
+
+
+def test_compliance_fallback_skips_for_config_errors(monkeypatch):
+    """OnDemandNotSupportedError / RegionMismatchError are config errors —
+    NEVER trigger fallback (would mask user error)."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "anth-test-key")
+    config = _make_provider_config(
+        compliance_profile="prefer_bedrock",
+        models={"anthropic.claude-opus-4-7": _make_model_config()},
+    )
+    adapter = BedrockAdapter(config)
+
+    err_body = {
+        "message": (
+            "Invocation of model ID anthropic.claude-opus-4-7 with on-demand "
+            "throughput isn't supported."
+        )
+    }
+    with patch(
+        "loa_cheval.providers.bedrock_adapter.http_post",
+        return_value=(400, err_body),
+    ):
+        # OnDemandNotSupportedError MUST propagate even though prefer_bedrock is set.
+        with pytest.raises(OnDemandNotSupportedError):
+            adapter.complete(_make_request(model="anthropic.claude-opus-4-7"))
+
+
+def test_compliance_fallback_skips_when_fallback_to_missing(monkeypatch):
+    """If fallback_to is missing, re-raise the original error rather than guess."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "anth-test-key")
+    config = _make_provider_config(
+        compliance_profile="none",  # avoid loader rejecting prefer_bedrock without fallback_to
+        models={
+            "us.anthropic.claude-opus-4-7": _make_model_config(fallback_to=None),
+        },
+    )
+    adapter = BedrockAdapter(config)
+
+    with patch(
+        "loa_cheval.providers.bedrock_adapter.http_post",
+        return_value=(503, {"message": "ServiceUnavailableException"}),
+    ):
+        with pytest.raises(ProviderUnavailableError):
+            adapter.complete(_make_request())
+
+
+def test_compliance_fallback_skips_when_fallback_target_not_anthropic(monkeypatch):
+    """v1 only supports anthropic fallback. Non-anthropic targets re-raise."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "anth-test-key")
+    config = _make_provider_config(
+        compliance_profile="none",
+        models={
+            "us.anthropic.claude-opus-4-7": _make_model_config(
+                fallback_to="openai:gpt-5.5",  # not anthropic
+            ),
+        },
+    )
+    adapter = BedrockAdapter(config)
+
+    with patch(
+        "loa_cheval.providers.bedrock_adapter.http_post",
+        return_value=(503, {"message": "ServiceUnavailableException"}),
+    ):
+        with pytest.raises(ProviderUnavailableError):
+            adapter.complete(_make_request())
+
+
+# ---------------------------------------------------------------------------
 # Errors are ChevalError subclasses (downstream handlers catch base class)
 # ---------------------------------------------------------------------------
 
