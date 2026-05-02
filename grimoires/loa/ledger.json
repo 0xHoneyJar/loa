@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-096-aws-bedrock",
+  "active_cycle": null,
   "cycles": [
     {
       "id": "cycle-036",
@@ -730,7 +730,7 @@
     {
       "id": "cycle-096-aws-bedrock",
       "label": "AWS Bedrock Provider + Provider-Plugin Hardening (issue #652)",
-      "status": "active",
+      "status": "archived",
       "created": "2026-05-01T15:36:04Z",
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
@@ -754,7 +754,9 @@
           "completed": "2026-05-02T05:24:01Z"
         }
       ],
-      "source_issue": "https://github.com/0xHoneyJar/loa/issues/652"
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/652",
+      "archived": "2026-05-02T06:11:32Z",
+      "archive_path": "grimoires/loa/archive/2026-05-02-cycle-096-aws-bedrock"
     }
   ],
   "global_sprint_counter": 123,
