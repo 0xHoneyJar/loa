@@ -982,6 +982,15 @@ budget_reconcile() {
 
     local observer_json billing_usd billing_unreachable
     observer_json="$(_l2_invoke_observer "$provider")"
+    # Sprint 2B: observer may signal {"_defer": true, "_reason": "rate_limited"}
+    # to indicate transient failure; in that case we skip silently and let the
+    # next cron interval retry. Audit log is NOT touched.
+    if printf '%s' "$observer_json" | jq -e '._defer == true' >/dev/null 2>&1; then
+        local reason
+        reason="$(printf '%s' "$observer_json" | jq -r '._reason // "unspecified"')"
+        _l2_log "budget_reconcile: observer requested defer (provider=$provider reason=$reason)"
+        return 2
+    fi
     if printf '%s' "$observer_json" | jq -e '._unreachable == true' >/dev/null 2>&1; then
         billing_usd="null"
         billing_unreachable="true"
