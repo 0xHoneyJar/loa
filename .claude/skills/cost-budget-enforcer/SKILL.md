@@ -215,8 +215,13 @@ against these schemas before sealing the envelope.
 
 ## Testing
 
-Unit tests: `tests/unit/cost-budget-enforcer-state-machine.bats` (31 tests)
-Integration tests: `tests/integration/cost-budget-enforcer-reconciliation-cron.bats` (11 tests)
-Snapshot tests: `tests/integration/audit-snapshot.bats` (13 tests)
+Unit tests:
+- `tests/unit/cost-budget-enforcer-state-machine.bats` (31 tests — state machine, schemas)
+- `tests/unit/cost-budget-enforcer-remediation.bats` (21 tests — review/audit-finding remediations)
 
-Cumulative: 55 / 55 PASS.
+Integration tests:
+- `tests/integration/cost-budget-enforcer-reconciliation-cron.bats` (11 tests)
+- `tests/integration/audit-snapshot.bats` (17 tests, including F3 .sig verification)
+- `tests/integration/budget-cli.bats` (12 tests)
+
+Cumulative: **92 / 92 PASS** (Sprint 1 regression: 39 / 39 PASS).

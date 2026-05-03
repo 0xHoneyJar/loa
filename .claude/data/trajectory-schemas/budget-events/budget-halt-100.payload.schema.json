@@ -13,7 +13,8 @@
     "billing_api_age_seconds",
     "counter_age_seconds",
     "provider",
-    "utc_day"
+    "utc_day",
+    "usage_pct"
   ],
   "additionalProperties": false,
   "properties": {
@@ -34,7 +35,7 @@
     "usage_pct": {
       "type": "number",
       "minimum": 100,
-      "description": "100 * usd_used / daily_cap_usd. >= 100."
+      "description": "Projected post-call usage: 100 * (usd_used + estimated_usd_for_call) / daily_cap_usd. >= 100. Verdict-trigger uses projected usage_pct, not current."
     }
   }
 }

@@ -95,6 +95,34 @@ _L2_DEFAULT_CLOCK_TOLERANCE="60"
 _L2_DEFAULT_LAG_HALT_SECONDS="300"
 _L2_DEFAULT_BILLING_STALE_SECONDS="900"
 
+# Numeric / provider input validation regexes (review HIGH-3 / audit F1 + F2).
+# All numerics passed to python3 -c interpolation MUST match _L2_NUMERIC_RE.
+# All providers (free-form caller input) MUST match _L2_PROVIDER_RE.
+_L2_NUMERIC_RE='^[0-9]+(\.[0-9]+)?$'
+_L2_INT_RE='^[0-9]+$'
+_L2_PROVIDER_RE='^[a-z][a-z0-9_-]{0,63}$'
+
+# -----------------------------------------------------------------------------
+# _l2_validate_numeric <value> <field_name> [int|decimal]
+# Returns 0 valid; 1 invalid (and logs an error).
+# -----------------------------------------------------------------------------
+_l2_validate_numeric() {
+    local value="$1"
+    local field="$2"
+    local kind="${3:-decimal}"
+    local re
+    if [[ "$kind" == "int" ]]; then
+        re="$_L2_INT_RE"
+    else
+        re="$_L2_NUMERIC_RE"
+    fi
+    if [[ -z "$value" ]] || ! [[ "$value" =~ $re ]]; then
+        _l2_log "ERROR: invalid numeric value for $field: '$value' (expected $kind matching $re)"
+        return 1
+    fi
+    return 0
+}
+
 # -----------------------------------------------------------------------------
 # _l2_config_path — return resolved .loa.config.yaml path.
 # -----------------------------------------------------------------------------
@@ -157,41 +185,62 @@ PY
 # _l2_get_daily_cap — resolve daily cap. Env > config > error.
 # -----------------------------------------------------------------------------
 _l2_get_daily_cap() {
-    if [[ -n "${LOA_BUDGET_DAILY_CAP_USD:-}" ]]; then
-        echo "$LOA_BUDGET_DAILY_CAP_USD"
-        return 0
-    fi
     local cap
-    cap="$(_l2_config_get '.cost_budget_enforcer.daily_cap_usd' '')"
+    if [[ -n "${LOA_BUDGET_DAILY_CAP_USD:-}" ]]; then
+        cap="$LOA_BUDGET_DAILY_CAP_USD"
+    else
+        cap="$(_l2_config_get '.cost_budget_enforcer.daily_cap_usd' '')"
+    fi
     if [[ -z "$cap" ]]; then
         _l2_log "ERROR: daily_cap_usd not configured (set LOA_BUDGET_DAILY_CAP_USD or .loa.config.yaml::cost_budget_enforcer.daily_cap_usd)"
+        return 3
+    fi
+    if ! _l2_validate_numeric "$cap" "daily_cap_usd"; then
         return 3
     fi
     echo "$cap"
 }
 
 _l2_get_drift_threshold() {
-    echo "${LOA_BUDGET_DRIFT_THRESHOLD:-$(_l2_config_get '.cost_budget_enforcer.reconciliation.drift_threshold_pct' "$_L2_DEFAULT_DRIFT_THRESHOLD")}"
+    local v
+    v="${LOA_BUDGET_DRIFT_THRESHOLD:-$(_l2_config_get '.cost_budget_enforcer.reconciliation.drift_threshold_pct' "$_L2_DEFAULT_DRIFT_THRESHOLD")}"
+    _l2_validate_numeric "$v" "drift_threshold_pct" || { echo "$_L2_DEFAULT_DRIFT_THRESHOLD"; return 0; }
+    echo "$v"
 }
 
 _l2_get_freshness_seconds() {
-    echo "${LOA_BUDGET_FRESHNESS_SECONDS:-$(_l2_config_get '.cost_budget_enforcer.freshness_threshold_seconds' "$_L2_DEFAULT_FRESHNESS_SECONDS")}"
+    local v
+    v="${LOA_BUDGET_FRESHNESS_SECONDS:-$(_l2_config_get '.cost_budget_enforcer.freshness_threshold_seconds' "$_L2_DEFAULT_FRESHNESS_SECONDS")}"
+    _l2_validate_numeric "$v" "freshness_threshold_seconds" int || { echo "$_L2_DEFAULT_FRESHNESS_SECONDS"; return 0; }
+    echo "$v"
 }
 
 _l2_get_stale_halt_pct() {
-    echo "${LOA_BUDGET_STALE_HALT_PCT:-$(_l2_config_get '.cost_budget_enforcer.stale_halt_pct' "$_L2_DEFAULT_STALE_HALT_PCT")}"
+    local v
+    v="${LOA_BUDGET_STALE_HALT_PCT:-$(_l2_config_get '.cost_budget_enforcer.stale_halt_pct' "$_L2_DEFAULT_STALE_HALT_PCT")}"
+    _l2_validate_numeric "$v" "stale_halt_pct" || { echo "$_L2_DEFAULT_STALE_HALT_PCT"; return 0; }
+    echo "$v"
 }
 
 _l2_get_clock_tolerance() {
-    echo "${LOA_BUDGET_CLOCK_TOLERANCE:-$(_l2_config_get '.cost_budget_enforcer.clock_tolerance_seconds' "$_L2_DEFAULT_CLOCK_TOLERANCE")}"
+    local v
+    v="${LOA_BUDGET_CLOCK_TOLERANCE:-$(_l2_config_get '.cost_budget_enforcer.clock_tolerance_seconds' "$_L2_DEFAULT_CLOCK_TOLERANCE")}"
+    _l2_validate_numeric "$v" "clock_tolerance_seconds" int || { echo "$_L2_DEFAULT_CLOCK_TOLERANCE"; return 0; }
+    echo "$v"
 }
 
 _l2_get_lag_halt_seconds() {
-    echo "${LOA_BUDGET_LAG_HALT_SECONDS:-$(_l2_config_get '.cost_budget_enforcer.provider_lag_halt_seconds' "$_L2_DEFAULT_LAG_HALT_SECONDS")}"
+    local v
+    v="${LOA_BUDGET_LAG_HALT_SECONDS:-$(_l2_config_get '.cost_budget_enforcer.provider_lag_halt_seconds' "$_L2_DEFAULT_LAG_HALT_SECONDS")}"
+    _l2_validate_numeric "$v" "provider_lag_halt_seconds" int || { echo "$_L2_DEFAULT_LAG_HALT_SECONDS"; return 0; }
+    echo "$v"
 }
 
 _l2_get_billing_stale_seconds() {
-    echo "${LOA_BUDGET_BILLING_STALE_SECONDS:-$(_l2_config_get '.cost_budget_enforcer.billing_stale_halt_seconds' "$_L2_DEFAULT_BILLING_STALE_SECONDS")}"
+    local v
+    v="${LOA_BUDGET_BILLING_STALE_SECONDS:-$(_l2_config_get '.cost_budget_enforcer.billing_stale_halt_seconds' "$_L2_DEFAULT_BILLING_STALE_SECONDS")}"
+    _l2_validate_numeric "$v" "billing_stale_halt_seconds" int || { echo "$_L2_DEFAULT_BILLING_STALE_SECONDS"; return 0; }
+    echo "$v"
 }
 
 _l2_get_observer_cmd() {
@@ -209,6 +258,18 @@ _l2_get_log_path() {
         echo "$relpath"
     else
         echo "${_L2_REPO_ROOT}/${relpath}"
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# _l2_propagate_test_now — when LOA_BUDGET_TEST_NOW is set, also propagate to
+# LOA_AUDIT_TEST_NOW so audit-envelope writes the same simulated ts_utc.
+# Call at the top of every public L2 entry function (must be in caller's
+# scope, not a subshell — command substitutions cannot propagate exports).
+# -----------------------------------------------------------------------------
+_l2_propagate_test_now() {
+    if [[ -n "${LOA_BUDGET_TEST_NOW:-}" ]]; then
+        export LOA_AUDIT_TEST_NOW="$LOA_BUDGET_TEST_NOW"
     fi
 }
 
@@ -254,14 +315,86 @@ except Exception:
 
 # -----------------------------------------------------------------------------
 # _l2_provider_normalize <provider> — default to "aggregate" if empty.
+# Validates against _L2_PROVIDER_RE to prevent yq path-expression injection
+# (audit F2). Returns non-zero (and a sanitized fallback "aggregate") on
+# invalid input — caller's burden to check exit code.
 # -----------------------------------------------------------------------------
 _l2_provider_normalize() {
     local provider="${1:-}"
     if [[ -z "$provider" ]]; then
         echo "aggregate"
-    else
-        echo "$provider"
+        return 0
     fi
+    if ! [[ "$provider" =~ $_L2_PROVIDER_RE ]]; then
+        _l2_log "ERROR: invalid provider id '$provider' (expected $_L2_PROVIDER_RE)"
+        echo "aggregate"
+        return 1
+    fi
+    echo "$provider"
+}
+
+# -----------------------------------------------------------------------------
+# _l2_recent_drift_blocker <provider> <utc_day>
+#
+# Scan the audit log for budget.reconcile events for <utc_day> + <provider>.
+# Returns the diagnostic JSON of the most-recent BLOCKER if one exists AND
+# is not yet cleared by a subsequent force-reconcile event. Otherwise empty.
+# A force-reconcile (force_reconcile=true) "clears" prior BLOCKERs because
+# the operator has explicitly reviewed the drift and decided to proceed
+# (counter NOT auto-corrected — but the operator-decision is auditable).
+#
+# Used by budget_verdict to honor MED-3 (counter_drift reachability): a
+# verdict made after an unresolved drift BLOCKER should halt-uncertainty.
+# -----------------------------------------------------------------------------
+_l2_recent_drift_blocker() {
+    local provider="$1"
+    local utc_day="$2"
+    local log_path
+    log_path="$(_l2_get_log_path)"
+    if [[ ! -f "$log_path" ]]; then
+        return 0
+    fi
+    python3 - "$log_path" "$provider" "$utc_day" <<'PY'
+import json, sys
+log_path, target_provider, target_day = sys.argv[1], sys.argv[2], sys.argv[3]
+last_blocker = None
+try:
+    with open(log_path, 'r', encoding='utf-8') as f:
+        for raw in f:
+            line = raw.strip()
+            if not line or line.startswith('['):
+                continue
+            try:
+                envelope = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if envelope.get('event_type') != 'budget.reconcile':
+                continue
+            payload = envelope.get('payload') or {}
+            if payload.get('utc_day') != target_day:
+                continue
+            ev_provider = payload.get('provider', 'aggregate')
+            if target_provider != 'aggregate' and ev_provider != target_provider:
+                continue
+            if payload.get('force_reconcile') is True:
+                # Operator explicit override clears prior blockers.
+                last_blocker = None
+                continue
+            if payload.get('blocker') is True:
+                last_blocker = {
+                    'drift_pct': payload.get('drift_pct'),
+                    'counter_usd': payload.get('counter_usd'),
+                    'billing_usd': payload.get('billing_usd'),
+                    'reconcile_ts': envelope.get('ts_utc'),
+                }
+            else:
+                # blocker=false reconcile clears the prior blocker too.
+                last_blocker = None
+except FileNotFoundError:
+    pass
+if last_blocker:
+    print(json.dumps(last_blocker))
+PY
 }
 
 # -----------------------------------------------------------------------------
@@ -499,6 +632,7 @@ _l2_compute_age_seconds() {
 #    freshness_seconds, provider, utc_day}
 # -----------------------------------------------------------------------------
 budget_get_usage() {
+    _l2_propagate_test_now
     local provider=""
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -506,7 +640,7 @@ budget_get_usage() {
             *) shift ;;
         esac
     done
-    provider="$(_l2_provider_normalize "$provider")"
+    if ! provider="$(_l2_provider_normalize "$provider")"; then return 2; fi
 
     local cap
     if ! cap="$(_l2_get_daily_cap)"; then
@@ -569,6 +703,7 @@ budget_get_usage() {
 # tail-scan + this actual_usd.
 # -----------------------------------------------------------------------------
 budget_record_call() {
+    _l2_propagate_test_now
     local actual_usd="${1:-}"
     if [[ -z "$actual_usd" ]]; then
         _l2_log "budget_record_call: actual_usd required"
@@ -586,7 +721,7 @@ budget_record_call() {
             *) shift ;;
         esac
     done
-    provider="$(_l2_provider_normalize "$provider")"
+    if ! provider="$(_l2_provider_normalize "$provider")"; then return 2; fi
 
     if ! [[ "$actual_usd" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
         _l2_log "budget_record_call: actual_usd must be a non-negative decimal"
@@ -737,6 +872,7 @@ _l2_emit_and_return() {
 # for allow/warn-90, exits 1 for halt-100/halt-uncertainty.
 # -----------------------------------------------------------------------------
 budget_verdict() {
+    _l2_propagate_test_now
     local estimated_usd="${1:-}"
     if [[ -z "$estimated_usd" ]]; then
         _l2_log "budget_verdict: estimated_usd required"
@@ -756,7 +892,7 @@ budget_verdict() {
             *) shift ;;
         esac
     done
-    provider="$(_l2_provider_normalize "$provider")"
+    if ! provider="$(_l2_provider_normalize "$provider")"; then return 2; fi
 
     local cap
     if ! cap="$(_l2_get_daily_cap)"; then
@@ -768,11 +904,16 @@ budget_verdict() {
 
     # Per-provider sub-cap (optional). When provider is specified and a sub-cap
     # is configured, the sub-cap overrides the aggregate cap for verdict math.
+    # provider has already been validated against _L2_PROVIDER_RE in
+    # _l2_provider_normalize, but defense-in-depth: we still validate the
+    # resulting sub_cap with _l2_validate_numeric before using it.
     if [[ "$provider" != "aggregate" ]]; then
         local sub_cap
         sub_cap="$(_l2_config_get ".cost_budget_enforcer.per_provider_caps.${provider}" "")"
         if [[ -n "$sub_cap" ]]; then
-            cap="$sub_cap"
+            if _l2_validate_numeric "$sub_cap" "per_provider_caps.${provider}"; then
+                cap="$sub_cap"
+            fi
         fi
     fi
 
@@ -822,10 +963,12 @@ budget_verdict() {
     # ----- Uncertainty checks (PRD §FR-L2 + SDD §1.5.3 ordering) -----
     # Order: most-severe first.
     # 1. counter_inconsistent — counter is corrupt regardless of billing state
-    # 2. billing_stale — billing API >billing_stale_threshold AND counter >cap_threshold
-    # 3. provider_lag — billing API lag in [lag_threshold, billing_stale_threshold) AND counter >cap_threshold
-    # 4. clock_drift — only when billing data is FRESH (billing_age <= freshness)
-    # 5. halt-100 / warn-90 / allow
+    # 2. counter_drift       — prior reconcile BLOCKER not yet operator-cleared
+    # 3. billing_stale — billing API >billing_stale_threshold AND counter >cap_threshold
+    # 4. provider_lag — billing API lag in [lag_threshold, billing_stale_threshold) AND counter >cap_threshold
+    # 5. clock_drift — only when billing data is FRESH (billing_age <= freshness)
+    # 6. counter_stale — no fresh signal at all (no observer + counter older than freshness)
+    # 7. halt-100 / warn-90 / allow
 
     # 1. counter_inconsistent (always halt-uncertainty regardless of usage)
     if [[ "$consistency" != "ok" ]]; then
@@ -833,6 +976,17 @@ budget_verdict() {
         diag_inc="$(jq -nc --arg c "$consistency" '{counter_state: $c}')"
         local payload
         payload="$(_l2_render_verdict "halt-uncertainty" "$usd_used" "$cap" "$estimated_usd" "$provider" "$utc_day" "$billing_age" "$counter_age" "$observer_used" "$cycle_id" "counter_inconsistent" "$diag_inc")"
+        _l2_emit_and_return "budget.halt_uncertainty" "$payload"
+        return $?
+    fi
+
+    # 2. counter_drift — prior reconcile BLOCKER must be cleared by operator
+    #    via force-reconcile before allowing further verdicts (MED-3 review).
+    local drift_blocker
+    drift_blocker="$(_l2_recent_drift_blocker "$provider" "$utc_day")"
+    if [[ -n "$drift_blocker" ]]; then
+        local payload
+        payload="$(_l2_render_verdict "halt-uncertainty" "$usd_used" "$cap" "$estimated_usd" "$provider" "$utc_day" "$billing_age" "$counter_age" "$observer_used" "$cycle_id" "counter_drift" "$drift_blocker")"
         _l2_emit_and_return "budget.halt_uncertainty" "$payload"
         return $?
     fi
@@ -848,7 +1002,7 @@ counter = float('${counter_usd}')
 print(0 if cap == 0 else round(100 * counter / cap, 6))
 ")"
 
-    # 2. billing_stale (billing API >= billing_stale threshold AND counter > stale_halt_pct)
+    # 3. billing_stale (billing API >= billing_stale threshold AND counter > stale_halt_pct)
     if [[ "$observer_used" == "true" && "$billing_age" != "null" ]]; then
         local billing_stale_threshold
         billing_stale_threshold="$(_l2_get_billing_stale_seconds)"
@@ -869,7 +1023,7 @@ print(0 if cap == 0 else round(100 * counter / cap, 6))
         fi
     fi
 
-    # 3. provider_lag (billing API lag >= lag_halt_seconds AND counter > stale_halt_pct)
+    # 4. provider_lag (billing API lag >= lag_halt_seconds AND counter > stale_halt_pct)
     #    Comes AFTER billing_stale so billing_stale wins for very-stale data.
     if [[ "$observer_used" == "true" && "$billing_age" != "null" ]]; then
         local lag_threshold
@@ -891,7 +1045,7 @@ print(0 if cap == 0 else round(100 * counter / cap, 6))
         fi
     fi
 
-    # 4. clock_drift — ONLY when billing data is fresh (billing_age <= freshness).
+    # 5. clock_drift — ONLY when billing data is fresh (billing_age <= freshness).
     #    Stale billing_ts will naturally appear "drifted" from system clock; that
     #    is not a clock-drift signal, it's a staleness signal (handled above).
     if [[ "$observer_used" == "true" && -n "$billing_ts" && "$billing_age" != "null" ]]; then
@@ -919,6 +1073,25 @@ print(0 if cap == 0 else round(100 * counter / cap, 6))
                 return $?
             fi
         fi
+    fi
+
+    # 6. counter_stale — no observer + counter is stale OR has positive value
+    #    but no fresh signal at all. Closes review HIGH-1 fail-open hole.
+    #    The check applies when observer_used=false AND data_fresh=false. When
+    #    no entries exist for today (counter_usd=0, counter_ts=null →
+    #    counter_age=0), data_fresh was set true above; allow proceeds.
+    if [[ "$data_fresh" != "true" ]]; then
+        local diag_cs
+        diag_cs="$(jq -nc \
+            --argjson counter_age "$counter_age" \
+            --argjson freshness_threshold "$fresh_threshold" \
+            --argjson counter_usd "$counter_usd" \
+            --arg observer_used "$observer_used" \
+            '{counter_age_seconds: $counter_age, freshness_threshold_seconds: $freshness_threshold, counter_usd: $counter_usd, observer_used: ($observer_used == "true")}')"
+        local payload
+        payload="$(_l2_render_verdict "halt-uncertainty" "$usd_used" "$cap" "$estimated_usd" "$provider" "$utc_day" "$billing_age" "$counter_age" "$observer_used" "$cycle_id" "counter_stale" "$diag_cs")"
+        _l2_emit_and_return "budget.halt_uncertainty" "$payload"
+        return $?
     fi
 
     # ----- Threshold checks (data is fresh; cleanly bucket) -----
@@ -963,6 +1136,7 @@ print(0 if cap == 0 else round(100 * (used + est) / cap, 6))
 # Sprint 2A: function unit. Sprint 2B: cron registration via /schedule.
 # -----------------------------------------------------------------------------
 budget_reconcile() {
+    _l2_propagate_test_now
     local provider="" force_reason=""
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -971,7 +1145,7 @@ budget_reconcile() {
             *) shift ;;
         esac
     done
-    provider="$(_l2_provider_normalize "$provider")"
+    if ! provider="$(_l2_provider_normalize "$provider")"; then return 2; fi
 
     local utc_day
     utc_day="$(_l2_now_utc_day)"

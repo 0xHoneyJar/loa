@@ -238,3 +238,80 @@ EOF
     LOA_BUDGET_CONFIG_FILE="$config" run "$INSTALL_SCRIPT" show
     [[ "$status" -ne 0 ]]
 }
+
+# -----------------------------------------------------------------------------
+# F3 remediation: .sig sidecar verification on recovery
+# -----------------------------------------------------------------------------
+@test "F3: recovery refuses snapshot whose .sig has wrong sha256 (tampered .gz)" {
+    seed_chain "$L2_LOG" L2
+    "$SNAPSHOT_SCRIPT" --policy "$POLICY" --logs-dir "$LOGS_DIR" --archive-dir "$ARCHIVE_DIR" --primitive L2 >/dev/null
+
+    local archive="${ARCHIVE_DIR}/2026-05-04-L2.jsonl.gz"
+    [[ -f "$archive" ]]
+
+    # Manually create a malicious .sig sidecar pointing to a wrong sha256.
+    cat > "${archive}.sig" <<'EOF'
+{"schema_version":"1.0","primitive_id":"L2","utc_day":"2026-05-04","sha256":"0000000000000000000000000000000000000000000000000000000000000000","signing_key_id":"test-writer","signed_at":"2026-05-04T04:00:00Z","signature":"AAAA"}
+EOF
+
+    # Corrupt the rolling log to force recovery.
+    cat > "$L2_LOG" <<'EOF'
+{"schema_version":"1.1.0","primitive_id":"L2","event_type":"test.event","ts_utc":"2026-05-04T10:00:00.000000Z","prev_hash":"GENESIS","payload":{"foo":"bar"},"redaction_applied":null}
+{"schema_version":"1.1.0","primitive_id":"L2","event_type":"test.event","ts_utc":"2026-05-04T10:01:00.000000Z","prev_hash":"deadbeef","payload":{"foo":"baz"},"redaction_applied":null}
+EOF
+
+    source "${REPO_ROOT}/.claude/scripts/audit-envelope.sh"
+    LOA_AUDIT_ARCHIVE_DIR="$ARCHIVE_DIR" run audit_recover_chain "$L2_LOG"
+    # Should refuse to recover (sha256 mismatch).
+    [[ "$status" -ne 0 ]]
+}
+
+@test "F3: recovery refuses snapshot whose .sig is malformed JSON" {
+    seed_chain "$L2_LOG" L2
+    "$SNAPSHOT_SCRIPT" --policy "$POLICY" --logs-dir "$LOGS_DIR" --archive-dir "$ARCHIVE_DIR" --primitive L2 >/dev/null
+
+    local archive="${ARCHIVE_DIR}/2026-05-04-L2.jsonl.gz"
+    # .sig present but missing required fields.
+    cat > "${archive}.sig" <<'EOF'
+{"schema_version":"1.0","sha256":"abc"}
+EOF
+
+    cat > "$L2_LOG" <<'EOF'
+{"schema_version":"1.1.0","primitive_id":"L2","event_type":"test.event","ts_utc":"2026-05-04T10:00:00.000000Z","prev_hash":"GENESIS","payload":{"foo":"bar"},"redaction_applied":null}
+{"schema_version":"1.1.0","primitive_id":"L2","event_type":"test.event","ts_utc":"2026-05-04T10:01:00.000000Z","prev_hash":"deadbeef","payload":{"foo":"baz"},"redaction_applied":null}
+EOF
+
+    source "${REPO_ROOT}/.claude/scripts/audit-envelope.sh"
+    LOA_AUDIT_ARCHIVE_DIR="$ARCHIVE_DIR" run audit_recover_chain "$L2_LOG"
+    [[ "$status" -ne 0 ]]
+}
+
+@test "F3: recovery refuses unsigned snapshot when LOA_AUDIT_RECOVER_REQUIRE_SIG=1" {
+    seed_chain "$L2_LOG" L2
+    "$SNAPSHOT_SCRIPT" --policy "$POLICY" --logs-dir "$LOGS_DIR" --archive-dir "$ARCHIVE_DIR" --primitive L2 >/dev/null
+
+    cat > "$L2_LOG" <<'EOF'
+{"schema_version":"1.1.0","primitive_id":"L2","event_type":"test.event","ts_utc":"2026-05-04T10:00:00.000000Z","prev_hash":"GENESIS","payload":{"foo":"bar"},"redaction_applied":null}
+{"schema_version":"1.1.0","primitive_id":"L2","event_type":"test.event","ts_utc":"2026-05-04T10:01:00.000000Z","prev_hash":"deadbeef","payload":{"foo":"baz"},"redaction_applied":null}
+EOF
+
+    source "${REPO_ROOT}/.claude/scripts/audit-envelope.sh"
+    LOA_AUDIT_RECOVER_REQUIRE_SIG=1 LOA_AUDIT_ARCHIVE_DIR="$ARCHIVE_DIR" run audit_recover_chain "$L2_LOG"
+    [[ "$status" -ne 0 ]]
+}
+
+@test "F3: recovery proceeds for unsigned snapshot when REQUIRE_SIG=0 (backward compat)" {
+    seed_chain "$L2_LOG" L2
+    "$SNAPSHOT_SCRIPT" --policy "$POLICY" --logs-dir "$LOGS_DIR" --archive-dir "$ARCHIVE_DIR" --primitive L2 >/dev/null
+
+    cat > "$L2_LOG" <<'EOF'
+{"schema_version":"1.1.0","primitive_id":"L2","event_type":"test.event","ts_utc":"2026-05-04T10:00:00.000000Z","prev_hash":"GENESIS","payload":{"foo":"bar"},"redaction_applied":null}
+{"schema_version":"1.1.0","primitive_id":"L2","event_type":"test.event","ts_utc":"2026-05-04T10:01:00.000000Z","prev_hash":"deadbeef","payload":{"foo":"baz"},"redaction_applied":null}
+EOF
+
+    source "${REPO_ROOT}/.claude/scripts/audit-envelope.sh"
+    # No LOA_AUDIT_RECOVER_REQUIRE_SIG (default 0); no .sig file present.
+    LOA_AUDIT_ARCHIVE_DIR="$ARCHIVE_DIR" run audit_recover_chain "$L2_LOG"
+    [[ "$status" -eq 0 ]]
+    grep -q "CHAIN-RECOVERED source=snapshot_archive" "$L2_LOG"
+}

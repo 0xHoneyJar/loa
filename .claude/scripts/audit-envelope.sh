@@ -102,6 +102,13 @@ _audit_require_flock() {
 # Cross-platform: GNU date supports %N (nanoseconds); macOS does not.
 # -----------------------------------------------------------------------------
 _audit_now_iso8601() {
+    # Test override (Sprint 2 remediation): tests that set LOA_AUDIT_TEST_NOW
+    # to a fixed ISO-8601 timestamp get a deterministic clock for envelope
+    # ts_utc. Production callers don't set this; behavior identical to before.
+    if [[ -n "${LOA_AUDIT_TEST_NOW:-}" ]]; then
+        echo "$LOA_AUDIT_TEST_NOW"
+        return 0
+    fi
     if date +%6N 2>/dev/null | grep -q '^[0-9]\{6\}$'; then
         date -u +"%Y-%m-%dT%H:%M:%S.%6NZ"
     else
@@ -979,6 +986,45 @@ _audit_recover_from_snapshot() {
     snapshot_content="$(cat "$tmp")"
     if ! _audit_chain_validates_lines "$snapshot_content"; then
         _audit_log "snapshot at $snapshot has broken chain — refusing to restore"
+        return 1
+    fi
+
+    # Sprint 2C remediation (audit F3): when a .sig sidecar exists, verify it.
+    # Refuse recovery on signature mismatch — an attacker who swaps the .gz with
+    # a chain-internally-valid-but-malicious archive is detected here.
+    # When LOA_AUDIT_RECOVER_REQUIRE_SIG=1, refuse on missing .sig too
+    # (defense-in-depth for high-trust deployments).
+    local sig_path="${snapshot}.sig"
+    if [[ -f "$sig_path" ]]; then
+        local sig_kid sig_b64 sig_sha256
+        if ! sig_kid="$(jq -r '.signing_key_id // ""' "$sig_path" 2>/dev/null)" \
+            || ! sig_b64="$(jq -r '.signature // ""' "$sig_path" 2>/dev/null)" \
+            || ! sig_sha256="$(jq -r '.sha256 // ""' "$sig_path" 2>/dev/null)"; then
+            _audit_log "snapshot .sig sidecar at $sig_path is malformed — refusing to restore"
+            return 1
+        fi
+        if [[ -z "$sig_kid" || -z "$sig_b64" || -z "$sig_sha256" ]]; then
+            _audit_log "snapshot .sig sidecar at $sig_path missing required fields (signing_key_id/signature/sha256) — refusing to restore"
+            return 1
+        fi
+        local actual_sha256
+        actual_sha256="$(_audit_sha256 < "$snapshot")"
+        if [[ "$actual_sha256" != "$sig_sha256" ]]; then
+            _audit_log "snapshot $snapshot sha256 mismatch with .sig sidecar (got $actual_sha256, expected $sig_sha256) — possible tampering, refusing to restore"
+            return 1
+        fi
+        local pubkey_pem
+        if ! pubkey_pem="$(_audit_pubkey_for_key_id "$sig_kid" 2>/dev/null)"; then
+            _audit_log "cannot resolve pubkey for signing_key_id=$sig_kid (snapshot .sig at $sig_path) — refusing to restore"
+            return 1
+        fi
+        if ! _audit_verify_signature_inline "$pubkey_pem" "$actual_sha256" "$sig_b64"; then
+            _audit_log "snapshot signature verification FAILED for $snapshot (sig_kid=$sig_kid) — refusing to restore"
+            return 1
+        fi
+        _audit_log "snapshot $snapshot signature verified (sig_kid=$sig_kid)"
+    elif [[ "${LOA_AUDIT_RECOVER_REQUIRE_SIG:-0}" == "1" ]]; then
+        _audit_log "snapshot $snapshot has no .sig sidecar and LOA_AUDIT_RECOVER_REQUIRE_SIG=1 — refusing to restore"
         return 1
     fi
 

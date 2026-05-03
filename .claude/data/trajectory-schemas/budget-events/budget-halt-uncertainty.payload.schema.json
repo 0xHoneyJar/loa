@@ -26,7 +26,8 @@
         "counter_inconsistent",
         "counter_drift",
         "clock_drift",
-        "provider_lag"
+        "provider_lag",
+        "counter_stale"
       ]
     },
     "usd_used": { "type": "number" },
