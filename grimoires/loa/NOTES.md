@@ -226,6 +226,37 @@ Multi-model bridgebuilder (claude-opus-4-7 + gpt-5.3-codex + gemini-2.5-pro, arc
 - **Why `grimoires/loa/**` scope, not repo-global `**/`**: this repo's only planning-artifact location is `grimoires/loa/`. Generalizing to `**/` would match unrelated `.bak` siblings that other tools (or contributors' personal scripts) may legitimately emit elsewhere. Conway's-Law-clean: ignore rules respect the actual artifact topology.
 - **Why three coexisting ignore conventions remain (line 145, 147, 156-159)**: the line-145 rule (`grimoires/loa/ledger.json` itself) is intentional — the ledger.json is gitignored at TEMPLATE level (cycle-095 decision; ledger is project-specific, not framework). Line 147 covers the simple `.bak` suffix that pre-dates the cycle-archive convention. Lines 156-159 cover the `.<tag>-bak` variants. These are not "tooling proliferation" — they're three independent decisions stacked over time. **Future consolidation tracked as cycle-099 candidate** but not blocking this PR.
 
+### Bridgebuilder iter-4 — genuine new finding + iter-3 comment trim
+
+**Stats**: 0 HIGH_CONSENSUS, 4 DISPUTED, 0 BLOCKER, 9 unique findings (was 6 in iter-3 — temporary uptick; analysis below).
+
+The unique-count rose because iter-4 surfaced a **genuine new finding** that iter-3 missed:
+
+- **gemini-2.5-pro e2a39b0a (MEDIUM DISPUTED)**: "the legacy `grimoires/loa/ledger.json.bak` line at 147 is NOT subsumed by the new `<stem>.*-bak` pattern."
+
+**Verification**: gemini was correct. `git check-ignore` proved the gap:
+- `grimoires/loa/ledger.json.bak` ✓ (matched by line 147 — legacy rule)
+- `grimoires/loa/sprint.md.bak` **NOT IGNORED** (gap!)
+- `grimoires/loa/prd.md.bak` **NOT IGNORED** (gap!)
+- `grimoires/loa/sdd.md.bak` **NOT IGNORED** (gap!)
+
+Root cause: my iter-2 pattern `grimoires/loa/**/<stem>.*-bak` requires a `<tag>` between the stem and `-bak`. A simple `.bak` suffix (no `<tag>`) didn't match for sprint/prd/sdd. The legacy line-147 rule covered ledger.json.bak only.
+
+**Iter-4 fix**: added a second symmetric pattern `grimoires/loa/**/<stem>*.bak` to each artifact class. Combined with the existing `*-bak` pattern, this catches both `<stem>.bak` and `<stem>.<tag>-bak` variants. Verified 5 representative paths via `git check-ignore -v`.
+
+Also addressed iter-4 claude F-002 (LOW): trimmed reviewer-ID citations from inline comments per "decision records exist precisely so config files can stay terse." The 3-finding rationale is now in this NOTES section; the .gitignore comment is concise.
+
+**Iter-4 finding breakdown**:
+- 1 NEW genuine gap (gemini e2a39b0a) — RESOLVED in this commit
+- 1 NEW LOW comment-verbosity (claude F-002) — RESOLVED (trimmed inline rationale)
+- 1 REPEAT factually-stale (claude F-001) — same as iter-3; verification done
+- 1 REPEAT contradictory-pole (gpt F-001 + claude F-001) — patterns "may be too broad"; trade-off accepted in iter-3 NOTES
+- 1 REPEAT REFRAME (claude F-004 + gpt F-004) — filter exclusion; framework-level
+- 1 REPEAT SPECULATION (claude F-005) — audit-key README; iter-1 acknowledged
+- 2 PRAISE (gpt F-003, gemini d8c15f4e) — confirms iter-2/3 fixes are good
+
+**Kaironic verdict**: iter-4 surfaced ONE genuine new finding (gemini's coverage gap) plus mostly REPEATs. After iter-4 fix, the symmetric coverage is now complete (`*.bak` AND `.*-bak` both caught for all 4 artifact classes). Iter-5 should produce a clean plateau or pure REPEATs. Per kaironic memory PR #639 example: ran iter-5 to confirm convergence; PR #603 example: ran iter-9 to confirm hallucinated/stale findings as terminator.
+
 ---
 
 ## Decision Log — 2026-04-26 (cycle-094 sprint-2 — test infra + filter + SSOT close-out)
