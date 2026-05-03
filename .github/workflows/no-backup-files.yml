@@ -58,7 +58,12 @@ jobs:
           if [[ -n "$violations" ]]; then
             echo "::error::Backup-sibling files detected in PR diff (issue #681 / vision-014)"
             echo "Affected files:"
-            printf '  - %s\n' $violations
+            # Iter-2 lint: quote violations during expansion. Filenames with
+            # whitespace would otherwise word-split incorrectly. We DO want
+            # newline-splitting (each file on its own line) — preserve via IFS.
+            while IFS= read -r f; do
+              printf '  - %s\n' "$f"
+            done <<< "$violations"
             echo ""
             echo "Remediation:"
             echo "  git rm --cached <file>      # untrack the backup"
