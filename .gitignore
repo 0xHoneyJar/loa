@@ -144,7 +144,17 @@ grimoires/loa/decisions.yaml
 # Sprint Ledger (project-specific cycle/sprint history)
 # Created by /plan-and-analyze, tracks development cycles per-project
 grimoires/loa/ledger.json
-grimoires/loa/ledger.json.bak
+# Planning-artifact backups (ledger/sprint/prd/sdd, any depth, any -bak variant).
+# Use git tags / cycle archive directories for rollback; never commit .bak files.
+# See cycle-098 NOTES decision-trail for the convention rationale.
+grimoires/loa/**/ledger.json*.bak
+grimoires/loa/**/ledger.json.*-bak
+grimoires/loa/**/sprint*.md*.bak
+grimoires/loa/**/sprint*.md.*-bak
+grimoires/loa/**/prd*.md*.bak
+grimoires/loa/**/prd*.md.*-bak
+grimoires/loa/**/sdd*.md*.bak
+grimoires/loa/**/sdd*.md.*-bak
 
 # Archived development cycles (project-specific history)
 grimoires/loa/archive/

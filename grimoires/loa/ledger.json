@@ -780,7 +780,7 @@
       ]
     }
   ],
-  "global_sprint_counter": 130,
+  "global_sprint_counter": 131,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
@@ -918,6 +918,19 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260502-i660-dd4514/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260502-i660-dd4514/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260503-i675-ceb96f",
+      "label": "Bug Fix — model-adapter large-payload hardening (cheval/httpx HTTP/2 disconnect on 137KB+ payloads, Anthropic 60s timeout, #675)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/675",
+      "created_at": "2026-05-03T00:00:00Z",
+      "sprints": [
+        "sprint-bug-131"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260503-i675-ceb96f/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260503-i675-ceb96f/sprint.md"
     }
   ],
   "bugfixes": [
