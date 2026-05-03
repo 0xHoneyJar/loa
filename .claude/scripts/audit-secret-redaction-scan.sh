@@ -13,6 +13,17 @@
 #   audit-secret-redaction-scan.sh
 #     no stdin → defaults to `git ls-files`
 #
+# Input contract (bridgebuilder F7 — explicit, not implicit):
+#   - When stdin is a pipe OR has bytes available (`-p` / `-s` test), paths are
+#     read from stdin and the git-ls-files fallback is NOT consulted. Tests
+#     can pass a curated path list deterministically.
+#   - When stdin is empty AND not a pipe, the script falls back to
+#     `git ls-files` against the current working directory's repo. This is
+#     the production code path called from .github/workflows/audit-secret-redaction.yml.
+#   - To force git-ls-files mode in a test, pass `</dev/null` (no pipe + no
+#     bytes available; falls back to git).
+#   - To force stdin-only mode, pass paths via `<<<` or `printf | ...`.
+#
 # Exit codes:
 #   0 — no violations (clean)
 #   1 — violations found (path:lineno:match printed on stdout)

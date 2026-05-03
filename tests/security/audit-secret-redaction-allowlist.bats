@@ -172,3 +172,32 @@ grimoires/loa/a2a/sprint-1/progress-1B.md"
 src/lib.rs"
     [[ "$status" -eq 0 ]]
 }
+
+# -----------------------------------------------------------------------------
+# F7 (bridgebuilder): explicit stdin contract — paths from stdin must NOT
+# silently fall through to git ls-files. The test fixture tree is not a git
+# repo, so a fallback would behave differently in CI vs. local.
+# -----------------------------------------------------------------------------
+@test "f7-contract: stdin paths used; no silent git ls-files fallback" {
+    # Set up a non-git fixture tree.
+    _write_fixture "grimoires/loa/some-random-doc.md" 'LOA_AUDIT_KEY_PASSWORD=violation'
+    [[ ! -d "$TEST_DIR/.git" ]]  # confirm not a git repo
+
+    # When stdin is a pipe with one path, only that path is scanned.
+    run _run_scanner "grimoires/loa/some-random-doc.md"
+    [[ "$status" -ne 0 ]]
+    echo "$output" | grep -q 'some-random-doc.md'
+
+    # When stdin contains an empty path list (zero lines), exit 0 (vacuously
+    # clean — git fallback NOT triggered because we piped explicit input).
+    run bash -c "printf '' | '$SCAN_SCRIPT'"
+    [[ "$status" -eq 0 ]]
+}
+
+@test "f7-contract: empty stdin path list yields vacuously clean (no git fallback)" {
+    # Pipe an empty string so /dev/stdin is a pipe but with no content. Scanner
+    # must NOT then fall through to git ls-files — that would be the contract
+    # the F7 finding warned against.
+    run bash -c "printf '\n' | '$SCAN_SCRIPT'"
+    [[ "$status" -eq 0 ]]
+}

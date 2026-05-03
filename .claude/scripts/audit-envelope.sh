@@ -313,12 +313,14 @@ _audit_pubkey_for_key_id() {
 }
 
 # -----------------------------------------------------------------------------
-# Issue #690 auto-verify cache: per-process, mtime-keyed.
-# When LOA_TRUST_STORE_FILE (or default) is unchanged + mtime matches, reuse
-# last computed status without re-running the helper.
+# Issue #690 auto-verify cache: per-process, (mtime, size, sha256)-keyed.
+# Bridgebuilder F4 (Sprint 1.5): mtime-alone is racy on second-granularity
+# filesystems (ext4 without nsec, FAT, some NFS configs) — Linus's "racy git"
+# 2014 problem. Same-second tampering bypasses mtime invalidation. Adding
+# size + content-hash to the key closes the TOCTOU window.
 # -----------------------------------------------------------------------------
 _LOA_AUDIT_TS_CACHE_PATH=""
-_LOA_AUDIT_TS_CACHE_MTIME=""
+_LOA_AUDIT_TS_CACHE_KEY=""
 _LOA_AUDIT_TS_CACHE_STATUS=""
 
 # -----------------------------------------------------------------------------
@@ -330,6 +332,39 @@ _audit_file_mtime() {
     if stat -c %Y "$f" 2>/dev/null; then return 0; fi
     if stat -f %m "$f" 2>/dev/null; then return 0; fi
     python3 -c "import os, sys; print(int(os.stat(sys.argv[1]).st_mtime))" "$f" 2>/dev/null
+}
+
+# -----------------------------------------------------------------------------
+# _audit_file_size <path> — cross-platform size in bytes.
+# -----------------------------------------------------------------------------
+_audit_file_size() {
+    local f="$1"
+    [[ -f "$f" ]] || return 1
+    if stat -c %s "$f" 2>/dev/null; then return 0; fi
+    if stat -f %z "$f" 2>/dev/null; then return 0; fi
+    wc -c < "$f" 2>/dev/null | awk '{print $1}'
+}
+
+# -----------------------------------------------------------------------------
+# _audit_file_sha256 <path> — content-hash for cache key (bridgebuilder F4).
+# -----------------------------------------------------------------------------
+_audit_file_sha256_of() {
+    local f="$1"
+    [[ -f "$f" ]] || return 1
+    _audit_sha256 < "$f"
+}
+
+# -----------------------------------------------------------------------------
+# _audit_ts_cache_key <path> — emit "mtime:size:sha256" for trust-store path.
+# Used as the auto-verify cache key (F4 hardening).
+# -----------------------------------------------------------------------------
+_audit_ts_cache_key() {
+    local f="$1"
+    local mtime size sha
+    mtime="$(_audit_file_mtime "$f" 2>/dev/null || echo "0")"
+    size="$(_audit_file_size "$f" 2>/dev/null || echo "0")"
+    sha="$(_audit_file_sha256_of "$f" 2>/dev/null || echo "")"
+    printf '%s:%s:%s' "$mtime" "$size" "$sha"
 }
 
 # -----------------------------------------------------------------------------
@@ -355,13 +390,13 @@ _audit_trust_store_status() {
         return 0
     fi
 
-    local mtime
-    mtime="$(_audit_file_mtime "$trust_store" 2>/dev/null || true)"
+    local cache_key
+    cache_key="$(_audit_ts_cache_key "$trust_store")"
 
-    # Cache hit?
+    # Cache hit? Key is (mtime, size, sha256) — F4 bridgebuilder hardening.
     if [[ "$_LOA_AUDIT_TS_CACHE_PATH" == "$trust_store" ]] && \
-       [[ -n "$_LOA_AUDIT_TS_CACHE_MTIME" ]] && \
-       [[ "$_LOA_AUDIT_TS_CACHE_MTIME" == "$mtime" ]] && \
+       [[ -n "$_LOA_AUDIT_TS_CACHE_KEY" ]] && \
+       [[ "$_LOA_AUDIT_TS_CACHE_KEY" == "$cache_key" ]] && \
        [[ -n "$_LOA_AUDIT_TS_CACHE_STATUS" ]]; then
         echo "$_LOA_AUDIT_TS_CACHE_STATUS"
         return 0
@@ -404,7 +439,7 @@ PY
     fi
 
     _LOA_AUDIT_TS_CACHE_PATH="$trust_store"
-    _LOA_AUDIT_TS_CACHE_MTIME="$mtime"
+    _LOA_AUDIT_TS_CACHE_KEY="$cache_key"
     _LOA_AUDIT_TS_CACHE_STATUS="$status"
     echo "$status"
 }

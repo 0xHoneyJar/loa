@@ -373,9 +373,27 @@ def audit_emit(
 
 # -----------------------------------------------------------------------------
 # Issue #690 (Sprint 1.5): trust-store auto-verify cache. Per-process,
-# mtime-keyed.
+# (mtime, size, sha256)-keyed.
+#
+# Bridgebuilder F4 hardening: mtime-only is racy on second-granularity
+# filesystems (ext4 without nsec, FAT, some NFS configs) — Linus's "racy
+# git" 2014 problem. Same-second tampering bypasses mtime invalidation.
+# Adding size + content-hash to the key closes the TOCTOU window.
 # -----------------------------------------------------------------------------
-_TRUST_STORE_CACHE: dict = {"path": None, "mtime": None, "status": None}
+_TRUST_STORE_CACHE: dict = {"path": None, "key": None, "status": None}
+
+
+def _trust_store_cache_key(ts_path: Path) -> tuple:
+    """Return (mtime_ns, size, sha256-hex) for the trust-store path."""
+    try:
+        st = ts_path.stat()
+    except OSError:
+        return (None, None, None)
+    try:
+        sha = hashlib.sha256(ts_path.read_bytes()).hexdigest()
+    except OSError:
+        sha = None
+    return (st.st_mtime_ns, st.st_size, sha)
 
 
 def _trust_store_status() -> str:
@@ -395,7 +413,8 @@ def _trust_store_status() -> str:
     INVALID: trust-store has populated keys/revocations but the
     root_signature does not verify (or is missing).
 
-    Cached per-process by (path, mtime); recomputed when mtime changes.
+    Cached per-process by (path, mtime, size, sha256); recomputed when ANY
+    component of the key changes (F4 bridgebuilder hardening).
     """
     ts_path = _trust_store_path()
 
@@ -403,15 +422,12 @@ def _trust_store_status() -> str:
     if not ts_path.is_file():
         return "BOOTSTRAP-PENDING"
 
-    try:
-        mtime = ts_path.stat().st_mtime_ns
-    except OSError:
-        mtime = None
+    cache_key = _trust_store_cache_key(ts_path)
 
     cache = _TRUST_STORE_CACHE
     if (
         cache["path"] == str(ts_path)
-        and cache["mtime"] == mtime
+        and cache["key"] == cache_key
         and cache["status"] is not None
     ):
         return cache["status"]
@@ -438,7 +454,7 @@ def _trust_store_status() -> str:
         status = "VERIFIED" if ok else "INVALID"
 
     cache["path"] = str(ts_path)
-    cache["mtime"] = mtime
+    cache["key"] = cache_key
     cache["status"] = status
     return status
 

@@ -72,9 +72,17 @@ audit_emit('L1', 'panel.bind', {'decision_id': 'd-$i'}, '$LOG')
 " &
         pids+=($!)
     done
+    # Bridgebuilder F-002: assert each child exited 0. Without this, a crashing
+    # writer can leave a log that satisfies line-count + chain-verify checks
+    # while masking the bug as a flaky green.
+    local failures=0
     for pid in "${pids[@]}"; do
-        wait "$pid"
+        wait "$pid" || failures=$((failures + 1))
     done
+    [[ "$failures" -eq 0 ]] || {
+        echo "$failures concurrent writer(s) exited non-zero"
+        return 1
+    }
 
     local lines
     lines=$(wc -l < "$LOG")
@@ -116,9 +124,15 @@ audit_emit('L1', 'panel.bind', {'decision_id': 'd-$i'}, '$LOG')
 " &
         pids+=($!)
     done
+    # Bridgebuilder F-002: assert each child exited 0.
+    local failures=0
     for pid in "${pids[@]}"; do
-        wait "$pid"
+        wait "$pid" || failures=$((failures + 1))
     done
+    [[ "$failures" -eq 0 ]] || {
+        echo "$failures concurrent writer(s) exited non-zero"
+        return 1
+    }
 
     local lines
     lines=$(wc -l < "$LOG")
@@ -151,6 +165,51 @@ audit_emit('L1', 'panel.bind', {'decision_id': 'd-1'}, '$LOG')
 }
 
 # -----------------------------------------------------------------------------
+# F10 (bridgebuilder): stress-mode race coverage. Default CI runs at N=10;
+# stress mode at N=50 surfaces races that smaller pools miss (Kingsbury/Jepsen:
+# race bugs typically appear only at N>50 with adversarial scheduling).
+# Gated by LOA_STRESS_TESTS=1; skipped by default to keep CI fast.
+# -----------------------------------------------------------------------------
+@test "py-concurrent: 50 forked Python writers (stress, env-gated)" {
+    [[ "${LOA_STRESS_TESTS:-0}" == "1" ]] || skip "stress mode (LOA_STRESS_TESTS=1 to enable)"
+    local N=50
+    local i
+    local pids=()
+    for i in $(seq 1 $N); do
+        python3 -c "
+from loa_cheval.audit_envelope import audit_emit
+audit_emit('L1', 'panel.bind', {'decision_id': 'd-$i'}, '$LOG')
+" &
+        pids+=($!)
+    done
+    local failures=0
+    for pid in "${pids[@]}"; do
+        wait "$pid" || failures=$((failures + 1))
+    done
+    [[ "$failures" -eq 0 ]] || {
+        echo "$failures concurrent writer(s) exited non-zero (stress N=$N)"
+        return 1
+    }
+
+    local lines
+    lines=$(wc -l < "$LOG")
+    [[ "$lines" -eq "$N" ]] || {
+        echo "Expected $N lines, got $lines (race lost entries)"
+        return 1
+    }
+
+    run python3 -c "
+import sys
+from loa_cheval.audit_envelope import audit_verify_chain
+ok, msg = audit_verify_chain('$LOG')
+print(msg)
+sys.exit(0 if ok else 1)
+"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"OK $N entries"* ]]
+}
+
+# -----------------------------------------------------------------------------
 # Cross-adapter concurrent (bash + Python) — defense against the dual-writer
 # scenario Sprint 2's L2 ships. Bash audit_emit and Python audit_emit must
 # share the same lock file.
@@ -174,9 +233,15 @@ audit_emit('L1', 'panel.bind', {'decision_id': 'py-$i'}, '$LOG')
 " &
         pids+=($!)
     done
+    # Bridgebuilder F-002: assert each child exited 0.
+    local failures=0
     for pid in "${pids[@]}"; do
-        wait "$pid"
+        wait "$pid" || failures=$((failures + 1))
     done
+    [[ "$failures" -eq 0 ]] || {
+        echo "$failures concurrent writer(s) exited non-zero"
+        return 1
+    }
 
     local lines
     lines=$(wc -l < "$LOG")

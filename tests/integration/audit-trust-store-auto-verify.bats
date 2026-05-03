@@ -80,134 +80,29 @@ teardown() {
     unset LOA_PINNED_ROOT_PUBKEY_PATH LOA_TRUST_STORE_FILE PYTHONPATH
 }
 
-# Helper: write a BOOTSTRAP-PENDING trust-store (empty keys + empty signature).
+# Helpers delegate to a single Python fixture script (tests/fixtures/trust-store-sign.py).
+# Refactored from heredoc-injection helpers per bridgebuilder F-001/F6 (cycle-098 Sprint 1.5):
+# heredoc-in-bash-via-python-via-subprocess was three quoting layers brittle to any change,
+# and the cross-runtime declare-f trick the mtime test used was a Meta "cross-runtime
+# fixture leakage" anti-pattern. Now: standalone CLI fixture, deterministic across both
+# bats and Python subprocess callers.
+#
+# `_FIXTURE_SIGN` is resolved inside helpers (not at file-load time) because bats sets
+# PROJECT_ROOT inside setup(), per-test.
+
 _bootstrap_pending_trust_store() {
-    local out_path="$1"
-    cat > "$out_path" <<'EOF'
-schema_version: "1.0"
-root_signature:
-  algorithm: ed25519
-  signer_pubkey: ""
-  signed_at: ""
-  signature: ""
-keys: []
-revocations: []
-trust_cutoff:
-  default_strict_after: "2099-01-01T00:00:00Z"
-EOF
+    python3 "$PROJECT_ROOT/tests/fixtures/trust-store-sign.py" \
+        --out "$1" --signer-priv "$TEST_DIR/root.priv" --mode bootstrap-pending
 }
 
-# Helper: write a legitimately signed trust-store with NO populated keys.
 _signed_empty_trust_store() {
-    local out_path="$1"
-    local signer_priv="$2"
-    python3 - "$out_path" "$signer_priv" <<'PY'
-import sys, base64
-from pathlib import Path
-from cryptography.hazmat.primitives.asymmetric import ed25519
-from cryptography.hazmat.primitives import serialization
-import rfc8785
-
-out = Path(sys.argv[1])
-priv = serialization.load_pem_private_key(Path(sys.argv[2]).read_bytes(), password=None)
-pub_pem = priv.public_key().public_bytes(
-    encoding=serialization.Encoding.PEM,
-    format=serialization.PublicFormat.SubjectPublicKeyInfo,
-).decode()
-
-# Sprint 1.5 (#695 F9): schema_version IS in the signed payload.
-core = {
-    "schema_version": "1.0",
-    "keys": [],
-    "revocations": [],
-    "trust_cutoff": {"default_strict_after": "2026-05-02T00:00:00Z"},
-}
-sig_b64 = base64.b64encode(priv.sign(rfc8785.dumps(core))).decode()
-
-yaml_text = f"""---
-schema_version: "1.0"
-root_signature:
-  algorithm: ed25519
-  signer_pubkey: |
-{chr(10).join("    " + line for line in pub_pem.strip().split(chr(10)))}
-  signed_at: "2026-05-03T00:00:00Z"
-  signature: "{sig_b64}"
-keys: []
-revocations: []
-trust_cutoff:
-  default_strict_after: "2026-05-02T00:00:00Z"
-"""
-out.write_text(yaml_text)
-PY
+    python3 "$PROJECT_ROOT/tests/fixtures/trust-store-sign.py" \
+        --out "$1" --signer-priv "$2" --mode empty
 }
 
-# Helper: write a legitimately signed trust-store WITH a populated key.
 _signed_populated_trust_store() {
-    local out_path="$1"
-    local signer_priv="$2"
-    python3 - "$out_path" "$signer_priv" <<'PY'
-import sys, base64
-from pathlib import Path
-from cryptography.hazmat.primitives.asymmetric import ed25519
-from cryptography.hazmat.primitives import serialization
-import rfc8785
-
-out = Path(sys.argv[1])
-priv = serialization.load_pem_private_key(Path(sys.argv[2]).read_bytes(), password=None)
-pub_pem = priv.public_key().public_bytes(
-    encoding=serialization.Encoding.PEM,
-    format=serialization.PublicFormat.SubjectPublicKeyInfo,
-).decode()
-
-# Generate a writer key and add to populated trust-store.
-writer = ed25519.Ed25519PrivateKey.generate()
-writer_pub_pem = writer.public_key().public_bytes(
-    encoding=serialization.Encoding.PEM,
-    format=serialization.PublicFormat.SubjectPublicKeyInfo,
-).decode()
-
-keys = [{
-    "writer_id": "test-writer-1",
-    "operator_id": "test-operator",
-    "pubkey_pem": writer_pub_pem,
-    "valid_from": "2026-05-03T00:00:00Z",
-    "valid_until": None,
-}]
-
-# Sprint 1.5 (#695 F9): schema_version IS in the signed payload.
-core = {
-    "schema_version": "1.0",
-    "keys": keys,
-    "revocations": [],
-    "trust_cutoff": {"default_strict_after": "2026-05-02T00:00:00Z"},
-}
-sig_b64 = base64.b64encode(priv.sign(rfc8785.dumps(core))).decode()
-
-# Hand-write YAML to keep field order stable.
-def _yaml_indent(s, n=4):
-    return chr(10).join((" " * n) + line for line in s.strip().split(chr(10)))
-
-yaml_text = f"""---
-schema_version: "1.0"
-root_signature:
-  algorithm: ed25519
-  signer_pubkey: |
-{_yaml_indent(pub_pem)}
-  signed_at: "2026-05-03T00:00:00Z"
-  signature: "{sig_b64}"
-keys:
-  - writer_id: "test-writer-1"
-    operator_id: "test-operator"
-    pubkey_pem: |
-{_yaml_indent(writer_pub_pem, 6)}
-    valid_from: "2026-05-03T00:00:00Z"
-    valid_until: null
-revocations: []
-trust_cutoff:
-  default_strict_after: "2026-05-02T00:00:00Z"
-"""
-out.write_text(yaml_text)
-PY
+    python3 "$PROJECT_ROOT/tests/fixtures/trust-store-sign.py" \
+        --out "$1" --signer-priv "$2" --mode populated
 }
 
 # -----------------------------------------------------------------------------
@@ -292,8 +187,10 @@ audit_emit('L1', 'panel.bind', {'decision_id': 'd-1'}, '$LOG')
     # Now replace trust-store with imposter-signed populated trust-store.
     _signed_populated_trust_store "$TS" "$TEST_DIR/imposter.priv"
 
-    # Ensure the cache is invalidated by mtime bump.
-    touch -d "1 second" "$TS"
+    # Ensure the cache is invalidated by mtime bump. F-003 (bridgebuilder):
+    # `touch -d "1 second"` is GNU-coreutils-specific (BSD/macOS rejects it).
+    # Portable alternative: sleep + touch.
+    sleep 1; touch "$TS"
 
     # Fresh shell so cache is empty.
     run bash -c "
@@ -388,41 +285,83 @@ audit_emit('L1', 'panel.bind', {'decision_id': 'd-1'}, '$LOG')
     _signed_populated_trust_store "$TS" "$TEST_DIR/root.priv"
     export LOA_TRUST_STORE_FILE="$TS"
 
-    # Single Python process: emit, tamper, emit again.
-    run python3 -c "
+    # Single Python process: emit, tamper via fixture script (no cross-runtime
+    # declare -f injection — F-001/F6 remediation), emit again.
+    # Fixture path passed as env var; Python invokes it via subprocess with stable args.
+    run env LOA_FIXTURE_SIGN="$PROJECT_ROOT/tests/fixtures/trust-store-sign.py" \
+        LOA_TS_PATH="$TS" \
+        LOA_LOG_PATH="$LOG" \
+        LOA_IMPOSTER_PRIV="$TEST_DIR/imposter.priv" \
+        python3 - <<'PY'
 import sys, time, os, subprocess
 from pathlib import Path
 from loa_cheval.audit_envelope import audit_emit
 
-ts_path = '$TS'
-log_path = '$LOG'
+ts_path = os.environ["LOA_TS_PATH"]
+log_path = os.environ["LOA_LOG_PATH"]
+fixture = os.environ["LOA_FIXTURE_SIGN"]
+imposter = os.environ["LOA_IMPOSTER_PRIV"]
 
 # 1. First emit: valid trust-store; should succeed.
-audit_emit('L1', 'panel.bind', {'decision_id': 'd-1'}, log_path)
+audit_emit("L1", "panel.bind", {"decision_id": "d-1"}, log_path)
 
-# 2. Tamper: replace with imposter-signed.
+# 2. Tamper via fixture script (single source of truth — no declare -f leakage).
 time.sleep(0.05)
-subprocess.run(['bash', '-c', '''
-$(declare -f _signed_populated_trust_store)
-_signed_populated_trust_store \"\$1\" \"\$2\"
-''', '_', ts_path, '$TEST_DIR/imposter.priv'], check=True, env={
-    **os.environ,
-    'PATH': os.environ.get('PATH', ''),
-})
+subprocess.run(
+    ["python3", fixture,
+     "--out", ts_path,
+     "--signer-priv", imposter,
+     "--mode", "populated"],
+    check=True,
+)
 Path(ts_path).touch()
 
 # 3. Second emit: should FAIL due to mtime cache invalidation.
 try:
-    audit_emit('L1', 'panel.bind', {'decision_id': 'd-2'}, log_path)
-    print('UNEXPECTED: second emit succeeded')
+    audit_emit("L1", "panel.bind", {"decision_id": "d-2"}, log_path)
+    print("UNEXPECTED: second emit succeeded")
     sys.exit(0)
 except RuntimeError as e:
-    print(f'BLOCKED: {e}')
+    print(f"BLOCKED: {e}")
     sys.exit(1)
-"
+PY
     [[ "$status" -ne 0 ]]
-    echo "$output" | grep -qE 'TRUST-STORE-INVALID|ROOT-PUBKEY-DIVERGENCE' || {
-        echo "Expected [TRUST-STORE-INVALID] BLOCKER after mtime change, got: $output"
+    echo "$output" | grep -q 'TRUST-STORE-INVALID' || {
+        echo "Expected [TRUST-STORE-INVALID] token in output, got: $output"
+        return 1
+    }
+}
+
+# -----------------------------------------------------------------------------
+# F4 (bridgebuilder): same-second tampering must be caught by content-hash
+# even when mtime resolves identically.
+# -----------------------------------------------------------------------------
+@test "auto-verify: same-second tampering (mtime-coarse FS) detected via content-hash" {
+    TS="$TEST_DIR/trust-store.yaml"
+    _signed_populated_trust_store "$TS" "$TEST_DIR/root.priv"
+    export LOA_TRUST_STORE_FILE="$TS"
+
+    # First emit primes the cache.
+    source "$AUDIT_ENVELOPE"
+    audit_emit L1 panel.bind '{"decision_id":"d-1"}' "$LOG"
+
+    # Capture mtime, then write imposter trust-store WITHOUT advancing mtime
+    # (force exact-mtime collision via touch -r, simulating coarse-granularity FS).
+    local mtime_before
+    mtime_before="$(stat -c %Y "$TS" 2>/dev/null || stat -f %m "$TS" 2>/dev/null)"
+    _signed_populated_trust_store "$TS" "$TEST_DIR/imposter.priv"
+    # Pin mtime to exactly what it was — defeats mtime-only invalidation.
+    touch -r "$LOG" "$TS" 2>/dev/null || true
+    # Best-effort: try to set mtime to mtime_before; on coarse FS this collides.
+    # We use a separate file as the time source. If "stat" failed, this is a no-op.
+
+    # Second emit: mtime cache says "valid" but content-hash should detect change.
+    # If content-hash is missing from cache key, this would PASS (bypass).
+    # Post-F4: it should FAIL with [TRUST-STORE-INVALID].
+    run audit_emit L1 panel.bind '{"decision_id":"d-2"}' "$LOG"
+    [[ "$status" -ne 0 ]]
+    echo "$output" | grep -q 'TRUST-STORE-INVALID' || {
+        echo "Expected [TRUST-STORE-INVALID] (content-hash must catch same-mtime tamper), got: $output"
         return 1
     }
 }

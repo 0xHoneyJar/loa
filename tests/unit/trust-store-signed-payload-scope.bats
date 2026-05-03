@@ -137,8 +137,12 @@ PY
 
     run audit_trust_store_verify "$TRUST_STORE"
     [[ "$status" -ne 0 ]]
-    echo "$output" | grep -qE 'verify|signature|TRUST-STORE' || {
-        echo "Expected verification-failure indicator in output, got: $output"
+    # Bridgebuilder F8: tightened to the exact failure token emitted by
+    # audit-signing-helper.py:cmd_trust_store_verify (`InvalidSignature` →
+    # "root_signature does NOT verify"). Permissive `verify|signature|...` regex
+    # caught hypothetical success banners; this assertion is now load-bearing.
+    echo "$output" | grep -q 'root_signature does NOT verify' || {
+        echo "Expected 'root_signature does NOT verify' marker in output, got: $output"
         return 1
     }
 }
@@ -155,6 +159,40 @@ PY
 
     run audit_trust_store_verify "$TRUST_STORE"
     [[ "$status" -ne 0 ]]
+}
+
+# -----------------------------------------------------------------------------
+# F2 (bridgebuilder): cross-adapter parity. The trust-store signed payload
+# (now {schema_version, keys, revocations, trust_cutoff} per F9) MUST be
+# byte-identical across adapters. Both bash and Python adapters delegate
+# verification to audit-signing-helper.py so this test guards against future
+# drift if a Python-only signing path is introduced.
+# -----------------------------------------------------------------------------
+@test "f9-parity: bash adapter verifies trust-store signed via fixture (Python)" {
+    _sign_with_schema_version "$TRUST_STORE" "$TEST_DIR/root.priv" "1.0"
+    # Bash adapter path: source audit-envelope.sh and call audit_trust_store_verify.
+    run audit_trust_store_verify "$TRUST_STORE"
+    [[ "$status" -eq 0 ]]
+}
+
+@test "f9-parity: Python adapter verifies trust-store signed via fixture" {
+    _sign_with_schema_version "$TRUST_STORE" "$TEST_DIR/root.priv" "1.0"
+
+    # Python adapter path: import loa_cheval and call audit_trust_store_verify.
+    PYTHON_ADAPTER_DIR="$(cd "$BATS_TEST_FILENAME" && cd ../../../.claude/adapters && pwd 2>/dev/null || \
+                          cd "$(dirname "$BATS_TEST_FILENAME")/../../.claude/adapters" && pwd)"
+    [[ -d "$PYTHON_ADAPTER_DIR/loa_cheval" ]] || skip "loa_cheval adapter not found"
+
+    run env PYTHONPATH="$PYTHON_ADAPTER_DIR" \
+        LOA_PINNED_ROOT_PUBKEY_PATH="$LOA_PINNED_ROOT_PUBKEY_PATH" \
+        python3 -c "
+import sys
+from loa_cheval.audit_envelope import audit_trust_store_verify
+ok, msg = audit_trust_store_verify('$TRUST_STORE')
+print(msg)
+sys.exit(0 if ok else 1)
+"
+    [[ "$status" -eq 0 ]]
 }
 
 # -----------------------------------------------------------------------------
