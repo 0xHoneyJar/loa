@@ -116,15 +116,19 @@ _write_findings() {
     [[ "$status" -eq 0 ]]
 
     # Should process exactly the fresh file (not the stale one).
-    echo "$output" | grep -qE "Processing.*${TEST_BRIDGE_ID}-iter1-findings\\.json" || \
-    echo "$output" | grep -q "fresh finding" || \
-    [[ -f "$TEST_REPO/.run/bridge-pending-bugs.jsonl" ]] || true
-
-    # Should NOT have processed the stale file
+    # Iter-1 remediation MED: removed chained-|| pattern; pin a single
+    # specific positive assertion. Test 8 below has the tighter assertion;
+    # this test is the negative complement (NO stale processing).
     if echo "$output" | grep -qE "Processing.*${STALE_BRIDGE_ID}"; then
         echo "ERROR: stale findings file was processed"
         return 1
     fi
+
+    # Positive: filter announcement for the matching bridge_id.
+    echo "$output" | grep -qE "Filtered.*${TEST_BRIDGE_ID}" || {
+        echo "Expected filter announcement for matching bridge_id; got: $output"
+        return 1
+    }
 }
 
 # -----------------------------------------------------------------------------
