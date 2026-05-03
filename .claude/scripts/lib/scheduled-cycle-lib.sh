@@ -237,6 +237,113 @@ PY
 }
 
 # -----------------------------------------------------------------------------
+# _l3_is_l2_enabled — returns 0 if L2 budget pre-check should run for this
+# invocation. Sources of truth, in order:
+#   1. LOA_L3_BUDGET_PRECHECK_ENABLED env var ("1" / "true")
+#   2. .scheduled_cycle_template.budget_pre_check yaml key ("true")
+# Default: false (compose-when-available; opt-in per CC-9).
+# -----------------------------------------------------------------------------
+_l3_is_l2_enabled() {
+    if [[ -n "${LOA_L3_BUDGET_PRECHECK_ENABLED:-}" ]]; then
+        local v="${LOA_L3_BUDGET_PRECHECK_ENABLED,,}"
+        [[ "$v" == "1" || "$v" == "true" || "$v" == "yes" ]]
+        return $?
+    fi
+    local cfg
+    cfg="$(_l3_config_get '.scheduled_cycle_template.budget_pre_check' 'false')"
+    cfg="${cfg,,}"
+    [[ "$cfg" == "true" || "$cfg" == "1" || "$cfg" == "yes" ]]
+}
+
+# -----------------------------------------------------------------------------
+# _l3_run_budget_pre_check <budget_estimate_usd> <cycle_id>
+#
+# Compose-when-available L2 budget gate for the L3 pre-read phase (FR-L3-6 +
+# CC-9). Side-effect free w.r.t. cycles.jsonl — L2 emits its own audit events
+# to .run/cost-budget-events.jsonl when a verdict is computed.
+#
+# Stdout (always; jq-safe JSON):
+#   "null"                                                — no L2 call made
+#   {"verdict":"<v>","usd_estimate":<n>,"checked_at":"<ts>"}
+#                                                          — L2 verdict computed
+#
+# Exit codes:
+#   0 = proceed (allow / warn-90, OR L2 disabled / unavailable / zero estimate)
+#   1 = halt (halt-100 / halt-uncertainty)
+# -----------------------------------------------------------------------------
+_l3_run_budget_pre_check() {
+    local budget_estimate="$1"
+    local cycle_id="$2"
+    local checked_at
+    checked_at="$(_l3_now_iso8601)"
+
+    if ! _l3_is_l2_enabled; then
+        echo "null"
+        return 0
+    fi
+    # Skip when caller has nothing material to estimate.
+    if [[ -z "$budget_estimate" || "$budget_estimate" == "0" || "$budget_estimate" == "0.0" || "$budget_estimate" == "null" ]]; then
+        echo "null"
+        return 0
+    fi
+
+    # Resolve L2 lib path. LOA_L3_L2_LIB_OVERRIDE lets tests inject a missing
+    # path to exercise the graceful-skip branch.
+    local l2_lib="${LOA_L3_L2_LIB_OVERRIDE:-${_L3_REPO_ROOT}/.claude/scripts/lib/cost-budget-enforcer-lib.sh}"
+    if [[ ! -f "$l2_lib" ]]; then
+        _l3_log "WARN: L2 budget pre-check requested but $l2_lib missing; cycle proceeds without gate"
+        echo "null"
+        return 0
+    fi
+    # shellcheck source=cost-budget-enforcer-lib.sh
+    source "$l2_lib" || {
+        _l3_log "WARN: failed to source L2 lib at $l2_lib; cycle proceeds without gate"
+        echo "null"
+        return 0
+    }
+    if ! declare -f budget_verdict >/dev/null; then
+        _l3_log "WARN: L2 lib did not register budget_verdict; cycle proceeds without gate"
+        echo "null"
+        return 0
+    fi
+
+    local verdict_json verdict_rc=0
+    verdict_json="$(budget_verdict "$budget_estimate" --cycle-id "$cycle_id" 2>/dev/null)" || verdict_rc=$?
+
+    # budget_verdict prints multiple lines (info + final JSON on the last line).
+    # Take the last non-empty line as the verdict JSON.
+    local verdict_last
+    verdict_last="$(printf '%s' "$verdict_json" | awk 'NF{last=$0} END{print last}')"
+    if [[ -z "$verdict_last" ]] || ! printf '%s' "$verdict_last" | jq -e . >/dev/null 2>&1; then
+        _l3_log "WARN: budget_verdict returned no parseable JSON (rc=${verdict_rc}); cycle proceeds without gate"
+        echo "null"
+        return 0
+    fi
+
+    local verdict
+    verdict="$(printf '%s' "$verdict_last" | jq -r '.verdict')"
+    if [[ -z "$verdict" || "$verdict" == "null" ]]; then
+        _l3_log "WARN: budget_verdict missing .verdict field; cycle proceeds without gate"
+        echo "null"
+        return 0
+    fi
+
+    # Build cycle.start.budget_pre_check object.
+    local pre_check_obj
+    pre_check_obj="$(jq -nc \
+        --arg v "$verdict" \
+        --argjson est "$budget_estimate" \
+        --arg checked "$checked_at" \
+        '{verdict:$v, usd_estimate:$est, checked_at:$checked}')"
+    echo "$pre_check_obj"
+
+    case "$verdict" in
+        halt-100|halt-uncertainty) return 1 ;;
+        *)                          return 0 ;;
+    esac
+}
+
+# -----------------------------------------------------------------------------
 # _l3_parse_schedule_yaml <path>
 #
 # Read a ScheduleConfig YAML and emit a JSON object with the fields:
@@ -938,7 +1045,16 @@ _l3_cycle_invoke_inner() {
     local started_at
     started_at="$(_l3_now_iso8601)"
 
-    # Build cycle.start payload.
+    # FR-L3-6: L2 budget pre-check. compose-when-available — when L2 disabled
+    # or budget_estimate is zero, _l3_run_budget_pre_check emits "null" and
+    # returns 0. halt-100 / halt-uncertainty → exit 1; we record the verdict
+    # in cycle.start AND emit cycle.error{error_phase=pre_check, kind=budget_halt}.
+    local budget_pre_check_json="null"
+    local budget_pre_check_rc=0
+    budget_pre_check_json="$(_l3_run_budget_pre_check "$budget_estimate" "$cycle_id")" \
+        || budget_pre_check_rc=$?
+
+    # Build cycle.start payload (with budget_pre_check populated).
     local start_payload
     start_payload="$(jq -n \
         --arg cid "$cycle_id" \
@@ -946,16 +1062,47 @@ _l3_cycle_invoke_inner() {
         --arg dc_hash "$dc_hash" \
         --argjson timeout "$timeout_s" \
         --argjson budget_est "$budget_estimate" \
+        --argjson pre_check "$budget_pre_check_json" \
         --arg started "$started_at" \
         --arg cron "$schedule_cron" \
         --argjson dry "$dry_run" \
         '{cycle_id:$cid, schedule_id:$sid, dispatch_contract_hash:$dc_hash,
           timeout_seconds:$timeout, budget_estimate_usd:$budget_est,
-          budget_pre_check:null, started_at:$started, schedule_cron:$cron,
+          budget_pre_check:$pre_check, started_at:$started, schedule_cron:$cron,
           dry_run:($dry==1)}')"
 
     if ! _l3_audit_emit_event "cycle.start" "$start_payload"; then
         _l3_log "ERROR: cycle.start emit failed"
+        return 1
+    fi
+
+    # If budget halted, emit cycle.error{pre_check, budget_halt} and return.
+    if (( budget_pre_check_rc == 1 )); then
+        local errored_at
+        errored_at="$(_l3_now_iso8601)"
+        local verdict_str
+        verdict_str="$(printf '%s' "$budget_pre_check_json" | jq -r '.verdict // "halt-100"')"
+        local pc_for_err
+        pc_for_err="$(jq -nc --arg v "$verdict_str" '{verdict:$v}')"
+        local err_payload
+        err_payload="$(jq -n \
+            --arg cid "$cycle_id" \
+            --arg sid "$schedule_id" \
+            --arg started "$started_at" \
+            --arg errored "$errored_at" \
+            --argjson dur 0 \
+            --arg phase "pre_check" \
+            --arg kind "budget_halt" \
+            --arg diag "L2 budget gate halted cycle (verdict=${verdict_str})" \
+            --argjson completed "[]" \
+            --arg outcome "failure" \
+            --argjson pc "$pc_for_err" \
+            '{cycle_id:$cid, schedule_id:$sid, started_at:$started,
+              errored_at:$errored, duration_seconds:$dur,
+              error_phase:$phase, error_kind:$kind, exit_code:null,
+              diagnostic:$diag, phases_completed:$completed,
+              outcome:$outcome, budget_pre_check:$pc}')"
+        _l3_audit_emit_event "cycle.error" "$err_payload" || true
         return 1
     fi
 
