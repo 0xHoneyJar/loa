@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": null,
+  "active_cycle": "cycle-095-model-currency",
   "cycles": [
     {
       "id": "cycle-036",
@@ -699,7 +699,7 @@
     {
       "id": "cycle-095-model-currency",
       "label": "Model Currency — gpt-5.5 + Haiku 4.5 + Gemini 3 + cost guardrails",
-      "status": "archived",
+      "status": "active",
       "created": "2026-04-29T20:30:00Z",
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
@@ -723,64 +723,10 @@
           "label": "prefer_pro_models Activation + override_user_aliases Opt-In + Dry-Run Full Activation (post-soak)",
           "status": "planned"
         }
-      ],
-      "archived": "2026-05-01T15:35:43Z",
-      "archive_path": "grimoires/loa/archive/2026-05-02-cycle-095-model-currency"
-    },
-    {
-      "id": "cycle-096-aws-bedrock",
-      "label": "AWS Bedrock Provider + Provider-Plugin Hardening (issue #652)",
-      "status": "archived",
-      "created": "2026-05-01T15:36:04Z",
-      "prd": "grimoires/loa/prd.md",
-      "sdd": "grimoires/loa/sdd.md",
-      "sprints": [
-        {
-          "local_id": 1,
-          "global_id": 127,
-          "label": "Bedrock v1 Functional + Centralized Parser",
-          "status": "completed",
-          "started": "2026-05-02T04:36:39Z",
-          "branch": "feat/cycle-096-aws-bedrock",
-          "completed": "2026-05-02T04:59:34Z"
-        },
-        {
-          "local_id": 2,
-          "global_id": 128,
-          "label": "Plugin Guide + IR Runbook + Health Probe + Recurring Smoke + E2E (Final)",
-          "status": "completed",
-          "started": "2026-05-02T05:05:22Z",
-          "branch": "feat/cycle-096-aws-bedrock",
-          "completed": "2026-05-02T05:24:01Z"
-        }
-      ],
-      "source_issue": "https://github.com/0xHoneyJar/loa/issues/652",
-      "archived": "2026-05-02T06:11:32Z",
-      "archive_path": "grimoires/loa/archive/2026-05-02-cycle-096-aws-bedrock"
-    },
-    {
-      "id": "cycle-bug-20260502-i669-55150d",
-      "label": "Bug Fix — post-merge automation: orchestrator scripts ship without an invoking workflow template",
-      "type": "bugfix",
-      "status": "active",
-      "source_issue": "https://github.com/0xHoneyJar/loa/issues/669",
-      "created_at": "2026-05-02T08:46:16Z",
-      "prd": null,
-      "sdd": null,
-      "sprints": [
-        {
-          "local_id": 1,
-          "global_id": 130,
-          "label": "post-merge workflow scaffold gap on downstream installs",
-          "status": "planned",
-          "bug_id": "20260502-i669-55150d",
-          "triage": "grimoires/loa/a2a/bug-20260502-i669-55150d/triage.md",
-          "sprint_plan": "grimoires/loa/a2a/bug-20260502-i669-55150d/sprint.md"
-        }
       ]
     }
   ],
-  "global_sprint_counter": 131,
+  "global_sprint_counter": 123,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
@@ -840,97 +786,6 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260428-i641-227a8f/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i641-227a8f/sprint.md"
-    },
-    {
-      "id": "cycle-bug-20260502-i668-3b9765",
-      "label": "Bug Fix — Post-merge classifier silently classifies cycle PRs as other (#668)",
-      "type": "bugfix",
-      "status": "active",
-      "source_issue": "https://github.com/0xHoneyJar/loa/issues/668",
-      "created_at": "2026-05-02T00:00:00Z",
-      "sprints": [
-        "sprint-bug-124"
-      ],
-      "triage": "grimoires/loa/a2a/bug-20260502-i668-3b9765/triage.md",
-      "sprint_plan": "grimoires/loa/a2a/bug-20260502-i668-3b9765/sprint.md"
-    },
-    {
-      "id": "cycle-bug-20260502-i665-3962d9",
-      "label": "Bug Fix — post-pr Bridgebuilder MEDIUMs auto-triage to log_only without operator visibility (#665)",
-      "type": "bugfix",
-      "status": "active",
-      "source_issue": "https://github.com/0xHoneyJar/loa/issues/665",
-      "created_at": "2026-05-02T00:00:00Z",
-      "sprints": [
-        "sprint-bug-127"
-      ],
-      "triage": "grimoires/loa/a2a/bug-20260502-i665-3962d9/triage.md",
-      "sprint_plan": "grimoires/loa/a2a/bug-20260502-i665-3962d9/sprint.md"
-    },
-    {
-      "id": "cycle-bug-20260502-i664-653da7",
-      "label": "Bug Fix — post-pr-state.sh update-phase rejects bridgebuilder_review (#664)",
-      "type": "bugfix",
-      "status": "active",
-      "source_issue": "https://github.com/0xHoneyJar/loa/issues/664",
-      "created_at": "2026-05-02T00:00:00Z",
-      "sprints": [
-        "sprint-bug-125"
-      ],
-      "triage": "grimoires/loa/a2a/bug-20260502-i664-653da7/triage.md",
-      "sprint_plan": "grimoires/loa/a2a/bug-20260502-i664-653da7/sprint.md"
-    },
-    {
-      "id": "cycle-bug-20260502-i663-ec337e",
-      "label": "Bug Fix — post-pr-orchestrator passes invalid --phase pr to flatline-orchestrator (#663)",
-      "type": "bugfix",
-      "status": "active",
-      "source_issue": "https://github.com/0xHoneyJar/loa/issues/663",
-      "created_at": "2026-05-02T00:00:00Z",
-      "sprints": [
-        "sprint-bug-126"
-      ],
-      "triage": "grimoires/loa/a2a/bug-20260502-i663-ec337e/triage.md",
-      "sprint_plan": "grimoires/loa/a2a/bug-20260502-i663-ec337e/sprint.md"
-    },
-    {
-      "id": "cycle-bug-20260502-i661-cd5f4f",
-      "label": "Bug Fix — Defensive diagnostic for beads_rust 0.2.1 migration error (#661)",
-      "type": "bugfix",
-      "status": "active",
-      "source_issue": "https://github.com/0xHoneyJar/loa/issues/661",
-      "created_at": "2026-05-02T00:00:00Z",
-      "sprints": [
-        "sprint-bug-128"
-      ],
-      "triage": "grimoires/loa/a2a/bug-20260502-i661-cd5f4f/triage.md",
-      "sprint_plan": "grimoires/loa/a2a/bug-20260502-i661-cd5f4f/sprint.md"
-    },
-    {
-      "id": "cycle-bug-20260502-i660-dd4514",
-      "label": "Bug Fix — mount-submodule.sh BSD realpath portability + silent reconcile exit (#660)",
-      "type": "bugfix",
-      "status": "active",
-      "source_issue": "https://github.com/0xHoneyJar/loa/issues/660",
-      "created_at": "2026-05-02T00:00:00Z",
-      "sprints": [
-        "sprint-bug-129"
-      ],
-      "triage": "grimoires/loa/a2a/bug-20260502-i660-dd4514/triage.md",
-      "sprint_plan": "grimoires/loa/a2a/bug-20260502-i660-dd4514/sprint.md"
-    },
-    {
-      "id": "cycle-bug-20260503-i675-ceb96f",
-      "label": "Bug Fix — model-adapter large-payload hardening (cheval/httpx HTTP/2 disconnect on 137KB+ payloads, Anthropic 60s timeout, #675)",
-      "type": "bugfix",
-      "status": "active",
-      "source_issue": "https://github.com/0xHoneyJar/loa/issues/675",
-      "created_at": "2026-05-03T00:00:00Z",
-      "sprints": [
-        "sprint-bug-131"
-      ],
-      "triage": "grimoires/loa/a2a/bug-20260503-i675-ceb96f/triage.md",
-      "sprint_plan": "grimoires/loa/a2a/bug-20260503-i675-ceb96f/sprint.md"
     }
   ],
   "bugfixes": [

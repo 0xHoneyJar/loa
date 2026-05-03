@@ -1,443 +1,841 @@
-# Sprint Plan — Cycle-096: AWS Bedrock Provider + Provider-Plugin Hardening
+# Sprint Plan — Cycle-098: Agent-Network Operation Primitives (L1-L7)
 
-**Version:** 1.2 (live-probe ground-truth integrated)
-**Date:** 2026-05-02
+**Version:** 1.0
+**Date:** 2026-05-03
 **Author:** Sprint Planner Agent (deep-name + Claude Opus 4.7 1M)
-
-> **v1.1 → v1.2 changes** (live probes against real Bedrock 2026-05-02; matches PRD v1.3 + SDD v1.2 wave):
-> - **Task 1.2 (YAML)**: model IDs — `us.anthropic.claude-opus-4-7` (no `-v1:0`); `us.anthropic.claude-sonnet-4-6` (no suffix); Haiku 4.5 keeps `us.anthropic.claude-haiku-4-5-20251001-v1:0`. Bare `anthropic.*` IDs return HTTP 400 — inference profile IDs REQUIRED
-> - **Task 1.A (regex)**: `ABSKY...{32,}` → `ABSK[A-Za-z0-9+/=]{36,}` (probe-confirmed)
-> - **Task 1.4 (thinking)**: Bedrock requires `thinking.type: "adaptive"` + `output_config.effort` (not direct-Anthropic `enabled` + `budget_tokens`); adapter translates
-> - **Task 1.3 (response shape)**: usage is camelCase with prompt-cache + serverToolUsage fields; normalize to cheval Usage
-> - **Error taxonomy**: 7 → 9 categories (added `OnDemandNotSupported` + `ModelEndOfLife`)
-> - **Sprint 0 G-S0-2 outcome**: PASS-WITH-CONSTRAINTS (3 corrections applied to PRD/SDD/sprint v1.x docs). Sprint 1 entry unblocked once remaining gates close (G-S0-1 survey override + G-S0-{4,5,CONTRACT,TOKEN-LIFECYCLE,BACKUP})
-> Source: probe captures at `tests/fixtures/bedrock/probes/`. No re-Flatline (factual ground-truth, not opinion).
-**PRD Reference:** `grimoires/loa/prd.md` (v1.2 — Flatline-double-pass cleared)
-**SDD Reference:** `grimoires/loa/sdd.md` (v1.1 — Flatline pass cleared, kaironic stop)
-**Source issue:** [#652](https://github.com/0xHoneyJar/loa/issues/652) — "[FEATURE] add amazon bedrock to loa"
-**Cycle (active in ledger):** `cycle-096-aws-bedrock` (cycle-095 archived 2026-05-02)
-
-> **v1.0 → v1.1 changes** (Flatline pass at `grimoires/loa/a2a/flatline/sprint-cycle-096-review.json` — 100% agreement, 7 BLOCKERS + 6 HIGH-CONSENSUS, 0 DISPUTED, all integrated, Kaironic stop after one pass):
-> - **Sprint 0 hardened**: Added Task 0.7 (backup test account / break-glass path, closes SKP-001 SPOF), expanded G-S0-1 evidence requirements (SKP-002), explicit PASS/PASS-WITH-CONSTRAINTS/FAIL matrix per gate (SKP-003 + IMP-002), multi-region/account/partition coverage in G-S0-2 (SKP-004), live-data scrub process for spike-report capture (IMP-004)
-> - **Sprint 1 reshaped**: Task 1.1 expanded to incremental-with-compatibility-shim rollout strategy (SKP-008 + IMP-003), Task 1.A (NEW) for adversarial redaction tests (SKP-005), Task 1.B (NEW) for streaming non-support assertion (IMP-007)
-> - **Sprint 2 augmented**: Added fixture evolution policy section (IMP-006); CI smoke workflow tasks already cover the bulk per SDD §5.5
-> - **Cycle-wide**: Timeline buffer added (SKP-007 — 17 days → 21 days with 4-day buffer); explicit must-have vs. stretch task split; predefined de-scope candidates list
-> - Unrendered template placeholders cleaned (IMP-001) — searched and resolved any remaining `${...}` / `{{...}}` markers
+**PRD Reference:** `grimoires/loa/prd.md` (v1.3 — 2 PRD-level Flatline passes + SDD pass-1 SKP-002 back-propagation)
+**SDD Reference:** `grimoires/loa/sdd.md` (v1.5 — 4 SDD-level Flatline passes; pass-#4 partial integration; cheval HTTP/2 bug filed as #675)
+**Cycle (proposed for ledger):** `cycle-098-agent-network`
+**Source issues:** #653 (L1), #654 (L2), #655 (L3), #656 (L4), #657 (L5), #658 (L6), #659 (L7), plus #675 (cheval/HTTP-2 hardening — pre-sprint dependency)
 
 ---
 
 ## Executive Summary
 
-Cycle-096 adds AWS Bedrock as a fourth Loa provider with API-Key (Bearer-token) auth, ships three Day-1 Anthropic-on-Bedrock models with region-prefixed inference-profile IDs, codifies the six-edit-site provider-plugin contract as a maintainer-facing guide, and hardens the contract long-term via a recurring CI smoke workflow that fixture-diffs against committed shape captures. SigV4/IAM auth is **designed-not-built** (v2). All existing provider behavior is preserved (NFR-Compat1) — Bedrock is opt-in via explicit `bedrock:` prefix.
+Cycle-098 ships **seven framework-level primitives** (L1 through L7) that extend Loa from per-repo, per-session, per-operator operation to **operator-absent network operation** — multiple repos, multiple sessions, multiple agents, with explicit primitives for adjudication (L1), budget enforcement (L2), scheduled cycles (L3), graduated trust (L4), cross-repo status (L5), structured handoffs (L6), and descriptive identity (L7).
 
-The cycle is **gated by a Sprint 0 Contract Verification Spike** (a v1.1 PRD response to Flatline BLOCKERs SKP-001/-002). Sprint 1 cannot start until five Sprint 0 gates (G-S0-1 through G-S0-5) PASS or PASS-WITH-CONSTRAINTS, plus a versioned `bedrock-contract-v1.json` fixture is committed to tree. The architectural ordering inside Sprint 1 lands the **centralized parser** (`lib-provider-parse.sh` + `loa_cheval.types.parse_provider_model_id`) FIRST so every other commit can use it — closing Flatline v1.1 SKP-006.
+The plan structures the work as **7 sprints in L1→L7 ship order, with a 0.5-week buffer between Sprint 4 and Sprint 5** (Sprint 4.5, per SKP-001 CRITICAL mitigation), preceded by a single **pre-sprint bug-fix dependency** (`sprint-bug-131`, the #675 cheval/HTTP-2 hardening) that MUST ship before Sprint 1 starts so subsequent Flatline reviews can run on the new sprint docs.
 
-**Total Sprints:** 3 (Sprint 0, Sprint 1, Sprint 2)
-**Sprint Sizing:** Sprint 0 = MEDIUM (6 tasks); Sprint 1 = LARGE (10 tasks); Sprint 2 = MEDIUM (6 tasks + E2E validation)
-**Total Tasks:** 22 + 1 E2E
-**Estimated Completion:** Sprint 0 close T+5d → Sprint 1 close T+12d → Sprint 2 close T+17d (per PRD §Timeline; sizing is /sprint-plan's call per SDD §8 note)
+Sprint 1 carries **shared cross-cutting infrastructure** used by all six subsequent sprints — the audit-envelope schema (versioned, hash-chained, Ed25519-signed, JCS-canonicalized), the `lib/audit-envelope.sh` + `audit_envelope.py` library, the `sanitize_for_session_start()` extension, the tier validator, the protected-class router, the operator-identity library, the lore directory, the `/loa status` integration pattern, the **release-signed root-of-trust pubkey**, **fd-based secret loading**, and the **JCS multi-language conformance CI gate** — alongside the L1 hitl-jury-panel skill itself. Sprint 2 un-defers the L2 reconciliation cron (per SKP-005). Sprint 7 ships the L7 SOUL.md primitive, the cycle-wide integration test suite across 5 supported tiers, **and** the §1.9.3.2 Layer 4 adversarial jailbreak corpus.
 
-### Phase-gated rollout
+The cycle is **gated on `sprint-bug-131`** shipping first (#675 fix). All seven primitives ship `enabled: false` by default; downstream Loa-mounters inherit surfaces without behavioral change unless they configure them.
 
-Sprint 0 is **BLOCKING**. No Sprint 1 task touches code paths affected by an unresolved Sprint 0 gate. Sprint 0 outputs (spike report + `bedrock-contract-v1.json`) become Sprint 1 fixtures. Sprint 1 is the merge gate for "Bedrock works end-to-end" (G-1). Sprint 2 lands the maintainer-experience layer (G-2 plugin guide) plus the long-term drift-detection layer (recurring CI smoke per SDD §5.5) — independently mergeable from Sprint 1 once Sprint 1 is in tree.
+**Total Sprints:** 7 (Sprints 1–7) + 1 buffer (Sprint 4.5) + 1 pre-sprint bug-fix dependency (`sprint-bug-131`)
+**Sprint Sizing:** Sprint 1 = LARGE (10 tasks); Sprint 2 = MEDIUM (6 tasks); Sprint 3 = MEDIUM (5 tasks); Sprint 4 = MEDIUM (6 tasks); Sprint 4.5 = BUFFER (4 consolidation tasks); Sprint 5 = SMALL (4 tasks); Sprint 6 = MEDIUM (5 tasks); Sprint 7 = LARGE (8 tasks incl. cycle-wide integration + jailbreak corpus + E2E)
+**Estimated Completion:** Pre-sprint `sprint-bug-131` close ~T+2d (2026-05-05); Sprint 1 close ~T+12d (2026-05-13); Sprint 7 close ~T+62d (2026-07-01); cycle close ~T+64d (2026-07-03). 6–10 week range per PRD §Timeline.
+**Global Sprint IDs (ledger):** `sprint-bug-131` (already assigned, global_id=131); cycle-098 sprints will be assigned global_id=132 through 138 by the ledger when each sprint registers.
+
+### Pre-sprint dependency: `sprint-bug-131` (#675 fix) — BLOCKING
+
+`sprint-bug-131` is a **release-blocking** bugfix sprint (cycle `cycle-bug-20260503-i675-ceb96f`, global_id=131) that hardens `cheval.py` + `model-adapter.sh.legacy` against HTTP/2 disconnects on 137KB+ Anthropic payloads. Without this fix, Flatline reviews on Sprint 1+ documents — which routinely exceed 137KB — will run at 2-of-3-model coverage (same failure mode as SDD passes #3 and #4). Sprint 1 cannot start until `sprint-bug-131` is merged, validated, and the workaround ("direct curl HTTP/1.1 with `max_tokens` ≤ 4096") is retired in favor of the production retry path. Triage and 3-failing-test plan already prepared in `grimoires/loa/a2a/bug-20260503-i675-ceb96f/`.
+
+### Cycle constraints inherited from PRD/SDD
+
+- **Beads workspace UNHEALTHY (#661):** ledger-only fallback per PRD R9 + cycle-098-bug-batch evidence. Cycle proceeds with `grimoires/loa/ledger.json` as the sole sprint-tracking source of truth. Beads-based task tracking is permanently deferred for this cycle.
+- **R11 weekly Friday schedule-check ritual is ALREADY ACTIVE** (routine `trig_01E2ayirT9E93qCx3jcLqkLp`, first run 2026-05-08T16:00Z). Triggered immediately at Sprint 1 kickoff per SDD pass-#4 SOLO_OPUS recommendation, not at first slip.
+- **Operator action prerequisites all approved 2026-05-03**: root key staged at `~/.config/loa/audit-keys/cycle098-root.priv` (mode 0600); fingerprint published in 3 channels (PR template + NOTES.md + Sprint 1 release notes); tier-enforcement decision filed (Option C: `warn`-then-`refuse` migration, `warn` ships in cycle-098, `refuse` flips in cycle-099); GitHub App now installed (enables routine push + PR comments).
+- **Cycle counter advances 130 → 131 (sprint-bug-131, already done by `/bug`) → 132 (cycle-098 Sprint 1) → … → 138 (Sprint 7)**. Sprint 4.5 is a buffer week, not a numbered sprint, and consumes no global counter.
+- **De-Scope Triggers active** per PRD §De-Scope Triggers: Sprint 1 >2 weeks late triggers re-baseline (split into cycle-098a + cycle-098b); any sprint >2× planned duration triggers HALT + de-scope review; envelope schema breaks 2x triggers schema mini-cycle; cross-primitive integration test failures >3 across sprints triggers Sprint 4.5 mandatory + integration-test pass gate.
 
 ---
 
 ## Sprint Overview
 
-| Sprint | Theme | Scope | Key Deliverables | Dependencies |
-|--------|-------|-------|------------------|--------------|
-| 0 | Contract Verification Spike (BLOCKING gate) | MEDIUM (6 tasks) | Spike report + `bedrock-contract-v1.json` fixture + token-lifecycle metadata + 5 PASS-or-PWC gate decisions | None — runs against maintainer's live Bedrock account |
-| 1 | Bedrock v1 Functional + Centralized Parser | LARGE (10 tasks) | Parser refactor; FR-1/2/3/5/6/7/11/12/13; compliance-aware fallback; 2-layer secret redaction; NFR-Sec11 token age sentinel; live integration test green | Sprint 0 PASS (all five gates) + fixture committed |
-| 2 | Plugin Guide + IR Runbook + Health Probe + Recurring Smoke | MEDIUM (6 tasks + E2E) | FR-4 design-only schema; FR-8 health probe; FR-9 plugin guide + IR runbook (NFR-Sec9); FR-10 completion; recurring CI smoke workflow with required-status signal; **E2E goal validation across G-1..G-4** | Sprint 1 merged to base |
-
-> **Independently mergeable:** Sprint 1 is the cycle-097-promotion gate (cycle-096 ships when Sprint 1 lands; Sprint 2 lands on top). Sprint 2 is independently mergeable after Sprint 1.
-
-### Cycle Timeline Strategy (NEW v1.1 per Flatline BLOCKER SKP-007)
-
-The original v1.0 plan compressed 22 tasks + E2E into 17 calendar days, which Flatline correctly identified as aggressive given parser refactor + new provider integration + security controls + CI automation all in cycle scope. v1.1 timeline:
-
-**Estimated cadence (revised):**
-- Sprint 0: T+0 to T+5 (5 days, unchanged)
-- Sprint 1: T+5 to T+14 (9 days, +2 days for canary windows in Task 1.1 phased rollout)
-- Sprint 2: T+14 to T+21 (7 days, +2 days for plugin-guide review and recurring-smoke baseline)
-- **Total**: 21 calendar days (was 17), with 4 calendar days of buffer distributed across Sprints 1–2
-
-**Must-have vs. stretch task split (REQUIRED ordering):**
-
-| Sprint | Must-have | Stretch (de-scope first if time pressured) |
-|---|---|---|
-| Sprint 0 | Tasks 0.1–0.6 (5 gates + token-lifecycle); Task 0.8 (scrub) | Task 0.7 (backup account) — can ship as Sprint 1 follow-up if backup user not identified by T+3 |
-| Sprint 1 | Task 1.1 Phases A–C (parser landed via incremental rollout); Tasks 1.2/1.3/1.4 (YAML + adapter + auth); Task 1.5 (compliance fallback); Task 1.A (adversarial redaction); Task 1.6 (live integration test) | Task 1.1 Phase D (canary cleanup) — can defer to Sprint 2; Task 1.B (streaming assertion) — quick task, low risk to keep |
-| Sprint 2 | Task 2.E2E (final cycle gate); Task 2.1 (FR-8 health probe); Task 2.2 (FR-9 plugin guide skeleton); Task 2.4 (recurring CI smoke workflow) | Task 2.3 (FR-4 SigV4 design-only schema) — can defer if survey shows no IAM users; Task 2.5/2.6 (fixture evolution policy doc) — defer to cycle-097 if Sprint 2 oversprung |
-
-**De-scope candidates that do NOT compromise security or compatibility gates:**
-1. **Task 0.7 (backup account)** — operational resilience; SKP-001 mitigation; can land as a Sprint 1 follow-up
-2. **Task 1.1 Phase D (canary cleanup)** — code hygiene; canary flag is harmless if left in tree
-3. **Task 2.3 (FR-4 SigV4 schema)** — gated on G-S0-1 outcome; if all users are Bearer-only, deferring schema costs nothing
-4. **FR-13 thinking-trace per-capability override** — if probe #4 shows full parity, the per-capability `api_format` override path is unused; can defer the test fixture
-5. **Cross-region inference profile error path test** — FR-12 requires the error path code; the test fixture can defer to cycle-097 if Sprint 1 oversprung
-
-**De-scope candidates that DO compromise gates (DO NOT cut these):**
-- ❌ Task 1.A (adversarial redaction) — closes SKP-005; security baseline
-- ❌ Task 1.5 (compliance fallback) — closes BLOCKER NFR-R1
-- ❌ NFR-Sec11 token age sentinel — closes BLOCKER SKP-002
-- ❌ Cycle-094 G-7 invariant test extension — backward compatibility gate
-- ❌ Live integration test — closes G-1 launch criterion
-- ❌ Task 1.1 Phases A–C (parser landed) — foundation; cutting strands every other Sprint 1 task
-
-**Schedule slip protocol:** If Sprint 0 closes > T+5, Sprint 1 entry slips proportionally; the 4-day buffer absorbs up to 3 days of upstream slip. If buffer is exceeded, Sprint 2 stretch tasks are de-scoped first; if still exceeded, escalate via `/feedback` and reconsider FR-13 / Task 0.7 / Task 1.1 Phase D as descope candidates per the must-have/stretch split above.
-
-### Fixture Evolution Policy (NEW v1.1 per Flatline IMP-006)
-
-`bedrock-contract-v1.json` (committed in Sprint 0) is a snapshot of Bedrock's API surface at cycle start. AWS will evolve the contract; the policy below governs how Loa keeps the fixture current without losing drift-detection signal.
-
-**Versioning:**
-- Current: `tests/fixtures/bedrock/contract/v1.json`
-- Bumped to `v2.json` when AWS introduces a behavior delta (new field, removed field, semantic change in existing field, retired model ID, etc.) that makes the v1 fixture no longer assertable as ground-truth
-- v1 fixture stays in tree for one cycle as a regression backstop (assert that recurring smoke from a v1-frozen-token still works against current API in restricted-feature mode)
-
-**Triggers for a version bump (any of):**
-1. Recurring CI smoke fixture-diff fails for a structural-key change (not just value change)
-2. Maintainer observes a Bedrock release announcement affecting Day-1 model surface
-3. Quarterly review (every 90 days, paired with key-rotation cadence per NFR-Sec6) — re-probe and decide if v(N+1) is needed
-4. Cycle-097+ adds a new Bedrock model (v(N+1) captures the new model ID)
-
-**Bump procedure:**
-1. Re-run G-S0-2 probes against current Bedrock state, including any new probes for the changed surface
-2. Generate `vN+1.json` from new captures
-3. Diff vN.json vs vN+1.json; document deltas in `tests/fixtures/bedrock/contract/CHANGELOG.md`
-4. Update Sprint 1 `bedrock_adapter.py` import to vN+1 fixture; vN tests retire OR move to a "legacy-shape regression" suite if vN behavior is still backward-compatible
-5. Recurring CI smoke workflow updates to vN+1 baseline; the comparator handles the migration window (vN AND vN+1 both pass for a 1-week overlap)
-
-**Documented in FR-9 plugin guide** as part of the "Adding a Provider" walkthrough — the fixture-evolution pattern generalizes beyond Bedrock to any future provider.
+| Sprint | Theme | Scope | Global ID | Duration (target) | Key Deliverables | Dependencies |
+|--------|-------|-------|-----------|-------------------|------------------|--------------|
+| pre-sprint | `sprint-bug-131` — cheval/HTTP-2 hardening (#675) | bugfix | 131 | T..T+2d | `cheval.py` exception scoping fix; `model-adapter.sh.legacy` argv-limit fix via `--data-binary @file`; `--per-call-max-tokens` flag; 3 failing tests passing | None — runs against `main` |
+| 1 | L1 hitl-jury-panel + Cross-Cutting Infrastructure | LARGE (10 tasks) | 132 | ~1.5 wk | `lib/audit-envelope.sh` + `audit_envelope.py`; `agent-network-envelope.schema.json`; `lib/jcs.sh` + JCS multi-language conformance CI gate; release-signed root pubkey; fd-based secret loading; `sanitize_for_session_start()`; tier validator; protected-class router; operator-identity lib; lore directory; `/loa status` integration; `AskUserQuestion` baseline instrumentation; L1 skill + 9 ACs | `sprint-bug-131` MERGED |
+| 2 | L2 cost-budget-enforcer + Reconciliation Cron | MEDIUM (6 tasks) | 133 | ~1 wk | L2 skill; 10 ACs; UTC-windowed daily cap; per-provider counter; reconciliation cron (6h cadence default, un-deferred from FU-2 per SKP-005); state-transition table tests (5 uncertainty modes); audit-envelope verdict + reconcile event types; daily snapshot job for L1/L2 untracked logs (RPO 24h per SKP-001 §3.4.4↔§3.7) | Sprint 1 |
+| 3 | L3 scheduled-cycle-template | MEDIUM (5 tasks) | 134 | ~1 wk | L3 skill; 8 ACs; 5-phase contract (reader/decider/dispatcher/awaiter/logger); cron registration via `/schedule`; idempotency on cycle_id; concurrency lock; mock-dispatcher integration tests | Sprints 1, 2 |
+| 4 | L4 graduated-trust | MEDIUM (6 tasks) | 135 | ~1 wk | L4 skill; 8 ACs; hash-chained ledger; chain integrity walk + recovery (NFR-R7); auto-drop on override; cooldown enforcement; force-grant audit-logged exception; concurrent-write tests; reconstructable from git history | Sprints 1, 2 |
+| **4.5** | **BUFFER WEEK** (per SKP-001 CRITICAL) | BUFFER (4 consolidation tasks) | — | 1 wk | Cross-primitive integration test consolidation (L1↔L2, L1↔L4, L3↔L2); audit-envelope schema-stability check; de-scope trigger evaluation; documentation pass on Sprints 1–4; weekly schedule-check review | Sprints 1–4 |
+| 5 | L5 cross-repo-status-reader | SMALL (4 tasks) | 136 | ~1 wk | L5 skill; 7 ACs; parallel `gh api` p95 <30s for 10 repos; 429 backoff + secondary rate limit; TTL cache + stale fallback; BLOCKER extraction from NOTES.md tail; per-source error capture | Sprint 1 |
+| 6 | L6 structured-handoff | MEDIUM (5 tasks) | 137 | ~1 wk | L6 skill; 8 ACs; schema validation (strict + warn); OPERATORS.md verification; atomic INDEX.md update; SessionStart-hook unread-surfacing using `sanitize_for_session_start`; content-addressable handoff_id; same-machine-only enforcement (FU-6 deferral) | Sprints 1, 4 |
+| 7 | L7 soul-identity-doc + Cycle Integration Tests + Jailbreak Corpus | MEDIUM-LARGE (8 tasks incl. E2E) | 138 | ~1 wk | L7 skill; 7 ACs; SOUL.md schema + SessionStart surfacing; prescriptive-section rejection (NFR-Sec3); §1.9.3.2 **Layer 4 adversarial jailbreak corpus** (≥50 attack vectors at `tests/red-team/prompt-injection/`); cycle-wide integration test suite across 5 supported tiers; cross-primitive integration tests (L1↔L2, L1↔L4, L3↔L2); E2E goal validation; CHANGELOG; cycle archival | Sprints 1, 6 |
 
 ---
 
-## Sprint 0: Contract Verification Spike (BLOCKING)
+## Pre-Sprint: `sprint-bug-131` — cheval/HTTP-2 Hardening (#675)
 
-**Scope:** MEDIUM (6 tasks)
-**Duration:** 5 calendar days (T+0 to T+5; survey runs in parallel with probe authoring per PRD §Sprint-0-timeline)
-**Dates:** 2026-05-02 → 2026-05-07
+**Scope:** Bugfix (already triaged 2026-05-03; ledger global_id=131; cycle `cycle-bug-20260503-i675-ceb96f` ACTIVE).
+**Why blocking:** Flatline reviews on cycle-098 sprint docs routinely exceed 137KB; without this fix, Sprint 1 review/audit reverts to 2-of-3-model coverage (Gemini drops, Opus skeptic truncates). Workaround "direct curl HTTP/1.1 with `max_tokens` ≤ 4096" must be retired before Sprint 1 starts.
+**Sprint plan:** `grimoires/loa/a2a/bug-20260503-i675-ceb96f/sprint.md` (121 lines, already authored).
+**Triage:** `grimoires/loa/a2a/bug-20260503-i675-ceb96f/triage.md` (167 lines, eligibility 5/5 ACCEPT).
+**State file:** `.run/bugs/20260503-i675-ceb96f/state.json` (state=TRIAGE; 4 sub-issues catalogued).
+
+### Sub-issues (per triage)
+
+1. **`cheval.py` UnboundLocalError hides RetriesExhaustedError** — line 389 local re-import shadows module-scope `BudgetExceededError`. Fix: delete line 389 (1 line).
+2. **Anthropic 60s server-side timeout** — server-side, documentation + warning only.
+3. **`model-adapter.sh.legacy` argv-limit on 137KB+ payloads** — 3 sites (lines 261, 324, 386); refactor to `--data-binary @file` using existing `--config` curl-config-file pattern at lines 311-320.
+4. **`flatline-orchestrator.sh --per-call-max-tokens` knob** — net-new wiring; cheval.py line 337 already accepts `args.max_tokens`.
+
+### Test-first plan (3 failing tests before code)
+
+- `.claude/adapters/tests/test_cheval_exception_scoping.py` (NEW)
+- `tests/integration/model-adapter-argv-safety.bats` (NEW)
+- `tests/unit/flatline-orchestrator-max-tokens.bats` (NEW)
+
+### Pre-sprint launch criteria
+
+- [ ] All 3 failing tests written and committed BEFORE any production-code change
+- [ ] All 3 tests turn green after fix
+- [ ] PR #675-fix merged to `main`
+- [ ] Manual Flatline cross-check at 152KB+ payload size (the size that broke pass #4) succeeds at 3-of-3-model coverage (Opus + GPT + Gemini) without the direct-curl workaround
+- [ ] `/review-sprint sprint-bug-131` APPROVED
+- [ ] `/audit-sprint sprint-bug-131` APPROVED
+- [ ] NOTES.md updated with "cheval HTTP/2 hardening shipped"
+
+### Handoff
+
+Operator runs `/run sprint-bug-131` (recommended per CLAUDE.md "ALWAYS use /run for implementation") OR `/implement sprint-bug-131`. System Zone authorization is OK because cycle-098 PRD references this work via #675. **No cycle-098 sprint may begin until this PR is merged.**
+
+---
+
+## Sprint 1: L1 hitl-jury-panel + Cross-Cutting Infrastructure (LARGE)
+
+**Global ID (ledger):** 132
+**Duration:** ~1.5 weeks (per PRD §Timeline; LARGE per SDD §8 sprint-1 overload note + SOLO_OPUS R11 trigger)
+**Dates (target):** 2026-05-06 → 2026-05-13 (after `sprint-bug-131` merges ~2026-05-05)
 
 ### Sprint Goal
 
-Retire the assumption risk on auth modality, API contract shape, compliance posture, error taxonomy, and cross-region inference profiles **before any Sprint 1 code is written**, by surveying users + probing live Bedrock + capturing a versioned contract fixture.
+Land the **shared cross-cutting infrastructure** used by all six subsequent sprints (audit-envelope library, JCS canonicalization, root-of-trust, fd-based secret loading, sanitization, tier validator, protected-class router, operator-identity, lore directory, `/loa status` pattern) **alongside** the L1 hitl-jury-panel skill (9 ACs) — so Sprints 2–7 can compose against a stable substrate from day one.
 
 ### Deliverables
 
-- [ ] `grimoires/loa/spikes/cycle-096-sprint-0-bedrock-contract.md` — five gate sections (G-S0-1 through G-S0-5) each with PASS/FAIL judgment and citations
-- [ ] `tests/fixtures/bedrock/contract/v1.json` — versioned contract fixture (`endpoint_url_pattern`, `request_body_shape`, `response_body_shape`, `error_response_shape`, `model_ids[]`, `tool_schema_wrapping`, `thinking_trace_shape`) per SDD §8 G-S0-CONTRACT
-- [ ] Token-lifecycle metadata (issue date, last-rotated date, expected expiry if surfaced, creation source) captured per SDD §8 G-S0-TOKEN-LIFECYCLE — feeds NFR-Sec11 design
-- [ ] Three Day-1 model IDs from `ListFoundationModels` confirmed (closes OQ-1)
-- [ ] `compliance_profile` 4-step defaulting rule locked with concrete test cases (feeds SDD §5.6)
+**Cross-cutting (USED BY ALL SUBSEQUENT SPRINTS):**
+
+- [ ] `agent-network-envelope.schema.json` at `.claude/data/trajectory-schemas/agent-network-envelope.schema.json` — versioned, hash-chained, Ed25519-signed, `additionalProperties: true` on payload
+- [ ] `lib/audit-envelope.sh` + `loa/audit_envelope.py` — `audit_emit`, `audit_verify_chain`, `audit_recover_chain`, `audit_seal_chain` (per SDD §5.2)
+- [ ] `lib/jcs.sh` (bash) + Python `rfc8785` adapter + Node `canonicalize` adapter — RFC 8785 JCS canonicalization for chain/signature inputs (NOT `jq -S -c`)
+- [ ] **JCS multi-language conformance CI gate** at `tests/conformance/jcs/run.sh` — fails PR on byte-divergence between any two adapters; ≥20 nested-object test vectors covering RFC 8785 §3.2.2 + §3.2.3
+- [ ] **Release-signed root pubkey** distributed via `git tag -v cycle-098-root-key-v1`; bootstrap script fetches from tagged release artifact (NOT working-tree); multi-channel fingerprint cross-check (PR description + NOTES.md + Sprint 1 release notes); `[ROOT-PUBKEY-DIVERGENCE]` BLOCKER on working-tree vs tagged-release mismatch
+- [ ] **fd-based secret loading**: `audit-envelope.sh --password-fd N` OR `--password-file <path>` (mode 0600); `LOA_AUDIT_KEY_PASSWORD` env var deprecated with v1.5 warning, removed v2.0; CI redaction tests; process-inspection tests
+- [ ] `lib/context-isolation-lib.sh` extension: `sanitize_for_session_start(source, content) -> sanitized_content` (delimited containment, length cap, code-fence escaping, tool-call pattern detection, no-execution semantics)
+- [ ] `tier-validator.sh` (CC-10 startup check) — validates enabled-set against 5 supported tiers; mode `warn` (default per SKP-007 deferred decision) prints warning; mode `refuse` halts boot; `--allow-unsupported-tier` opt-out flag
+- [ ] `.claude/data/protected-classes.yaml` + `protected-class-router.sh` — 10 default classes per PRD Appendix D; operator override procedure; versioned schema
+- [ ] `operator-identity.sh` + `OPERATORS.md` schema (`grimoires/loa/operators.md`) — per-repo verifiable identity; optional `git_email` / `gpg_key_fingerprint` cross-check
+- [ ] `.claude/data/lore/agent-network/` directory + 5 initial entries (`jury-panel`, `panelist`, `binding-view`, `fail-closed-cost`, `descriptive-identity`) — YAML format per Loa lore convention
+- [ ] **`/loa status` integration pattern** (CC-5) — every primitive registers a status block; layout per SDD §4.4
+- [ ] **Baseline `AskUserQuestion`-call instrumentation** for G-1 KPI — counts in `/run`, `/run-bridge`, `/spiral` flows; written to `.run/baseline-askuserquestion-counts.jsonl`
+- [ ] **Audit-log retention compaction script template** at `.claude/scripts/audit-log-compaction.sh` — pattern from event-bus PR #215
+- [ ] **Hash-chain recovery procedure** (NFR-R7) — `[CHAIN-RECOVERED]` marker on rebuild success; `[CHAIN-BROKEN]` marker + BLOCKER on rebuild failure
+- [ ] **Daily snapshot job for L1/L2 untracked logs** (per SKP-001 §3.4.4↔§3.7 reconciliation) — 24h RPO (was 7d weekly); operator-runbook documents snapshot-archive restore path
+- [ ] **`audit-envelope.sh` exits 78 (`EX_CONFIG`)** with structured stderr on missing key/trust-store in non-interactive contexts (no stdin fallback); `[BOOTSTRAP-PENDING]` and `[UNVERIFIED-WRITER]` markers documented in §6.1 error category table
+- [ ] **`/loa audit-keys init`** emits trust-store PR template; runbook at `grimoires/loa/runbooks/audit-keys-bootstrap.md` documents secret-store → tmpfs → `LOA_AUDIT_KEY_PATH` flow for GitHub Actions, GitLab CI, CircleCI
+- [ ] **Worst-case write-path latency benchmark** (SKP-004) at `tests/benchmarks/audit-envelope-worst-case.sh` — 1000 iterations, max event_size 64 KiB, full crypto + ajv schema validation, on Linux + macOS runners; result published to `grimoires/loa/a2a/benchmarks/sprint-1-write-path.json`; if measured p95 ≥50ms or p99 ≥200ms, SLO targets in §6.4 / §7.1 / IMP-005 are revised in Sprint 1 review (no silent slip)
+- [ ] **Tier-enforcement default decision** logged at `grimoires/loa/cycles/cycle-098-agent-network/decisions/tier-enforcement-default.md` — Option C (`warn`-then-`refuse` migration) per operator decision 2026-05-03; cycle-098 ships `warn`; cycle-099 flips to `refuse`
+
+**L1-specific:**
+
+- [ ] `.claude/skills/hitl-jury-panel/SKILL.md` + `lib/jury-panel-lib.sh` + tests
+- [ ] All 9 L1 ACs (FR-L1-1..FR-L1-9) implemented
+- [ ] 3 default panelist persona files in `.claude/data/personas/`
+- [ ] Caller-configurable embedding-fn adapter (default: no-op pass; OpenAI `text-embedding-3-small` available as opt-in adapter, NOT default-wired per Phase 5 modification)
+- [ ] Selection-seed distribution audit script (FR-L1-8) — `.claude/scripts/jury-panel-distribution-audit.sh`
+- [ ] Fallback matrix for 4 cases tested (timeout, API failure, tertiary unavailable, all-fail)
 
 ### Acceptance Criteria
 
-- [ ] All five gates PASS or PASS-WITH-CONSTRAINTS (no FAILs); FAIL on any gate triggers PRD reframing per PRD §Sprint-0
-- [ ] G-S0-1 sample size ≥ 3 respondents AND ≥ 70% Bearer-token (or operator override documented in spike report per PRD §G-S0-1 4-way decision tree)
-- [ ] G-S0-2 captures full request/response for all 6 probes (redacted) — including `ListFoundationModels`, three Converse calls, tool-schema probe, thinking-trace probe, empty-content edge case probe, cross-region prefix probe
-- [ ] `bedrock-contract-v1.json` committed and importable by Sprint 1 unit tests (Sprint 1 Task 1.6 imports as fixture)
-- [ ] PRD §A8 + §A9 (URL-encoding requirement, tool-schema wrapping requirement) confirmed empirically against live API
-- [ ] DISPUTED IMP-009 (thinking-trace parity) resolved with one of three FR-13 outcomes documented (parity / different shape / not exposed)
+**Cross-cutting:**
+
+- [ ] CC-1: All 7 primitives ship `enabled: false` default in `.loa.config.yaml`
+- [ ] CC-2: Every primitive writes to `.run/*.jsonl` audit log via shared envelope; envelope MUST include `schema_version` (semver), `prev_hash`, `primitive_id`, `event_type`, `ts_utc`, `payload`
+- [ ] CC-3: `flock` concurrency via `_require_flock()` shim works on macOS + Linux for L1, L3, L4, L6
+- [ ] CC-4: All new state in `grimoires/loa/` + `.run/`; new skills under `.claude/skills/<name>/`
+- [ ] CC-5: `/loa status` surfaces L1 health/state; integration pattern documented for Sprints 2–7
+- [ ] CC-6: CLAUDE.md "Process Compliance" updated with new constraint rows; lore entries written
+- [ ] CC-7: New skills follow `.claude/rules/skill-invariants.md` (write-capable → not Plan/Explore agent type)
+- [ ] CC-8: All audit-log writes append-only; retention defaults documented per primitive
+- [ ] CC-9: All primitives degrade gracefully when disabled — no crash, no block
+- [ ] CC-10: Tier validator startup check passes for Tier 0..Tier 4
+- [ ] CC-11: Normative JSON Schema for envelope at `.claude/data/trajectory-schemas/agent-network-envelope.schema.json`, validated by `ajv` at write-time (with Python `jsonschema` fallback per R15)
+
+**JCS conformance + root-of-trust + fd-based secrets (per SDD pass-#4 v1.5 ACs):**
+
+- [ ] `lib/jcs.sh`, `rfc8785` (Python), `canonicalize` (Node) produce **byte-identical** output for the test vector corpus at `tests/conformance/jcs/test-vectors.json`; CI gate fails PR on divergence; ≥20 nested-object vectors covering RFC 8785 §3.2.2 (number canonicalization) + §3.2.3 (string escaping/Unicode)
+- [ ] `audit-envelope.sh` write path uses `lib/jcs.sh`; negative test: substituting `jq -S -c` produces signature verification failure under conformance vector input
+- [ ] Maintainer root pubkey distributed via release-signed git tag (`git tag -v cycle-098-root-key-v1` validates against maintainer's GitHub-registered GPG key)
+- [ ] Bootstrap script fetches root pubkey from tagged release artifact, NOT directly from working-tree
+- [ ] Multi-channel cross-check at install: pubkey fingerprint published in (a) cycle-098 PR description, (b) `grimoires/loa/NOTES.md` cycle-098 section, (c) Sprint 1 release notes; operator runbook instructs "verify all 3 channels match before accepting"
+- [ ] Runtime trust-store verification fails closed if working-tree `.claude/data/maintainer-root-pubkey.txt` diverges from tagged-release pubkey (`[ROOT-PUBKEY-DIVERGENCE]` BLOCKER + halt)
+- [ ] Threat model documented: repo compromise alone is insufficient to legitimize malicious signing keys
+- [ ] `audit-envelope.sh` accepts password via `--password-fd N` OR `--password-file <path>` (mode 0600); `LOA_AUDIT_KEY_PASSWORD` deprecated v1.5, removed v2.0
+- [ ] On password load, env-var memory page scrubbed (best-effort `unset` + `export -n`); fd-passed passwords stay in process memory only
+- [ ] CI redaction check (`tests/security/no-env-var-leakage.bats`) greps build logs + CI artifacts for `LOA_AUDIT_KEY_PASSWORD=`; fails PR on any match
+- [ ] Process inspection test: `ps aux | grep audit-envelope` does NOT show password content; `cat /proc/<pid>/environ` does NOT show env var after fd consumption
+- [ ] Documentation in `grimoires/loa/runbooks/audit-keys-bootstrap.md` shows fd-passing examples for GitHub Actions, GitLab CI, CircleCI
+
+**L1 hitl-jury-panel ACs:**
+
+- [ ] FR-L1-1: Skill convenes ≥3 panelists in parallel
+- [ ] FR-L1-2: Panelist views logged BEFORE selection (verifiable from log if skill crashes mid-cycle)
+- [ ] FR-L1-3: Deterministic seed produces same binding choice for same `(decision_id, context_hash)`; `seed = sha256(decision_id || context_hash)`; `selected_index = seed % len(sorted(panelists, key=id))`
+- [ ] FR-L1-4: Protected classes route to `QUEUED_PROTECTED` without panel invocation; default protected-class taxonomy from PRD Appendix D + operator-extensible via `protected_classes` config
+- [ ] FR-L1-5: Fallback matrix tested for all 4 cases (timeout, API failure, tertiary unavailable, all-fail)
+- [ ] FR-L1-6: Disagreement check uses caller-configurable embedding fn (default: no-op pass)
+- [ ] FR-L1-7: All decisions written to `.run/panel-decisions.jsonl` with full panelist reasoning + selection seed + binding view + minority dissent
+- [ ] FR-L1-8: Selection-seed distribution audit script ships (enforcement is post-ship telemetry)
+- [ ] FR-L1-9: L1 cost-estimation integrates with L2 when L2 is enabled (compose-when-available stub)
+
+**R11 + Sprint 1 overload (per SDD pass-#4 SOLO_OPUS):**
+
+- [ ] R11 weekly Friday schedule-check ritual already active (routine `trig_01E2ayirT9E93qCx3jcLqkLp`); first run 2026-05-08T16:00Z; documented in §8 Development Phases
+- [ ] Sprint 1 daily standup checklist includes AC backlog count + de-scope-trigger evaluation against PRD §De-Scope Triggers
+- [ ] Sprint 1 PR template includes a "Sprint 1 AC progress" section (X of Y items complete)
 
 ### Technical Tasks
 
-- [ ] **Task 0.1**: Author and send G-S0-1 user survey (3 questions: auth modality, single-vs-cross-account scope, compliance posture) — issue comment + Discord ping; 5-day window → **[G-1]** (gates auth scope)
-- [ ] **Task 0.2**: Run G-S0-2 live API probes #1–#6 against maintainer's Bedrock account; capture redacted request/response payloads to spike report; populate `bedrock-contract-v1.json` from probe captures. **NEW v1.1 per Flatline BLOCKER SKP-004**: Probe set MUST include multi-region coverage (probes run against 2 regions: maintainer's primary region + one secondary region from `us.*` set) and document the explicit non-support boundary for AWS partitions outside commercial (GovCloud `us-gov-*`, China `cn-*`) — these are documented as out-of-scope for v1 with no probe attempted. Single-account validation is acknowledged as a known gap; G-S0-BACKUP (Task 0.7) provides a partial mitigation path → **[G-1]**
-- [ ] **Task 0.3**: G-S0-3 — codify the 4-step `compliance_profile` defaulting rule per PRD §G-S0-3; write three behavior test cases (mocked outage → fail-closed, warned-fallback, silent-fallback) plus migration test (fresh user → `bedrock_only` + one-shot stderr notice) → **[G-3]** (compliance posture must not break existing users)
-- [ ] **Task 0.4**: G-S0-4 — enumerate Bedrock error taxonomy (7 categories per PRD §G-S0-4) with documented retry/no-retry/circuit-break decisions per category; capture 200-OK-with-quota-body example for the FR-11 retry classifier → **[G-1]** (reliability gate for Sprint 1 code)
-- [ ] **Task 0.5**: G-S0-5 — probe both `us.anthropic.*` and `eu.anthropic.*` (or whichever regional profiles cover Day-1 models) with Bearer auth; confirm region-prefix format works AND cross-account ARN format does not (or fails as expected); document Day-1 model ID list with region scope → **[G-1, G-4]** (Day-1 availability)
-- [ ] **Task 0.6**: G-S0-TOKEN-LIFECYCLE — capture maintainer-token metadata for NFR-Sec11 design (age, rotation source, AWS-side expiry exposure if any); write findings into the spike report's "Token lifecycle observations" section → **[G-3]** (security baseline; no behavior change for existing users)
-- [ ] **Task 0.7 (NEW v1.1 per Flatline BLOCKER SKP-001)**: G-S0-BACKUP — establish break-glass continuity for the maintainer-account SPOF risk:
-  - Identify a backup test account owner from the Bedrock-using user pool (G-S0-1 respondents are the natural candidates) and document the contact path
-  - Capture a backup token from the backup account (NEVER stored in tree — only the contact path + CI-secret slot reservation)
-  - Create a "non-blocking validation mode" path: when `AWS_BEARER_TOKEN_BEDROCK` and `AWS_BEARER_TOKEN_BEDROCK_BACKUP` are both unset (e.g., maintainer offline + backup unreachable), CI workflow exits cleanly with an INCONCLUSIVE label rather than failing — explicitly distinct from the "skipped: no_ci_token" path so this state is visible to maintainers via dashboard
-  - Document the break-glass procedure in the FR-9 plugin guide (Sprint 2 deliverable; SKP-001 closure cross-references)
-  → **[G-1, G-3]** (resilience baseline)
-- [ ] **Task 0.8 (NEW v1.1 per Flatline IMP-004)**: Live-data scrub procedure for spike report — Sprint 0 collects redacted-but-still-sensitive data (account IDs, regional endpoint shapes, response timing). Author and run a structured sanitization checklist BEFORE the spike report is committed:
-  - Account IDs: replaced with `<account-id>` literal
-  - Token values: never present (already redacted at probe-capture time)
-  - Inference profile ARNs (which embed account IDs): redacted
-  - Probe-response timing values: rounded to 100ms boundaries (precise timing can fingerprint specific accounts)
-  - Run `lib-security.sh redact_secrets` over the final spike report; verify zero matches against the running token's last-4 hash
-  → **[G-3]** (no credential or account leakage from public planning artifacts)
-
-### Per-Gate PASS / PASS-WITH-CONSTRAINTS / FAIL Matrix (NEW v1.1 per Flatline SKP-003 + IMP-002)
-
-The original v1.0 PRD §G-S0-N gates accepted "PASS-WITH-CONSTRAINTS" loosely. v1.1 sprint plan locks down what *each* PWC outcome means per gate, and what mitigation tasks are mandatory before Sprint 1 entry.
-
-| Gate | PASS | PASS-WITH-CONSTRAINTS allowed | FAIL → mandatory action |
-|---|---|---|---|
-| G-S0-1 (auth survey) | ≥ 3 respondents AND ≥ 70% Bearer | Mixed Bearer/SigV4 (30–70% Bearer) → promote FR-4 SigV4 implementation INTO this cycle (Sprint 3 added) | < 30% Bearer → reframe Phase 1; SigV4 becomes v1, FR-3 deferred to v2 |
-| G-S0-2 (live API contract) | All 6 probes succeed AND structural shapes match documentation | Probe #4 (thinking traces) reveals different-but-mappable shape → FR-13 ships with shape-mapper code; probe #5 (empty content) reveals pattern but recovery works → NFR-R4 retry covers it | Probe #1/#2/#3 (foundational) FAILs → block Sprint 1; reframe FR-1/FR-2 contracts; revisit PRD §A2/§A4 |
-| G-S0-3 (compliance schema) | 4-step rule passes all 4 mocked scenarios + migration test | Defaulting rule passes for the 3 primary scenarios but migration test reveals minor edge case → ship with edge-case warning + Sprint 1 follow-up task | Defaulting rule produces non-deterministic output for any of the 4 paths → block; rewrite rule before Sprint 1 |
-| G-S0-4 (error taxonomy) | All 7 categories enumerated, retry decisions documented, fixture captures for FR-11 ready | Daily-quota body pattern not reliably reproduced (vendor returns it inconsistently) → fixture is "best-effort", document open question for Sprint 1 to harden | Three or more categories cannot be enumerated against live API → block; FR-11 retry classifier cannot be designed without it |
-| G-S0-5 (cross-region profiles) | All 3 Day-1 models confirmed in `us.*` profiles with Bearer auth | One Day-1 model is region-blocked from maintainer's region → FR-5 ships with 2 models, that one model added in cycle-097 | Cross-region inference profile feature is not GA at cycle-start (vendor change) → block; defer cycle until vendor stabilizes |
-| G-S0-CONTRACT | `bedrock-contract-v1.json` committed; Sprint 1 unit tests import successfully | Fixture is committed but ≥1 capability reflects degraded vendor behavior (e.g., undocumented response key) → Sprint 1 acknowledges with explicit "fixture-known-fragile" comment; CI smoke watches for change | Fixture cannot be generated due to G-S0-2 FAIL → block (already covered by G-S0-2 cascade) |
-| G-S0-TOKEN-LIFECYCLE | Maintainer token metadata captured (age, rotation source, AWS-side expiry surfacing if any) | AWS does not expose token-expiry via any API → NFR-Sec11 ships with age-only warning (no AWS-side expiry probe) | (No FAIL path — this is a documentation gate, not a behavioral one) |
-| G-S0-BACKUP | Backup account contact path documented + non-blocking validation mode coded | Backup user identified but token unprovisioned at Sprint 0 close → Sprint 1 includes follow-up task to provision; ship with single-account risk note in `sprint.md` | No backup user identifiable from G-S0-1 pool → escalate; consider holding cycle until SPOF mitigated |
-
-**Sprint 1 entry rule (HARD GATE)**: All 7 gates must be PASS or PASS-WITH-CONSTRAINTS. Any FAIL blocks Sprint 1 unconditionally. PASS-WITH-CONSTRAINTS gates trigger their named mitigation task as a Sprint 1 prerequisite (added to Sprint 1 task list before Sprint 1 starts).
+- [ ] **Task 1.1**: Author `agent-network-envelope.schema.json` (v1.0.0); Ed25519 signature field; `prev_hash` (SHA-256 of canonical-JSON of prior entry's content excluding signature); `payload: additionalProperties: true`. Land at `.claude/data/trajectory-schemas/agent-network-envelope.schema.json`. → **[G-2, G-4]**
+- [ ] **Task 1.2**: Implement `lib/audit-envelope.sh` + `loa/audit_envelope.py` with `audit_emit`, `audit_verify_chain`, `audit_recover_chain`, `audit_seal_chain` per SDD §5.2; `audit_emit` exits 78 (`EX_CONFIG`) on missing key/trust-store. → **[G-2, G-4]**
+- [ ] **Task 1.3**: Ship `lib/jcs.sh` (bash RFC 8785 JCS), wire Python `rfc8785` + Node `canonicalize`, build conformance corpus + CI gate at `tests/conformance/jcs/`. → **[G-2, G-4]**
+- [ ] **Task 1.4**: Distribute maintainer root pubkey via release-signed git tag `cycle-098-root-key-v1`; bootstrap script reads from tag, not working tree; multi-channel fingerprint publication; `[ROOT-PUBKEY-DIVERGENCE]` runtime check. → **[G-2]**
+- [ ] **Task 1.5**: Implement fd-based secret loading (`--password-fd N`, `--password-file <path>`); deprecate `LOA_AUDIT_KEY_PASSWORD`; CI redaction tests; process-inspection tests. → **[G-2]**
+- [ ] **Task 1.6**: Extend `lib/context-isolation-lib.sh` with `sanitize_for_session_start()`; ship `tier-validator.sh` (CC-10); ship `protected-classes.yaml` + `protected-class-router.sh`; ship `operator-identity.sh` + `OPERATORS.md` schema. → **[G-2, G-3]**
+- [ ] **Task 1.7**: Create `.claude/data/lore/agent-network/` with 5 initial YAML lore entries (`jury-panel`, `panelist`, `binding-view`, `fail-closed-cost`, `descriptive-identity`); update CLAUDE.md "Process Compliance" + new constraint rows. → **[G-3, G-4]**
+- [ ] **Task 1.8**: Land `/loa status` integration pattern (CC-5); add baseline `AskUserQuestion` instrumentation in `/run`, `/run-bridge`, `/spiral`; ship `audit-envelope.sh` worst-case latency benchmark (Linux + macOS); compaction script template. → **[G-1, G-3, G-4]**
+- [ ] **Task 1.9**: Implement L1 hitl-jury-panel skill at `.claude/skills/hitl-jury-panel/SKILL.md` + `lib/jury-panel-lib.sh` + 3 panelist persona files; selection seed (FR-L1-3); fallback matrix (FR-L1-5); JSONL audit log emission to `.run/panel-decisions.jsonl`. → **[G-1, G-2, G-4]**
+- [ ] **Task 1.10**: BATS + pytest test suite covering all 9 L1 ACs + cross-cutting infrastructure (`audit-envelope.sh` chain walk, recovery, seal; tier-validator boundary cases; JCS conformance vectors; fd-based secret tests); macOS CI matrix passes. → **[G-2, G-3, G-4]**
 
 ### Dependencies
 
-- Maintainer (`@janitooor`) has a Bedrock-enabled AWS account with `AWS_BEARER_TOKEN_BEDROCK` provisioned (PRD §A6 cycle-095 archival is **already complete** per ledger and recent commit `73431db`)
-- AWS Bedrock service availability in maintainer's region (PRD D-1 — out of Loa's control)
-- ≥ 3 survey respondents in 5 days OR documented operator override (PRD §G-S0-1 INCONCLUSIVE branch)
+- **Pre-sprint:** `sprint-bug-131` (#675 fix) MERGED — without this, Flatline review of Sprint 1 doc reverts to 2-of-3-model coverage
+- **Internal libs (existing, verified):** `lib/context-isolation-lib.sh`, `_require_flock()`, `lib/portable-realpath.sh`, `lib-security.sh::_SECRET_PATTERNS`, `prompt_isolation`
+- **External:** `cryptography` Python pkg (Ed25519 signing/verification — pinned per R14), `ajv` Node pkg with Python `jsonschema` fallback (per R15), `rfc8785` Python pkg, `canonicalize` Node pkg
+- **Operator prerequisites (already approved 2026-05-03):** root key staged at `~/.config/loa/audit-keys/cycle098-root.priv`; fingerprint `e76eec460b34eb610f6db1272d7ef364b994d51e49f13ad0886fa8b9e854c4d1` published in 3 channels; tier-enforcement decision filed (Option C)
 
 ### Security Considerations
 
-- **Trust boundaries**: Probe outputs are sanitized before commit — strip token values, sanitize account IDs, leave structural keys; redaction happens via `lib-security.sh redact_secrets` (sourced once even though full Layer 1+2 implementation lands in Sprint 1)
-- **External dependencies**: None added — probes use existing `httpx` / `urllib`. No `boto3` introduced.
-- **Sensitive data**: Maintainer's Bedrock API Key handled only via env var; sentinel-shape fingerprint (last-4 of SHA256, never raw) is the only value persisted; full token never written to spike report
+- **Trust boundaries**: Panelist context (untrusted body input) wrapped in `prompt_isolation`; SessionStart-bound content wrapped in `<untrusted-content>` containment; all writes to audit log signed with per-writer Ed25519 key
+- **External dependencies**: `cryptography` pinned in `requirements.txt`; `ajv`/`canonicalize` pinned in `package.json`; root pubkey fetched from release-signed git tag (NOT mutable working tree)
+- **Sensitive data**: Audit-key passwords passed via fd or mode-0600 file (NEVER env var in v2.0+); JSONL logs run secret-scanning on write per `_SECRET_PATTERNS`; mode 0600 on all key files
+- **Threat model**: Repo compromise alone insufficient — attacker would also need (a) maintainer's GPG key + GitHub registration, OR (b) all 3 fingerprint-publication channels; documented in `grimoires/loa/runbooks/audit-keys-bootstrap.md`
 
 ### Risks & Mitigation
 
 | Risk | Probability | Impact | Mitigation |
 |------|-------------|--------|------------|
-| < 3 survey respondents in 5 days (PRD A1 INCONCLUSIVE) | Medium | High | Operator override path documented in PRD §G-S0-1; ship Bearer v1 with explicit roadmap commitment to revisit at 30-day post-launch checkpoint |
-| Probe #4 reveals thinking traces NOT exposed via Converse (PRD R-3 / OQ-3) | Medium | Medium | FR-13 Acceptance Criterion (b)/(c) handles non-parity outcomes; `api_format.thinking_traces: invoke` per-capability fallback codified; capability list in FR-1 amended to ground truth |
-| `ABSKY*` regex prefix has evolved between PRD lock-down and Sprint 0 (OQ-5) | Medium | Medium | Probe #1 captures sample token shape (redacted to last-4); Sprint 1 NFR-Sec2 Layer 1 regex updated from probe finding before merge |
-| Cross-region inference profiles not GA in maintainer's region for one of the three models (R-13) | Medium | Medium | FR-12 region-prefix mismatch error path; probe #6 confirms coverage; if a model is region-blocked, FR-5 defers that one model with an explicit note |
+| Sprint 1 overload (12 cross-cutting items + L1 + 7 v1.4-added ACs in 1.5 weeks; SOLO_OPUS 780) | High | High | R11 weekly schedule-check **already active** (first run 2026-05-08); daily standup AC count + de-scope eval; PR template AC-progress section. **Re-baseline trigger: Sprint 1 >2 weeks late → split into cycle-098a (L1-L4 + CC) + cycle-098b (L5-L7).** |
+| JCS multi-language conformance fails (bash vs Python vs Node byte-divergence) | Med | High | Conformance corpus is the gate; CI fails PR on divergence; canonical reference is `rfc8785` Python pkg behavior |
+| Worst-case write-path latency exceeds SLO (p95 <50ms / p99 <200ms) | Med | Med | Sprint 1 review revises SLO based on measured numbers (no silent slip per SDD pass-#3 SKP-004 protocol) |
+| Root-pubkey divergence between working-tree and tagged-release | Low | High | `[ROOT-PUBKEY-DIVERGENCE]` BLOCKER + halt at runtime; multi-channel fingerprint cross-check at install |
+| `LOA_AUDIT_KEY_PASSWORD` env-var leakage in CI logs | Low | High | CI redaction grep test; `--password-fd` / `--password-file` mandatory by v2.0; deprecation warning v1.5 |
+| Beads UNHEALTHY (#661) blocks task tracking | High (already realized) | Med | Ledger-only fallback per PRD R9; sprint progress tracked in `grimoires/loa/ledger.json` and Sprint 1 PR description |
 
 ### Success Metrics
 
-- 5/5 gates PASS or PASS-WITH-CONSTRAINTS within 5 calendar days
-- Spike report and `bedrock-contract-v1.json` both committed to base; Sprint 1 entry gate (PRD §Sprint-0-timeline T+5d) clears
-- Zero unresolved [ASSUMPTION] flags remain on Sprint 1 code paths
+- All 10 cross-cutting deliverables landed; all 6 L1-specific deliverables landed
+- 9/9 L1 ACs PASS; 11/11 CC FRs satisfied
+- JCS conformance CI gate green (bash + Python + Node byte-identical on ≥20 vectors)
+- Worst-case write-path benchmark publishes p95/p99 numbers; SLO either confirmed or revised in Sprint 1 review
+- Baseline `AskUserQuestion`-call counts captured for G-1 KPI baseline
+- `/review-sprint sprint-1` APPROVED; `/audit-sprint sprint-1` APPROVED with COMPLETED marker
+- macOS CI passes for all primitives using flock (NFR-Compat2)
+- 0 regressions in existing skills (NFR-R1, NFR-Compat3)
 
 ---
 
-## Sprint 1: Bedrock v1 Functional + Centralized Parser
+## Sprint 2: L2 cost-budget-enforcer + Reconciliation Cron (MEDIUM)
 
-**Scope:** LARGE (10 tasks)
-**Duration:** 7 calendar days (T+5 to T+12)
-**Dates:** 2026-05-07 → 2026-05-14
+**Global ID (ledger):** 133
+**Duration:** ~1 week
+**Dates (target):** 2026-05-13 → 2026-05-20
 
 ### Sprint Goal
 
-Ship Bedrock-via-API-Key as a fully-functional fourth Loa provider — three Anthropic-on-Bedrock models invocable end-to-end with region resolution, compliance-aware fallback, two-layer secret redaction, error taxonomy, token age sentinel, and centralized parser landed FIRST as the foundation for every subsequent commit.
+Ship the L2 daily-budget enforcer with **fail-closed semantics** under all uncertainty modes, including the un-deferred reconciliation cron job (per SKP-005 CRITICAL: promoted from FU-2), tracking per-provider counters with UTC-windowed daily cap, and extending the audit-envelope schema with verdict + reconcile event types.
 
 ### Deliverables
 
-- [ ] `lib-provider-parse.sh` (bash) + `loa_cheval.types.parse_provider_model_id` (Python) shared parser landed; all 4 bash callsites + all Python callsites refactored to use it
-- [ ] `bedrock_adapter.py` implementing `complete()` / `validate_config()` / `health_check()` / `_classify_error()` per FR-2 + FR-11
-- [ ] `model-config.yaml` extended with `providers.bedrock` entry (per-capability `api_format`, `compliance_profile: bedrock_only` default, region-prefixed model IDs, three Day-1 models with live-fetched pricing)
-- [ ] `model-permissions.yaml` extended with three `bedrock:us.anthropic.*` trust scope entries mirroring `anthropic:claude-opus-4-7` (`model-permissions.yaml:147-173`)
-- [ ] `lib-security.sh` `_SECRET_PATTERNS` extended with **two-layer** redaction (value-based PRIMARY + `ABSK[A-Za-z0-9+/=]{36,}` regex SECONDARY + length-fallback regex) per SDD §6.4.1
-- [ ] `compliance_profile` 4-step loader rule (SDD §5.6) + cross-provider fallback gating (SDD §6.2) + audit/ledger entries (NFR-Sec8 schema)
-- [ ] NFR-Sec11 token-age sentinel (`.run/bedrock-token-age.json`) + 60/80/90-day stderr warnings + `auth_lifetime: short` reject path
-- [ ] `§6.6` concurrency primitives — `threading.Event()` for `_daily_quota_exceeded`, `total_deadline_ms` retry semantics, streaming explicit out-of-scope error
-- [ ] `§6.7` Bedrock feature flag — `hounfour.bedrock.enabled` config gate + `.run/bedrock-migration-acked.sentinel`
-- [ ] Live integration test (key-gated) green on maintainer's Bedrock account; cycle-094 G-7 invariant green; `model-invoke --validate-bindings` byte-identical for non-Bedrock-overridden configs
+- [ ] `.claude/skills/cost-budget-enforcer/SKILL.md` + `lib/cost-budget-enforcer-lib.sh` + tests
+- [ ] All 10 ACs (FR-L2-1..FR-L2-10) implemented
+- [ ] State machine: `allow` → `warn-90` → `halt-100` → `halt-uncertainty` covering 5 uncertainty modes (`billing_stale`, `counter_inconsistent`, `counter_drift`, `clock_drift`, `provider_lag`)
+- [ ] UTC-windowed daily cap (`00:00:00Z` to `23:59:59Z`); clock validation on first paid call of UTC day (cross-check tolerance ±60s)
+- [ ] Per-provider counter (Anthropic, OpenAI, Bedrock, etc.) + aggregate cap + optional per-provider sub-caps via `per_provider_caps`
+- [ ] **Reconciliation cron** (un-deferred per SKP-005) — default 6h cadence, configurable via `reconciliation.interval_hours`; runs even when no cycle is active; compares internal counter to billing API; emits BLOCKER on drift >5%; counter NOT auto-corrected (operator decides via `force-reconcile`)
+- [ ] BLOCKER on drift >5%; configurable threshold
+- [ ] Audit-envelope extended with `budget.allow`, `budget.warn_90`, `budget.halt_100`, `budget.halt_uncertainty`, `budget.reconcile` event types
+- [ ] **Daily snapshot job for L1/L2 untracked logs** (per SKP-001 §3.4.4↔§3.7 reconciliation, RPO 24h, was 7d) — operator runbook documents snapshot-archive restore path
+- [ ] Lore entry: "fail-closed cost gate"
+- [ ] Integration tests for billing API outage, counter drift, sudden cap change, clock drift, provider lag
 
 ### Acceptance Criteria
 
-- [ ] **Parser landed FIRST** — Task 1.1 commit precedes every other Sprint 1 commit; 4 bash callsites (`gen-adapter-maps.sh`, `model-adapter.sh`, `red-team-model-adapter.sh`, `flatline-orchestrator.sh`) source the shared helper; all Python callsites import `loa_cheval.types.parse_provider_model_id`
-- [ ] `tests/integration/parser-cross-language.bats` passes with the 9 input cases from SDD §5.4 table (multi-colon, empty-provider, empty-model, no-colon, multi:colon:value, etc.)
-- [ ] `tests/integration/colon-bearing-model-ids.bats` (NEW) passes — covers (a) provider parsing, (b) generated-map key shape, (c) `validate_model_registry()` cross-map invariant, (d) `MODEL_TO_ALIAS` resolution in `model-adapter.sh`
-- [ ] `bash .claude/scripts/gen-adapter-maps.sh --check` passes (no drift; bedrock entries in all four arrays — `MODEL_PROVIDERS`, `MODEL_IDS`, `COST_INPUT`, `COST_OUTPUT`)
-- [ ] `bats tests/integration/model-registry-sync.bats` passes (cycle-094 G-7 invariant — closes R-6)
-- [ ] `bedrock_adapter.py` unit-test coverage ≥ 85% (per FR-10) covering: success, 4xx structured error, 5xx, timeout, daily-quota body pattern, empty `content[]` retry, region-prefix mismatch error
-- [ ] Live integration test (`tests/integration/test_bedrock_live.py`) passes against real Bedrock account; skips cleanly when `AWS_BEARER_TOKEN_BEDROCK` absent (cycle-094 G-E2E precedent — closes R-1)
-- [ ] `model-invoke --validate-bindings` output byte-identical before/after for configs that don't override aliases to bedrock (NFR-Compat1 — gates the merge per PRD §Launch Criteria)
-- [ ] Two-layer secret-redaction tests pass: value-based redacts a non-`ABSKY` token; regex redacts a known-prefix token even with no env-var match (defense in depth)
-- [ ] NFR-Sec11 mock-clock test asserts 60/80/90-day warning thresholds fire correctly; `auth_lifetime: short` is rejected with the documented error
-- [ ] Bedrock pricing values **live-fetched at sprint execution** (closes OQ-2) and committed with citation comment per PRD FR-5 AC and `model-config.yaml:171-180` Haiku 4.5 precedent
-- [ ] No BLOCKER findings on the bedrock branch when `/flatline-review` is invoked (PRD §Launch Criteria)
-- [ ] No `boto3` import in `bedrock_adapter.py` (test asserts via import scan — FR-3 AC)
+- [ ] FR-L2-1: `allow` returned when usage <90% AND data fresh (≤5min)
+- [ ] FR-L2-2: `warn-90` returned when 90% ≤ usage <100% AND data fresh
+- [ ] FR-L2-3: `halt-100` returned when usage ≥100% AND data fresh; cycle halts before next paid call
+- [ ] FR-L2-4: `halt-uncertainty` returned when billing API stale + counter near cap (5 uncertainty modes covered)
+- [ ] FR-L2-5: Reconciliation job detects drift >5% and emits BLOCKER (configurable threshold)
+- [ ] FR-L2-6: Counter inconsistencies (negative, decreasing, backwards) trigger `halt-uncertainty: counter_inconsistent`
+- [ ] FR-L2-7: Fail-closed semantics under all uncertainty modes — never `allow` under doubt
+- [ ] FR-L2-8: Per-repo caps respected when configured
+- [ ] FR-L2-9: All verdicts logged to `.run/cost-budget-events.jsonl`
+- [ ] FR-L2-10: Integration tests cover billing API outage, counter drift, sudden cap change
+- [ ] State-transition table tests cover all 5 transitions per SDD §6.3.2 + IMP-004
+- [ ] Reconciliation cron registers via `/schedule`; deregisters cleanly on `enabled: false`
+- [ ] CC-1..CC-11 satisfied for L2 specifically
 
 ### Technical Tasks
 
-<!-- Each task annotated with contributing PRD goal(s); architectural ordering enforced — Task 1.1 lands FIRST -->
-
-- [x] **Task 1.1 (REVISED v1.1 per Flatline BLOCKER SKP-008 + IMP-003)**: Land centralized parser (`lib-provider-parse.sh` + `loa_cheval.types.parse_provider_model_id`) per SDD §5.4 — but **NOT as a single atomic refactor**; the v1.0 plan's atomic-PR approach was correctly flagged as regressing all 4 existing providers if the parser semantics drift. **Revised rollout (SKP-008 mitigation):**
-  - **Phase A (PR 1)**: Land the helper modules with full unit tests (no callsite changes). Keep the existing inline parser logic in callsites in place, untouched. Helper exists in tree but is only referenced by its own tests.
-  - **Phase B (PR 2)**: Introduce a compatibility shim — each existing callsite keeps its inline parser AND adds a parallel call to the new helper, asserting equivalent output via a debug-mode comparison flag (`LOA_PARSER_CANARY=1`). Run for ≥ 24 hours of CI on every existing test suite + ad-hoc dev work; surface any divergence loudly.
-  - **Phase C (PR 3)**: Replace each callsite's inline parser with the helper (one callsite per commit; 4 bash + N Python = 5+ commits). Each commit independently runs the cycle-094 G-7 invariant test + every provider's existing test suite. Any regression on any commit reverts only that commit, leaving prior commits stable.
-  - **Phase D (PR 4)**: Remove the canary flag and inline-parser code paths once all callsites are validated.
-  - **Tests gating each phase**: `tests/integration/parser-cross-language.bats` covers the 9-case property table per SDD §5.4. NEW v1.1: `tests/integration/parser-legacy-regression.bats` runs every existing provider's existing model-resolution path through both inline-old AND helper-new parsers in canary mode; assertion: identical output for ≥ 1000 known-good IDs from `generated-model-maps.sh`.
-  - **Rollback procedure** (NEW v1.1 per IMP-003 — original "rollback = revert single PR" was too shallow): If divergence surfaces in Phase B canary, revert PR 2 only — Phase A's helper stays in tree (it's unused). If divergence surfaces in Phase C, revert the offending callsite commit; remaining callsites keep using the helper. If a *post-merge* regression surfaces in production (cycle-097+), the canary flag remains available as an emergency tool to detect divergence in any environment.
-  → **[G-2]** (foundation for "≤1-day fifth provider"; closes Flatline v1.1 SKP-006 + v1.0 AR-1 + sprint-pass SKP-008/IMP-003)
-- [x] **Task 1.A (NEW v1.1 per Flatline BLOCKER SKP-005)**: Adversarial secret-redaction test fixtures — exercise NFR-Sec2/Sec10 redaction layers against transformed token leakage paths that a naive regex misses:
-  - Base64-encoded token in a JSON request body field (encoded by an upstream client)
-  - URL-encoded token in a query parameter (e.g., debug logging that captures full URL)
-  - Multi-line token split across lines (e.g., terminal output with line wrapping)
-  - Token concatenated with surrounding text (e.g., `"Authorization: Bearer ABSKY...{rest}\n"` log line where the token isn't on its own line)
-  - Token in a structured log field (e.g., `{"auth_header": "Bearer ABSKY..."}`)
-  - Token in CI debug output / `set -x` shell traces
-  - **Default-disable verbose HTTP logging**: `bedrock_adapter.py` initializes the underlying httpx logger to WARNING by default; debug-level requires explicit `LOA_BEDROCK_HTTP_DEBUG=1` env var with a documented warning that token redaction may not catch all paths in debug mode
-  - Each adversarial fixture asserts the value-based PRIMARY redaction catches it (since regex only matches the bare prefix); failures are merge-blocking
-  → **[G-3]** (defense-in-depth secret hygiene)
-- [x] **Task 1.B (NEW v1.1 per Flatline IMP-007)**: Streaming non-support assertion — `bedrock_adapter.py` raises `NotImplementedError("Streaming not supported in v1; track at OQ-S1")` immediately when streaming is requested; unit test asserts the error type, message, and call-site (no silent fallback to non-streaming). Documentation in FR-9 plugin guide includes a one-line note. Closes IMP-007. → **[G-2]** (capability honesty)
-- [x] **Task 1.2**: Add `providers.bedrock` entry to `.claude/defaults/model-config.yaml` per FR-1 — region-prefixed model IDs from Sprint 0 fixture, per-capability `api_format` (chat/tools/thinking_traces), `compliance_profile: bedrock_only` default, `auth_modes: [api_key, sigv4]` (sigv4 designed-not-built), live-fetched pricing with citation comment; regenerate `generated-model-maps.sh` via `gen-adapter-maps.sh` → **[G-1, G-3]**
-- [x] **Task 1.3**: Implement `bedrock_adapter.py` per FR-2 — `complete()` with per-capability dispatch (Converse / InvokeModel per `api_format`), URL-encoding via `_build_converse_url()` helper (AR-9 single-edit-site discipline), tool-schema wrapping via `_wrap_tool_schemas()` helper (AR-10), region resolution chain (FR-6), Bearer auth via FR-3, `validate_config()` rejecting `sigv4`/empty token, `health_check()` against control-plane endpoint → **[G-1, G-4]**
-- [x] **Task 1.4**: Implement FR-11 error taxonomy + retry classifier in `_classify_error()` covering all 7 G-S0-4 categories — Throttling/ServiceUnavailable retry, ValidationException/AccessDeniedException/ResourceNotFoundException no-retry, daily-quota body-pattern detection, empty-content single-retry-then-`EmptyResponseError`; daily-quota uses `threading.Event()` per SDD §6.6 (closes AR-12) → **[G-1]**
-- [x] **Task 1.5**: Implement `compliance_profile` defaulting rule per SDD §5.6 (4-step loader logic) + SDD §6.2 cross-provider fallback gating with **versioned `fallback_to` mapping enforcement** (loader rejects `prefer_bedrock` when no exact mapping declared, closes Flatline SKP-003); emit one-shot stderr migration notice gated by sentinel file `~/.loa/seen-bedrock-default` (or `${LOA_CACHE_DIR}/seen-bedrock-default` per AR-8) → **[G-3]** (compliance posture preserved; no silent egress)
-- [x] **Task 1.6**: Implement two-layer secret redaction per SDD §6.4.1 — Layer 1 value-based (PRIMARY) registers resolved env-var values for whole-string replacement; Layer 2 regex `ABSK[A-Za-z0-9+/=]{36,}` (SECONDARY) + length-fallback regex (TERTIARY); both layers fire on every `redact_secrets` call; `tests/unit/secret-redaction.bats` covers all three paths including non-`ABSKY` token via value-based; **import `bedrock-contract-v1.json` as fixture** for response-shape assertions on every test run → **[G-3]** (sensitive data protected; no token leaks)
-- [x] **Task 1.7**: NFR-Sec11 token-age sentinel — write `.run/bedrock-token-age.json` on first call from a new token (detected via SHA256 last-4 token_hint per NFR-Sec8); 60-day silent / 60-80 day info / 80-90 warn-every-100 / 90+ warn-every-call thresholds; mock-clock unit test verifies all four bands; `auth_lifetime` schema field added to bedrock provider entry, `short` value rejected with documented error → **[G-3]** (security baseline; closes AR-11)
-- [x] **Task 1.8**: NFR-Sec8 audit/ledger schema — extend `cost-ledger.jsonl` writes with `event_type` enum (completion / fallback_cross_provider / circuit_breaker_trip / token_rotation), `fallback` field, `token_hint` (last-4 SHA256, never raw); extend `.run/audit.jsonl` with `category: auth | compliance | circuit_breaker` + `subcategory` enum; surface 401/403, daily-quota trips, and compliance-fallback events to all three sinks (cost ledger + audit log + stderr) → **[G-3]**
-- [ ] **Task 1.9**: SDD §6.7 Bedrock feature flag — `hounfour.bedrock.enabled` config gate (default `false` until first explicit op-in); `.run/bedrock-migration-acked.sentinel` one-shot ack file; loader rejects `bedrock:*` references with clear error if flag is `false` and sentinel is absent; FR-7 same-model dual-provider naming discipline regression test asserts `aliases:` block in default `model-config.yaml` is untouched → **[G-3]** (NFR-Compat1 — backward-compat alias discipline preserved)
-- [ ] **Task 1.10**: Live integration test (`tests/integration/test_bedrock_live.py`) — invoke each of the three Day-1 models end-to-end (Converse + tool-schema + thinking-trace probe shapes from `bedrock-contract-v1.json`); fork-PR/no-keys skip-clean per cycle-094 G-E2E precedent; live test green on maintainer's Bedrock account → **[G-1, G-4]** (UC-1 + UC-2 acceptance gate)
+- [ ] **Task 2.1**: Implement L2 skill at `.claude/skills/cost-budget-enforcer/SKILL.md` + `lib/cost-budget-enforcer-lib.sh`; state machine with 5 uncertainty modes; UTC-window daily cap. → **[G-2]**
+- [ ] **Task 2.2**: Wire L2 to `hounfour.metering` (existing `cost-report.sh`, `measure-token-budget.sh`) — extend per-call to daily aggregate; per-provider counter; aggregate cap. → **[G-2]**
+- [ ] **Task 2.3**: Implement reconciliation cron job (default 6h cadence) registering via `/schedule`; idempotent re-runs; BLOCKER emission on drift >5%; `force-reconcile` operator action. → **[G-2]**
+- [ ] **Task 2.4**: Extend `agent-network-envelope.schema.json` with `budget.*` event-type schemas (per-event-type schema registry pattern per IMP-001 v1.1); ajv validation on write. → **[G-2, G-4]**
+- [ ] **Task 2.5**: Daily snapshot job for L1/L2 untracked logs (24h RPO); snapshot-archive restore path documented in `grimoires/loa/runbooks/audit-log-recovery.md`. → **[G-2, G-4]**
+- [ ] **Task 2.6**: BATS + pytest integration tests for billing API outage, counter drift, sudden cap change, clock drift, provider lag; lore entry "fail-closed cost gate"; CLAUDE.md update. → **[G-2, G-4]**
 
 ### Dependencies
 
-- **Sprint 0 PASS** on all five gates + `bedrock-contract-v1.json` committed to tree (HARD blocker — Sprint 1 cannot start otherwise per SDD §8 Phase 0 exit criterion)
-- Cycle-094 G-7 invariant test infrastructure (`tests/integration/model-registry-sync.bats`) — present, used as merge gate
-- Cycle-095 cost guardrails (`max_cost_per_session_micro_usd`) — present unmodified, applies to Bedrock requests (NFR-Sec5)
-- Maintainer's Bedrock account remains active for the live integration test in Task 1.10
+- **Sprint 1**: `audit-envelope.sh`, `agent-network-envelope.schema.json`, `lib/jcs.sh`, `tier-validator.sh`, `protected-class-router.sh` all available
+- **Existing internal**: `hounfour.metering`, `/schedule` (Loa skill), `_require_flock()`
+- **External (caller-supplied)**: provider billing API client (`UsageObserver` interface)
 
 ### Security Considerations
 
-- **Trust boundaries**: Bedrock API responses are untrusted bytes; `_classify_error()` and shape assertions against `bedrock-contract-v1.json` enforce expected shape; URL-construction helper centralizes URL-encoding (AR-9 single-edit-site discipline)
-- **External dependencies**: ZERO new heavyweight dependencies (NFR-Compat3); `httpx` already present; explicit assertion that `boto3` is NOT imported anywhere in `bedrock_adapter.py` (test scans imports per FR-3 AC)
-- **Sensitive data**: Two-layer redaction (value-based PRIMARY + regex SECONDARY + length fallback); token never logged to stderr / trajectory / audit / cost ledger; only last-4 SHA256 prefix as `token_hint` per NFR-Sec8
-- **Authorized System Zone edits**: `.claude/defaults/model-config.yaml`, `.claude/data/model-permissions.yaml`, `.claude/scripts/lib-security.sh`, `.claude/scripts/lib-provider-parse.sh` (NEW), `.claude/scripts/gen-adapter-maps.sh`, `.claude/scripts/model-adapter.sh`, `.claude/scripts/red-team-model-adapter.sh`, `.claude/scripts/flatline-orchestrator.sh`, `.claude/scripts/model-health-probe.sh`, `.claude/adapters/loa_cheval/**` — all authorized at cycle scope per PRD §Constraints "No System Zone edits without cycle authorization"
+- **Trust boundaries**: `UsageObserver` is caller-supplied — must validate `usd_used` is non-negative numeric, `billing_ts` is parseable ISO-8601
+- **External dependencies**: provider billing APIs over TLS; no new network listeners
+- **Sensitive data**: cost data in audit log subject to `_SECRET_PATTERNS` redaction
+- **Fail-closed**: never `allow` under uncertainty (NFR-Sec5) — CRITICAL invariant tested in every uncertainty mode
 
 ### Risks & Mitigation
 
 | Risk | Probability | Impact | Mitigation |
 |------|-------------|--------|------------|
-| AR-1 — Centralized parser refactor breaks an existing callsite (regression in non-Bedrock providers) | Medium | High | Land Task 1.1 as **single atomic PR with tests-first**; cycle-094 G-7 invariant continues to assert cross-map integrity; cross-language property test mandatory acceptance gate; rollback = revert single PR |
-| R-1 / R-3 — Bedrock Converse feature gaps vs direct Anthropic surface during integration | Medium | Medium | Per-capability `api_format` schema (FR-1) accommodates partial parity; `bedrock-contract-v1.json` fixture imported in unit tests catches drift; FR-13 explicit verification step ensures aspirational capabilities are not declared |
-| AR-7 — Two-layer redaction adds runtime cost in high-throughput workflows (Bridgebuilder, Flatline) | Low | Low | Value-based redaction is O(n×m) where m is small (≤ 5 registered tokens); profile in Sprint 1 if numbers surprise; existing `lib-security.sh` benchmarks as baseline |
-| R-12 / AR-10 — Tool-schema `{ json: <schema> }` wrapping missed at one of multiple Bedrock callsites in the future | Medium | High | Wrapping happens in **one** place (`_wrap_tool_schemas()` helper); unit test asserts the wrapping; recurring CI smoke probe #2 (Sprint 2) catches structural changes |
-| R-5 / OQ-2 — Bedrock pricing values change between Sprint 0 and Sprint 1 commit | Low | Low | Live-fetch at Sprint 1 execution per FR-5 AC; YAML-frozen with citation comment per `model-config.yaml:171-180` Haiku 4.5 precedent; quarterly refresh reminder added to operator runbook in Sprint 2 |
-| OQ-10 — `gen-adapter-maps.sh` doesn't handle new YAML fields (`region_default`, `auth_modes`, `compliance_profile`) | Medium | Medium | Verify Sprint 1 day 0 by running `gen-adapter-maps.sh --check` against a draft bedrock entry; if needed, extend generator within Task 1.2 scope |
+| Reconciliation cron deregistration leaves orphan cron entries | Low | Med | `/schedule deregister` integration; lifecycle test on disable |
+| Provider billing API rate limits during reconciliation | Med | Low | 6h cadence default; configurable; reconciliation skips if billing API 429 (defers to next interval) |
+| Counter and billing API agree on drift but counter is correct | Low | Med | Counter NOT auto-corrected — operator reviews via `force-reconcile`; force-reconcile audit-logged with reason |
+| Clock drift across DST or NTP jumps | Low | Med | UTC-only window (no DST); ±60s tolerance; `clock_drift` halt-uncertainty mode |
 
 ### Success Metrics
 
-- All 6 PRD launch criteria (PRD §1000-1009) met at Sprint 1 close
-- 0 BLOCKERs on `/flatline-review` of the bedrock branch
-- 100% pass rate on `tests/integration/parser-cross-language.bats`, `tests/integration/colon-bearing-model-ids.bats`, `tests/integration/model-registry-sync.bats` (cycle-094 G-7), `tests/unit/providers/test_bedrock_adapter.py`, `tests/unit/secret-redaction.bats`
-- ≥ 85% unit-test coverage on `bedrock_adapter.py`
-- Live integration test green on maintainer's Bedrock account
-- `model-invoke --validate-bindings` byte-identical before/after for non-Bedrock-overridden configs
+- 10/10 L2 ACs PASS
+- 0 budget overruns >100% in integration test suite
+- Reconciliation cron drift detection: 100% accuracy (drift >5% emits BLOCKER) per G-2 KPI
+- Lore entry "fail-closed cost gate" written
+- `/review-sprint sprint-2` APPROVED; `/audit-sprint sprint-2` APPROVED
 
 ---
 
-## Sprint 2: Plugin Guide + IR Runbook + Health Probe + Recurring Smoke + E2E Goal Validation (Final)
+## Sprint 3: L3 scheduled-cycle-template (MEDIUM)
 
-**Scope:** MEDIUM (6 tasks + Task 2.E2E)
-**Duration:** 5 calendar days (T+12 to T+17)
-**Dates:** 2026-05-14 → 2026-05-19
+**Global ID (ledger):** 134
+**Duration:** ~1 week
+**Dates (target):** 2026-05-20 → 2026-05-27
 
 ### Sprint Goal
 
-Codify the six-edit-site provider-plugin contract as a maintainer-facing guide with the Bedrock implementation as the worked example (closes G-2), ship the long-term drift-detection layer (recurring CI smoke per SDD §5.5), wire the Bedrock-side health probe into existing pre-flight cache, lock in the FR-4 SigV4 v2 schema seed without building it, and validate all four PRD goals end-to-end.
+Ship the L3 generic skill template that, given a 5-phase contract (reader, decider, dispatcher, awaiter, logger), runs autonomous cycles via `/schedule` — composing with the existing autonomous-mode primitives (`/run`, `/run-bridge`, `/spiral`) and integrating L2 budget pre-checks when L2 is enabled.
 
 ### Deliverables
 
-- [ ] FR-9: `grimoires/loa/proposals/adding-a-provider-guide.md` — six-step checklist with file:line anchors, Bedrock-implementation references at each step, decision table (Bearer vs SigV4), pricing-source guidance, cross-map invariant warning
-- [ ] FR-9 IR runbook section per NFR-Sec9 — "If your Bedrock token is compromised" — detection signals, immediate revocation procedure (AWS console + env var clear + process restart), blast-radius assessment (cost-ledger query), cycle-095 cost-guardrails as damage-cap layer
-- [ ] FR-4: `auth_modes` schema field present in `model-config.yaml`; loader rejects `sigv4` value with documented error pointing to v2 follow-up cycle issue
-- [ ] FR-8: `model-health-probe.sh` extended for Bedrock — control-plane reachability probe, AVAILABLE/UNAVAILABLE/UNKNOWN cache states; `_probe_cache_check()` auto-handles bedrock provider
-- [ ] FR-10 completion: health probe BATS tests; secret-redaction BATS test extension covering value-based path; daily-quota circuit-breaker test verifying recovery on process restart
-- [ ] **Recurring CI smoke** per SDD §5.5: `.github/workflows/bedrock-contract-smoke.yml` — daily 06:00 UTC weekday cron + path-trigger + workflow_dispatch; weekly model rotation across [Haiku/Sonnet/Opus]; pre-flight cost estimate + post-flight ledger assertion (≤ $0.50/run, ≤ $15/month); **required-status signal** (`BEDROCK_SMOKE_REQUIRE_TOKEN`) fails loudly when scheduled run hits missing secret; fixture-diff against `tests/fixtures/bedrock/recurring/probe-{1,2}-{model}-response.json` (structural keys via `jq 'paths'`); fork-PR no-keys skip-clean
-- [ ] Quarterly pricing-refresh reminder + ≤ 90-day token rotation cadence (NFR-Sec6) added to operator runbook section in plugin guide
-- [x] **Task 2.E2E**: End-to-End Goal Validation — all four PRD goals validated with documented evidence
+- [ ] `.claude/skills/scheduled-cycle-template/SKILL.md` + `lib/scheduled-cycle-lib.sh` + tests
+- [ ] All 8 ACs (FR-L3-1..FR-L3-8) implemented
+- [ ] 5-phase DispatchContract (reader, decider, dispatcher, awaiter, logger) — each phase invoked in order
+- [ ] Cron registration via `/schedule` (existing Loa skill); deregistration on `enabled: false`
+- [ ] Idempotency on `cycle_id` — same cycle_id no-ops if previous run completed
+- [ ] Concurrency lock via `flock` on `.run/cycles/<schedule-id>.lock`
+- [ ] L2 budget pre-check integration (compose-when-available) in pre-read phase
+- [ ] Cycle records persist to JSONL log (`.run/cycles.jsonl`); replayable
+- [ ] Mock-dispatcher integration tests covering happy path, timeout per phase, error per phase
+- [ ] Lore entry: "scheduled cycle"
 
 ### Acceptance Criteria
 
-- [ ] FR-9 plugin guide enumerates **all six edit sites** with current `file:line` anchors that resolve at commit time (CI check optional, may surface as future work)
-- [ ] Bedrock implementation referenced at each step of the six-step checklist as the worked example (cited file paths from Sprint 1)
-- [ ] Validation checklist runnable as documented (`gen-adapter-maps.sh --check && bats tests/integration/model-registry-sync.bats && pytest tests/unit/providers/`)
-- [ ] FR-9 plugin guide reviewed by `/review-sprint` against actual Bedrock implementation for fidelity (PRD §Launch Criteria + AR-2)
-- [ ] IR runbook covers all four NFR-Sec9 sections — detection signals, immediate revocation, blast-radius assessment via ledger query, damage-cap layer reference
-- [ ] FR-4 loader test: `auth_modes: sigv4` raises ConfigError with the documented "not yet supported" message; `auth_modes: api_key` passes; no `boto3` import
-- [ ] FR-8 health probe transitions a bedrock model from UNKNOWN → AVAILABLE on successful probe; UNKNOWN → UNAVAILABLE on 4xx; LOA_PROBE_BYPASS audit-log path covers bedrock without provider-specific code (NFR-S1)
-- [ ] Recurring CI smoke runs successfully on first scheduled invocation with secret present (`workflow_dispatch` confirmation in Sprint 2 acceptance per AR-2)
-- [ ] Fixture diff is empty on first scheduled invocation (drift = exit non-zero per SDD §5.5)
-- [ ] `BEDROCK_SMOKE_REQUIRE_TOKEN=true` AND missing secret on scheduled run **fails loudly** with auto-opened issue tagged `bedrock-contract-smoke-misconfigured` (closes Flatline BLOCKER SKP-004)
-- [ ] Daily-quota circuit-breaker BATS test verifies recovery on process restart (NFR-R4 + AR-6)
-- [x] **Task 2.E2E** all four goal-validation rows PASS
+- [ ] FR-L3-1: Skill registers cron via `/schedule` and fires on schedule
+- [ ] FR-L3-2: Same `cycle_id` produces no-op if previous run completed (idempotent)
+- [ ] FR-L3-3: All 5 contract phases (reader, decider, dispatcher, awaiter, logger) invoked in order
+- [ ] FR-L3-4: Cycle errors captured in record without halting subsequent cycles
+- [ ] FR-L3-5: Concurrency lock (`flock` on `.run/cycles/<schedule-id>.lock`) prevents overlapping invocations
+- [ ] FR-L3-6: Budget check (when provided via L2 integration) runs before reader phase
+- [ ] FR-L3-7: Records persist to `.run/cycles.jsonl`; replayable
+- [ ] FR-L3-8: Integration tests with mock DispatchContracts cover happy path, timeout, error in each phase
+- [ ] CC-1..CC-11 satisfied for L3 specifically
 
 ### Technical Tasks
 
-- [x] **Task 2.1**: Author FR-9 plugin guide at `grimoires/loa/proposals/adding-a-provider-guide.md` with six-step checklist + file:line anchors + Bedrock worked-example cross-references + decision table + cycle-094 G-7 invariant explanation; submit for `/review-sprint` against actual Bedrock implementation → **[G-2]** (the maintainer-experience goal)
-- [x] **Task 2.2**: Author FR-9 IR runbook section per NFR-Sec9 — detection / revocation / blast-radius / damage-cap; reference NFR-Sec11 token-age sentinel as forensic data source; runbook owner = `@janitooor` per CODEOWNERS → **[G-3]** (security baseline; security operator handoff)
-- [x] **Task 2.3**: FR-4 design-only — add `auth_modes: [api_key, sigv4]` schema field on bedrock provider entry; loader rejects `sigv4` with error message "SigV4/IAM auth designed not built in cycle-096 — track v2 status in `grimoires/loa/proposals/bedrock-sigv4-v2.md` (Sprint 2 stub) and the next-cycle planning"; no `boto3`, no `botocore`, no `aws_signing.py` introduced → **[G-2]** (architecture accommodates v2 without retrofit)
-- [x] **Task 2.4**: FR-8 health probe — extend `.claude/scripts/model-health-probe.sh` for bedrock provider (control-plane probe to `https://bedrock.{region}.amazonaws.com/foundation-models` with Bearer auth — verify URL pattern from Sprint 0 G-S0-2 probe #1 result before committing per OQ-4); `model-adapter.sh _probe_cache_check()` auto-extends since keyed on `provider:model-id`; BATS tests verify state transitions → **[G-1]**
-- [x] **Task 2.5**: FR-10 completion — secret-redaction BATS test extension covers value-based path on a non-`ABSKY` token; daily-quota circuit-breaker BATS test verifies trip + recovery-on-restart (process-scoped flag is by design per AR-6); health probe BATS test extension → **[G-3]** (test coverage; closes residual FR-10 ACs from Sprint 1)
-- [x] **Task 2.6**: Author + commit `.github/workflows/bedrock-contract-smoke.yml` per SDD §5.5 — cron + path + workflow_dispatch triggers; **weekly model rotation** through `[Haiku 4.5, Sonnet 4.6, Opus 4.7]` (`week-of-year mod 3`); pre-flight cost estimate (rejects run > $0.50) + post-flight ledger assertion + monthly aggregate ≤ $15; **required-status signal** `BEDROCK_SMOKE_REQUIRE_TOKEN` fails loudly on scheduled-run-missing-secret with auto-opened issue; baseline fixtures at `tests/fixtures/bedrock/recurring/probe-{1,2}-{model}-response.json` (structural keys via `jq 'paths'`); `lib-security.sh redact_secrets` sourced and applied to all logged output; fork-PR skip-clean per cycle-094 G-E2E precedent → **[G-1, G-2]** (long-term drift detection; supports maintainer experience)
+- [ ] **Task 3.1**: Implement L3 skill at `.claude/skills/scheduled-cycle-template/SKILL.md` + `lib/scheduled-cycle-lib.sh`; 5-phase contract dispatch loop. → **[G-1, G-2]**
+- [ ] **Task 3.2**: Wire `/schedule` registration + deregistration; idempotency check on `cycle_id`; flock-based concurrency. → **[G-1, G-2]**
+- [ ] **Task 3.3**: Implement L2 budget pre-check integration in pre-read phase (compose-when-available; only active when L2 enabled per CC-9). → **[G-1, G-2]**
+- [ ] **Task 3.4**: Extend audit-envelope schema with `cycle.start`, `cycle.phase`, `cycle.complete`, `cycle.error`, `cycle.lock_failed` event types. → **[G-2, G-4]**
+- [ ] **Task 3.5**: BATS integration tests with mock DispatchContracts (happy path, timeout per phase, error per phase, concurrency conflict); lore entry "scheduled cycle"; CLAUDE.md update. → **[G-2, G-4]**
 
-### Task 2.E2E: End-to-End Goal Validation
+### Dependencies
+
+- **Sprints 1, 2**: audit-envelope library, tier-validator, protected-class-router, L2 cost-budget-enforcer (compose-when-available)
+- **Existing internal**: `/schedule` (existing Loa skill), `_require_flock()`
+
+### Security Considerations
+
+- **Trust boundaries**: DispatchContract phase functions are caller-supplied; phase outputs are untrusted by L3 logger (passed through `prompt_isolation` if surfaced to operator)
+- **Concurrency**: `flock` on `.run/cycles/<schedule-id>.lock` prevents overlapping invocations; lock acquire fail logged as `cycle.lock_failed`
+- **No secrets in cycle records**: redaction via `_SECRET_PATTERNS` on write
+
+### Risks & Mitigation
+
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+| Cron registration drift if `/schedule` is itself disabled | Low | Med | L3 boot validates `/schedule` availability; degrades gracefully (CC-9) |
+| Cycle phase timeout cascades into next cycle invocation | Med | Med | Phase timeout captured + cycle marked failed; next cycle invocation runs fresh |
+| Idempotency check spurious replay (cycle_id collision) | Low | Med | `cycle_id` includes `(schedule_id, ts_utc, content_hash)` — collision-resistant |
+
+### Success Metrics
+
+- 8/8 L3 ACs PASS
+- All 5 phases invoked in order across happy path + 4 failure modes (timeout, error, lock conflict, budget halt)
+- Lore entry "scheduled cycle" written
+- `/review-sprint sprint-3` APPROVED; `/audit-sprint sprint-3` APPROVED
+
+---
+
+## Sprint 4: L4 graduated-trust (MEDIUM)
+
+**Global ID (ledger):** 135
+**Duration:** ~1 week
+**Dates (target):** 2026-05-27 → 2026-06-03
+
+### Sprint Goal
+
+Ship the L4 per-(scope, capability, actor) trust ledger with operator-defined tier transitions, hash-chained for tamper detection, with auto-drop on operator override and configurable cooldown enforcement — providing the relational trust model that ratchets up by demonstrated alignment and ratchets down automatically on observed disagreement.
+
+### Deliverables
+
+- [ ] `.claude/skills/graduated-trust/SKILL.md` + `lib/graduated-trust-lib.sh` + tests
+- [ ] All 8 ACs (FR-L4-1..FR-L4-8) implemented
+- [ ] Hash-chained ledger at `.run/trust-ledger.jsonl` (TRACKED in git per SDD §3.7)
+- [ ] Chain integrity walk + recovery procedure (NFR-R7) — `[CHAIN-RECOVERED]` on rebuild success, `[CHAIN-BROKEN]` + BLOCKER on rebuild failure
+- [ ] Tier transitions per operator-defined `TransitionRule` array
+- [ ] Auto-drop on `recordOverride(scope, capability, decision_id, reason)`; cooldown enforcement (default 7d)
+- [ ] Force-grant audit-logged exception (`trust.force_grant` event type)
+- [ ] Concurrent-write tests (runtime + cron + CLI per FR-L4-6)
+- [ ] Reconstructable from git history (per FR-L4-7)
+- [ ] Auto-raise stub: `auto-raise-eligibility-detector` ships as stub returning `eligibility_required` (FU-3 deferral per PRD)
+- [ ] Lore entries: "graduated trust", "auto-drop", "cooldown"
+
+### Acceptance Criteria
+
+- [ ] FR-L4-1: First query for any `(scope, capability, actor)` returns `default_tier`
+- [ ] FR-L4-2: Only configured transitions allowed; arbitrary jumps return error
+- [ ] FR-L4-3: `recordOverride` produces auto-drop per rules; cooldown enforced
+- [ ] FR-L4-4: Auto-raise-eligible entry produced when conditions met (eligibility detector is stub per FU-3); raise itself requires operator action
+- [ ] FR-L4-5: Hash-chain integrity validates; tampering detectable
+- [ ] FR-L4-6: Concurrency safe (flock); concurrent writes from runtime + cron + CLI tested
+- [ ] FR-L4-7: Ledger reconstructable from git history if local file lost
+- [ ] FR-L4-8: Force-grant in cooldown logged as exception with reason
+- [ ] CC-1..CC-11 satisfied for L4 specifically; trust-ledger.jsonl is TRACKED per §3.7
+
+### Technical Tasks
+
+- [ ] **Task 4.1**: Implement L4 skill at `.claude/skills/graduated-trust/SKILL.md` + `lib/graduated-trust-lib.sh`; tier-transition rule engine; default tier resolution. → **[G-2]**
+- [ ] **Task 4.2**: Implement hash-chained ledger writes via `audit-envelope.sh`; chain integrity walk on read; recovery from git history per NFR-R7. → **[G-2]**
+- [ ] **Task 4.3**: Wire `recordOverride` for auto-drop + cooldown enforcement; `forceGrant` audit-logged exception with operator identity + reason. → **[G-2]**
+- [ ] **Task 4.4**: Stub auto-raise-eligibility detector returning `eligibility_required` per FU-3; document FU-3 contract in skill README. → **[G-2]**
+- [ ] **Task 4.5**: Concurrent-write tests (runtime + cron + CLI); flock-based serialization; reconstruction from git history. → **[G-2, G-4]**
+- [ ] **Task 4.6**: Lore entries (graduated-trust, auto-drop, cooldown); CLAUDE.md update; integration tests with L1 protected-class router (compose-when-available). → **[G-2, G-4]**
+
+### Dependencies
+
+- **Sprints 1, 2**: audit-envelope library (hash-chained, signed), `protected-class-router.sh`, `operator-identity.sh` (per SDD §3.2.6 LedgerEntry references actor identity)
+- **Existing internal**: `_require_flock()`
+
+### Security Considerations
+
+- **Trust boundaries**: tier transitions must reference `actor` identity from `OPERATORS.md`; verification via `operator-identity.sh`
+- **Hash chain**: SHA-256 chain over canonical-JSON entries (RFC 8785 JCS via `lib/jcs.sh`); tampering detected on read; recovery via `git log -p` (since trust-ledger is TRACKED)
+- **Force-grant abuse**: every force-grant audit-logged with operator identity + reason; auditor (P6) reviews via JSONL grep
+
+### Risks & Mitigation
+
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+| Hash-chain break via force-push or rebase on State Zone files | Med | Med | Operator runbook documents "no rebase on audit log files"; CI hook checks for force-push; `[CHAIN-BROKEN]` BLOCKER on unrecoverable break (R17) |
+| Force-grant in cooldown abused | Low | High | Force-grant audit-logged with reason; auditor reviews; max duration default 86400s configurable (R20) |
+| Concurrent writes from runtime + cron + CLI | Med | Med | flock-based serialization tested explicitly per FR-L4-6 |
+| Auto-raise eligibility detector stub becomes production-quality without FU-3 work | Low | Med | Stub returns `eligibility_required`; integration tests assert stub behavior; FU-3 issue tracks production impl |
+
+### Success Metrics
+
+- 8/8 L4 ACs PASS
+- 100% hash-chain integrity validation pass rate (G-2 KPI)
+- Reconstruction from git history succeeds for ≥3 simulated chain breaks
+- Lore entries written; CLAUDE.md updated
+- `/review-sprint sprint-4` APPROVED; `/audit-sprint sprint-4` APPROVED
+
+---
+
+## Sprint 4.5: BUFFER WEEK (per SKP-001 CRITICAL)
+
+**Global ID (ledger):** — (BUFFER, no global counter assignment)
+**Duration:** ~1 week
+**Dates (target):** 2026-06-03 → 2026-06-10
+
+### Sprint Goal
+
+Consolidate cross-primitive integration tests, validate audit-envelope schema stability across Sprints 1–4, evaluate de-scope triggers, and complete a documentation pass — providing a planned recovery point per SKP-001 CRITICAL mitigation rather than an emergency reaction.
+
+### Deliverables
+
+- [ ] **Cross-primitive integration test suite** at `tests/integration/cross-primitive/` covering: L1↔L2 budget pre-check, L1↔L4 protected-class trust check, L3↔L2 budget pre-read; 5 supported tier integration scenarios scaffolded (Tiers 0..4)
+- [ ] **Audit-envelope schema-stability check**: schema version pinned; no breaking changes since Sprint 1 (regression test asserts `schema_version` of every stored event matches Sprint 1's v1.0.0; if breaking change is needed, semver-major bump documented + migration notes + `[SCHEMA-MIGRATION]` marker + dedicated mini-cycle proposal)
+- [ ] **De-scope trigger evaluation**: review against PRD §De-Scope Triggers — any sprint >2× planned duration? schema breaks 2x? integration test failures >3? If any trigger hit, propose Sprint 5+ scope adjustment
+- [ ] **Documentation pass on Sprints 1–4**: CLAUDE.md "Process Compliance" rows current; lore entries match shipped behavior; runbooks at `grimoires/loa/runbooks/` validated; baseline `AskUserQuestion`-call telemetry showing first 30d trend (G-1 KPI on track?)
+- [ ] **Weekly schedule-check review**: 5 weekly check-ins (2026-05-08, 05-15, 05-22, 05-29, 06-05) collated; drift report; if drift >3 days, evaluate de-scope triggers immediately
+
+### Acceptance Criteria
+
+- [ ] All 3 documented cross-primitive integration scenarios PASS (L1↔L2, L1↔L4, L3↔L2)
+- [ ] Schema-stability regression test passes (no breaking changes to envelope schema since Sprint 1)
+- [ ] De-scope trigger evaluation memo at `grimoires/loa/cycles/cycle-098-agent-network/de-scope-eval-week5.md` — any trigger hit results in HALT + operator decision before Sprint 5 starts
+- [ ] CLAUDE.md, lore entries, runbooks all match shipped behavior across Sprints 1–4
+- [ ] Weekly schedule-check report at `grimoires/loa/cycles/cycle-098-agent-network/buffer-week-summary.md`
+- [ ] Sprint 4.5 PR (consolidation/docs only, no new primitive code) merged to main
+
+### Technical Tasks
+
+- [ ] **Task 4.5.1**: Author cross-primitive integration test suite at `tests/integration/cross-primitive/` covering L1↔L2, L1↔L4, L3↔L2 (Tier 3 paths). → **[G-2, G-3, G-4]**
+- [ ] **Task 4.5.2**: Audit-envelope schema-stability regression test — every Sprint 1–4 audit log entry validates against current `agent-network-envelope.schema.json`; document any necessary version bumps. → **[G-2, G-4]**
+- [ ] **Task 4.5.3**: De-scope trigger evaluation; weekly-check collation; documentation pass on CLAUDE.md / lore / runbooks / `AskUserQuestion` baseline. → **[G-1, G-3, G-4]**
+- [ ] **Task 4.5.4**: Sprint 4.5 PR + memo + runbook validations + R11 weekly schedule-check review. → **[G-3, G-4]**
+
+### Dependencies
+
+- Sprints 1, 2, 3, 4 all merged to main
+
+### Security Considerations
+
+- **No new code surface**: Sprint 4.5 is consolidation; security boundaries inherited from Sprints 1–4
+- **Schema stability**: any breaking change to envelope schema requires explicit semver-major bump + migration documentation; bypass blocked by regression test
+
+### Risks & Mitigation
+
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+| De-scope trigger hit (any sprint >2× planned) | Med | High | HALT before Sprint 5; operator decides between extending sprint vs dropping ACs flagged in deferral candidates |
+| Cross-primitive integration test surfaces schema break | Med | High | If schema breaks 2x in cycle, promote schema design to dedicated mini-cycle (per PRD §De-Scope Triggers) |
+| `AskUserQuestion` baseline shows G-1 KPI trend not on track | Low | Med | Document and recalibrate; G-1 is post-30d telemetry — buffer-week look is early signal only |
+
+### Success Metrics
+
+- All 3 cross-primitive integration scenarios PASS
+- Schema-stability regression test PASS (no breaking change)
+- De-scope evaluation memo published; no triggers hit OR triggers hit + operator decision logged
+- Documentation pass complete (CLAUDE.md current; lore entries match; runbooks valid)
+- Buffer-week summary at `grimoires/loa/cycles/cycle-098-agent-network/buffer-week-summary.md`
+
+---
+
+## Sprint 5: L5 cross-repo-status-reader (SMALL)
+
+**Global ID (ledger):** 136
+**Duration:** ~1 week
+**Dates (target):** 2026-06-10 → 2026-06-17
+
+### Sprint Goal
+
+Ship the L5 skill that reads structured cross-repo state via `gh api` with TTL cache + stale fallback, achieving p95 <30s for 10 repos, with BLOCKER extraction from NOTES.md tail and per-source error capture — providing the operator-visibility primitive for Agent-Network Operator (P1).
+
+### Deliverables
+
+- [ ] `.claude/skills/cross-repo-status-reader/SKILL.md` + `lib/cross-repo-status-lib.sh` + tests
+- [ ] All 7 ACs (FR-L5-1..FR-L5-7) implemented
+- [ ] Parallel `gh api` for ≤10 repos with p95 <30s
+- [ ] 429 backoff + secondary rate-limit handling
+- [ ] BLOCKER extraction from NOTES.md tail per repo
+- [ ] Per-source error capture (one repo's failure does not abort full read)
+- [ ] TTL cache at `.run/cache/cross-repo-status/` + stale fallback up to `fallback_stale_max_seconds` (default 900s); BLOCKER raised beyond
+- [ ] Lore entry: "cross-repo state"
+
+### Acceptance Criteria
+
+- [ ] FR-L5-1: Skill returns structured JSON for a list of repos in <30s for 10 repos (p95)
+- [ ] FR-L5-2: gh API rate-limit handling: 429 backed off; secondary rate limit respected
+- [ ] FR-L5-3: Stale fallback: if API unreachable, last good cache returned with `cache_age_seconds`
+- [ ] FR-L5-4: BLOCKER markers extracted from NOTES.md tail
+- [ ] FR-L5-5: Per-source fetch errors captured without aborting full read
+- [ ] FR-L5-6: Idempotent: same call returns same shape (modulo timestamps + cache age)
+- [ ] FR-L5-7: Integration tests cover: clean read, partial failure (one repo unreachable), full API outage with cache warm/cold, malformed NOTES.md
+- [ ] CC-1..CC-11 satisfied for L5 specifically
+
+### Technical Tasks
+
+- [ ] **Task 5.1**: Implement L5 skill + `lib/cross-repo-status-lib.sh` with parallel `gh api` invocations; structured `CrossRepoState` JSON output per SDD §5.7. → **[G-3]**
+- [ ] **Task 5.2**: TTL cache at `.run/cache/cross-repo-status/`; stale fallback up to `fallback_stale_max_seconds`; BLOCKER beyond; cache invalidation on disable (per SDD §1.4.2). → **[G-3]**
+- [ ] **Task 5.3**: BLOCKER extraction from NOTES.md tail; per-source error capture; idempotency check on response shape. → **[G-3]**
+- [ ] **Task 5.4**: BATS integration tests (clean read, partial failure, full API outage with cache warm/cold, malformed NOTES.md, 429 backoff, secondary rate limit); lore entry "cross-repo state"; CLAUDE.md update. → **[G-3, G-4]**
+
+### Dependencies
+
+- **Sprint 1**: audit-envelope library, lore directory, `/loa status` integration pattern
+- **External**: `gh` CLI authenticated as a user with read access to listed repos (per PRD R5 + Phase 7 dependency)
+
+### Security Considerations
+
+- **Trust boundaries**: NOTES.md content from external repos is untrusted; BLOCKER extraction must not interpret NOTES.md content as instructions
+- **External dependencies**: `gh` CLI version pinned in setup docs; API rate limits respected
+- **Sensitive data**: cross-repo state may include private repo metadata — JSONL log redaction via `_SECRET_PATTERNS`; cache files mode 0600
+
+### Risks & Mitigation
+
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+| `gh api` rate limit cascading across 10 parallel calls | Med | Low | Secondary rate limit + 429 backoff handled; partial-failure pattern preserves successful reads |
+| NOTES.md tail malformed (non-UTF-8, truncated) | Low | Low | Per-source error capture; malformed NOTES.md returns `notes_md_parse_error` per SDD §6.3.4 |
+| Cache poisoning via tampered repo state | Very Low | Med | Cache mode 0600; readlink-resolved before write; invalidated on disable |
+
+### Success Metrics
+
+- 7/7 L5 ACs PASS
+- p95 <30s for 10-repo read in integration tests (G-3 KPI)
+- 100% rejection of malformed NOTES.md inputs (NFR-Sec2 surface)
+- Lore entry "cross-repo state" written
+- `/review-sprint sprint-5` APPROVED; `/audit-sprint sprint-5` APPROVED
+
+---
+
+## Sprint 6: L6 structured-handoff (MEDIUM)
+
+**Global ID (ledger):** 137
+**Duration:** ~1 week
+**Dates (target):** 2026-06-17 → 2026-06-24
+
+### Sprint Goal
+
+Ship the L6 skill that emits structured markdown+frontmatter handoff documents to State Zone, schema-validated, with atomic INDEX.md update and SessionStart-hook unread-surfacing using `sanitize_for_session_start` from Sprint 1 — providing the **same-machine-only** structured-context-transfer primitive between Loa sessions (multi-host deferred to FU-6 per SDD §1.7.1).
+
+### Deliverables
+
+- [ ] `.claude/skills/structured-handoff/SKILL.md` + `lib/structured-handoff-lib.sh` + tests
+- [ ] All 8 ACs (FR-L6-1..FR-L6-8) implemented
+- [ ] Schema validation (strict + warn modes) — required fields: `from`, `to`, `topic`, `body`
+- [ ] OPERATORS.md verification (configurable via `verify_operators`); strict mode rejects handoff with `from`/`to` not in OPERATORS.md
+- [ ] Atomic INDEX.md update via flock + temp + rename (no half-written rows per FR-L6-3)
+- [ ] SessionStart hook integration for unread surfacing (uses `sanitize_for_session_start` from Sprint 1; delimited containment + length cap + no-execution semantics)
+- [ ] Content-addressable `handoff_id` (SHA-256 of canonical-JSON of handoff content via `lib/jcs.sh`)
+- [ ] **Same-machine-only enforcement**: machine fingerprint check on every L6 write per SDD §1.7.1 hard runtime guardrails; cross-host write attempt → `[CROSS-HOST-REFUSED]` error + BLOCKER
+- [ ] Schema migration path documented
+- [ ] Lore entry: "structured handoff"
+
+### Acceptance Criteria
+
+- [ ] FR-L6-1: Schema validation rejects malformed handoffs (missing required fields)
+- [ ] FR-L6-2: File written to `handoffs_dir/{date}-{topic}.md` with correct frontmatter
+- [ ] FR-L6-3: INDEX.md updated atomically (no half-written rows; flock + temp + rename)
+- [ ] FR-L6-4: Same-day collision handled with numeric suffix
+- [ ] FR-L6-5: SessionStart hook surfaces unread handoffs at session begin
+- [ ] FR-L6-6: handoff_id is content-addressable + unique (collision detection on write)
+- [ ] FR-L6-7: Reference fields preserved verbatim
+- [ ] FR-L6-8: Tests cover: malformed input, collision, hook integration, schema migration
+- [ ] Same-machine-only enforcement: cross-host write attempt produces `[CROSS-HOST-REFUSED]` BLOCKER (SDD §1.7.1)
+- [ ] CC-1..CC-11 satisfied for L6 specifically
+
+### Technical Tasks
+
+- [ ] **Task 6.1**: Implement L6 skill + `lib/structured-handoff-lib.sh`; schema validation (strict + warn); content-addressable `handoff_id` via `lib/jcs.sh` + SHA-256. → **[G-3]**
+- [ ] **Task 6.2**: Atomic INDEX.md update via flock + temp + rename; same-day collision handling; OPERATORS.md verification with `verify_operators` flag. → **[G-3]**
+- [ ] **Task 6.3**: SessionStart hook integration — read INDEX.md, surface unread handoffs to operator using `sanitize_for_session_start` (delimited containment + length cap default 4000 chars + no-execution semantics + tool-call pattern detection). → **[G-3]**
+- [ ] **Task 6.4**: Same-machine-only enforcement via machine fingerprint check (SDD §1.7.1); `[CROSS-HOST-REFUSED]` BLOCKER on mismatch; FU-6 deferral documented in skill README. → **[G-3]**
+- [ ] **Task 6.5**: BATS integration tests (malformed input, collision, hook integration, schema migration, cross-host refusal); lore entry "structured handoff"; CLAUDE.md update; layered-defense Layer 3 policy rules per SDD §1.9.3.2. → **[G-3, G-4]**
+
+### Dependencies
+
+- **Sprint 1**: audit-envelope library, `sanitize_for_session_start`, `operator-identity.sh`, `OPERATORS.md` schema, `lib/jcs.sh`
+- **Sprint 4**: graduated-trust (compose-when-available — handoff `from`/`to` reference L4 actor identity)
+- **Existing internal**: SessionStart hook, `_require_flock()`
+
+### Security Considerations
+
+- **Trust boundaries**: handoff body is untrusted — `prompt_isolation` mandatory (NFR-Sec2); `sanitize_for_session_start` applied at SessionStart surfacing
+- **External dependencies**: none new
+- **Sensitive data**: handoff body subject to `_SECRET_PATTERNS` redaction on write; mode 0600 on handoff files
+- **Multi-host violation**: hard refusal at runtime; cross-host write produces BLOCKER + audit-log entry
+
+### Risks & Mitigation
+
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+| INDEX.md half-written under concurrent writes | Low | High | flock + temp + rename atomic update tested in stress test |
+| OPERATORS.md PR-edit workflow doesn't match every team | Med | Low | `verify_operators: false` config-managed-elsewhere alternative (R16) |
+| handoff_id collision (extremely rare; same content + ts + actor) | Very Low | Low | Collision detection on write; numeric suffix appended; full collision protocol per IMP-010 v1.1 |
+| Operators violate same-machine assumption | Med | Med | Hard runtime guardrails (machine fingerprint); `[CROSS-HOST-REFUSED]` BLOCKER; FU-6 promotion path documented |
+
+### Success Metrics
+
+- 8/8 L6 ACs PASS
+- 100% schema-validation rejection of malformed handoffs (G-3 KPI)
+- Atomic INDEX.md update under 100-concurrent-write stress test
+- Cross-host write attempt produces BLOCKER (no silent success)
+- Lore entry "structured handoff" written
+- `/review-sprint sprint-6` APPROVED; `/audit-sprint sprint-6` APPROVED
+
+---
+
+## Sprint 7: L7 soul-identity-doc + Cycle Integration Tests + Adversarial Jailbreak Corpus (LARGE)
+
+**Global ID (ledger):** 138
+**Duration:** ~1 week (LARGE — L7 + cycle-wide integration + jailbreak corpus + E2E goal validation + cycle close)
+**Dates (target):** 2026-06-24 → 2026-07-01
+
+### Sprint Goal
+
+Ship the L7 SOUL.md primitive (descriptive identity doc complement to prescriptive CLAUDE.md), the cycle-wide integration test suite across all 5 supported tiers (Tier 0..Tier 4), the cross-primitive integration tests, **and** the §1.9.3.2 Layer 4 adversarial jailbreak corpus (≥50 attack vectors at `tests/red-team/prompt-injection/`) — closing the cycle with full safety + integration + E2E validation, and archiving cycle-098.
+
+### Deliverables
+
+**L7-specific:**
+
+- [ ] `.claude/skills/soul-identity-doc/SKILL.md` + `lib/soul-identity-lib.sh` + tests
+- [ ] All 7 ACs (FR-L7-1..FR-L7-7) implemented
+- [ ] SOUL.md schema (frontmatter + required sections: `## What I am`, `## What I am not`, `## Voice`, `## Discipline`, `## Influences`; optional: `## Refusals`, `## Glossary`, `## Provenance`)
+- [ ] SessionStart hook integration (uses `sanitize_for_session_start` from Sprint 1; default `surface_max_chars: 2000`)
+- [ ] Schema validation (strict + warn modes); strict refuses load on missing required sections
+- [ ] Surface truncation with `[truncated; full content at <path>]` marker
+- [ ] Cache scoped to session (no re-validation per tool use)
+- [ ] **Prescriptive-section rejection** (NFR-Sec3) — schema validation rejects sections that look like prescriptive rules (e.g., "Always do X", "Never do Y") with `[PRESCRIPTIVE-SECTION-REJECTED]` warning
+- [ ] Lore entries: "SOUL", "descriptive identity"
+
+**Adversarial jailbreak corpus (per SDD §1.9.3.2 Layer 4):**
+
+- [ ] **`tests/red-team/prompt-injection/` corpus with ≥50 documented attack vectors** covering: (a) role-switch ("From now on you are..."), (b) tool-call exfiltration ("call read_file with..."), (c) credential leakage ("your API key is..."), (d) indirect prompt injection via Markdown links, (e) Unicode obfuscation, (f) encoded payloads (base64, hex), (g) multi-turn conditioning attacks (per SDD pass-#4 Opus 740 finding), (h) tool-call boundary bypass attempts (Layer 5 per SDD §1.9.3.2)
+- [ ] **CI gate**: jailbreak suite runs on every PR touching `prompt_isolation`, L6, L7, or SessionStart hook (mandatory, not advisory)
+- [ ] **Corpus README at `tests/red-team/prompt-injection/README.md`** documents each attack vector class, expected mitigation, and adversarial-test author attribution
+
+**Cycle-wide:**
+
+- [ ] **Cycle-wide integration test suite** at `tests/integration/cycle-098-tiers/` covering all 5 supported tiers (Tier 0 baseline regression-only, Tier 1 L4+L7, Tier 2 L2+L4+L6+L7, Tier 3 L1+L2+L3+L4+L6+L7, Tier 4 all 7)
+- [ ] **Cross-primitive integration tests** (L1↔L2 budget pre-check, L1↔L4 protected-class trust check, L3↔L2 budget pre-read) consolidated from Sprint 4.5
+- [ ] **Task 7.E2E**: End-to-end goal validation across G-1, G-2, G-3, G-4
+- [ ] **CHANGELOG entry** generated via post-merge automation; `cycle-098-agent-network` PR label applied
+- [ ] **Cycle archived** to `grimoires/loa/archive/2026-07-03-cycle-098-agent-network/` per Loa convention; ledger updated
+
+### Acceptance Criteria
+
+**L7:**
+
+- [ ] FR-L7-1: Hook loads SOUL.md at session start
+- [ ] FR-L7-2: Schema validation: missing required sections → warning (warn mode) or refused load (strict mode)
+- [ ] FR-L7-3: Frontmatter validates against schema
+- [ ] FR-L7-4: Surfaced content respects `surface_max_chars`; full content path always referenced
+- [ ] FR-L7-5: No re-validation per tool use (cache scoped to session)
+- [ ] FR-L7-6: Hook silent (no surface) when `enabled: false` or file missing
+- [ ] FR-L7-7: Tests cover: valid SOUL.md, missing sections, malformed frontmatter, very long content (truncation)
+- [ ] NFR-Sec3: Prescriptive sections rejected with `[PRESCRIPTIVE-SECTION-REJECTED]`
+
+**Jailbreak corpus:**
+
+- [ ] ≥50 attack vectors documented across 8 attack classes (role-switch, tool-call exfil, credential leak, MD link injection, Unicode obfuscation, encoded payloads, multi-turn conditioning, tool-call boundary bypass)
+- [ ] CI gate runs on every PR touching `prompt_isolation`, L6, L7, SessionStart hook; PR fails on any new attack vector NOT mitigated
+- [ ] Multi-turn conditioning attacks specifically tested (per SDD pass-#4 Opus 740: tool-call boundary policy with concrete `N` turn count specified — agreed `N=3` for tool-call boundary heuristic OR session-scoped provenance taint, decision logged)
+
+**Cycle-wide:**
+
+- [ ] All 5 supported tiers (Tier 0..Tier 4) pass integration tests
+- [ ] L1↔L2, L1↔L4, L3↔L2 cross-primitive integration tests pass
+- [ ] All 63 AC items + 11 CC FRs satisfied across the 7 primitives
+- [ ] macOS CI passes for all primitives using flock (NFR-Compat2)
+- [ ] Audit-log envelope schema stable across all 7 primitives (NFR-O1)
+- [ ] `/loa status` surfaces all 7 primitives' state (NFR-O3, CC-5)
+
+### Task 7.E2E: End-to-End Goal Validation
 
 **Priority:** P0 (Must Complete)
 **Goal Contribution:** All goals (G-1, G-2, G-3, G-4)
 
-**Description:** Validate that all four PRD goals are achieved end-to-end through the cycle-096 implementation. This is the final cycle gate before `/audit-sprint` and merge.
+**Description:**
+Validate that all 4 PRD goals are achieved through the complete cycle-098 implementation across all 7 primitives.
 
 **Validation Steps:**
 
 | Goal ID | Goal | Validation Action | Expected Result |
 |---------|------|-------------------|-----------------|
-| G-1 | Loa works end-to-end against AWS Bedrock with API-Key auth | Run `model-invoke --agent flatline-reviewer --model bedrock:us.anthropic.claude-opus-4-7 --input <fixture file>` against maintainer's live Bedrock account | Returns usable completion; cost-ledger entry shows `provider: bedrock`, correct token usage, non-zero `cost_micro_usd` |
-| G-2 | Adding a fifth provider takes ≤ 1 day for a contributor familiar with the codebase | Walk through the FR-9 plugin guide step-by-step on a stub provider (could be a feature-flagged scaffold or read-through review by `/review-sprint`); time-box check or reviewer attestation | Six-step checklist enumerates all edit sites with current `file:line` anchors; Bedrock worked example is cited at each step; validation commands runnable as documented |
-| G-3 | Existing users see zero behavior change | Run `model-invoke --validate-bindings` before and after the cycle on a stock `.loa.config.yaml`; run full BATS + pytest suites | Output byte-identical for non-Bedrock-overridden configs; all existing test suites pass without modification (NFR-Compat1) |
-| G-4 | Bedrock-routed Anthropic models are usable as drop-in replacements for direct Anthropic models | Override `hounfour.aliases.opus: bedrock:us.anthropic.claude-opus-4-7` in a fixture `.loa.config.yaml`; run a non-trivial Loa workflow (e.g., `/flatline-review` on a sample PR diff or a bridgebuilder review) | Workflow completes; cost ledger reflects bedrock pricing; output is shape-equivalent to direct-Anthropic completion (downstream parsers don't fork) |
+| G-1 | Autonomous-pace progress without operator-presence requirement | Tier 3 integration test runs a sleep-window cycle invoking L1 jury panel for 10 routine decisions; `AskUserQuestion` baseline (Sprint 1) compared to current; protected-class queue reviewed | ≥80% of routine decisions auto-bound by jury panel; protected-class decisions queued without panel invocation; median time-to-decision <60s |
+| G-2 | Fail-closed safety for cost, trust, protected-class | Integration tests run against L2 (5 uncertainty modes), L4 (hash-chain integrity + force-grant exception), L1 (protected-class router); audit log JSONL validated against envelope schema | 0 budget overruns >100%; 0 unauthorized tier escalations; 0 unaudited dispatches; 100% hash-chain integrity validation pass rate |
+| G-3 | Cross-context continuity (repos, sessions, operators) | Tier 4 integration test runs L5 read on 10 mock repos; L6 handoff schema validation against malformed inputs; L7 SOUL.md surface latency measured | Cross-repo state read p95 <30s; handoff schema rejection rate 100% on malformed input; SOUL.md surface latency <500ms |
+| G-4 | Audit completeness — every decision, dispatch, trust-change, handoff in JSONL | Audit log integrity check + grep-based completeness audit across all 7 primitives | 100% of in-scope events in `.run/*.jsonl`; consistent envelope schema; 0 unredacted secrets per `_SECRET_PATTERNS`; chain integrity validates |
 
 **Acceptance Criteria:**
 
-- [ ] Each goal validated with documented evidence linked from the cycle PR description
-- [ ] Integration points verified end-to-end (data flows from `.loa.config.yaml` → loader → `bedrock_adapter` → live Bedrock → `CompletionResult` → cost ledger → audit log)
-- [ ] No goal marked "not achieved" without explicit justification AND a follow-up issue filed
-- [ ] Live integration test (Task 1.10) re-run against final tip-of-Sprint-2 commit; recurring CI smoke (Task 2.6) green on first scheduled invocation
-- [ ] G-3 byte-identical-bindings check is the merge gate per PRD §Launch Criteria
+- [ ] Each of G-1, G-2, G-3, G-4 validated with documented evidence in `grimoires/loa/cycles/cycle-098-agent-network/e2e-validation.md`
+- [ ] Integration points verified (data flows end-to-end through audit log)
+- [ ] No goal marked as "not achieved" without explicit justification
+- [ ] Adoption metric (G-* implicit, 90d): ≥1 downstream Loa-using project mounts at least 1 of the 7 primitives within 30 days post-cycle (telemetry baseline captured)
+
+### Technical Tasks
+
+- [ ] **Task 7.1**: Implement L7 skill + `lib/soul-identity-lib.sh`; SOUL.md schema (frontmatter + 5 required sections); SessionStart hook integration with `sanitize_for_session_start`. → **[G-3]**
+- [ ] **Task 7.2**: Schema validation (strict + warn); prescriptive-section rejection (NFR-Sec3) with regex + structural detection; surface truncation with marker; session-scoped cache. → **[G-3]**
+- [ ] **Task 7.3**: Author ≥50 adversarial jailbreak corpus entries at `tests/red-team/prompt-injection/` covering 8 attack classes; document each attack vector + expected mitigation in corpus README. → **[G-2]**
+- [ ] **Task 7.4**: CI gate wiring — jailbreak suite runs on every PR touching `prompt_isolation`/L6/L7/SessionStart hook; specify `N=3` for tool-call boundary heuristic (or document session-scoped provenance taint alternative); decision logged in `cycles/cycle-098-agent-network/decisions/jailbreak-corpus-N.md`. → **[G-2]**
+- [ ] **Task 7.5**: Cycle-wide integration test suite at `tests/integration/cycle-098-tiers/` covering Tier 0..Tier 4; consolidate cross-primitive tests from Sprint 4.5; macOS CI matrix. → **[G-2, G-3, G-4]**
+- [ ] **Task 7.6**: Lore entries (SOUL, descriptive-identity); CLAUDE.md final update; runbooks finalized for all 7 primitives. → **[G-3, G-4]**
+- [ ] **Task 7.7**: CHANGELOG generation via post-merge automation; cycle-098-agent-network PR label; cycle archive at `grimoires/loa/archive/2026-07-03-cycle-098-agent-network/`. → **[G-4]**
+- [ ] **Task 7.E2E**: End-to-end goal validation (G-1, G-2, G-3, G-4) per validation table above; results published at `grimoires/loa/cycles/cycle-098-agent-network/e2e-validation.md`. → **[G-1, G-2, G-3, G-4]**
 
 ### Dependencies
 
-- Sprint 1 merged to base — all 10 tasks green in CI per Sprint 1 acceptance criteria
-- Sprint 0 spike report and `bedrock-contract-v1.json` fixture remain in tree (used by Task 2.6 fixture-diff baseline)
-- Maintainer's Bedrock account remains active for Task 2.E2E live validation and Task 2.6 first-scheduled-invocation confirmation
-- Org secret `secrets.AWS_BEARER_TOKEN_BEDROCK_CI` provisioned ahead of Task 2.6 first cron run
+- **Sprint 1**: audit-envelope library, `sanitize_for_session_start`, lore directory, JCS conformance, root-of-trust
+- **Sprints 2, 3, 4, 5, 6**: L2, L3, L4, L5, L6 all merged and integration-tested
+- **Existing internal**: SessionStart hook
+- **Existing external**: post-merge automation pipeline (CHANGELOG generation per cycle-076 PR #536 patterns)
 
 ### Security Considerations
 
-- **Trust boundaries**: Recurring CI smoke runs in GitHub Actions org context; `BEDROCK_SMOKE_REQUIRE_TOKEN` enforces presence of secret on scheduled runs to prevent silent skip-on-rotation; fork-PR skip-clean preserves cycle-094 G-E2E precedent for untrusted forks
-- **External dependencies**: GitHub Actions cron infrastructure; AWS Bedrock service availability; org secret rotation cadence (operator policy, NFR-Sec6 ≤ 90 days documented in runbook)
-- **Sensitive data**: Smoke workflow sources `lib-security.sh redact_secrets`; sanitized fixtures (no token values, no token usage values, no IDs); structural-key diff only; auto-opened issues do not echo token content
+- **Trust boundaries**: SOUL.md content is untrusted — `sanitize_for_session_start` applied at surfacing; prescriptive-section rejection enforces descriptive-only invariant (NFR-Sec3)
+- **External dependencies**: none new
+- **Sensitive data**: SOUL.md content subject to `_SECRET_PATTERNS` redaction; mode 0600 on file
+- **Adversarial coverage**: ≥50 attack vectors enforced via mandatory CI gate; new attacks added by Bridgebuilder reviews appended to corpus
 
 ### Risks & Mitigation
 
 | Risk | Probability | Impact | Mitigation |
 |------|-------------|--------|------------|
-| AR-2 — Recurring CI smoke silently skipped (org secret absent) and drift goes undetected | Medium | Medium | `BEDROCK_SMOKE_REQUIRE_TOKEN=true` (default for scheduled) + auto-opened issue tagged `bedrock-contract-smoke-misconfigured` on missing secret per SDD §5.5; manual `workflow_dispatch` confirmation in Sprint 2 acceptance |
-| AR-3 — Recurring CI smoke costs spiral (vendor pricing change, quota burst) | Low | Medium | Pre-flight cost estimate rejects run > $0.50; post-flight ledger assertion; monthly aggregate ≤ $15; weekday-only initially; weekly model rotation (single probe per week per model) |
-| R-7 — Plugin guide bit-rots — Bedrock implementation drifts and guide gets stale | Medium | Low | Sprint 2 acceptance: guide reviewed against actual implementation by `/review-sprint`; CI check that asserts file:line anchors still resolve is captured as future-work follow-up (deferred per cycle scope) |
-| OQ-4 — Bedrock control-plane endpoint URL pattern not as expected | Medium | Low | Sprint 0 G-S0-2 probe #1 captures the actual URL; FR-8 priority is P1 (slippage acceptable); Task 2.4 verifies pattern from Sprint 0 fixture before committing |
-| AR-8 — Loa-as-submodule consumers break on `compliance_profile` defaulting one-shot stderr notice | Low | Low | Sentinel file (`${LOA_CACHE_DIR}/seen-bedrock-default`) gates the notice; downstream automation can pre-create sentinel to silence; Sprint 1 Task 1.5 already implements; Sprint 2 doc references the override path |
+| Sprint 7 overload (L7 + integration + jailbreak corpus + E2E + cycle close) | Med | Med | Sprint 4.5 buffer week consolidated cross-primitive tests; corpus authoring distributed across team via Bridgebuilder reviews |
+| SOUL.md becomes prescriptive-rules dumping ground (defeats NFR-Sec3) | Med | Med | Strict schema validation + prescriptive-section rejection regex; documentation + bridgebuilder reviews catch drift (R6) |
+| Jailbreak corpus produces flaky CI on multi-turn conditioning | Med | Med | Decision logged in `cycles/cycle-098-agent-network/decisions/jailbreak-corpus-N.md`: choose `N=3` deterministic OR session-scoped provenance taint; integration tests deterministic via mock conversation metadata |
+| Cycle-wide integration test runtime exceeds CI budget | Low | Med | Tier-by-tier matrix runs in parallel; full cycle takes ~30min on macOS + Linux runners |
+| Cycle archival breaks ledger schema | Low | Med | Archive uses ledger v1 schema (existing pattern); regression test runs ledger validation post-archive |
 
 ### Success Metrics
 
-- FR-9 plugin guide passes `/review-sprint` fidelity check on first review iteration
-- Recurring CI smoke green on first scheduled cron invocation (T+13d 06:00 UTC)
-- Recurring CI smoke fixture-diff is empty on first run (no false-drift)
-- All four Task 2.E2E goal validations PASS with documented evidence
-- 0 BLOCKERs on cycle-PR `/flatline-review`
-- Cycle-096 ships per PRD §Launch Criteria + 30-day post-launch checkpoint scheduled
+- 7/7 L7 ACs PASS; NFR-Sec3 enforced
+- ≥50 jailbreak corpus entries committed; CI gate active on every PR touching prompt_isolation/L6/L7/SessionStart
+- All 5 supported tiers (Tier 0..Tier 4) PASS integration tests
+- All cross-primitive integration tests PASS (L1↔L2, L1↔L4, L3↔L2)
+- E2E goal validation: 4/4 goals achieved with documented evidence
+- macOS + Linux CI green across all 7 primitives
+- CHANGELOG entry generated; cycle-098 archived; ledger updated
+- `/review-sprint sprint-7` APPROVED; `/audit-sprint sprint-7` APPROVED with COMPLETED marker
+- 0 critical bugs in any primitive at archival
 
 ---
 
-## Risk Register (Cycle-Wide)
+## Risk Register
 
 | ID | Risk | Sprint | Probability | Impact | Mitigation | Owner |
 |----|------|--------|-------------|--------|------------|-------|
-| R-1 | Bedrock API Keys feature still maturing; vendor edge cases surface during integration | 0, 1 | Medium | Medium | Live integration test (Task 1.10); maintainer canary (Task 0.2 probes); document known limitations at sprint close | Maintainer |
-| R-2 | "Managed keys" intent turns out to be SigV4/IAM, not Bearer | 0 | Low | High | Sprint 0 G-S0-1 survey; PASS-WITH-CONSTRAINTS reframing path documented in PRD §G-S0-1 | Maintainer |
-| R-3 | Bedrock Converse feature gaps vs direct Anthropic (thinking traces, tools) | 0, 1 | Medium | Medium | Per-capability `api_format` (FR-1); FR-13 explicit verification; `bedrock-contract-v1.json` fixture catches drift | Sprint 1 implementer |
-| R-6 | Cross-map invariant misses an edge case from colon-bearing model IDs | 1 | Low | Medium | `tests/integration/colon-bearing-model-ids.bats` covers 4 facets; centralized parser + cross-language property test | Sprint 1 implementer |
-| R-12 | Tool-schema `{ json: <schema> }` wrapping missed in future contributor edit | 1, 2 | Medium | High | `_wrap_tool_schemas()` single-edit-site discipline (AR-10); recurring CI smoke probe #2 catches structural changes | Sprint 1 implementer; long-term: recurring smoke (Task 2.6) |
-| AR-1 | Centralized parser refactor breaks an existing callsite | 1 | Medium | High | Single atomic PR with tests-first; cycle-094 G-7 invariant; cross-language property test mandatory acceptance gate | Sprint 1 implementer |
-| AR-2 | Recurring CI smoke silently skipped on scheduled runs | 2 | Medium | Medium | `BEDROCK_SMOKE_REQUIRE_TOKEN=true` + auto-opened issue + manual workflow_dispatch confirmation | Sprint 2 implementer |
-| AR-3 | Recurring CI smoke costs spiral | 2 | Low | Medium | Pre/post-flight cost gates ≤ $0.50/run, ≤ $15/month; weekday-only; weekly rotation | Sprint 2 implementer |
-| AR-9 | URL-encoding the model ID omitted at one of multiple Bedrock callsites in the future | 1 | Low | High | URL construction in **one** place (`_build_converse_url()`); unit test asserts `%3A` in encoded URL | Sprint 1 implementer |
-| AR-11 | Bedrock token expires/rotates without operator awareness; silent auth failures | 1 | Medium | High | NFR-Sec11 — token age sentinel + 60/80/90-day stderr warnings + AWS-side expiry probe (best-effort) | Sprint 1 implementer |
-| OQ-2 | Cycle-start Bedrock pricing for Day-1 models unknown until Sprint 1 day 1 | 1 | High (resolves via fetch) | Low | Live-fetch at Sprint 1 execution per FR-5 AC; YAML-frozen with citation comment | Sprint 1 implementer |
-| OQ-5 | `ABSKY*` regex evolved between PRD lock-down and Sprint 0 | 0, 1 | Medium | Medium | Sprint 0 G-S0-2 probe #1 captures sample shape; Sprint 1 Task 1.6 updates regex from probe finding before merge | Sprint 0 + Sprint 1 implementer |
-
-> Full Risk Register: PRD §Risks (R-1..R-13) + SDD §9 (AR-1..AR-12). Cycle-wide risks above are the ones with explicit sprint owners and active mitigations in this plan.
+| R1 | Spec drift over 6-10 weeks | All | Med | Med | Each sprint locks SDD via `/architect` re-pass; post-lock changes become new work | Sprint Planner |
+| R2 | Audit-log envelope schema needs to extend in later sprints | 1-7 | High | Low | `additionalProperties: true` on `payload`; bump version on breaking change; per-event-type schemas separate from envelope schema | Architecture |
+| R3 | Cross-primitive integration edge cases (L1↔L2, L1↔L4, L3↔L2) | 4.5, 7 | Med | Med | Each sprint writes integration tests against earlier primitives' APIs; Sprint 4.5 consolidation; Sprint 7 cycle-wide suite | Architecture |
+| R4 | macOS portability (flock, realpath, BSD utilities) | All | Low | Med | `_require_flock()` and `lib/portable-realpath.sh` from cycle-098. New tests must run on macOS CI | Implementation |
+| R5 | Embedding model unavailable for L1 disagreement check | 1 | Low | Low | Caller-configurable design; default no-op. Operator's responsibility | Implementation |
+| R6 | SOUL.md becomes prescriptive-rules dumping ground | 7 | Med | Med | Strict schema validation rejects prescriptive sections; documentation + bridgebuilder reviews catch drift | Architecture |
+| R7 | L4 trust ledger gaming via force-grant in cooldown | 4 | Low | High | Force-grant logged as exception with reason; auditor (P6) reviews | Implementation |
+| R8 | L1 decision-context hash collisions reduce panelist randomness | 1 | Very Low | Low | `decision_id` adds entropy; periodic distribution audit (FR-L1-8) | Implementation |
+| R9 | Beads workspace migration broken (#661) — sprint task tracking degrades to ledger | All | High (realized) | Med | Sprint 1 verifies beads healthy or routes task lifecycle through `grimoires/loa/ledger.json` per Loa graceful-fallback. Already permanent in this cycle | Sprint Planner |
+| R10 | 7 primitives is a lot; downstream Loa mounters may not enable any | All | Med | Low | Each spec ships `enabled: false` default. Document opt-in path in mount-time docs (CLAUDE.md.example). Adoption metric is post-cycle telemetry | Architecture |
+| R11 | Cycle takes 6-10 weeks; review/audit iteration may stretch timeline (CRITICAL per SKP-001) | All | High | High | Sprint 4.5 buffer added; explicit de-scope triggers documented; **weekly schedule-check ritual ALREADY ACTIVE** (routine `trig_01E2ayirT9E93qCx3jcLqkLp`); first run 2026-05-08T16:00Z. Re-baseline trigger: Sprint 1 >2 weeks late | Operator |
+| R12 | L1 panelist persona injection from untrusted body | 1 | Low | High | `prompt_isolation` mandatory for body input (NFR-Sec2) | Implementation |
+| R13 | JSONL audit log unbounded growth | All | Med | Low | Retention policy per primitive (NFR-O4); compaction script per Loa convention (event-bus PR #215 pattern) | Implementation |
+| R14 | Ed25519 signing adds dependency surface (`cryptography` Python pkg) | 1 | Low | Low | Already a transitive dep of existing Loa Python adapters; pin version in `requirements.txt` | Implementation |
+| R15 | `ajv` (Node.js) required for write-time schema validation; not all Loa users have node | 1 | Low | Low | Sprint 1 also implements pure-Python schema validator fallback (`jsonschema` package); ajv preferred for performance but not mandatory | Implementation |
+| R16 | OPERATORS.md PR-edit workflow may not match every team's process | 1, 6 | Med | Low | Schema validation runs at CI; alternative workflows (config-managed elsewhere) supported via `verify_operators: false` in L6 config | Architecture |
+| R17 | Hash-chain recovery via git history fails on a hard rebase / force-push | 4 | Med | Med | Operator runbook documents that audit-log files MUST not be rebased; CI hook checks for force-push to State Zone files; `[CHAIN-BROKEN]` marker + BLOCKER on unrecoverable break | Implementation |
+| R18 | SessionStart hook adds latency to every session start (L7 surfacing) | 7 | Low | Low | NFR-P2: <500ms latency; cache scoped to session; hook silent when disabled | Implementation |
+| R19 | Tier validator may reject configs operators have working in production (1 of the 123 unsupported tiers) | 1 | Med | Low | `tier_enforcement_mode: warn` default — only prints warning, not block. `refuse` mode is operator-explicit opt-in (Option C: warn-then-refuse migration logged in cycle decisions) | Implementation |
+| R20 | Time-bounded protected-class override mis-configured (duration too long) | 1 | Low | High | Audit-logged with operator identity + reason; auditor (P6) reviews; max duration default 86400s (1 day) configurable | Implementation |
+| R21 | `sprint-bug-131` (#675 fix) does not ship before Sprint 1 | pre | Med | High | Triage already complete (5/5 ACCEPT); 3-failing-test plan ready; recommended `/run sprint-bug-131` immediately. Sprint 1 cannot start until merged. **HARD BLOCK** |
+| R22 | Cheval HTTP/2 bug remains unfixed across cycle (Flatline reviews permanently 2-of-3 model coverage) | All | Low (after sprint-bug-131) | High | `sprint-bug-131` directly addresses root cause; if regression, escalate to dedicated mini-cycle |
+| R23 | Multi-turn conditioning jailbreak attacks defeat first-N-turn boundary heuristic | 7 | Med | High | SDD pass-#4 Opus 740 finding addressed by Sprint 7 corpus task: choose `N=3` deterministic OR session-scoped provenance taint; decision logged in cycle decisions dir |
+| R24 | Sprint 7 overload (L7 + cycle integration + jailbreak corpus + E2E + cycle close) | 7 | Med | Med | Sprint 4.5 buffer week consolidated cross-primitive tests in advance; jailbreak corpus authoring distributed across team via Bridgebuilder reviews |
 
 ---
 
@@ -445,42 +843,54 @@ Codify the six-edit-site provider-plugin contract as a maintainer-facing guide w
 
 | Metric | Target | Measurement Method | Sprint |
 |--------|--------|-------------------|--------|
-| Provider count | 4 (+ bedrock) | `grep -c '^  [a-z]*:$' .claude/defaults/model-config.yaml` providers section | 1 |
-| Bedrock-via-API-Key smoke test | Passes against live Bedrock account | `pytest tests/integration/test_bedrock_live.py -v` | 1 |
-| Backward-compat regression | 0 deltas | `model-invoke --validate-bindings` byte-diff before/after | 1 |
-| Loa workflows running on Bedrock-Anthropic | ≥ 1 verified end-to-end | Task 2.E2E G-4 validation (Flatline review with `opus`-aliased to bedrock) | 2 |
-| Edit-sites per provider addition | 6 (documented + scaffold) | FR-9 plugin guide `/review-sprint` audit | 2 |
-| `bedrock_adapter.py` unit-test coverage | ≥ 85% | `pytest --cov=bedrock_adapter` | 1 |
-| Cycle-094 G-7 invariant | Green | `bats tests/integration/model-registry-sync.bats` | 1, 2 |
-| Recurring CI smoke first invocation | Green | First scheduled cron run (T+13d 06:00 UTC) | 2 |
-| Recurring CI smoke fixture-diff | Empty (no false drift) | `jq 'paths'` diff per SDD §5.5 | 2 |
-| Flatline review on cycle PR | 0 BLOCKERs | `/flatline-review` invocation | 1, 2 |
+| L1 routine decisions in sleep window auto-bound by jury panel | ≥80% (G-1) | `.run/panel-decisions.jsonl` analysis after 30d post-L1 ship | 1, post-cycle telemetry |
+| L1 median time-to-decision for routine adjudication | <60s when L1 active (G-1) | Audit log timestamp delta | 1 |
+| L2 daily-cap overruns >100% | 0 (G-2) | `.run/cost-budget-events.jsonl` grep over 30d | 2, post-cycle telemetry |
+| L2 reconciliation drift detection accuracy | 100% (drift >5% emits BLOCKER) (G-2) | Integration test + 30d telemetry | 2, post-cycle telemetry |
+| L4 hash-chain integrity validation pass rate | 100% (G-2) | Continuous (chain walk on read) | 4, continuous |
+| L5 cross-repo status read p95 latency for 10 repos | <30s (G-3) | Integration test + post-ship measurement | 5, post-cycle telemetry |
+| L6 schema-validation rejection rate of malformed handoffs | 100% in strict mode (G-3) | Integration test | 6 |
+| L7 SOUL.md surfacing latency at session start | <500ms (G-3) | Session-start hook telemetry | 7, continuous |
+| Decisions/cycles/handoffs without audit JSONL entry | 0 (G-4) | Continuous grep audit | 1, continuous |
+| Adoption: ≥1 downstream Loa-using project mounts each primitive | 7/7 within 90d | Manual operator survey + telemetry | post-cycle |
+| Worst-case audit-envelope write-path p95 / p99 | <50ms p95 / <200ms p99 (or revised in Sprint 1 review) | `tests/benchmarks/audit-envelope-worst-case.sh` Linux + macOS | 1 |
+| JCS multi-language conformance (bash + Python + Node byte-identical) | 100% on conformance corpus | `tests/conformance/jcs/run.sh` CI gate | 1 |
+| Adversarial jailbreak corpus coverage | ≥50 attack vectors across 8 classes; 100% mitigated | `tests/red-team/prompt-injection/` CI gate | 7 |
 
 ---
 
 ## Dependencies Map
 
 ```
-   Sprint 0 (Spike)               Sprint 1 (Functional)            Sprint 2 (Hardening + E2E)
-   ─────────────────              ──────────────────────           ───────────────────────────
-   • G-S0-1 user survey   ───┐    • Task 1.1 PARSER (lands  ───┐   • Task 2.1 plugin guide
-   • G-S0-2 probes #1-#6      │     FIRST atomically)          │   • Task 2.2 IR runbook
-   • G-S0-3 compliance        ├──▶ • Task 1.2 YAML entry       ├──▶• Task 2.3 FR-4 schema
-   • G-S0-4 error taxonomy    │    • Task 1.3 bedrock_adapter   │   • Task 2.4 health probe
-   • G-S0-5 region profiles   │    • Task 1.4 FR-11 errors      │   • Task 2.5 FR-10 completion
-   • bedrock-contract-v1.json │    • Task 1.5 compliance        │   • Task 2.6 recurring smoke
-                              │    • Task 1.6 redaction         │   • Task 2.E2E goal validation
-   ↓ HARD GATE ↓              │    • Task 1.7 token age         │
-   spike report PASS          │    • Task 1.8 audit/ledger      │
-   + fixture committed        │    • Task 1.9 feature flag      │   ↑ HARD GATE ↑
-   ──────────────────────────▶│    • Task 1.10 live test        │   Sprint 1 merged
-                              │                                 │   + spike artifacts in tree
-                              │    ↑ HARD GATE ↑                │   ─────────────────────────▶
-                              │    All 10 tasks green           │
-                              │    cycle-094 G-7 passes         │
-                              │    /flatline-review 0 BLOCKERs  │
-                              └─────────────────────────────────┘
+sprint-bug-131 (pre)
+    │
+    │ MERGED → Sprint 1 unblocked
+    ▼
+Sprint 1: L1 + Cross-Cutting Infra (LARGE)
+    │
+    ├──────────▶ Sprint 2: L2 + Reconciliation Cron
+    │              │
+    │              └──▶ Sprint 3: L3 (uses L2 budget pre-check)
+    │                       │
+    │                       └──▶ Sprint 4: L4 (uses Sprint 1 audit infra)
+    │                                │
+    │                                ▼
+    │                       Sprint 4.5: BUFFER WEEK
+    │                                │
+    │                                ├──▶ Sprint 5: L5 (uses Sprint 1 audit infra)
+    │                                │       │
+    │                                │       └──▶ Sprint 6: L6 (uses Sprint 1 sanitize +
+    │                                │                            Sprint 4 trust integration)
+    │                                │              │
+    │                                │              └──▶ Sprint 7: L7 + Cycle Integration +
+    │                                │                              Jailbreak Corpus + E2E
+    │                                │
+    │                                └─────────────────────────▶ (parallel)
 ```
+
+**Critical path**: `sprint-bug-131` → 1 → 2 → 3 → 4 → 4.5 → 5 → 6 → 7 (cycle close).
+**Parallelism**: Sprints 5 and 6 may run in parallel after Sprint 4.5 IF beads were healthy; ledger-only tracking constrains to serial.
+**Sprint 4.5 BUFFER**: planned recovery point; not a sprint with new primitive deliverables.
 
 ---
 
@@ -488,93 +898,122 @@ Codify the six-edit-site provider-plugin contract as a maintainer-facing guide w
 
 ### A. PRD Feature Mapping
 
-| PRD Feature | Sprint | Status |
-|-------------|--------|--------|
-| Sprint 0 G-S0-1 (auth-modality survey) | Sprint 0 | Planned (Task 0.1) |
-| Sprint 0 G-S0-2 (live API contract probes) | Sprint 0 | Planned (Task 0.2) |
-| Sprint 0 G-S0-3 (compliance profile schema) | Sprint 0 | Planned (Task 0.3) |
-| Sprint 0 G-S0-4 (error taxonomy enumeration) | Sprint 0 | Planned (Task 0.4) |
-| Sprint 0 G-S0-5 (cross-region profiles) | Sprint 0 | Planned (Task 0.5) |
-| FR-1 (provider registry entry) | Sprint 1 | Planned (Task 1.2) |
-| FR-2 (Python adapter) | Sprint 1 | Planned (Task 1.3) |
-| FR-3 (Bearer-token auth) | Sprint 1 | Planned (Task 1.3) |
-| FR-4 (SigV4 designed-not-built) | Sprint 2 | Planned (Task 2.3) |
-| FR-5 (three Day-1 models) | Sprint 1 | Planned (Task 1.2 + Task 1.10) |
-| FR-6 (region configuration) | Sprint 1 | Planned (Task 1.3) |
-| FR-7 (no default alias retargeting) | Sprint 1 | Planned (Task 1.9 regression test) |
-| FR-8 (health probe extension) | Sprint 2 | Planned (Task 2.4) |
-| FR-9 (plugin guide + IR runbook) | Sprint 2 | Planned (Task 2.1 + Task 2.2) |
-| FR-10 (tests) | Sprint 1 + 2 | Planned (Task 1.10 + Task 2.5; partial in Sprint 1, completion in Sprint 2) |
-| FR-11 (error taxonomy + retry classifier) | Sprint 1 | Planned (Task 1.4) |
-| FR-12 (cross-region profiles Day-1) | Sprint 1 | Planned (Task 1.2 + Task 1.3) |
-| FR-13 (thinking-trace parity verification) | Sprint 1 | Planned (Task 1.2 + Task 1.3, verifies vs Sprint 0 fixture) |
-| NFR-R1 (compliance-aware fallback) | Sprint 1 | Planned (Task 1.5) |
-| NFR-Sec2 + NFR-Sec10 (two-layer redaction) | Sprint 1 | Planned (Task 1.6) |
-| NFR-Sec6 + NFR-Sec7 (key rotation + revocation) | Sprint 2 | Planned (Task 2.2 IR runbook + plugin guide) |
-| NFR-Sec8 (audit/ledger event schema) | Sprint 1 | Planned (Task 1.8) |
-| NFR-Sec9 (IR runbook ownership) | Sprint 2 | Planned (Task 2.2) |
-| NFR-Sec11 (token lifecycle runtime controls) | Sprint 1 | Planned (Task 1.7) |
-| Recurring CI smoke (SDD §5.5) | Sprint 2 | Planned (Task 2.6) |
+| PRD Feature (FR-X) | Sprint | Status |
+|--------------------|--------|--------|
+| CC-1..CC-11 (Cross-Cutting) | 1 (lands), 2-7 (extend) | Planned |
+| FR-L1-1..FR-L1-9 | 1 | Planned |
+| FR-L2-1..FR-L2-10 + reconciliation cron | 2 | Planned |
+| FR-L3-1..FR-L3-8 | 3 | Planned |
+| FR-L4-1..FR-L4-8 | 4 | Planned |
+| FR-L5-1..FR-L5-7 | 5 | Planned |
+| FR-L6-1..FR-L6-8 | 6 | Planned |
+| FR-L7-1..FR-L7-7 | 7 | Planned |
+| NFR-Sec1..NFR-Sec8 | 1 (lands), 2-7 (apply) | Planned |
+| NFR-R1..NFR-R7 | 1, 4 (R7 chain recovery) | Planned |
+| NFR-P1..NFR-P4 | 1 (benchmark), 5 (P1), 7 (P2) | Planned |
+| NFR-O1..NFR-O4 | 1 (lands), 2-7 (apply) | Planned |
+| Operator Identity Model | 1 | Planned |
+| SessionStart Sanitization Model | 1 (lib), 6 (L6), 7 (L7) | Planned |
+| Protected-Class Taxonomy (PRD Appendix D) | 1 | Planned |
 
 ### B. SDD Component Mapping
 
 | SDD Component | Sprint | Status |
 |---------------|--------|--------|
-| §1.10 + §6.7 Bedrock feature flag | Sprint 1 | Planned (Task 1.9) |
-| §3.1 + §6.2 versioned `fallback_to` mapping | Sprint 1 | Planned (Task 1.5) |
-| §3 Provider registry schema (bedrock entry) | Sprint 1 | Planned (Task 1.2) |
-| §5.1 Bedrock Converse API integration | Sprint 1 | Planned (Task 1.3) |
-| §5.2 ListFoundationModels (health probe) | Sprint 2 | Planned (Task 2.4) |
-| §5.3 cheval `complete()` contract | Sprint 1 | Planned (Task 1.3) |
-| §5.4 Centralized parser contract | Sprint 1 | Planned (Task 1.1 — lands FIRST) |
-| §5.5 Recurring CI smoke workflow | Sprint 2 | Planned (Task 2.6) |
-| §5.6 Compliance profile defaulting (loader) | Sprint 1 | Planned (Task 1.5) |
-| §6.1 Bedrock error taxonomy | Sprint 1 | Planned (Task 1.4) |
-| §6.4 + §6.4.1 Two-layer secret redaction | Sprint 1 | Planned (Task 1.6) |
-| §6.6 Concurrency + total-deadline + streaming-out-of-scope | Sprint 1 | Planned (Task 1.4 — `threading.Event()` + retry semantics) |
-| §7 Testing strategy (unit + integration + invariant + cross-language) | Sprint 1 + 2 | Planned (Tasks 1.1, 1.10, 2.5, 2.6) |
-| §9 NFR-Sec11 token lifecycle runtime controls | Sprint 1 | Planned (Task 1.7) |
+| §1.4.1 Shared Cross-Cutting Infrastructure (audit-envelope, sanitize, tier-validator, protected-class router, operator-identity) | 1 | Planned |
+| §1.4.2 L1 hitl-jury-panel | 1 | Planned |
+| §1.4.2 L2 cost-budget-enforcer | 2 | Planned |
+| §1.4.2 L3 scheduled-cycle-template | 3 | Planned |
+| §1.4.2 L4 graduated-trust | 4 | Planned |
+| §1.4.2 L5 cross-repo-status-reader | 5 | Planned |
+| §1.4.2 L6 structured-handoff | 6 | Planned |
+| §1.4.2 L7 soul-identity-doc | 7 | Planned |
+| §1.7.1 Multi-Host: Out of Scope (FU-6 deferral) | 1 (CC), 6 (L6 enforcement) | Planned |
+| §1.9.3.1 Ed25519 Key Lifecycle (rotation, trust-store, revocation) | 1 | Planned |
+| §1.9.3.2 Adversarial Prompt-Injection Defense (Layers 1-5) | 1 (Layers 1, 2, 5), 6 (Layer 3 L6), 7 (Layer 3 L7 + Layer 4 corpus) | Planned |
+| §3.2.1 Shared Audit Envelope schema | 1 | Planned |
+| §3.2.2 Per-Primitive Audit Log Layout | 1 (template), 2-7 (extend) | Planned |
+| §3.2.3 Operator Identity Schema | 1 | Planned |
+| §3.2.4 Protected-Class Registry Schema | 1 | Planned |
+| §3.2.5 SOUL.md Schema | 7 | Planned |
+| §3.2.6 L4 Trust Ledger Entry Schema | 4 | Planned |
+| §3.4.4 Hash-Chain Recovery + §3.7 snapshot reconciliation | 1 (lands), 4 (L4 chain) | Planned |
+| §4.4 `/loa status` Layout | 1 | Planned |
+| §5.2 Audit Envelope API | 1 | Planned |
+| §5.3-§5.13 Per-primitive APIs | 1-7 (per primitive) | Planned |
+| §7.3 CI/CD Integration (jailbreak suite, JCS conformance, worst-case latency) | 1 (lands), 7 (final integration) | Planned |
+| §8 Sprint 1 ACs (IMP-003 + SKP-004 + SKP-007 + IMP-001 + SKP-001 + SKP-002 + SOLO_OPUS) | 1 | Planned |
 
 ### C. PRD Goal Mapping
 
 | Goal ID | Goal Description | Contributing Tasks | Validation Task |
 |---------|------------------|-------------------|-----------------|
-| G-1 | Loa works end-to-end against AWS Bedrock with API-Key auth | Sprint 0: Task 0.1 (gates auth scope), Task 0.2 (probes), Task 0.4 (error taxonomy), Task 0.5 (region profiles); Sprint 1: Task 1.2 (YAML), Task 1.3 (adapter), Task 1.4 (error classifier), Task 1.10 (live integration test); Sprint 2: Task 2.4 (health probe), Task 2.6 (recurring smoke) | Sprint 2: Task 2.E2E (G-1 row) |
-| G-2 | Adding a fifth provider takes ≤ 1 day for a contributor familiar with the codebase | Sprint 1: Task 1.1 (centralized parser as foundation); Sprint 2: Task 2.1 (plugin guide), Task 2.3 (FR-4 schema seed), Task 2.6 (recurring smoke as long-term contract) | Sprint 2: Task 2.E2E (G-2 row) |
-| G-3 | Existing users see zero behavior change | Sprint 0: Task 0.3 (compliance defaulting), Task 0.6 (token lifecycle); Sprint 1: Task 1.5 (compliance fallback gating), Task 1.6 (two-layer redaction), Task 1.7 (token age sentinel), Task 1.8 (audit/ledger schema), Task 1.9 (feature flag + alias-stability regression test); Sprint 2: Task 2.2 (IR runbook), Task 2.5 (residual FR-10 ACs) | Sprint 2: Task 2.E2E (G-3 row — `model-invoke --validate-bindings` byte-identical check) |
-| G-4 | Bedrock-routed Anthropic models are usable as drop-in replacements for direct Anthropic models | Sprint 0: Task 0.2 (probes #2/#3/#4 confirm shape parity), Task 0.5 (region coverage); Sprint 1: Task 1.3 (adapter normalizes Bedrock response into `CompletionResult`), Task 1.10 (live test) | Sprint 2: Task 2.E2E (G-4 row — override `opus` alias and run a Loa workflow end-to-end) |
+| **G-1** | Autonomous-pace progress without operator-presence requirement | Sprint 1: Task 1.8 (baseline `AskUserQuestion` instrumentation), Task 1.9 (L1 skill); Sprint 3: Task 3.1, 3.2, 3.3 (scheduled cycle template) | Sprint 7: Task 7.E2E |
+| **G-2** | Fail-closed safety for cost, trust, protected-class | Sprint 1: Tasks 1.1-1.10 (audit envelope, JCS, root-of-trust, fd-secrets, sanitize, protected-class router, L1 fail-closed); Sprint 2: Tasks 2.1-2.6 (L2 fail-closed); Sprint 4: Tasks 4.1-4.6 (L4 hash-chain + auto-drop + force-grant); Sprint 7: Task 7.3, 7.4 (jailbreak corpus + Layer 4 defense) | Sprint 7: Task 7.E2E |
+| **G-3** | Cross-context continuity (repos, sessions, operators) | Sprint 1: Task 1.6 (sanitize, operator-identity), Task 1.7 (lore + CLAUDE.md), Task 1.8 (`/loa status`); Sprint 4.5: Task 4.5.3 (documentation pass); Sprint 5: Tasks 5.1-5.4 (L5 cross-repo); Sprint 6: Tasks 6.1-6.5 (L6 handoff); Sprint 7: Tasks 7.1, 7.2, 7.6 (L7 SOUL + lore) | Sprint 7: Task 7.E2E |
+| **G-4** | Audit completeness — every decision, dispatch, trust-change, handoff in JSONL with consistent envelope | Sprint 1: Tasks 1.1, 1.2, 1.3, 1.7, 1.8, 1.10 (audit envelope, JCS, lore, baseline, tests); Sprint 2: Tasks 2.4, 2.5, 2.6 (envelope extension, snapshot job, integration tests); Sprint 3: Task 3.4, 3.5; Sprint 4: Tasks 4.5, 4.6; Sprint 4.5: Task 4.5.2 (schema-stability); Sprint 5: Task 5.4; Sprint 6: Task 6.5; Sprint 7: Tasks 7.5, 7.6, 7.7 (cycle integration + CHANGELOG + archive) | Sprint 7: Task 7.E2E |
 
 **Goal Coverage Check:**
 
-- [x] All PRD goals have at least one contributing task (G-1: 10 tasks; G-2: 4 tasks; G-3: 9 tasks; G-4: 4 tasks)
-- [x] All goals have a validation task in final sprint (Task 2.E2E covers G-1, G-2, G-3, G-4)
-- [x] No orphan tasks — every Sprint 1 / Sprint 2 task is annotated with at least one goal contribution
+- [x] All 4 PRD goals (G-1, G-2, G-3, G-4) have ≥1 contributing task across multiple sprints
+- [x] All goals have a validation task in final sprint (Sprint 7 Task 7.E2E)
+- [x] No orphan tasks — every Sprint 1-7 task annotated with `→ **[G-N]**` (or multi-goal annotation)
+- [x] E2E validation task included in final sprint (Task 7.E2E)
+- [x] Adoption metric (G-* implicit, 90d post-cycle) tracked via post-cycle telemetry
 
 **Per-Sprint Goal Contribution:**
 
-- Sprint 0: G-1 (gates auth + region availability), G-3 (compliance posture + token lifecycle baseline), G-4 (probe shape parity)
-- Sprint 1: G-1 (complete: end-to-end functional), G-2 (partial: parser foundation), G-3 (complete: zero-behavior-change discipline + redaction + audit + alias-stability), G-4 (complete: drop-in replacement working)
-- Sprint 2: G-1 (long-term reliability via health probe + recurring smoke), G-2 (complete: plugin guide + FR-4 schema seed), G-3 (complete: residual tests + IR runbook), G-4 (E2E validation)
-- Sprint 2.E2E: All four goals validated end-to-end
+- **Sprint 1**: G-1 (foundational instrumentation), G-2 (audit-envelope, root-of-trust, fd-secrets, protected-class router, L1 fail-closed), G-3 (sanitize, operator-identity, `/loa status`), G-4 (audit envelope schema, JCS conformance, lore)
+- **Sprint 2**: G-2 (L2 fail-closed cost gate, reconciliation cron), G-4 (envelope extension, snapshot job)
+- **Sprint 3**: G-1 (scheduled-cycle template enables autonomous cycles), G-2 (L2 budget pre-check integration)
+- **Sprint 4**: G-2 (L4 graduated-trust, hash-chain integrity, force-grant audit)
+- **Sprint 4.5**: G-1, G-2, G-3, G-4 (consolidation across all primitives; documentation pass; baseline AskUserQuestion telemetry review)
+- **Sprint 5**: G-3 (cross-repo status read, BLOCKER extraction)
+- **Sprint 6**: G-3 (structured handoff, INDEX atomic, SessionStart surfacing, OPERATORS verification)
+- **Sprint 7**: All 4 goals via E2E validation; G-2 (jailbreak corpus + Layer 4 defense); G-3 (L7 SOUL); G-4 (cycle integration test suite + CHANGELOG + archive)
+
+### D. Tier-to-Sprint Mapping (per PRD §Supported Configuration Tiers)
+
+| Tier | Enabled primitives | Tested in Sprint | Integration test path |
+|------|-------------------|------------------|------------------------|
+| **Tier 0: Baseline** | None | 1, regression continuous | Regression-only (Loa behaves identically pre-cycle) |
+| **Tier 1: Identity & Trust** | L4 + L7 | 4, 7 | Sprint 7 cycle-wide suite — L4 ↔ SessionStart hook, L7 ↔ SessionStart hook |
+| **Tier 2: + Resource & Handoff** | L2 + L4 + L6 + L7 | 2, 4, 6, 7 | Sprint 7 cycle-wide suite — Tier 1 + L2 verdicts, L6 schema validation, L6 INDEX ↔ SessionStart |
+| **Tier 3: + Adjudication & Orchestration** | L1 + L2 + L3 + L4 + L6 + L7 | 1, 2, 3, 4, 6, 7 | Sprint 4.5 cross-primitive consolidation + Sprint 7 cycle-wide suite — Tier 2 + L1 ↔ L2 budget pre-check, L1 ↔ L4 protected-class, L3 ↔ L2 budget pre-read |
+| **Tier 4: Full Network** | All 7 (L1-L7) | All sprints | Sprint 7 cycle-wide suite — Tier 3 + L5 cross-repo state |
+
+### E. Ledger Updates Required
+
+When this sprint plan is approved, the following ledger updates are required:
+
+1. **Add cycle-098-agent-network entry** to `grimoires/loa/ledger.json` `cycles` array:
+   ```json
+   {
+     "id": "cycle-098-agent-network",
+     "label": "Agent-Network Operation Primitives (L1-L7)",
+     "status": "active",
+     "created": "2026-05-03T...",
+     "prd": "grimoires/loa/prd.md",
+     "sdd": "grimoires/loa/sdd.md",
+     "sprints": [
+       {"local_id": 1, "global_id": 132, "label": "L1 hitl-jury-panel + Cross-Cutting Infrastructure", "status": "planned"},
+       {"local_id": 2, "global_id": 133, "label": "L2 cost-budget-enforcer + Reconciliation Cron", "status": "planned"},
+       {"local_id": 3, "global_id": 134, "label": "L3 scheduled-cycle-template", "status": "planned"},
+       {"local_id": 4, "global_id": 135, "label": "L4 graduated-trust", "status": "planned"},
+       {"local_id": 5, "global_id": 136, "label": "L5 cross-repo-status-reader", "status": "planned"},
+       {"local_id": 6, "global_id": 137, "label": "L6 structured-handoff", "status": "planned"},
+       {"local_id": 7, "global_id": 138, "label": "L7 soul-identity-doc + Cycle Integration + Jailbreak Corpus", "status": "planned"}
+     ]
+   }
+   ```
+2. **Set `active_cycle: "cycle-098-agent-network"`** in ledger root
+3. **Advance `global_sprint_counter` from 131 to 138** (covers all 7 cycle-098 sprints)
+4. **Sprint 4.5 is BUFFER, no global_id assigned** (consistent with PRD §Timeline + Loa convention)
+
+### F. Beads Workspace Note
+
+Beads workspace remains UNHEALTHY (#661 `dirty_issues.marked_at` migration bug); this cycle uses **ledger-only sprint tracking** as a permanent fallback (PRD R9 + cycle-098-bug-batch evidence). Per PRD §De-Scope Triggers row "Beads workspace remains broken throughout cycle (R9)": Sprint 1 documents permanent ledger-only fallback for this cycle; no per-sprint `br create` / `br update` calls are required. Future cycles inherit this pattern until #661 is resolved upstream.
 
 ---
 
-## Beads Workflow Notes
-
-This sprint plan is intended to be **mirrored into beads** before Sprint 0 starts:
-
-- **Epic per sprint** (3 epics): `cycle-096-sprint-0-spike`, `cycle-096-sprint-1-functional`, `cycle-096-sprint-2-hardening`
-- **Tasks under each epic**: Task 0.1..0.6 (6 tasks), Task 1.1..1.10 (10 tasks), Task 2.1..2.6 + Task 2.E2E (7 tasks)
-- **Blocking dependencies**:
-  - Every Task 1.x is blocked by Task 0.2 + Task 0.4 + Task 0.5 + Task 0.6 (Sprint 0 hard gate per SDD §8 Phase 0 exit criterion)
-  - Tasks 1.2..1.10 are blocked by Task 1.1 (parser lands FIRST)
-  - Task 1.10 is blocked by Tasks 1.2..1.9 (live test runs at end of Sprint 1)
-  - Every Task 2.x is blocked by Task 1.10 closure (Sprint 1 merge gate)
-  - Task 2.E2E is blocked by Tasks 2.1..2.6 (final cycle gate)
-- **Labels**: `sprint:0`, `sprint:1`, `sprint:2`; `epic:<epic-id>`; `cycle:cycle-096-aws-bedrock`
-
-Run `.claude/scripts/beads-flatline-loop.sh --max-iterations 6 --threshold 5` after beads creation to refine task decomposition before `/run sprint-plan`.
-
----
-
-*Generated by Sprint Planner Agent (deep-name + Claude Opus 4.7 1M) — cycle-096 — 2026-05-02*
+*Generated by Sprint Planner Agent — 2026-05-03. Active cycle proposal: `cycle-098-agent-network` (ledger update required at approval). Pre-sprint dependency: `sprint-bug-131` (#675 fix) MUST merge before Sprint 1 starts. R11 weekly Friday schedule-check ritual already active (routine `trig_01E2ayirT9E93qCx3jcLqkLp`, first run 2026-05-08T16:00Z).*

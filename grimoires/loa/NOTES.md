@@ -1,5 +1,170 @@
 # Loa Project Notes
 
+## Decision Log — 2026-05-03 (cycle-098 SDD v1.5 — Flatline pass #4 integration + cheval bug filed)
+
+### v1.5 SDD landed (2830 lines)
+
+Operator approved all 6 Pass #4 recommendations. Integrations:
+
+- **IMP-001 §1.4.1 cleanup**: jq deprecated as canonicalizer; `lib/jcs.sh` is the chain/signature canonicalizer
+- **IMP-001 Sprint 1 AC**: JCS multi-language conformance CI gate (bash + Python + Node byte-identical)
+- **SKP-001 MUTUAL §3.4.4↔§3.7 reconciliation**: tracked logs use `git log -p` rebuild; untracked L1/L2 use snapshot-archive restore; snapshot cadence **bumped weekly→daily** for L1/L2 (RPO 24h, was 7d)
+- **SKP-001 SOLO_GPT root-of-trust circularity**: maintainer pubkey distributed via **release-signed git tag** (independent of mutable repo); multi-channel fingerprint cross-check (PR + NOTES + release notes)
+- **SKP-002 SOLO_GPT fd-based secrets**: `LOA_AUDIT_KEY_PASSWORD` deprecated; `--password-fd N` or `--password-file <path>` (mode 0600) is the new path; CI redaction tests for env-var leakage
+- **SOLO_OPUS Sprint 1 overload**: R11 weekly Friday schedule-check ritual triggered immediately at Sprint 1 kickoff (not at first slip)
+- **SKP-007 tier_enforcement_mode**: held — v1.4 already deferred to Sprint 1 review-time decision
+
+### Cheval HTTP/2 bug filed: [#675](https://github.com/0xHoneyJar/loa/issues/675)
+
+4 sub-issues bundled:
+1. cheval.py UnboundLocalError hides RetriesExhaustedError (1-line fix)
+2. Anthropic 60s server-side timeout investigation (research)
+3. model-adapter.sh.legacy `-d "$payload"` arglist limit (refactor to `--data-binary @file`)
+4. flatline-orchestrator.sh `--per-call-max-tokens` knob (UX)
+
+Labels: `[A] Bug`, `[PR] P1 High`, `[W] Operations`, `framework`. Suggested triage path: `/bug` with split-or-batch decision per operator. Workaround documented for current cycle (direct curl HTTP/1.1 with max_tokens ≤4096).
+
+### Operator actions — STAGED for sign-off (2026-05-03)
+
+All 5 prerequisites prepared by agent on 2026-05-03 — awaiting operator sign-off before `/sprint-plan`.
+
+#### 1. Offline root key — STAGED
+
+- **Algorithm**: Ed25519 (RFC 8032)
+- **Private key**: `~/.config/loa/audit-keys/cycle098-root.priv` (mode 0600, unencrypted PEM — operator MUST re-encrypt with passphrase OR migrate to YubiKey before Sprint 1)
+- **Public key**: `grimoires/loa/cycles/cycle-098-agent-network/audit-keys-bootstrap/cycle098-root.pub` (PEM, staged)
+- **Bootstrap notes**: `grimoires/loa/cycles/cycle-098-agent-network/audit-keys-bootstrap/README.md`
+
+#### 2. Maintainer root pubkey fingerprint — publication channel 2 of 3
+
+> Cross-verify against PR description (channel 1) + Sprint 1 release notes (channel 3). All 3 must match before any operator accepts the trust anchor.
+
+**SHA-256 of public key SPKI DER (hex)**:
+```
+e76eec460b34eb610f6db1272d7ef364b994d51e49f13ad0886fa8b9e854c4d1
+```
+
+**Colon-separated**:
+```
+e7:6e:ec:46:0b:34:eb:61:0f:6d:b1:27:2d:7e:f3:64:b9:94:d5:1e:49:f1:3a:d0:88:6f:a8:b9:e8:54:c4:d1
+```
+
+**Templates prepared**:
+- PR description (channel 1): `grimoires/loa/cycles/cycle-098-agent-network/pr-description-template.md`
+- This NOTES.md entry (channel 2)
+- Sprint 1 release notes (channel 3): `grimoires/loa/cycles/cycle-098-agent-network/release-notes-sprint1.md`
+
+#### 3. Tier_enforcement_mode default — DECISION FILE STAGED
+
+`grimoires/loa/cycles/cycle-098-agent-network/decisions/tier-enforcement-default.md` — proposed Option C (`warn`-then-`refuse` migration). cycle-098 ships `warn` (with deprecation warning); cycle-099 flips to `refuse`. `--allow-unsupported-tier` opt-out flag exists in both modes.
+
+#### 4. Friday weekly schedule-check ritual — SCHEDULED ✓
+
+- **Routine ID**: `trig_01E2ayirT9E93qCx3jcLqkLp`
+- **Web URL**: https://claude.ai/code/routines/trig_01E2ayirT9E93qCx3jcLqkLp
+- **Cron**: `0 16 * * 5` (every Friday 16:00 UTC = Saturday 02:00 Australia/Melbourne)
+- **First run**: 2026-05-08T16:00Z (this Friday — pre Sprint 1 kickoff; will report `OUT_OF_SCOPE`/`AWAITING_KICKFOFF` until cycle-098 is active)
+- **Repo**: 0xHoneyJar/loa
+- **Model**: claude-sonnet-4-6
+- **Behavior**: 8-step prompt covering active-cycle detection, sprint progress, drift computation, De-Scope Trigger evaluation (if >3d), report file at `grimoires/loa/cycles/cycle-098-agent-network/weekly-check-{date}.md`, branch + PR-comment if Claude GH App installed, escalation marker if >7d drift, sunset behavior when cycle-098 archives.
+- **Operator-side note**: Claude GitHub App is NOT currently installed on 0xHoneyJar/loa. Without it, the routine cannot push the weekly-check branch or post PR comments — it will write the report file only (operator reads it locally on next pull). To enable push/comment, install at https://claude.ai/code/onboarding?magic=github-app-setup.
+
+#### 5. Triage [#675](https://github.com/0xHoneyJar/loa/issues/675) — TRIAGED ✓
+
+- **Bug ID**: `20260503-i675-ceb96f`
+- **Sprint**: `sprint-bug-131` (batched as one "model-adapter large-payload hardening" sprint per operator directive)
+- **Cycle**: `cycle-098-agent-network` (release-blocking)
+- **Eligibility**: 5/5 ACCEPT (stack trace, repro, regression cited, production logs, no disqualifiers)
+- **Severity**: high; risk: high (touches retry path + auth flow)
+- **Test type**: integration primary + unit (cheval scoping, model-adapter argv)
+- **Beads task**: NOT created — beads UNHEALTHY (#661 migration error persists; ledger-only fallback per protocol)
+- **Artifacts**:
+  - `grimoires/loa/a2a/bug-20260503-i675-ceb96f/triage.md` (167 lines)
+  - `grimoires/loa/a2a/bug-20260503-i675-ceb96f/sprint.md` (121 lines)
+  - `.run/bugs/20260503-i675-ceb96f/state.json` (state=TRIAGE, all 4 sub-issues catalogued)
+  - `grimoires/loa/ledger.json` (sprint counter 130 → 131)
+
+**Key codebase findings** during triage:
+- Sub-issue 1 (cheval.py `UnboundLocalError`) confirmed: line 389 local re-import shadows module-scope `BudgetExceededError`. **1-line fix: delete line 389.**
+- Sub-issue 3 (model-adapter.sh.legacy argv limit) confirmed at 3 sites (lines 261, 324, 386). Existing `--config` curl-config-file pattern at lines 311-320 is the template.
+- Sub-issue 2 (Anthropic 60s timeout) is server-side; documentation + warning only.
+- Sub-issue 4 (`--per-call-max-tokens` flag) is net-new wiring; cheval.py line 337 already accepts `args.max_tokens`.
+
+**Test-first plan** (3 failing tests before any code):
+- `.claude/adapters/tests/test_cheval_exception_scoping.py` (NEW)
+- `tests/integration/model-adapter-argv-safety.bats` (NEW)
+- `tests/unit/flatline-orchestrator-max-tokens.bats` (NEW)
+
+**Handoff**: `/run sprint-bug-131` (recommended per CLAUDE.md "ALWAYS use /run for implementation") OR `/implement sprint-bug-131`. System Zone authorization is OK because cycle-098 PRD references this work via [#675].
+
+### All 5 prerequisites — STATUS: PREPARED ✓
+
+| # | Action | Status |
+|---|--------|--------|
+| 1 | Generate offline root key | ✓ Generated, mode 0600, staged in cycle dir |
+| 2 | Publish root pubkey fingerprint in 3 channels | ✓ Templates ready (PR/NOTES/release-notes); fingerprint cross-references in place |
+| 3 | Decide tier_enforcement_mode default | ✓ Decision file proposes Option C (warn-then-refuse migration) |
+| 4 | Set Friday weekly schedule-check ritual | ✓ Routine `trig_01E2ayirT9E93qCx3jcLqkLp` scheduled (first run 2026-05-08T16:00Z) |
+| 5 | Triage [#675](https://github.com/0xHoneyJar/loa/issues/675) | ✓ sprint-bug-131 created, ledger updated, ready for /run |
+
+**Awaiting operator sign-off** before `/sprint-plan` runs for cycle-098-agent-network.
+
+### Sign-off checklist for operator
+
+- [ ] Reviewed `audit-keys-bootstrap/README.md` and the cycle098-root.pub artifact
+- [ ] Verified ~/.config/loa/audit-keys/cycle098-root.priv has mode 0600
+- [ ] Approved tier-enforcement decision (Option C: warn-then-refuse migration)
+- [ ] Approved /schedule recurring agent setup (or chose calendar reminder alternative)
+- [ ] Approved /bug triage path for #675 (batch as one sprint-bug recommended)
+- [ ] Ready for /sprint-plan
+
+### Cheval HTTP/2 disconnect — original bug log (2026-05-03)
+
+### Bug: cheval/httpx HTTP/2 disconnect on 137KB+ payloads with `max_tokens >2048`
+
+While running Flatline pass #3 against `grimoires/loa/sdd.md` (137KB), all four parallel review calls failed via the cheval routing path with `RetriesExhaustedError: Server disconnected without sending a response` after 4 retries.
+
+**Reproducer (without cheval, just httpx)**:
+```python
+import httpx, json, os
+body = {
+    "model": "claude-opus-4-7",
+    "max_tokens": 8192,
+    "messages": [{"role": "user", "content": "<137KB SDD prompt>"}]
+}
+httpx.post("https://api.anthropic.com/v1/messages",
+           headers={"x-api-key": os.environ["ANTHROPIC_API_KEY"], ...},
+           json=body, timeout=httpx.Timeout(connect=10, read=300, write=120, pool=10))
+# After 60s exactly: httpx.RemoteProtocolError: Server disconnected without sending a response.
+```
+
+**Working alternatives**:
+| Path | max_tokens | Result |
+|------|-----------|--------|
+| `curl --http1.1 --data-binary @file` (Anthropic) | 4096 | works (~50s) |
+| `curl --http1.1 --data-binary @file` (Anthropic) | 2048 | works (~38s) |
+| `curl --http1.1 --data-binary @file` (Anthropic) | 8192 | hangs 60s, disconnects |
+| `httpx.post(... HTTP/2)` (Anthropic) | 8192 | hangs 60s, disconnects |
+| `curl` (OpenAI Responses API) | 8192 | works (~20s) |
+
+**Cause hypothesis**: Anthropic API drops the streamed response if it estimates response generation will exceed some inactivity threshold. The 60s wall-clock match across HTTP/1.1 + HTTP/2 + httpx + curl points to a server-side cutoff, not a client bug. `max_tokens: 4096` works because Opus produces output faster than the cutoff fires.
+
+**Compounding bug in cheval.py** (`UnboundLocalError: BudgetExceededError`): when the retry loop fails with `RetriesExhaustedError`, the outer `except BudgetExceededError as e:` clause references a name imported only inside the inner `try` block (`from loa_cheval.types import BudgetExceededError` line 389). Since the inner block didn't reach line 389 (the failure happened in the retry path before any budget check), the import never ran, and the outer except clause hits `UnboundLocalError` instead of catching the actual error. This hides the real `RetriesExhaustedError` traceback from operators.
+
+**Workaround for this cycle**: Direct `curl --http1.1 --data-binary @payload.json` calls. Manually parsed responses; manually computed consensus. Result at `grimoires/loa/a2a/flatline/sdd-review-v13.json` with `confidence: "partial-recovered"`.
+
+**Follow-up issues to file** (deferred):
+1. Fix cheval.py `BudgetExceededError` UnboundLocalError — move the import to module scope
+2. Investigate Anthropic 60s server-side timeout for large prompts; consider documenting `max_tokens ≤4096` for prompts ≥100KB or moving to streaming response path
+3. Add `--data-binary @file` pattern (instead of inline `-d "$payload"`) to legacy `model-adapter.sh` for arglist safety on macOS where `MAX_ARG_STRLEN` is 256K (Linux 128K)
+4. Recommend `flatline_orchestrator.sh` add a `--per-call-max-tokens` knob so callers can tune for large-document reviews
+
+### Pre-existing flatline-orchestrator.sh failure on `default mode` for sdd phase
+
+Running `flatline-orchestrator.sh --doc grimoires/loa/sdd.md --phase sdd --json` exited 3 (all model calls failed) without writing the result JSON (orchestrator logs the failures but doesn't surface what jq parse error 76:1 means). The `jq parse error: Invalid numeric literal at line 1, column 76` on legacy adapter responses comes from an empty/truncated response being piped into jq. Root cause is the inline `-d "$payload"` bash limit on a 137KB SDD compounding with the Anthropic timeout.
+
+---
+
 ## Decision Log — 2026-04-26 (cycle-094 sprint-2 — test infra + filter + SSOT close-out)
 
 ### Sprint-2 closure (T2.1 + T2.2 + T2.3 + T2.4)
@@ -620,3 +785,21 @@ All six bug sprints implemented test-first on branch `fix/sprint-bug-124-129`. S
 - **Pattern: lib + unit-test in isolation** worked well for fixes where the orchestrator logic is hard to test directly. Three new libs (`lib/flatline-exit-classifier.sh`, `lib/bridge-mediums-summary.sh`, `lib/portable-realpath.sh`) all follow the source-from-bash + bats-test-from-shim pattern.
 - **`replace_all=true` worked cleanly** for the 8 bridgebuilder_review sites in post-pr-orchestrator.sh — single-pattern replacement is safer than 8 individual edits.
 - **awk-based `finding_id` extraction had off-by-one**: switched to `jq -sr '.[] | select(...)|.finding_id'` (trajectory files are JSONL with stable schema). jq is the right tool when input is structured.
+
+## Cycle-098 SDD generated — 2026-05-02
+
+- **Output**: `grimoires/loa/sdd.md` (2406 lines; 152 H2 + 132 H3 sections; supersedes prior cycle-097 draft)
+- **Source**: `grimoires/loa/prd.md` v1.2 (PRD v1.2, 2 Flatline passes integrated, 100% agreement on pass #2)
+- **Architectural pattern**: Federated Skill Mesh with Shared Append-Only Audit Substrate (rejected: monolithic Python service; pure-bash + gpg; TS dist; single shared JSONL)
+- **Cross-cutting infrastructure (Sprint 1)**: agent-network-envelope schema (Ed25519-signed, hash-chained, versioned), `lib/audit-envelope.sh`, `sanitize_for_session_start()` extension to `context-isolation-lib.sh`, `tier-validator.sh` (CC-10), `protected-classes.yaml` + router, `OPERATORS.md` + `operator-identity.sh`
+- **Per-primitive components**: 7 skills under `.claude/skills/<name>/`; each owns one or more `.run/*.jsonl` audit log; retention per CC-8 (trust=365d immutable, handoff/budget=90d, decisions/cycles/reads/soul=30d)
+- **5 supported tiers (CC-10)**: Tier 0 baseline → Tier 4 full network; tier-validator at boot with warn (default) / refuse modes
+- **Lifecycle management (IMP-001)**: per-primitive disable/re-enable semantics; `[<PRIMITIVE>-DISABLED]` chain seal; orphan-reference migration notice
+- **Hash-chain recovery (NFR-R7)**: detect break → rebuild from `git log -p` → success: `[CHAIN-RECOVERED]` marker; failure: `[CHAIN-BROKEN]` + BLOCKER + degraded mode
+- **Stack**: bash 4.0+ (5.x preferred) + Python 3.11+; ajv 8.x for schema validation (Python `jsonschema` fallback per R15); `cryptography` Python pkg for Ed25519
+- **Testing**: bats + pytest; "100% critical paths + every BLOCKER has regression test" (cycle-093 sprint-3 lesson); macOS + Linux CI matrix; security tests for prompt injection; adversarial tests for redaction
+- **Development phases**: 7 sprints + 4.5 buffer week (per SKP-001 CRITICAL); L1→L7 ship order; Sprint 1 carries CC infra; Sprint 7 ships cycle-wide cross-tier integration suite
+- **Risks**: 20 enumerated (R1-R20); SKP-001 cascading slip (HIGH/HIGH); R17 hash-chain rebase failure mitigated via runbook + CI hook
+- **SDD-1 + SDD-2 PRD-routed concerns addressed**: §7.3 (CI smoke recurrence — required-checks matrix) + §1.4.1/§3.2 (parser centralization — single audit-envelope.sh as canonical write path)
+- **Next step**: Flatline review of SDD via `/flatline-review` (or auto-trigger if configured), then `/sprint-plan` for sprint breakdown
+
