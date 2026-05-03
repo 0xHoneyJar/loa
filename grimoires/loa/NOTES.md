@@ -1,5 +1,22 @@
 # Loa Project Notes
 
+## Sprint 2 SHIPPED — 2026-05-04 (PR #705, commit a7c50ff)
+
+L2 cost-budget-enforcer + reconciliation cron + daily snapshot job. 4 sub-sprints (2A/2B/2C/2D) implemented inline on Opus 4.7 1M context (vs Sprint 1's subagent dispatch). 92 / 92 tests pass; Sprint 1 regression 39 / 39 clean. Bridgebuilder kaironic converged in 2 iterations (0 BLOCKER, 0 HIGH_CONSENSUS both iters).
+
+**Notable**:
+- Inline implementation pattern saved ~$50 vs subagent dispatch — see `feedback_inline_vs_subagent_4slice.md`
+- Subshell export gotcha bit: `_l2_propagate_test_now` helper required at top of every public function for env-var propagation across `$()` boundaries — see `feedback_subshell_export_gotcha.md`
+- Vision-018 captured: "Test fixture realism — match production threat substrate" (bridgebuilder F8 REFRAME + F-001 convergent across iter-1 + iter-2)
+- Lore entry added: `fail-closed-cost-gate` (Active)
+- Issue #706 filed: signed-mode happy-path test coverage (F-001 follow-up)
+
+**Multi-model upgrade (2026-05-04, post-Sprint 2)**:
+Per operator instruction "always use the most powerful models", upgraded `.loa.config.yaml`:
+- bridgebuilder + flatline + arbiter + red-team: `gpt-5.3-codex` → `gpt-5.5-pro`, `gemini-2.5-pro` → `gemini-3.1-pro-preview`
+- Cost shape: ~17× more expensive on output for `gpt-5.5-pro`; bridgebuilder run goes from ~$3-4 → ~$15-25 per iteration
+- claude-opus-4-7 already most powerful Claude (no change)
+
 ## Triage Log — 2026-05-03/04 (TIER 1 reliability bundle: #674, #634, #633, #676)
 
 `/bug #674 #634 #633 #676` — bundle: post-merge + post-PR pipeline reliability.
