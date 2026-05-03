@@ -875,9 +875,28 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260503-i674-84adf8/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260503-i674-84adf8/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260504-i636-cb9b6d",
+      "label": "Bug Fix — T2+T3 hardening bundle (#636+#681+#687+#691+#692)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issues": [
+        636,
+        681,
+        687,
+        691,
+        692
+      ],
+      "created_at": "2026-05-03T15:07:52Z",
+      "sprints": [
+        "sprint-bug-141"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260504-i636-cb9b6d/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260504-i636-cb9b6d/sprint.md"
     }
   ],
-  "global_sprint_counter": 140,
+  "global_sprint_counter": 141,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",

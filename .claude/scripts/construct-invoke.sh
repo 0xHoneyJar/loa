@@ -19,6 +19,14 @@
 # Exit Codes:
 #   0 = success (JSONL write failure is non-fatal — logs warning)
 #   1 = invalid subcommand
+#   2 = `exit` subcommand called with no resolvable session_id (sprint-bug-141
+#       #636 — pre-fix this emitted a session_id:null row + warning at exit 0;
+#       post-fix it hard-rejects so trajectory pair-matching stays clean).
+#       Callers that previously ignored exit codes MUST now thread session_id
+#       explicitly via positional arg 6 or LOA_SESSION_ID env. The temp-file
+#       LOOKUP path is preserved as silent backward-compat for sequential
+#       callers (a one-line "tempfile_fallback_used" stderr signal is emitted
+#       per call; LOA_INVOKE_FALLBACK_QUIET=1 to suppress).
 #
 # Cycle: loa-constructs-cycle-001 (Leg D — Construct Trajectory Emission)
 # =============================================================================
@@ -183,14 +191,13 @@ do_exit() {
     key=$(session_key "$persona" "$construct_slug")
     rm -f "$(session_temp_path "$key")" 2>/dev/null || true
   else
-    # DEPRECATED FALLBACK: filesystem-as-shared-memory, keyed by
-    # (persona, construct). Race-prone under parallel entry calls with the
-    # same key — see Bridgebuilder PR #617 iter-3 HIGH_CONSENSUS finding +
-    # iter-4 escalation. Tracked for removal in issue #636. Until then we
-    # emit a per-call warning
-    # to nudge callers toward explicit value-passing. Set
-    # LOA_INVOKE_FALLBACK_QUIET=1 to suppress (e.g., when the caller is
-    # known to be sequential and the noise is undesirable).
+    # Issue #636 (sprint-bug-141): temp-file LOOKUP retained as backward-compat
+    # for callers that haven't yet threaded session_id through. PR #617
+    # deprecated this path; sprint-bug-141 completes the migration by:
+    #   - removing the per-call DEPRECATION warning emission (noise reduction)
+    #   - rejecting calls where neither explicit nor temp-file marker resolves,
+    #     instead of silently emitting `session_id: null` which broke
+    #     downstream pair-matching in trajectory analysis.
     local key
     key=$(session_key "$persona" "$construct_slug")
     local temp_path
@@ -198,15 +205,26 @@ do_exit() {
     if [[ -f "$temp_path" ]]; then
       session_id=$(cat "$temp_path" 2>/dev/null || echo "")
       rm -f "$temp_path" 2>/dev/null || true
+      # Bridgebuilder iter-1 (sprint-bug-141 #636 review): per-call DEPRECATION
+      # warning was removed for noise reduction, but keeping the signal silent
+      # makes the racy path permanent. Emit ONE structured stderr line per
+      # process invocation (LOA_INVOKE_STRICT_EXIT=1 to silence) so operators
+      # auditing test logs can still see + measure fallback usage.
       if [[ "${LOA_INVOKE_FALLBACK_QUIET:-0}" != "1" ]]; then
-        echo "[construct-invoke] DEPRECATION: relying on temp-file session-id correlation for $persona/$construct_slug. This path is race-prone under parallel callers. Pass session_id explicitly (positional arg 6 or LOA_SESSION_ID env). Set LOA_INVOKE_FALLBACK_QUIET=1 to suppress." >&2
+        printf '[construct-invoke] info: tempfile_fallback_used persona=%s construct=%s issue=#636\n' \
+          "$persona" "$construct_slug" >&2
       fi
     fi
   fi
 
   if [[ -z "$session_id" ]]; then
-    echo "[construct-invoke] WARNING: no session_id found for $persona/$construct_slug — exit row will have null session_id" >&2
-    session_id="null"
+    # Hard reject — no explicit value, no env, no temp-file marker. Pre-fix
+    # silently emitted a session_id: null row that broke trajectory analysis;
+    # post-fix surfaces the misuse so the caller wires up explicit threading.
+    echo "[construct-invoke] ERROR: no session_id resolvable for $persona/$construct_slug" >&2
+    echo "[construct-invoke]   Pass explicitly: positional arg 6 OR LOA_SESSION_ID env." >&2
+    echo "[construct-invoke]   Issue #636 / sprint-bug-141 — see grimoires/loa/a2a/bug-20260504-i636-cb9b6d/triage.md" >&2
+    return 2
   fi
 
   # Validate/normalize duration_ms
@@ -227,33 +245,22 @@ do_exit() {
   local stream_type="${LOA_STREAM_TYPE:-Signal}"
   local read_mode="${LOA_READ_MODE:-orient}"
 
+  # Issue #636 (sprint-bug-141): session_id is now always non-empty (hard
+  # reject earlier prevents the empty case). The pre-fix `session_id: null`
+  # branch is removed.
   local row
-  if [[ "$session_id" == "null" ]]; then
-    row=$(jq -cn \
-      --arg event "exit" \
-      --arg persona "$persona" \
-      --arg trigger "$trigger" \
-      --arg construct_slug "$construct_slug" \
-      --arg timestamp "$ts" \
-      --argjson duration_ms "$dur_json" \
-      --arg outcome "$outcome" \
-      --arg stream_type "$stream_type" \
-      --arg read_mode "$read_mode" \
-      '{event: $event, session_id: null, persona: $persona, trigger: $trigger, construct_slug: $construct_slug, stream_type: $stream_type, read_mode: $read_mode, timestamp: $timestamp, duration_ms: $duration_ms, outcome: $outcome}')
-  else
-    row=$(jq -cn \
-      --arg event "exit" \
-      --arg session_id "$session_id" \
-      --arg persona "$persona" \
-      --arg trigger "$trigger" \
-      --arg construct_slug "$construct_slug" \
-      --arg timestamp "$ts" \
-      --argjson duration_ms "$dur_json" \
-      --arg outcome "$outcome" \
-      --arg stream_type "$stream_type" \
-      --arg read_mode "$read_mode" \
-      '{event: $event, session_id: $session_id, persona: $persona, trigger: $trigger, construct_slug: $construct_slug, stream_type: $stream_type, read_mode: $read_mode, timestamp: $timestamp, duration_ms: $duration_ms, outcome: $outcome}')
-  fi
+  row=$(jq -cn \
+    --arg event "exit" \
+    --arg session_id "$session_id" \
+    --arg persona "$persona" \
+    --arg trigger "$trigger" \
+    --arg construct_slug "$construct_slug" \
+    --arg timestamp "$ts" \
+    --argjson duration_ms "$dur_json" \
+    --arg outcome "$outcome" \
+    --arg stream_type "$stream_type" \
+    --arg read_mode "$read_mode" \
+    '{event: $event, session_id: $session_id, persona: $persona, trigger: $trigger, construct_slug: $construct_slug, stream_type: $stream_type, read_mode: $read_mode, timestamp: $timestamp, duration_ms: $duration_ms, outcome: $outcome}')
 
   emit_row "$row"
 }

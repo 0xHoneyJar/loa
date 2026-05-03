@@ -117,9 +117,17 @@ fi
 # We delegate the per-line filter + counter aggregation to a Python helper so
 # the date-window arithmetic and ordered-dict traversal are uniform across
 # Linux + macOS.
+#
+# Issue #691 (sprint-bug-141): use mktemp instead of /tmp/panel-...$$.
+# Pre-fix used a predictable path that an attacker could pre-create as a
+# symlink on a multi-user system. mktemp atomically creates a uniquely-named
+# file with mode 0600; the EXIT trap guarantees cleanup even on signal.
+RESULT_FILE="$(mktemp)"
+chmod 600 "$RESULT_FILE" 2>/dev/null || true
+trap 'rm -f "$RESULT_FILE"' EXIT
 LOA_DA_LOG="$LOG_PATH" \
 LOA_DA_WINDOW="$WINDOW_DAYS" \
-python3 - <<'PY' > /tmp/panel-distribution-audit-result.$$ 2>&1
+python3 - <<'PY' > "$RESULT_FILE" 2>&1
 import json
 import os
 import sys
@@ -205,13 +213,13 @@ PY_EXIT=$?
 
 if [[ "$PY_EXIT" -ne 0 ]]; then
     echo "panel-distribution-audit: aggregation helper failed (exit=$PY_EXIT)" >&2
-    cat /tmp/panel-distribution-audit-result.$$ >&2
-    rm -f /tmp/panel-distribution-audit-result.$$
+    cat "$RESULT_FILE" >&2
     exit 2
 fi
 
-REPORT_JSON=$(cat /tmp/panel-distribution-audit-result.$$)
-rm -f /tmp/panel-distribution-audit-result.$$
+REPORT_JSON=$(cat "$RESULT_FILE")
+# EXIT trap removes RESULT_FILE on script exit; explicit rm here is no longer
+# required. Issue #691 (sprint-bug-141) — mktemp + trap pattern.
 
 # ---- Output -----------------------------------------------------------------
 if [[ "$JSON_MODE" -eq 1 ]]; then

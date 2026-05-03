@@ -108,13 +108,34 @@ teardown() {
     [ "$dur" = "null" ]
 }
 
-@test "construct-invoke: exit without preceding entry emits row with null session_id and warns" {
+# Issue #636 (sprint-bug-141): pre-fix, exit-without-entry emitted a
+# session_id: null row + warning. Post-fix, the call is rejected (return 2)
+# so downstream pair-matching never sees orphan rows.
+@test "construct-invoke: exit without resolvable session_id rejects (no row emitted)" {
     run "$SCRIPT" exit ALEXANDER unmatched 100 completed
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"no session_id resolvable"* ]]
+    [[ "$output" == *"#636"* ]] || [[ "$output" == *"sprint-bug-141"* ]]
+    # No trajectory row should have been emitted.
+    if [[ -f "$LOA_TRAJECTORY_FILE" ]]; then
+        ! grep -q '"event":"exit"' "$LOA_TRAJECTORY_FILE" || {
+            echo "Unexpected exit row emitted despite missing session_id"
+            cat "$LOA_TRAJECTORY_FILE"
+            return 1
+        }
+    fi
+}
+
+@test "construct-invoke: explicit-only mode succeeds without temp-file marker" {
+    # Issue #636: explicit value-passing is the canonical path. No temp file,
+    # no env var — just positional arg 6.
+    local sid="bug-141-explicit-only-test"
+    run "$SCRIPT" exit ALEXANDER artisan 100 completed "" "$sid"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"no session_id found"* ]]
-    local sid
-    sid=$(jq -r '.session_id' "$LOA_TRAJECTORY_FILE")
-    [ "$sid" = "null" ]
+    [[ "$output" != *"DEPRECATION"* ]]
+    local emitted_sid
+    emitted_sid=$(jq -r '.session_id' "$LOA_TRAJECTORY_FILE")
+    [ "$emitted_sid" = "$sid" ]
 }
 
 @test "construct-invoke: trigger derives from persona handle when not supplied" {
@@ -213,29 +234,24 @@ teardown() {
     [ "$emitted_sid" = "$positional_sid" ]
 }
 
-@test "construct-invoke: temp-file fallback emits deprecation warning by default" {
-    # Iter-4 escalation: the temp-file fallback path is documented as racy
-    # under concurrency. Make the racy path noisy so callers see it and
-    # migrate to explicit session_id passing.
+# Issue #636 (sprint-bug-141): the 3 deprecation-warning tests that lived
+# here have been removed. The DEPRECATION warning emission was retired with
+# the fallback-path completion (PR #617 deprecated; sprint-bug-141 finished
+# the migration). The temp-file LOOKUP path is preserved silently as
+# backward-compat for sequential callers; the canonical-path tests above
+# (explicit-only, env, positional) carry the load-bearing assertions.
+
+@test "construct-invoke: temp-file fallback (entry+exit) still works without DEPRECATION noise" {
+    # Backward-compat assurance: the lookup path resolves session_id from the
+    # temp file when no explicit value is passed. No warning should be emitted
+    # post-#636 fix.
     "$SCRIPT" entry ALEXANDER artisan >/dev/null
     run "$SCRIPT" exit ALEXANDER artisan 100 completed
     [ "$status" -eq 0 ]
-    [[ "$output" == *"DEPRECATION"* ]]
-    [[ "$output" == *"explicit"* ]]
-}
-
-@test "construct-invoke: LOA_INVOKE_FALLBACK_QUIET=1 silences the deprecation warning" {
-    "$SCRIPT" entry ALEXANDER artisan >/dev/null
-    LOA_INVOKE_FALLBACK_QUIET=1 run "$SCRIPT" exit ALEXANDER artisan 100 completed
-    [ "$status" -eq 0 ]
-    [[ "$output" != *"DEPRECATION"* ]]
-}
-
-@test "construct-invoke: explicit session_id never triggers the deprecation warning" {
-    local sid="explicit-no-warn"
-    run "$SCRIPT" exit ALEXANDER artisan 100 completed "" "$sid"
-    [ "$status" -eq 0 ]
-    [[ "$output" != *"DEPRECATION"* ]]
+    [[ "$output" != *"DEPRECATION"* ]] || {
+        echo "Unexpected DEPRECATION warning post-#636: $output"
+        return 1
+    }
 }
 
 @test "construct-invoke: explicit session_id survives concurrent entries that would race the temp-file fallback" {
