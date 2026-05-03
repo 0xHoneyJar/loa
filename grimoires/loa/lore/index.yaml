@@ -12,6 +12,8 @@ categories:
         status: Active
       - id: deliberative-council
         status: Active
+      - id: fail-closed-cost-gate
+        status: Active
 
   # Future categories (populated by bridge vision elevation):
   # - id: visions

@@ -30,7 +30,7 @@
       "description": "Primitive-specific event type. Sprint 1 defines L1 events; Sprints 2-7 extend.",
       "examples": [
         "panel.invoke", "panel.solicit", "panel.bind", "panel.queued_protected",
-        "budget.allow", "budget.warn_90", "budget.halt_100", "budget.halt_uncertainty", "budget.reconcile",
+        "budget.allow", "budget.warn_90", "budget.halt_100", "budget.halt_uncertainty", "budget.reconcile", "budget.record_call",
         "cycle.start", "cycle.phase", "cycle.complete", "cycle.error",
         "trust.query", "trust.grant", "trust.auto_drop", "trust.force_grant", "trust.auto_raise_eligible",
         "cross_repo.read", "cross_repo.cache_hit", "cross_repo.partial_failure",
