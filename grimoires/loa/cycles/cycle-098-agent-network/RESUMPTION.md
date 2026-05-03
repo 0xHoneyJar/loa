@@ -1,30 +1,56 @@
 # cycle-098-agent-network — Session Resumption Brief
 
-**Last updated**: 2026-05-03 (Sprint 1 SHIPPED; pre-Sprint-2 hardening recommended)
+**Last updated**: 2026-05-03 (Sprint 1 SHIPPED + Sprint 1.5 SHIPPED + 3 hardening bundles SHIPPED; **Sprint 2 ready to fire**)
 **Author**: deep-name + Claude Opus 4.7 1M
 **Purpose**: Crash-recovery + cross-session continuity. Read first when resuming cycle-098 work.
 
-## TL;DR — Two paths, two new contexts
+## TL;DR — Sprint 2 ready to fire
 
-**Path A — recommended (pause + harden, then Sprint 2)**:
-
-For new session focused on **Sprint 1.5 hardening** (~1-2h, ~$5-10):
-```
-Read grimoires/loa/cycles/cycle-098-agent-network/RESUMPTION.md. Execute the pre-written Sprint 1.5 hardening brief: close issues #689 (Python flock parity), #690 (auto-verify trust-store), and optionally #695 (F8 security allowlist tightening). Single PR on chore/cycle-098-sprint-1.5-hardening branch, kaironic bridgebuilder, admin-squash merge. Then end this session — Sprint 2 starts in another fresh context.
-```
-
-After Sprint 1.5 hardening lands, for new session focused on **Sprint 2**:
-```
-Read grimoires/loa/cycles/cycle-098-agent-network/RESUMPTION.md and grimoires/loa/sprint.md. Execute Sprint 2: L2 cost-budget-enforcer + reconciliation cron + daily snapshot job. Slice into 4 sub-sprints if total brief exceeds ~5K tokens (use the Sprint-1 4-slice pattern from this RESUMPTION). Sprint 1 is fully shipped; main is stable; Python adapter flock parity (#689) and auto-verify (#690) closed by Sprint 1.5; foundation is hardened.
-```
-
-**Path B — proceed directly to Sprint 2** (if hardening fits inside Sprint 2's first sub-sprint):
+Hardening is complete. The foundation is rock-solid. Paste this into a fresh Claude Code session:
 
 ```
-Read grimoires/loa/cycles/cycle-098-agent-network/RESUMPTION.md. Sprint 1 is shipped. Start Sprint 2 (L2 cost-budget-enforcer) but FIRST close #689 (Python flock) + #690 (trust-store auto-verify) inside Sub-sprint 2A's pre-work — these are Sprint 2 prerequisites.
+Read grimoires/loa/cycles/cycle-098-agent-network/RESUMPTION.md and grimoires/loa/sprint.md. Sprint 1 is fully shipped (PR #693, commit 6e93587). Sprint 1.5 hardening is shipped (PR #698, commit 289b927). Three additional bug-fix bundles shipped 2026-05-03 closed all TIER 1+2+3 backlog (PRs #699, #700, #703 — 13 issues closed, 103 new tests). Foundation is hardened.
+
+Execute Sprint 2: L2 cost-budget-enforcer per PRD FR-L2-1..10 (#654) + reconciliation cron (un-deferred from FU-2 per SKP-005) + daily snapshot job (RPO 24h per SDD §3.4.4↔§3.7).
+
+Slice into 4 sub-sprints (2A/2B/2C/2D) using the Sprint-1 4-slice pattern (see § Pre-written brief: Sprint 2 below). Full quality-gate chain: /implement (test-first × 4 sub-sprints) → /review-sprint → cross-model adversarial → /audit-sprint paranoid cypherpunk → bridgebuilder kaironic (use inline `.claude/skills/bridgebuilder-review/resources/entry.sh --pr <N>` — proven reliable across 8 PRs this cycle, never via the subagent dispatch which stalled twice on Sprint 1) → admin-squash merge after convergence.
+
+After Sprint 2 lands, the same pattern continues for Sprints 3-7 (L3-L7, issues #655-#659): scheduled-cycle-template, graduated-trust, cross-repo-status-reader, structured-handoff, soul-identity-doc + cycle-wide adversarial corpus.
 ```
 
-Path A is cleaner separation; Path B saves one context window. Path A recommended.
+## Hardening waves shipped 2026-05-03 (post-Sprint-1)
+
+| PR | Commit | Issues closed | New tests | Bridgebuilder |
+|----|--------|---------------|-----------|---------------|
+| [#698](https://github.com/0xHoneyJar/loa/pull/698) | `289b927` | #689, #690, #695 | 47 | iter-3 converged |
+| [#699](https://github.com/0xHoneyJar/loa/pull/699) | `8d368a5` | #697 | 13 | iter-2 converged |
+| [#700](https://github.com/0xHoneyJar/loa/pull/700) | `a6c9940` | #674, #634 (stale), #633, #676 | 16 | iter-2 converged |
+| [#703](https://github.com/0xHoneyJar/loa/pull/703) | `22257f1` | #636, #561 (stale), #681, #687, #691, #692 | 27 | iter-2 converged |
+
+**Total**: 13 GitHub issues closed (10 actionable + 3 stale), 103 new tests, 4 PRs admin-squash merged after kaironic bridgebuilder convergence.
+
+### What this hardening enables for Sprint 2
+
+- **#689** Python flock parity → Sprint 2's L2 reconciliation cron + verdict path are the first cross-adapter writers; no race risk
+- **#690** trust-store auto-verify → safe before operators populate signed trust-store post-bootstrap
+- **#695 F8** redaction allowlist tightened → safer to add Sprint 2 audit log paths
+- **#695 F9** schema_version in signed payload → defeats downgrade attacks on the new gate
+- **#697** post-merge gt_regen + multi-changelog routing → cleaner cycle ships for downstream Loa-mounted projects
+- **#674** post-merge archive gate → cycle PRs no longer auto-revert
+- **#633** post-pr-e2e bats support → loa repo's own E2E gate now functional
+- **#676** Bridgebuilder fresh-findings check → no false-positive FLATLINE in autonomous post-PR validation
+- **#636** construct-invoke session-id race fix → trajectory pair-matching reliable for Sprint 2's audit-event path
+- **#681** *.bak CI guard → planning tooling artifacts can't sneak into Sprint 2 PRs
+- **#691, #692** mktemp + argv hardening → consistent security pattern across panel infra
+
+### Backlog after this hardening
+
+Only 2 outstanding bug-shaped items, neither blocks Sprint 2:
+
+| # | Tier | Notes |
+|---|------|-------|
+| #694 | T3 | Sprint-1 bridgebuilder test-discipline batch (8 findings); ~1-2 days; own micro-sprint; non-blocking |
+| #628 | T4 | BATS test sourcing REFRAME (lib/ convention); large structural; own planning cycle |
 
 ---
 
