@@ -80,7 +80,11 @@ set_observer() {
     set_observer '{"usd_used": 7.50, "billing_ts": "2026-05-04T11:59:00.000000Z"}'
     run "$CLI" usage
     [[ "$status" -eq 0 ]]
-    [[ "$(echo "$output" | jq -r '.daily_cap_usd')" == "50.00" || "$(echo "$output" | jq -r '.daily_cap_usd')" == "50" ]]
+    # F12 fix: numeric comparison instead of string-equals so jq normalization
+    # (e.g., "50.0" vs "50.00") doesn't break the assertion.
+    local cap_value
+    cap_value="$(echo "$output" | jq -r '.daily_cap_usd')"
+    python3 -c "import sys; sys.exit(0 if abs(float('$cap_value') - 50.0) < 0.001 else 1)"
     # No new envelope written.
     [[ "$(wc -l < "$LOG_FILE")" -eq "$pre_lines" ]]
 }

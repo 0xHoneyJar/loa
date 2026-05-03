@@ -48,6 +48,14 @@ EOF
     # grimoires/loa/trust-store.yaml is 2026-05-03; our test envelopes are
     # written at real-time (post-cutoff). LOA_AUDIT_VERIFY_SIGS=0 disables
     # the strict-after signature requirement on chain-only verification.
+    #
+    # NOTE (bridgebuilder iter-1 F-001): the global verify-sigs disable here
+    # creates a regression-blind-spot for the signed-mode happy path. Adding
+    # strict-mode integration tests requires test signing-key fixtures
+    # (out of Sprint 2 scope; tracked as a follow-up issue). The
+    # production deployment path uses LOA_AUDIT_SIGNING_KEY_ID + verify_sigs=1
+    # by default; tests intentionally bypass to keep envelope construction
+    # deterministic without key-management infrastructure.
     unset LOA_AUDIT_SIGNING_KEY_ID
     export LOA_AUDIT_VERIFY_SIGS=0
 }
