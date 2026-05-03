@@ -530,6 +530,29 @@ phase_bridgebuilder_review() {
       return 0
     fi
 
+    # Issue #676 Defect A (sprint-bug-140): verify the bridge produced fresh
+    # findings this iteration. Pre-fix the phase reported `completed` even
+    # when no findings file was created — operators saw a clean "review
+    # complete" while triage silently re-tagged stale entries with the
+    # current PR. Now: read bridge_id from .run/bridge-state.json and
+    # require a matching ${bridge_id}-iter*-findings.json. If absent, mark
+    # `skipped` with a visible WARN.
+    local bridge_state_file="$(pwd)/.run/bridge-state.json"
+    local current_bridge_id=""
+    if [[ -f "$bridge_state_file" ]]; then
+      current_bridge_id=$(jq -r '.bridge_id // empty' "$bridge_state_file" 2>/dev/null || echo "")
+    fi
+
+    if [[ -n "$current_bridge_id" ]]; then
+      local fresh_count
+      fresh_count=$(find "$review_dir" -maxdepth 1 -name "${current_bridge_id}-iter*-findings.json" 2>/dev/null | wc -l | tr -d ' ')
+      if [[ "${fresh_count:-0}" -eq 0 ]]; then
+        log_info "WARN: bridge-orchestrator produced no fresh findings file for bridge_id=${current_bridge_id}; marking phase skipped"
+        _update_phase bridgebuilder_review skipped
+        return 0
+      fi
+    fi
+
     # Run triage — produces convergence state in .run/bridge-triage-convergence.json
     if [[ -x "${SCRIPT_DIR}/post-pr-triage.sh" ]]; then
       local triage_result=0

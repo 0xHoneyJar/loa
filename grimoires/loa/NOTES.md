@@ -1,5 +1,26 @@
 # Loa Project Notes
 
+## Triage Log — 2026-05-03/04 (TIER 1 reliability bundle: #674, #634, #633, #676)
+
+`/bug #674 #634 #633 #676` — bundle: post-merge + post-PR pipeline reliability.
+
+- **Bug ID**: `20260503-i674-84adf8`
+- **Sprint**: `sprint-bug-140` (registered in ledger; `global_sprint_counter` 139 → 140)
+- **Cycle**: `cycle-bug-20260503-i674-84adf8` (active)
+- **Triage**: `grimoires/loa/a2a/bug-20260503-i674-84adf8/triage.md`
+- **Sprint plan**: `grimoires/loa/a2a/bug-20260503-i674-84adf8/sprint.md`
+
+**Key finding**: Issue #634 is **stale** — already fixed by PR #670 (commit 9310d30, sprint-bug-126 / Issue #663). `--phase pr` is in flatline-orchestrator allowlist at line 1539; regression coverage in `tests/unit/flatline-orchestrator-phase-pr.bats`. Bundle includes a Task 4 to close #634 with the fix-trail comment. No code change required for #634.
+
+The other three are actionable and surgical:
+- **#674**: pre-archive completeness gate in `archive_cycle_in_ledger()` — converts "fail-and-revert" to "skip-and-continue"; integrity guard becomes safety net
+- **#633**: add `bats ` to `validate_command()` allowlist + add bats probe in `detect_test_command()` after pyproject.toml
+- **#676**: bridge-id filter in `post-pr-triage.sh:main()` + fresh-findings check in `post-pr-orchestrator.sh` BRIDGEBUILDER_REVIEW phase — converts silent false-positive into visible WARNING
+
+**Beads task**: NOT created — `br create` failed with the same `dirty_issues.marked_at` migration error (#661) that's been blocking task tracking since 2026-04. Continued without beads per skill protocol's graceful-fallback rule. Triage and sprint disk artifacts + ledger entry are the source-of-truth.
+
+Next step: `/implement sprint-bug-140` (or `/run sprint-bug-140` for full implement→review→audit cycle).
+
 ## Decision Log — 2026-05-03 (cycle-098 SDD v1.5 — Flatline pass #4 integration + cheval bug filed)
 
 ### v1.5 SDD landed (2830 lines)

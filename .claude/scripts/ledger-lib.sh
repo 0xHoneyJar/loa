@@ -768,6 +768,20 @@ archive_cycle() {
         return $LEDGER_NO_ACTIVE_CYCLE
     fi
 
+    # Issue #674 (sprint-bug-140): pre-archive completeness gate — refuse to
+    # archive a cycle while any of its sprints are still in non-`completed`
+    # state. Mirrors the gate added in post-merge-orchestrator::archive_cycle_in_ledger
+    # so the manual ledger-lib path enforces the same invariant.
+    local incomplete_count
+    incomplete_count=$(jq -r --arg id "$active_cycle" \
+        '[(.cycles[] | select(.id == $id)).sprints[]? | select(.status != "completed")] | length' \
+        "$ledger_path" 2>/dev/null || echo "0")
+
+    if [[ "${incomplete_count:-0}" -gt 0 ]]; then
+        echo "Cycle ${active_cycle} has ${incomplete_count} incomplete sprint(s); refusing to archive" >&2
+        return $LEDGER_VALIDATION_ERROR
+    fi
+
     local now_date_str
     now_date_str=$(now_date)
     local grimoire_dir

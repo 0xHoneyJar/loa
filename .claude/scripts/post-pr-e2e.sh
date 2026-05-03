@@ -83,6 +83,15 @@ validate_command() {
     "gradle "
     "mvn "
     "dotnet "
+    # Issue #633 (sprint-bug-140): bash-only repos (incl. loa itself) use
+    # bats-core for unit/integration tests. Prefix-match — exact command
+    # is constructed by detect_test_command (e.g., "bats tests/unit/").
+    # The post-pr-e2e dispatch path uses run_with_timeout + bash -c, so a
+    # malicious "bats; rm -rf /" would still go through bash expansion;
+    # auto-detection only emits hardcoded paths so user-supplied TEST_CMD
+    # is the only injection vector and that's the same trust boundary as
+    # the other allowlist entries.
+    "bats "
   )
 
   for prefix in "${allowed_prefixes[@]}"; do
@@ -93,7 +102,7 @@ validate_command() {
 
   # Log warning for unrecognized commands
   log_error "Command not in allowlist: ${cmd:0:50}..."
-  log_error "Allowed prefixes: npm, yarn, pnpm, make, cargo, go, pytest, jest, vitest, mocha, bun, deno, gradle, mvn, dotnet"
+  log_error "Allowed prefixes: npm, yarn, pnpm, make, cargo, go, pytest, jest, vitest, mocha, bun, deno, gradle, mvn, dotnet, bats"
   return 1
 }
 
@@ -247,6 +256,24 @@ detect_test_command() {
   # Check for pytest (Python)
   if [[ -f "pytest.ini" ]] || [[ -f "pyproject.toml" ]]; then
     echo "pytest"
+    return 0
+  fi
+
+  # Issue #633 (sprint-bug-140): bash-only repos use bats-core. Probed AFTER
+  # project-specific markers so existing project conventions (npm/cargo/...)
+  # win when both are present. tests/unit/ takes priority over tests/integration/
+  # because integration is the broader, slower lane — unit-only is the
+  # default fast cycle and matches loa's own pattern.
+  if compgen -G "tests/unit/*.bats" > /dev/null 2>&1; then
+    echo "bats tests/unit/"
+    return 0
+  fi
+  if compgen -G "tests/integration/*.bats" > /dev/null 2>&1; then
+    echo "bats tests/integration/"
+    return 0
+  fi
+  if compgen -G "tests/*.bats" > /dev/null 2>&1; then
+    echo "bats tests/"
     return 0
   fi
 

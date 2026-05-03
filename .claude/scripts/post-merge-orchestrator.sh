@@ -1094,7 +1094,14 @@ phase_notify() {
 # Ledger Integration
 # =============================================================================
 
-# Archive the active cycle in the Sprint Ledger when a cycle PR merges
+# Archive the active cycle in the Sprint Ledger when a cycle PR merges.
+#
+# Issue #674 (sprint-bug-140): pre-archive completeness gate. Pre-fix the
+# orchestrator blindly marked the active cycle as archived even when its
+# sprints were still in `planned` / `in_progress` state. The integrity guard
+# (post-merge.yml) caught this and reverted on every merge — pipeline failed
+# on every cycle PR. The gate transforms the integrity guard from "routine
+# recovery" into a true safety net.
 archive_cycle_in_ledger() {
   local ledger="${PROJECT_ROOT}/grimoires/loa/ledger.json"
   if [[ ! -f "$ledger" ]]; then
@@ -1115,6 +1122,21 @@ archive_cycle_in_ledger() {
     active_cycle=$(jq -r '.cycles[] | select(.status == "active") | .id' "$ledger" 2>/dev/null || echo "")
     if [[ -z "$active_cycle" ]]; then
       echo "[LEDGER] No active cycle found — skipping"
+      return 0
+    fi
+
+    # Issue #674: pre-archive gate — count sprints whose status is not
+    # "completed". Skip-and-continue (return 0) on incomplete state so the
+    # post-merge pipeline doesn't fail on cycle PRs whose remaining sprints
+    # are still in flight. The cycle remains `active` until every sprint
+    # closes; subsequent merges retry the gate idempotently.
+    local incomplete_count
+    incomplete_count=$(jq -r --arg cycle "$active_cycle" \
+      '[(.cycles[] | select(.id == $cycle)).sprints[]? | select(.status != "completed")] | length' \
+      "$ledger" 2>/dev/null || echo "0")
+
+    if [[ "${incomplete_count:-0}" -gt 0 ]]; then
+      echo "[LEDGER] Cycle ${active_cycle} has ${incomplete_count} incomplete sprint(s); skipping archive"
       return 0
     fi
 

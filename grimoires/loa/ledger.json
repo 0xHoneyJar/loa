@@ -856,9 +856,28 @@
           "primitive": "L7"
         }
       ]
+    },
+    {
+      "id": "cycle-bug-20260503-i674-84adf8",
+      "label": "Bug Fix — post-merge + post-PR pipeline reliability bundle (#674, #634, #633, #676)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/674",
+      "source_issue_bundle": [
+        "https://github.com/0xHoneyJar/loa/issues/674",
+        "https://github.com/0xHoneyJar/loa/issues/634",
+        "https://github.com/0xHoneyJar/loa/issues/633",
+        "https://github.com/0xHoneyJar/loa/issues/676"
+      ],
+      "created_at": "2026-05-03T13:48:16Z",
+      "sprints": [
+        "sprint-bug-140"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260503-i674-84adf8/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260503-i674-84adf8/sprint.md"
     }
   ],
-  "global_sprint_counter": 139,
+  "global_sprint_counter": 140,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",

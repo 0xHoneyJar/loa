@@ -362,18 +362,49 @@ main() {
     return 0
   fi
 
-  # Find most recent findings file (or all per-iteration files)
-  local findings_files=()
-  while IFS= read -r -d '' f; do
-    findings_files+=("$f")
-  done < <(find "$REVIEW_DIR" -name "*-findings.json" -print0 2>/dev/null)
-
-  if [[ ${#findings_files[@]} -eq 0 ]]; then
-    log "No findings files found in $REVIEW_DIR"
-    return 0
+  # Issue #676 Defect B (sprint-bug-140): filter findings by current bridge_id
+  # so stale entries from prior bridge runs don't get re-tagged with the current
+  # PR. When .run/bridge-state.json is absent or bridge_id is empty (interactive
+  # /run-bridge legacy mode), fall through to the existing glob — preserves
+  # backward compat.
+  local bridge_state_file="$CWD_AT_INVOKE/.run/bridge-state.json"
+  local bridge_id=""
+  if [[ -f "$bridge_state_file" ]]; then
+    bridge_id=$(jq -r '.bridge_id // empty' "$bridge_state_file" 2>/dev/null || echo "")
   fi
 
-  log "Found ${#findings_files[@]} findings file(s)"
+  local findings_files=()
+  if [[ -n "$bridge_id" ]]; then
+    # Filter to fresh findings files matching the current bridge_id only.
+    while IFS= read -r -d '' f; do
+      findings_files+=("$f")
+    done < <(find "$REVIEW_DIR" -maxdepth 1 -name "${bridge_id}-iter*-findings.json" -print0 2>/dev/null)
+
+    if [[ ${#findings_files[@]} -eq 0 ]]; then
+      log "WARN: bridge ${bridge_id} produced no findings files in $REVIEW_DIR"
+      log "(prior-run findings will NOT be processed; bridge_id filter active)"
+      # Still emit a convergence record below so downstream consumers see FLATLINE
+      # rather than thinking triage was never invoked.
+    else
+      log "Filtered to ${#findings_files[@]} findings file(s) matching bridge_id=${bridge_id}"
+    fi
+  else
+    # Backward-compat path: no bridge-state.json or empty bridge_id. Glob all.
+    while IFS= read -r -d '' f; do
+      findings_files+=("$f")
+    done < <(find "$REVIEW_DIR" -name "*-findings.json" -print0 2>/dev/null)
+
+    if [[ ${#findings_files[@]} -eq 0 ]]; then
+      log "No findings files found in $REVIEW_DIR"
+      return 0
+    fi
+
+    log "Found ${#findings_files[@]} findings file(s) (no bridge_id filter — interactive mode)"
+  fi
+
+  # If filter yielded zero results, skip the per-file loop. The convergence
+  # record below still emits FLATLINE so the orchestrator sees a clean state
+  # (rather than treating "no triage" as "no signal").
 
   for f in "${findings_files[@]}"; do
     process_findings_file "$f"
