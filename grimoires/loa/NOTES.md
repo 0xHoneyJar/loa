@@ -257,6 +257,42 @@ Also addressed iter-4 claude F-002 (LOW): trimmed reviewer-ID citations from inl
 
 **Kaironic verdict**: iter-4 surfaced ONE genuine new finding (gemini's coverage gap) plus mostly REPEATs. After iter-4 fix, the symmetric coverage is now complete (`*.bak` AND `.*-bak` both caught for all 4 artifact classes). Iter-5 should produce a clean plateau or pure REPEATs. Per kaironic memory PR #639 example: ran iter-5 to confirm convergence; PR #603 example: ran iter-9 to confirm hallucinated/stale findings as terminator.
 
+### Bridgebuilder iter-5 — kaironic convergence achieved (ALL 5 criteria hold)
+
+**Stats**: 0 HIGH_CONSENSUS, 2 DISPUTED, 0 BLOCKER, 7 findings / 6 unique (was 9 in iter-4 — 33% reduction; cumulative 54% reduction from iter-1).
+
+**5 of 6 kaironic stopping criteria now hold** (criterion 5 = mutation-test-confirmed correctness, not applicable to a planning PR):
+
+1. ✅ **HIGH_CONSENSUS plateau at 0**: 5 consecutive iterations at HC=0. Strongest signal of cross-model agreement exhaustion on residual concerns.
+2. ✅ **Finding-rotation at finer grain** (criterion #2): iter-5 produces no new categories — only finer-grain repeats of iter-1..iter-4 findings (gitignore patterns, audit-key README, large-doc churn, REFRAME on filter).
+3. ✅ **Findings shift from production-correctness to test/process nitpicks** (criterion #3): iter-5 findings recommend "CI guard rejecting *.bak in commits", "split into per-section commits", "promote convention to enforcement with CI check" — these are all process/policy hardenings, not production-correctness fixes. The production code (the `.gitignore` patterns) is correct as verified by `git check-ignore`.
+4. ✅ **REFRAME findings emerge** (criterion #4): iter-5 produces meta-commentary about review process ("Condorcet jury theorem requires evaluators to be better than random... Diff size is an inverse proxy for evaluator accuracy"). REFRAMEs are unactionable on the code itself — they're vision candidates.
+5. ✅ **Factually-stale findings** (criterion #6, the strongest signal): iter-3 already fired this; iter-5 confirms by repeating the same "may not match" claim despite verification.
+
+**Iter-5 finding breakdown** (zero new actionable findings):
+- 1 LOW REPEAT (claude gitignore-backup-patterns — finer-grain of "patterns too narrow/broad" rotation)
+- 1 MEDIUM REPEAT (claude large-planning-doc-churn — same as iter-1 SDD-rewrite SPECULATION; deferred to future cycle)
+- 1 LOW REPEAT (claude+gpt public-key-in-repo — first time these two agree at any severity, but only at LOW; same as iter-1 audit-key SPECULATION)
+- 1 MEDIUM REPEAT (gpt F-001 — "patterns too broad", same contradictory-pole as iter-3/4)
+- 3 PRAISE (claude praise-decision-trail, gpt F-003, gemini e0d0cf0c) — confirms iter-2/3/4 fixes have good architecture
+
+**Decision: STOP HERE.** Per kaironic memory: "**when 3-5 hold, address remaining MEDIUM findings with documentation comments (decision-trail breadcrumbs explaining accepted trade-offs) rather than additional code rewrites. Then admin-merge.**"
+
+**Trade-offs accepted as iter-5 acknowledgment** (no further code changes):
+- **Large planning-doc churn** (claude MEDIUM DISPUTED): the PRD/SDD/sprint diffs (~5400 lines) are inherently large because cycle-098 is a v1.0 → v1.5 architectural revision spanning 7 primitives. Splitting into per-section commits is preferable in principle but mechanically impossible mid-Flatline (each Flatline pass requires the whole document to evaluate consistency). This is the trade-off the framework already makes; cycle-099+ may experiment with stacked diffs for incremental SDD changes.
+- **Patterns "too broad" / hidden legitimate artifacts** (gpt MEDIUM DISPUTED, REPEAT): the falsely-suppressed-name risk (`sprint-retro-bak.md`) requires (a) someone naming a primary artifact with `-bak` or `.bak` suffix and (b) not noticing it's missing. Both are improbable in this codebase where artifacts are tracked through ledger.json with cross-references. Mitigation already in place: `git status -i` shows ignored files; `git check-ignore -v <path>` reveals matching pattern.
+- **CI guard for *.bak commits** (multiple LOW): valuable defense-in-depth but out of scope for a planning PR. **Vision candidate for cycle-099**: a pre-commit hook + CI guard that rejects `*.bak` files outside ignored paths, making the policy enforceable rather than aspirational.
+- **Audit-key README provenance/rotation**: the iter-1 NOTES already deferred this to cycle-099 with Sprint 1 covering passphrase + tag-signed verification. Iter-5 LOW agreement (claude+gpt) confirms the deferral was the right call — neither model promotes it to MEDIUM/HIGH.
+
+**Vision candidates logged for cycle-099**:
+1. CI guard for `*.bak` files (policy-as-code beats policy-as-comment)
+2. Stacked diffs for incremental SDD changes
+3. RFC-3647-style Certificate Policy for audit-key bootstrap
+4. Per-PR opt-in flag (`review-loa-content: true`) to surface planning artifacts to bridgebuilder
+5. Should planning tooling stop emitting `.bak` siblings entirely (REFRAME from iter-3 prose)
+
+**Final iter-5 verdict**: COMMENT. PR #678 is READY_FOR_MERGE.
+
 ---
 
 ## Decision Log — 2026-04-26 (cycle-094 sprint-2 — test infra + filter + SSOT close-out)
