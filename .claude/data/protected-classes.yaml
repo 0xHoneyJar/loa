@@ -1,0 +1,67 @@
+# =============================================================================
+# Protected-Class Taxonomy — cycle-098 Sprint 1B (PRD Appendix D, SDD §1.4.2)
+#
+# Default protected classes for L1 + L4 (and any future skill emitting
+# decision_class). Operator may extend via .loa.config.yaml::protected_classes_extra.
+#
+# When a decision_class matches a protected class, autonomous routing
+# short-circuits to QUEUED_PROTECTED — the operator must act manually.
+#
+# Override procedure: see PRD Appendix D + the protected-class-router CLI:
+#   /loa protected-class override --class <id> --duration <s> --reason <text>
+#
+# Versioning: schema_version. Breaking changes (removing a class, semantics
+# change) require operator acknowledgement at next session start.
+# =============================================================================
+schema_version: "1.0"
+
+classes:
+  - id: credential.rotate
+    description: "Rotation of API keys, credentials, secrets"
+    why_protected: "Misrotation can lock out the operator; rolling back requires manual intervention"
+    requires_operator: true
+
+  - id: credential.revoke
+    description: "Revocation of credentials"
+    why_protected: "Same as rotate; irreversible without operator action"
+    requires_operator: true
+
+  - id: production.deploy
+    description: "Deployment to production environments"
+    why_protected: "Customer-impact; rollback requires operator-initiated runbook"
+    requires_operator: true
+
+  - id: production.rollback
+    description: "Rolling back a production deploy"
+    why_protected: "Same as deploy; misuse can lose work"
+    requires_operator: true
+
+  - id: destructive.irreversible
+    description: "rm -rf, force-push to main, drop tables, delete branches"
+    why_protected: "Cannot be undone; operator must explicitly authorize"
+    requires_operator: true
+
+  - id: git.merge_main
+    description: "Merging PRs into main branch"
+    why_protected: "Affects shared state; reviewer + auditor have already approved, but final dispatch is operator-bound"
+    requires_operator: true
+
+  - id: schema.migration
+    description: "Database or contract schema migrations"
+    why_protected: "Affects data integrity; rollback paths must be operator-validated"
+    requires_operator: true
+
+  - id: cycle.archive
+    description: "Archiving a cycle (L4 mutation)"
+    why_protected: "Cycle archives are immutable; operator confirms before commit"
+    requires_operator: true
+
+  - id: trust.force_grant
+    description: "Force-granting trust during cooldown (L4)"
+    why_protected: "Override of safety mechanism; operator-bound by definition"
+    requires_operator: true
+
+  - id: budget.cap_increase
+    description: "Raising L2 daily cap mid-cycle"
+    why_protected: "Affects fail-closed semantics; operator-bound to prevent runaway"
+    requires_operator: true

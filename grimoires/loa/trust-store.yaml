@@ -1,0 +1,70 @@
+---
+# =============================================================================
+# Loa Audit Trust-Store — cycle-098 Sprint 1B
+#
+# Per SDD §1.9.3.1 + Sprint 1 SKP-001/IMP-002 ACs.
+#
+# This file is the per-repo audit-key trust-store. Verifiers consult it to
+# resolve a writer's public key when validating signed audit-log envelopes.
+#
+# **BOOTSTRAP-PENDING**: this trust-store is in its initial state. The
+# `root_signature` field is empty until the maintainer signs the trust-store
+# OFFLINE with the cycle-098 root key (fingerprint
+# e7:6e:ec:46:0b:34:eb:61:0f:6d:b1:27:2d:7e:f3:64:b9:94:d5:1e:49:f1:3a:d0:88:6f:a8:b9:e8:54:c4:d1).
+#
+# Until then:
+#   - `audit_trust_store_verify` returns non-zero (BLOCKER-style)
+#   - Audit-log signature verification falls back to local <key-dir>/<key_id>.pub
+#     (test/CI path) — NOT production-safe, but useful while operators bootstrap
+#     their writer-id keypairs.
+#
+# To sign offline (operator action — see grimoires/loa/runbooks/audit-keys-bootstrap.md):
+#   1. Operator drafts updates to keys[]/revocations[]/trust_cutoff via PR
+#   2. Maintainer reviews, signs the JCS canonicalization of {keys, revocations, trust_cutoff}
+#      with the offline root key
+#   3. Maintainer fills in root_signature.signature (base64) + signed_at + signer_pubkey
+#   4. Maintainer commits the signed trust-store via merge of operator's PR
+# =============================================================================
+schema_version: "1.0"
+
+root_signature:
+  algorithm: ed25519
+  signer_pubkey: |
+    -----BEGIN PUBLIC KEY-----
+    MCowBQYDK2VwAyEAdXgpsndtu9p+fI3Rw/rqr+LjQYtOrZKsXgHKN974o+M=
+    -----END PUBLIC KEY-----
+  signed_at: ""    # populated when maintainer signs offline
+  signature: ""    # populated when maintainer signs offline
+
+# Per-writer audit-key entries. Each writer has a keypair with the private
+# key at ~/.config/loa/audit-keys/<writer_id>.priv (mode 0600).
+#
+# Entry schema:
+#   - writer_id: <slug>            # matches signing_key_id field in envelopes
+#     pubkey_pem: |                # PEM-encoded Ed25519 SubjectPublicKeyInfo
+#       -----BEGIN PUBLIC KEY-----
+#       ...
+#       -----END PUBLIC KEY-----
+#     operator_id: <slug>           # references grimoires/loa/operators.md
+#     valid_from: <iso-8601>
+#     valid_until: null             # null = current
+#     notes: <text>                 # free-form
+keys: []
+
+# Per-writer revocation entries (compromise playbook step 3, SDD §1.9.3.1).
+#   - writer_id: <slug>
+#     pubkey_pem: |
+#       -----BEGIN PUBLIC KEY-----
+#       ...
+#       -----END PUBLIC KEY-----
+#     revoked_at: <iso-8601>
+#     reason: <text>
+#     revocation_signature: <base64>   # signed by NEW key
+revocations: []
+
+# Trust-cutoff timestamp (per IMP-002).
+# Entries with ts_utc < trust_cutoff.default_strict_after are grandfathered:
+# verification does NOT fail when signing_key_id is absent from this trust-store.
+# This permits cycle-098 to ship into a repo with prior history.
+trust_cutoff:
+  default_strict_after: "2026-05-03T00:00:00Z"

@@ -2,19 +2,23 @@
 # =============================================================================
 # audit-envelope.sh — canonical write/read/verify path for L1-L7 audit logs.
 #
-# cycle-098 Sprint 1A foundation. All 7 primitives' JSONL audit logs use the
-# same envelope shape from `.claude/data/trajectory-schemas/agent-network-envelope.schema.json`.
+# cycle-098 Sprint 1A foundation, extended in Sprint 1B with Ed25519 signing.
+# All 7 primitives' JSONL audit logs use the same envelope shape from
+# `.claude/data/trajectory-schemas/agent-network-envelope.schema.json`.
 #
-# Sprint 1A implements:
+# Sprint 1A:
 #   - audit_emit            : append a validated, hash-chained envelope
 #   - audit_verify_chain    : walk a log; verify prev_hash continuity
 #   - audit_seal_chain      : write final [<PRIMITIVE>-DISABLED] marker
 #
-# Sprint 1B will add (TODO markers below):
-#   - Ed25519 signing on emit (via cryptography)
-#   - Ed25519 signature verification in verify_chain
-#   - Key loading from ~/.config/loa/audit-keys/<signing_key_id>.priv
-#   - LOA_AUDIT_KEY_PASSWORD --password-fd / --password-file support (SKP-002)
+# Sprint 1B (this revision):
+#   - Ed25519 signing wired into audit_emit (when LOA_AUDIT_SIGNING_KEY_ID set)
+#   - Ed25519 signature verification in audit_verify_chain
+#   - audit_emit_signed: explicit signing entrypoint with --password-fd /
+#     --password-file (SKP-002)
+#   - audit_trust_store_verify: trust-store root-of-trust verification
+#     against pinned root pubkey at .claude/data/maintainer-root-pubkey.txt
+#   - LOA_AUDIT_KEY_PASSWORD env var DEPRECATED (warn on use)
 #
 # Sprint 1C: sanitize_for_session_start integration (untrusted-content fields).
 # Sprint 1D: L1 panel-decisions integration.
@@ -23,6 +27,7 @@
 #   - Canonical-JSON via lib/jcs.sh (RFC 8785). NEVER substitute jq -S -c.
 #   - Schema validation at write-time via ajv (Node) or jsonschema (Python fallback).
 #   - JSONL: one envelope per line, no whitespace, terminated with \n.
+#   - Private keys are NEVER passed via argv. Use --password-fd / --password-file.
 # =============================================================================
 
 set -euo pipefail
@@ -36,13 +41,21 @@ _LOA_AUDIT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _LOA_AUDIT_REPO_ROOT="$(cd "${_LOA_AUDIT_DIR}/.." && pwd)"
 _LOA_AUDIT_SCHEMA="${_LOA_AUDIT_REPO_ROOT}/data/trajectory-schemas/agent-network-envelope.schema.json"
 _LOA_AUDIT_JCS_LIB="${_LOA_AUDIT_REPO_ROOT}/../lib/jcs.sh"
+_LOA_AUDIT_SIGNING_HELPER="${_LOA_AUDIT_DIR}/lib/audit-signing-helper.py"
 
 # Source JCS canonicalizer.
 # shellcheck source=../../lib/jcs.sh
 source "${_LOA_AUDIT_JCS_LIB}"
 
 # Schema version this writer emits. Bump major on breaking schema change.
-LOA_AUDIT_SCHEMA_VERSION="${LOA_AUDIT_SCHEMA_VERSION:-1.0.0}"
+# Sprint 1B: bumped to 1.1.0 to mark signature/signing_key_id presence.
+LOA_AUDIT_SCHEMA_VERSION="${LOA_AUDIT_SCHEMA_VERSION:-1.1.0}"
+
+# Default key directory: ~/.config/loa/audit-keys/ — overridable via
+# LOA_AUDIT_KEY_DIR. The trust-store is at grimoires/loa/trust-store.yaml.
+_LOA_AUDIT_DEFAULT_KEY_DIR="${HOME:-/tmp}/.config/loa/audit-keys"
+_LOA_AUDIT_PINNED_PUBKEY="${LOA_PINNED_ROOT_PUBKEY_PATH:-${_LOA_AUDIT_REPO_ROOT}/data/maintainer-root-pubkey.txt}"
+_LOA_AUDIT_TRUST_STORE_DEFAULT="${_LOA_AUDIT_REPO_ROOT}/../grimoires/loa/trust-store.yaml"
 
 # -----------------------------------------------------------------------------
 # _audit_log() — internal logging helper. Goes to stderr to avoid corrupting stdout.
@@ -181,13 +194,177 @@ PY
 }
 
 # -----------------------------------------------------------------------------
+# _audit_resolve_key_dir — return the active key directory (LOA_AUDIT_KEY_DIR
+# if set, otherwise ~/.config/loa/audit-keys).
+# -----------------------------------------------------------------------------
+_audit_resolve_key_dir() {
+    echo "${LOA_AUDIT_KEY_DIR:-${_LOA_AUDIT_DEFAULT_KEY_DIR}}"
+}
+
+# -----------------------------------------------------------------------------
+# _audit_sign_chain_input <signing_key_id> <chain_input_bytes> [pw-flags...]
+#
+# Read canonical-JSON bytes from stdin, return base64 Ed25519 signature on
+# stdout. Honors --password-fd N / --password-file PATH passed via additional
+# args (forwarded verbatim to the signing helper).
+#
+# IMPORTANT: do NOT pass the password as an argument. xtrace-disable around
+# any block that touches the helper.
+# -----------------------------------------------------------------------------
+_audit_sign_stdin() {
+    local key_id="$1"; shift
+    local key_dir
+    key_dir="$(_audit_resolve_key_dir)"
+
+    # BB-001: temporarily disable xtrace to avoid leaking password-file paths
+    # or fd numbers in trace output.
+    local _xtrace_was_on=0
+    case "$-" in *x*) _xtrace_was_on=1; set +x ;; esac
+
+    python3 "${_LOA_AUDIT_SIGNING_HELPER}" sign \
+        --key-id "$key_id" --key-dir "$key_dir" "$@"
+    local rc=$?
+
+    [[ "$_xtrace_was_on" == "1" ]] && set -x
+    return "$rc"
+}
+
+# -----------------------------------------------------------------------------
+# _audit_verify_signature <pubkey-pem> <canonical_bytes> <sig_b64>
+# Returns 0 on valid, non-zero on invalid. Writes nothing to stdout.
+# -----------------------------------------------------------------------------
+_audit_verify_signature_inline() {
+    local pubkey_pem="$1"
+    local canonical_bytes="$2"
+    local sig_b64="$3"
+
+    {
+        printf '%s' "$canonical_bytes"
+        printf '\n'
+        printf '%s' "$sig_b64"
+    } | python3 "${_LOA_AUDIT_SIGNING_HELPER}" verify-inline \
+            --pubkey-pem "$pubkey_pem" >/dev/null 2>&1
+}
+
+# -----------------------------------------------------------------------------
+# _audit_pubkey_for_key_id <key_id>
+# Resolve the public-key PEM for <key_id>:
+#   1. Trust-store at grimoires/loa/trust-store.yaml — preferred path
+#   2. Local fallback: <key-dir>/<key_id>.pub (used in tests + CI)
+# Returns the PEM on stdout, non-zero exit if not resolvable.
+# -----------------------------------------------------------------------------
+_audit_pubkey_for_key_id() {
+    local key_id="$1"
+
+    # Prefer trust-store entry when available.
+    local trust_store="${LOA_TRUST_STORE_FILE:-${_LOA_AUDIT_TRUST_STORE_DEFAULT}}"
+    if [[ -f "$trust_store" ]] && command -v yq >/dev/null 2>&1; then
+        local pem
+        pem="$(yq -r --arg id "$key_id" \
+            '.keys[]? | select(.writer_id == $id) | .pubkey_pem // ""' \
+            "$trust_store" 2>/dev/null || true)"
+        if [[ -n "$pem" && "$pem" != "null" ]]; then
+            printf '%s\n' "$pem"
+            return 0
+        fi
+    fi
+
+    # Fallback: local <key-dir>/<key_id>.pub (test path).
+    local key_dir
+    key_dir="$(_audit_resolve_key_dir)"
+    local pub_path="${key_dir}/${key_id}.pub"
+    if [[ -f "$pub_path" ]]; then
+        cat "$pub_path"
+        return 0
+    fi
+    return 1
+}
+
+# -----------------------------------------------------------------------------
+# audit_trust_store_verify <trust_store_path>
+#
+# Verify the trust-store's root_signature against the pinned root pubkey at
+# .claude/data/maintainer-root-pubkey.txt (or LOA_PINNED_ROOT_PUBKEY_PATH).
+#
+# Multi-channel: on signer_pubkey != pinned_pubkey mismatch, emit
+# `[ROOT-PUBKEY-DIVERGENCE]` BLOCKER.
+#
+# Returns 0 on valid, non-zero on any failure. Always emits diagnostic stderr.
+# -----------------------------------------------------------------------------
+audit_trust_store_verify() {
+    local ts_path="${1:-${_LOA_AUDIT_TRUST_STORE_DEFAULT}}"
+    local pinned="${LOA_PINNED_ROOT_PUBKEY_PATH:-${_LOA_AUDIT_PINNED_PUBKEY}}"
+
+    if [[ ! -f "$pinned" ]]; then
+        _audit_log "[ROOT-PUBKEY-MISSING] pinned root pubkey not found: $pinned"
+        return 78
+    fi
+    if [[ ! -f "$ts_path" ]]; then
+        _audit_log "trust-store not found: $ts_path"
+        return 1
+    fi
+
+    python3 "${_LOA_AUDIT_SIGNING_HELPER}" trust-store-verify \
+        --pinned-pubkey "$pinned" \
+        --trust-store "$ts_path"
+}
+
+# -----------------------------------------------------------------------------
+# audit_emit_signed <primitive_id> <event_type> <payload_json> <log_path> [--password-fd N|--password-file PATH]
+#
+# Explicit signing entrypoint. Same as audit_emit but with mandatory signing
+# key + password-fd/file support (SKP-002).
+#
+# After signing completes, scrubs LOA_AUDIT_KEY_PASSWORD from the parent
+# environment as defense-in-depth (operators should not be using the env var
+# in the first place; the warning is emitted by the helper).
+# -----------------------------------------------------------------------------
+audit_emit_signed() {
+    local primitive_id="$1"
+    local event_type="$2"
+    local payload_json="$3"
+    local log_path="$4"
+    shift 4
+
+    # Forward any --password-fd / --password-file flags via env to audit_emit.
+    LOA_AUDIT_FORWARD_PW_ARGS=()
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --password-fd|--password-file)
+                LOA_AUDIT_FORWARD_PW_ARGS+=("$1" "$2")
+                shift 2
+                ;;
+            *)
+                _audit_log "audit_emit_signed: unknown arg: $1"
+                return 2
+                ;;
+        esac
+    done
+
+    # When called as audit_emit_signed, signing is REQUIRED.
+    if [[ -z "${LOA_AUDIT_SIGNING_KEY_ID:-}" ]]; then
+        _audit_log "audit_emit_signed: LOA_AUDIT_SIGNING_KEY_ID not set"
+        return 2
+    fi
+
+    audit_emit "$primitive_id" "$event_type" "$payload_json" "$log_path"
+    local rc=$?
+
+    # Scrub deprecated env var post-call (defense-in-depth per SKP-002).
+    unset LOA_AUDIT_KEY_PASSWORD 2>/dev/null || true
+    unset LOA_AUDIT_FORWARD_PW_ARGS 2>/dev/null || true
+    return "$rc"
+}
+
+# -----------------------------------------------------------------------------
 # audit_emit <primitive_id> <event_type> <payload_json> <log_path>
 #
 # Build a validated envelope, append (atomically) to <log_path> as JSONL.
 # Computes prev_hash from the existing log; assigns ts_utc; validates schema.
 #
-# TODO(Sprint 1B): Ed25519-sign the chain-input bytes. For now, signature/
-# signing_key_id are omitted (schema allows missing — they're not in `required`).
+# Sprint 1B: when LOA_AUDIT_SIGNING_KEY_ID is set, signs the canonical
+# chain-input bytes with Ed25519 and populates signature + signing_key_id.
+# When unset, behaves as Sprint 1A (signature fields omitted; schema allows).
 # -----------------------------------------------------------------------------
 audit_emit() {
     local primitive_id="$1"
@@ -216,7 +393,7 @@ audit_emit() {
     ts_utc="$(_audit_now_iso8601)"
     prev_hash="$(_audit_compute_prev_hash "$log_path")"
 
-    # Build envelope (signature + signing_key_id deferred to Sprint 1B).
+    # Build envelope (Sprint 1B: signature + signing_key_id added when configured).
     local envelope
     envelope="$(jq -nc \
         --arg sv "$LOA_AUDIT_SCHEMA_VERSION" \
@@ -235,6 +412,27 @@ audit_emit() {
             redaction_applied: null
         }')"
 
+    # Sprint 1B: Sign the canonical chain-input when LOA_AUDIT_SIGNING_KEY_ID
+    # is set. The chain-input is the JCS canonicalization of the envelope WITHOUT
+    # signature/signing_key_id (matches _audit_chain_input).
+    if [[ -n "${LOA_AUDIT_SIGNING_KEY_ID:-}" ]]; then
+        local canonical sig_b64
+        canonical="$(_audit_chain_input "$envelope")"
+        # Forward password-fd/file args from caller (audit_emit_signed sets these).
+        local pw_args=()
+        if [[ -n "${LOA_AUDIT_FORWARD_PW_ARGS+set}" ]]; then
+            pw_args=(${LOA_AUDIT_FORWARD_PW_ARGS[@]+"${LOA_AUDIT_FORWARD_PW_ARGS[@]}"})
+        fi
+        if ! sig_b64="$(printf '%s' "$canonical" | _audit_sign_stdin "$LOA_AUDIT_SIGNING_KEY_ID" ${pw_args[@]+"${pw_args[@]}"})"; then
+            _audit_log "audit_emit: signing failed for key_id=$LOA_AUDIT_SIGNING_KEY_ID"
+            return 1
+        fi
+        envelope="$(printf '%s' "$envelope" | jq -c \
+            --arg kid "$LOA_AUDIT_SIGNING_KEY_ID" \
+            --arg sig "$sig_b64" \
+            '. + {signing_key_id: $kid, signature: $sig}')"
+    fi
+
     # Validate against schema.
     if ! _audit_validate_envelope "$envelope"; then
         _audit_log "audit_emit: schema validation failed for primitive=$primitive_id event=$event_type"
@@ -243,7 +441,6 @@ audit_emit() {
 
     # Append atomically. We use a single >> with the full line — for cross-process
     # safety with concurrent writers, callers should hold a flock on the log dir.
-    # TODO(Sprint 1B): standardize flock acquisition per primitive.
     printf '%s\n' "$envelope" >> "$log_path"
 }
 
@@ -254,8 +451,10 @@ audit_emit() {
 # canonicalized chain-input of the previous entry. First entry must have
 # prev_hash == "GENESIS".
 #
-# TODO(Sprint 1B): also verify Ed25519 signature against signing_key_id pubkey
-# from the trust-store.
+# Sprint 1B: when an entry has signature + signing_key_id, also verifies the
+# Ed25519 signature against the pubkey resolved via _audit_pubkey_for_key_id.
+# When LOA_AUDIT_VERIFY_SIGS=0 (or empty), signature verification is skipped
+# (used for 1A-style chain-only verification on un-signed logs).
 #
 # Output: prints "OK <N entries>" on success; "BROKEN <line N: reason>" on
 # first mismatch and exits non-zero.
@@ -270,6 +469,9 @@ audit_verify_chain() {
     local lineno=0
     local expected_prev="GENESIS"
     local count=0
+    # Default: verify signatures when present. Operators can opt out via
+    # LOA_AUDIT_VERIFY_SIGS=0 (e.g., for migrating un-signed logs).
+    local verify_sigs="${LOA_AUDIT_VERIFY_SIGS:-1}"
     while IFS= read -r line || [[ -n "$line" ]]; do
         lineno=$((lineno + 1))
         # Skip seal markers + blank lines.
@@ -290,6 +492,27 @@ audit_verify_chain() {
             echo "BROKEN line $lineno: prev_hash mismatch (got $actual_prev, expected $expected_prev)" >&2
             return 1
         fi
+
+        # Sprint 1B signature verification (only when signature field present
+        # AND verification is enabled).
+        if [[ "$verify_sigs" != "0" ]]; then
+            local sig_b64 kid
+            sig_b64="$(printf '%s' "$line" | jq -r '.signature // ""' 2>/dev/null)"
+            kid="$(printf '%s' "$line" | jq -r '.signing_key_id // ""' 2>/dev/null)"
+            if [[ -n "$sig_b64" && -n "$kid" ]]; then
+                local pubkey_pem canonical
+                if ! pubkey_pem="$(_audit_pubkey_for_key_id "$kid" 2>/dev/null)"; then
+                    echo "BROKEN line $lineno: cannot resolve public key for signing_key_id=$kid" >&2
+                    return 1
+                fi
+                canonical="$(_audit_chain_input "$line")"
+                if ! _audit_verify_signature_inline "$pubkey_pem" "$canonical" "$sig_b64"; then
+                    echo "BROKEN line $lineno: signature verification failed for signing_key_id=$kid" >&2
+                    return 1
+                fi
+            fi
+        fi
+
         # Compute hash of THIS entry's chain-input for the next iteration.
         expected_prev="$(_audit_chain_input "$line" | _audit_sha256)"
         count=$((count + 1))
@@ -324,9 +547,17 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
             shift
             audit_emit "$@"
             ;;
+        emit-signed)
+            shift
+            audit_emit_signed "$@"
+            ;;
         verify-chain)
             shift
             audit_verify_chain "$@"
+            ;;
+        verify-trust-store)
+            shift
+            audit_trust_store_verify "$@"
             ;;
         seal)
             shift
@@ -338,9 +569,13 @@ Usage: audit-envelope.sh <command> [args]
 
 Commands:
   emit <primitive_id> <event_type> <payload_json> <log_path>
-      Append a validated envelope (signed in Sprint 1B).
+      Append a validated envelope (signed when LOA_AUDIT_SIGNING_KEY_ID set).
+  emit-signed <primitive_id> <event_type> <payload_json> <log_path> [--password-fd N|--password-file PATH]
+      Same as emit; signing required (fails if LOA_AUDIT_SIGNING_KEY_ID unset).
   verify-chain <log_path>
-      Walk a JSONL log; verify hash-chain continuity.
+      Walk a JSONL log; verify hash-chain + signatures (when present).
+  verify-trust-store [<trust-store-path>]
+      Verify trust-store root_signature against pinned root pubkey.
   seal <primitive_id> <log_path>
       Append [<PRIMITIVE>-DISABLED] marker.
 EOF

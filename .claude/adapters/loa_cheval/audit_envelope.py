@@ -1,36 +1,44 @@
 """
 loa_cheval.audit_envelope — Python equivalent of audit-envelope.sh.
 
-cycle-098 Sprint 1A foundation. Same interface contract as the bash version:
+cycle-098 Sprint 1A foundation, extended in Sprint 1B with Ed25519 signing.
+
+Same interface contract as the bash version:
 
     audit_emit(primitive_id, event_type, payload, log_path)
     audit_verify_chain(log_path) -> tuple[bool, str]
     audit_seal_chain(primitive_id, log_path)
+    audit_trust_store_verify(trust_store_path) -> tuple[bool, str]  (Sprint 1B)
 
-Sprint 1B will add Ed25519 signing on emit + signature verification in
-verify_chain. The Python adapter is the canonical reference where the schema
-spec is ambiguous; the bash adapter is required to match its byte output.
+Sprint 1B: when LOA_AUDIT_SIGNING_KEY_ID is set, audit_emit signs the chain
+input with Ed25519 and populates signature + signing_key_id. Verification is
+performed automatically when entries carry signatures (LOA_AUDIT_VERIFY_SIGS=0
+to opt out).
 
 Behavior identity vs the bash adapter is enforced by integration tests
-(tests/integration/audit-envelope-chain.bats and
-tests/unit/audit-envelope-schema.bats).
+(tests/integration/audit-envelope-chain.bats,
+tests/unit/audit-envelope-schema.bats,
+tests/integration/audit-envelope-signing.bats).
 """
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import os
+import stat
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Tuple, Union
+from typing import Any, Optional, Tuple, Union
 
 from loa_cheval.jcs import canonicalize as jcs_canonicalize
 
 PathLike = Union[str, Path]
 
-# Schema version this writer emits. Bumped by major on breaking schema change.
-DEFAULT_SCHEMA_VERSION = "1.0.0"
+# Schema version this writer emits. Bumped to 1.1.0 in Sprint 1B (additive).
+DEFAULT_SCHEMA_VERSION = "1.1.0"
 
 # Resolve the schema relative to this file (.claude/adapters/loa_cheval/) ->
 # .claude/data/trajectory-schemas/.
@@ -46,6 +54,121 @@ _SCHEMA_PATH = (
 # -----------------------------------------------------------------------------
 # Internals
 # -----------------------------------------------------------------------------
+
+
+def _key_dir() -> Path:
+    """Resolve the active key directory (LOA_AUDIT_KEY_DIR or default)."""
+    return Path(
+        os.environ.get(
+            "LOA_AUDIT_KEY_DIR",
+            str(Path.home() / ".config" / "loa" / "audit-keys"),
+        )
+    )
+
+
+def _trust_store_path() -> Path:
+    """Resolve the trust-store path (LOA_TRUST_STORE_FILE or default)."""
+    default = _THIS.parent.parent.parent.parent / "grimoires" / "loa" / "trust-store.yaml"
+    return Path(os.environ.get("LOA_TRUST_STORE_FILE", str(default)))
+
+
+def _pinned_root_pubkey_path() -> Path:
+    """Pinned root pubkey path (LOA_PINNED_ROOT_PUBKEY_PATH or default)."""
+    default = _THIS.parent.parent.parent / "data" / "maintainer-root-pubkey.txt"
+    return Path(os.environ.get("LOA_PINNED_ROOT_PUBKEY_PATH", str(default)))
+
+
+def _read_password_from_env() -> Optional[bytes]:
+    """
+    Sprint 1B: support LOA_AUDIT_KEY_PASSWORD env var as a DEPRECATED fallback.
+    Emits a stderr warning and scrubs the env var after reading.
+
+    Operators should prefer --password-fd / --password-file (CLI surface) or
+    pre-decrypt the key when calling the Python API.
+    """
+    pw = os.environ.get("LOA_AUDIT_KEY_PASSWORD")
+    if pw is None:
+        return None
+    sys.stderr.write(
+        "[audit-envelope] WARNING: LOA_AUDIT_KEY_PASSWORD env var is "
+        "DEPRECATED (SKP-002). Use --password-fd or --password-file. "
+        "Will be removed in v2.0.\n"
+    )
+    # Scrub.
+    del os.environ["LOA_AUDIT_KEY_PASSWORD"]
+    return pw.encode()
+
+
+def _load_private_key(key_id: str, password: Optional[bytes] = None):
+    """
+    Load a writer's private key for signing. Required: cryptography package.
+    Returns an Ed25519PrivateKey. Raises FileNotFoundError or ValueError on
+    failure.
+    """
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ed25519
+
+    priv_path = _key_dir() / f"{key_id}.priv"
+    if not priv_path.is_file():
+        raise FileNotFoundError(f"private key not found: {priv_path}")
+    st_mode = priv_path.stat().st_mode
+    if st_mode & (stat.S_IRWXG | stat.S_IRWXO):
+        raise PermissionError(
+            f"private key {priv_path} has too permissive mode "
+            f"({oct(st_mode & 0o777)}); require 0600"
+        )
+    if password is None:
+        password = _read_password_from_env()
+    priv = serialization.load_pem_private_key(priv_path.read_bytes(), password=password)
+    if not isinstance(priv, ed25519.Ed25519PrivateKey):
+        raise ValueError(f"key at {priv_path} is not Ed25519")
+    return priv
+
+
+def _resolve_pubkey_pem(key_id: str) -> Optional[str]:
+    """
+    Resolve the PEM-encoded pubkey for <key_id>:
+      1. Trust-store entry (when YAML + yaml package available)
+      2. <key-dir>/<key_id>.pub (test/CI fallback)
+    Returns the PEM string or None if unresolvable.
+    """
+    ts_path = _trust_store_path()
+    if ts_path.is_file():
+        try:
+            import yaml
+            with ts_path.open("r", encoding="utf-8") as f:
+                doc = yaml.safe_load(f) or {}
+            for entry in doc.get("keys") or []:
+                if entry.get("writer_id") == key_id:
+                    pem = entry.get("pubkey_pem")
+                    if pem:
+                        return pem
+        except Exception:  # pragma: no cover — defensive
+            pass
+    # Local fallback.
+    pub_path = _key_dir() / f"{key_id}.pub"
+    if pub_path.is_file():
+        return pub_path.read_text(encoding="utf-8")
+    return None
+
+
+def _verify_signature(pubkey_pem: str, canonical: bytes, sig_b64: str) -> bool:
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ed25519
+    from cryptography.exceptions import InvalidSignature
+
+    pub = serialization.load_pem_public_key(pubkey_pem.encode())
+    if not isinstance(pub, ed25519.Ed25519PublicKey):
+        return False
+    try:
+        sig = base64.b64decode(sig_b64, validate=True)
+    except Exception:
+        return False
+    try:
+        pub.verify(sig, canonical)
+        return True
+    except InvalidSignature:
+        return False
 
 
 def _now_iso8601() -> str:
@@ -123,13 +246,15 @@ def audit_emit(
     log_path: PathLike,
     *,
     schema_version: str = DEFAULT_SCHEMA_VERSION,
+    signing_key_id: Optional[str] = None,
+    password: Optional[bytes] = None,
 ) -> dict:
     """
     Build a validated envelope and append it as a JSONL line to `log_path`.
 
-    TODO(Sprint 1B): Sign the chain-input bytes with Ed25519. Until then,
-    the optional `signature` and `signing_key_id` are omitted (schema-permitted
-    in Sprint 1A; required in 1B).
+    Sprint 1B: when `signing_key_id` is provided OR LOA_AUDIT_SIGNING_KEY_ID
+    is set in the environment, the canonical chain-input is signed with Ed25519
+    and signature + signing_key_id are added to the envelope.
 
     Args:
         primitive_id: One of L1..L7.
@@ -137,6 +262,8 @@ def audit_emit(
         payload: dict — primitive-specific event payload.
         log_path: JSONL log file path.
         schema_version: Override the writer's schema version (rare).
+        signing_key_id: Override LOA_AUDIT_SIGNING_KEY_ID env var.
+        password: Optional bytes for decrypting the private key.
 
     Returns:
         The envelope dict that was appended.
@@ -157,6 +284,15 @@ def audit_emit(
         "redaction_applied": None,
     }
 
+    # Sprint 1B: sign chain-input when signing key configured.
+    kid = signing_key_id or os.environ.get("LOA_AUDIT_SIGNING_KEY_ID")
+    if kid:
+        priv = _load_private_key(kid, password=password)
+        canonical = _chain_input_bytes(envelope)
+        sig = priv.sign(canonical)
+        envelope["signing_key_id"] = kid
+        envelope["signature"] = base64.b64encode(sig).decode()
+
     _validate_envelope(envelope)
 
     # Append a single JSON line (no internal whitespace, terminated \n).
@@ -173,13 +309,19 @@ def audit_verify_chain(log_path: PathLike) -> Tuple[bool, str]:
     SHA-256 of the prior entry's canonical chain-input. First entry must have
     prev_hash == "GENESIS".
 
-    Returns (ok, message). On failure, message includes line number + reason.
+    Sprint 1B: when an entry carries `signature` + `signing_key_id`, the
+    Ed25519 signature is also verified against the pubkey resolved via the
+    trust-store (or local <key-dir>/<key_id>.pub fallback). Set
+    LOA_AUDIT_VERIFY_SIGS=0 to skip signature verification (e.g., when
+    migrating legacy un-signed logs).
 
-    TODO(Sprint 1B): also verify Ed25519 signature against signing_key_id pubkey.
+    Returns (ok, message). On failure, message includes line number + reason.
     """
     log_path = Path(log_path)
     if not log_path.exists():
         return False, f"file not found: {log_path}"
+
+    verify_sigs = os.environ.get("LOA_AUDIT_VERIFY_SIGS", "1") != "0"
 
     expected_prev = "GENESIS"
     count = 0
@@ -200,9 +342,61 @@ def audit_verify_chain(log_path: PathLike) -> Tuple[bool, str]:
                     f"BROKEN line {lineno}: prev_hash mismatch "
                     f"(got {actual_prev}, expected {expected_prev})"
                 )
+            # Sprint 1B signature verification.
+            if verify_sigs:
+                sig_b64 = env.get("signature")
+                kid = env.get("signing_key_id")
+                if sig_b64 and kid:
+                    pubkey_pem = _resolve_pubkey_pem(kid)
+                    if pubkey_pem is None:
+                        return False, (
+                            f"BROKEN line {lineno}: cannot resolve public key "
+                            f"for signing_key_id={kid}"
+                        )
+                    canonical = _chain_input_bytes(env)
+                    if not _verify_signature(pubkey_pem, canonical, sig_b64):
+                        return False, (
+                            f"BROKEN line {lineno}: signature verification "
+                            f"failed for signing_key_id={kid}"
+                        )
             expected_prev = _sha256_hex(_chain_input_bytes(env))
             count += 1
     return True, f"OK {count} entries"
+
+
+def audit_trust_store_verify(
+    trust_store_path: Optional[PathLike] = None,
+) -> Tuple[bool, str]:
+    """
+    Verify the trust-store's `root_signature` against the pinned root pubkey.
+
+    Sprint 1B per SDD §1.9.3.1: trust-store updates require maintainer offline
+    root key signature. This function delegates to audit-signing-helper.py
+    (R15: behavior identity).
+
+    Returns (ok, message).
+    """
+    import subprocess
+
+    ts = Path(trust_store_path) if trust_store_path else _trust_store_path()
+    pinned = _pinned_root_pubkey_path()
+    helper = (
+        _THIS.parent.parent.parent  # .claude/
+        / "scripts"
+        / "lib"
+        / "audit-signing-helper.py"
+    )
+    if not helper.is_file():
+        return False, f"signing helper not found: {helper}"
+    proc = subprocess.run(
+        ["python3", str(helper), "trust-store-verify",
+         "--pinned-pubkey", str(pinned),
+         "--trust-store", str(ts)],
+        capture_output=True, text=True,
+    )
+    if proc.returncode == 0:
+        return True, "trust-store verified"
+    return False, proc.stderr.strip() or f"trust-store verification failed (rc={proc.returncode})"
 
 
 def audit_seal_chain(primitive_id: str, log_path: PathLike) -> None:
@@ -221,5 +415,6 @@ __all__ = [
     "audit_emit",
     "audit_verify_chain",
     "audit_seal_chain",
+    "audit_trust_store_verify",
     "DEFAULT_SCHEMA_VERSION",
 ]
