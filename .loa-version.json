@@ -1,7 +1,7 @@
 {
-  "framework_version": "1.109.4",
+  "framework_version": "1.110.1",
   "schema_version": 2,
-  "last_sync": "2026-05-02T09:13:00Z",
+  "last_sync": "2026-05-03T03:04:00Z",
   "zones": {
     "system": ".claude",
     "state": [
