@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.dev/loa/schemas/budget-events/budget-halt-100.payload.schema.json",
+  "title": "L2 budget.halt_100 Payload",
+  "description": "Pre-call verdict payload emitted when usage >=100% AND data fresh. Cycle MUST halt before next paid call. Terminal until next UTC day rollover. cycle-098 Sprint 2A.",
+  "type": "object",
+  "required": [
+    "verdict",
+    "usd_used",
+    "usd_remaining",
+    "daily_cap_usd",
+    "estimated_usd_for_call",
+    "billing_api_age_seconds",
+    "counter_age_seconds",
+    "provider",
+    "utc_day",
+    "usage_pct"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "verdict": { "const": "halt-100" },
+    "usd_used": { "type": "number", "minimum": 0 },
+    "usd_remaining": {
+      "type": "number",
+      "description": "daily_cap_usd - usd_used (current). May be positive at decision time even when projected post-call usage exceeds cap; the verdict trigger uses projected usage_pct (>= 100)."
+    },
+    "daily_cap_usd": { "type": "number", "minimum": 0 },
+    "estimated_usd_for_call": { "type": "number", "minimum": 0 },
+    "billing_api_age_seconds": { "type": ["number", "null"], "minimum": 0 },
+    "counter_age_seconds": { "type": "number", "minimum": 0 },
+    "provider": { "type": "string", "minLength": 1 },
+    "utc_day": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "cycle_id": { "type": ["string", "null"] },
+    "billing_observer_used": { "type": "boolean" },
+    "usage_pct": {
+      "type": "number",
+      "minimum": 100,
+      "description": "Projected post-call usage: 100 * (usd_used + estimated_usd_for_call) / daily_cap_usd. >= 100. Verdict-trigger uses projected usage_pct, not current."
+    }
+  }
+}

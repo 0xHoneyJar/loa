@@ -2255,3 +2255,73 @@ qmd_context:
 #   LOA_PANEL_MIN_PANELISTS           min surviving panelists for BOUND (default 2)
 #   LOA_PANEL_DISAGREEMENT_FN         path to caller-supplied disagreement script
 #                                      (default: no-op pass per FR-L1-6)
+
+# -----------------------------------------------------------------------------
+# L2 cost-budget-enforcer — daily token cap with fail-closed semantics
+# -----------------------------------------------------------------------------
+# When enabled, paid calls go through budget_verdict before execution. The
+# verdict is one of {allow, warn-90, halt-100, halt-uncertainty}. The fifth
+# halt-uncertainty mode covers 5 failure cases (billing API stale, counter
+# inconsistent, counter drift, clock drift, provider lag) — fail-closed under
+# all uncertainty.
+#
+# Sprint 2 ships: state machine, reconciliation cron (default 6h cadence),
+# daily snapshot job for hash-chain recovery (RPO 24h).
+#
+# Source: RFC #654; PRD §FR-L2; SDD §1.4.2 + §1.5.3 + §5.4
+#
+# cost_budget_enforcer:
+#   daily_cap_usd: 50.00                          # FR-L2-1..4 reference
+#   freshness_threshold_seconds: 300              # 5 min — billing data is "fresh"
+#   stale_halt_pct: 75                            # counter % triggering stale_halt + provider_lag
+#   clock_tolerance_seconds: 60                   # ±60s for clock_drift
+#   provider_lag_halt_seconds: 300                # 5 min provider_lag threshold
+#   billing_stale_halt_seconds: 900               # 15 min billing_stale threshold
+#   audit_log: .run/cost-budget-events.jsonl
+#   billing_observer_cmd: /path/to/observer-shim.sh   # caller-supplied UsageObserver
+#   per_provider_caps:                            # optional sub-caps per provider
+#     openai: 5.00
+#     anthropic: 30.00
+#   providers:                                    # used by reconciliation cron
+#     - aggregate
+#     - anthropic
+#     - openai
+#   reconciliation:
+#     interval_hours: 6                           # cron cadence (1..24)
+#     drift_threshold_pct: 5.0                    # FR-L2-5 BLOCKER threshold
+#
+# Environment variable overrides (see .claude/scripts/lib/cost-budget-enforcer-lib.sh):
+#   LOA_BUDGET_LOG                  override audit log path
+#   LOA_BUDGET_DAILY_CAP_USD        override daily cap
+#   LOA_BUDGET_DRIFT_THRESHOLD      override reconcile drift threshold pct
+#   LOA_BUDGET_FRESHNESS_SECONDS    override freshness threshold
+#   LOA_BUDGET_STALE_HALT_PCT       override stale-halt counter %
+#   LOA_BUDGET_CLOCK_TOLERANCE      override clock tolerance seconds
+#   LOA_BUDGET_LAG_HALT_SECONDS     override provider-lag threshold
+#   LOA_BUDGET_BILLING_STALE_SECONDS override billing-stale threshold
+#   LOA_BUDGET_OBSERVER_CMD         override billing-observer path
+#   LOA_BUDGET_TEST_NOW             test-only override for "now"
+#
+# To install/uninstall the reconciliation cron:
+#   .claude/scripts/budget/budget-reconcile-install.sh install
+#   .claude/scripts/budget/budget-reconcile-install.sh uninstall
+
+# -----------------------------------------------------------------------------
+# Audit-log daily snapshot — RPO 24h for L1/L2 chain-critical untracked logs
+# -----------------------------------------------------------------------------
+# Sprint 2C ships the producer side of the L1/L2 hash-chain recovery loop.
+# Snapshots gzip-compress and optionally Ed25519-sign each rolling log to
+# grimoires/loa/audit-archive/<utc-date>-<primitive>.jsonl.gz; the archive
+# directory is git-tracked. The recovery side
+# (audit_recover_chain) consumes these to restore corrupted/lost logs.
+#
+# Source: SDD §3.4.4 (recovery procedure) + §3.7 (persistence policy)
+#
+# audit_snapshot:
+#   cron_expression: "0 4 * * *"          # daily at 04:00 UTC (default)
+#
+# Operator runbook: grimoires/loa/runbooks/audit-log-recovery.md
+#
+# To install/uninstall the daily snapshot cron:
+#   .claude/scripts/audit/audit-snapshot-install.sh install
+#   .claude/scripts/audit/audit-snapshot-install.sh uninstall

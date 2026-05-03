@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.dev/loa/schemas/budget-events/budget-reconcile.payload.schema.json",
+  "title": "L2 budget.reconcile Payload",
+  "description": "Reconciliation cron event emitted every reconciliation.interval_hours (default 6h). Compares internal counter to billing API for current UTC day; emits BLOCKER on drift > threshold. Counter NOT auto-corrected — operator must run force-reconcile. cycle-098 Sprint 2A/2B.",
+  "type": "object",
+  "required": [
+    "verdict",
+    "counter_usd",
+    "billing_usd",
+    "drift_pct",
+    "drift_threshold_pct",
+    "blocker",
+    "provider",
+    "utc_day"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "verdict": { "const": "reconcile" },
+    "counter_usd": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Internal counter sum for current UTC day."
+    },
+    "billing_usd": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "description": "Billing API reported usage for current UTC day. null if billing API unreachable."
+    },
+    "drift_pct": {
+      "type": ["number", "null"],
+      "description": "abs(counter - billing) / max(billing, counter) * 100. null if billing_usd is null."
+    },
+    "drift_threshold_pct": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Configured drift threshold (default 5.0)."
+    },
+    "blocker": {
+      "type": "boolean",
+      "description": "True iff drift_pct > drift_threshold_pct OR billing API unreachable + counter near cap."
+    },
+    "provider": {
+      "type": "string",
+      "minLength": 1
+    },
+    "utc_day": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "billing_api_unreachable": {
+      "type": "boolean",
+      "description": "True iff billing API client failed (timeout, error, missing); reconcile defers without auto-correction."
+    },
+    "force_reconcile": {
+      "type": "boolean",
+      "description": "True iff this entry was emitted by an operator force-reconcile invocation."
+    },
+    "operator_reason": {
+      "type": ["string", "null"],
+      "description": "Operator-supplied reason for force-reconcile (required for force-reconcile=true)."
+    }
+  }
+}

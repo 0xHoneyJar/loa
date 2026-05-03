@@ -81,3 +81,53 @@
   superseded_by: null
   related:
     - governance-isomorphism
+
+- id: fail-closed-cost-gate
+  term: Fail-Closed Cost Gate
+  short: >-
+    Cost-budget enforcement that NEVER permits paid operations under
+    uncertainty. Any of five failure modes (billing API stale, counter
+    inconsistent, counter drift, clock drift, provider lag) yields
+    halt-uncertainty regardless of nominal usage percent.
+  context: >-
+    Most budget enforcers in production AI systems share a flaw: when their
+    information becomes uncertain, they default to "allow" because the cost of
+    a wrong-stop (cycle halts, operator paged) feels worse than a wrong-go
+    (one extra paid call). That intuition is correct only when the worst case
+    is bounded. For cost overruns, the worst case is unbounded — a runaway
+    autonomous cycle can spend ten or a hundred times the daily cap before
+    a human notices. cycle-098 L2 inverts the default: under any of five
+    explicitly-named uncertainty modes, the verdict is halt-uncertainty.
+    The order of the five checks is severity-first
+    (counter_inconsistent then billing_stale then provider_lag then
+    clock_drift then halt-100 then warn-90 then allow), so the most-severe
+    applicable verdict wins. The implementation pattern is general: any
+    consequential gate that consumes a noisy or asynchronous signal should
+    treat "I don't know what's happening" as the strongest signal to halt,
+    not the weakest. Verdicts are hash-chain-signed with the envelope's
+    prev_hash for forensic auditability post-incident; reconciliation cron
+    cross-checks counter against billing API every 6h with BLOCKER on drift
+    over 5 percent, but counter is NOT auto-corrected — operator
+    force-reconcile is required (counter could be the wrong source).
+    Pairs with the abundance-pruning pattern from Tricorder/Loa Flatline:
+    the system halts noisily when uncertain, which is the only way to
+    surface latent observability defects in production.
+  source:
+    cycle: "cycle-098-agent-network"
+    sprint: "Sprint 2 (L2 cost-budget-enforcer)"
+    rfc: "https://github.com/0xHoneyJar/loa/issues/654"
+    date: "2026-05-04"
+  tags:
+    - architecture
+    - safety
+    - fail-closed
+    - cost-control
+    - autonomous-systems
+    - pattern
+  status: Active
+  challenges: []
+  lineage: null
+  superseded_by: null
+  related:
+    - governance-isomorphism
+    - deliberative-council

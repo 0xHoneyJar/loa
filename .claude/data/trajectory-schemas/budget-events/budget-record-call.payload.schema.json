@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.dev/loa/schemas/budget-events/budget-record-call.payload.schema.json",
+  "title": "L2 budget.record_call Payload",
+  "description": "Post-call record emitted by budget_record_call after a paid call completes. Increments the internal counter by actual_usd. Tail-scanning these events for the current UTC day yields the current counter value. cycle-098 Sprint 2A.",
+  "type": "object",
+  "required": [
+    "actual_usd",
+    "usd_used_post",
+    "provider",
+    "utc_day"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "actual_usd": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Actual USD cost of the call as reported by the caller."
+    },
+    "usd_used_post": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Cumulative usd_used for current UTC day AFTER this call. Sum of all prior record_call.actual_usd in this UTC day + this actual_usd."
+    },
+    "provider": {
+      "type": "string",
+      "minLength": 1
+    },
+    "utc_day": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "cycle_id": {
+      "type": ["string", "null"]
+    },
+    "verdict_ref": {
+      "type": ["string", "null"],
+      "description": "Optional pointer to the prior allow/warn-90 verdict's prev_hash this call corresponds to (auditability)."
+    },
+    "model_id": {
+      "type": ["string", "null"],
+      "description": "Optional model/SKU charged (e.g., 'claude-opus-4-7')."
+    }
+  }
+}
