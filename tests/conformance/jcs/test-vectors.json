@@ -1,0 +1,236 @@
+{
+  "description": "RFC 8785 JCS test vectors. Expected outputs computed via Python rfc8785 reference implementation.",
+  "spec": "https://datatracker.ietf.org/doc/rfc8785/",
+  "vectors": [
+    {
+      "id": "v1-string-basic",
+      "input": "hello",
+      "expected": "\"hello\""
+    },
+    {
+      "id": "v2-int-zero",
+      "input": 0,
+      "expected": "0"
+    },
+    {
+      "id": "v3-int-negative",
+      "input": -42,
+      "expected": "-42"
+    },
+    {
+      "id": "v4-int-large",
+      "input": 9007199254740991,
+      "expected": "9007199254740991"
+    },
+    {
+      "id": "v5-bool-true",
+      "input": true,
+      "expected": "true"
+    },
+    {
+      "id": "v6-bool-false",
+      "input": false,
+      "expected": "false"
+    },
+    {
+      "id": "v7-null",
+      "input": null,
+      "expected": "null"
+    },
+    {
+      "id": "v8-float-simple",
+      "input": 1.5,
+      "expected": "1.5"
+    },
+    {
+      "id": "v9-float-trailing-zero",
+      "input": 1.5,
+      "expected": "1.5"
+    },
+    {
+      "id": "v10-float-scientific",
+      "input": 10000000000.0,
+      "expected": "10000000000"
+    },
+    {
+      "id": "v11-float-negative",
+      "input": -3.14,
+      "expected": "-3.14"
+    },
+    {
+      "id": "v12-float-tiny",
+      "input": 1e-10,
+      "expected": "1e-10"
+    },
+    {
+      "id": "v13-string-empty",
+      "input": "",
+      "expected": "\"\""
+    },
+    {
+      "id": "v14-string-quote",
+      "input": "a\"b",
+      "expected": "\"a\\\"b\""
+    },
+    {
+      "id": "v15-string-backslash",
+      "input": "a\\b",
+      "expected": "\"a\\\\b\""
+    },
+    {
+      "id": "v16-string-newline",
+      "input": "a\nb",
+      "expected": "\"a\\nb\""
+    },
+    {
+      "id": "v17-string-tab",
+      "input": "a\tb",
+      "expected": "\"a\\tb\""
+    },
+    {
+      "id": "v18-string-unicode-bmp",
+      "input": "caf\u00e9",
+      "expected": "\"caf\u00e9\""
+    },
+    {
+      "id": "v19-string-unicode-emoji",
+      "input": "hello \ud83d\ude00",
+      "expected": "\"hello \ud83d\ude00\""
+    },
+    {
+      "id": "v20-obj-key-order",
+      "input": {
+        "b": 2,
+        "a": 1,
+        "c": 3
+      },
+      "expected": "{\"a\":1,\"b\":2,\"c\":3}"
+    },
+    {
+      "id": "v21-obj-mixed-types",
+      "input": {
+        "z": true,
+        "a": null,
+        "m": "str"
+      },
+      "expected": "{\"a\":null,\"m\":\"str\",\"z\":true}"
+    },
+    {
+      "id": "v22-obj-empty",
+      "input": {},
+      "expected": "{}"
+    },
+    {
+      "id": "v23-array-empty",
+      "input": [],
+      "expected": "[]"
+    },
+    {
+      "id": "v24-array-mixed",
+      "input": [
+        1,
+        "two",
+        true,
+        null,
+        3.14
+      ],
+      "expected": "[1,\"two\",true,null,3.14]"
+    },
+    {
+      "id": "v25-nested-deep",
+      "input": {
+        "a": {
+          "b": {
+            "c": {
+              "d": {
+                "e": {
+                  "f": 1
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected": "{\"a\":{\"b\":{\"c\":{\"d\":{\"e\":{\"f\":1}}}}}}"
+    },
+    {
+      "id": "v26-nested-array",
+      "input": [
+        [
+          [
+            [
+              [
+                "deep"
+              ]
+            ]
+          ]
+        ]
+      ],
+      "expected": "[[[[[\"deep\"]]]]]"
+    },
+    {
+      "id": "v27-nested-mixed",
+      "input": {
+        "top": [
+          {
+            "nest": {
+              "list": [
+                1,
+                2,
+                {
+                  "final": "value"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expected": "{\"top\":[{\"nest\":{\"list\":[1,2,{\"final\":\"value\"}]}}]}"
+    },
+    {
+      "id": "v28-unicode-keys",
+      "input": {
+        "z": 1,
+        "a": 2,
+        "A": 3,
+        "M": 4
+      },
+      "expected": "{\"A\":3,\"M\":4,\"a\":2,\"z\":1}"
+    },
+    {
+      "id": "v29-no-whitespace-out",
+      "input": {
+        "a": [
+          1,
+          2,
+          3
+        ]
+      },
+      "expected": "{\"a\":[1,2,3]}"
+    },
+    {
+      "id": "v30-realistic-envelope",
+      "input": {
+        "schema_version": "1.0.0",
+        "primitive_id": "L1",
+        "event_type": "panel.bind",
+        "ts_utc": "2026-05-15T03:14:15.926535Z",
+        "prev_hash": "GENESIS",
+        "payload": {
+          "decision_id": "d-001",
+          "panelists": [
+            {
+              "id": "p1",
+              "view": "a"
+            },
+            {
+              "id": "p2",
+              "view": "b"
+            }
+          ]
+        }
+      },
+      "expected": "{\"event_type\":\"panel.bind\",\"payload\":{\"decision_id\":\"d-001\",\"panelists\":[{\"id\":\"p1\",\"view\":\"a\"},{\"id\":\"p2\",\"view\":\"b\"}]},\"prev_hash\":\"GENESIS\",\"primitive_id\":\"L1\",\"schema_version\":\"1.0.0\",\"ts_utc\":\"2026-05-15T03:14:15.926535Z\"}"
+    }
+  ]
+}

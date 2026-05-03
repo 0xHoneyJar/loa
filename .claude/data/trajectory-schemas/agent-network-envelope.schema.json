@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.dev/loa/schemas/agent-network-envelope.schema.json",
+  "title": "Agent-Network Audit Envelope",
+  "description": "Versioned, hash-chained, Ed25519-signed envelope for all L1-L7 primitive audit logs. cycle-098 Sprint 1 — IMP-002 (HIGH_CONS 875), CC-2, CC-11. Sprint 1A lands the schema + basic write/read/chain-walk; Sprint 1B adds Ed25519 signing.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "primitive_id",
+    "event_type",
+    "ts_utc",
+    "prev_hash",
+    "payload"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semver. Sprint 1 lands as 1.0.0. Breaking-change rev bumps major; additive bumps minor."
+    },
+    "primitive_id": {
+      "type": "string",
+      "enum": ["L1", "L2", "L3", "L4", "L5", "L6", "L7"],
+      "description": "Which primitive emitted this entry."
+    },
+    "event_type": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Primitive-specific event type. Sprint 1 defines L1 events; Sprints 2-7 extend.",
+      "examples": [
+        "panel.invoke", "panel.solicit", "panel.bind", "panel.queued_protected",
+        "budget.allow", "budget.warn_90", "budget.halt_100", "budget.halt_uncertainty", "budget.reconcile",
+        "cycle.start", "cycle.phase", "cycle.complete", "cycle.error",
+        "trust.query", "trust.grant", "trust.auto_drop", "trust.force_grant", "trust.auto_raise_eligible",
+        "cross_repo.read", "cross_repo.cache_hit", "cross_repo.partial_failure",
+        "handoff.write", "handoff.read", "handoff.surface",
+        "soul.surface", "soul.validate"
+      ]
+    },
+    "ts_utc": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp, microsecond precision (e.g., 2026-05-02T14:30:00.123456Z)."
+    },
+    "prev_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$|^GENESIS$",
+      "description": "SHA-256 hex of canonical-JSON of prior entry's content (excluding signature + signing_key_id). 'GENESIS' for first entry in a log."
+    },
+    "signature": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+      "description": "Ed25519 signature (base64) over canonical-JSON of {schema_version, primitive_id, event_type, ts_utc, prev_hash, payload}. Reserved in Sprint 1A; populated by Sprint 1B."
+    },
+    "signing_key_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_-]+$",
+      "description": "Writer identity slug; key file at ~/.config/loa/audit-keys/<signing_key_id>.priv (private) and .pub (public). Reserved in Sprint 1A; populated by Sprint 1B."
+    },
+    "payload": {
+      "type": "object",
+      "description": "Primitive-specific event payload. Validated by per-event-type schema (out-of-scope for envelope schema). additionalProperties: true per IMP-001 — primitives extend additively without forking the envelope.",
+      "additionalProperties": true
+    },
+    "redaction_applied": {
+      "type": ["array", "null"],
+      "items": { "type": "string" },
+      "description": "List of pattern-ids redacted in payload (e.g., ['anthropic_api_key', 'github_pat']). null if no redaction. SKP-008 NFR-Sec8."
+    }
+  }
+}

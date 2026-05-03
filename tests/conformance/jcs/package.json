@@ -1,0 +1,13 @@
+{
+  "name": "loa-jcs-conformance",
+  "version": "1.0.0",
+  "private": true,
+  "description": "RFC 8785 JCS multi-language conformance harness for cycle-098 Sprint 1.",
+  "type": "module",
+  "scripts": {
+    "test": "node test-jcs-node.mjs"
+  },
+  "dependencies": {
+    "canonicalize": "^3.0.0"
+  }
+}

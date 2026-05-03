@@ -1,0 +1,59 @@
+name: JCS Conformance
+
+# cycle-098 Sprint 1 — IMP-001 (HIGH_CONSENSUS 736).
+# Verifies bash + Python + Node adapters produce byte-identical RFC 8785
+# canonical-JSON output for the test vector corpus. Required check on PR.
+
+on:
+  pull_request:
+    paths:
+      - "lib/jcs.sh"
+      - ".claude/scripts/lib/jcs-helper.py"
+      - ".claude/scripts/lib/jcs.mjs"
+      - ".claude/adapters/loa_cheval/jcs.py"
+      - "tests/conformance/jcs/**"
+      - ".github/workflows/jcs-conformance.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "lib/jcs.sh"
+      - ".claude/scripts/lib/jcs-helper.py"
+      - ".claude/scripts/lib/jcs.mjs"
+      - ".claude/adapters/loa_cheval/jcs.py"
+      - "tests/conformance/jcs/**"
+
+jobs:
+  jcs-conformance:
+    name: JCS multi-language byte-identity
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        # actions/checkout@v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+
+      - name: Set up Python
+        # actions/setup-python@v5
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: "3.13"
+
+      - name: Set up Node
+        # actions/setup-node@v4
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af
+        with:
+          node-version: "22"
+
+      - name: Install Python deps
+        run: |
+          pip install --upgrade pip
+          pip install rfc8785 jsonschema
+
+      - name: Install Node deps
+        working-directory: tests/conformance/jcs
+        run: npm install --no-audit --no-fund
+
+      - name: Run JCS conformance gate
+        run: bash tests/conformance/jcs/run.sh
