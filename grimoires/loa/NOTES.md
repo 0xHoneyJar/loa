@@ -180,6 +180,24 @@ Multi-model bridgebuilder (claude-opus-4-7 + gpt-5.3-codex + gemini-2.5-pro, arc
 
 **Kaironic stop signal hint**: 0 HIGH_CONSENSUS in iter-1 with all DISPUTED findings tracing to the **same root cause** (filter excluding the planning content). This is finding-rotation around a single concern, not multi-concern coverage. Strong signal that iter-2 will flatline once the .bak files are removed.
 
+### Bridgebuilder iter-2 — finer-grain critique of iter-1 fix
+
+**Stats**: 0 HIGH_CONSENSUS, 2 DISPUTED, 0 BLOCKER, 8 unique findings (was 13 in iter-1 — 38% reduction).
+
+**Finding-rotation pattern emerging** (kaironic signal #2): iter-2 critiques the *quality* of iter-1's fix rather than introducing new categories. The 8 findings break down:
+
+- **3 REPEATs from iter-1** (claude reproduced same REFRAME on filter-exclusion + same SPECULATION on audit-key-Cert-Policy — already addressed in iter-1 NOTES)
+- **3 NEW finer-grain critiques of the iter-1 .gitignore fix**:
+  - F-002 (gpt LOW): asymmetric coverage — PRD/SDD only had `*-bak`, sprint/ledger had both `*-bak` and `.bak.*`
+  - 239b69b2 (gemini LOW): `grimoires/loa/<artifact>` patterns miss subdirectories like `grimoires/loa/cycles/cycle-NNN/<artifact>` — globs need `**`
+  - gitignore-pattern-overlap (claude LOW): three coexisting backup naming conventions suggest tooling proliferation
+- **1 PRAISE** (gpt F-003): hygiene improvement is good
+- **1 SPECULATION** (gpt F-004): planning-doc churn lacks visible CI validation. **Acknowledged**: PRD/SDD/sprint already validate via Flatline pre-merge (6 prior passes); ledger schema is JSON-validated by `/sprint-plan` step. No new CI work needed in this PR.
+
+**Iter-2 fix**: consolidated to 4 symmetric, recursive globs at `.gitignore:156-159` with explicit decision-trail comment citing the 3 findings above. `git check-ignore -v` verified across 5 paths (top-level + cycle subdirectory variants).
+
+**Kaironic stop signal**: this is **finding-rotation at finer grain** (criterion #2 from kaironic memory). Iter-1 said "remove these files"; iter-2 said "your fix could be more rigorous"; iter-3 will likely say "your fix is rigorous but the comment could explain X." Empirically (per kaironic memory PR #639 example: addressed iter-3+iter-4 with code, iter-5 with comments, merged), this is the standard taper. Plan: run iter-3 to confirm plateau; if iter-3 produces same NEW-count as iter-2 (8 unique) **and** findings continue to rotate around iter-1/iter-2 fixes rather than new categories, declare convergence.
+
 ---
 
 ## Decision Log — 2026-04-26 (cycle-094 sprint-2 — test infra + filter + SSOT close-out)
