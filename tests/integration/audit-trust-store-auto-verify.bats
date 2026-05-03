@@ -345,19 +345,38 @@ PY
     source "$AUDIT_ENVELOPE"
     audit_emit L1 panel.bind '{"decision_id":"d-1"}' "$LOG"
 
-    # Capture mtime, then write imposter trust-store WITHOUT advancing mtime
-    # (force exact-mtime collision via touch -r, simulating coarse-granularity FS).
-    local mtime_before
-    mtime_before="$(stat -c %Y "$TS" 2>/dev/null || stat -f %m "$TS" 2>/dev/null)"
-    _signed_populated_trust_store "$TS" "$TEST_DIR/imposter.priv"
-    # Pin mtime to exactly what it was — defeats mtime-only invalidation.
-    touch -r "$LOG" "$TS" 2>/dev/null || true
-    # Best-effort: try to set mtime to mtime_before; on coarse FS this collides.
-    # We use a separate file as the time source. If "stat" failed, this is a no-op.
+    # Capture exact ns mtime (Python — portable across GNU/BSD).
+    # Iter-2 F1 remediation: must pin mtime to the EXACT pre-tamper value, otherwise
+    # the mtime-change branch fires first (silent dispatch shadowing per Tricorder
+    # ISSTA 2018) and the test becomes a tautology proving "mtime OR content-hash"
+    # rather than "content-hash" specifically.
+    local mtime_ns
+    mtime_ns="$(python3 -c "import os, sys; st = os.stat(sys.argv[1]); print(st.st_mtime_ns)" "$TS")"
 
-    # Second emit: mtime cache says "valid" but content-hash should detect change.
-    # If content-hash is missing from cache key, this would PASS (bypass).
-    # Post-F4: it should FAIL with [TRUST-STORE-INVALID].
+    # Tamper: imposter-signed trust-store with same byte-size if possible.
+    _signed_populated_trust_store "$TS" "$TEST_DIR/imposter.priv"
+
+    # Pin mtime to the EXACT ns value before tamper. Now the cache key sees
+    # identical mtime; only size or sha256 change can invalidate the cache.
+    python3 -c "
+import os, sys
+ts = sys.argv[1]
+mtime_ns = int(sys.argv[2])
+sec, ns = divmod(mtime_ns, 1_000_000_000)
+os.utime(ts, ns=(mtime_ns, mtime_ns))
+" "$TS" "$mtime_ns"
+
+    # Confirm mtime is identical to pre-tamper.
+    local mtime_after
+    mtime_after="$(python3 -c "import os, sys; print(os.stat(sys.argv[1]).st_mtime_ns)" "$TS")"
+    [[ "$mtime_ns" == "$mtime_after" ]] || {
+        echo "Test setup failed: could not pin mtime ($mtime_ns != $mtime_after)"
+        return 1
+    }
+
+    # Second emit: mtime is byte-identical to cache. If cache is mtime-only,
+    # this would pass through (bypass). With F4's (mtime, size, sha256) tuple,
+    # content-hash detects the tamper.
     run audit_emit L1 panel.bind '{"decision_id":"d-2"}' "$LOG"
     [[ "$status" -ne 0 ]]
     echo "$output" | grep -q 'TRUST-STORE-INVALID' || {

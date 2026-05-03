@@ -70,6 +70,17 @@ teardown() {
     unset LOA_PINNED_ROOT_PUBKEY_PATH
 }
 
+# Iter-2 F-001 portability helper: GNU vs BSD sed disagree on `-i` semantics.
+# Write-to-tempfile-then-mv is portable across both. (No backup file leftover.)
+_portable_sed() {
+    local expr="$1"
+    local file="$2"
+    local tmp
+    tmp="$(mktemp)"
+    sed "$expr" "$file" > "$tmp"
+    mv "$tmp" "$file"
+}
+
 # Sign a trust-store with `schema_version` INCLUDED in signed payload.
 _sign_with_schema_version() {
     local out_path="$1"
@@ -132,8 +143,9 @@ PY
     _sign_with_schema_version "$TRUST_STORE" "$TEST_DIR/root.priv" "1.0"
 
     # Attacker swaps schema_version "1.0" → "0.9" (rollback to permissive parser).
-    sed -i.bak 's/^schema_version: "1.0"$/schema_version: "0.9"/' "$TRUST_STORE"
-    rm -f "$TRUST_STORE.bak"
+    # Iter-2 F-001 (bridgebuilder): `sed -i.bak` semantics differ between GNU and
+    # BSD sed (macOS). Portable form: write-temp-then-mv.
+    _portable_sed 's/^schema_version: "1.0"$/schema_version: "0.9"/' "$TRUST_STORE"
 
     run audit_trust_store_verify "$TRUST_STORE"
     [[ "$status" -ne 0 ]]
@@ -154,8 +166,7 @@ PY
     _sign_with_schema_version "$TRUST_STORE" "$TEST_DIR/root.priv" "1.0"
 
     # Attacker bumps schema_version to a future incompatible version.
-    sed -i.bak 's/^schema_version: "1.0"$/schema_version: "2.0"/' "$TRUST_STORE"
-    rm -f "$TRUST_STORE.bak"
+    _portable_sed 's/^schema_version: "1.0"$/schema_version: "2.0"/' "$TRUST_STORE"
 
     run audit_trust_store_verify "$TRUST_STORE"
     [[ "$status" -ne 0 ]]
@@ -196,6 +207,49 @@ sys.exit(0 if ok else 1)
 }
 
 # -----------------------------------------------------------------------------
+# Iter-2 F6 (bridgebuilder): YAML parity. The fixture trust-store-sign.py
+# emits YAML via hand-rolled f-strings; production trust-stores would be
+# emitted by maintainers (likely also hand-rolled today, but might switch to
+# a canonical writer in a future cycle). This parity test asserts that
+# `yaml.safe_load(fixture_yaml)` produces the same dict shape as a directly-
+# constructed reference dict. Future drift (e.g., reordered fields, comment
+# headers) breaks this test rather than silently producing non-representative
+# fixtures.
+# -----------------------------------------------------------------------------
+@test "f6-parity: fixture-emitted trust-store loads to canonical dict shape" {
+    _sign_with_schema_version "$TRUST_STORE" "$TEST_DIR/root.priv" "1.0"
+
+    run python3 -c "
+import sys, yaml
+with open('$TRUST_STORE') as f:
+    doc = yaml.safe_load(f)
+# Required top-level fields.
+required = ['schema_version', 'root_signature', 'keys', 'revocations', 'trust_cutoff']
+for k in required:
+    assert k in doc, f'missing field: {k}'
+# root_signature shape.
+rs = doc['root_signature']
+for k in ('algorithm', 'signer_pubkey', 'signed_at', 'signature'):
+    assert k in rs, f'missing root_signature.{k}'
+assert rs['algorithm'] == 'ed25519'
+# Schema version explicitly stringified.
+assert isinstance(doc['schema_version'], str)
+assert doc['schema_version'] == '1.0'
+# Lists are lists.
+assert isinstance(doc['keys'], list)
+assert isinstance(doc['revocations'], list)
+# Signature is non-empty + valid base64.
+import base64
+sig = rs['signature']
+assert sig
+base64.b64decode(sig, validate=True)
+print('PARITY OK')
+"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"PARITY OK"* ]]
+}
+
+# -----------------------------------------------------------------------------
 # Defensive: missing schema_version in YAML body (but present in signed payload)
 # fails — schema_version MUST be present and consistent.
 # -----------------------------------------------------------------------------
@@ -203,8 +257,7 @@ sys.exit(0 if ok else 1)
     _sign_with_schema_version "$TRUST_STORE" "$TEST_DIR/root.priv" "1.0"
 
     # Strip schema_version line from the YAML body.
-    sed -i.bak '/^schema_version: /d' "$TRUST_STORE"
-    rm -f "$TRUST_STORE.bak"
+    _portable_sed '/^schema_version: /d' "$TRUST_STORE"
 
     run audit_trust_store_verify "$TRUST_STORE"
     [[ "$status" -ne 0 ]]

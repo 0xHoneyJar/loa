@@ -887,6 +887,43 @@ Reference implementation: `.claude/scripts/lib/audit-signing-helper.py
 `tests/unit/trust-store-signed-payload-scope.bats` (4 tests covering positive
 + downgrade + forward-rollback + missing-field tampering).
 
+**Auto-verify status table** (Sprint 1.5 #690 + bridgebuilder iter-2 F7
+documentation):
+
+| Trust-store state | Detection | Auto-verify status | Reads/writes |
+|-------------------|-----------|--------------------|--------------|
+| File missing | `not is_file()` | `BOOTSTRAP-PENDING` | PERMITTED |
+| Empty signature + empty `keys[]` + empty `revocations[]` | YAML parse | `BOOTSTRAP-PENDING` | PERMITTED |
+| `root_signature` populated AND verifies | helper `cmd_trust_store_verify` | `VERIFIED` | PERMITTED |
+| `root_signature` populated but verification fails | helper non-zero exit | `INVALID` | REFUSED (`[TRUST-STORE-INVALID]` BLOCKER) |
+| `keys[]` or `revocations[]` populated but `root_signature` empty | YAML parse + helper | `INVALID` | REFUSED |
+
+`BOOTSTRAP-PENDING` is a deliberate operator-recovery affordance, **not** a
+security boundary: cycle-098 ships into a repo with no pre-existing trust-store,
+and forcing the maintainer-offline-root-key ceremony at first install would
+block all audit emissions until ceremony completion. The acceptable threat
+model:
+
+1. The trust-store path is on a write-controlled mount post-bootstrap. An
+   attacker with arbitrary write access to `grimoires/loa/trust-store.yaml`
+   (e.g., via PR merge to main without CODEOWNERS approval, or via local
+   filesystem compromise) can `rm` the file and revert to permissive mode.
+   This is **detected at the next CODEOWNERS review** when the missing file
+   surfaces in `git status`, but is NOT prevented at runtime.
+2. Operators MUST commit the post-bootstrap trust-store to git so file removal
+   produces a tracked-deletion diff that CODEOWNERS catches.
+3. When repo-write access cannot be assumed (e.g., self-hosted CI runners
+   without strong permissions hygiene), operators SHOULD set
+   `LOA_TRUST_STORE_REQUIRED=1` (future cycle work — issue tracked as
+   `vision-018-required-trust-store`) which inverts the missing-file
+   default to `INVALID`.
+
+The graceful-vs-strict tradeoff is intentional and named here so future
+maintainers do not "fix" the permissive path as if it were a bug. AWS IAM's
+2006-2011 evolution from permissive defaults to deny-by-default is the
+canonical reference for the security cost; cycle-098 chose ergonomics for the
+install path with the failsafe being CODEOWNERS review on trust-store changes.
+
 **Root-of-trust workflow**:
 
 1. **Maintainer holds offline root key** — physical hardware token (YubiKey) or air-gapped machine; root key never touches a session machine.

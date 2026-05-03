@@ -201,3 +201,37 @@ src/lib.rs"
     run bash -c "printf '\n' | '$SCAN_SCRIPT'"
     [[ "$status" -eq 0 ]]
 }
+
+# -----------------------------------------------------------------------------
+# Iter-2 F4 (bridgebuilder): the production workflow invokes the scanner with
+# no stdin, falling through to `git ls-files`. The 17 tests above feed paths
+# via stdin and never exercise that production dispatch. This test closes the
+# loop by initializing a real git repo + committing fixtures + invoking the
+# scanner with no stdin.
+# -----------------------------------------------------------------------------
+@test "f4-dispatch: scanner with no stdin uses git ls-files (production path)" {
+    command -v git >/dev/null 2>&1 || skip "git required for this test"
+
+    cd "$TEST_DIR"
+    # Configure git for this scoped repo so commit succeeds in CI.
+    git init -q
+    git config user.email "test@example.com"
+    git config user.name "Test"
+
+    # Tracked allowlisted file: must NOT trigger a violation.
+    mkdir -p .claude/scripts
+    echo 'LOA_AUDIT_KEY_PASSWORD=ok' > .claude/scripts/audit-envelope.sh
+
+    # Tracked rejected file: MUST trigger a violation.
+    mkdir -p grimoires/loa/a2a/sprint-1
+    echo 'oops LOA_AUDIT_KEY_PASSWORD=violation' > grimoires/loa/a2a/sprint-1/progress-X.md
+
+    git add .claude/scripts/audit-envelope.sh grimoires/loa/a2a/sprint-1/progress-X.md
+    git commit -q -m "fixtures"
+
+    # Invoke scanner with NO stdin → triggers git ls-files dispatch.
+    run "$SCAN_SCRIPT" </dev/null
+    [[ "$status" -ne 0 ]]
+    echo "$output" | grep -q 'progress-X.md'
+    ! echo "$output" | grep -q 'audit-envelope.sh'
+}
