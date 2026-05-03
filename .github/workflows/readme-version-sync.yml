@@ -1,0 +1,26 @@
+name: README version sync check
+on:
+  pull_request:
+    paths:
+      - README.md
+      - .loa-version.json
+      - .claude/scripts/sync-readme-version.sh
+      - .github/workflows/readme-version-sync.yml
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: README version sync
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Verify README.md version references match .loa-version.json
+        run: |
+          chmod +x .claude/scripts/sync-readme-version.sh
+          .claude/scripts/sync-readme-version.sh --check
