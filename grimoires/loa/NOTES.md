@@ -198,6 +198,34 @@ Multi-model bridgebuilder (claude-opus-4-7 + gpt-5.3-codex + gemini-2.5-pro, arc
 
 **Kaironic stop signal**: this is **finding-rotation at finer grain** (criterion #2 from kaironic memory). Iter-1 said "remove these files"; iter-2 said "your fix could be more rigorous"; iter-3 will likely say "your fix is rigorous but the comment could explain X." Empirically (per kaironic memory PR #639 example: addressed iter-3+iter-4 with code, iter-5 with comments, merged), this is the standard taper. Plan: run iter-3 to confirm plateau; if iter-3 produces same NEW-count as iter-2 (8 unique) **and** findings continue to rotate around iter-1/iter-2 fixes rather than new categories, declare convergence.
 
+### Bridgebuilder iter-3 — factually-stale finding fires (kaironic criterion #6)
+
+**Stats**: 0 HIGH_CONSENSUS, 2 DISPUTED, 0 BLOCKER, 6 unique findings (was 8 in iter-2 — additional 25% reduction; cumulative 54% reduction from iter-1).
+
+**Two strong kaironic stop signals fired**:
+
+1. **Factually-stale finding** (criterion #6, the strongest signal per memory): claude-opus-4-7 F-001 (MEDIUM DISPUTED) claims "the new rules silently fail to match" if the tool emits `<stem>.bak` instead of `<stem>.<tag>-bak`, and recommends "commit a fixture backup file and confirm `git check-ignore` reports it ignored."
+
+   **This was already done in iter-2.** The iter-2 commit message body and the iter-2 NOTES entry both record `git check-ignore -v` verification across 5 representative paths. Iter-3's claude is critiquing a verification gap that doesn't exist. Per memory PR #603 example, hallucinated/factually-stale findings are the strongest possible flatline signal — "Further iteration just burns tokens repeating resolved concerns. This is a more reliable terminator than HIGH_CONSENSUS plateau alone."
+
+2. **Finding-rotation between contradictory poles**: iter-2 said patterns were too narrow (didn't cover subdirectories or asymmetric); iter-3 (claude+gpt F-001 second occurrence, MEDIUM DISPUTED) says patterns are too broad and may match `prd-cycle098.md.draft-bak`. When the model rotates between mutually-exclusive critiques of the same fix, the signal is exhausted.
+
+**Iter-3 findings breakdown**:
+- 1 factually-stale finding (claude F-001 first occurrence) — RESOLVED (already verified, just not visible to reviewer)
+- 1 contradictory-pole finding (claude+gpt F-001 second occurrence) — TRADE-OFF accepted (open-world wildcards are intentional; the planning tools own the artifact namespace)
+- 1 REPEAT 3-conventions concern (claude F-003) — same as iter-2; tracked as future-cycle consolidation candidate
+- 1 REPEAT review-scope SPECULATION (claude F-004) — same as iter-1/2; framework-level concern
+- 1 LOW scope-completeness (gpt F-002) — TRADE-OFF accepted (only `grimoires/loa/` has planning artifacts in this repo)
+- 2 PRAISE findings (gpt F-003, gemini e9ed9b96) — confirms iter-2 fix is good
+- 1 REFRAME at REVIEW level (claude in prose, not findings JSON) — "should the planning tooling stop emitting `.bak` siblings entirely?" — vision candidate for cycle-099
+
+**Kaironic verdict**: convergence. Per memory: "address remaining MEDIUM findings with documentation comments (decision-trail breadcrumbs explaining accepted trade-offs) rather than additional code rewrites."
+
+**Trade-offs accepted (decision trail for future maintainers)**:
+- **Why open-world `*-bak` glob, not closed-world enumeration**: the planning tools (`/sprint-plan`, `/architect`, ad-hoc operator backups) emit different suffixes per session (`.cycle-NNN-bak`, `.pre-archive-bak`, `.timestamp-bak`). Enumerating each pre-existing suffix accepts that future tools will leak (which is what produced this PR's bug in the first place). Open-world matches accept a rare false-positive risk in exchange for closing the actual leak class.
+- **Why `grimoires/loa/**` scope, not repo-global `**/`**: this repo's only planning-artifact location is `grimoires/loa/`. Generalizing to `**/` would match unrelated `.bak` siblings that other tools (or contributors' personal scripts) may legitimately emit elsewhere. Conway's-Law-clean: ignore rules respect the actual artifact topology.
+- **Why three coexisting ignore conventions remain (line 145, 147, 156-159)**: the line-145 rule (`grimoires/loa/ledger.json` itself) is intentional — the ledger.json is gitignored at TEMPLATE level (cycle-095 decision; ledger is project-specific, not framework). Line 147 covers the simple `.bak` suffix that pre-dates the cycle-archive convention. Lines 156-159 cover the `.<tag>-bak` variants. These are not "tooling proliferation" — they're three independent decisions stacked over time. **Future consolidation tracked as cycle-099 candidate** but not blocking this PR.
+
 ---
 
 ## Decision Log — 2026-04-26 (cycle-094 sprint-2 — test infra + filter + SSOT close-out)
