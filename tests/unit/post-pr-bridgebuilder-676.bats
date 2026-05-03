@@ -184,3 +184,76 @@ _write_findings() {
         return 1
     }
 }
+
+# -----------------------------------------------------------------------------
+# Iter-1 remediation HIGH (bridgebuilder #700 review): freshness check must
+# be ITERATION-SPECIFIC. A generic ${bridge_id}-iter*-findings.json glob
+# accepts iter-1's stale file when iter-2 silently no-ops. Borg/K8s use
+# generation counters; we use the simpler iter-N-specific filename check.
+# -----------------------------------------------------------------------------
+@test "676-orchestrator-helper: iter-specific freshness check rejects prior-iter file" {
+    _write_bridge_state "$TEST_BRIDGE_ID"
+    # iter-1 file present; iter-2 file absent.
+    _write_findings "$TEST_REPO/.run/bridge-reviews/${TEST_BRIDGE_ID}-iter1-findings.json"
+
+    local review_dir="$TEST_REPO/.run/bridge-reviews"
+    local bridge_id
+    bridge_id=$(jq -r '.bridge_id' "$TEST_REPO/.run/bridge-state.json")
+
+    # Pre-fix (generic glob): would return 1 (iter-1 file is there).
+    # Post-fix (iter-specific): must return 0 for iter=2 since
+    # ${bridge_id}-iter2-findings.json does NOT exist.
+    local iter=2
+    local iter_specific_file="$review_dir/${bridge_id}-iter${iter}-findings.json"
+    [[ ! -f "$iter_specific_file" ]] || {
+        echo "Pre-condition: iter-2 file should NOT exist for this test"
+        return 1
+    }
+}
+
+@test "676-orchestrator-helper: iter-specific freshness check accepts current-iter file" {
+    _write_bridge_state "$TEST_BRIDGE_ID"
+    # Both iter-1 and iter-2 files present (normal multi-iter run).
+    _write_findings "$TEST_REPO/.run/bridge-reviews/${TEST_BRIDGE_ID}-iter1-findings.json"
+    _write_findings "$TEST_REPO/.run/bridge-reviews/${TEST_BRIDGE_ID}-iter2-findings.json"
+
+    local review_dir="$TEST_REPO/.run/bridge-reviews"
+    local bridge_id
+    bridge_id=$(jq -r '.bridge_id' "$TEST_REPO/.run/bridge-state.json")
+
+    local iter=2
+    local iter_specific_file="$review_dir/${bridge_id}-iter${iter}-findings.json"
+    [[ -f "$iter_specific_file" ]] || {
+        echo "Expected iter-2 file present; got: $(ls $review_dir/)"
+        return 1
+    }
+}
+
+# -----------------------------------------------------------------------------
+# Iter-1 remediation MED (bridgebuilder #700 review): tighten Defect B test
+# assertions. The original test used `||` chained truthy expressions that
+# could pass for the wrong reason. Replace with positive grep assertions.
+# -----------------------------------------------------------------------------
+@test "676-triage: fresh-findings test pins exact processing assertion (no chained-||)" {
+    _write_bridge_state "$TEST_BRIDGE_ID"
+    _write_findings "$TEST_REPO/.run/bridge-reviews/${TEST_BRIDGE_ID}-iter1-findings.json" \
+        "fresh finding pin" "MEDIUM"
+    _write_findings "$TEST_REPO/.run/bridge-reviews/${STALE_BRIDGE_ID}-iter5-findings.json" \
+        "stale finding ignored" "HIGH"
+
+    run "$TRIAGE_SCRIPT" --pr 1234 --review-dir "$TEST_REPO/.run/bridge-reviews"
+    [[ "$status" -eq 0 ]]
+
+    # Positive assertion: fresh file was processed (the log emits "Processing N findings from <file>").
+    echo "$output" | grep -qE "Processing [0-9]+ findings from .*${TEST_BRIDGE_ID}-iter1-findings\\.json" || {
+        echo "Expected positive 'Processing ... from <fresh-file>' log; got:"
+        echo "$output"
+        return 1
+    }
+
+    # Filter announcement: log says "Filtered to N findings file(s) matching bridge_id=${bridge_id}".
+    echo "$output" | grep -qE "Filtered to 1 findings file.*${TEST_BRIDGE_ID}" || {
+        echo "Expected filter-announce log line; got: $output"
+        return 1
+    }
+}

@@ -531,12 +531,13 @@ phase_bridgebuilder_review() {
     fi
 
     # Issue #676 Defect A (sprint-bug-140): verify the bridge produced fresh
-    # findings this iteration. Pre-fix the phase reported `completed` even
-    # when no findings file was created — operators saw a clean "review
-    # complete" while triage silently re-tagged stale entries with the
-    # current PR. Now: read bridge_id from .run/bridge-state.json and
-    # require a matching ${bridge_id}-iter*-findings.json. If absent, mark
-    # `skipped` with a visible WARN.
+    # findings THIS iteration. Pre-fix the phase reported `completed` even
+    # when no findings file was created. Bridgebuilder iter-1 review caught
+    # that a generic ${bridge_id}-iter*-findings.json check is also unsafe —
+    # if iter-1 produced a file but iter-2 silently no-ops, the iter-1 file
+    # is still present and the check still passes. Borg/K8s solve this with
+    # generation counters; we use the simpler iteration-scoped check.
+    # Now: require ${bridge_id}-iter${iter}-findings.json specifically.
     local bridge_state_file="$(pwd)/.run/bridge-state.json"
     local current_bridge_id=""
     if [[ -f "$bridge_state_file" ]]; then
@@ -544,10 +545,9 @@ phase_bridgebuilder_review() {
     fi
 
     if [[ -n "$current_bridge_id" ]]; then
-      local fresh_count
-      fresh_count=$(find "$review_dir" -maxdepth 1 -name "${current_bridge_id}-iter*-findings.json" 2>/dev/null | wc -l | tr -d ' ')
-      if [[ "${fresh_count:-0}" -eq 0 ]]; then
-        log_info "WARN: bridge-orchestrator produced no fresh findings file for bridge_id=${current_bridge_id}; marking phase skipped"
+      local iter_findings_file="${review_dir}/${current_bridge_id}-iter${iter}-findings.json"
+      if [[ ! -f "$iter_findings_file" ]]; then
+        log_info "WARN: bridge-orchestrator produced no findings file for iter=${iter} (expected ${iter_findings_file##*/}); marking phase skipped"
         _update_phase bridgebuilder_review skipped
         return 0
       fi
