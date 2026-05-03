@@ -247,21 +247,28 @@ EOF
     local response
 
     # Security: Use curl config file to avoid exposing API key in process list
-    local curl_config
+    local curl_config payload_file
     curl_config=$(mktemp)
-    trap "rm -f '$curl_config'" RETURN
+    payload_file=$(mktemp)
+    trap "rm -f '$curl_config' '$payload_file'" RETURN
     chmod 600 "$curl_config"
+    chmod 600 "$payload_file"
     cat > "$curl_config" <<'CURLCFG'
 header = "Content-Type: application/json"
 CURLCFG
     echo "header = \"Authorization: Bearer ${api_key}\"" >> "$curl_config"
 
+    # Issue #675 (sub-issue 3): write JSON payload to a tmpfile and pass via
+    # `--data-binary @<file>` to bypass MAX_ARG_STRLEN (Linux 128KB / macOS 256KB).
+    # Pre-fix `-d "$payload"` silently truncated or hit E2BIG on payloads >128KB.
+    printf '%s' "$payload" > "$payload_file"
+
     response=$(curl -s --max-time "$timeout" \
         --config "$curl_config" \
-        -d "$payload" \
+        --data-binary "@$payload_file" \
         "$api_url")
 
-    rm -f "$curl_config"
+    rm -f "$curl_config" "$payload_file"
 
     # Restore xtrace if it was on
     if [[ "$prev_xtrace" == "on" ]]; then
@@ -309,22 +316,30 @@ EOF
     local response
 
     # Security: Use curl config file to avoid exposing API key in process list
-    local curl_config
+    local curl_config payload_file
     curl_config=$(mktemp)
-    trap "rm -f '$curl_config'" RETURN
+    payload_file=$(mktemp)
+    trap "rm -f '$curl_config' '$payload_file'" RETURN
     chmod 600 "$curl_config"
+    chmod 600 "$payload_file"
     cat > "$curl_config" <<'CURLCFG'
 header = "anthropic-version: 2023-06-01"
 header = "content-type: application/json"
 CURLCFG
     echo "header = \"x-api-key: ${api_key}\"" >> "$curl_config"
 
+    # Issue #675 (sub-issue 3): write JSON payload to a tmpfile and pass via
+    # `--data-binary @<file>` to bypass MAX_ARG_STRLEN (Linux 128KB / macOS 256KB).
+    # Pre-fix `-d "$payload"` silently truncated or hit E2BIG on payloads >128KB
+    # — every cycle-098 SDD review (≥100KB) was at-risk.
+    printf '%s' "$payload" > "$payload_file"
+
     response=$(curl -s --max-time "$timeout" \
         --config "$curl_config" \
-        -d "$payload" \
+        --data-binary "@$payload_file" \
         "$api_url")
 
-    rm -f "$curl_config"
+    rm -f "$curl_config" "$payload_file"
 
     # Restore xtrace if it was on
     if [[ "$prev_xtrace" == "on" ]]; then
@@ -375,17 +390,23 @@ EOF
     local response
 
     # Security: Use curl config file with URL directive to keep API key out of argv
-    local curl_config
+    local curl_config payload_file
     curl_config=$(mktemp)
-    trap "rm -f '$curl_config'" RETURN
+    payload_file=$(mktemp)
+    trap "rm -f '$curl_config' '$payload_file'" RETURN
     chmod 600 "$curl_config"
+    chmod 600 "$payload_file"
     printf 'header = "Content-Type: application/json"\nurl = "%s?key=%s"\n' "$api_url" "$api_key" > "$curl_config"
+
+    # Issue #675 (sub-issue 3): write JSON payload to a tmpfile and pass via
+    # `--data-binary @<file>` to bypass MAX_ARG_STRLEN (Linux 128KB / macOS 256KB).
+    printf '%s' "$payload" > "$payload_file"
 
     response=$(curl -s --max-time "$timeout" \
         --config "$curl_config" \
-        -d "$payload")
+        --data-binary "@$payload_file")
 
-    rm -f "$curl_config"
+    rm -f "$curl_config" "$payload_file"
 
     # Restore xtrace if it was on
     if [[ "$prev_xtrace" == "on" ]]; then

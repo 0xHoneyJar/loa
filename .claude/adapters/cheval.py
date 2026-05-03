@@ -383,10 +383,18 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         except ImportError:
             # Retry module not yet available — call directly with manual budget hooks
             # BB-405: ensure post_call runs on success, log on failure
+            # NOTE (issue #675, sub-issue 1): the redundant local
+            # `from loa_cheval.types import BudgetExceededError` previously here
+            # was deleted. Python's scoping rule made `BudgetExceededError` a
+            # function-local name throughout cmd_invoke(), and on the normal
+            # path (retry module IS available, so this `except ImportError`
+            # branch is skipped) the local was never bound — causing the outer
+            # `except BudgetExceededError as e:` below to raise UnboundLocalError
+            # and shadow the real RetriesExhaustedError. The module-scope import
+            # at the top of this file (line 27-28) is the single source of truth.
             if budget_hook:
                 status = budget_hook.pre_call(request)
                 if status == "BLOCK":
-                    from loa_cheval.types import BudgetExceededError
                     raise BudgetExceededError(spent=0, limit=0)
             result = None
             try:
