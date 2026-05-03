@@ -1,22 +1,45 @@
 # cycle-098-agent-network — Session Resumption Brief
 
-**Last updated**: 2026-05-03 (Sprint 1 SHIPPED + Sprint 1.5 SHIPPED + 3 hardening bundles SHIPPED; **Sprint 2 ready to fire**)
+**Last updated**: 2026-05-04 (Sprint 1 + 1.5 + Sprint 2 SHIPPED; **Sprint 3 ready to fire**)
 **Author**: deep-name + Claude Opus 4.7 1M
 **Purpose**: Crash-recovery + cross-session continuity. Read first when resuming cycle-098 work.
 
-## TL;DR — Sprint 2 ready to fire
+## TL;DR — Sprint 3 ready to fire
 
-Hardening is complete. The foundation is rock-solid. Paste this into a fresh Claude Code session:
+Sprints 1, 1.5, and 2 are shipped. The foundation + L1 + L2 primitives are in place. Paste this into a fresh Claude Code session:
 
 ```
-Read grimoires/loa/cycles/cycle-098-agent-network/RESUMPTION.md and grimoires/loa/sprint.md. Sprint 1 is fully shipped (PR #693, commit 6e93587). Sprint 1.5 hardening is shipped (PR #698, commit 289b927). Three additional bug-fix bundles shipped 2026-05-03 closed all TIER 1+2+3 backlog (PRs #699, #700, #703 — 13 issues closed, 103 new tests). Foundation is hardened.
+Read grimoires/loa/cycles/cycle-098-agent-network/RESUMPTION.md and grimoires/loa/sprint.md. Sprint 1 (PR #693, commit 6e93587) + Sprint 1.5 (PR #698, commit 289b927) + Sprint 2 (PR #705, commit a7c50ff) are all on main. Foundation + L1 hitl-jury-panel + L2 cost-budget-enforcer + reconciliation cron + daily snapshot are shipped. 343+ tests cumulative.
 
-Execute Sprint 2: L2 cost-budget-enforcer per PRD FR-L2-1..10 (#654) + reconciliation cron (un-deferred from FU-2 per SKP-005) + daily snapshot job (RPO 24h per SDD §3.4.4↔§3.7).
+Execute Sprint 3: L3 scheduled-cycle-template per PRD FR-L3-1..N (#655). Wire L2 budget pre-check integration (FR-L3-6) per CC-9 compose-when-available pattern.
 
-Slice into 4 sub-sprints (2A/2B/2C/2D) using the Sprint-1 4-slice pattern (see § Pre-written brief: Sprint 2 below). Full quality-gate chain: /implement (test-first × 4 sub-sprints) → /review-sprint → cross-model adversarial → /audit-sprint paranoid cypherpunk → bridgebuilder kaironic (use inline `.claude/skills/bridgebuilder-review/resources/entry.sh --pr <N>` — proven reliable across 8 PRs this cycle, never via the subagent dispatch which stalled twice on Sprint 1) → admin-squash merge after convergence.
+Slice into sub-sprints (3A/3B/3C/...) using the Sprint-1/Sprint-2 4-slice pattern. Full quality-gate chain: /implement (test-first per sub-sprint) → /review-sprint → cross-model adversarial → /audit-sprint paranoid cypherpunk → bridgebuilder kaironic (use inline `.claude/skills/bridgebuilder-review/resources/entry.sh --pr <N>`) → admin-squash merge.
 
-After Sprint 2 lands, the same pattern continues for Sprints 3-7 (L3-L7, issues #655-#659): scheduled-cycle-template, graduated-trust, cross-repo-status-reader, structured-handoff, soul-identity-doc + cycle-wide adversarial corpus.
+After Sprint 3 lands, Sprints 4-7 follow the same pattern: graduated-trust, cross-repo-status-reader, structured-handoff, soul-identity-doc + cycle-wide adversarial corpus.
 ```
+
+## Sprint 2 SHIPPED ✅ (2026-05-04)
+
+| Sub-sprint | Commit | Tests | Status |
+|-----------|--------|-------|--------|
+| 2A L2 verdict-engine foundation | `94e2b23` | 31 | ✅ Squashed into PR #705 |
+| 2B Reconciliation cron + installer | `7b20038` | +11 (42) | ✅ |
+| 2C Daily snapshot job + runbook | `d74ee61` | +13 (55) | ✅ |
+| 2D Skill + CLI + lore + config | `bde8088` | +12 (67) | ✅ |
+| Remediation pass (HIGH-1, HIGH-3/F1, F2, F3, MED-3) | `23b1b66` | +21 (88) | ✅ |
+| Bridgebuilder iter-1 LOW (F12, F-001) | `a076ac5` | +4 (92) | ✅ |
+| **PR #705 admin-squash merge** | **`a7c50ff`** | **92 cumulative** | ✅ on main |
+
+**Quality gates passed**:
+1. /implement (test-first × 4 sub-sprints) — 67 / 67 PASS
+2. Review subagent (general-purpose) → CHANGES_REQUIRED (3 HIGH + 4 MED)
+3. Audit subagent (paranoid cypherpunk) → CHANGES_REQUIRED (3 HIGH + 3 MED + 2 LOW)
+4. Remediation closed all HIGHs and most MEDs (21 new tests)
+5. Bridgebuilder kaironic iter-1 → 0 BLOCKER, 0 HIGH_CONSENSUS, 3 disputed
+6. Bridgebuilder kaironic iter-2 → 0 BLOCKER, 0 HIGH_CONSENSUS, 4 disputed → CONVERGED
+7. Admin-squash merge after kaironic plateau
+
+**Follow-up filed**: #706 (signed-mode happy-path test coverage; F-001 from bridgebuilder).
 
 ## Hardening waves shipped 2026-05-03 (post-Sprint-1)
 
