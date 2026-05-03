@@ -41,9 +41,13 @@ jobs:
             exit 0
           fi
 
-          # Compute the diff vs base ref.
-          git fetch origin "${BASE_REF}" --depth=1 || true
-          changed_files=$(git diff --name-only "origin/${BASE_REF}...HEAD" 2>/dev/null || git diff --name-only HEAD~1)
+          # Compute the diff vs base ref. Fail-closed per Tricorder principle:
+          # if the diff cannot be computed, the workflow MUST refuse to emit
+          # a green signal — silent fallback to HEAD~1 would only inspect the
+          # latest commit and miss multi-commit PRs that introduced the .bak
+          # earlier (bridgebuilder iter-1 finding).
+          git fetch origin "${BASE_REF}" --depth=1
+          changed_files=$(git diff --name-only "origin/${BASE_REF}...HEAD")
 
           # Pattern: *.bak, -bak (suffix), *~, *.orig, *.swp, *.swo.
           # NB: trailing-dot extensions only — does NOT reject `bakery/` dirs.
