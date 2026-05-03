@@ -303,6 +303,38 @@ def audit_emit(
     return envelope
 
 
+def _read_trust_cutoff() -> Optional[str]:
+    """
+    Read trust_cutoff.default_strict_after from the active trust-store.
+
+    Returns the ISO-8601 string or None when unset/missing/unreadable.
+    F1 review remediation: post-cutoff entries require both signature
+    AND signing_key_id (strip-attack defense).
+    """
+    ts_path = _trust_store_path()
+    if not ts_path.is_file():
+        return None
+    try:
+        import yaml
+        with ts_path.open("r", encoding="utf-8") as f:
+            doc = yaml.safe_load(f) or {}
+        cutoff = ((doc.get("trust_cutoff") or {}).get("default_strict_after") or "").strip()
+        return cutoff or None
+    except Exception:  # pragma: no cover — defensive
+        return None
+
+
+def _ts_ge_cutoff(ts_utc: str, cutoff: Optional[str]) -> bool:
+    """
+    F1: True if ts_utc >= cutoff (post-cutoff). Empty cutoff => False
+    (no cutoff configured = grandfather all). Lexicographic ISO-8601 UTC
+    comparison.
+    """
+    if not cutoff or not ts_utc:
+        return False
+    return ts_utc >= cutoff
+
+
 def audit_verify_chain(log_path: PathLike) -> Tuple[bool, str]:
     """
     Walk `log_path` line-by-line; verify each entry's prev_hash matches the
@@ -315,6 +347,11 @@ def audit_verify_chain(log_path: PathLike) -> Tuple[bool, str]:
     LOA_AUDIT_VERIFY_SIGS=0 to skip signature verification (e.g., when
     migrating legacy un-signed logs).
 
+    F1 (review remediation): for entries with ts_utc >= trust_cutoff, BOTH
+    signature AND signing_key_id are REQUIRED. Stripping either is a
+    downgrade attack and produces [STRIP-ATTACK-DETECTED]. Pre-cutoff
+    entries are grandfathered per IMP-002.
+
     Returns (ok, message). On failure, message includes line number + reason.
     """
     log_path = Path(log_path)
@@ -322,6 +359,7 @@ def audit_verify_chain(log_path: PathLike) -> Tuple[bool, str]:
         return False, f"file not found: {log_path}"
 
     verify_sigs = os.environ.get("LOA_AUDIT_VERIFY_SIGS", "1") != "0"
+    cutoff = _read_trust_cutoff()
 
     expected_prev = "GENESIS"
     count = 0
@@ -346,6 +384,20 @@ def audit_verify_chain(log_path: PathLike) -> Tuple[bool, str]:
             if verify_sigs:
                 sig_b64 = env.get("signature")
                 kid = env.get("signing_key_id")
+                ts_utc = env.get("ts_utc", "")
+
+                # F1: strict requirement post-trust-cutoff.
+                if _ts_ge_cutoff(ts_utc, cutoff):
+                    if not sig_b64 or not kid:
+                        sig_state = "present" if sig_b64 else "MISSING"
+                        kid_state = "present" if kid else "MISSING"
+                        return False, (
+                            f"BROKEN line {lineno}: [STRIP-ATTACK-DETECTED] "
+                            f"signature required post-cutoff "
+                            f"(cutoff={cutoff}, ts={ts_utc}, "
+                            f"sig={sig_state}, kid={kid_state})"
+                        )
+
                 if sig_b64 and kid:
                     pubkey_pem = _resolve_pubkey_pem(kid)
                     if pubkey_pem is None:

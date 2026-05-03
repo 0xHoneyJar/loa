@@ -290,6 +290,23 @@ When Claude Code Agent Teams (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`) is activ
 
 **Reference**: `.claude/loa/reference/agent-teams-reference.md`
 
+## Agent-Network Audit Envelope (cycle-098 Sprint 1)
+
+The L1-L7 audit infrastructure ships in cycle-098. All primitives use a shared envelope at `.claude/data/trajectory-schemas/agent-network-envelope.schema.json` (v1.1.0) with hash-chain + Ed25519 signatures.
+
+### Audit Envelope Constraints
+
+| Rule | Why |
+|------|-----|
+| ALWAYS use `audit_emit` (or `audit_emit_signed`) for L1-L7 audit writes — never `>>` directly | `audit_emit` acquires flock on `<log_path>.lock` for the entire compute-prev-hash → sign → validate → append sequence (CC-3). Direct appends race against concurrent writers and corrupt the hash chain. |
+| ALWAYS canonicalize via `lib/jcs.sh` (RFC 8785 JCS) — NEVER substitute `jq -S -c` | JCS is byte-deterministic across adapters (R15: bash + Python + Node identity). `jq -S` orders keys but does not enforce number canonicalization or whitespace identity. |
+| ALWAYS check trust-store cutoff before relying on signature absence | Post-trust-cutoff entries REQUIRE both `signature` AND `signing_key_id`. Stripping either is a downgrade attack and produces `[STRIP-ATTACK-DETECTED]` (F1 review remediation). |
+| NEVER pass private key passwords via argv or env vars | Use `--password-fd N` or `--password-file <path>` (mode 0600). The legacy `LOA_AUDIT_KEY_PASSWORD` env var is deprecated; helper emits a stderr warning + scrubs after read. |
+| ALWAYS exit 78 (EX_CONFIG) when a configured signing key is missing | Distinguishes bootstrap-pending state (operator hasn't generated keys) from data corruption. Caller routes 78 to `grimoires/loa/runbooks/audit-keys-bootstrap.md`. |
+| ALWAYS run `audit_recover_chain` before manual log surgery | NFR-R7 recovery walks git history (TRACKED logs L4/L6) or restores from snapshot archive (UNTRACKED L1/L2). Manual surgery breaks the chain unrecoverably. |
+
+**Reference**: `.claude/data/audit-retention-policy.yaml` (per-primitive retention) + `grimoires/loa/runbooks/audit-keys-bootstrap.md` (operator bootstrap).
+
 ## Conventions
 
 - Never skip phases - each builds on previous

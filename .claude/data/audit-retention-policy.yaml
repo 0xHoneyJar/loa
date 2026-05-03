@@ -1,0 +1,87 @@
+# =============================================================================
+# audit-retention-policy.yaml — cycle-098 Sprint 1 review remediation (CC-8)
+#
+# Per-primitive retention defaults for L1-L7 audit logs.
+#
+# Retention defines how long the rolling JSONL log is kept before compaction
+# / archive / pruning. Schemas live in `.claude/data/trajectory-schemas/`;
+# this file declares LIFECYCLE policy on top of the envelope schema.
+#
+# Source: SDD §1.4.1 (per-primitive log structure) + IMP-002 (envelope
+# evolution) + CC-8 (retention metadata required at schema level).
+# =============================================================================
+schema_version: "1.0"
+
+primitives:
+  L1:
+    log_basename: "panel-decisions.jsonl"
+    description: "Jury-panel binding decisions + minority dissent"
+    retention_days: 30
+    archive_after_days: 30   # daily snapshot → grimoires/loa/audit-archive/<date>-L1.jsonl.gz
+    chain_critical: true     # NFR-R7 hash-chain recovery applies
+    git_tracked: false       # rolling log; snapshots are tracked
+
+  L2:
+    log_basename: "cost-budget-events.jsonl"
+    description: "Cost ceiling allow/warn/halt events + reconciliation"
+    retention_days: 90
+    archive_after_days: 90
+    chain_critical: true
+    git_tracked: false
+
+  L3:
+    log_basename: "cycles.jsonl"
+    description: "Cycle phase transitions + completion + errors"
+    retention_days: 30
+    archive_after_days: 30
+    chain_critical: false
+    git_tracked: false
+
+  L4:
+    log_basename: "trust-ledger.jsonl"
+    description: "Trust grants, drops, force-grants, eligibility events. Immutable."
+    retention_days: 365
+    archive_after_days: null  # never archive; immutable across cycle archives
+    chain_critical: true
+    git_tracked: true          # append-only file in grimoires/loa/
+
+  L5:
+    log_basename: "cross-repo-status.jsonl"
+    description: "Cross-repo read cache + partial-failure markers"
+    retention_days: 7
+    archive_after_days: 7
+    chain_critical: false
+    git_tracked: false
+
+  L6:
+    log_basename: "handoffs/INDEX.md"  # markdown, not JSONL — special-case
+    description: "Handoff INDEX. Entries archived after 90d; index itself git-tracked."
+    retention_days: 90
+    archive_after_days: 90
+    chain_critical: false
+    git_tracked: true
+
+  L7:
+    log_basename: "SOUL.md"
+    description: "Operator-authored SOUL surface. NO RETENTION (operator-managed content)."
+    retention_days: null
+    archive_after_days: null
+    chain_critical: false
+    git_tracked: true
+
+# -----------------------------------------------------------------------------
+# Compaction guidance:
+# -----------------------------------------------------------------------------
+# - JSONL primitives (L1, L2, L3, L5): the daily snapshot job runs at 00:00 UTC;
+#   it copies all entries with ts_utc < (now - retention_days) into a snapshot
+#   file at grimoires/loa/audit-archive/<date>-<primitive>.jsonl.gz, then
+#   truncates the rolling log to entries within retention.
+# - Snapshots are signed (cycle-098 Sprint 6 — out of Sprint 1 scope).
+# - L4 (trust-ledger): never compacted; rotated only on cycle-archive.
+# - L6 (handoffs INDEX): archived per-handoff-entry, not bulk; entries flagged
+#   as "archived" stay in INDEX with an archive_pointer field.
+# - L7 (SOUL): operator-managed; no automated retention.
+#
+# Recovery:
+# - chain_critical: true means audit_recover_chain has snapshot-archive fallback.
+#   See .claude/scripts/audit-envelope.sh:_audit_recover_from_snapshot.

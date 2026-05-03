@@ -28,6 +28,22 @@ setup() {
     # LOA_AUDIT_ARCHIVE_DIR (override) — used here for hermetic test.
     export LOA_AUDIT_ARCHIVE_DIR="$ARCHIVE_DIR"
 
+    # F1 isolation: permissive trust-store so unsigned writes pass.
+    TEST_TRUST_STORE="$TEST_DIR/trust-store.yaml"
+    cat > "$TEST_TRUST_STORE" <<'EOF'
+schema_version: "1.0"
+root_signature:
+  algorithm: ed25519
+  signer_pubkey: ""
+  signed_at: ""
+  signature: ""
+keys: []
+revocations: []
+trust_cutoff:
+  default_strict_after: "2099-01-01T00:00:00Z"
+EOF
+    export LOA_TRUST_STORE_FILE="$TEST_TRUST_STORE"
+
     # shellcheck disable=SC1090
     source "$AUDIT_ENVELOPE"
 
@@ -40,7 +56,7 @@ teardown() {
     if [[ -n "${TEST_DIR:-}" && -d "$TEST_DIR" ]]; then
         rm -rf "$TEST_DIR" 2>/dev/null || true
     fi
-    unset LOA_AUDIT_ARCHIVE_DIR
+    unset LOA_AUDIT_ARCHIVE_DIR LOA_TRUST_STORE_FILE
 }
 
 # -----------------------------------------------------------------------------

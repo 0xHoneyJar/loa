@@ -22,6 +22,25 @@ setup() {
     TEST_DIR="$(mktemp -d)"
     LOG="$TEST_DIR/test.jsonl"
 
+    # F1 (review remediation): isolate trust-store so this 1A-style test (which
+    # writes UN-SIGNED envelopes) is not subject to the post-cutoff strict-sign
+    # requirement. Point at a test-local trust-store with a far-future cutoff;
+    # entries written "now" will fall pre-cutoff and remain valid unsigned.
+    TEST_TRUST_STORE="$TEST_DIR/trust-store.yaml"
+    cat > "$TEST_TRUST_STORE" <<'EOF'
+schema_version: "1.0"
+root_signature:
+  algorithm: ed25519
+  signer_pubkey: ""
+  signed_at: ""
+  signature: ""
+keys: []
+revocations: []
+trust_cutoff:
+  default_strict_after: "2099-01-01T00:00:00Z"
+EOF
+    export LOA_TRUST_STORE_FILE="$TEST_TRUST_STORE"
+
     # shellcheck disable=SC1090
     source "$AUDIT_ENVELOPE"
 }
@@ -31,6 +50,7 @@ teardown() {
         find "$TEST_DIR" -type f -delete 2>/dev/null || true
         rmdir "$TEST_DIR" 2>/dev/null || true
     fi
+    unset LOA_TRUST_STORE_FILE
 }
 
 # -----------------------------------------------------------------------------

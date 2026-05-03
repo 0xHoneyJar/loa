@@ -65,6 +65,38 @@ _audit_log() {
 }
 
 # -----------------------------------------------------------------------------
+# _audit_require_flock — F3 (CC-3 review remediation): ensure `flock` is on
+# PATH. On macOS, flock lives in homebrew util-linux at a keg-only path that
+# is NOT exported by default. Falls back to the same path-resolution pattern
+# used by .claude/scripts/lib/event-bus.sh (#229).
+# Returns 0 if flock is now usable; non-zero if not.
+# -----------------------------------------------------------------------------
+_audit_require_flock() {
+    if command -v flock >/dev/null 2>&1; then
+        return 0
+    fi
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        local keg_paths=(
+            "/opt/homebrew/opt/util-linux/bin"
+            "/usr/local/opt/util-linux/bin"
+        )
+        local keg_path
+        for keg_path in "${keg_paths[@]}"; do
+            if [[ -x "${keg_path}/flock" ]]; then
+                export PATH="${keg_path}:${PATH}"
+                return 0
+            fi
+        done
+        _audit_log "ERROR: audit-envelope requires flock for atomic chain writes (CC-3)."
+        _audit_log "  Install on macOS: brew install util-linux"
+        return 1
+    fi
+    _audit_log "ERROR: audit-envelope requires flock for atomic chain writes (CC-3)."
+    _audit_log "  Install: apt-get install util-linux"
+    return 1
+}
+
+# -----------------------------------------------------------------------------
 # _audit_now_iso8601() — produce microsecond-precision UTC ISO-8601 timestamp.
 # Format: 2026-05-02T14:30:00.123456Z
 # Cross-platform: GNU date supports %N (nanoseconds); macOS does not.
@@ -389,59 +421,126 @@ audit_emit() {
     log_dir="$(dirname "$log_path")"
     mkdir -p "$log_dir"
 
-    local ts_utc prev_hash
-    ts_utc="$(_audit_now_iso8601)"
-    prev_hash="$(_audit_compute_prev_hash "$log_path")"
+    # F3 (CC-3 review remediation): acquire flock on <log_path>.lock for the
+    # entire compute-prev-hash → sign → validate → append sequence. Without
+    # this, concurrent writers race between _audit_compute_prev_hash (read
+    # tail) and >> (append), producing missing entries or chain corruption.
+    # Lock is held by ALL audit_emit callers — panel_log_*, override CLI,
+    # cost-budget writes, etc.
+    _audit_require_flock || return 1
 
-    # Build envelope (Sprint 1B: signature + signing_key_id added when configured).
-    local envelope
-    envelope="$(jq -nc \
-        --arg sv "$LOA_AUDIT_SCHEMA_VERSION" \
-        --arg pid "$primitive_id" \
-        --arg et "$event_type" \
-        --arg ts "$ts_utc" \
-        --arg ph "$prev_hash" \
-        --argjson payload "$payload_json" \
-        '{
-            schema_version: $sv,
-            primitive_id: $pid,
-            event_type: $et,
-            ts_utc: $ts,
-            prev_hash: $ph,
-            payload: $payload,
-            redaction_applied: null
-        }')"
+    local lock_file="${log_path}.lock"
+    # Touch lock so flock has a stable file to lock on.
+    : > "$lock_file" 2>/dev/null || touch "$lock_file"
 
-    # Sprint 1B: Sign the canonical chain-input when LOA_AUDIT_SIGNING_KEY_ID
-    # is set. The chain-input is the JCS canonicalization of the envelope WITHOUT
-    # signature/signing_key_id (matches _audit_chain_input).
-    if [[ -n "${LOA_AUDIT_SIGNING_KEY_ID:-}" ]]; then
-        local canonical sig_b64
-        canonical="$(_audit_chain_input "$envelope")"
-        # Forward password-fd/file args from caller (audit_emit_signed sets these).
-        local pw_args=()
-        if [[ -n "${LOA_AUDIT_FORWARD_PW_ARGS+set}" ]]; then
-            pw_args=(${LOA_AUDIT_FORWARD_PW_ARGS[@]+"${LOA_AUDIT_FORWARD_PW_ARGS[@]}"})
+    # Open fd 9 on the lock file, then flock fd 9.
+    # Wait up to 10s; this should be ample for any single-line append.
+    {
+        flock -w 10 9 || {
+            _audit_log "audit_emit: failed to acquire lock on $lock_file (timeout 10s)"
+            return 1
+        }
+
+        local ts_utc prev_hash
+        ts_utc="$(_audit_now_iso8601)"
+        prev_hash="$(_audit_compute_prev_hash "$log_path")"
+
+        # Build envelope (Sprint 1B: signature + signing_key_id added when configured).
+        local envelope
+        envelope="$(jq -nc \
+            --arg sv "$LOA_AUDIT_SCHEMA_VERSION" \
+            --arg pid "$primitive_id" \
+            --arg et "$event_type" \
+            --arg ts "$ts_utc" \
+            --arg ph "$prev_hash" \
+            --argjson payload "$payload_json" \
+            '{
+                schema_version: $sv,
+                primitive_id: $pid,
+                event_type: $et,
+                ts_utc: $ts,
+                prev_hash: $ph,
+                payload: $payload,
+                redaction_applied: null
+            }')"
+
+        # Sprint 1B: Sign the canonical chain-input when LOA_AUDIT_SIGNING_KEY_ID
+        # is set. The chain-input is the JCS canonicalization of the envelope WITHOUT
+        # signature/signing_key_id (matches _audit_chain_input).
+        if [[ -n "${LOA_AUDIT_SIGNING_KEY_ID:-}" ]]; then
+            local canonical sig_b64
+            canonical="$(_audit_chain_input "$envelope")"
+            # Forward password-fd/file args from caller (audit_emit_signed sets these).
+            local pw_args=()
+            if [[ -n "${LOA_AUDIT_FORWARD_PW_ARGS+set}" ]]; then
+                pw_args=(${LOA_AUDIT_FORWARD_PW_ARGS[@]+"${LOA_AUDIT_FORWARD_PW_ARGS[@]}"})
+            fi
+            if ! sig_b64="$(printf '%s' "$canonical" | _audit_sign_stdin "$LOA_AUDIT_SIGNING_KEY_ID" ${pw_args[@]+"${pw_args[@]}"})"; then
+                _audit_log "audit_emit: signing failed for key_id=$LOA_AUDIT_SIGNING_KEY_ID"
+                return 1
+            fi
+            envelope="$(printf '%s' "$envelope" | jq -c \
+                --arg kid "$LOA_AUDIT_SIGNING_KEY_ID" \
+                --arg sig "$sig_b64" \
+                '. + {signing_key_id: $kid, signature: $sig}')"
         fi
-        if ! sig_b64="$(printf '%s' "$canonical" | _audit_sign_stdin "$LOA_AUDIT_SIGNING_KEY_ID" ${pw_args[@]+"${pw_args[@]}"})"; then
-            _audit_log "audit_emit: signing failed for key_id=$LOA_AUDIT_SIGNING_KEY_ID"
+
+        # Validate against schema.
+        if ! _audit_validate_envelope "$envelope"; then
+            _audit_log "audit_emit: schema validation failed for primitive=$primitive_id event=$event_type"
             return 1
         fi
-        envelope="$(printf '%s' "$envelope" | jq -c \
-            --arg kid "$LOA_AUDIT_SIGNING_KEY_ID" \
-            --arg sig "$sig_b64" \
-            '. + {signing_key_id: $kid, signature: $sig}')"
-    fi
 
-    # Validate against schema.
-    if ! _audit_validate_envelope "$envelope"; then
-        _audit_log "audit_emit: schema validation failed for primitive=$primitive_id event=$event_type"
-        return 1
-    fi
+        # Append the envelope atomically (within the lock).
+        printf '%s\n' "$envelope" >> "$log_path"
+    } 9>"$lock_file"
+}
 
-    # Append atomically. We use a single >> with the full line — for cross-process
-    # safety with concurrent writers, callers should hold a flock on the log dir.
-    printf '%s\n' "$envelope" >> "$log_path"
+# -----------------------------------------------------------------------------
+# _audit_trust_cutoff — read trust_cutoff.default_strict_after from the active
+# trust-store. Returns ISO-8601 string on stdout; empty on missing/unreadable.
+# -----------------------------------------------------------------------------
+_audit_trust_cutoff() {
+    local trust_store="${LOA_TRUST_STORE_FILE:-${_LOA_AUDIT_TRUST_STORE_DEFAULT}}"
+    [[ -f "$trust_store" ]] || return 0
+    if command -v yq >/dev/null 2>&1; then
+        local cutoff
+        cutoff="$(yq -r '.trust_cutoff.default_strict_after // ""' "$trust_store" 2>/dev/null || true)"
+        [[ "$cutoff" == "null" ]] && cutoff=""
+        printf '%s' "$cutoff"
+        return 0
+    fi
+    # Python fallback for environments without yq.
+    python3 - "$trust_store" <<'PY' 2>/dev/null || true
+import sys
+try:
+    import yaml
+except ImportError:
+    sys.exit(0)
+try:
+    with open(sys.argv[1]) as f:
+        doc = yaml.safe_load(f) or {}
+except Exception:
+    sys.exit(0)
+cutoff = (doc.get("trust_cutoff") or {}).get("default_strict_after", "")
+if cutoff is not None:
+    print(cutoff, end="")
+PY
+}
+
+# -----------------------------------------------------------------------------
+# _audit_ts_ge_cutoff <ts_utc> <cutoff_iso8601>
+# Returns 0 if ts_utc >= cutoff (post-cutoff), 1 otherwise.
+# Empty cutoff => returns 1 (no cutoff configured = grandfather all).
+# Lexicographic comparison works for ISO-8601 in UTC (Z-suffixed).
+# -----------------------------------------------------------------------------
+_audit_ts_ge_cutoff() {
+    local ts="$1"
+    local cutoff="$2"
+    [[ -z "$cutoff" ]] && return 1
+    [[ -z "$ts" ]] && return 1
+    [[ "$ts" > "$cutoff" || "$ts" == "$cutoff" ]] && return 0
+    return 1
 }
 
 # -----------------------------------------------------------------------------
@@ -455,6 +554,11 @@ audit_emit() {
 # Ed25519 signature against the pubkey resolved via _audit_pubkey_for_key_id.
 # When LOA_AUDIT_VERIFY_SIGS=0 (or empty), signature verification is skipped
 # (used for 1A-style chain-only verification on un-signed logs).
+#
+# F1 (review remediation): for entries with ts_utc >= trust_cutoff, BOTH
+# signature AND signing_key_id are REQUIRED. Stripping either is a downgrade
+# attack and produces [STRIP-ATTACK-DETECTED]. Pre-cutoff entries are
+# grandfathered (sign-optional) per IMP-002.
 #
 # Output: prints "OK <N entries>" on success; "BROKEN <line N: reason>" on
 # first mismatch and exits non-zero.
@@ -472,6 +576,9 @@ audit_verify_chain() {
     # Default: verify signatures when present. Operators can opt out via
     # LOA_AUDIT_VERIFY_SIGS=0 (e.g., for migrating un-signed logs).
     local verify_sigs="${LOA_AUDIT_VERIFY_SIGS:-1}"
+    # F1: trust-cutoff for strict signature requirement (post-cutoff only).
+    local cutoff
+    cutoff="$(_audit_trust_cutoff)"
     while IFS= read -r line || [[ -n "$line" ]]; do
         lineno=$((lineno + 1))
         # Skip seal markers + blank lines.
@@ -496,9 +603,20 @@ audit_verify_chain() {
         # Sprint 1B signature verification (only when signature field present
         # AND verification is enabled).
         if [[ "$verify_sigs" != "0" ]]; then
-            local sig_b64 kid
+            local sig_b64 kid ts_utc
             sig_b64="$(printf '%s' "$line" | jq -r '.signature // ""' 2>/dev/null)"
             kid="$(printf '%s' "$line" | jq -r '.signing_key_id // ""' 2>/dev/null)"
+            ts_utc="$(printf '%s' "$line" | jq -r '.ts_utc // ""' 2>/dev/null)"
+
+            # F1: strict requirement post-trust-cutoff. Both signature AND
+            # signing_key_id MUST be present. Missing either => downgrade attack.
+            if _audit_ts_ge_cutoff "$ts_utc" "$cutoff"; then
+                if [[ -z "$sig_b64" || -z "$kid" ]]; then
+                    echo "BROKEN line $lineno: [STRIP-ATTACK-DETECTED] signature required post-cutoff (cutoff=$cutoff, ts=$ts_utc, sig=$([[ -n "$sig_b64" ]] && echo present || echo MISSING), kid=$([[ -n "$kid" ]] && echo present || echo MISSING))" >&2
+                    return 1
+                fi
+            fi
+
             if [[ -n "$sig_b64" && -n "$kid" ]]; then
                 local pubkey_pem canonical
                 if ! pubkey_pem="$(_audit_pubkey_for_key_id "$kid" 2>/dev/null)"; then

@@ -1,8 +1,8 @@
 # cycle-098 Sprint 1 Release Notes — Shared CC Infrastructure + L1 hitl-jury-panel
 
-> Sprint 1 release notes — to be edited and finalized when Sprint 1 ships. The fingerprint section is the **third of three** publication channels for the maintainer root pubkey.
+> Sprint 1 release notes — finalized post-implementation + post-review remediation. The fingerprint section is the **third of three** publication channels for the maintainer root pubkey.
 
-**Status**: STAGED — Sprint 1 not yet started. This document is the prepared template for the operator to publish at Sprint 1 release.
+**Status**: SHIPPED — Sprint 1A/1B/1C/1D + review remediation (F1-F4 + 9 ACs) complete. This document is canonical for the cycle-098 Sprint 1 release.
 
 ## Highlights
 

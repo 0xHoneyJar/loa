@@ -112,8 +112,14 @@ def _load_private_key(
 ) -> ed25519.Ed25519PrivateKey:
     priv_path = key_dir / f"{key_id}.priv"
     if not priv_path.is_file():
-        _err(f"private key not found: {priv_path}")
-        sys.exit(EX_KEY_LOAD)
+        # IMP-003 #1 review remediation: exit 78 (EX_CONFIG) when the
+        # configured signing key file is missing — distinguishes "config
+        # broken / bootstrap-pending" (78) from "key data corrupted" (EX_KEY_LOAD).
+        # Operators reading the exit code can route 78 to the bootstrap
+        # runbook and 3 to data-corruption recovery.
+        _err(f"[BOOTSTRAP-PENDING] private key not found: {priv_path}")
+        _err("Hint: see grimoires/loa/runbooks/audit-keys-bootstrap.md")
+        sys.exit(EX_CONFIG)
     # Permission check: must be 0600.
     st_mode = priv_path.stat().st_mode
     permissive = st_mode & (stat.S_IRWXG | stat.S_IRWXO)

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://0xhoneyjar.dev/loa/schemas/agent-network-envelope.schema.json",
   "title": "Agent-Network Audit Envelope",
-  "description": "Versioned, hash-chained, Ed25519-signed envelope for all L1-L7 primitive audit logs. cycle-098 Sprint 1 — IMP-002 (HIGH_CONS 875), CC-2, CC-11. Sprint 1A lands the schema + basic write/read/chain-walk; Sprint 1B adds Ed25519 signing.",
+  "description": "Versioned, hash-chained, Ed25519-signed envelope for all L1-L7 primitive audit logs. cycle-098 Sprint 1 — IMP-002 (HIGH_CONS 875), CC-2, CC-11. Sprint 1A lands the schema + basic write/read/chain-walk; Sprint 1B adds Ed25519 signing (additive minor bump 1.0.0 → 1.1.0). Per-primitive retention defaults — L1 panel-decisions: 30d, L2 cost-budget-events: 90d, L3 cycles: 30d, L4 trust-ledger: 365d (immutable), L5 cross-repo cache: 7d, L6 handoffs INDEX: 90d (then archive), L7 SOUL surface: no retention (operator content). See .claude/data/audit-retention-policy.yaml for normative values.",
   "type": "object",
   "required": [
     "schema_version",
@@ -17,7 +17,7 @@
     "schema_version": {
       "type": "string",
       "pattern": "^\\d+\\.\\d+\\.\\d+$",
-      "description": "Semver. Sprint 1 lands as 1.0.0. Breaking-change rev bumps major; additive bumps minor."
+      "description": "Semver. Sprint 1B writers emit 1.1.0 (additive minor bump from 1.0.0 added signature/signing_key_id per IMP-002). Breaking-change rev bumps major; additive bumps minor."
     },
     "primitive_id": {
       "type": "string",

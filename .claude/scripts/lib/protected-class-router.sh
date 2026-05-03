@@ -132,6 +132,48 @@ is_protected_class() {
 }
 
 # -----------------------------------------------------------------------------
+# _protected_class_override_cli <args...>
+#
+# F2 review remediation: previously this was a top-level case-arm body that
+# used `local` outside any function — bash refuses with "local: can only be
+# used in a function" and exits 1 with no override logged.
+#
+# Sprint 1B: time-bounded override is logged via audit-envelope. The actual
+# TTL enforcement is Sprint 1D (panel) + later cycle (L4).
+# -----------------------------------------------------------------------------
+_protected_class_override_cli() {
+    local _class="" _duration="" _reason=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --class) _class="$2"; shift 2 ;;
+            --duration) _duration="$2"; shift 2 ;;
+            --reason) _reason="$2"; shift 2 ;;
+            *) echo "unknown flag: $1" >&2; return 2 ;;
+        esac
+    done
+    if [[ -z "$_class" || -z "$_duration" || -z "$_reason" ]]; then
+        echo "usage: $0 override --class <id> --duration <s> --reason <text>" >&2
+        return 2
+    fi
+    # Dispatch audit log via audit-envelope when available.
+    local ae="${_PCR_REPO_ROOT}/.claude/scripts/audit-envelope.sh"
+    if [[ -f "$ae" ]]; then
+        # shellcheck disable=SC1090
+        source "$ae"
+        local payload
+        payload=$(jq -nc \
+            --arg class "$_class" \
+            --arg duration "$_duration" \
+            --arg reason "$_reason" \
+            '{class:$class, duration_seconds:($duration|tonumber? // 0), reason:$reason}')
+        audit_emit L4 trust.protected_class_override "$payload" \
+            "${_PCR_REPO_ROOT}/.run/protected-class-overrides.jsonl"
+    fi
+    echo "OK override logged for class=$_class duration=${_duration}s reason=$_reason"
+    return 0
+}
+
+# -----------------------------------------------------------------------------
 # CLI dispatcher
 # -----------------------------------------------------------------------------
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
@@ -148,37 +190,9 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
             list_protected_classes
             ;;
         override)
-            # Sprint 1B: time-bounded override is logged via audit-envelope.
-            # The actual TTL enforcement is Sprint 1D (panel) + later cycle (L4).
             shift
-            local _class="" _duration="" _reason=""
-            while [[ $# -gt 0 ]]; do
-                case "$1" in
-                    --class) _class="$2"; shift 2 ;;
-                    --duration) _duration="$2"; shift 2 ;;
-                    --reason) _reason="$2"; shift 2 ;;
-                    *) echo "unknown flag: $1" >&2; exit 2 ;;
-                esac
-            done
-            if [[ -z "$_class" || -z "$_duration" || -z "$_reason" ]]; then
-                echo "usage: $0 override --class <id> --duration <s> --reason <text>" >&2
-                exit 2
-            fi
-            # Dispatch audit log via audit-envelope when available.
-            local ae="${_PCR_REPO_ROOT}/.claude/scripts/audit-envelope.sh"
-            if [[ -f "$ae" ]]; then
-                # shellcheck disable=SC1090
-                source "$ae"
-                local payload
-                payload=$(jq -nc \
-                    --arg class "$_class" \
-                    --arg duration "$_duration" \
-                    --arg reason "$_reason" \
-                    '{class:$class, duration_seconds:($duration|tonumber? // 0), reason:$reason}')
-                audit_emit L4 trust.protected_class_override "$payload" \
-                    "${_PCR_REPO_ROOT}/.run/protected-class-overrides.jsonl"
-            fi
-            echo "OK override logged for class=$_class duration=${_duration}s reason=$_reason"
+            _protected_class_override_cli "$@"
+            exit $?
             ;;
         --help|-h|"")
             cat <<EOF
