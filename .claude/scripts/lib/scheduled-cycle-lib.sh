@@ -77,7 +77,10 @@ _L3_REPO_ROOT="$(cd "${_L3_DIR}/../../.." && pwd)"
 _L3_AUDIT_ENVELOPE="${_L3_REPO_ROOT}/.claude/scripts/audit-envelope.sh"
 _L3_SCHEMA_DIR="${_L3_REPO_ROOT}/.claude/data/trajectory-schemas/cycle-events"
 _L3_DEFAULT_LOG=".run/cycles.jsonl"
+_L3_DEFAULT_LOCK_DIR=".run/cycles"
 _L3_DEFAULT_PHASE_TIMEOUT=300
+_L3_DEFAULT_LOCK_TIMEOUT=30
+_L3_DEFAULT_KILL_GRACE_SECONDS=5
 _L3_PHASES=(reader decider dispatcher awaiter logger)
 
 # shellcheck source=../audit-envelope.sh
@@ -152,6 +155,35 @@ _l3_get_log_path() {
     else
         echo "${_L3_REPO_ROOT}/${relpath}"
     fi
+}
+
+# -----------------------------------------------------------------------------
+# _l3_get_lock_dir — directory holding per-schedule lock files.
+# -----------------------------------------------------------------------------
+_l3_get_lock_dir() {
+    if [[ -n "${LOA_L3_LOCK_DIR:-}" ]]; then
+        echo "$LOA_L3_LOCK_DIR"
+        return 0
+    fi
+    local relpath
+    relpath="$(_l3_config_get '.scheduled_cycle_template.lock_dir' "$_L3_DEFAULT_LOCK_DIR")"
+    if [[ "$relpath" = /* ]]; then
+        echo "$relpath"
+    else
+        echo "${_L3_REPO_ROOT}/${relpath}"
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# _l3_get_lock_timeout — seconds to wait for flock acquisition.
+# -----------------------------------------------------------------------------
+_l3_get_lock_timeout() {
+    local v
+    v="${LOA_L3_LOCK_TIMEOUT_SECONDS:-$(_l3_config_get '.scheduled_cycle_template.lock_timeout_seconds' "$_L3_DEFAULT_LOCK_TIMEOUT")}"
+    if ! [[ "$v" =~ $_L3_INT_RE ]]; then
+        v="$_L3_DEFAULT_LOCK_TIMEOUT"
+    fi
+    echo "$v"
 }
 
 _l3_config_path() {
@@ -471,25 +503,55 @@ _l3_run_phase() {
     local rc=0
     local prior_arg="${prior_phases_json:-[]}"
 
-    # Run the phase script. Phase scripts receive:
-    #   $1 cycle_id, $2 schedule_id, $3 phase_index, $4 prior_phases_json
-    # If timeout_seconds is set we attempt to use the `timeout` command. Sprint
-    # 3A leaves enforcement loose (records timeout intent in payload); Sprint
-    # 3B installs the actual `timeout` invocation + outcome=timeout branch.
-    if [[ -x "$script_path" ]]; then
-        if "$script_path" "$cycle_id" "$schedule_id" "$phase_index" "$prior_arg" \
-                >"$stdout_file" 2>"$stderr_file"; then
-            rc=0
+    # Run the phase script wrapped in `timeout` (Sprint 3B). Phase scripts
+    # receive: $1 cycle_id, $2 schedule_id, $3 phase_index, $4 prior_phases_json
+    #
+    # On timeout, GNU coreutils `timeout` exits 124 (after TERM) or 137
+    # (after KILL via --kill-after grace). We treat both as outcome=timeout.
+    local _l3_timeout_bin=""
+    if command -v timeout >/dev/null 2>&1; then
+        _l3_timeout_bin="timeout"
+    elif command -v gtimeout >/dev/null 2>&1; then
+        # macOS via coreutils brew package.
+        _l3_timeout_bin="gtimeout"
+    fi
+    local _l3_kill_grace="${LOA_L3_KILL_GRACE_SECONDS:-${_L3_DEFAULT_KILL_GRACE_SECONDS}}"
+
+    if [[ -n "$_l3_timeout_bin" && -n "${timeout_s}" && "$timeout_s" =~ $_L3_INT_RE ]]; then
+        if [[ -x "$script_path" ]]; then
+            if "$_l3_timeout_bin" --kill-after="${_l3_kill_grace}s" "${timeout_s}s" \
+                    "$script_path" "$cycle_id" "$schedule_id" "$phase_index" "$prior_arg" \
+                    >"$stdout_file" 2>"$stderr_file"; then
+                rc=0
+            else
+                rc=$?
+            fi
         else
-            rc=$?
+            if "$_l3_timeout_bin" --kill-after="${_l3_kill_grace}s" "${timeout_s}s" \
+                    bash "$script_path" "$cycle_id" "$schedule_id" "$phase_index" "$prior_arg" \
+                    >"$stdout_file" 2>"$stderr_file"; then
+                rc=0
+            else
+                rc=$?
+            fi
         fi
     else
-        # Non-executable; treat as bash source.
-        if bash "$script_path" "$cycle_id" "$schedule_id" "$phase_index" "$prior_arg" \
-                >"$stdout_file" 2>"$stderr_file"; then
-            rc=0
+        # Fallback (no `timeout` available): unwrapped invocation. Records
+        # timeout_seconds in payload but does not enforce.
+        if [[ -x "$script_path" ]]; then
+            if "$script_path" "$cycle_id" "$schedule_id" "$phase_index" "$prior_arg" \
+                    >"$stdout_file" 2>"$stderr_file"; then
+                rc=0
+            else
+                rc=$?
+            fi
         else
-            rc=$?
+            if bash "$script_path" "$cycle_id" "$schedule_id" "$phase_index" "$prior_arg" \
+                    >"$stdout_file" 2>"$stderr_file"; then
+                rc=0
+            else
+                rc=$?
+            fi
         fi
     fi
 
@@ -505,6 +567,15 @@ _l3_run_phase() {
         outcome="success"
         exit_code=0
         diagnostic=""
+    elif [[ "$rc" -eq 124 || "$rc" -eq 137 ]]; then
+        outcome="timeout"
+        exit_code="$rc"
+        local stderr_tail
+        stderr_tail="$(tail -c 4096 "$stderr_file" 2>/dev/null || true)"
+        diagnostic="$(_l3_redact_diagnostic "$stderr_tail")"
+        if [[ -z "$diagnostic" ]]; then
+            diagnostic="phase exceeded timeout=${timeout_s}s (rc=${rc})"
+        fi
     else
         outcome="error"
         exit_code="$rc"
@@ -800,7 +871,69 @@ cycle_invoke() {
     fi
     if ! _l3_validate_cycle_id "$cycle_id"; then return 2; fi
 
-    export LOA_L3_CURRENT_SCHEDULE_ID="$schedule_id"
+    # Sprint 3B: acquire flock on .run/cycles/<schedule_id>.lock for the entire
+    # cycle. Without the lock, two cron firings can overlap and race the audit
+    # log + state. flock fd 9 is held via `9>"$lock_file"` for the whole group.
+    if ! _audit_require_flock; then return 1; fi
+    local lock_dir lock_file lock_timeout
+    lock_dir="$(_l3_get_lock_dir)"
+    mkdir -p "$lock_dir"
+    lock_file="${lock_dir}/${schedule_id}.lock"
+    : > "$lock_file" 2>/dev/null || touch "$lock_file"
+    lock_timeout="$(_l3_get_lock_timeout)"
+
+    # Brace group (NOT subshell) — `return N` inside terminates cycle_invoke.
+    {
+        if ! flock -w "$lock_timeout" 9; then
+            local lf_payload
+            lf_payload="$(jq -nc \
+                --arg sid "$schedule_id" \
+                --arg cid "$cycle_id" \
+                --arg lock "$lock_file" \
+                --argjson tmo "$lock_timeout" \
+                --arg attempted "$(_l3_now_iso8601)" \
+                --arg diag "Failed to acquire lock within ${lock_timeout}s" \
+                '{schedule_id:$sid, cycle_id:$cid, lock_path:$lock,
+                  acquire_timeout_seconds:$tmo, attempted_at:$attempted,
+                  holder_pid:null, diagnostic:$diag}')"
+            _l3_audit_emit_event "cycle.lock_failed" "$lf_payload" || true
+            return 4
+        fi
+
+        # FR-L3-2 idempotency: if cycle.complete already in log for cycle_id,
+        # treat invocation as no-op.
+        local log_path
+        log_path="$(_l3_get_log_path)"
+        if cycle_idempotency_check "$cycle_id" --log-path "$log_path"; then
+            _l3_log "cycle $cycle_id already complete; skipping (idempotent)"
+            return 0
+        fi
+
+        export LOA_L3_CURRENT_SCHEDULE_ID="$schedule_id"
+        _l3_cycle_invoke_inner \
+            "$schedule_id" "$schedule_cron" "$dc_json" "$dc_hash" \
+            "$cycle_id" "$timeout_s" "$budget_estimate" "$dry_run"
+        local _inner_rc=$?
+        unset LOA_L3_CURRENT_SCHEDULE_ID
+        return $_inner_rc
+    } 9>"$lock_file"
+}
+
+# -----------------------------------------------------------------------------
+# _l3_cycle_invoke_inner — runs the cycle.start → 5 phases → cycle.complete |
+# cycle.error sequence under an already-acquired flock. Caller (cycle_invoke)
+# is responsible for argument parsing, schedule_id derivation, lock
+# acquisition, and idempotency check.
+# -----------------------------------------------------------------------------
+_l3_cycle_invoke_inner() {
+    local schedule_id="$1"
+    local schedule_cron="$2"
+    local dc_json="$3"
+    local dc_hash="$4"
+    local cycle_id="$5"
+    local timeout_s="$6"
+    local budget_estimate="$7"
+    local dry_run="$8"
 
     local started_at
     started_at="$(_l3_now_iso8601)"
@@ -823,13 +956,11 @@ cycle_invoke() {
 
     if ! _l3_audit_emit_event "cycle.start" "$start_payload"; then
         _l3_log "ERROR: cycle.start emit failed"
-        unset LOA_L3_CURRENT_SCHEDULE_ID
         return 1
     fi
 
     if (( dry_run == 1 )); then
         _l3_log "dry-run: skipping phase execution for $cycle_id"
-        unset LOA_L3_CURRENT_SCHEDULE_ID
         return 0
     fi
 
@@ -875,7 +1006,13 @@ cycle_invoke() {
 
         if (( rc != 0 )); then
             error_phase="$phase"
-            error_kind="phase_error"
+            local _rec_outcome
+            _rec_outcome="$(printf '%s' "$phase_record" | jq -r '.outcome // "error"')"
+            if [[ "$_rec_outcome" == "timeout" ]]; then
+                error_kind="phase_timeout"
+            else
+                error_kind="phase_error"
+            fi
             error_diag="$(printf '%s' "$phase_record" | jq -r '.diagnostic // ""')"
             error_exit="$rc"
             break
@@ -940,7 +1077,6 @@ print(int(datetime.fromisoformat(s).timestamp()))" "$errored_at" 2>/dev/null || 
               diagnostic:$diag, phases_completed:$completed,
               outcome:$outcome, budget_pre_check:null}')"
         _l3_audit_emit_event "cycle.error" "$error_payload" || true
-        unset LOA_L3_CURRENT_SCHEDULE_ID
         return 1
     fi
 
@@ -958,10 +1094,8 @@ print(int(datetime.fromisoformat(s).timestamp()))" "$errored_at" 2>/dev/null || 
           outcome:"success", budget_actual_usd:null}')"
     if ! _l3_audit_emit_event "cycle.complete" "$complete_payload"; then
         _l3_log "ERROR: cycle.complete emit failed"
-        unset LOA_L3_CURRENT_SCHEDULE_ID
         return 1
     fi
-    unset LOA_L3_CURRENT_SCHEDULE_ID
     return 0
 }
 
