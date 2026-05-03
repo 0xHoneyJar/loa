@@ -176,12 +176,25 @@ panel_solicit() {
     # NB: do NOT use --preserve-status — that masks timeout (124) with the
     # killed child's exit status. Also: `if ! cmd; then rc=$?; fi` does NOT
     # preserve rc reliably under bats/`set -e` — use `cmd || rc=$?`.
+    # Issue #692 (sprint-bug-141): pass prompt content via --input <tmpfile>
+    # rather than --prompt "$(cat ...)" so the deliberation context never
+    # transits argv. Pre-fix `ps -o args=` exposed the entire context to any
+    # local user during the model-invoke fork window. Mirrors sprint-bug-131
+    # / #675 fd-vs-argv pattern.
+    local prompt_file
+    prompt_file=$(mktemp)
+    chmod 600 "$prompt_file" 2>/dev/null || true
+    # Read context into the tmpfile (silently fall through on missing/empty
+    # context to preserve pre-fix tolerance — empty stdin to model-invoke
+    # is the same as empty --prompt).
+    cat "$context_path" 2>/dev/null > "$prompt_file" || true
+
     local timed_out=false
     rc=0
     if command -v timeout >/dev/null 2>&1; then
         LOA_PANEL_TEST_PANELIST="$panelist_id" \
             timeout "$timeout_s" \
-                model-invoke --model "$model" --prompt "$(cat "$context_path" 2>/dev/null || true)" \
+                model-invoke --model "$model" --input "$prompt_file" \
                 </dev/null >"$out_file" 2>"$err_file" \
             || rc=$?
         # `timeout` exits 124 on its SIGTERM, 137 (=128+9) on SIGKILL,
@@ -192,10 +205,11 @@ panel_solicit() {
         fi
     else
         LOA_PANEL_TEST_PANELIST="$panelist_id" \
-            model-invoke --model "$model" --prompt "$(cat "$context_path" 2>/dev/null || true)" \
+            model-invoke --model "$model" --input "$prompt_file" \
                 </dev/null >"$out_file" 2>"$err_file" \
             || rc=$?
     fi
+    rm -f "$prompt_file"
 
     ended=$(date +%s)
     duration=$((ended - started))

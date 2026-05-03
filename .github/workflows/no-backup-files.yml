@@ -1,0 +1,72 @@
+name: No Backup Files
+
+# Issue #681 (sprint-bug-141, vision-014): CI guard rejecting *.bak / -bak /
+# *~ / *.orig / *.swp / *.swo siblings in PR diffs. Planning tooling
+# (`/sprint-plan`, `/archive-cycle`) historically emitted defensive backup
+# siblings (e.g. `sprint.md.cycle-096-bak`) that accidentally landed in PRs.
+# Bridgebuilder caught + removed them in PR #678; this workflow makes the
+# guarantee enforced rather than discovered post-hoc.
+#
+# Bypass: include `[allow-bak]` in the PR title to skip this check (e.g.,
+# when a vendored or documentation snapshot legitimately includes a .bak
+# file). The bypass token is delivered via env var per cycle-098 untrusted-
+# input pattern (NEVER direct `${{ ... }}` interpolation in shell bodies).
+
+on:
+  pull_request:
+
+jobs:
+  no-backup-files:
+    name: Reject backup-sibling files
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout
+        # actions/checkout@v4.3.1 (pinned per cycle-098 supply-chain pattern)
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0  # need history for git diff vs base ref
+
+      - name: Check for backup-sibling files in PR diff
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+
+          # Bypass — `[allow-bak]` token in PR title. Read from env var to
+          # avoid GitHub-context-injection vector (see cycle-098 SDD §1.9.3.2).
+          if [[ "${PR_TITLE}" == *'[allow-bak]'* ]]; then
+            echo "::notice::PR title contains [allow-bak] — backup-file check bypassed"
+            exit 0
+          fi
+
+          # Compute the diff vs base ref.
+          git fetch origin "${BASE_REF}" --depth=1 || true
+          changed_files=$(git diff --name-only "origin/${BASE_REF}...HEAD" 2>/dev/null || git diff --name-only HEAD~1)
+
+          # Pattern: *.bak, -bak (suffix), *~, *.orig, *.swp, *.swo.
+          # NB: trailing-dot extensions only — does NOT reject `bakery/` dirs.
+          violations=$(printf '%s\n' "$changed_files" \
+            | grep -E '(\.bak$|-bak$|~$|\.orig$|\.swp$|\.swo$)' \
+            || true)
+
+          if [[ -n "$violations" ]]; then
+            echo "::error::Backup-sibling files detected in PR diff (issue #681 / vision-014)"
+            echo "Affected files:"
+            printf '  - %s\n' $violations
+            echo ""
+            echo "Remediation:"
+            echo "  git rm --cached <file>      # untrack the backup"
+            echo "  echo '<pattern>' >> .gitignore"
+            echo "  git commit --amend --no-edit"
+            echo ""
+            echo "If this backup file is INTENTIONALLY part of the PR (rare — "
+            echo "e.g., a vendored snapshot or test fixture), include the bypass"
+            echo "token in your PR title: [allow-bak]"
+            echo ""
+            echo "Reference: https://github.com/0xHoneyJar/loa/issues/681"
+            exit 1
+          fi
+
+          echo "OK — no backup-sibling files in PR diff"

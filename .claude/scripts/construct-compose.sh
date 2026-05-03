@@ -392,7 +392,7 @@ for (( i=0; i<STAGE_COUNT; i++ )); do
   outcome="completed"
   if (( exec_rc != 0 )); then
     outcome="failed"
-    "$SCRIPT_DIR/construct-invoke.sh" exit "$persona" "$construct" "$dur_ms" "$outcome" "/compose:$COMPOSITION_NAME#$stage_label" >/dev/null 2>&1 || true
+    "$SCRIPT_DIR/construct-invoke.sh" exit "$persona" "$construct" "$dur_ms" "$outcome" "/compose:$COMPOSITION_NAME#$stage_label" "$session_id" >/dev/null 2>&1 || true
     die 3 "stage $stage_label ($construct/$skill) executor exited $exec_rc"
   fi
 
