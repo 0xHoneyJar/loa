@@ -145,6 +145,14 @@ grimoires/loa/decisions.yaml
 # Created by /plan-and-analyze, tracks development cycles per-project
 grimoires/loa/ledger.json
 grimoires/loa/ledger.json.bak
+# Ledger / sprint backup variants (pre-archive, cycle-NNN snapshots).
+# Use git tags / cycle archive directories for rollback reference instead of committed .bak files.
+grimoires/loa/ledger.json.*-bak
+grimoires/loa/ledger.json.bak.*
+grimoires/loa/sprint*.md.*-bak
+grimoires/loa/sprint*.md.bak.*
+grimoires/loa/prd*.md.*-bak
+grimoires/loa/sdd*.md.*-bak
 
 # Archived development cycles (project-specific history)
 grimoires/loa/archive/

@@ -163,6 +163,23 @@ httpx.post("https://api.anthropic.com/v1/messages",
 
 Running `flatline-orchestrator.sh --doc grimoires/loa/sdd.md --phase sdd --json` exited 3 (all model calls failed) without writing the result JSON (orchestrator logs the failures but doesn't surface what jq parse error 76:1 means). The `jq parse error: Invalid numeric literal at line 1, column 76` on legacy adapter responses comes from an empty/truncated response being piped into jq. Root cause is the inline `-d "$payload"` bash limit on a 137KB SDD compounding with the Anthropic timeout.
 
+### Bridgebuilder iter-1 — review of PR #678 (planning artifacts)
+
+Multi-model bridgebuilder (claude-opus-4-7 + gpt-5.3-codex + gemini-2.5-pro, architecture persona) ran against the planning PR. **Stats**: 0 HIGH_CONSENSUS, 3 DISPUTED, 0 BLOCKER, 13 unique findings. Comment trail on PR #678.
+
+**Actionable findings** (3 reviewers independently flagged):
+- `.bak` files committed to tree: `ledger.json.pre-archive-bak` and `sprint.md.cycle-096-bak`. Existing `.gitignore` line 67 already says "Use git tags for rollback reference instead of committed .bak files" — these slipped through because the gitignore patterns didn't catch the `.pre-archive-bak` / `.cycle-NNN-bak` variants. **Fixed iter-1**: removed via `git rm`; broadened gitignore patterns at lines 145-153 to catch `*.{ledger,sprint,prd,sdd}*.{*-bak,bak.*}`.
+
+**REFRAME findings** (process-level, not actionable in this PR):
+- All 12 PR files were excluded from the bridgebuilder review payload because they're under `grimoires/loa/` (Loa-aware filter). The reviewers flagged "we cannot see content." This is a real gap for *planning* PRs but is a framework-level issue, not a planning-PR issue. The PRD/SDD content has been adversarially reviewed by 6 prior Flatline passes (2 PRD + 4 SDD), so adversarial coverage is not actually missing — only this particular review pass is blind. **Logged as vision candidate**: per-PR opt-in (`review-loa-content: true`) for cycle-planning PRs.
+
+**SPECULATION findings** (logged for future cycle-099 consideration, not actionable now):
+- Audit-key bootstrap README should expand to RFC-3647-style Certificate Policy with HSM custody, generation-ceremony witness, rotation cadence, and revocation path. Already partly addressed by the Sprint 1 AC (passphrase-protected backup, GitHub-tag-signed pubkey verification). Additional governance ceremony documentation deferred to cycle-099 (post-Sprint-1).
+- Large SDD rewrite (+2560/-949) lacks a top-level "Changes from v1.4" summary. The **Document History** table at SDD §0.1 (line 35-50) does carry per-version changelogs (v1.0→v1.1→…→v1.5) but is buried in the body. Consider promoting to top-of-doc in cycle-099.
+- `ledger.json` direct-Git storage will eventually merge-conflict at scale. Already mitigated by the once-per-cycle update pattern (sprint counter increments serialized through `/sprint-plan`).
+
+**Kaironic stop signal hint**: 0 HIGH_CONSENSUS in iter-1 with all DISPUTED findings tracing to the **same root cause** (filter excluding the planning content). This is finding-rotation around a single concern, not multi-concern coverage. Strong signal that iter-2 will flatline once the .bak files are removed.
+
 ---
 
 ## Decision Log — 2026-04-26 (cycle-094 sprint-2 — test infra + filter + SSOT close-out)
