@@ -22,6 +22,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VERSION_FILE="${PROJECT_ROOT}/.loa-version.json"
 CONFIG_FILE="${PROJECT_ROOT}/.loa.config.yaml"
 WORKFLOW_STATE_SCRIPT="${SCRIPT_DIR}/workflow-state.sh"
+TIER_VALIDATOR_SCRIPT="${SCRIPT_DIR}/tier-validator.sh"
+AUDIT_ENVELOPE_SCRIPT="${SCRIPT_DIR}/audit-envelope.sh"
 UPSTREAM_REPO="${LOA_UPSTREAM:-https://github.com/0xHoneyJar/loa.git}"
 
 # Colors
@@ -219,6 +221,229 @@ display_version_info() {
   echo ""
 }
 
+# =============================================================================
+# Agent-Network Primitives section (cycle-098 Sprint 1C, SDD §4.4)
+# =============================================================================
+
+# Read enabled status of a primitive from .loa.config.yaml
+# Output: "yes" or "no"
+_an_primitive_enabled() {
+    local pid="$1"
+    if [[ -f "$CONFIG_FILE" ]] && command -v yq >/dev/null 2>&1; then
+        local v
+        v=$(yq -r ".agent_network.primitives.${pid}.enabled // false" "$CONFIG_FILE" 2>/dev/null)
+        if [[ "$v" == "true" ]]; then
+            echo "yes"
+        else
+            echo "no"
+        fi
+    else
+        echo "no"
+    fi
+}
+
+# Recent activity summary line for a primitive (heuristic via .run/<file>.jsonl).
+_an_primitive_activity() {
+    local pid="$1"
+    case "$pid" in
+        L1)
+            local f="$PROJECT_ROOT/.run/panel-decisions.jsonl"
+            if [[ -f "$f" ]]; then
+                local n
+                n=$(wc -l < "$f" 2>/dev/null | awk '{print $1}')
+                echo "${n:-0} decisions logged"
+            else
+                echo "no activity"
+            fi
+            ;;
+        L2)
+            local f="$PROJECT_ROOT/.run/cost-budget-events.jsonl"
+            if [[ -f "$f" ]]; then
+                local n
+                n=$(wc -l < "$f" 2>/dev/null | awk '{print $1}')
+                echo "${n:-0} budget events"
+            else
+                echo "no activity"
+            fi
+            ;;
+        L3)
+            local f="$PROJECT_ROOT/.run/cycles.jsonl"
+            if [[ -f "$f" ]]; then
+                local n
+                n=$(wc -l < "$f" 2>/dev/null | awk '{print $1}')
+                echo "${n:-0} cycles registered"
+            else
+                echo "no activity"
+            fi
+            ;;
+        L4)
+            local f="$PROJECT_ROOT/grimoires/loa/trust-ledger.jsonl"
+            if [[ -f "$f" ]]; then
+                local n
+                n=$(wc -l < "$f" 2>/dev/null | awk '{print $1}')
+                echo "${n:-0} trust transitions"
+            else
+                echo "no activity"
+            fi
+            ;;
+        L5)
+            local d="$PROJECT_ROOT/.run/cache/cross-repo-status"
+            if [[ -d "$d" ]]; then
+                local n
+                n=$(find "$d" -maxdepth 1 -type f 2>/dev/null | wc -l | awk '{print $1}')
+                echo "${n:-0} repos cached"
+            else
+                echo "no activity"
+            fi
+            ;;
+        L6)
+            local f="$PROJECT_ROOT/grimoires/loa/handoffs/INDEX.md"
+            if [[ -f "$f" ]]; then
+                echo "INDEX.md present"
+            else
+                echo "no activity"
+            fi
+            ;;
+        L7)
+            local f="$PROJECT_ROOT/SOUL.md"
+            if [[ -f "$f" ]]; then
+                echo "SOUL.md present"
+            else
+                echo "no SOUL.md"
+            fi
+            ;;
+        *)
+            echo "unknown"
+            ;;
+    esac
+}
+
+# Tier validator status. Returns "tier-N (Label)" or "unsupported".
+_an_tier_status() {
+    if [[ -x "$TIER_VALIDATOR_SCRIPT" ]]; then
+        # Don't propagate exit codes; we just want the label.
+        local out
+        out=$("$TIER_VALIDATOR_SCRIPT" check 2>/dev/null || true)
+        if [[ -n "$out" ]]; then
+            echo "$out"
+            return 0
+        fi
+    fi
+    echo "unknown"
+}
+
+# Protected queue depth: count of items in .run/protected-queue.jsonl.
+_an_protected_queue_depth() {
+    local f="$PROJECT_ROOT/.run/protected-queue.jsonl"
+    if [[ -f "$f" ]]; then
+        wc -l < "$f" 2>/dev/null | awk '{print $1}'
+    else
+        echo "0"
+    fi
+}
+
+# Audit chain summary: count of primitive logs that validate.
+# Returns "N/M" + last verify time (or "never").
+_an_audit_chain_summary() {
+    if [[ ! -x "$AUDIT_ENVELOPE_SCRIPT" ]]; then
+        echo "0/7"
+        return 0
+    fi
+
+    # Map of primitive_id → log path candidates.
+    local logs=(
+        "L1:.run/panel-decisions.jsonl"
+        "L2:.run/cost-budget-events.jsonl"
+        "L3:.run/cycles.jsonl"
+        "L4:grimoires/loa/trust-ledger.jsonl"
+        "L6:grimoires/loa/handoffs/INDEX.md"
+    )
+    local total=7   # 7 primitives in the cycle-098 model
+    local valid=0
+    local entry path
+    for entry in "${logs[@]}"; do
+        path="${entry#*:}"
+        local full="${PROJECT_ROOT}/${path}"
+        if [[ -f "$full" ]]; then
+            if "$AUDIT_ENVELOPE_SCRIPT" verify-chain "$full" >/dev/null 2>&1; then
+                valid=$((valid + 1))
+            fi
+        else
+            # Primitive not yet emitting; counts as "validates" by absence.
+            valid=$((valid + 1))
+        fi
+    done
+
+    # L5 + L7 are not chain-critical, count as validating.
+    valid=$((valid + 2))
+    if [[ "$valid" -gt "$total" ]]; then
+        valid="$total"
+    fi
+    echo "${valid}/${total}"
+}
+
+# Display Agent-Network section (human-readable).
+display_agent_network_section() {
+    echo ""
+    echo -e "${BOLD}Agent-Network Primitives (cycle-098)${NC}"
+
+    # Compact table.
+    printf "  %-10s %-9s %s\n" "Primitive" "Enabled" "Recent activity"
+    printf "  %-10s %-9s %s\n" "---------" "-------" "---------------"
+    local p
+    for p in L1 L2 L3 L4 L5 L6 L7; do
+        local enabled activity
+        enabled=$(_an_primitive_enabled "$p")
+        activity=$(_an_primitive_activity "$p")
+        printf "  %-10s %-9s %s\n" "$p" "$enabled" "$activity"
+    done
+
+    echo ""
+    local tier_status pq audit_chain
+    tier_status=$(_an_tier_status)
+    pq=$(_an_protected_queue_depth)
+    audit_chain=$(_an_audit_chain_summary)
+
+    case "$tier_status" in
+        tier-*) echo "  Tier validator: ${tier_status} -- supported." ;;
+        unsupported*) echo -e "  Tier validator: ${YELLOW}${tier_status}${NC}" ;;
+        *) echo "  Tier validator: ${tier_status}" ;;
+    esac
+    echo "  Protected queue: ${pq} items awaiting operator action."
+    echo "  Audit chain: ${audit_chain} primitives validate."
+    echo ""
+}
+
+# JSON snippet for agent-network section.
+get_agent_network_json() {
+    local p enabled activity tier_status pq audit_chain
+    tier_status=$(_an_tier_status)
+    pq=$(_an_protected_queue_depth)
+    audit_chain=$(_an_audit_chain_summary)
+
+    # Build primitives array via jq (safe JSON construction).
+    local primitives_json="[]"
+    for p in L1 L2 L3 L4 L5 L6 L7; do
+        enabled=$(_an_primitive_enabled "$p")
+        activity=$(_an_primitive_activity "$p")
+        primitives_json=$(printf '%s' "$primitives_json" | jq -c \
+            --arg id "$p" --arg en "$enabled" --arg act "$activity" \
+            '. + [{primitive_id: $id, enabled: ($en == "yes"), recent_activity: $act}]')
+    done
+
+    jq -nc \
+        --argjson primitives "$primitives_json" \
+        --arg tier "$tier_status" \
+        --argjson pq "$pq" \
+        --arg ac "$audit_chain" \
+        '{
+            primitives: $primitives,
+            tier_validator: $tier,
+            protected_queue_depth: $pq,
+            audit_chain_summary: $ac
+        }'
+}
+
 # === Main Logic ===
 
 main() {
@@ -244,11 +469,13 @@ main() {
     fi
 
     version_json=$(get_version_info_json)
+    agent_network_json=$(get_agent_network_json)
 
-    # Merge the two JSON objects
-    jq -s '.[0] * { "framework": .[1] }' \
+    # Merge the JSON objects: workflow base + framework + agent_network
+    jq -s '.[0] * { "framework": .[1], "agent_network": .[2] }' \
       <(echo "$workflow_json") \
-      <(echo "$version_json")
+      <(echo "$version_json") \
+      <(echo "$agent_network_json")
   else
     # Human-readable combined output
     echo "═══════════════════════════════════════════════════════════════"
@@ -300,6 +527,11 @@ main() {
       echo "  Workflow state detection unavailable"
       echo "  (workflow-state.sh not found)"
     fi
+
+    # Agent-Network Primitives section (cycle-098 Sprint 1C, SDD §4.4).
+    echo ""
+    echo "───────────────────────────────────────────────────────────────"
+    display_agent_network_section
 
     echo "═══════════════════════════════════════════════════════════════"
     echo ""

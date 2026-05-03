@@ -523,6 +523,260 @@ audit_verify_chain() {
 }
 
 # -----------------------------------------------------------------------------
+# _audit_primitive_id_for_log <log_path>
+# Heuristic: derive primitive_id from the log filename. Recovery uses this to
+# locate the matching snapshot archive entry. Falls back to inspecting the
+# first envelope's primitive_id when filename is uninformative.
+# -----------------------------------------------------------------------------
+_audit_primitive_id_for_log() {
+    local log_path="$1"
+    local base
+    base="$(basename "$log_path")"
+    case "$base" in
+        panel-decisions*) echo "L1"; return 0 ;;
+        cost-budget-events*) echo "L2"; return 0 ;;
+        cycles*) echo "L3"; return 0 ;;
+        trust-ledger*) echo "L4"; return 0 ;;
+        *)
+            # Inspect first envelope-like line.
+            if [[ -f "$log_path" ]]; then
+                local first
+                first="$(grep -v '^\[' "$log_path" 2>/dev/null | head -n 1 || true)"
+                if [[ -n "$first" ]]; then
+                    local pid
+                    pid="$(printf '%s' "$first" | jq -r '.primitive_id // empty' 2>/dev/null || echo "")"
+                    if [[ -n "$pid" ]]; then
+                        echo "$pid"
+                        return 0
+                    fi
+                fi
+            fi
+            echo ""
+            return 1
+            ;;
+    esac
+}
+
+# -----------------------------------------------------------------------------
+# _audit_log_is_tracked <log_path>
+# Returns 0 if the log is currently tracked in git (has a non-empty git history).
+# Returns 1 if untracked / no git repo / no history.
+# -----------------------------------------------------------------------------
+_audit_log_is_tracked() {
+    local log_path="$1"
+    # Are we inside a git repo?
+    if ! git -C "$(dirname "$log_path")" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        return 1
+    fi
+    # Does this file have any git history?
+    local commits
+    commits="$(git -C "$(dirname "$log_path")" log --oneline -- "$(basename "$log_path")" 2>/dev/null | wc -l | awk '{print $1}')"
+    if [[ "${commits:-0}" -gt 0 ]]; then
+        return 0
+    fi
+    return 1
+}
+
+# -----------------------------------------------------------------------------
+# _audit_chain_validates_lines <jsonl_text>
+# Walks chain from a JSONL string (newline-separated envelopes), returns 0 if
+# the chain is valid, non-zero on first break. Skips marker lines (`[...]`).
+# -----------------------------------------------------------------------------
+_audit_chain_validates_lines() {
+    local text="$1"
+    local expected_prev="GENESIS"
+    local line
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        [[ "$line" == \[* ]] && continue
+        local actual_prev
+        actual_prev="$(printf '%s' "$line" | jq -r '.prev_hash // empty' 2>/dev/null || echo "")"
+        if [[ -z "$actual_prev" ]] || [[ "$actual_prev" != "$expected_prev" ]]; then
+            return 1
+        fi
+        expected_prev="$(_audit_chain_input "$line" | _audit_sha256)"
+    done <<< "$text"
+    return 0
+}
+
+# -----------------------------------------------------------------------------
+# _audit_recover_from_git <log_path>
+# For TRACKED logs (L4 trust-ledger, L6 INDEX): walk `git log --oneline` newest
+# to oldest; for each commit, fetch the file content via `git show`; check
+# whether the chain validates; first match wins. Rewrite the log to that
+# state + append [CHAIN-GAP-RECOVERED-FROM-GIT] + [CHAIN-RECOVERED] markers.
+# Returns 0 on success, non-zero otherwise.
+# -----------------------------------------------------------------------------
+_audit_recover_from_git() {
+    local log_path="$1"
+    local git_dir
+    git_dir="$(dirname "$log_path")"
+    local rel_path
+    rel_path="$(basename "$log_path")"
+
+    if ! git -C "$git_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        return 1
+    fi
+
+    # Walk commits newest-to-oldest.
+    local commits
+    commits="$(git -C "$git_dir" log --pretty=format:%H -- "$rel_path" 2>/dev/null || true)"
+    if [[ -z "$commits" ]]; then
+        return 1
+    fi
+
+    local chosen_commit="" chosen_content=""
+    while IFS= read -r commit; do
+        [[ -z "$commit" ]] && continue
+        local content
+        if ! content="$(git -C "$git_dir" show "${commit}:${rel_path}" 2>/dev/null)"; then
+            continue
+        fi
+        if _audit_chain_validates_lines "$content"; then
+            chosen_commit="$commit"
+            chosen_content="$content"
+            break
+        fi
+    done <<< "$commits"
+
+    if [[ -z "$chosen_commit" ]]; then
+        return 1
+    fi
+
+    # Rewrite the log to the recovered state + append markers.
+    {
+        printf '%s\n' "$chosen_content"
+        printf '[CHAIN-GAP-RECOVERED-FROM-GIT commit=%s]\n' "${chosen_commit:0:12}"
+        printf '[CHAIN-RECOVERED source=git_history commit=%s]\n' "${chosen_commit:0:12}"
+    } > "$log_path"
+    return 0
+}
+
+# -----------------------------------------------------------------------------
+# _audit_recover_from_snapshot <log_path> <primitive_id>
+# For UNTRACKED chain-critical logs (L1 panel-decisions, L2 cost-budget-events):
+# locate latest snapshot at <archive>/<utc-date>-<primitive>.jsonl.gz; verify
+# (signature optional in cycle-098 Sprint 1C — daily snapshot job lands later);
+# decompress; restore entries; mark gap [CHAIN-GAP-RESTORED-FROM-SNAPSHOT-RPO-24H]
+# + [CHAIN-RECOVERED].
+# -----------------------------------------------------------------------------
+_audit_recover_from_snapshot() {
+    local log_path="$1"
+    local primitive_id="$2"
+
+    if [[ -z "$primitive_id" ]]; then
+        return 1
+    fi
+
+    # Resolve archive directory.
+    local archive_dir="${LOA_AUDIT_ARCHIVE_DIR:-${_LOA_AUDIT_REPO_ROOT}/../grimoires/loa/audit-archive}"
+    if [[ ! -d "$archive_dir" ]]; then
+        return 1
+    fi
+
+    # Locate most recent snapshot for the primitive.
+    local snapshot
+    snapshot="$(ls -1t "${archive_dir}"/*-${primitive_id}.jsonl.gz 2>/dev/null | head -n 1 || true)"
+    if [[ -z "$snapshot" || ! -f "$snapshot" ]]; then
+        return 1
+    fi
+
+    # Decompress snapshot to a temp file (mode 0600).
+    local tmp
+    tmp="$(mktemp)"
+    chmod 600 "$tmp"
+    # shellcheck disable=SC2064
+    trap "rm -f '$tmp'" RETURN
+
+    if ! gzip -dc "$snapshot" > "$tmp"; then
+        return 1
+    fi
+
+    # Validate the snapshot's chain integrity before restoring.
+    local snapshot_content
+    snapshot_content="$(cat "$tmp")"
+    if ! _audit_chain_validates_lines "$snapshot_content"; then
+        _audit_log "snapshot at $snapshot has broken chain — refusing to restore"
+        return 1
+    fi
+
+    # Restore: replace log with snapshot content + gap markers + recovered marker.
+    local snapshot_basename
+    snapshot_basename="$(basename "$snapshot")"
+    {
+        printf '%s\n' "$snapshot_content"
+        printf '[CHAIN-GAP-RESTORED-FROM-SNAPSHOT-RPO-24H snapshot=%s]\n' "$snapshot_basename"
+        printf '[CHAIN-RECOVERED source=snapshot_archive snapshot=%s]\n' "$snapshot_basename"
+    } > "$log_path"
+    return 0
+}
+
+# -----------------------------------------------------------------------------
+# audit_recover_chain <log_path>
+#
+# NFR-R7 hash-chain recovery procedure (SDD §3.4.4).
+#
+# Two paths:
+#   1. TRACKED logs (L4 trust-ledger, L6 INDEX): rebuild from git history.
+#   2. UNTRACKED chain-critical logs (L1 panel-decisions, L2 cost-budget-events):
+#      restore from latest signed snapshot at audit-archive/<utc-date>-<P>.jsonl.gz.
+#
+# On rebuild success: write [CHAIN-RECOVERED] marker; resume normal chain.
+# On rebuild failure: write [CHAIN-BROKEN] marker; emit BLOCKER for operator;
+# degraded mode (reads OK, writes blocked).
+#
+# Returns 0 on success, non-zero on failure.
+# -----------------------------------------------------------------------------
+audit_recover_chain() {
+    local log_path="$1"
+    if [[ -z "$log_path" ]]; then
+        _audit_log "audit_recover_chain: missing log_path"
+        return 2
+    fi
+
+    if [[ ! -f "$log_path" ]]; then
+        _audit_log "audit_recover_chain: log file does not exist: $log_path"
+        return 2
+    fi
+
+    # If chain already validates, nothing to do.
+    if audit_verify_chain "$log_path" >/dev/null 2>&1; then
+        _audit_log "audit_recover_chain: chain already valid; nothing to do"
+        return 0
+    fi
+
+    local primitive_id
+    primitive_id="$(_audit_primitive_id_for_log "$log_path" 2>/dev/null || echo "")"
+
+    # Try tracked-log recovery first (preferred for L4/L6).
+    if _audit_log_is_tracked "$log_path"; then
+        if _audit_recover_from_git "$log_path"; then
+            _audit_log "audit_recover_chain: recovered from git history (log: $log_path)"
+            return 0
+        fi
+        _audit_log "audit_recover_chain: git-history recovery failed for $log_path"
+    fi
+
+    # Fall back to snapshot-archive recovery.
+    if [[ -n "$primitive_id" ]]; then
+        if _audit_recover_from_snapshot "$log_path" "$primitive_id"; then
+            _audit_log "audit_recover_chain: recovered from snapshot archive (log: $log_path, primitive: $primitive_id)"
+            return 0
+        fi
+        _audit_log "audit_recover_chain: snapshot recovery failed for $log_path"
+    fi
+
+    # Both failed: emit BLOCKER + write [CHAIN-BROKEN] marker.
+    {
+        printf '[CHAIN-BROKEN at=%s primitive=%s]\n' \
+            "$(_audit_now_iso8601)" \
+            "${primitive_id:-unknown}"
+    } >> "$log_path"
+    _audit_log "BLOCKER: chain recovery failed for $log_path; primitive in degraded mode (reads OK, writes blocked)"
+    return 1
+}
+
+# -----------------------------------------------------------------------------
 # audit_seal_chain <primitive_id> <log_path>
 #
 # Append a final marker line `[<PRIMITIVE>-DISABLED]` indicating the primitive
@@ -559,6 +813,10 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
             shift
             audit_trust_store_verify "$@"
             ;;
+        recover-chain)
+            shift
+            audit_recover_chain "$@"
+            ;;
         seal)
             shift
             audit_seal_chain "$@"
@@ -576,6 +834,9 @@ Commands:
       Walk a JSONL log; verify hash-chain + signatures (when present).
   verify-trust-store [<trust-store-path>]
       Verify trust-store root_signature against pinned root pubkey.
+  recover-chain <log_path>
+      NFR-R7 chain recovery: rebuild from git history (TRACKED logs) or
+      restore from snapshot archive (UNTRACKED chain-critical logs).
   seal <primitive_id> <log_path>
       Append [<PRIMITIVE>-DISABLED] marker.
 EOF
