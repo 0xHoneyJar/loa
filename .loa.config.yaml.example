@@ -2180,3 +2180,78 @@ qmd_context:
 #   LOA_LEGACY_ENDPOINT_FAMILY_DEFAULT=chat  # one-shot migration backstop for custom OpenAI entries
 #   LOA_RESPONSES_UNKNOWN_SHAPE_POLICY=degrade  # one-shot graceful degradation
 #   LOA_PREFER_PRO_DRYRUN=1               # preview retargets without applying (Sprint 2)
+
+# -----------------------------------------------------------------------------
+# cycle-098 — Agent-Network Primitives (Sprint 1+ — opt-in)
+# -----------------------------------------------------------------------------
+# Seven named primitives (L1..L7) for autonomous adjudication, budget,
+# scheduled cycles, trust, cross-repo reads, structured handoffs, and SOUL.
+# All primitives default to disabled. Tier validator (CC-10) classifies the
+# enabled set on boot. tier_enforcement_mode controls behavior on unsupported
+# combinations: "warn" (default) prints a warning; "refuse" halts boot.
+#
+# Currently shipped (Sprint 1):
+#   - L1 hitl-jury-panel (this section's hitl_jury_panel block)
+#   Audit-envelope shared infrastructure (.run/<primitive>-events.jsonl)
+#
+# Pending (Sprint 2..7):
+#   - L2 cost-budget-enforcer
+#   - L3 scheduled-cycle-template
+#   - L4 graduated-trust
+#   - L5 cross-repo-status-reader
+#   - L6 ostrom-handoff
+#   - L7 soul-md
+#
+# agent_network:
+#   primitives:
+#     L1:
+#       enabled: false      # opt-in; see hitl_jury_panel block below
+#     L2:
+#       enabled: false
+#     L3:
+#       enabled: false
+#     L4:
+#       enabled: false
+#     L5:
+#       enabled: false
+#     L6:
+#       enabled: false
+#     L7:
+#       enabled: false
+#
+# tier_enforcement_mode: warn   # warn (default) | refuse
+
+# -----------------------------------------------------------------------------
+# L1 hitl-jury-panel — N-panelist random-selection adjudicator
+# -----------------------------------------------------------------------------
+# When enabled, replaces routine AskUserQuestion-class decisions during
+# operator absence with a deterministic-seed jury panel. Logs all panelist
+# views BEFORE selection (auditable on crash). Protected-class decisions
+# always route to .run/protected-queue.jsonl regardless of this flag.
+#
+# Source: RFC #653; PRD §FR-L1; SDD §1.4.2 + §5.3
+#
+# hitl_jury_panel:
+#   enabled: false                         # opt-in
+#   default_panelists:
+#     - id: persona-a
+#       model: claude-opus-4-7
+#       persona_file: .claude/data/personas/persona-a.md
+#     - id: skeptic
+#       model: claude-opus-4-7
+#       persona_file: .claude/data/personas/skeptic.md
+#     - id: alternative-model
+#       model: gpt-5.3-codex
+#       persona_file: .claude/data/personas/alternative-model.md
+#   selection: random                      # random | (future: weighted | round-robin)
+#   seed_source: decision_id+context_hash  # FR-L1-3
+#   audit_log: .run/panel-decisions.jsonl
+#   default_disagreement_threshold: 0.5
+#
+# Environment variables:
+#   LOA_PANEL_AUDIT_LOG               override audit log path
+#   LOA_PANEL_PROTECTED_QUEUE         override protected-queue path
+#   LOA_PANEL_PER_PANELIST_TIMEOUT    per-panelist timeout in seconds (default 60)
+#   LOA_PANEL_MIN_PANELISTS           min surviving panelists for BOUND (default 2)
+#   LOA_PANEL_DISAGREEMENT_FN         path to caller-supplied disagreement script
+#                                      (default: no-op pass per FR-L1-6)
