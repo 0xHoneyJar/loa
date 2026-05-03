@@ -91,8 +91,11 @@ pub_pem = priv.public_key().public_bytes(
     format=serialization.PublicFormat.SubjectPublicKeyInfo,
 ).decode()
 
-# Trust-store core (the part that gets signed: keys + revocations + trust_cutoff).
+# Trust-store core (the part that gets signed).
+# Sprint 1.5 (#695 F9): schema_version is included in the signed payload to
+# defeat downgrade-rollback attacks. Must match the YAML schema_version field.
 core = {
+    "schema_version": "1.0",
     "keys": [],
     "revocations": [],
     "trust_cutoff": {"default_strict_after": "2026-05-02T00:00:00Z"},

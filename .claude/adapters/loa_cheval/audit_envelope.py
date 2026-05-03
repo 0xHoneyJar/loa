@@ -24,16 +24,24 @@ tests/integration/audit-envelope-signing.bats).
 from __future__ import annotations
 
 import base64
+import contextlib
 import hashlib
 import json
 import os
 import stat
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional, Tuple, Union
 
 from loa_cheval.jcs import canonicalize as jcs_canonicalize
+
+try:
+    import fcntl  # POSIX-only; matches bash adapter's flock requirement (CC-3)
+    _HAS_FCNTL = True
+except ImportError:  # pragma: no cover — Windows fallback
+    _HAS_FCNTL = False
 
 PathLike = Union[str, Path]
 
@@ -212,6 +220,56 @@ def _compute_prev_hash(log_path: Path) -> str:
     return _sha256_hex(_chain_input_bytes(last_env))
 
 
+@contextlib.contextmanager
+def _acquire_log_lock(log_path: Path, timeout: float = 10.0):
+    """
+    Acquire an exclusive flock on `<log_path>.lock` for the entire
+    compute-prev-hash → sign → validate → append sequence.
+
+    Mirrors bash `audit_emit` flock-on-emit pattern (issue #689 / CC-3) so
+    concurrent bash + Python writers serialize on the same file lock. Without
+    this, racing tail-reads + appends produce missing entries or a broken
+    chain — issue surfaced by Sprint 1 audit MED-1.
+
+    Raises TimeoutError after `timeout` seconds of contention.
+    Non-blocking + sleep-loop is portable across kernels with deterministic
+    bounds; matches bash's `flock -w 10` semantics.
+    """
+    if not _HAS_FCNTL:
+        raise RuntimeError(
+            "audit_emit requires fcntl for atomic chain writes (CC-3). "
+            "Python on this platform lacks fcntl support."
+        )
+    lock_path = Path(f"{log_path}.lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    if not lock_path.exists():
+        lock_path.touch()
+
+    deadline = time.monotonic() + timeout
+    fd = open(lock_path, "w")
+    try:
+        while True:
+            try:
+                fcntl.flock(fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(
+                        f"audit_emit: failed to acquire lock on {lock_path} "
+                        f"(timeout {timeout}s)"
+                    )
+                time.sleep(0.01)
+        try:
+            yield
+        finally:
+            try:
+                fcntl.flock(fd.fileno(), fcntl.LOCK_UN)
+            except OSError:  # pragma: no cover — defensive
+                pass
+    finally:
+        fd.close()
+
+
 def _validate_envelope(envelope: dict) -> None:
     """
     Validate envelope against the JSON schema. Raises ValueError on failure.
@@ -271,36 +329,132 @@ def audit_emit(
     if not isinstance(payload, dict):
         raise TypeError("payload must be a dict")
 
+    # Issue #690 (Sprint 1.5): auto-verify trust-store before any write.
+    # BOOTSTRAP-PENDING + VERIFIED permit; INVALID raises [TRUST-STORE-INVALID].
+    _check_trust_store()
+
     log_path = Path(log_path)
     log_path.parent.mkdir(parents=True, exist_ok=True)
 
-    envelope = {
-        "schema_version": schema_version,
-        "primitive_id": primitive_id,
-        "event_type": event_type,
-        "ts_utc": _now_iso8601(),
-        "prev_hash": _compute_prev_hash(log_path),
-        "payload": payload,
-        "redaction_applied": None,
-    }
+    # Issue #689 (Sprint 1.5): acquire flock on <log_path>.lock for the entire
+    # compute-prev-hash → sign → validate → append sequence. Bash adapter does
+    # this post-Sprint-1 F3 (CC-3); without parity, mixed bash + Python writers
+    # race. Sprint 2's L2 reconciliation cron is the first cross-adapter
+    # writer of the audit envelope.
+    with _acquire_log_lock(log_path):
+        envelope = {
+            "schema_version": schema_version,
+            "primitive_id": primitive_id,
+            "event_type": event_type,
+            "ts_utc": _now_iso8601(),
+            "prev_hash": _compute_prev_hash(log_path),
+            "payload": payload,
+            "redaction_applied": None,
+        }
 
-    # Sprint 1B: sign chain-input when signing key configured.
-    kid = signing_key_id or os.environ.get("LOA_AUDIT_SIGNING_KEY_ID")
-    if kid:
-        priv = _load_private_key(kid, password=password)
-        canonical = _chain_input_bytes(envelope)
-        sig = priv.sign(canonical)
-        envelope["signing_key_id"] = kid
-        envelope["signature"] = base64.b64encode(sig).decode()
+        # Sprint 1B: sign chain-input when signing key configured.
+        kid = signing_key_id or os.environ.get("LOA_AUDIT_SIGNING_KEY_ID")
+        if kid:
+            priv = _load_private_key(kid, password=password)
+            canonical = _chain_input_bytes(envelope)
+            sig = priv.sign(canonical)
+            envelope["signing_key_id"] = kid
+            envelope["signature"] = base64.b64encode(sig).decode()
 
-    _validate_envelope(envelope)
+        _validate_envelope(envelope)
 
-    # Append a single JSON line (no internal whitespace, terminated \n).
-    line = json.dumps(envelope, separators=(",", ":"), ensure_ascii=False)
-    with log_path.open("a", encoding="utf-8") as f:
-        f.write(line)
-        f.write("\n")
-    return envelope
+        # Append a single JSON line (no internal whitespace, terminated \n).
+        line = json.dumps(envelope, separators=(",", ":"), ensure_ascii=False)
+        with log_path.open("a", encoding="utf-8") as f:
+            f.write(line)
+            f.write("\n")
+        return envelope
+
+
+# -----------------------------------------------------------------------------
+# Issue #690 (Sprint 1.5): trust-store auto-verify cache. Per-process,
+# mtime-keyed.
+# -----------------------------------------------------------------------------
+_TRUST_STORE_CACHE: dict = {"path": None, "mtime": None, "status": None}
+
+
+def _trust_store_status() -> str:
+    """
+    Auto-verify the active trust-store, returning one of:
+    BOOTSTRAP-PENDING | VERIFIED | INVALID.
+
+    BOOTSTRAP-PENDING graceful fallback: empty signature + empty keys[] +
+    empty revocations[] = the operator has not yet bootstrapped a signed
+    trust-store; reads/writes are permitted so cycle-098 can install
+    incrementally without requiring the maintainer-offline-root-key ceremony.
+
+    VERIFIED: trust-store has a populated signature OR populated keys/
+    revocations AND the root_signature verifies against the pinned root
+    pubkey.
+
+    INVALID: trust-store has populated keys/revocations but the
+    root_signature does not verify (or is missing).
+
+    Cached per-process by (path, mtime); recomputed when mtime changes.
+    """
+    ts_path = _trust_store_path()
+
+    # No trust-store file → BOOTSTRAP-PENDING (cycle-098 install-time default).
+    if not ts_path.is_file():
+        return "BOOTSTRAP-PENDING"
+
+    try:
+        mtime = ts_path.stat().st_mtime_ns
+    except OSError:
+        mtime = None
+
+    cache = _TRUST_STORE_CACHE
+    if (
+        cache["path"] == str(ts_path)
+        and cache["mtime"] == mtime
+        and cache["status"] is not None
+    ):
+        return cache["status"]
+
+    # Detect BOOTSTRAP-PENDING.
+    bootstrap_pending = False
+    try:
+        import yaml  # noqa: PLC0415
+        with ts_path.open("r", encoding="utf-8") as f:
+            doc = yaml.safe_load(f) or {}
+        sig = ((doc.get("root_signature") or {}).get("signature") or "").strip()
+        keys = doc.get("keys") or []
+        revs = doc.get("revocations") or []
+        if not sig and not keys and not revs:
+            bootstrap_pending = True
+    except Exception:
+        # Unreadable trust-store: treat as BOOTSTRAP-PENDING (graceful).
+        bootstrap_pending = True
+
+    if bootstrap_pending:
+        status = "BOOTSTRAP-PENDING"
+    else:
+        ok, _msg = audit_trust_store_verify(ts_path)
+        status = "VERIFIED" if ok else "INVALID"
+
+    cache["path"] = str(ts_path)
+    cache["mtime"] = mtime
+    cache["status"] = status
+    return status
+
+
+def _check_trust_store() -> None:
+    """
+    Gate function called at top of audit_emit + audit_verify_chain.
+    Raises RuntimeError with [TRUST-STORE-INVALID] on tampered trust-stores.
+    """
+    status = _trust_store_status()
+    if status in ("BOOTSTRAP-PENDING", "VERIFIED"):
+        return
+    raise RuntimeError(
+        "[TRUST-STORE-INVALID] trust-store root_signature does NOT verify "
+        "against pinned root pubkey; refusing all writes/reads (issue #690)"
+    )
 
 
 def _read_trust_cutoff() -> Optional[str]:
@@ -357,6 +511,12 @@ def audit_verify_chain(log_path: PathLike) -> Tuple[bool, str]:
     log_path = Path(log_path)
     if not log_path.exists():
         return False, f"file not found: {log_path}"
+
+    # Issue #690 (Sprint 1.5): auto-verify trust-store before chain walk.
+    try:
+        _check_trust_store()
+    except RuntimeError as exc:
+        return False, str(exc)
 
     verify_sigs = os.environ.get("LOA_AUDIT_VERIFY_SIGS", "1") != "0"
     cutoff = _read_trust_cutoff()

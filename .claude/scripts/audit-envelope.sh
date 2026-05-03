@@ -313,6 +313,126 @@ _audit_pubkey_for_key_id() {
 }
 
 # -----------------------------------------------------------------------------
+# Issue #690 auto-verify cache: per-process, mtime-keyed.
+# When LOA_TRUST_STORE_FILE (or default) is unchanged + mtime matches, reuse
+# last computed status without re-running the helper.
+# -----------------------------------------------------------------------------
+_LOA_AUDIT_TS_CACHE_PATH=""
+_LOA_AUDIT_TS_CACHE_MTIME=""
+_LOA_AUDIT_TS_CACHE_STATUS=""
+
+# -----------------------------------------------------------------------------
+# _audit_file_mtime <path> — cross-platform mtime (seconds since epoch).
+# -----------------------------------------------------------------------------
+_audit_file_mtime() {
+    local f="$1"
+    [[ -f "$f" ]] || return 1
+    if stat -c %Y "$f" 2>/dev/null; then return 0; fi
+    if stat -f %m "$f" 2>/dev/null; then return 0; fi
+    python3 -c "import os, sys; print(int(os.stat(sys.argv[1]).st_mtime))" "$f" 2>/dev/null
+}
+
+# -----------------------------------------------------------------------------
+# _audit_trust_store_status — auto-verify the active trust-store, returning
+# one of: BOOTSTRAP-PENDING | VERIFIED | INVALID | MISSING (printed on stdout).
+#
+# Issue #690 (Sprint 1.5): runtime auto-verify hook called from audit_emit +
+# audit_verify_chain. Cached per-process, mtime-invalidated.
+#
+# BOOTSTRAP-PENDING is the graceful-fallback state for empty/un-signed trust
+# stores: the operator has not yet bootstrapped a signed trust-store, so
+# permitting reads/writes lets cycle-098 install incrementally without
+# requiring the maintainer-offline-root-key ceremony at install time.
+# Once any keys[] or revocations[] entries land, the trust-store MUST be
+# signed by the pinned root key — otherwise the trust-store is INVALID.
+# -----------------------------------------------------------------------------
+_audit_trust_store_status() {
+    local trust_store="${LOA_TRUST_STORE_FILE:-${_LOA_AUDIT_TRUST_STORE_DEFAULT}}"
+
+    # No trust-store file → BOOTSTRAP-PENDING (cycle-098 install-time default).
+    if [[ ! -f "$trust_store" ]]; then
+        echo "BOOTSTRAP-PENDING"
+        return 0
+    fi
+
+    local mtime
+    mtime="$(_audit_file_mtime "$trust_store" 2>/dev/null || true)"
+
+    # Cache hit?
+    if [[ "$_LOA_AUDIT_TS_CACHE_PATH" == "$trust_store" ]] && \
+       [[ -n "$_LOA_AUDIT_TS_CACHE_MTIME" ]] && \
+       [[ "$_LOA_AUDIT_TS_CACHE_MTIME" == "$mtime" ]] && \
+       [[ -n "$_LOA_AUDIT_TS_CACHE_STATUS" ]]; then
+        echo "$_LOA_AUDIT_TS_CACHE_STATUS"
+        return 0
+    fi
+
+    # Detect BOOTSTRAP-PENDING: empty signature + empty keys + empty revocations.
+    local detect
+    detect="$(python3 - "$trust_store" <<'PY' 2>/dev/null || true
+import sys
+try:
+    import yaml
+except ImportError:
+    print("NEEDS_VERIFY")
+    sys.exit(0)
+try:
+    with open(sys.argv[1]) as f:
+        doc = yaml.safe_load(f) or {}
+except Exception:
+    print("BOOTSTRAP-PENDING")
+    sys.exit(0)
+sig = ((doc.get("root_signature") or {}).get("signature") or "").strip()
+keys = doc.get("keys") or []
+revs = doc.get("revocations") or []
+if not sig and not keys and not revs:
+    print("BOOTSTRAP-PENDING")
+else:
+    print("NEEDS_VERIFY")
+PY
+)"
+
+    local status
+    if [[ "$detect" == "BOOTSTRAP-PENDING" ]]; then
+        status="BOOTSTRAP-PENDING"
+    else
+        if audit_trust_store_verify "$trust_store" >/dev/null 2>&1; then
+            status="VERIFIED"
+        else
+            status="INVALID"
+        fi
+    fi
+
+    _LOA_AUDIT_TS_CACHE_PATH="$trust_store"
+    _LOA_AUDIT_TS_CACHE_MTIME="$mtime"
+    _LOA_AUDIT_TS_CACHE_STATUS="$status"
+    echo "$status"
+}
+
+# -----------------------------------------------------------------------------
+# _audit_check_trust_store — gate function called at top of audit_emit and
+# audit_verify_chain. Returns 0 to permit, non-zero to block.
+# On INVALID: emits [TRUST-STORE-INVALID] BLOCKER on stderr.
+# -----------------------------------------------------------------------------
+_audit_check_trust_store() {
+    local status
+    status="$(_audit_trust_store_status)"
+    case "$status" in
+        BOOTSTRAP-PENDING|VERIFIED)
+            return 0
+            ;;
+        INVALID)
+            _audit_log "[TRUST-STORE-INVALID] trust-store root_signature does NOT verify against pinned root pubkey; refusing all writes/reads (issue #690)"
+            return 1
+            ;;
+        *)
+            _audit_log "[TRUST-STORE-INVALID] unrecognized trust-store status: $status"
+            return 1
+            ;;
+    esac
+}
+
+# -----------------------------------------------------------------------------
 # audit_trust_store_verify <trust_store_path>
 #
 # Verify the trust-store's root_signature against the pinned root pubkey at
@@ -409,6 +529,10 @@ audit_emit() {
         _audit_log "audit_emit: missing required argument"
         return 2
     fi
+
+    # Issue #690 (Sprint 1.5): auto-verify trust-store before any write.
+    # BOOTSTRAP-PENDING + VERIFIED permit; INVALID blocks with [TRUST-STORE-INVALID].
+    _audit_check_trust_store || return 1
 
     # Validate payload is JSON object.
     if ! printf '%s' "$payload_json" | jq -e 'type == "object"' >/dev/null 2>&1; then
@@ -569,6 +693,11 @@ audit_verify_chain() {
         _audit_log "audit_verify_chain: file not found: $log_path"
         return 2
     fi
+
+    # Issue #690 (Sprint 1.5): auto-verify trust-store before chain walk.
+    # An attacker who tampers trust-store.yaml (adds malicious writer pubkey,
+    # signs entries with corresponding private key) is undetected without this.
+    _audit_check_trust_store || return 1
 
     local lineno=0
     local expected_prev="GENESIS"

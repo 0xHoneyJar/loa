@@ -849,12 +849,43 @@ root_signature:
   algorithm: ed25519
   signer_pubkey: "MCowBQYDK2VwAyEA..."   # maintainer's offline root pubkey
   signed_at: "2026-05-02T00:00:00Z"
-  signature: "...JCS-canonicalized signature of the keys+revocations sections..."
+  signature: "...JCS-canonicalized signature of the signed-payload core..."
 keys: [...]
 revocations: [...]
 trust_cutoff: {...}
 ---
 ```
+
+**Signed-payload scope** (Sprint 1.5 #695 F9 hardening — explicit boundary):
+
+The `root_signature.signature` covers the JCS canonicalization (RFC 8785) of:
+
+```python
+{
+    "schema_version": <yaml.schema_version>,
+    "keys":           <yaml.keys>,
+    "revocations":    <yaml.revocations>,
+    "trust_cutoff":   <yaml.trust_cutoff>,
+}
+```
+
+`schema_version` is INCLUDED in the signed payload to defeat downgrade-rollback
+attacks (cf. TLS version rollback, JWT alg confusion). Without this, an
+attacker with repo-write access could swap `schema_version: "1.0"` →
+`schema_version: "0.9"` and force the parser into a permissive earlier mode
+without invalidating the signature.
+
+`root_signature.{algorithm, signer_pubkey, signed_at, signature}` are
+DELIBERATELY excluded from the signed payload — they are signature metadata,
+not signed material. `algorithm` is enforced by code (`ed25519` only).
+`signer_pubkey` is cross-checked against the pinned root pubkey via the
+multi-channel verification path (`[ROOT-PUBKEY-DIVERGENCE]` BLOCKER on
+mismatch). `signed_at` is informational. `signature` is the artifact itself.
+
+Reference implementation: `.claude/scripts/lib/audit-signing-helper.py
+:cmd_trust_store_verify`. Test coverage:
+`tests/unit/trust-store-signed-payload-scope.bats` (4 tests covering positive
++ downgrade + forward-rollback + missing-field tampering).
 
 **Root-of-trust workflow**:
 

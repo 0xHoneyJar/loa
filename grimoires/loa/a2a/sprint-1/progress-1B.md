@@ -55,7 +55,7 @@ identity primitives.
 
 | File | Purpose |
 |------|---------|
-| `.github/workflows/audit-secret-redaction.yml` | SKP-002 mandatory CI gate: scans tracked files for `LOA_AUDIT_KEY_PASSWORD=` patterns; fails on match (allowlist for code that must reference the deprecated name) |
+| `.github/workflows/audit-secret-redaction.yml` | SKP-002 mandatory CI gate: scans tracked files for assignments of the deprecated `LOA_AUDIT_KEY_PASSWORD` env var; fails on match (allowlist for code that must reference the deprecated name) |
 
 ### Tests (6 files, 35 new assertions; 67 total when including 1A regression)
 
@@ -96,7 +96,7 @@ Verified at HEAD: 67 PASS for the 1B-relevant suite (signing + chain + schema + 
 
 - `--password-fd N` and `--password-file <path>` flags added to `audit-signing-helper.py`. Path mode-0600 enforcement.
 - `LOA_AUDIT_KEY_PASSWORD` env var DEPRECATED — emits stderr deprecation warning on use; scrubbed from environment after consumption (defense-in-depth).
-- CI redaction check at `.github/workflows/audit-secret-redaction.yml` — scans tracked files for `LOA_AUDIT_KEY_PASSWORD=` patterns; fails on match outside an explicit allowlist (audit-envelope.sh, helper, security tests).
+- CI redaction check at `.github/workflows/audit-secret-redaction.yml` — scans tracked files for assignments of the deprecated `LOA_AUDIT_KEY_PASSWORD` env var; fails on match outside an explicit allowlist (audit-envelope.sh, helper, security tests).
 - Process inspection test (`/proc/<pid>/cmdline`) confirms passphrase is NOT in argv when using --password-fd.
 
 ## Schema bump policy

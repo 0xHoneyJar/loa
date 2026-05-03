@@ -243,7 +243,14 @@ def cmd_trust_store_verify(args: argparse.Namespace) -> int:
       schema_version, root_signature {algorithm, signer_pubkey, signed_at, signature},
       keys[], revocations[], trust_cutoff{...}
 
-    Signed bytes: JCS canonicalization of {keys, revocations, trust_cutoff}.
+    Signed bytes: JCS canonicalization of
+      {schema_version, keys, revocations, trust_cutoff}.
+
+    Sprint 1.5 (#695 F9): `schema_version` is INCLUDED in the signed payload to
+    close a downgrade vector (cf. TLS version rollback, JWT alg confusion).
+    A tampered schema_version produces a signature mismatch — the parser-
+    behavior gate cannot be silently rolled back. SDD §1.9.3.1 is explicit
+    about this signed-payload scope.
 
     Multi-channel pubkey verification:
       - Pinned pubkey at args.pinned_pubkey (System Zone, frozen)
@@ -333,7 +340,16 @@ def cmd_trust_store_verify(args: argparse.Namespace) -> int:
         return EX_VERIFY_FAIL
 
     # Construct the signed core (deterministic JCS canonicalization).
+    # Sprint 1.5 (#695 F9): include `schema_version` in the signed payload
+    # to defeat downgrade-rollback attacks. Missing schema_version is
+    # treated as an explicit empty string (causes signature mismatch by
+    # design — operators must populate it).
+    schema_version = ts_doc.get("schema_version")
+    if schema_version is None:
+        _err("trust-store: missing schema_version field (required for signed payload)")
+        return EX_VERIFY_FAIL
     core = {
+        "schema_version": schema_version,
         "keys": ts_doc.get("keys") or [],
         "revocations": ts_doc.get("revocations") or [],
         "trust_cutoff": ts_doc.get("trust_cutoff") or {},
