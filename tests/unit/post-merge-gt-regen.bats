@@ -115,6 +115,11 @@ skip_if_deps_missing() {
 @test "phase_gt_regen: passes --output-dir to ground-truth-gen.sh" {
     skip_if_deps_missing
     run "$TEST_SCRIPT" --pr 42 --type cycle --sha "$MERGE_SHA" --skip-rtfm
+    [ "$status" -eq 0 ] || {
+        echo "Orchestrator exited $status — phase results below are meaningless"
+        echo "stderr/stdout: $output"
+        return 1
+    }
     [ -f "$TEST_REPO/.run/post-merge-state.json" ]
 
     local gt_status
@@ -136,6 +141,9 @@ skip_if_deps_missing() {
 @test "phase_gt_regen: passes --reality-dir to ground-truth-gen.sh" {
     skip_if_deps_missing
     run "$TEST_SCRIPT" --pr 42 --type cycle --sha "$MERGE_SHA" --skip-rtfm
+    # Bridgebuilder F1: assert orchestrator process succeeded before
+    # interpreting downstream state — `run` swallows exit codes by design.
+    [ "$status" -eq 0 ]
     [ -f "$GT_ARGV_LOG" ]
     grep -q -- '--reality-dir' "$GT_ARGV_LOG"
 }
@@ -144,6 +152,8 @@ skip_if_deps_missing() {
     skip_if_deps_missing
     rm -rf "$TEST_REPO/grimoires/loa/reality"
     run "$TEST_SCRIPT" --pr 42 --type cycle --sha "$MERGE_SHA" --skip-rtfm
+    # Bridgebuilder F1: see explanation above.
+    [ "$status" -eq 0 ]
 
     local gt_status
     gt_status=$(jq -r '.phases.gt_regen.status' "$TEST_REPO/.run/post-merge-state.json")
@@ -158,6 +168,35 @@ skip_if_deps_missing() {
     [[ "$reason" == *"reality"* ]]
 }
 
+# -----------------------------------------------------------------------------
+# Bridgebuilder F4: structural assertion that the `2>/dev/null` swallow has
+# been removed from the gt_regen invocation. Behavioral tests confirm an
+# outcome; structural tests pin an implementation. When guarding against a
+# specific anti-pattern returning, both are needed.
+# -----------------------------------------------------------------------------
+@test "phase_gt_regen: orchestrator source has no 2>/dev/null on gt_script invocation" {
+    # Locate the phase_gt_regen function body and assert the gt_script call
+    # does NOT have `2>/dev/null` (the pre-fix swallow).
+    local body
+    body=$(awk '/^phase_gt_regen\(\) \{/,/^}/' "$PROJECT_ROOT_REAL/.claude/scripts/post-merge-orchestrator.sh")
+    [[ -n "$body" ]] || {
+        echo "Could not locate phase_gt_regen function body"
+        return 1
+    }
+    # The post-fix invocation captures stderr to a tmpfile (2>"$gt_stderr").
+    # Specifically rejects 2>/dev/null on any line that calls $gt_script.
+    if echo "$body" | grep -E '\$gt_script.*2>/dev/null|2>/dev/null.*\$gt_script' >/dev/null 2>&1; then
+        echo "Regression: phase_gt_regen has 2>/dev/null around \$gt_script invocation"
+        echo "$body" | grep -n '\$gt_script'
+        return 1
+    fi
+    # Additionally assert the tmpfile-capture pattern IS present.
+    echo "$body" | grep -q '2>"\$gt_stderr"' || {
+        echo "Expected stderr-to-tmpfile capture pattern (2>\"\$gt_stderr\")"
+        return 1
+    }
+}
+
 @test "phase_gt_regen: surfaces stderr from ground-truth-gen.sh on failure" {
     skip_if_deps_missing
     # Replace stub with one that writes a recognizable error to stderr and exits 1.
@@ -169,6 +208,8 @@ STUB
     chmod +x "$TEST_REPO/.claude/scripts/ground-truth-gen.sh"
 
     run "$TEST_SCRIPT" --pr 42 --type cycle --sha "$MERGE_SHA" --skip-rtfm
+    # Orchestrator returns 0 even when phases fail (failures recorded in errors[]).
+    [ "$status" -eq 0 ]
 
     # The phase failure should be recorded.
     local gt_status

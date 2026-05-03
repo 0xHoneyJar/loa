@@ -124,6 +124,8 @@ skip_if_deps_missing() {
 @test "i697-e2e: gt_regen phase no longer fails (Defect 1 fixed)" {
     skip_if_deps_missing
     run "$TEST_SCRIPT" --pr 114 --type cycle --sha "$MERGE_SHA" --skip-rtfm
+    # Bridgebuilder F1: pin orchestrator process success before reading state.
+    [ "$status" -eq 0 ]
 
     local gt_status
     gt_status=$(jq -r '.phases.gt_regen.status' "$TEST_REPO/.run/post-merge-state.json")
@@ -137,6 +139,7 @@ skip_if_deps_missing() {
 @test "i697-e2e: project-zone commits route to project changelog (Defect 2 fixed)" {
     skip_if_deps_missing
     run "$TEST_SCRIPT" --pr 114 --type cycle --sha "$MERGE_SHA" --skip-rtfm
+    [ "$status" -eq 0 ]
 
     grep -q "cycle-105.5 project work" "$TEST_REPO/ECHELON-CHANGELOG.md" || {
         echo "Project commit missing from ECHELON-CHANGELOG.md"
@@ -151,6 +154,7 @@ skip_if_deps_missing() {
 @test "i697-e2e: framework CHANGELOG.md does NOT receive project-only commits" {
     skip_if_deps_missing
     run "$TEST_SCRIPT" --pr 114 --type cycle --sha "$MERGE_SHA" --skip-rtfm
+    [ "$status" -eq 0 ]
 
     if grep -q "cycle-105.5 project work" "$TEST_REPO/CHANGELOG.md"; then
         echo "ERROR: project-zone commit leaked into framework CHANGELOG.md"

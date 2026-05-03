@@ -148,6 +148,58 @@ PCL
 }
 
 # -----------------------------------------------------------------------------
+# Bridgebuilder F7: mixed-zone commit (single commit touches both .claude/**
+# AND project paths). Pathspec filtering treats this commit as belonging to
+# BOTH domains — git log -- .claude/ matches it, and git log -- :!.claude/
+# also matches it (it has files outside .claude/ too). Documented behavior:
+# **mixed-zone commits land in BOTH changelogs**, mirroring Google's
+# CODEOWNERS union policy for monorepo PRs that span owners.
+# -----------------------------------------------------------------------------
+@test "phase_changelog: mixed-zone commit (touches both .claude and project) lands in both changelogs" {
+    skip_if_deps_missing
+
+    cat > "$TEST_REPO/CHANGELOG.md" <<'CL'
+# Changelog
+
+All notable changes to Loa.
+CL
+    cat > "$TEST_REPO/PROJECT-CHANGELOG.md" <<'PCL'
+# Project Changelog
+
+All notable changes to the project.
+PCL
+
+    git -C "$TEST_REPO" add CHANGELOG.md PROJECT-CHANGELOG.md
+    git -C "$TEST_REPO" commit -m "initial: dual changelog setup" --quiet
+    git -C "$TEST_REPO" tag -a v1.0.0 -m "v1.0.0"
+
+    # Mixed-zone commit: touches BOTH .claude/ AND backend/.
+    echo "fw" > "$TEST_REPO/.claude/scripts/mixed-fw.sh"
+    echo "be" > "$TEST_REPO/backend/mixed-be.txt"
+    git -C "$TEST_REPO" add .claude/scripts/mixed-fw.sh backend/mixed-be.txt
+    git -C "$TEST_REPO" commit -m "feat(mixed): cross-zone touch (CODEOWNERS union)" --quiet
+    MERGE_SHA=$(git -C "$TEST_REPO" rev-parse HEAD)
+
+    run "$TEST_SCRIPT" --pr 42 --type cycle --sha "$MERGE_SHA" --skip-gt --skip-rtfm
+    [ "$status" -eq 0 ]
+
+    # Mixed commit lands in framework changelog (matches `.claude/` pathspec).
+    grep -q "cross-zone touch" "$TEST_REPO/CHANGELOG.md" || {
+        echo "Mixed-zone commit missing from framework CHANGELOG.md"
+        cat "$TEST_REPO/CHANGELOG.md"
+        return 1
+    }
+
+    # Mixed commit ALSO lands in project changelog (matches `:!.claude/` exclude
+    # pathspec — git log includes commits whose touched paths aren't ALL excluded).
+    grep -q "cross-zone touch" "$TEST_REPO/PROJECT-CHANGELOG.md" || {
+        echo "Mixed-zone commit missing from project PROJECT-CHANGELOG.md"
+        cat "$TEST_REPO/PROJECT-CHANGELOG.md"
+        return 1
+    }
+}
+
+# -----------------------------------------------------------------------------
 # Backward compat: single-changelog repos (Loa upstream itself) keep working.
 # -----------------------------------------------------------------------------
 @test "phase_changelog: single-changelog repo behavior unchanged (backward compat)" {
