@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.dev/loa/schemas/cycle-events/cycle-error.payload.schema.json",
+  "title": "L3 cycle.error Payload",
+  "description": "Emitted when cycle invocation fails before reaching cycle.complete. error_phase identifies where the failure happened: pre_check (L2 budget halt or invalid contract) or one of the 5 phases. Subsequent cron firings for the same schedule_id are unaffected (FR-L3-4). cycle-098 Sprint 3A.",
+  "type": "object",
+  "required": [
+    "cycle_id",
+    "schedule_id",
+    "started_at",
+    "errored_at",
+    "error_phase",
+    "error_kind",
+    "diagnostic",
+    "phases_completed",
+    "outcome"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "cycle_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "schedule_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "errored_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "duration_seconds": {
+      "type": "number",
+      "minimum": 0
+    },
+    "error_phase": {
+      "type": "string",
+      "enum": ["pre_check", "reader", "decider", "dispatcher", "awaiter", "logger"]
+    },
+    "error_kind": {
+      "type": "string",
+      "enum": [
+        "budget_halt",
+        "invalid_contract",
+        "phase_error",
+        "phase_timeout",
+        "phase_missing",
+        "internal"
+      ],
+      "description": "budget_halt: L2 verdict halt-100 or halt-uncertainty. invalid_contract: dispatch_contract YAML parse / required-field failure. phase_error: phase script exit non-zero. phase_timeout: phase script killed by timeout. phase_missing: dispatch_contract phase path does not exist or is not executable. internal: unexpected library failure."
+    },
+    "exit_code": {
+      "type": ["integer", "null"]
+    },
+    "diagnostic": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "description": "Human-readable error description. Stderr tail when phase_error/phase_timeout. Redacted via _SECRET_PATTERNS."
+    },
+    "phases_completed": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["reader", "decider", "dispatcher", "awaiter", "logger"]
+      },
+      "uniqueItems": true,
+      "maxItems": 5,
+      "description": "Phases that ran to success before the failure. Empty when error_phase is pre_check."
+    },
+    "outcome": {
+      "type": "string",
+      "enum": ["partial", "failure"],
+      "description": "partial: at least one phase ran to success before the error. failure: nothing succeeded (pre_check halt, or first phase failed)."
+    },
+    "budget_pre_check": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "verdict": {
+          "type": "string",
+          "enum": ["allow", "warn-90", "halt-100", "halt-uncertainty"]
+        },
+        "uncertainty_reason": { "type": ["string", "null"] }
+      },
+      "required": ["verdict"]
+    }
+  }
+}

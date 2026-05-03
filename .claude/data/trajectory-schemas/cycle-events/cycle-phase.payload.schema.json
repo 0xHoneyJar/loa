@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.dev/loa/schemas/cycle-events/cycle-phase.payload.schema.json",
+  "title": "L3 cycle.phase Payload",
+  "description": "Emitted once per phase invocation (reader|decider|dispatcher|awaiter|logger). Captures outcome + duration + diagnostic; replayable. cycle-098 Sprint 3A.",
+  "type": "object",
+  "required": [
+    "cycle_id",
+    "schedule_id",
+    "phase",
+    "phase_index",
+    "started_at",
+    "completed_at",
+    "duration_seconds",
+    "outcome"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "cycle_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "schedule_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+    },
+    "phase": {
+      "type": "string",
+      "enum": ["reader", "decider", "dispatcher", "awaiter", "logger"]
+    },
+    "phase_index": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4,
+      "description": "0=reader, 1=decider, 2=dispatcher, 3=awaiter, 4=logger. Permits ordered replay independent of clock skew."
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "duration_seconds": {
+      "type": "number",
+      "minimum": 0
+    },
+    "outcome": {
+      "type": "string",
+      "enum": ["success", "error", "timeout"]
+    },
+    "exit_code": {
+      "type": ["integer", "null"],
+      "description": "Phase script exit code (null on timeout if no exit observed)."
+    },
+    "diagnostic": {
+      "type": ["string", "null"],
+      "maxLength": 4096,
+      "description": "Stderr tail (last ~4KB) on error/timeout; null on success. Redacted via _SECRET_PATTERNS before write."
+    },
+    "output_hash": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$|^$",
+      "description": "SHA-256 of phase stdout when captured, for replay determinism. null if stdout discarded."
+    },
+    "timeout_seconds": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Per-phase timeout budget that was applied (allotted, not consumed)."
+    }
+  }
+}

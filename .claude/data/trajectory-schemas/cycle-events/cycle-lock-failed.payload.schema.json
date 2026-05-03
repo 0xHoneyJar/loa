@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.dev/loa/schemas/cycle-events/cycle-lock-failed.payload.schema.json",
+  "title": "L3 cycle.lock_failed Payload",
+  "description": "Emitted when flock acquire on .run/cycles/<schedule_id>.lock times out. Indicates an overlapping invocation is in progress; this invocation refuses to proceed (FR-L3-5). cycle-098 Sprint 3A.",
+  "type": "object",
+  "required": [
+    "schedule_id",
+    "lock_path",
+    "acquire_timeout_seconds",
+    "attempted_at",
+    "diagnostic"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schedule_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+    },
+    "cycle_id": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Cycle id this invocation would have used (computed before lock attempt). null only if cycle_id derivation itself failed."
+    },
+    "lock_path": {
+      "type": "string",
+      "description": "Absolute or repo-relative path to the lock file."
+    },
+    "acquire_timeout_seconds": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Timeout used in flock -w."
+    },
+    "attempted_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "holder_pid": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "description": "PID of the process currently holding the lock, when discoverable via fuser/lsof; null otherwise."
+    },
+    "diagnostic": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    }
+  }
+}
