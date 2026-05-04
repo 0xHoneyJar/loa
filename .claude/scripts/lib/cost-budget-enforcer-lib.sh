@@ -312,7 +312,12 @@ _l2_validate_observer_path() {
         canon="$(realpath -m "$resolved" 2>/dev/null || true)"
     fi
     if [[ -z "$canon" ]] && command -v python3 >/dev/null 2>&1; then
-        canon="$(python3 -c "import os, sys; print(os.path.normpath(sys.argv[1]))" "$resolved" 2>/dev/null || true)"
+        # Sprint H2 review LOW: switch from normpath to realpath in the
+        # fallback so symlink targets are resolved (matches `realpath -m`'s
+        # primary-path behavior). normpath only collapses .. and //; a
+        # symlinked file inside an allowlisted dir pointing to /bin/sh
+        # would otherwise pass validation on systems without coreutils.
+        canon="$(python3 -c "import os, sys; print(os.path.realpath(sys.argv[1]))" "$resolved" 2>/dev/null || true)"
     fi
     [[ -n "$canon" ]] || return 1
     [[ "$canon" == *"/.."* || "$canon" == *"/../"* ]] && return 1
@@ -320,6 +325,8 @@ _l2_validate_observer_path() {
     while IFS= read -r prefix; do
         if command -v realpath >/dev/null 2>&1; then
             prefix_canon="$(realpath -m "$prefix" 2>/dev/null || echo "$prefix")"
+        elif command -v python3 >/dev/null 2>&1; then
+            prefix_canon="$(python3 -c "import os, sys; print(os.path.realpath(sys.argv[1]))" "$prefix" 2>/dev/null || echo "$prefix")"
         else
             prefix_canon="$prefix"
         fi
