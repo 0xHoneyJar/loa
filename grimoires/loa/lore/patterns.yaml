@@ -131,3 +131,58 @@
   related:
     - governance-isomorphism
     - deliberative-council
+
+- id: scheduled-cycle
+  term: Scheduled Cycle
+  short: >-
+    Generic 5-phase autonomous-cycle template (reader → decider → dispatcher →
+    awaiter → logger) with content-addressed idempotency, flock-guarded
+    concurrency, and an optional fail-closed cost gate. The skeleton on which
+    scheduled work is mounted without each implementation re-deriving the same
+    locking + audit + replay machinery.
+  context: >-
+    A common error in scheduled autonomous systems is to ship the cron
+    registration first and discover the operational invariants — overlap
+    prevention, retry-on-error, idempotency, replay — only after the second or
+    third firing wedges. cycle-098 L3 inverts the build order: the chassis
+    (locking + content-addressed cycle_id + per-phase audit envelope events +
+    L2 budget pre-check + flock + timeout-bounded phase invocation) is the
+    primary contract, and the application (what the phases DO) is plugged in
+    as five small scripts. The phase decomposition matters: separating reader
+    from decider lets you replay or audit a decision without re-fetching state;
+    separating dispatcher from awaiter lets you model long-running work
+    without holding the cron-firing context open. The content-addressed
+    cycle_id (sha256 of schedule_id || ts_bucket || canonical(dispatch_contract))
+    means "the same scheduled action at the same scheduled minute" produces
+    the same identifier regardless of where or by whom invoked — idempotency
+    becomes a property of the inputs, not of side-channel state.
+    cycle.complete is the ONLY event that gates idempotency; errored runs are
+    retried because errors are typically transient and the chassis cannot
+    distinguish "transient failure" from "permanent failure" without the
+    domain-specific phase scripts. Composition with L2 budget enforcer is
+    compose-when-available (CC-9): when L2 is enabled AND the schedule
+    declares a budget_estimate_usd, the gate runs pre-read; when L2 is absent,
+    the cycle proceeds without the gate. The pattern generalizes to any
+    bounded-effort recurring task — periodic cleanup, drift detection,
+    reconciliation, watchdog — that needs the operational invariants without
+    re-deriving them per use case.
+  source:
+    cycle: "cycle-098-agent-network"
+    sprint: "Sprint 3 (L3 scheduled-cycle-template)"
+    rfc: "https://github.com/0xHoneyJar/loa/issues/655"
+    date: "2026-05-04"
+  tags:
+    - architecture
+    - autonomous-systems
+    - scheduled-tasks
+    - idempotency
+    - concurrency
+    - audit-trail
+    - pattern
+  status: Active
+  challenges: []
+  lineage: null
+  superseded_by: null
+  related:
+    - fail-closed-cost-gate
+    - governance-isomorphism

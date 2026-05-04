@@ -307,6 +307,25 @@ The L1-L7 audit infrastructure ships in cycle-098. All primitives use a shared e
 
 **Reference**: `.claude/data/audit-retention-policy.yaml` (per-primitive retention) + `grimoires/loa/runbooks/audit-keys-bootstrap.md` (operator bootstrap).
 
+## L3 Scheduled-Cycle Template (cycle-098 Sprint 3)
+
+The L3 chassis runs scheduled autonomous cycles via a 5-phase DispatchContract (`reader → decider → dispatcher → awaiter → logger`) wrapped in flock + content-addressed idempotency + optional L2 budget gate. Library: `.claude/scripts/lib/scheduled-cycle-lib.sh`. Schemas: `.claude/data/trajectory-schemas/cycle-events/`. Skill: `.claude/skills/scheduled-cycle-template/`.
+
+### Scheduled-Cycle Constraints
+
+| Rule | Why |
+|------|-----|
+| ALWAYS use `cycle_invoke` (or the lib's `invoke` subcommand) — never call phase scripts directly from cron | Direct invocation bypasses flock, idempotency, audit envelope, and budget gate. The chassis IS the contract; the phase scripts are payload only. |
+| ALWAYS treat `cycle.complete` as the ONLY idempotency gate — errored runs MUST retry | Errors are typically transient. The chassis cannot distinguish "transient failure" from "permanent failure" without the domain-specific phase scripts; retrying is the safe default. Permanent-failure detection is the dispatcher/logger's responsibility. |
+| ALWAYS hold the flock across the entire cycle (cycle.start → terminal event), not per phase | Per-phase locking allows two cron firings to interleave their phases; only whole-cycle locking prevents the overlap that FR-L3-5 forbids. |
+| ALWAYS bound phase invocations with the `timeout` command — never trust phase scripts to self-bound | Phase scripts are caller-supplied and untrusted. Without `timeout`, a hung phase blocks the lock and prevents the next cycle from firing forever. |
+| ALWAYS treat phase stdout as opaque (hash for `output_hash`; do not interpret) and stderr as redactable diagnostic | Phase output is unsanitized caller content; interpretation in the chassis would invite injection. Redaction (`_l3_redact_diagnostic`) prevents stack-trace leaks of api keys / tokens. |
+| ALWAYS use `--cycle-id` for retries / replay; let the chassis compute it for fresh runs | The default content-addressed `cycle_id` derives from minute-precision `ts_bucket` — two firings within the same minute would collide. Explicit `--cycle-id` is required when the test or operator needs determinism. |
+| MAY compose L2 budget pre-check via `LOA_L3_BUDGET_PRECHECK_ENABLED=1` or `.scheduled_cycle_template.budget_pre_check: true` | The CC-9 compose-when-available pattern: L3 ships standalone first, deployments opt in to the cost gate when L2 is enabled and the schedule declares a `budget_estimate_usd`. |
+| NEVER write phase scripts that modify shared state under the same lock the cycle holds | The flock guards `.run/cycles/<schedule_id>.lock`; phase scripts that try to acquire the same lock will deadlock waiting on the chassis itself. Phase-internal locks must use a different file. |
+
+**Reference**: `.claude/skills/scheduled-cycle-template/SKILL.md` (caller-facing usage) + `grimoires/loa/sdd.md` §5.5 (full API spec).
+
 ## Conventions
 
 - Never skip phases - each builds on previous
