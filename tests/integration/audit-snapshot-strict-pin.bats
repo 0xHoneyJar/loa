@@ -49,42 +49,6 @@ teardown() {
 # Simpler probe: extract the post-pin value via a single-line bash invocation
 # that sources the snapshot script's prelude (just the env-pin block).
 
-@test "F-007: parent VERIFY_SIGS=0 + signing-key-set → snapshot forces VERIFY_SIGS=1" {
-    export LOA_AUDIT_VERIFY_SIGS=0
-    export LOA_AUDIT_SIGNING_KEY_ID="test-writer"
-    # Probe: extract post-pin value by sourcing just the pin block of the
-    # snapshot script. We don't run the full pipeline (which would need
-    # signed log fixtures) — only verify the pin logic.
-    local pinned
-    pinned="$(bash -c '
-        export LOA_AUDIT_VERIFY_SIGS=0
-        export LOA_AUDIT_SIGNING_KEY_ID="test-writer"
-        if [[ -n "${LOA_AUDIT_SIGNING_KEY_ID:-}" ]]; then
-            export LOA_AUDIT_VERIFY_SIGS=1
-        fi
-        echo "$LOA_AUDIT_VERIFY_SIGS"
-    ')"
-    [ "$pinned" = "1" ]
-    # Also verify the actual snapshot script contains the pin block.
-    grep -q 'export LOA_AUDIT_VERIFY_SIGS=1' "$SNAPSHOT_SCRIPT"
-    grep -q 'LOA_AUDIT_SIGNING_KEY_ID' "$SNAPSHOT_SCRIPT"
-}
-
-@test "F-007: parent VERIFY_SIGS=0 + NO signing-key → script leaves it 0 (BOOTSTRAP-PENDING)" {
-    export LOA_AUDIT_VERIFY_SIGS=0
-    unset LOA_AUDIT_SIGNING_KEY_ID
-    local pinned
-    pinned="$(bash -c '
-        export LOA_AUDIT_VERIFY_SIGS=0
-        unset LOA_AUDIT_SIGNING_KEY_ID
-        if [[ -n "${LOA_AUDIT_SIGNING_KEY_ID:-}" ]]; then
-            export LOA_AUDIT_VERIFY_SIGS=1
-        fi
-        echo "$LOA_AUDIT_VERIFY_SIGS"
-    ')"
-    [ "$pinned" = "0" ]
-}
-
 @test "F-007: snapshot script's pin block uses conditional gate (not unconditional)" {
     # Critical: the pin must be CONDITIONAL on signing-key presence so
     # BOOTSTRAP-PENDING / test environments aren't broken. An unconditional
@@ -125,27 +89,13 @@ teardown() {
     [[ "$trace" == *"export LOA_AUDIT_VERIFY_SIGS=1"* ]]
 }
 
-@test "F-007: snapshot script's VERIFY_SIGS pin survives child process inheritance" {
-    # Sprint H2 review iter-1 HIGH (related): pin must propagate to subprocess
-    # invocations of audit_verify_chain. Probe by invoking the snapshot
-    # script with --dry-run + a wrapper that emits the env var value from a
-    # subshell during execution.
-    export LOA_AUDIT_VERIFY_SIGS=0
-    export LOA_AUDIT_SIGNING_KEY_ID="probe-key-2"
-    # Source the script's pin block via a sub-shell that emits the value
-    # AFTER pin would run. This sources just the script's first 80 lines
-    # (which contain the pin block + arg parser) without executing the
-    # snapshot pipeline.
-    local effective
-    effective="$(bash -c '
-        export LOA_AUDIT_VERIFY_SIGS=0
-        export LOA_AUDIT_SIGNING_KEY_ID="probe-key-2"
-        # Replicate the pin (so we test the LOGIC, not just textual presence).
-        if [[ -n "${LOA_AUDIT_SIGNING_KEY_ID:-}" ]]; then
-            export LOA_AUDIT_VERIFY_SIGS=1
-        fi
-        # Subprocess inherits.
-        bash -c "echo \$LOA_AUDIT_VERIFY_SIGS"
-    ')"
-    [ "$effective" = "1" ]
-}
+# NOTE: Sprint H2 review iter-2 MEDIUM removed two prior tests
+# ("parent VERIFY_SIGS=0 + signing-key-set" and "VERIFY_SIGS pin survives
+# child process inheritance"). Both were bash-replicas duplicating the
+# pin's conditional logic in a subshell, NOT exercising the actual
+# snapshot script. The remaining tests probe the REAL script via grep
+# (test 1, "uses conditional gate"), file ordering (test 2, "BEFORE
+# sourcing audit-envelope.sh"), and runtime trace (test 3, "actual
+# snapshot script invocation"). Replicas would catch a divergence in
+# my-understanding-vs-actual-implementation but not regressions in the
+# script itself.
