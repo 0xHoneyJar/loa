@@ -30,6 +30,15 @@ setup() {
     export TRUNC_OUT="$OUTPUT_DIR/core/truncation.generated.ts"
     export CONFIG_OUT="$OUTPUT_DIR/config.generated.ts"
     mkdir -p "$OUTPUT_DIR/core"
+
+    # Preconditions — fail fast with a clear message rather than an opaque
+    # 'command not found' or 'no such file' from a downstream test (BB F2).
+    if ! command -v yq >/dev/null; then
+        skip "yq required (mikefarah/yq v4+) — install via brew/apt/asdf"
+    fi
+    if [ ! -x "$TSX" ]; then
+        skip "tsx not found at $TSX — run 'npm install' in $BB_SKILL_DIR first"
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -283,23 +292,56 @@ EOF
 # change that breaks the build-pipeline order (e.g., tsc emitting *.generated.js
 # next to source, a new `prebuild` script, or `cd resources` semantics
 # breaking) would slip through.
+#
+# T9 invokes the npm script which writes to BB_SKILL_DIR/resources/ — i.e.,
+# the committed working tree. The _t9_snapshot/_t9_restore helpers preserve
+# the committed-tree state so the test does not leave the developer's git
+# diff dirty (BB F4). Files are restored even on test failure.
+
+_t9_committed_truncation="$BB_SKILL_DIR/resources/core/truncation.generated.ts"
+_t9_committed_config="$BB_SKILL_DIR/resources/config.generated.ts"
+
+_t9_snapshot() {
+    if [ -f "$_t9_committed_truncation" ]; then
+        cp "$_t9_committed_truncation" "$BATS_TEST_TMPDIR/t9-snapshot-truncation"
+    fi
+    if [ -f "$_t9_committed_config" ]; then
+        cp "$_t9_committed_config" "$BATS_TEST_TMPDIR/t9-snapshot-config"
+    fi
+}
+
+_t9_restore() {
+    if [ -f "$BATS_TEST_TMPDIR/t9-snapshot-truncation" ]; then
+        cp "$BATS_TEST_TMPDIR/t9-snapshot-truncation" "$_t9_committed_truncation"
+    fi
+    if [ -f "$BATS_TEST_TMPDIR/t9-snapshot-config" ]; then
+        cp "$BATS_TEST_TMPDIR/t9-snapshot-config" "$_t9_committed_config"
+    fi
+}
 
 @test "T9: npm run gen-bb-registry from BB skill dir succeeds" {
+    _t9_snapshot
     cd "$BB_SKILL_DIR"
     run npm run gen-bb-registry
-    [ "$status" -eq 0 ]
+    local rc=$status
+    _t9_restore
+    [ "$rc" -eq 0 ]
     [[ "$output" == *"generated:"* ]]
 }
 
 @test "T9: npm run gen-bb-registry:check passes against committed tree (post-regen)" {
+    _t9_snapshot
     cd "$BB_SKILL_DIR"
     # Regenerate first so committed tree matches what the codegen would emit.
     run npm run gen-bb-registry
-    [ "$status" -eq 0 ]
+    local rc1=$status
+    if [ "$rc1" -ne 0 ]; then _t9_restore; [ "$rc1" -eq 0 ]; fi
 
     # --check now must pass (exit 0).
     run npm run gen-bb-registry:check
-    [ "$status" -eq 0 ]
+    local rc2=$status
+    _t9_restore
+    [ "$rc2" -eq 0 ]
 }
 
 # ---------------------------------------------------------------------------
