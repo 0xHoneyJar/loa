@@ -23,6 +23,7 @@ declare -A MODEL_PROVIDERS=(
     ["claude-opus-4-7"]="anthropic"
     ["claude-opus-4-6"]="anthropic"
     ["claude-sonnet-4-6"]="anthropic"
+    ["claude-sonnet-4-5-20250929"]="anthropic"
     ["claude-haiku-4-5-20251001"]="anthropic"
     ["us.anthropic.claude-opus-4-7"]="bedrock"
     ["us.anthropic.claude-sonnet-4-6"]="bedrock"
@@ -66,6 +67,7 @@ declare -A MODEL_IDS=(
     ["claude-opus-4-7"]="claude-opus-4-7"
     ["claude-opus-4-6"]="claude-opus-4-6"
     ["claude-sonnet-4-6"]="claude-sonnet-4-6"
+    ["claude-sonnet-4-5-20250929"]="claude-sonnet-4-5-20250929"
     ["claude-haiku-4-5-20251001"]="claude-haiku-4-5-20251001"
     ["us.anthropic.claude-opus-4-7"]="us.anthropic.claude-opus-4-7"
     ["us.anthropic.claude-sonnet-4-6"]="us.anthropic.claude-sonnet-4-6"
@@ -109,6 +111,7 @@ declare -A COST_INPUT=(
     ["claude-opus-4-7"]="0.005"
     ["claude-opus-4-6"]="0.005"
     ["claude-sonnet-4-6"]="0.003"
+    ["claude-sonnet-4-5-20250929"]="0.003"
     ["claude-haiku-4-5-20251001"]="0.001"
     ["us.anthropic.claude-opus-4-7"]="0.005"
     ["us.anthropic.claude-sonnet-4-6"]="0.003"
@@ -152,6 +155,7 @@ declare -A COST_OUTPUT=(
     ["claude-opus-4-7"]="0.025"
     ["claude-opus-4-6"]="0.025"
     ["claude-sonnet-4-6"]="0.015"
+    ["claude-sonnet-4-5-20250929"]="0.015"
     ["claude-haiku-4-5-20251001"]="0.005"
     ["us.anthropic.claude-opus-4-7"]="0.025"
     ["us.anthropic.claude-sonnet-4-6"]="0.015"
@@ -201,6 +205,7 @@ declare -a VALID_FLATLINE_MODELS=(
     claude-opus-4.6
     claude-opus-4-7
     claude-opus-4.7
+    claude-sonnet-4-5-20250929
     claude-sonnet-4-6
     deep-research-pro
     deep-thinker
