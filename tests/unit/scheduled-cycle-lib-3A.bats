@@ -54,6 +54,9 @@ EOF
 
     export LOA_CYCLES_LOG="$LOG_FILE"
     export LOA_L3_TEST_NOW="2026-05-04T12:00:00.000000Z"
+    # Sprint 3 remediation: phase paths must be on the allowlist; tests
+    # generate phases under $TEST_DIR (mktemp), so widen the allowlist.
+    export LOA_L3_PHASE_PATH_ALLOWED_PREFIXES="$TEST_DIR"
     unset LOA_AUDIT_SIGNING_KEY_ID
     export LOA_AUDIT_VERIFY_SIGS=0
     export REPO_ROOT TEST_DIR LOG_FILE SCHEDULE_YAML

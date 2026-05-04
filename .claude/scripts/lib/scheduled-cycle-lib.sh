@@ -81,12 +81,259 @@ _L3_DEFAULT_LOCK_DIR=".run/cycles"
 _L3_DEFAULT_PHASE_TIMEOUT=300
 _L3_DEFAULT_LOCK_TIMEOUT=30
 _L3_DEFAULT_KILL_GRACE_SECONDS=5
+# Cap on total cycle wall-clock (5 phases × per-phase budget) — defense
+# against malicious schedule yamls that set timeout_seconds: 86400 to park
+# the lock for days. Override via LOA_L3_MAX_CYCLE_SECONDS or
+# .scheduled_cycle_template.max_cycle_seconds.
+_L3_DEFAULT_MAX_CYCLE_SECONDS=14400   # 4h × 1 cycle
 _L3_PHASES=(reader decider dispatcher awaiter logger)
+# Default allowlist for dispatch_contract phase script paths. Phase scripts
+# resolved outside these prefixes are rejected. Add deployment-specific
+# directories via .scheduled_cycle_template.phase_path_allowed_prefixes (yaml
+# array) or LOA_L3_PHASE_PATH_ALLOWED_PREFIXES (colon-separated env).
+_L3_DEFAULT_PHASE_ALLOWLIST=(
+    ".claude/skills"
+    ".run/schedules"
+    ".run/cycles-contracts"
+)
+# Default env-passthrough allowlist into phase scripts. Anything not in this
+# list is stripped before phase execution. Caller can extend per-schedule via
+# dispatch_contract.env_passthrough.
+_L3_DEFAULT_ENV_ALLOWLIST=(
+    PATH HOME USER LANG LC_ALL LC_CTYPE TZ TMPDIR TERM SHELL
+    LOA_L3_CYCLE_ID LOA_L3_SCHEDULE_ID LOA_L3_PHASE_INDEX
+)
 
 # shellcheck source=../audit-envelope.sh
 source "${_L3_AUDIT_ENVELOPE}"
 
 _l3_log() { echo "[scheduled-cycle] $*" >&2; }
+
+# -----------------------------------------------------------------------------
+# _l3_test_mode — returns 0 when tests / fixtures are running. Used to gate
+# escape hatches like LOA_L3_L2_LIB_OVERRIDE and (eventually) --cycle-id
+# overrides off in production paths. Detection: BATS_TEST_DIRNAME set, or
+# explicit LOA_L3_TEST_MODE=1.
+# -----------------------------------------------------------------------------
+_l3_test_mode() {
+    if [[ -n "${BATS_TEST_DIRNAME:-}" ]]; then return 0; fi
+    if [[ "${LOA_L3_TEST_MODE:-}" == "1" || "${LOA_L3_TEST_MODE:-}" == "true" ]]; then return 0; fi
+    return 1
+}
+
+# -----------------------------------------------------------------------------
+# _l3_safe_touch_lock <lock_file>
+#
+# Symlink-safe lock-file creation (CRITICAL audit finding). The legacy
+# `: > "$lock_file"` redirect FOLLOWS symlinks; an attacker who can stage a
+# symlink at <lock_dir>/<schedule_id>.lock pointing at any writable file
+# weaponizes the lock-touch into a write-anywhere truncate primitive.
+# This helper:
+#   - rejects existing lock paths that are symlinks
+#   - creates the file with mode 0600 via Python os.open(O_CREAT|O_NOFOLLOW)
+#   - falls back to bash + post-creation symlink check on systems without python3
+# Returns 0 on safe creation; 1 on policy violation.
+# -----------------------------------------------------------------------------
+_l3_safe_touch_lock() {
+    local lock_file="$1"
+    if [[ -L "$lock_file" ]]; then
+        _l3_log "ERROR: lock path is a symlink (refusing to follow): $lock_file"
+        return 1
+    fi
+    if command -v python3 >/dev/null 2>&1; then
+        if ! python3 - "$lock_file" <<'PY' 2>/dev/null
+import os, sys
+path = sys.argv[1]
+flags = os.O_CREAT | os.O_WRONLY | os.O_NOFOLLOW
+try:
+    fd = os.open(path, flags, 0o600)
+    os.close(fd)
+except FileExistsError:
+    # Already exists as a regular file; fine. (O_CREAT without O_EXCL.)
+    pass
+except OSError as e:
+    print(f"ERROR: {e}", file=sys.stderr)
+    sys.exit(1)
+PY
+        then
+            _l3_log "ERROR: failed to create lock file safely: $lock_file"
+            return 1
+        fi
+    else
+        # No python3 — fall back to bash with a post-creation check.
+        ( umask 077 && touch "$lock_file" ) 2>/dev/null || {
+            _l3_log "ERROR: cannot touch lock file: $lock_file"
+            return 1
+        }
+        if [[ -L "$lock_file" ]]; then
+            _l3_log "ERROR: lock file became a symlink during creation: $lock_file"
+            return 1
+        fi
+    fi
+    return 0
+}
+
+# -----------------------------------------------------------------------------
+# _l3_get_phase_allowlist — return newline-separated absolute prefix list.
+# Sources: LOA_L3_PHASE_PATH_ALLOWED_PREFIXES (colon-separated env override),
+# .scheduled_cycle_template.phase_path_allowed_prefixes (yaml array),
+# default _L3_DEFAULT_PHASE_ALLOWLIST.
+# -----------------------------------------------------------------------------
+_l3_get_phase_allowlist() {
+    if [[ -n "${LOA_L3_PHASE_PATH_ALLOWED_PREFIXES:-}" ]]; then
+        local prefix
+        local IFS=":"
+        for prefix in $LOA_L3_PHASE_PATH_ALLOWED_PREFIXES; do
+            if [[ "$prefix" = /* ]]; then
+                echo "$prefix"
+            else
+                echo "${_L3_REPO_ROOT}/${prefix}"
+            fi
+        done
+        return 0
+    fi
+    # YAML list (one path per line).
+    local yaml_list
+    yaml_list="$(_l3_config_get '.scheduled_cycle_template.phase_path_allowed_prefixes' '')"
+    if [[ -n "$yaml_list" && "$yaml_list" != "null" ]]; then
+        # yq with `-r` on an array prints each element on a line; PyYAML
+        # fallback prints repr-like; cope with either by stripping brackets/quotes.
+        local p
+        while IFS= read -r p; do
+            p="${p#- }"; p="${p#\"}"; p="${p%\"}"; p="${p//\'/}"
+            [[ -z "$p" ]] && continue
+            if [[ "$p" = /* ]]; then echo "$p"; else echo "${_L3_REPO_ROOT}/${p}"; fi
+        done <<<"$yaml_list"
+        return 0
+    fi
+    local default_p
+    for default_p in "${_L3_DEFAULT_PHASE_ALLOWLIST[@]}"; do
+        echo "${_L3_REPO_ROOT}/${default_p}"
+    done
+}
+
+# -----------------------------------------------------------------------------
+# _l3_validate_phase_path <raw_path> <phase_name>
+#
+# Canonicalize raw_path (resolving .., symlinks, relative-to-repo prefix) and
+# verify it lives under one of the allowed prefixes. Returns 0 + canonical
+# path on stdout; 1 on policy violation. CRITICAL audit finding.
+# -----------------------------------------------------------------------------
+_l3_validate_phase_path() {
+    local raw="$1"
+    local phase="$2"
+    if [[ -z "$raw" ]]; then
+        _l3_log "ERROR: ${phase} phase path is empty"
+        return 1
+    fi
+    local resolved
+    if [[ "$raw" = /* ]]; then
+        resolved="$raw"
+    else
+        resolved="${_L3_REPO_ROOT}/${raw}"
+    fi
+    # Canonicalize. Use realpath if available; fallback to python3.
+    local canon=""
+    if command -v realpath >/dev/null 2>&1; then
+        canon="$(realpath -m "$resolved" 2>/dev/null || true)"
+    fi
+    if [[ -z "$canon" ]] && command -v python3 >/dev/null 2>&1; then
+        canon="$(python3 -c "import os, sys; print(os.path.normpath(sys.argv[1]))" "$resolved" 2>/dev/null || true)"
+    fi
+    if [[ -z "$canon" ]]; then
+        _l3_log "ERROR: cannot canonicalize ${phase} path: $raw"
+        return 1
+    fi
+    # Reject canonical paths still containing /../ (can happen if normpath
+    # fails to resolve due to missing dirs; defense in depth).
+    if [[ "$canon" == *"/.."* || "$canon" == *"/../"* ]]; then
+        _l3_log "ERROR: ${phase} path contains traversal after normalize: $canon"
+        return 1
+    fi
+    # Walk allowlist; require canonical path to start with one of the
+    # canonical prefixes (also normalized).
+    local prefix prefix_canon
+    while IFS= read -r prefix; do
+        if command -v realpath >/dev/null 2>&1; then
+            prefix_canon="$(realpath -m "$prefix" 2>/dev/null || echo "$prefix")"
+        else
+            prefix_canon="$prefix"
+        fi
+        # Strip trailing slash for clean prefix matching.
+        prefix_canon="${prefix_canon%/}"
+        if [[ "$canon" == "$prefix_canon"/* ]]; then
+            echo "$canon"
+            return 0
+        fi
+    done < <(_l3_get_phase_allowlist)
+    _l3_log "ERROR: ${phase} path outside allowlist: $canon"
+    _l3_log "  Allowed prefixes (configure via .scheduled_cycle_template.phase_path_allowed_prefixes):"
+    _l3_get_phase_allowlist | sed 's/^/    /' >&2
+    return 1
+}
+
+# -----------------------------------------------------------------------------
+# _l3_get_env_passthrough — return space-separated env var names that should
+# be inherited from the cycle's environment by phase scripts. Defaults to a
+# minimal allowlist; caller-extendable per-schedule via dispatch_contract.
+# -----------------------------------------------------------------------------
+_l3_get_env_passthrough() {
+    local extras="${1:-}"   # space-separated extra var names from dispatch_contract
+    local v
+    for v in "${_L3_DEFAULT_ENV_ALLOWLIST[@]}"; do
+        echo "$v"
+    done
+    if [[ -n "$extras" ]]; then
+        for v in $extras; do
+            # Only allow [A-Z_][A-Z0-9_]* (env var name regex).
+            if [[ "$v" =~ ^[A-Z_][A-Z0-9_]*$ ]]; then
+                echo "$v"
+            else
+                _l3_log "WARN: ignoring invalid env passthrough name: $v"
+            fi
+        done
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# _l3_get_max_cycle_seconds — total cycle wall-clock cap.
+# -----------------------------------------------------------------------------
+_l3_get_max_cycle_seconds() {
+    local v
+    v="${LOA_L3_MAX_CYCLE_SECONDS:-$(_l3_config_get '.scheduled_cycle_template.max_cycle_seconds' "$_L3_DEFAULT_MAX_CYCLE_SECONDS")}"
+    if ! [[ "$v" =~ $_L3_INT_RE ]]; then
+        v="$_L3_DEFAULT_MAX_CYCLE_SECONDS"
+    fi
+    echo "$v"
+}
+
+# -----------------------------------------------------------------------------
+# _l3_iso_to_epoch <iso8601_ts> — parse ISO-8601 to Unix epoch. Honors
+# microseconds + Z. Returns "" on parse failure (printed nothing on stdout
+# means caller should fallback). Used by _l3_run_phase + _l3_cycle_invoke_inner
+# to derive duration_seconds deterministically (HIGH-R3 review fix — wall-clock
+# date +%s leaked through LOA_L3_TEST_NOW frozen-clock fixtures).
+# -----------------------------------------------------------------------------
+_l3_iso_to_epoch() {
+    local ts="$1"
+    [[ -z "$ts" || "$ts" == "null" ]] && return 1
+    # GNU date supports ISO directly via -d.
+    if date -u -d "$ts" +%s 2>/dev/null; then
+        return 0
+    fi
+    # Python fallback (handles BSD date / macOS).
+    python3 - "$ts" <<'PY' 2>/dev/null
+import sys
+from datetime import datetime
+s = sys.argv[1]
+if s.endswith("Z"):
+    s = s[:-1] + "+00:00"
+try:
+    print(int(datetime.fromisoformat(s).timestamp()))
+except Exception:
+    sys.exit(1)
+PY
+}
 
 # Validation regexes. schedule_id matches the per-event-schema pattern.
 _L3_SCHEDULE_ID_RE='^[a-z0-9][a-z0-9_-]{0,63}$'
@@ -287,9 +534,18 @@ _l3_run_budget_pre_check() {
         return 0
     fi
 
-    # Resolve L2 lib path. LOA_L3_L2_LIB_OVERRIDE lets tests inject a missing
-    # path to exercise the graceful-skip branch.
-    local l2_lib="${LOA_L3_L2_LIB_OVERRIDE:-${_L3_REPO_ROOT}/.claude/scripts/lib/cost-budget-enforcer-lib.sh}"
+    # Resolve L2 lib path. LOA_L3_L2_LIB_OVERRIDE is a TEST-ONLY escape hatch;
+    # in production it would source attacker-controlled bash code into the
+    # cycle process at top scope (HIGH-A2 audit finding). Honor only when
+    # _l3_test_mode returns true (BATS_TEST_DIRNAME set or LOA_L3_TEST_MODE=1).
+    local l2_lib="${_L3_REPO_ROOT}/.claude/scripts/lib/cost-budget-enforcer-lib.sh"
+    if [[ -n "${LOA_L3_L2_LIB_OVERRIDE:-}" ]]; then
+        if _l3_test_mode; then
+            l2_lib="$LOA_L3_L2_LIB_OVERRIDE"
+        else
+            _l3_log "WARN: LOA_L3_L2_LIB_OVERRIDE ignored outside test mode (set LOA_L3_TEST_MODE=1 or run under bats)"
+        fi
+    fi
     if [[ ! -f "$l2_lib" ]]; then
         _l3_log "WARN: L2 budget pre-check requested but $l2_lib missing; cycle proceeds without gate"
         echo "null"
@@ -503,30 +759,49 @@ _l3_audit_emit_event() {
 # _l3_redact_diagnostic <text>
 #
 # Truncate to 4096 chars (schema cap) and apply common secret-pattern scrubs.
-# Mirrors the conservative subset used by L2 (anthropic_api_key etc.). Full
-# multi-pattern redaction lives in secret-redaction.sh; this is a stub that
-# at minimum prevents long stack traces from blowing past the schema cap.
+# Sprint 3 remediation (MED-R4 / MED-A1 audit findings): expanded pattern set
+# covering AWS/GCP/Slack/PEM/generic-key-value/Stripe in addition to the
+# Anthropic/GitHub/JWT prefixes from Sprint 3A. Phase scripts are STILL
+# responsible for primary scrubbing — this is defense-in-depth before payload
+# lands in the audit envelope, which is durably appended. Full canonical
+# redaction is centralized in secret-redaction.sh; this stub mirrors the
+# minimum subset and prevents stack-trace leaks past the schema cap.
 # -----------------------------------------------------------------------------
 _l3_redact_diagnostic() {
     local text="$1"
-    # Truncate (4096 chars). Use head -c bytes first; if multibyte tail is cut
-    # mid-codepoint, Python json.dumps still escapes safely.
+    # Truncate (4096 chars).
     local truncated
     truncated="$(printf '%s' "$text" | head -c 4096)"
-    # Basic redactions: api keys, tokens. Caller-supplied phase scripts are
-    # responsible for their own scrubbing; this is defense-in-depth.
+    # Defense-in-depth redactions. Apply with sed -E (POSIX-portable ERE).
     truncated="$(printf '%s' "$truncated" | sed -E \
-        -e 's/(sk-[A-Za-z0-9_-]{20,})/[REDACTED]/g' \
-        -e 's/(ghp_[A-Za-z0-9]{20,})/[REDACTED]/g' \
-        -e 's/(eyJ[A-Za-z0-9._-]{40,})/[REDACTED]/g')"
+        -e 's/(sk-[A-Za-z0-9_-]{15,})/[REDACTED]/g' \
+        -e 's/(sk_[a-z]+_[A-Za-z0-9]{16,})/[REDACTED]/g' \
+        -e 's/(ghp_[A-Za-z0-9]{15,})/[REDACTED]/g' \
+        -e 's/(github_pat_[A-Za-z0-9_]{20,})/[REDACTED]/g' \
+        -e 's/(gho_[A-Za-z0-9]{15,})/[REDACTED]/g' \
+        -e 's/(npm_[A-Za-z0-9]{20,})/[REDACTED]/g' \
+        -e 's/(eyJ[A-Za-z0-9._-]{20,})/[REDACTED]/g' \
+        -e 's/(AKIA[A-Z0-9]{12,})/[REDACTED]/g' \
+        -e 's/(ASIA[A-Z0-9]{12,})/[REDACTED]/g' \
+        -e 's/(AIza[A-Za-z0-9_-]{30,})/[REDACTED]/g' \
+        -e 's/(xox[baprs]-[A-Za-z0-9_-]{10,})/[REDACTED]/g' \
+        -e 's/-----BEGIN [A-Z ]+PRIVATE KEY-----/[REDACTED-PEM-BEGIN]/g' \
+        -e 's/-----END [A-Z ]+PRIVATE KEY-----/[REDACTED-PEM-END]/g' \
+        -e 's/([Aa][Pp][Ii][_-]?[Kk][Ee][Yy][[:space:]]*[:=][[:space:]]*)[^[:space:]]+/\1[REDACTED]/g' \
+        -e 's/([Ss][Ee][Cc][Rr][Ee][Tt][[:space:]]*[:=][[:space:]]*)[^[:space:]]+/\1[REDACTED]/g' \
+        -e 's/([Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd][[:space:]]*[:=][[:space:]]*)[^[:space:]]+/\1[REDACTED]/g' \
+        -e 's/([Tt][Oo][Kk][Ee][Nn][[:space:]]*[:=][[:space:]]*)[A-Za-z0-9._-]{10,}/\1[REDACTED]/g')"
     printf '%s' "$truncated"
 }
 
 # -----------------------------------------------------------------------------
 # _l3_phase_script_path <dispatch_contract_json> <phase_name>
 #
-# Resolve the phase script path from the dispatch_contract block; if it is a
-# relative path, resolve relative to repo root.
+# Resolve + VALIDATE the phase script path from the dispatch_contract block.
+# Sprint 3 remediation (CRITICAL audit finding): validates against the
+# allowlist via _l3_validate_phase_path; rejects absolute paths outside the
+# allowlist + relative paths with `..` traversal. Returns 0 + canonical path
+# on stdout; 1 on policy violation.
 # -----------------------------------------------------------------------------
 _l3_phase_script_path() {
     local dc_json="$1"
@@ -536,11 +811,7 @@ _l3_phase_script_path() {
     if [[ -z "$raw" ]]; then
         return 1
     fi
-    if [[ "$raw" = /* ]]; then
-        echo "$raw"
-    else
-        echo "${_L3_REPO_ROOT}/${raw}"
-    fi
+    _l3_validate_phase_path "$raw" "$phase"
 }
 
 # -----------------------------------------------------------------------------
@@ -573,7 +844,10 @@ _l3_run_phase() {
 
     started_at="$(_l3_now_iso8601)"
     local started_epoch
-    started_epoch="$(date -u +%s)"
+    # Sprint 3 remediation (HIGH-R3): derive epoch from started_at so
+    # LOA_L3_TEST_NOW frozen-clock fixtures produce consistent
+    # duration_seconds. Wall-clock fallback if parse fails (defense in depth).
+    started_epoch="$(_l3_iso_to_epoch "$started_at" 2>/dev/null || date -u +%s)"
 
     if [[ ! -f "$script_path" ]]; then
         completed_at="$(_l3_now_iso8601)"
@@ -615,6 +889,10 @@ _l3_run_phase() {
     #
     # On timeout, GNU coreutils `timeout` exits 124 (after TERM) or 137
     # (after KILL via --kill-after grace). We treat both as outcome=timeout.
+    #
+    # Sprint 3 remediation (HIGH-A1 audit finding): phase scripts run under
+    # `env -i` with an explicit allowlist. Default allowlist is minimal;
+    # caller can extend per-schedule via dispatch_contract.env_passthrough.
     local _l3_timeout_bin=""
     if command -v timeout >/dev/null 2>&1; then
         _l3_timeout_bin="timeout"
@@ -624,47 +902,52 @@ _l3_run_phase() {
     fi
     local _l3_kill_grace="${LOA_L3_KILL_GRACE_SECONDS:-${_L3_DEFAULT_KILL_GRACE_SECONDS}}"
 
+    # Build env -i allowlist arguments. Pass through allowed vars from caller
+    # env, then explicitly inject phase-context vars.
+    local extra_passthrough="${LOA_L3_PHASE_ENV_PASSTHROUGH:-}"
+    local env_args=()
+    local var
+    while IFS= read -r var; do
+        if [[ -n "${!var:-}" ]]; then
+            env_args+=("${var}=${!var}")
+        fi
+    done < <(_l3_get_env_passthrough "$extra_passthrough")
+    # Phase context (always injected).
+    env_args+=("LOA_L3_CYCLE_ID=${cycle_id}")
+    env_args+=("LOA_L3_SCHEDULE_ID=${schedule_id}")
+    env_args+=("LOA_L3_PHASE_INDEX=${phase_index}")
+
+    local invoker
+    if [[ -x "$script_path" ]]; then
+        invoker=("$script_path")
+    else
+        invoker=(bash "$script_path")
+    fi
+
     if [[ -n "$_l3_timeout_bin" && -n "${timeout_s}" && "$timeout_s" =~ $_L3_INT_RE ]]; then
-        if [[ -x "$script_path" ]]; then
-            if "$_l3_timeout_bin" --kill-after="${_l3_kill_grace}s" "${timeout_s}s" \
-                    "$script_path" "$cycle_id" "$schedule_id" "$phase_index" "$prior_arg" \
-                    >"$stdout_file" 2>"$stderr_file"; then
-                rc=0
-            else
-                rc=$?
-            fi
+        if env -i "${env_args[@]}" \
+                "$_l3_timeout_bin" --kill-after="${_l3_kill_grace}s" "${timeout_s}s" \
+                "${invoker[@]}" "$cycle_id" "$schedule_id" "$phase_index" "$prior_arg" \
+                >"$stdout_file" 2>"$stderr_file"; then
+            rc=0
         else
-            if "$_l3_timeout_bin" --kill-after="${_l3_kill_grace}s" "${timeout_s}s" \
-                    bash "$script_path" "$cycle_id" "$schedule_id" "$phase_index" "$prior_arg" \
-                    >"$stdout_file" 2>"$stderr_file"; then
-                rc=0
-            else
-                rc=$?
-            fi
+            rc=$?
         fi
     else
         # Fallback (no `timeout` available): unwrapped invocation. Records
         # timeout_seconds in payload but does not enforce.
-        if [[ -x "$script_path" ]]; then
-            if "$script_path" "$cycle_id" "$schedule_id" "$phase_index" "$prior_arg" \
-                    >"$stdout_file" 2>"$stderr_file"; then
-                rc=0
-            else
-                rc=$?
-            fi
+        if env -i "${env_args[@]}" \
+                "${invoker[@]}" "$cycle_id" "$schedule_id" "$phase_index" "$prior_arg" \
+                >"$stdout_file" 2>"$stderr_file"; then
+            rc=0
         else
-            if bash "$script_path" "$cycle_id" "$schedule_id" "$phase_index" "$prior_arg" \
-                    >"$stdout_file" 2>"$stderr_file"; then
-                rc=0
-            else
-                rc=$?
-            fi
+            rc=$?
         fi
     fi
 
     completed_at="$(_l3_now_iso8601)"
     local completed_epoch
-    completed_epoch="$(date -u +%s)"
+    completed_epoch="$(_l3_iso_to_epoch "$completed_at" 2>/dev/null || date -u +%s)"
     duration_s=$(( completed_epoch - started_epoch ))
     if (( duration_s < 0 )); then
         duration_s=0
@@ -768,10 +1051,48 @@ cycle_idempotency_check() {
         log_path="$(_l3_get_log_path)"
     fi
     [[ -f "$log_path" ]] || return 1
-    # Look for cycle.complete with matching cycle_id.
-    if jq -e --arg cid "$cycle_id" '
+    # Sprint 3 remediation (CRITICAL audit finding): tighten the
+    # idempotency-honoring filter. Without these gates a single forged line
+    # `{"event_type":"cycle.complete","payload":{"cycle_id":"<predicted>"}}`
+    # appended to .run/cycles.jsonl can silently kill arbitrary future
+    # cycles. Defenses:
+    #   (1) require envelope shape — schema_version + primitive_id "L3" +
+    #       prev_hash + event_type + payload — anything else is rejected.
+    #   (2) require cycle.complete payload's cycle_id matches AND has the
+    #       canonical phases_completed=[reader,decider,...,logger] shape.
+    #   (3) when the trust-store status is VERIFIED and the lib is in the
+    #       Sprint 1B post-cutoff regime (LOA_AUDIT_VERIFY_SIGS unset/non-0),
+    #       require signature + signing_key_id present. Tests using
+    #       LOA_AUDIT_VERIFY_SIGS=0 retain the lax behavior.
+    local require_signed=1
+    if [[ "${LOA_AUDIT_VERIFY_SIGS:-1}" == "0" ]]; then
+        require_signed=0
+    fi
+    # Determine trust-store posture; permit lax in BOOTSTRAP-PENDING.
+    local trust_status=""
+    if declare -f _audit_trust_store_status >/dev/null 2>&1; then
+        trust_status="$(_audit_trust_store_status 2>/dev/null || echo "")"
+    fi
+    if [[ "$trust_status" != "VERIFIED" ]]; then
+        require_signed=0
+    fi
+
+    if jq -e --arg cid "$cycle_id" --argjson require_signed "$require_signed" '
+        select(type == "object") |
+        select(.schema_version != null and (.schema_version | type == "string")) |
+        select(.primitive_id == "L3") |
+        select(.prev_hash != null and (.prev_hash | test("^[0-9a-f]{64}$|^GENESIS$"))) |
         select(.event_type == "cycle.complete") |
-        select(.payload.cycle_id == $cid)
+        select(.payload != null and (.payload | type == "object")) |
+        select(.payload.cycle_id == $cid) |
+        select(.payload.outcome == "success") |
+        select(.payload.phases_completed != null and
+               (.payload.phases_completed | type == "array") and
+               (.payload.phases_completed | length == 5)) |
+        if $require_signed == 1 then
+            select(.signature != null and (.signature | type == "string") and
+                   .signing_key_id != null and (.signing_key_id | type == "string"))
+        else . end
     ' "$log_path" >/dev/null 2>&1; then
         return 0
     fi
@@ -779,25 +1100,42 @@ cycle_idempotency_check() {
 }
 
 # -----------------------------------------------------------------------------
-# cycle_record_phase <cycle_id> <phase> <phase_record_json>
+# cycle_record_phase --schedule-id <id> <cycle_id> <phase> <phase_record_json>
 #
 # Direct emission of a cycle.phase event. phase_record_json must include
 # phase_index, started_at, completed_at, duration_seconds, outcome.
 # Used both by cycle_invoke (internal) and by phase scripts that want to add
 # custom diagnostics.
+#
+# Sprint 3 remediation (MED-A2): schedule_id MUST be passed explicitly via
+# --schedule-id; the prior env-var pattern (LOA_L3_CURRENT_SCHEDULE_ID) leaked
+# state across invocations.
 # -----------------------------------------------------------------------------
 cycle_record_phase() {
     _l3_propagate_test_now
-    local cycle_id="$1"
-    local phase="$2"
-    local rec="$3"
-    if ! _l3_validate_cycle_id "$cycle_id"; then return 2; fi
-    # Caller is expected to supply schedule_id; allow injection here via env.
-    local schedule_id="${LOA_L3_CURRENT_SCHEDULE_ID:-}"
-    if [[ -z "$schedule_id" ]]; then
-        _l3_log "ERROR: cycle_record_phase requires LOA_L3_CURRENT_SCHEDULE_ID env (set by cycle_invoke)"
+    local schedule_id="" cycle_id="" phase="" rec=""
+    while (( "$#" )); do
+        case "$1" in
+            --schedule-id) schedule_id="$2"; shift 2 ;;
+            --*) _l3_log "ERROR: unknown flag $1"; return 2 ;;
+            *)
+                if [[ -z "$cycle_id" ]]; then cycle_id="$1"
+                elif [[ -z "$phase" ]]; then phase="$1"
+                elif [[ -z "$rec" ]]; then rec="$1"
+                else _l3_log "ERROR: too many positional args to cycle_record_phase"; return 2; fi
+                shift ;;
+        esac
+    done
+    if [[ -z "$cycle_id" || -z "$phase" || -z "$rec" ]]; then
+        _l3_log "ERROR: cycle_record_phase requires --schedule-id <id> <cycle_id> <phase> <record_json>"
         return 2
     fi
+    if [[ -z "$schedule_id" ]]; then
+        _l3_log "ERROR: cycle_record_phase requires --schedule-id (env-var fallback removed in Sprint 3 hardening)"
+        return 2
+    fi
+    if ! _l3_validate_cycle_id "$cycle_id"; then return 2; fi
+    if ! _l3_validate_schedule_id "$schedule_id"; then return 2; fi
     local payload
     payload="$(printf '%s' "$rec" | jq -c \
         --arg cid "$cycle_id" \
@@ -808,26 +1146,91 @@ cycle_record_phase() {
 }
 
 # -----------------------------------------------------------------------------
-# cycle_complete <cycle_id> <final_record_json>
+# cycle_complete --schedule-id <id> <cycle_id> <final_record_json>
 #
-# Direct emission of a cycle.complete event.
+# Direct emission of a cycle.complete event. Sprint 3 remediation (MED-A2):
+# schedule_id MUST be passed explicitly via --schedule-id.
 # -----------------------------------------------------------------------------
 cycle_complete() {
     _l3_propagate_test_now
-    local cycle_id="$1"
-    local rec="$2"
-    if ! _l3_validate_cycle_id "$cycle_id"; then return 2; fi
-    local schedule_id="${LOA_L3_CURRENT_SCHEDULE_ID:-}"
-    if [[ -z "$schedule_id" ]]; then
-        _l3_log "ERROR: cycle_complete requires LOA_L3_CURRENT_SCHEDULE_ID env"
+    local schedule_id="" cycle_id="" rec=""
+    while (( "$#" )); do
+        case "$1" in
+            --schedule-id) schedule_id="$2"; shift 2 ;;
+            --*) _l3_log "ERROR: unknown flag $1"; return 2 ;;
+            *)
+                if [[ -z "$cycle_id" ]]; then cycle_id="$1"
+                elif [[ -z "$rec" ]]; then rec="$1"
+                else _l3_log "ERROR: too many positional args to cycle_complete"; return 2; fi
+                shift ;;
+        esac
+    done
+    if [[ -z "$cycle_id" || -z "$rec" ]]; then
+        _l3_log "ERROR: cycle_complete requires --schedule-id <id> <cycle_id> <record_json>"
         return 2
     fi
+    if [[ -z "$schedule_id" ]]; then
+        _l3_log "ERROR: cycle_complete requires --schedule-id (env-var fallback removed in Sprint 3 hardening)"
+        return 2
+    fi
+    if ! _l3_validate_cycle_id "$cycle_id"; then return 2; fi
+    if ! _l3_validate_schedule_id "$schedule_id"; then return 2; fi
     local payload
     payload="$(printf '%s' "$rec" | jq -c \
         --arg cid "$cycle_id" \
         --arg sid "$schedule_id" \
         '. + {cycle_id:$cid, schedule_id:$sid, outcome:"success"}')"
     _l3_audit_emit_event "cycle.complete" "$payload"
+}
+
+# -----------------------------------------------------------------------------
+# cycle_register <schedule_yaml_path>
+#
+# Sprint 3 remediation (HIGH-R1 review finding): the SDD §5.5.2 spec listed
+# cycle_register as a public function but the original lib shipped only the
+# *fire* half. cycle_register validates the ScheduleConfig YAML, computes its
+# dispatch_contract_hash for traceability, and prints the canonical command
+# operators should hand to /schedule for cron registration.
+#
+# Stdout (one line each): the schedule_id, the cron expression, the canonical
+# invoke command, and the dispatch_contract_hash.
+#
+# Returns 0 on valid config; non-zero on parse/validation failure.
+# -----------------------------------------------------------------------------
+cycle_register() {
+    local yaml_path="${1:-}"
+    if [[ -z "$yaml_path" ]]; then
+        _l3_log "ERROR: cycle_register requires <schedule_yaml_path>"
+        return 2
+    fi
+    local schedule_json
+    if ! schedule_json="$(_l3_parse_schedule_yaml "$yaml_path")"; then
+        return 2
+    fi
+    local schedule_id schedule_cron dc_json dc_hash
+    schedule_id="$(printf '%s' "$schedule_json" | jq -r '.schedule_id')"
+    schedule_cron="$(printf '%s' "$schedule_json" | jq -r '.schedule')"
+    dc_json="$(printf '%s' "$schedule_json" | jq -c '.dispatch_contract')"
+    dc_hash="$(_l3_compute_dispatch_contract_hash "$dc_json")"
+    if ! _l3_validate_schedule_id "$schedule_id"; then return 2; fi
+    # Validate every phase path BEFORE printing — surfaces allowlist
+    # violations at registration time, not at first cron firing.
+    local phase
+    for phase in "${_L3_PHASES[@]}"; do
+        if ! _l3_phase_script_path "$dc_json" "$phase" >/dev/null; then
+            return 2
+        fi
+    done
+    local self_path
+    self_path="${_L3_DIR}/scheduled-cycle-lib.sh"
+    jq -nc \
+        --arg sid "$schedule_id" \
+        --arg cron "$schedule_cron" \
+        --arg dch "$dc_hash" \
+        --arg cmd "$self_path invoke $yaml_path" \
+        '{schedule_id:$sid, schedule:$cron, dispatch_contract_hash:$dch,
+          register_command:$cmd,
+          note:"Pass register_command + schedule cron to /schedule (Claude Code skill) to wire the cron firing."}'
 }
 
 # -----------------------------------------------------------------------------
@@ -891,6 +1294,7 @@ with open(log_path) as f:
         elif et == "cycle.phase":
             rec["phases"].append({
                 "phase": p.get("phase"),
+                "phase_index": p.get("phase_index", 999),
                 "started_at": p.get("started_at"),
                 "completed_at": p.get("completed_at"),
                 "outcome": p.get("outcome"),
@@ -903,10 +1307,15 @@ with open(log_path) as f:
             rec["completed_at"] = p.get("errored_at")
             rec["outcome"] = p.get("outcome", "failure")
 
-# Fill outcome=null cycles as 'in_progress'.
+# Sprint 3 remediation (MED-R3): sort phases by phase_index so a manually-
+# edited or recovered log with out-of-order events still produces the
+# expected ordering. Drop phase_index from output (not in §5.5.3 schema).
 for cid, rec in records.items():
     if rec["outcome"] is None:
         rec["outcome"] = "in_progress"
+    rec["phases"].sort(key=lambda ph: ph.get("phase_index", 999))
+    for ph in rec["phases"]:
+        ph.pop("phase_index", None)
 
 if filter_cid:
     rec = records.get(filter_cid)
@@ -966,6 +1375,17 @@ cycle_invoke() {
         _l3_log "ERROR: invalid timeout_seconds: $timeout_s"
         return 2
     fi
+    # Sprint 3 remediation (MED-A3): cap total cycle wall-clock at
+    # max_cycle_seconds. Without a cap a malicious schedule yaml with
+    # timeout_seconds: 86400 + 5 sleeping phases parks the lock for 5 days.
+    local _max_cycle _projected
+    _max_cycle="$(_l3_get_max_cycle_seconds)"
+    _projected=$(( timeout_s * 5 ))
+    if (( _projected > _max_cycle )); then
+        _l3_log "ERROR: projected total cycle time ${_projected}s (timeout_seconds=${timeout_s} × 5 phases) exceeds max_cycle_seconds=${_max_cycle}"
+        _l3_log "  Lower dispatch_contract.timeout_seconds or raise .scheduled_cycle_template.max_cycle_seconds"
+        return 2
+    fi
 
     local dc_hash
     dc_hash="$(_l3_compute_dispatch_contract_hash "$dc_json")"
@@ -986,7 +1406,13 @@ cycle_invoke() {
     lock_dir="$(_l3_get_lock_dir)"
     mkdir -p "$lock_dir"
     lock_file="${lock_dir}/${schedule_id}.lock"
-    : > "$lock_file" 2>/dev/null || touch "$lock_file"
+    # Sprint 3 remediation (CRITICAL audit finding): symlink-safe lock-file
+    # creation. The legacy `: > "$lock_file"` redirect FOLLOWS symlinks; an
+    # attacker who stages a symlink at <lock_dir>/<schedule_id>.lock
+    # weaponizes the touch into a write-anywhere truncate primitive.
+    if ! _l3_safe_touch_lock "$lock_file"; then
+        return 1
+    fi
     lock_timeout="$(_l3_get_lock_timeout)"
 
     # Brace group (NOT subshell) — `return N` inside terminates cycle_invoke.
@@ -1016,12 +1442,14 @@ cycle_invoke() {
             return 0
         fi
 
-        export LOA_L3_CURRENT_SCHEDULE_ID="$schedule_id"
+        # Sprint 3 remediation (MED-A2): no LOA_L3_CURRENT_SCHEDULE_ID export.
+        # _l3_cycle_invoke_inner takes schedule_id as an explicit arg and
+        # emits payloads inline; cycle_record_phase / cycle_complete (public)
+        # require --schedule-id explicitly.
         _l3_cycle_invoke_inner \
             "$schedule_id" "$schedule_cron" "$dc_json" "$dc_hash" \
             "$cycle_id" "$timeout_s" "$budget_estimate" "$dry_run"
         local _inner_rc=$?
-        unset LOA_L3_CURRENT_SCHEDULE_ID
         return $_inner_rc
     } 9>"$lock_file"
 }
@@ -1175,16 +1603,10 @@ _l3_cycle_invoke_inner() {
     local errored_at
     errored_at="$(_l3_now_iso8601)"
     local started_epoch ended_epoch duration_s
-    started_epoch="$(date -u -d "$started_at" +%s 2>/dev/null || python3 -c "
-import sys
-from datetime import datetime
-s=sys.argv[1].rstrip('Z')
-print(int(datetime.fromisoformat(s).timestamp()))" "$started_at" 2>/dev/null || echo 0)"
-    ended_epoch="$(date -u -d "$errored_at" +%s 2>/dev/null || python3 -c "
-import sys
-from datetime import datetime
-s=sys.argv[1].rstrip('Z')
-print(int(datetime.fromisoformat(s).timestamp()))" "$errored_at" 2>/dev/null || echo 0)"
+    # Sprint 3 remediation (HIGH-R3): canonical _l3_iso_to_epoch helper so
+    # frozen-clock fixtures + production paths use the same logic.
+    started_epoch="$(_l3_iso_to_epoch "$started_at" 2>/dev/null || echo 0)"
+    ended_epoch="$(_l3_iso_to_epoch "$errored_at" 2>/dev/null || echo 0)"
     duration_s=$(( ended_epoch - started_epoch ))
     if (( duration_s < 0 )); then duration_s=0; fi
 
@@ -1227,7 +1649,13 @@ print(int(datetime.fromisoformat(s).timestamp()))" "$errored_at" 2>/dev/null || 
         return 1
     fi
 
-    # All 5 phases succeeded — emit cycle.complete.
+    # All 5 phases succeeded — emit cycle.complete. Sprint 3 remediation
+    # (MED-R5): emit the actual phases_completed array (always all 5 here by
+    # construction) instead of a hardcoded literal, so a future change that
+    # introduces an early-success path doesn't silently mis-state reality.
+    local phases_completed_json
+    phases_completed_json="$(jq -nc '$ARGS.positional' --args \
+        "${phases_completed[@]+${phases_completed[@]}}")"
     local complete_payload
     complete_payload="$(jq -n \
         --arg cid "$cycle_id" \
@@ -1235,9 +1663,10 @@ print(int(datetime.fromisoformat(s).timestamp()))" "$errored_at" 2>/dev/null || 
         --arg started "$started_at" \
         --arg completed "$errored_at" \
         --argjson dur "$duration_s" \
+        --argjson phases "$phases_completed_json" \
         '{cycle_id:$cid, schedule_id:$sid, started_at:$started,
           completed_at:$completed, duration_seconds:$dur,
-          phases_completed:["reader","decider","dispatcher","awaiter","logger"],
+          phases_completed:$phases,
           outcome:"success", budget_actual_usd:null}')"
     if ! _l3_audit_emit_event "cycle.complete" "$complete_payload"; then
         _l3_log "ERROR: cycle.complete emit failed"
@@ -1256,6 +1685,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     shift || true
     case "$cmd" in
         invoke)              cycle_invoke "$@" ;;
+        register)            cycle_register "$@" ;;
         idempotency-check)   cycle_idempotency_check "$@" ;;
         replay)              cycle_replay "$@" ;;
         record-phase)        cycle_record_phase "$@" ;;
@@ -1266,12 +1696,18 @@ scheduled-cycle-lib.sh — L3 scheduled-cycle-template (cycle-098 Sprint 3)
 
 Subcommands:
   invoke <schedule_yaml> [--cycle-id <id>] [--dry-run]
+  register <schedule_yaml>                          # validate + emit /schedule wiring
   idempotency-check <cycle_id> [--log-path <path>]
   replay [<log_path>] [--cycle-id <id>]
-  record-phase <cycle_id> <phase> <record_json>   (advanced)
-  complete <cycle_id> <record_json>               (advanced)
+  record-phase --schedule-id <id> <cycle_id> <phase> <record_json>   (advanced)
+  complete --schedule-id <id> <cycle_id> <record_json>               (advanced)
 USAGE
             ;;
-        *) _l3_log "ERROR: unknown subcommand: $cmd"; exit 2 ;;
+        *)
+            _l3_log "ERROR: unknown subcommand: $cmd"
+            cat <<USAGE
+scheduled-cycle-lib.sh — see --help for subcommand list (invoke|register|idempotency-check|replay|record-phase|complete).
+USAGE
+            exit 2 ;;
     esac
 fi

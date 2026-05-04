@@ -192,6 +192,11 @@ scheduled_cycle_template:
   lock_dir: .run/cycles
   lock_timeout_seconds: 30
   budget_pre_check: false               # opt-in to L2 gate (compose-when-available)
+  max_cycle_seconds: 14400              # caps timeout_seconds × 5 phases (anti-DoS)
+  phase_path_allowed_prefixes:          # phase scripts MUST live under one of these
+    - .claude/skills
+    - .run/schedules
+    - .run/cycles-contracts
   schedules: []                         # array of ScheduleConfig refs (paths)
 ```
 
@@ -203,9 +208,24 @@ Environment overrides:
 | `LOA_L3_LOCK_DIR` | override lock directory |
 | `LOA_L3_LOCK_TIMEOUT_SECONDS` | override lock acquisition timeout |
 | `LOA_L3_BUDGET_PRECHECK_ENABLED` | "1"/"true" to enable L2 budget gate |
-| `LOA_L3_L2_LIB_OVERRIDE` | tests: override L2 lib path |
+| `LOA_L3_PHASE_PATH_ALLOWED_PREFIXES` | colon-separated allowlist override |
+| `LOA_L3_PHASE_ENV_PASSTHROUGH` | space-separated extra env names exposed to phase scripts (validated against `[A-Z_][A-Z0-9_]*`) |
+| `LOA_L3_MAX_CYCLE_SECONDS` | override projected-cycle-time cap |
 | `LOA_L3_KILL_GRACE_SECONDS` | grace period after timeout TERM before KILL (default 5) |
 | `LOA_L3_TEST_NOW` | tests: override "now" (also propagates to LOA_AUDIT_TEST_NOW) |
+| `LOA_L3_TEST_MODE` | "1" to enable test-only escape hatches; implicit under bats |
+| `LOA_L3_L2_LIB_OVERRIDE` | **test-only** L2 lib path; honored only in test mode |
+
+## Security model
+
+The chassis is hardened against malicious phase scripts and YAML authors:
+
+- **Phase script paths are allowlisted.** Each `dispatch_contract.<phase>` is canonicalized (`realpath`) and must live under one of the `phase_path_allowed_prefixes`. Absolute paths outside the list and `..`-traversal relative paths are rejected at registration *and* at every cycle invocation.
+- **Phase scripts run under `env -i`** with a minimal allowlist (`PATH`, `HOME`, `USER`, `LANG`, etc.) plus three explicit injects (`LOA_L3_CYCLE_ID`, `LOA_L3_SCHEDULE_ID`, `LOA_L3_PHASE_INDEX`). Caller can extend per-deployment via `LOA_L3_PHASE_ENV_PASSTHROUGH`. API keys, GitHub tokens, AWS credentials, and other host secrets are NOT visible to phase scripts by default.
+- **Lock files are created with `O_NOFOLLOW`** (Python helper) or with a post-creation symlink check. An attacker who stages a symlink at `<lock_dir>/<schedule_id>.lock` does not weaponize the touch into a write-anywhere truncate.
+- **Idempotency check requires the full audit envelope.** A `cycle.complete` line claiming a cycle was completed must have `schema_version` + `primitive_id == "L3"` + valid `prev_hash` + `outcome == "success"` + 5-element `phases_completed`; when the trust-store posture is `VERIFIED` and signature verification is on, `signature` + `signing_key_id` are also required. Bare-payload forgery cannot suppress real cycles.
+- **`max_cycle_seconds` caps total cycle wall-clock** (default 14400s = 4h) so a malicious YAML setting `timeout_seconds: 86400` cannot park the lock for days.
+- **`LOA_L3_L2_LIB_OVERRIDE`** is honored only under bats or when `LOA_L3_TEST_MODE=1` is explicit; in production it would source attacker-controlled bash code into the cycle process.
 
 ## Examples
 
