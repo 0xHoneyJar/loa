@@ -247,6 +247,91 @@ _l2_get_observer_cmd() {
     echo "${LOA_BUDGET_OBSERVER_CMD:-$(_l2_config_get '.cost_budget_enforcer.billing_observer_cmd' '')}"
 }
 
+# Default allowlist for billing-observer command paths. Caller-supplied
+# observer commands resolved outside these prefixes are rejected. Operators
+# can override via .cost_budget_enforcer.allowed_observer_paths (yaml array)
+# or LOA_BUDGET_OBSERVER_ALLOWED_PREFIXES (colon-separated env).
+# Source: cycle-098 H2 closure of #708 F-005 (audit hardening — observer
+# trust model). Mirrors the L3 phase-path-allowlist pattern from Sprint 3
+# remediation.
+_L2_DEFAULT_OBSERVER_ALLOWLIST=(
+    ".claude/scripts/observers"
+    ".run/observers"
+)
+
+# -----------------------------------------------------------------------------
+# _l2_get_observer_allowlist — emit one prefix per line (canonicalized to
+# absolute paths). Sources: env override → yaml override → defaults.
+# -----------------------------------------------------------------------------
+_l2_get_observer_allowlist() {
+    if [[ -n "${LOA_BUDGET_OBSERVER_ALLOWED_PREFIXES:-}" ]]; then
+        local prefix
+        local IFS=":"
+        for prefix in $LOA_BUDGET_OBSERVER_ALLOWED_PREFIXES; do
+            if [[ "$prefix" = /* ]]; then echo "$prefix"
+            else echo "${_L2_REPO_ROOT}/${prefix}"
+            fi
+        done
+        return 0
+    fi
+    local yaml_list
+    yaml_list="$(_l2_config_get '.cost_budget_enforcer.allowed_observer_paths' '')"
+    if [[ -n "$yaml_list" && "$yaml_list" != "null" ]]; then
+        local p
+        while IFS= read -r p; do
+            p="${p#- }"; p="${p#\"}"; p="${p%\"}"; p="${p//\'/}"
+            [[ -z "$p" ]] && continue
+            if [[ "$p" = /* ]]; then echo "$p"
+            else echo "${_L2_REPO_ROOT}/${p}"
+            fi
+        done <<<"$yaml_list"
+        return 0
+    fi
+    local default_p
+    for default_p in "${_L2_DEFAULT_OBSERVER_ALLOWLIST[@]}"; do
+        echo "${_L2_REPO_ROOT}/${default_p}"
+    done
+}
+
+# -----------------------------------------------------------------------------
+# _l2_validate_observer_path <raw_path>
+#
+# Canonicalize raw_path (resolving .., absolute-vs-relative, symlinks) and
+# verify it lives under one of the allowed prefixes. Returns 0 + canonical
+# path on stdout; 1 on policy violation. Closes #708 F-005.
+# -----------------------------------------------------------------------------
+_l2_validate_observer_path() {
+    local raw="$1"
+    if [[ -z "$raw" ]]; then return 1; fi
+    local resolved
+    if [[ "$raw" = /* ]]; then resolved="$raw"
+    else resolved="${_L2_REPO_ROOT}/${raw}"
+    fi
+    local canon=""
+    if command -v realpath >/dev/null 2>&1; then
+        canon="$(realpath -m "$resolved" 2>/dev/null || true)"
+    fi
+    if [[ -z "$canon" ]] && command -v python3 >/dev/null 2>&1; then
+        canon="$(python3 -c "import os, sys; print(os.path.normpath(sys.argv[1]))" "$resolved" 2>/dev/null || true)"
+    fi
+    [[ -n "$canon" ]] || return 1
+    [[ "$canon" == *"/.."* || "$canon" == *"/../"* ]] && return 1
+    local prefix prefix_canon
+    while IFS= read -r prefix; do
+        if command -v realpath >/dev/null 2>&1; then
+            prefix_canon="$(realpath -m "$prefix" 2>/dev/null || echo "$prefix")"
+        else
+            prefix_canon="$prefix"
+        fi
+        prefix_canon="${prefix_canon%/}"
+        if [[ "$canon" == "$prefix_canon"/* ]]; then
+            echo "$canon"
+            return 0
+        fi
+    done < <(_l2_get_observer_allowlist)
+    return 1
+}
+
 _l2_get_log_path() {
     if [[ -n "${LOA_BUDGET_LOG:-}" ]]; then
         echo "$LOA_BUDGET_LOG"
@@ -499,8 +584,20 @@ _l2_invoke_observer() {
         printf '{"_unreachable":true,"_reason":"observer_not_found"}\n'
         return 0
     fi
+    # Sprint H2 closure of #708 F-005 (observer trust model): require the
+    # observer command path to live under one of the allowlist prefixes.
+    # Defense against arbitrary-execution via env-var or yaml-key injection.
+    local cmd_canonical
+    if ! cmd_canonical="$(_l2_validate_observer_path "$cmd")"; then
+        printf '{"_unreachable":true,"_reason":"observer_path_outside_allowlist"}\n'
+        _l2_log "ERROR: observer command path '$cmd' is outside the configured allowlist"
+        _l2_log "  Configure additional prefixes via .cost_budget_enforcer.allowed_observer_paths or LOA_BUDGET_OBSERVER_ALLOWED_PREFIXES"
+        _l2_log "  Allowed prefixes:"
+        _l2_get_observer_allowlist | sed 's/^/    /' >&2
+        return 0
+    fi
     local out
-    if ! out="$(timeout 30 "$cmd" "$provider" 2>/dev/null)"; then
+    if ! out="$(timeout 30 "$cmd_canonical" "$provider" 2>/dev/null)"; then
         printf '{"_unreachable":true,"_reason":"observer_error_or_timeout"}\n'
         return 0
     fi

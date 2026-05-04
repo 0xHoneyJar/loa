@@ -325,6 +325,58 @@ PY
 #     (signature on line $2 is invalid because payload changed but
 #      signature was computed over the pre-tamper payload)
 # -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# signing_fixtures_inject_chain_valid_envelope <log> <primitive_id> <event_type> <payload_json>
+#
+# Sprint H2 closure of #708 F-006 (cycle-098 audit fixture realism finding):
+# forensic-failure tests in cost-budget-enforcer-state-machine.bats were
+# injecting envelopes with `prev_hash="GENESIS"`, breaking chain continuity.
+# The PRODUCTION threat is a chain-VALID log with anomalous payload values
+# (e.g., counter goes backwards, drift exceeds threshold) — those slip past
+# `audit_verify_chain` and require detection logic to catch them. Tests that
+# inject chain-broken fixtures don't exercise the detection path.
+#
+# This helper computes the correct prev_hash from the existing tail (or
+# "GENESIS" when the log is empty) and writes the envelope through the
+# canonical Sprint 1A schema, with optional Sprint 1B signing if KEY_ID is
+# set. The result is a chain-valid log entry that detection logic must
+# notice based on payload anomalies, not chain breaks.
+#
+# Args:
+#   $1 log path
+#   $2 primitive_id (L1|L2|L3|L4|L5|L6|L7)
+#   $3 event_type (e.g., "budget.record_call")
+#   $4 payload JSON (single-line, schema-valid)
+#
+# Returns 0 on success.
+# -----------------------------------------------------------------------------
+signing_fixtures_inject_chain_valid_envelope() {
+    local log_path="$1"
+    local primitive_id="$2"
+    local event_type="$3"
+    local payload_json="$4"
+
+    [[ -n "$log_path" && -n "$primitive_id" && -n "$event_type" && -n "$payload_json" ]] || {
+        echo "inject_chain_valid_envelope: requires <log> <primitive_id> <event_type> <payload_json>" >&2
+        return 1
+    }
+
+    if ! declare -f audit_emit >/dev/null 2>&1; then
+        local repo_root
+        repo_root="$(_sign_fix_repo_root)"
+        # shellcheck source=/dev/null
+        source "${repo_root}/.claude/scripts/audit-envelope.sh"
+    fi
+
+    # Ensure the log directory exists (audit_emit creates the file).
+    local log_dir
+    log_dir="$(dirname "$log_path")"
+    mkdir -p "$log_dir"
+
+    # audit_emit handles prev_hash computation + canonical envelope + signing.
+    audit_emit "$primitive_id" "$event_type" "$payload_json" "$log_path"
+}
+
 signing_fixtures_tamper_with_chain_repair() {
     local input_log="$1"
     local line_n="$2"
@@ -335,13 +387,11 @@ signing_fixtures_tamper_with_chain_repair() {
     [[ -n "$jq_filter" ]] || { echo "tamper_with_chain_repair: requires <jq_filter>" >&2; return 1; }
     [[ -n "$output_log" ]] || { echo "tamper_with_chain_repair: requires <output_log>" >&2; return 1; }
 
-    # Source audit-envelope helpers if not already loaded.
-    if ! declare -f _audit_chain_input >/dev/null 2>&1; then
-        local repo_root
-        repo_root="$(_sign_fix_repo_root)"
-        # shellcheck source=/dev/null
-        source "${repo_root}/.claude/scripts/audit-envelope.sh"
-    fi
+    # Sprint H2 closure of H1 iter-2 LOW (H1-double-source-audit-envelope):
+    # the prior defensive `source "${repo_root}/.claude/scripts/audit-envelope.sh"`
+    # block here was dead code — _audit_chain_input is never called from this
+    # function (the Python heredoc reimplements chain-input via subprocess).
+    # Removed.
 
     local repo_root
     repo_root="$(_sign_fix_repo_root)"

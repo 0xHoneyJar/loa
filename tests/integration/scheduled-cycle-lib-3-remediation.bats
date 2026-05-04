@@ -66,6 +66,10 @@ EOF
     export LOA_L3_LOCK_TIMEOUT_SECONDS=2
     export LOA_L3_PHASE_PATH_ALLOWED_PREFIXES="$TEST_DIR"
     export LOA_L3_TEST_NOW="2026-05-04T15:00:00.000000Z"
+    # Sprint H2 closure of #714 F5: cleanup hygiene — explicitly unset env
+    # vars that test bodies might export, so reordering tests / shared-state
+    # mode wouldn't leak state.
+    unset LOA_L3_MAX_CYCLE_SECONDS LOA_L3_BUDGET_PRECHECK_ENABLED LOA_L3_L2_LIB_OVERRIDE
     unset LOA_AUDIT_SIGNING_KEY_ID
     export LOA_AUDIT_VERIFY_SIGS=0
     export REPO_ROOT TEST_DIR LOG_FILE LOCK_DIR SCHEDULE_YAML
@@ -73,6 +77,7 @@ EOF
 
 teardown() {
     rm -rf "$TEST_DIR"
+    unset LOA_L3_MAX_CYCLE_SECONDS LOA_L3_BUDGET_PRECHECK_ENABLED LOA_L3_L2_LIB_OVERRIDE
 }
 
 # =============================================================================

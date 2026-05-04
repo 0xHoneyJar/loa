@@ -204,6 +204,36 @@ teardown() {
     fi
 }
 
+@test "fixtures: inject_chain_valid_envelope appends entry that audit_verify_chain accepts" {
+    # Sprint H2 closure of #708 F-006: chain-valid envelope injection helper.
+    # Forensic-failure tests need to write payload-anomalous entries that the
+    # chain validates (so detection logic, not chain-hash, must catch them).
+    load_fixtures
+    signing_fixtures_setup --strict
+    # shellcheck source=/dev/null
+    source "$AUDIT_ENVELOPE"
+    local log="${TEST_DIR}/anomaly-fixture.jsonl"
+    audit_emit L2 budget.record_call '{"actual_usd":1.00,"provider":"anthropic","utc_day":"2026-05-04","cycle_id":null,"model_id":null,"counter_after_usd":1.00,"recorded_at":"2026-05-04T12:00:00.000000Z"}' "$log"
+    # Anomaly: actual_usd negative (would never happen via API but is a
+    # detection target for L2 counter_inconsistent).
+    signing_fixtures_inject_chain_valid_envelope "$log" L2 budget.record_call \
+        '{"actual_usd":-50.00,"provider":"anthropic","utc_day":"2026-05-04","cycle_id":null,"model_id":null,"counter_after_usd":-49.00,"recorded_at":"2026-05-04T12:01:00.000000Z"}'
+    # Chain validates (this is the property — broken fixtures from prior
+    # tests would fail audit_verify_chain BEFORE detection logic ran).
+    LOA_AUDIT_VERIFY_SIGS=1 run audit_verify_chain "$log"
+    [ "$status" -eq 0 ]
+    # Both entries present + signed.
+    local n_total n_signed
+    n_total="$(jq -sr '. | length' "$log")"
+    n_signed="$(jq -sr '[.[] | select(.signature != null)] | length' "$log")"
+    [ "$n_total" -eq 2 ]
+    [ "$n_signed" -eq 2 ]
+    # Anomaly preserved (not normalized away).
+    local last_actual
+    last_actual="$(jq -sr '.[-1] | .payload.actual_usd' "$log")"
+    [ "$last_actual" = "-50" ] || [ "$last_actual" = "-50.00" ]
+}
+
 @test "fixtures: chain-repair tamper helper makes signature the SOLE failure mode" {
     # Sprint H1 review HIGH-1: prior payload-tamper tests caught regressions
     # via prev_hash chain-hash, NOT via signature verification — they would

@@ -32,6 +32,9 @@ EOF
 
     export LOA_BUDGET_LOG="$LOG_FILE"
     export LOA_BUDGET_OBSERVER_CMD="$OBSERVER"
+    # Sprint H2 (#708 F-005): observer paths must clear the allowlist; tests
+    # generate observers under $TEST_DIR (mktemp), so widen the allowlist.
+    export LOA_BUDGET_OBSERVER_ALLOWED_PREFIXES="$TEST_DIR"
     export OBSERVER_OUT
     export LOA_BUDGET_DAILY_CAP_USD="50.00"
     export LOA_BUDGET_DRIFT_THRESHOLD="5.0"

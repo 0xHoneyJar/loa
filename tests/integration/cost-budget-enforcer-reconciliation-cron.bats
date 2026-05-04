@@ -27,6 +27,8 @@ EOF
 
     export LOA_BUDGET_LOG="$LOG_FILE"
     export LOA_BUDGET_OBSERVER_CMD="$OBSERVER"
+    # Sprint H2 (#708 F-005): observer allowlist scoped to TEST_DIR.
+    export LOA_BUDGET_OBSERVER_ALLOWED_PREFIXES="$TEST_DIR"
     export OBSERVER_OUT
     export LOA_BUDGET_DAILY_CAP_USD="50.00"
     export LOA_BUDGET_DRIFT_THRESHOLD="5.0"
@@ -179,14 +181,23 @@ EOF
     cat >> "$LOG_FILE" <<'EOF'
 {"schema_version":"1.1.0","primitive_id":"L2","event_type":"budget.record_call","ts_utc":"2026-05-04T10:00:00.000000Z","prev_hash":"GENESIS","payload":{"actual_usd":5.0,"usd_used_post":5.0,"provider":"aggregate","utc_day":"2026-05-04","cycle_id":null,"model_id":null,"verdict_ref":null},"redaction_applied":null}
 EOF
-    # Run 3 in parallel, all should complete.
+    # Run 3 in parallel, all should complete. Sprint H2 closure of #708
+    # F-003-cron: capture per-PID exit codes; the prior `wait $p1 $p2 $p3`
+    # form ignored individual exit statuses, so a silent failure in one
+    # actor would have left the test passing because the count happens to
+    # still be 3 (e.g., from a re-emit). Now asserting all three returned 0.
     "$CRON_SCRIPT" &
     pid1=$!
     "$CRON_SCRIPT" &
     pid2=$!
     "$CRON_SCRIPT" &
     pid3=$!
-    wait $pid1 $pid2 $pid3
+    wait "$pid1"; local rc1=$?
+    wait "$pid2"; local rc2=$?
+    wait "$pid3"; local rc3=$?
+    [[ "$rc1" -eq 0 ]]
+    [[ "$rc2" -eq 0 ]]
+    [[ "$rc3" -eq 0 ]]
     # 3 reconcile events appended (one per invocation, serialized).
     local reconcile_count
     reconcile_count="$(grep -c '"event_type":"budget.reconcile"' "$LOG_FILE" || true)"
