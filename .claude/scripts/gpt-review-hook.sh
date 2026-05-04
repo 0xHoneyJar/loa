@@ -12,6 +12,9 @@
 #        grimoires/loa/(prd|sdd|sprint).md (any cycle subdir)
 #        src/, lib/, app/ (project code paths)
 #      Out-of-scope paths exit 0 silently (gpt-review temp dirs included).
+#      Note: .claude/ (System Zone) is deliberately EXCLUDED from default
+#      scope — System Zone changes are gated upstream via cycle-level
+#      authorization, not via the gpt-review checkpoint.
 #   2. TRIVIAL-EDIT DETECT — for Edit tool only:
 #        if old_string + new_string are entirely within YAML frontmatter
 #        delimiters (`---\n...\n---`), exit 0 silently.
@@ -99,9 +102,13 @@ fi
 
 is_frontmatter_only() {
   local s="$1"
-  python3 - "$s" 2>/dev/null <<'PY'
+  # Iter-1 review MEDIUM: pass via stdin (not argv) so very large
+  # frontmatter-only edits (>128KB Linux ARG_MAX, >256KB macOS) don't
+  # silently fail and miss the trivial-detect optimization. stdin has
+  # no ARG_MAX cliff.
+  printf '%s' "$s" | python3 - 2>/dev/null <<'PY'
 import sys, re
-s = sys.argv[1]
+s = sys.stdin.read()
 m = re.match(r'\A\s*---\s*\n.*?\n---\s*(?:\n|$)', s, re.S)
 if not m:
     sys.exit(1)

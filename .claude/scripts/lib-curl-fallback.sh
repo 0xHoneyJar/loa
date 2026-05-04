@@ -72,10 +72,14 @@ _curl_fallback_log_429_diagnostic() {
   if ! command -v jq >/dev/null 2>&1; then
     return 0
   fi
+  # Iter-1 review MEDIUM: handle BOTH `.error` as object AND as array
+  # (OpenAI sometimes returns `{"error":[{...}]}`). The `?` operator
+  # suppresses the "Cannot index array with string" error; falling back
+  # to `.error[0]?.field` covers the array shape.
   local _429_msg _429_code _429_type
-  _429_msg=$(echo "$response" | jq -r '.error.message // empty' 2>/dev/null) || true
-  _429_code=$(echo "$response" | jq -r '.error.code // empty' 2>/dev/null) || true
-  _429_type=$(echo "$response" | jq -r '.error.type // empty' 2>/dev/null) || true
+  _429_msg=$(echo "$response" | jq -r '(.error.message? // .error[0]?.message?) // empty' 2>/dev/null) || true
+  _429_code=$(echo "$response" | jq -r '(.error.code? // .error[0]?.code?) // empty' 2>/dev/null) || true
+  _429_type=$(echo "$response" | jq -r '(.error.type? // .error[0]?.type?) // empty' 2>/dev/null) || true
   if [[ -n "$_429_type" || -n "$_429_code" ]]; then
     echo "[gpt-review-api]   error.type=${_429_type:-unknown} error.code=${_429_code:-unknown}" >&2
   fi
@@ -102,12 +106,16 @@ _curl_fallback_log_429_quota_hint() {
   if ! command -v jq >/dev/null 2>&1; then
     return 0
   fi
+  # Iter-1 MEDIUM: array-shape compatibility for `.error`.
   local _429_type _429_code
-  _429_type=$(echo "$response" | jq -r '.error.type // empty' 2>/dev/null) || true
-  _429_code=$(echo "$response" | jq -r '.error.code // empty' 2>/dev/null) || true
+  _429_type=$(echo "$response" | jq -r '(.error.type? // .error[0]?.type?) // empty' 2>/dev/null) || true
+  _429_code=$(echo "$response" | jq -r '(.error.code? // .error[0]?.code?) // empty' 2>/dev/null) || true
   if [[ "$_429_type" == "insufficient_quota" || "$_429_code" == "insufficient_quota" ]]; then
-    echo "[gpt-review-api] HINT: 'insufficient_quota' suggests the OpenAI account has hit its tier/billing limit." >&2
-    echo "[gpt-review-api] HINT: consider configuring a fallback tier (gpt-5.2-mini) via .gpt_review.models, OR invoke the Codex MCP path (codex:codex-rescue agent) for design-doc reviews — Codex auth is on a separate quota bucket." >&2
+    # Iter-1 MEDIUM: drop specific model names (gpt-5.2-mini, codex-rescue
+    # agent) that aren't actually configured in the repo. Point at the
+    # canonical config + protocol doc for actionable remediation.
+    echo "[gpt-review-api] HINT: 'insufficient_quota' indicates the configured tier has hit its billing limit." >&2
+    echo "[gpt-review-api] HINT: configure a smaller fallback model in .gpt_review.models.{documents,code} (.loa.config.yaml) OR see grimoires/loa/protocols/gpt-review-integration.md for alternative routing options." >&2
   fi
 }
 

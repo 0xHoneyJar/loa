@@ -16,11 +16,10 @@
 #   1. file_path is OUTSIDE the review-scope allowlist (temp dirs etc.)
 #   2. tool is Edit AND old_string + new_string are entirely within YAML
 #      frontmatter delimiters (`---\n…\n---`)
-#   3. tool is Edit AND the diff is a simple version-bump (single line of
-#      `version: …` or `vX.Y.Z` change)
-#
-# Rule (3) "comments-only" detection is deferred — strict-string detection
-# is OK; tool_input.old_string/new_string already gives precise diff.
+# DEFERRED: comment-only / single-line-trivial-diff detection. strict-string
+# detection (frontmatter-only via `---\n…\n---`) covers the dominant
+# session-burning cases reported in #711; finer-grained heuristics can land
+# in a follow-up if real workloads still over-trigger.
 # =============================================================================
 
 setup() {

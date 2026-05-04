@@ -71,9 +71,12 @@ setup() {
     local stderr_output
     stderr_output=$(_curl_fallback_log_429_quota_hint "$response" 2>&1)
     [[ "$stderr_output" == *"insufficient_quota"* ]]
-    [[ "$stderr_output" == *"gpt-5.2-mini"* ]]
-    [[ "$stderr_output" == *"Codex MCP"* ]]
-    [[ "$stderr_output" == *"separate quota bucket"* ]]
+    [[ "$stderr_output" == *"billing limit"* ]]
+    # Iter-1 review MEDIUM: hint now points at the canonical config + protocol
+    # doc rather than naming specific model/agent IDs that aren't actually
+    # registered in the repo.
+    [[ "$stderr_output" == *".gpt_review.models"* ]]
+    [[ "$stderr_output" == *"gpt-review-integration.md"* ]]
 }
 
 @test "429 quota hint does NOT fire for burst rate_limit_exceeded" {
