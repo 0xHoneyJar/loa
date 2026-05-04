@@ -83,15 +83,30 @@ teardown() {
     [ "$reason" = "observer_path_outside_allowlist" ]
 }
 
-@test "F-005: traversal path '../../../bin/sh' is rejected after canonicalization" {
-    export LOA_BUDGET_OBSERVER_CMD="../../../bin/sh"
+@test "F-005: traversal path is rejected by ALLOWLIST (not by file-existence)" {
+    # Sprint H2 review iter-1 MEDIUM: the prior assertion accepted EITHER
+    # observer_not_found (file check fails) OR outside_allowlist. That
+    # weakened the test — it would pass even if the allowlist gate was
+    # broken, as long as the file-existence check rejected. Now: stage a
+    # REAL file at the traversal target inside the allowlist scope and
+    # confirm the allowlist STILL rejects (because canonical path is
+    # outside).
+    local outside_dir="${TEST_DIR}/.." # Parent of TEST_DIR, NOT in allowlist.
+    local outside_file="${outside_dir}/sneaky-traversal-$$.sh"
+    cat > "$outside_file" <<'EOF'
+#!/usr/bin/env bash
+echo '{"_unreachable":false,"_pwned":true}'
+EOF
+    chmod +x "$outside_file"
+    # Use a traversal path that resolves to outside_file (which exists).
+    export LOA_BUDGET_OBSERVER_CMD="${TEST_DIR}/../$(basename "$outside_file")"
     export LOA_BUDGET_OBSERVER_ALLOWED_PREFIXES="$TEST_DIR"
-    run _l2_invoke_observer "anthropic"
-    [ "$status" -eq 0 ]
-    run jq -r '._reason' <<<"$output"
-    # Either observer_not_found (file existence check fails) or outside_allowlist
-    # — both refuse execution. Critical: the path was NOT executed.
-    [[ "$output" = "observer_not_found" || "$output" = "observer_path_outside_allowlist" ]]
+    local invoke_output
+    invoke_output="$(_l2_invoke_observer "anthropic" 2>/dev/null)"
+    local reason
+    reason="$(jq -r '._reason' <<<"$invoke_output")"
+    [ "$reason" = "observer_path_outside_allowlist" ]
+    rm -f "$outside_file"
 }
 
 @test "F-005: allowlist accepts MULTIPLE prefixes (colon-separated)" {
@@ -125,22 +140,27 @@ teardown() {
     [ "$output" = "observer_not_found" ]
 }
 
-@test "F-005: budget_verdict end-to-end refuses to consult outside-allowlist observer" {
-    # When the operator misconfigures observer_cmd outside the allowlist, the
-    # cycle should fail-soft as if the observer were unreachable (no allow
-    # leak; halt-uncertainty:billing_stale or similar fail-closed verdict
-    # depending on counter state).
-    export LOA_BUDGET_OBSERVER_CMD="/etc/passwd"
-    export LOA_BUDGET_OBSERVER_ALLOWED_PREFIXES="$TEST_DIR"
+@test "F-005: budget_verdict end-to-end — outside-allowlist observer is NOT EXECUTED (sentinel probe)" {
+    # Sprint H2 review iter-1 MEDIUM: prior test only checked verdict shape.
+    # A buggy lib that DID execute /etc/passwd would still return a verdict.
+    # Now: stage an executable observer outside the allowlist that would
+    # touch a sentinel file IF executed, and assert the sentinel does NOT
+    # appear after budget_verdict.
+    local outside_dir="${TEST_DIR}/outside-allowlist"
+    mkdir -p "$outside_dir"
+    local sentinel="${TEST_DIR}/PWNED-SENTINEL"
+    local pwn_observer="${outside_dir}/pwn.sh"
+    cat > "$pwn_observer" <<EOF
+#!/usr/bin/env bash
+touch "$sentinel"
+echo '{"usd_used":0,"billing_ts":"2026-05-04T15:00:00Z"}'
+EOF
+    chmod +x "$pwn_observer"
+    export LOA_BUDGET_OBSERVER_CMD="$pwn_observer"
+    export LOA_BUDGET_OBSERVER_ALLOWED_PREFIXES="$TEST_DIR/inside-only-not-the-outside-dir"
     run budget_verdict "10.00"
-    # Verdict on stdout (last line). When observer is unreachable AND counter
-    # is at 0%, the lib falls through to allow (counter says no usage). The
-    # KEY safety property: /etc/passwd was NEVER executed — verified by the
-    # absence of any halt-uncertainty:billing_stale and the diagnostic in stderr.
-    local last_line
-    last_line="$(printf '%s' "$output" | awk 'NF{l=$0} END{print l}')"
-    run jq -e 'has("verdict")' <<<"$last_line"
-    [ "$status" -eq 0 ]
+    # Sentinel must NOT exist — the pwn observer was not executed.
+    [ ! -f "$sentinel" ]
 }
 
 @test "F-005: validator function returns canonical path on stdout when accepted" {
@@ -154,4 +174,55 @@ teardown() {
     export LOA_BUDGET_OBSERVER_ALLOWED_PREFIXES="$TEST_DIR"
     run _l2_validate_observer_path "/usr/bin/curl"
     [ "$status" -ne 0 ]
+}
+
+@test "F-005: symlink in allowlist dir pointing OUT is rejected (realpath-resolves)" {
+    # Sprint H2 review iter-1 MEDIUM: prior tests didn't probe symlink
+    # canonicalization. Stage a symlink inside the allowlist pointing to a
+    # path OUTSIDE; realpath should resolve and reject.
+    if ! command -v realpath >/dev/null 2>&1; then skip "realpath not available"; fi
+    local outside="${TEST_DIR}/.outside-target.sh"
+    local symlink="${TEST_DIR}/observer-link.sh"
+    cat > "$outside" <<'EOF'
+#!/usr/bin/env bash
+echo '{"_pwned":true}'
+EOF
+    chmod +x "$outside"
+    # Move outside the allowed prefix.
+    local outside_real="${TEST_DIR}/../h2-symlink-target-$$.sh"
+    mv "$outside" "$outside_real"
+    chmod +x "$outside_real"
+    ln -sf "$outside_real" "$symlink"
+    # Allowlist allows ONLY $TEST_DIR; symlink is in $TEST_DIR but resolves
+    # to $outside_real which is one level up.
+    export LOA_BUDGET_OBSERVER_CMD="$symlink"
+    export LOA_BUDGET_OBSERVER_ALLOWED_PREFIXES="$TEST_DIR"
+    local invoke_output reason
+    invoke_output="$(_l2_invoke_observer "anthropic" 2>/dev/null)"
+    reason="$(jq -r '._reason' <<<"$invoke_output")"
+    rm -f "$outside_real" "$symlink"
+    [ "$reason" = "observer_path_outside_allowlist" ]
+}
+
+@test "F-005: prefix boundary — '/foo' allowlist does NOT match '/foo-bar/x'" {
+    # Sprint H2 review iter-1 MEDIUM (prefix-boundary spoofing): /foo prefix
+    # in allowlist should not authorize /foo-bar/x or /foox/x. Bash glob
+    # `[[ "$canon" == "$prefix_canon"/* ]]` requires a / boundary, so this
+    # SHOULD reject; assert it explicitly.
+    local sibling="${TEST_DIR}-sibling"
+    mkdir -p "$sibling"
+    local impostor="$sibling/observer.sh"
+    cat > "$impostor" <<'EOF'
+#!/usr/bin/env bash
+echo '{"_pwned":true}'
+EOF
+    chmod +x "$impostor"
+    export LOA_BUDGET_OBSERVER_CMD="$impostor"
+    # Allowlist points at $TEST_DIR (not the sibling).
+    export LOA_BUDGET_OBSERVER_ALLOWED_PREFIXES="$TEST_DIR"
+    local invoke_output reason
+    invoke_output="$(_l2_invoke_observer "anthropic" 2>/dev/null)"
+    reason="$(jq -r '._reason' <<<"$invoke_output")"
+    rm -rf "$sibling"
+    [ "$reason" = "observer_path_outside_allowlist" ]
 }
