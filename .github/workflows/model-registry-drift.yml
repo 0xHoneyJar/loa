@@ -30,6 +30,10 @@ on:
       - 'tests/integration/lockfile-checksum.bats'
       - 'tests/integration/legacy-adapter-still-works.bats'
       - 'tests/integration/model-registry-sync.bats'
+      # cycle-099 sprint-1C review fix: runbook bumps must re-run the gate
+      # so version drift across runbook + workflow surfaces in CI.
+      - 'grimoires/loa/runbooks/codegen-toolchain.md'
+      - 'tools/check-codegen-toolchain.sh'
       - '.claude/skills/bridgebuilder-review/scripts/gen-bb-registry.ts'
       - '.claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts'
       - '.claude/skills/bridgebuilder-review/resources/config.generated.ts'
@@ -101,8 +105,16 @@ jobs:
           echo "generated-model-maps.sh in sync"
 
   ts-codegen-check:
-    name: TS codegen (gen-bb-registry)
-    runs-on: ubuntu-latest
+    name: TS codegen (gen-bb-registry, ${{ matrix.os }})
+    # cycle-099 sprint-1C (T1.7): matrix CI verifying the bridgebuilder codegen
+    # produces byte-identical output across linux + macos. Each runner runs
+    # `npm run gen-bb-registry:check` against the committed tree — if both
+    # pass, both platforms produce byte-equal output.
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
@@ -111,17 +123,36 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install yq (pinned + sha256-verified)
+      - name: Install yq (pinned + sha256-verified, platform-aware)
         run: |
           set -euo pipefail
-          # Same install pattern as the lockfile-checksum job; sha256-verified
-          # against the published v4.52.4 binary (closes BB iter-1 HIGH).
+          # SHA256-pinned per-platform binary. Closes BB iter-1 HIGH (linux)
+          # + sprint-1C subagent review H1 (macos). Hashes verified 2026-05-04
+          # from official mikefarah/yq v4.52.4 release artifacts via:
+          #   curl -sL <url> | shasum -a 256
+          case "${{ matrix.os }}" in
+              ubuntu-latest)
+                  yq_url='https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64'
+                  expected_sha256='0c4d965ea944b64b8fddaf7f27779ee3034e5693263786506ccd1c120f184e8c'
+                  ;;
+              macos-latest)
+                  # GitHub macos-latest is arm64 (M1/M2/M3) since 2024-Q3.
+                  yq_url='https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_darwin_arm64'
+                  expected_sha256='6bfa43a439936644d63c70308832390c8838290d064970eaada216219c218a13'
+                  ;;
+              *)
+                  echo "::error::Unsupported runner os: ${{ matrix.os }}"
+                  exit 1
+                  ;;
+          esac
           local_yq=/tmp/yq-${{ github.run_id }}
-          expected_sha256='0c4d965ea944b64b8fddaf7f27779ee3034e5693263786506ccd1c120f184e8c'
-          wget -qO "$local_yq" https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64
-          echo "$expected_sha256  $local_yq" | sha256sum -c -
+          curl -fsSL --retry 3 --max-time 60 -o "$local_yq" "$yq_url"
+          # Use shasum (POSIX-portable) instead of sha256sum (GNU only) so the
+          # same workflow lines work on macos without a coreutils detour.
+          echo "$expected_sha256  $local_yq" | shasum -a 256 -c -
           sudo install -m 0755 "$local_yq" /usr/local/bin/yq
           rm "$local_yq"
+          yq --version
 
       - name: Install BB skill devDeps (pinned tsx + typescript)
         working-directory: .claude/skills/bridgebuilder-review
