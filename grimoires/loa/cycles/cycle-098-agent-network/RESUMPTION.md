@@ -1,22 +1,95 @@
 # cycle-098-agent-network — Session Resumption Brief
 
-**Last updated**: 2026-05-04 (Sprint 1 + 1.5 + Sprint 2 SHIPPED; **Sprint 3 ready to fire**)
+**Last updated**: 2026-05-04 (Sprint 1 + 1.5 + 2 + 3 SHIPPED; **Hardening wave H1+H2 → /bug 711.A+B → /plan cycle-099 next**)
 **Author**: deep-name + Claude Opus 4.7 1M
 **Purpose**: Crash-recovery + cross-session continuity. Read first when resuming cycle-098 work.
 
-## TL;DR — Sprint 3 ready to fire
+## TL;DR — Sprint 3 SHIPPED ✅; stability-first execution plan in flight
 
-Sprints 1, 1.5, and 2 are shipped. The foundation + L1 + L2 primitives are in place. Paste this into a fresh Claude Code session:
+Sprints 1, 1.5, 2, and 3 are shipped. L1 hitl-jury-panel + L2 cost-budget-enforcer + reconciliation cron + daily snapshot + L3 scheduled-cycle-template all on main. 449+ tests cumulative. Operator decision (2026-05-04): **stabilize Loa + respond to inbound issues BEFORE moving to Sprint 4 (L4 graduated-trust)**.
+
+Paste this into a fresh Claude Code session:
 
 ```
-Read grimoires/loa/cycles/cycle-098-agent-network/RESUMPTION.md and grimoires/loa/sprint.md. Sprint 1 (PR #693, commit 6e93587) + Sprint 1.5 (PR #698, commit 289b927) + Sprint 2 (PR #705, commit a7c50ff) are all on main. Foundation + L1 hitl-jury-panel + L2 cost-budget-enforcer + reconciliation cron + daily snapshot are shipped. 343+ tests cumulative.
+Read grimoires/loa/cycles/cycle-098-agent-network/RESUMPTION.md FIRST. Sprints 1, 1.5, 2, and 3 SHIPPED on main (Sprint 3 = PR #712, commit 3e9c2f7). 449+ tests cumulative.
 
-Execute Sprint 3: L3 scheduled-cycle-template per PRD FR-L3-1..N (#655). Wire L2 budget pre-check integration (FR-L3-6) per CC-9 compose-when-available pattern.
+Operator priority is stability + inbound-issue triage BEFORE Sprint 4 (L4 graduated-trust). Execution order from triage 2026-05-04:
 
-Slice into sub-sprints (3A/3B/3C/...) using the Sprint-1/Sprint-2 4-slice pattern. Full quality-gate chain: /implement (test-first per sub-sprint) → /review-sprint → cross-model adversarial → /audit-sprint paranoid cypherpunk → bridgebuilder kaironic (use inline `.claude/skills/bridgebuilder-review/resources/entry.sh --pr <N>`) → admin-squash merge.
+  1. Sprint H1 — signed-mode test harness covering L1 + L2 + L3 (closes #706 + #713; address bridgebuilder fidelity-desert finding once with shared fixture lib)
+  2. Sprint H2 — bridgebuilder LOW-batch consolidation (closes #694 + #708 + #714 — test-discipline cleanup, lower-cost)
+  3. /bug for #711.A — gpt-review-hook.sh recursion (94-line hook, no debouncing/trivial-detect; surgical fix)
+  4. /bug for #711.B — gpt-5.2 persistent 429 fallback chain
+  5. /plan cycle-099 — covers #710 model-registry consolidation (multi-sprint refactor, 5+ registries, dual runtime systems) + L4-L7 sprints
 
-After Sprint 3 lands, Sprints 4-7 follow the same pattern: graduated-trust, cross-repo-status-reader, structured-handoff, soul-identity-doc + cycle-wide adversarial corpus.
+After H1+H2 land, Sprint 4 (L4) is next per the original 7-sprint plan. Sprint plan reservations 135-138 already in ledger.
 ```
+
+## Hardening wave H1+H2 — execution plan (2026-05-04)
+
+**Branch convention**: `chore/cycle-098-h1-signed-mode-harness` and `chore/cycle-098-h2-bb-low-batch`. Both off main HEAD `3e9c2f7`.
+
+### Sprint H1 — signed-mode harness
+
+Closes [#706](https://github.com/0xHoneyJar/loa/issues/706) (L2) + [#713](https://github.com/0xHoneyJar/loa/issues/713) (L3) + L1 if gap confirmed during spike.
+
+**Deliverables**:
+- `tests/lib/signing-fixtures.sh` (or `.bash`) — shared helper with `setup_signed_mode` / `teardown_signed_mode`. Generates ephemeral Ed25519 key in `BATS_TEST_TMPDIR`, populates a test trust-store, sets `LOA_AUDIT_SIGNING_KEY_ID` + `LOA_AUDIT_VERIFY_SIGS=1` + `LOA_AUDIT_KEY_DIR` + `LOA_TRUST_STORE_FILE`.
+- `tests/integration/cost-budget-enforcer-signed-mode.bats` (L2) — exercises `budget_verdict` + `budget_record_call` + `budget_reconcile` + `audit_verify_chain` + (optional) snapshot `.sig` sidecar.
+- `tests/integration/scheduled-cycle-lib-signed-mode.bats` (L3) — exercises `cycle_invoke` + `audit_verify_chain` + idempotency-refuses-unsigned-when-VERIFIED.
+- `tests/integration/hitl-jury-panel-signed-mode.bats` (L1) — gap to confirm during spike; add if missing.
+
+**Quality gate chain**: same as Sprint 3 — /implement → /review-sprint → /audit-sprint → bridgebuilder kaironic inline.
+
+**Estimated cost**: ~$25-40 (smaller surface than a feature sprint).
+
+### Sprint H2 — BB LOW-batch consolidation
+
+Closes [#694](https://github.com/0xHoneyJar/loa/issues/694) (8 Sprint-1 findings) + [#708](https://github.com/0xHoneyJar/loa/issues/708) (Sprint 2 LOW batch) + [#714](https://github.com/0xHoneyJar/loa/issues/714) (Sprint 3 iter-2 LOW batch).
+
+**Deliverables**: test-discipline refinements per the issue bodies — chain-valid envelope helper for forensic tests, sentinel/ready-marker patterns where `sleep N` warmups still live, hardened `_l3_test_mode` gate, env-cleanup in setup(), schema enum set-membership instead of sort, etc.
+
+**Estimated cost**: ~$30-50 (more findings, more files).
+
+### Inbound-issue /bugs (after H1+H2)
+
+**[#711.A](https://github.com/0xHoneyJar/loa/issues/711) — gpt-review-hook.sh recursion**: hook fires on every Edit/Write with no batching, debouncing, or trivial-change detection. Fix is surgical: detect frontmatter-only / comment-only diffs in the hook itself; return SKIPPED. ~50 lines + BATS test. /bug shape.
+
+**#711.B — gpt-5.2 persistent 429**: surface 429 response body + auto-fallback chain (gpt-5.2 → gpt-5.2-mini → Codex MCP). ~30 lines in `gpt-review-api.sh` + a fallback test. /bug shape; could be combined with #711.A into one PR if scope feels right.
+
+### /plan cycle-099 (model-registry refactor + L4-L7)
+
+[#710](https://github.com/0xHoneyJar/loa/issues/710) — Author's own disposition: multi-sprint refactor cycle. Five+ live registries, two parallel runtime systems gated by `hounfour.flatline_routing` flag, Bridgebuilder TS compiled into dist/ (rebuild required for new models). Three deliverables (P0 SoT consolidation, P0 `model_aliases_extra` config extension, P1 legacy adapter sunset).
+
+If we want to bundle L4-L7 sprints into the same cycle, total scope is ~3-month cycle. Otherwise cycle-099 = registry refactor alone (1-2 sprints), and L4-L7 ship as cycle-098 continuation.
+
+Operator decision needed at /plan time.
+
+## Sprint 3 SHIPPED ✅ (2026-05-04)
+
+| Sub-sprint | Commit | Tests | Status |
+|-----------|--------|-------|--------|
+| 3A foundation (5 schemas + lib + dispatch + replay) | `eb8fb90` | 32 | ✅ Squashed into PR #712 |
+| 3B lock + idempotency + per-phase timeout | `304d802` | +12 (44) | ✅ |
+| 3C L2 budget pre-check (compose-when-available) | `ab05664` | +11 (55) | ✅ |
+| 3D SKILL + contracts + lore + CLAUDE.md | `e3c7a0e` | +14 (69) | ✅ |
+| Remediation pass (3 CRIT + 7 HIGH + 8 MED) | `e4f4727` | +35 (104) | ✅ |
+| Bridgebuilder iter-1 closures (1 MED + 4 LOW) | `f465025` | +2 (106) | ✅ |
+| **PR #712 admin-squash merge** | **`3e9c2f7`** | **106 cumulative** | ✅ on main |
+
+**6 quality gates passed**:
+1. /implement (test-first × 4 sub-sprints) — 69/69 PASS
+2. Review subagent (general-purpose) → 11 findings (3 HIGH + 5 MED + 3 LOW)
+3. Audit subagent (paranoid cypherpunk) → 14 findings (3 CRITICAL + 4 HIGH + 4 MED + 3 LOW)
+4. Remediation closed all CRIT/HIGH/MED + 4 LOW; +35 tests
+5. Bridgebuilder kaironic iter-1 → 16 findings (1 MED + 5 PRAISE + 10 LOW); closed 1 MED + 4 LOW
+6. Bridgebuilder kaironic iter-2 → 9 findings (0 MED + 1 PRAISE + 7 LOW + 1 SPEC) → CONVERGED
+
+**Three CRITICAL audit findings closed** with PoC-verified fixes:
+- **CRIT-A1**: idempotency log forgery (`cycle_idempotency_check` now validates full envelope)
+- **CRIT-A2**: dispatch_contract path RCE (allowlist + realpath canonicalization)
+- **CRIT-A3**: lock-touch symlink truncate (`O_NOFOLLOW` lock creation)
+
+**Follow-ups filed**: #713 (signed-mode tests), #714 (iter-2 LOW batch).
 
 ## Sprint 2 SHIPPED ✅ (2026-05-04)
 
