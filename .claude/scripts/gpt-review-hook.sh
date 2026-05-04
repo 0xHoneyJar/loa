@@ -102,14 +102,23 @@ fi
 
 is_frontmatter_only() {
   local s="$1"
-  # Iter-1 review MEDIUM: pass via stdin (not argv) so very large
-  # frontmatter-only edits (>128KB Linux ARG_MAX, >256KB macOS) don't
-  # silently fail and miss the trivial-detect optimization. stdin has
-  # no ARG_MAX cliff.
+  # Iter-1 review MEDIUM (argv-cliff): pass via stdin (not argv) so very
+  # large frontmatter-only edits (>128KB ARG_MAX) don't silently fail.
+  # Bridgebuilder iter-1 MEDIUM (CRLF brittleness): the prior regex was
+  # LF-only; Windows editors emit CRLF + trailing whitespace + missing
+  # final newline. Now: normalize line endings + tolerate trailing ws.
   printf '%s' "$s" | python3 - 2>/dev/null <<'PY'
 import sys, re
 s = sys.stdin.read()
-m = re.match(r'\A\s*---\s*\n.*?\n---\s*(?:\n|$)', s, re.S)
+# Normalize CRLF / CR → LF so subsequent matching is uniform.
+s = s.replace("\r\n", "\n").replace("\r", "\n")
+# Strip optional UTF-8 BOM.
+if s.startswith("﻿"):
+    s = s[1:]
+# Frontmatter is `---` (with optional surrounding whitespace) on a line
+# of its own, then YAML body, then a closing `---` line. Trailing newline
+# is OPTIONAL (some editors strip it).
+m = re.match(r'\A\s*---[ \t]*\n.*?\n---[ \t]*(?:\n|$)', s, re.S)
 if not m:
     sys.exit(1)
 remainder = s[m.end():]

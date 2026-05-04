@@ -344,6 +344,21 @@ call_api() {
         ;;
       429)
         _curl_fallback_log_429_diagnostic "$response" "$attempt"
+        # Bridgebuilder iter-1 MEDIUM: short-circuit on insufficient_quota.
+        # Retries DEFINITELY won't help when the OpenAI account has hit its
+        # tier/billing limit — burning N retries × delay is pure latency.
+        # zkSoju's #711 session burned ~3 min on 6 retries (across two
+        # script invocations) before falling back to Codex MCP.
+        local _429_short_type _429_short_code
+        if command -v jq >/dev/null 2>&1; then
+          _429_short_type=$(echo "$response" | jq -r '(.error.type? // .error[0]?.type?) // empty' 2>/dev/null) || true
+          _429_short_code=$(echo "$response" | jq -r '(.error.code? // .error[0]?.code?) // empty' 2>/dev/null) || true
+          if [[ "$_429_short_type" == "insufficient_quota" || "$_429_short_code" == "insufficient_quota" ]]; then
+            echo "[gpt-review-api] short-circuit: insufficient_quota detected; skipping remaining retries (saves ~$((_CURL_RETRY_DELAY * (_CURL_MAX_RETRIES - attempt)))s of wasted backoff)" >&2
+            _curl_fallback_log_429_quota_hint "$response"
+            return 1
+          fi
+        fi
         if [[ $attempt -lt $_CURL_MAX_RETRIES ]]; then
           local wait_time=$((_CURL_RETRY_DELAY * attempt))
           echo "[gpt-review-api] Waiting ${wait_time}s before retry..." >&2

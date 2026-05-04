@@ -139,6 +139,31 @@ assert_silent() {
     assert_checkpoint "$output"
 }
 
+@test "path-allowlist: FIRE for lib/utils.ts" {
+    # Bridgebuilder iter-1 MEDIUM: lib/ is in the default scope but not
+    # tested. Codify the assumption.
+    local input
+    input=$(jq -nc \
+        --arg fp "${MOCK_LOA_ROOT}/lib/utils.ts" \
+        '{tool_name: "Write", tool_input: {file_path: $fp, content: "export const x = 1;"}}')
+    local output
+    output=$(run_hook "$input")
+    assert_checkpoint "$output"
+}
+
+@test "path-allowlist: relative file_path (no leading slash) still matches via substring scan" {
+    # Bridgebuilder iter-1 MEDIUM: under-specified contract. The scope
+    # check uses `grep -qE` which is substring-anchored (no ^ in the
+    # default patterns). Relative paths like `src/foo.ts` should match.
+    local input
+    input=$(jq -nc \
+        --arg fp "src/foo.ts" \
+        '{tool_name: "Write", tool_input: {file_path: $fp, content: "x"}}')
+    local output
+    output=$(run_hook "$input")
+    assert_checkpoint "$output"
+}
+
 # -----------------------------------------------------------------------------
 # Trivial-detect: frontmatter-only edits SKIP
 # -----------------------------------------------------------------------------
@@ -163,6 +188,52 @@ assert_silent() {
     local input
     input=$(jq -nc \
         --arg fp "${MOCK_LOA_ROOT}/grimoires/loa/sdd.md" \
+        --arg old "$old_str" \
+        --arg new "$new_str" \
+        '{tool_name: "Edit", tool_input: {file_path: $fp, old_string: $old, new_string: $new}}')
+    local output
+    output=$(run_hook "$input")
+    assert_silent "$output"
+}
+
+@test "trivial-detect: CRLF line endings still detected as frontmatter-only" {
+    # Bridgebuilder iter-1 MEDIUM: real-world Windows editors emit CRLF.
+    local old_str=$'---\r\nversion: 1.0.0\r\n---\r\n'
+    local new_str=$'---\r\nversion: 1.1.0\r\n---\r\n'
+    local input
+    input=$(jq -nc \
+        --arg fp "${MOCK_LOA_ROOT}/grimoires/loa/sprint.md" \
+        --arg old "$old_str" \
+        --arg new "$new_str" \
+        '{tool_name: "Edit", tool_input: {file_path: $fp, old_string: $old, new_string: $new}}')
+    local output
+    output=$(run_hook "$input")
+    assert_silent "$output"
+}
+
+@test "trivial-detect: trailing whitespace after closing --- still detected" {
+    # Bridgebuilder iter-1 MEDIUM: editors may emit trailing whitespace
+    # after the closing `---` marker.
+    local old_str=$'---\nversion: 1.0.0\n---  \n'
+    local new_str=$'---\nversion: 1.1.0\n---  \n'
+    local input
+    input=$(jq -nc \
+        --arg fp "${MOCK_LOA_ROOT}/grimoires/loa/sprint.md" \
+        --arg old "$old_str" \
+        --arg new "$new_str" \
+        '{tool_name: "Edit", tool_input: {file_path: $fp, old_string: $old, new_string: $new}}')
+    local output
+    output=$(run_hook "$input")
+    assert_silent "$output"
+}
+
+@test "trivial-detect: missing trailing newline still detected (last byte is dash)" {
+    # Bridgebuilder iter-1 MEDIUM: some editors strip the final newline.
+    local old_str=$'---\nversion: 1.0.0\n---'
+    local new_str=$'---\nversion: 1.1.0\n---'
+    local input
+    input=$(jq -nc \
+        --arg fp "${MOCK_LOA_ROOT}/grimoires/loa/sprint.md" \
         --arg old "$old_str" \
         --arg new "$new_str" \
         '{tool_name: "Edit", tool_input: {file_path: $fp, old_string: $old, new_string: $new}}')

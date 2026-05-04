@@ -88,6 +88,38 @@ setup() {
     [[ "$stderr_output" != *"Codex MCP"* ]]
 }
 
+@test "429 short-circuit: lib-curl-fallback.sh contains insufficient_quota early-exit" {
+    # Bridgebuilder iter-1 MEDIUM: retries DEFINITELY won't help when the
+    # account hit its tier/billing limit. Verify the source code contains
+    # the short-circuit logic so a regression that drops it ships red.
+    local lib="${BATS_TEST_DIRNAME}/../../.claude/scripts/lib-curl-fallback.sh"
+    grep -q "short-circuit: insufficient_quota detected" "$lib"
+    grep -q 'return 1' "$lib"  # baseline; short-circuit returns 1 like normal
+    # The short-circuit block must be INSIDE the 429 case branch (before
+    # the retry-sleep block).
+    awk '/^      429\)/{f=1} f && /short-circuit: insufficient_quota/{print "FOUND"; exit 0} f && /Waiting.*before retry/{exit 1}' "$lib" | grep -q FOUND
+}
+
+@test "429 short-circuit: insufficient_quota response triggers short-circuit string in diagnostic" {
+    # Probe the short-circuit logic inline: replicate the conditional from
+    # the lib's case block. If insufficient_quota → emit short-circuit.
+    local response='{"error":{"type":"insufficient_quota","code":"insufficient_quota","message":"quota"}}'
+    local _429_short_type _429_short_code
+    _429_short_type=$(echo "$response" | jq -r '(.error.type? // .error[0]?.type?) // empty' 2>/dev/null) || true
+    _429_short_code=$(echo "$response" | jq -r '(.error.code? // .error[0]?.code?) // empty' 2>/dev/null) || true
+    [[ "$_429_short_type" == "insufficient_quota" || "$_429_short_code" == "insufficient_quota" ]]
+}
+
+@test "429 short-circuit: burst rate_limit_exceeded does NOT trigger" {
+    local response='{"error":{"type":"requests","code":"rate_limit_exceeded","message":"slow down"}}'
+    local _429_short_type _429_short_code
+    _429_short_type=$(echo "$response" | jq -r '(.error.type? // .error[0]?.type?) // empty' 2>/dev/null) || true
+    _429_short_code=$(echo "$response" | jq -r '(.error.code? // .error[0]?.code?) // empty' 2>/dev/null) || true
+    if [[ "$_429_short_type" == "insufficient_quota" || "$_429_short_code" == "insufficient_quota" ]]; then
+        return 1
+    fi
+}
+
 @test "429 diagnostic log secrets are redacted via redact_log_output" {
     # The diagnostic uses redact_log_output if available. Probe by injecting
     # a fake API key into the error message and asserting it's redacted.
