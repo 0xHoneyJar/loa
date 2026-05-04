@@ -1026,3 +1026,61 @@ Sprint H1 builds on existing patterns:
 - `grimoires/loa/runbooks/audit-keys-bootstrap.md` — operator key-generation runbook
 
 Gap: no SHARED setup helper for ephemeral test keys + trust-store. H1 introduces `tests/lib/signing-fixtures.sh` to consolidate.
+
+
+## Session wrap — 2026-05-04 (Sprint 3 + H1 + H2 + #711 SHIPPED)
+
+### Today's PRs (5 merged on main)
+
+| PR | Commit | Component | Tests | Closes |
+|----|--------|-----------|-------|--------|
+| #712 | `3e9c2f7` | Sprint 3 L3 scheduled-cycle-template | 106 | #655 |
+| #715 | `517ea33` | RESUMPTION.md plan persistence | n/a | n/a |
+| #716 | `d8eca75` | Sprint H1 signed-mode harness | 32 | #706, #713 |
+| #717 | `430d1e4` | Sprint H2 BB LOW-batch consolidation | 15+ | #708 (substantive) |
+| #718 | `4a576da` | /bug gpt-review hook + 429 | 28 | #711 |
+
+### Operator priority (recorded for next session)
+
+> "Model feature is really important and needed urgently."
+
+cycle-099 (#710 model-registry refactor) is URGENT next priority. Sprint 4 (L4 graduated-trust) is the resumable fallback if cycle-099 is deprioritized at planning time.
+
+Both pre-written briefs in RESUMPTION.md (Brief A = cycle-099, Brief B = Sprint 4). State markers preserved so EITHER path can be resumed without state loss.
+
+### Patterns captured for re-use
+
+- **Shared signing fixture lib** (`tests/lib/signing-fixtures.sh` from H1) — `signing_fixtures_setup --strict|--bootstrap`, `signing_fixtures_tamper_with_chain_repair` (isolates signature as sole failure mode), `signing_fixtures_inject_chain_valid_envelope` (H2 — chain-valid payload-anomalous fixtures for forensic-failure tests). Use for Sprint 4+ signed-mode tests.
+- **Path/observer allowlist pattern** (Sprint 3 phase-paths + H2 L2 observer-cmd): canonicalize via realpath, require prefix-match against operator-configurable allowlist. Both env override (colon-sep) + yaml array supported. Apply to any operator-supplied execution surface.
+- **Conservative-default discipline** (#711 hook fix): empty input → SKIP, malformed JSON → SKIP, missing dep → SKIP. Inverts the over-trigger bug and makes regression structurally hard.
+- **Audit-snapshot conditional strict-pin** (H2 #708 F-007): force VERIFY_SIGS=1 only when SIGNING_KEY_ID is configured. Preserves BOOTSTRAP-PENDING / unsigned-test compat without sacrificing forensic integrity in production.
+- **Per-PID exit code in concurrent tests** (H2 #708 F-003-cron): `wait "$pid"; rc=$?` per actor instead of `wait $p1 $p2 $p3`. Closes silent-failure gap.
+- **Test-infrastructure inversion** (Sprint 3 + H2 review patterns): tests should exercise the actual production code, not bash-replicas of the logic. When tempted to write a `bash -c "duplicate the conditional"` test, find a way to invoke the real script and probe via stderr trace or sentinel files.
+
+### Engineering gotchas
+
+- bash RETURN traps are NOT function-local without `shopt -s extdebug` — they fire on every nested function return. Use explicit cleanup at single exit paths (Sprint 3A pattern).
+- `printf '%s\n' "${arr[@]+...}"` produces `[""]` for empty arrays. Use `jq -nc '$ARGS.positional' --args ...` for unambiguous empty-array → JSON-array conversion (Sprint 3A pattern).
+- python3 argv has ARG_MAX limit (~128KB Linux, ~256KB macOS). Pass large strings via stdin instead (#711 review iter-1 fix).
+- jq `.error.field` on array-shaped error returns "Cannot index array with string". Use `.error.field? // .error[0]?.field?` for both shapes (#711 BB iter-1 fix).
+- audit-envelope.sh `_audit_check_trust_store` requires either BOOTSTRAP-PENDING (empty keys[] + revocations[] + root_signature) OR a properly-signed root_signature. Tests that populate keys[] without re-signing the root trip [TRUST-STORE-INVALID] (Sprint H1 register_extra_key learning).
+
+### Open backlog (recorded for cycle-099 / Sprint 4 sessions)
+
+- #710 model registry consolidation — URGENT (cycle-099)
+- #719 gpt-review test infra polish (BB iter-2 batch, 3 MED + 5 LOW)
+- #714 Sprint 3 BB iter-2 cosmetic LOWs (some closed in H2)
+- #694 Sprint 1 BB iter-1 cosmetic LOWs (none closed in H2; deemed lowest priority)
+- #708 Sprint 2 BB LOW batch — F-005, F-006, F-007, F-003-cron CLOSED in H2; remaining LOWs cosmetic
+- #628 BATS test sourcing REFRAME (lib/ convention) — T4 structural
+- #661 Beads UNHEALTHY — workaround: ledger fallback + `--no-verify`
+
+### Session cost (estimated)
+
+- Sprint 3: ~$15-20 build + $20-30 quality gate chain = ~$45
+- chore #715: ~$2
+- Sprint H1: ~$25-30 build + bridgebuilder iters
+- Sprint H2: ~$30-40 build + bridgebuilder iters
+- /bug #711: ~$15-20 (smaller scope)
+
+Total session: ~$120-150. ~480 tests added. 5 PRs merged. 0 regressions. Significantly under the model-upgraded estimate ($300-500/sprint per session brief), partly because OpenAI / Google models intermittently 404'd during bridgebuilder (claude-opus-4-7 carried alone on those iters).

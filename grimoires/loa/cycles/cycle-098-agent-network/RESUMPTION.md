@@ -1,68 +1,191 @@
 # cycle-098-agent-network — Session Resumption Brief
 
-**Last updated**: 2026-05-04 (Sprint 1 + 1.5 + 2 + 3 SHIPPED; **Hardening wave H1+H2 → /bug 711.A+B → /plan cycle-099 next**)
+**Last updated**: 2026-05-04 (Sprint 1 + 1.5 + 2 + 3 + H1 + H2 + /bug #711 ALL SHIPPED; **next: cycle-099 model-registry refactor (URGENT) OR Sprint 4 L4 graduated-trust (resumable)**)
 **Author**: deep-name + Claude Opus 4.7 1M
 **Purpose**: Crash-recovery + cross-session continuity. Read first when resuming cycle-098 work.
 
-## TL;DR — Sprint 3 SHIPPED ✅; stability-first execution plan in flight
+## 🚨 TL;DR — All today's hardening shipped; two paths forward
 
-Sprints 1, 1.5, 2, and 3 are shipped. L1 hitl-jury-panel + L2 cost-budget-enforcer + reconciliation cron + daily snapshot + L3 scheduled-cycle-template all on main. 449+ tests cumulative. Operator decision (2026-05-04): **stabilize Loa + respond to inbound issues BEFORE moving to Sprint 4 (L4 graduated-trust)**.
+**Today's wins on main (5 PRs):**
+- Sprint 3 (PR #712, `3e9c2f7`) — L3 scheduled-cycle-template
+- chore PR #715 — RESUMPTION update
+- Sprint H1 (PR #716, `d8eca75`) — signed-mode harness, closes #706 + #713
+- Sprint H2 (PR #717, `430d1e4`) — observer allowlist + audit-snapshot strict-pin + chain-valid fixture, closes #708 substantives
+- /bug #711 (PR #718, `4a576da`) — gpt-review hook recursion + 429 diagnostic + insufficient_quota short-circuit
 
-Paste this into a fresh Claude Code session:
+**Cumulative: 480+ tests on main; 0 regressions.**
+
+### Operator priority (2026-05-04 session-end)
+
+> "Model feature is really important and needed urgently."
+
+**Path A (URGENT — recommended next)** — `/plan cycle-099` for the model-registry refactor (#710). Operator flagged this as the priority. Pre-written brief in §"Brief A — cycle-099 (urgent model registry)".
+
+**Path B (resumable later)** — Sprint 4 (L4 graduated-trust) per the original cycle-098 plan. Pre-written brief in §"Brief B — Sprint 4 (L4 graduated-trust, resumable)". State markers preserved so resumption is loss-free.
+
+**Both briefs are equally complete** — operator chooses at session start.
+
+---
+
+## Brief A — cycle-099 (urgent model registry)
+
+Paste into a fresh Claude Code session:
 
 ```
-Read grimoires/loa/cycles/cycle-098-agent-network/RESUMPTION.md FIRST. Sprints 1, 1.5, 2, and 3 SHIPPED on main (Sprint 3 = PR #712, commit 3e9c2f7). 449+ tests cumulative.
+Read grimoires/loa/cycles/cycle-098-agent-network/RESUMPTION.md FIRST and the sections "Brief A" + "Open backlog at session-end". Do NOT start coding. Use /plan-and-analyze to create cycle-099 PRD covering #710 (model-registry consolidation).
 
-Operator priority is stability + inbound-issue triage BEFORE Sprint 4 (L4 graduated-trust). Execution order from triage 2026-05-04:
+Cycle-098 status: Sprint 1 + 1.5 + 2 + 3 + H1 + H2 + /bug #711 ALL SHIPPED on main. Last commit: 4a576da. 480+ tests, 0 regressions.
 
-  1. Sprint H1 — signed-mode test harness covering L1 + L2 + L3 (closes #706 + #713; address bridgebuilder fidelity-desert finding once with shared fixture lib)
-  2. Sprint H2 — bridgebuilder LOW-batch consolidation (closes #694 + #708 + #714 — test-discipline cleanup, lower-cost)
-  3. /bug for #711.A — gpt-review-hook.sh recursion (94-line hook, no debouncing/trivial-detect; surgical fix)
-  4. /bug for #711.B — gpt-5.2 persistent 429 fallback chain
-  5. /plan cycle-099 — covers #710 model-registry consolidation (multi-sprint refactor, 5+ registries, dual runtime systems) + L4-L7 sprints
+#710 scope (per issue body, author's own disposition: multi-sprint refactor cycle):
 
-After H1+H2 land, Sprint 4 (L4) is next per the original 7-sprint plan. Sprint plan reservations 135-138 already in ledger.
+  1. P0 — Single source of truth: promote .claude/defaults/model-config.yaml to be THE registry. Every consumer (legacy adapter, hounfour, Red Team adapter, Bridgebuilder TS truncation map, model-permissions.yaml, persona files) reads from it directly OR from a generated artifact.
+  2. P0 — Config extension mechanism: .loa.config.yaml::model_aliases_extra (mirrors protected_classes_extra pattern). Operators can register a new model via config alone — no System Zone edits.
+  3. P1 — Sunset legacy adapter: remove model-adapter.sh.legacy + the hounfour.flatline_routing feature flag. Single code path.
+
+Confirmed registries (from earlier spike — verify still current):
+  - .claude/scripts/model-adapter.sh + .legacy
+  - .claude/scripts/generated-model-maps.sh (newer)
+  - .claude/scripts/red-team-model-adapter.sh
+  - .claude/skills/bridgebuilder-review/resources/core/truncation.ts (compiled to dist/)
+  - .claude/data/model-permissions.yaml
+  - .claude/data/personas/*.md (per-persona model refs)
+
+Operator decision needed at /plan time:
+  - Cycle scope: bundle L4-L7 sprints into cycle-099 (≈3-month cycle) OR keep cycle-099 narrow (registry-only, 1-2 sprints) and ship L4-L7 as cycle-098 continuation
+  - Migration ordering: P0 + P0 + P1 in one shot OR phased
+
+Key learnings to apply (from today's H1/H2/#711 sprints):
+  - Quality-gate chain works: /implement → /review-sprint → /audit-sprint → bridgebuilder kaironic 2-iter loop → admin-squash
+  - Inline implementation on Opus 4.7 1M context; no subagent delegation needed for sequential sub-sprint work
+  - Test-first non-negotiable; chain-repair tamper helper + chain-valid envelope helper proven patterns for fixture realism
+  - Conservative-default discipline (skip when ambiguous) makes regression of "over-fire" bugs structurally hard
+  - Observer/path allowlist pattern (Sprint 3 + H2) generalizes to other operator-configurable execution paths
+
+Run /plan-and-analyze to begin. After PRD lands, operator approves scope before /architect.
 ```
 
-## Hardening wave H1+H2 — execution plan (2026-05-04)
+### cycle-099 readiness inventory
 
-**Branch convention**: `chore/cycle-098-h1-signed-mode-harness` and `chore/cycle-098-h2-bb-low-batch`. Both off main HEAD `3e9c2f7`.
+| Artifact | Status | Notes |
+|----------|--------|-------|
+| Issue #710 spec | ✅ Filed | Detailed; includes audit of 5+ registries |
+| Existing registries to consolidate | ✅ Spiked | 5 confirmed; each has its own quirks (TS compile, bash alias arrays, etc.) |
+| Sprint counter | 138 | Next reservations would be 139+ |
+| Ledger.json active_cycle | `cycle-098-agent-network` | Will need transition when cycle-099 activates |
+| Beads | UNHEALTHY (#661) | Workaround: ledger fallback + `--no-verify` for commits |
+| Sprint 4-7 reservations in cycle-098 ledger | 135-138 | If cycle-099 absorbs L4-L7, these get re-mapped |
 
-### Sprint H1 — signed-mode harness
+---
 
-Closes [#706](https://github.com/0xHoneyJar/loa/issues/706) (L2) + [#713](https://github.com/0xHoneyJar/loa/issues/713) (L3) + L1 if gap confirmed during spike.
+## Brief B — Sprint 4 (L4 graduated-trust, resumable)
 
-**Deliverables**:
-- `tests/lib/signing-fixtures.sh` (or `.bash`) — shared helper with `setup_signed_mode` / `teardown_signed_mode`. Generates ephemeral Ed25519 key in `BATS_TEST_TMPDIR`, populates a test trust-store, sets `LOA_AUDIT_SIGNING_KEY_ID` + `LOA_AUDIT_VERIFY_SIGS=1` + `LOA_AUDIT_KEY_DIR` + `LOA_TRUST_STORE_FILE`.
-- `tests/integration/cost-budget-enforcer-signed-mode.bats` (L2) — exercises `budget_verdict` + `budget_record_call` + `budget_reconcile` + `audit_verify_chain` + (optional) snapshot `.sig` sidecar.
-- `tests/integration/scheduled-cycle-lib-signed-mode.bats` (L3) — exercises `cycle_invoke` + `audit_verify_chain` + idempotency-refuses-unsigned-when-VERIFIED.
-- `tests/integration/hitl-jury-panel-signed-mode.bats` (L1) — gap to confirm during spike; add if missing.
+For when operator chooses to resume the original 7-sprint plan instead of pivoting to cycle-099.
 
-**Quality gate chain**: same as Sprint 3 — /implement → /review-sprint → /audit-sprint → bridgebuilder kaironic inline.
+Paste into a fresh Claude Code session:
 
-**Estimated cost**: ~$25-40 (smaller surface than a feature sprint).
+```
+Read grimoires/loa/cycles/cycle-098-agent-network/RESUMPTION.md FIRST and the sections "Brief B" + "Open backlog at session-end". Sprint 1 + 1.5 + 2 + 3 + H1 + H2 + /bug #711 ALL SHIPPED on main (4a576da). 480+ tests cumulative.
 
-### Sprint H2 — BB LOW-batch consolidation
+Execute Sprint 4: L4 graduated-trust per PRD FR-L4-1..8 (#656). Wire compose-with from Sprint 1 audit envelope + protected-class-router (cycle-098 SDD §1.4.2 + §5.6).
 
-Closes [#694](https://github.com/0xHoneyJar/loa/issues/694) (8 Sprint-1 findings) + [#708](https://github.com/0xHoneyJar/loa/issues/708) (Sprint 2 LOW batch) + [#714](https://github.com/0xHoneyJar/loa/issues/714) (Sprint 3 iter-2 LOW batch).
+Branch: feat/cycle-098-sprint-4 from origin/main.
 
-**Deliverables**: test-discipline refinements per the issue bodies — chain-valid envelope helper for forensic tests, sentinel/ready-marker patterns where `sleep N` warmups still live, hardened `_l3_test_mode` gate, env-cleanup in setup(), schema enum set-membership instead of sort, etc.
+Slice into 4 sub-sprints (4A/4B/4C/4D) per the proven Sprint 1/2/3 pattern. Full quality-gate chain (Sprint 3 / H1 / H2 / #711 all used this successfully):
 
-**Estimated cost**: ~$30-50 (more findings, more files).
+  1. /implement (test-first per sub-sprint)
+  2. /review-sprint subagent (general-purpose)
+  3. /audit-sprint subagent (paranoid cypherpunk)
+  4. Remediation pass — fix HIGH/MEDIUM findings inline; add tests
+  5. Bridgebuilder kaironic INLINE — never via subagent dispatch (.claude/skills/bridgebuilder-review/resources/entry.sh --pr <N>)
+  6. Admin-squash merge after kaironic plateau (typical: 2 iterations for code PRs)
 
-### Inbound-issue /bugs (after H1+H2)
+Patterns proven across H1/H2/#711 (apply in Sprint 4):
+  - Shared fixture lib at tests/lib/signing-fixtures.sh exposes signing_fixtures_setup --strict + signing_fixtures_tamper_with_chain_repair + signing_fixtures_inject_chain_valid_envelope
+  - Chain-valid envelope helper for tamper tests (#708 F-006 pattern; sprint H2)
+  - Observer/path allowlist for any operator-configurable execution surfaces (#708 F-005 pattern; sprint H2)
+  - Per-event-type schema registry under .claude/data/trajectory-schemas/<primitive>-events/ (Sprint 3 pattern)
+  - Test-mode flag (_l3_test_mode pattern from Sprint 3 remediation) for production-vs-test escape hatches
+  - Sentinel-counter idempotency tests (#714 F4 pattern)
 
-**[#711.A](https://github.com/0xHoneyJar/loa/issues/711) — gpt-review-hook.sh recursion**: hook fires on every Edit/Write with no batching, debouncing, or trivial-change detection. Fix is surgical: detect frontmatter-only / comment-only diffs in the hook itself; return SKIPPED. ~50 lines + BATS test. /bug shape.
+Sprint 4 scope (sprint.md §"Sprint 4"):
+  - .claude/skills/graduated-trust/SKILL.md + .claude/scripts/lib/graduated-trust-lib.sh + tests
+  - Hash-chained ledger at .run/trust-ledger.jsonl (TRACKED in git per SDD §3.7) — note: TRACKED, unlike L3 cycles.jsonl which is UNTRACKED
+  - Tier transitions per operator-defined TransitionRule array (configured in .loa.config.yaml)
+  - Auto-drop on recordOverride() with cooldown (default 7d) enforcement
+  - Force-grant audit-logged exception (trust.force_grant event type)
+  - Concurrent-write tests (runtime + cron + CLI per FR-L4-6)
+  - Reconstructable from git history (FR-L4-7) — git log -p to rebuild trust-ledger
+  - Auto-raise stub: ships as stub returning eligibility_required (FU-3 deferral per PRD)
 
-**#711.B — gpt-5.2 persistent 429**: surface 429 response body + auto-fallback chain (gpt-5.2 → gpt-5.2-mini → Codex MCP). ~30 lines in `gpt-review-api.sh` + a fallback test. /bug shape; could be combined with #711.A into one PR if scope feels right.
+Composes with:
+  - Sprint 1A audit envelope (audit_emit + chain hash)
+  - Sprint 1B signing (Ed25519 signed envelopes)
+  - Sprint 1B protected-class-router.sh
+  - Sprint 1B operator-identity.sh (LedgerEntry references actor identity)
+  - H1 signing-fixtures.sh (signing_fixtures_setup --strict for tests)
+  - H2 chain-valid envelope helper (signing_fixtures_inject_chain_valid_envelope for tamper-realism tests)
 
-### /plan cycle-099 (model-registry refactor + L4-L7)
+Workarounds: beads UNHEALTHY (#661) — use --no-verify for commits per documented pattern.
 
-[#710](https://github.com/0xHoneyJar/loa/issues/710) — Author's own disposition: multi-sprint refactor cycle. Five+ live registries, two parallel runtime systems gated by `hounfour.flatline_routing` flag, Bridgebuilder TS compiled into dist/ (rebuild required for new models). Three deliverables (P0 SoT consolidation, P0 `model_aliases_extra` config extension, P1 legacy adapter sunset).
+Cost expectation: ~$50-100 per sprint (4-slice; full quality gate chain). Models: claude-opus-4-7 1M for build+inline review; gpt-5.5-pro + gemini-3.1-pro-preview for bridgebuilder/flatline (when reachable; gracefully degrades to single-model when others 404/error).
 
-If we want to bundle L4-L7 sprints into the same cycle, total scope is ~3-month cycle. Otherwise cycle-099 = registry refactor alone (1-2 sprints), and L4-L7 ship as cycle-098 continuation.
+Begin: `git fetch origin main && git checkout -b feat/cycle-098-sprint-4 origin/main`. Read sprint.md §"Sprint 4" for full task list + ACs. Slice 4A.
+```
 
-Operator decision needed at /plan time.
+### Sprint 4 readiness inventory
+
+| Artifact | Status | Path |
+|----------|--------|------|
+| PRD FR-L4 spec | ✅ Filed | `grimoires/loa/prd.md:485-507` |
+| SDD §1.4.2 component spec | ✅ Filed | `grimoires/loa/sdd.md:393-412` |
+| SDD §5.6 API spec | ✅ Filed | `grimoires/loa/sdd.md:1927-1997` |
+| Sprint plan §"Sprint 4" | ✅ Filed | `grimoires/loa/sprint.md:391-462` |
+| Composes-with libs | ✅ All shipped | audit-envelope, protected-class-router, operator-identity, signing-fixtures |
+| Sprint counter reservation | 135 | Pre-allocated in cycle-098 ledger |
+| Branch name | `feat/cycle-098-sprint-4` | Off main `4a576da` |
+
+---
+
+## Today's session (2026-05-04) — full log
+
+| PR | Commit | Component | Tests added | Closes |
+|----|--------|-----------|-------------|--------|
+| [#712](https://github.com/0xHoneyJar/loa/pull/712) | `3e9c2f7` | Sprint 3 L3 scheduled-cycle-template | 106 | #655 |
+| [#715](https://github.com/0xHoneyJar/loa/pull/715) | `517ea33` | RESUMPTION.md plan persistence (chore) | n/a | n/a |
+| [#716](https://github.com/0xHoneyJar/loa/pull/716) | `d8eca75` | Sprint H1 signed-mode harness | 32 | #706, #713 |
+| [#717](https://github.com/0xHoneyJar/loa/pull/717) | `430d1e4` | Sprint H2 BB LOW-batch consolidation | 15+ | #708 (substantive) |
+| [#718](https://github.com/0xHoneyJar/loa/pull/718) | `4a576da` | /bug gpt-review hook + 429 | 28 | #711 |
+
+**Cumulative test count on main**: 480+. **Quality gates**: every PR ran the full chain (review subagent → bridgebuilder kaironic 2-iter loop → admin-squash after plateau).
+
+### CRITICAL audit findings closed today
+
+- **CRIT-A1** (Sprint 3): idempotency log forgery — `cycle_idempotency_check` validates full envelope (primitive_id, schema_version, prev_hash, signature when post-cutoff)
+- **CRIT-A2** (Sprint 3): dispatch_contract path RCE — realpath canonicalize + allowlist prefix-match, default `.claude/skills`, `.run/schedules`, `.run/cycles-contracts`
+- **CRIT-A3** (Sprint 3): lock-touch symlink truncate — `O_NOFOLLOW` lock creation via Python `os.open` + bash post-creation symlink check fallback
+- **F-005** (Sprint H2): L2 observer command allowlist — same realpath + prefix-match shape as L3 phase paths
+
+### Patterns/lore captured
+
+- `scheduled-cycle` lore entry (cycle-098 sprint 3) — `grimoires/loa/lore/patterns.yaml`
+- `fail-closed-cost-gate` lore entry (cycle-098 sprint 2) — pre-existing
+- `governance-isomorphism`, `deliberative-council` lore — pre-existing
+- Engineering note: bash `RETURN` traps are NOT function-local without `extdebug` — explicit cleanup at single exit paths
+- Engineering note: `printf '%s\n' "${arr[@]+...}"` produces `[""]` for empty arrays; use `jq -nc '$ARGS.positional' --args ...` instead
+- Engineering note: chain-repair tamper helper isolates signature as sole failure mode (vs chain-hash + signature both)
+- Engineering note: shared signing fixture lib (Sprint H1) consolidates the ephemeral-Ed25519 + trust-store + env-var dance from 4 prior bats files
+
+## Open backlog at session-end
+
+| # | Title | Tier | Notes |
+|---|-------|------|-------|
+| [#710](https://github.com/0xHoneyJar/loa/issues/710) | Model registry consolidation | **URGENT (cycle-099)** | Operator-flagged priority for next session |
+| [#719](https://github.com/0xHoneyJar/loa/issues/719) | gpt-review test infra polish (BB iter-2) | T3 polish | 3 MEDIUM + 5 LOW; non-blocking |
+| [#714](https://github.com/0xHoneyJar/loa/issues/714) | Sprint 3 BB iter-2 LOW batch | T3 polish | Cosmetic; some items closed in H2 (F5 hygiene); rest deferred |
+| [#694](https://github.com/0xHoneyJar/loa/issues/694) | Sprint 1 BB iter-1 batch (8 findings) | T3 polish | Cosmetic; no items closed in H2 (deemed lowest-priority) |
+| [#708](https://github.com/0xHoneyJar/loa/issues/708) | Sprint 2 BB LOW batch | T3 polish | F-005, F-006, F-007, F-003-cron CLOSED in H2; remaining LOWs cosmetic |
+| #628 | BATS test sourcing REFRAME (lib/ convention) | T4 structural | Large; own planning cycle |
+| #661 | Beads UNHEALTHY (migration error) | T2 ops | Workaround: ledger fallback + `--no-verify` |
 
 ## Sprint 3 SHIPPED ✅ (2026-05-04)
 
