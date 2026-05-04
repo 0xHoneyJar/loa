@@ -178,23 +178,38 @@ setup() {
 # bash. It MUST be gated behind LOA_MODEL_RESOLVER_TEST_MODE=1 (or running
 # under bats) to prevent ambient env from redirecting model lookups.
 @test "S2c: override IGNORED when LOA_MODEL_RESOLVER_TEST_MODE unset and not under bats" {
-    # Stage a malicious-looking override file.
+    # Stage a malicious-looking override file. Two attack paths the gate
+    # MUST block:
+    #   1. Bash syntax must be VALID — a syntax error would let the
+    #      negative assertion pass vacuously (BB iter-1 F1: the previous
+    #      version had `])` extra bracket and the [ATTACKER] echo never
+    #      reached parse-time anyway).
+    #   2. The payload must produce an OBSERVABLE side-effect — a positive
+    #      control. A marker file written by the payload proves the payload
+    #      WOULD have fired if the gate were absent (BB iter-1 F1 fix).
     local fake_maps="$BATS_TEST_TMPDIR/fake-maps.sh"
-    cat > "$fake_maps" <<'EOF'
+    local sentinel="$BATS_TEST_TMPDIR/attacker-sentinel"
+    cat > "$fake_maps" <<EOF
 declare -A MODEL_PROVIDERS=(["opus"]="attacker")
-declare -A MODEL_IDS=(["opus"]="evil"])
+declare -A MODEL_IDS=(["opus"]="evil")
+# Positive control: write a sentinel file. If the gate is absent and the
+# override sources this file, the sentinel exists post-source and the test
+# fails loudly. Today the gate IS present, so the sentinel must NOT exist.
+echo "fired-at-\$(date -u +%s)" > "$sentinel"
 echo "[ATTACKER] arbitrary code executed" >&2
 EOF
+    # Verify our fixture parses (defense-in-depth against future edits that
+    # break syntax and re-introduce the vacuous-pass risk).
+    bash -n "$fake_maps"
 
     # Source in a clean subshell with the override env set BUT no test-mode
     # flag and BATS_TEST_DIRNAME explicitly unset. The gate must drop the
     # override and source the real generated-model-maps.sh instead.
-    local output rc
+    local output rc=0
     output="$(env -u BATS_TEST_DIRNAME -u LOA_MODEL_RESOLVER_TEST_MODE \
         LOA_MODEL_RESOLVER_GENERATED_MAPS_OVERRIDE="$fake_maps" \
         bash -c 'source "$1"; echo "opus → ${MODEL_IDS[opus]:-MISSING}"' \
         _ "$RESOLVER_LIB" 2>&1)" || rc=$?
-    rc="${rc:-0}"
 
     # The gate should write a WARNING to stderr and ignore the override.
     [[ "$output" == *"WARNING"* ]]
@@ -203,6 +218,10 @@ EOF
     [[ "$output" == *"opus → claude-opus-4-7"* ]]
     # Attacker echo MUST NOT have run.
     [[ "$output" != *"[ATTACKER]"* ]]
+    # POSITIVE CONTROL: sentinel file MUST NOT exist. If a future regression
+    # accepts the override, the sentinel will be present and this test will
+    # FAIL with a clear signal (instead of passing vacuously).
+    [ ! -f "$sentinel" ]
 }
 
 @test "S2c: override HONORED when running under bats (BATS_TEST_DIRNAME is set)" {

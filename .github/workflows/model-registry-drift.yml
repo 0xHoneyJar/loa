@@ -19,6 +19,17 @@ on:
       - '.claude/defaults/model-config.yaml.checksum'
       - '.claude/scripts/generated-model-maps.sh'
       - '.claude/scripts/gen-adapter-maps.sh'
+      # cycle-099 sprint-1B (BB iter-1 F4): include the resolver lib + bats
+      # tests. Resolver edits or test-coverage drift should re-run the gate
+      # so a future edit that breaks the contract surfaces in CI, not after
+      # merge.
+      - '.claude/scripts/lib/model-resolver.sh'
+      - '.claude/scripts/red-team-model-adapter.sh'
+      - '.claude/scripts/red-team-code-vs-design.sh'
+      - '.claude/scripts/model-adapter.sh'
+      - 'tests/integration/lockfile-checksum.bats'
+      - 'tests/integration/legacy-adapter-still-works.bats'
+      - 'tests/integration/model-registry-sync.bats'
       - '.claude/skills/bridgebuilder-review/scripts/gen-bb-registry.ts'
       - '.claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts'
       - '.claude/skills/bridgebuilder-review/resources/config.generated.ts'
@@ -43,7 +54,9 @@ jobs:
       - name: Verify model-config.yaml.checksum matches yaml SHA256
         run: |
           set -euo pipefail
-          recorded="$(cat .claude/defaults/model-config.yaml.checksum | tr -d '\n[:space:]')"
+          # Avoid UUOC + redundant pattern (BB iter-1 F6): [:space:] already
+          # includes \n; tr-from-stdin does not need cat.
+          recorded="$(tr -d '[:space:]' < .claude/defaults/model-config.yaml.checksum)"
           computed="$(sha256sum < .claude/defaults/model-config.yaml | awk '{print $1}')"
           if [ "$recorded" != "$computed" ]; then
               echo "::error::[DRIFT-LOCKFILE-MISMATCH] model-config.yaml mutated without checksum bump"
@@ -62,14 +75,19 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - name: Install yq
+      - name: Install yq (pinned + sha256-verified)
         run: |
           set -euo pipefail
           # mikefarah/yq v4 — same toolchain as the generator.
-          # Pinned to v4.52.4 to match .github/workflows/bats-tests.yml — keeps
-          # CI lanes on the same yq parser (audit M2: avoid version skew).
-          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64
-          sudo chmod +x /usr/local/bin/yq
+          # Pinned to v4.52.4 to match .github/workflows/bats-tests.yml.
+          # SHA256 verification mirrors the actions/checkout SHA pinning
+          # discipline (closes BB iter-1 yq-unverified-download HIGH).
+          local_yq=/tmp/yq-${{ github.run_id }}
+          expected_sha256='0c4d965ea944b64b8fddaf7f27779ee3034e5693263786506ccd1c120f184e8c'
+          wget -qO "$local_yq" https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64
+          echo "$expected_sha256  $local_yq" | sha256sum -c -
+          sudo install -m 0755 "$local_yq" /usr/local/bin/yq
+          rm "$local_yq"
           yq --version
 
       - name: Run gen-adapter-maps --check
@@ -93,13 +111,17 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install yq
+      - name: Install yq (pinned + sha256-verified)
         run: |
           set -euo pipefail
-          # Pinned to v4.52.4 to match .github/workflows/bats-tests.yml — keeps
-          # CI lanes on the same yq parser (audit M2: avoid version skew).
-          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64
-          sudo chmod +x /usr/local/bin/yq
+          # Same install pattern as the lockfile-checksum job; sha256-verified
+          # against the published v4.52.4 binary (closes BB iter-1 HIGH).
+          local_yq=/tmp/yq-${{ github.run_id }}
+          expected_sha256='0c4d965ea944b64b8fddaf7f27779ee3034e5693263786506ccd1c120f184e8c'
+          wget -qO "$local_yq" https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64
+          echo "$expected_sha256  $local_yq" | sha256sum -c -
+          sudo install -m 0755 "$local_yq" /usr/local/bin/yq
+          rm "$local_yq"
 
       - name: Install BB skill devDeps (pinned tsx + typescript)
         working-directory: .claude/skills/bridgebuilder-review
