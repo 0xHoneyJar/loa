@@ -11,7 +11,9 @@
     "./adapters": "./dist/adapters/index.js"
   },
   "scripts": {
-    "build": "cd resources && npx tsc --project tsconfig.json",
+    "build": "npm run gen-bb-registry && cd resources && npx tsc --project tsconfig.json",
+    "gen-bb-registry": "npx tsx scripts/gen-bb-registry.ts",
+    "gen-bb-registry:check": "npx tsx scripts/gen-bb-registry.ts --check",
     "test": "cd resources && npx tsx --test __tests__/*.test.ts"
   },
   "engines": {
@@ -19,6 +21,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.2.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },
   "dependencies": {

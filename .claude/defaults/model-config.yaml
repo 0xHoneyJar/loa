@@ -167,6 +167,19 @@ providers:
         pricing:
           input_per_mtok: 3000000    # $3.00 per million tokens
           output_per_mtok: 15000000  # $15.00 per million tokens
+      # Retained as pinnable fallback for legacy callers — cycle-099 sprint-1A
+      # restored this entry after the bridgebuilder TOKEN_BUDGETS in
+      # resources/core/truncation.ts (cycle-098 baseline) was found to reference
+      # it while the registry did not. Operators who pin to a specific 4-5
+      # snapshot (e.g., for repro on dated benchmarks) use
+      # `anthropic:claude-sonnet-4-5-20250929` in .loa.config.yaml.
+      claude-sonnet-4-5-20250929:
+        capabilities: [chat, tools, function_calling]
+        context_window: 200000
+        token_param: max_tokens
+        pricing:
+          input_per_mtok: 3000000    # $3.00 per million tokens (same tier as sonnet-4-6)
+          output_per_mtok: 15000000  # $15.00 per million tokens
       # cycle-095 Sprint 2 (Task 2.3): Haiku 4.5 ships as the new `tiny` tier.
       # Pricing live-fetched ONCE at sprint execution (2026-04-29) and frozen
       # in YAML per PRD FR-3 AC + SDD §5.7. Refresh cadence: quarterly or on
