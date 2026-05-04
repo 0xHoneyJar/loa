@@ -1,0 +1,99 @@
+#!/usr/bin/env bats
+# =============================================================================
+# tests/integration/gpt-review-429-diagnostic.bats
+#
+# Closes #711.B (zkSoju feedback): the gpt-review-api retry loop emitted a
+# generic "Rate limited (429)" message and gave up after 3 attempts with no
+# information about WHY the 429 fired. zkSoju's session burned ~3 minutes on
+# 6 retry attempts against a quota-exhausted gpt-5.2 without seeing the
+# underlying error type.
+#
+# Fix: extract .error.{type, code, message} from the 429 response body and
+# log to stderr with each retry attempt. On exhaustion + insufficient_quota,
+# emit an operator hint pointing at the fallback paths (gpt-5.2-mini,
+# Codex MCP).
+# =============================================================================
+
+setup() {
+    REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/../.." && pwd)"
+    LIB="${REPO_ROOT}/.claude/scripts/lib-curl-fallback.sh"
+    [[ -f "$LIB" ]] || skip "lib-curl-fallback.sh not present"
+    # shellcheck source=/dev/null
+    source "$LIB"
+}
+
+@test "429 diagnostic helper extracts .error.type and .error.message from response body" {
+    local response='{"error":{"message":"You exceeded your current quota","type":"insufficient_quota","code":"insufficient_quota"}}'
+    local stderr_output
+    stderr_output=$(_curl_fallback_log_429_diagnostic "$response" 1 2>&1)
+    [[ "$stderr_output" == *"Rate limited (429)"* ]]
+    [[ "$stderr_output" == *"error.type=insufficient_quota"* ]]
+    [[ "$stderr_output" == *"error.code=insufficient_quota"* ]]
+    [[ "$stderr_output" == *"error.message: You exceeded your current quota"* ]]
+}
+
+@test "429 diagnostic distinguishes burst (rate_limit_exceeded) from quota (insufficient_quota)" {
+    # rate_limit_exceeded — burst limiter; retry might succeed
+    local burst='{"error":{"message":"Rate limit reached for requests","type":"requests","code":"rate_limit_exceeded"}}'
+    local burst_out
+    burst_out=$(_curl_fallback_log_429_diagnostic "$burst" 2 2>&1)
+    [[ "$burst_out" == *"error.code=rate_limit_exceeded"* ]]
+    [[ "$burst_out" == *"Rate limit reached"* ]]
+
+    # insufficient_quota — billing/tier limit; retries WON'T help
+    local quota='{"error":{"message":"You exceeded your current quota, please check your plan and billing details","type":"insufficient_quota","code":"insufficient_quota"}}'
+    local quota_out
+    quota_out=$(_curl_fallback_log_429_diagnostic "$quota" 3 2>&1)
+    [[ "$quota_out" == *"error.code=insufficient_quota"* ]]
+    [[ "$quota_out" == *"check your plan and billing"* ]]
+}
+
+@test "429 diagnostic handles missing .error fields gracefully" {
+    local response='{"_no_error_field":true}'
+    local stderr_output
+    stderr_output=$(_curl_fallback_log_429_diagnostic "$response" 1 2>&1)
+    # The header line must always appear.
+    [[ "$stderr_output" == *"Rate limited (429)"* ]]
+    # No bogus "error.type=null" or "error.message:" with empty content.
+    [[ "$stderr_output" != *"error.type="* ]] || [[ "$stderr_output" == *"error.type=unknown"* ]]
+}
+
+@test "429 diagnostic handles malformed JSON response (non-fatal)" {
+    local response='this is not json at all'
+    local stderr_output
+    stderr_output=$(_curl_fallback_log_429_diagnostic "$response" 1 2>&1)
+    # No crash; header line still emitted.
+    [[ "$stderr_output" == *"Rate limited (429)"* ]]
+}
+
+@test "429 quota hint fires for insufficient_quota response" {
+    local response='{"error":{"type":"insufficient_quota","code":"insufficient_quota","message":"quota exceeded"}}'
+    local stderr_output
+    stderr_output=$(_curl_fallback_log_429_quota_hint "$response" 2>&1)
+    [[ "$stderr_output" == *"insufficient_quota"* ]]
+    [[ "$stderr_output" == *"gpt-5.2-mini"* ]]
+    [[ "$stderr_output" == *"Codex MCP"* ]]
+    [[ "$stderr_output" == *"separate quota bucket"* ]]
+}
+
+@test "429 quota hint does NOT fire for burst rate_limit_exceeded" {
+    local response='{"error":{"type":"requests","code":"rate_limit_exceeded","message":"slow down"}}'
+    local stderr_output
+    stderr_output=$(_curl_fallback_log_429_quota_hint "$response" 2>&1)
+    # No quota hint — this is a burst limit, retries are appropriate.
+    [[ "$stderr_output" != *"insufficient_quota"* ]]
+    [[ "$stderr_output" != *"Codex MCP"* ]]
+}
+
+@test "429 diagnostic log secrets are redacted via redact_log_output" {
+    # The diagnostic uses redact_log_output if available. Probe by injecting
+    # a fake API key into the error message and asserting it's redacted.
+    if ! declare -f redact_log_output >/dev/null 2>&1; then
+        skip "redact_log_output not loaded; skipping redaction probe"
+    fi
+    local response='{"error":{"message":"Auth failed for sk-fake1234567890abcdefghij1234567890","type":"invalid_request_error"}}'
+    local stderr_output
+    stderr_output=$(_curl_fallback_log_429_diagnostic "$response" 1 2>&1)
+    # The literal sk-fake key MUST NOT appear (redacted).
+    [[ "$stderr_output" != *"sk-fake1234567890abcdefghij1234567890"* ]]
+}

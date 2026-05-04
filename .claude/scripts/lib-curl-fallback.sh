@@ -52,6 +52,66 @@ if ! declare -f extract_verdict &>/dev/null; then
 fi
 
 # =============================================================================
+# 429 diagnostic helpers (#711.B closure)
+# =============================================================================
+# Surface the actual 429 response body so operators (or the agent) can
+# distinguish quota exhaustion from tier rejection from genuine burst-rate
+# limiting. Without these, the generic "Rate limited (429)" message looks
+# identical for all 429 sub-types and makes triage hard. zkSoju's #711
+# session burned 6 retry attempts × 3 minutes on a quota-exhausted gpt-5.2
+# without ever seeing why.
+
+# _curl_fallback_log_429_diagnostic <response_json> <attempt_n>
+#
+# Emits per-attempt 429 diagnostic to stderr, including parsed
+# .error.{type, code, message} from the response body.
+_curl_fallback_log_429_diagnostic() {
+  local response="$1"
+  local attempt="$2"
+  echo "[gpt-review-api] Rate limited (429) - attempt $attempt" >&2
+  if ! command -v jq >/dev/null 2>&1; then
+    return 0
+  fi
+  local _429_msg _429_code _429_type
+  _429_msg=$(echo "$response" | jq -r '.error.message // empty' 2>/dev/null) || true
+  _429_code=$(echo "$response" | jq -r '.error.code // empty' 2>/dev/null) || true
+  _429_type=$(echo "$response" | jq -r '.error.type // empty' 2>/dev/null) || true
+  if [[ -n "$_429_type" || -n "$_429_code" ]]; then
+    echo "[gpt-review-api]   error.type=${_429_type:-unknown} error.code=${_429_code:-unknown}" >&2
+  fi
+  if [[ -n "$_429_msg" ]]; then
+    local _redacted_429
+    if declare -f redact_log_output >/dev/null 2>&1; then
+      _redacted_429=$(redact_log_output "$_429_msg")
+    else
+      _redacted_429="$_429_msg"
+    fi
+    echo "[gpt-review-api]   error.message: $_redacted_429" >&2
+  fi
+}
+
+# _curl_fallback_log_429_quota_hint <response_json>
+#
+# When the 429 retries are exhausted AND the response indicates quota
+# exhaustion (insufficient_quota), emit an operator hint pointing at the
+# manual fallback paths (gpt-5.2-mini config, Codex MCP). This nudges
+# triage toward the correct remediation rather than re-retrying the
+# saturated tier.
+_curl_fallback_log_429_quota_hint() {
+  local response="$1"
+  if ! command -v jq >/dev/null 2>&1; then
+    return 0
+  fi
+  local _429_type _429_code
+  _429_type=$(echo "$response" | jq -r '.error.type // empty' 2>/dev/null) || true
+  _429_code=$(echo "$response" | jq -r '.error.code // empty' 2>/dev/null) || true
+  if [[ "$_429_type" == "insufficient_quota" || "$_429_code" == "insufficient_quota" ]]; then
+    echo "[gpt-review-api] HINT: 'insufficient_quota' suggests the OpenAI account has hit its tier/billing limit." >&2
+    echo "[gpt-review-api] HINT: consider configuring a fallback tier (gpt-5.2-mini) via .gpt_review.models, OR invoke the Codex MCP path (codex:codex-rescue agent) for design-doc reviews — Codex auth is on a separate quota bucket." >&2
+  fi
+}
+
+# =============================================================================
 # Constants
 # =============================================================================
 
@@ -275,7 +335,7 @@ call_api() {
         return 4
         ;;
       429)
-        echo "[gpt-review-api] Rate limited (429) - attempt $attempt" >&2
+        _curl_fallback_log_429_diagnostic "$response" "$attempt"
         if [[ $attempt -lt $_CURL_MAX_RETRIES ]]; then
           local wait_time=$((_CURL_RETRY_DELAY * attempt))
           echo "[gpt-review-api] Waiting ${wait_time}s before retry..." >&2
@@ -284,6 +344,7 @@ call_api() {
           continue
         fi
         echo "ERROR: Rate limit exceeded after $_CURL_MAX_RETRIES attempts" >&2
+        _curl_fallback_log_429_quota_hint "$response"
         return 1
         ;;
       500|502|503|504)
