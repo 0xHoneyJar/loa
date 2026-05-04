@@ -320,6 +320,9 @@ _t9_restore() {
 }
 
 @test "T9: npm run gen-bb-registry from BB skill dir succeeds" {
+    # trap-on-EXIT ensures restore fires even on SIGINT/SIGTERM/timeout — the
+    # explicit _t9_restore call is redundant but kept for clarity (BB iter-2 F2).
+    trap _t9_restore EXIT
     _t9_snapshot
     cd "$BB_SKILL_DIR"
     run npm run gen-bb-registry
@@ -330,6 +333,7 @@ _t9_restore() {
 }
 
 @test "T9: npm run gen-bb-registry:check passes against committed tree (post-regen)" {
+    trap _t9_restore EXIT
     _t9_snapshot
     cd "$BB_SKILL_DIR"
     # Regenerate first so committed tree matches what the codegen would emit.
