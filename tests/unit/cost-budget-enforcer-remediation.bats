@@ -32,6 +32,8 @@ EOF
 
     export LOA_BUDGET_LOG="$LOG_FILE"
     export LOA_BUDGET_OBSERVER_CMD="$OBSERVER"
+    # Sprint H2 (#708 F-005): observer allowlist scoped to TEST_DIR.
+    export LOA_BUDGET_OBSERVER_ALLOWED_PREFIXES="$TEST_DIR"
     export OBSERVER_OUT
     export LOA_BUDGET_DAILY_CAP_USD="50.00"
     export LOA_BUDGET_TEST_NOW="2026-05-04T12:00:00.000000Z"

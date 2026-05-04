@@ -58,6 +58,18 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Sprint H2 closure of #708 F-007 (audit-snapshot strict-pin):
+# pre-existing operator env may have LOA_AUDIT_VERIFY_SIGS=0 from a legacy
+# migration window. Snapshots are forensic artifacts and MUST be strict
+# whenever a signing key is configured — verifying signature presence +
+# validity. We pin VERIFY_SIGS=1 ONLY when LOA_AUDIT_SIGNING_KEY_ID is set
+# (post-bootstrap deployments). For BOOTSTRAP-PENDING / unsigned-test
+# environments where no key is configured, there is nothing to verify
+# strictly and we leave the operator's setting alone (default behavior).
+if [[ -n "${LOA_AUDIT_SIGNING_KEY_ID:-}" ]]; then
+    export LOA_AUDIT_VERIFY_SIGS=1
+fi
+
 # Source audit-envelope.sh to access audit_verify_chain.
 # shellcheck source=../audit-envelope.sh
 source "${_REPO_ROOT}/.claude/scripts/audit-envelope.sh"

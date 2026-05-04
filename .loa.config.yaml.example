@@ -2279,6 +2279,15 @@ qmd_context:
 #   billing_stale_halt_seconds: 900               # 15 min billing_stale threshold
 #   audit_log: .run/cost-budget-events.jsonl
 #   billing_observer_cmd: /path/to/observer-shim.sh   # caller-supplied UsageObserver
+#   # Sprint H2 (#708 F-005): observer cmd path MUST live under one of the
+#   # allowed_observer_paths prefixes. Defaults to .claude/scripts/observers
+#   # and .run/observers if unset. Without this allowlist, an attacker who
+#   # could set LOA_BUDGET_OBSERVER_CMD via env-var injection achieved
+#   # arbitrary execution in the L2 process. Tests can widen the allowlist
+#   # via env: LOA_BUDGET_OBSERVER_ALLOWED_PREFIXES (colon-separated).
+#   allowed_observer_paths:
+#     - .claude/scripts/observers
+#     - .run/observers
 #   per_provider_caps:                            # optional sub-caps per provider
 #     openai: 5.00
 #     anthropic: 30.00

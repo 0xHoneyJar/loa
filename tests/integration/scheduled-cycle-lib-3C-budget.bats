@@ -66,6 +66,8 @@ EOF
     # L2 wiring (only used by tests that opt in via LOA_L3_BUDGET_PRECHECK_ENABLED).
     export LOA_BUDGET_LOG="$BUDGET_LOG"
     export LOA_BUDGET_OBSERVER_CMD="$OBSERVER"
+    # Sprint H2 (#708 F-005): observer allowlist scoped to TEST_DIR.
+    export LOA_BUDGET_OBSERVER_ALLOWED_PREFIXES="$TEST_DIR"
     export OBSERVER_OUT
     export LOA_BUDGET_DAILY_CAP_USD="50.00"
     export LOA_BUDGET_DRIFT_THRESHOLD="5.0"
