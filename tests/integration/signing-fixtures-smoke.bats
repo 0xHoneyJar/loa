@@ -107,6 +107,50 @@ teardown() {
     [[ "$n_distinct" = "2" ]]
 }
 
+@test "fixtures: register_extra_key (default) writes KEY_DIR only — trust-store untouched" {
+    # Sprint H1 review HIGH-2 fix: default behavior is honest about what it
+    # does — only generates keypair files in KEY_DIR. The pubkey resolution
+    # fallback in audit-envelope.sh handles multi-writer chains via KEY_DIR.
+    load_fixtures
+    signing_fixtures_setup --strict
+    if command -v yq >/dev/null 2>&1; then
+        local pre_count post_count
+        pre_count="$(yq -r '.keys | length' "$LOA_TRUST_STORE_FILE")"
+        [[ "$pre_count" = "0" ]]
+        signing_fixtures_register_extra_key "extra-writer-default" >/dev/null
+        post_count="$(yq -r '.keys | length' "$LOA_TRUST_STORE_FILE")"
+        # Trust-store keys[] still empty (default mode).
+        [[ "$post_count" = "0" ]]
+    else
+        signing_fixtures_register_extra_key "extra-writer-default" >/dev/null
+    fi
+    # KEY_DIR file present.
+    [[ -f "$KEY_DIR/extra-writer-default.priv" ]]
+    [[ -f "$KEY_DIR/extra-writer-default.pub" ]]
+}
+
+@test "fixtures: register_extra_key --update-trust-store appends to .keys[] (BOOTSTRAP-PENDING transition)" {
+    # Opt-in flag: appends to trust-store keys[]. Trips BOOTSTRAP-PENDING →
+    # NEEDS_VERIFY. Without a properly-signed root_signature this makes
+    # subsequent audit_emit calls fail with [TRUST-STORE-INVALID] — caller's
+    # responsibility to handle. Smoke just verifies the registration write.
+    load_fixtures
+    signing_fixtures_setup --strict
+    if ! command -v yq >/dev/null 2>&1; then skip "yq not present"; fi
+    local pre_count post_count
+    pre_count="$(yq -r '.keys | length' "$LOA_TRUST_STORE_FILE")"
+    [[ "$pre_count" = "0" ]]
+    signing_fixtures_register_extra_key "extra-writer-trusted" --update-trust-store >/dev/null
+    post_count="$(yq -r '.keys | length' "$LOA_TRUST_STORE_FILE")"
+    [[ "$post_count" = "1" ]]
+    local writer_id
+    writer_id="$(yq -r '.keys[0].writer_id' "$LOA_TRUST_STORE_FILE")"
+    [[ "$writer_id" = "extra-writer-trusted" ]]
+    local has_pem
+    has_pem="$(yq -r '.keys[0].pubkey_pem | test("BEGIN PUBLIC KEY")' "$LOA_TRUST_STORE_FILE")"
+    [[ "$has_pem" = "true" ]]
+}
+
 @test "fixtures: teardown removes TEST_DIR and unsets env" {
     load_fixtures
     signing_fixtures_setup --strict
@@ -129,4 +173,58 @@ teardown() {
         cutoff="$(yq -r '.trust_cutoff.default_strict_after' "$LOA_TRUST_STORE_FILE")"
         [[ "$cutoff" = "2025-06-15T00:00:00Z" ]]
     fi
+}
+
+@test "fixtures: chain-repair tamper helper makes signature the SOLE failure mode" {
+    # Sprint H1 review HIGH-1: prior payload-tamper tests caught regressions
+    # via prev_hash chain-hash, NOT via signature verification — they would
+    # pass against a buggy verifier. This smoke test proves the chain-repair
+    # helper isolates signature as the gate: VERIFY_SIGS=1 fails, VERIFY_SIGS=0
+    # passes.
+    load_fixtures
+    signing_fixtures_setup --strict
+    # shellcheck source=/dev/null
+    source "$AUDIT_ENVELOPE"
+    local log="${TEST_DIR}/sig-only.jsonl"
+    audit_emit L1 panel.bind '{"decision_id":"d-1"}' "$log"
+    audit_emit L1 panel.bind '{"decision_id":"d-2"}' "$log"
+    audit_emit L1 panel.bind '{"decision_id":"d-3"}' "$log"
+
+    # Baseline: chain valid in both modes.
+    LOA_AUDIT_VERIFY_SIGS=1 run audit_verify_chain "$log"
+    [ "$status" -eq 0 ]
+    LOA_AUDIT_VERIFY_SIGS=0 run audit_verify_chain "$log"
+    [ "$status" -eq 0 ]
+
+    # Tamper line 2 payload + repair chain.
+    local tampered="${TEST_DIR}/tampered-chain-repaired.jsonl"
+    signing_fixtures_tamper_with_chain_repair \
+        "$log" 2 '.payload.decision_id = "tampered-id"' "$tampered"
+
+    # VERIFY_SIGS=0 should PASS (chain hashes were repaired; signature ignored).
+    LOA_AUDIT_VERIFY_SIGS=0 run audit_verify_chain "$tampered"
+    [ "$status" -eq 0 ]
+
+    # VERIFY_SIGS=1 should FAIL (signature on line 2 mismatches the new payload).
+    LOA_AUDIT_VERIFY_SIGS=1 run audit_verify_chain "$tampered"
+    [ "$status" -ne 0 ]
+}
+
+@test "fixtures: --cutoff in future suppresses post-cutoff strip-attack gate" {
+    # Sprint H1 review MEDIUM (smoke #7 expansion): observed effect of cutoff.
+    # With cutoff in 2099, an unsigned entry written after VERIFY_SIGS=1 set
+    # is still pre-cutoff (any real-world ts_utc < 2099) — strip-attack gate
+    # does NOT fire. Confirms the cutoff plumbing actually wires through.
+    load_fixtures
+    signing_fixtures_setup --strict --cutoff "2099-01-01T00:00:00Z"
+    # shellcheck source=/dev/null
+    source "$AUDIT_ENVELOPE"
+    local log="${TEST_DIR}/precutoff.jsonl"
+    audit_emit L1 panel.bind '{"decision_id":"d-pre"}' "$log"
+    # Strip the signature to simulate the strip attack.
+    local stripped="${TEST_DIR}/stripped.jsonl"
+    jq -c 'del(.signature, .signing_key_id)' "$log" > "$stripped"
+    # With cutoff in future, the strip-attack gate is dormant — chain validates.
+    LOA_AUDIT_VERIFY_SIGS=1 run audit_verify_chain "$stripped"
+    [ "$status" -eq 0 ]
 }

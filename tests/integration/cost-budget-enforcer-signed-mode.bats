@@ -51,11 +51,17 @@ EOF
     export LOA_BUDGET_STALE_HALT_PCT="75"
     export LOA_BUDGET_CLOCK_TOLERANCE="60"
     export LOA_BUDGET_LAG_HALT_SECONDS="300"
-    # Disable drift BLOCKER for these tests — they're about the signed-mode
-    # write path, not the reconciliation state machine. The drift-detection
-    # behavior is exhaustively covered by tests/unit/cost-budget-enforcer-*
-    # in unsigned mode; we only need reconcile to emit one signed envelope.
-    export LOA_BUDGET_DRIFT_THRESHOLD="1000"
+    # Disable drift BLOCKER for these tests. Reason: the legitimate per-
+    # provider drift between observer ($5.00 aggregate) and post-record_call
+    # counter (per-provider, partial) would otherwise fire as a BLOCKER and
+    # halt budget_reconcile before the test can verify the SIGNED envelope
+    # was emitted. The reconciliation state machine itself is exhaustively
+    # covered by tests/unit/cost-budget-enforcer-state-machine.bats in
+    # unsigned mode. Setting effectively-infinite (999999%) makes the intent
+    # unambiguous to future maintainers (vs the prior magic "1000").
+    # If LOA_BUDGET_DRIFT_THRESHOLD is removed, expect budget_reconcile to
+    # exit non-zero with a "drift_pct >>> threshold" BLOCKER.
+    export LOA_BUDGET_DRIFT_THRESHOLD="999999"
     export LOA_BUDGET_TEST_NOW="2026-05-04T15:00:00.000000Z"
 
     # shellcheck source=/dev/null
@@ -158,18 +164,23 @@ teardown() {
     [ "$status" -ne 0 ]
 }
 
-@test "L2 signed-mode: corrupting payload of one entry → chain verification FAILS" {
+@test "L2 signed-mode: payload tamper detected by SIGNATURE (chain-repaired test isolates the gate)" {
+    # Sprint H1 review HIGH-1: prior payload-tamper tests caught regressions
+    # via prev_hash chain-hash, NOT signature verification — they would pass
+    # against a buggy verifier that always returns 0. The chain-repair helper
+    # repairs prev_hashes after tampering so the chain-hash check passes;
+    # signature mismatch becomes the SOLE failure mode.
     budget_verdict "1.00"
     budget_record_call "1.00"
     budget_verdict "0.50"
-    # Mutate payload of line 2 (preserve all other fields including signature).
-    local tmp
-    tmp="${TEST_DIR}/payload-tampered.jsonl"
-    {
-        sed -n '1p' "$BUDGET_LOG"
-        sed -n '2p' "$BUDGET_LOG" | jq -c '.payload.actual_usd = 999999'
-        sed -n '3p' "$BUDGET_LOG"
-    } > "$tmp"
-    run audit_verify_chain "$tmp"
+    local tmp="${TEST_DIR}/payload-chain-repaired.jsonl"
+    signing_fixtures_tamper_with_chain_repair \
+        "$BUDGET_LOG" 2 '.payload.actual_usd = 999999' "$tmp"
+    # VERIFY_SIGS=0: chain hashes were repaired → verify SUCCEEDS (proves the
+    # chain-hash check is satisfied; signature is now the only gate).
+    LOA_AUDIT_VERIFY_SIGS=0 run audit_verify_chain "$tmp"
+    [ "$status" -eq 0 ]
+    # VERIFY_SIGS=1: signature on line 2 mismatches the new payload → FAILS.
+    LOA_AUDIT_VERIFY_SIGS=1 run audit_verify_chain "$tmp"
     [ "$status" -ne 0 ]
 }

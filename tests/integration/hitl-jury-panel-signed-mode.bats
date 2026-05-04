@@ -107,15 +107,16 @@ _views_payload() {
     [ "$status" -ne 0 ]
 }
 
-@test "L1 signed-mode: corrupting payload → chain FAILS" {
+@test "L1 signed-mode: payload tamper detected by SIGNATURE (chain-repaired)" {
+    # Sprint H1 review HIGH-1: chain-repair isolates signature as the gate.
     panel_log_views "dec-1" "$(_views_payload)" "$PANEL_LOG"
     panel_log_views "dec-2" "$(_views_payload)" "$PANEL_LOG"
-    local tmp
-    tmp="${TEST_DIR}/payload-tampered.jsonl"
-    {
-        sed -n '1p' "$PANEL_LOG"
-        sed -n '2p' "$PANEL_LOG" | jq -c '.payload.decision_id = "fraudulent-id"'
-    } > "$tmp"
-    run audit_verify_chain "$tmp"
+    panel_log_views "dec-3" "$(_views_payload)" "$PANEL_LOG"
+    local tmp="${TEST_DIR}/payload-chain-repaired.jsonl"
+    signing_fixtures_tamper_with_chain_repair \
+        "$PANEL_LOG" 2 '.payload.decision_id = "fraudulent-id"' "$tmp"
+    LOA_AUDIT_VERIFY_SIGS=0 run audit_verify_chain "$tmp"
+    [ "$status" -eq 0 ]
+    LOA_AUDIT_VERIFY_SIGS=1 run audit_verify_chain "$tmp"
     [ "$status" -ne 0 ]
 }
