@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.dev/loa/schemas/cycle-events/cycle-complete.payload.schema.json",
+  "title": "L3 cycle.complete Payload",
+  "description": "Emitted after the logger phase exits success. Marks the cycle terminal-success state. The presence of cycle.complete with a given cycle_id is the idempotency gate: a subsequent invocation with the same cycle_id no-ops. cycle-098 Sprint 3A.",
+  "type": "object",
+  "required": [
+    "cycle_id",
+    "schedule_id",
+    "started_at",
+    "completed_at",
+    "duration_seconds",
+    "phases_completed",
+    "outcome"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "cycle_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "schedule_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "duration_seconds": {
+      "type": "number",
+      "minimum": 0
+    },
+    "phases_completed": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {
+        "type": "string",
+        "enum": ["reader", "decider", "dispatcher", "awaiter", "logger"]
+      },
+      "uniqueItems": true,
+      "description": "All 5 phases must have completed successfully for cycle.complete to be emitted."
+    },
+    "outcome": {
+      "type": "string",
+      "const": "success",
+      "description": "cycle.complete is the success-only terminal event. Errors emit cycle.error instead."
+    },
+    "budget_actual_usd": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "description": "If logger phase reported actual cost in stdout, it is propagated here for L2 reconciliation."
+    }
+  }
+}

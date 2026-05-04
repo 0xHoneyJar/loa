@@ -2307,6 +2307,55 @@ qmd_context:
 #   .claude/scripts/budget/budget-reconcile-install.sh uninstall
 
 # -----------------------------------------------------------------------------
+# L3 scheduled-cycle-template — generic 5-phase autonomous-cycle skeleton
+# -----------------------------------------------------------------------------
+# Composes /schedule (cron registration) with the audit envelope into a
+# 5-phase contract: reader → decider → dispatcher → awaiter → logger. flock
+# guards concurrency; cycle_id (content-addressed) provides idempotency;
+# optional L2 budget pre-check halts cycles before they spend.
+#
+# Each ScheduleConfig is a small YAML pointing at the five phase scripts.
+# Worked example: .claude/skills/scheduled-cycle-template/contracts/example-schedule.yaml
+#
+# Source: RFC #655; PRD §FR-L3 (8 ACs); SDD §1.4.2 + §5.5
+#
+# scheduled_cycle_template:
+#   enabled: false                              # opt-in
+#   audit_log: .run/cycles.jsonl                # cycle.{start,phase,complete,error,lock_failed}
+#   lock_dir: .run/cycles                       # per-schedule lock files: <lock_dir>/<schedule_id>.lock
+#   lock_timeout_seconds: 30                    # flock acquire timeout (FR-L3-5)
+#   budget_pre_check: false                     # opt-in to L2 cost-budget gate (FR-L3-6, CC-9)
+#   max_cycle_seconds: 14400                    # cap on (timeout_seconds × 5 phases); rejects malicious schedules
+#   phase_path_allowed_prefixes:                # phase scripts MUST live under one of these
+#     - .claude/skills                          #   Defaults shown; canonicalized via realpath +
+#     - .run/schedules                          #   prefix-match. Add deployment-specific dirs here.
+#     - .run/cycles-contracts
+#   schedules: []                               # array of ScheduleConfig YAML paths
+#
+# Environment variable overrides (see .claude/scripts/lib/scheduled-cycle-lib.sh):
+#   LOA_CYCLES_LOG                       override audit log path
+#   LOA_L3_LOCK_DIR                      override lock directory
+#   LOA_L3_LOCK_TIMEOUT_SECONDS          override flock acquire timeout
+#   LOA_L3_BUDGET_PRECHECK_ENABLED       "1"/"true" to enable L2 gate
+#   LOA_L3_KILL_GRACE_SECONDS            grace period after timeout TERM before KILL (default 5)
+#   LOA_L3_TEST_NOW                      test-only override for "now"
+#   LOA_L3_TEST_MODE                     "1" enables test-only escape hatches (LOA_L3_L2_LIB_OVERRIDE);
+#                                          implicit when running under bats (BATS_TEST_DIRNAME set)
+#   LOA_L3_PHASE_PATH_ALLOWED_PREFIXES   colon-separated list overriding the yaml allowlist
+#   LOA_L3_PHASE_ENV_PASSTHROUGH         space-separated extra env-var names to expose to phase scripts
+#                                          (default allowlist is minimal: PATH/HOME/USER/LANG/...);
+#                                          only [A-Z_][A-Z0-9_]* names accepted
+#   LOA_L3_MAX_CYCLE_SECONDS             override max projected cycle time (default 14400)
+#   LOA_L3_L2_LIB_OVERRIDE               TEST-ONLY: path to override L2 lib for graceful-skip testing
+#
+# CLI:
+#   .claude/scripts/lib/scheduled-cycle-lib.sh invoke <schedule.yaml> [--cycle-id <id>] [--dry-run]
+#   .claude/scripts/lib/scheduled-cycle-lib.sh idempotency-check <cycle_id>
+#   .claude/scripts/lib/scheduled-cycle-lib.sh replay [<log_path>] [--cycle-id <id>]
+#
+# Cron registration is done via /schedule pointing at the `invoke` subcommand.
+
+# -----------------------------------------------------------------------------
 # Audit-log daily snapshot — RPO 24h for L1/L2 chain-critical untracked logs
 # -----------------------------------------------------------------------------
 # Sprint 2C ships the producer side of the L1/L2 hash-chain recovery loop.

@@ -1,0 +1,14 @@
+# Example ScheduleConfig — replace schedule_id, paths, cron expression.
+# Run end-to-end with:
+#   .claude/scripts/lib/scheduled-cycle-lib.sh invoke <this-file>
+
+schedule_id: example-cycle
+schedule: "0 4 * * *"                  # daily at 04:00 UTC
+dispatch_contract:
+  reader:     ".claude/skills/scheduled-cycle-template/contracts/example-reader.sh"
+  decider:    ".claude/skills/scheduled-cycle-template/contracts/example-decider.sh"
+  dispatcher: ".claude/skills/scheduled-cycle-template/contracts/example-dispatcher.sh"
+  awaiter:    ".claude/skills/scheduled-cycle-template/contracts/example-awaiter.sh"
+  logger:     ".claude/skills/scheduled-cycle-template/contracts/example-logger.sh"
+  budget_estimate_usd: 0.10            # forwarded to L2 budget_verdict (when L2 + L3 gate enabled)
+  timeout_seconds: 60                  # per-phase upper bound (default 300)

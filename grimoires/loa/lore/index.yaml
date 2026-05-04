@@ -14,6 +14,8 @@ categories:
         status: Active
       - id: fail-closed-cost-gate
         status: Active
+      - id: scheduled-cycle
+        status: Active
 
   # Future categories (populated by bridge vision elevation):
   # - id: visions

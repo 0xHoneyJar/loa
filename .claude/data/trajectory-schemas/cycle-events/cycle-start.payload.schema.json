@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.dev/loa/schemas/cycle-events/cycle-start.payload.schema.json",
+  "title": "L3 cycle.start Payload",
+  "description": "Emitted by cycle_invoke immediately after lock acquisition + idempotency clear + budget pre-check. Marks the start of a 5-phase cycle. cycle-098 Sprint 3A.",
+  "type": "object",
+  "required": [
+    "cycle_id",
+    "schedule_id",
+    "dispatch_contract_hash",
+    "timeout_seconds",
+    "started_at"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "cycle_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Content-addressed cycle identifier: sha256(schedule_id || ts_bucket || dispatch_contract_hash). Idempotency key."
+    },
+    "schedule_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+      "description": "Caller-supplied schedule identifier. Used in lock path .run/cycles/<schedule_id>.lock."
+    },
+    "dispatch_contract_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 of canonical-JSON of the dispatch_contract block. Lets replay detect contract drift between runs of the same schedule_id."
+    },
+    "timeout_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 86400,
+      "description": "Total cycle timeout (sum of phase budgets). Per-phase enforcement is _l3_run_phase responsibility."
+    },
+    "budget_estimate_usd": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Caller-declared cost estimate in USD. Forwarded to L2 budget_verdict when L2 enabled."
+    },
+    "budget_pre_check": {
+      "type": ["object", "null"],
+      "description": "L2 verdict snapshot when L2 enabled; null when L2 disabled or unavailable.",
+      "additionalProperties": false,
+      "properties": {
+        "verdict": {
+          "type": "string",
+          "enum": ["allow", "warn-90", "halt-100", "halt-uncertainty"]
+        },
+        "usd_estimate": { "type": "number", "minimum": 0 },
+        "checked_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["verdict", "usd_estimate", "checked_at"]
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp at which cycle_invoke began the 5-phase loop."
+    },
+    "schedule_cron": {
+      "type": "string",
+      "description": "Cron expression from ScheduleConfig (informational; not validated here)."
+    },
+    "dry_run": {
+      "type": "boolean",
+      "description": "True when invoked with --dry-run; phases skipped in favor of payload validation only."
+    }
+  }
+}
