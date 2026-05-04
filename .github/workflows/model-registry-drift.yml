@@ -158,6 +158,13 @@ jobs:
         working-directory: .claude/skills/bridgebuilder-review
         run: npm ci
 
+      - name: Verify pinned codegen toolchain
+        # Closes BB iter-1 F7: the paths filter triggers this workflow when
+        # tools/check-codegen-toolchain.sh changes, but until this step was
+        # added, the script itself was never executed. Now a regression in
+        # the script's version-comparison logic surfaces in CI.
+        run: bash tools/check-codegen-toolchain.sh
+
       - name: Run gen-bb-registry --check
         working-directory: .claude/skills/bridgebuilder-review
         run: |
