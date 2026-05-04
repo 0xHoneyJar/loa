@@ -273,6 +273,12 @@ PY
         # Caller acknowledged the BOOTSTRAP-PENDING transition risk via the
         # explicit flag. Use python+PyYAML adapter (the previous yq-via-env
         # form was malformed and silently failed — HIGH-2 finding).
+        # Iter-2 review MEDIUM: explicit PyYAML availability check so the
+        # missing-dep error is clear rather than a generic "failed to update".
+        if ! python3 -c "import yaml" 2>/dev/null; then
+            echo "signing_fixtures_register_extra_key --update-trust-store: PyYAML not installed (pip install pyyaml)" >&2
+            return 1
+        fi
         if ! python3 - "$LOA_TRUST_STORE_FILE" "$extra_id" "$pem" <<'PY'
 import sys, yaml
 path, kid, pem = sys.argv[1], sys.argv[2], sys.argv[3]

@@ -239,29 +239,11 @@ teardown() {
     [ "$status" -ne 0 ]
 }
 
-@test "fixtures: --cutoff in future pins current pre-cutoff behavior (CHANGE-DETECTOR)" {
-    # Sprint H1 review MEDIUM (H1-strict-cutoff-future-cutoff-naming):
-    # **This test PINS current audit-envelope.sh behavior, not a security
-    # invariant.** Currently, a pre-cutoff entry can have signature stripped
-    # and audit_verify_chain still returns 0. If audit-envelope.sh is ever
-    # hardened to require signatures REGARDLESS of cutoff (a defensible
-    # security improvement), this test goes RED — and the correct response
-    # is to UPDATE the test, not to revert the hardening.
-    #
-    # The test ALSO confirms the --cutoff plumbing wires through (smoke #7
-    # only checked that the yaml field was updated; this verifies the
-    # behavioral effect).
-    load_fixtures
-    signing_fixtures_setup --strict --cutoff "2099-01-01T00:00:00Z"
-    # shellcheck source=/dev/null
-    source "$AUDIT_ENVELOPE"
-    local log="${TEST_DIR}/precutoff.jsonl"
-    audit_emit L1 panel.bind '{"decision_id":"d-pre"}' "$log"
-    # Strip the signature to simulate the strip attack.
-    local stripped="${TEST_DIR}/stripped.jsonl"
-    jq -c 'del(.signature, .signing_key_id)' "$log" > "$stripped"
-    # CURRENT BEHAVIOR: cutoff in future → strip-attack gate dormant.
-    # Update this test if audit-envelope.sh hardens to require sigs always.
-    LOA_AUDIT_VERIFY_SIGS=1 run audit_verify_chain "$stripped"
-    [ "$status" -eq 0 ]
-}
+# NOTE: The "--cutoff in future pins pre-cutoff behavior" test was REMOVED
+# in iter-2 review remediation (REFRAME). Reasoning: the test pinned
+# audit-envelope.sh behavior (pre-cutoff strip-attack tolerance) that the
+# review itself flagged as questionable security policy. Pinning that
+# behavior in the FIXTURE-LIB smoke is the wrong owner — if it's worth
+# pinning, it belongs in tests/integration/audit-envelope-* where the
+# hardening logic lives. The cutoff yaml-field write is already covered by
+# smoke #2 ("trust-store yaml is parseable + has cutoff").
