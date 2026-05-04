@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **codex-headless provider adapter** — routes cheval calls through the OpenAI Codex CLI (`codex exec`) instead of the OpenAI HTTP API, so bridgebuilder / spiraling / flatline-review can draw against a ChatGPT subscription quota instead of the `OPENAI_API_KEY` balance. New file `loa_cheval/providers/codex_headless_adapter.py` registered as `type: codex-headless` in `loa_cheval/providers/__init__.py`. Auths via `~/.codex/auth.json` (populated by `codex login` once); no `auth` field required on `ProviderConfig`. Model selection is still `provider:model_id` form (e.g., `codex-headless:gpt-5.5`) — same gpt-5.x line, different transport.
+  - **Reasoning-effort threading**: `low` / `medium` / `high` / `xhigh` (codex CLI ≥ 0.125.0). Resolution precedence: `CompletionRequest.metadata["reasoning_effort"]` → `ModelConfig.extra["reasoning_effort"]` → codex CLI default. Unknown values WARN and fall through.
+  - **Sandbox posture**: `--ephemeral --sandbox read-only --ignore-user-config --skip-git-repo-check` always. The model-router use case is pure inference and must not touch operator files; we never enable workspace-write.
+  - **Forward-compat parser**: `codex exec --json` JSONL stream is parsed for `agent_message` (content), `reasoning` (thinking trace), and `turn.completed.usage` (input / output / reasoning_output_tokens). Unknown event types are silently skipped — codex ships new events frequently and we don't want to brick on additive surface.
+  - **Error classification**: stderr scanned for "rate limit" / "429" → `RateLimitError`; "auth" / "codex login" / "unauthorized" → `ConfigError` with actionable hint; everything else → `ProviderUnavailableError` so cheval's retry/fallback can react. `subprocess.TimeoutExpired` and missing-binary `FileNotFoundError` are typed equivalently.
+  - **Operator config example**:
+    ```yaml
+    hounfour:
+      providers:
+        codex-headless:
+          type: codex-headless
+          read_timeout: 600.0
+          models:
+            gpt-5.5:
+              capabilities: [chat, code]
+              context_window: 400000
+              token_param: max_completion_tokens
+              pricing: { input_per_mtok: 0, output_per_mtok: 0 }  # subscription-billed
+              extra: { reasoning_effort: high }
+      aliases:
+        reviewer: codex-headless:gpt-5.5
+        reasoning: codex-headless:gpt-5.5
+    ```
+  - **Tests**: 31 unit tests in `tests/test_codex_headless_adapter.py` (registry dispatch, command construction, prompt flattening, JSONL parsing, error classification, validate_config + health_check, end-to-end happy path with mocked subprocess). 1 live test gated behind `LOA_CODEX_HEADLESS_LIVE=1`. End-to-end smoke verified locally: `cheval --agent flatline-reviewer --model codex-headless:gpt-5.5 --prompt …` returns response in ~5s with no `OPENAI_API_KEY` consumed (auth via `~/.codex/auth.json`).
+  - **Tool-calling deferred**: v1 forwards `request.messages` flattened into a single prompt with role-prefixed sections (sufficient for the four flatline modes — reviewer / skeptic / scorer / dissenter — which are single-shot). Native function_call_output threading into codex's tool-event stream is out of scope; revisit when an agent binding genuinely needs it.
+### Added
+
 - **Cycle-095 — Model Currency** (Sprints 1+2 in this release; Sprint 3 deferred to post-soak) — gpt-5.5 family is now reachable through cheval, the `reviewer` and `reasoning` aliases default to `openai:gpt-5.5` (cost-safe non-pro), `tiny` tier alias added for Haiku 4.5, and the `fast-thinker` agent binding upgraded to Gemini 3 fast variant with probe-driven fallback chain.
   - **Sprint 1 — routing infrastructure**: `endpoint_family` field on every OpenAI registry entry routes between `/v1/chat/completions` and `/v1/responses`. Migration step + strict validation in same commit (`config/loader.py:_validate_endpoint_family`). `LOA_LEGACY_ENDPOINT_FAMILY_DEFAULT=chat` env-var backstop for operators with custom OpenAI entries. Six-shape `/v1/responses` normalizer (multi-block text, tool/function call, reasoning summary, refusal, empty, truncated) per PRD §3.1 / SDD §5.4. `LOA_FORCE_LEGACY_ALIASES=1` kill-switch restores pre-cycle-095 alias resolution at config-load time (`.claude/defaults/aliases-legacy.yaml` snapshot). Strict-default `UnsupportedResponseShapeError` for unknown shapes; opt-in `responses_unknown_shape_policy: degrade` escape hatch.
   - **Sprint 2 — alias flips + tiers + guardrails**: `aliases.reviewer` and `aliases.reasoning` flipped from `openai:gpt-5.3-codex` to `openai:gpt-5.5`. `gpt-5.3-codex` immutable self-map in `backward_compat_aliases:` — operators pinning the legacy ID literally continue resolving to that exact model (NOT silently retargeted to gpt-5.5). One-time INFO log emission on first resolution per process per legacy alias. Haiku 4.5 (`claude-haiku-4-5-20251001`) + `tiny` alias. Gemini 3 fast variant (`gemini-3-flash-preview`) + `gemini-3-flash` alias + `fallback_chain: ["google:gemini-2.5-flash"]`. Google adapter `_resolve_active_model` with probe-driven demotion + 300s cooldown hysteresis + WARN-once-per-(primary,fallback)-per-process. Probe-cache trust boundary (file owner UID + mode 0600 — SDD §3.5 SKP-003). FR-5a cost-guardrail primitives: `tier_groups:` schema block (structural; Sprint 3 populates `mappings:`); `metering/budget.py` `check_session_cap_pre`/`_post` with two-phase atomicity (pre-call worst-case estimate + `threading.Lock`); `LOA_PREFER_PRO_DRYRUN` env var + `routing/tier_groups.py` `dryrun_preview` helper.

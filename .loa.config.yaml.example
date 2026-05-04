@@ -738,6 +738,34 @@ hounfour:
             input_per_mtok: 3000000
             output_per_mtok: 15000000
 
+    # codex-headless: routes through `codex exec` for ChatGPT subscription auth.
+    # No api_key consumed — bills against the operator's ChatGPT subscription quota.
+    # Requires `codex` CLI (>=0.125.0 for gpt-5.5 + xhigh) on PATH and a one-time
+    # `codex login` to populate ~/.codex/auth.json.
+    #
+    # Same gpt-5.x line as the openai provider, just a different transport. Useful
+    # when bridgebuilder / spiraling / flatline-review token spend is large enough
+    # that subscription economics beat per-token API pricing.
+    codex-headless:
+      type: codex-headless
+      # No `auth:` field — auth is file-based (~/.codex/auth.json)
+      read_timeout: 600.0                  # codex agent loops can run longer than HTTP
+      models:
+        gpt-5.5:
+          capabilities: [chat, code]
+          context_window: 400000
+          token_param: max_completion_tokens
+          pricing:
+            # Subscription-billed: zero per-token cost ledger entry. The operator's
+            # subscription quota is the budget; cheval's per-Mtok metering should
+            # not double-count it.
+            input_per_mtok: 0
+            output_per_mtok: 0
+          extra:
+            reasoning_effort: high          # low | medium | high | xhigh
+            # codex_config_overrides:        # optional — extra `codex exec -c k=v` flags
+            #   reasoning_summaries: "true"
+
   # Flatline tertiary model — enables 3-model triangular cross-scoring
   # Requires GOOGLE_API_KEY to be set in environment
   flatline_tertiary_model: gemini-2.5-pro  # 3-model Flatline: Opus + GPT-5.3-codex + Gemini
