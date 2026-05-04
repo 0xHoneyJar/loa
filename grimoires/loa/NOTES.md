@@ -990,3 +990,39 @@ Triaged downstream report from `AITOBIAS04/echelon-core` v1.109.0 ship (PR #114)
 Triage at `grimoires/loa/a2a/bug-20260503-i697-475b02/triage.md`. Sprint plan: `sprint-bug-139`. Test-first plan: 1 unit test for gt_regen arg passing, 1 unit test for changelog routing, 1 integration test reproducing the cycle-105.5 mixed-history scenario.
 
 **Beads task creation failed during triage** with `dirty_issues.marked_at` NOT NULL constraint — pre-existing migration error in beads DB, unrelated to this bug. Worth following up as separate operator action; does not block `/implement sprint-bug-139` since the sprint is fully tracked via the ledger entry and disk artifacts.
+
+
+## Sprint 3 SHIPPED + Hardening Wave kickoff — 2026-05-04
+
+### Sprint 3 (L3 scheduled-cycle-template) — PR #712, commit `3e9c2f7`
+
+106 tests, 6 quality gates passed. Three CRITICAL findings closed with PoC-verified fixes (idempotency forgery, dispatch_contract path RCE, lock-touch symlink truncate). Full retrospective in `~/.claude/.../memory/project_cycle098_sprint3_shipped.md`.
+
+### Decision: stabilize Loa BEFORE Sprint 4
+
+Operator priority (2026-05-04): close inbound issues + bridgebuilder LOW backlogs before kicking off L4 graduated-trust. Execution order:
+
+1. **Sprint H1** (signed-mode harness) → closes #706 + #713; shared key-fixture lib at `tests/lib/signing-fixtures.sh`; adds L1/L2/L3 happy-path signed tests
+2. **Sprint H2** (BB LOW-batch consolidation) → closes #694 + #708 + #714 in one PR
+3. **/bug #711.A** (gpt-review-hook recursion — 94-line hook, no debouncing/trivial-detect; surgical fix to detect frontmatter-only edits)
+4. **/bug #711.B** (gpt-5.2 persistent 429 fallback chain — surface 429 body, fallback gpt-5.2-mini → Codex MCP)
+5. **/plan cycle-099** (model-registry consolidation #710 — multi-sprint refactor; 5+ live registries, dual runtime systems, Bridgebuilder TS dist/ rebuild required)
+
+After H1+H2 land, Sprint 4 (L4) is next per the original 7-sprint cycle-098 plan.
+
+### Inbound triage — model issues
+
+- **#710** (deep-name): model registry refactor → multi-sprint cycle, NOT /bug. Author classifies it as "documentation + refactor in nature ... probably fits as a multi-sprint refactor cycle."
+- **#711** (zkSoju): two distinct bugs bundled — hook recursion (PRIMARY) + gpt-5.2 429 (SECONDARY). Both fit /bug shape; can be split or combined.
+
+### Existing signed-mode test infra (spiked 2026-05-04)
+
+Sprint H1 builds on existing patterns:
+- `tests/integration/audit-envelope-bootstrap.bats` — manually creates trust-store + key dir per test
+- `tests/security/audit-envelope-strip-attack.bats` — exercises STRIP-ATTACK detection
+- `tests/integration/imp-001-negative.bats` — JCS divergence fixtures
+- `tests/unit/panel-audit-envelope.bats` — envelope-shape verification (NOT signed-mode happy path)
+- `.claude/scripts/lib/audit-signing-helper.py` — Python Ed25519 helper used by audit_emit
+- `grimoires/loa/runbooks/audit-keys-bootstrap.md` — operator key-generation runbook
+
+Gap: no SHARED setup helper for ephemeral test keys + trust-store. H1 introduces `tests/lib/signing-fixtures.sh` to consolidate.
