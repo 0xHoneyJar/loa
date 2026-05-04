@@ -56,8 +56,20 @@ _sign_fix_repo_root() {
     elif [[ -n "${BATS_TEST_FILENAME:-}" ]]; then
         ( cd "$(dirname "${BATS_TEST_FILENAME}")/../.." && pwd )
     else
-        # Fallback: assume cwd is repo root (allowed when sourced manually).
-        pwd
+        # Fallback: walk up from cwd looking for the sentinel file (the very
+        # script audit-envelope.sh that the helpers are about). Avoids the
+        # pwd-resolves-wrong-dir failure mode iter-1 review flagged.
+        local d
+        d="$(pwd)"
+        while [[ "$d" != "/" ]]; do
+            if [[ -f "${d}/.claude/scripts/audit-envelope.sh" ]]; then
+                echo "$d"
+                return 0
+            fi
+            d="$(dirname "$d")"
+        done
+        echo "_sign_fix_repo_root: cannot locate repo root from $(pwd) (no .claude/scripts/audit-envelope.sh in any ancestor)" >&2
+        return 1
     fi
 }
 
@@ -185,9 +197,12 @@ EOF
 # signing_fixtures_teardown — clean up TEST_DIR + unset env. Idempotent.
 # -----------------------------------------------------------------------------
 signing_fixtures_teardown() {
+    # Use rm -rf for atomic cleanup — find -delete left behind any non-file
+    # entries (symlinks, sockets) and forced the smoke test to weaken its
+    # assertion (review iter-1 H1-teardown-find-vs-rm). For an mktemp dir we
+    # control entirely, rm -rf is the idiomatic choice.
     if [[ -n "${TEST_DIR:-}" && -d "$TEST_DIR" ]]; then
-        find "$TEST_DIR" -type f -delete 2>/dev/null || true
-        find "$TEST_DIR" -type d -empty -delete 2>/dev/null || true
+        rm -rf -- "$TEST_DIR"
     fi
     unset LOA_AUDIT_KEY_DIR LOA_AUDIT_SIGNING_KEY_ID LOA_TRUST_STORE_FILE \
           LOA_AUDIT_VERIFY_SIGS TEST_DIR KEY_DIR \

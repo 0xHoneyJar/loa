@@ -151,12 +151,41 @@ teardown() {
     [[ "$has_pem" = "true" ]]
 }
 
+@test "fixtures: --update-trust-store cache-invalidation actually flips audit-envelope state" {
+    # Sprint H1 review MEDIUM (H1-cache-invalidation-private-state):
+    # signing_fixtures_register_extra_key clears the audit-envelope private
+    # cache vars by direct assignment. If those vars are ever renamed in
+    # audit-envelope.sh, our invalidation silently no-ops. This test catches
+    # the drift by ASSERTING the trust-store status genuinely flips from
+    # BOOTSTRAP-PENDING to a non-BOOTSTRAP state after --update-trust-store.
+    load_fixtures
+    signing_fixtures_setup --strict
+    # shellcheck source=/dev/null
+    source "$AUDIT_ENVELOPE"
+    # Pre-state: BOOTSTRAP-PENDING.
+    local pre
+    pre="$(_audit_trust_store_status)"
+    [[ "$pre" = "BOOTSTRAP-PENDING" ]]
+    # Register with trust-store update.
+    signing_fixtures_register_extra_key "extra-cache-test" --update-trust-store >/dev/null
+    # Post-state: audit-envelope must have observed the change. Either VERIFIED
+    # (won't happen — no signed root_sig) or INVALID (expected) — both prove
+    # the cache invalidation actually flipped status away from
+    # BOOTSTRAP-PENDING. If our private-var clear silently no-ops, this test
+    # would still see BOOTSTRAP-PENDING and fail.
+    local post
+    post="$(_audit_trust_store_status)"
+    [[ "$post" != "BOOTSTRAP-PENDING" ]]
+}
+
 @test "fixtures: teardown removes TEST_DIR and unsets env" {
     load_fixtures
     signing_fixtures_setup --strict
     local td="$TEST_DIR"
     signing_fixtures_teardown
-    [[ ! -d "$td" ]] || [[ -z "$(ls -A "$td" 2>/dev/null)" ]]
+    # rm -rf cleanup → dir must be gone (was weakened with `|| ls -A` before;
+    # that hid teardown gaps per review iter-1 H1-teardown-find-vs-rm).
+    [[ ! -d "$td" ]]
     [[ -z "${LOA_AUDIT_KEY_DIR:-}" ]]
     [[ -z "${LOA_AUDIT_SIGNING_KEY_ID:-}" ]]
     [[ -z "${LOA_TRUST_STORE_FILE:-}" ]]
@@ -210,11 +239,18 @@ teardown() {
     [ "$status" -ne 0 ]
 }
 
-@test "fixtures: --cutoff in future suppresses post-cutoff strip-attack gate" {
-    # Sprint H1 review MEDIUM (smoke #7 expansion): observed effect of cutoff.
-    # With cutoff in 2099, an unsigned entry written after VERIFY_SIGS=1 set
-    # is still pre-cutoff (any real-world ts_utc < 2099) — strip-attack gate
-    # does NOT fire. Confirms the cutoff plumbing actually wires through.
+@test "fixtures: --cutoff in future pins current pre-cutoff behavior (CHANGE-DETECTOR)" {
+    # Sprint H1 review MEDIUM (H1-strict-cutoff-future-cutoff-naming):
+    # **This test PINS current audit-envelope.sh behavior, not a security
+    # invariant.** Currently, a pre-cutoff entry can have signature stripped
+    # and audit_verify_chain still returns 0. If audit-envelope.sh is ever
+    # hardened to require signatures REGARDLESS of cutoff (a defensible
+    # security improvement), this test goes RED — and the correct response
+    # is to UPDATE the test, not to revert the hardening.
+    #
+    # The test ALSO confirms the --cutoff plumbing wires through (smoke #7
+    # only checked that the yaml field was updated; this verifies the
+    # behavioral effect).
     load_fixtures
     signing_fixtures_setup --strict --cutoff "2099-01-01T00:00:00Z"
     # shellcheck source=/dev/null
@@ -224,7 +260,8 @@ teardown() {
     # Strip the signature to simulate the strip attack.
     local stripped="${TEST_DIR}/stripped.jsonl"
     jq -c 'del(.signature, .signing_key_id)' "$log" > "$stripped"
-    # With cutoff in future, the strip-attack gate is dormant — chain validates.
+    # CURRENT BEHAVIOR: cutoff in future → strip-attack gate dormant.
+    # Update this test if audit-envelope.sh hardens to require sigs always.
     LOA_AUDIT_VERIFY_SIGS=1 run audit_verify_chain "$stripped"
     [ "$status" -eq 0 ]
 }

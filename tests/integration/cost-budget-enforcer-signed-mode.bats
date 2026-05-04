@@ -91,7 +91,11 @@ teardown() {
     run jq -sr '.[] | select(.event_type == "budget.allow") | .signature' "$BUDGET_LOG"
     [ -n "$output" ]
     [ "$output" != "null" ]
-    [[ "$output" =~ ^[A-Za-z0-9+/]+={0,2}$ ]]
+    # Ed25519 base64 signatures are 88 chars (64 raw bytes). Tightened from
+    # `^[A-Za-z0-9+/]+={0,2}$` (review iter-1 H1-base64-regex-allows-empty)
+    # to catch silent truncation regressions.
+    [[ "$output" =~ ^[A-Za-z0-9+/]{86,88}={0,2}$ ]]
+    [ "${#output}" -eq 88 ]
     run jq -sr '.[] | select(.event_type == "budget.allow") | .signing_key_id' "$BUDGET_LOG"
     [ "$output" = "test-budget-writer" ]
 }
@@ -162,6 +166,27 @@ teardown() {
     } > "$tmp"
     run audit_verify_chain "$tmp"
     [ "$status" -ne 0 ]
+}
+
+@test "L2 signed-mode: budget_reconcile drift-BLOCKER ALSO emits a SIGNED envelope (covers drift code path)" {
+    # Sprint H1 review MEDIUM (H1-drift-threshold-magic-value): the other
+    # tests set DRIFT_THRESHOLD=999999 to suppress the BLOCKER. That means
+    # the drift code path gets ZERO signed-mode coverage. This test inverts:
+    # restore the default-ish 5% threshold, force a drift, and assert that
+    # whatever envelope budget_reconcile emits IS signed. Catches a regression
+    # where an early-return on drift-BLOCKER bypasses the signing path.
+    LOA_BUDGET_DRIFT_THRESHOLD="5" budget_record_call "1.00" --provider "anthropic"
+    # Aggregate observer reports usd_used=5 → vs counter=1 for anthropic =
+    # 80% drift > 5% threshold = BLOCKER fires.
+    LOA_BUDGET_DRIFT_THRESHOLD="5" budget_reconcile --provider "anthropic" || true
+    # Whatever budget.reconcile envelope was written, it MUST carry a sig.
+    run jq -sr '.[] | select(.event_type == "budget.reconcile") | .signature' "$BUDGET_LOG"
+    [ -n "$output" ]
+    [ "$output" != "null" ]
+    [ "${#output}" -eq 88 ]
+    # The envelope payload must reflect the BLOCKER state.
+    run jq -sr '.[] | select(.event_type == "budget.reconcile") | .payload.blocker' "$BUDGET_LOG"
+    [ "$output" = "true" ]
 }
 
 @test "L2 signed-mode: payload tamper detected by SIGNATURE (chain-repaired test isolates the gate)" {
