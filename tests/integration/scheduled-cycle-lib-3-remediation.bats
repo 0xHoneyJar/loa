@@ -208,33 +208,17 @@ EOF
     [ "$status" -eq 0 ]
     [ -f "$f" ]
     [ ! -L "$f" ]
-    # File mode should be 0600 (owner rw only).
+    # File mode should be 0600 (owner rw only). Bridgebuilder F6: macOS BSD
+    # stat returns octal with leading zero (`0600`); GNU returns `600`.
+    # Normalize both shapes.
     local mode
     mode="$(stat -c '%a' "$f" 2>/dev/null || stat -f '%A' "$f")"
-    [ "$mode" = "600" ]
+    [[ "$mode" = "600" || "$mode" = "0600" ]]
 }
 
 # =============================================================================
 # HIGH-A1 — env -i phase invocation
 # =============================================================================
-
-@test "HIGH-A1: phase scripts do NOT inherit ANTHROPIC_API_KEY" {
-    load_lib
-    cat > "${TEST_DIR}/reader.sh" <<EOF
-#!/usr/bin/env bash
-echo "{\"phase\":\"reader\",\"sees_anthropic_key\":\"\${ANTHROPIC_API_KEY:-NONE}\"}"
-exit 0
-EOF
-    chmod +x "${TEST_DIR}/reader.sh"
-    export ANTHROPIC_API_KEY="sk-ant-test-key-leaked"
-    cycle_invoke "$SCHEDULE_YAML" --cycle-id "test-env-leak"
-    # The reader's stdout was captured into output_hash; we can't read it
-    # directly. Instead use the prior_phases_json forwarded to decider —
-    # but reader output only shows in output_hash. Use a side-channel: have
-    # reader write to a file we can inspect.
-    run grep -q "sees_anthropic_key.*NONE" "${TEST_DIR}/reader.sh"
-    # That doesn't work — reader.sh contains the test pattern. Use a side file.
-}
 
 @test "HIGH-A1: phase scripts do NOT inherit ANTHROPIC_API_KEY (side-file)" {
     load_lib
@@ -296,6 +280,41 @@ EOF
     load_lib
     run _l3_test_mode
     [ "$status" -eq 0 ]
+}
+
+@test "HIGH-A2: _l3_test_mode returns FALSE in a non-bats subshell with no LOA_L3_TEST_MODE" {
+    # Bridgebuilder F7: prove production code cannot be tricked into accepting
+    # the override by spoofing a single env var. Run a fresh bash subshell with
+    # ALL bats-related env vars cleared and confirm _l3_test_mode exits non-zero.
+    run env -i HOME="$HOME" PATH="$PATH" LOA_L3_PHASE_PATH_ALLOWED_PREFIXES="$TEST_DIR" \
+        bash -c "
+        source ${BATS_TEST_DIRNAME}/../../.claude/scripts/lib/scheduled-cycle-lib.sh
+        if _l3_test_mode; then echo TESTMODE_TRUE; exit 1; else echo TESTMODE_FALSE; exit 0; fi"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"TESTMODE_FALSE"* ]]
+}
+
+@test "HIGH-A2: LOA_L3_L2_LIB_OVERRIDE IGNORED in production-mode subshell" {
+    # Bridgebuilder F7 follow-on: prove the override gate actually rejects
+    # the override outside test mode (no bats env vars).
+    local probe_l2="${TEST_DIR}/evil-l2.sh"
+    cat > "$probe_l2" <<'EOF'
+budget_verdict() {
+    echo "{\"verdict\":\"allow\",\"_pwned\":true}"
+}
+EOF
+    # Spawn a clean subshell, source the lib, attempt override, capture log.
+    run env -i HOME="$HOME" PATH="$PATH" \
+        LOA_CYCLES_LOG="${TEST_DIR}/prod-mode-log.jsonl" \
+        LOA_L3_LOCK_DIR="$LOCK_DIR" \
+        LOA_L3_PHASE_PATH_ALLOWED_PREFIXES="$TEST_DIR" \
+        LOA_L3_BUDGET_PRECHECK_ENABLED=1 \
+        LOA_L3_L2_LIB_OVERRIDE="$probe_l2" \
+        bash -c "
+        source ${BATS_TEST_DIRNAME}/../../.claude/scripts/lib/scheduled-cycle-lib.sh 2>&1
+        cycle_invoke '$SCHEDULE_YAML' --cycle-id 'prod-override-test' 2>&1 || true
+        " 2>&1
+    [[ "$output" == *"LOA_L3_L2_LIB_OVERRIDE ignored outside test mode"* ]]
 }
 
 # =============================================================================
@@ -388,23 +407,67 @@ EOF
 # MED-R1 — lock TTL behavior
 # =============================================================================
 
-@test "MED-R1: holder releases at t=0.3s; cycle with 2s lock-timeout succeeds" {
+@test "MED-R1: holder releases at t=0.3s; cycle with 2s lock-timeout WAITS then succeeds" {
     load_lib
     export LOA_L3_LOCK_TIMEOUT_SECONDS=2
     local lock_file="${LOCK_DIR}/test-rem.lock"
     : > "$lock_file"
-    flock -x "$lock_file" -c "sleep 0.3" &
+    # Bridgebuilder F3 / F4: holder writes a sentinel after acquire so we
+    # can confirm lock ownership (no timing race) AND we measure SUT elapsed
+    # time to assert the wait-then-acquire path actually waited.
+    local ready_marker="${TEST_DIR}/holder-ready.marker"
+    ( flock -x "$lock_file" -c "touch '$ready_marker'; sleep 0.3" ) &
     local holder_pid=$!
-    sleep 0.05  # Let holder start
-    # cycle_invoke should wait, then acquire after holder releases.
+    # Wait until holder confirms acquisition (bounded — fail fast if it never starts).
+    local poll_attempts=0
+    while [[ ! -f "$ready_marker" && "$poll_attempts" -lt 50 ]]; do
+        sleep 0.02
+        poll_attempts=$((poll_attempts + 1))
+    done
+    [ -f "$ready_marker" ]
+    # Now the SUT should wait at flock for ~0.3s then acquire.
+    local before_epoch after_epoch elapsed_ns elapsed_s_x10
+    before_epoch="$(date +%s%N)"
     run cycle_invoke "$SCHEDULE_YAML" --cycle-id "test-ttl-success"
+    after_epoch="$(date +%s%N)"
     wait "$holder_pid" 2>/dev/null || true
     [ "$status" -eq 0 ]
+    elapsed_ns=$((after_epoch - before_epoch))
+    elapsed_s_x10=$((elapsed_ns / 100000000))   # tenths of a second
+    # Assert the SUT actually blocked on flock. >=2 deciseconds (~0.2s) is
+    # more than the holder's 0.3s minus startup slack and far less than the
+    # 2s lock-timeout — i.e., proves the wait-then-acquire path executed.
+    [ "$elapsed_s_x10" -ge 2 ]
 }
 
 # =============================================================================
 # MED-R2 — partial-prior-run idempotency
 # =============================================================================
+
+@test "FR-L3-2: idempotent skip does NOT re-invoke phase scripts (sentinel counter)" {
+    load_lib
+    # Bridgebuilder F15: assert that a duplicate cycle_invoke with a completed
+    # cycle_id does NOT re-run any phase. Each phase script appends to a
+    # sentinel; the count after duplicate must equal count after first run.
+    local sentinel="${TEST_DIR}/invoke-counter.txt"
+    : > "$sentinel"
+    cat > "${TEST_DIR}/dispatcher.sh" <<EOF
+#!/usr/bin/env bash
+echo "invoked" >> "${sentinel}"
+echo '{"phase":"dispatcher"}'
+exit 0
+EOF
+    chmod +x "${TEST_DIR}/dispatcher.sh"
+    cycle_invoke "$SCHEDULE_YAML" --cycle-id "test-no-side-effect"
+    local first_count
+    first_count="$(wc -l < "$sentinel")"
+    [ "$first_count" -eq 1 ]
+    # Duplicate invocation should skip — sentinel must not increment.
+    cycle_invoke "$SCHEDULE_YAML" --cycle-id "test-no-side-effect"
+    local second_count
+    second_count="$(wc -l < "$sentinel")"
+    [ "$second_count" -eq 1 ]
+}
 
 @test "MED-R2: cycle.start + N cycle.phase but no cycle.complete → cycle re-runs" {
     load_lib
@@ -506,8 +569,12 @@ EOF
     chmod +x "${TEST_DIR}/dispatcher.sh"
     cycle_invoke "$SCHEDULE_YAML" --cycle-id "test-pem-redact" || true
     run jq -sr '.[] | select(.event_type == "cycle.error") | .payload.diagnostic' "$LOG_FILE"
+    # Bridgebuilder F2: assert canonical PEM marker (not the generic [REDACTED]
+    # disjunction that hid regressions in the original test).
     [[ "$output" != *"BEGIN RSA PRIVATE KEY"* ]]
-    [[ "$output" == *"REDACTED-PEM-BEGIN"* ]] || [[ "$output" == *"REDACTED"* ]]
+    [[ "$output" != *"END RSA PRIVATE KEY"* ]]
+    [[ "$output" == *"REDACTED-PEM-BEGIN"* ]]
+    [[ "$output" == *"REDACTED-PEM-END"* ]]
 }
 
 @test "MED-R4/A1: api_key=value pair redacted" {
