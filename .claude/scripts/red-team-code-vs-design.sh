@@ -33,6 +33,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
+
+# cycle-099 sprint-1B (T1.4): resolve aliases via the shared lib instead of
+# hardcoding `--model opus`. Source-of-truth = .claude/defaults/model-config.yaml.
+# shellcheck source=lib/model-resolver.sh
+source "$SCRIPT_DIR/lib/model-resolver.sh"
 MODEL_ADAPTER="$SCRIPT_DIR/model-adapter.sh"
 
 # Source shared libraries (cycle-047 T3.3)
@@ -444,8 +449,19 @@ PROMPT
     # Invoke model
     log "Invoking model for code-vs-design comparison (budget: $token_budget tokens)"
     local model_output exit_code=0
+    # cycle-099 sprint-1B (T1.4): alias resolved via the shared resolver lib;
+    # downstream model-adapter still receives an alias (not provider:model_id)
+    # because that's the format model-adapter expects, but we now go through
+    # MODEL_IDS so the alias-retirement loop at the codegen layer is the only
+    # source of truth. If `opus` is ever retired upstream, resolve_alias fails
+    # loudly here instead of silent-routing to a stale model.
+    local _opus_model_id
+    _opus_model_id="$(resolve_alias opus)" || {
+        error "resolve_alias opus failed — model-config.yaml registry inconsistency"
+        exit 1
+    }
     model_output=$("$MODEL_ADAPTER" \
-        --model opus \
+        --model "$_opus_model_id" \
         --mode dissent \
         --input "$prompt_file" \
         --timeout 120 \

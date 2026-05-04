@@ -40,6 +40,16 @@ CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
 LEGACY_ADAPTER="$SCRIPT_DIR/model-adapter.sh.legacy"
 MODEL_INVOKE="$SCRIPT_DIR/model-invoke"
 
+# cycle-099 sprint-1B (T1.8): bring the canonical model registry into scope
+# (MODEL_PROVIDERS / MODEL_IDS / COST_INPUT / COST_OUTPUT). The local
+# MODEL_TO_ALIAS map below is preserved for the test contract in
+# tests/unit/model-adapter-aliases.bats (T8 greps the file for keys),
+# but lookups now prefer resolve_provider_id at the call site (line ~470)
+# so retired aliases fail loudly at the codegen layer instead of silent-
+# routing through a stale local entry.
+# shellcheck source=lib/model-resolver.sh
+source "$SCRIPT_DIR/lib/model-resolver.sh"
+
 # =============================================================================
 # Feature Flag Check
 # =============================================================================
@@ -453,10 +463,16 @@ main() {
         exit 2
     fi
 
-    # Translate legacy model name to model-invoke provider:model-id format
-    local model_override="${MODEL_TO_ALIAS[$model]:-}"
-    if [[ -z "$model_override" ]]; then
-        # Unknown model — try passing as-is (may be already in provider:model format)
+    # cycle-099 sprint-1B (T1.8): prefer the yaml-derived registry; fall back
+    # to the local MODEL_TO_ALIAS for backward-compat keys (claude-opus-4.0
+    # through 4.5 retargets) that may not be in the generated map.
+    # Last-resort: pass $model as-is (may already be in provider:model format).
+    local model_override
+    if model_override="$(resolve_provider_id "$model" 2>/dev/null)"; then
+        : # canonical alias resolved via shared lib
+    elif [[ -n "${MODEL_TO_ALIAS[$model]:-}" ]]; then
+        model_override="${MODEL_TO_ALIAS[$model]}"
+    else
         model_override="$model"
     fi
 

@@ -25,6 +25,16 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/bootstrap.sh"
 
+# cycle-099 sprint-1B (T1.3): bring the canonical model registry into scope.
+# Populates MODEL_PROVIDERS / MODEL_IDS / COST_INPUT / COST_OUTPUT from the
+# yaml-derived generated-model-maps.sh, plus exposes resolve_alias /
+# resolve_provider_id. The local MODEL_TO_PROVIDER_ID below remains as the
+# fallback seam for red-team-only aliases (kimi, qwen, gpt, gemini) that are
+# intentionally NOT in model-config.yaml — see G-7 invariant in
+# tests/integration/model-registry-sync.bats.
+# shellcheck source=lib/model-resolver.sh
+source "$SCRIPT_DIR/lib/model-resolver.sh"
+
 FIXTURES_DIR="$PROJECT_ROOT/.claude/data/red-team-fixtures"
 MODEL_INVOKE="$SCRIPT_DIR/model-invoke"
 CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
@@ -361,7 +371,16 @@ invoke_live() {
     fi
 
     local agent="${ROLE_TO_AGENT[$role]:-flatline-reviewer}"
-    local model_override="${MODEL_TO_PROVIDER_ID[$model]:-$model}"
+    # cycle-099 sprint-1B (T1.3): prefer the yaml-derived registry; fall back
+    # to the local MODEL_TO_PROVIDER_ID for red-team-only aliases not in yaml
+    # (kimi, qwen, gpt, gemini per G-7 invariant). If both miss, last-resort
+    # fallback is the raw $model string (matches pre-migration behavior).
+    local model_override
+    if model_override="$(resolve_provider_id "$model" 2>/dev/null)"; then
+        : # canonical alias resolved via shared lib
+    else
+        model_override="${MODEL_TO_PROVIDER_ID[$model]:-$model}"
+    fi
 
     log "Live invocation: role=$role agent=$agent model=$model_override"
 

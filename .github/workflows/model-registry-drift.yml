@@ -1,0 +1,117 @@
+name: Model Registry Drift Gate
+
+# cycle-099 sprint-1B (T1.5) — CI gate that catches drift between
+# .claude/defaults/model-config.yaml (source of truth) and the codegen
+# outputs that consumers compile against:
+#
+#   - .claude/scripts/generated-model-maps.sh         (cycle-095 gen-adapter-maps.sh)
+#   - .claude/skills/bridgebuilder-review/resources/{core/truncation.generated.ts, config.generated.ts}
+#     (sprint-1A gen-bb-registry.ts)
+#   - .claude/defaults/model-config.yaml.checksum     (sprint-1B T1.6 lockfile)
+#
+# Every PR that touches the yaml or the generated artifacts must regenerate
+# all three so the drift surface stays at zero (PRD G-3).
+
+on:
+  pull_request:
+    paths:
+      - '.claude/defaults/model-config.yaml'
+      - '.claude/defaults/model-config.yaml.checksum'
+      - '.claude/scripts/generated-model-maps.sh'
+      - '.claude/scripts/gen-adapter-maps.sh'
+      - '.claude/skills/bridgebuilder-review/scripts/gen-bb-registry.ts'
+      - '.claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts'
+      - '.claude/skills/bridgebuilder-review/resources/config.generated.ts'
+      - '.claude/skills/bridgebuilder-review/package.json'
+      - '.claude/skills/bridgebuilder-review/package-lock.json'
+      - '.github/workflows/model-registry-drift.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: model-registry-drift-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lockfile-checksum:
+    name: Lockfile checksum
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Verify model-config.yaml.checksum matches yaml SHA256
+        run: |
+          set -euo pipefail
+          recorded="$(cat .claude/defaults/model-config.yaml.checksum | tr -d '\n[:space:]')"
+          computed="$(sha256sum < .claude/defaults/model-config.yaml | awk '{print $1}')"
+          if [ "$recorded" != "$computed" ]; then
+              echo "::error::[DRIFT-LOCKFILE-MISMATCH] model-config.yaml mutated without checksum bump"
+              echo "  recorded:  $recorded"
+              echo "  computed:  $computed"
+              echo
+              echo "Refresh the lockfile:"
+              echo "  sha256sum .claude/defaults/model-config.yaml | awk '{print \$1}' > .claude/defaults/model-config.yaml.checksum"
+              exit 1
+          fi
+          echo "Lockfile in sync (sha256 = $recorded)"
+
+  bash-codegen-check:
+    name: Bash codegen (gen-adapter-maps)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Install yq
+        run: |
+          set -euo pipefail
+          # mikefarah/yq v4 — same toolchain as the generator.
+          # Pinned to v4.52.4 to match .github/workflows/bats-tests.yml — keeps
+          # CI lanes on the same yq parser (audit M2: avoid version skew).
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+          yq --version
+
+      - name: Run gen-adapter-maps --check
+        run: |
+          set -euo pipefail
+          if ! bash .claude/scripts/gen-adapter-maps.sh --check; then
+              echo "::error::[DRIFT-DETECTED] generated-model-maps.sh stale vs model-config.yaml"
+              echo "  regenerate: bash .claude/scripts/gen-adapter-maps.sh"
+              exit 1
+          fi
+          echo "generated-model-maps.sh in sync"
+
+  ts-codegen-check:
+    name: TS codegen (gen-bb-registry)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '20'
+
+      - name: Install yq
+        run: |
+          set -euo pipefail
+          # Pinned to v4.52.4 to match .github/workflows/bats-tests.yml — keeps
+          # CI lanes on the same yq parser (audit M2: avoid version skew).
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Install BB skill devDeps (pinned tsx + typescript)
+        working-directory: .claude/skills/bridgebuilder-review
+        run: npm ci
+
+      - name: Run gen-bb-registry --check
+        working-directory: .claude/skills/bridgebuilder-review
+        run: |
+          set -euo pipefail
+          if ! npm run gen-bb-registry:check; then
+              echo "::error::[DRIFT-DETECTED] BB skill generated TS stale vs model-config.yaml"
+              echo "  regenerate: cd .claude/skills/bridgebuilder-review && npm run gen-bb-registry"
+              exit 1
+          fi
+          echo "BB skill generated TS in sync"
