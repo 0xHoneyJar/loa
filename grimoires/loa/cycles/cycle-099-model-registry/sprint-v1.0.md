@@ -1,6 +1,6 @@
 # Sprint Plan — Cycle-099: Model Registry Consolidation + Per-Skill Granularity
 
-**Version:** 1.1 (Flatline pass #1 kaironic stop: 3 real fixes + 3 tradeoff acknowledgements + 2 DISPUTED recorded)
+**Version:** 1.0
 **Date:** 2026-05-04
 **Author:** Sprint Planner Agent (deep-name + Claude Opus 4.7 1M)
 **PRD Reference:** `grimoires/loa/prd.md` (v1.3 — 3 PRD-level Flatline passes; kaironic plateau at pass #3)
@@ -8,17 +8,6 @@
 **Cycle (proposed for ledger):** `cycle-099-model-registry`
 **Predecessor cycle:** `cycle-098-agent-network` (sprint counter ended at global_id=138; cycle-099 reservations 139-142)
 **Source issue:** [#710](https://github.com/0xHoneyJar/loa/issues/710) — Refactor: consolidate model registries to single source of truth + add config extension mechanism
-**Status:** Sprint plan ready for cycle-099 ledger activation + /run sprint-1 (1 sprint-level Flatline pass complete; kaironic stop pattern matches PRD + SDD).
-
-> **v1.0 → v1.1 changes** (Flatline Sprint pass #1 — kaironic stop, `grimoires/loa/a2a/flatline/cycle-099-sprint-review.json`, Opus + GPT-5.3-codex + Gemini-3.1-pro-preview, 80% model agreement; 17 findings; 3 real fixes + 3 tradeoff acknowledgements + 2 DISPUTED recorded):
-> - **SKP-001 (CRITICAL 930) integrated** — per-sprint risk + de-scope criteria + Buffer Policy subsection in Sprint Overview; new R-Timeline (HIGH) in Risk Register.
-> - **SKP-001 (HIGH 850) integrated** — `--no-verify` safety policy with manual pre-commit-equivalent check + commit-message audit trail + PR-level checkbox; new R-NoVerify (MEDIUM) in Risk Register.
-> - **IMP-001 + IMP-002 (HIGH_CONSENSUS 855 + 830) integrated** — per-sprint Rollback Criteria + Sprint Exit Gate subsections in all 4 sprint sections.
-> - **SKP-003 (HIGH 780) acknowledged** — Bus Factor tradeoff in Risk Register R-BusFactor; backup-operator-of-record TBD-by-Sprint-1; 72h escalation rule documented.
-> - **SKP-002 (CRITICAL 900) acknowledged** — sprint-level surfacing of SDD pass #1-3 SKP-003/005/006; T1.15 + T2.X security tasks ARE the integration; no duplicate work.
-> - **IMP-008 (HIGH_CONSENSUS 780) deferred** — production metrics (legacy usage, CDN exemption, degraded-mode fleet aggregation) deferred to follow-up "observability cycle" or v2.
-> - **DISPUTED (2) recorded** — IMP-009 concurrent startup race AT (defer to T1.X review), IMP-010 per-sprint subagent docs (operator-preference; no formal plan element).
-> - **Kaironic stop declared** — pass #1 found legitimate sprint-level concerns; tight integration covers real fixes + acknowledged tradeoffs; no pass #2 needed (mirrors PRD v1.2→v1.3 + SDD v1.2→v1.3 kaironic stop pattern).
 
 ---
 
@@ -68,15 +57,6 @@ The cycle is **acknowledged to be wider than the PRD's original framing** per SD
 **Total Tests Estimated:** ~160 (per SDD §8.0 acknowledgement)
 **Total Cost Estimated:** $200-300 (per SDD §8.0 acknowledgement)
 
-### Buffer Policy
-
-**Inter-sprint buffer**: PRD projected zero inter-sprint buffer (cycle-098 retrospective: cycle-098 sprints layered cleanly). SDD acknowledged 5-6 weeks. Sprint pass #1 SKP-001 CRITICAL 930 flags compression risk. **Buffer activation rule**: if Sprint N exit gate (per IMP-002 fix below) requires 2+ remediation rounds OR if cumulative cost exceeds Sprint N estimate by >30%, activate Sprint N+0.5 buffer week before Sprint N+1 starts. Buffer is for: (a) Sprint N polish + remediation; (b) Sprint N+1 prep refresh; (c) operator scope review.
-
-### `--no-verify` Safety Policy
-
-**`--no-verify` safety policy** (per Flatline SKP-001 HIGH 850): when `--no-verify` is used (beads UNHEALTHY workaround), operator MUST: (i) run pre-commit-equivalent checks manually (`pre-commit run --all-files` against staged changes); (ii) trust PR-level CI to catch any pre-commit-equivalent issues that slipped through; (iii) every `--no-verify` usage MUST be logged in the commit message body with `[NO-VERIFY-RATIONALE: <reason>]` tag; (iv) PR description includes a checkbox "manual pre-commit-equivalent check ran — output: green" that gates merge.
-Rationale: `--no-verify` is necessary while #661 is open, but pre-commit catches secrets, lint, and merge conflicts that PR-level CI may miss until later. Manual equivalent + audit trail keeps the safety net intact.
-
 ---
 
 ## Sprint 1: SoT Extension Foundation + Cross-Cutting Hardening
@@ -90,14 +70,6 @@ Rationale: `--no-verify` is necessary while #661 is open, but pre-commit catches
 ### Sprint Goal
 
 Codegen pipeline + cross-runtime golden test corpus + drift CI gate are operational, hardening primitives (log-redactor, migration CLI, centralized endpoint validator) are in place, and existing skills (Red Team, default `model-adapter.sh`) source from `generated-model-maps.sh` instead of independent registries. **Acceptance theme (SDD §8 Sprint 1): "Codegen and drift gate work; nothing else changes."**
-
-### Risk + De-scope Policy
-
-**Risk + de-scope policy**: Sprint 1 has **HIGH** timeline risk based on task count (15 tasks) + complexity (codegen + 3 cross-runtime runners + endpoint validator + migration CLI). De-scope candidates (P1 tasks moveable to follow-up cycle if Sprint 1 capacity exceeded): T1.13 (log-redactor module — could ship as Sprint 2 prerequisite), T1.14 (migration CLI — could defer to Sprint 2 if no operator v1 configs surface), T1.15 (centralized endpoint validator — could split TS port to Sprint 2). Activate buffer week (suspend Sprint 2 start) if Sprint 1 exit gate fails on first attempt.
-
-### Sprint-Level Security Controls (sprint-level surfacing of SDD findings)
-
-**Sprint-level security controls**: Sprint pass #1 SKP-002 CRITICAL 900 is sprint-level surfacing of SDD pass #1-3 findings (URL canonicalization §6.5, CDN exemption §1.6/§1.9, centralized endpoint-validator §1.9.1). The implementation tasks (T1.15 endpoint-validator, T2.6 schema validation, T2.X security tests) ARE the integration of those SDD findings. No new sprint-level integration needed; **the SDD-integrated tasks ARE the response to this sprint-level finding**.
 
 ### Deliverables
 
@@ -184,14 +156,6 @@ Codegen pipeline + cross-runtime golden test corpus + drift CI gate are operatio
 - Sprint 1 cumulative wall-clock: ≤1.5 weeks (within de-scope trigger)
 - Sprint 1 cost: ≤$50 (within PRD §Timeline budget)
 
-### Rollback Criteria
-
-**Rollback criteria** (per Flatline IMP-001 HIGH_CONSENSUS 855): If Sprint 1 introduces a regression detected within 5 days of merge (foundational sprint — shorter window for fast detection), rollback procedure: (a) revert the Sprint 1 PR via `git revert -m 1 <merge-sha>`; (b) re-deploy artifacts (operator-side `dist/`, framework-side packaged release) at the previous cycle-098 SHA (HEAD before cycle-099 begins); (c) regression tracked as `cycle-099-sprint-1-regression-<id>` follow-up.
-
-### Sprint Exit Gate
-
-**Sprint Exit Gate** (per Flatline IMP-002 HIGH_CONSENSUS 830): Sprint 2 cannot start until: (i) all P0 tasks have status `closed`; (ii) cumulative test count met (Sprint 1 ≥40); (iii) review-sprint + audit-sprint quality gates passed; (iv) sprint-level Flatline review converged (kaironic stop); (v) operator confirmation logged in `grimoires/loa/cycles/cycle-099-model-registry/decisions/sprint-1-exit-gate-<date>.md`. Failure of any criterion activates Sprint 1.5 buffer week.
-
 ---
 
 ## Sprint 2: Config Extension + Per-Skill Granularity + Runtime Overlay
@@ -205,10 +169,6 @@ Codegen pipeline + cross-runtime golden test corpus + drift CI gate are operatio
 ### Sprint Goal
 
 Operators can register new models in `.loa.config.yaml::model_aliases_extra`, express per-skill tier-tag granularity in `skill_models`, and observe the FR-3.9 6-stage deterministic resolver via `model-invoke --validate-bindings` and `LOA_DEBUG_MODEL_RESOLUTION=1`. Legacy config shapes continue working with deprecation warnings (one-cycle window). Endpoint allowlist + URL canonicalization + DNS rebinding defense are operational. **Acceptance theme (SDD §8 Sprint 2): "Operator can extend; tier-tag granularity works; legacy still works."**
-
-### Risk + De-scope Policy
-
-**Risk + de-scope policy**: Sprint 2 has **HIGH** timeline risk based on task count (16 tasks) + complexity (loader extension + Python overlay + atomic-write + flock + 6-stage resolver + URL canon + SSRF defense). De-scope candidates (P1 tasks moveable to follow-up cycle if Sprint 2 capacity exceeded): T2.8 (`prefer_pro_models` overlay — could defer to cycle-100 since legacy gate keeps cycle-095 behavior), T2.13 (`LOA_DEBUG_MODEL_RESOLUTION` tracing — could defer if T2.12 `--validate-bindings` provides sufficient diagnostic surface), T2.16 (network-fs runbook — could defer to Sprint 3 since AC-S2.8 detection already works). Activate buffer week (suspend Sprint 3 start) if Sprint 2 exit gate fails on first attempt.
 
 ### Deliverables
 
@@ -302,14 +262,6 @@ Operators can register new models in `.loa.config.yaml::model_aliases_extra`, ex
 - Sprint 2 cumulative wall-clock: ≤1.5 weeks
 - Sprint 2 cost: ≤$50
 
-### Rollback Criteria
-
-**Rollback criteria** (per Flatline IMP-001 HIGH_CONSENSUS 855): If Sprint 2 introduces a regression detected within 7 days of merge (config schema risk window), rollback procedure: (a) revert the Sprint 2 PR via `git revert -m 1 <merge-sha>`; (b) re-deploy artifacts (operator-side `dist/`, framework-side packaged release) at the previous Sprint 1 SHA; (c) regression tracked as `cycle-099-sprint-2-regression-<id>` follow-up.
-
-### Sprint Exit Gate
-
-**Sprint Exit Gate** (per Flatline IMP-002 HIGH_CONSENSUS 830): Sprint 3 cannot start until: (i) all P0 tasks have status `closed`; (ii) cumulative test count met (Sprint 2 ≥75); (iii) review-sprint + audit-sprint quality gates passed; (iv) sprint-level Flatline review converged (kaironic stop); (v) operator confirmation logged in `grimoires/loa/cycles/cycle-099-model-registry/decisions/sprint-2-exit-gate-<date>.md`. Failure of any criterion activates Sprint 2.5 buffer week.
-
 ---
 
 ## Sprint 3: Persona + Docs Migration + Model-Permissions Codegen + Bridgebuilder Dist Regen
@@ -323,10 +275,6 @@ Operators can register new models in `.loa.config.yaml::model_aliases_extra`, ex
 ### Sprint Goal
 
 Persona docs, protocol docs, and `model-permissions.yaml` are derived from the SoT via codegen. Bridgebuilder `dist/` is regenerated from SoT + tagged as `cycle-099-dist-RC1` for downstream submodule consumers. The full registry consolidation (registries 1-13 from PRD §Problem Statement) is complete. **Acceptance theme (SDD §8 Sprint 3): "Persona docs derive; model-permissions merged; Bridgebuilder dist regenerated."**
-
-### Risk + De-scope Policy
-
-**Risk + de-scope policy**: Sprint 3 has **MEDIUM** timeline risk based on task count (11 tasks) — lower than S1/S2 — but with HIGH-impact downstream-consumer surface (T3.7 dist regen). De-scope candidates (P1 tasks moveable to follow-up cycle if Sprint 3 capacity exceeded): T3.9 (permissions-removal runbook — could defer to cycle-100 since cycle-101 minimum deletion already documented in PRD/SDD), T3.10 (cycle-099-dist-RC1 tag — could defer to post-Sprint-3 release packaging if downstream consumers don't request it), T3.3 (protocol docs operator-config refs — could split: cycle-099 ships persona migration only, cycle-100 ships protocol docs). Activate buffer week (suspend Sprint 4 start) if Sprint 3 exit gate fails on first attempt.
 
 ### Deliverables
 
@@ -401,14 +349,6 @@ Persona docs, protocol docs, and `model-permissions.yaml` are derived from the S
 - Sprint 3 cumulative wall-clock: ≤1 week
 - Sprint 3 cost: ≤$40
 
-### Rollback Criteria
-
-**Rollback criteria** (per Flatline IMP-001 HIGH_CONSENSUS 855): If Sprint 3 introduces a regression detected within 7 days of merge (persona/dist regen window), rollback procedure: (a) revert the Sprint 3 PR via `git revert -m 1 <merge-sha>`; (b) re-deploy artifacts (operator-side `dist/`, framework-side packaged release) at the previous Sprint 2 SHA; (c) for downstream submodule consumers, instruct rollback to cycle-099-dist-RC1 tag's predecessor (cycle-098 final dist) per the T3.8 rollback runbook; (d) regression tracked as `cycle-099-sprint-3-regression-<id>` follow-up.
-
-### Sprint Exit Gate
-
-**Sprint Exit Gate** (per Flatline IMP-002 HIGH_CONSENSUS 830): Sprint 4 cannot start until: (i) all P0 tasks have status `closed`; (ii) cumulative test count met (Sprint 3 ≥100); (iii) review-sprint + audit-sprint quality gates passed; (iv) sprint-level Flatline review converged (kaironic stop); (v) operator confirmation logged in `grimoires/loa/cycles/cycle-099-model-registry/decisions/sprint-3-exit-gate-<date>.md`. Failure of any criterion activates Sprint 3.5 buffer week.
-
 ---
 
 ## Sprint 4 (Gated): Legacy Adapter Sunset (Operator Gate Decision)
@@ -422,10 +362,6 @@ Persona docs, protocol docs, and `model-permissions.yaml` are derived from the S
 ### Sprint Goal
 
 Default flips to `hounfour.flatline_routing: true`; legacy adapter marked DEPRECATED with operator-visible warnings. **Sprint 4 gate review with operator decides full removal in cycle-099 OR continued deprecation through cycle-100 per FR-4.4.** End-to-end goal validation across G-1..G-5 per PRD §Goals. **Acceptance theme (SDD §8 Sprint 4): "Default flipped; deprecation visible; sunset decision made."**
-
-### Risk + De-scope Policy
-
-**Risk + de-scope policy**: Sprint 4 has **LOW** timeline risk based on task count (7 tasks) but **HIGH** decision risk at T4.4 operator gate. De-scope candidates (P1 tasks moveable to follow-up cycle if Sprint 4 capacity exceeded): T4.5 (full-removal path — already gated on operator decision; if operator chooses deprecation-continues, T4.5 is naturally deferred to cycle-100 minimum), T4.7 partial (E2E G-4/G-5 validation — could defer if operator chooses deprecation-continues since legacy path stays observable). Buffer activation rule: Sprint 4's gated nature means buffer activates if T4.4 operator decision is delayed >72h (per R-BusFactor escalation rule below).
 
 ### Deliverables
 
@@ -511,14 +447,6 @@ Default flips to `hounfour.flatline_routing: true`; legacy adapter marked DEPREC
 - Sprint 4 cumulative wall-clock: ≤1 week
 - Sprint 4 cost: ≤$40
 
-### Rollback Criteria
-
-**Rollback criteria** (per Flatline IMP-001 HIGH_CONSENSUS 855): If Sprint 4 introduces a regression detected within 14 days of merge (legacy sunset window — longer for operator detection, since legacy path users are by definition slower to upgrade), rollback procedure: (a) revert the Sprint 4 PR via `git revert -m 1 <merge-sha>` (default flip); (b) IF removal path was taken (T4.5): operators with `LOA_LEGACY_MODEL_PERMISSIONS=1` opt-in pin remain functional via env-var; framework-side reverts via re-applying `model-adapter.sh.legacy` from previous Sprint 3 SHA; (c) IF deprecation path was taken (T4.6): no rollback needed since legacy path stays active; (d) regression tracked as `cycle-099-sprint-4-regression-<id>` follow-up.
-
-### Sprint Exit Gate
-
-**Sprint Exit Gate** (per Flatline IMP-002 HIGH_CONSENSUS 830): Cycle-099 cannot archive (and cycle-100 cannot start as cycle-099 successor) until: (i) all P0 tasks have status `closed`; (ii) cumulative test count met (Sprint 4 ≥150); (iii) review-sprint + audit-sprint quality gates passed; (iv) sprint-level Flatline review converged (kaironic stop); (v) operator confirmation logged in `grimoires/loa/cycles/cycle-099-model-registry/decisions/sprint-4-exit-gate-<date>.md` (separate from T4.4 gate-review decision); (vi) Task 4.E2E G-1..G-5 all validated. Failure of any criterion activates Sprint 4.5 buffer week (acceptable since Sprint 4 is the final sprint of cycle-099).
-
 ---
 
 ## Risk Register (Cycle-099 Aggregated)
@@ -543,9 +471,6 @@ Default flips to `hounfour.flatline_routing: true`; legacy adapter marked DEPREC
 | **R-SDD-6** | Bridgebuilder runtime overlay bug silently falls back | 3 | MEDIUM | HIGH | §1.4.6 divergence detector; AC-S3.4 covers | SDD R-SDD-6 |
 | **R-SDD-7** | Property test runner generates non-representative configs | 2 | LOW | MEDIUM | Deterministic-seeded; nightly stress; fallback to Hypothesis | SDD R-SDD-7 |
 | **R-SDD-8** | Cycle-098 `audit_emit` flock collides with `merged-aliases.sh.lock` | 2 | LOW | LOW | Different lock files + invocation timing; AC-S2.9 verifies | SDD R-SDD-8 |
-| **R-Timeline** | Timeline compression: 4 sprints × 49 tasks × ~160 tests with no buffer week — single delayed sprint cascades into blocked dependencies; Sprint 1+2 LARGE size compounds risk | All | HIGH | HIGH | Per-sprint Risk + de-scope policy (each sprint section); Buffer Policy in Sprint Overview (auto-activate Sprint N+0.5 buffer if exit gate fails); per-sprint de-scope candidates pre-listed; cumulative cost +30% trigger | Flatline Sprint pass #1 SKP-001 CRITICAL 930 |
-| **R-NoVerify** | `--no-verify` bypasses pre-commit lint + secrets scan; reliance throughout cycle-099 due to beads UNHEALTHY (#661) | All | MEDIUM | MEDIUM | Sprint Overview `--no-verify` Safety Policy: manual `pre-commit run --all-files` MUST run; `[NO-VERIFY-RATIONALE: ...]` commit-message audit trail; PR description checkbox "manual pre-commit-equivalent check ran — output: green" gates merge; PR-level CI catches what slips through | Flatline Sprint pass #1 SKP-001 HIGH 850 |
-| **R-BusFactor** | Cycle-099 depends on a single operator (deep-name) for: DD-1..DD-6 resolutions, Sprint 4 gate (T4.4), per-sprint scope approvals, fallback decisions. Solo-operator cycles have inherent bus-factor risk. | All | MEDIUM | HIGH | **Acknowledged tradeoff** — accepted for cycle-099 in exchange for existing Loa solo-operator pattern. Mitigations: (i) every DD has explicit fallback choice in PRD §Deferred Decisions; if operator unavailable past deadline (48-72h), fallback activates automatically; (ii) Sprint 4 gate has explicit fallback (continued deprecation through cycle-100 if operator unavailable per T4.6 path); (iii) operator-of-record (deep-name) names a backup-operator-of-record by Sprint 1 start (TBD as of cycle-099 PRD); (iv) escalation rule: 72h operator silence on critical-path decision triggers backup-operator handoff. Multi-operator architecture is FU-6 in cycle-098 PRD. | Flatline Sprint pass #1 SKP-003 HIGH 780 |
 
 ---
 
@@ -750,41 +675,7 @@ Per SDD §8.0 cycle-scope acknowledgement, 5 cross-cutting tasks expand Sprint 1
 
 **Operator scope acknowledgement** (SDD §8.0, SDD pass #3 SKP-003 HIGH 790): cycle-099 absorbs these scope expansions (~50 added tests, ~$80-120 added cost, ~1-2 added weeks) at SDD v1.3 review rather than deferring them to cycle-100 cleanup. The expansions address risks the original PRD framing did not see; deferring would push the same work into cycle-100 cleanup at higher cost.
 
-### Appendix F — Production Metrics Deferral
-
-**Production metrics deferred to follow-up cycle** (per Flatline Sprint pass #1 IMP-008 HIGH_CONSENSUS 780): production observability for cycle-099 features (legacy shape usage tracking, CDN exemption hit rate, degraded-mode fleet aggregation, deprecation warning emit rate) is real operational need. Cycle-099 ships test-time gates + structured warning logs; production-metrics pipeline (e.g., counter aggregation, dashboard, alerting) is **deferred to a follow-up "observability cycle"** or as v2 of cycle-099. Acknowledged scope-narrowing decision: cycle-099 is "make it work + make it visible at runtime"; cycle-100+ is "measure rollout".
-
-| Metric | Test-time surface (cycle-099) | Production surface (deferred) |
-|--------|-------------------------------|-------------------------------|
-| Legacy shape usage | AC-S2.3 `legacy-config-golden.bats` | Counter aggregation across operator fleet via opt-in telemetry |
-| CDN exemption hit rate | AC-S2.2 `model-aliases-extra-security.bats` covers exemption path | Per-CDN match-rate dashboard for ops review |
-| Degraded-mode fallback | §6.3.2 NFR-Op-7 prolonged-degraded monitoring shipped per SDD | Fleet-wide aggregation + alerting on N+ minutes of degraded-mode |
-| Deprecation warning emit rate | T4.3 emits `[LEGACY-MODEL-ADAPTER-DEPRECATED]` at every Flatline invocation | Aggregate emit count → cycle-100 sunset readiness signal |
-
-### Appendix G — Recorded Disputed Findings (Pass #1)
-
-Per Flatline kaironic-stop discipline, DISPUTED findings (delta >300 between models) are recorded but not integrated. Both items below were reviewed; integration decisions documented for traceability.
-
-| ID | Concern | Avg Score | Delta | Decision | Rationale |
-|----|---------|-----------|-------|----------|-----------|
-| **IMP-009** | Concurrent startup race acceptance tests for merged-aliases regeneration | 745 (GPT 910, Opus 580, Gemini 900) | 330 | Defer to Sprint 1 review (T1.X concurrent-startup-race tests covered implicitly per FR-1.9 multi-file consistency; explicit AT may surface during T1.10 acceptance test refinement) | Multi-file consistency invariants (FR-1.9 + SDD §6.3.4) already cover this surface in T2.4 atomic-write semantics; explicit concurrent-startup AT can be added during Sprint 1 test refinement if T1.10 review surfaces a coverage gap. Opus's 580 score reflects this implicit coverage; GPT/Gemini's higher scores reflect "explicit AT is better than implicit". Decision: implicit coverage is sufficient for v1; explicit AT optional during Sprint 1 review. |
-| **IMP-010** | Per-sprint subagent/inline strategy documentation | 540 (GPT 280, Opus 800, Gemini 860) | 520 | Reject — operator-preference; no formal plan element added | Cycle-098 retrospective (`feedback_inline_vs_subagent_4slice.md`) showed inline-on-Opus-4.7-1M was sufficient for cycle-098 sub-sprints; cycle-099 inherits same pattern by default. Per-sprint subagent docs would add planning overhead without material delivery improvement. Appendix D already documents the Cycle-098 pattern reuse including subagent-vs-inline guidance. GPT's 280 score reflects this redundancy. Decision: no formal plan element added; existing Appendix D guidance is sufficient. |
-
-### Appendix H — Decision Log (Sprint Pass #1)
-
-| # | Decision | Source Finding | Integration | Rationale |
-|---|----------|----------------|-------------|-----------|
-| 1 | Per-sprint Risk + de-scope policy added to all 4 sprints | Sprint pass #1 SKP-001 CRITICAL 930 | All sprint sections | Compression risk mitigated via explicit per-sprint de-scope candidates + buffer activation rules |
-| 2 | Buffer Policy subsection added to Sprint Overview | Sprint pass #1 SKP-001 CRITICAL 930 | Sprint Overview after `--no-verify` Safety Policy | Auto-activate Sprint N+0.5 buffer if exit gate fails or cumulative cost +30% |
-| 3 | `--no-verify` Safety Policy added to Sprint Overview | Sprint pass #1 SKP-001 HIGH 850 | Sprint Overview | Manual pre-commit-equivalent check + commit-message tag + PR description checkbox preserves safety net while #661 is open |
-| 4 | Per-sprint Rollback Criteria added to all 4 sprints | Sprint pass #1 IMP-001 HIGH_CONSENSUS 855 | All sprint sections | Explicit rollback windows + procedures (Sprint 1=5d, Sprint 2/3=7d, Sprint 4=14d) |
-| 5 | Per-sprint Sprint Exit Gate added to all 4 sprints | Sprint pass #1 IMP-002 HIGH_CONSENSUS 830 | All sprint sections | Explicit gate criteria (P0 closed + tests met + review/audit passed + Flatline kaironic + operator confirm) prevents boundary bleed |
-| 6 | R-Timeline (HIGH), R-NoVerify (MEDIUM), R-BusFactor (MEDIUM/HIGH) added to Risk Register | Sprint pass #1 SKP-001 CRITICAL 930 + SKP-001 HIGH 850 + SKP-003 HIGH 780 | Risk Register | Centralized risk tracking for the 3 real fixes + 1 acknowledged tradeoff |
-| 7 | Sprint-level surfacing of SDD pass #1-3 SKP-003/005/006 acknowledged in Sprint 1 section | Sprint pass #1 SKP-002 CRITICAL 900 | Sprint 1 Sprint-Level Security Controls subsection | T1.15 + T2.X security tasks ARE the integration; no duplicate work |
-| 8 | Production metrics deferred to follow-up "observability cycle" or v2 | Sprint pass #1 IMP-008 HIGH_CONSENSUS 780 | Appendix F | cycle-099 ships test-time gates + structured warning logs; cycle-100+ measures rollout |
-| 9 | **Kaironic stop declared at sprint pass #1** | Mirrors PRD v1.2→v1.3 + SDD v1.2→v1.3 stop pattern | This entry | Pass #1 found legitimate sprint-level concerns; tight integration covers real fixes + acknowledged tradeoffs; no pass #2 needed |
-
-### Appendix I — References
+### Appendix F — References
 
 - PRD: `grimoires/loa/prd.md` (v1.3, 2026-05-04)
 - SDD: `grimoires/loa/sdd.md` (v1.3, 2026-05-04)
@@ -797,4 +688,4 @@ Per Flatline kaironic-stop discipline, DISPUTED findings (delta >300 between mod
 ---
 
 *Generated by Sprint Planner Agent (deep-name + Claude Opus 4.7 1M)*
-*Sprint plan iteration count: 2 (v1.0 initial draft from cycle-099 PRD v1.3 + SDD v1.3 → v1.1 Flatline Sprint pass #1 kaironic stop, 17 findings, 3 real fixes + 3 tradeoff acknowledgements + 2 DISPUTED recorded; ~74 cumulative findings integrated across PRD+SDD+Sprint phases)*
+*Sprint plan iteration count: 1 (initial draft from cycle-099 PRD v1.3 + SDD v1.3 — 100% kaironic-stop convergence at 3 PRD passes + 3 SDD passes; 57 cumulative findings integrated)*

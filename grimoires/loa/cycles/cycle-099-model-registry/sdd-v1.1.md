@@ -1,38 +1,12 @@
 # Software Design Document: Model Registry Consolidation + Per-Skill Granularity
 
-**Version:** 1.3 (Flatline pass #3 kaironic stop: 6 real fixes + 3 tradeoff acknowledgements; convergence reached)
+**Version:** 1.1 (Flatline pass #1 integration: 3 HIGH_CONSENSUS + 6 BLOCKERS resolved at 100% model agreement)
 **Date:** 2026-05-04
 **Author:** Architecture Designer (Claude Opus 4.7 1M)
-**Status:** Draft — 3 SDD-level Flatline passes complete (kaironic stop at pass #3 per cycle-098 PRD v1.4→v1.5 pattern). Ready for `/sprint-plan`.
+**Status:** Draft — Flatline pass #1 integrated; ready for `/sprint-plan` after operator review (pass #2 optional convergence verification).
 **Cycle:** `cycle-099-model-registry`
 **PRD Reference:** `grimoires/loa/cycles/cycle-099-model-registry/prd.md` (v1.3, kaironic plateau at pass #3)
 **Source issue:** [#710](https://github.com/0xHoneyJar/loa/issues/710)
-
-> **v1.2 → v1.3 changes** (Flatline pass #3 — kaironic stop, `grimoires/loa/a2a/flatline/cycle-099-sdd-review-v12.json`, Opus + GPT-5.3-codex + Gemini-3.1-pro-preview, 100% model agreement; pass #3 found 9 findings that are **second-order consequences of v1.2 integrations** — same kaironic pattern as PRD v1.2 → v1.3 stop):
-> - **6 real fixes integrated**:
->   - **SKP-001 (CRITICAL 910)**: schema_version v1 → 1-cycle deprecation grace period (deprecation warning during cycle-099; hard-reject promoted to cycle-100). Removes fleet-wide partial-rollout outage risk.
->   - **SKP-005 (HIGH 720)**: provider-CDN exemption mechanism (`providers.<p>.cdn_cidr_exemptions`); reconciles strict DNS rebinding policy with real-world CDN-fronted providers (Anthropic CF, AWS regional). Operator-extensible via `cdn_cidr_exemptions_extra`.
->   - **IMP-002 (HIGH_CONSENSUS 880)**: explicit TS-from-Python codegen mechanism (Jinja2 template + `python3 -m loa_cheval.codegen.emit_endpoint_validator_ts`); golden-corpus parity test verifies cross-runtime equivalence.
->   - **IMP-003 (HIGH_CONSENSUS 775)**: `.run/overlay-state.json` corruption handling — schema-validate + missing/corrupt/future-version/past-version explicit handlers.
->   - **IMP-001 (HIGH_CONSENSUS 880)**: latency measurement methodology — `tests/integration/overlay-resolution-latency.bats` 1000-iter measurement; CI-enforceable p95 < 50ms.
->   - **IMP-004 (HIGH_CONSENSUS 735)**: multi-file read torn-read mitigation — shared `flock` on overlay lock spans full multi-file read sequence.
-> - **3 architectural tradeoffs explicitly acknowledged** (real concerns, accepted by design):
->   - **SKP-002 (CRITICAL 880)**: Python as canonical reference is the tradeoff vs cross-runtime drift. Mitigations documented; cycle-099 accepts the dependency.
->   - **SKP-003 (HIGH 790)**: cycle scope grew during 2 SDD passes; total estimated $200-300 / 5-6 weeks (vs PRD's $110-180 / 4-5 weeks). Operator confirms at SDD v1.3 review.
->   - **SKP-004 (HIGH 740)**: strict allowlist creates governance overhead; tradeoff for closed SSRF surface; cdn_cidr_exemptions covers known CDN behaviors.
-> - **Kaironic stop declared** — pass #3 found mostly second-order consequences of v1.2 integrations (whack-a-mole pattern at architectural level, classic kaironic plateau). Per cycle-098 PRD v1.4→v1.5 precedent: when integrations create as many new tradeoffs as they fix old issues, the architectural conversation has reached its productive limit. Sprint-level Flatline catches any residual SDD-shape issues via back-propagation. Cumulative across cycle-099: 27 PRD findings + 21 + 12 + 9 = ~69 findings integrated, 9 of those as architectural tradeoff acknowledgements.
-
-> **v1.1 → v1.2 changes** (Flatline pass #2, `grimoires/loa/a2a/flatline/cycle-099-sdd-review-v11.json`, Opus + GPT-5.3-codex + Gemini-3.1-pro-preview, 100% model agreement):
-> - **SKP-001 (CRITICAL 910) integrated** — `schema_version` migration: ALL runtimes (Python/Bash/TS) uniformly REJECT `schema_version: 1` with structured `[CONFIG-SCHEMA-VERSION-NEEDS-MIGRATION]` error pointing to `loa migrate-model-config` CLI. Migration is operator-explicit (not auto-on-startup) to prevent silent runtime divergence. New T1.14 task. (§3.1.1, §1.4.5)
-> - **SKP-005 (CRITICAL 890) integrated** — Wildcard `*.googleapis.com` allowlist REPLACED with explicit hostname `generativelanguage.googleapis.com`. All providers' `allowed_endpoints` are now explicit hostnames (no wildcards); non-standard hostnames require System Zone registration via `.claude/defaults/loa.defaults.yaml::providers.<p>.allowed_endpoints` at cycle-level approval. (§1.6, §1.9, §6.5)
-> - **SKP-006 (CRITICAL 870) integrated** — New §1.9.1 Centralized Endpoint Validator: shared module `.claude/scripts/lib/endpoint-validator.{py,sh,ts}` with Python canonical reference, Bash wraps Python via `python3 -m endpoint_validator`, TS build-time-generated from Python via golden-corpus parity tests. All HTTP callers MUST import this module; PR-level CI guard prevents direct `urllib.parse` use outside validator. New T1.15 task.
-> - **SKP-003 + IMP-001 + IMP-005 (cross-runtime cluster) integrated** — New §1.5.1 Cross-Runtime Canonicalization Standard + §7.6 expansion: Python is canonical reference; Bash overlay generator wraps Python via `python3 -m model_resolver`; TS Bridgebuilder runtime overlay is build-time-generated from Python via golden-corpus parity. For runtime hot paths, canonicalization invariants (input normalization, output schema, deterministic ordering) declared explicitly; property-based tests verify cross-runtime output equivalence for random valid inputs. (Flatline SDD pass #2 SKP-003 HIGH 780 + IMP-001 HIGH_CONSENSUS 900 + IMP-005 HIGH_CONSENSUS 815)
-> - **SKP-002 (HIGH 760) integrated** — Search-and-replace: all "cycle-100" wrapper-removal references → "cycle-101 (minimum) per §3.1.1 SKP-002 HIGH 720 deferral". Internal-drift artifact from v1.1 patch closed. (§1.4.3, §3.1.1, §5.3, §8 Sprint 3)
-> - **SKP-004 (HIGH 735) integrated** — New NFR-Op-7 prolonged-degraded monitoring: ≥1h continuous degraded → `[OVERLAY-DEGRADED-PROLONGED]` warning; ≥24h → `[OVERLAY-DEGRADED-CRITICAL]` operator alert. Tracking via degraded-mode start timestamp persisted to `.run/overlay-state.json`; surfaced via `loa doctor` (NFR-Op-5). (§6.3.2)
-> - **IMP-002 (HIGH_CONSENSUS 845) integrated** — Fleet split-brain mitigation: every `[OVERLAY-DEGRADED-READONLY]` warning includes `cache-sha256=<hash>`; operators can grep across fleet logs to detect cache-divergence between agents. (§6.3.2)
-> - **IMP-004 (HIGH_CONSENSUS 835) integrated** — `migrate_v1_to_v2()` concrete spec (new §3.1.1.1): field mapping table (v1 → v2), removed-fields archived in `_archived_v1_fields:` namespace + reported in CLI output, renamed-fields auto-handled, unknown-fields PRESERVED under `_unknown_v1_fields:` with operator warning, post-migration full v2 schema validation; reject if migration produces invalid v2.
-> - **IMP-003 (HIGH_CONSENSUS 790) integrated** — New §1.5.2 explicit precedence-and-authority subsection: runtime overlay > build-time defaults BY DESIGN. FR-5.7 debug output shows `resolution_path: [build_time_default, runtime_overlay_override]` enumeration; operators verify divergence via `model-invoke --validate-bindings --diff-bindings` (compares effective config against compiled defaults).
-> - **IMP-007 (HIGH_CONSENSUS 730) integrated** — Resolver edge-case ambiguity (custom alias + tier-tag collision in `skill_models`): explicit specification added — when a `skill_models.<skill>.<role>` value matches BOTH a known tier name (`max`/`cheap`/`mid`/`tiny`) AND an operator-added alias name in `model_aliases_extra`, **tier-tag interpretation wins** (FR-3.9 stage 2/3 path); operator can disambiguate by using `provider:model_id` explicit form (stage 1) or by avoiding tier-name collisions. JSON Schema validator emits `[ALIAS-COLLIDES-WITH-TIER]` WARN at config-load time. (§3.3, §1.5)
 
 > **v1.0 → v1.1 changes** (Flatline pass #1, `grimoires/loa/a2a/flatline/cycle-099-sdd-review.json`, Opus + GPT-5.3-codex + Gemini-3.1-pro-preview, 100% model agreement):
 > - **SKP-001 (CRITICAL 910) integrated** — §10 Open Questions closed: tiny-tier uses cycle-095's `tiny` alias; endpoint_family is operator-set per entry (no overrideable framework default); permissions optional with NFR-Sec-5 minimal baseline default.
@@ -202,7 +176,7 @@ flowchart TB
 
 - **`gen-adapter-maps.sh`** (cycle-095, existing) — emits 4 bash arrays. Cycle-099 Sprint 1 adds support for `endpoint_family` consumption (currently unused at the bash layer) so Sprint 2's runtime hook has parity with the build-time generator.
 - **`gen-bb-registry.ts`** (cycle-099 Sprint 1, new) — Bun script. Reads `model-config.yaml`, emits `truncation.generated.ts` + `config.generated.ts` under `resources/core/` and `resources/`.
-- **`gen-model-permissions.sh`** (cycle-099 Sprint 3, new — DD-1 Option B path) — emits `model-permissions.generated.yaml` as a thin compatibility wrapper for any tooling still reading the standalone file. Sprint 3 starts the deletion clock; **cycle-101 (minimum)** deletes the wrapper per §3.1.1 SKP-002 HIGH 720 deferral (resolves Flatline SDD pass #2 SKP-002 HIGH 760 internal-drift artifact).
+- **`gen-model-permissions.sh`** (cycle-099 Sprint 3, new — DD-1 Option B path) — emits `model-permissions.generated.yaml` as a thin compatibility wrapper for any tooling still reading the standalone file. Sprint 3 starts the deletion clock; cycle-100 deletes the wrapper.
 
 #### 1.4.4 Runtime overlay hook: `model-overlay-hook.py`
 
@@ -278,82 +252,14 @@ stateDiagram-v2
 - (1) and (4) both present → (1) wins. No silent tiebreaker.
 - Two same-priority mechanisms (e.g., explicit pin AND tier-tag in same `skill_models.<skill>.<role>` block) → schema-level rejection at load time, not runtime.
 
-#### 1.5.1 Cross-Runtime Canonicalization Standard (resolves Flatline SDD pass #2 SKP-003 HIGH 780 + IMP-001 HIGH_CONSENSUS 900 + IMP-005 HIGH_CONSENSUS 815)
-
-> **Tradeoff acknowledgement (Flatline SDD pass #3 SKP-002 CRITICAL 880)**: Python as canonical reference is a **deliberate architectural tradeoff**. The single-source-of-truth eliminates cross-runtime drift (the alternative — three independent implementations — is the failure mode cycle-099 was created to prevent). The cost is Python availability dependency: bash and TS runtimes cannot generate their respective outputs if Python is unavailable. Mitigations: (a) Python 3.11+ pinned in NFR-Op-5 toolchain requirements; (b) Python codegen failures are caught at build-time CI, not runtime; (c) bash + TS golden-corpus tests independently verify cross-runtime output equivalence for the fixture corpus, so any Python-introduced bug surfaces at CI time before reaching operators. Cycle-099 explicitly accepts the Python dependency in exchange for elimination of resolver drift across 3 runtimes.
-
-The Flatline SDD pass #2 review identified a CRITICAL drift hazard cluster across SKP-003, IMP-001, and IMP-005: **fixture-based parity is necessary but not sufficient**. The v1.1 SDD §7.6 Cross-Runtime Golden Test Corpus catches divergence ONLY for inputs in the corpus; subtle precedence drift on inputs outside the corpus would still occur. With three independent resolver implementations (Python loader, Bash overlay generator, TypeScript Bridgebuilder runtime overlay), this is a real exposure surface.
-
-**Two-part remediation**:
-
-**Part 1 — Canonical reference + reference-driven implementations.** v1.2 declares Python the **canonical resolver reference**:
-
-| Runtime | Implementation strategy | Pattern |
-|---------|------------------------|---------|
-| **Python (canonical)** | `model_resolver` module at `.claude/scripts/lib/model-resolver.py`. Sole source-of-truth implementation of the FR-3.9 6-stage resolver. | Source-of-truth |
-| **Bash overlay generator** (`.run/merged-model-aliases.sh`) | Wraps Python via `python3 -m model_resolver build_overlay --input <yaml> --output <sh>`. Bash itself does NO resolution logic — it only sources the pre-resolved aliases out of the merged file. | Reference-driven (build-time) |
-| **TypeScript Bridgebuilder runtime overlay** | Build-time generated from Python via `gen-bb-resolver-ts.sh` codegen step (Sprint 1 T1.X subtask of T1.11). The TS module is OUTPUT of the Python reference; cross-runtime golden tests verify the codegen output matches Python's runtime resolution byte-for-byte for the fixture corpus. | Reference-driven (codegen, runtime hot-path safe) |
-
-The Bash and TS implementations are no longer "independent reimplementations" — they are projections of the Python canonical reference at different ahead-of-time stages.
-
-**Part 2 — Canonicalization invariants for runtime hot paths.** The TypeScript Bridgebuilder runtime overlay cannot invoke Python at every per-request resolution (latency budget < 100µs per FR-3.9). Instead, the Python codegen output is held to **explicit canonicalization invariants** that the property-based tests (PRD FR-3.9 v1.2 acceptance criterion) verify continuously:
-
-| Invariant | Specification |
-|-----------|---------------|
-| **Input normalization** | Every input map (skill_models, tier_groups, model_aliases_extra) is canonicalized to RFC 8785 JCS (key-sorted, deterministic number representation, no insignificant whitespace) BEFORE entering the resolver. Both Python and TS implementations canonicalize via the cycle-098 `lib/jcs.sh` adapter pattern. |
-| **Output schema** | Resolver output is `{provider: string, model_id: string, resolution_path: Array<{stage: int, outcome: "hit"\|"miss"\|"applied", label: string, details?: object}>}`. Field ordering, key casing, and null-vs-absent semantics are pinned by JSON Schema at `.claude/data/trajectory-schemas/model-resolver-output.schema.json`. |
-| **Deterministic ordering** | When multiple stages hit (e.g., stage 3 hit followed by stage 6 applied), the `resolution_path` array is ordered by stage number ascending. Tie-breakers within a single stage are pinned in the canonical reference (Python). |
-| **Error reporting** | Resolver failures emit a typed error: `{code: string, stage_failed: int, detail: string}`. Error codes and stages are enumerated in the same JSON Schema. |
-| **Tracing fingerprint** | The 12-char SHA256 prefix of the canonical-JSON serialization of the FULL `resolution_path` (before any redaction). Operators can grep across logs to find duplicate resolutions. |
-
-**Property-based test corpus** (Sprint 2 deliverable, extending §7.6 from fixture-based to invariant-based):
-
-`tests/property/model-resolver-cross-runtime-properties.bats` runs ~600 random valid configurations through both Python (canonical) and TS (codegen-output) resolvers; asserts byte-equal canonical-JSON output. Generator is the cycle-099 DD-6 bash property generator (already declared); valid-config space includes:
-
-- Random `skill_models` entries (1-10 skills × 1-3 roles × {tier-tag, explicit-pin, mixed})
-- Random `tier_groups.mappings` populations (subset of {max,cheap,mid,tiny} × 4 providers)
-- Random `model_aliases_extra` entries (0-5 entries × valid schema)
-- Random `prefer_pro_models` settings (on/off × respect_prefer_pro on/off)
-
-The property test runs ~600 cases on every PR check; 1000-iter stress nightly. Any divergence between Python canonical and TS codegen output → exit non-zero → PR cannot land.
-
-**Cite**: Per Flatline SDD pass #2 SKP-003 HIGH 780 + IMP-001 HIGH_CONSENSUS 900 + IMP-005 HIGH_CONSENSUS 815 — "fixture-based parity is necessary but not sufficient; canonical reference + invariant-based property tests close the gap." The Python reference + TS codegen + property tests give the same byte-identical guarantee as a single shared library, but without the operational complexity of running Python at every Bridgebuilder request.
-
-#### 1.5.2 Build-time vs Runtime Authority Boundaries (resolves Flatline SDD pass #2 IMP-003 HIGH_CONSENSUS 790)
-
-The hybrid pattern in §1.4.6 introduces a question the Flatline review correctly flagged: **when build-time defaults (TS dist) and runtime overlay (operator config) disagree, which wins, and how does the operator know?**
-
-**Explicit precedence — runtime overlay wins over build-time defaults BY DESIGN.** This is the inverse of "compiled is canonical" intuition; the rationale is that build-time defaults are framework opinions (last-shipped at framework release) while runtime overlay is operator intent (declared in `.loa.config.yaml` for THIS deployment). Operator intent must be authoritative, otherwise the operator-extension surface is decorative.
-
-**Operator-visible verification**: a build-time default and a runtime overlay can diverge silently from an operator's perspective if no diagnostic surface reports it. v1.2 specifies three operator-facing diagnostics:
-
-1. **FR-5.7 debug output** (`LOA_DEBUG_MODEL_RESOLUTION=1`) emits the full `resolution_path` array on every resolution. The path now includes a `build_time_default` and `runtime_overlay_override` enumeration when they apply:
-    ```
-    [MODEL-RESOLVE] skill=bridgebuilder role=opus_role
-      resolution_path=[
-        {stage: 0, outcome: "hit", label: "build_time_default", details: {model: "claude-opus-4-7"}},
-        {stage: 0, outcome: "applied", label: "runtime_overlay_override", details: {override_to: "claude-opus-4-8-experimental"}},
-        {stage: 1, outcome: "hit", label: "stage1_pin_check", details: {pin: "claude-opus-4-8-experimental"}}
-      ]
-    ```
-2. **`model-invoke --validate-bindings --diff-bindings`** (Sprint 2 task — extends §5.2 with a new `--diff-bindings` flag) compares effective config against compiled defaults and emits one INFO line per overridden binding:
-    ```
-    [BINDING-OVERRIDDEN] skill=bridgebuilder role=opus_role compiled=claude-opus-4-7 effective=claude-opus-4-8-experimental source=runtime_overlay
-    ```
-3. **`[BB-OVERLAY-OVERRIDE]` log line** at INFO level (already specified in §1.4.6) emits one-time-per-process per overridden key.
-
-**Operator workflow**: an operator concerned about build-time/runtime divergence runs `model-invoke --validate-bindings --diff-bindings` after every config change. The output is machine-readable JSON; an operator-side wrapper script can compare snapshots across changes to surface unexpected divergence.
-
-**Cite**: Per Flatline SDD pass #2 IMP-003 HIGH_CONSENSUS 790 — "Without this, generated artifacts can mislead tooling and operators." The diagnostic triple (FR-5.7 debug, `--diff-bindings`, `[BB-OVERLAY-OVERRIDE]` log) makes precedence operator-visible without changing the precedence semantics.
-
 ### 1.6 External Integrations
 
 | Service | Purpose | API | Notes |
 |---------|---------|-----|-------|
 | OpenAI API | Chat completions, code generation | REST `https://api.openai.com/v1` | Endpoint allowlist enforced (FR-2.8); `api_id` format `^[a-zA-Z0-9._-]+$` |
 | Anthropic API | Chat, thinking traces | REST `https://api.anthropic.com` | Same allowlist + format constraints |
-| Google Generative AI | Chat, deep research | REST `https://generativelanguage.googleapis.com/v1beta` | **Explicit hostname `generativelanguage.googleapis.com` ONLY** (no wildcard); resolves Flatline SDD pass #2 SKP-005 CRITICAL 890. Operators wanting alternate googleapis subdomains MUST register at System Zone via `loa.defaults.yaml::providers.google.allowed_endpoints`. |
-| AWS Bedrock | Claude via Bedrock | REST `bedrock-runtime.{region}.amazonaws.com` | Region template expanded at validation time per region (no wildcard); FR-2.8 enforces whole-host match per region |
+| Google Generative AI | Chat, deep research | REST `https://generativelanguage.googleapis.com/v1beta` | Wildcard `*.googleapis.com` permitted; subdomain hijack hardening per §1.9 |
+| AWS Bedrock | Claude via Bedrock | REST `bedrock-runtime.{region}.amazonaws.com` | Region tokenized in allowlist; FR-2.8 enforces whole-host match per region |
 | Cheval (loa_cheval Python adapter) | Multi-provider routing | Python module | Reads `model-config.yaml` + `model_aliases_extra` |
 
 ### 1.7 Deployment Architecture
@@ -390,112 +296,8 @@ Performance budget verification: NFR-Perf-1 says "<50ms p95 startup overhead". T
 | URL canonicalization edge cases (resolves SKP-003) | IPv6 literals, IDN/punycode, port specs | See §6.5 detailed rules |
 | Shell-escape safety in `.run/merged-model-aliases.sh` (resolves SKP-004) | Operator id contains shell metachar; bash sourcing executes attacker code | See §3.5 quoting rules |
 | flock semantics over network filesystems (resolves SKP-005) | NFS/SMB flock is advisory + may be lost during failover | Detect filesystem type; refuse to write merged.sh on non-local fs unless `LOA_ALLOW_NETWORK_FS_FOR_MERGED_ALIASES=1` (operator must opt in with eyes open) |
-| Wildcard-allowlist SSRF expansion (resolves Flatline pass #2 SKP-005 CRITICAL 890) | `*.googleapis.com` permits ANY googleapis subdomain including internal services that share domain | **Wildcards REPLACED with explicit hostnames** (see §1.9 allowlist below). Non-standard hostnames require System Zone registration at cycle-level approval. |
-| Endpoint-validation drift across HTTP callers (resolves Flatline pass #2 SKP-006 CRITICAL 870) | Each caller (cheval Python, Bridgebuilder TS, bash adapters) implements own URL validation → drift surface | **Centralized `endpoint-validator` module** (see §1.9.1). All HTTP callers import; PR-level CI guard prevents direct `urllib.parse` use outside the validator. |
 
-**Explicit endpoint allowlist (resolves Flatline SDD pass #2 SKP-005 CRITICAL 890):**
-
-The cycle-099 endpoint allowlist replaces all wildcards from v1.1 with explicit hostnames. Operator-added endpoints (via `model_aliases_extra.<id>.endpoint` or `model_aliases_override.<id>.endpoint`) MUST match an exact hostname in the corresponding provider's `allowed_endpoints` list. The framework defaults are:
-
-```yaml
-# .claude/defaults/loa.defaults.yaml — providers.<p>.allowed_endpoints (cycle-099 SKP-005 hardening)
-providers:
-  openai:
-    allowed_endpoints: ["api.openai.com"]                         # explicit; no wildcard
-  anthropic:
-    allowed_endpoints: ["api.anthropic.com"]                      # explicit; no wildcard
-  google:
-    allowed_endpoints: ["generativelanguage.googleapis.com"]      # explicit; REPLACES *.googleapis.com from v1.1
-  bedrock:
-    allowed_endpoints:
-      - "bedrock-runtime.us-east-1.amazonaws.com"                 # template expanded per region at validation time
-      - "bedrock-runtime.us-west-2.amazonaws.com"                 # additional regions enumerated explicitly
-      - "bedrock-runtime.eu-west-1.amazonaws.com"
-      - "bedrock-runtime.ap-southeast-1.amazonaws.com"
-      # additional regions added explicitly via System Zone PR (cycle-level approval)
-```
-
-**Cite**: Per Flatline SDD pass #2 SKP-005 CRITICAL 890 — wildcards combined with operator-controlled endpoints expose SSRF surface to subdomains operators may not have authority over (e.g., a misconfigured `internal.googleapis.com` is permitted by `*.googleapis.com` but is not a model API surface). The remediation strategy: every legitimate provider hostname is well-known and small in number; operators wanting non-standard hostnames register at System Zone via cycle-level PR review (the same gate that approves new providers). Wildcard convenience is rejected in favor of explicit-list discipline.
-
-**Operator workflow for non-standard hostnames**: an operator running a self-hosted Anthropic-compatible proxy at `proxy.example.com` files a cycle-level PR adding `proxy.example.com` to `providers.anthropic.allowed_endpoints`. The PR is reviewed at the same severity as adding a new provider; review checks the proxy's role and authority. Direct operator-edits to `loa.defaults.yaml` are blocked by Zone-System enforcement (`.claude/defaults/` is part of `.claude/`, governed by `.claude/rules/zone-system.md`).
-
-**Provider-CDN exemption mechanism (resolves Flatline SDD pass #3 SKP-005 HIGH 720):**
-
-Strict DNS rebinding policy (re-resolve at request time + reject IP-rebound to RFC-1918/loopback ranges) trips false-positives on real provider/CDN behavior — Anthropic fronts via Cloudflare CIDRs, AWS Bedrock uses regional CDN endpoints, OpenAI uses dynamic CDN allocation. To reconcile strict SSRF defense with CDN reality, providers gain an optional CIDR exemption list:
-
-```yaml
-# .claude/defaults/loa.defaults.yaml — providers.<p>.cdn_cidr_exemptions
-providers:
-  anthropic:
-    allowed_endpoints: ["api.anthropic.com"]
-    cdn_cidr_exemptions: []                # framework defaults populated at System Zone PR cadence (Cloudflare CIDRs)
-  openai:
-    allowed_endpoints: ["api.openai.com"]
-    cdn_cidr_exemptions: []
-  google:
-    allowed_endpoints: ["generativelanguage.googleapis.com"]
-    cdn_cidr_exemptions: []
-  bedrock:
-    allowed_endpoints: [...]
-    cdn_cidr_exemptions: []                # AWS regional CDN ranges added by System Zone PR
-
-# .loa.config.yaml (operator) — extend per-provider via cdn_cidr_exemptions_extra
-providers:
-  anthropic:
-    cdn_cidr_exemptions_extra: ["203.0.113.0/24"]      # operator-pinned CDN range
-```
-
-**Validator behavior (extends NFR-Sec-1 / §6.5):**
-- Default `cdn_cidr_exemptions: []` — operators must opt-in per provider; framework-default exemptions ship in System Zone defaults at cycle-099 (initially empty; populated as known CDN ranges are vetted).
-- At request time: after DNS resolution, if the resolved IP falls into ANY CIDR listed in `(allowed_endpoints[hostname]).cdn_cidr_exemptions ∪ cdn_cidr_exemptions_extra` for the request's resolved provider, the RFC-1918/loopback rebinding check is **skipped for this resolution** (the CDN-fronted destination is permitted to resolve to non-RFC1918 IPs).
-- The DNS-rebinding to internal-IP check (the original SSRF defense) still applies — the exemption ONLY relaxes the "non-RFC1918 IP unexpected" trip, not the "rebound from public to private at request time" trip.
-- Operator-extension: `cdn_cidr_exemptions_extra` is evaluated as a SET-UNION with framework defaults (operator can add but not remove framework-vetted CDN ranges). Removal requires System Zone PR (the framework-default list is the SOT for known-good CDN behavior).
-
-**Cite**: Per Flatline SDD pass #3 SKP-005 HIGH 720 — strict DNS rebinding policy must coexist with real-world CDN-fronted providers; exemption-by-CIDR is the standard SSRF-meets-CDN reconciliation. Default-deny (empty list) preserves the secure-by-default posture; opt-in exemption restores legitimate CDN behavior without weakening the rebinding defense for other surfaces.
-
-**Tradeoff acknowledgement (Flatline SDD pass #3 SKP-004 HIGH 740)**: Strict allowlist governance is a **deliberate security tradeoff**. The alternative (wildcard allowlist, e.g., `*.googleapis.com`) creates SSRF surface (per Flatline pass #2 SKP-005 CRITICAL 890). Operators wanting non-standard hostnames (new CDN regions, beta endpoints, internal mirrors) have two paths: (a) System Zone registration via PR to `.claude/defaults/loa.defaults.yaml` (cycle-level approval; appropriate for additions that should be available framework-wide); (b) operator-local `cdn_cidr_exemptions_extra` for IP-range based exemptions (per SKP-005 fix above; appropriate for known CDN behaviors). The governance overhead is **accepted in exchange for closed SSRF surface**.
-
-The security architecture is **defense-in-depth at five points**: (1) JSON Schema rejection at config-load (NFR-Sec-1); (2) startup hook validation (FR-1.9 fail-closed); (3) per-request DNS re-verification (NFR-Sec-1 v1.2) WITH provider-CDN CIDR exemption (Flatline SDD pass #3 SKP-005); (4) shell-escape audit at `.run/merged-model-aliases.sh` write time (§3.5 + §7.4 NFR-Sec-1.1 corpus); (5) **centralized endpoint validator** at every HTTP-caller import boundary (§1.9.1, resolves Flatline SDD pass #2 SKP-006 CRITICAL 870).
-
-#### 1.9.1 Centralized Endpoint Validator (resolves Flatline SDD pass #2 SKP-006 CRITICAL 870)
-
-The Flatline review identified that **endpoint security controls are not centralized across HTTP callers**: cheval (Python) implements URL canonicalization and DNS re-resolution; Bridgebuilder runtime overlay (TypeScript) implements its own URL parsing for endpoint detection; bash adapters use shell-level pattern matching. Three independent implementations create three drift surfaces: any caller bypassing canonicalization/rebinding/redirect checks lets attacker-controlled endpoints reach the wire despite policy intent.
-
-**Mitigation**: a single shared `endpoint-validator` module that ALL HTTP callers MUST import. The module is the SOLE implementation of:
-
-- §6.5 URL canonicalization pipeline (8 steps)
-- DNS re-resolution + IP-range allowlist check (NFR-Sec-1 v1.2)
-- HTTP redirect same-host-only enforcement
-- Provider-allowlist matching against `loa.defaults.yaml::providers.<p>.allowed_endpoints` (cycle-099 SKP-005 hardening)
-
-**Module locations**:
-
-| Runtime | Path | Implementation strategy |
-|---------|------|-------------------------|
-| **Python (canonical reference)** | `.claude/scripts/lib/endpoint-validator.py` | Source of truth. Implements all rules. Used by `cheval.py`, `model-overlay-hook.py`, `model-invoke --validate-bindings`, and `loa migrate-model-config`. |
-| **Bash port** | `.claude/scripts/lib/endpoint-validator.sh` | Sources Python via `python3 -m endpoint_validator <subcommand> <args>`. Bash callers (e.g., red-team adapter, model-adapter.sh) MUST import this and call `endpoint_validator__check "$url"`. |
-| **TypeScript port** | `.claude/skills/bridgebuilder-review/resources/lib/endpoint-validator.generated.ts` | **Build-time generated** from Python via codegen module (`python3 -m loa_cheval.codegen.emit_endpoint_validator_ts > resources/lib/endpoint-validator.generated.ts`); see IMP-002 mechanism spec below. Cross-runtime parity tests verify byte-equal validation outcomes for the golden corpus (§7.6). At Bridgebuilder runtime, the TS validator runs without invoking Python (latency-critical hot path). |
-
-**TS-from-Python codegen mechanism (resolves Flatline SDD pass #3 IMP-002 HIGH_CONSENSUS 880):**
-
-At Bridgebuilder build time, the build script invokes Python codegen as the FIRST build step:
-
-1. **Codegen invocation**: `python3 -m loa_cheval.codegen.emit_endpoint_validator_ts > .claude/skills/bridgebuilder-review/resources/lib/endpoint-validator.generated.ts`. The Python module emits TypeScript source as text from a Jinja2 template (`.claude/scripts/lib/codegen/endpoint-validator.ts.j2`) that embeds the canonical validator logic translated to TS literal forms (regex patterns, allowlist arrays, CIDR exemption lookups, error structures).
-2. **Build pipeline order**: (a) Python codegen runs first — produces `endpoint-validator.generated.ts`; (b) `bun run build` runs second — TypeScript compiles + bundles the generated module alongside hand-written Bridgebuilder code; (c) golden-corpus parity test runs third — verifies emitted TS produces identical output to Python for all fixtures in §7.6.
-3. **Failure mode**: Python codegen failure (template render error, missing field in canonical Python source, or schema-version mismatch) aborts the build with `[BB-CODEGEN-FAILED]` error and exit 1; the TS compile step does not run on a stale `endpoint-validator.generated.ts`.
-4. **Reproducibility**: codegen output is deterministic (stable template, stable iteration order over canonical-Python data); CI verifies the committed `endpoint-validator.generated.ts` matches a fresh codegen run. Drift = PR fail.
-
-**T1.15 task scope clarified**: `endpoint-validator` module = (a) Python canonical at `.claude/scripts/lib/endpoint-validator.py`; (b) Bash wrapper at `.claude/scripts/lib/endpoint-validator.sh`; (c) TS codegen via `loa_cheval.codegen.emit_endpoint_validator_ts` (Jinja2 template + module + golden parity test).
-
-**Cite**: Per Flatline SDD pass #3 IMP-002 HIGH_CONSENSUS 880 — explicit codegen mechanism prevents "TS-from-Python" from being a hand-wave; downstream consumers can audit the template, the codegen module, and the parity-test fixture corpus.
-
-**PR-level CI guard** (Sprint 1 deliverable): the `model-registry-drift.yml` workflow runs `grep -r "urllib.parse" .claude/adapters/ .claude/scripts/ --include="*.py"` and asserts that ONLY `endpoint-validator.py` imports `urllib.parse`. Any other caller importing `urllib.parse` directly fails the build with the message: "endpoint validation must go through endpoint-validator module; see §1.9.1". Equivalent guards for bash (`grep -E 'curl |wget '` outside `endpoint-validator.sh`) and TS (`grep -E 'fetch\(|http\.request'` outside `endpoint-validator.ts`).
-
-**Cross-runtime parity contract**: the same input URL (e.g., `https://[::1]:443/v1?api_key=secret`) passed to all three validators MUST produce byte-equal canonicalized output (or byte-equal rejection error structure). Cross-runtime parity tests at `tests/integration/endpoint-validator-cross-runtime.bats` verify this on a corpus of ~30 URLs covering every §6.5 step plus the explicit-allowlist matching from SKP-005.
-
-**Cite**: Per Flatline SDD pass #2 SKP-006 CRITICAL 870 — "If any caller bypasses canonicalization/rebinding/redirect checks, attacker-controlled endpoints can still be reached despite policy intent." Centralization closes the drift surface; CI guard prevents reintroduction.
-
-**Sprint 1 task added (T1.15)**: `endpoint-validator` module + `gen-endpoint-validator-ts.sh` codegen + cross-runtime parity tests + PR-level CI guard.
+The security architecture is **defense-in-depth at four points**: (1) JSON Schema rejection at config-load (NFR-Sec-1); (2) startup hook validation (FR-1.9 fail-closed); (3) per-request DNS re-verification (NFR-Sec-1 v1.2); (4) shell-escape audit at `.run/merged-model-aliases.sh` write time (§3.5 + §7.4 NFR-Sec-1.1 corpus).
 
 ---
 
@@ -604,52 +406,11 @@ providers:
         # ... per-model fields including permissions block (DD-1 Option B)
 ```
 
-- **Loader behavior** — **1-cycle deprecation grace period for v1** (resolves Flatline SDD pass #3 SKP-001 CRITICAL 910; supersedes v1.2 hard-reject):
+- **Loader behavior** (cheval Python loader and Bridgebuilder TS loader):
   - `schema_version: 2` → load directly.
-  - `schema_version: 1` (or absent) **during cycle-099** → ALL runtimes load successfully and emit a structured deprecation warning `[CONFIG-SCHEMA-VERSION-DEPRECATED] schema_version: 1 deprecated; run \`loa migrate-model-config\` before cycle-100 hard-reject window` (exit 0; warning to stderr, surfaced via `loa doctor`). The grace period gives operators a single cycle to migrate without taking fleet-wide outages during partial rollouts.
-  - `schema_version: 1` (or absent) **promoted to cycle-100** → ALL runtimes uniformly REJECT with structured error `[CONFIG-SCHEMA-VERSION-NEEDS-MIGRATION]` (exit 78). Migration is operator-explicit (one-shot CLI `loa migrate-model-config`), never auto-on-startup, to prevent silent runtime divergence.
+  - `schema_version: 1` (or absent) → invoke `migrate_v1_to_v2()` (Python loader only; TS loader rejects v1 with deprecation pointer to Python migration). The migration auto-promotes old shape to new; emits one-time stderr WARN `[CONFIG-SCHEMA-V1-DEPRECATED] migrating in-memory; persist via 'loa doctor model --migrate'`.
   - `schema_version: 3+` (future) → reject with `[CONFIG-SCHEMA-VERSION-UNSUPPORTED]` (exit 78). Forward-incompatibility is fail-closed.
-
-  **Cite**: Per Flatline SDD pass #3 SKP-001 CRITICAL 910 — uniform hard-reject in cycle-099 creates fleet-wide partial-rollout outage risk; 1-cycle grace eliminates the cliff while preserving determinism (warning emitted in all runtimes; hard-reject promoted in lock-step at cycle-100). Supersedes v1.2 SKP-001 (CRITICAL 910) which mandated hard-reject in cycle-099.
-
-- **`loa migrate-model-config` CLI** (cycle-099 Sprint 1 T1.14): one-shot operator-invoked migration tool. Reads v1 input file (default `.claude/defaults/model-config.yaml` and `.loa.config.yaml`), writes v2-shape output, preserves YAML structure (key ordering, comments where possible via `ruamel.yaml`), reports field-level changes to stdout, exits 0 on success / 78 on validation failure. Operator workflow:
-  ```
-  loa migrate-model-config --in .claude/defaults/model-config.yaml --out .claude/defaults/model-config.yaml.v2
-  # operator reviews diff, then commits
-  mv .claude/defaults/model-config.yaml.v2 .claude/defaults/model-config.yaml
-  ```
-  CLI lives at `.claude/scripts/loa-migrate-model-config.py`; idempotent on v2 input (no-op + WARN). Unit test: `tests/unit/loa-migrate-model-config.py.test`.
-
-#### 3.1.1.1 `migrate_v1_to_v2()` contract (resolves Flatline SDD pass #2 IMP-004 HIGH_CONSENSUS 835)
-
-The migration function inside `loa migrate-model-config` is a pure function (`.claude/scripts/lib/model-config-migrate.py`): takes parsed v1 dict, returns parsed v2 dict; no I/O; idempotent (calling with v2 input is a no-op).
-
-**Field-level handling** (concrete spec — closes IMP-004 "legacy input no defined output path"):
-
-| v1 input | v2 output | CLI report |
-|----------|-----------|------------|
-| `providers.<p>.models.<id>.{capabilities,context_window,...}` (cycle-095 shape) | Carried forward verbatim under same path | (silent — pass-through) |
-| `aliases.<name>` (cycle-095 alias map) | Carried forward verbatim | (silent — pass-through) |
-| `tier_groups.mappings.<tier>.<provider>` (cycle-095 empty maps) | Populated per cycle-099 §3.1.2 (Sprint 2 task) | INFO: `populated tier_groups.mappings.<tier>.<provider> = <value>` |
-| `agents.<skill>.model: <ref>` (cycle-095 shape) | Auto-renamed to `agents.<skill>.default_tier: <tier-tag>` IF the resolved model maps to a known tier; otherwise carried forward as `model:` | INFO per renamed entry: `renamed agents.<skill>.model -> agents.<skill>.default_tier` |
-| Standalone `model-permissions.yaml` content (cycle-026 7-dim trust_scopes) | Merged into `providers.<p>.models.<id>.permissions.trust_scopes` per DD-1 Option B | INFO per merged entry: `merged model-permissions <provider:model_id> -> permissions block` |
-| Removed fields (deprecated in v1 but never moved to v2) | Archived under top-level `_archived_v1_fields:` namespace; preserved verbatim | WARN per archived field: `archived field <path> (deprecated in v2)` |
-| Renamed fields (e.g., `endpoint_class` → `endpoint_family`, hypothetical) | Auto-renamed; old key absent in output | INFO per renamed: `renamed <old> -> <new>` |
-| Unknown fields (operator-added under non-schema paths in v1, e.g., experimental keys) | PRESERVED under top-level `_unknown_v1_fields:` namespace; full path captured | WARN per unknown: `preserved unknown v1 field <path> under _unknown_v1_fields/<path>; review and re-place in v2 schema if needed` |
-
-**Post-migration validation**: `migrate_v1_to_v2()` runs the full v2 JSON Schema validator on its output before returning. If output fails v2 validation (e.g., a v1 field had an invalid value that became invalid in v2), the migration **fails closed** with `[MIGRATION-PRODUCED-INVALID-V2]` (exit 78); the CLI reports which v2 schema violation was triggered and which v1 field caused it.
-
-**Idempotency**: calling `migrate_v1_to_v2(v2_dict)` returns the same v2_dict unchanged + emits one-time WARN `[MIGRATION-NOOP-V2-INPUT] schema_version: 2 already`.
-
-Unit test corpus (`tests/unit/migrate-v1-to-v2.py.test`):
-- v1 → v2 happy path (cycle-095-vintage config)
-- v1 with deprecated `endpoint_class` → v2 with `endpoint_family` (rename)
-- v1 with unknown `experimental_routing` field → v2 with `_unknown_v1_fields.experimental_routing`
-- v1 with field that becomes invalid in v2 (e.g., `context_window: 500` below v2 minimum 1024) → reject with structured error
-- v2 input (idempotency)
-- v3+ input (reject with `[CONFIG-SCHEMA-VERSION-UNSUPPORTED]`)
-
-**Cite**: Per Flatline SDD pass #2 IMP-004 HIGH_CONSENSUS 835 — closes the "common legacy input has no defined output path" gap by enumerating every v1→v2 path explicitly with operator-visible CLI reporting.
+- **`migrate_v1_to_v2()` contract** (`.claude/scripts/lib/model-overlay-hook.py`): pure function; takes parsed v1 dict, returns parsed v2 dict; no I/O; idempotent (calling with v2 input is a no-op). Unit test: `tests/unit/migrate-v1-to-v2.py.test`.
 
 **Migration path (Sprint 3):**
 1. `gen-model-permissions.sh` reads SoT `providers.<p>.models.<id>.permissions` and emits `model-permissions.generated.yaml` matching the cycle-026 `model_permissions:` top-level shape (key = `<provider>:<model_id>`, value = the permissions block).
@@ -891,29 +652,6 @@ The two fields have **mutually exclusive entry-level semantics**, enforced at th
 The `enum` values are populated at validator-init time from the parsed framework-default registry (the schema is dynamic-context, not a static JSON file — generated from `model-config.yaml` parsed structure before validation). Test corpus at `tests/integration/extra-vs-override-precedence.bats` constructs three failure modes: (1) `extra` ID collides with framework default; (2) `override` ID is not in framework defaults; (3) same ID in both — all three exit 78 with the appropriate structured code.
 
 This closes the operator-mistake surface where placing an ID in the wrong field would silently produce different semantics than intended (DD-3 originally said `extra` and `override` were two-different-fields-two-different-semantics; this Flatline integration makes the schema enforce it rather than relying on operator discipline).
-
-#### 3.3.1 Custom-alias vs tier-tag collision in `skill_models` (resolves Flatline SDD pass #2 IMP-007 HIGH_CONSENSUS 730)
-
-**Edge case**: an operator declares a `model_aliases_extra.entries[]` with `id: max` (or `cheap`, `mid`, `tiny`) — i.e., an operator-added alias that happens to match a known tier-tag name. Then in `skill_models.flatline_protocol.primary: max`, the resolver faces ambiguity: is `max` a tier-tag (FR-3.9 stage 2/3 path) or an alias name pointing to the operator's custom model entry?
-
-**v1.1 specification gap**: the v1.1 SDD did not pin which interpretation wins; resolution behavior could differ across runtimes. The Flatline pass #2 IMP-007 review correctly flagged this as a "valid resolver edge-case ambiguity with clear behavioral options to specify" (HIGH_CONSENSUS 730).
-
-**v1.2 explicit specification**:
-
-1. **Tier-tag interpretation wins** (FR-3.9 stage 2/3 path is consulted first). Rationale: the four tier names (`max`, `cheap`, `mid`, `tiny`) are framework reserved words at the `skill_models` resolution layer; promoting a custom alias to override them would silently change the semantics of operator config that previously worked. Tier-tag names are FROZEN as reserved at the resolver; operators wanting to point a skill at their custom-named-`max` model use the explicit `provider:model_id` form.
-
-2. **Schema-level WARN at config-load**: when `model_aliases_extra.entries[]` contains an `id` matching a tier-tag name, the JSON Schema validator emits `[ALIAS-COLLIDES-WITH-TIER] field=model_aliases_extra.entries[<n>].id detail=alias name '<id>' collides with reserved tier-tag; alias resolution is preempted by tier-tag interpretation in skill_models. Use provider:model_id explicit form to reference this alias.` This is a WARN (not a rejection) because the operator may intentionally want the alias defined for OTHER purposes (e.g., as a target of `model_aliases_override`); but the warning makes the collision explicit at config-load.
-
-3. **Operator disambiguation paths**:
-   - **Explicit form**: `skill_models.flatline_protocol.primary: anthropic:claude-opus-4-7` (FR-3.9 stage 1; bypasses tier-tag and alias lookup).
-   - **Avoid the collision**: rename the operator's alias to `my-max`, `team-max`, etc. (any non-reserved name).
-
-4. **Test corpus**: `tests/integration/alias-tier-collision.bats` constructs three scenarios:
-   - alias `max` defined + `skill_models.<skill>.<role>: max` — resolves via tier-tag, WARN emitted at load.
-   - alias `max` defined + `skill_models.<skill>.<role>: anthropic:<id>` — resolves via explicit pin (stage 1), no ambiguity.
-   - alias `my-max` defined + `skill_models.<skill>.<role>: my-max` — no collision; resolves via alias lookup at FR-3.9 stage 1 (explicit pin via alias name).
-
-**Cite**: Per Flatline SDD pass #2 IMP-007 HIGH_CONSENSUS 730 — "Relatively easy to fix and prevents inconsistent fallback behavior in custom alias scenarios." The reserved-tier-name policy + WARN + disambiguation paths together cover the documented options without surprising existing operators.
 
 ### 3.4 Truncation computation for operator-added models
 
@@ -1261,7 +999,7 @@ gen-model-permissions.sh             # emit model-permissions.generated.yaml
 gen-model-permissions.sh --check     # exit 3 if stale vs SoT
 ```
 
-Default output: `.claude/data/model-permissions.generated.yaml` (new). The standalone `model-permissions.yaml` becomes a generated artifact during cycle-099; **deletion scheduled for cycle-101 (minimum)** per §3.1.1 SKP-002 HIGH 720 deferral (resolves Flatline SDD pass #2 SKP-002 HIGH 760 internal-drift artifact).
+Default output: `.claude/data/model-permissions.generated.yaml` (new). The standalone `model-permissions.yaml` becomes a generated artifact during cycle-099; deletion scheduled for cycle-100.
 
 ### 5.4 Startup hook CLI: `model-overlay-hook` (cycle-099 Sprint 2, NEW)
 
@@ -1421,67 +1159,18 @@ The original SDD v1.0 specified fail-closed semantics on lock timeout. The Flatl
 
 **Default behavior** (`LOA_OVERLAY_STRICT=0`, the default): on lock acquisition failure after timeout (and after stale-lock recovery has been attempted), if `.run/merged-model-aliases.sh` exists and its `source-sha256=` header matches the SHA256 of `model-config.yaml ∪ .loa.config.yaml::model_aliases_extra`, the hook continues in **degraded read-only mode**:
   - Source the existing merged file as-is (no regen).
-  - Emit one-time stderr WARN per process: `[OVERLAY-DEGRADED-READONLY] reason=<lock-timeout|stale-lock-unrecoverable> file=.run/merged-model-aliases.sh source_sha=<sha8> cache-sha256=<full-sha256-of-cached-file>`. **The `cache-sha256=<hash>` field is REQUIRED** (resolves Flatline SDD pass #2 IMP-002 HIGH_CONSENSUS 845): operators running a fleet of agents can grep for `[OVERLAY-DEGRADED-READONLY]` across logs and detect cache-divergence by comparing `cache-sha256=` values; if two agents in the fleet show different cache hashes while in degraded mode, fleet split-brain has occurred and operator intervention is required (typically a `loa doctor model --force-resync`).
+  - Emit one-time stderr WARN per process: `[OVERLAY-DEGRADED-READONLY] reason=<lock-timeout|stale-lock-unrecoverable> file=.run/merged-model-aliases.sh source_sha=<sha8>`.
   - Set process env var `LOA_OVERLAY_DEGRADED=1` for downstream consumers (`model-invoke --validate-bindings --report-degraded-mode` exposes via JSON).
   - **No writes attempted** during degraded mode (read-only contract).
   - Degraded duration logged in trajectory.
-  - **Persistent timestamp tracking** (resolves Flatline SDD pass #2 SKP-004 HIGH 735): the degraded-mode start timestamp is persisted to `.run/overlay-state.json` (`{"degraded_since": "<ISO8601>", "cache_sha256": "<hash>", "reason": "<...>"}`); checked at every overlay invocation. When the agent transitions OUT of degraded mode (lock re-acquired, regen successful), `.run/overlay-state.json` is updated to clear `degraded_since`.
 
 **Strict mode** (`LOA_OVERLAY_STRICT=1`, opt-in): on lock acquisition failure, refuse to start. This is the cycle-099 v1.0 behavior, retained as opt-in for ops/CI environments where any degradation is unacceptable.
 
 **Last-known-good condition**: degraded fallback only proceeds if (a) the merged file exists, (b) its `source-sha256=` header matches a fresh hash of the input (i.e., the cached file IS the up-to-date answer — the only thing missing is the lock proof), AND (c) bash syntax check on the file passes. If any of these fail, even default mode escalates to fail-closed with `[MERGED-ALIASES-CORRUPT]` or `[MERGED-ALIASES-STALE-AND-LOCKED]`.
 
-**NFR-Op-6 (degraded mode contract — v1.1)**: degraded reads are read-only (no writes attempted); structured WARN emitted; degraded duration logged. Operator can verify via `model-invoke --validate-bindings --report-degraded-mode` (JSON output includes `"degraded_mode": true|false, "degraded_reason": "..."` field). CI/ops dashboards SHOULD alert when `LOA_OVERLAY_DEGRADED=1` is observed in production traffic.
+**NFR-Op-6 (NEW — degraded mode contract)**: degraded reads are read-only (no writes attempted); structured WARN emitted; degraded duration logged. Operator can verify via `model-invoke --validate-bindings --report-degraded-mode` (JSON output includes `"degraded_mode": true|false, "degraded_reason": "..."` field). CI/ops dashboards SHOULD alert when `LOA_OVERLAY_DEGRADED=1` is observed in production traffic.
 
-**NFR-Op-7 (NEW v1.2 — prolonged-degraded monitoring; resolves Flatline SDD pass #2 SKP-004 HIGH 735)**: degraded mode that persists indefinitely is itself a fault — the lock holder is dead but the system never alarms because the cache stays valid. v1.2 adds two graduated-severity alarms based on the `degraded_since` timestamp tracked in `.run/overlay-state.json`:
-
-| Threshold | Severity | Emission |
-|-----------|----------|----------|
-| ≥ 1 hour continuous degraded | WARN | `[OVERLAY-DEGRADED-PROLONGED] degraded_since=<ts> duration=<seconds> cache-sha256=<hash> reason=<original-reason>` — operator should investigate; suggests stale lock holder. |
-| ≥ 24 hours continuous degraded | ERROR | `[OVERLAY-DEGRADED-CRITICAL] degraded_since=<ts> duration=<seconds> cache-sha256=<hash> reason=<original-reason>` — operator MUST intervene; system is silently running on a possibly-stale view of operator config. |
-
-Both alarms are emitted at every overlay invocation that observes `now - degraded_since` exceeding the threshold (no rate limiting — operator visibility prioritized over log volume; emission is conditional on actual threshold crossing). The `[OVERLAY-DEGRADED-CRITICAL]` event is also written to the cycle-098 audit log (`.run/audit.jsonl`) for cross-session retention.
-
-**Operator surface via `loa doctor`**: the cycle-099 toolchain check (NFR-Op-5) is extended to read `.run/overlay-state.json`; if `degraded_since` is set and ≥ 1h old, `loa doctor` exits non-zero with the corresponding code. This makes prolonged-degraded a CI-detectable failure mode without requiring continuous log scanning.
-
-**Cite**: Per Flatline SDD pass #2 SKP-004 HIGH 735 — "Operational faults (deadlocks, filesystem issues) may persist undetected while the system keeps running in degraded mode, hiding real reliability problems until a critical config change is needed." The graduated alarms ensure operator awareness even when the cache happens to match current input.
-
-#### 6.3.3 `.run/overlay-state.json` corruption handling (resolves Flatline SDD pass #3 IMP-003 HIGH_CONSENSUS 775)
-
-`.run/overlay-state.json` is the persistent state file backing degraded-mode tracking (§6.3.2) and prolonged-degraded alarms (NFR-Op-7). v1.2 spec did not define behavior when this file is missing, corrupt, or has a future schema version. v1.3 closes the gap with explicit handlers:
-
-**Schema**: `.claude/data/trajectory-schemas/overlay-state.schema.json` (v1.3 deliverable, Sprint 1 task). Top-level required fields: `schema_version: <int>`, `degraded_since: <ISO8601 | null>`, `cache_sha256: <hex64 | null>`, `reason: <string | null>`, `last_updated: <ISO8601>`. `state` field carries semantic state (`fresh-init`, `degraded`, `healthy`, etc.) for forensic clarity.
-
-**Read-time handlers** (executed at every overlay invocation):
-
-| Condition | Action | Log emission |
-|-----------|--------|--------------|
-| File present + valid (passes JSON Schema) | Read and use as-is | (silent) |
-| File **missing** | Initialize with `{schema_version: 1, degraded_since: null, cache_sha256: null, reason: null, state: "fresh-init", last_updated: <now>}`; atomic-write to `.run/overlay-state.json` | INFO `[OVERLAY-STATE-INITIALIZED] state=fresh-init` |
-| File **corrupt** (parse error or schema validation fails) | Preserve corrupt file as `.run/overlay-state.json.corrupt-<ts>` (forensics retention); rebuild with current timestamp + `state: "rebuilt-after-corruption"` | WARN `[OVERLAY-STATE-CORRUPT-REBUILT] preserved=.run/overlay-state.json.corrupt-<ts>` |
-| **Future-version** (`schema_version` higher than runtime supports) | Refuse to start (fail-closed); operator likely downgraded the framework | ERROR `[OVERLAY-STATE-FUTURE-VERSION] file_schema=<n> runtime_max=<m>` exit 78 |
-| **Past-version** (`schema_version` lower than runtime; e.g., schema_version: 1 read by v3 runtime) | Run **inline auto-migration** (similar to model-config v1→v2 but auto, since this is internal framework state — operators do not edit overlay-state.json directly); on success continue with migrated content | INFO `[OVERLAY-STATE-MIGRATED] from_version=<old> to_version=<new>` |
-
-**Atomic write**: `.run/overlay-state.json` writes use the same atomic-rename pattern as `.run/merged-model-aliases.sh` — write to `.run/overlay-state.json.tmp.<pid>.<random>` in the same directory, `chmod 0600`, then `os.rename()` to final path. flock-protected by the same `.run/merged-model-aliases.sh.lock` (since the two are written in the same critical section).
-
-**Forensic retention**: corrupt files preserved as `.run/overlay-state.json.corrupt-<ts>` with no automatic cleanup; operators can inspect or delete after investigation. NFR-Op-X (operator hygiene) suggests pruning files older than 30 days.
-
-**Cite**: Per Flatline SDD pass #3 IMP-003 HIGH_CONSENSUS 775 — internal-state files need same robustness as user-facing config files; missing/corrupt/future-version semantics make degraded-mode tracking actually trustworthy. Without this, an operator-induced corrupt overlay-state.json could silently disable prolonged-degraded alarms.
-
-#### 6.3.4 Multi-file read consistency (resolves Flatline SDD pass #3 IMP-004 HIGH_CONSENSUS 735)
-
-The cycle-099 loader reads MULTIPLE config files during a single resolution: `.claude/defaults/model-config.yaml` (SoT), `.loa.config.yaml` (operator), `.run/overlay-state.json` (degraded-mode state), and JSON Schema definitions. If a writer (the overlay generator) modifies the source-of-truth files between the loader's reads, the loader can produce a **torn read**: e.g., it reads pre-update `model-config.yaml` then post-update `model_aliases_extra`, giving a logically-inconsistent merged view.
-
-**Mitigation**: when the loader reads MULTIPLE config files in a single resolution, it acquires a **shared `flock`** on `.run/merged-model-aliases.sh.lock` BEFORE the first read; releases AFTER all reads complete. This serializes multi-file reads against the writer (overlay generator), which already holds an exclusive flock during write. Torn reads avoided.
-
-**Loader contract** (extends NFR-Compat-X):
-1. Open `.run/merged-model-aliases.sh.lock` for shared flock acquisition.
-2. Hold lock for the full duration of: read `model-config.yaml` → read `.loa.config.yaml` → read `.run/overlay-state.json` → JSON Schema validation → resolution.
-3. Release lock after resolution completes (before any HTTP I/O — locks should not span network calls).
-
-**Cite**: Per Flatline SDD pass #3 IMP-004 HIGH_CONSENSUS 735 — multi-file reads need same flock discipline as the writer; failing to lock during reads creates a 5-30 second window where the writer's update can interleave with the reader's view, producing logically-inconsistent merged config.
-
-#### 6.3.5 Failure mode table (updated)
+#### 6.3.3 Failure mode table (updated)
 
 | Trigger | Code | Behavior (default) | Behavior (`LOA_OVERLAY_STRICT=1`) |
 |---------|------|--------------------|-----------------------------------|
@@ -1595,33 +1284,6 @@ Endpoint URLs from `model_aliases_extra.<id>.endpoint` and `model_aliases_overri
 - `tests/integration/default-flip-flatline-routing.bats` — FR-4.2 verification
 - `tests/integration/sunset-rollback.bats` — NFR-Op-3 rollback path
 
-### 7.5.1 Latency measurement methodology (resolves Flatline SDD pass #3 IMP-001 HIGH_CONSENSUS 880)
-
-NFR-Perf-1 commits to "<50ms p95 startup overhead". v1.2 stated the budget but did not define how it is measured or regression-gated. v1.3 closes the gap with explicit methodology:
-
-**Test artifact**: `tests/integration/overlay-resolution-latency.bats` (Sprint 1 deliverable, T1.X subtask). Runs full overlay resolution sequence (read merged config files → JSON Schema validation → FR-3.9 6-stage resolution → emit `.run/merged-model-aliases.sh`) against a fixed reference fixture (cycle-099 standard `model-config.yaml` + 5-entry `model_aliases_extra`).
-
-**Methodology**:
-1. **Warm-up**: 50 iterations executed but not measured (warm bash cache, JIT-warm Python interpreter where applicable, prime filesystem cache).
-2. **Measurement**: 1000 iterations measured with high-resolution timer (`time -v`, GNU; `gdate +%s.%N` fallback, BSD; cross-platform via Python `time.perf_counter_ns()` for canonical reference).
-3. **Reporting**: emit p50, p95, p99 latencies in milliseconds; emit standard deviation; report which percentile crossed budget on failure.
-4. **Reproducibility**: CI runs on Linux (`ubuntu-latest`) AND macOS (`macos-latest`) per NFR-Op-5 (cross-platform parity); both must pass independently. Test runs single-threaded; no parallel-load contention assumed (see scope below).
-5. **Regression gate**: PR fails if p95 > 50ms on either platform. Trend tracking via CI artifact retention (last 30 runs).
-
-**Methodology assumptions** (declared explicitly to bound the claim):
-- Measurements assume **cold disk + warm CPU** baseline (typical CI startup environment).
-- Measurements under contention (parallel agents acquiring same lock) are **SC-level integration scenarios**, not the latency baseline. NFR-Perf-1 does NOT promise <50ms under N>1 concurrent overlay regen.
-- Measurements assume `.run/merged-model-aliases.sh` cache is valid (SHA256 match → no regen). Cold-cache regen path measured separately under `tests/integration/overlay-resolution-latency-cold.bats`; budget is <500ms p95 (not the FR-Perf-1 number).
-
-**Measurement tooling**: `tests/perf/measure.py` is the canonical instrumentation (uses `time.perf_counter_ns()`); the `.bats` wrapper invokes it and asserts the percentile thresholds. Output JSON:
-```json
-{"p50_ms": 12.3, "p95_ms": 38.1, "p99_ms": 47.9, "stddev_ms": 8.4, "iterations": 1000, "platform": "ubuntu-latest"}
-```
-
-**CI surface**: `tests/integration/overlay-resolution-latency.bats` runs on every PR via `.github/workflows/ci.yml`. Failure output includes the JSON above plus a trend line (current p95 vs last main p95). Operators can verify locally with `bats tests/integration/overlay-resolution-latency.bats`.
-
-**Cite**: Per Flatline SDD pass #3 IMP-001 HIGH_CONSENSUS 880 — latency claims need measurement methodology to be enforceable; absent methodology, "p95 < 50ms" is decorative. The 1000-iter + p50/p95/p99 + cross-platform CI gate makes the claim regression-gated and operator-verifiable.
-
 ### 7.6 Cross-Runtime Golden Test Corpus (resolves Flatline SDD pass #1 SKP-002 CRITICAL 890)
 
 The FR-3.9 6-stage resolver is duplicated across **three runtimes**: the Python loader at §1.4.4 (cheval + `model-overlay-hook.py`), the Bash overlay generator at §1.4.5 (`.run/merged-model-aliases.sh` consumers), and the Bridgebuilder TypeScript runtime overlay at §1.5. The Flatline review identified this triplication as a **CRITICAL drift hazard** — any small precedence mismatch can route different skills to different models under the same config, causing inconsistent behavior, hard-to-debug incidents, and trust loss.
@@ -1727,20 +1389,6 @@ Sprint 1 ships the following fixtures; Sprint 2/3 add as new edge cases surface:
 
 `/sprint-plan` will produce final sprint briefs. The PRD already locked phasing (`prd.md:23-28`); SDD adds task-level detail.
 
-### 8.0 Cycle Scope Acknowledgement (resolves Flatline SDD pass #3 SKP-003 HIGH 790)
-
-**Scope acknowledgement**: Cycle-099 scope grew during 2 SDD-level Flatline passes. Original PRD v1.0 framing was 4 sprints with FR-1..FR-5. SDD v1.2 added: schema migration tooling (T1.14), centralized endpoint validator (T1.15), cross-runtime canonicalization standard (§1.5.1), CI guards, runbooks. SDD v1.3 added: latency measurement methodology (§7.5.1), overlay-state.json corruption handling (§6.3.3), multi-file read consistency (§6.3.4), CDN exemption mechanism (§1.9), TS-from-Python codegen mechanism spec (§1.9.1). Total: 4 sprints + 5 cross-cutting tasks + ~6 v1.3 deliverables.
-
-**Estimated tests**: ~110 (PRD baseline) + ~40 (SDD v1.2 additions) + ~10 (SDD v1.3 additions: latency-bats + overlay-state-corruption + multi-file-flock + CDN-CIDR-validator + TS-codegen-parity) = **~160 tests**.
-
-**Estimated cost**: **$200-300** (PRD originally projected $110-180).
-
-**Estimated wall-clock**: **5-6 weeks** (PRD originally projected 4-5 weeks).
-
-The cycle is acknowledged to be **wider than initial PRD framing**; quality-gate iteration (PRD pass #1-3 + SDD pass #1-3) surfaced legitimate scope expansions (cross-runtime drift hazards, SSRF surface hardening, operator-config robustness) — not feature creep. The scope expansions address risks the original framing did not see; deferring them would push the same work into cycle-100 cleanup at higher cost. Operator confirms scope at SDD v1.3 review.
-
-**Cite**: Per Flatline SDD pass #3 SKP-003 HIGH 790 — explicit scope acknowledgement at SDD plateau ensures budget/timeline alignment before Sprint 1 begins; mid-cycle scope discovery is the costliest failure mode.
-
 ### Sprint 1 — SoT Extension Foundation (estimated ~30 tests, ~$30-50)
 
 **Acceptance theme**: "Codegen and drift gate work; nothing else changes."
@@ -1758,10 +1406,8 @@ The cycle is acknowledged to be **wider than initial PRD framing**; quality-gate
 - [ ] T1.11 — **Build golden-test fixture corpus + 3 cross-runtime runners (Python/Bash/TS)**. Initial 12 fixtures per §7.6.3; runners at `tests/python/golden_resolution.py`, `tests/bash/golden_resolution.bats`, `tests/typescript/golden_resolution.test.ts`. (resolves Flatline SDD pass #1 SKP-002 CRITICAL 890)
 - [ ] T1.12 — Wire CI workflows: `.github/workflows/python-runner.yml`, `bash-runner.yml`, `bun-runner.yml`, `cross-runtime-diff.yml`. Mismatch fails build. (§7.6.2)
 - [ ] T1.13 — Implement Debug Trace + JSON Output Secret Redactor at `.claude/scripts/lib/log-redactor.{py,sh}`. Cross-runtime parity test. (§5.6, resolves Flatline SDD pass #1 IMP-002 HIGH_CONSENSUS 860)
-- [ ] T1.14 — Implement `loa migrate-model-config` CLI at `.claude/scripts/loa-migrate-model-config.py` (operator-explicit v1→v2 migration; preserves YAML structure via `ruamel.yaml`; reports field-level changes; exits 0 success / 78 validation failure; idempotent on v2 input). Pure migration logic in `.claude/scripts/lib/model-config-migrate.py` per §3.1.1.1 contract (field mapping table; `_archived_v1_fields` + `_unknown_v1_fields` namespaces; post-migration full v2 schema validation). Unit test corpus per §3.1.1.1. (resolves Flatline SDD pass #2 SKP-001 CRITICAL 910 + IMP-004 HIGH_CONSENSUS 835)
-- [ ] T1.15 — Implement Centralized Endpoint Validator: `.claude/scripts/lib/endpoint-validator.py` (Python canonical reference) + `endpoint-validator.sh` (bash wrapper invoking Python via `python3 -m endpoint_validator`) + TS port at `.claude/skills/bridgebuilder-review/resources/lib/endpoint-validator.ts` (build-time generated via `gen-endpoint-validator-ts.sh`). Cross-runtime parity tests at `tests/integration/endpoint-validator-cross-runtime.bats`. PR-level CI guard in `model-registry-drift.yml`: assert `urllib.parse` imports only in `endpoint-validator.py` (Python), no direct `curl`/`wget` outside `endpoint-validator.sh` (Bash), no direct `fetch(`/`http.request` outside `endpoint-validator.ts` (TS). (§1.9.1, resolves Flatline SDD pass #2 SKP-006 CRITICAL 870)
 
-**Acceptance criteria**: SC-1 (partial — only registries 1, 2, 4, 5 covered), SC-8 (drift gate green), Flatline SDD pass #1 SKP-002 CRITICAL 890 mitigation in CI matrix, Flatline SDD pass #2 SKP-001 + SKP-005 + SKP-006 mitigations in place before Sprint 2 implementation.
+**Acceptance criteria**: SC-1 (partial — only registries 1, 2, 4, 5 covered), SC-8 (drift gate green), Flatline SDD pass #1 SKP-002 CRITICAL 890 mitigation in CI matrix.
 
 ### Sprint 2 — Config Extension + Per-Skill Granularity (estimated ~30 tests, ~$30-50)
 
@@ -1795,7 +1441,7 @@ The cycle is acknowledged to be **wider than initial PRD framing**; quality-gate
 - [ ] T3.3 — Update `.claude/protocols/flatline-protocol.md` + `gpt-review-integration.md` to reference operator config. (FR-1.6)
 - [ ] T3.4 — Implement DD-1 Option B: extend `model-config.yaml` with per-model `permissions` block. (§3.1.1)
 - [ ] T3.5 — Implement `gen-model-permissions.sh` emitting `model-permissions.generated.yaml`. (§5.3)
-- [ ] T3.6 — Migrate `model-permissions.yaml` → `model-permissions.generated.yaml` (read-path swap; **cycle-101 (minimum) deletes** per §3.1.1 SKP-002 HIGH 720 deferral). (FR-1.4) (resolves Flatline SDD pass #2 SKP-002 HIGH 760 internal-drift artifact)
+- [ ] T3.6 — Migrate `model-permissions.yaml` → `model-permissions.generated.yaml` (read-path swap; cycle-100 deletes). (FR-1.4)
 - [ ] T3.7 — Regenerate Bridgebuilder `dist/` from SoT via `bun run build`. (FR-1.1, SC-4)
 - [ ] T3.8 — Publish `grimoires/loa/runbooks/bridgebuilder-dist-rollback.md`. (R-1)
 - [ ] T3.9 — Publish `grimoires/loa/runbooks/model-permissions-removal.md`. (DD-1)
@@ -1886,7 +1532,6 @@ PRD Risks R-1..R-10 carried forward. SDD adds:
 
 - PRD: `grimoires/loa/cycles/cycle-099-model-registry/prd.md` (v1.3, 2026-05-04)
 - Flatline SDD pass #1 review JSON: `grimoires/loa/a2a/flatline/cycle-099-sdd-review.json` (2026-05-04)
-- Flatline SDD pass #2 review JSON: `grimoires/loa/a2a/flatline/cycle-099-sdd-review-v11.json` (2026-05-04, 100% model agreement, 6 HIGH_CONSENSUS + 6 BLOCKERS)
 - Issue #710: https://github.com/0xHoneyJar/loa/issues/710
 - Cycle-095 PRD/SDD: `grimoires/loa/cycles/cycle-095-model-currency/`
 - Cycle-098 SDD pattern (Sprint 1B `protected_classes_extra`): `grimoires/loa/cycles/cycle-098-agent-network/sdd.md`
@@ -1899,7 +1544,7 @@ PRD Risks R-1..R-10 carried forward. SDD adds:
 - POSIX `flock(2)` semantics: https://man7.org/linux/man-pages/man2/flock.2.html
 - POSIX `kill(2)` (used by §6.3.1 stale-lock PID check via `kill -0`): https://man7.org/linux/man-pages/man2/kill.2.html
 
-### C. Decision Log (Resolution of PRD Deferred Decisions, SDD-Shape Findings, and Flatline SDD Pass #1/#2/#3 Findings)
+### C. Decision Log (Resolution of PRD Deferred Decisions, SDD-Shape Findings, and Flatline SDD Pass #1 Findings)
 
 | Date / Source | Decision | Source / Finding ID | Rationale |
 |---------------|----------|---------------------|-----------|
@@ -1922,28 +1567,6 @@ PRD Risks R-1..R-10 carried forward. SDD adds:
 | 2026-05-04 (SDD pass #1) | Lock acquisition contract specified: shared-lock-first-then-upgrade; 5s shared timeout, 30s exclusive timeout (configurable via env vars); stale-lock recovery via `kill -0`. | Flatline SDD pass #1 IMP-001 HIGH_CONSENSUS (865) | §6.3.1 — multi-agent startup race specification; deterministic acquisition order prevents nondeterministic startup failures. |
 | 2026-05-04 (SDD pass #1) | Debug Trace + JSON Output Secret Redactor module added at `.claude/scripts/lib/log-redactor.{py,sh}`; URL userinfo + 6 query-string secret patterns; applied to FR-5.7 + FR-5.6 + FR-1.9 generated diagnostics. | Flatline SDD pass #1 IMP-002 HIGH_CONSENSUS (860) | §5.6 — debug traces and JSON outputs are common leak vectors; URL userinfo + query strings are realistic secret carriers. Preserves NFR-Sec-3 ("no new secrets surface introduced") even under operator-misconfiguration. |
 | 2026-05-04 (SDD pass #1) | `model_aliases_extra` ADDS new IDs (`oneOf` rejects framework-default collisions); `model_aliases_override` MODIFIES existing IDs (requires framework-default ID); mutually exclusive at entry level. | Flatline SDD pass #1 IMP-004 HIGH_CONSENSUS (765) | §3.3 + JSON Schema — DD-3 originally said "two-different-fields-two-different-semantics" by convention; v1.1 enforces at the schema layer to remove ambiguity and operator-mistake surface. |
-| 2026-05-04 (SDD pass #2) | `schema_version` v1→v2 migration: ALL runtimes uniformly REJECT v1 with `[CONFIG-SCHEMA-VERSION-NEEDS-MIGRATION]` (exit 78) pointing operators to `loa migrate-model-config` CLI. Migration is operator-explicit, never auto-on-startup. | Flatline SDD pass #2 SKP-001 CRITICAL (910) | §3.1.1 + §1.4.5 — v1.1 had Python auto-migrating in-memory while TS rejected; this CRITICAL drift hazard is closed by uniform reject. New CLI as T1.14 in Sprint 1. |
-| 2026-05-04 (SDD pass #2) | Wildcard `*.googleapis.com` allowlist REPLACED with explicit hostname `generativelanguage.googleapis.com`; all providers' `allowed_endpoints` are explicit hostnames; non-standard hostnames require System Zone registration at cycle-level approval. | Flatline SDD pass #2 SKP-005 CRITICAL (890) | §1.6, §1.9, §6.5 — wildcards combined with operator-controlled endpoints expose SSRF surface to subdomains operators may not have authority over. Explicit-list discipline rejects wildcard convenience. |
-| 2026-05-04 (SDD pass #2) | New §1.9.1 Centralized Endpoint Validator: shared module `.claude/scripts/lib/endpoint-validator.{py,sh,ts}`; Python canonical reference; Bash wraps Python; TS build-time-generated from Python via golden-corpus parity tests. PR-level CI guard prevents direct `urllib.parse` use outside the validator. | Flatline SDD pass #2 SKP-006 CRITICAL (870) | §1.9.1 — three independent URL-validation implementations create three drift surfaces; centralization closes drift; CI guard prevents reintroduction. New T1.15 task in Sprint 1. |
-| 2026-05-04 (SDD pass #2) | Resolver triplication closure: Python declared canonical resolver reference; Bash overlay generator wraps Python via `python3 -m model_resolver`; TS Bridgebuilder runtime overlay is build-time-generated from Python via codegen + cross-runtime golden parity. | Flatline SDD pass #2 SKP-003 HIGH (780) | §1.5.1 — fixture-based parity catches divergence ONLY for fixture inputs; canonical reference closes the gap by making Bash and TS projections of Python rather than independent reimplementations. |
-| 2026-05-04 (SDD pass #2) | Determinism gap closed via lexical classification + rejection rules in canonical reference; Python implementation pins ordering, error codes, and resolution_path schema for all runtimes. | Flatline SDD pass #2 IMP-001 HIGH_CONSENSUS (900) | §1.5.1 — same canonicalization standard; this finding emphasized the spec/fixture contradiction. v1.2 makes the spec authoritative via the Python canonical reference + JSON Schema for output. |
-| 2026-05-04 (SDD pass #2) | Byte-identical cross-runtime guarantee replaced by canonicalization-invariant guarantee: input normalization via RFC 8785 JCS; output schema pinned; deterministic ordering; error reporting; tracing fingerprint. Property-based tests verify byte-equivalence on ~600 random valid configs per PR check. | Flatline SDD pass #2 IMP-005 HIGH_CONSENSUS (815) | §1.5.1 invariants table + property test corpus — pure byte-identical gates produce false positives without canonicalization spec. JCS + pinned schema + property tests close the trust gap. |
-| 2026-05-04 (SDD pass #2) | Search-and-replace: all "cycle-100" wrapper-removal references → "cycle-101 (minimum) per §3.1.1 SKP-002 HIGH 720 deferral". | Flatline SDD pass #2 SKP-002 HIGH (760) | §1.4.3, §3.1.1, §5.3, §8 Sprint 3 — internal-drift artifact from v1.1 patch (v1.1 patched §3.1.1 to "cycle-101 MIN" but other sections still said "cycle-100"). Closed by consistent text. |
-| 2026-05-04 (SDD pass #2) | NFR-Op-7 prolonged-degraded monitoring: ≥1h continuous degraded → `[OVERLAY-DEGRADED-PROLONGED]` WARN; ≥24h → `[OVERLAY-DEGRADED-CRITICAL]` ERROR (also written to cycle-098 audit log). Tracking via `degraded_since` ISO8601 timestamp persisted in `.run/overlay-state.json`; surfaced via `loa doctor` (NFR-Op-5). | Flatline SDD pass #2 SKP-004 HIGH (735) | §6.3.2 — fail-closed-on-lock-timeout already mitigated in v1.1 with degraded read-only mode; v1.2 ensures the degraded state itself does not become silent steady-state via graduated alarms. |
-| 2026-05-04 (SDD pass #2) | Fleet split-brain detection: every `[OVERLAY-DEGRADED-READONLY]` warning includes `cache-sha256=<full-sha256-of-cached-file>`. Operators running fleets grep across logs to detect cache-divergence between agents in degraded mode. | Flatline SDD pass #2 IMP-002 HIGH_CONSENSUS (845) | §6.3.2 — different agents in a fleet using different stale caches have no detection mechanism in v1.1; cache-hash logging closes the gap with zero new infrastructure. |
-| 2026-05-04 (SDD pass #2) | `migrate_v1_to_v2()` concrete spec (new §3.1.1.1): field mapping table (v1 → v2); removed-fields archived under `_archived_v1_fields:` namespace + reported in CLI output; renamed-fields auto-renamed; unknown-fields PRESERVED under `_unknown_v1_fields:` with operator WARN; post-migration full v2 schema validation (reject if migration produces invalid v2). | Flatline SDD pass #2 IMP-004 HIGH_CONSENSUS (835) | §3.1.1.1 — v1.1 declared `migrate_v1_to_v2()` as a function but did not pin behavior for legacy/removed/renamed/unknown fields. v1.2 enumerates every path explicitly with operator-visible CLI reporting. |
-| 2026-05-04 (SDD pass #2) | New §1.5.2 explicit precedence: runtime overlay > build-time defaults BY DESIGN. FR-5.7 debug output enumerates `build_time_default` and `runtime_overlay_override` stages; new `model-invoke --validate-bindings --diff-bindings` flag emits `[BINDING-OVERRIDDEN]` lines comparing effective vs compiled. | Flatline SDD pass #2 IMP-003 HIGH_CONSENSUS (790) | §1.5.2 — v1.1 hybrid pattern was correct but operator-invisible; v1.2 makes the precedence explicit and operator-verifiable without changing semantics. |
-| 2026-05-04 (SDD pass #2) | Custom-alias vs tier-tag collision in `skill_models`: tier-tag interpretation wins (FR-3.9 stage 2/3). JSON Schema validator emits `[ALIAS-COLLIDES-WITH-TIER]` WARN at config-load when `model_aliases_extra.entries[].id` matches a reserved tier name (`max`/`cheap`/`mid`/`tiny`). Operator disambiguates via explicit `provider:model_id` form or by avoiding tier-name collisions. | Flatline SDD pass #2 IMP-007 HIGH_CONSENSUS (730) | §3.3.1 — v1.1 left this edge case unspecified; resolution behavior could differ across runtimes. v1.2 pins tier-tag-wins + WARN visibility + disambiguation paths. |
-| 2026-05-04 (SDD pass #3) | `schema_version: 1` → 1-cycle deprecation grace period: cycle-099 emits `[CONFIG-SCHEMA-VERSION-DEPRECATED]` warning + continues; hard-reject promoted to cycle-100. Supersedes v1.2 hard-reject-in-cycle-099. | Flatline SDD pass #3 SKP-001 CRITICAL (910) | §3.1.1 — uniform hard-reject creates fleet-wide partial-rollout outage risk; 1-cycle grace eliminates the cliff while preserving determinism (warning emitted in all runtimes; hard-reject promoted in lock-step at cycle-100). |
-| 2026-05-04 (SDD pass #3) | Provider-CDN exemption mechanism added: `providers.<p>.cdn_cidr_exemptions` (System Zone framework defaults) + `cdn_cidr_exemptions_extra` (operator-extensible). At request time, RFC-1918/loopback rebinding check skipped when DNS-resolved IP falls in exempted CIDRs. | Flatline SDD pass #3 SKP-005 HIGH (720) | §1.9 — strict DNS rebinding policy must coexist with real-world CDN-fronted providers (Anthropic CF, AWS regional, OpenAI dynamic). Default-deny preserves secure-by-default; opt-in restores legitimate CDN behavior without weakening rebinding defense for other surfaces. |
-| 2026-05-04 (SDD pass #3) | TS-from-Python codegen mechanism made explicit: `python3 -m loa_cheval.codegen.emit_endpoint_validator_ts` writes `endpoint-validator.generated.ts` from a Jinja2 template; build pipeline order pinned (codegen → tsc → golden parity test); `[BB-CODEGEN-FAILED]` aborts on codegen failure. T1.15 task scope clarified. | Flatline SDD pass #3 IMP-002 HIGH_CONSENSUS (880) | §1.9.1 — explicit codegen mechanism prevents "TS-from-Python" from being a hand-wave; downstream consumers can audit the template, the codegen module, and the parity-test fixture corpus. |
-| 2026-05-04 (SDD pass #3) | `.run/overlay-state.json` corruption handling specified: schema-validate at read; missing → init with current ts; corrupt → preserve as `.corrupt-<ts>` + rebuild + WARN; future-version → fail-closed; past-version → inline auto-migration. Atomic write via `.tmp.<pid>.<random>` + `os.rename` + `chmod 0600`. | Flatline SDD pass #3 IMP-003 HIGH_CONSENSUS (775) | §6.3.3 — internal-state files need same robustness as user-facing config files; absent these handlers, an operator-induced corrupt overlay-state.json could silently disable prolonged-degraded alarms. |
-| 2026-05-04 (SDD pass #3) | Latency measurement methodology specified: `tests/integration/overlay-resolution-latency.bats` (1000 iter post-50 warm-up); p50/p95/p99 reporting; cross-platform Linux + macOS CI gate; PR fails on p95 > 50ms. Cold-cache regen budget separate (<500ms p95 in `overlay-resolution-latency-cold.bats`). | Flatline SDD pass #3 IMP-001 HIGH_CONSENSUS (880) | §7.5.1 — latency claims need measurement methodology to be enforceable; absent methodology, "p95 < 50ms" is decorative. The 1000-iter + percentile reporting + cross-platform CI gate makes the claim regression-gated. |
-| 2026-05-04 (SDD pass #3) | Multi-file read consistency: loader acquires shared `flock` on `.run/merged-model-aliases.sh.lock` BEFORE first read; releases AFTER all reads complete. Serializes multi-file reads against the writer; torn reads avoided. | Flatline SDD pass #3 IMP-004 HIGH_CONSENSUS (735) | §6.3.4 — multi-file reads need same flock discipline as the writer; failing to lock during reads creates a 5-30 second window where the writer's update can interleave with the reader's view, producing logically-inconsistent merged config. |
-| 2026-05-04 (SDD pass #3) | **Tradeoff acknowledgement**: Python as canonical reference is a deliberate architectural tradeoff vs cross-runtime drift. Cycle-099 explicitly accepts Python availability dependency in exchange for elimination of resolver drift across 3 runtimes. Mitigations: NFR-Op-5 Python 3.11+ pin; build-time CI catches codegen failures; bash + TS golden-corpus tests independently verify equivalence. | Flatline SDD pass #3 SKP-002 CRITICAL (880) | §1.5.1 — alternative is three independent implementations (the failure mode cycle-099 was created to prevent); single-source-of-truth is the deliberate choice. |
-| 2026-05-04 (SDD pass #3) | **Tradeoff acknowledgement**: Cycle scope wider than initial PRD framing — total ~160 tests, $200-300, 5-6 weeks (vs PRD's $110-180 / 4-5 weeks). Quality-gate iteration surfaced legitimate scope expansions (cross-runtime drift, SSRF surface, operator-config robustness), not feature creep. Operator confirms scope at SDD v1.3 review. | Flatline SDD pass #3 SKP-003 HIGH (790) | §8.0 — explicit scope acknowledgement at SDD plateau ensures budget/timeline alignment before Sprint 1 begins; mid-cycle scope discovery is the costliest failure mode. |
-| 2026-05-04 (SDD pass #3) | **Tradeoff acknowledgement**: Strict allowlist governance is a deliberate security tradeoff vs operator agility. Operators wanting non-standard hostnames have two paths: (a) System Zone PR for hostname additions (cycle-level approval); (b) operator-local `cdn_cidr_exemptions_extra` for known CDN behaviors. Governance overhead accepted in exchange for closed SSRF surface. | Flatline SDD pass #3 SKP-004 HIGH (740) | §1.9 — alternative (wildcards) was rejected at SDD pass #2 SKP-005 CRITICAL 890; cycle-099 holds the line on explicit allowlists. |
-| 2026-05-05 | **Kaironic stop declared** at SDD pass #3 (3 SDD passes total: 9+12+9 findings = 30 SDD findings integrated; PRD added 27 across 3 passes; total 57 findings integrated cycle-099). | Flatline SDD pass #3 plateau analysis (second-order consequences of v1.2 integrations) | Mirrors cycle-098 PRD v1.4→v1.5 kaironic stop pattern; integrations create as many new tradeoffs as fix old issues = productive-limit reached. Sprint-level Flatline catches any residual SDD-shape issues via back-propagation. |
 
 ### D. Change Log
 
@@ -1951,19 +1574,13 @@ PRD Risks R-1..R-10 carried forward. SDD adds:
 |---------|------|---------|--------|
 | 1.0 | 2026-05-04 | Initial SDD draft. Resolves DD-1..DD-6 and SDD-shape SKP-003..SKP-006 from PRD v1.3 deferred items. Ready for SDD-level Flatline review (cycle-098 pattern: 2-4 passes). | Architecture Designer |
 | 1.1 | 2026-05-04 | **Flatline SDD pass #1 integrated** (`cycle-099-sdd-review.json`, Opus + GPT-5.3-codex + Gemini-3.1-pro-preview, **100% model agreement**, 3 HIGH_CONSENSUS + 6 BLOCKERS): SKP-001 CRITICAL 910 (§10 closed), SKP-002 CRITICAL 890 (§7.6 cross-runtime corpus), SKP-003 HIGH 770 (§6.5 simplified to 8 steps), SKP-004 HIGH 740 (§6.3 degraded fallback), SKP-002 HIGH 720 (§3.1.1 schema_version + cycle-101 deferral), SKP-005 HIGH 710 (§3.1.1 one-way sync), IMP-001 HIGH_CONSENSUS 865 (§6.3.1 lock spec), IMP-002 HIGH_CONSENSUS 860 (§5.6 redactor), IMP-004 HIGH_CONSENSUS 765 (§3.3 mutual-exclusion). Status: ready for `/sprint-plan` after operator review (pass #2 optional). | Architecture Designer |
-| 1.2 | 2026-05-04 | **Flatline SDD pass #2 integrated** (`cycle-099-sdd-review-v11.json`, Opus + GPT-5.3-codex + Gemini-3.1-pro-preview, **100% model agreement**, 6 HIGH_CONSENSUS + 6 BLOCKERS): SKP-001 CRITICAL 910 (uniform-reject v1 + `loa migrate-model-config` CLI as T1.14), SKP-005 CRITICAL 890 (explicit hostname allowlist; wildcards removed), SKP-006 CRITICAL 870 (§1.9.1 Centralized Endpoint Validator + T1.15 + CI guard), SKP-003 HIGH 780 + IMP-001 HIGH_CONSENSUS 900 + IMP-005 HIGH_CONSENSUS 815 (§1.5.1 Cross-Runtime Canonicalization Standard; Python canonical reference + reference-driven Bash/TS + invariant-based property tests), SKP-002 HIGH 760 (cycle-100 → cycle-101 MIN search-and-replace), SKP-004 HIGH 735 (NFR-Op-7 prolonged-degraded monitoring), IMP-002 HIGH_CONSENSUS 845 (cache-sha256 fleet split-brain detection), IMP-004 HIGH_CONSENSUS 835 (§3.1.1.1 `migrate_v1_to_v2()` concrete spec), IMP-003 HIGH_CONSENSUS 790 (§1.5.2 explicit precedence + `--diff-bindings`), IMP-007 HIGH_CONSENSUS 730 (§3.3.1 alias-vs-tier collision specification). Status: ready for `/sprint-plan` after operator review (pass #3 optional convergence verification). | Architecture Designer |
-| 1.3 | 2026-05-04 | **Flatline SDD pass #3 integrated — kaironic stop** (`cycle-099-sdd-review-v12.json`, Opus + GPT-5.3-codex + Gemini-3.1-pro-preview, **100% model agreement**, 4 HIGH_CONSENSUS + 5 BLOCKERS): **6 real fixes** integrated — SKP-001 CRITICAL 910 (1-cycle deprecation grace period for `schema_version: 1`; hard-reject promoted to cycle-100), SKP-005 HIGH 720 (provider-CDN exemption mechanism; `cdn_cidr_exemptions` + `cdn_cidr_exemptions_extra`), IMP-002 HIGH_CONSENSUS 880 (TS-from-Python codegen mechanism made explicit; Jinja2 template + `loa_cheval.codegen.emit_endpoint_validator_ts`), IMP-003 HIGH_CONSENSUS 775 (§6.3.3 `.run/overlay-state.json` corruption handling), IMP-001 HIGH_CONSENSUS 880 (§7.5.1 latency measurement methodology), IMP-004 HIGH_CONSENSUS 735 (§6.3.4 multi-file read consistency). **3 architectural tradeoffs explicitly acknowledged** — SKP-002 CRITICAL 880 (Python SPoF as deliberate tradeoff vs cross-runtime drift; §1.5.1), SKP-003 HIGH 790 (cycle scope wider than PRD framing; $200-300 / 5-6 weeks; §8.0), SKP-004 HIGH 740 (strict allowlist governance as deliberate security tradeoff; §1.9). **Kaironic stop declared** — pass #3 found mostly second-order consequences of v1.2 integrations (whack-a-mole pattern at architectural level). Status: 3 SDD passes complete; ready for `/sprint-plan`. | Architecture Designer |
 
 ### E. Sources Cited
 
 - Flatline SDD pass #1: `grimoires/loa/a2a/flatline/cycle-099-sdd-review.json` (2026-05-04, 100% model agreement, 3 HIGH_CONSENSUS + 6 BLOCKERS, kaironic stop after pass #1)
-- Flatline SDD pass #2: `grimoires/loa/a2a/flatline/cycle-099-sdd-review-v11.json` (2026-05-04, 100% model agreement, 6 HIGH_CONSENSUS + 6 BLOCKERS, kaironic plateau check after pass #2)
-- Flatline SDD pass #3: `grimoires/loa/a2a/flatline/cycle-099-sdd-review-v12.json` (2026-05-04, 100% model agreement, 4 HIGH_CONSENSUS + 5 BLOCKERS, kaironic stop after pass #3)
 - PRD v1.3: `grimoires/loa/cycles/cycle-099-model-registry/prd.md` (2026-05-04, kaironic plateau at pass #3)
 - v1.0 backup: `grimoires/loa/cycles/cycle-099-model-registry/sdd-v1.0.md`
-- v1.1 backup: `grimoires/loa/cycles/cycle-099-model-registry/sdd-v1.1.md`
-- v1.2 backup: `grimoires/loa/cycles/cycle-099-model-registry/sdd-v1.2.md`
 
 ---
 
-*Generated by Architecture Designer Agent. Cycle-099 model-registry consolidation. Operator priority: URGENT. v1.3 integrates Flatline pass #3 (kaironic stop) at 100% model agreement (4 HIGH_CONSENSUS + 5 BLOCKERS): 6 real fixes + 3 architectural tradeoffs acknowledged. v1.2 integrated Flatline pass #2 (6 HIGH_CONSENSUS + 6 BLOCKERS); v1.1 integrated Flatline pass #1 (3 HIGH_CONSENSUS + 6 BLOCKERS).*
+*Generated by Architecture Designer Agent. Cycle-099 model-registry consolidation. Operator priority: URGENT. v1.1 integrates Flatline pass #1 at 100% model agreement.*

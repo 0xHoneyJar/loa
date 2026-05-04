@@ -1084,3 +1084,47 @@ Both pre-written briefs in RESUMPTION.md (Brief A = cycle-099, Brief B = Sprint 
 - /bug #711: ~$15-20 (smaller scope)
 
 Total session: ~$120-150. ~480 tests added. 5 PRs merged. 0 regressions. Significantly under the model-upgraded estimate ($300-500/sprint per session brief), partly because OpenAI / Google models intermittently 404'd during bridgebuilder (claude-opus-4-7 carried alone on those iters).
+
+---
+
+## 2026-05-04 — `/ride --enriched` ride against framework repo
+
+Ran the `/ride --enriched` skill against `0xHoneyJar/loa@main` v1.110.1 (the framework itself riding itself, deliberately — operator invoked from inside the repo). All 14 phases completed; 20/20 expected artifacts verified on disk.
+
+### Outputs
+
+| Artifact | Path | Notes |
+|----------|------|-------|
+| Claims to verify | `grimoires/loa/context/claims-to-verify.md` | 39 claims |
+| Hygiene report | `grimoires/loa/reality/hygiene-report.md` | 6 items flagged; **Beads DB integrity is P0** |
+| Drift report | `grimoires/loa/drift-report.md` | Score 23/100 (low); 31 aligned, 4 stale, 2 hallucinated, 1 missing, 1 shadow |
+| Consistency report | `grimoires/loa/consistency-report.md` | 9/10 |
+| Framework PRD | `grimoires/loa/prd-framework.md` | 207 lines, 91.4% grounded |
+| Framework SDD | `grimoires/loa/sdd-framework.md` | 333 lines, 95.2% grounded |
+| Reality files | `grimoires/loa/reality/{index,api-surface,types,interfaces,structure,entry-points,architecture-overview}.md` + `.reality-meta.json` | 7,833 / 8,500 token budget |
+| Governance report | `grimoires/loa/governance-report.md` | All 9 core governance artifacts present |
+| Self-audit | `grimoires/loa/trajectory-audit.md` | Quality 9/10 |
+| Legacy inventory | `grimoires/loa/legacy/INVENTORY.md` | 1,147 docs catalogued |
+| **Gap tracker** | `grimoires/loa/gaps.md` | **15 open gaps** (1 P0, 3 P1, 9 P2, 2 P3); session_hash 4d6f |
+| **Decision archaeology** | `grimoires/loa/reality/decisions.md` | 11 ADR-style records (7 RFCs + 2 cycle-098 decisions + 2 misc); framework uses `proposals/` + `cycles/<cycle>/decisions/` instead of standard `docs/adr/` |
+| **Terminology** | `grimoires/loa/reality/terminology.md` | 50 terms across 8 domains |
+
+### Critical findings to action
+
+1. **GAP-004-4d6f (P0)**: Beads DB at `.beads/beads.db` has SQLite schema corruption (`VDBE halted with code 19: NOT NULL constraint failed: dirty_issues.marked_at`). Blocks `/run sprint-N`. `.beads/issues.jsonl` (243K, 2026-04-28) is available as pre-corruption backup. Recover before running autonomous workflows.
+2. **GAP-001-4d6f (P1)**: README claims "18 specialized skills"; filesystem has **31**. Affects user trust + agent discovery.
+3. **GAP-002-4d6f (P2)**: README claims "48 total commands"; filesystem has **53**.
+4. **GAP-003-4d6f (P1)**: README:191 says "GPT-5.2", README:32 + `.loa.config.yaml.example` say "GPT-5.3-codex". Internal contradiction; auto-memory clarifies that 5.3-codex is the live default.
+5. **GAP-005-4d6f (P2)**: cheval Python adapter undocumented at user level despite being multi-provider LLM substrate (with #675 HTTP/2 bug knowledge in auto-memory only).
+
+### Preservation decision
+
+The pre-existing `grimoires/loa/prd.md` and `sdd.md` describe **cycle-098 Agent-Network Operation Primitives** (specific cycle work, not framework-wide). Ride deliberately did NOT overwrite them. Framework-wide artifacts placed at `prd-framework.md` and `sdd-framework.md`. Naming convention TBD by operator (gap GAP-008-4d6f tracks this).
+
+### Quality summary
+
+- Trajectory: `grimoires/loa/a2a/trajectory/riding-20260504.jsonl` (252 lines, all phases logged)
+- Verification gate: 20/20 artifacts present
+- Grounding: 91.4% PRD, 95.2% SDD (target >80% met)
+- 0 hallucinations detected in self-audit
+- 15 gaps catalogued for human resolution
