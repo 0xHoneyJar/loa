@@ -2383,3 +2383,40 @@ qmd_context:
 # To install/uninstall the daily snapshot cron:
 #   .claude/scripts/audit/audit-snapshot-install.sh install
 #   .claude/scripts/audit/audit-snapshot-install.sh uninstall
+
+# -----------------------------------------------------------------------------
+# Model-Health-Probe Webhook (cycle-093 §3B + cycle-099 sprint-1E.c.3.c)
+# -----------------------------------------------------------------------------
+# Optional fan-out for probe alert events. The probe POSTs the redacted audit
+# entry (already scrubbed via _redact_secrets) to the configured webhook URL,
+# fire-and-forget, with --max-time 5.
+#
+# Two dispatch paths:
+#   1. Default (legacy): raw curl with hardened defaults (--proto =https,
+#      --max-redirs 10). The webhook URL is operator-supplied dynamically and
+#      cannot be statically allowlisted (operators legitimately use Slack,
+#      PagerDuty, Discord, custom URLs). Tagged [ENDPOINT-VALIDATOR-EXEMPT].
+#   2. Opt-in (1E.c.3.c, recommended): wrapper-routed dispatch through
+#      endpoint_validator__guarded_curl with the operator-controlled
+#      .claude/scripts/lib/allowlists/webhook-hosts.json allowlist.
+#      Empty default → fail-closed; operator MUST add permitted webhook
+#      hosts before opt-in dispatch will succeed.
+#
+# Why opt-in (not always-on): operators upgrading from cycle-093 with an
+# existing webhook URL configured continue to work without action. Migrating
+# to wrapper-routed dispatch is a one-line config change PLUS adding the host
+# to webhook-hosts.json.
+#
+# model_health_probe:
+#   alert_webhook_url: ""                                # operator-supplied
+#   alert_webhook_endpoint_validator_enabled: false      # opt-in to wrapper path
+#
+# IMPORTANT — value semantics (BB iter-1 F10): the toggle accepts ONLY the
+# literal lowercase string `true` to enable the wrapper path. YAML-truthy
+# variants (`yes`, `1`, `True`, `True`/`Yes`/`On`) all fall through to the
+# legacy raw-curl path. This is INTENTIONAL fail-safe behavior — operators
+# expecting the wrapper protection MUST use lowercase `true` exactly.
+#
+# When alert_webhook_endpoint_validator_enabled: true, populate
+# .claude/scripts/lib/allowlists/webhook-hosts.json with the permitted hosts.
+# Override the allowlist path via the LOA_WEBHOOK_ALLOWLIST_PATH env var.
