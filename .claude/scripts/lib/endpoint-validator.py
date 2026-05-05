@@ -58,14 +58,48 @@ EXIT_USAGE = 64  # EX_USAGE
 # Per SDD §6.5 step 4: IPv6 ranges that must be blocked. We use ipaddress
 # module's network containment check rather than literal string match so all
 # representations of these ranges (compressed, expanded) are caught uniformly.
+# Sprint-1E.c.1 review additions: ::/96 (IPv4-compatible deprecated per RFC
+# 4291) so `::1.2.3.4`-style addresses fall under IPV6-BLOCKED.
 _BLOCKED_IPV6_NETWORKS: tuple[ipaddress.IPv6Network, ...] = (
     ipaddress.IPv6Network("::1/128"),       # loopback
     ipaddress.IPv6Network("fe80::/10"),     # link-local
     ipaddress.IPv6Network("fc00::/7"),      # unique-local (RFC 4193)
     ipaddress.IPv6Network("ff00::/8"),      # multicast
     ipaddress.IPv6Network("::/128"),        # unspecified
+    ipaddress.IPv6Network("::/96"),         # IPv4-compatible (deprecated, RFC 4291)
     ipaddress.IPv6Network("::ffff:0:0/96"), # IPv4-mapped (might decode to private v4)
     ipaddress.IPv6Network("64:ff9b::/96"),  # NAT64 well-known
+)
+
+# Sprint-1E.c.1 review remediation: pre-parse authority gate. The TS port
+# (URL constructor) silently percent-decodes/normalizes the hostname before
+# my validator sees it; Python's urlsplit preserves the raw form. To keep
+# both runtimes byte-equal we reject ANY authority segment (between `://`
+# and first `/`/`?`/`#`) that contains parser-confusion vectors. The list:
+#
+#   - `%`     : percent-encoded chars in hostname (decode in TS, raw in Py)
+#   - `\`     : WHATWG-vs-RFC3986 ambiguity (TS treats as `/`, Py as part of host)
+#   - U+FF0E  : FULLWIDTH FULL STOP — IDN-normalized to `.` in TS only
+#   - U+3002  : IDEOGRAPHIC FULL STOP — same
+#   - U+FF61  : HALFWIDTH IDEOGRAPHIC FULL STOP — same
+#   - U+00AD  : SOFT HYPHEN — stripped in TS only
+#   - U+200B-U+200F, U+202A-U+202E, U+2066-U+2069 : zero-width / bidi controls
+#
+# Plus: octets with a leading zero or `0x` prefix in dotted-quad form
+# (e.g., `010.0.0.1`, `0x7f.0.0.1`) — these are obfuscated IPv4 forms that
+# urlsplit preserves but URL constructor partially normalizes.
+_AUTHORITY_FORBIDDEN_CHARS: frozenset[str] = frozenset(
+    [
+        "%",
+        "\\",
+        "．",
+        "。",
+        "｡",
+        "­",
+    ]
+    + [chr(cp) for cp in range(0x200B, 0x2010)]   # ZWSP through RLM
+    + [chr(cp) for cp in range(0x202A, 0x202F)]   # LRE/RLE/PDF/LRO/RLO
+    + [chr(cp) for cp in range(0x2066, 0x206A)]   # LRI/RLI/FSI/PDI
 )
 
 # Defense-in-depth beyond SDD §6.5 step 4 (which is IPv6-only). The general-
@@ -107,6 +141,90 @@ def _is_ip_literal_blocked(host: str) -> tuple[bool, str | None]:
     if isinstance(addr, ipaddress.IPv4Address) and str(addr) == "169.254.169.254":
         return True, "IP 169.254.169.254 is the AWS IMDS metadata endpoint"
     return False, None
+
+
+def _extract_authority(url: str) -> str | None:
+    """Extract the authority segment of a URL: everything between `://` and
+    the first `/`, `?`, or `#`. Returns None if no `://` is present."""
+    schemeEnd = url.find("://")
+    if schemeEnd < 0:
+        return None
+    pos = schemeEnd + 3
+    end = len(url)
+    for ch in ("/", "?", "#"):
+        idx = url.find(ch, pos)
+        if 0 <= idx < end:
+            end = idx
+    return url[pos:end]
+
+
+def _has_obfuscated_ipv4_octet(authority: str) -> bool:
+    """Detect dotted-quad IPv4 with at least one octet that has a leading
+    zero (e.g., `010.0.0.1`) or a `0x` prefix (e.g., `0x7f.0.0.1`). These
+    forms are decoded inconsistently by getaddrinfo on different OSes and
+    by URL constructor in browsers; we reject them all to keep the TS port
+    parity-equal with Python's behavior on raw octets."""
+    # Strip optional userinfo + port for analysis.
+    host = authority.rsplit("@", 1)[-1]
+    if host.startswith("["):
+        return False  # Bracketed IPv6, not IPv4.
+    host = host.rsplit(":", 1)[0]
+    parts = host.split(".")
+    if len(parts) != 4:
+        return False
+    obfuscated = False
+    for p in parts:
+        if not p:
+            return False  # Empty octet — let parser reject.
+        # Leading zero on a multi-digit octet (e.g., 010, 007) → octal flavor.
+        if len(p) > 1 and p.startswith("0") and not p.lower().startswith("0x"):
+            obfuscated = True
+        # `0x` prefix → hex flavor.
+        elif p.lower().startswith("0x"):
+            obfuscated = True
+        elif not p.isdigit():
+            return False  # Non-IPv4 string like `api.openai.com` — fall through.
+    return obfuscated
+
+
+def _validate_authority(url: str) -> tuple[bool, str, str]:
+    """Pre-parse defense (sprint-1E.c.1 review remediation).
+
+    Returns (ok, code, detail). The two CRITICAL TS-vs-Python parity bypasses
+    plus the HIGH backslash + obfuscated-IPv4 vectors all get rejected at the
+    same gate.
+
+    `%` handling carve-out: RFC 6874 IPv6 zone-id URLs encode the zone
+    separator as `%25` inside the brackets (e.g., `[fe80::1%25eth0]`).
+    We allow `%` inside brackets and reject elsewhere in the authority.
+    """
+    authority = _extract_authority(url)
+    if authority is None:
+        return True, "", ""  # Step-3 RELATIVE will catch this.
+    # Carve out the bracketed IPv6 segment (if any); `%` inside the brackets
+    # is the RFC 6874 zone-id marker and must be allowed through.
+    outside_brackets = authority
+    if authority.startswith("["):
+        close = authority.find("]")
+        if close >= 0:
+            outside_brackets = authority[:1] + authority[close:]
+    for ch in _AUTHORITY_FORBIDDEN_CHARS:
+        if ch in outside_brackets:
+            cp = ord(ch)
+            return (
+                False,
+                "ENDPOINT-PARSE-FAILED",
+                f"authority contains forbidden character (U+{cp:04X}); "
+                "percent-encoding, backslashes, Unicode dot equivalents, "
+                "and zero-width / bidi controls are all rejected",
+            )
+    if _has_obfuscated_ipv4_octet(authority):
+        return (
+            False,
+            "ENDPOINT-IP-BLOCKED",
+            f"obfuscated IPv4 octet in authority {authority!r}; use plain dotted-quad",
+        )
+    return True, "", ""
 
 
 def _coerce_ipv4_obfuscation(host: str) -> str | None:
@@ -360,6 +478,15 @@ def validate(url: str, allowlist: dict[str, list[dict[str, Any]]]) -> Validation
                 f"URL contains forbidden control byte (0x{ord(ch):02X}); "
                 "CR/LF/TAB/NUL trigger HTTP smuggling in some clients",
             )
+
+    # Step 0.5 (sprint-1E.c.1 review remediation): pre-parse authority gate.
+    # Catches percent-encoded hostnames, backslash-confusion, Unicode dot
+    # equivalents (full-width, ideographic), zero-width / bidi controls, and
+    # obfuscated IPv4 octet forms BEFORE either parser (urlsplit / URL ctor)
+    # can normalize them differently. Closes the cross-runtime parity bypass.
+    ok, code, detail = _validate_authority(url)
+    if not ok:
+        return _reject(url, code, detail)
 
     # Step 1: parse
     try:
