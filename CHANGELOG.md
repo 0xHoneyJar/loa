@@ -63,6 +63,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Tests**: 25 unit tests in `tests/test_gemini_headless_adapter.py` (registry dispatch, command construction, prompt flattening, JSON parsing — including stats-key fallback for single-model runs, error classification across structured + stderr paths, validate_config + health_check, end-to-end happy path with mocked subprocess). 1 live test gated behind `LOA_GEMINI_HEADLESS_LIVE=1`.
   - **Tool-calling + image input deferred**: v1 single-shot only, same posture as codex-headless. Gemini-cli's `--image` flag and MCP tool surface are not forwarded.
 
+- **claude-headless provider adapter** — third sibling to codex-headless / gemini-headless. Routes cheval calls through the Claude Code CLI (`claude -p`) instead of the Anthropic Messages HTTP API, so Anthropic-tier roles (opus / sonnet aliases, flatline-reviewer when configured to Claude) draw against a Claude Max / Pro / Team subscription quota instead of `ANTHROPIC_API_KEY` balance. New file `loa_cheval/providers/claude_headless_adapter.py` registered as `type: claude-headless` in `loa_cheval/providers/__init__.py`. Auths via Claude Code's OAuth-managed credential store (populated by `claude /login`); no `auth` field required on `ProviderConfig`.
+  - **Distinct from `claude-code:session`**: the existing `NATIVE_PROVIDER` ("native": "claude-code:session") routes through the in-process Claude Code native runtime and short-circuits cheval entirely. `claude-headless` is a *subprocess* invocation of the `claude` CLI — useful when an agent binding wants subscription-billed Claude calls but doesn't want to (or can't) use the native runtime.
+  - **Sandbox posture**: `--permission-mode plan --no-session-persistence --tools ""` always — read-only, hermetic, no tool execution. Defense in depth: `--tools ""` disables the agent loop's entire tool surface, `--permission-mode plan` forbids edits even if a tool somehow runs.
+  - **Critical: NEVER pass `--bare`.** That flag strips OAuth and forces `ANTHROPIC_API_KEY`, which defeats the subscription-auth purpose of the adapter. The test suite asserts `--bare` is not in the constructed command.
+  - **System-prompt overhead**: by default, Claude Code injects ~14K tokens of agent-persona system prompt into every `-p` call (visible as `cache_creation_input_tokens` on first call, `cache_read_input_tokens` on subsequent calls in the same window). On Max subscription that's quota-cost only. Operators wanting to trim it can pass `system_prompt` (REPLACES default) or `append_system_prompt` (ADDS to default) via `ModelConfig.extra`.
+  - **Effort threading**: `low | medium | high | xhigh | max` (one wider than codex's `xhigh` ceiling). Resolution precedence matches codex pattern: `request.metadata["effort"]` (or `["reasoning_effort"]`) → `ModelConfig.extra["effort"]` (or `["reasoning_effort"]`) → CLI default. Unknown values WARN and fall through.
+  - **Token mapping** from Claude Code's usage block:
+      `usage.input_tokens` → `Usage.input_tokens` (NEW input only, NOT cache)
+      `usage.output_tokens` → `Usage.output_tokens`
+      `usage.cache_read_input_tokens` → `metadata.cache_read_input_tokens`
+      `usage.cache_creation_input_tokens` → `metadata.cache_creation_input_tokens`
+      `total_cost_usd` → `metadata.total_cost_usd` (informational on Max)
+      `permission_denials` → `metadata.permission_denials`
+    Cache tokens are NOT summed into `Usage.input_tokens` — that would double-count for cost accounting since cache reads/writes bill at different rates.
+  - **Model resolution**: Claude Code's CLI accepts both aliases (`sonnet`, `opus`) and full names (`claude-opus-4-7`, `claude-sonnet-4-6`, `claude-haiku-4-5-20251001`). Unknown aliases silently fall back to a default (observed: `haiku` → `sonnet-4-6` on 2.1.128). The adapter reports the *actual* model used (from `modelUsage` field) in `CompletionResult.model`, not the requested model — so cost ledgers see truth. Operators wanting determinism should pass full model IDs.
+  - **Error classification**: Claude Code's `-p` mode emits structured JSON `{is_error, result, api_error_status}` even on auth failure. Adapter prefers structured diagnostic over stderr. Auth strings (`not logged in`, `/login`, `unauthorized`, `401`, `authentication`, `credential`) → `ConfigError` with `claude /login` hint. Rate-limit / overload (`429`, `529`, `overloaded`, `rate limit`, `quota`) → `RateLimitError`. Else → `ProviderUnavailableError`. `subprocess.TimeoutExpired` and `FileNotFoundError` typed equivalently.
+  - **Operator config example**:
+    ```yaml
+    hounfour:
+      providers:
+        claude-headless:
+          type: claude-headless
+          read_timeout: 600.0
+          models:
+            claude-opus-4-7:
+              capabilities: [chat, tools, function_calling, thinking_traces]
+              context_window: 200000
+              pricing: { input_per_mtok: 0, output_per_mtok: 0 }  # subscription-billed
+              extra: { effort: high }
+            claude-sonnet-4-6:
+              capabilities: [chat, tools, function_calling]
+              context_window: 200000
+              pricing: { input_per_mtok: 0, output_per_mtok: 0 }
+      aliases:
+        opus: claude-headless:claude-opus-4-7
+        cheap: claude-headless:claude-sonnet-4-6
+    ```
+  - **Tests**: 33 unit tests in `tests/test_claude_headless_adapter.py` (registry dispatch, command construction including `--bare` absence assertion, prompt flattening, JSON parsing including cache-token metadata + actual-model-from-modelUsage, error classification across structured + stderr + permission-denial paths, validate_config + health_check, end-to-end happy path). 1 live test gated behind `LOA_CLAUDE_HEADLESS_LIVE=1`. Live smoke confirmed locally: `'Quack'` returned via subscription, 6.9s, no `ANTHROPIC_API_KEY` consumed.
+  - **Tool-calling + image input deferred**: v1 single-shot only, same posture as codex / gemini. Adding tool-call forwarding requires mapping `CompletionRequest.tools` → `--tools` allowlist + parsing tool-call events from `--output-format stream-json`. Operators wanting tools today should use the existing AnthropicAdapter (HTTP API).
+
 ## [1.116.1] — 2026-05-04
 
 ### Added

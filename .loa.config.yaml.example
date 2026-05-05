@@ -773,6 +773,44 @@ hounfour:
             input_per_mtok: 0
             output_per_mtok: 0
 
+    # claude-headless: routes through `claude -p` (Claude Code CLI) for Claude
+    # Max / Pro / Team subscription auth. No api_key consumed — bills against
+    # the operator's Claude subscription quota.
+    # Requires `claude` CLI on PATH (npm install -g @anthropic-ai/claude-code)
+    # and a one-time `claude /login` to populate the OAuth credential store.
+    #
+    # NOTE: This is DIFFERENT from `claude-code:session` (the in-process native
+    # runtime). claude-headless is a subprocess invocation of the CLI — useful
+    # when an agent binding wants subscription-billed Claude calls but doesn't
+    # want to (or can't) use the native runtime.
+    #
+    # NOTE on overhead: Claude Code injects ~14K tokens of agent-persona system
+    # prompt per call. On Max subscription that's quota-cost only. To trim,
+    # set `extra: { system_prompt: "..." }` (REPLACES default) or
+    # `extra: { append_system_prompt: "..." }` (ADDS to default).
+    claude-headless:
+      type: claude-headless
+      # No `auth:` field — auth is OAuth-managed by Claude Code (~/.claude/...)
+      read_timeout: 600.0
+      models:
+        claude-opus-4-7:
+          capabilities: [chat, tools, function_calling, thinking_traces]
+          context_window: 200000
+          pricing:
+            # Subscription-billed: zero per-token cost ledger entry.
+            input_per_mtok: 0
+            output_per_mtok: 0
+          extra:
+            effort: high  # low | medium | high | xhigh | max
+            # system_prompt: "You are a precise code reviewer."  # OPTIONAL — replaces default
+            # append_system_prompt: "Be terse."                  # OPTIONAL — adds to default
+        claude-sonnet-4-6:
+          capabilities: [chat, tools, function_calling]
+          context_window: 200000
+          pricing:
+            input_per_mtok: 0
+            output_per_mtok: 0
+
     # codex-headless: routes through `codex exec` for ChatGPT subscription auth.
     # No api_key consumed — bills against the operator's ChatGPT subscription quota.
     # Requires `codex` CLI (>=0.125.0 for gpt-5.5 + xhigh) on PATH and a one-time
