@@ -35,6 +35,12 @@ on:
       - 'tests/fixtures/endpoint-validator/**'
       - '.github/workflows/cycle099-sprint-1e-b-tests.yml'
       - 'tools/check-no-raw-curl.sh'
+      # BB iter-2 F13: mirror .bash/.legacy globs to push trigger so a push
+      # to main modifying a .legacy file (e.g., model-adapter.sh.legacy) re-
+      # runs the gate and the scanner sees the change. Without this, only
+      # PR-time gating applies to legacy files.
+      - '.claude/**/*.bash'
+      - '.claude/**/*.legacy'
 
 permissions:
   contents: read
