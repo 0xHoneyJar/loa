@@ -5,7 +5,7 @@
 // .claude/scripts/lib/codegen/endpoint-validator.ts.j2 + the canonical
 // .claude/scripts/lib/endpoint-validator.py source.
 //
-// Source content hash: 0b8fbc46d4f009c7755baa47dd67d99d36b632839e429619348be1ed6970cbb0
+// Source content hash: 77348ea2463b9fbc9484d8d4b9e0a51165126b9cd78ae740839c822e1ab47d9d
 // Generator version:   1.0
 // Generated at:        (deterministic — wall-clock excluded)
 //

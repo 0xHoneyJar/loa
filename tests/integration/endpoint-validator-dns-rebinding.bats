@@ -116,7 +116,10 @@ try:
     m.lock_resolved_ip("api.example.com")
     raise AssertionError("expected DnsRebindingError on IMDS resolution")
 except m.DnsRebindingError as e:
-    assert "ENDPOINT-IP-BLOCKED" in str(e) or "ENDPOINT-DNS-REBOUND" in str(e), f"unexpected: {e}"
+    # F3 (BB iter-1): tightened to single specific code. ENDPOINT-IP-BLOCKED
+    # is the load-time check; DNS-REBOUND fires only on subsequent re-resolve.
+    assert "ENDPOINT-IP-BLOCKED" in str(e), f"unexpected: {e}"
+    assert "AWS IMDS" in str(e), f"expected IMDS-specific reason; got {e}"
 EOF
 }
 
@@ -591,6 +594,94 @@ spec.loader.exec_module(m)
 
 assert issubclass(m.DnsResolutionError, m.EndpointDnsError)
 assert issubclass(m.DnsRebindingError, m.EndpointDnsError)
+EOF
+}
+
+# ---------------------------------------------------------------------------
+# I — IPv6 lock + verify (BB iter-1 F11 — was IPv4-monoculture)
+# ---------------------------------------------------------------------------
+
+@test "I1 ipv6 lock: AF_INET6 record locked correctly" {
+    _python_assert <<'EOF'
+import importlib.util, os, socket, sys
+spec = importlib.util.spec_from_file_location("ev", os.environ["PY_VALIDATOR"])
+m = importlib.util.module_from_spec(spec)
+sys.modules["ev"] = m
+spec.loader.exec_module(m)
+
+def v6_getaddrinfo(host, port, *args, **kwargs):
+    # Cloudflare DNS public IPv6 — globally routable, not in any blocked range.
+    return [(socket.AF_INET6, socket.SOCK_STREAM, 0, "", ("2606:4700:4700::1111", port or 443, 0, 0))]
+m.socket.getaddrinfo = v6_getaddrinfo
+
+locked = m.lock_resolved_ip("api.openai.com")
+assert locked.ip == "2606:4700:4700::1111"
+assert locked.family == socket.AF_INET6
+EOF
+}
+
+@test "I2 ipv6 lock: link-local fe80:: rejected with link-local reason" {
+    _python_assert <<'EOF'
+import importlib.util, os, socket, sys
+spec = importlib.util.spec_from_file_location("ev", os.environ["PY_VALIDATOR"])
+m = importlib.util.module_from_spec(spec)
+sys.modules["ev"] = m
+spec.loader.exec_module(m)
+
+def linklocal_getaddrinfo(host, port, *args, **kwargs):
+    return [(socket.AF_INET6, socket.SOCK_STREAM, 0, "", ("fe80::1", port or 443, 0, 0))]
+m.socket.getaddrinfo = linklocal_getaddrinfo
+
+try:
+    m.lock_resolved_ip("api.openai.com")
+    raise AssertionError("expected IPv6 link-local rejection")
+except m.DnsRebindingError as e:
+    assert "ENDPOINT-IP-BLOCKED" in str(e)
+    assert "link-local" in str(e), f"expected link-local reason; got {e}"
+EOF
+}
+
+@test "I3 ipv6 lock: AWS IPv6 IMDS (fd00:ec2::254) rejected with IMDS reason" {
+    _python_assert <<'EOF'
+import importlib.util, os, socket, sys
+spec = importlib.util.spec_from_file_location("ev", os.environ["PY_VALIDATOR"])
+m = importlib.util.module_from_spec(spec)
+sys.modules["ev"] = m
+spec.loader.exec_module(m)
+
+def imds_v6_getaddrinfo(host, port, *args, **kwargs):
+    return [(socket.AF_INET6, socket.SOCK_STREAM, 0, "", ("fd00:ec2::254", port or 443, 0, 0))]
+m.socket.getaddrinfo = imds_v6_getaddrinfo
+
+try:
+    m.lock_resolved_ip("api.openai.com")
+    raise AssertionError("expected IPv6 IMDS rejection")
+except m.DnsRebindingError as e:
+    assert "ENDPOINT-IP-BLOCKED" in str(e)
+    assert "IMDS" in str(e), f"expected IMDS reason; got {e}"
+EOF
+}
+
+@test "I4 ipv6 zone-id: stripped before blocked-range check" {
+    _python_assert <<'EOF'
+import importlib.util, os, socket, sys
+spec = importlib.util.spec_from_file_location("ev", os.environ["PY_VALIDATOR"])
+m = importlib.util.module_from_spec(spec)
+sys.modules["ev"] = m
+spec.loader.exec_module(m)
+
+def zone_id_getaddrinfo(host, port, *args, **kwargs):
+    # getaddrinfo can include zone-id in sockaddr[0] (e.g., fe80::1%eth0).
+    # _resolve_addrinfo strips %... before the blocked-range check.
+    return [(socket.AF_INET6, socket.SOCK_STREAM, 0, "", ("fe80::1%eth0", port or 443, 0, 0))]
+m.socket.getaddrinfo = zone_id_getaddrinfo
+
+try:
+    m.lock_resolved_ip("api.openai.com")
+    raise AssertionError("expected link-local rejection (zone-id stripped)")
+except m.DnsRebindingError as e:
+    assert "ENDPOINT-IP-BLOCKED" in str(e)
+    assert "link-local" in str(e)
 EOF
 }
 

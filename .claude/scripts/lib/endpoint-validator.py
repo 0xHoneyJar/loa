@@ -126,6 +126,11 @@ def _is_ip_literal_blocked(host: str) -> tuple[bool, str | None]:
         addr = ipaddress.ip_address(host)
     except (ValueError, ipaddress.AddressValueError):
         return False, None
+    # AWS IMDS — surface its identity ahead of the generic is_link_local match
+    # so operator diagnostics name the threat (BB iter-1 F3 surfaced this dead
+    # code path; the more-specific message must run first).
+    if isinstance(addr, ipaddress.IPv4Address) and str(addr) == "169.254.169.254":
+        return True, "IP 169.254.169.254 is the AWS IMDS metadata endpoint"
     if addr.is_loopback:
         return True, f"IP {host} is loopback"
     if addr.is_private:
@@ -138,9 +143,6 @@ def _is_ip_literal_blocked(host: str) -> tuple[bool, str | None]:
         return True, f"IP {host} is unspecified (0.0.0.0 / ::)"
     if addr.is_reserved:
         return True, f"IP {host} is reserved"
-    # AWS IMDS — explicitly named here even though it falls under is_link_local.
-    if isinstance(addr, ipaddress.IPv4Address) and str(addr) == "169.254.169.254":
-        return True, "IP 169.254.169.254 is the AWS IMDS metadata endpoint"
     return False, None
 
 

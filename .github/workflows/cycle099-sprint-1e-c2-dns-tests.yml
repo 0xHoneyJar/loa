@@ -26,8 +26,10 @@ concurrency:
 
 jobs:
   dns-rebinding-tests:
-    name: T1.15 DNS rebinding + redirect tests (12 fixtures)
+    name: T1.15 DNS rebinding + redirect tests
     runs-on: ubuntu-latest
+    # F8 (BB iter-1): bound the job; DNS-mocked tests should complete in <1min.
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
