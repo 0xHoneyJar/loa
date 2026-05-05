@@ -49,25 +49,9 @@ teardown() {
     return 0
 }
 
-# Helper: write a fixture .loa.config.yaml with the given model_aliases_extra
-# block (or full config) and run the validator against it. Sets $status,
-# $output (stderr+stdout merged) per bats `run` convention.
-_run_validator() {
-    local config_path="$1"
-    run "$VALIDATOR_PY" --config "$config_path" --json --quiet
-    return 0
-}
-
-_run_validator_verbose() {
-    local config_path="$1"
-    run "$VALIDATOR_PY" --config "$config_path" --json
-}
-
-# Helper: write a model_aliases_extra block to a fresh fixture file.
-_write_config() {
-    local path="$1" yaml_body="$2"
-    printf '%s\n' "$yaml_body" > "$path"
-}
+# BB iter-1 F4 / unused-helpers: helpers `_run_validator`, `_run_validator_verbose`,
+# `_write_config` were defined but never used (every test inlined `run` and
+# heredoc-write). Removed to avoid drift.
 
 # ---------------------------------------------------------------------------
 # E0 POSITIVE CONTROL — SDD §4.2.1 UC-1 fixture
@@ -847,12 +831,18 @@ EOF
 }
 
 # cypherpunk L6: yaml.safe_load MUST reject !!python/object tags.
+# BB iter-1 hardcoded-tmp-file fix: use $WORK_DIR/-prefixed path with PID
+# so concurrent test runs don't share state and stale files from prior
+# failures can't mask current exploits.
 @test "E31 reject: !!python/object payload (yaml.safe_load contract pin — cypherpunk L6)" {
-    cat > "$WORK_DIR/e31.yaml" <<'EOF'
+    local pwned_path="$WORK_DIR/e31-pwned-$$"
+    rm -f "$pwned_path"  # belt-and-suspenders: ensure we start clean
+    # Unquoted heredoc so $pwned_path is interpolated into the YAML payload.
+    cat > "$WORK_DIR/e31.yaml" <<EOF
 model_aliases_extra:
   schema_version: "1.0.0"
   entries:
-    - id: !!python/object/new:os.system [touch /tmp/loa-pwned]
+    - id: !!python/object/new:os.system [touch $pwned_path]
       provider: openai
       api_id: foo
       capabilities: [chat]
@@ -866,10 +856,10 @@ EOF
         printf '!!python/object MUST not load; got=%d\n' "$status" >&2
         return 1
     }
-    # Sanity: side-effect (file creation) MUST NOT have happened.
-    [[ ! -f /tmp/loa-pwned ]] || {
-        rm -f /tmp/loa-pwned
-        printf 'CRITICAL: !!python/object payload executed!\n' >&2
+    # Sanity: side-effect (file creation) MUST NOT have happened. The
+    # path is per-test ($WORK_DIR + $$) so a positive result is genuine.
+    [[ ! -f "$pwned_path" ]] || {
+        printf 'CRITICAL: !!python/object payload executed and created %s!\n' "$pwned_path" >&2
         return 1
     }
 }
