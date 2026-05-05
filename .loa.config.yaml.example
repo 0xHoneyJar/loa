@@ -738,6 +738,41 @@ hounfour:
             input_per_mtok: 3000000
             output_per_mtok: 15000000
 
+    # gemini-headless: routes through `gemini -p` for Google AI subscription auth.
+    # No api_key consumed — bills against the operator's personal Google account
+    # quota (free tier: 60 req/min · 1000 req/day) or Gemini Advanced subscription.
+    # Requires `gemini` CLI on PATH (npm install -g @google/gemini-cli) and a
+    # one-time interactive `gemini` run to populate ~/.gemini/settings.json with
+    # the OAuth tokens. Alternative: set GEMINI_API_KEY / GOOGLE_GENAI_USE_GCA.
+    #
+    # Same gemini-3.x line as the google provider, just a different transport.
+    # Useful when deep-thinker / fast-thinker / flatline-tertiary token spend
+    # is large enough that subscription economics beat per-token API pricing.
+    gemini-headless:
+      type: gemini-headless
+      # No `auth:` field — auth is file-based (~/.gemini/settings.json) or env-var
+      read_timeout: 600.0
+      models:
+        gemini-3-pro:
+          capabilities: [chat, thinking_traces]
+          context_window: 1048576
+          pricing:
+            # Subscription-billed: zero per-token cost ledger entry.
+            input_per_mtok: 0
+            output_per_mtok: 0
+          # extra:
+          #   gemini_policies:                        # additional --policy <path> args
+          #     - .gemini/policy-readonly.json
+          #   gemini_extra_flags:                     # arbitrary additional CLI flags
+          #     - ["--allowed-tools", "read,grep"]
+          #     - "--list-extensions"
+        gemini-3-flash:
+          capabilities: [chat]
+          context_window: 1048576
+          pricing:
+            input_per_mtok: 0
+            output_per_mtok: 0
+
     # codex-headless: routes through `codex exec` for ChatGPT subscription auth.
     # No api_key consumed — bills against the operator's ChatGPT subscription quota.
     # Requires `codex` CLI (>=0.125.0 for gpt-5.5 + xhigh) on PATH and a one-time

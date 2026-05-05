@@ -34,6 +34,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     ```
   - **Tests**: 31 unit tests in `tests/test_codex_headless_adapter.py` (registry dispatch, command construction, prompt flattening, JSONL parsing, error classification, validate_config + health_check, end-to-end happy path with mocked subprocess). 1 live test gated behind `LOA_CODEX_HEADLESS_LIVE=1`. End-to-end smoke verified locally: `cheval --agent flatline-reviewer --model codex-headless:gpt-5.5 --prompt …` returns response in ~5s with no `OPENAI_API_KEY` consumed (auth via `~/.codex/auth.json`).
   - **Tool-calling deferred**: v1 forwards `request.messages` flattened into a single prompt with role-prefixed sections (sufficient for the four flatline modes — reviewer / skeptic / scorer / dissenter — which are single-shot). Native function_call_output threading into codex's tool-event stream is out of scope; revisit when an agent binding genuinely needs it.
+
+- **gemini-headless provider adapter** — sibling to codex-headless. Routes cheval calls through the Google Gemini CLI (`gemini -p`) instead of the Generative Language v1beta HTTP API, so any Gemini-tier role (deep-thinker, fast-thinker, flatline-tertiary) can draw against a personal Google account's free quota (60 RPM / 1000 RPD) or a Gemini Advanced subscription instead of `GOOGLE_API_KEY` balance. New file `loa_cheval/providers/gemini_headless_adapter.py` registered as `type: gemini-headless` in `loa_cheval/providers/__init__.py`. Auths via `~/.gemini/settings.json` (populated by interactive `gemini` first-run) OR `GEMINI_API_KEY` / `GOOGLE_GENAI_USE_VERTEXAI` / `GOOGLE_GENAI_USE_GCA` env vars; no `auth` field required on `ProviderConfig`.
+  - **Sandbox posture**: `--approval-mode plan --skip-trust` always — read-only, no shell exec, no file edits. Skip-trust is required because the model-router invocation cwd is rarely in gemini-cli's trusted-folders list, and the CLI silently downgrades approval-mode to `default` (interactive) when trust is missing — that hangs in non-interactive contexts.
+  - **JSON output parsing**: `--output-format json` emits a single `{session_id, response, stats?, error?, warnings?}` object (per gemini-cli `core/src/output/types.ts`). The adapter pulls `response` for content; tokens are extracted from `stats.models[<model_id>].tokens.{prompt, candidates, thoughts, cached}` (gemini's input/output/reasoning/cached aliases). When `stats` is absent, `Usage.source = "estimated"` rather than failing.
+  - **Error classification**: Structured JSON `{error: {type, message, code}}` is preferred over stderr when the CLI emits both. Auth-related strings (`auth method`, `settings.json`, `GEMINI_API_KEY`, `GOOGLE_GENAI_USE_*`, `unauthorized`, `permission_denied`) → `ConfigError` with actionable hint. Quota / rate-limit (`429`, `quota`, `resource_exhausted`) → `RateLimitError`. Everything else → `ProviderUnavailableError`. `subprocess.TimeoutExpired` and missing-binary `FileNotFoundError` typed equivalently.
+  - **Operator config example**:
+    ```yaml
+    hounfour:
+      providers:
+        gemini-headless:
+          type: gemini-headless
+          read_timeout: 600.0
+          models:
+            gemini-3-pro:
+              capabilities: [chat, thinking_traces]
+              context_window: 1048576
+              pricing: { input_per_mtok: 0, output_per_mtok: 0 }  # subscription-billed
+            gemini-3-flash:
+              capabilities: [chat]
+              context_window: 1048576
+              pricing: { input_per_mtok: 0, output_per_mtok: 0 }
+      aliases:
+        deep-thinker: gemini-headless:gemini-3-pro
+        fast-thinker: gemini-headless:gemini-3-flash
+        researcher: gemini-headless:gemini-3-pro
+    ```
+  - **Tests**: 25 unit tests in `tests/test_gemini_headless_adapter.py` (registry dispatch, command construction, prompt flattening, JSON parsing — including stats-key fallback for single-model runs, error classification across structured + stderr paths, validate_config + health_check, end-to-end happy path with mocked subprocess). 1 live test gated behind `LOA_GEMINI_HEADLESS_LIVE=1`.
+  - **Tool-calling + image input deferred**: v1 single-shot only, same posture as codex-headless. Gemini-cli's `--image` flag and MCP tool surface are not forwarded.
+
+## [1.116.1] — 2026-05-04
+
 ### Added
 
 - **Cycle-095 — Model Currency** (Sprints 1+2 in this release; Sprint 3 deferred to post-soak) — gpt-5.5 family is now reachable through cheval, the `reviewer` and `reasoning` aliases default to `openai:gpt-5.5` (cost-safe non-pro), `tiny` tier alias added for Haiku 4.5, and the `fast-thinker` agent binding upgraded to Gemini 3 fast variant with probe-driven fallback chain.

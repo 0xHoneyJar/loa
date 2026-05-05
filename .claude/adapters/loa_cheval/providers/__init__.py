@@ -10,12 +10,16 @@ from loa_cheval.providers.anthropic_adapter import AnthropicAdapter
 from loa_cheval.providers.google_adapter import GoogleAdapter
 from loa_cheval.providers.bedrock_adapter import BedrockAdapter
 from loa_cheval.providers.codex_headless_adapter import CodexHeadlessAdapter
+from loa_cheval.providers.gemini_headless_adapter import GeminiHeadlessAdapter
 from loa_cheval.types import ConfigError, ProviderConfig
 
 # Provider type → adapter class mapping.
 # - cycle-096 Sprint 1 added 'bedrock'.
 # - codex-headless: routes through `codex exec` subprocess for ChatGPT
 #   subscription auth (no OPENAI_API_KEY consumed). See codex_headless_adapter.py.
+# - gemini-headless: routes through `gemini -p` subprocess for Google AI
+#   subscription auth (no GOOGLE_API_KEY consumed). Sibling pattern to
+#   codex-headless. See gemini_headless_adapter.py.
 _ADAPTER_REGISTRY: Dict[str, Type[ProviderAdapter]] = {
     "openai": OpenAIAdapter,
     "anthropic": AnthropicAdapter,
@@ -23,6 +27,7 @@ _ADAPTER_REGISTRY: Dict[str, Type[ProviderAdapter]] = {
     "google": GoogleAdapter,
     "bedrock": BedrockAdapter,
     "codex-headless": CodexHeadlessAdapter,
+    "gemini-headless": GeminiHeadlessAdapter,
 }
 
 
@@ -41,5 +46,6 @@ __all__ = [
     "GoogleAdapter",
     "BedrockAdapter",
     "CodexHeadlessAdapter",
+    "GeminiHeadlessAdapter",
     "get_adapter",
 ]
