@@ -206,26 +206,92 @@ _emit_audit_log() {
 
     # Optional webhook (Flatline sprint-review SKP-003 — alert fan-out).
     # Fire-and-forget; never block the probe on webhook latency.
-    #
-    # [ENDPOINT-VALIDATOR-EXEMPT] cycle-099 sprint-1E.c.3.a: the webhook URL
-    # is operator-supplied via .loa.config.yaml and cannot be enumerated in a
-    # static allowlist (operators legitimately use Slack/PagerDuty/Discord/
-    # custom URLs). For repos where .loa.config.yaml is git-tracked, a hostile
-    # PR could insert a webhook URL pointing at attacker-controlled infra —
-    # the body is already redacted via _redact_secrets, so the leak surface
-    # is the URL choice itself, audited via PR review. We enforce https-only
-    # via --proto =https and bound redirects via --max-redirs 10. Follow-up
-    # 1E.c.3.b will add an OPTIONAL operator-controlled webhook host
-    # allowlist (.claude/scripts/lib/allowlists/webhook-hosts.json, empty by
-    # default; opt-in via .loa.config.yaml).
+    # Dispatch decision (legacy raw-curl vs wrapper-routed) lives in
+    # _webhook_dispatch; see that function for the operator opt-in rationale.
+    _webhook_dispatch "$redacted"
+}
+
+# _webhook_send — synchronous send. Public-but-double-underscore so tests can
+# call it directly without dealing with disown/background-PID semantics.
+#
+# Dispatch path:
+#   opt_in == "true" → endpoint_validator__guarded_curl with the operator-
+#                      controlled webhook-hosts.json allowlist.
+#   else            → legacy raw curl with hardened defaults
+#                     (--proto =https, --max-redirs 10, --max-time 5).
+#
+# String-equality on "true" (not yaml-truthy) is INTENTIONAL: misconfig
+# (e.g., `enabled: yes`) keeps the safer-default legacy path rather than
+# silently routing through an empty allowlist that would drop all webhooks.
+#
+# Args:
+#   $1 — JSON payload (already redacted)
+#   $2 — webhook URL (operator-supplied; empty caller MUST handle no-op)
+#   $3 — opt_in flag (string; "true" enables wrapper path)
+#
+# Returns the curl/wrapper exit code; non-zero = send failed (callers
+# treat send failure as best-effort and ignore).
+_webhook_send() {
+    local payload="$1"
+    local webhook="$2"
+    local opt_in="$3"
+
+    # Defensive empty-webhook guard. _webhook_dispatch screens before calling,
+    # but any direct caller (or future test) gets the same no-op behavior.
+    [[ -n "$webhook" ]] || return 0
+
+    if [[ "$opt_in" == "true" ]]; then
+        # cycle-099 sprint-1E.c.3.c: opt-in wrapper path. The wrapper enforces
+        # the operator-controlled webhook-hosts.json allowlist. Empty default
+        # (ships with `"webhooks": []`) means opt-in operators MUST populate
+        # their permitted webhook hosts before any dispatch succeeds —
+        # fail-closed by design.
+        local webhook_allowlist
+        webhook_allowlist="${LOA_WEBHOOK_ALLOWLIST_PATH:-$SCRIPT_DIR/lib/allowlists/webhook-hosts.json}"
+        if ! declare -f endpoint_validator__guarded_curl >/dev/null 2>&1; then
+            # Wrapper not loaded: source it. (Production paths source it at
+            # script load; test paths may stub it as a function and skip.)
+            # shellcheck source=lib/endpoint-validator.sh
+            source "$SCRIPT_DIR/lib/endpoint-validator.sh" 2>/dev/null || {
+                log_warn "webhook dispatch failed: endpoint-validator.sh not loadable"
+                return 1
+            }
+        fi
+        endpoint_validator__guarded_curl \
+            --allowlist "$webhook_allowlist" \
+            --url "$webhook" \
+            -sS -X POST -H "Content-Type: application/json" --data "$payload" \
+            --max-time 5 >/dev/null 2>&1
+    else
+        # [ENDPOINT-VALIDATOR-EXEMPT] cycle-099 sprint-1E.c.3.a (legacy path):
+        # webhook URL is operator-supplied via .loa.config.yaml and cannot be
+        # statically allowlisted (operators legitimately use Slack / PagerDuty
+        # / Discord / custom URLs). Hardened defaults (proto =https, bounded
+        # redirects, bounded request time) limit blast radius. Operators
+        # wanting wrapper-routed dispatch enable
+        # `model_health_probe.alert_webhook_endpoint_validator_enabled: true`
+        # and populate `.claude/scripts/lib/allowlists/webhook-hosts.json`.
+        curl --proto =https --proto-redir =https --max-redirs 10 \
+            -sS -X POST -H "Content-Type: application/json" --data "$payload" \
+            --max-time 5 "$webhook" >/dev/null 2>&1
+    fi
+}
+
+# _webhook_dispatch — async fire-and-forget wrapper around _webhook_send.
+# Reads the webhook URL + opt-in flag from .loa.config.yaml at call time.
+#
+# Args:
+#   $1 — JSON payload (already redacted)
+_webhook_dispatch() {
+    local payload="$1"
     local webhook
     webhook="$(_config_get '.model_health_probe.alert_webhook_url' '')"
-    if [[ -n "$webhook" ]]; then
-        ( curl --proto =https --proto-redir =https --max-redirs 10 \
-              -sS -X POST -H "Content-Type: application/json" --data "$redacted" \
-              --max-time 5 "$webhook" >/dev/null 2>&1 || true ) &
-        disown 2>/dev/null || true
-    fi
+    [[ -n "$webhook" ]] || return 0
+    local opt_in
+    opt_in="$(_config_get '.model_health_probe.alert_webhook_endpoint_validator_enabled' 'false')"
+
+    ( _webhook_send "$payload" "$webhook" "$opt_in" || true ) &
+    disown 2>/dev/null || true
 }
 
 # -----------------------------------------------------------------------------

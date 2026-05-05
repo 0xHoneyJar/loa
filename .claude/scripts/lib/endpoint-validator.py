@@ -719,6 +719,69 @@ def validate_redirect_chain(
 _ALLOWLIST_MAX_BYTES = 65536  # 64 KiB — see cypherpunk LOW 1
 
 
+def _validate_allowlist_entries(
+    allowlist: dict[str, list[dict[str, Any]]],
+) -> None:
+    """Sprint-1E.c.3.c HIGH-2 (deferred from 1E.c.3.a): fail-closed at load
+    time on sentinel-shaped hosts that silently no-op the host gate.
+
+    The host predicate in `_provider_for_host` is verbatim equality
+    (lowercased str(entry["host"]) == lowercased URL host). Operators
+    sometimes copy wildcard-style entries from other allowlist tooling
+    expecting glob semantics; with verbatim equality the wildcard never
+    matches a real URL and the allowlist silently denies all traffic.
+    Surface the misconfig at LOAD time instead of at first runtime denial.
+
+    Tree-restriction (1E.c.3.a) closed the realistic substitution vector
+    where an attacker pointed the allowlist path at an attacker-controlled
+    file outside the canonical tree. HIGH-2 is the inside-the-tree
+    defense-in-depth: an allowlist living in
+    `.claude/scripts/lib/allowlists/` but containing `host: "*"` would still
+    be loadable. Reject it explicitly.
+
+    Validation is "all-or-nothing" — one bad entry rejects the whole file.
+    Silent partial-load would hide the misconfig from operator review.
+
+    Raises:
+        ValueError: with provider_id + entry index in the message so
+                    operators can pinpoint the bad entry without grepping.
+    """
+    for provider_id, entries in allowlist.items():
+        if not isinstance(entries, list):
+            continue
+        for idx, entry in enumerate(entries):
+            if not isinstance(entry, dict):
+                continue
+            if "host" not in entry:
+                # Missing-host is a separate config bug surface; defer to
+                # _provider_for_host (which str()-coerces missing keys to "")
+                # for the runtime-side fallthrough. We only fail-close at load
+                # when host IS present and shaped wrong.
+                continue
+            host_raw = entry["host"]
+            if not isinstance(host_raw, str):
+                raise ValueError(
+                    f"allowlist provider {provider_id!r} entry #{idx}: "
+                    f"`host` must be a string, got {type(host_raw).__name__} "
+                    f"(value={host_raw!r})"
+                )
+            if not host_raw.strip():
+                raise ValueError(
+                    f"allowlist provider {provider_id!r} entry #{idx}: "
+                    f"`host` is empty or whitespace-only ({host_raw!r}); "
+                    "the host predicate is verbatim equality, an empty host "
+                    "matches no real URL — silently broken allowlist"
+                )
+            if "*" in host_raw:
+                raise ValueError(
+                    f"allowlist provider {provider_id!r} entry #{idx}: "
+                    f"`host` {host_raw!r} contains '*' wildcard; the host "
+                    "predicate is verbatim equality (no glob support). "
+                    "Configure each FQDN explicitly "
+                    "(e.g., 'api.openai.com', 'api.anthropic.com')"
+                )
+
+
 def _warn_overly_permissive_cidr(allowlist: dict[str, list[dict[str, Any]]]) -> None:
     """Cypherpunk MEDIUM remediation: scan cdn_cidr_exemptions for /0 (or
     suspiciously-wide /1../4) entries and emit a stderr WARN per occurrence.
@@ -772,6 +835,7 @@ def load_allowlist(path: str | Path) -> dict[str, list[dict[str, Any]]]:
         raise ValueError(
             f"allowlist {p}: top-level `providers` must be a mapping, got {type(providers).__name__}"
         )
+    _validate_allowlist_entries(providers)
     _warn_overly_permissive_cidr(providers)
     return providers
 

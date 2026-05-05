@@ -1,0 +1,30 @@
+{
+  "_documentation": [
+    "cycle-099 sprint-1E.c.3.c — webhook-host allowlist for opt-in wrapper-routed",
+    "dispatch from model-health-probe.sh::_webhook_send.",
+    "",
+    "Default ships EMPTY (webhooks: []) so opt-in is fail-closed — operators",
+    "MUST populate this file before opt-in dispatch will succeed.",
+    "",
+    "Activation (.loa.config.yaml):",
+    "  model_health_probe:",
+    "    alert_webhook_url: \"https://hooks.slack.com/services/.../...\"",
+    "    alert_webhook_endpoint_validator_enabled: true",
+    "",
+    "When NOT opted in, dispatch uses the legacy raw-curl path with hardened",
+    "defaults (--proto =https, --max-redirs 10, --max-time 5). The legacy path",
+    "is [ENDPOINT-VALIDATOR-EXEMPT] for the dynamic-operator-URL case.",
+    "",
+    "To enable wrapper-routed dispatch, add operator-permitted webhook hosts",
+    "to the `webhooks` array below. Each entry MUST have a `host` (FQDN; no",
+    "globs / wildcards) and `ports` (list of permitted ports).",
+    "",
+    "Example (DO NOT COMMIT operator-specific webhook hosts to upstream):",
+    "  {\"host\": \"hooks.slack.com\",     \"ports\": [443]},",
+    "  {\"host\": \"events.pagerduty.com\", \"ports\": [443]},",
+    "  {\"host\": \"discord.com\",          \"ports\": [443]}"
+  ],
+  "providers": {
+    "webhooks": []
+  }
+}

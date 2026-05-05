@@ -11,8 +11,11 @@ on:
       - '.claude/scripts/lib/endpoint-validator.py'
       - '.claude/scripts/lib/endpoint-validator.sh'
       - 'tests/integration/endpoint-validator-cross-runtime.bats'
+      - 'tests/integration/cycle099-strict-curl-scan.bats'
+      - 'tests/integration/endpoint-validator-allowlist-host-validation.bats'
       - 'tests/fixtures/endpoint-validator/**'
       - '.github/workflows/cycle099-sprint-1e-b-tests.yml'
+      - 'tools/check-no-raw-curl.sh'
       # The CI-guard step inspects all .py / .sh / .ts files anywhere in
       # .claude/, so any change to those files re-runs the gate.
       - '.claude/**/*.py'
@@ -24,8 +27,11 @@ on:
       - '.claude/scripts/lib/endpoint-validator.py'
       - '.claude/scripts/lib/endpoint-validator.sh'
       - 'tests/integration/endpoint-validator-cross-runtime.bats'
+      - 'tests/integration/cycle099-strict-curl-scan.bats'
+      - 'tests/integration/endpoint-validator-allowlist-host-validation.bats'
       - 'tests/fixtures/endpoint-validator/**'
       - '.github/workflows/cycle099-sprint-1e-b-tests.yml'
+      - 'tools/check-no-raw-curl.sh'
 
 permissions:
   contents: read
@@ -69,6 +75,14 @@ jobs:
 
       - name: Run endpoint-validator cross-runtime parity tests
         run: bats tests/integration/endpoint-validator-cross-runtime.bats
+
+      # cycle-099 Sprint 1E.c.3.c additions: HIGH-2 host wildcard rejection at
+      # load_allowlist + the strict-mode scanner contract pin.
+      - name: Run sprint-1E.c.3.c — load_allowlist host validation (HIGH-2)
+        run: bats tests/integration/endpoint-validator-allowlist-host-validation.bats
+
+      - name: Run sprint-1E.c.3.c — strict curl/wget scanner contract pin
+        run: bats tests/integration/cycle099-strict-curl-scan.bats
 
   endpoint-validator-import-guard:
     name: T1.15 import-guard (no urllib.parse / curl / fetch outside validator)
@@ -123,30 +137,31 @@ jobs:
           fi
           echo "OK — urllib.parse confined to endpoint-validator.py"
 
-      - name: Bash — informational scan for curl/wget usage (Sprint 1E.c migrates)
+      - name: Bash — STRICT scan for raw curl/wget bypass (Sprint 1E.c.3.c flip)
         run: |
           set -euo pipefail
-          # Sprint 1E.b ships the Python canonical + bash wrapper; Sprint 1E.c
-          # will migrate the existing bash callers (model-health-probe.sh,
-          # flatline-*.sh, anthropic-oracle.sh, gpt-review-api.sh, etc.) to
-          # funnel through endpoint_validator__check before invoking curl.
-          # For now, surface the inventory as a workflow annotation so operators
-          # see the migration surface area; do not fail the build.
-          # BB iter-1 F4: tighter regex — match curl/wget only when they
-          # appear as command words, not embedded in other identifiers like
-          # `nocurl_helper` or `_curl_inner`. POSIX `[[:space:]]` boundary
-          # before, optional flags after.
-          callers=$(
-              grep -rEln '(^|[[:space:]])(curl|wget)([[:space:]]|$)' \
-                  .claude/scripts/ --include='*.sh' \
-                  | grep -vF '.claude/scripts/lib/endpoint-validator.sh' \
-                  | sort -u || true
-          )
-          if [[ -n "$callers" ]]; then
-              echo "::warning::Sprint 1E.c will migrate these bash callers through endpoint_validator__check:"
-              printf '  - %s\n' $callers
-          else
-              echo "OK — no bash curl/wget callers."
+          # cycle-099 sprint-1E.c.3.c — flipped from informational ::warning::
+          # to STRICT ::error:: + exit 1. After 1E.c.3.a/b migrated 14 of ~15
+          # bash callers through endpoint_validator__guarded_curl, only three
+          # files retain raw curl/wget: the wrapper itself, mount-loa.sh
+          # (bootstrap; can't depend on .venv), and model-health-probe.sh
+          # (legacy operator-supplied dynamic webhook URL — opt-in to
+          # wrapper-routed dispatch via .loa.config.yaml).
+          #
+          # The scanner (tools/check-no-raw-curl.sh) handles:
+          #   - heredoc state tracking (usage / instruction text mentioning
+          #     curl is not an invocation)
+          #   - comment / existence-check / echo-string filtering
+          #   - explicit `# check-no-raw-curl: ok` suppression marker for
+          #     edge cases (rare; reviewable per occurrence)
+          #
+          # Adding a new exempt file requires editing the EXEMPT_FILES array
+          # in tools/check-no-raw-curl.sh — intentionally a code edit (not
+          # an env override) so reviewers see every new exemption.
+          if ! tools/check-no-raw-curl.sh; then
+              echo "::error::raw curl/wget detected; route through endpoint_validator__guarded_curl"
+              echo "::error::see SDD §1.9.1 + tools/check-no-raw-curl.sh --help"
+              exit 1
           fi
 
       - name: TS — informational scan for fetch / http.request (Sprint 1E.c codegen)
