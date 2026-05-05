@@ -311,17 +311,19 @@ EOF
 @test "M10.4 report: --report-format json produces valid JSON" {
     # Stream stdout into a file so apostrophes / quotes in the JSON cannot
     # break the python -c string interpolation (review remediation G-M1).
+    # BB iter-2 F2 follow-up: even the file path is passed via env var so a
+    # mktemp-d output containing shell metachars cannot inject into Python.
     run "$PYTHON_BIN" "$CLI" "$FIXTURES/v1-with-rename.yaml" -o "$OUT" --report-format json
     [[ "$status" -eq 0 ]]
     local payload="$WORK_DIR/report.json"
     printf '%s' "$output" > "$payload"
-    "$PYTHON_BIN" -c "
-import json
-with open('$payload') as f:
+    PAYLOAD="$payload" "$PYTHON_BIN" -c '
+import json, os
+with open(os.environ["PAYLOAD"]) as f:
     data = json.load(f)
-assert 'changes' in data, f'expected changes field; got {data}'
-assert any(c['kind'] == 'rename' for c in data['changes']), f'expected at least one rename; got {data}'
-"
+assert "changes" in data, f"expected changes field; got {data}"
+assert any(c["kind"] == "rename" for c in data["changes"]), f"expected at least one rename; got {data}"
+'
 }
 
 @test "M10.5 report: dry-run mode does not write output file" {
@@ -385,13 +387,17 @@ EOF
 # ---------------------------------------------------------------------------
 
 @test "M13.1 hardening: !!python/object tag does not execute (typ='rt' safe)" {
-    # C-M2: confirm ruamel's round-trip loader does not execute python tags.
-    # Regardless of exit code, the side-effect file must not appear.
-    rm -f /tmp/loa-rce-test
-    run "$PYTHON_BIN" "$CLI" "$FIXTURES/v1-malicious-python-tag.yaml" -o "$OUT"
+    # C-M2 + BB iter-2 F1: confirm ruamel's round-trip loader does not execute
+    # python tags. Use a per-test sentinel under WORK_DIR (mktemp-d) so
+    # parallel bats runs don't race on a shared /tmp path.
+    local rce_sentinel="$WORK_DIR/rce-canary"
+    local fixture="$WORK_DIR/malicious.yaml"
+    sed "s|/tmp/loa-rce-test|$rce_sentinel|g" \
+        "$FIXTURES/v1-malicious-python-tag.yaml" > "$fixture"
+    run "$PYTHON_BIN" "$CLI" "$fixture" -o "$OUT"
     # We don't assert exit code (ruamel rt may either reject the tag or store
     # it as opaque); we DO assert the malicious side effect did not happen.
-    [[ ! -f /tmp/loa-rce-test ]]
+    [[ ! -f "$rce_sentinel" ]]
 }
 
 @test "M13.2 hardening: --output refuses to follow an existing symlink" {
@@ -589,17 +595,19 @@ EOF
     # F6 review remediation: assert version_bump kind appears in the report,
     # not the more general 'schema_version: 2' string (which leaked from the
     # original tautological OR — passed for the wrong reason on any input).
+    # BB iter-2 F2 follow-up: pass the payload path via env var to avoid
+    # interpolating it into the python -c source string.
     run "$PYTHON_BIN" "$CLI" "$FIXTURES/v1-with-rename.yaml" -o "$OUT" --report-format json
     [[ "$status" -eq 0 ]]
     local payload="$WORK_DIR/v17-report.json"
     printf '%s' "$output" > "$payload"
-    "$PYTHON_BIN" -c "
-import json
-with open('$payload') as f:
+    PAYLOAD="$payload" "$PYTHON_BIN" -c '
+import json, os
+with open(os.environ["PAYLOAD"]) as f:
     data = json.load(f)
-assert any(c.get('kind') == 'version_bump' for c in data.get('changes', [])), \
-    f'expected at least one version_bump entry; got {data}'
-"
+assert any(c.get("kind") == "version_bump" for c in data.get("changes", [])), \
+    f"expected at least one version_bump entry; got {data}"
+'
 }
 
 # ---------------------------------------------------------------------------
