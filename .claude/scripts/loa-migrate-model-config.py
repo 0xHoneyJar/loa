@@ -1,0 +1,336 @@
+#!/usr/bin/env python3
+"""loa migrate-model-config — operator-explicit v1 → v2 migration CLI.
+
+cycle-099 Sprint 1E (T1.14). Implements SDD §3.1.1.1 contract:
+  - Reads input YAML with ruamel.yaml (round-trip mode)
+  - Detects schema_version (absent → v1; explicit 1/2/≥3)
+  - Dispatches to pure migrate_v1_to_v2 (lib/model-config-migrate.py)
+  - Validates output against the v2 JSON Schema
+  - Reports field-level changes (text or JSON)
+  - Exits 0 on success, 78 on validation failure or unsupported schema_version
+
+Usage:
+  loa-migrate-model-config.py INPUT.yaml -o OUTPUT.yaml
+  loa-migrate-model-config.py INPUT.yaml -o OUT.yaml --model-permissions cycle-026.yaml
+  loa-migrate-model-config.py INPUT.yaml -o OUT.yaml --report-format json
+  loa-migrate-model-config.py INPUT.yaml -o OUT.yaml --dry-run
+
+The CLI is non-destructive: it never overwrites the input file. Operators
+should review the structured report and the diff between input and output
+before adopting the v2 file as their authoritative config.
+
+Limitation: in-line YAML comments and blank-line formatting are NOT preserved
+across migration in this Sprint 1E shipment. The transformation is structural
+(key order, nesting). Operators with heavily-commented configs should review
+the v2 output and re-add comments. A future cycle may add a
+--preserve-comments flag using ruamel's full round-trip mutation API.
+"""
+
+from __future__ import annotations
+
+import argparse
+import importlib.util
+import json
+import os
+import sys
+from pathlib import Path
+from typing import Any
+
+EXIT_SUCCESS = 0
+EXIT_VALIDATION_FAIL = 78  # EX_CONFIG (sysexits.h convention)
+EXIT_USAGE = 64  # EX_USAGE
+
+# Mode 0600: the migrated v2 file may carry merged trust_scopes from the
+# cycle-026 model-permissions.yaml — operator-sensitive. Keep it owner-only
+# regardless of the operator's umask.
+_OUTPUT_FILE_MODE = 0o600
+
+
+def _load_migrate_module():
+    """Import the sibling lib/model-config-migrate.py via importlib.
+
+    The module name has dashes (per cycle-099 file-naming convention), which
+    makes plain `import` impossible — we use a spec loader instead.
+    """
+    here = Path(__file__).resolve().parent
+    target = here / "lib" / "model-config-migrate.py"
+    spec = importlib.util.spec_from_file_location("model_config_migrate", target)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"failed to load {target}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_yaml(path: Path) -> Any:
+    from ruamel.yaml import YAML
+
+    yaml = YAML(typ="rt")
+    with path.open("r") as f:
+        return yaml.load(f)
+
+
+def _dump_yaml(data: Any, path: Path) -> None:
+    """Write `data` to `path` as YAML.
+
+    Symlink-safe: refuses to write through an existing symlink (review
+    remediation C-H2; prevents clobbering symlink targets like
+    ~/.aws/credentials, sensitive configs, or git-tracked paths the operator
+    forgot were symlinked). If the target exists as a regular file we
+    overwrite via O_TRUNC; if it does not exist we create with mode 0600
+    (owner-only — review remediation C-L1).
+    """
+    from ruamel.yaml import YAML
+
+    if path.is_symlink():
+        raise SymlinkRefusedError(
+            f"output path {path} is a symlink; refusing to follow. "
+            "Remove the symlink and re-run, or pick a different --output."
+        )
+
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW
+    fd = os.open(path, flags, _OUTPUT_FILE_MODE)
+    try:
+        with os.fdopen(fd, "w") as f:
+            yaml = YAML(typ="rt")
+            yaml.indent(mapping=2, sequence=4, offset=2)
+            yaml.dump(data, f)
+    except BaseException:
+        # If yaml.dump raised after fdopen took ownership, fdopen's close runs
+        # via context-manager. If the os.open succeeded but fdopen didn't,
+        # close manually.
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        raise
+
+
+class SymlinkRefusedError(OSError):
+    """Raised when --output points at an existing symlink."""
+
+
+def _to_plain_dict(data: Any) -> Any:
+    """Convert ruamel CommentedMap/CommentedSeq → plain dict/list recursively.
+
+    The pure migrate function operates on plain Python dicts; passing ruamel's
+    round-trip types in directly works most of the time, but post-mutation
+    serialization via `yaml.dump` on a ruamel-typed dict that has had keys
+    inserted in arbitrary order can produce surprising output. Round-tripping
+    through plain types simplifies the contract.
+    """
+    if isinstance(data, dict):
+        return {k: _to_plain_dict(v) for k, v in data.items()}
+    if isinstance(data, list):
+        return [_to_plain_dict(v) for v in data]
+    return data
+
+
+def _validate_v2(
+    data: dict[str, Any],
+    schema_path: Path,
+    *,
+    error_code: str = "MIGRATION-PRODUCED-INVALID-V2",
+) -> list[dict[str, Any]]:
+    """Run jsonschema validation against the v2 schema. Returns list of error dicts.
+
+    `error_code` lets the caller distinguish failures the migrator is
+    responsible for (default `MIGRATION-PRODUCED-INVALID-V2`) from failures
+    where the input was already v2 and didn't pass schema (operator handed
+    us a corrupt v2 file → `CONFIG-V2-INVALID`). Review remediation G-M4.
+    """
+    import jsonschema
+
+    with schema_path.open("r") as f:
+        schema = json.load(f)
+    validator = jsonschema.Draft202012Validator(schema)
+    errors: list[dict[str, Any]] = []
+    for err in validator.iter_errors(data):
+        errors.append(
+            {
+                "code": error_code,
+                "field": ".".join(str(p) for p in err.absolute_path) or "<root>",
+                "detail": err.message,
+            }
+        )
+    return errors
+
+
+def _emit_text_report(report: list[dict[str, Any]]) -> str:
+    if not report:
+        # Review remediation G-M2: this branch is now reachable only when the
+        # migrator returns an empty report — which our v1→v2 path no longer
+        # does (it always emits at least the version_bump entry). Leaving the
+        # message defensive in case future edits change that contract.
+        return "(no changes — input may be malformed)\n"
+    lines = []
+    for entry in report:
+        sev = entry.get("severity", "INFO")
+        code = entry.get("code")
+        prefix = f"[{sev}]"
+        if code:
+            prefix = f"[{sev}] [{code}]"
+        lines.append(f"{prefix} {entry.get('detail', '')}")
+    return "\n".join(lines) + "\n"
+
+
+def _emit_json_report(report: list[dict[str, Any]]) -> str:
+    return json.dumps({"changes": report}, indent=2, sort_keys=True)
+
+
+def _emit_validation_errors(errors: list[dict[str, Any]], fmt: str) -> str:
+    if fmt == "json":
+        return json.dumps(
+            {"exit_code": EXIT_VALIDATION_FAIL, "errors": errors},
+            indent=2,
+            sort_keys=True,
+        )
+    lines = []
+    for err in errors:
+        code = err.get("code", "MIGRATION-PRODUCED-INVALID-V2")
+        field = err.get("field", "<root>")
+        detail = err.get("detail", "")
+        lines.append(f"[{code}] field={field}\n  detail: {detail}")
+    return "\n".join(lines)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="loa migrate-model-config",
+        description="Migrate model-config.yaml from v1 (cycle-095 vintage) to v2 (cycle-099).",
+    )
+    parser.add_argument("input", help="Path to v1 model-config.yaml")
+    parser.add_argument(
+        "-o", "--output", required=True, help="Path to write v2 model-config.yaml"
+    )
+    parser.add_argument(
+        "--model-permissions",
+        help=(
+            "Optional path to cycle-026 standalone model-permissions.yaml; "
+            "entries merged into per-model `permissions` block per DD-1 Option B."
+        ),
+    )
+    parser.add_argument(
+        "--schema",
+        help=(
+            "Optional v2 JSON Schema path (default: "
+            ".claude/data/schemas/model-config-v2.schema.json relative to repo root)."
+        ),
+    )
+    parser.add_argument(
+        "--report-format",
+        choices=("text", "json"),
+        default="text",
+        help="Format for change report (default: text).",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Run migration + validation but do not write the output file.",
+    )
+    parser.add_argument(
+        "--no-validate",
+        action="store_true",
+        help=(
+            "Skip post-migration v2 schema validation. Escape hatch — operator "
+            "assumes responsibility for v2 conformance. Default is to validate."
+        ),
+    )
+
+    args = parser.parse_args(argv)
+
+    input_path = Path(args.input)
+    if not input_path.is_file():
+        print(f"[INPUT-NOT-FOUND] {input_path}", file=sys.stderr)
+        return EXIT_USAGE
+
+    output_path = Path(args.output)
+
+    # Resolve the v2 schema path (CLI override or repo default).
+    if args.schema:
+        schema_path = Path(args.schema)
+    else:
+        repo_root = Path(__file__).resolve().parents[2]
+        schema_path = (
+            repo_root / ".claude" / "data" / "schemas" / "model-config-v2.schema.json"
+        )
+    if not args.no_validate and not schema_path.is_file():
+        print(f"[SCHEMA-NOT-FOUND] {schema_path}", file=sys.stderr)
+        return EXIT_USAGE
+
+    # Load input (and optional cycle-026 model-permissions doc).
+    try:
+        v1 = _load_yaml(input_path)
+    except Exception as exc:
+        print(f"[INPUT-PARSE-ERROR] {input_path}: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+    if v1 is None:
+        print(f"[INPUT-EMPTY] {input_path}", file=sys.stderr)
+        return EXIT_USAGE
+    if not isinstance(v1, dict):
+        print(
+            f"[INPUT-NOT-MAPPING] {input_path}: top-level must be a mapping",
+            file=sys.stderr,
+        )
+        return EXIT_USAGE
+
+    permissions_doc: dict[str, Any] | None = None
+    if args.model_permissions:
+        perm_path = Path(args.model_permissions)
+        if not perm_path.is_file():
+            print(f"[PERMISSIONS-NOT-FOUND] {perm_path}", file=sys.stderr)
+            return EXIT_USAGE
+        try:
+            permissions_doc = _load_yaml(perm_path)
+        except Exception as exc:
+            print(f"[PERMISSIONS-PARSE-ERROR] {perm_path}: {exc}", file=sys.stderr)
+            return EXIT_USAGE
+
+    v1_plain = _to_plain_dict(v1)
+    permissions_plain = (
+        _to_plain_dict(permissions_doc) if permissions_doc is not None else None
+    )
+
+    # Run migration.
+    migrate_mod = _load_migrate_module()
+    try:
+        v2_dict, report = migrate_mod.migrate_v1_to_v2(v1_plain, permissions_plain)
+    except migrate_mod.MigrationError as exc:
+        print(str(exc), file=sys.stderr)
+        return EXIT_VALIDATION_FAIL
+
+    # Distinguish "operator-supplied invalid v2" from "migrator-produced invalid v2"
+    # so the operator can route the fix correctly (review remediation G-M4).
+    input_was_v2 = any(entry.get("kind") == "idempotent_noop" for entry in report)
+    error_code = "CONFIG-V2-INVALID" if input_was_v2 else "MIGRATION-PRODUCED-INVALID-V2"
+
+    # Post-migration validation (default on).
+    if not args.no_validate:
+        errors = _validate_v2(v2_dict, schema_path, error_code=error_code)
+        if errors:
+            sys.stderr.write(_emit_validation_errors(errors, args.report_format))
+            sys.stderr.write("\n")
+            return EXIT_VALIDATION_FAIL
+
+    # Emit report (stdout — operator-readable summary of what changed).
+    if args.report_format == "json":
+        sys.stdout.write(_emit_json_report(report))
+    else:
+        sys.stdout.write(_emit_text_report(report))
+
+    # Write v2 unless --dry-run.
+    if not args.dry_run:
+        try:
+            _dump_yaml(v2_dict, output_path)
+        except SymlinkRefusedError as exc:
+            print(f"[OUTPUT-IS-SYMLINK] {exc}", file=sys.stderr)
+            return EXIT_USAGE
+        except Exception as exc:
+            print(f"[OUTPUT-WRITE-ERROR] {output_path}: {exc}", file=sys.stderr)
+            return EXIT_USAGE
+
+    return EXIT_SUCCESS
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

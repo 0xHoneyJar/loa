@@ -1,0 +1,12 @@
+# v1 with context_window below v2 schema minimum (1024). Migration should
+# transform without error, then post-migration v2 schema validation should
+# REJECT with [MIGRATION-PRODUCED-INVALID-V2] (exit 78) per SDD §3.1.1.1.
+providers:
+  openai:
+    type: openai
+    endpoint: "https://api.openai.com/v1"
+    models:
+      tiny-toy-model:
+        capabilities: [chat]
+        context_window: 500       # below v2 minimum 1024 — invalid
+        endpoint_family: chat

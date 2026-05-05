@@ -1,0 +1,10 @@
+# v1 with deprecated `endpoint_class` field — should be renamed to `endpoint_family`.
+providers:
+  openai:
+    type: openai
+    endpoint: "https://api.openai.com/v1"
+    models:
+      gpt-old:
+        capabilities: [chat]
+        context_window: 16000
+        endpoint_class: chat

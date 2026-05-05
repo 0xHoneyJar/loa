@@ -1,0 +1,12 @@
+# Adversarial fixture: a YAML payload that would execute arbitrary code under
+# PyYAML's `Loader.full_load` or ruamel's `typ='unsafe'`. Confirms the migrate
+# CLI's `YAML(typ='rt')` rejects (or refuses to deserialize) the tag.
+#
+# The exploitation vector documented at https://pyyaml.org/wiki/PyYAMLDocumentation
+# (full/unsafe loaders execute python tags). Our migrator must NOT execute or
+# deserialize this payload — review remediation C-M2.
+providers:
+  openai:
+    type: !!python/object/apply:os.system ["echo PWNED >/tmp/loa-rce-test"]
+    endpoint: "https://api.openai.com/v1"
+    models: {}
