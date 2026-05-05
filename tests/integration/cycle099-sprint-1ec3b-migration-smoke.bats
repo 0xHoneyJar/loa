@@ -313,16 +313,54 @@ _assert_has_allowlist_decl() {
     # update this test.
     grep -qE '\[\[[[:space:]]*"\$_loa_ref"[[:space:]]*==[[:space:]]*\*\.\.\*' \
         "$PROJECT_ROOT/.claude/scripts/mount-loa.sh"
-    # Behavior-level pin: extract the bash branch into a sub-shell and run
-    # it standalone with a `..`-containing ref. We can't actually invoke
-    # mount-loa.sh end-to-end without massive setup, so verify the regex
-    # logic in isolation.
-    local ref="../attacker/repo"
-    bash -c "[[ ! \"$ref\" =~ ^[A-Za-z0-9._/-]+\$ ]] || [[ \"$ref\" == *..* ]]" \
-        && return 0 || {
-            printf 'expected ref %q to be rejected by either regex or ..-check; both passed\n' "$ref" >&2
-            return 1
-        }
+
+    # Behavior-level pin (BB iter-2 HIGH + MEDIUM remediation): mirror
+    # mount-loa.sh's actual reject condition explicitly. The reject logic
+    # is "if regex FAILS OR ref contains `..` → reject"; equivalently, a
+    # ref that PASSES validation must satisfy `(regex matches) AND (no
+    # ..)`. We test by constructing each ref and verifying the conjunction
+    # of acceptance conditions is FALSE for attack inputs and TRUE for a
+    # legitimate ref (positive control). No `bash -c` interpolation —
+    # use bats's [[ ... ]] directly to avoid shell-injection-shaped patterns
+    # in security tests.
+    _passes_validation() {
+        # Returns 0 iff $1 would be ACCEPTED by mount-loa.sh's checks.
+        local r="$1"
+        [[ "$r" =~ ^[A-Za-z0-9._/-]+$ ]] || return 1
+        [[ "$r" != *..* ]] || return 1
+        return 0
+    }
+
+    # Negative case: dot-dot path traversal MUST be rejected.
+    if _passes_validation "../attacker/repo/refs/heads/main"; then
+        printf 'M4 FAIL: ../attacker/repo/refs/heads/main passed validation; mount-loa would have allowed repo-pivot\n' >&2
+        return 1
+    fi
+
+    # Negative case: bare `..` segment MUST be rejected.
+    if _passes_validation ".."; then
+        printf 'M4 FAIL: bare `..` passed validation\n' >&2
+        return 1
+    fi
+
+    # Negative case: ref with embedded `..` mid-string MUST be rejected.
+    if _passes_validation "main/../foo"; then
+        printf 'M4 FAIL: main/../foo passed validation\n' >&2
+        return 1
+    fi
+
+    # Positive control: a legitimate ref MUST pass (otherwise the gate is
+    # too strict and mount-loa would reject normal usage).
+    if ! _passes_validation "refs/heads/main"; then
+        printf 'M4 FAIL: legitimate ref refs/heads/main was rejected; gate is too strict\n' >&2
+        return 1
+    fi
+
+    # Positive control: tagged release ref.
+    if ! _passes_validation "v1.30.0"; then
+        printf 'M4 FAIL: legitimate tag v1.30.0 was rejected\n' >&2
+        return 1
+    fi
 }
 
 # ---------------------------------------------------------------------------
