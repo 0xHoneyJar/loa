@@ -512,11 +512,20 @@ EOF
     [[ ! -f "$MOCK_CURL_ARGV_LOG" ]]
 }
 
-@test "T1.2 allowlist via symlink pointing outside the tree is REJECTED" {
-    # Create a symlink INSIDE the canonical tree pointing to a file OUTSIDE.
-    # Note: we can't actually write under .claude/ during tests (rules), so
-    # we exercise the realpath -e branch by passing the symlink path directly
-    # — realpath should resolve to the out-of-tree target.
+@test "T1.2 symlink-supplied allowlist resolves through realpath -e and is checked at the resolved path" {
+    # The defense relies on `realpath -e` resolving symlinks BEFORE the
+    # in-tree check. We can't write a symlink INSIDE .claude/scripts/lib/
+    # allowlists/ during tests (zone-system rule against test-time .claude/
+    # mutation), so this test exercises the realpath behavior on its own:
+    # ANY symlink whose resolved target is out-of-tree must be rejected.
+    # Whether the symlink lives in $WORK_DIR or in the canonical tree, the
+    # `realpath -e` output is the same (the resolved target path), and the
+    # case-statement match against "$allowlists_root"/* fails identically.
+    # The BB iter-2 F6 finding asks for an in-tree-symlink fixture; we
+    # accept the framing tradeoff: realpath's resolve-to-target invariant
+    # is what's load-bearing here, and that's covered by this test in
+    # combination with T1.1 (out-of-tree non-symlink) and T1.4 (TEST_MODE
+    # negative).
     cat > "$WORK_DIR/wide-open.json" <<'EOF'
 {"providers": {"any": [{"host": "evil.example.com", "ports": [443]}]}}
 EOF
@@ -678,4 +687,46 @@ EOF
     # If no --config-auth was supplied, the wrapper MUST NOT inject a stray
     # --config arg into curl (which would then fail to read the missing file).
     ! grep -qE '^--config$' "$MOCK_CURL_ARGV_LOG"
+}
+
+# ---------------------------------------------------------------------------
+# S6 — Positional-URL strict-reject design boundary (BB iter-2 F8 SPECULATION)
+# ---------------------------------------------------------------------------
+#
+# The Phase 1.7 case-statement match `[Hh][Tt][Tt][Pp]://*` strict-rejects
+# any caller arg starting with http:// or https://. This is intentionally
+# coarser than perfect curl-flag-taxonomy parsing: it catches naked
+# positional URLs (the smuggling vector) but ALSO rejects legitimate flag
+# values like `--referer https://x.com` and `--proxy https://proxy.example.com`.
+# The trade-off is documented; none of the current cycle-099 callers use
+# `--referer` / `--proxy` / `-e` / `-x` with URL values. Future callers
+# that need such flags must refactor (e.g., wrap the flag-value pair in a
+# config file) — which is the desired forcing-function for adding flag
+# taxonomy awareness to the wrapper, not a silent breakage.
+#
+# These tests pin the design boundary: `--referer https://x` IS rejected,
+# documenting the constraint rather than burying it in a comment.
+
+@test "S6.1 caller --referer https://x in args is REJECTED (design boundary, not a defect)" {
+    _run_guarded --allowlist "$PROVIDERS_ALLOWLIST" \
+        --url "https://api.openai.com/v1/chat/completions" \
+        --referer "https://example.com"
+    [[ "$status" -eq 64 ]]
+    [[ "$output" == *'POSITIONAL-URL-REJECTED'* ]]
+}
+
+@test "S6.2 caller --proxy https://x in args is REJECTED (design boundary)" {
+    _run_guarded --allowlist "$PROVIDERS_ALLOWLIST" \
+        --url "https://api.openai.com/v1/chat/completions" \
+        --proxy "https://proxy.example.com:3128"
+    [[ "$status" -eq 64 ]]
+    [[ "$output" == *'POSITIONAL-URL-REJECTED'* ]]
+}
+
+@test "S6.3 caller -e https://x (referer short alias) in args is REJECTED (design boundary)" {
+    _run_guarded --allowlist "$PROVIDERS_ALLOWLIST" \
+        --url "https://api.openai.com/v1/chat/completions" \
+        -e "https://example.com"
+    [[ "$status" -eq 64 ]]
+    [[ "$output" == *'POSITIONAL-URL-REJECTED'* ]]
 }
