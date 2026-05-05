@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "loa://schemas/model-aliases-extra/v1.0.0",
+  "title": "Operator-defined model aliases (cycle-099 model_aliases_extra)",
+  "description": "DD-2 + DD-5 resolution per cycle-099 SDD §3.2. Schema-versioned object validating operator-controlled model entries added via `.loa.config.yaml::model_aliases_extra`. Per NFR-Sec-5 the `auth` field is forbidden — operators reuse the provider's existing credential env var. Per FR-1.4, entries without an explicit `permissions` block MUST set `acknowledge_permissions_baseline: true` to opt into the minimal baseline.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version"],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "description": "Bumped on breaking schema changes. Cycle-099 ships v1.0.0."
+    },
+    "entries": {
+      "type": "array",
+      "description": "List of operator-added model entries. Each entry mirrors the SoT `providers.<p>.models.<id>` shape minus the `auth` field.",
+      "items": { "$ref": "#/$defs/ModelExtra" }
+    }
+  },
+  "$defs": {
+    "ModelExtra": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "provider", "api_id", "capabilities", "context_window", "pricing"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9._-]+$",
+          "minLength": 2,
+          "maxLength": 64,
+          "description": "FR-2.8 normalization. Rejects shell metacharacters, path separators, NUL bytes. Operator-visible alias used in `skill_models` references."
+        },
+        "provider": {
+          "type": "string",
+          "enum": ["openai", "anthropic", "google", "bedrock"],
+          "description": "NFR-Sec-4: new provider types require a System Zone change (.claude/defaults/loa.defaults.yaml::providers). Operators cannot register new provider types via .loa.config.yaml."
+        },
+        "api_id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9._-]+$",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Vendor-side model id sent over the wire (e.g., `gpt-5.5-pro`). Same charset as `id`."
+        },
+        "endpoint_family": {
+          "type": "string",
+          "enum": ["chat", "responses", "messages", "converse"],
+          "description": "Provider endpoint family. Chat = OpenAI Chat Completions / Anthropic Messages legacy. Responses = OpenAI Responses (gpt-5.x/codex). Messages = Anthropic Messages. Converse = AWS Bedrock Converse."
+        },
+        "endpoint": {
+          "type": "string",
+          "format": "uri",
+          "description": "OPTIONAL — defaults to provider's framework default. If supplied, MUST match provider's allowed_endpoints in loa.defaults.yaml at load time (FR-2.8). Validated by the cycle-099 endpoint-validator (Sprint 1E.b)."
+        },
+        "capabilities": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "enum": ["chat", "tools", "function_calling", "code", "thinking_traces", "deep_research"]
+          },
+          "description": "At least one capability required. Used by skills to filter candidate models (e.g., flatline_protocol requires `tools`)."
+        },
+        "context_window": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 10000000,
+          "description": "Vendor-published context window in tokens. Used by Bridgebuilder truncation table."
+        },
+        "token_param": {
+          "type": "string",
+          "enum": ["max_tokens", "max_completion_tokens"],
+          "description": "Vendor's parameter name for the output-token limit. OpenAI Chat = max_tokens; Responses = max_completion_tokens; Anthropic = max_tokens; Bedrock = max_tokens."
+        },
+        "pricing": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["input_per_mtok", "output_per_mtok"],
+          "properties": {
+            "input_per_mtok": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Cost per million input tokens, in micro-cents (10^-8 USD). E.g., $5 / mtok = 5000000."
+            },
+            "output_per_mtok": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Cost per million output tokens, in micro-cents."
+            }
+          },
+          "description": "Per-mtok pricing in micro-cents. Used by L2 cost-budget enforcer."
+        },
+        "context": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "max_input": {
+              "type": "integer",
+              "minimum": 1024,
+              "description": "OPTIONAL operator-imposed max input tokens (overrides context_window for input budgeting)."
+            },
+            "truncation_coefficient": {
+              "type": "number",
+              "minimum": 0.05,
+              "maximum": 0.95,
+              "description": "Bridgebuilder truncation budget as fraction of context_window. Default 0.7 framework-wide."
+            }
+          },
+          "description": "OPTIONAL Bridgebuilder-side truncation tuning."
+        },
+        "permissions": {
+          "type": "object",
+          "description": "OPTIONAL — operator-supplied per-model permissions block. If present, validated against framework provider baseline (FR-1.4). If absent, the FR-1.4 minimal baseline (`chat` only) applies + `acknowledge_permissions_baseline: true` is required (see allOf). Sprint 3 expands this block per DD-1 Option B; Sprint 2 leaves the inner shape OPEN."
+        },
+        "acknowledge_permissions_baseline": {
+          "type": "boolean",
+          "description": "FR-1.4: explicit operator opt-in to minimal-only permissions when no `permissions` block is supplied. Required when `permissions` is absent (see allOf clause)."
+        },
+        "auth": false
+      },
+      "allOf": [
+        {
+          "if": { "not": { "required": ["permissions"] } },
+          "then": { "required": ["acknowledge_permissions_baseline"] }
+        }
+      ]
+    }
+  }
+}

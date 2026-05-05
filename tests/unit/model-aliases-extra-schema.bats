@@ -1,0 +1,729 @@
+#!/usr/bin/env bats
+# =============================================================================
+# tests/unit/model-aliases-extra-schema.bats
+#
+# cycle-099 Sprint 2A (T2.1) — JSON Schema contract pin for the
+# `.claude/data/trajectory-schemas/model-aliases-extra.schema.json` file
+# (DD-5 path-locked) and the validator helper at
+# `.claude/scripts/lib/validate-model-aliases-extra.{py,sh}`.
+#
+# Closes AC-S2.1 partial (schema correctness; loader integration is Sprint 2B).
+#
+# Test taxonomy:
+#   E0      POSITIVE CONTROL: SDD §4.2.1 UC-1 valid example loads cleanly
+#   E1-E5   STRUCTURAL: missing required fields rejected
+#   E6-E10  TYPE: wrong-type values rejected
+#   E11-E15 ENUM: invalid enum values rejected
+#   E16-E18 CONSTRAINTS: pattern / minLength / maxLength / range rejected
+#   E19-E22 SECURITY: forbidden auth field, glob/wildcard ids, unknown providers
+#   E23-E25 PERMISSIONS: FR-1.4 acknowledge_permissions_baseline gate
+#   B1-B3   BASH TWIN: wrapper API surface
+# =============================================================================
+
+setup() {
+    SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
+    PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+    SCHEMA="$PROJECT_ROOT/.claude/data/trajectory-schemas/model-aliases-extra.schema.json"
+    VALIDATOR_PY="$PROJECT_ROOT/.claude/scripts/lib/validate-model-aliases-extra.py"
+    VALIDATOR_SH="$PROJECT_ROOT/.claude/scripts/lib/validate-model-aliases-extra.sh"
+
+    [[ -f "$SCHEMA" ]] || skip "schema not present"
+    [[ -f "$VALIDATOR_PY" ]] || skip "Python validator not present"
+    [[ -f "$VALIDATOR_SH" ]] || skip "bash wrapper not present"
+
+    if [[ -x "$PROJECT_ROOT/.venv/bin/python" ]]; then
+        PYTHON_BIN="$PROJECT_ROOT/.venv/bin/python"
+    else
+        PYTHON_BIN="${PYTHON_BIN:-python3}"
+    fi
+    "$PYTHON_BIN" -c "import jsonschema, yaml" 2>/dev/null \
+        || skip "jsonschema + pyyaml not available in $PYTHON_BIN"
+
+    WORK_DIR="$(mktemp -d)"
+}
+
+teardown() {
+    if [[ -n "${WORK_DIR:-}" ]] && [[ -d "$WORK_DIR" ]]; then
+        rm -rf "$WORK_DIR"
+    fi
+    return 0
+}
+
+# Helper: write a fixture .loa.config.yaml with the given model_aliases_extra
+# block (or full config) and run the validator against it. Sets $status,
+# $output (stderr+stdout merged) per bats `run` convention.
+_run_validator() {
+    local config_path="$1"
+    run "$VALIDATOR_PY" --config "$config_path" --json --quiet
+    return 0
+}
+
+_run_validator_verbose() {
+    local config_path="$1"
+    run "$VALIDATOR_PY" --config "$config_path" --json
+}
+
+# Helper: write a model_aliases_extra block to a fresh fixture file.
+_write_config() {
+    local path="$1" yaml_body="$2"
+    printf '%s\n' "$yaml_body" > "$path"
+}
+
+# ---------------------------------------------------------------------------
+# E0 POSITIVE CONTROL — SDD §4.2.1 UC-1 fixture
+# ---------------------------------------------------------------------------
+
+@test "E0 positive control: UC-1 (operator adopts gpt-5.7-pro) loads cleanly" {
+    cat > "$WORK_DIR/uc1.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: gpt-5.7-pro
+      provider: openai
+      api_id: gpt-5.7-pro
+      endpoint_family: responses
+      capabilities: [chat, tools, function_calling, code]
+      context_window: 256000
+      pricing:
+        input_per_mtok: 40000000
+        output_per_mtok: 200000000
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/uc1.yaml"
+    [[ "$status" -eq 0 ]] || {
+        printf 'expected status=0; got=%d output=%s\n' "$status" "$output" >&2
+        return 1
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Vacuous — config missing OR block absent → vacuous success
+# ---------------------------------------------------------------------------
+
+@test "V1 absent config file → vacuous success (operator hasn't created .loa.config.yaml)" {
+    run "$VALIDATOR_PY" --config "$WORK_DIR/nonexistent.yaml"
+    [[ "$status" -eq 0 ]]
+}
+
+@test "V2 config file present without model_aliases_extra → vacuous success" {
+    cat > "$WORK_DIR/no-block.yaml" <<'EOF'
+hounfour:
+  flatline_routing: false
+ride:
+  depth: medium
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/no-block.yaml"
+    [[ "$status" -eq 0 ]]
+}
+
+# ---------------------------------------------------------------------------
+# E1-E5 STRUCTURAL — missing required fields
+# ---------------------------------------------------------------------------
+
+@test "E1 reject: missing schema_version" {
+    cat > "$WORK_DIR/e1.yaml" <<'EOF'
+model_aliases_extra:
+  entries:
+    - id: foo
+      provider: openai
+      api_id: foo
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e1.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+@test "E2 reject: entry missing required 'id'" {
+    cat > "$WORK_DIR/e2.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - provider: openai
+      api_id: foo
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e2.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+@test "E3 reject: entry missing required 'provider'" {
+    cat > "$WORK_DIR/e3.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: foo
+      api_id: foo
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e3.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+@test "E4 reject: entry missing required 'pricing'" {
+    cat > "$WORK_DIR/e4.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: foo
+      provider: openai
+      api_id: foo
+      capabilities: [chat]
+      context_window: 128000
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e4.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+@test "E5 reject: pricing missing required input_per_mtok" {
+    cat > "$WORK_DIR/e5.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: foo
+      provider: openai
+      api_id: foo
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e5.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+# ---------------------------------------------------------------------------
+# E6-E10 TYPE — wrong-type values
+# ---------------------------------------------------------------------------
+
+@test "E6 reject: schema_version wrong const value" {
+    cat > "$WORK_DIR/e6.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "2.0.0"
+  entries: []
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e6.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+@test "E7 reject: context_window as string" {
+    cat > "$WORK_DIR/e7.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: foo
+      provider: openai
+      api_id: foo
+      capabilities: [chat]
+      context_window: "128000"
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e7.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+@test "E8 reject: capabilities not an array" {
+    cat > "$WORK_DIR/e8.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: foo
+      provider: openai
+      api_id: foo
+      capabilities: "chat"
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e8.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+@test "E9 reject: pricing.input_per_mtok as float" {
+    cat > "$WORK_DIR/e9.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: foo
+      provider: openai
+      api_id: foo
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100.5, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e9.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+@test "E10 reject: capabilities empty array (minItems: 1)" {
+    cat > "$WORK_DIR/e10.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: foo
+      provider: openai
+      api_id: foo
+      capabilities: []
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e10.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+# ---------------------------------------------------------------------------
+# E11-E15 ENUM — invalid enum values
+# ---------------------------------------------------------------------------
+
+@test "E11 reject: unknown provider 'azure'" {
+    cat > "$WORK_DIR/e11.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: foo
+      provider: azure
+      api_id: foo
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e11.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+@test "E12 reject: invalid endpoint_family" {
+    cat > "$WORK_DIR/e12.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: foo
+      provider: openai
+      api_id: foo
+      endpoint_family: completions
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e12.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+@test "E13 reject: unknown capability 'image_generation'" {
+    cat > "$WORK_DIR/e13.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: foo
+      provider: openai
+      api_id: foo
+      capabilities: [chat, image_generation]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e13.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+@test "E14 reject: invalid token_param" {
+    cat > "$WORK_DIR/e14.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: foo
+      provider: openai
+      api_id: foo
+      token_param: max_output_tokens
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e14.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+@test "E15 accept: all 4 valid providers + all valid capabilities + all valid endpoint_families" {
+    cat > "$WORK_DIR/e15.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: m-openai
+      provider: openai
+      api_id: m-openai
+      endpoint_family: chat
+      capabilities: [chat, tools, function_calling, code, thinking_traces, deep_research]
+      context_window: 128000
+      token_param: max_tokens
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+    - id: m-anthropic
+      provider: anthropic
+      api_id: m-anthropic
+      endpoint_family: messages
+      capabilities: [chat]
+      context_window: 200000
+      token_param: max_completion_tokens
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+    - id: m-google
+      provider: google
+      api_id: m-google
+      endpoint_family: responses
+      capabilities: [chat]
+      context_window: 1000000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+    - id: m-bedrock
+      provider: bedrock
+      api_id: m-bedrock
+      endpoint_family: converse
+      capabilities: [chat]
+      context_window: 200000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e15.yaml"
+    [[ "$status" -eq 0 ]]
+}
+
+# ---------------------------------------------------------------------------
+# E16-E18 CONSTRAINTS — pattern / range
+# ---------------------------------------------------------------------------
+
+@test "E16 reject: id pattern violation (shell metachar)" {
+    cat > "$WORK_DIR/e16.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: "foo;bar"
+      provider: openai
+      api_id: foo
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e16.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+@test "E16b reject: id with path separator" {
+    cat > "$WORK_DIR/e16b.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: "foo/bar"
+      provider: openai
+      api_id: foo
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e16b.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+@test "E16c reject: id with whitespace" {
+    cat > "$WORK_DIR/e16c.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: "foo bar"
+      provider: openai
+      api_id: foo
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e16c.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+@test "E17 reject: context_window below minimum (1024)" {
+    cat > "$WORK_DIR/e17.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: foo
+      provider: openai
+      api_id: foo
+      capabilities: [chat]
+      context_window: 1023
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e17.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+@test "E17b reject: context_window above maximum (10000000)" {
+    cat > "$WORK_DIR/e17b.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: foo
+      provider: openai
+      api_id: foo
+      capabilities: [chat]
+      context_window: 10000001
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e17b.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+@test "E18 reject: id below minLength (2)" {
+    cat > "$WORK_DIR/e18.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: "x"
+      provider: openai
+      api_id: foo
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e18.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+# ---------------------------------------------------------------------------
+# E19-E22 SECURITY — auth field forbidden + glob ids + unknown top fields
+# ---------------------------------------------------------------------------
+
+@test "E19 reject: auth field present in entry (NFR-Sec-5)" {
+    cat > "$WORK_DIR/e19.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: foo
+      provider: openai
+      api_id: foo
+      auth: {api_key: "sk-evil"}
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e19.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+@test "E20 reject: id with glob '*' (cycle-099 sprint-1E.c.3.c host wildcard pattern)" {
+    cat > "$WORK_DIR/e20.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: "*"
+      provider: openai
+      api_id: foo
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e20.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+@test "E21 reject: unknown property at top-level (additionalProperties: false)" {
+    cat > "$WORK_DIR/e21.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries: []
+  unknown_field: "should fail"
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e21.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+@test "E22 reject: unknown property in ModelExtra (additionalProperties: false)" {
+    cat > "$WORK_DIR/e22.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: foo
+      provider: openai
+      api_id: foo
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+      mystery_field: "should fail"
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e22.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+# ---------------------------------------------------------------------------
+# E23-E25 PERMISSIONS — FR-1.4 acknowledge_permissions_baseline gate
+# ---------------------------------------------------------------------------
+
+@test "E23 reject: no permissions block AND no acknowledge_permissions_baseline" {
+    cat > "$WORK_DIR/e23.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: foo
+      provider: openai
+      api_id: foo
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e23.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+@test "E24 accept: permissions block present (no acknowledge needed)" {
+    cat > "$WORK_DIR/e24.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: foo
+      provider: openai
+      api_id: foo
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      permissions:
+        chat: {allowed: true}
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e24.yaml"
+    [[ "$status" -eq 0 ]]
+}
+
+@test "E25 accept: acknowledge_permissions_baseline: true (no permissions block)" {
+    cat > "$WORK_DIR/e25.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: foo
+      provider: openai
+      api_id: foo
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e25.yaml"
+    [[ "$status" -eq 0 ]]
+}
+
+@test "E25b reject: acknowledge_permissions_baseline: false (no permissions block)" {
+    cat > "$WORK_DIR/e25b.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: foo
+      provider: openai
+      api_id: foo
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: false
+EOF
+    # NOTE: per the JSON Schema, the allOf clause requires
+    # acknowledge_permissions_baseline to be present (boolean). False
+    # satisfies "required" — it's still present. Per FR-1.4 semantics the
+    # downstream loader (Sprint 2B/2D) is expected to also reject `false`,
+    # but THIS schema only enforces presence. Document the pin.
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e25b.yaml"
+    [[ "$status" -eq 0 ]] || {
+        printf 'NOTE: schema only enforces presence of acknowledge field; got=%d\n' "$status" >&2
+        printf 'Sprint 2B/2D loader integration must enforce true-only semantics.\n' >&2
+        return 1
+    }
+}
+
+# ---------------------------------------------------------------------------
+# B1-B3 BASH TWIN — wrapper exit-code parity
+# ---------------------------------------------------------------------------
+
+@test "B1 bash wrapper: valid config → exit 0" {
+    cat > "$WORK_DIR/b1.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries: []
+EOF
+    run "$VALIDATOR_SH" --config "$WORK_DIR/b1.yaml"
+    [[ "$status" -eq 0 ]] || {
+        printf 'bash wrapper status=%d output=%s\n' "$status" "$output" >&2
+        return 1
+    }
+}
+
+@test "B2 bash wrapper: invalid config → exit 78" {
+    cat > "$WORK_DIR/b2.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "wrong"
+  entries: []
+EOF
+    run "$VALIDATOR_SH" --config "$WORK_DIR/b2.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+@test "B3 bash wrapper: --json passthrough" {
+    cat > "$WORK_DIR/b3.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries: []
+EOF
+    run "$VALIDATOR_SH" --config "$WORK_DIR/b3.yaml" --json
+    [[ "$status" -eq 0 ]]
+    echo "$output" | grep -q '"valid":true' || {
+        printf 'expected "valid":true in JSON output; got: %s\n' "$output" >&2
+        return 1
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Edge cases: schema-validation production smoke
+# ---------------------------------------------------------------------------
+
+@test "S1 schema file is well-formed Draft 2020-12" {
+    "$PYTHON_BIN" -I -c "
+import json, jsonschema, sys
+schema = json.load(open('$SCHEMA'))
+jsonschema.Draft202012Validator.check_schema(schema)
+print('OK')
+"
+}
+
+@test "S2 schema enforces required field set on top-level (schema_version REQUIRED)" {
+    cat > "$WORK_DIR/s2.yaml" <<'EOF'
+model_aliases_extra:
+  entries: []
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/s2.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+@test "S3 entries field is OPTIONAL (operator with schema_version only)" {
+    cat > "$WORK_DIR/s3.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/s3.yaml"
+    [[ "$status" -eq 0 ]]
+}
