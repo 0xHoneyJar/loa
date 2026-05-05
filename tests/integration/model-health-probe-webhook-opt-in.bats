@@ -201,13 +201,20 @@ _run_webhook_send() {
 }
 
 @test "WO4b webhook-hosts.json validates with load_allowlist (no junk entries)" {
-    F="$LIB_DIR/allowlists/webhook-hosts.json" "$PYTHON_BIN" -I -c '
+    # gp M1 remediation: use `run` so $status is properly populated.
+    # Direct python invocation under bats default `set -uo pipefail` would
+    # fail-fast, but the assertion line was previously dead code; now it's
+    # checked properly.
+    run env F="$LIB_DIR/allowlists/webhook-hosts.json" "$PYTHON_BIN" -I -c '
 import os, runpy, sys
 ns = runpy.run_path(".claude/scripts/lib/endpoint-validator.py", run_name="ev")
 ns["load_allowlist"](os.environ["F"])
 print("OK")
 '
-    [[ "$status" -eq 0 ]] || true  # bats run sets status; this is direct call
+    [[ "$status" -eq 0 ]] || {
+        printf 'webhook-hosts.json should validate cleanly; status=%d output=%s\n' "$status" "$output" >&2
+        return 1
+    }
 }
 
 # ---------------------------------------------------------------------------

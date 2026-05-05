@@ -251,8 +251,12 @@ _webhook_send() {
         if ! declare -f endpoint_validator__guarded_curl >/dev/null 2>&1; then
             # Wrapper not loaded: source it. (Production paths source it at
             # script load; test paths may stub it as a function and skip.)
+            # gp M2 remediation: do NOT swallow stderr from source — if the
+            # wrapper's bash file is broken (syntax error, missing dep), the
+            # operator NEEDS to see why. Probe is fire-and-forget; noise is
+            # cheap, silent failure is expensive.
             # shellcheck source=lib/endpoint-validator.sh
-            source "$SCRIPT_DIR/lib/endpoint-validator.sh" 2>/dev/null || {
+            source "$SCRIPT_DIR/lib/endpoint-validator.sh" || {
                 log_warn "webhook dispatch failed: endpoint-validator.sh not loadable"
                 return 1
             }

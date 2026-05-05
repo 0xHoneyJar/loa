@@ -9,36 +9,53 @@
 # enforcement, smuggling defenses, redirect chain validation, and DNS-
 # rebinding defense apply uniformly.
 #
-# Three files are explicitly exempt:
-#   - .claude/scripts/lib/endpoint-validator.sh  (the wrapper itself)
-#   - .claude/scripts/mount-loa.sh               (bootstrap; the wrapper's
-#                                                  Python dep may not be
-#                                                  installed yet, so we
-#                                                  harden mount-loa with
-#                                                  --proto =https,
-#                                                  --proto-redir =https,
-#                                                  --max-redirs 10, plus a
-#                                                  dot-dot regex defense
-#                                                  on caller-supplied refs)
-#   - .claude/scripts/model-health-probe.sh      (legacy webhook path;
-#                                                  operator-supplied dynamic
-#                                                  webhook URL cannot be
-#                                                  statically allowlisted —
-#                                                  opt-in to wrapper-routed
-#                                                  dispatch via .loa.config.yaml
-#                                                  ::model_health_probe.alert_webhook_endpoint_validator_enabled)
+# **Tripwire scope (NOT exhaustive defense)**: the scanner enforces the
+# `curl|wget` literal-token contract for files that look like bash scripts.
+# It is one layer of a multi-layer defense. The wrapper itself, the
+# allowlist, the redirect chain, and DNS-rebinding defense are the
+# load-bearing security boundaries. Specifically OUT of scope for the
+# scanner (cypherpunk review C2/C3 — accepted risks):
+#   - Variable-expanded invocations (`CMD=curl; $CMD ...`)
+#   - eval / printf-assembled curl (`eval "${EVIL}..."`)
+#   - bash builtins like `exec 3<>/dev/tcp/<host>/<port>`
+#   - Out-of-process exfil (nc, python urlopen, perl LWP, etc.)
+# These are policy-violation patterns; PR review remains the gate.
+#
+# Exempt files (each with rationale):
+#   - .claude/scripts/lib/endpoint-validator.sh
+#       The wrapper itself.
+#   - .claude/scripts/mount-loa.sh
+#       Bootstrap; .venv may not be installed yet. Hardened with
+#       --proto =https, --proto-redir =https, --max-redirs 10, plus a
+#       dot-dot regex defense on caller-supplied refs.
+#   - .claude/scripts/model-health-probe.sh
+#       Legacy alert webhook path; operator-supplied dynamic webhook URL
+#       cannot be statically allowlisted. Opt-in to wrapper-routed dispatch
+#       via .loa.config.yaml::model_health_probe.alert_webhook_endpoint_validator_enabled.
+#   - .claude/scripts/model-adapter.sh.legacy
+#       Deprecated legacy adapter shim. New code MUST not add raw curl here;
+#       migration to the wrapper is deferred to the cycle-099 legacy sunset
+#       path (Sprint 4 gate). Tracked in cycle-099 sprint plan.
 #
 # Detection logic (in order):
-#   1. Track heredoc state (`<<EOF` / `<<'EOF'` / `<<-EOF` / etc) — skip
-#      heredoc bodies entirely (they are typically usage / instruction text
-#      that mentions curl as documentation, not an invocation).
-#   2. Skip line-leading comments (`# ...`).
-#   3. Skip `command -v curl|wget` / `which curl|wget` (existence checks).
-#   4. Skip lines starting with `echo "..."` / `printf "..."` / `printf '...'`
-#      (curl-in-strings is documentation).
-#   5. Skip lines with the `# check-no-raw-curl: ok` suppression marker
-#      (explicit exception for cases the heuristics miss).
-#   6. Match `(^|[^[:alnum:]_])(curl|wget)[[:space:]]+(-|http|/|\$|"|\\)` —
+#   1. File-type filter: scan `.sh` / `.bash` / `.legacy` extensions PLUS
+#      extension-less files with a bash/sh shebang. Other files (binaries,
+#      READMEs, docs) are skipped — addresses cypherpunk C1 (legacy file
+#      blindness) + M2 (.bash extension blindness).
+#   2. Heredoc state tracker — `<<EOF` / `<<'EOF'` / `<<-EOF` / etc. The
+#      opener regex is gated by an "in-quoted-string" check so that string
+#      mentions of `<<EOF` do NOT push the scanner into heredoc state
+#      (gp HIGH H1 fix). The line CONTAINING the heredoc opener is also
+#      scanned for raw curl AFTER the opener (gp HIGH H2 fix) — so
+#      `cat <<EOF >x && curl https://x` correctly flags the curl.
+#   3. Skip line-leading comments (`# ...`).
+#   4. Skip `command -v curl|wget` / `which curl|wget` (existence checks).
+#   5. Skip lines starting with `echo "..."` / `printf "..."` (curl-in-strings
+#      is documentation).
+#   6. Skip lines with `# check-no-raw-curl: ok` suppression marker (explicit
+#      exception for cases the heuristics miss). Each marker is reviewer-
+#      visible in PR diff.
+#   7. Match `(^|[^[:alnum:]_])(curl|wget)[[:space:]]+(-|http|/|\$|"|\\)` —
 #      word-boundary on the LHS (so `__guarded_curl` doesn't match), suffix
 #      requiring real curl args (so passing string mentions don't match).
 #
@@ -64,6 +81,7 @@ EXEMPT_FILES=(
     ".claude/scripts/lib/endpoint-validator.sh"
     ".claude/scripts/mount-loa.sh"
     ".claude/scripts/model-health-probe.sh"
+    ".claude/scripts/model-adapter.sh.legacy"
 )
 
 QUIET=0
@@ -97,9 +115,29 @@ _is_exempt() {
     return 1
 }
 
+# Decide whether a file is a bash/sh script that the scanner should inspect.
+# Recognized: .sh / .bash / .legacy extensions, OR extension-less files with
+# a bash/sh shebang. Other files (binaries, READMEs, *.md, *.json) are
+# skipped — they cannot invoke curl/wget at runtime anyway.
+_is_script() {
+    local path="$1"
+    case "$path" in
+        *.sh|*.bash|*.legacy) return 0 ;;
+    esac
+    # Extension-less or unfamiliar extension: require bash/sh shebang.
+    # head exits successfully even on binary files; grep -q returns 1 if
+    # no match, which we propagate.
+    local first_line
+    first_line=$(head -c 256 "$path" 2>/dev/null | head -1 || true)
+    [[ "$first_line" == "#!"*"bash"* ]] && return 0
+    [[ "$first_line" == "#!"*"sh" ]] && return 0
+    [[ "$first_line" == "#!"*"sh "* ]] && return 0
+    return 1
+}
+
 # awk program. Quoted heredoc preserves the program literally — no shell
-# expansion. The program tracks heredoc state so usage/instruction-text
-# heredocs that mention curl as documentation are skipped.
+# expansion. The program tracks heredoc state and quote-state for the
+# heredoc-opener gate (gp HIGH findings H1 + H2).
 AWK_SCAN=$(cat <<'AWK'
 BEGIN {
     in_heredoc = 0
@@ -107,11 +145,35 @@ BEGIN {
     hd_dash = 0
 }
 
-# When in a heredoc, swallow lines until we see the terminator.
+# Quote-state helper (gp HIGH H1 fix). Returns 1 if `prefix` ends inside an
+# unclosed single- or double-quote, 0 otherwise. Backslash escapes inside
+# double-quotes are honored; single-quoted bash strings cannot contain any
+# escape so backslash inside ' ... ' is literal.
+function _quote_state_open(prefix,    i, c, n, in_s, in_d) {
+    in_s = 0
+    in_d = 0
+    n = length(prefix)
+    for (i = 1; i <= n; i++) {
+        c = substr(prefix, i, 1)
+        if (in_s) {
+            if (c == "\047") in_s = 0
+            continue
+        }
+        if (in_d) {
+            if (c == "\\" && i < n) { i++; continue }
+            if (c == "\"") in_d = 0
+            continue
+        }
+        if (c == "\047") in_s = 1
+        else if (c == "\"") in_d = 1
+    }
+    return (in_s + in_d > 0)
+}
+
+# Step 1: when in heredoc, swallow lines until terminator.
 in_heredoc {
     if ($0 == hd_term) { in_heredoc = 0; next }
     if (hd_dash) {
-        # <<- variant: terminator may have leading tabs that bash strips.
         no_tabs = $0
         gsub(/^\t+/, "", no_tabs)
         if (no_tabs == hd_term) { in_heredoc = 0; next }
@@ -119,41 +181,51 @@ in_heredoc {
     next
 }
 
-# Detect heredoc opener. We match a few canonical shapes:
-#   `<<EOF`          plain
-#   `<<-EOF`         dash variant (tabs stripped from terminator)
-#   `<<'EOF'`        single-quoted (no expansion in body)
-#   `<<"EOF"`        double-quoted (no expansion in body)
-# The opener can appear ANYWHERE on the line (`cat <<EOF >out` is valid).
-{
-    line = $0
-    if (match(line, /<<-?[ \t]*[\047"]?[A-Za-z_][A-Za-z0-9_]*[\047"]?/)) {
-        m = substr(line, RSTART, RLENGTH)
-        sub(/^<</, "", m)
-        if (substr(m, 1, 1) == "-") { hd_dash = 1; m = substr(m, 2) } else { hd_dash = 0 }
-        gsub(/^[ \t]+/, "", m)
-        gsub(/[\047"]/, "", m)
-        in_heredoc = 1
-        hd_term = m
-        next
-    }
-}
-
-# Skip line-leading comments.
+# Step 2: skip line-leading comments.
 /^[[:space:]]*#/ { next }
 
-# Skip `command -v curl|wget` and `which curl|wget` existence checks.
+# Step 3: skip `command -v curl|wget` and `which curl|wget` existence checks.
 /command[[:space:]]+-v[[:space:]]+(curl|wget)/ { next }
 /which[[:space:]]+(curl|wget)/ { next }
 
-# Skip lines starting with echo/printf and a quoted string — those are
-# typically documentation that mentions curl, not invocations.
+# Step 4: skip lines starting with echo/printf and a quoted string.
 /^[[:space:]]*(echo|printf)[[:space:]]+[\047"]/ { next }
 
-# Skip lines with the explicit suppression marker.
+# Step 5: skip lines with the explicit suppression marker. The marker
+# applies to its OWN line only (each line is processed independently in
+# awk). To silence a curl invocation, the marker MUST be on the same line
+# as the curl (bats ST15 pins this scope).
 /check-no-raw-curl:[[:space:]]*ok/ { next }
 
-# Match raw curl|wget invocations.
+# Step 6: detect heredoc opener. Real openers push us into heredoc state;
+# string-mentioned `<<EOF` (gp H1) does NOT.
+{
+    if (match($0, /<<-?[ \t]*[\047"]?[A-Za-z_][A-Za-z0-9_]*[\047"]?/)) {
+        prefix = substr($0, 1, RSTART - 1)
+        if (!_quote_state_open(prefix)) {
+            # Real heredoc opener.
+            m = substr($0, RSTART, RLENGTH)
+            sub(/^<</, "", m)
+            if (substr(m, 1, 1) == "-") { hd_dash = 1; m = substr(m, 2) } else { hd_dash = 0 }
+            gsub(/^[ \t]+/, "", m)
+            gsub(/[\047"]/, "", m)
+            in_heredoc = 1
+            hd_term = m
+
+            # gp HIGH H2 fix: scan the rest of the line (after the opener)
+            # for raw curl/wget. Pattern: `cat <<EOF >x && curl https://x`.
+            rest = substr($0, RSTART + RLENGTH)
+            if (rest ~ /(^|[^[:alnum:]_])(curl|wget)[[:space:]]+(-|http|\/|\$|"|\\)/) {
+                print FILENAME ":" NR ":" $0
+            }
+            next
+        }
+        # Else: opener is inside a quoted string → fall through and
+        # process this line as a normal line for raw-curl detection.
+    }
+}
+
+# Step 7: match raw curl|wget invocations.
 /(^|[^[:alnum:]_])(curl|wget)[[:space:]]+(-|http|\/|\$|"|\\)/ {
     print FILENAME ":" NR ":" $0
 }
@@ -166,11 +238,14 @@ while IFS= read -r -d '' f; do
     if _is_exempt "$rel"; then
         continue
     fi
+    if ! _is_script "$f"; then
+        continue
+    fi
     file_hits=$(awk "$AWK_SCAN" "$f" 2>/dev/null || true)
     if [[ -n "$file_hits" ]]; then
         violations+="$file_hits"$'\n'
     fi
-done < <(find "$ROOT" -name '*.sh' -type f -print0 | sort -z)
+done < <(find "$ROOT" -type f -print0 | sort -z)
 
 if [[ -n "$violations" ]]; then
     if [[ $QUIET -eq 0 ]]; then

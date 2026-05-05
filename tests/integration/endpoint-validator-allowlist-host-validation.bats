@@ -228,6 +228,92 @@ EOF
 # the search.
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# W8 — cypherpunk HIGH H1 + MEDIUM M1: Unicode look-alikes for the wildcard
+# rejection. NFKC normalization + an explicit forbidden-char set MUST catch
+# these before the verbatim host predicate.
+# ---------------------------------------------------------------------------
+
+@test "W8 rejects FULLWIDTH ASTERISK U+FF0A '＊' (cypherpunk H1)" {
+    cat > "$WORK_DIR/fullwidth-star.json" <<'EOF'
+{"providers":{"evil":[{"host":"＊","ports":[443]}]}}
+EOF
+    run _load_allowlist "$WORK_DIR/fullwidth-star.json"
+    [[ "$status" -eq 78 ]] || {
+        printf 'expected status=78 (REJECTED); got=%d output=%s\n' "$status" "$output" >&2
+        return 1
+    }
+    [[ "$output" == *"REJECTED"* ]]
+}
+
+@test "W8b rejects ASTERISK OPERATOR U+2217 '∗'" {
+    # Mathematical asterisk operator — visually similar; reject by NFKC norm
+    # OR by explicit forbidden set.
+    cat > "$WORK_DIR/asterisk-op.json" <<'EOF'
+{"providers":{"evil":[{"host":"∗","ports":[443]}]}}
+EOF
+    run _load_allowlist "$WORK_DIR/asterisk-op.json"
+    [[ "$status" -eq 78 ]] || {
+        printf 'expected status=78; got=%d output=%s\n' "$status" "$output" >&2
+        return 1
+    }
+}
+
+@test "W9 rejects '?' glob char (cypherpunk M1)" {
+    _make_allowlist_with_host "$WORK_DIR/qmark.json" '"?.openai.com"'
+    run _load_allowlist "$WORK_DIR/qmark.json"
+    [[ "$status" -eq 78 ]] || {
+        printf 'expected status=78 for ? glob; got=%d output=%s\n' "$status" "$output" >&2
+        return 1
+    }
+    [[ "$output" == *"glob"* || "$output" == *"wildcard"* ]]
+}
+
+@test "W10 rejects host containing real NUL byte (cypherpunk M1)" {
+    # printf %b processes octal escapes; \000 emits one literal NUL byte.
+    # We bypass argv (NUL-incompatible on POSIX) by writing directly to
+    # the JSON file via redirected stdout. Python's json.load decodes the
+    # NUL as a real U+0000 in the host string.
+    printf '%b' '{"providers":{"evil":[{"host":"api.openai.com\000.attacker.com","ports":[443]}]}}' \
+        > "$WORK_DIR/nul-real.json"
+    run _load_allowlist "$WORK_DIR/nul-real.json"
+    [[ "$status" -eq 78 ]] || {
+        printf 'expected status=78 for real NUL byte; got=%d output=%s\n' "$status" "$output" >&2
+        return 1
+    }
+    [[ "$output" == *"control"* || "$output" == *"0x00"* ]] || {
+        printf 'rejection should mention control / 0x00; got: %s\n' "$output" >&2
+        return 1
+    }
+}
+
+@test "W11 rejects host containing newline (cypherpunk M1)" {
+    cat > "$WORK_DIR/newline.json" <<'EOF'
+{"providers":{"evil":[{"host":"api.openai.com\nevil.example.com","ports":[443]}]}}
+EOF
+    run _load_allowlist "$WORK_DIR/newline.json"
+    [[ "$status" -eq 78 ]] || {
+        printf 'expected status=78 for newline in host; got=%d output=%s\n' "$status" "$output" >&2
+        return 1
+    }
+}
+
+@test "W11b rejects host containing carriage return (cypherpunk M1)" {
+    cat > "$WORK_DIR/cr.json" <<'EOF'
+{"providers":{"evil":[{"host":"api.openai.com\revil.example.com","ports":[443]}]}}
+EOF
+    run _load_allowlist "$WORK_DIR/cr.json"
+    [[ "$status" -eq 78 ]]
+}
+
+@test "W11c rejects host containing tab (cypherpunk M1)" {
+    cat > "$WORK_DIR/tab.json" <<'EOF'
+{"providers":{"evil":[{"host":"api\topenai.com","ports":[443]}]}}
+EOF
+    run _load_allowlist "$WORK_DIR/tab.json"
+    [[ "$status" -eq 78 ]]
+}
+
 @test "W7 rejection message identifies provider and entry index" {
     cat > "$WORK_DIR/triage.json" <<'EOF'
 {

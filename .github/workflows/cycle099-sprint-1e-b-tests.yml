@@ -16,10 +16,13 @@ on:
       - 'tests/fixtures/endpoint-validator/**'
       - '.github/workflows/cycle099-sprint-1e-b-tests.yml'
       - 'tools/check-no-raw-curl.sh'
-      # The CI-guard step inspects all .py / .sh / .ts files anywhere in
-      # .claude/, so any change to those files re-runs the gate.
+      # The CI-guard step inspects all .py / .sh / .bash / .legacy / .ts
+      # files anywhere in .claude/, plus the model-adapter.sh.legacy file
+      # specifically (cypherpunk C1/M2 remediation: extension blindness).
       - '.claude/**/*.py'
       - '.claude/**/*.sh'
+      - '.claude/**/*.bash'
+      - '.claude/**/*.legacy'
       - '.claude/**/*.ts'
   push:
     branches: [main]

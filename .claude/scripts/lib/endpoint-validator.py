@@ -719,11 +719,37 @@ def validate_redirect_chain(
 _ALLOWLIST_MAX_BYTES = 65536  # 64 KiB — see cypherpunk LOW 1
 
 
+# Cypherpunk MEDIUM M1 + HIGH H1 remediation — control bytes (NUL/CR/LF/TAB)
+# and glob characters that DNS-spec hostnames cannot legitimately contain.
+# Embedded NUL would terminate a C-string passed to libcurl; embedded CR/LF
+# could smuggle HTTP headers downstream. None of these can match a real URL
+# host via verbatim-equality, so failing closed at load surfaces the misconfig.
+_HOST_FORBIDDEN_CONTROL_BYTES: frozenset[str] = frozenset(
+    "\x00\r\n\t\v\f"
+)
+
+# Glob look-alikes — both ASCII and Unicode forms. Operators copy-pasting
+# wildcard entries from other tooling may use any of these expecting
+# glob semantics; verbatim equality has no glob support so we reject all.
+_HOST_GLOB_CHARS: frozenset[str] = frozenset(
+    [
+        "*",            # U+002A ASTERISK
+        "?",            # U+003F QUESTION MARK
+        "＊",           # U+FF0A FULLWIDTH ASTERISK
+        "∗",            # U+2217 ASTERISK OPERATOR
+        "﹡",           # U+FE61 SMALL ASTERISK
+        "✱",            # U+2731 HEAVY ASTERISK
+        "？",           # U+FF1F FULLWIDTH QUESTION MARK
+    ]
+)
+
+
 def _validate_allowlist_entries(
     allowlist: dict[str, list[dict[str, Any]]],
 ) -> None:
-    """Sprint-1E.c.3.c HIGH-2 (deferred from 1E.c.3.a): fail-closed at load
-    time on sentinel-shaped hosts that silently no-op the host gate.
+    """Sprint-1E.c.3.c HIGH-2 (deferred from 1E.c.3.a) + cypherpunk H1/M1
+    remediation: fail-closed at load time on sentinel-shaped, control-byte,
+    or glob-shaped hosts that silently no-op the host gate.
 
     The host predicate in `_provider_for_host` is verbatim equality
     (lowercased str(entry["host"]) == lowercased URL host). Operators
@@ -734,10 +760,19 @@ def _validate_allowlist_entries(
 
     Tree-restriction (1E.c.3.a) closed the realistic substitution vector
     where an attacker pointed the allowlist path at an attacker-controlled
-    file outside the canonical tree. HIGH-2 is the inside-the-tree
-    defense-in-depth: an allowlist living in
-    `.claude/scripts/lib/allowlists/` but containing `host: "*"` would still
-    be loadable. Reject it explicitly.
+    file outside the canonical tree. HIGH-2 + cypherpunk is the
+    inside-the-tree defense-in-depth: an allowlist living in
+    `.claude/scripts/lib/allowlists/` but containing `host: "*"` (or
+    `host: "＊"` U+FF0A FULLWIDTH ASTERISK) would still be loadable.
+    Reject all variants explicitly.
+
+    Defenses:
+      - Non-string host → reject (type-confusion at load)
+      - Empty/whitespace-only host → reject (no-op match)
+      - Glob character (ASCII `*`/`?` OR Unicode look-alikes
+        U+FF0A/U+2217/U+FE61/U+2731/U+FF1F) → reject
+      - Control byte (NUL/CR/LF/TAB) → reject (HTTP smuggling +
+        C-string-truncation defense)
 
     Validation is "all-or-nothing" — one bad entry rejects the whole file.
     Silent partial-load would hide the misconfig from operator review.
@@ -746,6 +781,7 @@ def _validate_allowlist_entries(
         ValueError: with provider_id + entry index in the message so
                     operators can pinpoint the bad entry without grepping.
     """
+    import unicodedata
     for provider_id, entries in allowlist.items():
         if not isinstance(entries, list):
             continue
@@ -772,14 +808,32 @@ def _validate_allowlist_entries(
                     "the host predicate is verbatim equality, an empty host "
                     "matches no real URL — silently broken allowlist"
                 )
-            if "*" in host_raw:
-                raise ValueError(
-                    f"allowlist provider {provider_id!r} entry #{idx}: "
-                    f"`host` {host_raw!r} contains '*' wildcard; the host "
-                    "predicate is verbatim equality (no glob support). "
-                    "Configure each FQDN explicitly "
-                    "(e.g., 'api.openai.com', 'api.anthropic.com')"
-                )
+            # Reject embedded control bytes (cypherpunk M1). DNS hostnames
+            # cannot legitimately contain NUL/CR/LF/TAB; their presence
+            # signals injection or a copy-paste artifact.
+            for ctrl in _HOST_FORBIDDEN_CONTROL_BYTES:
+                if ctrl in host_raw:
+                    raise ValueError(
+                        f"allowlist provider {provider_id!r} entry #{idx}: "
+                        f"`host` {host_raw!r} contains control byte "
+                        f"(0x{ord(ctrl):02X}); DNS hostnames cannot contain "
+                        "control characters and their presence may smuggle "
+                        "HTTP headers or truncate C-strings downstream"
+                    )
+            # NFKC-normalize then check for glob characters (ASCII + Unicode
+            # look-alikes; cypherpunk H1). The NFKC pass folds compatibility-
+            # equivalent forms (U+FF0A FULLWIDTH ASTERISK → U+002A) so
+            # operator-pasted glob alternatives are caught uniformly.
+            normalized = unicodedata.normalize("NFKC", host_raw)
+            for glob in _HOST_GLOB_CHARS:
+                if glob in host_raw or glob in normalized:
+                    raise ValueError(
+                        f"allowlist provider {provider_id!r} entry #{idx}: "
+                        f"`host` {host_raw!r} contains glob/wildcard character "
+                        f"({glob!r}); the host predicate is verbatim equality "
+                        "(no glob support). Configure each FQDN explicitly "
+                        "(e.g., 'api.openai.com', 'api.anthropic.com')"
+                    )
 
 
 def _warn_overly_permissive_cidr(allowlist: dict[str, list[dict[str, Any]]]) -> None:

