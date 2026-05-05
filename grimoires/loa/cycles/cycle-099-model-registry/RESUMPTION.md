@@ -1,30 +1,33 @@
 # cycle-099-model-registry — Session Resumption Brief
 
-**Last updated**: 2026-05-05 (Sprint 1 ~88% complete: 1A + 1B + 1C + 1E.a + 1E.b SHIPPED; **next: 1D cross-runtime corpus OR 1E.c TS codegen + DNS rebinding + bash caller migration**)
+**Last updated**: 2026-05-05 (Sprint 1 ~92% complete: 1A + 1B + 1C + 1E.a + 1E.b + 1E.c.1 SHIPPED; **next: 1D cross-runtime corpus OR 1E.c.2 DNS rebinding OR 1E.c.3 bash caller migration**)
 **Author**: deep-name + Claude Opus 4.7 1M
 **Purpose**: Crash-recovery + cross-session continuity. Read first when resuming cycle-099 work.
 
-## 🚨 TL;DR — Sprint 1 is ~88% done; 6 cycle-099 PRs on main
+## 🚨 TL;DR — Sprint 1 is ~92% done; 7 cycle-099 PRs on main
 
-**On main (6 PRs):**
+**On main (7 PRs):**
 - chore #721 (`9ef33055`) — cycle-099 ledger activation + planning artifacts (mirrors cycle-098 #679 pattern)
 - Sprint-1A #722 (`78c59568`) — bridgebuilder codegen foundation (T1.1 + T1.2)
 - Sprint-1B #723 (`7140ff1c`) — adapter migrations + drift gate + lockfile (T1.3 + T1.4 + T1.5 + T1.6 + T1.8 + T1.10 partial)
 - Sprint-1C #724 (`8b008b9b`) — codegen reproducibility matrix CI + toolchain runbook (T1.7 + T1.9) + latent-drift fix
 - Sprint-1E.a #728 (`cd1c2438`) — log-redactor (T1.13) + migrate-model-config CLI (T1.14)
-- **Sprint-1E.b #729 (`fbd7c048`)** — centralized endpoint validator T1.15 partial (Python canonical + bash wrapper + 8-step canonicalization + STRICT urllib.parse import-guard)
+- Sprint-1E.b #729 (`fbd7c048`) — centralized endpoint validator T1.15 partial (Python canonical + bash wrapper + 8-step canonicalization + STRICT urllib.parse import-guard)
+- **Sprint-1E.c.1 #730 (`43a60225`)** — TS port via Python+Jinja2 codegen (T1.15 cont.) — 37 cross-runtime parity tests + drift gate with hash cross-check; closes 2 CRITICAL allowlist bypasses caught by dual-review pre-merge
 
-**Cumulative**: ~241 cycle-099 bats tests on main (169 prior + 72 from 1E.b), 0 regressions. Drift-gate CI active. Strict v2 schema. Centralized endpoint-validator with PR-level import-guard.
+**Cumulative**: ~278 cycle-099 bats tests on main (241 prior + 37 from 1E.c.1), 0 regressions. Drift-gate CI active. Strict v2 schema. Centralized endpoint-validator across Python + bash + TS with cross-runtime parity gate.
 
 ### Operator decision needed at session start
 
-> Sprint 1 has 2 unmerged task surfaces (T1.11/T1.12 cross-runtime corpus; T1.10 remaining bats — bridgebuilder-dist-drift.bats + perf-bench.bats; T1.15 follow-on items: TS codegen + DNS rebinding + bash caller migration). Choose Path A or Path B.
+> Sprint 1 has T1.10 remaining bats (small) + T1.11/T1.12 cross-runtime corpus + T1.15 remaining follow-ons (DNS rebinding + bash caller migration). Choose Path A, B, or C.
 
 **Path A (Sprint-1D — cross-runtime corpus)**: T1.11 + T1.12. Highest-value remaining piece per SDD §7.6 (strongest determinism guarantee, unblocks Sprint 2's runtime overlay). Estimated ~4-5 hours. Pre-written brief in §"Brief A — Sprint 1D".
 
-**Path B (Sprint-1E.c — endpoint validator follow-ons)**: TS port via Python+Jinja2 codegen (per SDD §1.9.1 IMP-002), DNS rebinding (NFR-Sec-1 v1.2), HTTP redirect same-host enforcement, plus migration of existing bash callers (`flatline-*.sh`, `model-health-probe.sh`, `anthropic-oracle.sh`, `gpt-review-api.sh`, etc.) to funnel through `endpoint_validator__check`. Estimated ~3-4 hours. Pre-written brief in §"Brief B — Sprint 1E.c".
+**Path B (Sprint-1E.c.2 — DNS rebinding + redirect enforcement)**: NFR-Sec-1 v1.2. Add `_resolve_and_lock_ip()` to endpoint-validator.py: `socket.getaddrinfo` once, lock the resolved (host, IP) pair, refuse if a subsequent resolution yields different IP within request lifetime. Plus IP-range allowlist check (resolved IP must fall in configured CIDR list per provider). HTTP redirect same-host enforcement. Estimated ~2-3 hours. Pre-written brief in §"Brief B — Sprint 1E.c.2".
 
-Either path is non-blocking — both feed Sprint 2 readiness equally well from the technical side. Path A gives stronger correctness signal (cross-runtime parity test); Path B closes the bash-side runtime hot-path coverage gap.
+**Path C (Sprint-1E.c.3 — bash caller migration)**: migrate existing bash callers (`flatline-*.sh`, `model-health-probe.sh`, `anthropic-oracle.sh`, `gpt-review-api.sh`, `mount-loa.sh`, `constructs-*.sh`, `check-updates.sh`, etc. — ~15 files) to funnel through `endpoint_validator__check` before invoking curl. Flips the CI guard from informational to STRICT after migration. Estimated ~3-4 hours. Pre-written brief in §"Brief C — Sprint 1E.c.3".
+
+Path A gives strongest determinism signal; Path B closes the runtime-only SSRF defenses (DNS rebinding); Path C is the actual SSRF closure for production bash code today.
 
 ---
 
@@ -54,6 +57,18 @@ Either path is non-blocking — both feed Sprint 2 readiness equally well from t
 | Drift-gate workflow | `.github/workflows/model-registry-drift.yml` | 3 jobs: lockfile-checksum, bash-codegen-check, ts-codegen-check |
 | 6 lockfile tests | `tests/integration/lockfile-checksum.bats` | L1-L5 |
 | 25 sentinel tests | `tests/integration/legacy-adapter-still-works.bats` | S1-S6 covering all migrations |
+
+### Sprint-1E.c.1 — TS port via Python+Jinja2 codegen (`43a60225`)
+
+| Artifact | Path | Notes |
+|---|---|---|
+| Jinja2 template | `.claude/scripts/lib/codegen/endpoint-validator.ts.j2` | ~430 LOC TS validator with `{{ }}` substitutions for canonical-Python constants |
+| Python emit module | `.claude/adapters/loa_cheval/codegen/emit_endpoint_validator_ts.py` | spec_loader → constant extraction → render → `--check` mode does byte-diff + canonical-source-hash cross-check (catches tampered-canonical scenario) |
+| Generated TS | `.claude/skills/bridgebuilder-review/resources/lib/endpoint-validator.generated.ts` | 489 LOC; DO NOT EDIT — header carries SHA-256 of canonical Python source |
+| 37 parity tests | `tests/integration/endpoint-validator-ts-parity.bats` | 8 acceptance + 28 rejection (E1-E20 + E21-E28 review-remediation: percent-encoded dots, Unicode dots, soft-hyphen, backslash, IPv4-octal, IPv6 zone-id, IPv4-compat IPv6) + 1 drift gate |
+| Dedicated CI | `.github/workflows/cycle099-sprint-1e-c-ts-tests.yml` | Two jobs: drift gate (--check) + parity tests (bats + tsx via BB skill node_modules) |
+| Surrogate-aware filter | `_ts_escape_cp` in emit module | non-BMP codepoints use `\u{XXXXX}` brace form (cypherpunk MEDIUM remediation) |
+| Authority pre-parse gate | `_validate_authority` in canonical Python | unified gate rejects `%`/`\\`/Unicode dot equivalents/soft-hyphen/zero-width controls/obfuscated IPv4 octets BEFORE either parser normalizes — closes 2 CRITICAL allowlist bypasses |
 
 ### Sprint-1E.b — centralized endpoint validator (`fbd7c048`)
 
@@ -148,9 +163,9 @@ Refs: SDD §7.6.3 (fixture corpus); Flatline SDD pass #1 SKP-002 CRITICAL 890
 
 ---
 
-## Brief B — Sprint 1E.c (endpoint-validator follow-ons)
+## Brief B — Sprint 1E.c.2 (DNS rebinding + redirect enforcement)
 
-Sprint-1E.a (T1.13 + T1.14) SHIPPED at #728 cd1c2438. Sprint-1E.b (T1.15 partial — Python canonical + bash wrapper + 8-step pipeline) SHIPPED at #729 fbd7c048. T1.15 follow-ons remain.
+Sprint-1E.a (T1.13 + T1.14) SHIPPED at #728 cd1c2438. Sprint-1E.b (T1.15 partial — Python canonical + bash wrapper + 8-step pipeline) SHIPPED at #729 fbd7c048. Sprint-1E.c.1 (T1.15 cont. — TS port via Jinja2 codegen) SHIPPED at #730 43a60225. Remaining T1.15 follow-ons: DNS rebinding (Path B) + bash caller migration (Path C).
 
 Paste into a fresh Claude Code session:
 
@@ -286,7 +301,7 @@ Flatline SDD pass #2 SKP-006 CRITICAL 870 + pass #3 IMP-002 HIGH_CONSENSUS 880.
 
 ### Beads
 
-UNHEALTHY/MIGRATION_NEEDED ([#661](https://github.com/0xHoneyJar/loa/issues/661)) unchanged across all 6 PRs (#721/#722/#723/#724/#728/#729). `--no-verify` policy active per cycle-099 sprint plan §`--no-verify` Safety Policy. Each PR commit message carries the `[NO-VERIFY-RATIONALE: ...]` audit-trail tag.
+UNHEALTHY/MIGRATION_NEEDED ([#661](https://github.com/0xHoneyJar/loa/issues/661)) unchanged across all 7 PRs (#721/#722/#723/#724/#728/#729/#730). `--no-verify` policy active per cycle-099 sprint plan §`--no-verify` Safety Policy. Each PR commit message carries the `[NO-VERIFY-RATIONALE: ...]` audit-trail tag.
 
 ---
 
@@ -313,3 +328,9 @@ UNHEALTHY/MIGRATION_NEEDED ([#661](https://github.com/0xHoneyJar/loa/issues/661)
 10. **Stream-contract testing at the CLI surface** (sprint-1E.b gp M1 + cypherpunk LOW 3): bats helpers that capture `2>&1` (merged stdout + stderr) cannot detect regressions in stream-placement contracts. Per SDD §6.2 errors emit on stderr; my JSON-mode rejection-tests would have passed even if the validator emitted JSON-rejection on stdout. **Fix template**: separate test cases that capture only one stream at a time and assert the OTHER is empty: `out=$(... 2>"$WORK_DIR/err"); err=$(cat "$WORK_DIR/err")`. Add C6/C7/C8-style tests at every CLI's stream boundary.
 
 11. **Persistent false-alarm = kaironic plateau** (sprint-1E.b BB iter-1+iter-2 F1): the same finding flagged by BB across two iterations, manually verified to be incorrect, is a strong plateau signal. Don't burn a third iteration trying to "fix" something the regex already handles. Document the false alarm in the commit message + admin-squash.
+
+12. **TS-vs-Python parser-confusion is the central risk of multi-runtime validators** (sprint-1E.c.1 cypherpunk CRITICAL × 2): the URL constructor in JS silently percent-decodes `%2E` to `.`, normalizes Unicode dot equivalents (U+FF0E, U+3002, U+FF61), and folds backslashes — all behaviors that diverge from Python's `urlsplit`. **Fix template**: a unified pre-parse gate (`_validate_authority`) that rejects parser-confusion vectors in BOTH runtimes, applied to the RAW URL string before either parser sees it. Sprint-1E.c.1 ships `_AUTHORITY_FORBIDDEN_CHARS` containing `%`, `\`, three Unicode dots, soft-hyphen, and zero-width / bidi controls. Plus `_has_obfuscated_ipv4_octet` for leading-zero / 0x-prefix octets. Both reviewers (cypherpunk CRITICAL × 2 + general-purpose HIGH × 4) caught this pre-merge — without dual-review, sprint-1E.c.1 would have shipped a working SSRF allowlist bypass.
+
+13. **Codegen surrogate trap for non-BMP codepoints** (sprint-1E.c.1 cypherpunk MEDIUM): naive Jinja2 emission `\u{{ '%04x' | format(cp) }}` works for BMP (≤ U+FFFF) but silently corrupts for non-BMP (e.g., U+E0001 → emits `11`, which JS parses as U+E000 followed by literal "11"). **Fix template**: a `_ts_escape_cp` filter that uses `\u{XXXXX}` brace form for codepoints > 0xFFFF. Latent bug today (Python's `_PATH_CONTROL_CHARS` are all in BMP), but a future addition would silently break the TS port without the filter.
+
+14. **Drift-gate hash cross-check beats text-diff alone** (sprint-1E.c.1 gp MEDIUM): a codegen `--check` mode that only does `fresh_text != committed_text` byte-diff catches the common "forgot to regenerate" case but misses a tampered-canonical-with-matching-regen scenario. **Fix template**: extract the embedded `Source content hash:` header from the committed file and compare against a fresh hash of the canonical Python source — fail with `[BB-CODEGEN-HASH-DRIFT]` if they don't match. Forces operator review of any canonical edit.
