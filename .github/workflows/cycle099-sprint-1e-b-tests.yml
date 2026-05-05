@@ -100,10 +100,18 @@ jobs:
           # Skills (e.g., bridgebuilder-review) ship Python helpers; commands
           # (e.g., constructs-loader) likewise. Future Python additions there
           # need to go through the validator too.
+          # Pre-filter to only dirs that exist — `grep -rE` on a missing
+          # directory returns exit 2, which `set -e` (workflow default) treats
+          # as fatal. The repo has no top-level `scripts/` today; future
+          # additions to this list should not require workflow edits.
+          scope=()
+          for d in .claude/adapters .claude/scripts .claude/skills .claude/commands .claude/hooks tests scripts; do
+              [[ -d "$d" ]] && scope+=("$d")
+          done
           violations=$(
               grep -rEln \
                   '(urllib\.parse|from urllib import parse|^import urllib($|[^.])|__import__\(.urllib\.parse|import_module\(.urllib\.parse)' \
-                  .claude/adapters/ .claude/scripts/ .claude/skills/ .claude/commands/ .claude/hooks/ tests/ scripts/ \
+                  "${scope[@]}" \
                   --include='*.py' 2>/dev/null \
                   | { grep -vF "$allowed_path" || true; } \
                   | { grep -vFx -f .github/workflows/lint-pre-existing-urllib.txt 2>/dev/null || cat; }
