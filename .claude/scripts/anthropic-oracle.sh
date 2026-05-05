@@ -73,6 +73,15 @@ check_dependencies() {
 # Run checks before anything else
 check_dependencies
 
+# Centralized endpoint validator (cycle-099 sprint-1E.c.3.a). Documentation
+# fetches funnel through endpoint_validator__guarded_curl with the
+# anthropic-docs allowlist (code.claude.com, docs.anthropic.com, www.anthropic.com,
+# github.com). Closes the SSRF surface where the SOURCES table could be
+# tampered with via .claude/ filesystem write to redirect oracle fetches.
+# shellcheck source=lib/endpoint-validator.sh
+source "$SCRIPT_DIR/lib/endpoint-validator.sh"
+ORACLE_DOCS_ALLOWLIST="${LOA_ORACLE_DOCS_ALLOWLIST:-$SCRIPT_DIR/lib/allowlists/loa-anthropic-docs.json}"
+
 # Configuration file
 CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
 
@@ -247,9 +256,15 @@ fetch_source() {
         return 0
     fi
 
-    # ORACLE-L-2: Add --fail-with-body to properly handle HTTP errors
-    # HIGH-002 FIX: Enforce HTTPS and TLS 1.2+
-    if curl -sL --proto =https --tlsv1.2 --fail-with-body --max-time 30 "$url" -o "$cache_file" 2>/dev/null; then
+    # ORACLE-L-2: --fail-with-body to properly handle HTTP errors.
+    # HIGH-002 FIX: --tlsv1.2 enforces minimum TLS version.
+    # cycle-099 sprint-1E.c.3.a: https-only + redirect-bound enforcement now
+    # comes from endpoint_validator__guarded_curl's hardened defaults
+    # (--proto =https / --proto-redir =https / --max-redirs 10).
+    if endpoint_validator__guarded_curl \
+        --allowlist "$ORACLE_DOCS_ALLOWLIST" \
+        --url "$url" \
+        -sL --tlsv1.2 --fail-with-body --max-time 30 -o "$cache_file" 2>/dev/null; then
         echo "$cache_file"
         return 0
     else

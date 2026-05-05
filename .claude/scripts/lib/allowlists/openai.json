@@ -1,0 +1,8 @@
+{
+  "_comment": "Per-caller allowlist for lib-curl-fallback.sh OpenAI API path (used by gpt-review-api.sh /v1/chat/completions and /v1/responses). Narrowest possible — only api.openai.com:443. Keep in sync with lib-curl-fallback.sh::call_api()'s api_url construction.",
+  "providers": {
+    "openai": [
+      {"host": "api.openai.com", "ports": [443]}
+    ]
+  }
+}

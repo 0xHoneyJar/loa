@@ -1,0 +1,19 @@
+{
+  "_comment": "Per-caller allowlist for model-health-probe.sh + lib-curl-fallback.sh + similar provider-API callers. Sprint 1E.c.3.a — bash caller migration to endpoint_validator__guarded_curl. Mirrors tests/fixtures/endpoint-validator/allowlist.json + cycle-099 production model-config.yaml provider list. Bedrock regions are the cycle-082 supported set; expand here when SDD §1.9.1 promotes additional regions.",
+  "providers": {
+    "openai": [
+      {"host": "api.openai.com", "ports": [443]}
+    ],
+    "anthropic": [
+      {"host": "api.anthropic.com", "ports": [443]}
+    ],
+    "google": [
+      {"host": "generativelanguage.googleapis.com", "ports": [443]}
+    ],
+    "bedrock": [
+      {"host": "bedrock-runtime.us-east-1.amazonaws.com", "ports": [443]},
+      {"host": "bedrock-runtime.us-west-2.amazonaws.com", "ports": [443]},
+      {"host": "bedrock-runtime.eu-central-1.amazonaws.com", "ports": [443]}
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "_comment": "Per-caller allowlist for anthropic-oracle.sh — Anthropic documentation + GitHub source fetches. Narrower than provider-API allowlist because oracle never POSTs to a model API. The hosts here mirror anthropic-oracle.sh's SOURCES table; update both when adding sources.",
+  "providers": {
+    "anthropic_docs": [
+      {"host": "code.claude.com", "ports": [443]},
+      {"host": "docs.anthropic.com", "ports": [443]},
+      {"host": "www.anthropic.com", "ports": [443]}
+    ],
+    "anthropic_github": [
+      {"host": "github.com", "ports": [443]}
+    ]
+  }
+}

@@ -51,6 +51,19 @@ if ! declare -f extract_verdict &>/dev/null; then
   unset _lib_dir
 fi
 
+# Ensure endpoint-validator.sh is loaded (cycle-099 sprint-1E.c.3.a). The
+# OpenAI API call funnels through endpoint_validator__guarded_curl with a
+# narrow openai-only allowlist (api.openai.com:443) so neither a tampered
+# .loa.config.yaml nor a hostile LD_PRELOAD on `curl` can pivot the call
+# at an attacker-controlled host.
+if ! declare -f endpoint_validator__guarded_curl &>/dev/null; then
+  _lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  # shellcheck source=lib/endpoint-validator.sh
+  source "$_lib_dir/lib/endpoint-validator.sh"
+  unset _lib_dir
+fi
+LIB_CURL_FALLBACK_OPENAI_ALLOWLIST="${LIB_CURL_FALLBACK_OPENAI_ALLOWLIST:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/allowlists/openai.json}"
+
 # =============================================================================
 # 429 diagnostic helpers (#711.B closure)
 # =============================================================================
@@ -298,13 +311,32 @@ call_api() {
     printf '%s' "$payload" > "$payload_file"
 
     local curl_output curl_exit=0
-    curl_output=$(curl -s -w "\n%{http_code}" \
+    # cycle-099 sprint-1E.c.3.a: route through endpoint_validator__guarded_curl
+    # so api_url is canonicalized + allowlist-checked before exec. Auth tempfile
+    # is passed via --config-auth (NOT --config) so the wrapper inspects it
+    # for url=/next= smuggling; caller --config is rejected outright (cypherpunk
+    # CRITICAL fix). Wrapper exit 78 = SSRF rejection (api_url not in openai
+    # allowlist); 64 = wrapper usage error (auth file rejected, allowlist out
+    # of tree). Both are code-path bugs, not transients — DO NOT retry.
+    curl_output=$(endpoint_validator__guarded_curl \
+      --allowlist "$LIB_CURL_FALLBACK_OPENAI_ALLOWLIST" \
+      --config-auth "$curl_config" \
+      --url "$api_url" \
+      -s -w "\n%{http_code}" \
       --max-time "$timeout" \
-      --config "$curl_config" \
-      -d "@${payload_file}" \
-      "$api_url" 2>&1) || {
+      -d "@${payload_file}" 2>&1) || {
         curl_exit=$?
         rm -f "$curl_config" "$payload_file"
+        if [[ $curl_exit -eq 78 ]]; then
+          echo "ERROR: endpoint validator rejected api_url=${api_url} (SSRF allowlist enforcement)" >&2
+          return 1
+        fi
+        if [[ $curl_exit -eq 64 ]]; then
+          # Wrapper usage error — auth file failed content gate, allowlist
+          # out-of-tree, or smuggling flag in caller args. NOT a transient.
+          echo "ERROR: endpoint validator wrapper usage error (auth-config invalid or allowlist out-of-tree); see prior stderr" >&2
+          return 1
+        fi
         if [[ $curl_exit -eq 28 ]]; then
           echo "ERROR: API call timed out after ${timeout}s (attempt $attempt)" >&2
           if [[ $attempt -lt $_CURL_MAX_RETRIES ]]; then

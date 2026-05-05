@@ -128,6 +128,14 @@ _gen_run_id() {
 # shellcheck source=lib/secret-redaction.sh
 source "$SCRIPT_DIR/lib/secret-redaction.sh"
 
+# Centralized endpoint validator (cycle-099 sprint-1E.c.3.a). All probe HTTP
+# calls funnel through endpoint_validator__guarded_curl with a per-caller
+# allowlist (loa-providers.json) so an attacker who flipped a provider URL
+# in model-config.yaml cannot redirect the probe at SSRF-class targets.
+# shellcheck source=lib/endpoint-validator.sh
+source "$SCRIPT_DIR/lib/endpoint-validator.sh"
+PROBE_PROVIDERS_ALLOWLIST="${LOA_PROBE_PROVIDERS_ALLOWLIST:-$SCRIPT_DIR/lib/allowlists/loa-providers.json}"
+
 # -----------------------------------------------------------------------------
 # flock requirement (macOS operators need util-linux)
 # -----------------------------------------------------------------------------
@@ -198,10 +206,23 @@ _emit_audit_log() {
 
     # Optional webhook (Flatline sprint-review SKP-003 — alert fan-out).
     # Fire-and-forget; never block the probe on webhook latency.
+    #
+    # [ENDPOINT-VALIDATOR-EXEMPT] cycle-099 sprint-1E.c.3.a: the webhook URL
+    # is operator-supplied via .loa.config.yaml and cannot be enumerated in a
+    # static allowlist (operators legitimately use Slack/PagerDuty/Discord/
+    # custom URLs). For repos where .loa.config.yaml is git-tracked, a hostile
+    # PR could insert a webhook URL pointing at attacker-controlled infra —
+    # the body is already redacted via _redact_secrets, so the leak surface
+    # is the URL choice itself, audited via PR review. We enforce https-only
+    # via --proto =https and bound redirects via --max-redirs 10. Follow-up
+    # 1E.c.3.b will add an OPTIONAL operator-controlled webhook host
+    # allowlist (.claude/scripts/lib/allowlists/webhook-hosts.json, empty by
+    # default; opt-in via .loa.config.yaml).
     local webhook
     webhook="$(_config_get '.model_health_probe.alert_webhook_url' '')"
     if [[ -n "$webhook" ]]; then
-        ( curl -sS -X POST -H "Content-Type: application/json" --data "$redacted" \
+        ( curl --proto =https --proto-redir =https --max-redirs 10 \
+              -sS -X POST -H "Content-Type: application/json" --data "$redacted" \
               --max-time 5 "$webhook" >/dev/null 2>&1 || true ) &
         disown 2>/dev/null || true
     fi
@@ -850,21 +871,43 @@ _curl_json() {
     out_body=$(mktemp)
     local curl_rc=0
     local status_line=""
+    # cycle-099 sprint-1E.c.3.a: every provider HTTP call funnels through
+    # endpoint_validator__guarded_curl so the URL is canonicalized + checked
+    # against the providers allowlist BEFORE curl exec. The auth tempfile is
+    # passed via --config-auth (NOT --config) so the wrapper inspects it for
+    # url=/next= smuggling — caller-passed --config is rejected outright by
+    # the wrapper (cypherpunk CRITICAL on sprint-1E.c.3.a).
+    # Exit 78 from the wrapper = SSRF rejection; we surface as transient
+    # (HTTP_STATUS=0) because the registry value is operator-controlled and
+    # a misconfig shouldn't crash the probe loop. Operators get an audit
+    # line via the wrapper's structured stderr — captured to a tempfile so
+    # the rejection breadcrumb survives the 2>/dev/null mute on the curl path.
+    local validator_err
+    validator_err=$(mktemp)
     if [[ "$method" == "POST" && -n "$body_file" ]]; then
-        status_line=$(curl --config "$cfg" \
+        status_line=$(endpoint_validator__guarded_curl \
+            --allowlist "$PROBE_PROVIDERS_ALLOWLIST" \
+            --config-auth "$cfg" \
+            --url "$url" \
             -sS -o "$out_body" -w "%{http_code}" \
             --max-time "$PER_CALL_TIMEOUT" \
             -H "content-type: application/json" \
             -X POST \
-            --data-binary "@$body_file" \
-            "$url" 2>/dev/null) || curl_rc=$?
+            --data-binary "@$body_file" 2>"$validator_err") || curl_rc=$?
     else
-        status_line=$(curl --config "$cfg" \
+        status_line=$(endpoint_validator__guarded_curl \
+            --allowlist "$PROBE_PROVIDERS_ALLOWLIST" \
+            --config-auth "$cfg" \
+            --url "$url" \
             -sS -o "$out_body" -w "%{http_code}" \
-            --max-time "$PER_CALL_TIMEOUT" \
-            "$url" 2>/dev/null) || curl_rc=$?
+            --max-time "$PER_CALL_TIMEOUT" 2>"$validator_err") || curl_rc=$?
     fi
-    rm -f "$cfg"
+    if [[ "$curl_rc" == "78" || "$curl_rc" == "64" ]] && [[ -s "$validator_err" ]]; then
+        # SSRF allowlist rejection or wrapper usage error — emit one
+        # structured line on stderr so /run-status / log greps catch it.
+        log_warn "endpoint validator rejected url=$url for provider=$auth_type (rc=$curl_rc): $(head -c 400 "$validator_err" | tr '\n' ' ')"
+    fi
+    rm -f "$cfg" "$validator_err"
 
     HTTP_STATUS="${status_line:-0}"
     if (( curl_rc != 0 )); then
