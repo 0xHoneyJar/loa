@@ -1,0 +1,98 @@
+name: cycle-099 Sprint 1E.c.1 endpoint-validator TS codegen
+
+# cycle-099 Sprint 1E.c.1 — TS port of the endpoint validator generated from
+# the Python canonical via the loa_cheval.codegen.emit_endpoint_validator_ts
+# Jinja2 codegen (per SDD §1.9.1 IMP-002). Two CI jobs:
+#   1. Cross-runtime parity test (TS vs Python on the §6.5 fixture corpus)
+#   2. Drift gate — committed .generated.ts must match a fresh codegen run
+
+on:
+  pull_request:
+    paths:
+      - '.claude/scripts/lib/endpoint-validator.py'
+      - '.claude/scripts/lib/codegen/endpoint-validator.ts.j2'
+      - '.claude/adapters/loa_cheval/codegen/**'
+      - '.claude/skills/bridgebuilder-review/resources/lib/endpoint-validator.generated.ts'
+      - 'tests/integration/endpoint-validator-ts-parity.bats'
+      - '.github/workflows/cycle099-sprint-1e-c-ts-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.claude/scripts/lib/endpoint-validator.py'
+      - '.claude/scripts/lib/codegen/endpoint-validator.ts.j2'
+      - '.claude/adapters/loa_cheval/codegen/**'
+      - '.claude/skills/bridgebuilder-review/resources/lib/endpoint-validator.generated.ts'
+      - 'tests/integration/endpoint-validator-ts-parity.bats'
+      - '.github/workflows/cycle099-sprint-1e-c-ts-tests.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cycle099-sprint-1e-c-ts-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ts-codegen-drift-gate:
+    name: T1.15 codegen drift gate (committed .generated.ts == fresh)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: '3.13'
+
+      - name: Install Python deps (jinja2 + idna)
+        run: |
+          python -m pip install --upgrade pip
+          # Pinned versions match the maintainer .venv:
+          # jinja2 for the codegen templating, idna because the canonical
+          # imports it at module-load time (the codegen exec_module path).
+          pip install 'jinja2==3.1.6' 'idna==3.13'
+
+      - name: Drift gate — fresh codegen must match committed file
+        run: |
+          set -euo pipefail
+          # The codegen script's --check mode does the diff internally and
+          # exits 3 on drift, 0 on match.
+          PYTHONPATH=.claude/adapters \
+              python -m loa_cheval.codegen.emit_endpoint_validator_ts --check
+
+  ts-parity-tests:
+    name: T1.15 TS-vs-Python parity (29 fixture-corpus tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: '3.13'
+
+      - name: Install Python deps (jinja2 + idna)
+        run: |
+          python -m pip install --upgrade pip
+          pip install 'jinja2==3.1.6' 'idna==3.13'
+
+      - name: Install bats-core v1.13.0
+        run: |
+          git clone --branch v1.13.0 --depth 1 https://github.com/bats-core/bats-core.git /tmp/bats-core
+          cd /tmp/bats-core
+          expected="3bca150ec86275d6d9d5a4fd7d48ab8b6c6f3d87"
+          actual=$(git rev-parse HEAD)
+          if [ "$actual" != "$expected" ]; then
+            echo "ERROR: bats-core commit SHA mismatch — expected $expected, got $actual"
+            exit 1
+          fi
+          sudo ./install.sh /usr/local
+          bats --version
+
+      - name: Install BB skill node deps (provides tsx)
+        run: |
+          cd .claude/skills/bridgebuilder-review
+          # `npm ci` enforces package-lock.json determinism; the BB skill
+          # ships tsx + @types/node + typescript pinned via package-lock.
+          npm ci --no-audit --no-fund
+
+      - name: Run TS-vs-Python parity tests
+        run: bats tests/integration/endpoint-validator-ts-parity.bats
