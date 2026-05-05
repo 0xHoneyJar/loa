@@ -674,10 +674,15 @@ def validate_redirect(
     return new_result
 
 
+DEFAULT_MAX_REDIRECT_HOPS = 10
+
+
 def validate_redirect_chain(
     original_locked: LockedIP,
     redirect_urls: list[str],
     allowlist: dict[str, list[dict[str, Any]]],
+    *,
+    max_hops: int = DEFAULT_MAX_REDIRECT_HOPS,
 ) -> ValidationResult:
     """Validate a multi-hop HTTP redirect chain.
 
@@ -688,9 +693,21 @@ def validate_redirect_chain(
     validation against the SAME `original_locked` — every hop must remain
     same-host AND same-IP. Returns the final ValidationResult; rejects on
     the first hop that fails.
+
+    BB iter-2 F8: enforce a `max_hops` ceiling (default 10, mirroring the
+    HTTP RFC 7231 §6.4 recommendation for client-side limits). Chains
+    longer than the cap are rejected with ENDPOINT-REDIRECT-DENIED rather
+    than allowed to consume unbounded resources.
     """
     if not redirect_urls:
         return ValidationResult(valid=True, url="", scheme="", host="", port=0)
+    if len(redirect_urls) > max_hops:
+        return _reject(
+            redirect_urls[0],
+            "ENDPOINT-REDIRECT-DENIED",
+            f"redirect chain length {len(redirect_urls)} exceeds max_hops={max_hops}; "
+            "refuse to follow potentially unbounded redirect chains",
+        )
     result = ValidationResult(valid=False, url="", code="ENDPOINT-RELATIVE", detail="empty chain")
     for url in redirect_urls:
         result = validate_redirect(original_locked, url, allowlist)

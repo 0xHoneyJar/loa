@@ -558,6 +558,31 @@ assert result.code == "ENDPOINT-REDIRECT-DENIED", f"unexpected: {result.code}"
 EOF
 }
 
+@test "X3 chain: rejects chains longer than max_hops (default 10)" {
+    _python_assert <<'EOF'
+import importlib.util, json, os, socket, sys
+spec = importlib.util.spec_from_file_location("ev", os.environ["PY_VALIDATOR"])
+m = importlib.util.module_from_spec(spec)
+sys.modules["ev"] = m
+spec.loader.exec_module(m)
+
+def stable_getaddrinfo(host, port, *args, **kwargs):
+    return [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("8.8.8.8", port or 443))]
+m.socket.getaddrinfo = stable_getaddrinfo
+
+with open(os.environ["ALLOWLIST"]) as f:
+    allowlist = json.load(f).get("providers", {})
+locked = m.lock_resolved_ip("api.openai.com")
+
+# 11-hop chain (default max is 10) — must reject before validating any hop.
+chain = [f"https://api.openai.com/v1/step{i}" for i in range(11)]
+result = m.validate_redirect_chain(locked, chain, allowlist)
+assert not result.valid
+assert result.code == "ENDPOINT-REDIRECT-DENIED"
+assert "max_hops" in result.detail
+EOF
+}
+
 @test "X2 chain: empty chain returns valid (no redirect)" {
     _python_assert <<'EOF'
 import importlib.util, json, os, socket, sys
