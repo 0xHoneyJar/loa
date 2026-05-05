@@ -60,7 +60,11 @@ jobs:
 
       - name: Install BB skill node_modules (for tsx)
         working-directory: .claude/skills/bridgebuilder-review
-        run: npm ci --no-audit --no-fund
+        # cypherpunk HIGH-1 (PR #735 review): --ignore-scripts disables
+        # lifecycle scripts (preinstall/install/postinstall) so a hostile
+        # transitive dep cannot RCE the runner via package-lock.json
+        # tampering. tsx has no install scripts; nothing legitimate breaks.
+        run: npm ci --no-audit --no-fund --ignore-scripts
 
       - name: Run TS runner → canonical JSON
         run: |

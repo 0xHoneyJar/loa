@@ -29,18 +29,43 @@ from pathlib import Path
 
 import yaml
 
-PROJECT_ROOT = Path(os.environ.get(
-    "LOA_GOLDEN_PROJECT_ROOT",
-    Path(__file__).resolve().parent.parent.parent,
-))
-FIXTURES_DIR = Path(os.environ.get(
+def _golden_test_mode_active() -> bool:
+    """cypherpunk CRIT-3 (PR #735 review): env-override gate parity. Mirror
+    the model-resolver.sh::LOA_MODEL_RESOLVER_TEST_MODE pattern. Each
+    LOA_GOLDEN_* override REQUIRES `LOA_GOLDEN_TEST_MODE=1` OR
+    `BATS_TEST_DIRNAME` (set by bats), else the override is IGNORED.
+    """
+    return (
+        os.environ.get("LOA_GOLDEN_TEST_MODE") == "1"
+        or bool(os.environ.get("BATS_TEST_DIRNAME"))
+    )
+
+
+def _golden_resolve_path(env_var: str, default: Path) -> Path:
+    val = os.environ.get(env_var)
+    if val:
+        if _golden_test_mode_active():
+            print(f"[GOLDEN] override active: {env_var}={val}", file=sys.stderr)
+            return Path(val)
+        else:
+            print(
+                f"[GOLDEN] WARNING: {env_var} set but LOA_GOLDEN_TEST_MODE!=1 "
+                "and not running under bats — IGNORED",
+                file=sys.stderr,
+            )
+    return default
+
+
+_PROJECT_ROOT_DEFAULT = Path(__file__).resolve().parent.parent.parent
+PROJECT_ROOT = _golden_resolve_path("LOA_GOLDEN_PROJECT_ROOT", _PROJECT_ROOT_DEFAULT)
+FIXTURES_DIR = _golden_resolve_path(
     "LOA_GOLDEN_FIXTURES_DIR",
     PROJECT_ROOT / "tests" / "fixtures" / "model-resolution",
-))
-GENERATED_MAPS = Path(os.environ.get(
+)
+GENERATED_MAPS = _golden_resolve_path(
     "LOA_GOLDEN_GENERATED_MAPS",
     PROJECT_ROOT / ".claude" / "scripts" / "generated-model-maps.sh",
-))
+)
 
 
 def _parse_generated_maps(path: Path) -> tuple[dict[str, str], dict[str, str]]:
@@ -84,8 +109,17 @@ def _parse_generated_maps(path: Path) -> tuple[dict[str, str], dict[str, str]]:
 
 
 def _emit(record: dict) -> None:
-    """Emit one canonical JSON line (sorted keys, no whitespace) to stdout."""
-    print(json.dumps(record, sort_keys=True, separators=(",", ":")))
+    """Emit one canonical JSON line (sorted keys, no whitespace) to stdout.
+
+    gp CRITICAL-2 (PR #735 review): `ensure_ascii=False` is REQUIRED so that
+    non-ASCII Unicode in values is emitted as literal UTF-8 bytes, matching
+    bash `jq -c` and TS `JSON.stringify` (both of which emit literal UTF-8).
+    Without this flag, Python emits `\\uXXXX` escapes that diverge from
+    bash/TS — invisible today (all values are ASCII) but a latent
+    cross-runtime parity bug for Sprint 2 when operator-supplied IDs may
+    include non-ASCII chars.
+    """
+    print(json.dumps(record, sort_keys=True, separators=(",", ":"), ensure_ascii=False))
 
 
 def main() -> int:
@@ -116,7 +150,27 @@ def main() -> int:
 
         query = doc.get("sprint_1d_query") or {}
         alias_input = query.get("alias")
-        if not alias_input or not isinstance(alias_input, str):
+        # gp HIGH-2 + cypherpunk CRIT-2 (PR #735 review): type-discrimination
+        # matches bash's `yq | tag` check. Distinct error markers for missing
+        # field vs invalid type vs empty string so debugging is unambiguous.
+        if alias_input is None:
+            _emit({
+                "error": "missing-sprint_1d_query-alias",
+                "fixture": fixture_name,
+                "subset_supported": False,
+            })
+            continue
+        if not isinstance(alias_input, str):
+            # Map Python types to YAML tags so bash + python emit identical error markers.
+            type_to_tag = {bool: "!!bool", int: "!!int", float: "!!float", list: "!!seq", dict: "!!map"}
+            tag = type_to_tag.get(type(alias_input), f"!!{type(alias_input).__name__}")
+            _emit({
+                "error": f"invalid-alias-type:{tag}",
+                "fixture": fixture_name,
+                "subset_supported": False,
+            })
+            continue
+        if not alias_input:
             _emit({
                 "error": "missing-sprint_1d_query-alias",
                 "fixture": fixture_name,
@@ -145,6 +199,10 @@ def main() -> int:
             continue
 
         # Plain alias: resolve via MODEL_IDS / MODEL_PROVIDERS.
+        # Python dicts have no prototype so `key in dict` is hasOwn-equivalent
+        # (no equivalent of cypherpunk CRIT-1 needed here). bash assoc-arrays
+        # use `${MAP[key]+_}` which is also hasOwn semantically. Only TS's
+        # `in` operator walks prototypes — fixed via hasKey().
         if alias_input in model_ids:
             resolved_id = model_ids[alias_input]
             # MODEL_PROVIDERS may key on the canonical model_id OR the alias.

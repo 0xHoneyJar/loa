@@ -1,10 +1,11 @@
 description: "Explicit provider:model_id pin in skill_models takes precedence over alias resolution (FR-3.9 stage 1 hit)."
 
-# Sprint 1D query — explicit canonical model_id. This IS in MODEL_IDS
-# (idempotent: every model_id is also an alias-key resolving to itself).
-# Runners produce a real result.
+# Sprint 1D query — explicit `provider:model_id` pin form (FR-3.9 stage 1).
+# Runners parse the colon, validate `model_id` is in MODEL_PROVIDERS, and
+# emit the resolution. This exercises the explicit-pin code path that
+# would otherwise be dead in the corpus.
 sprint_1d_query:
-  alias: "claude-opus-4-7"
+  alias: "anthropic:claude-opus-4-7"
 
 input:
   schema_version: 2

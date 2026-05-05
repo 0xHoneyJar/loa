@@ -9,24 +9,27 @@ name: cycle-099 Sprint 1D cross-runtime-diff
 # with the specific bytes that diverged.
 
 on:
-  workflow_run:
-    workflows:
-      - cycle-099 Sprint 1D bash-runner
-      - cycle-099 Sprint 1D python-runner
-      - cycle-099 Sprint 1D bun-runner (TypeScript)
-    types: [completed]
+  # cypherpunk HIGH-2 + gp MEDIUM-2 (PR #735 review): the inline-run pattern
+  # below makes workflow_run a duplicate trigger. Removed to avoid the
+  # ~4×-per-PR run pattern + the "actions: read" cross-workflow permission
+  # surface. The pull_request trigger is the actual gate; the parallel
+  # single-runtime workflows (bash-runner.yml + python-runner.yml +
+  # bun-runner.yml) provide observability via artifact upload.
   pull_request:
     paths:
       - 'tests/fixtures/model-resolution/**'
       - 'tests/bash/golden_resolution.sh'
+      - 'tests/bash/golden_resolution.bats'
       - 'tests/python/golden_resolution.py'
       - 'tests/typescript/golden_resolution.ts'
       - '.claude/scripts/generated-model-maps.sh'
+      - '.claude/scripts/lib/model-resolver.sh'
+      - '.claude/skills/bridgebuilder-review/package.json'
+      - '.claude/skills/bridgebuilder-review/package-lock.json'
       - '.github/workflows/cross-runtime-diff.yml'
 
 permissions:
   contents: read
-  actions: read   # for artifacts download from sibling workflows
 
 concurrency:
   group: cycle099-sprint-1d-diff-${{ github.ref }}
@@ -66,7 +69,8 @@ jobs:
 
       - name: Install BB skill node_modules (for tsx)
         working-directory: .claude/skills/bridgebuilder-review
-        run: npm ci --no-audit --no-fund
+        # cypherpunk HIGH-1: --ignore-scripts disables npm lifecycle hooks.
+        run: npm ci --no-audit --no-fund --ignore-scripts
 
       # Run all three runners IN-LINE rather than relying on workflow_run
       # artifact orchestration. This makes the diff job self-contained and

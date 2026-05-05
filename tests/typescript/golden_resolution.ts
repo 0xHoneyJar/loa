@@ -38,15 +38,43 @@ import { execFileSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-const PROJECT_ROOT =
-  process.env.LOA_GOLDEN_PROJECT_ROOT ??
-  path.resolve(__dirname, "..", "..");
-const FIXTURES_DIR =
-  process.env.LOA_GOLDEN_FIXTURES_DIR ??
-  path.join(PROJECT_ROOT, "tests", "fixtures", "model-resolution");
-const GENERATED_MAPS =
-  process.env.LOA_GOLDEN_GENERATED_MAPS ??
-  path.join(PROJECT_ROOT, ".claude", "scripts", "generated-model-maps.sh");
+/**
+ * cypherpunk CRIT-3 (PR #735 review): env-override gate parity. Mirrors the
+ * model-resolver.sh::LOA_MODEL_RESOLVER_TEST_MODE pattern. Each LOA_GOLDEN_*
+ * override REQUIRES LOA_GOLDEN_TEST_MODE=1 OR BATS_TEST_DIRNAME (set by
+ * bats), else the override is IGNORED.
+ */
+function goldenTestModeActive(): boolean {
+  return (
+    process.env.LOA_GOLDEN_TEST_MODE === "1" ||
+    !!process.env.BATS_TEST_DIRNAME
+  );
+}
+
+function goldenResolvePath(envVar: string, fallback: string): string {
+  const val = process.env[envVar];
+  if (val) {
+    if (goldenTestModeActive()) {
+      process.stderr.write(`[GOLDEN] override active: ${envVar}=${val}\n`);
+      return val;
+    }
+    process.stderr.write(
+      `[GOLDEN] WARNING: ${envVar} set but LOA_GOLDEN_TEST_MODE!=1 and not running under bats — IGNORED\n`,
+    );
+  }
+  return fallback;
+}
+
+const PROJECT_ROOT_DEFAULT = path.resolve(__dirname, "..", "..");
+const PROJECT_ROOT = goldenResolvePath("LOA_GOLDEN_PROJECT_ROOT", PROJECT_ROOT_DEFAULT);
+const FIXTURES_DIR = goldenResolvePath(
+  "LOA_GOLDEN_FIXTURES_DIR",
+  path.join(PROJECT_ROOT, "tests", "fixtures", "model-resolution"),
+);
+const GENERATED_MAPS = goldenResolvePath(
+  "LOA_GOLDEN_GENERATED_MAPS",
+  path.join(PROJECT_ROOT, ".claude", "scripts", "generated-model-maps.sh"),
+);
 
 interface ParsedMaps {
   modelProviders: Record<string, string>;
@@ -70,7 +98,11 @@ function parseGeneratedMaps(filePath: string): ParsedMaps {
       throw new Error(`declare -A ${name} not found in ${filePath}`);
     }
     const body = m[1];
-    const result: Record<string, string> = {};
+    // cypherpunk CRIT-1 (PR #735 review): use Object.create(null) so the
+    // returned record has NO prototype. Plain `{}` inherits from
+    // Object.prototype, making `"toString" in result` evaluate to true even
+    // for un-set keys — diverging from bash assoc-arrays + Python dicts.
+    const result: Record<string, string> = Object.create(null);
     // Each entry: ["key"]="value"
     const entryRe = /\[\s*"([^"]*)"\s*\]\s*=\s*"([^"]*)"\s*/g;
     let entryM: RegExpExecArray | null;
@@ -88,40 +120,95 @@ function parseGeneratedMaps(filePath: string): ParsedMaps {
 }
 
 /**
- * Read a fixture's `sprint_1d_query.alias` field via yq → JSON.
- * Returns null if missing or not a string.
+ * Recursively sort all keys in objects (depth-first, preserving array order).
+ * gp CRITICAL-1 (PR #735 review): JSON.stringify with manually-sorted top
+ * keys does NOT recursively sort nested objects, while jq -S and Python's
+ * sort_keys=True DO. Today's flat-string output masks the divergence; Sprint
+ * 2's nested resolution_path arrays would expose it.
+ *
+ * Returns a new object/array; does not mutate input.
  */
-function extractFixtureAlias(fixturePath: string): string | null {
-  let json: string;
-  try {
-    json = execFileSync("yq", ["-o", "json", "-I", "0", ".sprint_1d_query.alias // null", fixturePath], {
-      encoding: "utf-8",
-    });
-  } catch (e) {
-    return null;
+function canonicalizeRecursive(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(canonicalizeRecursive);
   }
-  const parsed: unknown = JSON.parse(json.trim() || "null");
-  if (typeof parsed !== "string" || parsed.length === 0) {
-    return null;
+  if (value !== null && typeof value === "object") {
+    const out: Record<string, unknown> = Object.create(null);
+    const sortedKeys = Object.keys(value as Record<string, unknown>).sort();
+    for (const k of sortedKeys) {
+      out[k] = canonicalizeRecursive((value as Record<string, unknown>)[k]);
+    }
+    return out;
   }
-  return parsed;
+  return value;
 }
 
 /**
- * Emit one canonical JSON line: keys sorted, no whitespace, no trailing
- * newline (println adds the LF).
+ * cypherpunk CRIT-1 + gp HIGH-1: prototype-safe key existence check. Replace
+ * `key in obj` (which walks Object.prototype) with hasOwn equivalence.
+ */
+function hasKey(obj: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+/**
+ * Read a fixture's `sprint_1d_query.alias` field via yq + tag.
+ * gp HIGH-2 / cypherpunk CRIT-2: type-discrimination matches bash's
+ * `yq | tag` semantics. Distinct return values for each failure mode so
+ * the runner can emit identical error markers to bash.
+ */
+type AliasResult =
+  | { kind: "ok"; value: string }
+  | { kind: "missing" }
+  | { kind: "invalid-type"; tag: string };
+
+function extractFixtureAlias(fixturePath: string): AliasResult {
+  let tagOutput: string;
+  try {
+    tagOutput = execFileSync(
+      "yq",
+      ["eval", ".sprint_1d_query.alias | tag", fixturePath],
+      { encoding: "utf-8" },
+    ).trim();
+  } catch (e) {
+    return { kind: "missing" };
+  }
+  if (!tagOutput || tagOutput === "!!null") {
+    return { kind: "missing" };
+  }
+  if (tagOutput !== "!!str") {
+    return { kind: "invalid-type", tag: tagOutput };
+  }
+  let valOutput: string;
+  try {
+    valOutput = execFileSync(
+      "yq",
+      ["eval", ".sprint_1d_query.alias", fixturePath],
+      { encoding: "utf-8" },
+    );
+  } catch (e) {
+    return { kind: "missing" };
+  }
+  // yq eval on a string emits the bare string + trailing newline.
+  const trimmed = valOutput.replace(/\n$/, "");
+  if (!trimmed) {
+    return { kind: "missing" };
+  }
+  return { kind: "ok", value: trimmed };
+}
+
+/**
+ * Emit one canonical JSON line: recursively sorted keys, no whitespace,
+ * UTF-8 literal (no \\uXXXX escapes for non-ASCII).
+ *
+ * gp CRITICAL-1 fix: canonicalizeRecursive walks nested objects/arrays so
+ * Sprint 2's resolution_path arrays maintain byte-equality across runtimes.
+ * gp CRITICAL-2: JSON.stringify defaults to literal UTF-8 (matches bash
+ * jq -c and Python with ensure_ascii=False).
  */
 function emitCanonical(record: Record<string, unknown>): void {
-  const sortedKeys = Object.keys(record).sort();
-  const sortedRecord: Record<string, unknown> = {};
-  for (const k of sortedKeys) {
-    sortedRecord[k] = record[k];
-  }
-  // JSON.stringify does NOT canonicalize key order; we passed a key-sorted
-  // object so default stringify produces the same byte sequence as
-  // python's json.dumps(sort_keys=True, separators=(",", ":")) and bash's
-  // jq -S -c.
-  process.stdout.write(JSON.stringify(sortedRecord) + "\n");
+  const canon = canonicalizeRecursive(record);
+  process.stdout.write(JSON.stringify(canon) + "\n");
 }
 
 function main(): number {
@@ -144,8 +231,8 @@ function main(): number {
 
   for (const fixturePath of fixtures) {
     const fixtureName = path.basename(fixturePath, ".yaml");
-    const aliasInput = extractFixtureAlias(fixturePath);
-    if (!aliasInput) {
+    const aliasResult = extractFixtureAlias(fixturePath);
+    if (aliasResult.kind === "missing") {
       emitCanonical({
         error: "missing-sprint_1d_query-alias",
         fixture: fixtureName,
@@ -153,13 +240,22 @@ function main(): number {
       });
       continue;
     }
+    if (aliasResult.kind === "invalid-type") {
+      emitCanonical({
+        error: `invalid-alias-type:${aliasResult.tag}`,
+        fixture: fixtureName,
+        subset_supported: false,
+      });
+      continue;
+    }
+    const aliasInput = aliasResult.value;
 
     // Stage 1 explicit pin: provider:model_id
     if (aliasInput.includes(":")) {
       const colonIdx = aliasInput.indexOf(":");
       const providerPart = aliasInput.slice(0, colonIdx);
       const modelPart = aliasInput.slice(colonIdx + 1);
-      if (modelPart in modelProviders) {
+      if (hasKey(modelProviders, modelPart)) {
         emitCanonical({
           fixture: fixtureName,
           input_alias: aliasInput,
@@ -179,10 +275,13 @@ function main(): number {
     }
 
     // Plain alias: resolve via MODEL_IDS / MODEL_PROVIDERS
-    if (aliasInput in modelIds) {
+    if (hasKey(modelIds, aliasInput)) {
       const resolvedId = modelIds[aliasInput];
-      const resolvedProvider =
-        modelProviders[resolvedId] ?? modelProviders[aliasInput] ?? "unknown";
+      const resolvedProvider = hasKey(modelProviders, resolvedId)
+        ? modelProviders[resolvedId]
+        : hasKey(modelProviders, aliasInput)
+          ? modelProviders[aliasInput]
+          : "unknown";
       emitCanonical({
         fixture: fixtureName,
         input_alias: aliasInput,

@@ -1,5 +1,5 @@
 {"deferred_to":"sprint-2-T2.6","fixture":"01-happy-path-tier-tag","input_alias":"max","subset_supported":false}
-{"fixture":"02-explicit-pin-wins","input_alias":"claude-opus-4-7","resolved_model_id":"claude-opus-4-7","resolved_provider":"anthropic","subset_supported":true}
+{"fixture":"02-explicit-pin-wins","input_alias":"anthropic:claude-opus-4-7","resolved_model_id":"claude-opus-4-7","resolved_provider":"anthropic","subset_supported":true}
 {"deferred_to":"sprint-2-T2.6","fixture":"03-missing-tier-fail-closed","input_alias":"max-nonexistent-tier","subset_supported":false}
 {"fixture":"04-legacy-shape-deprecation","input_alias":"opus","resolved_model_id":"claude-opus-4-7","resolved_provider":"anthropic","subset_supported":true}
 {"deferred_to":"sprint-2-T2.6","fixture":"05-override-conflict","input_alias":"nonexistent-base-model","subset_supported":false}
