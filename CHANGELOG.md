@@ -39,7 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Sandbox posture**: `--approval-mode plan --skip-trust` always — read-only, no shell exec, no file edits. Skip-trust is required because the model-router invocation cwd is rarely in gemini-cli's trusted-folders list, and the CLI silently downgrades approval-mode to `default` (interactive) when trust is missing — that hangs in non-interactive contexts.
   - **JSON output parsing**: `--output-format json` emits a single `{session_id, response, stats?, error?, warnings?}` object (per gemini-cli `core/src/output/types.ts`). The adapter pulls `response` for content; tokens are extracted from `stats.models[<model_id>].tokens.{prompt, candidates, thoughts, cached}` (gemini's input/output/reasoning/cached aliases). When `stats` is absent, `Usage.source = "estimated"` rather than failing.
   - **Error classification**: Structured JSON `{error: {type, message, code}}` is preferred over stderr when the CLI emits both. Auth-related strings (`auth method`, `settings.json`, `GEMINI_API_KEY`, `GOOGLE_GENAI_USE_*`, `unauthorized`, `permission_denied`) → `ConfigError` with actionable hint. Quota / rate-limit (`429`, `quota`, `resource_exhausted`) → `RateLimitError`. Everything else → `ProviderUnavailableError`. `subprocess.TimeoutExpired` and missing-binary `FileNotFoundError` typed equivalently.
-  - **Operator config example**:
+  - **Operator config example** (model names match gemini-cli ≥ 0.40.x — bare `gemini-3-pro` / `gemini-3-flash` return ModelNotFoundError 404):
     ```yaml
     hounfour:
       providers:
@@ -47,18 +47,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
           type: gemini-headless
           read_timeout: 600.0
           models:
-            gemini-3-pro:
+            gemini-3.1-pro-preview:
               capabilities: [chat, thinking_traces]
               context_window: 1048576
               pricing: { input_per_mtok: 0, output_per_mtok: 0 }  # subscription-billed
-            gemini-3-flash:
+            gemini-3-flash-preview:
               capabilities: [chat]
               context_window: 1048576
               pricing: { input_per_mtok: 0, output_per_mtok: 0 }
       aliases:
-        deep-thinker: gemini-headless:gemini-3-pro
-        fast-thinker: gemini-headless:gemini-3-flash
-        researcher: gemini-headless:gemini-3-pro
+        deep-thinker: gemini-headless:gemini-3.1-pro-preview
+        fast-thinker: gemini-headless:gemini-3-flash-preview
+        researcher: gemini-headless:gemini-3.1-pro-preview
     ```
   - **Tests**: 25 unit tests in `tests/test_gemini_headless_adapter.py` (registry dispatch, command construction, prompt flattening, JSON parsing — including stats-key fallback for single-model runs, error classification across structured + stderr paths, validate_config + health_check, end-to-end happy path with mocked subprocess). 1 live test gated behind `LOA_GEMINI_HEADLESS_LIVE=1`.
   - **Tool-calling + image input deferred**: v1 single-shot only, same posture as codex-headless. Gemini-cli's `--image` flag and MCP tool surface are not forwarded.

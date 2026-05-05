@@ -753,7 +753,10 @@ hounfour:
       # No `auth:` field — auth is file-based (~/.gemini/settings.json) or env-var
       read_timeout: 600.0
       models:
-        gemini-3-pro:
+        # Model IDs match gemini-cli ≥ 0.40.x defaults. The bare names
+        # (`gemini-3-pro` / `gemini-3-flash`) return ModelNotFoundError 404 —
+        # the canonical preview suffixes are required.
+        gemini-3.1-pro-preview:
           capabilities: [chat, thinking_traces]
           context_window: 1048576
           pricing:
@@ -766,7 +769,7 @@ hounfour:
           #   gemini_extra_flags:                     # arbitrary additional CLI flags
           #     - ["--allowed-tools", "read,grep"]
           #     - "--list-extensions"
-        gemini-3-flash:
+        gemini-3-flash-preview:
           capabilities: [chat]
           context_window: 1048576
           pricing:
