@@ -48,6 +48,29 @@ teardown() {
     return 0
 }
 
+# Helper: run an inline Python script with paths exposed via os.environ
+# rather than shell interpolation. Closes BB iter-1 F2 — a quoted-EOF heredoc
+# eliminates the shell-injection-into-Python-source surface that unquoted
+# heredocs leave open when paths contain quotes/$/\.
+#
+# Usage:
+#     _python_assert <<'EOF'
+#     import os
+#     from ruamel.yaml import YAML
+#     y = YAML(typ='safe')
+#     with open(os.environ["OUT"]) as f:
+#         data = y.load(f)
+#     ...
+#     EOF
+_python_assert() {
+    OUT="$OUT" \
+    FIXTURES="$FIXTURES" \
+    PROJECT_ROOT="$PROJECT_ROOT" \
+    SCHEMA="$SCHEMA" \
+    WORK_DIR="$WORK_DIR" \
+    "$PYTHON_BIN" -
+}
+
 # ---------------------------------------------------------------------------
 # M1 — v1 → v2 happy path (cycle-095-vintage)
 # ---------------------------------------------------------------------------
@@ -66,14 +89,14 @@ teardown() {
 @test "M1.2 happy path: validates against v2 schema after migration" {
     "$PYTHON_BIN" "$CLI" "$FIXTURES/v1-happy-path.yaml" -o "$OUT"
     # Independent schema check (sanity)
-    "$PYTHON_BIN" - <<EOF
-import json, sys
+    _python_assert <<'EOF'
+import json, os
 import jsonschema
 from ruamel.yaml import YAML
 y = YAML(typ='safe')
-with open("$OUT") as f:
+with open(os.environ["OUT"]) as f:
     data = y.load(f)
-with open("$SCHEMA") as f:
+with open(os.environ["SCHEMA"]) as f:
     schema = json.load(f)
 jsonschema.Draft202012Validator(schema).validate(data)
 EOF
@@ -160,12 +183,13 @@ EOF
 @test "M6.2 idempotency: round-trip v2 → v2 produces structurally-equivalent output" {
     "$PYTHON_BIN" "$CLI" "$FIXTURES/v2-already.yaml" -o "$OUT"
     # Both inputs parse to the same dict structure (using safe yaml load)
-    "$PYTHON_BIN" - <<EOF
+    _python_assert <<'EOF'
+import os
 from ruamel.yaml import YAML
 y = YAML(typ='safe')
-with open("$FIXTURES/v2-already.yaml") as f:
+with open(os.path.join(os.environ["FIXTURES"], "v2-already.yaml")) as f:
     a = y.load(f)
-with open("$OUT") as f:
+with open(os.environ["OUT"]) as f:
     b = y.load(f)
 assert a == b, f"v2 round-trip not idempotent.\nin:  {a}\nout: {b}"
 EOF
@@ -178,10 +202,11 @@ EOF
 @test "M7.1 agent rename: model: cheap becomes default_tier: cheap" {
     "$PYTHON_BIN" "$CLI" "$FIXTURES/v1-happy-path.yaml" -o "$OUT"
     # reviewer was 'model: cheap' in v1 → should be 'default_tier: cheap' in v2
-    "$PYTHON_BIN" - <<EOF
+    _python_assert <<'EOF'
+import os
 from ruamel.yaml import YAML
 y = YAML(typ='safe')
-with open("$OUT") as f:
+with open(os.environ["OUT"]) as f:
     data = y.load(f)
 reviewer = data["agents"]["reviewer"]
 assert "default_tier" in reviewer, f"expected default_tier; got {reviewer}"
@@ -192,10 +217,11 @@ EOF
 
 @test "M7.2 agent rename: model: opus stays as model: (opus not a tier)" {
     "$PYTHON_BIN" "$CLI" "$FIXTURES/v1-happy-path.yaml" -o "$OUT"
-    "$PYTHON_BIN" - <<EOF
+    _python_assert <<'EOF'
+import os
 from ruamel.yaml import YAML
 y = YAML(typ='safe')
-with open("$OUT") as f:
+with open(os.environ["OUT"]) as f:
     data = y.load(f)
 arch = data["agents"]["designing-architecture"]
 # 'opus' is a custom alias, not one of {max, cheap, mid, tiny}, so the
@@ -211,10 +237,11 @@ EOF
 
 @test "M8.1 tier_groups: empty mappings populated to §3.1.2 defaults" {
     "$PYTHON_BIN" "$CLI" "$FIXTURES/v1-happy-path.yaml" -o "$OUT"
-    "$PYTHON_BIN" - <<EOF
+    _python_assert <<'EOF'
+import os
 from ruamel.yaml import YAML
 y = YAML(typ='safe')
-with open("$OUT") as f:
+with open(os.environ["OUT"]) as f:
     data = y.load(f)
 mappings = data["tier_groups"]["mappings"]
 # §3.1.2 specifies max/cheap/mid/tiny each with 3 providers
@@ -234,10 +261,11 @@ EOF
         -o "$OUT" \
         --model-permissions "$FIXTURES/cycle026-permissions.yaml"
     [[ "$status" -eq 0 ]]
-    "$PYTHON_BIN" - <<EOF
+    _python_assert <<'EOF'
+import os
 from ruamel.yaml import YAML
 y = YAML(typ='safe')
-with open("$OUT") as f:
+with open(os.environ["OUT"]) as f:
     data = y.load(f)
 gpt = data["providers"]["openai"]["models"]["gpt-5.5"]
 assert "permissions" in gpt, f"expected permissions block; got {gpt}"
@@ -249,10 +277,11 @@ EOF
 
 @test "M9.2 permissions: missing permissions arg leaves models without permissions block" {
     "$PYTHON_BIN" "$CLI" "$FIXTURES/v1-happy-path.yaml" -o "$OUT"
-    "$PYTHON_BIN" - <<EOF
+    _python_assert <<'EOF'
+import os
 from ruamel.yaml import YAML
 y = YAML(typ='safe')
-with open("$OUT") as f:
+with open(os.environ["OUT"]) as f:
     data = y.load(f)
 gpt = data["providers"]["openai"]["models"]["gpt-5.5"]
 # permissions block is optional in cycle-099 v2; absent without --model-permissions
@@ -319,10 +348,13 @@ assert any(c['kind'] == 'rename' for c in data['changes']), f'expected at least 
 @test "M11.2 structure: pure function migrate_v1_to_v2 is library-callable" {
     # The lib filename has dashes (cycle-099 file-naming convention) so we
     # load it via importlib.util.spec_from_file_location, mirroring the CLI.
-    "$PYTHON_BIN" - <<EOF
-import importlib.util, sys
-spec = importlib.util.spec_from_file_location(
-    "mcm", "$PROJECT_ROOT/.claude/scripts/lib/model-config-migrate.py")
+    _python_assert <<'EOF'
+import importlib.util, os
+lib = os.path.join(
+    os.environ["PROJECT_ROOT"],
+    ".claude/scripts/lib/model-config-migrate.py",
+)
+spec = importlib.util.spec_from_file_location("mcm", lib)
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 assert callable(m.migrate_v1_to_v2)
@@ -378,6 +410,8 @@ EOF
 
 @test "M13.3 hardening: output file mode is 0600 (owner-only)" {
     # C-L1: even on a permissive umask, the output should be owner-only.
+    # F5 review remediation: BSD stat returns full mode like '100600'; trim
+    # to the trailing 3 octal digits so this test passes on macOS too.
     local prior_umask
     prior_umask="$(umask)"
     umask 0022
@@ -385,7 +419,11 @@ EOF
     umask "$prior_umask"
     [[ "$status" -eq 0 ]]
     local mode
-    mode="$(stat -c '%a' "$OUT" 2>/dev/null || stat -f '%A' "$OUT")"
+    if mode="$(stat -c '%a' "$OUT" 2>/dev/null)"; then
+        :  # Linux: %a returns octal mode without leading bits
+    else
+        mode="$(stat -f '%Lp' "$OUT")"  # BSD/macOS: %Lp returns lower 12 bits as octal
+    fi
     [[ "$mode" = "600" ]]
 }
 
@@ -408,10 +446,11 @@ providers:
 EOF
     run "$PYTHON_BIN" "$CLI" "$minimal" -o "$OUT"
     [[ "$status" -eq 0 ]]
-    "$PYTHON_BIN" - <<EOF
+    _python_assert <<'EOF'
+import os
 from ruamel.yaml import YAML
 y = YAML(typ='safe')
-with open("$OUT") as f:
+with open(os.environ["OUT"]) as f:
     data = y.load(f)
 mappings = data["tier_groups"]["mappings"]
 for tier in ("max", "cheap", "mid", "tiny"):
@@ -442,10 +481,11 @@ tier_groups:
 EOF
     run "$PYTHON_BIN" "$CLI" "$partial" -o "$OUT"
     [[ "$status" -eq 0 ]]
-    "$PYTHON_BIN" - <<EOF
+    _python_assert <<'EOF'
+import os
 from ruamel.yaml import YAML
 y = YAML(typ='safe')
-with open("$OUT") as f:
+with open(os.environ["OUT"]) as f:
     data = y.load(f)
 m = data["tier_groups"]["mappings"]
 # Operator-supplied entry preserved verbatim
@@ -464,10 +504,13 @@ EOF
 # ---------------------------------------------------------------------------
 
 @test "M15.1 lib: migrate_v1_to_v2 does not mutate caller's dict" {
-    "$PYTHON_BIN" - <<EOF
-import importlib.util
-spec = importlib.util.spec_from_file_location(
-    "mcm", "$PROJECT_ROOT/.claude/scripts/lib/model-config-migrate.py")
+    _python_assert <<'EOF'
+import importlib.util, os
+lib = os.path.join(
+    os.environ["PROJECT_ROOT"],
+    ".claude/scripts/lib/model-config-migrate.py",
+)
+spec = importlib.util.spec_from_file_location("mcm", lib)
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 
@@ -543,9 +586,20 @@ EOF
 # ---------------------------------------------------------------------------
 
 @test "M17.1 report: v1→v2 always emits a version_bump entry" {
-    run "$PYTHON_BIN" "$CLI" "$FIXTURES/v1-with-rename.yaml" -o "$OUT"
+    # F6 review remediation: assert version_bump kind appears in the report,
+    # not the more general 'schema_version: 2' string (which leaked from the
+    # original tautological OR — passed for the wrong reason on any input).
+    run "$PYTHON_BIN" "$CLI" "$FIXTURES/v1-with-rename.yaml" -o "$OUT" --report-format json
     [[ "$status" -eq 0 ]]
-    [[ "$output" == *"version_bump"* || "$output" == *"schema_version: 2"* ]]
+    local payload="$WORK_DIR/v17-report.json"
+    printf '%s' "$output" > "$payload"
+    "$PYTHON_BIN" -c "
+import json
+with open('$payload') as f:
+    data = json.load(f)
+assert any(c.get('kind') == 'version_bump' for c in data.get('changes', [])), \
+    f'expected at least one version_bump entry; got {data}'
+"
 }
 
 # ---------------------------------------------------------------------------
