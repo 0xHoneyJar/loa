@@ -32,6 +32,14 @@ SCHEMA_DIR="$PROJECT_ROOT/.claude/schemas"
 TRAJECTORY_DIR="$PROJECT_ROOT/grimoires/loa/a2a/trajectory"
 COMPOUND_DIR="$PROJECT_ROOT/grimoires/loa/a2a/compound"
 
+# cycle-099 sprint-1E.c.3.b: source the centralized endpoint validator so the
+# fallback (non-api-resilience) curl path funnels through guarded_curl. The
+# api-resilience helper itself was migrated in the same sub-sprint and uses
+# the same allowlist by default.
+# shellcheck source=lib/endpoint-validator.sh
+source "$LIB_DIR/endpoint-validator.sh"
+FLATLINE_PROVIDERS_ALLOWLIST="${LOA_FLATLINE_PROVIDERS_ALLOWLIST:-$LIB_DIR/allowlists/loa-providers.json}"
+
 # Source utilities
 if [[ -f "$LIB_DIR/api-resilience.sh" ]]; then
     source "$LIB_DIR/api-resilience.sh"
@@ -307,16 +315,22 @@ EOF
                 max_tokens: 500
             }')" 30)
     else
-        # SEC-AUDIT SEC-HIGH-01: Use curl config to avoid exposing API key in process list
+        # SEC-AUDIT SEC-HIGH-01 + cycle-099 sprint-1E.c.3.b: keep API key out
+        # of process listings via curl auth-config tempfile, AND funnel
+        # through endpoint_validator__guarded_curl with the providers
+        # allowlist so a tampered OPENAI_API_BASE override is rejected.
         local _curl_cfg
         _curl_cfg=$(write_curl_auth_config "Authorization" "Bearer ${OPENAI_API_KEY:-}") || {
             log_error "Failed to create secure curl config"
             return 4
         }
         printf 'header = "Content-Type: application/json"\n' >> "$_curl_cfg"
-        response=$(curl -s --max-time 30 \
-            -X POST "${OPENAI_API_BASE:-https://api.openai.com}/v1/chat/completions" \
-            --config "$_curl_cfg" \
+        response=$(endpoint_validator__guarded_curl \
+            --allowlist "$FLATLINE_PROVIDERS_ALLOWLIST" \
+            --config-auth "$_curl_cfg" \
+            --url "${OPENAI_API_BASE:-https://api.openai.com}/v1/chat/completions" \
+            -s --max-time 30 \
+            -X POST \
             -d "$(jq -n --arg prompt "$prompt" '{
                 model: "gpt-4o-mini",
                 messages: [{role: "user", content: $prompt}],

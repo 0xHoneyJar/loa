@@ -34,6 +34,12 @@ else
     exit 5
 fi
 
+# cycle-099 sprint-1E.c.3.b: public-key fetch via endpoint validator with
+# constructs registry allowlist (license registry shares the same host).
+# shellcheck source=lib/endpoint-validator.sh
+source "$SCRIPT_DIR/lib/endpoint-validator.sh"
+LICENSE_REGISTRY_ALLOWLIST="${LOA_LICENSE_REGISTRY_ALLOWLIST:-$SCRIPT_DIR/lib/allowlists/loa-registry.json}"
+
 # =============================================================================
 # Constants
 # =============================================================================
@@ -210,8 +216,12 @@ do_get_public_key() {
     fi
 
     local response
-    # HIGH-002 FIX: Enforce HTTPS and TLS 1.2+
-    response=$(curl -sf --proto =https --tlsv1.2 "${registry_url}/public-keys/${key_id}" 2>/dev/null) || {
+    # HIGH-002: --tlsv1.2 enforces minimum TLS version. cycle-099 sprint-1E.c.3.b:
+    # https-only + redirect-bound enforcement comes from the wrapper.
+    response=$(endpoint_validator__guarded_curl \
+        --allowlist "$LICENSE_REGISTRY_ALLOWLIST" \
+        --url "${registry_url}/public-keys/${key_id}" \
+        -sf --tlsv1.2 2>/dev/null) || {
         # Network error - try to use stale cache
         if [[ -f "$key_file" ]]; then
             echo "WARNING: Using stale cached key (network error)" >&2

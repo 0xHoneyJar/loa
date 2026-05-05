@@ -37,6 +37,12 @@ if [[ -f "$SCRIPT_DIR/lib-security.sh" ]]; then
     source "$SCRIPT_DIR/lib-security.sh"
 fi
 
+# cycle-099 sprint-1E.c.3.b: route registry auth-validate through endpoint
+# validator with the constructs registry allowlist (api.constructs.network).
+# shellcheck source=lib/endpoint-validator.sh
+source "$SCRIPT_DIR/lib/endpoint-validator.sh"
+CONSTRUCTS_REGISTRY_ALLOWLIST="${LOA_CONSTRUCTS_REGISTRY_ALLOWLIST:-$SCRIPT_DIR/lib/allowlists/loa-registry.json}"
+
 # =============================================================================
 # Configuration
 # =============================================================================
@@ -157,16 +163,20 @@ cmd_validate() {
     local response
     local http_code
     
-    # SHELL-002: Use curl config file to avoid exposing API key in process list
+    # SHELL-002 + cycle-099 sprint-1E.c.3.b: keep API key out of process
+    # listings via auth tempfile, route through endpoint validator with
+    # registry allowlist. --config-auth content-gates the auth file.
     local curl_config
     curl_config=$(write_curl_auth_config "Authorization" "Bearer ${api_key}") || {
         echo "ERROR: Failed to create secure curl config" >&2
         return 3
     }
 
-    http_code=$(curl -s -o /dev/null -w "%{http_code}" \
-        --config "$curl_config" \
-        "${registry_url}/auth/validate" 2>/dev/null || echo "000")
+    http_code=$(endpoint_validator__guarded_curl \
+        --allowlist "$CONSTRUCTS_REGISTRY_ALLOWLIST" \
+        --config-auth "$curl_config" \
+        --url "${registry_url}/auth/validate" \
+        -s -o /dev/null -w "%{http_code}" 2>/dev/null || echo "000")
     rm -f "$curl_config"
     
     case "$http_code" in

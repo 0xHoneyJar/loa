@@ -29,6 +29,19 @@ if [[ -f "${_API_RESILIENCE_DIR}/common.sh" ]]; then
     source "${_API_RESILIENCE_DIR}/common.sh"
 fi
 
+# Source endpoint validator (cycle-099 sprint-1E.c.3.b). The retry+circuit
+# helper now funnels through endpoint_validator__guarded_curl. Callers MUST
+# either pass --allowlist <PATH> as the 5th positional arg, OR export
+# LOA_API_RESILIENCE_ALLOWLIST in the environment. The allowlist path MUST
+# live under .claude/scripts/lib/allowlists/ (tree-restricted by the wrapper).
+if ! declare -f endpoint_validator__guarded_curl &>/dev/null; then
+    if [[ -f "${_API_RESILIENCE_DIR}/endpoint-validator.sh" ]]; then
+        # shellcheck source=endpoint-validator.sh
+        source "${_API_RESILIENCE_DIR}/endpoint-validator.sh"
+    fi
+fi
+LOA_API_RESILIENCE_ALLOWLIST_DEFAULT="${_API_RESILIENCE_DIR}/allowlists/loa-providers.json"
+
 # Logging functions
 log_error() { echo "[ERROR] $(date -Iseconds) $*" >&2; }
 log_warning() { echo "[WARN] $(date -Iseconds) $*" >&2; }
@@ -331,13 +344,25 @@ calculate_backoff() {
 }
 
 # Make API call with retry and circuit breaker
-# Usage: call_api_with_retry <endpoint> <method> <data> [timeout]
+# Usage: call_api_with_retry <endpoint> <method> <data> [timeout] [allowlist]
 # Returns: Response body on success, empty on failure
+#
+# cycle-099 sprint-1E.c.3.b: every call now funnels through
+# endpoint_validator__guarded_curl. The 5th arg is the allowlist path; if
+# not supplied, falls back to $LOA_API_RESILIENCE_ALLOWLIST env var, then
+# to the loa-providers.json default (covers openai + anthropic + google +
+# bedrock — the multi-model surface this helper has historically served).
 call_api_with_retry() {
     local endpoint="$1"
     local method="${2:-POST}"
     local data="${3:-}"
     local timeout="${4:-$API_TIMEOUT_SECONDS}"
+    local allowlist="${5:-${LOA_API_RESILIENCE_ALLOWLIST:-$LOA_API_RESILIENCE_ALLOWLIST_DEFAULT}}"
+
+    if ! declare -f endpoint_validator__guarded_curl &>/dev/null; then
+        log_error "endpoint_validator__guarded_curl not available — call_api_with_retry refuses to run with raw curl (cycle-099 SDD §1.9.1)"
+        return 1
+    fi
 
     local endpoint_key
     endpoint_key=$(normalize_endpoint_key "$endpoint")
@@ -359,14 +384,32 @@ call_api_with_retry() {
 
         log_debug "API call attempt $attempt/$API_MAX_RETRIES to $endpoint"
 
-        # Make the request
-        local http_response
-        http_response=$(curl -s -w "\n%{http_code}" \
+        # Make the request via the SSRF-safe wrapper. Wrapper exit 78 = URL
+        # not in allowlist; 64 = wrapper usage error. Both are configuration
+        # bugs (NOT transients) — exit immediately, do NOT retry.
+        # Note: 2>&1 stderr-merge is DELIBERATE — preserves the pre-migration
+        # behavior where transient curl errors fold into $http_response so
+        # the parse path can surface them. On rejection (78/64) the wrapper
+        # has emitted structured stderr but we return BEFORE setting
+        # $http_response, so the merge doesn't pollute the parsed response.
+        local http_response curl_rc=0
+        http_response=$(endpoint_validator__guarded_curl \
+            --allowlist "$allowlist" \
+            --url "$endpoint" \
+            -s -w "\n%{http_code}" \
             --max-time "$timeout" \
             -X "$method" \
             -H "Content-Type: application/json" \
-            ${data:+-d "$data"} \
-            "$endpoint" 2>&1) || {
+            ${data:+-d "$data"} 2>&1) || curl_rc=$?
+        if (( curl_rc == 78 )); then
+            log_error "endpoint validator rejected $endpoint (SSRF allowlist enforcement; allowlist=$allowlist)"
+            return 1
+        fi
+        if (( curl_rc == 64 )); then
+            log_error "endpoint validator wrapper usage error (allowlist out-of-tree, --config-auth invalid, or smuggling flag in caller args)"
+            return 1
+        fi
+        if (( curl_rc != 0 )); then
             log_warning "curl failed (timeout or network error)"
             record_circuit_failure "$endpoint_key"
             if (( attempt < API_MAX_RETRIES )); then
@@ -376,8 +419,7 @@ call_api_with_retry() {
                 continue
             fi
             return 1
-        }
-
+        fi
         # Parse response
         response=$(echo "$http_response" | sed '$d')
         status_code=$(echo "$http_response" | tail -1)

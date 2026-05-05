@@ -1,0 +1,8 @@
+{
+  "_comment": "Per-caller allowlist for constructs-* + license-validator.sh — Loa constructs registry API + Cloudflare-fronted public-keys CDN. Default registry URL is https://api.constructs.network/v1 (per .claude/scripts/constructs-lib.sh::get_registry_url). Operators can override via LOA_REGISTRY_URL — but the override URL MUST resolve to a host in this allowlist or the wrapper rejects (closes the SSRF vector where a tampered .loa.config.yaml or env-var injection points the registry at attacker infra).",
+  "providers": {
+    "loa_registry": [
+      {"host": "api.constructs.network", "ports": [443]}
+    ]
+  }
+}

@@ -47,6 +47,12 @@ if [[ -f "$SCRIPT_DIR/yq-safe.sh" ]]; then
     source "$SCRIPT_DIR/yq-safe.sh"
 fi
 
+# cycle-099 sprint-1E.c.3.b: route registry GET through endpoint validator
+# with the constructs registry allowlist (api.constructs.network).
+# shellcheck source=lib/endpoint-validator.sh
+source "$SCRIPT_DIR/lib/endpoint-validator.sh"
+CONSTRUCTS_REGISTRY_ALLOWLIST="${LOA_CONSTRUCTS_REGISTRY_ALLOWLIST:-$SCRIPT_DIR/lib/allowlists/loa-registry.json}"
+
 # =============================================================================
 # Constants
 # =============================================================================
@@ -1128,8 +1134,15 @@ query_skill_versions() {
 
     # Query the versions endpoint
     local url="${registry_url}/skills/${skill_slug}/versions"
-    # HIGH-002 FIX: Enforce HTTPS and TLS 1.2+
-    curl -s --proto =https --tlsv1.2 --connect-timeout 5 --max-time 10 "$url" 2>/dev/null
+    # HIGH-002: --tlsv1.2 enforces minimum TLS version.
+    # cycle-099 sprint-1E.c.3.b: https-only + redirect-bound enforcement now
+    # comes from endpoint_validator__guarded_curl. Allowlist gate also closes
+    # the SSRF surface where LOA_REGISTRY_URL env override could redirect at
+    # an attacker-controlled host.
+    endpoint_validator__guarded_curl \
+        --allowlist "$CONSTRUCTS_REGISTRY_ALLOWLIST" \
+        --url "$url" \
+        -s --tlsv1.2 --connect-timeout 5 --max-time 10 2>/dev/null
 }
 
 # Check for updates for all installed skills

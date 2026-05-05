@@ -57,6 +57,12 @@ NOTIFY_MODE=false
 # shellcheck source=bash-version-guard.sh
 source "$SCRIPT_DIR/bash-version-guard.sh"
 
+# cycle-099 sprint-1E.c.3.b: GitHub API release-version probe via endpoint
+# validator with the loa-github.json allowlist (api.github.com).
+# shellcheck source=lib/endpoint-validator.sh
+source "$SCRIPT_DIR/lib/endpoint-validator.sh"
+CHECK_UPDATES_ALLOWLIST="${LOA_CHECK_UPDATES_ALLOWLIST:-$SCRIPT_DIR/lib/allowlists/loa-github.json}"
+
 check_dependencies() {
     local missing=()
 
@@ -314,11 +320,14 @@ fetch_latest_release() {
     local api_url="https://api.github.com/repos/$owner/$repo/releases/latest"
 
     local response
-    # HIGH-002 FIX: Enforce HTTPS and TLS 1.2+
-    response=$(curl -sL --proto =https --tlsv1.2 \
+    # HIGH-002: --tlsv1.2 enforces minimum TLS version. cycle-099 sprint-1E.c.3.b:
+    # https-only + redirect-bound enforcement comes from the wrapper.
+    response=$(endpoint_validator__guarded_curl \
+        --allowlist "$CHECK_UPDATES_ALLOWLIST" \
+        --url "$api_url" \
+        -sL --tlsv1.2 \
         -H "Accept: application/vnd.github+json" \
-        --max-time 5 \
-        "$api_url" 2>/dev/null) || {
+        --max-time 5 2>/dev/null) || {
         # Network error - silent fail
         echo ""
         return 1

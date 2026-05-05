@@ -1,0 +1,8 @@
+{
+  "_comment": "Per-caller allowlist for check-updates.sh — GitHub framework version probes against the releases API. Currently the only consumer; mount-loa.sh is [ENDPOINT-VALIDATOR-EXEMPT] (bootstrap path) and does NOT route through this allowlist. Add raw.githubusercontent.com / objects.githubusercontent.com / github.com only when a NEW guarded_curl caller actually needs them — speculative entries widen the SSRF horizon for no benefit.",
+  "providers": {
+    "github_api": [
+      {"host": "api.github.com", "ports": [443]}
+    ]
+  }
+}

@@ -28,6 +28,13 @@ CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
 LIB_DIR="$SCRIPT_DIR/lib"
 TRAJECTORY_DIR="$PROJECT_ROOT/grimoires/loa/a2a/trajectory"
 
+# cycle-099 sprint-1E.c.3.b: route OpenAI embeddings call through the
+# centralized endpoint validator. Uses the shared loa-providers.json
+# allowlist (api.openai.com).
+# shellcheck source=lib/endpoint-validator.sh
+source "$LIB_DIR/endpoint-validator.sh"
+FLATLINE_PROVIDERS_ALLOWLIST="${LOA_FLATLINE_PROVIDERS_ALLOWLIST:-$LIB_DIR/allowlists/loa-providers.json}"
+
 # Default paths
 DEFAULT_INDEX_PATH="$PROJECT_ROOT/.claude/loa/learnings/index.json"
 DEFAULT_EMBEDDINGS_PATH="$PROJECT_ROOT/.claude/loa/learnings/embeddings.bin"
@@ -186,16 +193,22 @@ get_embedding() {
     truncated=$(echo "$text" | head -c 8000)
 
     local response
-    # SEC-AUDIT SEC-HIGH-01: Use curl config to avoid exposing API key in process list
+    # SEC-AUDIT SEC-HIGH-01: Use curl auth config to keep the API key out of
+    # process listings; SDD §1.9.1 (cycle-099 sprint-1E.c.3.b): the wrapper
+    # passes the auth tempfile via --config-auth (content-gated to header=
+    # lines only) so a tampered tempfile cannot smuggle url=/next= directives.
     local _curl_cfg
     _curl_cfg=$(write_curl_auth_config "Authorization" "Bearer ${OPENAI_API_KEY:-}") || {
         log_warning "Failed to create secure curl config"
         return 1
     }
     printf 'header = "Content-Type: application/json"\n' >> "$_curl_cfg"
-    response=$(curl -s --max-time 30 \
-        -X POST "https://api.openai.com/v1/embeddings" \
-        --config "$_curl_cfg" \
+    response=$(endpoint_validator__guarded_curl \
+        --allowlist "$FLATLINE_PROVIDERS_ALLOWLIST" \
+        --config-auth "$_curl_cfg" \
+        --url "https://api.openai.com/v1/embeddings" \
+        -s --max-time 30 \
+        -X POST \
         -d "$(jq -n --arg text "$truncated" --arg model "$EMBEDDING_MODEL" '{
             model: $model,
             input: $text,

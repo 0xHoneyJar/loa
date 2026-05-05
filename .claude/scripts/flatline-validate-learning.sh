@@ -32,6 +32,12 @@ LIB_DIR="$SCRIPT_DIR/lib"
 SCHEMA_DIR="$PROJECT_ROOT/.claude/schemas"
 TRAJECTORY_DIR="$PROJECT_ROOT/grimoires/loa/a2a/trajectory"
 
+# cycle-099 sprint-1E.c.3.b: source the centralized endpoint validator so
+# both fallback curl paths (GPT + Opus validators) funnel through guarded_curl.
+# shellcheck source=lib/endpoint-validator.sh
+source "$LIB_DIR/endpoint-validator.sh"
+FLATLINE_PROVIDERS_ALLOWLIST="${LOA_FLATLINE_PROVIDERS_ALLOWLIST:-$LIB_DIR/allowlists/loa-providers.json}"
+
 # Source utilities
 if [[ -f "$LIB_DIR/api-resilience.sh" ]]; then
     source "$LIB_DIR/api-resilience.sh"
@@ -256,16 +262,20 @@ call_gpt_validation() {
                 max_tokens: 300
             }')" "$TIMEOUT_SECONDS")
     else
-        # SEC-AUDIT SEC-HIGH-01: Use curl config to avoid exposing API key in process list
+        # SEC-AUDIT SEC-HIGH-01 + cycle-099 sprint-1E.c.3.b: auth tempfile +
+        # endpoint_validator__guarded_curl for SSRF allowlist enforcement.
         local _curl_cfg
         _curl_cfg=$(write_curl_auth_config "Authorization" "Bearer ${OPENAI_API_KEY:-}") || {
             log_error "Failed to create secure curl config"
             return 4
         }
         printf 'header = "Content-Type: application/json"\n' >> "$_curl_cfg"
-        response=$(curl -s --max-time "$TIMEOUT_SECONDS" \
-            -X POST "${OPENAI_API_BASE:-https://api.openai.com}/v1/chat/completions" \
-            --config "$_curl_cfg" \
+        response=$(endpoint_validator__guarded_curl \
+            --allowlist "$FLATLINE_PROVIDERS_ALLOWLIST" \
+            --config-auth "$_curl_cfg" \
+            --url "${OPENAI_API_BASE:-https://api.openai.com}/v1/chat/completions" \
+            -s --max-time "$TIMEOUT_SECONDS" \
+            -X POST \
             -d "$(jq -n --arg prompt "$prompt" --arg model "$GPT_MODEL" '{
                 model: $model,
                 messages: [{role: "user", content: $prompt}],
@@ -324,7 +334,8 @@ call_opus_validation() {
     fi
 
     local response
-    # SEC-AUDIT SEC-HIGH-01: Use curl config to avoid exposing API key in process list
+    # SEC-AUDIT SEC-HIGH-01 + cycle-099 sprint-1E.c.3.b: auth tempfile +
+    # endpoint_validator__guarded_curl for SSRF allowlist enforcement.
     local _curl_cfg
     _curl_cfg=$(write_curl_auth_config "x-api-key" "${ANTHROPIC_API_KEY:-}") || {
         log_error "Failed to create secure curl config"
@@ -332,9 +343,12 @@ call_opus_validation() {
     }
     printf 'header = "Content-Type: application/json"\n' >> "$_curl_cfg"
     printf 'header = "anthropic-version: 2023-06-01"\n' >> "$_curl_cfg"
-    response=$(curl -s --max-time "$TIMEOUT_SECONDS" \
-        -X POST "https://api.anthropic.com/v1/messages" \
-        --config "$_curl_cfg" \
+    response=$(endpoint_validator__guarded_curl \
+        --allowlist "$FLATLINE_PROVIDERS_ALLOWLIST" \
+        --config-auth "$_curl_cfg" \
+        --url "https://api.anthropic.com/v1/messages" \
+        -s --max-time "$TIMEOUT_SECONDS" \
+        -X POST \
         -d "$(jq -n --arg prompt "$prompt" --arg model "$OPUS_MODEL" '{
             model: $model,
             max_tokens: 300,

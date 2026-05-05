@@ -51,6 +51,12 @@ if [[ -f "$SCRIPT_DIR/lib-security.sh" ]]; then
     source "$SCRIPT_DIR/lib-security.sh"
 fi
 
+# cycle-099 sprint-1E.c.3.b: pack + skill download via endpoint validator
+# with the constructs registry allowlist (api.constructs.network).
+# shellcheck source=lib/endpoint-validator.sh
+source "$SCRIPT_DIR/lib/endpoint-validator.sh"
+CONSTRUCTS_REGISTRY_ALLOWLIST="${LOA_CONSTRUCTS_REGISTRY_ALLOWLIST:-$SCRIPT_DIR/lib/allowlists/loa-registry.json}"
+
 # =============================================================================
 # Exit Codes
 # =============================================================================
@@ -508,18 +514,21 @@ do_install_pack() {
     # Disable command tracing during API call to prevent key leakage
     { set +x; } 2>/dev/null || true
 
-    # SHELL-002: Use write_curl_auth_config to prevent header injection
+    # SHELL-002 + cycle-099 sprint-1E.c.3.b: auth tempfile + endpoint validator.
     local auth_config
     auth_config=$(write_curl_auth_config "Authorization" "Bearer $api_key") || {
         rm -f "$tmp_file"
         print_error "ERROR: Failed to create secure auth config"
         return $EXIT_AUTH_ERROR
     }
-    # HIGH-002 FIX: Enforce HTTPS and TLS 1.2+
-    http_code=$(curl -s -w "%{http_code}" --proto =https --tlsv1.2 --max-time 300 \
-        --config "$auth_config" \
+    # HIGH-002: --tlsv1.2 enforces minimum TLS version. Wrapper supplies
+    # --proto =https / --proto-redir =https / --max-redirs 10 hardened defaults.
+    http_code=$(endpoint_validator__guarded_curl \
+        --allowlist "$CONSTRUCTS_REGISTRY_ALLOWLIST" \
+        --config-auth "$auth_config" \
+        --url "$registry_url/packs/$pack_slug/download" \
+        -s -w "%{http_code}" --tlsv1.2 --max-time 300 \
         -H "Accept: application/json" \
-        "$registry_url/packs/$pack_slug/download" \
         -o "$tmp_file" 2>/dev/null) || {
         rm -f "$auth_config" "$tmp_file"
         print_error "ERROR: Network error while downloading pack"
@@ -847,18 +856,21 @@ do_install_skill() {
     # Disable command tracing during API call to prevent key leakage
     { set +x; } 2>/dev/null || true
 
-    # SHELL-002: Use write_curl_auth_config to prevent header injection
+    # SHELL-002 + cycle-099 sprint-1E.c.3.b: auth tempfile + endpoint validator.
     local auth_config
     auth_config=$(write_curl_auth_config "Authorization" "Bearer $api_key") || {
         rm -f "$tmp_file"
         print_error "ERROR: Failed to create secure auth config"
         return $EXIT_AUTH_ERROR
     }
-    # HIGH-002 FIX: Enforce HTTPS and TLS 1.2+
-    http_code=$(curl -s -w "%{http_code}" --proto =https --tlsv1.2 --max-time 300 \
-        --config "$auth_config" \
+    # HIGH-002: --tlsv1.2 minimum TLS version. Wrapper supplies https-only
+    # + redirect-bound enforcement.
+    http_code=$(endpoint_validator__guarded_curl \
+        --allowlist "$CONSTRUCTS_REGISTRY_ALLOWLIST" \
+        --config-auth "$auth_config" \
+        --url "$registry_url/skills/$skill_slug/download" \
+        -s -w "%{http_code}" --tlsv1.2 --max-time 300 \
         -H "Accept: application/json" \
-        "$registry_url/skills/$skill_slug/download" \
         -o "$tmp_file" 2>/dev/null) || {
         rm -f "$auth_config" "$tmp_file"
         print_error "ERROR: Network error while downloading skill"

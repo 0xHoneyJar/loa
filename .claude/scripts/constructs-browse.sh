@@ -38,6 +38,13 @@ else
     exit 6
 fi
 
+# cycle-099 sprint-1E.c.3.b: registry GETs (with + without auth) funnel
+# through endpoint_validator__guarded_curl using the loa-registry.json
+# allowlist (api.constructs.network).
+# shellcheck source=lib/endpoint-validator.sh
+source "$SCRIPT_DIR/lib/endpoint-validator.sh"
+CONSTRUCTS_REGISTRY_ALLOWLIST="${LOA_CONSTRUCTS_REGISTRY_ALLOWLIST:-$SCRIPT_DIR/lib/allowlists/loa-registry.json}"
+
 # Source security library (for write_curl_auth_config)
 if [[ -f "$SCRIPT_DIR/lib-security.sh" ]]; then
     source "$SCRIPT_DIR/lib-security.sh"
@@ -114,20 +121,27 @@ fetch_packs() {
         return 0
     fi
 
-    # Fetch from API - use unified /constructs endpoint
-    # SHELL-003: Use curl config file to avoid exposing API key in process list
+    # Fetch from API - use unified /constructs endpoint.
+    # SHELL-003 + cycle-099 sprint-1E.c.3.b: API key in auth tempfile (out
+    # of process listings); auth tempfile passed via --config-auth (content-
+    # gated to header= lines only); URL gated by allowlist.
     local curl_args=(-s -f)
+    local config_auth_arg=()
     local curl_config=""
     if [[ -n "$api_key" ]]; then
         curl_config=$(write_curl_auth_config "Authorization" "Bearer ${api_key}") || true
         if [[ -n "$curl_config" ]]; then
-            curl_args+=(--config "$curl_config")
+            config_auth_arg=(--config-auth "$curl_config")
         fi
     fi
 
     local response http_code
     # Capture both response and HTTP code
-    response=$(curl "${curl_args[@]}" -w "\n%{http_code}" "${registry_url}/constructs?type=pack" 2>/dev/null) || true
+    response=$(endpoint_validator__guarded_curl \
+        --allowlist "$CONSTRUCTS_REGISTRY_ALLOWLIST" \
+        ${config_auth_arg[@]+"${config_auth_arg[@]}"} \
+        --url "${registry_url}/constructs?type=pack" \
+        "${curl_args[@]}" -w "\n%{http_code}" 2>/dev/null) || true
     [[ -n "$curl_config" ]] && rm -f "$curl_config"
     http_code=$(echo "$response" | tail -n1)
     response=$(echo "$response" | sed '$d')
@@ -149,7 +163,10 @@ fetch_packs() {
     # constructs list endpoint is public and doesn't require auth
     if [[ -n "$api_key" ]] && [[ "$http_code" =~ ^(401|403|502|000)$ || -z "$http_code" ]]; then
         echo "  Auth failed (HTTP $http_code), retrying without credentials..." >&2
-        response=$(curl -s -f -w "\n%{http_code}" "${registry_url}/constructs?type=pack" 2>/dev/null) || true
+        response=$(endpoint_validator__guarded_curl \
+            --allowlist "$CONSTRUCTS_REGISTRY_ALLOWLIST" \
+            --url "${registry_url}/constructs?type=pack" \
+            -s -f -w "\n%{http_code}" 2>/dev/null) || true
         http_code=$(echo "$response" | tail -n1)
         response=$(echo "$response" | sed '$d')
 
@@ -196,18 +213,23 @@ fetch_pack_info() {
     local api_key
     api_key=$(get_api_key 2>/dev/null || echo "")
 
-    # SHELL-003: Use curl config file to avoid exposing API key in process list
+    # SHELL-003 + cycle-099 sprint-1E.c.3.b: auth tempfile + endpoint validator.
     local curl_args=(-s -f)
+    local config_auth_arg=()
     local curl_config=""
     if [[ -n "$api_key" ]]; then
         curl_config=$(write_curl_auth_config "Authorization" "Bearer ${api_key}") || true
         if [[ -n "$curl_config" ]]; then
-            curl_args+=(--config "$curl_config")
+            config_auth_arg=(--config-auth "$curl_config")
         fi
     fi
 
     local response http_code
-    response=$(curl "${curl_args[@]}" -w "\n%{http_code}" "${registry_url}/constructs/${slug}" 2>/dev/null) || true
+    response=$(endpoint_validator__guarded_curl \
+        --allowlist "$CONSTRUCTS_REGISTRY_ALLOWLIST" \
+        ${config_auth_arg[@]+"${config_auth_arg[@]}"} \
+        --url "${registry_url}/constructs/${slug}" \
+        "${curl_args[@]}" -w "\n%{http_code}" 2>/dev/null) || true
     [[ -n "$curl_config" ]] && rm -f "$curl_config"
     http_code=$(echo "$response" | tail -n1)
     response=$(echo "$response" | sed '$d')
@@ -221,7 +243,10 @@ fetch_pack_info() {
     # The constructs detail endpoint is public and doesn't require auth
     if [[ -n "$api_key" ]] && [[ "$http_code" =~ ^(401|403|502|000)$ || -z "$http_code" ]]; then
         echo "  Auth failed (HTTP $http_code), retrying without credentials..." >&2
-        response=$(curl -s -f -w "\n%{http_code}" "${registry_url}/constructs/${slug}" 2>/dev/null) || true
+        response=$(endpoint_validator__guarded_curl \
+            --allowlist "$CONSTRUCTS_REGISTRY_ALLOWLIST" \
+            --url "${registry_url}/constructs/${slug}" \
+            -s -f -w "\n%{http_code}" 2>/dev/null) || true
         http_code=$(echo "$response" | tail -n1)
         response=$(echo "$response" | sed '$d')
 
