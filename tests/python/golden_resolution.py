@@ -140,9 +140,13 @@ def main() -> int:
         try:
             with fixture_path.open("r", encoding="utf-8") as f:
                 doc = yaml.safe_load(f) or {}
-        except yaml.YAMLError as exc:
+        except yaml.YAMLError:
+            # BB iter-1 F3 fix: emit a uniform error marker (no exception
+            # text) so all 3 runners produce byte-identical output on the
+            # malformed-YAML path. The exception text varies by PyYAML
+            # version + line number, breaking cross-runtime parity.
             _emit({
-                "error": f"yaml-parse-failed: {exc}",
+                "error": "yaml-parse-failed",
                 "fixture": fixture_name,
                 "subset_supported": False,
             })

