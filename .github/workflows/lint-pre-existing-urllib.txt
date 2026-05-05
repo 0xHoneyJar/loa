@@ -1,0 +1,3 @@
+.claude/adapters/loa_cheval/providers/bedrock_adapter.py
+.claude/adapters/tests/test_bedrock_redaction_adversarial.py
+tests/fixtures/mock_server.py
