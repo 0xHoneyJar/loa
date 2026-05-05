@@ -14,6 +14,7 @@ on:
       - '.claude/adapters/loa_cheval/codegen/**'
       - '.claude/skills/bridgebuilder-review/resources/lib/endpoint-validator.generated.ts'
       - 'tests/integration/endpoint-validator-ts-parity.bats'
+      - 'tests/fixtures/endpoint-validator/**'
       - '.github/workflows/cycle099-sprint-1e-c-ts-tests.yml'
   push:
     branches: [main]
@@ -23,6 +24,7 @@ on:
       - '.claude/adapters/loa_cheval/codegen/**'
       - '.claude/skills/bridgebuilder-review/resources/lib/endpoint-validator.generated.ts'
       - 'tests/integration/endpoint-validator-ts-parity.bats'
+      - 'tests/fixtures/endpoint-validator/**'
       - '.github/workflows/cycle099-sprint-1e-c-ts-tests.yml'
 
 permissions:
