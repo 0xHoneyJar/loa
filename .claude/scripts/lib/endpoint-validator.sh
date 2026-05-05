@@ -314,15 +314,36 @@ endpoint_validator__guarded_curl() {
     # attempt fails fast without burning a Python subprocess on rejection
     # path. (URL validation must precede this so allowlist/config-auth
     # parse errors don't leak into the smuggling-scan error path.)
+    #
+    # Vectors covered:
+    #   - --config / -K (and all glued forms `--config=path`, `-K=path`,
+    #     `-Kpath`): caller-supplied curl-config files can carry url=/next=/
+    #     output= directives that smuggle past the allowlist. Caller MUST
+    #     use the wrapper's --config-auth flag instead, which content-gates
+    #     the file.
+    #   - --next / -:: resets curl URL state, allowing a config-supplied
+    #     second URL to escape the allowlist via "operation reset".
+    #   - Naked positional URLs (`https://...` / `http://...` as a
+    #     standalone arg): curl treats unattached positionals as ADDITIONAL
+    #     URLs to fetch, alongside our validated --url. A caller passing
+    #     `endpoint_validator__guarded_curl ... --url https://valid.com https://evil.com`
+    #     would have curl fetch BOTH. Strict reject of any `^https?://`
+    #     positional. Note: this is too strict for the rare case of
+    #     `--data-urlencode https://x` (URL as flag value) — callers
+    #     needing that should base64-encode or use `--data` with a tempfile.
     local _arg
     for _arg in "$@"; do
         case "$_arg" in
-            --config|--config=*|-K|-K=*)
+            --config|--config=*|-K|-K?*)
                 printf '[ENDPOINT-VALIDATOR-CONFIG-FLAG-REJECTED] caller passed %q; use --config-auth (the wrapper inspects it for url=/next= smuggling)\n' "$_arg" >&2
                 return 64
                 ;;
             --next|-:)
                 printf '[ENDPOINT-VALIDATOR-NEXT-FLAG-REJECTED] caller passed %q; --next/-: resets curl URL state and bypasses our allowlist (sprint-1E.c.3.a)\n' "$_arg" >&2
+                return 64
+                ;;
+            [Hh][Tt][Tt][Pp]://*|[Hh][Tt][Tt][Pp][Ss]://*)
+                printf '[ENDPOINT-VALIDATOR-POSITIONAL-URL-REJECTED] caller passed URL-shaped arg %q; curl would treat it as an additional URL to fetch, bypassing the allowlist (use --url for THE URL; encode any data-value URLs differently)\n' "$_arg" >&2
                 return 64
                 ;;
         esac

