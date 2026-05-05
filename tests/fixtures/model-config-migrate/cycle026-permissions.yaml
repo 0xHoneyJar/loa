@@ -1,0 +1,24 @@
+# Mini cycle-026 model-permissions.yaml fixture — used by T1.14 test to
+# verify the merge-into-permissions-block migration path.
+model_permissions:
+  "openai:gpt-5.5":
+    trust_level: medium
+    trust_scopes:
+      data_access: medium
+      financial: none
+      delegation: limited
+      model_selection: medium
+      governance: none
+      external_communication: medium
+      context_access:
+        architecture: summary
+        business_logic: summary
+        security: redacted
+        lore: summary
+    execution_mode: api_call
+    capabilities:
+      file_read: false
+      file_write: false
+      command_execution: false
+      network_access: true
+    notes: "Test fixture — minimal cycle-026 entry."

@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loa.dev/schemas/model-config-v2.schema.json",
+  "title": "Loa model-config.yaml v2",
+  "description": "cycle-099 Sprint 1 v2 schema. Sprint 1 ships the structural shape (schema_version=2, archived/unknown namespaces, per-model permissions block per DD-1 Option B). Strict at every level: additionalProperties:false everywhere; operator-injected unknown keys MUST be swept into _unknown_v1_fields by the migrator (or rejected). Sprint 2/3 will tighten provider/alias/tier_groups vocabulary as those features land.",
+  "type": "object",
+  "required": ["schema_version", "providers"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 2,
+      "description": "Locked to integer 2 in cycle-099. Older configs go through loa-migrate-model-config.py first."
+    },
+    "providers": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/providerEntry"}
+    },
+    "aliases": {
+      "type": "object",
+      "additionalProperties": {"type": "string"}
+    },
+    "backward_compat_aliases": {
+      "type": "object",
+      "additionalProperties": {"type": "string"}
+    },
+    "agents": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/agentBinding"}
+    },
+    "tier_groups": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mappings": {"type": "object"},
+        "denylist": {"type": "array", "items": {"type": "string"}},
+        "max_cost_per_session_micro_usd": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
+    "routing": {"type": "object"},
+    "retry": {"type": "object"},
+    "metering": {"type": "object"},
+    "defaults": {"type": "object"},
+    "_archived_v1_fields": {
+      "type": "object",
+      "description": "Top-level namespace for fields removed in v2 but preserved verbatim by loa-migrate-model-config. Operators MAY review and delete; loader ignores."
+    },
+    "_unknown_v1_fields": {
+      "type": "object",
+      "description": "Top-level namespace for v1 keys not recognized by the migrator (e.g., operator experimental fields). Loader ignores; operator should re-place into v2 schema if still needed."
+    }
+  },
+  "$defs": {
+    "providerEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Cycle-095 production field surface enumerated explicitly. Operator extensions go through .loa.config.yaml::model_aliases_extra, not by extending this schema.",
+      "properties": {
+        "type": {"type": "string"},
+        "endpoint": {"type": "string"},
+        "auth": {"type": "string"},
+        "auth_modes": {"type": "array", "items": {"type": "string"}},
+        "compliance_profile": {"type": ["string", "null"]},
+        "connect_timeout": {"type": "number"},
+        "read_timeout": {"type": "number"},
+        "region_default": {"type": "string"},
+        "models": {
+          "type": "object",
+          "additionalProperties": {"$ref": "#/$defs/modelEntry"}
+        }
+      }
+    },
+    "modelEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "capabilities": {"type": "array", "items": {"type": "string"}},
+        "context_window": {
+          "type": "integer",
+          "minimum": 1024,
+          "description": "v2 minimum 1024 (SDD §3.1.1.1 unit test corpus). v1 entries below this fail post-migration validation with [MIGRATION-PRODUCED-INVALID-V2]."
+        },
+        "token_param": {"type": "string"},
+        "endpoint_family": {
+          "type": "string",
+          "enum": ["chat", "responses"],
+          "description": "cycle-095 Sprint 1 (SDD §3.4): REQUIRED on every OpenAI registry entry. Carried forward verbatim from v1."
+        },
+        "api_format": {
+          "description": "String shorthand or per-capability mapping (cycle-095 bedrock pattern: {chat: converse, tools: converse, ...}).",
+          "type": ["string", "object"]
+        },
+        "api_mode": {"type": "string"},
+        "params": {"type": "object"},
+        "extra": {"type": "object"},
+        "pricing": {"type": "object"},
+        "permissions": {"$ref": "#/$defs/permissionsBlock"},
+        "fallback_to": {"type": "string"},
+        "fallback_mapping_version": {"type": "integer"},
+        "fallback_chain": {"type": "array", "items": {"type": "string"}},
+        "available_until": {"type": "string"},
+        "deprecated_since": {"type": "string"},
+        "notes": {"type": "string"},
+        "_archived_v1_fields": {
+          "type": "object",
+          "description": "Per-model namespace where loa-migrate-model-config archives legacy keys when both legacy + renamed forms coexist (e.g., endpoint_class + endpoint_family)."
+        }
+      }
+    },
+    "permissionsBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "DD-1 Option B per-model permissions block. Optional in cycle-099 v2 (Sprint 3 lands the migration that populates it from cycle-026 model-permissions.yaml). Becomes required in cycle-100+. Field-level vocabulary (`trust_level` enum, `trust_scopes` shape) is intentionally permissive in Sprint 1; Sprint 3 tightens once DD-1 Option B's authoritative vocabulary is locked.",
+      "properties": {
+        "trust_level": {"type": "string"},
+        "trust_scopes": {"type": "object"},
+        "execution_mode": {"type": "string"},
+        "capabilities": {"type": "object"},
+        "notes": {"type": "string"}
+      }
+    },
+    "agentBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "model": {
+          "type": "string",
+          "not": {"enum": ["max", "cheap", "mid", "tiny"]},
+          "description": "Custom alias name (resolves via aliases / backward_compat_aliases). Tier-tag values (max/cheap/mid/tiny) belong under default_tier; the migrator renames them automatically. A v2 file with model:<tier-tag> fails validation."
+        },
+        "default_tier": {
+          "type": "string",
+          "enum": ["max", "cheap", "mid", "tiny"],
+          "description": "v2 tier-tag binding. The migrator renames v1 `agents.<skill>.model: <tier>` → `agents.<skill>.default_tier: <tier>` when the value is one of {max, cheap, mid, tiny}."
+        },
+        "temperature": {"type": "number"},
+        "requires": {"type": "object"}
+      },
+      "not": {
+        "required": ["model", "default_tier"],
+        "description": "An agent binding may have `model:` OR `default_tier:` but not both. Sprint 2 loader resolves either via tier_groups.mappings."
+      }
+    }
+  }
+}

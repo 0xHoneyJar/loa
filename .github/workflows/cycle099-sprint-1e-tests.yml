@@ -1,0 +1,109 @@
+name: cycle-099 Sprint 1E hardening primitives
+
+# cycle-099 Sprint 1E (T1.13 + T1.14) — runs the bats integration tests for
+# the log-redactor (Python + bash twin) and the migrate-model-config CLI.
+# Both tests need Python deps that aren't on the default GitHub runner image:
+#   - ruamel.yaml (round-trip YAML for the migration CLI)
+#   - jsonschema  (post-migration v2 schema validation)
+
+on:
+  pull_request:
+    paths:
+      - '.claude/scripts/lib/log-redactor.py'
+      - '.claude/scripts/lib/log-redactor.sh'
+      - '.claude/scripts/lib/model-config-migrate.py'
+      - '.claude/scripts/loa-migrate-model-config.py'
+      - '.claude/data/schemas/model-config-v2.schema.json'
+      - 'tests/integration/log-redactor-cross-runtime.bats'
+      - 'tests/integration/migrate-model-config.bats'
+      - 'tests/fixtures/model-config-migrate/**'
+      - '.github/workflows/cycle099-sprint-1e-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.claude/scripts/lib/log-redactor.py'
+      - '.claude/scripts/lib/log-redactor.sh'
+      - '.claude/scripts/lib/model-config-migrate.py'
+      - '.claude/scripts/loa-migrate-model-config.py'
+      - '.claude/data/schemas/model-config-v2.schema.json'
+      - 'tests/integration/log-redactor-cross-runtime.bats'
+      - 'tests/integration/migrate-model-config.bats'
+      - 'tests/fixtures/model-config-migrate/**'
+      - '.github/workflows/cycle099-sprint-1e-tests.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cycle099-sprint-1e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hardening-primitives:
+    name: T1.13 log-redactor + T1.14 migrate-model-config CLI
+    runs-on: ubuntu-latest
+    steps:
+      # PINNING: SHA verified against actions/checkout v4.3.1 tag
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      # PINNING: SHA matches the actions/setup-python v5.3.0 pin used by
+      # jcs-conformance.yml and bedrock-contract-smoke.yml. Rotate together.
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: '3.13'
+
+      - name: Install Python deps (ruamel.yaml + jsonschema)
+        run: |
+          python -m pip install --upgrade pip
+          # Pinned versions match what's in .venv on the maintainer workstation.
+          # ruamel.yaml is the migrate CLI's structure-preserving YAML lib;
+          # jsonschema runs post-migration v2 validation per AC-S1.11.
+          pip install 'ruamel.yaml==0.18.17' 'jsonschema==4.26.0'
+
+      # PINNING: bats-core v1.13.0 — commit SHA verified after clone (mirrors
+      # bats-tests.yml). Keep these two pin sites in sync when rotating.
+      - name: Install bats-core v1.13.0
+        run: |
+          git clone --branch v1.13.0 --depth 1 https://github.com/bats-core/bats-core.git /tmp/bats-core
+          cd /tmp/bats-core
+          expected="3bca150ec86275d6d9d5a4fd7d48ab8b6c6f3d87"
+          actual=$(git rev-parse HEAD)
+          if [ "$actual" != "$expected" ]; then
+            echo "ERROR: bats-core commit SHA mismatch — expected $expected, got $actual"
+            exit 1
+          fi
+          sudo ./install.sh /usr/local
+          bats --version
+
+      - name: Run log-redactor cross-runtime parity tests (T1.13)
+        run: bats tests/integration/log-redactor-cross-runtime.bats
+
+      - name: Run migrate-model-config CLI tests (T1.14)
+        run: bats tests/integration/migrate-model-config.bats
+
+      - name: Smoke test — migrate the production cycle-095 yaml
+        run: |
+          # Defense in depth: even if the unit/integration tests pass on
+          # synthetic fixtures, the migrator MUST handle the real cycle-095
+          # SoT without rejecting valid v1 input. AC-S1.11 verification.
+          python .claude/scripts/loa-migrate-model-config.py \
+              .claude/defaults/model-config.yaml \
+              -o /tmp/migrated.yaml \
+              --model-permissions .claude/data/model-permissions.yaml \
+              --report-format json
+          # Independent post-migration v2 schema validation
+          python - <<'PY'
+          import json, sys
+          import jsonschema
+          from ruamel.yaml import YAML
+          y = YAML(typ='safe')
+          with open('/tmp/migrated.yaml') as f:
+              data = y.load(f)
+          with open('.claude/data/schemas/model-config-v2.schema.json') as f:
+              schema = json.load(f)
+          jsonschema.Draft202012Validator(schema).validate(data)
+          if data.get('schema_version') != 2:
+              print('ERROR: migrated file missing schema_version: 2', file=sys.stderr)
+              sys.exit(1)
+          print('Smoke test: migrated production yaml passes v2 schema validation')
+          PY

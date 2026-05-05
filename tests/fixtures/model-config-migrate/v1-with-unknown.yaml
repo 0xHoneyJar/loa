@@ -1,0 +1,15 @@
+# v1 with operator-added experimental top-level field — should be archived under
+# `_unknown_v1_fields:` for operator review.
+providers:
+  openai:
+    type: openai
+    endpoint: "https://api.openai.com/v1"
+    models:
+      gpt-5.5:
+        capabilities: [chat]
+        context_window: 200000
+        endpoint_family: chat
+
+experimental_routing:
+  strategy: round_robin
+  shadow_mode: true
