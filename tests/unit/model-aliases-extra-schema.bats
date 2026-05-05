@@ -27,15 +27,30 @@ setup() {
     VALIDATOR_PY="$PROJECT_ROOT/.claude/scripts/lib/validate-model-aliases-extra.py"
     VALIDATOR_SH="$PROJECT_ROOT/.claude/scripts/lib/validate-model-aliases-extra.sh"
 
-    [[ -f "$SCHEMA" ]] || skip "schema not present"
-    [[ -f "$VALIDATOR_PY" ]] || skip "Python validator not present"
-    [[ -f "$VALIDATOR_SH" ]] || skip "bash wrapper not present"
+    # BB iter-2 F9: HARD-FAIL on the files this PR ships (schema +
+    # validator). Skip-on-missing was masking CI regressions where a refactor
+    # could rename/move these and silently skip every test in the file.
+    [[ -f "$SCHEMA" ]] || {
+        printf 'FATAL: schema not present at %s — Sprint 2A invariant broken\n' "$SCHEMA" >&2
+        return 1
+    }
+    [[ -f "$VALIDATOR_PY" ]] || {
+        printf 'FATAL: Python validator not present at %s — Sprint 2A invariant broken\n' "$VALIDATOR_PY" >&2
+        return 1
+    }
+    [[ -f "$VALIDATOR_SH" ]] || {
+        printf 'FATAL: bash wrapper not present at %s — Sprint 2A invariant broken\n' "$VALIDATOR_SH" >&2
+        return 1
+    }
 
     if [[ -x "$PROJECT_ROOT/.venv/bin/python" ]]; then
         PYTHON_BIN="$PROJECT_ROOT/.venv/bin/python"
     else
         PYTHON_BIN="${PYTHON_BIN:-python3}"
     fi
+    # Skip-on-missing for OPTIONAL deps (jsonschema/pyyaml may not be in
+    # ambient python3; cheval venv is preferred). Operators running locally
+    # without venv can still skip cleanly.
     "$PYTHON_BIN" -c "import jsonschema, yaml" 2>/dev/null \
         || skip "jsonschema + pyyaml not available in $PYTHON_BIN"
 
@@ -835,8 +850,9 @@ EOF
 # so concurrent test runs don't share state and stale files from prior
 # failures can't mask current exploits.
 @test "E31 reject: !!python/object payload (yaml.safe_load contract pin — cypherpunk L6)" {
-    local pwned_path="$WORK_DIR/e31-pwned-$$"
-    rm -f "$pwned_path"  # belt-and-suspenders: ensure we start clean
+    # BB iter-2 F2: $WORK_DIR is already per-test (mktemp -d); $$ suffix
+    # was redundant. Drop it.
+    local pwned_path="$WORK_DIR/e31-pwned"
     # Unquoted heredoc so $pwned_path is interpolated into the YAML payload.
     cat > "$WORK_DIR/e31.yaml" <<EOF
 model_aliases_extra:
@@ -851,15 +867,104 @@ model_aliases_extra:
       acknowledge_permissions_baseline: true
 EOF
     run "$VALIDATOR_PY" --config "$WORK_DIR/e31.yaml" --quiet
-    # safe_load throws YAMLError → EXIT_USAGE (64). Pin that contract.
-    [[ "$status" -eq 64 || "$status" -eq 78 ]] || {
-        printf '!!python/object MUST not load; got=%d\n' "$status" >&2
+    # BB iter-2 F3: tighten to exact exit-code pin. safe_load on
+    # !!python/object MUST raise YAMLError → EX_USAGE (64). Allowing 78
+    # would mask a regression where the YAML parsed (gadget chain fired)
+    # and the schema then rejected the result with 78.
+    [[ "$status" -eq 64 ]] || {
+        printf '!!python/object MUST exit 64 (YAMLError path); got=%d\n' "$status" >&2
         return 1
     }
     # Sanity: side-effect (file creation) MUST NOT have happened. The
-    # path is per-test ($WORK_DIR + $$) so a positive result is genuine.
+    # path is per-test ($WORK_DIR) so a positive result is genuine.
     [[ ! -f "$pwned_path" ]] || {
         printf 'CRITICAL: !!python/object payload executed and created %s!\n' "$pwned_path" >&2
+        return 1
+    }
+}
+
+# BB iter-2 F6: reject duplicate ids within entries[]. JSON Schema can't
+# dedupe by inner key natively; Python-side post-validation check fires.
+@test "E32 reject: duplicate id within entries[] (BB F6)" {
+    cat > "$WORK_DIR/e32.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: shadow
+      provider: openai
+      api_id: foo
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+    - id: shadow
+      provider: anthropic
+      api_id: bar
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e32.yaml" --quiet
+    [[ "$status" -eq 78 ]] || {
+        printf 'duplicate id MUST be rejected; got=%d\n' "$status" >&2
+        return 1
+    }
+}
+
+# BB iter-2 F7: pin pricing minimum:0 — explicitly reject negative values.
+@test "E33 reject: negative pricing.input_per_mtok (BB F7)" {
+    cat > "$WORK_DIR/e33.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: foo
+      provider: openai
+      api_id: foo
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: -1, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e33.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+@test "E33b reject: negative pricing.output_per_mtok (BB F7)" {
+    cat > "$WORK_DIR/e33b.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: foo
+      provider: openai
+      api_id: foo
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: -200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e33b.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+# BB iter-2 F4: --no-collision-check MUST suppress ONLY collision detection,
+# not other schema validation. Pin via mixed-violation fixture.
+@test "E34 --no-collision-check still rejects schema-invalid entries (BB F4)" {
+    cat > "$WORK_DIR/e34.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: claude-opus-4-7
+      provider: azure
+      api_id: foo
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e34.yaml" --no-collision-check --quiet
+    [[ "$status" -eq 78 ]] || {
+        printf '--no-collision-check should suppress collision only, not schema validation; got=%d\n' "$status" >&2
         return 1
     }
 }

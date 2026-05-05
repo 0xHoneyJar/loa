@@ -167,6 +167,40 @@ def _load_framework_default_ids(framework_yaml: Path | None = None) -> set[str]:
     return ids
 
 
+def _check_duplicate_ids(block: Any) -> list[dict[str, Any]]:
+    """BB iter-2 F6: reject duplicate `id` values within `entries[]`.
+
+    JSON Schema doesn't natively dedupe array elements by an inner key, so
+    we add a Python-side post-validation pass. Operator-shadowing of two
+    entries with the same `id` would create non-deterministic resolution
+    downstream (whichever entry happens to win the dict-merge wins).
+    """
+    if not isinstance(block, dict):
+        return []
+    entries = block.get("entries", [])
+    if not isinstance(entries, list):
+        return []
+    seen: dict[str, int] = {}
+    errors: list[dict[str, Any]] = []
+    for idx, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            continue
+        entry_id = entry.get("id")
+        if not isinstance(entry_id, str):
+            continue
+        if entry_id in seen:
+            errors.append({
+                "path": f"entries/{idx}/id",
+                "message": f"id {entry_id!r} duplicates entry #{seen[entry_id]}; "
+                           "each id MUST be unique within entries[]",
+                "validator": "[MODEL-EXTRA-DUPLICATE-ID]",
+                "validator_value": "uniqueness_check",
+            })
+        else:
+            seen[entry_id] = idx
+    return errors
+
+
 def _check_collisions(block: Any, framework_ids: set[str]) -> list[dict[str, Any]]:
     """cypherpunk H3 / IMP-004 — reject entries whose `id` collides with a
     framework-default ID. Operators wanting to MODIFY a framework default
@@ -220,6 +254,8 @@ def validate(
     validator = jsonschema.Draft202012Validator(schema)
     schema_errors = sorted(validator.iter_errors(block), key=lambda e: e.absolute_path)
     errors = _format_validation_errors(schema_errors)
+    # BB iter-2 F6: duplicate-id check (always on; not gated by --no-collision-check)
+    errors.extend(_check_duplicate_ids(block))
     if framework_ids is not None:
         errors.extend(_check_collisions(block, framework_ids))
     return (len(errors) == 0), errors, True
