@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -81,6 +82,9 @@ def _load_config(path: Path) -> dict[str, Any]:
         return yaml.safe_load(f) or {}
 
 
+_BLOCK_PATH_RE = re.compile(r"^\.?[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$")
+
+
 def _extract_block(config: dict[str, Any], block_path: str) -> Any:
     """Extract the model_aliases_extra block from the config.
 
@@ -88,11 +92,21 @@ def _extract_block(config: dict[str, Any], block_path: str) -> Any:
     supported path is `.model_aliases_extra` — top-level. Future Sprint 2
     integrations may pass a different path if the loader nests the block
     under a parent key.
+
+    Path syntax (gp M2 fix — formerly silently swallowed malformed paths):
+      Optional leading dot, then one or more identifier segments separated
+      by single dots. Identifiers are Python-shaped: letter or underscore
+      followed by letters/digits/underscores. Empty paths, multiple leading
+      dots, trailing dots, embedded double-dots all REJECTED with ValueError.
     """
-    # Strip leading dot if present (jq-style).
+    if not isinstance(block_path, str):
+        raise ValueError(f"--block must be a string; got {type(block_path).__name__}")
+    if not _BLOCK_PATH_RE.fullmatch(block_path):
+        raise ValueError(
+            f"--block path {block_path!r} is malformed; expected `.field` or "
+            "`.parent.child` with identifier segments [A-Za-z_][A-Za-z0-9_]*"
+        )
     path = block_path.lstrip(".")
-    if not path:
-        return config
     parts = path.split(".")
     cursor: Any = config
     for part in parts:
@@ -118,23 +132,97 @@ def _format_validation_errors(errors: list[jsonschema.ValidationError]) -> list[
     return out
 
 
+def _load_framework_default_ids(framework_yaml: Path | None = None) -> set[str]:
+    """cypherpunk H3 / IMP-004: load framework-default model IDs so we can
+    reject `model_aliases_extra` entries that collide with framework-shipped
+    IDs. Per SDD §3.3: `model_aliases_extra` ADDS new IDs (entries collide
+    with defaults → reject); `model_aliases_override` MODIFIES existing.
+
+    Returns the set of `id` keys under `providers.<p>.models.<id>` plus the
+    keys of the top-level `aliases:` map. When the framework YAML cannot be
+    located (test fixtures, --schema override, etc.), returns an empty set
+    and skips the collision check (logged via the caller's error list, not
+    via stderr).
+    """
+    path = framework_yaml or (_project_root() / ".claude" / "defaults" / "model-config.yaml")
+    if not path.is_file():
+        return set()
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            doc = yaml.safe_load(f) or {}
+    except (yaml.YAMLError, OSError):
+        return set()
+    ids: set[str] = set()
+    providers = doc.get("providers", {})
+    if isinstance(providers, dict):
+        for _provider, p_def in providers.items():
+            if not isinstance(p_def, dict):
+                continue
+            models = p_def.get("models", {})
+            if isinstance(models, dict):
+                ids.update(str(k) for k in models.keys())
+    aliases = doc.get("aliases", {})
+    if isinstance(aliases, dict):
+        ids.update(str(k) for k in aliases.keys())
+    return ids
+
+
+def _check_collisions(block: Any, framework_ids: set[str]) -> list[dict[str, Any]]:
+    """cypherpunk H3 / IMP-004 — reject entries whose `id` collides with a
+    framework-default ID. Operators wanting to MODIFY a framework default
+    use `model_aliases_override` (separate top-level field — Sprint 2B
+    scope); `model_aliases_extra` is for NEW IDs only.
+    """
+    if not isinstance(block, dict):
+        return []
+    entries = block.get("entries", [])
+    if not isinstance(entries, list):
+        return []
+    errors = []
+    for idx, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            continue
+        entry_id = entry.get("id")
+        if not isinstance(entry_id, str):
+            continue
+        if entry_id in framework_ids:
+            errors.append({
+                "path": f"entries/{idx}/id",
+                "message": f"id {entry_id!r} collides with a framework-default model_id; "
+                           f"use `model_aliases_override` to modify existing entries",
+                "validator": "[MODEL-EXTRA-COLLIDES-WITH-DEFAULT]",
+                "validator_value": "framework_default_collision_check",
+            })
+    return errors
+
+
 def validate(
     config: dict[str, Any],
     schema: dict[str, Any],
     block_path: str = ".model_aliases_extra",
-) -> tuple[bool, list[dict[str, Any]]]:
+    framework_ids: set[str] | None = None,
+) -> tuple[bool, list[dict[str, Any]], bool]:
     """Validate a config's model_aliases_extra block against the schema.
 
-    Returns (is_valid, errors). When the block is absent, returns
-    (True, []) — operator hasn't opted in to the extension surface, which
-    is the default state.
+    Returns (is_valid, errors, block_present). When the block is absent,
+    returns (True, [], False) — operator hasn't opted in to the extension
+    surface (default state). When present, runs schema validation AND the
+    cypherpunk H3 collision check against `framework_ids` if provided.
+
+    gp M3 fix: returning `block_present` lets Sprint 2B's loader skip
+    re-extracting the block. (Previously Sprint 2B would have to call
+    _extract_block separately to distinguish vacuous-success from
+    meaningful-success.)
     """
     block = _extract_block(config, block_path)
     if block is None:
-        return True, []
+        return True, [], False
     validator = jsonschema.Draft202012Validator(schema)
-    errors = sorted(validator.iter_errors(block), key=lambda e: e.absolute_path)
-    return (len(errors) == 0), _format_validation_errors(errors)
+    schema_errors = sorted(validator.iter_errors(block), key=lambda e: e.absolute_path)
+    errors = _format_validation_errors(schema_errors)
+    if framework_ids is not None:
+        errors.extend(_check_collisions(block, framework_ids))
+    return (len(errors) == 0), errors, True
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -149,6 +237,17 @@ def main(argv: list[str] | None = None) -> int:
         help="YAML path to the model_aliases_extra block (default: .model_aliases_extra)",
     )
     parser.add_argument("--schema", help="Override schema path (default: canonical)")
+    parser.add_argument(
+        "--framework-defaults",
+        help="Override framework defaults yaml path (default: .claude/defaults/model-config.yaml). "
+             "When set, entries colliding with framework default IDs are rejected per SDD §3.3.",
+    )
+    parser.add_argument(
+        "--no-collision-check",
+        action="store_true",
+        help="Skip the framework-defaults collision check (cypherpunk H3 / IMP-004). "
+             "Default OFF — operators should NOT use this; provided only for Sprint 2B integration tests.",
+    )
     parser.add_argument("--json", action="store_true", help="Emit JSON output")
     parser.add_argument("--quiet", action="store_true", help="Suppress stdout")
     args = parser.parse_args(argv)
@@ -182,13 +281,22 @@ def main(argv: list[str] | None = None) -> int:
         print(f"validate-model-aliases-extra: YAML parse failed for {config_path}: {exc}", file=sys.stderr)
         return EXIT_USAGE
 
-    valid, errors = validate(config, schema, args.block)
+    framework_ids: set[str] | None = None
+    if not args.no_collision_check:
+        fw_path = Path(args.framework_defaults) if args.framework_defaults else None
+        framework_ids = _load_framework_default_ids(fw_path)
 
-    block = _extract_block(config, args.block)
+    try:
+        valid, errors, block_present = validate(config, schema, args.block, framework_ids)
+    except ValueError as exc:
+        print(f"validate-model-aliases-extra: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+
+    block = _extract_block(config, args.block) if block_present else None
     if not args.quiet:
         payload = {
             "valid": valid,
-            "block_present": block is not None,
+            "block_present": block_present,
             "config_path": str(config_path),
             "schema_id": schema.get("$id", ""),
             "errors": errors,

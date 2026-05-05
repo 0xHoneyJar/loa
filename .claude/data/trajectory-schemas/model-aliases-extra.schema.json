@@ -26,9 +26,16 @@
         "id": {
           "type": "string",
           "pattern": "^[a-zA-Z0-9._-]+$",
+          "not": {
+            "anyOf": [
+              { "pattern": "\\.\\." },
+              { "pattern": "^[._-]" },
+              { "pattern": "[._-]$" }
+            ]
+          },
           "minLength": 2,
           "maxLength": 64,
-          "description": "FR-2.8 normalization. Rejects shell metacharacters, path separators, NUL bytes. Operator-visible alias used in `skill_models` references."
+          "description": "FR-2.8 normalization. Rejects shell metacharacters, path separators, NUL bytes, dot-dot traversal patterns, leading or trailing dot/underscore/hyphen. The `not.anyOf` clause closes the cycle-099 sprint-1E.c.3.b char-class regex dot-dot bypass: the bare pattern `[a-zA-Z0-9._-]+` accepts `..` because each dot is individually in the class. Sprint 2B+ consumers (e.g., `.run/aliases/<id>.lock`) rely on this."
         },
         "provider": {
           "type": "string",
@@ -50,7 +57,8 @@
         "endpoint": {
           "type": "string",
           "format": "uri",
-          "description": "OPTIONAL — defaults to provider's framework default. If supplied, MUST match provider's allowed_endpoints in loa.defaults.yaml at load time (FR-2.8). Validated by the cycle-099 endpoint-validator (Sprint 1E.b)."
+          "pattern": "^https://[a-zA-Z0-9.-]+(:[0-9]+)?(/.*)?$",
+          "description": "OPTIONAL — defaults to provider's framework default. If supplied, MUST match provider's allowed_endpoints in loa.defaults.yaml at load time (FR-2.8). HTTPS-only is enforced at the schema layer (cypherpunk M2 + gp M1 — `format: uri` is advisory in jsonschema-Python so we add a pattern). Validated by the cycle-099 endpoint-validator (Sprint 1E.b) at request time for full canonicalization."
         },
         "capabilities": {
           "type": "array",
@@ -110,17 +118,23 @@
         },
         "permissions": {
           "type": "object",
-          "description": "OPTIONAL — operator-supplied per-model permissions block. If present, validated against framework provider baseline (FR-1.4). If absent, the FR-1.4 minimal baseline (`chat` only) applies + `acknowledge_permissions_baseline: true` is required (see allOf). Sprint 3 expands this block per DD-1 Option B; Sprint 2 leaves the inner shape OPEN."
+          "minProperties": 1,
+          "description": "OPTIONAL — operator-supplied per-model permissions block. If present, validated against framework provider baseline (FR-1.4). If absent, the FR-1.4 minimal baseline (`chat` only) applies + `acknowledge_permissions_baseline: true` is required (see allOf). Sprint 3 expands this block per DD-1 Option B; Sprint 2 leaves the inner shape OPEN but `minProperties: 1` closes the empty-object bypass (cypherpunk + gp HIGH H1). The downstream loader (Sprint 2B+) MUST reject auth-shaped values inside this block per NFR-Sec-5; the schema-layer defense is the empty-object-rejection only."
         },
         "acknowledge_permissions_baseline": {
-          "type": "boolean",
-          "description": "FR-1.4: explicit operator opt-in to minimal-only permissions when no `permissions` block is supplied. Required when `permissions` is absent (see allOf clause)."
+          "const": true,
+          "description": "FR-1.4: explicit operator opt-in to minimal-only permissions when no `permissions` block is supplied. Required when `permissions` is absent OR empty (see allOf clause). MUST be literal `true` — `false` is a config-mistake (operator declared an opt-in flag set to opt-out, rejected per gp L2 / cypherpunk L4)."
         },
         "auth": false
       },
       "allOf": [
         {
-          "if": { "not": { "required": ["permissions"] } },
+          "if": {
+            "anyOf": [
+              { "not": { "required": ["permissions"] } },
+              { "properties": { "permissions": { "type": "object", "maxProperties": 0 } } }
+            ]
+          },
           "then": { "required": ["acknowledge_permissions_baseline"] }
         }
       ]

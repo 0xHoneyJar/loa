@@ -630,7 +630,9 @@ EOF
     [[ "$status" -eq 0 ]]
 }
 
-@test "E25b reject: acknowledge_permissions_baseline: false (no permissions block)" {
+# gp L4 / cypherpunk L4 fix: acknowledge_permissions_baseline now uses
+# `const: true` so false is REJECTED at the schema layer.
+@test "E25b reject: acknowledge_permissions_baseline: false (gp/cypherpunk L4 fix)" {
     cat > "$WORK_DIR/e25b.yaml" <<'EOF'
 model_aliases_extra:
   schema_version: "1.0.0"
@@ -643,17 +645,278 @@ model_aliases_extra:
       pricing: {input_per_mtok: 100, output_per_mtok: 200}
       acknowledge_permissions_baseline: false
 EOF
-    # NOTE: per the JSON Schema, the allOf clause requires
-    # acknowledge_permissions_baseline to be present (boolean). False
-    # satisfies "required" — it's still present. Per FR-1.4 semantics the
-    # downstream loader (Sprint 2B/2D) is expected to also reject `false`,
-    # but THIS schema only enforces presence. Document the pin.
-    run "$VALIDATOR_PY" --config "$WORK_DIR/e25b.yaml"
-    [[ "$status" -eq 0 ]] || {
-        printf 'NOTE: schema only enforces presence of acknowledge field; got=%d\n' "$status" >&2
-        printf 'Sprint 2B/2D loader integration must enforce true-only semantics.\n' >&2
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e25b.yaml" --quiet
+    [[ "$status" -eq 78 ]] || {
+        printf 'acknowledge_permissions_baseline: false MUST be rejected (const true); got status=%d\n' "$status" >&2
         return 1
     }
+}
+
+# gp + cypherpunk HIGH H1 fix: permissions: {} (empty object) MUST be
+# rejected — previously bypassed FR-1.4 because `if not required[permissions]`
+# only fired when the field was ABSENT. Schema now requires
+# permissions.minProperties: 1 AND the allOf treats empty == absent.
+@test "E26 reject: permissions: {} (empty object bypasses FR-1.4) — H1 fix" {
+    cat > "$WORK_DIR/e26.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: foo
+      provider: openai
+      api_id: foo
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      permissions: {}
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e26.yaml" --quiet
+    [[ "$status" -eq 78 ]] || {
+        printf 'permissions: {} MUST be rejected (FR-1.4 bypass); got status=%d\n' "$status" >&2
+        return 1
+    }
+}
+
+# cypherpunk M1 fix: id pattern now has not.anyOf rejecting `..` plus
+# leading/trailing meta chars. The bare regex `[a-zA-Z0-9._-]+` accepted `..`
+# because each `.` is individually in the char class
+# (cycle-099 sprint-1E.c.3.b feedback_charclass_dotdot_bypass).
+@test "E27 reject: id == '..' (charclass dot-dot bypass) — cypherpunk M1 fix" {
+    cat > "$WORK_DIR/e27.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: ".."
+      provider: openai
+      api_id: foo
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e27.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+@test "E27b reject: id with embedded '..' (path traversal pattern)" {
+    cat > "$WORK_DIR/e27b.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: "foo..bar"
+      provider: openai
+      api_id: foo
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e27b.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+@test "E27c reject: id starting with '.' (leading-meta)" {
+    cat > "$WORK_DIR/e27c.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: ".foo"
+      provider: openai
+      api_id: foo
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e27c.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+# cypherpunk L5: id pattern is ASCII-anchored, so non-ASCII MUST reject.
+# Pin the contract via positive-control-of-rejection.
+@test "E28 reject: id with non-ASCII char (Unicode boundary — cypherpunk L5)" {
+    cat > "$WORK_DIR/e28.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: "éxperimental"
+      provider: openai
+      api_id: foo
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e28.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+# gp M1 / cypherpunk M2: schema-layer endpoint validation. format: uri is
+# advisory in jsonschema-Python so we added pattern: ^https://. Pin it.
+@test "E29 reject: endpoint with non-https scheme (HTTP)" {
+    cat > "$WORK_DIR/e29.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: foo
+      provider: openai
+      api_id: foo
+      endpoint: "http://api.openai.com/v1"
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e29.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+@test "E29b reject: endpoint with javascript: scheme (XSS-class payload)" {
+    cat > "$WORK_DIR/e29b.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: foo
+      provider: openai
+      api_id: foo
+      endpoint: "javascript:alert(1)"
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e29b.yaml" --quiet
+    [[ "$status" -eq 78 ]]
+}
+
+@test "E29c accept: endpoint with valid https URI" {
+    cat > "$WORK_DIR/e29c.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: foo
+      provider: openai
+      api_id: foo
+      endpoint: "https://api.openai.com/v1/responses"
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e29c.yaml"
+    [[ "$status" -eq 0 ]]
+}
+
+# cypherpunk H3 / IMP-004 fix: collision check against framework defaults.
+# Operator-added IDs MUST NOT collide with framework-shipped IDs.
+@test "E30 reject: id collides with framework-default model id — cypherpunk H3 fix" {
+    cat > "$WORK_DIR/e30.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: claude-opus-4-7
+      provider: anthropic
+      api_id: claude-opus-4-7
+      capabilities: [chat]
+      context_window: 200000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e30.yaml" --quiet
+    [[ "$status" -eq 78 ]] || {
+        printf 'collision with framework default claude-opus-4-7 MUST be rejected; got=%d\n' "$status" >&2
+        return 1
+    }
+}
+
+@test "E30b accept: collision check disabled via --no-collision-check" {
+    # Sprint 2B integration tests use this to test schema in isolation.
+    cat > "$WORK_DIR/e30b.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: claude-opus-4-7
+      provider: anthropic
+      api_id: claude-opus-4-7
+      capabilities: [chat]
+      context_window: 200000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e30b.yaml" --no-collision-check
+    [[ "$status" -eq 0 ]]
+}
+
+# cypherpunk L6: yaml.safe_load MUST reject !!python/object tags.
+@test "E31 reject: !!python/object payload (yaml.safe_load contract pin — cypherpunk L6)" {
+    cat > "$WORK_DIR/e31.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries:
+    - id: !!python/object/new:os.system [touch /tmp/loa-pwned]
+      provider: openai
+      api_id: foo
+      capabilities: [chat]
+      context_window: 128000
+      pricing: {input_per_mtok: 100, output_per_mtok: 200}
+      acknowledge_permissions_baseline: true
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/e31.yaml" --quiet
+    # safe_load throws YAMLError → EXIT_USAGE (64). Pin that contract.
+    [[ "$status" -eq 64 || "$status" -eq 78 ]] || {
+        printf '!!python/object MUST not load; got=%d\n' "$status" >&2
+        return 1
+    }
+    # Sanity: side-effect (file creation) MUST NOT have happened.
+    [[ ! -f /tmp/loa-pwned ]] || {
+        rm -f /tmp/loa-pwned
+        printf 'CRITICAL: !!python/object payload executed!\n' >&2
+        return 1
+    }
+}
+
+# gp M2: malformed --block paths must be rejected, not silently swallowed.
+@test "B4 reject: malformed --block path (empty)" {
+    cat > "$WORK_DIR/b4.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries: []
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/b4.yaml" --block ""
+    [[ "$status" -eq 64 ]] || {
+        printf 'empty --block must reject with EX_USAGE; got=%d\n' "$status" >&2
+        return 1
+    }
+}
+
+@test "B4b reject: malformed --block path (embedded ..)" {
+    cat > "$WORK_DIR/uc1b.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries: []
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/uc1b.yaml" --block ".foo..bar"
+    [[ "$status" -eq 64 ]]
+}
+
+@test "B4c reject: malformed --block path (trailing dot)" {
+    cat > "$WORK_DIR/uc1c.yaml" <<'EOF'
+model_aliases_extra:
+  schema_version: "1.0.0"
+  entries: []
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/uc1c.yaml" --block ".foo."
+    [[ "$status" -eq 64 ]]
+}
+
+@test "B4d accept: well-formed --block path (single field)" {
+    cat > "$WORK_DIR/uc1d.yaml" <<'EOF'
+nested:
+  model_aliases_extra:
+    schema_version: "1.0.0"
+    entries: []
+EOF
+    run "$VALIDATOR_PY" --config "$WORK_DIR/uc1d.yaml" --block ".nested.model_aliases_extra"
+    [[ "$status" -eq 0 ]]
 }
 
 # ---------------------------------------------------------------------------
