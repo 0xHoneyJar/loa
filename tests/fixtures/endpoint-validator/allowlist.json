@@ -1,0 +1,19 @@
+{
+  "_comment": "Test fixture allowlist for endpoint-validator parity tests. Mirrors the cycle-099 production providers' canonical endpoints. Sprint 2 will wire this through loa.defaults.yaml; Sprint 1E.b uses a caller-supplied allowlist as input parameter.",
+  "providers": {
+    "openai": [
+      {"host": "api.openai.com", "ports": [443]}
+    ],
+    "anthropic": [
+      {"host": "api.anthropic.com", "ports": [443]}
+    ],
+    "google": [
+      {"host": "generativelanguage.googleapis.com", "ports": [443]}
+    ],
+    "bedrock": [
+      {"host": "bedrock-runtime.us-east-1.amazonaws.com", "ports": [443]},
+      {"host": "bedrock-runtime.us-west-2.amazonaws.com", "ports": [443]},
+      {"host": "bedrock-runtime.eu-central-1.amazonaws.com", "ports": [443]}
+    ]
+  }
+}

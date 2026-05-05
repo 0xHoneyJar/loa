@@ -1,0 +1,13 @@
+# Sprint 1E.b baseline — files importing urllib.parse that pre-date the
+# centralized endpoint-validator. Each entry should be migrated through
+# `endpoint-validator.py` in a follow-up cycle (Sprint 1E.c migrates the
+# bash callers; the Python migration is tracked separately).
+#
+# To remove an entry: rewrite the file to call `endpoint-validator` instead,
+# then delete the line below. CI will fail loudly if removal is incomplete.
+#
+# Owners: tracked via .github/CODEOWNERS for each path.
+# Expiry target: cycle-100 (operator review of the migration debt).
+.claude/adapters/loa_cheval/providers/bedrock_adapter.py
+.claude/adapters/tests/test_bedrock_redaction_adversarial.py
+tests/fixtures/mock_server.py
