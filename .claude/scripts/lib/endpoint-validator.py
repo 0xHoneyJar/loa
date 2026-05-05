@@ -43,6 +43,7 @@ import argparse
 import ipaddress
 import json
 import re
+import socket
 import sys
 import urllib.parse
 from dataclasses import dataclass, field
@@ -336,7 +337,396 @@ def _reject(url: str, code: str, detail: str) -> ValidationResult:
     return ValidationResult(valid=False, url=url, code=code, detail=detail)
 
 
+# =============================================================================
+# DNS rebinding + redirect enforcement (cycle-099 SDD §1.9.1 NFR-Sec-1 v1.2,
+# Sprint 1E.c.2). The validator's offline string-validation (steps 1-8) catches
+# attacker-supplied URL forms; the runtime DNS rebinding check catches the
+# OPERATOR-supplied URL whose hostname resolves to an attacker IP at a later
+# point. The pattern:
+#
+#   1. Operator config-load time: validate(url) → resolve host once (lock_ip).
+#   2. Each subsequent request: verify_locked_ip(locked) → re-resolve, refuse
+#      if a different IP is returned (DNS rebinding).
+#   3. HTTP redirect: validate_redirect(orig_locked, new_url, allowlist) →
+#      re-runs the 8-step pipeline AND requires the redirect-target to
+#      resolve to the ORIGINAL locked IP (same-host + same-IP).
+# =============================================================================
+
+
+@dataclass(frozen=True)
+class LockedIP:
+    """Immutable record of a host-IP binding established at validate-time.
+
+    Subsequent requests against the same host are required to resolve to the
+    SAME IP (or any IP in the same multi-record set captured at lock time);
+    a different IP triggers DNS-rebinding rejection.
+
+    Hardening (sprint-1E.c.2 cypherpunk LOW): __post_init__ normalizes the
+    host (lowercase + strip trailing FQDN dot) so deserialized LockedIPs
+    don't drift from the form the validator emits. Also validates that
+    `ip` and every entry in `initial_ips` parse cleanly — a forged LockedIP
+    constructed with garbage fields fails fast at construction time.
+
+    KNOWN LIMITATION (TOCTOU): the lock-then-verify pattern has an inherent
+    race window between `verify_locked_ip()` returning OK and the actual
+    `socket.connect()`. The validator cannot close this; callers needing
+    transport-level pinning should use `LockedIP.ip` for direct connect
+    with `Host:` header set to `LockedIP.host`. This is per NFR-Sec-1 v1.2
+    contract — DNS rebinding defense is best-effort, not transport-level.
+    """
+
+    host: str
+    ip: str
+    family: int  # socket.AF_INET / AF_INET6
+    port: int
+    # All IPs returned by the initial getaddrinfo. We accept any of them on
+    # re-resolve so legitimate CDN round-robin doesn't trip the gate.
+    initial_ips: tuple[str, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        # Normalize host: lowercase + strip trailing FQDN dot. Mirrors the
+        # canonical-form treatment in `_idna_normalize`.
+        normalized = self.host.lower().rstrip(".")
+        if normalized != self.host:
+            object.__setattr__(self, "host", normalized)
+        # Validate ip + initial_ips parse cleanly so a forged LockedIP from
+        # JSON deserialization can't carry "169.254.169.254" past type-check.
+        try:
+            ipaddress.ip_address(self.ip)
+        except (ValueError, ipaddress.AddressValueError) as exc:
+            raise ValueError(f"LockedIP.ip {self.ip!r} is not a valid IP: {exc}") from exc
+        # Guard against accidental empty initial_ips after deserialization.
+        if not self.initial_ips:
+            object.__setattr__(self, "initial_ips", (self.ip,))
+        for entry in self.initial_ips:
+            try:
+                ipaddress.ip_address(entry)
+            except (ValueError, ipaddress.AddressValueError) as exc:
+                raise ValueError(
+                    f"LockedIP.initial_ips contains invalid {entry!r}: {exc}"
+                ) from exc
+
+
+class EndpointDnsError(Exception):
+    """Common base for DNS-related validator failures (gp MEDIUM remediation).
+
+    A loader catching ``except EndpointDnsError`` will catch resolution
+    failures AND rebinding rejections without enumerating every subclass.
+    """
+
+
+class DnsResolutionError(EndpointDnsError):
+    """Raised when getaddrinfo fails for a host the validator was asked to lock."""
+
+    def __init__(self, host: str, detail: str):
+        super().__init__(
+            f"[ENDPOINT-DNS-RESOLUTION-FAILED] host={host!r} detail={detail}"
+        )
+        self.host = host
+        self.detail = detail
+
+
+class DnsRebindingError(EndpointDnsError):
+    """Raised when DNS resolution returns a different IP than initially locked,
+    OR when the resolved IP falls in a blocked range AND no
+    `cdn_cidr_exemptions` covers it (per SDD §1.9)."""
+
+    def __init__(self, code: str, detail: str):
+        super().__init__(f"[{code}] {detail}")
+        self.code = code
+        self.detail = detail
+
+
+def _resolve_addrinfo(host: str, port: int = 443) -> list[tuple[int, str]]:
+    """Wrap socket.getaddrinfo, returning a list of (family, ip-string) pairs.
+
+    Raises DnsResolutionError on failure. Filters out non-INET/INET6 entries
+    (no Bluetooth, no Unix sockets reaching this code path).
+    """
+    try:
+        records = socket.getaddrinfo(
+            host, port, type=socket.SOCK_STREAM, proto=socket.IPPROTO_TCP
+        )
+    except (socket.gaierror, OSError) as exc:
+        raise DnsResolutionError(host, str(exc)) from exc
+    out: list[tuple[int, str]] = []
+    for family, _socktype, _proto, _canon, sockaddr in records:
+        if family not in (socket.AF_INET, socket.AF_INET6):
+            continue
+        ip = sockaddr[0]
+        # Strip IPv6 zone-id from the resolved form (RFC 6874).
+        if family == socket.AF_INET6 and "%" in ip:
+            ip = ip.split("%", 1)[0]
+        out.append((family, ip))
+    if not out:
+        raise DnsResolutionError(host, "no usable INET/INET6 records returned")
+    return out
+
+
+def _is_resolved_ip_blocked(ip: str) -> tuple[bool, str]:
+    """Defense-in-depth at resolve time. The 8-step canonicalization pipeline
+    already rejects IP-literal hostnames, but a HOSTNAME that resolves to a
+    blocked range is the DNS rebinding scenario this function exists to
+    catch. Returns (blocked, reason).
+
+    Diagnostic readability (gp HIGH 2): the IPv6 IMDS / link-local /
+    NAT64 /  ULA ranges all fall in `fc00::/7` or `fe80::/10`; the bare
+    "falls in blocked range" message obscures the threat identity. We
+    add a more specific reason for well-known operational endpoints.
+    """
+    try:
+        addr = ipaddress.ip_address(ip)
+    except (ValueError, ipaddress.AddressValueError):
+        return False, ""
+    if isinstance(addr, ipaddress.IPv6Address):
+        # Well-known IPv6 endpoints — surface their identity in diagnostics.
+        if str(addr) == "fd00:ec2::254":
+            return True, f"resolved IPv6 {ip} is the AWS IPv6 IMDS metadata endpoint"
+        for net in _BLOCKED_IPV6_NETWORKS:
+            if addr in net:
+                # Attach a more specific reason when the range is well-known.
+                if net == ipaddress.IPv6Network("fe80::/10"):
+                    return True, f"resolved IPv6 {ip} is link-local (fe80::/10)"
+                if net == ipaddress.IPv6Network("64:ff9b::/96"):
+                    return True, f"resolved IPv6 {ip} is NAT64 well-known (64:ff9b::/96)"
+                if net == ipaddress.IPv6Network("::1/128"):
+                    return True, f"resolved IPv6 {ip} is loopback (::1/128)"
+                return True, f"resolved IPv6 {ip} falls in blocked range {net}"
+    if isinstance(addr, ipaddress.IPv4Address):
+        # Reuse the literal-IPv4 blocked-set logic via _is_ip_literal_blocked.
+        blocked, reason = _is_ip_literal_blocked(ip)
+        if blocked:
+            return True, reason or f"resolved IPv4 {ip} falls in blocked range"
+    return False, ""
+
+
+def _ip_in_cidrs(ip: str, cidrs: list[str]) -> bool:
+    """True iff `ip` falls in any of the configured CIDR ranges."""
+    try:
+        addr = ipaddress.ip_address(ip)
+    except (ValueError, ipaddress.AddressValueError):
+        return False
+    for cidr in cidrs:
+        try:
+            net = ipaddress.ip_network(cidr, strict=False)
+        except (ValueError, ipaddress.AddressValueError):
+            continue
+        if addr.version != net.version:
+            continue
+        if addr in net:
+            return True
+    return False
+
+
+def lock_resolved_ip(
+    host: str,
+    *,
+    port: int = 443,
+    allowlist: dict[str, list[dict[str, Any]]] | None = None,
+    provider_id: str | None = None,
+) -> LockedIP:
+    """Resolve `host` once via getaddrinfo and lock the (host, IP) pair.
+
+    Per SDD §1.9 (cycle-099 SKP-005 reconciliation): if `allowlist` and
+    `provider_id` are supplied AND the matching provider entry has a
+    `cdn_cidr_exemptions` list, a resolved IP that falls in one of those
+    CIDRs SKIPS the RFC-1918/loopback/IMDS rebinding check — accepting the
+    legitimate CDN-fronted provider behavior (e.g., anthropic.com via
+    Cloudflare resolving to a CF range that's "public" but the CF range
+    has been vetted at cycle-level System Zone review).
+
+    Without the exemption, any resolution to a blocked range raises
+    DnsRebindingError. The exemption ONLY relaxes the blocked-range trip;
+    the per-request rebinding check (verify_locked_ip) still applies on
+    subsequent calls.
+
+    Raises:
+        DnsResolutionError: if getaddrinfo fails.
+        DnsRebindingError:  if the resolved IP is in a blocked range
+                            AND no cdn_cidr_exemption applies.
+    """
+    records = _resolve_addrinfo(host, port=port)
+    family, ip = records[0]
+    # Determine the CDN-CIDR exemption set (if any) for this provider+host.
+    exemption_cidrs: list[str] = []
+    if allowlist is not None and provider_id is not None:
+        for entry in allowlist.get(provider_id, []):
+            if not isinstance(entry, dict):
+                continue
+            if entry.get("host", "").lower() != host.lower():
+                continue
+            cidrs = entry.get("cdn_cidr_exemptions") or []
+            extras = entry.get("cdn_cidr_exemptions_extra") or []
+            if isinstance(cidrs, list):
+                exemption_cidrs.extend(str(c) for c in cidrs)
+            if isinstance(extras, list):
+                exemption_cidrs.extend(str(c) for c in extras)
+            break
+    # Apply the relaxing-semantics check to EVERY record (cypherpunk MEDIUM —
+    # Happy Eyeballs defense). If TCP connect picks records[1] over
+    # records[0], the validator must have already rejected blocked IPs
+    # anywhere in the dual-stack record set.
+    for _fam, candidate_ip in records:
+        if exemption_cidrs and _ip_in_cidrs(candidate_ip, exemption_cidrs):
+            continue  # explicitly exempted; do not run blocked-range check
+        blocked, reason = _is_resolved_ip_blocked(candidate_ip)
+        if blocked:
+            raise DnsRebindingError(
+                "ENDPOINT-IP-BLOCKED",
+                f"host {host!r} resolved to a blocked IP: {reason}",
+            )
+    return LockedIP(
+        host=host,
+        ip=ip,
+        family=family,
+        port=port,
+        initial_ips=tuple(r[1] for r in records),
+    )
+
+
+def verify_locked_ip(locked: LockedIP) -> bool:
+    """Re-resolve the locked host and verify the IP set still includes the
+    locked IP. Returns True on match. Raises DnsRebindingError on mismatch
+    (the actual rebinding scenario) or DnsResolutionError if re-resolution
+    fails entirely.
+
+    Acceptance rule: any IP in the FRESH record set may match the LOCKED IP
+    OR be in the locked initial_ips set. This tolerates legitimate CDN
+    round-robin while still catching the case where ALL fresh records
+    differ from the locked set.
+    """
+    fresh = _resolve_addrinfo(locked.host, port=locked.port)
+    fresh_ips = {r[1] for r in fresh}
+    if locked.ip in fresh_ips:
+        return True
+    # Tolerate CDN/round-robin: if any of our INITIAL_IPS appears in fresh, OK.
+    if any(ip in fresh_ips for ip in locked.initial_ips):
+        return True
+    # Re-check blocked ranges in the fresh set — even if this isn't the
+    # locked IP, an attacker-rebound resolution could now land on a private
+    # range, which we want to surface clearly.
+    for ip in fresh_ips:
+        blocked, reason = _is_resolved_ip_blocked(ip)
+        if blocked:
+            raise DnsRebindingError(
+                "ENDPOINT-DNS-REBOUND",
+                f"host {locked.host!r} re-resolved to blocked IP: {reason}",
+            )
+    raise DnsRebindingError(
+        "ENDPOINT-DNS-REBOUND",
+        f"host {locked.host!r} re-resolved to {sorted(fresh_ips)!r}; "
+        f"none match locked initial_ips {sorted(locked.initial_ips)!r}",
+    )
+
+
+def validate_redirect(
+    original_locked: LockedIP,
+    new_url: str,
+    allowlist: dict[str, list[dict[str, Any]]],
+) -> ValidationResult:
+    """Validate an HTTP 3xx redirect target.
+
+    Steps:
+      1. Run the full 8-step `validate()` pipeline on `new_url`.
+      2. Same-host check: redirect target must resolve to the SAME host as
+         the locked endpoint (exact lowercased hostname match).
+      3. Same-IP check: re-resolve the host and confirm the locked IP is
+         still in the resulting record set (verify_locked_ip).
+
+    Returns a ValidationResult; never raises (callers can route on the
+    structured rejection code).
+    """
+    new_result = validate(new_url, allowlist)
+    if not new_result.valid:
+        return new_result
+    # LockedIP.__post_init__ already normalized; new_result.host is also
+    # IDNA-normalized + lowercased per step 5.
+    if new_result.host != original_locked.host:
+        return _reject(
+            new_url,
+            "ENDPOINT-REDIRECT-DENIED",
+            f"redirect target host {new_result.host!r} differs from locked host "
+            f"{original_locked.host!r}; same-host policy refuses cross-host redirects",
+        )
+    # gp MEDIUM remediation: same-port enforcement. A redirect from :443 to
+    # an alternate port (even if allowlisted at the provider) lets attacker
+    # pivot to a different service if the operator allowlists multiple ports
+    # per host. The lock contract was made at a specific port; honor it.
+    if new_result.port != original_locked.port:
+        return _reject(
+            new_url,
+            "ENDPOINT-REDIRECT-DENIED",
+            f"redirect port {new_result.port} differs from locked port "
+            f"{original_locked.port}; same-port policy refuses port pivots",
+        )
+    try:
+        verify_locked_ip(original_locked)
+    except DnsRebindingError as exc:
+        return _reject(new_url, exc.code, exc.detail)
+    except DnsResolutionError as exc:
+        return _reject(
+            new_url,
+            "ENDPOINT-DNS-RESOLUTION-FAILED",
+            f"redirect target re-resolution failed: {exc.detail}",
+        )
+    return new_result
+
+
+def validate_redirect_chain(
+    original_locked: LockedIP,
+    redirect_urls: list[str],
+    allowlist: dict[str, list[dict[str, Any]]],
+) -> ValidationResult:
+    """Validate a multi-hop HTTP redirect chain.
+
+    Cypherpunk MEDIUM remediation: `validate_redirect` is single-hop. An
+    attacker controlling a redirect chain (URL_a → URL_b → evil.com) could
+    pass URL_a (same-host as original) and slip URL_b past validation if the
+    caller doesn't re-invoke validate_redirect. This helper enforces per-hop
+    validation against the SAME `original_locked` — every hop must remain
+    same-host AND same-IP. Returns the final ValidationResult; rejects on
+    the first hop that fails.
+    """
+    if not redirect_urls:
+        return ValidationResult(valid=True, url="", scheme="", host="", port=0)
+    result = ValidationResult(valid=False, url="", code="ENDPOINT-RELATIVE", detail="empty chain")
+    for url in redirect_urls:
+        result = validate_redirect(original_locked, url, allowlist)
+        if not result.valid:
+            return result
+    return result
+
+
 _ALLOWLIST_MAX_BYTES = 65536  # 64 KiB — see cypherpunk LOW 1
+
+
+def _warn_overly_permissive_cidr(allowlist: dict[str, list[dict[str, Any]]]) -> None:
+    """Cypherpunk MEDIUM remediation: scan cdn_cidr_exemptions for /0 (or
+    suspiciously-wide /1../4) entries and emit a stderr WARN per occurrence.
+    Operators copy-pasting `0.0.0.0/0` defeat the rebinding defense entirely
+    without realizing it; the warning surfaces the misconfig at load time."""
+    for provider_id, entries in allowlist.items():
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            for field_name in ("cdn_cidr_exemptions", "cdn_cidr_exemptions_extra"):
+                cidrs = entry.get(field_name) or []
+                if not isinstance(cidrs, list):
+                    continue
+                for c in cidrs:
+                    try:
+                        net = ipaddress.ip_network(str(c), strict=False)
+                    except (ValueError, ipaddress.AddressValueError):
+                        continue
+                    if net.prefixlen <= 4:
+                        sys.stderr.write(
+                            f"[ALLOWLIST-OVERLY-PERMISSIVE] {field_name}={c!r} "
+                            f"(prefix /{net.prefixlen}) for provider {provider_id!r} "
+                            "disables the DNS-rebinding defense for matching IPs; "
+                            "tighten the CIDR or remove the entry\n"
+                        )
 
 
 def load_allowlist(path: str | Path) -> dict[str, list[dict[str, Any]]]:
@@ -363,6 +753,7 @@ def load_allowlist(path: str | Path) -> dict[str, list[dict[str, Any]]]:
         raise ValueError(
             f"allowlist {p}: top-level `providers` must be a mapping, got {type(providers).__name__}"
         )
+    _warn_overly_permissive_cidr(providers)
     return providers
 
 

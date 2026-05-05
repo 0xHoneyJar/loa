@@ -1,0 +1,62 @@
+name: cycle-099 Sprint 1E.c.2 DNS rebinding + redirect
+
+# cycle-099 Sprint 1E.c.2 — runtime SSRF defenses for the centralized
+# endpoint validator: DNS rebinding (lock + verify resolved IP) and HTTP
+# redirect same-host enforcement, per SDD §1.9.1 + NFR-Sec-1 v1.2.
+
+on:
+  pull_request:
+    paths:
+      - '.claude/scripts/lib/endpoint-validator.py'
+      - 'tests/integration/endpoint-validator-dns-rebinding.bats'
+      - '.github/workflows/cycle099-sprint-1e-c2-dns-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.claude/scripts/lib/endpoint-validator.py'
+      - 'tests/integration/endpoint-validator-dns-rebinding.bats'
+      - '.github/workflows/cycle099-sprint-1e-c2-dns-tests.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cycle099-sprint-1e-c2-dns-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dns-rebinding-tests:
+    name: T1.15 DNS rebinding + redirect tests (12 fixtures)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: '3.13'
+
+      - name: Install Python deps (idna)
+        run: |
+          python -m pip install --upgrade pip
+          # Sprint-1E.c.2 uses only stdlib `socket` for DNS resolution; idna
+          # remains the only third-party dep for the canonical validator.
+          pip install 'idna==3.13'
+
+      - name: Install bats-core v1.13.0
+        run: |
+          git clone --branch v1.13.0 --depth 1 https://github.com/bats-core/bats-core.git /tmp/bats-core
+          cd /tmp/bats-core
+          expected="3bca150ec86275d6d9d5a4fd7d48ab8b6c6f3d87"
+          actual=$(git rev-parse HEAD)
+          if [ "$actual" != "$expected" ]; then
+            echo "ERROR: bats-core commit SHA mismatch — expected $expected, got $actual"
+            exit 1
+          fi
+          sudo ./install.sh /usr/local
+          bats --version
+
+      - name: Run DNS rebinding + redirect tests
+        # The tests monkeypatch socket.getaddrinfo so they run offline (no
+        # actual network I/O). 12 fixtures: lock × 3 + verify × 3 + redirect
+        # × 4 + cidr-allowlist × 2.
+        run: bats tests/integration/endpoint-validator-dns-rebinding.bats
