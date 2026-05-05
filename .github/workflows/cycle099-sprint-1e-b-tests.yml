@@ -96,10 +96,14 @@ jobs:
           #   - import urllib (NOT followed by a dot — the bare-import form)
           #   - __import__("urllib.parse")
           #   - import_module("urllib.parse")
+          # BB iter-1 F2: extend scope to .claude/skills/ + .claude/commands/.
+          # Skills (e.g., bridgebuilder-review) ship Python helpers; commands
+          # (e.g., constructs-loader) likewise. Future Python additions there
+          # need to go through the validator too.
           violations=$(
               grep -rEln \
                   '(urllib\.parse|from urllib import parse|^import urllib($|[^.])|__import__\(.urllib\.parse|import_module\(.urllib\.parse)' \
-                  .claude/adapters/ .claude/scripts/ tests/ scripts/ \
+                  .claude/adapters/ .claude/scripts/ .claude/skills/ .claude/commands/ tests/ scripts/ \
                   --include='*.py' 2>/dev/null \
                   | { grep -vF "$allowed_path" || true; } \
                   | { grep -vFx -f .github/workflows/lint-pre-existing-urllib.txt 2>/dev/null || cat; }
@@ -120,8 +124,13 @@ jobs:
           # funnel through endpoint_validator__check before invoking curl.
           # For now, surface the inventory as a workflow annotation so operators
           # see the migration surface area; do not fail the build.
+          # BB iter-1 F4: tighter regex — match curl/wget only when they
+          # appear as command words, not embedded in other identifiers like
+          # `nocurl_helper` or `_curl_inner`. POSIX `[[:space:]]` boundary
+          # before, optional flags after.
           callers=$(
-              grep -rln 'curl\|wget' .claude/scripts/ --include='*.sh' \
+              grep -rEln '(^|[[:space:]])(curl|wget)([[:space:]]|$)' \
+                  .claude/scripts/ --include='*.sh' \
                   | grep -vF '.claude/scripts/lib/endpoint-validator.sh' \
                   | sort -u || true
           )
