@@ -1,0 +1,36 @@
+description: "tiny-tier resolves to anthropic:claude-haiku-4-5-20251001 per cycle-095 baked alias (verifies SKP-001 resolution). Sprint 1D tests this directly via `tiny` alias lookup."
+
+# Sprint 1D query — `tiny` is a known alias resolving to claude-haiku-4-5-20251001.
+sprint_1d_query:
+  alias: "tiny"
+
+input:
+  schema_version: 2
+  framework_defaults:
+    providers:
+      anthropic:
+        models:
+          claude-haiku-4-5-20251001:
+            capabilities: [chat]
+            context_window: 200000
+            pricing: { input_per_mtok: 1000000, output_per_mtok: 5000000 }
+    aliases:
+      tiny: { provider: anthropic, model_id: claude-haiku-4-5-20251001 }
+    tier_groups:
+      mappings:
+        tiny: { anthropic: tiny }
+  operator_config:
+    skill_models:
+      audit_log_lookup:
+        primary: tiny
+
+expected:
+  resolutions:
+    - skill: audit_log_lookup
+      role: primary
+      resolved_provider: anthropic
+      resolved_model_id: claude-haiku-4-5-20251001
+      resolution_path:
+        - { stage: 2, outcome: hit, label: stage2_skill_models, details: { alias: tiny } }
+        - { stage: 3, outcome: hit, label: stage3_tier_groups, details: { resolved_alias: tiny } }
+  cross_runtime_byte_identical: true

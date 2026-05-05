@@ -1,0 +1,31 @@
+description: "Operator-added model in `model_aliases_extra` resolves identically across runtimes. Sprint 1D tests baseline alias resolution (`opus`); Sprint 2 extends to operator-added models."
+
+# Sprint 1D query — known alias `opus` (baseline resolution).
+sprint_1d_query:
+  alias: "opus"
+
+input:
+  schema_version: 2
+  framework_defaults:
+    providers:
+      anthropic:
+        models:
+          claude-opus-4-7: { capabilities: [chat], context_window: 200000 }
+    aliases:
+      opus: { provider: anthropic, model_id: claude-opus-4-7 }
+  operator_config:
+    model_aliases_extra:
+      experimental-opus-vnext:
+        provider: anthropic
+        model_id: claude-opus-4-8-experimental
+        capabilities: [chat]
+
+expected:
+  resolutions:
+    - skill: flatline_protocol
+      role: primary
+      resolved_provider: anthropic
+      resolved_model_id: claude-opus-4-7
+      resolution_path:
+        - { stage: 2, outcome: hit, label: stage2_skill_models, details: { alias: opus } }
+  cross_runtime_byte_identical: true

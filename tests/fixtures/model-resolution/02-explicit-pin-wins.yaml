@@ -1,0 +1,34 @@
+description: "Explicit provider:model_id pin in skill_models takes precedence over alias resolution (FR-3.9 stage 1 hit)."
+
+# Sprint 1D query — explicit canonical model_id. This IS in MODEL_IDS
+# (idempotent: every model_id is also an alias-key resolving to itself).
+# Runners produce a real result.
+sprint_1d_query:
+  alias: "claude-opus-4-7"
+
+input:
+  schema_version: 2
+  framework_defaults:
+    providers:
+      anthropic:
+        models:
+          claude-opus-4-7:
+            capabilities: [chat, tools]
+            context_window: 200000
+            pricing: { input_per_mtok: 5000000, output_per_mtok: 25000000 }
+    aliases:
+      opus: { provider: anthropic, model_id: claude-opus-4-7 }
+  operator_config:
+    skill_models:
+      flatline_protocol:
+        primary: "anthropic:claude-opus-4-7"
+
+expected:
+  resolutions:
+    - skill: flatline_protocol
+      role: primary
+      resolved_provider: anthropic
+      resolved_model_id: claude-opus-4-7
+      resolution_path:
+        - { stage: 1, outcome: hit, label: stage1_pin_check, details: { pin: "anthropic:claude-opus-4-7" } }
+  cross_runtime_byte_identical: true

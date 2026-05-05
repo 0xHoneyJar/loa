@@ -1,0 +1,28 @@
+description: "Minimal `.loa.config.yaml` (no operator overrides) → all defaults resolve cleanly. Sprint 1D tests baseline `tiny` alias; Sprint 2 extends to defaults-fallback (FR-3.9 stage 5)."
+
+# Sprint 1D query — known alias `tiny` (baseline resolution).
+sprint_1d_query:
+  alias: "tiny"
+
+input:
+  schema_version: 2
+  framework_defaults:
+    providers:
+      anthropic:
+        models:
+          claude-haiku-4-5-20251001: { capabilities: [chat], context_window: 200000 }
+    aliases:
+      tiny: { provider: anthropic, model_id: claude-haiku-4-5-20251001 }
+    agents:
+      flatline-reviewer: { default_tier: cheap }
+  operator_config: {}
+
+expected:
+  resolutions:
+    - skill: flatline_protocol
+      role: primary
+      resolved_provider: anthropic
+      resolved_model_id: claude-haiku-4-5-20251001
+      resolution_path:
+        - { stage: 5, outcome: hit, label: stage5_framework_default, details: { alias: tiny } }
+  cross_runtime_byte_identical: true

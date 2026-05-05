@@ -1,0 +1,81 @@
+name: cycle-099 Sprint 1D bash-runner
+
+# cycle-099 Sprint 1D (T1.11/T1.12) — bash runner for the cross-runtime
+# golden-resolution corpus. Emits canonical-JSON output that the
+# cross-runtime-diff workflow byte-compares against python + TS runners
+# per SDD §7.6.2.
+
+on:
+  pull_request:
+    paths:
+      - 'tests/fixtures/model-resolution/**'
+      - 'tests/bash/golden_resolution.sh'
+      - 'tests/bash/golden_resolution.bats'
+      - '.claude/scripts/lib/model-resolver.sh'
+      - '.claude/scripts/generated-model-maps.sh'
+      - '.github/workflows/bash-runner.yml'
+      - '.github/workflows/cross-runtime-diff.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'tests/fixtures/model-resolution/**'
+      - 'tests/bash/golden_resolution.sh'
+      - 'tests/bash/golden_resolution.bats'
+      - '.claude/scripts/lib/model-resolver.sh'
+      - '.claude/scripts/generated-model-maps.sh'
+      - '.github/workflows/bash-runner.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cycle099-sprint-1d-bash-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bash-runner:
+    name: T1.11 bash golden-resolution runner
+    runs-on: ubuntu-latest
+    steps:
+      # PINNING: SHA verified against actions/checkout v4.3.1 tag
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Install yq v4.52.4 (pinned + checksum verified)
+        run: |
+          set -euo pipefail
+          local_yq=/usr/local/bin/yq
+          expected_sha256='0c4d965ea944b64b8fddaf7f27779ee3034e5693263786506ccd1c120f184e8c'
+          sudo wget -qO "$local_yq" https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64
+          echo "$expected_sha256  $local_yq" | sha256sum -c -
+          sudo chmod +x "$local_yq"
+          yq --version
+
+      - name: Install bats-core v1.13.0
+        run: |
+          git clone --branch v1.13.0 --depth 1 https://github.com/bats-core/bats-core.git /tmp/bats-core
+          cd /tmp/bats-core
+          expected="3bca150ec86275d6d9d5a4fd7d48ab8b6c6f3d87"
+          actual=$(git rev-parse HEAD)
+          if [ "$actual" != "$expected" ]; then
+            echo "ERROR: bats-core commit SHA mismatch — expected $expected, got $actual"
+            exit 1
+          fi
+          sudo ./install.sh /usr/local
+          bats --version
+
+      - name: Run bash bats (contract pin)
+        run: bats tests/bash/golden_resolution.bats
+
+      - name: Run bash runner → canonical JSON
+        run: |
+          bash tests/bash/golden_resolution.sh > bash-resolution-output.jsonl
+          echo "Bash runner produced $(wc -l < bash-resolution-output.jsonl) lines:"
+          head -20 bash-resolution-output.jsonl
+
+      # PINNING: SHA verified against actions/upload-artifact v4.4.3 tag
+      - name: Upload bash output for cross-runtime-diff
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: bash-resolution-output
+          path: bash-resolution-output.jsonl
+          retention-days: 7

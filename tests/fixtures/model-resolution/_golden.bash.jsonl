@@ -1,0 +1,12 @@
+{"deferred_to":"sprint-2-T2.6","fixture":"01-happy-path-tier-tag","input_alias":"max","subset_supported":false}
+{"fixture":"02-explicit-pin-wins","input_alias":"claude-opus-4-7","resolved_model_id":"claude-opus-4-7","resolved_provider":"anthropic","subset_supported":true}
+{"deferred_to":"sprint-2-T2.6","fixture":"03-missing-tier-fail-closed","input_alias":"max-nonexistent-tier","subset_supported":false}
+{"fixture":"04-legacy-shape-deprecation","input_alias":"opus","resolved_model_id":"claude-opus-4-7","resolved_provider":"anthropic","subset_supported":true}
+{"deferred_to":"sprint-2-T2.6","fixture":"05-override-conflict","input_alias":"nonexistent-base-model","subset_supported":false}
+{"fixture":"06-extra-only-model","input_alias":"opus","resolved_model_id":"claude-opus-4-7","resolved_provider":"anthropic","subset_supported":true}
+{"fixture":"07-empty-config","input_alias":"tiny","resolved_model_id":"claude-haiku-4-5-20251001","resolved_provider":"anthropic","subset_supported":true}
+{"deferred_to":"sprint-2-T2.6","fixture":"08-unicode-operator-id","input_alias":"experimental-model_v2.0","subset_supported":false}
+{"fixture":"09-prefer-pro-overlay","input_alias":"gemini-2.5-pro","resolved_model_id":"gemini-2.5-pro","resolved_provider":"google","subset_supported":true}
+{"deferred_to":"sprint-2-T2.6","fixture":"10-extra-vs-override-collision","input_alias":"colliding-id","subset_supported":false}
+{"fixture":"11-tiny-tier-anthropic","input_alias":"tiny","resolved_model_id":"claude-haiku-4-5-20251001","resolved_provider":"anthropic","subset_supported":true}
+{"fixture":"12-degraded-mode-readonly","input_alias":"cheap","resolved_model_id":"claude-sonnet-4-6","resolved_provider":"anthropic","subset_supported":true}

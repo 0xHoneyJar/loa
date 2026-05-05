@@ -1,0 +1,33 @@
+description: "Tier-tag with no mapping for (tier, provider) MUST fail-closed — no silent fallback (FR-3.8). Sprint 2 will assert fail-closed; Sprint 1D defers."
+
+# Sprint 1D query — `max-nonexistent-tier` is not in MODEL_IDS.
+# Runners emit deferred marker (Sprint 2 will assert fail-closed semantics).
+sprint_1d_query:
+  alias: "max-nonexistent-tier"
+
+input:
+  schema_version: 2
+  framework_defaults:
+    providers:
+      anthropic:
+        models:
+          claude-opus-4-7: { capabilities: [chat], context_window: 200000 }
+    aliases:
+      opus: { provider: anthropic, model_id: claude-opus-4-7 }
+    # NOTE: no tier_groups.mappings entry for `max-nonexistent-tier`
+    tier_groups:
+      mappings: {}
+  operator_config:
+    skill_models:
+      flatline_protocol:
+        primary: max-nonexistent-tier
+
+expected:
+  resolutions:
+    - skill: flatline_protocol
+      role: primary
+      error:
+        code: "[TIER-NO-MAPPING]"
+        stage_failed: 3
+        detail: "tier `max-nonexistent-tier` has no mapping for any provider; configure tier_groups.mappings or use explicit alias"
+  cross_runtime_byte_identical: true

@@ -1,0 +1,31 @@
+description: "Legacy `flatline_protocol.models.primary` shape (cycle-093) → resolves with deprecation warning (FR-3.7). Sprint 2 will assert; Sprint 1D defers."
+
+# Sprint 1D query — `opus` is a known alias in MODEL_IDS today.
+# Runners produce a real result (the deprecation-shape parsing is Sprint 2 T2.9).
+sprint_1d_query:
+  alias: "opus"
+
+input:
+  schema_version: 2
+  framework_defaults:
+    providers:
+      anthropic:
+        models:
+          claude-opus-4-7: { capabilities: [chat], context_window: 200000 }
+    aliases:
+      opus: { provider: anthropic, model_id: claude-opus-4-7 }
+  operator_config:
+    # Legacy shape: `flatline_protocol.models.primary` (note nested `models` key)
+    flatline_protocol:
+      models:
+        primary: opus
+
+expected:
+  resolutions:
+    - skill: flatline_protocol
+      role: primary
+      resolved_provider: anthropic
+      resolved_model_id: claude-opus-4-7
+      resolution_path:
+        - { stage: 4, outcome: hit, label: stage4_legacy_shape, details: { warning: "[LEGACY-SHAPE-DEPRECATED]" } }
+  cross_runtime_byte_identical: true

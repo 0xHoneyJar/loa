@@ -1,0 +1,41 @@
+description: "Operator declares skill_models.flatline_protocol.primary: max; expects resolution to anthropic:claude-opus-4-7 via tier-tag (FR-3.9 stage 2 hit)."
+
+# Sprint 1D query — `max` is a tier-tag, NOT yet baked into MODEL_IDS as a
+# direct alias. Tier-tag-to-provider expansion is FR-3.9 stage 3 (Sprint 2 T2.6).
+# For Sprint 1D, runners emit deferred marker.
+sprint_1d_query:
+  alias: "max"
+
+# Sprint 2+ full FR-3.9 spec (preserved for resolver extension)
+input:
+  schema_version: 2
+  framework_defaults:
+    providers:
+      anthropic:
+        models:
+          claude-opus-4-7:
+            capabilities: [chat, tools]
+            context_window: 200000
+            pricing: { input_per_mtok: 5000000, output_per_mtok: 25000000 }
+    aliases:
+      opus: { provider: anthropic, model_id: claude-opus-4-7 }
+    tier_groups:
+      mappings:
+        max: { anthropic: opus }
+    agents:
+      flatline-reviewer: { default_tier: cheap }
+  operator_config:
+    skill_models:
+      flatline_protocol:
+        primary: max
+
+expected:
+  resolutions:
+    - skill: flatline_protocol
+      role: primary
+      resolved_provider: anthropic
+      resolved_model_id: claude-opus-4-7
+      resolution_path:
+        - { stage: 2, outcome: hit, label: stage2_skill_models, details: { tier: max } }
+        - { stage: 3, outcome: hit, label: stage3_tier_groups, details: { resolved_alias: opus } }
+  cross_runtime_byte_identical: true

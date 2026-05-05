@@ -1,0 +1,80 @@
+name: cycle-099 Sprint 1D bun-runner (TypeScript)
+
+# cycle-099 Sprint 1D (T1.11/T1.12) — TypeScript runner for the cross-runtime
+# golden-resolution corpus. Uses tsx (already pinned in BB skill) to execute
+# the runner; emits canonical-JSON that the cross-runtime-diff workflow
+# byte-compares against bash + python runners per SDD §7.6.2.
+#
+# Despite the workflow name `bun-runner` (per SDD §7.6.2 table), the actual
+# runtime is Node + tsx because the BB skill ships with tsx pinned via npm.
+# The SDD table named the workflow file before tsx was selected; the
+# workflow name is preserved for SDD-grep ergonomics.
+
+on:
+  pull_request:
+    paths:
+      - 'tests/fixtures/model-resolution/**'
+      - 'tests/typescript/golden_resolution.ts'
+      - '.claude/scripts/generated-model-maps.sh'
+      - '.claude/skills/bridgebuilder-review/package.json'
+      - '.claude/skills/bridgebuilder-review/package-lock.json'
+      - '.github/workflows/bun-runner.yml'
+      - '.github/workflows/cross-runtime-diff.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'tests/fixtures/model-resolution/**'
+      - 'tests/typescript/golden_resolution.ts'
+      - '.claude/scripts/generated-model-maps.sh'
+      - '.github/workflows/bun-runner.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cycle099-sprint-1d-ts-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ts-runner:
+    name: T1.11 TypeScript golden-resolution runner
+    runs-on: ubuntu-latest
+    steps:
+      # PINNING: SHA verified against actions/checkout v4.3.1 tag
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      # PINNING: SHA verified against actions/setup-node v4.1.0 tag
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: '20'
+
+      - name: Install yq v4.52.4 (pinned + checksum verified)
+        run: |
+          set -euo pipefail
+          local_yq=/usr/local/bin/yq
+          expected_sha256='0c4d965ea944b64b8fddaf7f27779ee3034e5693263786506ccd1c120f184e8c'
+          sudo wget -qO "$local_yq" https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64
+          echo "$expected_sha256  $local_yq" | sha256sum -c -
+          sudo chmod +x "$local_yq"
+          yq --version
+
+      - name: Install BB skill node_modules (for tsx)
+        working-directory: .claude/skills/bridgebuilder-review
+        run: npm ci --no-audit --no-fund
+
+      - name: Run TS runner → canonical JSON
+        run: |
+          # Direct invocation of tsx via node entry — avoids npx resolution issues
+          node .claude/skills/bridgebuilder-review/node_modules/tsx/dist/cli.mjs \
+              tests/typescript/golden_resolution.ts \
+              > typescript-resolution-output.jsonl
+          echo "TS runner produced $(wc -l < typescript-resolution-output.jsonl) lines:"
+          head -20 typescript-resolution-output.jsonl
+
+      # PINNING: SHA verified against actions/upload-artifact v4.4.3 tag
+      - name: Upload TS output for cross-runtime-diff
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: typescript-resolution-output
+          path: typescript-resolution-output.jsonl
+          retention-days: 7

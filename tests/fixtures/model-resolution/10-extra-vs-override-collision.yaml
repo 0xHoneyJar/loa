@@ -1,0 +1,32 @@
+description: "Same ID in both `model_aliases_extra` and `model_aliases_override` → reject [MODEL-EXTRA-OVERRIDE-CONFLICT] per IMP-004 enforcement. Sprint 2 enforces; Sprint 1D defers."
+
+# Sprint 1D query — `colliding-id` not in MODEL_IDS, deferred.
+sprint_1d_query:
+  alias: "colliding-id"
+
+input:
+  schema_version: 2
+  framework_defaults:
+    providers:
+      anthropic:
+        models:
+          claude-opus-4-7: { capabilities: [chat], context_window: 200000 }
+  operator_config:
+    model_aliases_extra:
+      colliding-id:
+        provider: anthropic
+        model_id: claude-opus-4-7
+    model_aliases_override:
+      colliding-id:
+        provider: anthropic
+        model_id: claude-opus-4-7
+
+expected:
+  resolutions:
+    - skill: flatline_protocol
+      role: primary
+      error:
+        code: "[MODEL-EXTRA-OVERRIDE-CONFLICT]"
+        stage_failed: 0
+        detail: "id `colliding-id` appears in BOTH model_aliases_extra and model_aliases_override; mutually exclusive at entry level (IMP-004)"
+  cross_runtime_byte_identical: true
