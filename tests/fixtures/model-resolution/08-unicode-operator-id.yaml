@@ -1,0 +1,30 @@
+description: "Operator-added model with id containing schema-allowed boundary characters [a-zA-Z0-9._-]. Verifies the schema's character-class regex doesn't accidentally accept Unicode look-alikes (cypherpunk-style defense)."
+
+# Sprint 1D query — `experimental-model_v2.0` matches the JSON Schema
+# `^[a-zA-Z0-9._-]+$` pattern. Not in MODEL_IDS, so deferred.
+sprint_1d_query:
+  alias: "experimental-model_v2.0"
+
+input:
+  schema_version: 2
+  framework_defaults:
+    providers:
+      anthropic:
+        models:
+          claude-opus-4-7: { capabilities: [chat], context_window: 200000 }
+  operator_config:
+    model_aliases_extra:
+      "experimental-model_v2.0":
+        provider: anthropic
+        model_id: claude-opus-4-7
+        capabilities: [chat]
+
+expected:
+  resolutions:
+    - skill: flatline_protocol
+      role: primary
+      resolved_provider: anthropic
+      resolved_model_id: claude-opus-4-7
+      resolution_path:
+        - { stage: 2, outcome: hit, label: stage2_skill_models, details: { alias: "experimental-model_v2.0" } }
+  cross_runtime_byte_identical: true

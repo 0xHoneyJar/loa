@@ -1,0 +1,62 @@
+name: cycle-099 Sprint 1D python-runner
+
+# cycle-099 Sprint 1D (T1.11/T1.12) — Python runner for the cross-runtime
+# golden-resolution corpus. Emits canonical-JSON output that the
+# cross-runtime-diff workflow byte-compares against bash + TS runners
+# per SDD §7.6.2.
+
+on:
+  pull_request:
+    paths:
+      - 'tests/fixtures/model-resolution/**'
+      - 'tests/python/golden_resolution.py'
+      - '.claude/scripts/generated-model-maps.sh'
+      - '.github/workflows/python-runner.yml'
+      - '.github/workflows/cross-runtime-diff.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'tests/fixtures/model-resolution/**'
+      - 'tests/python/golden_resolution.py'
+      - '.claude/scripts/generated-model-maps.sh'
+      - '.github/workflows/python-runner.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cycle099-sprint-1d-python-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-runner:
+    name: T1.11 python golden-resolution runner
+    runs-on: ubuntu-latest
+    steps:
+      # PINNING: SHA verified against actions/checkout v4.3.1 tag
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      # PINNING: SHA matches actions/setup-python v5.3.0 used elsewhere in repo.
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: '3.13'
+
+      - name: Install Python deps (pyyaml)
+        run: |
+          python -m pip install --upgrade pip
+          # pyyaml — single dep for YAML parsing.
+          pip install 'pyyaml==6.0.2'
+
+      - name: Run python runner → canonical JSON
+        run: |
+          python tests/python/golden_resolution.py > python-resolution-output.jsonl
+          echo "Python runner produced $(wc -l < python-resolution-output.jsonl) lines:"
+          head -20 python-resolution-output.jsonl
+
+      # PINNING: SHA verified against actions/upload-artifact v4.4.3 tag
+      - name: Upload python output for cross-runtime-diff
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: python-resolution-output
+          path: python-resolution-output.jsonl
+          retention-days: 7

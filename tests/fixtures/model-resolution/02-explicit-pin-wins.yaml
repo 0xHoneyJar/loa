@@ -1,0 +1,35 @@
+description: "Explicit provider:model_id pin in skill_models takes precedence over alias resolution (FR-3.9 stage 1 hit)."
+
+# Sprint 1D query — explicit `provider:model_id` pin form (FR-3.9 stage 1).
+# Runners parse the colon, validate `model_id` is in MODEL_PROVIDERS, and
+# emit the resolution. This exercises the explicit-pin code path that
+# would otherwise be dead in the corpus.
+sprint_1d_query:
+  alias: "anthropic:claude-opus-4-7"
+
+input:
+  schema_version: 2
+  framework_defaults:
+    providers:
+      anthropic:
+        models:
+          claude-opus-4-7:
+            capabilities: [chat, tools]
+            context_window: 200000
+            pricing: { input_per_mtok: 5000000, output_per_mtok: 25000000 }
+    aliases:
+      opus: { provider: anthropic, model_id: claude-opus-4-7 }
+  operator_config:
+    skill_models:
+      flatline_protocol:
+        primary: "anthropic:claude-opus-4-7"
+
+expected:
+  resolutions:
+    - skill: flatline_protocol
+      role: primary
+      resolved_provider: anthropic
+      resolved_model_id: claude-opus-4-7
+      resolution_path:
+        - { stage: 1, outcome: hit, label: stage1_pin_check, details: { pin: "anthropic:claude-opus-4-7" } }
+  cross_runtime_byte_identical: true

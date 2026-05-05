@@ -1,0 +1,33 @@
+description: "Startup hook degraded mode (lock acquisition timeout) — uses cached `.run/merged-model-aliases.sh`; resolves via cached mappings (NFR-Op-6, FR-3.9 §6.3.2). Sprint 2 implements; Sprint 1D tests baseline `cheap` alias."
+
+# Sprint 1D query — `cheap` is a known alias (baseline resolution, no runtime overlay).
+sprint_1d_query:
+  alias: "cheap"
+
+input:
+  schema_version: 2
+  framework_defaults:
+    providers:
+      anthropic:
+        models:
+          claude-sonnet-4-6:
+            capabilities: [chat]
+            context_window: 200000
+    aliases:
+      cheap: { provider: anthropic, model_id: claude-sonnet-4-6 }
+  operator_config: {}
+  # Degraded-mode marker (Sprint 2 reads this and asserts cached-resolution path)
+  runtime_state:
+    overlay_state: degraded
+    overlay_reason: "[OVERLAY-DEGRADED-READONLY] lock-timeout"
+    cache_sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+
+expected:
+  resolutions:
+    - skill: flatline_protocol
+      role: primary
+      resolved_provider: anthropic
+      resolved_model_id: claude-sonnet-4-6
+      resolution_path:
+        - { stage: 5, outcome: hit, label: stage5_framework_default, details: { alias: cheap, source: degraded_cache } }
+  cross_runtime_byte_identical: true

@@ -1,0 +1,29 @@
+description: "model_aliases_override targeting unknown ID → reject [OVERRIDE-UNKNOWN-MODEL]. Sprint 2 enforces; Sprint 1D defers."
+
+# Sprint 1D query — `nonexistent-base-model` is not in MODEL_IDS.
+# Runners emit deferred marker.
+sprint_1d_query:
+  alias: "nonexistent-base-model"
+
+input:
+  schema_version: 2
+  framework_defaults:
+    providers:
+      anthropic:
+        models:
+          claude-opus-4-7: { capabilities: [chat], context_window: 200000 }
+  operator_config:
+    model_aliases_override:
+      nonexistent-base-model:
+        provider: anthropic
+        model_id: claude-opus-4-7
+
+expected:
+  resolutions:
+    - skill: flatline_protocol
+      role: primary
+      error:
+        code: "[OVERRIDE-UNKNOWN-MODEL]"
+        stage_failed: 0
+        detail: "model_aliases_override targets `nonexistent-base-model` which is not a framework-default ID"
+  cross_runtime_byte_identical: true

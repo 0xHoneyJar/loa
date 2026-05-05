@@ -1,0 +1,34 @@
+description: "FR-3.9 stage 6 retargets resolved model to its `*-pro` variant when prefer_pro_models is enabled. Sprint 2 implements stage 6; Sprint 1D defers."
+
+# Sprint 1D query — `gemini-2.5-pro` IS in MODEL_IDS (it's a canonical id).
+# Real result for the SUBSET. Sprint 2 will test the prefer_pro retargeting.
+sprint_1d_query:
+  alias: "gemini-2.5-pro"
+
+input:
+  schema_version: 2
+  framework_defaults:
+    providers:
+      google:
+        models:
+          gemini-2.5-flash: { capabilities: [chat], context_window: 1000000 }
+          gemini-2.5-pro: { capabilities: [chat], context_window: 1000000 }
+    aliases:
+      flash: { provider: google, model_id: gemini-2.5-flash }
+      flash-pro: { provider: google, model_id: gemini-2.5-pro }
+  operator_config:
+    prefer_pro_models: true
+    skill_models:
+      researcher:
+        primary: flash
+
+expected:
+  resolutions:
+    - skill: researcher
+      role: primary
+      resolved_provider: google
+      resolved_model_id: gemini-2.5-pro
+      resolution_path:
+        - { stage: 2, outcome: hit, label: stage2_skill_models, details: { alias: flash } }
+        - { stage: 6, outcome: applied, label: stage6_prefer_pro_overlay, details: { from: flash, to: flash-pro } }
+  cross_runtime_byte_identical: true
