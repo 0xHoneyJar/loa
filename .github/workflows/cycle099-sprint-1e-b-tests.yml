@@ -103,7 +103,7 @@ jobs:
           violations=$(
               grep -rEln \
                   '(urllib\.parse|from urllib import parse|^import urllib($|[^.])|__import__\(.urllib\.parse|import_module\(.urllib\.parse)' \
-                  .claude/adapters/ .claude/scripts/ .claude/skills/ .claude/commands/ tests/ scripts/ \
+                  .claude/adapters/ .claude/scripts/ .claude/skills/ .claude/commands/ .claude/hooks/ tests/ scripts/ \
                   --include='*.py' 2>/dev/null \
                   | { grep -vF "$allowed_path" || true; } \
                   | { grep -vFx -f .github/workflows/lint-pre-existing-urllib.txt 2>/dev/null || cat; }
