@@ -19,6 +19,14 @@
 #   - eval / printf-assembled curl (`eval "${EVIL}..."`)
 #   - bash builtins like `exec 3<>/dev/tcp/<host>/<port>`
 #   - Out-of-process exfil (nc, python urlopen, perl LWP, etc.)
+#   - Content-blind exempt-file growth (BB iter-1 F17): once on the
+#     EXEMPT_FILES list, ALL raw curl/wget in the file is unscanned.
+#     A future PR adding a third raw curl to mount-loa.sh would not be
+#     caught. Mitigation: per-exempt-file PR review (each exempt file is
+#     listed in this scanner with rationale); each exempt file is
+#     hardened with --proto =https / --max-redirs / --max-time / etc.
+#     in its own source. Scanner-level enforcement of those defenses
+#     is a follow-up sprint candidate.
 # These are policy-violation patterns; PR review remains the gate.
 #
 # Exempt files (each with rationale):
@@ -188,14 +196,19 @@ in_heredoc {
 /command[[:space:]]+-v[[:space:]]+(curl|wget)/ { next }
 /which[[:space:]]+(curl|wget)/ { next }
 
-# Step 4: skip lines starting with echo/printf and a quoted string.
-/^[[:space:]]*(echo|printf)[[:space:]]+[\047"]/ { next }
+# Step 4: skip lines starting with echo/printf and a quoted string —
+# UNLESS they contain a command-substitution that could invoke curl
+# (BB iter-1 F4). `echo "$(curl https://x)"` MUST still be flagged because
+# the command substitution is real curl execution. Same for backticks.
+/^[[:space:]]*(echo|printf)[[:space:]]+[\047"]/ {
+    if (!($0 ~ /\$\(|`/)) next
+}
 
-# Step 5: skip lines with the explicit suppression marker. The marker
-# applies to its OWN line only (each line is processed independently in
-# awk). To silence a curl invocation, the marker MUST be on the same line
-# as the curl (bats ST15 pins this scope).
-/check-no-raw-curl:[[:space:]]*ok/ { next }
+# Step 5: skip lines with the explicit suppression marker. BB iter-1 F2:
+# require a `#` comment leader so that a marker inside a string literal
+# does NOT silence a real curl on the same line. The marker applies to
+# its OWN line only (bats ST15 pins this scope).
+/#[^\n]*check-no-raw-curl:[[:space:]]*ok/ { next }
 
 # Step 6: detect heredoc opener. Real openers push us into heredoc state;
 # string-mentioned `<<EOF` (gp H1) does NOT.
@@ -214,8 +227,9 @@ in_heredoc {
 
             # gp HIGH H2 fix: scan the rest of the line (after the opener)
             # for raw curl/wget. Pattern: `cat <<EOF >x && curl https://x`.
+            # BB F3: suffix class also includes `'` (\047).
             rest = substr($0, RSTART + RLENGTH)
-            if (rest ~ /(^|[^[:alnum:]_])(curl|wget)[[:space:]]+(-|http|\/|\$|"|\\)/) {
+            if (rest ~ /(^|[^[:alnum:]_])(curl|wget)[[:space:]]+(-|http|\/|\$|"|\047|\\)/) {
                 print FILENAME ":" NR ":" $0
             }
             next
@@ -225,8 +239,9 @@ in_heredoc {
     }
 }
 
-# Step 7: match raw curl|wget invocations.
-/(^|[^[:alnum:]_])(curl|wget)[[:space:]]+(-|http|\/|\$|"|\\)/ {
+# Step 7: match raw curl|wget invocations. BB iter-1 F3: include `'`
+# (single-quote, \047) in suffix class so `curl 'https://x'` is also flagged.
+/(^|[^[:alnum:]_])(curl|wget)[[:space:]]+(-|http|\/|\$|"|\047|\\)/ {
     print FILENAME ":" NR ":" $0
 }
 AWK

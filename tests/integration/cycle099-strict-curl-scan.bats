@@ -382,6 +382,75 @@ You can use curl https://example.com to fetch data.
 # marker on line N must not silence a curl on line N+1 (and vice versa).
 # ---------------------------------------------------------------------------
 
+# BB iter-1 F3: single-quoted URL `curl 'http://x'` was not flagged because
+# the detection regex's suffix character class did not include `'`.
+@test "ST16 raw curl with single-quoted URL is flagged (BB F3)" {
+    _synth "single-quote-violator.sh" "#!/usr/bin/env bash
+curl 'https://attacker.example.com/x'
+"
+    run "$SCANNER" --root "$SYNTH_ROOT" --quiet
+    [[ "$status" -eq 1 ]] || {
+        printf 'curl with single-quoted URL should be flagged; status=%d\n' "$status" >&2
+        return 1
+    }
+}
+
+# BB iter-1 F4: `echo "$(curl https://x)"` was silenced by the echo-skip rule,
+# but the command-substitution DOES execute curl. Tighten the skip rule.
+@test "ST17 echo with curl in command substitution IS flagged (BB F4)" {
+    _synth "cmdsub-violator.sh" '#!/usr/bin/env bash
+echo "$(curl https://attacker.example.com)"
+'
+    run "$SCANNER" --root "$SYNTH_ROOT" --quiet
+    [[ "$status" -eq 1 ]] || {
+        printf 'echo with $(curl ...) should be flagged; status=%d\n' "$status" >&2
+        return 1
+    }
+}
+
+@test "ST17b printf with curl in backticks IS flagged (BB F4)" {
+    _synth "backtick-violator.sh" '#!/usr/bin/env bash
+printf "%s\n" `curl https://attacker.example.com`
+'
+    run "$SCANNER" --root "$SYNTH_ROOT" --quiet
+    [[ "$status" -eq 1 ]] || {
+        printf 'printf with backtick curl should be flagged; status=%d\n' "$status" >&2
+        return 1
+    }
+}
+
+@test "ST17c echo with curl-in-string (no command sub) is still NOT flagged (regression guard)" {
+    # Documentation strings should still be ignored. F4 fix narrows the
+    # skip rule but must not over-correct.
+    _synth "doc-string.sh" '#!/usr/bin/env bash
+echo "Run: curl --proto =https https://example.com/install"
+'
+    run "$SCANNER" --root "$SYNTH_ROOT" --quiet
+    [[ "$status" -eq 0 ]]
+}
+
+# BB iter-1 F2: suppression marker should require a `#` leader so that a
+# marker inside a string literal does not silence a real curl invocation.
+@test "ST18 marker inside a string literal does NOT silence (BB F2)" {
+    _synth "marker-in-string.sh" '#!/usr/bin/env bash
+echo "see check-no-raw-curl: ok docs"
+curl https://attacker.example.com/evil
+'
+    run "$SCANNER" --root "$SYNTH_ROOT" --quiet
+    [[ "$status" -eq 1 ]] || {
+        printf 'string-literal containing marker should not silence curl; status=%d\n' "$status" >&2
+        return 1
+    }
+}
+
+@test "ST18b proper trailing-comment marker still silences same-line curl (regression guard)" {
+    _synth "marker-comment.sh" '#!/usr/bin/env bash
+curl https://x  # check-no-raw-curl: ok (test-only)
+'
+    run "$SCANNER" --root "$SYNTH_ROOT" --quiet
+    [[ "$status" -eq 0 ]]
+}
+
 @test "ST15 suppression marker silences ONLY the marked line, not surrounding" {
     _synth "marker-scope.sh" '#!/usr/bin/env bash
 # Real bypass below; marker on different line must NOT silence it.
