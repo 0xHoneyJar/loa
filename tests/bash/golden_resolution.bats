@@ -305,9 +305,14 @@ EOF
 
 @test "G13d clean generated-maps PASSES sanitizer (regression guard)" {
     # The real generated-model-maps.sh must pass the sanitizer; otherwise
-    # cycle-099 production state breaks.
-    "$RUNNER" >/dev/null
-    [[ "$?" -eq 0 ]]
+    # cycle-099 production state breaks. BB iter-2 F5 fix: use `run` for
+    # explicit $status assertion (not the always-zero $? of `[[ ]]`).
+    run "$RUNNER"
+    [[ "$status" -eq 0 ]] || {
+        printf 'production generated-model-maps.sh failed sanitizer; status=%d\n' "$status" >&2
+        printf 'output: %s\n' "$output" >&2
+        return 1
+    }
 }
 
 # cypherpunk CRIT-2 (PR #735 review): bash runner must reject non-string
@@ -337,7 +342,7 @@ EOF
     [[ "$output" == *"outside"* || "$output" == *"reject"* ]]
 }
 
-@test "G15b generated-maps with `unset -f` outside-array is REJECTED (BB F7)" {
+@test "G15b generated-maps with 'unset -f' outside-array is REJECTED (BB F7)" {
     local hostile="$WORK_DIR/hostile-unset.sh"
     cat > "$hostile" <<'EOF'
 unset -f resolve_alias
