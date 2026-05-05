@@ -61,6 +61,9 @@ const allowlist = loadAllowlist(JSON.parse(readFileSync(allowlistPath, "utf-8"))
 const result = validate(url, allowlist);
 
 // Match Python's emit shape: drop None/null values, sort keys, indent 2.
+// JS Object preserves insertion order; we insert in sorted-key order so
+// JSON.stringify with replacer=null naturally produces sorted output.
+// (BB iter-1 F1 — drop the redundant replacer-array arg.)
 const cleaned: Record<string, unknown> = {};
 const ordered = Object.keys(result).sort();
 for (const k of ordered) {
@@ -68,7 +71,7 @@ for (const k of ordered) {
     if (v === null || v === undefined) continue;
     cleaned[k] = v;
 }
-const out = JSON.stringify(cleaned, Object.keys(cleaned).sort(), 2);
+const out = JSON.stringify(cleaned, null, 2);
 if (result.valid) {
     process.stdout.write(out);
 } else {
