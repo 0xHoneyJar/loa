@@ -137,14 +137,12 @@ _read_query() {
 # sequence injection into CI runner stdout.
 _dump_failure() {
     local invariant="$1" seed="$2" detail="$3"
-    local strip_ctl='tr -d \000-\010\013-\037'
     {
         printf '\n========== property-fail invariant=%s seed=%s ==========\n' "$invariant" "$seed"
         printf '%s\n' "$detail"
         printf '----- config -----\n'
-        # shellcheck disable=SC2002
         if [[ -s "$CFG" ]]; then
-            cat "$CFG" | tr -d '\000-\010\013-\037'
+            tr -d '\000-\010\013-\037' < "$CFG"
         else
             printf '[empty]\n'
         fi
@@ -162,8 +160,6 @@ _dump_failure() {
         fi
         printf '----- end -----\n'
     } >&2
-    # Suppress unused-variable warning for the strip_ctl reference above.
-    : "$strip_ctl"
 }
 
 # ---------------------------------------------------------------------

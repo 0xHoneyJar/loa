@@ -3,9 +3,9 @@ name: cycle-099 Sprint 2D.d property suite (nightly stress)
 # cycle-099 Sprint 2D.d (T2.6 closure) — SC-14 nightly stress.
 #
 # Runs `tests/property/model-resolution-properties.bats` at the
-# nightly-stress iteration count (LOA_PROPERTY_ITERATIONS=1000, ~6000
-# cases total across the six FR-3.9 invariants per AC-S2.d.2). The
-# per-PR variant (100 iter) is in
+# nightly-stress iteration count (LOA_PROPERTY_ITERATIONS=1000, ~7000
+# cases total across the six FR-3.9 invariants + I7 positive S5 control
+# per AC-S2.d.2). The per-PR variant (100 iter) is in
 # `cycle099-sprint-2d-d-property.yml`.
 #
 # Cron: 06:00 UTC daily. Manual trigger via workflow_dispatch.

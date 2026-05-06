@@ -3,9 +3,10 @@ name: cycle-099 Sprint 2D.d property suite (PR check)
 # cycle-099 Sprint 2D.d (T2.6 closure) — SC-14 property suite (per-PR check).
 #
 # Runs `tests/property/model-resolution-properties.bats` at the per-PR
-# iteration count (LOA_PROPERTY_ITERATIONS=100, ~600 cases total across the
-# six FR-3.9 invariants per AC-S2.d.1). Nightly stress at 1000 iterations is
-# in `cycle099-sprint-2d-d-property-nightly.yml`.
+# iteration count (LOA_PROPERTY_ITERATIONS=100, ~700 cases total across
+# the six FR-3.9 invariants + I7 positive S5 control per AC-S2.d.1).
+# Nightly stress at 1000 iterations is in
+# `cycle099-sprint-2d-d-property-nightly.yml`.
 #
 # Triggers on PRs that touch the resolver, the property generator, the
 # property bats, or this workflow itself. The workflow is also pushed on
