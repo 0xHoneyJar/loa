@@ -22,6 +22,8 @@ setup() {
   INPUT="$WORK/input.txt"
   printf 'sample input\n' > "$INPUT"
 
+  # CYP-F1 dual-review fix: 3-leg gate on env-var override
+  export LOA_OVERLAY_HELPER_TEST_MODE=1
   export LOA_OVERLAY_MERGED="$MERGED"
   export LOA_OVERLAY_LOCKFILE="$LOCKFILE"
   export HOUNFOUR_FLATLINE_ROUTING=true   # exercise the v2.0 shim path
@@ -71,7 +73,7 @@ declare -gA LOA_MODEL_COST_OUTPUT_PER_MTOK=(
   [operator-only-alias]=200000000
 )
 
-LOA_OVERLAY_FINGERPRINT=overlay123456
+LOA_OVERLAY_FINGERPRINT=0123456789ab
 EOF
   : > "$LOCKFILE"
 }
@@ -165,12 +167,28 @@ EOF
 # source-sha256=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 # holder-pid=99
 # DO NOT EDIT
-declare -gA LOA_MODEL_PROVIDERS=( [opus]=anthropic )
-declare -gA LOA_MODEL_IDS=( [opus]=claude-opus-4-7-OVERRIDDEN )
-declare -gA LOA_MODEL_ENDPOINT_FAMILIES=( [opus]=messages )
-declare -gA LOA_MODEL_COST_INPUT_PER_MTOK=( [opus]=1 )
-declare -gA LOA_MODEL_COST_OUTPUT_PER_MTOK=( [opus]=1 )
-LOA_OVERLAY_FINGERPRINT=override123
+
+declare -gA LOA_MODEL_PROVIDERS=(
+  [opus]=anthropic
+)
+
+declare -gA LOA_MODEL_IDS=(
+  [opus]=claude-opus-4-7-OVERRIDDEN
+)
+
+declare -gA LOA_MODEL_ENDPOINT_FAMILIES=(
+  [opus]=messages
+)
+
+declare -gA LOA_MODEL_COST_INPUT_PER_MTOK=(
+  [opus]=1
+)
+
+declare -gA LOA_MODEL_COST_OUTPUT_PER_MTOK=(
+  [opus]=1
+)
+
+LOA_OVERLAY_FINGERPRINT=cdef01234567
 EOF
   : > "$LOCKFILE"
   run --separate-stderr "$ADAPTER" \
@@ -194,7 +212,7 @@ declare -gA LOA_MODEL_IDS=()
 declare -gA LOA_MODEL_ENDPOINT_FAMILIES=()
 declare -gA LOA_MODEL_COST_INPUT_PER_MTOK=()
 declare -gA LOA_MODEL_COST_OUTPUT_PER_MTOK=()
-LOA_OVERLAY_FINGERPRINT=empty1234567
+LOA_OVERLAY_FINGERPRINT=eeee01234567
 EOF
   : > "$LOCKFILE"
   run --separate-stderr "$ADAPTER" \

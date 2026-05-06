@@ -14,6 +14,33 @@
 # `.loa.config.yaml::model_aliases_extra`. This is the operator-extras-aware
 # resolution path, complementing the framework-only `model-resolver.sh`.
 #
+# # TRUST MODEL (read this before changing anything in here)
+#
+# `source` of any file is RCE by definition. The Sprint 2B writer
+# (`model-overlay-hook.py`) is the SOLE legitimate writer of the merged
+# file. The writer's hardening — atomic-rename, chmod 0600, O_NOFOLLOW on
+# both the merged path and the lockfile, a shell-escape gate that uses
+# `shlex.quote()` and rejects $/`/\/\n/\r — guarantees the file's content
+# does NOT contain shell-metacharacter expansion vectors WHEN the writer
+# emitted it.
+#
+# This helper's job is "do not weaken the writer's guarantees on read."
+# Specifically:
+#   - `bash -n` is a STRUCTURAL syntax check ONLY. It accepts content like
+#     `[k]=$(rm -rf ~)` which IS a syntactically valid bash literal. The
+#     defense is the writer's shell-escape gate, NOT the reader's `-n`.
+#   - The content-shape gate added in iter-1 of cycle-099 sprint-2C dual
+#     review (`_loa_overlay_validate_shape`) provides a SECONDARY defense:
+#     the reader rejects any file whose body contains shapes the writer
+#     never emits (e.g., command-substitution, semicolons, pipes,
+#     non-allowlist characters in alias keys/values). This composes with
+#     the writer's defenses to handle a tampered-after-rename scenario.
+#   - The `LOA_OVERLAY_MERGED` and `LOA_OVERLAY_LOCKFILE` env-var overrides
+#     are gated behind a 3-leg test-mode check (LOA_OVERLAY_HELPER_TEST_MODE
+#     + the env var + BATS_VERSION OR PYTEST_CURRENT_TEST), mirroring the
+#     Sprint 2B writer's own override gating. Production calls never see
+#     attacker-controlled paths.
+#
 # Usage in a caller (e.g. `model-adapter.sh`):
 #
 #     # shellcheck source=lib/overlay-source-helper.sh
@@ -31,8 +58,8 @@
 #   - Best-effort: if the merged file is missing or unreadable, the caller
 #     falls through to existing resolution paths. We do NOT exit on init
 #     failure — bash adapters that ran fine pre-cycle-099 must keep working.
-#   - Defense-in-depth: bash syntax check (`bash -n`) before sourcing, in
-#     case the file was tampered with after the hook's atomic-write.
+#   - Defense-in-depth: bash syntax check (`bash -n`) AND content-shape
+#     gate before sourcing.
 #   - Shared flock briefly held during the read (matches cycle-099 SDD §6.3.1
 #     loader contract: shared lock during multi-file reads avoids torn-read
 #     racing against the writer's exclusive lock).
@@ -47,12 +74,86 @@ _OVERLAY_HELPER_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _OVERLAY_HELPER_REPO_ROOT="$(cd "$_OVERLAY_HELPER_LIB_DIR/../../.." && pwd)"
 _OVERLAY_HELPER_HOOK="$_OVERLAY_HELPER_LIB_DIR/model-overlay-hook.py"
 
-# Path resolution. Operators may override via env var for non-standard layouts
-# (e.g., LOA_GRIMOIRE_DIR-style configurability). The override is honored
-# unconditionally because the file's content is shell-syntax-checked before
-# sourcing — there's no trust escalation surface.
-_OVERLAY_HELPER_MERGED="${LOA_OVERLAY_MERGED:-$_OVERLAY_HELPER_REPO_ROOT/.run/merged-model-aliases.sh}"
-_OVERLAY_HELPER_LOCKFILE="${LOA_OVERLAY_LOCKFILE:-${_OVERLAY_HELPER_MERGED}.lock}"
+# CYP-F3 fix: resolve python3 to an absolute path under a known-good prefix.
+# An attacker-prepended $PATH must not redirect the hook invocation. We
+# accept paths under /usr/, /usr/local/, /opt/, $HOME/.pyenv/, $HOME/.local/.
+_loa_resolve_python3() {
+    if [[ -x "/usr/bin/python3" ]]; then
+        printf '%s' "/usr/bin/python3"
+        return 0
+    fi
+    if [[ -x "/usr/local/bin/python3" ]]; then
+        printf '%s' "/usr/local/bin/python3"
+        return 0
+    fi
+    if command -v python3 &>/dev/null; then
+        local resolved real
+        resolved="$(command -v python3)"
+        # Resolve symlinks; if realpath unavailable, use the resolved name as-is.
+        real="$(realpath -e "$resolved" 2>/dev/null || printf '%s' "$resolved")"
+        case "$real" in
+            /usr/*|/opt/*|"$HOME"/.pyenv/*|"$HOME"/.local/*|/root/.pyenv/*|/root/.local/*)
+                printf '%s' "$real"
+                return 0
+                ;;
+        esac
+    fi
+    return 1
+}
+_OVERLAY_HELPER_PYTHON3="$(_loa_resolve_python3 || printf '')"
+
+# CYP-F1 fix: 3-leg gate on env-var override of merged-file / lockfile paths.
+# Mirrors Sprint 2B's `LOA_OVERLAY_PROC_MOUNTS_PATH_FOR_TEST` gating
+# (model-overlay-hook.py::_resolve_test_proc_mounts_path):
+#   1. LOA_OVERLAY_HELPER_TEST_MODE=1
+#   2. LOA_OVERLAY_MERGED is set (the override itself)
+#   3. BATS_VERSION OR PYTEST_CURRENT_TEST in env (proves test runner present)
+# Partial gates (only one leg) MUST NOT escape — closes the env-var-leak
+# footgun where an `.envrc` or CI variable bypasses production paths.
+_loa_resolve_merged_path() {
+    local default="$_OVERLAY_HELPER_REPO_ROOT/.run/merged-model-aliases.sh"
+    local override="${LOA_OVERLAY_MERGED:-}"
+    if [[ -z "$override" ]]; then
+        printf '%s' "$default"
+        return 0
+    fi
+    if [[ "${LOA_OVERLAY_HELPER_TEST_MODE:-}" != "1" ]]; then
+        printf '%s' "$default"
+        return 0
+    fi
+    if [[ -z "${BATS_VERSION:-}" && -z "${PYTEST_CURRENT_TEST:-}" ]]; then
+        printf '%s' "$default"
+        return 0
+    fi
+    printf '%s' "$override"
+}
+
+_loa_resolve_lockfile_path() {
+    local default="$1.lock"   # caller passes the resolved merged path
+    local override="${LOA_OVERLAY_LOCKFILE:-}"
+    if [[ -z "$override" ]]; then
+        printf '%s' "$default"
+        return 0
+    fi
+    if [[ "${LOA_OVERLAY_HELPER_TEST_MODE:-}" != "1" ]]; then
+        printf '%s' "$default"
+        return 0
+    fi
+    if [[ -z "${BATS_VERSION:-}" && -z "${PYTEST_CURRENT_TEST:-}" ]]; then
+        printf '%s' "$default"
+        return 0
+    fi
+    printf '%s' "$override"
+}
+
+_OVERLAY_HELPER_MERGED="$(_loa_resolve_merged_path)"
+_OVERLAY_HELPER_LOCKFILE="$(_loa_resolve_lockfile_path "$_OVERLAY_HELPER_MERGED")"
+
+# CYP-F7 fix: lock the resolved paths so a subsequently-sourced library
+# cannot reassign and hijack the hook invocation or merged-file source.
+readonly _OVERLAY_HELPER_LIB_DIR _OVERLAY_HELPER_REPO_ROOT \
+         _OVERLAY_HELPER_HOOK _OVERLAY_HELPER_PYTHON3 \
+         _OVERLAY_HELPER_MERGED _OVERLAY_HELPER_LOCKFILE
 
 # loa_overlay_read_version <file?> — read the `# version=N` header line from
 # the merged file. Echoes the integer on success; returns 1 + empty stdout
@@ -61,49 +162,170 @@ loa_overlay_read_version() {
     local file="${1:-$_OVERLAY_HELPER_MERGED}"
     [[ -f "$file" ]] || return 1
     local v
-    # Read only the first 10 lines (the header is always at the top); avoid
-    # scanning the entire file every call. Match `# version=<digits>` only.
-    v="$(head -10 "$file" 2>/dev/null | sed -n 's/^# version=\([0-9][0-9]*\)[[:space:]]*$/\1/p' | head -1)"
+    # Match `# version=<digits>` only. Use awk that exits at first declare
+    # so a future writer adding more header lines doesn't break us (CYP-F8 +
+    # GP-F9 fix: replaces the previous `head -10` arbitrary cap).
+    v="$(awk '
+        /^declare/ { exit }
+        /^# version=/ {
+            sub(/^# version=/, "", $0)
+            sub(/[[:space:]]*$/, "", $0)
+            if ($0 ~ /^[0-9]+$/) { print $0; exit }
+        }
+    ' "$file" 2>/dev/null)"
     [[ -n "$v" ]] || return 1
     printf '%s' "$v"
 }
 
 # loa_overlay_read_source_sha <file?> — read the source-sha256 header. Used
-# for cache-validity checks (e.g., cross-validating against a fresh input
-# hash). Echoes the 64-char lowercase hex digest on success; returns 1 on
-# missing file or unparseable header.
+# for cache-validity checks. Echoes the 64-char lowercase hex digest on
+# success; returns 1 on missing file or unparseable header.
 loa_overlay_read_source_sha() {
     local file="${1:-$_OVERLAY_HELPER_MERGED}"
     [[ -f "$file" ]] || return 1
     local s
-    s="$(head -10 "$file" 2>/dev/null | sed -n 's/^# source-sha256=\([0-9a-f][0-9a-f]*\)[[:space:]]*$/\1/p' | head -1)"
+    s="$(awk '
+        /^declare/ { exit }
+        /^# source-sha256=/ {
+            sub(/^# source-sha256=/, "", $0)
+            sub(/[[:space:]]*$/, "", $0)
+            if ($0 ~ /^[0-9a-f]{64}$/) { print $0; exit }
+        }
+    ' "$file" 2>/dev/null)"
     [[ -n "$s" && ${#s} -eq 64 ]] || return 1
     printf '%s' "$s"
 }
 
 # _loa_overlay_invoke_hook — invoke the Sprint 2B hook to (re)generate
-# the merged file. Best-effort: returns 0 on hook success, 1 on any failure
-# (missing python3, missing hook, hook exit non-zero). Caller decides
-# whether to retry or fall through.
+# the merged file. Best-effort: returns 0 on hook success, 1 on any failure.
+# Caller decides whether to retry or fall through.
+#
+# GP-F1 fix: pass --merged + --lockfile so the hook writes to the same
+# path the helper will read from. Previously the hook used its default
+# `.run/merged-model-aliases.sh` regardless of the helper's override,
+# causing test fixtures to pollute the developer's real `.run/` while
+# the helper read from the override path.
+#
+# CYP-F3 fix: uses _OVERLAY_HELPER_PYTHON3 (absolute path resolved at
+# source time), not bare `python3` from $PATH.
+#
+# GP-F3 fix: surface hook diagnostics when LOA_OVERLAY_DIAGNOSTICS=1, so
+# operators investigating overlay drift can see [MODEL-EXTRA-INVALID] et al.
 _loa_overlay_invoke_hook() {
     [[ -f "$_OVERLAY_HELPER_HOOK" ]] || return 1
-    command -v python3 &>/dev/null || return 1
-    # Suppress stderr — operator-facing diagnostics are emitted by the
-    # hook's own structured-marker channel; we don't want to leak them
-    # into adapter output streams. If callers need the diagnostic, they
-    # can invoke the hook directly.
-    python3 "$_OVERLAY_HELPER_HOOK" 2>/dev/null
+    [[ -n "$_OVERLAY_HELPER_PYTHON3" ]] || return 1
+
+    local stderr_redirect="/dev/null"
+    if [[ "${LOA_OVERLAY_DIAGNOSTICS:-0}" == "1" ]]; then
+        # Caller asked for diagnostics; let stderr through.
+        stderr_redirect="/dev/stderr"
+    fi
+    "$_OVERLAY_HELPER_PYTHON3" "$_OVERLAY_HELPER_HOOK" \
+        --merged "$_OVERLAY_HELPER_MERGED" \
+        --lockfile "$_OVERLAY_HELPER_LOCKFILE" \
+        2>"$stderr_redirect"
+}
+
+# _loa_overlay_validate_shape — CYP-F2 + CYP-F9 + CYP-F10 fix.
+# Reject any line in the merged file that doesn't match the shape the
+# writer (model-overlay-hook.py) actually emits. This is a defense-in-depth
+# secondary gate; the primary defense is the writer's shell-escape gate +
+# atomic-rename + chmod 0600 + O_NOFOLLOW.
+#
+# Allowed line shapes:
+#   - empty line
+#   - `^# ...` (header comment)
+#   - `^declare -gA LOA_MODEL_(PROVIDERS|IDS|ENDPOINT_FAMILIES|COST_INPUT_PER_MTOK|COST_OUTPUT_PER_MTOK)=\($`
+#   - `^[[:space:]]+\[[A-Za-z0-9._-]+\]=[A-Za-z0-9._-]+$`
+#   - `^\)$`
+#   - `^LOA_OVERLAY_FINGERPRINT=[a-f0-9]{12}$`
+#
+# REJECTS: command-substitution `$(...)`, backticks, parameter-expansion
+# `${...:-...}`, semicolons, pipes, ampersands, redirects, newlines inside
+# values, non-allowlist charset in keys/values/api_ids.
+_loa_overlay_validate_shape() {
+    local file="$1"
+    [[ -f "$file" ]] || return 1
+    awk '
+        BEGIN {
+            in_array = 0
+            ok = 1
+        }
+        # Empty lines OK
+        /^$/ { next }
+        # Header comments OK
+        /^#/ { next }
+        # Array opener
+        /^declare -gA LOA_MODEL_(PROVIDERS|IDS|ENDPOINT_FAMILIES|COST_INPUT_PER_MTOK|COST_OUTPUT_PER_MTOK)=\($/ {
+            in_array = 1
+            next
+        }
+        # Single-line empty array (e.g., `declare -gA X=()`)
+        /^declare -gA LOA_MODEL_(PROVIDERS|IDS|ENDPOINT_FAMILIES|COST_INPUT_PER_MTOK|COST_OUTPUT_PER_MTOK)=\(\)$/ {
+            next
+        }
+        # Array closer
+        /^\)$/ {
+            if (!in_array) { ok = 0; print "[OVERLAY-SHAPE-REJECT] unexpected close paren at line " NR > "/dev/stderr"; exit }
+            in_array = 0
+            next
+        }
+        # Array entry: leading whitespace + [key]=value, charset constrained
+        /^[[:space:]]+\[[A-Za-z0-9._-]+\]=[A-Za-z0-9._-]+$/ {
+            if (!in_array) { ok = 0; print "[OVERLAY-SHAPE-REJECT] entry outside array at line " NR > "/dev/stderr"; exit }
+            next
+        }
+        # Fingerprint trailer
+        /^LOA_OVERLAY_FINGERPRINT=[a-f0-9]{12}$/ {
+            if (in_array) { ok = 0; print "[OVERLAY-SHAPE-REJECT] fingerprint inside array at line " NR > "/dev/stderr"; exit }
+            next
+        }
+        # Anything else is a violation
+        {
+            ok = 0
+            print "[OVERLAY-SHAPE-REJECT] unexpected line " NR ": " $0 > "/dev/stderr"
+            exit
+        }
+        END {
+            if (in_array) { print "[OVERLAY-SHAPE-REJECT] unclosed array at EOF" > "/dev/stderr"; ok = 0 }
+            exit (ok ? 0 : 1)
+        }
+    ' "$file"
+}
+
+# _loa_overlay_canonical_path — CYP-F4 fix: resolve the merged-file path,
+# refuse if it's a symlink, and refuse if the canonical path doesn't exist.
+# Returns 0 + canonical path on success; returns 1 on rejection.
+_loa_overlay_canonical_path() {
+    local file="$_OVERLAY_HELPER_MERGED"
+    [[ -e "$file" ]] || return 1
+    if [[ -L "$file" ]]; then
+        return 1   # refuse to follow symlinks at the merged path
+    fi
+    realpath -e "$file" 2>/dev/null || printf '%s' "$file"
 }
 
 # _loa_overlay_source_under_lock — source the merged file with a brief
 # shared flock acquisition (matches SDD §6.3.4 multi-file-read contract).
 # Falls back to plain `source` if flock(1) is unavailable (e.g., macOS
 # without util-linux).
+#
+# CYP-F5 fix: refuse to open a symlinked lockfile (no O_NOFOLLOW in bash
+# `exec <`, so we check `[[ -L ]]` first).
 _loa_overlay_source_under_lock() {
     local file="$1"
     if command -v flock &>/dev/null && [[ -f "$_OVERLAY_HELPER_LOCKFILE" ]]; then
-        local fd
+        if [[ -L "$_OVERLAY_HELPER_LOCKFILE" ]]; then
+            # Symlinked lockfile is not the writer's product — refuse to
+            # interact. Fall through to plain source (the merged-file
+            # canonical-path check above handled the same surface).
+            # shellcheck source=/dev/null
+            source "$file"
+            return $?
+        fi
         # Use a high fd to avoid clashing with caller's redirections.
+        # GP-F8 (LOW deferred): bash auto-fd `{var}<` would be cleaner but
+        # is bash-4.1+; existing callers rely on bash 4.0 baseline.
         exec 9< "$_OVERLAY_HELPER_LOCKFILE"
         if flock -s -w 5 9 2>/dev/null; then
             # shellcheck source=/dev/null
@@ -115,10 +337,7 @@ _loa_overlay_source_under_lock() {
         fi
         exec 9<&-
     fi
-    # No flock available, or lockfile missing — source directly. The hook
-    # uses atomic-rename, so a partial-file read is impossible regardless
-    # of whether we hold the shared lock. The lock matters mostly to
-    # serialize against a concurrent regen finishing mid-source.
+    # No flock available, or lockfile missing — source directly.
     # shellcheck source=/dev/null
     source "$file"
 }
@@ -140,13 +359,30 @@ loa_overlay_init() {
         _loa_overlay_invoke_hook || return 1
     fi
     [[ -f "$_OVERLAY_HELPER_MERGED" ]] || return 1
-    # Defense-in-depth: refuse to source content that isn't valid bash.
-    # The hook's atomic-rename is supposed to guarantee this, but a
-    # tampered-after-rename file would otherwise execute arbitrary code
-    # via `source`.
+    # CYP-F4: refuse symlinked merged file path
+    if [[ -L "$_OVERLAY_HELPER_MERGED" ]]; then
+        return 1
+    fi
+    # Defense-in-depth: structural syntax check
     bash -n "$_OVERLAY_HELPER_MERGED" 2>/dev/null || return 1
+    # CYP-F2: secondary content-shape gate; rejects shapes the writer never emits
+    _loa_overlay_validate_shape "$_OVERLAY_HELPER_MERGED" 2>/dev/null || return 1
     LOA_OVERLAY_VERSION_AT_LOAD="$(loa_overlay_read_version "$_OVERLAY_HELPER_MERGED")" || return 1
+    # CYP-F6 fix: clear any pre-existing LOA_MODEL_* arrays before sourcing.
+    # An attacker-poisoned environment could otherwise inject hostile entries
+    # via pre-export, and a re-source after a stale-bump would merge old
+    # entries with new ones (CYP-F12).
+    unset LOA_MODEL_PROVIDERS LOA_MODEL_IDS LOA_MODEL_ENDPOINT_FAMILIES \
+          LOA_MODEL_COST_INPUT_PER_MTOK LOA_MODEL_COST_OUTPUT_PER_MTOK
+    unset LOA_OVERLAY_FINGERPRINT
     _loa_overlay_source_under_lock "$_OVERLAY_HELPER_MERGED" || return 1
+    # CYP-F9 fix: validate fingerprint format post-source.
+    if [[ -n "${LOA_OVERLAY_FINGERPRINT:-}" ]]; then
+        if [[ ! "$LOA_OVERLAY_FINGERPRINT" =~ ^[a-f0-9]{12}$ ]]; then
+            unset LOA_OVERLAY_FINGERPRINT
+            return 1
+        fi
+    fi
     return 0
 }
 
@@ -169,6 +405,19 @@ loa_overlay_refresh_if_stale() {
     return 0
 }
 
+# CYP-F10 fix: the schema-allowed alias charset is `[A-Za-z0-9._-]+` per
+# Sprint 2A. The writer-side validator rejects anything else, but the
+# resolver functions also pre-validate to harden against log-injection
+# (newlines, control bytes) and array-subscript edge cases (`]`, `[`).
+_loa_overlay_validate_alias() {
+    local alias="$1"
+    [[ -n "$alias" ]] || return 1
+    # NOTE: strict charset; mirrors SDD §3.5 rule 1 + Sprint 2A schema id pattern
+    [[ "$alias" =~ ^[A-Za-z0-9._-]+$ ]] || return 1
+    [[ "$alias" != *..* ]] || return 1   # cycle-099 dot-dot companion
+    return 0
+}
+
 # loa_overlay_resolve_provider_id <alias> — lookup the alias in the
 # overlay's LOA_MODEL_* arrays and emit `provider:api_id`. Returns 0 +
 # stdout on hit; returns 1 (silent) on miss.
@@ -176,11 +425,16 @@ loa_overlay_refresh_if_stale() {
 # The caller's resolution chain typically tries this FIRST (operator
 # extras win), then falls back to model-resolver.sh::resolve_provider_id
 # (framework only) on miss.
+#
+# Note on cross-reference (GP-F5): this function and
+# `model-resolver.sh::resolve_provider_id` have the same signature but
+# different data models. The framework version cross-checks resolved
+# model_id against MODEL_PROVIDERS (registry consistency); this overlay
+# version is per-alias-key only, since the overlay's bash arrays are
+# authoritative-by-construction (the Python writer guarantees consistency).
 loa_overlay_resolve_provider_id() {
     local alias="$1"
-    [[ -n "$alias" ]] || return 1
-    # Use array indirection guarded by `declare -p` to handle the case
-    # where the array isn't populated (e.g., loa_overlay_init failed).
+    _loa_overlay_validate_alias "$alias" || return 1
     if ! declare -p LOA_MODEL_PROVIDERS &>/dev/null; then
         return 1
     fi
@@ -190,7 +444,7 @@ loa_overlay_resolve_provider_id() {
     local provider="${LOA_MODEL_PROVIDERS[$alias]:-}"
     local api_id="${LOA_MODEL_IDS[$alias]:-}"
     [[ -n "$provider" && -n "$api_id" ]] || return 1
-    printf '%s:%s' "$provider" "$api_id"
+    printf '%s:%s\n' "$provider" "$api_id"
 }
 
 # loa_overlay_resolve_alias <alias> — lookup just the alias→api_id mapping
@@ -198,13 +452,13 @@ loa_overlay_resolve_provider_id() {
 # Returns 0 + stdout on hit; returns 1 on miss.
 loa_overlay_resolve_alias() {
     local alias="$1"
-    [[ -n "$alias" ]] || return 1
+    _loa_overlay_validate_alias "$alias" || return 1
     if ! declare -p LOA_MODEL_IDS &>/dev/null; then
         return 1
     fi
     local api_id="${LOA_MODEL_IDS[$alias]:-}"
     [[ -n "$api_id" ]] || return 1
-    printf '%s' "$api_id"
+    printf '%s\n' "$api_id"
 }
 
 # loa_overlay_resolve_endpoint_family <alias> — lookup the endpoint family
@@ -213,11 +467,11 @@ loa_overlay_resolve_alias() {
 # differently (e.g., openai responses vs chat).
 loa_overlay_resolve_endpoint_family() {
     local alias="$1"
-    [[ -n "$alias" ]] || return 1
+    _loa_overlay_validate_alias "$alias" || return 1
     if ! declare -p LOA_MODEL_ENDPOINT_FAMILIES &>/dev/null; then
         return 1
     fi
     local family="${LOA_MODEL_ENDPOINT_FAMILIES[$alias]:-}"
     [[ -n "$family" ]] || return 1
-    printf '%s' "$family"
+    printf '%s\n' "$family"
 }

@@ -23,6 +23,8 @@ setup() {
   LOCKFILE="$MERGED.lock"
   INPUT="$WORK/input.txt"
   printf 'sample input\n' > "$INPUT"
+  # CYP-F1 dual-review fix: 3-leg gate on env-var override
+  export LOA_OVERLAY_HELPER_TEST_MODE=1
   export LOA_OVERLAY_MERGED="$MERGED"
   export LOA_OVERLAY_LOCKFILE="$LOCKFILE"
   export HOUNFOUR_FLATLINE_ROUTING=true
@@ -40,12 +42,28 @@ _write_merged_v1() {
 # source-sha256=1111111111111111111111111111111111111111111111111111111111111111
 # holder-pid=11
 # DO NOT EDIT
-declare -gA LOA_MODEL_PROVIDERS=( [v1-only]=anthropic )
-declare -gA LOA_MODEL_IDS=( [v1-only]=v1-model-id )
-declare -gA LOA_MODEL_ENDPOINT_FAMILIES=( [v1-only]=messages )
-declare -gA LOA_MODEL_COST_INPUT_PER_MTOK=( [v1-only]=1 )
-declare -gA LOA_MODEL_COST_OUTPUT_PER_MTOK=( [v1-only]=2 )
-LOA_OVERLAY_FINGERPRINT=v1fingerpri
+
+declare -gA LOA_MODEL_PROVIDERS=(
+  [v1-only]=anthropic
+)
+
+declare -gA LOA_MODEL_IDS=(
+  [v1-only]=v1-model-id
+)
+
+declare -gA LOA_MODEL_ENDPOINT_FAMILIES=(
+  [v1-only]=messages
+)
+
+declare -gA LOA_MODEL_COST_INPUT_PER_MTOK=(
+  [v1-only]=1
+)
+
+declare -gA LOA_MODEL_COST_OUTPUT_PER_MTOK=(
+  [v1-only]=2
+)
+
+LOA_OVERLAY_FINGERPRINT=111111111111
 EOF
   : > "$LOCKFILE"
 }
@@ -56,12 +74,28 @@ _write_merged_v2() {
 # source-sha256=2222222222222222222222222222222222222222222222222222222222222222
 # holder-pid=22
 # DO NOT EDIT
-declare -gA LOA_MODEL_PROVIDERS=( [v2-only]=openai )
-declare -gA LOA_MODEL_IDS=( [v2-only]=v2-model-id )
-declare -gA LOA_MODEL_ENDPOINT_FAMILIES=( [v2-only]=responses )
-declare -gA LOA_MODEL_COST_INPUT_PER_MTOK=( [v2-only]=10 )
-declare -gA LOA_MODEL_COST_OUTPUT_PER_MTOK=( [v2-only]=20 )
-LOA_OVERLAY_FINGERPRINT=v2fingerpri
+
+declare -gA LOA_MODEL_PROVIDERS=(
+  [v2-only]=openai
+)
+
+declare -gA LOA_MODEL_IDS=(
+  [v2-only]=v2-model-id
+)
+
+declare -gA LOA_MODEL_ENDPOINT_FAMILIES=(
+  [v2-only]=responses
+)
+
+declare -gA LOA_MODEL_COST_INPUT_PER_MTOK=(
+  [v2-only]=10
+)
+
+declare -gA LOA_MODEL_COST_OUTPUT_PER_MTOK=(
+  [v2-only]=20
+)
+
+LOA_OVERLAY_FINGERPRINT=222222222222
 EOF
   : > "$LOCKFILE"
 }
