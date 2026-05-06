@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.129.1] — 2026-05-06
+
 ### Added
 
 - **Cycle-095 — Model Currency** (Sprints 1+2 in this release; Sprint 3 deferred to post-soak) — gpt-5.5 family is now reachable through cheval, the `reviewer` and `reasoning` aliases default to `openai:gpt-5.5` (cost-safe non-pro), `tiny` tier alias added for Haiku 4.5, and the `fast-thinker` agent binding upgraded to Gemini 3 fast variant with probe-driven fallback chain.
@@ -884,6 +886,8 @@ Full convergence trajectory: `grimoires/loa/a2a/trajectory/bridge-triage-2026-04
 - ATK-011: Blocks `unset LOA_TEAM_MEMBER` and `env -u` privilege escalation in Agent Teams
 
 ## [Unreleased]
+
+## [1.129.1] — 2026-05-06
 
 ## [1.94.0] — 2026-04-17
 
