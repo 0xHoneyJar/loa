@@ -22,6 +22,10 @@ on:
       - '.claude/scripts/lib/codegen/model-resolver.ts.j2'
       - '.claude/adapters/loa_cheval/codegen/emit_model_resolver_ts.py'
       - '.claude/skills/bridgebuilder-review/resources/lib/model-resolver.generated.ts'
+      # BB iter-2 F9: package.json/lock changes affect tsx behavior + ESM
+      # mode; mirror cross-runtime-diff.yml's path filter for symmetry.
+      - '.claude/skills/bridgebuilder-review/package.json'
+      - '.claude/skills/bridgebuilder-review/package-lock.json'
       - 'tests/typescript/golden_resolution.ts'
       - 'tests/integration/sprint-2D-resolver-parity.bats'
       - 'tests/fixtures/model-resolution/**'
@@ -33,6 +37,8 @@ on:
       - '.claude/scripts/lib/codegen/model-resolver.ts.j2'
       - '.claude/adapters/loa_cheval/codegen/emit_model_resolver_ts.py'
       - '.claude/skills/bridgebuilder-review/resources/lib/model-resolver.generated.ts'
+      - '.claude/skills/bridgebuilder-review/package.json'
+      - '.claude/skills/bridgebuilder-review/package-lock.json'
       - 'tests/typescript/golden_resolution.ts'
       - 'tests/integration/sprint-2D-resolver-parity.bats'
       - 'tests/fixtures/model-resolution/**'

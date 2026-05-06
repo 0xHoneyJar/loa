@@ -82,13 +82,16 @@ jobs:
         run: python tests/python/golden_resolution.py > python-out.jsonl
 
       - name: Run TS runner
-        # Cypherpunk LOW-3: invoke node_modules/.bin/tsx directly rather than
-        # `npx tsx`. Avoids the npx network-fallback risk if the local binary
-        # is somehow missing after `npm ci --ignore-scripts`. tsx is pinned
-        # via package-lock.json so the local binary is guaranteed present.
+        # BB iter-2 F2: invoke from repo root via absolute path instead of
+        # cd-and-relative-path. The cwd dance was brittle (any directory
+        # restructure would silently break the relative paths). PROJECT_ROOT
+        # in the TS runner is derived from `__dirname`, not cwd, so running
+        # from repo root works identically.
+        # Cypherpunk LOW-3: direct local-binary invocation (not `npx tsx`)
+        # avoids npx network-fallback risk.
         run: |
-          cd .claude/skills/bridgebuilder-review
-          ./node_modules/.bin/tsx ../../../tests/typescript/golden_resolution.ts > ../../../typescript-out.jsonl
+          .claude/skills/bridgebuilder-review/node_modules/.bin/tsx \
+              tests/typescript/golden_resolution.ts > typescript-out.jsonl
 
       - name: Verify 3-way byte-equality
         run: |

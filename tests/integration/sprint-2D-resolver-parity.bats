@@ -953,16 +953,23 @@ for (const role of protoNames) {
 }
 
 // Test 3 + 4: prototype names as alias in skill_models / as tier-key.
-// BB iter-1 F5: the regression goal is "must not silently resolve to a real
-// model"; the SPECIFIC error code (TIER-NO-MAPPING vs NO-RESOLUTION) is
-// implementation detail. Accept any error code OR a non-real resolution.
-const ALLOWED_FAILURE_CODES = ["[TIER-NO-MAPPING]", "[NO-RESOLUTION]", "[ALIAS-UNKNOWN]"];
+// BB iter-1 F5 + iter-2 F4: the regression goal is "must not silently resolve
+// to ANY real model"; the SPECIFIC error code is implementation detail BUT
+// the error must be well-formed (bracketed-uppercase code + no resolved_*
+// fields). Accept any error code matching the schema's enum pattern; reject
+// any resolved_model_id (regression would be a silent resolution to ANY
+// model, not just claude-opus-4-7).
+const ERROR_CODE_RE = /^\[[A-Z][A-Z-]+\]$/;
 function assertNoSilentResolve(label: string, result: any): boolean {
-    if (result.error && ALLOWED_FAILURE_CODES.includes(result.error.code)) return true;
-    if (result.resolved_model_id && result.resolved_model_id !== "claude-opus-4-7") return true;  // resolved to something REAL = bug
-    if (result.error) return true;  // any other error code is also fine
-    console.error("[" + label + "] should NOT silently resolve to claude-opus-4-7; got " + JSON.stringify(result));
-    return false;
+    if (result.resolved_model_id !== undefined) {
+        console.error("[" + label + "] should NOT resolve to ANY model; got resolved_model_id=" + result.resolved_model_id);
+        return false;
+    }
+    if (!result.error || typeof result.error.code !== "string" || !ERROR_CODE_RE.test(result.error.code)) {
+        console.error("[" + label + "] expected well-formed error.code matching bracketed-uppercase pattern; got " + JSON.stringify(result));
+        return false;
+    }
+    return true;
 }
 
 for (const alias of protoNames) {
