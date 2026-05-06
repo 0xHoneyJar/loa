@@ -36,6 +36,6 @@ expected:
       resolved_provider: anthropic
       resolved_model_id: claude-opus-4-7
       resolution_path:
-        - { stage: 2, outcome: hit, label: stage2_skill_models, details: { tier: max } }
+        - { stage: 2, outcome: hit, label: stage2_skill_models, details: { alias: max } }
         - { stage: 3, outcome: hit, label: stage3_tier_groups, details: { resolved_alias: opus } }
   cross_runtime_byte_identical: true

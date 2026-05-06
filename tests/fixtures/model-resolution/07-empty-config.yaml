@@ -14,7 +14,14 @@ input:
     aliases:
       tiny: { provider: anthropic, model_id: claude-haiku-4-5-20251001 }
     agents:
-      flatline-reviewer: { default_tier: cheap }
+      # Sprint 2D fix: agents.<key> uses underscore-form `<skill_name>` per
+      # SDD §1.4.2 + FR-3.9 stage 5 (`agents.<skill_name>.{model,default_tier}`).
+      # Pre-fix this fixture had `flatline-reviewer` (hyphen) which doesn't
+      # match the expected.skill `flatline_protocol`. Reconciled.
+      # `default_tier: tiny` matches the only alias declared in this minimal
+      # framework_defaults — reachable via the S5 permissive direct-alias
+      # fallback when no tier_groups.mappings is declared.
+      flatline_protocol: { default_tier: tiny }
   operator_config: {}
 
 expected:

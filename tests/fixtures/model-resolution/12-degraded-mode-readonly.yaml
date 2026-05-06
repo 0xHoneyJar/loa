@@ -15,6 +15,11 @@ input:
             context_window: 200000
     aliases:
       cheap: { provider: anthropic, model_id: claude-sonnet-4-6 }
+    # Sprint 2D fix: agents.<skill> entry required for S5 framework_default
+    # to fire. Without it, the resolver exhausts all 6 stages without a hit
+    # and emits [NO-RESOLUTION].
+    agents:
+      flatline_protocol: { default_tier: cheap }
   operator_config: {}
   # Degraded-mode marker (Sprint 2 reads this and asserts cached-resolution path)
   runtime_state:

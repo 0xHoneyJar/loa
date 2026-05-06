@@ -14,6 +14,17 @@ input:
     aliases:
       opus: { provider: anthropic, model_id: claude-opus-4-7 }
   operator_config:
+    # Sprint 2D fix: skill_models entry is required for the resolver to fire
+    # against (skill, role) — without it, the expected stage 2 hit is unreachable.
+    # BB iter-1 F8 fix: also added `extra_user.primary` pointing at the
+    # `experimental-opus-vnext` model_aliases_extra entry so the fixture
+    # actually exercises the operator-added-model resolution path it claims
+    # to test in the description (not just baseline `opus` lookup).
+    skill_models:
+      flatline_protocol:
+        primary: opus
+      extra_user:
+        primary: experimental-opus-vnext
     model_aliases_extra:
       experimental-opus-vnext:
         provider: anthropic
@@ -22,6 +33,12 @@ input:
 
 expected:
   resolutions:
+    - skill: extra_user
+      role: primary
+      resolved_provider: anthropic
+      resolved_model_id: claude-opus-4-8-experimental
+      resolution_path:
+        - { stage: 2, outcome: hit, label: stage2_skill_models, details: { alias: experimental-opus-vnext } }
     - skill: flatline_protocol
       role: primary
       resolved_provider: anthropic

@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "loa://schemas/model-resolver-output/v1.0.0",
+  "title": "Model resolver output (cycle-099 FR-3.9 6-stage resolver)",
+  "description": "Per-resolution output of the FR-3.9 6-stage resolver per SDD §1.5.1. Single (skill, role) query produces one ResolutionResult. Success carries resolved_provider + resolved_model_id + resolution_path; failure carries error. Output is discriminated by presence of `error` (if present, failure; else success). The shape mirrors `tests/fixtures/model-resolution/*.yaml::expected.resolutions[]` so fixtures double as schema validation cases. Field ordering, key casing, and null-vs-absent semantics are pinned. Cross-runtime (Python canonical, bash + TS test runners) MUST emit byte-equal canonical JSON for the same (config, skill, role) input.",
+  "type": "object",
+  "additionalProperties": false,
+  "oneOf": [
+    {
+      "comment": "Resolution-level result: requires skill+role; carries either resolved_* fields or `error`. This is the primary output shape.",
+      "required": ["skill", "role"],
+      "oneOf": [
+        {
+          "required": ["resolved_provider", "resolved_model_id", "resolution_path"],
+          "not": { "required": ["error"] }
+        },
+        {
+          "required": ["error"],
+          "not": { "anyOf": [
+            { "required": ["resolved_provider"] },
+            { "required": ["resolved_model_id"] },
+            { "required": ["resolution_path"] }
+          ] }
+        }
+      ]
+    },
+    {
+      "comment": "Fixture-level error (YAML parse failure or missing expected.resolutions block) — emitted by the golden runners when no (skill, role) tuple can be derived from the fixture. Has `fixture` + `error` only.",
+      "required": ["fixture", "error"],
+      "not": { "anyOf": [
+        { "required": ["skill"] },
+        { "required": ["role"] },
+        { "required": ["resolved_provider"] },
+        { "required": ["resolved_model_id"] },
+        { "required": ["resolution_path"] }
+      ] }
+    }
+  ],
+  "properties": {
+    "fixture": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "description": "Optional context tag added by golden test runners (e.g., '01-happy-path-tier-tag'). The production resolver does NOT emit this field; only `tests/{python,bash,typescript}/golden_resolution.*` runners include it for cross-runtime traceability and sort-order verification. additionalProperties:false would reject this in production output, which is correct — production callers use the resolver's pure-function API and never set fixture."
+    },
+    "skill": {
+      "type": "string",
+      "pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$",
+      "description": "The skill name (e.g., 'flatline_protocol', 'researcher')."
+    },
+    "role": {
+      "type": "string",
+      "pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$",
+      "description": "The role within the skill (e.g., 'primary', 'reviewer')."
+    },
+    "resolved_provider": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*$",
+      "description": "Provider id (e.g., 'anthropic', 'openai', 'google'). Required on success."
+    },
+    "resolved_model_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9._-]+$",
+      "description": "Canonical model_id (e.g., 'claude-opus-4-7'). Required on success. Pattern matches the model_aliases_extra.id pattern from cycle-099 Sprint 2A."
+    },
+    "resolution_path": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Sequence of FR-3.9 stage outcomes that produced this resolution. Stage numbers ascending. Required on success.",
+      "items": { "$ref": "#/$defs/StageOutcome" }
+    },
+    "error": {
+      "$ref": "#/$defs/ResolutionError",
+      "description": "Present iff resolution failed. Mutually exclusive with resolved_provider/resolved_model_id/resolution_path."
+    }
+  },
+  "$defs": {
+    "StageOutcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stage", "outcome", "label"],
+      "properties": {
+        "stage": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 6,
+          "description": "FR-3.9 stage number. 0 reserved for pre-resolution validation (e.g., schema-load-time conflict detection per IMP-004). 1-6 are the six resolution stages (S1 explicit pin → S6 prefer_pro overlay)."
+        },
+        "outcome": {
+          "type": "string",
+          "enum": ["hit", "miss", "applied", "skipped", "error"],
+          "description": "Stage outcome. `hit` = stage produced a resolution. `miss` = stage did not match; resolver advanced. `applied` = post-resolution overlay (S6 prefer_pro). `skipped` = stage gated off by config (e.g., S6 with prefer_pro_models=false). `error` = stage produced a typed failure. Per PRD FR-5.7."
+        },
+        "label": {
+          "type": "string",
+          "enum": [
+            "stage1_pin_check",
+            "stage2_skill_models",
+            "stage3_tier_groups",
+            "stage4_legacy_shape",
+            "stage5_framework_default",
+            "stage6_prefer_pro_overlay"
+          ],
+          "description": "Stable string identifier for the stage. Operators grep for these in FR-5.7 debug output."
+        },
+        "details": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Stage-specific context. Closed schema (additionalProperties:false) per cypherpunk HIGH-3 to prevent attacker-controlled extra fields leaking through to downstream consumers.",
+          "properties": {
+            "alias":                     {"type": "string"},
+            "pin":                       {"type": "string"},
+            "tier":                      {"type": "string"},
+            "resolved_alias":            {"type": "string"},
+            "alias_collides_with_tier":  {"type": "boolean"},
+            "from":                      {"type": "string"},
+            "to":                        {"type": "string"},
+            "warning":                   {"type": "string"},
+            "source":                    {"type": "string", "enum": ["degraded_cache"]},
+            "reason":                    {"type": "string", "enum": [
+                                            "legacy_shape_without_respect_prefer_pro",
+                                            "no_alias_to_overlay",
+                                            "no_pro_variant_for_alias"
+                                         ]}
+          }
+        }
+      }
+    },
+    "ResolutionError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "stage_failed", "detail"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "[TIER-NO-MAPPING]",
+            "[OVERRIDE-UNKNOWN-MODEL]",
+            "[MODEL-EXTRA-OVERRIDE-CONFLICT]",
+            "[NO-RESOLUTION]",
+            "[INPUT-CONTROL-BYTE]",
+            "[YAML-PARSE-FAILED]",
+            "[NO-EXPECTED-RESOLUTIONS]"
+          ],
+          "description": "Stable error code. `[TIER-NO-MAPPING]` (FR-3.8 fail-closed at S3). `[OVERRIDE-UNKNOWN-MODEL]` (validation pre-resolution per IMP-004). `[MODEL-EXTRA-OVERRIDE-CONFLICT]` (validation pre-resolution per IMP-004). `[NO-RESOLUTION]` (resolver exhausted all 6 stages without a hit). `[INPUT-CONTROL-BYTE]` (cypherpunk HIGH-2 — input contained C0 control byte in scalar). `[YAML-PARSE-FAILED]` / `[NO-EXPECTED-RESOLUTIONS]` (fixture-level errors emitted by golden runners; only valid in the fixture-level error variant of the top-level oneOf)."
+        },
+        "stage_failed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 6,
+          "description": "Which stage produced the error (0 = pre-resolution validation; 1-6 = the FR-3.9 stages). Operators correlate with FR-5.7 trace logs."
+        },
+        "detail": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable error context. Operator-actionable (mentions the field, the conflict, the remediation when knowable)."
+        }
+      }
+    }
+  }
+}

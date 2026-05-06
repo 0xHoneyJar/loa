@@ -1,31 +1,35 @@
-name: cycle-099 Sprint 1D cross-runtime-diff
+name: cycle-099 cross-runtime-diff (FR-3.9 6-stage resolver parity)
 
-# cycle-099 Sprint 1D (T1.12) — cross-runtime byte-equality gate per
-# SDD §7.6.2. Downloads each runtime's golden-resolution output artifact
-# (bash, python, TS) and asserts byte-equality. Mismatch fails the build.
+# cycle-099 Sprint 1D (T1.12) → Sprint 2D (T2.6) — cross-runtime byte-equality
+# gate per SDD §7.6.2.
 #
-# This is the MANDATORY gate: any divergence between runtimes causes the
-# PR to fail. Operators see a clear `[CROSS-RUNTIME-DIFF-FAIL]` error
-# with the specific bytes that diverged.
+# Sprint 1D shipped: alias-lookup-only subset across bash + python + TS
+# runners. Sprint 2D extends Python + bash runners to the full FR-3.9 6-stage
+# resolver. The TS runner is gated to its own pre-Sprint-2D shape until
+# Sprint 2D.c (T2.6 TS port via Python+Jinja2 codegen) lands.
+#
+# This file gates Python+bash byte-equality on the Sprint 2D shape. The TS
+# runner is exercised by `bun-runner.yml` independently (against the
+# unchanged `sprint_1d_query.alias` field in the fixture corpus). When 2D.c
+# ships, the TS leg will be folded back into this gate.
+#
+# Mandatory gate: any divergence between Python and bash causes the PR to
+# fail with `[CROSS-RUNTIME-DIFF-FAIL]` and the specific diverged bytes.
 
 on:
-  # cypherpunk HIGH-2 + gp MEDIUM-2 (PR #735 review): the inline-run pattern
-  # below makes workflow_run a duplicate trigger. Removed to avoid the
-  # ~4×-per-PR run pattern + the "actions: read" cross-workflow permission
-  # surface. The pull_request trigger is the actual gate; the parallel
-  # single-runtime workflows (bash-runner.yml + python-runner.yml +
-  # bun-runner.yml) provide observability via artifact upload.
+  # cypherpunk HIGH-2 + gp MEDIUM-2 (PR #735 review): no workflow_run trigger
+  # to avoid the ~4×-per-PR run pattern and cross-workflow permission surface.
   pull_request:
     paths:
       - 'tests/fixtures/model-resolution/**'
       - 'tests/bash/golden_resolution.sh'
       - 'tests/bash/golden_resolution.bats'
       - 'tests/python/golden_resolution.py'
-      - 'tests/typescript/golden_resolution.ts'
+      - 'tests/integration/sprint-2D-resolver-parity.bats'
       - '.claude/scripts/generated-model-maps.sh'
       - '.claude/scripts/lib/model-resolver.sh'
-      - '.claude/skills/bridgebuilder-review/package.json'
-      - '.claude/skills/bridgebuilder-review/package-lock.json'
+      - '.claude/scripts/lib/model-resolver.py'
+      - '.claude/data/trajectory-schemas/model-resolver-output.schema.json'
       - '.github/workflows/cross-runtime-diff.yml'
 
 permissions:
@@ -37,7 +41,7 @@ concurrency:
 
 jobs:
   cross-runtime-diff:
-    name: T1.12 cross-runtime byte-equality gate
+    name: T2.6 cross-runtime byte-equality gate (Python+bash)
     runs-on: ubuntu-latest
     steps:
       # PINNING: SHA verified against actions/checkout v4.3.1 tag
@@ -48,15 +52,10 @@ jobs:
         with:
           python-version: '3.13'
 
-      # PINNING: SHA verified against actions/setup-node v4.1.0 tag
-      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
-        with:
-          node-version: '20'
-
       - name: Install Python deps
         run: |
           python -m pip install --upgrade pip
-          pip install 'pyyaml==6.0.2'
+          pip install 'pyyaml==6.0.2' 'jsonschema==4.23.0'
 
       - name: Install yq v4.52.4 (pinned + checksum verified)
         run: |
@@ -67,65 +66,36 @@ jobs:
           echo "$expected_sha256  $local_yq" | sha256sum -c -
           sudo chmod +x "$local_yq"
 
-      - name: Install BB skill node_modules (for tsx)
-        working-directory: .claude/skills/bridgebuilder-review
-        # cypherpunk HIGH-1: --ignore-scripts disables npm lifecycle hooks.
-        run: npm ci --no-audit --no-fund --ignore-scripts
-
-      # Run all three runners IN-LINE rather than relying on workflow_run
-      # artifact orchestration. This makes the diff job self-contained and
-      # avoids the timing complexity of cross-workflow artifact passing.
-      # Each runner is exercised by its dedicated workflow above (in
-      # parallel, for fast feedback); this job is the GATE that asserts
-      # byte-equality.
       - name: Run bash runner
         run: bash tests/bash/golden_resolution.sh > bash-out.jsonl
 
       - name: Run python runner
         run: python tests/python/golden_resolution.py > python-out.jsonl
 
-      - name: Run TS runner
-        run: |
-          node .claude/skills/bridgebuilder-review/node_modules/tsx/dist/cli.mjs \
-              tests/typescript/golden_resolution.ts \
-              > typescript-out.jsonl
-
-      - name: Verify byte-equal across runtimes
+      - name: Verify byte-equal Python ↔ bash
         run: |
           set -euo pipefail
           echo "=== bash output ==="
           cat bash-out.jsonl
           echo "=== python output ==="
           cat python-out.jsonl
-          echo "=== typescript output ==="
-          cat typescript-out.jsonl
-
-          # Diff bash vs python
           if ! diff -u bash-out.jsonl python-out.jsonl > /tmp/bash-vs-python.diff; then
             echo "::error::[CROSS-RUNTIME-DIFF-FAIL] bash vs python diverge:"
             cat /tmp/bash-vs-python.diff
             exit 1
           fi
-          echo "OK — bash == python (byte-equal)"
-
-          # Diff bash vs TypeScript
-          if ! diff -u bash-out.jsonl typescript-out.jsonl > /tmp/bash-vs-ts.diff; then
-            echo "::error::[CROSS-RUNTIME-DIFF-FAIL] bash vs typescript diverge:"
-            cat /tmp/bash-vs-ts.diff
-            exit 1
-          fi
-          echo "OK — bash == typescript (byte-equal)"
-
-          # Diff python vs TypeScript (transitivity, but explicit)
-          if ! diff -u python-out.jsonl typescript-out.jsonl > /tmp/python-vs-ts.diff; then
-            echo "::error::[CROSS-RUNTIME-DIFF-FAIL] python vs typescript diverge:"
-            cat /tmp/python-vs-ts.diff
-            exit 1
-          fi
-          echo "OK — python == typescript (byte-equal)"
-
+          echo "OK — bash == python (byte-equal, $(wc -l < bash-out.jsonl) lines)"
           echo ""
-          echo "✅ All three runtimes produce byte-identical output ($(wc -l < bash-out.jsonl) lines)"
+          # TODO(cycle-099-sprint-2D.c): restore TS runner to the byte-equality
+          # gate when the TS port via Python+Jinja2 codegen lands. Until then,
+          # TS divergence from Python+bash on the FR-3.9 6-stage shape is
+          # invisible to this workflow; the TS runner is independently
+          # exercised by .github/workflows/bun-runner.yml against the Sprint 1D
+          # `sprint_1d_query.alias` subset (which does NOT cover stages 3-6).
+          echo "Note: TS runner gate deferred until cycle-099 Sprint 2D.c (T2.6 TS"
+          echo "port via Python+Jinja2 codegen). The TS runner is exercised"
+          echo "independently by .github/workflows/bun-runner.yml against the"
+          echo "Sprint 1D \`sprint_1d_query.alias\` subset (does NOT cover stages 3-6)."
 
       - name: Verify output matches committed golden file
         run: |
@@ -140,3 +110,32 @@ jobs:
             exit 1
           fi
           echo "OK — output matches committed golden file"
+
+      - name: Validate output against JSON Schema
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, sys
+          from jsonschema import validate, ValidationError
+          with open('.claude/data/trajectory-schemas/model-resolver-output.schema.json') as fh:
+              schema = json.load(fh)
+          errors = 0
+          for runtime in ('bash', 'python'):
+              path = f'{runtime}-out.jsonl'
+              with open(path) as fh:
+                  for lineno, line in enumerate(fh, start=1):
+                      line = line.rstrip('\n')
+                      if not line:
+                          continue
+                      try:
+                          doc = json.loads(line)
+                          validate(doc, schema)
+                      except (json.JSONDecodeError, ValidationError) as exc:
+                          msg = exc.msg if hasattr(exc, 'msg') else exc.message
+                          print(f'::error::{runtime} line {lineno}: {msg}')
+                          print(f'  on: {line}')
+                          errors += 1
+          if errors:
+              sys.exit(1)
+          print('OK — both runners conform to model-resolver-output.schema.json')
+          PY
