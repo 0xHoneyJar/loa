@@ -208,14 +208,14 @@ declare -a VALID_FLATLINE_MODELS=(
     cheap
     claude-haiku-4-5-20251001
     claude-opus-4-0
-    claude-opus-4.0
     claude-opus-4-1
-    claude-opus-4.1
     claude-opus-4-5
-    claude-opus-4.5
     claude-opus-4-6
-    claude-opus-4.6
     claude-opus-4-7
+    claude-opus-4.0
+    claude-opus-4.1
+    claude-opus-4.5
+    claude-opus-4.6
     claude-opus-4.7
     claude-sonnet-4-5-20250929
     claude-sonnet-4-6
@@ -225,10 +225,10 @@ declare -a VALID_FLATLINE_MODELS=(
     gemini-2.0-flash
     gemini-2.5-flash
     gemini-2.5-pro
-    gemini-3.1-pro
-    gemini-3.1-pro-preview
     gemini-3-flash
     gemini-3-flash-preview
+    gemini-3.1-pro
+    gemini-3.1-pro-preview
     gpt-5.2
     gpt-5.2-codex
     gpt-5.3-codex
