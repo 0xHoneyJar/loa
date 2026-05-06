@@ -738,6 +738,23 @@ hounfour:
             input_per_mtok: 3000000
             output_per_mtok: 15000000
 
+    # ─── Subscription-auth headless adapters (cycle-098/099 cheval transport plugins) ───
+    #
+    # The `*-headless` provider types below (gemini-headless, claude-headless,
+    # codex-headless) are CHEVAL TRANSPORT PLUGINS — they route requests
+    # through CLI subprocess calls instead of HTTP APIs, billing against the
+    # operator's subscription quota instead of an API-key balance.
+    #
+    # IMPORTANT: these provider types are configured here via `hounfour.providers`
+    # (which is the cheval ProviderConfig.type axis). They are NOT registerable
+    # via `model_aliases_extra` (whose `provider:` enum is locked to the 4 SoT-
+    # declared providers per cycle-099 NFR-Sec-4: openai, anthropic, google,
+    # bedrock). If you try to use `provider: codex-headless` inside a
+    # `model_aliases_extra` block, schema validation will reject it.
+    #
+    # Subscription-billed model IDs live entirely in `hounfour.providers`;
+    # operators expose them to agent bindings via `aliases:` below.
+
     # gemini-headless: routes through `gemini -p` for Google AI subscription auth.
     # No api_key consumed — bills against the operator's personal Google account
     # quota (free tier: 60 req/min · 1000 req/day) or Gemini Advanced subscription.
