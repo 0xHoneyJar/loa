@@ -13,9 +13,15 @@ name: cycle-099 Sprint 2E tests (T2.7 + T2.8)
 # Mandatory gate: any failure here blocks the PR.
 
 on:
+  # GP LOW-2 fix: include drift-gate companion files (lockfile checksum +
+  # generated-model-maps.sh) in the trigger paths. A regen-only PR that
+  # touches just those would otherwise skip the T-series, hiding any
+  # downstream behavioral break.
   pull_request:
     paths:
       - '.claude/defaults/model-config.yaml'
+      - '.claude/defaults/model-config.yaml.checksum'
+      - '.claude/scripts/generated-model-maps.sh'
       - '.claude/scripts/lib/model-resolver.py'
       - '.claude/data/trajectory-schemas/model-resolver-output.schema.json'
       - 'tests/integration/cycle099-tier-groups-defaults.bats'
@@ -25,6 +31,8 @@ on:
     branches: [main]
     paths:
       - '.claude/defaults/model-config.yaml'
+      - '.claude/defaults/model-config.yaml.checksum'
+      - '.claude/scripts/generated-model-maps.sh'
       - '.claude/scripts/lib/model-resolver.py'
       - '.claude/data/trajectory-schemas/model-resolver-output.schema.json'
       - 'tests/integration/cycle099-tier-groups-defaults.bats'

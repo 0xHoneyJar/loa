@@ -300,6 +300,23 @@ aliases:
   # literally must continue resolving to that exact model). Both
   # entries point to the same `openai:gpt-5.3-codex` so no ambiguity
   # at resolution time.
+  #
+  # SCOPE NOTE: the FR-3.9 resolver consults `aliases:` ONLY;
+  # `backward_compat_aliases:` is consumed by the legacy bash-adapter
+  # codegen path (`gen-adapter-maps.sh` → `generated-model-maps.sh`).
+  # The codegen emits the duplicate self-map twice into the bash assoc
+  # arrays (last-write-wins, behaviorally identical), which surfaces as
+  # `WARN: key 'gpt-5.3-codex' appears in both aliases and backward_compat_aliases`
+  # at codegen time — informational only.
+  #
+  # BEHAVIORAL CHANGE: pre-Sprint-2E a bare-form `gpt-5.3-codex` reference
+  # in `skill_models.<skill>.<role>` would cascade through S2 → S3 and emit
+  # `[TIER-NO-MAPPING]` (no S2 alias hit, no S3 tier_groups mapping). After
+  # Sprint 2E it resolves at S2 directly. The resolved model is the same
+  # one the alias name implies (`openai:gpt-5.3-codex`), so semantically
+  # aligned, but operators relying on the failure to surface
+  # misconfiguration may want to switch to explicit `provider:model_id`
+  # form (S1 explicit pin) for hard-pinned bindings.
   gpt-5.5: "openai:gpt-5.5"
   gpt-5.5-pro: "openai:gpt-5.5-pro"
   gpt-5.3-codex: "openai:gpt-5.3-codex"

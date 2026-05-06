@@ -34,21 +34,6 @@ teardown() {
     return 0
 }
 
-# Helper: run resolver against framework_defaults + operator_config snippet
-_resolve() {
-    local tier="$1" override_yaml="${2:-{}}"
-    cat > "$WORK_DIR/cfg.yaml" <<YAML
-schema_version: 2
-framework_defaults: $(yq -o json '.' "$CONFIG" | python3 -c 'import json,sys,yaml; print(yaml.safe_dump(json.load(sys.stdin)))' | sed 's/^/  /')
-operator_config:
-  skill_models:
-    probe_skill:
-      primary: $tier
-$override_yaml
-YAML
-    python3 "$RESOLVER" resolve --config "$WORK_DIR/cfg.yaml" --skill probe_skill --role primary
-}
-
 @test "T1 — tier_groups.mappings has 4 tiers × 3 providers populated" {
     # Verify presence of all 4 tier names + 3 provider keys per tier.
     for tier in max cheap mid tiny; do
@@ -107,10 +92,11 @@ YAML
     [[ "$missing" == "0" ]] || return 1
 }
 
-@test "T4 — each tier resolves cleanly via FR-3.9 stage 2/3 path against production framework_defaults" {
+@test "T4 — each tier resolves cleanly via FR-3.9 stage 2/3 against framework defaults (anthropic cell)" {
     # Synthesize: operator declares skill_models.probe_skill.primary: <tier>.
     # Resolver picks provider=sorted(framework_tier_mappings_keys)[0]=anthropic.
-    # Verify resolved_provider+model_id non-empty + resolution_path includes stage 3.
+    # This test ONLY covers the anthropic cell of each tier; T4b covers the
+    # remaining openai/google cells via per-cell forced-single-provider override.
     local cfg_yaml="$WORK_DIR/probe_cfg.yaml"
     for tier in max cheap mid tiny; do
         cat > "$cfg_yaml" <<YAML
@@ -122,19 +108,84 @@ operator_config:
     probe_skill:
       primary: $tier
 YAML
-        local out
+        local out provider model_id has_stage3
         out=$(python3 "$RESOLVER" resolve --config "$cfg_yaml" --skill probe_skill --role primary)
-        local provider model_id stage3
-        provider=$(echo "$out" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("resolved_provider",""))')
-        model_id=$(echo "$out" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("resolved_model_id",""))')
-        stage3=$(echo "$out" | python3 -c 'import json,sys; r=json.load(sys.stdin).get("resolution_path",[]); print("|".join(str(e.get("stage")) for e in r))')
+        provider=$(echo "$out" | jq -r '.resolved_provider // empty')
+        model_id=$(echo "$out" | jq -r '.resolved_model_id // empty')
+        # MED-3 fix: jq-explicit stage-3 check (was `*"3"*` substring match — would
+        # false-pass on stage 13/30 if resolver ever expands stage range).
+        has_stage3=$(echo "$out" | jq -r '[.resolution_path[]?.stage] | any(. == 3)')
         [[ -n "$provider" ]] || { echo "tier=$tier resolved_provider empty: $out" >&2; return 1; }
         [[ -n "$model_id" ]] || { echo "tier=$tier resolved_model_id empty: $out" >&2; return 1; }
-        # stage path should include 3 (tier_groups hit) somewhere
-        if [[ "$stage3" != *"3"* ]]; then
-            echo "tier=$tier did not pass through stage 3 (got stages=$stage3)" >&2
-            return 1
-        fi
+        [[ "$has_stage3" == "true" ]] || { echo "tier=$tier missing stage 3: $out" >&2; return 1; }
+        [[ "$provider" == "anthropic" ]] || { echo "tier=$tier expected anthropic (sort tiebreak), got=$provider" >&2; return 1; }
+    done
+}
+
+@test "T4b — every tier × provider cell resolves cleanly via per-cell forced-single-provider override" {
+    # Coverage gap from T4: resolver picks sorted(mapping.keys())[0], so T4
+    # only ever exercises the anthropic cell. T4b drives each of the 12
+    # (tier, provider) cells deterministically by overriding operator's
+    # tier_groups.mappings.<tier> to ONLY include one provider — forcing the
+    # resolver's provider-pick to that one. Verifies each new alias
+    # (gpt-5.5-pro, gpt-5.5, gpt-5.3-codex) resolves through to a model_id.
+    local cfg_yaml="$WORK_DIR/probe_t4b.yaml"
+    local total=0 fails=0
+    for tier in max cheap mid tiny; do
+        for provider in anthropic openai google; do
+            local alias
+            alias=$(yq -r ".tier_groups.mappings.$tier.$provider" "$CONFIG")
+            cat > "$cfg_yaml" <<YAML
+schema_version: 2
+framework_defaults:
+$(sed 's/^/  /' "$CONFIG")
+operator_config:
+  tier_groups:
+    mappings:
+      $tier:
+        $provider: $alias
+  skill_models:
+    probe_skill:
+      primary: $tier
+YAML
+            local out resolved_provider resolved_model_id
+            out=$(python3 "$RESOLVER" resolve --config "$cfg_yaml" --skill probe_skill --role primary)
+            resolved_provider=$(echo "$out" | jq -r '.resolved_provider // empty')
+            resolved_model_id=$(echo "$out" | jq -r '.resolved_model_id // empty')
+            total=$((total + 1))
+            if [[ "$resolved_provider" != "$provider" ]] || [[ -z "$resolved_model_id" ]]; then
+                echo "tier=$tier provider=$provider alias=$alias FAILED → got provider=$resolved_provider model_id=$resolved_model_id" >&2
+                echo "$out" >&2
+                fails=$((fails + 1))
+            fi
+        done
+    done
+    [[ "$fails" == "0" ]] || { echo "T4b: $fails of $total cells failed" >&2; return 1; }
+    [[ "$total" == "12" ]] || { echo "T4b: expected 12 cells, ran $total" >&2; return 1; }
+}
+
+@test "T4c — framework default tier_groups (no operator override) resolves via S3 anthropic cell" {
+    # Closes HIGH-2 (gp): explicit test that framework_defaults.tier_groups.mappings
+    # data is consulted when operator omits its own tier_groups.mappings.<tier>.
+    # This is the production "operator only adds skill_models" scenario.
+    local cfg_yaml="$WORK_DIR/probe_t4c.yaml"
+    for tier in max cheap mid tiny; do
+        cat > "$cfg_yaml" <<YAML
+schema_version: 2
+framework_defaults:
+$(sed 's/^/  /' "$CONFIG")
+operator_config:
+  skill_models:
+    probe_skill:
+      primary: $tier
+YAML
+        local out resolved_alias resolved_provider expected_alias
+        out=$(python3 "$RESOLVER" resolve --config "$cfg_yaml" --skill probe_skill --role primary)
+        resolved_provider=$(echo "$out" | jq -r '.resolved_provider // empty')
+        resolved_alias=$(echo "$out" | jq -r '[.resolution_path[]? | select(.label=="stage3_tier_groups") | .details.resolved_alias][0] // empty')
+        expected_alias=$(yq -r ".tier_groups.mappings.$tier.anthropic" "$CONFIG")
+        [[ "$resolved_provider" == "anthropic" ]] || { echo "tier=$tier framework path: expected anthropic, got=$resolved_provider"; echo "$out"; return 1; }
+        [[ "$resolved_alias" == "$expected_alias" ]] || { echo "tier=$tier framework path: expected resolved_alias=$expected_alias, got=$resolved_alias"; echo "$out"; return 1; }
     done
 }
 
