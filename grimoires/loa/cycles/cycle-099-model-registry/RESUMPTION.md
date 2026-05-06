@@ -1,10 +1,10 @@
 # cycle-099-model-registry — Session Resumption Brief
 
-**Last updated**: 2026-05-06 (Sprint 1 COMPLETE; Sprint 2A + 2B + 2C + **2D.a+b SHIPPED** — Sprint 2 runtime overlay COMPLETE + canonical FR-3.9 resolver SHIPPED. **Next: Sprint 2D.c (TS port via Python+Jinja2 codegen) OR Sprint 2D.d (SC-14 property suite) OR Sprint 2E (T2.7+T2.8)**)
+**Last updated**: 2026-05-06 (Sprint 1 COMPLETE; Sprint 2A + 2B + 2C + 2D.a+b + **2D.c SHIPPED** — FR-3.9 canonical resolver + 3-way cross-runtime parity gate COMPLETE. **Next: Sprint 2D.d (SC-14 property suite) OR Sprint 2E (T2.7+T2.8)**)
 **Author**: deep-name + Claude Opus 4.7 1M
 **Purpose**: Crash-recovery + cross-session continuity. Read first when resuming cycle-099 work.
 
-## 🚨 TL;DR — Sprint 1 + 2A + 2B + 2C + 2D.a+b all SHIPPED; 16 cycle-099 PRs on main; FR-3.9 canonical resolver COMPLETE
+## 🚨 TL;DR — Sprint 1 + 2A + 2B + 2C + 2D.a+b + 2D.c all SHIPPED; 17 cycle-099 PRs on main; 3-way cross-runtime parity gate ACTIVE
 
 **On main (11 PRs):**
 - chore #721 (`9ef33055`) — cycle-099 ledger activation + planning artifacts (mirrors cycle-098 #679 pattern)
@@ -25,24 +25,26 @@
 
 - **Sprint-1E.c.3.c #734 (`b8dea0f5`)** — final SSRF closure (T1.15 cont.) — strict CI flip + load_allowlist host validation + opt-in webhook allowlist. Three deliverables: (1) `tools/check-no-raw-curl.sh` strict scanner with heredoc-state tracking + word-boundary regex + suppression marker; CI guard flipped from `::warning::` to `::error::` + `exit 1`. (2) `_validate_allowlist_entries` rejects sentinel hosts (`*`, `?`, FULLWIDTH ASTERISK U+FF0A, ASTERISK OPERATOR U+2217, NUL/CR/LF/TAB control bytes) at LOAD time, fail-closed with provider+index in error. (3) `_webhook_send` / `_webhook_dispatch` refactor with opt-in toggle `model_health_probe.alert_webhook_endpoint_validator_enabled` (literal-lowercase-`true` only) + `webhook-hosts.json` empty-default allowlist. **Subagent dual-review caught CRITICAL `model-adapter.sh.legacy` exempt-blindness** (3 live raw-curl invocations invisible to `*.sh`-only glob) + **HIGH FULLWIDTH-ASTERISK U+FF0A bypass** of `_validate_allowlist_entries` — both fixed pre-merge with bats coverage. **gp HIGH heredoc-string-mention + same-line-opener bypasses** also caught and fixed. BB kaironic 2-iter plateau (iter-1 caught F2/F3/F4 marker-scope + suffix-class + echo-cmdsub bypasses; iter-2 caught F13 push.paths gap). 4 exempt files now: `endpoint-validator.sh` (wrapper), `mount-loa.sh` (bootstrap), `model-health-probe.sh` (legacy webhook), `model-adapter.sh.legacy` (deferred Sprint 4 sunset).
 
-- **Sprint-2D.a+b #740 (`fc27b7cf`)** — FR-3.9 6-stage canonical resolver + bash twin (T2.6 partial). New `.claude/scripts/lib/model-resolver.py` (~750 LOC) — pure-function `resolve(merged_config, skill, role) -> dict` implementing all 6 stages (S1 explicit pin → S6 prefer_pro overlay) per SDD §1.5. Supports both dict-form and string-form alias entries (cycle-099 + cycle-095 back-compat via `_normalize_alias_entry`). `_has_ctrl_byte` rejects C0 control bytes at entry. `_canonicalize_dict_keys` stringifies non-string YAML keys (matches yq's silent stringification). New `model-resolver-output.schema.json` (Draft 2020-12, discriminated `oneOf` for resolution-level vs fixture-level errors, strict `additionalProperties:false` on `details`). Bash twin at `tests/bash/golden_resolution.sh` (~810 LOC) re-implements all 6 stages independently for cross-runtime parity verification. 41 new bats: 16 G + 23 P + 2 L. Cross-runtime-diff CI gate flipped to Python+bash byte-equality + JSON Schema validation (TS deferred to 2D.c). Production-yaml smoke resolves 21/21 framework agents via canonical resolver. Subagent dual-review caught **6 HIGH** (gp HIGH-1 per-skill `respect_prefer_pro` per FR-3.4; gp HIGH-2 schema fixture-error variant; gp HIGH-3 bash extra normalization parity; cypherpunk HIGH-1 mixed YAML keys stringify; cypherpunk HIGH-2 ctrl-byte rejection; cypherpunk HIGH-3 details schema closed) + 7 MEDIUM all addressed pre-merge. **Bridgebuilder kaironic 2-iter plateau** by API-unavailability (Anthropic-only; OpenAI 404 + Google network errored — same pattern as Sprint 2B + 2C); 7 actionable findings applied across both iters; finding-rotation + 3 PRAISE = convergence signal. Admin-squashed.
+- **Sprint-2D.a+b #740 (`fc27b7cf`)** — FR-3.9 6-stage canonical resolver + bash twin (T2.6 partial). New `.claude/scripts/lib/model-resolver.py` (~750 LOC) — pure-function `resolve(merged_config, skill, role) -> dict` implementing all 6 stages (S1 explicit pin → S6 prefer_pro overlay) per SDD §1.5. Supports both dict-form and string-form alias entries (cycle-099 + cycle-095 back-compat via `_normalize_alias_entry`). `_has_ctrl_byte` rejects C0 control bytes at entry. `_canonicalize_dict_keys` stringifies non-string YAML keys (matches yq's silent stringification). New `model-resolver-output.schema.json` (Draft 2020-12, discriminated `oneOf` for resolution-level vs fixture-level errors, strict `additionalProperties:false` on `details`). Bash twin at `tests/bash/golden_resolution.sh` (~810 LOC) re-implements all 6 stages independently for cross-runtime parity verification. 41 new bats: 16 G + 23 P + 2 L. Cross-runtime-diff CI gate flipped to Python+bash byte-equality + JSON Schema validation (TS deferred to 2D.c). Production-yaml smoke resolves 21/21 framework agents via canonical resolver. Subagent dual-review caught **6 HIGH** all addressed pre-merge. **Bridgebuilder kaironic 2-iter plateau** by API-unavailability (Anthropic-only). Admin-squashed.
+
+- **Sprint-2D.c #741 (`29c7a8a8`, v1.128.0)** — TS port via Python+Jinja2 codegen (T2.6 cont.). Mirrors sprint-1E.c.1 verbatim. Restores 3-way Python ↔ bash ↔ TS byte-equality gate. 4 new files: `.claude/adapters/loa_cheval/codegen/emit_model_resolver_ts.py` (Python emit module with realpath + symlink-refusal codegen-symlink-defense per cypherpunk MED-1 + ctrl_byte_pattern `/`-guard per gp MED-1 + source-hash cross-check), `.claude/scripts/lib/codegen/model-resolver.ts.j2` (~720 LOC Jinja2 template with `codepointCompare` for Python-parity sort + canonicalizeRecursive at resolve() entry per gp CRIT-1 + empty-dict tier_mapping fall-through per gp CRIT-2), `.claude/skills/bridgebuilder-review/resources/lib/model-resolver.generated.ts` (825 LOC committed output with SHA-256 of canonical Python source in DO-NOT-EDIT header), `.github/workflows/cycle099-sprint-2d-c-ts-tests.yml` (drift gate + parity tests). Updated: `tests/typescript/golden_resolution.ts` (consumes generated module + Sprint 2D shape), `.github/workflows/cross-runtime-diff.yml` (TS leg restored, 3-way byte-equality + JSON Schema validation extended to all 3 runners, repo-root absolute-path tsx invocation per BB iter-2 F2), `tests/integration/sprint-2D-resolver-parity.bats` (extended to 27 P-tests including new P16c TS direct ctrl-byte defense + P23 codegen drift gate + P24 hash cross-check via portable awk + P25 widened to skill/role/alias/tier-key positions). Subagent dual-review caught **2 CRIT + 3 HIGH + 8 MED + 10 LOW + 11 PRAISE** — all CRIT/HIGH and selected MED addressed pre-merge. **Bridgebuilder kaironic 2-iter plateau** by API-unavailability (Anthropic-only; finding-rotation + 3 PRAISE in BOTH iters = convergence). 45 Sprint 2D bats green; 0 cycle-099 sentinel regressions. Admin-squashed.
 
 - **Sprint-2C #739 (`e06fd8d1`)** — model-adapter.sh overlay integration (T2.5). New `.claude/scripts/lib/overlay-source-helper.sh` (~330 LOC) exposes 5 public functions (`loa_overlay_init`, `loa_overlay_resolve_provider_id`, `loa_overlay_resolve_alias`, `loa_overlay_resolve_endpoint_family`, `loa_overlay_refresh_if_stale`). Adapter sources the helper at module load (function defs only — no I/O); `loa_overlay_init` runs INSIDE the `HOUNFOUR_FLATLINE_ROUTING=true` branch of `main()` so the legacy default path stays bit-identical to pre-cycle-099. Resolution chain reordered: overlay → resolve_provider_id → MODEL_TO_ALIAS → pass-through. **Sprint 2 runtime overlay end-to-end COMPLETE**: operators can now add `model_aliases_extra` entries to `.loa.config.yaml` and have them flow through to bash adapter calls. 49 new bats cases (37 unit + 7 integration + 5 version-mismatch). Subagent dual-review caught 18 findings: **2 CRITICAL** (CYP-F1 LOA_OVERLAY_MERGED unconditional override → 3-leg gate added; CYP-F2 bash -n misleading docstring → content-shape gate added rejecting `$(...)`+backticks+semicolons+pipes+non-allowlist chars) + **6 HIGH** (CYP-F3 python3 from $PATH → absolute-path resolution; CYP-F4 TOCTOU symlink → realpath+symlink-refuse; CYP-F5 lockfile O_NOFOLLOW → symlink check; CYP-F6 pre-poisoned arrays → unset before source; CYP-F7 mutable helper paths → readonly; GP-F1+CYP-F11 helper init in legacy path → moved to v2 branch + hook arg passthrough) + **4 MEDIUM** (GP-F3 diagnostics env var; GP-F4 H1 test rename; CYP-F8/GP-F9 awk header parser; CYP-F9 fingerprint validation; CYP-F10 alias charset + dot-dot) — all addressed pre-merge with regression-pin tests. **Bridgebuilder kaironic**: 3 iters; iter-2 (4 findings, 2 PRAISE+1 MED+1 LOW) addressed in `097a175b`; iter-3 (8 findings, 0 consensus, 3 disputed) addressed in `bbec0aed` — finding-rotation pattern + Anthropic-only API → plateau called per cycle-099 precedent. Admin-squashed.
 
-**Cumulative**: ~733 cycle-099 bats tests on main (~692 prior + 41 from Sprint 2D: 16 G + 23 P + 2 L). 0 regressions. Drift-gate CI active. Strict v2 schema. Centralized endpoint-validator across Python + bash + TS. **FR-3.9 canonical 6-stage resolver SHIPPED** (Python canonical; bash twin for parity verification; TS port deferred to 2D.c). Cross-runtime-diff gate enforces Python+bash byte-equality + JSON Schema conformance. Production-yaml smoke verifies 21/21 framework agents resolve cleanly via canonical resolver.
+**Cumulative**: ~778 cycle-099 bats tests on main (~733 prior + 45 from Sprint 2D after 2D.c regen: 16 G + 27 P + 2 L). 0 regressions. Drift-gate CI active across endpoint-validator + model-resolver. Strict v2 schema. **FR-3.9 canonical 6-stage resolver SHIPPED across all 3 runtimes** (Python canonical; bash twin for test parity; TS port via Python+Jinja2 codegen). **3-way cross-runtime-diff gate ACTIVE** — Python ↔ bash ↔ TS byte-equality + JSON Schema validation enforced on every PR. Production-yaml smoke verifies 21/21 framework agents resolve cleanly.
 
 ### Operator decision needed at session start
 
-> **Sprint 2D.a+b is SHIPPED.** FR-3.9 6-stage canonical resolver (Python) + bash twin landed at `fc27b7cf`. Cumulative ~733 cycle-099 tests; 0 regressions. **Sprint 2 runtime overlay COMPLETE + canonical FR-3.9 resolver SHIPPED**: operators add `model_aliases_extra` to `.loa.config.yaml`; runtime overlay normalizes; canonical Python resolver handles all 6 stages of FR-3.9. **Next: Sprint 2D.c (TS port via Python+Jinja2 codegen, ~4-6h, mirrors sprint-1E.c.1) OR Sprint 2D.d (SC-14 property suite, ~3-5h) OR Sprint 2E (T2.7+T2.8)**.
+> **Sprint 2D.c is SHIPPED.** TS port via Python+Jinja2 codegen landed at `29c7a8a8` (v1.128.0). Cumulative ~778 cycle-099 tests; 0 regressions. **3-way cross-runtime parity gate ACTIVE**: Python ↔ bash ↔ TS byte-equality + JSON Schema validation enforced on every PR touching the resolver. Production-yaml smoke verifies 21/21 framework agents resolve cleanly via canonical Python resolver. **Next: Sprint 2D.d (SC-14 property suite, ~3-5h, closes T2.6) OR Sprint 2E (T2.7+T2.8 tier_groups defaults + prefer_pro overlay operator-config wiring, ~5-7h)**.
 
-**Sprint 2 scope** (per cycle-099 sprint plan; Sprint 2A + 2B + 2C + 2D.a+b SHIPPED, 11 tasks remain):
+**Sprint 2 scope** (per cycle-099 sprint plan; Sprint 2A + 2B + 2C + 2D.a+b + 2D.c SHIPPED, 10 tasks remain):
 - ✅ T2.1 — JSON Schema (Sprint 2A #737)
 - ⏳ T2.2 — Strict-mode loader (deferred; partially served by Sprint 2D's canonical Python loader)
 - ✅ T2.3 — Python startup hook (Sprint 2B #738)
 - ✅ T2.4 — `.run/merged-model-aliases.sh` writer (Sprint 2B #738)
 - ✅ T2.5 — `model-adapter.sh` overlay integration (Sprint 2C #739)
 - ✅ **T2.6 (Python canonical + bash twin)** — Sprint 2D #740
-- ⏳ **T2.6 (TS port via Python+Jinja2 codegen)** — Sprint-2D.c candidate, mirrors sprint-1E.c.1 pattern; activates 3-way cross-runtime parity gate
+- ✅ **T2.6 (TS port via Python+Jinja2 codegen)** — Sprint 2D.c #741
 - ⏳ **T2.6 (SC-14 property suite)** — Sprint-2D.d candidate; 6 invariants × ~100 random configs
 - ⏳ T2.7 — `tier_groups.mappings` probe-confirmed defaults
 - ⏳ T2.8 — `prefer_pro_models` overlay with FR-3.4 legacy gate (semantics shipped in Sprint 2D resolver; T2.8 covers operator-config wiring)
@@ -355,7 +357,71 @@ Flatline SDD pass #2 SKP-006 CRITICAL 870 + pass #3 IMP-002 HIGH_CONSENSUS 880.
 
 ---
 
-## Brief F — Sprint 2D.c (TS port via Python+Jinja2 codegen) OR Sprint 2D.d (SC-14 property suite)
+## Brief G — Sprint 2D.d (SC-14 property suite) OR Sprint 2E (T2.7 + T2.8)
+
+**Status as of 2026-05-06**: cycle-099 Sprint 1 + 2A + 2B + 2C + 2D.a+b + 2D.c all SHIPPED (17 PRs on main, v1.128.0). HEAD at `29c7a8a8`. **FR-3.9 canonical resolver SHIPPED across all 3 runtimes** (Python canonical + bash twin + TS codegen). 3-way cross-runtime byte-equality + JSON Schema validation enforced on every PR. Production-yaml smoke resolves 21/21 framework agents.
+
+### Option A — Sprint-2D.d: SC-14 property suite (~3-5h, closes T2.6)
+
+Property-based testing per cycle-099 SC-14 + DD-6:
+- Bash property generator at `tests/property/lib/property-gen.bash` (~150 lines per SDD §5 — emits N random valid configs).
+- Property test runner at `tests/property/model-resolution-properties.bats` exercising 6 invariants per FR-3.9:
+  1. (1) and (4) both present → (1) wins
+  2. Two same-priority mechanisms always produce error
+  3. prefer_pro overlay always applied last (step 6)
+  4. Deprecation warning emitted ⟺ stage (4) was the resolution path
+  5. Operator-extra-tier resolves before framework-default-tier when both define same provider mapping
+  6. Unmapped tier produces FR-3.8 fail-closed error, never silent fallback to (5)
+- ~100 random scenarios per CI run; 1000-iter stress nightly via `cron: '0 6 * * *'`.
+
+Acceptance criteria:
+- AC-S2.d.1: All 6 invariants pass on ~100 random configs per PR check.
+- AC-S2.d.2: 1000-iter nightly stress passes with 0 invariant violations.
+- AC-S2.d.3: Property runner shells out to canonical Python resolver via `python3 -m model_resolver resolve`.
+
+### Option B — Sprint-2E: T2.7 + T2.8 (~5-7h)
+
+- **T2.7** — `tier_groups.mappings` probe-confirmed defaults: framework `tier_groups.mappings` is currently sparse (per fixture corpus). Sprint 2E populates the full default map for each (tier × provider) cell, validated via probe (a quick health-check call to each provider's allowlisted endpoint). Failures emit warnings but don't block.
+- **T2.8** — `prefer_pro_models` overlay operator-config wiring: Sprint 2D ships the resolver-side semantics (S6 stage). Sprint 2E plumbs the operator-config knob through the runtime overlay so operators can toggle it via `.loa.config.yaml::prefer_pro_models: true` and have it propagate to all skill resolutions (with FR-3.4 per-skill `respect_prefer_pro` gate for legacy shapes).
+
+### Recommendation
+
+**Option A (2D.d) first** — closes T2.6 entirely. Property testing is the canonical "fortify-resolver" follow-up; running 100-1000 random configs against the canonical Python resolver finds invariant violations that fixture-corpus testing can't surface. Smaller scope (~3-5h) and orthogonal to operator-config plumbing work.
+
+If operator wants to start exposing the resolver to operators (T2.7 + T2.8), Option B is correct — but the full T2.6 closure (2D.d) provides hard guarantees that operator-config plumbing then can rely on.
+
+### Sprint 2D.c handoff (in place at HEAD `29c7a8a8`)
+
+- `.claude/scripts/lib/codegen/model-resolver.ts.j2` — Jinja2 template (~720 LOC TS resolver)
+- `.claude/adapters/loa_cheval/codegen/emit_model_resolver_ts.py` — Python emit module + drift gate
+- `.claude/skills/bridgebuilder-review/resources/lib/model-resolver.generated.ts` — committed generated output (regen via `python3 -m loa_cheval.codegen.emit_model_resolver_ts > <path>`)
+- `tests/typescript/golden_resolution.ts` — Sprint 2D shape, imports generated module
+- `.github/workflows/cross-runtime-diff.yml` — 3-way byte-equality gate (Python ↔ bash ↔ TS)
+- `.github/workflows/cycle099-sprint-2d-c-ts-tests.yml` — drift gate + parity tests
+- `tests/integration/sprint-2D-resolver-parity.bats` — 27 P-tests (3-way + new P16c, P23, P24, P25)
+
+Cut: `feat/cycle-099-sprint-2D.d` (or `2E`) from main (`29c7a8a8`+).
+
+Quality-gate chain (cycle-099 standard, established across 17 PRs):
+1. Test-first
+2. Subagent dual-review (gp + paranoid cypherpunk) IN PARALLEL via background agents
+3. Bridgebuilder kaironic INLINE — **NOTE**: BB API outage (Anthropic-only signal across iters) observed on Sprint 2B + 2C + 2D.a+b + 2D.c. Cycle-099 precedent accepts API-unavailability as plateau; pre-BB subagent review provides substantive surface.
+4. Admin-squash after plateau
+5. Update RESUMPTION.md + memory
+
+Beads still UNHEALTHY/MIGRATION_NEEDED ([#661](https://github.com/0xHoneyJar/loa/issues/661)). `--no-verify` policy active.
+
+### Followup-issues filed at Sprint 2D.c merge (deferred non-blocking findings)
+
+- **gp MED-3** (sprint-2D.c): `_load_canonical()` called twice in --check mode — minor perf. Cycle-100 hardening.
+- **gp MED-4** (sprint-2D.c): Stage 3 detail strings differ on edge cases not in fixture corpus. Latent.
+- **gp LOW-2/3/4** (sprint-2D.c): cosmetic / sprint-1E.c.1 inheritance.
+- **cypherpunk LOW-3/4/5/6** (sprint-2D.c): npx tsx (already fixed but pattern note), ESM/CJS __dirname (no root package.json today), P16 alternation (intentional), P16c/P25 heredoc (paths bounded).
+- **BB iter-1 F1/F2/F6** + **iter-2 F3/F5/F6/F7/F8** (sprint-2D.c): aesthetic / nice-to-have. Cycle-100 hardening sprint.
+
+---
+
+## Brief F — Sprint 2D.c (TS port via Python+Jinja2 codegen) [HISTORIC — SHIPPED at #741 29c7a8a8]
 
 **Status as of 2026-05-06**: cycle-099 Sprint 1 + 2A + 2B + 2C + 2D.a+b all SHIPPED (16 PRs on main). HEAD at `fc27b7cf` (Sprint 2D.a+b merge). FR-3.9 canonical resolver shipped Python-canonical + bash twin; 41 new bats; cross-runtime byte-equality enforced for Python+bash. TS leg of cross-runtime-diff gate is **temporarily deferred** — TODO marker in `.github/workflows/cross-runtime-diff.yml` references Sprint 2D.c.
 
