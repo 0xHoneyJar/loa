@@ -5,7 +5,37 @@
   "description": "Per-resolution output of the FR-3.9 6-stage resolver per SDD §1.5.1. Single (skill, role) query produces one ResolutionResult. Success carries resolved_provider + resolved_model_id + resolution_path; failure carries error. Output is discriminated by presence of `error` (if present, failure; else success). The shape mirrors `tests/fixtures/model-resolution/*.yaml::expected.resolutions[]` so fixtures double as schema validation cases. Field ordering, key casing, and null-vs-absent semantics are pinned. Cross-runtime (Python canonical, bash + TS test runners) MUST emit byte-equal canonical JSON for the same (config, skill, role) input.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["skill", "role"],
+  "oneOf": [
+    {
+      "comment": "Resolution-level result: requires skill+role; carries either resolved_* fields or `error`. This is the primary output shape.",
+      "required": ["skill", "role"],
+      "oneOf": [
+        {
+          "required": ["resolved_provider", "resolved_model_id", "resolution_path"],
+          "not": { "required": ["error"] }
+        },
+        {
+          "required": ["error"],
+          "not": { "anyOf": [
+            { "required": ["resolved_provider"] },
+            { "required": ["resolved_model_id"] },
+            { "required": ["resolution_path"] }
+          ] }
+        }
+      ]
+    },
+    {
+      "comment": "Fixture-level error (YAML parse failure or missing expected.resolutions block) — emitted by the golden runners when no (skill, role) tuple can be derived from the fixture. Has `fixture` + `error` only.",
+      "required": ["fixture", "error"],
+      "not": { "anyOf": [
+        { "required": ["skill"] },
+        { "required": ["role"] },
+        { "required": ["resolved_provider"] },
+        { "required": ["resolved_model_id"] },
+        { "required": ["resolution_path"] }
+      ] }
+    }
+  ],
   "properties": {
     "fixture": {
       "type": "string",
@@ -43,20 +73,6 @@
       "description": "Present iff resolution failed. Mutually exclusive with resolved_provider/resolved_model_id/resolution_path."
     }
   },
-  "oneOf": [
-    {
-      "required": ["resolved_provider", "resolved_model_id", "resolution_path"],
-      "not": { "required": ["error"] }
-    },
-    {
-      "required": ["error"],
-      "not": { "anyOf": [
-        { "required": ["resolved_provider"] },
-        { "required": ["resolved_model_id"] },
-        { "required": ["resolution_path"] }
-      ] }
-    }
-  ],
   "$defs": {
     "StageOutcome": {
       "type": "object",
@@ -88,7 +104,24 @@
         },
         "details": {
           "type": "object",
-          "description": "Optional stage-specific context. Schema is open by stage to allow stage-specific fields without breaking parity. Common fields: `tier`, `alias`, `pin`, `resolved_alias`, `from`, `to`, `warning`, `source`."
+          "additionalProperties": false,
+          "description": "Stage-specific context. Closed schema (additionalProperties:false) per cypherpunk HIGH-3 to prevent attacker-controlled extra fields leaking through to downstream consumers.",
+          "properties": {
+            "alias":                     {"type": "string"},
+            "pin":                       {"type": "string"},
+            "tier":                      {"type": "string"},
+            "resolved_alias":            {"type": "string"},
+            "alias_collides_with_tier":  {"type": "boolean"},
+            "from":                      {"type": "string"},
+            "to":                        {"type": "string"},
+            "warning":                   {"type": "string"},
+            "source":                    {"type": "string", "enum": ["degraded_cache"]},
+            "reason":                    {"type": "string", "enum": [
+                                            "legacy_shape_without_respect_prefer_pro",
+                                            "no_alias_to_overlay",
+                                            "no_pro_variant_for_alias"
+                                         ]}
+          }
         }
       }
     },
@@ -104,10 +137,11 @@
             "[OVERRIDE-UNKNOWN-MODEL]",
             "[MODEL-EXTRA-OVERRIDE-CONFLICT]",
             "[NO-RESOLUTION]",
-            "[CONFLICT-PIN-AND-TIER]",
-            "[ALIAS-COLLIDES-WITH-TIER]"
+            "[INPUT-CONTROL-BYTE]",
+            "[YAML-PARSE-FAILED]",
+            "[NO-EXPECTED-RESOLUTIONS]"
           ],
-          "description": "Stable error code. `[TIER-NO-MAPPING]` (FR-3.8 fail-closed at S3). `[OVERRIDE-UNKNOWN-MODEL]` (validation pre-resolution per IMP-004). `[MODEL-EXTRA-OVERRIDE-CONFLICT]` (validation pre-resolution per IMP-004). `[NO-RESOLUTION]` (resolver exhausted all 6 stages without a hit). `[CONFLICT-PIN-AND-TIER]` (schema-level rejection per SDD §1.5 conflict resolution). `[ALIAS-COLLIDES-WITH-TIER]` (IMP-007 — informational; resolver applies tier-tag-wins tiebreaker but reports the collision)."
+          "description": "Stable error code. `[TIER-NO-MAPPING]` (FR-3.8 fail-closed at S3). `[OVERRIDE-UNKNOWN-MODEL]` (validation pre-resolution per IMP-004). `[MODEL-EXTRA-OVERRIDE-CONFLICT]` (validation pre-resolution per IMP-004). `[NO-RESOLUTION]` (resolver exhausted all 6 stages without a hit). `[INPUT-CONTROL-BYTE]` (cypherpunk HIGH-2 — input contained C0 control byte in scalar). `[YAML-PARSE-FAILED]` / `[NO-EXPECTED-RESOLUTIONS]` (fixture-level errors emitted by golden runners; only valid in the fixture-level error variant of the top-level oneOf)."
         },
         "stage_failed": {
           "type": "integer",

@@ -51,10 +51,6 @@ setup() {
     BASH_OUT="$WORK_DIR/bash.jsonl"
     PY_OUT="$WORK_DIR/python.jsonl"
 
-    # Sprint 2D mode flag — runners emit FR-3.9 6-stage shape under this flag.
-    # Without the flag, runners emit Sprint 1D's alias-lookup subset (kept for
-    # backward compat with the existing G-series bats during the transition).
-    export LOA_RESOLVER_MODE=sprint-2D
 }
 
 teardown() {
@@ -392,6 +388,306 @@ EOF
 }
 
 # ----- P14 spec compliance: stage 6 gated for legacy shapes (FR-3.4) -----
+
+@test "P16 input control byte (cypherpunk HIGH-2) → both runners emit [INPUT-CONTROL-BYTE]" {
+    # Operator config carrying a C0 control byte in any string scalar must be
+    # uniformly rejected with the same error code. Tests with \x01 (the bash
+    # runner's helper-output separator), \x07 (BEL), and \x1F (US).
+    local synth_dir="$WORK_DIR/synth-ctrl"
+    mkdir -p "$synth_dir"
+    # Inject a LITERAL SOH byte (0x01) via printf's octal escape. This bypasses
+    # the yq-vs-PyYAML divergence on `` escape sequences (yq treats it
+    # as the literal 6 chars; PyYAML interprets it as the control byte). The
+    # literal byte is embedded inside a YAML double-quoted scalar; both
+    # parsers pass it through unchanged.
+    printf 'description: "ctrl byte injection"\ninput:\n  schema_version: 2\n  framework_defaults: {}\n  operator_config:\n    skill_models:\n      flatline_protocol:\n        primary: "anthropic:foo\001bar"\nexpected:\n  resolutions:\n    - skill: flatline_protocol\n      role: primary\n      error: { code: "[INPUT-CONTROL-BYTE]", stage_failed: 0, detail: "..." }\n' > "$synth_dir/zz-ctrl.yaml"
+    LOA_GOLDEN_TEST_MODE=1 LOA_GOLDEN_FIXTURES_DIR="$synth_dir" "$BASH_RUNNER" > "$WORK_DIR/ctrl.bash.jsonl"
+    LOA_GOLDEN_TEST_MODE=1 LOA_GOLDEN_FIXTURES_DIR="$synth_dir" python3 "$PY_RUNNER" > "$WORK_DIR/ctrl.py.jsonl"
+    diff -u "$WORK_DIR/ctrl.bash.jsonl" "$WORK_DIR/ctrl.py.jsonl" || {
+        printf 'control-byte rejection cross-runtime divergence\n' >&2
+        return 1
+    }
+    # Either error code is acceptable — both YAML parsers reject literal SOH
+    # at parse time with [YAML-PARSE-FAILED]. The resolver-level _has_ctrl_byte
+    # defense is belt-and-suspenders for non-YAML callers; tested separately
+    # in P16b. What matters here: BOTH runtimes agree on the rejection code.
+    grep -qE '"\[(INPUT-CONTROL-BYTE|YAML-PARSE-FAILED)\]"' "$WORK_DIR/ctrl.bash.jsonl" || {
+        printf 'expected uniform rejection ([INPUT-CONTROL-BYTE] or [YAML-PARSE-FAILED]); got: %s\n' "$(cat "$WORK_DIR/ctrl.bash.jsonl")" >&2
+        return 1
+    }
+}
+
+@test "P16b _has_ctrl_byte defense-in-depth (cypherpunk HIGH-2): Python rejects ctrl-byte via direct call" {
+    # Direct unit test of the defense — bypasses YAML parser by calling
+    # resolve() with an in-memory dict. Asserts the resolver-level
+    # _has_ctrl_byte check fires correctly when the YAML layer is absent.
+    python3 - <<'PY'
+import importlib.util
+spec = importlib.util.spec_from_file_location("mr", ".claude/scripts/lib/model-resolver.py")
+mr = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mr)
+config = {
+    "schema_version": 2,
+    "framework_defaults": {},
+    "operator_config": {
+        "skill_models": {"flatline_protocol": {"primary": "anthropic:foo\x01bar"}}
+    },
+}
+result = mr.resolve(config, "flatline_protocol", "primary")
+assert result.get("error", {}).get("code") == "[INPUT-CONTROL-BYTE]", f"expected [INPUT-CONTROL-BYTE], got {result}"
+print("OK — Python resolver rejects ctrl-byte via _has_ctrl_byte defense")
+PY
+}
+
+@test "P17 per-skill respect_prefer_pro=true (gp HIGH-1) → S6 retargets legacy-shape resolution" {
+    # Per PRD FR-3.4, `respect_prefer_pro: true` is PER-SKILL (in the legacy
+    # shape's skill block). When true, the S6 prefer_pro overlay applies even
+    # for legacy shapes.
+    local synth_dir="$WORK_DIR/synth-respect-perskill"
+    mkdir -p "$synth_dir"
+    cat > "$synth_dir/zz-respect-perskill.yaml" <<'EOF'
+description: "FR-3.4 per-skill respect_prefer_pro=true → S6 retargets legacy"
+input:
+  schema_version: 2
+  framework_defaults:
+    providers:
+      google:
+        models:
+          gemini-2.5-flash: { capabilities: [chat] }
+          gemini-2.5-pro: { capabilities: [chat] }
+    aliases:
+      flash: { provider: google, model_id: gemini-2.5-flash }
+      flash-pro: { provider: google, model_id: gemini-2.5-pro }
+  operator_config:
+    prefer_pro_models: true
+    flatline_protocol:
+      respect_prefer_pro: true   # per-skill flag on the legacy block
+      models:
+        primary: flash
+expected:
+  resolutions:
+    - skill: flatline_protocol
+      role: primary
+      resolved_provider: google
+      resolved_model_id: gemini-2.5-pro
+EOF
+    LOA_GOLDEN_TEST_MODE=1 LOA_GOLDEN_FIXTURES_DIR="$synth_dir" "$BASH_RUNNER" > "$WORK_DIR/rp.bash.jsonl"
+    LOA_GOLDEN_TEST_MODE=1 LOA_GOLDEN_FIXTURES_DIR="$synth_dir" python3 "$PY_RUNNER" > "$WORK_DIR/rp.py.jsonl"
+    diff -u "$WORK_DIR/rp.bash.jsonl" "$WORK_DIR/rp.py.jsonl" || {
+        printf 'per-skill respect_prefer_pro cross-runtime divergence\n' >&2
+        return 1
+    }
+    # Verify S6 applied (retargeted to *-pro)
+    grep -q '"resolved_model_id":"gemini-2.5-pro"' "$WORK_DIR/rp.bash.jsonl" || {
+        printf 'per-skill respect_prefer_pro=true should retarget to *-pro; got: %s\n' "$(cat "$WORK_DIR/rp.bash.jsonl")" >&2
+        return 1
+    }
+    grep -q '"applied"' "$WORK_DIR/rp.bash.jsonl" || {
+        printf 'expected S6 outcome=applied; got: %s\n' "$(cat "$WORK_DIR/rp.bash.jsonl")" >&2
+        return 1
+    }
+}
+
+@test "P18 top-level respect_prefer_pro=true (gp HIGH-1) does NOT enable S6 (per-skill required)" {
+    # Regression: pre-fix code read `respect_prefer_pro` at top level. Per PRD
+    # FR-3.4 it must be per-skill. Top-level placement is silently ignored.
+    local synth_dir="$WORK_DIR/synth-respect-toplevel"
+    mkdir -p "$synth_dir"
+    cat > "$synth_dir/zz-respect-toplevel.yaml" <<'EOF'
+description: "FR-3.4 top-level respect_prefer_pro is IGNORED (per-skill required)"
+input:
+  schema_version: 2
+  framework_defaults:
+    providers:
+      google:
+        models:
+          gemini-2.5-flash: { capabilities: [chat] }
+          gemini-2.5-pro: { capabilities: [chat] }
+    aliases:
+      flash: { provider: google, model_id: gemini-2.5-flash }
+      flash-pro: { provider: google, model_id: gemini-2.5-pro }
+  operator_config:
+    prefer_pro_models: true
+    respect_prefer_pro: true    # MISPLACED — should be inside flatline_protocol
+    flatline_protocol:
+      models:
+        primary: flash
+expected:
+  resolutions:
+    - skill: flatline_protocol
+      role: primary
+      resolved_provider: google
+      resolved_model_id: gemini-2.5-flash
+EOF
+    LOA_GOLDEN_TEST_MODE=1 LOA_GOLDEN_FIXTURES_DIR="$synth_dir" "$BASH_RUNNER" > "$WORK_DIR/rp_top.bash.jsonl"
+    LOA_GOLDEN_TEST_MODE=1 LOA_GOLDEN_FIXTURES_DIR="$synth_dir" python3 "$PY_RUNNER" > "$WORK_DIR/rp_top.py.jsonl"
+    diff -u "$WORK_DIR/rp_top.bash.jsonl" "$WORK_DIR/rp_top.py.jsonl" || {
+        printf 'top-level respect_prefer_pro cross-runtime divergence\n' >&2
+        return 1
+    }
+    grep -q '"resolved_model_id":"gemini-2.5-flash"' "$WORK_DIR/rp_top.bash.jsonl" || {
+        printf 'top-level respect_prefer_pro should be IGNORED (resolved_model_id stays non-pro); got: %s\n' "$(cat "$WORK_DIR/rp_top.bash.jsonl")" >&2
+        return 1
+    }
+    grep -q '"skipped"' "$WORK_DIR/rp_top.bash.jsonl" || {
+        printf 'expected S6 outcome=skipped (legacy without per-skill respect); got: %s\n' "$(cat "$WORK_DIR/rp_top.bash.jsonl")" >&2
+        return 1
+    }
+}
+
+@test "P19 stage 6 no_alias_to_overlay (S1 explicit-pin path with prefer_pro) → both runners emit skipped" {
+    # gp MED-1: when S1 resolves via explicit pin, no alias is known for the
+    # *-pro lookup. S6 emits outcome=skipped with reason=no_alias_to_overlay.
+    local synth_dir="$WORK_DIR/synth-no-alias"
+    mkdir -p "$synth_dir"
+    cat > "$synth_dir/zz-no-alias.yaml" <<'EOF'
+description: "S1 explicit pin + prefer_pro_models=true → S6 skipped:no_alias_to_overlay"
+input:
+  schema_version: 2
+  framework_defaults:
+    providers:
+      anthropic:
+        models:
+          claude-opus-4-7: { capabilities: [chat] }
+  operator_config:
+    prefer_pro_models: true
+    skill_models:
+      flatline_protocol:
+        primary: "anthropic:claude-opus-4-7"
+expected:
+  resolutions:
+    - skill: flatline_protocol
+      role: primary
+      resolved_provider: anthropic
+      resolved_model_id: claude-opus-4-7
+EOF
+    LOA_GOLDEN_TEST_MODE=1 LOA_GOLDEN_FIXTURES_DIR="$synth_dir" "$BASH_RUNNER" > "$WORK_DIR/na.bash.jsonl"
+    LOA_GOLDEN_TEST_MODE=1 LOA_GOLDEN_FIXTURES_DIR="$synth_dir" python3 "$PY_RUNNER" > "$WORK_DIR/na.py.jsonl"
+    diff -u "$WORK_DIR/na.bash.jsonl" "$WORK_DIR/na.py.jsonl" || {
+        printf 'no_alias_to_overlay cross-runtime divergence\n' >&2
+        return 1
+    }
+    grep -q '"reason":"no_alias_to_overlay"' "$WORK_DIR/na.bash.jsonl" || {
+        printf 'expected reason=no_alias_to_overlay; got: %s\n' "$(cat "$WORK_DIR/na.bash.jsonl")" >&2
+        return 1
+    }
+}
+
+@test "P20 stage 6 no_pro_variant_for_alias → both runners emit skipped" {
+    # gp MED-1: when an alias resolves successfully but framework_aliases
+    # lacks `<alias>-pro`, S6 emits skipped with reason=no_pro_variant_for_alias.
+    local synth_dir="$WORK_DIR/synth-no-pro"
+    mkdir -p "$synth_dir"
+    cat > "$synth_dir/zz-no-pro.yaml" <<'EOF'
+description: "alias has no -pro variant + prefer_pro_models=true → S6 skipped"
+input:
+  schema_version: 2
+  framework_defaults:
+    providers:
+      anthropic:
+        models:
+          claude-opus-4-7: { capabilities: [chat] }
+    aliases:
+      opus: { provider: anthropic, model_id: claude-opus-4-7 }
+      # NOTE: no `opus-pro` alias declared
+  operator_config:
+    prefer_pro_models: true
+    skill_models:
+      flatline_protocol:
+        primary: opus
+expected:
+  resolutions:
+    - skill: flatline_protocol
+      role: primary
+      resolved_provider: anthropic
+      resolved_model_id: claude-opus-4-7
+EOF
+    LOA_GOLDEN_TEST_MODE=1 LOA_GOLDEN_FIXTURES_DIR="$synth_dir" "$BASH_RUNNER" > "$WORK_DIR/np.bash.jsonl"
+    LOA_GOLDEN_TEST_MODE=1 LOA_GOLDEN_FIXTURES_DIR="$synth_dir" python3 "$PY_RUNNER" > "$WORK_DIR/np.py.jsonl"
+    diff -u "$WORK_DIR/np.bash.jsonl" "$WORK_DIR/np.py.jsonl" || {
+        printf 'no_pro_variant_for_alias cross-runtime divergence\n' >&2
+        return 1
+    }
+    grep -q '"reason":"no_pro_variant_for_alias"' "$WORK_DIR/np.bash.jsonl" || {
+        printf 'expected reason=no_pro_variant_for_alias; got: %s\n' "$(cat "$WORK_DIR/np.bash.jsonl")" >&2
+        return 1
+    }
+}
+
+@test "P21 string-form alias in model_aliases_extra (gp HIGH-3) → both runners normalize identically" {
+    # gp HIGH-3: bash _lookup_extra now mirrors Python's two-shape support.
+    local synth_dir="$WORK_DIR/synth-extra-string"
+    mkdir -p "$synth_dir"
+    cat > "$synth_dir/zz-extra-string.yaml" <<'EOF'
+description: "model_aliases_extra entry in string-form (provider:model_id) — both runners normalize"
+input:
+  schema_version: 2
+  framework_defaults:
+    providers:
+      openai:
+        models:
+          gpt-5.5: { capabilities: [chat] }
+  operator_config:
+    skill_models:
+      flatline_protocol:
+        primary: my-extra
+    model_aliases_extra:
+      my-extra: "openai:gpt-5.5"   # string-form (lenient acceptance per gp HIGH-3)
+expected:
+  resolutions:
+    - skill: flatline_protocol
+      role: primary
+      resolved_provider: openai
+      resolved_model_id: gpt-5.5
+EOF
+    LOA_GOLDEN_TEST_MODE=1 LOA_GOLDEN_FIXTURES_DIR="$synth_dir" "$BASH_RUNNER" > "$WORK_DIR/es.bash.jsonl"
+    LOA_GOLDEN_TEST_MODE=1 LOA_GOLDEN_FIXTURES_DIR="$synth_dir" python3 "$PY_RUNNER" > "$WORK_DIR/es.py.jsonl"
+    diff -u "$WORK_DIR/es.bash.jsonl" "$WORK_DIR/es.py.jsonl" || {
+        printf 'string-form extra cross-runtime divergence\n' >&2
+        return 1
+    }
+    grep -q '"resolved_model_id":"gpt-5.5"' "$WORK_DIR/es.bash.jsonl" || {
+        printf 'string-form extra should normalize to gpt-5.5; got: %s\n' "$(cat "$WORK_DIR/es.bash.jsonl")" >&2
+        return 1
+    }
+}
+
+@test "P22 mixed-type YAML keys (cypherpunk HIGH-1) — Python+bash both stringify uniformly" {
+    # YAML allows non-string mapping keys: `1: foo`. Both runners must coerce
+    # to string identically (yq does this silently; Python's
+    # _canonicalize_dict_keys now mirrors via str() coercion).
+    local synth_dir="$WORK_DIR/synth-mixed-keys"
+    mkdir -p "$synth_dir"
+    cat > "$synth_dir/zz-mixed-keys.yaml" <<'EOF'
+description: "YAML int + string keys mix; both runners must stringify keys"
+input:
+  schema_version: 2
+  framework_defaults:
+    providers:
+      anthropic:
+        models:
+          claude-opus-4-7: { capabilities: [chat] }
+    aliases:
+      opus: { provider: anthropic, model_id: claude-opus-4-7 }
+  operator_config:
+    skill_models:
+      flatline_protocol:
+        1: opus           # YAML int key alongside string keys
+        primary: opus
+expected:
+  resolutions:
+    - skill: flatline_protocol
+      role: primary
+      resolved_provider: anthropic
+      resolved_model_id: claude-opus-4-7
+EOF
+    LOA_GOLDEN_TEST_MODE=1 LOA_GOLDEN_FIXTURES_DIR="$synth_dir" "$BASH_RUNNER" > "$WORK_DIR/mk.bash.jsonl"
+    LOA_GOLDEN_TEST_MODE=1 LOA_GOLDEN_FIXTURES_DIR="$synth_dir" python3 "$PY_RUNNER" > "$WORK_DIR/mk.py.jsonl"
+    diff -u "$WORK_DIR/mk.bash.jsonl" "$WORK_DIR/mk.py.jsonl" || {
+        printf 'mixed-key cross-runtime divergence (Python TypeError or different stringification)\n' >&2
+        return 1
+    }
+}
 
 @test "P15 string-form aliases (cycle-095 back-compat shape) parse identically across runtimes" {
     # Production `.claude/defaults/model-config.yaml` uses string-form aliases

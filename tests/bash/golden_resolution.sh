@@ -80,9 +80,49 @@ readonly _S6_LABEL="stage6_prefer_pro_overlay"
 # interpretation wins.
 readonly _TIER_NAMES_RE='^(max|cheap|mid|tiny)$'
 
-# Field separator for stage helper return values. \x01 (SOH) is unlikely to
-# appear in any user-supplied alias name (alias pattern is [a-zA-Z0-9._-]).
+# Field separator for stage helper return values. The runner pre-validates
+# input at the entry to `_resolve` and rejects any string scalar containing
+# C0 control bytes (0x00-0x08, 0x0B-0x1F) — see `_validate_input_no_ctrl`.
+# Cypherpunk HIGH-2 closure: with input validation, $'\x01' cannot reach
+# `_SEP`-delimited helper outputs from operator-controlled scalars. Schema
+# validation at the OUTPUT layer (parity bats P4) provides defense-in-depth
+# against any internal regression.
 readonly _SEP=$'\x01'
+
+# Reject any string scalar in the input JSON that contains a C0 control byte
+# (0x00-0x08, 0x0B-0x1F — excludes legitimate \t and \n). Returns 0 on pass
+# (no rejection); on rejection, emits an error JSON object on stdout for the
+# caller to forward as a uniform error. Cypherpunk HIGH-2.
+#
+# Args: $1 = input_json
+# Stdout: error JSON object on rejection; empty on pass
+_validate_input_no_ctrl() {
+    local input="$1"
+    # Cypherpunk HIGH-2: reject any string scalar containing a C0 control byte
+    # other than \t (0x09) or \n (0x0A). Delegate to Python because jq's
+    # regex char-class with literal control bytes is brittle across versions
+    # (a dash inside the byte range can be misparsed). Python's `re` is
+    # unambiguous and Python is already a dependency (sprint-1B pattern).
+    if printf '%s' "$input" | python3 -c '
+import json, re, sys
+ctrl = re.compile(r"[\x00-\x08\x0B-\x1F]")
+def walk(node):
+    if isinstance(node, str):
+        return ctrl.search(node) is not None
+    if isinstance(node, dict):
+        for k, v in node.items():
+            if isinstance(k, str) and ctrl.search(k): return True
+            if walk(v): return True
+        return False
+    if isinstance(node, list):
+        return any(walk(x) for x in node)
+    return False
+sys.exit(1 if walk(json.loads(sys.stdin.read())) else 0)
+' ; then
+        return  # no violation
+    fi
+    jq -c -n '{code:"[INPUT-CONTROL-BYTE]", stage_failed:0, detail:"input contains C0 control byte (0x00-0x08, 0x0B-0x1F) in a string scalar; refuse to resolve"}'
+}
 
 # ----- alias normalization helper -----
 
@@ -97,24 +137,66 @@ readonly _SEP=$'\x01'
 # alias is absent or malformed.
 #
 # Args: $1 = input_json, $2 = alias_name
+# Normalize a single alias-entry value (either a dict {provider, model_id} or
+# a string "provider:model_id") to the canonical dict shape. Mirrors Python's
+# `_normalize_alias_entry`. Cypherpunk MED-3: the `(?s)` flag forces DOTALL
+# semantics so embedded newlines in the string-form value behave identically
+# in jq's PCRE and Python's `partition(":")`.
+#
+# Args: $1 = entry JSON (any type)
+# Stdout: normalized {provider, model_id} JSON or "null"
+_normalize_alias_entry_json() {
+    local entry="$1"
+    echo "$entry" | jq -c '
+        if . == null then null
+        elif type == "string"
+        then
+          (capture("(?s)^(?<provider>[^:]+):(?<model_id>.+)$") // null
+           | if . == null then null
+             elif (.provider | length) > 0 and (.model_id | length) > 0
+             then {provider: .provider, model_id: .model_id}
+             else null
+             end)
+        elif type == "object"
+        then
+          (if ((.provider // "") | type == "string" and . != "")
+              and ((.model_id // "") | type == "string" and . != "")
+            then {provider: .provider, model_id: .model_id}
+            else null
+            end)
+        else null
+        end
+    '
+}
+
+# Look up an alias by name in `framework_defaults.aliases`. Cycle-095 production
+# back-compat: aliases may be either dict-form `{provider, model_id}` or
+# string-form `"provider:model_id"`.
+#
+# Args: $1 = input_json, $2 = alias_name
+# Stdout: normalized {provider, model_id} JSON or "null"
 _lookup_alias() {
     local input="$1" alias="$2"
-    echo "$input" | jq -c --arg a "$alias" '
-        (.framework_defaults.aliases // {})[$a] as $entry
-        | if $entry == null then null
-          elif ($entry | type) == "string"
-          then
-            ($entry | capture("^(?<provider>[^:]+):(?<model_id>.+)$") // null)
-          elif ($entry | type) == "object"
-          then
-            (if (($entry.provider // "") | type == "string" and . != "")
-                and (($entry.model_id // "") | type == "string" and . != "")
-              then {provider: $entry.provider, model_id: $entry.model_id}
-              else null
-              end)
-          else null
-          end
-    '
+    local entry
+    entry=$(echo "$input" | jq -c --arg a "$alias" '.framework_defaults.aliases[$a] // null')
+    _normalize_alias_entry_json "$entry"
+}
+
+# Look up an alias by name in `operator_config.model_aliases_extra`. Per gp
+# HIGH-3 the resolver is lenient — it accepts both dict-form (Sprint 2A schema
+# canonical) and string-form (cycle-095 back-compat). Schema validation
+# upstream (Sprint 2A's `validate-model-aliases-extra.py`) rejects malformed
+# operator inputs before they reach the resolver, but if anything slips
+# through, we mirror Python's normalize behavior so cross-runtime byte-equality
+# holds even on malformed input.
+#
+# Args: $1 = input_json, $2 = alias_name
+# Stdout: normalized {provider, model_id} JSON or "null"
+_lookup_extra() {
+    local input="$1" alias="$2"
+    local entry
+    entry=$(echo "$input" | jq -c --arg a "$alias" '.operator_config.model_aliases_extra[$a] // null')
+    _normalize_alias_entry_json "$entry"
 }
 
 # ----- canonical JSON helpers -----
@@ -146,14 +228,17 @@ _emit_success() {
 
 _emit_error() {
     local fixture="$1" skill="$2" role="$3" code="$4" stage_failed="$5" detail="$6"
-    if [[ -n "$skill" ]]; then
+    if [[ -n "$skill" ]] && [[ -n "$role" ]]; then
         jq -S -c -n \
             --arg fixture "$fixture" --arg skill "$skill" --arg role "$role" \
             --arg code "$code" --argjson stage_failed "$stage_failed" --arg detail "$detail" \
             '{fixture:$fixture, skill:$skill, role:$role,
               error:{code:$code, stage_failed:$stage_failed, detail:$detail}}'
     else
-        # Fixture-level error (no skill/role context — e.g., YAML parse failure)
+        # Fixture-level error (no skill/role context — YAML parse failure or
+        # missing expected.resolutions[]). Per gp HIGH-2 + cypherpunk HIGH-3
+        # schema update, the fixture-error variant of the top-level oneOf
+        # has {fixture, error} only — no empty skill/role placeholders.
         jq -S -c -n \
             --arg fixture "$fixture" \
             --arg code "$code" --argjson stage_failed "$stage_failed" --arg detail "$detail" \
@@ -251,23 +336,13 @@ _stage2_skill_models() {
         return
     fi
 
-    # Direct alias check — framework_aliases first (supports both string and
-    # dict shape via _lookup_alias), then operator_config.model_aliases_extra
-    # (always dict shape per Sprint 2A schema).
+    # Direct alias check — framework_aliases first (both shapes via _lookup_alias),
+    # then operator_config.model_aliases_extra (also both shapes per gp HIGH-3
+    # parity with Python).
     local alias_entry
     alias_entry=$(_lookup_alias "$input" "$val")
     if [[ "$alias_entry" == "null" ]]; then
-        # Fallback to model_aliases_extra (Sprint 2A schema mandates dict shape)
-        alias_entry=$(echo "$input" | jq -c --arg a "$val" '
-            (.operator_config.model_aliases_extra // {})[$a] as $e
-            | if $e == null then null
-              elif ($e | type) == "object"
-                   and (($e.provider // "") | type == "string" and . != "")
-                   and (($e.model_id // "") | type == "string" and . != "")
-              then {provider: $e.provider, model_id: $e.model_id}
-              else null
-              end
-        ')
+        alias_entry=$(_lookup_extra "$input" "$val")
     fi
     if [[ "$alias_entry" != "null" ]]; then
         local provider model_id
@@ -466,20 +541,26 @@ _stage5_framework_default() {
 
 # ----- stage 6: prefer_pro overlay -----
 
-# Args: $1 = resolved_alias (may be empty), $2 = input_json, $3 = is_legacy_path (0/1)
+# Args: $1 = resolved_alias (may be empty), $2 = input_json, $3 = is_legacy_path (0/1),
+#       $4 = skill name (used for per-skill respect_prefer_pro lookup; required
+#            when is_legacy_path=1, else may be empty)
 # Stdout:
 #   "RETARGET${SEP}<provider>${SEP}<model_id>${SEP}<stage_entry>" — retargeted to *-pro
 #   "ENTRY${SEP}<stage_entry>" — entry emitted but not retargeted (skipped)
 #   empty — prefer_pro disabled, no entry emitted
 _stage6_prefer_pro() {
-    local resolved_alias="$1" input="$2" is_legacy_path="$3"
+    local resolved_alias="$1" input="$2" is_legacy_path="$3" skill="${4:-}"
     local prefer_pro
     prefer_pro=$(echo "$input" | jq -r '.operator_config.prefer_pro_models == true')
     [[ "$prefer_pro" != "true" ]] && return
 
     if [[ "$is_legacy_path" == "1" ]]; then
-        local respect
-        respect=$(echo "$input" | jq -r '.operator_config.respect_prefer_pro == true')
+        # gp HIGH-1: per-skill respect_prefer_pro per PRD FR-3.4
+        local respect="false"
+        if [[ -n "$skill" ]]; then
+            respect=$(echo "$input" | jq -r --arg s "$skill" \
+                '(.operator_config[$s] // {}) | (.respect_prefer_pro // false) == true')
+        fi
         if [[ "$respect" != "true" ]]; then
             local details
             details=$(jq -c -n '{reason:"legacy_shape_without_respect_prefer_pro"}')
@@ -550,6 +631,19 @@ _apply_s6() {
 # Args: $1 = fixture, $2 = skill, $3 = role, $4 = input_json
 _resolve() {
     local fixture="$1" skill="$2" role="$3" input="$4"
+
+    # Cypherpunk HIGH-2: reject inputs with C0 control bytes in scalars before
+    # any helper sees them (parity with Python `_has_ctrl_byte`).
+    local ctrl_err
+    ctrl_err=$(_validate_input_no_ctrl "$input")
+    if [[ -n "$ctrl_err" ]]; then
+        local code stage_failed detail
+        code=$(echo "$ctrl_err" | jq -r '.code')
+        stage_failed=$(echo "$ctrl_err" | jq -r '.stage_failed')
+        detail=$(echo "$ctrl_err" | jq -r '.detail')
+        _emit_error "$fixture" "$skill" "$role" "$code" "$stage_failed" "$detail"
+        return
+    fi
 
     # Stage 0
     local pre_err
@@ -643,7 +737,7 @@ _resolve() {
         IFS="$_SEP" read -r _ final_provider final_model_id s4_entry legacy_alias <<< "$s4_result"
         resolution_path=$(echo "$resolution_path" | jq -c --argjson e "$s4_entry" '. + [$e]')
         local s6_result
-        s6_result=$(_stage6_prefer_pro "$legacy_alias" "$input" 1)
+        s6_result=$(_stage6_prefer_pro "$legacy_alias" "$input" 1 "$skill")
         local applied
         applied=$(_apply_s6 "$resolution_path" "$final_provider" "$final_model_id" "$s6_result")
         { read -r resolution_path; read -r final_provider; read -r final_model_id; } <<< "$applied"

@@ -92,7 +92,7 @@ ERR_TIER_NO_MAPPING = "[TIER-NO-MAPPING]"
 ERR_OVERRIDE_UNKNOWN = "[OVERRIDE-UNKNOWN-MODEL]"
 ERR_EXTRA_OVERRIDE_CONFLICT = "[MODEL-EXTRA-OVERRIDE-CONFLICT]"
 ERR_NO_RESOLUTION = "[NO-RESOLUTION]"
-ERR_CONFLICT_PIN_AND_TIER = "[CONFLICT-PIN-AND-TIER]"
+ERR_INPUT_CONTROL_BYTE = "[INPUT-CONTROL-BYTE]"
 
 # Tier names recognized as tier-tags (vs explicit aliases). Per IMP-007, when
 # a `skill_models.<skill>.<role>` value matches one of these AND also exists
@@ -119,6 +119,31 @@ def dump_canonical_json(obj: Any) -> str:
     return json.dumps(obj, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
 
 
+_CTRL_BYTE_RE = __import__("re").compile(r"[\x00-\x08\x0B-\x1F]")
+
+
+def _has_ctrl_byte(value: Any) -> bool:
+    """Return True if any string scalar in `value` contains a C0 control byte
+    other than \\t (0x09) or \\n (0x0A). Walks dicts (keys + values) and lists
+    recursively. Cypherpunk HIGH-2: blocks attacker-controlled scalars from
+    smuggling field separators or shell metacharacters into downstream
+    pipelines. Tab and newline are tolerated since YAML scalars often carry
+    them legitimately; everything else in 0x00-0x1F is rejected.
+    """
+    if isinstance(value, str):
+        return bool(_CTRL_BYTE_RE.search(value))
+    if isinstance(value, dict):
+        for k, v in value.items():
+            if isinstance(k, str) and _CTRL_BYTE_RE.search(k):
+                return True
+            if _has_ctrl_byte(v):
+                return True
+        return False
+    if isinstance(value, list):
+        return any(_has_ctrl_byte(item) for item in value)
+    return False
+
+
 def _canonicalize_dict_keys(value: Any) -> Any:
     """Recursively sort dict keys (depth-first, all levels).
 
@@ -127,9 +152,18 @@ def _canonicalize_dict_keys(value: Any) -> Any:
     not depend on YAML key declaration order. (Python's yaml.safe_load
     preserves order in 3.7+, but we don't want behavior-dependence on order
     that other YAML parsers might not preserve.)
+
+    YAML allows non-string mapping keys (`{1: foo, 'two': bar}`). PyYAML
+    preserves the int/bool/None types; yq (Go-based) silently stringifies
+    them. To keep cross-runtime byte-equality (HIGH-1 from cypherpunk
+    review), we coerce non-string keys via `str()` BEFORE sorting — matches
+    yq's behavior and avoids the `TypeError` Python would raise on
+    `sorted([1, 'two'])`. The original key value is preserved through the
+    coerced string; downstream resolver lookups always pass string keys.
     """
     if isinstance(value, dict):
-        return {k: _canonicalize_dict_keys(value[k]) for k in sorted(value.keys())}
+        coerced = {str(k): _canonicalize_dict_keys(v) for k, v in value.items()}
+        return {k: coerced[k] for k in sorted(coerced.keys())}
     if isinstance(value, list):
         return [_canonicalize_dict_keys(item) for item in value]
     return value
@@ -212,9 +246,13 @@ def _pre_validate(merged_config: dict) -> dict | None:
     # IMP-004: model_aliases_override must target a known framework id.
     framework_models = set()
     providers = framework.get("providers") or {}
-    for prov_data in providers.values():
-        models = (prov_data or {}).get("models") or {}
-        framework_models.update(models.keys())
+    if isinstance(providers, dict):
+        for prov_data in providers.values():
+            if not isinstance(prov_data, dict):
+                continue
+            models = prov_data.get("models")
+            if isinstance(models, dict):
+                framework_models.update(models.keys())
 
     for override_id in sorted(override.keys()):
         if override_id not in framework_models:
@@ -527,13 +565,15 @@ def _stage6_prefer_pro(
     operator_config: dict,
     framework_aliases: dict,
     is_legacy_path: bool,
+    skill: str | None = None,
 ) -> dict | None:
     """S6: `prefer_pro_models` overlay.
 
     Per FR-3.9 stage 6 + FR-3.4 gating:
       - If `prefer_pro_models` is False (or absent) → no entry emitted.
-      - If True and skill came via legacy shape AND `respect_prefer_pro` is
-        not True → emit entry with outcome=skipped.
+      - If True and skill came via legacy shape AND PER-SKILL
+        `respect_prefer_pro` is not True → emit entry with outcome=skipped.
+        (gp HIGH-1: PRD FR-3.4 mandates per-skill, not top-level.)
       - If True and either modern shape OR (legacy AND respect_prefer_pro) →
         check if `<resolved_alias>-pro` exists in framework_aliases; if so,
         emit `applied` and return retargeted resolution.
@@ -547,7 +587,14 @@ def _stage6_prefer_pro(
         return None
 
     if is_legacy_path:
-        respect = operator_config.get("respect_prefer_pro") is True
+        # gp HIGH-1: per PRD FR-3.4, `respect_prefer_pro` is per-skill.
+        # Look up `operator_config.<skill>.respect_prefer_pro` — the same
+        # block where the legacy `<skill>.models.<role>` lives.
+        respect = False
+        if skill:
+            skill_block = operator_config.get(skill)
+            if isinstance(skill_block, dict):
+                respect = skill_block.get("respect_prefer_pro") is True
         if not respect:
             return {
                 "stage_entry": {
@@ -616,6 +663,25 @@ def resolve(merged_config: dict, skill: str, role: str) -> dict:
     """
     # JCS-canonicalize input. Idempotent for already-canonical inputs.
     cfg = _canonicalize_dict_keys(merged_config)
+
+    # Cypherpunk HIGH-2: reject inputs with C0 control bytes in scalars BEFORE
+    # any helper sees them. This eliminates the separator-injection class —
+    # alias names / model_ids / skill names that legitimately contain
+    # legitimate-but-unusual bytes can't reach `_SEP`-delimited helper
+    # outputs in the bash twin.
+    if _has_ctrl_byte(cfg):
+        return {
+            "skill": skill,
+            "role": role,
+            "error": {
+                "code": ERR_INPUT_CONTROL_BYTE,
+                "stage_failed": 0,
+                "detail": (
+                    "input contains a C0 control byte (0x00-0x08, 0x0B-0x1F) in a "
+                    "string scalar; refuse to resolve"
+                ),
+            },
+        }
 
     # ----- Stage 0: pre-validation -----
     err = _pre_validate(cfg)
@@ -741,7 +807,7 @@ def resolve(merged_config: dict, skill: str, role: str) -> dict:
         # Recover alias name from legacy shape for stage 6 overlay
         legacy_alias = (operator_config.get(skill) or {}).get("models", {}).get(role)
         s6 = _stage6_prefer_pro(
-            legacy_alias, operator_config, framework_aliases, is_legacy_path
+            legacy_alias, operator_config, framework_aliases, is_legacy_path, skill=skill
         )
         if s6 is not None:
             resolution_path.append(s6["stage_entry"])

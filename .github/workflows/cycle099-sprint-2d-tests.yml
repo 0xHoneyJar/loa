@@ -104,8 +104,15 @@ jobs:
       - name: Resolve all framework skills against production model-config.yaml
         run: |
           python - <<'PY'
-          import importlib.util, json, sys
-          from pathlib import Path
+          # Cypherpunk MED-2 fix: this gate now FAILS on regression. Pre-fix
+          # version was advisory-only — a PR that broke `_stage5_framework_default`
+          # such that no production skill resolved would have shipped silently
+          # since both runners broke identically (cross-runtime gate stays
+          # green). We now require: ≥80% of declared production agents resolve.
+          # Non-resolutions still log as advisories (some agents legitimately
+          # require operator config); but a wholesale resolver break trips the
+          # 80% floor and fails the build.
+          import importlib.util, sys
           import yaml
 
           spec = importlib.util.spec_from_file_location(
@@ -117,32 +124,38 @@ jobs:
           with open('.claude/defaults/model-config.yaml') as fh:
               framework_defaults = yaml.safe_load(fh) or {}
 
-          # Build a merged_config — operator_config is empty (testing pure framework defaults)
           merged = {
               'schema_version': 2,
               'framework_defaults': framework_defaults,
               'operator_config': {},
           }
 
-          # Iterate framework_defaults.agents.<skill> and resolve each (skill, primary).
-          # If `agents` is absent, the smoke is degenerate (no skills to resolve).
-          # Per FR-3.9 stage 5, every declared agent should resolve via S5.
           agents = framework_defaults.get('agents') or {}
           if not agents:
               print('::warning::production model-config.yaml has no `agents:` block — smoke degenerate')
               sys.exit(0)
 
-          errors = 0
+          ok_count = 0
+          err_count = 0
           for skill_name in sorted(agents.keys()):
               result = mr.resolve(merged, skill_name, 'primary')
               if 'error' in result:
-                  # Some agent declarations may not resolve via S5 alone
-                  # (e.g., they require operator skill_models). That's not a
-                  # failure of the resolver — log as advisory.
-                  print(f'::warning::skill `{skill_name}` did not resolve: {result["error"]["code"]} — {result["error"]["detail"]}')
+                  err_count += 1
+                  print(f'::warning::skill `{skill_name}` did not resolve: {result["error"]["code"]}')
               else:
+                  ok_count += 1
                   print(f'OK — {skill_name} primary → {result["resolved_provider"]}:{result["resolved_model_id"]}')
 
-          # Smoke-pass: errors are advisories; the gate is "no Python exception, no schema violation"
-          print('Production-yaml smoke complete (advisory-only on missing skill defaults)')
+          total = len(agents)
+          ok_ratio = ok_count / total if total else 0
+          print(f'Production smoke: {ok_count}/{total} resolved ({ok_ratio:.0%}); {err_count} advisory.')
+
+          # Regression gate: at least 80% of declared agents must resolve.
+          # Today's baseline is ~21/21 (100%); 80% gives some headroom for
+          # legitimate operator-required skills without admitting a wholesale
+          # resolver regression.
+          MIN_OK_RATIO = 0.80
+          if ok_ratio < MIN_OK_RATIO:
+              print(f'::error::production-smoke regression: {ok_count}/{total} ({ok_ratio:.0%}) below threshold {MIN_OK_RATIO:.0%}')
+              sys.exit(1)
           PY
