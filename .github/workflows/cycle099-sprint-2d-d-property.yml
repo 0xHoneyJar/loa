@@ -1,0 +1,80 @@
+name: cycle-099 Sprint 2D.d property suite (PR check)
+
+# cycle-099 Sprint 2D.d (T2.6 closure) — SC-14 property suite (per-PR check).
+#
+# Runs `tests/property/model-resolution-properties.bats` at the per-PR
+# iteration count (LOA_PROPERTY_ITERATIONS=100, ~600 cases total across the
+# six FR-3.9 invariants per AC-S2.d.1). Nightly stress at 1000 iterations is
+# in `cycle099-sprint-2d-d-property-nightly.yml`.
+#
+# Triggers on PRs that touch the resolver, the property generator, the
+# property bats, or this workflow itself. The workflow is also pushed on
+# main.
+#
+# Per AC-S2.d.3 the property runner shells out to the canonical Python
+# resolver (`python3 .claude/scripts/lib/model-resolver.py resolve`).
+
+on:
+  pull_request:
+    paths:
+      - '.claude/scripts/lib/model-resolver.py'
+      - '.claude/data/trajectory-schemas/model-resolver-output.schema.json'
+      - 'tests/property/lib/property-gen.bash'
+      - 'tests/property/model-resolution-properties.bats'
+      - '.github/workflows/cycle099-sprint-2d-d-property.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.claude/scripts/lib/model-resolver.py'
+      - '.claude/data/trajectory-schemas/model-resolver-output.schema.json'
+      - 'tests/property/lib/property-gen.bash'
+      - 'tests/property/model-resolution-properties.bats'
+      - '.github/workflows/cycle099-sprint-2d-d-property.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cycle099-sprint-2d-d-property-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  property-suite:
+    name: Sprint 2D.d property suite (100 iter / invariant)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # PINNING: SHA verified against actions/checkout v4.3.1
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      # PINNING: SHA matches actions/setup-python v5.3.0
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: '3.13'
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install 'pyyaml==6.0.2'
+
+      - name: Install yq v4.52.4 (pinned + checksum verified)
+        run: |
+          set -euo pipefail
+          local_yq=/usr/local/bin/yq
+          expected_sha256='0c4d965ea944b64b8fddaf7f27779ee3034e5693263786506ccd1c120f184e8c'
+          sudo wget -qO "$local_yq" https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64
+          echo "$expected_sha256  $local_yq" | sha256sum -c -
+          sudo chmod +x "$local_yq"
+
+      - name: Install bats-core + jq
+        run: sudo apt-get update && sudo apt-get install -y bats jq
+
+      - name: Run property suite (100 iterations × 6 invariants)
+        env:
+          LOA_PROPERTY_ITERATIONS: '100'
+          LOA_PROPERTY_SEED_BASE: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          echo "Property suite seed base: $LOA_PROPERTY_SEED_BASE"
+          echo "Iterations per invariant: $LOA_PROPERTY_ITERATIONS"
+          bats --print-output-on-failure tests/property/model-resolution-properties.bats
