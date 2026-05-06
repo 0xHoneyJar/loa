@@ -29,6 +29,27 @@ if [[ -z "${BASH_SOURCE[0]:-}" ]] && [[ -z "${_LOA_MOUNT_REEXEC:-}" ]]; then
   # Replaced by the script's normal traps after exec.
   trap 'rm -rf "$_loa_tmpdir" 2>/dev/null' EXIT INT TERM HUP
 
+  # [ENDPOINT-VALIDATOR-EXEMPT] cycle-099 sprint-1E.c.3.b: this is the
+  # bootstrap path — the endpoint validator + its allowlist files don't
+  # exist on disk YET (we're downloading them right now). Hardening in
+  # place: (1) validate _loa_ref against an alphanumeric+dotted pattern
+  # AND reject any `..` segment (GitHub raw.githubusercontent.com normalizes
+  # `..` per RFC 3986 §5.2.4, so `_loa_ref="../attacker/repo/refs/heads/main"`
+  # would otherwise resolve to a different repo); (2) hardcode the host
+  # (raw.githubusercontent.com) as a literal string so the URL composition
+  # is visible in source — not operator-overridable; (3) curl with
+  # --proto =https / --proto-redir =https / --max-redirs 10 hardened defaults
+  # that mirror the wrapper's defaults.
+  if [[ ! "$_loa_ref" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+    printf '\033[0;31m[loa]\033[0m ERROR: invalid ref '\''%s'\'' (must match [A-Za-z0-9._/-]+)\n' "$_loa_ref" >&2
+    rm -rf "$_loa_tmpdir"
+    exit 1
+  fi
+  if [[ "$_loa_ref" == *..* ]]; then
+    printf '\033[0;31m[loa]\033[0m ERROR: ref '\''%s'\'' contains `..` — repo-pivot via path traversal blocked\n' "$_loa_ref" >&2
+    rm -rf "$_loa_tmpdir"
+    exit 1
+  fi
   _loa_base="https://raw.githubusercontent.com/0xHoneyJar/loa/${_loa_ref}/.claude/scripts"
 
   # B1/S1: Use printf '%s' to avoid ANSI escape injection from _loa_ref
@@ -39,7 +60,8 @@ if [[ -z "${BASH_SOURCE[0]:-}" ]] && [[ -z "${_LOA_MOUNT_REEXEC:-}" ]]; then
   mkdir -p "$_loa_tmpdir/lib"
   _loa_ok=true
   for _f in mount-loa.sh mount-submodule.sh compat-lib.sh; do
-    if ! curl -fsSL -o "$_loa_tmpdir/$_f" -- "$_loa_base/$_f"; then
+    if ! curl --proto =https --proto-redir =https --max-redirs 10 \
+              -fsSL -o "$_loa_tmpdir/$_f" -- "$_loa_base/$_f"; then
       _loa_ok=false
     fi
   done
@@ -55,7 +77,8 @@ if [[ -z "${BASH_SOURCE[0]:-}" ]] && [[ -z "${_LOA_MOUNT_REEXEC:-}" ]]; then
 
   # Download auxiliary scripts (non-fatal if missing in older versions)
   for _f in bootstrap.sh bash-version-guard.sh lib/symlink-manifest.sh; do
-    curl -fsSL -o "$_loa_tmpdir/$_f" -- "$_loa_base/$_f" 2>/dev/null || true
+    curl --proto =https --proto-redir =https --max-redirs 10 \
+         -fsSL -o "$_loa_tmpdir/$_f" -- "$_loa_base/$_f" 2>/dev/null || true
   done
   chmod +x "$_loa_tmpdir"/*.sh "$_loa_tmpdir/lib"/*.sh 2>/dev/null || true
 
@@ -521,7 +544,16 @@ auto_install_deps() {
           *) warn "Unknown arch for yq download"; return 0 ;;
         esac
         local yq_url="https://github.com/mikefarah/yq/releases/download/${yq_version}/yq_linux_${yq_arch}"
-        if sudo curl -fsSL "$yq_url" -o /usr/local/bin/yq && sudo chmod +x /usr/local/bin/yq; then
+        # [ENDPOINT-VALIDATOR-EXEMPT] cycle-099 sprint-1E.c.3.b: yq install
+        # is a bootstrap-internal dependency that must run BEFORE the rest
+        # of the framework can use yq-driven config. The validator itself
+        # depends on Python+idna which may not be available yet at this
+        # stage of mount-loa. URL is composed from a hardcoded host
+        # (github.com), pinned version, and an allowlisted arch — no
+        # operator input flows into the URL. Hardening defaults below
+        # mirror what the wrapper would have applied.
+        if sudo curl --proto =https --proto-redir =https --max-redirs 10 \
+                     -fsSL "$yq_url" -o /usr/local/bin/yq && sudo chmod +x /usr/local/bin/yq; then
           log "yq installed ✓ (${yq_version})"
         else
           warn "yq auto-install failed ✗. Manual: https://github.com/mikefarah/yq#install"
@@ -615,6 +647,10 @@ sync_zones() {
 
   # Create .reviewignore template for review scope filtering (FR-4, #303)
   create_reviewignore
+
+  # Scaffold post-merge automation workflow (#669). Idempotent: preserves a
+  # user-customized .github/workflows/post-merge.yml on re-mount.
+  scaffold_post_merge_workflow ""
 
   mkdir -p .beads
   touch .beads/.gitkeep
@@ -878,6 +914,12 @@ sync_optional_file() {
     warn "No $file in upstream, skipping..."
   }
 }
+
+# Issue #669 / Bridgebuilder F6 (PR #671): scaffold helper extracted to
+# .claude/scripts/lib/scaffold-post-merge-workflow.sh as single source of
+# truth (sourced by both installers AND the bats test).
+# shellcheck source=lib/scaffold-post-merge-workflow.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/scaffold-post-merge-workflow.sh"
 
 # Orchestrate root file synchronization
 sync_root_files() {

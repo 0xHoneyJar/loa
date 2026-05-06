@@ -126,13 +126,13 @@ jobs:
       - name: Verify output matches committed golden file
         run: |
           set -euo pipefail
-          if [ ! -f tests/fixtures/model-resolution/_golden.bash.jsonl ]; then
+          if [ ! -f tests/fixtures/model-resolution/_golden.cross-runtime.jsonl ]; then
             echo "::error::Committed golden file missing"
             exit 1
           fi
-          if ! diff -u tests/fixtures/model-resolution/_golden.bash.jsonl bash-out.jsonl; then
+          if ! diff -u tests/fixtures/model-resolution/_golden.cross-runtime.jsonl bash-out.jsonl; then
             echo "::error::Runner output drifted from committed golden file"
-            echo "Regenerate via: bash tests/bash/golden_resolution.sh > tests/fixtures/model-resolution/_golden.bash.jsonl"
+            echo "Regenerate via: bash tests/bash/golden_resolution.sh > tests/fixtures/model-resolution/_golden.cross-runtime.jsonl"
             exit 1
           fi
           echo "OK — output matches committed golden file"

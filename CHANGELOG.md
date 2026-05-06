@@ -40,6 +40,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **94 new BATS tests** across 5 files (`tests/unit/construct-{validate,compose,invoke}.bats`, `tests/unit/stream-validate.bats`, `tests/unit/butterfreezone-construct-gen.bats`) plus 1 opt-in characterization test (`LOA_TEST_DOCUMENT_RACE=1`). Covers happy paths, failure modes, JSON output shape, idempotency, race-resistance under explicit session_id passing.
   - **Six-iteration kaironic Bridgebuilder review** drove three rounds of hardening: tool-skip guards, strict assertions over permissive escapes, end-to-end schema dogfooding, race-condition mitigation with explicit value-passing as the recommended path. Final iter clean modulo the residual race tracked in [#636](https://github.com/0xHoneyJar/loa/issues/636).
 
+## [1.129.0] — 2026-05-06 — Cycle-099 — model-registry consolidation (Sprint 1 + Sprint 2A through 2D.c)
+
+Cycle-099 lands the FR-3.9 6-stage canonical model resolver across all 3 runtimes (Python canonical + bash twin + TS via Python+Jinja2 codegen) with end-to-end runtime overlay. Backfill of intermediate releases v1.110.0 through v1.128.0 deferred — see GitHub Releases for per-tag detail.
+
+### Added
+
+- **Cycle-099 Sprint 1** ([PRs #722](https://github.com/0xHoneyJar/loa/pull/722)–[#735](https://github.com/0xHoneyJar/loa/pull/735)) — model-registry consolidation foundation. Bridgebuilder codegen (T1.1+T1.2), adapter migrations + drift gate + lockfile (T1.3-T1.10), codegen reproducibility matrix CI + toolchain runbook (T1.7+T1.9), log-redactor + migrate-model-config CLI (T1.13+T1.14), centralized endpoint-validator across Python+bash+TS with cross-runtime parity gate + DNS-rebinding defense + 15 production caller paths funneling through wrapper or explicitly exempt (T1.15), cross-runtime golden test corpus + 3 byte-equal runners (T1.11+T1.12).
+- **Cycle-099 Sprint 2A** ([PR #737](https://github.com/0xHoneyJar/loa/pull/737)) — JSON Schema for `model_aliases_extra` + standalone validator helper (T2.1).
+- **Cycle-099 Sprint 2B** ([PR #738](https://github.com/0xHoneyJar/loa/pull/738)) — Python startup hook + `.run/merged-model-aliases.sh` writer with atomic-write + flock + SHA256 cache invalidation + degraded read-only fallback (T2.3+T2.4).
+- **Cycle-099 Sprint 2C** ([PR #739](https://github.com/0xHoneyJar/loa/pull/739)) — `model-adapter.sh` overlay integration completing Sprint 2 runtime overlay end-to-end (T2.5).
+- **Cycle-099 Sprint 2D.a+b** ([PR #740](https://github.com/0xHoneyJar/loa/pull/740)) — FR-3.9 6-stage canonical Python resolver + bash twin for parity verification + JSON Schema for resolver output (T2.6 partial).
+- **Cycle-099 Sprint 2D.c** ([PR #741](https://github.com/0xHoneyJar/loa/pull/741)) — TS port of FR-3.9 resolver via Python+Jinja2 codegen; restores 3-way Python ↔ bash ↔ TS byte-equality gate (T2.6 cont.).
+
+### Notes
+
+CHANGELOG backfill of intermediate v1.110.0 through v1.128.0 release entries deferred to a follow-up housekeeping PR. [GitHub Releases](https://github.com/0xHoneyJar/loa/releases) carry the authoritative per-tag detail.
+
 ## [1.109.4] — 2026-05-02 — Post-merge workflow scaffold on mount (sprint-bug-130)
 
 ### Fixed

@@ -22,7 +22,7 @@ setup() {
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     FIXTURES_DIR="$PROJECT_ROOT/tests/fixtures/model-resolution"
-    GOLDEN_FILE="$FIXTURES_DIR/_golden.bash.jsonl"
+    GOLDEN_FILE="$FIXTURES_DIR/_golden.cross-runtime.jsonl"
     RUNNER="$PROJECT_ROOT/tests/bash/golden_resolution.sh"
     RESOLVER_PY="$PROJECT_ROOT/.claude/scripts/lib/model-resolver.py"
 
@@ -146,7 +146,7 @@ teardown() {
 @test "G7 output matches committed golden file (regression guard)" {
     "$RUNNER" > "$WORK_DIR/out.jsonl"
     if [[ ! -f "$GOLDEN_FILE" ]]; then
-        skip 'golden file not yet committed (initial run); regenerate with: tests/bash/golden_resolution.sh > tests/fixtures/model-resolution/_golden.bash.jsonl'
+        skip 'golden file not yet committed (initial run); regenerate with: tests/bash/golden_resolution.sh > tests/fixtures/model-resolution/_golden.cross-runtime.jsonl'
     fi
     if ! diff -u "$GOLDEN_FILE" "$WORK_DIR/out.jsonl"; then
         printf 'runner output diverged from golden file.\n' >&2

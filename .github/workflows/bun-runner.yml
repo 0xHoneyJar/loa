@@ -1,9 +1,14 @@
-name: cycle-099 Sprint 1D bun-runner (TypeScript)
+name: cycle-099 bun-runner (TypeScript golden-resolution)
 
-# cycle-099 Sprint 1D (T1.11/T1.12) — TypeScript runner for the cross-runtime
-# golden-resolution corpus. Uses tsx (already pinned in BB skill) to execute
-# the runner; emits canonical-JSON that the cross-runtime-diff workflow
+# cycle-099 Sprint 1D (T1.11/T1.12) → Sprint 2D.c (T2.6) — TypeScript runner
+# for the cross-runtime golden-resolution corpus. Uses tsx (pinned in BB
+# skill) to execute the runner; emits canonical-JSON that cross-runtime-diff
 # byte-compares against bash + python runners per SDD §7.6.2.
+#
+# Sprint 1D shipped: alias-lookup-only subset.
+# Sprint 2D.c shipped: full FR-3.9 6-stage shape via Python+Jinja2 codegen.
+# This workflow runs the TS runner standalone for parallel feedback +
+# artifact upload; the byte-equality gate is in cross-runtime-diff.yml.
 #
 # Despite the workflow name `bun-runner` (per SDD §7.6.2 table), the actual
 # runtime is Node + tsx because the BB skill ships with tsx pinned via npm.
@@ -37,7 +42,7 @@ concurrency:
 
 jobs:
   ts-runner:
-    name: T1.11 TypeScript golden-resolution runner
+    name: TypeScript golden-resolution runner
     runs-on: ubuntu-latest
     steps:
       # PINNING: SHA verified against actions/checkout v4.3.1 tag
