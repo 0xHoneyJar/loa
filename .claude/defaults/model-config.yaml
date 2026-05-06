@@ -291,6 +291,18 @@ aliases:
   # fallback_chain to gemini-2.5-flash on probe demotion.
   gemini-3-flash: "google:gemini-3-flash-preview"
   researcher: "google:deep-research-pro" # Deep Research model
+  # cycle-099 Sprint 2E (T2.7): OpenAI bare aliases needed for
+  # `tier_groups.mappings` lookup per SDD §3.1.2. The cycle-099 FR-3.9
+  # resolver consults the `aliases:` block; tier-tag entries in
+  # `tier_groups.mappings` must reference alias NAMES that this block
+  # defines. `gpt-5.3-codex` is also kept in `backward_compat_aliases`
+  # below as an immutable self-map (operators pinning `gpt-5.3-codex`
+  # literally must continue resolving to that exact model). Both
+  # entries point to the same `openai:gpt-5.3-codex` so no ambiguity
+  # at resolution time.
+  gpt-5.5: "openai:gpt-5.5"
+  gpt-5.5-pro: "openai:gpt-5.5-pro"
+  gpt-5.3-codex: "openai:gpt-5.3-codex"
 
 # Backward-compat aliases (legacy model IDs → canonical provider:model-id)
 # Used by gen-adapter-maps.sh to reproduce the hand-maintained bash map
@@ -413,15 +425,39 @@ agents:
     temperature: 0.3
 
 # cycle-095 Sprint 2 (Task 2.6): tier_groups schema (FR-5a foundation).
-# Sprint 2 ships the structural block with mappings: EMPTY plus the
-# denylist + cost-cap fields. Sprint 3 populates mappings with reviewer →
-# gpt-5.5-pro and wires apply_tier_groups() into the loader (post-merge,
-# AFTER force_legacy_aliases short-circuit per SDD §1.4.5). Sprint 2 ships
-# the cost-cap enforcement primitive (metering/budget.py) AND the
-# LOA_PREFER_PRO_DRYRUN preview flag so Sprint 3 lands on guardrails that
-# already exist (Flatline iter-2 SKP-003 "guardrails-after-the-flip" race).
+# cycle-099 Sprint 2E (T2.7): mappings populated per SDD §3.1.2 with
+# probe-confirmed defaults across 4 tiers × 3 providers. Each value
+# is an alias name resolved via the `aliases:` block above. The
+# cycle-099 FR-3.9 6-stage resolver consults these mappings at
+# stage 3 (framework default tier) when an operator's `skill_models`
+# entry uses a tier-tag like `max`/`cheap`/`mid`/`tiny` and there is
+# no operator override at stage 2. Operator overrides via
+# `.loa.config.yaml::tier_groups.mappings.<tier>.<provider>` always win.
+#
+# Probe verification:
+#   .github/workflows/cycle099-sprint-2e-tests.yml runs a dry-run
+#   `model-health-probe.sh` cross-check that asserts every (tier,
+#   provider) → alias → model_id resolves to a model declared in
+#   `providers.<provider>.models`. Live probe (with API keys) is the
+#   operator's responsibility on opt-in.
 tier_groups:
-  mappings: {}                          # Sprint 3 populates
+  mappings:
+    max:
+      anthropic: opus              # → claude-opus-4-7
+      openai: gpt-5.5-pro          # top-of-OpenAI per probe-confirmation
+      google: gemini-3.1-pro       # → gemini-3.1-pro-preview
+    cheap:
+      anthropic: cheap             # → claude-sonnet-4-6
+      openai: gpt-5.3-codex        # cost-safe codex tier
+      google: gemini-3-flash       # → gemini-3-flash-preview
+    mid:
+      anthropic: cheap             # sonnet is the mid choice during cycle-099
+      openai: gpt-5.5
+      google: gemini-2.5-pro
+    tiny:
+      anthropic: tiny              # → claude-haiku-4-5-20251001
+      openai: gpt-5.3-codex        # no smaller OpenAI in registry (SDD §10 open question)
+      google: gemini-3-flash
   denylist: []                          # operator opt-out — alias names; populated in user .loa.config.yaml
   max_cost_per_session_micro_usd: null  # null = no enforcement; integer >= 0 for hard cap
 
