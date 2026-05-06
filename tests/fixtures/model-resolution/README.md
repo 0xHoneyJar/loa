@@ -1,60 +1,123 @@
-# Model-Resolution Golden Fixtures (cycle-099 Sprint 1D)
+# Model-Resolution Golden Fixtures (cycle-099 Sprint 2D)
 
 Golden-test fixture corpus for the FR-3.9 6-stage model resolver, per SDD §7.6.3.
 
-## Sprint 1D scope (THIS sprint)
+## Sprint 2D scope (T2.6)
 
-Sprint 1D ships the **infrastructure**: 12 fixtures × 3 cross-runtime runners (bash + python + TypeScript) × cross-runtime-diff CI gate. The runners assert byte-identical output across runtimes for the **subset of FR-3.9 currently implemented** — the alias→provider+model_id lookup exposed by `model-resolver.sh::resolve_alias` / `resolve_provider_id` (bash) and `GENERATED_MODEL_REGISTRY` (TypeScript).
+Sprint 2D ships the canonical Python resolver (`.claude/scripts/lib/model-resolver.py`)
+plus a bash twin (`tests/bash/golden_resolution.sh`) that independently re-implements
+the 6 stages for cross-runtime byte-equality verification. The runners consume each
+fixture's `expected.resolutions[]` block (one (skill, role) tuple per entry) and emit
+canonical JSON output that the cross-runtime-diff CI gate
+(`.github/workflows/cross-runtime-diff.yml`) byte-compares.
 
-Each fixture has a `sprint_1d_query` block that all three runners consume identically. The full SDD §7.6.3 `input` + `expected` blocks are present for Sprint 2 extension when the full FR-3.9 resolver lands (T2.6).
+Sprint 2D shipped Python + bash. Sprint 2D.c will add the TypeScript runner via
+Python+Jinja2 codegen (mirroring sprint-1E.c.1's pattern). Sprint 2D.d will add
+the SC-14 property suite (6 invariants × ~100 random configs).
 
-## Sprint 2+ extension
+## Sprint 1D legacy block
 
-When Sprint 2 lands the canonical Python `model-resolver.py` + bash overlay generator + TS codegen of the resolver, the runners are extended to consume the full `input.framework_defaults` + `input.operator_config` blocks and produce real `expected.resolutions` arrays per SDD §7.6.1. Tier-tag resolution, `model_aliases_extra`, `prefer_pro_models` overlay all become asserted.
-
-Until then, fixtures whose scenarios depend on stages 4-6 (legacy shape, framework default, prefer_pro) emit a uniform `deferred_to: "sprint-2-T2.6"` marker — same marker across all 3 runtimes preserves byte-equality.
+Each fixture preserves a `sprint_1d_query.alias` block — Sprint 1D's alias-lookup-only
+subset. The TypeScript golden runner (`tests/typescript/golden_resolution.ts`) still
+consumes this block until Sprint 2D.c lands. Bash and Python now consume
+`expected.resolutions[]` instead.
 
 ## Fixture schema
 
 ```yaml
 description: "human-readable scenario summary"
 
-# Sprint 1D query — simple alias lookup. Runners consume this.
+# Sprint 1D legacy — still consumed by tests/typescript/golden_resolution.ts.
 sprint_1d_query:
-  alias: "<alias-or-canonical-id>"   # input to resolve_alias()
-  # subset_supported is computed dynamically by the runner from MODEL_IDS:
-  #   true  → emit {resolved_provider, resolved_model_id}
-  #   false → emit {deferred_to: "sprint-2-T2.6", input_alias}
+  alias: "<alias-or-canonical-id>"
 
-# Sprint 2+ full SDD §7.6.3 spec (preserved for resolver extension).
+# Sprint 2D scope — full SDD §7.6.1 spec.
 input:
   schema_version: 2
-  framework_defaults: { ... }   # mock SoT subset
-  operator_config: { ... }      # mock .loa.config.yaml subset
+  framework_defaults:        # mock framework SoT subset
+    providers:
+      <provider>:
+        models:
+          <model_id>: { capabilities, context_window, ... }
+    aliases:
+      <alias>: { provider, model_id }    # dict form (cycle-099 fixture corpus)
+        # OR string form (cycle-095 production back-compat shape):
+      <alias>: "provider:model_id"
+    tier_groups:
+      mappings:
+        <tier>: { <provider>: <alias> }
+    agents:
+      <skill_name>: { default_tier: <tier>  OR  model: <alias> }
+  operator_config:           # mock .loa.config.yaml subset
+    skill_models:
+      <skill>:
+        <role>: <tier-tag>  OR  <alias>  OR  "provider:model_id"
+    model_aliases_extra:
+      <id>: { provider, model_id, capabilities, ... }
+    model_aliases_override: { ... }
+    prefer_pro_models: <bool>
+    respect_prefer_pro: <bool>           # FR-3.4 legacy-shape gate
+  runtime_state:                          # optional — Sprint 2B degraded-mode marker
+    overlay_state: degraded
+    overlay_reason: "..."
 
-expected:                       # full resolution per SDD §7.6.1
+expected:
   resolutions:
     - skill: <skill>
       role: <role>
+      # Success shape:
       resolved_provider: <provider>
       resolved_model_id: <model_id>
-      resolution_path: [ ... ]
+      resolution_path:
+        - { stage: <int>, outcome: <hit|miss|applied|skipped|error>, label: <stage_label>, details: { ... } }
+      # OR error shape:
+      error:
+        code: "[<ERROR-CODE>]"
+        stage_failed: <int>
+        detail: "..."
   cross_runtime_byte_identical: true
 ```
 
-## Runner output schema
+## Output schema (Sprint 2D)
 
-Each runner emits JSON Lines (one fixture per line) sorted by fixture filename:
+Each runner emits one canonical JSON line per `expected.resolutions[]` entry.
+The line conforms to `.claude/data/trajectory-schemas/model-resolver-output.schema.json`:
 
 ```json
-{"fixture":"01-happy-path-tier-tag","input_alias":"max","subset_supported":false,"deferred_to":"sprint-2-T2.6"}
-{"fixture":"06-extra-only-model","input_alias":"opus","subset_supported":true,"resolved_provider":"anthropic","resolved_model_id":"claude-opus-4-7"}
+{"fixture":"01-happy-path-tier-tag","skill":"flatline_protocol","role":"primary","resolved_provider":"anthropic","resolved_model_id":"claude-opus-4-7","resolution_path":[{"stage":2,"outcome":"hit","label":"stage2_skill_models","details":{"alias":"max"}},{"stage":3,"outcome":"hit","label":"stage3_tier_groups","details":{"resolved_alias":"opus"}}]}
+{"error":{"code":"[TIER-NO-MAPPING]","detail":"...","stage_failed":3},"fixture":"03-missing-tier-fail-closed","role":"primary","skill":"flatline_protocol"}
 ```
 
-Each line is canonical-JSON (sorted keys, no whitespace). The CI cross-runtime-diff job byte-compares the full output across runtimes.
+Lines are sorted by `(fixture, skill, role)` ascending. Output is canonical JSON
+(sort_keys=True, ensure_ascii=False, no whitespace). The CI cross-runtime-diff job
+byte-compares Python and bash runners; mismatch fails the build.
+
+## Stage label enum (per `model-resolver-output.schema.json`)
+
+| Stage | Label | When it fires |
+|-------|-------|---------------|
+| 1 | `stage1_pin_check` | `skill_models.<skill>.<role>` is `provider:model_id` form |
+| 2 | `stage2_skill_models` | `skill_models.<skill>.<role>` has any non-pin string |
+| 3 | `stage3_tier_groups` | S2 cascaded — tier-tag → operator/framework `tier_groups.mappings` |
+| 4 | `stage4_legacy_shape` | `<skill>.models.<role>` legacy form (with deprecation warning) |
+| 5 | `stage5_framework_default` | `framework_defaults.agents.<skill>.{model, default_tier}` |
+| 6 | `stage6_prefer_pro_overlay` | POST-resolution overlay; gated per FR-3.4 for legacy shapes |
+
+## Error code enum
+
+| Code | When it fires |
+|------|---------------|
+| `[TIER-NO-MAPPING]` | S3 — tier referenced but no provider mapping in tier_groups (FR-3.8 fail-closed) |
+| `[OVERRIDE-UNKNOWN-MODEL]` | S0 — `model_aliases_override` targets unknown framework id (IMP-004) |
+| `[MODEL-EXTRA-OVERRIDE-CONFLICT]` | S0 — same id in both `extra` and `override` (IMP-004) |
+| `[NO-RESOLUTION]` | All 6 stages exhausted without a hit |
+| `[CONFLICT-PIN-AND-TIER]` | Schema-level reject — explicit pin and tier in same skill_models entry |
+| `[ALIAS-COLLIDES-WITH-TIER]` | IMP-007 informational — tier-tag wins; collision reported |
 
 ## Refs
 
-- SDD §7.6.3 (12-fixture corpus)
-- Sprint plan T1.11/T1.12 (this delivery)
-- AC-S1.9 (byte-equal across runtimes)
+- SDD §1.5 (FR-3.9 state diagram), §1.5.1 (cross-runtime canonicalization invariants), §1.5.2 (build-time vs runtime authority), §7.6 (golden corpus schema)
+- PRD FR-3.9 (deterministic 6-stage resolution algorithm)
+- Sprint plan T2.6 (canonical Python + bash twin + parity gate)
+- AC-S2.x (byte-equal cross-runtime), AC-S2.y (CI gate fails on divergence), AC-S2.z (SC-14 property suite — 2D.d)
+- `feedback_cross_runtime_parity_traps.md` — 6 known classes of bash/python/TS silent divergence
