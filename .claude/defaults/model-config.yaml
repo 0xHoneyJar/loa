@@ -52,6 +52,15 @@ providers:
         # since 2026-04-23. Probe-gated fail-fast still applies via the
         # generic AVAILABLE/UNAVAILABLE state in .run/model-health-cache.json
         # (see PRD G-7 + Sprint 1 probe_required clarification block in sprint.md).
+        # Wire-protocol gate: OpenAI's Responses API for gpt-5.5 rejects the
+        # `temperature` parameter with HTTP 400 ("Unsupported parameter:
+        # 'temperature' is not supported with this model"). The cheval adapter
+        # at .claude/adapters/loa_cheval/providers/openai_adapter.py consults
+        # `params.temperature_supported` per request and omits the field when
+        # False (mirrors the claude-opus-4-7 #641 pattern). Verified
+        # 2026-05-07 via direct curl to /v1/responses.
+        params:
+          temperature_supported: false
         pricing:
           input_per_mtok: 5000000       # $5.00 per million tokens (confirmed 2026-04-29)
           output_per_mtok: 30000000     # $30.00 per million tokens (output_tokens INCLUSIVE of reasoning_tokens; SDD §5.5)
@@ -61,6 +70,9 @@ providers:
         token_param: max_completion_tokens
         endpoint_family: responses      # cycle-095 Sprint 1
         # cycle-095 Sprint 2: probe_required dropped (same rationale as gpt-5.5).
+        # Wire-protocol gate: same temperature restriction as gpt-5.5 above.
+        params:
+          temperature_supported: false
         pricing:
           input_per_mtok: 30000000      # $30.00 per million tokens (confirmed 2026-04-29)
           output_per_mtok: 180000000    # $180.00 per million tokens (includes reasoning_tokens — SDD §5.5)
