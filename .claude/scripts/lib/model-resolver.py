@@ -383,9 +383,15 @@ def _stage3_tier_groups(
     Per IMP-007: when an alias name in `model_aliases_extra` collides with the
     resolved alias from tier_groups, we add `alias_collides_with_tier: true` to
     the stage 3 details. Tier-tag wins (this resolution is taking that path).
+
+    Empty-dict semantics (gp CRIT-2 from sprint-2D.c review): an operator
+    mapping that exists but is empty `{}` is treated as "no mapping" and falls
+    through to the framework default. Mirrors Python's `or` short-circuit on
+    falsy. The TS twin uses `Object.keys(...).length > 0` for the same effect.
     """
-    # Operator mappings checked first (precedence). The mapping value is
-    # provider→alias; we pick the first provider deterministically (sorted).
+    # Operator mappings checked first (precedence). Empty-dict falls through
+    # via Python's truthy semantics. The mapping value is provider→alias; we
+    # pick the first provider deterministically (sorted).
     mapping = operator_tier_mappings.get(tier) or framework_tier_mappings.get(tier)
     if not mapping:
         return {

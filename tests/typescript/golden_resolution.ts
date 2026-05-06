@@ -1,49 +1,57 @@
 #!/usr/bin/env tsx
 /**
- * golden_resolution.ts — cycle-099 Sprint 1D TypeScript runner.
+ * golden_resolution.ts — cycle-099 Sprint 2D.c TypeScript golden test runner.
  *
  * Reads each .yaml fixture under tests/fixtures/model-resolution/ (sorted by
- * filename), extracts `sprint_1d_query.alias`, performs alias resolution
- * against the SAME registry the bash + python runners use (parsed directly
- * from .claude/scripts/generated-model-maps.sh), and emits one canonical
- * JSON line per fixture to stdout.
+ * filename) and runs the canonical-from-Python TS resolver
+ * (`.claude/skills/bridgebuilder-review/resources/lib/model-resolver.generated.ts`,
+ * codegen output of the Python canonical via Jinja2 per SDD §1.5.1) against
+ * `input.{framework_defaults, operator_config, runtime_state}` for each
+ * (skill, role) tuple declared in `expected.resolutions[]`. Emits one
+ * canonical JSON line per resolution to stdout.
  *
- * Output schema MUST be byte-identical to tests/bash/golden_resolution.sh
- * and tests/python/golden_resolution.py (cross-runtime parity per
- * SDD §7.6.2). The cross-runtime-diff CI gate
- * (.github/workflows/cross-runtime-diff.yml) byte-compares all three
- * runtimes' emitted output; mismatch fails the build.
+ * Output schema MUST match tests/python/golden_resolution.py and
+ * tests/bash/golden_resolution.sh byte-for-byte. The cross-runtime-diff CI
+ * gate (.github/workflows/cross-runtime-diff.yml) byte-compares all three
+ * runtimes; mismatch fails the build per SDD §7.6.2.
  *
- * Sprint 1D scope: alias-lookup subset of FR-3.9. Stages 3-6 deferred to
- * Sprint 2 T2.6; runners emit a uniform `deferred_to: "sprint-2-T2.6"`
- * marker for unsupported scenarios.
+ * Sprint 2D.c scope: TS port via Python+Jinja2 codegen. Mirrors sprint-1E.c.1's
+ * pattern verbatim. Activates 3-way cross-runtime parity gate (Python ↔ bash
+ * ↔ TS) which was deferred in Sprint 2D.a+b.
  *
  * Implementation notes:
- *   - Parses generated-model-maps.sh directly (same source as bash + python)
- *     instead of importing GENERATED_MODEL_REGISTRY from config.generated.ts,
- *     because the TS registry uses canonical model IDs as keys but does not
- *     expose the alias→canonical mapping (e.g., `opus → claude-opus-4-7`).
- *     Sprint 2's T2.6 will add a TS-codegen alias map; for Sprint 1D we
- *     mirror the python parser to keep the three runtimes literally
- *     reading the SAME source-of-truth file.
+ *   - Imports `resolve` + `dumpCanonicalJson` from the codegen-generated
+ *     resolver module. The generated TS is byte-deterministic from the
+ *     canonical Python; drift gate fails CI on mismatch.
  *   - Uses `yq` (cycle-099 CI dependency) to convert YAML fixtures to JSON
- *     so TypeScript can parse without adding a `yaml` package dependency
- *     to the BB skill (which currently doesn't ship one).
+ *     so TypeScript can parse without adding a `yaml` package dependency.
+ *   - Per-fixture sort: by (skill, role) ascending — matches Python and bash
+ *     runners' sort order so output is byte-identical.
  *
  * Usage:
  *   tsx tests/typescript/golden_resolution.ts > typescript-resolution-output.jsonl
+ *
+ * Env-var test escapes (each REQUIRES `LOA_GOLDEN_TEST_MODE=1` OR running
+ * under bats — mirrors cycle-099 sprint-1B `LOA_MODEL_RESOLVER_TEST_MODE`):
+ *
+ *   LOA_GOLDEN_PROJECT_ROOT  — override project root
+ *   LOA_GOLDEN_FIXTURES_DIR  — override fixtures directory
+ *
+ * Without TEST_MODE the override is IGNORED with a stderr warning.
  */
 
 import { execFileSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-/**
- * cypherpunk CRIT-3 (PR #735 review): env-override gate parity. Mirrors the
- * model-resolver.sh::LOA_MODEL_RESOLVER_TEST_MODE pattern. Each LOA_GOLDEN_*
- * override REQUIRES LOA_GOLDEN_TEST_MODE=1 OR BATS_TEST_DIRNAME (set by
- * bats), else the override is IGNORED.
- */
+import {
+  resolve,
+  dumpCanonicalJson,
+  type ResolutionResult,
+} from "../../.claude/skills/bridgebuilder-review/resources/lib/model-resolver.generated.ts";
+
+// --- Test-mode override gating (cycle-099 LOA_*_TEST_MODE pattern) -------
+
 function goldenTestModeActive(): boolean {
   return (
     process.env.LOA_GOLDEN_TEST_MODE === "1" ||
@@ -71,157 +79,14 @@ const FIXTURES_DIR = goldenResolvePath(
   "LOA_GOLDEN_FIXTURES_DIR",
   path.join(PROJECT_ROOT, "tests", "fixtures", "model-resolution"),
 );
-const GENERATED_MAPS = goldenResolvePath(
-  "LOA_GOLDEN_GENERATED_MAPS",
-  path.join(PROJECT_ROOT, ".claude", "scripts", "generated-model-maps.sh"),
-);
 
-interface ParsedMaps {
-  modelProviders: Record<string, string>;
-  modelIds: Record<string, string>;
-}
-
-/**
- * Parse `declare -A NAME=( ["k"]="v" ... )` blocks from generated-model-maps.sh.
- * Mirror of python's _parse_generated_maps. Same regex semantics so bash,
- * python, and TS all see the same key/value set.
- */
-function parseGeneratedMaps(filePath: string): ParsedMaps {
-  const text = fs.readFileSync(filePath, "utf-8");
-
-  function extractArray(name: string): Record<string, string> {
-    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    // declare -A NAME=( ... ) — use [\s\S] to match across newlines (no /s flag in older Node).
-    const re = new RegExp(`declare\\s+-A\\s+${escaped}=\\s*\\(\\s*([\\s\\S]*?)\\s*\\)`);
-    const m = re.exec(text);
-    if (!m) {
-      throw new Error(`declare -A ${name} not found in ${filePath}`);
-    }
-    const body = m[1];
-    // cypherpunk CRIT-1 (PR #735 review): use Object.create(null) so the
-    // returned record has NO prototype. Plain `{}` inherits from
-    // Object.prototype, making `"toString" in result` evaluate to true even
-    // for un-set keys — diverging from bash assoc-arrays + Python dicts.
-    const result: Record<string, string> = Object.create(null);
-    // Each entry: ["key"]="value"
-    const entryRe = /\[\s*"([^"]*)"\s*\]\s*=\s*"([^"]*)"\s*/g;
-    let entryM: RegExpExecArray | null;
-    while ((entryM = entryRe.exec(body)) !== null) {
-      // Bash associative-array semantic: duplicate keys overwrite (last wins).
-      result[entryM[1]] = entryM[2];
-    }
-    return result;
-  }
-
-  return {
-    modelProviders: extractArray("MODEL_PROVIDERS"),
-    modelIds: extractArray("MODEL_IDS"),
-  };
-}
-
-/**
- * Recursively sort all keys in objects (depth-first, preserving array order).
- * gp CRITICAL-1 (PR #735 review): JSON.stringify with manually-sorted top
- * keys does NOT recursively sort nested objects, while jq -S and Python's
- * sort_keys=True DO. Today's flat-string output masks the divergence; Sprint
- * 2's nested resolution_path arrays would expose it.
- *
- * Returns a new object/array; does not mutate input.
- */
-function canonicalizeRecursive(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map(canonicalizeRecursive);
-  }
-  if (value !== null && typeof value === "object") {
-    const out: Record<string, unknown> = Object.create(null);
-    const sortedKeys = Object.keys(value as Record<string, unknown>).sort();
-    for (const k of sortedKeys) {
-      out[k] = canonicalizeRecursive((value as Record<string, unknown>)[k]);
-    }
-    return out;
-  }
-  return value;
-}
-
-/**
- * cypherpunk CRIT-1 + gp HIGH-1: prototype-safe key existence check. Replace
- * `key in obj` (which walks Object.prototype) with hasOwn equivalence.
- */
-function hasKey(obj: Record<string, unknown>, key: string): boolean {
-  return Object.prototype.hasOwnProperty.call(obj, key);
-}
-
-/**
- * Read a fixture's `sprint_1d_query.alias` field via yq + tag.
- * gp HIGH-2 / cypherpunk CRIT-2: type-discrimination matches bash's
- * `yq | tag` semantics. Distinct return values for each failure mode so
- * the runner can emit identical error markers to bash.
- */
-type AliasResult =
-  | { kind: "ok"; value: string }
-  | { kind: "missing" }
-  | { kind: "invalid-type"; tag: string };
-
-function extractFixtureAlias(fixturePath: string): AliasResult {
-  let tagOutput: string;
-  try {
-    tagOutput = execFileSync(
-      "yq",
-      ["eval", ".sprint_1d_query.alias | tag", fixturePath],
-      { encoding: "utf-8" },
-    ).trim();
-  } catch (e) {
-    return { kind: "missing" };
-  }
-  if (!tagOutput || tagOutput === "!!null") {
-    return { kind: "missing" };
-  }
-  if (tagOutput !== "!!str") {
-    return { kind: "invalid-type", tag: tagOutput };
-  }
-  let valOutput: string;
-  try {
-    valOutput = execFileSync(
-      "yq",
-      ["eval", ".sprint_1d_query.alias", fixturePath],
-      { encoding: "utf-8" },
-    );
-  } catch (e) {
-    return { kind: "missing" };
-  }
-  // yq eval on a string emits the bare string + trailing newline.
-  const trimmed = valOutput.replace(/\n$/, "");
-  if (!trimmed) {
-    return { kind: "missing" };
-  }
-  return { kind: "ok", value: trimmed };
-}
-
-/**
- * Emit one canonical JSON line: recursively sorted keys, no whitespace,
- * UTF-8 literal (no \\uXXXX escapes for non-ASCII).
- *
- * gp CRITICAL-1 fix: canonicalizeRecursive walks nested objects/arrays so
- * Sprint 2's resolution_path arrays maintain byte-equality across runtimes.
- * gp CRITICAL-2: JSON.stringify defaults to literal UTF-8 (matches bash
- * jq -c and Python with ensure_ascii=False).
- */
-function emitCanonical(record: Record<string, unknown>): void {
-  const canon = canonicalizeRecursive(record);
-  process.stdout.write(JSON.stringify(canon) + "\n");
-}
+// --- Main runner ---------------------------------------------------------
 
 function main(): number {
   if (!fs.statSync(FIXTURES_DIR, { throwIfNoEntry: false })?.isDirectory()) {
     console.error(`golden_resolution.ts: fixtures dir ${FIXTURES_DIR} not present`);
     return 2;
   }
-  if (!fs.statSync(GENERATED_MAPS, { throwIfNoEntry: false })?.isFile()) {
-    console.error(`golden_resolution.ts: generated-maps ${GENERATED_MAPS} not present`);
-    return 2;
-  }
-
-  const { modelProviders, modelIds } = parseGeneratedMaps(GENERATED_MAPS);
 
   const fixtures = fs
     .readdirSync(FIXTURES_DIR)
@@ -231,71 +96,94 @@ function main(): number {
 
   for (const fixturePath of fixtures) {
     const fixtureName = path.basename(fixturePath, ".yaml");
-    const aliasResult = extractFixtureAlias(fixturePath);
-    if (aliasResult.kind === "missing") {
-      emitCanonical({
-        error: "missing-sprint_1d_query-alias",
-        fixture: fixtureName,
-        subset_supported: false,
-      });
-      continue;
-    }
-    if (aliasResult.kind === "invalid-type") {
-      emitCanonical({
-        error: `invalid-alias-type:${aliasResult.tag}`,
-        fixture: fixtureName,
-        subset_supported: false,
-      });
-      continue;
-    }
-    const aliasInput = aliasResult.value;
 
-    // Stage 1 explicit pin: provider:model_id
-    if (aliasInput.includes(":")) {
-      const colonIdx = aliasInput.indexOf(":");
-      const providerPart = aliasInput.slice(0, colonIdx);
-      const modelPart = aliasInput.slice(colonIdx + 1);
-      if (hasKey(modelProviders, modelPart)) {
-        emitCanonical({
-          fixture: fixtureName,
-          input_alias: aliasInput,
-          resolved_model_id: modelPart,
-          resolved_provider: providerPart,
-          subset_supported: true,
-        });
-        continue;
-      }
-      emitCanonical({
-        deferred_to: "sprint-2-T2.6",
+    // Convert YAML to JSON via yq. On parse failure, emit a uniform
+    // [YAML-PARSE-FAILED] error matching Python + bash runners.
+    let json: string;
+    try {
+      json = execFileSync("yq", ["-o", "json", ".", fixturePath], { encoding: "utf-8" });
+    } catch (e) {
+      process.stdout.write(dumpCanonicalJson({
         fixture: fixtureName,
-        input_alias: aliasInput,
-        subset_supported: false,
-      });
+        error: {
+          code: "[YAML-PARSE-FAILED]",
+          stage_failed: 0,
+          detail: "fixture YAML failed to parse",
+        },
+      }) + "\n");
       continue;
     }
 
-    // Plain alias: resolve via MODEL_IDS / MODEL_PROVIDERS
-    if (hasKey(modelIds, aliasInput)) {
-      const resolvedId = modelIds[aliasInput];
-      const resolvedProvider = hasKey(modelProviders, resolvedId)
-        ? modelProviders[resolvedId]
-        : hasKey(modelProviders, aliasInput)
-          ? modelProviders[aliasInput]
-          : "unknown";
-      emitCanonical({
+    let doc: unknown;
+    try {
+      doc = JSON.parse(json);
+    } catch (e) {
+      process.stdout.write(dumpCanonicalJson({
         fixture: fixtureName,
-        input_alias: aliasInput,
-        resolved_model_id: resolvedId,
-        resolved_provider: resolvedProvider,
-        subset_supported: true,
-      });
-    } else {
-      emitCanonical({
-        deferred_to: "sprint-2-T2.6",
+        error: {
+          code: "[YAML-PARSE-FAILED]",
+          stage_failed: 0,
+          detail: "fixture JSON conversion failed",
+        },
+      }) + "\n");
+      continue;
+    }
+
+    if (doc === null || typeof doc !== "object" || Array.isArray(doc)) {
+      process.stdout.write(dumpCanonicalJson({
         fixture: fixtureName,
-        input_alias: aliasInput,
-        subset_supported: false,
-      });
+        error: {
+          code: "[NO-EXPECTED-RESOLUTIONS]",
+          stage_failed: 0,
+          detail: "fixture lacks expected.resolutions[] block",
+        },
+      }) + "\n");
+      continue;
+    }
+
+    const docRec = doc as Record<string, unknown>;
+    const mergedConfig = (docRec.input || {}) as Record<string, unknown>;
+    const expected = (docRec.expected || {}) as Record<string, unknown>;
+    const resolutionsRaw = expected.resolutions;
+
+    if (!Array.isArray(resolutionsRaw) || resolutionsRaw.length === 0) {
+      process.stdout.write(dumpCanonicalJson({
+        fixture: fixtureName,
+        error: {
+          code: "[NO-EXPECTED-RESOLUTIONS]",
+          stage_failed: 0,
+          detail: "fixture lacks expected.resolutions[] block",
+        },
+      }) + "\n");
+      continue;
+    }
+
+    // Filter + sort by (skill, role) — matches Python and bash sort.
+    const validResolutions = resolutionsRaw.filter(
+      (r: unknown): r is Record<string, unknown> =>
+        r !== null && typeof r === "object" && !Array.isArray(r) &&
+        typeof (r as Record<string, unknown>).skill === "string" &&
+        typeof (r as Record<string, unknown>).role === "string",
+    );
+    validResolutions.sort((a, b) => {
+      const askill = a.skill as string;
+      const bskill = b.skill as string;
+      if (askill < bskill) return -1;
+      if (askill > bskill) return 1;
+      const arole = a.role as string;
+      const brole = b.role as string;
+      if (arole < brole) return -1;
+      if (arole > brole) return 1;
+      return 0;
+    });
+
+    for (const entry of validResolutions) {
+      const skill = entry.skill as string;
+      const role = entry.role as string;
+      const result: ResolutionResult = resolve(mergedConfig, skill, role);
+      // Decorate with fixture context tag — same as Python + bash runners.
+      const decorated = { ...result, fixture: fixtureName };
+      process.stdout.write(dumpCanonicalJson(decorated) + "\n");
     }
   }
 

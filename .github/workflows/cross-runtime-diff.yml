@@ -1,34 +1,34 @@
-name: cycle-099 cross-runtime-diff (FR-3.9 6-stage resolver parity)
+name: cycle-099 cross-runtime-diff (FR-3.9 6-stage resolver 3-way parity)
 
-# cycle-099 Sprint 1D (T1.12) → Sprint 2D (T2.6) — cross-runtime byte-equality
-# gate per SDD §7.6.2.
+# cycle-099 Sprint 1D (T1.12) → Sprint 2D (T2.6 partial) → Sprint 2D.c
+# (T2.6 TS port) — cross-runtime byte-equality gate per SDD §7.6.2.
 #
-# Sprint 1D shipped: alias-lookup-only subset across bash + python + TS
-# runners. Sprint 2D extends Python + bash runners to the full FR-3.9 6-stage
-# resolver. The TS runner is gated to its own pre-Sprint-2D shape until
-# Sprint 2D.c (T2.6 TS port via Python+Jinja2 codegen) lands.
+# Sprint 1D shipped: alias-lookup-only subset across 3 runners.
+# Sprint 2D.a+b shipped: Python + bash on the FR-3.9 6-stage shape.
+# Sprint 2D.c shipped: TS port via Python+Jinja2 codegen — TS leg restored
+#   to the byte-equality gate. All 3 runtimes (Python ↔ bash ↔ TS) MUST emit
+#   byte-identical canonical JSON for every fixture.
 #
-# This file gates Python+bash byte-equality on the Sprint 2D shape. The TS
-# runner is exercised by `bun-runner.yml` independently (against the
-# unchanged `sprint_1d_query.alias` field in the fixture corpus). When 2D.c
-# ships, the TS leg will be folded back into this gate.
-#
-# Mandatory gate: any divergence between Python and bash causes the PR to
-# fail with `[CROSS-RUNTIME-DIFF-FAIL]` and the specific diverged bytes.
+# Mandatory gate: any divergence between any two runtimes causes the PR to
+# fail with `[CROSS-RUNTIME-DIFF-FAIL]` + the specific diverged bytes.
 
 on:
-  # cypherpunk HIGH-2 + gp MEDIUM-2 (PR #735 review): no workflow_run trigger
-  # to avoid the ~4×-per-PR run pattern and cross-workflow permission surface.
   pull_request:
     paths:
       - 'tests/fixtures/model-resolution/**'
       - 'tests/bash/golden_resolution.sh'
       - 'tests/bash/golden_resolution.bats'
       - 'tests/python/golden_resolution.py'
+      - 'tests/typescript/golden_resolution.ts'
       - 'tests/integration/sprint-2D-resolver-parity.bats'
       - '.claude/scripts/generated-model-maps.sh'
       - '.claude/scripts/lib/model-resolver.sh'
       - '.claude/scripts/lib/model-resolver.py'
+      - '.claude/scripts/lib/codegen/model-resolver.ts.j2'
+      - '.claude/adapters/loa_cheval/codegen/emit_model_resolver_ts.py'
+      - '.claude/skills/bridgebuilder-review/resources/lib/model-resolver.generated.ts'
+      - '.claude/skills/bridgebuilder-review/package.json'
+      - '.claude/skills/bridgebuilder-review/package-lock.json'
       - '.claude/data/trajectory-schemas/model-resolver-output.schema.json'
       - '.github/workflows/cross-runtime-diff.yml'
 
@@ -41,16 +41,19 @@ concurrency:
 
 jobs:
   cross-runtime-diff:
-    name: T2.6 cross-runtime byte-equality gate (Python+bash)
+    name: T2.6 cross-runtime 3-way byte-equality gate (Python ↔ bash ↔ TS)
     runs-on: ubuntu-latest
     steps:
-      # PINNING: SHA verified against actions/checkout v4.3.1 tag
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      # PINNING: SHA matches actions/setup-python v5.3.0 used elsewhere in repo.
       - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
           python-version: '3.13'
+
+      # PINNING: SHA verified against actions/setup-node v4.1.0 tag
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: '20'
 
       - name: Install Python deps
         run: |
@@ -66,36 +69,59 @@ jobs:
           echo "$expected_sha256  $local_yq" | sha256sum -c -
           sudo chmod +x "$local_yq"
 
+      - name: Install BB skill node deps (provides tsx for TS runner)
+        working-directory: .claude/skills/bridgebuilder-review
+        # cypherpunk HIGH-1 (sprint-1D): --ignore-scripts disables npm
+        # lifecycle hooks (preinstall RCE defense).
+        run: npm ci --no-audit --no-fund --ignore-scripts
+
       - name: Run bash runner
         run: bash tests/bash/golden_resolution.sh > bash-out.jsonl
 
       - name: Run python runner
         run: python tests/python/golden_resolution.py > python-out.jsonl
 
-      - name: Verify byte-equal Python ↔ bash
+      - name: Run TS runner
+        # BB iter-2 F2: invoke from repo root via absolute path instead of
+        # cd-and-relative-path. The cwd dance was brittle (any directory
+        # restructure would silently break the relative paths). PROJECT_ROOT
+        # in the TS runner is derived from `__dirname`, not cwd, so running
+        # from repo root works identically.
+        # Cypherpunk LOW-3: direct local-binary invocation (not `npx tsx`)
+        # avoids npx network-fallback risk.
+        run: |
+          .claude/skills/bridgebuilder-review/node_modules/.bin/tsx \
+              tests/typescript/golden_resolution.ts > typescript-out.jsonl
+
+      - name: Verify 3-way byte-equality
         run: |
           set -euo pipefail
           echo "=== bash output ==="
           cat bash-out.jsonl
           echo "=== python output ==="
           cat python-out.jsonl
+          echo "=== typescript output ==="
+          cat typescript-out.jsonl
           if ! diff -u bash-out.jsonl python-out.jsonl > /tmp/bash-vs-python.diff; then
             echo "::error::[CROSS-RUNTIME-DIFF-FAIL] bash vs python diverge:"
             cat /tmp/bash-vs-python.diff
             exit 1
           fi
-          echo "OK — bash == python (byte-equal, $(wc -l < bash-out.jsonl) lines)"
+          echo "OK — bash == python (byte-equal)"
+          if ! diff -u bash-out.jsonl typescript-out.jsonl > /tmp/bash-vs-ts.diff; then
+            echo "::error::[CROSS-RUNTIME-DIFF-FAIL] bash vs typescript diverge:"
+            cat /tmp/bash-vs-ts.diff
+            exit 1
+          fi
+          echo "OK — bash == typescript (byte-equal)"
+          if ! diff -u python-out.jsonl typescript-out.jsonl > /tmp/python-vs-ts.diff; then
+            echo "::error::[CROSS-RUNTIME-DIFF-FAIL] python vs typescript diverge:"
+            cat /tmp/python-vs-ts.diff
+            exit 1
+          fi
+          echo "OK — python == typescript (byte-equal)"
           echo ""
-          # TODO(cycle-099-sprint-2D.c): restore TS runner to the byte-equality
-          # gate when the TS port via Python+Jinja2 codegen lands. Until then,
-          # TS divergence from Python+bash on the FR-3.9 6-stage shape is
-          # invisible to this workflow; the TS runner is independently
-          # exercised by .github/workflows/bun-runner.yml against the Sprint 1D
-          # `sprint_1d_query.alias` subset (which does NOT cover stages 3-6).
-          echo "Note: TS runner gate deferred until cycle-099 Sprint 2D.c (T2.6 TS"
-          echo "port via Python+Jinja2 codegen). The TS runner is exercised"
-          echo "independently by .github/workflows/bun-runner.yml against the"
-          echo "Sprint 1D \`sprint_1d_query.alias\` subset (does NOT cover stages 3-6)."
+          echo "✅ All 3 runtimes byte-identical ($(wc -l < bash-out.jsonl) lines)"
 
       - name: Verify output matches committed golden file
         run: |
@@ -120,7 +146,7 @@ jobs:
           with open('.claude/data/trajectory-schemas/model-resolver-output.schema.json') as fh:
               schema = json.load(fh)
           errors = 0
-          for runtime in ('bash', 'python'):
+          for runtime in ('bash', 'python', 'typescript'):
               path = f'{runtime}-out.jsonl'
               with open(path) as fh:
                   for lineno, line in enumerate(fh, start=1):
@@ -137,5 +163,5 @@ jobs:
                           errors += 1
           if errors:
               sys.exit(1)
-          print('OK — both runners conform to model-resolver-output.schema.json')
+          print('OK — all 3 runners conform to model-resolver-output.schema.json')
           PY
