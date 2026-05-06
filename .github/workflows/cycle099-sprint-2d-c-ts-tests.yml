@@ -1,0 +1,113 @@
+name: cycle-099 Sprint 2D.c model-resolver TS codegen
+
+# cycle-099 Sprint 2D.c — TS port of the FR-3.9 6-stage resolver generated
+# from the Python canonical via the loa_cheval.codegen.emit_model_resolver_ts
+# Jinja2 codegen (per SDD §1.5.1 IMP-001).
+#
+# Two CI jobs:
+#   1. Drift gate — committed .generated.ts must match a fresh codegen run
+#      AND the embedded source-content hash must match a fresh hash of the
+#      canonical Python source (cross-check catches tampered-canonical-with-
+#      matching-regen scenarios per sprint-1E.c.1 gp MEDIUM remediation).
+#   2. TS-vs-Python parity — full corpus parity via tests/python/golden_resolution.py
+#      and tests/typescript/golden_resolution.ts; byte-equal output asserted.
+#
+# This file mirrors cycle099-sprint-1e-c-ts-tests.yml's structure (2 jobs,
+# pinned deps, drift gate via --check, parity via bats).
+
+on:
+  pull_request:
+    paths:
+      - '.claude/scripts/lib/model-resolver.py'
+      - '.claude/scripts/lib/codegen/model-resolver.ts.j2'
+      - '.claude/adapters/loa_cheval/codegen/emit_model_resolver_ts.py'
+      - '.claude/skills/bridgebuilder-review/resources/lib/model-resolver.generated.ts'
+      - 'tests/typescript/golden_resolution.ts'
+      - 'tests/integration/sprint-2D-resolver-parity.bats'
+      - 'tests/fixtures/model-resolution/**'
+      - '.github/workflows/cycle099-sprint-2d-c-ts-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.claude/scripts/lib/model-resolver.py'
+      - '.claude/scripts/lib/codegen/model-resolver.ts.j2'
+      - '.claude/adapters/loa_cheval/codegen/emit_model_resolver_ts.py'
+      - '.claude/skills/bridgebuilder-review/resources/lib/model-resolver.generated.ts'
+      - 'tests/typescript/golden_resolution.ts'
+      - 'tests/integration/sprint-2D-resolver-parity.bats'
+      - 'tests/fixtures/model-resolution/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cycle099-sprint-2d-c-ts-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ts-codegen-drift-gate:
+    name: T2.6 codegen drift gate (committed .generated.ts == fresh)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: '3.13'
+
+      - name: Install Python deps (jinja2 + pyyaml)
+        run: |
+          python -m pip install --upgrade pip
+          # jinja2 for the codegen templating; pyyaml because the canonical
+          # imports it inside the resolve_fixture path (defensive — the
+          # `_load_canonical` exec_module path needs the module to import
+          # cleanly even if we don't call resolve_fixture).
+          pip install 'jinja2==3.1.6' 'pyyaml==6.0.2'
+
+      - name: Drift gate — fresh codegen must match committed file
+        run: |
+          set -euo pipefail
+          # The codegen script's --check mode does the diff internally + the
+          # source-hash cross-check, exiting 3 on drift, 0 on match.
+          PYTHONPATH=.claude/adapters \
+              python -m loa_cheval.codegen.emit_model_resolver_ts --check
+
+  ts-parity-tests:
+    name: T2.6 TS-vs-Python parity (full fixture corpus + synthesized cases)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: '3.13'
+
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: '20'
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install 'jinja2==3.1.6' 'pyyaml==6.0.2' 'jsonschema==4.23.0'
+
+      - name: Install yq v4.52.4 (pinned + checksum verified)
+        run: |
+          set -euo pipefail
+          local_yq=/usr/local/bin/yq
+          expected_sha256='0c4d965ea944b64b8fddaf7f27779ee3034e5693263786506ccd1c120f184e8c'
+          sudo wget -qO "$local_yq" https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64
+          echo "$expected_sha256  $local_yq" | sha256sum -c -
+          sudo chmod +x "$local_yq"
+
+      - name: Install bats-core
+        run: sudo apt-get update && sudo apt-get install -y bats jq
+
+      - name: Install BB skill node deps (provides tsx)
+        working-directory: .claude/skills/bridgebuilder-review
+        run: npm ci --no-audit --no-fund --ignore-scripts
+
+      - name: Run TS-vs-Python parity bats
+        run: bats tests/integration/sprint-2D-resolver-parity.bats
