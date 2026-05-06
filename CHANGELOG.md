@@ -103,8 +103,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Tests**: 33 unit tests in `tests/test_claude_headless_adapter.py` (registry dispatch, command construction including `--bare` absence assertion, prompt flattening, JSON parsing including cache-token metadata + actual-model-from-modelUsage, error classification across structured + stderr + permission-denial paths, validate_config + health_check, end-to-end happy path). 1 live test gated behind `LOA_CLAUDE_HEADLESS_LIVE=1`. Live smoke confirmed locally: `'Quack'` returned via subscription, 6.9s, no `ANTHROPIC_API_KEY` consumed.
   - **Tool-calling + image input deferred**: v1 single-shot only, same posture as codex / gemini. Adding tool-call forwarding requires mapping `CompletionRequest.tools` → `--tools` allowlist + parsing tool-call events from `--output-format stream-json`. Operators wanting tools today should use the existing AnthropicAdapter (HTTP API).
 
-## [1.116.1] — 2026-05-04
-
 ### Added
 
 - **Cycle-095 — Model Currency** (Sprints 1+2 in this release; Sprint 3 deferred to post-soak) — gpt-5.5 family is now reachable through cheval, the `reviewer` and `reasoning` aliases default to `openai:gpt-5.5` (cost-safe non-pro), `tiny` tier alias added for Haiku 4.5, and the `fast-thinker` agent binding upgraded to Gemini 3 fast variant with probe-driven fallback chain.
