@@ -65,6 +65,11 @@ if [[ ! -d "$FIXTURES_DIR" ]]; then
 fi
 command -v jq >/dev/null 2>&1 || { echo "golden_resolution.sh: jq not found" >&2; exit 2; }
 command -v yq >/dev/null 2>&1 || { echo "golden_resolution.sh: yq not found" >&2; exit 2; }
+# BB iter-2 F005 fix: _validate_input_no_ctrl shells out to python3 for
+# control-byte detection (cypherpunk MED-3 — jq regex with literal control
+# bytes was brittle). Surface the dependency at preflight rather than failing
+# mid-execution.
+command -v python3 >/dev/null 2>&1 || { echo "golden_resolution.sh: python3 not found (required by _validate_input_no_ctrl)" >&2; exit 2; }
 
 # ----- stage labels (pinned per model-resolver-output.schema.json) -----
 

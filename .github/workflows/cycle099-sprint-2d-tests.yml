@@ -135,34 +135,32 @@ jobs:
               print('::warning::production model-config.yaml has no `agents:` block — smoke degenerate')
               sys.exit(0)
 
+          # Regression gate: 100% of declared agents must resolve, OR the
+          # non-resolvers must be on the explicit ALLOWED_NON_RESOLVERS set.
+          # BB iter-1 F3 + iter-2 F002+F003 fix:
+          # - Pre-fix 80% threshold permitted up to 4 silent regressions.
+          # - Pre-fix iterated twice, calling mr.resolve N times redundantly.
+          # - Empirically verified at cycle-099 sprint-2D PR creation (commit
+          #   b761d945): 21/21 framework agents resolve via S5 against
+          #   production model-config.yaml. ALLOWED_NON_RESOLVERS is the
+          #   operator-acknowledged set of skills that legitimately require
+          #   operator config to resolve (today: empty).
+          ALLOWED_NON_RESOLVERS = set()
           ok_count = 0
           err_count = 0
+          unexpected_failures = []
           for skill_name in sorted(agents.keys()):
               result = mr.resolve(merged, skill_name, 'primary')
               if 'error' in result:
                   err_count += 1
                   print(f'::warning::skill `{skill_name}` did not resolve: {result["error"]["code"]}')
+                  if skill_name not in ALLOWED_NON_RESOLVERS:
+                      unexpected_failures.append(skill_name)
               else:
                   ok_count += 1
                   print(f'OK — {skill_name} primary → {result["resolved_provider"]}:{result["resolved_model_id"]}')
-
           total = len(agents)
-          ok_ratio = ok_count / total if total else 0
-          print(f'Production smoke: {ok_count}/{total} resolved ({ok_ratio:.0%}); {err_count} advisory.')
-
-          # Regression gate: 100% of declared agents must resolve, OR the
-          # non-resolvers must be on the explicit allowlist below. BB iter-1
-          # F3 fix: pre-fix 80% threshold permitted up to 4 silent regressions
-          # against today's 21/21 baseline. Tighter gate is: track the exact
-          # set of legitimate non-resolvers (none today); any new non-resolver
-          # is a regression that must be acknowledged via PR-level allowlist
-          # update.
-          ALLOWED_NON_RESOLVERS = set()  # Today's baseline: 0 non-resolvers.
-          unexpected_failures = []
-          for skill_name in sorted(agents.keys()):
-              result = mr.resolve(merged, skill_name, 'primary')
-              if 'error' in result and skill_name not in ALLOWED_NON_RESOLVERS:
-                  unexpected_failures.append(skill_name)
+          print(f'Production smoke: {ok_count}/{total} resolved; {err_count} advisory.')
           if unexpected_failures:
               print(f'::error::production-smoke regression: skills now failing to resolve that previously resolved: {unexpected_failures}')
               print(f'::error::if any are legitimately operator-required, add them to ALLOWED_NON_RESOLVERS in this workflow.')
