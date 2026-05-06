@@ -6,14 +6,20 @@ import type {
   ReviewRequest,
   ReviewResponse,
 } from "../ports/llm-provider.js";
+import { GENERATED_MODEL_REGISTRY } from "../config.generated.js";
 
 // OpenAI has two endpoints depending on model family:
-//   - /v1/chat/completions — for GPT-4, GPT-5, GPT-5.2, non-codex chat models
-//   - /v1/responses        — for codex models (gpt-5.3-codex and other "codex" variants)
-// Calling a codex model against /chat/completions returns 404 with message
-// "This is not a chat model ... Did you mean to use v1/completions?"
-// See issue #585. Mirrors the routing split in
-// .claude/adapters/loa_cheval/providers/openai_adapter.py.
+//   - /v1/chat/completions — for GPT-4, non-Responses chat models
+//   - /v1/responses        — for codex models (gpt-5.3-codex), gpt-5.5,
+//                            gpt-5.5-pro, and other reasoning-capable models
+// Calling a Responses-family model against /chat/completions returns
+// "This is not a chat model ... Did you mean to use v1/completions?".
+// The cycle-095 Python adapter at
+// .claude/adapters/loa_cheval/providers/openai_adapter.py reads
+// `endpoint_family` from the model registry to make this routing
+// decision. The TS adapter does the same — single source of truth
+// is .claude/defaults/model-config.yaml (compiled into
+// config.generated.ts by gen-bb-registry.ts).
 const CHAT_URL = "https://api.openai.com/v1/chat/completions";
 const RESPONSES_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_TIMEOUT_MS = 120_000;
@@ -22,10 +28,20 @@ const BACKOFF_BASE_MS = 1_000;
 const BACKOFF_CEILING_MS = 60_000;
 
 /**
- * Codex models use the Responses API, not Chat Completions.
- * Detection mirrors the Python adapter (`"codex" in model`).
+ * Determine whether a model uses the Responses API based on its
+ * `endpoint_family` in the generated model registry. Falls back to a
+ * legacy `codex`-substring heuristic for unknown models — covers any
+ * future codex variant operators add via `model_aliases_extra` before
+ * the registry is regenerated.
+ *
+ * Returns true → /v1/responses; false → /v1/chat/completions.
  */
-function isCodexModel(model: string): boolean {
+function usesResponsesEndpoint(model: string): boolean {
+  const entry = GENERATED_MODEL_REGISTRY[model];
+  if (entry?.endpointFamily === "responses") return true;
+  if (entry?.endpointFamily === "chat") return false;
+  // Fallback for unknown models (operator-added via model_aliases_extra
+  // that haven't been baked into the compiled registry yet).
   return /codex/i.test(model);
 }
 
@@ -66,11 +82,13 @@ export class OpenAIAdapter implements ILLMProvider {
   async generateReview(request: ReviewRequest): Promise<ReviewResponse> {
     const startMs = Date.now();
 
-    const useResponses = isCodexModel(this.model);
+    const useResponses = usesResponsesEndpoint(this.model);
     const apiUrl = useResponses ? RESPONSES_URL : CHAT_URL;
 
-    // Codex models (Responses API): single `input` string combining system + user.
-    // Chat models (Chat Completions API): structured messages array with role tags.
+    // Responses API (codex / gpt-5.5 / gpt-5.5-pro): single `input` string
+    //                                                   combining system + user.
+    // Chat Completions API (gpt-4 / gpt-5.x non-Responses): structured messages
+    //                                                       array with role tags.
     const body = useResponses
       ? JSON.stringify({
           model: this.model,

@@ -338,6 +338,93 @@ describe("OpenAIAdapter", () => {
     assert.equal(capturedUrl, "https://api.openai.com/v1/responses");
   });
 
+  // =========================================================================
+  // gpt-5.5 / gpt-5.5-pro routing (cycle-099 BB OpenAI endpoint_family fix)
+  // =========================================================================
+  //
+  // gpt-5.5 and gpt-5.5-pro use /v1/responses per cycle-095 SDD §5.3 (their
+  // `endpoint_family: responses` in model-config.yaml). The cycle-052 codex
+  // routing was a substring match on /codex/i — which missed gpt-5.5*. The
+  // BB iter-1+2 review of PR #748 surfaced "OpenAI API 404" because BB sent
+  // gpt-5.5-pro to /v1/chat/completions and got "This is not a chat model"
+  // back. Fix: read endpoint_family from GENERATED_MODEL_REGISTRY (cycle-095
+  // pattern, mirrors the Python adapter at openai_adapter.py).
+
+  it("routes gpt-5.5-pro to /v1/responses (endpoint_family: responses)", async () => {
+    let capturedUrl: string | undefined;
+
+    globalThis.fetch = async (input: RequestInfo | URL, _init?: RequestInit) => {
+      capturedUrl = input.toString();
+      const events = [
+        'data: {"type":"response.output_text.delta","delta":"OK"}\n\n',
+        'data: {"type":"response.completed","response":{"model":"gpt-5.5-pro","usage":{"input_tokens":20,"output_tokens":5}}}\n\n',
+        "data: [DONE]\n\n",
+      ];
+      return mockFetchResponse(200, events);
+    };
+
+    const adapter = new OpenAIAdapter("sk-test", "gpt-5.5-pro");
+    await adapter.generateReview({
+      systemPrompt: "sys",
+      userPrompt: "usr",
+      maxOutputTokens: 100,
+    });
+
+    assert.ok(capturedUrl);
+    assert.equal(capturedUrl, "https://api.openai.com/v1/responses");
+  });
+
+  it("routes gpt-5.5 to /v1/responses (endpoint_family: responses)", async () => {
+    let capturedUrl: string | undefined;
+
+    globalThis.fetch = async (input: RequestInfo | URL, _init?: RequestInit) => {
+      capturedUrl = input.toString();
+      const events = [
+        'data: {"type":"response.output_text.delta","delta":"OK"}\n\n',
+        'data: {"type":"response.completed","response":{"model":"gpt-5.5","usage":{"input_tokens":20,"output_tokens":5}}}\n\n',
+        "data: [DONE]\n\n",
+      ];
+      return mockFetchResponse(200, events);
+    };
+
+    const adapter = new OpenAIAdapter("sk-test", "gpt-5.5");
+    await adapter.generateReview({
+      systemPrompt: "sys",
+      userPrompt: "usr",
+      maxOutputTokens: 100,
+    });
+
+    assert.ok(capturedUrl);
+    assert.equal(capturedUrl, "https://api.openai.com/v1/responses");
+  });
+
+  it("falls back to /codex/i regex for unknown models (operator-extra not yet in registry)", async () => {
+    let capturedUrl: string | undefined;
+
+    globalThis.fetch = async (input: RequestInfo | URL, _init?: RequestInit) => {
+      capturedUrl = input.toString();
+      const events = [
+        'data: {"type":"response.output_text.delta","delta":"OK"}\n\n',
+        'data: {"type":"response.completed","response":{"model":"gpt-future-codex","usage":{"input_tokens":1,"output_tokens":1}}}\n\n',
+        "data: [DONE]\n\n",
+      ];
+      return mockFetchResponse(200, events);
+    };
+
+    // Unknown model not in GENERATED_MODEL_REGISTRY but matches /codex/i.
+    // Operator-added via model_aliases_extra before regen — should still
+    // route correctly via the legacy heuristic.
+    const adapter = new OpenAIAdapter("sk-test", "gpt-future-codex");
+    await adapter.generateReview({
+      systemPrompt: "sys",
+      userPrompt: "usr",
+      maxOutputTokens: 100,
+    });
+
+    assert.ok(capturedUrl);
+    assert.equal(capturedUrl, "https://api.openai.com/v1/responses");
+  });
+
   it("routes non-codex models (gpt-4o) to /v1/chat/completions endpoint", async () => {
     let capturedUrl: string | undefined;
 
