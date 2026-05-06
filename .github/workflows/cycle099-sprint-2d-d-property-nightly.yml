@@ -1,0 +1,110 @@
+name: cycle-099 Sprint 2D.d property suite (nightly stress)
+
+# cycle-099 Sprint 2D.d (T2.6 closure) — SC-14 nightly stress.
+#
+# Runs `tests/property/model-resolution-properties.bats` at the
+# nightly-stress iteration count (LOA_PROPERTY_ITERATIONS=1000, ~7000
+# cases total across the six FR-3.9 invariants + I7 positive S5 control
+# per AC-S2.d.2). The per-PR variant (100 iter) is in
+# `cycle099-sprint-2d-d-property.yml`.
+#
+# Cron: 06:00 UTC daily. Manual trigger via workflow_dispatch.
+#
+# Per R-SDD-7 mitigation: seed base is logged on every run so operators
+# can reproduce a failure by running the bats locally with the same
+# LOA_PROPERTY_SEED_BASE.
+#
+# This workflow does NOT block PRs. It is informational; failures
+# surface via GitHub Actions notifications and require manual triage.
+
+on:
+  schedule:
+    # 06:00 UTC daily. SDD §7.3 — nightly stress complements per-PR
+    # invariant verification with broader state-space coverage.
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      iterations:
+        description: 'Iterations per invariant (default 1000)'
+        required: false
+        default: '1000'
+      seed_base:
+        description: 'Seed base (default github.run_number)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cycle099-sprint-2d-d-property-nightly
+  cancel-in-progress: false
+
+jobs:
+  property-stress:
+    name: Sprint 2D.d nightly stress
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      # PINNING: SHA verified against actions/checkout v4.3.1
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      # PINNING: SHA matches actions/setup-python v5.3.0
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: '3.13'
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install 'pyyaml==6.0.2'
+
+      - name: Install yq v4.52.4 (pinned + checksum verified)
+        run: |
+          set -euo pipefail
+          local_yq=/usr/local/bin/yq
+          expected_sha256='0c4d965ea944b64b8fddaf7f27779ee3034e5693263786506ccd1c120f184e8c'
+          sudo wget -qO "$local_yq" https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64
+          echo "$expected_sha256  $local_yq" | sha256sum -c -
+          sudo chmod +x "$local_yq"
+
+      - name: Install bats-core + jq
+        run: sudo apt-get update && sudo apt-get install -y bats jq
+
+      - name: Validate dispatch inputs
+        # Cypherpunk HIGH-6: workflow_dispatch with iterations=1 lets a
+        # malicious actor manually trigger and claim "nightly stress
+        # passed" with 1 case per invariant. Floor at 100 to enforce
+        # meaningful stress.
+        # BB iter-1 F14: cap at 10,000 (was 100,000). At ~270ms/iter ×
+        # 7 invariants × 10K = ~315 min — still over 60-min timeout, but
+        # we trust the timeout gate to catch absurd configs while the
+        # cap blocks the more obvious DoS scenarios. 100K was decorative.
+        run: |
+          set -euo pipefail
+          iter='${{ github.event.inputs.iterations || '1000' }}'
+          if ! [[ "$iter" =~ ^[1-9][0-9]*$ ]]; then
+              echo "::error::iterations must be a positive integer; got=$iter"
+              exit 1
+          fi
+          if (( iter < 100 )); then
+              echo "::error::iterations floor=100 (got=$iter); nightly stress requires meaningful coverage"
+              exit 1
+          fi
+          if (( iter > 10000 )); then
+              echo "::error::iterations cap=10000 (got=$iter); higher values risk timeout"
+              exit 1
+          fi
+
+      - name: Run nightly stress (1000 iterations × 7 invariants)
+        env:
+          LOA_PROPERTY_ITERATIONS: ${{ github.event.inputs.iterations || '1000' }}
+          # Seed base falls back to github.run_id (always set) when no
+          # workflow_dispatch input is provided. This ensures every nightly
+          # run exercises a different slice of the seed space.
+          LOA_PROPERTY_SEED_BASE: ${{ github.event.inputs.seed_base || github.run_id }}
+        run: |
+          set -euo pipefail
+          echo "Property nightly stress seed base: $LOA_PROPERTY_SEED_BASE"
+          echo "Iterations per invariant:          $LOA_PROPERTY_ITERATIONS"
+          bats --print-output-on-failure tests/property/model-resolution-properties.bats
