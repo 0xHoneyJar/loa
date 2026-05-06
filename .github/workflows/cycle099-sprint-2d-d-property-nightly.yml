@@ -71,7 +71,28 @@ jobs:
       - name: Install bats-core + jq
         run: sudo apt-get update && sudo apt-get install -y bats jq
 
-      - name: Run nightly stress (1000 iterations × 6 invariants)
+      - name: Validate dispatch inputs
+        # Cypherpunk HIGH-6: workflow_dispatch with iterations=1 lets a
+        # malicious actor manually trigger and claim "nightly stress
+        # passed" with 1 case per invariant. Floor at 100 to enforce
+        # meaningful stress; cap at 100,000 to prevent DoS.
+        run: |
+          set -euo pipefail
+          iter='${{ github.event.inputs.iterations || '1000' }}'
+          if ! [[ "$iter" =~ ^[1-9][0-9]*$ ]]; then
+              echo "::error::iterations must be a positive integer; got=$iter"
+              exit 1
+          fi
+          if (( iter < 100 )); then
+              echo "::error::iterations floor=100 (got=$iter); nightly stress requires meaningful coverage"
+              exit 1
+          fi
+          if (( iter > 100000 )); then
+              echo "::error::iterations cap=100000 (got=$iter); higher values risk timeout"
+              exit 1
+          fi
+
+      - name: Run nightly stress (1000 iterations × 7 invariants)
         env:
           LOA_PROPERTY_ITERATIONS: ${{ github.event.inputs.iterations || '1000' }}
           # Seed base falls back to github.run_id (always set) when no
