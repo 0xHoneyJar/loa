@@ -1,0 +1,84 @@
+name: cycle-099 Sprint 2E tests (T2.7 + T2.8)
+
+# cycle-099 Sprint 2E (T2.7 + T2.8) — bats tests for the populated
+# tier_groups.mappings defaults + prefer_pro_models operator-config wiring.
+#
+# Runs:
+#   - tests/integration/cycle099-tier-groups-defaults.bats (T1-T6: structural
+#     pin, alias-existence cross-check, model-existence cross-check, FR-3.9
+#     stage 2/3 resolution, operator override precedence, cycle-095 carry-forward)
+#   - tests/integration/cycle099-prefer-pro-wiring.bats (P1-P5: schema validation,
+#     operator-config flow-through, FR-3.4 legacy gate)
+#
+# Mandatory gate: any failure here blocks the PR.
+
+on:
+  # GP LOW-2 fix: include drift-gate companion files (lockfile checksum +
+  # generated-model-maps.sh) in the trigger paths. A regen-only PR that
+  # touches just those would otherwise skip the T-series, hiding any
+  # downstream behavioral break.
+  pull_request:
+    paths:
+      - '.claude/defaults/model-config.yaml'
+      - '.claude/defaults/model-config.yaml.checksum'
+      - '.claude/scripts/generated-model-maps.sh'
+      - '.claude/scripts/lib/model-resolver.py'
+      - '.claude/data/trajectory-schemas/model-resolver-output.schema.json'
+      - 'tests/integration/cycle099-tier-groups-defaults.bats'
+      - 'tests/integration/cycle099-prefer-pro-wiring.bats'
+      - '.github/workflows/cycle099-sprint-2e-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.claude/defaults/model-config.yaml'
+      - '.claude/defaults/model-config.yaml.checksum'
+      - '.claude/scripts/generated-model-maps.sh'
+      - '.claude/scripts/lib/model-resolver.py'
+      - '.claude/data/trajectory-schemas/model-resolver-output.schema.json'
+      - 'tests/integration/cycle099-tier-groups-defaults.bats'
+      - 'tests/integration/cycle099-prefer-pro-wiring.bats'
+      - '.github/workflows/cycle099-sprint-2e-tests.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cycle099-sprint-2e-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sprint-2e-bats:
+    name: Sprint 2E tier_groups + prefer_pro tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # PINNING: SHA verified against actions/checkout v4.3.1
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      # PINNING: SHA matches actions/setup-python v5.3.0
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: '3.13'
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install 'pyyaml==6.0.2'
+
+      - name: Install yq v4.52.4 (pinned + checksum verified)
+        run: |
+          set -euo pipefail
+          local_yq=/usr/local/bin/yq
+          expected_sha256='0c4d965ea944b64b8fddaf7f27779ee3034e5693263786506ccd1c120f184e8c'
+          sudo wget -qO "$local_yq" https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64
+          echo "$expected_sha256  $local_yq" | sha256sum -c -
+          sudo chmod +x "$local_yq"
+
+      - name: Install bats-core + jq
+        run: sudo apt-get update && sudo apt-get install -y bats jq
+
+      - name: Run T-series (tier_groups defaults)
+        run: bats --print-output-on-failure tests/integration/cycle099-tier-groups-defaults.bats
+
+      - name: Run P-series (prefer_pro wiring)
+        run: bats --print-output-on-failure tests/integration/cycle099-prefer-pro-wiring.bats

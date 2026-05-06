@@ -40,6 +40,9 @@ declare -A MODEL_PROVIDERS=(
     ["gemini-2.5-flash"]="google"
     ["gemini-3-flash"]="google"
     ["researcher"]="google"
+    ["gpt-5.5"]="openai"
+    ["gpt-5.5-pro"]="openai"
+    ["gpt-5.3-codex"]="openai"
     ["gpt-5.2-codex"]="openai"
     ["gpt-5.3-codex"]="openai"
     ["claude-opus-4.7"]="anthropic"
@@ -84,6 +87,9 @@ declare -A MODEL_IDS=(
     ["gemini-2.5-flash"]="gemini-2.5-flash"
     ["gemini-3-flash"]="gemini-3-flash-preview"
     ["researcher"]="deep-research-pro"
+    ["gpt-5.5"]="gpt-5.5"
+    ["gpt-5.5-pro"]="gpt-5.5-pro"
+    ["gpt-5.3-codex"]="gpt-5.3-codex"
     ["gpt-5.2-codex"]="gpt-5.3-codex"
     ["gpt-5.3-codex"]="gpt-5.3-codex"
     ["claude-opus-4.7"]="claude-opus-4-7"
@@ -128,6 +134,9 @@ declare -A COST_INPUT=(
     ["gemini-2.5-flash"]="0.00015"
     ["gemini-3-flash"]="0.00015"
     ["researcher"]="0.005"
+    ["gpt-5.5"]="0.005"
+    ["gpt-5.5-pro"]="0.03"
+    ["gpt-5.3-codex"]="0.00175"
     ["gpt-5.2-codex"]="0.00175"
     ["gpt-5.3-codex"]="0.00175"
     ["claude-opus-4.7"]="0.005"
@@ -172,6 +181,9 @@ declare -A COST_OUTPUT=(
     ["gemini-2.5-flash"]="0.0006"
     ["gemini-3-flash"]="0.0006"
     ["researcher"]="0.02"
+    ["gpt-5.5"]="0.03"
+    ["gpt-5.5-pro"]="0.18"
+    ["gpt-5.3-codex"]="0.014"
     ["gpt-5.2-codex"]="0.014"
     ["gpt-5.3-codex"]="0.014"
     ["claude-opus-4.7"]="0.025"
@@ -196,14 +208,14 @@ declare -a VALID_FLATLINE_MODELS=(
     cheap
     claude-haiku-4-5-20251001
     claude-opus-4-0
-    claude-opus-4.0
     claude-opus-4-1
-    claude-opus-4.1
     claude-opus-4-5
-    claude-opus-4.5
     claude-opus-4-6
-    claude-opus-4.6
     claude-opus-4-7
+    claude-opus-4.0
+    claude-opus-4.1
+    claude-opus-4.5
+    claude-opus-4.6
     claude-opus-4.7
     claude-sonnet-4-5-20250929
     claude-sonnet-4-6
@@ -213,10 +225,10 @@ declare -a VALID_FLATLINE_MODELS=(
     gemini-2.0-flash
     gemini-2.5-flash
     gemini-2.5-pro
-    gemini-3.1-pro
-    gemini-3.1-pro-preview
     gemini-3-flash
     gemini-3-flash-preview
+    gemini-3.1-pro
+    gemini-3.1-pro-preview
     gpt-5.2
     gpt-5.2-codex
     gpt-5.3-codex
