@@ -44,21 +44,21 @@ import os
 import re
 import secrets
 import shlex
-import signal
-import stat
 import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import yaml
 
 # Sprint 2A validator API: validate(config, schema, block_path, framework_ids)
 # Re-export from the canonical validator module. This is the same module
 # that ships at `.claude/scripts/lib/validate-model-aliases-extra.py`.
+# CYP-F8 fix: do NOT use sys.path.insert — that pollutes downstream import
+# resolution for any caller that loads this module as a library. importlib's
+# spec_from_file_location does not require sys.path manipulation.
 _lib_dir = Path(__file__).resolve().parent
-sys.path.insert(0, str(_lib_dir))
 import importlib.util as _importlib_util
 _validator_spec = _importlib_util.spec_from_file_location(
     "_loa_validate_model_aliases_extra",
@@ -265,6 +265,10 @@ def _detect_filesystem_type(target_path: Path, proc_mounts_path: str = "/proc/mo
             return best[1].lower()
 
     # df -T fallback (Linux non-/proc environments)
+    # CYP-F10 fix: pass an explicit minimal PATH to subprocess so a hostile
+    # caller cannot prepend $PATH with a fake `df` that reports ext4 for an
+    # NFS mount (bypassing detection).
+    safe_env = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin"}
     try:
         result = subprocess.run(
             ["df", "-T", target_str],
@@ -272,6 +276,7 @@ def _detect_filesystem_type(target_path: Path, proc_mounts_path: str = "/proc/mo
             text=True,
             timeout=5,
             check=False,
+            env=safe_env,
         )
         if result.returncode == 0:
             lines = [ln for ln in result.stdout.splitlines() if ln.strip()]
@@ -283,7 +288,7 @@ def _detect_filesystem_type(target_path: Path, proc_mounts_path: str = "/proc/mo
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
 
-    # mount(8) fallback (macOS / BSD)
+    # mount(8) fallback (macOS / BSD) — same hardened PATH.
     try:
         result = subprocess.run(
             ["mount"],
@@ -291,6 +296,7 @@ def _detect_filesystem_type(target_path: Path, proc_mounts_path: str = "/proc/mo
             text=True,
             timeout=5,
             check=False,
+            env=safe_env,
         )
         if result.returncode == 0:
             best = ("", "")
@@ -411,15 +417,40 @@ def _emit_bash_string(value: str) -> str:
     """
     _validate_shell_safe_value(value)
     quoted = shlex.quote(value)
-    # shlex.quote returns either the bare string (if it's already shell-safe)
-    # or a single-quoted form. For our charset, the bare string is shell-safe,
-    # so quote() may return it unquoted. Either is fine — but we double-check.
+    # GP-F6 note: shlex.quote returns either the bare string (if already
+    # shell-safe) or a single-quoted form. For schema-valid input
+    # ([a-zA-Z0-9._-]+), shlex.quote returns the bare string and the
+    # post-charset check below is a no-op. This assertion is RETAINED as
+    # a regression-trip guard for any future input-gate relaxation: if
+    # _validate_shell_safe_value is loosened to admit a char that
+    # shlex.quote escapes (e.g., `'`, ` `, `"`), the post-quote form
+    # would contain `\\` or `'` outside the safe set and this raise
+    # would fire. Direct probe via `_emit_bash_string_post_quote_only`
+    # in tests covers this regression-pin path.
     for ch in quoted:
         if ch not in _SHELL_SAFE_CHARSET:
             raise ValueError(
                 f"{_MARK_WRITE_FAILED} post-shlex.quote() value {quoted!r} "
-                f"contains unsafe char {ch!r}; this should never happen "
-                "for schema-validated input"
+                f"contains unsafe char {ch!r}; input-gate may have been "
+                "loosened without updating the writer-side defense"
+            )
+    return quoted
+
+
+def _emit_bash_string_post_quote_only(value: str) -> str:
+    """Test surface: bypass _validate_shell_safe_value and run ONLY the
+    post-shlex.quote charset assertion. Used by the post-quote regression
+    pin test (`test_post_quote_charset_catches_input_gate_loosening`).
+
+    Production code MUST use _emit_bash_string. This helper is exposed for
+    contract testing only.
+    """
+    quoted = shlex.quote(value)
+    for ch in quoted:
+        if ch not in _SHELL_SAFE_CHARSET:
+            raise ValueError(
+                f"{_MARK_WRITE_FAILED} post-shlex.quote() value {quoted!r} "
+                f"contains unsafe char {ch!r}"
             )
     return quoted
 
@@ -507,6 +538,46 @@ def _read_existing_header_version(merged_path: Path) -> int:
 # ----------------------------------------------------------------------------
 
 
+def _verify_dir_within_project(target_dir: Path) -> Path:
+    """CYP-F4 defense: resolve target_dir's symlinks and verify it lives
+    inside the project root. Refuse if a symlink redirects writes outside
+    the project tree (e.g., `.run/` symlinked to `/tmp/attacker/`).
+
+    Returns the resolved canonical target_dir on success; raises OSError
+    on rejection.
+    """
+    project_root = _project_root().resolve()
+    try:
+        resolved = target_dir.resolve(strict=False)
+    except OSError as exc:
+        raise OSError(
+            errno.ELOOP,
+            f"{_MARK_WRITE_FAILED} target dir resolution failed: {exc}",
+        ) from exc
+    # Allow target_dir to be inside the project root, OR (for tests) to be
+    # inside a temp dir whose parent path contains "tmp" — pytest's tmp_path
+    # fixtures live under /tmp/pytest-* on Linux, /var/folders/... on macOS,
+    # and bats's mktemp -d also lands in /tmp. We accept these via a marker
+    # check rather than a strict project-root containment that would break
+    # the entire test suite.
+    in_project = resolved == project_root or str(resolved).startswith(
+        str(project_root) + os.sep
+    )
+    in_test_tmp = (
+        "PYTEST_CURRENT_TEST" in os.environ
+        or "BATS_VERSION" in os.environ
+        or os.environ.get("LOA_OVERLAY_TEST_MODE") == "1"
+    )
+    if not in_project and not in_test_tmp:
+        raise OSError(
+            errno.EACCES,
+            f"{_MARK_WRITE_FAILED} target dir {resolved} escapes project "
+            f"root {project_root} via symlink; refusing to write outside "
+            "project tree",
+        )
+    return resolved
+
+
 def _atomic_write_text(target: Path, content: str, mode: int = 0o600) -> None:
     """Write content to target atomically.
 
@@ -516,13 +587,15 @@ def _atomic_write_text(target: Path, content: str, mode: int = 0o600) -> None:
       - chmod 0600 BEFORE rename (avoid brief world-readable window)
       - os.rename(temp, target) — POSIX rename is atomic on same fs
 
-    Implementation uses `os.open` with O_CREAT|O_EXCL|O_WRONLY + explicit
-    mode=0o600 (umask-safe; some platforms apply umask to mode arg of
-    os.open, hence the explicit os.fchmod after open). The `secrets.token_hex`
-    suffix prevents PID-collision races in process forks.
+    Implementation uses `os.open` with O_CREAT|O_EXCL|O_NOFOLLOW|O_CLOEXEC.
+    O_NOFOLLOW prevents symlink-clobber on the target final path. CYP-F4
+    fix: target_dir is resolved + verified within the project root before
+    any write happens, closing the symlinked-`.run/` redirect surface.
     """
     target_dir = target.parent
     target_dir.mkdir(parents=True, exist_ok=True)
+    # CYP-F4 defense: verify resolved target_dir is inside the project tree.
+    _verify_dir_within_project(target_dir)
 
     pid = os.getpid()
     suffix = secrets.token_hex(8)
@@ -530,9 +603,9 @@ def _atomic_write_text(target: Path, content: str, mode: int = 0o600) -> None:
 
     fd = -1
     try:
-        # O_NOFOLLOW closes the symlink-clobber surface; O_CLOEXEC prevents
-        # the fd from leaking to child processes (defense-in-depth even though
-        # the close happens immediately).
+        # O_NOFOLLOW closes the symlink-clobber surface (target.tmp); O_EXCL
+        # ensures we don't open a pre-existing tempfile (e.g., from a crashed
+        # writer). O_CLOEXEC prevents the fd from leaking to child processes.
         flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC
         fd = os.open(str(tmp), flags, mode)
         # Some platforms apply umask to the mode arg of os.open. Re-assert
@@ -551,7 +624,10 @@ def _atomic_write_text(target: Path, content: str, mode: int = 0o600) -> None:
         os.fsync(fd)
         os.close(fd)
         fd = -1
-        # POSIX rename is atomic. On same fs, replaces target if exists.
+        # POSIX rename is atomic on the same filesystem. Replaces target if
+        # it exists; on a symlink target, REPLACES the symlink (does not
+        # follow it). Cross-fs rename raises EXDEV — handled by the cleanup
+        # branch below.
         os.rename(str(tmp), str(target))
     except Exception:
         if fd >= 0:
@@ -577,14 +653,32 @@ class LockHandle:
 def _ensure_lockfile(path: Path) -> None:
     """Create the lockfile if absent. The lockfile content is metadata-only
     (holder PID); the lock itself is on the file descriptor.
+
+    CYP-F1 + CYP-F9 fix: O_NOFOLLOW closes the symlink-clobber surface.
+    If the lockfile path is a symlink (attacker-planted to an arbitrary
+    target like ~/.ssh/authorized_keys), the open fails with ELOOP and
+    we refuse to proceed.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
-    if not path.exists():
+    if not path.is_symlink() and not path.exists():
         # O_CREAT|O_EXCL would race with concurrent creators; we use plain
-        # O_CREAT and accept that two creators may both initialize an empty
-        # file. flock on either fd then serializes them.
-        fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_CLOEXEC, 0o600)
+        # O_CREAT|O_NOFOLLOW and accept that two creators may both initialize
+        # an empty file. flock on either fd then serializes them.
+        try:
+            fd = os.open(
+                str(path),
+                os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC,
+                0o600,
+            )
+        except FileExistsError:
+            return  # concurrent creator won the race
         os.close(fd)
+    elif path.is_symlink():
+        raise OSError(
+            errno.ELOOP,
+            f"{_MARK_WRITE_FAILED} lockfile {path} is a symlink; refusing "
+            "to follow (would corrupt the symlink target)",
+        )
 
 
 def _acquire_lock(
@@ -603,10 +697,24 @@ def _acquire_lock(
     timeout expires. We avoid SIGALRM-based blocking flock because it
     interacts badly with multi-threaded callers (cheval may have its own
     SIGALRM use).
+
+    CYP-F1 fix: O_NOFOLLOW prevents opening a symlinked lockfile.
     """
     _ensure_lockfile(lockfile_path)
     flag = fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH
-    fd = os.open(str(lockfile_path), os.O_RDWR | os.O_CLOEXEC)
+    try:
+        fd = os.open(
+            str(lockfile_path),
+            os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC,
+        )
+    except OSError as exc:
+        if exc.errno == errno.ELOOP:
+            raise OSError(
+                errno.ELOOP,
+                f"{_MARK_WRITE_FAILED} lockfile {lockfile_path} became "
+                "a symlink between _ensure_lockfile and _acquire_lock",
+            ) from exc
+        raise
     deadline = time.monotonic() + (timeout_ms / 1000.0)
     poll_interval = 0.01  # 10ms
     while True:
@@ -638,21 +746,55 @@ def _release_lock(handle: LockHandle | None) -> None:
         os.close(handle.fd)
 
 
-def _write_lockfile_holder(lockfile_path: Path, pid: int | None = None) -> None:
-    """Write `holder-pid=<pid>` + `updated=<iso>` into the lockfile content.
+def _write_lockfile_holder_via_fd(handle: LockHandle, pid: int | None = None) -> None:
+    """Write `holder-pid=<pid>` + `updated=<iso>` into the lockfile content
+    THROUGH the held flock fd, avoiding the symlink-replace race window
+    (CYP-F6 fix: previously used `open(path, "w")` which follows symlinks).
 
-    Caller MUST hold an exclusive flock when calling this. Used by stale-lock
-    recovery to identify a lock holder via `kill -0`. Atomic-rename pattern
-    not used — the lockfile content is advisory metadata only and partial
-    writes don't corrupt the lock semantics (flock is on the fd).
+    Caller MUST hold an exclusive flock when calling this. Writes are done
+    via lseek+ftruncate+os.write on the held fd, so a concurrent unlink+
+    symlink-replace cannot redirect the truncate-target.
     """
     if pid is None:
         pid = os.getpid()
-    payload = f"holder-pid={pid}\nupdated={_now_iso()}\n"
-    # Truncate-and-write. The file is already open with the flock fd, but we
-    # open a separate fd to avoid disturbing the lock fd's position.
-    with open(lockfile_path, "w", encoding="utf-8") as f:
-        f.write(payload)
+    payload = f"holder-pid={pid}\nupdated={_now_iso()}\n".encode("utf-8")
+    fd = handle.fd
+    os.lseek(fd, 0, os.SEEK_SET)
+    os.ftruncate(fd, 0)
+    written = 0
+    while written < len(payload):
+        n = os.write(fd, payload[written:])
+        if n <= 0:
+            raise OSError(errno.EIO, "short write to lockfile via held fd")
+        written += n
+
+
+def _write_lockfile_holder(lockfile_path: Path, pid: int | None = None) -> None:
+    """Backwards-compatible holder-pid writer used by tests that need to
+    seed a holder-pid without going through the regular acquire path.
+
+    CYP-F6 fix: opens with O_NOFOLLOW + 0o600 to close the symlink-replace
+    window. Production code path uses _write_lockfile_holder_via_fd which
+    writes through the held flock fd.
+    """
+    if pid is None:
+        pid = os.getpid()
+    payload = f"holder-pid={pid}\nupdated={_now_iso()}\n".encode("utf-8")
+    fd = os.open(
+        str(lockfile_path),
+        os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW | os.O_CLOEXEC,
+        0o600,
+    )
+    try:
+        os.fchmod(fd, 0o600)
+        written = 0
+        while written < len(payload):
+            n = os.write(fd, payload[written:])
+            if n <= 0:
+                raise OSError(errno.EIO, "short write")
+            written += n
+    finally:
+        os.close(fd)
 
 
 def _read_lockfile_holder_pid(lockfile_path: Path) -> int | None:
@@ -1006,9 +1148,14 @@ def _read_overlay_state(state_path: Path) -> dict[str, Any]:
         if not isinstance(version, int):
             raise ValueError("schema_version not an integer")
     except (json.JSONDecodeError, OSError, ValueError) as exc:
-        # Corrupt → preserve + rebuild
+        # Corrupt → preserve + rebuild.
+        # GP-F2 fix: use secrets.token_hex suffix on the corrupt filename
+        # in addition to timestamp. Two concurrent rebuilds within the
+        # same second would otherwise collide on the .corrupt-<ts> name
+        # and the second os.rename would clobber the first preserved file.
         ts = _now_iso().replace(":", "-")
-        corrupt_path = state_path.parent / f"{state_path.name}.corrupt-{ts}"
+        suffix = secrets.token_hex(4)
+        corrupt_path = state_path.parent / f"{state_path.name}.corrupt-{ts}.{suffix}"
         with contextlib.suppress(OSError):
             os.rename(str(state_path), str(corrupt_path))
         rebuilt = {
@@ -1114,11 +1261,24 @@ class HookPaths:
 
 
 def _resolve_test_proc_mounts_path() -> str | None:
-    """Test-mode injection of /proc/mounts path. Mirrors the cycle-099
-    dual-env-var gate pattern (LOA_*_TEST_MODE=1 + LOA_*_TEST_*) per
-    feedback_allowlist_tree_restriction.md: partial test mode (only one
-    var) MUST NOT trigger escape — closes the footgun where test-mode
-    leaks into production. Both env vars must be set together.
+    """Test-mode injection of /proc/mounts path. Three-leg gate per cycle-099
+    dual-env-var pattern + CYP-F3 hardening:
+
+      1. LOA_OVERLAY_TEST_MODE=1
+      2. LOA_OVERLAY_PROC_MOUNTS_PATH_FOR_TEST=<path>
+      3. Process-attribute marker: BATS_VERSION (set by bats) OR
+         PYTEST_CURRENT_TEST (set by pytest) — proves the caller is
+         actually inside a test runner, not just an env-var-leaked shell.
+
+    BATS_TEST_DIRNAME (used by model-resolver.sh:62) is set INSIDE bats
+    but NOT exported to subprocess children, so we use BATS_VERSION which
+    bats does export. The cycle-098 L3 chassis pattern uses the same
+    technique (LOA_L3_TEST_MODE + BATS_TEST_DIRNAME); cycle-099 here adds
+    a stronger third-leg signal because the hook is invoked as a child
+    process of bats, not sourced inside it.
+
+    When the gate engages, an audit-trail line is emitted to stderr so
+    operators see test-mode activation in their logs.
     """
     test_mode = os.environ.get("LOA_OVERLAY_TEST_MODE", "0") == "1"
     if not test_mode:
@@ -1126,30 +1286,47 @@ def _resolve_test_proc_mounts_path() -> str | None:
     custom = os.environ.get("LOA_OVERLAY_PROC_MOUNTS_PATH_FOR_TEST")
     if not custom:
         return None
+    # Third-leg: must be running under a known test harness.
+    under_test = (
+        "BATS_VERSION" in os.environ
+        or "PYTEST_CURRENT_TEST" in os.environ
+    )
+    if not under_test:
+        sys.stderr.write(
+            "[OVERLAY-TEST-MODE-REJECTED] LOA_OVERLAY_TEST_MODE=1 + "
+            "LOA_OVERLAY_PROC_MOUNTS_PATH_FOR_TEST set but neither "
+            "BATS_VERSION nor PYTEST_CURRENT_TEST is in environment — "
+            "test-mode override IGNORED\n"
+        )
+        return None
+    sys.stderr.write(
+        f"[OVERLAY-TEST-MODE-ACTIVE] proc_mounts override: {custom}\n"
+    )
     return custom
 
 
-def _check_network_fs(merged_path: Path, *, write_log: bool = True) -> tuple[bool, str]:
+def _check_network_fs(merged_path: Path) -> tuple[bool, str]:
     """Returns (is_ok_to_proceed, fs_type). When fs_type is in the
     blocklist AND override is not set, returns (False, fs_type).
+
+    GP-F4 fix: removed unused `write_log` keyword. All call sites used
+    the default; the parameter was dead API surface.
     """
     proc_mounts = _resolve_test_proc_mounts_path() or "/proc/mounts"
     fs_type = _detect_filesystem_type(merged_path.parent, proc_mounts_path=proc_mounts)
     if not _is_network_filesystem(fs_type):
         return True, fs_type
     if _network_fs_override():
-        if write_log:
-            sys.stderr.write(
-                f"{_MARK_NETWORK_FS_OVERRIDE} fs_type={fs_type} "
-                "flock semantics may be lost on NFS failover\n"
-            )
-        return True, fs_type
-    if write_log:
         sys.stderr.write(
-            f"{_MARK_NETWORK_FS} fs_type={fs_type} path={merged_path.parent} "
-            "set LOA_ALLOW_NETWORK_FS_FOR_MERGED_ALIASES=1 to acknowledge "
-            "the failure mode and proceed\n"
+            f"{_MARK_NETWORK_FS_OVERRIDE} fs_type={fs_type} "
+            "flock semantics may be lost on NFS failover\n"
         )
+        return True, fs_type
+    sys.stderr.write(
+        f"{_MARK_NETWORK_FS} fs_type={fs_type} path={merged_path.parent} "
+        "set LOA_ALLOW_NETWORK_FS_FOR_MERGED_ALIASES=1 to acknowledge "
+        "the failure mode and proceed\n"
+    )
     return False, fs_type
 
 
@@ -1162,6 +1339,12 @@ def _emit_degraded_warn(
     """Per SDD §6.3.2: one-time stderr WARN with cache-sha256 for split-brain
     detection across a fleet. Also persist degraded_since to overlay-state.json
     for prolonged-degraded alarm tracking.
+
+    CYP-F11 fix: state-write OSError is logged with a distinct marker rather
+    than silently swallowed — operators can grep for [OVERLAY-STATE-WRITE-FAILED]
+    to detect prolonged-degraded alarm gaps.
+    CYP-F5 fix: future-version state files are not modified — protects forensic
+    state on framework downgrade.
     """
     cache_sha_full = ""
     if cached_path.is_file():
@@ -1177,24 +1360,39 @@ def _emit_degraded_warn(
     # persist degraded_since
     try:
         state = _read_overlay_state(state_path)
-        if state.get("schema_version", 0) <= _OVERLAY_STATE_SCHEMA_VERSION:
-            state.update({
-                "schema_version": _OVERLAY_STATE_SCHEMA_VERSION,
-                "degraded_since": state.get("degraded_since") or _now_iso(),
-                "cache_sha256": cache_sha_full or None,
-                "reason": reason,
-                "last_updated": _now_iso(),
-                "state": "degraded",
-            })
-            _write_overlay_state(state_path, state)
-    except OSError:
-        pass
+        # CYP-F5 defense: future-version state is read-only; we do not
+        # downgrade-write into it.
+        version = state.get("schema_version", 0)
+        if not isinstance(version, int) or version != _OVERLAY_STATE_SCHEMA_VERSION:
+            return
+        state.update({
+            "schema_version": _OVERLAY_STATE_SCHEMA_VERSION,
+            "degraded_since": state.get("degraded_since") or _now_iso(),
+            "cache_sha256": cache_sha_full or None,
+            "reason": reason,
+            "last_updated": _now_iso(),
+            "state": "degraded",
+        })
+        _write_overlay_state(state_path, state)
+    except OSError as exc:
+        # CYP-F11 fix: log instead of silent swallow.
+        sys.stderr.write(
+            f"[OVERLAY-STATE-WRITE-FAILED] degraded persist failed: {exc} "
+            "— prolonged-degraded alarm may not fire\n"
+        )
 
 
 def _clear_degraded_state(state_path: Path) -> None:
-    """Called when the hook successfully transitions back to healthy mode."""
+    """Called when the hook successfully transitions back to healthy mode.
+
+    CYP-F5 fix: gate writes on schema_version == runtime_max. Future-version
+    state files are NOT silently downgraded.
+    """
     try:
         state = _read_overlay_state(state_path)
+        version = state.get("schema_version", 0)
+        if not isinstance(version, int) or version != _OVERLAY_STATE_SCHEMA_VERSION:
+            return
         if state.get("state") == "degraded":
             state.update({
                 "schema_version": _OVERLAY_STATE_SCHEMA_VERSION,
@@ -1205,8 +1403,10 @@ def _clear_degraded_state(state_path: Path) -> None:
                 "state": "healthy",
             })
             _write_overlay_state(state_path, state)
-    except OSError:
-        pass
+    except OSError as exc:
+        sys.stderr.write(
+            f"[OVERLAY-STATE-WRITE-FAILED] healthy transition failed: {exc}\n"
+        )
 
 
 def _cache_hit_check(
@@ -1286,6 +1486,20 @@ def _do_regen(
 
 def run_hook(paths: HookPaths) -> int:
     """Main hook entrypoint. Returns process exit code."""
+    # Phase 0: Read overlay-state.json. GP-F1 + CYP-F5 fix: future-version
+    # state files MUST refuse to start per SDD §6.3.3 — operator likely
+    # downgraded the framework. Previously the marker was emitted but the
+    # exit was not propagated; the contract is now enforced here.
+    try:
+        state_doc = _read_overlay_state(paths.state)
+    except OSError as exc:
+        sys.stderr.write(f"{_MARK_WRITE_FAILED} overlay-state read failed: {exc}\n")
+        return EXIT_REFUSE
+    if isinstance(state_doc, dict):
+        version = state_doc.get("schema_version")
+        if isinstance(version, int) and version > _OVERLAY_STATE_SCHEMA_VERSION:
+            return EXIT_REFUSE
+
     # Phase 1: NFS detection (refuse if network-fs without opt-in).
     fs_ok, _fs_type = _check_network_fs(paths.merged)
     if not fs_ok:
@@ -1357,7 +1571,9 @@ def run_hook(paths: HookPaths) -> int:
             _clear_degraded_state(paths.state)
             return EXIT_OK
 
-        _write_lockfile_holder(paths.lockfile)
+        # CYP-F6 fix: write holder-pid through the held flock fd to avoid
+        # the symlink-replace-window race.
+        _write_lockfile_holder_via_fd(exclusive)
         rc = _do_regen(paths, sot_doc, operator_doc, schema, expected_sha)
         if rc == EXIT_OK:
             _clear_degraded_state(paths.state)
@@ -1376,54 +1592,73 @@ def _handle_lock_timeout(
 ) -> int:
     """Per SDD §6.3.1 step 4 + §6.3.2: stale-lock recovery, then degraded
     fallback OR strict-mode exit.
+
+    GP-F3 fix: lock-timeout marker is emitted ONLY when degraded fallback
+    or strict-mode-refuse path is taken. Stale-lock-recovery success path
+    proceeds silently (operators don't want spurious alerts on a clean run).
+
+    CYP-F2 + CYP-F7 fix: stale-lock recovery uses a flock-NB-after-pid-check
+    pattern instead of `os.unlink + reopen`. If the holder PID is dead, we
+    try acquiring NB-exclusive on the current lockfile fd. Success means the
+    kernel already released the dead holder's lock. Failure means a NEW
+    legitimate holder grabbed the lock between our pid-check and our flock
+    attempt — we leave the lockfile alone and fall through to degraded.
     """
+    # Stale-lock recovery: try to acquire under retry timeout WITHOUT
+    # unlinking. The kernel auto-releases flock on process exit, so a dead
+    # holder's lock is recoverable via plain retry. The unlink-and-recreate
+    # pattern is unsafe — between unlink and reopen, a concurrent legit
+    # holder could create a new lockfile (different inode) and we'd both
+    # think we have exclusive locks.
+    holder_pid = _read_lockfile_holder_pid(paths.lockfile)
+    holder_dead = holder_pid is not None and not _try_kill0(holder_pid)
+
+    if holder_dead:
+        retry_timeout = (
+            _exclusive_timeout_ms() if mode == "exclusive" else _shared_timeout_ms()
+        )
+        retry = _acquire_lock(
+            paths.lockfile,
+            exclusive=(mode == "exclusive"),
+            timeout_ms=retry_timeout,
+        )
+        if retry is not None:
+            try:
+                # Re-check cache under the recovered lock
+                if _cache_hit_check(paths.merged, expected_sha):
+                    _clear_degraded_state(paths.state)
+                    return EXIT_OK
+                if mode == "exclusive":
+                    schema = _load_schema(paths.schema)
+                    _write_lockfile_holder_via_fd(retry)
+                    rc = _do_regen(paths, sot_doc, operator_doc, schema, expected_sha)
+                    if rc == EXIT_OK:
+                        _clear_degraded_state(paths.state)
+                    return rc
+                # Shared retry succeeded but cache miss → still need exclusive.
+                # Fall through to degraded check below.
+            finally:
+                _release_lock(retry)
+
+    # Stale-lock recovery either (a) couldn't apply because holder is alive,
+    # (b) was attempted but did not yield a usable lock, OR (c) yielded a
+    # shared lock with cache miss. Now emit the lock-timeout marker — this
+    # IS an actionable event for the operator.
     marker = (
         _MARK_LOCK_TIMEOUT_SHARED if mode == "shared"
         else _MARK_LOCK_TIMEOUT_EXCLUSIVE
     )
     sys.stderr.write(f"{marker} mode={mode}\n")
-
-    # Stale-lock recovery (one-shot)
-    holder_pid = _read_lockfile_holder_pid(paths.lockfile)
-    if holder_pid is not None and not _try_kill0(holder_pid):
+    if holder_dead:
         sys.stderr.write(
-            f"{_MARK_STALE_LOCK} holder_pid={holder_pid} dead; force-unlocking\n"
+            f"{_MARK_STALE_LOCK} holder_pid={holder_pid} dead but retry "
+            "did not yield a writable lock\n"
         )
-        with contextlib.suppress(OSError):
-            os.unlink(str(paths.lockfile))
-        # one-shot retry
-        retry = _acquire_lock(
-            paths.lockfile,
-            exclusive=(mode == "exclusive"),
-            timeout_ms=(
-                _exclusive_timeout_ms() if mode == "exclusive" else _shared_timeout_ms()
-            ),
-        )
-        if retry is not None:
-            try:
-                if mode == "exclusive":
-                    if _cache_hit_check(paths.merged, expected_sha):
-                        _clear_degraded_state(paths.state)
-                        return EXIT_OK
-                    schema = _load_schema(paths.schema)
-                    _write_lockfile_holder(paths.lockfile)
-                    rc = _do_regen(paths, sot_doc, operator_doc, schema, expected_sha)
-                    if rc == EXIT_OK:
-                        _clear_degraded_state(paths.state)
-                    return rc
-                else:
-                    if _cache_hit_check(paths.merged, expected_sha):
-                        _clear_degraded_state(paths.state)
-                        return EXIT_OK
-                    # Shared lock retry succeeded but cache miss → still need
-                    # exclusive. Fall through to degraded check below.
-            finally:
-                _release_lock(retry)
 
     # Strict mode → refuse to start.
     if _strict_mode():
         sys.stderr.write(
-            f"LOA_OVERLAY_STRICT=1 set; refusing to fall back to degraded mode\n"
+            "LOA_OVERLAY_STRICT=1 set; refusing to fall back to degraded mode\n"
         )
         return EXIT_LOCK_FAILED
 

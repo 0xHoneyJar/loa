@@ -891,6 +891,203 @@ def test_default_mode_degraded_fallback_when_cache_valid(tmp_path, monkeypatch, 
         hook._release_lock(held)
 
 
+# -----------------------------------------------------------------------------
+# Iter-1 review-fix regression pins
+# -----------------------------------------------------------------------------
+
+
+def test_lockfile_symlink_refused_at_ensure(tmp_path):
+    """CYP-F1: a symlinked lockfile path MUST be refused (not followed).
+    Attacker plants `.lock` as a symlink to ~/.ssh/authorized_keys; the
+    hook MUST raise rather than open-and-corrupt the symlink target.
+    """
+    target = tmp_path / "decoy"
+    target.write_text("decoy content")
+    lockpath = tmp_path / "merged.sh.lock"
+    os.symlink(str(target), str(lockpath))
+    with pytest.raises(OSError) as exc_info:
+        hook._ensure_lockfile(lockpath)
+    assert hook._MARK_WRITE_FAILED in str(exc_info.value)
+
+
+def test_lockfile_symlink_refused_at_acquire(tmp_path):
+    """CYP-F1: O_NOFOLLOW on the lockfile open in `_acquire_lock` rejects
+    a symlinked path even if `_ensure_lockfile` somehow let it pass.
+    """
+    decoy = tmp_path / "decoy"
+    decoy.write_text("decoy")
+    lockpath = tmp_path / "evil.lock"
+    os.symlink(str(decoy), str(lockpath))
+    with pytest.raises(OSError):
+        hook._acquire_lock(lockpath, exclusive=True, timeout_ms=200)
+
+
+def test_atomic_write_refuses_target_dir_symlink_escape(tmp_path, monkeypatch):
+    """CYP-F4: target_dir resolves through symlinks; a `.run/` symlinked to
+    `/tmp/attacker/` MUST be refused before any write. The verification gate
+    (project-root containment) is bypassed in tests via the test-runner
+    marker (PYTEST_CURRENT_TEST is set), but we exercise the function
+    `_verify_dir_within_project` directly to prove the contract.
+    """
+    # In the production path, _verify_dir_within_project rejects when the
+    # resolved target_dir is outside project_root AND no test-runner marker
+    # is present. Strip the test markers AND verify rejection.
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    monkeypatch.delenv("BATS_VERSION", raising=False)
+    monkeypatch.delenv("LOA_OVERLAY_TEST_MODE", raising=False)
+    # Construct a target dir that's clearly outside the project root
+    outside = Path("/tmp") / f"loa-attacker-{os.getpid()}"
+    outside.mkdir(exist_ok=True)
+    try:
+        with pytest.raises(OSError) as exc_info:
+            hook._verify_dir_within_project(outside)
+        assert hook._MARK_WRITE_FAILED in str(exc_info.value)
+        assert "escapes project" in str(exc_info.value).lower() or \
+               "outside project" in str(exc_info.value).lower()
+    finally:
+        outside.rmdir()
+
+
+def test_run_hook_refuses_future_version_state(tmp_path):
+    """GP-F1 + CYP-F5: when `.run/overlay-state.json` carries a
+    schema_version higher than the runtime supports, run_hook MUST exit 78
+    (refuse-to-start) per SDD §6.3.3 future-version row.
+    """
+    schema_src = _REPO_ROOT / ".claude/data/trajectory-schemas/model-aliases-extra.schema.json"
+    paths = _build_paths(tmp_path, _sample_sot(), {}, schema_src)
+    paths.state.parent.mkdir(parents=True, exist_ok=True)
+    paths.state.write_text(json.dumps({
+        "schema_version": hook._OVERLAY_STATE_SCHEMA_VERSION + 99,
+        "degraded_since": None,
+        "cache_sha256": None,
+        "reason": None,
+        "last_updated": "2099-01-01T00:00:00Z",
+        "state": "healthy",
+    }))
+    rc = hook.run_hook(paths)
+    assert rc == hook.EXIT_REFUSE
+
+
+def test_clear_degraded_state_does_not_downgrade_future_version(tmp_path):
+    """CYP-F5: future-version state files MUST NOT be silently rewritten
+    with a lower schema_version. Operator who upgraded then downgraded
+    keeps their forensic state.
+    """
+    state_path = tmp_path / "overlay-state.json"
+    future = {
+        "schema_version": hook._OVERLAY_STATE_SCHEMA_VERSION + 5,
+        "degraded_since": "2099-01-01T00:00:00Z",
+        "cache_sha256": "f" * 64,
+        "reason": "future-cycle-degraded",
+        "last_updated": "2099-01-01T00:00:00Z",
+        "state": "degraded",
+    }
+    state_path.write_text(json.dumps(future))
+    hook._clear_degraded_state(state_path)
+    after = json.loads(state_path.read_text())
+    # State is preserved at the future schema_version
+    assert after["schema_version"] == hook._OVERLAY_STATE_SCHEMA_VERSION + 5
+    assert after["state"] == "degraded"
+
+
+def test_corruption_rebuild_uses_unique_suffix(tmp_path, capsys):
+    """GP-F2: two concurrent rebuilds within the same second MUST produce
+    distinct `corrupt-<ts>.<suffix>` filenames. The suffix is a 4-byte
+    secrets.token_hex (8 hex chars), so the collision space is 2^32.
+    """
+    state_path = tmp_path / "overlay-state.json"
+
+    # Simulate two concurrent rebuilds: write corrupt content + read; repeat.
+    state_path.write_text("corrupt-A")
+    hook._read_overlay_state(state_path)
+    state_path.write_text("corrupt-B")
+    hook._read_overlay_state(state_path)
+
+    corrupt_files = list(tmp_path.glob("overlay-state.json.corrupt-*"))
+    assert len(corrupt_files) == 2, f"expected 2 distinct corrupt files; got {corrupt_files}"
+    # All filenames have a hex suffix beyond the timestamp
+    for cf in corrupt_files:
+        # name format: overlay-state.json.corrupt-<iso>.<8-hex>
+        parts = cf.name.split(".")
+        assert len(parts) >= 4
+        suffix = parts[-1]
+        # 4-byte token_hex = 8 hex chars
+        assert len(suffix) == 8
+        assert all(c in "0123456789abcdef" for c in suffix)
+
+
+def test_post_quote_charset_catches_input_gate_loosening():
+    """GP-F6 regression pin: if a future code change loosens
+    `_validate_shell_safe_value` to admit a char that shlex.quote escapes
+    (e.g., space, single-quote), the post-shlex.quote charset assertion
+    MUST fire. We exercise this via the test-only entry point that
+    bypasses the input gate.
+    """
+    # These would each cause shlex.quote to emit a single-quoted form
+    # containing characters outside _SHELL_SAFE_CHARSET (e.g., space).
+    for hostile in ["a b", "x'y", 'a"b', "$x", "a;b"]:
+        with pytest.raises(ValueError) as exc_info:
+            hook._emit_bash_string_post_quote_only(hostile)
+        assert hook._MARK_WRITE_FAILED in str(exc_info.value)
+
+
+def test_test_mode_third_leg_gate_rejects_without_runner_marker(monkeypatch):
+    """CYP-F3: when LOA_OVERLAY_TEST_MODE=1 + LOA_OVERLAY_PROC_MOUNTS_PATH_FOR_TEST
+    are set BUT no BATS_VERSION/PYTEST_CURRENT_TEST is in the environment,
+    the test-mode override MUST be IGNORED (footgun guard).
+    """
+    monkeypatch.setenv("LOA_OVERLAY_TEST_MODE", "1")
+    monkeypatch.setenv("LOA_OVERLAY_PROC_MOUNTS_PATH_FOR_TEST", "/tmp/whatever")
+    # Strip both runner markers
+    monkeypatch.delenv("BATS_VERSION", raising=False)
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    result = hook._resolve_test_proc_mounts_path()
+    assert result is None, "expected test-mode override to be IGNORED without runner marker"
+
+
+def test_test_mode_third_leg_gate_accepts_with_runner_marker(monkeypatch):
+    """CYP-F3 positive control: with all three legs (TEST_MODE + PATH +
+    runner marker), the override is honored.
+    """
+    monkeypatch.setenv("LOA_OVERLAY_TEST_MODE", "1")
+    monkeypatch.setenv("LOA_OVERLAY_PROC_MOUNTS_PATH_FOR_TEST", "/tmp/whatever")
+    # PYTEST_CURRENT_TEST is automatically set by pytest, but ensure presence
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "fake-test-marker")
+    result = hook._resolve_test_proc_mounts_path()
+    assert result == "/tmp/whatever"
+
+
+def test_lockfile_holder_write_via_fd_uses_held_lock(tmp_path):
+    """CYP-F6: writing the holder-pid through the held flock fd avoids
+    the symlink-replace window. Verify the write succeeds via the helper
+    and the content is correct (functional smoke test).
+    """
+    lockpath = tmp_path / "x.lock"
+    handle = hook._acquire_lock(lockpath, exclusive=True, timeout_ms=1000)
+    assert handle is not None
+    try:
+        hook._write_lockfile_holder_via_fd(handle, pid=98765)
+        # Re-read via the public read helper
+        assert hook._read_lockfile_holder_pid(lockpath) == 98765
+    finally:
+        hook._release_lock(handle)
+
+
+def test_lockfile_holder_legacy_writer_uses_o_nofollow(tmp_path):
+    """CYP-F6: the legacy `_write_lockfile_holder` now uses O_NOFOLLOW. If
+    the lockfile path is a symlink, the write MUST fail rather than
+    redirecting to the symlink target.
+    """
+    decoy = tmp_path / "decoy"
+    decoy.write_text("decoy content unchanged")
+    lockpath = tmp_path / "lock-as-symlink"
+    os.symlink(str(decoy), str(lockpath))
+    with pytest.raises(OSError):
+        hook._write_lockfile_holder(lockpath, pid=12345)
+    # Decoy file is untouched
+    assert decoy.read_text() == "decoy content unchanged"
+
+
 def test_degraded_state_clears_on_healthy_recovery(tmp_path, monkeypatch):
     """When the hook later succeeds in healthy mode, overlay-state.json
     transitions back from `degraded` to `healthy`.
