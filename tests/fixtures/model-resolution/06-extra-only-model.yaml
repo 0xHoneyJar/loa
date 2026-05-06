@@ -14,6 +14,15 @@ input:
     aliases:
       opus: { provider: anthropic, model_id: claude-opus-4-7 }
   operator_config:
+    # Sprint 2D fix: skill_models entry is required for the resolver to fire
+    # against (skill, role) — without it, the expected stage 2 hit is unreachable.
+    # Fixture intent (per description): operator adds a NEW model via
+    # model_aliases_extra; the EXISTING `opus` alias still resolves cleanly via
+    # skill_models pointer. Tests that extra-entries don't interfere with
+    # baseline alias resolution.
+    skill_models:
+      flatline_protocol:
+        primary: opus
     model_aliases_extra:
       experimental-opus-vnext:
         provider: anthropic

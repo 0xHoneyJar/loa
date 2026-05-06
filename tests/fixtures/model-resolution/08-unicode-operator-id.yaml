@@ -13,6 +13,12 @@ input:
         models:
           claude-opus-4-7: { capabilities: [chat], context_window: 200000 }
   operator_config:
+    # Sprint 2D fix: skill_models pointer required for resolver to fire.
+    # Fixture intent: operator-added id with schema-boundary characters
+    # ([a-zA-Z0-9._-]) resolves identically across runtimes.
+    skill_models:
+      flatline_protocol:
+        primary: "experimental-model_v2.0"
     model_aliases_extra:
       "experimental-model_v2.0":
         provider: anthropic

