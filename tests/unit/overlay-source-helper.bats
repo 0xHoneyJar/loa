@@ -178,25 +178,27 @@ EOF
   [ "$LOA_OVERLAY_FINGERPRINT" = "abc123def456" ]
 }
 
-@test "C4: loa_overlay_init graceful failure when merged + lockfile missing AND override gate disengaged" {
-  # When the helper resolves to a path that doesn't exist AND the regen
-  # path can't recreate it (e.g., 3-leg gate disengaged so override is
-  # ignored), init returns 1. We strip the gate vars in a sub-bash so
-  # the helper resolves to the default repo path; that path is then
-  # `.run/merged-model-aliases.sh` (which may exist on the dev machine
-  # but the contract is "init returns 0 IF the file exists OR hook regen
-  # succeeds; 1 otherwise"). We probe the integer rc directly.
-  run env -i \
-    PATH="/usr/bin:/bin" \
-    HOME="$HOME" \
-    bash -c '
-      source '"$HELPER"'
-      loa_overlay_init && echo "init=0" || echo "init=1"
-    '
-  [ "$status" -eq 0 ]
-  # Either init=0 (file exists or hook regen succeeded) or init=1 (graceful
-  # failure). Both are acceptable; the contract is no-crash.
-  [[ "$output" == *"init="* ]]
+@test "C4: loa_overlay_init returns 1 when target absent AND regen fails (BB-iter-2 F4)" {
+  # Per BB iter-2 F4: the test must be deterministic. We construct a setup
+  # where (a) the merged file is at a path that cannot exist (parent dir
+  # is itself absent) AND (b) the hook regen would also fail because the
+  # 3-leg gate engages a fixture path. Since we control the gate-engaged
+  # path AND it's guaranteed-nonexistent, the contract is unambiguous:
+  # init returns 1.
+  local nonexistent_dir="$WORK/nonexistent-parent-$$"
+  local target="$nonexistent_dir/will-never-exist.sh"
+  local lockfile="$target.lock"
+  # Don't create $nonexistent_dir; the hook tries to mkdir it then write,
+  # which succeeds — so we ALSO need to make the parent path unwriteable.
+  # Simpler: use a path on a read-only file (the helper attempts mkdir
+  # then bails). Use chattr +i isn't portable; just create a regular file
+  # and try to write a child under it.
+  printf 'not a directory\n' > "$nonexistent_dir"
+  export LOA_OVERLAY_MERGED="$target"
+  export LOA_OVERLAY_LOCKFILE="$lockfile"
+  source "$HELPER"
+  run loa_overlay_init
+  [ "$status" -eq 1 ]
 }
 
 @test "C5: loa_overlay_init refuses to source content failing bash syntax check" {
@@ -469,8 +471,11 @@ EOF
 
 @test "I1 (CYP-F1): partial gate (TEST_MODE=1 only) does NOT honor LOA_OVERLAY_MERGED override" {
   # When LOA_OVERLAY_HELPER_TEST_MODE=1 is set BUT BATS_VERSION /
-  # PYTEST_CURRENT_TEST aren't, the override must be IGNORED. We probe
-  # this in a sub-bash that strips both runner markers.
+  # PYTEST_CURRENT_TEST aren't, the override must be IGNORED and the
+  # helper must resolve to the DEFAULT repo path. Per BB iter-2 F3:
+  # we explicitly assert the default path shape (ends in
+  # .run/merged-model-aliases.sh) rather than just != $MERGED, so a
+  # bug that leaves _OVERLAY_HELPER_MERGED unset would fail loudly.
   _fixture_merged 1
   run env -i \
     LOA_OVERLAY_HELPER_TEST_MODE=1 \
@@ -478,14 +483,19 @@ EOF
     PATH="/usr/bin:/bin" \
     HOME="$HOME" \
     bash -c '
+      set -u
       source '"$HELPER"'
-      # The override should NOT have applied; helper resolved to the default
-      # repo path. We assert the helper is NOT pointing at our test fixture.
-      if [[ "$_OVERLAY_HELPER_MERGED" == "'"$MERGED"'" ]]; then
-          echo "OVERRIDE LEAKED" >&2
+      # The override must NOT apply. We assert the resolved path is
+      # the default (ends in .run/merged-model-aliases.sh) AND that it
+      # is set (set -u catches unset).
+      if [[ "$_OVERLAY_HELPER_MERGED" != *"/.run/merged-model-aliases.sh" ]]; then
+          echo "EXPECTED default path, got: $_OVERLAY_HELPER_MERGED" >&2
           exit 2
       fi
-      echo "OVERRIDE GATED OFF" >&2
+      if [[ "$_OVERLAY_HELPER_MERGED" == "'"$MERGED"'" ]]; then
+          echo "OVERRIDE LEAKED through gate" >&2
+          exit 3
+      fi
     '
   [ "$status" -eq 0 ]
 }
