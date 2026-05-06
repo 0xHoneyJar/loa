@@ -16,19 +16,30 @@
 # resolver bug or fixture bug. Sprint 2D's central deliverable is keeping
 # these in lock-step.
 #
-# Test surface (P1-P12 + spec compliance per stage):
-#   P1  — both runners exit 0 against full corpus
-#   P2  — line counts match (same number of resolution results)
-#   P3  — every line is canonical JSON (sorted keys, no whitespace)
-#   P4  — every line conforms to model-resolver-output.schema.json
-#   P5  — byte-equal output across runtimes
-#   P6  — sort order is stable across runtimes
-#   P7  — fixture 02 (explicit pin) — both runners produce stage1 hit
-#   P8  — fixture 03 (TIER-NO-MAPPING) — both runners produce error block
-#   P9  — fixture 04 (legacy shape) — both runners produce stage4 hit
-#   P10 — fixture 09 (prefer_pro overlay) — both runners produce stage6 applied
-#   P11 — fixture 10 (extra+override collision) — both runners produce error
-#   P12 — fixture 12 (degraded mode) — both runners produce stage5 with degraded source
+# Test surface (P1-P22):
+#   P1   — both runners exit 0 against full corpus
+#   P2   — line counts match (same number of resolution results)
+#   P3   — every line is canonical JSON (sorted keys, no whitespace)
+#   P4   — every line conforms to model-resolver-output.schema.json
+#   P5   — byte-equal output across runtimes
+#   P6   — sort order is stable across runtimes
+#   P7   — fixture 02 (explicit pin) — both runners produce stage1 hit
+#   P8   — fixture 03 (TIER-NO-MAPPING) — both runners produce error block
+#   P9   — fixture 04 (legacy shape) — both runners produce stage4 hit
+#   P10  — fixture 09 (prefer_pro overlay) — both runners produce stage6 applied
+#   P11  — fixture 10 (extra+override collision) — both runners produce error
+#   P12  — fixture 12 (degraded mode) — both runners produce stage5 with degraded source
+#   P13  — IMP-007 alias-collides-with-tier → tier-tag wins; collision flagged
+#   P14  — FR-3.4 stage 6 prefer_pro gated for legacy shapes (default opt-out)
+#   P15  — string-form aliases (cycle-095 back-compat shape) parse identically
+#   P16  — input control byte (cypherpunk HIGH-2) → uniform rejection
+#   P16b — _has_ctrl_byte defense-in-depth: Python rejects via direct call
+#   P17  — per-skill respect_prefer_pro=true (gp HIGH-1) → S6 retargets legacy
+#   P18  — top-level respect_prefer_pro=true (gp HIGH-1) silently ignored
+#   P19  — stage 6 no_alias_to_overlay (S1 explicit-pin path with prefer_pro)
+#   P20  — stage 6 no_pro_variant_for_alias (alias has no *-pro sibling)
+#   P21  — string-form alias in model_aliases_extra (gp HIGH-3) — both runners normalize
+#   P22  — mixed-type YAML keys (cypherpunk HIGH-1) — both runners stringify uniformly
 # =============================================================================
 
 setup() {

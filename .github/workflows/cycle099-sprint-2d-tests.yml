@@ -150,12 +150,21 @@ jobs:
           ok_ratio = ok_count / total if total else 0
           print(f'Production smoke: {ok_count}/{total} resolved ({ok_ratio:.0%}); {err_count} advisory.')
 
-          # Regression gate: at least 80% of declared agents must resolve.
-          # Today's baseline is ~21/21 (100%); 80% gives some headroom for
-          # legitimate operator-required skills without admitting a wholesale
-          # resolver regression.
-          MIN_OK_RATIO = 0.80
-          if ok_ratio < MIN_OK_RATIO:
-              print(f'::error::production-smoke regression: {ok_count}/{total} ({ok_ratio:.0%}) below threshold {MIN_OK_RATIO:.0%}')
+          # Regression gate: 100% of declared agents must resolve, OR the
+          # non-resolvers must be on the explicit allowlist below. BB iter-1
+          # F3 fix: pre-fix 80% threshold permitted up to 4 silent regressions
+          # against today's 21/21 baseline. Tighter gate is: track the exact
+          # set of legitimate non-resolvers (none today); any new non-resolver
+          # is a regression that must be acknowledged via PR-level allowlist
+          # update.
+          ALLOWED_NON_RESOLVERS = set()  # Today's baseline: 0 non-resolvers.
+          unexpected_failures = []
+          for skill_name in sorted(agents.keys()):
+              result = mr.resolve(merged, skill_name, 'primary')
+              if 'error' in result and skill_name not in ALLOWED_NON_RESOLVERS:
+                  unexpected_failures.append(skill_name)
+          if unexpected_failures:
+              print(f'::error::production-smoke regression: skills now failing to resolve that previously resolved: {unexpected_failures}')
+              print(f'::error::if any are legitimately operator-required, add them to ALLOWED_NON_RESOLVERS in this workflow.')
               sys.exit(1)
           PY

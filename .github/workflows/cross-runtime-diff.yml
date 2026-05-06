@@ -86,10 +86,16 @@ jobs:
           fi
           echo "OK — bash == python (byte-equal, $(wc -l < bash-out.jsonl) lines)"
           echo ""
+          # TODO(cycle-099-sprint-2D.c): restore TS runner to the byte-equality
+          # gate when the TS port via Python+Jinja2 codegen lands. Until then,
+          # TS divergence from Python+bash on the FR-3.9 6-stage shape is
+          # invisible to this workflow; the TS runner is independently
+          # exercised by .github/workflows/bun-runner.yml against the Sprint 1D
+          # `sprint_1d_query.alias` subset (which does NOT cover stages 3-6).
           echo "Note: TS runner gate deferred until cycle-099 Sprint 2D.c (T2.6 TS"
           echo "port via Python+Jinja2 codegen). The TS runner is exercised"
           echo "independently by .github/workflows/bun-runner.yml against the"
-          echo "Sprint 1D \`sprint_1d_query.alias\` subset."
+          echo "Sprint 1D \`sprint_1d_query.alias\` subset (does NOT cover stages 3-6)."
 
       - name: Verify output matches committed golden file
         run: |
