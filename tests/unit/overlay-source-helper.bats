@@ -178,27 +178,32 @@ EOF
   [ "$LOA_OVERLAY_FINGERPRINT" = "abc123def456" ]
 }
 
-@test "C4: loa_overlay_init returns 1 when target absent AND regen fails (BB-iter-2 F4)" {
-  # Per BB iter-2 F4: the test must be deterministic. We construct a setup
-  # where (a) the merged file is at a path that cannot exist (parent dir
-  # is itself absent) AND (b) the hook regen would also fail because the
-  # 3-leg gate engages a fixture path. Since we control the gate-engaged
-  # path AND it's guaranteed-nonexistent, the contract is unambiguous:
-  # init returns 1.
-  local nonexistent_dir="$WORK/nonexistent-parent-$$"
-  local target="$nonexistent_dir/will-never-exist.sh"
+@test "C4: loa_overlay_init returns 1 when target absent AND regen fails (BB-iter-2 F4 + iter-3 F1)" {
+  # Per BB iter-2 F4 + iter-3 F1: the test must be deterministic AND the
+  # failure surface must be unambiguous.
+  #
+  # We use a parent directory with mode 0000 (no perms) — the hook's
+  # _atomic_write_text calls target_dir.mkdir(parents=True, exist_ok=True),
+  # which succeeds (parent exists), but then os.open() of the tempfile
+  # under it fails with EACCES. The hook catches OSError, emits
+  # [MERGED-ALIASES-WRITE-FAILED], exits 78. The helper sees a non-zero
+  # rc from the hook + still-missing merged file, returns 1.
+  #
+  # This is unambiguous: the only failure path is "parent dir unwritable".
+  # No platform-dependent ENOTDIR semantics; no behavior dependence on
+  # whether the helper's mkdir+open pair is atomic.
+  local readonly_dir="$WORK/readonly-parent"
+  mkdir -p "$readonly_dir"
+  chmod 0500 "$readonly_dir"   # readable + executable, but NOT writable
+  local target="$readonly_dir/will-never-be-created.sh"
   local lockfile="$target.lock"
-  # Don't create $nonexistent_dir; the hook tries to mkdir it then write,
-  # which succeeds — so we ALSO need to make the parent path unwriteable.
-  # Simpler: use a path on a read-only file (the helper attempts mkdir
-  # then bails). Use chattr +i isn't portable; just create a regular file
-  # and try to write a child under it.
-  printf 'not a directory\n' > "$nonexistent_dir"
   export LOA_OVERLAY_MERGED="$target"
   export LOA_OVERLAY_LOCKFILE="$lockfile"
   source "$HELPER"
   run loa_overlay_init
   [ "$status" -eq 1 ]
+  # Cleanup: restore writable permissions so teardown can rmdir
+  chmod 0700 "$readonly_dir"
 }
 
 @test "C5: loa_overlay_init refuses to source content failing bash syntax check" {
@@ -579,8 +584,20 @@ EOF
   _fixture_merged 1
   source "$HELPER"
   loa_overlay_init
-  # Aliases with newlines, semicolons, brackets must be rejected
-  for hostile in $'foo\nbar' "a;b" "[bracket]" "../traversal" "" "with space"; do
+  # Aliases with newlines, semicolons, brackets must be rejected.
+  # Per BB iter-3 F4: use an array so embedded newlines (default IFS
+  # would split $'foo\nbar' on the \n) are preserved.
+  local hostile_inputs=(
+    $'foo\nbar'
+    "a;b"
+    "[bracket]"
+    "../traversal"
+    ""
+    "with space"
+    $'tab\there'
+    $'cr\rhere'
+  )
+  for hostile in "${hostile_inputs[@]}"; do
     run loa_overlay_resolve_provider_id "$hostile"
     [ "$status" -eq 1 ]
   done
