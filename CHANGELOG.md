@@ -7,6 +7,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.130.0] — 2026-05-06 — Model-registry consolidation, agent-network audit infrastructure, subscription-auth headless adapters
+
+This is a **named milestone release** that bundles 41 incremental tags (v1.110.0 → v1.129.1) into one operator-facing version. Three architectural shifts ship together:
+
+1. **Cycle-099 — model-registry consolidation** (most operator-visible). `.claude/defaults/model-config.yaml` plus `.loa.config.yaml::{model_aliases_extra, skill_models, tier_groups}` becomes the **only authoritative model registry** in the framework. A new FR-3.9 6-stage deterministic resolver replaces ad-hoc lookups across cheval, bridgebuilder, red-team, and persona adapters. Three runtimes (Python canonical + bash twin + TypeScript via codegen) produce **byte-equal canonical-JSON output** on every PR — the cross-runtime-diff CI gate fails any divergence. Operators now have a single config surface for model selection across the framework.
+2. **Cycle-098 — agent-network audit infrastructure**. New L1-L7 audit envelope (hash-chain + Ed25519 signatures), L2 cost-budget enforcer with reconciliation cron, L3 scheduled-cycle template (5-phase chassis: reader → decider → dispatcher → awaiter → logger), signed-mode harness, and audit-snapshot strict-pin verification.
+3. **Subscription-auth cheval transport**. Three new headless adapters (`codex-headless`, `gemini-headless`, `claude-headless`) route cheval calls through CLI subprocesses against the operator's ChatGPT / Google AI / Claude Max subscription quota — no API-key consumption.
+
+**Migration guide**: see `docs/migration/v1.130-cycle-099-model-registry.md` for operator-facing changes. Pre-cycle-099 alias config (legacy `aliases:` block) continues to work via stage 4 of the resolver with a deprecation-warn fallback.
+
+**Architecture Decision Record**: see `docs/architecture/ADR-001-cycle-099-model-registry.md` for the design rationale (why FR-3.9, why Python canonical + bash twin + TS codegen, why 3-way parity gate).
+
+### Added — Cycle-099 Model-Registry Consolidation (Sprint 1 + Sprint 2A through 2D.c)
+
+- **FR-3.9 6-stage deterministic resolver** ([#722](https://github.com/0xHoneyJar/loa/pull/722) → [#741](https://github.com/0xHoneyJar/loa/pull/741)). Stages: S1 explicit `provider:model_id` pin → S2 `skill_models` tag-or-alias → S3 `tier_groups.mappings` lookup → S4 legacy shape (with FR-3.7 deprecation warning) → S5 framework default `agents.<skill>` → S6 `prefer_pro_models` overlay (FR-3.4 gated for legacy shapes). Pure-function `resolve(merged_config, skill, role) → ResolutionResult`. JSON Schema for output at `.claude/data/trajectory-schemas/model-resolver-output.schema.json` (Draft 2020-12, discriminated `oneOf` for resolution-level vs fixture-level errors).
+- **Operator-extension config surface** ([#737](https://github.com/0xHoneyJar/loa/pull/737)). New `.loa.config.yaml::model_aliases_extra` block (operators add custom models without forking framework defaults) + JSON Schema validator at `.claude/scripts/lib/validate-model-aliases-extra.{py,sh}`. Per-skill granularity via `skill_models.<skill>.<role>: <provider:model_id> | <tier-tag> | <alias>`. Tier-group declarations via `tier_groups.mappings.<tier>.<provider>: <alias>` for operator-defined max/cheap/mid/tiny axes. Forbids `auth` field per NFR-Sec-5 (operators reuse provider's existing credential env var). Permissions baseline opt-in via `acknowledge_permissions_baseline: true` per FR-1.4.
+- **Runtime overlay infrastructure** ([#738](https://github.com/0xHoneyJar/loa/pull/738), [#739](https://github.com/0xHoneyJar/loa/pull/739)). Python startup hook (`model-overlay-hook.py`) atomically writes `.run/merged-model-aliases.sh` with shared-then-exclusive flock, SHA256 cache invalidation, monotonic version header, `shlex.quote()` shell-escape, NFS detection blocklist, degraded read-only fallback (NFR-Op-6). Bash adapter sources the overlay file with version-mismatch detection.
+- **Cross-runtime parity infrastructure** ([#735](https://github.com/0xHoneyJar/loa/pull/735), [#741](https://github.com/0xHoneyJar/loa/pull/741)). 12-fixture golden test corpus (12 SDD §7.6.3 scenarios) + 3 byte-equal runners (bash, Python, TypeScript) parsing the same source-of-truth. **3-way cross-runtime-diff CI gate** enforces Python ↔ bash ↔ TS byte-equality on every PR; any divergence blocks merge. TypeScript port generated from canonical Python via Jinja2 codegen (`emit_model_resolver_ts`) with `--check` drift gate + source-hash cross-check.
+- **Centralized endpoint validator** ([#728](https://github.com/0xHoneyJar/loa/pull/728) → [#734](https://github.com/0xHoneyJar/loa/pull/734)). Python canonical + bash wrapper + TS port for SSRF defense. Runtime DNS-rebinding defense via `LockedIP` dataclass (resolve-once + verify-each-redirect, Happy Eyeballs aware). Per-caller allowlists tree-restricted by `realpath`. CDN-CIDR exemptions per SDD §1.9. All 15 production HTTP caller paths funneled through wrapper or explicitly exempt with hardened defaults. Strict CI scanner (`tools/check-no-raw-curl.sh`) blocks future raw curl/wget bypasses.
+- **Codegen reproducibility infrastructure** ([#724](https://github.com/0xHoneyJar/loa/pull/724)). Cross-platform matrix CI (`ubuntu-latest` + `macos-latest`) for codegen drift gate with platform-aware SHA256-pinned yq. Toolchain runbook at `grimoires/loa/runbooks/codegen-toolchain.md`. Verification script `tools/check-codegen-toolchain.sh`.
+- **Schema migration tooling** ([#728](https://github.com/0xHoneyJar/loa/pull/728)). `loa-migrate-model-config.py` CLI for v1 → v2 schema migration with strict JSON Schema validation. Log-redactor (Python canonical + bash twin) for URL userinfo + 6 query-param secret patterns.
+
+### Added — Cycle-098 Agent-Network Audit Infrastructure
+
+- **L1 HITL Jury Panel primitive** ([#693](https://github.com/0xHoneyJar/loa/pull/693)). 3-panelist deterministic-seed jury convening with binding-view selection, full reasoning audit trail, hash-chain envelope at `.claude/data/trajectory-schemas/agent-network-envelope.schema.json` (v1.1.0). Ed25519 signatures with trust-store cutoff for downgrade-attack defense (`[STRIP-ATTACK-DETECTED]`).
+- **L2 Cost-Budget Enforcer** ([#705](https://github.com/0xHoneyJar/loa/pull/705)). Daily token cap with fail-closed semantics under uncertainty (billing-API primary + internal counter fallback + periodic reconciliation cron). 92 tests across severity-first verdict ordering, per-event-type schema registry, signed-mode `.sig` sidecar verification on recovery.
+- **L3 Scheduled-Cycle Template** ([#712](https://github.com/0xHoneyJar/loa/pull/712)). Generic 5-phase autonomous-cycle chassis (reader → decider → dispatcher → awaiter → logger) wrapped in flock + content-addressed idempotency + optional L2 budget gate. `.claude/scripts/lib/scheduled-cycle-lib.sh` library with phase-path allowlist, env-var passthrough whitelist, timeout caps. Closes 3 CRITICALs caught pre-merge: idempotency forgery, path-RCE, lock-symlink. Reference at `.claude/skills/scheduled-cycle-template/`.
+- **Signed-mode harness for L1+L2+L3** ([#716](https://github.com/0xHoneyJar/loa/pull/716)). Test harness validates Ed25519 signature presence + trust-store cutoff + downgrade-attack rejection across all three primitives. Closes [#706](https://github.com/0xHoneyJar/loa/issues/706) + [#713](https://github.com/0xHoneyJar/loa/issues/713).
+- **BB LOW-batch hardening** ([#717](https://github.com/0xHoneyJar/loa/pull/717)). Observer allowlist + audit-snapshot strict-pin + chain-valid fixture helper.
+- **`gpt-review` hook recursion fix + 429 diagnostic surfacing** ([#718](https://github.com/0xHoneyJar/loa/pull/718)). Closes [#711](https://github.com/0xHoneyJar/loa/issues/711).
+
+### Added — Subscription-Auth Cheval Headless Adapters
+
+- **`codex-headless` adapter** ([#727](https://github.com/0xHoneyJar/loa/pull/727)). Routes cheval calls through `codex exec` (OpenAI Codex CLI) instead of HTTP API. Bills against ChatGPT subscription quota; auths via `~/.codex/auth.json` (no `OPENAI_API_KEY` consumed). Reasoning-effort threading (`low | medium | high | xhigh`). Always-on read-only sandbox: `--ephemeral --sandbox read-only --ignore-user-config --skip-git-repo-check`. Forward-compat JSONL parser silently skips unknown event types. 31 unit tests.
+- **`gemini-headless` adapter** ([#727](https://github.com/0xHoneyJar/loa/pull/727)). Routes cheval calls through `gemini -p` (Google Gemini CLI). Bills against personal Google account free quota (60 RPM / 1000 RPD) or Gemini Advanced subscription. Auths via `~/.gemini/settings.json` or env vars. Always-on read-only sandbox: `--approval-mode plan --skip-trust`. Structured JSON output parsing with stats-key fallback. 25 unit tests.
+- **`claude-headless` adapter** ([#727](https://github.com/0xHoneyJar/loa/pull/727)). Routes cheval calls through `claude -p` (Claude Code CLI). Bills against Claude Max / Pro / Team subscription quota. Auths via Claude Code's OAuth-managed credential store. Always-on hermetic posture: `--permission-mode plan --no-session-persistence --tools ""`. **CRITICAL: never passes `--bare`** (which would force `ANTHROPIC_API_KEY` and defeat the subscription-auth purpose) — test suite asserts its absence. Effort threading (`low | medium | high | xhigh | max`). Cache-token metadata threading. 33 unit tests.
+
+### Changed
+
+- **Cycle-095 model currency** (Sprints 1+2 in this release; Sprint 3 deferred to post-soak). gpt-5.5 family reachable through cheval; `reviewer` and `reasoning` aliases default to `openai:gpt-5.5` (cost-safe non-pro); `tiny` tier alias added for Haiku 4.5; `fast-thinker` agent binding upgraded to Gemini 3 fast variant with probe-driven fallback chain. **Backward compatibility**: `gpt-5.3-codex` immutable self-map preserved (operators pinning the legacy ID continue resolving to that exact model — NOT silently retargeted). Operator-side rollback via `LOA_FORCE_LEGACY_ALIASES=1`.
+- **Bridgebuilder model registry codegen** ([#722](https://github.com/0xHoneyJar/loa/pull/722)). `gen-bb-registry.ts` emits `truncation.generated.ts` + `config.generated.ts` from canonical `.claude/defaults/model-config.yaml`. Drift gate (`gen-bb-registry:check`) blocks PR merge on stale codegen.
+- **Adapter migrations** ([#723](https://github.com/0xHoneyJar/loa/pull/723)). `model-resolver.sh` library exposes `resolve_alias` + `resolve_provider_id`. `red-team-model-adapter.sh`, `red-team-code-vs-design.sh`, `model-adapter.sh` all source the resolver instead of maintaining local associative arrays. Lockfile (`model-config.yaml.checksum`) verified by drift gate.
+
+### Fixed
+
+- **Large-payload model-adapter hardening** ([#677](https://github.com/0xHoneyJar/loa/pull/677), sprint-bug-131). 128KB Linux / 256KB macOS curl `MAX_ARG_STRLEN` argv-length crash on large prompts; mitigation via `--data @-` stdin path.
+- **README ↔ `.loa-version.json` drift prevention** ([#685](https://github.com/0xHoneyJar/loa/pull/685), [#686](https://github.com/0xHoneyJar/loa/pull/686)). `sync-readme-version.sh` + CI guard.
+- **Post-merge pipeline GT regen + CHANGELOG cross-scope leak** ([#699](https://github.com/0xHoneyJar/loa/pull/699)). Closes [#697](https://github.com/0xHoneyJar/loa/issues/697).
+- **TIER-1 fix bundle** ([#700](https://github.com/0xHoneyJar/loa/pull/700)). Closes [#674](https://github.com/0xHoneyJar/loa/issues/674) + [#633](https://github.com/0xHoneyJar/loa/issues/633) + [#676](https://github.com/0xHoneyJar/loa/issues/676) ([#634](https://github.com/0xHoneyJar/loa/issues/634) already-fixed).
+- **TIER-2/3 hardening bundle** ([#703](https://github.com/0xHoneyJar/loa/pull/703)). Closes [#636](https://github.com/0xHoneyJar/loa/issues/636) + [#681](https://github.com/0xHoneyJar/loa/issues/681) + [#687](https://github.com/0xHoneyJar/loa/issues/687) + [#691](https://github.com/0xHoneyJar/loa/issues/691) + [#692](https://github.com/0xHoneyJar/loa/issues/692).
+- **Cycle-098 sprint-1.5 hardening** ([#698](https://github.com/0xHoneyJar/loa/pull/698)). Closes [#689](https://github.com/0xHoneyJar/loa/issues/689) + [#690](https://github.com/0xHoneyJar/loa/issues/690) + [#695](https://github.com/0xHoneyJar/loa/issues/695).
+
+### Security
+
+- **15 production HTTP caller paths** now route through the centralized endpoint validator (cycle-099 sprint-1E). DNS rebinding + redirect cross-host + IPv6 zone-id + percent-encoded-dot homograph + obfuscated IPv4 + URL parser-confusion (between Python `urllib.parse` and TS native URL constructor) — all defended at the validator layer.
+- **L1-L7 audit envelope** with Ed25519 signatures + trust-store cutoff + downgrade-attack rejection per cycle-098.
+- **`auth` field forbidden** on `model_aliases_extra` entries per NFR-Sec-5 (operators reuse provider's existing credential env var).
+- **System Zone write protection** (`team-role-guard-write.sh` PreToolUse hook) blocks teammate writes to framework files; lead-only ops in Agent Teams mode.
+- **CI tag pinning** — all GitHub Actions pinned to commit SHA (no `@v4` / `@main`). `npm ci --ignore-scripts` defense against preinstall RCE.
+
+### Deprecated
+
+- **Legacy alias resolution** (cycle-095 `aliases:` block at `.loa.config.yaml` root). Continues to work via FR-3.9 stage 4 with a `[LEGACY-SHAPE-DEPRECATED]` warning emitted on every resolution. Migration to `model_aliases_extra` + `skill_models` + `tier_groups` recommended; see `docs/migration/v1.130-cycle-099-model-registry.md`.
+
+### Tag-level inventory
+
+This rollup spans 41 release tags. Most are auto-generated by the post-merge pipeline (one tag per merged PR). Per-tag inventory available via `git tag --sort=v:refname` between `v1.110.0` and `v1.129.1`. Authoritative per-tag detail at https://github.com/0xHoneyJar/loa/releases.
+
 ### Added
 
 - **codex-headless provider adapter** — routes cheval calls through the OpenAI Codex CLI (`codex exec`) instead of the OpenAI HTTP API, so bridgebuilder / spiraling / flatline-review can draw against a ChatGPT subscription quota instead of the `OPENAI_API_KEY` balance. New file `loa_cheval/providers/codex_headless_adapter.py` registered as `type: codex-headless` in `loa_cheval/providers/__init__.py`. Auths via `~/.codex/auth.json` (populated by `codex login` once); no `auth` field required on `ProviderConfig`. Model selection is still `provider:model_id` form (e.g., `codex-headless:gpt-5.5`) — same gpt-5.x line, different transport.
@@ -134,22 +202,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **94 new BATS tests** across 5 files (`tests/unit/construct-{validate,compose,invoke}.bats`, `tests/unit/stream-validate.bats`, `tests/unit/butterfreezone-construct-gen.bats`) plus 1 opt-in characterization test (`LOA_TEST_DOCUMENT_RACE=1`). Covers happy paths, failure modes, JSON output shape, idempotency, race-resistance under explicit session_id passing.
   - **Six-iteration kaironic Bridgebuilder review** drove three rounds of hardening: tool-skip guards, strict assertions over permissive escapes, end-to-end schema dogfooding, race-condition mitigation with explicit value-passing as the recommended path. Final iter clean modulo the residual race tracked in [#636](https://github.com/0xHoneyJar/loa/issues/636).
 
-## [1.129.0] — 2026-05-06 — Cycle-099 — model-registry consolidation (Sprint 1 + Sprint 2A through 2D.c)
+## [1.129.0] — 2026-05-06 — auto-tag (cycle-099 Sprint 2D.c TS port via codegen)
 
-Cycle-099 lands the FR-3.9 6-stage canonical model resolver across all 3 runtimes (Python canonical + bash twin + TS via Python+Jinja2 codegen) with end-to-end runtime overlay. Backfill of intermediate releases v1.110.0 through v1.128.0 deferred — see GitHub Releases for per-tag detail.
+Auto-generated tag from post-merge pipeline. Content rolled into the [1.130.0] named release above. See [PR #741](https://github.com/0xHoneyJar/loa/pull/741) for details.
 
-### Added
+## [1.110.0] — [1.128.0] — auto-tagged intermediate releases
 
-- **Cycle-099 Sprint 1** ([PRs #722](https://github.com/0xHoneyJar/loa/pull/722)–[#735](https://github.com/0xHoneyJar/loa/pull/735)) — model-registry consolidation foundation. Bridgebuilder codegen (T1.1+T1.2), adapter migrations + drift gate + lockfile (T1.3-T1.10), codegen reproducibility matrix CI + toolchain runbook (T1.7+T1.9), log-redactor + migrate-model-config CLI (T1.13+T1.14), centralized endpoint-validator across Python+bash+TS with cross-runtime parity gate + DNS-rebinding defense + 15 production caller paths funneling through wrapper or explicitly exempt (T1.15), cross-runtime golden test corpus + 3 byte-equal runners (T1.11+T1.12).
-- **Cycle-099 Sprint 2A** ([PR #737](https://github.com/0xHoneyJar/loa/pull/737)) — JSON Schema for `model_aliases_extra` + standalone validator helper (T2.1).
-- **Cycle-099 Sprint 2B** ([PR #738](https://github.com/0xHoneyJar/loa/pull/738)) — Python startup hook + `.run/merged-model-aliases.sh` writer with atomic-write + flock + SHA256 cache invalidation + degraded read-only fallback (T2.3+T2.4).
-- **Cycle-099 Sprint 2C** ([PR #739](https://github.com/0xHoneyJar/loa/pull/739)) — `model-adapter.sh` overlay integration completing Sprint 2 runtime overlay end-to-end (T2.5).
-- **Cycle-099 Sprint 2D.a+b** ([PR #740](https://github.com/0xHoneyJar/loa/pull/740)) — FR-3.9 6-stage canonical Python resolver + bash twin for parity verification + JSON Schema for resolver output (T2.6 partial).
-- **Cycle-099 Sprint 2D.c** ([PR #741](https://github.com/0xHoneyJar/loa/pull/741)) — TS port of FR-3.9 resolver via Python+Jinja2 codegen; restores 3-way Python ↔ bash ↔ TS byte-equality gate (T2.6 cont.).
-
-### Notes
-
-CHANGELOG backfill of intermediate v1.110.0 through v1.128.0 release entries deferred to a follow-up housekeeping PR. [GitHub Releases](https://github.com/0xHoneyJar/loa/releases) carry the authoritative per-tag detail.
+Forty-one auto-generated tags spanning 2026-05-02 → 2026-05-06, content rolled into the [1.130.0] named release above. Authoritative per-tag detail at [GitHub Releases](https://github.com/0xHoneyJar/loa/releases).
 
 ## [1.109.4] — 2026-05-02 — Post-merge workflow scaffold on mount (sprint-bug-130)
 
