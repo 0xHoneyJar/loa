@@ -75,7 +75,11 @@ jobs:
         # Cypherpunk HIGH-6: workflow_dispatch with iterations=1 lets a
         # malicious actor manually trigger and claim "nightly stress
         # passed" with 1 case per invariant. Floor at 100 to enforce
-        # meaningful stress; cap at 100,000 to prevent DoS.
+        # meaningful stress.
+        # BB iter-1 F14: cap at 10,000 (was 100,000). At ~270ms/iter ×
+        # 7 invariants × 10K = ~315 min — still over 60-min timeout, but
+        # we trust the timeout gate to catch absurd configs while the
+        # cap blocks the more obvious DoS scenarios. 100K was decorative.
         run: |
           set -euo pipefail
           iter='${{ github.event.inputs.iterations || '1000' }}'
@@ -87,8 +91,8 @@ jobs:
               echo "::error::iterations floor=100 (got=$iter); nightly stress requires meaningful coverage"
               exit 1
           fi
-          if (( iter > 100000 )); then
-              echo "::error::iterations cap=100000 (got=$iter); higher values risk timeout"
+          if (( iter > 10000 )); then
+              echo "::error::iterations cap=10000 (got=$iter); higher values risk timeout"
               exit 1
           fi
 
