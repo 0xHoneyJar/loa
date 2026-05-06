@@ -907,30 +907,83 @@ EOF
 
 # ----- P25 TS prototype-poisoning regression -----
 
-@test "P25 TS prototype-poisoning skill names don't resolve via Object.prototype" {
+@test "P25 TS prototype-poisoning regression: skill, role, alias, tier args" {
     # cypherpunk CRIT-1 (sprint-1D): TS `key in obj` walked Object.prototype.
     # The generated TS uses `hasKey` (Object.prototype.hasOwnProperty.call)
     # + Object.create(null) for parsed maps. P25 pins this regression.
+    # gp MED-2 (sprint-2D.c review): widened to test ALL argument positions
+    # where prototype-walk could occur — role, alias names in skill_models,
+    # tier names — not just skill argument.
     [[ "$TS_AVAILABLE" == "1" ]] || skip "TS runner not available"
     cat > "$WORK_DIR/ts-proto.ts" <<EOF
 import { resolve } from "$GENERATED_TS";
-const protoSkills = ["toString", "constructor", "hasOwnProperty", "valueOf", "__proto__"];
-for (const skill of protoSkills) {
+const protoNames = ["toString", "constructor", "hasOwnProperty", "valueOf", "__proto__"];
+const baseFramework = {
+    providers: { anthropic: { models: { "claude-opus-4-7": { capabilities: ["chat"] } } } },
+    aliases: { opus: { provider: "anthropic", model_id: "claude-opus-4-7" } }
+};
+
+let failures = 0;
+
+// Test 1: prototype names as `skill` argument
+for (const skill of protoNames) {
+    const config = { schema_version: 2, framework_defaults: baseFramework, operator_config: {} };
+    const result = resolve(config, skill, "primary");
+    if (result.error?.code !== "[NO-RESOLUTION]") {
+        console.error("[skill arg] " + skill + " should NOT resolve; got " + JSON.stringify(result));
+        failures++;
+    }
+}
+
+// Test 2: prototype names as \`role\` argument
+for (const role of protoNames) {
+    const config = { schema_version: 2, framework_defaults: baseFramework, operator_config: {} };
+    const result = resolve(config, "flatline_protocol", role);
+    if (result.error?.code !== "[NO-RESOLUTION]") {
+        console.error("[role arg] " + role + " should NOT resolve; got " + JSON.stringify(result));
+        failures++;
+    }
+}
+
+// Test 3: prototype names as alias in skill_models — should fall through
+// (the alias lookup uses hasKey on framework_aliases / operator_extra)
+for (const alias of protoNames) {
+    const config = {
+        schema_version: 2,
+        framework_defaults: baseFramework,
+        operator_config: { skill_models: { flatline_protocol: { primary: alias } } }
+    };
+    const result = resolve(config, "flatline_protocol", "primary");
+    // Treated as unknown tier (cascades to S3 with [TIER-NO-MAPPING])
+    if (result.error?.code !== "[TIER-NO-MAPPING]") {
+        console.error("[alias arg] " + alias + " should produce [TIER-NO-MAPPING]; got " + JSON.stringify(result));
+        failures++;
+    }
+}
+
+// Test 4: prototype names as tier_groups.mappings KEY — should not match arbitrary tier
+for (const tierName of protoNames) {
     const config = {
         schema_version: 2,
         framework_defaults: {
-            providers: { anthropic: { models: { "claude-opus-4-7": { capabilities: ["chat"] } } } },
-            aliases: { opus: { provider: "anthropic", model_id: "claude-opus-4-7" } }
+            ...baseFramework,
+            tier_groups: { mappings: { max: { anthropic: "opus" } } }
         },
-        operator_config: {}
+        operator_config: { skill_models: { flatline_protocol: { primary: tierName } } }
     };
-    const result = resolve(config, skill, "primary");
-    if (result.error?.code !== "[NO-RESOLUTION]") {
-        console.error("prototype-skill " + skill + " should NOT resolve; got " + JSON.stringify(result));
-        process.exit(1);
+    const result = resolve(config, "flatline_protocol", "primary");
+    // Should not silently match max via prototype walk
+    if (result.error?.code !== "[TIER-NO-MAPPING]") {
+        console.error("[tier-key arg] " + tierName + " should produce [TIER-NO-MAPPING]; got " + JSON.stringify(result));
+        failures++;
     }
 }
-console.log("OK — prototype-skill names all defer to [NO-RESOLUTION]");
+
+if (failures > 0) {
+    console.error(failures + " prototype-poisoning regression failures");
+    process.exit(1);
+}
+console.log("OK — prototype names all rejected across skill/role/alias/tier-key positions");
 EOF
     (cd "$BB_SKILL_DIR" && node_modules/.bin/tsx "$WORK_DIR/ts-proto.ts") || {
         printf 'TS prototype-poisoning regression FAILED\n' >&2

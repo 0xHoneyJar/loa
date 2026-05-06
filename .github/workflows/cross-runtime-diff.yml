@@ -82,9 +82,13 @@ jobs:
         run: python tests/python/golden_resolution.py > python-out.jsonl
 
       - name: Run TS runner
+        # Cypherpunk LOW-3: invoke node_modules/.bin/tsx directly rather than
+        # `npx tsx`. Avoids the npx network-fallback risk if the local binary
+        # is somehow missing after `npm ci --ignore-scripts`. tsx is pinned
+        # via package-lock.json so the local binary is guaranteed present.
         run: |
           cd .claude/skills/bridgebuilder-review
-          npx tsx ../../../tests/typescript/golden_resolution.ts > ../../../typescript-out.jsonl
+          ./node_modules/.bin/tsx ../../../tests/typescript/golden_resolution.ts > ../../../typescript-out.jsonl
 
       - name: Verify 3-way byte-equality
         run: |
@@ -157,33 +161,4 @@ jobs:
           if errors:
               sys.exit(1)
           print('OK — all 3 runners conform to model-resolver-output.schema.json')
-          PY
-
-      - name: Validate output against JSON Schema
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import json, sys
-          from jsonschema import validate, ValidationError
-          with open('.claude/data/trajectory-schemas/model-resolver-output.schema.json') as fh:
-              schema = json.load(fh)
-          errors = 0
-          for runtime in ('bash', 'python'):
-              path = f'{runtime}-out.jsonl'
-              with open(path) as fh:
-                  for lineno, line in enumerate(fh, start=1):
-                      line = line.rstrip('\n')
-                      if not line:
-                          continue
-                      try:
-                          doc = json.loads(line)
-                          validate(doc, schema)
-                      except (json.JSONDecodeError, ValidationError) as exc:
-                          msg = exc.msg if hasattr(exc, 'msg') else exc.message
-                          print(f'::error::{runtime} line {lineno}: {msg}')
-                          print(f'  on: {line}')
-                          errors += 1
-          if errors:
-              sys.exit(1)
-          print('OK — both runners conform to model-resolver-output.schema.json')
           PY

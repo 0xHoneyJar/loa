@@ -46,12 +46,28 @@ def _load_canonical() -> tuple[Any, Path]:
     The file uses a dash in its name which Python can't import normally.
     Mirrors sprint-1E.c.1's CYP-F8 pattern: spec_from_file_location + register
     in sys.modules BEFORE exec_module.
+
+    Cypherpunk MED-1 (sprint-2D.c review): canonical_path is realpath-resolved
+    + verified as a regular file under the expected lib directory. A symlink
+    target outside the canonical tree would be rejected. Mirrors the cycle-098
+    L3 + cycle-099 sprint-2B CYP-F8 pattern (`grimoires/loa/runbooks/...` +
+    "ALWAYS use realpath + project-root containment").
     """
-    canonical_path = (
-        _project_root() / ".claude" / "scripts" / "lib" / "model-resolver.py"
-    )
+    expected_dir = (_project_root() / ".claude" / "scripts" / "lib").resolve()
+    canonical_path = expected_dir / "model-resolver.py"
+    if canonical_path.is_symlink():
+        raise RuntimeError(
+            f"canonical at {canonical_path} is a symlink — refuse to load "
+            f"(cypherpunk MED-1: tampered-canonical defense)"
+        )
     if not canonical_path.is_file():
         raise FileNotFoundError(f"canonical not found: {canonical_path}")
+    resolved = canonical_path.resolve()
+    if not resolved.is_relative_to(expected_dir):
+        raise RuntimeError(
+            f"canonical resolves to {resolved} which is outside expected dir "
+            f"{expected_dir}"
+        )
     module_name = "model_resolver_canonical"
     spec = importlib.util.spec_from_file_location(module_name, canonical_path)
     if spec is None or spec.loader is None:
@@ -95,8 +111,17 @@ def _build_context(canonical: Any, source_hash: str) -> dict[str, Any]:
     # Tier names — frozenset → sorted list for deterministic ordering
     tier_names = sorted(canonical.TIER_NAMES)
     # Control-byte regex pattern source — ensure JS-compatible
-    # Python's `\x00-\x08\x0B-\x1F` translates to the same regex char class in JS.
+    # Python's `\x00-\x08\x0B-\x1F` translates to the same regex char class
+    # in JS. The pattern is substituted RAW into a JS regex literal
+    # `/{{ ctrl_byte_pattern }}/`, so any unescaped `/` would corrupt the
+    # literal. gp MED-1 (sprint-2D.c review): assert no `/` to fail-fast at
+    # build time rather than ship a broken regex.
     ctrl_byte_pattern = canonical._CTRL_BYTE_RE.pattern
+    if "/" in ctrl_byte_pattern:
+        raise RuntimeError(
+            f"ctrl_byte_pattern contains `/` which would corrupt the JS "
+            f"regex literal in the template: {ctrl_byte_pattern!r}"
+        )
     return {
         "source_hash": source_hash,
         "generator_version": GENERATOR_VERSION,
@@ -107,24 +132,15 @@ def _build_context(canonical: Any, source_hash: str) -> dict[str, Any]:
     }
 
 
-def _ts_escape_cp(s: str) -> str:
-    """Emit a TS string literal escape for a single character (cypherpunk
-    MEDIUM-2 from sprint-1E.c.1 — non-BMP codepoint surrogate trap).
-
-    BMP (≤ U+FFFF):   `"\\u00ad"`        (4-digit form)
-    Non-BMP:           `"\\u{e0001}"`     (variable-length brace form, ES2015)
-    """
-    if not isinstance(s, str) or len(s) != 1:
-        import json
-        return json.dumps(s)
-    cp = ord(s)
-    if cp <= 0xFFFF:
-        return f'"\\u{cp:04x}"'
-    return f'"\\u{{{cp:x}}}"'
-
-
 def _render(context: dict[str, Any]) -> str:
-    """Render the Jinja2 template."""
+    """Render the Jinja2 template.
+
+    The sprint-1E.c.1 emit module registers `ord` + `ts_escape_cp` filters
+    for non-BMP codepoint escapes in control-byte arrays; this template
+    doesn't substitute any character literals (only string constants via
+    `tojson`), so those filters are not registered here. If a future
+    template-edit needs them, restore from sprint-1E.c.1's emit module.
+    """
     from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
     template_dir = _project_root() / ".claude" / "scripts" / "lib" / "codegen"
@@ -134,8 +150,6 @@ def _render(context: dict[str, Any]) -> str:
         undefined=StrictUndefined,
         autoescape=False,
     )
-    env.filters["ord"] = lambda s: ord(s) if isinstance(s, str) and len(s) == 1 else 0
-    env.filters["ts_escape_cp"] = _ts_escape_cp
     template = env.get_template("model-resolver.ts.j2")
     return template.render(**context)
 
@@ -191,11 +205,17 @@ def main(argv: list[str] | None = None) -> int:
             print("[BB-CODEGEN-FAILED] generated TS differs from committed", file=sys.stderr)
             print("  regenerate via: python3 -m loa_cheval.codegen.emit_model_resolver_ts > " + str(committed_path), file=sys.stderr)
             return 3
-        # Hash cross-check: catches tampered-canonical-with-matching-regen.
-        # A malicious contributor could edit the canonical AND regenerate the
-        # TS in lockstep — the hash would still be deterministic-from-canonical,
-        # but the explicit cross-check forces operator review of any canonical
-        # edit. Per sprint-1E.c.1 gp MEDIUM remediation.
+        # Hash cross-check: provides ONE additional signal beyond byte-diff —
+        # it catches the manual-edit-without-regenerate case (operator edits
+        # canonical in-place; committed TS still has the OLD hash; fresh hash
+        # of canonical differs).
+        #
+        # gp HIGH-2 (sprint-2D.c review) clarification: this check does NOT
+        # defend against a tampered-canonical-with-matching-regen scenario in
+        # the same PR — both files would be modified consistently and pass
+        # both byte-diff and hash check. The defense for THAT scenario is
+        # human review of the canonical change. The hash check is a
+        # consistency guard, not a tamper detector.
         import re as _re
         _, canonical_path = _load_canonical()
         fresh_hash = _hash_source(canonical_path)

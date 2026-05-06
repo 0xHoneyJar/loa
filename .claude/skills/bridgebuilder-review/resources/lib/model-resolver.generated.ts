@@ -5,7 +5,7 @@
 // .claude/scripts/lib/codegen/model-resolver.ts.j2 + the canonical
 // .claude/scripts/lib/model-resolver.py source.
 //
-// Source content hash: f8b3748959c453d2996307462ceec836c782dd987734482d5721353828427dbb
+// Source content hash: 2a426d2e9771c5b97c35409551e98c2151ad268d10b57fb040d70b14534bece1
 // Generator version:   1.0
 // Generated at:        (deterministic — wall-clock excluded)
 //
@@ -120,6 +120,28 @@ function hasCtrlByte(value: unknown): boolean {
 }
 
 /**
+ * Compare two strings by Unicode codepoint, not UTF-16 code unit.
+ * cypherpunk MED-2 (sprint-2D.c review): TS `Array.sort` and `<`/`>` operators
+ * compare strings as UTF-16 code units; Python `sorted()` and
+ * `json.dumps(sort_keys=True)` use Unicode codepoint order. For BMP
+ * characters these match; for supplementary-plane characters (U+10000+,
+ * surrogate pairs in UTF-16), they diverge. This comparator iterates via
+ * `Array.from(str)` (which yields Unicode codepoints, splitting surrogate
+ * pairs correctly) and compares codepoints directly. Matches Python.
+ */
+function codepointCompare(a: string, b: string): number {
+    const aArr = Array.from(a);
+    const bArr = Array.from(b);
+    const minLen = Math.min(aArr.length, bArr.length);
+    for (let i = 0; i < minLen; i++) {
+        const aCp = aArr[i].codePointAt(0)!;
+        const bCp = bArr[i].codePointAt(0)!;
+        if (aCp !== bCp) return aCp - bCp;
+    }
+    return aArr.length - bArr.length;
+}
+
+/**
  * Recursively sort dict keys (depth-first, all levels). Mirrors Python's
  * `_canonicalize_dict_keys` — input normalization invariant per SDD §1.5.1.
  * Non-string keys would already be string in JS (JSON keys are always
@@ -127,6 +149,8 @@ function hasCtrlByte(value: unknown): boolean {
  *
  * gp CRITICAL-1 (sprint-1D): manually-sorted top keys do NOT recurse into
  * nested objects — JSON.stringify needs an explicit recursive canonicalizer.
+ * cypherpunk MED-2 (sprint-2D.c): keys sorted via codepoint comparator,
+ * NOT default UTF-16 sort, to match Python.
  * Returns a new object/array; does not mutate input.
  */
 function canonicalizeRecursive(value: unknown): unknown {
@@ -135,7 +159,7 @@ function canonicalizeRecursive(value: unknown): unknown {
     }
     if (value !== null && typeof value === "object") {
         const out: Record<string, unknown> = Object.create(null);
-        const sortedKeys = Object.keys(value as Record<string, unknown>).sort();
+        const sortedKeys = Object.keys(value as Record<string, unknown>).sort(codepointCompare);
         for (const k of sortedKeys) {
             out[k] = canonicalizeRecursive((value as Record<string, unknown>)[k]);
         }
@@ -338,16 +362,22 @@ function stage3TierGroups(
     frameworkAliases: Record<string, unknown>,
     operatorExtra: Record<string, unknown>,
 ): StageHit {
+    // gp CRIT-2 (sprint-2D.c review): mirror Python's `or` truthy short-
+    // circuit. An operator mapping that exists but is empty `{}` is falsy
+    // in Python; the resolver falls through to the framework default.
+    // TS must replicate: an empty-dict-valued key counts as "no mapping".
     let mapping: Record<string, unknown> | null = null;
     if (hasKey(operatorTierMappings, tier)) {
         const v = operatorTierMappings[tier];
-        if (v !== null && typeof v === "object" && !Array.isArray(v)) {
+        if (v !== null && typeof v === "object" && !Array.isArray(v) &&
+            Object.keys(v as Record<string, unknown>).length > 0) {
             mapping = v as Record<string, unknown>;
         }
     }
     if (mapping === null && hasKey(frameworkTierMappings, tier)) {
         const v = frameworkTierMappings[tier];
-        if (v !== null && typeof v === "object" && !Array.isArray(v)) {
+        if (v !== null && typeof v === "object" && !Array.isArray(v) &&
+            Object.keys(v as Record<string, unknown>).length > 0) {
             mapping = v as Record<string, unknown>;
         }
     }
@@ -624,9 +654,18 @@ function stage6PreferPro(
  * `model_resolver.resolve` byte-for-byte on canonical-JSON output.
  */
 export function resolve(mergedConfig: MergedConfig, skill: string, role: string): ResolutionResult {
+    // gp CRIT-1 (sprint-2D.c review): canonicalize input BEFORE any helper
+    // sees it. Mirrors Python's `_canonicalize_dict_keys(merged_config)` at
+    // resolve() entry. Defense-in-depth — JSON.parse always gives string
+    // keys, but a programmatic caller could construct a non-string-keyed
+    // map; the recursive sort + Object.create(null) walk forecloses any
+    // iteration-order divergence with Python that V8 currently happens to
+    // mask.
+    const cfg = canonicalizeRecursive(mergedConfig) as MergedConfig;
+
     // Cypherpunk HIGH-2: reject inputs with C0 control bytes BEFORE any
     // helper sees them.
-    if (hasCtrlByte(mergedConfig)) {
+    if (hasCtrlByte(cfg)) {
         return {
             skill,
             role,
