@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "loa://schemas/overlay-state/v1.0.0",
+  "title": "Loa overlay-state.json (cycle-099 Sprint 2B)",
+  "description": "Persistent state file backing degraded-mode tracking and prolonged-degraded alarms for the cycle-099 model-overlay-hook. Schema per SDD §6.3.3. Read-time handlers initialize, rebuild after corruption, refuse future schema versions, and auto-migrate past versions. The file is written by `.claude/scripts/lib/model-overlay-hook.py` ONLY; no other writer.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "degraded_since", "cache_sha256", "reason", "last_updated", "state"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Bumped on breaking shape changes. Cycle-099 ships v1. Future-version reads (file's schema_version > runtime's max) MUST refuse to start with [OVERLAY-STATE-FUTURE-VERSION] (operator likely downgraded). Past-version reads MUST auto-migrate inline."
+    },
+    "degraded_since": {
+      "anyOf": [
+        { "type": "null" },
+        { "type": "string", "format": "date-time", "minLength": 20, "maxLength": 32 }
+      ],
+      "description": "ISO 8601 UTC timestamp when degraded mode began. NULL when healthy. Used by NFR-Op-7 prolonged-degraded alarms (1h WARN, 24h ERROR)."
+    },
+    "cache_sha256": {
+      "anyOf": [
+        { "type": "null" },
+        { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      ],
+      "description": "SHA256 hex digest of `.run/merged-model-aliases.sh` content seen at the time degraded mode began. NULL when healthy. Used to detect fleet split-brain across agents in degraded mode."
+    },
+    "reason": {
+      "anyOf": [
+        { "type": "null" },
+        { "type": "string", "minLength": 1, "maxLength": 256 }
+      ],
+      "description": "Human-readable reason for entering degraded mode (e.g., 'lock-timeout-shared', 'stale-lock-unrecoverable'). NULL when healthy."
+    },
+    "last_updated": {
+      "type": "string",
+      "format": "date-time",
+      "minLength": 20,
+      "maxLength": 32,
+      "description": "ISO 8601 UTC timestamp of the last write to this file."
+    },
+    "state": {
+      "type": "string",
+      "enum": ["fresh-init", "healthy", "degraded", "rebuilt-after-corruption"],
+      "description": "Semantic state for forensic clarity. fresh-init: file just initialized; healthy: lock acquired + cache valid; degraded: read-only fallback in effect; rebuilt-after-corruption: file was unparseable and was rebuilt (corrupt original preserved at .corrupt-<ts>)."
+    }
+  }
+}
