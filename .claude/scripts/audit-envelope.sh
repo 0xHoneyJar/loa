@@ -900,16 +900,40 @@ _audit_recover_from_git() {
     local log_path="$1"
     local git_dir
     git_dir="$(dirname "$log_path")"
-    local rel_path
-    rel_path="$(basename "$log_path")"
 
     if ! git -C "$git_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
         return 1
     fi
 
+    # Resolve the repo root + repo-relative path. The previous implementation
+    # used basename(log_path) which failed for logs in subdirectories
+    # (e.g., .run/trust-ledger.jsonl) because git pathspecs and `git show
+    # <commit>:<path>` are repo-rooted, not log-dir-rooted. cycle-098 sprint-4
+    # uncovered this when L4 began exercising audit_recover_chain via
+    # trust_recover_chain.
+    local repo_root abs_log rel_to_root
+    repo_root="$(git -C "$git_dir" rev-parse --show-toplevel 2>/dev/null || true)"
+    if [[ -z "$repo_root" ]]; then
+        return 1
+    fi
+    # Canonicalize the log path so realpath gives us a comparable string.
+    if command -v realpath >/dev/null 2>&1; then
+        abs_log="$(realpath "$log_path" 2>/dev/null || true)"
+    else
+        abs_log="$(cd "$git_dir" && pwd)/$(basename "$log_path")"
+    fi
+    if [[ -z "$abs_log" ]]; then
+        return 1
+    fi
+    rel_to_root="${abs_log#"$repo_root"/}"
+    if [[ "$rel_to_root" == "$abs_log" ]]; then
+        # Did not start with repo_root (defensive — should not happen)
+        return 1
+    fi
+
     # Walk commits newest-to-oldest.
     local commits
-    commits="$(git -C "$git_dir" log --pretty=format:%H -- "$rel_path" 2>/dev/null || true)"
+    commits="$(git -C "$repo_root" log --pretty=format:%H -- "$rel_to_root" 2>/dev/null || true)"
     if [[ -z "$commits" ]]; then
         return 1
     fi
@@ -918,7 +942,7 @@ _audit_recover_from_git() {
     while IFS= read -r commit; do
         [[ -z "$commit" ]] && continue
         local content
-        if ! content="$(git -C "$git_dir" show "${commit}:${rel_path}" 2>/dev/null)"; then
+        if ! content="$(git -C "$repo_root" show "${commit}:${rel_to_root}" 2>/dev/null)"; then
             continue
         fi
         if _audit_chain_validates_lines "$content"; then

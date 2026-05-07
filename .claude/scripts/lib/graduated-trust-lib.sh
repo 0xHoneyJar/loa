@@ -469,6 +469,10 @@ _l4_walk_ledger() {
                 end
               ),
               ts_utc: .ts_utc,
+              # Frozen cooldown_until from the auto_drop payload — preserves
+              # audit-immutability when operator config changes cooldown_seconds
+              # AFTER an override has been recorded. null for non-auto_drop events.
+              cooldown_until: (.payload.cooldown_until // null),
               decision_id: (.payload.decision_id // null),
               reason: (.payload.reason // "")
             }
@@ -526,12 +530,23 @@ for entry in history:
     ts_utc = entry.get("ts_utc")
     if to_tier:
         tier = to_tier
-    if ttype == "auto_drop" and ts_utc:
-        try:
-            t = parse_iso(ts_utc)
-            last_auto_drop_until = t + timedelta(seconds=cooldown_seconds)
-        except Exception:
-            pass
+    if ttype == "auto_drop":
+        # Audit-immutability: prefer the FROZEN cooldown_until from the event
+        # payload (captured at override-time per Sprint 4B). Fall back to
+        # ts_utc + current-config cooldown_seconds for legacy entries that
+        # might predate the frozen field.
+        frozen = entry.get("cooldown_until")
+        if frozen:
+            try:
+                last_auto_drop_until = parse_iso(frozen)
+            except Exception:
+                last_auto_drop_until = None
+        elif ts_utc:
+            try:
+                t = parse_iso(ts_utc)
+                last_auto_drop_until = t + timedelta(seconds=cooldown_seconds)
+            except Exception:
+                pass
     elif ttype == "force_grant":
         # force_grant clears the cooldown
         last_auto_drop_until = None
@@ -803,12 +818,6 @@ trust_grant() {
         return 2
     fi
 
-    if (( force == 1 )); then
-        # Sprint 4C wires the force path. Caller used --force prematurely.
-        _l4_log "trust_grant --force: not yet implemented (Sprint 4C will wire trust.force_grant)"
-        return 99
-    fi
-
     _l4_validate_token "$scope"      "scope"      || return 2
     _l4_validate_token "$capability" "capability" || return 2
     _l4_validate_token "$actor"      "actor"      || return 2
@@ -839,6 +848,14 @@ trust_grant() {
             _l4_log "trust_grant: actor='$actor' not found in OPERATORS.md"
             return 2
         }
+    fi
+
+    # FR-L4-8 force path (Sprint 4C): emits trust.force_grant with cooldown
+    # remaining at grant time recorded for the auditor.
+    if (( force == 1 )); then
+        _trust_force_grant_impl \
+            "$scope" "$capability" "$actor" "$new_tier" "$operator" "$reason"
+        return $?
     fi
 
     local ledger lock_file
@@ -1121,11 +1138,274 @@ trust_record_override() {
 }
 
 # -----------------------------------------------------------------------------
-# trust_verify_chain — TODO Sprint 4C.
+# _trust_force_grant_impl <scope> <capability> <actor> <new_tier> <operator> <reason>
+#
+# FR-L4-8: Force-grant in cooldown logged as exception with reason.
+#
+# Internal implementation invoked by `trust_grant --force`. Differences vs the
+# regular grant path:
+#   - Reason is REQUIRED (4096 max; same as regular path).
+#   - Cooldown remaining at grant-time captured into the payload (auditor
+#     evidence; 0 means cooldown had already elapsed when --force fired).
+#   - Routes via the protected-class taxonomy: caller is operator-bound
+#     (the protected-class-router classifies trust.force_grant as a
+#     protected operation per .claude/data/protected-classes.yaml).
+#   - Writes trust.force_grant event type (NOT trust.grant); ledger walker
+#     and resolver treat trust.force_grant as a transition that CLEARS the
+#     cooldown (per _l4_resolve_state semantics already shipped in 4A).
+#
+# Exit codes: same as trust_grant.
+# -----------------------------------------------------------------------------
+_trust_force_grant_impl() {
+    local scope="$1"
+    local capability="$2"
+    local actor="$3"
+    local new_tier="$4"
+    local operator="$5"
+    local reason="$6"
+
+    # Re-validation here is paranoid (trust_grant already validated). Cheap
+    # defense-in-depth for the case where this gets called directly.
+    _l4_validate_token "$scope"      "scope"      || return 2
+    _l4_validate_token "$capability" "capability" || return 2
+    _l4_validate_token "$actor"      "actor"      || return 2
+    _l4_validate_token "$operator"   "operator"   || return 2
+    _l4_validate_tier  "$new_tier"   "new_tier"   || return 2
+    if [[ -z "$reason" ]]; then
+        _l4_log "trust_grant --force: --reason is required (FR-L4-8)"
+        return 2
+    fi
+
+    local ledger lock_file
+    ledger="$(_l4_ledger_path)"
+    lock_file="$(_l4_txn_lock_path "$ledger")"
+    mkdir -p "$(dirname "$ledger")"
+    : > "$lock_file" 2>/dev/null || touch "$lock_file"
+
+    _audit_require_flock || return 1
+
+    local rc=0
+    {
+        flock -w 10 9 || {
+            _l4_log "trust_grant --force: failed to acquire txn lock on $lock_file"
+            return 1
+        }
+
+        if _l4_ledger_is_sealed "$ledger"; then
+            _l4_log "trust_grant --force: ledger is sealed [L4-DISABLED]"
+            return 1
+        fi
+
+        local response current_tier in_cooldown_until
+        response="$(trust_query "$scope" "$capability" "$actor")" || return 1
+        current_tier="$(echo "$response" | jq -r '.tier')"
+        in_cooldown_until="$(echo "$response" | jq -r '.in_cooldown_until')"
+        if [[ "$in_cooldown_until" == "null" || -z "$in_cooldown_until" ]]; then
+            in_cooldown_until=""
+        fi
+
+        # Compute cooldown_remaining_seconds_at_grant. 0 when cooldown has
+        # elapsed (operator chose to use --force redundantly — still legal,
+        # but auditor sees zero-remaining and can flag).
+        local now_iso now_epoch cooldown_until_epoch remaining=0
+        now_iso="$(_l4_now_iso8601)"
+        if [[ -n "$in_cooldown_until" ]]; then
+            now_epoch="$(_l4_iso_to_epoch_seconds "$now_iso")"
+            cooldown_until_epoch="$(_l4_iso_to_epoch_seconds "$in_cooldown_until")"
+            if (( cooldown_until_epoch > now_epoch )); then
+                remaining=$(( cooldown_until_epoch - now_epoch ))
+            fi
+        fi
+
+        # No-op detection.
+        if [[ "$current_tier" == "$new_tier" ]]; then
+            _l4_log "trust_grant --force: ($scope,$capability,$actor) already at '$new_tier' (no-op)"
+            return 3
+        fi
+
+        # Determine from_tier_for_event.
+        local from_tier_for_event hist_len
+        hist_len="$(echo "$response" | jq '.transition_history | length')"
+        if [[ "$hist_len" == "0" ]]; then
+            from_tier_for_event=""
+        else
+            from_tier_for_event="$current_tier"
+        fi
+
+        # Build payload.
+        local payload
+        if [[ -z "$from_tier_for_event" ]]; then
+            if [[ -n "$in_cooldown_until" ]]; then
+                payload="$(jq -nc \
+                    --arg scope "$scope" --arg capability "$capability" --arg actor "$actor" \
+                    --arg to_tier "$new_tier" --arg operator "$operator" --arg reason "$reason" \
+                    --argjson remaining "$remaining" --arg cooldown_until "$in_cooldown_until" \
+                    '{
+                        scope: $scope, capability: $capability, actor: $actor,
+                        from_tier: null, to_tier: $to_tier,
+                        operator: $operator, reason: $reason,
+                        cooldown_remaining_seconds_at_grant: $remaining,
+                        cooldown_until_at_grant: $cooldown_until
+                    }')"
+            else
+                payload="$(jq -nc \
+                    --arg scope "$scope" --arg capability "$capability" --arg actor "$actor" \
+                    --arg to_tier "$new_tier" --arg operator "$operator" --arg reason "$reason" \
+                    --argjson remaining "$remaining" \
+                    '{
+                        scope: $scope, capability: $capability, actor: $actor,
+                        from_tier: null, to_tier: $to_tier,
+                        operator: $operator, reason: $reason,
+                        cooldown_remaining_seconds_at_grant: $remaining,
+                        cooldown_until_at_grant: null
+                    }')"
+            fi
+        else
+            if [[ -n "$in_cooldown_until" ]]; then
+                payload="$(jq -nc \
+                    --arg scope "$scope" --arg capability "$capability" --arg actor "$actor" \
+                    --arg from_tier "$from_tier_for_event" --arg to_tier "$new_tier" \
+                    --arg operator "$operator" --arg reason "$reason" \
+                    --argjson remaining "$remaining" --arg cooldown_until "$in_cooldown_until" \
+                    '{
+                        scope: $scope, capability: $capability, actor: $actor,
+                        from_tier: $from_tier, to_tier: $to_tier,
+                        operator: $operator, reason: $reason,
+                        cooldown_remaining_seconds_at_grant: $remaining,
+                        cooldown_until_at_grant: $cooldown_until
+                    }')"
+            else
+                payload="$(jq -nc \
+                    --arg scope "$scope" --arg capability "$capability" --arg actor "$actor" \
+                    --arg from_tier "$from_tier_for_event" --arg to_tier "$new_tier" \
+                    --arg operator "$operator" --arg reason "$reason" \
+                    --argjson remaining "$remaining" \
+                    '{
+                        scope: $scope, capability: $capability, actor: $actor,
+                        from_tier: $from_tier, to_tier: $to_tier,
+                        operator: $operator, reason: $reason,
+                        cooldown_remaining_seconds_at_grant: $remaining,
+                        cooldown_until_at_grant: null
+                    }')"
+            fi
+        fi
+
+        if ! audit_emit "L4" "trust.force_grant" "$payload" "$ledger"; then
+            _l4_log "trust_grant --force: audit_emit trust.force_grant failed"
+            return 1
+        fi
+    } 9>"$lock_file"
+    rc=$?
+    return "$rc"
+}
+
+# -----------------------------------------------------------------------------
+# trust_verify_chain [<ledger_file>]
+#
+# FR-L4-5: hash-chain integrity validates; tampering detectable.
+#
+# Wraps audit_verify_chain (1A library). Honors LOA_TRUST_LEDGER_FILE override.
+# Exit 0 on intact chain; non-zero with stderr explanation otherwise.
 # -----------------------------------------------------------------------------
 trust_verify_chain() {
-    _l4_log "trust_verify_chain: not yet implemented (Sprint 4C)"
-    return 99
+    local ledger="${1:-$(_l4_ledger_path)}"
+    if [[ ! -f "$ledger" ]]; then
+        _l4_log "trust_verify_chain: ledger does not exist: $ledger"
+        return 2
+    fi
+    audit_verify_chain "$ledger"
+}
+
+# -----------------------------------------------------------------------------
+# trust_recover_chain [<ledger_file>]
+#
+# FR-L4-7: Reconstructable from git history if local file lost.
+#
+# Wraps audit_recover_chain (1A). Per SDD §3.7, the trust-ledger.jsonl is
+# TRACKED in git; audit_recover_chain prefers the git-history recovery path
+# for tracked logs. Returns 0 on successful recovery; non-zero on failure
+# (and audit_recover_chain itself appends [CHAIN-BROKEN] marker).
+# -----------------------------------------------------------------------------
+trust_recover_chain() {
+    local ledger="${1:-$(_l4_ledger_path)}"
+    audit_recover_chain "$ledger"
+}
+
+# -----------------------------------------------------------------------------
+# trust_auto_raise_check <scope> <capability> <actor> <next_tier>
+#
+# FR-L4-4 (stub per FU-3 deferral): Auto-raise eligibility check.
+#
+# Sprint 4 ships only the stub: returns "eligibility_required" via stdout JSON
+# and emits a trust.auto_raise_eligible audit event recording that the stub
+# was consulted. The auto-raise itself REQUIRES operator action (trust_grant);
+# the lib will not silently raise tiers in this cycle.
+#
+# FU-3 follow-up will extend with an `eligible` outcome once an alignment-
+# tracking detector ships (e.g., 7-consecutive-aligned).
+#
+# Exit codes:
+#   0 stub consulted; outcome="eligibility_required" emitted to stdout
+#   2 invalid argument
+#   1 audit_emit failure
+# -----------------------------------------------------------------------------
+trust_auto_raise_check() {
+    local scope="${1:-}"
+    local capability="${2:-}"
+    local actor="${3:-}"
+    local next_tier="${4:-}"
+
+    if [[ -z "$scope" || -z "$capability" || -z "$actor" || -z "$next_tier" ]]; then
+        _l4_log "trust_auto_raise_check: missing required argument (scope, capability, actor, next_tier)"
+        return 2
+    fi
+    _l4_validate_token "$scope"      "scope"      || return 2
+    _l4_validate_token "$capability" "capability" || return 2
+    _l4_validate_token "$actor"      "actor"      || return 2
+    _l4_validate_tier  "$next_tier"  "next_tier"  || return 2
+
+    local response current_tier
+    response="$(trust_query "$scope" "$capability" "$actor")" || return 1
+    current_tier="$(echo "$response" | jq -r '.tier')"
+
+    local stub_message
+    stub_message="auto-raise eligibility detector deferred to FU-3; operator must invoke trust_grant manually"
+
+    local payload
+    payload="$(jq -nc \
+        --arg scope "$scope" \
+        --arg capability "$capability" \
+        --arg actor "$actor" \
+        --arg current_tier "$current_tier" \
+        --arg next_tier "$next_tier" \
+        --arg stub_message "$stub_message" \
+        '{
+            scope: $scope, capability: $capability, actor: $actor,
+            current_tier: $current_tier, next_tier: $next_tier,
+            stub_outcome: "eligibility_required",
+            stub_message: $stub_message
+        }')"
+
+    local ledger
+    ledger="$(_l4_ledger_path)"
+    mkdir -p "$(dirname "$ledger")"
+    if ! audit_emit "L4" "trust.auto_raise_eligible" "$payload" "$ledger"; then
+        _l4_log "trust_auto_raise_check: audit_emit failed"
+        return 1
+    fi
+
+    # Echo the stub outcome JSON to stdout for caller convenience.
+    jq -nc \
+        --arg scope "$scope" \
+        --arg capability "$capability" \
+        --arg actor "$actor" \
+        --arg current_tier "$current_tier" \
+        --arg next_tier "$next_tier" \
+        '{
+            scope: $scope, capability: $capability, actor: $actor,
+            current_tier: $current_tier, next_tier: $next_tier,
+            stub_outcome: "eligibility_required"
+        }'
 }
 
 # -----------------------------------------------------------------------------

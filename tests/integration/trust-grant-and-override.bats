@@ -140,12 +140,17 @@ teardown() {
     [[ "$status" -eq 2 ]]
 }
 
-@test "trust_grant: --force returns 99 in 4B (Sprint 4C wires the path)" {
+@test "trust_grant: --force routes to trust.force_grant (Sprint 4C wired)" {
+    # Pinned at 4B: --force was a stub returning 99. Sprint 4C activated the
+    # real path; this test documents the transition. The detailed exception
+    # behavior is covered by tests/integration/trust-chain-and-force-grant.bats.
     source "$LIB"
     trust_grant "flatline" "merge_main" "deep-name" "T1" --reason "step1" --operator "deep-name"
+    trust_grant "flatline" "merge_main" "deep-name" "T2" --reason "step2" --operator "deep-name"
     trust_record_override "flatline" "merge_main" "deep-name" "decision-x" "override"
-    run trust_grant "flatline" "merge_main" "deep-name" "T1" --reason "rerise" --force --operator "deep-name"
-    [[ "$status" -eq 99 ]]
+    run trust_grant "flatline" "merge_main" "deep-name" "T2" --reason "rerise" --force --operator "deep-name"
+    [[ "$status" -eq 0 ]]
+    grep -F '"event_type":"trust.force_grant"' "$LOA_TRUST_LEDGER_FILE"
 }
 
 @test "trust_grant: writes payload that matches trust-grant schema (jq shape)" {
