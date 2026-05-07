@@ -354,7 +354,10 @@ EOF
 
 @test "FR-L5-6: same call returns same shape modulo timestamps" {
     source "$LIB"
-    GH_FAKE_MODE=clean
+    # BB iter-1 F6 (conf 0.85): export so the var reaches gh-fake's child
+    # process. Without export, gh-fake fell through to its default mode
+    # (which happens to also be clean — vacuous green; non-vacuous now).
+    export GH_FAKE_MODE=clean
     local out1 out2
     out1="$(cross_repo_read '["alice/repo1"]')"
     out2="$(cross_repo_read '["alice/repo1"]')"

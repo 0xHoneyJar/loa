@@ -68,21 +68,27 @@ teardown() {
     # number-only, (2) p95 heredoc routes via stdin + numeric regex.
     # We probe the second layer by writing the value AFTER cache_get
     # would have round-tripped (simulating a future regression).
-    python3 - "$LOA_CROSS_REPO_CACHE_DIR/alice__repo.json" <<'PY'
+    #
+    # BB iter-1 F1 (conf 0.9): canary path scoped to $TEST_DIR — using
+    # /tmp/PWNED_CRIT1 globally was predictable + race-prone across CI jobs.
+    local CANARY="$TEST_DIR/PWNED_CRIT1"
+    [[ ! -e "$CANARY" ]]  # precondition
+
+    python3 - "$LOA_CROSS_REPO_CACHE_DIR/alice__repo.json" "$CANARY" <<'PY'
 import json, sys
 path = sys.argv[1]
+canary = sys.argv[2]
 d = json.load(open(path))
-d["state"]["_latency_seconds"] = '1\n"""\nimport os\nos.system("touch /tmp/PWNED_CRIT1")\n"""'
+d["state"]["_latency_seconds"] = '1\n"""\nimport os\nos.system("touch ' + canary + '")\n"""'
 open(path, "w").write(json.dumps(d))
 PY
 
     # Force stale-fallback path and run again.
     LOA_CROSS_REPO_CACHE_TTL_SECONDS=0 \
         cross_repo_read '["alice/repo"]' >/dev/null
-    # PWNED file must NOT exist
-    [[ ! -f /tmp/PWNED_CRIT1 ]] || {
-        rm -f /tmp/PWNED_CRIT1
-        echo "RCE successful — CRIT-1 defense failed"
+    # CANARY file must NOT exist
+    [[ ! -f "$CANARY" ]] || {
+        echo "RCE successful — CRIT-1 defense failed; canary at: $CANARY"
         return 1
     }
 }
