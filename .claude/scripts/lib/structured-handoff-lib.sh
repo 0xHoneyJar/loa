@@ -864,6 +864,232 @@ handoff_read() {
 }
 
 # -----------------------------------------------------------------------------
+# surface_unread_handoffs <operator_id> [--handoffs-dir <path>] [--max-bytes N]
+#
+# Sprint 6C (FR-L6-5): SessionStart hook entry. Reads INDEX.md, filters
+# unread handoffs to <operator_id>, reads each body, sanitizes via
+# context-isolation-lib.sh::sanitize_for_session_start("L6", body),
+# and emits a framed banner block on stdout. Read-only — does NOT mark
+# handoffs as read (operator/skill calls handoff_mark_read explicitly).
+#
+# Trust boundary: every body passes through Layer 1+2 sanitization before
+# reaching session context. The banner explicitly states that the
+# enclosed content is descriptive, not instructional.
+#
+# Output (when 1+ unread handoffs):
+#   [L6 Unread handoffs to: <operator_id>]
+#   <untrusted-content source="L6" path="...">
+#   <sanitized body>
+#   </untrusted-content>
+#   ... (repeated per handoff)
+#
+# Output (when none): empty. Exit 0.
+#
+# Args:
+#   $1                  operator_id (required)
+#   --handoffs-dir P    override default handoffs dir
+#   --max-bytes N       per-handoff body byte cap (default: SDD §5.13
+#                       structured_handoff.surface_max_chars or 4000)
+# -----------------------------------------------------------------------------
+surface_unread_handoffs() {
+    local op="${1:-}"; shift || true
+    local handoffs_dir_override=""
+    local max_chars=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --handoffs-dir) handoffs_dir_override="$2"; shift 2 ;;
+            --max-bytes) max_chars="$2"; shift 2 ;;
+            *) _handoff_log "surface_unread_handoffs: unknown flag '$1'"; return 2 ;;
+        esac
+    done
+    if [[ -z "$op" ]]; then
+        _handoff_log "surface_unread_handoffs: missing <operator_id>"
+        return 2
+    fi
+    # Slug shape (matches frontmatter regex).
+    if [[ ! "$op" =~ ^[A-Za-z0-9_-]{1,64}$ ]]; then
+        _handoff_log "surface_unread_handoffs: invalid operator slug shape"
+        return 2
+    fi
+
+    # Resolve max_chars: explicit flag > config > default 4000.
+    if [[ -z "$max_chars" ]]; then
+        if command -v yq >/dev/null 2>&1 && [[ -f "${_LOA_HANDOFF_REPO_ROOT}/.loa.config.yaml" ]]; then
+            max_chars="$(yq '.structured_handoff.surface_max_chars // 4000' "${_LOA_HANDOFF_REPO_ROOT}/.loa.config.yaml" 2>/dev/null || echo 4000)"
+        else
+            max_chars=4000
+        fi
+    fi
+
+    local dir; dir="$(_handoff_resolve_dir "$handoffs_dir_override")" || return 7
+    local index="${dir}/INDEX.md"
+    [[ -f "$index" ]] || return 0  # No INDEX → no surfaced handoffs.
+
+    # Source context-isolation-lib for sanitize_for_session_start. Soft-source.
+    if ! declare -F sanitize_for_session_start >/dev/null 2>&1; then
+        if [[ -f "${_LOA_HANDOFF_DIR_LIB}/context-isolation-lib.sh" ]]; then
+            # shellcheck source=context-isolation-lib.sh
+            source "${_LOA_HANDOFF_DIR_LIB}/context-isolation-lib.sh"
+        fi
+    fi
+    if ! declare -F sanitize_for_session_start >/dev/null 2>&1; then
+        _handoff_log "surface_unread_handoffs: context-isolation-lib not available"
+        return 1
+    fi
+
+    # Filter unread for operator_id. INDEX format:
+    # | id | file | from | to | topic | ts_utc | read_by |
+    # read_by is comma-separated "<op>:<ts>" entries; "unread for op"
+    # means op's slug not present in read_by.
+    local unread_lines
+    unread_lines="$(awk -F' *\\| *' -v op="$op" '
+        $2 ~ /^sha256:/ && $5 == op {
+            # read_by is field 8 — empty when nobody has read.
+            rb = $8
+            sub(/^[[:space:]]+/, "", rb)
+            sub(/[[:space:]]+$/, "", rb)
+            if (rb == "" || index(","rb",", ","op":") == 0) {
+                print
+            }
+        }
+    ' "$index")"
+
+    [[ -n "$unread_lines" ]] || return 0
+
+    # Header banner (only emitted when there is content).
+    printf '[L6 Unread handoffs to: %s]\n' "$op"
+
+    # Iterate; sanitize + frame each body.
+    local seen=0
+    while IFS= read -r row; do
+        [[ -z "$row" ]] && continue
+        local file
+        file="$(printf '%s' "$row" | awk -F' *\\| *' '{print $3}')"
+        local rel_path="${dir#${_LOA_HANDOFF_REPO_ROOT}/}/${file}"
+        local body_path="${dir}/${file}"
+        if [[ ! -f "$body_path" ]]; then
+            _handoff_log "surface: file missing on disk: $body_path"
+            continue
+        fi
+        # Extract body via the same awk pattern as handoff_read.
+        local body
+        body="$(awk '
+            BEGIN { in_fm=0; past=0 }
+            /^---[[:space:]]*$/ {
+                if (past==0 && in_fm==0) { in_fm=1; next }
+                if (in_fm==1) { in_fm=0; past=1; next }
+            }
+            past==1 { print }
+        ' "$body_path")"
+
+        # Sanitize. Stderr from sanitize is preserved (BLOCKER signals).
+        # The inline-content path of sanitize_for_session_start does NOT inject
+        # a path= attribute (path_label is empty when content is given inline).
+        # We splice it in here on the opening <untrusted-content...> tag so
+        # operator + downstream consumers can locate the source file.
+        # rel_path is path-attribute-safe (slug-shape components + slashes).
+        local path_safe; path_safe="${rel_path//\"/}"
+        sanitize_for_session_start "L6" "$body" --max-chars "$max_chars" \
+            | sed -e "s|<untrusted-content source=\"L6\"|<untrusted-content source=\"L6\" path=\"${path_safe}\"|"
+        printf '\n'
+        seen=$((seen + 1))
+    done <<< "$unread_lines"
+
+    # Optional: emit audit event for surfacing (suppress under env flag).
+    if [[ "${LOA_HANDOFF_SUPPRESS_SURFACE_AUDIT:-0}" != "1" ]]; then
+        local op_state; op_state="$(_handoff_verify_operator_state "$op" 2>/dev/null || echo "unknown")"
+        local payload
+        payload="$(jq -nc \
+            --arg op "$op" \
+            --arg sv "1.0" \
+            --argjson cnt "$seen" \
+            --arg ostate "$op_state" \
+            '{
+                operator_id: $op,
+                schema_version: $sv,
+                handoffs_surfaced: $cnt,
+                operator_verification: $ostate,
+                event_subtype: "surface"
+            }')"
+        local log_path="${LOA_HANDOFF_LOG:-${_LOA_HANDOFF_DEFAULT_LOG}}"
+        mkdir -p "$(dirname "$log_path")"
+        audit_emit "L6" "handoff.surface" "$payload" "$log_path" >/dev/null 2>&1 || true
+    fi
+
+    return 0
+}
+
+# -----------------------------------------------------------------------------
+# handoff_mark_read <handoff_id> <operator_id> [--handoffs-dir <path>]
+#
+# Sprint 6C: append "<op>:<ts>" to read_by column for the matching INDEX row.
+# Atomic via flock. No-op when already marked.
+# -----------------------------------------------------------------------------
+handoff_mark_read() {
+    local id="${1:-}"; shift || true
+    local op="${1:-}"; shift || true
+    local handoffs_dir_override=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --handoffs-dir) handoffs_dir_override="$2"; shift 2 ;;
+            *) _handoff_log "handoff_mark_read: unknown flag '$1'"; return 2 ;;
+        esac
+    done
+    if [[ -z "$id" || -z "$op" ]]; then
+        _handoff_log "handoff_mark_read: usage: handoff_mark_read <id> <operator>"
+        return 2
+    fi
+    if [[ ! "$op" =~ ^[A-Za-z0-9_-]{1,64}$ ]]; then
+        _handoff_log "handoff_mark_read: invalid operator slug"
+        return 2
+    fi
+
+    local dir; dir="$(_handoff_resolve_dir "$handoffs_dir_override")" || return 7
+    local index="${dir}/INDEX.md"
+    [[ -f "$index" ]] || { _handoff_log "INDEX.md absent"; return 2; }
+
+    if ! command -v flock >/dev/null 2>&1; then
+        _handoff_log "handoff_mark_read: flock required"
+        return 4
+    fi
+
+    local lock="${dir}/.INDEX.md.lock"
+    local now; now="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+    local tmp
+    tmp="$(mktemp "${dir}/.INDEX.md.tmp.XXXXXX")"
+    chmod 0644 "$tmp"
+
+    (
+        flock -x -w 30 9 || { _handoff_log "flock timeout"; exit 4; }
+        # Append "$op:$now" to read_by (field 8) for the row whose id matches.
+        awk -F' *\\| *' -v OFS=' | ' -v id="$id" -v op="$op" -v ts="$now" '
+            BEGIN { matched=0 }
+            $2 == id {
+                # Check op already in read_by.
+                rb = $8
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", rb)
+                # Look for ",op:" in normalized form ",rb,".
+                if (index(","rb",", ","op":") == 0) {
+                    if (rb == "") rb = op":"ts
+                    else rb = rb","op":"ts
+                    $8 = " " rb " "
+                    matched=1
+                    print $0; next
+                }
+                # Already marked — emit unchanged.
+                print $0; next
+            }
+            { print }
+        ' "$index" > "$tmp"
+        mv -f "$tmp" "$index"
+    ) 9>"$lock"
+
+    local rc=$?
+    [[ -e "$tmp" ]] && rm -f "$tmp"
+    return $rc
+}
+
+# -----------------------------------------------------------------------------
 # CLI entrypoint when sourced as script.
 # -----------------------------------------------------------------------------
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
@@ -874,6 +1100,8 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
         compute-id)    handoff_compute_id "$@" ;;
         list)          handoff_list "$@" ;;
         read)          handoff_read "$@" ;;
+        surface)       surface_unread_handoffs "$@" ;;
+        mark-read)     handoff_mark_read "$@" ;;
         help|--help|-h)
             cat <<'USAGE'
 structured-handoff-lib.sh — L6 structured-handoff (cycle-098 Sprint 6).
@@ -883,6 +1111,8 @@ Subcommands:
   compute-id <yaml_path>
   list [--unread] [--to <op>] [--handoffs-dir <path>]
   read <handoff_id> [--handoffs-dir <path>]
+  surface <operator> [--handoffs-dir <path>] [--max-bytes N]
+  mark-read <handoff_id> <operator> [--handoffs-dir <path>]
 USAGE
             ;;
         *)
