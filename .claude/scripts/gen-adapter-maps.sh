@@ -30,6 +30,15 @@
 
 set -euo pipefail
 
+# Pin locale to POSIX C so `sort -u` byte-orders deterministically across hosts.
+# Without this, en_AU/de_DE/etc. produce a different ordering for `gemini-3.1-pro`
+# vs `gemini-3-flash` (locale collation puts `.` < `-`; C puts `-` (0x2D) < `.` (0x2E)).
+# CI runs under `C.UTF-8` and the committed generated-model-maps.sh reflects that
+# byte-order. Latent bug surfaced in cycle-099 Sprint 2E (PR #750) where a local
+# regen under en_AU.UTF-8 produced a different VALID_FLATLINE_MODELS ordering.
+# Canonical convention used by butterfreezone-gen.sh, verify-invariants.sh, etc.
+export LC_ALL=C
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 
