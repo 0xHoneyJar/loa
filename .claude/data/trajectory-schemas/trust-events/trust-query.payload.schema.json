@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.dev/loa/schemas/trust-events/trust-query.payload.schema.json",
+  "title": "L4 trust.query Payload",
+  "description": "Read-event payload emitted by trust_query. cycle-098 Sprint 4A — FR-L4-1. Optional emission gated by LOA_TRUST_EMIT_QUERY_EVENTS=1 (off by default; query traffic is high-frequency).",
+  "type": "object",
+  "required": [
+    "scope",
+    "capability",
+    "actor",
+    "tier",
+    "in_cooldown",
+    "auto_raise_eligible"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "scope": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Logical scope (e.g., 'flatline', 'mount', 'deploy'). Caller-defined."
+    },
+    "capability": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Logical capability within the scope (e.g., 'merge_main', 'auto_apply')."
+    },
+    "actor": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Operator slug from OPERATORS.md (verified via operator-identity.sh when LOA_TRUST_REQUIRE_KNOWN_ACTOR=1)."
+    },
+    "tier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,32}$",
+      "description": "Resolved tier (e.g., 'T0'..'T3') — operator-defined per .loa.config.yaml::graduated_trust.tier_definitions."
+    },
+    "in_cooldown": {
+      "type": "boolean",
+      "description": "True iff the most recent transition was an auto_drop and ts_now < cooldown_until."
+    },
+    "auto_raise_eligible": {
+      "type": "boolean",
+      "description": "Stub indicator (FR-L4-4 / FU-3 deferral). Currently always false; auto-raise requires operator action."
+    },
+    "ledger_entries_seen": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Optional counter of ledger entries scanned for this (scope, capability, actor) triple. Diagnostic only."
+    }
+  }
+}

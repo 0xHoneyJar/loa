@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.dev/loa/schemas/trust-events/trust-auto-raise-eligible.payload.schema.json",
+  "title": "L4 trust.auto_raise_eligible Payload",
+  "description": "Eligibility-marker event emitted when conditions met for an auto-raise (FR-L4-4). The eligibility detector itself is deferred to FU-3; the cycle-098 implementation ships a stub that ALWAYS returns eligibility_required (operator must invoke trust_grant manually). This event records that the stub was consulted and what conditions were claimed.",
+  "type": "object",
+  "required": [
+    "scope",
+    "capability",
+    "actor",
+    "current_tier",
+    "next_tier",
+    "stub_outcome"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "scope": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "capability": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "actor": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "current_tier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,32}$"
+    },
+    "next_tier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,32}$",
+      "description": "Tier the eligibility check was evaluating a raise toward."
+    },
+    "stub_outcome": {
+      "type": "string",
+      "enum": ["eligibility_required"],
+      "description": "Sprint 4 ships only the stub outcome. FU-3 will extend with 'eligible' once alignment-tracking detector ships."
+    },
+    "stub_message": {
+      "type": "string",
+      "maxLength": 4096,
+      "description": "Operator-facing message explaining the deferral."
+    }
+  }
+}

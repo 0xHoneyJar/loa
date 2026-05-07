@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.dev/loa/schemas/trust-events/trust-disable.payload.schema.json",
+  "title": "L4 trust.disable Payload",
+  "description": "[L4-DISABLED] sealing event emitted by trust_disable. Per PRD §849 row L4: on disable the ledger is preserved (immutable hash-chain); subsequent reads return last-known-tier per scope; no new transitions allowed.",
+  "type": "object",
+  "required": ["operator", "reason", "sealed_at"],
+  "additionalProperties": false,
+  "properties": {
+    "operator": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "sealed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC. Echoes ts_utc for auditor convenience."
+    }
+  }
+}
