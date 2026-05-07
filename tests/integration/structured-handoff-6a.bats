@@ -26,6 +26,10 @@ setup() {
     # Audit log dir + path under TEST_DIR.
     export LOA_HANDOFF_LOG="$TEST_DIR/handoff-events.jsonl"
 
+    # Sprint 6B: bypass OPERATORS.md verification for 6A schema/id/atomic tests.
+    # 6B has its own bats file that exercises verify_operators with fixtures.
+    export LOA_HANDOFF_VERIFY_OPERATORS=0
+
     # Use a fixed ts so collisions/filenames are predictable.
     TEST_TS_UTC="2026-05-07T12:00:00Z"
 
@@ -514,10 +518,12 @@ EOF
 }
 
 # -----------------------------------------------------------------------------
-# Sprint 6A scope guard: same-day collision rejected (Sprint 6B will resolve)
+# Sprint 6A scope guard: collision behavior — Sprint 6B resolves with suffix.
+# Test pins forward to the new behavior (numeric suffix). Detailed coverage in
+# tests/integration/structured-handoff-6b.bats.
 # -----------------------------------------------------------------------------
 
-@test "T22 same-(date,from,to,topic) collision rejected exit 7 in Sprint 6A" {
+@test "T22 collision on (date,from,to,topic) gets numeric suffix" {
     local p1 p2
     p1="$(_make_doc collide-1.md)"
     p2="$TEST_DIR/collide-2.md"
@@ -533,8 +539,10 @@ different body
 EOF
     handoff_write "$p1" --handoffs-dir "$HANDOFFS_DIR" >/dev/null
     run handoff_write "$p2" --handoffs-dir "$HANDOFFS_DIR"
-    [[ "$status" -eq 7 ]]
-    [[ "$output" == *"file collision"* ]]
+    [[ "$status" -eq 0 ]]
+    # Two files now exist: base.md + base-2.md
+    [[ -f "$HANDOFFS_DIR/2026-05-07-alice-bob-retry-policy.md" ]]
+    [[ -f "$HANDOFFS_DIR/2026-05-07-alice-bob-retry-policy-2.md" ]]
 }
 
 # -----------------------------------------------------------------------------

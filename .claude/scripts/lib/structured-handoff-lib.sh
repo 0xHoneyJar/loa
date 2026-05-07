@@ -59,6 +59,13 @@ source "${_LOA_HANDOFF_REPO_ROOT}/lib/jcs.sh"
 # shellcheck source=../audit-envelope.sh
 source "${_LOA_HANDOFF_DIR_LIB}/../audit-envelope.sh"
 
+# Sprint 6B: operator-identity for verify_operators. Soft-source — if absent,
+# verify_operators behaves as "unknown" (warn-mode safe; strict-mode rejects).
+if [[ -f "${_LOA_HANDOFF_DIR_LIB}/../operator-identity.sh" ]]; then
+    # shellcheck source=../operator-identity.sh
+    source "${_LOA_HANDOFF_DIR_LIB}/../operator-identity.sh"
+fi
+
 # -----------------------------------------------------------------------------
 # _handoff_log — internal stderr logger.
 # -----------------------------------------------------------------------------
@@ -336,59 +343,237 @@ sys.stdout.write("{}-{}-{}-{}.md".format(date, d["from"], d["to"], d["topic"]))
 }
 
 # -----------------------------------------------------------------------------
-# _handoff_atomic_index_update <handoffs_dir> <handoff_id> <file_basename> \
-#                              <from> <to> <topic> <ts_utc>
-# Atomically append a row to INDEX.md under flock. Creates INDEX.md if absent.
-# Pattern: flock acquire .lock → read INDEX → write to mktemp → rename → release.
+# _handoff_resolve_collision <dir> <base_fname>
+# Sprint 6B (FR-L6-4 + IMP-010 v1.1): same-day collision protocol.
+# When base.md exists, return base-2.md; when base-2.md exists too, base-3.md;
+# up to base-100.md. Caller MUST hold the INDEX.md flock during this call —
+# otherwise two writers could pick the same suffix.
+#
+# Returns the chosen basename on stdout. Exits non-zero (7) if all 100 slots
+# are taken (operator must intervene).
 # -----------------------------------------------------------------------------
-_handoff_atomic_index_update() {
-    local dir="$1" id="$2" file="$3" from="$4" to="$5" topic="$6" ts="$7"
+_handoff_resolve_collision() {
+    local dir="$1" base="$2"
+    if [[ ! -e "${dir}/${base}" ]]; then
+        printf '%s' "$base"
+        return 0
+    fi
+    local stem="${base%.md}"
+    local i=2
+    while (( i <= 100 )); do
+        local cand="${stem}-${i}.md"
+        if [[ ! -e "${dir}/${cand}" ]]; then
+            printf '%s' "$cand"
+            return 0
+        fi
+        i=$((i + 1))
+    done
+    _handoff_log "_handoff_resolve_collision: 100+ collisions for $base in $dir"
+    return 7
+}
+
+# -----------------------------------------------------------------------------
+# _handoff_atomic_publish <handoffs_dir> <doc_json> <id> <from> <to> <topic> <ts>
+# Sprint 6B: combined critical section that under ONE flock:
+#   1. Reads existing INDEX.md (or seeds header)
+#   2. Resolves filename collision (numeric suffix)
+#   3. Writes body to mktemp + renames to chosen filename
+#   4. Appends INDEX row (with chosen filename) + renames INDEX
+#
+# Prints the chosen basename to stdout for the caller to use in audit emit.
+# Exit codes: 0 ok, 4 concurrency (flock), 7 collision-exhausted.
+# -----------------------------------------------------------------------------
+_handoff_atomic_publish() {
+    local dir="$1" doc_json="$2" id="$3" from="$4" to="$5" topic="$6" ts="$7"
     local index="${dir}/INDEX.md"
     local lock="${dir}/.INDEX.md.lock"
 
     if ! command -v flock >/dev/null 2>&1; then
-        _handoff_log "_handoff_atomic_index_update: flock required (CC-3)"
+        _handoff_log "_handoff_atomic_publish: flock required (CC-3)"
         return 4
     fi
 
-    # mktemp under target dir to keep rename atomic (same filesystem).
-    local tmp
-    tmp="$(mktemp "${dir}/.INDEX.md.tmp.XXXXXX")"
-    chmod 0644 "$tmp"
+    local base; base="$(_handoff_filename "$doc_json")"
 
-    # Acquire lock; release on subshell exit.
+    # Tempfiles allocated up-front in same dir → same filesystem rename atomicity.
+    local index_tmp body_tmp
+    index_tmp="$(mktemp "${dir}/.INDEX.md.tmp.XXXXXX")"
+    chmod 0644 "$index_tmp"
+    body_tmp="$(mktemp "${dir}/.handoff.tmp.XXXXXX")"
+    chmod 0644 "$body_tmp"
+
+    # Critical section.
     (
         flock -x -w 30 9 || { _handoff_log "flock timeout on $lock"; exit 4; }
 
-        # Read existing INDEX.md or seed with header.
+        # 1. Resolve collision (must be inside flock; no other writer can race).
+        local chosen
+        chosen="$(_handoff_resolve_collision "$dir" "$base")" || exit 7
+        local dest="${dir}/${chosen}"
+
+        # 2. Write body to body_tmp via Python (same renderer as Sprint 6A).
+        LOA_HANDOFF_DOC_JSON="$doc_json" python3 - > "$body_tmp" <<'PY'
+import json, os, sys
+d = json.loads(os.environ["LOA_HANDOFF_DOC_JSON"])
+out = []
+out.append("---")
+key_order = ["schema_version", "handoff_id", "from", "to", "topic", "ts_utc", "references", "tags"]
+for k in key_order:
+    if k not in d:
+        continue
+    v = d[k]
+    if isinstance(v, list):
+        if not v:
+            out.append("{}: []".format(k))
+        else:
+            out.append("{}:".format(k))
+            for item in v:
+                s = str(item).replace("'", "''")
+                out.append("  - '{}'".format(s))
+    else:
+        s = str(v).replace("'", "''")
+        out.append("{}: '{}'".format(k, s))
+out.append("---")
+out.append("")
+out.append(d.get("body", ""))
+sys.stdout.write("\n".join(out))
+PY
+
+        # 3. Rename body to chosen path (same filesystem → atomic).
+        mv -f "$body_tmp" "$dest"
+
+        # 4. Build new INDEX content.
         if [[ -f "$index" ]]; then
-            cat "$index" > "$tmp"
-            # Ensure trailing newline so append is on a fresh line.
-            [[ -s "$tmp" ]] && [[ "$(tail -c 1 "$tmp" | od -An -c | awk '{print $1}')" != "\\n" ]] && printf '\n' >> "$tmp"
+            cat "$index" > "$index_tmp"
+            [[ -s "$index_tmp" ]] && [[ "$(tail -c 1 "$index_tmp" | od -An -c | awk '{print $1}')" != "\\n" ]] && printf '\n' >> "$index_tmp"
         else
-            cat >> "$tmp" <<'HEADER'
+            cat > "$index_tmp" <<'HEADER'
 # Handoff Index
 
 | handoff_id | file | from | to | topic | ts_utc | read_by |
 |------------|------|------|----|----|--------|---------|
 HEADER
         fi
-
-        # Append the new row. read_by starts empty; consumer marks read separately (Sprint 6C).
         printf '| %s | %s | %s | %s | %s | %s |  |\n' \
-            "$id" "$file" "$from" "$to" "$topic" "$ts" >> "$tmp"
+            "$id" "$chosen" "$from" "$to" "$topic" "$ts" >> "$index_tmp"
 
-        # Atomic rename in same dir.
-        mv -f "$tmp" "$index"
+        # 5. Rename INDEX (atomic).
+        mv -f "$index_tmp" "$index"
+
+        # Emit chosen basename for caller capture.
+        printf '%s' "$chosen"
     ) 9>"$lock"
 
     local rc=$?
-    # If the subshell failed before rename, clean up the tmp.
-    [[ -e "$tmp" ]] && rm -f "$tmp"
+    # Clean up any leftover tempfiles.
+    [[ -e "$index_tmp" ]] && rm -f "$index_tmp"
+    [[ -e "$body_tmp" ]] && rm -f "$body_tmp"
     return $rc
 }
 
 # -----------------------------------------------------------------------------
+# _handoff_should_verify_operators
+# Sprint 6B: read .loa.config.yaml::structured_handoff.verify_operators.
+# Default: true (per SDD §5.13). Honors LOA_HANDOFF_VERIFY_OPERATORS env
+# override (1=on, 0=off) for tests.
+# Returns 0 (verify) or 1 (skip).
+# -----------------------------------------------------------------------------
+_handoff_should_verify_operators() {
+    if [[ -n "${LOA_HANDOFF_VERIFY_OPERATORS:-}" ]]; then
+        [[ "$LOA_HANDOFF_VERIFY_OPERATORS" == "1" ]] && return 0 || return 1
+    fi
+    if command -v yq >/dev/null 2>&1 && [[ -f "${_LOA_HANDOFF_REPO_ROOT}/.loa.config.yaml" ]]; then
+        local v
+        v="$(yq '.structured_handoff.verify_operators // true' "${_LOA_HANDOFF_REPO_ROOT}/.loa.config.yaml" 2>/dev/null || echo "true")"
+        [[ "$v" == "true" ]] && return 0 || return 1
+    fi
+    return 0  # default true
+}
+
+# -----------------------------------------------------------------------------
+# _handoff_schema_mode
+# Sprint 6B: read .loa.config.yaml::structured_handoff.schema_mode.
+# "strict" | "warn"; default "strict" (SDD §5.13). Honors LOA_HANDOFF_SCHEMA_MODE.
+# Echoes the chosen mode on stdout.
+# -----------------------------------------------------------------------------
+_handoff_schema_mode() {
+    if [[ -n "${LOA_HANDOFF_SCHEMA_MODE:-}" ]]; then
+        printf '%s' "$LOA_HANDOFF_SCHEMA_MODE"
+        return 0
+    fi
+    if command -v yq >/dev/null 2>&1 && [[ -f "${_LOA_HANDOFF_REPO_ROOT}/.loa.config.yaml" ]]; then
+        local v
+        v="$(yq '.structured_handoff.schema_mode // "strict"' "${_LOA_HANDOFF_REPO_ROOT}/.loa.config.yaml" 2>/dev/null || echo "strict")"
+        printf '%s' "$v"
+        return 0
+    fi
+    printf 'strict'
+}
+
+# -----------------------------------------------------------------------------
+# _handoff_verify_operator_state <slug>
+# Sprint 6B: wrap operator_identity_verify into a state string for the audit
+# payload. Emits one of: verified | unverified | unknown | disabled.
+#
+# When operator-identity.sh is not sourced (lib unavailable), returns "unknown".
+# -----------------------------------------------------------------------------
+_handoff_verify_operator_state() {
+    local slug="$1"
+    if ! declare -F operator_identity_verify >/dev/null 2>&1; then
+        printf 'unknown'
+        return 0
+    fi
+    local rc
+    operator_identity_verify "$slug" >/dev/null 2>&1 || rc=$?
+    rc="${rc:-0}"
+    case "$rc" in
+        0) printf 'verified' ;;
+        1) printf 'unverified' ;;
+        2) printf 'unknown' ;;
+        *) printf 'unknown' ;;
+    esac
+}
+
+# -----------------------------------------------------------------------------
+# _handoff_resolve_verification <from> <to>
+# Sprint 6B: combined verification gate.
+# Returns:
+#   stdout: "from_state to_state combined_state" (space-separated)
+#   exit 0 = pass (warn-mode always passes; strict-mode passes only on verified)
+#   exit 3 = strict-mode auth failure
+# -----------------------------------------------------------------------------
+_handoff_resolve_verification() {
+    local from="$1" to="$2"
+    if ! _handoff_should_verify_operators; then
+        printf 'disabled disabled disabled'
+        return 0
+    fi
+    local from_state to_state
+    from_state="$(_handoff_verify_operator_state "$from")"
+    to_state="$(_handoff_verify_operator_state "$to")"
+
+    local mode; mode="$(_handoff_schema_mode)"
+    local combined
+    if [[ "$from_state" == "verified" && "$to_state" == "verified" ]]; then
+        combined="verified"
+    elif [[ "$from_state" == "unverified" || "$to_state" == "unverified" ]]; then
+        combined="unverified"
+    else
+        combined="unknown"
+    fi
+
+    printf '%s %s %s' "$from_state" "$to_state" "$combined"
+
+    if [[ "$mode" == "strict" && "$combined" != "verified" ]]; then
+        _handoff_log "verify_operators: strict-mode reject (from=$from_state to=$to_state combined=$combined)"
+        return 3
+    fi
+    return 0
+}
+
+# -----------------------------------------------------------------------------
+# (Legacy 6A function — kept for the CLI single-shot path; production writes
+# go through _handoff_atomic_publish in 6B.)
 # _handoff_atomic_write_body <dest_path> <doc_json> <original_input>
 # Re-emit the handoff document with handoff_id pinned in frontmatter, atomically.
 # Pattern: write to mktemp in dest dir → rename.
@@ -515,30 +700,32 @@ sys.stdout.write(json.dumps(d, ensure_ascii=False))
     local dest_dir
     dest_dir="$(_handoff_resolve_dir "$handoffs_dir_override")" || return 7
 
-    # Step 7: compute filename.
-    local fname; fname="$(_handoff_filename "$doc_json")"
-    local dest="${dest_dir}/${fname}"
-
-    # Step 8: collision refusal (Sprint 6A only — 6B adds numeric suffix).
-    if [[ -e "$dest" ]]; then
-        _handoff_log "handoff_write: file collision at $dest (Sprint 6B will resolve via numeric suffix)"
-        return 7
-    fi
-
-    # Step 9: write body atomically.
-    _handoff_atomic_write_body "$dest" "$doc_json" "$yaml_path"
-
-    # Step 10: index update.
+    # Extract from/to/topic for verification + publish.
     local from to topic
     from="$(printf '%s' "$doc_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["from"])')"
     to="$(printf '%s' "$doc_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["to"])')"
     topic="$(printf '%s' "$doc_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["topic"])')"
-    if ! _handoff_atomic_index_update "$dest_dir" "$computed_id" "$fname" "$from" "$to" "$topic" "$ts"; then
-        _handoff_log "handoff_write: INDEX.md atomic update failed"
-        # Rollback: delete just-written body.
-        rm -f "$dest"
-        return 4
+
+    # Step 7 (Sprint 6B): operator verification.
+    local verif_states verif_rc=0
+    verif_states="$(_handoff_resolve_verification "$from" "$to")" || verif_rc=$?
+    if [[ "$verif_rc" -ne 0 ]]; then
+        return "$verif_rc"
     fi
+    # Parse "from_state to_state combined_state".
+    local from_state to_state combined_state
+    read -r from_state to_state combined_state <<< "$verif_states"
+
+    # Step 8+9+10 (Sprint 6B): combined critical section under one flock —
+    # collision-resolve + body write + INDEX update.
+    local chosen_fname
+    chosen_fname="$(_handoff_atomic_publish "$dest_dir" "$doc_json" "$computed_id" "$from" "$to" "$topic" "$ts")"
+    local pub_rc=$?
+    if [[ "$pub_rc" -ne 0 ]]; then
+        _handoff_log "handoff_write: publish failed (rc=$pub_rc)"
+        return "$pub_rc"
+    fi
+    local dest="${dest_dir}/${chosen_fname}"
 
     # Step 11: emit audit event.
     local rel_path="${dest#${_LOA_HANDOFF_REPO_ROOT}/}"
@@ -556,6 +743,7 @@ sys.stdout.write(json.dumps(d, ensure_ascii=False))
         --arg ts "$ts" \
         --arg fp "$rel_path" \
         --arg sv "1.0" \
+        --arg verif "$combined_state" \
         --argjson refs "$refs_count" \
         --argjson tags "$tags_json" \
         --argjson bsz "$body_size" \
@@ -570,7 +758,7 @@ sys.stdout.write(json.dumps(d, ensure_ascii=False))
             references_count: $refs,
             tags: $tags,
             body_byte_size: $bsz,
-            operator_verification: "disabled"
+            operator_verification: $verif
         }')"
 
     local log_path="${LOA_HANDOFF_LOG:-${_LOA_HANDOFF_DEFAULT_LOG}}"
