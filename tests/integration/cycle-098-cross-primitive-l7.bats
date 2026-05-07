@@ -100,16 +100,31 @@ EOF
     [[ "$first_prev_hash" == "GENESIS" ]]
 }
 
-@test "T-CHAIN-3 chain recoverable via audit_recover_chain (UNTRACKED log)" {
+@test "T-CHAIN-3 chain still verifies after audit_recover_chain on healthy UNTRACKED log" {
+    # BB iter-1 F9 remediation: replace the prior `status -eq 0 || status -eq 1`
+    # tautology (which only caught crashes/signals) with an invariant assertion
+    # that has actual semantic content: the chain MUST verify both before and
+    # after a recovery pass on a healthy log. If recovery breaks the chain or
+    # crashes, this fails. We don't pin the recovery exit code (which can
+    # legitimately be 0 or 1 depending on whether snapshot fallback fired) —
+    # we pin the post-condition.
     local path; path="$(_make_soul)"
     local payload
     payload="$(soul_compute_surface_payload "$path" "warn" "surfaced")"
     for _ in 1 2 3; do soul_emit "soul.surface" "$payload" "$LOA_SOUL_LOG"; done
 
-    # audit_recover_chain shouldn't break (this is an UNTRACKED log; recovery
-    # path falls back to snapshot archive if available, else passthrough).
-    run audit_recover_chain "$LOA_SOUL_LOG"
-    [[ "$status" -eq 0 ]] || [[ "$status" -eq 1 ]]  # 0 ok or 1 nothing-to-recover
+    # Pre-condition: chain valid before recovery.
+    run audit_verify_chain "$LOA_SOUL_LOG"
+    [[ "$status" -eq 0 ]] || { echo "pre-condition fail: chain invalid before recovery"; false; }
+
+    # Recovery pass — should not crash (signal/exit ≥2 is a regression).
+    audit_recover_chain "$LOA_SOUL_LOG" >/dev/null 2>&1
+    local rec_status=$?
+    [[ "$rec_status" -le 1 ]] || { echo "recovery crashed (status $rec_status)"; false; }
+
+    # Post-condition: chain still valid after recovery.
+    run audit_verify_chain "$LOA_SOUL_LOG"
+    [[ "$status" -eq 0 ]] || { echo "post-condition fail: chain invalid after recovery"; false; }
 }
 
 # ---------------------------------------------------------------------------
@@ -117,6 +132,10 @@ EOF
 # ---------------------------------------------------------------------------
 
 @test "T-ISOLATION-1 L6 and L7 emit to distinct log files" {
+    # BB iter-1 F10 remediation: previous form swallowed handoff_write
+    # exit status with `|| true`, so a fixture-setup regression would
+    # silently skip the L6 isolation half of the assertion. Now we
+    # require handoff_write to succeed (or skip with diagnostic).
     local path; path="$(_make_soul)"
     local payload_l7
     payload_l7="$(soul_compute_surface_payload "$path" "warn" "surfaced")"
@@ -138,19 +157,24 @@ ts_utc: '2026-05-08T12:00:00Z'
 ---
 body
 EOF
-    handoff_write --handoffs-dir "$TEST_DIR/h" "$hpath" >/dev/null 2>&1 || true
+    # Require handoff_write success; capture stderr for diagnostic.
+    local hw_out hw_status
+    hw_out="$(handoff_write --handoffs-dir "$TEST_DIR/h" "$hpath" 2>&1)"
+    hw_status=$?
+    if [[ "$hw_status" -ne 0 ]]; then
+        skip "handoff_write fixture setup failed (status=$hw_status): $hw_out"
+    fi
 
     # L7 log has only L7 entries.
     local non_l7_in_soul
     non_l7_in_soul="$(grep -v '"primitive_id":"L7"' "$LOA_SOUL_LOG" || true)"
     [[ -z "$non_l7_in_soul" ]] || { echo "L7 log polluted: $non_l7_in_soul"; false; }
 
-    # L6 log (if exists) has only L6 entries — handoff_write writes there.
-    if [[ -f "$LOA_HANDOFF_LOG" ]]; then
-        local non_l6_in_handoff
-        non_l6_in_handoff="$(grep -v '"primitive_id":"L6"' "$LOA_HANDOFF_LOG" || true)"
-        [[ -z "$non_l6_in_handoff" ]] || { echo "L6 log polluted: $non_l6_in_handoff"; false; }
-    fi
+    # L6 log MUST exist (handoff_write succeeded) and contain only L6 entries.
+    [[ -f "$LOA_HANDOFF_LOG" ]] || { echo "L6 log not created despite handoff_write success"; false; }
+    local non_l6_in_handoff
+    non_l6_in_handoff="$(grep -v '"primitive_id":"L6"' "$LOA_HANDOFF_LOG" || true)"
+    [[ -z "$non_l6_in_handoff" ]] || { echo "L6 log polluted: $non_l6_in_handoff"; false; }
 }
 
 @test "T-ISOLATION-2 _audit_primitive_id_for_log routes correctly for both" {

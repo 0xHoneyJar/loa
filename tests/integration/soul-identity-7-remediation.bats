@@ -116,8 +116,24 @@ EOF
 # ---------------------------------------------------------------------------
 
 @test "HIGH-1 absolute path /etc/passwd in config.path is rejected in production" {
-    # Simulate production: drop test-mode. The hook resolves config.path
-    # against REPO_ROOT and rejects anything outside.
+    # BB iter-1 F3 fix: the hook resolves config_path = ${REPO_ROOT}/.loa.config.yaml
+    # by default. To exercise the realpath-containment gate we must (1) place
+    # the malicious config where the hook will discover it, AND (2) drop the
+    # LOA_SOUL_TEST_* envs so production code path runs. We use a fake repo
+    # root via PROJECT_ROOT_OVERRIDE — but the hook computes REPO_ROOT from
+    # its own script location, so we instead build the config in TEST_DIR
+    # and CD there, then fall back to invoking the hook with HOOK_DIR pointing
+    # at a copy. Simplest: copy the hook into TEST_DIR/.claude/hooks/session-start
+    # so its REPO_ROOT resolves to TEST_DIR.
+    mkdir -p "$TEST_DIR/.claude/hooks/session-start" "$TEST_DIR/.claude/scripts/lib"
+    cp "$HOOK" "$TEST_DIR/.claude/hooks/session-start/loa-l7-surface-soul.sh"
+    cp "$LIB" "$TEST_DIR/.claude/scripts/lib/soul-identity-lib.sh" 2>/dev/null || true
+    # Symlink the lib + audit-envelope so the copied hook resolves them.
+    ln -sf "$PROJECT_ROOT/.claude/scripts" "$TEST_DIR/.claude/scripts" 2>/dev/null || true
+    # Actually re-symlink: we need the WHOLE .claude tree but with our config.
+    rm -rf "$TEST_DIR/.claude"
+    ln -sf "$PROJECT_ROOT/.claude" "$TEST_DIR/.claude"
+
     cat > "$TEST_DIR/.loa.config.yaml" <<EOF
 soul_identity_doc:
   enabled: true
@@ -125,19 +141,42 @@ soul_identity_doc:
   surface_max_chars: 2000
   path: /etc/passwd
 EOF
-    # Run hook WITHOUT test-mode env vars — production-equivalent.
-    run env -i \
-        HOME="$HOME" \
-        PATH="$PATH" \
-        bash "$HOOK"
+    # Run hook from a SEPARATE temp dir as if it lived in TEST_DIR. Use
+    # `LOA_L7_FORCE_REPO_ROOT` (test-only override, gated by test-mode) to
+    # tell the hook that TEST_DIR is the repo root for this run. If that
+    # override doesn't exist yet, the test as-written wouldn't exercise the
+    # production codepath cleanly. So instead we exercise via the lib API
+    # directly: feed an absolute path through soul_compute_surface_payload's
+    # validation gate is not our concern here — the gate is in the hook.
+    # Direct test: invoke the hook's resolve-and-containment logic by
+    # calling the script with PWD set so REPO_ROOT computation lands in
+    # TEST_DIR.
+    rm -rf "$TEST_DIR/.claude"
+    mkdir -p "$TEST_DIR/.claude/hooks/session-start"
+    # Replicate the script structure: TEST_DIR is the root, .claude/hooks/
+    # session-start/ holds the hook, REPO_ROOT computed as ../../..
+    cp "$HOOK" "$TEST_DIR/.claude/hooks/session-start/loa-l7-surface-soul.sh"
+    # The hook needs to source the lib — symlink the .claude/scripts dir.
+    ln -sf "$PROJECT_ROOT/.claude/scripts" "$TEST_DIR/.claude/scripts"
+    ln -sf "$PROJECT_ROOT/.claude/data" "$TEST_DIR/.claude/data"
+    ln -sf "$PROJECT_ROOT/.claude/skills" "$TEST_DIR/.claude/skills"
+    ln -sf "$PROJECT_ROOT/.claude/loa" "$TEST_DIR/.claude/loa"
+
+    # Production-equivalent invocation: drop ALL test-mode env vars.
+    run env -i HOME="$HOME" PATH="$PATH" bash "$TEST_DIR/.claude/hooks/session-start/loa-l7-surface-soul.sh"
     [[ "$status" -eq 0 ]]
-    # No surface — /etc/passwd would have appeared inside <untrusted-content>
-    # if the gate were bypass-able.
-    [[ "$output" != *"root:"* ]] || { echo "BYPASS: /etc/passwd content surfaced"; false; }
+    [[ "$output" != *"root:"* ]] || { echo "BYPASS: /etc/passwd content surfaced — output: $output"; false; }
     [[ "$output" != *"<untrusted-content"* ]] || { echo "BYPASS: surface emitted from outside repo"; false; }
 }
 
 @test "HIGH-1 traversal '../../etc/passwd' in config.path is rejected" {
+    mkdir -p "$TEST_DIR/.claude/hooks/session-start"
+    cp "$HOOK" "$TEST_DIR/.claude/hooks/session-start/loa-l7-surface-soul.sh"
+    ln -sf "$PROJECT_ROOT/.claude/scripts" "$TEST_DIR/.claude/scripts"
+    ln -sf "$PROJECT_ROOT/.claude/data" "$TEST_DIR/.claude/data"
+    ln -sf "$PROJECT_ROOT/.claude/skills" "$TEST_DIR/.claude/skills"
+    ln -sf "$PROJECT_ROOT/.claude/loa" "$TEST_DIR/.claude/loa"
+
     cat > "$TEST_DIR/.loa.config.yaml" <<'EOF'
 soul_identity_doc:
   enabled: true
@@ -145,9 +184,10 @@ soul_identity_doc:
   surface_max_chars: 2000
   path: "../../etc/passwd"
 EOF
-    run env -i HOME="$HOME" PATH="$PATH" bash "$HOOK"
+    run env -i HOME="$HOME" PATH="$PATH" bash "$TEST_DIR/.claude/hooks/session-start/loa-l7-surface-soul.sh"
     [[ "$status" -eq 0 ]]
-    [[ "$output" != *"root:"* ]]
+    [[ "$output" != *"root:"* ]] || { echo "BYPASS: /etc/passwd surfaced via traversal"; false; }
+    [[ "$output" != *"<untrusted-content"* ]] || { echo "BYPASS: surface from outside REPO_ROOT"; false; }
 }
 
 # ---------------------------------------------------------------------------
@@ -268,9 +308,14 @@ EOF
 # ---------------------------------------------------------------------------
 
 @test "MED-1 schema docstring no longer claims bounds enforcement" {
-    grep -E "lib rejects \[0001-01-01" "$PROJECT_ROOT/.claude/data/soul-frontmatter.schema.json" && {
-        echo "REGRESSION: false bounds-claim back in docstring"; false
-    } || true
+    # BB iter-1 F7 fix: previous form `grep ... && { echo; false; } || true`
+    # always exited 0 because the trailing `|| true` masked the deliberate
+    # `false`. Use `! grep` so a match (regression) inverts to non-zero exit
+    # and bats fails the test correctly.
+    if grep -qE "lib rejects \[0001-01-01" "$PROJECT_ROOT/.claude/data/soul-frontmatter.schema.json"; then
+        echo "REGRESSION: false bounds-claim back in docstring"
+        return 1
+    fi
 }
 
 # ---------------------------------------------------------------------------
