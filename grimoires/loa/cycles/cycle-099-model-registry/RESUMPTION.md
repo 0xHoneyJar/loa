@@ -1,6 +1,6 @@
 # cycle-099-model-registry — Session Resumption Brief
 
-**Last updated**: 2026-05-07 (**Sprint 2E SHIPPED at #750 (v1.132.0)** + **PR #751 BB OpenAI endpoint_family routing fix** + **PR #752 gpt-5.5 temperature_supported + flatline SSOT migration (closes #753)**. All three multi-model subsystems — Bridgebuilder + Red Team + Flatline — now invoke top-tier models successfully. Cycle-099 Sprint 2 main thread closed. **Next: cycle-098 Sprint 4 (L4 graduated-trust, parked) OR cycle-099 T2.9-T2.16 operator-tooling (smaller scope) OR BB E2E verification (run BB against fresh PR to confirm full chain works against real workload)**)
+**Last updated**: 2026-05-07 (**Sprint 2E SHIPPED at #750 (v1.132.0)** + **PR #751 BB OpenAI endpoint_family routing fix** + **PR #752 gpt-5.5 temperature_supported + flatline SSOT migration (closes #753)** + **PR #754 gen-adapter-maps.sh `LC_ALL=C` locale-pin (closes Brief I Option D)** + **BB E2E TRIPLE-PROVIDER VERIFIED on PR #754 (closes Brief I Option A — anthropic 13s + openai gpt-5.5-pro 153s + google 7s, all returned cleanly, 0 BLOCKER, 0 HIGH_CONSENSUS, 1 DISPUTED, 4 LOW_VALUE/PRAISE)**. All three multi-model subsystems — Bridgebuilder + Red Team + Flatline — now invoke top-tier models successfully END-TO-END on real PRs. Cycle-099 Sprint 2 main thread closed. **Next: cycle-098 Sprint 4 (L4 graduated-trust, parked) OR cycle-099 T2.9-T2.16 operator-tooling (T2.12+T2.13 highest UX value)**)
 **Author**: deep-name + Claude Opus 4.7 1M
 **Purpose**: Crash-recovery + cross-session continuity. Read first when resuming cycle-099 work.
 
@@ -372,13 +372,18 @@ Flatline SDD pass #2 SKP-006 CRITICAL 870 + pass #3 IMP-002 HIGH_CONSENSUS 880.
 
 ---
 
-## Brief I — next session candidates (post Sprint 2E + #751 + #752)
+## Brief I — next session candidates (post Sprint 2E + #751 + #752 + #754 + BB E2E verified)
 
-**Status as of 2026-05-07**: cycle-099 Sprint 1 + 2A + 2B + 2C + 2D.a+b + 2D.c + 2D.d + **2E** all SHIPPED (20 PRs on main, v1.132.0). All three multi-model subsystems route top-tier models cleanly post the PR #751 + #752 wave. Issue #753 closed. Main HEAD `ff243eed`.
+**Status as of 2026-05-07**: cycle-099 Sprint 1 + 2A + 2B + 2C + 2D.a+b + 2D.c + 2D.d + **2E** all SHIPPED (21 PRs on main, v1.132.0). All three multi-model subsystems route top-tier models cleanly post the PR #751 + #752 wave AND verified end-to-end via PR #754. Issue #753 closed. Main HEAD `a212f18b`.
 
-### Option A — BB end-to-end verification (smallest scope, ~30min)
+### Option A — BB end-to-end verification — ✅ SHIPPED at PR #754 (2026-05-07)
 
-We did unit-level adapter tests for PR #751 + #752 (direct adapter invocation returns ROUTING_OK / TEMP_FIX_OK / GPT55_OK / openai:gpt-5.5-pro from resolver). We did NOT actually run BB against a fresh PR end-to-end — the dry-run on PR #750 returned `items: 0` because that PR was already-reviewed. To gain end-to-end confidence: cut a tiny no-op PR (or use the next real PR), run `.claude/skills/bridgebuilder-review/resources/entry.sh --pr <N>`, verify all 3 models return successfully (no Anthropic-only signal). This validates the routing chain in the path actual BB users hit.
+Triple-provider success on PR #754 (`fix(cycle-099): pin LC_ALL=C in gen-adapter-maps.sh for locale-immune codegen`):
+- `anthropic/claude-opus-4-7` complete in 13.0s (872 in / 768 out)
+- `openai/gpt-5.5-pro` complete in 152.9s (522 in / 4544 out)
+- `google/gemini-3.1-pro-preview` complete in 7.0s (555 in / 227 out)
+
+Consensus: 0 HIGH_CONSENSUS, 1 DISPUTED, 0 BLOCKER, 4 LOW_VALUE/PRAISE, 5 unique. Verdict: COMMENT. All 4 review artifacts posted (3 per-model + 1 enriched consensus). No Anthropic-only signal. The routing chain that PR #751 + #752 fixed is now verified end-to-end against a real PR via the path actual BB users hit. Memory: `project_cycle099_bb_e2e_verified.md`.
 
 ### Option B — cycle-099 T2.9-T2.16 operator-tooling
 
@@ -397,23 +402,23 @@ These are small-to-medium tasks. T2.12 + T2.13 (validate-bindings + tracing) are
 
 Read `grimoires/loa/cycles/cycle-098-agent-network/RESUMPTION.md` for the full Brief D handoff. Larger scope; possibly MAJOR if it introduces breaking changes to the L1-L7 envelope. Parked since 2026-05-04.
 
-### Option D — Latent locale-fix (small follow-up)
+### Option D — Latent locale-fix — ✅ SHIPPED at PR #754 (2026-05-07)
 
-`gen-adapter-maps.sh` currently produces locale-dependent output (en_AU.UTF-8 vs C.UTF-8 reorders bash assoc array entries). I worked around this in PR #750 by regenerating with `LC_ALL=C.UTF-8`. The proper fix is to add `export LC_ALL=C.UTF-8` to `gen-adapter-maps.sh` itself so future contributors don't hit it. Trivial PR (~5 lines + update runbook).
+`gen-adapter-maps.sh` now has `export LC_ALL=C` near the top (after `set -euo pipefail`), with explanatory comment block citing the PR #750 origin. Verified locale-immune across `en_AU.UTF-8 / C.UTF-8 / de_DE.UTF-8 / LANG-only` invocations — all four produce byte-identical output matching committed `generated-model-maps.sh`. Choice of `C` over `C.UTF-8`: universally available + matches established repo convention (4 prior generators use `export LC_ALL=C`). Memory: `feedback_locale_pin_in_codegen.md`.
 
-### Recommendation
+### Recommendation (post A + D shipped)
 
-**A then B in parallel session**. Option A confirms the wave actually works end-to-end (insurance against regression we shipped today). Option B drains operator-facing scope quickly. Option C is the bigger architectural piece that benefits from a fresh context.
+**B next** (operator-tooling). Cycle-099 Sprint 2 has 7 remaining tasks; T2.12 (`model-invoke --validate-bindings`) and T2.13 (`LOA_DEBUG_MODEL_RESOLUTION=1` tracing) deliver the highest operator-UX value. Both build on the FR-3.9 6-stage resolver SHIPPED at Sprint 2D — they expose its decision-path to operators for both batch validation and runtime debugging. Could batch as one sub-sprint. **C deserves its own fresh context** (Sprint 4 is potentially MAJOR — read cycle-098 RESUMPTION first).
 
 ### Quick handover to next session
 
-* Main HEAD: `ff243eed` (PR #752 merge)
+* Main HEAD: `a212f18b` (PR #754 merge — locale-pin + BB E2E verified)
 * Latest releases: v1.130.0 (named milestone) → v1.131.0 (Sprint 2D.d) → v1.132.0 (Sprint 2E)
-* Today's PRs: #748 (2D.d) → #750 (2E) → #751 (BB OpenAI routing) → #752 (gpt-5.5 temp + flatline SSOT)
+* Today's PRs: #748 (2D.d) → #750 (2E) → #751 (BB OpenAI routing) → #752 (gpt-5.5 temp + flatline SSOT) → #754 (locale-pin + BB E2E verification)
 * Closed issues: #753 (cheval temperature on gpt-5.5)
-* Pre-existing CI flakes (admin-merged through): macOS bash 3.2 (TS codegen), beads BHM tests
-* Latent: `gen-adapter-maps.sh` locale-dependence (regen with `LC_ALL=C.UTF-8` to match CI)
-* Memory entries written today: `project_top_models_routing_fixes.md`, `project_cycle099_sprint2e_shipped.md`, `feedback_bb_openai_endpoint_family_routing.md`, `project_cycle099_sprint2dd_shipped.md`, `project_v1130_named_release.md`, `feedback_named_release_pattern.md`
+* Pre-existing CI flakes (admin-merged through): macOS bash 3.2 (TS codegen), beads BHM tests (Shell Tests — `BHM-T1` + `BHM-T5` per #661)
+* ~~Latent: `gen-adapter-maps.sh` locale-dependence~~ — RESOLVED at PR #754
+* Memory entries written today: `project_top_models_routing_fixes.md`, `project_cycle099_sprint2e_shipped.md`, `feedback_bb_openai_endpoint_family_routing.md`, `project_cycle099_sprint2dd_shipped.md`, `project_v1130_named_release.md`, `feedback_named_release_pattern.md`, `project_cycle099_bb_e2e_verified.md`, `feedback_locale_pin_in_codegen.md`
 
 ---
 
