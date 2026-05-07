@@ -63,6 +63,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -70,6 +71,109 @@ from typing import Any
 # We import yaml at function scope only when needed (resolve() itself is YAML-
 # unaware; only the CLI / fixture wrapper touches YAML). This keeps the public
 # resolve() surface stdlib-only at import time.
+
+# ----------------------------------------------------------------------------
+# Sprint 2F (T2.13): FR-5.7 [MODEL-RESOLVE] stderr trace.
+# ----------------------------------------------------------------------------
+# The redactor is loaded LAZILY on first trace emission (not at import time)
+# so callers that never enable LOA_DEBUG_MODEL_RESOLUTION pay zero cost. The
+# import uses spec_from_file_location (NOT sys.path.insert) per the cycle-099
+# CYP-F8 convention from model-overlay-hook.py — sys.path mutation pollutes
+# downstream resolution for every other importer of this module.
+_redact = None  # type: ignore[var-annotated]
+
+
+def _load_redactor() -> Any:
+    """Lazy-load `.claude/scripts/lib/log-redactor.py::redact`.
+
+    Returns a callable `redact(text: str) -> str`. On any load failure,
+    returns identity-fn so trace emission still succeeds (defense-in-depth:
+    secrets are defended primarily by NFR-Sec-5 `auth`-field rejection at
+    schema layer; the redactor is a belt-and-suspenders surface).
+    """
+    global _redact
+    if _redact is not None:
+        return _redact
+    try:
+        import importlib.util as _importlib_util
+        _lib_dir = Path(__file__).resolve().parent
+        _spec = _importlib_util.spec_from_file_location(
+            "_loa_log_redactor", _lib_dir / "log-redactor.py"
+        )
+        if _spec is None or _spec.loader is None:
+            _redact = lambda s: s  # noqa: E731
+            return _redact
+        _module = _importlib_util.module_from_spec(_spec)
+        _spec.loader.exec_module(_module)
+        _redact = _module.redact
+    except Exception:
+        # Defense-in-depth fallback: identity. Trace emission must not crash
+        # the resolver — the canonical secret defense is NFR-Sec-5.
+        _redact = lambda s: s  # noqa: E731
+    return _redact
+
+
+def _emit_trace_line(merged_config: dict, skill: str, role: str, result: dict) -> None:
+    """Emit FR-5.7 `[MODEL-RESOLVE]` line to stderr, redacted via log-redactor.
+
+    Format (per SDD §6.4):
+        [MODEL-RESOLVE] skill=X role=Y input=Z resolved=A:B resolution_path=[...]
+
+    On error result, emits `resolved=ERROR:<error_code>` per the schema's
+    error-shape. The full resolution_path is JSON-compact for grep-ability.
+    """
+    # Extract operator's declared input value (skill_models.<skill>.<role>).
+    # If absent (legacy/framework-default path), input=<unset>.
+    input_value: Any = "<unset>"
+    op_cfg = merged_config.get("operator_config") if isinstance(merged_config, dict) else None
+    if isinstance(op_cfg, dict):
+        sm = op_cfg.get("skill_models")
+        if isinstance(sm, dict):
+            sk_block = sm.get(skill)
+            if isinstance(sk_block, dict):
+                v = sk_block.get(role)
+                if v is not None:
+                    input_value = v
+
+    if "error" in result:
+        err = result["error"]
+        provider = "ERROR"
+        model_id = err.get("code", "[UNKNOWN]") if isinstance(err, dict) else "[UNKNOWN]"
+        path_repr = "[]"
+    else:
+        provider = result.get("resolved_provider", "?")
+        model_id = result.get("resolved_model_id", "?")
+        path_repr = json.dumps(
+            result.get("resolution_path", []), separators=(",", ":"), ensure_ascii=False
+        )
+
+    line = (
+        f"[MODEL-RESOLVE] skill={skill} role={role} input={input_value} "
+        f"resolved={provider}:{model_id} resolution_path={path_repr}"
+    )
+    redact = _load_redactor()
+    sys.stderr.write(redact(line) + "\n")
+
+
+def _trace_resolution(fn: Any) -> Any:
+    """Decorator: emit FR-5.7 trace after `fn(merged_config, skill, role)`.
+
+    Strict env-var check: only literal `"1"` enables tracing. `"true"`, `"0"`,
+    empty string, and absent variable all disable. Pinned by Sprint 2F D3/D4
+    contract — operators have come to expect "1" as the canonical Loa enable
+    sentinel (mirrors LOA_DEBUG, LOA_FORCE_LEGACY_ALIASES, etc.).
+    """
+    def wrapper(merged_config: dict, skill: str, role: str) -> dict:
+        result = fn(merged_config, skill, role)
+        if os.environ.get("LOA_DEBUG_MODEL_RESOLUTION") == "1":
+            try:
+                _emit_trace_line(merged_config, skill, role, result)
+            except Exception:
+                # Resolver is hot path; trace emission must not propagate.
+                pass
+        return result
+    wrapper.__wrapped__ = fn  # type: ignore[attr-defined]
+    return wrapper
 
 # ----------------------------------------------------------------------------
 # Constants
@@ -651,6 +755,7 @@ def _stage6_prefer_pro(
 # Public API
 # ----------------------------------------------------------------------------
 
+@_trace_resolution
 def resolve(merged_config: dict, skill: str, role: str) -> dict:
     """Resolve (skill, role) against merged_config per FR-3.9 6 stages.
 

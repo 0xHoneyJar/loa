@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # model-invoke — Shell wrapper for cheval.py (SDD §4.2.2)
 #
-# Single entry point for all model API calls.
-# Delegates to Python adapter: exec python3 .claude/adapters/cheval.py "$@"
+# Single entry point for all model API calls + offline validation.
+# Default: delegates to Python adapter for actual API calls.
+# `--validate-bindings`: dispatches to validate-bindings.py for dry-run
+#   resolver verification per SDD §5.2 (cycle-099 Sprint 2F T2.12).
 #
-# Exit codes (SDD §4.2.2):
+# Exit codes — API path (SDD §4.2.2):
 #   0 = Success
 #   1 = API error (retries exhausted)
 #   2 = Invalid input / config
@@ -13,12 +15,42 @@
 #   5 = Invalid response format
 #   6 = Budget exceeded
 #   7 = Context too large
+#
+# Exit codes — --validate-bindings path (SDD §5.2):
+#   0  = All bindings resolve cleanly
+#   1  = ≥1 unresolved binding (FR-3.8 violation)
+#   2  = Usage error (unknown --format value, etc.)
+#   78 = Config error (missing/malformed YAML, schema violation)
 
 set -euo pipefail
 
 # Resolve script directory to find project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
+# cycle-099 Sprint 2F (T2.12): intercept --validate-bindings BEFORE delegating
+# to the API-call adapter. The validator is a separate Python entrypoint
+# (not embedded in cheval.py) because it has a different contract — no API
+# calls, no env-var requirements, exits 78 on config error.
+# Quick-scan argv for the flag; if found, dispatch to validate-bindings.py.
+for arg in "$@"; do
+    if [[ "$arg" == "--validate-bindings" ]]; then
+        VALIDATE_PY="${PROJECT_ROOT}/.claude/scripts/lib/validate-bindings.py"
+        if [[ ! -f "$VALIDATE_PY" ]]; then
+            echo '{"error":true,"code":"INVALID_CONFIG","message":"validate-bindings.py not found at '"${VALIDATE_PY}"'"}' >&2
+            exit 2
+        fi
+        # Strip the --validate-bindings sentinel; pass the rest through.
+        new_args=()
+        for a in "$@"; do
+            if [[ "$a" != "--validate-bindings" ]]; then
+                new_args+=("$a")
+            fi
+        done
+        # Use ${arr[@]+"${arr[@]}"} guard to handle empty arrays under set -u.
+        exec python3 "$VALIDATE_PY" ${new_args[@]+"${new_args[@]}"}
+    fi
+done
 
 # Adapter location
 CHEVAL_PY="${PROJECT_ROOT}/.claude/adapters/cheval.py"
