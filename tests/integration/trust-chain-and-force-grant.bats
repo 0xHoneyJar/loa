@@ -173,6 +173,16 @@ PY
 
     run trust_verify_chain
     [[ "$status" -eq 0 ]]
+
+    # BB iter-1 F6 (confidence 0.85): verify recovery actually pulled the
+    # original committed content from git — not just re-hashed the tampered
+    # local file in place. The original entry's reason was "s1"; tamper made
+    # it "tampered". Post-recovery, "s1" must be restored.
+    grep -F '"reason":"s1"' "$LOA_TRUST_LEDGER_FILE"
+    if grep -F '"reason":"tampered"' "$LOA_TRUST_LEDGER_FILE" 2>/dev/null; then
+        echo "recovery left tampered content in place"
+        return 1
+    fi
 }
 
 # =============================================================================

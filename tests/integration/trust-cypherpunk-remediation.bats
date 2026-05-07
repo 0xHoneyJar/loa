@@ -327,6 +327,14 @@ EOF
     local now
     now="$(BATS_TEST_DIRNAME='' LOA_TRUST_TEST_NOW='1970-01-01T00:00:00.000Z' _l4_now_iso8601)"
     [[ "$now" != "1970-01-01T00:00:00.000Z" ]]
+    # F1 (BB iter-1): pin to a current-ish ISO date prefix rather than just
+    # "any non-epoch value" — this catches the case where the lib accidentally
+    # starts honoring a forged value of a different shape.
+    [[ "$now" == "20"* ]] || {
+        echo "expected ISO date starting with '20', got: $now"
+        return 1
+    }
+    [[ "$now" == *T*Z ]]
     # When TEST_MODE=1 is explicitly set, override IS honored
     now="$(LOA_TRUST_TEST_MODE=1 BATS_TEST_DIRNAME='' LOA_TRUST_TEST_NOW='1970-01-01T00:00:00.000Z' _l4_now_iso8601)"
     [[ "$now" == "1970-01-01T00:00:00.000Z" ]]
