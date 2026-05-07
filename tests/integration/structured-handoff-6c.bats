@@ -20,6 +20,7 @@ setup() {
     mkdir -p "$HANDOFFS_DIR"
 
     export LOA_TRUST_STORE_FILE="$TEST_DIR/no-such-trust-store.yaml"
+    export LOA_HANDOFF_TEST_MODE=1
     export LOA_HANDOFF_LOG="$TEST_DIR/handoff-events.jsonl"
     export LOA_HANDOFF_VERIFY_OPERATORS=0
     # Sprint 6D: bypass same-machine guardrail (6C exercises surfacing only).

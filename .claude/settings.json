@@ -456,6 +456,18 @@
             "command": ".claude/scripts/check-updates.sh --notify",
             "async": true,
             "once": true
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/session-start/loa-l6-surface-handoffs.sh",
+            "async": true,
+            "once": true
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/session-start/loa-l7-surface-soul.sh",
+            "async": true,
+            "once": true
           }
         ]
       }

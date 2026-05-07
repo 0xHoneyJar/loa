@@ -24,6 +24,7 @@ setup() {
     export LOA_TRUST_STORE_FILE="$TEST_DIR/no-such-trust-store.yaml"
 
     # Audit log dir + path under TEST_DIR.
+    export LOA_HANDOFF_TEST_MODE=1
     export LOA_HANDOFF_LOG="$TEST_DIR/handoff-events.jsonl"
 
     # Sprint 6B: bypass OPERATORS.md verification for 6A schema/id/atomic tests.

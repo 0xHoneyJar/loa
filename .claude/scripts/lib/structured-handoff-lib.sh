@@ -55,20 +55,17 @@ _LOA_HANDOFF_FINGERPRINT_HISTORY="${_LOA_HANDOFF_REPO_ROOT}/.run/machine-fingerp
 _LOA_HANDOFF_CROSS_HOST_STAGING="${_LOA_HANDOFF_REPO_ROOT}/.run/handoff-events.cross-host-staging.jsonl"
 
 # -----------------------------------------------------------------------------
-# Sprint 6E (cypherpunk remediation CYP-F1/F3/F4): test-mode gate.
-# Env-var overrides for the security-critical paths (fingerprint guardrail,
-# operator verification, audit log destination, schema mode) are honored
-# ONLY when running under bats OR when LOA_HANDOFF_TEST_MODE=1 is set with a
-# bats-detected ancestor. Production paths emit a stderr WARN and ignore.
-# Mirrors L4 graduated-trust-lib.sh:432-440 + cycle-099 sprint-1B fix.
+# Test-mode gate. cycle-098 follow-up #776 (CRIT-1 inheritance from sprint-7
+# cypherpunk review): require BOTH `LOA_HANDOFF_TEST_MODE=1` AND a robust
+# bats marker. Earlier draft permitted bypass via `BATS_TMPDIR` alone (any
+# developer-leaked env or nested tooling could flip production into
+# test-mode). Same regression-of-an-already-closed-pattern as cycle-099 #761
+# (L4) and L7 sprint-7 CRIT-1. Strict form below; do not "or" the clauses.
 # -----------------------------------------------------------------------------
 _handoff_test_mode_active() {
-    if [[ -n "${BATS_TEST_DIRNAME:-}" ]] || [[ -n "${BATS_TMPDIR:-}" ]]; then
-        return 0
-    fi
-    if [[ "${LOA_HANDOFF_TEST_MODE:-0}" == "1" ]] && [[ -n "${BATS_TEST_DIRNAME:-${BATS_TMPDIR:-}}" ]]; then
-        return 0
-    fi
+    [[ "${LOA_HANDOFF_TEST_MODE:-0}" == "1" ]] || return 1
+    [[ -n "${BATS_TEST_FILENAME:-}" ]] && return 0
+    [[ -n "${BATS_VERSION:-}" ]] && return 0
     return 1
 }
 
