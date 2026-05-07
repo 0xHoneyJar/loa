@@ -782,7 +782,7 @@
     {
       "id": "cycle-098-agent-network",
       "label": "Agent-Network Operation Primitives (L1-L7) \u2014 operator-absent network operation",
-      "status": "shipped",
+      "status": "archived",
       "created": "2026-05-03T03:02:37.318627Z",
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
@@ -857,7 +857,9 @@
         }
       ],
       "shipped_at": "2026-05-04",
-      "ship_note": "PARTIAL \u2014 Sprints 1, 1.5, 2, 3, H1, H2, /bug-711 merged. Sprints 4-7 (L4-L7) deferred to cycle-100 or follow-up cycle. See grimoires/loa/cycles/cycle-098-agent-network/RESUMPTION.md."
+      "ship_note": "COMPLETE \u2014 L1-L7 all SHIPPED on main. Sprint timeline: Sprint 1 (#693, L1+cross-cutting), 1.5 (#697 hardening), 2 (#705, L2 cost-budget), 3 (#712, L3 scheduled-cycle), H1+H2 (#716, #717 signed-mode + observer), /bug #711 (#718 gpt-review hook), 4 (#764, L4 graduated-trust), 5 (#767, L5 cross-repo-status), 6 (#771, L6 structured-handoff), 7 (#775, L7 soul-identity-doc) + follow-up #778 (L6 inheritance: strict test-mode gate + hook wiring). Cycle-098 cumulative tests on main: 760+. See archive at grimoires/loa/archive/2026-05-08-cycle-098-agent-network-l1-l7-complete/.",
+      "archived": "2026-05-07T19:11:07Z",
+      "archive_path": "grimoires/loa/archive/2026-05-08-cycle-098-agent-network-l1-l7-complete"
     },
     {
       "id": "cycle-bug-20260503-i674-84adf8",
