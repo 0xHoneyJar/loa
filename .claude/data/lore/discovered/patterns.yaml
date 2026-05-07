@@ -218,3 +218,74 @@ entries:
       seen_in: ["cycle-098-sprint-1"]
       repos: ["loa"]
       significance: foundational
+
+  - id: structured-handoff
+    term: "Structured Handoff"
+    short: "Schema-validated, content-addressable, single-machine handoff documents — INDEX.md atomic writes + SessionStart surfacing under prompt-injection sanitization"
+    context: |
+      cycle-098 Sprint 6 (FR-L6). The L6 primitive provides a typed channel
+      for operator-to-operator (or session-to-session) context handoff.
+      Each handoff is a markdown file with YAML frontmatter; an INDEX.md
+      table tracks (handoff_id, file, from, to, topic, ts_utc, read_by) for
+      atomic state. handoff_id is content-addressable (SHA-256 of canonical
+      JSON via lib/jcs.sh, RFC 8785) so byte-identical content is
+      idempotent across writers. Atomic writes: one flock guards
+      collision-resolve (numeric suffix on filename), body write, and
+      INDEX.md update — no race window where two writers can publish to
+      the same path.
+
+      Three trust boundaries:
+        1. Schema-strict frontmatter (slug regex on from/to/topic prevents
+           filesystem traversal). additionalProperties:false rejects
+           unknown frontmatter keys.
+        2. Operator verification via OPERATORS.md (verify_operators=true
+           default; strict-mode rejects unknown/offboarded; warn-mode
+           accepts but tags audit payload with the verification state).
+        3. Body is UNTRUSTED. Sanitization happens at SURFACING time
+           (SessionStart hook -> sanitize_for_session_start("L6", body)),
+           never at write time. The banner explicitly frames the content
+           as descriptive, not instructional.
+
+      Same-machine-only (SDD §1.7.1): cross-host writes are refused with
+      [CROSS-HOST-REFUSED] BLOCKER + audit log. The .run/machine-fingerprint
+      file pins identity to (hostname, machine-id); migration requires an
+      explicit operator override (audit-logged with reason).
+    source: "cycle-098 Sprint 6 SDD §1.4.2, §5.8, §1.7.1"
+    source_model: "implementation"
+    tags: [discovered, security, governance, audit, cycle-098, l6]
+    loa_mapping: ".claude/scripts/lib/structured-handoff-lib.sh::handoff_write"
+    lifecycle:
+      references: 1
+      last_seen: "2026-05-07"
+      seen_in: ["cycle-098-sprint-6"]
+      repos: ["loa"]
+      significance: foundational
+
+  - id: machine-fingerprint-guardrail
+    term: "Machine-Fingerprint Guardrail"
+    short: "Hard runtime check that pins L1/L2/L4/L6 audit-log writes to the machine that originated the chain"
+    context: |
+      cycle-098 SDD §1.7.1 SKP-005 pass #2. Documenting "single-machine
+      only" in OOS is insufficient — operators will violate it. The
+      guardrail computes a fingerprint of (hostname, /etc/machine-id) on
+      first run, stores it in .run/machine-fingerprint, and re-checks on
+      every audit-log write of L1/L2/L4/L6. Mismatch -> the lib refuses
+      the write, emits a [CROSS-HOST-REFUSED] BLOCKER to a temp staging
+      log (not the canonical chain — preserves chain integrity on the
+      origin host), and surfaces a promotion path to the operator
+      ('/loa machine-fingerprint regenerate'). Migration is allowed but
+      audit-logged with operator identity + reason; old fingerprints
+      preserved in .run/machine-fingerprint.history.jsonl.
+
+      L3 (cycles, content-addressed cycle_id), L5 (read-only), L7 (no
+      hash-chained state) are exempt — chain integrity isn't at risk.
+    source: "cycle-098 SDD §1.7.1 (SKP-005 pass #2 HIGH 720)"
+    source_model: "design"
+    tags: [discovered, security, audit, cycle-098, multi-host]
+    loa_mapping: ".claude/scripts/lib/structured-handoff-lib.sh::_handoff_assert_same_machine"
+    lifecycle:
+      references: 1
+      last_seen: "2026-05-07"
+      seen_in: ["cycle-098-sprint-6"]
+      repos: ["loa"]
+      significance: foundational

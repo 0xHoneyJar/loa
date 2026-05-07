@@ -29,6 +29,8 @@ setup() {
     # Sprint 6B: bypass OPERATORS.md verification for 6A schema/id/atomic tests.
     # 6B has its own bats file that exercises verify_operators with fixtures.
     export LOA_HANDOFF_VERIFY_OPERATORS=0
+    # Sprint 6D: bypass same-machine guardrail for tests not exercising it.
+    export LOA_HANDOFF_DISABLE_FINGERPRINT=1
 
     # Use a fixed ts so collisions/filenames are predictable.
     TEST_TS_UTC="2026-05-07T12:00:00Z"

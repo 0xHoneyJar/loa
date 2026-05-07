@@ -116,11 +116,17 @@ properties.
 | 6 | Integrity (computed id != supplied id) |
 | 7 | Configuration (system-path rejection, dest collision) |
 
-## Roadmap
+## Sub-sprint status (Sprint 6 SHIPPED)
 
-| Sub-sprint | Scope |
-|------------|-------|
-| 6A (this) | Schema + handoff_id + atomic write + audit emit |
-| 6B | Same-day collision (numeric suffix) + verify_operators |
-| 6C | SessionStart hook (`surface_unread_handoffs`) |
-| 6D | Same-machine-only guardrail + lore + CLAUDE.md |
+| Sub-sprint | Scope | Status |
+|------------|-------|--------|
+| 6A | Schema + handoff_id + atomic write + audit emit | SHIPPED |
+| 6B | Same-day collision (numeric suffix) + verify_operators | SHIPPED |
+| 6C | SessionStart hook (`surface_unread_handoffs` + `handoff_mark_read`) | SHIPPED |
+| 6D | Same-machine-only guardrail (`_handoff_assert_same_machine`) + lore + CLAUDE.md | SHIPPED |
+
+## Same-machine-only guardrail (Sprint 6D)
+
+Per SDD §1.7.1: every write computes a `(hostname, /etc/machine-id)` SHA-256 fingerprint and compares against `.run/machine-fingerprint`. Mismatches refuse with exit 6 and write a `[CROSS-HOST-REFUSED]` BLOCKER to `.run/handoff-events.cross-host-staging.jsonl` (NOT the canonical chain — preserves origin integrity). Migration requires `/loa machine-fingerprint regenerate` (audit-logged with operator + reason).
+
+Override hatch (test-only): `LOA_HANDOFF_DISABLE_FINGERPRINT=1`. Production paths must NEVER set this.

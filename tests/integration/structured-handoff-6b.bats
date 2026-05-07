@@ -25,6 +25,8 @@ setup() {
     export LOA_HANDOFF_VERIFY_OPERATORS=1
     # Default mode strict; tests override per-case via LOA_HANDOFF_SCHEMA_MODE.
     export LOA_HANDOFF_SCHEMA_MODE=strict
+    # Sprint 6D: bypass same-machine guardrail (6B exercises operators only).
+    export LOA_HANDOFF_DISABLE_FINGERPRINT=1
 
     # OPERATORS.md fixture with three operators: alice, bob (verified) and
     # carol (offboarded → unverified per active_until in the past).

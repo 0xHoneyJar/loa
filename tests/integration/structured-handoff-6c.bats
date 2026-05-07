@@ -22,6 +22,8 @@ setup() {
     export LOA_TRUST_STORE_FILE="$TEST_DIR/no-such-trust-store.yaml"
     export LOA_HANDOFF_LOG="$TEST_DIR/handoff-events.jsonl"
     export LOA_HANDOFF_VERIFY_OPERATORS=0
+    # Sprint 6D: bypass same-machine guardrail (6C exercises surfacing only).
+    export LOA_HANDOFF_DISABLE_FINGERPRINT=1
 
     TEST_TS_UTC="2026-05-07T12:00:00Z"
 

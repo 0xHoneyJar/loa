@@ -50,6 +50,9 @@ _LOA_HANDOFF_FRONTMATTER_SCHEMA="${_LOA_HANDOFF_REPO_ROOT}/.claude/data/handoff-
 _LOA_HANDOFF_PAYLOAD_SCHEMA="${_LOA_HANDOFF_REPO_ROOT}/.claude/data/trajectory-schemas/handoff-events/handoff-write.payload.schema.json"
 _LOA_HANDOFF_DEFAULT_DIR="${_LOA_HANDOFF_REPO_ROOT}/grimoires/loa/handoffs"
 _LOA_HANDOFF_DEFAULT_LOG="${_LOA_HANDOFF_REPO_ROOT}/.run/handoff-events.jsonl"
+_LOA_HANDOFF_FINGERPRINT_FILE="${_LOA_HANDOFF_REPO_ROOT}/.run/machine-fingerprint"
+_LOA_HANDOFF_FINGERPRINT_HISTORY="${_LOA_HANDOFF_REPO_ROOT}/.run/machine-fingerprint.history.jsonl"
+_LOA_HANDOFF_CROSS_HOST_STAGING="${_LOA_HANDOFF_REPO_ROOT}/.run/handoff-events.cross-host-staging.jsonl"
 
 # Source jcs.sh for canonical-JSON.
 # shellcheck source=../../../lib/jcs.sh
@@ -71,6 +74,106 @@ fi
 # -----------------------------------------------------------------------------
 _handoff_log() {
     echo "[structured-handoff] $*" >&2
+}
+
+# -----------------------------------------------------------------------------
+# Machine-fingerprint guardrail (Sprint 6D — SDD §1.7.1 SKP-005)
+# -----------------------------------------------------------------------------
+# _handoff_compute_fingerprint — print the SHA-256 of (hostname || machine-id)
+# Hostname read from `hostname` (POSIX standard).
+# Machine-id read from /etc/machine-id (Linux) OR /var/lib/dbus/machine-id
+# (Debian) OR `ioreg -rd1 -c IOPlatformExpertDevice` IOPlatformUUID (macOS).
+# Fallback when none available: a stable hash of HOSTNAME alone (degraded —
+# operator will see CROSS-HOST-REFUSED if container restart changes hostname).
+# Tests inject via LOA_HANDOFF_FINGERPRINT_OVERRIDE.
+# -----------------------------------------------------------------------------
+_handoff_compute_fingerprint() {
+    if [[ -n "${LOA_HANDOFF_FINGERPRINT_OVERRIDE:-}" ]]; then
+        printf '%s' "$LOA_HANDOFF_FINGERPRINT_OVERRIDE"
+        return 0
+    fi
+    local host id
+    host="$(hostname 2>/dev/null || echo "unknown-host")"
+    if [[ -r /etc/machine-id ]]; then
+        id="$(cat /etc/machine-id)"
+    elif [[ -r /var/lib/dbus/machine-id ]]; then
+        id="$(cat /var/lib/dbus/machine-id)"
+    elif command -v ioreg >/dev/null 2>&1; then
+        id="$(ioreg -rd1 -c IOPlatformExpertDevice 2>/dev/null | awk -F\" '/IOPlatformUUID/ {print $4; exit}')"
+    fi
+    [[ -z "${id:-}" ]] && id="hostname-only"
+    printf '%s' "$(printf '%s|%s' "$host" "$id" | _audit_sha256)"
+}
+
+# _handoff_init_fingerprint — write .run/machine-fingerprint on first run.
+# Idempotent: if file exists, no-op. Mode 0600.
+_handoff_init_fingerprint() {
+    local fpfile="${LOA_HANDOFF_FINGERPRINT_FILE:-${_LOA_HANDOFF_FINGERPRINT_FILE}}"
+    [[ -f "$fpfile" ]] && return 0
+
+    mkdir -p "$(dirname "$fpfile")"
+    local fp now
+    fp="$(_handoff_compute_fingerprint)"
+    now="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+    local writer; writer="${USER:-$(whoami 2>/dev/null || echo unknown)}@$(hostname 2>/dev/null || echo unknown)"
+
+    local tmp; tmp="$(mktemp "${fpfile}.tmp.XXXXXX")"
+    chmod 0600 "$tmp"
+    jq -nc \
+        --arg fp "$fp" \
+        --arg ts "$now" \
+        --arg writer "$writer" \
+        '{fingerprint: $fp, first_seen_utc: $ts, writer_id_default: $writer}' > "$tmp"
+    mv -f "$tmp" "$fpfile"
+}
+
+# _handoff_assert_same_machine — main guardrail entry called from handoff_write.
+# Returns 0 if fingerprint matches (or no fingerprint file yet → initializes).
+# Returns 6 (integrity) on mismatch + emits [CROSS-HOST-REFUSED] BLOCKER to
+# the cross-host staging log (NOT the canonical chain — preserves origin's
+# chain integrity).
+#
+# Honors LOA_HANDOFF_DISABLE_FINGERPRINT=1 (test-only escape hatch).
+_handoff_assert_same_machine() {
+    if [[ "${LOA_HANDOFF_DISABLE_FINGERPRINT:-0}" == "1" ]]; then
+        return 0
+    fi
+
+    # Honor caller-overridable file path for tests.
+    local fpfile="${LOA_HANDOFF_FINGERPRINT_FILE:-${_LOA_HANDOFF_FINGERPRINT_FILE}}"
+    local stage="${LOA_HANDOFF_CROSS_HOST_STAGING:-${_LOA_HANDOFF_CROSS_HOST_STAGING}}"
+
+    if [[ ! -f "$fpfile" ]]; then
+        # First run — write the fingerprint and accept.
+        _handoff_init_fingerprint
+        return 0
+    fi
+
+    local stored current
+    stored="$(jq -r '.fingerprint // ""' "$fpfile" 2>/dev/null || echo "")"
+    current="$(_handoff_compute_fingerprint)"
+
+    if [[ -z "$stored" ]]; then
+        _handoff_log "machine-fingerprint file unparseable; refusing"
+        return 6
+    fi
+
+    if [[ "$stored" == "$current" ]]; then
+        return 0
+    fi
+
+    # Mismatch → emit [CROSS-HOST-REFUSED] BLOCKER to staging (NOT canonical).
+    mkdir -p "$(dirname "$stage")"
+    local now; now="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+    jq -nc \
+        --arg ts "$now" \
+        --arg stored "$stored" \
+        --arg current "$current" \
+        '{event: "CROSS-HOST-REFUSED", ts_utc: $ts, expected_fingerprint: $stored, observed_fingerprint: $current, recovery_hint: "Multi-host operation is FU-6 (deferred). To migrate work to this machine, use /loa machine-fingerprint regenerate."}' \
+        >> "$stage"
+
+    _handoff_log "[CROSS-HOST-REFUSED] machine-fingerprint mismatch (stored=${stored:0:12}... current=${current:0:12}...). See $stage. BLOCKER."
+    return 6
 }
 
 # -----------------------------------------------------------------------------
@@ -662,6 +765,10 @@ handoff_write() {
         _handoff_log "handoff_write: usage: handoff_write <yaml_path> [--handoffs-dir <path>]"
         return 2
     fi
+
+    # Sprint 6D: same-machine guardrail. Refuses cross-host writes BEFORE
+    # parsing the doc (no point validating content the host can't publish).
+    _handoff_assert_same_machine || return $?
 
     # Step 1: parse.
     local doc_json
