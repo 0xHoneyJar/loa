@@ -1,6 +1,6 @@
 # cycle-099-model-registry — Session Resumption Brief
 
-**Last updated**: 2026-05-07 (**Sprint 2E SHIPPED at #750 (v1.132.0)** + **PR #751 BB OpenAI endpoint_family routing fix** + **PR #752 gpt-5.5 temperature_supported + flatline SSOT migration (closes #753)** + **PR #754 gen-adapter-maps.sh `LC_ALL=C` locale-pin (closes Brief I Option D)** + **BB E2E TRIPLE-PROVIDER VERIFIED on PR #754 (closes Brief I Option A — anthropic 13s + openai gpt-5.5-pro 153s + google 7s, all returned cleanly, 0 BLOCKER, 0 HIGH_CONSENSUS, 1 DISPUTED, 4 LOW_VALUE/PRAISE)**. All three multi-model subsystems — Bridgebuilder + Red Team + Flatline — now invoke top-tier models successfully END-TO-END on real PRs. Cycle-099 Sprint 2 main thread closed. **Next: cycle-098 Sprint 4 (L4 graduated-trust, parked) OR cycle-099 T2.9-T2.16 operator-tooling (T2.12+T2.13 highest UX value)**)
+**Last updated**: 2026-05-07 (**Sprint 2E SHIPPED at #750 (v1.132.0)** + **PR #751 BB OpenAI endpoint_family routing fix** + **PR #752 gpt-5.5 temperature_supported + flatline SSOT migration (closes #753)** + **PR #754 gen-adapter-maps.sh `LC_ALL=C` locale-pin (closes Brief I Option D)** + **BB E2E TRIPLE-PROVIDER VERIFIED on PR #754 (closes Brief I Option A)** + **Sprint 2F SHIPPED at #760 (T2.12 model-invoke --validate-bindings + T2.13 LOA_DEBUG_MODEL_RESOLUTION; CYP F1+F2+F3+F4+F7 + GP HIGH-1+MED-2+LOW-4 + BB iter-1 F1+F5+F6+F7 all addressed pre-merge)**. Cycle-099 Sprint 2 has 5 operator-tooling tasks remaining (T2.9, T2.10, T2.11, T2.14, T2.16). **Next: cycle-098 Sprint 4 (L4 graduated-trust, parked) OR Sprint 2G (T2.9 + T2.10 + T2.11 endpoint allowlist + permissions baseline + legacy deprecation) OR Sprint 2H (T2.14 + T2.16 docs)**)
 **Author**: deep-name + Claude Opus 4.7 1M
 **Purpose**: Crash-recovery + cross-session continuity. Read first when resuming cycle-099 work.
 
@@ -385,18 +385,22 @@ Triple-provider success on PR #754 (`fix(cycle-099): pin LC_ALL=C in gen-adapter
 
 Consensus: 0 HIGH_CONSENSUS, 1 DISPUTED, 0 BLOCKER, 4 LOW_VALUE/PRAISE, 5 unique. Verdict: COMMENT. All 4 review artifacts posted (3 per-model + 1 enriched consensus). No Anthropic-only signal. The routing chain that PR #751 + #752 fixed is now verified end-to-end against a real PR via the path actual BB users hit. Memory: `project_cycle099_bb_e2e_verified.md`.
 
-### Option B — cycle-099 T2.9-T2.16 operator-tooling
+### Option B — cycle-099 T2.9-T2.16 operator-tooling — ✅ T2.12+T2.13 SHIPPED at PR #760 (Sprint 2F, 2026-05-07)
 
-Cycle-099 Sprint 2 has 7 operator-tooling tasks remaining:
+Sprint 2F closed two operator-tooling tasks via Brief I Option B:
+- ✅ T2.12 — `model-invoke --validate-bindings` CLI (FR-5.6 / SDD §5.2)
+- ✅ T2.13 — `LOA_DEBUG_MODEL_RESOLUTION=1` runtime tracing (FR-5.7 / SDD §6.4)
+
+Implementation: `.claude/scripts/lib/validate-bindings.py` (~370 LOC) + `_trace_resolution` decorator on `model-resolver.resolve()` + `model-invoke` argv-scan dispatch. 38 AC tests (V1-V17 + D1-D9 + I1-I2 + S1+S1b+S2-S9). Cypherpunk + GP + BB iter-1 dual-review all addressed pre-merge: F1+F2+F3+F4+F7 (cypherpunk) + HIGH-1+MED-2+LOW-4 (GP) + F1+F5+F6+F7 (BB iter-1). BB plateau by API-unavailability (gpt-5.5-pro errored mid-iter1; same precedent as sprint-1A through sprint-2D.d). Tracking issue #761 filed for the S1-pin URL-shape leak (out-of-scope resolver hardening). Memory: `project_cycle099_sprint2f_shipped.md`.
+
+**5 operator-tooling tasks remain**:
 - T2.9 — Legacy-shape backward compat (FR-3.7 deprecation warnings)
 - T2.10 — Permissions baseline + acknowledge flag (FR-1.4)
 - T2.11 — Endpoint allowlist integration (T1.15 wrapping)
-- T2.12 — `model-invoke --validate-bindings` CLI
-- T2.13 — `LOA_DEBUG_MODEL_RESOLUTION=1` tracing
 - T2.14 — `.loa.config.yaml.example` worked examples
 - T2.16 — `network-fs-merged-aliases.md` runbook
 
-These are small-to-medium tasks. T2.12 + T2.13 (validate-bindings + tracing) are the highest-value operator UX surfaces; T2.14 + T2.16 are docs. Could batch ~2-3 per sub-sprint.
+Suggested grouping: **Sprint 2G** = T2.9 + T2.10 + T2.11 (security-adjacent, ~5-7h); **Sprint 2H** = T2.14 + T2.16 (docs, ~2-3h).
 
 ### Option C — Cycle-098 Sprint 4 (L4 graduated-trust)
 
@@ -406,19 +410,27 @@ Read `grimoires/loa/cycles/cycle-098-agent-network/RESUMPTION.md` for the full B
 
 `gen-adapter-maps.sh` now has `export LC_ALL=C` near the top (after `set -euo pipefail`), with explanatory comment block citing the PR #750 origin. Verified locale-immune across `en_AU.UTF-8 / C.UTF-8 / de_DE.UTF-8 / LANG-only` invocations — all four produce byte-identical output matching committed `generated-model-maps.sh`. Choice of `C` over `C.UTF-8`: universally available + matches established repo convention (4 prior generators use `export LC_ALL=C`). Memory: `feedback_locale_pin_in_codegen.md`.
 
-### Recommendation (post A + D shipped)
+### Recommendation (post A + B-T2.12+T2.13 + D shipped)
 
-**B next** (operator-tooling). Cycle-099 Sprint 2 has 7 remaining tasks; T2.12 (`model-invoke --validate-bindings`) and T2.13 (`LOA_DEBUG_MODEL_RESOLUTION=1` tracing) deliver the highest operator-UX value. Both build on the FR-3.9 6-stage resolver SHIPPED at Sprint 2D — they expose its decision-path to operators for both batch validation and runtime debugging. Could batch as one sub-sprint. **C deserves its own fresh context** (Sprint 4 is potentially MAJOR — read cycle-098 RESUMPTION first).
+**Sprint 2G (T2.9 + T2.10 + T2.11)** — security-adjacent operator-tooling closure of cycle-099 Sprint 2. T2.11 (endpoint allowlist integration) wraps the T1.15 endpoint-validator into the validate-bindings flow that Sprint 2F just shipped — natural composition. T2.10 (permissions baseline) + T2.9 (FR-3.7 legacy deprecation warnings) round out the security-and-deprecation surface. **C deserves its own fresh context** (cycle-098 Sprint 4 is potentially MAJOR — read its RESUMPTION first).
+
+Alternative: **Sprint 2H (T2.14 + T2.16 docs)** — quick win to close cycle-099 Sprint 2 with operator documentation that demonstrates the validate-bindings + tracing surfaces shipped in 2F.
+
+Open follow-up issues:
+- #761 — `_stage1_explicit_pin` should reject URL-shaped values (security; closes V15 known-leak xfail)
+- gpt-5.5-pro BB error mid-iter1 on PR #760 — possibly related to the cheval bugs operator mentioned (file an issue if reproducible)
 
 ### Quick handover to next session
 
-* Main HEAD: `a212f18b` (PR #754 merge — locale-pin + BB E2E verified)
-* Latest releases: v1.130.0 (named milestone) → v1.131.0 (Sprint 2D.d) → v1.132.0 (Sprint 2E)
-* Today's PRs: #748 (2D.d) → #750 (2E) → #751 (BB OpenAI routing) → #752 (gpt-5.5 temp + flatline SSOT) → #754 (locale-pin + BB E2E verification)
+* Main HEAD: `94671061` (PR #760 merge — Sprint 2F)
+* Latest releases: v1.130.0 (named milestone) → v1.131.0 (Sprint 2D.d) → v1.132.0 (Sprint 2E) → v1.133.0 (auto-tag for Sprint 2F expected)
+* Today's PRs: #748 (2D.d) → #750 (2E) → #751 (BB OpenAI routing) → #752 (gpt-5.5 temp + flatline SSOT) → #754 (locale-pin + BB E2E verification) → #760 (Sprint 2F T2.12+T2.13)
 * Closed issues: #753 (cheval temperature on gpt-5.5)
+* New follow-up issue: #761 (S1-pin URL-shape rejection)
 * Pre-existing CI flakes (admin-merged through): macOS bash 3.2 (TS codegen), beads BHM tests (Shell Tests — `BHM-T1` + `BHM-T5` per #661)
 * ~~Latent: `gen-adapter-maps.sh` locale-dependence~~ — RESOLVED at PR #754
-* Memory entries written today: `project_top_models_routing_fixes.md`, `project_cycle099_sprint2e_shipped.md`, `feedback_bb_openai_endpoint_family_routing.md`, `project_cycle099_sprint2dd_shipped.md`, `project_v1130_named_release.md`, `feedback_named_release_pattern.md`, `project_cycle099_bb_e2e_verified.md`, `feedback_locale_pin_in_codegen.md`
+* Cycle-099 Sprint 2 progress: ✅ T2.1+T2.3+T2.4+T2.5+T2.6+T2.7+T2.8+T2.12+T2.13. ⏳ T2.9+T2.10+T2.11+T2.14+T2.16. T2.2 deferred.
+* Memory entries written today: `project_top_models_routing_fixes.md`, `project_cycle099_sprint2e_shipped.md`, `feedback_bb_openai_endpoint_family_routing.md`, `project_cycle099_sprint2dd_shipped.md`, `project_v1130_named_release.md`, `feedback_named_release_pattern.md`, `project_cycle099_bb_e2e_verified.md`, `feedback_locale_pin_in_codegen.md`, `project_cycle099_sprint2f_shipped.md`
 
 ---
 
