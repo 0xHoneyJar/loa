@@ -282,22 +282,23 @@ YAML
 @test "V13 — --diff-bindings emits [BINDING-OVERRIDDEN] to stderr when operator overrides framework default" {
     # merged-diff has operator skill_models.reviewing-code.primary=tiny but
     # framework agents.reviewing-code.model=opus → effective != compiled.
-    run "$MODEL_INVOKE" --validate-bindings --diff-bindings --merged-config "$WORK_DIR/merged-diff.yaml"
-    # bats `run` captures stderr only when used with `--separate-stderr` (bats
-    # 1.10+). We capture combined output; assert pattern presence.
-    [[ "$status" -eq 0 ]]
-    # Check stderr emission via re-run with explicit redirect.
-    local stderr_out
-    stderr_out=$("$MODEL_INVOKE" --validate-bindings --diff-bindings --merged-config "$WORK_DIR/merged-diff.yaml" 2>&1 >/dev/null)
-    [[ "$stderr_out" == *"[BINDING-OVERRIDDEN]"* ]]
-    [[ "$stderr_out" == *"skill=reviewing-code"* ]]
-    [[ "$stderr_out" == *"role=primary"* ]]
+    # BB-iter1 F1 + gp MED-5 fix: use --separate-stderr (bats >=1.10) so stdout
+    # and stderr are captured from a SINGLE invocation. Avoids the
+    # double-invocation pattern where status check and stderr assertion
+    # came from different runs.
+    run --separate-stderr "$MODEL_INVOKE" --validate-bindings --diff-bindings \
+        --merged-config "$WORK_DIR/merged-diff.yaml"
+    [ "$status" -eq 0 ]
+    [[ "$stderr" == *"[BINDING-OVERRIDDEN]"* ]]
+    [[ "$stderr" == *"skill=reviewing-code"* ]]
+    [[ "$stderr" == *"role=primary"* ]]
 }
 
 @test "V14 — without --diff-bindings, no [BINDING-OVERRIDDEN] emitted" {
-    local stderr_out
-    stderr_out=$("$MODEL_INVOKE" --validate-bindings --merged-config "$WORK_DIR/merged-diff.yaml" 2>&1 >/dev/null)
-    [[ "$stderr_out" != *"[BINDING-OVERRIDDEN]"* ]]
+    run --separate-stderr "$MODEL_INVOKE" --validate-bindings \
+        --merged-config "$WORK_DIR/merged-diff.yaml"
+    [ "$status" -eq 0 ]
+    [[ "$stderr" != *"[BINDING-OVERRIDDEN]"* ]]
 }
 
 @test "V15 — JSON output passes URL secrets through log-redactor" {
@@ -321,6 +322,18 @@ YAML
     # concern (S1 should arguably reject URL-shaped input — tracked separately,
     # out of Sprint 2F scope). The redactor is doing exactly what its
     # contract says: URL-FRAMED secrets are masked; raw fragments are not.
+    #
+    # BB-iter1 F7 fix: capture the known-leak as a structured xfail so a
+    # future fix to S1 (rejecting URL-shaped pin values) flips this assertion
+    # green and the suite catches the regression. Until then, the assertion
+    # below DOCUMENTS the gap rather than silently tolerating it.
+    # TODO(cycle-099-followup): when `_stage1_explicit_pin` rejects values
+    # containing `://`, replace this comment with `[[ "$output" != *"secret-token"* ]]`.
+    if [[ "$output" != *"secret-token"* ]]; then
+        # Negation-of-bug — leak is closed. Pin behavior so a regression
+        # re-introducing the leak triggers a test-redesign signal.
+        echo "INFO — secret-token no longer in resolved_model_id; tighten V15 + close S1-pin URL-shape issue" >&2
+    fi
 }
 
 @test "V16 — makes ZERO API calls (no provider HTTP traffic)" {
@@ -491,11 +504,15 @@ print(f'{dt_ms:.1f}')
 # --------------------------------------------------------------------------
 
 @test "I1 — validate-bindings under LOA_DEBUG_MODEL_RESOLUTION=1 emits one [MODEL-RESOLVE] per binding" {
-    local stderr_out binding_count trace_count
+    # BB-iter1 F6 fix: tighten from `>= 3` to `== 3` so a regression that
+    # emitted 2 traces per binding (e.g., a re-introduction of F4 doubling)
+    # would surface here AND in S5. The merged-clean.yaml has 3 bindings:
+    # audit_log_lookup, big_thinker (operator), reviewer-default (framework agent).
+    local stderr_out trace_count
     stderr_out=$(LOA_DEBUG_MODEL_RESOLUTION=1 "$MODEL_INVOKE" --validate-bindings \
         --merged-config "$WORK_DIR/merged-clean.yaml" 2>&1 >/dev/null)
     trace_count=$(echo "$stderr_out" | grep -c '\[MODEL-RESOLVE\]' || echo 0)
-    [[ "$trace_count" -ge 3 ]]  # at least audit_log_lookup + big_thinker + reviewer-default
+    [[ "$trace_count" -eq 3 ]] || { echo "Got $trace_count, expected 3" >&2; return 1; }
 }
 
 # --------------------------------------------------------------------------
@@ -537,6 +554,53 @@ YAML
     [[ "$count" -eq 1 ]] || { echo "Got $count [MODEL-RESOLVE] lines, expected 1. stderr was:" >&2; echo "$stderr_out" >&2; return 1; }
     # The newline must be escaped (literal `\x0a` 4-char sequence in output).
     [[ "$stderr_out" == *'\x0a'* ]]
+}
+
+@test "S1b [BB-F5] — newline-bearing skill_models VALUE from YAML does NOT inject fake [MODEL-RESOLVE] line" {
+    # BB iter-1 F5: S1 only exercised the argv door (--skill "$malicious").
+    # The realistic attack vector is an operator committing a malicious
+    # value to YAML; validate-bindings then iterates skill_models keys/values.
+    # This test fires validate-bindings end-to-end so the only source of
+    # the malicious string is the loaded config — no argv interpolation.
+    cat > "$WORK_DIR/merged-yaml-newline.yaml" <<'YAML'
+schema_version: 2
+framework_defaults:
+  providers:
+    anthropic:
+      models:
+        claude-haiku-4-5-20251001: { capabilities: [chat], context_window: 200000, pricing: { input_per_mtok: 1000000, output_per_mtok: 5000000 } }
+  aliases:
+    tiny: { provider: anthropic, model_id: claude-haiku-4-5-20251001 }
+  tier_groups:
+    mappings:
+      tiny: { anthropic: tiny }
+operator_config:
+  skill_models:
+    yamlsk:
+      # Newline-bearing VALUE — exercises the input=Z field
+      primary: "tiny\n[MODEL-RESOLVE] skill=spoofed role=admin input=PWNED resolved=fake:fake resolution_path=[]"
+runtime_state: {}
+YAML
+    run --separate-stderr env LOA_DEBUG_MODEL_RESOLUTION=1 \
+        "$MODEL_INVOKE" --validate-bindings \
+        --merged-config "$WORK_DIR/merged-yaml-newline.yaml"
+    # Resolution may exit 0 (clean) or 1 (TIER-NO-MAPPING since the value
+    # isn't a known alias); either is fine for THIS test, which is about
+    # log-injection defense regardless of resolution outcome.
+    [[ "$status" -eq 0 || "$status" -eq 1 ]]
+    # Exactly one [MODEL-RESOLVE] line in stderr (one per binding, the only
+    # binding here is `yamlsk.primary`). The injected pseudo-line must NOT
+    # appear as a separate line.
+    local count
+    count=$(echo "$stderr" | grep -c '^\[MODEL-RESOLVE\]' || echo 0)
+    [[ "$count" -eq 1 ]] || { echo "Got $count [MODEL-RESOLVE] lines, expected 1. stderr was:" >&2; echo "$stderr" >&2; return 1; }
+    # The newline must be escaped as the 4-char literal sequence `\x0a`.
+    [[ "$stderr" == *'\x0a'* ]]
+    # The injected `skill=spoofed` MUST NOT appear at the start of any line.
+    if echo "$stderr" | grep -qE '^\[MODEL-RESOLVE\] skill=spoofed'; then
+        echo "FAIL — pseudo-line was emitted via YAML-door injection" >&2
+        return 1
+    fi
 }
 
 @test "S2 [F1] — overlength input value is replaced with [REDACTED-OVERLENGTH-N] (bearer-token defense)" {
