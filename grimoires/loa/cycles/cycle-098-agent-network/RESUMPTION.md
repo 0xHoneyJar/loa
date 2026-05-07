@@ -1,12 +1,13 @@
 # cycle-098-agent-network — Session Resumption Brief
 
-**Last updated**: 2026-05-07 (Sprint 1 + 1.5 + 2 + 3 + 4 + 5 + H1 + H2 + /bug #711 ALL SHIPPED; **next: Sprint 6 L6 structured-handoff OR Sprint 7 L7 soul-identity-doc**)
+**Last updated**: 2026-05-08 (Sprint 1 + 1.5 + 2 + 3 + 4 + 5 + 6 + H1 + H2 + /bug #711 ALL SHIPPED; **next: Sprint 7 L7 soul-identity-doc**)
 **Author**: deep-name + Claude Opus 4.7 1M
 **Purpose**: Crash-recovery + cross-session continuity. Read first when resuming cycle-098 work.
 
-## 🚨 TL;DR — Sprints 4 + 5 SHIPPED 2026-05-07; L6 + L7 remain
+## 🚨 TL;DR — Sprint 6 SHIPPED 2026-05-08; only L7 remains
 
-**2026-05-07 session wins**:
+**2026-05-07/08 session wins**:
+- **Sprint 6 (PR #771, merge `1b820a0f`) — L6 structured-handoff SHIPPED.** FR-L6-1..7 + same-machine guardrail (SDD §1.7.1) + lore + CLAUDE.md. **90 cumulative tests** across 5 sub-sprint files (6A 27 + 6B 17 + 6C 17 + 6D 11 + 6E 18). Subagent dual-review (general-purpose + paranoid cypherpunk in parallel) caught **3 CRIT + 7 HIGH + 12 MED** — all CRIT/HIGH and 6 MED closed inline pre-BB; remaining MED + LOW (~22 items) deferred to a follow-up issue. Bridgebuilder iter-1 (Anthropic-only consensus per cycle-098 API-unavailability plateau pattern): 0 BLOCKER, 0 HIGH_CONSENSUS, 5 MED + 14 LOW + 4 PRAISE; 5 MED + 1 LOW (BB-F8) closed inline. Patterns extended: env-var test-mode gate (`_handoff_test_mode_active` + `_handoff_check_env_override`, 8 security-critical env vars gated, mirrors L4 cycle-099 #761), explicit-rollback in atomic_publish (replaced trap-based ERR rollback that proved fragile under bats `run`), filename-shape regex pinning in INDEX consumers (defense-in-depth against forged rows), JSONSchema control-byte rejection in slug fields (closes Python `re.$`-accepts-`\n` bypass with INDEX row-injection PoC pinned in test E6), bootstrap-pending state for absent OPERATORS.md (mirrors audit-envelope BOOTSTRAP-PENDING).
 - **Sprint 5 (PR #767) — L5 cross-repo-status-reader SHIPPED.** FR-L5-1..7. 43 cumulative tests (26 sprint + 17 cypherpunk-remediation). Cypherpunk audit caught 1 CRIT (p95 heredoc RCE via cache-poisoned `_latency_seconds`) + 3 HIGH (cache shape poisoning, invalidate-all over-deletion, mktemp TOCTOU) + 7 MED — all CRIT/HIGH and selected MED closed pre-merge. BB iter-1 plateau (0 BLOCKER, 0 HIGH_CONS, 1 HIGH + 1 MEDIUM closed inline; #768 follow-up filed). Patterns extended: shell-opt save/restore helpers (`_l5_save_shell_opts`); `_audit_primitive_id_for_log` extended for L5 (`cross-repo-status*` → `L5`).
 - **Sprint 4 (PR #764) — L4 graduated-trust SHIPPED.** Per-(scope, capability, actor) trust ledger (FR-L4-1..8). 118 cumulative tests. Cypherpunk audit caught 2 CRIT (seal bypass via marker, cooldown_until forgery) + 6 HIGH + 3 MED — all closed pre-merge with the `fc3ad7f0` remediation pass. Pre-existing audit-envelope `_audit_recover_from_git` path-resolution bug (basename vs repo-relative) fixed during 4C.
 
@@ -17,11 +18,83 @@
 - /bug #711 (PR #718, `4a576da`) — gpt-review hook recursion + 429 diagnostic
 - cycle-099 entire registry-refactor cycle SHIPPED (Sprints 1-2F). See cycle-099 RESUMPTION for that full ladder.
 
-**Cumulative cycle-098 tests on main: 600+ ; 0 regressions.**
+**Cumulative cycle-098 tests on main: 690+ ; 0 regressions.**
 
 ---
 
-## 🚦 Brief: Sprint 6 (L6 structured-handoff, MEDIUM)
+## 🚦 Brief: Sprint 7 (L7 soul-identity-doc — LARGE, likely needs its own session)
+
+Paste into a fresh Claude Code session:
+
+```
+Read grimoires/loa/cycles/cycle-098-agent-network/RESUMPTION.md FIRST and the section "Brief: Sprint 7 (L7 soul-identity-doc, LARGE)". Sprints 1+1.5+2+3+4+5+6+H1+H2+/bug #711 ALL SHIPPED on main (cycle-098 cumulative tests: 690+).
+
+Today's main HEAD: 1b820a0f (Sprint 6 merged).
+Cycle-098 status: L1+L2+L3+L4+L5+L6 SHIPPED; ONLY L7 REMAINS.
+
+Execute Sprint 7: L7 soul-identity-doc per PRD FR-L7-1..N (#653/#660 — confirm via PRD). Compose with:
+  - 1A audit envelope (soul.surface event — define payload schema)
+  - 1C lib/context-isolation-lib.sh::sanitize_for_session_start (already extended for L7 in Sprint 1C — surface_max_chars default 2000)
+  - 6 SessionStart hook pattern (mirror .claude/hooks/session-start/loa-l6-surface-handoffs.sh structure)
+
+Branch: feat/cycle-098-sprint-7 from origin/main (1b820a0f).
+
+Sub-sprint slicing (4-slice pattern; Sprint 7 is LARGER — adversarial corpus is its own slice):
+  - 7A: SOUL.md schema + frontmatter validator + lib (FR-L7 schema; required sections per SDD §1.4.2: ## What I am / What I am not / Voice / Discipline / Influences; optional: ## Refusals / Glossary / Provenance)
+  - 7B: surface_soul_identity SessionStart hook integration via sanitize_for_session_start("L7", content) — mirror L6 pattern
+  - 7C: /loa soul validate CLI + operator-time validation; cycle integration tests (L1 ↔ L4 ↔ L6 ↔ L7 cross-primitive ACs from SDD §6)
+  - 7D: ADVERSARIAL JAILBREAK CORPUS at tests/red-team/jailbreak/ (50+ documented attack vectors per SDD §1.9.3.2 Layer 4) — role-switch, indirect injection via Markdown, Unicode obfuscation, encoded payloads, multi-turn conditioning. CI gate: every PR touching prompt_isolation/L6/L7/SessionStart MUST pass jailbreak suite.
+
+Quality gate chain (full Sprint 4+5+6 pattern):
+  1. /implement test-first × 4 sub-sprints
+  2. Subagent dual-review IN PARALLEL (general-purpose + paranoid cypherpunk via Agent run_in_background:true)
+     - Cypherpunk threat model for L7: SOUL.md is OPERATOR-WRITTEN but reaches session via SessionStart hook; verify schema validation strict-mode + sanitize layer match L6's discipline. Probe the jailbreak corpus completeness.
+  3. Remediation pass — fix HIGH/MEDIUM inline; defer LOW to follow-up issue
+  4. Bridgebuilder kaironic INLINE (.claude/skills/bridgebuilder-review/resources/entry.sh --pr <N>)
+     - Expect API-unavailability plateau (OpenAI + Google often error; Anthropic-only consensus is plateau-ready per cycle-098 sprints 4/5/6 precedent)
+  5. Address BB iter-1 HIGH/MED inline; LOW → follow-up issue
+  6. Admin-squash merge after CI green (Shell Tests pre-existing flakes admin-merged-through: BHM-T1/T5, FOPP-T1..T8, ~178 unrelated)
+
+Patterns proven across Sprints 4+5+6 (apply in Sprint 7):
+  - Schema-mirror with audit-retention-policy.yaml: lib's _DEFAULT_LOG must match policy basename; add primitive_id case to `_audit_primitive_id_for_log` (`soul-events*` → `L7`); add a unit test asserting alignment.
+  - Env-var test-mode gate (cycle-098 sprint 6 CYP-F1/F3/F4 remediation; mirrors L4 cycle-099 #761): every security-critical env-var override MUST be gated behind `BATS_TEST_DIRNAME` / `LOA_*_TEST_MODE=1` AND emit stderr WARN-and-ignore in production. Apply to: LOA_SOUL_PATH override, LOA_SOUL_LOG, LOA_SOUL_DISABLE_*, etc.
+  - Control-byte rejection in slug-shape fields (cycle-098 sprint 6 CYP-F2; defends Python `re.$` trailing-newline). If L7 has any slug-shape fields (provenance.author?), apply same defense — reject `\x00-\x1f \x7f` in parse helper.
+  - Filename-shape pinning in any consumers that read structured state (cycle-098 sprint 6 CYP-F7).
+  - Pre-emptive hardening before subagent review (mktemp over `${path}.tmp.$$`, realpath canonicalize, system-path rejection /etc /usr /proc /sys /dev /boot /var /root /srv, bounds-check operator-controlled timestamps).
+  - Trust-boundary discipline: SOUL.md is operator-authored but UNTRUSTED at SURFACING — sanitize_for_session_start("L7", body) at SessionStart hook; never interpret as instructions. Operator-time validation (`/loa soul validate`) is separate from surfacing-time sanitization.
+  - Adversarial test discipline (cycle-098 sprint 6 C9/C10): construct evil-body fixtures programmatically via runtime helpers (`_make_evil_body` style) so the bats source files never contain literal trigger strings.
+  - Inline rollback over ERR-trap: `if ! mv ...; then rm ...; exit 4; fi` (cycle-098 sprint 6 CYP-F6; trap-based approach is fragile under bats `run` set-e state).
+
+Sprint 7 specific design pinpoints:
+  - SDD §1.4.2 (L7 component spec) + §1.5.2 (SessionStart surfacing flow) + §1.9.3.2 Layer 4 (adversarial corpus requirements)
+  - SOUL.md schema: required sections (## What I am, ## What I am not, ## Voice, ## Discipline, ## Influences); optional (## Refusals, ## Glossary, ## Provenance); REJECT prescriptive sections (anything that looks like CLAUDE.md instructions)
+  - Cap: surface_max_chars default 2000 per SDD §5.13 (vs L6's 4000)
+  - Hook silent on enabled: false / file missing
+  - Cache scoped to session — no re-validation per tool use
+  - L1+L4+L6+L7 cross-primitive integration tests (SDD §6 ACs) — verify the umbrella `agent_network.enabled: true` flow
+
+Operational gotchas:
+  - bypassPermissions ON in .claude/settings.local.json
+  - Beads UNHEALTHY (#661); use `git commit --no-verify` with `[NO-VERIFY-RATIONALE: …]`
+  - Pre-existing CI flakes admin-merged through: BHM-T1/T5, FOPP-T1..T8 (Shell Tests, ~178 unrelated failures — none touch L7/SOUL)
+  - Cycle-098 BB iter-1 typically gets Anthropic-only consensus (OpenAI 400 / Google network errors); plateau-defensible per the established pattern AS LONG AS pre-BB subagent review was substantive
+
+Cost expectation: ~$50-100 (Sprint 7 is LARGER than 4/5/6 because of the adversarial corpus and cross-primitive integration tests — likely needs a fresh session for context budget).
+
+Begin: `git fetch origin main && git checkout -b feat/cycle-098-sprint-7 origin/main`. Read PRD §FR-L7 + SDD §1.4.2 (L7 component) + SDD §5.9 (L7 API spec) + SDD §1.9.3.2 Layer 4 (adversarial corpus) for full task list + ACs. Slice 7A.
+```
+
+After Sprint 7 ships: cycle-098-agent-network is COMPLETE (L1-L7 all SHIPPED). Next steps: cycle-archive + post-cycle hardening sweeps.
+
+---
+
+## 🗄️ Sprint 6 SHIPPED — archived brief
+
+The original Sprint 6 brief has been archived (now executed and merged in PR #771). The full sprint-6 scope ladder, sub-sprint slicing, design pinpoints, and the full quality-gate chain are preserved in the merged PR description and the commit history (`152a554c` 6A → `a4bf56ac` 6B → `d56bae84` 6C → `f5193fb9` 6D → `e9444029` 6E review-remediation → `1fa2381b` BB-iter1 fixes → squashed at `1b820a0f`).
+
+---
+
+## 🚦 Brief: Sprint 6 (L6 structured-handoff, MEDIUM) — ARCHIVED, kept for reference
 
 Paste into a fresh Claude Code session:
 
