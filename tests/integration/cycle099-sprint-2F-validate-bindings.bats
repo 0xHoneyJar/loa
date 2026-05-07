@@ -261,6 +261,10 @@ framework_defaults: [this is wrong - should be a dict
 YAML
     run "$MODEL_INVOKE" --validate-bindings --merged-config "$WORK_DIR/malformed.yaml"
     [ "$status" -eq 78 ]
+    # gp LOW-4: assert error message structure so a regression that changes
+    # exit-code-78 path to silent-78 (e.g., uncaught yaml error → wrong code)
+    # surfaces in test rather than the bare exit-code check.
+    [[ "$output" == *"[VALIDATE-BINDINGS] ERROR"* ]]
 }
 
 @test "V12 — --format text produces non-JSON human-readable output" {
@@ -492,6 +496,230 @@ print(f'{dt_ms:.1f}')
         --merged-config "$WORK_DIR/merged-clean.yaml" 2>&1 >/dev/null)
     trace_count=$(echo "$stderr_out" | grep -c '\[MODEL-RESOLVE\]' || echo 0)
     [[ "$trace_count" -ge 3 ]]  # at least audit_log_lookup + big_thinker + reviewer-default
+}
+
+# --------------------------------------------------------------------------
+# S-series: Sprint 2F cypherpunk-review pre-merge defenses
+# --------------------------------------------------------------------------
+
+@test "S1 [F2] — newline in skill name does NOT inject fake [MODEL-RESOLVE] line" {
+    # Operator-controlled skill name with embedded newline that, without F2
+    # mitigation, would emit two pseudo-[MODEL-RESOLVE] lines. With F2, the
+    # newline must be escaped to \x0a and the line stays on one line.
+    # Use a SHORT skill name so the F1 length-cap doesn't fire first.
+    cat > "$WORK_DIR/merged-newline.yaml" <<'YAML'
+schema_version: 2
+framework_defaults:
+  providers:
+    anthropic:
+      models:
+        claude-haiku-4-5-20251001: { capabilities: [chat], context_window: 200000, pricing: { input_per_mtok: 1000000, output_per_mtok: 5000000 } }
+  aliases:
+    tiny: { provider: anthropic, model_id: claude-haiku-4-5-20251001 }
+  tier_groups:
+    mappings:
+      tiny: { anthropic: tiny }
+operator_config:
+  skill_models:
+    "evil\nfake-pwn":
+      primary: tiny
+runtime_state: {}
+YAML
+    local stderr_out malicious
+    malicious=$(printf 'evil\nfake-pwn')
+    stderr_out=$(LOA_DEBUG_MODEL_RESOLUTION=1 python3 "$RESOLVER" resolve \
+        --config "$WORK_DIR/merged-newline.yaml" \
+        --skill "$malicious" \
+        --role primary 2>&1 >/dev/null) || true
+    # Exactly one [MODEL-RESOLVE] line — the injected one is escaped.
+    local count
+    count=$(echo "$stderr_out" | grep -c '^\[MODEL-RESOLVE\]' || echo 0)
+    [[ "$count" -eq 1 ]] || { echo "Got $count [MODEL-RESOLVE] lines, expected 1. stderr was:" >&2; echo "$stderr_out" >&2; return 1; }
+    # The newline must be escaped (literal `\x0a` 4-char sequence in output).
+    [[ "$stderr_out" == *'\x0a'* ]]
+}
+
+@test "S2 [F1] — overlength input value is replaced with [REDACTED-OVERLENGTH-N] (bearer-token defense)" {
+    # Operator pastes a long bearer-shaped string into skill_models.<skill>.<role>.
+    # Without F1 mitigation, the trace line would carry the secret literally.
+    # With F1, anything >80 chars defaults to [REDACTED-OVERLENGTH-N].
+    local long_secret="sk-ant-api03-AAAA-base64-bearer-token-AAAA-this-is-100-plus-chars-of-pasted-secret-material-XYZ"
+    cat > "$WORK_DIR/merged-long.yaml" <<YAML
+schema_version: 2
+framework_defaults:
+  providers:
+    anthropic:
+      models:
+        claude-haiku-4-5-20251001: { capabilities: [chat], context_window: 200000, pricing: { input_per_mtok: 1000000, output_per_mtok: 5000000 } }
+  aliases:
+    tiny: { provider: anthropic, model_id: claude-haiku-4-5-20251001 }
+  tier_groups:
+    mappings:
+      tiny: { anthropic: tiny }
+operator_config:
+  skill_models:
+    bad_skill:
+      primary: "$long_secret"
+runtime_state: {}
+YAML
+    local stderr_out
+    # `|| true` since long_secret won't resolve to a known alias → resolver
+    # exits 1 (TIER-NO-MAPPING). We're testing the trace-emission mitigation,
+    # not the resolution outcome.
+    stderr_out=$(LOA_DEBUG_MODEL_RESOLUTION=1 python3 "$RESOLVER" resolve \
+        --config "$WORK_DIR/merged-long.yaml" \
+        --skill bad_skill --role primary 2>&1 >/dev/null) || true
+    # The secret MUST NOT appear in the trace line.
+    [[ "$stderr_out" != *"sk-ant-api03-AAAA-base64-bearer-token-AAAA"* ]]
+    # The redacted sentinel MUST appear.
+    [[ "$stderr_out" == *"REDACTED-OVERLENGTH"* ]]
+}
+
+@test "S3 [F1] — short input values flow through (no false-positive redaction)" {
+    # Legitimate short skill_models value passes through unmodified.
+    local stderr_out
+    stderr_out=$(LOA_DEBUG_MODEL_RESOLUTION=1 python3 "$RESOLVER" resolve \
+        --config "$WORK_DIR/merged-clean.yaml" \
+        --skill audit_log_lookup --role primary 2>&1 >/dev/null)
+    [[ "$stderr_out" == *"input=tiny"* ]]
+    [[ "$stderr_out" != *"REDACTED-OVERLENGTH"* ]]
+}
+
+@test "S4 [F1] — LOA_TRACE_INPUT_MAX_LEN env var extends the cap" {
+    # Operator with longer-than-80-char model_ids can extend via env override.
+    local long_value="this-is-a-long-but-legitimate-model-id-that-an-operator-might-have-95chars-XYZW-abc"
+    cat > "$WORK_DIR/merged-cap.yaml" <<YAML
+schema_version: 2
+framework_defaults:
+  providers:
+    anthropic:
+      models:
+        claude-haiku-4-5-20251001: { capabilities: [chat], context_window: 200000, pricing: { input_per_mtok: 1000000, output_per_mtok: 5000000 } }
+  aliases:
+    tiny: { provider: anthropic, model_id: claude-haiku-4-5-20251001 }
+  tier_groups:
+    mappings:
+      tiny: { anthropic: tiny }
+operator_config:
+  skill_models:
+    long_skill:
+      primary: "$long_value"
+runtime_state: {}
+YAML
+    local stderr_out
+    # `|| true` because the long value isn't a known alias (TIER-NO-MAPPING).
+    stderr_out=$(LOA_DEBUG_MODEL_RESOLUTION=1 LOA_TRACE_INPUT_MAX_LEN=200 \
+        python3 "$RESOLVER" resolve \
+        --config "$WORK_DIR/merged-cap.yaml" \
+        --skill long_skill --role primary 2>&1 >/dev/null) || true
+    # With cap=200, the 82-char value passes through.
+    [[ "$stderr_out" == *"input=$long_value"* ]]
+    [[ "$stderr_out" != *"REDACTED-OVERLENGTH"* ]]
+}
+
+@test "S5 [F4] — --diff-bindings under LOA_DEBUG=1 emits ONE trace per binding (not two)" {
+    # F4 mitigation: _diff_bindings calls resolve.__wrapped__ to bypass the
+    # decorator's trace emission for the framework-only re-resolution.
+    local stderr_out trace_count
+    stderr_out=$(LOA_DEBUG_MODEL_RESOLUTION=1 "$MODEL_INVOKE" --validate-bindings \
+        --diff-bindings --merged-config "$WORK_DIR/merged-clean.yaml" 2>&1 >/dev/null)
+    trace_count=$(echo "$stderr_out" | grep -cE '^\[MODEL-RESOLVE\]' || echo 0)
+    # Expected: 3 bindings × 1 trace each = 3 (NOT 6 = 3×2 if doubled).
+    # merged-clean.yaml has audit_log_lookup, big_thinker, reviewer-default = 3 pairs.
+    [[ "$trace_count" -eq 3 ]] || { echo "Got $trace_count traces, expected 3 (no doubling). Output:" >&2; echo "$stderr_out" >&2; return 1; }
+}
+
+@test "S6 [F7] — trace-emission exception emits [MODEL-RESOLVE-TRACE-FAILED] WARN counter" {
+    # Inject a deliberate trace-emit exception via a non-stringifiable value
+    # in the resolution result. We do this by monkey-patching _emit_trace_line
+    # in a one-shot Python invocation — easier than crafting a YAML fixture
+    # that triggers an exception inside json.dumps.
+    local stderr_out
+    stderr_out=$(LOA_DEBUG_MODEL_RESOLUTION=1 python3 -c "
+import os, sys
+sys.path.insert(0, '$PROJECT_ROOT/.claude/scripts/lib')
+import importlib.util
+spec = importlib.util.spec_from_file_location('mr', '$RESOLVER')
+mr = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mr)
+def boom(*a, **kw):
+    raise RuntimeError('synthetic-trace-failure')
+mr._emit_trace_line = boom
+import yaml
+with open('$WORK_DIR/merged-clean.yaml') as fh:
+    cfg = yaml.safe_load(fh)
+mr.resolve(cfg, 'audit_log_lookup', 'primary')
+" 2>&1 >/dev/null)
+    [[ "$stderr_out" == *"[MODEL-RESOLVE-TRACE-FAILED]"* ]]
+    [[ "$stderr_out" == *"error=RuntimeError"* ]]
+    # Bare error name only — no `synthetic-trace-failure` text.
+    [[ "$stderr_out" != *"synthetic-trace-failure"* ]]
+}
+
+@test "S8 [GP-HIGH-1] — --diff-bindings does NOT false-positive on operator-introduced bindings (no framework counterpart)" {
+    # gp HIGH-1: operator-introduced skill_models entries with no
+    # framework agents.<skill> counterpart should NOT emit [BINDING-OVERRIDDEN]
+    # because there is nothing for the operator to "override". Per SDD §1.5.2,
+    # [BINDING-OVERRIDDEN] is for runtime-overrides-build-time divergence —
+    # not for operator-added bindings that have no compiled equivalent.
+    cat > "$WORK_DIR/merged-operator-only.yaml" <<'YAML'
+schema_version: 2
+framework_defaults:
+  providers:
+    anthropic:
+      models:
+        claude-haiku-4-5-20251001: { capabilities: [chat], context_window: 200000, pricing: { input_per_mtok: 1000000, output_per_mtok: 5000000 } }
+  aliases:
+    tiny: { provider: anthropic, model_id: claude-haiku-4-5-20251001 }
+  tier_groups:
+    mappings:
+      tiny: { anthropic: tiny }
+  agents: {}
+operator_config:
+  skill_models:
+    operator_introduced_only:
+      primary: tiny
+runtime_state: {}
+YAML
+    local stderr_out
+    stderr_out=$("$MODEL_INVOKE" --validate-bindings --diff-bindings \
+        --merged-config "$WORK_DIR/merged-operator-only.yaml" 2>&1 >/dev/null)
+    # No [BINDING-OVERRIDDEN] line because there's no framework default to override.
+    [[ "$stderr_out" != *"[BINDING-OVERRIDDEN]"* ]]
+}
+
+@test "S9 [GP-HIGH-1] — --diff-bindings DOES emit [BINDING-OVERRIDDEN] for genuine override" {
+    # Positive control for S8: an operator binding that DOES override a
+    # framework agent default MUST still emit [BINDING-OVERRIDDEN].
+    # Reuses merged-diff.yaml fixture (operator skill_models.reviewing-code.primary=tiny;
+    # framework agents.reviewing-code.model=opus).
+    local stderr_out
+    stderr_out=$("$MODEL_INVOKE" --validate-bindings --diff-bindings \
+        --merged-config "$WORK_DIR/merged-diff.yaml" 2>&1 >/dev/null)
+    [[ "$stderr_out" == *"[BINDING-OVERRIDDEN]"* ]]
+    [[ "$stderr_out" == *"skill=reviewing-code"* ]]
+}
+
+@test "S7 [F3] — redactor identity-fallback emits [REDACTOR-FALLBACK-IDENTITY] WARN" {
+    # Force the lazy-load path to fail by pointing it at a non-existent dir.
+    # We do this via a monkey-patched __file__ attribute on the resolver module.
+    local stderr_out
+    stderr_out=$(LOA_DEBUG_MODEL_RESOLUTION=1 python3 -c "
+import os, sys
+sys.path.insert(0, '$PROJECT_ROOT/.claude/scripts/lib')
+import importlib.util
+spec = importlib.util.spec_from_file_location('mr', '$RESOLVER')
+mr = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mr)
+# Force a load failure by replacing the redactor's __file__-derived dir.
+mr.__file__ = '/nonexistent/path/model-resolver.py'
+mr._redact = None  # invalidate cache
+import yaml
+with open('$WORK_DIR/merged-clean.yaml') as fh:
+    cfg = yaml.safe_load(fh)
+mr.resolve(cfg, 'audit_log_lookup', 'primary')
+" 2>&1 >/dev/null)
+    [[ "$stderr_out" == *"[REDACTOR-FALLBACK-IDENTITY]"* ]]
 }
 
 @test "I2 — validate-bindings AC-S2.13: operator E2E with model_aliases_extra resolves cleanly" {

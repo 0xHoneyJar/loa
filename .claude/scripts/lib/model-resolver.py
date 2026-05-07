@@ -82,14 +82,57 @@ from typing import Any
 # downstream resolution for every other importer of this module.
 _redact = None  # type: ignore[var-annotated]
 
+# F2 mitigation: control-byte escape pattern for trace-emission ONLY (does
+# NOT change `_has_ctrl_byte`'s 0x09/0x0A carve-out for resolver-internal
+# scalars — YAML legitimately carries TAB/LF in quoted strings).
+_LOG_LINE_BAD_CHARS_RE = __import__("re").compile(r"[\x00-\x1F\x7F]")
+
+# F1 mitigation length cap: longest legitimate skill_models value is
+# `<provider>:<model_id>` ≤ ~64 chars in framework defaults; bearer tokens
+# (`sk-ant-api03-*`, `ghp_*`, `AKIA*`, `Bearer xyz`) are typically 40-200+
+# chars. 80 is conservative — operators with longer-than-80-char model_ids
+# can extend via LOA_TRACE_INPUT_MAX_LEN.
+_TRACE_INPUT_MAX_LEN = 80
+
+
+def _safe_for_log(value: Any, max_len: int | None = None) -> str:
+    r"""F1 + F2: escape control bytes + sentinel-replace overlength values.
+
+    * F1: values longer than `max_len` (default `_TRACE_INPUT_MAX_LEN`) are
+      replaced with `[REDACTED-OVERLENGTH-N]` to mitigate bearer-token leakage
+      from the `[MODEL-RESOLVE] input=Z` field. The threshold is well above
+      legitimate `<provider>:<model_id>` strings.
+    * F2: control bytes (`[\x00-\x1F\x7F]`, INCLUDING TAB + LF) are escaped to
+      `\xHH` form. Prevents newline-injection that would let an operator-
+      controlled scalar inject FAKE `[MODEL-RESOLVE]` lines that downstream
+      log aggregators / SIEM rules treat as real events.
+
+    Operators who legitimately need longer trace input can override via the
+    `LOA_TRACE_INPUT_MAX_LEN` env var (read at call time, not import time, so
+    tests can scope the override).
+    """
+    if max_len is None:
+        env_override = os.environ.get("LOA_TRACE_INPUT_MAX_LEN")
+        if env_override and env_override.isdigit():
+            max_len = int(env_override)
+        else:
+            max_len = _TRACE_INPUT_MAX_LEN
+    text = str(value)
+    if len(text) > max_len:
+        return f"[REDACTED-OVERLENGTH-{len(text)}]"
+    return _LOG_LINE_BAD_CHARS_RE.sub(
+        lambda m: f"\\x{ord(m.group()):02x}", text
+    )
+
 
 def _load_redactor() -> Any:
     """Lazy-load `.claude/scripts/lib/log-redactor.py::redact`.
 
-    Returns a callable `redact(text: str) -> str`. On any load failure,
-    returns identity-fn so trace emission still succeeds (defense-in-depth:
-    secrets are defended primarily by NFR-Sec-5 `auth`-field rejection at
-    schema layer; the redactor is a belt-and-suspenders surface).
+    Returns a callable `redact(text: str) -> str`. On any load failure, emits
+    a one-time `[REDACTOR-FALLBACK-IDENTITY]` WARN to stderr (F3 fix: fail-OPEN
+    but loudly) and returns identity-fn so trace emission still succeeds
+    (defense-in-depth: the canonical secret defense is NFR-Sec-5 `auth`-field
+    rejection at schema layer; the redactor is a belt-and-suspenders surface).
     """
     global _redact
     if _redact is not None:
@@ -101,14 +144,23 @@ def _load_redactor() -> Any:
             "_loa_log_redactor", _lib_dir / "log-redactor.py"
         )
         if _spec is None or _spec.loader is None:
+            sys.stderr.write(
+                "[REDACTOR-FALLBACK-IDENTITY] log-redactor.py spec not found "
+                "(secrets in trace output may NOT be redacted; canonical defense "
+                "is NFR-Sec-5 schema-layer auth-field rejection)\n"
+            )
             _redact = lambda s: s  # noqa: E731
             return _redact
         _module = _importlib_util.module_from_spec(_spec)
         _spec.loader.exec_module(_module)
         _redact = _module.redact
-    except Exception:
-        # Defense-in-depth fallback: identity. Trace emission must not crash
-        # the resolver — the canonical secret defense is NFR-Sec-5.
+    except Exception as e:
+        # F3: one-time WARN on identity-fallback path. Operators see the
+        # signal in logs and can investigate redactor tampering / I/O errors.
+        sys.stderr.write(
+            f"[REDACTOR-FALLBACK-IDENTITY] load failed: "
+            f"{type(e).__name__}: {e}\n"
+        )
         _redact = lambda s: s  # noqa: E731
     return _redact
 
@@ -119,8 +171,15 @@ def _emit_trace_line(merged_config: dict, skill: str, role: str, result: dict) -
     Format (per SDD §6.4):
         [MODEL-RESOLVE] skill=X role=Y input=Z resolved=A:B resolution_path=[...]
 
+    Pre-redactor defenses (F1 + F2): every operator-controlled scalar passes
+    through `_safe_for_log` which (a) escapes control bytes incl. newlines so
+    log-injection is impossible, and (b) length-caps overlength values so
+    pasted bearer tokens emit `[REDACTED-OVERLENGTH-N]` instead of the secret.
+
     On error result, emits `resolved=ERROR:<error_code>` per the schema's
-    error-shape. The full resolution_path is JSON-compact for grep-ability.
+    error-shape. The full resolution_path is JSON-compact for grep-ability —
+    `json.dumps` already escapes embedded newlines as `\\n` literals so the
+    resolution_path field is structurally safe.
     """
     # Extract operator's declared input value (skill_models.<skill>.<role>).
     # If absent (legacy/framework-default path), input=<unset>.
@@ -147,9 +206,17 @@ def _emit_trace_line(merged_config: dict, skill: str, role: str, result: dict) -
             result.get("resolution_path", []), separators=(",", ":"), ensure_ascii=False
         )
 
+    # F1 + F2: route every interpolated scalar through `_safe_for_log`. The
+    # path_repr (already JSON-encoded) does not need it — json.dumps already
+    # escapes ctrl bytes inside string scalars and the outer brackets / commas
+    # are structural.
     line = (
-        f"[MODEL-RESOLVE] skill={skill} role={role} input={input_value} "
-        f"resolved={provider}:{model_id} resolution_path={path_repr}"
+        f"[MODEL-RESOLVE] "
+        f"skill={_safe_for_log(skill)} "
+        f"role={_safe_for_log(role)} "
+        f"input={_safe_for_log(input_value)} "
+        f"resolved={_safe_for_log(provider)}:{_safe_for_log(model_id)} "
+        f"resolution_path={path_repr}"
     )
     redact = _load_redactor()
     sys.stderr.write(redact(line) + "\n")
@@ -162,15 +229,34 @@ def _trace_resolution(fn: Any) -> Any:
     empty string, and absent variable all disable. Pinned by Sprint 2F D3/D4
     contract — operators have come to expect "1" as the canonical Loa enable
     sentinel (mirrors LOA_DEBUG, LOA_FORCE_LEGACY_ALIASES, etc.).
+
+    F7 fix: trace-emission exceptions emit a `[MODEL-RESOLVE-TRACE-FAILED]`
+    WARN counter (with bare `type(e).__name__` only — no operator data
+    leakage). Operators reviewing the trace stream after the fact can
+    distinguish "no resolution happened" from "resolution happened, trace
+    emission failed". Without the counter, F7 was a security observability
+    gap (silent suppression of audit emission while resolution succeeded).
     """
     def wrapper(merged_config: dict, skill: str, role: str) -> dict:
         result = fn(merged_config, skill, role)
         if os.environ.get("LOA_DEBUG_MODEL_RESOLUTION") == "1":
             try:
                 _emit_trace_line(merged_config, skill, role, result)
-            except Exception:
-                # Resolver is hot path; trace emission must not propagate.
-                pass
+            except Exception as e:
+                # F7: WARN-counter instead of silent pass. Resolver is the
+                # hot path; trace emission must not propagate, but the
+                # SUPPRESSION must be observable.
+                try:
+                    sys.stderr.write(
+                        f"[MODEL-RESOLVE-TRACE-FAILED] "
+                        f"skill={_safe_for_log(skill)} "
+                        f"role={_safe_for_log(role)} "
+                        f"error={type(e).__name__}\n"
+                    )
+                except Exception:
+                    # If even the counter-emit fails (e.g., closed stderr),
+                    # silently give up — resolver MUST return successfully.
+                    pass
         return result
     wrapper.__wrapped__ = fn  # type: ignore[attr-defined]
     return wrapper

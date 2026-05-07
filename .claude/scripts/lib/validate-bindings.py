@@ -137,8 +137,19 @@ def _enumerate_bindings(merged_config: dict) -> list[tuple[str, str]]:
 
 
 def _compute_tracing_fingerprint(resolution_path: list) -> str:
-    """12-char SHA256 prefix per SDD §6.4 correlation contract."""
-    canonical = json.dumps(resolution_path, sort_keys=True, separators=(",", ":"))
+    """12-char SHA256 prefix per SDD §6.4 correlation contract.
+
+    GP MED-2 fix: use `ensure_ascii=False` to match the canonical Python
+    `dump_canonical_json()`. Without this, non-ASCII content in
+    resolution_path (e.g., Unicode in a model_id) would hash differently from
+    what an operator would compute by re-hashing the JSON-emitted path. Also
+    a forward-compat hazard for cross-runtime parity (bash jq + TS
+    JSON.stringify both produce literal UTF-8 — `cross-runtime-diff.yml`
+    would catch divergence on first non-ASCII fixture).
+    """
+    canonical = json.dumps(
+        resolution_path, sort_keys=True, ensure_ascii=False, separators=(",", ":")
+    )
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:12]
 
 
@@ -198,18 +209,32 @@ def _diff_bindings(merged_config: dict, bindings: list[dict]) -> list[dict]:
         "operator_config": {},
         "runtime_state": merged_config.get("runtime_state") or {},
     }
+    # F4 mitigation (Sprint 2F cypherpunk review): the canonical `resolve` is
+    # decorated with `_trace_resolution`. Calling it here would DOUBLE the
+    # `[MODEL-RESOLVE]` stderr emission per binding under
+    # `LOA_DEBUG_MODEL_RESOLUTION=1` — the second emission always with
+    # `input=<unset>` since `framework_only` strips the operator overlay. Use
+    # the decorator's `__wrapped__` attribute to call the undecorated original
+    # for diff re-resolution. This is exactly what `__wrapped__` is for.
+    _resolve_undecorated = getattr(resolve, "__wrapped__", resolve)
     overridden: list[dict] = []
     for binding in bindings:
         skill = binding["skill"]
         role = binding["role"]
-        compiled = resolve(framework_only, skill, role)
+        compiled = _resolve_undecorated(framework_only, skill, role)
+        # GP HIGH-1 fix: skip operator-introduced bindings (those with no
+        # framework default to override). Per SDD §1.5.2, [BINDING-OVERRIDDEN]
+        # is for runtime-overrides-build-time divergence — when an operator
+        # CHANGES a framework default. An operator-introduced binding (no
+        # framework agents.<skill> counterpart) cannot "override" anything
+        # because there's nothing to compare against; the diff is meaningless
+        # noise that pollutes the operator-actionable signal.
         if "error" in compiled:
-            compiled_id = "ERROR:" + (compiled.get("error", {}).get("code", "?"))
-        else:
-            compiled_id = (
-                f"{compiled.get('resolved_provider', '?')}:"
-                f"{compiled.get('resolved_model_id', '?')}"
-            )
+            continue
+        compiled_id = (
+            f"{compiled.get('resolved_provider', '?')}:"
+            f"{compiled.get('resolved_model_id', '?')}"
+        )
         if "error" in binding:
             effective_id = "ERROR:" + (binding.get("error", {}).get("code", "?"))
         else:
