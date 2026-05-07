@@ -160,8 +160,10 @@ EOF
     [[ "$status" -eq 0 ]]
     # Tool-call markers MUST NOT appear verbatim in the surfaced output.
     [[ "$output" == *"TOOL-CALL-PATTERN-REDACTED"* ]]
-    # Defense: the literal tag should be gone.
-    [[ "$output" != *"function_calls>"* ]] || true  # may appear inside redaction marker label, ok
+    # Sprint 6E (BB-F8 remediation): assert no opening `<function_calls`
+    # (no trailing `>` so a redaction-marker label that mentions the pattern
+    # by name still passes). Hard fail; no `|| true`.
+    [[ "$output" != *'<function_calls'* ]]
 }
 
 @test "C10 (trust boundary) role-switch attempt redacted" {
@@ -246,8 +248,9 @@ EOF
 @test "C16 LOA_HANDOFF_SUPPRESS_SURFACE_AUDIT=1 suppresses handoff.surface event" {
     export LOA_HANDOFF_SUPPRESS_SURFACE_AUDIT=1
     surface_unread_handoffs recipient --handoffs-dir "$HANDOFFS_DIR" >/dev/null
-    # No handoff.surface entry should be in the log.
-    if [[ -f "$LOA_HANDOFF_LOG" ]]; then
-        ! grep -q '"handoff.surface"' "$LOA_HANDOFF_LOG"
-    fi
+    # Sprint 6E (BB-F14 remediation): setup() already wrote 3 handoff_write
+    # events to the log, so the file MUST exist. Removing the conditional
+    # closes the vacuous-pass when log is missing.
+    [[ -f "$LOA_HANDOFF_LOG" ]]
+    ! grep -q '"handoff.surface"' "$LOA_HANDOFF_LOG"
 }

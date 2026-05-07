@@ -72,7 +72,10 @@ EOF
     # Override ignored → fingerprint is the real machine SHA-256, not "evil-host".
     [[ "$status" -eq 0 ]]
     [[ "$output" != *"evil-host"* ]]
-    [[ "$output" == *"WARNING"* ]] || true  # WARN goes to stderr, captured here
+    # Sprint 6E (BB-F4 remediation): hard assert that WARN appears AND names
+    # the specific env var. No `|| true` vacuous-pass.
+    [[ "$output" == *"WARNING"* ]]
+    [[ "$output" == *"LOA_HANDOFF_FINGERPRINT_OVERRIDE"* ]]
 }
 
 @test "E2 (CYP-F1) test-mode (BATS_TEST_DIRNAME set) honors override" {
@@ -84,10 +87,16 @@ EOF
 }
 
 @test "E3 (CYP-F4) production-mode LOA_HANDOFF_LOG override ignored" {
+    # Source ENABLES set -euo pipefail; disable AFTER sourcing so the
+    # intended-non-zero return of _handoff_check_env_override doesn't
+    # abort the script before our assertion echo can fire.
     run env -i HOME="$HOME" PATH="$PATH" \
         LOA_HANDOFF_LOG="/dev/null" \
-        bash -c "source '$LIB'; _handoff_check_env_override LOA_HANDOFF_LOG /dev/null; echo \$?" 2>&1
+        bash -c "source '$LIB'; set +e; _handoff_check_env_override LOA_HANDOFF_LOG /dev/null; echo RC=\$?" 2>&1
     [[ "$output" == *"WARNING"* ]]
+    [[ "$output" == *"LOA_HANDOFF_LOG"* ]]
+    # Sprint 6E (BB-F4 remediation): hard assert the check returns 1 (ignored).
+    [[ "$output" == *"RC=1"* ]]
 }
 
 # -----------------------------------------------------------------------------
@@ -162,12 +171,33 @@ EOF
 # CYP-F6: rollback on INDEX rename failure
 # -----------------------------------------------------------------------------
 
-@test "E8 (CYP-F6) atomic_publish source declares ERR trap that removes \$dest" {
-    # Direct injection of mid-operation failure (SIGKILL-style) is hard to
-    # reproduce deterministically in bats — we instead pin via static
-    # inspection that the function holds an ERR trap on \$dest.
-    grep -q "trap 'rm -f \"\$dest\"' ERR" "$LIB"
-    grep -q "trap - ERR" "$LIB"
+@test "E8 (CYP-F6) explicit rollback when INDEX rename fails (behavioral)" {
+    # Sprint 6E (BB-F6 remediation): inject mv failure for the INDEX path
+    # via a PATH-shadowed stub. The lib's explicit `if ! mv ...; then rm
+    # -f $dest; exit 4` rollback (replacing the prior trap-based approach
+    # which was fragile under bats `run`) must remove the body file.
+    handoff_write "$(_make_doc cf6-seed.md "seed")" --handoffs-dir "$HANDOFFS_DIR" >/dev/null
+
+    local p; p="$(_make_doc cf6.md "fresh body")"
+    sed -i "s/topic: 'retry-policy'/topic: 'cf6'/" "$p"
+
+    local PIN_DIR; PIN_DIR="$(mktemp -d)"
+    cat > "$PIN_DIR/mv" <<'STUB'
+#!/usr/bin/env bash
+# Stub mv: succeed for body files (.md not INDEX.md), refuse INDEX.md.
+for arg in "$@"; do
+    case "$arg" in
+        */INDEX.md|*INDEX.md) exit 1 ;;
+    esac
+done
+exec /bin/mv "$@"
+STUB
+    chmod +x "$PIN_DIR/mv"
+
+    PATH="$PIN_DIR:$PATH" run handoff_write "$p" --handoffs-dir "$HANDOFFS_DIR"
+    [[ "$status" -ne 0 ]]
+    [[ ! -f "$HANDOFFS_DIR/2026-05-07-alice-bob-cf6.md" ]]
+    rm -rf "$PIN_DIR"
 }
 
 # -----------------------------------------------------------------------------
@@ -194,8 +224,13 @@ FORGED
 FORGED
     run surface_unread_handoffs bob --handoffs-dir "$HANDOFFS_DIR"
     [[ "$status" -eq 0 ]]
-    # The forged row would surface "/etc/shadow" content if not filtered.
-    [[ "$output" != *"root:"* ]] || true
+    # Sprint 6E (BB-F7 remediation): hard positive assertion — exactly ONE
+    # untrusted-content block (the legit row), and the forged-row content
+    # never reaches the surface output.
+    [[ "$output" != *"/etc/shadow"* ]]
+    [[ "$output" != *"spoofed"* ]]
+    local opens; opens="$(echo "$output" | grep -c '<untrusted-content source="L6"')"
+    [[ "$opens" -eq 1 ]]
 }
 
 # -----------------------------------------------------------------------------

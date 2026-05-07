@@ -624,6 +624,10 @@ _handoff_atomic_publish() {
 
     # Critical section.
     (
+        # Sprint 6E (BB-F6): caller's set -e state may be off (bats `run`
+        # disables it). Explicitly re-enable inside the subshell so ERR
+        # trap fires on any failed command.
+        set -e
         flock -x -w 30 9 || { _handoff_log "flock timeout on $lock"; exit 4; }
 
         # Sprint 6E (MEDIUM-1): idempotency check by handoff_id. If the same
@@ -675,14 +679,13 @@ PY
         # 3. Rename body to chosen path (same filesystem → atomic).
         mv -f "$body_tmp" "$dest"
 
-        # Sprint 6E (CYP-F6): rollback trap for body-mv-then-INDEX-mv split-brain.
-        # If step 4 or 5 fails, the body file is already on disk; trap removes
-        # it so the operator sees an all-or-nothing publish.
-        trap 'rm -f "$dest"' ERR
-
         # 4. Build new INDEX content.
         if [[ -f "$index" ]]; then
-            cat "$index" > "$index_tmp"
+            if ! cat "$index" > "$index_tmp"; then
+                rm -f "$dest"
+                _handoff_log "atomic_publish: failed to read existing INDEX"
+                exit 4
+            fi
             # Sprint 6E (MEDIUM-7): direct shell newline test, no od pipeline.
             local _last; _last="$(tail -c 1 "$index_tmp")"
             [[ -s "$index_tmp" ]] && [[ "$_last" != $'\n' ]] && printf '\n' >> "$index_tmp"
@@ -697,11 +700,17 @@ HEADER
         printf '| %s | %s | %s | %s | %s | %s |  |\n' \
             "$id" "$chosen" "$from" "$to" "$topic" "$ts" >> "$index_tmp"
 
-        # 5. Rename INDEX (atomic). Trap above rolls back body on failure.
-        mv -f "$index_tmp" "$index"
-
-        # Disarm trap — write succeeded.
-        trap - ERR
+        # 5. Rename INDEX (atomic).
+        # Sprint 6E (CYP-F6): explicit rollback when INDEX rename fails.
+        # The prior `trap ... ERR` approach proved fragile under bats `run`
+        # (set -e state inheritance is environment-dependent). Inline the
+        # rollback so the all-or-nothing invariant holds regardless of
+        # caller shell-options state.
+        if ! mv -f "$index_tmp" "$index"; then
+            rm -f "$dest"
+            _handoff_log "atomic_publish: INDEX rename failed; body rolled back"
+            exit 4
+        fi
 
         # Emit chosen basename for caller capture.
         printf '%s' "$chosen"
