@@ -354,3 +354,94 @@
     - graduated-trust
     - scheduled-cycle
     - fail-closed-cost-gate
+
+- id: descriptive-identity
+  term: Descriptive Identity
+  short: >-
+    The "what I am / what I am not / voice / discipline / influences" layer
+    of project documentation, distinct from the prescriptive rules layer.
+    Descriptive identity tells you what a project IS; prescriptive rules
+    tell you what the agent MUST DO. Mixing them collapses the boundary
+    that makes both useful.
+  context: >-
+    cycle-098 L7 ships SOUL.md as the descriptive complement to CLAUDE.md.
+    The schema enforces the boundary in two directions: prescriptive section
+    patterns (^MUST, ^ALWAYS, ^NEVER, rule tables) are rejected at validation
+    time, and the body is wrapped in `<untrusted-content source="L7">`
+    markers at SessionStart surfacing time so the agent treats it as
+    DESCRIPTIVE context rather than INSTRUCTIONS. The boundary matters
+    because identity statements drift toward rules when authors are
+    unsupervised — "we value testing" becomes "MUST run tests" — and the
+    rules layer drifts toward identity when authors want to capture *why*
+    a rule exists. Two separate files with two separate schemas + surface
+    paths keeps each layer load-bearing for its own purpose. The pattern
+    generalizes beyond agent docs: open-source projects benefit from
+    distinguishing CONTRIBUTING.md (prescriptive) from VALUES.md or
+    CHARTER.md (descriptive). Inversely, identity docs that describe
+    *only* aspirations without surfacing them at session-start are
+    expensive to author and never read.
+  source:
+    cycle: "cycle-098-agent-network"
+    sprint: "Sprint 7 (L7 soul-identity-doc)"
+    rfc: "https://github.com/0xHoneyJar/loa/issues/659"
+    date: "2026-05-08"
+  tags:
+    - architecture
+    - identity
+    - prompt-isolation
+    - schema
+    - boundary
+    - pattern
+  status: Active
+  challenges: []
+  lineage: null
+  superseded_by: null
+  related:
+    - graduated-trust
+    - cross-repo-state
+    - scheduled-cycle
+
+- id: soul-identity-doc
+  term: SOUL
+  short: >-
+    A schema-validated descriptive-identity document at project root
+    (SOUL.md), surfaced via SessionStart hook through prompt-injection
+    sanitization. Required sections (What I am / not / Voice / Discipline /
+    Influences) force the document to be DESCRIPTIVE. Prescriptive section
+    rejection at the schema layer prevents drift back into CLAUDE.md
+    territory.
+  context: >-
+    The SOUL is the project's answer to "who are you?" — read at every
+    session start so agents and operators absorb identity context before
+    doing work. The five required sections are deliberately Plutarchian:
+    they ask not just what the project does, but what it refuses (What I
+    am not), how it speaks (Voice), what it values (Discipline), and what
+    formed it (Influences). The Refusals section captures concrete "no"s
+    — failures the project will not relitigate. The schema enforces this
+    shape; the hook surfaces it under <untrusted-content> markers so the
+    body cannot smuggle prescriptive instructions past the descriptive
+    framing. cycle-098 L7 ships this as the foundation; the adversarial
+    jailbreak corpus (50+ vectors covering role-switch, indirect Markdown
+    injection, Unicode obfuscation, encoded payloads, multi-turn
+    conditioning) is deferred to its own cycle because curating attack
+    vectors is qualitatively different work from shipping the lib + hook.
+  source:
+    cycle: "cycle-098-agent-network"
+    sprint: "Sprint 7 (L7 soul-identity-doc — foundation)"
+    rfc: "https://github.com/0xHoneyJar/loa/issues/659"
+    date: "2026-05-08"
+  tags:
+    - architecture
+    - identity
+    - session-start
+    - prompt-isolation
+    - audit
+    - pattern
+  status: Active
+  challenges: []
+  lineage: null
+  superseded_by: null
+  related:
+    - descriptive-identity
+    - cross-repo-state
+    - graduated-trust
