@@ -187,7 +187,7 @@ PY
         trust_record_override "f" "m" "deep-name" "d-1" "override"
     # Mid-cooldown: 2026-05-04 is well before 2026-05-08 (auto_drop + 7d).
     LOA_TRUST_TEST_NOW="2026-05-04T00:00:00.000Z" \
-        run trust_grant "f" "m" "deep-name" "T2" --reason "emergency rerise" --operator "deep-name" --force
+        run trust_grant "f" "m" "deep-name" "T2" --reason "emergency rerise" --operator "operator-2" --force
     [[ "$status" -eq 0 ]] || {
         echo "$output"
         return 1
@@ -210,7 +210,7 @@ PY
     # cooldown_until = 2026-05-08T00:00:00Z. now = 2026-05-04T00:00:00Z.
     # remaining = 4 days = 345600 seconds.
     LOA_TRUST_TEST_NOW="2026-05-04T00:00:00.000Z" \
-        trust_grant "f" "m" "deep-name" "T2" --reason "emergency" --operator "deep-name" --force
+        trust_grant "f" "m" "deep-name" "T2" --reason "emergency" --operator "operator-2" --force
 
     local entry
     entry="$(grep -F '"event_type":"trust.force_grant"' "$LOA_TRUST_LEDGER_FILE" | head -n 1)"
@@ -223,7 +223,7 @@ PY
     source "$LIB"
     trust_grant "f" "m" "deep-name" "T1" --reason "s1" --operator "deep-name"
     # Force-grant from T1 to T2, no cooldown active.
-    run trust_grant "f" "m" "deep-name" "T2" --reason "redundant force" --operator "deep-name" --force
+    run trust_grant "f" "m" "deep-name" "T2" --reason "redundant force" --operator "operator-2" --force
     [[ "$status" -eq 0 ]]
     local entry
     entry="$(grep -F '"event_type":"trust.force_grant"' "$LOA_TRUST_LEDGER_FILE" | head -n 1)"
@@ -238,13 +238,13 @@ PY
     [[ "$status" -eq 2 ]]
 }
 
-@test "FR-L4-8: --force on sealed ledger rejected" {
+@test "FR-L4-8: --force on sealed ledger rejected (exit 3)" {
     source "$LIB"
     cat > "$LOA_TRUST_LEDGER_FILE" <<'EOF'
 {"schema_version":"1.1.0","primitive_id":"L4","event_type":"trust.disable","ts_utc":"2026-05-02T00:00:00.000Z","prev_hash":"GENESIS","payload":{"operator":"o","reason":"sealed","sealed_at":"2026-05-02T00:00:00.000Z"}}
 EOF
-    run trust_grant "f" "m" "deep-name" "T1" --reason "r" --operator "deep-name" --force
-    [[ "$status" -eq 1 ]]
+    run trust_grant "f" "m" "deep-name" "T1" --reason "r" --operator "operator-2" --force
+    [[ "$status" -eq 3 ]]
 }
 
 @test "FR-L4-8: trust.force_grant is registered in protected-classes taxonomy" {
@@ -285,4 +285,17 @@ EOF
     source "$LIB"
     run trust_auto_raise_check "f" "m" "deep-name" 'T1; rm -rf /'
     [[ "$status" -eq 2 ]]
+}
+
+@test "FR-L4-4: auto_raise_eligible does NOT silently raise the tier (informational only)" {
+    source "$LIB"
+    trust_grant "f" "m" "deep-name" "T1" --reason "step1" --operator "deep-name"
+    # Consult eligibility for T2 — must NOT ratchet tier from T1 to T2.
+    trust_auto_raise_check "f" "m" "deep-name" "T2"
+    run trust_query "f" "m" "deep-name"
+    [[ "$status" -eq 0 ]]
+    echo "$output" | jq -e '.tier == "T1"' >/dev/null
+    # The auto_raise_eligible entry IS in the transition_history (audit trail)
+    # but did not affect the resolved tier.
+    echo "$output" | jq -e '[.transition_history[] | select(.transition_type == "auto_raise_eligible")] | length == 1' >/dev/null
 }

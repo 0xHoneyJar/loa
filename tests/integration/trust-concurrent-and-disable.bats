@@ -152,7 +152,7 @@ teardown() {
     for i in 1 2; do
         ( source "$LIB"
           trust_grant "f" "m" "actor-B-$i" "T1" \
-              --reason "from-cli-$i" --operator "deep-name" --force >/dev/null 2>&1 || true
+              --reason "from-cli-$i" --operator "operator-2" --force >/dev/null 2>&1 || true
         ) &
         pids+=("$!")
     done
@@ -161,6 +161,34 @@ teardown() {
     run trust_verify_chain
     [[ "$status" -eq 0 ]] || {
         echo "$output"
+        return 1
+    }
+
+    # Per-event-type count pins (LOW-7 closure): verify no writes were dropped.
+    # 3 grants for actor-A-{1,2,3} (each is initial T0->T1 — independent triples)
+    local grants
+    grants="$(grep -F '"event_type":"trust.grant"' "$LOA_TRUST_LEDGER_FILE" | grep -cF '"actor-A-' || true)"
+    [[ "$grants" == "3" ]] || {
+        echo "expected 3 actor-A grants, got $grants"
+        return 1
+    }
+    # 3 force_grants for actor-B-{1,2} — all 3 race the same triples but only
+    # 2 unique actors, so the no-op detection caps at 2 successful force_grants.
+    local fgrants
+    fgrants="$(grep -F '"event_type":"trust.force_grant"' "$LOA_TRUST_LEDGER_FILE" | grep -cF '"actor-B-' || true)"
+    [[ "$fgrants" == "2" ]] || {
+        echo "expected 2 actor-B force_grants, got $fgrants"
+        return 1
+    }
+    # auto_drops for deep-name: T2->T1 + T1->T0 (the "any" rule isn't in this
+    # test's config so once at T0 the next override returns exit 3). 2 entries
+    # is the correct count given the 3-rule ladder; the 3rd writer is rejected
+    # for "no auto_drop_on_override rule for from='T0'", proving the misconfig
+    # path works under concurrency.
+    local drops
+    drops="$(grep -F '"event_type":"trust.auto_drop"' "$LOA_TRUST_LEDGER_FILE" | grep -cF '"actor":"deep-name"' || true)"
+    [[ "$drops" == "2" ]] || {
+        echo "expected 2 deep-name auto_drops (T2->T1 + T1->T0), got $drops"
         return 1
     }
 }
@@ -196,9 +224,9 @@ teardown() {
     [[ "$status" -eq 0 ]]
     grep -F '"event_type":"trust.disable"' "$LOA_TRUST_LEDGER_FILE"
 
-    # After seal: subsequent grants exit 1 (sealed); reads still work.
+    # After seal: subsequent grants exit 3 (sealed-ledger refusal); reads still work.
     run trust_grant "f" "m" "deep-name" "T2" --reason "after-seal" --operator "deep-name"
-    [[ "$status" -eq 1 ]]
+    [[ "$status" -eq 3 ]]
     run trust_query "f" "m" "deep-name"
     [[ "$status" -eq 0 ]]
     echo "$output" | jq -e '.tier == "T1"' >/dev/null

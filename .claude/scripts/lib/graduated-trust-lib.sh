@@ -96,6 +96,13 @@ _L4_DEFAULT_LEDGER=".run/trust-ledger.jsonl"
 _L4_DEFAULT_TIER="T0"
 _L4_DEFAULT_COOLDOWN_SECONDS="604800"   # 7 days, per SDD §5.6.3
 
+# Hard ceiling on cooldown_until - ts_utc. Defends against ledger-write
+# adversaries who craft auto_drop entries with cooldown_until in the far
+# future (operator-stuck DoS) or in the distant past (cooldown nullification).
+# 90 days. The resolver clamps to this window even when payload.cooldown_until
+# claims otherwise. Sprint 4C cypherpunk audit CRIT-2.
+_L4_MAX_COOLDOWN_SECONDS="7776000"      # 90 days
+
 # -----------------------------------------------------------------------------
 # Input validation regexes.
 #
@@ -162,6 +169,33 @@ _l4_validate_int() {
     local field="$2"
     if [[ -z "$value" ]] || ! [[ "$value" =~ $_L4_INT_RE ]]; then
         _l4_log "ERROR: $field='$value' is not a non-negative integer"
+        return 1
+    fi
+    return 0
+}
+
+# -----------------------------------------------------------------------------
+# _l4_validate_reason <reason> <field_name>
+#
+# Reason / rationale strings flow into audit envelope payloads (JSON-escaped
+# so injection is safe at the parser level), but they also flow into
+# downstream tooling that uses line-oriented `grep -F` against the JSONL.
+# Reject control bytes (corrupt line-oriented consumers) and JSONL field
+# substrings (defeat grep-based auditors). Sprint 4 cypherpunk MED-2.
+# -----------------------------------------------------------------------------
+_l4_validate_reason() {
+    local reason="$1"
+    local field="$2"
+    if (( ${#reason} > 4096 )); then
+        _l4_log "ERROR: $field exceeds 4096 chars"
+        return 1
+    fi
+    if [[ "$reason" =~ [[:cntrl:]] ]]; then
+        _l4_log "ERROR: $field contains control bytes"
+        return 1
+    fi
+    if [[ "$reason" == *'"event_type":'* ]] || [[ "$reason" == *'"prev_hash":'* ]]; then
+        _l4_log "ERROR: $field contains JSONL field substring (rejected to protect grep-based auditors)"
         return 1
     fi
     return 0
@@ -245,6 +279,44 @@ _l4_enabled() {
     local v
     v="$(_l4_config_get '.graduated_trust.enabled' 'false')"
     [[ "$v" == "true" ]]
+}
+
+# -----------------------------------------------------------------------------
+# _l4_require_enabled
+#
+# Sprint 4 cypherpunk audit HIGH-3: gate every write entry-point. Writes
+# proceed only when graduated_trust.enabled=true. Refuses with exit 1 when
+# disabled or unconfigured.
+#
+# Reads are NOT gated — operators can inspect prior state via trust_query
+# even after disabling the primitive (matches PRD §849 read-still-works-on-
+# sealed-ledger).
+# -----------------------------------------------------------------------------
+_l4_require_enabled() {
+    if ! _l4_enabled; then
+        _l4_log "graduated_trust.enabled is not true; refusing write (set graduated_trust.enabled: true in .loa.config.yaml)"
+        return 1
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# _l4_require_chain_intact <ledger>
+#
+# Sprint 4 cypherpunk audit HIGH-2: refuse to APPEND to a broken chain. If
+# audit_verify_chain reports breakage, the operator must run trust_recover_chain
+# (FR-L4-7) before further writes. Reads are NOT gated — they may degrade
+# gracefully via _l4_walk_ledger which already filters non-JSON marker lines.
+#
+# Empty / missing ledger is treated as intact (clean install).
+# -----------------------------------------------------------------------------
+_l4_require_chain_intact() {
+    local ledger="$1"
+    [[ -f "$ledger" ]] || return 0
+    [[ -s "$ledger" ]] || return 0
+    if ! audit_verify_chain "$ledger" >/dev/null 2>&1; then
+        _l4_log "ledger chain integrity broken at '$ledger'; run trust_recover_chain before further writes"
+        return 1
+    fi
 }
 
 _l4_get_default_tier() {
@@ -355,11 +427,17 @@ PY
 
 # -----------------------------------------------------------------------------
 # _l4_now_iso8601 — current UTC time, microsecond precision.
-# Honors LOA_TRUST_TEST_NOW for deterministic tests. Format must match
-# ts_utc field of audit envelope (RFC 3339 with offset Z).
+#
+# Honors LOA_TRUST_TEST_NOW for deterministic tests, but ONLY when test mode
+# is detected (LOA_TRUST_TEST_MODE=1, or running under bats via
+# BATS_TEST_DIRNAME). Production paths ignore LOA_TRUST_TEST_NOW so that an
+# adversary that can set env vars cannot rewrite history's "now" to clear
+# cooldowns or pre-date force-grants. Sprint 4 cypherpunk audit MED-4.
+# Format matches ts_utc field of audit envelope (RFC 3339 with offset Z).
 # -----------------------------------------------------------------------------
 _l4_now_iso8601() {
-    if [[ -n "${LOA_TRUST_TEST_NOW:-}" ]]; then
+    if [[ -n "${LOA_TRUST_TEST_NOW:-}" ]] \
+        && { [[ "${LOA_TRUST_TEST_MODE:-0}" == "1" ]] || [[ -n "${BATS_TEST_DIRNAME:-}" ]]; }; then
         echo "$LOA_TRUST_TEST_NOW"
         return 0
     fi
@@ -394,19 +472,30 @@ print(int(dt.timestamp()))
 # -----------------------------------------------------------------------------
 # _l4_ledger_is_sealed [<ledger_file>]
 #
-# Returns 0 (true) when the ledger's last entry is event_type=trust.disable.
-# Per PRD §849: on disable, the ledger is preserved (immutable hash-chain);
-# subsequent reads return last-known-tier per scope; no new transitions.
+# Returns 0 (true) when the ledger contains ANY trust.disable event_type.
+# Sprint 4 cypherpunk audit CRIT-1: scanning only the tail line is unsafe
+# because audit_recover_chain appends `[CHAIN-BROKEN]` / `[CHAIN-RECOVERED ...]`
+# marker lines after the last JSON entry. With tail-only scanning, a sealed
+# ledger followed by a marker would falsely appear unsealed and accept new
+# transitions after the seal.
 #
-# Returns 1 (false) when ledger absent or last entry is not trust.disable.
+# The seal is a STATE, not a tail position. Per PRD §849: on disable the
+# ledger is preserved (immutable hash-chain); subsequent reads return last-
+# known-tier per scope; no new transitions allowed.
+#
+# Returns 0 (true) on first matching trust.disable line; 1 (false) when no
+# such line exists or the ledger is absent.
 # -----------------------------------------------------------------------------
 _l4_ledger_is_sealed() {
     local ledger="${1:-$(_l4_ledger_path)}"
     [[ -f "$ledger" ]] || return 1
     [[ -s "$ledger" ]] || return 1
-    local last_event
-    last_event="$(tail -n 1 "$ledger" 2>/dev/null | jq -r '.event_type // ""' 2>/dev/null || true)"
-    [[ "$last_event" == "trust.disable" ]]
+    # Skip non-JSON marker lines (lines starting with `[`); for each remaining
+    # line, parse event_type. Match on first trust.disable found.
+    # awk over grep so an all-marker ledger doesn't trip pipefail.
+    awk '!/^\[/' "$ledger" 2>/dev/null \
+        | jq -r 'select(.event_type == "trust.disable") | .event_type' 2>/dev/null \
+        | grep -q '^trust\.disable$'
 }
 
 # -----------------------------------------------------------------------------
@@ -439,9 +528,21 @@ _l4_walk_ledger() {
     fi
 
     # jq slurp-then-map: stream JSONL into array, filter by selector, project.
-    # --slurp consumes the file as a single array. --raw-input + decode would
-    # be heavier; the ledger file is bounded by retention and per-line sizes.
-    jq -sc \
+    # --slurp consumes the file as a single array.
+    #
+    # Sprint 4 cypherpunk audit HIGH-1: filter marker lines (lines starting
+    # with `[` — appended by audit_recover_chain after recovery / chain-break)
+    # before jq -s. Without the filter, jq -s parse-errors and the caller
+    # (trust_query) silently falls back to '[]' (default-tier) — turning every
+    # query into a default-tier response on a partially-recovered ledger.
+    #
+    # If the filtered content fails to parse (corruption beyond marker lines),
+    # this function returns non-zero so the caller can refuse to act on a
+    # broken ledger rather than degrading to default_tier silently.
+    # awk over grep so an all-marker ledger produces empty stdout (exit 0)
+    # rather than tripping pipefail (grep -v exits 1 on no match).
+    awk '!/^\[/' "$ledger" 2>/dev/null \
+        | jq -sc \
         --arg scope "$scope" \
         --arg capability "$capability" \
         --arg actor "$actor" \
@@ -458,7 +559,13 @@ _l4_walk_ledger() {
           )
           | {
               from_tier: (.payload.from_tier // null),
-              to_tier:   (.payload.to_tier // .payload.next_tier),
+              # Auto-raise-eligible is informational; do NOT carry a to_tier
+              # (resolver if-to_tier guard treats null as no-op).
+              to_tier: (
+                if .event_type == "trust.auto_raise_eligible" then null
+                else (.payload.to_tier // null)
+                end
+              ),
               transition_type: (
                 if .event_type == "trust.grant" then
                   (if (.payload.from_tier // null) == null then "initial" else "operator_grant" end)
@@ -477,7 +584,7 @@ _l4_walk_ledger() {
               reason: (.payload.reason // "")
             }
         )
-        ' "$ledger"
+        '
 }
 
 # -----------------------------------------------------------------------------
@@ -504,7 +611,8 @@ _l4_resolve_state() {
     local cooldown_seconds="$3"
     local now_iso="$4"
 
-    python3 - "$history_json" "$default_tier" "$cooldown_seconds" "$now_iso" <<'PY'
+    local max_cooldown="${_L4_MAX_COOLDOWN_SECONDS}"
+    python3 - "$history_json" "$default_tier" "$cooldown_seconds" "$now_iso" "$max_cooldown" <<'PY'
 import json, sys
 from datetime import datetime, timedelta
 
@@ -512,6 +620,7 @@ history = json.loads(sys.argv[1] or "[]")
 default_tier = sys.argv[2]
 cooldown_seconds = int(sys.argv[3])
 now_iso = sys.argv[4]
+max_cooldown_seconds = int(sys.argv[5])
 
 def parse_iso(s):
     if s.endswith("Z"):
@@ -535,18 +644,36 @@ for entry in history:
         # payload (captured at override-time per Sprint 4B). Fall back to
         # ts_utc + current-config cooldown_seconds for legacy entries that
         # might predate the frozen field.
+        #
+        # Sprint 4 cypherpunk audit CRIT-2: clamp the frozen value to
+        # [ts_utc, ts_utc + max_cooldown_seconds]. An adversary that can
+        # write the ledger could otherwise craft a frozen cooldown_until of
+        # 9999-12-31 (operator-stuck-forever DoS) or 1970-01-01 (cooldown
+        # nullification). The hard ceiling defends both.
         frozen = entry.get("cooldown_until")
+        candidate = None
         if frozen:
             try:
-                last_auto_drop_until = parse_iso(frozen)
+                candidate = parse_iso(frozen)
             except Exception:
-                last_auto_drop_until = None
-        elif ts_utc:
+                candidate = None
+        if candidate is None and ts_utc:
+            try:
+                candidate = parse_iso(ts_utc) + timedelta(seconds=cooldown_seconds)
+            except Exception:
+                candidate = None
+        if candidate is not None and ts_utc:
             try:
                 t = parse_iso(ts_utc)
-                last_auto_drop_until = t + timedelta(seconds=cooldown_seconds)
+                lo = t  # cooldown cannot end before its own start
+                hi = t + timedelta(seconds=max_cooldown_seconds)
+                if candidate < lo:
+                    candidate = lo
+                elif candidate > hi:
+                    candidate = hi
             except Exception:
                 pass
+        last_auto_drop_until = candidate
     elif ttype == "force_grant":
         # force_grant clears the cooldown
         last_auto_drop_until = None
@@ -818,6 +945,8 @@ trust_grant() {
         return 2
     fi
 
+    _l4_require_enabled || return 1
+
     _l4_validate_token "$scope"      "scope"      || return 2
     _l4_validate_token "$capability" "capability" || return 2
     _l4_validate_token "$actor"      "actor"      || return 2
@@ -827,17 +956,27 @@ trust_grant() {
         _l4_log "trust_grant: --reason is required (audit-mandatory rationale)"
         return 2
     fi
-    if (( ${#reason} > 4096 )); then
-        _l4_log "trust_grant: reason exceeds 4096 chars"
-        return 2
-    fi
+    _l4_validate_reason "$reason" "reason" || return 2
 
     if [[ -z "$operator" ]]; then
-        # Default to actor only if operator unspecified; this captures the
-        # self-grant convention used by single-operator deployments.
+        if (( force == 1 )); then
+            # Cypherpunk HIGH-6: force-grant requires explicit --operator
+            # (cannot self-force-grant). The auditor must be able to
+            # distinguish operator-driven from agent-driven force-grants.
+            _l4_log "trust_grant --force: --operator is required and must be distinct from actor (cannot self-force-grant)"
+            return 2
+        fi
+        # Default to actor only if operator unspecified AND not force-grant;
+        # this captures the self-grant convention used by single-operator
+        # deployments (regular grants only).
         operator="$actor"
     fi
     _l4_validate_token "$operator" "operator" || return 2
+
+    if (( force == 1 )) && [[ "$operator" == "$actor" ]]; then
+        _l4_log "trust_grant --force: --operator must be distinct from actor (cypherpunk HIGH-6)"
+        return 2
+    fi
 
     if [[ "${LOA_TRUST_REQUIRE_KNOWN_ACTOR:-0}" == "1" ]]; then
         operator_identity_lookup "$operator" >/dev/null 2>&1 || {
@@ -871,7 +1010,7 @@ trust_grant() {
     # own flock on <log>.lock proceeds without deadlock.
     local rc=0
     {
-        flock -w 10 9 || {
+        flock -w 30 9 || {
             _l4_log "trust_grant: failed to acquire txn lock on $lock_file"
             return 1
         }
@@ -879,8 +1018,11 @@ trust_grant() {
         # Refuse if ledger sealed.
         if _l4_ledger_is_sealed "$ledger"; then
             _l4_log "trust_grant: ledger is sealed [L4-DISABLED]; no further transitions allowed"
-            return 1
+            return 3
         fi
+
+        # HIGH-2: refuse to append to a broken chain.
+        _l4_require_chain_intact "$ledger" || return 1
 
         # Read current state.
         local current_tier from_tier_for_event in_cooldown_until response
@@ -1023,27 +1165,28 @@ trust_record_override() {
         _l4_log "trust_record_override: missing required argument (scope, capability, actor, decision_id, reason)"
         return 2
     fi
+
+    _l4_require_enabled || return 1
+
     _l4_validate_token "$scope"      "scope"      || return 2
     _l4_validate_token "$capability" "capability" || return 2
     _l4_validate_token "$actor"      "actor"      || return 2
 
     # decision_id is opaque (panel-decision-id, PR url, audit-event id) so we
     # accept a wider charset than scope/capability/actor — but reject control
-    # bytes and quote/backtick chars.
+    # bytes, quote/backtick chars, and angle brackets (HTML/markdown injection
+    # defense per cypherpunk MED-3; decision_ids flow into PR comments + UIs).
     if [[ -z "$decision_id" ]]; then
         _l4_log "trust_record_override: decision_id empty"; return 2
     fi
     if (( ${#decision_id} > 512 )); then
         _l4_log "trust_record_override: decision_id exceeds 512 chars"; return 2
     fi
-    if [[ "$decision_id" =~ [\$\`\"\'\\] ]] || [[ "$decision_id" =~ [[:cntrl:]] ]]; then
+    if [[ "$decision_id" =~ [\$\`\"\'\\\<\>] ]] || [[ "$decision_id" =~ [[:cntrl:]] ]]; then
         _l4_log "trust_record_override: decision_id contains forbidden characters"
         return 2
     fi
-    if (( ${#reason} > 4096 )); then
-        _l4_log "trust_record_override: reason exceeds 4096 chars"
-        return 2
-    fi
+    _l4_validate_reason "$reason" "reason" || return 2
 
     local ledger lock_file
     ledger="$(_l4_ledger_path)"
@@ -1055,7 +1198,7 @@ trust_record_override() {
 
     local rc=0
     {
-        flock -w 10 9 || {
+        flock -w 30 9 || {
             _l4_log "trust_record_override: failed to acquire txn lock on $lock_file"
             return 1
         }
@@ -1064,6 +1207,9 @@ trust_record_override() {
             _l4_log "trust_record_override: ledger is sealed [L4-DISABLED]"
             return 3
         fi
+
+        # HIGH-2: refuse to append to a broken chain.
+        _l4_require_chain_intact "$ledger" || return 1
 
         # Read current state.
         local response current_tier
@@ -1175,6 +1321,13 @@ _trust_force_grant_impl() {
         _l4_log "trust_grant --force: --reason is required (FR-L4-8)"
         return 2
     fi
+    _l4_validate_reason "$reason" "reason" || return 2
+
+    # Force-grant requires explicit operator distinct from actor (HIGH-6).
+    if [[ -z "$operator" || "$operator" == "$actor" ]]; then
+        _l4_log "trust_grant --force: --operator must be set and distinct from actor"
+        return 2
+    fi
 
     local ledger lock_file
     ledger="$(_l4_ledger_path)"
@@ -1186,15 +1339,18 @@ _trust_force_grant_impl() {
 
     local rc=0
     {
-        flock -w 10 9 || {
+        flock -w 30 9 || {
             _l4_log "trust_grant --force: failed to acquire txn lock on $lock_file"
             return 1
         }
 
         if _l4_ledger_is_sealed "$ledger"; then
             _l4_log "trust_grant --force: ledger is sealed [L4-DISABLED]"
-            return 1
+            return 3
         fi
+
+        # HIGH-2: refuse to append to a broken chain.
+        _l4_require_chain_intact "$ledger" || return 1
 
         local response current_tier in_cooldown_until
         response="$(trust_query "$scope" "$capability" "$actor")" || return 1
@@ -1429,7 +1585,14 @@ trust_disable() {
         case "$1" in
             --reason)   reason="${2:-}";   shift 2 ;;
             --operator) operator="${2:-}"; shift 2 ;;
-            *)          shift ;;
+            --*)
+                _l4_log "trust_disable: unknown flag '$1'"
+                return 2
+                ;;
+            *)
+                _l4_log "trust_disable: unexpected positional argument '$1'"
+                return 2
+                ;;
         esac
     done
 
@@ -1437,15 +1600,14 @@ trust_disable() {
         _l4_log "trust_disable: --reason is required"
         return 2
     fi
-    if (( ${#reason} > 4096 )); then
-        _l4_log "trust_disable: reason exceeds 4096 chars"
-        return 2
-    fi
+    _l4_validate_reason "$reason" "reason" || return 2
     if [[ -z "$operator" ]]; then
         _l4_log "trust_disable: --operator is required"
         return 2
     fi
     _l4_validate_token "$operator" "operator" || return 2
+
+    _l4_require_enabled || return 1
 
     local ledger lock_file
     ledger="$(_l4_ledger_path)"
@@ -1457,7 +1619,7 @@ trust_disable() {
 
     local rc=0
     {
-        flock -w 10 9 || {
+        flock -w 30 9 || {
             _l4_log "trust_disable: failed to acquire txn lock on $lock_file"
             return 1
         }
@@ -1466,6 +1628,9 @@ trust_disable() {
             _l4_log "trust_disable: ledger already sealed; ignoring"
             return 3
         fi
+
+        # HIGH-2: refuse to append to a broken chain.
+        _l4_require_chain_intact "$ledger" || return 1
 
         local sealed_at
         sealed_at="$(_l4_now_iso8601)"

@@ -916,18 +916,24 @@ _audit_recover_from_git() {
     if [[ -z "$repo_root" ]]; then
         return 1
     fi
-    # Canonicalize the log path so realpath gives us a comparable string.
-    if command -v realpath >/dev/null 2>&1; then
-        abs_log="$(realpath "$log_path" 2>/dev/null || true)"
-    else
-        abs_log="$(cd "$git_dir" && pwd)/$(basename "$log_path")"
+    # Canonicalize repo_root + log_path so the prefix-strip is exact.
+    # Sprint 4 cypherpunk audit HIGH-4: realpath is required (no fallback that
+    # silently drops subdir context); also canonicalize repo_root because
+    # rev-parse --show-toplevel may report a path that differs from realpath
+    # in symlinked-checkout scenarios.
+    if ! command -v realpath >/dev/null 2>&1; then
+        _audit_log "audit_recover_chain: realpath unavailable; cannot resolve repo-relative log path safely"
+        return 1
     fi
+    repo_root="$(realpath "$repo_root" 2>/dev/null || echo "$repo_root")"
+    abs_log="$(realpath "$log_path" 2>/dev/null || true)"
     if [[ -z "$abs_log" ]]; then
         return 1
     fi
     rel_to_root="${abs_log#"$repo_root"/}"
-    if [[ "$rel_to_root" == "$abs_log" ]]; then
-        # Did not start with repo_root (defensive — should not happen)
+    if [[ "$rel_to_root" == "$abs_log" ]] || [[ "$rel_to_root" == /* ]]; then
+        # Did not start with repo_root, OR strip left an absolute path
+        # (defensive — would only happen with a degenerate root).
         return 1
     fi
 

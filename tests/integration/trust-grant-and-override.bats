@@ -148,7 +148,7 @@ teardown() {
     trust_grant "flatline" "merge_main" "deep-name" "T1" --reason "step1" --operator "deep-name"
     trust_grant "flatline" "merge_main" "deep-name" "T2" --reason "step2" --operator "deep-name"
     trust_record_override "flatline" "merge_main" "deep-name" "decision-x" "override"
-    run trust_grant "flatline" "merge_main" "deep-name" "T2" --reason "rerise" --force --operator "deep-name"
+    run trust_grant "flatline" "merge_main" "deep-name" "T2" --reason "rerise" --force --operator "operator-2"
     [[ "$status" -eq 0 ]]
     grep -F '"event_type":"trust.force_grant"' "$LOA_TRUST_LEDGER_FILE"
 }
@@ -164,13 +164,13 @@ teardown() {
     echo "$entry" | jq -e '.payload.transition_rule_id == "T0_to_T1"' >/dev/null
 }
 
-@test "trust_grant: ledger sealed -> rejected with exit 1" {
+@test "trust_grant: ledger sealed -> rejected with exit 3 (transition rejected)" {
     source "$LIB"
     cat > "$LOA_TRUST_LEDGER_FILE" <<'EOF'
 {"schema_version":"1.1.0","primitive_id":"L4","event_type":"trust.disable","ts_utc":"2026-05-02T00:00:00.000Z","prev_hash":"GENESIS","payload":{"operator":"o","reason":"sealed","sealed_at":"2026-05-02T00:00:00.000Z"}}
 EOF
     run trust_grant "flatline" "merge_main" "deep-name" "T1" --reason "r" --operator "deep-name"
-    [[ "$status" -eq 1 ]]
+    [[ "$status" -eq 3 ]]
 }
 
 # =============================================================================

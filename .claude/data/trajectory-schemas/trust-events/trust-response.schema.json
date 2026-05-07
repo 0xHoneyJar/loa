@@ -34,8 +34,9 @@
             "pattern": "^[A-Za-z0-9_-]{1,32}$"
           },
           "to_tier": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9_-]{1,32}$"
+            "type": ["string", "null"],
+            "pattern": "^[A-Za-z0-9_-]{1,32}$",
+            "description": "null for trust.auto_raise_eligible entries (informational; no tier change)"
           },
           "transition_type": {
             "type": "string",
@@ -44,6 +45,11 @@
           "ts_utc": {
             "type": "string",
             "format": "date-time"
+          },
+          "cooldown_until": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "Frozen cooldown_until from auto_drop payloads; null for non-auto_drop transitions"
           },
           "decision_id": {
             "type": ["string", "null"]

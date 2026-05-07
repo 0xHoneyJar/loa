@@ -57,7 +57,7 @@ All functions are sourced from `.claude/scripts/lib/graduated-trust-lib.sh`.
 
 | Function | Purpose | Exit | FR |
 |----------|---------|------|-----|
-| `trust_query <scope> <capability> <actor>` | Read TrustResponse JSON | 0/2 | FR-L4-1 |
+| `trust_query <scope> <capability> <actor>` | Read TrustResponse JSON | 0/1/2/3 | FR-L4-1 |
 | `trust_grant <scope> <capability> <actor> <new_tier> --reason <r> [--operator <o>]` | Operator-driven raise (subject to transition_rules + cooldown) | 0/1/2/3 | FR-L4-2 |
 | `trust_grant ... --force --reason <r>` | Force-grant exception (cooldown bypass; audit-logged with cooldown_remaining) | 0/1/2/3 | FR-L4-8 |
 | `trust_record_override <scope> <capability> <actor> <decision_id> <reason>` | Auto-drop on observed override; starts cooldown | 0/1/2/3 | FR-L4-3 |
@@ -224,6 +224,6 @@ trust_recover_chain
 | trust_query (FR-L4-1) | `tests/integration/trust-query-default-tier.bats` | 17 |
 | trust_grant + trust_record_override (FR-L4-2 + FR-L4-3) | `tests/integration/trust-grant-and-override.bats` | 21 |
 | chain integrity + reconstruction + force-grant + auto-raise (FR-L4-4 + FR-L4-5 + FR-L4-7 + FR-L4-8) | `tests/integration/trust-chain-and-force-grant.bats` | 16 |
-| concurrent writes (FR-L4-6) + disable seal | `tests/integration/trust-concurrent-and-disable.bats` | (Sprint 4D) |
+| concurrent writes (FR-L4-6) + disable seal | `tests/integration/trust-concurrent-and-disable.bats` | 13 |
 
 Total: 100+ tests across the four sub-sprints.
