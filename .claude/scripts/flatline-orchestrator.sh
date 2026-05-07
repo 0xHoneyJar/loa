@@ -51,6 +51,12 @@ source "$SCRIPT_DIR/bootstrap.sh"
 source "$SCRIPT_DIR/lib/normalize-json.sh"
 source "$SCRIPT_DIR/lib/invoke-diagnostics.sh"
 source "$SCRIPT_DIR/lib/context-isolation-lib.sh"
+# cycle-099 Sprint 1B parity (mirrors red-team-model-adapter.sh): exposes
+# `resolve_provider_id` from generated-model-maps.sh so flatline picks up
+# new model registry entries (gpt-5.5, gpt-5.5-pro, gemini-3.1-pro-preview,
+# etc.) without needing edits to the local MODEL_TO_PROVIDER_ID fallback.
+# shellcheck source=lib/model-resolver.sh
+source "$SCRIPT_DIR/lib/model-resolver.sh"
 
 # Note: bootstrap.sh already handles PROJECT_ROOT canonicalization via realpath
 TRAJECTORY_DIR=$(get_trajectory_dir)
@@ -483,7 +489,17 @@ call_model() {
     if is_flatline_routing_enabled && [[ -x "$MODEL_INVOKE" ]]; then
         # Direct model-invoke path (SDD §4.4.2)
         local agent="${MODE_TO_AGENT[$mode]:-}"
-        local model_override="${MODEL_TO_PROVIDER_ID[$model]:-$model}"
+        # cycle-099 Sprint 1B + post-Sprint-2E parity: prefer the SSOT-aware
+        # resolver (model-resolver.sh::resolve_provider_id) which reads
+        # generated-model-maps.sh; fall back to the local MODEL_TO_PROVIDER_ID
+        # for legacy aliases that intentionally aren't in model-config.yaml.
+        # Mirrors the red-team-model-adapter.sh pattern.
+        local model_override
+        if model_override="$(resolve_provider_id "$model" 2>/dev/null)"; then
+            : # canonical alias resolved via shared lib
+        else
+            model_override="${MODEL_TO_PROVIDER_ID[$model]:-$model}"
+        fi
 
         if [[ -z "$agent" ]]; then
             log "ERROR: Unknown mode for model-invoke: $mode"
