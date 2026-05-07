@@ -121,10 +121,17 @@ teardown() {
         --json
     [ "$status" -eq 0 ]
     echo "$output" | jq empty
-    # Top-level `confidence` exists in BOTH the regular and degraded shapes.
-    [[ "$(echo "$output" | jq -r '.confidence // "?"')" =~ ^(single_model|full|degraded)$ ]]
-    # And NOT the #759 sentinel (this is the "single empty" path, not the "both empty" path).
+    # BB iter-1 F5 fix: regex tightened — `degraded` was permitted (matched
+    # the #759 path the test is supposed to NOT hit). For "single-empty" the
+    # confidence MUST be single_model or full. The degradation_reason check
+    # below also verifies we're not on the both-empty branch, but the
+    # confidence regex now mirrors the test intent.
+    [[ "$(echo "$output" | jq -r '.confidence // "?"')" =~ ^(single_model|full)$ ]]
     [[ "$(echo "$output" | jq -r '.degradation_reason // "none"')" != "no_items_to_score" ]]
+    # BB iter-1 F6 fix: assert the consensus contract is intact — at least
+    # one of the two valid summary keys must be present; if both are absent
+    # the JSON shape is broken and the prior assertions wouldn't catch it.
+    [[ "$(echo "$output" | jq 'has("consensus_summary") or has("summary")')" == "true" ]]
 }
 
 @test "B1.6 — orchestrator-style capture: result=\$(scoring-engine ...) yields non-empty when degraded" {

@@ -66,10 +66,16 @@ YAML
 hounfour:
   flatline_tertiary_model: gemini-3.1-pro'
     run env PROJECT_ROOT="$WORK_DIR" "$READINESS" --json
-    [[ "$status" -eq 0 || "$status" -eq 3 ]]
-    # The reported tertiary should be from hounfour path (gemini-3.1-pro), not flatline_protocol path (gemini-2.5-pro).
-    [[ "$output" == *"gemini-3.1-pro"* ]]
-    [[ "$output" != *"\"tertiary\":\"gemini-2.5-pro\""* ]]
+    # gemini-3.1-pro IS a registered alias → status 0 (READY); pin precisely.
+    # BB iter-1 F2 fix: tightened from `0 || 3` ambiguous oracle to exact 0.
+    [ "$status" -eq 0 ]
+    # BB iter-1 F1 fix: jq-extract the actual tertiary field instead of
+    # substring-matching the raw output. Substring match was vulnerable to
+    # JSON-whitespace shape (`"tertiary":"x"` vs `"tertiary": "x"`) and to
+    # false-positives from an aliases-list error hint elsewhere in the JSON.
+    local tertiary
+    tertiary=$(echo "$output" | jq -r '.models.tertiary')
+    [[ "$tertiary" == "gemini-3.1-pro" ]]
 }
 
 @test "T2 — readiness falls back to flatline_protocol.models.tertiary when hounfour path is absent" {
@@ -80,8 +86,11 @@ hounfour:
     secondary: gpt-5.3-codex
     tertiary: gemini-2.5-pro'
     run env PROJECT_ROOT="$WORK_DIR" "$READINESS" --json
-    [[ "$status" -eq 0 ]]
-    [[ "$output" == *"gemini-2.5-pro"* ]]
+    [ "$status" -eq 0 ]
+    # BB iter-1 F1 fix: jq-extract instead of substring-match.
+    local tertiary
+    tertiary=$(echo "$output" | jq -r '.models.tertiary')
+    [[ "$tertiary" == "gemini-2.5-pro" ]]
 }
 
 @test "T3 — registered alias (gemini-3.1-pro) passes validation" {
@@ -148,6 +157,10 @@ hounfour:
     [[ "$status" -eq 3 ]]
     [[ "$output" == *"\"status\": \"DEGRADED\""* ]]
     [[ "$output" == *"completely-fictional-model-name-xyz"* ]]
+    # BB iter-1 F3 fix: pin the alias-list hint that the test name promises.
+    # Without this, T6 only confirmed the bad value was echoed — not that
+    # operators get the actionable "here are valid aliases" guidance.
+    [[ "$output" == *"alias"* ]]
 }
 
 @test "T7 — primary + secondary also validated (regression — same defect class)" {
