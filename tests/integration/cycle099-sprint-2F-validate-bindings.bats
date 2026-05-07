@@ -301,39 +301,22 @@ YAML
     [[ "$stderr" != *"[BINDING-OVERRIDDEN]"* ]]
 }
 
-@test "V15 — JSON output passes URL secrets through log-redactor" {
-    # merged-with-url.yaml puts a URL with userinfo + ?api_key= secret into
-    # skill_models.<skill>.<role> so it surfaces in details.pin via S1.
-    # The redactor's contract (per `.claude/scripts/lib/log-redactor.py`
-    # docstring) is URL-framed secrets ONLY: `://userinfo@` and `?param=value`.
-    # Test what the redactor IS responsible for:
+@test "V15 — URL-shape pin: secret never reaches validate-bindings output (#761 closure)" {
+    # Original V15 (Sprint 2F) tested redactor behavior on URL secrets that
+    # surfaced in `details.pin` via S1 explicit-pin. #761 closed that surface
+    # at the source: `_stage1_explicit_pin` rejects URL-shape values
+    # entirely, falling through to S2/S3/S5 with no URL fragment in
+    # `resolution_path` or `resolved_*` fields. The hardened assertion is
+    # now structural rather than redactor-dependent: NO part of the pasted
+    # URL EVER appears in the JSON output. Status may be 0 (clean) or 1
+    # (unresolved binding); both are valid post-#761 — what matters is that
+    # the secret-bearing input never echoes into output.
     run "$MODEL_INVOKE" --validate-bindings --merged-config "$WORK_DIR/merged-with-url.yaml"
-    [ "$status" -eq 0 ]
-    # The `?api_key=should-be-redacted` query secret MUST be masked.
+    [[ "$status" -eq 0 || "$status" -eq 1 ]]
+    [[ "$output" != *"secret-token"* ]]
     [[ "$output" != *"should-be-redacted"* ]]
-    # The `https://leaky-user:secret-token@` userinfo MUST be masked in
-    # details.pin (where the full URL with `://` framing surfaces).
-    [[ "$output" != *"https://leaky-user:secret-token@"* ]]
-    # AND the redaction sentinel MUST appear (proves redactor was invoked).
-    [[ "$output" == *"REDACTED"* ]]
-    # NOTE: `secret-token` may still appear in `resolved_model_id` because S1
-    # splits the value at the first `:`, leaving `//leaky-user:secret-token@`
-    # (without `://` anchor) in the model_id field. That's a resolver-side
-    # concern (S1 should arguably reject URL-shaped input — tracked separately,
-    # out of Sprint 2F scope). The redactor is doing exactly what its
-    # contract says: URL-FRAMED secrets are masked; raw fragments are not.
-    #
-    # BB-iter1 F7 fix: capture the known-leak as a structured xfail so a
-    # future fix to S1 (rejecting URL-shaped pin values) flips this assertion
-    # green and the suite catches the regression. Until then, the assertion
-    # below DOCUMENTS the gap rather than silently tolerating it.
-    # TODO(cycle-099-followup): when `_stage1_explicit_pin` rejects values
-    # containing `://`, replace this comment with `[[ "$output" != *"secret-token"* ]]`.
-    if [[ "$output" != *"secret-token"* ]]; then
-        # Negation-of-bug — leak is closed. Pin behavior so a regression
-        # re-introducing the leak triggers a test-redesign signal.
-        echo "INFO — secret-token no longer in resolved_model_id; tighten V15 + close S1-pin URL-shape issue" >&2
-    fi
+    [[ "$output" != *"leaky-user"* ]]
+    [[ "$output" != *"https://"* ]]
 }
 
 @test "V16 — makes ZERO API calls (no provider HTTP traffic)" {
@@ -458,11 +441,14 @@ YAML
     # We test the redactor integration directly by checking a synthesized line
     # via the resolver that hits an alias whose details could carry a URL.
     # Simpler check: confirm no plaintext "secret-token" appears in stderr trace.
+    # `|| true` because URL-shape pin causes #761 fall-through → resolver
+    # exits 1 (unresolved). The trace-emission defense being tested is
+    # orthogonal to the resolution outcome.
     local stderr_out
     stderr_out=$(LOA_DEBUG_MODEL_RESOLUTION=1 python3 "$RESOLVER" resolve \
         --config "$WORK_DIR/merged-with-url.yaml" \
         --skill test_skill \
-        --role primary 2>&1 >/dev/null)
+        --role primary 2>&1 >/dev/null) || true
     [[ "$stderr_out" != *"secret-token"* ]]
     [[ "$stderr_out" != *"should-be-redacted"* ]]
 }
