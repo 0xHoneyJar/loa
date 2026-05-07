@@ -1,19 +1,22 @@
 # cycle-098-agent-network — Session Resumption Brief
 
-**Last updated**: 2026-05-04 (Sprint 1 + 1.5 + 2 + 3 + H1 + H2 + /bug #711 ALL SHIPPED; **next: cycle-099 model-registry refactor (URGENT) OR Sprint 4 L4 graduated-trust (resumable)**)
+**Last updated**: 2026-05-07 (Sprint 1 + 1.5 + 2 + 3 + 4 + H1 + H2 + /bug #711 ALL SHIPPED; **next: Sprint 5 L5 cross-repo-status-reader OR Sprint 6 L6 structured-handoff OR Sprint 7 L7 soul-identity-doc**)
 **Author**: deep-name + Claude Opus 4.7 1M
 **Purpose**: Crash-recovery + cross-session continuity. Read first when resuming cycle-098 work.
 
-## 🚨 TL;DR — All today's hardening shipped; two paths forward
+## 🚨 TL;DR — Sprint 4 SHIPPED 2026-05-07; L5/L6/L7 remain
 
-**Today's wins on main (5 PRs):**
+**2026-05-07 session win**:
+- **Sprint 4 (PR #764) — L4 graduated-trust SHIPPED.** Per-(scope, capability, actor) trust ledger (FR-L4-1..8). 118 cumulative tests. Cypherpunk audit caught 2 CRIT (seal bypass via marker, cooldown_until forgery) + 6 HIGH + 3 MED — all closed pre-merge with the `fc3ad7f0` remediation pass. Pre-existing audit-envelope `_audit_recover_from_git` path-resolution bug (basename vs repo-relative) fixed during 4C.
+
+**Earlier wins on main:**
 - Sprint 3 (PR #712, `3e9c2f7`) — L3 scheduled-cycle-template
-- chore PR #715 — RESUMPTION update
-- Sprint H1 (PR #716, `d8eca75`) — signed-mode harness, closes #706 + #713
-- Sprint H2 (PR #717, `430d1e4`) — observer allowlist + audit-snapshot strict-pin + chain-valid fixture, closes #708 substantives
-- /bug #711 (PR #718, `4a576da`) — gpt-review hook recursion + 429 diagnostic + insufficient_quota short-circuit
+- Sprint H1 (PR #716, `d8eca75`) — signed-mode harness
+- Sprint H2 (PR #717, `430d1e4`) — observer allowlist + audit-snapshot strict-pin
+- /bug #711 (PR #718, `4a576da`) — gpt-review hook recursion + 429 diagnostic
+- cycle-099 entire registry-refactor cycle SHIPPED (Sprints 1-2F). See cycle-099 RESUMPTION for that full ladder.
 
-**Cumulative: 480+ tests on main; 0 regressions.**
+**Cumulative cycle-098 tests on main: 600+ ; 0 regressions.**
 
 ### Operator priority (2026-05-04 session-end)
 
