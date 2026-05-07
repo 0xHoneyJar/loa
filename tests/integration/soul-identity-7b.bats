@@ -19,6 +19,9 @@ setup() {
 
     # Trust-store fixture: BOOTSTRAP-PENDING permits audit_emit writes.
     export LOA_TRUST_STORE_FILE="$TEST_DIR/no-such-trust-store.yaml"
+    # cycle-098 sprint-7 cypherpunk CRIT-1 closure: strict test-mode gate
+    # requires opt-in LOA_SOUL_TEST_MODE=1 + a bats marker.
+    export LOA_SOUL_TEST_MODE=1
     export LOA_SOUL_LOG="$TEST_DIR/soul-events.jsonl"
     # Hook reads SOUL path / config from these envs in test-mode.
     export LOA_SOUL_TEST_CONFIG="$TEST_DIR/.loa.config.yaml"

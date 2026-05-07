@@ -22,7 +22,8 @@
     "schema_version": {
       "type": "string",
       "pattern": "^[0-9]+\\.[0-9]+$",
-      "description": "Echoes the doc's frontmatter schema_version verbatim. Pattern (not enum) so future doc-schema bumps don't self-DoS the audit emit (cycle-098 Sprint 6E CYP-F5 precedent)."
+      "maxLength": 16,
+      "description": "Echoes the doc's frontmatter schema_version verbatim. Pattern (not enum) so future doc-schema bumps don't self-DoS the audit emit (cycle-098 Sprint 6E CYP-F5 precedent). cycle-098 Sprint 7 cypherpunk MED-2: maxLength bound prevents adversarial caller of soul_emit from passing arbitrarily large version strings."
     },
     "schema_mode": {
       "type": "string",

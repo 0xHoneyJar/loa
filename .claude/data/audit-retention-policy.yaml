@@ -65,12 +65,18 @@ primitives:
     git_tracked: false
 
   L7:
-    log_basename: "SOUL.md"
-    description: "Operator-authored SOUL surface. NO RETENTION (operator-managed content)."
-    retention_days: null
-    archive_after_days: null
+    # cycle-098 Sprint 7 (optimist HIGH-1 remediation): the L7 audit log is
+    # `.run/soul-events.jsonl` — JSONL, hash-chained, UNTRACKED, retention 30d
+    # per SDD §5.13 `L7_soul_days: 30`. SOUL.md itself is the operator-
+    # authored surface (TRACKED in git, no automated retention) and is
+    # described in `soul_surface_basename` for clarity.
+    log_basename: "soul-events.jsonl"
+    soul_surface_basename: "SOUL.md"  # operator-authored content; not the audit log
+    description: "L7 soul.surface / soul.validate audit events (JSONL audit log). The SOUL.md operator-authored surface is git-tracked; this entry describes the audit log itself."
+    retention_days: 30
+    archive_after_days: 30
     chain_critical: false
-    git_tracked: true
+    git_tracked: false
 
 # -----------------------------------------------------------------------------
 # Compaction guidance:
@@ -83,7 +89,9 @@ primitives:
 # - L4 (trust-ledger): never compacted; rotated only on cycle-archive.
 # - L6 (handoffs INDEX): archived per-handoff-entry, not bulk; entries flagged
 #   as "archived" stay in INDEX with an archive_pointer field.
-# - L7 (SOUL): operator-managed; no automated retention.
+# - L7 (soul-events.jsonl): JSONL retention 30d (cycle-098 Sprint 7 fix —
+#   was previously mis-described as SOUL.md retention; the operator-authored
+#   SOUL.md is git-tracked and is operator-managed without automation).
 #
 # Recovery:
 # - chain_critical: true means audit_recover_chain has snapshot-archive fallback.

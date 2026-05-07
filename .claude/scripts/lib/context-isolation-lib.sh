@@ -207,9 +207,23 @@ PY
     fi
 
     # Split body from report (sentinel: \x1e REPORT \x1e on its own line).
+    # cycle-098 sprint-7 cypherpunk HIGH-3 remediation: bash `$(...)` strips
+    # ALL trailing newlines from the python helper's output. When the report
+    # list is empty (the common case — no BLOCKER/INFO signals), the
+    # python helper writes `<body>\n\x1eREPORT\x1e\n` and `$(...)` reduces
+    # that to `<body>\n\x1eREPORT\x1e` (no trailing newline). The original
+    # parameter-expansion patterns required `\n\x1eREPORT\x1e\n` (with
+    # trailing newline) on both sides, so the sentinel survived into `body`.
+    # Fix: drop the trailing-newline requirement; strip a leading newline
+    # from `report` to keep its semantics for the non-empty case.
     local body report
-    body="${sanitized%%$'\n\x1eREPORT\x1e\n'*}"
-    report="${sanitized#*$'\n\x1eREPORT\x1e\n'}"
+    body="${sanitized%%$'\n\x1eREPORT\x1e'*}"
+    if [[ "$sanitized" == *$'\n\x1eREPORT\x1e'* ]]; then
+        report="${sanitized#*$'\n\x1eREPORT\x1e'}"
+        report="${report#$'\n'}"
+    else
+        report=""
+    fi
 
     # Replace placeholder <path> with actual path (or omit the marker if blank).
     if [[ -n "$path_label" ]]; then

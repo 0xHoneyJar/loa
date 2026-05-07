@@ -22,6 +22,8 @@ setup() {
 
     TEST_DIR="$(mktemp -d)"
     export LOA_TRUST_STORE_FILE="$TEST_DIR/no-such-trust-store.yaml"
+    # cycle-098 sprint-7 cypherpunk CRIT-1 closure.
+    export LOA_SOUL_TEST_MODE=1
     export LOA_SOUL_LOG="$TEST_DIR/soul-events.jsonl"
     export LOA_HANDOFF_LOG="$TEST_DIR/handoff-events.jsonl"
     export LOA_HANDOFF_VERIFY_OPERATORS=0

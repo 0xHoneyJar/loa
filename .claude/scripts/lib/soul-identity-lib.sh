@@ -64,15 +64,20 @@ _LOA_SOUL_DEFAULT_LOG="${_LOA_SOUL_REPO_ROOT}/.run/soul-events.jsonl"
 _LOA_SOUL_DEFAULT_PATH="${_LOA_SOUL_REPO_ROOT}/SOUL.md"
 
 # -----------------------------------------------------------------------------
-# Test-mode gate (mirrors L4 graduated-trust-lib + L6 structured-handoff-lib).
+# Test-mode gate. cycle-098 sprint-7 cypherpunk CRIT-1 remediation:
+# require BOTH a robust bats marker AND opt-in `LOA_SOUL_TEST_MODE=1`.
+#
+# Earlier drafts permitted bypass via `BATS_TMPDIR` alone (any developer-
+# leaked env or nested tooling could flip production into test-mode).
+# This is a regression-of-an-already-closed-pattern — cycle-099 #761 closed
+# the same defect class for L4; the L6 prototype carried a similar dead-code
+# clause forward (filed as follow-up). Strict form below; do not "or" the
+# clauses together.
 # -----------------------------------------------------------------------------
 _soul_test_mode_active() {
-    if [[ -n "${BATS_TEST_DIRNAME:-}" ]] || [[ -n "${BATS_TMPDIR:-}" ]]; then
-        return 0
-    fi
-    if [[ "${LOA_SOUL_TEST_MODE:-0}" == "1" ]] && [[ -n "${BATS_TEST_DIRNAME:-${BATS_TMPDIR:-}}" ]]; then
-        return 0
-    fi
+    [[ "${LOA_SOUL_TEST_MODE:-0}" == "1" ]] || return 1
+    [[ -n "${BATS_TEST_FILENAME:-}" ]] && return 0
+    [[ -n "${BATS_VERSION:-}" ]] && return 0
     return 1
 }
 
@@ -270,7 +275,7 @@ _soul_classify_sections() {
     LOA_SOUL_SECTIONS_JSONL="$sections_jsonl" \
     LOA_SOUL_PATTERNS="$_LOA_SOUL_PRESCRIPTIVE_PATTERNS" \
     python3 - <<'PY'
-import os, sys, json, re
+import os, sys, json, re, unicodedata
 
 sections = []
 for line in os.environ["LOA_SOUL_SECTIONS_JSONL"].split('\n'):
@@ -281,18 +286,22 @@ for line in os.environ["LOA_SOUL_SECTIONS_JSONL"].split('\n'):
 required = ["What I am", "What I am not", "Voice", "Discipline", "Influences"]
 optional = ["Refusals", "Glossary", "Provenance"]
 
+# cycle-098 sprint-7 cypherpunk MED-2 / optimist MED-2 remediation: log
+# pattern compile errors to stderr (don't silently swallow). A typo in the
+# patterns file silently weakens NFR-Sec3 enforcement.
 patterns = []
 patt_path = os.environ.get("LOA_SOUL_PATTERNS", "")
 if patt_path and os.path.exists(patt_path):
     with open(patt_path, 'r', encoding='utf-8') as f:
-        for ln in f:
+        for lineno, ln in enumerate(f, start=1):
             ln = ln.rstrip('\n')
             if not ln or ln.lstrip().startswith('#'):
                 continue
             try:
                 patterns.append(re.compile(ln, flags=re.IGNORECASE | re.MULTILINE))
-            except re.error:
-                pass
+            except re.error as e:
+                print("WARN:pattern-compile-failed:line " + str(lineno) + ":" +
+                      str(e)[:120], file=sys.stderr)
 
 required_present = []
 required_missing = []
@@ -306,22 +315,52 @@ for r in required:
     else:
         required_missing.append(r)
 
-# Apply prescriptive patterns to FULL section body (multiline). Each pattern
-# already anchors with ^...$ + MULTILINE so it scans line-by-line within the
-# section body. A match in any line of the section's body flags it.
+# cycle-098 sprint-7 cypherpunk HIGH-4 remediation: scrub headings of C0,
+# C1 control bytes + DEL + zero-width Unicode + characters outside the
+# audit-payload regex `[A-Za-z0-9 _-]{1,64}`. Without this, an attacker can
+# embed ANSI escapes / control bytes in a section heading: the heading text
+# flows into prescriptive_hits / unknown_sections; soul_compute_surface_payload
+# echoes them; the audit-payload schema regex rejects them; soul_emit fails;
+# the hook's `|| true` silences the failure → audit blinded but body still
+# surfaces in warn mode. Pre-scrubbing here makes the payload always valid,
+# so emit always succeeds, so the audit chain captures every surface.
+_ZW_CLASS = re.compile(r'[​-‏‪-‮⁠-⁤﻿]')
+def _scrub_heading(s):
+    # Strip C0 (0x00-0x1F), DEL (0x7F), C1 (0x80-0x9F).
+    s = ''.join(c for c in s if not (ord(c) < 0x20 or 0x7F <= ord(c) <= 0x9F))
+    # Strip zero-width Cf characters that might smuggle past visual-only review.
+    s = _ZW_CLASS.sub('', s)
+    # Replace any character outside the schema's allowed set with `_`.
+    s = re.sub(r'[^A-Za-z0-9 _-]', '_', s)
+    # Truncate to schema maxLength.
+    return s[:64].strip() or "_"
+
+# cycle-098 sprint-7 cypherpunk HIGH-2 remediation: NFKC-normalize + zero-
+# width-strip section bodies before pattern matching. Without this,
+# FULLWIDTH (Ｍ Ｕ Ｓ Ｔ → MUST after NFKC) and zero-width insertions
+# (M​UST) bypass the prescriptive-pattern regex entirely.
+def _normalize_for_match(s):
+    s = unicodedata.normalize("NFKC", s)
+    s = _ZW_CLASS.sub('', s)
+    return s
+
 for s in sections:
     body_text = '\n'.join(s["body_lines"])
+    body_norm = _normalize_for_match(body_text)
     matched = False
     for p in patterns:
-        if p.search(body_text):
+        if p.search(body_norm):
             matched = True
             break
-    if matched and s["heading"] not in prescriptive_hits:
-        prescriptive_hits.append(s["heading"])
+    heading_clean = _scrub_heading(s["heading"])
+    if matched and heading_clean not in prescriptive_hits:
+        prescriptive_hits.append(heading_clean)
 
 for h in present_headings:
     if h not in required and h not in optional:
-        unknown_sections.append(h)
+        h_clean = _scrub_heading(h)
+        if h_clean not in unknown_sections:
+            unknown_sections.append(h_clean)
 
 print(json.dumps({
     "required_present": required_present,

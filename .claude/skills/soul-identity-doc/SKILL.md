@@ -134,6 +134,15 @@ When it surfaces, the hook ALWAYS emits a `soul.surface` audit event to
 `.run/soul-events.jsonl` recording the outcome (`surfaced` /
 `schema-warning` / `schema-refused`).
 
+### Hook registration (operator action required)
+
+The hook script ships with the framework but is **not auto-registered** in
+`.claude/settings.json` by default — it is a per-project opt-in. To enable
+L7 surfacing, register the script via the framework's session-start hook
+mechanism. Same caveat applies to L6's `loa-l6-surface-handoffs.sh`. See
+the cycle-098 follow-up tracking issue for canonical wiring patterns and
+bundled L6+L7 dispatcher proposals.
+
 ## Configuration (`.loa.config.yaml`)
 
 ```yaml
@@ -159,6 +168,7 @@ soul_identity_doc:
 | 7A | Schema + lib + frontmatter validator + audit events + 34 tests | SHIPPED |
 | 7B | SessionStart hook (`loa-l7-surface-soul.sh`) + 16 tests | SHIPPED |
 | 7C | SKILL.md + CLI + cross-primitive integration tests + lore + CLAUDE.md | SHIPPED |
+| 7-rem | Pre-merge remediation: CRIT-1 strict test-mode gate, HIGH-1 realpath containment, HIGH-2 NFKC + zero-width strip, HIGH-3 sentinel leak fix, HIGH-4 heading scrub, retention-policy alignment + 16 tests | SHIPPED |
 | 7D (deferred) | Adversarial jailbreak corpus (50+ vectors) | Deferred to its own cycle (see RESUMPTION.md) |
 
 ## Notes

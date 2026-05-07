@@ -11,15 +11,22 @@
 #   - Lines starting with `#` are comments.
 #   - Blank lines ignored.
 #   - Each non-comment line is a Python-regex (case-insensitive, MULTILINE)
-#     applied to the FIRST NON-EMPTY LINE of each section body.
+#     applied to the FULL section body (line-by-line via MULTILINE anchors).
+#     Body text is NFKC-normalized + zero-width-stripped before matching
+#     (cycle-098 Sprint 7 cypherpunk HIGH-2 closure) so FULLWIDTH and
+#     zero-width Unicode bypasses are caught as their canonical ASCII forms.
 #   - A match flags the section as prescriptive — strict mode rejects the doc;
 #     warn mode loads with [SCHEMA-WARNING] + per-section hit recorded.
+#   - Pattern compile errors (e.g., a typo like an unclosed bracket) are
+#     logged to stderr at validate time (cycle-098 Sprint 7 optimist MED-2
+#     closure). NFR-Sec3 enforcement no longer silently degrades on edits.
 #
-# Why first-non-empty-line: a section that *opens* with imperative language
-# is prescriptive ("MUST do X..."). A section that *mentions* imperatives
-# inside descriptive prose ("we believe in must-have testing") is not.
-# This is intentionally conservative; refine as Sprint-7-followup discovers
-# false positives.
+# Why anchored regex (^ + MULTILINE) over substring: a section that *opens*
+# any line with imperative language is prescriptive ("MUST do X..." anywhere
+# in body). A section that *mentions* imperatives inside descriptive prose
+# ("we believe in must-have testing", lowercase + mid-line) is not. The
+# regex anchors enforce that distinction. This is intentionally conservative;
+# refine as Sprint-7-followup discovers false positives.
 #
 # DO NOT add patterns that match descriptive language that happens to contain
 # imperative verbs ("we strive to never break tests" — that's a value

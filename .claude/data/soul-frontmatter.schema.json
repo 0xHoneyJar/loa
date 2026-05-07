@@ -28,7 +28,7 @@
     "last_updated": {
       "type": "string",
       "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}(?:T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,9})?Z)?$",
-      "description": "RFC 3339 date or date-time UTC. Operator-controlled; bounds-checked at write/validate-time (lib rejects [0001-01-01, now+24h) only — generous lower bound because operators may backdate identity docs to project inception)."
+      "description": "RFC 3339 date or date-time UTC. Operator-controlled; format-only validation here. cycle-098 Sprint 7 cypherpunk MED-1 closure: removed claim of [0001-01-01, now+24h) bounds enforcement that did not exist in the lib — the schema regex accepts any RFC-3339 shape including 0000-01-01 / 9999-12-31. Operators concerned about plausibility checks should add a CI lint rather than expecting the schema to enforce date semantics."
     },
     "tags": {
       "type": "array",

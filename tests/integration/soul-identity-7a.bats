@@ -28,7 +28,10 @@ setup() {
     # which permits audit_emit writes per the auto-verify gate.
     export LOA_TRUST_STORE_FILE="$TEST_DIR/no-such-trust-store.yaml"
 
-    # Audit log path under TEST_DIR (test-mode gate active because BATS_TEST_DIRNAME).
+    # Audit log path under TEST_DIR. cycle-098 sprint-7 cypherpunk CRIT-1
+    # closure: test-mode gate now requires BOTH a bats marker AND opt-in
+    # LOA_SOUL_TEST_MODE=1. Pre-CRIT-1 this was implicit-via-BATS_TMPDIR.
+    export LOA_SOUL_TEST_MODE=1
     export LOA_SOUL_LOG="$TEST_DIR/soul-events.jsonl"
 
     # shellcheck source=/dev/null

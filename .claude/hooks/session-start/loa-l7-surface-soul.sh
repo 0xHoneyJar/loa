@@ -40,12 +40,12 @@ LIB="${REPO_ROOT}/.claude/scripts/lib/soul-identity-lib.sh"
 # bats-detected ancestor. Mirrors L4/L6 cycle-098 patterns.
 # -----------------------------------------------------------------------------
 _l7_test_mode_active() {
-    if [[ -n "${BATS_TEST_DIRNAME:-}" ]] || [[ -n "${BATS_TMPDIR:-}" ]]; then
-        return 0
-    fi
-    if [[ "${LOA_SOUL_TEST_MODE:-0}" == "1" ]] && [[ -n "${BATS_TEST_DIRNAME:-${BATS_TMPDIR:-}}" ]]; then
-        return 0
-    fi
+    # cycle-098 sprint-7 cypherpunk CRIT-1 remediation: require BOTH a
+    # robust bats marker AND opt-in `LOA_SOUL_TEST_MODE=1`. Mirrors the
+    # lib-side gate at .claude/scripts/lib/soul-identity-lib.sh.
+    [[ "${LOA_SOUL_TEST_MODE:-0}" == "1" ]] || return 1
+    [[ -n "${BATS_TEST_FILENAME:-}" ]] && return 0
+    [[ -n "${BATS_VERSION:-}" ]] && return 0
     return 1
 }
 
@@ -84,6 +84,12 @@ if _l7_test_mode_active && [[ -n "${LOA_SOUL_TEST_PATH:-}" ]]; then
 else
     cfg_path="$(yq '.soul_identity_doc.path // ""' "$config_path" 2>/dev/null || echo "")"
     if [[ -n "$cfg_path" && "$cfg_path" != "null" ]]; then
+        # cycle-098 sprint-7 cypherpunk HIGH-1 remediation: reject `..`
+        # substrings in the configured path before any resolution. The
+        # intent of `path:` is repo-local override, never traversal.
+        if [[ "$cfg_path" == *..* ]]; then
+            exit 0
+        fi
         if [[ "$cfg_path" == /* ]]; then
             soul_path="$cfg_path"
         else
@@ -95,6 +101,25 @@ else
             fi
         fi
     fi
+fi
+
+# cycle-098 sprint-7 cypherpunk HIGH-1 remediation: enforce REPO_ROOT
+# containment in production. A malicious `.loa.config.yaml::soul_identity_doc.
+# path: /etc/passwd` (or symlink-into-repo pointing at /etc/...) would
+# otherwise read attacker-chosen files into the LLM session as
+# <untrusted-content>. Test-mode is exempt because tests legitimately use
+# fixtures under TEST_DIR (mktemp outside REPO_ROOT). Mirrors the cycle-099
+# sprint-1E.c.3.b allowlist-tree-restriction pattern.
+if ! _l7_test_mode_active; then
+    canonical_root="$(realpath -m "$REPO_ROOT" 2>/dev/null || echo "$REPO_ROOT")"
+    canonical_path="$(realpath -m "$soul_path" 2>/dev/null || echo "")"
+    if [[ -z "$canonical_path" ]]; then
+        exit 0
+    fi
+    case "$canonical_path" in
+        "$canonical_root"|"$canonical_root"/*) ;;
+        *) exit 0 ;;
+    esac
 fi
 
 # Silent on missing file (FR-L7-6) — no audit event for "the file just
