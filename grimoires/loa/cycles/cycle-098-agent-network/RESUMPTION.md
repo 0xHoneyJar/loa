@@ -1,10 +1,52 @@
 # cycle-098-agent-network — Session Resumption Brief
 
-**Last updated**: 2026-05-08 (Sprint 1 + 1.5 + 2 + 3 + 4 + 5 + 6 + H1 + H2 + /bug #711 ALL SHIPPED; **next: Sprint 7 L7 soul-identity-doc**)
+**Last updated**: 2026-05-08 (Sprint 1..7 + H1 + H2 + /bug #711 ALL SHIPPED — **CYCLE-098 COMPLETE**)
 **Author**: deep-name + Claude Opus 4.7 1M
 **Purpose**: Crash-recovery + cross-session continuity. Read first when resuming cycle-098 work.
 
-## 🚨 TL;DR — Sprint 6 SHIPPED 2026-05-08; only L7 remains
+## 🎉 TL;DR — Sprint 7 SHIPPED 2026-05-08; CYCLE-098 COMPLETE (L1-L7 all on main)
+
+**2026-05-08 session win — Sprint 7 (PR #775, merge `9957f938`) — L7 soul-identity-doc foundation SHIPPED.** FR-L7-1..7 + NFR-Sec3 (prescriptive-section rejection). 4-commit branch (7A schema+lib+events 34 tests, 7B SessionStart hook 16 tests, 7C SKILL+CLI+cross-primitive+lore+CLAUDE.md 8 tests, 7-rem pre-merge remediation 16 tests + BB iter-1 4-MED inline fixes) totaling **74 cumulative L7 tests green**.
+
+Pre-BB substantive review caught **2 CRIT + 4 HIGH** (closed in `5677da7e`):
+- **CRIT-1+2** test-mode gate too permissive (BATS_TMPDIR alone bypassed) → strict gate requires BOTH `LOA_SOUL_TEST_MODE=1` + bats marker (`BATS_TEST_FILENAME` or `BATS_VERSION`). Same pattern class as cycle-099 #761 / L4. **L6's prototype carries the same dead-code clause; tracked in #776.**
+- **HIGH-1** hook honored absolute / `..` `path:` in `.loa.config.yaml` — surfaced `/etc/passwd` as `<untrusted-content>` in pure production mode → realpath-canonicalize + REPO_ROOT containment + `..` substring rejection.
+- **HIGH-2** Unicode prescriptive-pattern bypass (FULLWIDTH `Ｍ Ｕ Ｓ Ｔ` and zero-width `M​UST`) → NFKC normalize + Cf-strip before pattern match.
+- **HIGH-3** context-isolation `\x1eREPORT\x1e` sentinel leak in surfaced body (pre-existing in L6 codepath; bash `$(...)` strips trailing newlines, breaking parameter-expansion split on the empty-report common case) → drop trailing-newline requirement; benefits L6 too.
+- **HIGH-4** audit blinded by control-byte heading (ANSI/control bytes in section heading → schema reject → `soul_emit` exits non-zero → hook's `\|\| true` silenced; body still surfaced in warn-mode while audit chain blinded) → scrub headings (drop C0/C1/zero-width; replace disallowed chars with `_`) before lists.
+
+Optimist HIGH closures:
+- **OPT-HIGH-1** `audit-retention-policy.yaml` realigned (was describing `SOUL.md` operator content; actual audit log is `.run/soul-events.jsonl`).
+- **OPT-HIGH-2** SessionStart hook unwired in `.claude/settings.json` (L6 same gap; documented in SKILL.md; canonical wiring tracked in #776).
+
+BB kaironic iter-1 (Anthropic-only consensus per cycle-098 API-unavailability plateau pattern; OpenAI timeout + Google network error): **0 BLOCKER, 0 HIGH_CONS, 4 MED + 5 LOW + 5 PRAISE + 1 REFRAME**. The 4 MED were genuine test-correctness bugs (F7 inverted grep semantics, F3 production-test didn't exercise gate, F9 T-CHAIN-3 tautology, F10 T-ISOLATION-1 swallowed handoff_write errors) — closed inline in `3b20a71f`. Plateau called: pre-BB review was substantive (2 CRIT + 4 HIGH), BB iter-1 had no BLOCKER/HIGH_CONSENSUS, mechanical fixes wouldn't trigger new findings.
+
+**LOW deferred to follow-up issue #776** (~6 cosmetic items + L6 inheritance: hook wiring + test-mode gate dead-code clause).
+
+**Sprint 7D (50+ adversarial jailbreak vectors) DEFERRED to its own cycle.** That's curatorial security-research work qualitatively different from the bash/python lib shipped in 7A/7B/7C. The previous Claude's handoff explicitly granted permission to question the framing for exactly this scope decision; operator confirmed split at session start.
+
+**Cumulative cycle-098 tests on main: 690+ (existing) + 74 (Sprint 7) = 764+. 0 regressions in any prior sprint.**
+
+## 🚦 Next: Cycle-100 — Adversarial Jailbreak Corpus (50+ vectors for L6/L7 SessionStart sanitization)
+
+Sprint 7D was carved out of cycle-098 because the corpus is qualitatively different work (security research + curation, not engineering). Per SDD §1.9.3.2 Layer 4: 50+ documented attack vectors at `tests/red-team/jailbreak/` covering role-switch, indirect injection via Markdown, Unicode obfuscation, encoded payloads, multi-turn conditioning. CI gate: every PR touching `prompt_isolation` / L6 / L7 / SessionStart hook MUST pass jailbreak suite.
+
+When cycle-100 opens (likely needs its own session for context budget):
+- Survey OWASP LLM Top 10 (LLM01: Prompt Injection)
+- Mine public jailbreak corpora (DAN, Anthropic red-team papers)
+- Reuse L6 6E E4-E6 / C9-C10 runtime-construction pattern (`_make_evil_body` keeps trigger strings out of bats source files)
+- Quality over count — 100 well-curated vectors with expected sanitization outcomes is better than 200 superficial ones
+- Defensible against cypherpunk pushback on every vector's inclusion
+
+Open follow-ups before cycle-100 opens:
+- **#776**: cycle-098 sprint-7 follow-up — LOW batch (~6 cosmetic) + L6 inheritance (hook wiring + test-mode gate)
+- **Cycle archive** (next chore): close cycle-098 ledger, archive grimoires/loa/cycles/cycle-098-agent-network/
+
+## 🗄️ Sprint 7 SHIPPED — archived brief
+
+The original Sprint 7 brief has been archived (now executed and merged in PR #775). Sub-sprint slicing (7A/7B/7C/7-rem with 7D deferred), design pinpoints, and quality-gate chain are preserved in the merged PR description (https://github.com/0xHoneyJar/loa/pull/775) and commit history (`b2e48a8a` 7A → `4146eeaa` 7B → `dc9d6721` 7C → `5677da7e` review-remediation → `3b20a71f` BB-iter1 fixes → squashed at `9957f938`).
+
+## 🚨 TL;DR — Sprint 6 SHIPPED 2026-05-08; only L7 remains (HISTORICAL — superseded above)
 
 **2026-05-07/08 session wins**:
 - **Sprint 6 (PR #771, merge `1b820a0f`) — L6 structured-handoff SHIPPED.** FR-L6-1..7 + same-machine guardrail (SDD §1.7.1) + lore + CLAUDE.md. **90 cumulative tests** across 5 sub-sprint files (6A 27 + 6B 17 + 6C 17 + 6D 11 + 6E 18). Subagent dual-review (general-purpose + paranoid cypherpunk in parallel) caught **3 CRIT + 7 HIGH + 12 MED** — all CRIT/HIGH and 6 MED closed inline pre-BB; remaining MED + LOW (~22 items) deferred to a follow-up issue. Bridgebuilder iter-1 (Anthropic-only consensus per cycle-098 API-unavailability plateau pattern): 0 BLOCKER, 0 HIGH_CONSENSUS, 5 MED + 14 LOW + 4 PRAISE; 5 MED + 1 LOW (BB-F8) closed inline. Patterns extended: env-var test-mode gate (`_handoff_test_mode_active` + `_handoff_check_env_override`, 8 security-critical env vars gated, mirrors L4 cycle-099 #761), explicit-rollback in atomic_publish (replaced trap-based ERR rollback that proved fragile under bats `run`), filename-shape regex pinning in INDEX consumers (defense-in-depth against forged rows), JSONSchema control-byte rejection in slug fields (closes Python `re.$`-accepts-`\n` bypass with INDEX row-injection PoC pinned in test E6), bootstrap-pending state for absent OPERATORS.md (mirrors audit-envelope BOOTSTRAP-PENDING).
