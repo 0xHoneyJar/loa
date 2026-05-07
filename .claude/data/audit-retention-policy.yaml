@@ -54,12 +54,15 @@ primitives:
     git_tracked: false
 
   L6:
-    log_basename: "handoffs/INDEX.md"  # markdown, not JSONL — special-case
-    description: "Handoff INDEX. Entries archived after 90d; index itself git-tracked."
+    # cycle-098 Sprint 6: L6 has two surfaces. The audit log is JSONL like
+    # the other primitives; the user-facing INDEX is markdown + git-tracked.
+    log_basename: "handoff-events.jsonl"   # .run/handoff-events.jsonl (UNTRACKED, hash-chained)
+    handoff_index_basename: "handoffs/INDEX.md"  # grimoires/loa/handoffs/ (TRACKED, markdown)
+    description: "Handoff write/read/surface events (JSONL audit log) + user-facing markdown INDEX. INDEX is git-tracked; events log is rolling + snapshot-archived."
     retention_days: 90
     archive_after_days: 90
     chain_critical: false
-    git_tracked: true
+    git_tracked: false
 
   L7:
     log_basename: "SOUL.md"

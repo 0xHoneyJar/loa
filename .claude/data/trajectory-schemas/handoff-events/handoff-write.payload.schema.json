@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.dev/loa/schemas/handoff-events/handoff-write.payload.schema.json",
+  "title": "L6 handoff.write Payload",
+  "description": "Audit-event payload for a successful L6 structured-handoff write. cycle-098 Sprint 6A. The handoff body itself lives at handoffs_dir/<file>; this envelope records the lifecycle event in .run/handoff-events.jsonl.",
+  "type": "object",
+  "required": [
+    "handoff_id",
+    "from",
+    "to",
+    "topic",
+    "ts_utc",
+    "file_path",
+    "schema_version"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "handoff_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "from": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+    },
+    "to": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+    },
+    "topic": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,80}$"
+    },
+    "ts_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "file_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "description": "Repo-relative path to the handoff markdown file."
+    },
+    "schema_version": {
+      "type": "string",
+      "enum": ["1.0"]
+    },
+    "references_count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 256
+    },
+    "tags": {
+      "type": "array",
+      "maxItems": 32,
+      "items": { "type": "string" }
+    },
+    "body_byte_size": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "operator_verification": {
+      "type": "string",
+      "enum": ["disabled", "verified", "unverified", "unknown"],
+      "description": "Result of OPERATORS.md verification (FR-L6 + IMP-004). 'disabled' means verify_operators=false in config."
+    }
+  }
+}
