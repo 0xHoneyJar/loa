@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.134.0] — 2026-05-07
+
 ## [1.130.0] — 2026-05-06 — Model-registry consolidation, agent-network audit infrastructure, subscription-auth headless adapters
 
 This is a **named milestone release** that bundles 41 incremental tags (v1.110.0 → v1.129.1) into one operator-facing version. Three architectural shifts ship together:
@@ -1037,6 +1039,8 @@ Full convergence trajectory: `grimoires/loa/a2a/trajectory/bridge-triage-2026-04
 - ATK-011: Blocks `unset LOA_TEAM_MEMBER` and `env -u` privilege escalation in Agent Teams
 
 ## [Unreleased]
+
+## [1.134.0] — 2026-05-07
 
 ## [1.94.0] — 2026-04-17
 
