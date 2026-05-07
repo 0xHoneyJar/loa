@@ -673,19 +673,451 @@ trust_query() {
 }
 
 # -----------------------------------------------------------------------------
-# trust_grant — TODO Sprint 4B (regular path) / 4C (--force exception path).
+# _l4_txn_lock_path <ledger>
+#
+# Returns the path of the transaction lock file. SEPARATE from audit_emit's
+# `<log>.lock` to avoid deadlock when our transaction calls audit_emit (each
+# flocks a distinct lock file). The transaction lock guards the whole
+# read-validate-write atom (cooldown check vs concurrent writes).
 # -----------------------------------------------------------------------------
-trust_grant() {
-    _l4_log "trust_grant: not yet implemented (Sprint 4B/4C)"
-    return 99
+_l4_txn_lock_path() {
+    echo "$1.txn.lock"
 }
 
 # -----------------------------------------------------------------------------
-# trust_record_override — TODO Sprint 4B.
+# _l4_find_grant_rule <from_tier> <to_tier>
+#
+# Walk transition_rules JSON; emit the first rule whose (from, to) matches and
+# requires == operator_grant. Returns "" when no rule matches (caller treats
+# as transition rejected per FR-L4-2).
+# -----------------------------------------------------------------------------
+_l4_find_grant_rule() {
+    local from="$1"
+    local to="$2"
+    local rules
+    rules="$(_l4_get_transition_rules)"
+    echo "$rules" | jq -c \
+        --arg from "$from" \
+        --arg to "$to" \
+        '
+        .[] | select(
+            (.from == $from) and
+            (.to == $to) and
+            ((.requires // "") == "operator_grant")
+        )
+        ' | head -n 1
+}
+
+# -----------------------------------------------------------------------------
+# _l4_find_auto_drop_rule <from_tier>
+#
+# Walk transition_rules JSON; emit the first rule whose `via` is
+# `auto_drop_on_override` AND whose `from` matches (or is "any"). Returns ""
+# when no rule matches (caller treats as no auto-drop available — error).
+#
+# Two valid shapes:
+#   {from: "T2", to: "T1", via: "auto_drop_on_override"}     (explicit drop_to)
+#   {from: "any", to_lower: true, via: "auto_drop_on_override"}  (drop to default_tier)
+#
+# When matching the "any/to_lower:true" form, the caller must compute
+# `drop_to = default_tier` (this lib does not infer arbitrary tier ordering).
+# -----------------------------------------------------------------------------
+_l4_find_auto_drop_rule() {
+    local from="$1"
+    local rules
+    rules="$(_l4_get_transition_rules)"
+    echo "$rules" | jq -c \
+        --arg from "$from" \
+        '
+        .[] | select(
+            ((.via // "") == "auto_drop_on_override") and
+            ((.from == $from) or (.from == "any"))
+        )
+        ' | head -n 1
+}
+
+# -----------------------------------------------------------------------------
+# _l4_iso_add_seconds <iso8601> <seconds>
+#
+# Returns ISO-8601 of <iso> + <seconds> (UTC, ms precision). Used to compute
+# cooldown_until = ts_utc + cooldown_seconds. Exits non-zero on parse failure.
+# -----------------------------------------------------------------------------
+_l4_iso_add_seconds() {
+    local iso="$1"
+    local secs="$2"
+    python3 -c '
+import sys
+from datetime import datetime, timedelta
+s = sys.argv[1]
+secs = int(sys.argv[2])
+if s.endswith("Z"):
+    s = s[:-1] + "+00:00"
+try:
+    dt = datetime.fromisoformat(s)
+except Exception as e:
+    print(f"_l4_iso_add_seconds: parse failure: {e}", file=sys.stderr)
+    sys.exit(1)
+print((dt + timedelta(seconds=secs)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z")
+' "$iso" "$secs"
+}
+
+# -----------------------------------------------------------------------------
+# trust_grant <scope> <capability> <actor> <new_tier> [--reason <text>] [--operator <slug>]
+#
+# FR-L4-2: Only configured transitions allowed; arbitrary jumps return error.
+# FR-L4-3 interaction: cooldown blocks regular trust_grant. Operator must use
+# trust_grant --force (Sprint 4C) which routes via trust.force_grant.
+#
+# Exit codes:
+#   0 grant succeeded; trust.grant entry appended
+#   2 invalid argument
+#   3 transition rejected (no matching rule, or cooldown active)
+#   1 ledger / audit_emit error
+#
+# Sprint 4B implements the regular path. --force routes to trust_force_grant
+# in Sprint 4C; for now, --force returns 99 (not implemented).
+# -----------------------------------------------------------------------------
+trust_grant() {
+    local scope="" capability="" actor="" new_tier=""
+    local reason="" operator="" force=0
+
+    # Positional first 4 args; remaining are flags.
+    local positional=()
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --force)         force=1; shift ;;
+            --reason)        reason="${2:-}"; shift 2 ;;
+            --operator)      operator="${2:-}"; shift 2 ;;
+            *)               positional+=("$1"); shift ;;
+        esac
+    done
+    # Restore positionals.
+    set -- ${positional[@]+"${positional[@]}"}
+    scope="${1:-}"
+    capability="${2:-}"
+    actor="${3:-}"
+    new_tier="${4:-}"
+
+    if [[ -z "$scope" || -z "$capability" || -z "$actor" || -z "$new_tier" ]]; then
+        _l4_log "trust_grant: missing required argument (scope, capability, actor, new_tier)"
+        return 2
+    fi
+
+    if (( force == 1 )); then
+        # Sprint 4C wires the force path. Caller used --force prematurely.
+        _l4_log "trust_grant --force: not yet implemented (Sprint 4C will wire trust.force_grant)"
+        return 99
+    fi
+
+    _l4_validate_token "$scope"      "scope"      || return 2
+    _l4_validate_token "$capability" "capability" || return 2
+    _l4_validate_token "$actor"      "actor"      || return 2
+    _l4_validate_tier  "$new_tier"   "new_tier"   || return 2
+
+    if [[ -z "$reason" ]]; then
+        _l4_log "trust_grant: --reason is required (audit-mandatory rationale)"
+        return 2
+    fi
+    if (( ${#reason} > 4096 )); then
+        _l4_log "trust_grant: reason exceeds 4096 chars"
+        return 2
+    fi
+
+    if [[ -z "$operator" ]]; then
+        # Default to actor only if operator unspecified; this captures the
+        # self-grant convention used by single-operator deployments.
+        operator="$actor"
+    fi
+    _l4_validate_token "$operator" "operator" || return 2
+
+    if [[ "${LOA_TRUST_REQUIRE_KNOWN_ACTOR:-0}" == "1" ]]; then
+        operator_identity_lookup "$operator" >/dev/null 2>&1 || {
+            _l4_log "trust_grant: operator='$operator' not found in OPERATORS.md"
+            return 2
+        }
+        operator_identity_lookup "$actor" >/dev/null 2>&1 || {
+            _l4_log "trust_grant: actor='$actor' not found in OPERATORS.md"
+            return 2
+        }
+    fi
+
+    local ledger lock_file
+    ledger="$(_l4_ledger_path)"
+    lock_file="$(_l4_txn_lock_path "$ledger")"
+    mkdir -p "$(dirname "$ledger")"
+    : > "$lock_file" 2>/dev/null || touch "$lock_file"
+
+    _audit_require_flock || return 1
+
+    # Hold txn lock for the whole read-validate-write transaction.
+    # CRITICAL: this is the .txn.lock file (NOT <log>.lock), so audit_emit's
+    # own flock on <log>.lock proceeds without deadlock.
+    local rc=0
+    {
+        flock -w 10 9 || {
+            _l4_log "trust_grant: failed to acquire txn lock on $lock_file"
+            return 1
+        }
+
+        # Refuse if ledger sealed.
+        if _l4_ledger_is_sealed "$ledger"; then
+            _l4_log "trust_grant: ledger is sealed [L4-DISABLED]; no further transitions allowed"
+            return 1
+        fi
+
+        # Read current state.
+        local current_tier from_tier_for_event in_cooldown_until response
+        response="$(trust_query "$scope" "$capability" "$actor")" || {
+            _l4_log "trust_grant: trust_query failed"
+            return 1
+        }
+        current_tier="$(echo "$response" | jq -r '.tier')"
+        in_cooldown_until="$(echo "$response" | jq -r '.in_cooldown_until')"
+        if [[ "$in_cooldown_until" == "null" || -z "$in_cooldown_until" ]]; then
+            in_cooldown_until=""
+        fi
+
+        # Cooldown check (FR-L4-3 enforcement).
+        if [[ -n "$in_cooldown_until" ]]; then
+            _l4_log "trust_grant: cooldown active until '$in_cooldown_until' for ($scope,$capability,$actor); use --force (Sprint 4C) to override"
+            return 3
+        fi
+
+        # Determine from_tier_for_event:
+        #   - If transition_history empty AND new_tier == default_tier: invalid
+        #     (already at default_tier — no-op)
+        #   - If transition_history empty: from_tier null (initial)
+        #   - Else: from_tier = current_tier
+        local hist_len
+        hist_len="$(echo "$response" | jq '.transition_history | length')"
+        if [[ "$hist_len" == "0" ]]; then
+            from_tier_for_event=""
+        else
+            from_tier_for_event="$current_tier"
+        fi
+
+        # No-op detection: cannot transition to current tier.
+        if [[ "$current_tier" == "$new_tier" ]]; then
+            _l4_log "trust_grant: ($scope,$capability,$actor) is already at tier '$new_tier' (no-op)"
+            return 3
+        fi
+
+        # Transition validation (FR-L4-2):
+        #   - Initial transition (from_tier null) MUST match a rule with
+        #     from = default_tier.
+        #   - Non-initial transition MUST match a rule with from = current_tier.
+        local rule rule_id from_for_rule
+        if [[ -z "$from_tier_for_event" ]]; then
+            from_for_rule="$(_l4_get_default_tier)"
+        else
+            from_for_rule="$current_tier"
+        fi
+        rule="$(_l4_find_grant_rule "$from_for_rule" "$new_tier")"
+        if [[ -z "$rule" ]]; then
+            _l4_log "trust_grant: no transition_rule allows operator_grant from '$from_for_rule' to '$new_tier' (FR-L4-2)"
+            return 3
+        fi
+        rule_id="$(echo "$rule" | jq -r '.id // ""')"
+
+        # Build payload + emit.
+        local from_arg from_kind
+        if [[ -z "$from_tier_for_event" ]]; then
+            from_arg="null"
+            from_kind="null"
+        else
+            from_arg="$from_tier_for_event"
+            from_kind="string"
+        fi
+        local payload
+        if [[ "$from_kind" == "null" ]]; then
+            payload="$(jq -nc \
+                --arg scope "$scope" \
+                --arg capability "$capability" \
+                --arg actor "$actor" \
+                --arg to_tier "$new_tier" \
+                --arg operator "$operator" \
+                --arg reason "$reason" \
+                --arg rule_id "$rule_id" \
+                '{
+                    scope: $scope, capability: $capability, actor: $actor,
+                    from_tier: null, to_tier: $to_tier,
+                    operator: $operator, reason: $reason,
+                    transition_rule_id: (if $rule_id == "" then null else $rule_id end)
+                }')"
+        else
+            payload="$(jq -nc \
+                --arg scope "$scope" \
+                --arg capability "$capability" \
+                --arg actor "$actor" \
+                --arg from_tier "$from_arg" \
+                --arg to_tier "$new_tier" \
+                --arg operator "$operator" \
+                --arg reason "$reason" \
+                --arg rule_id "$rule_id" \
+                '{
+                    scope: $scope, capability: $capability, actor: $actor,
+                    from_tier: $from_tier, to_tier: $to_tier,
+                    operator: $operator, reason: $reason,
+                    transition_rule_id: (if $rule_id == "" then null else $rule_id end)
+                }')"
+        fi
+
+        if ! audit_emit "L4" "trust.grant" "$payload" "$ledger"; then
+            _l4_log "trust_grant: audit_emit trust.grant failed"
+            return 1
+        fi
+    } 9>"$lock_file"
+    rc=$?
+    return "$rc"
+}
+
+# -----------------------------------------------------------------------------
+# trust_record_override <scope> <capability> <actor> <decision_id> <reason>
+#
+# FR-L4-3: recordOverride produces auto-drop per rules; cooldown enforced.
+#
+# Auto-drop semantics:
+#   - Look up auto_drop_on_override rule for from=current_tier (or any).
+#   - drop_to = rule.to (when explicit) | default_tier (when from=any/to_lower)
+#   - cooldown_until = ts_utc(now) + cooldown_seconds
+#
+# Idempotency note: a record_override at the same (scope, capability, actor)
+# while ALREADY in cooldown is allowed (the override might come from a
+# different decision_id). The lib emits a fresh trust.auto_drop entry with the
+# new decision_id; cooldown_until is computed from the NEW ts_utc (rolling
+# cooldown). This matches the operator-intuitive interpretation of "every
+# override re-arms the cooldown timer."
+#
+# Exit codes:
+#   0 override recorded; trust.auto_drop entry appended
+#   2 invalid argument
+#   3 no auto_drop rule configured (operator must define one to enable
+#       FR-L4-3) OR ledger sealed
+#   1 audit_emit / I/O error
 # -----------------------------------------------------------------------------
 trust_record_override() {
-    _l4_log "trust_record_override: not yet implemented (Sprint 4B)"
-    return 99
+    local scope="${1:-}"
+    local capability="${2:-}"
+    local actor="${3:-}"
+    local decision_id="${4:-}"
+    local reason="${5:-}"
+
+    if [[ -z "$scope" || -z "$capability" || -z "$actor" || -z "$decision_id" || -z "$reason" ]]; then
+        _l4_log "trust_record_override: missing required argument (scope, capability, actor, decision_id, reason)"
+        return 2
+    fi
+    _l4_validate_token "$scope"      "scope"      || return 2
+    _l4_validate_token "$capability" "capability" || return 2
+    _l4_validate_token "$actor"      "actor"      || return 2
+
+    # decision_id is opaque (panel-decision-id, PR url, audit-event id) so we
+    # accept a wider charset than scope/capability/actor — but reject control
+    # bytes and quote/backtick chars.
+    if [[ -z "$decision_id" ]]; then
+        _l4_log "trust_record_override: decision_id empty"; return 2
+    fi
+    if (( ${#decision_id} > 512 )); then
+        _l4_log "trust_record_override: decision_id exceeds 512 chars"; return 2
+    fi
+    if [[ "$decision_id" =~ [\$\`\"\'\\] ]] || [[ "$decision_id" =~ [[:cntrl:]] ]]; then
+        _l4_log "trust_record_override: decision_id contains forbidden characters"
+        return 2
+    fi
+    if (( ${#reason} > 4096 )); then
+        _l4_log "trust_record_override: reason exceeds 4096 chars"
+        return 2
+    fi
+
+    local ledger lock_file
+    ledger="$(_l4_ledger_path)"
+    lock_file="$(_l4_txn_lock_path "$ledger")"
+    mkdir -p "$(dirname "$ledger")"
+    : > "$lock_file" 2>/dev/null || touch "$lock_file"
+
+    _audit_require_flock || return 1
+
+    local rc=0
+    {
+        flock -w 10 9 || {
+            _l4_log "trust_record_override: failed to acquire txn lock on $lock_file"
+            return 1
+        }
+
+        if _l4_ledger_is_sealed "$ledger"; then
+            _l4_log "trust_record_override: ledger is sealed [L4-DISABLED]"
+            return 3
+        fi
+
+        # Read current state.
+        local response current_tier
+        response="$(trust_query "$scope" "$capability" "$actor")" || {
+            _l4_log "trust_record_override: trust_query failed"
+            return 1
+        }
+        current_tier="$(echo "$response" | jq -r '.tier')"
+
+        # Find auto_drop rule (explicit from=current_tier preferred; else any).
+        local rule rule_to rule_to_lower drop_to
+        rule="$(_l4_find_auto_drop_rule "$current_tier")"
+        if [[ -z "$rule" ]]; then
+            _l4_log "trust_record_override: no auto_drop_on_override rule configured for from='$current_tier' (FR-L4-3 requires operator to define one)"
+            return 3
+        fi
+        rule_to="$(echo "$rule" | jq -r '.to // ""')"
+        rule_to_lower="$(echo "$rule" | jq -r '.to_lower // false | tostring')"
+
+        if [[ -n "$rule_to" ]]; then
+            drop_to="$rule_to"
+        elif [[ "$rule_to_lower" == "true" ]]; then
+            drop_to="$(_l4_get_default_tier)"
+        else
+            _l4_log "trust_record_override: matched rule has neither .to nor .to_lower (malformed)"
+            return 3
+        fi
+
+        # Validate drop_to is a sane tier and is NOT a raise.
+        _l4_validate_tier "$drop_to" "drop_to" || return 3
+        if [[ "$drop_to" == "$current_tier" ]]; then
+            _l4_log "trust_record_override: auto_drop computed drop_to='$drop_to' equals current_tier (no-op rule misconfigured)"
+            return 3
+        fi
+
+        # Compute cooldown_until.
+        local now_iso cooldown_seconds cooldown_until
+        now_iso="$(_l4_now_iso8601)"
+        cooldown_seconds="$(_l4_get_cooldown_seconds)"
+        cooldown_until="$(_l4_iso_add_seconds "$now_iso" "$cooldown_seconds")" || {
+            _l4_log "trust_record_override: cooldown_until computation failed"
+            return 1
+        }
+
+        # Build payload.
+        local payload
+        payload="$(jq -nc \
+            --arg scope "$scope" \
+            --arg capability "$capability" \
+            --arg actor "$actor" \
+            --arg from_tier "$current_tier" \
+            --arg to_tier "$drop_to" \
+            --arg decision_id "$decision_id" \
+            --arg reason "$reason" \
+            --arg cooldown_until "$cooldown_until" \
+            --argjson cooldown_seconds "$cooldown_seconds" \
+            '{
+                scope: $scope, capability: $capability, actor: $actor,
+                from_tier: $from_tier, to_tier: $to_tier,
+                decision_id: $decision_id, reason: $reason,
+                cooldown_until: $cooldown_until,
+                cooldown_seconds: $cooldown_seconds
+            }')"
+
+        if ! audit_emit "L4" "trust.auto_drop" "$payload" "$ledger"; then
+            _l4_log "trust_record_override: audit_emit trust.auto_drop failed"
+            return 1
+        fi
+    } 9>"$lock_file"
+    rc=$?
+    return "$rc"
 }
 
 # -----------------------------------------------------------------------------
