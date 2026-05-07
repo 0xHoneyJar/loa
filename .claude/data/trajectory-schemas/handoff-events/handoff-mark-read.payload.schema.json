@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.dev/loa/schemas/handoff-events/handoff-mark-read.payload.schema.json",
+  "title": "L6 handoff.mark_read Payload",
+  "description": "Audit-event payload for a recipient acknowledging read of an L6 handoff. cycle-098 Sprint 6E (HIGH-1 review remediation). State mutation; previously unaudited.",
+  "type": "object",
+  "required": [
+    "handoff_id",
+    "operator_id",
+    "ts_utc"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "handoff_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "operator_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+    },
+    "ts_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "already_marked": {
+      "type": "boolean",
+      "description": "true when the operator was already in read_by; the event is recorded for audit symmetry but caused no INDEX mutation."
+    }
+  }
+}

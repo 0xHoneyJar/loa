@@ -43,7 +43,8 @@
     },
     "schema_version": {
       "type": "string",
-      "enum": ["1.0"]
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "Echoes the doc's frontmatter schema_version verbatim. Pattern (not enum) so future doc-schema bumps don't self-DoS the audit emit. cycle-098 Sprint 6E (CYP-F5 remediation)."
     },
     "references_count": {
       "type": "integer",
@@ -61,8 +62,8 @@
     },
     "operator_verification": {
       "type": "string",
-      "enum": ["disabled", "verified", "unverified", "unknown"],
-      "description": "Result of OPERATORS.md verification (FR-L6 + IMP-004). 'disabled' means verify_operators=false in config."
+      "enum": ["disabled", "verified", "unverified", "unknown", "bootstrap-pending"],
+      "description": "Result of OPERATORS.md verification (FR-L6 + IMP-004). 'disabled' = verify_operators=false in config. 'bootstrap-pending' = OPERATORS.md absent (cycle-098 Sprint 6E HIGH-2 remediation; mirrors audit-envelope BOOTSTRAP-PENDING gate)."
     }
   }
 }

@@ -54,6 +54,36 @@ _LOA_HANDOFF_FINGERPRINT_FILE="${_LOA_HANDOFF_REPO_ROOT}/.run/machine-fingerprin
 _LOA_HANDOFF_FINGERPRINT_HISTORY="${_LOA_HANDOFF_REPO_ROOT}/.run/machine-fingerprint.history.jsonl"
 _LOA_HANDOFF_CROSS_HOST_STAGING="${_LOA_HANDOFF_REPO_ROOT}/.run/handoff-events.cross-host-staging.jsonl"
 
+# -----------------------------------------------------------------------------
+# Sprint 6E (cypherpunk remediation CYP-F1/F3/F4): test-mode gate.
+# Env-var overrides for the security-critical paths (fingerprint guardrail,
+# operator verification, audit log destination, schema mode) are honored
+# ONLY when running under bats OR when LOA_HANDOFF_TEST_MODE=1 is set with a
+# bats-detected ancestor. Production paths emit a stderr WARN and ignore.
+# Mirrors L4 graduated-trust-lib.sh:432-440 + cycle-099 sprint-1B fix.
+# -----------------------------------------------------------------------------
+_handoff_test_mode_active() {
+    if [[ -n "${BATS_TEST_DIRNAME:-}" ]] || [[ -n "${BATS_TMPDIR:-}" ]]; then
+        return 0
+    fi
+    if [[ "${LOA_HANDOFF_TEST_MODE:-0}" == "1" ]] && [[ -n "${BATS_TEST_DIRNAME:-${BATS_TMPDIR:-}}" ]]; then
+        return 0
+    fi
+    return 1
+}
+
+_handoff_check_env_override() {
+    local var_name="$1" var_value="$2"
+    if [[ -z "$var_value" ]]; then
+        return 1
+    fi
+    if _handoff_test_mode_active; then
+        return 0  # Honor in test mode.
+    fi
+    echo "[structured-handoff] WARNING: env override '$var_name' ignored in production (test-mode gate)" >&2
+    return 1
+}
+
 # Source jcs.sh for canonical-JSON.
 # shellcheck source=../../../lib/jcs.sh
 source "${_LOA_HANDOFF_REPO_ROOT}/lib/jcs.sh"
@@ -73,7 +103,11 @@ fi
 # _handoff_log — internal stderr logger.
 # -----------------------------------------------------------------------------
 _handoff_log() {
-    echo "[structured-handoff] $*" >&2
+    # Sprint 6E (CYP-F12): strip C0 control bytes + DEL before printing so
+    # operator-supplied content can't smuggle ANSI escape sequences through.
+    local msg="$*"
+    msg="$(printf '%s' "$msg" | tr -d '\000-\010\013-\037\177')"
+    echo "[structured-handoff] $msg" >&2
 }
 
 # -----------------------------------------------------------------------------
@@ -88,7 +122,7 @@ _handoff_log() {
 # Tests inject via LOA_HANDOFF_FINGERPRINT_OVERRIDE.
 # -----------------------------------------------------------------------------
 _handoff_compute_fingerprint() {
-    if [[ -n "${LOA_HANDOFF_FINGERPRINT_OVERRIDE:-}" ]]; then
+    if _handoff_check_env_override LOA_HANDOFF_FINGERPRINT_OVERRIDE "${LOA_HANDOFF_FINGERPRINT_OVERRIDE:-}"; then
         printf '%s' "$LOA_HANDOFF_FINGERPRINT_OVERRIDE"
         return 0
     fi
@@ -108,7 +142,10 @@ _handoff_compute_fingerprint() {
 # _handoff_init_fingerprint — write .run/machine-fingerprint on first run.
 # Idempotent: if file exists, no-op. Mode 0600.
 _handoff_init_fingerprint() {
-    local fpfile="${LOA_HANDOFF_FINGERPRINT_FILE:-${_LOA_HANDOFF_FINGERPRINT_FILE}}"
+    local fpfile="$_LOA_HANDOFF_FINGERPRINT_FILE"
+    if _handoff_check_env_override LOA_HANDOFF_FINGERPRINT_FILE "${LOA_HANDOFF_FINGERPRINT_FILE:-}"; then
+        fpfile="$LOA_HANDOFF_FINGERPRINT_FILE"
+    fi
     [[ -f "$fpfile" ]] && return 0
 
     mkdir -p "$(dirname "$fpfile")"
@@ -136,12 +173,22 @@ _handoff_init_fingerprint() {
 # Honors LOA_HANDOFF_DISABLE_FINGERPRINT=1 (test-only escape hatch).
 _handoff_assert_same_machine() {
     if [[ "${LOA_HANDOFF_DISABLE_FINGERPRINT:-0}" == "1" ]]; then
-        return 0
+        if _handoff_test_mode_active; then
+            return 0
+        fi
+        echo "[structured-handoff] WARNING: LOA_HANDOFF_DISABLE_FINGERPRINT=1 ignored in production (test-mode gate)" >&2
+        # Fall through — proceed with fingerprint check.
     fi
 
-    # Honor caller-overridable file path for tests.
-    local fpfile="${LOA_HANDOFF_FINGERPRINT_FILE:-${_LOA_HANDOFF_FINGERPRINT_FILE}}"
-    local stage="${LOA_HANDOFF_CROSS_HOST_STAGING:-${_LOA_HANDOFF_CROSS_HOST_STAGING}}"
+    # File path env override is also test-mode gated.
+    local fpfile="$_LOA_HANDOFF_FINGERPRINT_FILE"
+    if _handoff_check_env_override LOA_HANDOFF_FINGERPRINT_FILE "${LOA_HANDOFF_FINGERPRINT_FILE:-}"; then
+        fpfile="$LOA_HANDOFF_FINGERPRINT_FILE"
+    fi
+    local stage="$_LOA_HANDOFF_CROSS_HOST_STAGING"
+    if _handoff_check_env_override LOA_HANDOFF_CROSS_HOST_STAGING "${LOA_HANDOFF_CROSS_HOST_STAGING:-}"; then
+        stage="$LOA_HANDOFF_CROSS_HOST_STAGING"
+    fi
 
     if [[ ! -f "$fpfile" ]]; then
         # First run — write the fingerprint and accept.
@@ -165,12 +212,35 @@ _handoff_assert_same_machine() {
     # Mismatch → emit [CROSS-HOST-REFUSED] BLOCKER to staging (NOT canonical).
     mkdir -p "$(dirname "$stage")"
     local now; now="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-    jq -nc \
-        --arg ts "$now" \
-        --arg stored "$stored" \
-        --arg current "$current" \
-        '{event: "CROSS-HOST-REFUSED", ts_utc: $ts, expected_fingerprint: $stored, observed_fingerprint: $current, recovery_hint: "Multi-host operation is FU-6 (deferred). To migrate work to this machine, use /loa machine-fingerprint regenerate."}' \
-        >> "$stage"
+    # Sprint 6E (CYP-F8): flock-guarded append + size warning. Two concurrent
+    # cross-host attempts can race; without flock, JSONL line atomicity is
+    # FS-dependent (PIPE_BUF on Linux but not portable). Size warn at 10MB
+    # so a misconfigured CI doesn't fill disk silently.
+    if command -v flock >/dev/null 2>&1; then
+        local stage_lock="${stage}.lock"
+        (
+            flock -x -w 5 8 || exit 0
+            jq -nc \
+                --arg ts "$now" \
+                --arg stored "$stored" \
+                --arg current "$current" \
+                '{event: "CROSS-HOST-REFUSED", ts_utc: $ts, expected_fingerprint: $stored, observed_fingerprint: $current, recovery_hint: "Multi-host operation is FU-6 (deferred). To migrate work to this machine, use /loa machine-fingerprint regenerate."}' \
+                >> "$stage"
+            local sz; sz="$(stat -c '%s' "$stage" 2>/dev/null || stat -f '%z' "$stage" 2>/dev/null || echo 0)"
+            if (( sz > 10485760 )); then
+                _handoff_log "[STAGING-SIZE-WARN] $stage exceeds 10MB ($sz bytes); rotate or investigate"
+            fi
+        ) 8>"$stage_lock"
+    else
+        # No flock available — best-effort append (single-machine guarantee
+        # implies single PID, so race risk is bounded).
+        jq -nc \
+            --arg ts "$now" \
+            --arg stored "$stored" \
+            --arg current "$current" \
+            '{event: "CROSS-HOST-REFUSED", ts_utc: $ts, expected_fingerprint: $stored, observed_fingerprint: $current, recovery_hint: "Multi-host operation is FU-6 (deferred). To migrate work to this machine, use /loa machine-fingerprint regenerate."}' \
+            >> "$stage"
+    fi
 
     _handoff_log "[CROSS-HOST-REFUSED] machine-fingerprint mismatch (stored=${stored:0:12}... current=${current:0:12}...). See $stage. BLOCKER."
     return 6
@@ -227,11 +297,31 @@ _handoff_resolve_dir() {
 
     # System-path rejection.
     case "$resolved" in
-        /etc|/etc/*|/usr|/usr/*|/proc|/proc/*|/sys|/sys/*|/dev|/dev/*|/boot|/boot/*)
+        /etc|/etc/*|/usr|/usr/*|/proc|/proc/*|/sys|/sys/*|/dev|/dev/*|/boot|/boot/*|/var|/var/*|/root|/root/*|/srv|/srv/*)
             _handoff_log "_handoff_resolve_dir: handoffs_dir refuses system path: $resolved"
             return 7
             ;;
     esac
+
+    # Sprint 6E (CYP-F9): inverted allowlist — dest_dir MUST be under
+    # repo root (or under a configured tmp dir for tests). Mirrors
+    # cycle-099 sprint-1E.c.3 allowlist-tree-restriction pattern. Test-mode
+    # honors $TMPDIR / /tmp prefix as a deliberate escape.
+    local repo_real; repo_real="$(cd "$_LOA_HANDOFF_REPO_ROOT" && pwd -P)"
+    if [[ "$resolved" != "$repo_real"/* ]] && [[ "$resolved" != "$repo_real" ]]; then
+        if _handoff_test_mode_active; then
+            case "$resolved" in
+                /tmp/*|"${TMPDIR:-/tmp}"/*) ;;  # honor test tmp
+                *)
+                    _handoff_log "_handoff_resolve_dir: outside repo root and outside tmp (test-mode): $resolved"
+                    return 7
+                    ;;
+            esac
+        else
+            _handoff_log "_handoff_resolve_dir: handoffs_dir must be under repo root in production: $resolved"
+            return 7
+        fi
+    fi
 
     printf '%s' "$resolved"
 }
@@ -352,6 +442,33 @@ unknown = [k for k in fm.keys() if k not in known]
 if unknown:
     print(f"parse: unknown frontmatter keys: {sorted(unknown)}", file=sys.stderr)
     sys.exit(2)
+
+# Sprint 6E (CYP-F2 cypherpunk remediation): defense-in-depth.
+# JSONSchema regex with $ accepts trailing \n (Python re.$ matches before
+# trailing newline). PyYAML safe_load("from: \"alice\\n\"") returns the literal
+# "alice\n". Reject ANY control byte (C0 \x00-\x1f, plus DEL \x7f) in slug-shape
+# fields so a forged frontmatter cannot inject INDEX rows by smuggling \n into
+# from/to/topic/schema_version/handoff_id/ts_utc.
+import re as _re
+_control = _re.compile(r"[\x00-\x1f\x7f]")
+_slug_fields = ("schema_version", "handoff_id", "from", "to", "topic", "ts_utc")
+for _f in _slug_fields:
+    _v = out.get(_f, "")
+    if isinstance(_v, str) and _control.search(_v):
+        print(f"parse: control byte in '{_f}' — refused", file=sys.stderr)
+        sys.exit(2)
+# Also scan references[] entries (preserved verbatim per FR-L6-7, but a
+# control byte in a reference string would propagate into the rendered
+# YAML and break parsers). Permit \t in the body (FR-L6-7 verbatim) but
+# reject in frontmatter scalars.
+for _r in out.get("references", []):
+    if isinstance(_r, str) and _control.search(_r):
+        print("parse: control byte in references[] — refused", file=sys.stderr)
+        sys.exit(2)
+for _t in out.get("tags", []):
+    if isinstance(_t, str) and _control.search(_t):
+        print("parse: control byte in tags[] — refused", file=sys.stderr)
+        sys.exit(2)
 
 sys.stdout.write(json.dumps(out, ensure_ascii=False))
 PY
@@ -509,6 +626,19 @@ _handoff_atomic_publish() {
     (
         flock -x -w 30 9 || { _handoff_log "flock timeout on $lock"; exit 4; }
 
+        # Sprint 6E (MEDIUM-1): idempotency check by handoff_id. If the same
+        # content (same id) was already published, return the existing file
+        # path without writing anything new. Defends against a fail-and-retry
+        # path that would otherwise create duplicate INDEX rows.
+        if [[ -f "$index" ]]; then
+            local existing
+            existing="$(awk -v id="$id" -F' *\\| *' '$2 == id { print $3; exit }' "$index" 2>/dev/null || true)"
+            if [[ -n "$existing" ]]; then
+                printf '%s' "$existing"
+                exit 0
+            fi
+        fi
+
         # 1. Resolve collision (must be inside flock; no other writer can race).
         local chosen
         chosen="$(_handoff_resolve_collision "$dir" "$base")" || exit 7
@@ -545,10 +675,17 @@ PY
         # 3. Rename body to chosen path (same filesystem → atomic).
         mv -f "$body_tmp" "$dest"
 
+        # Sprint 6E (CYP-F6): rollback trap for body-mv-then-INDEX-mv split-brain.
+        # If step 4 or 5 fails, the body file is already on disk; trap removes
+        # it so the operator sees an all-or-nothing publish.
+        trap 'rm -f "$dest"' ERR
+
         # 4. Build new INDEX content.
         if [[ -f "$index" ]]; then
             cat "$index" > "$index_tmp"
-            [[ -s "$index_tmp" ]] && [[ "$(tail -c 1 "$index_tmp" | od -An -c | awk '{print $1}')" != "\\n" ]] && printf '\n' >> "$index_tmp"
+            # Sprint 6E (MEDIUM-7): direct shell newline test, no od pipeline.
+            local _last; _last="$(tail -c 1 "$index_tmp")"
+            [[ -s "$index_tmp" ]] && [[ "$_last" != $'\n' ]] && printf '\n' >> "$index_tmp"
         else
             cat > "$index_tmp" <<'HEADER'
 # Handoff Index
@@ -560,8 +697,11 @@ HEADER
         printf '| %s | %s | %s | %s | %s | %s |  |\n' \
             "$id" "$chosen" "$from" "$to" "$topic" "$ts" >> "$index_tmp"
 
-        # 5. Rename INDEX (atomic).
+        # 5. Rename INDEX (atomic). Trap above rolls back body on failure.
         mv -f "$index_tmp" "$index"
+
+        # Disarm trap — write succeeded.
+        trap - ERR
 
         # Emit chosen basename for caller capture.
         printf '%s' "$chosen"
@@ -582,7 +722,7 @@ HEADER
 # Returns 0 (verify) or 1 (skip).
 # -----------------------------------------------------------------------------
 _handoff_should_verify_operators() {
-    if [[ -n "${LOA_HANDOFF_VERIFY_OPERATORS:-}" ]]; then
+    if _handoff_check_env_override LOA_HANDOFF_VERIFY_OPERATORS "${LOA_HANDOFF_VERIFY_OPERATORS:-}"; then
         [[ "$LOA_HANDOFF_VERIFY_OPERATORS" == "1" ]] && return 0 || return 1
     fi
     if command -v yq >/dev/null 2>&1 && [[ -f "${_LOA_HANDOFF_REPO_ROOT}/.loa.config.yaml" ]]; then
@@ -600,7 +740,7 @@ _handoff_should_verify_operators() {
 # Echoes the chosen mode on stdout.
 # -----------------------------------------------------------------------------
 _handoff_schema_mode() {
-    if [[ -n "${LOA_HANDOFF_SCHEMA_MODE:-}" ]]; then
+    if _handoff_check_env_override LOA_HANDOFF_SCHEMA_MODE "${LOA_HANDOFF_SCHEMA_MODE:-}"; then
         printf '%s' "$LOA_HANDOFF_SCHEMA_MODE"
         return 0
     fi
@@ -623,7 +763,16 @@ _handoff_schema_mode() {
 _handoff_verify_operator_state() {
     local slug="$1"
     if ! declare -F operator_identity_verify >/dev/null 2>&1; then
-        printf 'unknown'
+        printf 'bootstrap-pending'
+        return 0
+    fi
+    # Sprint 6E (HIGH-2): if OPERATORS.md is absent, return bootstrap-pending
+    # rather than "unknown" so strict-mode can permit the write (mirrors
+    # audit-envelope BOOTSTRAP-PENDING gate). An empty/un-authored OPERATORS.md
+    # is a deployment-time configuration state, not an attack signal.
+    local op_file="${LOA_OPERATORS_FILE:-${_LOA_HANDOFF_REPO_ROOT}/grimoires/loa/operators.md}"
+    if [[ ! -f "$op_file" ]]; then
+        printf 'bootstrap-pending'
         return 0
     fi
     local rc
@@ -659,6 +808,11 @@ _handoff_resolve_verification() {
     local combined
     if [[ "$from_state" == "verified" && "$to_state" == "verified" ]]; then
         combined="verified"
+    elif [[ "$from_state" == "bootstrap-pending" && "$to_state" == "bootstrap-pending" ]]; then
+        # Sprint 6E (HIGH-2): both states bootstrap-pending → OPERATORS.md
+        # not yet authored. Treat permissively in strict mode so a fresh
+        # install isn't blocked from its first handoff.
+        combined="bootstrap-pending"
     elif [[ "$from_state" == "unverified" || "$to_state" == "unverified" ]]; then
         combined="unverified"
     else
@@ -667,9 +821,14 @@ _handoff_resolve_verification() {
 
     printf '%s %s %s' "$from_state" "$to_state" "$combined"
 
-    if [[ "$mode" == "strict" && "$combined" != "verified" ]]; then
-        _handoff_log "verify_operators: strict-mode reject (from=$from_state to=$to_state combined=$combined)"
-        return 3
+    if [[ "$mode" == "strict" ]]; then
+        case "$combined" in
+            verified|bootstrap-pending) ;;  # accept
+            *)
+                _handoff_log "verify_operators: strict-mode reject (from=$from_state to=$to_state combined=$combined)"
+                return 3
+                ;;
+        esac
     fi
     return 0
 }
@@ -825,9 +984,11 @@ sys.stdout.write(json.dumps(d, ensure_ascii=False))
 
     # Step 8+9+10 (Sprint 6B): combined critical section under one flock —
     # collision-resolve + body write + INDEX update.
-    local chosen_fname
-    chosen_fname="$(_handoff_atomic_publish "$dest_dir" "$doc_json" "$computed_id" "$from" "$to" "$topic" "$ts")"
-    local pub_rc=$?
+    local chosen_fname pub_rc
+    # Sprint 6E (bash gotcha): `local pub_rc=$?` would lose the rc because
+    # `local` returns 0. Split declaration from capture.
+    chosen_fname="$(_handoff_atomic_publish "$dest_dir" "$doc_json" "$computed_id" "$from" "$to" "$topic" "$ts")" || pub_rc=$?
+    pub_rc="${pub_rc:-0}"
     if [[ "$pub_rc" -ne 0 ]]; then
         _handoff_log "handoff_write: publish failed (rc=$pub_rc)"
         return "$pub_rc"
@@ -841,6 +1002,10 @@ sys.stdout.write(json.dumps(d, ensure_ascii=False))
     tags_json="$(printf '%s' "$doc_json" | python3 -c 'import json,sys; sys.stdout.write(json.dumps(json.load(sys.stdin).get("tags",[]),ensure_ascii=False))')"
     body_size="$(printf '%s' "$doc_json" | python3 -c 'import json,sys; b=json.load(sys.stdin).get("body",""); print(len(b.encode("utf-8")))')"
 
+    # Sprint 6E (CYP-F5): propagate doc's schema_version, not hardcoded "1.0",
+    # so a future v1.1 doc emits a faithful audit payload.
+    local doc_sv
+    doc_sv="$(printf '%s' "$doc_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("schema_version",""))')"
     local payload
     payload="$(jq -nc \
         --arg id "$computed_id" \
@@ -849,7 +1014,7 @@ sys.stdout.write(json.dumps(d, ensure_ascii=False))
         --arg topic "$topic" \
         --arg ts "$ts" \
         --arg fp "$rel_path" \
-        --arg sv "1.0" \
+        --arg sv "$doc_sv" \
         --arg verif "$combined_state" \
         --argjson refs "$refs_count" \
         --argjson tags "$tags_json" \
@@ -868,7 +1033,10 @@ sys.stdout.write(json.dumps(d, ensure_ascii=False))
             operator_verification: $verif
         }')"
 
-    local log_path="${LOA_HANDOFF_LOG:-${_LOA_HANDOFF_DEFAULT_LOG}}"
+    local log_path="$_LOA_HANDOFF_DEFAULT_LOG"
+    if _handoff_check_env_override LOA_HANDOFF_LOG "${LOA_HANDOFF_LOG:-}"; then
+        log_path="$LOA_HANDOFF_LOG"
+    fi
     mkdir -p "$(dirname "$log_path")"
     if ! audit_emit "L6" "handoff.write" "$payload" "$log_path" >/dev/null; then
         _handoff_log "handoff_write: audit_emit failed (handoff written but unaudited)"
@@ -904,10 +1072,15 @@ handoff_list() {
     [[ -f "$index" ]] || return 0
 
     awk -v unread="$unread_only" -v tf="$to_filter" '
-        BEGIN { FS=" *\\| *" }
+        BEGIN {
+            FS=" *\\| *"
+            # Sprint 6E (CYP-F7): pin filename-column shape.
+            file_re = "^[0-9]{4}-[0-9]{2}-[0-9]{2}-[A-Za-z0-9_-]+-[A-Za-z0-9_-]+-[A-Za-z0-9_-]+(-[0-9]+)?\\.md$"
+            id_re   = "^sha256:[a-f0-9]{64}$"
+        }
         /^\| sha256:/ {
-            # FS=" *\\| *" → fields[2]=id, [3]=file, [4]=from, [5]=to,
-            #               [6]=topic, [7]=ts_utc, [8]=read_by
+            if ($2 !~ id_re)   next
+            if ($3 !~ file_re) next
             if (tf != "" && $5 != tf) next
             if (unread == 1 && $8 != "" ) next
             print
@@ -941,11 +1114,21 @@ handoff_read() {
         return 2
     fi
 
+    # Sprint 6E (CYP-F15): require id to match content-addressable shape
+    # before parsing INDEX. Defends against forged callers passing junk.
+    if [[ ! "$id" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+        _handoff_log "handoff_read: invalid handoff_id shape"
+        return 2
+    fi
+
     # Find file basename for this id.
     local file
     file="$(awk -v id="$id" '
-        BEGIN { FS=" *\\| *" }
-        $2 == id { print $3; exit }
+        BEGIN {
+            FS=" *\\| *"
+            file_re = "^[0-9]{4}-[0-9]{2}-[0-9]{2}-[A-Za-z0-9_-]+-[A-Za-z0-9_-]+-[A-Za-z0-9_-]+(-[0-9]+)?\\.md$"
+        }
+        $2 == id && $3 ~ file_re { print $3; exit }
     ' "$index")"
 
     if [[ -z "$file" ]]; then
@@ -1050,7 +1233,12 @@ surface_unread_handoffs() {
     # means op's slug not present in read_by.
     local unread_lines
     unread_lines="$(awk -F' *\\| *' -v op="$op" '
-        $2 ~ /^sha256:/ && $5 == op {
+        BEGIN {
+            id_re   = "^sha256:[a-f0-9]{64}$"
+            # Sprint 6E (CYP-F7): pin filename shape.
+            file_re = "^[0-9]{4}-[0-9]{2}-[0-9]{2}-[A-Za-z0-9_-]+-[A-Za-z0-9_-]+-[A-Za-z0-9_-]+(-[0-9]+)?\\.md$"
+        }
+        $2 ~ id_re && $3 ~ file_re && $5 == op {
             # read_by is field 8 — empty when nobody has read.
             rb = $8
             sub(/^[[:space:]]+/, "", rb)
@@ -1089,21 +1277,37 @@ surface_unread_handoffs() {
             past==1 { print }
         ' "$body_path")"
 
-        # Sanitize. Stderr from sanitize is preserved (BLOCKER signals).
-        # The inline-content path of sanitize_for_session_start does NOT inject
-        # a path= attribute (path_label is empty when content is given inline).
-        # We splice it in here on the opening <untrusted-content...> tag so
-        # operator + downstream consumers can locate the source file.
-        # rel_path is path-attribute-safe (slug-shape components + slashes).
-        local path_safe; path_safe="${rel_path//\"/}"
-        sanitize_for_session_start "L6" "$body" --max-chars "$max_chars" \
-            | sed -e "s|<untrusted-content source=\"L6\"|<untrusted-content source=\"L6\" path=\"${path_safe}\"|"
+        # Sprint 6E (MEDIUM-2 + CYP-F11): write body to a same-dir tempfile
+        # and pass the path to sanitize_for_session_start so its native
+        # path-label branch handles attribute escaping. Eliminates the prior
+        # sed post-process which broke on dest_dir paths containing `<` or
+        # control bytes. We then post-process to override the temp path with
+        # the canonical handoff file path for operator legibility, escaping
+        # any HTML-attribute-special characters first.
+        local body_tmp_for_sanitize
+        body_tmp_for_sanitize="$(mktemp "${dir}/.surface-body.tmp.XXXXXX")"
+        printf '%s' "$body" > "$body_tmp_for_sanitize"
+        # HTML-attribute-safe rel_path: drop control bytes + escape special chars.
+        local path_safe
+        path_safe="$(printf '%s' "$rel_path" | tr -d '\000-\037\177' \
+            | sed -e 's/&/\&amp;/g' -e 's/"/\&quot;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g')"
+        # Escape sed-replacement metacharacters in path_safe before using it
+        # in the substitution (& and \ are special on the RHS of s|||).
+        local path_sed
+        path_sed="$(printf '%s' "$path_safe" | sed -e 's/[\\&|]/\\&/g')"
+        sanitize_for_session_start "L6" "$body_tmp_for_sanitize" --max-chars "$max_chars" \
+            | sed -e "s|path=\"${body_tmp_for_sanitize}\"|path=\"${path_sed}\"|"
+        rm -f "$body_tmp_for_sanitize"
         printf '\n'
         seen=$((seen + 1))
     done <<< "$unread_lines"
 
     # Optional: emit audit event for surfacing (suppress under env flag).
-    if [[ "${LOA_HANDOFF_SUPPRESS_SURFACE_AUDIT:-0}" != "1" ]]; then
+    local _suppress_audit=0
+    if [[ "${LOA_HANDOFF_SUPPRESS_SURFACE_AUDIT:-0}" == "1" ]] && _handoff_test_mode_active; then
+        _suppress_audit=1
+    fi
+    if [[ "$_suppress_audit" -eq 0 ]]; then
         local op_state; op_state="$(_handoff_verify_operator_state "$op" 2>/dev/null || echo "unknown")"
         local payload
         payload="$(jq -nc \
@@ -1118,7 +1322,10 @@ surface_unread_handoffs() {
                 operator_verification: $ostate,
                 event_subtype: "surface"
             }')"
-        local log_path="${LOA_HANDOFF_LOG:-${_LOA_HANDOFF_DEFAULT_LOG}}"
+        local log_path="$_LOA_HANDOFF_DEFAULT_LOG"
+        if _handoff_check_env_override LOA_HANDOFF_LOG "${LOA_HANDOFF_LOG:-}" 2>/dev/null; then
+            log_path="$LOA_HANDOFF_LOG"
+        fi
         mkdir -p "$(dirname "$log_path")"
         audit_emit "L6" "handoff.surface" "$payload" "$log_path" >/dev/null 2>&1 || true
     fi
@@ -1160,18 +1367,42 @@ handoff_mark_read() {
         return 4
     fi
 
+    # Sprint 6E (HIGH-1): also require id-shape on the requested id.
+    if [[ ! "$id" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+        _handoff_log "handoff_mark_read: invalid handoff_id shape"
+        return 2
+    fi
+
     local lock="${dir}/.INDEX.md.lock"
     local now; now="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
     local tmp
     tmp="$(mktemp "${dir}/.INDEX.md.tmp.XXXXXX")"
     chmod 0644 "$tmp"
 
+    # Sprint 6E (HIGH-1): capture already_marked status for audit emit. Done
+    # outside the awk pass so we can include it in the handoff.mark_read event.
+    local already_marked
+    already_marked="$(awk -F' *\\| *' -v id="$id" -v op="$op" '
+        BEGIN { found="false" }
+        $2 == id {
+            rb = $8
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", rb)
+            if (index(","rb",", ","op":") != 0) found="true"
+        }
+        END { print found }
+    ' "$index")"
+
     (
         flock -x -w 30 9 || { _handoff_log "flock timeout"; exit 4; }
         # Append "$op:$now" to read_by (field 8) for the row whose id matches.
         awk -F' *\\| *' -v OFS=' | ' -v id="$id" -v op="$op" -v ts="$now" '
-            BEGIN { matched=0 }
-            $2 == id {
+            BEGIN {
+                matched=0
+                # Sprint 6E (CYP-F7): pin filename + id shapes for defense-in-depth.
+                file_re = "^[0-9]{4}-[0-9]{2}-[0-9]{2}-[A-Za-z0-9_-]+-[A-Za-z0-9_-]+-[A-Za-z0-9_-]+(-[0-9]+)?\\.md$"
+                id_re   = "^sha256:[a-f0-9]{64}$"
+            }
+            $2 == id && $2 ~ id_re && $3 ~ file_re {
                 # Check op already in read_by.
                 rb = $8
                 gsub(/^[[:space:]]+|[[:space:]]+$/, "", rb)
@@ -1193,7 +1424,25 @@ handoff_mark_read() {
 
     local rc=$?
     [[ -e "$tmp" ]] && rm -f "$tmp"
-    return $rc
+    if [[ "$rc" -ne 0 ]]; then
+        return "$rc"
+    fi
+
+    # Sprint 6E (HIGH-1): emit handoff.mark_read audit event for state mutation.
+    local payload
+    payload="$(jq -nc \
+        --arg id "$id" \
+        --arg op "$op" \
+        --arg ts "$now" \
+        --argjson am "$already_marked" \
+        '{handoff_id: $id, operator_id: $op, ts_utc: $ts, already_marked: $am}')"
+    local log_path="$_LOA_HANDOFF_DEFAULT_LOG"
+    if _handoff_check_env_override LOA_HANDOFF_LOG "${LOA_HANDOFF_LOG:-}" 2>/dev/null; then
+        log_path="$LOA_HANDOFF_LOG"
+    fi
+    mkdir -p "$(dirname "$log_path")"
+    audit_emit "L6" "handoff.mark_read" "$payload" "$log_path" >/dev/null 2>&1 || true
+    return 0
 }
 
 # -----------------------------------------------------------------------------
