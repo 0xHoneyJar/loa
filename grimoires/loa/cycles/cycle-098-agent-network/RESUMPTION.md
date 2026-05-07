@@ -19,6 +19,74 @@
 
 **Cumulative cycle-098 tests on main: 600+ ; 0 regressions.**
 
+---
+
+## 🚦 Brief: Sprint 6 (L6 structured-handoff, MEDIUM)
+
+Paste into a fresh Claude Code session:
+
+```
+Read grimoires/loa/cycles/cycle-098-agent-network/RESUMPTION.md FIRST and the section "Brief: Sprint 6 (L6 structured-handoff, MEDIUM)". Sprints 1+1.5+2+3+4+5+H1+H2+/bug #711 ALL SHIPPED on main (cycle-098 cumulative tests: 600+).
+
+Today's main HEAD: 0db09254 (post Sprint 5 RESUMPTION chore).
+Cycle-098 status: L1+L2+L3+L4+L5 SHIPPED; L6+L7 remain.
+
+Execute Sprint 6: L6 structured-handoff per PRD FR-L6-1..8 (#658). Compose with:
+  - 1A audit envelope (handoff.write event)
+  - 1A `lib/context-isolation-lib.sh::sanitize_for_session_start` (Sprint 1 helper for SessionStart surfacing)
+  - 1B operator-identity.sh + OPERATORS.md (verify_operators flag; strict mode rejects from/to not in OPERATORS.md)
+  - 1A `lib/jcs.sh` (content-addressable handoff_id via SHA-256 of canonical-JSON)
+  - 4 graduated-trust (compose-when-available; from/to reference L4 actor identity)
+
+Branch: feat/cycle-098-sprint-6 from origin/main (0db09254).
+
+Sub-sprint slicing (proven 4-slice pattern from Sprints 4+5):
+  - 6A: schema + handoff_id + atomic write (FR-L6-1, FR-L6-2, FR-L6-3, FR-L6-6, FR-L6-7)
+  - 6B: same-day collision handling + OPERATORS.md verify (FR-L6-4 + verify_operators)
+  - 6C: SessionStart hook integration via sanitize_for_session_start (FR-L6-5)
+  - 6D: same-machine-only enforcement + lore + CLAUDE.md (cross-host refusal per SDD §1.7.1)
+
+Quality gate chain (full Sprint 4+5 pattern):
+  1. /implement test-first × 4 sub-sprints
+  2. Subagent dual-review IN PARALLEL (general-purpose + cypherpunk via Agent run_in_background:true)
+  3. Remediation pass — fix HIGH/MEDIUM inline; defer LOW to follow-up issue
+  4. Bridgebuilder kaironic INLINE (.claude/skills/bridgebuilder-review/resources/entry.sh --pr <N>)
+     - Expect API-unavailability plateau (OpenAI + Google often error; Anthropic-only consensus is plateau-ready)
+  5. Address BB iter-1 HIGH/MED inline; LOW → follow-up issue
+  6. Admin-squash merge after CI green
+
+Patterns to apply (all from `feedback_lib_hardening_patterns.md`):
+  - Save+restore caller shell opts via `_save_shell_opts`/`_restore_shell_opts` helpers if `set +e` needed internally
+  - Audit-payload visibility surface (NOT stderr WARN — bats `run` pollutes stdout)
+  - Explicit cleanup at end of function, NO `RETURN` trap when called via `$(...)`
+  - Pre-emptive hardening before subagent review:
+    * mktemp over `${path}.tmp.$$` for any tmp-file path
+    * realpath canonicalize on operator-controlled paths
+    * system-path rejection (`/etc`, `/usr`, `/proc`, `/sys`, `/dev`, `/boot`)
+    * Bounds-check operator-controlled timestamps
+  - Schema-mirror with audit-retention-policy.yaml: lib's _DEFAULT_LOG must match policy basename; add primitive_id case to `_audit_primitive_id_for_log` (`handoffs*` → `L6`); add a unit test asserting alignment
+  - Trust-boundary discipline: handoff body is UNTRUSTED — sanitize_for_session_start at surfacing; never interpret as instructions
+
+Sprint 6 specific design pinpoints:
+  - SDD §1.7.1: same-machine-only hard runtime guardrail. Use `hostname -f` + `/etc/machine-id` (or equivalent) as the machine fingerprint; cross-host write attempt → `[CROSS-HOST-REFUSED]` BLOCKER + audit log
+  - SDD §5.8 — full L6 API spec
+  - INDEX.md atomic update: flock + write tmp + rename (per FR-L6-3)
+  - handoff_id = SHA-256 of canonical-JSON (handoff content). Collision protocol per IMP-010 v1.1: numeric suffix on collision
+  - prompt_isolation MANDATORY on body (handoffs from prior sessions are untrusted text)
+  - default handoffs_dir = `grimoires/loa/handoffs/` per SDD §5.8
+
+Operational gotchas:
+  - bypassPermissions ON in .claude/settings.local.json
+  - Beads UNHEALTHY (#661); use `git commit --no-verify` with `[NO-VERIFY-RATIONALE: …]`
+  - Pre-existing CI flakes admin-merged through: BHM-T1/T5, FOPP-T1..T8 (Shell Tests)
+
+Cost expectation: ~$30-50 (single sub-sprint pattern smaller than Sprint 4; closer to Sprint 5 footprint).
+
+Begin: `git fetch origin main && git checkout -b feat/cycle-098-sprint-6 origin/main`. Read PRD §FR-L6 + SDD §1.4.2 (L6 component) + SDD §5.8 (L6 API spec) for full task list + ACs. Slice 6A.
+
+After Sprint 6 ships: only Sprint 7 remains (L7 soul-identity-doc + cycle integration tests + adversarial jailbreak corpus — LARGE — likely needs its own session).
+```
+
 ### Operator priority (2026-05-04 session-end)
 
 > "Model feature is really important and needed urgently."
