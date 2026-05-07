@@ -467,10 +467,34 @@ def _stage1_explicit_pin(skill_models_value: Any) -> dict | None:
 
     Returns a partial result dict (no resolution_path yet, just provider+model_id+
     stage entry) on hit, None on miss.
+
+    Issue #761 hardening: reject URL-shaped values. A legitimate
+    `provider:model_id` pin never contains `://`, never starts with `//`,
+    and never contains `?` (query-string). When an operator pastes a URL
+    like `https://user:secret@host?api_key=v` into this field, naive
+    partition-on-`:` would produce `provider="https"` and `model_id="//user:
+    secret@host?api_key=v"` — the `://` URL-userinfo regex in log-redactor
+    requires `://` framing in the SAME string, but partitioning strips the
+    `://` from `model_id` and leaves only `//`. So `secret-token` would
+    surface in `resolved_model_id` unredacted in validate-bindings JSON
+    output. Falling through to S2 → S3 closes the leak (no URL-shape value
+    ever reaches output), and the operator gets a clean `[TIER-NO-MAPPING]`
+    error pointing at their misconfigured value.
     """
     if not isinstance(skill_models_value, str):
         return None
     if ":" not in skill_models_value:
+        return None
+    # #761: URL sentinel rejection. Three patterns flag URL-shape:
+    # 1. `://` anywhere — explicit URL scheme separator
+    # 2. Leading `//` — partial URL fragment (paranoid; `:` won't be first char
+    #    so partition wouldn't produce this organically, but defense-in-depth)
+    # 3. `?` anywhere — query-string sentinel; provider:model_id never has it
+    if "://" in skill_models_value:
+        return None
+    if skill_models_value.startswith("//"):
+        return None
+    if "?" in skill_models_value:
         return None
     provider, _, model_id = skill_models_value.partition(":")
     if not provider or not model_id:

@@ -293,6 +293,15 @@ _stage1_explicit_pin() {
     local val="$1"
     [[ -z "$val" ]] && return
     [[ "$val" != *":"* ]] && return
+    # #761: reject URL-shape values. A legitimate provider:model_id pin
+    # never contains `://`, never starts with `//`, and never contains `?`.
+    # Naive partition would surface URL fragments in resolved_model_id and
+    # bypass the redactor's `://`-anchored regex; falling through to
+    # S2/S3/S5 closes the leak. Mirror the canonical Python at
+    # .claude/scripts/lib/model-resolver.py::_stage1_explicit_pin.
+    [[ "$val" == *"://"* ]] && return
+    [[ "$val" == //* ]] && return
+    [[ "$val" == *"?"* ]] && return
     local provider="${val%%:*}"
     local model_id="${val#*:}"
     [[ -z "$provider" ]] && return
