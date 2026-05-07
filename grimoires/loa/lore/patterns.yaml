@@ -310,3 +310,47 @@
   related:
     - graduated-trust
     - auto-drop
+
+- id: cross-repo-state
+  term: Cross-Repo State
+  short: >-
+    Operator-visibility primitive that aggregates structured state across N
+    repos via the source-of-truth API (gh) without cloning anything. TTL
+    cache + stale-fallback ceiling means the operator gets a useful answer
+    even when the API is degraded; per-source error capture means one repo's
+    outage cannot blind the operator to the other nine.
+  context: >-
+    Asking "what's happening across my fleet right now?" is the cheapest
+    operator action that can answer "should I ship?", "should I rollback?",
+    "who's blocked?". The traditional answer is to clone-and-grep — slow,
+    burns disk, falls behind on the moment GitHub becomes the source of
+    truth (CI status, PR state, issue comments). cycle-098 L5 inverts this:
+    accept that gh API IS the source of truth; cache freshly enough that the
+    operator's UI is responsive; fall back to a bounded-staleness cache when
+    the API blinks; treat per-source errors as data (the operator can SEE
+    that one repo's CI lookup failed) rather than as full failure (which
+    would force the operator to retry until the world is perfect). The
+    BLOCKER extraction from each repo's grimoires/loa/NOTES.md tail makes
+    operator-relevant cross-repo signals first-class, not buried in repo-
+    specific tooling. Trust boundary: NOTES.md is untrusted text and is
+    never interpreted as instructions.
+  source:
+    cycle: "cycle-098-agent-network"
+    sprint: "Sprint 5 (L5 cross-repo-status-reader)"
+    rfc: "https://github.com/0xHoneyJar/loa/issues/657"
+    date: "2026-05-07"
+  tags:
+    - architecture
+    - operator-visibility
+    - external-api
+    - cache
+    - degraded-mode
+    - pattern
+  status: Active
+  challenges: []
+  lineage: null
+  superseded_by: null
+  related:
+    - graduated-trust
+    - scheduled-cycle
+    - fail-closed-cost-gate
