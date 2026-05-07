@@ -1,0 +1,55 @@
+# =============================================================================
+# soul-prescriptive-rejection-patterns.txt
+# cycle-098 Sprint 7 (NFR-Sec3 + SDD §3.2.5)
+#
+# Patterns that mark a SOUL.md section as PRESCRIPTIVE — i.e., a rules /
+# instructions section that belongs in CLAUDE.md, not SOUL.md. SOUL.md is
+# DESCRIPTIVE identity ("what I am, what I value, what I refuse"); CLAUDE.md
+# is PRESCRIPTIVE rules ("MUST do X, ALWAYS do Y").
+#
+# Format:
+#   - Lines starting with `#` are comments.
+#   - Blank lines ignored.
+#   - Each non-comment line is a Python-regex (case-insensitive, MULTILINE)
+#     applied to the FIRST NON-EMPTY LINE of each section body.
+#   - A match flags the section as prescriptive — strict mode rejects the doc;
+#     warn mode loads with [SCHEMA-WARNING] + per-section hit recorded.
+#
+# Why first-non-empty-line: a section that *opens* with imperative language
+# is prescriptive ("MUST do X..."). A section that *mentions* imperatives
+# inside descriptive prose ("we believe in must-have testing") is not.
+# This is intentionally conservative; refine as Sprint-7-followup discovers
+# false positives.
+#
+# DO NOT add patterns that match descriptive language that happens to contain
+# imperative verbs ("we strive to never break tests" — that's a value
+# statement, not a rule).
+# =============================================================================
+
+# Imperative verbs at start of line (the classic CLAUDE.md shape)
+^(?:\*\*|__)?\s*MUST\b
+^(?:\*\*|__)?\s*MUST NOT\b
+^(?:\*\*|__)?\s*MUSTN'?T\b
+^(?:\*\*|__)?\s*ALWAYS\b
+^(?:\*\*|__)?\s*NEVER\b
+^(?:\*\*|__)?\s*DO\s+(?:NOT|N'?T)\b
+^(?:\*\*|__)?\s*DON'?T\b
+^(?:\*\*|__)?\s*SHOULD\s+(?:NOT|N'?T)\b
+^(?:\*\*|__)?\s*SHOULDN'?T\b
+^(?:\*\*|__)?\s*REQUIRED\b
+^(?:\*\*|__)?\s*FORBIDDEN\b
+^(?:\*\*|__)?\s*PROHIBITED\b
+
+# Markdown table of rules — the CLAUDE.md "Process Compliance" shape
+^\s*\|\s*Rule\s*\|
+^\s*\|\s*ALWAYS\b
+^\s*\|\s*NEVER\b
+^\s*\|\s*MUST\b
+
+# Numbered/bulleted rule lists with imperative leads
+^\s*[0-9]+\.\s+(?:MUST|ALWAYS|NEVER|DO\s+NOT|DON'?T)\b
+^\s*[-*]\s+(?:MUST|ALWAYS|NEVER|DO\s+NOT|DON'?T)\b
+
+# Common Loa prescriptive section headings (when SOUL.md plagiarizes CLAUDE.md)
+^\s*###?\s*(?:NEVER|ALWAYS|MUST|MAY|SHOULD)\s+Rules\b
+^\s*Process\s+Compliance\b

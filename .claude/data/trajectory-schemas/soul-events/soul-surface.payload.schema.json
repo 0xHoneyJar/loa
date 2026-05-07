@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.dev/loa/schemas/soul-events/soul-surface.payload.schema.json",
+  "title": "L7 soul.surface Payload",
+  "description": "Audit-event payload for an L7 SOUL.md SessionStart surfacing. cycle-098 Sprint 7. Records the surfacing event itself (with size/truncation/sanitization metadata); the SOUL.md content lives in the project root and is operator-managed.",
+  "type": "object",
+  "required": [
+    "file_path",
+    "schema_version",
+    "schema_mode",
+    "identity_for",
+    "outcome"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "file_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "description": "Repo-relative path to the SOUL.md file."
+    },
+    "schema_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "Echoes the doc's frontmatter schema_version verbatim. Pattern (not enum) so future doc-schema bumps don't self-DoS the audit emit (cycle-098 Sprint 6E CYP-F5 precedent)."
+    },
+    "schema_mode": {
+      "type": "string",
+      "enum": ["strict", "warn"]
+    },
+    "identity_for": {
+      "type": "string",
+      "enum": ["this-repo", "construct", "agent", "group"]
+    },
+    "outcome": {
+      "type": "string",
+      "enum": ["surfaced", "schema-warning", "schema-refused", "file-missing", "disabled"],
+      "description": "surfaced = clean load; schema-warning = warn-mode with [SCHEMA-WARNING] marker; schema-refused = strict-mode failure (no surface); file-missing = SOUL.md absent; disabled = soul_identity_doc.enabled=false."
+    },
+    "body_byte_size": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Size of the SOUL.md file body in bytes (frontmatter excluded), pre-truncation."
+    },
+    "surface_byte_size": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Size of the surfaced (post-sanitization, post-truncation) text in bytes."
+    },
+    "truncated": {
+      "type": "boolean",
+      "description": "True iff body_byte_size > surface_max_chars (UTF-8 character count) and the surface was truncated."
+    },
+    "sanitization_signals": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "string",
+        "maxLength": 256
+      },
+      "description": "BLOCKER/INFO lines emitted by sanitize_for_session_start (e.g., 'BLOCKER: tool-call pattern detected'). Each preserved verbatim for audit."
+    },
+    "missing_required_sections": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9 _-]{1,64}$"
+      },
+      "description": "Section headings that were required but absent (e.g., 'What I am'). Empty when fully conformant."
+    },
+    "prescriptive_section_hits": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9 _-]{1,64}$"
+      },
+      "description": "Sections that triggered the prescriptive-pattern rejection (NFR-Sec3). Heading text only — body text is NOT echoed (it could carry untrusted content; ANSI/CR scrubbed in the heading by the lib)."
+    }
+  }
+}
