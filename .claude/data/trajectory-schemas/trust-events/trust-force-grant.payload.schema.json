@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.dev/loa/schemas/trust-events/trust-force-grant.payload.schema.json",
+  "title": "L4 trust.force_grant Payload",
+  "description": "Force-grant exception emitted when trust_grant --force overrides cooldown. cycle-098 Sprint 4C — FR-L4-8. force-grant is a protected-class operation per protected-class-router; recordable but never silent.",
+  "type": "object",
+  "required": [
+    "scope",
+    "capability",
+    "actor",
+    "from_tier",
+    "to_tier",
+    "operator",
+    "reason",
+    "cooldown_remaining_seconds_at_grant"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "scope": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "capability": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "actor": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "from_tier": {
+      "type": ["string", "null"],
+      "pattern": "^[A-Za-z0-9_-]{1,32}$"
+    },
+    "to_tier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,32}$"
+    },
+    "operator": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "description": "REQUIRED for force-grant; auditor-facing rationale. No default."
+    },
+    "cooldown_remaining_seconds_at_grant": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Cooldown seconds remaining when force-grant fired. 0 means cooldown had already elapsed (operator chose to use --force redundantly)."
+    },
+    "cooldown_until_at_grant": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    }
+  }
+}

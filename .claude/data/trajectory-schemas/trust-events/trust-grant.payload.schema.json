@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.dev/loa/schemas/trust-events/trust-grant.payload.schema.json",
+  "title": "L4 trust.grant Payload",
+  "description": "Operator-grant transition event. cycle-098 Sprint 4A. trust.grant entries record an operator-driven tier transition that satisfies a configured TransitionRule. Force-grant is a separate event type (trust.force_grant); regular trust.grant entries MUST NOT bypass cooldown.",
+  "type": "object",
+  "required": [
+    "scope",
+    "capability",
+    "actor",
+    "from_tier",
+    "to_tier",
+    "operator",
+    "reason"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "scope": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "capability": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "actor": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "from_tier": {
+      "type": ["string", "null"],
+      "pattern": "^[A-Za-z0-9_-]{1,32}$",
+      "description": "null when this is the initial transition from default_tier (recorded as transition_type=initial)."
+    },
+    "to_tier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,32}$"
+    },
+    "operator": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Operator slug performing the grant. Verified against OPERATORS.md."
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "description": "Operator-provided rationale (audit-required; no implicit default)."
+    },
+    "transition_rule_id": {
+      "type": ["string", "null"],
+      "description": "Operator-config rule id that authorized this transition (e.g., 'T0_to_T1_default'). null when none configured (auditor signal)."
+    }
+  }
+}

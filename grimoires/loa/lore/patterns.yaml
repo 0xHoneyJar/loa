@@ -186,3 +186,127 @@
   related:
     - fail-closed-cost-gate
     - governance-isomorphism
+
+- id: graduated-trust
+  term: Graduated Trust
+  short: >-
+    Per-(scope, capability, actor) trust ledger where tier ratchets up by
+    demonstrated alignment (operator grants) and ratchets down automatically
+    on observed override (record_override → auto_drop + cooldown). Hash-chained
+    for tamper detection, TRACKED in git for reconstructability, force-grant
+    permitted but recorded as an exception. Trust is not a permission you
+    flip; it is the audit-grounded cumulative position of an actor in a
+    particular capability of a particular scope.
+  context: >-
+    The default agent-permission model — a binary "this actor can do X / can
+    not do X" — collapses two distinct ideas: capability (what is technically
+    permissible) and trust (whether to grant the permission HERE, NOW, given
+    history). cycle-098 L4 splits them. Capability lives in the protected-
+    classes taxonomy; trust lives in a per-(scope, capability, actor) tier
+    derived from the immutable history of grants and overrides. The semantics
+    are operator-intuitive: a tier raises only via an explicit operator
+    decision against a configured transition_rule (no implicit ratchets); a
+    tier drops automatically the moment the operator overrides an autonomous
+    decision (the override IS the signal that demonstrated alignment was
+    over-claimed). Cooldown enforces that the drop is more than a beat — it
+    creates a window during which the actor must re-earn trust through
+    operator engagement, not through silence. Force-grant exists for the
+    incident-response case but is registered in protected-classes and emits
+    trust.force_grant with cooldown_remaining captured at grant-time —
+    auditor sees every bypass.
+  source:
+    cycle: "cycle-098-agent-network"
+    sprint: "Sprint 4 (L4 graduated-trust)"
+    rfc: "https://github.com/0xHoneyJar/loa/issues/656"
+    date: "2026-05-07"
+  tags:
+    - architecture
+    - autonomous-systems
+    - trust
+    - audit-trail
+    - pattern
+  status: Active
+  challenges: []
+  lineage: null
+  superseded_by: null
+  related:
+    - fail-closed-cost-gate
+    - scheduled-cycle
+    - governance-isomorphism
+
+- id: auto-drop
+  term: Auto-Drop on Operator Override
+  short: >-
+    Automatic, audit-mandatory tier descent triggered the moment an operator
+    overrides an autonomous decision. The override IS the signal — no separate
+    "demote" intent is required. The drop emits trust.auto_drop with a frozen
+    cooldown_until in the payload, immune to later changes in operator
+    cooldown_seconds config (audit-immutability).
+  context: >-
+    Trust models that require an operator to explicitly demote an actor after
+    a bad call rarely produce timely demotions: the operator's attention is
+    on resolving the immediate problem, not on bookkeeping. cycle-098 L4
+    inverts this: the override action itself records the demotion. The
+    operator does not need a second step. recordOverride takes a decision_id
+    referencing the externally-knowable record (panel decision id, PR url,
+    audit-event id) so the auditor can correlate the override back to the
+    decision the operator disagreed with. Frozen cooldown_until in the
+    payload means later config changes do not retroactively shift past
+    windows — operators can tune cooldown_seconds without rewriting history.
+    Rolling cooldown (every override re-arms the timer) ensures repeated
+    overrides do not silently expire while the actor remains misaligned.
+  source:
+    cycle: "cycle-098-agent-network"
+    sprint: "Sprint 4 (L4 graduated-trust)"
+    rfc: "https://github.com/0xHoneyJar/loa/issues/656"
+    date: "2026-05-07"
+  tags:
+    - trust
+    - autonomous-systems
+    - audit-trail
+    - feedback-loop
+    - pattern
+  status: Active
+  challenges: []
+  lineage: null
+  superseded_by: null
+  related:
+    - graduated-trust
+
+- id: cooldown
+  term: Trust Cooldown
+  short: >-
+    A configurable window (default 7 days) during which a regular operator
+    grant is rejected after an auto-drop. Force-grant remains available as
+    an audit-logged exception. The cooldown ensures that a demotion is more
+    than a beat — the actor must re-earn trust through operator engagement
+    rather than through the operator forgetting.
+  context: >-
+    Without a cooldown, the operator-pressed "demote → re-promote" cycle
+    erases the demotion's signal value almost immediately. cycle-098 L4
+    enforces a configurable rest period before regular trust_grant can
+    re-raise the tier. Force-grant is intentionally available for incident
+    response — the operator should always have a final say — but it routes
+    through trust.force_grant (registered in protected-classes), captures
+    cooldown_remaining_seconds_at_grant for the auditor, and clears the
+    cooldown_until immediately upon firing. The contract is: cooldowns are
+    recoverable safety windows, not punitive sanctions; force-grants are
+    visible exceptions, not silent overrides.
+  source:
+    cycle: "cycle-098-agent-network"
+    sprint: "Sprint 4 (L4 graduated-trust)"
+    rfc: "https://github.com/0xHoneyJar/loa/issues/656"
+    date: "2026-05-07"
+  tags:
+    - trust
+    - autonomous-systems
+    - safety
+    - rate-limit
+    - pattern
+  status: Active
+  challenges: []
+  lineage: null
+  superseded_by: null
+  related:
+    - graduated-trust
+    - auto-drop

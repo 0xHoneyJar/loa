@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.dev/loa/schemas/trust-events/trust-response.schema.json",
+  "title": "L4 TrustResponse",
+  "description": "Return shape of trust_query. Per SDD §5.6.2. NOT an audit envelope payload — this is the read-API output. Validated by tests; not enforced via audit_emit (queries do not always emit events).",
+  "type": "object",
+  "required": [
+    "scope",
+    "capability",
+    "actor",
+    "tier",
+    "transition_history",
+    "in_cooldown_until",
+    "auto_raise_eligible"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "scope": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "capability": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "actor": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "tier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,32}$"
+    },
+    "transition_history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["from_tier", "to_tier", "transition_type", "ts_utc", "reason"],
+        "additionalProperties": false,
+        "properties": {
+          "from_tier": {
+            "type": ["string", "null"],
+            "pattern": "^[A-Za-z0-9_-]{1,32}$"
+          },
+          "to_tier": {
+            "type": ["string", "null"],
+            "pattern": "^[A-Za-z0-9_-]{1,32}$",
+            "description": "null for trust.auto_raise_eligible entries (informational; no tier change)"
+          },
+          "transition_type": {
+            "type": "string",
+            "enum": ["initial", "operator_grant", "auto_drop", "force_grant", "auto_raise_eligible"]
+          },
+          "ts_utc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cooldown_until": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "Frozen cooldown_until from auto_drop payloads; null for non-auto_drop transitions"
+          },
+          "decision_id": {
+            "type": ["string", "null"]
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "in_cooldown_until": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "auto_raise_eligible": {
+      "type": "boolean",
+      "description": "Always false in cycle-098 per FU-3 deferral."
+    }
+  }
+}

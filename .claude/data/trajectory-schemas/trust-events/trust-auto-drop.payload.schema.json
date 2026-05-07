@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.dev/loa/schemas/trust-events/trust-auto-drop.payload.schema.json",
+  "title": "L4 trust.auto_drop Payload",
+  "description": "Auto-drop transition emitted by trust_record_override per FR-L4-3. Auto-drop ratchets tier DOWN per the configured auto_drop_on_override rule and starts the cooldown timer. The decision_id MUST reference an externally-knowable record (e.g., panel decision id) so the auditor can correlate.",
+  "type": "object",
+  "required": [
+    "scope",
+    "capability",
+    "actor",
+    "from_tier",
+    "to_tier",
+    "decision_id",
+    "reason",
+    "cooldown_until"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "scope": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "capability": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "actor": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "from_tier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,32}$"
+    },
+    "to_tier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,32}$",
+      "description": "Tier resolved per the configured drop_to step (default: drop one rank toward default_tier)."
+    },
+    "decision_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "description": "External record correlating this override (e.g., panel-decisions.jsonl id, PR number, audit-event id)."
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "cooldown_until": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC; cooldown enforced until this time. Computed as ts_utc + cooldown_seconds."
+    },
+    "cooldown_seconds": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Effective cooldown window applied. Echoed for auditor convenience."
+    }
+  }
+}

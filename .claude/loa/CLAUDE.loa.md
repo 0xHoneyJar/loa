@@ -331,6 +331,27 @@ The L3 chassis runs scheduled autonomous cycles via a 5-phase DispatchContract (
 
 **Reference**: `.claude/skills/scheduled-cycle-template/SKILL.md` (caller-facing usage) + `grimoires/loa/sdd.md` §5.5 (full API spec).
 
+## L4 Graduated-Trust (cycle-098 Sprint 4)
+
+The L4 primitive maintains a per-(scope, capability, actor) trust ledger where tier ratchets up by demonstrated alignment (operator grants) and ratchets down automatically on observed override (record_override → auto_drop + cooldown). Hash-chained for tamper detection; TRACKED in git for reconstructability. Library: `.claude/scripts/lib/graduated-trust-lib.sh`. Schemas: `.claude/data/trajectory-schemas/trust-events/`. Skill: `.claude/skills/graduated-trust/`.
+
+### Graduated-Trust Constraints
+
+| Rule | Why |
+|------|-----|
+| ALWAYS use `trust_grant` (not direct `audit_emit "L4" "trust.grant"`) for tier transitions | trust_grant validates the transition against operator-defined transition_rules (FR-L4-2), enforces cooldown (FR-L4-3), and serializes via the .txn.lock. Direct audit_emit bypasses all of these and corrupts the trust contract. |
+| ALWAYS configure at least one `auto_drop_on_override` rule when `graduated_trust.enabled: true` | trust_record_override refuses to invent drop semantics. Without an explicit rule (or `from: any, to_lower: true` fallback), every override returns exit 3 — observable as a misconfiguration loop. |
+| ALWAYS prefer the FROZEN `payload.cooldown_until` over recomputing from current `cooldown_seconds` config | Audit-immutability: changing cooldown_seconds in operator config later must NOT retroactively shift past windows. The 4A resolver reads the frozen value; tooling that bypasses the lib MUST do the same. |
+| NEVER share the audit_emit lock file (`<log>.lock`) with a transaction lock — use `<log>.txn.lock` for read-modify-write atoms | audit_emit's flock guards the chain append; a higher-level transaction (cooldown check vs concurrent writer) needs its own lock. Same lock = deadlock when the transaction calls audit_emit. |
+| NEVER call `trust_grant --force` without a `--reason` | Force-grant is the only path that bypasses cooldown. Reason is the auditor's only signal; the lib refuses an empty/missing reason (exit 2). |
+| ALWAYS treat `trust.force_grant` as a protected-class operation per `protected-classes.yaml` | Force-grant overrides the safety mechanism; protected-class-router classifies it as operator-bound by definition. Tools that wrap trust_grant --force MUST go through the operator-confirmation flow. |
+| ALWAYS reconstruct via `trust_recover_chain` (not by hand) when chain validation fails | trust_recover_chain wraps audit_recover_chain which knows the TRACKED-log git-history walk path. Hand-rolled rebuilds reintroduce path-resolution bugs (cycle-098 Sprint 4 patched a basename-vs-repo-relative-path defect in `_audit_recover_from_git`). |
+| ALWAYS emit `trust.disable` via `trust_disable` (not by appending [L4-DISABLED] manually) | trust_disable acquires the txn lock, refuses double-seal, and writes a properly-chained envelope. A bare `[L4-DISABLED]` marker leaves the chain unsealed and the next writer can append a new entry, breaking the seal contract. |
+| MAY enable `LOA_TRUST_REQUIRE_KNOWN_ACTOR=1` for deployments that maintain `OPERATORS.md` | When set, both `actor` and `operator` MUST resolve via operator-identity. Off by default to ease first-install friction; turn on for production deployments with a populated OPERATORS.md. |
+| MAY enable `LOA_TRUST_EMIT_QUERY_EVENTS=1` to record every read | Off by default because query traffic is high-frequency; turn on when an auditor specifically wants the read trail. |
+
+**Reference**: `.claude/skills/graduated-trust/SKILL.md` (caller-facing usage) + `grimoires/loa/cycles/cycle-098-agent-network/sdd.md` §5.6 (full API spec).
+
 ## Conventions
 
 - Never skip phases - each builds on previous
