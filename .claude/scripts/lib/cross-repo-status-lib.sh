@@ -91,6 +91,14 @@ _l5_validate_int() {
 _l5_cache_dir() {
     local d
     d="${LOA_CROSS_REPO_CACHE_DIR:-${_L5_REPO_ROOT}/${_L5_DEFAULT_CACHE_DIR}}"
+    # Refuse paths under a few obviously-dangerous roots (best-effort
+    # defense if an operator misconfigures LOA_CROSS_REPO_CACHE_DIR).
+    case "$d" in
+        /etc|/etc/*|/usr|/usr/*|/var/log|/var/log/*|/proc|/proc/*|/sys|/sys/*|/dev|/dev/*|/boot|/boot/*)
+            _l5_log "ERROR: refusing to use cache_dir='$d' (system path)"
+            return 1
+            ;;
+    esac
     echo "$d"
 }
 
@@ -243,7 +251,13 @@ _l5_cache_age_seconds() {
     cached_at="$(jq -r '.cached_at_epoch // empty' "$path" 2>/dev/null || true)"
     if [[ -z "$cached_at" ]]; then return 1; fi
     if ! [[ "$cached_at" =~ $_L5_INT_RE ]]; then return 1; fi
+    # Sanity bound: reject epochs in the future or wildly far in the past.
+    # An attacker who can write the cache could otherwise pin cached_at_epoch
+    # to year 9999 (cache-forever DoS) or 0 (force-stale signal).
+    # Lower bound: 2020-01-01 (1577836800). Upper bound: now + 60s tolerance.
     now="$(_l5_now_epoch)"
+    if (( cached_at < 1577836800 )); then return 1; fi
+    if (( cached_at > now + 60 )); then return 1; fi
     if (( now < cached_at )); then
         echo 0
     else
@@ -263,14 +277,20 @@ _l5_cache_write() {
     mkdir -p "$cache_dir"
     chmod 0700 "$cache_dir" 2>/dev/null || true
     path="$(_l5_cache_path "$repo")"
-    tmp="${path}.tmp.$$"
+    # Use mktemp (O_EXCL semantics) instead of ${path}.tmp.$$ to defend
+    # against tmp-path symlink TOCTOU. A pre-Sprint-5 cypherpunk-style probe
+    # showed `> "${path}.tmp.<pid>"` follows a planted symlink; mktemp's
+    # exclusive open prevents that vector.
+    if ! tmp="$(mktemp "${cache_dir}/.tmp.XXXXXX")"; then
+        return 1
+    fi
+    chmod 0600 "$tmp" 2>/dev/null || true
     now="$(_l5_now_epoch)"
     if ! jq -nc --argjson state "$state" --argjson now "$now" \
         '{state: $state, cached_at_epoch: $now}' > "$tmp"; then
         rm -f "$tmp"
         return 1
     fi
-    chmod 0600 "$tmp" 2>/dev/null || true
     mv -f "$tmp" "$path"
 }
 
