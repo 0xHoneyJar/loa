@@ -69,6 +69,7 @@
         },
         "blockers": {
           "type": "array",
+          "maxItems": 101,
           "items": {
             "type": "object",
             "required": ["line", "severity"],

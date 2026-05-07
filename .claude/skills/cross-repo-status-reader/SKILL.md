@@ -76,7 +76,7 @@ Env-var overrides (higher precedence than config):
 | `LOA_CROSS_REPO_TIMEOUT_SECONDS` | 25 |
 | `LOA_CROSS_REPO_NOTES_TAIL_LINES` | 50 |
 | `LOA_CROSS_REPO_GH_CMD` | `gh` (test-mode escape) |
-| `LOA_CROSS_REPO_LOG` | `.run/cross-repo-events.jsonl` |
+| `LOA_CROSS_REPO_LOG` | `.run/cross-repo-status.jsonl` |
 | `LOA_CROSS_REPO_TEST_NOW` | unset (gated on `LOA_CROSS_REPO_TEST_MODE=1` or BATS) |
 
 ## CrossRepoState shape (SDD §5.7.2)

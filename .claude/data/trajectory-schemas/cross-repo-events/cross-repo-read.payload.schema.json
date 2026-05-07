@@ -8,6 +8,7 @@
     "repos_count",
     "success_count",
     "stale_fallback_count",
+    "partial_count",
     "error_count",
     "p95_latency_seconds",
     "rate_limit_remaining"
@@ -17,9 +18,18 @@
     "repos_count": { "type": "integer", "minimum": 0 },
     "success_count": { "type": "integer", "minimum": 0 },
     "stale_fallback_count": { "type": "integer", "minimum": 0 },
+    "partial_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Repos where some but not all endpoints succeeded. Distinct from error_count (all endpoints failed) per general-purpose M2."
+    },
     "error_count": { "type": "integer", "minimum": 0 },
     "p95_latency_seconds": { "type": ["number", "null"], "minimum": 0 },
     "rate_limit_remaining": { "type": ["integer", "null"], "minimum": 0 },
-    "blockers_total": { "type": "integer", "minimum": 0 }
+    "blockers_total": { "type": "integer", "minimum": 0 },
+    "gh_override_active": {
+      "type": "boolean",
+      "description": "True when LOA_CROSS_REPO_GH_CMD env override pointed gh at a non-default binary. Cypherpunk MED-6 audit-visibility surface."
+    }
   }
 }

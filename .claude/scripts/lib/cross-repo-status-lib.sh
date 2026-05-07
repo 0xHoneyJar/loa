@@ -24,7 +24,7 @@
 #   LOA_CROSS_REPO_TIMEOUT_SECONDS        per-repo timeout (default 25)
 #   LOA_CROSS_REPO_NOTES_TAIL_LINES       NOTES.md tail line count (default 50)
 #   LOA_CROSS_REPO_GH_CMD                 override gh path (test-mode escape)
-#   LOA_CROSS_REPO_LOG                    audit log path (default .run/cross-repo-events.jsonl)
+#   LOA_CROSS_REPO_LOG                    audit log path (default .run/cross-repo-status.jsonl)
 #   LOA_CROSS_REPO_TEST_NOW               test-only "now" override (gated on bats env)
 #   LOA_CROSS_REPO_TEST_MODE              "1" enables LOA_CROSS_REPO_TEST_NOW outside bats
 #
@@ -57,12 +57,43 @@ _L5_DEFAULT_FALLBACK_STALE_MAX="900"
 _L5_DEFAULT_PARALLEL="5"
 _L5_DEFAULT_TIMEOUT_SECONDS="25"
 _L5_DEFAULT_NOTES_TAIL_LINES="50"
-_L5_DEFAULT_LOG=".run/cross-repo-events.jsonl"
+_L5_DEFAULT_LOG=".run/cross-repo-status.jsonl"   # name pinned to .claude/data/audit-retention-policy.yaml line 49 (general-purpose review H1)
 
 # Repo identifier validation. owner/name; conservative charset to defend
 # against shell metacharacter injection into `gh api` arguments.
 _L5_REPO_RE='^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$'
 _L5_INT_RE='^[0-9]+$'
+
+# -----------------------------------------------------------------------------
+# _l5_save_shell_opts / _l5_restore_shell_opts
+#
+# Cypherpunk MED-1 / general-purpose M1: `set +e` and `set +o pipefail`
+# inside a function persist into the caller's shell after the function
+# returns. When this lib is sourced into an operator script that runs
+# `set -euo pipefail`, the first call to cross_repo_read would silently
+# disable strict-mode for the rest of the script. These helpers save the
+# caller's option state at function entry and restore it before return.
+#
+# Caller pattern:
+#   local _saved_opts; _saved_opts="$(_l5_save_shell_opts)"
+#   set +e; set +o pipefail
+#   ...function body...
+#   _l5_restore_shell_opts "$_saved_opts"
+# -----------------------------------------------------------------------------
+_l5_save_shell_opts() {
+    local e=0 pf=0
+    case "$-" in *e*) e=1 ;; esac
+    if [[ -o pipefail ]]; then pf=1; fi
+    echo "${e}:${pf}"
+}
+_l5_restore_shell_opts() {
+    local saved="$1" e pf
+    e="${saved%%:*}"
+    pf="${saved##*:}"
+    [[ "$e" == "1" ]] && set -e
+    [[ "$pf" == "1" ]] && set -o pipefail
+    return 0
+}
 
 _l5_validate_repo() {
     local v="$1"
@@ -77,6 +108,16 @@ _l5_validate_repo() {
         _l5_log "ERROR: repo '$v' contains '..' (path-traversal sentinel rejected)"
         return 1
     fi
+    # Cypherpunk MED-5: GitHub itself rejects leading dots/dashes. Tighten
+    # at the lib boundary so an attacker cannot use `--/--` (CLI arg-end-
+    # marker pattern) or `./foo` (cwd-relative interpretations) to slip
+    # through downstream consumers.
+    local owner="${v%%/*}"
+    local name="${v#*/}"
+    case "$owner" in [.-]*) _l5_log "ERROR: repo owner '$owner' starts with '.' or '-'"; return 1 ;; esac
+    case "$owner" in *[.-]) _l5_log "ERROR: repo owner '$owner' ends with '.' or '-'";   return 1 ;; esac
+    case "$name"  in [.-]*) _l5_log "ERROR: repo name '$name' starts with '.' or '-'";   return 1 ;; esac
+    case "$name"  in *[.-]) _l5_log "ERROR: repo name '$name' ends with '.' or '-'";     return 1 ;; esac
     return 0
 }
 
@@ -101,6 +142,17 @@ _l5_cache_dir() {
     esac
     echo "$d"
 }
+
+# -----------------------------------------------------------------------------
+# _l5_cache_invalidate_pattern
+#
+# Cypherpunk HIGH-2: cache_invalidate must not delete files outside the
+# cache file shape. We use `*__*.json` as the shape pin (since cache files
+# are owner__name.json). Misconfigured cache_dir + invalidate-all therefore
+# only deletes files matching the L5 shape — a bare /etc/passwd cannot be
+# clobbered even if cache_dir was set to /etc.
+# -----------------------------------------------------------------------------
+_l5_cache_invalidate_glob='*__*.json'
 
 _l5_log_path() {
     local p
@@ -163,6 +215,18 @@ _l5_gh_cmd() {
     fi
 }
 
+# Cypherpunk MED-6: surface the override boolean in the audit payload so
+# operators auditing trajectory can SEE that an alternate gh binary was
+# used. We don't write to stderr (pollutes consumers parsing stdout); the
+# audit log entry is the operator-visibility surface.
+_l5_gh_override_active() {
+    if [[ -n "${LOA_CROSS_REPO_GH_CMD:-}" ]]; then
+        echo "true"
+    else
+        echo "false"
+    fi
+}
+
 # now() honoring LOA_CROSS_REPO_TEST_NOW only under test mode (mirrors L4 MED-4 fix).
 _l5_now_iso8601() {
     if [[ -n "${LOA_CROSS_REPO_TEST_NOW:-}" ]] \
@@ -214,7 +278,31 @@ cross_repo_cache_get() {
     if ! jq -e '.state' "$path" >/dev/null 2>&1; then
         echo ""; return 0
     fi
-    jq -c '.state' "$path"
+    # Cypherpunk HIGH-1: shape-validate the cached state before serving.
+    # Reject any cache with unexpected field shape — defends against the
+    # cache-poisoning class where an attacker who can write .run/cache
+    # injects arbitrary fields. We strip _latency_seconds (number-only)
+    # at this gate to prevent it from re-entering the heredoc path
+    # (defense-in-depth pairing with CRIT-1's interpolation fix).
+    jq -ec '
+        .state
+        | select(
+            (.repo | type == "string") and
+            (.fetched_at | type == "string") and
+            (.cache_age_seconds | type == "number") and
+            (.fetch_outcome | type == "string") and
+            ((._latency_seconds | type) // "number")
+        )
+        | .recent_commits = (.recent_commits // []) | select(.recent_commits | type == "array")
+        | .open_prs       = (.open_prs       // []) | select(.open_prs       | type == "array")
+        | .ci_runs        = (.ci_runs        // []) | select(.ci_runs        | type == "array")
+        | .blockers       = (.blockers       // []) | select(.blockers       | type == "array")
+        | (._latency_seconds // 0) as $lat
+        | if ($lat | type) == "number" and $lat >= 0 and $lat < 86400
+            then ._latency_seconds = $lat
+            else ._latency_seconds = 0
+          end
+    ' "$path" 2>/dev/null
 }
 
 cross_repo_cache_invalidate() {
@@ -227,7 +315,10 @@ cross_repo_cache_invalidate() {
     cache_dir="$(_l5_cache_dir)"
     if [[ "$target" == "all" ]]; then
         if [[ -d "$cache_dir" ]]; then
-            find "$cache_dir" -maxdepth 1 -name '*.json' -type f -delete 2>/dev/null || true
+            # Shape-pin glob: only files matching the lib's owner__name.json
+            # convention are eligible for delete. Defends against the
+            # operator-typo cache_dir=/etc + invalidate-all DoS.
+            find "$cache_dir" -maxdepth 1 -name "$_l5_cache_invalidate_glob" -type f -delete 2>/dev/null || true
         fi
         return 0
     fi
@@ -258,6 +349,10 @@ _l5_cache_age_seconds() {
     now="$(_l5_now_epoch)"
     if (( cached_at < 1577836800 )); then return 1; fi
     if (( cached_at > now + 60 )); then return 1; fi
+    # Cypherpunk MED-4: future-dated cached_at_epoch was previously echoing 0
+    # (interpreted as "fresh") which would pin a poisoned cache forever. The
+    # bounds above already reject future-dated entries; this branch retained
+    # for clock-skew tolerance (now slightly behind cached_at by <=60s).
     if (( now < cached_at )); then
         echo 0
     else
@@ -321,7 +416,15 @@ out = []
 # BLOCKER: or WARN: markers; line-anchored. Permit leading whitespace and
 # bullet/list markers ('-', '*', '#', '>').
 pat = re.compile(r'^[ \t]*[\-\*\#>]*[ \t]*(BLOCKER|WARN)[ \t]*:[ \t]*(.+?)[ \t]*$', re.MULTILINE)
+# Cypherpunk MED-2: cap total emitted entries at 100 to defend against a
+# pathological NOTES.md (e.g., 64KB of "BLOCKER:x") causing JSON-blowup
+# multiplied across all repos in the cross_repo_read response.
+MAX_ENTRIES = 100
 for m in pat.finditer(text):
+    if len(out) >= MAX_ENTRIES:
+        out.append({"line": "[TRUNCATED]", "severity": "WARN",
+                    "context": f"more than {MAX_ENTRIES} BLOCKER/WARN markers in NOTES.md tail; truncated"})
+        break
     sev = m.group(1).upper()
     line = m.group(0).strip()
     context = m.group(2).strip()
@@ -361,7 +464,10 @@ _l5_gh_call() {
 _l5_fetch_repo() {
     # Relax errexit/pipefail inside this function — gh-call failures are
     # expected and explicitly captured into errors[]; we never want to abort
-    # mid-fetch and leave the caller without a state JSON.
+    # mid-fetch and leave the caller without a state JSON. Save+restore so
+    # the caller's option state is preserved (cypherpunk MED-1 fix).
+    local _saved_opts
+    _saved_opts="$(_l5_save_shell_opts)"
     set +e
     set +o pipefail
 
@@ -442,9 +548,29 @@ _l5_fetch_repo() {
         diag=""
     fi
 
-    # Truncate notes_text to schema cap.
-    if (( ${#notes_text} > 65536 )); then
-        notes_text="${notes_text:0:65530}"
+    # Truncate notes_text to schema cap. Cypherpunk MED-3: byte-slicing
+    # bash parameter expansion can land mid-UTF-8-codepoint, producing
+    # invalid UTF-8 that jq --arg would reject. Use Python to find a safe
+    # boundary at <= 65530 bytes when encoded as UTF-8.
+    if (( ${#notes_text} > 65530 )); then
+        notes_text="$(python3 - "$notes_text" <<'PY'
+import sys
+s = sys.argv[1]
+b = s.encode('utf-8', errors='replace')
+if len(b) <= 65530:
+    print(s, end='')
+else:
+    truncated = b[:65530]
+    while truncated:
+        try:
+            print(truncated.decode('utf-8'), end='')
+            break
+        except UnicodeDecodeError:
+            truncated = truncated[:-1]
+            if not truncated:
+                break
+PY
+)"
     fi
 
     local state
@@ -502,6 +628,7 @@ _l5_fetch_repo() {
     fi
 
     echo "$state"
+    _l5_restore_shell_opts "$_saved_opts"
 }
 
 # -----------------------------------------------------------------------------
@@ -515,6 +642,10 @@ _l5_fetch_repo() {
 #       return error state (no fallback available)
 # -----------------------------------------------------------------------------
 _l5_serve_from_cache_or_fetch() {
+    # cypherpunk MED-1 / general-purpose M1: save+restore caller's option
+    # state so `set +e` / `set +o pipefail` here don't leak.
+    local _saved_opts
+    _saved_opts="$(_l5_save_shell_opts)"
     set +e
     set +o pipefail
     local repo="$1"
@@ -530,7 +661,7 @@ _l5_serve_from_cache_or_fetch() {
                 echo "$cached" | jq -c \
                     --argjson age "$age" \
                     '. + {cache_age_seconds: $age}'
-                return 0
+                _l5_restore_shell_opts "$_saved_opts"; return 0
             fi
         fi
         # Stale but within fallback; try fetch first.
@@ -541,7 +672,7 @@ _l5_serve_from_cache_or_fetch() {
             if [[ "$outcome" == "success" || "$outcome" == "partial" ]]; then
                 _l5_cache_write "$repo" "$state" || true
                 echo "$state"
-                return 0
+                _l5_restore_shell_opts "$_saved_opts"; return 0
             fi
             # outcome=error AND we have a cache within fallback window: prefer
             # the cache (operator-visibility primitive should serve last-known
@@ -552,12 +683,12 @@ _l5_serve_from_cache_or_fetch() {
                     echo "$cached" | jq -c \
                         --argjson age "$age" \
                         '. + {cache_age_seconds: $age, fetch_outcome: "stale_fallback", error_diagnostic: "live fetch failed; serving stale cache (within fallback window)"}'
-                    return 0
+                    _l5_restore_shell_opts "$_saved_opts"; return 0
                 fi
             fi
             # outcome=error and beyond stale-fallback OR no cache: emit error.
             echo "$state"
-            return 0
+            _l5_restore_shell_opts "$_saved_opts"; return 0
         fi
         # Fetch produced no state at all; if within stale-fallback, serve cache
         if (( age <= stale_max )); then
@@ -566,7 +697,7 @@ _l5_serve_from_cache_or_fetch() {
                 echo "$cached" | jq -c \
                     --argjson age "$age" \
                     '. + {cache_age_seconds: $age, fetch_outcome: "stale_fallback", error_diagnostic: "live fetch failed; serving stale cache (within fallback window)"}'
-                return 0
+                _l5_restore_shell_opts "$_saved_opts"; return 0
             fi
         fi
     fi
@@ -580,7 +711,7 @@ _l5_serve_from_cache_or_fetch() {
             _l5_cache_write "$repo" "$state" || true
         fi
         echo "$state"
-        return 0
+        _l5_restore_shell_opts "$_saved_opts"; return 0
     fi
 
     # Total failure with no cache: emit an error repoState.
@@ -604,6 +735,7 @@ _l5_serve_from_cache_or_fetch() {
             ci_runs: [],
             _latency_seconds: 0
         }'
+    _l5_restore_shell_opts "$_saved_opts"
 }
 
 # -----------------------------------------------------------------------------
@@ -621,29 +753,32 @@ _l5_serve_from_cache_or_fetch() {
 cross_repo_read() {
     # Disable errexit/pipefail: per-repo failures are explicitly captured
     # into the response shape (FR-L5-5). A bats test or operator script with
-    # `set -e` must not kill this function mid-aggregation; that would race
-    # the RETURN trap and delete worker output before reads complete.
+    # `set -e` must not kill this function mid-aggregation.
+    # Cypherpunk MED-1 / general-purpose M1: save+restore caller's option
+    # state so set +e doesn't leak into a sourced operator script.
+    local _saved_opts
+    _saved_opts="$(_l5_save_shell_opts)"
     set +e
     set +o pipefail
 
     local repos_arg="${1:-}"
     if [[ -z "$repos_arg" ]]; then
         _l5_log "cross_repo_read: missing repos_json argument"
-        return 2
+        _l5_restore_shell_opts "$_saved_opts"; return 2
     fi
     if ! echo "$repos_arg" | jq -e 'type == "array"' >/dev/null 2>&1; then
         _l5_log "cross_repo_read: repos_json must be a JSON array"
-        return 2
+        _l5_restore_shell_opts "$_saved_opts"; return 2
     fi
     local count
     count="$(echo "$repos_arg" | jq 'length')"
     if (( count == 0 )); then
         _l5_log "cross_repo_read: empty repos array"
-        return 2
+        _l5_restore_shell_opts "$_saved_opts"; return 2
     fi
     if (( count > 50 )); then
         _l5_log "cross_repo_read: too many repos ($count); cap is 50"
-        return 2
+        _l5_restore_shell_opts "$_saved_opts"; return 2
     fi
 
     # Validate every repo identifier up front to defend against shell-injection
@@ -652,7 +787,7 @@ cross_repo_read() {
     for repo in $(echo "$repos_arg" | jq -r '.[]'); do
         _l5_validate_repo "$repo" || {
             _l5_log "cross_repo_read: invalid repo identifier"
-            return 2
+            _l5_restore_shell_opts "$_saved_opts"; return 2
         }
     done
 
@@ -660,7 +795,7 @@ cross_repo_read() {
     gh="$(_l5_gh_cmd)"
     if ! command -v "$gh" >/dev/null 2>&1; then
         _l5_log "cross_repo_read: gh CLI not found at '$gh'"
-        return 1
+        _l5_restore_shell_opts "$_saved_opts"; return 1
     fi
 
     local work
@@ -743,6 +878,16 @@ cross_repo_read() {
     done
 
     # p95 latency computation across per-repo _latency_seconds.
+    #
+    # CRIT-1 (cypherpunk): the previous implementation interpolated
+    # $latencies into a Python heredoc via `<<PY` (unquoted delimiter), which
+    # was a shell-parameter expansion. Worker output files include a
+    # _latency_seconds field that is preserved verbatim through the cache
+    # round-trip — an attacker with .run/cache write access could inject
+    # `1\n"""\n<arbitrary python>\n"""` and trigger RCE in the operator
+    # shell on the next stale-fallback. Fix: route latency values through
+    # stdin (NOT shell-interpolation), and validate each value as numeric
+    # via Python before use.
     local latencies
     latencies="$(for ((idx=0; idx<i; idx++)); do
         local f="${work}/${idx}.json"
@@ -751,16 +896,21 @@ cross_repo_read() {
         fi
     done | sort -n)"
     local p95
-    p95="$(python3 - <<PY
-import sys
-data = """${latencies}""".strip().split()
-data = [float(x) for x in data if x]
+    p95="$(printf '%s\n' "$latencies" | python3 - <<'PY'
+import sys, math, re
+raw = sys.stdin.read().split()
+NUMERIC = re.compile(r'^[0-9]+(\.[0-9]+)?$')
+data = []
+for x in raw:
+    if NUMERIC.match(x):
+        data.append(float(x))
 if not data:
     print("null")
 else:
     data.sort()
-    # ceil-index p95
-    idx = max(0, int(len(data) * 0.95) - 1)
+    # ceil-index p95 (cypherpunk MED-5 / general-purpose M5 fix:
+    # math.ceil over int() so small-N samples produce the correct p95).
+    idx = max(0, math.ceil(len(data) * 0.95) - 1)
     if idx >= len(data):
         idx = len(data) - 1
     print(data[idx])
@@ -799,21 +949,30 @@ PY
     # Audit event (best-effort).
     local payload log_path
     log_path="$(_l5_log_path)"
+    # general-purpose M2: emit partial_count separately from error_count so
+    # the audit trail distinguishes "some endpoints failed" from "all failed".
+    # Cypherpunk MED-6: gh_override_active surfaces in audit payload.
+    local gh_override
+    gh_override="$(_l5_gh_override_active)"
     payload="$(jq -nc \
         --argjson repos_count "$count" \
         --argjson success_count "$success_n" \
         --argjson stale_fallback_count "$stale_n" \
-        --argjson error_count "$((partial_n + error_n))" \
+        --argjson partial_count "$partial_n" \
+        --argjson error_count "$error_n" \
         --argjson p95 "$p95" \
         --argjson blockers_total "$blockers_total" \
+        --argjson gh_override "$gh_override" \
         '{
             repos_count: $repos_count,
             success_count: $success_count,
             stale_fallback_count: $stale_fallback_count,
+            partial_count: $partial_count,
             error_count: $error_count,
             p95_latency_seconds: $p95,
             rate_limit_remaining: null,
-            blockers_total: $blockers_total
+            blockers_total: $blockers_total,
+            gh_override_active: $gh_override
         }')"
     audit_emit "L5" "cross_repo.read" "$payload" "$log_path" \
         || _l5_log "cross_repo_read: audit_emit failed (non-fatal)"
@@ -826,4 +985,6 @@ PY
         find "$work" -type f -delete 2>/dev/null || true
         rmdir "$work" 2>/dev/null || true
     fi
+
+    _l5_restore_shell_opts "$_saved_opts"
 }

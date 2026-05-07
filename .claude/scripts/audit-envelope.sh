@@ -826,6 +826,7 @@ _audit_primitive_id_for_log() {
         cost-budget-events*) echo "L2"; return 0 ;;
         cycles*) echo "L3"; return 0 ;;
         trust-ledger*) echo "L4"; return 0 ;;
+        cross-repo-status*) echo "L5"; return 0 ;;
         *)
             # Inspect first envelope-like line.
             if [[ -f "$log_path" ]]; then
