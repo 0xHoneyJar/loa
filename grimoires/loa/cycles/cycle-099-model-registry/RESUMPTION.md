@@ -1,6 +1,6 @@
 # cycle-099-model-registry — Session Resumption Brief
 
-**Last updated**: 2026-05-06 (**Sprint 2D.d SHIPPED at #748 (T2.6 fully closed)** — SC-14 property suite + 7 invariants + 100-iter PR-check + 1000-iter nightly stress. v1.131.0 will auto-tag. **Next: cycle-098 Sprint 4 (L4 graduated-trust, parked during cycle-099 urgency, now unblocked) OR Sprint 2E (T2.7+T2.8 operator-visible config knobs)**)
+**Last updated**: 2026-05-07 (**Sprint 2E SHIPPED at #750 (v1.132.0)** + **PR #751 BB OpenAI endpoint_family routing fix** + **PR #752 gpt-5.5 temperature_supported + flatline SSOT migration (closes #753)**. All three multi-model subsystems — Bridgebuilder + Red Team + Flatline — now invoke top-tier models successfully. Cycle-099 Sprint 2 main thread closed. **Next: cycle-098 Sprint 4 (L4 graduated-trust, parked) OR cycle-099 T2.9-T2.16 operator-tooling (smaller scope) OR BB E2E verification (run BB against fresh PR to confirm full chain works against real workload)**)
 **Author**: deep-name + Claude Opus 4.7 1M
 **Purpose**: Crash-recovery + cross-session continuity. Read first when resuming cycle-099 work.
 
@@ -17,7 +17,7 @@
 
 **Semver**: 1.130.0 = MINOR (additive only). Backward-compat: legacy `aliases:` block resolves via FR-3.9 stage 4 with deprecation warning; `gpt-5.3-codex` immutable self-map preserved; `LOA_FORCE_LEGACY_ALIASES=1` kill-switch active.
 
-## 🚨 TL;DR — Sprint 1 + 2A + 2B + 2C + 2D.a+b + 2D.c + 2D.d all SHIPPED; 18 cycle-099 PRs + cheval headless adapters + v1.130.0 named release on main; 3-way cross-runtime parity gate + property suite ACTIVE; **T2.6 fully closed**
+## 🚨 TL;DR — Sprint 1 + 2A + 2B + 2C + 2D.a+b + 2D.c + 2D.d + **2E** all SHIPPED; **20 cycle-099 PRs** + cheval headless adapters + v1.130.0 named release on main; 3-way cross-runtime parity gate + property suite + tier_groups defaults + prefer_pro wiring all ACTIVE; **T2.6 + T2.7 + T2.8 fully closed**; **BB + Red Team + Flatline all routing top-tier models post PR #751 + #752**
 
 **On main (11 PRs):**
 - chore #721 (`9ef33055`) — cycle-099 ledger activation + planning artifacts (mirrors cycle-098 #679 pattern)
@@ -372,7 +372,52 @@ Flatline SDD pass #2 SKP-006 CRITICAL 870 + pass #3 IMP-002 HIGH_CONSENSUS 880.
 
 ---
 
-## Brief H — Cycle-098 Sprint 4 (L4 graduated-trust) OR Sprint 2E (T2.7 + T2.8)
+## Brief I — next session candidates (post Sprint 2E + #751 + #752)
+
+**Status as of 2026-05-07**: cycle-099 Sprint 1 + 2A + 2B + 2C + 2D.a+b + 2D.c + 2D.d + **2E** all SHIPPED (20 PRs on main, v1.132.0). All three multi-model subsystems route top-tier models cleanly post the PR #751 + #752 wave. Issue #753 closed. Main HEAD `ff243eed`.
+
+### Option A — BB end-to-end verification (smallest scope, ~30min)
+
+We did unit-level adapter tests for PR #751 + #752 (direct adapter invocation returns ROUTING_OK / TEMP_FIX_OK / GPT55_OK / openai:gpt-5.5-pro from resolver). We did NOT actually run BB against a fresh PR end-to-end — the dry-run on PR #750 returned `items: 0` because that PR was already-reviewed. To gain end-to-end confidence: cut a tiny no-op PR (or use the next real PR), run `.claude/skills/bridgebuilder-review/resources/entry.sh --pr <N>`, verify all 3 models return successfully (no Anthropic-only signal). This validates the routing chain in the path actual BB users hit.
+
+### Option B — cycle-099 T2.9-T2.16 operator-tooling
+
+Cycle-099 Sprint 2 has 7 operator-tooling tasks remaining:
+- T2.9 — Legacy-shape backward compat (FR-3.7 deprecation warnings)
+- T2.10 — Permissions baseline + acknowledge flag (FR-1.4)
+- T2.11 — Endpoint allowlist integration (T1.15 wrapping)
+- T2.12 — `model-invoke --validate-bindings` CLI
+- T2.13 — `LOA_DEBUG_MODEL_RESOLUTION=1` tracing
+- T2.14 — `.loa.config.yaml.example` worked examples
+- T2.16 — `network-fs-merged-aliases.md` runbook
+
+These are small-to-medium tasks. T2.12 + T2.13 (validate-bindings + tracing) are the highest-value operator UX surfaces; T2.14 + T2.16 are docs. Could batch ~2-3 per sub-sprint.
+
+### Option C — Cycle-098 Sprint 4 (L4 graduated-trust)
+
+Read `grimoires/loa/cycles/cycle-098-agent-network/RESUMPTION.md` for the full Brief D handoff. Larger scope; possibly MAJOR if it introduces breaking changes to the L1-L7 envelope. Parked since 2026-05-04.
+
+### Option D — Latent locale-fix (small follow-up)
+
+`gen-adapter-maps.sh` currently produces locale-dependent output (en_AU.UTF-8 vs C.UTF-8 reorders bash assoc array entries). I worked around this in PR #750 by regenerating with `LC_ALL=C.UTF-8`. The proper fix is to add `export LC_ALL=C.UTF-8` to `gen-adapter-maps.sh` itself so future contributors don't hit it. Trivial PR (~5 lines + update runbook).
+
+### Recommendation
+
+**A then B in parallel session**. Option A confirms the wave actually works end-to-end (insurance against regression we shipped today). Option B drains operator-facing scope quickly. Option C is the bigger architectural piece that benefits from a fresh context.
+
+### Quick handover to next session
+
+* Main HEAD: `ff243eed` (PR #752 merge)
+* Latest releases: v1.130.0 (named milestone) → v1.131.0 (Sprint 2D.d) → v1.132.0 (Sprint 2E)
+* Today's PRs: #748 (2D.d) → #750 (2E) → #751 (BB OpenAI routing) → #752 (gpt-5.5 temp + flatline SSOT)
+* Closed issues: #753 (cheval temperature on gpt-5.5)
+* Pre-existing CI flakes (admin-merged through): macOS bash 3.2 (TS codegen), beads BHM tests
+* Latent: `gen-adapter-maps.sh` locale-dependence (regen with `LC_ALL=C.UTF-8` to match CI)
+* Memory entries written today: `project_top_models_routing_fixes.md`, `project_cycle099_sprint2e_shipped.md`, `feedback_bb_openai_endpoint_family_routing.md`, `project_cycle099_sprint2dd_shipped.md`, `project_v1130_named_release.md`, `feedback_named_release_pattern.md`
+
+---
+
+## Brief H — Cycle-098 Sprint 4 (L4 graduated-trust) OR Sprint 2E (T2.7 + T2.8)  [HISTORIC — Sprint 2E SHIPPED at #750]
 
 **Status as of 2026-05-06**: cycle-099 Sprint 1 + 2A + 2B + 2C + 2D.a+b + 2D.c + **2D.d SHIPPED** (18 PRs on main + #748 sprint-2D.d). **T2.6 fully closed.** Sprint 2D.d activates SC-14 property suite: 7 invariants × 100 random configs/PR + 1000-iter nightly stress. **FR-3.9 canonical resolver SHIPPED across all 3 runtimes** (Python canonical + bash twin + TS codegen). 3-way cross-runtime byte-equality + JSON Schema validation + property invariants all enforced on every PR. Production-yaml smoke resolves 21/21 framework agents.
 
