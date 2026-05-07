@@ -1409,9 +1409,79 @@ trust_auto_raise_check() {
 }
 
 # -----------------------------------------------------------------------------
-# trust_disable — TODO Sprint 4D.
+# trust_disable [--reason <text>] [--operator <slug>]
+#
+# Sprint 4D — emits a trust.disable event sealing the ledger. Per PRD §849
+# (L4 row): on disable, the ledger is preserved (immutable hash-chain);
+# subsequent reads return last-known-tier; no further transitions allowed.
+#
+# Already-sealed ledgers reject re-disable (no double-seal).
+#
+# Exit codes:
+#   0 disable recorded
+#   1 ledger / audit_emit error
+#   2 invalid argument
+#   3 ledger already sealed (idempotent refusal)
 # -----------------------------------------------------------------------------
 trust_disable() {
-    _l4_log "trust_disable: not yet implemented (Sprint 4D)"
-    return 99
+    local reason="" operator=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --reason)   reason="${2:-}";   shift 2 ;;
+            --operator) operator="${2:-}"; shift 2 ;;
+            *)          shift ;;
+        esac
+    done
+
+    if [[ -z "$reason" ]]; then
+        _l4_log "trust_disable: --reason is required"
+        return 2
+    fi
+    if (( ${#reason} > 4096 )); then
+        _l4_log "trust_disable: reason exceeds 4096 chars"
+        return 2
+    fi
+    if [[ -z "$operator" ]]; then
+        _l4_log "trust_disable: --operator is required"
+        return 2
+    fi
+    _l4_validate_token "$operator" "operator" || return 2
+
+    local ledger lock_file
+    ledger="$(_l4_ledger_path)"
+    lock_file="$(_l4_txn_lock_path "$ledger")"
+    mkdir -p "$(dirname "$ledger")"
+    : > "$lock_file" 2>/dev/null || touch "$lock_file"
+
+    _audit_require_flock || return 1
+
+    local rc=0
+    {
+        flock -w 10 9 || {
+            _l4_log "trust_disable: failed to acquire txn lock on $lock_file"
+            return 1
+        }
+
+        if _l4_ledger_is_sealed "$ledger"; then
+            _l4_log "trust_disable: ledger already sealed; ignoring"
+            return 3
+        fi
+
+        local sealed_at
+        sealed_at="$(_l4_now_iso8601)"
+
+        local payload
+        payload="$(jq -nc \
+            --arg operator "$operator" \
+            --arg reason "$reason" \
+            --arg sealed_at "$sealed_at" \
+            '{operator: $operator, reason: $reason, sealed_at: $sealed_at}')"
+
+        if ! audit_emit "L4" "trust.disable" "$payload" "$ledger"; then
+            _l4_log "trust_disable: audit_emit failed"
+            return 1
+        fi
+    } 9>"$lock_file"
+    rc=$?
+    return "$rc"
 }
