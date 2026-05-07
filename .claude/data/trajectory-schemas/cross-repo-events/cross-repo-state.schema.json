@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.dev/loa/schemas/cross-repo-events/cross-repo-state.schema.json",
+  "title": "L5 CrossRepoState",
+  "description": "Return shape of cross_repo_read. Per SDD §5.7.2. Cycle-098 Sprint 5. Validated by tests; not enforced via audit_emit (L5 is read-mostly; the read is logged once per cross_repo_read invocation as cross_repo.read event with summary metrics).",
+  "type": "object",
+  "required": ["repos", "fetched_at"],
+  "additionalProperties": false,
+  "properties": {
+    "repos": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/repoState" }
+    },
+    "fetched_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "p95_latency_seconds": {
+      "type": ["number", "null"],
+      "minimum": 0
+    },
+    "rate_limit_remaining": {
+      "type": ["integer", "null"],
+      "minimum": 0
+    },
+    "partial_failures": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of repos where fetch_outcome != success"
+    }
+  },
+  "$defs": {
+    "repoState": {
+      "type": "object",
+      "required": [
+        "repo",
+        "fetched_at",
+        "cache_age_seconds",
+        "fetch_outcome"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "repo": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$",
+          "description": "owner/name. Validated to defend against shell-injection via gh api args."
+        },
+        "fetched_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "cache_age_seconds": {
+          "type": "number",
+          "minimum": 0,
+          "description": "0 when read directly from gh API; >0 when served from TTL or stale-fallback cache."
+        },
+        "fetch_outcome": {
+          "type": "string",
+          "enum": ["success", "partial", "error", "stale_fallback"]
+        },
+        "error_diagnostic": {
+          "type": ["string", "null"],
+          "maxLength": 4096,
+          "description": "Free-form operator-readable error explanation. null on success."
+        },
+        "notes_md_tail": {
+          "type": ["string", "null"],
+          "maxLength": 65536
+        },
+        "blockers": {
+          "type": "array",
+          "maxItems": 101,
+          "items": {
+            "type": "object",
+            "required": ["line", "severity"],
+            "additionalProperties": false,
+            "properties": {
+              "line": { "type": "string", "maxLength": 4096 },
+              "severity": { "type": "string", "enum": ["BLOCKER", "WARN"] },
+              "context": { "type": ["string", "null"], "maxLength": 4096 }
+            }
+          }
+        },
+        "sprint_state": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "properties": {
+            "current_sprint_id": { "type": ["string", "null"] },
+            "status": {
+              "type": ["string", "null"],
+              "enum": ["active", "completed", "halted", null]
+            }
+          }
+        },
+        "recent_commits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["sha"],
+            "properties": {
+              "sha": { "type": "string", "pattern": "^[0-9a-f]{7,64}$" },
+              "message": { "type": "string", "maxLength": 4096 },
+              "author": { "type": "string", "maxLength": 256 },
+              "date": { "type": ["string", "null"], "format": "date-time" }
+            }
+          }
+        },
+        "open_prs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["number"],
+            "properties": {
+              "number": { "type": "integer", "minimum": 1 },
+              "title": { "type": "string", "maxLength": 1024 },
+              "author": { "type": "string", "maxLength": 256 },
+              "draft": { "type": "boolean" }
+            }
+          }
+        },
+        "ci_runs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["workflow"],
+            "properties": {
+              "workflow": { "type": "string", "maxLength": 256 },
+              "status": { "type": "string", "maxLength": 64 },
+              "conclusion": { "type": ["string", "null"], "maxLength": 64 },
+              "started_at": { "type": ["string", "null"], "format": "date-time" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
