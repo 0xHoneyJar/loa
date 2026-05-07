@@ -24,12 +24,23 @@ get_symlink_manifest() {
   local repo_root="${2:-$(pwd)}"
 
   # Phase 1: Directory symlinks (top-level .claude/ dirs that map 1:1 to submodule)
+  # Issue #755 fix: cycle-099 introduced the cheval Python adapter at
+  # .claude/adapters/cheval.py and the canonical model registry at
+  # .claude/defaults/model-config.yaml. Both are required by model-invoke +
+  # any Flatline-routed call. Without them, fresh-clone consumer repos see:
+  #   - "cheval.py not found at .claude/adapters/cheval.py"
+  #   - "Available agents: []" (cheval loader's Layer 1 System Zone defaults
+  #     can't read .claude/defaults/model-config.yaml)
+  # Both are framework-managed (System Zone) directories that map 1:1 to
+  # the submodule, same as scripts / protocols / hooks / data / schemas.
   MANIFEST_DIR_SYMLINKS=(
     ".claude/scripts:../${submodule}/.claude/scripts"
     ".claude/protocols:../${submodule}/.claude/protocols"
     ".claude/hooks:../${submodule}/.claude/hooks"
     ".claude/data:../${submodule}/.claude/data"
     ".claude/schemas:../${submodule}/.claude/schemas"
+    ".claude/adapters:../${submodule}/.claude/adapters"
+    ".claude/defaults:../${submodule}/.claude/defaults"
   )
 
   # Phase 2: File and nested symlinks (deeper paths with 2-level relative targets)

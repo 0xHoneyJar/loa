@@ -23,6 +23,8 @@ create_mock_submodule() {
     mkdir -p "${submodule_path}/.claude/hooks"
     mkdir -p "${submodule_path}/.claude/data"
     mkdir -p "${submodule_path}/.claude/schemas"
+    mkdir -p "${submodule_path}/.claude/adapters"
+    mkdir -p "${submodule_path}/.claude/defaults"
     mkdir -p "${submodule_path}/.claude/skills/loa-test-skill"
     mkdir -p "${submodule_path}/.claude/commands"
     mkdir -p "${submodule_path}/.claude/loa/reference"
@@ -38,6 +40,8 @@ create_mock_submodule() {
     echo "# hook" > "${submodule_path}/.claude/hooks/test.sh"
     echo '{}' > "${submodule_path}/.claude/data/test.json"
     echo '{}' > "${submodule_path}/.claude/schemas/test.json"
+    echo '#!/usr/bin/env python3' > "${submodule_path}/.claude/adapters/cheval.py"
+    echo 'providers: {}' > "${submodule_path}/.claude/defaults/model-config.yaml"
     echo '{}' > "${submodule_path}/.claude/settings.json"
     echo "name: test" > "${submodule_path}/.claude/skills/loa-test-skill/index.yaml"
     echo "# cmd" > "${submodule_path}/.claude/commands/test.md"
@@ -58,6 +62,9 @@ create_test_symlinks() {
     ln -sf "../${submodule_path}/.claude/hooks" ".claude/hooks"
     ln -sf "../${submodule_path}/.claude/data" ".claude/data"
     ln -sf "../${submodule_path}/.claude/schemas" ".claude/schemas"
+    # Issue #755: cheval requires .claude/adapters/ + .claude/defaults/.
+    ln -sf "../${submodule_path}/.claude/adapters" ".claude/adapters"
+    ln -sf "../${submodule_path}/.claude/defaults" ".claude/defaults"
 
     # File symlinks under .claude/loa/
     ln -sf "../../${submodule_path}/.claude/loa/CLAUDE.loa.md" ".claude/loa/CLAUDE.loa.md"
@@ -179,7 +186,7 @@ teardown() {
     [ "${output}" -ge 1 ]
 }
 
-@test "symlink manifest includes all 5 directory symlinks" {
+@test "symlink manifest includes all 7 directory symlinks (incl. cheval-#755)" {
     local manifest_lib="${SCRIPT_DIR}/lib/symlink-manifest.sh"
     run grep -A30 "MANIFEST_DIR_SYMLINKS=(" "$manifest_lib"
     echo "$output" | grep -q ".claude/scripts"
@@ -187,6 +194,23 @@ teardown() {
     echo "$output" | grep -q ".claude/hooks"
     echo "$output" | grep -q ".claude/data"
     echo "$output" | grep -q ".claude/schemas"
+    # Issue #755 — cheval Python adapter + canonical model registry
+    echo "$output" | grep -q ".claude/adapters"
+    echo "$output" | grep -q ".claude/defaults"
+}
+
+@test "adapters_symlink: .claude/adapters is a symlink to submodule (#755)" {
+    [[ -L .claude/adapters ]]
+    [[ "$(readlink .claude/adapters)" == "../.loa/.claude/adapters" ]]
+    # And cheval.py reachable via the symlink (the regression mode #755 reports).
+    [[ -f .claude/adapters/cheval.py ]]
+}
+
+@test "defaults_symlink: .claude/defaults is a symlink to submodule (#755)" {
+    [[ -L .claude/defaults ]]
+    [[ "$(readlink .claude/defaults)" == "../.loa/.claude/defaults" ]]
+    # And model-config.yaml reachable via the symlink.
+    [[ -f .claude/defaults/model-config.yaml ]]
 }
 
 @test "symlink manifest includes loa file symlinks" {

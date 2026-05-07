@@ -132,7 +132,128 @@ check_enabled() {
 check_models() {
     MODELS[primary]=$(read_config_value ".flatline_protocol.models.primary" "opus")
     MODELS[secondary]=$(read_config_value ".flatline_protocol.models.secondary" "gpt-5.3-codex")
-    MODELS[tertiary]=$(read_config_value ".flatline_protocol.models.tertiary" "gemini-2.5-pro")
+    # Issue #756: orchestrator's get_model_tertiary() reads hounfour first,
+    # then flatline_protocol.models.tertiary. Mirror that lookup order so
+    # readiness reports the same active tertiary the orchestrator will use —
+    # otherwise readiness can show "Tertiary: gemini-2.5-pro" while the
+    # orchestrator runs gemini-3.1-pro-preview, which masks misconfiguration.
+    local tertiary_hounfour
+    tertiary_hounfour=$(read_config_value ".hounfour.flatline_tertiary_model" "")
+    if [[ -n "$tertiary_hounfour" ]]; then
+        MODELS[tertiary]="$tertiary_hounfour"
+    else
+        MODELS[tertiary]=$(read_config_value ".flatline_protocol.models.tertiary" "gemini-2.5-pro")
+    fi
+}
+
+# Issue #756: eager validation against the alias registry. Without this, an
+# operator setting `hounfour.flatline_tertiary_model: gemini-3.1-pro-preview`
+# (the canonical google api id, NOT a registered alias) sees readiness report
+# READY but every Flatline tertiary call then fails with cheval's
+# `Unknown alias: 'gemini-3.1-pro-preview'`. Surface DEGRADED + actionable
+# error AT readiness time instead of after the operator burns API spend.
+#
+# Accepts:
+#   1. Registered alias name (in `.aliases` of model-config.yaml).
+#   2. Explicit pin form `<provider>:<model_id>` (matches FR-3.9 stage 1).
+#
+# Populates ALIAS_VALIDATION_ERRORS[role] = error string on miss.
+declare -A ALIAS_VALIDATION_ERRORS
+declare -a REGISTERED_ALIASES_CACHE=()
+_REGISTERED_ALIASES_LOADED=false
+_REGISTRY_AVAILABLE=false  # set to true when registry actually loaded ≥1 alias
+
+_load_registered_aliases() {
+    if [[ "$_REGISTERED_ALIASES_LOADED" == "true" ]]; then
+        return 0
+    fi
+    local defaults_yaml="${LOA_DEFAULTS_YAML:-${PROJECT_ROOT:-.}/.claude/defaults/model-config.yaml}"
+    if [[ ! -f "$defaults_yaml" ]]; then
+        # Registry unavailable: alias validation must be SKIPPED (not applied
+        # to an empty cache). is_valid_alias gates on _REGISTRY_AVAILABLE so
+        # operators in submodule-without-defaults-symlink mode (issue #755 if
+        # not yet applied) don't see false-positive DEGRADED states. The
+        # operator's actual misconfiguration (a model_id where alias is
+        # expected) will surface later via cheval — degraded behaviour, but
+        # this readiness check is informational, not the canonical defense.
+        # Warning behind LOA_FLATLINE_VERBOSE=1 because bats `run` merges
+        # stderr into output, polluting JSON-parse assertions in existing
+        # readiness tests that don't have the defaults yaml available.
+        if [[ "${LOA_FLATLINE_VERBOSE:-0}" == "1" ]]; then
+            echo "WARNING: $defaults_yaml not found; alias validation skipped (#756 gate inactive)" >&2
+        fi
+        _REGISTERED_ALIASES_LOADED=true
+        return 0
+    fi
+    # Read alias keys from yaml. yq exits non-zero on missing key; tolerate.
+    local aliases_str
+    aliases_str=$(yq -r '.aliases // {} | keys | .[]' "$defaults_yaml" 2>/dev/null || true)
+    if [[ -n "$aliases_str" ]]; then
+        # Read alias-by-alias into the array (newline-delimited).
+        while IFS= read -r alias_name; do
+            [[ -n "$alias_name" ]] && REGISTERED_ALIASES_CACHE+=("$alias_name")
+        done <<< "$aliases_str"
+    fi
+    if [[ ${#REGISTERED_ALIASES_CACHE[@]} -gt 0 ]]; then
+        _REGISTRY_AVAILABLE=true
+    fi
+    _REGISTERED_ALIASES_LOADED=true
+}
+
+# is_valid_alias <model_or_pin> — return 0 if valid, 1 if not. Quiet — caller
+# decides whether to emit error.
+is_valid_alias() {
+    local model="$1"
+    [[ -z "$model" ]] && return 1
+    # Accept explicit pin form `<provider>:<model_id>` (FR-3.9 stage 1).
+    # The bash twin's _stage1_explicit_pin uses the same partition.
+    if [[ "$model" == *:* ]]; then
+        local provider="${model%%:*}"
+        local model_id="${model#*:}"
+        # Reject URL-shaped values (cycle-099 #761 hardening). A legitimate
+        # provider:model_id pin never has `//` after the colon.
+        if [[ "$model_id" == //* ]]; then
+            return 1
+        fi
+        if [[ -n "$provider" && -n "$model_id" ]]; then
+            return 0
+        fi
+    fi
+    _load_registered_aliases
+    local registered
+    for registered in "${REGISTERED_ALIASES_CACHE[@]:-}"; do
+        if [[ "$registered" == "$model" ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Issue #756 main validator: cross-check each role's configured model
+# against the alias registry. Records error messages with the alias-list
+# hint so operators can map their mistake to the correct alias name.
+# Skip entirely when the registry isn't loadable (submodule without defaults
+# symlink; test isolation that strips defaults yaml). The check is
+# informational; the canonical failure mode is cheval rejecting at runtime.
+check_alias_registry() {
+    _load_registered_aliases
+    if [[ "$_REGISTRY_AVAILABLE" != "true" ]]; then
+        return 0
+    fi
+    local roles=("primary" "secondary" "tertiary")
+    local role
+    for role in "${roles[@]}"; do
+        local model="${MODELS[$role]:-}"
+        [[ -z "$model" ]] && continue
+        if ! is_valid_alias "$model"; then
+            local hint=""
+            if [[ ${#REGISTERED_ALIASES_CACHE[@]} -gt 0 ]]; then
+                hint=" Available aliases: $(printf '%s, ' "${REGISTERED_ALIASES_CACHE[@]}" | sed 's/, $//')"
+            fi
+            ALIAS_VALIDATION_ERRORS[$role]="Configured $role '$model' is not a registered alias and not a 'provider:model_id' pin.$hint"
+            RECOMMENDATIONS+=("Set ${role^} to a registered alias (e.g. 'gemini-3.1-pro' instead of 'gemini-3.1-pro-preview') or use 'google:<model_id>' pin form")
+        fi
+    done
 }
 
 check_provider_keys() {
@@ -192,13 +313,28 @@ determine_status() {
         fi
     done
 
+    # Issue #756: any alias-validation error downgrades to DEGRADED
+    # regardless of provider-key availability. An invalid alias means the
+    # actual cheval call will fail, so READY would be a lie.
+    # bash 5.2 still raises "unbound variable" on `${!foo[@]}` for an empty
+    # associative array under `set -u`; gate via `${foo[@]+_}` first.
+    local alias_error_count=0
+    if [[ "${ALIAS_VALIDATION_ERRORS[@]+_}" ]]; then
+        local _role
+        for _role in "${!ALIAS_VALIDATION_ERRORS[@]}"; do
+            if [[ -n "${ALIAS_VALIDATION_ERRORS[$_role]}" ]]; then
+                alias_error_count=$((alias_error_count + 1))
+            fi
+        done
+    fi
+
     if [[ $configured_count -eq 0 ]]; then
         echo "NO_API_KEYS"
         return 2
     elif [[ $available_count -eq 0 ]]; then
         echo "NO_API_KEYS"
         return 2
-    elif [[ $available_count -lt $configured_count ]]; then
+    elif [[ $available_count -lt $configured_count ]] || [[ $alias_error_count -gt 0 ]]; then
         echo "DEGRADED"
         return 3
     else
@@ -241,6 +377,27 @@ output_json() {
         --arg tertiary "${MODELS[tertiary]:-}" \
         '{primary: $primary, secondary: $secondary, tertiary: $tertiary}')
 
+    # Issue #756: surface alias-validation errors in JSON output. Operators
+    # parsing this output (CI, dashboards) need a machine-readable signal,
+    # not a recommendations text-blob.
+    # `${ALIAS_VALIDATION_ERRORS[@]+_}` guard to avoid bash 5.2's strict-mode
+    # `unbound variable` on accessing an empty associative array's keys.
+    local alias_errors_json="{}"
+    if [[ "${ALIAS_VALIDATION_ERRORS[@]+_}" ]]; then
+        # Reach individual entries via the +_ guard form so missing keys
+        # produce empty strings instead of raising under set -u.
+        local _ae_primary _ae_secondary _ae_tertiary
+        _ae_primary="${ALIAS_VALIDATION_ERRORS[primary]+${ALIAS_VALIDATION_ERRORS[primary]}}"
+        _ae_secondary="${ALIAS_VALIDATION_ERRORS[secondary]+${ALIAS_VALIDATION_ERRORS[secondary]}}"
+        _ae_tertiary="${ALIAS_VALIDATION_ERRORS[tertiary]+${ALIAS_VALIDATION_ERRORS[tertiary]}}"
+        alias_errors_json=$(jq -n \
+            --arg primary "$_ae_primary" \
+            --arg secondary "$_ae_secondary" \
+            --arg tertiary "$_ae_tertiary" \
+            '{primary: $primary, secondary: $secondary, tertiary: $tertiary}
+             | with_entries(select(.value != ""))')
+    fi
+
     # Build recommendations array
     local recs_json
     if [[ ${#RECOMMENDATIONS[@]} -gt 0 ]]; then
@@ -257,6 +414,7 @@ output_json() {
         --argjson exit_code "$exit_code" \
         --argjson providers "$providers_json" \
         --argjson models "$models_json" \
+        --argjson alias_errors "$alias_errors_json" \
         --argjson recommendations "$recs_json" \
         --arg timestamp "$timestamp" \
         '{
@@ -264,6 +422,7 @@ output_json() {
             exit_code: $exit_code,
             providers: $providers,
             models: $models,
+            alias_validation_errors: $alias_errors,
             recommendations: $recommendations,
             timestamp: $timestamp
         }'
@@ -339,6 +498,12 @@ main() {
 
     # Read model configuration
     check_models
+
+    # Issue #756: validate configured models against the alias registry
+    # BEFORE provider-key checks, so a misconfigured alias surfaces DEGRADED
+    # even if all keys are present. Without this, the operator hits cheval's
+    # `Unknown alias: ...` at runtime instead of seeing the readiness signal.
+    check_alias_registry
 
     # Check provider API keys
     check_provider_keys
