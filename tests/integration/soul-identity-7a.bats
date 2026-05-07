@@ -515,9 +515,15 @@ BODY
 
 @test "T-AUDIT-2 (FR-L7) soul_emit validates payload against soul-surface schema" {
     # Missing required 'outcome' field → schema rejection.
+    # cycle-098 follow-up #776 (BB iter-1 LOW-1 / opt LOW-1 closure):
+    # tighten exit-code assertion to match SDD §6.1 grid (2 = validation).
+    # Earlier `-ne 0` accepted any non-zero, hiding regressions where
+    # soul_emit failed for an unrelated reason (jq, fs perms, etc.).
     local bad_payload='{"file_path":"SOUL.md","schema_version":"1.0","schema_mode":"strict","identity_for":"this-repo"}'
     run soul_emit "soul.surface" "$bad_payload"
-    [[ "$status" -ne 0 ]]
+    [[ "$status" -eq 2 ]] || { echo "expected validation exit 2, got $status: $output"; false; }
+    [[ "$output" == *"outcome"* ]] || [[ "$output" == *"schema"* ]] || \
+        { echo "expected schema/outcome reason in output: $output"; false; }
 }
 
 @test "T-AUDIT-3 _audit_primitive_id_for_log returns L7 for soul-events*" {

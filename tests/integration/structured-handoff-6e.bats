@@ -27,6 +27,9 @@ setup() {
     mkdir -p "$HANDOFFS_DIR"
 
     export LOA_TRUST_STORE_FILE="$TEST_DIR/no-such-trust-store.yaml"
+    # cycle-098 follow-up #776 (CRIT-1 inheritance from sprint-7 cypherpunk):
+    # strict test-mode gate requires opt-in flag + bats marker.
+    export LOA_HANDOFF_TEST_MODE=1
     export LOA_HANDOFF_LOG="$TEST_DIR/handoff-events.jsonl"
     export LOA_HANDOFF_VERIFY_OPERATORS=0
     export LOA_HANDOFF_DISABLE_FINGERPRINT=1
