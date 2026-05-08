@@ -1,8 +1,65 @@
 # cycle-100-jailbreak-corpus — Session Resumption Brief
 
-**Last updated**: 2026-05-08 (PRD + SDD shipped; Flatline blocked by #774, blocker fixed in PR #781 + sibling routing fix #783 — both merged)
+**Last updated**: 2026-05-08 (Flatline complete + integrations shipped + sprint plan landed; planning commit `5cd12306` on main; sprint execution deferred to per-sprint fresh sessions)
 **Author**: deep-name + Claude Opus 4.7 1M
 **Purpose**: Crash-recovery + cross-session continuity. Read first when resuming cycle-100 work.
+
+---
+
+## 🚦 Paste-ready brief for next Claude Code session — IMPLEMENT SPRINT 1
+
+Paste this verbatim into a fresh session:
+
+```
+Read grimoires/loa/cycles/cycle-100-jailbreak-corpus/RESUMPTION.md FIRST,
+then sprint.md, then sdd.md.
+
+State at session resume:
+- Planning commit `5cd12306` on main contains PRD + SDD (with 7 Flatline
+  integrations) + sprint.md + this RESUMPTION + Flatline artifact.
+- .run/sprint-plan-state.json is JACKED_OUT (deferred to per-sprint
+  sessions). Do NOT resume the prior plan-id; treat this as a fresh
+  /implement invocation.
+- Cycle-099-model-registry remains active in parallel.
+
+Invoke: /implement sprint-1
+
+Sprint 1 scope (Foundation, ~7 tasks):
+- T1.1: jailbreak-vector.schema.json + jailbreak-run-entry.schema.json
+- T1.2: corpus_loader.{sh,py} + apparatus tests (deterministic vector_id
+  ordering per IMP-001; #-comment tolerance per IMP-004)
+- T1.3: audit_writer.sh + apparatus tests (flock; under-parallel fallback
+  per IMP-005 documented but single-file ships)
+- T1.4: runner.bats generator skeleton + per-vector contract tests
+  (5s timeout per vector per IMP-002; env -i sanitization helper per IMP-003)
+- T1.5: check-trigger-leak.sh + watchlist + allowlist + apparatus tests
+  (encoded-payload limitation per IMP-008 documented in lint header)
+- T1.6: 20 vectors × 5 categories (role_switch / tool_call_exfiltration /
+  credential_leak / markdown_indirect / unicode_obfuscation) + fixtures
+- T1.7: cypherpunk dual-review subagent + remediation; close findings pre-PR
+
+After /implement sprint-1 completes:
+- /review-sprint sprint-1
+- /audit-sprint sprint-1
+- Open draft PR via .claude/scripts/run-mode-ice.sh pr-create
+- Update this RESUMPTION with Sprint 1 SHIPPED section + paste-ready
+  brief for Sprint 2
+
+Use feature branch (single-sprint scope, not consolidated):
+  feat/cycle-100-sprint-1-foundation
+
+Known frictions:
+- Pre-commit hook surfaces #661 beads_rust 0.2.1 migration bug; documented
+  bypass is `git commit --no-verify` (already in use).
+- Legacy adapter /v1/responses parsing still affects gpt-5.5-pro through
+  Flatline (#783 follow-up). Mooted by cycle-099 Sprint-4 routing flip.
+  Subagent dual-review (per T1.7) is the principal review primitive
+  during Sprint 1; Flatline is for sprint-end planning docs only.
+```
+
+---
+
+## 📋 Earlier brief — superseded by the resumption above (kept for context)
 
 ---
 
