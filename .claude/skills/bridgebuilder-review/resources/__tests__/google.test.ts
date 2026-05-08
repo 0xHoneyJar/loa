@@ -309,4 +309,87 @@ describe("GoogleAdapter", () => {
 
     assert.equal(result.content, "part1part2");
   });
+
+  // Issue #789: diagnostic-context preservation. Mirrors upstream PR #781
+  // for the cheval Python adapters. The previous error message was just
+  // "Google API network error" — operators couldn't distinguish failure
+  // modes. The new surface includes underlying error name, message,
+  // optional cause, request size, attempt, and model.
+  describe("diagnostic-context preservation (issue #789)", () => {
+    it("NETWORK error preserves underlying TypeError name + message", async () => {
+      let attempts = 0;
+      globalThis.fetch = async () => {
+        attempts++;
+        const err = new TypeError("Premature stream close before final chunk");
+        throw err;
+      };
+
+      const adapter = new GoogleAdapter("test-key", "gemini-2.5-pro", 1000);
+      await assert.rejects(
+        adapter.generateReview({
+          systemPrompt: "sys",
+          userPrompt: "usr",
+          maxOutputTokens: 100,
+        }),
+        (err: Error) => {
+          assert.match(err.message, /Google API network error/);
+          assert.match(err.message, /TypeError: Premature stream close before final chunk/);
+          assert.match(err.message, /request_size=\d+B/);
+          assert.match(err.message, /model=gemini-2.5-pro/);
+          return true;
+        },
+      );
+      // Adapter retries 3 times (initial + 2 retries) before giving up.
+      assert.equal(attempts, 3);
+    });
+
+    it("NETWORK error preserves err.cause when set (Node.js fetch UND_ERR_*)", async () => {
+      globalThis.fetch = async () => {
+        const cause = new Error("UND_ERR_SOCKET");
+        cause.name = "UND_ERR_SOCKET";
+        const err = new TypeError("fetch failed");
+        // @ts-expect-error — Node.js fetch wraps low-level errors in cause
+        err.cause = cause;
+        throw err;
+      };
+
+      const adapter = new GoogleAdapter("test-key", "gemini-2.5-pro", 1000);
+      await assert.rejects(
+        adapter.generateReview({
+          systemPrompt: "sys",
+          userPrompt: "usr",
+          maxOutputTokens: 100,
+        }),
+        (err: Error) => {
+          assert.match(err.message, /TypeError: fetch failed/);
+          assert.match(err.message, /cause=UND_ERR_SOCKET/);
+          return true;
+        },
+      );
+    });
+
+    it("sanitization redacts API key from error messages", async () => {
+      globalThis.fetch = async () => {
+        const err = new TypeError(
+          "fetch to https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:streamGenerateContent?key=AIzaSyDxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&alt=sse failed",
+        );
+        throw err;
+      };
+
+      const adapter = new GoogleAdapter("test-key", "gemini-2.5-pro", 100);
+      await assert.rejects(
+        adapter.generateReview({
+          systemPrompt: "sys",
+          userPrompt: "usr",
+          maxOutputTokens: 100,
+        }),
+        (err: Error) => {
+          // The API key MUST NOT appear in the error message surface.
+          assert.doesNotMatch(err.message, /AIzaSy/);
+          assert.match(err.message, /\?key=<redacted>/);
+          return true;
+        },
+      );
+    });
+  });
 });

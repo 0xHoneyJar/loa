@@ -1,5 +1,6 @@
 import { LLMProviderError, } from "../ports/llm-provider.js";
 import { GENERATED_MODEL_REGISTRY } from "../config.generated.js";
+import { formatDiagnosticDetail } from "./diagnostic-context.js";
 // OpenAI has two endpoints depending on model family:
 //   - /v1/chat/completions — for GPT-4, non-Responses chat models
 //   - /v1/responses        — for codex models (gpt-5.3-codex), gpt-5.5,
@@ -148,18 +149,23 @@ export class OpenAIAdapter {
                     throw err;
                 const name = err?.name ?? "";
                 const msg = err instanceof Error ? err.message : String(err);
+                // Issue #789: diagnostic-context preservation. See
+                // adapters/diagnostic-context.ts for the format + sanitization
+                // contract. Mirrors the pattern landed upstream in PR #781 for
+                // the cheval Python adapters.
+                const detail = formatDiagnosticDetail(err, body.length, attempt, MAX_RETRIES + 1, this.model);
                 if (name === "AbortError") {
-                    lastError = new LLMProviderError("TIMEOUT", "OpenAI API request timed out");
+                    lastError = new LLMProviderError("TIMEOUT", `OpenAI API request timed out — ${detail}`);
                     continue;
                 }
                 if (err instanceof TypeError || /ECONNRESET|ENOTFOUND|EAI_AGAIN|ETIMEDOUT/i.test(msg)) {
-                    lastError = new LLMProviderError("NETWORK", "OpenAI API network error");
+                    lastError = new LLMProviderError("NETWORK", `OpenAI API network error — ${detail}`);
                     continue;
                 }
                 throw err;
             }
         }
-        throw lastError ?? new LLMProviderError("NETWORK", "OpenAI API failed after retries");
+        throw lastError ?? new LLMProviderError("NETWORK", `OpenAI API failed after retries (model=${this.model})`);
     }
 }
 /** Collect an SSE stream from the OpenAI Chat Completions API. */

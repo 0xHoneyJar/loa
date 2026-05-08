@@ -6,6 +6,7 @@ import type {
   ReviewRequest,
   ReviewResponse,
 } from "../ports/llm-provider.js";
+import { formatDiagnosticDetail } from "./diagnostic-context.js";
 
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const DEFAULT_TIMEOUT_MS = 120_000;
@@ -157,13 +158,32 @@ export class GoogleAdapter implements ILLMProvider {
         const name = (err as Error | undefined)?.name ?? "";
         const msg = err instanceof Error ? err.message : String(err);
 
+        // Issue #789: diagnostic-context preservation. Detail string
+        // captures the underlying error name + message + (one level of)
+        // cause + request size + attempt count + model. The
+        // formatDiagnosticDetail helper sanitizes any auth tokens
+        // before inclusion (see diagnostic-context.ts header).
+        const detail = formatDiagnosticDetail(
+          err,
+          body.length,
+          attempt,
+          MAX_RETRIES + 1,
+          this.model,
+        );
+
         if (name === "AbortError") {
-          lastError = new LLMProviderError("TIMEOUT", "Google API request timed out");
+          lastError = new LLMProviderError(
+            "TIMEOUT",
+            `Google API request timed out — ${detail}`,
+          );
           continue;
         }
 
         if (err instanceof TypeError || /ECONNRESET|ENOTFOUND|EAI_AGAIN|ETIMEDOUT/i.test(msg)) {
-          lastError = new LLMProviderError("NETWORK", "Google API network error");
+          lastError = new LLMProviderError(
+            "NETWORK",
+            `Google API network error — ${detail}`,
+          );
           continue;
         }
 
@@ -171,7 +191,10 @@ export class GoogleAdapter implements ILLMProvider {
       }
     }
 
-    throw lastError ?? new LLMProviderError("NETWORK", "Google API failed after retries");
+    throw lastError ?? new LLMProviderError(
+      "NETWORK",
+      `Google API failed after retries (model=${this.model})`,
+    );
   }
 }
 

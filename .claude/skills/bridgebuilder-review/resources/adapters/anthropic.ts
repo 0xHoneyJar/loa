@@ -6,6 +6,7 @@ import type {
   ReviewRequest,
   ReviewResponse,
 } from "../ports/llm-provider.js";
+import { formatDiagnosticDetail } from "./diagnostic-context.js";
 
 const API_URL = "https://api.anthropic.com/v1/messages";
 const API_VERSION = "2023-06-01";
@@ -109,15 +110,33 @@ export class AnthropicAdapter implements ILLMProvider {
         const name = (err as Error | undefined)?.name ?? "";
         const msg = err instanceof Error ? err.message : String(err);
 
+        // Issue #789: diagnostic-context preservation. See
+        // adapters/diagnostic-context.ts for the format + sanitization
+        // contract. Mirrors the pattern landed upstream in PR #781 for
+        // the cheval Python adapters.
+        const detail = formatDiagnosticDetail(
+          err,
+          body.length,
+          attempt,
+          MAX_RETRIES + 1,
+          this.model,
+        );
+
         // Retry on timeouts
         if (name === "AbortError") {
-          lastError = new LLMProviderError("NETWORK", "Anthropic API request timed out");
+          lastError = new LLMProviderError(
+            "NETWORK",
+            `Anthropic API request timed out — ${detail}`,
+          );
           continue;
         }
 
         // Retry on transient network errors (TypeError from fetch, connection resets)
         if (err instanceof TypeError || /ECONNRESET|ENOTFOUND|EAI_AGAIN|ETIMEDOUT/i.test(msg)) {
-          lastError = new LLMProviderError("NETWORK", "Anthropic API network error");
+          lastError = new LLMProviderError(
+            "NETWORK",
+            `Anthropic API network error — ${detail}`,
+          );
           continue;
         }
 
@@ -125,7 +144,10 @@ export class AnthropicAdapter implements ILLMProvider {
       }
     }
 
-    throw lastError ?? new LLMProviderError("NETWORK", "Anthropic API failed after retries");
+    throw lastError ?? new LLMProviderError(
+      "NETWORK",
+      `Anthropic API failed after retries (model=${this.model})`,
+    );
   }
 }
 

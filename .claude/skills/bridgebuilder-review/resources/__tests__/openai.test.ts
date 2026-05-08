@@ -623,4 +623,55 @@ describe("OpenAIAdapter", () => {
     assert.equal(result.content, "ok");
     assert.equal(attempts, 2);
   });
+
+  // Issue #789: diagnostic-context preservation. See
+  // adapters/diagnostic-context.ts for the format + sanitization
+  // contract; adapters/diagnostic-context.test.ts for the helper's
+  // unit tests. These integration tests confirm the wiring at the
+  // OpenAI adapter level.
+  describe("diagnostic-context preservation (issue #789)", () => {
+    it("NETWORK error preserves underlying error name + message + model", async () => {
+      globalThis.fetch = async () => {
+        throw new TypeError("OpenAI stream closed prematurely");
+      };
+
+      const adapter = new OpenAIAdapter("sk-test", "gpt-5.3-codex", 1000);
+      await assert.rejects(
+        adapter.generateReview({
+          systemPrompt: "sys",
+          userPrompt: "usr",
+          maxOutputTokens: 100,
+        }),
+        (err: Error) => {
+          assert.match(err.message, /OpenAI API network error/);
+          assert.match(err.message, /TypeError: OpenAI stream closed prematurely/);
+          assert.match(err.message, /model=gpt-5.3-codex/);
+          assert.match(err.message, /request_size=\d+B/);
+          return true;
+        },
+      );
+    });
+
+    it("sanitization redacts Bearer auth from error messages", async () => {
+      globalThis.fetch = async () => {
+        throw new TypeError(
+          "Request failed with Authorization: Bearer sk-EXAMPLE-LEAKED-TOKEN-123",
+        );
+      };
+
+      const adapter = new OpenAIAdapter("sk-test", "gpt-5.3-codex", 1000);
+      await assert.rejects(
+        adapter.generateReview({
+          systemPrompt: "sys",
+          userPrompt: "usr",
+          maxOutputTokens: 100,
+        }),
+        (err: Error) => {
+          assert.doesNotMatch(err.message, /sk-EXAMPLE-LEAKED-TOKEN/);
+          assert.match(err.message, /Bearer <redacted>/);
+          return true;
+        },
+      );
+    });
+  });
 });
