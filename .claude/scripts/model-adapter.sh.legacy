@@ -212,13 +212,34 @@ call_openai_api() {
         set +x
     fi
 
-    # Codex models use Responses API; standard models use Chat Completions
+    # Endpoint routing: /v1/responses for codex variants AND for the gpt-5.5
+    # reasoning family; /v1/chat/completions otherwise. The cycle-099 default
+    # path (Python cheval at .claude/adapters/loa_cheval/providers/openai_adapter.py)
+    # consults `endpoint_family` from `model-config.yaml`. The legacy bash
+    # adapter is being sunset (cycle-099 Sprint 4 gated decision), but until
+    # `hounfour.flatline_routing: true` is the default, this substring check
+    # mirrors what model-config.yaml declares for the OpenAI tier:
+    #   - gpt-5.3-codex   → endpoint_family: responses (`*codex*`)
+    #   - gpt-5.5         → endpoint_family: responses
+    #   - gpt-5.5-pro     → endpoint_family: responses
+    #   - gpt-5.2         → endpoint_family: chat
+    #
+    # Issue #782 (closed by this fix). When new reasoning-only models land,
+    # add them to the `case` arm below or migrate the legacy adapter to read
+    # endpoint_family from model-config.yaml directly.
     local api_url payload
     local escaped_system escaped_user
     escaped_system=$(printf '%s' "$system_prompt" | jq -Rs .)
     escaped_user=$(printf '%s' "$user_prompt" | jq -Rs .)
 
-    if [[ "$model_id" == *"codex"* ]]; then
+    local needs_responses_api=false
+    case "$model_id" in
+        *codex*|gpt-5.5|gpt-5.5-pro)
+            needs_responses_api=true
+            ;;
+    esac
+
+    if [[ "$needs_responses_api" == "true" ]]; then
         api_url="https://api.openai.com/v1/responses"
 
         local combined_input
