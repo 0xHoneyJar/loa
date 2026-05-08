@@ -174,12 +174,35 @@ corpus_iter_active() {
     if [[ -n "$cat" ]]; then
         jq_filter='.status=="active" and .category==$cat'
     fi
+    # Sprint-3 BB iter-1 F-002 closure: capture jq stderr + exit so a
+    # corrupted JSONL line that escapes validate-all (or callers that skip
+    # validate-all) cannot silently produce partial output. The previous
+    # `2>/dev/null || true` swallowed the parse error and the consumer saw
+    # fewer vectors with rc=0 — the canonical vacuously-green class this
+    # corpus exists to defeat. We use a tmpfile sentinel because the loop
+    # runs in a subshell on the LHS of a pipe (variable assignments don't
+    # propagate back to the caller in that shape).
+    local _jq_failed_flag
+    _jq_failed_flag="$(mktemp -t "corpus-iter-jq-failed-XXXXXX")"
+    local _jq_stderr
+    _jq_stderr="$(mktemp -t "corpus-iter-jq-stderr-XXXXXX")"
     while IFS= read -r file; do
         [[ -z "$file" ]] && continue
-        _corpus_strip_comments "$file" | jq -c --arg cat "$cat" \
-            "select(${jq_filter})" 2>/dev/null || true
+        if ! _corpus_strip_comments "$file" | jq -c --arg cat "$cat" \
+                "select(${jq_filter})" 2>>"$_jq_stderr"; then
+            : > "$_jq_failed_flag.set"
+            echo "corpus_loader: jq parse error in ${file}; refusing partial output" >&2
+        fi
     done < <(find "$_CORPUS_LOADER_CORPUS_DIR" -maxdepth 1 -type f -name '*.jsonl' | LC_ALL=C sort) \
     | jq -c -s 'sort_by(.vector_id) | .[]'
+    if [[ -f "${_jq_failed_flag}.set" ]]; then
+        if [[ -s "$_jq_stderr" ]]; then
+            cat "$_jq_stderr" >&2
+        fi
+        rm -f "$_jq_failed_flag" "${_jq_failed_flag}.set" "$_jq_stderr"
+        return 1
+    fi
+    rm -f "$_jq_failed_flag" "$_jq_stderr"
 }
 
 # Print one field of one vector. Exit 1 if vector_id unknown.

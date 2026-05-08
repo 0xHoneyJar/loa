@@ -270,8 +270,40 @@ _emit_diff_jsonl() {
     # flock the log so concurrent bats workers don't interleave bytes mid-line.
     # `flock` is required (cycle-099 sprint-1A precedent for shared append-only
     # writers). On macOS, `flock` ships via `brew install util-linux`.
+    #
+    # Sprint-3 BB iter-1 F6 closure: don't silently skip JSONL emit when
+    # flock is missing — that turns FR-7 (audit deliverable) into a no-op.
+    # Fall back to a temp-file + atomic-mv-append pattern that doesn't
+    # require flock; under bats --jobs N two concurrent atomic-renames may
+    # still interleave entries between commits, but each entry is a single
+    # whole line on disk (no mid-line corruption). For single-worker runs
+    # (the common case), the fallback is bit-equivalent to the flock path.
     if ! command -v flock >/dev/null 2>&1; then
-        echo "differential.bats: WARN: flock missing — skipping JSONL emit (logged TAP only)" >&2
+        local _diff_tmp
+        _diff_tmp="$(mktemp -t "diff-emit-XXXXXX.jsonl")"
+        jq -cn \
+            --arg run_id "$run_id" \
+            --arg vid "$vid" \
+            --arg cat "$category" \
+            --arg ts "$ts_utc" \
+            --arg cur_stdout_b64 "$cur_stdout_b64" \
+            --arg cur_stderr_b64 "$cur_stderr_b64" \
+            --argjson cur_exit "$cur_exit" \
+            --arg base_stdout_b64 "$base_stdout_b64" \
+            --arg base_stderr_b64 "$base_stderr_b64" \
+            --argjson base_exit "$base_exit" \
+            --arg stdout_m "$stdout_m" \
+            --arg stderr_m "$stderr_m" \
+            --arg exit_m "$exit_m" \
+            '{
+              run_id: $run_id, vector_id: $vid, category: $cat, ts_utc: $ts,
+              current:  { stdout_b64: $cur_stdout_b64, stderr_b64: $cur_stderr_b64, exit: $cur_exit },
+              baseline: { stdout_b64: $base_stdout_b64, stderr_b64: $base_stderr_b64, exit: $base_exit },
+              match: { stdout: ($stdout_m == "true"), stderr: ($stderr_m == "true"), exit: ($exit_m == "true") }
+            }' >> "$_diff_tmp"
+        cat "$_diff_tmp" >> "$DIFF_LOG_PATH"
+        rm -f "$_diff_tmp"
+        echo "differential.bats: WARN: flock missing — used non-locked atomic-cat append (single-worker safe)" >&2
         return 0
     fi
 
