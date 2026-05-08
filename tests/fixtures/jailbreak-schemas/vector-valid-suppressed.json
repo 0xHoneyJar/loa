@@ -1,0 +1,12 @@
+{
+  "vector_id": "RT-RS-099",
+  "category": "role_switch",
+  "title": "Stale role-switch under heuristic v0",
+  "defense_layer": "L1",
+  "payload_construction": "_make_evil_body_rt_rs_099",
+  "expected_outcome": "redacted",
+  "source_citation": "in-house-cypherpunk legacy carry-over",
+  "severity": "LOW",
+  "status": "suppressed",
+  "suppression_reason": "Superseded by RT-RS-001 with broader pattern coverage; kept as audit anchor."
+}

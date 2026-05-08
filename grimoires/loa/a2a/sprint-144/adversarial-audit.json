@@ -1,0 +1,20 @@
+{
+  "findings": [],
+  "metadata": {
+    "type": "audit",
+    "model": "claude-opus-4-7",
+    "sprint_id": "sprint-144",
+    "timestamp": "2026-05-08T08:33:46Z",
+    "tokens_input": 39958,
+    "tokens_output": 2945,
+    "cost_usd": 0.2733,
+    "latency_ms": 46176,
+    "status": "reviewed",
+    "degraded": false,
+    "hallucination_filter": {
+      "applied": false,
+      "downgraded": 0,
+      "reason": "no_findings"
+    }
+  }
+}

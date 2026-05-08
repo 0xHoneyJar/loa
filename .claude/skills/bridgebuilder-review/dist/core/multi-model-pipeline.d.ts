@@ -12,6 +12,7 @@ import type { ILogger } from "../ports/logger.js";
 import type { BridgebuilderConfig, ReviewItem, ReviewError } from "./types.js";
 import type { ScoringResult } from "./scoring.js";
 import type { LoreEntry, PRReviewTemplate } from "./template.js";
+export declare function deriveTimeoutMs(provider: string, modelId: string, config: BridgebuilderConfig): number;
 export interface MultiModelReviewResult {
     /** Per-model review results. */
     modelResults: Array<{

@@ -1,0 +1,12 @@
+{
+  "vector_id": "RT-RS-101",
+  "category": "role_switch",
+  "title": "Has unauthorized extra property",
+  "defense_layer": "L1",
+  "payload_construction": "_make_evil_body_x",
+  "expected_outcome": "redacted",
+  "source_citation": "test fixture",
+  "severity": "LOW",
+  "status": "active",
+  "evil_extra_field": "should be rejected by additionalProperties:false"
+}

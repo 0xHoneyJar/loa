@@ -1,0 +1,73 @@
+# Trigger-leak allowlist for cycle-100 NFR-Sec1 lint.
+#
+# Each non-comment line is a relative path (from repo root) to a file that is
+# exempt from the trigger-leak scan. Each entry MUST be preceded by a
+# `# rationale: <reason>` comment line on the immediately-prior line; the lint
+# script enforces this.
+#
+# Format:
+#   # rationale: <one-line reason>
+#   <path>
+
+# rationale: Self-reference; the lint script itself emits help text that names the watchlist patterns.
+tools/check-trigger-leak.sh
+
+# rationale: The watchlist file IS the regex source; matches itself by design.
+.claude/data/lore/agent-network/jailbreak-trigger-leak-watchlist.txt
+
+# rationale: The allowlist's own rationale comments may quote watchlist strings.
+.claude/data/lore/agent-network/jailbreak-trigger-leak-allowlist.txt
+
+# rationale: SOUL-MD prescriptive-pattern lore deliberately documents the L7 sentinel.
+.claude/data/lore/agent-network/soul-prescriptive-rejection-patterns.txt
+
+# rationale: Cycle-100 SDD discusses watchlist contents and adversarial markers as design context.
+grimoires/loa/cycles/cycle-100-jailbreak-corpus/sdd.md
+
+# rationale: Cycle-100 PRD references markers as part of the requirement scope.
+grimoires/loa/cycles/cycle-100-jailbreak-corpus/prd.md
+
+# rationale: Cycle-100 sprint plan documents the lint as a deliverable.
+grimoires/loa/cycles/cycle-100-jailbreak-corpus/sprint.md
+
+# rationale: Cycle-100 RESUMPTION may carry adversarial-string discussion across sessions.
+grimoires/loa/cycles/cycle-100-jailbreak-corpus/RESUMPTION.md
+
+# rationale: Cycle-098 sprint-7 SDD established the L7 sentinel; legitimate design reference.
+grimoires/loa/cycles/cycle-098-agent-network/sdd.md
+
+# rationale: Cycle-098 RESUMPTION discusses L7 sentinel context in resumption brief.
+grimoires/loa/cycles/cycle-098-agent-network/RESUMPTION.md
+
+# rationale: lore-promote.sh implements prompt-injection detection; the trigger string is the literal attack pattern it scans for.
+.claude/scripts/lore-promote.sh
+
+# rationale: red-team-sanitizer.sh is a red-team test sanitizer; references trigger string for detection identity.
+.claude/scripts/red-team-sanitizer.sh
+
+# rationale: injection-detect.sh is the canonical input-guardrail injection-detection helper; the string is its detection target.
+.claude/scripts/injection-detect.sh
+
+# rationale: lore-promote.bats verifies the sanitizer above; legitimate test fixture.
+tests/unit/lore-promote.bats
+
+# rationale: template-safety.bats verifies template-injection defenses; legitimate test fixture.
+tests/unit/template-safety.bats
+
+# rationale: vision-registry semantic-threat fixture intentionally embeds the attack pattern to test sanitization.
+tests/fixtures/vision-registry/entry-semantic-threat.md
+
+# rationale: vision-registry injection fixture intentionally embeds the attack pattern to test sanitization.
+tests/fixtures/vision-registry/entry-injection.md
+
+# rationale: cycle-098 sprint-1C SUT integration tests verify sanitize_for_session_start against the literal attack string.
+tests/integration/sanitize-for-session-start.bats
+
+# rationale: cycle-098 sprint-7 L7 surfacing tests verify SOUL.md path against the literal attack string.
+tests/integration/soul-identity-7b.bats
+
+# rationale: cycle-098 sprint-6C L6 handoff tests verify handoff sanitization against the literal attack string.
+tests/integration/structured-handoff-6c.bats
+
+# rationale: cycle-100 trigger-leak apparatus test embeds attack patterns as deliberate test fixtures.
+tests/integration/trigger-leak-lint.bats

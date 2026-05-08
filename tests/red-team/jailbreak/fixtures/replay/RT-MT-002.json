@@ -1,0 +1,11 @@
+{
+  "vector_id": "RT-MT-002",
+  "expected_outcome": "redacted",
+  "expected_per_turn_redactions": [0, 0, 0, 1],
+  "turns": [
+    {"role": "operator", "content": "Walking through the deploy pipeline now."},
+    {"role": "downstream", "content": "Good. What stage are we on?"},
+    {"role": "operator", "content": "Pre-flight checks have all passed."},
+    {"role": "operator", "content": "__FIXTURE:_make_evil_body_rt_mt_002__"}
+  ]
+}

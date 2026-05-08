@@ -1163,3 +1163,74 @@ The pre-existing `grimoires/loa/prd.md` and `sdd.md` describe **cycle-098 Agent-
 - **COMPLETED marker**: `grimoires/loa/a2a/sprint-bug-142/COMPLETED`
 - **Reports**: `auditor-sprint-feedback.md` (canonical) + mirror at `audits/2026-05-08/SECURITY-AUDIT-REPORT.md`
 - **Ready to commit + open PR against #774**
+
+## 2026-05-08 — cycle-100 RESUMED; Flatline re-run on SDD
+
+- **Run**: `/flatline-review grimoires/loa/cycles/cycle-100-jailbreak-corpus/sdd.md`
+- **Result**: 4-of-6 Phase 1 calls succeeded (opus-review, opus-skeptic, gemini-review, gemini-skeptic). 2-of-6 failed: gpt-review + gpt-skeptic via gpt-5.5-pro.
+- **Failure class**: confirmed `Empty response content` from `model-adapter.sh` (delegating to legacy adapter; `hounfour.flatline_routing: false`). Direct `model-adapter.sh --model gpt-5.5-pro --mode review` reproduces with 3 retries all empty. **This is the documented #783 follow-up** (legacy adapter `/v1/responses` parsing for reasoning-model output shapes), NOT a new variant of #774 PROVIDER_DISCONNECT — #774 is fixed and only matters when `flatline_routing: true`.
+- **Mooting**: cycle-099 Sprint-4 routing flip (`hounfour.flatline_routing: true`) retires the legacy adapter for Flatline. Until then, the 2-of-3 model coverage (opus + gemini) is the realistic baseline for Flatline runs that hit reasoning-class GPT models on large docs.
+- **Consensus**: `consensus_summary.confidence: single_model` (engine label — cross-scoring couldn't validate gpt items). Effective coverage: 2-of-3 model paths. 0 BLOCKERS, 0 HIGH_CONS, 10 DISPUTED (most opus-skeptic-authored or gemini-tertiary-authored single-source findings).
+- **Artifact**: `grimoires/loa/cycles/cycle-100-jailbreak-corpus/a2a/flatline/sdd-review.json` (with `phase1_partial` annotation).
+- **Decision**: proceed to triage the 10 DISPUTED findings using the 2-source signal; no new bug filed (matches known follow-up).
+
+## 2026-05-08 — cycle-100 Sprint 2 IMPLEMENTED
+
+- **Branch**: `feat/cycle-100-sprint-2-coverage-multiturn` (off Sprint 1 tip `44f7833a`)
+- **Scope**: T2.1–T2.7 + T2.8 implementation report
+- **Active vectors**: 25 → **46** (≥45 floor met with margin); per-category 6/6/6/6/6/5/11
+- **Multi-turn**: 11 vectors, 4 in first-N-turn-bypass class (RT-MT-001/002/003/008; ≥3 AC met)
+- **Tests**: bats 35/35 + pytest 39/39 (12 multi-turn + 27 apparatus); trigger-leak lint clean
+- **Cypherpunk T2.7 dual-review**: 0 CRIT, 3 HIGH, 5 MED, 4 LOW, 4 PRAISE
+- **All 3 HIGH + all 5 MEDIUM closed pre-merge**: H1 (envelope-scoped marker count), H2 (byte-equal-output statelessness pin), H3 (aggregate-budget enforcement via remaining), M1 (vector_id schema regex), M2 (category allowlist), M3 (RT-MT-007 operator-visibility framing), M4 (audit returncode check), M5 (placeholder fullmatch + trailing whitespace)
+- **2 LOW (L1, L4) bonus-closed inline**; 2 LOW (L2 bats audit-pin, L3 dead-defense) deferred to cycle-101 follow-up
+- **Implementation report**: `grimoires/loa/a2a/sprint-144/reviewer.md`
+- **Next**: `/review-sprint sprint-2` → `/audit-sprint sprint-2` → draft PR (operator-driven per per-sprint cadence)
+
+## 2026-05-08 — AC-8 deferral (sprint-144) — Decision Log
+
+- **AC quote**: "Pytest entrypoint + standalone CLI both invokable for ad-hoc operator runs (UC-3 acceptance)" — sprint.md §"Sprint 2 Acceptance Criteria" item 8.
+- **Decision**: Mark `⏸ [ACCEPTED-DEFERRED]` in sprint-144/reviewer.md. Pytest entrypoint shipped (`pytest -k RT-MT-NNN tests/red-team/jailbreak/test_replay.py` works today); standalone replay-specific CLI deferred to Sprint 4 README docs phase per cycle-100/sprint.md §Sprint 4 T4.3.
+- **Rationale**: `corpus_loader.py:__main__` already exposes `validate-all` / `iter-active` / `get-field` / `count` subcommands; the replay-specific CLI overlaps with Sprint 4's README-docs-phase work that establishes the operator-authoring workflow (UC-3 + UC-2 are tightly coupled — operator authors a vector, then runs the replay; documenting the workflow + adding the CLI together is more coherent than splitting them).
+- **Tracker**: tracked in cycle-100 RESUMPTION as a Sprint 4 deliverable (sprint.md §Sprint 4 T4.3 README "Run locally" section).
+- **Cycle-057 compliance**: this entry satisfies the `⏸ [ACCEPTED-DEFERRED]` Decision Log requirement per `.claude/skills/reviewing-code/SKILL.md` AC verification rule.
+
+## 2026-05-08 — flatline_protocol code_review/security_audit model rollback (tracked in #787)
+
+- **Issue tracker**: https://github.com/0xHoneyJar/loa/issues/787 — `[#783 follow-up] Legacy adapter /v1/responses parsing returns 'Empty response content' for reasoning-class OpenAI models`. P1, [A] Bug, [W] Operations.
+- **Symptom**: `gpt-5.5-pro` via `adversarial-review.sh` → `model-adapter.sh` (legacy bash adapter) returns "Empty response content" × 3 retries.
+- **Root cause**: `.claude/scripts/model-adapter.sh.legacy:566-570` jq filter chain handles chat-completions + canonical responses-API `message`-type output but misses reasoning-class `/v1/responses` shapes. PR #783 fixed routing; parsing is the follow-up.
+- **Action**: Edited `.loa.config.yaml` lines 252-264. Rolled back both `code_review.model` and `security_audit.model` from `gpt-5.5-pro` → `claude-opus-4-7`. Anthropic path bypasses the broken legacy filter entirely.
+- **Verified**: `adversarial-review.sh --type review --sprint-id sprint-144 --model claude-opus-4-7` returns 6 findings in 48s ($0.27); status=reviewed (not api_failure). Cross-validated my own /review-sprint NEW-B1 finding via DISS-001.
+- **Restoration**: After #787 closes — either via cycle-099 Sprint 4 `hounfour.flatline_routing: true` flip OR via direct jq filter extension — restore `gpt-5.5-pro` for cross-provider diversity. Until then, opus-4-7 is the resilient default.
+- **Operator note**: This rollback applies to `flatline_protocol.code_review` and `.security_audit` ONLY. The 3-model Flatline review (`/flatline-review`) GPT path also hits #787 (same legacy adapter), but BB primary path is unaffected — verified working at gpt-5.5-pro per cycle-099 PR #754 BB E2E pin (different routing).
+- **Why this matters**: multi-model adversarial review is load-bearing for Loa's quality gates. Operator surfaced this twice in 24 hours; the durable contract is that the GPT path stays stable, not that operators keep pinning Anthropic models around it.
+
+## 2026-05-08 — cycle-100 Sprint 3 IMPLEMENTED
+
+**Branch:** `feat/cycle-100-sprint-3-regressions-differential` (sprint-145 global ID)
+
+**Deliverables landed:**
+- 8 cycle-098 regression vectors (RT-TC-101/102/103, RT-RS-101/102, RT-MD-101/102/103) with `cycle-098-sprint-N-finding` source_citations
+- Smoke-revert harness at `tests/red-team/jailbreak/tools/sprint3-smoke-revert.sh` — 8/8 vectors validated RED-on-revert
+- `differential.bats` per SDD §4.5 + frozen baseline at `.claude/scripts/lib/context-isolation-lib.sh.cycle-100-baseline` (sha256 8a6bd75c...)
+- 25-vector differential list at `tests/red-team/jailbreak/differential-vectors.txt`
+- Schema-additive `expected_absent_marker` field with `^[^\n]*\S[^\n]*$` pattern (F1+F6 closure)
+- Perf optimization: BATS_RUN_TMPDIR-keyed cache → runner.bats drops 6:33 → 21.5s
+
+**Cycle-100 corpus state:** 54 active / 0 suppressed (cycle exit floor met).
+
+**Sprint 3 cypherpunk dual-review (T3.8):** 1 HIGH + 4 MED + 4 LOW + 3 PRAISE.
+- F1 (HIGH mapfile newline-shift): closed via schema pattern
+- F2/F3/F10 (smoke-revert harness): closed (HUP/QUIT trap, glob safety, dirty-SUT precondition)
+- F4 (RT-RS-101 distinguishability): closed via note revision
+- F5 (RT-MD-101/102 defense_layer L2→L1): closed
+- F6 (whitespace-only marker): closed via schema pattern
+- F7/F8 (run_id collision + macOS base64): closed
+- F9 (schema_version doc): deferred to RESUMPTION T3 backlog (documentation-only)
+
+**Bonus uncovered defenses surfaced** (cycle-101 candidates):
+- role_pats[1] modifier-branch alternations
+- role_pats[3] forget-* not regression-tagged
+- n4/n5 invoke-block variants  
+- Layer 5 provenance attribute string

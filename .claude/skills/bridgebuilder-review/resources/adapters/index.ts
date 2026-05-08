@@ -13,6 +13,7 @@ import { PatternSanitizer } from "./sanitizer.js";
 import { NodeHasher } from "./node-hasher.js";
 import { ConsoleLogger } from "./console-logger.js";
 import { NoOpContextStore } from "./noop-context.js";
+import { deriveTimeoutMs } from "../core/multi-model-pipeline.js";
 
 export interface LocalAdapters {
   git: IGitProvider;
@@ -38,13 +39,10 @@ export function createLocalAdapters(
     reviewMarker: config.reviewMarker,
   });
 
-  // Tiered timeout: 120s default, 180s for medium prompts, 300s for large.
-  // Anthropic API p95 latency scales with prompt size; fixed thresholds
-  // avoid under-serving the 50K-128K range.
-  const timeoutMs =
-    config.maxInputTokens > 100_000 ? 300_000 :
-    config.maxInputTokens > 50_000 ? 180_000 :
-    120_000;
+  // Sprint-bug-143 #789a: shared deriveTimeoutMs helper. For Anthropic
+  // single-model the reasoning-class branch never fires (provider !== openai),
+  // so this preserves the existing tiered ladder for the default path.
+  const timeoutMs = deriveTimeoutMs("anthropic", config.model, config);
 
   return {
     git: ghAdapter,
