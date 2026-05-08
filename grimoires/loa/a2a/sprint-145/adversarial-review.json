@@ -1,0 +1,108 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "ADVISORY",
+      "category": "data-loss",
+      "anchor": "tests/red-team/jailbreak/runner.bats:hunk-cache-key",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "description": "The cache key is computed only from corpus/*.jsonl mtime+path digest. Edits to fixture .sh files (e.g., tests/red-team/jailbreak/fixtures/*.sh) or to the corpus_loader.py/.sh do NOT invalidate the cache. The cached registration TSV (which contains base64-encoded JSON consumed by the test body) is keyed only on corpus mtime, but vector behavior depends on fixture sources too. More critically, if a developer edits the JSONL once (mtime updates → new key → revalidate), then reverts via git checkout (which can restore the prior mtime), the OLD sentinel matches and stale registration is reused. Also, between bats runs in the SAME BATS_RUN_TMPDIR (impossible normally, but smoke-revert.sh aggressively rm -rf's based on PPID), parallel/cross-process reuse can serve stale data.",
+      "failure_mode": "Stale cached corpus iteration silently registers tests against pre-edit data; vector edits don't take effect; vacuously-green test runs.",
+      "suggested_fix": "Hash file contents (sha256sum of concatenated sorted files) instead of mtime; include corpus_loader.py/.sh in the key; or skip caching for iter-active and only cache validate-all sentinel.",
+      "anchor_status": "out_of_scope",
+      "demotion_reason": "Demoted: anchor not in diff scope"
+    },
+    {
+      "id": "DISS-002",
+      "severity": "ADVISORY",
+      "category": "data-loss",
+      "anchor": "tests/red-team/jailbreak/tools/sprint3-smoke-revert.sh:_revert_envelope",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "The Python heredoc replacement string contains literal backslash-n sequences inside a single-quoted Python string ('printf %s\\n ...'). When this script writes the modified SUT, the replacement is `printf '%s\\n' \"$body\"` which is fine, BUT the original `old` template uses `\\n` inside a Python single-quoted string — Python treats `\\n` in single quotes as backslash+n literally. The actual heredoc in context-isolation-lib.sh uses real newlines, so `old not in src` will trigger REVERT-MISS unless the source literally contains backslash-n sequences. Same issue likely present in _revert_sentinel_split's `\\n\\x1eREPORT\\x1e` — Python single-quoted backslash-x sequences are NOT interpreted, so the search string contains literal `\\x1e` rather than RS byte 0x1e.",
+      "failure_mode": "REVERT-MISS triggers; smoke-revert silently records 'REVERT-MISS for vid' and the vector test is never validated as RED. Sprint claims 8/8 validated but actual coverage may be 0/8.",
+      "suggested_fix": "Use raw strings (r'...') or double-quoted bash heredocs that do interpolation, OR construct the search string with explicit chr(0x1e). Verify by running smoke-revert and checking log shows PASS not REVERT-MISS for each vector.",
+      "anchor_status": "out_of_scope",
+      "demotion_reason": "Demoted: anchor not in diff scope"
+    },
+    {
+      "id": "DISS-003",
+      "severity": "ADVISORY",
+      "category": "concurrency",
+      "anchor": "tests/red-team/jailbreak/differential.bats:_emit_diff_jsonl",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "flock acquires the lock on FD 9 redirected to ${DIFF_LOG_PATH}.lock, but jq writes to $DIFF_LOG_PATH via `>> \"$DIFF_LOG_PATH\"` inside the subshell. The append redirection opens its own FD on the LOG file separately from the lock FD. Under bats --jobs N, two workers can hold flock on the .lock file but each open separate write FDs to the actual JSONL — append mode with O_APPEND guarantees atomic writes ONLY for writes ≤ PIPE_BUF (4KB on Linux). Base64-encoded stdout/stderr can easily exceed 4KB (RT-MD-102 has ~3000 chars + base64 overhead → ~4KB; future vectors larger). flock only serializes the critical section if all writers honor the same lock; here flock is technically held during jq's execution, so it does serialize — but only if jq's >> doesn't fork before flock acquisition.",
+      "failure_mode": "Interleaved JSONL records corrupt the audit log; downstream operator triage fails to parse line-delimited JSON.",
+      "suggested_fix": "Either (a) write jq output to a temp file inside the flock'd region, then cat tempfile >>$LOG inside same subshell; or (b) change to `jq ... >&9` and have FD 9 opened in append mode against the actual log, removing the separate lockfile. Option (b) is the canonical pattern.",
+      "anchor_status": "out_of_scope",
+      "demotion_reason": "Demoted: anchor not in diff scope"
+    },
+    {
+      "id": "DISS-004",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "tests/red-team/jailbreak/runner.bats:_run_one_vector",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "The schema pattern `^[^\\n]*\\S[^\\n]*$` forbids \\n but does NOT forbid \\r, \\t, NUL, or RS (0x1e). With `mapfile -t` reading newline-separated jq output, a value containing \\r will not split lines but WILL appear as the trailing byte of a field — not a shift, but downstream string comparisons (`*\"$expected_absent_marker\"*` glob match) will fail to find a marker that the author thought they specified. More importantly, a value containing NUL byte (0x00) inside JSON is invalid JSON anyway — but values with embedded RS (which IS the actual concern of RT-TC-101) ARE allowed by the pattern. The author claims the pattern 'forbids the mapfile-shift bypass class' but mapfile splits ONLY on \\n by default, so the pattern is correct for that — however the description of 'bypass class' is overstated.",
+      "failure_mode": "Marker assertions silently fail to detect intended substrings when authors include \\r line endings (common on Windows-edited files); regression vectors silently green.",
+      "suggested_fix": "Tighten pattern to `^[^\\r\\n\\x00]*\\S[^\\r\\n\\x00]*$` or document explicitly which control chars are permitted. Add a unit test for the loader that round-trips RS/CR-bearing markers.",
+      "anchor_status": "out_of_scope",
+      "demotion_reason": "Demoted: anchor not in diff scope"
+    },
+    {
+      "id": "DISS-005",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "tests/red-team/jailbreak/tools/sprint3-smoke-revert.sh:_revert_n1_function_calls_family",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "RT-TC-102's notes claim it isolates the n1 path: 'comment out n1 → outcome flips redacted→wrapped'. But the revert function disables n1+n2+n3+n6 collectively. This means RT-TC-102 does not actually pin n1 specifically; it pins 'at least one of n1/n2/n3/n6 must redact function_calls XML blocks'. If a future change removes n1 but keeps n2 (bare opener match), RT-TC-102 will silently stay GREEN despite n1 being gone. The vector's documentation contradicts the revert harness behavior.",
+      "failure_mode": "Regression coverage gap: n1-specific bugs slip past CI because the test cannot distinguish n1 from n2/n3/n6.",
+      "suggested_fix": "Either (a) split into separate reverts for n1/n2/n3/n6 each, or (b) update RT-TC-102 notes to honestly describe coverage as 'function_calls family' not 'n1 path'.",
+      "anchor_status": "valid"
+    },
+    {
+      "id": "DISS-006",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "tests/red-team/jailbreak/differential.bats:_invoke_sut_under_envi",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "The frozen baseline is byte-identical to current SUT at sprint-3 ship date. Until the SUT mutates post-ship, every differential test will report CONVERGE for all 25 vectors. This is by design but means the test gives zero signal on the day it ships. More problematic: if a developer accidentally checks in a baseline update alongside SUT changes (rebaselining), divergence is silently masked. There's no guard against `cp lib lib.cycle-100-baseline` being run during a normal commit.",
+      "failure_mode": "Baseline drift undetected; differential oracle becomes a no-op without anyone noticing.",
+      "suggested_fix": "Add a CI check that the baseline file's sha256 matches a value committed to a separate frozen-checksum file (e.g., baseline.sha256.frozen) maintained only by explicit cycle-bump PRs. Alert if baseline mtime changes without checksum-file update.",
+      "anchor_status": "valid"
+    },
+    {
+      "id": "DISS-007",
+      "severity": "ADVISORY",
+      "category": "resource-leak",
+      "anchor": "tests/red-team/jailbreak/runner.bats:hunk-find-printf",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "description": "`find ... -printf` is a GNU find extension; macOS BSD find does not support `-printf`. Sprint-3 T3.8 F8 acknowledged macOS base64 quirks but the cache-key computation in BOTH runner.bats and differential.bats uses `find -printf '%T@:%p\\n'`, which fails on macOS with 'find: -printf: unknown primary or operator'. RUNNER_CACHE_KEY becomes empty (sha256 of empty stream = e3b0c44...), causing a single shared cache regardless of corpus state.",
+      "failure_mode": "On macOS dev machines, all corpus edits hit the same cache key → stale registration data served indefinitely until cache dir cleared manually.",
+      "suggested_fix": "Use portable alternative: `find ... -exec stat -f '%m:%N' {} \\;` on macOS or `stat -c '%Y:%n'` on Linux, gated by uname; or use `git ls-files | xargs sha256sum` for content-based hashing.",
+      "anchor_status": "valid"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "claude-opus-4-7",
+    "sprint_id": "sprint-145",
+    "timestamp": "2026-05-08T10:28:08Z",
+    "tokens_input": 30581,
+    "tokens_output": 3443,
+    "cost_usd": 0.2389,
+    "latency_ms": 59577,
+    "status": "reviewed",
+    "degraded": false,
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    }
+  }
+}

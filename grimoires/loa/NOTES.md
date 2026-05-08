@@ -1205,3 +1205,32 @@ The pre-existing `grimoires/loa/prd.md` and `sdd.md` describe **cycle-098 Agent-
 - **Restoration**: After #787 closes — either via cycle-099 Sprint 4 `hounfour.flatline_routing: true` flip OR via direct jq filter extension — restore `gpt-5.5-pro` for cross-provider diversity. Until then, opus-4-7 is the resilient default.
 - **Operator note**: This rollback applies to `flatline_protocol.code_review` and `.security_audit` ONLY. The 3-model Flatline review (`/flatline-review`) GPT path also hits #787 (same legacy adapter), but BB primary path is unaffected — verified working at gpt-5.5-pro per cycle-099 PR #754 BB E2E pin (different routing).
 - **Why this matters**: multi-model adversarial review is load-bearing for Loa's quality gates. Operator surfaced this twice in 24 hours; the durable contract is that the GPT path stays stable, not that operators keep pinning Anthropic models around it.
+
+## 2026-05-08 — cycle-100 Sprint 3 IMPLEMENTED
+
+**Branch:** `feat/cycle-100-sprint-3-regressions-differential` (sprint-145 global ID)
+
+**Deliverables landed:**
+- 8 cycle-098 regression vectors (RT-TC-101/102/103, RT-RS-101/102, RT-MD-101/102/103) with `cycle-098-sprint-N-finding` source_citations
+- Smoke-revert harness at `tests/red-team/jailbreak/tools/sprint3-smoke-revert.sh` — 8/8 vectors validated RED-on-revert
+- `differential.bats` per SDD §4.5 + frozen baseline at `.claude/scripts/lib/context-isolation-lib.sh.cycle-100-baseline` (sha256 8a6bd75c...)
+- 25-vector differential list at `tests/red-team/jailbreak/differential-vectors.txt`
+- Schema-additive `expected_absent_marker` field with `^[^\n]*\S[^\n]*$` pattern (F1+F6 closure)
+- Perf optimization: BATS_RUN_TMPDIR-keyed cache → runner.bats drops 6:33 → 21.5s
+
+**Cycle-100 corpus state:** 54 active / 0 suppressed (cycle exit floor met).
+
+**Sprint 3 cypherpunk dual-review (T3.8):** 1 HIGH + 4 MED + 4 LOW + 3 PRAISE.
+- F1 (HIGH mapfile newline-shift): closed via schema pattern
+- F2/F3/F10 (smoke-revert harness): closed (HUP/QUIT trap, glob safety, dirty-SUT precondition)
+- F4 (RT-RS-101 distinguishability): closed via note revision
+- F5 (RT-MD-101/102 defense_layer L2→L1): closed
+- F6 (whitespace-only marker): closed via schema pattern
+- F7/F8 (run_id collision + macOS base64): closed
+- F9 (schema_version doc): deferred to RESUMPTION T3 backlog (documentation-only)
+
+**Bonus uncovered defenses surfaced** (cycle-101 candidates):
+- role_pats[1] modifier-branch alternations
+- role_pats[3] forget-* not regression-tagged
+- n4/n5 invoke-block variants  
+- Layer 5 provenance attribute string

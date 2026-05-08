@@ -218,57 +218,57 @@ Cycle-100 ships a **falsifying test apparatus** (corpus + runners + CI gate) tha
 
 ### Deliverables
 
-- [ ] ≥8 regression vectors with `source_citation: cycle-098-sprint-N-finding` (FR-10)
-- [ ] `differential.bats` + frozen baseline at `.claude/scripts/lib/context-isolation-lib.sh.cycle-100-baseline`
-- [ ] ≥20 vectors run through the differential oracle
-- [ ] Per-vector cypherpunk pushback documented in `cycle-100/RESUMPTION.md` (drops + revisions)
-- [ ] `.run/jailbreak-diff-{date}.jsonl` schema + writer + sample run output
-- [ ] **≥50 active vectors at sprint exit; 0 suppressed** (FR-8 ship invariant)
-- [ ] Smoke-revert validation: each regression vector confirmed RED on a scratch revert
+- [x] ≥8 regression vectors with `source_citation: cycle-098-sprint-N-finding` (FR-10)
+- [x] `differential.bats` + frozen baseline at `.claude/scripts/lib/context-isolation-lib.sh.cycle-100-baseline`
+- [x] ≥20 vectors run through the differential oracle
+- [x] Per-vector cypherpunk pushback documented in `cycle-100/RESUMPTION.md` (drops + revisions)
+- [x] `.run/jailbreak-diff-{date}.jsonl` schema + writer + sample run output
+- [x] **≥50 active vectors at sprint exit; 0 suppressed** (FR-8 ship invariant)
+- [x] Smoke-revert validation: each regression vector confirmed RED on a scratch revert
 
 ### Acceptance Criteria
 
-- [ ] Each regression vector cites the cycle-098 sprint + finding number (e.g., `cycle-098-sprint-7-HIGH-2-NFKC-bypass`)
-- [ ] Smoke-revert procedure (§7.6): for each regression vector, revert the corresponding defense in scratch branch → vector turns RED → restore. Documented in RESUMPTION.
-- [ ] At least 8 cycle-098 defects mapped: NFKC HIGH-2, control-byte HIGH-4, INDEX E6, sentinel HIGH-3 + ≥4 more from sprint-history mining → **[G-1]**
-- [ ] Frozen baseline lib captured at sprint-3 ship date; checked-in
-- [ ] `differential.bats` runs both libs under `env -i` with shared `env_sanitize.sh` allowlist (IMP-003); compares byte-for-byte
-- [ ] Divergence is informational (exit 0); written to `.run/jailbreak-diff-{date}.jsonl` with TAP `# DIVERGE:` comment
-- [ ] Per-vector cypherpunk pushback applied to EVERY active vector against §7.5 criteria; drops + revisions logged
-- [ ] Suppression count == 0 at sprint exit (FR-8 ship invariant)
-- [ ] Sprint-3 cypherpunk dual-review closed pre-merge
+- [x] Each regression vector cites the cycle-098 sprint + finding number (e.g., `cycle-098-sprint-7-HIGH-2-NFKC-bypass`)
+- [x] Smoke-revert procedure (§7.6): for each regression vector, revert the corresponding defense in scratch branch → vector turns RED → restore. Documented in RESUMPTION.
+- [x] At least 8 cycle-098 defects mapped: NFKC HIGH-2, control-byte HIGH-4, INDEX E6, sentinel HIGH-3 + ≥4 more from sprint-history mining → **[G-1]**
+- [x] Frozen baseline lib captured at sprint-3 ship date; checked-in
+- [x] `differential.bats` runs both libs under `env -i` with shared `env_sanitize.sh` allowlist (IMP-003); compares byte-for-byte
+- [x] Divergence is informational (exit 0); written to `.run/jailbreak-diff-{date}.jsonl` with TAP `# DIVERGE:` comment
+- [x] Per-vector cypherpunk pushback applied to EVERY active vector against §7.5 criteria; drops + revisions logged
+- [x] Suppression count == 0 at sprint exit (FR-8 ship invariant)
+- [x] Sprint-3 cypherpunk dual-review closed pre-merge
 
 ### Technical Tasks
 
-- [ ] **T3.1** Mine cycle-098 sprint-history for defects → ≥8 regression vectors → **[G-1]**
+- [x] **T3.1** Mine cycle-098 sprint-history for defects → ≥8 regression vectors → **[G-1]**
   - Source: `grimoires/loa/cycles/cycle-098-agent-network/RESUMPTION.md` + sprint-7 cypherpunk findings (commit `5677da7e`)
   - Required findings: NFKC HIGH-2 (sprint-7), control-byte HIGH-4 (sprint-7), INDEX row-injection E6 PoC (sprint-6), sentinel-leak HIGH-3 (sprint-7)
   - Plus ≥4 more from sprints 1A/1B/1C/4/5/6/7-rem audits
   - Each vector: id, fixture, expected_outcome (OBSERVED), source_citation pointing to sprint+finding
-- [ ] **T3.2** Smoke-revert validation per regression vector → **[G-1]**
+- [x] **T3.2** Smoke-revert validation per regression vector → **[G-1]**
   - For each of T3.1's 8+ vectors: scratch branch reverts the defense, runner shows that vector turns RED, restore
   - Document each revert experiment in `cycle-100/RESUMPTION.md` audit trail
   - **Hard rule:** no merge of a regression vector whose revert doesn't produce RED — that means either the defense isn't real or the vector isn't testing it
-- [ ] **T3.3** Implement `differential.bats` per SDD §4.5 → **[G-1]**
+- [x] **T3.3** Implement `differential.bats` per SDD §4.5 → **[G-1]**
   - Source both libs into separate bash subshells via `env -i bash -c "source <lib>; ..."`
   - Compare stdout + stderr + exit byte-equal
   - Divergence → JSONL line to `.run/jailbreak-diff-{date}.jsonl` + TAP `# DIVERGE:` comment + exit 0
   - Reuse `env_sanitize.sh` from Sprint 1 (IMP-003 environment parity)
-- [ ] **T3.4** Capture frozen baseline lib → **[G-1]**
+- [x] **T3.4** Capture frozen baseline lib → **[G-1]**
   - Copy `.claude/scripts/lib/context-isolation-lib.sh` → `...sh.cycle-100-baseline`
   - Document rotation SOP in `cycle-100/RESUMPTION.md` per IMP-010 (cycle-N+1 ship rotates baseline)
-- [ ] **T3.5** Curate ≥20 differential vectors → **[G-1]**
+- [x] **T3.5** Curate ≥20 differential vectors → **[G-1]**
   - Selected for diversity: at least 3 per category (where applicable); regression vectors prioritized
   - Document selection criteria in `tests/red-team/jailbreak/README.md` differential subsection
-- [ ] **T3.6** Per-vector cypherpunk pushback round → **[G-1]**
+- [x] **T3.6** Per-vector cypherpunk pushback round → **[G-1]**
   - Apply §7.5 criteria to **every** active vector (≥45 from Sprint 2 + new regressions)
   - Drop or revise vectors that fail; log drops + revisions in RESUMPTION
   - Re-run runner after each batch of revisions; stay green
   - **Sprint exit gate:** ≥50 active, 0 suppressed
-- [ ] **T3.7** Performance check + budget headroom → **[G-2]**
+- [x] **T3.7** Performance check + budget headroom → **[G-2]**
   - Run full corpus on `ubuntu-latest`; confirm <60s (NFR-Perf1)
   - If approaching budget, parallelize `bats --jobs $(nproc)` and revisit the IMP-005 per-worker audit-log fallback design
-- [ ] **T3.8** Sprint-3 cypherpunk dual-review + remediation → **[G-1]**
+- [x] **T3.8** Sprint-3 cypherpunk dual-review + remediation → **[G-1]**
 
 ### Dependencies
 

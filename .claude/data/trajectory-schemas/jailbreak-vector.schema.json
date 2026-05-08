@@ -78,7 +78,13 @@
     },
     "expected_marker": {
       "type": "string",
-      "description": "Optional: when expected_outcome==redacted, the specific marker substring expected in stdout (e.g., '[ROLE-SWITCH-PATTERN-REDACTED]'). Cross-checked against the redaction-markers lore file at runtime."
+      "pattern": "^(?=.*[^\\s\\u0000])[^\\r\\n\\u0000]+$",
+      "description": "Optional: when expected_outcome==redacted, the specific marker substring expected in stdout (e.g., '[ROLE-SWITCH-PATTERN-REDACTED]'). Cross-checked against the redaction-markers lore file at runtime. Pattern requires ≥1 non-whitespace non-NUL char and forbids \\r \\n NUL anywhere (mapfile-shift + Windows-CRLF + bash-string-truncation classes — sprint-3 T3.8 F1+F6 + sprint-3 review DISS-004). Tab is allowed; control bytes like RS (\\x1e) are allowed for sentinel pinning."
+    },
+    "expected_absent_marker": {
+      "type": "string",
+      "pattern": "^(?=.*[^\\s\\u0000])[^\\r\\n\\u0000]+$",
+      "description": "Optional: substring that MUST NOT appear in stdout regardless of expected_outcome. Used by regression vectors that pin negative invariants (e.g., RT-TC-101 asserts the cycle-098-sprint-7-HIGH-3 sentinel '\\x1eREPORT\\x1e' never bleeds into the wrapped body). Schema-additive per SDD §3.1 (no schema_version bump). Pattern requires ≥1 non-whitespace non-NUL char and forbids \\r \\n NUL (mapfile-shift + Windows-CRLF + bash-string-truncation) — sprint-3 T3.8 F1+F6 + review DISS-004. RS (\\x1e) and other control bytes are allowed for sentinel pinning."
     },
     "notes": {
       "type": "string",

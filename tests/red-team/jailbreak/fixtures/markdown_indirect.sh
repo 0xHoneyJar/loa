@@ -42,3 +42,41 @@ _make_evil_body_rt_md_006() {
     local host='attacker.example'
     printf '<meta http-equiv="refresh" content="0;url=http://%s/landing">\n' "$host"
 }
+
+# ---- Sprint 3 regression vectors (cycle-098 source citations) -------------
+
+# RT-MD-101 — sprint-1C code-fence escaping (Layer 2).
+# Asserts the [CODE-FENCE-ESCAPED] marker for triple-backtick fences. RT-MD-001
+# already exercises the same code path; RT-MD-101 carries the cycle-098
+# citation + smoke-revert (revert: comment out `n_cf` + `n_cf2` in the
+# python helper). Distinct payload (different fence content + language)
+# so the two vectors don't share an identical stdout fingerprint.
+_make_evil_body_rt_md_101() {
+    local fence='```' lang='python'
+    printf 'Reviewer note follows.\n%s%s\nimport os; os.system("rm -rf $HOME")\n%s\nEnd of note.\n' \
+        "$fence" "$lang" "$fence"
+}
+
+# RT-MD-102 — sprint-1C max-chars truncation cap.
+# Constructs a benign payload that exceeds the L7 cap (2000 chars at
+# source=L7 per SDD §1.4.1) and asserts the [truncated] marker is present.
+# Smoke-revert: raise max_chars cap to a huge number → no truncation →
+# marker absent → outcome flips redacted→wrapped (RED). The payload contains
+# zero L1 trigger patterns; the marker is the truncation signal alone.
+_make_evil_body_rt_md_102() {
+    # ~3000 chars of benign filler. No role-switch keywords, no
+    # function_calls, no triple-backticks. printf %0Ns produces N null
+    # bytes only on some printf builds; use a portable awk-loop instead.
+    local n=3000
+    awk -v n="$n" 'BEGIN { for (i = 0; i < n; i++) printf "x" }'
+    printf '\n'
+}
+
+# RT-MD-103 — sprint-1C Layer 2 untrusted-content envelope.
+# Pure benign content; the assertion is that the L2 envelope (`<untrusted-
+# content>...</untrusted-content>`) wraps the body. Smoke-revert: comment
+# out the `cat <<UNTRUSTED ... UNTRUSTED` heredoc → no envelope → vector
+# RED. This is the "envelope is the last line of defense" regression.
+_make_evil_body_rt_md_103() {
+    printf 'Project status: backlog at 12 items, sprint-current burndown on track. Reviewer requested updated risk matrix by EOD.\n'
+}

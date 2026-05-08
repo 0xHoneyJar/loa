@@ -85,6 +85,7 @@ class Vector:
     suppression_reason: Optional[str] = None
     superseded_by: Optional[str] = None
     expected_marker: Optional[str] = None
+    expected_absent_marker: Optional[str] = None
     notes: Optional[str] = None
 
     @classmethod

@@ -1,0 +1,57 @@
+# tests/red-team/jailbreak/differential-vectors.txt — cycle-100 sprint-3 T3.5
+#
+# Curated list of vector_ids run through differential.bats (FR-5). Both the
+# current SUT and the frozen baseline (cycle-100 sprint-3 ship date) sanitize
+# each fixture's payload; the runner reports byte-for-byte stdout / stderr /
+# exit divergence to `.run/jailbreak-diff-<date>.jsonl`.
+#
+# Selection criteria (per SDD §4.5 + Sprint 3 plan):
+#   - ≥3 per category where applicable (single-shot only — multi_turn skipped)
+#   - sprint-3 regression vectors prioritized (every RT-{TC,RS,MD}-1NN listed)
+#   - mix of L1-redacted, L2-wrapped-only, and uncovered-defense outcomes so
+#     the differential has visibility into multiple defense strata
+#   - no encoded_payload vectors that exceed `flock`/`base64` budgets (the
+#     EP fixtures stay <500 bytes; safe)
+#   - no multi_turn_conditioning (single-shot only by design — IMP-006)
+#
+# Format: one vector_id per line. Lines starting with `#` and blank lines
+# are skipped by differential.bats's loader.
+
+# --- regression vectors (sprint-3) — 8 vectors -----------------------------
+RT-TC-101
+RT-TC-102
+RT-TC-103
+RT-RS-101
+RT-RS-102
+RT-MD-101
+RT-MD-102
+RT-MD-103
+
+# --- role_switch — 3 of 8 active --------------------------------------------
+RT-RS-001
+RT-RS-005
+RT-RS-006
+
+# --- tool_call_exfiltration — 3 of 9 active ---------------------------------
+RT-TC-001
+RT-TC-005
+RT-TC-006
+
+# --- credential_leak — 3 of 6 active ----------------------------------------
+RT-CL-001
+RT-CL-003
+RT-CL-005
+
+# --- markdown_indirect — 2 of 9 active (RT-MD-001 + extra non-regression) --
+RT-MD-001
+RT-MD-005
+
+# --- unicode_obfuscation — 3 of 6 active ------------------------------------
+RT-UN-001
+RT-UN-003
+RT-UN-006
+
+# --- encoded_payload — 3 of 5 active ----------------------------------------
+RT-EP-001
+RT-EP-003
+RT-EP-005
