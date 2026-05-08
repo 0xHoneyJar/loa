@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `semver-bump.sh` now recognizes prerelease tags (`vX.Y.Z-{alpha,beta,rc}.N`)
+  and increments the prerelease counter type-agnostically when the project
+  is on a prerelease cadence. Previously the strict release-only tag glob
+  silently skipped every prerelease tag, causing the post-merge orchestrator
+  to no-op the tag/CHANGELOG/release phases for any project shipping
+  through alpha/beta/rc cycles. Operators no longer need to manually tag
+  prerelease bumps. (#785)
+
 ## [1.130.0] — 2026-05-06 — Model-registry consolidation, agent-network audit infrastructure, subscription-auth headless adapters
 
 This is a **named milestone release** that bundles 41 incremental tags (v1.110.0 → v1.129.1) into one operator-facing version. Three architectural shifts ship together:

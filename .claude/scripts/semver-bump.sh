@@ -51,10 +51,25 @@ declare -A BUMP_PRIORITY=(
 # Version Utilities
 # =============================================================================
 
-# Get current version from the latest git tag matching v*.*.*
+# Get current version from the latest git tag matching either:
+#   - vX.Y.Z          (release)
+#   - vX.Y.Z-PRE.N    (prerelease, where PRE ∈ {alpha, beta, rc})
+#
+# Both shapes are returned to the caller; bump_version() handles the kind
+# difference. Pre-1.0 projects that ship through a prerelease cadence (e.g.
+# v2.0.0-alpha.7) need this to compute "next version" correctly — without
+# the prerelease branch, the strict vX.Y.Z glob silently misses every
+# alpha/beta/rc tag and the post-merge orchestrator skips tag/CHANGELOG/
+# release entirely.
 get_version_from_tag() {
   local tag
-  tag=$(git -C "$PROJECT_ROOT" tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname 2>/dev/null | head -1)
+  # `tag -l` accepts multiple patterns; combine release + prerelease shapes,
+  # then filter by precise regex (the glob is permissive — matches strings
+  # like "v1.2.3-foo" too).
+  tag=$(git -C "$PROJECT_ROOT" tag -l 'v[0-9]*.[0-9]*.[0-9]*' 'v[0-9]*.[0-9]*.[0-9]*-*' \
+    --sort=-v:refname 2>/dev/null \
+    | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$' \
+    | head -1)
   if [[ -n "$tag" ]]; then
     echo "${tag#v}"
     return 0
@@ -76,21 +91,48 @@ get_version_from_changelog() {
   return 1
 }
 
-# Bump a version string by type
+# Bump a version string by type. Handles two shapes:
+#
+#   1. Release  X.Y.Z          → bump per `bump` arg (major/minor/patch)
+#   2. Prerelease X.Y.Z-PRE.N  → increment N (PRE ∈ {alpha, beta, rc})
+#
+# Prerelease bumping is type-agnostic by design: while a project is on a
+# prerelease cadence (e.g. 2.0.0-alpha.N), conventional-commit signal
+# (feat/fix/etc.) does not warrant a major/minor/patch flip — the project
+# is still pre-1.0-of-this-major. Promotion out of prerelease (alpha → beta,
+# rc → release) is operator-driven and out of scope for this bump path.
+#
+# Validate version format (M-05) — accept either release or prerelease.
 bump_version() {
   local current="$1" bump="$2"
-  # Validate version format (M-05)
-  if ! [[ "$current" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "ERROR: Invalid version format: $current" >&2
-    return 1
+  local prerelease_re='^([0-9]+)\.([0-9]+)\.([0-9]+)-(alpha|beta|rc)\.([0-9]+)$'
+  local release_re='^([0-9]+)\.([0-9]+)\.([0-9]+)$'
+
+  if [[ "$current" =~ $prerelease_re ]]; then
+    local major="${BASH_REMATCH[1]}"
+    local minor="${BASH_REMATCH[2]}"
+    local patch="${BASH_REMATCH[3]}"
+    local pre_kind="${BASH_REMATCH[4]}"
+    local pre_num="${BASH_REMATCH[5]}"
+    echo "${major}.${minor}.${patch}-${pre_kind}.$((pre_num + 1))"
+    return 0
   fi
-  IFS='.' read -r major minor patch <<< "$current"
-  case "$bump" in
-    major) echo "$((major + 1)).0.0" ;;
-    minor) echo "${major}.$((minor + 1)).0" ;;
-    patch) echo "${major}.${minor}.$((patch + 1))" ;;
-    *) echo "ERROR: Unknown bump type: $bump" >&2; return 1 ;;
-  esac
+
+  if [[ "$current" =~ $release_re ]]; then
+    local major="${BASH_REMATCH[1]}"
+    local minor="${BASH_REMATCH[2]}"
+    local patch="${BASH_REMATCH[3]}"
+    case "$bump" in
+      major) echo "$((major + 1)).0.0" ;;
+      minor) echo "${major}.$((minor + 1)).0" ;;
+      patch) echo "${major}.${minor}.$((patch + 1))" ;;
+      *) echo "ERROR: Unknown bump type: $bump" >&2; return 1 ;;
+    esac
+    return 0
+  fi
+
+  echo "ERROR: Invalid version format: $current" >&2
+  return 1
 }
 
 # =============================================================================

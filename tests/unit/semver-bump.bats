@@ -389,3 +389,205 @@ EOF
     current=$(echo "$output" | jq -r '.current')
     [ "$current" = "1.2.0" ]
 }
+
+# =============================================================================
+# Prerelease Tag Tests (alpha/beta/rc)
+# =============================================================================
+#
+# Pre-1.0 projects (or major-version cadences shipping through prereleases)
+# tag with `vX.Y.Z-alpha.N` / `vX.Y.Z-beta.N` / `vX.Y.Z-rc.N`. The
+# release-only glob in get_version_from_tag() previously skipped these,
+# silently breaking downstream post-merge automation (no current version
+# resolved → empty next → semver phase exit 0 with empty result → tag/
+# CHANGELOG/release phases skipped). These tests pin the prerelease path.
+
+@test "semver-bump: detects prerelease tag (alpha)" {
+    skip_if_deps_missing
+
+    make_commit "initial"
+    make_tag "2.0.0-alpha.7"
+    make_commit "feat: post-alpha-7 work"
+
+    run "$TEST_SCRIPT" --from-tag
+    [ "$status" -eq 0 ]
+    local current
+    current=$(echo "$output" | jq -r '.current')
+    [ "$current" = "2.0.0-alpha.7" ]
+}
+
+@test "semver-bump: detects prerelease tag (beta)" {
+    skip_if_deps_missing
+
+    make_commit "initial"
+    make_tag "1.5.0-beta.2"
+    make_commit "fix: post-beta-2 work"
+
+    run "$TEST_SCRIPT" --from-tag
+    [ "$status" -eq 0 ]
+    local current
+    current=$(echo "$output" | jq -r '.current')
+    [ "$current" = "1.5.0-beta.2" ]
+}
+
+@test "semver-bump: detects prerelease tag (rc)" {
+    skip_if_deps_missing
+
+    make_commit "initial"
+    make_tag "3.0.0-rc.1"
+    make_commit "feat: post-rc-1 work"
+
+    run "$TEST_SCRIPT" --from-tag
+    [ "$status" -eq 0 ]
+    local current
+    current=$(echo "$output" | jq -r '.current')
+    [ "$current" = "3.0.0-rc.1" ]
+}
+
+@test "semver-bump: prerelease bump increments prerelease number on feat commit" {
+    skip_if_deps_missing
+
+    make_commit "initial"
+    make_tag "2.0.0-alpha.7"
+    make_commit "feat: add new feature during alpha"
+
+    run "$TEST_SCRIPT" --from-tag
+    [ "$status" -eq 0 ]
+    local next
+    next=$(echo "$output" | jq -r '.next')
+    [ "$next" = "2.0.0-alpha.8" ]
+}
+
+@test "semver-bump: prerelease bump increments prerelease number on fix commit" {
+    skip_if_deps_missing
+
+    make_commit "initial"
+    make_tag "2.0.0-alpha.7"
+    make_commit "fix: patch something during alpha"
+
+    run "$TEST_SCRIPT" --from-tag
+    [ "$status" -eq 0 ]
+    local next
+    next=$(echo "$output" | jq -r '.next')
+    [ "$next" = "2.0.0-alpha.8" ]
+}
+
+@test "semver-bump: prerelease bump is type-agnostic — major commit also increments prerelease N" {
+    skip_if_deps_missing
+
+    make_commit "initial"
+    make_tag "2.0.0-alpha.7"
+    make_commit "feat!: breaking change during alpha"
+
+    run "$TEST_SCRIPT" --from-tag
+    [ "$status" -eq 0 ]
+    local next
+    next=$(echo "$output" | jq -r '.next')
+    # While on prerelease, conventional-commit type does not warrant
+    # major/minor/patch flip — project is still pre-1.0-of-this-major.
+    # Promotion (alpha → beta, rc → release) is operator-driven.
+    [ "$next" = "2.0.0-alpha.8" ]
+}
+
+@test "semver-bump: prerelease bump for beta increments beta number" {
+    skip_if_deps_missing
+
+    make_commit "initial"
+    make_tag "1.5.0-beta.9"
+    make_commit "fix: post-beta-9"
+
+    run "$TEST_SCRIPT" --from-tag
+    [ "$status" -eq 0 ]
+    local next
+    next=$(echo "$output" | jq -r '.next')
+    [ "$next" = "1.5.0-beta.10" ]
+}
+
+@test "semver-bump: prerelease bump for rc increments rc number" {
+    skip_if_deps_missing
+
+    make_commit "initial"
+    make_tag "3.0.0-rc.1"
+    make_commit "fix: post-rc-1"
+
+    run "$TEST_SCRIPT" --from-tag
+    [ "$status" -eq 0 ]
+    local next
+    next=$(echo "$output" | jq -r '.next')
+    [ "$next" = "3.0.0-rc.2" ]
+}
+
+@test "semver-bump: release bump still works for plain X.Y.Z (no regression)" {
+    skip_if_deps_missing
+
+    # Defense regression: VULN-002-style fix should not break release-only
+    # path. This test re-runs the canonical "feat → minor bump" case to
+    # confirm the bump_version() refactor is additive.
+    make_commit "initial"
+    make_tag "1.0.0"
+    make_commit "feat: minor bump"
+
+    run "$TEST_SCRIPT" --from-tag
+    [ "$status" -eq 0 ]
+    local next
+    next=$(echo "$output" | jq -r '.next')
+    [ "$next" = "1.1.0" ]
+}
+
+@test "semver-bump: malformed prerelease tag (missing .N suffix) rejected by version regex" {
+    skip_if_deps_missing
+
+    # The grep regex in get_version_from_tag() requires the prerelease
+    # to have an explicit numeric suffix. A bare `v1.0.0-alpha` (no .N)
+    # is matched neither by the strict regex nor by the prerelease regex,
+    # so get_version_from_tag returns 1 (no version source) — the script
+    # falls back to changelog or fails cleanly.
+    make_commit "initial"
+    git -C "$TEST_REPO" tag -a "v1.0.0-alpha" -m "malformed prerelease"
+    make_commit "feat: post-malformed"
+
+    run "$TEST_SCRIPT" --from-tag
+    # Either exit 2 (no version source) OR fall back to changelog (which
+    # is also empty in this fixture, also exit 2). Behavior must NOT
+    # silently accept the malformed tag and produce empty/garbage next.
+    [ "$status" -ne 0 ]
+}
+
+@test "semver-bump: picks latest version-sorted prerelease across alpha.N range" {
+    skip_if_deps_missing
+
+    make_commit "initial"
+    make_tag "2.0.0-alpha.1"
+    make_commit "c2"
+    make_tag "2.0.0-alpha.2"
+    make_commit "c3"
+    make_tag "2.0.0-alpha.10"
+    make_commit "feat: post-alpha-10"
+
+    run "$TEST_SCRIPT" --from-tag
+    [ "$status" -eq 0 ]
+    local current
+    current=$(echo "$output" | jq -r '.current')
+    # Version-aware sort: alpha.10 > alpha.2 > alpha.1 (NOT lexicographic).
+    [ "$current" = "2.0.0-alpha.10" ]
+}
+
+@test "semver-bump: picks latest tag when release and prerelease coexist" {
+    skip_if_deps_missing
+
+    # Mixed history: project shipped v1.x stable, then started v2 prerelease
+    # cadence. The post-merge orchestrator should pick the latest tag by
+    # version sort regardless of prerelease vs release shape.
+    make_commit "initial"
+    make_tag "1.5.0"
+    make_commit "c2"
+    make_tag "2.0.0-alpha.1"
+    make_commit "c3"
+    make_tag "2.0.0-alpha.5"
+    make_commit "feat: post-alpha-5"
+
+    run "$TEST_SCRIPT" --from-tag
+    [ "$status" -eq 0 ]
+    local current
+    current=$(echo "$output" | jq -r '.current')
+    [ "$current" = "2.0.0-alpha.5" ]
+}
