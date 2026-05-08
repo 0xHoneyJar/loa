@@ -4,7 +4,7 @@
 // .claude/scripts/lib/codegen/model-resolver.ts.j2 + the canonical
 // .claude/scripts/lib/model-resolver.py source.
 //
-// Source content hash: 2a426d2e9771c5b97c35409551e98c2151ad268d10b57fb040d70b14534bece1
+// Source content hash: 6dde2fe2fe39e2919cc60d925845a88cd510e2f5d365be1712cbea97e32f0d06
 // Generator version:   1.0
 // Generated at:        (deterministic — wall-clock excluded)
 //

@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "bug_id": "20260508-i789-e3f89e",
+  "bug_title": "Coupled model-stability rollback restoration: BB OpenAI timeout + Google preview probe + legacy adapter responses-API parsing",
+  "sprint_id": "sprint-bug-143",
+  "state": "TRIAGE",
+  "mode": "interactive",
+  "created_at": "2026-05-08T00:00:00Z",
+  "updated_at": "2026-05-08T00:00:00Z",
+  "source_issues": [787, 789],
+  "circuit_breaker": {
+    "cycle_count": 0,
+    "same_issue_count": 0,
+    "no_progress_count": 0,
+    "last_finding_hash": null
+  },
+  "confidence": {
+    "reproduction_strength": "strong",
+    "test_type": "unit",
+    "risk_level": "high",
+    "files_changed": 0,
+    "lines_changed": 0
+  }
+}

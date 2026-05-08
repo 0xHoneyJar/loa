@@ -973,9 +973,26 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260507-i774-e898cd/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260507-i774-e898cd/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260508-i789-e3f89e",
+      "label": "Bug Fix — Coupled model-stability rollback restoration (#787 + #789)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issues": [
+        787,
+        789
+      ],
+      "rolled_back_commit": "cd4abc1f",
+      "created_at": "2026-05-08T00:00:00Z",
+      "sprints": [
+        "sprint-bug-143"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260508-i789-e3f89e/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260508-i789-e3f89e/sprint.md"
     }
   ],
-  "global_sprint_counter": 142,
+  "global_sprint_counter": 143,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",

@@ -3,17 +3,16 @@
 
 simstim:
   enabled: true
-  bridgebuilder_design_review: true   # Phase 3.5 gate — enabled for cycle-048
+  bridgebuilder_design_review: true # Phase 3.5 gate — enabled for cycle-048
   flatline:
     auto_accept_high_consensus: true
     show_disputed: true
     show_blockers: true
-    beads_loop: true                    # Phase 6.5: Flatline Beads iterative refinement
+    beads_loop: true # Phase 6.5: Flatline Beads iterative refinement
     phases:
       - prd
       - sdd
       - sprint
-
 run_mode:
   enabled: true
   defaults:
@@ -25,30 +24,26 @@ run_mode:
     consolidate_pr: true
     commit_prefix: "feat"
     include_commits_by_sprint: true
-
 # Hounfour — Model-Heterogeneous Agent Routing (cycle-026)
 hounfour:
-  flatline_routing: false  # Route Flatline/GPT-review through model-invoke (cheval.py)
-  flatline_tertiary_model: gemini-3.1-pro-preview  # 3-model Flatline: Opus + GPT-5.5-pro + Gemini-3.1-pro
-
+  flatline_routing: false # Route Flatline/GPT-review through model-invoke (cheval.py)
+  flatline_tertiary_model: gemini-3.1-pro-preview # 3-model Flatline: Opus + GPT-5.5-pro + Gemini-3.1-pro
   # Per-subsystem feature flags (all default true — opt-out)
   feature_flags:
-    google_adapter: true     # Enable Google provider adapter
-    deep_research: true      # Enable Deep Research models (Interactions API)
-    flatline_routing: false   # Route Flatline through Hounfour (same as top-level)
-    metering: true           # Enable BudgetEnforcer cost tracking
-    thinking_traces: true    # Include thinking config in request bodies
-    jam_geometry: false      # Enable Jam multi-model parallel review (opt-in)
-
+    google_adapter: true # Enable Google provider adapter
+    deep_research: true # Enable Deep Research models (Interactions API)
+    flatline_routing: false # Route Flatline through Hounfour (same as top-level)
+    metering: true # Enable BudgetEnforcer cost tracking
+    thinking_traces: true # Include thinking config in request bodies
+    jam_geometry: false # Enable Jam multi-model parallel review (opt-in)
   # Metering configuration
   metering:
     enabled: true
     ledger_path: .run/cost-ledger.jsonl
     budget:
-      daily_micro_usd: 500000000  # $500/day default
+      daily_micro_usd: 500000000 # $500/day default
       warn_at_percent: 80
-      on_exceeded: downgrade      # block | downgrade | warn
-
+      on_exceeded: downgrade # block | downgrade | warn
 # BUTTERFREEZONE — Cross-Repo Agent Legibility (cycle-017)
 butterfreezone:
   ecosystem:
@@ -79,77 +74,71 @@ butterfreezone:
         - "Flatline Protocol — adversarial multi-model review as creative tension"
         - "TAZ (Hakim Bey) — temporary spaces for autonomous agent exploration"
       study_groups: "Knowledge production through collective inquiry — Flatline as multi-model study group"
-
 # Vision Registry Integration (v1.42.0 — cycle-041)
 # Weaves captured visions from bridge reviews into planning workflows.
 # Disabled by default — opt-in via enabled: true.
 vision_registry:
-  enabled: true            # Graduated in cycle-069 (#486)
-  shadow_mode: true        # Log matches silently before presenting to user
-  shadow_cycles_before_prompt: 2  # Shadow cycles before graduation prompt
+  enabled: true # Graduated in cycle-069 (#486)
+  shadow_mode: true # Log matches silently before presenting to user
+  shadow_cycles_before_prompt: 2 # Shadow cycles before graduation prompt
   status_filter:
     - Captured
     - Exploring
-  min_tag_overlap: 2       # Minimum tag overlap for relevance
-  max_visions_per_session: 3  # Cap visions shown per planning session
-  ref_elevation_threshold: 3  # Ref count before lore elevation suggestion
-  propose_requirements: false  # Experimental — vision-inspired requirement proposals
-  bridge_auto_capture: false   # Auto-capture VISION findings from bridge reviews (cycle-042)
-
+  min_tag_overlap: 2 # Minimum tag overlap for relevance
+  max_visions_per_session: 3 # Cap visions shown per planning session
+  ref_elevation_threshold: 3 # Ref count before lore elevation suggestion
+  propose_requirements: false # Experimental — vision-inspired requirement proposals
+  bridge_auto_capture: false # Auto-capture VISION findings from bridge reviews (cycle-042)
 # Spiral Configuration (cycle-069 seed, cycle-070 e2e)
 # Autonomous multi-cycle development loop.
 spiral:
-  enabled: true                    # Master switch for /spiral --start
-  task: ""                         # Set dynamically by --start "task description"
-  max_budget_per_cycle_usd: 15     # Per-cycle cost cap (3x Flatline + implement + review + audit)
-  max_total_budget_usd: 50         # Spiral-level hard stop across all cycles
-  status_file: ".run/spiral-status.txt"  # Human-readable status artifact
+  enabled: true # Master switch for /spiral --start
+  task: "" # Set dynamically by --start "task description"
+  max_budget_per_cycle_usd: 15 # Per-cycle cost cap (3x Flatline + implement + review + audit)
+  max_total_budget_usd: 50 # Spiral-level hard stop across all cycles
+  status_file: ".run/spiral-status.txt" # Human-readable status artifact
   seed:
-    mode: "full"                   # "full" (Vision Registry queries), "degraded" (text-blob), "cold" (no context)
-    default_tags:                  # Fallback tags when HARVEST sidecar has no mappable categories
+    mode: "full" # "full" (Vision Registry queries), "degraded" (text-blob), "cold" (no context)
+    default_tags: # Fallback tags when HARVEST sidecar has no mappable categories
       - architecture
       - security
-    max_seed_visions: 10           # Max visions included in seed context
+    max_seed_visions: 10 # Max visions included in seed context
   step_timeouts:
     seed_sec: 30
-    simstim_sec: 7200              # 2 hours per cycle dispatch
+    simstim_sec: 7200 # 2 hours per cycle dispatch
     harvest_sec: 60
-  harness:                           # Evidence-gated orchestrator (cycle-071)
-    enabled: true                    # Use harness vs monolithic dispatch
-    max_phase_retries: 3             # Retries per gate on failure
-    planning_budget_usd: 1           # Per-phase budget for PRD/SDD/Sprint
-    implement_budget_usd: 5          # Budget for implementation session
-    review_budget_usd: 2             # Budget for independent review session
-    audit_budget_usd: 2              # Budget for independent audit session
+  harness: # Evidence-gated orchestrator (cycle-071)
+    enabled: true # Use harness vs monolithic dispatch
+    max_phase_retries: 3 # Retries per gate on failure
+    planning_budget_usd: 1 # Per-phase budget for PRD/SDD/Sprint
+    implement_budget_usd: 5 # Budget for implementation session
+    review_budget_usd: 2 # Budget for independent review session
+    audit_budget_usd: 2 # Budget for independent audit session
     # Advisor Strategy: Sonnet executes (cheap), Opus judges (quality)
     # ~60% cost reduction vs all-Opus. See https://claude.com/blog/the-advisor-strategy
-    executor_model: sonnet           # PRD, SDD, Sprint, Implementation
-    advisor_model: opus              # Review, Audit (judgment quality)
+    executor_model: sonnet # PRD, SDD, Sprint, Implementation
+    advisor_model: opus # Review, Audit (judgment quality)
     # Pipeline Profiles (cycle-072): full | standard | light
-    pipeline_profile: standard       # Sprint Flatline only + Opus advisor ($12)
-
+    pipeline_profile: standard # Sprint Flatline only + Opus advisor ($12)
   # Off-Hours Scheduling (cycle-072)
   scheduling:
-    enabled: false                   # Must opt-in
+    enabled: false # Must opt-in
     windows:
       - start_utc: "02:00"
         end_utc: "08:00"
         days: [mon, tue, wed, thu, fri]
-    strategy: fill                   # fill | single | continuous
+    strategy: fill # fill | single | continuous
     max_cycles_per_window: 3
-
 # Prompt Isolation (v1.42.0 — cycle-042)
 # De-authorization wrappers for untrusted content in LLM prompts.
 # Addresses vision-003: Context Isolation as Prompt Injection Defense.
 prompt_isolation:
-  enabled: true                # Enable context isolation wrappers in prompt construction
-
+  enabled: true # Enable context isolation wrappers in prompt construction
 # Continuous Learning — Skill Extraction (cycle-046)
 continuous_learning:
   skills_dir: grimoires/loa/skills
   pending_dir: grimoires/loa/skills-pending
   archive_dir: grimoires/loa/skills-archived
-
 run_bridge:
   enabled: true
   defaults:
@@ -180,28 +169,19 @@ run_bridge:
     # api_key_mode: graceful — missing keys degrade gracefully rather than blocking review.
     multi_model:
       enabled: true
-      # 2026-05-08: tri-model BB regression — gpt-5.5-pro hangs on large
-      # diffs (>900s on 95k input tokens; reasoning-class 15min default
-      # timeout exceeded), gemini-3.1-pro-preview returns network errors.
-      # Rolled back to last-known-good model class:
-      #   - primary stays claude-opus-4-7 (working — 93s on 95k tokens)
-      #   - reviewer #1: gpt-5.3-codex (was: gpt-5.5-pro) — non-reasoning OpenAI;
-      #     completes within timeout; verified working pre-cycle-099 sprint-2E
-      #   - reviewer #2: gemini-2.5-pro (was: gemini-3.1-pro-preview) — GA tier,
-      #     thinking_traces capability, no preview-instability
-      # Restore reasoning-class models when:
-      #   (a) BB OpenAI timeout bumped to 30min for reasoning-class models
-      #   (b) Google preview-stability is verified via separate probe
-      # See #787 follow-up tracker for restoration plan.
+      # Restored after sprint-bug-143 fix (2026-05-08) — see grimoires/loa/a2a/bug-20260508-i789-e3f89e/.
+      # #787 closed: legacy adapter now sets max_output_tokens=8000 for /v1/responses.
+      # #789a closed: BB OpenAI per-model timeout = 30min for reasoning-class (multi-model-pipeline.ts deriveTimeoutMs).
+      # #789b deferred to cycle-101 follow-up: invoke-time probe gate for preview-tier models.
       models:
         - provider: anthropic
           model_id: claude-opus-4-7
           role: primary
         - provider: openai
-          model_id: gpt-5.3-codex        # was gpt-5.5-pro — see comment above
+          model_id: gpt-5.5-pro
           role: reviewer
         - provider: google
-          model_id: gemini-2.5-pro        # was gemini-3.1-pro-preview — GA tier
+          model_id: gemini-3.1-pro-preview
           role: reviewer
       iteration_strategy: final
       api_key_mode: graceful
@@ -213,9 +193,8 @@ run_bridge:
           low_value: 400
           blocker: 700
   pipeline_self_review:
-    enabled: false              # Default false — progressive rollout
-    base_branch: main           # Branch to diff against
-
+    enabled: false # Default false — progressive rollout
+    base_branch: main # Branch to diff against
 # Post-PR Validation — Amendment 1 enablement (cycle-053, Issue #467)
 # The BRIDGEBUILDER_REVIEW phase runs after FLATLINE_PR, performs iterative
 # adversarial review with kaironic termination. Feature enabled here for
@@ -224,21 +203,19 @@ post_pr_validation:
   enabled: true
   phases:
     bridgebuilder_review:
-      enabled: true              # ← Enabling Option A (was false default)
+      enabled: true # ← Enabling Option A (was false default)
       auto_triage_blockers: true # Autonomous dispatch with logged reasoning (HITL decision #1)
-      depth: 5                   # Inherit from /run-bridge default; kaironic short-circuit on FLATLINE
-
+      depth: 5 # Inherit from /run-bridge default; kaironic short-circuit on FLATLINE
 # Bridgebuilder Design Review (cycle-044)
 bridgebuilder_design_review:
-  enabled: true                 # Enabled for cycle-048 — progressive rollout (sole gate)
-  persona_path: ".claude/data/bridgebuilder-persona.md"  # FR-5.2: configurable persona
-  lore_enabled: true            # Load lore context for reviews
-  vision_capture: true          # Capture VISION/SPECULATION to registry
-  token_budget:                 # Inherits run_bridge.bridgebuilder defaults
+  enabled: true # Enabled for cycle-048 — progressive rollout (sole gate)
+  persona_path: ".claude/data/bridgebuilder-persona.md" # FR-5.2: configurable persona
+  lore_enabled: true # Load lore context for reviews
+  vision_capture: true # Capture VISION/SPECULATION to registry
+  token_budget: # Inherits run_bridge.bridgebuilder defaults
     findings_tokens: 5000
     insights_tokens: 25000
-    total_tokens: 30000         # Output budget only (input context is additional)
-
+    total_tokens: 30000 # Output budget only (input context is additional)
 flatline_protocol:
   enabled: true
   auto_trigger: true
@@ -248,8 +225,8 @@ flatline_protocol:
     sprint: true
   models:
     primary: opus
-    secondary: gpt-5.5-pro          # most powerful OpenAI (was gpt-5.3-codex)
-    tertiary: gemini-3.1-pro-preview  # most powerful Gemini Pro (was gemini-2.5-pro)
+    secondary: gpt-5.5-pro # most powerful OpenAI (was gpt-5.3-codex)
+    tertiary: gemini-3.1-pro-preview # most powerful Gemini Pro (was gemini-2.5-pro)
   thresholds:
     high_consensus: 700
     disputed_delta: 300
@@ -264,22 +241,20 @@ flatline_protocol:
   # Emergency override: LOA_ADVERSARIAL_REVIEW_ENFORCE=false.
   code_review:
     enabled: true
-    # 2026-05-08: rolled back from gpt-5.5-pro → claude-opus-4-7 to sidestep
-    # #783 follow-up (legacy bash adapter /v1/responses parsing for reasoning-
-    # model output shapes returns "Empty response content"). Anthropic path
-    # bypasses the broken jq filter at model-adapter.sh.legacy:566-570.
-    # Restore gpt-5.5-pro after cycle-099 Sprint 4 flips
-    # `hounfour.flatline_routing: true` and retires the legacy adapter.
-    model: claude-opus-4-7          # top capability, no legacy-adapter parsing bug
+    # Restored after sprint-bug-143 fix (2026-05-08). Legacy adapter now sets
+    # max_output_tokens=8000 for /v1/responses (root cause of "Empty response
+    # content" was budget starvation, not jq filter parsing). 900s timeout
+    # added to accommodate gpt-5.5-pro reasoning-class latency on large diffs.
+    # See grimoires/loa/a2a/bug-20260508-i789-e3f89e/.
+    model: gpt-5.5-pro
     budget_cents: 150
-    timeout_seconds: 60
+    timeout_seconds: 900
   security_audit:
     enabled: true
-    # Same rollback rationale as code_review above. Restore gpt-5.5-pro after
-    # cycle-099 Sprint 4 retires the legacy bash adapter.
-    model: claude-opus-4-7          # top capability, no legacy-adapter parsing bug
+    # Same restoration rationale as code_review (sprint-bug-143).
+    model: gpt-5.5-pro
     budget_cents: 150
-    timeout_seconds: 60
+    timeout_seconds: 900
   secret_scanning:
     patterns:
       - "AIzaSy[A-Za-z0-9_-]{33}"
@@ -296,23 +271,22 @@ flatline_protocol:
   # Autonomous decision-making for DISPUTED/BLOCKER findings.
   # Replaces HITL prompts when SIMSTIM_AUTONOMOUS=1.
   autonomous_arbiter:
-    enabled: true                      # Enabled cycle-070 — round-robin arbiter active in autonomous mode
-    rotation:                          # Model rotation per Flatline phase (most-powerful per family)
-      - opus                           # PRD arbiter
-      - gpt-5.5-pro                    # SDD arbiter (was gpt-5.3-codex)
-      - gemini-3.1-pro-preview         # Sprint arbiter (was gemini-2.5-pro)
-    fallback: "reject"                 # Conservative fallback when all models fail
-    max_arbiter_tokens: 4000           # Token budget for arbiter response
-
+    enabled: true # Enabled cycle-070 — round-robin arbiter active in autonomous mode
+    rotation: # Model rotation per Flatline phase (most-powerful per family)
+      - opus # PRD arbiter
+      - gpt-5.5-pro # SDD arbiter (was gpt-5.3-codex)
+      - gemini-3.1-pro-preview # Sprint arbiter (was gemini-2.5-pro)
+    fallback: "reject" # Conservative fallback when all models fail
+    max_arbiter_tokens: 4000 # Token budget for arbiter response
 # Red Team — Generative Adversarial Security Design (cycle-012)
 red_team:
   enabled: true
   mode: standard
   models:
     attacker_primary: opus
-    attacker_secondary: gpt-5.5-pro    # most powerful OpenAI (was gpt-5.3-codex)
+    attacker_secondary: gpt-5.5-pro # most powerful OpenAI (was gpt-5.3-codex)
     defender_primary: opus
-    defender_secondary: gpt-5.5-pro    # most powerful OpenAI (was gpt-5.3-codex)
+    defender_secondary: gpt-5.5-pro # most powerful OpenAI (was gpt-5.3-codex)
   defaults:
     attacks_per_model: 10
     depth: 1
@@ -334,8 +308,8 @@ red_team:
   # poorly and the attacker model filled in from its prior rather than
   # engaging the actual target document.
   grounding_failure:
-    opus_zero_threshold: 0.8   # ≥80% of scored attacks at opus_score=0 trips the guard
-    min_attacks: 3             # small-N guard; don't trip on 1-2 attack runs
+    opus_zero_threshold: 0.8 # ≥80% of scored attacks at opus_score=0 trips the guard
+    min_attacks: 3 # small-N guard; don't trip on 1-2 attack runs
   safety:
     prohibited_content: true
     mandatory_redaction: true
@@ -348,7 +322,7 @@ red_team:
     secret_filtering: true
   surfaces_registry: .claude/data/attack-surfaces.yaml
   simstim:
-    auto_trigger: true      # Enabled for cycle-048
+    auto_trigger: true # Enabled for cycle-048
     phase: post_sdd
   bridge:
     enabled: false
@@ -369,11 +343,11 @@ red_team:
         - Secrets
         - Encryption
         - Input.Sanitiz
-      prompt_template: "security-comparison"  # Maps to get_evaluation_context() in compliance-lib.sh
+      prompt_template: "security-comparison" # Maps to get_evaluation_context() in compliance-lib.sh
   # Code-vs-Design gate — compares SDD security design to implemented code (cycle-045)
   code_vs_design:
-    enabled: false                    # Default off — opt-in per FR-3
-    max_cycles: 2                     # Circuit breaker: max re-implementation cycles
-    skip_if_no_sdd: true             # Skip silently when no SDD exists
-    severity_threshold: 700           # Only divergences >700 trigger re-implementation
-    token_budget: 150000              # 150K token ceiling per invocation
+    enabled: false # Default off — opt-in per FR-3
+    max_cycles: 2 # Circuit breaker: max re-implementation cycles
+    skip_if_no_sdd: true # Skip silently when no SDD exists
+    severity_threshold: 700 # Only divergences >700 trigger re-implementation
+    token_budget: 150000 # 150K token ceiling per invocation

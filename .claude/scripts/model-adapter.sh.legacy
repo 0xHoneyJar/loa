@@ -247,7 +247,15 @@ call_openai_api() {
         local escaped_input
         escaped_input=$(printf '%s' "$combined_input" | jq -Rs .)
 
-        payload=$(printf '{"model":"%s","input":%s,"reasoning":{"effort":"medium"}}' "$model_id" "$escaped_input")
+        # sprint-bug-143 #787 fix: explicit max_output_tokens for reasoning-class
+        # /v1/responses. Without this, gpt-5.5-pro (and any other reasoning model)
+        # consumes its default visible-output budget on internal reasoning tokens
+        # and returns empty `output[].content[].text` — the canonical "Empty
+        # response content" symptom. Cheval already handles this via
+        # `max_output_tokens` from `model-config.yaml`; legacy bash adapter was
+        # missing it. 8000 is comfortably above any adversarial-review / flatline
+        # dissent output budget while keeping cost predictable.
+        payload=$(printf '{"model":"%s","input":%s,"reasoning":{"effort":"medium"},"max_output_tokens":8000}' "$model_id" "$escaped_input")
     else
         api_url="https://api.openai.com/v1/chat/completions"
 

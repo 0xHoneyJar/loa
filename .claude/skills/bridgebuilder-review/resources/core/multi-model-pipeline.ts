@@ -22,6 +22,45 @@ import { createAdapter } from "../adapters/adapter-factory.js";
 import { PROVIDER_API_KEY_ENV, validateApiKeys } from "../config.js";
 import type { LoreEntry, PRReviewTemplate } from "./template.js";
 
+/**
+ * Sprint-bug-143 #789a fix: per-model timeout derivation.
+ *
+ * Reasoning-class OpenAI models (gpt-5.5-pro and similar) need substantially
+ * more time than the prior 300_000ms cap allowed — observed cycle-100
+ * sprint-2 BB iter-1: gpt-5.5-pro hung past 900s on a 95k-token diff because
+ * the model spends most of its budget on internal reasoning before emitting
+ * visible tokens. The previous 300s ceiling forced a silent timeout and
+ * BB degraded to single-model.
+ *
+ * Detection by model_id substring is intentionally narrow — we want to grant
+ * the longer budget ONLY where it's needed, not as a blanket increase. New
+ * reasoning-class models added to the BB triad must extend this regex.
+ *
+ * 1_800_000ms = 30min, comfortably above gpt-5.5-pro's observed 900-1100s
+ * end-to-end on large reviews while keeping operator-visible latency bounded.
+ */
+function isReasoningClassOpenAI(provider: string, modelId: string): boolean {
+  if (provider !== "openai") return false;
+  // gpt-5.5-pro, gpt-5.6-pro, etc. — `pro` suffix on /v1/responses path.
+  // Codex variants (gpt-5.3-codex) are non-reasoning despite using
+  // /v1/responses; exclude them via the `-pro` anchor.
+  return /^gpt-\d+(\.\d+)?-pro$/i.test(modelId);
+}
+
+export function deriveTimeoutMs(
+  provider: string,
+  modelId: string,
+  config: BridgebuilderConfig,
+): number {
+  if (isReasoningClassOpenAI(provider, modelId)) {
+    return 1_800_000; // 30 minutes
+  }
+  // Existing tiered ladder for non-reasoning paths.
+  return config.maxInputTokens > 100_000 ? 300_000 :
+         config.maxInputTokens > 50_000 ? 180_000 :
+         120_000;
+}
+
 export interface MultiModelReviewResult {
   /** Per-model review results. */
   modelResults: Array<{
@@ -132,7 +171,7 @@ export async function executeMultiModelReview(
       provider: entry.provider,
       modelId: entry.modelId,
       apiKey,
-      timeoutMs: config.maxInputTokens > 100_000 ? 300_000 : 120_000,
+      timeoutMs: deriveTimeoutMs(entry.provider, entry.modelId, config),
       costRates,
     });
 
