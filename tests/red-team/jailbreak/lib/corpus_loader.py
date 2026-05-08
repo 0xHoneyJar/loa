@@ -212,14 +212,15 @@ _REPLAY_DIR = Path(
 # fixture function. Anchored placeholder to avoid accidental collision
 # with legitimate prose containing the substring "FIXTURE:".
 #
-# Cypherpunk M5 closure: trailing whitespace is tolerated (fixture authors
-# routinely add `\n` at the end of JSON string values). Without this,
-# `re.match("...$", ..."__\n\n")` silently fails the placeholder match,
-# the placeholder string passes through unchanged, the SUT sees a literal
-# `__FIXTURE:..._` token (no trigger ever runs), and `_count_redactions`
-# stays at 0 — vacuously-green class. We use re.fullmatch and explicit
-# `\s*` allowance to surface the contract.
-_PLACEHOLDER_RE = re.compile(r"__FIXTURE:(_make_evil_body_[a-z0-9_]+)__\s*")
+# Cypherpunk M5 closure (Sprint 2 T2.7): trailing whitespace is tolerated.
+# /review-sprint NEW-B1 closure (cross-validated by Opus DISS-001): leading
+# whitespace is also tolerated. Both ends are permissive because fixture
+# authors routinely have leading or trailing `\n` in JSON content strings.
+# Without symmetric tolerance, `re.fullmatch("...", "  __FIXTURE..._")`
+# silently fails the placeholder match, the placeholder string passes
+# through unchanged, the SUT sees a literal `__FIXTURE:..._` token (no
+# trigger ever runs), and `_count_redactions` stays at 0 — vacuously-green.
+_PLACEHOLDER_RE = re.compile(r"\s*__FIXTURE:(_make_evil_body_[a-z0-9_]+)__\s*")
 
 # Cypherpunk M1 closure: vector_id shape pin matching the schema regex.
 # Without this, a test author calling load_replay_fixture(vector_id=...)

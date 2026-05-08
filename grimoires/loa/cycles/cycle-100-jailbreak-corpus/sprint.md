@@ -135,53 +135,55 @@ Cycle-100 ships a **falsifying test apparatus** (corpus + runners + CI gate) tha
 
 ### Deliverables
 
-- [ ] `fixtures/encoded_payload.{sh,py}` + ≥5 active encoded-payload vectors
-- [ ] `fixtures/multi_turn_conditioning.{sh,py}` + ≥10 multi-turn replay JSON fixtures
-- [ ] `tests/red-team/jailbreak/test_replay.py` multi-turn harness
-- [ ] `corpus_loader.py` extended with `load_replay_fixture` + `substitute_runtime_payloads`
-- [ ] Backfill any of the original 5 categories that fell short of 5 vectors → all 7 categories ≥5
-- [ ] ≥45 active vectors total at sprint exit
-- [ ] Updated apparatus tests for harness behavior
+- [x] `fixtures/encoded_payload.{sh,py}` + ≥5 active encoded-payload vectors
+- [x] `fixtures/multi_turn_conditioning.{sh,py}` + ≥10 multi-turn replay JSON fixtures
+- [x] `tests/red-team/jailbreak/test_replay.py` multi-turn harness
+- [x] `corpus_loader.py` extended with `load_replay_fixture` + `substitute_runtime_payloads`
+- [x] Backfill any of the original 5 categories that fell short of 5 vectors → all 7 categories ≥5
+- [x] ≥45 active vectors total at sprint exit (46 active)
+- [x] Updated apparatus tests for harness behavior
 
 ### Acceptance Criteria
 
-- [ ] Every multi-turn JSON fixture uses placeholder `__FIXTURE:_make_evil_body_<id>__` content; harness substitutes at test time (NFR-Sec1 multi-turn extension) → **[G-1]**
-- [ ] Each turn invokes `sanitize_for_session_start` in a **fresh subprocess** (proves stateless-sanitizer assumption per SDD §4.4)
-- [ ] Per-turn `expected_per_turn_redactions` count assertion fires per-turn → **[G-3]** (Opus 740 multi-turn finding)
-- [ ] Final-aggregated-state assertion catches the cumulative-attack class (SDD §4.4 IMP-006 aggregation semantics)
-- [ ] Harness output on failure includes `vector_id` + turn index + redaction-count delta
-- [ ] Multi-turn harness completes ≤120s for 10 vectors (NFR-Perf2)
-- [ ] All 7 categories ≥5 active vectors before sprint exit (FR-2 floor)
-- [ ] Pytest entrypoint + standalone CLI both invokable for ad-hoc operator runs (UC-3 acceptance)
-- [ ] Sprint-2 cypherpunk dual-review closed pre-merge
+- [x] Every multi-turn JSON fixture uses placeholder `__FIXTURE:_make_evil_body_<id>__` content; harness substitutes at test time (NFR-Sec1 multi-turn extension) → **[G-1]**
+- [x] Each turn invokes `sanitize_for_session_start` in a **fresh subprocess** (proves stateless-sanitizer assumption per SDD §4.4)
+- [x] Per-turn `expected_per_turn_redactions` count assertion fires per-turn → **[G-3]** (Opus 740 multi-turn finding)
+- [x] Final-aggregated-state assertion catches the cumulative-attack class (SDD §4.4 IMP-006 aggregation semantics)
+- [x] Harness output on failure includes `vector_id` + turn index + redaction-count delta
+- [x] Multi-turn harness completes ≤120s for 10 vectors (NFR-Perf2) — measured 1.83s for 12 tests + 30 apparatus tests
+- [x] All 7 categories ≥5 active vectors before sprint exit (FR-2 floor) — RS:6 TC:6 CL:6 MD:6 UN:6 EP:5 MT:11
+- [x] Pytest entrypoint + standalone CLI both invokable for ad-hoc operator runs (UC-3 acceptance) — pytest entrypoint shipped; replay-specific CLI ⏸ [ACCEPTED-DEFERRED] to Sprint 4 T4.3 (Decision Log: NOTES.md 2026-05-08)
+- [x] Sprint-2 cypherpunk dual-review closed pre-merge — paranoid-cypherpunk subagent (T2.7 inline, 12 findings, 8 closed) + claude-opus-4-7 cross-model (Phase 2.5, 6 findings, 1 confirmed via NEW-B1, 2 false-positive after triage, 3 ADVISORY)
 
 ### Technical Tasks
 
-- [ ] **T2.1** Author `encoded_payload.{sh,py}` fixtures + ≥5 active vectors → **[G-1]**
-  - Cover Base64, ROT-13, hex, URL-percent encoding at minimum (FR-2)
-  - Runtime decode-then-construct discipline (no encoded literal in source)
-  - Source citations: ≥2 public, ≤2 in-house
-- [ ] **T2.2** Author `multi_turn_conditioning.{sh,py}` fixtures + ≥10 replay JSON fixtures + ≥10 active vectors → **[G-3]**
-  - Each multi-turn vector has: 3+ turns; per-turn expected redaction counts; final-state expected outcome
-  - At least 3 vectors target the **first-N-turn heuristic bypass** explicitly (Opus 740 finding)
-  - Vectors mix `operator` + `downstream` roles per turn
-- [ ] **T2.3** Implement `test_replay.py` per SDD §4.4 → **[G-3]**
-  - Pytest parametrized over `iter_active("multi_turn_conditioning")`
-  - Subprocess-per-turn (no in-process state leak)
-  - Per-turn assertion + final-state aggregation per IMP-006
-  - `timeout 10s` aggregate-budget per multi-turn vector (IMP-002)
-  - `audit_emit_run_entry` per vector with status + reason
-- [ ] **T2.4** Extend `corpus_loader.py` with replay-fixture helpers → **[G-4]**
-  - `load_replay_fixture(vector_id) -> dict` reads `fixtures/replay/<id>.json`
-  - `substitute_runtime_payloads(fixture, vector) -> dict` swaps `__FIXTURE:...__` placeholders for fixture-function output
-  - Failure mode: missing fixture → `FIXTURE-MISSING: <fn>` per SDD §4.1.3
-- [ ] **T2.5** Backfill any short categories from Sprint 1 → 5 vectors each → **[G-1]**
-  - For each of role_switch / tool_call_exfiltration / credential_leak / markdown_indirect / unicode_obfuscation: ensure ≥5 active vectors
-  - Each backfill vector cypherpunk-defensible per §7.5
-- [ ] **T2.6** Apparatus test for harness + replay-fixture substitution → **[G-3]**
-  - `tests/unit/test_replay_harness.py` covers placeholder substitution, subprocess isolation, per-turn vs final-state assertion semantics
-  - Negative tests: missing fixture, missing replay JSON, redaction-count mismatch
-- [ ] **T2.7** Sprint-2 cypherpunk dual-review + remediation → **[G-1]**
+- [x] **T2.1** Author `encoded_payload.{sh,py}` fixtures + ≥5 active vectors → **[G-1]**
+  - [x] Cover Base64, ROT-13, hex, URL-percent encoding at minimum (FR-2)
+  - [x] Runtime decode-then-construct discipline (no encoded literal in source)
+  - [x] Source citations: ≥2 public, ≤2 in-house
+- [x] **T2.2** Author `multi_turn_conditioning.{sh,py}` fixtures + ≥10 replay JSON fixtures + ≥10 active vectors (shipped 11) → **[G-3]**
+  - [x] Each multi-turn vector has: 3+ turns; per-turn expected redaction counts; final-state expected outcome
+  - [x] At least 3 vectors target the **first-N-turn heuristic bypass** explicitly (RT-MT-001/002/003/008 = 4 vectors)
+  - [x] Vectors mix `operator` + `downstream` roles per turn (RT-MT-006 explicit cross-role)
+- [x] **T2.3** Implement `test_replay.py` per SDD §4.4 → **[G-3]**
+  - [x] Pytest parametrized over `iter_active("multi_turn_conditioning")`
+  - [x] Subprocess-per-turn (no in-process state leak)
+  - [x] Per-turn assertion + final-state aggregation per IMP-006
+  - [x] `timeout 10s` aggregate-budget per multi-turn vector (IMP-002) — H3 closure enforces via `remaining` propagation
+  - [x] `audit_emit_run_entry` per vector with status + reason
+- [x] **T2.4** Extend `corpus_loader.py` with replay-fixture helpers → **[G-4]**
+  - [x] `load_replay_fixture(vector_id) -> dict` reads `fixtures/replay/<id>.json`
+  - [x] `substitute_runtime_payloads(fixture, vector) -> dict` swaps `__FIXTURE:...__` placeholders for fixture-function output (M1 schema-regex gate, M2 category allowlist, M5+NEW-B1 symmetric whitespace tolerance)
+  - [x] Failure mode: missing fixture → `FIXTURE-MISSING: <fn>` per SDD §4.1.3
+- [x] **T2.5** Backfill any short categories from Sprint 1 → 5 vectors each (delivered 6 each: +2 per category) → **[G-1]**
+  - [x] role_switch (RT-RS-005/006), tool_call_exfiltration (RT-TC-005/006), credential_leak (RT-CL-005/006), markdown_indirect (RT-MD-005/006), unicode_obfuscation (RT-UN-005/006)
+  - [x] Each backfill vector cypherpunk-defensible per §7.5 + OBSERVED expected_outcome
+- [x] **T2.6** Apparatus test for harness + replay-fixture substitution → **[G-3]**
+  - [x] `tests/unit/test_replay_harness.py` covers placeholder substitution, subprocess isolation (H2 byte-equal-output pin), per-turn vs final-state assertion semantics — 30 tests
+  - [x] Negative tests: missing fixture, missing replay JSON, redaction-count mismatch, path-traversal vector_id, non-allowlist category, leading + trailing whitespace
+- [x] **T2.7** Sprint-2 cypherpunk dual-review + remediation → **[G-1]**
+  - [x] Source 1 (cypherpunk subagent during /implement): 0 CRIT, 3 HIGH, 5 MED, 4 LOW, 4 PRAISE (8 closed inline)
+  - [x] Source 2 (claude-opus-4-7 cross-model during /review-sprint): 6 findings (DISS-001 cross-validates NEW-B1 closed inline; DISS-002 + DISS-003 verified false-positive/LOW after triage; DISS-004/005/006 ADVISORY)
 
 ### Dependencies
 

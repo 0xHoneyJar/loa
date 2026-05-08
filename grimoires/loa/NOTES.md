@@ -1186,3 +1186,22 @@ The pre-existing `grimoires/loa/prd.md` and `sdd.md` describe **cycle-098 Agent-
 - **2 LOW (L1, L4) bonus-closed inline**; 2 LOW (L2 bats audit-pin, L3 dead-defense) deferred to cycle-101 follow-up
 - **Implementation report**: `grimoires/loa/a2a/sprint-144/reviewer.md`
 - **Next**: `/review-sprint sprint-2` → `/audit-sprint sprint-2` → draft PR (operator-driven per per-sprint cadence)
+
+## 2026-05-08 — AC-8 deferral (sprint-144) — Decision Log
+
+- **AC quote**: "Pytest entrypoint + standalone CLI both invokable for ad-hoc operator runs (UC-3 acceptance)" — sprint.md §"Sprint 2 Acceptance Criteria" item 8.
+- **Decision**: Mark `⏸ [ACCEPTED-DEFERRED]` in sprint-144/reviewer.md. Pytest entrypoint shipped (`pytest -k RT-MT-NNN tests/red-team/jailbreak/test_replay.py` works today); standalone replay-specific CLI deferred to Sprint 4 README docs phase per cycle-100/sprint.md §Sprint 4 T4.3.
+- **Rationale**: `corpus_loader.py:__main__` already exposes `validate-all` / `iter-active` / `get-field` / `count` subcommands; the replay-specific CLI overlaps with Sprint 4's README-docs-phase work that establishes the operator-authoring workflow (UC-3 + UC-2 are tightly coupled — operator authors a vector, then runs the replay; documenting the workflow + adding the CLI together is more coherent than splitting them).
+- **Tracker**: tracked in cycle-100 RESUMPTION as a Sprint 4 deliverable (sprint.md §Sprint 4 T4.3 README "Run locally" section).
+- **Cycle-057 compliance**: this entry satisfies the `⏸ [ACCEPTED-DEFERRED]` Decision Log requirement per `.claude/skills/reviewing-code/SKILL.md` AC verification rule.
+
+## 2026-05-08 — flatline_protocol code_review/security_audit model rollback (tracked in #787)
+
+- **Issue tracker**: https://github.com/0xHoneyJar/loa/issues/787 — `[#783 follow-up] Legacy adapter /v1/responses parsing returns 'Empty response content' for reasoning-class OpenAI models`. P1, [A] Bug, [W] Operations.
+- **Symptom**: `gpt-5.5-pro` via `adversarial-review.sh` → `model-adapter.sh` (legacy bash adapter) returns "Empty response content" × 3 retries.
+- **Root cause**: `.claude/scripts/model-adapter.sh.legacy:566-570` jq filter chain handles chat-completions + canonical responses-API `message`-type output but misses reasoning-class `/v1/responses` shapes. PR #783 fixed routing; parsing is the follow-up.
+- **Action**: Edited `.loa.config.yaml` lines 252-264. Rolled back both `code_review.model` and `security_audit.model` from `gpt-5.5-pro` → `claude-opus-4-7`. Anthropic path bypasses the broken legacy filter entirely.
+- **Verified**: `adversarial-review.sh --type review --sprint-id sprint-144 --model claude-opus-4-7` returns 6 findings in 48s ($0.27); status=reviewed (not api_failure). Cross-validated my own /review-sprint NEW-B1 finding via DISS-001.
+- **Restoration**: After #787 closes — either via cycle-099 Sprint 4 `hounfour.flatline_routing: true` flip OR via direct jq filter extension — restore `gpt-5.5-pro` for cross-provider diversity. Until then, opus-4-7 is the resilient default.
+- **Operator note**: This rollback applies to `flatline_protocol.code_review` and `.security_audit` ONLY. The 3-model Flatline review (`/flatline-review`) GPT path also hits #787 (same legacy adapter), but BB primary path is unaffected — verified working at gpt-5.5-pro per cycle-099 PR #754 BB E2E pin (different routing).
+- **Why this matters**: multi-model adversarial review is load-bearing for Loa's quality gates. Operator surfaced this twice in 24 hours; the durable contract is that the GPT path stays stable, not that operators keep pinning Anthropic models around it.

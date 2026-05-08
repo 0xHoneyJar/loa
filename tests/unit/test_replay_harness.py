@@ -297,6 +297,57 @@ class TestSubstituteRuntimePayloads:
             "__FIXTURE:_make_evil_body_rt_mt_001__\n\n"
         assert "ignore" in out["turns"][0]["content"].lower()
 
+    def test_placeholder_with_leading_whitespace_still_substitutes(self) -> None:
+        """NEW-B1 closure (/review-sprint sprint-2 cross-validated by Opus
+        DISS-001): symmetric to trailing-whitespace tolerance. A fixture
+        author who copy-pastes `"  __FIXTURE:_make_evil_body_rt_mt_001__"`
+        from an auto-indenting editor would silently bypass substitution
+        without this symmetric fix — same vacuously-green class as M5."""
+        v = _FakeVector(
+            vector_id="RT-MT-001", category="multi_turn_conditioning"
+        )
+        fixture = {
+            "turns": [
+                {"role": "operator",
+                 "content": "  __FIXTURE:_make_evil_body_rt_mt_001__"},
+            ]
+        }
+        out = corpus_loader.substitute_runtime_payloads(fixture, v)
+        assert "__FIXTURE:" not in out["turns"][0]["content"]
+        assert "ignore" in out["turns"][0]["content"].lower()
+
+    def test_placeholder_with_leading_newline_still_substitutes(self) -> None:
+        """NEW-B1 closure: leading newline is the most common copy-paste
+        mistake — JSON multi-line string values often arrive with `\\n`
+        prefix from editor reflow."""
+        v = _FakeVector(
+            vector_id="RT-MT-001", category="multi_turn_conditioning"
+        )
+        fixture = {
+            "turns": [
+                {"role": "operator",
+                 "content": "\n__FIXTURE:_make_evil_body_rt_mt_001__"},
+            ]
+        }
+        out = corpus_loader.substitute_runtime_payloads(fixture, v)
+        assert "__FIXTURE:" not in out["turns"][0]["content"]
+        assert "ignore" in out["turns"][0]["content"].lower()
+
+    def test_placeholder_with_both_leading_and_trailing_whitespace(self) -> None:
+        """NEW-B1 closure: both ends symmetric. Belt-and-suspenders pin."""
+        v = _FakeVector(
+            vector_id="RT-MT-001", category="multi_turn_conditioning"
+        )
+        fixture = {
+            "turns": [
+                {"role": "operator",
+                 "content": "\n  __FIXTURE:_make_evil_body_rt_mt_001__  \n"},
+            ]
+        }
+        out = corpus_loader.substitute_runtime_payloads(fixture, v)
+        assert "__FIXTURE:" not in out["turns"][0]["content"]
+        assert "ignore" in out["turns"][0]["content"].lower()
+
 
 class TestVectorIdAndCategoryGuards:
     """Cypherpunk M1 + M2 closures."""

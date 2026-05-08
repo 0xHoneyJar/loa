@@ -251,12 +251,20 @@ flatline_protocol:
   # Emergency override: LOA_ADVERSARIAL_REVIEW_ENFORCE=false.
   code_review:
     enabled: true
-    model: gpt-5.5-pro              # most powerful OpenAI (was gpt-5.3-codex)
+    # 2026-05-08: rolled back from gpt-5.5-pro → claude-opus-4-7 to sidestep
+    # #783 follow-up (legacy bash adapter /v1/responses parsing for reasoning-
+    # model output shapes returns "Empty response content"). Anthropic path
+    # bypasses the broken jq filter at model-adapter.sh.legacy:566-570.
+    # Restore gpt-5.5-pro after cycle-099 Sprint 4 flips
+    # `hounfour.flatline_routing: true` and retires the legacy adapter.
+    model: claude-opus-4-7          # top capability, no legacy-adapter parsing bug
     budget_cents: 150
     timeout_seconds: 60
   security_audit:
     enabled: true
-    model: gpt-5.5-pro              # most powerful OpenAI (was gpt-5.3-codex)
+    # Same rollback rationale as code_review above. Restore gpt-5.5-pro after
+    # cycle-099 Sprint 4 retires the legacy bash adapter.
+    model: claude-opus-4-7          # top capability, no legacy-adapter parsing bug
     budget_cents: 150
     timeout_seconds: 60
   secret_scanning:

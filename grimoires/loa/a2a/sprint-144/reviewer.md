@@ -40,8 +40,8 @@ Per Sprint 2 plan §"Acceptance Criteria":
 | 5 | "Harness output on failure includes `vector_id` + turn index + redaction-count delta" | ✓ Met | `test_replay.py:217-225` `pytest.fail(f"{vector.vector_id} turn {i}: expected … got … delta = {…:+d} stdout[0..200] = …")`. |
 | 6 | "Multi-turn harness completes ≤120s for 10 vectors (NFR-Perf2)" | ✓ Met | `pytest tests/red-team/jailbreak/test_replay.py` measured at 3.09s for 12 tests (11 vectors + 1 smoke), well under 120s budget. Re-measured after H3 closure (per-vector budget enforcement): 3.77s for 39 tests. |
 | 7 | "All 7 categories ≥5 active vectors before sprint exit (FR-2 floor)" | ✓ Met | `bash tests/red-team/jailbreak/lib/corpus_loader.sh count` → active=46. Per-category iter-active counts: role_switch=6, tool_call_exfiltration=6, credential_leak=6, markdown_indirect=6, unicode_obfuscation=6, encoded_payload=5, multi_turn_conditioning=11. |
-| 8 | "Pytest entrypoint + standalone CLI both invokable for ad-hoc operator runs (UC-3 acceptance)" | ⚠ Partial | Pytest entrypoint: `pytest tests/red-team/jailbreak/test_replay.py` works. Standalone CLI for replay harness specifically: NOT shipped this sprint — `corpus_loader.py:__main__` already exposes validate/iter/get/count subcommands; replay-specific CLI deferred to Sprint 4 README docs phase. |
-| 9 | "Sprint-2 cypherpunk dual-review closed pre-merge" | ✓ Met | T2.7 review captured below. 0 CRIT, 3 HIGH (all closed: H1/H2/H3), 5 MED (all closed: M1-M5), 4 LOW (deferred per Sprint-1 cadence). |
+| 8 | "Pytest entrypoint + standalone CLI both invokable for ad-hoc operator runs (UC-3 acceptance)" | ⏸ [ACCEPTED-DEFERRED] | Pytest entrypoint: `pytest -k RT-MT-NNN tests/red-team/jailbreak/test_replay.py` works. Standalone replay-specific CLI deferred to Sprint 4 README docs phase. **Decision Log entry**: `grimoires/loa/NOTES.md` 2026-05-08 §"AC-8 deferral (sprint-144)". `corpus_loader.py:__main__` already exposes validate/iter/get/count subcommands today. |
+| 9 | "Sprint-2 cypherpunk dual-review closed pre-merge" | ✓ Met | Dual review consists of: (1) **paranoid-cypherpunk subagent** during /implement T2.7 (12 findings: 0 CRIT, 3 HIGH, 5 MED, 4 LOW, 4 PRAISE) and (2) **claude-opus-4-7 cross-model review** during /review-sprint Phase 2.5 (6 findings: 1 BLOCKING confirmed, 1 BLOCKING + 1 BLOCKING downgraded after my triage as false-positives, 3 ADVISORY). Both reviews land at `grimoires/loa/a2a/sprint-144/` (cypherpunk findings in this report; cross-model in `adversarial-review.json`). DISS-001 cross-validated NEW-B1 (leading-whitespace bypass — closed inline). |
 
 Per Sprint 2 plan §"Technical Tasks" (T2.1–T2.7) checklist below mirrors the 9 ACs.
 
@@ -119,7 +119,13 @@ Per-vector defensibility: every vector cites a real attack class (OWASP-LLM-01, 
 
 ### T2.7 — Cypherpunk dual-review
 
-Single paranoid-cypherpunk subagent (general-purpose) review against the Sprint 2 deliverables. Findings + closures inline below.
+**Two-source dual review:**
+1. **Inline /implement T2.7** — paranoid-cypherpunk subagent (general-purpose) during the implementation pass. 12 findings, 8 closed inline (3 HIGH + 5 MED + bonus L1+L4 LOW), 2 LOW deferred.
+2. **/review-sprint Phase 2.5 cross-model** — claude-opus-4-7 (rolled back from gpt-5.5-pro per #787) ran against the Sprint 2 diff with the engineer-reviewer's concerns appended as context. 6 findings: 1 BLOCKING (DISS-001) cross-validated this reviewer's NEW-B1; 2 BLOCKING (DISS-002, DISS-003) verified by direct probe and downgraded — DISS-002 is a LOW documentation accuracy concern (FIXTURES dict accuracy for split-payload vectors), DISS-003 is a false positive (JSON `\\b` correctly escaped on disk per `od -c` byte-level inspection). 3 ADVISORY findings (DISS-004 STYLE, DISS-005 sys.path mutation, DISS-006 cross-validates NEW-N1).
+
+Cross-model review artifact at `grimoires/loa/a2a/sprint-144/adversarial-review.json` (status: `reviewed`, model: `claude-opus-4-7`, latency 48s, cost $0.27).
+
+Findings + closures from BOTH sources captured below.
 
 ---
 
@@ -136,6 +142,17 @@ None. The core attack surface (placeholder regex, schema enum on category, conte
 | H1 | `_count_redactions` matches markers anywhere in stdout including L2 envelope NOTE — false-positive risk if SUT ever quotes them | `test_replay.py:49-52` | `_ENVELOPE_BODY_RE` scopes counting to inside `<untrusted-content>...</untrusted-content>` only; envelope-absent fallback preserved for SUT-bypass observability. Also fixed in apparatus tests. |
 | H2 | Subprocess-isolation test only verifies env non-propagation (vacuously-green-prone) | `test_replay_harness.py:281-310` | (a) env test tightened: pin "hello" presence in turn 1 + assert "hello" NOT in turn 2 body. (b) NEW `test_identical_payload_produces_identical_output` runs identical payload twice and asserts byte-equal stdout (a stateful SUT would diverge). |
 | H3 | Aggregate 10s budget enforced only between turns; per-turn 5s timeout could push real total to 14.9s/turn × N turns | `test_replay.py:185-205` | Pass `remaining = _PER_VECTOR_TIMEOUT_SEC - elapsed` to `_invoke_sanitize_subprocess(turn_timeout=remaining)`; subprocess timeout = `max(0.1, min(5.0, turn_timeout))`. Aggregate budget now strict. |
+
+### Post-/review-sprint additions
+
+**NEW-B1 (HIGH, /review-sprint cross-validated by Opus DISS-001):** `_PLACEHOLDER_RE` only tolerated trailing whitespace post-M5; **leading whitespace silently bypassed substitution** (vacuously-green class symmetric to M5).
+
+| | |
+|---|---|
+| **File** | `tests/red-team/jailbreak/lib/corpus_loader.py:214` |
+| **Closure** | Regex updated from `r"__FIXTURE:(...)\s*"` → `r"\s*__FIXTURE:(...)\s*"` (symmetric whitespace tolerance). |
+| **Apparatus pins** | `tests/unit/test_replay_harness.py` 3 new tests — `test_placeholder_with_leading_whitespace_still_substitutes`, `test_placeholder_with_leading_newline_still_substitutes`, `test_placeholder_with_both_leading_and_trailing_whitespace`. All green. |
+| **Test count delta** | 39 → 42 passing (3 new pins for symmetric whitespace contract) |
 
 ### MEDIUM (5 — all closed inline)
 
