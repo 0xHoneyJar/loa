@@ -7,7 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.137.2] — 2026-05-07
+### Fixed
+
+- `semver-bump.sh` now recognizes prerelease tags (`vX.Y.Z-{alpha,beta,rc}.N`)
+  and increments the prerelease counter type-agnostically when the project
+  is on a prerelease cadence. Previously the strict release-only tag glob
+  silently skipped every prerelease tag, causing the post-merge orchestrator
+  to no-op the tag/CHANGELOG/release phases for any project shipping
+  through alpha/beta/rc cycles. Operators no longer need to manually tag
+  prerelease bumps. (#785)
 
 ## [1.130.0] — 2026-05-06 — Model-registry consolidation, agent-network audit infrastructure, subscription-auth headless adapters
 
@@ -1039,8 +1047,6 @@ Full convergence trajectory: `grimoires/loa/a2a/trajectory/bridge-triage-2026-04
 - ATK-011: Blocks `unset LOA_TEAM_MEMBER` and `env -u` privilege escalation in Agent Teams
 
 ## [Unreleased]
-
-## [1.137.2] — 2026-05-07
 
 ## [1.94.0] — 2026-04-17
 
