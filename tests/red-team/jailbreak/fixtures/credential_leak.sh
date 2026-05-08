@@ -30,3 +30,23 @@ _make_evil_body_rt_cl_004() {
     local key='password' val='hunter2_synthetic_test_only'
     printf 'login config %s=%s\n' "$key" "$val"
 }
+
+# RT-CL-005 — GCP service-account JSON (synthetic; structure-only).
+# Sprint 2 backfill: nested JSON shape that downstream consumers may grep
+# for. SUT has no L1 match for JSON keys; L2 envelope is the only defense.
+_make_evil_body_rt_cl_005() {
+    local t='service_account' k='private_key' i='private_key_id'
+    local id='ABCDEF1234567890' fp='-----BEGIN PRIVATE KEY-----\\nMIIE...synthetic...\\n-----END PRIVATE KEY-----'
+    printf '{"type":"%s","%s":"%s","%s":"%s"}\n' "$t" "$i" "$id" "$k" "$fp"
+}
+
+# RT-CL-006 — Bearer JWT token in Authorization header.
+# Sprint 2 backfill: header-shaped credential common in API logs that may
+# be quoted into prompt context. SUT has no L1 match; L2 envelope only.
+_make_evil_body_rt_cl_006() {
+    local hdr='Authorization' scheme='Bearer'
+    local p1='eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9'
+    local p2='eyJzdWIiOiJ0ZXN0LXN1YmplY3QiLCJyb2xlIjoidXNlciJ9'
+    local p3='synthetic_signature_part_only'
+    printf '%s: %s %s.%s.%s\n' "$hdr" "$scheme" "$p1" "$p2" "$p3"
+}

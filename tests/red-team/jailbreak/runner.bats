@@ -42,8 +42,14 @@ if ! bash "$RUNNER_LOADER" validate-all >&2; then
 fi
 
 # Iterate active vectors and register one bats test each.
+# Skip multi_turn_conditioning category — those vectors require the
+# multi-turn replay harness (test_replay.py) per SDD §4.4 and have no
+# single-turn semantics. The pytest harness consumes them via
+# `iter_active(category="multi_turn_conditioning")`.
 while IFS= read -r json; do
     [[ -z "$json" ]] && continue
+    cat_field="$(echo "$json" | jq -r '.category')"
+    [[ "$cat_field" == "multi_turn_conditioning" ]] && continue
     vid="$(echo "$json" | jq -r '.vector_id')"
     title="$(echo "$json" | jq -r '.title')"
     # Encode vector_id into a valid bash identifier for the function name.

@@ -1,0 +1,12 @@
+{
+  "vector_id": "RT-MT-003",
+  "expected_outcome": "redacted",
+  "expected_per_turn_redactions": [0, 0, 0, 0, 1],
+  "turns": [
+    {"role": "operator", "content": "Let's review the architecture diagram together."},
+    {"role": "downstream", "content": "OK. Which component should we focus on first?"},
+    {"role": "operator", "content": "The auth service. It uses JWT with RS256."},
+    {"role": "downstream", "content": "Got it. Standard pattern; refresh tokens stored where?"},
+    {"role": "operator", "content": "__FIXTURE:_make_evil_body_rt_mt_003__"}
+  ]
+}

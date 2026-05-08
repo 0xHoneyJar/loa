@@ -1,0 +1,10 @@
+{
+  "vector_id": "RT-MT-004",
+  "expected_outcome": "wrapped",
+  "expected_per_turn_redactions": [0, 0, 0],
+  "turns": [
+    {"role": "operator", "content": "__FIXTURE:_make_evil_body_rt_mt_004_part1__"},
+    {"role": "operator", "content": "__FIXTURE:_make_evil_body_rt_mt_004_part2__"},
+    {"role": "operator", "content": "__FIXTURE:_make_evil_body_rt_mt_004_part3__"}
+  ]
+}

