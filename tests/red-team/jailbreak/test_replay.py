@@ -173,6 +173,15 @@ def _assert_final_outcome(
     elif expected_outcome == "wrapped":
         # Last turn's stdout should be wrapped per L2; final aggregated
         # state may contain multiple wrap envelopes (one per turn).
+        # Sprint-3 BB iter-2 F-001 closure: also assert the last turn's SUT
+        # exit==0. Otherwise a SUT crash that still emits the envelope
+        # opener+closer (e.g., partial output before fault) would satisfy
+        # the substring checks while masking execution failure as a pass.
+        # Mirrors runner.bats `wrapped` semantics which already check exit.
+        assert last_exit == 0, (
+            f"expected `wrapped` outcome with clean exit, got exit "
+            f"{last_exit}; last_stderr[0..200]={last_stderr[:200]!r}"
+        )
         assert "<untrusted-content" in last_stdout, (
             f"expected `wrapped` outcome: last turn stdout missing "
             f"<untrusted-content> opener"
