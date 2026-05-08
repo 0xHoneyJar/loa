@@ -1,0 +1,161 @@
+{
+  "consensus_summary": {
+    "high_consensus_count": 0,
+    "disputed_count": 10,
+    "low_value_count": 0,
+    "blocker_count": 0,
+    "model_agreement_percent": 0,
+    "models": 3,
+    "tertiary_items": 9,
+    "confidence": "single_model"
+  },
+  "high_consensus": [],
+  "disputed": [
+    {
+      "id": "IMP-001",
+      "description": "Strong improvement. Deterministic corpus ordering is a real reproducibility concern, especially for cross-OS CI and audit-log artifact diffs where filesystem traversal order can vary. The recommendation is specific, low-cost, and actionable: define a canonical ordering, such as sorting by vector_id, and require corpus_loader to emit vectors in that order. This directly supports reliability and stable review artifacts without adding meaningful complexity.",
+      "gpt_score": 880,
+      "opus_score": 0,
+      "tertiary_score": 900,
+      "delta": 880,
+      "average_score": 880,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-002",
+      "description": "ReDoS is a genuine and well-known risk when testing regex-based sanitizers with adversarial inputs. Timeouts are trivial to add and prevent CI hangs. Domain-appropriate insight.",
+      "gpt_score": 0,
+      "opus_score": 880,
+      "tertiary_score": null,
+      "delta": 880,
+      "average_score": 880,
+      "source": "tertiary_authored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-003",
+      "description": "Valid consistency concern - if differential runner sanitizes env, single-shot should too for parity. Specific and actionable, though impact may be modest if CI env is already controlled.",
+      "gpt_score": 0,
+      "opus_score": 720,
+      "tertiary_score": null,
+      "delta": 720,
+      "average_score": 720,
+      "source": "tertiary_authored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-004",
+      "description": "Concrete technical gap - jq will fail on # comments. If the schema-major comment convention is specified, the loader must handle it. Specific and actionable.",
+      "gpt_score": 0,
+      "opus_score": 780,
+      "tertiary_score": null,
+      "delta": 780,
+      "average_score": 780,
+      "source": "tertiary_authored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-005",
+      "description": "Real concern about flock contention with parallel jobs. Worth addressing but the proposed solution is vague. Could also be solved by per-worker logs merged at end.",
+      "gpt_score": 0,
+      "opus_score": 650,
+      "tertiary_score": null,
+      "delta": 650,
+      "average_score": 650,
+      "source": "tertiary_authored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-006",
+      "description": "Important clarification - multi-turn aggregation semantics are central to detecting cumulative attacks. Stateless subprocess model creates real ambiguity that needs resolution.",
+      "gpt_score": 0,
+      "opus_score": 700,
+      "tertiary_score": null,
+      "delta": 700,
+      "average_score": 700,
+      "source": "tertiary_authored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-007",
+      "description": "Reasonable suggestion but premature optimization at 50 vectors. Easy to add later when needed. Nice-to-have rather than critical gap.",
+      "gpt_score": 0,
+      "opus_score": 520,
+      "tertiary_score": null,
+      "delta": 520,
+      "average_score": 520,
+      "source": "tertiary_authored",
+      "would_integrate": false,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-008",
+      "description": "Valid edge case - encoded payloads could bypass plaintext linting. However, decoding all possible encodings is an arms race; the proposed AST primitive approach is sound but adds complexity.",
+      "gpt_score": 0,
+      "opus_score": 580,
+      "tertiary_score": null,
+      "delta": 580,
+      "average_score": 580,
+      "source": "tertiary_authored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-009",
+      "description": "Decent UX improvement but low impact - dependency errors are usually self-evident. Standard hygiene rather than domain insight.",
+      "gpt_score": 0,
+      "opus_score": 420,
+      "tertiary_score": null,
+      "delta": 420,
+      "average_score": 420,
+      "source": "tertiary_authored",
+      "would_integrate": false,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-010",
+      "description": "Legitimate operational gap but low urgency. Baseline rotation is mentioned without procedure; documenting SOP is valuable but not blocking.",
+      "gpt_score": 0,
+      "opus_score": 480,
+      "tertiary_score": null,
+      "delta": 480,
+      "average_score": 480,
+      "source": "tertiary_authored",
+      "would_integrate": false,
+      "agreement": "DISPUTED"
+    }
+  ],
+  "low_value": [],
+  "blockers": [],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "single_model",
+  "phase": "sdd",
+  "document": "grimoires/loa/cycles/cycle-100-jailbreak-corpus/sdd.md",
+  "domain": " author architecture designer deep",
+  "tertiary_model_used": "gemini-3.1-pro-preview",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-05-08T01:44:16Z",
+  "metrics": {
+    "total_latency_ms": 364000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  },
+  "phase1_partial": {
+    "note": "2 of 6 Phase 1 calls failed: gpt-review and gpt-skeptic (gpt-5.5-pro). Opus + Gemini paths succeeded. Likely the #783 follow-up class (legacy adapter /v1/responses parsing for reasoning-model output shapes); under investigation.",
+    "failed_calls": ["gpt-review", "gpt-skeptic"],
+    "successful_calls": ["opus-review", "opus-skeptic", "gemini-review", "gemini-skeptic"]
+  }
+}

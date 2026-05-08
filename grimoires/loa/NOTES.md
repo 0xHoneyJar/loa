@@ -1163,3 +1163,13 @@ The pre-existing `grimoires/loa/prd.md` and `sdd.md` describe **cycle-098 Agent-
 - **COMPLETED marker**: `grimoires/loa/a2a/sprint-bug-142/COMPLETED`
 - **Reports**: `auditor-sprint-feedback.md` (canonical) + mirror at `audits/2026-05-08/SECURITY-AUDIT-REPORT.md`
 - **Ready to commit + open PR against #774**
+
+## 2026-05-08 — cycle-100 RESUMED; Flatline re-run on SDD
+
+- **Run**: `/flatline-review grimoires/loa/cycles/cycle-100-jailbreak-corpus/sdd.md`
+- **Result**: 4-of-6 Phase 1 calls succeeded (opus-review, opus-skeptic, gemini-review, gemini-skeptic). 2-of-6 failed: gpt-review + gpt-skeptic via gpt-5.5-pro.
+- **Failure class**: confirmed `Empty response content` from `model-adapter.sh` (delegating to legacy adapter; `hounfour.flatline_routing: false`). Direct `model-adapter.sh --model gpt-5.5-pro --mode review` reproduces with 3 retries all empty. **This is the documented #783 follow-up** (legacy adapter `/v1/responses` parsing for reasoning-model output shapes), NOT a new variant of #774 PROVIDER_DISCONNECT — #774 is fixed and only matters when `flatline_routing: true`.
+- **Mooting**: cycle-099 Sprint-4 routing flip (`hounfour.flatline_routing: true`) retires the legacy adapter for Flatline. Until then, the 2-of-3 model coverage (opus + gemini) is the realistic baseline for Flatline runs that hit reasoning-class GPT models on large docs.
+- **Consensus**: `consensus_summary.confidence: single_model` (engine label — cross-scoring couldn't validate gpt items). Effective coverage: 2-of-3 model paths. 0 BLOCKERS, 0 HIGH_CONS, 10 DISPUTED (most opus-skeptic-authored or gemini-tertiary-authored single-source findings).
+- **Artifact**: `grimoires/loa/cycles/cycle-100-jailbreak-corpus/a2a/flatline/sdd-review.json` (with `phase1_partial` annotation).
+- **Decision**: proceed to triage the 10 DISPUTED findings using the 2-source signal; no new bug filed (matches known follow-up).
