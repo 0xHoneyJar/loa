@@ -75,8 +75,12 @@ DEFAULT_MODEL_TIMEOUT=120
 
 # Issue #675 (sub-issue 4): per-call max_tokens override. Empty = use the
 # downstream default (cheval.py's default 4096 / model-adapter.sh's hardcoded
-# 4096). Anthropic disconnects ~60s for max_tokens > 4096 on prompts ≥100KB —
-# operators can lower this knob for large-document reviews.
+# 4096). Historical (#675): Anthropic disconnected ~60s for max_tokens > 4096
+# on very large prompts; operators could lower this knob for large-document
+# reviews. NOTE (#774): the disconnect failure mode now manifests at much
+# smaller doc sizes (~38KB observed) and on OpenAI as well. Lowering the
+# knob is a no-op against `failure_class=PROVIDER_DISCONNECT` — the flag is
+# preserved for back-compat only.
 PER_CALL_MAX_TOKENS=""
 
 # State tracking
@@ -1103,13 +1107,26 @@ run_phase1() {
 
     if [[ $failed -gt 0 ]]; then
         log "Warning: $failed of $total_calls Phase 1 calls failed (degraded mode)"
-        # Log stderr from failed calls for diagnosis
+        # Issue #774: count failed calls whose stderr carries the typed
+        # `failure_class=PROVIDER_DISCONNECT` JSON marker emitted by cheval.py.
+        # When ≥1 such call appears, surface a single tip line that points
+        # operators at the right diagnosis (NOT --per-call-max-tokens 4096,
+        # which is a no-op against the disconnect failure mode).
+        local disconnect_count=0
         for label in "${failed_labels[@]}"; do
             local stderr_file="$TEMP_DIR/${label}-stderr.log"
             if [[ -s "$stderr_file" ]]; then
+                # Match the JSON-error shape literally: '"failure_class":"PROVIDER_DISCONNECT"'
+                # (with arbitrary whitespace inside the JSON object).
+                if grep -q '"failure_class"[[:space:]]*:[[:space:]]*"PROVIDER_DISCONNECT"' "$stderr_file" 2>/dev/null; then
+                    disconnect_count=$((disconnect_count + 1))
+                fi
                 log "  $label stderr: $(head -5 "$stderr_file")"
             fi
         done
+        if [[ $disconnect_count -gt 0 ]]; then
+            log "tip: $disconnect_count of $failed failed calls had failure_class=PROVIDER_DISCONNECT — see issue #774. The --per-call-max-tokens flag does NOT address this failure mode (cheval default already=4096)."
+        fi
     fi
 
     # Aggregate costs
@@ -1368,9 +1385,14 @@ Options:
   --budget <cents>       Cost budget in cents (default: 300 = \$3.00)
   --per-call-max-tokens <N>
                          Override max_tokens passed to each model invocation.
-                         Use 4096 for documents ≥100KB to avoid Anthropic
-                         API server-side disconnect ~60s on large prompts
-                         (issue #675). When unset, downstream defaults apply
+                         Preserved for backward compat with issue #675.
+                         NOTE: does NOT address failure_class=PROVIDER_DISCONNECT
+                         (issue #774) — both the Anthropic AND OpenAI cheval
+                         paths fail on long-prompt requests with the typed
+                         transport error; the gemini path is unaffected.
+                         cheval.py default is already 4096, so passing 4096
+                         is a no-op against the disconnect failure mode.
+                         When unset, downstream defaults apply
                          (cheval.py: 4096; model-adapter.sh: 4096).
   --json                 Output as JSON
   -h, --help             Show this help
@@ -1493,9 +1515,10 @@ main() {
                 ;;
             --per-call-max-tokens)
                 # Issue #675 (sub-issue 4): operator override for downstream
-                # max_tokens. Anthropic disconnects ~60s for max_tokens > 4096
-                # on prompts ≥100KB; lower this knob to 4096 to work around
-                # the server-side cutoff for large-document reviews.
+                # max_tokens. Preserved for back-compat. NOTE (#774): does NOT
+                # address `failure_class=PROVIDER_DISCONNECT` — cheval default
+                # is already 4096, so passing 4096 is a no-op against the
+                # disconnect failure mode (Anthropic + OpenAI cheval paths).
                 PER_CALL_MAX_TOKENS="$2"
                 shift 2
                 ;;
@@ -1557,16 +1580,18 @@ main() {
         exit 1
     fi
 
-    # Issue #675 (sub-issue 2 + 4): warn when prompt size is in the Anthropic
-    # 60s-disconnect danger zone and the operator has not lowered max_tokens.
-    # Anthropic API drops streamed responses ~60s for max_tokens > 4096 on
-    # prompts ≥100KB (server-side cutoff, reproduced across HTTP/1.1 + HTTP/2 +
-    # httpx + curl). Workaround: --per-call-max-tokens 4096.
+    # Issue #774: warn when prompt size is in the cheval connection-loss
+    # danger zone. Empirical break point in the issue reporter's run was
+    # ~38KB on Anthropic + OpenAI (Gemini unaffected — control case). The
+    # threshold here (30KB) gives an 8KB safety margin under the observed
+    # break point. The disconnect manifests as `failure_class=PROVIDER_DISCONNECT`
+    # in cheval JSON-error stderr; the workaround is upstream (streaming or
+    # HTTP/1.1 forcing) and is deferred per /bug scope to /plan.
     local doc_bytes doc_kb
     doc_bytes=$(wc -c < "$doc" 2>/dev/null || echo 0)
     doc_kb=$(( (doc_bytes + 512) / 1024 ))   # round to nearest KB
-    if [[ "$doc_bytes" -gt 102400 && -z "${PER_CALL_MAX_TOKENS:-}" ]]; then
-        echo "WARNING: Document size ${doc_kb} KB; recommend \`--per-call-max-tokens 4096\` to avoid Anthropic 60s server-side disconnect" >&2
+    if [[ "$doc_bytes" -gt 30720 ]]; then
+        echo "WARNING: Document size ${doc_kb} KB; long prompts may trip the cheval connection-loss path on Anthropic + OpenAI. See issue #774 if Phase 1 reports failure_class=PROVIDER_DISCONNECT. The --per-call-max-tokens flag does NOT address this failure mode." >&2
     fi
 
     # Validate orchestrator mode

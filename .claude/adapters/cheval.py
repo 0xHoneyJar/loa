@@ -62,6 +62,7 @@ EXIT_CODES = {
     "RATE_LIMITED": 1,
     "PROVIDER_UNAVAILABLE": 1,
     "RETRIES_EXHAUSTED": 1,
+    "CONNECTION_LOST": 1,  # Issue #774: typed transient transport failure
     "INVALID_INPUT": 2,
     "INVALID_CONFIG": 2,
     "NATIVE_RUNTIME_REQUIRED": 2,
@@ -442,7 +443,21 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         print(_error_json(e.code, str(e), retryable=True), file=sys.stderr)
         return EXIT_CODES["PROVIDER_UNAVAILABLE"]
     except RetriesExhaustedError as e:
-        print(_error_json(e.code, str(e)), file=sys.stderr)
+        # Issue #774: surface typed failure_class when the underlying retries
+        # exhausted on a ConnectionLostError. Sanitization: only the typed
+        # class name, transport class name, and request size are surfaced —
+        # raw body, headers, and auth values stay scoped inside the adapter.
+        extra: Dict[str, Any] = {}
+        if e.context.get("last_error_class") == "ConnectionLostError":
+            last_ctx = e.context.get("last_error_context") or {}
+            extra["failure_class"] = "PROVIDER_DISCONNECT"
+            if last_ctx.get("transport_class"):
+                extra["transport_class"] = last_ctx["transport_class"]
+            if last_ctx.get("request_size_bytes") is not None:
+                extra["request_size_bytes"] = last_ctx["request_size_bytes"]
+            if last_ctx.get("provider"):
+                extra["provider"] = last_ctx["provider"]
+        print(_error_json(e.code, str(e), **extra), file=sys.stderr)
         return EXIT_CODES["RETRIES_EXHAUSTED"]
     except ChevalError as e:
         print(_error_json(e.code, str(e), retryable=e.retryable), file=sys.stderr)

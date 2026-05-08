@@ -207,10 +207,84 @@ class ContextTooLargeError(ChevalError):
 
 
 class RetriesExhaustedError(ChevalError):
-    """All retry/fallback attempts exhausted."""
+    """All retry/fallback attempts exhausted.
 
-    def __init__(self, total_attempts: int, last_error: Optional[str] = None):
-        super().__init__("RETRIES_EXHAUSTED", f"Failed after {total_attempts} attempts: {last_error or 'unknown'}", retryable=False, context={"total_attempts": total_attempts})
+    Carries optional typed metadata on `context.last_error_class` and
+    `context.last_error_context` so downstream error formatters (cheval.py
+    JSON-error output) can surface a typed `failure_class` (e.g.
+    PROVIDER_DISCONNECT for ConnectionLostError per issue #774) without
+    parsing the message string.
+    """
+
+    def __init__(
+        self,
+        total_attempts: int,
+        last_error: Optional[str] = None,
+        last_error_class: Optional[str] = None,
+        last_error_context: Optional[Dict[str, Any]] = None,
+    ):
+        ctx: Dict[str, Any] = {"total_attempts": total_attempts}
+        if last_error_class:
+            ctx["last_error_class"] = last_error_class
+        if last_error_context:
+            ctx["last_error_context"] = last_error_context
+        super().__init__(
+            "RETRIES_EXHAUSTED",
+            f"Failed after {total_attempts} attempts: {last_error or 'unknown'}",
+            retryable=False,
+            context=ctx,
+        )
+
+
+class ConnectionLostError(ChevalError):
+    """Transport-layer connection lost mid-flight (issue #774).
+
+    Catches the family of httpx exceptions
+    (RemoteProtocolError / ReadError / WriteError / ConnectError /
+    PoolTimeout / ProtocolError) and the urllib equivalents
+    (http.client.RemoteDisconnected, urllib.error.URLError,
+    socket.timeout) that share the operator-facing failure shape:
+    "Server disconnected without sending a response."
+
+    Sibling of `ProviderUnavailableError` — NOT a subclass — because the
+    retry semantics differ. ProviderUnavailableError moves on to the next
+    provider in the chain; ConnectionLostError counts against the
+    per-provider retry budget (transient on long prompts; the real
+    workaround is upstream — streaming or HTTP/1.1 — and is deferred per
+    /bug scope to /plan).
+
+    Carries typed context (provider, transport_class, request_size_bytes)
+    so cheval.py can surface `failure_class: PROVIDER_DISCONNECT` in
+    JSON-error stderr without parsing the message string. Sanitization:
+    transport class and size are safe to log; raw body / headers / auth
+    are NEVER attached.
+    """
+
+    def __init__(
+        self,
+        provider: str = "",
+        transport_class: str = "",
+        request_size_bytes: Optional[int] = None,
+        message: Optional[str] = None,
+    ):
+        msg = message or (
+            f"Connection lost from {provider or 'provider'} "
+            f"(transport={transport_class or 'unknown'}, "
+            f"request_size_bytes={request_size_bytes if request_size_bytes is not None else 'unknown'})"
+        )
+        super().__init__(
+            "CONNECTION_LOST",
+            msg,
+            retryable=True,
+            context={
+                "provider": provider,
+                "transport_class": transport_class,
+                "request_size_bytes": request_size_bytes,
+            },
+        )
+        self.provider = provider
+        self.transport_class = transport_class
+        self.request_size_bytes = request_size_bytes
 
 
 class ConfigError(ChevalError):

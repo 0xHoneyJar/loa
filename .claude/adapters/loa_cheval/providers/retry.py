@@ -17,6 +17,7 @@ from loa_cheval.types import (
     CompletionRequest,
     CompletionResult,
     ChevalError,
+    ConnectionLostError,
     ProviderUnavailableError,
     RateLimitError,
     RetriesExhaustedError,
@@ -150,6 +151,10 @@ def invoke_with_retry(
     total_attempts = 0
     provider_switches = 0
     last_error: Optional[str] = None
+    # Issue #774: track the typed exception alongside the string so the
+    # final RetriesExhaustedError can carry structured failure metadata
+    # (used by cheval.py to emit `failure_class: PROVIDER_DISCONNECT`).
+    last_typed_error: Optional[ChevalError] = None
 
     for attempt in range(max_retries + 1):
         # Global attempt budget check
@@ -216,6 +221,38 @@ def invoke_with_retry(
             # Provider unavailable — no retry on same provider, move on
             break
 
+        except ConnectionLostError as e:
+            # Issue #774: classify httpx connection-loss as a typed transient.
+            # Pre-fix, the underlying httpx.RemoteProtocolError landed in the
+            # bare `except Exception:` arm below and produced the misleading
+            # "Unexpected error from %s" log line plus an operator pointer to
+            # `--per-call-max-tokens 4096` — a remedy that is a no-op against
+            # the cheval.py default of 4096 (issue body, sub-issue 3).
+            #
+            # The remediation hint here MUST NOT recommend that flag.
+            latency_ms = int((time.monotonic() - start) * 1000)
+            metrics_hook.record_attempt(adapter.provider, False, latency_ms)
+            _record_failure(adapter.provider, config)
+            last_error = str(e)
+            last_typed_error = e
+
+            logger.warning(
+                "Connection lost from %s after %dB request "
+                "(transport=%s, attempt %d/%d) — likely server-side disconnect "
+                "on long prompt. Tip: --per-call-max-tokens has no effect on "
+                "this failure mode (cheval default=4096). See issue #774.",
+                adapter.provider,
+                e.request_size_bytes or 0,
+                e.transport_class or "unknown",
+                attempt + 1,
+                max_retries + 1,
+            )
+
+            # Transient: retry with exponential backoff (counts against budget)
+            if attempt < max_retries:
+                delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
+                time.sleep(delay)
+
         except ChevalError:
             # Non-retryable errors propagate immediately
             raise
@@ -235,7 +272,21 @@ def invoke_with_retry(
                 delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
                 time.sleep(delay)
 
+    # Issue #774: surface typed metadata when the last error was a typed
+    # ConnectionLostError so cheval.py can emit failure_class on stderr.
+    last_error_class: Optional[str] = None
+    last_error_context: Optional[Dict[str, Any]] = None
+    if isinstance(last_typed_error, ConnectionLostError):
+        last_error_class = "ConnectionLostError"
+        last_error_context = {
+            "provider": last_typed_error.provider or adapter.provider,
+            "transport_class": last_typed_error.transport_class,
+            "request_size_bytes": last_typed_error.request_size_bytes,
+        }
+
     raise RetriesExhaustedError(
         total_attempts=total_attempts,
         last_error=last_error,
+        last_error_class=last_error_class,
+        last_error_context=last_error_context,
     )

@@ -14,6 +14,7 @@ from loa_cheval.types import (
     CompletionRequest,
     CompletionResult,
     ConfigError,
+    ConnectionLostError,
     ContextTooLargeError,
     ModelConfig,
     ProviderConfig,
@@ -69,9 +70,30 @@ def http_post(
             write=30.0,
             pool=10.0,
         )
-        resp = httpx.post(url, headers=headers, content=encoded, timeout=timeout)
+        # Issue #774: classify connection-loss exceptions as ConnectionLostError
+        # so the retry layer can route them with provider-aware semantics
+        # rather than dropping them into the bare `except Exception:` arm.
+        # Sanitization: only the transport class name and request size are
+        # attached; raw body, headers, and auth are NEVER carried on the
+        # exception (they remain in the local `encoded`/`headers` scope).
+        try:
+            resp = httpx.post(url, headers=headers, content=encoded, timeout=timeout)
+        except (
+            httpx.RemoteProtocolError,
+            httpx.ReadError,
+            httpx.WriteError,
+            httpx.ConnectError,
+            httpx.PoolTimeout,
+            httpx.ProtocolError,
+        ) as exc:
+            raise ConnectionLostError(
+                transport_class=type(exc).__name__,
+                request_size_bytes=len(encoded),
+                message=f"{type(exc).__name__}: {exc}",
+            ) from exc
         return resp.status_code, resp.json()
     else:
+        import http.client
         import urllib.request
         import urllib.error
 
@@ -93,7 +115,29 @@ def http_post(
                 return e.code, json.loads(resp_body)
             except json.JSONDecodeError:
                 return e.code, {"error": {"message": resp_body}}
+        except http.client.RemoteDisconnected as e:
+            # Issue #774: urllib branch parity with the httpx branch above.
+            raise ConnectionLostError(
+                transport_class="urllib.RemoteDisconnected",
+                request_size_bytes=len(encoded),
+                message=f"RemoteDisconnected: {e}",
+            ) from e
         except urllib.error.URLError as e:
+            # Server-disconnect / connection-reset shapes surface as URLError
+            # with reasons like ConnectionResetError, BrokenPipeError, etc.
+            reason_repr = repr(e.reason) if hasattr(e, "reason") else str(e)
+            disconnect_markers = (
+                "ConnectionReset",
+                "BrokenPipe",
+                "Connection aborted",
+                "Server disconnected",
+            )
+            if any(m in reason_repr for m in disconnect_markers):
+                raise ConnectionLostError(
+                    transport_class="urllib.URLError",
+                    request_size_bytes=len(encoded),
+                    message=f"URLError: {reason_repr}",
+                ) from e
             return 503, {"error": {"message": "URLError: %s" % e.reason}}
         except socket.timeout:
             return 504, {"error": {"message": "Request timed out"}}

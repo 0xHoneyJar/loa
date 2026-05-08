@@ -1128,3 +1128,38 @@ The pre-existing `grimoires/loa/prd.md` and `sdd.md` describe **cycle-098 Agent-
 - Grounding: 91.4% PRD, 95.2% SDD (target >80% met)
 - 0 hallucinations detected in self-audit
 - 15 gaps catalogued for human resolution
+
+## 2026-05-08 — cycle-100 PRD opened (jailbreak corpus)
+
+- **Cycle**: cycle-100-jailbreak-corpus (parallel to cycle-099-model-registry which remains active)
+- **PRD path**: `grimoires/loa/cycles/cycle-100-jailbreak-corpus/prd.md`
+- **Scope**: corpus + bats/pytest runner + GH Actions CI gate; Layer-5 tool-call resolver + BB-append-handler + telemetry deferred to cycle-101+
+- **Directory**: unified `tests/red-team/jailbreak/` (per RESUMPTION.md vs SDD's two-path nomenclature)
+- **Count target**: ≥50 (SDD floor) / ~100 aspiration; "open / emerges from sources" per operator
+- **Schema**: standard (id + category + title + payload + expected_outcome + defense_layer + source_citation + severity + status[+suppression_reason])
+- **Sources**: OWASP LLM Top 10 + DAN + Anthropic + cycle-098 PoCs (regression replay)
+- **Multi-turn**: in scope (thin Python replay harness over `sanitize_for_session_start`)
+- **Patterns lifted from `~/.claude/skills/`**: dcg (registry-driven catalog), ubs (categorized findings + suppression-with-justification), cc-hooks (exit-code discipline), testing-fuzzing (corpus seed/minimize + differential oracle), multi-pass-bug-hunting (4-pass runner organization), slb (severity tier model)
+- **Open follow-ups before /architect**: (1) confirm path-filter list for FR-6 with actual file globs reviewed against current cycle-099 work; (2) decide if Sprint 1 ships 20-vector seed or 5-vector smoke first
+
+## 2026-05-08 — cycle-100 PAUSED; pivoting to fix #774
+
+- **Cycle-100 state**: PRD + SDD shipped; Flatline review on SDD returned `degraded` due to issue #774 (Server disconnected on 38KB docs across both Anthropic + OpenAI; Gemini unaffected)
+- **#774 status**: OPEN, filed 2026-05-07 by external reporter. Documented `--per-call-max-tokens 4096` workaround DID NOT help in our reproduction (same 3-of-6 failure pattern persisted: opus-skeptic, gpt-review, gpt-skeptic dropped; opus-review + gemini-* succeeded). Reporter's hypothesis: "the failure mechanism isn't max_tokens-driven and the help text mis-attributes the cause"
+- **Operator decision**: pause cycle-100; treat #774 as /bug. Cycle-100 /sprint-plan resumes after Flatline is reliable
+- **Resume path**: after #774 ships, run `/flatline-review sdd` against `grimoires/loa/cycles/cycle-100-jailbreak-corpus/sdd.md`, integrate findings, then `/sprint-plan`
+
+## 2026-05-08 — sprint-bug-142 IMPLEMENTED (issue #774)
+
+- **Branch**: `fix/issue-774-cheval-disconnect-classification`
+- **Files**: 5 mod + 2 new (~570 LOC added). pytest 833 green (1 pre-existing unrelated fail confirmed via `git stash` on main); bats 5/5 green.
+- **Three-layer fix**: types.py adds `ConnectionLostError` + extends `RetriesExhaustedError`; base.py wraps `httpx.post` (+ urllib parity); retry.py adds typed `except ConnectionLostError` arm; cheval.py emits `failure_class: PROVIDER_DISCONNECT` JSON-error; orchestrator help + warn (30KB threshold) + degraded-mode tip rewritten.
+- **Implementation report**: `grimoires/loa/a2a/sprint-bug-142/reviewer.md` (full AC walk + verification steps).
+- **Next**: `/review-sprint sprint-bug-142` then `/audit-sprint sprint-bug-142` — OR commit+PR if operator wants to ship without local cycle gates.
+
+## 2026-05-08 — sprint-bug-142 AUDIT APPROVED
+
+- **Verdict**: APPROVED - LETS FUCKING GO (security audit clean: 0 CRIT, 0 HIGH, 0 MED, 0 LOW; 1 INFORMATIONAL non-blocking)
+- **COMPLETED marker**: `grimoires/loa/a2a/sprint-bug-142/COMPLETED`
+- **Reports**: `auditor-sprint-feedback.md` (canonical) + mirror at `audits/2026-05-08/SECURITY-AUDIT-REPORT.md`
+- **Ready to commit + open PR against #774**
