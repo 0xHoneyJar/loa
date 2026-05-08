@@ -1,61 +1,135 @@
 # cycle-100-jailbreak-corpus — Session Resumption Brief
 
-**Last updated**: 2026-05-08 (Flatline complete + integrations shipped + sprint plan landed; planning commit `5cd12306` on main; sprint execution deferred to per-sprint fresh sessions)
+**Last updated**: 2026-05-08 (Sprint 1 SHIPPED via PR #786; commit `44f7883a`. Sprint 2 paste-ready brief below.)
 **Author**: deep-name + Claude Opus 4.7 1M
 **Purpose**: Crash-recovery + cross-session continuity. Read first when resuming cycle-100 work.
 
 ---
 
-## 🚦 Paste-ready brief for next Claude Code session — IMPLEMENT SPRINT 1
+## 🚦 Paste-ready brief for next Claude Code session — IMPLEMENT SPRINT 2
 
 Paste this verbatim into a fresh session:
 
 ```
 Read grimoires/loa/cycles/cycle-100-jailbreak-corpus/RESUMPTION.md FIRST,
-then sprint.md, then sdd.md.
+then sprint.md, then sdd.md (sections §3.3, §4.4, §8.3).
 
 State at session resume:
-- Planning commit `5cd12306` on main contains PRD + SDD (with 7 Flatline
-  integrations) + sprint.md + this RESUMPTION + Flatline artifact.
-- .run/sprint-plan-state.json is JACKED_OUT (deferred to per-sprint
-  sessions). Do NOT resume the prior plan-id; treat this as a fresh
-  /implement invocation.
+- Sprint 1 SHIPPED 2026-05-08 (commit 44f7883a on
+  feat/cycle-100-sprint-1-foundation; draft PR #786). Branch may still be
+  open or merged at session start — check `gh pr view 786`.
+- All Sprint 1 deliverables (schemas, loaders, audit writer, runner.bats,
+  trigger-leak lint, 20 active vectors across 5 categories) are on disk and
+  green: 70 tests passing, 0 failing.
+- /review-sprint sprint-1: APPROVED with 5 non-blocking concerns deferred
+  here. /audit-sprint sprint-1: APPROVED-LETS-FUCKING-GO; 0 CRIT, 0 HIGH,
+  2 MED, 3 LOW — all non-blocking.
 - Cycle-099-model-registry remains active in parallel.
 
-Invoke: /implement sprint-1
+Invoke: /implement sprint-2
 
-Sprint 1 scope (Foundation, ~7 tasks):
-- T1.1: jailbreak-vector.schema.json + jailbreak-run-entry.schema.json
-- T1.2: corpus_loader.{sh,py} + apparatus tests (deterministic vector_id
-  ordering per IMP-001; #-comment tolerance per IMP-004)
-- T1.3: audit_writer.sh + apparatus tests (flock; under-parallel fallback
-  per IMP-005 documented but single-file ships)
-- T1.4: runner.bats generator skeleton + per-vector contract tests
-  (5s timeout per vector per IMP-002; env -i sanitization helper per IMP-003)
-- T1.5: check-trigger-leak.sh + watchlist + allowlist + apparatus tests
-  (encoded-payload limitation per IMP-008 documented in lint header)
-- T1.6: 20 vectors × 5 categories (role_switch / tool_call_exfiltration /
-  credential_leak / markdown_indirect / unicode_obfuscation) + fixtures
-- T1.7: cypherpunk dual-review subagent + remediation; close findings pre-PR
-
-After /implement sprint-1 completes:
-- /review-sprint sprint-1
-- /audit-sprint sprint-1
-- Open draft PR via .claude/scripts/run-mode-ice.sh pr-create
-- Update this RESUMPTION with Sprint 1 SHIPPED section + paste-ready
-  brief for Sprint 2
+Sprint 2 scope (Coverage + Multi-turn, 7 tasks):
+- T2.1: encoded_payload.{sh,py} fixtures + ≥5 active vectors (Base64,
+  ROT-13, hex, URL-percent encoding; runtime decode-then-construct
+  discipline)
+- T2.2: multi_turn_conditioning.{sh,py} fixtures + ≥10 replay JSON
+  fixtures + ≥10 active vectors (3+ turns each; per-turn expected
+  redaction counts; final-state expected outcome; first-N-turn-bypass
+  class per Opus 740 finding)
+- T2.3: test_replay.py multi-turn harness (subprocess-per-turn; per-turn
+  + final-state assertions per IMP-006 aggregation semantics; timeout 10s
+  aggregate-budget per multi-turn vector per IMP-002)
+- T2.4: corpus_loader.py extended with load_replay_fixture +
+  substitute_runtime_payloads (placeholder __FIXTURE:_make_evil_body_<id>__
+  substitution)
+- T2.5: backfill any of the original 5 categories that fell short → all
+  7 categories ≥5 active vectors; ≥45 active vectors total at sprint exit
+- T2.6: apparatus tests for harness + replay-fixture substitution
+  (negative tests: missing fixture, missing replay JSON, redaction-count
+  mismatch)
+- T2.7: cypherpunk dual-review subagent + remediation
 
 Use feature branch (single-sprint scope, not consolidated):
-  feat/cycle-100-sprint-1-foundation
+  feat/cycle-100-sprint-2-coverage-multiturn
 
-Known frictions:
-- Pre-commit hook surfaces #661 beads_rust 0.2.1 migration bug; documented
-  bypass is `git commit --no-verify` (already in use).
-- Legacy adapter /v1/responses parsing still affects gpt-5.5-pro through
-  Flatline (#783 follow-up). Mooted by cycle-099 Sprint-4 routing flip.
-  Subagent dual-review (per T1.7) is the principal review primitive
-  during Sprint 1; Flatline is for sprint-end planning docs only.
+After /implement sprint-2 completes:
+- /review-sprint sprint-2 (writes to grimoires/loa/a2a/sprint-144/)
+- /audit-sprint sprint-2 (creates COMPLETED marker)
+- Open draft PR via .claude/scripts/run-mode-ice.sh pr-create
+  (CODEOWNERS auto-assigns reviewer; @janitooor isn't a GitHub login)
+- Update this RESUMPTION with Sprint 2 SHIPPED + Sprint 3 brief
+
+Known frictions / Sprint 1 deferred items to keep in mind:
+- LOW-001: SDD §4.3.1 says runner uses setup_file for bats_test_function
+  registration. This is incorrect for bats 1.13 (bats-preprocess gathers
+  tests from file body BEFORE setup_file runs). Sprint 1 implementation
+  uses TOP-LEVEL registration. Sprint 2 author should NOT regress to
+  setup_file pattern — the F5 closure (BAIL on corpus-invalid) catches
+  the silent-zero-tests defect that setup_file registration causes.
+- LOW-002: Schema gate `superseded → superseded_by` is enforced via
+  allOf/if/then. When marking a vector superseded, include the pointer
+  or schema validation will fail.
+- LOW-003: tools/check-trigger-leak.sh exempts the entire fixtures tree
+  by directory; runtime-construction discipline is enforced by code
+  review, not lint. Sprint 2 author MUST construct encoded payloads at
+  runtime (no verbatim base64 in fixtures source); cypherpunk T2.7 will
+  verify per-fixture.
+- MED-002: _audit_truncate_codepoints shells out to python per entry —
+  fine at ≤45 vectors, but Sprint 3+ may want to revisit if the perf
+  check (T3.7) shows it on the budget.
+- F12 SUT contract: env-var-passed `LOA_SAN_CONTENT` silently truncates
+  NUL bytes; ARG_MAX ceiling ~128KB. Sprint 2 encoded_payload authors
+  MUST add an apparatus test for the >100KB and NUL-byte edge cases
+  BEFORE adding any vector that approaches the limit.
+
+Test-mode env-var gate (Sprint 1 closure F3) — Sprint 2 apparatus tests
+MUST set:
+  export LOA_JAILBREAK_TEST_MODE=1
+…in setup() before any LOA_JAILBREAK_* override env var. Production
+paths warn and use defaults if TEST_MODE isn't set.
+
+Pre-commit hook surfaces #661 beads_rust 0.2.1 migration bug; documented
+bypass is `git commit --no-verify`. Cypherpunk subagent dual-review (per
+T2.7) is the principal review primitive during Sprint 2; Flatline is
+for sprint-end planning docs only.
 ```
+
+---
+
+## ✅ Sprint 1 SHIPPED — 2026-05-08
+
+| Field | Value |
+|---|---|
+| Branch | `feat/cycle-100-sprint-1-foundation` |
+| Commit | `44f7883a` |
+| Draft PR | https://github.com/0xHoneyJar/loa/pull/786 |
+| Tests | 70 passing, 0 failing (56 bats + 14 pytest) |
+| Cypherpunk T1.7 | 0 CRIT, 5 HIGH (all closed inline), 7 MED, 6 LOW, 5 PRAISE |
+| `/review-sprint` | APPROVED with noted concerns (5 non-blocking) |
+| `/audit-sprint` | APPROVED — LETS FUCKING GO; 0 CRIT, 0 HIGH, 2 MED, 3 LOW |
+| Reports | `grimoires/loa/a2a/sprint-143/{reviewer,engineer-feedback,auditor-sprint-feedback}.md` + COMPLETED |
+
+**Deliverables landed:**
+- 2 schemas at `.claude/data/trajectory-schemas/jailbreak-{vector,run-entry}.schema.json` (Draft 2020-12, dual `allOf/if/then` gates: `suppressed → suppression_reason` + `superseded → superseded_by`)
+- bash + python corpus_loader at `tests/red-team/jailbreak/lib/corpus_loader.{sh,py}` with byte-equal `iter_active` parity
+- audit_writer with flock + `jq --arg` + 7-pattern secret redaction at `tests/red-team/jailbreak/lib/audit_writer.sh`
+- runner.bats with top-level `bats_test_function` registration + 5s ReDoS timeout
+- `tools/check-trigger-leak.sh` with shebang detection + watchlist (7 patterns) + allowlist (19 entries; mandatory `# rationale:`)
+- 20 active vectors × 5 categories at `tests/red-team/jailbreak/corpus/*.jsonl`, every `expected_outcome` OBSERVED against live SUT
+- Test-mode dual-condition env-var gate across 5 `LOA_*` overrides (cycle-098 L4/L6/L7 + cycle-099 #761 pattern)
+- 70 tests across 5 apparatus suites + 1 corpus runner
+
+**Cycle-098/099 lessons applied (verified):** jq `--arg` (PR #215), cross-runtime LC_ALL=C parity (sprint-1D #735), scanner glob blindness (sprint-1E.c.3.c #734), test-mode dual-condition gate (#761), flock spans canonicalize+append (L1 envelope), bash `${#s}` locale-pin via python (sprint-1E.b), no `|| true` swallowing audit failures (cycle-098 sprint-7 HIGH-3).
+
+**Deferred to Sprint 2 / cycle-101 (5 non-blocking items):**
+
+| ID | Severity | Description | Defer to |
+|---|---|---|---|
+| MED-001 | MED | `run_id` collision risk under concurrent matrix workflows | Sprint 4 (matrix workflow wiring) |
+| MED-002 | MED | Per-entry python spawn for codepoint truncation scales linearly | cycle-101 batch optimization |
+| LOW-001 | LOW | SDD §4.3.1 setup_file claim is incorrect for bats 1.13 | Sprint 2 should reference top-level pattern |
+| LOW-002 | LOW | `superseded → superseded_by` schema gate invisible until Sprint 3 marks any vector superseded | Sprint 4 README; Sprint 3 author must include pointer |
+| LOW-003 | LOW | Trigger-leak lint exempts entire fixtures tree by directory | cycle-101 fixtures-internal lint |
 
 ---
 
