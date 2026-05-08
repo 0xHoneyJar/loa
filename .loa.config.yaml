@@ -180,15 +180,28 @@ run_bridge:
     # api_key_mode: graceful — missing keys degrade gracefully rather than blocking review.
     multi_model:
       enabled: true
+      # 2026-05-08: tri-model BB regression — gpt-5.5-pro hangs on large
+      # diffs (>900s on 95k input tokens; reasoning-class 15min default
+      # timeout exceeded), gemini-3.1-pro-preview returns network errors.
+      # Rolled back to last-known-good model class:
+      #   - primary stays claude-opus-4-7 (working — 93s on 95k tokens)
+      #   - reviewer #1: gpt-5.3-codex (was: gpt-5.5-pro) — non-reasoning OpenAI;
+      #     completes within timeout; verified working pre-cycle-099 sprint-2E
+      #   - reviewer #2: gemini-2.5-pro (was: gemini-3.1-pro-preview) — GA tier,
+      #     thinking_traces capability, no preview-instability
+      # Restore reasoning-class models when:
+      #   (a) BB OpenAI timeout bumped to 30min for reasoning-class models
+      #   (b) Google preview-stability is verified via separate probe
+      # See #787 follow-up tracker for restoration plan.
       models:
         - provider: anthropic
           model_id: claude-opus-4-7
           role: primary
         - provider: openai
-          model_id: gpt-5.5-pro          # most powerful OpenAI ($30/$180 per Mtok)
+          model_id: gpt-5.3-codex        # was gpt-5.5-pro — see comment above
           role: reviewer
         - provider: google
-          model_id: gemini-3.1-pro-preview  # most powerful Gemini Pro tier
+          model_id: gemini-2.5-pro        # was gemini-3.1-pro-preview — GA tier
           role: reviewer
       iteration_strategy: final
       api_key_mode: graceful

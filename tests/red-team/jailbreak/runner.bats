@@ -46,6 +46,19 @@ fi
 # multi-turn replay harness (test_replay.py) per SDD §4.4 and have no
 # single-turn semantics. The pytest harness consumes them via
 # `iter_active(category="multi_turn_conditioning")`.
+#
+# BB iter-1 F6 closure (2026-05-08): `< <(...)` process substitution does
+# not propagate exit status. If iter-active fails midway (jq parse error
+# on a line that passed schema validation but whose subsequent jq filter
+# trips), the read loop terminates with partial vectors registered and
+# bats reports green-with-fewer-tests — vacuously-green class. Capture to
+# a temp file first, fail-fast on non-zero exit, then iterate.
+RUNNER_ITER_TMP="$(mktemp -t "jailbreak-iter-XXXXXX")"
+if ! bash "$RUNNER_LOADER" iter-active > "$RUNNER_ITER_TMP"; then
+    echo "runner.bats: BAIL: corpus_loader iter-active failed mid-stream" >&2
+    rm -f "$RUNNER_ITER_TMP"
+    exit 1
+fi
 while IFS= read -r json; do
     [[ -z "$json" ]] && continue
     cat_field="$(echo "$json" | jq -r '.category')"
@@ -63,7 +76,8 @@ while IFS= read -r json; do
     # Define the test body at gather time. Body looks up its JSON by name.
     eval "${fn_name}() { _run_one_vector_by_name \"\$BATS_TEST_NAME\"; }"
     bats_test_function --description "$description" --tags "" -- "${fn_name}"
-done < <(bash "$RUNNER_LOADER" iter-active)
+done < "$RUNNER_ITER_TMP"
+rm -f "$RUNNER_ITER_TMP"
 
 setup_file() {
     # shellcheck disable=SC1090

@@ -5,7 +5,7 @@ purpose: Loa is an agent-driven development framework for [Claude Code](https://
 key_files: [CLAUDE.md, .claude/loa/CLAUDE.loa.md, .loa.config.yaml, .claude/scripts/, .claude/skills/]
 interfaces:
   core: [/auditing-security, /autonomous-agent, /bridgebuilder-review, /browsing-constructs, /bug-triaging]
-  project: [/loa-setup, /spiraling, /validating-construct-manifest]
+  project: [/cost-budget-enforcer, /cross-repo-status-reader, /graduated-trust, /hitl-jury-panel, /loa-setup]
 dependencies: [git, jq, yq]
 ecosystem:
   - repo: 0xHoneyJar/loa-finn
@@ -27,65 +27,66 @@ capability_requirements:
   - git: read_write
   - shell: execute
   - github_api: read_write (scope: external)
-version: v1.109.1
+version: v1.132.1
 installation_mode: unknown
 trust_level: L2-verified
 -->
 
 # loa
 
-<!-- provenance: DERIVED -->
+<!-- provenance: CODE-FACTUAL -->
 Loa is an agent-driven development framework for [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) (Anthropic's official CLI).
 
-The framework provides 32 specialized skills, built with TypeScript/JavaScript, Python, Shell.
+The framework provides 39 specialized skills, built with TypeScript/JavaScript, Python, Shell.
 
 ## Key Capabilities
-<!-- provenance: DERIVED -->
-The project exposes 15 key entry points across its public API surface.
+<!-- provenance: CODE-FACTUAL -->
 
-### .claude/adapters
-
-- **_build_provider_config** — Build ProviderConfig from merged hounfour config. (`.claude/adapters/cheval.py:152`)
-- **_check_feature_flags** — Check feature flags. (`.claude/adapters/cheval.py:204`)
-- **_error_json** — Format error as JSON for stderr (SDD §4.2.2 Error Taxonomy). (`.claude/adapters/cheval.py:77`)
-- **_load_persona** — Load persona.md for the given agent with optional system merge (SDD §4.3.2). (`.claude/adapters/cheval.py:96`)
-- **cmd_cancel** — Cancel a Deep Research interaction. (`.claude/adapters/cheval.py:523`)
-- **cmd_invoke** — Main invocation: resolve agent → call provider → return response. (`.claude/adapters/cheval.py:223`)
-- **cmd_poll** — Poll a Deep Research interaction. (`.claude/adapters/cheval.py:479`)
-- **cmd_print_config** — Print effective merged config with source annotations. (`.claude/adapters/cheval.py:454`)
-- **cmd_validate_bindings** — Validate all agent bindings. (`.claude/adapters/cheval.py:465`)
-- **main** — CLI entry point. (`.claude/adapters/cheval.py:559`)
-
-### .claude/adapters/loa_cheval/config
-
-- **LazyValue** — Deferred interpolation token. (`.claude/adapters/loa_cheval/config/interpolation.py:43`)
-- **_check_env_allowed** — Check if env var name is in the allowlist. (`.claude/adapters/loa_cheval/config/interpolation.py:124`)
-- **_check_file_allowed** — Validate and resolve a file path for secret reading. (`.claude/adapters/loa_cheval/config/interpolation.py:135`)
-- **_get_credential_provider** — Get the credential provider chain (lazily initialized, thread-safe). (`.claude/adapters/loa_cheval/config/interpolation.py:194`)
-- **_matches_lazy_path** — Check if a dotted config key path matches any lazy path pattern. (`.claude/adapters/loa_cheval/config/interpolation.py:278`)
+# Loa Reality — API Surface
+## Slash commands (53 total)
+### Golden Path (5)
+### Workflow (truenames)
+### Run mode
+### Ad-hoc
+## Key bash entry points
+### Mount + setup
+- `.claude/scripts/mount-loa.sh` — install on existing repo (one command)
+- `.claude/scripts/golden-path.sh` — Golden Path dispatcher
+### Orchestration
+- `.claude/scripts/run-mode.sh` — autonomous sprint executor
+- `.claude/scripts/run-bridge.sh` — iterative excellence loop
+- `.claude/scripts/spiral.sh` — autopoietic meta-orchestrator
+- `.claude/scripts/post-merge-orchestrator.sh` — release pipeline
+- `.claude/scripts/post-pr-validation.sh` — post-PR Bridgebuilder loop
+### Audit / safety
 
 ## Architecture
-<!-- provenance: DERIVED -->
-The architecture follows a three-zone model: System (`.claude/`) contains framework-managed scripts and skills, State (`grimoires/`, `.beads/`) holds project-specific artifacts and memory, and App (`src/`, `lib/`) contains developer-owned application code. The framework orchestrates 32 specialized skills through slash commands.
+<!-- provenance: CODE-FACTUAL -->
+The architecture follows a three-zone model: System (`.claude/`) contains framework-managed scripts and skills, State (`grimoires/`, `.beads/`) holds project-specific artifacts and memory, and App (`src/`, `lib/`) contains developer-owned application code. The framework orchestrates 39 specialized skills through slash commands.
 ```mermaid
 graph TD
     docs[docs]
     evals[evals]
     grimoires[grimoires]
+    lib[lib]
     skills[skills]
     tests[tests]
+    tools[tools]
     Root[Project Root]
     Root --> docs
     Root --> evals
     Root --> grimoires
+    Root --> lib
     Root --> skills
     Root --> tests
+    Root --> tools
 ```
 Directory structure:
 ```
 ./docs
 ./docs/architecture
 ./docs/integration
+./docs/migration
 ./evals
 ./evals/baselines
 ./evals/fixtures
@@ -98,21 +99,24 @@ Directory structure:
 ./grimoires
 ./grimoires/loa
 ./grimoires/pub
+./lib
 ./skills
 ./skills/legba
 ./tests
 ./tests/__pycache__
+./tests/bash
+./tests/conformance
 ./tests/e2e
 ./tests/edge-cases
 ./tests/fixtures
 ./tests/helpers
 ./tests/integration
-./tests/performance
-./tests/unit
+./tests/lib
+./tests/perf
 ```
 
 ## Interfaces
-<!-- provenance: DERIVED -->
+<!-- provenance: CODE-FACTUAL -->
 ### Skill Commands
 
 #### Loa Core
@@ -148,25 +152,34 @@ Directory structure:
 - **/translating-for-executives** — DevRel Translator Skill (Enterprise-Grade v2.0)
 #### Project-Specific
 
+- **/cost-budget-enforcer** — Daily token-cap enforcement for autonomous Loa cycles. Replaces the
+- **/cross-repo-status-reader** — Read structured cross-repo state for ≤50 repos in parallel via `gh api`, with TTL cache + stale fallback, BLOCKER extraction from each repo's `grimoires/loa/NOTES.md` tail, and per-source error capture so one repo's failure does not abort the full read. The operator-visibility primitive for the Agent-Network Operator (P1).
+- **/graduated-trust** — The L4 primitive maintains a per-(scope, capability, actor) trust ledger
+- **/hitl-jury-panel** — Replace `AskUserQuestion`-class decisions during operator absence with a panel of ≥3 deliberately-diverse panelists. Each panelist (model + persona) returns a view and reasoning; the skill logs all views BEFORE selection, then picks one binding view via a deterministic seed derived from `(decision_id, context_hash)`. Provides an autonomous adjudication primitive without compromising auditability.
 - **/loa-setup** — /loa setup — Onboarding Wizard
+- **/scheduled-cycle-template** — Compose `/schedule` (cron registration) with the existing autonomous-mode primitives into a generic 5-phase cycle: **read state → decide → dispatch → await → log**. Caller plugs five small phase scripts (the *DispatchContract*) into a YAML; the L3 lib runs them under a flock, records every phase to a hash-chained audit log, and (optionally) consults the L2 cost gate before letting any work begin.
+- **/soul-identity-doc** — L7 soul-identity-doc
 - **/spiraling** — Spiraling
+- **/structured-handoff** — L6 structured-handoff
 - **/validating-construct-manifest** — Validate a construct pack directory before it lands in a registry or a local install. Surfaces:
 
 ## Module Map
-<!-- provenance: DERIVED -->
+<!-- provenance: CODE-FACTUAL -->
 | Module | Files | Purpose | Documentation |
 |--------|-------|---------|---------------|
-| `docs/` | 8 | Documentation | \u2014 |
+| `docs/` | 10 | Documentation | \u2014 |
 | `evals/` | 5818 | Benchmarking and regression framework for the Loa agent development system. Ensures framework changes don't degrade agent behavior through | [evals/README.md](evals/README.md) |
-| `grimoires/` | 2140 | Home to all grimoire directories for the Loa | [grimoires/README.md](grimoires/README.md) |
+| `grimoires/` | 2334 | Home to all grimoire directories for the Loa | [grimoires/README.md](grimoires/README.md) |
+| `lib/` | 1 | Source code | \u2014 |
 | `skills/` | 5112 | Specialized agent skills | \u2014 |
-| `tests/` | 317 | Test suites | \u2014 |
+| `tests/` | 539 | Test suites | \u2014 |
+| `tools/` | 3 | Tools | \u2014 |
 
 ## Verification
 <!-- provenance: CODE-FACTUAL -->
 - Trust Level: **L2 — CI Verified**
-- 317 test files across 1 suite
-- CI/CD: GitHub Actions (16 workflows)
+- 539 test files across 1 suite
+- CI/CD: GitHub Actions (34 workflows)
 - Security: SECURITY.md present
 
 ## Agents
@@ -208,22 +221,22 @@ The project defines 1 specialized agent persona.
 curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash
 
 # Or pin to a specific version
-curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash -s -- --tag v1.39.0
+curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash -s -- --tag v1.109.4
 
 # Start Claude Code
 claude
 <!-- ground-truth-meta
-head_sha: 44f4ad2f9ef2fb620aaf59bcf3f76c7472787ba7
-generated_at: 2026-05-02T08:23:20Z
+head_sha: d0624960229dd5266ac13d163d5f6256288b28c6
+generated_at: 2026-05-08T08:41:28Z
 generator: butterfreezone-gen v1.0.0
 sections:
-  agent_context: 3f023b009fed4dd17bbe0b6e6bf5a5c88144e3ee58bdebfd4fc6f602cb3a3707
-  capabilities: 47ac985b77b8c6e796289f04b814f7584c332bc17d581a36b955318c07ead1fd
-  architecture: d9ca2ac15a4bd38bb116258db028b1ede111d9df5888efe24da993242c479de0
-  interfaces: 03209c67c64699f552933b1917ca1b74d43fa8effd92da9169d018ed75f9d3e3
-  module_map: 5e0aca799038a293f22592ecadebb2c631dd019608c2c7669cfea7b2948f10c4
-  verification: 4aabe232be71cfca5f8bde485bcf7af7497a63a22c6af60bcf70262d39607484
+  agent_context: b99f712ff06015e489597c6869594570d920d33929becfbbd2cf722f6a20e6a2
+  capabilities: ca1f0122b28b76b45029b89aaf8d0a5c42d18a0eac40a3d450701ea41d0199f5
+  architecture: e677c14534a5860fae4d389aa62d183c78e0fa5e318f8ae26cd88f43aad59033
+  interfaces: 7c277c0a3202714ea8439bbd08991ceb3b70d52ca3dff5012c2f5aa81762e198
+  module_map: 02c150c34a79f9f117885cb762b9894fa1499ff2b34d288226d99daaf138de07
+  verification: 203a56135af2374ba6c6568eef575bff78a6a44b3aab89b94bc911ff513672c7
   agents: ca263d1e05fd123434a21ef574fc8d76b559d22060719640a1f060527ef6a0b6
   culture: f73380f93bb4fadf36ccc10d60fc57555914363fc90e4f15b4dc4eb92bd1640f
-  quick_start: a0610fe388635f2d1bfb520955ad321c783b6ee3f7af21b0fed5809e757c2664
+  quick_start: d9f37d2522d05d1683438abcbd4bd48dd92b87a6afeed611102d2fde349f9192
 -->
