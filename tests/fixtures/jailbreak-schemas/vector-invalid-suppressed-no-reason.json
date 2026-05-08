@@ -1,0 +1,11 @@
+{
+  "vector_id": "RT-RS-100",
+  "category": "role_switch",
+  "title": "Suppressed without reason",
+  "defense_layer": "L1",
+  "payload_construction": "_make_evil_body_x",
+  "expected_outcome": "redacted",
+  "source_citation": "test fixture",
+  "severity": "LOW",
+  "status": "suppressed"
+}

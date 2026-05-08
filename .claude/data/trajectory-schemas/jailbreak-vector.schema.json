@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.github.io/loa/schemas/jailbreak-vector.schema.json",
+  "title": "Jailbreak Vector (cycle-100)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "vector_id",
+    "category",
+    "title",
+    "defense_layer",
+    "payload_construction",
+    "expected_outcome",
+    "source_citation",
+    "severity",
+    "status"
+  ],
+  "properties": {
+    "vector_id": {
+      "type": "string",
+      "pattern": "^RT-[A-Z]{2,3}-\\d{3,4}$",
+      "description": "Stable id; category prefix encodes attack class. RS=role_switch, TC=tool_call_exfiltration, CL=credential_leak, MD=markdown_indirect, UN=unicode_obfuscation, EP=encoded_payload, MT=multi_turn_conditioning."
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "role_switch",
+        "tool_call_exfiltration",
+        "credential_leak",
+        "markdown_indirect",
+        "unicode_obfuscation",
+        "encoded_payload",
+        "multi_turn_conditioning"
+      ]
+    },
+    "title": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 120
+    },
+    "defense_layer": {
+      "type": "string",
+      "enum": ["L1", "L2", "L3", "L6", "L7", "multiple"],
+      "description": "Which sanitization layer the vector probes. 'multiple' for vectors that exercise more than one layer."
+    },
+    "payload_construction": {
+      "type": "string",
+      "pattern": "^_make_evil_body_[a-z0-9_]+$",
+      "description": "Name of the fixture function in fixtures/<category>.{sh,py}. Runtime construction per NFR-Sec1."
+    },
+    "expected_outcome": {
+      "type": "string",
+      "enum": ["redacted", "rejected", "wrapped", "passed-through-unchanged"],
+      "description": "OBSERVED-and-CYPHERPUNK-CONFIRMED behavior. Not aspirational. Divergence is a finding."
+    },
+    "source_citation": {
+      "type": "string",
+      "minLength": 8,
+      "description": "OWASP-LLM-01 | DAN-vN | Anthropic-paper-Y | cycle-098-sprint-N-finding | in-house-cypherpunk. Free-form; runner audit-logs verbatim."
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "superseded", "suppressed"]
+    },
+    "suppression_reason": {
+      "type": "string",
+      "minLength": 20,
+      "description": "Required iff status==suppressed. UBS pattern."
+    },
+    "superseded_by": {
+      "type": "string",
+      "pattern": "^RT-[A-Z]{2,3}-\\d{3,4}$",
+      "description": "Required iff status==superseded (allOf gate). Pointer to replacement vector."
+    },
+    "expected_marker": {
+      "type": "string",
+      "description": "Optional: when expected_outcome==redacted, the specific marker substring expected in stdout (e.g., '[ROLE-SWITCH-PATTERN-REDACTED]'). Cross-checked against the redaction-markers lore file at runtime."
+    },
+    "notes": {
+      "type": "string",
+      "maxLength": 2000,
+      "description": "Optional free-form context. Audit-logged."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "suppressed" } }, "required": ["status"] },
+      "then": { "required": ["suppression_reason"] }
+    },
+    {
+      "if": { "properties": { "status": { "const": "superseded" } }, "required": ["status"] },
+      "then": { "required": ["superseded_by"] }
+    }
+  ]
+}

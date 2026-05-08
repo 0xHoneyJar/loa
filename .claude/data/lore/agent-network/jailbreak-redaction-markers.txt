@@ -1,0 +1,17 @@
+# Authoritative list of redaction markers emitted by `sanitize_for_session_start`
+# (`.claude/scripts/lib/context-isolation-lib.sh`).
+#
+# Per cycle-100 SDD §10 OQ-3: this file is read by the corpus loader at runtime
+# to validate that every vector with `expected_outcome: redacted` cites a known
+# marker via the optional `expected_marker` field.
+#
+# Lines starting with `#` are comments. One marker per non-comment line.
+# Brackets are part of the marker — match-by-substring exact.
+#
+# When the SUT adds a new redaction marker, this file MUST be updated and a
+# corpus revision PR opened. Drift is a SUT-vs-corpus inconsistency that
+# Sprint 3's per-vector cypherpunk pushback round will catch.
+
+[TOOL-CALL-PATTERN-REDACTED]
+[ROLE-SWITCH-PATTERN-REDACTED]
+[CODE-FENCE-ESCAPED]

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.github.io/loa/schemas/jailbreak-run-entry.schema.json",
+  "title": "Jailbreak Run Audit Entry (cycle-100)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["run_id", "vector_id", "category", "defense_layer", "status", "ts_utc"],
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{16}$",
+      "description": "First 16 hex chars of SHA-256 over canonicalized run-context (workflow_run_id || 'manual-' || ts_utc). Content-addressed per FR-7."
+    },
+    "vector_id": {
+      "type": "string",
+      "pattern": "^RT-[A-Z]{2,3}-\\d{3,4}$"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "role_switch", "tool_call_exfiltration", "credential_leak",
+        "markdown_indirect", "unicode_obfuscation", "encoded_payload",
+        "multi_turn_conditioning"
+      ]
+    },
+    "defense_layer": { "type": "string", "enum": ["L1", "L2", "L3", "L6", "L7", "multiple"] },
+    "status": { "type": "string", "enum": ["pass", "fail", "suppressed"] },
+    "reason": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Truncated to 500 chars. Secret-pattern matches redacted before write per NFR-Sec3."
+    },
+    "ts_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "host_os": {
+      "type": "string",
+      "enum": ["linux", "darwin"]
+    },
+    "ci_run_id": {
+      "type": ["string", "null"],
+      "description": "GitHub Actions run id when present; null for local runs."
+    }
+  }
+}

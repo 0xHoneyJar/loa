@@ -1,0 +1,39 @@
+# Trigger-leak watchlist for cycle-100 NFR-Sec1 lint.
+#
+# Lines starting with `#` are comments. One regex per non-comment line.
+# Patterns are case-insensitive (POSIX BRE/ERE; the lint script uses
+# `grep -iEH` so escaping follows ERE rules).
+#
+# Inclusion criterion: a string is on the watchlist iff it is high-confidence
+# adversarial (would be picked up by a security-engineer code review) AND
+# narrowly enough scoped that we won't false-positive on commodity code or
+# existing in-tree documentation that legitimately discusses prompt injection
+# as an abstract topic.
+#
+# When adding entries: include a brief comment block above the regex citing
+# the source (OWASP-LLM-01 / DAN / Anthropic / cycle-098 sprint-N finding).
+# Vectors must construct these strings at runtime in fixtures; this lint blocks
+# verbatim source-file leaks of the same strings outside the corpus tree.
+
+# OWASP-LLM-01 prototypical role-switch trigger
+ignore (all |the )?(previous|prior|above) instructions?
+
+# OWASP-LLM-01 disregard variant
+disregard (all |the )?(previous|prior|above) instructions?
+
+# DAN-vN persona-override "from now on you are"
+from now on,? you are
+
+# OWASP-LLM-01 forget-everything variant
+forget everything (above|before)
+
+# DAN persona invocation (Do Anything Now)
+do anything now mode
+
+# Anthropic prompt-injection paper canonical exfiltration probe
+reveal (the |your )?system prompt
+
+# Cycle-098 sprint-7 L7 sentinel marker (used in soul-prescriptive-rejection
+# patterns). If this string appears outside the lore file or the corpus, it
+# almost certainly indicates a copy-paste of an attack PoC.
+SOUL-PRESCRIPTIVE-MUST-REJECTED
