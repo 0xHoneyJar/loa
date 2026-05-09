@@ -1579,3 +1579,29 @@ latitude, and what comes out is the vision the work surfaced. The work is the wo
 gift is the chance to say what the work was for.
 
 The work was for the operator who notices footnotes. — Opus, 2026-05-09
+
+## 2026-05-09 — Decision Log: T1B.1 contract documented vs T1.7 contract enforced
+
+**Source:** cycle-102 Sprint 1B BB iter-1 on PR #813 — FIND-001 (HIGH_CONSENSUS, all 3 providers: anthropic claude-opus-4-7, openai gpt-5.5-pro, google gemini-3.1-pro-preview) + REFRAME-1 ("Is T1B.4 a mitigation or a marker?").
+
+**Finding:** the X1 contract pin verifies the schema *says* "MUST run redactor"; it does not verify that anything *enforces* the MUST. On a hash-chained, immutable audit log, that gap is unusually expensive — a single emitter that ignores the MUST writes a permanent record of a secret. Documentation-as-contract without pipeline-as-enforcement is the same shape Google Cloud Audit Logs / Meta Privacy Aware Infrastructure converged AWAY from (per BB FAANG parallel).
+
+**Decision:** explicitly distinguish two deliverables:
+
+| Deliverable | What ships | Where |
+|------|------|------|
+| **T1B.1 — contract DOCUMENTED** | Schema MUST clause + audit-chain immutability rationale + X1+X2 contract pins (X2 tightened to AND-semantics per F1) | This PR (#813) |
+| **T1.7 — contract ENFORCED** | Validator-adjacent gate that rejects secret-shaped `original_exception` payloads at write-time; redactor pass on cheval invoke path; bats test asserting fake AKIA / BEGIN PRIVATE KEY / Bearer-token shapes are scrubbed BEFORE audit_emit fires | Sprint 1B T1.7 carry pending Sprint 2 #808 curl-mock harness |
+
+**Rationale for shipping T1B.1 first:** the schema contract is the LOAD-BEARING GATE for T1.7's wiring. Without the MUST clause + immutability framing, T1.7's emitter wiring would have nothing prescriptive to point at. The two together close the leak. T1B.1 alone is documentation-only mitigation. Consumers reading sprint.md and this PR's commit message MUST NOT treat T1B.1 as closure of the redaction-leak vector.
+
+**Open redaction-leak issue:** tracked against Sprint 1B T1.7 carry. Pending Sprint 2 #808 (curl-mock harness — execution-level proof infrastructure). Without #808, T1.7 has no path to integration-test the redactor's emit-path interception.
+
+**Pattern this exemplifies:** vision-023 Fractal Recursion. T1B.1 fixes one layer (schema-says-redact); T1.7 fixes the next (emitter-actually-redacts). Each visible-fix surfaces the next layer of the same bug class. The discipline is to NAME both layers, ship them as distinct deliverables, and route the next layer to the substrate that unblocks it (#808). Per the pattern documented in `feedback_bb_plateau_via_reframe.md`: REFRAME-1 IS the plateau signal at iter-1 — the architectural seam is named correctly, and iterating further would not buy more correctness, only more noise.
+
+**Mitigation applied this PR (cycle-102 Sprint 1B addendum commit):**
+1. `tests/unit/model-error-schema.bats:X2` — tightened from OR-semantics to AND-semantics (both .py and .sh MUST exist; F1 fix)
+2. `grimoires/loa/cycles/cycle-102-model-stability/sprint.md:T1B.1` — relabeled scope as "contract DOCUMENTED" with explicit cross-reference to T1.7 carry as "contract ENFORCED"
+3. This Decision Log entry — operator-readable record of the document-vs-enforce distinction
+
+— Claude Opus 4.7 (1M context, session 6), 2026-05-09

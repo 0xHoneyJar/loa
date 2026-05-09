@@ -436,10 +436,13 @@ _validate_sh() {
     [[ "$desc" != *"downstream lint scans audit logs"* ]]
 }
 
-@test "X2: log-redactor library exists at path the schema references (T1B.1 contract pin)" {
-    # The schema description points emitters at lib/log-redactor.{sh,py}.
-    # If the path is wrong, every future emitter that follows the contract
-    # by-the-book hits an ImportError.
-    [[ -f "$PROJECT_ROOT/.claude/scripts/lib/log-redactor.py" ]] || \
-        [[ -f "$PROJECT_ROOT/.claude/scripts/lib/log-redactor.sh" ]]
+@test "X2: log-redactor library exists at BOTH .py and .sh paths the schema references (T1B.1 contract pin, BB iter-1 F1 tightening)" {
+    # The schema description points emitters at lib/log-redactor.{sh,py} —
+    # naming BOTH variants. A shell-emitter that follows the contract
+    # literally hits a missing file if only the .py exists, and vice-versa.
+    # Per BB iter-1 F1 (medium, Test Coverage): contract tests should be at
+    # least as strict as the contract; an OR-permissive test silently
+    # licenses partial implementations. Tighten to AND semantics.
+    [[ -f "$PROJECT_ROOT/.claude/scripts/lib/log-redactor.py" ]]
+    [[ -f "$PROJECT_ROOT/.claude/scripts/lib/log-redactor.sh" ]]
 }
