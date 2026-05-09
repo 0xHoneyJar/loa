@@ -133,29 +133,38 @@ jobs:
             fi
           fi
 
-      - name: Run integration tests
-        # cycle-102 Sprint 1C T1C.8: integration tests live under
-        # tests/integration/ and exercise the curl-mock harness
-        # (tests/lib/curl-mock.sh + tests/lib/curl-mock-helpers.bash) and
-        # the cheval _error_json shape proof. Per Issue #808 acceptance
-        # criteria, the harness MUST run in CI alongside unit tests.
+      - name: Run sprint-1C curl-mock harness integration tests
+        # cycle-102 Sprint 1C T1C.8: scoped to the 3 sprint-1C integration
+        # test files. tests/integration/ has 110+ pre-existing files that
+        # were not previously CI'd; surfacing them all in this PR would
+        # conflate sprint-1C's substrate proof with a fleet of unrelated
+        # pre-existing test debt. Bringing them into CI is a separate,
+        # non-trivial scope (and properly belongs to the directory's
+        # original owners, not Sprint 1C).
         #
         # `if: always()` ensures this step runs even when prior unit/script
-        # test steps fail. Without this, pre-existing main failures (e.g.,
-        # 137/141 BHM-T1/T5, 1002 flatline-orchestrator >100KB warning)
-        # would skip integration tests entirely — masking sprint-1C's own
-        # test results. The harness's failures are independent from the
-        # legacy unit-test failures and should surface separately.
+        # test steps fail (pre-existing main failures: 137/141 BHM-T1/T5,
+        # 1002 flatline >100KB, etc.). Without it, sprint-1C's own test
+        # results would be masked. Independent failure modes surface
+        # independently.
         if: always()
         run: |
-          if [ -d tests/integration ]; then
-            count=$(find tests/integration -maxdepth 1 -name '*.bats' -type f | wc -l)
-            if [ "$count" -eq 0 ]; then
-              echo "WARNING: tests/integration/ exists but contains no .bats files (skipping)"
-            else
-              echo "Running $count test files from tests/integration/ ..."
-              bats tests/integration/
+          set -euo pipefail
+          # Sprint-1C scope only — the 3 files this PR added/modified
+          SPRINT_1C_TESTS=(
+            tests/integration/curl-mock-harness.bats
+            tests/integration/model-adapter-call-shape.bats
+            tests/integration/cheval-error-json-shape.bats
+          )
+          missing=()
+          for f in "${SPRINT_1C_TESTS[@]}"; do
+            if [ ! -f "$f" ]; then
+              missing+=("$f")
             fi
-          else
-            echo "INFO: tests/integration/ directory not found — skipping (not required)"
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "ERROR: missing sprint-1C test files: ${missing[*]}"
+            exit 1
           fi
+          echo "Running ${#SPRINT_1C_TESTS[@]} sprint-1C test files from tests/integration/ ..."
+          bats "${SPRINT_1C_TESTS[@]}"
