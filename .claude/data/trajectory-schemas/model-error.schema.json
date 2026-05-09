@@ -62,8 +62,9 @@
       "minLength": 1
     },
     "original_exception": {
-      "description": "REQUIRED when error_class=UNKNOWN. Full stacktrace from cheval/Python/etc. Triage cycles use this to reclassify into a typed class. SHOULD NOT be populated for any other error_class — typed classes already encode the failure mode.",
-      "type": "string"
+      "description": "REQUIRED when error_class=UNKNOWN. Stacktrace + exception message from cheval/Python/etc. Used by triage cycles to reclassify into a typed class. SHOULD NOT be populated for any other error_class — typed classes already encode the failure mode. NFR-Sec-1: emitters MUST run this through lib/log-redactor.{sh,py} BEFORE populating — raw exception strings can leak provider responses, prompt fragments, paths, API keys, bearer tokens. The 16384-byte cap (2x message_redacted's cap) bounds the audit-payload size while preserving stacktrace context. The schema enforces shape (string + maxLength); semantic redaction is the emitter's responsibility — a downstream lint scans audit logs for secret-shaped content and flags drift. Closes BB iter-4 FIND-003 (med).",
+      "type": "string",
+      "maxLength": 16384
     },
     "ts_utc": {
       "description": "ISO-8601 UTC timestamp of the failure. Audit envelope sets this; emitters MAY pre-populate.",

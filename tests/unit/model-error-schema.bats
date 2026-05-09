@@ -228,6 +228,26 @@ _validate_sh() {
     [ "$status" -eq 0 ]
 }
 
+@test "E15b: original_exception > 16384 chars rejected (BB iter-4 FIND-003 maxLength cap)" {
+    _need_jq
+    # 16385-char exception → schema rejection. Defense against unbounded
+    # stacktrace dumps that bloat audit payloads + amplify leak surface.
+    local long_exc
+    long_exc="$("$PYTHON_BIN" -I -c 'print("x"*16385, end="")')"
+    payload="$(jq -nc --arg e "$long_exc" '{error_class:"UNKNOWN",severity:"BLOCKER",message_redacted:"x",provider:"openai",model:"m",original_exception:$e}')"
+    run _validate_py "$payload"
+    [ "$status" -eq 78 ]
+}
+
+@test "E15c: original_exception exactly 16384 chars accepted (boundary)" {
+    _need_jq
+    local at_cap
+    at_cap="$("$PYTHON_BIN" -I -c 'print("x"*16384, end="")')"
+    payload="$(jq -nc --arg e "$at_cap" '{error_class:"UNKNOWN",severity:"BLOCKER",message_redacted:"x",provider:"openai",model:"m",original_exception:$e}')"
+    run _validate_py "$payload"
+    [ "$status" -eq 0 ]
+}
+
 @test "E16: typed error_class WITH original_exception rejected (only UNKNOWN may carry it)" {
     payload='{"error_class":"TIMEOUT","severity":"WARN","message_redacted":"x","provider":"openai","model":"m","original_exception":"some trace"}'
     run _validate_py "$payload"
