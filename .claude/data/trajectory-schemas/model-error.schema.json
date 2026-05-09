@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "loa://schemas/model-error/v1.0.0",
+  "title": "Loa Typed Model Error (cycle-102 Sprint 1, AC-1.1)",
+  "description": "Anti-silent-degradation typed-error envelope. Every model failure surface (cheval, model-adapter shim, fallback walk, audit-emit payload) MUST conform. The 10 error_class values cover the cheval exception taxonomy (SDD section 4.1) plus probe-gate outcomes (LOCAL_NETWORK_FAILURE) and chain-exhaustion verdicts (FALLBACK_EXHAUSTED). UNKNOWN is the explicit escape hatch — it MUST populate original_exception with the full stacktrace so triage can reclassify into a typed class in a follow-up cycle.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "error_class",
+    "severity",
+    "message_redacted",
+    "provider",
+    "model"
+  ],
+  "properties": {
+    "error_class": {
+      "description": "Closed enumeration of error categories. UNKNOWN is the only acceptable bucket for unmapped failures and MUST be paired with original_exception.",
+      "enum": [
+        "TIMEOUT",
+        "PROVIDER_DISCONNECT",
+        "BUDGET_EXHAUSTED",
+        "ROUTING_MISS",
+        "CAPABILITY_MISS",
+        "DEGRADED_PARTIAL",
+        "FALLBACK_EXHAUSTED",
+        "PROVIDER_OUTAGE",
+        "LOCAL_NETWORK_FAILURE",
+        "UNKNOWN"
+      ]
+    },
+    "severity": {
+      "description": "Operator-visible severity. Maps to the exit-code table at SDD section 4.1: WARN -> exit 0 (advisory, fallback succeeded or probe-itself flake); ERROR -> reserved for future use (currently no scenario emits ERROR); BLOCKER -> chain exhaustion or unrecoverable config error -> non-zero exit.",
+      "enum": ["WARN", "ERROR", "BLOCKER"]
+    },
+    "message_redacted": {
+      "description": "Human-readable error message AFTER lib/log-redactor.{sh,py} scrubs API keys, tokens, file paths, emails, IPs, JWTs, etc. NFR-Sec-1. Cap chosen to bound audit payload size while preserving enough context for triage.",
+      "type": "string",
+      "maxLength": 8192
+    },
+    "provider": {
+      "description": "Provider key (matches model-config.yaml providers map). Examples: openai, anthropic, google, bedrock.",
+      "type": "string",
+      "minLength": 1
+    },
+    "model": {
+      "description": "Model key (matches model-config.yaml models map). Examples: gpt-5.5-pro, claude-opus-4-7, gemini-3.1-pro.",
+      "type": "string",
+      "minLength": 1
+    },
+    "retryable": {
+      "description": "Whether the failure is transient. RateLimitError -> true; ConfigError -> false. Callers MAY use this hint to decide whether to retry the same model vs. step the fallback chain.",
+      "type": "boolean"
+    },
+    "fallback_from": {
+      "description": "Populated when this error caused a fallback. The model the call started on.",
+      "type": "string",
+      "minLength": 1
+    },
+    "fallback_to": {
+      "description": "Populated when this error caused a fallback. The model the call fell back to. Equal to the empty string is forbidden — use FALLBACK_EXHAUSTED with no fallback_to instead.",
+      "type": "string",
+      "minLength": 1
+    },
+    "original_exception": {
+      "description": "REQUIRED when error_class=UNKNOWN. Full stacktrace from cheval/Python/etc. Triage cycles use this to reclassify into a typed class. SHOULD NOT be populated for any other error_class — typed classes already encode the failure mode.",
+      "type": "string"
+    },
+    "ts_utc": {
+      "description": "ISO-8601 UTC timestamp of the failure. Audit envelope sets this; emitters MAY pre-populate.",
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "error_class": { "const": "UNKNOWN" } },
+        "required": ["error_class"]
+      },
+      "then": {
+        "required": ["original_exception"]
+      }
+    },
+    {
+      "if": {
+        "properties": { "error_class": { "not": { "const": "UNKNOWN" } } },
+        "required": ["error_class"]
+      },
+      "then": {
+        "not": { "required": ["original_exception"] }
+      }
+    },
+    {
+      "if": {
+        "required": ["fallback_from"]
+      },
+      "then": {
+        "required": ["fallback_to"]
+      }
+    },
+    {
+      "if": {
+        "required": ["fallback_to"]
+      },
+      "then": {
+        "required": ["fallback_from"]
+      }
+    }
+  ]
+}
