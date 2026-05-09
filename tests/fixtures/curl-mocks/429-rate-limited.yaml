@@ -1,0 +1,8 @@
+# cycle-102 Sprint 1C T1C.3 — 429 Too Many Requests fixture
+status_code: 429
+exit_code: 0
+headers:
+  content-type: application/json
+  retry-after: "30"
+body: |
+  {"error": {"type": "rate_limit_error", "message": "fixture: 429-rate-limited"}}

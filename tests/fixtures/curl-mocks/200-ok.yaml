@@ -1,0 +1,7 @@
+# cycle-102 Sprint 1C T1C.3 — generic 200 OK fixture for curl-mock harness
+status_code: 200
+exit_code: 0
+headers:
+  content-type: application/json
+body: |
+  {"ok": true, "fixture": "200-ok"}

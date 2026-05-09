@@ -1,0 +1,8 @@
+# cycle-102 Sprint 1C T1C.3 — 401 Unauthorized fixture
+status_code: 401
+exit_code: 0
+headers:
+  content-type: application/json
+  www-authenticate: Bearer
+body: |
+  {"error": {"type": "authentication_error", "message": "fixture: 401-unauthorized"}}

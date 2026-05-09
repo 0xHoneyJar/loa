@@ -24,6 +24,9 @@ on:
       - '.claude/scripts/**/*.sh'
       - '.claude/scripts/tests/**'
       - 'tests/unit/**'
+      - 'tests/integration/**'
+      - 'tests/lib/**'
+      - 'tests/fixtures/**'
       - 'tests/run-unit-tests.sh'
       - '.github/workflows/bats-tests.yml'
   pull_request:
@@ -32,6 +35,9 @@ on:
       - '.claude/scripts/**/*.sh'
       - '.claude/scripts/tests/**'
       - 'tests/unit/**'
+      - 'tests/integration/**'
+      - 'tests/lib/**'
+      - 'tests/fixtures/**'
       - 'tests/run-unit-tests.sh'
       - '.github/workflows/bats-tests.yml'
 
@@ -113,4 +119,23 @@ jobs:
             else
               echo "WARNING: .claude/scripts/tests/ directory not found — skipping"
             fi
+          fi
+
+      - name: Run integration tests
+        # cycle-102 Sprint 1C T1C.8: integration tests live under
+        # tests/integration/ and exercise the curl-mock harness
+        # (tests/lib/curl-mock.sh + tests/lib/curl-mock-helpers.bash) and
+        # the cheval _error_json shape proof. Per Issue #808 acceptance
+        # criteria, the harness MUST run in CI alongside unit tests.
+        run: |
+          if [ -d tests/integration ]; then
+            count=$(find tests/integration -maxdepth 1 -name '*.bats' -type f | wc -l)
+            if [ "$count" -eq 0 ]; then
+              echo "WARNING: tests/integration/ exists but contains no .bats files (skipping)"
+            else
+              echo "Running $count test files from tests/integration/ ..."
+              bats tests/integration/
+            fi
+          else
+            echo "INFO: tests/integration/ directory not found — skipping (not required)"
           fi

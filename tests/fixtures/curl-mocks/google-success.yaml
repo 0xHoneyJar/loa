@@ -1,0 +1,6 @@
+# cycle-102 Sprint 1C T1C.3 — Google provider-shaped 200 success fixture
+status_code: 200
+exit_code: 0
+headers:
+  content-type: application/json
+body_file: bodies/google-success.json

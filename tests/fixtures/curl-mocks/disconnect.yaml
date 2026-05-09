@@ -1,0 +1,4 @@
+# cycle-102 Sprint 1C T1C.3 — provider disconnect fixture (curl exit 7 = CURLE_COULDNT_CONNECT)
+status_code: 0
+exit_code: 7
+stderr: "curl: (7) Failed to connect to api.example.com port 443: Connection refused"

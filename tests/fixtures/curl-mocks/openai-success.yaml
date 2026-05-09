@@ -1,0 +1,7 @@
+# cycle-102 Sprint 1C T1C.3 — OpenAI provider-shaped 200 success fixture
+# Used by adapter behavior tests asserting curl payload binding.
+status_code: 200
+exit_code: 0
+headers:
+  content-type: application/json
+body_file: bodies/openai-success.json
