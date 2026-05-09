@@ -70,6 +70,24 @@ Set in `.loa.config.yaml` under `bridgebuilder:` section, or via environment var
 | max_output_tokens | — | `4000` |
 | persona_path | — | `grimoires/bridgebuilder/BEAUVOIR.md` |
 
+## Self-Review Opt-In (#796 / vision-013)
+
+When BB reviews a PR that modifies BB itself — or any other framework file under `.claude/`, `grimoires/`, `.beads/`, etc. — the Loa-aware filter normally strips those files from the review payload before the multi-model pass. This is correct for code-PR reviews (no review noise from grimoire side-effects) but inverts on self-modifying PRs (the framework files ARE the substance).
+
+To opt a single PR into self-review (framework files visible to all reviewer models), apply the label:
+
+```
+bridgebuilder:self-review
+```
+
+When detected, BB:
+
+- Skips the Loa-aware filter for that PR's review pass
+- Surfaces a banner in the review output: `[Loa-aware: self-review opt-in active — framework files included (vision-013 / #796)]`
+- Leaves the global config (`loaAware`) untouched — the opt-in is per-PR, not workspace-wide
+
+Use this for: bridgebuilder TS adapter changes, cycle-planning PRs (PRD/SDD/sprint), construct manifest changes, anything where the framework artifacts ARE the diff. The label is a single source of truth (constant `SELF_REVIEW_LABEL` in `core/truncation.ts`); substring matches like `bridgebuilder:self-review-extra` do NOT trigger.
+
 ## Persona
 
 Override the default reviewer persona by creating `grimoires/bridgebuilder/BEAUVOIR.md`. The default persona reviews across 4 dimensions: Security, Quality, Test Coverage, and Operational Readiness.

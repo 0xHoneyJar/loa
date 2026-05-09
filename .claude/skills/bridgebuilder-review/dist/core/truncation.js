@@ -127,6 +127,28 @@ export function matchesExcludePattern(filename, patterns) {
     }
     return false;
 }
+// --- Self-Review Opt-In (#796 / vision-013) ---
+/**
+ * The PR label that operators apply to opt into bridgebuilder self-review —
+ * BB will admit framework files (`.claude/`, `grimoires/`, etc.) into the
+ * review payload instead of stripping them via the Loa-aware filter.
+ *
+ * The label name is intentionally a single source of truth; truncation logic,
+ * caller-side label detection in reviewer.ts/template.ts, and operator-facing
+ * docs all reference this constant.
+ */
+export const SELF_REVIEW_LABEL = "bridgebuilder:self-review";
+/**
+ * Derive the per-call `selfReview` flag from a PR's labels.
+ * Returns true iff the PR carries SELF_REVIEW_LABEL.
+ *
+ * Centralized so the label string lives in one place and call sites
+ * (reviewer.ts processItemTwoPass; template.ts buildPrompt + buildPromptWithMeta)
+ * cannot drift from each other.
+ */
+export function isSelfReviewOptedIn(prLabels) {
+    return (prLabels ?? []).includes(SELF_REVIEW_LABEL);
+}
 // --- Loa Detection (Task 1.2 — SDD Section 3.1) ---
 /** Default Loa framework exclude patterns.
  * Use ** for recursive directory matching (BB-F4). */
@@ -695,13 +717,24 @@ export function truncateFiles(files, config) {
     const patterns = config.excludePatterns ?? [];
     // Step 0: Loa-aware filtering (prepended, not replacing user patterns)
     // Load .reviewignore and merge with LOA_EXCLUDE_PATTERNS (#303)
+    // Self-review opt-in (#796 / vision-013): when the PR carries the
+    // `bridgebuilder:self-review` label, reviewer.ts sets selfReview=true on
+    // the per-call config and the entire Loa filter is skipped — framework
+    // files become reviewable. Default behavior (no label) is unchanged.
     const loaDetection = detectLoa(config);
     let loaBanner;
     let loaStats;
     let allExcluded = false;
     const loaExcludedEntries = [];
     let afterLoa = files;
-    if (loaDetection.isLoa) {
+    if (loaDetection.isLoa && config.selfReview === true) {
+        // Self-review opt-in path: caller (reviewer.ts) detected the
+        // `bridgebuilder:self-review` label on the PR. Surface this in the
+        // banner so operators reading the review see WHY framework files are
+        // visible — Tricorder-style "analyzer ran in self-review mode" signal.
+        loaBanner = "[Loa-aware: self-review opt-in active — framework files included (vision-013 / #796)]";
+    }
+    if (loaDetection.isLoa && config.selfReview !== true) {
         const effectivePatterns = loadReviewIgnore(config.repoRoot);
         const tierResult = applyLoaTierExclusion(files, effectivePatterns);
         afterLoa = tierResult.passthrough;

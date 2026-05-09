@@ -29,6 +29,7 @@ import {
   progressiveTruncate,
   estimateTokens,
   getTokenBudget,
+  isSelfReviewOptedIn,
 } from "./truncation.js";
 
 const CRITICAL_PATTERN =
@@ -801,7 +802,13 @@ export class ReviewPipeline {
     const pass1Start = this.now();
 
     const convergenceSystem = this.template.buildConvergenceSystemPrompt();
-    const truncated = truncateFiles(effectiveItem.files, this.config);
+    // #796 / vision-013: per-PR self-review opt-in via `bridgebuilder:self-review`
+    // label. Default behavior unchanged when the label is absent.
+    const callConfig = {
+      ...this.config,
+      selfReview: isSelfReviewOptedIn(pr.labels),
+    };
+    const truncated = truncateFiles(effectiveItem.files, callConfig);
 
     // Handle all-files-excluded by Loa filtering
     if (truncated.allExcluded) {

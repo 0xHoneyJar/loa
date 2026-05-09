@@ -21,6 +21,22 @@ export interface BridgebuilderConfig {
     targetPr?: number;
     /** Explicit Loa-aware mode override. true=force on, false=force off, undefined=auto-detect. */
     loaAware?: boolean;
+    /**
+     * Per-PR self-review opt-in. When true, the Loa-aware filter (Step 0 of
+     * truncateFiles) is skipped — framework files under `.claude/`, `grimoires/`,
+     * `.beads/`, etc. are admitted into the review payload.
+     *
+     * Set per-call by reviewer.ts when the PR carries the `bridgebuilder:self-review`
+     * label. This is the per-PR opt-in vision-013 names — reviews of bridgebuilder
+     * itself, of cycle-planning artifacts, or of other framework changes need to
+     * see the substrate, not be blinded by the filter that protects code-PR review
+     * from grimoire noise. Closes #796.
+     *
+     * NOTE: this is intentionally a per-call override, not a config-wide knob.
+     * `loaAware: false` already exists for global disable; `selfReview: true` is
+     * the per-PR signal that flows from PR labels to the truncate call.
+     */
+    selfReview?: boolean;
     /** Git repo root for path resolution (defaults to cwd). */
     repoRoot?: string;
     /** Persona pack name (e.g. "security", "dx"). */

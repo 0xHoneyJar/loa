@@ -5,7 +5,7 @@ import { LLMProviderError } from "../ports/llm-provider.js";
 import { FindingsBlockSchema } from "./schemas.js";
 import { Pass1Cache, computeCacheKey } from "./cache.js";
 import { extractEcosystemPatterns, updateEcosystemContext } from "./ecosystem.js";
-import { truncateFiles, progressiveTruncate, getTokenBudget, } from "./truncation.js";
+import { truncateFiles, progressiveTruncate, getTokenBudget, isSelfReviewOptedIn, } from "./truncation.js";
 const CRITICAL_PATTERN = /\b(critical|security vulnerability|sql injection|xss|secret leak|must fix)\b/i;
 const REFUSAL_PATTERN = /\b(I cannot|I'm unable|I can't|as an AI|I apologize)\b/i;
 /** Patterns that indicate an LLM token rejection (Task 1.8). */
@@ -627,7 +627,13 @@ export class ReviewPipeline {
         // ═══════════════════════════════════════════════
         const pass1Start = this.now();
         const convergenceSystem = this.template.buildConvergenceSystemPrompt();
-        const truncated = truncateFiles(effectiveItem.files, this.config);
+        // #796 / vision-013: per-PR self-review opt-in via `bridgebuilder:self-review`
+        // label. Default behavior unchanged when the label is absent.
+        const callConfig = {
+            ...this.config,
+            selfReview: isSelfReviewOptedIn(pr.labels),
+        };
+        const truncated = truncateFiles(effectiveItem.files, callConfig);
         // Handle all-files-excluded by Loa filtering
         if (truncated.allExcluded) {
             this.logger.info("All files excluded by Loa filtering", {

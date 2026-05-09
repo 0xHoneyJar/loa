@@ -17,7 +17,7 @@
 | vision-010 | Opus Review-Quality Benchmark Harness | Flatline PRD review of Opus 4.7 migration | Captured | quality-validation, review-regression, benchmarks | 0 |
 | vision-011 | Auto-Generate Bash Adapter Maps from model-config.yaml | Bridgebuilder SDD review of Opus 4.7 migration | Captured | tooling, adapters, model-migrations, code-generation | 0 |
 | vision-012 | Role-Based Alias Naming (`top-review-anthropic` vs `opus`) | Bridgebuilder SDD review of Opus 4.7 migration | Captured | alias-design, semantic-stability, API-contracts | 0 |
-| vision-013 | Per-PR Opt-In Flag for Loa-Content Bridgebuilder Review | Bridgebuilder PR #678 (cycle-098 prep), iter-1 REFRAME | Captured | bridgebuilder, planning-prs, content-filtering | 0 |
+| vision-013 | Per-PR Opt-In Flag for Loa-Content Bridgebuilder Review | Bridgebuilder PR #678 (cycle-098 prep), iter-1 REFRAME | Implemented | bridgebuilder, planning-prs, content-filtering | 1 |
 | vision-014 | CI Guard for `*.bak` and Backup-Sibling Files | Bridgebuilder PR #678 (cycle-098 prep), iter-1+2+4 consensus | Captured | ci-guard, gitignore, policy-as-code, backup-files | 0 |
 | vision-015 | RFC 3647 Certificate Policy for Audit-Key Bootstrap | Bridgebuilder PR #678 (cycle-098 prep), iter-1 SPECULATION | Captured | security, audit-keys, certificate-policy, rfc-3647 | 0 |
 | vision-016 | Stacked Diffs for Incremental SDD Changes | Bridgebuilder PR #678 (cycle-098 prep), iter-3+5 meta-commentary | Captured | pr-workflow, stacked-diffs, planning-prs | 0 |
@@ -29,10 +29,10 @@
 
 ## Statistics
 
-- Total captured: 19
+- Total captured: 18
 - Total exploring: 1
 - Total proposed: 0
-- Total implemented: 1
+- Total implemented: 2
 - Total deferred: 0
 - Total archived: 0
 - Total rejected: 0

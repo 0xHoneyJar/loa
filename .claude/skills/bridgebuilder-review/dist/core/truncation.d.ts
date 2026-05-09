@@ -4,6 +4,25 @@ export declare const SECURITY_PATTERNS: SecurityPatternEntry[];
 export declare function isHighRisk(filename: string): boolean;
 export declare function getSecurityCategory(filename: string): string | undefined;
 export declare function matchesExcludePattern(filename: string, patterns: string[]): boolean;
+/**
+ * The PR label that operators apply to opt into bridgebuilder self-review —
+ * BB will admit framework files (`.claude/`, `grimoires/`, etc.) into the
+ * review payload instead of stripping them via the Loa-aware filter.
+ *
+ * The label name is intentionally a single source of truth; truncation logic,
+ * caller-side label detection in reviewer.ts/template.ts, and operator-facing
+ * docs all reference this constant.
+ */
+export declare const SELF_REVIEW_LABEL = "bridgebuilder:self-review";
+/**
+ * Derive the per-call `selfReview` flag from a PR's labels.
+ * Returns true iff the PR carries SELF_REVIEW_LABEL.
+ *
+ * Centralized so the label string lives in one place and call sites
+ * (reviewer.ts processItemTwoPass; template.ts buildPrompt + buildPromptWithMeta)
+ * cannot drift from each other.
+ */
+export declare function isSelfReviewOptedIn(prLabels: readonly string[] | undefined): boolean;
 /** Default Loa framework exclude patterns.
  * Use ** for recursive directory matching (BB-F4). */
 export declare const LOA_EXCLUDE_PATTERNS: string[];
@@ -83,5 +102,5 @@ export declare function prioritizeFiles(files: PullRequestFile[]): PullRequestFi
  * Budget target: 90% of maxInputTokens (SKP-004).
  */
 export declare function progressiveTruncate(files: PullRequestFile[], budgetTokens: number, model: string, systemPromptLen: number, metadataLen: number): ProgressiveTruncationResult;
-export declare function truncateFiles(files: PullRequestFile[], config: Pick<BridgebuilderConfig, "excludePatterns" | "maxDiffBytes" | "maxFilesPerPr" | "loaAware" | "repoRoot">): TruncationResult;
+export declare function truncateFiles(files: PullRequestFile[], config: Pick<BridgebuilderConfig, "excludePatterns" | "maxDiffBytes" | "maxFilesPerPr" | "loaAware" | "repoRoot" | "selfReview">): TruncationResult;
 //# sourceMappingURL=truncation.d.ts.map

@@ -8,6 +8,8 @@ import {
   loadReviewIgnore,
   LOA_EXCLUDE_PATTERNS,
   getTokenBudget,
+  isSelfReviewOptedIn,
+  SELF_REVIEW_LABEL,
 } from "../core/truncation.js";
 import type { PullRequestFile } from "../ports/git-provider.js";
 
@@ -359,6 +361,139 @@ describe("truncateFiles", () => {
       const includedNames = result.included.map((f) => f.filename);
       assert.ok(includedNames.includes("src/auth/login.ts"), "auth file should be included");
       assert.ok(includedNames.includes("src/crypto/keys.ts"), "crypto file should be included");
+    });
+  });
+
+  // --- Self-review opt-in (#796 / vision-013) ---
+
+  describe("self-review opt-in", () => {
+    it("default behavior — loaAware:true filters framework files", () => {
+      const files = [
+        file(".claude/skills/bridgebuilder-review/resources/adapters/anthropic.ts", 25, 3),
+        file(".claude/skills/bridgebuilder-review/resources/adapters/google.ts", 26, 3),
+      ];
+      const config = { ...defaultConfig, loaAware: true };
+      const result = truncateFiles(files, config);
+
+      // All framework files filtered out → allExcluded path
+      assert.equal(result.allExcluded, true);
+      assert.equal(result.included.length, 0);
+      assert.ok(result.loaBanner);
+      assert.ok(
+        result.loaBanner!.includes("framework files excluded"),
+        `expected default-mode banner; got: ${result.loaBanner}`,
+      );
+    });
+
+    it("selfReview:true skips the loa filter — framework files admitted", () => {
+      const files = [
+        file(".claude/skills/bridgebuilder-review/resources/adapters/anthropic.ts", 25, 3),
+        file(".claude/skills/bridgebuilder-review/resources/adapters/google.ts", 26, 3),
+      ];
+      const config = { ...defaultConfig, loaAware: true, selfReview: true };
+      const result = truncateFiles(files, config);
+
+      // Both framework files reach the included payload
+      assert.equal(result.allExcluded, false);
+      assert.equal(result.included.length, 2);
+      const includedNames = result.included.map((f) => f.filename).sort();
+      assert.deepEqual(includedNames, [
+        ".claude/skills/bridgebuilder-review/resources/adapters/anthropic.ts",
+        ".claude/skills/bridgebuilder-review/resources/adapters/google.ts",
+      ]);
+    });
+
+    it("selfReview:true surfaces a banner — operator sees why filter was skipped", () => {
+      const files = [
+        file(".claude/skills/bridgebuilder-review/resources/adapters/anthropic.ts", 25, 3),
+      ];
+      const config = { ...defaultConfig, loaAware: true, selfReview: true };
+      const result = truncateFiles(files, config);
+
+      assert.ok(result.loaBanner, "selfReview should produce a banner");
+      assert.ok(
+        result.loaBanner!.includes("self-review opt-in"),
+        `expected self-review banner; got: ${result.loaBanner}`,
+      );
+      // Banner cross-refs the issue / vision so operators can dig in
+      assert.ok(
+        result.loaBanner!.includes("vision-013") || result.loaBanner!.includes("#796"),
+        `banner should cite vision-013 or #796; got: ${result.loaBanner}`,
+      );
+    });
+
+    it("selfReview:false (default) leaves loa filter active", () => {
+      const files = [
+        file(".claude/skills/bridgebuilder-review/resources/adapters/anthropic.ts", 25, 3),
+      ];
+      const config = { ...defaultConfig, loaAware: true, selfReview: false };
+      const result = truncateFiles(files, config);
+
+      assert.equal(result.allExcluded, true);
+      assert.equal(result.included.length, 0);
+    });
+
+    it("selfReview:true is a no-op when loa is not detected", () => {
+      // Non-loa repo + selfReview flag — flag has no effect, normal path runs.
+      const files = [file("src/handler.ts", 10, 0)];
+      const config = { ...defaultConfig, loaAware: false, selfReview: true };
+      const result = truncateFiles(files, config);
+
+      assert.equal(result.included.length, 1);
+      assert.equal(result.loaBanner, undefined);
+    });
+
+    it("selfReview admits both framework AND application files together", () => {
+      const files = [
+        file(".claude/skills/bridgebuilder-review/resources/adapters/anthropic.ts", 25, 3),
+        file("src/handler.ts", 10, 0),
+      ];
+      const config = { ...defaultConfig, loaAware: true, selfReview: true };
+      const result = truncateFiles(files, config);
+
+      assert.equal(result.included.length, 2);
+      const names = result.included.map((f) => f.filename).sort();
+      assert.deepEqual(names, [
+        ".claude/skills/bridgebuilder-review/resources/adapters/anthropic.ts",
+        "src/handler.ts",
+      ]);
+    });
+  });
+
+  describe("isSelfReviewOptedIn", () => {
+    it("returns true when bridgebuilder:self-review label is present", () => {
+      assert.equal(isSelfReviewOptedIn(["bridgebuilder:self-review"]), true);
+    });
+
+    it("returns true when label is present alongside other labels", () => {
+      assert.equal(
+        isSelfReviewOptedIn(["needs-review", "bridgebuilder:self-review", "size/M"]),
+        true,
+      );
+    });
+
+    it("returns false when label is absent", () => {
+      assert.equal(isSelfReviewOptedIn(["needs-review"]), false);
+    });
+
+    it("returns false on empty label list", () => {
+      assert.equal(isSelfReviewOptedIn([]), false);
+    });
+
+    it("returns false on undefined input — pr.labels may be missing in tests", () => {
+      assert.equal(isSelfReviewOptedIn(undefined), false);
+    });
+
+    it("label name is exact — substring match does NOT trigger", () => {
+      // "bridgebuilder:self-review-extra" is not the canonical label and
+      // must not opt in. Single source of truth is SELF_REVIEW_LABEL.
+      assert.equal(isSelfReviewOptedIn(["bridgebuilder:self-review-extra"]), false);
+      assert.equal(isSelfReviewOptedIn(["bridgebuilder:self"]), false);
+    });
+
+    it("SELF_REVIEW_LABEL is the canonical constant — single source of truth", () => {
+      assert.equal(SELF_REVIEW_LABEL, "bridgebuilder:self-review");
+      assert.equal(isSelfReviewOptedIn([SELF_REVIEW_LABEL]), true);
     });
   });
 });
