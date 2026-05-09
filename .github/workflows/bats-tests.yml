@@ -139,6 +139,14 @@ jobs:
         # (tests/lib/curl-mock.sh + tests/lib/curl-mock-helpers.bash) and
         # the cheval _error_json shape proof. Per Issue #808 acceptance
         # criteria, the harness MUST run in CI alongside unit tests.
+        #
+        # `if: always()` ensures this step runs even when prior unit/script
+        # test steps fail. Without this, pre-existing main failures (e.g.,
+        # 137/141 BHM-T1/T5, 1002 flatline-orchestrator >100KB warning)
+        # would skip integration tests entirely — masking sprint-1C's own
+        # test results. The harness's failures are independent from the
+        # legacy unit-test failures and should surface separately.
+        if: always()
         run: |
           if [ -d tests/integration ]; then
             count=$(find tests/integration -maxdepth 1 -name '*.bats' -type f | wc -l)
