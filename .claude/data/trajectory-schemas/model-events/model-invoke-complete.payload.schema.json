@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.dev/loa/schemas/model-events/model-invoke-complete.payload.schema.json",
+  "title": "MODELINV model.invoke.complete Payload",
+  "description": "Audit-event payload for a completed model invocation. cycle-102 Sprint 1 (T1.4 + T1.7). Emitted via cycle-098 audit_emit at the end of every cheval invoke() call. primitive_id=MODELINV per SDD section 4.4 (ASSUMPTION-3 RESOLVED Option B). The payload powers vision-019 M1 silent-degradation audit query: any record with operator_visible_warn=false AND len(models_failed)>0 is, by definition, a silent-degradation event.",
+  "type": "object",
+  "required": [
+    "models_requested",
+    "models_succeeded",
+    "models_failed",
+    "operator_visible_warn"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "models_requested": {
+      "description": "Models the call was launched against. Format: provider:model_id (e.g., openai:gpt-5.5-pro). Pattern bounds the surface area of the audit log against accidental inclusion of arbitrary strings.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]*:[a-zA-Z0-9._-]+$"
+      }
+    },
+    "models_succeeded": {
+      "description": "Subset of models_requested that returned a usable response (after fallback resolution).",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "models_failed": {
+      "description": "Per-model failure record. Structurally compatible with the model-error.schema.json envelope but inlined here for audit-query ergonomics. The error_class enum is referenced from model-error.schema.json — keep in sync.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["model", "error_class", "message_redacted"],
+        "additionalProperties": false,
+        "properties": {
+          "model": { "type": "string", "minLength": 1 },
+          "error_class": {
+            "$ref": "loa://schemas/model-error/v1.0.0#/properties/error_class"
+          },
+          "message_redacted": { "type": "string", "maxLength": 8192 },
+          "fallback_from": { "type": "string", "minLength": 1 },
+          "fallback_to": { "type": "string", "minLength": 1 },
+          "retryable": { "type": "boolean" }
+        }
+      }
+    },
+    "operator_visible_warn": {
+      "description": "True iff a WARN line was surfaced in the operator-visible header (M7 verification). Audit-query for vision-019 M1 silent-degradation count: operator_visible_warn=false AND len(models_failed)>0.",
+      "type": "boolean"
+    },
+    "calling_primitive": {
+      "description": "Optional caller-context attribution per SDD section 4.4. Captures which L1-L7 primitive (if any) initiated the call. Null/absent for direct model-invoke CLI or persona-cheval calls.",
+      "anyOf": [
+        { "type": "null" },
+        { "enum": ["L1", "L2", "L3", "L4", "L5", "L6", "L7"] }
+      ]
+    },
+    "capability_class": {
+      "description": "If invoked via class-addressing (e.g., top-reasoning); absent for raw model-id calls.",
+      "type": "string",
+      "minLength": 1
+    },
+    "probe_latency_ms": {
+      "description": "Time spent in probe-gate (cycle-102 Sprint 1 T1.4 split per gemini IMP-006). Allows separation of probe-overhead from actual-call latency for M6 verification.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "invocation_latency_ms": {
+      "description": "Time spent in the actual provider call (after probe). Excludes probe time. Sum with probe_latency_ms approximates wall-clock.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "cost_micro_usd": {
+      "description": "Total cost across all attempts (primary + fallbacks) in micro-USD (1e-6 USD). Used by L2 cost-budget composition per cycle-098 NFR-Cost1.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "kill_switch_active": {
+      "description": "True iff LOA_FORCE_LEGACY_MODELS=1 at invocation time (SDD section 11 / gemini IMP-004 HIGH). Audits operator-driven legacy-mode use.",
+      "type": "boolean"
+    }
+  }
+}
