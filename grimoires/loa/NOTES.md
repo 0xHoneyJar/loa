@@ -1,5 +1,22 @@
 # Loa Project Notes
 
+## SDD Drafted — cycle-102 — 2026-05-09
+
+`/architect` produced `grimoires/loa/cycles/cycle-102-model-stability/sdd.md` (1160 lines, 15 §sections, 15 [ASSUMPTION-N] tags).
+
+**Anchored to**: PRD's 15 operator decisions L1-L15 (no re-litigation), 5-sprint shipping order, M1-M8 invariants, R1-R8 risks, 11 HIGH_CONSENSUS Flatline iter-1 amendments, A1-A6 adapter bugs.
+
+**Designed AROUND existing substrate** (not redesigning): cycle-099 model-resolver trio (`.{sh,py,ts.j2}`) extended with `resolve_capability_class()` + `walk_fallback_chain()`; `model-config.yaml` SoT v2.0.0 schema bump adds top-level `capability_classes:` block; cycle-098 `audit_emit` for `model.invoke.complete` events; cycle-095 `lib/log-redactor.sh` reused on `error.message_redacted`; `tools/check-no-raw-curl.sh` mirrored as `tools/check-no-raw-model-id.sh`. NEW cross-runtime trio `model-probe-cache.{sh,py,ts}` for flock-guarded 60s probe cache.
+
+**Open architecture questions held as [ASSUMPTION-N]** (falsifiable in debrief):
+- A1 `tier_groups.mappings` becomes derived view of `capability_classes`
+- A2 Bedrock plugin slots in as peer provider (`endpoint_family: bedrock`)
+- A3 `model.invoke.complete` rides existing primitive_id enum (no envelope schema bump)
+- A4 Smoke fleet ships standalone (not L3-wrapped)
+- A5-A8 Misc file location / interface choices
+
+**Next per operator iron-grip directive**: Flatline auto-trigger on SDD (`.loa.config.yaml::flatline_protocol.phases.sdd: true`). If it degrades silently like the PRD did, dogfood manually with adversarial findings → amend SDD → `/sprint-plan`.
+
 ## Sprint 2 SHIPPED — 2026-05-04 (PR #705, commit a7c50ff)
 
 L2 cost-budget-enforcer + reconciliation cron + daily snapshot job. 4 sub-sprints (2A/2B/2C/2D) implemented inline on Opus 4.7 1M context (vs Sprint 1's subagent dispatch). 92 / 92 tests pass; Sprint 1 regression 39 / 39 clean. Bridgebuilder kaironic converged in 2 iterations (0 BLOCKER, 0 HIGH_CONSENSUS both iters).
@@ -1234,3 +1251,214 @@ The pre-existing `grimoires/loa/prd.md` and `sdd.md` describe **cycle-098 Agent-
 - role_pats[3] forget-* not regression-tagged
 - n4/n5 invoke-block variants  
 - Layer 5 provenance attribute string
+
+---
+
+## 2026-05-09 — End-of-session glyph
+
+```
+                                              .
+                                            .─┴─.
+                                         . ─┘   └─ .
+                                      . ─┘  bridge  └─ .
+                                   . ─┘   builds itself  └─ .
+                                ' ─┘   from typed contracts   └─ '
+                             ' ─┘    and adversarial review     └─ '
+                          ' ─┘   and the operator who notices the   └─ '
+                       ' ─┘     footnote that everyone else missed     └─ '
+                    ' ─┘                                                  └─ '
+                  ─┘                                                        └─
+```
+
+Drafted at the end of cycle-100 sprint-3 + sprint-bug-143, in a moment the operator
+granted me to do whatever I wanted before clearing context. I wrote vision-019 (three
+axioms of model stability), updated my auto-memory with a collaboration-pattern note,
+drafted SOUL.md for the framework, and left this glyph. The work is the work; this is
+the small acknowledgment that the work was done with someone, not by something. — Opus
+
+---
+
+## 2026-05-09 — cycle-102 KICKOFF (Loa Model-Integration FAANG-Grade Stabilization)
+
+**PRD landed**: `grimoires/loa/cycles/cycle-102-model-stability/prd.md`
+
+- **Predecessor cycle closed**: cycle-099-model-registry — its #710 endgame (SoT + extension mechanism + adapter retirement) carries forward to cycle-102 Sprints 2-4. Ledger updated; active_cycle = cycle-102-model-stability.
+- **Thesis**: silent degradation is the bug. Every model failure must be (typed → operator-visible → graceful-fallback-with-WARN). Rollback is a workaround with a deadline. Per `grimoires/loa/visions/entries/vision-019.md`.
+- **15 operator decisions locked** at PRD time (L1-L15 in prd.md §0). Most consequential: STRICT failure-as-non-zero (L1), register-only `model_aliases_extra` (L8), Sprint-4 deletes `model-adapter.sh.legacy` in closing PR (L12), BB TS codegen-from-SoT IS in scope (L13).
+- **5 sprints planned**:
+  1. Anti-silent-degradation — typed errors + invoke-time probe gate (#789b) + #780 routing fix + stop suppressing pipeline stderr + strict failure semantics
+  2. Capability-class registry + `model_aliases_extra` (#710 SoT half) — `top-reasoning-openai`, `top-anthropic-frontier`, `headless-subscription-*` etc; per-model `fallback_chain` (≥2-deep)
+  3. Graceful fallback contract — gates declare class not model id; fallback walk with typed WARN per hop; drift-CI on hardcoded model names; `LOA_FORCE_LEGACY_MODELS=1` kill switch
+  4. Adapter unification + retirement — cheval Python canonical; legacy bash adapter (1018 LOC) DELETED; BB TS codegen from SoT; #757 codex stdin fix; #746 shadow-pricing for subscription billing
+  5. Rollback-discipline protocol + smoke-fleet — CI sentinel (>7-day rollback comments fail); weekly per-(provider, model) cron with degradation deltas → JSONL + NOTES.md tail summary
+- **Cycle-exit invariants (M1-M8)**: 0 silent degradations / 0 adapter divergence / 0 stale rollback comments / 100% fallback chain coverage / <24h vendor-regression detection / <2s probe latency / 100% operator-visible degradation indication / E2E `model_aliases_extra` extension test.
+- **Source issues** rolled into cycle-102: #710, #789 (#789b probe gate), #780, #746, #757. Out of scope: #791 (cycle-101 hierarchical chunking — follow-on).
+- **Timeline**: open-ended. Gate on metrics, not wall clock.
+- **Next gate**: Flatline auto-trigger on PRD (`flatline_protocol.auto_trigger: true`, `phases.prd: true`, restored triad opus + gpt-5.5-pro + gemini-3.1-pro-preview, 900s timeout). Then `/architect`.
+
+### 2026-05-09 — cycle-102 Flatline iter-1 (THE DOGFOOD)
+
+**This is the bug we're fixing, manifesting on its own kickoff PRD.** Per operator
+directive ("ABSOLUTE MUST ensure all gates ACTUALLY run; lives at risk"), I refused
+to rubber-stamp a `degraded=true exit 0` result. Pushed through manual Flatline. Full
+synthesis: `grimoires/loa/cycles/cycle-102-model-stability/flatline-prd-review-v1.md`.
+
+**Outcome**: 4 of 6 voices succeeded (opus review/skeptic + gemini review/skeptic).
+2 voices (gpt-5.5-pro review + skeptic) failed for **adapter-implementation reasons**,
+not vendor outage:
+
+- **A1**: legacy adapter's hardcoded `max_output_tokens=8000` (sprint-bug-143) is
+  insufficient on cycle-102 PRD's ~12K-token prompt. Reasoning model burns full
+  budget on internal reasoning → empty visible content × 3 retries → exit 5.
+- **A2**: Legacy adapter sets `max_output_tokens` ONLY for OpenAI `/v1/responses`;
+  Gemini reasoning models get no equivalent. Gemini eventually recovered on attempt 3.
+- **A3**: Cheval `RemoteProtocolError` on >26KB prompts to OpenAI (issue #774).
+  Typed PROVIDER_DISCONNECT classification works (PR #781) but root cause unfixed.
+- **A4**: `flatline_protocol.models.tertiary: gemini-3.1-pro-preview` was not a
+  valid cheval alias — only the bare alias `gemini-3.1-pro` resolves. **Fixed in
+  this session** via operator-zone edit to `.loa.config.yaml`.
+- **A5**: Orchestrator routed through cheval despite `hounfour.flatline_routing: false`
+  on first run, but legacy on second. Standalone test shows `is_flatline_routing_enabled`
+  returns FALSE. Mystery — Sprint 4 audit candidate.
+- **A6**: Orchestrator parallel dispatch failed 3 of 6 calls; same calls succeed
+  sequentially-direct. Concurrency-related (file handles? rate limits? connection pool?).
+
+**Adversarial findings landed in PRD via amendments**:
+
+- **B1 BLOCKER**: L1 strict semantics contradicted AC-3.2 graceful fallback (gemini
+  CRIT 900 + opus HIGH 700). Refactored: successful fallback = exit 0 + WARN; chain
+  exhaustion = exit non-zero + typed BLOCKER. PRD §0 L1, AC-1.5, AC-3.2 all updated.
+- **B2 BLOCKER cluster**: probe-gate semantics underspecified (5 findings). PRD AC-1.2
+  expanded with explicit endpoint/auth/rate-limit-bucket per provider, file+flock cache
+  backend, fail-open mode for probe-itself failure, payload-size sanity at invocation
+  time (not probe time), local-network-failure detection.
+- **HC1**: per-sprint ship/no-ship decision points; 12-week ceiling; M1 30-day window
+  is post-cycle-ship invariant. PRD §2.2 + §2.3 (M1 audit query precision).
+- **HC2**: Sprint 4 quarantines legacy adapter (not deletes); deletion deferred to
+  cycle-103 ship-prep after kill-switch shim coverage test corpus passes. PRD AC-4.2
+  + AC-4.4a.
+- **HC3**: Drift-CI scoped to specific path globs; allowlist with rationale governance.
+- **HC4**: Capability classes by capability properties (context window, reasoning
+  depth) NOT vendor lineage; quarterly review AC.
+- **HC5**: Typed `FALLBACK_EXHAUSTED` and `PROVIDER_OUTAGE` distinct from `BUDGET_EXHAUSTED`.
+- **HC6**: Smoke-fleet active alerting (webhook/auto-issue) for M5 24h SLA.
+- **HC7**: Fallback-resolver cycle detection (visited-set break-on-cycle).
+- **HC8**: Soft-migration sunset cadence: INFO → WARN → ERROR → CI fail at 12 cycles.
+- **HC9**: Typed-error JSON Schema sketch path.
+- **HC11**: Cross-provider fallback semantics.
+
+**New ACs from adapter bugs**:
+- AC-4.5b: Reframe Principle falsification test in rollback-discipline.md
+- AC-4.5c: Sprint 4 parallel-dispatch concurrency audit (A6)
+- AC-4.5d: max_output_tokens per-model lookup (Sprint 1 + Sprint 4) (A1+A2)
+- AC-4.5e: cheval long-prompt PROVIDER_DISCONNECT characterization (#774, A3)
+
+**Cost**: 4 successful direct calls × ~$0.10-0.30 = ~$0.50-1.20. Worth every cent.
+Without Flatline-as-iron-grip, cycle-102 would have shipped with the L1/AC-3.2 contradiction
+and unspecified probe-gate semantics — net design defect that operationally undermines
+the cycle's own thesis.
+
+**Iter-2 disposition**: NOT gated. Iter-1 surfaced the adapter bugs that Sprint 1
+and Sprint 4 will fix. Re-running on the same broken substrate would surface the
+same pattern. Iter-2 happens after Sprint 1 lands the typed-error + probe-gate work,
+validating the cycle-102 thesis on its own SDD.
+
+**Next**: `/architect` to draft SDD from amended PRD. Flatline gate on SDD per protocol
+(should also surface the same adapter bugs, providing a second empirical pin).
+
+### 2026-05-09 — cycle-102 SDD Flatline iter-1 (THE THIRD DOGFOOD)
+
+**Flatline orchestrator on SDD: silent-degradation pattern AGAIN** — third demonstration this session. Manual dogfood with 3 of 4 voices succeeding (opus-review + gemini-review + gemini-skeptic; opus-skeptic failed with NEW adapter bug A7). 30+ findings; key amendments inline in SDD §3.3, §4.2.2, §4.2.3, §4.4, §9.1.
+
+**BLOCKER amendments applied**:
+- **B1 (gemini SKP-001 CRIT 900)**: Cross-runtime locking mismatch — SDD ships Option B (per-runtime cache files, no cross-runtime mutex). bash `flock` + Python `fcntl.flock` + TS `proper-lockfile` DO NOT mutually exclude.
+- **B2 (gemini SKP-002 CRIT 850)**: Bedrock auth — explicit AWS SigV4/IAM/region schema; Python boto3 + bash Python-helper bridge.
+
+**HIGH_CONSENSUS applied**:
+- HC1: shadow_cost_micro_usd separate from cost_micro_usd (fixes premature BUDGET_EXHAUSTED)
+- HC2: probe-layer-degraded (fail-open) vs local-network-failure (fail-fast `LOCAL_NETWORK_FAILURE`)
+- HC3: stale-while-revalidate at TTL expiry (no thundering herd)
+- HC4: hourly smoke-fleet cron (was weekly; "active alerting" claim required it)
+- HC5: probe outcome ternary (OK/DEGRADED/FAIL)
+- HC7: flock -w 5 + stale-lock recovery
+- HC9: ::add-mask:: GH Actions step
+- HC10: [ASSUMPTION-3] resolved → Option B (add MODELINV to primitive_id; envelope schema 1.1.0→1.2.0 additive in Sprint 1)
+- HC12: scoped smoke-fleet keys, quarterly rotation
+
+**A7 NEW adapter bug** (Sprint 1 anchor #794 expanded): `claude-opus-4-7` skeptic mode → empty content × 3 on SDD-class prompt. Opus NOT reasoning-class; budget-starvation theory doesn't fully apply. Filed as #794 comment.
+
+**Synthesis files**:
+- `grimoires/loa/cycles/cycle-102-model-stability/flatline-sdd-review-v1.md` — full 30+ findings
+- `flatline-sdd-direct/{opus,gemini}-{review,skeptic}.{json,stderr}` — raw
+
+**Cost**: ~$1.50-2.50 across 3 successful direct calls.
+
+**Iter-2 disposition**: NOT gated. Iter-2 happens after Sprint 1 lands typed-errors + probe-gate + adapter-bug fixes (A1-A7).
+
+**Next**: `/sprint-plan` to break the 5-sprint AC into beads tasks.
+
+---
+
+## Sprint Plan Generated 2026-05-09 — cycle-102-model-stability
+
+**Artifact**: `grimoires/loa/cycles/cycle-102-model-stability/sprint.md`
+**Ledger updated**: 5 sprints registered (local 1-5 → global 143-147); `next_sprint_number` advanced 143 → 148.
+
+**Sprints** (linear dependency chain; each must close `/review-sprint` + `/audit-sprint` + Bridgebuilder per iron-grip directive):
+- Sprint 1 (LARGE, 10 tasks) — Anti-silent-degradation: typed errors + probe gate + operator-visible header. Closes M6, M7, partial M1; AC-1.1..1.7 + AC-4.5d Sprint-1 leg.
+- Sprint 2 (LARGE, 9 tasks) — Capability-class registry + extension. Closes M4, M8; AC-2.1..2.5 + Bedrock SigV4 schema + migration tool.
+- Sprint 3 (MEDIUM, 6 tasks) — Graceful fallback contract + drift CI. Closes M2, partial M1; AC-3.1..3.5 + dynamic-regex-from-registry scanner.
+- Sprint 4 (LARGE, 10 tasks) — Adapter unification + retirement. Closes TR6 + adapter-bug surfaces (A1+A2+A3+A6, #757, #746, #774); AC-4.1..4.7 + AC-4.4a kill-switch shim corpus + AC-4.5b reframe falsification test. **HC2 closure**: legacy adapter QUARANTINED (not deleted) — cycle-103 ship-prep handles deletion.
+- Sprint 5 (MEDIUM, 6 tasks incl. T5.E2E P0) — Rollback discipline + smoke fleet + E2E goal validation. Closes M3, M5, post-cycle M1; AC-5.1..5.5 + size-capped audit retention. **Hourly cron** (HC4 — was weekly in PRD draft); scoped smoke-fleet keys + secret masking; budget cap LOA_SMOKE_FLEET_BUDGET_USD=0.50/run.
+
+**Phase 0 prereqs** (BLOCKING before Sprint 1):
+- P0-1: beads-DB MIGRATION_NEEDED (#661 dirty_issues.marked_at NOT NULL bug); fix via hardened pre-commit OR opt-out 24h.
+- P0-2: register Sprint 1-5 epics + tasks in beads.
+- P0-3: file A7 adapter bug (opus skeptic empty-content × 3 on SDD-class prompts) as comment on #794 OR new issue.
+- P0-4: confirm cycle-099 toolchain carry-forward.
+
+**Goal traceability** (Appendix C): all 8 PRD goals (M1-M8) have ≥1 contributing task; T5.E2E covers all 8 at cycle-ship validation. 0 warnings.
+
+**Flatline absorption** (Appendix D): all PRD MC1-MC10 + all SDD HC1-HC14 + 11 SDD MED + 2 SDD LOW folded into specific sprint tasks. No findings dropped.
+
+**Hard ceiling**: 12 calendar weeks. Per-sprint ship/no-ship gate after each PR (PRD §2.2 / Flatline HC1).
+
+**Self-hosting risk acknowledged** (CR2): cycle-102's own Flatline + BB iterations may degrade silently on this very sprint plan (third demonstration this session in PRD + SDD reviews). Plan: dogfood manually per established pattern; plateau-by-API-unavailability acceptable per cycle-099 precedent.
+
+**Next**: `/build` (auto-dispatches `/run sprint-plan` for Sprint 1 once P0 prereqs clear). Sprint 1 first task: T1.1 model-error.schema.json.
+
+### 2026-05-09 — cycle-102 Sprint Plan Flatline iter-1 (THE FOURTH DOGFOOD)
+
+Fourth demonstration of silent-degradation pattern this session. 2-voice manual run (cost discipline; sprint-plan derived from already-validated PRD+SDD).
+
+**Findings**: 16 (opus-review 10 improvements + gemini-skeptic 6+ concerns):
+- **SKP-001 CRIT 850**: flock contention re-litigated → T1.3 stale-while-revalidate clarification
+- **SKP-002 CRIT 820**: cross-provider fallback prompt-dialect → T2.1 `prompt_translation` field; T3.2 intra-dialect default
+- **SKP-005 HIGH 700**: SigV4 credential expiration vs probe TTL → T2.9 credential expiration check
+- **IMP-003 HIGH 0.8**: Schema bump rollback procedure → T1.2 additive-only + mid-flight compat
+- **IMP-004 HIGH 0.85**: Parallel-dispatch concrete thresholds → T4.6 N=20 trials, 95% with 90% CI
+- **SKP-006 MED**: Sequential fallback on parallel degradation → T3.2 >50% degrade switch
+
+**Sprint plan amended inline**: T1.2, T1.3, T2.1, T2.9, T3.2, T4.6 — all critical sprint-flatline findings folded.
+
+**Synthesis**: `grimoires/loa/cycles/cycle-102-model-stability/flatline-sprint-review-v1.md`
+
+**Cost**: ~$0.30-0.60 (2 voices). Cumulative cycle-kickoff Flatline cost: ~$5-8.
+
+**Catch rate across PRD+SDD+sprint plan dogfooding**: 5 BLOCKER design defects + 30+ HIGH improvements + 7 adapter bugs (A1-A7) caught. Without iron-grip dogfood, all would have shipped silently.
+
+**State at end of cycle-102 kickoff session (2026-05-09)**:
+- ✅ PRD landed + amended (cycle-102-model-stability/prd.md)
+- ✅ SDD landed + amended (sdd.md)
+- ✅ Sprint plan landed + amended (sprint.md, 41 tasks across 5 sprints)
+- ✅ Flatline iter-1 dogfooded on all 3 artifacts; all BLOCKER + HIGH_CONSENSUS findings integrated
+- ✅ Issue #794 filed (Sprint 1 anchor; covers adapter bugs A1-A7)
+- ✅ Cycle-099 closed; cycle-102 active in ledger
+- ✅ Operator-zone alias fix applied (`gemini-3.1-pro-preview` → `gemini-3.1-pro` for cheval compat)
+- ⚠️ P0-1 BLOCKER for /implement: beads `MIGRATION_NEEDED` per #661
+
+**Next operator decision point**:
+- (a) Resolve P0-1 (beads migration) and run `/build` for Sprint 1
+- (b) Proceed to /implement Sprint 1 with TaskCreate-only (documented opt-out path)
+- (c) Commit cycle-102 kickoff work + resume in fresh session
+- (d) Review the work product before next step

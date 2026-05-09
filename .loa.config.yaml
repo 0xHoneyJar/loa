@@ -226,7 +226,7 @@ flatline_protocol:
   models:
     primary: opus
     secondary: gpt-5.5-pro # most powerful OpenAI (was gpt-5.3-codex)
-    tertiary: gemini-3.1-pro-preview # most powerful Gemini Pro (was gemini-2.5-pro)
+    tertiary: gemini-3.1-pro # cheval bare-alias (resolves to API id gemini-3.1-pro-preview); was gemini-3.1-pro-preview which is not a valid cheval alias — see cycle-102 flatline-prd-degradation.md
   thresholds:
     high_consensus: 700
     disputed_delta: 300
@@ -275,7 +275,7 @@ flatline_protocol:
     rotation: # Model rotation per Flatline phase (most-powerful per family)
       - opus # PRD arbiter
       - gpt-5.5-pro # SDD arbiter (was gpt-5.3-codex)
-      - gemini-3.1-pro-preview # Sprint arbiter (was gemini-2.5-pro)
+      - gemini-3.1-pro # Sprint arbiter — cheval bare-alias (resolves to gemini-3.1-pro-preview API id); was gemini-3.1-pro-preview which is not a valid cheval alias
     fallback: "reject" # Conservative fallback when all models fail
     max_arbiter_tokens: 4000 # Token budget for arbiter response
 # Red Team — Generative Adversarial Security Design (cycle-012)

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-099-model-registry",
+  "active_cycle": "cycle-102-model-stability",
   "cycles": [
     {
       "id": "cycle-036",
@@ -902,7 +902,7 @@
     {
       "id": "cycle-099-model-registry",
       "label": "Model Registry Consolidation + Per-Skill Granularity",
-      "status": "active",
+      "status": "closed",
       "created": "2026-05-04T15:02:58Z",
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
@@ -959,7 +959,10 @@
         "cost_usd_high": 300,
         "wall_clock_weeks_low": 5,
         "wall_clock_weeks_high": 6
-      }
+      },
+      "closed_at": "2026-05-08T16:10:31Z",
+      "successor_cycle": "cycle-102-model-stability",
+      "closure_note": "Subsumed by cycle-102 (Loa Model-Integration FAANG-Grade Stabilization). Endgame deliverables (#710 SoT + extension mechanism + adapter retirement) carry forward to cycle-102 sprints 2-4."
     },
     {
       "id": "cycle-bug-20260507-i774-e898cd",
@@ -990,6 +993,68 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260508-i789-e3f89e/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260508-i789-e3f89e/sprint.md"
+    },
+    {
+      "id": "cycle-102-model-stability",
+      "label": "Loa Model-Integration FAANG-Grade Stabilization",
+      "status": "active",
+      "created": "2026-05-08T16:10:31Z",
+      "prd": "grimoires/loa/cycles/cycle-102-model-stability/prd.md",
+      "sdd": "grimoires/loa/cycles/cycle-102-model-stability/sdd.md",
+      "sprint_plan": "grimoires/loa/cycles/cycle-102-model-stability/sprint.md",
+      "source_issues": [
+        "https://github.com/0xHoneyJar/loa/issues/710",
+        "https://github.com/0xHoneyJar/loa/issues/789",
+        "https://github.com/0xHoneyJar/loa/issues/780",
+        "https://github.com/0xHoneyJar/loa/issues/746",
+        "https://github.com/0xHoneyJar/loa/issues/757"
+      ],
+      "predecessor_cycle": "cycle-099-model-registry",
+      "cycle_folder": "grimoires/loa/cycles/cycle-102-model-stability/",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 143,
+          "label": "Anti-silent-degradation (typed errors + probe gate + operator-visible header)",
+          "status": "pending",
+          "scope": "LARGE",
+          "tasks": 10
+        },
+        {
+          "local_id": 2,
+          "global_id": 144,
+          "label": "Capability-class registry + extension mechanism",
+          "status": "pending",
+          "scope": "LARGE",
+          "tasks": 9
+        },
+        {
+          "local_id": 3,
+          "global_id": 145,
+          "label": "Graceful fallback contract + drift CI",
+          "status": "pending",
+          "scope": "MEDIUM",
+          "tasks": 6
+        },
+        {
+          "local_id": 4,
+          "global_id": 146,
+          "label": "Adapter unification + retirement",
+          "status": "pending",
+          "scope": "LARGE",
+          "tasks": 10
+        },
+        {
+          "local_id": 5,
+          "global_id": 147,
+          "label": "Rollback discipline + smoke fleet + E2E goal validation",
+          "status": "pending",
+          "scope": "MEDIUM",
+          "tasks": 6
+        }
+      ],
+      "thesis": "Silent degradation is the bug. Every model failure must be (typed → operator-visible → graceful-fallback-with-WARN). Rollback is a workaround with a deadline.",
+      "vision_source": "grimoires/loa/visions/entries/vision-019.md"
     }
   ],
   "global_sprint_counter": 143,
@@ -1176,5 +1241,5 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 143
+  "next_sprint_number": 148
 }

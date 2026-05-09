@@ -1,0 +1,6 @@
+[model-adapter] Model: opus (claude-opus-4-7)
+[model-adapter] Provider: anthropic
+[model-adapter] Mode: review
+[model-adapter] Phase: sprint
+[model-adapter] Input: grimoires/loa/cycles/cycle-102-model-stability/sprint.md
+[model-adapter] API call attempt 1/3 (model: claude-opus-4-7)

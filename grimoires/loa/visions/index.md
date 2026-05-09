@@ -23,10 +23,11 @@
 | vision-016 | Stacked Diffs for Incremental SDD Changes | Bridgebuilder PR #678 (cycle-098 prep), iter-3+5 meta-commentary | Captured | pr-workflow, stacked-diffs, planning-prs | 0 |
 | vision-017 | Planning Tooling Stops Emitting `.bak` Siblings Entirely | Bridgebuilder PR #678 (cycle-098 prep), iter-3 REFRAME (root-cause for v014) | Captured | planning-tooling, backup-files, root-cause | 0 |
 | vision-018 | Test Fixture Realism — Match Production Threat Substrate | Bridgebuilder PR #705 (cycle-098 Sprint 2), iter-1 F8 + iter-2 F-006 + F-001 convergent | Captured | test-quality, fixture-realism, fail-closed, fidelity-gap | 0 |
+| vision-019 | The Three Axioms of Model Stability | Sprint-bug-143 closure (PR #790) + operator strategic conversation 2026-05-08 | Captured | model-stability, architecture, rollback-discipline, graceful-degradation, foundational | 0 |
 
 ## Statistics
 
-- Total captured: 16
+- Total captured: 17
 - Total exploring: 1
 - Total proposed: 0
 - Total implemented: 1
