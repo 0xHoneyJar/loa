@@ -1,0 +1,8 @@
+# cycle-102 Sprint 1C T1C.3 — 503 Service Unavailable fixture
+status_code: 503
+exit_code: 0
+headers:
+  content-type: application/json
+  retry-after: "60"
+body: |
+  {"error": {"type": "service_unavailable", "message": "fixture: 503-unavailable"}}

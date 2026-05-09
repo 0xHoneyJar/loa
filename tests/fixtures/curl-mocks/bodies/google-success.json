@@ -1,0 +1,19 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {"text": "fixture: google-success"}
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 100,
+    "candidatesTokenCount": 20,
+    "totalTokenCount": 120
+  }
+}

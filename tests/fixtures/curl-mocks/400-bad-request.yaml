@@ -1,0 +1,7 @@
+# cycle-102 Sprint 1C T1C.3 — 400 Bad Request fixture
+status_code: 400
+exit_code: 0
+headers:
+  content-type: application/json
+body: |
+  {"error": {"type": "invalid_request_error", "message": "fixture: 400-bad-request"}}

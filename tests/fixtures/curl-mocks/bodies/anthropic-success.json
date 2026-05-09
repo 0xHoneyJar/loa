@@ -1,0 +1,14 @@
+{
+  "id": "msg_curl_mock_001",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-opus-4-7",
+  "content": [
+    {"type": "text", "text": "fixture: anthropic-success"}
+  ],
+  "stop_reason": "end_turn",
+  "usage": {
+    "input_tokens": 100,
+    "output_tokens": 20
+  }
+}

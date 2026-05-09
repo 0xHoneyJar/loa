@@ -1,0 +1,19 @@
+{
+  "id": "resp_curl_mock_001",
+  "object": "response",
+  "model": "gpt-5.5-pro",
+  "output": [
+    {
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {"type": "output_text", "text": "fixture: openai-success"}
+      ]
+    }
+  ],
+  "usage": {
+    "input_tokens": 100,
+    "output_tokens": 20,
+    "total_tokens": 120
+  }
+}
