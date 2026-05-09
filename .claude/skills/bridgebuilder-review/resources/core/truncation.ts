@@ -221,28 +221,37 @@ export const LOA_EXCLUDE_PATTERNS = [
 /**
  * Parse a `.reviewignore` file's user-curated patterns from disk.
  *
- * BB-797-003-duplication (PR #797 iter-4): one grammar deserves one parser.
- * Both `loadReviewIgnore` (LOA defaults + user) and `loadReviewIgnoreUserPatterns`
- * (user-only) call this; future syntax additions land in one place.
+ * BB-797-003-duplication (iter-4): one grammar deserves one parser.
  *
- * BB-797-001-security (PR #797 iter-4): ENOENT (file absent) is "no rules"
- * and returns []. ANY OTHER error (EACCES, partial read, parse fault) throws —
- * the caller MUST decide fail-open vs fail-closed. cycle-098 L2 fail-closed
- * principle: when an exclusion-gating signal becomes uncertain, the safe
- * verdict is "halt", not "allow". AWS-IAM-isomorphic: unparseable policies
- * deny, never permit.
+ * BB-797-001-security (iter-4): ONLY ENOENT means "file absent" → []. ANY
+ * OTHER error throws — caller decides fail-open vs fail-closed. cycle-098 L2
+ * fail-closed: uncertain signals halt, never permit.
+ *
+ * BB-797-SEC-002 (iter-6): use readFileSync directly; classify ONLY
+ * `code === "ENOENT"` as "absent". Earlier `existsSync` gate collapsed four
+ * distinct states (absent, present-readable, present-unreadable, broken-link)
+ * into one boolean — broken symlinks, EACCES, and ENOTDIR all returned `false`,
+ * silently coercing unreadable to "no rules". Errno-explicit handling closes
+ * the TOCTOU/ambiguous-stat class (Go's golang/go#41112 lesson applied here).
  *
  * @throws Error when `.reviewignore` exists but cannot be read or parsed.
  */
 function parseReviewignoreFile(repoRoot: string): string[] {
   const reviewignorePath = resolve(repoRoot, ".reviewignore");
 
-  if (!existsSync(reviewignorePath)) {
-    return [];
+  let content: string;
+  try {
+    content = readFileSync(reviewignorePath, "utf-8");
+  } catch (err) {
+    // Errno-explicit: ONLY genuine absence collapses to "no rules".
+    // Any other error (EACCES, EISDIR, ELOOP, ENOTDIR, etc.) propagates.
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") {
+      return [];
+    }
+    throw err;
   }
 
-  // readFileSync errors propagate. Caller must decide fail-open vs fail-closed.
-  const content: string = readFileSync(reviewignorePath, "utf-8");
   const patterns: string[] = [];
   for (const rawLine of content.split("\n")) {
     const line = rawLine.trim();
@@ -281,13 +290,28 @@ export function loadReviewIgnoreUserPatterns(repoRoot?: string): string[] {
 
 /**
  * Load .reviewignore patterns from repo root and merge with LOA_EXCLUDE_PATTERNS.
- * Returns combined patterns array. Graceful when file missing (returns LOA
- * patterns only); also fail-soft on read errors (returns LOA defaults) — the
- * default-mode path can never fail-closed because the LOA patterns are themselves
- * the safety floor. Self-review path uses parseReviewignoreFile directly so it
- * can fail-closed (BB-797-001-security).
+ * Returns combined patterns array.
  *
- * BB-797-003-duplication (PR #797 iter-4): single source of truth for parsing.
+ * BB-797-003-duplication (iter-4): single source of truth for parsing.
+ *
+ * BB-797-RV-014 (iter-6): default-mode is fail-LOUD on read errors — emits a
+ * structured operator warning to stderr but returns LOA defaults. The
+ * asymmetry with self-review's fail-CLOSED is intentional and now documented:
+ *
+ *   - Default-mode path: framework files are filtered by LOA defaults;
+ *     missing `.reviewignore` user patterns is degraded (operator-curated
+ *     exclusions skip) but the dominant safety floor (framework filtering)
+ *     remains in place. Hard fail-closing would break every code-PR review
+ *     in the org when an unrelated `.reviewignore` permission glitch
+ *     occurs — disproportionate response to a non-framework-axis fault.
+ *
+ *   - Self-review path: framework filtering is BYPASSED by design, so
+ *     `.reviewignore` is the SOLE remaining gate. Halt-uncertainty is
+ *     correct here; partial fail-closed leaks the user-gate (iter-5 HIGH).
+ *
+ * Operators MUST attend to the stderr warning — it surfaces the degraded
+ * state. Future polish: stand up a dedicated structured-emit channel
+ * (NDJSON) so monitoring can alert without grepping stderr.
  */
 export function loadReviewIgnore(repoRoot?: string): string[] {
   const root = repoRoot ?? process.cwd();
@@ -300,10 +324,14 @@ export function loadReviewIgnore(repoRoot?: string): string[] {
         basePatterns.push(pattern);
       }
     }
-  } catch {
-    // Default-mode path is fail-soft: LOA defaults remain in effect even
-    // when .reviewignore is unreadable. The LOA patterns are the safety
-    // floor here, so missing user patterns is graceful, not dangerous.
+  } catch (err) {
+    // Fail-LOUD on read errors: surface to operator stderr so degradation
+    // is observable. LOA framework filter still applies — code-PR review
+    // doesn't break wholesale on an unrelated `.reviewignore` glitch, but
+    // the operator sees they need to fix the file.
+    process.stderr.write(
+      `[bridgebuilder] WARN: .reviewignore unreadable in default-mode path — operator-curated user patterns SKIPPED for this run; LOA framework filter still active. Fix the file to restore user-pattern exclusions. Detail: ${(err as Error).message} (BB-797-RV-014)\n`,
+    );
   }
 
   return basePatterns;

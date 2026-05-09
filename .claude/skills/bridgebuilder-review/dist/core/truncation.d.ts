@@ -64,13 +64,28 @@ export declare const LOA_EXCLUDE_PATTERNS: string[];
 export declare function loadReviewIgnoreUserPatterns(repoRoot?: string): string[];
 /**
  * Load .reviewignore patterns from repo root and merge with LOA_EXCLUDE_PATTERNS.
- * Returns combined patterns array. Graceful when file missing (returns LOA
- * patterns only); also fail-soft on read errors (returns LOA defaults) — the
- * default-mode path can never fail-closed because the LOA patterns are themselves
- * the safety floor. Self-review path uses parseReviewignoreFile directly so it
- * can fail-closed (BB-797-001-security).
+ * Returns combined patterns array.
  *
- * BB-797-003-duplication (PR #797 iter-4): single source of truth for parsing.
+ * BB-797-003-duplication (iter-4): single source of truth for parsing.
+ *
+ * BB-797-RV-014 (iter-6): default-mode is fail-LOUD on read errors — emits a
+ * structured operator warning to stderr but returns LOA defaults. The
+ * asymmetry with self-review's fail-CLOSED is intentional and now documented:
+ *
+ *   - Default-mode path: framework files are filtered by LOA defaults;
+ *     missing `.reviewignore` user patterns is degraded (operator-curated
+ *     exclusions skip) but the dominant safety floor (framework filtering)
+ *     remains in place. Hard fail-closing would break every code-PR review
+ *     in the org when an unrelated `.reviewignore` permission glitch
+ *     occurs — disproportionate response to a non-framework-axis fault.
+ *
+ *   - Self-review path: framework filtering is BYPASSED by design, so
+ *     `.reviewignore` is the SOLE remaining gate. Halt-uncertainty is
+ *     correct here; partial fail-closed leaks the user-gate (iter-5 HIGH).
+ *
+ * Operators MUST attend to the stderr warning — it surfaces the degraded
+ * state. Future polish: stand up a dedicated structured-emit channel
+ * (NDJSON) so monitoring can alert without grepping stderr.
  */
 export declare function loadReviewIgnore(repoRoot?: string): string[];
 /**

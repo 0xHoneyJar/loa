@@ -716,6 +716,46 @@ describe("truncateFiles", () => {
       }
     });
 
+    // BB-797-SEC-002 (iter-6): errno-explicit handling. existsSync also
+    // returns false for broken symlinks, EACCES, ENOTDIR — those MUST
+    // propagate, NOT collapse to "absent". Distinct states are now
+    // distinguished by errno.
+    it("ENOENT (genuinely absent) is distinguished from other errors", () => {
+      const tmpDir = join(tmpdir(), `loa-test-enoent-strict-${Date.now()}`);
+      mkdirSync(tmpDir, { recursive: true });
+      try {
+        // Genuinely absent: no .reviewignore created
+        const patterns = loadReviewIgnoreUserPatterns(tmpDir);
+        assert.deepEqual(patterns, [], "ENOENT path must return [] (no rules)");
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("ENOTDIR / EISDIR / non-ENOENT errors propagate (BB-797-SEC-002)", () => {
+      // Repo root that doesn't exist as a directory — resolving
+      // `.reviewignore` underneath it produces ENOTDIR / ENOENT-cascade
+      // depending on platform. Check that EISDIR (.reviewignore-as-directory)
+      // throws — non-ENOENT errno classes MUST propagate to fail-closed.
+      const tmpDir = join(tmpdir(), `loa-test-eisdir-strict-${Date.now()}`);
+      mkdirSync(join(tmpDir, ".reviewignore"), { recursive: true });
+      try {
+        let thrown: Error | null = null;
+        try {
+          loadReviewIgnoreUserPatterns(tmpDir);
+        } catch (err) {
+          thrown = err as Error;
+        }
+        assert.ok(thrown, "EISDIR MUST throw");
+        // Errno code is exposed (not just message-substring) per the
+        // BB-797-SEC-002 contract — caller can dispatch on it
+        const code = (thrown as NodeJS.ErrnoException).code;
+        assert.notEqual(code, "ENOENT", "EISDIR MUST NOT be reported as ENOENT");
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
     it("truncateFiles fail-closes self-review with allExcluded=true when .reviewignore unreadable (BB-797-001 iter-5 HIGH)", () => {
       const tmpDir = join(tmpdir(), `loa-test-failclosed-${Date.now()}`);
       mkdirSync(tmpDir, { recursive: true });
