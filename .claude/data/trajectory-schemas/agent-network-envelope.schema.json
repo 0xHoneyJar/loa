@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://0xhoneyjar.dev/loa/schemas/agent-network-envelope.schema.json",
   "title": "Agent-Network Audit Envelope",
-  "description": "Versioned, hash-chained, Ed25519-signed envelope for all L1-L7 primitive audit logs. cycle-098 Sprint 1 — IMP-002 (HIGH_CONS 875), CC-2, CC-11. Sprint 1A lands the schema + basic write/read/chain-walk; Sprint 1B adds Ed25519 signing (additive minor bump 1.0.0 → 1.1.0). Per-primitive retention defaults — L1 panel-decisions: 30d, L2 cost-budget-events: 90d, L3 cycles: 30d, L4 trust-ledger: 365d (immutable), L5 cross-repo cache: 7d, L6 handoffs INDEX: 90d (then archive), L7 SOUL surface: no retention (operator content). See .claude/data/audit-retention-policy.yaml for normative values.",
+  "description": "Versioned, hash-chained, Ed25519-signed envelope for all L1-L7 + MODELINV primitive audit logs. cycle-098 Sprint 1 — IMP-002 (HIGH_CONS 875), CC-2, CC-11. Sprint 1A lands the schema + basic write/read/chain-walk; Sprint 1B adds Ed25519 signing (additive minor bump 1.0.0 → 1.1.0); cycle-102 Sprint 1 (T1.2) adds MODELINV primitive_id + model.invoke.complete / class.resolved / probe.cache.refresh event types (additive minor bump 1.1.0 → 1.2.0; SDD §4.4 ASSUMPTION-3 RESOLVED Option B). Per-primitive retention defaults — L1 panel-decisions: 30d, L2 cost-budget-events: 90d, L3 cycles: 30d, L4 trust-ledger: 365d (immutable), L5 cross-repo cache: 7d, L6 handoffs INDEX: 90d (then archive), L7 SOUL surface: no retention (operator content), MODELINV model.invoke: 30d (chain_critical: true). See .claude/data/audit-retention-policy.yaml for normative values.",
   "type": "object",
   "required": [
     "schema_version",
@@ -17,12 +17,12 @@
     "schema_version": {
       "type": "string",
       "pattern": "^\\d+\\.\\d+\\.\\d+$",
-      "description": "Semver. Sprint 1B writers emit 1.1.0 (additive minor bump from 1.0.0 added signature/signing_key_id per IMP-002). Breaking-change rev bumps major; additive bumps minor."
+      "description": "Semver. Sprint 1B (cycle-098) writers emit 1.1.0 (additive minor bump from 1.0.0 added signature/signing_key_id per IMP-002). Sprint 1 (cycle-102, T1.2) writers emit 1.2.0 (additive minor bump from 1.1.0 added MODELINV to primitive_id enum). Breaking-change rev bumps major; additive bumps minor. Forward-compatibility note: readers running schema 1.1.0 will REJECT primitive_id=MODELINV — operators MUST upgrade reader code (audit_emit lib + audit-query.sh) to schema 1.2.0 BEFORE any 1.2.0 writer runs."
     },
     "primitive_id": {
       "type": "string",
-      "enum": ["L1", "L2", "L3", "L4", "L5", "L6", "L7"],
-      "description": "Which primitive emitted this entry."
+      "enum": ["L1", "L2", "L3", "L4", "L5", "L6", "L7", "MODELINV"],
+      "description": "Which primitive emitted this entry. MODELINV (cycle-102 Sprint 1, T1.2) records model invocation lifecycle events — model.invoke.complete, class.resolved, probe.cache.refresh — and powers vision-019's M1 silent-degradation audit query."
     },
     "event_type": {
       "type": "string",
@@ -35,7 +35,8 @@
         "trust.query", "trust.grant", "trust.auto_drop", "trust.force_grant", "trust.auto_raise_eligible",
         "cross_repo.read", "cross_repo.cache_hit", "cross_repo.partial_failure",
         "handoff.write", "handoff.read", "handoff.surface",
-        "soul.surface", "soul.validate"
+        "soul.surface", "soul.validate",
+        "model.invoke.complete", "class.resolved", "probe.cache.refresh"
       ]
     },
     "ts_utc": {

@@ -1718,6 +1718,14 @@ main() {
         local rt_run_id
         rt_run_id="rt-$(date +%s)-$(head -c 4 /dev/urandom | od -An -tx1 | tr -d ' \n')"
 
+        # cycle-102 Sprint 1 T1.8 (AC-1.4): pipeline stderr de-suppression.
+        # Previously `2>/dev/null` swallowed red-team-pipeline.sh's stderr,
+        # masking cheval / model-adapter / probe-gate diagnostics during
+        # silent-degradation events. Per vision-019 thesis, these
+        # diagnostics MUST surface — typed errors are structured (cheval
+        # _error_json wraps them in `{"error": true, ...}`) so consumers
+        # can grep / filter; only unstructured stderr noise actually
+        # surfaces, which IS the operator-visible signal we want.
         local rt_result
         rt_result=$("$rt_pipeline" \
             --doc "$doc" \
@@ -1730,7 +1738,7 @@ main() {
             --budget "$rt_token_budget" \
             ${rt_focus:+--focus "$rt_focus"} \
             ${rt_surface:+--surface "$rt_surface"} \
-            --json 2>/dev/null) || {
+            --json) || {
             local rt_exit=$?
             error "Red team pipeline failed (exit $rt_exit)"
             exit $rt_exit

@@ -23,6 +23,26 @@
 # Sprint 1C: sanitize_for_session_start integration (untrusted-content fields).
 # Sprint 1D: L1 panel-decisions integration.
 #
+# cycle-102 Sprint 1 (T1.2): schema 1.1.0 → 1.2.0 (additive bump).
+#   - primitive_id enum gains MODELINV (peer of L1-L7 — model-invocation
+#     audit primitive)
+#   - event_type enum gains model.invoke.complete, class.resolved,
+#     probe.cache.refresh
+#   - Existing L1-L7 emitters are bit-identical post-bump (forward-compat
+#     via additive evolution; readers MUST permit superset)
+#   - Reader-upgrade ordering: any reader on schema 1.1.0 MUST be upgraded
+#     before any 1.2.0 writer runs. A 1.1.0 reader against a 1.2.0
+#     primitive_id=MODELINV envelope hard-fails schema validation.
+#   - Rollback procedure: revert PR — bump is additive-only, so reverting
+#     the schema is safe AS LONG AS no MODELINV envelopes have been
+#     written. If MODELINV writes have happened, snapshot per cycle-098
+#     retention policy + truncate at the last L1-L7 entry, OR upgrade
+#     readers to 1.2.0 instead of rolling back.
+#   - audit-retention-policy.yaml MUST gain a model_invoke row (30d
+#     retention; chain_critical: true) before MODELINV writes go live.
+#     Sprint 1A landed the schema; the YAML row is tracked as a 1B
+#     deliverable per `grimoires/loa/a2a/cycle-102-sprint-1/reviewer.md`.
+#
 # Conventions:
 #   - Canonical-JSON via lib/jcs.sh (RFC 8785). NEVER substitute jq -S -c.
 #   - Schema validation at write-time via ajv (Node) or jsonschema (Python fallback).

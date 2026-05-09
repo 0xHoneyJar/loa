@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.dev/loa/schemas/model-events/probe-cache-refresh.payload.schema.json",
+  "title": "MODELINV probe.cache.refresh Payload",
+  "description": "Audit-event payload for a probe-cache refresh. cycle-102 Sprint 1 (T1.3 + T1.4). Emitted by model-probe-cache.{sh,py,ts} when the cache TTL expires AND a fresh probe is fired (synchronously OR via stale-while-revalidate background refresh per HC3). Lets operators answer: how often are providers being probed, what latency does each provider exhibit, and how often does the probe gate change verdict.",
+  "type": "object",
+  "required": ["provider", "model", "outcome", "latency_ms"],
+  "additionalProperties": false,
+  "properties": {
+    "provider": {
+      "description": "Provider key (matches model-config.yaml providers map).",
+      "type": "string",
+      "minLength": 1
+    },
+    "model": {
+      "description": "Model id used for the probe payload (1-token completion). May differ from the eventual invocation model when the probe is class-level.",
+      "type": "string",
+      "minLength": 1
+    },
+    "outcome": {
+      "description": "Probe-ternary verdict per SDD section 4.2.2 HC5. AVAILABLE: probe succeeded under timeout budget. DEGRADED: probe succeeded but latency >= degraded_threshold OR rate-limit headers indicate quota pressure. FAIL: probe timeout or non-200.",
+      "enum": ["AVAILABLE", "DEGRADED", "FAIL"]
+    },
+    "latency_ms": {
+      "description": "Round-trip latency in ms for the probe call. Hard cap is timeout_seconds (default 2000ms).",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 30000
+    },
+    "error_class": {
+      "description": "Populated when outcome=DEGRADED or outcome=FAIL. Constrained to the typed taxonomy in model-error.schema.json (10 classes). cycle-102 Sprint 1 BB iter-1 FIND-002: an earlier draft used the synthetic value PROBE_LAYER_DEGRADED here, which would have failed schema validation at audit-emit. The probe-cache library now maps fail-open probe-layer outcomes to DEGRADED_PARTIAL (the correct typed class for 'invocation proceeds with WARN').",
+      "$ref": "loa://schemas/model-error/v1.0.0#/properties/error_class"
+    },
+    "previous_outcome": {
+      "description": "The cached outcome that was replaced (if any). Lets audit-query detect AVAILABLE -> FAIL transitions.",
+      "anyOf": [
+        { "type": "null" },
+        { "enum": ["AVAILABLE", "DEGRADED", "FAIL"] }
+      ]
+    },
+    "cache_path": {
+      "description": "Per-runtime cache file path (e.g., .run/model-probe-cache/openai.json). Helps debug stale-lock / cross-runtime divergence.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024
+    },
+    "stale_lock_recovered": {
+      "description": "True iff this refresh succeeded only after force-acquiring a stale flock (HC7). Indicates a previous holder died without releasing.",
+      "type": "boolean"
+    },
+    "background_refresh": {
+      "description": "True iff this refresh fired via stale-while-revalidate (HC3) — caller did not block on it.",
+      "type": "boolean"
+    },
+    "runtime": {
+      "description": "Which runtime fired this probe. Per SDD section 4.2.3 Option B, each runtime maintains its own cache; the audit log captures runtime to make the duplication-overhead bound (= 3x probes/min/provider) auditable.",
+      "enum": ["bash", "python", "typescript"]
+    },
+    "ts_utc": {
+      "description": "ISO-8601 UTC timestamp of the probe completion.",
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

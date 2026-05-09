@@ -165,6 +165,82 @@ AC-1.1 typed taxonomy · AC-1.2 invoke-time probe · AC-1.3 red-team attacker ro
 
 ---
 
+## Sprint 1A — RESCOPE & SHIP (2026-05-09)
+
+> **Rescope rationale (2026-05-09):** Original Sprint 1 hit Bridgebuilder kaironic plateau on PR #803 with **6 of 10 tasks complete**. The substrate that landed (typed-error schema, probe-cache library, audit envelope MODELINV bump, T1.9 live-bug fix) is a coherent, tested, production-ready unit. The remaining 4 tasks + 2 partials depend on Sprint 2's curl-mock harness ([#808](https://github.com/0xHoneyJar/loa/issues/808)) for AC-keyed integration testing. Per the operator-collaboration pattern (avoid drag from forced incompleteness when natural seams exist), Sprint 1 closes as Sprint 1A; deferred work routes to Sprint 1B below. Rescope authorized by deep-name session 2026-05-09 in `grimoires/loa/a2a/cycle-102-sprint-1/reviewer.md`.
+
+### Sprint 1A Deliverables (CLOSED)
+
+- [x] **T1.1** `model-error.schema.json` lands at `.claude/data/trajectory-schemas/` with all 10 error classes — DONE (`2dbd0b1e`)
+- [x] **T1.2** Audit envelope schema bumped 1.1.0 → 1.2.0 + MODELINV — DONE (`23c0fcac`); audit-envelope.sh header doc + retention policy YAML row both landed in this rescope (CRIT-3, CRIT-4 closure)
+- [x] **T1.3** `model-probe-cache.{sh,py}` library trio — DONE (Python+bash) (`7b059e8e`); **TS port deferred to Sprint 1B** per SDD §4.2.3 Option B
+- [x] **T1.4** Payload schemas (`class-resolved`, `model-invoke-complete`, `probe-cache-refresh`) — DONE (`23c0fcac`)
+- [x] **T1.8 part** `flatline-orchestrator.sh:1741 2>/dev/null` removed (AC-1.4) — DONE (`dca67086`); **#780 attacker-routing fix deferred to Sprint 1B**
+- [x] **T1.9** Legacy adapter per-model `max_output_tokens` lookup — DONE (`b9ab5806`); closes A1+A2 from sprint-bug-143
+- [x] CI cleanup tail (`fa0fa397` + `ff26be2d`) — audit-envelope test 121 enum + lockfile checksum + bats teardown skip-path
+
+### Sprint 1A AC Status (CLOSED)
+
+| AC | Status |
+|----|--------|
+| AC-1.4 (flatline stderr de-suppression) | ✓ Met |
+| AC-1.1 / 1.2 / 1.2.b / 1.2.c / 1.3 / 1.5 / 1.6 / 1.7 | ⏸ ACCEPTED-DEFERRED to Sprint 1B (Decision Log entries in `grimoires/loa/NOTES.md`) |
+
+### Sprint 1A Definition of Done (achieved)
+
+- [x] Sprint 1A deliverable subset checked (above)
+- [x] Sprint 1A unit-test corpus green (109/109 bats locally; 0 net-new failures vs main in CI Shell Tests)
+- [x] `/review-sprint sprint-1` round-2 APPROVED on Sprint 1A scope (2026-05-09; round-1 CHANGES_REQUIRED → all 4 CRITs closed in commit `fe21070e` → round-2 verdict "All good"; engineer-feedback.md round-2 documents Sprint 1B carry-forward including newly-discovered T1B.4)
+- [x] `/audit-sprint sprint-1` APPROVED - LETS FUCKING GO (2026-05-09; auditor-sprint-feedback.md + COMPLETED marker at `grimoires/loa/a2a/sprint-1/`; Phase 2.5 adversarial gates both filed with documented `api_failure` status — gpt-5.5-pro empty-content reproducing the exact bug class T1.9 was meant to fix; T1B.4 captures the model-adapter.sh coverage gap)
+- [x] Bridgebuilder review — 5 iterations to kaironic plateau; iter-5 confirmed plateau on post-review CI fix commits
+- [x] Per-sprint ship/no-ship decision recorded in `grimoires/loa/NOTES.md` (Sprint 1A: SHIP)
+- [ ] Beads tasks closed — beads CLI broken locally per [#661](https://github.com/0xHoneyJar/loa/issues/661); manual fallback record in `grimoires/loa/a2a/cycle-102-sprint-1/reviewer.md` task table
+
+---
+
+## Sprint 1B — Sprint 1 Carry-forward (PRE-SPRINT-2 micro-sprint)
+
+**Scope**: MEDIUM (6 tasks + 2 HIGH security/quality fast-follows)
+**Local ID**: 1B | **Global ID**: TBD (assigned at `/sprint-plan` time)
+**Status**: BACKLOG — kicked off after Sprint 2 #808 curl-mock harness lands (most 1B integration tests depend on it)
+
+### Sprint 1B Goal
+
+Close the AC-keyed integration tests, wire emitter-side audit_emit, and land the operator-visible header + observability traces that Sprint 1A deferred. Address two HIGH findings from Bridgebuilder iter-5 that sprint-1A's static test surface couldn't catch.
+
+### Sprint 1B Closes (PRD AC)
+
+AC-1.1.test typed-error taxonomy (cheval mapping) · AC-1.2.test probe cache integration · AC-1.2.b probe-fail-open · AC-1.2.c probe ternary · AC-1.3.test attacker-routing · AC-1.5.test strict-vs-graceful · AC-1.6.test operator-visible header · AC-1.7.test audit envelope event integration
+
+### Sprint 1B Tasks
+
+- [ ] **T1B.1** ⚠ HIGH (Security) — `model-error.schema.json` redaction-contract tightening: remove "downstream lint catches drift" handwave from `original_exception` description; add explicit "emitters MUST redact via `lib/log-redactor.{sh,py}` BEFORE populating" clause; consider splitting into `exception_type` (enum-bounded) + `exception_summary` (redacted). Wire emitter-side redaction in T1.7 audit_emit path. Test asserting fake-bearer-token-pattern rejection. **Non-negotiable for 1B SHIP — audit chain immutability means any leak is permanent.** Source: BB iter-5 FIND-005 (Anthropic single-model, re-classified HIGH).
+- [ ] **T1B.2** ⚠ HIGH (Quality) — `validate-model-error.py:91` constructor adds `format_checker=FormatChecker()` so `Draft202012Validator` enforces `format: "date-time"`. Replace inline RFC 3339 regex in `tests/unit/model-events-schemas.bats` with runtime-equivalence assertion via the production validator. Add E10b/E10c/E10d tests for malformed-string ts_utc forms. Source: BB iter-5 F2/FIND-004 (cross-model 0.75/0.68 confidence, re-classified HIGH).
+- [ ] **T1.3 carry** Author `model-probe-cache.ts` via Jinja2 codegen (mirrors cycle-099 sprint-1E.c.1 pattern). Cross-runtime byte-equality gate.
+- [ ] **T1.5 carry** Extend `cheval.py::_error_json` (line 78) to emit `error_class`; map cheval exceptions per SDD §4.1 table; bash shim `model-adapter.sh` parses stderr JSON via `jq` to build header + `audit_emit` payload. stderr JSON wire-protocol bump.
+- [ ] **T1.6 carry** Land operator-visible header at `.claude/protocols/operator-visible-header.md`; integrate into BB iteration, `/review-sprint`, `/audit-sprint`, `flatline-orchestrator.sh`, `red-team-model-adapter.sh`. Cap line at 240 chars; fold to `summary +K more failed (see audit log)` if exceeded.
+- [ ] **T1.7 carry** Wire `audit_emit "MODELINV" "model.invoke.complete" <payload>` into cheval `invoke()` end-of-call path; redact `error.message_redacted` + `original_exception` via `lib/log-redactor.{sh,py}` (T1B.1 dependency); confirm `kill_switch_active: true` populates correctly.
+- [ ] **T1.8 carry** `red-team-model-adapter.sh --role attacker` routing fix (#780 Tier 2): resolve to `flatline-attacker` agent persona; pin contract test.
+- [ ] **T1.10 carry** Add routing-decision observability trace: when `LOA_DEBUG_MODEL_RESOLUTION=1` env is set, every resolver call emits structured trace `{class, primary, fallback_chain, probe_outcomes, chosen, reason}` to stderr. Mirrors cycle-099 sprint-2F #761 pattern.
+- [ ] **T1B.3** Live ≥10K-prompt fixture for T1.9 M5 success metric (gpt-5.5-pro + gemini-3.1-pro both succeed). Either `LOA_LIVE_TESTS=1`-gated smoke or documented-in-NOTES manual verification.
+
+### Sprint 1B Acceptance Criteria
+
+Inherits all `[ACCEPTED-DEFERRED-1B]` ACs from Sprint 1A list above. Adds:
+- T1B.1 acceptance: schema description has explicit redaction clause; cheval emitter passes a fake-bearer-token-pattern through log-redactor before audit_emit; bats test asserts redaction.
+- T1B.2 acceptance: `validate-model-error.py` rejects `'not-a-date'` / `'2026-05-08'` / `'2026-05-08T12:00:00'` ts_utc values; bats inline regex removed.
+
+### Sprint 1B Dependencies
+
+- **Inbound**: Sprint 1A; Sprint 2 [#808](https://github.com/0xHoneyJar/loa/issues/808) curl-mock harness (most integration/regression tests depend on it).
+- **Outbound**: Unblocks Sprint 4 quarantine corpus (T1.9 fixture confirms reasoning-class adapter fix at production scale).
+
+### Sprint 1B Definition of Done
+
+Same shape as Sprint 1A: deliverables checked + AC tests green + `/review-sprint` APPROVED + `/audit-sprint` APPROVED + Bridgebuilder kaironic plateau + ship/no-ship in NOTES.md + beads tasks closed.
+
+---
+
 ## Sprint 2 — Capability-Class Registry + Extension Mechanism
 
 **Scope**: LARGE (9 tasks)

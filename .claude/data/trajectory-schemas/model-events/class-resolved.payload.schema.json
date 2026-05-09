@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.dev/loa/schemas/model-events/class-resolved.payload.schema.json",
+  "title": "MODELINV class.resolved Payload",
+  "description": "Audit-event payload for a capability-class resolution decision. cycle-102 Sprint 1 (T1.4). Emitted by model-resolver on every class-addressed call (top-reasoning, top-non-reasoning, summarization, etc.). Captures the chosen model + the fallback chain considered, so audit-query can reconstruct routing decisions without rerunning the resolver. On cycle-detection failure, error_class=ROUTING_MISS + reason=cycle + cycle[] populated (per SDD line 705).",
+  "type": "object",
+  "required": ["class_name", "outcome"],
+  "additionalProperties": false,
+  "properties": {
+    "class_name": {
+      "description": "The capability class that was being resolved (e.g., top-reasoning).",
+      "type": "string",
+      "minLength": 1
+    },
+    "outcome": {
+      "description": "Resolution outcome. RESOLVED: a primary model was chosen and probed AVAILABLE. FALLBACK: the primary failed probe, a fallback was chosen. FAILED: chain exhausted or cycle detected.",
+      "enum": ["RESOLVED", "FALLBACK", "FAILED"]
+    },
+    "chosen_provider": {
+      "description": "Provider of the chosen model (RESOLVED or FALLBACK outcomes).",
+      "type": "string",
+      "minLength": 1
+    },
+    "chosen_model": {
+      "description": "Model id of the chosen model (RESOLVED or FALLBACK outcomes).",
+      "type": "string",
+      "minLength": 1
+    },
+    "primary_provider": {
+      "description": "The class's declared primary provider, before any fallback walk.",
+      "type": "string",
+      "minLength": 1
+    },
+    "primary_model": {
+      "description": "The class's declared primary model, before any fallback walk.",
+      "type": "string",
+      "minLength": 1
+    },
+    "fallback_chain_considered": {
+      "description": "Provider:model entries the resolver walked through (in order). Empty array if primary succeeded with no fallback walk.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]*:[a-zA-Z0-9._-]+$"
+      }
+    },
+    "probe_outcomes": {
+      "description": "Per-step probe outcome aligned with fallback_chain_considered (or singleton with primary). Used for triage when an unexpected model is chosen.",
+      "type": "array",
+      "items": {
+        "enum": ["AVAILABLE", "DEGRADED", "UNAVAILABLE", "FAIL"]
+      }
+    },
+    "error_class": {
+      "description": "Populated when outcome=FAILED. Typed reason for the failure.",
+      "$ref": "loa://schemas/model-error/v1.0.0#/properties/error_class"
+    },
+    "reason": {
+      "description": "Free-text triage hint. Used together with error_class. Example values: 'cycle' (when ROUTING_MISS due to cycle in fallback graph), 'no-models-meet-properties', 'all-providers-down'.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "cycle": {
+      "description": "When reason=cycle, the visited-set that triggered cycle detection. Lets the auditor reconstruct the bad config without rerunning the resolver.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "calling_primitive": {
+      "description": "Optional caller-context attribution per SDD section 4.4. Same semantics as model.invoke.complete.calling_primitive.",
+      "anyOf": [
+        { "type": "null" },
+        { "enum": ["L1", "L2", "L3", "L4", "L5", "L6", "L7"] }
+      ]
+    }
+  }
+}
