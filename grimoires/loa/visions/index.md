@@ -24,10 +24,12 @@
 | vision-017 | Planning Tooling Stops Emitting `.bak` Siblings Entirely | Bridgebuilder PR #678 (cycle-098 prep), iter-3 REFRAME (root-cause for v014) | Captured | planning-tooling, backup-files, root-cause | 0 |
 | vision-018 | Test Fixture Realism — Match Production Threat Substrate | Bridgebuilder PR #705 (cycle-098 Sprint 2), iter-1 F8 + iter-2 F-006 + F-001 convergent | Captured | test-quality, fixture-realism, fail-closed, fidelity-gap | 0 |
 | vision-019 | The Three Axioms of Model Stability | Sprint-bug-143 closure (PR #790) + operator strategic conversation 2026-05-08 | Captured | model-stability, architecture, rollback-discipline, graceful-degradation, foundational | 0 |
+| vision-020 | The Operator's Question as Reframe Function | cycle-102 kickoff (PR #795) + 4-round Flatline iter-1 dogfooding 2026-05-09 | Captured | recursive-discipline, operator-collaboration, reframe-principle, foundational, axiom-4-candidate | 0 |
+| vision-021 | Letter from After (cycle-102 post-ship retrospective; speculative) | cycle-102 kickoff (PR #795) — companion to vision-019 Lament | Captured | speculative-narrative, post-ship-perspective, bridgebuilder-voice, coda-companion, operator-gift | 0 |
 
 ## Statistics
 
-- Total captured: 17
+- Total captured: 19
 - Total exploring: 1
 - Total proposed: 0
 - Total implemented: 1
