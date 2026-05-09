@@ -206,50 +206,64 @@ export const LOA_EXCLUDE_PATTERNS = [
  * @throws Error when `.reviewignore` exists but cannot be read or parsed.
  */
 function parseReviewignoreFile(repoRoot) {
+    // BB-801-002-gpt (PR #801 iter-1 MEDIUM, conf 0.82): validate repoRoot
+    // resolves to a directory BEFORE collapsing ENOENT to "absent". A bogus
+    // repoRoot (typo, deleted dir) would otherwise silently produce zero
+    // user exclusions.
+    let rootStat;
+    try {
+        rootStat = lstatSync(repoRoot);
+    }
+    catch (err) {
+        const code = err.code;
+        const enriched = new Error(`repoRoot does not exist or is unreadable: ${repoRoot} (code=${code ?? "unknown"})`);
+        enriched.code = "EBADREPOROOT";
+        throw enriched;
+    }
+    if (!rootStat.isDirectory()) {
+        const enriched = new Error(`repoRoot is not a directory: ${repoRoot}`);
+        enriched.code = "EBADREPOROOT";
+        throw enriched;
+    }
     const reviewignorePath = resolve(repoRoot, ".reviewignore");
-    // BB-797-SEC-001 / #799 (iter-7 HIGH, conf 0.87): lstat-before-read.
-    // readFileSync ENOENT can mean either:
-    //   (a) genuine absence — no `.reviewignore` exists → return []
-    //   (b) broken symlink — `.reviewignore` IS a symlink whose target is
-    //       absent, OR the path resolves through a missing parent directory
-    //
-    // (b) is the operationally-ambiguous case Borgmon distinguished post-2014:
-    // unreachable signal MUST trigger fail-closed, not silent collapse to
-    // "no rules". lstatSync follows the path WITHOUT dereferencing the final
-    // symlink, so we can detect "the link itself exists, but the target
-    // doesn't" — distinct from "the link doesn't exist at all".
+    // #799 (iter-7 HIGH, conf 0.87): lstat-before-read. readFileSync ENOENT
+    // can mean either (a) genuine absence or (b) broken symlink. Disambiguate
+    // via lstatSync (follows path WITHOUT dereferencing final symlink).
+    // BB-801-003-gpt (PR #801 iter-1 LOW): nested try/catch refactored to flat
+    // control flow so the rethrow path can't be silently re-caught.
     let content;
     try {
         content = readFileSync(reviewignorePath, "utf-8");
     }
     catch (err) {
         const code = err.code;
-        if (code === "ENOENT") {
-            // Disambiguate: does the path entry exist as a symlink whose target
-            // is missing? lstatSync of the path — if THAT throws ENOENT, the
-            // entry truly doesn't exist (genuine absence → []). If lstatSync
-            // succeeds, the entry is a symlink to nowhere → throw with
-            // BROKEN_SYMLINK errno so caller fail-closes correctly.
-            try {
-                const stat = lstatSync(reviewignorePath);
-                if (stat.isSymbolicLink()) {
-                    const enriched = new Error(`.reviewignore is a broken symbolic link (target missing): ${reviewignorePath}`);
-                    enriched.code = "ENOENT_BROKEN_SYMLINK";
-                    throw enriched;
-                }
-                // lstat succeeded but it's not a symlink — shouldn't happen if
-                // readFileSync got ENOENT, but propagate the original anyway
-                throw err;
-            }
-            catch (lstatErr) {
-                const lstatCode = lstatErr.code;
-                if (lstatCode === "ENOENT") {
-                    return []; // Genuine absence
-                }
-                throw lstatErr;
-            }
+        if (code !== "ENOENT") {
+            // EACCES, EISDIR, ELOOP, ENOTDIR — propagate. Caller fail-closes.
+            throw err;
         }
-        // Any other readFileSync error (EACCES, EISDIR, ELOOP, ENOTDIR) propagates.
+        // ENOENT: disambiguate via lstat
+        let stat;
+        try {
+            stat = lstatSync(reviewignorePath);
+        }
+        catch (lstatErr) {
+            const lstatCode = lstatErr.code;
+            if (lstatCode === "ENOENT") {
+                return []; // Genuine absence — no `.reviewignore` exists
+            }
+            throw lstatErr; // Other lstat errors propagate
+        }
+        // BB-801-002-opus (PR #801 iter-1 LOW): EBROKENSYMLINK rather than
+        // ENOENT-prefixed code to avoid downstream `err.code.startsWith("ENOENT")`
+        // misclassifying broken-symlink as absence.
+        if (stat.isSymbolicLink()) {
+            const enriched = new Error(`.reviewignore is a broken symbolic link (target missing): ${reviewignorePath}`);
+            enriched.code = "EBROKENSYMLINK";
+            throw enriched;
+        }
+        // readFileSync ENOENT + lstat succeeded + not a symlink → TOCTOU race
+        // (file deleted between read and lstat) or unusual FS state. Propagate
+        // the original ENOENT so caller can decide.
         throw err;
     }
     const patterns = [];
@@ -1025,16 +1039,23 @@ export function truncateFiles(files, config) {
             }
             // Phase 1: user .reviewignore patterns as strict denies. Trust-origin
             // preservation: operator intent never gets tier-routed.
+            //
+            // BB-801-003-opus (PR #801 iter-1 MEDIUM): capture per-phase counts
+            // as named const scalars at phase end, NEVER derive them from
+            // loaExcludedEntries.length-at-time-T. Future code that pushes
+            // between phases must not silently corrupt the merged stats.
             let phase1Survivors = files;
+            let userExcludedCount = 0;
+            let userBytesSaved = 0;
             if (userPatterns.length > 0) {
                 const survivors = [];
-                let userBytesSaved = 0;
                 for (const f of files) {
                     if (matchesExcludePattern(f.filename, userPatterns)) {
                         loaExcludedEntries.push({
                             filename: f.filename,
                             stats: `+${f.additions} -${f.deletions} (.reviewignore user pattern, strict deny)`,
                         });
+                        userExcludedCount++;
                         userBytesSaved += f.patch ? new TextEncoder().encode(f.patch).byteLength : 0;
                     }
                     else {
@@ -1042,12 +1063,6 @@ export function truncateFiles(files, config) {
                     }
                 }
                 phase1Survivors = survivors;
-                if (loaExcludedEntries.length > 0) {
-                    loaStats = {
-                        filesExcluded: loaExcludedEntries.length,
-                        bytesSaved: userBytesSaved,
-                    };
-                }
             }
             // Phase 2: LOA framework filter (tier-classified) on phase-1 survivors.
             const tierResult = applyLoaTierExclusion(phase1Survivors, [...LOA_EXCLUDE_PATTERNS]);
@@ -1065,31 +1080,22 @@ export function truncateFiles(files, config) {
                 });
             }
             const totalLoaExcluded = tierResult.tier1Excluded.length + tierResult.tier2Summary.length;
-            const totalUserExcluded = loaExcludedEntries.length - totalLoaExcluded;
             const kbSavedFramework = Math.round(tierResult.bytesSaved / 1024);
-            if (totalLoaExcluded > 0 || totalUserExcluded > 0) {
+            if (totalLoaExcluded > 0 || userExcludedCount > 0) {
                 const parts = [];
                 if (totalLoaExcluded > 0) {
                     parts.push(`${totalLoaExcluded} framework files excluded (${kbSavedFramework} KB saved)`);
                 }
-                if (totalUserExcluded > 0) {
-                    parts.push(`${totalUserExcluded} files excluded by .reviewignore (strict deny)`);
+                if (userExcludedCount > 0) {
+                    parts.push(`${userExcludedCount} files excluded by .reviewignore (strict deny)`);
                 }
                 loaBanner = `[Loa-aware: ${parts.join("; ")}]`;
-                // loaStats already reflects user-pattern bytes; merge framework
-                // bytes if user-pattern phase ran, else set fresh.
-                if (loaStats) {
-                    loaStats = {
-                        filesExcluded: loaStats.filesExcluded + totalLoaExcluded,
-                        bytesSaved: loaStats.bytesSaved + tierResult.bytesSaved,
-                    };
-                }
-                else {
-                    loaStats = {
-                        filesExcluded: totalLoaExcluded,
-                        bytesSaved: tierResult.bytesSaved,
-                    };
-                }
+                // Sum user-pattern + framework counts/bytes — both are scalars
+                // captured at their respective phase boundaries; no array re-read.
+                loaStats = {
+                    filesExcluded: userExcludedCount + totalLoaExcluded,
+                    bytesSaved: userBytesSaved + tierResult.bytesSaved,
+                };
             }
             // IMP-004: all files excluded by Loa filtering (or user phase)
             if (afterLoa.length === 0) {

@@ -502,9 +502,17 @@ describe("truncateFiles", () => {
   // BB-001-security (PR #797 iter-2): self-review must NOT bypass operator-curated
   // .reviewignore patterns. Only LOA framework defaults are bypassed.
   describe(".reviewignore honored under self-review (BB-001-security)", () => {
-    it("loadReviewIgnoreUserPatterns returns empty when file missing", () => {
-      const patterns = loadReviewIgnoreUserPatterns("/nonexistent/dir");
-      assert.deepEqual(patterns, []);
+    it("loadReviewIgnoreUserPatterns returns empty when file missing in valid repoRoot", () => {
+      // BB-801-002-gpt: bogus repoRoot now throws EBADREPOROOT, so we
+      // need a real (empty) directory to test the genuine-absence path.
+      const tmpDir = join(tmpdir(), `loa-test-no-reviewignore-${Date.now()}`);
+      mkdirSync(tmpDir, { recursive: true });
+      try {
+        const patterns = loadReviewIgnoreUserPatterns(tmpDir);
+        assert.deepEqual(patterns, []);
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
     });
 
     it("loadReviewIgnoreUserPatterns returns ONLY user patterns (not LOA defaults)", () => {
@@ -732,6 +740,39 @@ describe("truncateFiles", () => {
       }
     });
 
+    // BB-801-002-gpt (PR #801 iter-1 MEDIUM, conf 0.82): bogus repoRoot
+    // MUST throw a config error, NOT silently collapse to "no rules".
+    it("bogus repoRoot throws EBADREPOROOT (NOT silent empty)", () => {
+      const bogusPath = join(tmpdir(), `loa-test-bogus-root-${Date.now()}-does-not-exist`);
+      let thrown: NodeJS.ErrnoException | null = null;
+      try {
+        loadReviewIgnoreUserPatterns(bogusPath);
+      } catch (err) {
+        thrown = err as NodeJS.ErrnoException;
+      }
+      assert.ok(thrown, "bogus repoRoot MUST throw");
+      assert.equal(thrown!.code, "EBADREPOROOT");
+    });
+
+    it("repoRoot pointing at a regular file throws EBADREPOROOT", () => {
+      const tmpDir = join(tmpdir(), `loa-test-root-as-file-${Date.now()}`);
+      mkdirSync(tmpDir, { recursive: true });
+      const filePath = join(tmpDir, "not-a-dir");
+      writeFileSync(filePath, "x");
+      try {
+        let thrown: NodeJS.ErrnoException | null = null;
+        try {
+          loadReviewIgnoreUserPatterns(filePath);
+        } catch (err) {
+          thrown = err as NodeJS.ErrnoException;
+        }
+        assert.ok(thrown);
+        assert.equal(thrown!.code, "EBADREPOROOT");
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
     // #799 (iter-7 HIGH, conf 0.87): broken symlink ENOENT MUST be distinguished
     // from genuine absence. lstat-before-collapse-to-empty.
     it("broken symlink at .reviewignore throws (NOT silent absence) — #799", () => {
@@ -749,8 +790,14 @@ describe("truncateFiles", () => {
         }
         assert.ok(thrown, "broken symlink MUST throw, not silently collapse to []");
         assert.equal(
-          thrown!.code, "ENOENT_BROKEN_SYMLINK",
-          "errno code MUST distinguish broken symlink from genuine absence (#799)",
+          thrown!.code, "EBROKENSYMLINK",
+          "errno code MUST distinguish broken symlink from genuine absence (#799 + BB-801-002-opus rename)",
+        );
+        // BB-801-002-opus: the code MUST NOT start with "ENOENT" — downstream
+        // `err.code.startsWith("ENOENT")` checks would misclassify otherwise.
+        assert.equal(
+          thrown!.code!.startsWith("ENOENT"), false,
+          "errno code MUST NOT begin with ENOENT prefix (string-startsWith hazard)",
         );
       } finally {
         rmSync(tmpDir, { recursive: true, force: true });
