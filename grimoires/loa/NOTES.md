@@ -1,5 +1,43 @@
 # Loa Project Notes
 
+## Decision Log — 2026-05-09 (cycle-102 Sprint 1B kickoff — T1B.4 ROOT-CAUSE REFRAME, run HALTED)
+
+**Sprint 1B autonomous run HALTED on first task** because the T1B.4 framing was wrong. Recording the corrected root-cause analysis below.
+
+**Original T1B.4 framing (wrong):**
+> "Apply per-model max_output_tokens lookup to `.claude/scripts/model-adapter.sh` (T1.9 only covered `model-adapter.sh.legacy`)."
+
+**Actual root cause (verified 2026-05-09):**
+1. `.claude/scripts/model-adapter.sh` is a **routing shim**, not a separate adapter. When `hounfour.flatline_routing: false` (the default), it `exec`'s `model-adapter.sh.legacy` directly. T1.9's fix DOES apply through this path.
+2. Verified via direct lookup: `_lookup_max_output_tokens openai gpt-5.5-pro 8000` returns `32000` correctly. Yq query against `model-config.yaml` returns `32000` directly.
+3. `model-adapter.sh` itself has zero references to `max_output_tokens` — it's a thin routing shim that delegates entirely.
+
+**The actual failure that surfaced in adversarial-review.sh:**
+- Input size: 27433 tokens (after priority-truncation from 67149)
+- Provider: openai, Model: gpt-5.5-pro, Mode: dissent, Reasoning effort: medium
+- max_output_tokens applied: 32000 (the post-T1.9 value)
+- Result: 3 retries, all "Empty response content"
+
+**Re-framed root cause:** Even with `max_output_tokens=32000` applied per T1.9, gpt-5.5-pro returns empty content for ≥27K-token inputs at `reasoning.effort: medium`. The T1.9 fix verified at the 10K-token threshold (sprint-bug-143 A1+A2) does NOT scale to 27K. This is **sprint-bug-143 / vision-019 deeper layer**: the empty-content bug is *scale-dependent within reasoning models*, not just a flat budget issue.
+
+**Reframed T1B.4 (HIGH Reliability) options:**
+1. **Bump default to 64K** for gpt-5.5-pro in `.claude/defaults/model-config.yaml` (untested at this scale; reasoning models may continue to consume the budget)
+2. **Switch adversarial reviewer model** — `flatline_protocol.code_review.model: claude-opus-4-7` (Opus has no documented empty-content bug; lower per-token cost than gpt-5.5-pro for this size class)
+3. **Implement adaptive chunking** in adversarial-review.sh — already truncates at 24K by default; lower aggressively when target model is gpt-5.5-pro to e.g. 16K, leaving more output budget
+4. **Investigate `reasoning.effort: low`** — medium effort consumes more output budget than low; maybe drop to low for adversarial-review's task class
+5. **Keep gpt-5.5-pro but switch endpoint family** — if any non-`/v1/responses` path is available for 5.5-pro, the empty-content bug might not apply
+
+Option 2 (model swap) is the lowest-risk and fastest fix. Document T1B.4 as **superseded** if option 2 lands.
+
+**Discovery context:** This insight came from running `adversarial-review.sh` against PR #803 during /audit-sprint Phase 2.5, then again against the merged Sprint 1A diff during the BB iter-6 run, then a third time during Sprint 1B's kickoff. Three independent failures across three separate diff sizes (all 20K-30K range). The recursive-dogfood pattern from `feedback_recursive_dogfood_pattern.md` manifested again — cycle-102 hitting deeper layers of its own bug as fixes land at the surface.
+
+**Sprint 1B status after halt:**
+- T1B.1 (security/redaction): NOT STARTED — sequencing was T1B.4 → T1B.2 → T1B.1
+- T1B.2 (format_checker): NOT STARTED
+- T1B.4 (model-adapter): HALTED post-discovery; framing needs correction in sprint.md before re-run
+
+**Resume protocol:** Operator decision needed on T1B.4 reframe (which option, or combination). After decision, update sprint.md task description + re-run autonomous mode via `/run-resume` or `/run sprint-1B --allow-high`.
+
 ## Decision Log — 2026-05-09 (cycle-102 Sprint 1A — ship/no-ship + AC deferrals)
 
 **Sprint 1A ship/no-ship decision:** SHIP as Sprint 1A (formal rescope). 6 of 10 original tasks complete + 1 live bug fix (A1+A2 closed). 4 deferred tasks + 2 partials route to Sprint 1B. Bridgebuilder kaironic plateau confirmed across 5 iterations (0 BLOCKER throughout; iter-1 HIGH typed-taxonomy fix; iter-4 REFRAME-1 named the static-bash-analysis ceiling; iter-5 confirmed plateau on post-review CI fix commits).
