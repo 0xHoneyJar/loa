@@ -73,6 +73,7 @@ _need_jq() {
 
 teardown() {
     [[ -n "${WORK_DIR:-}" && -d "$WORK_DIR" ]] && rm -rf "$WORK_DIR"
+    return 0
 }
 
 # Helper: write payload to temp file and validate via Python

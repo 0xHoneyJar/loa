@@ -59,6 +59,7 @@ setup() {
 
 teardown() {
     [[ -n "${WORK_DIR:-}" && -d "$WORK_DIR" ]] && rm -rf "$WORK_DIR"
+    return 0
 }
 
 # Helper: validate $payload against $schema_path. Uses a referencing registry

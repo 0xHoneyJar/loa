@@ -37,6 +37,7 @@ setup() {
 
 teardown() {
     [[ -n "${WORK_DIR:-}" && -d "$WORK_DIR" ]] && rm -rf "$WORK_DIR"
+    return 0
 }
 
 # Helper: run a driver scenario in a fresh tmp dir, JSON output on stdout.

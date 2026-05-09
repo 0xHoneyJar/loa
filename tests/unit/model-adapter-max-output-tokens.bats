@@ -53,6 +53,7 @@ setup() {
 teardown() {
     [[ -n "${HELPER_FILE:-}" && -f "$HELPER_FILE" ]] && rm -f "$HELPER_FILE"
     [[ -n "${WORK_DIR:-}" && -d "$WORK_DIR" ]] && rm -rf "$WORK_DIR"
+    return 0
 }
 
 # -----------------------------------------------------------------------------
