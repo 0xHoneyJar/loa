@@ -179,9 +179,17 @@ The shim is a TEST-ONLY artifact. The `Model Health Probe (PR-scoped)` workflow 
 
 If you find yourself wanting to mock `curl` in a production CI check, file an issue first — the answer is almost certainly "no" and the question itself is a sign you're in the wrong scope.
 
-### Multiline body and yq
+### yq is REQUIRED — no fallback
 
-The shim's YAML parser uses `yq` (Mike Farah's v4) when available. Without `yq`, the fallback grep-based parser handles only top-level scalar fields — multiline `body:` requires `yq`. The repo's BATS Tests workflow installs `yq` via the existing pin in cycle-099 codegen-toolchain runbook.
+The shim REQUIRES `yq` (mikefarah's Go v4 implementation) on PATH. The shim refuses to run with exit 99 + fail-loud stderr if yq is absent. There is no grep-based fallback parser — the previous fallback was removed per BB iter-1 F1/FIND-001 (a convergent finding from anthropic + openai cross-model review): under `set -euo pipefail` the fallback returned non-zero for missing optional fields, AND silently dropped multiline `body:` content. Soft-fallback was strictly worse than a hard requirement.
+
+**Two yq implementations exist** with incompatible syntax:
+- **mikefarah/yq** (Go binary) — REQUIRED by this harness
+- **kislyuk/yq** (Python wrapping jq) — incompatible; will produce wrong results
+
+The repo's BATS Tests workflow installs `mikefarah/yq` v4.52.4 with explicit SHA256 verification (matches cycle-099 sprint-1B drift-gate pinning policy). The install step also runs a sanity check (`yq --version | grep -qE 'mikefarah'`) to refuse if the wrong implementation is detected.
+
+**Why the trade-off (BB iter-2 F20 REFRAME closure):** the harness chose fidelity over portability. A test substrate that "mostly works" across environments produces undebuggable flakes (Buck2 hermetic-toolchain lesson — Meta 2021). Operators running the suite locally MUST install `mikefarah/yq`; in CI it is auto-pinned. This is a deliberate posture: hermetic correctness over zero-dep convenience.
 
 ### Provider-specific response shapes
 

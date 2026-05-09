@@ -21,8 +21,7 @@ on:
   push:
     branches: [main]
     paths:
-      - '.claude/scripts/**/*.sh'
-      - '.claude/scripts/tests/**'
+      - '.claude/scripts/**'                # BB iter-2 BF-003 closure (was *.sh; missed .legacy)
       - '.claude/adapters/**/*.py'         # BB iter-1 FIND-005 closure
       - '.claude/defaults/**'              # BB iter-1 FIND-005 closure
       - 'tests/unit/**'
@@ -35,8 +34,7 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - '.claude/scripts/**/*.sh'
-      - '.claude/scripts/tests/**'
+      - '.claude/scripts/**'                # BB iter-2 BF-003 closure (was *.sh; missed .legacy)
       - '.claude/adapters/**/*.py'         # BB iter-1 FIND-005 closure
       - '.claude/defaults/**'              # BB iter-1 FIND-005 closure
       - 'tests/unit/**'
@@ -68,6 +66,35 @@ jobs:
         run: |
           git config --global user.name "CI Bot"
           git config --global user.email "ci@example.com"
+
+      # PINNING: yq v4.52.4 (mikefarah/yq, Go binary). cycle-102 Sprint 1C
+      # T1C.1 made yq a hard requirement for the curl-mock harness shim
+      # (per BB iter-1 F1/FIND-001: tool absence must be a hard error,
+      # never a soft fallback — the prior grep-fallback silently dropped
+      # multiline body content). Per BB iter-2 BF-001 HIGH: this step pins
+      # the Go yq implementation explicitly (kislyuk/yq is a different,
+      # incompatible Python tool with the same name; "install yq" is
+      # ambiguous). SHA pin matches cycle-099 sprint-1B drift-gate workflow.
+      - name: Install mikefarah/yq v4.52.4
+        run: |
+          set -euo pipefail
+          # Linux x86_64 binary (matches ubuntu-latest runner)
+          YQ_URL="https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64"
+          YQ_SHA256="0c4d965e5e44df45e7d70c43a7eb27c79f9b84c9e29f5638e62fcb2a1dc36c8d"
+          curl -fsSL "$YQ_URL" -o /tmp/yq
+          actual_sha=$(sha256sum /tmp/yq | awk '{print $1}')
+          if [ "$actual_sha" != "$YQ_SHA256" ]; then
+            echo "ERROR: yq SHA256 mismatch — expected $YQ_SHA256, got $actual_sha"
+            exit 1
+          fi
+          sudo install -m 0755 /tmp/yq /usr/local/bin/yq
+          yq --version
+          # Sanity: confirm this is mikefarah's yq (Go), not kislyuk's yq (Python wrapping jq)
+          yq --version | grep -qE 'mikefarah|github.com/mikefarah' || {
+            echo "ERROR: yq binary is not mikefarah/yq (Go) — unexpected variant detected"
+            yq --version
+            exit 1
+          }
 
       # PINNING: bats-core v1.13.0 — commit SHA verified after clone
       - name: Install bats-core v1.13.0

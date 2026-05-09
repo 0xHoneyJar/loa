@@ -294,6 +294,25 @@ print(json.dumps(sys.stdin.read()))
     fi
 }
 
+# -----------------------------------------------------------------------------
+# BB iter-2 BF-006 closure: compute the FINAL process exit code BEFORE writing
+# the call log, so the logged exit_code matches what the process will actually
+# exit with. Previously the call log captured EXIT_CODE from the fixture
+# (transport-failure code) — but if --fail was set and status >=400, the
+# process actually exited 22 (CURLE_HTTP_RETURNED_ERROR). Logging intent
+# instead of truth made downstream tooling (consumers of the JSONL log) see
+# a divergence that didn't exist in real curl runs.
+#
+# Resolution order (matches real curl):
+#   1. fixture transport failure (exit_code != 0): always wins (e.g., 7=disconnect, 28=timeout)
+#   2. --fail / -f / --fail-with-body / --fail-early + status >= 400: exit 22
+#   3. otherwise: exit 0
+# -----------------------------------------------------------------------------
+FINAL_EXIT="$EXIT_CODE"
+if [[ "$FINAL_EXIT" == "0" && "$FAIL_FLAG" == "1" && "$STATUS_CODE" -ge 400 ]]; then
+    FINAL_EXIT=22
+fi
+
 ARGV_JSON=$(_argv_json "curl" "$@")
 STDIN_JSON=$(_string_json "$STDIN_DATA")
 FIXTURE_JSON=$(_string_json "$FIXTURE_PATH")
@@ -309,7 +328,7 @@ mkdir -p "$(dirname "$CALL_LOG")"
               --argjson argv "$ARGV_JSON" \
               --argjson stdin "$STDIN_JSON" \
               --argjson fixture "$FIXTURE_JSON" \
-              --argjson exit_code "$EXIT_CODE" \
+              --argjson exit_code "$FINAL_EXIT" \
               --argjson status_code "$STATUS_CODE" \
               '{ts: $ts, argv: $argv, stdin: $stdin, fixture: $fixture, exit_code: $exit_code, status_code: $status_code}'
     else
@@ -323,11 +342,11 @@ print(json.dumps({
     "exit_code": int(sys.argv[5]),
     "status_code": int(sys.argv[6]),
 }))
-' "$TS" "$ARGV_JSON" "$STDIN_JSON" "$FIXTURE_JSON" "$EXIT_CODE" "$STATUS_CODE"
+' "$TS" "$ARGV_JSON" "$STDIN_JSON" "$FIXTURE_JSON" "$FINAL_EXIT" "$STATUS_CODE"
     fi
 } >> "$CALL_LOG"
 
-_dbg "logged call: status=$STATUS_CODE exit=$EXIT_CODE include_headers=$INCLUDE_HEADERS"
+_dbg "logged call: status=$STATUS_CODE final_exit=$FINAL_EXIT include_headers=$INCLUDE_HEADERS"
 
 # -----------------------------------------------------------------------------
 # Honor exit_code != 0 (disconnect=7, timeout=28). Real curl writes nothing
