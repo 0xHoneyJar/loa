@@ -176,6 +176,17 @@ export interface TruncationResult {
   loaBanner?: string;
   /** Loa exclusion statistics. */
   loaStats?: { filesExcluded: number; bytesSaved: number };
+  /**
+   * True when the self-review opt-in (#796 / vision-013) was active for this
+   * truncation pass — the `bridgebuilder:self-review` label was on the PR and
+   * framework files were admitted into the payload.
+   *
+   * BB-797-001 (PR #797 iter-3): downstream consumers (cache key, audit logs,
+   * future analyzers) must read this typed field, never substring-match the
+   * `loaBanner` prose. Banner text can change with copy edits; the boolean
+   * cannot. Tricorder rule: structured in, structured out.
+   */
+  selfReviewActive?: boolean;
   /** Truncation level applied (undefined = no progressive truncation). */
   truncationLevel?: 1 | 2 | 3;
   /** Disclaimer text for the current truncation level. */

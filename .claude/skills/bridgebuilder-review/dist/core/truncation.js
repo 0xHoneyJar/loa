@@ -780,87 +780,112 @@ export function truncateFiles(files, config) {
     let allExcluded = false;
     const loaExcludedEntries = [];
     let afterLoa = files;
-    if (loaDetection.isLoa && config.selfReview === true) {
-        // Self-review opt-in path: caller (reviewer.ts/main.ts/template.ts) detected
-        // the `bridgebuilder:self-review` label on the PR.
-        //
-        // BB-001-security (PR #797 iter-2): the bypass MUST scope to LOA framework
-        // patterns only — operator-curated `.reviewignore` patterns (secrets/,
-        // vendor blobs, private docs) MUST still apply. This is the AWS-IAM rule:
-        // an Allow grant never overrides a Deny. The self-review label is an Allow
-        // on framework files, NOT a global Deny suppressor.
-        //
-        // Use matchesExcludePattern directly (NOT applyLoaTierExclusion) — the
-        // tier classifier is for LOA framework files and would route a .env file
-        // through the high-risk "exception" branch back into passthrough,
-        // defeating the .reviewignore intent. user-curated patterns are simple
-        // matches: present → exclude, absent → include. No tiering.
-        const userPatterns = loadReviewIgnoreUserPatterns(config.repoRoot);
-        if (userPatterns.length > 0) {
-            const passthrough = [];
-            let userBytesSaved = 0;
-            for (const f of files) {
-                if (matchesExcludePattern(f.filename, userPatterns)) {
-                    loaExcludedEntries.push({
-                        filename: f.filename,
-                        stats: `+${f.additions} -${f.deletions} (.reviewignore user pattern)`,
-                    });
-                    userBytesSaved += f.patch ? new TextEncoder().encode(f.patch).byteLength : 0;
+    // BB-797-001 (PR #797 iter-3): typed self-review state — downstream consumers
+    // read this field, never substring-match the loaBanner prose.
+    const selfReviewActive = loaDetection.isLoa && config.selfReview === true;
+    // BB-797-002 (PR #797 iter-3): nested if/else makes the branches mutually
+    // exclusive at the type level — future edits cannot cause both to run.
+    if (loaDetection.isLoa) {
+        if (selfReviewActive) {
+            // Self-review opt-in path: caller (reviewer.ts/main.ts/template.ts) detected
+            // the `bridgebuilder:self-review` label on the PR.
+            //
+            // BB-001-security (PR #797 iter-2): the bypass MUST scope to LOA framework
+            // patterns only — operator-curated `.reviewignore` patterns (secrets/,
+            // vendor blobs, private docs) MUST still apply. This is the AWS-IAM rule:
+            // an Allow grant never overrides a Deny. The self-review label is an Allow
+            // on framework files, NOT a global Deny suppressor.
+            //
+            // Use matchesExcludePattern directly (NOT applyLoaTierExclusion) — the
+            // tier classifier is for LOA framework files and would route a .env file
+            // through the high-risk "exception" branch back into passthrough,
+            // defeating the .reviewignore intent. user-curated patterns are simple
+            // matches: present → exclude, absent → include. No tiering.
+            const userPatterns = loadReviewIgnoreUserPatterns(config.repoRoot);
+            if (userPatterns.length > 0) {
+                const passthrough = [];
+                let userBytesSaved = 0;
+                for (const f of files) {
+                    if (matchesExcludePattern(f.filename, userPatterns)) {
+                        loaExcludedEntries.push({
+                            filename: f.filename,
+                            stats: `+${f.additions} -${f.deletions} (.reviewignore user pattern)`,
+                        });
+                        userBytesSaved += f.patch ? new TextEncoder().encode(f.patch).byteLength : 0;
+                    }
+                    else {
+                        passthrough.push(f);
+                    }
                 }
-                else {
-                    passthrough.push(f);
+                afterLoa = passthrough;
+                if (loaExcludedEntries.length > 0) {
+                    loaStats = {
+                        filesExcluded: loaExcludedEntries.length,
+                        bytesSaved: userBytesSaved,
+                    };
                 }
             }
-            afterLoa = passthrough;
-            if (loaExcludedEntries.length > 0) {
-                loaStats = {
-                    filesExcluded: loaExcludedEntries.length,
-                    bytesSaved: userBytesSaved,
+            // Surface the opt-in in the banner so operators reading the review see
+            // WHY framework files are visible — Tricorder-style "analyzer ran in
+            // self-review mode" signal.
+            const userPatternCount = userPatterns.length;
+            loaBanner = userPatternCount > 0
+                ? `[Loa-aware: self-review opt-in active — framework files included; .reviewignore (${userPatternCount} user patterns) still honored (vision-013 / #796)]`
+                : "[Loa-aware: self-review opt-in active — framework files included (vision-013 / #796)]";
+            // BR-001 (PR #797 iter-3): hoist the all-excluded guard into the
+            // self-review branch too. If every file matches a `.reviewignore` user
+            // pattern, an empty `included=[]` payload would otherwise flow downstream
+            // with `allExcluded=false` — the silent-empty-response class Netflix
+            // Hystrix encoded as a separate circuit-breaker for fallback paths.
+            if (afterLoa.length === 0) {
+                allExcluded = true;
+                return {
+                    included: [],
+                    excluded: loaExcludedEntries,
+                    totalBytes: 0,
+                    allExcluded: true,
+                    loaBanner,
+                    loaStats,
+                    selfReviewActive,
                 };
             }
         }
-        // Surface the opt-in in the banner so operators reading the review see WHY
-        // framework files are visible — Tricorder-style "analyzer ran in self-review
-        // mode" signal.
-        const userPatternCount = userPatterns.length;
-        loaBanner = userPatternCount > 0
-            ? `[Loa-aware: self-review opt-in active — framework files included; .reviewignore (${userPatternCount} user patterns) still honored (vision-013 / #796)]`
-            : "[Loa-aware: self-review opt-in active — framework files included (vision-013 / #796)]";
-    }
-    if (loaDetection.isLoa && config.selfReview !== true) {
-        const effectivePatterns = loadReviewIgnore(config.repoRoot);
-        const tierResult = applyLoaTierExclusion(files, effectivePatterns);
-        afterLoa = tierResult.passthrough;
-        // Collect Loa excluded entries
-        for (const entry of tierResult.tier1Excluded) {
-            loaExcludedEntries.push(entry);
-        }
-        for (const entry of tierResult.tier2Summary) {
-            loaExcludedEntries.push({
-                filename: entry.filename,
-                stats: entry.stats,
-            });
-        }
-        const totalLoaExcluded = tierResult.tier1Excluded.length + tierResult.tier2Summary.length;
-        const kbSaved = Math.round(tierResult.bytesSaved / 1024);
-        if (totalLoaExcluded > 0) {
-            loaBanner = `[Loa-aware: ${totalLoaExcluded} framework files excluded (${kbSaved} KB saved)]`;
-            loaStats = {
-                filesExcluded: totalLoaExcluded,
-                bytesSaved: tierResult.bytesSaved,
-            };
-        }
-        // IMP-004: all files excluded by Loa filtering
-        if (afterLoa.length === 0) {
-            allExcluded = true;
-            return {
-                included: [],
-                excluded: loaExcludedEntries,
-                totalBytes: 0,
-                allExcluded: true,
-                loaBanner,
-                loaStats,
-            };
+        else {
+            const effectivePatterns = loadReviewIgnore(config.repoRoot);
+            const tierResult = applyLoaTierExclusion(files, effectivePatterns);
+            afterLoa = tierResult.passthrough;
+            // Collect Loa excluded entries
+            for (const entry of tierResult.tier1Excluded) {
+                loaExcludedEntries.push(entry);
+            }
+            for (const entry of tierResult.tier2Summary) {
+                loaExcludedEntries.push({
+                    filename: entry.filename,
+                    stats: entry.stats,
+                });
+            }
+            const totalLoaExcluded = tierResult.tier1Excluded.length + tierResult.tier2Summary.length;
+            const kbSaved = Math.round(tierResult.bytesSaved / 1024);
+            if (totalLoaExcluded > 0) {
+                loaBanner = `[Loa-aware: ${totalLoaExcluded} framework files excluded (${kbSaved} KB saved)]`;
+                loaStats = {
+                    filesExcluded: totalLoaExcluded,
+                    bytesSaved: tierResult.bytesSaved,
+                };
+            }
+            // IMP-004: all files excluded by Loa filtering
+            if (afterLoa.length === 0) {
+                allExcluded = true;
+                return {
+                    included: [],
+                    excluded: loaExcludedEntries,
+                    totalBytes: 0,
+                    allExcluded: true,
+                    loaBanner,
+                    loaStats,
+                    selfReviewActive,
+                };
+            }
         }
     }
     // Step 1: Separate files matching excludePatterns (sole enforcement point — IMP-005)
@@ -935,6 +960,7 @@ export function truncateFiles(files, config) {
         allExcluded,
         loaBanner,
         loaStats,
+        selfReviewActive,
     };
 }
 //# sourceMappingURL=truncation.js.map

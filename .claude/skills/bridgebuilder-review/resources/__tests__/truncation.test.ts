@@ -630,4 +630,57 @@ describe("truncateFiles", () => {
       assert.equal(deriveCallConfig(config, pr).selfReview, false);
     });
   });
+
+  // BB-797-001 (PR #797 iter-3): typed selfReviewActive field — downstream
+  // consumers must read this, never substring-match the loaBanner prose.
+  describe("selfReviewActive typed field (BB-797-001)", () => {
+    it("selfReviewActive=true when self-review path runs", () => {
+      const files = [file(".claude/skills/bb/adapter.ts", 25, 3, "x")];
+      const config = { ...defaultConfig, loaAware: true, selfReview: true };
+      const result = truncateFiles(files, config);
+      assert.equal(result.selfReviewActive, true);
+    });
+
+    it("selfReviewActive=false on default loa filter path", () => {
+      const files = [file("src/handler.ts", 10, 0)];
+      const config = { ...defaultConfig, loaAware: true, selfReview: false };
+      const result = truncateFiles(files, config);
+      assert.equal(result.selfReviewActive, false);
+    });
+
+    it("selfReviewActive=false when loa not detected (selfReview is moot)", () => {
+      const files = [file("src/handler.ts", 10, 0)];
+      const config = { ...defaultConfig, loaAware: false, selfReview: true };
+      const result = truncateFiles(files, config);
+      assert.equal(result.selfReviewActive, false);
+    });
+
+    it("selfReviewActive remains true on the allExcluded path (BR-001)", () => {
+      const tmpDir = join(tmpdir(), `loa-test-allexcl-selfreview-${Date.now()}`);
+      mkdirSync(tmpDir, { recursive: true });
+      try {
+        // .reviewignore matches every changed file → allExcluded path under self-review
+        writeFileSync(join(tmpDir, ".reviewignore"), "*\n");
+        const files = [
+          file("anything.ts", 5, 0, "x".repeat(50)),
+          file("another.ts", 3, 0, "x".repeat(50)),
+        ];
+        const config = {
+          ...defaultConfig,
+          loaAware: true,
+          selfReview: true,
+          repoRoot: tmpDir,
+        };
+        const result = truncateFiles(files, config);
+
+        // BR-001 invariant: empty included MUST set allExcluded under self-review
+        assert.equal(result.allExcluded, true);
+        assert.equal(result.included.length, 0);
+        // Typed field still set — downstream cache logic must see this
+        assert.equal(result.selfReviewActive, true);
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+  });
 });
