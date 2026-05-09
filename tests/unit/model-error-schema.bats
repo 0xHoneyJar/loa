@@ -176,6 +176,34 @@ _validate_sh() {
     [ "$status" -eq 78 ]
 }
 
+# T1B.2: format_checker enforcement — ts_utc must be RFC 3339 / ISO-8601.
+# Pre-T1B.2 these would silently pass because Draft202012Validator without
+# format_checker treats `format` as advisory.
+
+@test "E10b: ts_utc='not-a-date' rejected (T1B.2 format_checker)" {
+    payload='{"error_class":"TIMEOUT","severity":"WARN","message_redacted":"x","provider":"openai","model":"m","ts_utc":"not-a-date"}'
+    run _validate_py "$payload"
+    [ "$status" -eq 78 ]
+}
+
+@test "E10c: ts_utc='2026-05-08' (date-only, no time) rejected (T1B.2 format_checker)" {
+    payload='{"error_class":"TIMEOUT","severity":"WARN","message_redacted":"x","provider":"openai","model":"m","ts_utc":"2026-05-08"}'
+    run _validate_py "$payload"
+    [ "$status" -eq 78 ]
+}
+
+@test "E10d: ts_utc='2026-05-08T12:00:00' (naive, no tz) rejected (T1B.2 format_checker)" {
+    payload='{"error_class":"TIMEOUT","severity":"WARN","message_redacted":"x","provider":"openai","model":"m","ts_utc":"2026-05-08T12:00:00"}'
+    run _validate_py "$payload"
+    [ "$status" -eq 78 ]
+}
+
+@test "E10e: ts_utc='2026-05-08T12:00:00Z' (well-formed UTC) accepted (T1B.2 positive control)" {
+    payload='{"error_class":"TIMEOUT","severity":"WARN","message_redacted":"x","provider":"openai","model":"m","ts_utc":"2026-05-08T12:00:00Z"}'
+    run _validate_py "$payload"
+    [ "$status" -eq 0 ]
+}
+
 # -----------------------------------------------------------------------------
 # E11-E13 — ENUM and LENGTH constraints
 # -----------------------------------------------------------------------------
