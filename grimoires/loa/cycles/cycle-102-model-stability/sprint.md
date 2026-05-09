@@ -240,6 +240,94 @@ Inherits all `[ACCEPTED-DEFERRED-1B]` ACs from Sprint 1A list above. Adds:
 
 Same shape as Sprint 1A: deliverables checked + AC tests green + `/review-sprint` APPROVED + `/audit-sprint` APPROVED + Bridgebuilder kaironic plateau + ship/no-ship in NOTES.md + beads tasks closed.
 
+**Sprint 1B Status (2026-05-09):** SHIPPED. PR [#813](https://github.com/0xHoneyJar/loa/pull/813) merged at `0872780cfa2e1a6f6a034278b43abfefaae42923` on main. T1B.1 + T1B.2 + T1B.4 all DONE; 7 carry tasks (T1.3/1.5/1.6/1.7/1.8/1.10 + T1B.3) deferred to Sprint 1C below. Upstream framework issues #810 (BB consensus security false-negative) + #812 (default model swap) + #814 (silent-rejection logging gap) filed. Vision-024 + letter-from-session-6 written.
+
+---
+
+## Sprint 1C — Curl-Mock Harness (Substrate for Sprint 1 Carry Tasks)
+
+**Scope**: MEDIUM (8 tasks)
+**Local ID**: 1C | **Global ID**: 148 (next sprint)
+**Status**: BACKLOG — kicked off after Sprint 1B SHIPPED
+
+### Sprint 1C Goal
+
+Build the `curl`-mocking fixture/harness named by BB iter-4 REFRAME-1 (sprint-1A) AND BB iter-2 REFRAME-2 (sprint-1B) AND filed as Issue [#808](https://github.com/0xHoneyJar/loa/issues/808). This sprint ships the EXECUTION-LEVEL test substrate that all 7 sprint-1 carry tasks (T1.3/1.5/1.6/1.7/1.8/1.10/T1B.3) wait on. Without this harness, those carry tasks can only ship with awk-based static-grep tests of the same class that DISS-001/002/003 BLOCKING flagged.
+
+### Sprint 1C Closes
+
+- **Issue [#808](https://github.com/0xHoneyJar/loa/issues/808)** — curl-mock harness for adapter behavior tests
+- **DISS-001/002/003 BLOCKING** (Sprint 1B verify cross-model review) — Sprint 1A test-quality debt subsumed by execution-level proof
+- **BB iter-4 REFRAME-1** (sprint-1A) — *"Static bash analysis is approaching its ceiling. The next correctness dollar buys execution-level proof, not more static-grep."*
+- **BB iter-2 REFRAME-2** (sprint-1B, vision-024) — prose-vs-structured-marker class
+
+### Sprint 1C Closes (PRD AC, partial — substrate enablement)
+
+This sprint does NOT close any AC directly; it ships the substrate that lets future sprints close ACs that depend on execution-level proof. Specifically unblocks:
+- AC-1.1.test (T1.5 cheval _error_json) → Sprint 2 (post-1C)
+- AC-1.2.test (probe cache integration) → Sprint 2 (post-1C)
+- AC-1.4.* and AC-1.5.* (strict-vs-graceful + audit envelope events) → Sprint 2/3 (post-1C)
+
+### Sprint 1C Deliverables (checkbox list)
+
+- [ ] `tests/lib/curl-mock.sh` — executable curl shim (PATH-prepended), argv + stdin recording, response emission per fixture
+- [ ] `tests/lib/curl-mock-helpers.bash` — bats helpers: `_with_curl_mock <fixture-name>`, `_assert_curl_called_n_times`, `_assert_curl_payload_contains`, `_curl_mock_call_log_path`
+- [ ] `tests/fixtures/curl-mocks/` directory — reference fixtures (`200-ok.yaml`, `400-bad-request.yaml`, `401-unauthorized.yaml`, `429-rate-limited.yaml`, `500-internal.yaml`, `503-unavailable.yaml`, `disconnect.yaml`, `timeout.yaml`, plus 1+ provider-shaped success fixtures for openai / anthropic / google response bodies)
+- [ ] Refactor `tests/unit/model-adapter-max-output-tokens.bats` F10a/F10b/F10c — replace `_extract_function_body_with_signature` awk brace-depth tokenizer with real curl-mock call-shape assertions (closes DISS-002 BLOCKING)
+- [ ] Refactor `tests/unit/flatline-stderr-desuppression.bats` T2 — assert actual stderr stream from mocked provider failure instead of awk-extracted block (closes DISS-003 BLOCKING)
+- [ ] Author `tests/integration/cheval-error-json-shape.bats` — 1 cheval `_error_json` taxonomy mapping test (T1.5 substrate dependency)
+- [ ] `grimoires/loa/runbooks/curl-mock-harness.md` — operator-visible documentation: shim mechanics, helper API, fixture format, usage examples, gotchas (PATH ordering, set -e interactions, hermetic teardown)
+- [ ] CI integration: ensure existing BATS Tests workflow runs the new tests; add a smoke test in `Model Health Probe (PR-scoped)` confirming curl-mock harness doesn't accidentally activate in production (PATH-isolation pin)
+
+### Sprint 1C Acceptance Criteria (testable)
+
+- [ ] **AC-1C.1.test**: `tests/integration/curl-mock-harness.bats::AC1` — `_with_curl_mock 200-ok` activates the shim; subsequent `curl https://api.openai.com/...` returns the fixture's body; deactivation restores real `/usr/bin/curl`. Assertion via `command -v curl` before/during/after.
+- [ ] **AC-1C.2.test**: `tests/integration/curl-mock-harness.bats::AC2` — fixture taxonomy: 200, 4xx (400/401/429), 5xx (500/503), disconnect (`exit 7` per curl spec), timeout (`exit 28`). Each fixture exercised by a separate test; each asserts the correct exit code + body shape.
+- [ ] **AC-1C.3.test**: `tests/integration/curl-mock-harness.bats::AC3` — arbitrary response body file injection: a fixture pointing at `tests/fixtures/curl-mocks/bodies/openai-success.json` produces that exact body verbatim from the shim.
+- [ ] **AC-1C.4.test**: `tests/integration/curl-mock-harness.bats::AC4` — call-log assertions: `_assert_curl_called_n_times 3`, `_assert_curl_payload_contains '"max_output_tokens":32000'`, `_curl_mock_call_log_path` returns a JSONL file with one entry per call (argv array + stdin string + timestamp).
+- [ ] **AC-1C.5.test**: `tests/integration/curl-mock-harness.bats::AC5` — runbook landed at `grimoires/loa/runbooks/curl-mock-harness.md` with required sections (mechanics, helpers, fixtures, usage, gotchas).
+- [ ] **AC-1C.6.test**: full bats corpus regression — 135/135 cycle-102 bats green (109 sprint-1 + 26 sprint-1B post-merge) PLUS new sprint-1C tests; 0 net-new failures vs main.
+- [ ] **AC-1C.7.test**: refactored F10a/F10b/F10c in `model-adapter-max-output-tokens.bats` use curl-mock instead of awk-brace-counter; tests still pass; assertion is on actual curl payload not extracted function body string-shape.
+
+### Sprint 1C Technical Tasks (8 — one beadable unit each)
+
+- [ ] **T1C.1** Author `tests/lib/curl-mock.sh` — bash shim. Reads `LOA_CURL_MOCK_FIXTURE` env (or default to first match in `tests/fixtures/curl-mocks/active/`); parses fixture YAML/JSON for `status_code` / `headers` / `body` / `body_file` / `exit_code` / `delay_seconds`; writes argv + stdin + timestamp to `LOA_CURL_MOCK_CALL_LOG` JSONL; emits response on stdout; exits with configured exit code. Fail-loud if fixture path unset/missing — never silently fall through to real curl. Closes [#808](https://github.com/0xHoneyJar/loa/issues/808) deliverable 1.
+- [ ] **T1C.2** Author `tests/lib/curl-mock-helpers.bash` — bats helpers. `_with_curl_mock <fixture-name>` prepends a tempdir to `PATH` containing a symlink `curl → tests/lib/curl-mock.sh`, exports `LOA_CURL_MOCK_FIXTURE` + `LOA_CURL_MOCK_CALL_LOG`. Teardown via `_teardown_curl_mock` removes tempdir from PATH (NOT via `&&`-chained pattern that bit sprint-1's `ff26be2d`; use `if [[ ... ]]; then ... fi; return 0` per repo convention).
+- [ ] **T1C.3** Author `tests/fixtures/curl-mocks/` — reference fixtures + provider success bodies. Format: YAML with explicit schema. Include `200-ok.yaml`, `400-bad-request.yaml`, `401-unauthorized.yaml`, `429-rate-limited.yaml`, `500-internal.yaml`, `503-unavailable.yaml`, `disconnect.yaml` (exit 7), `timeout.yaml` (exit 28). Provider success bodies under `tests/fixtures/curl-mocks/bodies/` — `openai-success.json`, `anthropic-success.json`, `google-success.json`.
+- [ ] **T1C.4** Author `tests/integration/curl-mock-harness.bats` — exercises the harness itself per AC-1C.1 through AC-1C.5. Self-test before downstream refactors land.
+- [ ] **T1C.5** Refactor `tests/unit/model-adapter-max-output-tokens.bats` F10a/b/c — replace `_extract_function_body_with_signature` awk brace-counter with curl-mock harness; assert each provider's API call binds `_lookup_max_output_tokens` output to the correct payload field via real `_assert_curl_payload_contains` checks. Closes DISS-002 BLOCKING.
+- [ ] **T1C.6** Refactor `tests/unit/flatline-stderr-desuppression.bats` T2 — replace awk block extractor with curl-mock-driven mock provider failure; assert actual stderr stream from `flatline-orchestrator.sh` contains the redirected error. Closes DISS-003 BLOCKING.
+- [ ] **T1C.7** Author `tests/integration/cheval-error-json-shape.bats` — drives cheval through curl-mock against 4xx/5xx/timeout/disconnect fixtures; asserts `_error_json` output matches the typed-error schema (`error_class` taxonomy mapping per SDD §4.1). T1.5 substrate dependency closure.
+- [ ] **T1C.8** Author `grimoires/loa/runbooks/curl-mock-harness.md` — operator-visible runbook. Sections: Background, Shim mechanics (PATH ordering, env vars), Helper API (`_with_curl_mock`, assertions), Fixture format (YAML schema), Usage examples (basic, multi-call, error-class), Gotchas (set -e teardown, hermetic test isolation, parallel-bats safety, NEVER use in production CI for live-network tests).
+
+### Sprint 1C Dependencies
+
+- **Inbound**: Sprint 1A + Sprint 1B SHIPPED (typed-error schema + format_checker + model swap all on main).
+- **Outbound**: Unblocks Sprint 1 carry tasks (T1.3 TS port / T1.5 cheval _error_json wiring / T1.6 operator-visible header / T1.7 audit_emit + log-redactor wiring / T1.8 attacker-routing / T1.10 LOA_DEBUG_MODEL_RESOLUTION trace / T1B.3 live ≥10K-prompt fixture). T1.7 specifically closes the redaction-leak vector documented in Sprint 1B T1B.1 (see `grimoires/loa/NOTES.md` 2026-05-09 Decision Log on T1B.1 contract documented vs T1.7 contract enforced).
+
+### Sprint 1C Risks & Mitigation
+
+| ID | Risk | Mitigation |
+|---|---|---|
+| **S1C.R1** | Shim's PATH manipulation leaks across tests (test pollution) | Hermetic teardown via `if [[ ... ]]; then ... fi; return 0` pattern; explicit PATH save/restore; AC-1C.1 tests teardown explicitly |
+| **S1C.R2** | Shim accidentally activates in production CI / live-network smoke tests | Runbook explicitly NEVER USE IN PRODUCTION section; CI workflow `Model Health Probe (PR-scoped)` adds a smoke test asserting `command -v curl` resolves to `/usr/bin/curl` (not the shim) |
+| **S1C.R3** | Fixture format drift across YAML/JSON variants | Single source of truth: YAML for fixtures (consistent with `tests/fixtures/model-resolution/*.yaml` per cycle-099 sprint-1D); JSON only for provider response bodies (matches real provider output) |
+| **S1C.R4** | Refactored F10a/b/c regressions silently pass via mock-everything | AC-1C.7 explicitly asserts the refactor's PAYLOAD content matches what the original tests asserted (via `_assert_curl_payload_contains`); positive-control tests compare extracted-payload to expected-payload directly |
+| **S1C.R5** | Test parallelism: bats parallel mode collides on PATH/env | Helpers use `mktemp -d` per-test for shim location; LOA_CURL_MOCK_CALL_LOG includes `$BATS_TEST_NUMBER` in path |
+
+### Sprint 1C Success Metrics
+
+- 8/8 deliverables checked
+- AC-1C.1 through AC-1C.7 all green
+- 0 regressions on 135 cycle-102 bats
+- 3+ sprint-1 tests refactored to use curl-mock harness (DISS-002 + DISS-003 closed; AC-1C.7 demonstrates pattern)
+- Runbook landed at expected path
+- CI workflow updated to include curl-mock harness in BATS Tests; PATH-isolation smoke test in Model Health Probe
+
+### Sprint 1C Definition of Done
+
+Same shape as Sprint 1A/1B: deliverables checked + AC tests green + `/review-sprint sprint-1C` APPROVED + `/audit-sprint sprint-1C` APPROVED + Bridgebuilder kaironic plateau on the sprint PR + ship/no-ship in NOTES.md + beads tasks closed (manual fallback per #661).
+
 ---
 
 ## Sprint 2 — Capability-Class Registry + Extension Mechanism
