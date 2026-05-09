@@ -111,10 +111,39 @@ assert d['files_after'] == [], f'expected empty list, got {d[\"files_after\"]}'
 "
 }
 
-@test "P4: probe_fn raising -> fail-open (AVAILABLE + PROBE_LAYER_DEGRADED)" {
+@test "P4: probe_fn raising -> fail-open (AVAILABLE + DEGRADED_PARTIAL — typed taxonomy member)" {
+    # BB iter-1 FIND-002 (high) closure: error_class MUST be a member of
+    # the model-error.schema.json typed taxonomy (10 classes). An earlier
+    # draft used the synthetic value PROBE_LAYER_DEGRADED here, which would
+    # have been rejected at audit-emit. DEGRADED_PARTIAL is the correct
+    # typed class for fail-open probe-layer outcomes (caller proceeds with
+    # WARN). Test pins the cross-subsystem vocabulary contract.
     out="$(_drive probe_fn_raises_fail_open 2>/dev/null)"
     echo "$out" | _assert_json outcome '"AVAILABLE"'
-    echo "$out" | _assert_json error_class '"PROBE_LAYER_DEGRADED"'
+    echo "$out" | _assert_json error_class '"DEGRADED_PARTIAL"'
+}
+
+@test "P4b: error_class returned by probe-cache is a member of model-error.schema.json enum (FIND-002 contract pin)" {
+    # Producer/consumer vocabulary contract: every error_class the probe
+    # cache emits MUST be in the typed taxonomy. This test enumerates the
+    # constants exposed by the lib and validates each against the schema.
+    pushd "$WORK_DIR" >/dev/null
+    mkdir -p .claude
+    schema="$PROJECT_ROOT/.claude/data/trajectory-schemas/model-error.schema.json"
+    "$PYTHON_BIN" -I -c "
+import importlib.util, json, sys
+spec = importlib.util.spec_from_file_location('mpc', '$PROJECT_ROOT/.claude/scripts/lib/model-probe-cache.py')
+m = importlib.util.module_from_spec(spec)
+sys.modules['mpc'] = m
+spec.loader.exec_module(m)
+schema = json.load(open('$schema'))
+allowed = set(schema['properties']['error_class']['enum'])
+for name in ('ERROR_CLASS_PROBE_DEGRADED', 'ERROR_CLASS_LOCAL_NETWORK'):
+    val = getattr(m, name)
+    assert val in allowed, f'{name}={val!r} NOT in schema enum {sorted(allowed)}'
+print('OK: probe-cache error_class constants conform to schema')
+"
+    popd >/dev/null
 }
 
 @test "P5: provider name validation rejects path traversal + null bytes + empty" {

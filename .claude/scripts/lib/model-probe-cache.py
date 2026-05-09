@@ -84,7 +84,18 @@ PROBE_RESULT_KEYS = (
     "ts_utc",
     "cached",
 )
-ERROR_CLASS_PROBE_DEGRADED = "PROBE_LAYER_DEGRADED"
+# Both values MUST be members of the model-error.schema.json enum (10
+# typed classes per cycle-102 SDD §4.1). BB iter-1 FIND-002 caught a
+# producer/consumer vocabulary drift here: an earlier draft emitted
+# the synthetic value PROBE_LAYER_DEGRADED, which the audit envelope
+# would have rejected at the schema boundary — exactly the silent-
+# degradation pattern this cycle is built to prevent.
+#
+# DEGRADED_PARTIAL is the correct typed class for fail-open probe-layer
+# outcomes (probe couldn't reach this specific provider, but invocation
+# proceeds with WARN). LOCAL_NETWORK_FAILURE is a typed class in its
+# own right (whole-runner-no-internet preflight, fail-fast).
+ERROR_CLASS_PROBE_DEGRADED = "DEGRADED_PARTIAL"
 ERROR_CLASS_LOCAL_NETWORK = "LOCAL_NETWORK_FAILURE"
 
 

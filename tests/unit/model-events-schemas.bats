@@ -44,6 +44,11 @@ setup() {
     "$PYTHON_BIN" -c "import jsonschema" 2>/dev/null \
         || skip "jsonschema not available in $PYTHON_BIN"
 
+    # BB iter-1 FIND-001 (medium): REPO_ROOT export MUST be inside setup()
+    # so it picks up the freshly-assigned PROJECT_ROOT for this test run,
+    # not whatever the caller's env had at file-load time.
+    export REPO_ROOT="$PROJECT_ROOT"
+
     WORK_DIR="$(mktemp -d)"
 }
 
@@ -96,8 +101,12 @@ sys.exit(0)
 " "$schema_path" "$payload"
 }
 
-# Set REPO_ROOT for the helper
-export REPO_ROOT="$PROJECT_ROOT"
+# BB iter-1 FIND-001 (medium): REPO_ROOT was exported here at file load
+# time, but PROJECT_ROOT is assigned in setup() — making the export
+# read whatever was inherited from the caller's env (or empty). bats
+# files have two execution phases (load + setup); env exports outside
+# setup() leak the host's state into tests. Moved into setup() below
+# so the export is correctly ordered after PROJECT_ROOT assignment.
 
 # -----------------------------------------------------------------------------
 # Schema integrity (Draft 2020-12 well-formedness)

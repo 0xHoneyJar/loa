@@ -41,10 +41,13 @@ setup() {
     # Source it. The function is now callable.
     # shellcheck disable=SC1090
     source "$HELPER_FILE"
+
+    WORK_DIR="$(mktemp -d)"
 }
 
 teardown() {
     [[ -n "${HELPER_FILE:-}" && -f "$HELPER_FILE" ]] && rm -f "$HELPER_FILE"
+    [[ -n "${WORK_DIR:-}" && -d "$WORK_DIR" ]] && rm -rf "$WORK_DIR"
 }
 
 # -----------------------------------------------------------------------------
@@ -110,10 +113,22 @@ teardown() {
 # F9 — Defense-in-depth: invalid input rejected, returns default
 # -----------------------------------------------------------------------------
 
-@test "F9a: provider with shell metas rejected" {
-    # ; rm -rf attempt: the helper validates provider against ^[a-z][a-z0-9_]*$
-    result="$(_lookup_max_output_tokens 'openai;rm -rf /' gpt-5.5-pro 8000)"
-    [ "$result" = "8000" ]
+@test "F9a: provider with shell metas rejected (output AND side-effect safe)" {
+    # BB iter-1 F13 (medium): output-safety alone is insufficient. A naive
+    # implementation could `eval "$provider"` BEFORE returning the default,
+    # and this test would still pass on the output but the injection would
+    # have already executed. Add a sentinel-file check to assert the
+    # injected command did NOT execute as a side effect.
+    local sentinel="${WORK_DIR:-/tmp}/f9a-sentinel-$$"
+    : > "$sentinel"
+    # The injection attempt tries to `touch /tmp/PWNED-f9a` via command
+    # substitution + path-traversal. If the helper executes it (eval/$()
+    # path), /tmp/PWNED-f9a appears.
+    rm -f /tmp/PWNED-f9a
+    result="$(_lookup_max_output_tokens 'openai;rm -f '"$sentinel"' #' gpt-5.5-pro 8000)"
+    [ "$result" = "8000" ]                           # output-safe
+    [ -f "$sentinel" ]                                # side-effect-safe (sentinel survives)
+    rm -f "$sentinel"
 }
 
 @test "F9b: provider with quote rejected" {
@@ -126,9 +141,14 @@ teardown() {
     [ "$result" = "8000" ]
 }
 
-@test "F9d: model_id with shell metas rejected" {
-    result="$(_lookup_max_output_tokens openai 'gpt-5.5-pro$(echo pwn)' 8000)"
+@test "F9d: model_id with shell metas rejected (output AND side-effect safe)" {
+    # F13 strengthening: same side-effect sentinel pattern as F9a.
+    local sentinel="${WORK_DIR:-/tmp}/f9d-sentinel-$$"
+    : > "$sentinel"
+    result="$(_lookup_max_output_tokens openai 'gpt-5.5-pro$(rm -f '"$sentinel"' )' 8000)"
     [ "$result" = "8000" ]
+    [ -f "$sentinel" ]
+    rm -f "$sentinel"
 }
 
 @test "F9e: empty inputs return default" {
@@ -140,29 +160,62 @@ teardown() {
 # F10 — Adapter call sites use the helper (contract pin)
 # -----------------------------------------------------------------------------
 
-@test "F10a: call_openai_api uses _lookup_max_output_tokens (no hardcoded 8000 literal in payload)" {
-    # The new payload formatter must reference the helper output via the
-    # max_output_tokens variable — NOT a literal 8000.
-    # Before the fix: `"max_output_tokens":8000` was hardcoded.
-    # After: payload uses `${max_output_tokens}` substitution.
-    ! grep -E '"max_output_tokens":8000' "$LEGACY_ADAPTER"
+# BB iter-1 F2 (medium) + FIND-006 (medium): the previous F10 tests
+# pinned the EXACT prior-bug literal shape ("max_output_tokens":8000),
+# which would pass trivially after JSON reformatting or literal value
+# changes. The new tests assert the underlying INVARIANT — that the
+# token-count value in each provider's payload is a shell variable
+# expansion ($var or ${var}), not a literal integer. Per Netflix's
+# chaos engineering principle: test the invariant, not the incident.
+#
+# We extract each provider's call_*_api function body via awk, then
+# regex-search for the payload pattern. Scoping to the function body
+# eliminates the FIND-006 hazard of grepping the full file (which
+# matches comments + the helper definition).
+
+# Extract function body by name, between `funcname() {` and the
+# matching `^}`. Returns the body on stdout.
+_extract_function_body() {
+    local funcname="$1"
+    awk -v fn="$funcname" '
+        $0 ~ "^"fn"\\(\\) \\{" { in_fn=1; depth=1; next }
+        in_fn { print }
+        in_fn && /^\}/ { in_fn=0 }
+    ' "$LEGACY_ADAPTER"
 }
 
-@test "F10b: call_google_api uses _lookup_max_output_tokens (no hardcoded 4096)" {
-    # Look for the OLD hardcoded literal `"maxOutputTokens": 4096,` that
-    # was replaced. The new payload uses `${max_output_tokens}` interpolation.
-    ! grep -E '"maxOutputTokens": 4096,' "$LEGACY_ADAPTER"
+@test "F10a: call_openai_api payload max_output_tokens is a shell variable, not a literal" {
+    body="$(_extract_function_body call_openai_api)"
+    # Invariant: the responses-API payload sets max_output_tokens to a
+    # %s/%d formatter that consumes a shell variable, NOT a literal int.
+    # Match either `"max_output_tokens":${var}` or `"max_output_tokens":%s` (printf).
+    echo "$body" | grep -qE '"max_output_tokens":(\$\{?[A-Za-z_][A-Za-z0-9_]*\}?|%[ds])'
+    # Defense-in-depth: still no bare 8000-literal residue
+    ! echo "$body" | grep -qE '"max_output_tokens":8000\b'
 }
 
-@test "F10c: call_anthropic_api uses _lookup_max_output_tokens (no hardcoded 4096)" {
-    # Old: `"max_tokens": 4096,` literal → new: `"max_tokens": ${max_tokens},`.
-    ! grep -E '"max_tokens": 4096,' "$LEGACY_ADAPTER"
+@test "F10b: call_google_api generationConfig.maxOutputTokens is a shell variable" {
+    body="$(_extract_function_body call_google_api)"
+    echo "$body" | grep -qE '"maxOutputTokens":[[:space:]]*\$\{?[A-Za-z_][A-Za-z0-9_]*\}?'
+    ! echo "$body" | grep -qE '"maxOutputTokens":[[:space:]]*4096\b'
 }
 
-@test "F10d: at least 3 call sites invoke _lookup_max_output_tokens (one per provider)" {
-    n="$(grep -c '_lookup_max_output_tokens' "$LEGACY_ADAPTER")"
-    # 1 definition + 3 call sites = 4
-    [ "$n" -ge 4 ]
+@test "F10c: call_anthropic_api max_tokens is a shell variable" {
+    body="$(_extract_function_body call_anthropic_api)"
+    echo "$body" | grep -qE '"max_tokens":[[:space:]]*\$\{?[A-Za-z_][A-Za-z0-9_]*\}?'
+    ! echo "$body" | grep -qE '"max_tokens":[[:space:]]*4096\b'
+}
+
+@test "F10d: each provider function body invokes _lookup_max_output_tokens (scoped, not full-file count)" {
+    # FIND-006: scope to per-function body so the test cannot pass via
+    # comments or the helper definition.
+    for fn in call_openai_api call_google_api call_anthropic_api; do
+        body="$(_extract_function_body "$fn")"
+        echo "$body" | grep -qE '_lookup_max_output_tokens\b' || {
+            printf 'FAIL: %s does not invoke _lookup_max_output_tokens\n' "$fn" >&2
+            return 1
+        }
+    done
 }
 
 # -----------------------------------------------------------------------------

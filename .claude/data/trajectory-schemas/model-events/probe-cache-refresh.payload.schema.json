@@ -28,7 +28,7 @@
       "maximum": 30000
     },
     "error_class": {
-      "description": "Populated when outcome=DEGRADED or outcome=FAIL. Same enum as model-error.schema.json. PROBE_LAYER_DEGRADED is a synthetic value for the fail-open probe layer per SDD section 4.2.2 HC2.",
+      "description": "Populated when outcome=DEGRADED or outcome=FAIL. Constrained to the typed taxonomy in model-error.schema.json (10 classes). cycle-102 Sprint 1 BB iter-1 FIND-002: an earlier draft used the synthetic value PROBE_LAYER_DEGRADED here, which would have failed schema validation at audit-emit. The probe-cache library now maps fail-open probe-layer outcomes to DEGRADED_PARTIAL (the correct typed class for 'invocation proceeds with WARN').",
       "$ref": "loa://schemas/model-error/v1.0.0#/properties/error_class"
     },
     "previous_outcome": {

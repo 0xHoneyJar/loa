@@ -48,6 +48,31 @@ def _setup_temp_project(tmpdir: str) -> None:
     os.chdir(tmpdir)
 
 
+class _env_snapshot:
+    """Restore os.environ on context exit.
+
+    BB iter-1 F5 (medium): scenarios mutate os.environ directly. Safe today
+    because each scenario runs in its own subprocess (one-shot CLI), but a
+    future refactor to in-process iteration would silently break test
+    isolation. This context manager makes the per-process assumption
+    explicit and self-documenting; wrap any scenario that touches the env
+    with `with _env_snapshot():`.
+    """
+
+    def __enter__(self) -> "_env_snapshot":
+        self._snapshot = dict(os.environ)
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        # Restore additions/modifications and re-add anything that was deleted.
+        for k in list(os.environ.keys()):
+            if k not in self._snapshot:
+                del os.environ[k]
+        for k, v in self._snapshot.items():
+            if os.environ.get(k) != v:
+                os.environ[k] = v
+
+
 # =============================================================================
 # Scenarios (one entry per test)
 # =============================================================================
@@ -75,23 +100,24 @@ def s_basic_probe_then_cache(tmpdir: str) -> dict:
 
 def s_local_network_failure(tmpdir: str) -> dict:
     _setup_temp_project(tmpdir)
-    mpc = _import_lib()
-    # detect_local_network() override via env var to a known-unreachable port
-    # (port 1 on 127.0.0.1 — refused/closed).
-    os.environ["LOA_PROBE_REACHABILITY_HOST"] = "127.0.0.1"
-    os.environ["LOA_PROBE_REACHABILITY_PORT"] = "1"
-    os.environ["LOA_PROBE_REACHABILITY_TIMEOUT"] = "0.2"
+    with _env_snapshot():
+        mpc = _import_lib()
+        # detect_local_network() override via env var to a known-unreachable port
+        # (port 1 on 127.0.0.1 — refused/closed).
+        os.environ["LOA_PROBE_REACHABILITY_HOST"] = "127.0.0.1"
+        os.environ["LOA_PROBE_REACHABILITY_PORT"] = "1"
+        os.environ["LOA_PROBE_REACHABILITY_TIMEOUT"] = "0.2"
 
-    def fake_fn(provider, model, *, timeout_seconds):
-        # Should NEVER be called when local network preflight fails.
-        raise AssertionError("probe_fn must not be called on local-network failure")
+        def fake_fn(provider, model, *, timeout_seconds):
+            # Should NEVER be called when local network preflight fails.
+            raise AssertionError("probe_fn must not be called on local-network failure")
 
-    r = mpc.probe_provider("openai", "gpt-5.5-pro", probe_fn=fake_fn)
-    return {
-        "outcome": r.outcome,
-        "error_class": r.error_class,
-        "cached": r.cached,
-    }
+        r = mpc.probe_provider("openai", "gpt-5.5-pro", probe_fn=fake_fn)
+        return {
+            "outcome": r.outcome,
+            "error_class": r.error_class,
+            "cached": r.cached,
+        }
 
 
 def s_invalidate(tmpdir: str) -> dict:
@@ -164,37 +190,39 @@ def s_cache_file_mode(tmpdir: str) -> dict:
 def s_runtime_namespacing(tmpdir: str) -> dict:
     """LOA_PROBE_RUNTIME=bash makes cache write to bash-<provider>.json."""
     _setup_temp_project(tmpdir)
-    os.environ["LOA_PROBE_RUNTIME"] = "bash"
-    mpc = _import_lib()
-    assert mpc.RUNTIME == "bash"
+    with _env_snapshot():
+        os.environ["LOA_PROBE_RUNTIME"] = "bash"
+        mpc = _import_lib()
+        assert mpc.RUNTIME == "bash"
 
-    def fake_fn(provider, model, *, timeout_seconds):
-        return ("AVAILABLE", 50, None)
+        def fake_fn(provider, model, *, timeout_seconds):
+            return ("AVAILABLE", 50, None)
 
-    mpc.probe_provider("openai", "gpt-5.5-pro", probe_fn=fake_fn, skip_local_network_check=True)
-    cache_dir = Path(tmpdir) / ".run" / "model-probe-cache"
-    files = sorted(p.name for p in cache_dir.iterdir() if not p.name.endswith(".lock"))
-    return {"files": files}
+        mpc.probe_provider("openai", "gpt-5.5-pro", probe_fn=fake_fn, skip_local_network_check=True)
+        cache_dir = Path(tmpdir) / ".run" / "model-probe-cache"
+        files = sorted(p.name for p in cache_dir.iterdir() if not p.name.endswith(".lock"))
+        return {"files": files}
 
 
 def s_runtime_invalid_falls_back(tmpdir: str) -> dict:
     """LOA_PROBE_RUNTIME=quantum (invalid) falls back to python with stderr WARN."""
     _setup_temp_project(tmpdir)
-    os.environ["LOA_PROBE_RUNTIME"] = "quantum"
-    # Capture stderr by redirecting fd 2 to a pipe before importing.
-    import io
+    with _env_snapshot():
+        os.environ["LOA_PROBE_RUNTIME"] = "quantum"
+        # Capture stderr by redirecting fd 2 to a pipe before importing.
+        import io
 
-    saved = sys.stderr
-    buf = io.StringIO()
-    sys.stderr = buf
-    try:
-        mpc = _import_lib()
-    finally:
-        sys.stderr = saved
-    return {
-        "runtime": mpc.RUNTIME,
-        "stderr_warned": "WARN" in buf.getvalue(),
-    }
+        saved = sys.stderr
+        buf = io.StringIO()
+        sys.stderr = buf
+        try:
+            mpc = _import_lib()
+        finally:
+            sys.stderr = saved
+        return {
+            "runtime": mpc.RUNTIME,
+            "stderr_warned": "WARN" in buf.getvalue(),
+        }
 
 
 def s_stale_while_revalidate(tmpdir: str) -> dict:
