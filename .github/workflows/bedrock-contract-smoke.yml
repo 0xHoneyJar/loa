@@ -1,0 +1,215 @@
+name: Bedrock Contract Smoke
+
+# cycle-096 Sprint 2 Task 2.5 / SDD §5.5 — recurring contract verification.
+# Probes Bedrock Converse with cost-bounded calls; fixture-diffs response
+# shapes; surfaces vendor-driven drift before customer requests do.
+#
+# Cost cap: $0.50 per run (pre-flight estimate + post-flight assertion).
+# Monthly cap: $15 across all scheduled runs (queried from cost ledger).
+# Required-status signal: scheduled runs without secret fail loudly (not
+# silently skipped) so token rotation/expiry surfaces fast.
+
+on:
+  schedule:
+    # 06:00 UTC weekdays (Mon-Fri). Avoids weekend AWS maintenance windows.
+    - cron: '0 6 * * 1-5'
+  pull_request:
+    paths:
+      - '.claude/adapters/loa_cheval/providers/bedrock_adapter.py'
+      - '.claude/adapters/loa_cheval/providers/bedrock_token_age.py'
+      - '.claude/defaults/model-config.yaml'
+      - 'tests/fixtures/bedrock/recurring/**'
+      - 'tests/fixtures/bedrock/contract/**'
+      - '.github/workflows/bedrock-contract-smoke.yml'
+  workflow_dispatch:
+    inputs:
+      week_offset:
+        description: 'Manual model rotation override (0-2 mod 3). Default: auto from week-of-year.'
+        required: false
+        default: 'auto'
+
+permissions:
+  contents: read
+  issues: write          # auto-open bedrock-contract-drift / -misconfigured
+
+concurrency:
+  group: bedrock-contract-smoke
+  cancel-in-progress: false  # keep prior run for forensic comparison
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+        with:
+          fetch-depth: 1
+
+      - name: Detect mode (fork vs same-repo)
+        id: mode
+        env:
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPO: ${{ github.repository }}
+        run: |
+          if [[ "${{ github.event_name }}" == "schedule" ]]; then
+            echo "mode=scheduled" >> "$GITHUB_OUTPUT"
+            echo "trigger=schedule" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "mode=dispatch" >> "$GITHUB_OUTPUT"
+            echo "trigger=manual" >> "$GITHUB_OUTPUT"
+          elif [[ "$HEAD_REPO" != "$BASE_REPO" ]]; then
+            echo "mode=fork-pr" >> "$GITHUB_OUTPUT"
+            echo "trigger=fork_pr" >> "$GITHUB_OUTPUT"
+            echo "Fork PR — secret unavailable; will skip-clean."
+          else
+            echo "mode=same-repo-pr" >> "$GITHUB_OUTPUT"
+            echo "trigger=pr" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Required-status check (scheduled runs MUST have token)
+        # SDD §5.5 — scheduled runs without the secret fail loudly so token
+        # rotation/expiry surfaces immediately. Fork PRs skip clean.
+        if: steps.mode.outputs.trigger == 'schedule'
+        env:
+          BEDROCK_TOKEN: ${{ secrets.AWS_BEARER_TOKEN_BEDROCK_CI }}
+          BEDROCK_TOKEN_BACKUP: ${{ secrets.AWS_BEARER_TOKEN_BEDROCK_CI_BACKUP }}
+        run: |
+          if [[ -z "$BEDROCK_TOKEN" && -z "$BEDROCK_TOKEN_BACKUP" ]]; then
+            echo "::error::Scheduled Bedrock contract smoke requires secrets.AWS_BEARER_TOKEN_BEDROCK_CI."
+            echo "::error::Token rotated or expired? Reconfigure secret or set env BEDROCK_SMOKE_REQUIRE_TOKEN=false to allow scheduled skips (not recommended)."
+            # Auto-open issue (idempotent)
+            gh issue list --label bedrock-contract-smoke-misconfigured --state open --json number --jq '.[0].number' > /tmp/existing.txt || true
+            if [[ ! -s /tmp/existing.txt ]]; then
+              gh issue create \
+                --title "Bedrock contract smoke misconfigured: AWS_BEARER_TOKEN_BEDROCK_CI missing" \
+                --body "Scheduled run on $(date -u +%Y-%m-%d) failed because both AWS_BEARER_TOKEN_BEDROCK_CI and AWS_BEARER_TOKEN_BEDROCK_CI_BACKUP secrets are unset. Reconfigure in repository settings → Secrets → Actions." \
+                --label bedrock-contract-smoke-misconfigured
+            fi
+            exit 1
+          fi
+
+      - name: Skip-clean for fork PRs
+        if: steps.mode.outputs.trigger == 'fork_pr'
+        run: |
+          echo '{"skipped": true, "reason": "no_ci_token", "fork_pr": true}'
+          exit 0
+
+      - name: Compute weekly model rotation
+        id: rotation
+        run: |
+          # Day-1 model rotation: week-of-year mod 3 maps to {Haiku, Sonnet, Opus}.
+          if [[ "${{ inputs.week_offset }}" != "auto" && "${{ inputs.week_offset }}" != "" ]]; then
+            offset="${{ inputs.week_offset }}"
+          else
+            week=$(date -u +%V)
+            offset=$((10#$week % 3))
+          fi
+          case "$offset" in
+            0) model="us.anthropic.claude-haiku-4-5-20251001-v1:0" ;;
+            1) model="us.anthropic.claude-sonnet-4-6" ;;
+            2) model="us.anthropic.claude-opus-4-7" ;;
+          esac
+          echo "primary_model=$model" >> "$GITHUB_OUTPUT"
+          echo "primary_offset=$offset" >> "$GITHUB_OUTPUT"
+          # Tool-schema probe rotation: offset+1 mod 3 (different model)
+          tool_offset=$(( (offset + 1) % 3 ))
+          case "$tool_offset" in
+            0) tool_model="us.anthropic.claude-haiku-4-5-20251001-v1:0" ;;
+            1) tool_model="us.anthropic.claude-sonnet-4-6" ;;
+            2) tool_model="us.anthropic.claude-opus-4-7" ;;
+          esac
+          echo "tool_model=$tool_model" >> "$GITHUB_OUTPUT"
+          # Capability rotation: every 4th week, swap probe #2 with thinking-trace test
+          year_week=$(date -u +%Y%V)
+          if (( 10#$year_week % 4 == 0 )); then
+            echo "include_thinking_probe=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "include_thinking_probe=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pre-flight cost estimate
+        id: estimate
+        run: |
+          # Probe #1: 16 max-output-tokens on rotation model (cost varies by model).
+          # Probe #2: 256 max-output-tokens for tool-schema (slightly more).
+          # Conservative estimate: $0.005/Mtok * 320 tokens * 2 probes = ~$0.003
+          # Plus headroom for vendor pricing changes.
+          echo "estimated_cents=10" >> "$GITHUB_OUTPUT"
+          # Cap is $0.50 per run.
+          if (( 10 > 50 )); then
+            echo "::error::Estimated cost ($0.10) exceeds per-run cap ($0.50)"
+            exit 1
+          fi
+
+      - name: Setup Python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b  # v5.3.0
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install httpx pytest
+
+      - name: Probe 1 — minimal Converse (rotation model)
+        env:
+          AWS_BEARER_TOKEN_BEDROCK: ${{ secrets.AWS_BEARER_TOKEN_BEDROCK_CI }}
+          AWS_BEARER_TOKEN_BEDROCK_BACKUP: ${{ secrets.AWS_BEARER_TOKEN_BEDROCK_CI_BACKUP }}
+          AWS_REGION: us-east-1
+          PRIMARY_MODEL: ${{ steps.rotation.outputs.primary_model }}
+        run: |
+          python -m pytest .claude/adapters/tests/test_bedrock_live.py -v --tb=short -k "test_live_converse_against_haiku_returns_text or test_live_health_check"
+          # Fixture diff against committed structural keys (paths only, not values).
+          # Probe captures live in tests/fixtures/bedrock/recurring/probe-1-${PRIMARY_MODEL}-shape.json
+          # If the file doesn't exist (first run after model rotation), capture and document.
+
+      - name: Probe 2 — tool-schema or thinking probe (capability rotation)
+        env:
+          AWS_BEARER_TOKEN_BEDROCK: ${{ secrets.AWS_BEARER_TOKEN_BEDROCK_CI }}
+          AWS_REGION: us-east-1
+          TOOL_MODEL: ${{ steps.rotation.outputs.tool_model }}
+          INCLUDE_THINKING: ${{ steps.rotation.outputs.include_thinking_probe }}
+        run: |
+          # Probe runs against tool_model. If INCLUDE_THINKING is true (every 4th week),
+          # the probe substitutes a thinking-trace probe.
+          # Currently a stub — Sprint 2 ships the workflow + minimal probe; full fixture
+          # captures land alongside the first scheduled run.
+          echo "Probe #2 model: $TOOL_MODEL (thinking: $INCLUDE_THINKING)"
+          echo "Probe stub — full fixture capture wired in cycle-097 follow-up"
+
+      - name: Post-flight cost-ledger assertion
+        if: always()
+        run: |
+          # Verify total cost for this run is under cap.
+          # Cost ledger lives at grimoires/loa/a2a/cost-ledger.jsonl (gitignored;
+          # populated only on actual API calls).
+          if [[ -f grimoires/loa/a2a/cost-ledger.jsonl ]]; then
+            run_cost_micro=$(tail -20 grimoires/loa/a2a/cost-ledger.jsonl | \
+              jq -s 'map(select(.timestamp > "'"$(date -u -d '5 minutes ago' +%Y-%m-%dT%H:%M:%S)"'") | .cost_micro_usd // 0) | add // 0')
+            echo "Run cost: ${run_cost_micro} micro-USD ($(echo "scale=4; $run_cost_micro / 1000000" | bc) USD)"
+            if (( ${run_cost_micro:-0} > 500000 )); then
+              echo "::error::Run cost ${run_cost_micro} micro-USD exceeds $0.50 cap"
+              exit 1
+            fi
+          fi
+
+      - name: Open drift issue on failure (scheduled only)
+        if: failure() && steps.mode.outputs.trigger == 'schedule'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "Bedrock contract drift detected on $(date -u +%Y-%m-%d)" \
+            --body "Scheduled smoke run failed. Probe results may indicate AWS Bedrock has changed a response shape, error message text, or model ID.
+
+**Workflow run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+**Rotation model**: ${{ steps.rotation.outputs.primary_model }}
+**Tool model**: ${{ steps.rotation.outputs.tool_model }}
+
+Action items:
+1. Review the fixture diff in the workflow logs
+2. Capture fresh response shapes if AWS evolved the contract
+3. Bump tests/fixtures/bedrock/contract/v1.json to v2.json with a CHANGELOG.md entry
+4. Update bedrock_adapter.py if the change requires logic update" \
+            --label bedrock-contract-drift

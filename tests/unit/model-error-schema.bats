@@ -54,6 +54,11 @@ setup() {
     "$PYTHON_BIN" -c "import jsonschema" 2>/dev/null \
         || skip "jsonschema not available in $PYTHON_BIN"
 
+    # BB iter-2 FIND-006 (low): the E13 / E21 tests use jq to build payloads.
+    # Without a preflight check, hosts without jq get cryptic
+    # `command not found` errors mid-test instead of a clean skip/fail.
+    command -v jq >/dev/null 2>&1 || skip "jq not installed (required for payload-building tests)"
+
     WORK_DIR="$(mktemp -d)"
 }
 
@@ -260,15 +265,27 @@ _validate_sh() {
 # E21 — TAXONOMY COMPLETENESS: all 10 error_class values accepted
 # -----------------------------------------------------------------------------
 
-@test "E21: all 10 error_class enum values accepted (with paired original_exception for UNKNOWN)" {
-    local classes=(TIMEOUT PROVIDER_DISCONNECT BUDGET_EXHAUSTED ROUTING_MISS CAPABILITY_MISS DEGRADED_PARTIAL FALLBACK_EXHAUSTED PROVIDER_OUTAGE LOCAL_NETWORK_FAILURE)
+@test "E21: every enum value in the schema is accepted (read from schema, not hardcoded)" {
+    # BB iter-2 F1 (low): reads the enum from the schema at test time so
+    # adding an 11th class can't silently bypass coverage. UNKNOWN is
+    # handled separately because of the conditional original_exception
+    # coupling — the loop skips it and the explicit case below covers it.
+    local classes
+    mapfile -t classes < <(jq -r '.properties.error_class.enum[]' "$SCHEMA")
+    [ "${#classes[@]}" -ge 10 ] || {
+        printf 'schema has fewer than 10 error_class values — taxonomy regression?\n' >&2
+        return 1
+    }
     local cls
     for cls in "${classes[@]}"; do
+        if [[ "$cls" == "UNKNOWN" ]]; then
+            continue   # covered explicitly below (requires original_exception)
+        fi
         local payload
         payload="$(jq -nc --arg c "$cls" '{error_class:$c,severity:"WARN",message_redacted:"x",provider:"openai",model:"m"}')"
         run _validate_py "$payload"
         [ "$status" -eq 0 ] || {
-            printf 'FAIL: error_class=%s rejected, expected accepted\n' "$cls" >&2
+            printf 'FAIL: error_class=%s (from schema enum) rejected, expected accepted\n' "$cls" >&2
             return 1
         }
     done

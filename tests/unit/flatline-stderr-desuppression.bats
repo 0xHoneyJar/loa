@@ -29,13 +29,26 @@ setup() {
     bash -n "$ORCHESTRATOR"
 }
 
-@test "T2: rt_pipeline invocation does NOT carry --json 2>/dev/null suppression" {
-    # Look for the multi-line rt_result=$(\"\$rt_pipeline\" ... --json ...) block
-    # and confirm the closing line does NOT have `--json 2>/dev/null)`.
-    # We allow `--json)` on its own (de-suppressed) and we forbid the old form.
-    ! grep -E '\$rt_pipeline.*2>/dev/null' "$ORCHESTRATOR"
-    # Specific old-form check
-    ! grep -E '^[[:space:]]+--json 2>/dev/null\) \|\|' "$ORCHESTRATOR"
+@test "T2: rt_pipeline invocation block has NO fd-2-to-/dev/null redirect (FIND-007)" {
+    # BB iter-2 FIND-007 (low): the prior assertion only forbade same-line
+    # `$rt_pipeline.*2>/dev/null`. Equivalent forms could slip through:
+    #   2> /dev/null            (space)
+    #   `(\$rt_pipeline ...) 2>/dev/null`   (subshell-level)
+    #   `{ ...; } 2>/dev/null`  (block-level)
+    # Now we extract the rt_result=$(...) block (from `rt_result=$(` line
+    # through the matching `)`-after-rt_pipeline-args) and assert NO
+    # fd-2 redirect appears anywhere within it.
+    block="$(awk '
+        /rt_result=\$\("\$rt_pipeline"/ { in_blk=1 }
+        in_blk { print }
+        in_blk && /\) \|\| {/ { exit }
+    ' "$ORCHESTRATOR")"
+    [ -n "$block" ] || {
+        printf 'FAIL: could not locate rt_result=$(...) block — anchor changed?\n' >&2
+        return 1
+    }
+    # Forbid all flavors of fd-2 → /dev/null (with or without space).
+    ! echo "$block" | grep -qE '2>[[:space:]]*/dev/null'
 }
 
 @test "T3: de-suppression rationale comment anchored (regression guard)" {

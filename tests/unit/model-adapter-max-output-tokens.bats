@@ -29,10 +29,15 @@ setup() {
     command -v yq >/dev/null 2>&1 || skip "yq not installed (legacy lookup helper requires it)"
 
     # Source ONLY the helper function (sourcing the whole adapter exits via
-    # validate_model_registry / loads API keys). Extract the helper with a
-    # narrow awk slice between its sentinel comments.
+    # validate_model_registry / loads API keys). Use the depth-tracking
+    # extractor (defined below — see _extract_function_body_with_signature)
+    # so a column-0 `}` inside a heredoc/comment doesn't truncate.
+    # BB iter-2 F10 (med) + FIND-008 (low): the prior awk slice
+    # `/^_lookup_max_output_tokens\(\)/,/^}/` matched the FIRST column-0
+    # `}` after the function start — fragile to nested blocks, heredocs,
+    # or column-0 `}` in comments. Now we use a brace-depth counter.
     HELPER_FILE="$(mktemp)"
-    awk '/^_lookup_max_output_tokens\(\)/,/^}/' "$LEGACY_ADAPTER" > "$HELPER_FILE"
+    _extract_function_body_with_signature _lookup_max_output_tokens "$LEGACY_ADAPTER" > "$HELPER_FILE"
 
     # The helper depends on $SCRIPT_DIR; export it to point at the real adapter dir
     # so the helper finds .claude/defaults/model-config.yaml.
@@ -173,15 +178,50 @@ teardown() {
 # eliminates the FIND-006 hazard of grepping the full file (which
 # matches comments + the helper definition).
 
-# Extract function body by name, between `funcname() {` and the
-# matching `^}`. Returns the body on stdout.
+# Extract function body using a brace-depth counter so nested `{...}`
+# blocks, heredocs, or column-0 `}` in comments don't truncate the
+# slice. BB iter-2 F10/FIND-008 closure: the prior implementation
+# initialized `depth=1` but never updated it; the slice ended at the
+# first `^}` regardless of nesting. The new counter increments on
+# every `{` and decrements on every `}` (in code, not heredoc bodies),
+# closing the function only when depth returns to 0.
+#
+# `_extract_function_body` returns the body WITHOUT the signature line
+# (used by F10a-c which inspect just the inside).
+# `_extract_function_body_with_signature` returns the FULL definition
+# including the `funcname() {` and trailing `}` lines (used by setup()
+# to source the helper).
+_extract_function_body_with_signature() {
+    local funcname="$1"
+    local file="${2:-$LEGACY_ADAPTER}"
+    awk -v fn="$funcname" '
+        BEGIN { in_fn=0; depth=0 }
+        # Function start: matches `funcname() {` at column 0.
+        !in_fn && $0 ~ "^"fn"\\(\\) *\\{" {
+            in_fn=1; depth=1; print; next
+        }
+        in_fn {
+            print
+            # Count braces in code lines. We do NOT attempt full bash
+            # heredoc parsing here — single-quoted heredocs (`<<'EOF'`)
+            # don'"'"'t expand variables, but their bodies can still
+            # contain `{` and `}`. The trade-off: we accept that
+            # heredoc-heavy functions will mis-count and require the
+            # caller to keep the function body free of column-0 `}`
+            # in heredoc bodies. For the legacy-adapter helpers we
+            # ship, this holds.
+            n_open = gsub(/\{/, "&")
+            n_close = gsub(/\}/, "&")
+            depth += n_open - n_close
+            if (depth <= 0) { in_fn=0; exit }
+        }
+    ' "$file"
+}
+
 _extract_function_body() {
     local funcname="$1"
-    awk -v fn="$funcname" '
-        $0 ~ "^"fn"\\(\\) \\{" { in_fn=1; depth=1; next }
-        in_fn { print }
-        in_fn && /^\}/ { in_fn=0 }
-    ' "$LEGACY_ADAPTER"
+    _extract_function_body_with_signature "$funcname" "$LEGACY_ADAPTER" \
+        | sed '1d;$d'   # drop signature + closing brace lines
 }
 
 @test "F10a: call_openai_api payload max_output_tokens is a shell variable, not a literal" {

@@ -123,10 +123,10 @@ assert d['files_after'] == [], f'expected empty list, got {d[\"files_after\"]}'
     echo "$out" | _assert_json error_class '"DEGRADED_PARTIAL"'
 }
 
-@test "P4b: error_class returned by probe-cache is a member of model-error.schema.json enum (FIND-002 contract pin)" {
-    # Producer/consumer vocabulary contract: every error_class the probe
-    # cache emits MUST be in the typed taxonomy. This test enumerates the
-    # constants exposed by the lib and validates each against the schema.
+@test "P4b: every ERROR_CLASS_* constant in the lib is a member of model-error.schema.json enum (FIND-002)" {
+    # BB iter-2 F7 (low) closure: discover constants dynamically rather
+    # than hardcoding. A new ERROR_CLASS_FOO constant added to the lib
+    # without a corresponding schema-enum entry MUST fail this test.
     pushd "$WORK_DIR" >/dev/null
     mkdir -p .claude
     schema="$PROJECT_ROOT/.claude/data/trajectory-schemas/model-error.schema.json"
@@ -138,21 +138,41 @@ sys.modules['mpc'] = m
 spec.loader.exec_module(m)
 schema = json.load(open('$schema'))
 allowed = set(schema['properties']['error_class']['enum'])
-for name in ('ERROR_CLASS_PROBE_DEGRADED', 'ERROR_CLASS_LOCAL_NETWORK'):
-    val = getattr(m, name)
+# Discover constants dynamically — any module-level name starting with
+# ERROR_CLASS_ is treated as a typed-taxonomy reference and validated.
+constants = {n: getattr(m, n) for n in dir(m) if n.startswith('ERROR_CLASS_')}
+assert constants, 'no ERROR_CLASS_* constants found in module — taxonomy regression?'
+for name, val in constants.items():
     assert val in allowed, f'{name}={val!r} NOT in schema enum {sorted(allowed)}'
-print('OK: probe-cache error_class constants conform to schema')
+print(f'OK: all {len(constants)} probe-cache ERROR_CLASS_* constants conform to schema')
 "
     popd >/dev/null
 }
 
-@test "P5: provider name validation rejects path traversal + null bytes + empty" {
+@test "P5: provider name validation rejects path traversal + null bytes + empty (invalidate path)" {
     out="$(_drive provider_validation)"
     echo "$out" | "$PYTHON_BIN" -I -c "
 import json, sys
 d = json.loads(sys.stdin.read())
 for k, v in d.items():
     assert v == 'REJECTED', f'expected REJECTED for {k!r}, got {v!r}'
+"
+}
+
+@test "P5b: provider name validation rejects on probe path AND no files written outside cache (FIND-004)" {
+    # BB iter-2 FIND-004 (med): the probe path WRITES files; an
+    # implementation could reject traversal on invalidate but write
+    # outside the cache dir on probe and the prior P5 wouldn't catch it.
+    out="$(_drive provider_validation_probe_path)"
+    echo "$out" | "$PYTHON_BIN" -I -c "
+import json, sys
+d = json.loads(sys.stdin.read())
+for k, v in d['results'].items():
+    assert v == 'REJECTED', f'expected REJECTED for {k!r} on probe path, got {v!r}'
+assert d['new_files_outside_cache'] == [], (
+    f'FIND-004 violation: traversal-attack provider names created files OUTSIDE '
+    f'.run/model-probe-cache: {d[\"new_files_outside_cache\"]}'
+)
 "
 }
 

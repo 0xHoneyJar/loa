@@ -31,10 +31,18 @@ def _import_lib():
     Python 3.13 dataclass introspection requires the module be registered in
     sys.modules before exec_module. We resolve the lib path relative to the
     project root (which the test harness sets via cwd).
+
+    BB iter-2 F6 (medium): pop any prior registration so the module is
+    re-executed fresh on each call. Earlier behavior reused cached module
+    state across calls (safe today because each scenario runs in its own
+    subprocess, but a future in-process iteration refactor would silently
+    skip module-load-time stderr scenarios — runtime_invalid_falls_back
+    in particular). Explicit pop pre-empts the foot-gun.
     """
     here = Path(__file__).resolve()
     repo_root = here.parents[2]  # tests/helpers/ -> tests/ -> repo
     lib_path = repo_root / ".claude" / "scripts" / "lib" / "model-probe-cache.py"
+    sys.modules.pop("loa_model_probe_cache", None)
     spec = importlib.util.spec_from_file_location("loa_model_probe_cache", str(lib_path))
     module = importlib.util.module_from_spec(spec)
     sys.modules["loa_model_probe_cache"] = module
@@ -170,6 +178,56 @@ def s_provider_validation(tmpdir: str) -> dict:
     return results
 
 
+def s_provider_validation_probe_path(tmpdir: str) -> dict:
+    """BB iter-2 FIND-004 (medium): the probe path WRITES files. Rejecting
+    bad provider names on `invalidate_provider` (read-side) doesn't cover
+    the asymmetric attack surface — an implementation could reject
+    traversal on invalidate while writing outside the cache dir on probe.
+
+    Test: pass malicious provider names to `probe_provider`; assert
+    ValueError AND no files appear outside `.run/model-probe-cache`.
+    """
+    _setup_temp_project(tmpdir)
+    mpc = _import_lib()
+
+    def fake_fn(provider, model, *, timeout_seconds):
+        # Should never be reached for invalid inputs.
+        return ("AVAILABLE", 50, None)
+
+    # Snapshot the project tree before the attack.
+    project_root = Path(tmpdir)
+    cache_dir = project_root / ".run" / "model-probe-cache"
+    snapshot_before = sorted(p.relative_to(project_root).as_posix()
+                             for p in project_root.rglob("*") if p.is_file())
+
+    results = {}
+    for bad in ["../etc/passwd", "foo/bar", "x\x00y", "..", "/absolute/path"]:
+        try:
+            mpc.probe_provider(
+                bad, "any-model",
+                probe_fn=fake_fn,
+                skip_local_network_check=True,
+            )
+            results[bad] = "ACCEPTED"  # bad — would have written to disk
+        except ValueError:
+            results[bad] = "REJECTED"
+        except Exception as e:
+            results[bad] = f"ERR:{type(e).__name__}"
+
+    snapshot_after = sorted(p.relative_to(project_root).as_posix()
+                            for p in project_root.rglob("*") if p.is_file())
+    new_files = [p for p in snapshot_after if p not in snapshot_before]
+    # Any new files MUST live under .run/model-probe-cache/ (i.e., the
+    # cache dir was created legitimately by the helper, but no traversal
+    # write succeeded).
+    new_outside_cache = [p for p in new_files
+                         if not p.startswith(".run/model-probe-cache/")]
+    return {
+        "results": results,
+        "new_files_outside_cache": new_outside_cache,
+    }
+
+
 def s_cache_file_mode(tmpdir: str) -> dict:
     """Cache dir is 0700; file is 0600."""
     _setup_temp_project(tmpdir)
@@ -280,6 +338,7 @@ SCENARIOS = {
     "invalidate": s_invalidate,
     "probe_fn_raises_fail_open": s_probe_fn_raises_fail_open,
     "provider_validation": s_provider_validation,
+    "provider_validation_probe_path": s_provider_validation_probe_path,
     "cache_file_mode": s_cache_file_mode,
     "runtime_namespacing": s_runtime_namespacing,
     "runtime_invalid_falls_back": s_runtime_invalid_falls_back,

@@ -41,12 +41,17 @@ setup() {
     else
         PYTHON_BIN="${PYTHON_BIN:-python3}"
     fi
-    "$PYTHON_BIN" -c "import jsonschema" 2>/dev/null \
-        || skip "jsonschema not available in $PYTHON_BIN"
+    # BB iter-2 FIND-002 (med): preflight MUST run under the same flags
+    # and import paths as the validation step itself. The validator runs
+    # `python -I` (isolated mode — no PYTHONPATH / user-site) and imports
+    # both jsonschema.Draft202012Validator and referencing.Registry.
+    # Earlier preflight checked `import jsonschema` (no -I, missing
+    # referencing) — could pass on a host where PYTHONPATH-shimmed
+    # jsonschema is visible but isolated-mode misses both modules,
+    # then fail mid-test. Now the preflight is identical to the runtime.
+    "$PYTHON_BIN" -I -c "from jsonschema import Draft202012Validator; import referencing" 2>/dev/null \
+        || skip "jsonschema (Draft202012Validator) + referencing not available under python -I"
 
-    # BB iter-1 FIND-001 (medium): REPO_ROOT export MUST be inside setup()
-    # so it picks up the freshly-assigned PROJECT_ROOT for this test run,
-    # not whatever the caller's env had at file-load time.
     export REPO_ROOT="$PROJECT_ROOT"
 
     WORK_DIR="$(mktemp -d)"
@@ -91,7 +96,25 @@ for rel in [
 schema = load(sys.argv[1])
 payload = json.loads(sys.argv[2])
 
-v = Draft202012Validator(schema, registry=registry)
+# BB iter-2 FIND-003 (med): without format_checker, JSON Schema
+# 'format: date-time' constraints are silently ignored. The bundled
+# Draft202012Validator.FORMAT_CHECKER ships date/email/uuid/etc. but
+# NOT date-time (date-time validation requires rfc3339-validator,
+# which we don't want to add as a hard dep just for tests). Register
+# a local date-time checker that uses datetime.fromisoformat for
+# ISO-8601 enforcement.
+import datetime
+fc = Draft202012Validator.FORMAT_CHECKER
+
+@fc.checks('date-time', raises=Exception)
+def _check_date_time(s):
+    if not isinstance(s, str):
+        return True
+    # fromisoformat accepts ISO-8601 incl. microseconds; substitute Z
+    # with +00:00 (Python <3.11 doesn't accept Z directly; 3.11+ does).
+    return datetime.datetime.fromisoformat(s.replace('Z', '+00:00'))
+
+v = Draft202012Validator(schema, registry=registry, format_checker=fc)
 errs = list(v.iter_errors(payload))
 if errs:
     for e in errs:
@@ -100,13 +123,6 @@ if errs:
 sys.exit(0)
 " "$schema_path" "$payload"
 }
-
-# BB iter-1 FIND-001 (medium): REPO_ROOT was exported here at file load
-# time, but PROJECT_ROOT is assigned in setup() — making the export
-# read whatever was inherited from the caller's env (or empty). bats
-# files have two execution phases (load + setup); env exports outside
-# setup() leak the host's state into tests. Moved into setup() below
-# so the export is correctly ordered after PROJECT_ROOT assignment.
 
 # -----------------------------------------------------------------------------
 # Schema integrity (Draft 2020-12 well-formedness)
@@ -293,6 +309,25 @@ print(len(e), 'L1' in e and 'L7' in e and 'MODELINV' in e)
     # Sanity: TIMEOUT (a valid error_class) accepted in models_failed[].error_class
     payload='{"models_requested":["openai:m"],"models_succeeded":[],"models_failed":[{"model":"m","error_class":"TIMEOUT","message_redacted":"x"}],"operator_visible_warn":true}'
     run _validate "$MIC_SCHEMA" "$payload"
+    [ "$status" -eq 0 ]
+}
+
+@test "DT1: format_checker rejects invalid date-time on probe.cache.refresh.ts_utc (FIND-003)" {
+    # 'not-a-date' should be rejected by format_checker — not silently accepted.
+    payload='{"provider":"openai","model":"m","outcome":"AVAILABLE","latency_ms":100,"ts_utc":"not-a-date"}'
+    run _validate "$PR_SCHEMA" "$payload"
+    [ "$status" -eq 78 ]
+}
+
+@test "DT2: format_checker rejects malformed ISO-8601 (impossible 13th month)" {
+    payload='{"provider":"openai","model":"m","outcome":"AVAILABLE","latency_ms":100,"ts_utc":"2026-13-45T00:00:00Z"}'
+    run _validate "$PR_SCHEMA" "$payload"
+    [ "$status" -eq 78 ]
+}
+
+@test "DT3: format_checker accepts a valid ISO-8601 date-time" {
+    payload='{"provider":"openai","model":"m","outcome":"AVAILABLE","latency_ms":100,"ts_utc":"2026-05-09T07:30:00.123456Z"}'
+    run _validate "$PR_SCHEMA" "$payload"
     [ "$status" -eq 0 ]
 }
 
