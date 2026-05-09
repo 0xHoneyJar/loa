@@ -51,15 +51,24 @@ setup() {
     else
         PYTHON_BIN="${PYTHON_BIN:-python3}"
     fi
-    "$PYTHON_BIN" -c "import jsonschema" 2>/dev/null \
-        || skip "jsonschema not available in $PYTHON_BIN"
+    # BB iter-3 FIND-004 (low): align preflight with runtime — both must
+    # use python -I and import the exact modules the validator uses.
+    "$PYTHON_BIN" -I -c "from jsonschema import Draft202012Validator" 2>/dev/null \
+        || skip "jsonschema (Draft202012Validator) not available under python -I"
 
-    # BB iter-2 FIND-006 (low): the E13 / E21 tests use jq to build payloads.
-    # Without a preflight check, hosts without jq get cryptic
-    # `command not found` errors mid-test instead of a clean skip/fail.
-    command -v jq >/dev/null 2>&1 || skip "jq not installed (required for payload-building tests)"
+    # BB iter-3 FIND-003 (med): jq is only required by E13/E13b/E21 (the
+    # payload-building tests). Scoping the skip to those tests via the
+    # _need_jq helper avoids hiding 22+ pure-schema tests behind a setup
+    # skip when a CI image happens to lack jq.
+    HAVE_JQ=1
+    command -v jq >/dev/null 2>&1 || HAVE_JQ=0
 
     WORK_DIR="$(mktemp -d)"
+}
+
+# Per-test jq prereq. Tests that need jq call `_need_jq` first.
+_need_jq() {
+    [[ "${HAVE_JQ:-0}" == "1" ]] || skip "jq not installed (required for this payload-building test)"
 }
 
 teardown() {
@@ -183,17 +192,21 @@ _validate_sh() {
 }
 
 @test "E13: message_redacted > 8192 chars rejected" {
-    # Build a 8193-char string in shell (1 char beyond cap)
+    _need_jq
+    # BB iter-2 F2 (low): build the long string via Python (already a hard
+    # dep) instead of `printf 'x%.0s' $(seq 1 8193)` which spawns a
+    # subshell with 8193 args (ARG_MAX-adjacent on minimal containers).
     local long_msg
-    long_msg="$(printf 'x%.0s' $(seq 1 8193))"
+    long_msg="$("$PYTHON_BIN" -I -c 'print("x"*8193, end="")')"
     payload="$(jq -nc --arg m "$long_msg" '{error_class:"TIMEOUT",severity:"WARN",message_redacted:$m,provider:"openai",model:"m"}')"
     run _validate_py "$payload"
     [ "$status" -eq 78 ]
 }
 
 @test "E13b: message_redacted exactly 8192 chars accepted (boundary)" {
+    _need_jq
     local at_cap
-    at_cap="$(printf 'x%.0s' $(seq 1 8192))"
+    at_cap="$("$PYTHON_BIN" -I -c 'print("x"*8192, end="")')"
     payload="$(jq -nc --arg m "$at_cap" '{error_class:"TIMEOUT",severity:"WARN",message_redacted:$m,provider:"openai",model:"m"}')"
     run _validate_py "$payload"
     [ "$status" -eq 0 ]
@@ -266,6 +279,7 @@ _validate_sh() {
 # -----------------------------------------------------------------------------
 
 @test "E21: every enum value in the schema is accepted (read from schema, not hardcoded)" {
+    _need_jq
     # BB iter-2 F1 (low): reads the enum from the schema at test time so
     # adding an 11th class can't silently bypass coverage. UNKNOWN is
     # handled separately because of the conditional original_exception

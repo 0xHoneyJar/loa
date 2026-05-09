@@ -224,31 +224,90 @@ _extract_function_body() {
         | sed '1d;$d'   # drop signature + closing brace lines
 }
 
-@test "F10a: call_openai_api payload max_output_tokens is a shell variable, not a literal" {
+# BB iter-3 FIND-002 / F8 (med): the previous F10 tests checked for "any
+# shell variable" in the payload AND "_lookup_max_output_tokens called
+# somewhere in the function" — but did NOT bind the two. A buggy
+# implementation could call the helper into one variable and emit a
+# different (typo'd) variable into the payload, and both assertions
+# would still pass. The new helper extracts BOTH names and asserts
+# they match.
+
+# Extract the variable name on the LHS of `<var>=$(_lookup_max_output_tokens ...)`
+# from the function body, returning the first match (functions in this
+# adapter have one helper call per provider).
+_extract_helper_lhs_var() {
+    local body="$1"
+    echo "$body" \
+        | grep -oE '[A-Za-z_][A-Za-z0-9_]*=\$\(_lookup_max_output_tokens\b' \
+        | head -1 \
+        | sed -E 's/=.*$//'
+}
+
+# Extract the variable referenced in a JSON token-count payload field.
+# `field` is the JSON key name (max_output_tokens / maxOutputTokens / max_tokens).
+_extract_payload_var() {
+    local body="$1" field="$2"
+    # Match: "<field>":[whitespace]?(${var}|$var|%s)
+    # Returns the variable name (or "%s" when printf-formatter is used).
+    echo "$body" \
+        | grep -oE '"'"$field"'":[[:space:]]*\$\{?[A-Za-z_][A-Za-z0-9_]*\}?' \
+        | head -1 \
+        | sed -E 's/.*\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?/\1/'
+}
+
+# Assert: helper-LHS-var == payload-emit-var. Both must be present and equal.
+_assert_var_binding() {
+    local fnname="$1" json_field="$2"
+    local body lhs payload_var
+    body="$(_extract_function_body "$fnname")"
+    lhs="$(_extract_helper_lhs_var "$body")"
+    [[ -n "$lhs" ]] || {
+        printf 'FAIL: %s does not assign _lookup_max_output_tokens output to a variable\n' "$fnname" >&2
+        return 1
+    }
+    # printf-style: payload uses %s, then printf args must reference $lhs
+    if echo "$body" | grep -qE '"'"$json_field"'":%[ds]'; then
+        echo "$body" | grep -qE '\$'"$lhs"'\b' || {
+            printf 'FAIL: %s payload uses printf %%s/%%d for "%s" but %%s arg does not reference $%s\n' \
+                "$fnname" "$json_field" "$lhs" >&2
+            return 1
+        }
+        return 0
+    fi
+    # Direct-interpolation style: payload variable name must match LHS.
+    payload_var="$(_extract_payload_var "$body" "$json_field")"
+    [[ -n "$payload_var" ]] || {
+        printf 'FAIL: %s does not interpolate a variable into "%s" payload field\n' "$fnname" "$json_field" >&2
+        return 1
+    }
+    [[ "$payload_var" == "$lhs" ]] || {
+        printf 'FAIL: %s helper-LHS=%s does NOT match payload-emit=$%s — variable typo / drift?\n' \
+            "$fnname" "$lhs" "$payload_var" >&2
+        return 1
+    }
+}
+
+@test "F10a: call_openai_api binds _lookup_max_output_tokens output to max_output_tokens payload field (FIND-002)" {
+    _assert_var_binding call_openai_api max_output_tokens
     body="$(_extract_function_body call_openai_api)"
-    # Invariant: the responses-API payload sets max_output_tokens to a
-    # %s/%d formatter that consumes a shell variable, NOT a literal int.
-    # Match either `"max_output_tokens":${var}` or `"max_output_tokens":%s` (printf).
-    echo "$body" | grep -qE '"max_output_tokens":(\$\{?[A-Za-z_][A-Za-z0-9_]*\}?|%[ds])'
-    # Defense-in-depth: still no bare 8000-literal residue
     ! echo "$body" | grep -qE '"max_output_tokens":8000\b'
 }
 
-@test "F10b: call_google_api generationConfig.maxOutputTokens is a shell variable" {
+@test "F10b: call_google_api binds _lookup_max_output_tokens output to maxOutputTokens payload field (FIND-002)" {
+    _assert_var_binding call_google_api maxOutputTokens
     body="$(_extract_function_body call_google_api)"
-    echo "$body" | grep -qE '"maxOutputTokens":[[:space:]]*\$\{?[A-Za-z_][A-Za-z0-9_]*\}?'
     ! echo "$body" | grep -qE '"maxOutputTokens":[[:space:]]*4096\b'
 }
 
-@test "F10c: call_anthropic_api max_tokens is a shell variable" {
+@test "F10c: call_anthropic_api binds _lookup_max_output_tokens output to max_tokens payload field (FIND-002)" {
+    _assert_var_binding call_anthropic_api max_tokens
     body="$(_extract_function_body call_anthropic_api)"
-    echo "$body" | grep -qE '"max_tokens":[[:space:]]*\$\{?[A-Za-z_][A-Za-z0-9_]*\}?'
     ! echo "$body" | grep -qE '"max_tokens":[[:space:]]*4096\b'
 }
 
-@test "F10d: each provider function body invokes _lookup_max_output_tokens (scoped, not full-file count)" {
-    # FIND-006: scope to per-function body so the test cannot pass via
-    # comments or the helper definition.
+@test "F10d: each provider function body invokes _lookup_max_output_tokens (scoped to function body)" {
+    # iter-1 FIND-006 closure preserved: scope to per-function body so the
+    # count cannot pass via comments or the helper definition.
     for fn in call_openai_api call_google_api call_anthropic_api; do
         body="$(_extract_function_body "$fn")"
         echo "$body" | grep -qE '_lookup_max_output_tokens\b' || {

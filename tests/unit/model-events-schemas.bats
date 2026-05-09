@@ -96,23 +96,32 @@ for rel in [
 schema = load(sys.argv[1])
 payload = json.loads(sys.argv[2])
 
-# BB iter-2 FIND-003 (med): without format_checker, JSON Schema
-# 'format: date-time' constraints are silently ignored. The bundled
-# Draft202012Validator.FORMAT_CHECKER ships date/email/uuid/etc. but
-# NOT date-time (date-time validation requires rfc3339-validator,
-# which we don't want to add as a hard dep just for tests). Register
-# a local date-time checker that uses datetime.fromisoformat for
-# ISO-8601 enforcement.
+# BB iter-3 FIND-001 (med): the prior local date-time checker used
+# bare datetime.fromisoformat, which accepts date-only ('2026-05-09')
+# and naive timestamps without timezone — weaker than RFC 3339's
+# date-time grammar. Tighten by requiring a 'T' separator and an
+# explicit timezone (Z or ±HH:MM) before parsing. (Closes the AWS
+# CloudTrail-style mixed-timezone audit-gap class — see FIND-001
+# faang_parallel.)
 import datetime
+import re
 fc = Draft202012Validator.FORMAT_CHECKER
+
+# RFC 3339 date-time anchor (subset of ISO-8601):
+#   YYYY-MM-DD T|t HH:MM:SS [.fraction] (Z|z|±HH:MM)
+_RFC3339_DATETIME = re.compile(
+    r'^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(\.\d+)?([Zz]|[+-]\d{2}:\d{2})$'
+)
 
 @fc.checks('date-time', raises=Exception)
 def _check_date_time(s):
     if not isinstance(s, str):
         return True
+    if not _RFC3339_DATETIME.match(s):
+        raise ValueError(f'not RFC 3339 date-time: {s!r}')
     # fromisoformat accepts ISO-8601 incl. microseconds; substitute Z
     # with +00:00 (Python <3.11 doesn't accept Z directly; 3.11+ does).
-    return datetime.datetime.fromisoformat(s.replace('Z', '+00:00'))
+    return datetime.datetime.fromisoformat(s.replace('Z', '+00:00').replace('z', '+00:00'))
 
 v = Draft202012Validator(schema, registry=registry, format_checker=fc)
 errs = list(v.iter_errors(payload))
@@ -327,6 +336,27 @@ print(len(e), 'L1' in e and 'L7' in e and 'MODELINV' in e)
 
 @test "DT3: format_checker accepts a valid ISO-8601 date-time" {
     payload='{"provider":"openai","model":"m","outcome":"AVAILABLE","latency_ms":100,"ts_utc":"2026-05-09T07:30:00.123456Z"}'
+    run _validate "$PR_SCHEMA" "$payload"
+    [ "$status" -eq 0 ]
+}
+
+@test "DT4: date-only timestamp rejected (FIND-001 RFC 3339 strictness)" {
+    # BB iter-3 FIND-001: bare fromisoformat accepted '2026-05-09'.
+    # New checker requires the T separator + time + offset.
+    payload='{"provider":"openai","model":"m","outcome":"AVAILABLE","latency_ms":100,"ts_utc":"2026-05-09"}'
+    run _validate "$PR_SCHEMA" "$payload"
+    [ "$status" -eq 78 ]
+}
+
+@test "DT5: naive timestamp without timezone rejected (FIND-001)" {
+    # No Z and no ±HH:MM offset — would silently localize to runner TZ.
+    payload='{"provider":"openai","model":"m","outcome":"AVAILABLE","latency_ms":100,"ts_utc":"2026-05-09T07:30:00"}'
+    run _validate "$PR_SCHEMA" "$payload"
+    [ "$status" -eq 78 ]
+}
+
+@test "DT6: explicit offset accepted (FIND-001 — RFC 3339 allows ±HH:MM)" {
+    payload='{"provider":"openai","model":"m","outcome":"AVAILABLE","latency_ms":100,"ts_utc":"2026-05-09T07:30:00+10:00"}'
     run _validate "$PR_SCHEMA" "$payload"
     [ "$status" -eq 0 ]
 }
