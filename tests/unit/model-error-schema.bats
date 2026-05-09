@@ -176,6 +176,58 @@ _validate_sh() {
     [ "$status" -eq 78 ]
 }
 
+# T1B.2: format_checker enforcement — ts_utc must be RFC 3339 / ISO-8601.
+# Pre-T1B.2 these would silently pass because Draft202012Validator without
+# format_checker treats `format` as advisory.
+
+@test "E10b: ts_utc='not-a-date' rejected (T1B.2 format_checker)" {
+    payload='{"error_class":"TIMEOUT","severity":"WARN","message_redacted":"x","provider":"openai","model":"m","ts_utc":"not-a-date"}'
+    run _validate_py "$payload"
+    [ "$status" -eq 78 ]
+}
+
+@test "E10c: ts_utc='2026-05-08' (date-only, no time) rejected (T1B.2 format_checker)" {
+    payload='{"error_class":"TIMEOUT","severity":"WARN","message_redacted":"x","provider":"openai","model":"m","ts_utc":"2026-05-08"}'
+    run _validate_py "$payload"
+    [ "$status" -eq 78 ]
+}
+
+@test "E10d: ts_utc='2026-05-08T12:00:00' (naive, no tz) rejected (T1B.2 format_checker)" {
+    payload='{"error_class":"TIMEOUT","severity":"WARN","message_redacted":"x","provider":"openai","model":"m","ts_utc":"2026-05-08T12:00:00"}'
+    run _validate_py "$payload"
+    [ "$status" -eq 78 ]
+}
+
+@test "E10e: ts_utc='2026-05-08T12:00:00Z' (well-formed UTC) accepted (T1B.2 positive control)" {
+    payload='{"error_class":"TIMEOUT","severity":"WARN","message_redacted":"x","provider":"openai","model":"m","ts_utc":"2026-05-08T12:00:00Z"}'
+    run _validate_py "$payload"
+    [ "$status" -eq 0 ]
+}
+
+# -----------------------------------------------------------------------------
+# Validator-parity pin (BB iter-2 FIND-001 / F5)
+#
+# T1B.2 routed format_checker enforcement through Python's Draft202012Validator.
+# The bash wrapper at validate-model-error.sh shells out to the same .py
+# entry point, so format_checker SHOULD apply uniformly. BB iter-2 noted
+# the absence of an explicit parity assertion lets a future refactor
+# (e.g., a re-implemented bash validator) regress the contract silently.
+# Pin parity at exit-code level: bash wrapper rejects malformed ts_utc
+# with the same exit 78 the Python path produces.
+# -----------------------------------------------------------------------------
+
+@test "E10f: bash wrapper rejects malformed ts_utc='not-a-date' (T1B.2 validator parity, BB iter-2 FIND-001)" {
+    payload='{"error_class":"TIMEOUT","severity":"WARN","message_redacted":"x","provider":"openai","model":"m","ts_utc":"not-a-date"}'
+    run _validate_sh "$payload"
+    [ "$status" -eq 78 ]
+}
+
+@test "E10g: bash wrapper accepts well-formed UTC ts_utc (T1B.2 validator parity positive control)" {
+    payload='{"error_class":"TIMEOUT","severity":"WARN","message_redacted":"x","provider":"openai","model":"m","ts_utc":"2026-05-08T12:00:00Z"}'
+    run _validate_sh "$payload"
+    [ "$status" -eq 0 ]
+}
+
 # -----------------------------------------------------------------------------
 # E11-E13 — ENUM and LENGTH constraints
 # -----------------------------------------------------------------------------
@@ -380,4 +432,41 @@ _validate_sh() {
     local n
     n="$("$PYTHON_BIN" -I -c "import json; print(len(json.load(open('$SCHEMA'))['properties']['error_class']['enum']))")"
     [ "$n" -eq 10 ]
+}
+
+# -----------------------------------------------------------------------------
+# T1B.1 — Redaction Contract Pins (BB iter-5 FIND-005, re-classified HIGH)
+#
+# The schema's `original_exception` field carries raw stack-trace content
+# from cheval/Python. Audit chain is hash-chain immutable per cycle-098;
+# any leak is permanent. The schema enforces shape only — semantic
+# redaction is emitter responsibility (Sprint 1B T1.7 will wire the
+# log-redactor pass; this test pins the contract for that wiring).
+# -----------------------------------------------------------------------------
+
+@test "X1: schema description for original_exception explicitly mandates emitter redaction (T1B.1 contract pin)" {
+    local desc
+    desc="$("$PYTHON_BIN" -I -c "import json; print(json.load(open('$SCHEMA'))['properties']['original_exception']['description'])")"
+    # The description MUST contain "MUST run" as the explicit emitter clause.
+    [[ "$desc" == *"MUST run this string through lib/log-redactor"* ]]
+    # The description MUST acknowledge audit-chain immutability so future
+    # operators understand WHY redaction is non-negotiable, not just THAT.
+    [[ "$desc" == *"hash-chain immutable"* ]]
+    [[ "$desc" == *"PERMANENT"* ]]
+    # The description MUST NOT contain the previous handwave that suggested
+    # "downstream lint scans audit logs for secret-shaped content and flags
+    # drift" — that aspirational lint never existed and would not be
+    # retroactively useful since the chain is immutable.
+    [[ "$desc" != *"downstream lint scans audit logs"* ]]
+}
+
+@test "X2: log-redactor library exists at BOTH .py and .sh paths the schema references (T1B.1 contract pin, BB iter-1 F1 tightening)" {
+    # The schema description points emitters at lib/log-redactor.{sh,py} —
+    # naming BOTH variants. A shell-emitter that follows the contract
+    # literally hits a missing file if only the .py exists, and vice-versa.
+    # Per BB iter-1 F1 (medium, Test Coverage): contract tests should be at
+    # least as strict as the contract; an OR-permissive test silently
+    # licenses partial implementations. Tighten to AND semantics.
+    [[ -f "$PROJECT_ROOT/.claude/scripts/lib/log-redactor.py" ]]
+    [[ -f "$PROJECT_ROOT/.claude/scripts/lib/log-redactor.sh" ]]
 }

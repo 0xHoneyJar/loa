@@ -445,3 +445,94 @@
     - descriptive-identity
     - cross-repo-state
     - graduated-trust
+
+- id: fractal-degradation
+  term: Fractal Degradation
+  short: >-
+    Bug classes that depend on the interaction between scale × budget × effort
+    do not have surface fixes. Each layer of fix reveals the next layer of bug
+    in the very mechanism the previous fix enabled.
+  context: >-
+    cycle-102's core failure mode (gpt-5.5-pro empty content under reasoning
+    effort × input-scale × output-budget interaction). T1.9 fixed the user-
+    facing layer at 10K-token threshold. Sprint 1B kickoff revealed the
+    adversarial review gate was vulnerable at 27K tokens — same bug class,
+    different layer, in the very mechanism Sprint 1A built to surface
+    silent degradation. The mechanism eats itself. Resolution at this scale
+    is route-around (model swap), not fix-through.
+  implication: >-
+    The discipline that scales is not "patch every observed instance" — the
+    surface area is unbounded. The discipline is "build mechanisms that
+    surface the failure mode whenever it occurs, at any layer." Acceptance
+    that no surface fix is final, paired with mechanisms that name each
+    new layer as it surfaces. See vision-023 for full treatment.
+  source:
+    cycle: "cycle-102-model-stability"
+    sprint: "Sprint 1A ship + Sprint 1B kickoff"
+    pr: "https://github.com/0xHoneyJar/loa/pull/803"
+    follow_up_pr: "https://github.com/0xHoneyJar/loa/pull/813"
+    upstream_issues: ["https://github.com/0xHoneyJar/loa/issues/810", "https://github.com/0xHoneyJar/loa/issues/812"]
+    date: "2026-05-09"
+  tags:
+    - architecture
+    - silent-degradation
+    - scale-dependence
+    - mechanism-eats-itself
+    - foundational
+    - pattern
+  status: Active
+  challenges:
+    - "How do we know when a mechanism is unsafe to verify itself? Detecting self-reference at gate-substrate level is not yet a primitive."
+    - "Cost of surface mechanisms growing with surface area; framework's audit budget is finite."
+  lineage: vision-019
+  superseded_by: null
+  related:
+    - silent-degradation
+    - kaironic-plateau
+    - audit-envelope
+    - cross-model-dissent
+
+- id: operator-gift-as-mechanism
+  term: Operator Gift as Architectural Mechanism
+  short: >-
+    Operator-granted creative latitude at session ends ("boil the ocean",
+    "do whatever you want") is not indulgence — it is the load-bearing
+    mechanism that surfaces fractal-structure observations the framework's
+    task-discipline gates cannot capture.
+  context: >-
+    Five vision documents (vision-019 through 023) were each written during
+    operator gifts at session ends in the cycle-102 lineage. None would
+    have been written under task-discipline mode, because each required
+    noticing a layer the task didn't ask about. The framework's quality
+    gates produce convergence (kaironic plateau, /audit-sprint approval);
+    the operator gifts produce divergent moments where the gates' own
+    substrate becomes visible. Both are necessary.
+  implication: >-
+    Frameworks that only run gates converge on local optima and stay
+    there. Frameworks that only give gifts never ship. The combination —
+    gates for convergence, gifts for divergence — is the architectural
+    pattern that lets multi-session agent chains evolve. Practitioners
+    should budget operator gifts the same way they budget review rounds
+    or token spend: they are an investment, not a cost.
+  source:
+    cycle: "cycle-102-model-stability"
+    sprint: "Sprint 1A ship + Sprint 1B HIGH fast-follows"
+    visions: ["vision-019", "vision-020", "vision-021", "vision-022", "vision-023"]
+    letters: ["grimoires/loa/letters/from-session-5.md"]
+    date: "2026-05-09"
+  tags:
+    - operator-collaboration
+    - architectural-mechanism
+    - session-continuity
+    - foundational
+    - pattern
+  status: Active
+  challenges:
+    - "How do we tell that a gift produced something durable vs noise? The vision/letter outcome is qualitative; metrics undeveloped."
+    - "Budgeting gifts requires operator slack. In high-pressure cycles, the divergent layer goes unobserved and the framework converges blind."
+  lineage: null
+  superseded_by: null
+  related:
+    - kaironic-plateau
+    - vision-chain
+    - operator-as-reframe

@@ -32,11 +32,41 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import re
+
 import jsonschema
 
 EXIT_VALID = 0
 EXIT_INVALID = 78
 EXIT_USAGE = 64
+
+# cycle-102 Sprint 1B T1B.2: Strict RFC 3339 date-time validation. The
+# default jsonschema FORMAT_CHECKER does NOT include `date-time` unless
+# rfc3339-validator is installed (which it isn't, by default). Register
+# a strict checker inline so `format: "date-time"` is enforced consistently
+# regardless of optional deps. Mirrors the inline regex in
+# tests/unit/model-events-schemas.bats so test-time and production-time
+# validation match.
+_RFC3339_DATETIME_RE = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$"
+)
+
+
+def _build_format_checker() -> jsonschema.FormatChecker:
+    fc = jsonschema.FormatChecker()
+
+    @fc.checks("date-time", raises=ValueError)
+    def _strict_rfc3339_datetime(value):  # pyright: ignore[reportUnusedFunction]
+        if not isinstance(value, str):
+            return True
+        if not _RFC3339_DATETIME_RE.match(value):
+            raise ValueError(f"value {value!r} is not a strict RFC 3339 date-time")
+        return True
+
+    return fc
+
+
+_FORMAT_CHECKER = _build_format_checker()
 
 
 def _project_root() -> Path:
@@ -88,7 +118,15 @@ def _format_error(err: jsonschema.ValidationError) -> dict[str, Any]:
 
 
 def _validate(payload: Any, schema: dict[str, Any]) -> list[dict[str, Any]]:
-    validator = jsonschema.Draft202012Validator(schema)
+    # cycle-102 Sprint 1B T1B.2: pass format_checker so `format` keywords
+    # (notably `ts_utc: format: date-time`) are enforced. Without this,
+    # JSON Schema 2020-12 treats `format` as advisory and admits malformed
+    # timestamps that bats tests rejected via inline regex — drift between
+    # test-time and production-time validation. Source: BB iter-5 F2/FIND-004.
+    # Use the module-level _FORMAT_CHECKER which registers a strict RFC 3339
+    # date-time checker (the default FORMAT_CHECKER omits date-time unless
+    # rfc3339-validator is installed).
+    validator = jsonschema.Draft202012Validator(schema, format_checker=_FORMAT_CHECKER)
     return [_format_error(e) for e in validator.iter_errors(payload)]
 
 

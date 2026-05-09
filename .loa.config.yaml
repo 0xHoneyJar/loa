@@ -241,20 +241,22 @@ flatline_protocol:
   # Emergency override: LOA_ADVERSARIAL_REVIEW_ENFORCE=false.
   code_review:
     enabled: true
-    # Restored after sprint-bug-143 fix (2026-05-08). Legacy adapter now sets
-    # max_output_tokens=8000 for /v1/responses (root cause of "Empty response
-    # content" was budget starvation, not jq filter parsing). 900s timeout
-    # added to accommodate gpt-5.5-pro reasoning-class latency on large diffs.
-    # See grimoires/loa/a2a/bug-20260508-i789-e3f89e/.
-    model: gpt-5.5-pro
-    budget_cents: 150
-    timeout_seconds: 900
+    # cycle-102 Sprint 1B T1B.4 (2026-05-09): swapped from gpt-5.5-pro to
+    # claude-opus-4-7. gpt-5.5-pro returns empty content for >=27K-token
+    # inputs at reasoning.effort: medium even with max_output_tokens=32000
+    # (sprint-bug-143 deeper scale-dependent layer; T1.9 threshold verified
+    # only at 10K). Opus has no documented empty-content bug and produces
+    # higher-quality cross-model dissent. Supersedes the T1B.4 model-adapter
+    # coverage hypothesis. See grimoires/loa/NOTES.md 2026-05-09 Decision Log.
+    model: claude-opus-4-7
+    budget_cents: 200
+    timeout_seconds: 600
   security_audit:
     enabled: true
-    # Same restoration rationale as code_review (sprint-bug-143).
-    model: gpt-5.5-pro
-    budget_cents: 150
-    timeout_seconds: 900
+    # Same swap rationale as code_review (cycle-102 Sprint 1B T1B.4).
+    model: claude-opus-4-7
+    budget_cents: 200
+    timeout_seconds: 600
   secret_scanning:
     patterns:
       - "AIzaSy[A-Za-z0-9_-]{33}"
