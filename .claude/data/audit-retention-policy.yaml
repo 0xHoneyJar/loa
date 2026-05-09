@@ -78,6 +78,28 @@ primitives:
     chain_critical: false
     git_tracked: false
 
+  MODELINV:
+    # cycle-102 Sprint 1 (T1.2 + T1.7): MODELINV is a peer of L1-L7 — the
+    # model-invocation audit primitive. Powers vision-019's M1 silent-
+    # degradation audit query. Hash-chained per SDD §4.4 (envelope schema
+    # 1.2.0 additive bump from 1.1.0). chain_critical: true because the
+    # silent-degradation count metric depends on continuous chain integrity
+    # — a missing or corrupted entry could mask a degraded run.
+    #
+    # Sprint 1B carry-forward (T1.7 emitter wiring): cheval invoke()
+    # end-of-call path emits model.invoke.complete envelopes here. Schema
+    # at .claude/data/trajectory-schemas/model-events/model-invoke-complete
+    # .payload.schema.json. Redaction contract for original_exception is
+    # tracked as Sprint 1B T1B.1 (HIGH security per BB iter-5 FIND-005);
+    # emitter-side redaction via lib/log-redactor.{sh,py} MUST land before
+    # MODELINV writes go live.
+    log_basename: "model-invoke.jsonl"
+    description: "MODELINV model.invoke.complete / class.resolved / probe.cache.refresh audit events. cycle-102 sprint-1 (T1.2 schema) + sprint-1B (T1.7 emitter wiring + T1B.1 redaction contract)."
+    retention_days: 30
+    archive_after_days: 30
+    chain_critical: true
+    git_tracked: false
+
 # -----------------------------------------------------------------------------
 # Compaction guidance:
 # -----------------------------------------------------------------------------
