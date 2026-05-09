@@ -29,7 +29,7 @@ import {
   createRatingEntry,
   readRatingWithTimeout,
 } from "./core/rating.js";
-import { truncateFiles } from "./core/truncation.js";
+import { truncateFiles, isSelfReviewOptedIn } from "./core/truncation.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -556,7 +556,15 @@ async function main(): Promise<void> {
     for (const item of items) {
       // Use convergence prompt so models return findings JSON parseable by
       // extractFindingsFromContent() (bug-20260413-9f9b39).
-      const truncated = truncateFiles(item.files, config);
+      // #796 / vision-013: per-PR self-review opt-in via `bridgebuilder:self-review`
+      // label flows from PR data through this multi-model entry path. BB iter-1
+      // on PR #797 (the recursive dogfood) confirmed BB-001: missing this call
+      // site silently nullified the feature for the multi-model pipeline.
+      const callConfig = {
+        ...config,
+        selfReview: isSelfReviewOptedIn(item.pr.labels),
+      };
+      const truncated = truncateFiles(item.files, callConfig);
       const systemPrompt = template.buildConvergenceSystemPrompt();
 
       // A4 (#464): per-item cross-repo wiring. Manual refs were fetched once
