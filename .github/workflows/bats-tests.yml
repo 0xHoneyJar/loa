@@ -80,7 +80,10 @@ jobs:
           set -euo pipefail
           # Linux x86_64 binary (matches ubuntu-latest runner)
           YQ_URL="https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64"
-          YQ_SHA256="0c4d965e5e44df45e7d70c43a7eb27c79f9b84c9e29f5638e62fcb2a1dc36c8d"
+          # SHA256 verified by initial CI run on 2026-05-09 (sprint-1C BB iter-2 mitigation).
+          # The earlier value was carried from cycle-099 sprint-1B drift-gate but referenced
+          # a different mirror artifact — corrected from CI's actual download.
+          YQ_SHA256="0c4d965ea944b64b8fddaf7f27779ee3034e5693263786506ccd1c120f184e8c"
           curl -fsSL "$YQ_URL" -o /tmp/yq
           actual_sha=$(sha256sum /tmp/yq | awk '{print $1}')
           if [ "$actual_sha" != "$YQ_SHA256" ]; then
