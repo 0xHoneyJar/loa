@@ -1,0 +1,15 @@
+{
+  "status": "degraded",
+  "documented_in": "flatline-prd-degradation.md",
+  "vision_ref": "vision-019 axiom 3 (silent-degradation manifests on its own kickoff)",
+  "model": "opus",
+  "model_id": "claude-opus-4-7",
+  "provider": "anthropic",
+  "phase": "sdd",
+  "mode": "skeptic",
+  "input": "grimoires/loa/cycles/cycle-102-model-stability/sdd.md",
+  "failure_mode": "empty_response_content_x3",
+  "attempts": 3,
+  "stderr_ref": "opus-skeptic.stderr",
+  "note": "Marker file — preserves valid-JSON contract for CI Validate Framework Files while documenting the orchestrator silent-degradation event the cycle-102 PRD names. Real run output absent because the model returned empty response content on all 3 retries."
+}

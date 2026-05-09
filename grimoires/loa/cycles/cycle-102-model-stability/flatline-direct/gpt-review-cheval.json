@@ -1,0 +1,17 @@
+{
+  "status": "degraded",
+  "documented_in": "flatline-prd-degradation.md",
+  "vision_ref": "vision-019 axiom 3 (silent-degradation manifests on its own kickoff)",
+  "model": "gpt-5.5-pro",
+  "provider": "openai",
+  "transport": "cheval",
+  "phase": "prd",
+  "mode": "review",
+  "input": "grimoires/loa/cycles/cycle-102-model-stability/prd.md",
+  "request_size_bytes": 26648,
+  "failure_mode": "remote_protocol_error_connection_lost",
+  "attempts_observed": 3,
+  "issue_ref": 774,
+  "stderr_ref": "gpt-review-cheval.stderr",
+  "note": "Marker file — preserves valid-JSON contract for CI Validate Framework Files while documenting the cheval ConnectionLost event the cycle-102 PRD names. Real run output absent because the openai server-side disconnected on the 26648B request across all attempts (likely long-prompt timeout, see issue #774). The --per-call-max-tokens flag has no effect on this failure mode (cheval default 4096)."
+}
