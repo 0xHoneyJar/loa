@@ -139,6 +139,51 @@ read_config() {
     echo "$default"
 }
 
+# =============================================================================
+# Per-model max_output_tokens lookup (cycle-102 Sprint 1 T1.9)
+# =============================================================================
+#
+# Closes A1 + A2 from sprint-bug-143 (vision-019). Reasoning-class models on
+# /v1/responses (gpt-5.5-pro, gpt-5.5, gpt-5.3-codex) and thinking_traces
+# Gemini models (gemini-3.1-pro-preview, gemini-2.5-pro) charge their visible
+# output budget AGAINST internal reasoning tokens. The previous hardcoded
+# 8000 (OpenAI) / 4096 (Google + Anthropic) caps emptied content on prompts
+# ≥10K tokens because the budget was consumed by reasoning before any
+# visible response could be generated.
+#
+# This helper reads the per-model `max_output_tokens` from
+# .claude/defaults/model-config.yaml. If absent (or yq missing), it falls
+# back to the caller-provided default — preserving prior behavior for
+# unconfigured models.
+#
+# Usage:
+#   _lookup_max_output_tokens openai gpt-5.5-pro 8000
+#   _lookup_max_output_tokens google gemini-3.1-pro-preview 4096
+#   _lookup_max_output_tokens anthropic claude-opus-4-7 4096
+_lookup_max_output_tokens() {
+    local provider="$1"
+    local model_id="$2"
+    local default="${3:-8000}"
+    local config_path="$SCRIPT_DIR/../defaults/model-config.yaml"
+    [[ -f "$config_path" ]] || { echo "$default"; return; }
+    command -v yq >/dev/null 2>&1 || { echo "$default"; return; }
+    local value
+    # Defense-in-depth: provider + model_id are interpolated into the yq
+    # query. They come from internal config (resolved by load_api_key /
+    # caller); we still validate against a tight charset to refuse any
+    # path-traversal or quote-escape attempt.
+    if [[ ! "$provider" =~ ^[a-z][a-z0-9_]*$ ]] || [[ ! "$model_id" =~ ^[A-Za-z0-9._-]+$ ]]; then
+        echo "$default"
+        return
+    fi
+    value=$(yq -r ".providers[\"$provider\"].models[\"$model_id\"].max_output_tokens // \"\"" "$config_path" 2>/dev/null)
+    if [[ -n "$value" && "$value" != "null" ]]; then
+        echo "$value"
+    else
+        echo "$default"
+    fi
+}
+
 # Load API key from environment or .env files
 load_api_key() {
     local provider="$1"
@@ -247,15 +292,18 @@ call_openai_api() {
         local escaped_input
         escaped_input=$(printf '%s' "$combined_input" | jq -Rs .)
 
-        # sprint-bug-143 #787 fix: explicit max_output_tokens for reasoning-class
-        # /v1/responses. Without this, gpt-5.5-pro (and any other reasoning model)
-        # consumes its default visible-output budget on internal reasoning tokens
-        # and returns empty `output[].content[].text` — the canonical "Empty
-        # response content" symptom. Cheval already handles this via
-        # `max_output_tokens` from `model-config.yaml`; legacy bash adapter was
-        # missing it. 8000 is comfortably above any adversarial-review / flatline
-        # dissent output budget while keeping cost predictable.
-        payload=$(printf '{"model":"%s","input":%s,"reasoning":{"effort":"medium"},"max_output_tokens":8000}' "$model_id" "$escaped_input")
+        # cycle-102 Sprint 1 T1.9 (closes A1 from sprint-bug-143 + previous
+        # #787 fix): per-model max_output_tokens looked up from
+        # model-config.yaml via _lookup_max_output_tokens. Fallback default
+        # 8000 preserves prior behavior for any unconfigured model. The
+        # configured value for reasoning models (gpt-5.5-pro, gpt-5.5,
+        # gpt-5.3-codex) is 32K — comfortable for ≥10K-prompt inputs that
+        # consume substantial visible-output budget on internal reasoning
+        # tokens. Without this, gpt-5.5-pro returns empty content (the
+        # canonical sprint-bug-143 / vision-019 symptom).
+        local max_output_tokens
+        max_output_tokens=$(_lookup_max_output_tokens openai "$model_id" 8000)
+        payload=$(printf '{"model":"%s","input":%s,"reasoning":{"effort":"medium"},"max_output_tokens":%s}' "$model_id" "$escaped_input" "$max_output_tokens")
     else
         api_url="https://api.openai.com/v1/chat/completions"
 
@@ -329,11 +377,18 @@ call_anthropic_api() {
     escaped_system=$(printf '%s' "$system_prompt" | jq -Rs .)
     escaped_user=$(printf '%s' "$user_prompt" | jq -Rs .)
 
+    # cycle-102 Sprint 1 T1.9 (closes A2 partial — Anthropic adapter parity):
+    # per-model max_tokens lookup. Previously hardcoded 4096 — too low for
+    # opus-class adversarial review on ≥10K-token prompts. The configured
+    # default for opus is 32K; sonnet 16K; haiku/unconfigured fall back to
+    # 4096 to preserve prior cost envelope.
+    local max_tokens
+    max_tokens=$(_lookup_max_output_tokens anthropic "$model_id" 4096)
     local payload
     payload=$(cat <<EOF
 {
     "model": "${model_id}",
-    "max_tokens": 4096,
+    "max_tokens": ${max_tokens},
     "system": ${escaped_system},
     "messages": [
         {"role": "user", "content": ${escaped_user}}
@@ -400,6 +455,14 @@ call_google_api() {
     escaped_system=$(printf '%s' "$system_prompt" | jq -Rs .)
     escaped_user=$(printf '%s' "$user_prompt" | jq -Rs .)
 
+    # cycle-102 Sprint 1 T1.9 (closes A2 from sprint-bug-143): per-model
+    # maxOutputTokens lookup. Previously hardcoded 4096 — too low for
+    # thinking_traces models (gemini-3.1-pro-preview, gemini-2.5-pro) that
+    # spend substantial output budget on reasoning tokens before any
+    # visible response. Configured 32K for thinking_traces, 16K for
+    # gemini-2.5-pro, fallback 4096 preserves prior behavior for flash-tier.
+    local max_output_tokens
+    max_output_tokens=$(_lookup_max_output_tokens google "$model_id" 4096)
     local payload
     payload=$(cat <<EOF
 {
@@ -409,7 +472,7 @@ call_google_api() {
     "systemInstruction": {"parts": [{"text": ${escaped_system}}]},
     "generationConfig": {
         "temperature": 0.3,
-        "maxOutputTokens": 4096,
+        "maxOutputTokens": ${max_output_tokens},
         "responseMimeType": "application/json"
     }
 }

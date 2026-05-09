@@ -20,6 +20,9 @@ providers:
         # Operators with custom OpenAI entries can use
         # LOA_LEGACY_ENDPOINT_FAMILY_DEFAULT=chat as a one-shot migration backstop.
         endpoint_family: chat
+        # cycle-102 Sprint 1 T1.9: per-model output cap. gpt-5.2 is chat-tier
+        # (non-reasoning) so 16K is comfortable for adversarial-review output.
+        max_output_tokens: 16000
         pricing:
           # Unit: micro-USD per million tokens (1_000_000 micro-USD = $1).
           # Unified unit across all entries per sprint-bug-108 / vision-011 —
@@ -33,6 +36,9 @@ providers:
         context_window: 400000
         token_param: max_completion_tokens
         endpoint_family: responses    # codex models route to /v1/responses
+        # cycle-102 Sprint 1 T1.9: codex is reasoning-class on /v1/responses
+        # (closes A1 from sprint-bug-143 for codex prompts).
+        max_output_tokens: 32000
         pricing:
           input_per_mtok: 1750000     # $1.75 per million tokens
           output_per_mtok: 14000000   # $14.00 per million tokens
@@ -48,6 +54,8 @@ providers:
         context_window: 400000
         token_param: max_completion_tokens
         endpoint_family: responses      # cycle-095 Sprint 1: gpt-5.5 only routes through /v1/responses
+        # cycle-102 Sprint 1 T1.9: reasoning-class /v1/responses (closes A1).
+        max_output_tokens: 32000
         # cycle-095 Sprint 2: probe_required dropped — gpt-5.5 is GA on /v1/models
         # since 2026-04-23. Probe-gated fail-fast still applies via the
         # generic AVAILABLE/UNAVAILABLE state in .run/model-health-cache.json
@@ -69,6 +77,12 @@ providers:
         context_window: 400000
         token_param: max_completion_tokens
         endpoint_family: responses      # cycle-095 Sprint 1
+        # cycle-102 Sprint 1 T1.9 (closes A1 from sprint-bug-143): per-model
+        # max_output_tokens. Reasoning models on /v1/responses charge their
+        # output budget AGAINST internal reasoning tokens (SDD §5.5), so a
+        # bare 8000 cap empties content. 32K provides comfortable headroom
+        # for adversarial-review / flatline dissent on ≥10K-token prompts.
+        max_output_tokens: 32000
         # cycle-095 Sprint 2: probe_required dropped (same rationale as gpt-5.5).
         # Wire-protocol gate: same temperature restriction as gpt-5.5 above.
         params:
@@ -111,6 +125,8 @@ providers:
       gemini-2.5-pro:
         capabilities: [chat, thinking_traces]
         context_window: 1048576
+        # cycle-102 Sprint 1 T1.9 (closes A2): thinking_traces output cap.
+        max_output_tokens: 16000
         pricing:
           input_per_mtok: 1250000    # $1.25 per million tokens
           output_per_mtok: 10000000  # $10.00 per million tokens
@@ -126,6 +142,11 @@ providers:
         # confirmed Pro pricing for 3.x as of 2026-04-25; matches 2.5-pro).
         capabilities: [chat, thinking_traces]
         context_window: 1048576
+        # cycle-102 Sprint 1 T1.9 (closes A2 from sprint-bug-143): Google
+        # legacy adapter previously hardcoded maxOutputTokens=4096 — too low
+        # for thinking_traces models on long prompts. 32K matches the OpenAI
+        # reasoning-class cap.
+        max_output_tokens: 32000
         pricing:
           input_per_mtok: 1250000   # $1.25 per million tokens (micro-USD)
           output_per_mtok: 10000000  # $10.00 per million tokens
@@ -152,6 +173,10 @@ providers:
         capabilities: [chat, tools, function_calling, thinking_traces]
         context_window: 200000
         token_param: max_tokens
+        # cycle-102 Sprint 1 T1.9: Anthropic legacy adapter previously
+        # hardcoded max_tokens=4096 — too low for opus-class adversarial-
+        # review on ≥10K-token prompts. 32K matches reasoning-class cap.
+        max_output_tokens: 32000
         # Wire-protocol gates (#641): Anthropic deprecated `temperature` for
         # Opus 4 and rejects requests carrying it with HTTP 400. The cheval
         # adapter consults `params.temperature_supported` per request and
@@ -169,6 +194,8 @@ providers:
         capabilities: [chat, tools, function_calling, thinking_traces]
         context_window: 200000
         token_param: max_tokens
+        # cycle-102 Sprint 1 T1.9: parity with claude-opus-4-7.
+        max_output_tokens: 32000
         pricing:
           input_per_mtok: 5000000    # $5.00 per million tokens
           output_per_mtok: 25000000  # $25.00 per million tokens
@@ -176,6 +203,8 @@ providers:
         capabilities: [chat, tools, function_calling]
         context_window: 200000
         token_param: max_tokens
+        # cycle-102 Sprint 1 T1.9: sonnet output cap (smaller than opus).
+        max_output_tokens: 16000
         pricing:
           input_per_mtok: 3000000    # $3.00 per million tokens
           output_per_mtok: 15000000  # $15.00 per million tokens
