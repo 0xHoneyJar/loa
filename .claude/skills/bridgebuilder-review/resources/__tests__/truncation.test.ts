@@ -794,7 +794,7 @@ describe("truncateFiles", () => {
           thrown = err as NodeJS.ErrnoException;
         }
         assert.ok(thrown, "symlink-to-existing-file MUST throw, not be silently followed");
-        assert.equal(thrown!.code, "EBROKENSYMLINK");
+        assert.equal(thrown!.code, "ESYMLINKREJECTED");
         // Closes the TOCTOU class — even if the target is innocuous,
         // the policy is fail-closed because we can't validate ahead of read
       } finally {
@@ -862,7 +862,7 @@ describe("truncateFiles", () => {
         }
         assert.ok(thrown, "broken symlink MUST throw, not silently collapse to []");
         assert.equal(
-          thrown!.code, "EBROKENSYMLINK",
+          thrown!.code, "ESYMLINKREJECTED",
           "errno code MUST distinguish broken symlink from genuine absence (#799 + BB-801-002-opus rename)",
         );
         // BB-801-002-opus: the code MUST NOT start with "ENOENT" — downstream
@@ -1051,7 +1051,7 @@ describe("truncateFiles", () => {
 
       // BB801-001 (PR #801 iter-3 HIGH_CONSENSUS, conf 0.9, 3-model): default-
       // mode fail-CLOSES on .reviewignore anomalies. ENOENT (genuine absence)
-      // is fine; everything else (EBROKENSYMLINK, ENOTAFILE, EBADREPOROOT,
+      // is fine; everything else (ESYMLINKREJECTED, ENOTAFILE, EBADREPOROOT,
       // EACCES) MUST halt the review with allExcluded=true.
       it("default-mode fail-closes on .reviewignore anomaly (BB801-001 iter-3 HIGH_CONSENSUS)", () => {
         const tmpDir = join(tmpdir(), `loa-test-default-failclosed-${Date.now()}`);

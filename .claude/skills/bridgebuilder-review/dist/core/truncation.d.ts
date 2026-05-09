@@ -62,24 +62,6 @@ export declare const LOA_EXCLUDE_PATTERNS: string[];
  *         caller MUST handle and decide whether to halt or fall back.
  */
 export declare function loadReviewIgnoreUserPatterns(repoRoot?: string): string[];
-/**
- * Load .reviewignore patterns from repo root and merge with LOA_EXCLUDE_PATTERNS.
- * Returns combined patterns array.
- *
- * BB-797-003-duplication (iter-4): single source of truth for parsing.
- *
- * NOTE (PR #801 iter-3 BB801-001 HIGH_CONSENSUS): the iter-6 fail-LOUD-and-
- * continue rationale was REJECTED. Default-mode now fail-CLOSES at the
- * truncateFiles caller (see the catch block in the !selfReview branch).
- * The LOA framework filter is NOT a safety floor for user-pattern axes
- * (secrets/, vendor/, private docs), so silent-skip on .reviewignore
- * anomalies admits files the operator deliberately excluded.
- *
- * loadReviewIgnore (this function — the merged-list legacy API) still
- * fail-soft because the default-mode path no longer calls it; it remains
- * for backward-compat with external callers, but the canonical
- * fail-closed semantics live in truncateFiles.
- */
 export declare function loadReviewIgnore(repoRoot?: string): string[];
 /**
  * Detect if repo is Loa-mounted by reading .loa-version.json.

@@ -245,9 +245,15 @@ function parseReviewignoreFile(repoRoot) {
     // on Windows but it's a no-op (Windows symlinks behave differently and
     // this codebase targets Linux/macOS — `bridgebuilder-review` package
     // doesn't support Windows CI).
+    // BB801-REVIEW-001 (PR #801 iter-4 MEDIUM, conf 0.7): O_NONBLOCK in
+    // the open flags. openSync on a FIFO without O_NONBLOCK blocks until a
+    // writer connects — fstatSync never runs. An adversarial or accidental
+    // FIFO at `.reviewignore` would wedge the review forever. Same class
+    // Borglet config readers caught early at Google. After fstat confirms
+    // regular file, the flag is harmless for read(2).
     let fd;
     try {
-        fd = openSync(reviewignorePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+        fd = openSync(reviewignorePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
     }
     catch (err) {
         const code = err.code;
@@ -256,9 +262,12 @@ function parseReviewignoreFile(repoRoot) {
             return [];
         }
         if (code === "ELOOP") {
-            // O_NOFOLLOW path: symlink at the leaf rejected by the kernel.
-            const enriched = new Error(`.reviewignore is a symbolic link — rejected to prevent symlink-follow-on-read TOCTOU (BB801-REVIEW-002 + BB801-002 O_NOFOLLOW): ${reviewignorePath}`);
-            enriched.code = "EBROKENSYMLINK";
+            // BB801-R8 (iter-4 LOW): ESYMLINKREJECTED — the policy is "we reject
+            // symlinks at .reviewignore", not "we detect dangling links". ELOOP
+            // under O_NOFOLLOW fires for ANY symlink (intact or dangling), so
+            // the error code MUST reflect the policy, not the substrate.
+            const enriched = new Error(`.reviewignore is a symbolic link — rejected to prevent symlink-follow-on-read TOCTOU (BB801-REVIEW-002 + BB801-R8): ${reviewignorePath}`);
+            enriched.code = "ESYMLINKREJECTED";
             throw enriched;
         }
         // EACCES, EISDIR, etc. propagate so caller fail-closes.
@@ -320,24 +329,33 @@ export function loadReviewIgnoreUserPatterns(repoRoot) {
     return parseReviewignoreFile(root);
 }
 /**
- * Load .reviewignore patterns from repo root and merge with LOA_EXCLUDE_PATTERNS.
- * Returns combined patterns array.
+ * @deprecated PR #801 iter-4 BB801-R4 (MEDIUM): this is the legacy
+ *   merged-list API that retains pre-fix fail-soft semantics — exactly
+ *   the trust-origin bug #800 fixed for the default-mode path. Mixing
+ *   user `.reviewignore` patterns with LOA_EXCLUDE_PATTERNS routes
+ *   operator-authored denies through the framework tier classifier
+ *   (which has security-pattern "exception" branches), and the catch
+ *   block silently swallows non-ENOENT errors that should fail-closed.
  *
- * BB-797-003-duplication (iter-4): single source of truth for parsing.
+ *   Internal callers MUST use the two-phase flow in `truncateFiles`
+ *   (loadReviewIgnoreUserPatterns → matchesExcludePattern STRICT →
+ *   applyLoaTierExclusion(LOA_EXCLUDE_PATTERNS)). This function
+ *   remains exported only for backward-compat with external callers;
+ *   removal is planned in the next minor.
  *
- * NOTE (PR #801 iter-3 BB801-001 HIGH_CONSENSUS): the iter-6 fail-LOUD-and-
- * continue rationale was REJECTED. Default-mode now fail-CLOSES at the
- * truncateFiles caller (see the catch block in the !selfReview branch).
- * The LOA framework filter is NOT a safety floor for user-pattern axes
- * (secrets/, vendor/, private docs), so silent-skip on .reviewignore
- * anomalies admits files the operator deliberately excluded.
- *
- * loadReviewIgnore (this function — the merged-list legacy API) still
- * fail-soft because the default-mode path no longer calls it; it remains
- * for backward-compat with external callers, but the canonical
- * fail-closed semantics live in truncateFiles.
+ * Emits a one-time stderr deprecation notice on first call (Meta Hack
+ * @@Deprecated discipline — runtime breadcrumbs drive migration; pure
+ * JSDoc gets ignored).
  */
+let _loadReviewIgnoreDeprecationWarned = false;
 export function loadReviewIgnore(repoRoot) {
+    if (!_loadReviewIgnoreDeprecationWarned) {
+        _loadReviewIgnoreDeprecationWarned = true;
+        process.stderr.write("[bridgebuilder] DEPRECATED: loadReviewIgnore(repoRoot) is deprecated — " +
+            "use the two-phase flow in truncateFiles (loadReviewIgnoreUserPatterns + " +
+            "matchesExcludePattern strict-deny + applyLoaTierExclusion(LOA_EXCLUDE_PATTERNS)). " +
+            "Removal planned in the next minor (BB801-R4).\n");
+    }
     const root = repoRoot ?? process.cwd();
     const basePatterns = [...LOA_EXCLUDE_PATTERNS];
     try {
@@ -349,11 +367,10 @@ export function loadReviewIgnore(repoRoot) {
         }
     }
     catch (err) {
-        // Fail-LOUD on read errors: surface to operator stderr so degradation
-        // is observable. LOA framework filter still applies — code-PR review
-        // doesn't break wholesale on an unrelated `.reviewignore` glitch, but
-        // the operator sees they need to fix the file.
-        process.stderr.write(`[bridgebuilder] WARN: .reviewignore unreadable in default-mode path — operator-curated user patterns SKIPPED for this run; LOA framework filter still active. Fix the file to restore user-pattern exclusions. Detail: ${err.message} (BB-797-RV-014)\n`);
+        // Legacy fail-soft retained for backward-compat. New code MUST NOT
+        // rely on this path — see @deprecated note above. The two-phase flow
+        // in truncateFiles is fail-CLOSED on the same conditions.
+        process.stderr.write(`[bridgebuilder] WARN: legacy loadReviewIgnore swallowed .reviewignore error — see deprecation. Detail: ${err.message}\n`);
     }
     return basePatterns;
 }
@@ -1058,7 +1075,19 @@ export function truncateFiles(files, config) {
                 // Fail-CLOSED. ENOENT was handled inside parseReviewignoreFile
                 // (returns [] for genuine absence), so any error reaching here is
                 // an anomaly: bad repoRoot, symlink, EACCES, etc.
+                //
+                // BB801-REVIEW-002 (iter-4 MEDIUM): preserve upstream selfReview
+                // bindings — do NOT hardcode "inactive". This branch IS the default-
+                // mode arm (else of `if (selfReviewActive)`), so selfReviewState is
+                // already "inactive" by the outer initialization — but the principle
+                // matters: fail-closed guards halt action, not classifications.
+                // Reading the live binding makes future restructures safe.
+                //
+                // BB801-REVIEW-003 (iter-4 LOW): bytesSaved should reflect the
+                // bytes we actually withheld (sum of patch byte-lengths) so
+                // operator dashboards aren't internally inconsistent.
                 const code = err.code ?? "unknown";
+                const bytesSaved = files.reduce((sum, f) => sum + (f.patch ? new TextEncoder().encode(f.patch).byteLength : 0), 0);
                 process.stderr.write(`[bridgebuilder] ERROR: .reviewignore anomaly in default-mode path — fail-closed (allExcluded=true). Fix the file to restore review. Code: ${code}, Detail: ${err.message} (BB801-001 iter-3 HIGH_CONSENSUS)\n`);
                 return {
                     included: [],
@@ -1070,9 +1099,9 @@ export function truncateFiles(files, config) {
                     allExcluded: true,
                     loaBanner: `[Loa-aware: default-mode fail-closed — .reviewignore anomaly (${code}); ` +
                         `ALL files excluded until .reviewignore is valid (BB801-001 iter-3)]`,
-                    loaStats: { filesExcluded: files.length, bytesSaved: 0 },
-                    selfReviewActive: false,
-                    selfReviewState: "inactive",
+                    loaStats: { filesExcluded: files.length, bytesSaved },
+                    selfReviewActive,
+                    selfReviewState,
                 };
             }
             // Phase 1: user .reviewignore patterns as strict denies. Trust-origin
