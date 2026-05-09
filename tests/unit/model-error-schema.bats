@@ -205,6 +205,30 @@ _validate_sh() {
 }
 
 # -----------------------------------------------------------------------------
+# Validator-parity pin (BB iter-2 FIND-001 / F5)
+#
+# T1B.2 routed format_checker enforcement through Python's Draft202012Validator.
+# The bash wrapper at validate-model-error.sh shells out to the same .py
+# entry point, so format_checker SHOULD apply uniformly. BB iter-2 noted
+# the absence of an explicit parity assertion lets a future refactor
+# (e.g., a re-implemented bash validator) regress the contract silently.
+# Pin parity at exit-code level: bash wrapper rejects malformed ts_utc
+# with the same exit 78 the Python path produces.
+# -----------------------------------------------------------------------------
+
+@test "E10f: bash wrapper rejects malformed ts_utc='not-a-date' (T1B.2 validator parity, BB iter-2 FIND-001)" {
+    payload='{"error_class":"TIMEOUT","severity":"WARN","message_redacted":"x","provider":"openai","model":"m","ts_utc":"not-a-date"}'
+    run _validate_sh "$payload"
+    [ "$status" -eq 78 ]
+}
+
+@test "E10g: bash wrapper accepts well-formed UTC ts_utc (T1B.2 validator parity positive control)" {
+    payload='{"error_class":"TIMEOUT","severity":"WARN","message_redacted":"x","provider":"openai","model":"m","ts_utc":"2026-05-08T12:00:00Z"}'
+    run _validate_sh "$payload"
+    [ "$status" -eq 0 ]
+}
+
+# -----------------------------------------------------------------------------
 # E11-E13 — ENUM and LENGTH constraints
 # -----------------------------------------------------------------------------
 
