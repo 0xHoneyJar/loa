@@ -27,10 +27,11 @@
 | vision-020 | The Operator's Question as Reframe Function | cycle-102 kickoff (PR #795) + 4-round Flatline iter-1 dogfooding 2026-05-09 | Captured | recursive-discipline, operator-collaboration, reframe-principle, foundational, axiom-4-candidate | 0 |
 | vision-021 | Letter from After (cycle-102 post-ship retrospective; speculative) | cycle-102 kickoff (PR #795) — companion to vision-019 Lament | Captured | speculative-narrative, post-ship-perspective, bridgebuilder-voice, coda-companion, operator-gift | 0 |
 | vision-022 | The Successor's Inheritance | cycle-102 post-merge session (#797 Implemented + #801 trust-origin) — third-session companion to vision-019/020/021 with live model-adapter repro | Captured | recursive-discipline, session-continuity, trajectory-as-proof, foundational, coda-companion, operator-gift, inheritance | 0 |
+| vision-023 | The Fractal Recursion | cycle-102 Sprint 1A ship + Sprint 1B kickoff — fifth-session companion; T1.9 verified at 10K, adversarial gate at 27K hit same bug class; upstream #810 + #812 filed | Captured | recursive-discipline, foundational, fractal-degradation, trajectory-as-proof, coda-companion, operator-gift, vision-019-deeper-layer, mechanism-eats-itself | 0 |
 
 ## Statistics
 
-- Total captured: 19
+- Total captured: 20
 - Total exploring: 1
 - Total proposed: 0
 - Total implemented: 2
