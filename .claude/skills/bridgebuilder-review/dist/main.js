@@ -10,7 +10,7 @@ import { detectRefs, parseManualRefs, fetchCrossRepoContext } from "./core/cross
 import { renderCrossRepoSection } from "./core/cross-repo-render.js";
 import { ProgressReporter } from "./core/progress.js";
 import { buildRatingPrompt, storeRating, createRatingEntry, readRatingWithTimeout, } from "./core/rating.js";
-import { truncateFiles, isSelfReviewOptedIn } from "./core/truncation.js";
+import { truncateFiles, deriveCallConfig } from "./core/truncation.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 /** Persona pack directory relative to this module. */
 const PERSONAS_DIR = resolve(__dirname, "personas");
@@ -450,15 +450,10 @@ async function main() {
         for (const item of items) {
             // Use convergence prompt so models return findings JSON parseable by
             // extractFindingsFromContent() (bug-20260413-9f9b39).
-            // #796 / vision-013: per-PR self-review opt-in via `bridgebuilder:self-review`
-            // label flows from PR data through this multi-model entry path. BB iter-1
-            // on PR #797 (the recursive dogfood) confirmed BB-001: missing this call
-            // site silently nullified the feature for the multi-model pipeline.
-            const callConfig = {
-                ...config,
-                selfReview: isSelfReviewOptedIn(item.pr.labels),
-            };
-            const truncated = truncateFiles(item.files, callConfig);
+            // #796 / vision-013 + BB-004: deriveCallConfig is the single chokepoint.
+            // BB iter-1 on PR #797 caught a missing call site here; iter-2 caught
+            // duplicate spread shape. Centralizing prevents both classes of regression.
+            const truncated = truncateFiles(item.files, deriveCallConfig(config, item.pr));
             const systemPrompt = template.buildConvergenceSystemPrompt();
             // A4 (#464): per-item cross-repo wiring. Manual refs were fetched once
             // before the loop (FIND-002 fix); here we only fetch the auto-detected

@@ -19,13 +19,42 @@ export declare const SELF_REVIEW_LABEL = "bridgebuilder:self-review";
  * Returns true iff the PR carries SELF_REVIEW_LABEL.
  *
  * Centralized so the label string lives in one place and call sites
- * (reviewer.ts processItemTwoPass; template.ts buildPrompt + buildPromptWithMeta)
- * cannot drift from each other.
+ * (reviewer.ts processItemTwoPass; template.ts buildPrompt + buildPromptWithMeta;
+ * main.ts multi-model entry) cannot drift from each other.
  */
 export declare function isSelfReviewOptedIn(prLabels: readonly string[] | undefined): boolean;
+/**
+ * Build a per-call truncate config from a base config and a PR's labels.
+ *
+ * BB-004 (PR #797 iter-2): four call sites (template.ts × 2, reviewer.ts,
+ * main.ts) duplicated `{ ...config, selfReview: isSelfReviewOptedIn(pr.labels) }`.
+ * BB iter-1 caught a missed call site that silently nullified the feature for
+ * the multi-model pipeline — a duplication-as-correctness-hazard pattern. This
+ * helper is the single chokepoint, so adding new call sites OR new per-PR
+ * configuration knobs requires touching ONE function, and tests can pin the
+ * derivation here.
+ */
+export declare function deriveCallConfig<C extends Pick<BridgebuilderConfig, "selfReview">>(config: C, pr: {
+    labels: readonly string[] | undefined;
+}): C & {
+    selfReview: boolean;
+};
 /** Default Loa framework exclude patterns.
  * Use ** for recursive directory matching (BB-F4). */
 export declare const LOA_EXCLUDE_PATTERNS: string[];
+/**
+ * Load `.reviewignore` operator-curated patterns from repo root.
+ * Returns ONLY the user patterns — does NOT merge with LOA_EXCLUDE_PATTERNS.
+ *
+ * `.reviewignore` carries operator-curated exclusions (secrets/, vendor blobs,
+ * private internal docs) that are distinct from the framework's built-in
+ * exclusion list. The self-review opt-in (#796 / vision-013) bypasses the
+ * framework patterns but MUST continue to honor `.reviewignore` — BB-001-security
+ * surfaced this as a MEDIUM finding on PR #797 iter-2.
+ *
+ * Returns empty array when file missing or unreadable (graceful default).
+ */
+export declare function loadReviewIgnoreUserPatterns(repoRoot?: string): string[];
 /**
  * Load .reviewignore patterns from repo root and merge with LOA_EXCLUDE_PATTERNS.
  * Returns combined patterns array. Graceful when file missing (returns LOA patterns only).

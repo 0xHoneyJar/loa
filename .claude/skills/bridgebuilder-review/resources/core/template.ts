@@ -11,7 +11,7 @@ import type {
   TruncationContext,
   MultiModelConfig,
 } from "./types.js";
-import { truncateFiles, isSelfReviewOptedIn } from "./truncation.js";
+import { truncateFiles, deriveCallConfig } from "./truncation.js";
 
 export interface PromptPair {
   systemPrompt: string;
@@ -209,14 +209,9 @@ export class PRReviewTemplate {
   buildPrompt(item: ReviewItem, persona: string): PromptPair {
     const systemPrompt = this.buildSystemPrompt(persona);
 
-    // #796 / vision-013: if the PR carries `bridgebuilder:self-review`, skip
-    // the Loa-aware filter for this call. Per-PR signal — global config knob
-    // remains untouched.
-    const callConfig = {
-      ...this.config,
-      selfReview: isSelfReviewOptedIn(item.pr.labels),
-    };
-    const truncated = truncateFiles(item.files, callConfig);
+    // #796 / vision-013 + BB-004: per-PR self-review opt-in via label.
+    // deriveCallConfig is the single chokepoint — never inline this spread.
+    const truncated = truncateFiles(item.files, deriveCallConfig(this.config, item.pr));
     const userPrompt = this.buildUserPrompt(item, truncated);
 
     return { systemPrompt, userPrompt };
@@ -231,12 +226,8 @@ export class PRReviewTemplate {
     persona: string,
   ): PromptPairWithMeta {
     const systemPrompt = this.buildSystemPrompt(persona);
-    // #796 / vision-013: per-PR self-review opt-in via label.
-    const callConfig = {
-      ...this.config,
-      selfReview: isSelfReviewOptedIn(item.pr.labels),
-    };
-    const truncated = truncateFiles(item.files, callConfig);
+    // #796 / vision-013 + BB-004: deriveCallConfig is the single chokepoint.
+    const truncated = truncateFiles(item.files, deriveCallConfig(this.config, item.pr));
 
     if (truncated.allExcluded) {
       return {

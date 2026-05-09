@@ -29,7 +29,7 @@ import {
   progressiveTruncate,
   estimateTokens,
   getTokenBudget,
-  isSelfReviewOptedIn,
+  deriveCallConfig,
 } from "./truncation.js";
 
 const CRITICAL_PATTERN =
@@ -802,13 +802,8 @@ export class ReviewPipeline {
     const pass1Start = this.now();
 
     const convergenceSystem = this.template.buildConvergenceSystemPrompt();
-    // #796 / vision-013: per-PR self-review opt-in via `bridgebuilder:self-review`
-    // label. Default behavior unchanged when the label is absent.
-    const callConfig = {
-      ...this.config,
-      selfReview: isSelfReviewOptedIn(pr.labels),
-    };
-    const truncated = truncateFiles(effectiveItem.files, callConfig);
+    // #796 / vision-013 + BB-004: deriveCallConfig is the single chokepoint.
+    const truncated = truncateFiles(effectiveItem.files, deriveCallConfig(this.config, pr));
 
     // Handle all-files-excluded by Loa filtering
     if (truncated.allExcluded) {
@@ -895,6 +890,7 @@ export class ReviewPipeline {
       const convergencePromptHash = await this.hasher.sha256(finalConvergenceSystem);
       const cacheKey = await computeCacheKey(
         this.hasher, pr.headSha, truncationLevel, convergencePromptHash,
+        truncated.loaBanner?.includes("self-review opt-in active") ?? false,
       );
 
       const cached = await this.pass1Cache.get(cacheKey);
@@ -986,6 +982,7 @@ export class ReviewPipeline {
         const convergencePromptHash = await this.hasher.sha256(finalConvergenceSystem);
         const cacheKey = await computeCacheKey(
           this.hasher, pr.headSha, truncationLevel, convergencePromptHash,
+          truncated.loaBanner?.includes("self-review opt-in active") ?? false,
         );
         await this.pass1Cache.set(cacheKey, {
           findings: { raw: findingsJSON, parsed: pass1Parsed },

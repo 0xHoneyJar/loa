@@ -1,14 +1,23 @@
 import { mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 /**
- * Compute a deterministic cache key from the three dimensions that affect Pass 1 output.
- * Key = sha256(headSha + ":" + truncationLevel + ":" + sha256(convergenceSystemPrompt))
+ * Compute a deterministic cache key from the dimensions that affect Pass 1 output.
  *
- * Any change to the diff (headSha), truncation strategy (level), or prompt (hash)
- * produces a different key, invalidating the cache (AC-6).
+ * Key = sha256(headSha + ":" + truncationLevel + ":" + selfReview + ":" + sha256(convergenceSystemPrompt))
+ *
+ * Any change to the diff (headSha), truncation strategy (level), the self-review
+ * opt-in state, or the system prompt (hash) produces a different key, invalidating
+ * the cache (AC-6 + BB-003-cache).
+ *
+ * BB-003-cache (PR #797 iter-2): the system-prompt hash alone does NOT change
+ * with selfReview — but the USER prompt content (truncated diffs) DOES, because
+ * the self-review label admits framework files. Without selfReview in the key,
+ * adding or removing the label would serve a cached review computed under the
+ * other regime. Adding the boolean to the key segment makes the toggle a
+ * cache-distinct dimension.
  */
-export async function computeCacheKey(hasher, headSha, truncationLevel, convergencePromptHash) {
-    const input = `${headSha}:${truncationLevel}:${convergencePromptHash}`;
+export async function computeCacheKey(hasher, headSha, truncationLevel, convergencePromptHash, selfReview = false) {
+    const input = `${headSha}:${truncationLevel}:self-review=${selfReview}:${convergencePromptHash}`;
     return hasher.sha256(input);
 }
 /**

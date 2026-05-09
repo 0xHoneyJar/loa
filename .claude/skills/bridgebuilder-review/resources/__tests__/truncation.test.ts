@@ -6,10 +6,12 @@ import { tmpdir } from "node:os";
 import {
   truncateFiles,
   loadReviewIgnore,
+  loadReviewIgnoreUserPatterns,
   LOA_EXCLUDE_PATTERNS,
   getTokenBudget,
   isSelfReviewOptedIn,
   SELF_REVIEW_LABEL,
+  deriveCallConfig,
 } from "../core/truncation.js";
 import type { PullRequestFile } from "../ports/git-provider.js";
 
@@ -494,6 +496,138 @@ describe("truncateFiles", () => {
     it("SELF_REVIEW_LABEL is the canonical constant — single source of truth", () => {
       assert.equal(SELF_REVIEW_LABEL, "bridgebuilder:self-review");
       assert.equal(isSelfReviewOptedIn([SELF_REVIEW_LABEL]), true);
+    });
+  });
+
+  // BB-001-security (PR #797 iter-2): self-review must NOT bypass operator-curated
+  // .reviewignore patterns. Only LOA framework defaults are bypassed.
+  describe(".reviewignore honored under self-review (BB-001-security)", () => {
+    it("loadReviewIgnoreUserPatterns returns empty when file missing", () => {
+      const patterns = loadReviewIgnoreUserPatterns("/nonexistent/dir");
+      assert.deepEqual(patterns, []);
+    });
+
+    it("loadReviewIgnoreUserPatterns returns ONLY user patterns (not LOA defaults)", () => {
+      const tmpDir = join(tmpdir(), `loa-test-userpatterns-${Date.now()}`);
+      mkdirSync(tmpDir, { recursive: true });
+      try {
+        writeFileSync(
+          join(tmpDir, ".reviewignore"),
+          "secrets/\nvendor/internal-blob.bin\n# comment\n",
+        );
+        const patterns = loadReviewIgnoreUserPatterns(tmpDir);
+        assert.deepEqual(patterns.sort(), ["secrets/**", "vendor/internal-blob.bin"]);
+        // CRITICAL: must NOT include LOA defaults like ".claude/**"
+        assert.equal(patterns.includes(".claude/**"), false);
+        assert.equal(patterns.includes("grimoires/**"), false);
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("self-review honors .reviewignore secrets/ pattern — files NOT admitted", () => {
+      const tmpDir = join(tmpdir(), `loa-test-selfreview-secrets-${Date.now()}`);
+      mkdirSync(tmpDir, { recursive: true });
+      try {
+        // Operator-curated .reviewignore — secrets/ MUST be excluded under self-review.
+        writeFileSync(join(tmpDir, ".reviewignore"), "secrets/\n");
+        const files = [
+          file(".claude/skills/bb/adapter.ts", 25, 3, "x".repeat(50)),
+          file("secrets/api-keys.env", 5, 0, "x".repeat(50)),
+        ];
+        const config = {
+          ...defaultConfig,
+          loaAware: true,
+          selfReview: true,
+          repoRoot: tmpDir,
+        };
+        const result = truncateFiles(files, config);
+
+        // Framework file admitted (self-review purpose)
+        const includedNames = result.included.map((f) => f.filename);
+        assert.ok(
+          includedNames.includes(".claude/skills/bb/adapter.ts"),
+          "framework file should be admitted under self-review",
+        );
+        // BUT secrets/ file MUST NOT be admitted — .reviewignore takes priority
+        assert.equal(
+          includedNames.includes("secrets/api-keys.env"),
+          false,
+          ".reviewignore secrets/ pattern MUST still exclude even under self-review",
+        );
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("self-review banner cites user-pattern count when .reviewignore present", () => {
+      const tmpDir = join(tmpdir(), `loa-test-banner-${Date.now()}`);
+      mkdirSync(tmpDir, { recursive: true });
+      try {
+        writeFileSync(join(tmpDir, ".reviewignore"), "secrets/\nvendor/\n");
+        const files = [file(".claude/skills/bb/adapter.ts", 25, 3, "x".repeat(50))];
+        const config = {
+          ...defaultConfig,
+          loaAware: true,
+          selfReview: true,
+          repoRoot: tmpDir,
+        };
+        const result = truncateFiles(files, config);
+
+        assert.ok(result.loaBanner);
+        assert.ok(
+          result.loaBanner!.includes("user patterns"),
+          `banner should cite user-pattern count; got: ${result.loaBanner}`,
+        );
+        assert.ok(
+          result.loaBanner!.includes(".reviewignore"),
+          `banner should mention .reviewignore; got: ${result.loaBanner}`,
+        );
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  // BB-004 (PR #797 iter-2): four call sites duplicating the spread caused
+  // BB-001 (one missed site silently nullified the feature). Centralized
+  // helper is the structural fix; tests pin the contract.
+  describe("deriveCallConfig (BB-004)", () => {
+    it("returns selfReview=true when PR carries the label", () => {
+      const config = { ...defaultConfig, selfReview: undefined };
+      const pr = { labels: ["bridgebuilder:self-review"] };
+      assert.equal(deriveCallConfig(config, pr).selfReview, true);
+    });
+
+    it("returns selfReview=false when label absent", () => {
+      const config = { ...defaultConfig, selfReview: undefined };
+      const pr = { labels: ["other-label"] };
+      assert.equal(deriveCallConfig(config, pr).selfReview, false);
+    });
+
+    it("preserves ALL other config fields verbatim", () => {
+      const config = {
+        ...defaultConfig,
+        selfReview: undefined,
+        loaAware: true,
+        repoRoot: "/some/path",
+        excludePatterns: ["custom/*"],
+        maxDiffBytes: 12345,
+      };
+      const pr = { labels: ["bridgebuilder:self-review"] };
+      const result = deriveCallConfig(config, pr);
+
+      assert.equal(result.loaAware, true);
+      assert.equal(result.repoRoot, "/some/path");
+      assert.deepEqual(result.excludePatterns, ["custom/*"]);
+      assert.equal(result.maxDiffBytes, 12345);
+      assert.equal(result.selfReview, true);
+    });
+
+    it("handles undefined labels gracefully (no PR label data)", () => {
+      const config = { ...defaultConfig, selfReview: undefined };
+      const pr = { labels: undefined };
+      assert.equal(deriveCallConfig(config, pr).selfReview, false);
     });
   });
 });

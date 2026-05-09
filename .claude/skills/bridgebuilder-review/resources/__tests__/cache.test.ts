@@ -301,6 +301,29 @@ describe("Pass1Cache", () => {
       const key2 = await computeCacheKey(hasher, "sha-aaa", 0, "prompthash1");
       assert.equal(key1, key2, "Same inputs should produce same key");
     });
+
+    // BB-003-cache (PR #797 iter-2): selfReview state changes the truncated
+    // user prompt content (framework files admitted vs filtered) but not the
+    // system prompt. Without this dimension in the key, toggling the
+    // `bridgebuilder:self-review` label would serve a stale cached review
+    // computed under the OTHER regime — exactly the silent-correctness-bug
+    // class BB iter-2 surfaced.
+    it("Test 7: selfReview=true vs false → different cache keys → miss", async () => {
+      const hasher = realHasher();
+      const keyDefault = await computeCacheKey(hasher, "sha-aaa", 0, "prompthash1", false);
+      const keySelfReview = await computeCacheKey(hasher, "sha-aaa", 0, "prompthash1", true);
+      assert.notEqual(
+        keyDefault, keySelfReview,
+        "selfReview toggle MUST produce a different cache key — otherwise label add/remove serves stale review",
+      );
+    });
+
+    it("Test 7b: selfReview defaults to false when omitted (backward-compat)", async () => {
+      const hasher = realHasher();
+      const keyOmitted = await computeCacheKey(hasher, "sha-aaa", 0, "prompthash1");
+      const keyExplicitFalse = await computeCacheKey(hasher, "sha-aaa", 0, "prompthash1", false);
+      assert.equal(keyOmitted, keyExplicitFalse, "Omitting selfReview must equal selfReview=false");
+    });
   });
 
   describe("graceful degradation", () => {

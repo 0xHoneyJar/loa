@@ -143,11 +143,28 @@ export const SELF_REVIEW_LABEL = "bridgebuilder:self-review";
  * Returns true iff the PR carries SELF_REVIEW_LABEL.
  *
  * Centralized so the label string lives in one place and call sites
- * (reviewer.ts processItemTwoPass; template.ts buildPrompt + buildPromptWithMeta)
- * cannot drift from each other.
+ * (reviewer.ts processItemTwoPass; template.ts buildPrompt + buildPromptWithMeta;
+ * main.ts multi-model entry) cannot drift from each other.
  */
 export function isSelfReviewOptedIn(prLabels) {
     return (prLabels ?? []).includes(SELF_REVIEW_LABEL);
+}
+/**
+ * Build a per-call truncate config from a base config and a PR's labels.
+ *
+ * BB-004 (PR #797 iter-2): four call sites (template.ts × 2, reviewer.ts,
+ * main.ts) duplicated `{ ...config, selfReview: isSelfReviewOptedIn(pr.labels) }`.
+ * BB iter-1 caught a missed call site that silently nullified the feature for
+ * the multi-model pipeline — a duplication-as-correctness-hazard pattern. This
+ * helper is the single chokepoint, so adding new call sites OR new per-PR
+ * configuration knobs requires touching ONE function, and tests can pin the
+ * derivation here.
+ */
+export function deriveCallConfig(config, pr) {
+    return {
+        ...config,
+        selfReview: isSelfReviewOptedIn(pr.labels),
+    };
 }
 // --- Loa Detection (Task 1.2 — SDD Section 3.1) ---
 /** Default Loa framework exclude patterns.
@@ -170,6 +187,42 @@ export const LOA_EXCLUDE_PATTERNS = [
     "INSTALLATION.md",
     "grimoires/**/NOTES.md",
 ];
+/**
+ * Load `.reviewignore` operator-curated patterns from repo root.
+ * Returns ONLY the user patterns — does NOT merge with LOA_EXCLUDE_PATTERNS.
+ *
+ * `.reviewignore` carries operator-curated exclusions (secrets/, vendor blobs,
+ * private internal docs) that are distinct from the framework's built-in
+ * exclusion list. The self-review opt-in (#796 / vision-013) bypasses the
+ * framework patterns but MUST continue to honor `.reviewignore` — BB-001-security
+ * surfaced this as a MEDIUM finding on PR #797 iter-2.
+ *
+ * Returns empty array when file missing or unreadable (graceful default).
+ */
+export function loadReviewIgnoreUserPatterns(repoRoot) {
+    const root = repoRoot ?? process.cwd();
+    const reviewignorePath = resolve(root, ".reviewignore");
+    const userPatterns = [];
+    try {
+        if (!existsSync(reviewignorePath)) {
+            return userPatterns;
+        }
+        const content = readFileSync(reviewignorePath, "utf-8");
+        for (const rawLine of content.split("\n")) {
+            const line = rawLine.trim();
+            if (!line || line.startsWith("#"))
+                continue;
+            const pattern = line.endsWith("/") ? `${line}**` : line;
+            if (!userPatterns.includes(pattern)) {
+                userPatterns.push(pattern);
+            }
+        }
+    }
+    catch {
+        // Graceful: return empty on any error
+    }
+    return userPatterns;
+}
 /**
  * Load .reviewignore patterns from repo root and merge with LOA_EXCLUDE_PATTERNS.
  * Returns combined patterns array. Graceful when file missing (returns LOA patterns only).
@@ -728,11 +781,51 @@ export function truncateFiles(files, config) {
     const loaExcludedEntries = [];
     let afterLoa = files;
     if (loaDetection.isLoa && config.selfReview === true) {
-        // Self-review opt-in path: caller (reviewer.ts) detected the
-        // `bridgebuilder:self-review` label on the PR. Surface this in the
-        // banner so operators reading the review see WHY framework files are
-        // visible — Tricorder-style "analyzer ran in self-review mode" signal.
-        loaBanner = "[Loa-aware: self-review opt-in active — framework files included (vision-013 / #796)]";
+        // Self-review opt-in path: caller (reviewer.ts/main.ts/template.ts) detected
+        // the `bridgebuilder:self-review` label on the PR.
+        //
+        // BB-001-security (PR #797 iter-2): the bypass MUST scope to LOA framework
+        // patterns only — operator-curated `.reviewignore` patterns (secrets/,
+        // vendor blobs, private docs) MUST still apply. This is the AWS-IAM rule:
+        // an Allow grant never overrides a Deny. The self-review label is an Allow
+        // on framework files, NOT a global Deny suppressor.
+        //
+        // Use matchesExcludePattern directly (NOT applyLoaTierExclusion) — the
+        // tier classifier is for LOA framework files and would route a .env file
+        // through the high-risk "exception" branch back into passthrough,
+        // defeating the .reviewignore intent. user-curated patterns are simple
+        // matches: present → exclude, absent → include. No tiering.
+        const userPatterns = loadReviewIgnoreUserPatterns(config.repoRoot);
+        if (userPatterns.length > 0) {
+            const passthrough = [];
+            let userBytesSaved = 0;
+            for (const f of files) {
+                if (matchesExcludePattern(f.filename, userPatterns)) {
+                    loaExcludedEntries.push({
+                        filename: f.filename,
+                        stats: `+${f.additions} -${f.deletions} (.reviewignore user pattern)`,
+                    });
+                    userBytesSaved += f.patch ? new TextEncoder().encode(f.patch).byteLength : 0;
+                }
+                else {
+                    passthrough.push(f);
+                }
+            }
+            afterLoa = passthrough;
+            if (loaExcludedEntries.length > 0) {
+                loaStats = {
+                    filesExcluded: loaExcludedEntries.length,
+                    bytesSaved: userBytesSaved,
+                };
+            }
+        }
+        // Surface the opt-in in the banner so operators reading the review see WHY
+        // framework files are visible — Tricorder-style "analyzer ran in self-review
+        // mode" signal.
+        const userPatternCount = userPatterns.length;
+        loaBanner = userPatternCount > 0
+            ? `[Loa-aware: self-review opt-in active — framework files included; .reviewignore (${userPatternCount} user patterns) still honored (vision-013 / #796)]`
+            : "[Loa-aware: self-review opt-in active — framework files included (vision-013 / #796)]";
     }
     if (loaDetection.isLoa && config.selfReview !== true) {
         const effectivePatterns = loadReviewIgnore(config.repoRoot);
