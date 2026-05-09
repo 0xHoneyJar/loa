@@ -190,8 +190,8 @@ AC-1.1 typed taxonomy · AC-1.2 invoke-time probe · AC-1.3 red-team attacker ro
 
 - [x] Sprint 1A deliverable subset checked (above)
 - [x] Sprint 1A unit-test corpus green (109/109 bats locally; 0 net-new failures vs main in CI Shell Tests)
-- [x] `/review-sprint sprint-1` produces APPROVED verdict on Sprint 1A scope (after this rescope; first-iter returned CHANGES_REQUIRED on full-scope expectations)
-- [ ] `/audit-sprint sprint-1` produces "APPROVED - LETS FUCKING GO" — pending re-run after rescope
+- [x] `/review-sprint sprint-1` round-2 APPROVED on Sprint 1A scope (2026-05-09; round-1 CHANGES_REQUIRED → all 4 CRITs closed in commit `fe21070e` → round-2 verdict "All good"; engineer-feedback.md round-2 documents Sprint 1B carry-forward including newly-discovered T1B.4)
+- [x] `/audit-sprint sprint-1` APPROVED - LETS FUCKING GO (2026-05-09; auditor-sprint-feedback.md + COMPLETED marker at `grimoires/loa/a2a/sprint-1/`; Phase 2.5 adversarial gates both filed with documented `api_failure` status — gpt-5.5-pro empty-content reproducing the exact bug class T1.9 was meant to fix; T1B.4 captures the model-adapter.sh coverage gap)
 - [x] Bridgebuilder review — 5 iterations to kaironic plateau; iter-5 confirmed plateau on post-review CI fix commits
 - [x] Per-sprint ship/no-ship decision recorded in `grimoires/loa/NOTES.md` (Sprint 1A: SHIP)
 - [ ] Beads tasks closed — beads CLI broken locally per [#661](https://github.com/0xHoneyJar/loa/issues/661); manual fallback record in `grimoires/loa/a2a/cycle-102-sprint-1/reviewer.md` task table
