@@ -409,3 +409,37 @@ _validate_sh() {
     n="$("$PYTHON_BIN" -I -c "import json; print(len(json.load(open('$SCHEMA'))['properties']['error_class']['enum']))")"
     [ "$n" -eq 10 ]
 }
+
+# -----------------------------------------------------------------------------
+# T1B.1 — Redaction Contract Pins (BB iter-5 FIND-005, re-classified HIGH)
+#
+# The schema's `original_exception` field carries raw stack-trace content
+# from cheval/Python. Audit chain is hash-chain immutable per cycle-098;
+# any leak is permanent. The schema enforces shape only — semantic
+# redaction is emitter responsibility (Sprint 1B T1.7 will wire the
+# log-redactor pass; this test pins the contract for that wiring).
+# -----------------------------------------------------------------------------
+
+@test "X1: schema description for original_exception explicitly mandates emitter redaction (T1B.1 contract pin)" {
+    local desc
+    desc="$("$PYTHON_BIN" -I -c "import json; print(json.load(open('$SCHEMA'))['properties']['original_exception']['description'])")"
+    # The description MUST contain "MUST run" as the explicit emitter clause.
+    [[ "$desc" == *"MUST run this string through lib/log-redactor"* ]]
+    # The description MUST acknowledge audit-chain immutability so future
+    # operators understand WHY redaction is non-negotiable, not just THAT.
+    [[ "$desc" == *"hash-chain immutable"* ]]
+    [[ "$desc" == *"PERMANENT"* ]]
+    # The description MUST NOT contain the previous handwave that suggested
+    # "downstream lint scans audit logs for secret-shaped content and flags
+    # drift" — that aspirational lint never existed and would not be
+    # retroactively useful since the chain is immutable.
+    [[ "$desc" != *"downstream lint scans audit logs"* ]]
+}
+
+@test "X2: log-redactor library exists at path the schema references (T1B.1 contract pin)" {
+    # The schema description points emitters at lib/log-redactor.{sh,py}.
+    # If the path is wrong, every future emitter that follows the contract
+    # by-the-book hits an ImportError.
+    [[ -f "$PROJECT_ROOT/.claude/scripts/lib/log-redactor.py" ]] || \
+        [[ -f "$PROJECT_ROOT/.claude/scripts/lib/log-redactor.sh" ]]
+}
