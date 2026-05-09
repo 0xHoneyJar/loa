@@ -68,46 +68,33 @@ _dbg() { [[ "$DEBUG" == "1" ]] && printf 'curl-mock[trace]: %s\n' "$*" >&2; retu
 _dbg "fixture=$FIXTURE_PATH call_log=$CALL_LOG argv_count=$#"
 
 # -----------------------------------------------------------------------------
-# YAML parsing — we use yq if available, fall back to a tiny grep-based parser
-# for the small fixture schema (status_code, exit_code, delay_seconds, body,
-# body_file, headers, stderr). Keeping the fallback minimal so this shim has
-# no hard dep on yq beyond what bats-fixtures already require.
+# YAML parsing — yq is REQUIRED. The previous grep-based fallback was unusable:
+# under `set -euo pipefail` it returned non-zero for missing optional fields
+# AND silently dropped multiline `body: |` content. Per BB iter-1 F1/FIND-001
+# convergent finding (both anthropic + openai flagged the same root cause):
+# fail-closed must be transitive — if the harness's fail-loud claim depends
+# on yq, yq's absence is itself a fail-loud trigger. Mirrors Meta's Buck2
+# hermetic-toolchain approach: tool absence is a hard error, never a soft
+# fallback.
 # -----------------------------------------------------------------------------
 
-_yq_exists() { command -v yq >/dev/null 2>&1; }
+if ! command -v yq >/dev/null 2>&1; then
+    printf 'curl-mock: yq is required (mikefarah/yq v4 or kislyuk/yq) — install before running.\n' >&2
+    printf '  The previous grep fallback silently dropped multiline body content;\n' >&2
+    printf '  that fallback was removed per BB iter-1 F1/FIND-001 closure.\n' >&2
+    exit 99
+fi
 
 _yq() {
-    # Read field with yq if available
     yq -r "$1 // \"\"" "$FIXTURE_PATH"
 }
 
-_grep_field() {
-    # Fallback: grep the literal `key:` line for scalar fields.
-    # Only handles top-level scalar fields. For nested headers + multiline
-    # body we require yq.
-    local key="$1"
-    grep -E "^${key}:[[:space:]]*" "$FIXTURE_PATH" 2>/dev/null \
-        | head -1 \
-        | sed -E "s/^${key}:[[:space:]]*//" \
-        | sed -E 's/^"(.*)"$/\1/' \
-        | sed -E "s/^'(.*)'\$/\1/"
-}
-
-if _yq_exists; then
-    STATUS_CODE=$(_yq '.status_code')
-    EXIT_CODE=$(_yq '.exit_code')
-    DELAY=$(_yq '.delay_seconds')
-    BODY=$(_yq '.body')
-    BODY_FILE=$(_yq '.body_file')
-    STDERR_TEXT=$(_yq '.stderr')
-else
-    STATUS_CODE=$(_grep_field 'status_code')
-    EXIT_CODE=$(_grep_field 'exit_code')
-    DELAY=$(_grep_field 'delay_seconds')
-    BODY=""  # multiline bodies require yq
-    BODY_FILE=$(_grep_field 'body_file')
-    STDERR_TEXT=$(_grep_field 'stderr')
-fi
+STATUS_CODE=$(_yq '.status_code')
+EXIT_CODE=$(_yq '.exit_code')
+DELAY=$(_yq '.delay_seconds')
+BODY=$(_yq '.body')
+BODY_FILE=$(_yq '.body_file')
+STDERR_TEXT=$(_yq '.stderr')
 
 # Defaults
 STATUS_CODE="${STATUS_CODE:-200}"
@@ -248,6 +235,7 @@ fi
 INCLUDE_HEADERS=0
 OUTPUT_FILE=""
 SILENT=0
+FAIL_FLAG=0   # BB iter-1 FIND-003 closure: --fail / -f / --fail-with-body
 i=1
 ARGS=("$@")
 while [[ $i -le $# ]]; do
@@ -260,8 +248,18 @@ while [[ $i -le $# ]]; do
                 OUTPUT_FILE="${ARGS[$i]}"
             fi
             ;;
+        -f|--fail|--fail-with-body|--fail-early)
+            # BB iter-1 FIND-003: real curl returns exit 22 when --fail is
+            # set and status >=400. The shim must model this faithfully —
+            # silent omission means a caller using `curl --fail` against
+            # 4xx/5xx fixtures gets exit 0 and false-positives.
+            FAIL_FLAG=1
+            ;;
         -w|--write-out)
-            _dbg "WARN: -w/--write-out not honored by curl-mock"
+            # BB iter-1 FIND-002 (deferred): -w/--write-out output not yet
+            # emitted. Tests using `curl -w '%{http_code}'` to split body
+            # from status will see no write-out. Tracked for follow-up.
+            _dbg "WARN: -w/--write-out not honored by curl-mock (FIND-002 follow-up)"
             ;;
     esac
     i=$((i + 1))
@@ -343,18 +341,36 @@ if [[ "$EXIT_CODE" != "0" ]]; then
 fi
 
 # -----------------------------------------------------------------------------
+# BB iter-1 FIND-003 closure: --fail / -f handling. Real curl returns exit 22
+# when --fail is set and the response status code is >= 400. The 4xx/5xx
+# fixtures shipped here imply this surface is in scope; modeling it
+# faithfully is the difference between tests that catch real failures and
+# tests that pass for the wrong reasons (Mockito-style strictness — Netflix
+# 2018 mocking lessons).
+# -----------------------------------------------------------------------------
+if [[ "$FAIL_FLAG" == "1" && "$STATUS_CODE" -ge 400 ]]; then
+    _dbg "FAIL_FLAG=1 + status=$STATUS_CODE — emitting exit 22 (CURLE_HTTP_RETURNED_ERROR)"
+    if [[ -n "$STDERR_TEXT" && "$SILENT" != "1" ]]; then
+        printf '%s\n' "$STDERR_TEXT" >&2
+    else
+        # Real curl writes a brief diagnostic on --fail; preserve fidelity
+        printf 'curl: (22) The requested URL returned error: %s\n' "$STATUS_CODE" >&2
+    fi
+    exit 22
+fi
+
+# -----------------------------------------------------------------------------
 # Emit response. With -i/--include, prepend HTTP status line + headers.
 # Without, just emit body. Direct to OUTPUT_FILE if -o was passed.
 # -----------------------------------------------------------------------------
 _emit_response() {
     if [[ "$INCLUDE_HEADERS" == "1" ]]; then
         printf 'HTTP/1.1 %s\r\n' "$STATUS_CODE"
-        if _yq_exists; then
-            yq -r '.headers // {} | to_entries | .[] | "\(.key): \(.value)"' "$FIXTURE_PATH" 2>/dev/null \
-                | while IFS= read -r line; do
-                    [[ -n "$line" ]] && printf '%s\r\n' "$line"
-                done
-        fi
+        # yq is now a hard requirement (see early guard); always available here.
+        yq -r '.headers // {} | to_entries | .[] | "\(.key): \(.value)"' "$FIXTURE_PATH" 2>/dev/null \
+            | while IFS= read -r line; do
+                [[ -n "$line" ]] && printf '%s\r\n' "$line"
+            done
         printf '\r\n'
     fi
     printf '%s' "$RESOLVED_BODY"

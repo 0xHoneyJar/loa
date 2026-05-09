@@ -253,11 +253,12 @@ teardown() {
 # -----------------------------------------------------------------------------
 
 @test "S1: shim refuses to run without LOA_CURL_MOCK_FIXTURE" {
-    run env -i bash "$PROJECT_ROOT/tests/lib/curl-mock.sh"
+    # BB iter-1 F14 closure: drop the `|| true` short-circuit that made
+    # the diagnostic-message assertion vacuous. Use `run` with explicit
+    # 2>&1 redirect to ensure stderr lands in $output for substring check.
+    run bash -c "env -i bash '$PROJECT_ROOT/tests/lib/curl-mock.sh' 2>&1"
     [ "$status" -eq 99 ]
-    [[ "$output" == *"LOA_CURL_MOCK_FIXTURE not set"* ]] || \
-        [[ "$stderr" == *"LOA_CURL_MOCK_FIXTURE not set"* ]] || \
-        true  # bats may collapse stderr into output
+    [[ "$output" == *"LOA_CURL_MOCK_FIXTURE not set"* ]]
 }
 
 @test "S2: shim refuses to run without LOA_CURL_MOCK_CALL_LOG" {
@@ -286,6 +287,31 @@ teardown() {
     [ "$status" -eq 0 ]
     [[ "$output" == HTTP/1.1\ 200* ]]
     [[ "$output" == *'content-type: application/json'* ]]
+    [[ "$output" == *'"ok": true'* ]]
+}
+
+@test "O3: curl --fail returns exit 22 on 4xx fixture (BB iter-1 FIND-003 closure)" {
+    _with_curl_mock 400-bad-request
+    run curl --fail https://api.example.com/v1/x
+    [ "$status" -eq 22 ]
+}
+
+@test "O4: curl -f returns exit 22 on 5xx fixture (FIND-003 short-flag form)" {
+    _with_curl_mock 500-internal
+    run curl -f https://api.example.com/v1/x
+    [ "$status" -eq 22 ]
+}
+
+@test "O5: without --fail, 4xx fixture still returns exit 0 (default curl behavior)" {
+    _with_curl_mock 400-bad-request
+    run curl https://api.example.com/v1/x
+    [ "$status" -eq 0 ]
+}
+
+@test "O6: --fail with 200 fixture passes through unchanged" {
+    _with_curl_mock 200-ok
+    run curl --fail https://api.example.com/v1/x
+    [ "$status" -eq 0 ]
     [[ "$output" == *'"ok": true'* ]]
 }
 

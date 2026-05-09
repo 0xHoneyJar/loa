@@ -155,7 +155,10 @@ _invoke_call_api() {
         # shellcheck disable=SC1090
         source "$SOURCABLE_ADAPTER" >/dev/null 2>&1
         _lookup_max_output_tokens() { echo 99999; }
-        export -f _lookup_max_output_tokens 2>/dev/null || true
+        # BB iter-1 F11 closure: dropped `export -f ... 2>/dev/null || true`
+        # which masked override failure. Now assert the override took before
+        # invoking the call_*_api function — sentinel only valid if observable.
+        [[ "$(_lookup_max_output_tokens openai gpt-5.5-pro 8000)" == "99999" ]]
         call_openai_api gpt-5.5-pro "sys" "user" 30 "test-key" 2>&1
     )"
     _assert_curl_called_n_times 1
@@ -168,7 +171,10 @@ _invoke_call_api() {
         # shellcheck disable=SC1090
         source "$SOURCABLE_ADAPTER" >/dev/null 2>&1
         _lookup_max_output_tokens() { echo 99999; }
-        export -f _lookup_max_output_tokens 2>/dev/null || true
+        # BB iter-1 F11 closure: dropped `export -f ... 2>/dev/null || true`
+        # which masked override failure. Now assert the override took before
+        # invoking the call_*_api function — sentinel only valid if observable.
+        [[ "$(_lookup_max_output_tokens openai gpt-5.5-pro 8000)" == "99999" ]]
         call_anthropic_api claude-opus-4-7 "sys" "user" 30 "test-key" 2>&1
     )"
     _assert_curl_called_n_times 1
@@ -181,7 +187,10 @@ _invoke_call_api() {
         # shellcheck disable=SC1090
         source "$SOURCABLE_ADAPTER" >/dev/null 2>&1
         _lookup_max_output_tokens() { echo 99999; }
-        export -f _lookup_max_output_tokens 2>/dev/null || true
+        # BB iter-1 F11 closure: dropped `export -f ... 2>/dev/null || true`
+        # which masked override failure. Now assert the override took before
+        # invoking the call_*_api function — sentinel only valid if observable.
+        [[ "$(_lookup_max_output_tokens openai gpt-5.5-pro 8000)" == "99999" ]]
         call_google_api gemini-3.1-pro-preview "sys" "user" 30 "test-key" 2>&1
     )"
     _assert_curl_called_n_times 1

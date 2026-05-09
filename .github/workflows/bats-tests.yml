@@ -23,22 +23,28 @@ on:
     paths:
       - '.claude/scripts/**/*.sh'
       - '.claude/scripts/tests/**'
+      - '.claude/adapters/**/*.py'         # BB iter-1 FIND-005 closure
+      - '.claude/defaults/**'              # BB iter-1 FIND-005 closure
       - 'tests/unit/**'
       - 'tests/integration/**'
       - 'tests/lib/**'
       - 'tests/fixtures/**'
       - 'tests/run-unit-tests.sh'
+      - 'grimoires/loa/runbooks/curl-mock-harness.md'  # BB iter-1 FIND-005
       - '.github/workflows/bats-tests.yml'
   pull_request:
     branches: [main]
     paths:
       - '.claude/scripts/**/*.sh'
       - '.claude/scripts/tests/**'
+      - '.claude/adapters/**/*.py'         # BB iter-1 FIND-005 closure
+      - '.claude/defaults/**'              # BB iter-1 FIND-005 closure
       - 'tests/unit/**'
       - 'tests/integration/**'
       - 'tests/lib/**'
       - 'tests/fixtures/**'
       - 'tests/run-unit-tests.sh'
+      - 'grimoires/loa/runbooks/curl-mock-harness.md'  # BB iter-1 FIND-005
       - '.github/workflows/bats-tests.yml'
 
 permissions:
