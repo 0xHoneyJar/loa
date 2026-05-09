@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, lstatSync } from "node:fs";
+import { existsSync, readFileSync, lstatSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import path from "node:path";
 // --- Security Patterns Registry (Task 1.1 — SDD Section 3.6) ---
@@ -206,13 +206,16 @@ export const LOA_EXCLUDE_PATTERNS = [
  * @throws Error when `.reviewignore` exists but cannot be read or parsed.
  */
 function parseReviewignoreFile(repoRoot) {
-    // BB-801-002-gpt (PR #801 iter-1 MEDIUM, conf 0.82): validate repoRoot
-    // resolves to a directory BEFORE collapsing ENOENT to "absent". A bogus
-    // repoRoot (typo, deleted dir) would otherwise silently produce zero
-    // user exclusions.
+    // BB-801-002-gpt (iter-1 MEDIUM): validate repoRoot resolves to a
+    // directory BEFORE proceeding.
+    //
+    // BB801-REVIEW-001 (iter-2 MEDIUM, conf 0.88): use statSync (NOT lstatSync)
+    // for repoRoot — lstat would reject valid symlinked repo roots (macOS
+    // /tmp → /private/tmp, CI checkout caches, monorepo worktrees). repoRoot
+    // is a CONTAINER check; symlink-as-convenience is normal here.
     let rootStat;
     try {
-        rootStat = lstatSync(repoRoot);
+        rootStat = statSync(repoRoot);
     }
     catch (err) {
         const code = err.code;
@@ -226,44 +229,53 @@ function parseReviewignoreFile(repoRoot) {
         throw enriched;
     }
     const reviewignorePath = resolve(repoRoot, ".reviewignore");
-    // #799 (iter-7 HIGH, conf 0.87): lstat-before-read. readFileSync ENOENT
-    // can mean either (a) genuine absence or (b) broken symlink. Disambiguate
-    // via lstatSync (follows path WITHOUT dereferencing final symlink).
-    // BB-801-003-gpt (PR #801 iter-1 LOW): nested try/catch refactored to flat
-    // control flow so the rethrow path can't be silently re-caught.
+    // BB801-REVIEW-002 (iter-2 HIGH, conf 0.76): LSTAT-BEFORE-READ on the
+    // leaf file. readFileSync transparently follows symlinks, so a
+    // `.reviewignore` symlinked to `/etc/passwd`, `/dev/zero`, a FIFO, or
+    // any external file would be read into the policy parser before any
+    // validation. Same TOCTOU shape as Git CVE-2022-39253 (symlinked
+    // .git/objects exfil during clone). Linux kernel's O_NOFOLLOW exists
+    // for this class.
+    //
+    // Policy: `.reviewignore` MUST be a regular file. Symlinks (broken or
+    // otherwise) are rejected. This is `safefile`-style discipline applied
+    // to repo-bounded config loading.
+    let leafStat;
+    try {
+        leafStat = lstatSync(reviewignorePath);
+    }
+    catch (err) {
+        const code = err.code;
+        if (code === "ENOENT") {
+            return []; // Genuine absence — no `.reviewignore` exists
+        }
+        // Any other error (EACCES, ELOOP, etc.) propagates so caller fail-closes.
+        throw err;
+    }
+    if (leafStat.isSymbolicLink()) {
+        // BB-801-002-opus (iter-1 LOW): EBROKENSYMLINK rather than ENOENT-
+        // prefixed code. The intent here is broader than the iter-1 phrasing
+        // suggested: ANY symlink at `.reviewignore` is rejected (broken OR
+        // pointing somewhere we'd rather not follow). The error code
+        // covers both cases under a single fail-closed signal.
+        const enriched = new Error(`.reviewignore is a symbolic link — symlinks at the leaf file are rejected to prevent symlink-follow-on-read TOCTOU (BB801-REVIEW-002): ${reviewignorePath}`);
+        enriched.code = "EBROKENSYMLINK";
+        throw enriched;
+    }
+    if (!leafStat.isFile()) {
+        // Not a symlink, not a regular file → directory, FIFO, device, etc.
+        const enriched = new Error(`.reviewignore is not a regular file (BB801-REVIEW-002 fail-closed): ${reviewignorePath}`);
+        enriched.code = "ENOTAFILE";
+        throw enriched;
+    }
+    // Now it's safe to read: validated to be a regular file.
     let content;
     try {
         content = readFileSync(reviewignorePath, "utf-8");
     }
     catch (err) {
-        const code = err.code;
-        if (code !== "ENOENT") {
-            // EACCES, EISDIR, ELOOP, ENOTDIR — propagate. Caller fail-closes.
-            throw err;
-        }
-        // ENOENT: disambiguate via lstat
-        let stat;
-        try {
-            stat = lstatSync(reviewignorePath);
-        }
-        catch (lstatErr) {
-            const lstatCode = lstatErr.code;
-            if (lstatCode === "ENOENT") {
-                return []; // Genuine absence — no `.reviewignore` exists
-            }
-            throw lstatErr; // Other lstat errors propagate
-        }
-        // BB-801-002-opus (PR #801 iter-1 LOW): EBROKENSYMLINK rather than
-        // ENOENT-prefixed code to avoid downstream `err.code.startsWith("ENOENT")`
-        // misclassifying broken-symlink as absence.
-        if (stat.isSymbolicLink()) {
-            const enriched = new Error(`.reviewignore is a broken symbolic link (target missing): ${reviewignorePath}`);
-            enriched.code = "EBROKENSYMLINK";
-            throw enriched;
-        }
-        // readFileSync ENOENT + lstat succeeded + not a symlink → TOCTOU race
-        // (file deleted between read and lstat) or unusual FS state. Propagate
-        // the original ENOENT so caller can decide.
+        // Read errors after a successful lstat are rare (TOCTOU race window
+        // between lstat and read) — propagate.
         throw err;
     }
     const patterns = [];

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { writeFileSync, mkdirSync, rmSync, symlinkSync } from "node:fs";
+import { writeFileSync, mkdirSync, rmSync, symlinkSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -769,6 +769,78 @@ describe("truncateFiles", () => {
         assert.ok(thrown);
         assert.equal(thrown!.code, "EBADREPOROOT");
       } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    // BB801-REVIEW-002 (PR #801 iter-2 HIGH, conf 0.76): TOCTOU on symlink-
+    // follow. .reviewignore-as-symlink MUST be rejected BEFORE readFileSync
+    // (which follows symlinks transparently). Same CVE class as
+    // Git CVE-2022-39253.
+    it("rejects .reviewignore that is a symlink to ANOTHER existing file (BB801-REVIEW-002 HIGH)", () => {
+      const tmpDir = join(tmpdir(), `loa-test-symlink-attack-${Date.now()}`);
+      mkdirSync(tmpDir, { recursive: true });
+      const reviewignorePath = join(tmpDir, ".reviewignore");
+      const realFile = join(tmpDir, "real-target.txt");
+      // Target file exists with content. Without the lstat-before-read
+      // policy, readFileSync would silently slurp it into the policy parser.
+      writeFileSync(realFile, "secrets/\nvendor/\n");
+      symlinkSync(realFile, reviewignorePath);
+      try {
+        let thrown: NodeJS.ErrnoException | null = null;
+        try {
+          loadReviewIgnoreUserPatterns(tmpDir);
+        } catch (err) {
+          thrown = err as NodeJS.ErrnoException;
+        }
+        assert.ok(thrown, "symlink-to-existing-file MUST throw, not be silently followed");
+        assert.equal(thrown!.code, "EBROKENSYMLINK");
+        // Closes the TOCTOU class — even if the target is innocuous,
+        // the policy is fail-closed because we can't validate ahead of read
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("rejects .reviewignore that is a directory (ENOTAFILE)", () => {
+      const tmpDir = join(tmpdir(), `loa-test-dir-as-reviewignore-${Date.now()}`);
+      mkdirSync(join(tmpDir, ".reviewignore"), { recursive: true });
+      try {
+        let thrown: NodeJS.ErrnoException | null = null;
+        try {
+          loadReviewIgnoreUserPatterns(tmpDir);
+        } catch (err) {
+          thrown = err as NodeJS.ErrnoException;
+        }
+        assert.ok(thrown);
+        // Either EISDIR (lstat... no wait, lstat works on dirs) or
+        // ENOTAFILE (our explicit non-regular-file rejection)
+        assert.ok(
+          thrown!.code === "ENOTAFILE" || thrown!.code === "EISDIR",
+          `expected ENOTAFILE or EISDIR; got: ${thrown!.code}`,
+        );
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    // BB801-REVIEW-001 (PR #801 iter-2 MEDIUM, conf 0.88): symlinked
+    // repoRoot MUST be accepted (macOS /tmp → /private/tmp pattern, CI
+    // checkout caches). Use statSync for container, lstatSync for leaf.
+    it("accepts a symlinked repoRoot (statSync, not lstatSync, for container)", () => {
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const tmpDir = join(tmpdir(), `loa-test-symlink-repo-${id}`);
+      mkdirSync(tmpDir, { recursive: true });
+      const symlinkRoot = join(tmpdir(), `loa-test-symlink-link-${id}`);
+      symlinkSync(tmpDir, symlinkRoot);
+      try {
+        // No .reviewignore in the underlying dir — should return [] gracefully
+        const patterns = loadReviewIgnoreUserPatterns(symlinkRoot);
+        assert.deepEqual(patterns, []);
+      } finally {
+        // Node 24's rmSync errors on symlinks-to-directories — use unlinkSync
+        // for the symlink itself (removes the link, not its target).
+        try { unlinkSync(symlinkRoot); } catch { /* best-effort */ }
         rmSync(tmpDir, { recursive: true, force: true });
       }
     });
