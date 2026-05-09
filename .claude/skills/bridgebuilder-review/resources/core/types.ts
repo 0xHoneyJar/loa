@@ -177,20 +177,29 @@ export interface TruncationResult {
   /** Loa exclusion statistics. */
   loaStats?: { filesExcluded: number; bytesSaved: number };
   /**
-   * True when the self-review opt-in (#796 / vision-013) was active for this
-   * truncation pass — the `bridgebuilder:self-review` label was on the PR and
-   * framework files were admitted into the payload.
+   * True when the self-review opt-in (#796 / vision-013) was active AND
+   * succeeded for this truncation pass — framework files were admitted.
    *
-   * BB-797-001 (PR #797 iter-3): downstream consumers (cache key, audit logs,
-   * future analyzers) must read this typed field, never substring-match the
-   * `loaBanner` prose. Banner text can change with copy edits; the boolean
-   * cannot. Tricorder rule: structured in, structured out.
+   * BB-797-001 (iter-3): typed; never substring-match the banner prose.
+   * BB-797-004-typing (iter-4): required, not optional.
    *
-   * BB-797-004-typing (PR #797 iter-4): required, not optional — every
-   * truncateFiles return path sets it. Reflects what the system DID (fail-closed
-   * to false when `.reviewignore` is unreadable), not what was REQUESTED.
+   * BB-797-002 (iter-5): kept as a convenience mirror of `selfReviewState ===
+   * "active"`. Downstream consumers needing to distinguish "rejected" from
+   * "inactive" (cache keys, audit) MUST read `selfReviewState` instead — the
+   * boolean lossy-encodes the tri-state and produces cache collisions.
    */
   selfReviewActive: boolean;
+  /**
+   * Tri-state self-review outcome (#797 iter-5 BB-797-002):
+   *   - "inactive": no self-review label on PR (default-filter path ran)
+   *   - "active":   label present + .reviewignore readable + framework files admitted
+   *   - "rejected": label present BUT .reviewignore unreadable → fail-closed
+   *                 to default filter (BB-797-001-security iter-4)
+   *
+   * Cache keys MUST dimension on this field, not the boolean: "inactive" and
+   * "rejected" both yield selfReviewActive=false but produce different prompts.
+   */
+  selfReviewState: "inactive" | "active" | "rejected";
   /** Truncation level applied (undefined = no progressive truncation). */
   truncationLevel?: 1 | 2 | 3;
   /** Disclaimer text for the current truncation level. */

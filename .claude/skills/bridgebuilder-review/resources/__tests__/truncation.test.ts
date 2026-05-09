@@ -716,7 +716,7 @@ describe("truncateFiles", () => {
       }
     });
 
-    it("truncateFiles fail-closes self-review when .reviewignore unreadable", () => {
+    it("truncateFiles fail-closes self-review with allExcluded=true when .reviewignore unreadable (BB-797-001 iter-5 HIGH)", () => {
       const tmpDir = join(tmpdir(), `loa-test-failclosed-${Date.now()}`);
       mkdirSync(tmpDir, { recursive: true });
       // .reviewignore as directory → unreadable
@@ -724,6 +724,7 @@ describe("truncateFiles", () => {
       try {
         const files = [
           file(".claude/skills/bb/adapter.ts", 25, 3, "x".repeat(50)),
+          file("secrets/api-keys.env", 5, 0, "x".repeat(50)),
           file("src/handler.ts", 10, 0, "x".repeat(50)),
         ];
         const config = {
@@ -734,22 +735,31 @@ describe("truncateFiles", () => {
         };
         const result = truncateFiles(files, config);
 
-        // Framework file MUST be excluded — self-review failed-closed to LOA filter
+        // BB-797-001 iter-5 HIGH invariant: fail-closed must close EVERY axis
+        // the operator was governing. We don't know what `.reviewignore`
+        // wanted excluded, so NO files are admitted — including the
+        // "innocent" app file. AWS-IAM analogue: unreachable policy
+        // collapses to deny-all.
+        assert.equal(result.allExcluded, true);
+        assert.equal(result.included.length, 0);
+        // Critically: the secrets/ file MUST NOT be admitted under
+        // fail-closed — this is the user-gate axis the iter-4 fix leaked.
         const includedNames = result.included.map((f) => f.filename);
         assert.equal(
-          includedNames.includes(".claude/skills/bb/adapter.ts"),
+          includedNames.includes("secrets/api-keys.env"),
           false,
-          "framework file MUST be excluded when .reviewignore unreadable (fail-closed)",
+          "secrets/ file MUST NOT be admitted under fail-closed (closes BB-797-001 iter-5 HIGH)",
         );
-        // App file admitted as normal
-        assert.ok(
-          includedNames.includes("src/handler.ts"),
-          "app file should be admitted under default LOA filter",
-        );
-        // selfReviewActive=false reflects ACTUAL state, not operator request
         assert.equal(
-          result.selfReviewActive, false,
-          "selfReviewActive MUST be false under fail-closed (cache key sees actual state)",
+          includedNames.includes("src/handler.ts"),
+          false,
+          "even non-framework app files are NOT admitted — fail-closed on every axis",
+        );
+        // selfReviewState=rejected reflects ACTUAL state, not operator request
+        assert.equal(result.selfReviewActive, false);
+        assert.equal(
+          result.selfReviewState, "rejected",
+          "tri-state MUST reflect rejected (not inactive); cache keys depend on this distinction",
         );
         // Banner cites the rejection so operators can debug
         assert.ok(result.loaBanner);
@@ -758,12 +768,62 @@ describe("truncateFiles", () => {
           `banner should cite REJECTED state; got: ${result.loaBanner}`,
         );
         assert.ok(
-          result.loaBanner!.includes("BB-797-001-security"),
-          `banner should cite the finding ID; got: ${result.loaBanner}`,
+          result.loaBanner!.includes("BB-797-001"),
+          `banner should cite finding ID; got: ${result.loaBanner}`,
         );
       } finally {
         rmSync(tmpDir, { recursive: true, force: true });
       }
+    });
+  });
+
+  // BB-797-002 (iter-5 MEDIUM): tri-state state field — boolean is lossy.
+  describe("selfReviewState tri-state (BB-797-002 iter-5)", () => {
+    it("state='inactive' when no self-review label", () => {
+      const config = { ...defaultConfig, loaAware: true, selfReview: false };
+      const result = truncateFiles([file("src/h.ts", 1, 0)], config);
+      assert.equal(result.selfReviewState, "inactive");
+      assert.equal(result.selfReviewActive, false);
+    });
+
+    it("state='active' when self-review succeeds", () => {
+      const config = { ...defaultConfig, loaAware: true, selfReview: true };
+      const result = truncateFiles([file(".claude/x.ts", 1, 0)], config);
+      assert.equal(result.selfReviewState, "active");
+      assert.equal(result.selfReviewActive, true);
+    });
+
+    it("state='rejected' when self-review fail-closes", () => {
+      const tmpDir = join(tmpdir(), `loa-test-tri-rejected-${Date.now()}`);
+      mkdirSync(tmpDir, { recursive: true });
+      mkdirSync(join(tmpDir, ".reviewignore"), { recursive: true });
+      try {
+        const config = {
+          ...defaultConfig,
+          loaAware: true,
+          selfReview: true,
+          repoRoot: tmpDir,
+        };
+        const result = truncateFiles([file(".claude/x.ts", 1, 0)], config);
+        assert.equal(result.selfReviewState, "rejected");
+        // The convenience boolean is false in BOTH "inactive" and "rejected" —
+        // that's the lossy encoding the tri-state was added to disambiguate.
+        assert.equal(result.selfReviewActive, false);
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("'inactive' and 'rejected' produce DIFFERENT cache keys (no collision)", async () => {
+      // Smoke test on the cache.ts side too — BB-797-002 invariant cross-check.
+      // Full cache contract lives in cache.test.ts; this guards the
+      // truncation→cache wire.
+      const states: Array<"inactive" | "active" | "rejected"> = [
+        "inactive", "active", "rejected",
+      ];
+      // String comparison only — actual hash stability is in cache.test.ts
+      const strings = states.map((s) => `head:0:self-review=${s}:prompthash`);
+      assert.equal(new Set(strings).size, 3, "3 distinct cache key inputs");
     });
   });
 

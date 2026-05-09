@@ -324,6 +324,40 @@ describe("Pass1Cache", () => {
       const keyExplicitFalse = await computeCacheKey(hasher, "sha-aaa", 0, "prompthash1", false);
       assert.equal(keyOmitted, keyExplicitFalse, "Omitting selfReview must equal selfReview=false");
     });
+
+    // BB-797-002 (iter-5): tri-state — "inactive" and "rejected" produce
+    // different prompts but both yield selfReviewActive=false. The boolean
+    // overload collapses them; the tri-state preserves the distinction.
+    it("Test 7c: tri-state 'inactive' vs 'rejected' produce DIFFERENT cache keys", async () => {
+      const hasher = realHasher();
+      const keyInactive = await computeCacheKey(hasher, "sha-aaa", 0, "prompthash1", "inactive");
+      const keyRejected = await computeCacheKey(hasher, "sha-aaa", 0, "prompthash1", "rejected");
+      assert.notEqual(
+        keyInactive, keyRejected,
+        "'inactive' and 'rejected' MUST NOT share a cache key — different prompts under each state",
+      );
+    });
+
+    it("Test 7d: tri-state 'active' vs 'rejected' produce DIFFERENT cache keys", async () => {
+      const hasher = realHasher();
+      const keyActive = await computeCacheKey(hasher, "sha-aaa", 0, "prompthash1", "active");
+      const keyRejected = await computeCacheKey(hasher, "sha-aaa", 0, "prompthash1", "rejected");
+      assert.notEqual(keyActive, keyRejected);
+    });
+
+    it("Test 7e: boolean true backward-compat equals string 'active' (iter-2 callers preserved)", async () => {
+      const hasher = realHasher();
+      const keyBool = await computeCacheKey(hasher, "sha-aaa", 0, "prompthash1", true);
+      const keyStr = await computeCacheKey(hasher, "sha-aaa", 0, "prompthash1", "active");
+      assert.equal(keyBool, keyStr);
+    });
+
+    it("Test 7f: boolean false backward-compat equals string 'inactive'", async () => {
+      const hasher = realHasher();
+      const keyBool = await computeCacheKey(hasher, "sha-aaa", 0, "prompthash1", false);
+      const keyStr = await computeCacheKey(hasher, "sha-aaa", 0, "prompthash1", "inactive");
+      assert.equal(keyBool, keyStr);
+    });
   });
 
   describe("graceful degradation", () => {

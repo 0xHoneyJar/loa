@@ -20,27 +20,36 @@ export interface CacheEntry {
 /**
  * Compute a deterministic cache key from the dimensions that affect Pass 1 output.
  *
- * Key = sha256(headSha + ":" + truncationLevel + ":" + selfReview + ":" + sha256(convergenceSystemPrompt))
+ * Key = sha256(headSha + ":" + truncationLevel + ":self-review=" + state + ":" + sha256(convergenceSystemPrompt))
  *
  * Any change to the diff (headSha), truncation strategy (level), the self-review
- * opt-in state, or the system prompt (hash) produces a different key, invalidating
+ * tri-state, or the system prompt (hash) produces a different key, invalidating
  * the cache (AC-6 + BB-003-cache).
  *
- * BB-003-cache (PR #797 iter-2): the system-prompt hash alone does NOT change
- * with selfReview — but the USER prompt content (truncated diffs) DOES, because
- * the self-review label admits framework files. Without selfReview in the key,
- * adding or removing the label would serve a cached review computed under the
- * other regime. Adding the boolean to the key segment makes the toggle a
- * cache-distinct dimension.
+ * BB-003-cache (iter-2): the system-prompt hash alone does NOT change with
+ * selfReview — but the USER prompt content (truncated diffs) DOES.
+ *
+ * BB-797-002 (iter-5): the previous boolean-keyed signature collided
+ * "inactive" (label absent) and "rejected" (label present + .reviewignore
+ * unreadable + fail-closed) — both produce different prompts but shared a
+ * cache slot. Tri-state ("inactive" | "active" | "rejected") restores
+ * input-fingerprint discipline. Backward-compat: the boolean overload is
+ * preserved so existing tests keep working; new callers pass the state.
  */
 export async function computeCacheKey(
   hasher: IHasher,
   headSha: string,
   truncationLevel: number,
   convergencePromptHash: string,
-  selfReview: boolean = false,
+  selfReviewState: "inactive" | "active" | "rejected" | boolean = "inactive",
 ): Promise<string> {
-  const input = `${headSha}:${truncationLevel}:self-review=${selfReview}:${convergencePromptHash}`;
+  // Boolean callers (iter-2 contract): true → "active", false → "inactive".
+  // Iter-5 callers pass the tri-state directly.
+  const state =
+    typeof selfReviewState === "boolean"
+      ? (selfReviewState ? "active" : "inactive")
+      : selfReviewState;
+  const input = `${headSha}:${truncationLevel}:self-review=${state}:${convergencePromptHash}`;
   return hasher.sha256(input);
 }
 

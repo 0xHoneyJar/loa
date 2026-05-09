@@ -976,11 +976,12 @@ export function truncateFiles(
   const loaExcludedEntries: Array<{ filename: string; stats: string }> = [];
 
   let afterLoa = files;
-  // BB-797-001 (PR #797 iter-3): typed self-review state — downstream consumers
-  // read this field, never substring-match the loaBanner prose. Reflects what
-  // the system DID, not what the operator REQUESTED — fail-closed reset to
-  // false when `.reviewignore` is unreadable (BB-797-001-security iter-4).
-  let selfReviewActive = loaDetection.isLoa && config.selfReview === true;
+  // BB-797-001 (iter-3): typed self-review boolean — downstream prose-free.
+  // BB-797-002 (iter-5): tri-state preserves the active-vs-rejected
+  // distinction the boolean lossy-encodes; cache keys MUST use this field.
+  let selfReviewState: "inactive" | "active" | "rejected" =
+    loaDetection.isLoa && config.selfReview === true ? "active" : "inactive";
+  let selfReviewActive = selfReviewState === "active";
 
   // BB-797-002 (PR #797 iter-3): nested if/else makes the branches mutually
   // exclusive at the type level — future edits cannot cause both to run.
@@ -1005,49 +1006,47 @@ export function truncateFiles(
       // that should have been excluded — we fall back to the default LOA
       // filter path, which preserves the framework-exclusion safety floor.
       let userPatterns: string[] = [];
-      let selfReviewBypassed = false;
       try {
         userPatterns = loadReviewIgnoreUserPatterns(config.repoRoot);
       } catch (err) {
-        // BB-797-001-security: fail-CLOSED. Fall back to default LOA filter
-        // path. selfReviewActive flipped to false so cache key + downstream
-        // logic see the actual state (not the operator request).
+        // BB-797-001 iter-5 (HIGH): fail-CLOSED on EVERY axis the operator
+        // was governing — not just the framework gate. The earlier iter-4
+        // fix fell back to loadReviewIgnore() which catches the same error
+        // and returns LOA defaults only — leaking user-curated exclusions
+        // (e.g., secrets/api-keys.env) into the review payload.
+        //
+        // The right semantic when `.reviewignore` exists but is unreadable:
+        // we cannot determine what the operator wanted excluded. AWS-IAM
+        // analogue: an unreachable policy collapses evaluation to deny-all,
+        // not deny-known-subset. Result is allExcluded=true with a banner
+        // citing the rejection — operators see WHY no files were admitted
+        // and can fix the .reviewignore (permissions, parse error, etc.).
         process.stderr.write(
-          `[bridgebuilder] WARN: .reviewignore unreadable under self-review — falling back to LOA filter (BB-797-001-security). Detail: ${(err as Error).message}\n`,
+          `[bridgebuilder] WARN: .reviewignore unreadable under self-review — halt-uncertainty: returning allExcluded=true (BB-797-001 iter-5). Detail: ${(err as Error).message}\n`,
         );
+        selfReviewState = "rejected";
         selfReviewActive = false;
-        selfReviewBypassed = true;
-        const effectivePatterns = loadReviewIgnore(config.repoRoot);
-        const tierResult = applyLoaTierExclusion(files, effectivePatterns);
-        afterLoa = tierResult.passthrough;
-        for (const entry of tierResult.tier1Excluded) {
-          loaExcludedEntries.push(entry);
-        }
-        for (const entry of tierResult.tier2Summary) {
-          loaExcludedEntries.push({
-            filename: entry.filename,
-            stats: entry.stats,
-          });
-        }
-        const totalLoaExcluded =
-          tierResult.tier1Excluded.length + tierResult.tier2Summary.length;
-        loaBanner =
-          "[Loa-aware: self-review opt-in REJECTED — .reviewignore unreadable, " +
-          `falling back to default filter (${totalLoaExcluded} framework files excluded; ` +
-          "BB-797-001-security)]";
-        if (totalLoaExcluded > 0) {
-          loaStats = {
-            filesExcluded: totalLoaExcluded,
-            bytesSaved: tierResult.bytesSaved,
-          };
-        }
+        return {
+          included: [],
+          excluded: files.map((f) => ({
+            filename: f.filename,
+            stats: `+${f.additions} -${f.deletions} (.reviewignore unreadable, fail-closed)`,
+          })),
+          totalBytes: 0,
+          allExcluded: true,
+          loaBanner:
+            "[Loa-aware: self-review opt-in REJECTED — .reviewignore unreadable; " +
+            "halt-uncertainty: ALL files excluded until .reviewignore is readable " +
+            "(BB-797-001 iter-5 — fail-closed on every governed axis, not just framework)]",
+          loaStats: { filesExcluded: files.length, bytesSaved: 0 },
+          selfReviewActive: false,
+          selfReviewState: "rejected",
+        };
       }
 
-      // Skip the rest of the self-review block when fail-closed bypassed it —
-      // the catch branch already set up afterLoa, banner, stats consistently
-      // with the default-filter path.
-      if (!selfReviewBypassed) {
-
+      // BB-797-RV-011 iter-5: the catch path now early-returns, so the rest
+      // of the self-review block runs unconditionally — the bypass-flag and
+      // its guarding `if` are no longer needed. Branches stay flat.
       let frameworkFilesAdmitted = 0;
       let frameworkFilesExcludedByUser = 0;
       if (userPatterns.length > 0) {
@@ -1102,15 +1101,11 @@ export function truncateFiles(
         ? `[Loa-aware: self-review opt-in active — ${frameworkSummary}; .reviewignore (${userPatternCount} user patterns) still honored (vision-013 / #796)]`
         : `[Loa-aware: self-review opt-in active — ${frameworkSummary} (vision-013 / #796)]`;
 
-      } // end !selfReviewBypassed guard
-
-      // BR-001 (PR #797 iter-3): hoist the all-excluded guard into the
-      // self-review branch too. If every file matches a `.reviewignore` user
-      // pattern, an empty `included=[]` payload would otherwise flow downstream
-      // with `allExcluded=false` — the silent-empty-response class Netflix
-      // Hystrix encoded as a separate circuit-breaker for fallback paths.
-      // Also handles the fail-closed (selfReviewBypassed) case where afterLoa
-      // came from the default LOA filter — same invariant.
+      // BR-001 (iter-3): hoist the all-excluded guard into the self-review
+      // branch too. If every file matches a `.reviewignore` user pattern, an
+      // empty `included=[]` payload would otherwise flow downstream with
+      // `allExcluded=false` — the silent-empty-response class Netflix Hystrix
+      // encoded as a separate circuit-breaker for fallback paths.
       if (afterLoa.length === 0) {
         allExcluded = true;
         return {
@@ -1121,6 +1116,7 @@ export function truncateFiles(
           loaBanner,
           loaStats,
           selfReviewActive,
+          selfReviewState,
         };
       }
     } else {
@@ -1162,6 +1158,7 @@ export function truncateFiles(
           loaBanner,
           loaStats,
           selfReviewActive,
+          selfReviewState,
         };
       }
     }
@@ -1247,5 +1244,6 @@ export function truncateFiles(
     loaBanner,
     loaStats,
     selfReviewActive,
+    selfReviewState,
   };
 }
