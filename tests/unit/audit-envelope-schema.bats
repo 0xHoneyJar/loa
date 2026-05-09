@@ -56,10 +56,10 @@ teardown() {
     [[ "$required" == *"ts_utc"* ]]
 }
 
-@test "schema: primitive_id enum is L1..L7" {
+@test "schema: primitive_id enum is L1..L7,MODELINV" {
     local enum_str
     enum_str=$(jq -r '.properties.primitive_id.enum | join(",")' "$SCHEMA")
-    [[ "$enum_str" == "L1,L2,L3,L4,L5,L6,L7" ]]
+    [[ "$enum_str" == "L1,L2,L3,L4,L5,L6,L7,MODELINV" ]]
 }
 
 @test "schema: payload allows additional properties (additive evolution per IMP-001)" {
