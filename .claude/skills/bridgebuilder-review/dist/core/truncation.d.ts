@@ -68,24 +68,17 @@ export declare function loadReviewIgnoreUserPatterns(repoRoot?: string): string[
  *
  * BB-797-003-duplication (iter-4): single source of truth for parsing.
  *
- * BB-797-RV-014 (iter-6): default-mode is fail-LOUD on read errors — emits a
- * structured operator warning to stderr but returns LOA defaults. The
- * asymmetry with self-review's fail-CLOSED is intentional and now documented:
+ * NOTE (PR #801 iter-3 BB801-001 HIGH_CONSENSUS): the iter-6 fail-LOUD-and-
+ * continue rationale was REJECTED. Default-mode now fail-CLOSES at the
+ * truncateFiles caller (see the catch block in the !selfReview branch).
+ * The LOA framework filter is NOT a safety floor for user-pattern axes
+ * (secrets/, vendor/, private docs), so silent-skip on .reviewignore
+ * anomalies admits files the operator deliberately excluded.
  *
- *   - Default-mode path: framework files are filtered by LOA defaults;
- *     missing `.reviewignore` user patterns is degraded (operator-curated
- *     exclusions skip) but the dominant safety floor (framework filtering)
- *     remains in place. Hard fail-closing would break every code-PR review
- *     in the org when an unrelated `.reviewignore` permission glitch
- *     occurs — disproportionate response to a non-framework-axis fault.
- *
- *   - Self-review path: framework filtering is BYPASSED by design, so
- *     `.reviewignore` is the SOLE remaining gate. Halt-uncertainty is
- *     correct here; partial fail-closed leaks the user-gate (iter-5 HIGH).
- *
- * Operators MUST attend to the stderr warning — it surfaces the degraded
- * state. Future polish: stand up a dedicated structured-emit channel
- * (NDJSON) so monitoring can alert without grepping stderr.
+ * loadReviewIgnore (this function — the merged-list legacy API) still
+ * fail-soft because the default-mode path no longer calls it; it remains
+ * for backward-compat with external callers, but the canonical
+ * fail-closed semantics live in truncateFiles.
  */
 export declare function loadReviewIgnore(repoRoot?: string): string[];
 /**

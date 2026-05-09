@@ -1049,6 +1049,76 @@ describe("truncateFiles", () => {
         }
       });
 
+      // BB801-001 (PR #801 iter-3 HIGH_CONSENSUS, conf 0.9, 3-model): default-
+      // mode fail-CLOSES on .reviewignore anomalies. ENOENT (genuine absence)
+      // is fine; everything else (EBROKENSYMLINK, ENOTAFILE, EBADREPOROOT,
+      // EACCES) MUST halt the review with allExcluded=true.
+      it("default-mode fail-closes on .reviewignore anomaly (BB801-001 iter-3 HIGH_CONSENSUS)", () => {
+        const tmpDir = join(tmpdir(), `loa-test-default-failclosed-${Date.now()}`);
+        mkdirSync(tmpDir, { recursive: true });
+        // .reviewignore as directory → ENOTAFILE on readFileSync
+        mkdirSync(join(tmpDir, ".reviewignore"), { recursive: true });
+        try {
+          const files = [
+            file("secrets/api-keys.env", 5, 0, "x".repeat(50)),
+            file("src/handler.ts", 10, 0, "x".repeat(50)),
+            file(".claude/x.ts", 3, 0, "x".repeat(50)),
+          ];
+          const config = {
+            ...defaultConfig,
+            loaAware: true,
+            selfReview: false, // default-mode
+            repoRoot: tmpDir,
+          };
+          const result = truncateFiles(files, config);
+
+          // BB801-001 invariant: ALL files excluded — silent skip would have
+          // admitted secrets/ and src/handler.ts.
+          assert.equal(result.allExcluded, true);
+          assert.equal(result.included.length, 0);
+          assert.ok(result.loaBanner);
+          assert.ok(
+            result.loaBanner!.includes("default-mode fail-closed"),
+            `banner cites fail-closed; got: ${result.loaBanner}`,
+          );
+          assert.ok(
+            result.loaBanner!.includes("BB801-001"),
+            `banner cites finding ID; got: ${result.loaBanner}`,
+          );
+        } finally {
+          rmSync(tmpDir, { recursive: true, force: true });
+        }
+      });
+
+      it("default-mode genuine ENOENT remains permissive (no fail-closed on absent file)", () => {
+        // BB801-001 boundary: ENOENT (no .reviewignore at all) is NOT an
+        // anomaly — it means "no user patterns", which is the common case.
+        // Default-mode proceeds normally with LOA framework filter only.
+        const tmpDir = join(tmpdir(), `loa-test-default-no-ri-${Date.now()}`);
+        mkdirSync(tmpDir, { recursive: true });
+        try {
+          const files = [
+            file("src/handler.ts", 10, 0, "x".repeat(50)),
+            file(".claude/x.ts", 3, 0, "x".repeat(50)),
+          ];
+          const config = {
+            ...defaultConfig,
+            loaAware: true,
+            selfReview: false,
+            repoRoot: tmpDir,
+          };
+          const result = truncateFiles(files, config);
+
+          // App file admitted, framework file excluded by LOA filter
+          const includedNames = result.included.map((f) => f.filename);
+          assert.ok(includedNames.includes("src/handler.ts"));
+          assert.equal(includedNames.includes(".claude/x.ts"), false);
+          assert.equal(result.allExcluded, false);
+        } finally {
+          rmSync(tmpDir, { recursive: true, force: true });
+        }
+      });
+
       it("framework filter still applies after user-pattern phase-1 (LOA defaults preserved)", () => {
         const tmpDir = join(tmpdir(), `loa-test-default-twophase-${Date.now()}`);
         mkdirSync(tmpDir, { recursive: true });

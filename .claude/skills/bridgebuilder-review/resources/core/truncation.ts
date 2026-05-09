@@ -1,4 +1,13 @@
-import { existsSync, readFileSync, lstatSync, statSync } from "node:fs";
+import {
+  existsSync,
+  readFileSync,
+  lstatSync,
+  statSync,
+  openSync,
+  fstatSync,
+  closeSync,
+  constants as fsConstants,
+} from "node:fs";
 import { resolve } from "node:path";
 import path from "node:path";
 import type { PullRequestFile } from "../ports/git-provider.js";
@@ -265,58 +274,62 @@ function parseReviewignoreFile(repoRoot: string): string[] {
 
   const reviewignorePath = resolve(repoRoot, ".reviewignore");
 
-  // BB801-REVIEW-002 (iter-2 HIGH, conf 0.76): LSTAT-BEFORE-READ on the
-  // leaf file. readFileSync transparently follows symlinks, so a
-  // `.reviewignore` symlinked to `/etc/passwd`, `/dev/zero`, a FIFO, or
-  // any external file would be read into the policy parser before any
-  // validation. Same TOCTOU shape as Git CVE-2022-39253 (symlinked
-  // .git/objects exfil during clone). Linux kernel's O_NOFOLLOW exists
-  // for this class.
+  // BB801-002 (iter-3 MEDIUM, conf 0.82): TOCTOU-resistant validation +
+  // read. Previously: lstatSync, then readFileSync(path). Path-based
+  // validation followed by path-based read is provably racy on every
+  // POSIX system (CWE-367). OpenSSH's authorized_keys loader is the
+  // canonical reference: openSync with O_NOFOLLOW, fstatSync the
+  // descriptor, validate, readFileSync(fd) on the SAME descriptor.
   //
-  // Policy: `.reviewignore` MUST be a regular file. Symlinks (broken or
-  // otherwise) are rejected. This is `safefile`-style discipline applied
-  // to repo-bounded config loading.
-  let leafStat;
+  // BB801-REVIEW-002 (iter-2 HIGH, closed iter-2): O_NOFOLLOW on the
+  // leaf file rejects symlinks at the kernel layer — the open syscall
+  // itself fails with ELOOP if `.reviewignore` is a symlink. Same Linux
+  // kernel discipline that hardened path-based file ops in 2.6.
+  //
+  // Windows: O_NOFOLLOW is a Linux/POSIX flag. Node accepts the constant
+  // on Windows but it's a no-op (Windows symlinks behave differently and
+  // this codebase targets Linux/macOS — `bridgebuilder-review` package
+  // doesn't support Windows CI).
+  let fd: number;
   try {
-    leafStat = lstatSync(reviewignorePath);
+    fd = openSync(reviewignorePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     if (code === "ENOENT") {
-      return []; // Genuine absence — no `.reviewignore` exists
+      // O_NOFOLLOW: ENOENT only on genuine absence (broken symlink → ELOOP)
+      return [];
     }
-    // Any other error (EACCES, ELOOP, etc.) propagates so caller fail-closes.
+    if (code === "ELOOP") {
+      // O_NOFOLLOW path: symlink at the leaf rejected by the kernel.
+      const enriched = new Error(
+        `.reviewignore is a symbolic link — rejected to prevent symlink-follow-on-read TOCTOU (BB801-REVIEW-002 + BB801-002 O_NOFOLLOW): ${reviewignorePath}`,
+      ) as NodeJS.ErrnoException;
+      enriched.code = "EBROKENSYMLINK";
+      throw enriched;
+    }
+    // EACCES, EISDIR, etc. propagate so caller fail-closes.
     throw err;
   }
 
-  if (leafStat.isSymbolicLink()) {
-    // BB-801-002-opus (iter-1 LOW): EBROKENSYMLINK rather than ENOENT-
-    // prefixed code. The intent here is broader than the iter-1 phrasing
-    // suggested: ANY symlink at `.reviewignore` is rejected (broken OR
-    // pointing somewhere we'd rather not follow). The error code
-    // covers both cases under a single fail-closed signal.
-    const enriched = new Error(
-      `.reviewignore is a symbolic link — symlinks at the leaf file are rejected to prevent symlink-follow-on-read TOCTOU (BB801-REVIEW-002): ${reviewignorePath}`,
-    ) as NodeJS.ErrnoException;
-    enriched.code = "EBROKENSYMLINK";
-    throw enriched;
-  }
-  if (!leafStat.isFile()) {
-    // Not a symlink, not a regular file → directory, FIFO, device, etc.
-    const enriched = new Error(
-      `.reviewignore is not a regular file (BB801-REVIEW-002 fail-closed): ${reviewignorePath}`,
-    ) as NodeJS.ErrnoException;
-    enriched.code = "ENOTAFILE";
-    throw enriched;
-  }
-
-  // Now it's safe to read: validated to be a regular file.
   let content: string;
   try {
-    content = readFileSync(reviewignorePath, "utf-8");
-  } catch (err) {
-    // Read errors after a successful lstat are rare (TOCTOU race window
-    // between lstat and read) — propagate.
-    throw err;
+    // fstatSync on the SAME descriptor — no path is re-evaluated.
+    const fdStat = fstatSync(fd);
+    if (!fdStat.isFile()) {
+      const enriched = new Error(
+        `.reviewignore is not a regular file (BB801-REVIEW-002 fail-closed): ${reviewignorePath}`,
+      ) as NodeJS.ErrnoException;
+      enriched.code = "ENOTAFILE";
+      throw enriched;
+    }
+    // Read from the validated fd — no path re-evaluation, no TOCTOU window.
+    content = readFileSync(fd, "utf-8");
+  } finally {
+    try {
+      closeSync(fd);
+    } catch {
+      // Best-effort close
+    }
   }
 
   const patterns: string[] = [];
@@ -361,24 +374,17 @@ export function loadReviewIgnoreUserPatterns(repoRoot?: string): string[] {
  *
  * BB-797-003-duplication (iter-4): single source of truth for parsing.
  *
- * BB-797-RV-014 (iter-6): default-mode is fail-LOUD on read errors — emits a
- * structured operator warning to stderr but returns LOA defaults. The
- * asymmetry with self-review's fail-CLOSED is intentional and now documented:
+ * NOTE (PR #801 iter-3 BB801-001 HIGH_CONSENSUS): the iter-6 fail-LOUD-and-
+ * continue rationale was REJECTED. Default-mode now fail-CLOSES at the
+ * truncateFiles caller (see the catch block in the !selfReview branch).
+ * The LOA framework filter is NOT a safety floor for user-pattern axes
+ * (secrets/, vendor/, private docs), so silent-skip on .reviewignore
+ * anomalies admits files the operator deliberately excluded.
  *
- *   - Default-mode path: framework files are filtered by LOA defaults;
- *     missing `.reviewignore` user patterns is degraded (operator-curated
- *     exclusions skip) but the dominant safety floor (framework filtering)
- *     remains in place. Hard fail-closing would break every code-PR review
- *     in the org when an unrelated `.reviewignore` permission glitch
- *     occurs — disproportionate response to a non-framework-axis fault.
- *
- *   - Self-review path: framework filtering is BYPASSED by design, so
- *     `.reviewignore` is the SOLE remaining gate. Halt-uncertainty is
- *     correct here; partial fail-closed leaks the user-gate (iter-5 HIGH).
- *
- * Operators MUST attend to the stderr warning — it surfaces the degraded
- * state. Future polish: stand up a dedicated structured-emit channel
- * (NDJSON) so monitoring can alert without grepping stderr.
+ * loadReviewIgnore (this function — the merged-list legacy API) still
+ * fail-soft because the default-mode path no longer calls it; it remains
+ * for backward-compat with external callers, but the canonical
+ * fail-closed semantics live in truncateFiles.
  */
 export function loadReviewIgnore(repoRoot?: string): string[] {
   const root = repoRoot ?? process.cwd();
@@ -1215,7 +1221,19 @@ export function truncateFiles(
         };
       }
     } else {
-      // BB-797-SEC-002 / #800 (iter-7 HIGH): trust-origin preservation.
+      // BB801-001 (PR #801 iter-3 HIGH_CONSENSUS, conf 0.9, 3-model agreement):
+      // default-mode MUST fail-closed on .reviewignore load anomalies. The
+      // iter-1 fail-loud rationale assumed the LOA framework filter was the
+      // safety floor for ALL files — but it's not: user patterns govern paths
+      // (secrets/, vendor/, private docs) that LOA defaults DON'T cover.
+      // Silent skip on non-ENOENT errors admits files the operator excluded.
+      //
+      // AWS IAM analogue: malformed bucket policy = deny-all, not allow-all.
+      // cycle-098 L2 fail-closed cost gate principle: when the policy oracle
+      // is uncertain, the safe default is the most restrictive interpretation.
+      //
+      // ENOENT (genuine absence) → user patterns simply []
+      // EBADREPOROOT, EBROKENSYMLINK, ENOTAFILE, EACCES, ELOOP, etc. → fail-closed.
       // Operator-authored `.reviewignore` patterns are STRICT denies; they
       // MUST short-circuit framework tier classification. The previous
       // implementation merged user patterns into LOA_EXCLUDE_PATTERNS and
@@ -1234,12 +1252,28 @@ export function truncateFiles(
       try {
         userPatterns = loadReviewIgnoreUserPatterns(config.repoRoot);
       } catch (err) {
-        // BB-797-RV-014 (iter-6): fail-LOUD on default-mode read errors.
-        // LOA framework filter still applies (safety floor); operator sees
-        // the warning and fixes the file.
+        // Fail-CLOSED. ENOENT was handled inside parseReviewignoreFile
+        // (returns [] for genuine absence), so any error reaching here is
+        // an anomaly: bad repoRoot, symlink, EACCES, etc.
+        const code = (err as NodeJS.ErrnoException).code ?? "unknown";
         process.stderr.write(
-          `[bridgebuilder] WARN: .reviewignore unreadable in default-mode path — operator-curated user patterns SKIPPED for this run; LOA framework filter still active. Fix the file to restore user-pattern exclusions. Detail: ${(err as Error).message} (BB-797-RV-014)\n`,
+          `[bridgebuilder] ERROR: .reviewignore anomaly in default-mode path — fail-closed (allExcluded=true). Fix the file to restore review. Code: ${code}, Detail: ${(err as Error).message} (BB801-001 iter-3 HIGH_CONSENSUS)\n`,
         );
+        return {
+          included: [],
+          excluded: files.map((f) => ({
+            filename: f.filename,
+            stats: `+${f.additions} -${f.deletions} (.reviewignore anomaly: ${code}, fail-closed)`,
+          })),
+          totalBytes: 0,
+          allExcluded: true,
+          loaBanner:
+            `[Loa-aware: default-mode fail-closed — .reviewignore anomaly (${code}); ` +
+            `ALL files excluded until .reviewignore is valid (BB801-001 iter-3)]`,
+          loaStats: { filesExcluded: files.length, bytesSaved: 0 },
+          selfReviewActive: false,
+          selfReviewState: "inactive",
+        };
       }
 
       // Phase 1: user .reviewignore patterns as strict denies. Trust-origin
