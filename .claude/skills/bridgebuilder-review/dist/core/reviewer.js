@@ -689,7 +689,7 @@ export class ReviewPipeline {
         let pass1Content = "";
         if (this.pass1Cache && this.hasher) {
             const convergencePromptHash = await this.hasher.sha256(finalConvergenceSystem);
-            const cacheKey = await computeCacheKey(this.hasher, pr.headSha, truncationLevel, convergencePromptHash, truncated.selfReviewActive ?? false);
+            const cacheKey = await computeCacheKey(this.hasher, pr.headSha, truncationLevel, convergencePromptHash, truncated.selfReviewActive);
             const cached = await this.pass1Cache.get(cacheKey);
             if (cached) {
                 this.logger.info("Pass 1: Cache HIT — skipping LLM call", {
@@ -764,7 +764,7 @@ export class ReviewPipeline {
             // Store in cache on miss (AC-5)
             if (this.pass1Cache && this.hasher) {
                 const convergencePromptHash = await this.hasher.sha256(finalConvergenceSystem);
-                const cacheKey = await computeCacheKey(this.hasher, pr.headSha, truncationLevel, convergencePromptHash, truncated.selfReviewActive ?? false);
+                const cacheKey = await computeCacheKey(this.hasher, pr.headSha, truncationLevel, convergencePromptHash, truncated.selfReviewActive);
                 await this.pass1Cache.set(cacheKey, {
                     findings: { raw: findingsJSON, parsed: pass1Parsed },
                     tokens: { input: pass1InputTokens, output: pass1OutputTokens, duration: 0 },

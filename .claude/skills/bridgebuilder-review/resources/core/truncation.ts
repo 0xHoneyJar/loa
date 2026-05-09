@@ -219,6 +219,43 @@ export const LOA_EXCLUDE_PATTERNS = [
 ];
 
 /**
+ * Parse a `.reviewignore` file's user-curated patterns from disk.
+ *
+ * BB-797-003-duplication (PR #797 iter-4): one grammar deserves one parser.
+ * Both `loadReviewIgnore` (LOA defaults + user) and `loadReviewIgnoreUserPatterns`
+ * (user-only) call this; future syntax additions land in one place.
+ *
+ * BB-797-001-security (PR #797 iter-4): ENOENT (file absent) is "no rules"
+ * and returns []. ANY OTHER error (EACCES, partial read, parse fault) throws —
+ * the caller MUST decide fail-open vs fail-closed. cycle-098 L2 fail-closed
+ * principle: when an exclusion-gating signal becomes uncertain, the safe
+ * verdict is "halt", not "allow". AWS-IAM-isomorphic: unparseable policies
+ * deny, never permit.
+ *
+ * @throws Error when `.reviewignore` exists but cannot be read or parsed.
+ */
+function parseReviewignoreFile(repoRoot: string): string[] {
+  const reviewignorePath = resolve(repoRoot, ".reviewignore");
+
+  if (!existsSync(reviewignorePath)) {
+    return [];
+  }
+
+  // readFileSync errors propagate. Caller must decide fail-open vs fail-closed.
+  const content: string = readFileSync(reviewignorePath, "utf-8");
+  const patterns: string[] = [];
+  for (const rawLine of content.split("\n")) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const pattern = line.endsWith("/") ? `${line}**` : line;
+    if (!patterns.includes(pattern)) {
+      patterns.push(pattern);
+    }
+  }
+  return patterns;
+}
+
+/**
  * Load `.reviewignore` operator-curated patterns from repo root.
  * Returns ONLY the user patterns — does NOT merge with LOA_EXCLUDE_PATTERNS.
  *
@@ -228,62 +265,45 @@ export const LOA_EXCLUDE_PATTERNS = [
  * framework patterns but MUST continue to honor `.reviewignore` — BB-001-security
  * surfaced this as a MEDIUM finding on PR #797 iter-2.
  *
- * Returns empty array when file missing or unreadable (graceful default).
+ * BB-797-001-security (PR #797 iter-4): fail-CLOSED on read errors. Caller
+ * (truncateFiles self-review branch) propagates the error to halt the review
+ * rather than silently admitting files that may have been excluded by an
+ * unreadable `.reviewignore`. ENOENT (no file) is "no rules" and returns [];
+ * any other error throws.
+ *
+ * @throws Error when `.reviewignore` exists but cannot be read or parsed —
+ *         caller MUST handle and decide whether to halt or fall back.
  */
 export function loadReviewIgnoreUserPatterns(repoRoot?: string): string[] {
   const root = repoRoot ?? process.cwd();
-  const reviewignorePath = resolve(root, ".reviewignore");
-
-  const userPatterns: string[] = [];
-
-  try {
-    if (!existsSync(reviewignorePath)) {
-      return userPatterns;
-    }
-    const content: string = readFileSync(reviewignorePath, "utf-8");
-    for (const rawLine of content.split("\n")) {
-      const line = rawLine.trim();
-      if (!line || line.startsWith("#")) continue;
-      const pattern = line.endsWith("/") ? `${line}**` : line;
-      if (!userPatterns.includes(pattern)) {
-        userPatterns.push(pattern);
-      }
-    }
-  } catch {
-    // Graceful: return empty on any error
-  }
-
-  return userPatterns;
+  return parseReviewignoreFile(root);
 }
 
 /**
  * Load .reviewignore patterns from repo root and merge with LOA_EXCLUDE_PATTERNS.
- * Returns combined patterns array. Graceful when file missing (returns LOA patterns only).
+ * Returns combined patterns array. Graceful when file missing (returns LOA
+ * patterns only); also fail-soft on read errors (returns LOA defaults) — the
+ * default-mode path can never fail-closed because the LOA patterns are themselves
+ * the safety floor. Self-review path uses parseReviewignoreFile directly so it
+ * can fail-closed (BB-797-001-security).
+ *
+ * BB-797-003-duplication (PR #797 iter-4): single source of truth for parsing.
  */
 export function loadReviewIgnore(repoRoot?: string): string[] {
   const root = repoRoot ?? process.cwd();
-  const reviewignorePath = resolve(root, ".reviewignore");
-
   const basePatterns = [...LOA_EXCLUDE_PATTERNS];
 
   try {
-    if (!existsSync(reviewignorePath)) {
-      return basePatterns;
-    }
-    const content: string = readFileSync(reviewignorePath, "utf-8");
-    for (const rawLine of content.split("\n")) {
-      const line = rawLine.trim();
-      // Skip blank lines and comments
-      if (!line || line.startsWith("#")) continue;
-      // Normalize directory patterns: "dir/" → "dir/**"
-      const pattern = line.endsWith("/") ? `${line}**` : line;
-      // Avoid duplicates
+    const userPatterns = parseReviewignoreFile(root);
+    for (const pattern of userPatterns) {
       if (!basePatterns.includes(pattern)) {
         basePatterns.push(pattern);
       }
     }
   } catch {
-    // Graceful: return base patterns on any error
+    // Default-mode path is fail-soft: LOA defaults remain in effect even
+    // when .reviewignore is unreadable. The LOA patterns are the safety
+    // floor here, so missing user patterns is graceful, not dangerous.
   }
 
   return basePatterns;
@@ -957,8 +977,10 @@ export function truncateFiles(
 
   let afterLoa = files;
   // BB-797-001 (PR #797 iter-3): typed self-review state — downstream consumers
-  // read this field, never substring-match the loaBanner prose.
-  const selfReviewActive = loaDetection.isLoa && config.selfReview === true;
+  // read this field, never substring-match the loaBanner prose. Reflects what
+  // the system DID, not what the operator REQUESTED — fail-closed reset to
+  // false when `.reviewignore` is unreadable (BB-797-001-security iter-4).
+  let selfReviewActive = loaDetection.isLoa && config.selfReview === true;
 
   // BB-797-002 (PR #797 iter-3): nested if/else makes the branches mutually
   // exclusive at the type level — future edits cannot cause both to run.
@@ -978,7 +1000,56 @@ export function truncateFiles(
       // through the high-risk "exception" branch back into passthrough,
       // defeating the .reviewignore intent. user-curated patterns are simple
       // matches: present → exclude, absent → include. No tiering.
-      const userPatterns = loadReviewIgnoreUserPatterns(config.repoRoot);
+      // BB-797-001-security (PR #797 iter-4): fail-CLOSED if `.reviewignore`
+      // exists but is unreadable. Empty result must NOT silently admit files
+      // that should have been excluded — we fall back to the default LOA
+      // filter path, which preserves the framework-exclusion safety floor.
+      let userPatterns: string[] = [];
+      let selfReviewBypassed = false;
+      try {
+        userPatterns = loadReviewIgnoreUserPatterns(config.repoRoot);
+      } catch (err) {
+        // BB-797-001-security: fail-CLOSED. Fall back to default LOA filter
+        // path. selfReviewActive flipped to false so cache key + downstream
+        // logic see the actual state (not the operator request).
+        process.stderr.write(
+          `[bridgebuilder] WARN: .reviewignore unreadable under self-review — falling back to LOA filter (BB-797-001-security). Detail: ${(err as Error).message}\n`,
+        );
+        selfReviewActive = false;
+        selfReviewBypassed = true;
+        const effectivePatterns = loadReviewIgnore(config.repoRoot);
+        const tierResult = applyLoaTierExclusion(files, effectivePatterns);
+        afterLoa = tierResult.passthrough;
+        for (const entry of tierResult.tier1Excluded) {
+          loaExcludedEntries.push(entry);
+        }
+        for (const entry of tierResult.tier2Summary) {
+          loaExcludedEntries.push({
+            filename: entry.filename,
+            stats: entry.stats,
+          });
+        }
+        const totalLoaExcluded =
+          tierResult.tier1Excluded.length + tierResult.tier2Summary.length;
+        loaBanner =
+          "[Loa-aware: self-review opt-in REJECTED — .reviewignore unreadable, " +
+          `falling back to default filter (${totalLoaExcluded} framework files excluded; ` +
+          "BB-797-001-security)]";
+        if (totalLoaExcluded > 0) {
+          loaStats = {
+            filesExcluded: totalLoaExcluded,
+            bytesSaved: tierResult.bytesSaved,
+          };
+        }
+      }
+
+      // Skip the rest of the self-review block when fail-closed bypassed it —
+      // the catch branch already set up afterLoa, banner, stats consistently
+      // with the default-filter path.
+      if (!selfReviewBypassed) {
+
+      let frameworkFilesAdmitted = 0;
+      let frameworkFilesExcludedByUser = 0;
       if (userPatterns.length > 0) {
         const passthrough: PullRequestFile[] = [];
         let userBytesSaved = 0;
@@ -989,8 +1060,14 @@ export function truncateFiles(
               stats: `+${f.additions} -${f.deletions} (.reviewignore user pattern)`,
             });
             userBytesSaved += f.patch ? new TextEncoder().encode(f.patch).byteLength : 0;
+            if (matchesExcludePattern(f.filename, LOA_EXCLUDE_PATTERNS)) {
+              frameworkFilesExcludedByUser++;
+            }
           } else {
             passthrough.push(f);
+            if (matchesExcludePattern(f.filename, LOA_EXCLUDE_PATTERNS)) {
+              frameworkFilesAdmitted++;
+            }
           }
         }
         afterLoa = passthrough;
@@ -1000,20 +1077,40 @@ export function truncateFiles(
             bytesSaved: userBytesSaved,
           };
         }
+      } else {
+        // No user patterns: count framework files in payload
+        for (const f of files) {
+          if (matchesExcludePattern(f.filename, LOA_EXCLUDE_PATTERNS)) {
+            frameworkFilesAdmitted++;
+          }
+        }
       }
-      // Surface the opt-in in the banner so operators reading the review see
-      // WHY framework files are visible — Tricorder-style "analyzer ran in
-      // self-review mode" signal.
+      // BB-797-002-banner (PR #797 iter-4): banner states what the system DID,
+      // not what it intended to enable. If user patterns excluded all framework
+      // paths, "framework files included" would mislead.
       const userPatternCount = userPatterns.length;
+      const frameworkSummary =
+        frameworkFilesAdmitted > 0
+          ? `${frameworkFilesAdmitted} framework files admitted` +
+            (frameworkFilesExcludedByUser > 0
+              ? `, ${frameworkFilesExcludedByUser} excluded by .reviewignore`
+              : "")
+          : (frameworkFilesExcludedByUser > 0
+              ? `LOA defaults bypassed but .reviewignore excluded all framework files (${frameworkFilesExcludedByUser})`
+              : "no framework files in PR");
       loaBanner = userPatternCount > 0
-        ? `[Loa-aware: self-review opt-in active — framework files included; .reviewignore (${userPatternCount} user patterns) still honored (vision-013 / #796)]`
-        : "[Loa-aware: self-review opt-in active — framework files included (vision-013 / #796)]";
+        ? `[Loa-aware: self-review opt-in active — ${frameworkSummary}; .reviewignore (${userPatternCount} user patterns) still honored (vision-013 / #796)]`
+        : `[Loa-aware: self-review opt-in active — ${frameworkSummary} (vision-013 / #796)]`;
+
+      } // end !selfReviewBypassed guard
 
       // BR-001 (PR #797 iter-3): hoist the all-excluded guard into the
       // self-review branch too. If every file matches a `.reviewignore` user
       // pattern, an empty `included=[]` payload would otherwise flow downstream
       // with `allExcluded=false` — the silent-empty-response class Netflix
       // Hystrix encoded as a separate circuit-breaker for fallback paths.
+      // Also handles the fail-closed (selfReviewBypassed) case where afterLoa
+      // came from the default LOA filter — same invariant.
       if (afterLoa.length === 0) {
         allExcluded = true;
         return {

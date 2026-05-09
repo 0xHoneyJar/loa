@@ -890,7 +890,7 @@ export class ReviewPipeline {
       const convergencePromptHash = await this.hasher.sha256(finalConvergenceSystem);
       const cacheKey = await computeCacheKey(
         this.hasher, pr.headSha, truncationLevel, convergencePromptHash,
-        truncated.selfReviewActive ?? false,
+        truncated.selfReviewActive,
       );
 
       const cached = await this.pass1Cache.get(cacheKey);
@@ -982,7 +982,7 @@ export class ReviewPipeline {
         const convergencePromptHash = await this.hasher.sha256(finalConvergenceSystem);
         const cacheKey = await computeCacheKey(
           this.hasher, pr.headSha, truncationLevel, convergencePromptHash,
-          truncated.selfReviewActive ?? false,
+          truncated.selfReviewActive,
         );
         await this.pass1Cache.set(cacheKey, {
           findings: { raw: findingsJSON, parsed: pass1Parsed },

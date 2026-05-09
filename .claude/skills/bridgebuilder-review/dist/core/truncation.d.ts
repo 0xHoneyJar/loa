@@ -52,12 +52,25 @@ export declare const LOA_EXCLUDE_PATTERNS: string[];
  * framework patterns but MUST continue to honor `.reviewignore` — BB-001-security
  * surfaced this as a MEDIUM finding on PR #797 iter-2.
  *
- * Returns empty array when file missing or unreadable (graceful default).
+ * BB-797-001-security (PR #797 iter-4): fail-CLOSED on read errors. Caller
+ * (truncateFiles self-review branch) propagates the error to halt the review
+ * rather than silently admitting files that may have been excluded by an
+ * unreadable `.reviewignore`. ENOENT (no file) is "no rules" and returns [];
+ * any other error throws.
+ *
+ * @throws Error when `.reviewignore` exists but cannot be read or parsed —
+ *         caller MUST handle and decide whether to halt or fall back.
  */
 export declare function loadReviewIgnoreUserPatterns(repoRoot?: string): string[];
 /**
  * Load .reviewignore patterns from repo root and merge with LOA_EXCLUDE_PATTERNS.
- * Returns combined patterns array. Graceful when file missing (returns LOA patterns only).
+ * Returns combined patterns array. Graceful when file missing (returns LOA
+ * patterns only); also fail-soft on read errors (returns LOA defaults) — the
+ * default-mode path can never fail-closed because the LOA patterns are themselves
+ * the safety floor. Self-review path uses parseReviewignoreFile directly so it
+ * can fail-closed (BB-797-001-security).
+ *
+ * BB-797-003-duplication (PR #797 iter-4): single source of truth for parsing.
  */
 export declare function loadReviewIgnore(repoRoot?: string): string[];
 /**

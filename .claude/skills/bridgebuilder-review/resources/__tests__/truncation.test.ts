@@ -683,4 +683,147 @@ describe("truncateFiles", () => {
       }
     });
   });
+
+  // BB-797-001-security (PR #797 iter-4): unreadable .reviewignore under
+  // self-review MUST fail-CLOSED (fall back to default LOA filter). The cycle-098
+  // L2 fail-closed cost gate principle, applied to exclusion gates.
+  describe("self-review fail-closed on unreadable .reviewignore (BB-797-001-security)", () => {
+    it("ENOENT (.reviewignore absent) → returns [] gracefully, self-review proceeds", () => {
+      const tmpDir = join(tmpdir(), `loa-test-enoent-${Date.now()}`);
+      mkdirSync(tmpDir, { recursive: true });
+      try {
+        // No .reviewignore created → ENOENT path → returns []
+        const patterns = loadReviewIgnoreUserPatterns(tmpDir);
+        assert.deepEqual(patterns, []);
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("loadReviewIgnoreUserPatterns throws on read error (NOT silent empty)", () => {
+      // Point at a path where `.reviewignore` IS a directory — readFileSync
+      // throws EISDIR. Models the EACCES / parse-error class.
+      const tmpDir = join(tmpdir(), `loa-test-eisdir-${Date.now()}`);
+      mkdirSync(join(tmpDir, ".reviewignore"), { recursive: true });
+      try {
+        assert.throws(
+          () => loadReviewIgnoreUserPatterns(tmpDir),
+          /EISDIR|illegal operation/i,
+          "MUST throw on read error so caller can fail-closed",
+        );
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("truncateFiles fail-closes self-review when .reviewignore unreadable", () => {
+      const tmpDir = join(tmpdir(), `loa-test-failclosed-${Date.now()}`);
+      mkdirSync(tmpDir, { recursive: true });
+      // .reviewignore as directory → unreadable
+      mkdirSync(join(tmpDir, ".reviewignore"), { recursive: true });
+      try {
+        const files = [
+          file(".claude/skills/bb/adapter.ts", 25, 3, "x".repeat(50)),
+          file("src/handler.ts", 10, 0, "x".repeat(50)),
+        ];
+        const config = {
+          ...defaultConfig,
+          loaAware: true,
+          selfReview: true,
+          repoRoot: tmpDir,
+        };
+        const result = truncateFiles(files, config);
+
+        // Framework file MUST be excluded — self-review failed-closed to LOA filter
+        const includedNames = result.included.map((f) => f.filename);
+        assert.equal(
+          includedNames.includes(".claude/skills/bb/adapter.ts"),
+          false,
+          "framework file MUST be excluded when .reviewignore unreadable (fail-closed)",
+        );
+        // App file admitted as normal
+        assert.ok(
+          includedNames.includes("src/handler.ts"),
+          "app file should be admitted under default LOA filter",
+        );
+        // selfReviewActive=false reflects ACTUAL state, not operator request
+        assert.equal(
+          result.selfReviewActive, false,
+          "selfReviewActive MUST be false under fail-closed (cache key sees actual state)",
+        );
+        // Banner cites the rejection so operators can debug
+        assert.ok(result.loaBanner);
+        assert.ok(
+          result.loaBanner!.includes("REJECTED"),
+          `banner should cite REJECTED state; got: ${result.loaBanner}`,
+        );
+        assert.ok(
+          result.loaBanner!.includes("BB-797-001-security"),
+          `banner should cite the finding ID; got: ${result.loaBanner}`,
+        );
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  // BB-797-002-banner (PR #797 iter-4): banner states what the system DID,
+  // not what it intended to enable.
+  describe("self-review banner factual reporting (BB-797-002-banner)", () => {
+    it("banner reports framework-files-admitted count when admitted", () => {
+      const files = [
+        file(".claude/skills/bb/adapter.ts", 25, 3, "x".repeat(50)),
+        file(".claude/skills/bb/google.ts", 10, 0, "x".repeat(50)),
+      ];
+      const config = { ...defaultConfig, loaAware: true, selfReview: true };
+      const result = truncateFiles(files, config);
+
+      assert.ok(result.loaBanner);
+      assert.ok(
+        result.loaBanner!.includes("2 framework files admitted"),
+        `banner should report admitted count; got: ${result.loaBanner}`,
+      );
+    });
+
+    it("banner reports 'no framework files in PR' when none present", () => {
+      const files = [file("src/handler.ts", 10, 0, "x".repeat(50))];
+      const config = { ...defaultConfig, loaAware: true, selfReview: true };
+      const result = truncateFiles(files, config);
+
+      assert.ok(result.loaBanner);
+      assert.ok(
+        result.loaBanner!.includes("no framework files in PR"),
+        `banner should be factually narrow; got: ${result.loaBanner}`,
+      );
+    });
+
+    it("banner reports both admitted AND user-excluded when .reviewignore matches some framework files", () => {
+      const tmpDir = join(tmpdir(), `loa-test-banner-mixed-${Date.now()}`);
+      mkdirSync(tmpDir, { recursive: true });
+      try {
+        // .reviewignore excludes ONE specific framework path — admits the other
+        writeFileSync(join(tmpDir, ".reviewignore"), ".claude/skills/bb/secrets.ts\n");
+        const files = [
+          file(".claude/skills/bb/adapter.ts", 25, 3, "x".repeat(50)),
+          file(".claude/skills/bb/secrets.ts", 5, 0, "x".repeat(50)),
+        ];
+        const config = {
+          ...defaultConfig,
+          loaAware: true,
+          selfReview: true,
+          repoRoot: tmpDir,
+        };
+        const result = truncateFiles(files, config);
+
+        assert.ok(result.loaBanner);
+        assert.ok(
+          result.loaBanner!.includes("1 framework files admitted") &&
+            result.loaBanner!.includes("1 excluded by .reviewignore"),
+          `banner should report both numbers; got: ${result.loaBanner}`,
+        );
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+  });
 });

@@ -194,8 +194,12 @@ export interface TruncationResult {
      * future analyzers) must read this typed field, never substring-match the
      * `loaBanner` prose. Banner text can change with copy edits; the boolean
      * cannot. Tricorder rule: structured in, structured out.
+     *
+     * BB-797-004-typing (PR #797 iter-4): required, not optional — every
+     * truncateFiles return path sets it. Reflects what the system DID (fail-closed
+     * to false when `.reviewignore` is unreadable), not what was REQUESTED.
      */
-    selfReviewActive?: boolean;
+    selfReviewActive: boolean;
     /** Truncation level applied (undefined = no progressive truncation). */
     truncationLevel?: 1 | 2 | 3;
     /** Disclaimer text for the current truncation level. */
