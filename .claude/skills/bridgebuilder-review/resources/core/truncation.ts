@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, lstatSync } from "node:fs";
 import { resolve } from "node:path";
 import path from "node:path";
 import type { PullRequestFile } from "../ports/git-provider.js";
@@ -239,16 +239,49 @@ export const LOA_EXCLUDE_PATTERNS = [
 function parseReviewignoreFile(repoRoot: string): string[] {
   const reviewignorePath = resolve(repoRoot, ".reviewignore");
 
+  // BB-797-SEC-001 / #799 (iter-7 HIGH, conf 0.87): lstat-before-read.
+  // readFileSync ENOENT can mean either:
+  //   (a) genuine absence — no `.reviewignore` exists → return []
+  //   (b) broken symlink — `.reviewignore` IS a symlink whose target is
+  //       absent, OR the path resolves through a missing parent directory
+  //
+  // (b) is the operationally-ambiguous case Borgmon distinguished post-2014:
+  // unreachable signal MUST trigger fail-closed, not silent collapse to
+  // "no rules". lstatSync follows the path WITHOUT dereferencing the final
+  // symlink, so we can detect "the link itself exists, but the target
+  // doesn't" — distinct from "the link doesn't exist at all".
   let content: string;
   try {
     content = readFileSync(reviewignorePath, "utf-8");
   } catch (err) {
-    // Errno-explicit: ONLY genuine absence collapses to "no rules".
-    // Any other error (EACCES, EISDIR, ELOOP, ENOTDIR, etc.) propagates.
     const code = (err as NodeJS.ErrnoException).code;
     if (code === "ENOENT") {
-      return [];
+      // Disambiguate: does the path entry exist as a symlink whose target
+      // is missing? lstatSync of the path — if THAT throws ENOENT, the
+      // entry truly doesn't exist (genuine absence → []). If lstatSync
+      // succeeds, the entry is a symlink to nowhere → throw with
+      // BROKEN_SYMLINK errno so caller fail-closes correctly.
+      try {
+        const stat = lstatSync(reviewignorePath);
+        if (stat.isSymbolicLink()) {
+          const enriched = new Error(
+            `.reviewignore is a broken symbolic link (target missing): ${reviewignorePath}`,
+          ) as NodeJS.ErrnoException;
+          enriched.code = "ENOENT_BROKEN_SYMLINK";
+          throw enriched;
+        }
+        // lstat succeeded but it's not a symlink — shouldn't happen if
+        // readFileSync got ENOENT, but propagate the original anyway
+        throw err;
+      } catch (lstatErr) {
+        const lstatCode = (lstatErr as NodeJS.ErrnoException).code;
+        if (lstatCode === "ENOENT") {
+          return []; // Genuine absence
+        }
+        throw lstatErr;
+      }
     }
+    // Any other readFileSync error (EACCES, EISDIR, ELOOP, ENOTDIR) propagates.
     throw err;
   }
 
@@ -1148,11 +1181,66 @@ export function truncateFiles(
         };
       }
     } else {
-      const effectivePatterns = loadReviewIgnore(config.repoRoot);
-      const tierResult = applyLoaTierExclusion(files, effectivePatterns);
+      // BB-797-SEC-002 / #800 (iter-7 HIGH): trust-origin preservation.
+      // Operator-authored `.reviewignore` patterns are STRICT denies; they
+      // MUST short-circuit framework tier classification. The previous
+      // implementation merged user patterns into LOA_EXCLUDE_PATTERNS and
+      // passed the union to `applyLoaTierExclusion` — but that function has
+      // tier-classification logic for FRAMEWORK files (security-pattern
+      // detection, "exception" tier passthrough). A user-authored
+      // `secrets/**` pattern matching `secrets/api-keys.env` could be routed
+      // through the security-tier exception branch and admitted despite
+      // explicit operator deny. AWS-IAM analogue: explicit-deny beats
+      // allow; same shape Netflix learned in 2017 with mixed allowlists.
+      //
+      // Fix: two-phase filter. Phase 1 applies user patterns as strict
+      // denies (matchesExcludePattern, no tiering). Phase 2 applies LOA
+      // defaults to whatever survived phase 1.
+      let userPatterns: string[] = [];
+      try {
+        userPatterns = loadReviewIgnoreUserPatterns(config.repoRoot);
+      } catch (err) {
+        // BB-797-RV-014 (iter-6): fail-LOUD on default-mode read errors.
+        // LOA framework filter still applies (safety floor); operator sees
+        // the warning and fixes the file.
+        process.stderr.write(
+          `[bridgebuilder] WARN: .reviewignore unreadable in default-mode path — operator-curated user patterns SKIPPED for this run; LOA framework filter still active. Fix the file to restore user-pattern exclusions. Detail: ${(err as Error).message} (BB-797-RV-014)\n`,
+        );
+      }
+
+      // Phase 1: user .reviewignore patterns as strict denies. Trust-origin
+      // preservation: operator intent never gets tier-routed.
+      let phase1Survivors: PullRequestFile[] = files;
+      if (userPatterns.length > 0) {
+        const survivors: PullRequestFile[] = [];
+        let userBytesSaved = 0;
+        for (const f of files) {
+          if (matchesExcludePattern(f.filename, userPatterns)) {
+            loaExcludedEntries.push({
+              filename: f.filename,
+              stats: `+${f.additions} -${f.deletions} (.reviewignore user pattern, strict deny)`,
+            });
+            userBytesSaved += f.patch ? new TextEncoder().encode(f.patch).byteLength : 0;
+          } else {
+            survivors.push(f);
+          }
+        }
+        phase1Survivors = survivors;
+        if (loaExcludedEntries.length > 0) {
+          loaStats = {
+            filesExcluded: loaExcludedEntries.length,
+            bytesSaved: userBytesSaved,
+          };
+        }
+      }
+
+      // Phase 2: LOA framework filter (tier-classified) on phase-1 survivors.
+      const tierResult = applyLoaTierExclusion(phase1Survivors, [...LOA_EXCLUDE_PATTERNS]);
       afterLoa = tierResult.passthrough;
 
-      // Collect Loa excluded entries
+      // Collect Loa-tier excluded entries (separate from user-pattern entries
+      // so the per-line stats stay accurate to the trust-origin that excluded
+      // each file).
       for (const entry of tierResult.tier1Excluded) {
         loaExcludedEntries.push(entry);
       }
@@ -1165,17 +1253,35 @@ export function truncateFiles(
 
       const totalLoaExcluded =
         tierResult.tier1Excluded.length + tierResult.tier2Summary.length;
-      const kbSaved = Math.round(tierResult.bytesSaved / 1024);
+      const totalUserExcluded =
+        loaExcludedEntries.length - totalLoaExcluded;
+      const kbSavedFramework = Math.round(tierResult.bytesSaved / 1024);
 
-      if (totalLoaExcluded > 0) {
-        loaBanner = `[Loa-aware: ${totalLoaExcluded} framework files excluded (${kbSaved} KB saved)]`;
-        loaStats = {
-          filesExcluded: totalLoaExcluded,
-          bytesSaved: tierResult.bytesSaved,
-        };
+      if (totalLoaExcluded > 0 || totalUserExcluded > 0) {
+        const parts: string[] = [];
+        if (totalLoaExcluded > 0) {
+          parts.push(`${totalLoaExcluded} framework files excluded (${kbSavedFramework} KB saved)`);
+        }
+        if (totalUserExcluded > 0) {
+          parts.push(`${totalUserExcluded} files excluded by .reviewignore (strict deny)`);
+        }
+        loaBanner = `[Loa-aware: ${parts.join("; ")}]`;
+        // loaStats already reflects user-pattern bytes; merge framework
+        // bytes if user-pattern phase ran, else set fresh.
+        if (loaStats) {
+          loaStats = {
+            filesExcluded: loaStats.filesExcluded + totalLoaExcluded,
+            bytesSaved: loaStats.bytesSaved + tierResult.bytesSaved,
+          };
+        } else {
+          loaStats = {
+            filesExcluded: totalLoaExcluded,
+            bytesSaved: tierResult.bytesSaved,
+          };
+        }
       }
 
-      // IMP-004: all files excluded by Loa filtering
+      // IMP-004: all files excluded by Loa filtering (or user phase)
       if (afterLoa.length === 0) {
         allExcluded = true;
         return {
