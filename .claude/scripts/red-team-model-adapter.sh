@@ -45,7 +45,12 @@ CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
 # defender=dissenter). Callers can override via --model if different model
 # selection is needed.
 declare -A ROLE_TO_AGENT=(
-    ["attacker"]="flatline-skeptic"
+    # cycle-102 sprint-1F (T1.8 / Issue #780): attacker role now routes to
+    # the dedicated flatline-attacker persona that emits the `attacks: [...]`
+    # schema red-team-pipeline.sh expects. Previous mapping pointed at
+    # flatline-skeptic which produces `concerns: [...]` — different shape,
+    # silently dropped by `.attacks[]?` in pipeline scoring.
+    ["attacker"]="flatline-attacker"
     ["evaluator"]="flatline-reviewer"
     ["defender"]="flatline-dissenter"
 )

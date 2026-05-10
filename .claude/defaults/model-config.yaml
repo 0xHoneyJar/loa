@@ -427,6 +427,17 @@ agents:
     temperature: 0.5
     requires:
       thinking_traces: preferred
+  # cycle-102 sprint-1F (T1.8 / Issue #780): flatline-attacker is the
+  # red-team-pipeline.sh `--role attacker` agent. Distinct from skeptic
+  # because the output schema is `attacks: [...]` not `concerns: [...]`,
+  # and the pipeline's downstream `.attacks[]?` parser silently dropped
+  # everything when the adapter pointed at flatline-skeptic. See
+  # .claude/skills/flatline-attacker/persona.md for the schema contract.
+  flatline-attacker:
+    model: reasoning
+    temperature: 0.6
+    requires:
+      thinking_traces: preferred
   flatline-scorer:
     model: reviewer
     temperature: 0.2
