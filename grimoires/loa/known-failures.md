@@ -60,6 +60,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-003](#kf-003-gpt-55-pro-empty-content-on-27k-input-reasoning-class-prompts) | RESOLVED (model swap) | flatline_protocol code review | 1 |
 | [KF-004](#kf-004-validate_finding-silent-rejection-of-dissenter-payloads) | OPEN (upstream filed) | adversarial-review.sh validation pipeline | ≥4 |
 | [KF-005](#kf-005-beads_rust-021-migration-blocks-task-tracking) | DEGRADED-ACCEPTED | beads_rust task tracking | many |
+| [KF-006](#kf-006-t114-migrate-model-config-v2-schema-rejects-max_output_tokens) | OPEN | T1.14 migrate-model-config v2 schema | every PR since dd54fe9c |
 
 ---
 
@@ -232,6 +233,36 @@ spending more than 5 minutes diagnosing beads, stop — the bug is
 upstream and tracked. The markdown fallback is sufficient.
 
 ---
+
+## KF-006: T1.14 migrate-model-config v2 schema rejects `max_output_tokens`
+
+**Status**: OPEN (CI-blocking on every PR touching model-config; pre-existing since cycle-102 sprint-1A merge)
+**Feature**: `tools/migrate-model-config.{sh,py}` smoke test step in workflow `T1.13 log-redactor + T1.14 migrate-model-config CLI`
+**Symptom**: The smoke step "Smoke test — migrate the production cycle-095 yaml" exits 78 with `MIGRATION-PRODUCED-INVALID-V2` errors for ~7 fields: `Additional properties are not allowed ('max_output_tokens' was unexpected)` on every model entry under `providers.{openai,anthropic,google}.models.*`. The migrator successfully translates v1 → v2 but the v2 schema validation step rejects the output because the schema doesn't list `max_output_tokens` as a known property.
+**First observed**: 2026-05-09 (cycle-102 sprint-1A merge of `dd54fe9c` — that commit added `max_output_tokens: 32000` per-model fields per T1.9, while the cycle-099 sprint-1E.a v2 schema did not extend to allow that field)
+**Recurrence count**: every PR since `dd54fe9c` that touches `model-config.yaml` or related paths (workflow only triggers on PRs, not main pushes — so main is "passing" by virtue of not running)
+**Current workaround**: Per operator standing authorization, treat the T1.14 step as pre-existing-main-failure when merging cycle-102 PRs. The cross-runtime parity step in the same job (T1.13) is the load-bearing assertion; T1.14 smoke is informational about a pre-existing schema gap.
+**Upstream issue**: not filed yet — the fix is to extend `.claude/data/model-config.schema.json` (or whatever the v2 schema artifact is) to permit `max_output_tokens` on per-model objects. Sprint 1A's T1.9 should have included this schema bump.
+**Related visions / lore**: not vision-class; pure schema-evolution oversight
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-05-09 | Sprint 1A T1.9 added `max_output_tokens` fields without bumping v2 schema | INTRODUCED THE REGRESSION | commit `dd54fe9c` |
+| 2026-05-10 | Sprint 1D PR #826 hit the same failure on T1.14 smoke step; cross-runtime T1.13 step itself passed 59/59 | OBSERVED — pre-existing not introduced | run `25621265130` / PR #826 |
+
+### Reading guide
+
+If your PR's CI shows `T1.13 log-redactor + T1.14 migrate-model-config CLI`
+job FAILURE: check whether the cross-runtime parity step (T1.13) inside the
+job passed (look for `ok 59 T16.2 mixed: idempotent` near the end of step
+log). If T1.13 is green and only the T1.14 smoke step exits 78 with
+`max_output_tokens` rejection: that's this entry — pre-existing, do NOT
+attempt to "fix" by removing the field from `model-config.yaml` (that
+would break Sprint 1A T1.9's cheval `_lookup_max_output_tokens` function).
+The right fix is upstream: extend the v2 schema. Until then, treat as
+pre-existing-main-failure for merge purposes.
 
 ## How to add a new entry
 
