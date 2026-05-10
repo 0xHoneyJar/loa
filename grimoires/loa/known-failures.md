@@ -60,7 +60,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-003](#kf-003-gpt-55-pro-empty-content-on-27k-input-reasoning-class-prompts) | RESOLVED (model swap) | flatline_protocol code review | 1 |
 | [KF-004](#kf-004-validate_finding-silent-rejection-of-dissenter-payloads) | RESOLVED 2026-05-10 (sidecar dump landed; #814 mitigation shipped) | adversarial-review.sh validation pipeline | ≥4 |
 | [KF-005](#kf-005-beads_rust-021-migration-blocks-task-tracking) | DEGRADED-ACCEPTED | beads_rust task tracking | many |
-| [KF-006](#kf-006-t114-migrate-model-config-v2-schema-rejects-max_output_tokens) | OPEN | T1.14 migrate-model-config v2 schema | every PR since dd54fe9c |
+| [KF-006](#kf-006-t114-migrate-model-config-v2-schema-rejects-max_output_tokens) | RESOLVED 2026-05-10 (v2 schema modelEntry permits max_output_tokens + max_input_tokens) | T1.14 migrate-model-config v2 schema | every PR since dd54fe9c |
 | [KF-007](#kf-007-red-team-pipeline-hardcoded-single-model-evaluator-vestigial-config) | RESOLVED 2026-05-10 (multi-model evaluator) | red team pipeline hardcoded single-model evaluator | n/a — resolved in same session as discovery |
 
 ---
@@ -326,7 +326,12 @@ upstream and tracked. The markdown fallback is sufficient.
 
 ## KF-006: T1.14 migrate-model-config v2 schema rejects `max_output_tokens`
 
-**Status**: OPEN (CI-blocking on every PR touching model-config; pre-existing since cycle-102 sprint-1A merge)
+**Status**: RESOLVED 2026-05-10 (v2 schema modelEntry properties extended to include `max_output_tokens` + `max_input_tokens`; production-yaml smoke-migrates with exit 0; 3 new bats regression tests at `tests/integration/migrate-model-config.bats:M19.{1,2,3}`)
+
+(Original entry preserved below.)
+---
+
+**Original Status**: OPEN (CI-blocking on every PR touching model-config; pre-existing since cycle-102 sprint-1A merge)
 **Feature**: `tools/migrate-model-config.{sh,py}` smoke test step in workflow `T1.13 log-redactor + T1.14 migrate-model-config CLI`
 **Symptom**: The smoke step "Smoke test — migrate the production cycle-095 yaml" exits 78 with `MIGRATION-PRODUCED-INVALID-V2` errors for ~7 fields: `Additional properties are not allowed ('max_output_tokens' was unexpected)` on every model entry under `providers.{openai,anthropic,google}.models.*`. The migrator successfully translates v1 → v2 but the v2 schema validation step rejects the output because the schema doesn't list `max_output_tokens` as a known property.
 **First observed**: 2026-05-09 (cycle-102 sprint-1A merge of `dd54fe9c` — that commit added `max_output_tokens: 32000` per-model fields per T1.9, while the cycle-099 sprint-1E.a v2 schema did not extend to allow that field)
@@ -341,6 +346,7 @@ upstream and tracked. The markdown fallback is sufficient.
 |------|---------------|---------|----------|
 | 2026-05-09 | Sprint 1A T1.9 added `max_output_tokens` fields without bumping v2 schema | INTRODUCED THE REGRESSION | commit `dd54fe9c` |
 | 2026-05-10 | Sprint 1D PR #826 hit the same failure on T1.14 smoke step; cross-runtime T1.13 step itself passed 59/59 | OBSERVED — pre-existing not introduced | run `25621265130` / PR #826 |
+| 2026-05-10 | Extend v2 schema `modelEntry.properties` with `max_output_tokens` + `max_input_tokens`; add 3 bats regression tests (M19.1–M19.3) | RESOLVED — production-yaml smoke-migrates exit 0 | Sprint 1F PR (this entry) — `.claude/data/schemas/model-config-v2.schema.json` + `tests/integration/migrate-model-config.bats` |
 
 ### Reading guide
 

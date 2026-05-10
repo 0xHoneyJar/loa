@@ -79,6 +79,16 @@
           "minimum": 1024,
           "description": "v2 minimum 1024 (SDD §3.1.1.1 unit test corpus). v1 entries below this fail post-migration validation with [MIGRATION-PRODUCED-INVALID-V2]."
         },
+        "max_output_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Per-model output budget cap. cycle-102 Sprint 1A T1.9 added this field to v1 model-config.yaml without bumping the v2 schema, causing every PR touching model-config to fail v2-validation as [MIGRATION-PRODUCED-INVALID-V2]: 'Additional properties are not allowed (max_output_tokens was unexpected)'. KF-006 closure (cycle-102 Sprint 1F)."
+        },
+        "max_input_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Empirically-observed safe input-size threshold. Distinct from context_window (advertised capacity) — this is the field-observed prompt size above which cheval's HTTP path on this provider disconnects (KF-002 layer 3 / Loa #774). Optional. cycle-102 Sprint 1F."
+        },
         "token_param": {"type": "string"},
         "endpoint_family": {
           "type": "string",

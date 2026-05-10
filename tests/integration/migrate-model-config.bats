@@ -679,3 +679,78 @@ EOF
     run "$PYTHON_BIN" "$CLI" "$bad_v2" -o "$OUT"
     [[ "$status" -eq 78 ]]
 }
+
+# ---------------------------------------------------------------------------
+# M19 — KF-006 regression coverage: max_output_tokens + max_input_tokens are
+#       valid v2 fields (cycle-102 Sprint 1F closure)
+# ---------------------------------------------------------------------------
+
+@test "M19.1 KF-006: max_output_tokens passes v2 validation on per-model entries" {
+    local v1="$WORK_DIR/v1-with-max-output.yaml"
+    cat > "$v1" <<'EOF'
+providers:
+  openai:
+    type: openai
+    endpoint: "https://api.openai.com/v1"
+    models:
+      gpt-5.5-pro:
+        capabilities: [chat, tools, function_calling, code]
+        context_window: 400000
+        endpoint_family: responses
+        max_output_tokens: 32000
+        token_param: max_completion_tokens
+EOF
+    run "$PYTHON_BIN" "$CLI" "$v1" -o "$OUT"
+    [[ "$status" -eq 0 ]]
+    # Field MUST be carried through unchanged (not stripped or archived)
+    _python_assert <<'EOF'
+import os
+from ruamel.yaml import YAML
+y = YAML(typ='safe')
+with open(os.environ["OUT"]) as f:
+    data = y.load(f)
+m = data["providers"]["openai"]["models"]["gpt-5.5-pro"]
+assert m["max_output_tokens"] == 32000, m
+# Must NOT be archived (the bug class would have routed the field there
+# in some buggy migrator variants)
+assert "max_output_tokens" not in (m.get("_archived_v1_fields") or {})
+EOF
+}
+
+@test "M19.2 KF-006: max_input_tokens passes v2 validation (Sprint 1F new field)" {
+    local v1="$WORK_DIR/v1-with-max-input.yaml"
+    cat > "$v1" <<'EOF'
+providers:
+  openai:
+    type: openai
+    endpoint: "https://api.openai.com/v1"
+    models:
+      gpt-5.5-pro:
+        capabilities: [chat]
+        context_window: 400000
+        endpoint_family: responses
+        max_output_tokens: 32000
+        max_input_tokens: 24000
+EOF
+    run "$PYTHON_BIN" "$CLI" "$v1" -o "$OUT"
+    [[ "$status" -eq 0 ]]
+    _python_assert <<'EOF'
+import os
+from ruamel.yaml import YAML
+y = YAML(typ='safe')
+with open(os.environ["OUT"]) as f:
+    data = y.load(f)
+m = data["providers"]["openai"]["models"]["gpt-5.5-pro"]
+assert m["max_input_tokens"] == 24000
+assert m["max_output_tokens"] == 32000
+EOF
+}
+
+@test "M19.3 KF-006: production model-config.yaml smoke-migrates without 78" {
+    # The exact failure class from KF-006: production yaml's
+    # max_output_tokens fields were rejected post-migration. With the
+    # schema bump, the production yaml should now smoke-migrate clean.
+    run "$PYTHON_BIN" "$CLI" "$PROJECT_ROOT/.claude/defaults/model-config.yaml" -o "$OUT"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" != *"MIGRATION-PRODUCED-INVALID-V2"* ]]
+}
