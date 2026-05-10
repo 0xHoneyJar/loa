@@ -55,7 +55,7 @@ actually tried, not just what someone *said* was tried.
 
 | ID | Status | Feature | Recurrence |
 |----|--------|---------|------------|
-| [KF-001](#kf-001-bridgebuilder-cross-model-provider-network-failures-non-openai) | OPEN | bridgebuilder cross-model dissent | 2 |
+| [KF-001](#kf-001-bridgebuilder-cross-model-provider-network-failures-non-openai) | OPEN (STRUCTURAL — upstream filed) | bridgebuilder cross-model dissent | 3 |
 | [KF-002](#kf-002-adversarial-reviewsh-empty-content-on-review-type-prompts-at-scale) | DEGRADED-ACCEPTED | adversarial-review.sh review-type | 3 |
 | [KF-003](#kf-003-gpt-55-pro-empty-content-on-27k-input-reasoning-class-prompts) | RESOLVED (model swap) | flatline_protocol code review | 1 |
 | [KF-004](#kf-004-validate_finding-silent-rejection-of-dissenter-payloads) | OPEN (upstream filed) | adversarial-review.sh validation pipeline | ≥4 |
@@ -65,32 +65,49 @@ actually tried, not just what someone *said* was tried.
 
 ## KF-001: bridgebuilder cross-model provider network failures (non-OpenAI)
 
-**Status**: OPEN
-**Feature**: `/bridgebuilder` cross-model dissent (`anthropic` + `google` providers)
-**Symptom**: Both `anthropic/claude-opus-4-7` and `google/gemini-3.1-pro-preview` fail with `TypeError: fetch failed; cause=AggregateError` and `cause=SocketError: other side closed` across all 3 retry attempts. OpenAI/`gpt-5.5-pro` succeeds. BB falls back to "stats-only summary" because the enrichment writer (also Anthropic) fails the same way. Headline reports `N findings — X consensus, Y disputed` but the consensus scoring runs over a single model's output.
-**First observed**: 2026-05-10 (cycle-102 sprint-1D BB iter-1 + iter-2 on PR #826)
-**Recurrence count**: 2 (both iters identical failure mode within ~17 min wall-clock)
-**Current workaround**: Document degradation explicitly; defer cross-model BB to post-merge; treat single-model findings under elevated `single-model-true-positive-in-DISPUTED` scrutiny per Sprint 1A iter-5 lore + `feedback_zero_blocker_demotion_pattern.md`. Do NOT call REFRAME plateau on single-model trajectory — REFRAME requires ≥2 models naming the same architectural seam.
-**Upstream issue**: not filed yet (likely transient network / provider-side rate limit; needs ≥1 more independent recurrence to characterize as structural)
+**Status**: OPEN — STRUCTURAL (upstream filed)
+**Feature**: `/bridgebuilder` cross-model dissent (`anthropic` + `google` providers via `.claude/skills/bridgebuilder-review/resources/adapters/`)
+**Symptom**: Both `anthropic/claude-opus-4-7` and `google/gemini-3.1-pro-preview` fail with `TypeError: fetch failed; cause=AggregateError` (Anthropic) and `cause=SocketError: other side closed` (Google) across all 3 retry attempts. OpenAI/`gpt-5.5-pro` succeeds. BB falls back to "stats-only summary" because the enrichment writer (also Anthropic) fails the same way. Headline reports `N findings — X consensus, Y disputed` but the consensus scoring runs over a single model's output. The pattern persisted across 3 independent BB invocations within ~60 min wall-clock on the same PR + machine; not a transient provider outage.
+**First observed**: 2026-05-10 (cycle-102 sprint-1D BB iter-1 on PR #826)
+**Recurrence count**: 3 (iter-1 + iter-2 + iter-3 on PR #826, all within ~60 min on the same operator machine)
+**Current workaround**: Document degradation explicitly; defer cross-model BB to post-merge; treat single-model findings under elevated `single-model-true-positive-in-DISPUTED` scrutiny per Sprint 1A iter-5 lore + `feedback_zero_blocker_demotion_pattern.md`. Do NOT call REFRAME plateau on single-model trajectory — REFRAME requires ≥2 models naming the same architectural seam. **Per the recurrence-≥3 rule, stop retrying — wait on upstream fix before re-attempting.**
+**Upstream issue**: [#827](https://github.com/0xHoneyJar/loa/issues/827) (filed 2026-05-10 during cycle-102 sprint-1D close, after the recurrence-≥3 rule triggered)
 **Related visions / lore**: vision-024 substrate-speaks-twice (the BB infrastructure that articulates the bug class itself failed to articulate at the cross-model level — third recursive-dogfood manifestation in cycle-102); `feedback_bb_api_unavailability_plateau.md`; `feedback_zero_blocker_demotion_pattern.md`
 
 ### Attempts
 
 | Date | What we tried | Outcome | Evidence |
 |------|---------------|---------|----------|
-| 2026-05-10 04:20Z | iter-1 normal invocation | DID NOT WORK — anthropic + google 3/3 attempts failed; openai succeeded | run `bridgebuilder-20260510T042044-3f1c` / PR #826 comment 4414 |
-| 2026-05-10 04:35Z | iter-2 after 7-min gap + mitigation commit `6bfcae21` | DID NOT WORK — same failure mode | run `bridgebuilder-20260510T043516-5fb8` / PR #826 comment 4414 |
+| 2026-05-10 04:20Z | iter-1 normal invocation | DID NOT WORK — anthropic + google 3/3 attempts failed; openai succeeded (7616 in / 21198 out) | run `bridgebuilder-20260510T042044-3f1c` / PR #826 comment 4414476 |
+| 2026-05-10 04:35Z | iter-2 after 7-min gap + mitigation commit `6bfcae21` | DID NOT WORK — same failure mode; openai succeeded (8752 in / 15629 out) | run `bridgebuilder-20260510T043516-5fb8` / PR #826 comment 4414587 |
+| 2026-05-10 05:11Z | iter-3 after 36-min gap + framing-correction commit `a9591b28` (operator-requested retry to get all 3 models) | DID NOT WORK — same failure mode; openai succeeded (30067 in / 3069 out — note different output size from same model on same PR) | run `bridgebuilder-20260510T051139-fe00` |
 
 ### Reading guide
 
-If your BB run shows `2 of 3` or `1 of 3` provider success: do NOT call
+**RECURRENCE COUNT IS 3 — STRUCTURAL.** Do NOT re-attempt BB cross-model on
+this machine until upstream resolves. The pattern is:
+
+- Anthropic + Google fail consistently with Node `fetch failed` / `SocketError`
+  errors at request-size 28KB+ (iter-1) through 35KB+ (iter-3)
+- OpenAI succeeds at the same request sizes
+- Three independent invocations across ~60 min wall-clock; not a transient outage
+- Most likely root causes (untested, for upstream triage):
+  (a) Loa-side TS adapter config issue specific to `anthropic` + `google`
+      endpoints (request format, header, timeout)
+  (b) Operator machine network configuration (DNS, IPv6, firewall) blocking
+      api.anthropic.com + generativelanguage.googleapis.com but not
+      api.openai.com
+  (c) Provider-side rate limiting per-account that returns RST instead of 429
+
+If your BB run shows `1 of 3` or `2 of 3` provider success: do NOT call
 plateau, do NOT trust the "consensus" / "disputed" headlines (they're
-single-model output filtered through a multi-model scorer). Document
-the degraded-mode result honestly. If the failure persists across ≥3
-sessions on different days, file an upstream issue and consider whether
-to swap the failing providers (mirroring the Sprint 1B T1B.4 swap
-precedent for `flatline_protocol` reviewer model). Until then, defer
-cross-model BB to post-merge and accept single-model BB as advisory-only.
+single-model output filtered through a multi-model scorer). Document the
+degraded-mode result honestly. **The recurrence-≥3 rule says stop
+retrying** — accept single-model BB as advisory-only, route findings as
+elevated-DISPUTED-scrutiny per `feedback_zero_blocker_demotion_pattern.md`,
+and wait for upstream fix. Increment this entry's recurrence count and
+add an `Attempts` row when the failure is observed again with new
+evidence (different machine, different network, different time-of-day).
 
 ---
 
