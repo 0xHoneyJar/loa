@@ -1,0 +1,120 @@
+# cycle-102 sprint-1F: auto-apply bridgebuilder:self-review label on PRs that
+# touch framework paths.
+#
+# Background. The Loa-aware filter in `.claude/skills/bridgebuilder-review/`
+# strips files under `.claude/`, `grimoires/`, `.beads/` from the review
+# payload before the multi-model pass — correct for code-PR reviews (no
+# review noise from grimoire side-effects), but inverts on self-modifying
+# PRs where the framework files ARE the substance. The skill provides an
+# opt-in `bridgebuilder:self-review` label for those PRs (per
+# vision-013 / #796) — but applying the label is operator-manual today.
+# This workflow makes it automatic.
+#
+# Trigger: every PR open/sync/reopen/ready-for-review. Reads the PR's
+# changed-files list via `gh pr diff --name-only`. If any path matches
+# the framework-path globs (`.claude/**`, `grimoires/**`, `.beads/**`,
+# `CLAUDE.md`, `.loa.config.yaml`), applies the label idempotently.
+# Non-framework PRs are no-ops.
+#
+# Cost: one `gh` API call per PR event. Negligible. Skip via the env-var
+# `LOA_BB_AUTO_LABEL_DISABLE=1` (set as repo secret) for one-shot disable
+# without removing the workflow file.
+#
+# Security model. The workflow uses the default GITHUB_TOKEN with
+# `pull-requests: write` scope (minimum needed to apply labels). It does
+# NOT use any third-party action — only `gh` CLI invocations, which run
+# inside the GitHub-hosted runner with the standard supply-chain story.
+# The label name is a literal constant (`bridgebuilder:self-review`)
+# matching the SELF_REVIEW_LABEL constant in BB's TS source — the
+# substring-match-resistance documented in BB's SKILL.md applies.
+#
+# Source: known-failures.md "BB self-review label coverage" gap noted
+# during cycle-102 sprint-1D close. Operator deferred to agent on
+# priority of this fix; landed in cycle-102 sprint-1F.
+
+name: bridgebuilder auto self-review label
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  apply-label:
+    name: Apply bridgebuilder:self-review when PR touches framework paths
+    runs-on: ubuntu-latest
+    if: ${{ vars.LOA_BB_AUTO_LABEL_DISABLE != '1' }}
+    steps:
+      - name: Determine if PR touches framework paths
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          # Pull the PR's changed-files list. Use --name-only so we get
+          # one path per line. Cap at 3000 files (the BB review payload
+          # cap is much lower; if a PR has >3000 files, framework-path
+          # detection is going to find at least one match anyway).
+          changed=$(gh pr diff "$PR_NUMBER" --name-only --repo "${GITHUB_REPOSITORY}" 2>/dev/null | head -3000)
+
+          if [[ -z "$changed" ]]; then
+            echo "no changed files reported by gh pr diff (empty PR or API hiccup)"
+            echo "matched=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Framework-path detection. These globs mirror the Loa-aware
+          # filter in BB's TruncationResult.loaAware — keep in sync if
+          # the filter scope changes (it doesn't change often).
+          #
+          # Match policy: any single match flips the label. Operators
+          # who explicitly DON'T want the label can remove it after the
+          # workflow applies — the BB self-review code path checks the
+          # label state at review time, not at PR creation time.
+          matched=false
+          while IFS= read -r path; do
+            case "$path" in
+              .claude/*|grimoires/*|.beads/*|CLAUDE.md|.loa.config.yaml)
+                matched=true
+                echo "match: $path"
+                break
+                ;;
+            esac
+          done <<< "$changed"
+
+          echo "matched=$matched" >> "$GITHUB_OUTPUT"
+
+      - name: Apply label
+        if: steps.check.outputs.matched == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          label="bridgebuilder:self-review"
+
+          # Check whether the label is already applied (idempotency).
+          # `gh pr view --json labels` returns [{name, color, ...}, ...].
+          existing=$(gh pr view "$PR_NUMBER" --repo "${GITHUB_REPOSITORY}" --json labels \
+                       --jq '[.labels[].name] | join(",")' 2>/dev/null || echo "")
+
+          if [[ ",$existing," == *",$label,"* ]]; then
+            echo "label '$label' already applied to PR #$PR_NUMBER — no-op"
+            exit 0
+          fi
+
+          # Apply the label. `--add-label` is idempotent on the GitHub
+          # API side (returns 200 even if label already present), but
+          # the existence check above keeps the workflow log clean.
+          echo "applying label '$label' to PR #$PR_NUMBER"
+          gh pr edit "$PR_NUMBER" --repo "${GITHUB_REPOSITORY}" --add-label "$label"
+
+      - name: No match — log and exit
+        if: steps.check.outputs.matched != 'true'
+        run: |
+          echo "PR does not touch any framework paths — no label applied"
