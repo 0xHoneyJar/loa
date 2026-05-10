@@ -397,3 +397,185 @@ _assert_redacts_to() {
     input="$(printf '%s' '!"#$%&'"'"'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_\`abcdefghijklmnopqrstuvwxyz{|}~')"
     _assert_redacts_to "$input" "$input"
 }
+
+# ---------------------------------------------------------------------------
+# T13 — AKIA AWS access keys (cycle-102 sprint-1D / T1.7.b)
+#
+# Per Sprint 1D §5.6 extension: the redactor recognizes `AKIA[0-9A-Z]{16}`
+# (20 chars total) regardless of URL framing. Real AWS access keys are
+# always exactly 20 chars; the [REDACTED-AKIA] sentinel preserves
+# debuggability while masking the secret value.
+# ---------------------------------------------------------------------------
+
+@test "T13.1 akia: bare access key is masked" {
+    # Real-shape AKIA: 4-char prefix + 16-char [0-9A-Z] suffix.
+    _assert_redacts_to \
+        'AKIAIOSFODNN7EXAMPLE' \
+        '[REDACTED-AKIA]'
+}
+
+@test "T13.2 akia: in surrounding text" {
+    _assert_redacts_to \
+        'Error 403: credentials AKIAIOSFODNN7EXAMPLE were rejected.' \
+        'Error 403: credentials [REDACTED-AKIA] were rejected.'
+}
+
+@test "T13.3 akia: multiple keys in same input" {
+    _assert_redacts_to \
+        'first AKIAIOSFODNN7EXAMPLE second AKIAIOSFODNN7DUMMYY3' \
+        'first [REDACTED-AKIA] second [REDACTED-AKIA]'
+}
+
+@test "T13.4 akia: lowercase prefix does NOT match (real keys are uppercase)" {
+    _assert_redacts_to \
+        'akiaiosfodnn7example' \
+        'akiaiosfodnn7example'
+}
+
+@test "T13.5 akia: too-short suffix passes through (15 chars not 16)" {
+    # Negative control: ensures false-positive on AKIAxxxxxxxxxxxxxxx (15
+    # alnum chars) does NOT trigger. Real keys are exactly 16 chars after
+    # AKIA; shorter strings are not access keys.
+    _assert_redacts_to \
+        'AKIAONLYFIFTEENN' \
+        'AKIAONLYFIFTEENN'
+}
+
+@test "T13.6 akia: lowercase chars in suffix do NOT match" {
+    # AKIA prefix matches but suffix `[0-9A-Z]{16}` rejects lowercase.
+    _assert_redacts_to \
+        'AKIAlowercasesuffix' \
+        'AKIAlowercasesuffix'
+}
+
+@test "T13.7 akia: idempotent (already-redacted input passes through)" {
+    local input='already=[REDACTED-AKIA] here'
+    _redact_both "$input"
+    [[ "$py_out" = "$input" ]]
+    [[ "$sh_out" = "$input" ]]
+}
+
+# ---------------------------------------------------------------------------
+# T14 — PEM private-key blocks (cycle-102 sprint-1D / T1.7.b)
+#
+# Multi-line PEM redaction. Bash twin uses sed slurp (`:a;N;$!ba;`); Python
+# canonical uses `[^-]*` body class (base64 PEM body never contains `-`).
+# Both produce byte-equal output across all named-algorithm variants.
+# ---------------------------------------------------------------------------
+
+@test "T14.1 pem: PKCS#8 unnamed private key" {
+    local input
+    input=$'-----BEGIN PRIVATE KEY-----\nMIIBVQIBADANBgkqhkiG9w0BAQEFAAS=\n-----END PRIVATE KEY-----'
+    _assert_redacts_to "$input" '[REDACTED-PRIVATE-KEY]'
+}
+
+@test "T14.2 pem: RSA private key with algorithm name" {
+    local input
+    input=$'-----BEGIN RSA PRIVATE KEY-----\nMIICXQIBAAKBgQDH8R\n-----END RSA PRIVATE KEY-----'
+    _assert_redacts_to "$input" '[REDACTED-PRIVATE-KEY]'
+}
+
+@test "T14.3 pem: EC private key with algorithm name" {
+    local input
+    input=$'-----BEGIN EC PRIVATE KEY-----\nMHQCAQEEIH8mP6+0\n-----END EC PRIVATE KEY-----'
+    _assert_redacts_to "$input" '[REDACTED-PRIVATE-KEY]'
+}
+
+@test "T14.4 pem: surrounded by text on both sides" {
+    local input expected
+    input=$'before line\n-----BEGIN PRIVATE KEY-----\nbody=\n-----END PRIVATE KEY-----\nafter line'
+    expected=$'before line\n[REDACTED-PRIVATE-KEY]\nafter line'
+    _assert_redacts_to "$input" "$expected"
+}
+
+@test "T14.5 pem: missing END marker passes through (defense-in-depth)" {
+    # Fragment without closing marker is NOT a complete PEM block; redactor
+    # leaves it untouched. The cheval-side gate (T1.7.e) catches this case
+    # via shape-of-BEGIN-marker detection.
+    local input
+    input=$'-----BEGIN PRIVATE KEY-----\nbody'
+    _assert_redacts_to "$input" "$input"
+}
+
+@test "T14.6 pem: idempotent" {
+    local input='already=[REDACTED-PRIVATE-KEY] here'
+    _redact_both "$input"
+    [[ "$py_out" = "$input" ]]
+    [[ "$sh_out" = "$input" ]]
+}
+
+# ---------------------------------------------------------------------------
+# T15 — Bearer-token shape (cycle-102 sprint-1D / T1.7.b)
+#
+# Case-insensitive on `Bearer` (RFC 7235 HTTP scheme is case-insensitive).
+# Token charset is the union of base64url + standard base64 + RFC 6750.
+# Separator MUST be space-or-tab (POSIX BRE parity with bash twin's
+# `[ <tab>]` literal class — NOT `[[:space:]]` which would also match
+# `\n`/`\f`/`\v` in pattern space).
+# ---------------------------------------------------------------------------
+
+@test "T15.1 bearer: standard JWT-shape token (space sep)" {
+    _assert_redacts_to \
+        'Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.fake.token' \
+        'Authorization: [REDACTED-BEARER-TOKEN]'
+}
+
+@test "T15.2 bearer: lowercase scheme keyword" {
+    _assert_redacts_to \
+        'authorization: bearer abc123def456' \
+        'authorization: [REDACTED-BEARER-TOKEN]'
+}
+
+@test "T15.3 bearer: tab separator" {
+    local input
+    input=$'Authorization:\tBearer\tabc.def-ghi'
+    _assert_redacts_to "$input" $'Authorization:\t[REDACTED-BEARER-TOKEN]'
+}
+
+@test "T15.4 bearer: opaque OAuth token (with =/+ chars)" {
+    _assert_redacts_to \
+        'Bearer ya29.A0AfH6SM/B+xyz=' \
+        '[REDACTED-BEARER-TOKEN]'
+}
+
+@test "T15.5 bearer: multiple Bearer tokens in same input" {
+    _assert_redacts_to \
+        'A: Bearer aaa.bbb B: Bearer ccc.ddd' \
+        'A: [REDACTED-BEARER-TOKEN] B: [REDACTED-BEARER-TOKEN]'
+}
+
+@test "T15.6 bearer: word 'Bearer' alone (no token) passes through" {
+    # Pattern requires Bearer + separator + token chars (one or more).
+    # The literal word "Bearer" without a following token is not a header.
+    _assert_redacts_to 'The Bearer of this letter' 'The Bearer of this letter'
+}
+
+@test "T15.7 bearer: idempotent" {
+    local input='already=[REDACTED-BEARER-TOKEN] here'
+    _redact_both "$input"
+    [[ "$py_out" = "$input" ]]
+    [[ "$sh_out" = "$input" ]]
+}
+
+# ---------------------------------------------------------------------------
+# T16 — Pass-order regression (cycle-102 sprint-1D / T1.7.c)
+#
+# Mixed input exercising all 5 passes. Confirms (a) the line-by-line passes
+# don't collide with the slurp pass and (b) byte-equality holds when
+# multiple secret types appear in the same input.
+# ---------------------------------------------------------------------------
+
+@test "T16.1 mixed: AKIA + Bearer + URL + PEM in one input" {
+    local input expected
+    input=$'curl https://u:p@host/?api_key=secret with AKIAIOSFODNN7EXAMPLE\nAuthorization: Bearer eyJ.fake.tok\n-----BEGIN PRIVATE KEY-----\nbody\n-----END PRIVATE KEY-----'
+    expected=$'curl https://[REDACTED]@host/?api_key=[REDACTED] with [REDACTED-AKIA]\nAuthorization: [REDACTED-BEARER-TOKEN]\n[REDACTED-PRIVATE-KEY]'
+    _assert_redacts_to "$input" "$expected"
+}
+
+@test "T16.2 mixed: idempotent on already-redacted mixed input" {
+    local input
+    input=$'mix [REDACTED-AKIA] | [REDACTED-BEARER-TOKEN]\n[REDACTED-PRIVATE-KEY]'
+    _redact_both "$input"
+    [[ "$py_out" = "$input" ]]
+    [[ "$sh_out" = "$input" ]]
+}
