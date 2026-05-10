@@ -436,9 +436,13 @@ _assert_redacts_to() {
     # Negative control: ensures false-positive on AKIAxxxxxxxxxxxxxxx (15
     # alnum chars) does NOT trigger. Real keys are exactly 16 chars after
     # AKIA; shorter strings are not access keys.
+    # Boundary case fix per BB iter-1 F-005 (was 12 chars; corrected to
+    # exactly 15 chars after AKIA so the test name matches the fixture).
+    # AKIA + ABCDEFGHIJKLMNO = 4 + 15 = 19 chars; the 16-char-suffix rule
+    # rejects this string from redaction.
     _assert_redacts_to \
-        'AKIAONLYFIFTEENN' \
-        'AKIAONLYFIFTEENN'
+        'AKIAABCDEFGHIJKLMNO' \
+        'AKIAABCDEFGHIJKLMNO'
 }
 
 @test "T13.6 akia: lowercase chars in suffix do NOT match" {
@@ -520,15 +524,18 @@ _assert_redacts_to() {
         'Authorization: [REDACTED-BEARER-TOKEN]'
 }
 
-@test "T15.2 bearer: lowercase scheme keyword" {
+@test "T15.2 bearer: lowercase scheme keyword (>=16 char token)" {
+    # Per BB iter-1 F-006: pattern requires >=16 char token to exclude
+    # natural-language false positives. Token here is 24 chars.
     _assert_redacts_to \
-        'authorization: bearer abc123def456' \
+        'authorization: bearer abc123def456ghi789jkl012' \
         'authorization: [REDACTED-BEARER-TOKEN]'
 }
 
-@test "T15.3 bearer: tab separator" {
+@test "T15.3 bearer: tab separator (>=16 char token)" {
+    # Token is 19 chars — exceeds the ≥16-char floor.
     local input
-    input=$'Authorization:\tBearer\tabc.def-ghi'
+    input=$'Authorization:\tBearer\tabc.def-ghi-jkl-mno'
     _assert_redacts_to "$input" $'Authorization:\t[REDACTED-BEARER-TOKEN]'
 }
 
@@ -538,16 +545,24 @@ _assert_redacts_to() {
         '[REDACTED-BEARER-TOKEN]'
 }
 
-@test "T15.5 bearer: multiple Bearer tokens in same input" {
+@test "T15.5 bearer: multiple Bearer tokens (each >=16 chars)" {
+    # Each token is 19 chars; both should redact.
     _assert_redacts_to \
-        'A: Bearer aaa.bbb B: Bearer ccc.ddd' \
+        'A: Bearer aaa.bbb.ccc.ddd.eee B: Bearer xxx.yyy.zzz.www.uuu' \
         'A: [REDACTED-BEARER-TOKEN] B: [REDACTED-BEARER-TOKEN]'
 }
 
-@test "T15.6 bearer: word 'Bearer' alone (no token) passes through" {
-    # Pattern requires Bearer + separator + token chars (one or more).
-    # The literal word "Bearer" without a following token is not a header.
+@test "T15.6 bearer: short token (<16 chars) passes through" {
+    # Per BB iter-1 F-006: pattern requires >=16 char token. Natural-
+    # language matches like "Bearer of" (2-char token) are excluded by
+    # the floor. Operational realism: real OAuth bearer tokens are always
+    # longer; HTTP Bearer header without a real token is not a leak.
     _assert_redacts_to 'The Bearer of this letter' 'The Bearer of this letter'
+    _assert_redacts_to 'header: Bearer abc.def.ghi' 'header: Bearer abc.def.ghi'
+    # Boundary: exactly 15 chars (just under) passes through
+    _assert_redacts_to 'Bearer abcdefghijklmno' 'Bearer abcdefghijklmno'
+    # Boundary: exactly 16 chars (at floor) IS redacted
+    _assert_redacts_to 'Bearer abcdefghijklmnop' '[REDACTED-BEARER-TOKEN]'
 }
 
 @test "T15.7 bearer: idempotent" {
@@ -566,8 +581,9 @@ _assert_redacts_to() {
 # ---------------------------------------------------------------------------
 
 @test "T16.1 mixed: AKIA + Bearer + URL + PEM in one input" {
+    # Bearer token must be >=16 chars per the F-006 fix. JWT-shape used here.
     local input expected
-    input=$'curl https://u:p@host/?api_key=secret with AKIAIOSFODNN7EXAMPLE\nAuthorization: Bearer eyJ.fake.tok\n-----BEGIN PRIVATE KEY-----\nbody\n-----END PRIVATE KEY-----'
+    input=$'curl https://u:p@host/?api_key=secret with AKIAIOSFODNN7EXAMPLE\nAuthorization: Bearer eyJhbGciOiJIUzI1NiJ9.fake.tok\n-----BEGIN PRIVATE KEY-----\nbody\n-----END PRIVATE KEY-----'
     expected=$'curl https://[REDACTED]@host/?api_key=[REDACTED] with [REDACTED-AKIA]\nAuthorization: [REDACTED-BEARER-TOKEN]\n[REDACTED-PRIVATE-KEY]'
     _assert_redacts_to "$input" "$expected"
 }

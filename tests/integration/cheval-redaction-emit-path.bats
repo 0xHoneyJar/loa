@@ -48,6 +48,11 @@ setup() {
     # BOOTSTRAP-PENDING when no trust-store file is present (cycle-098 install-
     # time default), which permits writes. Tests rely on that fallback.
     unset LOA_AUDIT_SIGNING_KEY_ID
+    # Per BB iter-1 F-007: explicitly clear test-mode bypass env vars so
+    # ambient CI/developer values cannot make tests exercise an unintended
+    # path. These env vars are not currently honored by modelinv (no bypass
+    # is implemented) but the unset is defensive against future drift.
+    unset LOA_MODELINV_BYPASS_REDACTOR LOA_MODELINV_TEST_MODE LOA_MODELINV_FAIL_LOUD LOA_MODELINV_AUDIT_DISABLE
 }
 
 teardown() {
@@ -318,12 +323,14 @@ except RedactionFailure as rf:
     [[ "$output" == *'GATE_REJECT shape=PEM-PRIVATE-KEY'* ]]
 }
 
-@test "R7d: gate REJECTS payload with raw Bearer token" {
+@test "R7d: gate REJECTS payload with raw Bearer token (>=16 chars)" {
+    # Per BB iter-1 F-006: Bearer pattern requires >=16 char token. Test
+    # token is 31 chars (JWT-shape) to clear the floor.
     PYTHONPATH="$ADAPTERS_DIR:${PYTHONPATH:-}" \
         run "$PYTHON_BIN" -c '
 import json, sys
 from loa_cheval.audit.modelinv import assert_no_secret_shapes_remain, RedactionFailure
-payload = {"message_redacted": "header: Bearer abc.def.ghi"}
+payload = {"message_redacted": "header: Bearer eyJhbGciOiJIUzI1NiJ9.fake.tok"}
 try:
     assert_no_secret_shapes_remain(json.dumps(payload))
     sys.exit(99)
@@ -333,6 +340,55 @@ except RedactionFailure as rf:
 '
     [[ "$status" -eq 0 ]]
     [[ "$output" == *'GATE_REJECT shape=Bearer-token'* ]]
+}
+
+@test "R7f: gate REJECTS partial PEM (BEGIN without END) per F-003" {
+    # Per BB iter-1 F-003: a truncated log entry can leave the PEM body
+    # unredacted by Layer 1 (redactor pattern requires full BEGIN+END
+    # block). Layer 2 gate's `_GATE_PEM_BEGIN` matches BEGIN alone so the
+    # write is fail-closed at the chain layer. Defense-in-depth verified.
+    PYTHONPATH="$ADAPTERS_DIR:${PYTHONPATH:-}" \
+        run "$PYTHON_BIN" -c '
+import json, sys
+from loa_cheval.audit.modelinv import assert_no_secret_shapes_remain, RedactionFailure
+fragment = "log was truncated: -----BEGIN RSA PRIVATE KEY-----\nMIIBVQIBADAN... [TRUNCATED]"
+payload = {"message_redacted": fragment}
+try:
+    assert_no_secret_shapes_remain(json.dumps(payload))
+    sys.exit(99)
+except RedactionFailure as rf:
+    print(f"GATE_REJECT shape={rf.shape}")
+    sys.exit(0)
+'
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *'GATE_REJECT shape=PEM-PRIVATE-KEY'* ]]
+}
+
+@test "R7g: gate REJECTS encrypted PEM with DEK-Info headers per F-004" {
+    # Per BB iter-1 F-004: encrypted RSA PEMs include `Proc-Type:` and
+    # `DEK-Info:` headers whose `-` chars break Layer 1's `[^-]*` body
+    # class — the redactor pattern fails to match the full block. Layer 2
+    # gate's BEGIN-marker-only check catches the leak attempt.
+    PYTHONPATH="$ADAPTERS_DIR:${PYTHONPATH:-}" \
+        run "$PYTHON_BIN" -c '
+import json, sys
+from loa_cheval.audit.modelinv import assert_no_secret_shapes_remain, RedactionFailure
+encrypted_pem = """-----BEGIN RSA PRIVATE KEY-----
+Proc-Type: 4,ENCRYPTED
+DEK-Info: DES-EDE3-CBC,1234567890ABCDEF
+
+base64body=
+-----END RSA PRIVATE KEY-----"""
+payload = {"message_redacted": encrypted_pem}
+try:
+    assert_no_secret_shapes_remain(json.dumps(payload))
+    sys.exit(99)
+except RedactionFailure as rf:
+    print(f"GATE_REJECT shape={rf.shape}")
+    sys.exit(0)
+'
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *'GATE_REJECT shape=PEM-PRIVATE-KEY'* ]]
 }
 
 # -----------------------------------------------------------------------------

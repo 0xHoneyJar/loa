@@ -103,7 +103,13 @@ _PEM_RE = re.compile(
 # rather than `\s` to keep POSIX BRE parity (POSIX `[[:space:]]` would also
 # match `\n` `\f` `\v` which we don't want — Bearer tokens in headers are
 # space-or-tab separated in practice).
-_BEARER_RE = re.compile(r"[Bb]earer[ \t][A-Za-z0-9._~+/=-]+")
+#
+# Minimum token length 16 chars: real OAuth bearer tokens and JWTs are
+# always longer (JWTs are ~200+ chars; opaque OAuth tokens are typically
+# 20-100+). A 16-char floor excludes natural-language false positives like
+# "The Bearer of this letter" (where "of" satisfies the charset but is not
+# a token). Per BB iter-1 F-006 (sprint-1D 2026-05-10).
+_BEARER_RE = re.compile(r"[Bb]earer[ \t][A-Za-z0-9._~+/=-]{16,}")
 
 
 def _query_repl(match: re.Match) -> str:

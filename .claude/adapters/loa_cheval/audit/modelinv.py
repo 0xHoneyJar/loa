@@ -90,7 +90,7 @@ _REDACT = _load_redactor()
 
 _GATE_AKIA = re.compile(r"AKIA[0-9A-Z]{16}")
 _GATE_PEM_BEGIN = re.compile(r"-----BEGIN [A-Z 0-9]*PRIVATE KEY-----")
-_GATE_BEARER = re.compile(r"[Bb]earer[ \t][A-Za-z0-9._~+/=-]+")
+_GATE_BEARER = re.compile(r"[Bb]earer[ \t][A-Za-z0-9._~+/=-]{16,}")
 
 
 class RedactionFailure(Exception):

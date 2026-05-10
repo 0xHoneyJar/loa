@@ -58,7 +58,7 @@ _redact() {
         -e 's|\([?&][Aa][Pp][Ii]_[Kk][Ee][Yy]\)=[^&]*|\1=[REDACTED]|g' \
         -e 's|\([?&][Aa][Uu][Tt][Hh]\)=[^&]*|\1=[REDACTED]|g' \
         -e 's|AKIA[0-9A-Z]\{16\}|[REDACTED-AKIA]|g' \
-        -e 's|[Bb]earer[ 	][A-Za-z0-9._~+/=-]\{1,\}|[REDACTED-BEARER-TOKEN]|g' \
+        -e 's|[Bb]earer[ 	][A-Za-z0-9._~+/=-]\{16,\}|[REDACTED-BEARER-TOKEN]|g' \
     | sed \
         -e ':a' \
         -e 'N' \
