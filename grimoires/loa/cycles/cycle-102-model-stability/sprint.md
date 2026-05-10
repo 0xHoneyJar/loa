@@ -328,6 +328,102 @@ This sprint does NOT close any AC directly; it ships the substrate that lets fut
 
 Same shape as Sprint 1A/1B: deliverables checked + AC tests green + `/review-sprint sprint-1C` APPROVED + `/audit-sprint sprint-1C` APPROVED + Bridgebuilder kaironic plateau on the sprint PR + ship/no-ship in NOTES.md + beads tasks closed (manual fallback per #661).
 
+**Sprint 1C Status (2026-05-10):** SHIPPED. PR [#816](https://github.com/0xHoneyJar/loa/pull/816) merged at `701103e7` on main. Closes #808 + DISS-002 + DISS-003. 53 net-new tests; sprint-1C integration step PASS in CI. BB plateau at iter-2 with 1 false-positive HIGH_CONSENSUS resolved + F20 REFRAME documented. Vision-025 "The Substrate Becomes the Answer" written. T1.3 / T1.5 / T1.6 / **T1.7** / T1.8 / T1.10 / T1B.3 all substrate-unblocked.
+
+---
+
+## Sprint 1D — Redaction-Leak Emit-Path Closure (T1.7)
+
+**Scope**: SMALL (1 load-bearing security task + supporting test substrate)
+**Local ID**: 1D | **Global ID**: TBD (assigned at sprint-plan time)
+**Status**: ACTIVE — kicked off 2026-05-10 (session 7) immediately following Sprint 1C ship
+
+### Sprint 1D Goal
+
+Close the **redaction-leak vector** documented in Sprint 1B T1B.1 by wiring `lib/log-redactor.{sh,py}` (extended for the three secret shapes the audit chain must reject) and a defense-in-depth fail-closed validator-adjacent gate into cheval `invoke()` end-of-call path **before** `audit_emit "MODELINV" "model.invoke.complete" <payload>` fires. T1B.1 shipped contract DOCUMENTED; T1.7 ships contract ENFORCED. Per `grimoires/loa/NOTES.md` 2026-05-09 Decision Log on T1B.1-vs-T1.7, this is the load-bearing closure for the security concern that BB iter-1 FIND-001 (HIGH_CONSENSUS, all 3 providers) and BB iter-5 FIND-005 (Anthropic single-model, re-classified HIGH) both surfaced. The substrate to integration-test the closure ships in Sprint 1C (PR #816 merged at `701103e7`); Sprint 1D consumes that substrate.
+
+### Sprint 1D Closes (PRD AC)
+
+- **AC-1.7.test** audit envelope event integration (cheval emit path → MODELINV `model.invoke.complete` envelope; `kill_switch_active` populated; `error.message_redacted` + `original_exception` redacted before write)
+- **Open redaction-leak issue** tracked against T1B.1 (NOTES.md 2026-05-09 Decision Log) — closes the vector the schema description documented but no enforcement existed for
+
+### Sprint 1D Closes (PRD M)
+
+→ **[M1]** silent-degradation count metric — MODELINV writes go live in production cheval invoke path (powers vision-019 M1 audit query)
+→ **[M7]** operator-visible degradation indication — `operator_visible_warn` populated correctly on every emit
+
+### Sprint 1D Deliverables (checkbox list)
+
+- [ ] **Redactor extension** — `.claude/scripts/lib/log-redactor.{sh,py}` grows three bare-pattern matchers beyond URL framing:
+  - **AKIA-shaped** AWS access key prefix (`AKIA[0-9A-Z]{16}`)
+  - **PEM private-key block** (`-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----` through `-----END [A-Z0-9 ]*PRIVATE KEY-----`, multiline-aware)
+  - **Bearer-token shape** (`[Bb]earer\s+[A-Za-z0-9._~+/-]+=*`, header form)
+  Cross-runtime parity (bash sed-twin + Python canonical) per cycle-099 sprint-1E.a precedent. Existing URL userinfo + 6-query-param patterns unchanged. Stop-character set extended to handle multiline PEM blocks safely without over-matching.
+- [ ] **`tests/integration/log-redactor-cross-runtime.bats`** extended with parity tests for the three new patterns (each pattern: bash twin output byte-equal to Python canonical for AKIA / PEM / Bearer fixtures + idempotency assertion)
+- [ ] **cheval.py `invoke()` audit_emit wiring** — at end-of-call success and failure paths, build `model.invoke.complete` payload per `.claude/data/trajectory-schemas/model-events/model-invoke-complete.payload.schema.json`; redact every string field that may carry untrusted upstream content (`error.message_redacted`, per-failed-model `message_redacted`, top-level `original_exception` if present); call `audit_emit "MODELINV" "model.invoke.complete" <payload>` via subprocess (cycle-098 audit-envelope.sh entrypoint)
+- [ ] **Defense-in-depth gate** — `_assert_no_secret_shapes_remain(payload_json: str) -> None` in cheval.py. Scans the post-redaction payload for AKIA / PEM / Bearer patterns AND high-entropy `Authorization:` header substrings. If any match, raises `RedactionFailure(ChevalError)` with `error_class=STRICT_VIOLATION` (when T1.5 lands; until then, falls back to `UNKNOWN`). The audit_emit call is NEVER reached on RedactionFailure — fail-closed.
+- [ ] **`kill_switch_active: true`** populated correctly when `LOA_FORCE_LEGACY_MODELS=1` is set at invocation time (SDD §11; gemini IMP-004 HIGH).
+- [ ] **`tests/integration/cheval-redaction-emit-path.bats`** — NEW integration test suite, drives cheval through curl-mock harness with three secret-shaped payloads:
+  - Test R1 (AKIA): mock 4xx response embeds `AKIAIOSFODNN7EXAMPLE` in body; cheval invoke; assert MODELINV log entry contains `[REDACTED]` only AND no raw AKIA bytes; OR gate rejects with exit code mapped to STRICT_VIOLATION.
+  - Test R2 (PEM block): mock response embeds a fake `-----BEGIN PRIVATE KEY-----...-----END PRIVATE KEY-----` block; same assertion.
+  - Test R3 (Bearer token): mock response embeds `Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.fake.token` shape; same assertion.
+  - Test R4 (URL userinfo positive control): existing URL-shape redaction still works (regression pin for the pre-existing redactor scope).
+  - Test R5 (`kill_switch_active: true`): export `LOA_FORCE_LEGACY_MODELS=1`; assert envelope payload sets `kill_switch_active: true`.
+- [ ] **Schema regression pin** — `tests/unit/model-invoke-complete-schema.bats` (or extension to existing model-events test): assert that a payload with raw secret shapes in `models_failed[].message_redacted` is REJECTED by `validate-model-error.py` style strict validation OR by the cheval gate. Defense-in-depth pin guards against future schema-validator regressions.
+- [ ] **Audit-retention row** — `audit-retention-policy.yaml` MODELINV row already exists from T1.2 (Sprint 1A); confirm `chain_critical: true` + 30-day retention unchanged. No edit expected.
+- [ ] **Sprint 1D runbook section** — append "Redaction emit-path closure" subsection to `grimoires/loa/runbooks/curl-mock-harness.md` (or new file `grimoires/loa/runbooks/redaction-leak-closure.md` if the curl-mock runbook is full): operator-visible documentation of the gate, fail-closed semantics, and how to extend the redactor for new secret shapes.
+
+### Sprint 1D Acceptance Criteria (testable)
+
+- [ ] **AC-1D.1.test**: `tests/integration/cheval-redaction-emit-path.bats::R1` — AKIA-shape secret in upstream API response is scrubbed to `[REDACTED]` in the persisted MODELINV envelope's `message_redacted` field, OR cheval exits with `STRICT_VIOLATION` and no envelope is written. Either outcome closes the leak; the test asserts at least one of the two paths fires.
+- [ ] **AC-1D.2.test**: `tests/integration/cheval-redaction-emit-path.bats::R2` — PEM private-key block scrubbed identically; multiline PEM does not break the redactor's stop-character semantics.
+- [ ] **AC-1D.3.test**: `tests/integration/cheval-redaction-emit-path.bats::R3` — `Authorization: Bearer ...` token shape scrubbed.
+- [ ] **AC-1D.4.test**: `tests/integration/cheval-redaction-emit-path.bats::R4` — existing URL-userinfo redaction still works (regression pin; closes contract-pin-only-coverage gap).
+- [ ] **AC-1D.5.test**: `tests/integration/cheval-redaction-emit-path.bats::R5` — `LOA_FORCE_LEGACY_MODELS=1` causes `kill_switch_active: true` in envelope payload.
+- [ ] **AC-1D.6.test**: `tests/integration/log-redactor-cross-runtime.bats` — bash twin output byte-equal to Python canonical on all three new patterns AND four existing URL patterns; idempotency assertion `redact(redact(x)) == redact(x)` for each.
+- [ ] **AC-1D.7.test**: `_assert_no_secret_shapes_remain` unit test (cheval-internal) — pure-function gate correctly rejects post-redaction payloads still containing secret shapes; correctly accepts already-redacted payloads.
+- [ ] **AC-1D.8.test**: full bats corpus regression — sprint-1A/1B/1C tests all green; 0 net-new failures vs main at `701103e7`.
+
+### Sprint 1D Technical Tasks (one beadable unit each)
+
+- [ ] **T1.7.a** Extend `.claude/scripts/lib/log-redactor.py` with `_AKIA_RE`, `_PEM_RE` (DOTALL multiline-safe), `_BEARER_RE` patterns. Apply in `redact()` AFTER the existing URL passes. Document the new in-scope shapes in the module docstring (preserving the existing URL-shaped scope).
+- [ ] **T1.7.b** Extend `.claude/scripts/lib/log-redactor.sh` with sed twin for the three new patterns. POSIX BRE only per existing convention. PEM block requires multi-line sed via `:a;N;$!ba;` accumulator pattern OR explicit pre-processing — choose whichever produces byte-equal output to Python canonical.
+- [ ] **T1.7.c** Extend `tests/integration/log-redactor-cross-runtime.bats` with three new parity tests + idempotency assertion for each.
+- [ ] **T1.7.d** Wire `audit_emit "MODELINV" "model.invoke.complete" <payload>` into `cheval.py::main()` (or the appropriate invoke wrapper) at end-of-call success path and exception-path branches (RetriesExhausted, ProviderUnavailable, etc.). Build payload per schema; populate `models_requested`, `models_succeeded`, `models_failed[]`, `operator_visible_warn`, `kill_switch_active`, optional `calling_primitive` / `capability_class` / `probe_latency_ms` / `invocation_latency_ms` / `cost_micro_usd`. Subprocess invocation of bash `audit_emit` per cycle-098 audit-envelope.sh; capture stderr separately to avoid contaminating the protocol stdout/stderr contract.
+- [ ] **T1.7.e** Implement `_assert_no_secret_shapes_remain(payload_json)` in cheval.py. Pure function; raises `ChevalError` with `code="STRICT_VIOLATION"` on match. Insert call between redaction step and audit_emit invocation. Document fail-closed semantics in inline-doc.
+- [ ] **T1.7.f** Author `tests/integration/cheval-redaction-emit-path.bats` per AC-1D.1 through AC-1D.5. Use `tests/lib/curl-mock-helpers.bash` for fixture activation; assert against the MODELINV log path.
+- [ ] **T1.7.g** Author/extend regression-pin bats test for schema-validator strictness on `message_redacted` (per AC-1D.7).
+- [ ] **T1.7.h** Append redaction-leak-closure section to runbook (`grimoires/loa/runbooks/redaction-leak-closure.md`).
+
+### Sprint 1D Dependencies
+
+- **Inbound**: Sprint 1A (typed-error schema, MODELINV envelope, audit-retention row) + Sprint 1B (T1B.1 schema redaction contract documented) + Sprint 1C (curl-mock harness substrate).
+- **Outbound**: Closes the redaction-leak vector. Unblocks consumer trust in MODELINV writes for vision-019 M1 silent-degradation audit query. Sprint 1B carry tasks T1.5 / T1.6 may follow in subsequent sprints (T1.5 partly paired with T1.7 via the cheval emit path; this sprint scopes only the redaction-leak closure).
+
+### Sprint 1D Risks & Mitigation
+
+| ID | Risk | Mitigation |
+|---|---|---|
+| **S1D.R1** | Multi-line PEM block in sed-twin diverges byte-equal from Python `re.DOTALL` semantics | Cross-runtime parity test (AC-1D.6) is the gate. If parity infeasible in pure POSIX BRE, fall back to bash invoking Python module directly (preserves canonical behavior). |
+| **S1D.R2** | Defense-in-depth gate is over-strict, blocks legitimate writes containing pattern-overlap (e.g., "AKIA" appearing in a schema field name accidentally matches `AKIA[0-9A-Z]{16}`) | Patterns require full-shape match (AKIA + 16 base32 chars; PEM begin AND end markers; Bearer + non-empty value). Add positive-control test cases asserting non-secret strings containing partial patterns DO NOT trigger the gate. |
+| **S1D.R3** | curl-mock harness PATH-prepend isolation breaks on parallel-bats execution | Mitigation already in Sprint 1C harness (`mktemp -d` per-test, `BATS_TEST_NUMBER` in call-log path). New tests inherit isolation. |
+| **S1D.R4** | audit_emit subprocess invocation fails silently on non-zero exit, masking emit failures | Capture audit_emit stderr; on non-zero exit, log to cheval stderr with `[AUDIT-EMIT-FAILED]` marker; choose fail-loud (raise) or fail-soft (log + continue) per operator policy. **Decision: fail-loud** for the chain-write gate — silent emit failures replicate exactly the zero-blocker-demotion-by-relabel pattern (see `feedback_zero_blocker_demotion_pattern.md`). A failing emit must be visible. |
+| **S1D.R5** | LOA_FORCE_LEGACY_MODELS env-var detection runs before/after the relevant code path; `kill_switch_active` may be wrong | Pin via AC-1D.5 test; document the exact detection point inline. |
+| **S1D.R6** | BB iter at >40K input may empty-content per upstream #823 (vision-024 next-layer) | Sprint 1D PR diff is small (redactor extension + cheval wiring + tests; ~400 LOC). Should fit within Opus's reliable input budget. If BB empty-contents at scale, document explicitly per Sprint 1C precedent and apply suspicion lens to "0 BLOCKER" headlines manually. |
+
+### Sprint 1D Success Metrics
+
+- 8/8 deliverables checked
+- AC-1D.1 through AC-1D.8 all green
+- 0 regressions on cycle-102 bats corpus (sprint-1A + 1B + 1C)
+- AKIA / PEM / Bearer fixtures verify the leak vector is closed (or rejected — either outcome counts)
+- audit_emit invocation visible in cheval invoke success path
+- Runbook section landed at expected path
+
+### Sprint 1D Definition of Done
+
+Same shape as Sprint 1A/1B/1C: deliverables checked + AC tests green + `/review-sprint sprint-1D` APPROVED + `/audit-sprint sprint-1D` APPROVED + Bridgebuilder kaironic plateau on the sprint PR + ship/no-ship in NOTES.md + Decision Log entry on the document-vs-enforce closure (closes the T1B.1-vs-T1.7 distinction first opened 2026-05-09) + beads tasks closed (manual fallback per #661).
+
 ---
 
 ## Sprint 2 — Capability-Class Registry + Extension Mechanism
