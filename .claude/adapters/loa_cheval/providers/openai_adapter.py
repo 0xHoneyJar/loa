@@ -233,6 +233,27 @@ class OpenAIAdapter(ProviderAdapter):
 
         body["max_output_tokens"] = request.max_tokens
 
+        # cycle-102 sprint-1F (KF-002 mitigation, openai/openai-python#2546):
+        # force /v1/responses to emit a text message item even when reasoning
+        # consumes the visible-output budget. Per upstream characterization
+        # ("normal behavior" per #2546 closing comment), /v1/responses returns
+        # ONLY a ResponseReasoningItem when reasoning exhausts max_output_tokens;
+        # the SDK's `output_text` aggregator then concatenates an empty string
+        # because there's no message item to aggregate from. The `text.format`
+        # parameter forces the model to also emit a text message, eliminating
+        # the empty-output-text failure mode at any scale.
+        #
+        # This is HARMLESS when not in the empty-content scenario — the model
+        # returns the same text content it would have returned anyway, just
+        # also bound to a typed ResponseOutputMessage (which is what the
+        # /v1/responses parser already expects). No semantic change for
+        # successful calls; only adds a safety net for the empty-content edge.
+        #
+        # Operator opt-out: set hounfour.openai_no_text_format=true in
+        # .loa.config.yaml (or omit; this default-on fix only adds bytes to
+        # the request, never removes capability).
+        body["text"] = {"format": {"type": "text"}}
+
         # Wire-protocol parameter gates: respect params.temperature_supported.
         # Defaults to True if absent (preserves existing behavior). Mirrors the
         # anthropic_adapter pattern from #641.

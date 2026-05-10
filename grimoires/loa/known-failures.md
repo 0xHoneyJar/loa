@@ -56,7 +56,7 @@ actually tried, not just what someone *said* was tried.
 | ID | Status | Feature | Recurrence |
 |----|--------|---------|------------|
 | [KF-001](#kf-001-bridgebuilder-cross-model-provider-network-failures-non-openai) | RESOLVED 2026-05-10 (Node 20 Happy Eyeballs autoselection-attempt-timeout) | bridgebuilder cross-model dissent | 3 |
-| [KF-002](#kf-002-adversarial-reviewsh-empty-content-on-review-type-prompts-at-scale) | DEGRADED-ACCEPTED | adversarial-review.sh review-type | 3 |
+| [KF-002](#kf-002-adversarial-reviewsh-empty-content-on-review-type-prompts-at-scale) | PARTIALLY-MITIGATED 2026-05-10 (text.format=text shipped for OpenAI; opus + connection-lost layers remain) | adversarial-review.sh review-type | 3 |
 | [KF-003](#kf-003-gpt-55-pro-empty-content-on-27k-input-reasoning-class-prompts) | RESOLVED (model swap) | flatline_protocol code review | 1 |
 | [KF-004](#kf-004-validate_finding-silent-rejection-of-dissenter-payloads) | RESOLVED 2026-05-10 (sidecar dump landed; #814 mitigation shipped) | adversarial-review.sh validation pipeline | ≥4 |
 | [KF-005](#kf-005-beads_rust-021-migration-blocks-task-tracking) | DEGRADED-ACCEPTED | beads_rust task tracking | many |
@@ -150,7 +150,35 @@ evidence (different machine, different network, different time-of-day).
 
 ## KF-002: adversarial-review.sh empty-content on review-type prompts at scale
 
-**Status**: DEGRADED-ACCEPTED (workaround in place; structural fix pending)
+**Status**: PARTIALLY-MITIGATED 2026-05-10 (text.format=text shipped for OpenAI; structural opus + connection-lost layers remain)
+
+### Upstream cross-references (added 2026-05-10 during KF-002 deep-dive)
+
+| Provider | Upstream issue | Status | Mechanism |
+|----------|---------------|--------|-----------|
+| OpenAI | [openai/openai-python#2546](https://github.com/openai/openai-python/issues/2546) | CLOSED Aug 2025 (as "normal behavior") | gpt-5-mini Responses API returns ONLY a `ResponseReasoningItem` when reasoning consumes the visible-output budget; `output_text` aggregates from message items only, so it's empty. Same family/mechanism as gpt-5.5-pro KF-002. **Workaround documented**: `text: { format: { type: "text" } }` forces a text message item. **SHIPPED 2026-05-10 as Loa-side default** in `.claude/adapters/loa_cheval/providers/openai_adapter.py:_build_responses_body`. |
+| Anthropic | [anthropics/anthropic-sdk-typescript#913](https://github.com/anthropics/anthropic-sdk-typescript/issues/913) | OPEN, filed 2026-05-05 | claude-opus-4-6 returns empty `content` array when using `output_config` json_schema. Different trigger from KF-002 (output_config vs input scale) but same empty-content class. Workarounds: switch to opus-4-5; **enable thinking mode**; remove output_config. Loa hit the same class on opus-4-7 at >40K input (cycle-102 sprint-1C BB iter, Issue #823). |
+| Anthropic (related) | [anthropics/anthropic-sdk-python#958](https://github.com/anthropics/anthropic-sdk-python/issues/958) | OPEN | Inconsistent failure to use thinking with Claude 4 Sonnet. Similar mechanism. |
+| Google | [google-gemini/api-examples#89](https://github.com/google-gemini/api-examples/issues/89) | OPEN | `max_output_tokens` parameter does not affect response, setting it causes empty or missing outputs. Loa hasn't observed Gemini empty-content empirically yet, but mechanism class is identical. |
+
+### Loa-side mitigation shipped 2026-05-10
+
+`.claude/adapters/loa_cheval/providers/openai_adapter.py:_build_responses_body` now adds `body["text"] = {"format": {"type": "text"}}` to every `/v1/responses` request. Per upstream openai-python#2546 closing comment: this forces the Responses API to emit a text message item even when reasoning exhausts the visible budget, eliminating the empty-`output_text` failure mode for that mechanism. Harmless when not in the empty-content scenario — the model returns the same content it would have returned anyway, just also bound to a typed `ResponseOutputMessage` (which the parser already expects).
+
+**Smoke-validated 2026-05-10**:
+- Small prompt ("Say hello in one sentence"): ✅ "Hello!" returned (would have been empty without the fix per upstream)
+- Realistic medium prompt + `max_tokens=4000` and `=8000`: ❌ `RemoteProtocolError` connection-lost — **this is a SEPARATE bug class** ([#774](https://github.com/0xHoneyJar/loa/issues/774)), server-side disconnect on long prompts. Not addressable by `text.format=text`.
+
+### Outstanding layers (NOT mitigated by 2026-05-10 patch)
+
+1. **gpt-5.5-pro connection-lost on long prompts** (Loa Issue #774). Server-side disconnect during streaming on prompts that take a long time to generate. Different mitigation needed (HTTP/1.1 instead of HTTP/2; smaller request payloads via aggressive truncation; or upstream OpenAI server-side fix).
+2. **claude-opus-4-7 empty-content at >40K input on review-type prompts** (Loa Issue #823). Workaround #913 suggests "enable thinking mode" — counterintuitive but reportedly works. **Not yet tested in Loa context.** Sprint 1B T1B.4 model swap (gpt-5.5-pro → opus-4-7) remains the operational workaround for adversarial-review.sh; if opus also degrades, `flatline_protocol.code_review.model` can be re-routed to claude-sonnet-4-6 or gemini-3.1-pro. No new upstream filing recommended yet — #913 covers the bug class for now.
+3. **Gemini empty-content** — not yet observed in Loa traffic. Watch for it; if observed, cross-link #89.
+
+(Original entry preserved below for the trail.)
+---
+
+**Original Status**: DEGRADED-ACCEPTED (workaround in place; structural fix pending)
 **Feature**: `.claude/scripts/adversarial-review.sh --type review` (Phase 2.5 of `/review-sprint`)
 **Symptom**: Reasoning-class models (gpt-5.5-pro, claude-opus-4-7) return empty content for review-type prompts at >27K input (gpt-5.5-pro) or >40K input (claude-opus-4-7). 3 retries all empty. The script writes `status: api_failure` to the output JSON, the COMPLETED gate accepts api_failure as a "legitimate completion record," and Sprint audit passes despite no actual cross-model dissent applied. **Audit-type prompts at the same scale succeed** — the failure is prompt-structure-dependent, not pure input-size.
 **First observed**: 2026-05-09 (cycle-102 sprint-1A audit on PR #803)
