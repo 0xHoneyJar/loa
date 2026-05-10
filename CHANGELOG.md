@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.147.2] — 2026-05-10
+
 ### Fixed
 
 - `semver-bump.sh` now recognizes prerelease tags (`vX.Y.Z-{alpha,beta,rc}.N`)
@@ -1047,6 +1049,8 @@ Full convergence trajectory: `grimoires/loa/a2a/trajectory/bridge-triage-2026-04
 - ATK-011: Blocks `unset LOA_TEAM_MEMBER` and `env -u` privilege escalation in Agent Teams
 
 ## [Unreleased]
+
+## [1.147.2] — 2026-05-10
 
 ## [1.94.0] — 2026-04-17
 
