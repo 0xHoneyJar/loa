@@ -44,13 +44,14 @@ setup() {
     : > "$MODELINV_LOG"
 
     # Disable audit signing for tests (the test runner doesn't bootstrap keys).
+    # No LOA_AUDIT_SKIP_TRUST_STORE_CHECK — the trust-store check returns
+    # BOOTSTRAP-PENDING when no trust-store file is present (cycle-098 install-
+    # time default), which permits writes. Tests rely on that fallback.
     unset LOA_AUDIT_SIGNING_KEY_ID
-    # Bypass trust-store check in audit_emit (test runner has no trust store).
-    export LOA_AUDIT_SKIP_TRUST_STORE_CHECK=1
 }
 
 teardown() {
-    unset LOA_MODELINV_LOG_PATH LOA_FORCE_LEGACY_MODELS LOA_AUDIT_SKIP_TRUST_STORE_CHECK
+    unset LOA_MODELINV_LOG_PATH LOA_FORCE_LEGACY_MODELS
     return 0
 }
 
