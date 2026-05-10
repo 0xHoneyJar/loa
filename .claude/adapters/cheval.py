@@ -212,6 +212,52 @@ def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> Provid
     )
 
 
+def _lookup_max_input_tokens(
+    provider: str,
+    model_id: str,
+    hounfour: Dict[str, Any],
+    cli_override: Optional[int] = None,
+) -> Optional[int]:
+    """Empirically-observed safe input-size threshold for (provider, model_id).
+
+    Backstop for the cheval HTTP-asymmetry bug class (KF-002 layer 3 / Loa
+    #774): some models exhibit `Server disconnected` mid-stream on long
+    prompts well below their nominal `context_window`. The threshold here is
+    a SEPARATE field from `context_window` — `context_window` is the model's
+    advertised capacity; `max_input_tokens` is the field-observed prompt size
+    above which the cheval HTTP client path empties or disconnects. See
+    `grimoires/loa/known-failures.md` KF-002 for observed thresholds.
+
+    cli_override semantics:
+      None: use config default (per-model `max_input_tokens` field; absent
+            means no gate fires)
+      0:    explicit gate-disable for this call
+      N>0:  explicit per-call threshold (overrides config)
+
+    Returns None when no gate should fire; positive integer = threshold in
+    estimated input tokens (charge: any kwarg with messages=...).
+    """
+    if cli_override is not None:
+        if cli_override <= 0:
+            return None
+        return cli_override
+
+    providers = hounfour.get("providers", {})
+    prov_config = providers.get(provider, {})
+    if not isinstance(prov_config, dict):
+        return None
+    models = prov_config.get("models", {})
+    model_config = models.get(model_id, {})
+    if not isinstance(model_config, dict):
+        return None
+    threshold = model_config.get("max_input_tokens")
+    if threshold is None:
+        return None
+    if not isinstance(threshold, int) or threshold <= 0:
+        return None
+    return threshold
+
+
 def _check_feature_flags(hounfour: Dict[str, Any], provider: str, model_id: str) -> Optional[str]:
     """Check feature flags. Returns error message if blocked, None if allowed.
 
@@ -374,6 +420,43 @@ def cmd_invoke(args: argparse.Namespace) -> int:
     _modelinv_emit_required = True
     try:
         try:
+            # cycle-102 Sprint 1F (KF-002 layer 3 / Loa #774): per-model
+            # input-size gate. Backstop for the cheval HTTP-asymmetry failure
+            # mode where anthropic + openai paths disconnect mid-stream on
+            # long prompts (gemini path doesn't share the failure). Threshold
+            # comes from per-model `max_input_tokens` in model-config.yaml;
+            # absent = no gate. Refuses (raise CONTEXT_TOO_LARGE) rather than
+            # truncating — preserves caller semantics and lets the
+            # adversarial-review fallback chain (PR #836) route to a
+            # different provider.
+            if not os.environ.get("LOA_CHEVAL_DISABLE_INPUT_GATE"):
+                _input_threshold = _lookup_max_input_tokens(
+                    resolved.provider,
+                    resolved.model_id,
+                    hounfour,
+                    cli_override=getattr(args, "max_input_tokens", None),
+                )
+                if _input_threshold is not None:
+                    from loa_cheval.providers.base import estimate_tokens
+                    _estimated = estimate_tokens(messages)
+                    if _estimated > _input_threshold:
+                        _modelinv_state["operator_visible_warn"] = True
+                        print(
+                            f"[input-gate] {resolved.provider}:{resolved.model_id} "
+                            f"refused: estimated {_estimated} input tokens > "
+                            f"{_input_threshold} threshold "
+                            f"(KF-002 layer 3 backstop, see "
+                            f"grimoires/loa/known-failures.md). "
+                            f"Override: --max-input-tokens 0 or "
+                            f"LOA_CHEVAL_DISABLE_INPUT_GATE=1.",
+                            file=sys.stderr,
+                        )
+                        raise ContextTooLargeError(
+                            estimated_tokens=_estimated,
+                            available=_input_threshold,
+                            context_window=_input_threshold,
+                        )
+
             provider_config = _build_provider_config(resolved.provider, hounfour)
             adapter = get_adapter(provider_config)
 
@@ -716,6 +799,18 @@ def main() -> int:
     parser.add_argument("--system", help="Path to system prompt file (overrides persona.md)")
     parser.add_argument("--model", help="Model override (alias or provider:model-id)")
     parser.add_argument("--max-tokens", type=int, default=4096, dest="max_tokens", help="Maximum output tokens")
+    parser.add_argument(
+        "--max-input-tokens",
+        type=int,
+        dest="max_input_tokens",
+        default=None,
+        help=(
+            "Override per-model input-size gate (KF-002 layer 3 backstop). "
+            "Pass 0 to disable for this call; pass N>0 to set threshold. "
+            "When unset, uses per-model `max_input_tokens` from "
+            "model-config.yaml (absent = no gate)."
+        ),
+    )
     parser.add_argument("--output-format", choices=["text", "json"], default="text", dest="output_format", help="Output format")
     parser.add_argument("--json-errors", action="store_true", dest="json_errors", help="JSON error output on stderr (default for programmatic callers)")
     parser.add_argument("--timeout", type=int, help="Request timeout in seconds")

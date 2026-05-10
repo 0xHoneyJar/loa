@@ -110,7 +110,12 @@
         "context_window": {
           "type": "integer",
           "minimum": 1,
-          "description": "Maximum context window in tokens"
+          "description": "Maximum context window in tokens (advertised model capacity)"
+        },
+        "max_input_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Empirically-observed safe input-size threshold for cheval invocation. Distinct from context_window: this is the field-observed prompt size above which the cheval HTTP path on this provider disconnects or empties (KF-002 layer 3 / Loa #774). Optional; absent = no input-size gate. cycle-102 Sprint 1F."
         },
         "pricing": {
           "type": "object",

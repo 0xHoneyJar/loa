@@ -56,7 +56,7 @@ actually tried, not just what someone *said* was tried.
 | ID | Status | Feature | Recurrence |
 |----|--------|---------|------------|
 | [KF-001](#kf-001-bridgebuilder-cross-model-provider-network-failures-non-openai) | RESOLVED 2026-05-10 (Node 20 Happy Eyeballs autoselection-attempt-timeout) | bridgebuilder cross-model dissent | 3 |
-| [KF-002](#kf-002-adversarial-reviewsh-empty-content-on-review-type-prompts-at-scale) | MOSTLY-MITIGATED 2026-05-10 (text.format=text + provider fallback chain shipped; only Loa #774 connection-lost layer remains) | adversarial-review.sh review-type | 3 |
+| [KF-002](#kf-002-adversarial-reviewsh-empty-content-on-review-type-prompts-at-scale) | MOSTLY-MITIGATED 2026-05-10 (text.format=text + provider fallback chain + per-model input-size gate shipped; the structural cheval HTTP-asymmetry bug class remains under investigation) | adversarial-review.sh review-type | 4 |
 | [KF-003](#kf-003-gpt-55-pro-empty-content-on-27k-input-reasoning-class-prompts) | RESOLVED (model swap) | flatline_protocol code review | 1 |
 | [KF-004](#kf-004-validate_finding-silent-rejection-of-dissenter-payloads) | RESOLVED 2026-05-10 (sidecar dump landed; #814 mitigation shipped) | adversarial-review.sh validation pipeline | ≥4 |
 | [KF-005](#kf-005-beads_rust-021-migration-blocks-task-tracking) | DEGRADED-ACCEPTED — fix available on crates.io as `beads_rust 0.2.4`; operator must `cargo install beads_rust` to land locally | beads_rust task tracking | many |
@@ -169,15 +169,26 @@ evidence (different machine, different network, different time-of-day).
 - Small prompt ("Say hello in one sentence"): ✅ "Hello!" returned (would have been empty without the fix per upstream)
 - Realistic medium prompt + `max_tokens=4000` and `=8000`: ❌ `RemoteProtocolError` connection-lost — **this is a SEPARATE bug class** ([#774](https://github.com/0xHoneyJar/loa/issues/774)), server-side disconnect on long prompts. Not addressable by `text.format=text`.
 
-### Outstanding layers (NOT mitigated by 2026-05-10 patches)
+### Outstanding layers (post-2026-05-10 input-size gate)
 
-1. **gpt-5.5-pro connection-lost on long prompts** (Loa Issue #774). Server-side disconnect during streaming on prompts that take a long time to generate. Different mitigation needed (HTTP/1.1 instead of HTTP/2; smaller request payloads via aggressive truncation; or upstream OpenAI server-side fix). **NOT addressed by the fallback chain** because the connection-lost happens during the call (which then becomes api_failure → fallback) — but if all 3 providers exhibit similar long-prompt failures (likely on a prompt-shape-and-size that triggers them all), the chain just exhausts. A request-size-based truncation gate before invocation is the right fix here.
+1. **Cheval HTTP-asymmetry bug class** (root cause of Loa Issue #774). Operator's
+   2026-05-10 follow-up evidence on #774 ruled out network/provider as the
+   cause: direct curl at 30K-input to Anthropic returns HTTP 200 in 3.6s,
+   but cheval's anthropic + openai paths `Server disconnected` at the same
+   payload size in the same run. Gemini's cheval path succeeds at the same
+   scale. The bug is specifically in cheval's anthropic + openai adapter
+   HTTP client config (HTTP/2 settings, header config, or timeout). The
+   2026-05-10 input-size gate (Sprint 1F) is a **backstop**: it refuses
+   prompts above empirically-observed safe thresholds (24K for gpt-5.5-pro,
+   36K for opus-4-7) so the failure mode never triggers. The structural
+   fix in cheval's HTTP client layer remains pending.
 
 ### Resolved layers (2026-05-10)
 
 1. **OpenAI gpt-5.5-pro empty-content from reasoning budget exhaustion** — RESOLVED via `text: { format: { type: "text" } }` in `_build_responses_body`. PR #833 / commit 27af33ba.
 2. **Generalized empty-content / api_failure across ANY single provider** — RESOLVED via automatic provider fallback chain in adversarial-review.sh. When the configured primary model returns `malformed_response` or `api_failure` (the empty-content failure modes), the next model in the chain is tried automatically. Default chain reads from `flatline_protocol.{code_review,security_audit}.fallback_chain` (operator-curated) or falls back to `flatline_protocol.models.{secondary, tertiary}` (already in use for multi-model PRD/SDD review). Result metadata includes `model_attempts` array (full trail) + `final_model` (which model produced the canonical result). Operator opt-out: `LOA_ADVERSARIAL_DISABLE_FALLBACK=1` env or `fallback_chain: []` in config. Cycle-102 sprint-1F. **Effect**: claude-opus-4-7 empty-content at >40K input (Loa #823, the layer-2 problem mentioned in original Outstanding) now auto-falls-back to gpt-5.5-pro then gemini-3.1-pro, and the canonical result reflects whichever provider succeeded. The empty-content failure becomes a degraded-1-of-3 trajectory (still useful) rather than a total halt. The Sprint 1B T1B.4 manual model swap pattern is now generalized + automatic.
 3. **Gemini empty-content** — not yet observed in Loa traffic; if observed, the fallback chain handles it as one of three providers automatically.
+4. **Connection-lost on long prompts (backstop layer)** — MITIGATED via per-model input-size gate landed cycle-102 Sprint 1F. New `max_input_tokens` field in `model-config.yaml` (separate from `context_window`) names the empirically-observed safe threshold per (provider, model). When `cheval.cmd_invoke` would invoke a model with an estimated input above the threshold, it raises `ContextTooLargeError` (exit 7) BEFORE adapter setup, so the `Server disconnected` failure mode never triggers. Combined with the adversarial-review fallback chain (PR #836), an above-threshold prompt to gpt-5.5-pro routes to opus-4-7 (which has its own threshold 36K), and if opus is also above threshold the chain falls to gemini (no gate ships). Initial thresholds: gpt-5.5-pro/gpt-5.5 = 24000, claude-opus-4-7/4-6 = 36000, gemini = no gate. Operator opt-out: `--max-input-tokens 0` per call or `LOA_CHEVAL_DISABLE_INPUT_GATE=1` globally. The structural cheval HTTP-asymmetry fix remains pending (see Outstanding §1 above).
 
 (Original entry preserved below for the trail.)
 ---
@@ -198,6 +209,7 @@ evidence (different machine, different network, different time-of-day).
 | 2026-05-09 | Bump default `max_output_tokens=32000` for `gpt-5.5-pro` (Sprint 1A T1.9) | WORKAROUND-AT-LIMIT — verified at 10K input, FAILED at 27K input | commit `dd54fe9c` / NOTES.md 2026-05-09 Decision Log |
 | 2026-05-09 | Sprint 1B T1B.4 model swap to `claude-opus-4-7` | WORKAROUND-AT-LIMIT — works to ~40K input, fails at >40K (Issue #823) | commit `0872780c` |
 | 2026-05-09 | Audit-type at 47K input (test if scale alone or prompt-structure) | RESOLVED FOR AUDIT-TYPE — audit-type at 47K succeeded | NOTES.md 2026-05-09 |
+| 2026-05-10 | Per-model input-size gate (Sprint 1F) — refuses prompts above empirically-observed safe thresholds before adapter call | MITIGATED LAYER 3 — connection-lost class no longer reachable via gated paths; structural cheval HTTP-asymmetry root cause remains under investigation | Sprint 1F PR (this entry) — `_lookup_max_input_tokens` in `.claude/adapters/cheval.py`; thresholds in `.claude/defaults/model-config.yaml` |
 | not tried | Adaptive truncation (lower review-type input cap to ~16K) | — | proposed in vision-023 §"What this teaches" |
 | not tried | Drop `reasoning.effort` to `low` for adversarial-review's task class | — | proposed in NOTES.md 2026-05-09 Decision Log |
 

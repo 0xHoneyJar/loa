@@ -56,6 +56,9 @@ providers:
         endpoint_family: responses      # cycle-095 Sprint 1: gpt-5.5 only routes through /v1/responses
         # cycle-102 Sprint 1 T1.9: reasoning-class /v1/responses (closes A1).
         max_output_tokens: 32000
+        # cycle-102 Sprint 1F: parity with gpt-5.5-pro input-size gate. Same
+        # cheval HTTP-asymmetry failure mode (KF-002 layer 3).
+        max_input_tokens: 24000
         # cycle-095 Sprint 2: probe_required dropped — gpt-5.5 is GA on /v1/models
         # since 2026-04-23. Probe-gated fail-fast still applies via the
         # generic AVAILABLE/UNAVAILABLE state in .run/model-health-cache.json
@@ -83,6 +86,15 @@ providers:
         # bare 8000 cap empties content. 32K provides comfortable headroom
         # for adversarial-review / flatline dissent on ≥10K-token prompts.
         max_output_tokens: 32000
+        # cycle-102 Sprint 1F (KF-002 layer 3 / Loa #774): empirically-observed
+        # safe input-size threshold. cheval HTTP path on openai disconnects
+        # mid-stream above ~27K input on this model; 24000 leaves headroom for
+        # token-estimator drift (~10-30%). Far below context_window=400000 —
+        # this is a separate field tracking the field-observed failure
+        # threshold, not the advertised capacity. Override per-call via
+        # --max-input-tokens N (0 = disable). Bypass globally with
+        # LOA_CHEVAL_DISABLE_INPUT_GATE=1.
+        max_input_tokens: 24000
         # cycle-095 Sprint 2: probe_required dropped (same rationale as gpt-5.5).
         # Wire-protocol gate: same temperature restriction as gpt-5.5 above.
         params:
@@ -177,6 +189,12 @@ providers:
         # hardcoded max_tokens=4096 — too low for opus-class adversarial-
         # review on ≥10K-token prompts. 32K matches reasoning-class cap.
         max_output_tokens: 32000
+        # cycle-102 Sprint 1F (KF-002 layer 3 / Loa #774, vision-024): empty-
+        # content / disconnect threshold for cheval anthropic HTTP path is
+        # ~40K input on this model (Issue #823). 36000 leaves token-estimator
+        # headroom. Far below context_window=200000 — see gpt-5.5-pro entry
+        # for field semantics.
+        max_input_tokens: 36000
         # Wire-protocol gates (#641): Anthropic deprecated `temperature` for
         # Opus 4 and rejects requests carrying it with HTTP 400. The cheval
         # adapter consults `params.temperature_supported` per request and
@@ -196,6 +214,8 @@ providers:
         token_param: max_tokens
         # cycle-102 Sprint 1 T1.9: parity with claude-opus-4-7.
         max_output_tokens: 32000
+        # cycle-102 Sprint 1F: parity with claude-opus-4-7 input-size gate.
+        max_input_tokens: 36000
         pricing:
           input_per_mtok: 5000000    # $5.00 per million tokens
           output_per_mtok: 25000000  # $25.00 per million tokens
