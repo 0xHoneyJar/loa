@@ -59,7 +59,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-002](#kf-002-adversarial-reviewsh-empty-content-on-review-type-prompts-at-scale) | MOSTLY-MITIGATED 2026-05-10 (text.format=text + provider fallback chain shipped; only Loa #774 connection-lost layer remains) | adversarial-review.sh review-type | 3 |
 | [KF-003](#kf-003-gpt-55-pro-empty-content-on-27k-input-reasoning-class-prompts) | RESOLVED (model swap) | flatline_protocol code review | 1 |
 | [KF-004](#kf-004-validate_finding-silent-rejection-of-dissenter-payloads) | RESOLVED 2026-05-10 (sidecar dump landed; #814 mitigation shipped) | adversarial-review.sh validation pipeline | ≥4 |
-| [KF-005](#kf-005-beads_rust-021-migration-blocks-task-tracking) | DEGRADED-ACCEPTED | beads_rust task tracking | many |
+| [KF-005](#kf-005-beads_rust-021-migration-blocks-task-tracking) | DEGRADED-ACCEPTED — fix available on crates.io as `beads_rust 0.2.4`; operator must `cargo install beads_rust` to land locally | beads_rust task tracking | many |
 | [KF-006](#kf-006-t114-migrate-model-config-v2-schema-rejects-max_output_tokens) | RESOLVED 2026-05-10 (v2 schema modelEntry permits max_output_tokens + max_input_tokens) | T1.14 migrate-model-config v2 schema | every PR since dd54fe9c |
 | [KF-007](#kf-007-red-team-pipeline-hardcoded-single-model-evaluator-vestigial-config) | RESOLVED 2026-05-10 (multi-model evaluator) | red team pipeline hardcoded single-model evaluator | n/a — resolved in same session as discovery |
 
@@ -297,7 +297,24 @@ again.
 
 ## KF-005: beads_rust 0.2.1 migration blocks task tracking
 
-**Status**: DEGRADED-ACCEPTED (markdown fallback)
+**Status**: DEGRADED-ACCEPTED (markdown fallback) — **fix available on crates.io as `beads_rust 0.2.4`; operator must `cargo install beads_rust` to upgrade locally**
+
+### Upgrade path (verified 2026-05-10)
+
+```bash
+cargo search beads_rust   # → 0.2.4 on crates.io
+br --version              # → br 0.2.1 (still installed locally)
+cargo install beads_rust  # operator action — upgrades user-scoped binary
+br --version              # should now report 0.2.4
+.claude/scripts/beads/beads-health.sh --json | jq .status  # should flip MIGRATION_NEEDED → HEALTHY
+```
+
+Loa #661 was closed upstream 2026-05-02; the schema-migration fix landed in 0.2.2 / 0.2.3 / 0.2.4. Local environments still on 0.2.1 will hit the same migration error documented below — the upstream fix is real, it just needs to be picked up via `cargo install`. If the upgrade does NOT fix the migration locally (i.e., 0.2.4 still hits the NOT NULL `dirty_issues.marked_at` error), file a fresh upstream issue with the new evidence — that would be a regression at the latest release.
+
+(Original entry preserved below.)
+---
+
+**Original Status**: DEGRADED-ACCEPTED (markdown fallback)
 **Feature**: `br` (beads_rust) sprint task lifecycle tracking
 **Symptom**: `br` commands (`br ready`, `br create`, `br update`, `br sync`) fail with `run_migrations failed: NOT NULL constraint failed: dirty_issues.marked_at`. `beads-health.sh --quick --json` returns `MIGRATION_NEEDED` status. SQLite schema migration cannot complete on existing local `.beads/` databases.
 **First observed**: 2026-04 (multiple cycles)
@@ -313,14 +330,22 @@ again.
 | various | `br migrate` / `br init` on existing database | DID NOT WORK — same migration error | NOTES.md cross-cycle |
 | various | Delete `.beads/` and re-initialize | DID NOT WORK in past cycles (operator may have tried more recently — verify before re-attempting) | — |
 | 2026-04+ | Markdown fallback per protocol | WORKS — ledger + reviewer.md + sprint.md checkboxes are sufficient SoT for sprint lifecycle | every cycle since 2026-04 |
+| 2026-05-10 | Verify upstream fix availability (P4.11 from cycle-102 session-9 handoff). `cargo search beads_rust` → 0.2.4 on crates.io; local install is 0.2.1 (3 patch versions behind). `br sync --import-only` on local 0.2.1 reproduces the original error. | UPGRADE PATH IDENTIFIED — operator must run `cargo install beads_rust` to land the upstream fix locally. Markdown fallback remains the safe bet until the upgrade is verified. | crates.io 0.2.4 / Loa #661 (closed 2026-05-02) |
 
 ### Reading guide
 
 Don't try to fix beads_rust mid-sprint. Use the markdown fallback;
 it's the documented protocol. Skill `<beads_workflow>` sections
-already handle the graceful-degradation path. If you find yourself
-spending more than 5 minutes diagnosing beads, stop — the bug is
-upstream and tracked. The markdown fallback is sufficient.
+already handle the graceful-degradation path. **2026-05-10 update**:
+the upstream fix landed in `beads_rust 0.2.2+`; if your local install
+is still 0.2.1, run `cargo install beads_rust` between sessions
+(operator action — touches `~/.cargo/bin/`) to land the fix. Don't do
+this mid-sprint — bin upgrades during agent runs can leave the agent
+in a stale binary-version state. If 0.2.4 still hits the migration
+error, treat as a regression and file a fresh upstream issue with
+new evidence. If you find yourself spending more than 5 minutes
+diagnosing beads, stop — the bug is upstream and tracked. The
+markdown fallback is sufficient.
 
 ---
 
