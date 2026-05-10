@@ -588,9 +588,15 @@ _assert_redacts_to() {
 
 @test "T16.1 mixed: AKIA + Bearer + URL + PEM in one input" {
     # Bearer token must be >=16 chars per the F-006 fix. JWT-shape used here.
+    # AKIA isolated on its own line — the URL/query patterns use `[^&]*`
+    # which is greedy through end-of-line, so a query value followed by
+    # AKIA on the same line would have the AKIA absorbed into the query
+    # match. That's correct behavior (the entire query value is the
+    # secret) but it would defeat the test's intent of exercising 4
+    # independent passes. Put each shape on its own line.
     local input expected
-    input=$'curl https://u:p@host/?api_key=secret with AKIAIOSFODNN7EXAMPLE\nAuthorization: Bearer eyJhbGciOiJIUzI1NiJ9.fake.tok\n-----BEGIN PRIVATE KEY-----\nbody\n-----END PRIVATE KEY-----'
-    expected=$'curl https://[REDACTED]@host/?api_key=[REDACTED] with [REDACTED-AKIA]\nAuthorization: [REDACTED-BEARER-TOKEN]\n[REDACTED-PRIVATE-KEY]'
+    input=$'curl https://u:p@host/?api_key=secretvalue\nfailed: AKIAIOSFODNN7EXAMPLE\nAuthorization: Bearer eyJhbGciOiJIUzI1NiJ9.fake.tok\n-----BEGIN PRIVATE KEY-----\nbody\n-----END PRIVATE KEY-----'
+    expected=$'curl https://[REDACTED]@host/?api_key=[REDACTED]\nfailed: [REDACTED-AKIA]\nAuthorization: [REDACTED-BEARER-TOKEN]\n[REDACTED-PRIVATE-KEY]'
     _assert_redacts_to "$input" "$expected"
 }
 
