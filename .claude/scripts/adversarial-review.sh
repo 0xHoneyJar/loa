@@ -247,6 +247,76 @@ validate_finding() {
   ' > /dev/null 2>&1
 }
 
+# cycle-102 sprint-1F (#814 / KF-004 closure): companion to validate_finding
+# that returns a specific reject reason on stdout. Used by the rejection
+# sidecar so operators triaging "0 findings + N silent rejections" can see
+# WHY each payload was dropped without re-running the dissenter.
+#
+# Returns empty string on stdout if valid; first-failing-rule reason if not.
+# Mirrors validate_finding's rule order so the boolean fast-path stays the
+# canonical truth and the reason path is diagnostic-only.
+_validate_finding_reason() {
+  local finding="$1"
+  local type="$2"
+
+  local valid_severities
+  if [[ "$type" == "review" ]]; then
+    valid_severities='["BLOCKING","ADVISORY"]'
+  else
+    valid_severities='["CRITICAL","HIGH","MEDIUM","LOW"]'
+  fi
+  local valid_categories='["injection","authz","data-loss","null-safety","concurrency","type-error","resource-leak","error-handling","spec-violation","performance","secrets","xss","ssrf","deserialization","crypto","info-disclosure","rate-limiting","input-validation","config","other"]'
+
+  echo "$finding" | jq -r --argjson sevs "$valid_severities" --argjson cats "$valid_categories" '
+    if (.id // null) == null or (.id | type) != "string" then
+      "missing-or-non-string-id"
+    elif (.severity // null) == null then
+      "missing-severity"
+    elif ((.severity | IN($sevs[])) | not) then
+      "severity-not-in-enum (got: \(.severity // "null"))"
+    elif (.category // null) == null then
+      "missing-category"
+    elif ((.category | IN($cats[])) | not) then
+      "category-not-in-enum (got: \(.category // "null"))"
+    elif (.description // null) == null or (.description | type) != "string" or (.description | length) == 0 then
+      "missing-or-empty-description"
+    elif (.failure_mode // null) == null or (.failure_mode | type) != "string" or (.failure_mode | length) == 0 then
+      "missing-or-empty-failure_mode"
+    else
+      ""
+    end
+  ' 2>/dev/null
+}
+
+# cycle-102 sprint-1F (#814 / KF-004 closure): write a rejected-finding entry
+# to the per-sprint sidecar JSONL. One entry per rejected finding, append-only
+# within a single process_findings invocation. Schema:
+#   {ts_utc, sprint_id, type, model, index, reject_reason, payload}
+# Caller MUST have ensured the sidecar parent dir exists and (optionally)
+# truncated the file at the start of process_findings.
+_write_rejected_sidecar() {
+  local sidecar_path="$1"
+  local finding="$2"
+  local reject_reason="$3"
+  local index="$4"
+  local sprint_id="$5"
+  local type="$6"
+  local model="$7"
+
+  [[ -n "$sidecar_path" ]] || return 0
+
+  jq -nc \
+    --argjson f "$finding" \
+    --arg r "${reject_reason:-unknown-reason}" \
+    --argjson idx "$index" \
+    --arg sid "$sprint_id" \
+    --arg t "$type" \
+    --arg m "$model" \
+    --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    '{ts_utc: $ts, sprint_id: $sid, type: $t, model: $m, index: $idx, reject_reason: $r, payload: $f}' \
+    >> "$sidecar_path" 2>/dev/null || true
+}
+
 # =============================================================================
 # Anchor Validation Pipeline (SDD Section 5)
 # =============================================================================
@@ -594,8 +664,29 @@ process_findings() {
   fi
 
   # STATE 4: Populated findings — validate and process
+  #
+  # cycle-102 sprint-1F (#814 / KF-004 closure): rejected-finding sidecar.
+  # When validate_finding rejects a payload, the payload is preserved in
+  # `adversarial-rejected-${type}.jsonl` alongside the main output. This
+  # closes the silent-rejection observability gap that vision-024 named as
+  # the third consensus-classification failure mode and that the operator's
+  # suspicion-lens interjections caught manually across cycle-102.
+  #
+  # Sidecar is truncated at start of every process_findings invocation
+  # (idempotent within a single run; multiple runs on the same sprint do
+  # NOT accumulate). Disable via LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE=1
+  # (env opt-out for environments that can't write the sidecar).
+  local rejected_sidecar=""
+  if [[ -z "${LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE:-}" ]]; then
+    local rej_dir="$PROJECT_ROOT/grimoires/loa/a2a/${sprint_id}"
+    mkdir -p "$rej_dir" 2>/dev/null || true
+    rejected_sidecar="$rej_dir/adversarial-rejected-${type}.jsonl"
+    : > "$rejected_sidecar" 2>/dev/null || rejected_sidecar=""
+  fi
+
   local validated_findings="[]"
   local i=0
+  local rejected_count=0
   while [[ $i -lt $finding_count ]]; do
     local finding
     finding=$(echo "$parsed" | jq ".findings[$i]")
@@ -606,10 +697,19 @@ process_findings() {
       validated=$(validate_anchor "$finding" "$type" "$diff_files")
       validated_findings=$(echo "$validated_findings" | jq --argjson f "$validated" '. + [$f]')
     else
-      log "Rejected invalid finding at index $i"
+      local reject_reason
+      reject_reason=$(_validate_finding_reason "$finding" "$type")
+      log "Rejected invalid finding at index $i: ${reject_reason:-unknown-reason}"
+      _write_rejected_sidecar "$rejected_sidecar" "$finding" "$reject_reason" "$i" "$sprint_id" "$type" "$model"
+      rejected_count=$((rejected_count + 1))
     fi
     i=$((i + 1))
   done
+
+  # cycle-102 sprint-1F: surface aggregate rejection count in the main
+  # output's metadata so consumers (operator, /audit-sprint, BB triage) see
+  # the rejection signal without needing to grep stderr or open the sidecar.
+  # The sidecar path is also surfaced for one-jump triage.
 
   # Extract token/cost metadata from model-adapter response
   local tokens_in tokens_out cost latency
@@ -618,15 +718,26 @@ process_findings() {
   cost=$(echo "$raw_response" | jq -r '.cost_usd // 0')
   latency=$(echo "$raw_response" | jq -r '.latency_ms // 0')
 
+  # Compute relative path to sidecar from PROJECT_ROOT (cleaner for downstream
+  # logs / triage). Empty string when sidecar disabled.
+  local rejected_sidecar_rel=""
+  if [[ -n "$rejected_sidecar" ]]; then
+    rejected_sidecar_rel="${rejected_sidecar#"$PROJECT_ROOT/"}"
+  fi
+
   jq -n \
     --argjson findings "$validated_findings" \
     --arg type "$type" --arg model "$model" --arg sid "$sprint_id" \
     --arg ts "$timestamp" \
     --argjson ti "$tokens_in" --argjson to "$tokens_out" \
     --argjson cost "$cost" --argjson lat "$latency" \
+    --argjson rejc "$rejected_count" \
+    --arg rejs "$rejected_sidecar_rel" \
     '{findings: $findings, metadata: {type: $type, model: $model, sprint_id: $sid,
       timestamp: $ts, tokens_input: $ti, tokens_output: $to, cost_usd: $cost,
-      latency_ms: $lat, status: "reviewed", degraded: false}}'
+      latency_ms: $lat, status: "reviewed", degraded: false,
+      rejected_count: $rejc,
+      rejected_sidecar: (if $rejs == "" then null else $rejs end)}}'
 }
 
 # =============================================================================

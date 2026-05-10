@@ -58,7 +58,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-001](#kf-001-bridgebuilder-cross-model-provider-network-failures-non-openai) | RESOLVED 2026-05-10 (Node 20 Happy Eyeballs autoselection-attempt-timeout) | bridgebuilder cross-model dissent | 3 |
 | [KF-002](#kf-002-adversarial-reviewsh-empty-content-on-review-type-prompts-at-scale) | DEGRADED-ACCEPTED | adversarial-review.sh review-type | 3 |
 | [KF-003](#kf-003-gpt-55-pro-empty-content-on-27k-input-reasoning-class-prompts) | RESOLVED (model swap) | flatline_protocol code review | 1 |
-| [KF-004](#kf-004-validate_finding-silent-rejection-of-dissenter-payloads) | OPEN (upstream filed) | adversarial-review.sh validation pipeline | ≥4 |
+| [KF-004](#kf-004-validate_finding-silent-rejection-of-dissenter-payloads) | RESOLVED 2026-05-10 (sidecar dump landed; #814 mitigation shipped) | adversarial-review.sh validation pipeline | ≥4 |
 | [KF-005](#kf-005-beads_rust-021-migration-blocks-task-tracking) | DEGRADED-ACCEPTED | beads_rust task tracking | many |
 | [KF-006](#kf-006-t114-migrate-model-config-v2-schema-rejects-max_output_tokens) | OPEN | T1.14 migrate-model-config v2 schema | every PR since dd54fe9c |
 | [KF-007](#kf-007-red-team-pipeline-hardcoded-single-model-evaluator-vestigial-config) | RESOLVED 2026-05-10 (multi-model evaluator) | red team pipeline hardcoded single-model evaluator | n/a — resolved in same session as discovery |
@@ -212,7 +212,29 @@ provider, not at our integration.
 
 ## KF-004: validate_finding silent rejection of dissenter payloads
 
-**Status**: OPEN (upstream filed)
+**Status**: RESOLVED 2026-05-10 (rejected-finding sidecar landed; suspicion-lens automated)
+
+### Resolution
+
+Patched `.claude/scripts/adversarial-review.sh` with a per-sprint sidecar JSONL that captures every rejected dissenter payload alongside the canonical output:
+
+- **Sidecar path**: `grimoires/loa/a2a/${sprint_id}/adversarial-rejected-${type}.jsonl`
+- **Schema** (one entry per rejected finding):
+  ```json
+  {"ts_utc": "...", "sprint_id": "...", "type": "review|audit", "model": "...",
+   "index": <position-in-batch>, "reject_reason": "<why>", "payload": <the dropped finding>}
+  ```
+- **Reject reason** comes from new `_validate_finding_reason` companion function; possible values include `missing-or-non-string-id`, `missing-severity`, `severity-not-in-enum (got: PURPLE)`, `category-not-in-enum (got: sparkles)`, `missing-or-empty-description`, `missing-or-empty-failure_mode`
+- **Aggregate signal in main output**: `metadata.rejected_count` (integer) and `metadata.rejected_sidecar` (relative path or null) added to every `adversarial-{review,audit}.json`. Consumers see the rejection signal without needing to grep stderr
+- **Idempotent**: sidecar is truncated at start of every `process_findings` invocation; multiple runs on the same sprint do NOT accumulate entries
+- **Opt-out**: `LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE=1` for environments that can't write the sidecar
+
+The original cycle-102 manifest of this bug — 5 silent rejections during the Sprint 1D `/audit-sprint` adversarial-audit — would now produce `grimoires/loa/a2a/cycle-102-sprint-1D/adversarial-rejected-audit.jsonl` with 5 lines, each capturing the dissenter's actual payload + the reject reason. The operator suspicion-lens that we ran manually this session is now automatic.
+
+(Original entry preserved below.)
+---
+
+**Original Status**: OPEN (upstream filed)
 **Feature**: `.claude/scripts/adversarial-review.sh` validation pipeline
 **Symptom**: When adversarial-review.sh receives findings from the dissenter that don't conform to the strict schema (e.g., missing required field, out-of-enum severity, malformed `anchor_type`), the validator emits `[adversarial-review] Rejected invalid finding at index N` to stderr and **drops the payload entirely** — the rejected finding's content is unrecoverable. The output JSON shows fewer findings than the dissenter actually produced; the rejected payloads never reach the consensus scorer or the operator. Headline counts are misleadingly low.
 **First observed**: 2026-05-09 mid-session (caught by operator's "i am always suspicious when there are 0" interjection during BB iter-2 of sprint-1B PR #813)
