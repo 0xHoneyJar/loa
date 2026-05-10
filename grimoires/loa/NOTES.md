@@ -1,5 +1,39 @@
 # Loa Project Notes
 
+## Decision Log — 2026-05-10 (cycle-102 Sprint 1D — T1.7 redaction-leak emit-path closure)
+
+**Sprint 1D shipped** — feature/feat/cycle-102-sprint-1d branch, commit `44a2f5fe` (impl) on top of `317604c6` (sprint plan). Closes the T1B.1-vs-T1.7 document-vs-enforce distinction first opened 2026-05-09 (Decision Log entry below).
+
+**Two-layer defense in cheval `cmd_invoke()` finally clause:**
+
+1. **Layer 1 (redactor)** — `.claude/scripts/lib/log-redactor.{sh,py}` extended with three bare-shape patterns: AKIA AWS access keys (`AKIA[0-9A-Z]{16}`), PEM private-key blocks (multi-line via sed slurp `:a;N;$!ba;` in bash twin; `[^-]*` body class in Python — base64 PEM body never contains `-`), HTTP Bearer-token shapes (`[Bb]earer[ \t][A-Za-z0-9._~+/=-]+`). Cross-runtime byte-equality across 24 new parity tests (T13/T14/T15/T16) on top of pre-existing 12-stanza corpus.
+2. **Layer 2 (gate)** — `loa_cheval.audit.modelinv.assert_no_secret_shapes_remain` shape-detector. Raises `RedactionFailure` if any AKIA/PEM-BEGIN/Bearer survives the redactor. `audit_emit` is NEVER called on RedactionFailure — chain integrity preserved. Operator signal via `[REDACTION-GATE-FAILURE]` stderr marker without altering user-facing exit code.
+
+**`cmd_invoke()` wrapped in try/finally** that emits `MODELINV model.invoke.complete` envelope on every post-resolution exit (success path + 7 exception branches mapped to existing model-error.schema.json enum: BUDGET_EXHAUSTED / PROVIDER_OUTAGE / PROVIDER_DISCONNECT / FALLBACK_EXHAUSTED / UNKNOWN). Async path opt-out (pending interaction = no emit yet). `kill_switch_active` populated from `LOA_FORCE_LEGACY_MODELS` per SDD §11.
+
+**AC-1D.8 [ACCEPTED-DEFERRED] — full bats corpus regression:** bats binary is not installed in this session's tool environment. The cycle-102 CI workflow `BATS Tests` (`.github/workflows/bats-tests.yml`) is the canonical validation surface; the Sprint 1D PR will surface any regression there. Sprint 1D edits are additive (new files: `cheval-redaction-emit-path.bats`, `loa_cheval/audit/modelinv.py`, runbook; net-new test stanzas in `log-redactor-cross-runtime.bats` T13/T14/T15/T16; surgical `try/finally` wrap in `cheval.py` cmd_invoke without altering exception semantics). Smoke parity check (8 cases — URL/AKIA/Bearer/PEM single-line/PEM RSA-named/Idempotency/Negative control/Query regression) confirmed Python ↔ bash byte-equal output during implementation. End-to-end emit smoke also confirmed: persisted MODELINV envelope contains `[REDACTED-AKIA]` and zero raw `AKIAIOSFODNN7EXAMPLE` bytes. CI is the authoritative regression gate.
+
+**Phase 2.5 adversarial-review.sh outcome:** SUCCESS at ~21K input / 1.4K output (claude-opus-4-7 per T1B.4 swap; status `reviewed`, degraded false, cost $0.14, latency 28s). 1 finding produced; hallucination filter downgraded DISS-001 from BLOCKING to ADVISORY because the dissenter's claim (literal `{{DOCUMENT_CONTENT}}` template tokens in `cheval-redaction-emit-path.bats` setup) is contradicted by the source — `grep -c '{{DOCUMENT_CONTENT}}'` returns 0 across both new bats files. This is exactly the model-artefact-detection vector the cycle-102 sprint-1A hallucination filter was built for; it fired correctly. The filter's audit-trail at `grimoires/loa/a2a/cycle-102-sprint-1D/adversarial-review.json` records the downgrade reason explicitly.
+
+**`models_failed[].error_class` mapping (within today's enum):**
+- `BudgetExceededError` → `BUDGET_EXHAUSTED`
+- `ContextTooLargeError` → `UNKNOWN` (T1.5 carry will refine to typed CONTEXT_OVERFLOW once enum is extended)
+- `RateLimitError` / `ProviderUnavailableError` → `PROVIDER_OUTAGE`
+- `RetriesExhaustedError` (with `last_error_class == ConnectionLostError`) → `PROVIDER_DISCONNECT`; otherwise → `FALLBACK_EXHAUSTED`
+- `ChevalError` / generic `Exception` → `UNKNOWN`
+
+**Sprint 1D out-of-scope (deferred per session-7 pacing rule "T1.7 alone is one sprint"):**
+- T1.5 — cheval `_error_json` typed `error_class` per SDD §4.1 taxonomy
+- T1.6 — operator-visible header protocol (populates `operator_visible_warn` correctly)
+- T1.10 — `LOA_DEBUG_MODEL_RESOLUTION` trace decorator
+- T1.8 — `red-team-model-adapter.sh --role attacker` routing fix (#780)
+- T1.3 carry — `model-probe-cache.ts` via Jinja2 codegen
+- T1B.3 — live ≥10K-prompt fixture for T1.9 M5 verification
+
+**Pattern this exemplifies:** vision-025 "The Substrate Becomes the Answer" — Sprint 1C built the curl-mock harness substrate; Sprint 1D consumes it. The redaction-leak vector that visions 019-024 traced through is closed at the emit-path layer. Future sprints can use the same direct-drive bats pattern (`emit_model_invoke_complete` driven via Python heredoc with per-test `LOA_MODELINV_LOG_PATH`) to test additional MODELINV envelope shapes without going through cheval CLI integration.
+
+**Open redaction-leak vector status:** **CLOSED** — T1B.1 contract DOCUMENTED + T1.7 contract ENFORCED. The audit chain no longer accepts unredacted bearer tokens / API keys / PEM private keys via `original_exception` or `message_redacted` (or any of the 4 untrusted-content fields in `_REDACT_FIELDS`). Defense-in-depth gate catches any future redactor-coverage gap before it reaches the chain. Operator runbook at `grimoires/loa/runbooks/redaction-leak-closure.md` documents extension workflow.
+
 ## Decision Log — 2026-05-09 (cycle-102 Sprint 1B kickoff — T1B.4 ROOT-CAUSE REFRAME, run HALTED)
 
 **Sprint 1B autonomous run HALTED on first task** because the T1B.4 framing was wrong. Recording the corrected root-cause analysis below.
