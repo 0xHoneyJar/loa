@@ -61,6 +61,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-004](#kf-004-validate_finding-silent-rejection-of-dissenter-payloads) | OPEN (upstream filed) | adversarial-review.sh validation pipeline | ≥4 |
 | [KF-005](#kf-005-beads_rust-021-migration-blocks-task-tracking) | DEGRADED-ACCEPTED | beads_rust task tracking | many |
 | [KF-006](#kf-006-t114-migrate-model-config-v2-schema-rejects-max_output_tokens) | OPEN | T1.14 migrate-model-config v2 schema | every PR since dd54fe9c |
+| [KF-007](#kf-007-red-team-pipeline-hardcoded-single-model-evaluator-vestigial-config) | RESOLVED 2026-05-10 (multi-model evaluator) | red team pipeline hardcoded single-model evaluator | n/a — resolved in same session as discovery |
 
 ---
 
@@ -298,6 +299,59 @@ attempt to "fix" by removing the field from `model-config.yaml` (that
 would break Sprint 1A T1.9's cheval `_lookup_max_output_tokens` function).
 The right fix is upstream: extend the v2 schema. Until then, treat as
 pre-existing-main-failure for merge purposes.
+
+## KF-007: red team pipeline hardcoded single-model evaluator (config keys vestigial)
+
+**Status**: RESOLVED 2026-05-10 (multi-model evaluator landed in same session as discovery)
+**Feature**: `.claude/scripts/red-team-pipeline.sh` Phase 2 (cross-validation) — the evaluator phase that scores attacker-generated attacks
+**Symptom**: `red_team.models.{attacker_primary, attacker_secondary, defender_primary, defender_secondary}` config keys existed in `.loa.config.yaml` but were not read by any script (`grep -rn "attacker_primary"` returned 0 matches across `.claude/scripts/`). Pipeline hardcoded `--model opus` (attacker line 351), `--model gpt` (evaluator line 419), `--model opus` (defender line 565). Net effect: red team only invoked anthropic + openai providers — **google was never reached** despite operator config implying multi-provider support.
+**First observed**: 2026-05-10 (during operator-requested verification of "all 3 pipelines reach all 3 providers" — caught by config-vs-code grep)
+**Recurrence count**: n/a — resolved in same session as discovery (cycle-102 sprint-1E)
+
+### Resolution
+
+Added multi-model evaluator to red team Phase 2 (mirrors the BB pattern that PR #830 restored). Phase 2 now fan-outs three parallel evaluator calls — one per provider — when the new `red_team.models.evaluator_multi_model` flag is true (default). First non-empty valid-JSON response is canonical for downstream Phase 3 consensus; all three outputs are captured in `phase2-multi-model.json` sidecar for cross-model dissent visibility.
+
+Config additions:
+```yaml
+red_team:
+  models:
+    evaluator_multi_model: true
+    evaluator_primary: claude-opus-4-7   # anthropic
+    evaluator_secondary: gpt-5.5-pro     # openai
+    evaluator_tertiary: gemini-3.1-pro   # google
+```
+
+Verification (live test, this session):
+```
+Running 3 evaluator calls in parallel against /tmp/rt-mm/prompt.md...
+✓ claude-opus-4-7: 730 tokens
+✓ gemini-3.1-pro: 702 tokens
+✓ gpt-5.5-pro: 1308 tokens
+```
+
+All 3 providers returned valid JSON. Total Phase 2 latency = max of the three (parallel, not serial). Total token cost = sum of the three (~3x single-model). Operator can revert to legacy single-model behavior by setting `evaluator_multi_model: false`.
+
+Side fix: `.claude/scripts/red-team-model-adapter.sh` `--help` advertised stale enum `opus|gpt|kimi|qwen`. Updated to reflect that any cheval alias is accepted (resolved at invocation time).
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-05-10 | Discovered config keys are vestigial via `grep -rn "attacker_primary"` returning 0 matches | DIAGNOSIS — not a regression, original architecture gap | grep output in operator session |
+| 2026-05-10 | Probed adapter with `gemini-3.1-pro` directly; verified routing to `google:gemini-3.1-pro-preview` works | CONFIRMED ADAPTER LAYER OK | run via `red-team-model-adapter.sh --role attacker --model gemini-3.1-pro --live` |
+| 2026-05-10 | Implemented multi-model evaluator fan-out in pipeline + 3-provider config defaults | RESOLVED | this entry's "Resolution" section |
+
+### Reading guide
+
+If your red team Phase 2 produces results from only 1 provider:
+- Check `red_team.models.evaluator_multi_model` is `true` in `.loa.config.yaml`
+- Check the per-provider evaluator outputs at `$TEMP_DIR/phase2-evaluator-*.json` — at least one should be non-empty valid JSON
+- Check the sidecar at `$TEMP_DIR/phase2-multi-model.json` — should contain `{evaluators: [...]}` array with one entry per successful provider
+- If only 1 of 3 succeeded: check stderr for adapter errors per provider; KF-001 should NOT recur (resolved 2026-05-10) but other failure modes may
+- Total token cost on Phase 2 is roughly 3x single-model; this is by design for cross-model dissent. Set `evaluator_multi_model: false` to revert to legacy single-model behavior if budget-constrained.
+
+The defender phase (line ~565) and attacker phase (line ~351) still use single-model invocation. Multi-model defender doesn't combine well (3 different counter-designs); multi-model attacker is plausible future work but out of sprint-1E scope.
 
 ## How to add a new entry
 

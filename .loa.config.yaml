@@ -289,6 +289,18 @@ red_team:
     attacker_secondary: gpt-5.5-pro # most powerful OpenAI (was gpt-5.3-codex)
     defender_primary: opus
     defender_secondary: gpt-5.5-pro # most powerful OpenAI (was gpt-5.3-codex)
+    # cycle-102 sprint-1E: multi-model evaluator. Phase 2 (cross-validation)
+    # runs three parallel evaluator calls — one per provider — when
+    # evaluator_multi_model is true. First non-empty valid-JSON response
+    # becomes canonical for downstream Phase 3 consensus. All three outputs
+    # captured in phase2-multi-model.json sidecar for cross-model dissent
+    # visibility. Defaults below cover all 3 providers (anthropic + openai
+    # + google), so red team now invokes all 3 like Bridgebuilder + Flatline.
+    # See grimoires/loa/known-failures.md (post KF-001 resolution context).
+    evaluator_multi_model: true
+    evaluator_primary: claude-opus-4-7   # anthropic
+    evaluator_secondary: gpt-5.5-pro     # openai
+    evaluator_tertiary: gemini-3.1-pro   # google
   defaults:
     attacks_per_model: 10
     depth: 1
