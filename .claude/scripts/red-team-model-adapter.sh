@@ -85,7 +85,10 @@ Usage: red-team-model-adapter.sh [OPTIONS]
 
 Options:
   --role ROLE          Role: attacker|evaluator|defender (required)
-  --model MODEL        Model: opus|gpt|kimi|qwen (required)
+  --model MODEL        Model: any cheval alias (opus, gpt, gpt-5.5-pro,
+                       claude-opus-4-7, gemini-3.1-pro, kimi, qwen, etc.).
+                       Resolved via cheval's alias map at invocation time.
+                       (Help text was stale prior to cycle-102 sprint-1E.)
   --prompt-file PATH   Input prompt file (required)
   --output-file PATH   Output file for response (required)
   --budget TOKENS      Token budget (0 = unlimited)

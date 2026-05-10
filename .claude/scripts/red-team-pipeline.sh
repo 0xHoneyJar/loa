@@ -382,6 +382,40 @@ run_phase1_attacks() {
     echo "$result_file"
 }
 
+# cycle-102 sprint-1E: multi-model evaluator config helpers.
+#
+# Phase 2 (cross-validation) historically called a single evaluator model
+# (`--model gpt`). To deliver true cross-model dissent on attack scoring —
+# mirroring the BB pattern that was restored by PR #830 — Phase 2 now
+# fan-outs three parallel evaluator calls (one per provider) when the
+# `red_team.models.evaluator_multi_model` config flag is true (default).
+#
+# Config keys (all read via yq with safe defaults):
+#   red_team.models.evaluator_multi_model  (bool, default true)
+#   red_team.models.evaluator_primary      (default "claude-opus-4-7")
+#   red_team.models.evaluator_secondary    (default "gpt-5.5-pro")
+#   red_team.models.evaluator_tertiary     (default "gemini-3.1-pro")
+#
+# When multi-model is true, all three calls run in parallel. The first
+# non-empty valid-JSON response becomes the canonical phase2-validated.json
+# (preserving the downstream Phase 3 contract). All three outputs are
+# captured in phase2-multi-model.json sidecar for operator-visible cross-
+# model dissent. Token usage sums across all calls. When multi-model is
+# false, falls back to single-call behavior with `evaluator_primary`.
+get_evaluator_multi_model_enabled() {
+    local val
+    val=$(yq '.red_team.models.evaluator_multi_model // true' "$CONFIG_FILE" 2>/dev/null || echo "true")
+    [[ "$val" == "true" ]]
+}
+
+get_evaluator_models() {
+    # Returns one model alias per line, primary → secondary → tertiary.
+    # Defaults cover all 3 providers (anthropic + openai + google).
+    yq '.red_team.models.evaluator_primary // "claude-opus-4-7"' "$CONFIG_FILE" 2>/dev/null || echo "claude-opus-4-7"
+    yq '.red_team.models.evaluator_secondary // "gpt-5.5-pro"' "$CONFIG_FILE" 2>/dev/null || echo "gpt-5.5-pro"
+    yq '.red_team.models.evaluator_tertiary // "gemini-3.1-pro"' "$CONFIG_FILE" 2>/dev/null || echo "gemini-3.1-pro"
+}
+
 run_phase2_validation() {
     local attacks_file="$1"
     local execution_mode="$2"
@@ -411,24 +445,100 @@ run_phase2_validation() {
     sanitize_inter_model "$attacks_file" "$sanitized_attacks"
 
     local result_file="$TEMP_DIR/phase2-validated.json"
+    local multi_model_file="$TEMP_DIR/phase2-multi-model.json"
 
     local MODEL_ADAPTER="$SCRIPT_DIR/red-team-model-adapter.sh"
     if [[ -x "$MODEL_ADAPTER" ]]; then
-        "$MODEL_ADAPTER" \
-            --role evaluator \
-            --model gpt \
-            --prompt-file "$sanitized_attacks" \
-            --output-file "$result_file" \
-            --budget "$BUDGET_LIMIT" \
-            --timeout "$timeout" \
-            "$ADAPTER_MODE_FLAG" 2>/dev/null || {
-            log "Phase 2: Model adapter failed, using unsanitized attacks"
-            cp "$sanitized_attacks" "$result_file"
-        }
+        if get_evaluator_multi_model_enabled; then
+            # Multi-model evaluator (cycle-102 sprint-1E): fan-out parallel
+            # calls, one per provider. Take first non-empty valid-JSON result
+            # as canonical; capture all outputs in sidecar for cross-model
+            # visibility. Total budget = sum across calls.
+            log "Phase 2: Multi-model evaluator (parallel fan-out across providers)"
 
-        local tokens_used
-        tokens_used=$(jq '.tokens_used // 0' "$result_file" 2>/dev/null || echo 0)
-        record_tokens "phase2" "$tokens_used" || true
+            local -a models pids outputs
+            mapfile -t models < <(get_evaluator_models)
+
+            for model in "${models[@]}"; do
+                # Replace any '/' or ':' in model name with '-' for safe
+                # filename construction (handles provider:model-id forms).
+                local safe_name="${model//[\/:]/-}"
+                local out="$TEMP_DIR/phase2-evaluator-${safe_name}.json"
+                outputs+=("$out")
+                "$MODEL_ADAPTER" \
+                    --role evaluator \
+                    --model "$model" \
+                    --prompt-file "$sanitized_attacks" \
+                    --output-file "$out" \
+                    --budget "$BUDGET_LIMIT" \
+                    --timeout "$timeout" \
+                    "$ADAPTER_MODE_FLAG" >/dev/null 2>&1 &
+                pids+=($!)
+            done
+
+            # Wait for all parallel calls; count successes.
+            local successes=0 i=0
+            for pid in "${pids[@]}"; do
+                if wait "$pid"; then
+                    successes=$((successes + 1))
+                fi
+                i=$((i + 1))
+            done
+            log "Phase 2: ${successes} of ${#pids[@]} evaluator models succeeded"
+
+            # Pick first non-empty valid-JSON output as canonical for downstream.
+            local canonical_picked=0
+            local -a valid_outputs=()
+            for out in "${outputs[@]}"; do
+                if [[ -s "$out" ]] && jq empty "$out" 2>/dev/null; then
+                    valid_outputs+=("$out")
+                    if [[ "$canonical_picked" -eq 0 ]]; then
+                        cp "$out" "$result_file"
+                        canonical_picked=1
+                    fi
+                fi
+            done
+
+            if [[ "$canonical_picked" -eq 0 ]]; then
+                log "Phase 2: All ${#pids[@]} evaluator models failed, using sanitized attacks"
+                cp "$sanitized_attacks" "$result_file"
+            fi
+
+            # Build multi-model sidecar for operator-visible cross-model trail.
+            # Schema: {evaluators: [<each model's output>]}.
+            if [[ ${#valid_outputs[@]} -gt 0 ]]; then
+                jq -s '{evaluators: .}' "${valid_outputs[@]}" > "$multi_model_file" 2>/dev/null || true
+            fi
+
+            # Sum tokens across all calls (multi-model phase = sum of fan-out).
+            local total_tokens=0
+            for out in "${outputs[@]}"; do
+                local t
+                t=$(jq '.tokens_used // 0' "$out" 2>/dev/null || echo 0)
+                total_tokens=$((total_tokens + t))
+            done
+            record_tokens "phase2" "$total_tokens" || true
+        else
+            # Single-model evaluator (legacy behavior; opt-in via config).
+            local single_model
+            single_model=$(yq '.red_team.models.evaluator_primary // "gpt-5.5-pro"' "$CONFIG_FILE" 2>/dev/null || echo "gpt-5.5-pro")
+            log "Phase 2: Single-model evaluator (multi_model disabled in config) — model=$single_model"
+            "$MODEL_ADAPTER" \
+                --role evaluator \
+                --model "$single_model" \
+                --prompt-file "$sanitized_attacks" \
+                --output-file "$result_file" \
+                --budget "$BUDGET_LIMIT" \
+                --timeout "$timeout" \
+                "$ADAPTER_MODE_FLAG" 2>/dev/null || {
+                log "Phase 2: Model adapter failed, using unsanitized attacks"
+                cp "$sanitized_attacks" "$result_file"
+            }
+
+            local tokens_used
+            tokens_used=$(jq '.tokens_used // 0' "$result_file" 2>/dev/null || echo 0)
+            record_tokens "phase2" "$tokens_used" || true
+        fi
     else
         log "Phase 2: Cross-validation (placeholder — requires model-adapter.sh)"
         cp "$sanitized_attacks" "$result_file"
