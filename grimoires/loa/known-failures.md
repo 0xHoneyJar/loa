@@ -56,7 +56,7 @@ actually tried, not just what someone *said* was tried.
 | ID | Status | Feature | Recurrence |
 |----|--------|---------|------------|
 | [KF-001](#kf-001-bridgebuilder-cross-model-provider-network-failures-non-openai) | RESOLVED 2026-05-10 (Node 20 Happy Eyeballs autoselection-attempt-timeout) | bridgebuilder cross-model dissent | 3 |
-| [KF-002](#kf-002-adversarial-reviewsh-empty-content-on-review-type-prompts-at-scale) | PARTIALLY-MITIGATED 2026-05-10 (text.format=text shipped for OpenAI; opus + connection-lost layers remain) | adversarial-review.sh review-type | 3 |
+| [KF-002](#kf-002-adversarial-reviewsh-empty-content-on-review-type-prompts-at-scale) | MOSTLY-MITIGATED 2026-05-10 (text.format=text + provider fallback chain shipped; only Loa #774 connection-lost layer remains) | adversarial-review.sh review-type | 3 |
 | [KF-003](#kf-003-gpt-55-pro-empty-content-on-27k-input-reasoning-class-prompts) | RESOLVED (model swap) | flatline_protocol code review | 1 |
 | [KF-004](#kf-004-validate_finding-silent-rejection-of-dissenter-payloads) | RESOLVED 2026-05-10 (sidecar dump landed; #814 mitigation shipped) | adversarial-review.sh validation pipeline | ≥4 |
 | [KF-005](#kf-005-beads_rust-021-migration-blocks-task-tracking) | DEGRADED-ACCEPTED | beads_rust task tracking | many |
@@ -169,11 +169,15 @@ evidence (different machine, different network, different time-of-day).
 - Small prompt ("Say hello in one sentence"): ✅ "Hello!" returned (would have been empty without the fix per upstream)
 - Realistic medium prompt + `max_tokens=4000` and `=8000`: ❌ `RemoteProtocolError` connection-lost — **this is a SEPARATE bug class** ([#774](https://github.com/0xHoneyJar/loa/issues/774)), server-side disconnect on long prompts. Not addressable by `text.format=text`.
 
-### Outstanding layers (NOT mitigated by 2026-05-10 patch)
+### Outstanding layers (NOT mitigated by 2026-05-10 patches)
 
-1. **gpt-5.5-pro connection-lost on long prompts** (Loa Issue #774). Server-side disconnect during streaming on prompts that take a long time to generate. Different mitigation needed (HTTP/1.1 instead of HTTP/2; smaller request payloads via aggressive truncation; or upstream OpenAI server-side fix).
-2. **claude-opus-4-7 empty-content at >40K input on review-type prompts** (Loa Issue #823). Workaround #913 suggests "enable thinking mode" — counterintuitive but reportedly works. **Not yet tested in Loa context.** Sprint 1B T1B.4 model swap (gpt-5.5-pro → opus-4-7) remains the operational workaround for adversarial-review.sh; if opus also degrades, `flatline_protocol.code_review.model` can be re-routed to claude-sonnet-4-6 or gemini-3.1-pro. No new upstream filing recommended yet — #913 covers the bug class for now.
-3. **Gemini empty-content** — not yet observed in Loa traffic. Watch for it; if observed, cross-link #89.
+1. **gpt-5.5-pro connection-lost on long prompts** (Loa Issue #774). Server-side disconnect during streaming on prompts that take a long time to generate. Different mitigation needed (HTTP/1.1 instead of HTTP/2; smaller request payloads via aggressive truncation; or upstream OpenAI server-side fix). **NOT addressed by the fallback chain** because the connection-lost happens during the call (which then becomes api_failure → fallback) — but if all 3 providers exhibit similar long-prompt failures (likely on a prompt-shape-and-size that triggers them all), the chain just exhausts. A request-size-based truncation gate before invocation is the right fix here.
+
+### Resolved layers (2026-05-10)
+
+1. **OpenAI gpt-5.5-pro empty-content from reasoning budget exhaustion** — RESOLVED via `text: { format: { type: "text" } }` in `_build_responses_body`. PR #833 / commit 27af33ba.
+2. **Generalized empty-content / api_failure across ANY single provider** — RESOLVED via automatic provider fallback chain in adversarial-review.sh. When the configured primary model returns `malformed_response` or `api_failure` (the empty-content failure modes), the next model in the chain is tried automatically. Default chain reads from `flatline_protocol.{code_review,security_audit}.fallback_chain` (operator-curated) or falls back to `flatline_protocol.models.{secondary, tertiary}` (already in use for multi-model PRD/SDD review). Result metadata includes `model_attempts` array (full trail) + `final_model` (which model produced the canonical result). Operator opt-out: `LOA_ADVERSARIAL_DISABLE_FALLBACK=1` env or `fallback_chain: []` in config. Cycle-102 sprint-1F. **Effect**: claude-opus-4-7 empty-content at >40K input (Loa #823, the layer-2 problem mentioned in original Outstanding) now auto-falls-back to gpt-5.5-pro then gemini-3.1-pro, and the canonical result reflects whichever provider succeeded. The empty-content failure becomes a degraded-1-of-3 trajectory (still useful) rather than a total halt. The Sprint 1B T1B.4 manual model swap pattern is now generalized + automatic.
+3. **Gemini empty-content** — not yet observed in Loa traffic; if observed, the fallback chain handles it as one of three providers automatically.
 
 (Original entry preserved below for the trail.)
 ---

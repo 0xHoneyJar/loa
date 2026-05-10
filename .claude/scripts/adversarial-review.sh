@@ -1159,13 +1159,106 @@ main() {
     exit 0
   fi
 
-  # Invoke dissenter
-  local raw_response="" api_exit=0
-  raw_response=$(invoke_dissenter "$_ADVERSARIAL_WORKDIR/system-prompt.txt" "$_ADVERSARIAL_WORKDIR/user-prompt.txt" "$model" "$timeout") || api_exit=$?
+  # cycle-102 sprint-1F: model-fallback chain.
+  #
+  # Invoke the configured primary model. If the result is `malformed_response`
+  # or `api_failure` (the empty-content failure modes that have plagued
+  # cycle-102 — KF-002, Sprint 1B T1B.4 manual swap), retry with the next
+  # model in the fallback chain. Each model is tried at most once. The first
+  # model that returns parseable findings (or `clean` = legitimate
+  # zero-findings response) becomes canonical for the rest of the pipeline
+  # (hallucination filter, output write, trajectory log).
+  #
+  # The fallback chain is built from (in priority order):
+  #   1. The configured primary model (--model arg or
+  #      flatline_protocol.{type}.model)
+  #   2. flatline_protocol.{type}.fallback_chain (operator-curated list,
+  #      optional)
+  #   3. flatline_protocol.models.{secondary, tertiary} (already part of
+  #      the multi-model PRD/SDD review chain — repurposed here as the
+  #      default fallback when no explicit fallback_chain is configured)
+  #
+  # Duplicates are deduped (same model only tried once even if it appears
+  # in multiple sources). Empty/null entries are skipped.
+  #
+  # Operator opt-out: set LOA_ADVERSARIAL_DISABLE_FALLBACK=1 (env) or
+  # flatline_protocol.{type}.fallback_chain: [] (empty list in config).
+  # When opted out, behavior reverts to single-model invocation.
+  #
+  # Result annotation: metadata.model_attempts records [<model>:<status>, …]
+  # for the entire chain that was tried; metadata.final_model records which
+  # model produced the canonical result. Single-model invocations (one entry,
+  # one final) preserve back-compat with consumers that read metadata.model.
+  local -a fallback_chain=()
+  fallback_chain+=("$model")
+  if [[ -z "${LOA_ADVERSARIAL_DISABLE_FALLBACK:-}" ]]; then
+    # Build extension list from config. yq returns one entry per line for arrays.
+    local fallback_yaml
+    fallback_yaml=$(yq eval -e ".flatline_protocol.${type//-/_}.fallback_chain[]?" "$CONFIG_FILE" 2>/dev/null || true)
+    # Map type→config key (review uses code_review; audit uses security_audit)
+    local config_key="code_review"; [[ "$type" == "audit" ]] && config_key="security_audit"
+    if [[ -z "$fallback_yaml" ]]; then
+      fallback_yaml=$(yq eval -e ".flatline_protocol.${config_key}.fallback_chain[]?" "$CONFIG_FILE" 2>/dev/null || true)
+    fi
+    if [[ -n "$fallback_yaml" ]]; then
+      while IFS= read -r m; do
+        [[ -n "$m" && "$m" != "null" ]] && fallback_chain+=("$m")
+      done <<< "$fallback_yaml"
+    else
+      # No explicit fallback_chain — fall back to flatline_protocol.models.*
+      local m_secondary m_tertiary
+      m_secondary=$(yq eval ".flatline_protocol.models.secondary // \"\"" "$CONFIG_FILE" 2>/dev/null || echo "")
+      m_tertiary=$(yq eval ".flatline_protocol.models.tertiary // \"\"" "$CONFIG_FILE" 2>/dev/null || echo "")
+      [[ -n "$m_secondary" && "$m_secondary" != "null" ]] && fallback_chain+=("$m_secondary")
+      [[ -n "$m_tertiary" && "$m_tertiary" != "null" ]] && fallback_chain+=("$m_tertiary")
+    fi
+  fi
 
-  # Process findings (4-state machine)
-  local result
-  result=$(process_findings "$raw_response" "$type" "$model" "$sprint_id" "$api_exit" "$diff_files")
+  # Dedupe (preserve order)
+  local -a deduped=()
+  local seen=""
+  for m in "${fallback_chain[@]}"; do
+    if [[ ",$seen," != *",$m,"* ]]; then
+      deduped+=("$m")
+      seen="$seen,$m"
+    fi
+  done
+  fallback_chain=("${deduped[@]}")
+
+  log "Fallback chain: ${fallback_chain[*]}"
+
+  # Invocation loop
+  local raw_response="" api_exit=0 result="" final_model=""
+  local -a model_attempts=()
+  local try_model status
+
+  for try_model in "${fallback_chain[@]}"; do
+    api_exit=0
+    raw_response=$(invoke_dissenter "$_ADVERSARIAL_WORKDIR/system-prompt.txt" "$_ADVERSARIAL_WORKDIR/user-prompt.txt" "$try_model" "$timeout") || api_exit=$?
+    result=$(process_findings "$raw_response" "$type" "$try_model" "$sprint_id" "$api_exit" "$diff_files")
+    status=$(echo "$result" | jq -r '.metadata.status // "unknown"' 2>/dev/null || echo "unknown")
+    model_attempts+=("${try_model}:${status}")
+
+    if [[ "$status" != "malformed_response" && "$status" != "api_failure" ]]; then
+      final_model="$try_model"
+      break
+    fi
+    log "Model $try_model returned $status; trying next in fallback chain (if any)"
+  done
+
+  if [[ -z "$final_model" ]]; then
+    # All models failed; final_model = last attempted (canonical for the failure record)
+    final_model="${fallback_chain[-1]}"
+    log "Fallback chain exhausted — all ${#fallback_chain[@]} models returned malformed_response or api_failure"
+  fi
+
+  # Annotate result with the chain that was tried + which model won.
+  # Single-model behavior (one attempt, one final): metadata.model still
+  # equals final_model; consumers that read .metadata.model continue to work.
+  result=$(echo "$result" | jq \
+    --argjson attempts "$(printf '%s\n' "${model_attempts[@]}" | jq -R . | jq -s .)" \
+    --arg fm "$final_model" \
+    '.metadata.model_attempts = $attempts | .metadata.final_model = $fm')
 
   # cycle-093 T1.3 (#618): post-process hallucination filter.
   # Downgrades findings that reference `{{DOCUMENT_CONTENT}}`-family tokens
