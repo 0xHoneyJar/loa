@@ -55,7 +55,7 @@ actually tried, not just what someone *said* was tried.
 
 | ID | Status | Feature | Recurrence |
 |----|--------|---------|------------|
-| [KF-001](#kf-001-bridgebuilder-cross-model-provider-network-failures-non-openai) | OPEN (STRUCTURAL — upstream filed) | bridgebuilder cross-model dissent | 3 |
+| [KF-001](#kf-001-bridgebuilder-cross-model-provider-network-failures-non-openai) | RESOLVED 2026-05-10 (Node 20 Happy Eyeballs autoselection-attempt-timeout) | bridgebuilder cross-model dissent | 3 |
 | [KF-002](#kf-002-adversarial-reviewsh-empty-content-on-review-type-prompts-at-scale) | DEGRADED-ACCEPTED | adversarial-review.sh review-type | 3 |
 | [KF-003](#kf-003-gpt-55-pro-empty-content-on-27k-input-reasoning-class-prompts) | RESOLVED (model swap) | flatline_protocol code review | 1 |
 | [KF-004](#kf-004-validate_finding-silent-rejection-of-dissenter-payloads) | OPEN (upstream filed) | adversarial-review.sh validation pipeline | ≥4 |
@@ -66,7 +66,40 @@ actually tried, not just what someone *said* was tried.
 
 ## KF-001: bridgebuilder cross-model provider network failures (non-OpenAI)
 
-**Status**: OPEN — STRUCTURAL (upstream filed)
+**Status**: RESOLVED 2026-05-10 (root cause identified, patch landed in `.claude/skills/bridgebuilder-review/resources/entry.sh`)
+
+### Resolution
+
+Diagnosed root cause: Node 20+ undici fetch's RFC 8305 Happy Eyeballs uses a
+default `--network-family-autoselection-attempt-timeout=250ms`. On networks
+where the IPv4 TCP handshake to specific provider endpoints takes >250ms
+(common with Cloudflare/Cloud DDoS-protected anthropic + google endpoints),
+Node aborts the IPv4 attempt before the handshake completes and reports
+`TypeError: fetch failed; cause=AggregateError`. Curl, Python httpx, and
+other HTTP clients don't have this issue because they use sequential or
+longer-timeout connection logic. OpenAI's faster IPv4 path completed
+inside 250ms which is why it kept working while anthropic + google failed.
+
+Patch: bump the timeout to 5000ms via `NODE_OPTIONS` in `entry.sh`. Honors
+existing operator NODE_OPTIONS (appends rather than overwrites). Set
+`LOA_BB_DISABLE_FAMILY_TIMEOUT_FIX=1` to opt out.
+
+Diagnostic evidence (preserved here for future agents):
+- Direct curl to `api.anthropic.com` IPv4 (160.79.104.10) succeeds with HTTP 404 in 0.9-3s
+- Python httpx via cheval.py succeeds against all 3 providers (got "Pong!" from claude-opus-4.7, "pong" from gemini-3.1-pro)
+- Node raw `fetch()` fails with: `sub-error[0]: ETIMEDOUT 160.79.104.10:443`, `sub-error[1]: EADDRNOTAVAIL 2607:6bc0::10:443`
+- Operator's machine has NO local IPv6 stack (`ip -6 addr show` returns empty)
+- With `--network-family-autoselection-attempt-timeout=5000`: Node fetch returns HTTP 401 (correct auth-failure response) immediately
+
+Future agents observing similar fetch failures in OTHER Node-based skills
+should check whether those skills also need the same NODE_OPTIONS fix.
+The pattern is upstream-known: any Node 20+ undici fetch on networks
+with slow-but-reachable IPv4 paths will hit this.
+
+(Original entry preserved below for the trail.)
+---
+
+**Original Status**: OPEN — STRUCTURAL (upstream filed)
 **Feature**: `/bridgebuilder` cross-model dissent (`anthropic` + `google` providers via `.claude/skills/bridgebuilder-review/resources/adapters/`)
 **Symptom**: Both `anthropic/claude-opus-4-7` and `google/gemini-3.1-pro-preview` fail with `TypeError: fetch failed; cause=AggregateError` (Anthropic) and `cause=SocketError: other side closed` (Google) across all 3 retry attempts. OpenAI/`gpt-5.5-pro` succeeds. BB falls back to "stats-only summary" because the enrichment writer (also Anthropic) fails the same way. Headline reports `N findings — X consensus, Y disputed` but the consensus scoring runs over a single model's output. The pattern persisted across 3 independent BB invocations within ~60 min wall-clock on the same PR + machine; not a transient provider outage.
 **First observed**: 2026-05-10 (cycle-102 sprint-1D BB iter-1 on PR #826)
@@ -82,6 +115,8 @@ actually tried, not just what someone *said* was tried.
 | 2026-05-10 04:20Z | iter-1 normal invocation | DID NOT WORK — anthropic + google 3/3 attempts failed; openai succeeded (7616 in / 21198 out) | run `bridgebuilder-20260510T042044-3f1c` / PR #826 comment 4414476 |
 | 2026-05-10 04:35Z | iter-2 after 7-min gap + mitigation commit `6bfcae21` | DID NOT WORK — same failure mode; openai succeeded (8752 in / 15629 out) | run `bridgebuilder-20260510T043516-5fb8` / PR #826 comment 4414587 |
 | 2026-05-10 05:11Z | iter-3 after 36-min gap + framing-correction commit `a9591b28` (operator-requested retry to get all 3 models) | DID NOT WORK — same failure mode; openai succeeded (30067 in / 3069 out — note different output size from same model on same PR) | run `bridgebuilder-20260510T051139-fe00` |
+| 2026-05-10 ~06:30Z | Diagnostic sprint: direct curl + Python httpx + raw Node fetch + AggregateError sub-error inspection | ROOT CAUSE IDENTIFIED — Node 20 Happy Eyeballs autoselection-attempt-timeout=250ms killing IPv4 handshake before TCP completes | this entry's "Resolution" section |
+| 2026-05-10 ~06:35Z | Patch entry.sh to set `NODE_OPTIONS=--network-family-autoselection-attempt-timeout=5000` | RESOLVED — Node fetch reaches anthropic + google instantly; HTTP 401 / 400 responses received | this entry's "Resolution" section |
 
 ### Reading guide
 
