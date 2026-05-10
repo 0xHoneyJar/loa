@@ -447,9 +447,15 @@ _assert_redacts_to() {
 
 @test "T13.6 akia: lowercase chars in suffix do NOT match" {
     # AKIA prefix matches but suffix `[0-9A-Z]{16}` rejects lowercase.
+    # BB iter-2 F-003 fix: previous fixture had 15-char suffix; the test
+    # would have passed even if lowercase handling were broken (length
+    # already disqualifies). Now uses 16-char suffix containing exactly
+    # one lowercase char so the test isolates the lowercase rejection.
+    # AKIAABCDEFGHIJKLMNOq is 4 + 16 chars total; the trailing 'q' is
+    # the lowercase trigger.
     _assert_redacts_to \
-        'AKIAlowercasesuffix' \
-        'AKIAlowercasesuffix'
+        'AKIAABCDEFGHIJKLMNOq' \
+        'AKIAABCDEFGHIJKLMNOq'
 }
 
 @test "T13.7 akia: idempotent (already-redacted input passes through)" {

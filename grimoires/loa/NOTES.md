@@ -34,6 +34,27 @@
 
 **Open redaction-leak vector status:** **CLOSED** — T1B.1 contract DOCUMENTED + T1.7 contract ENFORCED. The audit chain no longer accepts unredacted bearer tokens / API keys / PEM private keys via `original_exception` or `message_redacted` (or any of the 4 untrusted-content fields in `_REDACT_FIELDS`). Defense-in-depth gate catches any future redactor-coverage gap before it reaches the chain. Operator runbook at `grimoires/loa/runbooks/redaction-leak-closure.md` documents extension workflow.
 
+**Bridgebuilder plateau call (sprint-1D):**
+
+| Iter | Models successful | HIGH_CONSENSUS | DISPUTED | Total findings | Outcome |
+|------|-------------------|----------------|----------|----------------|---------|
+| iter-1 | 1 of 3 (gpt-5.5-pro; Anthropic + Google network errors) | 0 | 2 | 9 (2 HIGH + 2 MEDIUM + 3 LOW + 2 PRAISE) | Mitigation commit `6bfcae21` |
+| iter-2 | 1 of 3 (same degradation; same providers errored) | 0 | 1 | 6 (1 HIGH + 1 MEDIUM + 2 LOW + 2 PRAISE) | **PLATEAU CALLED** |
+
+**Iter-1 mitigations applied:** F-006 Bearer ≥16 char floor (excludes natural-language false positives); F-005 AKIA test fixture corrected to 15-char suffix; F-007 test setup explicitly unsets bypass env vars; F-003 + F-004 verified defense-in-depth with new R7f / R7g gate-catches-partial-PEM tests.
+
+**Iter-2 REFRAME — plateau trigger:** F-001 (HIGH Security) generalizes iter-1's F-003 + F-004 to a one-zoom-out architectural seam: *"Layer 1 redactor remains fail-open for partial / encrypted-headered PEM blocks; non-cheval callers of `log-redactor.{sh,py}` are not protected by the gate."* This is exactly the substrate-speaks-twice pattern from vision-024 — iter-1 named the instance (cheval-side defense-in-depth), iter-2 names the class (redactor-as-shared-component contract gap).
+
+Per `feedback_bb_plateau_via_reframe.md` ("REFRAME-1 IS the plateau signal at iter-1 — the architectural seam is named correctly, and iterating further would not buy more correctness, only more noise"), iter-2's REFRAME-class F-001 IS the plateau signal. Iterating further at the same diff size produces no new actionable signal.
+
+**Iter-2 F-001 routing:** queued as **Sprint 1E backlog** — extend `log-redactor.{sh,py}` to fail-closed on partial PEM (BEGIN without END) AND DEK-Info-headered PEM blocks regardless of caller. Cross-runtime parity tests for both variants. The Sprint 1D closure remains valid because the gate IS the safety net for cheval; Sprint 1E generalizes the protection to non-cheval callers.
+
+**Iter-2 F-002 + F-004 routing:** documented as known limitations in engineer-feedback.md (Concern 7 + Alt3). Add CLI/cmd_invoke end-to-end test with stub-adapter raising secret-shaped exception. Sprint 1E or post-T1.5 carry.
+
+**API-unavailability degradation note:** both iters ran with 1 of 3 providers successful (gpt-5.5-pro). Anthropic and Google both 3/3-attempt failed with `TypeError: fetch failed; cause=AggregateError` and `cause=SocketError: other side closed` — likely transient network partition or provider-side rate limit. The single-model output is sufficient to call plateau because (a) the trend is clear (9 → 6 findings; substantive concerns addressed), (b) iter-2 produces a REFRAME (vision-024 plateau signal), and (c) running iter-3 under the same network conditions produces no new signal.
+
+**Sprint 1D Status:** **SHIPPED** (PR #826 ready for HITL merge). Implementation commits 44a2f5fe + 799a4a95 + 54db59f2 + 6bfcae21 + (this commit). Sprint 1E backlog inputs captured.
+
 ## Decision Log — 2026-05-09 (cycle-102 Sprint 1B kickoff — T1B.4 ROOT-CAUSE REFRAME, run HALTED)
 
 **Sprint 1B autonomous run HALTED on first task** because the T1B.4 framing was wrong. Recording the corrected root-cause analysis below.
