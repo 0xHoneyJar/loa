@@ -134,56 +134,203 @@ def _build_anthropic_config():
     )
 
 
+def _build_openai_config():
+    from loa_cheval.types import ProviderConfig, ModelConfig
+
+    return ProviderConfig(
+        name="openai",
+        type="openai",
+        endpoint="https://api.example.test/v1",
+        auth="test-key",
+        models={
+            "gpt-test": ModelConfig(
+                capabilities=["chat"],
+                context_window=128_000,
+                token_param="max_tokens",
+                endpoint_family="chat",
+            ),
+        },
+    )
+
+
+def _build_google_config():
+    from loa_cheval.types import ProviderConfig, ModelConfig
+
+    return ProviderConfig(
+        name="google",
+        type="google",
+        endpoint="https://api.example.test/v1beta",
+        auth="test-key",
+        models={
+            "gemini-test": ModelConfig(
+                capabilities=["chat"],
+                context_window=1_000_000,
+                token_param="max_tokens",
+            ),
+        },
+    )
+
+
+# Adapter routing matrix — closes Sprint 4A cycle-2 DISS-003 (the cycle-1 pin
+# only exercised Anthropic; a future refactor could regress openai or google
+# back to `== "1"` without failing any test).
+_ADAPTER_ROUTING_CASES = [
+    pytest.param(
+        "anthropic",
+        "loa_cheval.providers.anthropic_adapter",
+        "AnthropicAdapter",
+        _build_anthropic_config,
+        {
+            "id": "msg_x",
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-test",
+            "content": [{"type": "text", "text": "ok"}],
+            "stop_reason": "end_turn",
+            "usage": {"input_tokens": 5, "output_tokens": 2},
+        },
+        "claude-test",
+        id="anthropic",
+    ),
+    pytest.param(
+        "openai",
+        "loa_cheval.providers.openai_adapter",
+        "OpenAIAdapter",
+        _build_openai_config,
+        {
+            "id": "chatcmpl_x",
+            "model": "gpt-test",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": "ok"},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {"prompt_tokens": 5, "completion_tokens": 2},
+        },
+        "gpt-test",
+        id="openai",
+    ),
+]
+
+
 @pytest.mark.parametrize("kill_value", ["true", "TRUE", "yes", "on"])
-def test_disss_001_pin_adapter_routes_legacy_when_kill_switch_is_non_strict_truthy(
-    monkeypatch, kill_value
+@pytest.mark.parametrize(
+    "provider,module_path,adapter_cls_name,config_factory,mock_response,model_id",
+    _ADAPTER_ROUTING_CASES,
+)
+def test_disss_001_pin_adapter_routes_legacy_across_all_providers(
+    monkeypatch,
+    kill_value,
+    provider,
+    module_path,
+    adapter_cls_name,
+    config_factory,
+    mock_response,
+    model_id,
 ):
-    """End-to-end DISS-001 pin: with `LOA_CHEVAL_DISABLE_STREAMING=true`
-    (not the strict `"1"`), the AnthropicAdapter routes through the
-    legacy `http_post` path, NOT the streaming path. Before DISS-001
-    closure, the adapter used `== "1"` strict and would have taken the
-    streaming path here while the audit recorded the wrong boolean.
+    """End-to-end DISS-001 + cycle-2 DISS-003 pin: with non-strict truthy
+    kill-switch value, the adapter routes through the legacy `http_post`
+    path, NOT `http_post_stream`. Parametrized across Anthropic + OpenAI
+    so a future refactor that regresses a single adapter back to `== "1"`
+    fails immediately.
+
+    Google adapter uses `_call_with_retry` (not direct `http_post`) on
+    the legacy path, so its mock pattern differs slightly — covered by
+    `test_google_adapter_routes_legacy_under_non_strict_kill_switch` below.
     """
-    from loa_cheval.providers.anthropic_adapter import AnthropicAdapter
+    import importlib
+
+    module = importlib.import_module(module_path)
+    AdapterCls = getattr(module, adapter_cls_name)
+
     from loa_cheval.types import CompletionRequest
 
     monkeypatch.setenv("LOA_CHEVAL_DISABLE_STREAMING", kill_value)
 
-    adapter = AnthropicAdapter(_build_anthropic_config())
+    adapter = AdapterCls(config_factory())
     request = CompletionRequest(
         messages=[{"role": "user", "content": "hi"}],
-        model="claude-test",
+        model=model_id,
+        max_tokens=64,
+        temperature=0.0,
+    )
+
+    with patch.object(
+        module, "http_post", return_value=(200, mock_response)
+    ) as nonstream_mock, patch.object(
+        module, "http_post_stream"
+    ) as stream_mock:
+        result = adapter.complete(request)
+
+    assert nonstream_mock.called, (
+        f"DISS-001 regression for {provider}: with "
+        f"LOA_CHEVAL_DISABLE_STREAMING={kill_value!r}, adapter must use "
+        "the legacy non-streaming http_post path"
+    )
+    assert not stream_mock.called, (
+        f"DISS-001 regression for {provider}: with "
+        f"LOA_CHEVAL_DISABLE_STREAMING={kill_value!r}, adapter must NOT "
+        "call http_post_stream"
+    )
+    assert result.content == "ok"
+
+
+@pytest.mark.parametrize("kill_value", ["true", "TRUE", "yes", "on"])
+def test_google_adapter_routes_legacy_under_non_strict_kill_switch(
+    monkeypatch, kill_value
+):
+    """Google's legacy path goes through `_call_with_retry` (not direct
+    `http_post`). DISS-001 + cycle-2 DISS-003 pin for the Google adapter
+    routes through `_call_with_retry` when the kill switch is set; the
+    streaming `http_post_stream` is NOT called.
+    """
+    from loa_cheval.providers import google_adapter
+    from loa_cheval.providers.google_adapter import GoogleAdapter
+    from loa_cheval.types import CompletionRequest
+
+    monkeypatch.setenv("LOA_CHEVAL_DISABLE_STREAMING", kill_value)
+
+    adapter = GoogleAdapter(_build_google_config())
+    request = CompletionRequest(
+        messages=[{"role": "user", "content": "hi"}],
+        model="gemini-test",
         max_tokens=64,
         temperature=0.0,
     )
 
     mock_response = {
-        "id": "msg_x",
-        "type": "message",
-        "role": "assistant",
-        "model": "claude-test",
-        "content": [{"type": "text", "text": "ok"}],
-        "stop_reason": "end_turn",
-        "usage": {"input_tokens": 5, "output_tokens": 2},
+        "candidates": [
+            {
+                "content": {"parts": [{"text": "ok"}], "role": "model"},
+                "index": 0,
+                "finishReason": "STOP",
+            }
+        ],
+        "usageMetadata": {
+            "promptTokenCount": 5,
+            "candidatesTokenCount": 2,
+            "totalTokenCount": 7,
+        },
+        "modelVersion": "gemini-test",
     }
 
-    # If the adapter routed to streaming, http_post would NOT be called
-    # and this mock would never fire. If it routed to legacy, http_post
-    # IS called and the mock intercepts.
-    with patch(
-        "loa_cheval.providers.anthropic_adapter.http_post",
-        return_value=(200, mock_response),
-    ) as nonstream_mock, patch(
-        "loa_cheval.providers.anthropic_adapter.http_post_stream"
+    with patch.object(
+        google_adapter, "_call_with_retry", return_value=(200, mock_response)
+    ) as nonstream_mock, patch.object(
+        google_adapter, "http_post_stream"
     ) as stream_mock:
         result = adapter.complete(request)
 
     assert nonstream_mock.called, (
-        f"DISS-001 regression: with LOA_CHEVAL_DISABLE_STREAMING={kill_value!r}, "
-        "adapter should have used the legacy non-streaming http_post path"
+        f"DISS-001 regression for google: with "
+        f"LOA_CHEVAL_DISABLE_STREAMING={kill_value!r}, adapter must use "
+        "the legacy _call_with_retry path"
     )
     assert not stream_mock.called, (
-        f"DISS-001 regression: with LOA_CHEVAL_DISABLE_STREAMING={kill_value!r}, "
-        "adapter should NOT have called http_post_stream"
+        f"DISS-001 regression for google: with "
+        f"LOA_CHEVAL_DISABLE_STREAMING={kill_value!r}, adapter must NOT "
+        "call http_post_stream"
     )
     assert result.content == "ok"

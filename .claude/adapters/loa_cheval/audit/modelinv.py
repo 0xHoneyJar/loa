@@ -36,6 +36,12 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+# Sprint 4A DISS-001/DISS-002 closure: module-level import of the centralized
+# kill-switch helper. No import cycle exists between providers.base and
+# audit.modelinv (verified via direct import test); the earlier draft used a
+# lazy function-local import out of misplaced caution.
+from loa_cheval.providers.base import _streaming_disabled
+
 logger = logging.getLogger("loa_cheval.audit.modelinv")
 
 
@@ -220,15 +226,19 @@ def _kill_switch_active() -> bool:
 def _streaming_active() -> bool:
     """True iff the Sprint 4A streaming transport was used for this call.
 
-    Sprint 4A DISS-001 closure: this helper now delegates to
+    Sprint 4A DISS-001 closure: this helper delegates to
     `base._streaming_disabled()` to guarantee that adapters and audit-emit
     consume an identical boolean. Before centralization, the adapters used
     strict `== "1"` while this helper used case-insensitive multi-value —
     that mismatch let an operator setting `LOA_CHEVAL_DISABLE_STREAMING=true`
     route through streaming while the audit chain recorded `streaming=false`
     (the silent-degradation pattern vision-019 M1 was built to detect).
+
+    Sprint 4A cycle-2 DISS-002 closure: the import is at module level (no
+    actual cycle exists; verified via direct import test). Earlier draft
+    used a lazy function-local import to defend against a hypothetical
+    cycle that doesn't materialize in practice.
     """
-    from loa_cheval.providers.base import _streaming_disabled
     return not _streaming_disabled()
 
 
