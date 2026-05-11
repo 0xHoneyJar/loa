@@ -1,0 +1,25 @@
+Sprint 4A — Cheval Streaming Transport
+Completion timestamp: 2026-05-11T05:14:40Z
+
+Verdicts:
+  Senior reviewer: All good (cycle-2, commit d4905c78)
+  Paranoid Cypherpunk auditor: APPROVED - LETS FUCKING GO
+
+Sprint deliverables: 11/11 ✓
+Acceptance criteria: 9/9 (7 met, 2 partial-deferred to live-PR smoke)
+Test count: 921 (up from 887 pre-Sprint-4A, +57 new, +24 from DISS-001
+  fix, +8 from DISS-003 expansion = 89 net-new tests for Sprint 4A)
+Regressions: 0
+
+Closed:
+  KF-002 layer 3 → RESOLVED-BY-CONSTRUCTION
+  DISS-001 → centralized kill-switch helper + 34 regression pins
+  DISS-002 (cycle-2) → module-level import hoisted
+  DISS-003 (cycle-2) → all-adapter end-to-end pin matrix
+
+Carry-forward (documented in auditor-sprint-feedback.md):
+  DISS-002 (cycle-1): error-body redaction across cheval exceptions
+  DISS-003 (cycle-1): redactor nested-dict field-name walk
+  DISS-004: _GATE_BEARER regex coverage gap
+
+Next: draft PR creation per /run loop.
