@@ -203,6 +203,64 @@ def test_r2_streaming_survives_post_delay_first_byte():
     assert received == delayed_chunks
 
 
+@pytest.mark.parametrize(
+    "exc_factory,expected_class_name",
+    [
+        (lambda h: h.RemoteProtocolError("server disconnected mid-stream"), "RemoteProtocolError"),
+        (lambda h: h.ReadTimeout("read timed out mid-stream"), "ReadTimeout"),
+        (lambda h: h.WriteTimeout("write timed out mid-stream"), "WriteTimeout"),
+        (lambda h: h.ConnectTimeout("connect timed out (rare in iter)"), "ConnectTimeout"),
+        (lambda h: h.ReadError("read failed mid-stream"), "ReadError"),
+        (lambda h: h.WriteError("write failed mid-stream"), "WriteError"),
+        (lambda h: h.ConnectError("connect failed mid-stream"), "ConnectError"),
+        (lambda h: h.PoolTimeout("pool exhausted mid-stream"), "PoolTimeout"),
+    ],
+)
+def test_streaming_classifies_all_transport_errors_mid_iteration(exc_factory, expected_class_name):
+    """Sprint 4A cycle-4 (BB F-001): mid-stream transport exceptions
+    must be classified to ConnectionLostError, parity with the
+    stream-init path. Cycle-3 BF-003 fix added httpx.TimeoutException
+    to the stream-init except block but missed _byte_iter — a
+    ReadTimeout mid-iteration escaped raw before this regression pin.
+    """
+    import httpx
+
+    partial_chunks = [b"event: message_start\ndata: {}\n\n"]
+
+    class _RaisingIterator:
+        def __init__(self):
+            self._i = 0
+
+        def __iter__(self):
+            return self
+
+        def __next__(self):
+            if self._i == 0:
+                self._i += 1
+                return partial_chunks[0]
+            raise exc_factory(httpx)
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.http_version = "HTTP/2"
+    mock_response.iter_bytes = MagicMock(return_value=_RaisingIterator())
+
+    with patch("httpx.Client") as mock_client_cls:
+        mock_client = MagicMock()
+        mock_client_cls.return_value = mock_client
+        mock_client.stream.return_value = _mock_stream_ctx(mock_response)
+
+        with pytest.raises(ConnectionLostError) as exc_info:
+            with base.http_post_stream(
+                "https://example.test/v1/messages",
+                headers={},
+                body={"x": 1},
+            ) as resp:
+                list(resp.iter_bytes())
+
+    assert exc_info.value.transport_class == expected_class_name
+
+
 def test_r2_streaming_propagates_connection_loss_during_iteration():
     """If httpx raises RemoteProtocolError mid-stream (network dies after
     some bytes arrive), the iterator wraps it as ConnectionLostError so

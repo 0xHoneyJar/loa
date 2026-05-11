@@ -68,10 +68,16 @@ def parse_google_stream(
         try:
             data = json.loads(payload_str)
         except json.JSONDecodeError:
-            logger.warning(
-                "google_stream_json_decode_failed data=%r", payload_str[:200]
+            # Sprint 4A cycle-4 (BB F-004): fail-loud parity with Anthropic
+            # + OpenAI streaming parsers. Cycle-3 BF-006 fix updated those
+            # two but missed Google here — the cross-provider parser
+            # inconsistency is the most expensive bug class to debug
+            # because the symptom (empty content from one provider only)
+            # looks like a provider issue, not a substrate issue. Adapter
+            # wrapper translates ValueError to InvalidInputError.
+            raise ValueError(
+                f"Google streaming malformed data frame: {payload_str[:200]!r}"
             )
-            continue
 
         final_model = data.get("modelVersion") or final_model
 

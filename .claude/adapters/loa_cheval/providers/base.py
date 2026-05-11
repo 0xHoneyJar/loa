@@ -358,6 +358,16 @@ def http_post_stream(
                     httpx.ConnectError,
                     httpx.PoolTimeout,
                     httpx.ProtocolError,
+                    # Sprint 4A cycle-4 (BB F-001): mid-stream timeout
+                    # classification. BF-003 / cycle-3 added httpx.TimeoutException
+                    # to the stream-INIT except block but missed this _byte_iter
+                    # block — a ReadTimeout fired DURING iteration (after the
+                    # connection is open and bytes are flowing) escaped raw,
+                    # bypassing the ConnectionLostError taxonomy that retry.py
+                    # uses for typed-transient routing. Streaming has three
+                    # error sites (open / mid / close); the taxonomy MUST cover
+                    # all three.
+                    httpx.TimeoutException,
                 ) as exc:
                     raise ConnectionLostError(
                         transport_class=type(exc).__name__,

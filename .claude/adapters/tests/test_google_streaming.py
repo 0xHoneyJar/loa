@@ -225,6 +225,17 @@ def test_max_tokens_finish_reason_does_not_raise():
     assert result.metadata["finish_reason"] == "MAX_TOKENS"
 
 
+def test_malformed_data_frame_raises_value_error():
+    """Sprint 4A cycle-4 (BB F-004): Google parser fail-loud parity with
+    Anthropic + OpenAI. Cycle-3 BF-006 fix updated those two parsers but
+    missed Google here — the cross-provider inconsistency was caught in
+    BB cycle-2 review on PR #844.
+    """
+    blob = b"data: {not valid json from gemini}\n\n"
+    with pytest.raises(ValueError, match="Google streaming malformed data frame"):
+        parse_google_stream(iter([blob]), model_id="x")
+
+
 def test_empty_candidates_list_yields_empty_content():
     """No candidates emitted (server-side issue) → empty content, no crash."""
     blob = _sse_chunk(
