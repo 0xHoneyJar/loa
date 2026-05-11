@@ -607,14 +607,14 @@ after retries).
 **First observed**: 2026-05-11 ~05:33Z (Sprint 4A post-merge BB dry-run
 on PR #844 streaming transport; session 10)
 
-**Recurrence count**: 3 (three observations on PR #844 / Sprint 4A
+**Recurrence count**: 4 (three observations on PR #844 / Sprint 4A
 within a ~70 min window on the same operator machine, request sizes
 297209B / 302623B / 317766B respectively. Anthropic + OpenAI succeeded
 on the SAME invocations at 117KB-125KB + 73KB-78KB request sizes,
 ruling out general network outage or operator-side firewall block.
 Google's 91s success on smaller PR #804 in the same invocation rules
 out provider account / API key issue. **Per the ledger discipline
-(recurrence-≥3), upstream issue filed.**)
+(recurrence-≥3), upstream issue filed.** **Fourth observation 2026-05-11 ~13:16Z** on PR #846 (cycle-103 BB cycle-3 closure) at `request_size=539089B` — body grew past the T1.0 tested 400KB ceiling because cycle-103 PR contains all of sprints 1+2+3 commits. Anthropic + OpenAI succeeded in the same invocation (228K + 140K input tokens respectively). Architectural closure holds for BB *internal* model dispatcher's Node-fetch path which still hits this — cycle-104 candidate: route BB's multi-model parallel dispatcher through cheval as well.)
 
 **Upstream issue**: [#845](https://github.com/0xHoneyJar/loa/issues/845)
 (filed 2026-05-11 after recurrence-3 observation; hypotheses + repro
@@ -648,6 +648,7 @@ infrastructure articulating its own failure mode AGAIN).
 | not tried | Reproduce on a different network (mobile hotspot vs home/office) | — | proposed in #845: would distinguish operator-machine-network vs upstream provider |
 | not tried | Direct curl POST of the same ~300KB body to `streamGenerateContent` | — | proposed in #845: would isolate Node fetch vs upstream behavior. Three independent observations at ~300KB on the SAME PR within ~70 min strongly suggest the threshold is body-size-related, not transient. |
 | 2026-05-11 (T1.9 / AC-1.6) | **Cycle-103 Sprint 1 unification closes KF-008 architecturally.** T1.2 (`1e1381dd`) lands `ChevalDelegateAdapter`; T1.4 (`92c0057e`) collapses `adapter-factory.ts` and deletes `adapters/google.ts` (the failing path); T1.6 (`b430e48e`) migrates Flatline chat sites; T1.7 (`14689c26`) ships the CI drift gate that fails any reintroduction of a Node-side direct fetch. Every Google call from BB now routes through cheval `httpx` (T1.0 spike already proved this path does NOT reproduce the failure at 172/250/318/400KB). | **CLOSED-ARCHITECTURAL** — the BB Node fetch adapter that produced the `SocketError: other side closed` no longer exists. Live operator-side re-run on PR #844 (or a fresh ≥300KB test fixture) is the empirical confirmation; deferred to operator deployment. AC-1.6 path (a) "closes via cheval httpx" — MET. M3 cycle-exit invariant: MET. | Sprint 1 commits `1e1381dd` + `92c0057e` + `b430e48e` + `14689c26`; T1.9 report at `grimoires/loa/cycles/cycle-103-provider-unification/handoffs/T1.9-implementation-report.md` |
+| 2026-05-11 ~13:16Z (BB cycle-3 on PR #846) | **Fourth observation — partial closure scope clarified.** BB cycle-3 on PR #846 (cycle-103 close-out, all 3 sprints diff vs main) ran multi-model review; Anthropic + OpenAI succeeded (228K + 140K input tokens), Google failed with `SocketError: other side closed` at `request_size=539089B`. This is the largest observed body — past the T1.0 tested 400KB ceiling. | **CLOSURE SCOPED to /bridgebuilder ADAPTER ONLY.** The cycle-103 architectural closure replaced `BB review → adapters/google.ts` (Node fetch). But BB's INTERNAL **multi-model parallel dispatcher** (`multi-model:google` log line, distinct from the per-PR review adapter) still uses Node fetch directly to `generativelanguage.googleapis.com`. The 539KB request originates from this dispatcher, not the review-adapter path that T1.4 retired. **AC-1.6 closure remains MET for the review-adapter path** but the BB internal dispatcher is now a separate scope. Cycle-104 candidate task: route BB's `multi-model.google` provider through cheval as well to fully extinguish KF-008. Operator workaround stands: BB consensus scoring continues with 2-of-3 providers when Google fails. | BB run `bridgebuilder-20260511T131029-a003`; PR #846 consensus comment; cycle-103 close-out trail. |
 
 ### Reading guide
 

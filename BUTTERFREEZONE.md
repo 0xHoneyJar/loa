@@ -5,7 +5,7 @@ purpose: Loa is an agent-driven development framework for [Claude Code](https://
 key_files: [CLAUDE.md, .claude/loa/CLAUDE.loa.md, .loa.config.yaml, .claude/scripts/, .claude/skills/]
 interfaces:
   core: [/auditing-security, /autonomous-agent, /bridgebuilder-review, /browsing-constructs, /bug-triaging]
-  project: [/cost-budget-enforcer, /cross-repo-status-reader, /graduated-trust, /hitl-jury-panel, /loa-setup]
+  project: [/cost-budget-enforcer, /cross-repo-status-reader, /flatline-attacker, /graduated-trust, /hitl-jury-panel]
 dependencies: [git, jq, yq]
 ecosystem:
   - repo: 0xHoneyJar/loa-finn
@@ -27,7 +27,7 @@ capability_requirements:
   - git: read_write
   - shell: execute
   - github_api: read_write (scope: external)
-version: v1.132.1
+version: v1.147.0
 installation_mode: unknown
 trust_level: L2-verified
 -->
@@ -37,7 +37,7 @@ trust_level: L2-verified
 <!-- provenance: CODE-FACTUAL -->
 Loa is an agent-driven development framework for [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) (Anthropic's official CLI).
 
-The framework provides 39 specialized skills, built with TypeScript/JavaScript, Python, Shell.
+The framework provides 40 specialized skills, built with TypeScript/JavaScript, Python, Shell.
 
 ## Key Capabilities
 <!-- provenance: CODE-FACTUAL -->
@@ -62,7 +62,7 @@ The framework provides 39 specialized skills, built with TypeScript/JavaScript, 
 
 ## Architecture
 <!-- provenance: CODE-FACTUAL -->
-The architecture follows a three-zone model: System (`.claude/`) contains framework-managed scripts and skills, State (`grimoires/`, `.beads/`) holds project-specific artifacts and memory, and App (`src/`, `lib/`) contains developer-owned application code. The framework orchestrates 39 specialized skills through slash commands.
+The architecture follows a three-zone model: System (`.claude/`) contains framework-managed scripts and skills, State (`grimoires/`, `.beads/`) holds project-specific artifacts and memory, and App (`src/`, `lib/`) contains developer-owned application code. The framework orchestrates 40 specialized skills through slash commands.
 ```mermaid
 graph TD
     docs[docs]
@@ -154,6 +154,7 @@ Directory structure:
 
 - **/cost-budget-enforcer** — Daily token-cap enforcement for autonomous Loa cycles. Replaces the
 - **/cross-repo-status-reader** — Read structured cross-repo state for ≤50 repos in parallel via `gh api`, with TTL cache + stale fallback, BLOCKER extraction from each repo's `grimoires/loa/NOTES.md` tail, and per-source error capture so one repo's failure does not abort the full read. The operator-visibility primitive for the Agent-Network Operator (P1).
+- **/flatline-attacker** — Flatline attacker
 - **/graduated-trust** — The L4 primitive maintains a per-(scope, capability, actor) trust ledger
 - **/hitl-jury-panel** — Replace `AskUserQuestion`-class decisions during operator absence with a panel of ≥3 deliberately-diverse panelists. Each panelist (model + persona) returns a view and reasoning; the skill logs all views BEFORE selection, then picks one binding view via a deterministic seed derived from `(decision_id, context_hash)`. Provides an autonomous adjudication primitive without compromising auditability.
 - **/loa-setup** — /loa setup — Onboarding Wizard
@@ -169,17 +170,17 @@ Directory structure:
 |--------|-------|---------|---------------|
 | `docs/` | 10 | Documentation | \u2014 |
 | `evals/` | 5818 | Benchmarking and regression framework for the Loa agent development system. Ensures framework changes don't degrade agent behavior through | [evals/README.md](evals/README.md) |
-| `grimoires/` | 2334 | Home to all grimoire directories for the Loa | [grimoires/README.md](grimoires/README.md) |
+| `grimoires/` | 2511 | Home to all grimoire directories for the Loa | [grimoires/README.md](grimoires/README.md) |
 | `lib/` | 1 | Source code | \u2014 |
 | `skills/` | 5112 | Specialized agent skills | \u2014 |
-| `tests/` | 539 | Test suites | \u2014 |
-| `tools/` | 3 | Tools | \u2014 |
+| `tests/` | 587 | Test suites | \u2014 |
+| `tools/` | 5 | Shell scripts and utilities | \u2014 |
 
 ## Verification
 <!-- provenance: CODE-FACTUAL -->
 - Trust Level: **L2 — CI Verified**
-- 539 test files across 1 suite
-- CI/CD: GitHub Actions (34 workflows)
+- 587 test files across 1 suite
+- CI/CD: GitHub Actions (36 workflows)
 - Security: SECURITY.md present
 
 ## Agents
@@ -226,16 +227,16 @@ curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts
 # Start Claude Code
 claude
 <!-- ground-truth-meta
-head_sha: d0624960229dd5266ac13d163d5f6256288b28c6
-generated_at: 2026-05-08T08:41:28Z
+head_sha: 2b70d2fba56a6e5921e3241e889de43ee3366061
+generated_at: 2026-05-11T13:09:08Z
 generator: butterfreezone-gen v1.0.0
 sections:
-  agent_context: b99f712ff06015e489597c6869594570d920d33929becfbbd2cf722f6a20e6a2
+  agent_context: dbf6d2026aca10060b33bb5fdf4df62bff19359d162c1545d1a2a1f85dc882cb
   capabilities: ca1f0122b28b76b45029b89aaf8d0a5c42d18a0eac40a3d450701ea41d0199f5
-  architecture: e677c14534a5860fae4d389aa62d183c78e0fa5e318f8ae26cd88f43aad59033
-  interfaces: 7c277c0a3202714ea8439bbd08991ceb3b70d52ca3dff5012c2f5aa81762e198
-  module_map: 02c150c34a79f9f117885cb762b9894fa1499ff2b34d288226d99daaf138de07
-  verification: 203a56135af2374ba6c6568eef575bff78a6a44b3aab89b94bc911ff513672c7
+  architecture: 5f17d57717b1d879ad87a009a8b67c98a8217134c50c069d6c0d0dadeccd71b6
+  interfaces: a879a429060fc13c5fce7d87f68e59a286fdb98ec764cd3c8cb8d645139c6cc2
+  module_map: 2d2998f52ea1c44b92acf4fef1e0fb6cfe8505a1e431723f12dd18554d0a0a2b
+  verification: e81cf3a5528573e33f729414917956787e9f231a349de6a6514edc262f86a3e9
   agents: ca263d1e05fd123434a21ef574fc8d76b559d22060719640a1f060527ef6a0b6
   culture: f73380f93bb4fadf36ccc10d60fc57555914363fc90e4f15b4dc4eb92bd1640f
   quick_start: d9f37d2522d05d1683438abcbd4bd48dd92b87a6afeed611102d2fde349f9192
