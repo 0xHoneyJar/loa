@@ -33,6 +33,7 @@ import json
 import logging
 import os
 import re
+import unicodedata
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -96,7 +97,66 @@ _REDACT = _load_redactor()
 
 _GATE_AKIA = re.compile(r"AKIA[0-9A-Z]{16}")
 _GATE_PEM_BEGIN = re.compile(r"-----BEGIN [A-Z 0-9]*PRIVATE KEY-----")
-_GATE_BEARER = re.compile(r"[Bb]earer[ \t][A-Za-z0-9._~+/=-]{16,}")
+
+# cycle-103 T3.7 / AC-3.7 / DISS-004 — extended bearer-token gate.
+#
+# Coverage:
+#   1. `Bearer <token>` — space-separated (original)
+#   2. `bearer <token>` — case-insensitive (original)
+#   3. `Bearer\t<token>` — tab-separated (original)
+#   4. `bearer:<token>` — colon separator (no space) — NEW
+#   5. `%20Bearer%20<token>` — percent-encoded — NEW (via _normalize_for_gate)
+#   6. `\"Bearer <token>\"` — JSON-escape-quoted — NEW (via _normalize_for_gate)
+#   7. `Ｂｅａｒｅｒ <token>` — Unicode fullwidth — NEW (via NFKC in _normalize_for_gate)
+#   8. `B​earer <token>` — zero-width insertion — NEW (via control-byte strip)
+#
+# Detection mirrors the cycle-099 sprint-1E.c.3.c Unicode-glob bypass closure
+# pattern: NFKC normalize + zero-width strip + light percent-decode BEFORE
+# regex match. The character-class allows colon as separator alongside the
+# original space/tab.
+_GATE_BEARER = re.compile(r"[Bb]earer[ \t:]+[A-Za-z0-9._~+/=\-]{16,}")
+
+# Zero-width and bidi-override characters that can be inserted between the
+# letters of "Bearer" to bypass a naive regex. Same disposition as cycle-099
+# sprint-1E.c.3.c: strip before matching.
+_ZERO_WIDTH = re.compile("[​-‍﻿‪-‮]")
+
+# Percent-encoded forms that can hide Bearer in URL-embedded headers.
+# Single-pass decode (no recursion → no amplification attack surface).
+_PERCENT_DECODE_MAP = {
+    "%20": " ",
+    "%09": "\t",
+    "%22": '"',
+    "%3A": ":",
+    "%3a": ":",
+}
+
+
+def _normalize_for_gate(text: str) -> str:
+    """Apply NFKC + zero-width strip + light percent-decode before matching.
+
+    The gate's job (cycle-098 audit-envelope defense-in-depth) is to catch
+    secret shapes the redactor missed. Post-cycle-103 T3.7, encoded /
+    obfuscated bearer shapes are normalized to ASCII canonical form before
+    the regex run so that:
+
+      - Unicode fullwidth (Ｂｅａｒｅｒ) becomes ASCII (Bearer) via NFKC
+      - Zero-width insertions (B​earer) get stripped
+      - Percent-encoded (%20Bearer%20) gets decoded to space-separated
+      - JSON-escape-quoted (\"Bearer X\") gets decoded — the inner Bearer
+        is then matchable by the canonical regex
+
+    The function is idempotent on already-normalized input: ASCII Bearer
+    passes through unchanged.
+    """
+    # NFKC handles fullwidth Bearer → Bearer + other Unicode look-alikes.
+    text = unicodedata.normalize("NFKC", text)
+    # Strip zero-width and bidi-override characters that defeat naive regex.
+    text = _ZERO_WIDTH.sub("", text)
+    # Single-pass percent-decode for the common URL-embedded forms.
+    for encoded, decoded in _PERCENT_DECODE_MAP.items():
+        text = text.replace(encoded, decoded)
+    return text
 
 
 class RedactionFailure(Exception):
@@ -134,7 +194,9 @@ def assert_no_secret_shapes_remain(payload_json: str) -> None:
         raise RedactionFailure("AKIA")
     if _GATE_PEM_BEGIN.search(payload_json):
         raise RedactionFailure("PEM-PRIVATE-KEY")
-    if _GATE_BEARER.search(payload_json):
+    # cycle-103 T3.7 / AC-3.7 / DISS-004: normalize encoded/obfuscated
+    # bearer-token variants to canonical ASCII form before matching.
+    if _GATE_BEARER.search(_normalize_for_gate(payload_json)):
         raise RedactionFailure("Bearer-token")
 
 
