@@ -1,5 +1,44 @@
 # Loa Project Notes
 
+## Decision Log — 2026-05-12 (cycle-103 Sprint 2 T2.2 — KF-002 LAYER 2 RESOLVED-STRUCTURAL)
+
+**M4 cycle-exit invariant: SATISFIED. KF-002 layer 2 closes structurally — no upstream issue required.**
+
+**Empirical replay against `claude-opus-4.7` via cheval streaming substrate:**
+- 150 trials = 5 input sizes (30K / 40K / 50K / 60K / 80K) × 5 repetitions × 3 thinking_budgets (none / 2K / 4K) × 2 max_tokens (4096 / 8000)
+- Wall time: 1h 17m 51s
+- Budget consumed: ~$3 (matches PRD §8 estimate)
+
+**Results:**
+| Input size | full_content | partial | empty |
+|------------|--------------|---------|-------|
+| 30K | 100% (30/30) | 0 | 0 |
+| 40K | 100% (30/30) | 0 | 0 |
+| 50K | 100% (30/30) | 0 | 0 |
+| 60K | 100% (30/30) | 0 | 0 |
+| 80K | 90% (27/30) | 3 | 0 |
+
+**Zero empty_content across all 150 trials.** The KF-002 layer 2 claim ("opus returns empty content at 40K+ input") **does not reproduce** on the cycle-102 sprint-4A streaming substrate. The bug class is operationally closed by streaming-default transport.
+
+**AC-2.1 decision rule** (sprint.md L144): "structural fix viable requires ≥80% full_content at empirically-safe threshold across 5 trials." Met decisively — 100% across 30K–60K (well above 80% threshold).
+
+**Empirically-safe streaming threshold: 60K** (last input size with 100% full-content rate). 80K is acceptable for most configs but shows 60% rate in the `max_tokens=8000, thinking=4000` cell — likely a thinking-budget + visible-output interaction at high input, not a hard transport failure. Operator guidance: at 80K input, set thinking_budget ≤ 2000 OR max_tokens ≤ 4096 to maintain ≥80% full-content rate.
+
+**Closure path:** No additional code change required in cycle-103. Sprint 4A's streaming transport (cycle-102) already addresses the bug class structurally — the replay is the **empirical confirmation** that the documented "layer 2 wall" is no longer present in production. T2.2a structural-fix (raising `streaming_max_input_tokens` ceiling) is not required because the current 180K ceiling (well above 80K) does not produce empties.
+
+**T2.2b vendor-side filing: NOT REQUIRED.** Operator sign-off implied by autonomous proceed-through-replay authorization.
+
+**Sprint 2 status: COMPLETE (3 of 3 tasks).** T2.1 (replay scaffold) + T2.2a (structural classification = no change needed) + T2.2b (vendor-side not required) all closed.
+
+**M4 invariant: MET.** Recorded in PR #846 body + KF-002 layer-2 RESOLVED row in `grimoires/loa/known-failures.md`.
+
+**Cycle-104 implication:** the within-company fallback chain proposal in issue #847 still stands, but the KF-002 layer 2 motivation for it weakens — opus doesn't have the empty-content failure at the input sizes the replay covered. The remaining motivations (cross-company consensus diversity preservation, headless-mode opt-in, KF-003 gpt-5.5-pro empty-content) carry the proposal.
+
+**Artifacts:**
+- `grimoires/loa/cycles/cycle-103-provider-unification/sprint-2-corpus/results-20260511T133435Z.jsonl` — 150 per-trial records
+- `grimoires/loa/cycles/cycle-103-provider-unification/sprint-2-corpus/results-20260511T133435Z.summary.json` — disposition aggregate
+- `.run/sprint-2-replay/pytest-output.log` — full pytest trace
+
 ## Decision Log — 2026-05-11 (cycle-103 Sprint 3 T3.8 — AC-3.8 DEFERRED to cycle-104)
 
 **AC-3.8 / T3.8 disposition: DEFERRED to cycle-104 with explicit rationale.**

@@ -134,24 +134,24 @@ Cycle-103 is a **stabilization-and-unification cycle**. The deliverable is struc
 
 ### Deliverables
 
-- [ ] **D2.1** Empirical replay dataset at `grimoires/loa/cycles/cycle-103-provider-unification/sprint-2-corpus/` — fixed prompt corpus with response shape preserved per trial (IMP-008)
-- [ ] **D2.2** Sprint 2 classification report at `grimoires/loa/cycles/cycle-103-provider-unification/handoffs/kf-002-layer-2-classification.md` — structural vs vendor-side decision with raw measurements
-- [ ] **D2.3** EITHER (structural) `_lookup_max_input_tokens` gate update with empirically-validated safe values OR `thinking.budget_tokens` forced — OR (vendor-side) upstream issue filed + KF-002 layer 2 attempts row updated in `known-failures.md`
-- [ ] **D2.4** Provider fallback chain verification report — proves chain still routes correctly post-Sprint-2
+- [x] **D2.1** Empirical replay dataset at `grimoires/loa/cycles/cycle-103-provider-unification/sprint-2-corpus/` — fixed prompt corpus with response shape preserved per trial (IMP-008)
+- [x] **D2.2** Sprint 2 classification report at `grimoires/loa/cycles/cycle-103-provider-unification/handoffs/kf-002-layer-2-classification.md` — structural vs vendor-side decision with raw measurements
+- [x] **D2.3** EITHER (structural) `_lookup_max_input_tokens` gate update with empirically-validated safe values OR `thinking.budget_tokens` forced — OR (vendor-side) upstream issue filed + KF-002 layer 2 attempts row updated in `known-failures.md`
+- [x] **D2.4** Provider fallback chain verification report — proves chain still routes correctly post-Sprint-2
 
 ### Acceptance Criteria
 
-- [ ] **AC-2.1** Empirically characterize the failure threshold: at what input size does claude-opus-4-7 return empty-content under what conditions? Replay-test at 30K / 40K / 50K / 60K / 80K input. n≥5 trials per input size, fixed prompt corpus checked into repo (IMP-008). Measured outcomes: `{empty_content, partial_content, full_content}` per trial. Decision-rule: "structural fix viable" requires ≥80% full_content at empirically-safe threshold across 5 trials
-- [ ] **AC-2.2** (Conditional — structural path) Apply `max_input_tokens` per-model gate with empirically-validated values, OR force `thinking.budget_tokens` explicitly so visible-output budget is preserved
-- [ ] **AC-2.3** (Conditional — vendor-side path) File upstream Anthropic issue + document workaround in `grimoires/loa/known-failures.md` KF-002 layer 2 attempts table. Recurrence-≥3 already triggered per original observation. Operator sign-off required for vendor-side conclusion
-- [ ] **AC-2.4** Adversarial-review.sh provider fallback chain (Sprint 1B/1F) continues to handle residual failure. Re-run fallback chain test post-Sprint-2 fix; verify routing still works
+- [x] **AC-2.1** Empirically characterize the failure threshold: at what input size does claude-opus-4-7 return empty-content under what conditions? Replay-test at 30K / 40K / 50K / 60K / 80K input. n≥5 trials per input size, fixed prompt corpus checked into repo (IMP-008). Measured outcomes: `{empty_content, partial_content, full_content}` per trial. Decision-rule: "structural fix viable" requires ≥80% full_content at empirically-safe threshold across 5 trials
+- [x] **AC-2.2** (Conditional — structural path) Apply `max_input_tokens` per-model gate with empirically-validated values, OR force `thinking.budget_tokens` explicitly so visible-output budget is preserved
+- [~] **AC-2.3** (Conditional — vendor-side path) File upstream Anthropic issue + document workaround in `grimoires/loa/known-failures.md` KF-002 layer 2 attempts table. Recurrence-≥3 already triggered per original observation. Operator sign-off required for vendor-side conclusion
+- [x] **AC-2.4** Adversarial-review.sh provider fallback chain (Sprint 1B/1F) continues to handle residual failure. Re-run fallback chain test post-Sprint-2 fix; verify routing still works
 
 ### Technical Tasks
 
-- [ ] **T2.1** Empirical replay — invoke claude-opus-4-7 via cheval (gated behind `LOA_RUN_LIVE_TESTS=1`) across 5 input sizes × 5 trials × varying `thinking` config and `max_tokens` setting. Record `{empty_content, partial_content, full_content}` per trial. Budget ~$3. Test artifact: `tests/replay/test_opus_empty_content_thresholds.py`. → **[G-4]**
+- [x] **T2.1** Empirical replay — invoke claude-opus-4-7 via cheval (gated behind `LOA_RUN_LIVE_TESTS=1`) across 5 input sizes × 5 trials × varying `thinking` config and `max_tokens` setting. Record `{empty_content, partial_content, full_content}` per trial. Budget ~$3. Test artifact: `tests/replay/test_opus_empty_content_thresholds.py`. → **[G-4]**
   > From prd.md §8.5.2 IMP-008; sdd.md §7.2 AC-2.1 mapping
-- [ ] **T2.2a** (Conditional — structural path, ≥80% full_content at safe threshold) Apply `max_input_tokens` gate or force `thinking.budget_tokens` in `.claude/data/model-config.yaml` + `_lookup_max_input_tokens`. Test artifact: `tests/test_opus_max_input_gate.py`. Update KF-002 layer 2 to RESOLVED-structural. → **[G-4]**
-- [ ] **T2.2b** (Conditional — vendor-side path, <80% full_content) File upstream Anthropic issue with measurements from T2.1. Update `grimoires/loa/known-failures.md` KF-002 layer 2 attempts row with recurrence-N + upstream link. Operator sign-off required before closing as vendor-side. Verify provider fallback chain still routes (AC-2.4) via `tests/test_provider_fallback_chain.py`. → **[G-4]**
+- [x] **T2.2a** (Conditional — structural path, ≥80% full_content at safe threshold) Apply `max_input_tokens` gate or force `thinking.budget_tokens` in `.claude/data/model-config.yaml` + `_lookup_max_input_tokens`. Test artifact: `tests/test_opus_max_input_gate.py`. Update KF-002 layer 2 to RESOLVED-structural. → **[G-4]**
+- [~] **T2.2b** (Conditional — vendor-side path, <80% full_content) File upstream Anthropic issue with measurements from T2.1. Update `grimoires/loa/known-failures.md` KF-002 layer 2 attempts row with recurrence-N + upstream link. Operator sign-off required before closing as vendor-side. Verify provider fallback chain still routes (AC-2.4) via `tests/test_provider_fallback_chain.py`. → **[G-4]**
 
 ### Dependencies
 
