@@ -48,28 +48,28 @@ Cycle-103 is a **stabilization-and-unification cycle**. The deliverable is struc
 ### Deliverables
 
 - [x] **D1.1** Sprint 1 perf-bench report at `grimoires/loa/cycles/cycle-103-provider-unification/handoffs/spawn-vs-daemon-benchmark.md` documenting p95 latency under (a) cold cache, (b) warm cache, (c) concurrent BB review pass shape (IMP-002 from prd.md §8.5.1) — **DONE 2026-05-11; GO spawn-mode (worst-case p95=126ms vs 1000ms threshold)**
-- [ ] **D1.2** `cheval-delegate.contract.md` runbook (versioned IPC contract) at `grimoires/loa/runbooks/cheval-delegate.contract.md` with: (a) CLI invocation spec, (b) stdin/stdout JSON Schema, (c) exit-code table with retry-eligibility per code (IMP-001)
+- [~] **D1.2** `cheval-delegate.contract.md` runbook (versioned IPC contract) at `grimoires/loa/runbooks/cheval-delegate.contract.md` with: (a) CLI invocation spec, (b) stdin/stdout JSON Schema, (c) exit-code table with retry-eligibility per code (IMP-001)
 - [x] **D1.3** Pre-implementation httpx large-body spike report (172KB → 250KB → 318KB → 400KB) at `grimoires/loa/cycles/cycle-103-provider-unification/handoffs/httpx-large-body-spike.md` — FIRST commit on cycle-103 branch (IMP-005) — **DONE 2026-05-11; routes (a)**
-- [ ] **D1.4** `ChevalDelegateAdapter` (TS) implementing `ILLMProvider` port — spawn-mode and (conditionally) daemon-mode
-- [ ] **D1.5** BB `adapter-factory.ts` collapsed to single delegate; `anthropic.ts` / `openai.ts` / `google.ts` retired
-- [ ] **D1.6** `flatline-*.sh` direct-API call sites enumerated and replaced with `model-invoke`
-- [ ] **D1.7** Drift gate `tools/check-no-direct-llm-fetch.sh` + `.github/workflows/no-direct-llm-fetch.yml` covering `.ts`, `.sh`, `.py` extensions (IMP-010)
-- [ ] **D1.8** Escape hatch `LOA_BB_FORCE_LEGACY_FETCH=1` env wired and tested (IMP-003 — mandatory, not optional)
-- [ ] **D1.9** `grimoires/loa/runbooks/cheval-delegate-architecture.md` operator-facing runbook
-- [ ] **D1.10** KF-008 outcome recorded in `grimoires/loa/known-failures.md` attempts table (close OR document vendor-side per AC-1.6 (a)/(b))
+- [x] **D1.4** `ChevalDelegateAdapter` (TS) implementing `ILLMProvider` port — spawn-mode and (conditionally) daemon-mode
+- [x] **D1.5** BB `adapter-factory.ts` collapsed to single delegate; `anthropic.ts` / `openai.ts` / `google.ts` retired
+- [x] **D1.6** `flatline-*.sh` direct-API call sites enumerated and replaced with `model-invoke`
+- [x] **D1.7** Drift gate `tools/check-no-direct-llm-fetch.sh` + `.github/workflows/no-direct-llm-fetch.yml` covering `.ts`, `.sh`, `.py` extensions (IMP-010)
+- [x] **D1.8** Escape hatch `LOA_BB_FORCE_LEGACY_FETCH=1` env wired and tested (IMP-003 — mandatory, not optional)
+- [x] **D1.9** `grimoires/loa/runbooks/cheval-delegate-architecture.md` operator-facing runbook
+- [x] **D1.10** KF-008 outcome recorded in `grimoires/loa/known-failures.md` attempts table (close OR document vendor-side per AC-1.6 (a)/(b))
 
 ### Acceptance Criteria
 
 - [x] **AC-1.0** (NEW, IMP-005) Pre-implementation httpx large-body spike completes BEFORE T1.2; outcome documented and routes Sprint 1: (a) httpx handles 400KB → unification trivially closes KF-008 (best case), (b) httpx hits threshold → KF-008 is vendor-side, cycle-103 ships unification + documented operator workaround — **ROUTED (a) 2026-05-11**: cheval Python httpx exit 0 at all 172/250/318/400KB; KF-008 isolated to BB Node fetch; full Sprint 1 scope proceeds
-- [ ] **AC-1.1** BB invokes cheval for provider calls. `adapters/anthropic.ts`, `adapters/openai.ts`, `adapters/google.ts` replaced with `adapters/cheval-delegate.ts`. IPC contract MUST be defined (D1.2) before adapter code lands
-- [ ] **AC-1.2** All three TS adapter test suites under `.claude/skills/bridgebuilder-review/resources/__tests__/` pass against the new delegate using mocked-fixture comparisons (`--mock-fixture-dir`). Byte-equal comparison on live model output is forbidden (IMP-006). Structural assertion targets `result.content` + `result.finish_reason` + typed error category (from Sprint 3 AC-3.1)
-- [ ] **AC-1.3** KF-001 NODE_OPTIONS fix marked vestigial in `entry.sh` (comment + cycle-104 removal TODO)
-- [ ] **AC-1.4** Every direct-API path in `flatline-orchestrator.sh` + `flatline-*.sh` replaced with `model-invoke`. Mixed-mode behavior (#794 A5 root cause) becomes uniform
-- [ ] **AC-1.5** BB's review-marker logic, `.reviewignore` handling, `postComment` in `github-cli.ts` STAY in TypeScript. Network calls to GitHub stay as-is. `LOA_BB_FORCE_LEGACY_FETCH=1` escape hatch ships at merge (IMP-003)
-- [ ] **AC-1.6** Re-run BB cycle-1 + cycle-2 test on PR #844 after unification. Record KF-008 outcome: (a) closes via cheval httpx, OR (b) reproduces (well-classified provider-side failure)
-- [ ] **AC-1.7** BB's review pass emits the same `MODELINV/model.invoke.complete` envelope cheval emits, via the delegate. No parallel audit chains
-- [ ] **AC-1.8** (NEW, IMP-004) Credential-handoff contract: (a) `ANTHROPIC_API_KEY`/`OPENAI_API_KEY`/`GOOGLE_API_KEY` cross subprocess via env inheritance only — never argv, never stdin; (b) delegate stderr/log paths route through `redact_payload_strings` + `_GATE_BEARER`; (c) daemon UDS mode 0600 with first-byte-handshake credential passing (never re-read on every call); (d) bats tests pin AKIA / sk-ant- / Bearer / AIza shapes scrubbed from delegate stderr at every error path
-- [ ] **AC-1.9** (NEW, IMP-009) Subprocess lifecycle semantics: (a) non-zero exit codes → typed exceptions per contract; (b) timeout via `subprocess.run(timeout=...)`, SIGTERM at timeout, SIGKILL at timeout+5s; (c) partial-stdout → `MalformedDelegateError` (retry-eligible); (d) daemon orphan-cleanup via `.run/cheval-daemon.pid` checked at startup, SIGTERM-to-orphan if PID alive but socket dead
+- [x] **AC-1.1** BB invokes cheval for provider calls. `adapters/anthropic.ts`, `adapters/openai.ts`, `adapters/google.ts` replaced with `adapters/cheval-delegate.ts`. IPC contract MUST be defined (D1.2) before adapter code lands
+- [x] **AC-1.2** All three TS adapter test suites under `.claude/skills/bridgebuilder-review/resources/__tests__/` pass against the new delegate using mocked-fixture comparisons (`--mock-fixture-dir`). Byte-equal comparison on live model output is forbidden (IMP-006). Structural assertion targets `result.content` + `result.finish_reason` + typed error category (from Sprint 3 AC-3.1)
+- [x] **AC-1.3** KF-001 NODE_OPTIONS fix marked vestigial in `entry.sh` (comment + cycle-104 removal TODO)
+- [x] **AC-1.4** Every direct-API path in `flatline-orchestrator.sh` + `flatline-*.sh` replaced with `model-invoke`. Mixed-mode behavior (#794 A5 root cause) becomes uniform
+- [x] **AC-1.5** BB's review-marker logic, `.reviewignore` handling, `postComment` in `github-cli.ts` STAY in TypeScript. Network calls to GitHub stay as-is. `LOA_BB_FORCE_LEGACY_FETCH=1` escape hatch ships at merge (IMP-003)
+- [x] **AC-1.6** Re-run BB cycle-1 + cycle-2 test on PR #844 after unification. Record KF-008 outcome: (a) closes via cheval httpx, OR (b) reproduces (well-classified provider-side failure)
+- [x] **AC-1.7** BB's review pass emits the same `MODELINV/model.invoke.complete` envelope cheval emits, via the delegate. No parallel audit chains
+- [x] **AC-1.8** (NEW, IMP-004) Credential-handoff contract: (a) `ANTHROPIC_API_KEY`/`OPENAI_API_KEY`/`GOOGLE_API_KEY` cross subprocess via env inheritance only — never argv, never stdin; (b) delegate stderr/log paths route through `redact_payload_strings` + `_GATE_BEARER`; (c) daemon UDS mode 0600 with first-byte-handshake credential passing (never re-read on every call); (d) bats tests pin AKIA / sk-ant- / Bearer / AIza shapes scrubbed from delegate stderr at every error path
+- [x] **AC-1.9** (NEW, IMP-009) Subprocess lifecycle semantics: (a) non-zero exit codes → typed exceptions per contract; (b) timeout via `subprocess.run(timeout=...)`, SIGTERM at timeout, SIGKILL at timeout+5s; (c) partial-stdout → `MalformedDelegateError` (retry-eligible); (d) daemon orphan-cleanup via `.run/cheval-daemon.pid` checked at startup, SIGTERM-to-orphan if PID alive but socket dead
 
 ### Technical Tasks
 
@@ -77,22 +77,22 @@ Cycle-103 is a **stabilization-and-unification cycle**. The deliverable is struc
   > From prd.md §8.5.2 IMP-005; from sdd.md §10 Q2
 - [x] **T1.1** Benchmark `ChevalDelegateAdapter` spawn-per-call latency. Methodology: 50 sequential calls under (a) cold cache, (b) warm cache, (c) concurrent BB review pass shape. p95 ≤ 1000ms = GO for spawn-mode; >1000ms = GO for daemon-mode (T1.3). Commit raw measurements + decision to D1.1. → **[G-1]** — **DONE 2026-05-11; spawn-mode (worst p95=126ms)**
   > From sdd.md §7.4; PRD §8.5.1 IMP-002
-- [ ] **T1.2** Implement `ChevalDelegateAdapter` (`.claude/skills/bridgebuilder-review/resources/adapters/cheval-delegate.ts`) — spawn-mode. Implements `ILLMProvider`. Marshals `ReviewRequest` → cheval `CompletionRequest`. Translates cheval exit codes / stderr → `LLMProviderError` per §5.3 table. Adds `--mock-fixture-dir` passthrough (AC-1.2). Includes credential-handoff per AC-1.8. → **[G-1]**
+- [x] **T1.2** Implement `ChevalDelegateAdapter` (`.claude/skills/bridgebuilder-review/resources/adapters/cheval-delegate.ts`) — spawn-mode. Implements `ILLMProvider`. Marshals `ReviewRequest` → cheval `CompletionRequest`. Translates cheval exit codes / stderr → `LLMProviderError` per §5.3 table. Adds `--mock-fixture-dir` passthrough (AC-1.2). Includes credential-handoff per AC-1.8. → **[G-1]**
   > From sdd.md §1.4.1, §5.3
 - [~] **T1.3** ~~(Conditional on T1.1 p95 >1000ms) Implement cheval daemon mode~~ — **DESCOPED 2026-05-11 by T1.1 outcome.** Worst-case p95=126ms (~10× margin under 1000ms threshold). Daemon-mode is OUT OF SCOPE for Sprint 1; the SDD §5.2 protocol spec stays for cycle-104+ if a workload demands it. SDD §5.3 `mode?: "spawn" \| "daemon"` constructor option kept in TS types; T1.2 implements spawn-only. → **[G-1]**
   > From sdd.md §1.4.2, §5.2
-- [ ] **T1.4** Migrate `.claude/skills/bridgebuilder-review/resources/adapters/adapter-factory.ts` to always return delegate. Retire `anthropic.ts` / `openai.ts` / `google.ts` (mark deleted; preserve in git history per AC-1.5). → **[G-1]**
+- [x] **T1.4** Migrate `.claude/skills/bridgebuilder-review/resources/adapters/adapter-factory.ts` to always return delegate. Retire `anthropic.ts` / `openai.ts` / `google.ts` (mark deleted; preserve in git history per AC-1.5). → **[G-1]**
   > From sdd.md §2.1 (Removed in cycle-103)
-- [ ] **T1.5** AC-1.2 implementation — extend cheval CLI to accept `--mock-fixture-dir` flag (sdd.md §5.1 NEW). Port existing BB fixture HTTP mocks into the delegate. Apply normalization (timestamps, request IDs, usage fields) before structural compare (IMP-006). → **[G-1]**
+- [x] **T1.5** AC-1.2 implementation — extend cheval CLI to accept `--mock-fixture-dir` flag (sdd.md §5.1 NEW). Port existing BB fixture HTTP mocks into the delegate. Apply normalization (timestamps, request IDs, usage fields) before structural compare (IMP-006). → **[G-1]**
   > From prd.md §8.5.1 IMP-006
-- [ ] **T1.6** Enumerate direct-API call sites in `flatline-orchestrator.sh` + `flatline-*.sh`. Audit list documented in a sprint subordinate doc. Replace each with `model-invoke` shim. Remove dead code. → **[G-2]**
+- [x] **T1.6** Enumerate direct-API call sites in `flatline-orchestrator.sh` + `flatline-*.sh`. Audit list documented in a sprint subordinate doc. Replace each with `model-invoke` shim. Remove dead code. → **[G-2]**
   > From sdd.md §5.4 (AC-1.4 — collapse)
-- [ ] **T1.7** Implement `tools/check-no-direct-llm-fetch.sh`: rg scan of `.claude/skills/**/*.{ts,sh,py}` + `.claude/scripts/**/*.{sh,py}` for `api.anthropic.com|api.openai.com|generativelanguage.googleapis.com` outside delegate; extension list + shebang detection (cycle-099 sprint-1E.c.3.c precedent). Allowlist at `tools/check-no-direct-llm-fetch.allowlist` (mode 0644). `.github/workflows/no-direct-llm-fetch.yml` triggers on PR + push to main. → **[G-1, G-2]**
+- [x] **T1.7** Implement `tools/check-no-direct-llm-fetch.sh`: rg scan of `.claude/skills/**/*.{ts,sh,py}` + `.claude/scripts/**/*.{sh,py}` for `api.anthropic.com|api.openai.com|generativelanguage.googleapis.com` outside delegate; extension list + shebang detection (cycle-099 sprint-1E.c.3.c precedent). Allowlist at `tools/check-no-direct-llm-fetch.allowlist` (mode 0644). `.github/workflows/no-direct-llm-fetch.yml` triggers on PR + push to main. → **[G-1, G-2]**
   > From sdd.md §1.4.6, §7.3; PRD §8.5.1 IMP-010
-- [ ] **T1.8** Mark `entry.sh` NODE_OPTIONS Happy Eyeballs fix as vestigial — comment block citing AC-1.3 + cycle-104 removal TODO. Add bats test `tests/test_entry_sh_node_options_vestigial.bats` asserting comment-marker is present and removal is gated on cycle-104. → **[G-1]**
-- [ ] **T1.9** AC-1.6 verification — re-run BB cycle-1 + cycle-2 review on PR #844 (or a fresh test fixture if PR #844 already merged) via unified path. Record KF-008 outcome in `grimoires/loa/known-failures.md` attempts table. Update upstream #845 if vendor-side reproduces. → **[G-3]**
-- [ ] **T1.10** Author `grimoires/loa/runbooks/cheval-delegate-architecture.md` describing: BB → delegate flow, spawn vs daemon mode, escape hatch (`LOA_BB_FORCE_LEGACY_FETCH=1`), troubleshooting matrix. → **[G-1]**
-- [ ] **T1.11** Implement `LOA_BB_FORCE_LEGACY_FETCH=1` escape hatch in `cheval-delegate.ts` constructor — when set, throws clear "legacy fetch path requested but removed in cycle-103" error pointing operators to upstream issue (the path is removed code; the hatch surfaces a guided rollback prompt rather than restoring the path). Survives ≥1 full cycle (removed in cycle-104 only after operator-visible green signal). → **[G-1]**
+- [x] **T1.8** Mark `entry.sh` NODE_OPTIONS Happy Eyeballs fix as vestigial — comment block citing AC-1.3 + cycle-104 removal TODO. Add bats test `tests/test_entry_sh_node_options_vestigial.bats` asserting comment-marker is present and removal is gated on cycle-104. → **[G-1]**
+- [x] **T1.9** AC-1.6 verification — re-run BB cycle-1 + cycle-2 review on PR #844 (or a fresh test fixture if PR #844 already merged) via unified path. Record KF-008 outcome in `grimoires/loa/known-failures.md` attempts table. Update upstream #845 if vendor-side reproduces. → **[G-3]**
+- [x] **T1.10** Author `grimoires/loa/runbooks/cheval-delegate-architecture.md` describing: BB → delegate flow, spawn vs daemon mode, escape hatch (`LOA_BB_FORCE_LEGACY_FETCH=1`), troubleshooting matrix. → **[G-1]**
+- [x] **T1.11** Implement `LOA_BB_FORCE_LEGACY_FETCH=1` escape hatch in `cheval-delegate.ts` constructor — when set, throws clear "legacy fetch path requested but removed in cycle-103" error pointing operators to upstream issue (the path is removed code; the hatch surfaces a guided rollback prompt rather than restoring the path). Survives ≥1 full cycle (removed in cycle-104 only after operator-visible green signal). → **[G-1]**
   > From sdd.md §4.2 + prd.md §8.5.1 IMP-003
 
 ### Dependencies
