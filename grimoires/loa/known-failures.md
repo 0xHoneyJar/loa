@@ -398,7 +398,7 @@ again.
 
 ## KF-005: beads_rust 0.2.1 migration blocks task tracking
 
-**Status**: DEGRADED-ACCEPTED (markdown fallback) — **REGRESSION CONFIRMED 2026-05-11 at beads_rust 0.2.4 AND 0.2.6**: upgraded local install to 0.2.6 (current latest); migration still fails with identical `NOT NULL constraint failed: dirty_issues.marked_at`. The "fix landed in 0.2.2/0.2.3/0.2.4" claim from 2026-05-10 is not supported by empirical test; either the fix doesn't address dirty databases (only fresh init), or it was reverted, or it never landed. **Upstream needs reopen / fresh issue at latest version.** Markdown fallback remains canonical.
+**Status**: DEGRADED-ACCEPTED (markdown fallback) — **REGRESSION CONFIRMED 2026-05-11 at beads_rust 0.2.4 AND 0.2.6**: upgraded local install to 0.2.6 (current latest); migration still fails with identical `NOT NULL constraint failed: dirty_issues.marked_at`. The "fix landed in 0.2.2/0.2.3/0.2.4" claim from 2026-05-10 is not supported by empirical test; either the fix doesn't address dirty databases (only fresh init), or it was reverted, or it never landed. **Upstream filed**: [Dicklesworthstone/beads_rust#290](https://github.com/Dicklesworthstone/beads_rust/issues/290) (2026-05-11). Markdown fallback remains canonical.
 
 ### Upgrade path (verified 2026-05-10)
 
@@ -421,7 +421,7 @@ Loa #661 was closed upstream 2026-05-02; the schema-migration fix landed in 0.2.
 **First observed**: 2026-04 (multiple cycles)
 **Recurrence count**: many (every cycle since the bug landed; ~every sprint hits it)
 **Current workaround**: Markdown fallback per beads-preflight protocol — track sprint tasks in `grimoires/loa/cycles/<cycle>/sprint.md` checkboxes; record manual lifecycle in `grimoires/loa/a2a/<sprint>/reviewer.md` task tables. Skill `<beads_workflow>` sections gracefully degrade. Use `git commit --no-verify` per operator standing authorization to bypass beads pre-commit hooks.
-**Upstream issue**: [#661](https://github.com/0xHoneyJar/loa/issues/661)
+**Upstream issue**: [Dicklesworthstone/beads_rust#290](https://github.com/Dicklesworthstone/beads_rust/issues/290) (filed 2026-05-11 against 0.2.6) + downstream tracker [0xHoneyJar/loa#661](https://github.com/0xHoneyJar/loa/issues/661) (closed 2026-05-02; should be reopened with the regression evidence)
 **Related visions / lore**: not vision-class; pure operational degradation
 
 ### Attempts
