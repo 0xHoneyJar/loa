@@ -294,6 +294,17 @@ def emit_model_invoke_complete(
         # Sprint 4A: surface whether the streaming transport was used.
         # Default-derived from the env-var kill switch so callers don't have
         # to pass it explicitly. Caller may override for tests / dry-runs.
+        # cycle-103 T3.2 / AC-3.2: precedence is
+        #   1. caller-supplied `streaming` arg (read from adapter's
+        #      CompletionResult.metadata['streaming'] — the actual transport
+        #      observed at completion time).
+        #   2. env-derived `_streaming_active()` — fallback for legacy callers
+        #      that don't propagate the adapter's observation.
+        # The adapter override matters when an operator sets
+        # LOA_CHEVAL_DISABLE_STREAMING=1 mid-session: the env-derived value
+        # would record streaming=False for in-flight requests that actually
+        # ran via the streaming transport. The metadata override ties the
+        # audit record to the wire behavior, not the env state at emit time.
         "streaming": streaming if streaming is not None else _streaming_active(),
     }
     # Optional fields — only set when caller provides a value, so the

@@ -398,6 +398,9 @@ class GoogleAdapter(ProviderAdapter):
             finally:
                 latency_ms = int((time.monotonic() - start) * 1000)
 
+        # cycle-103 T3.2 / AC-3.2: streaming path → metadata['streaming']=True.
+        _meta = dict(result.metadata or {})
+        _meta["streaming"] = True
         return CompletionResult(
             content=result.content,
             tool_calls=result.tool_calls,
@@ -406,7 +409,7 @@ class GoogleAdapter(ProviderAdapter):
             model=result.model,
             latency_ms=latency_ms,
             provider=result.provider,
-            metadata=result.metadata,
+            metadata=_meta,
         )
 
     def _complete_deep_research(self, request, model_config):
@@ -461,6 +464,9 @@ class GoogleAdapter(ProviderAdapter):
                 source="actual" if usage_meta else "estimated",
             )
 
+            # cycle-103 T3.2 / AC-3.2: Deep Research is polling-completion,
+            # not streaming. Set streaming=False so the audit envelope
+            # records the actual transport, not the env-derived default.
             return CompletionResult(
                 content=content,
                 tool_calls=None,
@@ -470,6 +476,7 @@ class GoogleAdapter(ProviderAdapter):
                 latency_ms=latency_ms,
                 provider=self.provider,
                 interaction_id=interaction_id,
+                metadata={"streaming": False},
             )
 
     def create_interaction(self, request, model_config, store=False):
@@ -827,6 +834,8 @@ def _parse_response(resp, model_id, latency_ms, provider, model_config,
         usage.output_tokens,
     )
 
+    # cycle-103 T3.2 / AC-3.2: _parse_response is only called from the
+    # non-streaming standard path → streaming=False.
     return CompletionResult(
         content=content,
         tool_calls=None,  # Tool calls not supported in standard path yet
@@ -835,6 +844,7 @@ def _parse_response(resp, model_id, latency_ms, provider, model_config,
         model=model_id,
         latency_ms=latency_ms,
         provider=provider,
+        metadata={"streaming": False},
     )
 
 

@@ -160,6 +160,9 @@ class AnthropicAdapter(ProviderAdapter):
 
         latency_ms = int((time.monotonic() - start) * 1000)
         # Re-attach latency (the parser fills 0 when not passed).
+        # cycle-103 T3.2 / AC-3.2: set observed-transport flag for audit.
+        _meta = dict(result.metadata or {})
+        _meta["streaming"] = True
         return CompletionResult(
             content=result.content,
             tool_calls=result.tool_calls,
@@ -168,7 +171,7 @@ class AnthropicAdapter(ProviderAdapter):
             model=result.model,
             latency_ms=latency_ms,
             provider=result.provider,
-            metadata=result.metadata,
+            metadata=_meta,
         )
 
     def _complete_nonstreaming(
@@ -245,6 +248,7 @@ class AnthropicAdapter(ProviderAdapter):
             source="actual" if usage_data else "estimated",
         )
 
+        # cycle-103 T3.2 / AC-3.2: non-streaming path → metadata['streaming']=False.
         return CompletionResult(
             content=content,
             tool_calls=tool_calls if tool_calls else None,
@@ -253,6 +257,7 @@ class AnthropicAdapter(ProviderAdapter):
             model=resp.get("model", "unknown"),
             latency_ms=latency_ms,
             provider=self.provider,
+            metadata={"streaming": False},
         )
 
     def validate_config(self) -> List[str]:

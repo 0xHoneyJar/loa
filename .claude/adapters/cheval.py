@@ -478,6 +478,10 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         "operator_visible_warn": False,
         "invocation_latency_ms": None,
         "cost_micro_usd": None,
+        # cycle-103 T3.2 / AC-3.2: observed-streaming. None = adapter didn't
+        # report → emit falls back to env-derived value. True/False = actual
+        # transport observed on this call.
+        "streaming": None,
     }
 
     # Load input content (--prompt takes priority over --input/stdin)
@@ -694,6 +698,13 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             _cost = getattr(result, "cost_micro_usd", None)
             if _cost is not None:
                 _modelinv_state["cost_micro_usd"] = _cost
+            # cycle-103 T3.2 / AC-3.2: capture observed-transport flag from
+            # the adapter's CompletionResult metadata. Adapter is the source
+            # of truth for which transport actually ran; the env-derived
+            # default (LOA_CHEVAL_DISABLE_STREAMING) is the fallback only
+            # for callers that don't set the metadata field.
+            _result_meta = getattr(result, "metadata", None) or {}
+            _modelinv_state["streaming"] = _result_meta.get("streaming")
 
             # Output response to stdout (I/O contract: stdout = response only)
             if args.output_format == "json":
@@ -822,6 +833,8 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     capability_class=_modelinv_capability_class,
                     invocation_latency_ms=_modelinv_state["invocation_latency_ms"],
                     cost_micro_usd=_modelinv_state["cost_micro_usd"],
+                    # cycle-103 T3.2 / AC-3.2: pass observed-transport flag.
+                    streaming=_modelinv_state["streaming"],
                 )
             except _ModelinvRedactionFailure as _rf:
                 # Defense-in-depth gate rejected the payload: a secret shape

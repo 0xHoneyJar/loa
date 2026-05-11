@@ -198,6 +198,9 @@ class OpenAIAdapter(ProviderAdapter):
                 ) from parse_err
 
         latency_ms = int((time.monotonic() - start) * 1000)
+        # cycle-103 T3.2 / AC-3.2: set observed-transport flag for audit.
+        _meta = dict(result.metadata or {})
+        _meta["streaming"] = True
         return CompletionResult(
             content=result.content,
             tool_calls=result.tool_calls,
@@ -206,7 +209,7 @@ class OpenAIAdapter(ProviderAdapter):
             model=result.model,
             latency_ms=latency_ms,
             provider=result.provider,
-            metadata=result.metadata,
+            metadata=_meta,
         )
 
     def _complete_nonstreaming(
@@ -544,7 +547,8 @@ class OpenAIAdapter(ProviderAdapter):
             model=resp.get("model", "unknown"),
             latency_ms=latency_ms,
             provider=self.provider,
-            metadata=metadata,
+            # cycle-103 T3.2 / AC-3.2: non-streaming path → streaming=False.
+            metadata={**metadata, "streaming": False},
         )
 
     def _unknown_shape_policy(self) -> str:
