@@ -565,7 +565,12 @@ When a workaround promotes to a structural fix:
 
 **Status**: OPEN — observed on 2026-05-11 during Sprint 4A post-merge BB
 test run; distinct from KF-001 (which was Happy Eyeballs pre-handshake;
-that fix held — Anthropic worked fine in today's runs)
+that fix held — Anthropic worked fine in today's runs). **Root cause
+isolated 2026-05-11 (cycle-103 T1.0 spike)**: failure is confined to BB
+Node `fetch` adapter; cheval Python `httpx` does **not** reproduce at
+172/250/318/400KB. Resolution path: cycle-103 Sprint 1 T1.2/T1.4 migrates
+BB Google adapter to the cheval delegate. Anticipated closure:
+post-Sprint-1 merge.
 
 **Feature**: `/bridgebuilder` Google provider via
 `.claude/skills/bridgebuilder-review/resources/adapters/google` (Node fetch
@@ -619,6 +624,7 @@ infrastructure articulating its own failure mode AGAIN).
 | 2026-05-11 ~05:55Z | Live BB run on the same PR #844 (~25 min after first observation) | OBSERVED AGAIN — Google failed 3/3 at request_size=302623B (slightly larger body — same PR, same SHA, but the second-pass enrichment context grew). Google then **succeeded** on the same invocation against PR #804 (91s, 1311 in / 475 out) and PR #841 (20s, 5912 in / 590 out) — ruling out network outage or account-level rate limit. The failure is body-size dependent. | Run `bridgebuilder-20260511T055522-9aea`; PR #844 has BB consensus from anthropic+openai only (3 of 4 expected comments posted); PR #841 + PR #804 each got all 4 comments. |
 | 2026-05-11 ~06:42Z | BB cycle-2 run on PR #844 only (post Sprint 4A cycle-3 commits) | OBSERVED THIRD TIME — Google failed 3/3 at request_size=317766B (body grew further as cycle-3 added more files to the diff). Anthropic + OpenAI succeeded at 125KB + 78KB in the same invocation. **Recurrence-≥3 gate triggered.** | Run `bridgebuilder-20260511T064222-2e83`; PR #844 cycle-2 consensus comment (`https://github.com/0xHoneyJar/loa/pull/844#issuecomment-...`); upstream issue [#845](https://github.com/0xHoneyJar/loa/issues/845) filed with hypotheses + investigation paths. |
 | 2026-05-11 ~07:00Z | File upstream issue [#845](https://github.com/0xHoneyJar/loa/issues/845) per ledger discipline | DONE — upstream issue covers all three observations, distinguishes from KF-001, lists 4 hypotheses (Loa adapter config, Google API gateway, provider rate-limit-as-RST, Node 20 undici bug), and proposes 4 investigation paths (direct curl, adapter diff, body-size bisection, mobile-hotspot repro). | https://github.com/0xHoneyJar/loa/issues/845 |
+| 2026-05-11 ~09:35Z | **Cycle-103 T1.0 spike** — `cheval` Python `httpx` against `generativelanguage.googleapis.com` at 172KB / 250KB / 318KB / 400KB (model `gemini-3.1-pro-preview`, n=1 per size). Tests hypothesis #1 from #845: is the failure adapter-config-specific (Node fetch) vs. provider-side? | **DID NOT REPRODUCE — adapter-isolated** — all four trials exit 0 with completed HTTPS round-trip. No `SocketError: other side closed`. KF-008 confined to BB Node `fetch` (undici default agent / HTTP/1.1 keep-alive behavior); not a server-side body-size limit. Closure path: cycle-103 Sprint 1 T1.2/T1.4 migrates BB Google adapter → cheval delegate. Secondary finding (out of KF-008 scope, into KF-002): all four trials hit `finish_reason=MAX_TOKENS` truncation pressure — KF-002 layer-2 territory, Sprint 2 charter. | `grimoires/loa/cycles/cycle-103-provider-unification/handoffs/httpx-large-body-spike.md` + `httpx-large-body-spike-results.jsonl` + `httpx-large-body-spike.py` |
 | not tried | Reproduce with smaller diff (split PR #844 into 2-3 smaller PRs) | — | proposed in #845: would identify whether the failure threshold is at ~150KB / 200KB / 250KB / 290KB |
 | not tried | Reproduce on a different network (mobile hotspot vs home/office) | — | proposed in #845: would distinguish operator-machine-network vs upstream provider |
 | not tried | Direct curl POST of the same ~300KB body to `streamGenerateContent` | — | proposed in #845: would isolate Node fetch vs upstream behavior. Three independent observations at ~300KB on the SAME PR within ~70 min strongly suggest the threshold is body-size-related, not transient. |

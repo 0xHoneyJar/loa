@@ -49,7 +49,7 @@ Cycle-103 is a **stabilization-and-unification cycle**. The deliverable is struc
 
 - [ ] **D1.1** Sprint 1 perf-bench report at `grimoires/loa/cycles/cycle-103-provider-unification/handoffs/spawn-vs-daemon-benchmark.md` documenting p95 latency under (a) cold cache, (b) warm cache, (c) concurrent BB review pass shape (IMP-002 from prd.md §8.5.1)
 - [ ] **D1.2** `cheval-delegate.contract.md` runbook (versioned IPC contract) at `grimoires/loa/runbooks/cheval-delegate.contract.md` with: (a) CLI invocation spec, (b) stdin/stdout JSON Schema, (c) exit-code table with retry-eligibility per code (IMP-001)
-- [ ] **D1.3** Pre-implementation httpx large-body spike report (172KB → 250KB → 318KB → 400KB) at `grimoires/loa/cycles/cycle-103-provider-unification/handoffs/httpx-large-body-spike.md` — FIRST commit on cycle-103 branch (IMP-005)
+- [x] **D1.3** Pre-implementation httpx large-body spike report (172KB → 250KB → 318KB → 400KB) at `grimoires/loa/cycles/cycle-103-provider-unification/handoffs/httpx-large-body-spike.md` — FIRST commit on cycle-103 branch (IMP-005) — **DONE 2026-05-11; routes (a)**
 - [ ] **D1.4** `ChevalDelegateAdapter` (TS) implementing `ILLMProvider` port — spawn-mode and (conditionally) daemon-mode
 - [ ] **D1.5** BB `adapter-factory.ts` collapsed to single delegate; `anthropic.ts` / `openai.ts` / `google.ts` retired
 - [ ] **D1.6** `flatline-*.sh` direct-API call sites enumerated and replaced with `model-invoke`
@@ -60,7 +60,7 @@ Cycle-103 is a **stabilization-and-unification cycle**. The deliverable is struc
 
 ### Acceptance Criteria
 
-- [ ] **AC-1.0** (NEW, IMP-005) Pre-implementation httpx large-body spike completes BEFORE T1.2; outcome documented and routes Sprint 1: (a) httpx handles 400KB → unification trivially closes KF-008 (best case), (b) httpx hits threshold → KF-008 is vendor-side, cycle-103 ships unification + documented operator workaround
+- [x] **AC-1.0** (NEW, IMP-005) Pre-implementation httpx large-body spike completes BEFORE T1.2; outcome documented and routes Sprint 1: (a) httpx handles 400KB → unification trivially closes KF-008 (best case), (b) httpx hits threshold → KF-008 is vendor-side, cycle-103 ships unification + documented operator workaround — **ROUTED (a) 2026-05-11**: cheval Python httpx exit 0 at all 172/250/318/400KB; KF-008 isolated to BB Node fetch; full Sprint 1 scope proceeds
 - [ ] **AC-1.1** BB invokes cheval for provider calls. `adapters/anthropic.ts`, `adapters/openai.ts`, `adapters/google.ts` replaced with `adapters/cheval-delegate.ts`. IPC contract MUST be defined (D1.2) before adapter code lands
 - [ ] **AC-1.2** All three TS adapter test suites under `.claude/skills/bridgebuilder-review/resources/__tests__/` pass against the new delegate using mocked-fixture comparisons (`--mock-fixture-dir`). Byte-equal comparison on live model output is forbidden (IMP-006). Structural assertion targets `result.content` + `result.finish_reason` + typed error category (from Sprint 3 AC-3.1)
 - [ ] **AC-1.3** KF-001 NODE_OPTIONS fix marked vestigial in `entry.sh` (comment + cycle-104 removal TODO)
@@ -73,7 +73,7 @@ Cycle-103 is a **stabilization-and-unification cycle**. The deliverable is struc
 
 ### Technical Tasks
 
-- [ ] **T1.0** Pre-implementation httpx large-body spike — invoke cheval Python httpx against Google `generativelanguage` API at 172KB / 250KB / 318KB / 400KB reproducing BB KF-008 scenario. Result is FIRST commit on cycle-103 branch. → **[G-1, G-3]**
+- [x] **T1.0** Pre-implementation httpx large-body spike — invoke cheval Python httpx against Google `generativelanguage` API at 172KB / 250KB / 318KB / 400KB reproducing BB KF-008 scenario. Result is FIRST commit on cycle-103 branch. → **[G-1, G-3]** — **DONE 2026-05-11**
   > From prd.md §8.5.2 IMP-005; from sdd.md §10 Q2
 - [ ] **T1.1** Benchmark `ChevalDelegateAdapter` spawn-per-call latency. Methodology: 50 sequential calls under (a) cold cache, (b) warm cache, (c) concurrent BB review pass shape. p95 ≤ 1000ms = GO for spawn-mode; >1000ms = GO for daemon-mode (T1.3). Commit raw measurements + decision to D1.1. → **[G-1]**
   > From sdd.md §7.4; PRD §8.5.1 IMP-002
