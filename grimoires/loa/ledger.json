@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-102-model-stability",
+  "active_cycle": "cycle-103-provider-unification",
   "cycles": [
     {
       "id": "cycle-036",
@@ -997,7 +997,7 @@
     {
       "id": "cycle-102-model-stability",
       "label": "Loa Model-Integration FAANG-Grade Stabilization",
-      "status": "active",
+      "status": "archived",
       "created": "2026-05-08T16:10:31Z",
       "prd": "grimoires/loa/cycles/cycle-102-model-stability/prd.md",
       "sdd": "grimoires/loa/cycles/cycle-102-model-stability/sdd.md",
@@ -1054,7 +1054,51 @@
         }
       ],
       "thesis": "Silent degradation is the bug. Every model failure must be (typed → operator-visible → graceful-fallback-with-WARN). Rollback is a workaround with a deadline.",
-      "vision_source": "grimoires/loa/visions/entries/vision-019.md"
+      "vision_source": "grimoires/loa/visions/entries/vision-019.md",
+      "archived": "2026-05-11T09:12:26Z",
+      "archive_path": "grimoires/loa/cycles/cycle-102-model-stability/"
+    },
+    {
+      "id": "cycle-103-provider-unification",
+      "label": "Provider Boundary Unification — collapse 3 HTTP boundaries to cheval substrate",
+      "status": "active",
+      "created": "2026-05-11T09:12:26Z",
+      "prd": "grimoires/loa/cycles/cycle-103-provider-unification/prd.md",
+      "sdd": "grimoires/loa/cycles/cycle-103-provider-unification/sdd.md",
+      "sprint_plan": "grimoires/loa/cycles/cycle-103-provider-unification/sprint.md",
+      "source_issues": [
+        "https://github.com/0xHoneyJar/loa/issues/843",
+        "https://github.com/0xHoneyJar/loa/issues/823",
+        "https://github.com/0xHoneyJar/loa/issues/845"
+      ],
+      "predecessor_cycle": "cycle-102-model-stability",
+      "cycle_folder": "grimoires/loa/cycles/cycle-103-provider-unification/",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 148,
+          "label": "Provider Boundary Unification",
+          "status": "pending",
+          "scope": "LARGE",
+          "tasks": 12
+        },
+        {
+          "local_id": 2,
+          "global_id": 149,
+          "label": "KF-002 Layer 2 Structural",
+          "status": "pending",
+          "scope": "SMALL",
+          "tasks": 3
+        },
+        {
+          "local_id": 3,
+          "global_id": 150,
+          "label": "Sprint 4A Carry-Forwards Consolidation",
+          "status": "pending",
+          "scope": "LARGE",
+          "tasks": 9
+        }
+      ]
     }
   ],
   "global_sprint_counter": 143,
@@ -1241,5 +1285,5 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 148
+  "next_sprint_number": 151
 }
