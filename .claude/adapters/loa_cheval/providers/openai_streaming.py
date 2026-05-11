@@ -27,6 +27,12 @@ import json
 import logging
 from typing import Any, Dict, Iterator, List, Optional
 
+from loa_cheval.providers.streaming_caps import (
+    MAX_ARGS_PART_BYTES,
+    MAX_TEXT_PART_BYTES,
+    accumulate_capped,
+    check_buffer_cap,
+)
 from loa_cheval.types import CompletionResult, Usage
 
 logger = logging.getLogger("loa_cheval.providers.openai_streaming")
@@ -114,12 +120,16 @@ def parse_openai_chat_stream(
         # Text content
         content = delta.get("content")
         if content:
-            text_parts.append(content)
+            accumulate_capped(
+                text_parts, content, cap=MAX_TEXT_PART_BYTES, kind="text"
+            )
 
         # Refusal (Responses API style; rare on /chat/completions but possible)
         refusal = delta.get("refusal")
         if refusal:
-            text_parts.append(refusal)
+            accumulate_capped(
+                text_parts, refusal, cap=MAX_TEXT_PART_BYTES, kind="refusal"
+            )
 
         # Tool calls
         for tc in delta.get("tool_calls", []) or []:
@@ -133,7 +143,12 @@ def parse_openai_chat_stream(
             if fn.get("name"):
                 entry["name"] = fn["name"]
             if fn.get("arguments") is not None:
-                entry["arguments_parts"].append(fn["arguments"])
+                accumulate_capped(
+                    entry["arguments_parts"],
+                    fn["arguments"],
+                    cap=MAX_ARGS_PART_BYTES,
+                    kind="arguments",
+                )
 
     content = "".join(text_parts)
 
@@ -211,6 +226,7 @@ def _iter_sse_events_raw_data(byte_iter: Iterator[bytes]):
         if not chunk:
             continue
         buffer += chunk
+        check_buffer_cap(len(buffer))
         while True:
             sep_idx = -1
             sep_len = 0
@@ -364,31 +380,52 @@ def parse_openai_responses_stream(
                 # Sometimes initial `arguments` is present (rare).
                 init_args = item.get("arguments")
                 if init_args:
-                    entry["arguments_parts"].append(init_args)
+                    accumulate_capped(
+                        entry["arguments_parts"],
+                        init_args,
+                        cap=MAX_ARGS_PART_BYTES,
+                        kind="arguments",
+                    )
             items_by_id[item_id] = entry
 
         elif ev_type == "response.output_text.delta":
             item_id = data.get("item_id")
             if item_id and item_id in items_by_id:
-                items_by_id[item_id]["text_parts"].append(data.get("delta", "") or "")
+                accumulate_capped(
+                    items_by_id[item_id]["text_parts"],
+                    data.get("delta", "") or "",
+                    cap=MAX_TEXT_PART_BYTES,
+                    kind="text",
+                )
 
         elif ev_type == "response.refusal.delta":
             item_id = data.get("item_id")
             if item_id and item_id in items_by_id:
-                items_by_id[item_id]["refusal_parts"].append(data.get("delta", "") or "")
+                accumulate_capped(
+                    items_by_id[item_id]["refusal_parts"],
+                    data.get("delta", "") or "",
+                    cap=MAX_TEXT_PART_BYTES,
+                    kind="refusal",
+                )
 
         elif ev_type == "response.function_call_arguments.delta":
             item_id = data.get("item_id")
             if item_id and item_id in items_by_id:
-                items_by_id[item_id]["arguments_parts"].append(
-                    data.get("delta", "") or ""
+                accumulate_capped(
+                    items_by_id[item_id]["arguments_parts"],
+                    data.get("delta", "") or "",
+                    cap=MAX_ARGS_PART_BYTES,
+                    kind="arguments",
                 )
 
         elif ev_type == "response.reasoning_summary_text.delta":
             item_id = data.get("item_id")
             if item_id and item_id in items_by_id:
-                items_by_id[item_id]["summary_text_parts"].append(
-                    data.get("delta", "") or ""
+                accumulate_capped(
+                    items_by_id[item_id]["summary_text_parts"],
+                    data.get("delta", "") or "",
+                    cap=MAX_TEXT_PART_BYTES,
+                    kind="reasoning_summary",
                 )
 
         elif ev_type == "response.completed":

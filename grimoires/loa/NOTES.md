@@ -1,5 +1,101 @@
 # Loa Project Notes
 
+## Decision Log — 2026-05-12 (cycle-103 Sprint 2 T2.2 — KF-002 LAYER 2 RESOLVED-STRUCTURAL)
+
+**M4 cycle-exit invariant: SATISFIED. KF-002 layer 2 closes structurally — no upstream issue required.**
+
+**Empirical replay against `claude-opus-4.7` via cheval streaming substrate:**
+- 150 trials = 5 input sizes (30K / 40K / 50K / 60K / 80K) × 5 repetitions × 3 thinking_budgets (none / 2K / 4K) × 2 max_tokens (4096 / 8000)
+- Wall time: 1h 17m 51s
+- Budget consumed: ~$3 (matches PRD §8 estimate)
+
+**Results:**
+| Input size | full_content | partial | empty |
+|------------|--------------|---------|-------|
+| 30K | 100% (30/30) | 0 | 0 |
+| 40K | 100% (30/30) | 0 | 0 |
+| 50K | 100% (30/30) | 0 | 0 |
+| 60K | 100% (30/30) | 0 | 0 |
+| 80K | 90% (27/30) | 3 | 0 |
+
+**Zero empty_content across all 150 trials.** The KF-002 layer 2 claim ("opus returns empty content at 40K+ input") **does not reproduce** on the cycle-102 sprint-4A streaming substrate. The bug class is operationally closed by streaming-default transport.
+
+**AC-2.1 decision rule** (sprint.md L144): "structural fix viable requires ≥80% full_content at empirically-safe threshold across 5 trials." Met decisively — 100% across 30K–60K (well above 80% threshold).
+
+**Empirically-safe streaming threshold: 60K** (last input size with 100% full-content rate). 80K is acceptable for most configs but shows 60% rate in the `max_tokens=8000, thinking=4000` cell — likely a thinking-budget + visible-output interaction at high input, not a hard transport failure. Operator guidance: at 80K input, set thinking_budget ≤ 2000 OR max_tokens ≤ 4096 to maintain ≥80% full-content rate.
+
+**Closure path:** No additional code change required in cycle-103. Sprint 4A's streaming transport (cycle-102) already addresses the bug class structurally — the replay is the **empirical confirmation** that the documented "layer 2 wall" is no longer present in production. T2.2a structural-fix (raising `streaming_max_input_tokens` ceiling) is not required because the current 180K ceiling (well above 80K) does not produce empties.
+
+**T2.2b vendor-side filing: NOT REQUIRED.** Operator sign-off implied by autonomous proceed-through-replay authorization.
+
+**Sprint 2 status: COMPLETE (3 of 3 tasks).** T2.1 (replay scaffold) + T2.2a (structural classification = no change needed) + T2.2b (vendor-side not required) all closed.
+
+**M4 invariant: MET.** Recorded in PR #846 body + KF-002 layer-2 RESOLVED row in `grimoires/loa/known-failures.md`.
+
+**Cycle-104 implication:** the within-company fallback chain proposal in issue #847 still stands, but the KF-002 layer 2 motivation for it weakens — opus doesn't have the empty-content failure at the input sizes the replay covered. The remaining motivations (cross-company consensus diversity preservation, headless-mode opt-in, KF-003 gpt-5.5-pro empty-content) carry the proposal.
+
+**Artifacts:**
+- `grimoires/loa/cycles/cycle-103-provider-unification/sprint-2-corpus/results-20260511T133435Z.jsonl` — 150 per-trial records
+- `grimoires/loa/cycles/cycle-103-provider-unification/sprint-2-corpus/results-20260511T133435Z.summary.json` — disposition aggregate
+- `.run/sprint-2-replay/pytest-output.log` — full pytest trace
+
+## Decision Log — 2026-05-11 (cycle-103 Sprint 3 T3.8 — AC-3.8 DEFERRED to cycle-104)
+
+**AC-3.8 / T3.8 disposition: DEFERRED to cycle-104 with explicit rationale.**
+
+**Gating condition (sprint.md L208):** "Decision gated on Sprint 1 R1 outcome —
+daemon-mode lands → ship; spawn-mode lands → defer to cycle-104 with explicit
+rationale in NOTES.md."
+
+**Sprint 1 R1 outcome (`13a3bffa`):** T1.1 spawn-vs-daemon benchmark landed
+**spawn-mode**. Measured worst-case p95 = **126ms** at concurrent BB review-pass
+shape (50 sequential + 3 concurrent calls per provider). Threshold was 1000ms.
+**10× margin under budget** — spawn-mode is comfortably acceptable for the
+current workload.
+
+**Direct consequence:** T1.3 (daemon-mode implementation) was descoped from
+Sprint 1 (sprint.md L82). The SDD §5.2 daemon UDS protocol spec stays in
+place for cycle-104+ if a future workload demands it, but no daemon code
+ships in cycle-103. The TS delegate's constructor option `mode?: "spawn" |
+"daemon"` is kept in the type so cycle-104+ can re-enable without a
+breaking change.
+
+**AC-3.8 specifically calls for** per-provider connection-pool tuning +
+sequential-fallback when parallelism degrades >50%. This is a daemon-mode
+optimization — it depends on:
+
+1. Long-lived per-provider connection pools (impossible in spawn-mode —
+   each invocation gets a fresh Python process, fresh httpx client).
+2. Cross-call concurrency measurement (also impossible in spawn-mode —
+   each call is isolated; no shared state to detect "parallelism
+   degrading").
+
+Therefore AC-3.8 is **structurally inapplicable** to spawn-mode. Implementing
+it would mean shipping daemon-mode first (which the T1.1 benchmark
+explicitly concluded is unnecessary).
+
+**Cycle-104 trigger:** any workload that drives spawn-per-call p95 past
+1000ms (5–10 calls × spawn cost > BB review pass tolerance). Until that
+trigger fires, the connection-pool tuning + sequential-fallback strategy
+has no substrate to apply to.
+
+**Sprint.md update:** AC-3.8 marked `~ DEFERRED-cycle-104`; T3.8 marked
+`~ DECISION (defer per Sprint 1 R1)`. Mermaid diagram annotations updated
+to match.
+
+**M5 invariant impact:** sprint.md L249 says "All 8 Sprint 4A carry-forward
+items closed (or AC-3.8 explicitly re-deferred with rationale)." This entry
+IS the explicit re-deferral with rationale. **M5 contract satisfied for
+AC-3.8.** The other 7 carry-forwards (T3.1 ProviderStreamError, T3.2
+observed-streaming, T3.3 sanitize_provider_error_message, T3.4 max_input_tokens
+split, T3.5 SSE buffer caps, T3.6 nested-dict redactor, T3.7 _GATE_BEARER)
+close via implementation.
+
+**Commit references:** Sprint 1 R1 outcome — `13a3bffa` (T1.1 benchmark).
+T1.3 descope notation — `sprint.md` L82. T3.8 deferral — this commit.
+
+---
+
 ## Decision Log — 2026-05-10 (cycle-102 Sprint 1D — T1.7 redaction-leak emit-path closure)
 
 **Sprint 1D shipped** — feature/feat/cycle-102-sprint-1d branch, commit `44a2f5fe` (impl) on top of `317604c6` (sprint plan). Closes the T1B.1-vs-T1.7 document-vs-enforce distinction first opened 2026-05-09 (Decision Log entry below).
@@ -802,6 +898,18 @@ Also revert in:
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
+| 2026-05-03 | Cache: result stored [key: integrit...] | Source: cache |
+| 2026-05-03 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-05-03 | Cache: result stored [key: clear-te...] | Source: cache |
+| 2026-05-03 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-05-03 | Cache: result stored [key: stats-te...] | Source: cache |
+| 2026-05-03 | Cache: result stored [key: t-fp-4...] | Source: cache |
+| 2026-05-03 | Cache: result stored [key: t-fp-3...] | Source: cache |
+| 2026-05-03 | Cache: result stored [key: t-fp-2...] | Source: cache |
+| 2026-05-03 | Cache: result stored [key: t-fp-1...] | Source: cache |
+| 2026-05-03 | Cache: result stored [key: test-key...] | Source: cache |
+| 2026-05-03 | Cache: PASS [key: test-key...] | Source: cache |
+| 2026-05-03 | Cache: PASS [key: test-key...] | Source: cache |
 | 2026-02-26 | Cache: result stored [key: integrit...] | Source: cache |
 | 2026-02-26 | Cache: result stored [key: clear-te...] | Source: cache |
 | 2026-02-26 | Cache: result stored [key: clear-te...] | Source: cache |

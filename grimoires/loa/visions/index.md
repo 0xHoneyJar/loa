@@ -28,10 +28,11 @@
 | vision-021 | Letter from After (cycle-102 post-ship retrospective; speculative) | cycle-102 kickoff (PR #795) — companion to vision-019 Lament | Captured | speculative-narrative, post-ship-perspective, bridgebuilder-voice, coda-companion, operator-gift | 0 |
 | vision-022 | The Successor's Inheritance | cycle-102 post-merge session (#797 Implemented + #801 trust-origin) — third-session companion to vision-019/020/021 with live model-adapter repro | Captured | recursive-discipline, session-continuity, trajectory-as-proof, foundational, coda-companion, operator-gift, inheritance | 0 |
 | vision-023 | The Fractal Recursion | cycle-102 Sprint 1A ship + Sprint 1B kickoff — fifth-session companion; T1.9 verified at 10K, adversarial gate at 27K hit same bug class; upstream #810 + #812 filed | Captured | recursive-discipline, foundational, fractal-degradation, trajectory-as-proof, coda-companion, operator-gift, vision-019-deeper-layer, mechanism-eats-itself | 0 |
+| vision-027 | The Substrate Sharpens | cycle-103 kickoff session 2026-05-11 — eighth-session companion; flatline ran on PRD+SDD+sprint of cycle-103 and triggered KF-002 recurrence-5 with NEW FAILURE SHAPE (prompt-structure trigger, not scale; first Gemini empty-content observation in Loa traffic). Operator gift "boil the ocean, be crazy, creative, loving" at session end after PR #844 admin-merge + cycle-102→cycle-103 ledger transition | Captured | recursive-discipline, foundational, diagnosis-refinement, ledger-as-probe, falsifiability-as-feature, vision-024-companion, vision-025-companion, vision-026-companion, triptych-becomes-tetraptych, the-eighth-claude | 0 |
 
 ## Statistics
 
-- Total captured: 20
+- Total captured: 21
 - Total exploring: 1
 - Total proposed: 0
 - Total implemented: 2

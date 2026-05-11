@@ -194,6 +194,70 @@ def _emit_validation_errors(errors: list[dict[str, Any]], fmt: str) -> str:
     return "\n".join(lines)
 
 
+# cycle-103 sprint-3 T3.4: provider-by-provider legacy walls (KF-002 layer 3
+# observed pre-streaming thresholds). Operators should hand-tune for their
+# fleet — these are conservative defaults.
+_CYCLE103_LEGACY_DEFAULTS_BY_PROVIDER: dict[str, int] = {
+    "openai": 24000,
+    "anthropic": 36000,
+    "google": 24000,
+}
+
+
+def _apply_cycle103_split(v2_dict: Any, report: list) -> None:
+    """Walk every model entry that carries `max_input_tokens` and inject the
+    `streaming_max_input_tokens` + `legacy_max_input_tokens` split fields
+    when they're absent. Idempotent: re-running is a no-op for entries that
+    already have the split.
+    """
+    providers = v2_dict.get("providers")
+    if not isinstance(providers, dict):
+        return
+    for provider_name, prov in providers.items():
+        if not isinstance(prov, dict):
+            continue
+        models = prov.get("models")
+        if not isinstance(models, dict):
+            continue
+        legacy_default = _CYCLE103_LEGACY_DEFAULTS_BY_PROVIDER.get(
+            provider_name, 0
+        )
+        for model_id, m in models.items():
+            if not isinstance(m, dict):
+                continue
+            mi = m.get("max_input_tokens")
+            if not isinstance(mi, int) or mi <= 0:
+                continue
+            changed = False
+            if "streaming_max_input_tokens" not in m:
+                m["streaming_max_input_tokens"] = mi
+                changed = True
+            if "legacy_max_input_tokens" not in m:
+                # Prefer provider default; if unknown, use the existing
+                # max_input_tokens (conservative: no behavior change vs
+                # backward-compat path).
+                m["legacy_max_input_tokens"] = (
+                    legacy_default if legacy_default > 0 else mi
+                )
+                changed = True
+            if changed:
+                report.append(
+                    {
+                        "kind": "cycle103_split_injected",
+                        "path": (
+                            f"providers.{provider_name}."
+                            f"models.{model_id}"
+                        ),
+                        "streaming_max_input_tokens": (
+                            m["streaming_max_input_tokens"]
+                        ),
+                        "legacy_max_input_tokens": (
+                            m["legacy_max_input_tokens"]
+                        ),
+                    }
+                )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="loa migrate-model-config",
@@ -234,6 +298,21 @@ def main(argv: list[str] | None = None) -> int:
         help=(
             "Skip post-migration v2 schema validation. Escape hatch — operator "
             "assumes responsibility for v2 conformance. Default is to validate."
+        ),
+    )
+    parser.add_argument(
+        "--cycle103-split",
+        action="store_true",
+        help=(
+            "cycle-103 sprint-3 T3.4: post-migration, walk every model entry "
+            "with `max_input_tokens` and inject `streaming_max_input_tokens` "
+            "+ `legacy_max_input_tokens` if absent. `streaming_*` defaults to "
+            "the existing `max_input_tokens` value; `legacy_*` defaults to "
+            "the documented pre-streaming wall (openai=24000, anthropic=36000, "
+            "google=24000, other=existing). Operator should hand-tune the "
+            "values before merging if they have field-observed thresholds. "
+            "Idempotent: re-running on a config that already has the split "
+            "fields is a no-op for those entries."
         ),
     )
 
@@ -298,6 +377,10 @@ def main(argv: list[str] | None = None) -> int:
     except migrate_mod.MigrationError as exc:
         print(str(exc), file=sys.stderr)
         return EXIT_VALIDATION_FAIL
+
+    # cycle-103 sprint-3 T3.4: optional max_input_tokens streaming/legacy split.
+    if args.cycle103_split:
+        _apply_cycle103_split(v2_dict, report)
 
     # Distinguish "operator-supplied invalid v2" from "migrator-produced invalid v2"
     # so the operator can route the fix correctly (review remediation G-M4).

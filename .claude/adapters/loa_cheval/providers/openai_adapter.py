@@ -33,10 +33,12 @@ from loa_cheval.types import (
     InvalidConfigError,
     InvalidInputError,
     ModelConfig,
+    ProviderStreamError,
     ProviderUnavailableError,
     RateLimitError,
     UnsupportedResponseShapeError,
     Usage,
+    dispatch_provider_stream_error,
 )
 
 logger = logging.getLogger("loa_cheval.providers.openai")
@@ -192,12 +194,25 @@ class OpenAIAdapter(ProviderAdapter):
                     result = parse_openai_chat_stream(
                         resp.iter_bytes(), provider=self.provider
                     )
+            except ProviderStreamError as stream_err:
+                # T3.5 / AC-3.5: dispatch SSE buffer + accumulator cap
+                # exhaustion through T3.1's table → typed exception.
+                raise dispatch_provider_stream_error(
+                    stream_err, provider=self.provider
+                ) from stream_err
             except ValueError as parse_err:
+                # T3.3 / AC-3.3: sanitize upstream-derived parse_err message.
+                from loa_cheval.redaction import sanitize_provider_error_message
                 raise InvalidInputError(
-                    f"OpenAI streaming error: {parse_err}"
+                    sanitize_provider_error_message(
+                        f"OpenAI streaming error: {parse_err}"
+                    )
                 ) from parse_err
 
         latency_ms = int((time.monotonic() - start) * 1000)
+        # cycle-103 T3.2 / AC-3.2: set observed-transport flag for audit.
+        _meta = dict(result.metadata or {})
+        _meta["streaming"] = True
         return CompletionResult(
             content=result.content,
             tool_calls=result.tool_calls,
@@ -206,7 +221,7 @@ class OpenAIAdapter(ProviderAdapter):
             model=result.model,
             latency_ms=latency_ms,
             provider=result.provider,
-            metadata=result.metadata,
+            metadata=_meta,
         )
 
     def _complete_nonstreaming(
@@ -544,7 +559,8 @@ class OpenAIAdapter(ProviderAdapter):
             model=resp.get("model", "unknown"),
             latency_ms=latency_ms,
             provider=self.provider,
-            metadata=metadata,
+            # cycle-103 T3.2 / AC-3.2: non-streaming path → streaming=False.
+            metadata={**metadata, "streaming": False},
         )
 
     def _unknown_shape_policy(self) -> str:
@@ -696,10 +712,19 @@ def _normalize_tool_calls(raw_calls: List[Dict[str, Any]]) -> List[Dict[str, Any
 
 
 def _extract_error_message(resp: Dict[str, Any]) -> str:
-    """Extract error message from OpenAI error response."""
+    """Extract error message from OpenAI error response.
+
+    cycle-103 T3.3 / AC-3.3: return value is sanitized via
+    `sanitize_provider_error_message` (secret-shape redaction).
+    """
+    from loa_cheval.redaction import sanitize_provider_error_message
+
     if isinstance(resp, dict):
         error = resp.get("error", {})
         if isinstance(error, dict):
-            return error.get("message", str(resp))
-        return str(error)
-    return str(resp)
+            raw = error.get("message", str(resp))
+        else:
+            raw = str(error)
+    else:
+        raw = str(resp)
+    return sanitize_provider_error_message(raw)

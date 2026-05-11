@@ -54,6 +54,12 @@ if [[ -f "$SCRIPT_DIR/lib-security.sh" ]]; then
     source "$SCRIPT_DIR/lib-security.sh"
 fi
 
+# cycle-103 T1.6 / AC-1.4 — route LLM calls through model-invoke (cheval).
+# shellcheck source=lib-curl-fallback.sh
+if [[ -f "$SCRIPT_DIR/lib-curl-fallback.sh" ]]; then
+    source "$SCRIPT_DIR/lib-curl-fallback.sh"
+fi
+
 # =============================================================================
 # Configuration
 # =============================================================================
@@ -304,53 +310,16 @@ EOF
 
     prompt="${prompt//\{CONTENT\}/$sanitized_content}"
 
-    # Make API call (using api-resilience.sh if available)
-    local response
-    if declare -f call_api_with_retry &>/dev/null; then
-        response=$(call_api_with_retry "${OPENAI_API_BASE:-https://api.openai.com}/v1/chat/completions" "POST" \
-            "$(jq -n --arg prompt "$prompt" '{
-                model: "gpt-4o-mini",
-                messages: [{role: "user", content: $prompt}],
-                temperature: 0.3,
-                max_tokens: 500
-            }')" 30)
-    else
-        # SEC-AUDIT SEC-HIGH-01 + cycle-099 sprint-1E.c.3.b: keep API key out
-        # of process listings via curl auth-config tempfile, AND funnel
-        # through endpoint_validator__guarded_curl with the providers
-        # allowlist so a tampered OPENAI_API_BASE override is rejected.
-        local _curl_cfg
-        _curl_cfg=$(write_curl_auth_config "Authorization" "Bearer ${OPENAI_API_KEY:-}") || {
-            log_error "Failed to create secure curl config"
-            return 4
-        }
-        printf 'header = "Content-Type: application/json"\n' >> "$_curl_cfg"
-        response=$(endpoint_validator__guarded_curl \
-            --allowlist "$FLATLINE_PROVIDERS_ALLOWLIST" \
-            --config-auth "$_curl_cfg" \
-            --url "${OPENAI_API_BASE:-https://api.openai.com}/v1/chat/completions" \
-            -s --max-time 30 \
-            -X POST \
-            -d "$(jq -n --arg prompt "$prompt" '{
-                model: "gpt-4o-mini",
-                messages: [{role: "user", content: $prompt}],
-                temperature: 0.3,
-                max_tokens: 500
-            }')" 2>/dev/null)
-        rm -f "$_curl_cfg"
-    fi
-
-    if [[ -z "$response" ]]; then
-        log_error "Empty response from LLM"
+    # cycle-103 T1.6 / AC-1.4: route through model-invoke (cheval). Replaces
+    # the previous direct OpenAI /v1/chat/completions call.
+    local result
+    if ! result=$(call_flatline_chat "gpt-4o-mini" "$prompt" 30 500); then
+        log_error "model-invoke failed for transformation extractor"
         return 4
     fi
 
-    # Extract JSON from response
-    local result
-    result=$(echo "$response" | jq -r '.choices[0].message.content // ""' 2>/dev/null)
-
     if [[ -z "$result" ]]; then
-        log_error "No content in LLM response"
+        log_error "Empty response from LLM"
         return 4
     fi
 

@@ -68,7 +68,13 @@ providers:
         # global: `LOA_CHEVAL_DISABLE_INPUT_GATE=1`. Kill streaming via
         # `LOA_CHEVAL_DISABLE_STREAMING=1` to fall back to the legacy
         # non-streaming path (which still hits the original 24K wall).
-        max_input_tokens: 200000
+        # cycle-103 Sprint 3 T3.4 / AC-3.4: split into streaming-default
+        # vs legacy-fallback. When `LOA_CHEVAL_DISABLE_STREAMING=1`, the
+        # gate uses `legacy_max_input_tokens` automatically — operator no
+        # longer has to manually lower the cap after killing streaming.
+        max_input_tokens: 200000          # backward-compat fallback
+        streaming_max_input_tokens: 200000
+        legacy_max_input_tokens: 24000    # pre-Sprint-4A KF-002 wall
         # cycle-095 Sprint 2: probe_required dropped — gpt-5.5 is GA on /v1/models
         # since 2026-04-23. Probe-gated fail-fast still applies via the
         # generic AVAILABLE/UNAVAILABLE state in .run/model-health-cache.json
@@ -123,7 +129,10 @@ providers:
         #     openai.models.<id>.max_input_tokens`.
         # If an operator-side regression surfaces at >100K input, lower the
         # default to the next conservative band (100K, 50K, then 27K legacy).
-        max_input_tokens: 200000
+        # cycle-103 Sprint 3 T3.4 / AC-3.4: streaming-vs-legacy split.
+        max_input_tokens: 200000          # backward-compat fallback
+        streaming_max_input_tokens: 200000
+        legacy_max_input_tokens: 27000    # pre-Sprint-4A KF-002 wall
         # cycle-095 Sprint 2: probe_required dropped (same rationale as gpt-5.5).
         # Wire-protocol gate: same temperature restriction as gpt-5.5 above.
         params:
@@ -231,7 +240,10 @@ providers:
         # in the reviewer config or by enabling extended thinking.
         # Kill streaming via `LOA_CHEVAL_DISABLE_STREAMING=1` to revert
         # to the 36K wall.
-        max_input_tokens: 180000
+        # cycle-103 Sprint 3 T3.4 / AC-3.4: streaming-vs-legacy split.
+        max_input_tokens: 180000          # backward-compat fallback
+        streaming_max_input_tokens: 180000
+        legacy_max_input_tokens: 36000    # pre-Sprint-4A KF-002 wall
         # Wire-protocol gates (#641): Anthropic deprecated `temperature` for
         # Opus 4 and rejects requests carrying it with HTTP 400. The cheval
         # adapter consults `params.temperature_supported` per request and
@@ -254,7 +266,10 @@ providers:
         # cycle-102 Sprint 1F + Sprint 4A: parity with claude-opus-4-7
         # input-size gate. Streaming default raised the safe ceiling from
         # 36000 → 180000. See claude-opus-4-7 entry above for context.
-        max_input_tokens: 180000
+        # cycle-103 Sprint 3 T3.4 / AC-3.4: streaming-vs-legacy split.
+        max_input_tokens: 180000          # backward-compat fallback
+        streaming_max_input_tokens: 180000
+        legacy_max_input_tokens: 36000    # pre-Sprint-4A KF-002 wall
         pricing:
           input_per_mtok: 5000000    # $5.00 per million tokens
           output_per_mtok: 25000000  # $25.00 per million tokens

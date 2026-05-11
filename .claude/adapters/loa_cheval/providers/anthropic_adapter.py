@@ -28,9 +28,11 @@ from loa_cheval.types import (
     CompletionRequest,
     CompletionResult,
     InvalidInputError,
+    ProviderStreamError,
     ProviderUnavailableError,
     RateLimitError,
     Usage,
+    dispatch_provider_stream_error,
 )
 
 logger = logging.getLogger("loa_cheval.providers.anthropic")
@@ -153,13 +155,30 @@ class AnthropicAdapter(ProviderAdapter):
                     resp.iter_bytes(),
                     provider=self.provider,
                 )
+            except ProviderStreamError as stream_err:
+                # T3.5 / AC-3.5: SSE buffer + per-event accumulator caps
+                # raise ProviderStreamError; dispatch through T3.1's table
+                # so retry.py sees a typed exception (e.g.
+                # ConnectionLostError for "transient" cap exhaustion).
+                raise dispatch_provider_stream_error(
+                    stream_err, provider=self.provider
+                ) from stream_err
             except ValueError as parse_err:
+                # T3.3 / AC-3.3: parse_err's message comes from upstream
+                # bytes (mid-stream Anthropic error event, malformed data
+                # frame). Sanitize before reaching exception args.
+                from loa_cheval.redaction import sanitize_provider_error_message
                 raise InvalidInputError(
-                    f"Anthropic streaming error: {parse_err}"
+                    sanitize_provider_error_message(
+                        f"Anthropic streaming error: {parse_err}"
+                    )
                 ) from parse_err
 
         latency_ms = int((time.monotonic() - start) * 1000)
         # Re-attach latency (the parser fills 0 when not passed).
+        # cycle-103 T3.2 / AC-3.2: set observed-transport flag for audit.
+        _meta = dict(result.metadata or {})
+        _meta["streaming"] = True
         return CompletionResult(
             content=result.content,
             tool_calls=result.tool_calls,
@@ -168,7 +187,7 @@ class AnthropicAdapter(ProviderAdapter):
             model=result.model,
             latency_ms=latency_ms,
             provider=result.provider,
-            metadata=result.metadata,
+            metadata=_meta,
         )
 
     def _complete_nonstreaming(
@@ -245,6 +264,7 @@ class AnthropicAdapter(ProviderAdapter):
             source="actual" if usage_data else "estimated",
         )
 
+        # cycle-103 T3.2 / AC-3.2: non-streaming path → metadata['streaming']=False.
         return CompletionResult(
             content=content,
             tool_calls=tool_calls if tool_calls else None,
@@ -253,6 +273,7 @@ class AnthropicAdapter(ProviderAdapter):
             model=resp.get("model", "unknown"),
             latency_ms=latency_ms,
             provider=self.provider,
+            metadata={"streaming": False},
         )
 
     def validate_config(self) -> List[str]:
@@ -363,10 +384,22 @@ def _serialize_arguments(input_data: Any) -> str:
 
 
 def _extract_error_message(resp: Dict[str, Any]) -> str:
-    """Extract error message from Anthropic error response."""
+    """Extract error message from Anthropic error response.
+
+    cycle-103 T3.3 / AC-3.3: return value is sanitized via
+    `sanitize_provider_error_message` so secret-shape strings (AKIA /
+    PEM / Bearer / sk-ant-* / sk-* / AIza*) embedded in upstream error
+    bodies never reach exception args, audit envelopes, or operator
+    logs.
+    """
+    from loa_cheval.redaction import sanitize_provider_error_message
+
     if isinstance(resp, dict):
         error = resp.get("error", {})
         if isinstance(error, dict):
-            return error.get("message", str(resp))
-        return str(error)
-    return str(resp)
+            raw = error.get("message", str(resp))
+        else:
+            raw = str(error)
+    else:
+        raw = str(resp)
+    return sanitize_provider_error_message(raw)

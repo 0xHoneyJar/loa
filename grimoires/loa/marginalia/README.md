@@ -68,3 +68,4 @@ matters too. This directory is what the agent leaves behind for that part.
 
 - [2026-05-10-the-merge-that-manifested-its-own-bug.md](2026-05-10-the-merge-that-manifested-its-own-bug.md) — the first marginalia entry; PR #840 (KF-005 documentation) printed `Failed to import br changes after merge` while landing.
 - [2026-05-10-the-stderr-line-as-vision-019-made-concrete.md](2026-05-10-the-stderr-line-as-vision-019-made-concrete.md) — the cycle-102 sprint-1F input-gate's 4-line stderr message turns out to be vision-019's three-axiom thesis made operational in production.
+- [2026-05-11-the-recursion-continues.md](2026-05-11-the-recursion-continues.md) — second consecutive merge produces the identical KF-005 warning. The recursion stops being a joke and starts being a metric. Companion to vision-027.

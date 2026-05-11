@@ -1,0 +1,53 @@
+# tools/check-no-direct-llm-fetch.allowlist
+#
+# cycle-103 sprint-1 T1.7 — exempt-file list for the drift gate. Each entry
+# is a path (rooted at PROJECT_ROOT) that is allowed to reference provider
+# API URLs directly. Adding entries here is a PR-visible governance act —
+# include a rationale comment next to each line.
+#
+# Format:
+#   - One path per line.
+#   - Blank lines and lines starting with `#` are ignored.
+#   - Path-match is EXACT (no globs, no recursion).
+#
+# To migrate an exempt entry out of this file, the entry's call sites must
+# route through .claude/adapters/cheval.py (via call_flatline_chat for
+# bash, ChevalDelegateAdapter for TS, or direct cheval invocation for
+# Python). Then delete the entry from this file.
+#
+# =============================================================================
+
+# Operator-visible direct curl (health probes). The /v1/models / /v1/messages
+# endpoints are hit at probe time to verify provider reachability — different
+# semantics from app-level fetches. Migrating to cheval would require
+# round-tripping probe data through model-invoke, which adds latency without
+# behavioral gain. Migration tracked as out-of-scope.
+.claude/scripts/model-health-probe.sh
+
+# Legacy adapter shim — already marked `.legacy` extension. Scheduled for
+# sunset in a follow-up cycle (cycle-099 sprint-4 legacy-sunset path).
+# Direct provider URLs here are vestigial.
+.claude/scripts/model-adapter.sh.legacy
+
+# Embeddings call (cycle-103 T1.6 audit doc — handoffs/T1.6-flatline-api-audit.md
+# §"embeddings exception"). Cheval has no embeddings substrate;
+# `CompletionRequest` models chat completion only. Migration deferred until
+# `loa_cheval.providers.base` grows an `embed()` method. Tracked for cycle-104+.
+.claude/scripts/flatline-semantic-similarity.sh
+
+# Legacy gpt-review-api routing fallback (`call_api()` function). When
+# `hounfour.flatline_routing: false`, gpt-review-api.sh and related
+# subsystems fall through this path. Migrating requires routing
+# gpt-review-api through `model-invoke` unconditionally — out of cycle-103
+# scope (cycle-099 sprint-1B already migrated other adapters; this is the
+# remaining fallback). Note: `call_api_via_model_invoke()` and the new
+# `call_flatline_chat()` in this same file ARE the unified path; only the
+# legacy `call_api()` keeps direct curls.
+.claude/scripts/lib-curl-fallback.sh
+
+# Library-internal provider-host references (NOT fetches).
+# endpoint-validator.py: docstrings + defensive code that mention the URLs.
+# model-probe-cache.py: provider→(host, port) map used by socket-level
+# probes — not HTTP, just TCP handshake verification.
+.claude/scripts/lib/endpoint-validator.py
+.claude/scripts/lib/model-probe-cache.py

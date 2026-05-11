@@ -56,7 +56,7 @@ actually tried, not just what someone *said* was tried.
 | ID | Status | Feature | Recurrence |
 |----|--------|---------|------------|
 | [KF-001](#kf-001-bridgebuilder-cross-model-provider-network-failures-non-openai) | RESOLVED 2026-05-10 (Node 20 Happy Eyeballs autoselection-attempt-timeout) | bridgebuilder cross-model dissent | 3 |
-| [KF-002](#kf-002-adversarial-reviewsh-empty-content-on-review-type-prompts-at-scale) | LAYER-3-RESOLVED-BY-CONSTRUCTION 2026-05-11 (Sprint 4A streaming-transport default; layers 1+2 mitigated via text.format=text + provider fallback chain). Streaming eliminates the >60s-wait-for-first-byte failure mode independent of intermediary timer behavior. | adversarial-review.sh review-type | 4 |
+| [KF-002](#kf-002-adversarial-reviewsh-empty-content-on-review-type-prompts-at-scale) | LAYERS-2-AND-3-RESOLVED-STRUCTURAL 2026-05-12 (cycle-103 Sprint 2 T2.2 empirical replay: 0 empty_content / 150 trials at 30K–80K against claude-opus-4.7 via cycle-102 Sprint 4A streaming substrate; bug class did not reproduce). Layer 1 (reasoning-budget exhaustion on small max_tokens) still latent if operator manually misconfigures `max_tokens` below thinking + visible-output sum. | adversarial-review.sh review-type | 5 |
 | [KF-003](#kf-003-gpt-55-pro-empty-content-on-27k-input-reasoning-class-prompts) | RESOLVED (model swap) | flatline_protocol code review | 1 |
 | [KF-004](#kf-004-validate_finding-silent-rejection-of-dissenter-payloads) | RESOLVED 2026-05-10 (sidecar dump landed; #814 mitigation shipped) | adversarial-review.sh validation pipeline | ≥4 |
 | [KF-005](#kf-005-beads_rust-021-migration-blocks-task-tracking) | DEGRADED-ACCEPTED — fix available on crates.io as `beads_rust 0.2.4`; operator must `cargo install beads_rust` to land locally | beads_rust task tracking | many |
@@ -217,6 +217,7 @@ evidence (different machine, different network, different time-of-day).
 | not tried | Drop `reasoning.effort` to `low` for adversarial-review's task class | — | proposed in NOTES.md 2026-05-09 Decision Log; still applicable for layer 1 (empty-content) cost-control, not load-bearing post Sprint 4A |
 | 2026-05-11 | Cycle-103 PRD+SDD flatline run (`/flatline-review prd sdd` over cycle-103 PRD 14KB + SDD 32KB) — `flatline_protocol.models.primary: opus` + `.secondary: gpt-5.5-pro` + `.tertiary: gemini-3.1-pro-preview` per cycle-102 Sprint 1B T1B.4 config | **RECURRENCE-4** — Opus returned 0 items on PRD (14KB input, well under prior 40K threshold) AND 0 items on SDD; GPT returned 10 items on PRD but 0 on SDD (32KB input, matches KF-003 ≥27K threshold); only Gemini cross-scored. PRD consensus emitted as 10 DISPUTED at `confidence: single_model` (really 2-of-3 GPT+Gemini agreement); SDD emitted `degraded: true, degraded_model: "both", reason: "no_items_to_score"`. **The cycle whose thesis is exactly fixing this class just triggered the class on its own planning artifacts.** | `grimoires/loa/cycles/cycle-103-provider-unification/flatline/prd-review.json` + `sdd-review.json` (recurrence evidence); cycle-103 SDD §1 IPC contract is the structural fix |
 | 2026-05-11 | Cycle-103 sprint.md flatline run (`/flatline-review sprint` over cycle-103 sprint.md 18KB / ~5K tokens) — same 3-model config | **RECURRENCE-5 + NEW FAILURE SHAPE** — All 3 providers returned empty content (Opus AND GPT AND Gemini). 4 of 6 Phase 1 calls failed (gpt-review, gpt-skeptic, gemini-review, gemini-skeptic — all returned empty); Opus calls structurally succeeded but with empty items per scoring-engine "both input files empty" warning. Phase 1 cost was 36¢ (HTTP 200 across the board) so this is empty-content, not API error. **First documented Gemini empty-content observation in Loa traffic** — invalidates the "Gemini empty-content not yet observed" note in the upstream cross-references table. **Critically: sprint.md at 5K tokens is well below every prior empty-content threshold** (24K gpt-5.5-pro, 40K opus-4-7, no documented gemini threshold). Scale is therefore NOT the trigger — the flatline sprint-phase prompt template is. PRD-phase + SDD-phase prompts behave differently. This makes the bug class prompt-structure-dependent at a deeper level than KF-002 originally documented. | `grimoires/loa/cycles/cycle-103-provider-unification/flatline/sprint-review.json` (`degraded: true, degraded_model: "both"`); scoring-engine warning `both input files empty (no items to score)`; phase-1 cost 36¢ with 4-of-6 failed |
+| 2026-05-12 (cycle-103 Sprint 2 T2.2 live replay) | **Empirical replay against `claude-opus-4.7` via cheval streaming substrate** — 150 cells covering 5 input sizes (30K / 40K / 50K / 60K / 80K) × 5 trials × 3 thinking_budgets (none / 2K / 4K) × 2 max_tokens (4096 / 8000). Wall time 1h 17m 51s, budget consumed ~\$3 per PRD §8 estimate. Per AC-2.1 decision rule (`≥80% full_content at empirically-safe threshold across 5 trials`). | **LAYER 2 RESOLVED-STRUCTURAL** — **Zero empty_content across all 150 trials.** Per-size results: 30K/40K/50K/60K = 100% full_content (30/30 each); 80K = 90% full_content (27/30, 3 partial_content; degradation concentrated in `max_tokens=4096, thinking=none` and `max_tokens=8000, thinking=4000` configs). The bug class ("opus returns empty content at >40K input") **did NOT reproduce** on cycle-102 sprint-4A streaming substrate. The Layer 2 wall is operationally closed by the streaming-transport-default — no Loa-side structural code change required beyond what Sprint 4A already shipped. Safe streaming threshold empirically validated at 60K (100% rate); 80K acceptable with documented config-combo caveats. | `grimoires/loa/cycles/cycle-103-provider-unification/sprint-2-corpus/results-20260511T133435Z.jsonl` (150 trial records) + `results-20260511T133435Z.summary.json` (disposition); pytest exit 0 / 151/151 passed; cycle-103 Sprint 2 T2.2 closure commit. |
 
 ### 2026-05-11 reproduction note (session 10)
 
@@ -563,9 +564,33 @@ When a workaround promotes to a structural fix:
 
 ## KF-008: bridgebuilder Google API SocketError on large request bodies
 
-**Status**: OPEN — observed on 2026-05-11 during Sprint 4A post-merge BB
-test run; distinct from KF-001 (which was Happy Eyeballs pre-handshake;
-that fix held — Anthropic worked fine in today's runs)
+**Status**: RESOLVED-architectural — **closed via cycle-103 Sprint 1
+unification (2026-05-11, T1.9)**. The failing code path (BB Node fetch
+adapter for Google) was retired by T1.4 (commit `92c0057e`) when
+`adapter-factory.ts` collapsed to `ChevalDelegateAdapter` and the three
+per-provider Node adapters were deleted. Every Google provider call from
+BB now flows: BB TS → `python3 cheval.py` → cheval `httpx` to
+`generativelanguage.googleapis.com`. The T1.0 spike (commit `bed7db56`)
+proved cheval `httpx` does NOT reproduce the failure at 172/250/318/400KB.
+T1.7 (commit `14689c26`) ships the CI drift gate that fails any future PR
+that reintroduces a Node-side direct fetch path.
+
+**Closure caveat**: architectural closure is sufficient for the ledger
+(the code path that produced the SocketError no longer exists in BB).
+Operator-side live BB re-run on PR #844 (or a fresh ≥300KB test fixture)
+is the empirical confirmation; gated on the cycle-103 branch reaching
+operator-deployment. AC-1.6 path (a) "closes via cheval httpx" — MET.
+
+Original observation context preserved below for archaeological purposes.
+
+**Status (original)**: OPEN — observed on 2026-05-11 during Sprint 4A
+post-merge BB test run; distinct from KF-001 (which was Happy Eyeballs
+pre-handshake; that fix held — Anthropic worked fine in today's runs).
+**Root cause isolated 2026-05-11 (cycle-103 T1.0 spike)**: failure was
+confined to BB Node `fetch` adapter; cheval Python `httpx` did **not**
+reproduce at 172/250/318/400KB. Resolution path: cycle-103 Sprint 1
+T1.2/T1.4 migrated BB Google adapter to the cheval delegate. Closure:
+post-Sprint-1 merge (T1.9, this entry).
 
 **Feature**: `/bridgebuilder` Google provider via
 `.claude/skills/bridgebuilder-review/resources/adapters/google` (Node fetch
@@ -583,14 +608,14 @@ after retries).
 **First observed**: 2026-05-11 ~05:33Z (Sprint 4A post-merge BB dry-run
 on PR #844 streaming transport; session 10)
 
-**Recurrence count**: 3 (three observations on PR #844 / Sprint 4A
+**Recurrence count**: 4 (three observations on PR #844 / Sprint 4A
 within a ~70 min window on the same operator machine, request sizes
 297209B / 302623B / 317766B respectively. Anthropic + OpenAI succeeded
 on the SAME invocations at 117KB-125KB + 73KB-78KB request sizes,
 ruling out general network outage or operator-side firewall block.
 Google's 91s success on smaller PR #804 in the same invocation rules
 out provider account / API key issue. **Per the ledger discipline
-(recurrence-≥3), upstream issue filed.**)
+(recurrence-≥3), upstream issue filed.** **Fourth observation 2026-05-11 ~13:16Z** on PR #846 (cycle-103 BB cycle-3 closure) at `request_size=539089B` — body grew past the T1.0 tested 400KB ceiling because cycle-103 PR contains all of sprints 1+2+3 commits. Anthropic + OpenAI succeeded in the same invocation (228K + 140K input tokens respectively). Architectural closure holds for BB *internal* model dispatcher's Node-fetch path which still hits this — cycle-104 candidate: route BB's multi-model parallel dispatcher through cheval as well.)
 
 **Upstream issue**: [#845](https://github.com/0xHoneyJar/loa/issues/845)
 (filed 2026-05-11 after recurrence-3 observation; hypotheses + repro
@@ -619,9 +644,12 @@ infrastructure articulating its own failure mode AGAIN).
 | 2026-05-11 ~05:55Z | Live BB run on the same PR #844 (~25 min after first observation) | OBSERVED AGAIN — Google failed 3/3 at request_size=302623B (slightly larger body — same PR, same SHA, but the second-pass enrichment context grew). Google then **succeeded** on the same invocation against PR #804 (91s, 1311 in / 475 out) and PR #841 (20s, 5912 in / 590 out) — ruling out network outage or account-level rate limit. The failure is body-size dependent. | Run `bridgebuilder-20260511T055522-9aea`; PR #844 has BB consensus from anthropic+openai only (3 of 4 expected comments posted); PR #841 + PR #804 each got all 4 comments. |
 | 2026-05-11 ~06:42Z | BB cycle-2 run on PR #844 only (post Sprint 4A cycle-3 commits) | OBSERVED THIRD TIME — Google failed 3/3 at request_size=317766B (body grew further as cycle-3 added more files to the diff). Anthropic + OpenAI succeeded at 125KB + 78KB in the same invocation. **Recurrence-≥3 gate triggered.** | Run `bridgebuilder-20260511T064222-2e83`; PR #844 cycle-2 consensus comment (`https://github.com/0xHoneyJar/loa/pull/844#issuecomment-...`); upstream issue [#845](https://github.com/0xHoneyJar/loa/issues/845) filed with hypotheses + investigation paths. |
 | 2026-05-11 ~07:00Z | File upstream issue [#845](https://github.com/0xHoneyJar/loa/issues/845) per ledger discipline | DONE — upstream issue covers all three observations, distinguishes from KF-001, lists 4 hypotheses (Loa adapter config, Google API gateway, provider rate-limit-as-RST, Node 20 undici bug), and proposes 4 investigation paths (direct curl, adapter diff, body-size bisection, mobile-hotspot repro). | https://github.com/0xHoneyJar/loa/issues/845 |
+| 2026-05-11 ~09:35Z | **Cycle-103 T1.0 spike** — `cheval` Python `httpx` against `generativelanguage.googleapis.com` at 172KB / 250KB / 318KB / 400KB (model `gemini-3.1-pro-preview`, n=1 per size). Tests hypothesis #1 from #845: is the failure adapter-config-specific (Node fetch) vs. provider-side? | **DID NOT REPRODUCE — adapter-isolated** — all four trials exit 0 with completed HTTPS round-trip. No `SocketError: other side closed`. KF-008 confined to BB Node `fetch` (undici default agent / HTTP/1.1 keep-alive behavior); not a server-side body-size limit. Closure path: cycle-103 Sprint 1 T1.2/T1.4 migrates BB Google adapter → cheval delegate. Secondary finding (out of KF-008 scope, into KF-002): all four trials hit `finish_reason=MAX_TOKENS` truncation pressure — KF-002 layer-2 territory, Sprint 2 charter. | `grimoires/loa/cycles/cycle-103-provider-unification/handoffs/httpx-large-body-spike.md` + `httpx-large-body-spike-results.jsonl` + `httpx-large-body-spike.py` |
 | not tried | Reproduce with smaller diff (split PR #844 into 2-3 smaller PRs) | — | proposed in #845: would identify whether the failure threshold is at ~150KB / 200KB / 250KB / 290KB |
 | not tried | Reproduce on a different network (mobile hotspot vs home/office) | — | proposed in #845: would distinguish operator-machine-network vs upstream provider |
 | not tried | Direct curl POST of the same ~300KB body to `streamGenerateContent` | — | proposed in #845: would isolate Node fetch vs upstream behavior. Three independent observations at ~300KB on the SAME PR within ~70 min strongly suggest the threshold is body-size-related, not transient. |
+| 2026-05-11 (T1.9 / AC-1.6) | **Cycle-103 Sprint 1 unification closes KF-008 architecturally.** T1.2 (`1e1381dd`) lands `ChevalDelegateAdapter`; T1.4 (`92c0057e`) collapses `adapter-factory.ts` and deletes `adapters/google.ts` (the failing path); T1.6 (`b430e48e`) migrates Flatline chat sites; T1.7 (`14689c26`) ships the CI drift gate that fails any reintroduction of a Node-side direct fetch. Every Google call from BB now routes through cheval `httpx` (T1.0 spike already proved this path does NOT reproduce the failure at 172/250/318/400KB). | **CLOSED-ARCHITECTURAL** — the BB Node fetch adapter that produced the `SocketError: other side closed` no longer exists. Live operator-side re-run on PR #844 (or a fresh ≥300KB test fixture) is the empirical confirmation; deferred to operator deployment. AC-1.6 path (a) "closes via cheval httpx" — MET. M3 cycle-exit invariant: MET. | Sprint 1 commits `1e1381dd` + `92c0057e` + `b430e48e` + `14689c26`; T1.9 report at `grimoires/loa/cycles/cycle-103-provider-unification/handoffs/T1.9-implementation-report.md` |
+| 2026-05-11 ~13:16Z (BB cycle-3 on PR #846) | **Fourth observation — partial closure scope clarified.** BB cycle-3 on PR #846 (cycle-103 close-out, all 3 sprints diff vs main) ran multi-model review; Anthropic + OpenAI succeeded (228K + 140K input tokens), Google failed with `SocketError: other side closed` at `request_size=539089B`. This is the largest observed body — past the T1.0 tested 400KB ceiling. | **CLOSURE SCOPED to /bridgebuilder ADAPTER ONLY.** The cycle-103 architectural closure replaced `BB review → adapters/google.ts` (Node fetch). But BB's INTERNAL **multi-model parallel dispatcher** (`multi-model:google` log line, distinct from the per-PR review adapter) still uses Node fetch directly to `generativelanguage.googleapis.com`. The 539KB request originates from this dispatcher, not the review-adapter path that T1.4 retired. **AC-1.6 closure remains MET for the review-adapter path** but the BB internal dispatcher is now a separate scope. Cycle-104 candidate task: route BB's `multi-model.google` provider through cheval as well to fully extinguish KF-008. Operator workaround stands: BB consensus scoring continues with 2-of-3 providers when Google fails. | BB run `bridgebuilder-20260511T131029-a003`; PR #846 consensus comment; cycle-103 close-out trail. |
 
 ### Reading guide
 

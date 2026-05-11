@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 
 # --- Completion Request/Result ---
@@ -105,6 +105,13 @@ class ModelConfig:
 
     capabilities: List[str] = field(default_factory=list)
     context_window: int = 128000
+    # cycle-103 Sprint 3 T3.4: streaming-vs-legacy split for the
+    # cheval HTTP-asymmetry safe-input gate (KF-002 layer 3). When both
+    # are set, _lookup_max_input_tokens in cheval.py branches on the
+    # streaming kill switch. `max_input_tokens` remains as a backward-
+    # compat single-value fallback when the split fields are absent.
+    streaming_max_input_tokens: Optional[int] = None
+    legacy_max_input_tokens: Optional[int] = None
     token_param: str = "max_tokens"  # Wire name for max output tokens param (e.g., "max_completion_tokens" for GPT-5.2+)
     pricing: Optional[Dict[str, int]] = None  # {input_per_mtok, output_per_mtok} in micro-USD
     api_mode: Optional[str] = None  # "standard" (default) | "interactions" (Deep Research)
@@ -326,6 +333,156 @@ class UnsupportedResponseShapeError(ChevalError):
 # The pre-call cost-cap guard raises this name; existing per-day budget code
 # keeps using BudgetExceededError directly.
 CostBudgetExceeded = BudgetExceededError
+
+
+# ----------------------------------------------------------------------------
+# ProviderStreamError — cycle-103 Sprint 3 T3.1 / AC-3.1
+# ----------------------------------------------------------------------------
+#
+# Structured parser exception that preserves provider-side failure
+# classification through retry routing. Per cycle-102 Sprint 4A reviewer
+# carry-forward F-002: streaming parsers were raising bare ValueError /
+# RuntimeError, which flattened the retry classification at the adapter
+# layer. retry.py couldn't tell "this is a 429 rate-limit, back off" from
+# "this is malformed, surface to caller".
+#
+# Spec: sdd.md §1.4.4 (component spec) + §6.1 (error taxonomy) + sprint.md
+# T3.1.
+#
+# Usage:
+#
+#   from loa_cheval.types import ProviderStreamError, dispatch_provider_stream_error
+#
+#   # In an SSE parser:
+#   if event.type == "error" and event.data.get("type") == "rate_limit_exceeded":
+#       raise ProviderStreamError(
+#           category="rate_limit",
+#           message="Anthropic streaming returned rate_limit_exceeded",
+#           raw_payload=event.raw_bytes,
+#       )
+#
+#   # In the adapter dispatch layer:
+#   try:
+#       ... parse stream ...
+#   except ProviderStreamError as e:
+#       raise dispatch_provider_stream_error(e, provider="anthropic")
+#
+# The dispatch table maps `category` → typed exception (RateLimitError,
+# ProviderUnavailableError, InvalidInputError, ConnectionLostError) via a
+# SINGLE lookup table at the adapter boundary. retry.py reads the typed
+# exception (unchanged) — no cascading rewrite. Mitigates PRD R4.
+#
+# raw_payload is Optional[bytes]; sanitization via sanitize_provider_error_message
+# (T3.3) is the caller's responsibility before any exception arg interpolation.
+
+
+ProviderStreamCategory = Literal[
+    "rate_limit",   # provider 429 / explicit rate-limit signal
+    "overloaded",   # provider 5xx / "server overloaded" signal
+    "malformed",    # response shape doesn't parse (bad JSON, missing fields)
+    "policy",       # provider refused on content policy / safety
+    "transient",    # connection lost / partial stream / retryable transport
+    "unknown",      # unclassified (fallback)
+]
+
+
+class ProviderStreamError(ChevalError):
+    """Structured parser exception raised by streaming adapters.
+
+    Sibling of `RateLimitError` etc. — NOT a subclass — because the
+    dispatch happens at the adapter layer. The category-to-typed-exception
+    map lives in `dispatch_provider_stream_error` so retry.py (unchanged)
+    reads only the dispatched typed exception, not this raw form.
+
+    Args:
+        category: classification per `ProviderStreamCategory`.
+        message: human-readable detail. Should NOT contain raw upstream
+            bytes — wrap any provider payload in
+            `sanitize_provider_error_message` (T3.3) first.
+        raw_payload: optional original bytes for debugging / audit. Caller
+            is responsible for redaction before persisting or surfacing.
+    """
+
+    def __init__(
+        self,
+        category: ProviderStreamCategory,
+        message: str,
+        raw_payload: Optional[bytes] = None,
+    ):
+        # AC-3.1: retryable flag mirrors the dispatched typed exception's
+        # retry semantics so callers that inspect ChevalError.retryable
+        # without dispatching see the right behavior.
+        retryable = category in ("rate_limit", "overloaded", "transient")
+        super().__init__(
+            "PROVIDER_STREAM_ERROR",
+            f"[{category}] {message}",
+            retryable=retryable,
+            context={"category": category},
+        )
+        self.category: ProviderStreamCategory = category
+        self.message_detail: str = message
+        self.raw_payload: Optional[bytes] = raw_payload
+
+
+def dispatch_provider_stream_error(
+    error: ProviderStreamError,
+    *,
+    provider: str = "",
+) -> ChevalError:
+    """AC-3.1 dispatch table: map `ProviderStreamError.category` to the
+    typed exception that retry.py + the adapter callers already
+    understand. Single lookup; no cascade.
+
+    Args:
+        error: the structured parser exception raised by the streaming layer.
+        provider: provider name (e.g., "anthropic") for the constructed
+            exception's context. May be empty for callers that don't
+            know.
+
+    Returns:
+        A ChevalError-subclass instance ready to raise. retry.py treats:
+          - RateLimitError → retry with backoff
+          - ProviderUnavailableError → move to next provider in chain
+          - InvalidInputError → surface to caller (don't retry)
+          - ConnectionLostError → count against per-provider retry budget
+    """
+    category = error.category
+    detail = error.message_detail
+
+    if category == "rate_limit":
+        return RateLimitError(provider=provider or "unknown")
+    if category == "overloaded":
+        return ProviderUnavailableError(
+            provider=provider or "unknown",
+            reason=f"overloaded — {detail}",
+        )
+    if category == "malformed":
+        return InvalidInputError(
+            f"Provider {provider or 'unknown'} returned malformed stream: {detail}"
+        )
+    if category == "policy":
+        # Policy refusals are non-retryable input-side problems — the
+        # request shape itself was rejected. Surface to caller.
+        return InvalidInputError(
+            f"Provider {provider or 'unknown'} refused on policy: {detail}"
+        )
+    if category == "transient":
+        # Connection-lost-class: count against per-provider retry budget.
+        # ConnectionLostError is the existing sibling for this semantic
+        # (issue #774 cycle-102).
+        return ConnectionLostError(
+            provider=provider or "unknown",
+            transport_class="stream",
+            message=f"Transient stream failure: {detail}",
+        )
+    # `unknown` and any unexpected category fall to the "treat as
+    # provider-unavailable" disposition. This is the conservative choice:
+    # retry.py moves to the next provider rather than surfacing an
+    # unclassified error to the caller.
+    return ProviderUnavailableError(
+        provider=provider or "unknown",
+        reason=f"unclassified stream error (category={category!r}): {detail}",
+    )
 
 
 # --- Centralized provider:model_id parser (cycle-096 Sprint 1 Task 1.1) ---

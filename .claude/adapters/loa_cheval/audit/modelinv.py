@@ -33,6 +33,7 @@ import json
 import logging
 import os
 import re
+import unicodedata
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -96,7 +97,66 @@ _REDACT = _load_redactor()
 
 _GATE_AKIA = re.compile(r"AKIA[0-9A-Z]{16}")
 _GATE_PEM_BEGIN = re.compile(r"-----BEGIN [A-Z 0-9]*PRIVATE KEY-----")
-_GATE_BEARER = re.compile(r"[Bb]earer[ \t][A-Za-z0-9._~+/=-]{16,}")
+
+# cycle-103 T3.7 / AC-3.7 / DISS-004 — extended bearer-token gate.
+#
+# Coverage:
+#   1. `Bearer <token>` — space-separated (original)
+#   2. `bearer <token>` — case-insensitive (original)
+#   3. `Bearer\t<token>` — tab-separated (original)
+#   4. `bearer:<token>` — colon separator (no space) — NEW
+#   5. `%20Bearer%20<token>` — percent-encoded — NEW (via _normalize_for_gate)
+#   6. `\"Bearer <token>\"` — JSON-escape-quoted — NEW (via _normalize_for_gate)
+#   7. `Ｂｅａｒｅｒ <token>` — Unicode fullwidth — NEW (via NFKC in _normalize_for_gate)
+#   8. `B​earer <token>` — zero-width insertion — NEW (via control-byte strip)
+#
+# Detection mirrors the cycle-099 sprint-1E.c.3.c Unicode-glob bypass closure
+# pattern: NFKC normalize + zero-width strip + light percent-decode BEFORE
+# regex match. The character-class allows colon as separator alongside the
+# original space/tab.
+_GATE_BEARER = re.compile(r"[Bb]earer[ \t:]+[A-Za-z0-9._~+/=\-]{16,}")
+
+# Zero-width and bidi-override characters that can be inserted between the
+# letters of "Bearer" to bypass a naive regex. Same disposition as cycle-099
+# sprint-1E.c.3.c: strip before matching.
+_ZERO_WIDTH = re.compile("[​-‍﻿‪-‮]")
+
+# Percent-encoded forms that can hide Bearer in URL-embedded headers.
+# Single-pass decode (no recursion → no amplification attack surface).
+_PERCENT_DECODE_MAP = {
+    "%20": " ",
+    "%09": "\t",
+    "%22": '"',
+    "%3A": ":",
+    "%3a": ":",
+}
+
+
+def _normalize_for_gate(text: str) -> str:
+    """Apply NFKC + zero-width strip + light percent-decode before matching.
+
+    The gate's job (cycle-098 audit-envelope defense-in-depth) is to catch
+    secret shapes the redactor missed. Post-cycle-103 T3.7, encoded /
+    obfuscated bearer shapes are normalized to ASCII canonical form before
+    the regex run so that:
+
+      - Unicode fullwidth (Ｂｅａｒｅｒ) becomes ASCII (Bearer) via NFKC
+      - Zero-width insertions (B​earer) get stripped
+      - Percent-encoded (%20Bearer%20) gets decoded to space-separated
+      - JSON-escape-quoted (\"Bearer X\") gets decoded — the inner Bearer
+        is then matchable by the canonical regex
+
+    The function is idempotent on already-normalized input: ASCII Bearer
+    passes through unchanged.
+    """
+    # NFKC handles fullwidth Bearer → Bearer + other Unicode look-alikes.
+    text = unicodedata.normalize("NFKC", text)
+    # Strip zero-width and bidi-override characters that defeat naive regex.
+    text = _ZERO_WIDTH.sub("", text)
+    # Single-pass percent-decode for the common URL-embedded forms.
+    for encoded, decoded in _PERCENT_DECODE_MAP.items():
+        text = text.replace(encoded, decoded)
+    return text
 
 
 class RedactionFailure(Exception):
@@ -134,7 +194,9 @@ def assert_no_secret_shapes_remain(payload_json: str) -> None:
         raise RedactionFailure("AKIA")
     if _GATE_PEM_BEGIN.search(payload_json):
         raise RedactionFailure("PEM-PRIVATE-KEY")
-    if _GATE_BEARER.search(payload_json):
+    # cycle-103 T3.7 / AC-3.7 / DISS-004: normalize encoded/obfuscated
+    # bearer-token variants to canonical ASCII form before matching.
+    if _GATE_BEARER.search(_normalize_for_gate(payload_json)):
         raise RedactionFailure("Bearer-token")
 
 
@@ -160,26 +222,45 @@ _REDACT_FIELDS = frozenset(
 
 def redact_payload_strings(payload: Any) -> Any:
     """Recursively walk a payload structure; redact strings under known
-    untrusted-content field names.
+    untrusted-content field names — **path-aware** (T3.6 / DISS-003).
 
-    The walk preserves list/dict structure exactly. Only string VALUES under
-    the configured field names are passed through `redact()`. Strings under
-    other keys (or in lists at the top level) are left unchanged.
+    Once a key in `_REDACT_FIELDS` is encountered, every descendant string
+    is redacted regardless of intermediate dict keys or list nesting. This
+    closes the gap where an adapter returns a structured exception body
+    (e.g. `{"error_message": {"detail": "<leaked>"}}` or
+    `{"error_message": [{"inner": "<leaked>"}]}`) and the original
+    immediate-parent-only walk would leave the nested untrusted string
+    intact.
 
-    This is field-aware redaction — distinct from blanket-redacting every
-    string value, which would over-redact operator-controlled identifiers.
+    Structure (dict shape, list shape, key names, ordering, non-string
+    types) is preserved exactly — only string VALUES under an
+    untrusted-content ancestor are passed through `redact()`. This matters
+    for the audit-envelope round-trip pin (sprint.md R8a).
     """
-    if isinstance(payload, dict):
+    return _redact_recurse(payload, under_untrusted=False)
+
+
+def _redact_recurse(node: Any, under_untrusted: bool) -> Any:
+    """Inner walk that threads the `under_untrusted` flag through the
+    recursion. Once set, the flag stays set for every descendant; redaction
+    applies to every string regardless of immediate-parent key.
+    """
+    if isinstance(node, dict):
         out = {}
-        for k, v in payload.items():
-            if k in _REDACT_FIELDS and isinstance(v, str):
+        for k, v in node.items():
+            child_untrusted = under_untrusted or (k in _REDACT_FIELDS)
+            if child_untrusted and isinstance(v, str):
                 out[k] = _REDACT(v)
             else:
-                out[k] = redact_payload_strings(v)
+                out[k] = _redact_recurse(v, child_untrusted)
         return out
-    if isinstance(payload, list):
-        return [redact_payload_strings(item) for item in payload]
-    return payload
+    if isinstance(node, list):
+        return [
+            _REDACT(item) if (under_untrusted and isinstance(item, str))
+            else _redact_recurse(item, under_untrusted)
+            for item in node
+        ]
+    return node
 
 
 # -----------------------------------------------------------------------------
@@ -294,6 +375,17 @@ def emit_model_invoke_complete(
         # Sprint 4A: surface whether the streaming transport was used.
         # Default-derived from the env-var kill switch so callers don't have
         # to pass it explicitly. Caller may override for tests / dry-runs.
+        # cycle-103 T3.2 / AC-3.2: precedence is
+        #   1. caller-supplied `streaming` arg (read from adapter's
+        #      CompletionResult.metadata['streaming'] — the actual transport
+        #      observed at completion time).
+        #   2. env-derived `_streaming_active()` — fallback for legacy callers
+        #      that don't propagate the adapter's observation.
+        # The adapter override matters when an operator sets
+        # LOA_CHEVAL_DISABLE_STREAMING=1 mid-session: the env-derived value
+        # would record streaming=False for in-flight requests that actually
+        # ran via the streaming transport. The metadata override ties the
+        # audit record to the wire behavior, not the env state at emit time.
         "streaming": streaming if streaming is not None else _streaming_active(),
     }
     # Optional fields — only set when caller provides a value, so the

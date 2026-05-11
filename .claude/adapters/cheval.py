@@ -225,17 +225,28 @@ def _lookup_max_input_tokens(
     prompts well below their nominal `context_window`. The threshold here is
     a SEPARATE field from `context_window` — `context_window` is the model's
     advertised capacity; `max_input_tokens` is the field-observed prompt size
-    above which the cheval HTTP client path empties or disconnects. See
-    `grimoires/loa/known-failures.md` KF-002 for observed thresholds.
+    above which the cheval HTTP client path empties or disconnects.
+
+    cycle-103 sprint-3 T3.4 / AC-3.4 — streaming-vs-legacy split:
+      The model config may carry up to three fields:
+        - `streaming_max_input_tokens` — safe under streaming transport
+        - `legacy_max_input_tokens`    — safe under non-streaming legacy
+        - `max_input_tokens`           — backward-compat single value
+
+      When `LOA_CHEVAL_DISABLE_STREAMING=1` is set (operator killed
+      streaming), prefer `legacy_max_input_tokens`. Otherwise prefer
+      `streaming_max_input_tokens`. Fall back to `max_input_tokens` if
+      the preferred field is absent. This keeps the gate kill-switch
+      coherent with the transport in use — without the split, a kill
+      switch would still apply the streaming-safe ceiling (e.g. 200K)
+      to a legacy path that fails above 24K.
 
     cli_override semantics:
-      None: use config default (per-model `max_input_tokens` field; absent
-            means no gate fires)
+      None: use config default (split-aware per above)
       0:    explicit gate-disable for this call
       N>0:  explicit per-call threshold (overrides config)
 
-    Returns None when no gate should fire; positive integer = threshold in
-    estimated input tokens (charge: any kwarg with messages=...).
+    Returns None when no gate should fire; positive integer = threshold.
     """
     if cli_override is not None:
         if cli_override <= 0:
@@ -250,7 +261,21 @@ def _lookup_max_input_tokens(
     model_config = models.get(model_id, {})
     if not isinstance(model_config, dict):
         return None
-    threshold = model_config.get("max_input_tokens")
+
+    # T3.4 split-aware lookup. Operator kill switch decides which field.
+    import os
+    _streaming_killed = os.environ.get(
+        "LOA_CHEVAL_DISABLE_STREAMING", ""
+    ).strip().lower() in ("1", "true", "yes", "on")
+    preferred_field = (
+        "legacy_max_input_tokens" if _streaming_killed
+        else "streaming_max_input_tokens"
+    )
+
+    threshold = model_config.get(preferred_field)
+    if threshold is None:
+        # Backward-compat: legacy single-field configs.
+        threshold = model_config.get("max_input_tokens")
     if threshold is None:
         return None
     if not isinstance(threshold, int) or threshold <= 0:
@@ -275,6 +300,148 @@ def _check_feature_flags(hounfour: Dict[str, Any], provider: str, model_id: str)
         return "Deep Research is disabled (hounfour.feature_flags.deep_research: false)"
 
     return None
+
+
+def _sanitize_fixture_model_id(model_id: str) -> str:
+    """Sanitize a model_id for use in a filesystem path. Keeps alnum/_-.;
+    everything else (`:`, `/`, `\\`, etc.) collapses to `_`."""
+    safe = []
+    for ch in model_id:
+        if ch.isalnum() or ch in "_-.":
+            safe.append(ch)
+        else:
+            safe.append("_")
+    return "".join(safe)
+
+
+def _load_mock_fixture_response(
+    fixture_dir: str,
+    provider: str,
+    model_id: str,
+):
+    """T1.5 (cycle-103 sprint-1) — load a pre-recorded CompletionResult.
+
+    AC-1.2 substrate: when `--mock-fixture-dir <dir>` is passed, cheval skips
+    the real provider dispatch and serves a fixture from `<dir>`. Per IMP-006,
+    normalize timestamps / request IDs / usage source at load time so
+    structural comparisons on the test side are deterministic.
+
+    Filename precedence inside `<dir>`:
+      1. `<provider>__<sanitized_model>.json` — per-(provider, model) fixture
+      2. `response.json` — single canonical fixture per directory
+
+    Returns a `CompletionResult` instance. Raises `InvalidInputError` on
+    missing directory, no matching fixture file, malformed JSON, or missing
+    required field (`content` + `usage.{input_tokens, output_tokens}`).
+
+    Path-traversal defense: the resolved fixture path must be contained
+    inside the realpath-resolved `<dir>`.
+    """
+    from loa_cheval.types import CompletionResult, InvalidInputError, Usage
+
+    fixture_dir_abs = os.path.realpath(fixture_dir)
+    if not os.path.isdir(fixture_dir_abs):
+        raise InvalidInputError(
+            f"--mock-fixture-dir: directory does not exist or is not a directory: {fixture_dir}"
+        )
+
+    sanitized = _sanitize_fixture_model_id(model_id)
+    candidates = [
+        os.path.join(fixture_dir_abs, f"{provider}__{sanitized}.json"),
+        os.path.join(fixture_dir_abs, "response.json"),
+    ]
+
+    fixture_path: Optional[str] = None
+    for candidate in candidates:
+        resolved = os.path.realpath(candidate)
+        # Containment guard: refuse anything outside fixture_dir_abs.
+        if not (resolved == fixture_dir_abs or resolved.startswith(fixture_dir_abs + os.sep)):
+            continue
+        if os.path.isfile(resolved):
+            fixture_path = resolved
+            break
+
+    if fixture_path is None:
+        raise InvalidInputError(
+            f"--mock-fixture-dir: no fixture found in {fixture_dir} "
+            f"(looked for {provider}__{sanitized}.json or response.json)"
+        )
+
+    try:
+        with open(fixture_path, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+    except json.JSONDecodeError as exc:
+        raise InvalidInputError(
+            f"--mock-fixture-dir: fixture is not valid JSON ({fixture_path}): {exc.msg}"
+        )
+
+    if not isinstance(payload, dict):
+        raise InvalidInputError(
+            f"--mock-fixture-dir: fixture must be a JSON object ({fixture_path})"
+        )
+
+    content = payload.get("content")
+    if not isinstance(content, str):
+        raise InvalidInputError(
+            f"--mock-fixture-dir: fixture missing required string `content` ({fixture_path})"
+        )
+
+    usage_raw = payload.get("usage") or {}
+    if not isinstance(usage_raw, dict):
+        raise InvalidInputError(
+            f"--mock-fixture-dir: fixture `usage` must be an object ({fixture_path})"
+        )
+
+    try:
+        input_tokens = int(usage_raw.get("input_tokens", 0))
+        output_tokens = int(usage_raw.get("output_tokens", 0))
+        reasoning_tokens = int(usage_raw.get("reasoning_tokens", 0))
+    except (TypeError, ValueError):
+        raise InvalidInputError(
+            f"--mock-fixture-dir: fixture usage token counts must be integers ({fixture_path})"
+        )
+
+    # IMP-006 normalization: latency_ms defaults to 0; interaction_id to None;
+    # usage.source forced to "actual". Fixtures CAN pin these by including
+    # them, but absent values normalize so test-side structural compare is
+    # deterministic across re-records.
+    latency_ms = int(payload.get("latency_ms", 0))
+    interaction_id = payload.get("interaction_id")
+    if interaction_id is not None and not isinstance(interaction_id, str):
+        raise InvalidInputError(
+            f"--mock-fixture-dir: fixture `interaction_id` must be a string ({fixture_path})"
+        )
+
+    tool_calls = payload.get("tool_calls")
+    if tool_calls is not None and not isinstance(tool_calls, list):
+        raise InvalidInputError(
+            f"--mock-fixture-dir: fixture `tool_calls` must be a list ({fixture_path})"
+        )
+
+    thinking = payload.get("thinking")
+    if thinking is not None and not isinstance(thinking, str):
+        raise InvalidInputError(
+            f"--mock-fixture-dir: fixture `thinking` must be a string ({fixture_path})"
+        )
+
+    return CompletionResult(
+        content=content,
+        tool_calls=tool_calls,
+        thinking=thinking,
+        usage=Usage(
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            reasoning_tokens=reasoning_tokens,
+            source="actual",
+        ),
+        # Fixture may override model/provider for cross-provider fixtures; fall
+        # back to the resolved binding's values otherwise.
+        model=str(payload.get("model") or model_id),
+        latency_ms=latency_ms,
+        provider=str(payload.get("provider") or provider),
+        interaction_id=interaction_id,
+        metadata={"mock_fixture": True, "fixture_path": fixture_path},
+    )
 
 
 def cmd_invoke(args: argparse.Namespace) -> int:
@@ -336,6 +503,10 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         "operator_visible_warn": False,
         "invocation_latency_ms": None,
         "cost_micro_usd": None,
+        # cycle-103 T3.2 / AC-3.2: observed-streaming. None = adapter didn't
+        # report → emit falls back to env-derived value. True/False = actual
+        # transport observed on this call.
+        "streaming": None,
     }
 
     # Load input content (--prompt takes priority over --input/stdin)
@@ -497,35 +668,54 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     )
                     logger.info("Budget enforcement active: ledger=%s", ledger_path)
 
-            # Import retry logic if available
-            try:
-                from loa_cheval.providers.retry import invoke_with_retry
-
-                result = invoke_with_retry(adapter, request, hounfour, budget_hook=budget_hook)
-            except ImportError:
-                # Retry module not yet available — call directly with manual budget hooks
-                # BB-405: ensure post_call runs on success, log on failure
-                # NOTE (issue #675, sub-issue 1): the redundant local
-                # `from loa_cheval.types import BudgetExceededError` previously here
-                # was deleted. Python's scoping rule made `BudgetExceededError` a
-                # function-local name throughout cmd_invoke(), and on the normal
-                # path (retry module IS available, so this `except ImportError`
-                # branch is skipped) the local was never bound — causing the outer
-                # `except BudgetExceededError as e:` below to raise UnboundLocalError
-                # and shadow the real RetriesExhaustedError. The module-scope import
-                # at the top of this file (line 27-28) is the single source of truth.
+            # T1.5 (cycle-103 sprint-1): --mock-fixture-dir bypass for AC-1.2.
+            # When set, load a pre-recorded CompletionResult from the fixture
+            # directory instead of dispatching to the real provider. Sits AFTER
+            # input-gate + budget setup so tests exercise those code paths
+            # identically; the fixture replaces ONLY the provider call.
+            _mock_fixture_dir = getattr(args, "mock_fixture_dir", None)
+            if _mock_fixture_dir:
                 if budget_hook:
                     status = budget_hook.pre_call(request)
                     if status == "BLOCK":
                         raise BudgetExceededError(spent=0, limit=0)
-                result = None
+                result = _load_mock_fixture_response(
+                    _mock_fixture_dir,
+                    resolved.provider,
+                    resolved.model_id,
+                )
+                if budget_hook:
+                    budget_hook.post_call(result)
+            else:
+                # Import retry logic if available
                 try:
-                    result = adapter.complete(request)
-                finally:
-                    if budget_hook and result is not None:
-                        budget_hook.post_call(result)
-                    elif budget_hook and result is None:
-                        logger.warning("budget_post_call_skipped reason=adapter_failure")
+                    from loa_cheval.providers.retry import invoke_with_retry
+
+                    result = invoke_with_retry(adapter, request, hounfour, budget_hook=budget_hook)
+                except ImportError:
+                    # Retry module not yet available — call directly with manual budget hooks
+                    # BB-405: ensure post_call runs on success, log on failure
+                    # NOTE (issue #675, sub-issue 1): the redundant local
+                    # `from loa_cheval.types import BudgetExceededError` previously here
+                    # was deleted. Python's scoping rule made `BudgetExceededError` a
+                    # function-local name throughout cmd_invoke(), and on the normal
+                    # path (retry module IS available, so this `except ImportError`
+                    # branch is skipped) the local was never bound — causing the outer
+                    # `except BudgetExceededError as e:` below to raise UnboundLocalError
+                    # and shadow the real RetriesExhaustedError. The module-scope import
+                    # at the top of this file (line 27-28) is the single source of truth.
+                    if budget_hook:
+                        status = budget_hook.pre_call(request)
+                        if status == "BLOCK":
+                            raise BudgetExceededError(spent=0, limit=0)
+                    result = None
+                    try:
+                        result = adapter.complete(request)
+                    finally:
+                        if budget_hook and result is not None:
+                            budget_hook.post_call(result)
+                        elif budget_hook and result is None:
+                            logger.warning("budget_post_call_skipped reason=adapter_failure")
 
             # T1.7: success — record state for MODELINV emit.
             _modelinv_state["models_succeeded"] = [_modelinv_target]
@@ -533,6 +723,13 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             _cost = getattr(result, "cost_micro_usd", None)
             if _cost is not None:
                 _modelinv_state["cost_micro_usd"] = _cost
+            # cycle-103 T3.2 / AC-3.2: capture observed-transport flag from
+            # the adapter's CompletionResult metadata. Adapter is the source
+            # of truth for which transport actually ran; the env-derived
+            # default (LOA_CHEVAL_DISABLE_STREAMING) is the fallback only
+            # for callers that don't set the metadata field.
+            _result_meta = getattr(result, "metadata", None) or {}
+            _modelinv_state["streaming"] = _result_meta.get("streaming")
 
             # Output response to stdout (I/O contract: stdout = response only)
             if args.output_format == "json":
@@ -661,6 +858,8 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     capability_class=_modelinv_capability_class,
                     invocation_latency_ms=_modelinv_state["invocation_latency_ms"],
                     cost_micro_usd=_modelinv_state["cost_micro_usd"],
+                    # cycle-103 T3.2 / AC-3.2: pass observed-transport flag.
+                    streaming=_modelinv_state["streaming"],
                 )
             except _ModelinvRedactionFailure as _rf:
                 # Defense-in-depth gate rejected the payload: a secret shape
@@ -815,6 +1014,19 @@ def main() -> int:
     parser.add_argument("--json-errors", action="store_true", dest="json_errors", help="JSON error output on stderr (default for programmatic callers)")
     parser.add_argument("--timeout", type=int, help="Request timeout in seconds")
     parser.add_argument("--include-thinking", action="store_true", dest="include_thinking", help="Include thinking traces in JSON output (SDD 4.6)")
+    parser.add_argument(
+        "--mock-fixture-dir",
+        dest="mock_fixture_dir",
+        default=None,
+        help=(
+            "cycle-103 T1.5 / AC-1.2 — load a pre-recorded CompletionResult from "
+            "<dir> instead of calling the real provider. Looks up "
+            "<provider>__<sanitized_model>.json then response.json. "
+            "Per IMP-006, latency_ms / interaction_id / usage.source normalize "
+            "to deterministic defaults at load time so test-side structural "
+            "compares are stable."
+        ),
+    )
 
     # Deep Research non-blocking mode (SDD 4.2.2, 4.5)
     parser.add_argument("--async", action="store_true", dest="async_mode", help="Start Deep Research non-blocking, return interaction ID")

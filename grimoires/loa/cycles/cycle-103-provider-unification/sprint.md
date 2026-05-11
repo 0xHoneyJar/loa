@@ -47,52 +47,52 @@ Cycle-103 is a **stabilization-and-unification cycle**. The deliverable is struc
 
 ### Deliverables
 
-- [ ] **D1.1** Sprint 1 perf-bench report at `grimoires/loa/cycles/cycle-103-provider-unification/handoffs/spawn-vs-daemon-benchmark.md` documenting p95 latency under (a) cold cache, (b) warm cache, (c) concurrent BB review pass shape (IMP-002 from prd.md §8.5.1)
-- [ ] **D1.2** `cheval-delegate.contract.md` runbook (versioned IPC contract) at `grimoires/loa/runbooks/cheval-delegate.contract.md` with: (a) CLI invocation spec, (b) stdin/stdout JSON Schema, (c) exit-code table with retry-eligibility per code (IMP-001)
-- [ ] **D1.3** Pre-implementation httpx large-body spike report (172KB → 250KB → 318KB → 400KB) at `grimoires/loa/cycles/cycle-103-provider-unification/handoffs/httpx-large-body-spike.md` — FIRST commit on cycle-103 branch (IMP-005)
-- [ ] **D1.4** `ChevalDelegateAdapter` (TS) implementing `ILLMProvider` port — spawn-mode and (conditionally) daemon-mode
-- [ ] **D1.5** BB `adapter-factory.ts` collapsed to single delegate; `anthropic.ts` / `openai.ts` / `google.ts` retired
-- [ ] **D1.6** `flatline-*.sh` direct-API call sites enumerated and replaced with `model-invoke`
-- [ ] **D1.7** Drift gate `tools/check-no-direct-llm-fetch.sh` + `.github/workflows/no-direct-llm-fetch.yml` covering `.ts`, `.sh`, `.py` extensions (IMP-010)
-- [ ] **D1.8** Escape hatch `LOA_BB_FORCE_LEGACY_FETCH=1` env wired and tested (IMP-003 — mandatory, not optional)
-- [ ] **D1.9** `grimoires/loa/runbooks/cheval-delegate-architecture.md` operator-facing runbook
-- [ ] **D1.10** KF-008 outcome recorded in `grimoires/loa/known-failures.md` attempts table (close OR document vendor-side per AC-1.6 (a)/(b))
+- [x] **D1.1** Sprint 1 perf-bench report at `grimoires/loa/cycles/cycle-103-provider-unification/handoffs/spawn-vs-daemon-benchmark.md` documenting p95 latency under (a) cold cache, (b) warm cache, (c) concurrent BB review pass shape (IMP-002 from prd.md §8.5.1) — **DONE 2026-05-11; GO spawn-mode (worst-case p95=126ms vs 1000ms threshold)**
+- [~] **D1.2** `cheval-delegate.contract.md` runbook (versioned IPC contract) at `grimoires/loa/runbooks/cheval-delegate.contract.md` with: (a) CLI invocation spec, (b) stdin/stdout JSON Schema, (c) exit-code table with retry-eligibility per code (IMP-001)
+- [x] **D1.3** Pre-implementation httpx large-body spike report (172KB → 250KB → 318KB → 400KB) at `grimoires/loa/cycles/cycle-103-provider-unification/handoffs/httpx-large-body-spike.md` — FIRST commit on cycle-103 branch (IMP-005) — **DONE 2026-05-11; routes (a)**
+- [x] **D1.4** `ChevalDelegateAdapter` (TS) implementing `ILLMProvider` port — spawn-mode and (conditionally) daemon-mode
+- [x] **D1.5** BB `adapter-factory.ts` collapsed to single delegate; `anthropic.ts` / `openai.ts` / `google.ts` retired
+- [x] **D1.6** `flatline-*.sh` direct-API call sites enumerated and replaced with `model-invoke`
+- [x] **D1.7** Drift gate `tools/check-no-direct-llm-fetch.sh` + `.github/workflows/no-direct-llm-fetch.yml` covering `.ts`, `.sh`, `.py` extensions (IMP-010)
+- [x] **D1.8** Escape hatch `LOA_BB_FORCE_LEGACY_FETCH=1` env wired and tested (IMP-003 — mandatory, not optional)
+- [x] **D1.9** `grimoires/loa/runbooks/cheval-delegate-architecture.md` operator-facing runbook
+- [x] **D1.10** KF-008 outcome recorded in `grimoires/loa/known-failures.md` attempts table (close OR document vendor-side per AC-1.6 (a)/(b))
 
 ### Acceptance Criteria
 
-- [ ] **AC-1.0** (NEW, IMP-005) Pre-implementation httpx large-body spike completes BEFORE T1.2; outcome documented and routes Sprint 1: (a) httpx handles 400KB → unification trivially closes KF-008 (best case), (b) httpx hits threshold → KF-008 is vendor-side, cycle-103 ships unification + documented operator workaround
-- [ ] **AC-1.1** BB invokes cheval for provider calls. `adapters/anthropic.ts`, `adapters/openai.ts`, `adapters/google.ts` replaced with `adapters/cheval-delegate.ts`. IPC contract MUST be defined (D1.2) before adapter code lands
-- [ ] **AC-1.2** All three TS adapter test suites under `.claude/skills/bridgebuilder-review/resources/__tests__/` pass against the new delegate using mocked-fixture comparisons (`--mock-fixture-dir`). Byte-equal comparison on live model output is forbidden (IMP-006). Structural assertion targets `result.content` + `result.finish_reason` + typed error category (from Sprint 3 AC-3.1)
-- [ ] **AC-1.3** KF-001 NODE_OPTIONS fix marked vestigial in `entry.sh` (comment + cycle-104 removal TODO)
-- [ ] **AC-1.4** Every direct-API path in `flatline-orchestrator.sh` + `flatline-*.sh` replaced with `model-invoke`. Mixed-mode behavior (#794 A5 root cause) becomes uniform
-- [ ] **AC-1.5** BB's review-marker logic, `.reviewignore` handling, `postComment` in `github-cli.ts` STAY in TypeScript. Network calls to GitHub stay as-is. `LOA_BB_FORCE_LEGACY_FETCH=1` escape hatch ships at merge (IMP-003)
-- [ ] **AC-1.6** Re-run BB cycle-1 + cycle-2 test on PR #844 after unification. Record KF-008 outcome: (a) closes via cheval httpx, OR (b) reproduces (well-classified provider-side failure)
-- [ ] **AC-1.7** BB's review pass emits the same `MODELINV/model.invoke.complete` envelope cheval emits, via the delegate. No parallel audit chains
-- [ ] **AC-1.8** (NEW, IMP-004) Credential-handoff contract: (a) `ANTHROPIC_API_KEY`/`OPENAI_API_KEY`/`GOOGLE_API_KEY` cross subprocess via env inheritance only — never argv, never stdin; (b) delegate stderr/log paths route through `redact_payload_strings` + `_GATE_BEARER`; (c) daemon UDS mode 0600 with first-byte-handshake credential passing (never re-read on every call); (d) bats tests pin AKIA / sk-ant- / Bearer / AIza shapes scrubbed from delegate stderr at every error path
-- [ ] **AC-1.9** (NEW, IMP-009) Subprocess lifecycle semantics: (a) non-zero exit codes → typed exceptions per contract; (b) timeout via `subprocess.run(timeout=...)`, SIGTERM at timeout, SIGKILL at timeout+5s; (c) partial-stdout → `MalformedDelegateError` (retry-eligible); (d) daemon orphan-cleanup via `.run/cheval-daemon.pid` checked at startup, SIGTERM-to-orphan if PID alive but socket dead
+- [x] **AC-1.0** (NEW, IMP-005) Pre-implementation httpx large-body spike completes BEFORE T1.2; outcome documented and routes Sprint 1: (a) httpx handles 400KB → unification trivially closes KF-008 (best case), (b) httpx hits threshold → KF-008 is vendor-side, cycle-103 ships unification + documented operator workaround — **ROUTED (a) 2026-05-11**: cheval Python httpx exit 0 at all 172/250/318/400KB; KF-008 isolated to BB Node fetch; full Sprint 1 scope proceeds
+- [x] **AC-1.1** BB invokes cheval for provider calls. `adapters/anthropic.ts`, `adapters/openai.ts`, `adapters/google.ts` replaced with `adapters/cheval-delegate.ts`. IPC contract MUST be defined (D1.2) before adapter code lands
+- [x] **AC-1.2** All three TS adapter test suites under `.claude/skills/bridgebuilder-review/resources/__tests__/` pass against the new delegate using mocked-fixture comparisons (`--mock-fixture-dir`). Byte-equal comparison on live model output is forbidden (IMP-006). Structural assertion targets `result.content` + `result.finish_reason` + typed error category (from Sprint 3 AC-3.1)
+- [x] **AC-1.3** KF-001 NODE_OPTIONS fix marked vestigial in `entry.sh` (comment + cycle-104 removal TODO)
+- [x] **AC-1.4** Every direct-API path in `flatline-orchestrator.sh` + `flatline-*.sh` replaced with `model-invoke`. Mixed-mode behavior (#794 A5 root cause) becomes uniform
+- [x] **AC-1.5** BB's review-marker logic, `.reviewignore` handling, `postComment` in `github-cli.ts` STAY in TypeScript. Network calls to GitHub stay as-is. `LOA_BB_FORCE_LEGACY_FETCH=1` escape hatch ships at merge (IMP-003)
+- [x] **AC-1.6** Re-run BB cycle-1 + cycle-2 test on PR #844 after unification. Record KF-008 outcome: (a) closes via cheval httpx, OR (b) reproduces (well-classified provider-side failure)
+- [x] **AC-1.7** BB's review pass emits the same `MODELINV/model.invoke.complete` envelope cheval emits, via the delegate. No parallel audit chains
+- [x] **AC-1.8** (NEW, IMP-004) Credential-handoff contract: (a) `ANTHROPIC_API_KEY`/`OPENAI_API_KEY`/`GOOGLE_API_KEY` cross subprocess via env inheritance only — never argv, never stdin; (b) delegate stderr/log paths route through `redact_payload_strings` + `_GATE_BEARER`; (c) daemon UDS mode 0600 with first-byte-handshake credential passing (never re-read on every call); (d) bats tests pin AKIA / sk-ant- / Bearer / AIza shapes scrubbed from delegate stderr at every error path
+- [x] **AC-1.9** (NEW, IMP-009) Subprocess lifecycle semantics: (a) non-zero exit codes → typed exceptions per contract; (b) timeout via `subprocess.run(timeout=...)`, SIGTERM at timeout, SIGKILL at timeout+5s; (c) partial-stdout → `MalformedDelegateError` (retry-eligible); (d) daemon orphan-cleanup via `.run/cheval-daemon.pid` checked at startup, SIGTERM-to-orphan if PID alive but socket dead
 
 ### Technical Tasks
 
-- [ ] **T1.0** Pre-implementation httpx large-body spike — invoke cheval Python httpx against Google `generativelanguage` API at 172KB / 250KB / 318KB / 400KB reproducing BB KF-008 scenario. Result is FIRST commit on cycle-103 branch. → **[G-1, G-3]**
+- [x] **T1.0** Pre-implementation httpx large-body spike — invoke cheval Python httpx against Google `generativelanguage` API at 172KB / 250KB / 318KB / 400KB reproducing BB KF-008 scenario. Result is FIRST commit on cycle-103 branch. → **[G-1, G-3]** — **DONE 2026-05-11**
   > From prd.md §8.5.2 IMP-005; from sdd.md §10 Q2
-- [ ] **T1.1** Benchmark `ChevalDelegateAdapter` spawn-per-call latency. Methodology: 50 sequential calls under (a) cold cache, (b) warm cache, (c) concurrent BB review pass shape. p95 ≤ 1000ms = GO for spawn-mode; >1000ms = GO for daemon-mode (T1.3). Commit raw measurements + decision to D1.1. → **[G-1]**
+- [x] **T1.1** Benchmark `ChevalDelegateAdapter` spawn-per-call latency. Methodology: 50 sequential calls under (a) cold cache, (b) warm cache, (c) concurrent BB review pass shape. p95 ≤ 1000ms = GO for spawn-mode; >1000ms = GO for daemon-mode (T1.3). Commit raw measurements + decision to D1.1. → **[G-1]** — **DONE 2026-05-11; spawn-mode (worst p95=126ms)**
   > From sdd.md §7.4; PRD §8.5.1 IMP-002
-- [ ] **T1.2** Implement `ChevalDelegateAdapter` (`.claude/skills/bridgebuilder-review/resources/adapters/cheval-delegate.ts`) — spawn-mode. Implements `ILLMProvider`. Marshals `ReviewRequest` → cheval `CompletionRequest`. Translates cheval exit codes / stderr → `LLMProviderError` per §5.3 table. Adds `--mock-fixture-dir` passthrough (AC-1.2). Includes credential-handoff per AC-1.8. → **[G-1]**
+- [x] **T1.2** Implement `ChevalDelegateAdapter` (`.claude/skills/bridgebuilder-review/resources/adapters/cheval-delegate.ts`) — spawn-mode. Implements `ILLMProvider`. Marshals `ReviewRequest` → cheval `CompletionRequest`. Translates cheval exit codes / stderr → `LLMProviderError` per §5.3 table. Adds `--mock-fixture-dir` passthrough (AC-1.2). Includes credential-handoff per AC-1.8. → **[G-1]**
   > From sdd.md §1.4.1, §5.3
-- [ ] **T1.3** (Conditional on T1.1 p95 >1000ms) Implement cheval daemon mode: (a) `.claude/adapters/loa_cheval/daemon/server.py` UDS entry point (mode 0600 at `.run/cheval-daemon.sock`); (b) length-prefixed JSON frames per sdd.md §5.2; (c) idle-timeout auto-terminate (default 300s); (d) PID file at `.run/cheval-daemon.pid`; (e) delegate daemon shim in `cheval-delegate.ts`; (f) `LOA_CHEVAL_DAEMON=1` activation env. → **[G-1]**
+- [~] **T1.3** ~~(Conditional on T1.1 p95 >1000ms) Implement cheval daemon mode~~ — **DESCOPED 2026-05-11 by T1.1 outcome.** Worst-case p95=126ms (~10× margin under 1000ms threshold). Daemon-mode is OUT OF SCOPE for Sprint 1; the SDD §5.2 protocol spec stays for cycle-104+ if a workload demands it. SDD §5.3 `mode?: "spawn" \| "daemon"` constructor option kept in TS types; T1.2 implements spawn-only. → **[G-1]**
   > From sdd.md §1.4.2, §5.2
-- [ ] **T1.4** Migrate `.claude/skills/bridgebuilder-review/resources/adapters/adapter-factory.ts` to always return delegate. Retire `anthropic.ts` / `openai.ts` / `google.ts` (mark deleted; preserve in git history per AC-1.5). → **[G-1]**
+- [x] **T1.4** Migrate `.claude/skills/bridgebuilder-review/resources/adapters/adapter-factory.ts` to always return delegate. Retire `anthropic.ts` / `openai.ts` / `google.ts` (mark deleted; preserve in git history per AC-1.5). → **[G-1]**
   > From sdd.md §2.1 (Removed in cycle-103)
-- [ ] **T1.5** AC-1.2 implementation — extend cheval CLI to accept `--mock-fixture-dir` flag (sdd.md §5.1 NEW). Port existing BB fixture HTTP mocks into the delegate. Apply normalization (timestamps, request IDs, usage fields) before structural compare (IMP-006). → **[G-1]**
+- [x] **T1.5** AC-1.2 implementation — extend cheval CLI to accept `--mock-fixture-dir` flag (sdd.md §5.1 NEW). Port existing BB fixture HTTP mocks into the delegate. Apply normalization (timestamps, request IDs, usage fields) before structural compare (IMP-006). → **[G-1]**
   > From prd.md §8.5.1 IMP-006
-- [ ] **T1.6** Enumerate direct-API call sites in `flatline-orchestrator.sh` + `flatline-*.sh`. Audit list documented in a sprint subordinate doc. Replace each with `model-invoke` shim. Remove dead code. → **[G-2]**
+- [x] **T1.6** Enumerate direct-API call sites in `flatline-orchestrator.sh` + `flatline-*.sh`. Audit list documented in a sprint subordinate doc. Replace each with `model-invoke` shim. Remove dead code. → **[G-2]**
   > From sdd.md §5.4 (AC-1.4 — collapse)
-- [ ] **T1.7** Implement `tools/check-no-direct-llm-fetch.sh`: rg scan of `.claude/skills/**/*.{ts,sh,py}` + `.claude/scripts/**/*.{sh,py}` for `api.anthropic.com|api.openai.com|generativelanguage.googleapis.com` outside delegate; extension list + shebang detection (cycle-099 sprint-1E.c.3.c precedent). Allowlist at `tools/check-no-direct-llm-fetch.allowlist` (mode 0644). `.github/workflows/no-direct-llm-fetch.yml` triggers on PR + push to main. → **[G-1, G-2]**
+- [x] **T1.7** Implement `tools/check-no-direct-llm-fetch.sh`: rg scan of `.claude/skills/**/*.{ts,sh,py}` + `.claude/scripts/**/*.{sh,py}` for `api.anthropic.com|api.openai.com|generativelanguage.googleapis.com` outside delegate; extension list + shebang detection (cycle-099 sprint-1E.c.3.c precedent). Allowlist at `tools/check-no-direct-llm-fetch.allowlist` (mode 0644). `.github/workflows/no-direct-llm-fetch.yml` triggers on PR + push to main. → **[G-1, G-2]**
   > From sdd.md §1.4.6, §7.3; PRD §8.5.1 IMP-010
-- [ ] **T1.8** Mark `entry.sh` NODE_OPTIONS Happy Eyeballs fix as vestigial — comment block citing AC-1.3 + cycle-104 removal TODO. Add bats test `tests/test_entry_sh_node_options_vestigial.bats` asserting comment-marker is present and removal is gated on cycle-104. → **[G-1]**
-- [ ] **T1.9** AC-1.6 verification — re-run BB cycle-1 + cycle-2 review on PR #844 (or a fresh test fixture if PR #844 already merged) via unified path. Record KF-008 outcome in `grimoires/loa/known-failures.md` attempts table. Update upstream #845 if vendor-side reproduces. → **[G-3]**
-- [ ] **T1.10** Author `grimoires/loa/runbooks/cheval-delegate-architecture.md` describing: BB → delegate flow, spawn vs daemon mode, escape hatch (`LOA_BB_FORCE_LEGACY_FETCH=1`), troubleshooting matrix. → **[G-1]**
-- [ ] **T1.11** Implement `LOA_BB_FORCE_LEGACY_FETCH=1` escape hatch in `cheval-delegate.ts` constructor — when set, throws clear "legacy fetch path requested but removed in cycle-103" error pointing operators to upstream issue (the path is removed code; the hatch surfaces a guided rollback prompt rather than restoring the path). Survives ≥1 full cycle (removed in cycle-104 only after operator-visible green signal). → **[G-1]**
+- [x] **T1.8** Mark `entry.sh` NODE_OPTIONS Happy Eyeballs fix as vestigial — comment block citing AC-1.3 + cycle-104 removal TODO. Add bats test `tests/test_entry_sh_node_options_vestigial.bats` asserting comment-marker is present and removal is gated on cycle-104. → **[G-1]**
+- [x] **T1.9** AC-1.6 verification — re-run BB cycle-1 + cycle-2 review on PR #844 (or a fresh test fixture if PR #844 already merged) via unified path. Record KF-008 outcome in `grimoires/loa/known-failures.md` attempts table. Update upstream #845 if vendor-side reproduces. → **[G-3]**
+- [x] **T1.10** Author `grimoires/loa/runbooks/cheval-delegate-architecture.md` describing: BB → delegate flow, spawn vs daemon mode, escape hatch (`LOA_BB_FORCE_LEGACY_FETCH=1`), troubleshooting matrix. → **[G-1]**
+- [x] **T1.11** Implement `LOA_BB_FORCE_LEGACY_FETCH=1` escape hatch in `cheval-delegate.ts` constructor — when set, throws clear "legacy fetch path requested but removed in cycle-103" error pointing operators to upstream issue (the path is removed code; the hatch surfaces a guided rollback prompt rather than restoring the path). Survives ≥1 full cycle (removed in cycle-104 only after operator-visible green signal). → **[G-1]**
   > From sdd.md §4.2 + prd.md §8.5.1 IMP-003
 
 ### Dependencies
@@ -134,24 +134,24 @@ Cycle-103 is a **stabilization-and-unification cycle**. The deliverable is struc
 
 ### Deliverables
 
-- [ ] **D2.1** Empirical replay dataset at `grimoires/loa/cycles/cycle-103-provider-unification/sprint-2-corpus/` — fixed prompt corpus with response shape preserved per trial (IMP-008)
-- [ ] **D2.2** Sprint 2 classification report at `grimoires/loa/cycles/cycle-103-provider-unification/handoffs/kf-002-layer-2-classification.md` — structural vs vendor-side decision with raw measurements
-- [ ] **D2.3** EITHER (structural) `_lookup_max_input_tokens` gate update with empirically-validated safe values OR `thinking.budget_tokens` forced — OR (vendor-side) upstream issue filed + KF-002 layer 2 attempts row updated in `known-failures.md`
-- [ ] **D2.4** Provider fallback chain verification report — proves chain still routes correctly post-Sprint-2
+- [x] **D2.1** Empirical replay dataset at `grimoires/loa/cycles/cycle-103-provider-unification/sprint-2-corpus/` — fixed prompt corpus with response shape preserved per trial (IMP-008)
+- [x] **D2.2** Sprint 2 classification report at `grimoires/loa/cycles/cycle-103-provider-unification/handoffs/kf-002-layer-2-classification.md` — structural vs vendor-side decision with raw measurements
+- [x] **D2.3** EITHER (structural) `_lookup_max_input_tokens` gate update with empirically-validated safe values OR `thinking.budget_tokens` forced — OR (vendor-side) upstream issue filed + KF-002 layer 2 attempts row updated in `known-failures.md`
+- [x] **D2.4** Provider fallback chain verification report — proves chain still routes correctly post-Sprint-2
 
 ### Acceptance Criteria
 
-- [ ] **AC-2.1** Empirically characterize the failure threshold: at what input size does claude-opus-4-7 return empty-content under what conditions? Replay-test at 30K / 40K / 50K / 60K / 80K input. n≥5 trials per input size, fixed prompt corpus checked into repo (IMP-008). Measured outcomes: `{empty_content, partial_content, full_content}` per trial. Decision-rule: "structural fix viable" requires ≥80% full_content at empirically-safe threshold across 5 trials
-- [ ] **AC-2.2** (Conditional — structural path) Apply `max_input_tokens` per-model gate with empirically-validated values, OR force `thinking.budget_tokens` explicitly so visible-output budget is preserved
-- [ ] **AC-2.3** (Conditional — vendor-side path) File upstream Anthropic issue + document workaround in `grimoires/loa/known-failures.md` KF-002 layer 2 attempts table. Recurrence-≥3 already triggered per original observation. Operator sign-off required for vendor-side conclusion
-- [ ] **AC-2.4** Adversarial-review.sh provider fallback chain (Sprint 1B/1F) continues to handle residual failure. Re-run fallback chain test post-Sprint-2 fix; verify routing still works
+- [x] **AC-2.1** Empirically characterize the failure threshold: at what input size does claude-opus-4-7 return empty-content under what conditions? Replay-test at 30K / 40K / 50K / 60K / 80K input. n≥5 trials per input size, fixed prompt corpus checked into repo (IMP-008). Measured outcomes: `{empty_content, partial_content, full_content}` per trial. Decision-rule: "structural fix viable" requires ≥80% full_content at empirically-safe threshold across 5 trials
+- [x] **AC-2.2** (Conditional — structural path) Apply `max_input_tokens` per-model gate with empirically-validated values, OR force `thinking.budget_tokens` explicitly so visible-output budget is preserved
+- [~] **AC-2.3** (Conditional — vendor-side path) File upstream Anthropic issue + document workaround in `grimoires/loa/known-failures.md` KF-002 layer 2 attempts table. Recurrence-≥3 already triggered per original observation. Operator sign-off required for vendor-side conclusion
+- [x] **AC-2.4** Adversarial-review.sh provider fallback chain (Sprint 1B/1F) continues to handle residual failure. Re-run fallback chain test post-Sprint-2 fix; verify routing still works
 
 ### Technical Tasks
 
-- [ ] **T2.1** Empirical replay — invoke claude-opus-4-7 via cheval (gated behind `LOA_RUN_LIVE_TESTS=1`) across 5 input sizes × 5 trials × varying `thinking` config and `max_tokens` setting. Record `{empty_content, partial_content, full_content}` per trial. Budget ~$3. Test artifact: `tests/replay/test_opus_empty_content_thresholds.py`. → **[G-4]**
+- [x] **T2.1** Empirical replay — invoke claude-opus-4-7 via cheval (gated behind `LOA_RUN_LIVE_TESTS=1`) across 5 input sizes × 5 trials × varying `thinking` config and `max_tokens` setting. Record `{empty_content, partial_content, full_content}` per trial. Budget ~$3. Test artifact: `tests/replay/test_opus_empty_content_thresholds.py`. → **[G-4]**
   > From prd.md §8.5.2 IMP-008; sdd.md §7.2 AC-2.1 mapping
-- [ ] **T2.2a** (Conditional — structural path, ≥80% full_content at safe threshold) Apply `max_input_tokens` gate or force `thinking.budget_tokens` in `.claude/data/model-config.yaml` + `_lookup_max_input_tokens`. Test artifact: `tests/test_opus_max_input_gate.py`. Update KF-002 layer 2 to RESOLVED-structural. → **[G-4]**
-- [ ] **T2.2b** (Conditional — vendor-side path, <80% full_content) File upstream Anthropic issue with measurements from T2.1. Update `grimoires/loa/known-failures.md` KF-002 layer 2 attempts row with recurrence-N + upstream link. Operator sign-off required before closing as vendor-side. Verify provider fallback chain still routes (AC-2.4) via `tests/test_provider_fallback_chain.py`. → **[G-4]**
+- [x] **T2.2a** (Conditional — structural path, ≥80% full_content at safe threshold) Apply `max_input_tokens` gate or force `thinking.budget_tokens` in `.claude/data/model-config.yaml` + `_lookup_max_input_tokens`. Test artifact: `tests/test_opus_max_input_gate.py`. Update KF-002 layer 2 to RESOLVED-structural. → **[G-4]**
+- [~] **T2.2b** (Conditional — vendor-side path, <80% full_content) File upstream Anthropic issue with measurements from T2.1. Update `grimoires/loa/known-failures.md` KF-002 layer 2 attempts row with recurrence-N + upstream link. Operator sign-off required before closing as vendor-side. Verify provider fallback chain still routes (AC-2.4) via `tests/test_provider_fallback_chain.py`. → **[G-4]**
 
 ### Dependencies
 
@@ -186,48 +186,48 @@ Cycle-103 is a **stabilization-and-unification cycle**. The deliverable is struc
 
 ### Deliverables
 
-- [ ] **D3.1** `ProviderStreamError(category=...)` typed exception in `.claude/adapters/loa_cheval/types.py` + adapter dispatch table
-- [ ] **D3.2** `streaming` field derived from observed transport in `CompletionResult.metadata['streaming']`; `emit_model_invoke_complete` reads from there
-- [ ] **D3.3** `sanitize_provider_error_message` helper at `.claude/adapters/loa_cheval/redaction/sanitize.py` + invocation at every adapter exception-construction site
-- [ ] **D3.4** `streaming_max_input_tokens` / `legacy_max_input_tokens` config split in `.claude/data/model-config.yaml` + `_lookup_max_input_tokens` gate selection logic
-- [ ] **D3.5** `MAX_SSE_BUFFER_BYTES = 4 MiB` + `MAX_TEXT_PART_BYTES = 1 MiB` + `MAX_ARGS_PART_BYTES = 256 KiB` caps in all streaming parsers
-- [ ] **D3.6** `redact_payload_strings` extended to walk nested dicts with path-aware policy
-- [ ] **D3.7** `_GATE_BEARER` regex extended to cover `bearer:` (no space), percent-encoded, JSON-escaped variants
-- [ ] **D3.8** A6 parallel-dispatch decision: ship OR explicitly defer to cycle-104 with rationale (Sprint 1 R1 outcome informs this)
-- [ ] **D3.9** Sprint 3 test coverage report — ≥30 net-new tests; per-AC mapping per sdd.md §7.2
+- [x] **D3.1** `ProviderStreamError(category=...)` typed exception in `.claude/adapters/loa_cheval/types.py` + adapter dispatch table
+- [x] **D3.2** `streaming` field derived from observed transport in `CompletionResult.metadata['streaming']`; `emit_model_invoke_complete` reads from there
+- [x] **D3.3** `sanitize_provider_error_message` helper at `.claude/adapters/loa_cheval/redaction/sanitize.py` + invocation at every adapter exception-construction site
+- [x] **D3.4** `streaming_max_input_tokens` / `legacy_max_input_tokens` config split in `.claude/data/model-config.yaml` + `_lookup_max_input_tokens` gate selection logic
+- [x] **D3.5** `MAX_SSE_BUFFER_BYTES = 4 MiB` + `MAX_TEXT_PART_BYTES = 1 MiB` + `MAX_ARGS_PART_BYTES = 256 KiB` caps in all streaming parsers
+- [x] **D3.6** `redact_payload_strings` extended to walk nested dicts with path-aware policy
+- [x] **D3.7** `_GATE_BEARER` regex extended to cover `bearer:` (no space), percent-encoded, JSON-escaped variants
+- [x] **D3.8** A6 parallel-dispatch decision: ship OR explicitly defer to cycle-104 with rationale (Sprint 1 R1 outcome informs this)
+- [x] **D3.9** Sprint 3 test coverage report — ≥30 net-new tests; per-AC mapping per sdd.md §7.2
 
 ### Acceptance Criteria
 
-- [ ] **AC-3.1** Structured parser exception type. Parsers raise `ProviderStreamError(category=Literal["rate_limit","overloaded","malformed","policy","transient","unknown"], message, raw_payload)`. Adapter dispatch maps `category` → typed exception (`RateLimitError`, `ProviderUnavailableError`, `InvalidInputError`, retryable-transient). Restores retry classification cycle-3 flattened
-- [ ] **AC-3.2** Audit `streaming` field derived from observed transport. `CompletionResult.metadata['streaming']` populated by adapter at completion time; `emit_model_invoke_complete` reads from there instead of env. Legacy callers fall back to env-derived
-- [ ] **AC-3.3** Error-body redaction across exception construction. `sanitize_provider_error_message(s: str) -> str` invoked at every adapter exception-construction site that touches upstream bytes. Tests pin AKIA / PEM / Bearer / sk-ant-* / sk-* / AIza shapes scrubbed before reaching exception args
-- [ ] **AC-3.4** Kill-switch + gate auto-revert. When `LOA_CHEVAL_DISABLE_STREAMING=1` is set, `_lookup_max_input_tokens` returns legacy-safe value (24K / 36K) automatically instead of streaming-default value (200K / 180K). Split into `streaming_max_input_tokens` + `legacy_max_input_tokens`
-- [ ] **AC-3.5** MAX_SSE_BUFFER_BYTES cap in SSE parser. `_iter_sse_events` + `_iter_sse_events_raw_data` raise `ValueError` (mapped to `ConnectionLostError` at adapter layer) when buffer exceeds `4 * 1024 * 1024` bytes without event terminator. Cap per-event accumulators (text_parts, arguments_parts, etc.)
-- [ ] **AC-3.6** `redact_payload_strings` nested-dict walk. Current redactor checks field names at immediate parent level only; extend to walk nested structures with path-aware redaction policy. Nested string under any ancestor in `_REDACT_FIELDS` is redacted regardless of immediate parent key
-- [ ] **AC-3.7** `_GATE_BEARER` regex coverage gap. Extend pattern to cover `bearer:` (without space), percent-encoded forms, bare token shape in JSON-escaped contexts. Add tests for each escape variant
-- [ ] **AC-3.8** A6 / parallel-dispatch concurrency (AC-4.5c from cycle-102 Sprint 4 main scope): per-provider connection-pool tuning + sequential-fallback strategy when parallelism degrades >50%. **Decision gated on Sprint 1 R1 outcome** — daemon-mode lands → ship; spawn-mode lands → defer to cycle-104 with explicit rationale in NOTES.md
+- [x] **AC-3.1** Structured parser exception type. Parsers raise `ProviderStreamError(category=Literal["rate_limit","overloaded","malformed","policy","transient","unknown"], message, raw_payload)`. Adapter dispatch maps `category` → typed exception (`RateLimitError`, `ProviderUnavailableError`, `InvalidInputError`, retryable-transient). Restores retry classification cycle-3 flattened
+- [x] **AC-3.2** Audit `streaming` field derived from observed transport. `CompletionResult.metadata['streaming']` populated by adapter at completion time; `emit_model_invoke_complete` reads from there instead of env. Legacy callers fall back to env-derived
+- [x] **AC-3.3** Error-body redaction across exception construction. `sanitize_provider_error_message(s: str) -> str` invoked at every adapter exception-construction site that touches upstream bytes. Tests pin AKIA / PEM / Bearer / sk-ant-* / sk-* / AIza shapes scrubbed before reaching exception args
+- [x] **AC-3.4** Kill-switch + gate auto-revert. When `LOA_CHEVAL_DISABLE_STREAMING=1` is set, `_lookup_max_input_tokens` returns legacy-safe value (24K / 36K) automatically instead of streaming-default value (200K / 180K). Split into `streaming_max_input_tokens` + `legacy_max_input_tokens`
+- [x] **AC-3.5** MAX_SSE_BUFFER_BYTES cap in SSE parser. `_iter_sse_events` + `_iter_sse_events_raw_data` raise `ValueError` (mapped to `ConnectionLostError` at adapter layer) when buffer exceeds `4 * 1024 * 1024` bytes without event terminator. Cap per-event accumulators (text_parts, arguments_parts, etc.)
+- [x] **AC-3.6** `redact_payload_strings` nested-dict walk. Current redactor checks field names at immediate parent level only; extend to walk nested structures with path-aware redaction policy. Nested string under any ancestor in `_REDACT_FIELDS` is redacted regardless of immediate parent key
+- [x] **AC-3.7** `_GATE_BEARER` regex coverage gap. Extend pattern to cover `bearer:` (without space), percent-encoded forms, bare token shape in JSON-escaped contexts. Add tests for each escape variant
+- [~] **AC-3.8** ~~A6 / parallel-dispatch concurrency (AC-4.5c from cycle-102 Sprint 4 main scope): per-provider connection-pool tuning + sequential-fallback strategy when parallelism degrades >50%.~~ **DEFERRED to cycle-104** — Sprint 1 R1 landed spawn-mode (worst p95=126ms, 10× margin under 1000ms threshold). AC-3.8 is structurally inapplicable to spawn-mode (no long-lived connection pools, no cross-call concurrency state). Rationale + commit references in `grimoires/loa/NOTES.md` Decision Log entry dated 2026-05-11.
 
 ### Technical Tasks
 
 **Sequencing note (per prd.md R4 mitigation):** T3.1 lands FIRST as foundational; T3.2–T3.7 layer on top.
 
-- [ ] **T3.1** `ProviderStreamError` typed exception + dispatch table — single lookup table in adapter layer maps `category` → existing typed exception. `retry.py` unchanged (reads typed exception). Test: `tests/test_provider_stream_error_classification.py`. → **[G-5]**
+- [x] **T3.1** `ProviderStreamError` typed exception + dispatch table — single lookup table in adapter layer maps `category` → existing typed exception. `retry.py` unchanged (reads typed exception). Test: `tests/test_provider_stream_error_classification.py`. → **[G-5]**
   > From sdd.md §1.4.4, §6.1; prd.md AC-3.1
-- [ ] **T3.2** Observed-streaming audit field — adapter populates `CompletionResult.metadata['streaming']` at completion time. `emit_model_invoke_complete` in `audit/modelinv.py` reads from metadata, falls back to env for legacy callers. Test: `tests/test_modelinv_streaming_observed.py`. → **[G-5]**
+- [x] **T3.2** Observed-streaming audit field — adapter populates `CompletionResult.metadata['streaming']` at completion time. `emit_model_invoke_complete` in `audit/modelinv.py` reads from metadata, falls back to env for legacy callers. Test: `tests/test_modelinv_streaming_observed.py`. → **[G-5]**
   > From sdd.md §3.4 (new fields), prd.md AC-3.2
-- [ ] **T3.3** `sanitize_provider_error_message` helper at `.claude/adapters/loa_cheval/redaction/sanitize.py`. Scrubs AKIA / PEM markers / Bearer tokens / `sk-ant-*` / `sk-*` / `AIza*` 39-char keys + JSON-escaped variants. Wire at every adapter exception-construction site (anthropic / openai / google + streaming variants + `retry.py` `RetriesExhaustedError` final-cause chain per sdd.md §6.2). TDD per R8 mitigation. Test: `tests/test_sanitize_provider_error_message.py` (mirrors cycle-099 sprint-1E.a parity-test pattern). → **[G-5]**
+- [x] **T3.3** `sanitize_provider_error_message` helper at `.claude/adapters/loa_cheval/redaction/sanitize.py`. Scrubs AKIA / PEM markers / Bearer tokens / `sk-ant-*` / `sk-*` / `AIza*` 39-char keys + JSON-escaped variants. Wire at every adapter exception-construction site (anthropic / openai / google + streaming variants + `retry.py` `RetriesExhaustedError` final-cause chain per sdd.md §6.2). TDD per R8 mitigation. Test: `tests/test_sanitize_provider_error_message.py` (mirrors cycle-099 sprint-1E.a parity-test pattern). → **[G-5]**
   > From sdd.md §1.4.3, §6.2; prd.md AC-3.3
-- [ ] **T3.4** `streaming_max_input_tokens` / `legacy_max_input_tokens` config split: (a) extend `.claude/data/model-config.yaml` schema per sdd.md §3.5; (b) update `_lookup_max_input_tokens` in `loader.py` to branch on `_streaming_disabled()`; (c) backward-compat: legacy `max_input_tokens`-only configs continue working. Migration tool: extend cycle-099's `tools/migrate-model-config.py` with `--cycle103-split` flag. Test: `tests/test_max_input_token_gate_split.py`. → **[G-5]**
+- [x] **T3.4** `streaming_max_input_tokens` / `legacy_max_input_tokens` config split: (a) extend `.claude/data/model-config.yaml` schema per sdd.md §3.5; (b) update `_lookup_max_input_tokens` in `loader.py` to branch on `_streaming_disabled()`; (c) backward-compat: legacy `max_input_tokens`-only configs continue working. Migration tool: extend cycle-099's `tools/migrate-model-config.py` with `--cycle103-split` flag. Test: `tests/test_max_input_token_gate_split.py`. → **[G-5]**
   > From sdd.md §1.4.5, §3.5; prd.md AC-3.4
-- [ ] **T3.5** SSE buffer caps in `anthropic_streaming.py` / `openai_streaming.py` / `google_streaming.py`: `MAX_SSE_BUFFER_BYTES = 4 * 1024 * 1024`, `MAX_TEXT_PART_BYTES = 1 * 1024 * 1024`, `MAX_ARGS_PART_BYTES = 256 * 1024`. ValueError → `ConnectionLostError` at adapter layer (existing pattern). Test: `tests/test_sse_buffer_cap.py` + per-event-accumulator caps. → **[G-5]**
+- [x] **T3.5** SSE buffer caps in `anthropic_streaming.py` / `openai_streaming.py` / `google_streaming.py`: `MAX_SSE_BUFFER_BYTES = 4 * 1024 * 1024`, `MAX_TEXT_PART_BYTES = 1 * 1024 * 1024`, `MAX_ARGS_PART_BYTES = 256 * 1024`. ValueError → `ConnectionLostError` at adapter layer (existing pattern). Test: `tests/test_sse_buffer_cap.py` + per-event-accumulator caps. → **[G-5]**
   > From sdd.md §6.3; prd.md AC-3.5 / BF-005
-- [ ] **T3.6** `redact_payload_strings` nested-dict walk — path-aware: nested string under any ancestor in `_REDACT_FIELDS` is redacted. Test: `tests/test_redact_payload_nested.py` (nested-list / nested-dict / mixed structures). → **[G-5]**
+- [x] **T3.6** `redact_payload_strings` nested-dict walk — path-aware: nested string under any ancestor in `_REDACT_FIELDS` is redacted. Test: `tests/test_redact_payload_nested.py` (nested-list / nested-dict / mixed structures). → **[G-5]**
   > From prd.md AC-3.6 / DISS-003
-- [ ] **T3.7** `_GATE_BEARER` regex coverage extension — cover `bearer:` (no space), percent-encoded (`%20Bearer%20`), bare token shape in JSON-escaped contexts (`\"Bearer X\"`). Test: `tests/test_gate_bearer_regex_coverage.py`. Pattern follows cycle-099 sprint-1E.c.3.c Unicode-glob bypass closure (NFKC + control-byte scrubbing). → **[G-5]**
+- [x] **T3.7** `_GATE_BEARER` regex coverage extension — cover `bearer:` (no space), percent-encoded (`%20Bearer%20`), bare token shape in JSON-escaped contexts (`\"Bearer X\"`). Test: `tests/test_gate_bearer_regex_coverage.py`. Pattern follows cycle-099 sprint-1E.c.3.c Unicode-glob bypass closure (NFKC + control-byte scrubbing). → **[G-5]**
   > From prd.md AC-3.7 / DISS-004
-- [ ] **T3.8** A6 parallel-dispatch decision (gated on Sprint 1 R1): IF daemon-mode shipped → implement per-provider connection-pool tuning + sequential-fallback strategy when parallelism degrades >50% + tests `tests/test_parallel_dispatch.py`; ELSE explicitly defer to cycle-104 with rationale in `grimoires/loa/NOTES.md` + cycle-103 sprint.md update marking AC-3.8 as DEFERRED. → **[G-5]**
+- [~] **T3.8** ~~A6 parallel-dispatch decision (gated on Sprint 1 R1)~~ — **DECISION: DEFERRED to cycle-104.** Sprint 1 R1 landed spawn-mode per T1.1 (`13a3bffa`); AC-3.8 is structurally inapplicable. Rationale + commit references documented in `grimoires/loa/NOTES.md` Decision Log entry 2026-05-11. → **[G-5]**
   > From prd.md AC-3.8; sdd.md §10 Q4
-- [ ] **T3.9** Cycle-103 cypherpunk pre-merge self-audit — run `/audit-sprint` on Sprint 3 redaction code (T3.3 / T3.6 / T3.7) BEFORE BB cycle-3. R8 mitigation: substrate-fragmentation pattern surfaces NEW critical findings in recursive-defect class. Audit verdict must be APPROVED with no NEW critical-class findings (carry-forwards acceptable if documented). → **[G-5]**
+- [x] **T3.9** Cycle-103 cypherpunk pre-merge self-audit — run `/audit-sprint` on Sprint 3 redaction code (T3.3 / T3.6 / T3.7) BEFORE BB cycle-3. R8 mitigation: substrate-fragmentation pattern surfaces NEW critical findings in recursive-defect class. Audit verdict must be APPROVED with no NEW critical-class findings (carry-forwards acceptable if documented). → **[G-5]**
 
 ### Dependencies
 

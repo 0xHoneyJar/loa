@@ -28,9 +28,11 @@ from loa_cheval.types import (
     CompletionResult,
     ConfigError,
     InvalidInputError,
+    ProviderStreamError,
     ProviderUnavailableError,
     RateLimitError,
     Usage,
+    dispatch_provider_stream_error,
 )
 
 logger = logging.getLogger("loa_cheval.providers.google")
@@ -392,12 +394,25 @@ class GoogleAdapter(ProviderAdapter):
                             provider=self.provider,
                             input_text_length=input_text_len,
                         )
+                    except ProviderStreamError as stream_err:
+                        # T3.5 / AC-3.5: dispatch SSE buffer + accumulator
+                        # cap exhaustion through T3.1's table → typed.
+                        raise dispatch_provider_stream_error(
+                            stream_err, provider=self.provider
+                        ) from stream_err
                     except ValueError as ve:
                         # Safety / Recitation / failure events surface here.
-                        raise InvalidInputError(str(ve))
+                        # T3.3 / AC-3.3: sanitize upstream-derived message.
+                        from loa_cheval.redaction import sanitize_provider_error_message
+                        raise InvalidInputError(
+                            sanitize_provider_error_message(str(ve))
+                        )
             finally:
                 latency_ms = int((time.monotonic() - start) * 1000)
 
+        # cycle-103 T3.2 / AC-3.2: streaming path → metadata['streaming']=True.
+        _meta = dict(result.metadata or {})
+        _meta["streaming"] = True
         return CompletionResult(
             content=result.content,
             tool_calls=result.tool_calls,
@@ -406,7 +421,7 @@ class GoogleAdapter(ProviderAdapter):
             model=result.model,
             latency_ms=latency_ms,
             provider=result.provider,
-            metadata=result.metadata,
+            metadata=_meta,
         )
 
     def _complete_deep_research(self, request, model_config):
@@ -461,6 +476,9 @@ class GoogleAdapter(ProviderAdapter):
                 source="actual" if usage_meta else "estimated",
             )
 
+            # cycle-103 T3.2 / AC-3.2: Deep Research is polling-completion,
+            # not streaming. Set streaming=False so the audit envelope
+            # records the actual transport, not the env-derived default.
             return CompletionResult(
                 content=content,
                 tool_calls=None,
@@ -470,6 +488,7 @@ class GoogleAdapter(ProviderAdapter):
                 latency_ms=latency_ms,
                 provider=self.provider,
                 interaction_id=interaction_id,
+                metadata={"streaming": False},
             )
 
     def create_interaction(self, request, model_config, store=False):
@@ -827,6 +846,8 @@ def _parse_response(resp, model_id, latency_ms, provider, model_config,
         usage.output_tokens,
     )
 
+    # cycle-103 T3.2 / AC-3.2: _parse_response is only called from the
+    # non-streaming standard path → streaming=False.
     return CompletionResult(
         content=content,
         tool_calls=None,  # Tool calls not supported in standard path yet
@@ -835,6 +856,7 @@ def _parse_response(resp, model_id, latency_ms, provider, model_config,
         model=model_id,
         latency_ms=latency_ms,
         provider=provider,
+        metadata={"streaming": False},
     )
 
 
@@ -865,13 +887,22 @@ def _raise_for_status(status, resp, provider):
 
 def _extract_error_message(resp):
     # type: (Dict[str, Any]) -> str
-    """Extract error message from Google API error response."""
+    """Extract error message from Google API error response.
+
+    cycle-103 T3.3 / AC-3.3: return value is sanitized via
+    `sanitize_provider_error_message` (secret-shape redaction).
+    """
+    from loa_cheval.redaction import sanitize_provider_error_message
+
     if isinstance(resp, dict):
         error = resp.get("error", {})
         if isinstance(error, dict):
-            return error.get("message", str(resp))
-        return str(error)
-    return str(resp)
+            raw = error.get("message", str(resp))
+        else:
+            raw = str(error)
+    else:
+        raw = str(resp)
+    return sanitize_provider_error_message(raw)
 
 
 # --- Retry Logic (Flatline IMP-001) ---
