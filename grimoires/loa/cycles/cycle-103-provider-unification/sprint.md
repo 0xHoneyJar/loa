@@ -205,7 +205,7 @@ Cycle-103 is a **stabilization-and-unification cycle**. The deliverable is struc
 - [ ] **AC-3.5** MAX_SSE_BUFFER_BYTES cap in SSE parser. `_iter_sse_events` + `_iter_sse_events_raw_data` raise `ValueError` (mapped to `ConnectionLostError` at adapter layer) when buffer exceeds `4 * 1024 * 1024` bytes without event terminator. Cap per-event accumulators (text_parts, arguments_parts, etc.)
 - [ ] **AC-3.6** `redact_payload_strings` nested-dict walk. Current redactor checks field names at immediate parent level only; extend to walk nested structures with path-aware redaction policy. Nested string under any ancestor in `_REDACT_FIELDS` is redacted regardless of immediate parent key
 - [ ] **AC-3.7** `_GATE_BEARER` regex coverage gap. Extend pattern to cover `bearer:` (without space), percent-encoded forms, bare token shape in JSON-escaped contexts. Add tests for each escape variant
-- [ ] **AC-3.8** A6 / parallel-dispatch concurrency (AC-4.5c from cycle-102 Sprint 4 main scope): per-provider connection-pool tuning + sequential-fallback strategy when parallelism degrades >50%. **Decision gated on Sprint 1 R1 outcome** — daemon-mode lands → ship; spawn-mode lands → defer to cycle-104 with explicit rationale in NOTES.md
+- [~] **AC-3.8** ~~A6 / parallel-dispatch concurrency (AC-4.5c from cycle-102 Sprint 4 main scope): per-provider connection-pool tuning + sequential-fallback strategy when parallelism degrades >50%.~~ **DEFERRED to cycle-104** — Sprint 1 R1 landed spawn-mode (worst p95=126ms, 10× margin under 1000ms threshold). AC-3.8 is structurally inapplicable to spawn-mode (no long-lived connection pools, no cross-call concurrency state). Rationale + commit references in `grimoires/loa/NOTES.md` Decision Log entry dated 2026-05-11.
 
 ### Technical Tasks
 
@@ -225,7 +225,7 @@ Cycle-103 is a **stabilization-and-unification cycle**. The deliverable is struc
   > From prd.md AC-3.6 / DISS-003
 - [ ] **T3.7** `_GATE_BEARER` regex coverage extension — cover `bearer:` (no space), percent-encoded (`%20Bearer%20`), bare token shape in JSON-escaped contexts (`\"Bearer X\"`). Test: `tests/test_gate_bearer_regex_coverage.py`. Pattern follows cycle-099 sprint-1E.c.3.c Unicode-glob bypass closure (NFKC + control-byte scrubbing). → **[G-5]**
   > From prd.md AC-3.7 / DISS-004
-- [ ] **T3.8** A6 parallel-dispatch decision (gated on Sprint 1 R1): IF daemon-mode shipped → implement per-provider connection-pool tuning + sequential-fallback strategy when parallelism degrades >50% + tests `tests/test_parallel_dispatch.py`; ELSE explicitly defer to cycle-104 with rationale in `grimoires/loa/NOTES.md` + cycle-103 sprint.md update marking AC-3.8 as DEFERRED. → **[G-5]**
+- [~] **T3.8** ~~A6 parallel-dispatch decision (gated on Sprint 1 R1)~~ — **DECISION: DEFERRED to cycle-104.** Sprint 1 R1 landed spawn-mode per T1.1 (`13a3bffa`); AC-3.8 is structurally inapplicable. Rationale + commit references documented in `grimoires/loa/NOTES.md` Decision Log entry 2026-05-11. → **[G-5]**
   > From prd.md AC-3.8; sdd.md §10 Q4
 - [ ] **T3.9** Cycle-103 cypherpunk pre-merge self-audit — run `/audit-sprint` on Sprint 3 redaction code (T3.3 / T3.6 / T3.7) BEFORE BB cycle-3. R8 mitigation: substrate-fragmentation pattern surfaces NEW critical findings in recursive-defect class. Audit verdict must be APPROVED with no NEW critical-class findings (carry-forwards acceptable if documented). → **[G-5]**
 
