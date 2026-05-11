@@ -332,6 +332,13 @@ def test_r3_test_mode_override_ignored_outside_pytest(monkeypatch):
         (lambda h: h.WriteError("write failed"), "WriteError"),
         (lambda h: h.ConnectError("connect failed"), "ConnectError"),
         (lambda h: h.PoolTimeout("pool exhausted"), "PoolTimeout"),
+        # Sprint 4A cycle-3 (BF-003): timeout exceptions also map to
+        # ConnectionLostError so retry.py routes them via the typed-transient
+        # arm. Without this, raw httpx.TimeoutException would leak past the
+        # ConnectionLostError taxonomy.
+        (lambda h: h.ConnectTimeout("connect timed out"), "ConnectTimeout"),
+        (lambda h: h.ReadTimeout("read timed out"), "ReadTimeout"),
+        (lambda h: h.WriteTimeout("write timed out"), "WriteTimeout"),
     ],
 )
 def test_streaming_classifies_all_transport_errors_during_init(exc_factory, expected_class_name):

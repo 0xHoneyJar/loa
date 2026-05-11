@@ -317,9 +317,15 @@ def _parse_sse_event(raw: bytes) -> tuple:
     try:
         payload = json.loads(data_str)
     except json.JSONDecodeError:
-        # Malformed JSON in data — log + yield None payload so caller can
-        # decide whether to tolerate. Anthropic-correct streams never hit this.
-        logger.warning("anthropic_stream_json_decode_failed event=%r data=%r",
-                       event_name, data_str[:200])
-        return event_name, None
+        # Sprint 4A cycle-3 (BF-006): fail-closed on malformed data frames.
+        # Anthropic-correct streams never emit malformed JSON in `data:`
+        # lines, so reaching this branch indicates protocol corruption or
+        # truncation. The earlier silent-skip behavior could produce a
+        # partial CompletionResult flagged as successful (the same shape
+        # of bug cycle-102 was built to prevent). Mirrors the openai_streaming
+        # fix and the cycle-098 fail-closed pattern.
+        raise ValueError(
+            f"Anthropic streaming malformed data frame "
+            f"event={event_name!r} payload={data_str[:200]!r}"
+        )
     return event_name, payload

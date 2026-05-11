@@ -326,6 +326,13 @@ def http_post_stream(
                 httpx.ConnectError,
                 httpx.PoolTimeout,
                 httpx.ProtocolError,
+                # Sprint 4A cycle-3 (BF-003): include timeout exceptions in the
+                # mapping. httpx.TimeoutException is the parent of
+                # {Connect,Read,Write}Timeout; without this entry, a timeout
+                # raised during stream-open OR mid-stream iteration would leak
+                # as a raw httpx exception bypassing the ConnectionLostError
+                # taxonomy that retry.py uses for typed-transient routing.
+                httpx.TimeoutException,
             ) as exc:
                 raise ConnectionLostError(
                     transport_class=type(exc).__name__,

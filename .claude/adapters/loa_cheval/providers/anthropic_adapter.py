@@ -139,10 +139,24 @@ class AnthropicAdapter(ProviderAdapter):
                 )
 
             # Parse the SSE event stream into a CompletionResult.
-            result = parse_anthropic_stream(
-                resp.iter_bytes(),
-                provider=self.provider,
-            )
+            # Sprint 4A cycle-3 (BF-001): map parser-raised ValueError to
+            # typed adapter exception so the retry layer routes it via the
+            # same arms as non-streaming HTTP error paths. Mid-stream
+            # provider errors (Anthropic `error` SSE events, malformed data
+            # frames, OpenAI `response.failed`, Google SAFETY/RECITATION
+            # blocks) all surface as ValueError from the parser; without
+            # this wrapper, they would bypass RateLimitError /
+            # ProviderUnavailableError / InvalidInputError classification
+            # and the retry layer's typed-transient handling.
+            try:
+                result = parse_anthropic_stream(
+                    resp.iter_bytes(),
+                    provider=self.provider,
+                )
+            except ValueError as parse_err:
+                raise InvalidInputError(
+                    f"Anthropic streaming error: {parse_err}"
+                ) from parse_err
 
         latency_ms = int((time.monotonic() - start) * 1000)
         # Re-attach latency (the parser fills 0 when not passed).

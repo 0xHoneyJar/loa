@@ -249,6 +249,36 @@ class TestChatCompletionsStreaming:
 
         assert result.content == "ok"
 
+    def test_top_level_error_frame_raises_value_error(self):
+        """Sprint 4A cycle-3 (BF-002): `{"error":{...}}` top-level frame
+        without `choices` array must raise — not silently return empty
+        CompletionResult. The cycle-102 ghost ('empty content as successful')
+        cannot be allowed to manifest in the streaming substrate.
+        """
+        blob = (
+            _chat_chunk(
+                {
+                    "error": {
+                        "type": "invalid_request_error",
+                        "code": "context_length_exceeded",
+                        "message": "This model's maximum context length is 128000 tokens.",
+                    }
+                }
+            )
+            + _chat_done()
+        )
+
+        with pytest.raises(ValueError, match="OpenAI streaming error frame"):
+            parse_openai_chat_stream(iter([blob]))
+
+    def test_malformed_data_frame_raises_value_error(self):
+        """Sprint 4A cycle-3 (BF-006): malformed JSON in a data frame must
+        raise rather than silently skip. Mirrors anthropic_streaming change.
+        """
+        blob = b"data: {not valid json\n\n" + _chat_done()
+        with pytest.raises(ValueError, match="malformed data frame"):
+            parse_openai_chat_stream(iter([blob]))
+
 
 # --- /v1/responses ---
 

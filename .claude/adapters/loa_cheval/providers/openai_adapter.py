@@ -179,14 +179,23 @@ class OpenAIAdapter(ProviderAdapter):
                     f"OpenAI API error (HTTP {status}): {_extract_error_message(err_json)}"
                 )
 
-            if family == "responses":
-                result = parse_openai_responses_stream(
-                    resp.iter_bytes(), provider=self.provider
-                )
-            else:
-                result = parse_openai_chat_stream(
-                    resp.iter_bytes(), provider=self.provider
-                )
+            # Sprint 4A cycle-3 (BF-001): map parser-raised ValueError to
+            # typed adapter exception so the retry layer routes correctly.
+            # Covers OpenAI `response.failed` events, top-level `{"error":...}`
+            # frames (BF-002), and malformed data frames (BF-006).
+            try:
+                if family == "responses":
+                    result = parse_openai_responses_stream(
+                        resp.iter_bytes(), provider=self.provider
+                    )
+                else:
+                    result = parse_openai_chat_stream(
+                        resp.iter_bytes(), provider=self.provider
+                    )
+            except ValueError as parse_err:
+                raise InvalidInputError(
+                    f"OpenAI streaming error: {parse_err}"
+                ) from parse_err
 
         latency_ms = int((time.monotonic() - start) * 1000)
         return CompletionResult(

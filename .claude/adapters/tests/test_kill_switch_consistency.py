@@ -134,6 +134,121 @@ def _build_anthropic_config():
     )
 
 
+# --- Sprint 4A cycle-3 BF-001 pin: parser ValueError maps to typed exception ---
+
+
+def test_bf001_anthropic_parser_value_error_maps_to_invalid_input_error(monkeypatch):
+    """Sprint 4A cycle-3 (BF-001): when parse_anthropic_stream raises ValueError
+    (mid-stream provider error, malformed data frame, etc.), the adapter MUST
+    map it to InvalidInputError so the retry layer routes via the same arms
+    as non-streaming HTTP error paths. Before this fix, ValueError would
+    propagate unchanged and bypass the typed-exception taxonomy entirely.
+    """
+    from contextlib import contextmanager
+    from loa_cheval.providers.anthropic_adapter import AnthropicAdapter
+    from loa_cheval.types import CompletionRequest, InvalidInputError
+
+    monkeypatch.delenv("LOA_CHEVAL_DISABLE_STREAMING", raising=False)
+    adapter = AnthropicAdapter(_build_anthropic_config())
+    request = CompletionRequest(
+        messages=[{"role": "user", "content": "hi"}],
+        model="claude-test",
+        max_tokens=64,
+        temperature=0.0,
+    )
+
+    # Build a stream that contains a malformed `data:` payload — the parser
+    # will raise ValueError (per BF-006 fix); the adapter MUST catch + map.
+    malformed_blob = b"event: message_start\ndata: {not valid json\n\n"
+
+    fake_resp = MagicMock()
+    fake_resp.status_code = 200
+    fake_resp.http_version = "HTTP/2"
+    fake_resp.iter_bytes = MagicMock(return_value=iter([malformed_blob]))
+
+    @contextmanager
+    def fake_stream_cm(*args, **kwargs):
+        yield fake_resp
+
+    fake_streaming_response = MagicMock()
+    fake_streaming_response.status_code = 200
+    fake_streaming_response.http_version = "HTTP/2"
+    fake_streaming_response.iter_bytes = MagicMock(return_value=iter([malformed_blob]))
+
+    @contextmanager
+    def fake_http_post_stream(*args, **kwargs):
+        yield fake_streaming_response
+
+    with patch(
+        "loa_cheval.providers.anthropic_adapter.http_post_stream",
+        fake_http_post_stream,
+    ):
+        with pytest.raises(InvalidInputError, match="Anthropic streaming error"):
+            adapter.complete(request)
+
+
+def test_bf001_openai_parser_value_error_maps_to_invalid_input_error(monkeypatch):
+    """Sprint 4A cycle-3 (BF-001 + BF-002): OpenAI streaming top-level error
+    frame triggers parser ValueError → adapter MUST map to InvalidInputError.
+    """
+    from contextlib import contextmanager
+    from loa_cheval.providers.openai_adapter import OpenAIAdapter
+    from loa_cheval.types import (
+        CompletionRequest,
+        ProviderConfig,
+        ModelConfig,
+        InvalidInputError,
+    )
+
+    monkeypatch.delenv("LOA_CHEVAL_DISABLE_STREAMING", raising=False)
+    cfg = ProviderConfig(
+        name="openai",
+        type="openai",
+        endpoint="https://api.example.test/v1",
+        auth="test-key",
+        models={
+            "gpt-test": ModelConfig(
+                capabilities=["chat"],
+                context_window=128_000,
+                token_param="max_tokens",
+                endpoint_family="chat",
+            ),
+        },
+    )
+    adapter = OpenAIAdapter(cfg)
+    request = CompletionRequest(
+        messages=[{"role": "user", "content": "hi"}],
+        model="gpt-test",
+        max_tokens=64,
+        temperature=0.0,
+    )
+
+    # OpenAI error frame: {"error":{"type":"...", "message":"..."}} with no choices.
+    # Before BF-002 fix, this would silently return empty CompletionResult.
+    error_blob = (
+        b'data: {"error":{"type":"invalid_request_error",'
+        b'"code":"context_length_exceeded",'
+        b'"message":"This model max context length is N"}}\n\n'
+        b"data: [DONE]\n\n"
+    )
+
+    fake_streaming_response = MagicMock()
+    fake_streaming_response.status_code = 200
+    fake_streaming_response.http_version = "HTTP/2"
+    fake_streaming_response.iter_bytes = MagicMock(return_value=iter([error_blob]))
+
+    @contextmanager
+    def fake_http_post_stream(*args, **kwargs):
+        yield fake_streaming_response
+
+    with patch(
+        "loa_cheval.providers.openai_adapter.http_post_stream",
+        fake_http_post_stream,
+    ):
+        with pytest.raises(InvalidInputError, match="OpenAI streaming error"):
+            adapter.complete(request)
+
+
 def _build_openai_config():
     from loa_cheval.types import ProviderConfig, ModelConfig
 

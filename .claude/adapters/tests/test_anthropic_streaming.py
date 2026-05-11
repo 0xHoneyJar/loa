@@ -309,25 +309,23 @@ def test_ping_events_are_ignored():
     assert result.content == "OK"
 
 
-def test_malformed_json_in_data_yields_none_payload_does_not_crash():
-    """Malformed `data:` JSON → log + skip; subsequent valid events still parse."""
+def test_malformed_json_in_data_raises_value_error():
+    """Sprint 4A cycle-3 (BF-006): malformed `data:` JSON → raise ValueError
+    (fail-closed). Earlier silent-skip behavior could produce a partial
+    CompletionResult flagged as successful — the same bug shape cycle-102
+    was built to prevent. The adapter wrapper translates ValueError to
+    InvalidInputError so the retry layer routes correctly.
+    """
     blob = (
         b"event: message_start\ndata: {not json\n\n"
         + _sse_event(
             "content_block_start",
             {"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}},
         )
-        + _sse_event(
-            "content_block_delta",
-            {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "recovered"}},
-        )
-        + _sse_event("message_stop", {"type": "message_stop"})
     )
 
-    result = parse_anthropic_stream(iter([blob]))
-
-    # Malformed event skipped; text still recovers.
-    assert result.content == "recovered"
+    with pytest.raises(ValueError, match="malformed data frame"):
+        parse_anthropic_stream(iter([blob]))
 
 
 # --- SSE parser unit tests ---

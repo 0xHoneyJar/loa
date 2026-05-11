@@ -71,8 +71,29 @@ def parse_openai_chat_stream(
         try:
             payload = json.loads(chunk)
         except json.JSONDecodeError:
-            logger.warning("openai_chat_stream_json_decode_failed data=%r", chunk[:200])
-            continue
+            # Sprint 4A cycle-3 (BF-006): fail-closed on malformed data frames.
+            # Under uncertainty about whether the stream is intact, halt rather
+            # than forward partial — mirrors the cycle-098 fail-closed pattern.
+            # Keep-alive lines (`:`-prefixed comments) never reach this branch
+            # because the SSE parser strips them upstream; only legitimate
+            # `data:` payloads land here, and a malformed payload almost always
+            # indicates protocol corruption or truncation.
+            raise ValueError(
+                f"OpenAI streaming malformed data frame: {chunk[:200]!r}"
+            )
+
+        # Sprint 4A cycle-3 (BF-002): top-level `{"error":...}` frame detection.
+        # Without this, an OpenAI error frame (no `choices` array) would be
+        # silently skipped by the `if not choices: continue` arm below, and
+        # the parser would return an empty CompletionResult flagged as
+        # successful — the cycle-102 ghost manifesting one layer wider in
+        # the very substrate built to surface it. Fail-loud invariant.
+        if isinstance(payload.get("error"), dict):
+            err = payload["error"]
+            raise ValueError(
+                f"OpenAI streaming error frame: type={err.get('type')!r} "
+                f"code={err.get('code')!r} message={err.get('message')!r}"
+            )
 
         final_model = payload.get("model") or final_model
 
@@ -300,8 +321,23 @@ def parse_openai_responses_stream(
         try:
             data = json.loads(payload)
         except json.JSONDecodeError:
-            logger.warning("openai_responses_stream_json_decode_failed data=%r", payload[:200])
-            continue
+            # Sprint 4A cycle-3 (BF-006): fail-closed on malformed data frames
+            # (mirrors the chat-completions parser change above).
+            raise ValueError(
+                f"OpenAI /v1/responses streaming malformed data frame "
+                f"event={event_name!r} payload={payload[:200]!r}"
+            )
+
+        # Sprint 4A cycle-3 (BF-002 parity): top-level error frame detection
+        # for /v1/responses. Most OpenAI responses-API errors surface as a
+        # typed `response.failed` event (handled below), but a connection-level
+        # error frame at the protocol layer should also fail-loud.
+        if isinstance(data.get("error"), dict):
+            err = data["error"]
+            raise ValueError(
+                f"OpenAI /v1/responses streaming error frame: type={err.get('type')!r} "
+                f"code={err.get('code')!r} message={err.get('message')!r}"
+            )
 
         ev_type = data.get("type") or event_name or ""
 
