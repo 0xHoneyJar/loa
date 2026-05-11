@@ -36,6 +36,12 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+# Sprint 4A DISS-001/DISS-002 closure: module-level import of the centralized
+# kill-switch helper. No import cycle exists between providers.base and
+# audit.modelinv (verified via direct import test); the earlier draft used a
+# lazy function-local import out of misplaced caution.
+from loa_cheval.providers.base import _streaming_disabled
+
 logger = logging.getLogger("loa_cheval.audit.modelinv")
 
 
@@ -217,6 +223,25 @@ def _kill_switch_active() -> bool:
     return val.lower() in ("1", "true", "yes")
 
 
+def _streaming_active() -> bool:
+    """True iff the Sprint 4A streaming transport was used for this call.
+
+    Sprint 4A DISS-001 closure: this helper delegates to
+    `base._streaming_disabled()` to guarantee that adapters and audit-emit
+    consume an identical boolean. Before centralization, the adapters used
+    strict `== "1"` while this helper used case-insensitive multi-value —
+    that mismatch let an operator setting `LOA_CHEVAL_DISABLE_STREAMING=true`
+    route through streaming while the audit chain recorded `streaming=false`
+    (the silent-degradation pattern vision-019 M1 was built to detect).
+
+    Sprint 4A cycle-2 DISS-002 closure: the import is at module level (no
+    actual cycle exists; verified via direct import test). Earlier draft
+    used a lazy function-local import to defend against a hypothetical
+    cycle that doesn't materialize in practice.
+    """
+    return not _streaming_disabled()
+
+
 def emit_model_invoke_complete(
     *,
     models_requested: List[str],
@@ -228,6 +253,7 @@ def emit_model_invoke_complete(
     probe_latency_ms: Optional[int] = None,
     invocation_latency_ms: Optional[int] = None,
     cost_micro_usd: Optional[int] = None,
+    streaming: Optional[bool] = None,
 ) -> None:
     """Emit a model.invoke.complete envelope to the MODELINV audit chain.
 
@@ -265,6 +291,10 @@ def emit_model_invoke_complete(
         "models_failed": models_failed,
         "operator_visible_warn": operator_visible_warn,
         "kill_switch_active": _kill_switch_active(),
+        # Sprint 4A: surface whether the streaming transport was used.
+        # Default-derived from the env-var kill switch so callers don't have
+        # to pass it explicitly. Caller may override for tests / dry-runs.
+        "streaming": streaming if streaming is not None else _streaming_active(),
     }
     # Optional fields — only set when caller provides a value, so the
     # additionalProperties: false schema constraint stays satisfied.

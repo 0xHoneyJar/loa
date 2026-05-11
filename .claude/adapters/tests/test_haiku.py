@@ -38,7 +38,14 @@ def _make_haiku_provider() -> ProviderConfig:
 class TestHaikuRoundTrip:
     """Sprint 2 G-3: Haiku 4.5 callable through cheval Anthropic adapter."""
 
-    def test_haiku_routes_through_anthropic_messages_endpoint(self):
+    def test_haiku_routes_through_anthropic_messages_endpoint(self, monkeypatch):
+        # Sprint 4A: AnthropicAdapter.complete() defaults to streaming. This
+        # test only verifies routing (URL + headers + body shape + parsed
+        # CompletionResult); it doesn't care about transport. Route through
+        # the legacy non-streaming path so the existing http_post mock still
+        # intercepts the call.
+        monkeypatch.setenv("LOA_CHEVAL_DISABLE_STREAMING", "1")
+
         adapter = AnthropicAdapter(_make_haiku_provider())
         captured = []
 

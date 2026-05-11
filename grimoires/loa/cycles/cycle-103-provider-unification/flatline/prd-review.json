@@ -1,0 +1,156 @@
+{
+  "consensus_summary": {
+    "high_consensus_count": 0,
+    "disputed_count": 10,
+    "low_value_count": 0,
+    "blocker_count": 0,
+    "model_agreement_percent": 0,
+    "models": 3,
+    "tertiary_items": 0,
+    "confidence": "single_model"
+  },
+  "high_consensus": [],
+  "disputed": [
+    {
+      "id": "IMP-001",
+      "description": "Critical gap. The TS-to-Python IPC boundary is the load-bearing integration point, and without a defined CLI/stdin/stdout/error/exit-code contract the implementation, mocks, tests, and daemon fallback can easily diverge. Low documentation cost with very high risk reduction.",
+      "gpt_score": 940,
+      "opus_score": 0,
+      "tertiary_score": 900,
+      "delta": 940,
+      "average_score": 940,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-002",
+      "description": "Strong improvement. The current latency guidance appears ambiguous, and the spawn-vs-daemon choice has architectural consequences. Defining benchmark methodology and hard thresholds is actionable and prevents subjective decision-making, though it requires some measurement discipline.",
+      "gpt_score": 860,
+      "opus_score": 0,
+      "tertiary_score": 720,
+      "delta": 860,
+      "average_score": 860,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-003",
+      "description": "Critical operational safety item. Replacing the LLM boundary without a rollback or feature-flag plan creates unnecessary release risk. Preserving a fallback path has some implementation cost, but the blast-radius reduction is substantial.",
+      "gpt_score": 890,
+      "opus_score": 0,
+      "tertiary_score": 850,
+      "delta": 890,
+      "average_score": 890,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-004",
+      "description": "Critical security and operability concern. Moving credentials across a subprocess boundary introduces concrete risks around env inheritance, argv leakage, logs, and error redaction. This is domain-specific, actionable, and should be explicitly captured.",
+      "gpt_score": 900,
+      "opus_score": 0,
+      "tertiary_score": 880,
+      "delta": 900,
+      "average_score": 900,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-005",
+      "description": "High-value de-risking item. If large-body handling is a core justification for unification, validating Python/httpx behavior at the target payload size before committing implementation effort is cheap and important. This is especially worthwhile because the proposed spike is small.",
+      "gpt_score": 845,
+      "opus_score": 0,
+      "tertiary_score": 820,
+      "delta": 845,
+      "average_score": 845,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-006",
+      "description": "Valuable improvement. Response-shape parity is a real integration risk, and fixture-based parity tests would catch subtle adapter regressions. The only caveat is that byte-level equality may be too strict for live LLM behavior, so the PRD should specify mocked or structural comparisons.",
+      "gpt_score": 775,
+      "opus_score": 0,
+      "tertiary_score": 750,
+      "delta": 775,
+      "average_score": 775,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-007",
+      "description": "Important architecture concern. Parallel dispatch is not an edge case if BB already performs concurrent review passes. Deferring concurrency semantics risks performance regressions or uncontrolled process fan-out. Worth promoting to Sprint 1 at least as explicit behavior, limits, and tests.",
+      "gpt_score": 820,
+      "opus_score": 0,
+      "tertiary_score": 780,
+      "delta": 820,
+      "average_score": 820,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-008",
+      "description": "Valuable but less critical than the Sprint 1 integration gaps. The empirical characterization needs enough rigor to support downstream decisions, and the proposed details are actionable. Cost is moderate because it expands test design, but it improves confidence in Sprint 2 conclusions.",
+      "gpt_score": 720,
+      "opus_score": 0,
+      "tertiary_score": 600,
+      "delta": 720,
+      "average_score": 720,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-009",
+      "description": "Useful resilience improvement. Subprocess crash, timeout, partial stdout, and orphan cleanup behavior should be defined. The in-flight migration framing may be less relevant depending on deployment model, but abnormal-exit handling is a real gap worth adding.",
+      "gpt_score": 690,
+      "opus_score": 0,
+      "tertiary_score": 760,
+      "delta": 690,
+      "average_score": 690,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    },
+    {
+      "id": "IMP-010",
+      "description": "Valuable governance improvement. If substrate unification is an explicit invariant, CI drift detection should cover bash and non-adapter Python as well as TypeScript. Implementation is low cost, though grep-style gates may need careful allowlisting to avoid false positives.",
+      "gpt_score": 735,
+      "opus_score": 0,
+      "tertiary_score": 650,
+      "delta": 735,
+      "average_score": 735,
+      "source": "gpt_scored",
+      "would_integrate": true,
+      "agreement": "DISPUTED"
+    }
+  ],
+  "low_value": [],
+  "blockers": [],
+  "degraded": false,
+  "degraded_model": null,
+  "confidence": "single_model",
+  "phase": "prd",
+  "document": "grimoires/loa/prd.md",
+  "domain": " cycle 103 prd provider",
+  "tertiary_model_used": "gemini-3.1-pro-preview",
+  "tertiary_status": "active",
+  "execution": {
+    "mode": "interactive",
+    "mode_reason": "Default (no explicit mode specified)",
+    "run_id": null
+  },
+  "timestamp": "2026-05-11T07:33:38Z",
+  "metrics": {
+    "total_latency_ms": 246000,
+    "cost_cents": 0,
+    "cost_usd": 0
+  }
+}

@@ -1,6 +1,17 @@
-"""Tests for provider adapters — golden fixture validation (SDD §4.2.5)."""
+"""Tests for provider adapters — golden fixture validation (SDD §4.2.5).
+
+Sprint 4A (cycle-102): The adapters now default to streaming transport.
+This test file exercises the LEGACY non-streaming code path (body
+construction, response parsing, endpoint routing). Streaming-specific
+behavior is covered by test_streaming_transport.py / test_anthropic_streaming.py
+/ test_openai_streaming.py. The module-level fixture below sets
+LOA_CHEVAL_DISABLE_STREAMING=1 so the existing http_post mocks continue
+to intercept the request — preserving the test invariants without
+re-engineering every call site.
+"""
 
 import json
+import os
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -8,6 +19,16 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+
+@pytest.fixture(autouse=True)
+def _force_nonstreaming_path(monkeypatch):
+    """Route adapter.complete() through the legacy non-streaming path so the
+    existing http_post mocks in this file continue to intercept the request.
+    Sprint 4A's streaming default is exercised in test_*_streaming.py.
+    """
+    monkeypatch.setenv("LOA_CHEVAL_DISABLE_STREAMING", "1")
+    yield
 
 from loa_cheval.providers.openai_adapter import OpenAIAdapter, _normalize_tool_calls
 from loa_cheval.providers.anthropic_adapter import (
@@ -340,9 +361,22 @@ class TestAnthropicRequestBodyConstruction:
             "stop_reason": "end_turn",
             "usage": {"input_tokens": 5, "output_tokens": 2},
         }
-        with patch("loa_cheval.providers.anthropic_adapter.http_post", return_value=(200, mock_response)) as mock:
-            adapter.complete(request)
-            return mock.call_args[1]["body"]
+        # Sprint 4A: AnthropicAdapter.complete() defaults to the streaming path
+        # (http_post_stream), but these tests only care about the request body
+        # construction logic, not the transport. Route through the legacy
+        # non-streaming path so the existing http_post mock still intercepts.
+        import os
+        prev_kill_switch = os.environ.get("LOA_CHEVAL_DISABLE_STREAMING")
+        os.environ["LOA_CHEVAL_DISABLE_STREAMING"] = "1"
+        try:
+            with patch("loa_cheval.providers.anthropic_adapter.http_post", return_value=(200, mock_response)) as mock:
+                adapter.complete(request)
+                return mock.call_args[1]["body"]
+        finally:
+            if prev_kill_switch is None:
+                del os.environ["LOA_CHEVAL_DISABLE_STREAMING"]
+            else:
+                os.environ["LOA_CHEVAL_DISABLE_STREAMING"] = prev_kill_switch
 
     def test_temperature_omitted_when_unsupported(self):
         """Opus 4 family: params.temperature_supported=False → no temperature in body."""

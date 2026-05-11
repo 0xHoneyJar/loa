@@ -8,7 +8,8 @@ import socket
 import sys
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Tuple
+from contextlib import contextmanager
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from loa_cheval.types import (
     CompletionRequest,
@@ -26,6 +27,7 @@ logger = logging.getLogger("loa_cheval.providers")
 # --- HTTP Client Abstraction ---
 
 _HTTP_CLIENT: Optional[str] = None  # "httpx" | "urllib"
+_HTTP2_AVAILABLE: Optional[bool] = None
 
 
 def _detect_http_client() -> str:
@@ -45,6 +47,91 @@ def _detect_http_client() -> str:
         )
         _HTTP_CLIENT = "urllib"
     return _HTTP_CLIENT
+
+
+def _detect_http2_available() -> bool:
+    """Check whether the h2 package is importable (httpx HTTP/2 prerequisite).
+
+    Cached per-process. The streaming transport (`http_post_stream`) negotiates
+    HTTP/2 via ALPN when h2 is present. When h2 is missing, streaming still
+    works over HTTP/1.1 — Sprint 4A's 2026-05-11 empirical testing confirmed
+    Anthropic/OpenAI/Google all return correct content over HTTP/1.1
+    streaming. HTTP/2 is preferred for high-concurrency robustness, not for
+    correctness.
+
+    Test-mode override: when `LOA_CHEVAL_FORCE_HTTP2_UNAVAILABLE=1` is set
+    AND a pytest marker (`PYTEST_CURRENT_TEST`) is present, returns False
+    even if h2 is installed. Used by the AC-4A.3 fallback regression pin.
+    """
+    global _HTTP2_AVAILABLE
+    if _HTTP2_AVAILABLE is not None:
+        return _HTTP2_AVAILABLE
+    import os
+    if (
+        os.environ.get("LOA_CHEVAL_FORCE_HTTP2_UNAVAILABLE") == "1"
+        and os.environ.get("PYTEST_CURRENT_TEST") is not None
+    ):
+        _HTTP2_AVAILABLE = False
+        return _HTTP2_AVAILABLE
+    try:
+        import h2  # noqa: F401
+
+        _HTTP2_AVAILABLE = True
+    except ImportError as exc:
+        _HTTP2_AVAILABLE = False
+        # Sprint 4A cycle-3 (BF/F10): include the underlying exception class
+        # and message so a broken h2 install (partial install, version
+        # conflict, ImportError raised from h2's own dependencies, etc.) is
+        # distinguishable from a clean "h2 not installed" state. Production
+        # deployments investigating HTTP/1.1 fallback need this diagnostic.
+        logger.warning(
+            "h2 unavailable (%s: %s) — streaming will use HTTP/1.1 "
+            "(less robust under high concurrency, but correct). "
+            "Install with: pip install httpx[http2]",
+            type(exc).__name__,
+            exc,
+        )
+    return _HTTP2_AVAILABLE
+
+
+def _reset_http_client_detection_for_tests() -> None:
+    """Reset cached HTTP client + HTTP/2 detection.
+
+    Tests that mock module-level imports must call this to bust the
+    per-process cache. NOT for production code paths.
+    """
+    global _HTTP_CLIENT, _HTTP2_AVAILABLE
+    _HTTP_CLIENT = None
+    _HTTP2_AVAILABLE = None
+
+
+# Sprint 4A (cycle-102, AC-4.5e): centralized kill-switch detection.
+# Single source of truth — adapters AND audit-emit consume the SAME boolean.
+# Closes DISS-001 (Sprint 4A reviewer adversarial finding 2026-05-11): without
+# centralization, the 3 adapters used `== "1"` (strict, case-sensitive) while
+# `modelinv._streaming_active` used case-insensitive `.lower() in ("1","true","yes")`.
+# An operator setting `LOA_CHEVAL_DISABLE_STREAMING=true` would have routed
+# through the streaming path while the audit chain recorded `streaming=false`
+# — the exact silent-degradation pattern vision-019 M1 was built to detect,
+# manifesting in the substrate that audits it.
+_STREAMING_KILL_SWITCH_TRUTHY_VALUES = ("1", "true", "yes", "on")
+
+
+def _streaming_disabled() -> bool:
+    """Return True iff the operator has set the streaming kill switch.
+
+    Case-insensitive match against `_STREAMING_KILL_SWITCH_TRUTHY_VALUES`.
+    Centralized here so adapters AND `modelinv._streaming_active` consume
+    identical semantics — the boolean MUST agree at adapter-call time and
+    audit-emit time, otherwise the audit chain records a lie.
+
+    Truthy values: `1`, `true`, `yes`, `on` (case-insensitive). Anything
+    else (including unset, empty string, `0`, `false`, `no`, `off`) leaves
+    streaming active.
+    """
+    import os
+    val = os.environ.get("LOA_CHEVAL_DISABLE_STREAMING", "").strip().lower()
+    return val in _STREAMING_KILL_SWITCH_TRUTHY_VALUES
 
 
 def http_post(
@@ -141,6 +228,232 @@ def http_post(
             return 503, {"error": {"message": "URLError: %s" % e.reason}}
         except socket.timeout:
             return 504, {"error": {"message": "Request timed out"}}
+
+
+# --- Streaming HTTP transport (Sprint 4A, AC-4.5e structural fix for KF-002 layer 3) ---
+
+
+class StreamingResponse:
+    """Lightweight wrapper around a streaming HTTP response.
+
+    Exposes the two pieces of information adapters need before consuming the
+    body: the status code (to short-circuit on 4xx/5xx) and an `iter_bytes()`
+    iterator over response chunks. The underlying client lifecycle is managed
+    by the `http_post_stream` context manager; do not retain references to a
+    StreamingResponse outside the `with` block.
+    """
+
+    __slots__ = ("status_code", "http_version", "_iter")
+
+    def __init__(self, status_code: int, http_version: str, byte_iter: Iterator[bytes]):
+        self.status_code = status_code
+        self.http_version = http_version
+        self._iter = byte_iter
+
+    def iter_bytes(self) -> Iterator[bytes]:
+        """Yield response body chunks as raw bytes."""
+        return self._iter
+
+
+@contextmanager
+def http_post_stream(
+    url: str,
+    headers: Dict[str, str],
+    body: Dict[str, Any],
+    connect_timeout: float = 10.0,
+    read_timeout: float = 120.0,
+) -> Iterator[StreamingResponse]:
+    """Stream an HTTP POST response — Sprint 4A structural fix for KF-002 layer 3.
+
+    Context-manager API that mirrors `httpx.Client.stream()`. Usage:
+
+        with http_post_stream(url, headers, body, connect_timeout=10, read_timeout=300) as resp:
+            if resp.status_code >= 400:
+                ...
+            for chunk in resp.iter_bytes():
+                ...
+
+    Why streaming exists separately from `http_post`:
+
+    The non-streaming `http_post` blocks until the server emits the entire
+    response body. For LLM inference at high input scales (≥30K tokens for
+    reasoning models), pre-first-byte wall-clock can exceed 60 seconds.
+    Intermediaries (Cloudflare edge, ALBs) observe an idle TCP connection
+    and close it, surfacing as `httpx.RemoteProtocolError("Server
+    disconnected without sending a response")`. Streaming eliminates this
+    failure class by construction — the server begins emitting tokens
+    immediately, so the connection is never idle from the intermediary's
+    point of view. See `grimoires/loa/known-failures.md` KF-002 layer 3.
+
+    Transport semantics:
+
+    - HTTP/2 is enabled when the `h2` package is importable (detected once
+      per process via `_detect_http2_available`). HTTP/1.1 is used as
+      fallback when h2 is missing — both protocols pass the streaming
+      regression pin (AC-4A.3 R3).
+    - Exception classification matches the non-streaming twin: any
+      `httpx.{RemoteProtocolError,ReadError,WriteError,ConnectError,
+      PoolTimeout,ProtocolError}` raised during request initiation OR while
+      consuming the stream is converted to `ConnectionLostError` so the
+      retry layer (`retry.py:invoke_with_retry`) routes it with
+      provider-aware semantics rather than the bare `except Exception` arm.
+    - The urllib fallback path streams via `response.read(CHUNK_SIZE)`
+      iteration; HTTP/2 is unavailable on urllib (Python stdlib limit).
+
+    Sanitization: only `type(exc).__name__` and the request-body byte size
+    are attached to the raised `ConnectionLostError`. Raw body, headers,
+    and auth never escape the local scope.
+    """
+    client = _detect_http_client()
+    encoded = json.dumps(body).encode("utf-8")
+
+    if client == "httpx":
+        import httpx
+
+        timeout = httpx.Timeout(
+            connect=connect_timeout,
+            read=read_timeout,
+            write=30.0,
+            pool=10.0,
+        )
+
+        http2_enabled = _detect_http2_available()
+        session = httpx.Client(http2=http2_enabled, timeout=timeout)
+        stream_cm = None
+        try:
+            try:
+                stream_cm = session.stream(
+                    "POST", url, headers=headers, content=encoded
+                )
+                resp = stream_cm.__enter__()
+            except (
+                httpx.RemoteProtocolError,
+                httpx.ReadError,
+                httpx.WriteError,
+                httpx.ConnectError,
+                httpx.PoolTimeout,
+                httpx.ProtocolError,
+                # Sprint 4A cycle-3 (BF-003): include timeout exceptions in the
+                # mapping. httpx.TimeoutException is the parent of
+                # {Connect,Read,Write}Timeout; without this entry, a timeout
+                # raised during stream-open OR mid-stream iteration would leak
+                # as a raw httpx exception bypassing the ConnectionLostError
+                # taxonomy that retry.py uses for typed-transient routing.
+                httpx.TimeoutException,
+            ) as exc:
+                raise ConnectionLostError(
+                    transport_class=type(exc).__name__,
+                    request_size_bytes=len(encoded),
+                    message=f"{type(exc).__name__}: {exc}",
+                ) from exc
+
+            def _byte_iter() -> Iterator[bytes]:
+                try:
+                    for chunk in resp.iter_bytes():
+                        yield chunk
+                except (
+                    httpx.RemoteProtocolError,
+                    httpx.ReadError,
+                    httpx.WriteError,
+                    httpx.ConnectError,
+                    httpx.PoolTimeout,
+                    httpx.ProtocolError,
+                    # Sprint 4A cycle-4 (BB F-001): mid-stream timeout
+                    # classification. BF-003 / cycle-3 added httpx.TimeoutException
+                    # to the stream-INIT except block but missed this _byte_iter
+                    # block — a ReadTimeout fired DURING iteration (after the
+                    # connection is open and bytes are flowing) escaped raw,
+                    # bypassing the ConnectionLostError taxonomy that retry.py
+                    # uses for typed-transient routing. Streaming has three
+                    # error sites (open / mid / close); the taxonomy MUST cover
+                    # all three.
+                    httpx.TimeoutException,
+                ) as exc:
+                    raise ConnectionLostError(
+                        transport_class=type(exc).__name__,
+                        request_size_bytes=len(encoded),
+                        message=f"{type(exc).__name__}: {exc}",
+                    ) from exc
+
+            yield StreamingResponse(
+                status_code=resp.status_code,
+                http_version=resp.http_version,
+                byte_iter=_byte_iter(),
+            )
+        finally:
+            if stream_cm is not None:
+                try:
+                    stream_cm.__exit__(None, None, None)
+                except Exception:
+                    pass
+            try:
+                session.close()
+            except Exception:
+                pass
+    else:
+        # urllib fallback — HTTP/1.1 only, no HTTP/2. Streams via .read(N).
+        import http.client
+        import urllib.error
+        import urllib.request
+
+        req = urllib.request.Request(
+            url, data=encoded, headers=headers, method="POST"
+        )
+        total_timeout = connect_timeout + read_timeout
+        try:
+            handle = urllib.request.urlopen(req, timeout=total_timeout)
+        except urllib.error.HTTPError as e:
+            # 4xx/5xx — drain body so callers can still parse the error JSON.
+            body_bytes = e.read() if e.fp else b""
+
+            def _err_iter() -> Iterator[bytes]:
+                if body_bytes:
+                    yield body_bytes
+
+            yield StreamingResponse(
+                status_code=e.code,
+                http_version="HTTP/1.1",
+                byte_iter=_err_iter(),
+            )
+            return
+        except (urllib.error.URLError, http.client.RemoteDisconnected) as exc:
+            raise ConnectionLostError(
+                transport_class=f"urllib.{type(exc).__name__}",
+                request_size_bytes=len(encoded),
+                message=f"{type(exc).__name__}: {exc}",
+            ) from exc
+        except socket.timeout as exc:
+            raise ConnectionLostError(
+                transport_class="urllib.socket.timeout",
+                request_size_bytes=len(encoded),
+                message=f"socket.timeout: {exc}",
+            ) from exc
+
+        def _stdlib_iter() -> Iterator[bytes]:
+            try:
+                chunk_size = 8192
+                while True:
+                    chunk = handle.read(chunk_size)
+                    if not chunk:
+                        break
+                    yield chunk
+            except (http.client.RemoteDisconnected, urllib.error.URLError) as exc:
+                raise ConnectionLostError(
+                    transport_class=f"urllib.{type(exc).__name__}",
+                    request_size_bytes=len(encoded),
+                    message=f"{type(exc).__name__}: {exc}",
+                ) from exc
+            finally:
+                try:
+                    handle.close()
+                except Exception:
+                    pass
+
+        yield StreamingResponse(
+            status_code=getattr(handle, "status", 200),
+            http_version="HTTP/1.1",
+            byte_iter=_stdlib_iter(),
+        )
 
 
 # --- Token Estimation ---

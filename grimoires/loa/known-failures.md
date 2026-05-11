@@ -56,12 +56,13 @@ actually tried, not just what someone *said* was tried.
 | ID | Status | Feature | Recurrence |
 |----|--------|---------|------------|
 | [KF-001](#kf-001-bridgebuilder-cross-model-provider-network-failures-non-openai) | RESOLVED 2026-05-10 (Node 20 Happy Eyeballs autoselection-attempt-timeout) | bridgebuilder cross-model dissent | 3 |
-| [KF-002](#kf-002-adversarial-reviewsh-empty-content-on-review-type-prompts-at-scale) | MOSTLY-MITIGATED 2026-05-10 (text.format=text + provider fallback chain + per-model input-size gate shipped; the structural cheval HTTP-asymmetry bug class remains under investigation) | adversarial-review.sh review-type | 4 |
+| [KF-002](#kf-002-adversarial-reviewsh-empty-content-on-review-type-prompts-at-scale) | LAYER-3-RESOLVED-BY-CONSTRUCTION 2026-05-11 (Sprint 4A streaming-transport default; layers 1+2 mitigated via text.format=text + provider fallback chain). Streaming eliminates the >60s-wait-for-first-byte failure mode independent of intermediary timer behavior. | adversarial-review.sh review-type | 4 |
 | [KF-003](#kf-003-gpt-55-pro-empty-content-on-27k-input-reasoning-class-prompts) | RESOLVED (model swap) | flatline_protocol code review | 1 |
 | [KF-004](#kf-004-validate_finding-silent-rejection-of-dissenter-payloads) | RESOLVED 2026-05-10 (sidecar dump landed; #814 mitigation shipped) | adversarial-review.sh validation pipeline | ≥4 |
 | [KF-005](#kf-005-beads_rust-021-migration-blocks-task-tracking) | DEGRADED-ACCEPTED — fix available on crates.io as `beads_rust 0.2.4`; operator must `cargo install beads_rust` to land locally | beads_rust task tracking | many |
 | [KF-006](#kf-006-t114-migrate-model-config-v2-schema-rejects-max_output_tokens) | RESOLVED 2026-05-10 (v2 schema modelEntry permits max_output_tokens + max_input_tokens) | T1.14 migrate-model-config v2 schema | every PR since dd54fe9c |
 | [KF-007](#kf-007-red-team-pipeline-hardcoded-single-model-evaluator-vestigial-config) | RESOLVED 2026-05-10 (multi-model evaluator) | red team pipeline hardcoded single-model evaluator | n/a — resolved in same session as discovery |
+| [KF-008](#kf-008-bridgebuilder-google-api-socketerror-on-large-request-bodies) | OPEN — THREE observations 2026-05-11 (~70 min span) on SAME PR (#844, request_sizes 297KB / 302KB / 318KB). Other PRs with smaller bodies had Google succeed in the same invocations. Distinct from KF-001 (mid-stream `SocketError other side closed` vs pre-handshake `AggregateError`). Body-size threshold; structural. Upstream issue [#845](https://github.com/0xHoneyJar/loa/issues/845) filed. | bridgebuilder Google provider Node fetch | 3 |
 
 ---
 
@@ -150,7 +151,7 @@ evidence (different machine, different network, different time-of-day).
 
 ## KF-002: adversarial-review.sh empty-content on review-type prompts at scale
 
-**Status**: PARTIALLY-MITIGATED 2026-05-10 (text.format=text shipped for OpenAI; structural opus + connection-lost layers remain)
+**Status**: PARTIALLY-MITIGATED 2026-05-10 (text.format=text shipped for OpenAI; structural opus + connection-lost layers remain) + LAYER-3-RESOLVED-BY-CONSTRUCTION 2026-05-11 (Sprint 4A streaming-transport default eliminates the >60s-wait-for-first-byte failure mode; gate raised from 24K/36K to 200K/180K; see Attempts table 2026-05-11 row and Sprint 4A Resolution note below)
 
 ### Upstream cross-references (added 2026-05-10 during KF-002 deep-dive)
 
@@ -197,7 +198,7 @@ evidence (different machine, different network, different time-of-day).
 **Feature**: `.claude/scripts/adversarial-review.sh --type review` (Phase 2.5 of `/review-sprint`)
 **Symptom**: Reasoning-class models (gpt-5.5-pro, claude-opus-4-7) return empty content for review-type prompts at >27K input (gpt-5.5-pro) or >40K input (claude-opus-4-7). 3 retries all empty. The script writes `status: api_failure` to the output JSON, the COMPLETED gate accepts api_failure as a "legitimate completion record," and Sprint audit passes despite no actual cross-model dissent applied. **Audit-type prompts at the same scale succeed** — the failure is prompt-structure-dependent, not pure input-size.
 **First observed**: 2026-05-09 (cycle-102 sprint-1A audit on PR #803)
-**Recurrence count**: 3+ (sprint-1A audit, sprint-1B audit, sprint-1B BB iter-6 — see NOTES.md 2026-05-09 Decision Log: T1B.4 ROOT-CAUSE REFRAME)
+**Recurrence count**: 5+ (sprint-1A audit, sprint-1B audit, sprint-1B BB iter-6, cycle-103 PRD+SDD flatline run 2026-05-11, cycle-103 sprint.md flatline run 2026-05-11 with 3-of-3 provider empty-content at 5K-token input — see NOTES.md 2026-05-09 Decision Log: T1B.4 ROOT-CAUSE REFRAME and cycle-103 rows in Attempts below; **NEW FAILURE SHAPE**: prompt-structure trigger independent of scale, plus first Gemini empty-content observation)
 **Current workaround**: Sprint 1B T1B.4 swapped `flatline_protocol.{code_review,security_audit}.model` from `gpt-5.5-pro` to `claude-opus-4-7`. Upstream Issue #812 proposes the same default for all Loa users. **Note: opus has the SAME bug at higher input threshold** (Issue #823 / vision-024) — the swap routes around the bug at one scale but the bug class is fractal, not solved.
 **Upstream issue**: [#812](https://github.com/0xHoneyJar/loa/issues/812) (model swap proposal), [#823](https://github.com/0xHoneyJar/loa/issues/823) (opus empty-content at >40K)
 **Related visions / lore**: vision-019 Bridgebuilder's Lament, vision-023 Fractal Recursion ("the very gate built to detect silent degradation experienced silent degradation, of the same bug class the gate was built to detect"), vision-024 Substrate Speaks Twice, vision-025 Substrate Becomes the Answer (the routing-around-not-fixing-through pattern)
@@ -210,8 +211,95 @@ evidence (different machine, different network, different time-of-day).
 | 2026-05-09 | Sprint 1B T1B.4 model swap to `claude-opus-4-7` | WORKAROUND-AT-LIMIT — works to ~40K input, fails at >40K (Issue #823) | commit `0872780c` |
 | 2026-05-09 | Audit-type at 47K input (test if scale alone or prompt-structure) | RESOLVED FOR AUDIT-TYPE — audit-type at 47K succeeded | NOTES.md 2026-05-09 |
 | 2026-05-10 | Per-model input-size gate (Sprint 1F) — refuses prompts above empirically-observed safe thresholds before adapter call | MITIGATED LAYER 3 — connection-lost class no longer reachable via gated paths; structural cheval HTTP-asymmetry root cause remains under investigation | Sprint 1F PR (this entry) — `_lookup_max_input_tokens` in `.claude/adapters/cheval.py`; thresholds in `.claude/defaults/model-config.yaml` |
-| not tried | Adaptive truncation (lower review-type input cap to ~16K) | — | proposed in vision-023 §"What this teaches" |
-| not tried | Drop `reasoning.effort` to `low` for adversarial-review's task class | — | proposed in NOTES.md 2026-05-09 Decision Log |
+| 2026-05-11 | Empirical reproduction attempt for layer 3 with `LOA_CHEVAL_DISABLE_INPUT_GATE`-equivalent (passed `--max-input-tokens 0`) | **LAYER 3 DID NOT REPRODUCE** in current production conditions — see Reproduction note below. Layer 1 (empty-content from reasoning-budget exhaustion) still reproduces on Anthropic when `max_tokens` is too small to cover thinking + visible output | Session 10 harness `/tmp/cheval-repro/repro.py` + real `model-invoke` with 183KB SDD payload (~50K tokens) returning structured content in 26s, exit 0 |
+| 2026-05-11 | **Sprint 4A streaming-transport default** — `http_post_stream()` in `.claude/adapters/loa_cheval/providers/base.py` + `parse_*_stream()` in `anthropic_streaming.py` / `openai_streaming.py` / `google_streaming.py` + adapters defaulting to `_complete_streaming` (kill switch via `LOA_CHEVAL_DISABLE_STREAMING=1`). All 3 providers stream the response; server emits first token immediately; intermediaries never observe an idle TCP connection. | **LAYER 3 RESOLVED BY CONSTRUCTION** — the >60s-wait-for-first-byte failure class is no longer reachable on the streaming path, independent of any intermediary timer behavior. Input-size gate raised from 24K/36K to 200K/180K (still acts as belt-and-suspenders). 31 new pytest cases pin per-provider streaming behavior; live smokes against all 3 endpoints confirm end-to-end. | Sprint 4A PR series: ec65cdbf (transport) + 10df41f8 (Anthropic) + 1855953b (OpenAI) + b70c2cff (Google) + e6d08fc0 (audit) + dba04509 (gate) |
+| not tried | Adaptive truncation (lower review-type input cap to ~16K) | — | proposed in vision-023 §"What this teaches"; rendered moot by Sprint 4A streaming default — no truncation needed |
+| not tried | Drop `reasoning.effort` to `low` for adversarial-review's task class | — | proposed in NOTES.md 2026-05-09 Decision Log; still applicable for layer 1 (empty-content) cost-control, not load-bearing post Sprint 4A |
+| 2026-05-11 | Cycle-103 PRD+SDD flatline run (`/flatline-review prd sdd` over cycle-103 PRD 14KB + SDD 32KB) — `flatline_protocol.models.primary: opus` + `.secondary: gpt-5.5-pro` + `.tertiary: gemini-3.1-pro-preview` per cycle-102 Sprint 1B T1B.4 config | **RECURRENCE-4** — Opus returned 0 items on PRD (14KB input, well under prior 40K threshold) AND 0 items on SDD; GPT returned 10 items on PRD but 0 on SDD (32KB input, matches KF-003 ≥27K threshold); only Gemini cross-scored. PRD consensus emitted as 10 DISPUTED at `confidence: single_model` (really 2-of-3 GPT+Gemini agreement); SDD emitted `degraded: true, degraded_model: "both", reason: "no_items_to_score"`. **The cycle whose thesis is exactly fixing this class just triggered the class on its own planning artifacts.** | `grimoires/loa/cycles/cycle-103-provider-unification/flatline/prd-review.json` + `sdd-review.json` (recurrence evidence); cycle-103 SDD §1 IPC contract is the structural fix |
+| 2026-05-11 | Cycle-103 sprint.md flatline run (`/flatline-review sprint` over cycle-103 sprint.md 18KB / ~5K tokens) — same 3-model config | **RECURRENCE-5 + NEW FAILURE SHAPE** — All 3 providers returned empty content (Opus AND GPT AND Gemini). 4 of 6 Phase 1 calls failed (gpt-review, gpt-skeptic, gemini-review, gemini-skeptic — all returned empty); Opus calls structurally succeeded but with empty items per scoring-engine "both input files empty" warning. Phase 1 cost was 36¢ (HTTP 200 across the board) so this is empty-content, not API error. **First documented Gemini empty-content observation in Loa traffic** — invalidates the "Gemini empty-content not yet observed" note in the upstream cross-references table. **Critically: sprint.md at 5K tokens is well below every prior empty-content threshold** (24K gpt-5.5-pro, 40K opus-4-7, no documented gemini threshold). Scale is therefore NOT the trigger — the flatline sprint-phase prompt template is. PRD-phase + SDD-phase prompts behave differently. This makes the bug class prompt-structure-dependent at a deeper level than KF-002 originally documented. | `grimoires/loa/cycles/cycle-103-provider-unification/flatline/sprint-review.json` (`degraded: true, degraded_model: "both"`); scoring-engine warning `both input files empty (no items to score)`; phase-1 cost 36¢ with 4-of-6 failed |
+
+### 2026-05-11 reproduction note (session 10)
+
+Direct httpx tests (HTTP/1.1, HTTP/2, streaming, TCP-keepalive variants) **all
+succeeded** against `api.anthropic.com` with 30K-token and 50K-token lorem
+payloads, returning HTTP 200 in 5-9s. Real `model-invoke` against
+`claude-opus-4.7` with the full repo SDD (183KB / ~50K tokens) returned
+proper structured content in 26 seconds. The 60-second wall-clock disconnect
+that defined layer 3 between 2026-05-09 and 2026-05-10 did not reappear in
+any test run.
+
+Three explanations are consistent with the evidence:
+
+1. **Server-side fix**: Anthropic / OpenAI may have lifted a CDN or
+   load-balancer idle-timeout from 60s. This is the cleanest explanation
+   but is invisible to us — we cannot confirm without provider
+   communication.
+2. **Network-path dependent**: the original observer was routed through a
+   particular CDN POP whose timer config differed from the path tested
+   on 2026-05-11. Time-of-day, ASN, and geographic routing all bias
+   Cloudflare's path selection.
+3. **Trigger conditions not matched**: the original failures came through
+   `flatline-orchestrator.sh` Phase 1 parallel-call pattern (concurrent
+   POSTs from one host) and `adversarial-review.sh` with specific
+   prompt shapes. The 2026-05-11 harness is single-call; some
+   concurrent-call interaction may be the actual trigger.
+
+**Operational status**: layer 3 is downgraded from `MITIGATED` (asserting
+the gate is the load-bearing fix) to `OBSERVABILITY-LATENT` — the gate
+remains in place as belt-and-suspenders, but we cannot currently
+demonstrate that it is required. The structural-fix candidate (streaming
+responses) is parked in the Attempts table; not implemented because the
+current failure mode cannot be reproduced to validate the fix against.
+
+**Next observation events that should re-open layer 3**:
+- Any `ConnectionLostError` with `transport_class=RemoteProtocolError`
+  observed in `.run/cheval-*.log` after 2026-05-11.
+- Any `[cheval] WARNING: Connection lost from {anthropic,openai}` in
+  flatline / BB / adversarial-review trajectories.
+- Operator-reported `Server disconnected` shape on `/review-sprint`.
+
+When the next instance is observed: increment recurrence count, add an
+Attempts row with the timestamp + payload size + network conditions,
+and consider whether the streaming-response structural fix should be
+promoted from "parked" to "in flight."
+
+### 2026-05-11 Sprint 4A Resolution
+
+Layer 3 is now closed BY CONSTRUCTION via the streaming-transport
+structural fix. The 60-second wait-for-first-byte window is no longer
+reachable on the streaming path — the server begins emitting bytes
+within a few seconds of request acceptance, so intermediaries
+(Cloudflare edge, ALBs, etc.) never observe an idle TCP connection.
+
+What shipped:
+
+| Commit | Scope |
+|--------|-------|
+| `ec65cdbf` | `http_post_stream()` in `base.py` — shared streaming transport with HTTP/2-via-h2 + HTTP/1.1 fallback. 12 regression-pin tests. |
+| `10df41f8` | Anthropic streaming adapter + `parse_anthropic_stream` (6 SSE event types). 11 parser tests. Live smoke: 27K tokens to claude-opus-4-5 in 3.09s. |
+| `1855953b` | OpenAI streaming adapter — both `/chat/completions` (SSE chunks) AND `/v1/responses` (typed events). 11 parser tests. Live smokes: 25K tokens to gpt-4o-mini in 6.11s + gpt-5.5-pro responses-API in 12.46s. |
+| `b70c2cff` | Google Gemini streaming adapter + `parse_google_stream`. 8 parser tests. Live smoke: 25K tokens to gemini-2.5-flash in 3.12s. |
+| `e6d08fc0` | MODELINV audit-payload `streaming: bool` field — surfaces transport choice for vision-019 M1 silent-degradation queries. 15 tests. |
+| `dba04509` | Input-size gate raised from 24K/36K → 200K/180K reflecting streaming's actual safe range. Gate retained as belt-and-suspenders + context-window backstop. |
+
+Streaming is the default for all three providers. Operators can revert
+to the legacy non-streaming path on a single call with
+`LOA_CHEVAL_DISABLE_STREAMING=1` (one-shot backstop); this also lowers
+the effective input-size ceiling back to the Sprint 1F empirical values.
+
+Why this resolution holds even though layer 3 didn't reproduce on
+2026-05-11: streaming closes the failure class by construction, not by
+mitigation. Even if Anthropic / OpenAI restore the 60s intermediary
+timer that originally caused KF-002 (or if a new intermediary's timer
+emerges), the streaming path's continuous byte emission keeps the TCP
+connection active and the failure mode unreachable. The fix targets the
+root mechanism (idle-TCP idle-detection at intermediaries) rather than
+the symptom (RemoteProtocolError at 60s).
+
+Runbook: `grimoires/loa/runbooks/cheval-streaming-transport.md` —
+operator-visible documentation of the new default behavior, the
+LOA_CHEVAL_DISABLE_STREAMING kill switch, the regression-pin tests, and
+the upgrade path.
 
 ### Reading guide
 
@@ -232,7 +320,7 @@ with empty content, retries don't help.
 **Feature**: any cheval invocation routing to `gpt-5.5-pro` with `reasoning.effort: medium` and input ≥ 27K tokens
 **Symptom**: Provider returns 200 OK with empty `output` field; cheval treats as `INVALID_RESPONSE` exit code 5; retries return same.
 **First observed**: 2026-05-09 (cycle-102 sprint-1B kickoff during T1B.4 root-cause analysis)
-**Recurrence count**: 1 (originally believed scale-dependent within reasoning models; subsequent observation showed the bug class extends to opus at higher threshold, see KF-002)
+**Recurrence count**: 2 (originally believed scale-dependent within reasoning models; subsequent observation showed the bug class extends to opus at higher threshold, see KF-002; cycle-103 SDD flatline run 2026-05-11 reproduced on 32KB SDD input — see new Attempts row)
 **Current workaround**: Resolved by Sprint 1B T1B.4 model swap. cheval's per-model `max_output_tokens` lookup landed at T1.9 (Sprint 1A) addresses the budget-side; the empty-content failure mode is independent of budget.
 **Upstream issue**: [#812](https://github.com/0xHoneyJar/loa/issues/812)
 **Related visions / lore**: vision-019, vision-023; `feedback_loa_monkeypatch_always_upstream.md` (this entry exemplifies the "every project-local fix becomes upstream-issue-shaped" rule)
@@ -243,6 +331,7 @@ with empty content, retries don't help.
 |------|---------------|---------|----------|
 | 2026-05-09 | Verify T1.9 `max_output_tokens=32000` lookup applies | RESOLVED-AT-10K — bug class is empty-content not budget; lookup is correct but doesn't fix the deeper layer | sprint-bug-143 / NOTES.md 2026-05-09 Decision Log |
 | 2026-05-09 | Switch to `claude-opus-4-7` per T1B.4 | WORKAROUND HOLDS at this scale — opus has no empty-content bug for inputs <40K | commit `0872780c` |
+| 2026-05-11 | Cycle-103 flatline-review on SDD (32KB / ~32K-token input) with `gpt-5.5-pro` as `flatline_protocol.models.secondary` | **REPRODUCED** — both review and skeptic modes returned empty content. KF-002 row for same date shows Opus also returned empty on SDD; flatline scoring-engine emitted `degraded: true, degraded_model: "both"`. Note the cycle-103 PRD (14KB input) was below the 27K threshold and GPT returned 10 items there. | `grimoires/loa/cycles/cycle-103-provider-unification/flatline/sdd-review.json` (`degradation_reason: "no_items_to_score"`); log shows `[scoring-engine] WARNING: both input files empty (no items to score) — emitting degraded consensus per #759` |
 
 ### Reading guide
 
@@ -309,7 +398,7 @@ again.
 
 ## KF-005: beads_rust 0.2.1 migration blocks task tracking
 
-**Status**: DEGRADED-ACCEPTED (markdown fallback) — **fix available on crates.io as `beads_rust 0.2.4`; operator must `cargo install beads_rust` to upgrade locally**
+**Status**: DEGRADED-ACCEPTED (markdown fallback) — **REGRESSION CONFIRMED 2026-05-11 at beads_rust 0.2.4 AND 0.2.6**: upgraded local install to 0.2.6 (current latest); migration still fails with identical `NOT NULL constraint failed: dirty_issues.marked_at`. The "fix landed in 0.2.2/0.2.3/0.2.4" claim from 2026-05-10 is not supported by empirical test; either the fix doesn't address dirty databases (only fresh init), or it was reverted, or it never landed. **Upstream filed**: [Dicklesworthstone/beads_rust#290](https://github.com/Dicklesworthstone/beads_rust/issues/290) (2026-05-11). Markdown fallback remains canonical.
 
 ### Upgrade path (verified 2026-05-10)
 
@@ -332,7 +421,7 @@ Loa #661 was closed upstream 2026-05-02; the schema-migration fix landed in 0.2.
 **First observed**: 2026-04 (multiple cycles)
 **Recurrence count**: many (every cycle since the bug landed; ~every sprint hits it)
 **Current workaround**: Markdown fallback per beads-preflight protocol — track sprint tasks in `grimoires/loa/cycles/<cycle>/sprint.md` checkboxes; record manual lifecycle in `grimoires/loa/a2a/<sprint>/reviewer.md` task tables. Skill `<beads_workflow>` sections gracefully degrade. Use `git commit --no-verify` per operator standing authorization to bypass beads pre-commit hooks.
-**Upstream issue**: [#661](https://github.com/0xHoneyJar/loa/issues/661)
+**Upstream issue**: [Dicklesworthstone/beads_rust#290](https://github.com/Dicklesworthstone/beads_rust/issues/290) (filed 2026-05-11 against 0.2.6) + downstream tracker [0xHoneyJar/loa#661](https://github.com/0xHoneyJar/loa/issues/661) (closed 2026-05-02; should be reopened with the regression evidence)
 **Related visions / lore**: not vision-class; pure operational degradation
 
 ### Attempts
@@ -343,6 +432,7 @@ Loa #661 was closed upstream 2026-05-02; the schema-migration fix landed in 0.2.
 | various | Delete `.beads/` and re-initialize | DID NOT WORK in past cycles (operator may have tried more recently — verify before re-attempting) | — |
 | 2026-04+ | Markdown fallback per protocol | WORKS — ledger + reviewer.md + sprint.md checkboxes are sufficient SoT for sprint lifecycle | every cycle since 2026-04 |
 | 2026-05-10 | Verify upstream fix availability (P4.11 from cycle-102 session-9 handoff). `cargo search beads_rust` → 0.2.4 on crates.io; local install is 0.2.1 (3 patch versions behind). `br sync --import-only` on local 0.2.1 reproduces the original error. | UPGRADE PATH IDENTIFIED — operator must run `cargo install beads_rust` to land the upstream fix locally. Markdown fallback remains the safe bet until the upgrade is verified. | crates.io 0.2.4 / Loa #661 (closed 2026-05-02) |
+| 2026-05-11 | Operator upgraded to `br 0.2.4` (per session 11 message). Cycle-103 planning attempted `br ready` + `br create --dry-run`. Then `br upgrade` to `br 0.2.6` (current latest) and retried. | **REGRESSION CONFIRMED** — both 0.2.4 and 0.2.6 reproduce the exact original error: `run_migrations failed: Database(Internal("VDBE halted with code 19: NOT NULL constraint failed: dirty_issues.marked_at"))`. Health check still reports `MIGRATION_NEEDED` + `dirty_issues_migration: needs_repair`. The "fix landed in 0.2.2+" claim is empirically wrong for dirty databases. **Action needed**: file fresh upstream issue against `beads_rust 0.2.6` with evidence; reopen Loa #661 with regression note; markdown fallback remains canonical SoT until upstream is genuinely fixed. | `br --version` returns `br 0.2.6`; `.claude/scripts/beads/beads-health.sh --json` returns `MIGRATION_NEEDED` |
 
 ### Reading guide
 
@@ -468,6 +558,93 @@ When a workaround promotes to a structural fix:
 2. Add a final row to `Attempts` with the closing fix and evidence.
 3. Keep the entry — it's load-bearing as a "we already solved this, here's how" reference.
 4. The Index table's status column reflects the change.
+
+---
+
+## KF-008: bridgebuilder Google API SocketError on large request bodies
+
+**Status**: OPEN — observed on 2026-05-11 during Sprint 4A post-merge BB
+test run; distinct from KF-001 (which was Happy Eyeballs pre-handshake;
+that fix held — Anthropic worked fine in today's runs)
+
+**Feature**: `/bridgebuilder` Google provider via
+`.claude/skills/bridgebuilder-review/resources/adapters/google` (Node fetch
+to `generativelanguage.googleapis.com:streamGenerateContent` or equivalent)
+
+**Symptom**: `gemini-3.1-pro-preview` review fails with `TypeError: fetch
+failed; cause=SocketError: other side closed` after 3/3 retry attempts.
+Failure occurs MID-STREAM (after TCP+TLS handshake completed and bytes were
+flowing) — distinct from KF-001's pre-handshake `AggregateError`. Request
+size when observed: **297209B** (~297KB). Anthropic + OpenAI succeed on
+the same BB invocation at similar request sizes (117KB and 73KB
+respectively — Anthropic completed in 68s, OpenAI in 304s, Google failed
+after retries).
+
+**First observed**: 2026-05-11 ~05:33Z (Sprint 4A post-merge BB dry-run
+on PR #844 streaming transport; session 10)
+
+**Recurrence count**: 3 (three observations on PR #844 / Sprint 4A
+within a ~70 min window on the same operator machine, request sizes
+297209B / 302623B / 317766B respectively. Anthropic + OpenAI succeeded
+on the SAME invocations at 117KB-125KB + 73KB-78KB request sizes,
+ruling out general network outage or operator-side firewall block.
+Google's 91s success on smaller PR #804 in the same invocation rules
+out provider account / API key issue. **Per the ledger discipline
+(recurrence-≥3), upstream issue filed.**)
+
+**Upstream issue**: [#845](https://github.com/0xHoneyJar/loa/issues/845)
+(filed 2026-05-11 after recurrence-3 observation; hypotheses + repro
+steps + investigation paths documented in the issue body).
+
+**Current workaround**: BB's multi-model consensus scoring continues with
+2 of 3 providers when Google fails (anthropic + openai in this run);
+the run completes with `mode=multi-model, items=3, 6 findings, 0 consensus,
+1 disputed, 0 blocker`. Single-provider failure is degraded but not
+fatal. Per the recurrence-≥3 rule, ONE observation does NOT yet trigger
+the "stop retrying" gate — re-attempt if observed again to confirm
+recurrence vs transient.
+
+**Upstream issue**: Not yet filed (first observation; awaiting recurrence
+confirmation per the ledger discipline).
+
+**Related visions / lore**: KF-001 (different error class on same provider
++ tool, resolved 2026-05-10). vision-024 substrate-speaks-twice (the BB
+infrastructure articulating its own failure mode AGAIN).
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-05-11 ~05:33Z | First-time observation during BB dry-run on Sprint 4A PR #844 | OBSERVED — Google failed 3/3 attempts at request_size=297209B; Anthropic + OpenAI succeeded at 117KB + 73KB request sizes on the same invocation | Run `bridgebuilder-20260511T053301-a1d3`; log line `"[multi-model:google] Review failed","data":{"error":"Google API network error — TypeError: fetch failed; cause=SocketError: other side closed (request_size=297209B, attempt=3/3, model=gemini-3.1-pro-preview)"}` |
+| 2026-05-11 ~05:55Z | Live BB run on the same PR #844 (~25 min after first observation) | OBSERVED AGAIN — Google failed 3/3 at request_size=302623B (slightly larger body — same PR, same SHA, but the second-pass enrichment context grew). Google then **succeeded** on the same invocation against PR #804 (91s, 1311 in / 475 out) and PR #841 (20s, 5912 in / 590 out) — ruling out network outage or account-level rate limit. The failure is body-size dependent. | Run `bridgebuilder-20260511T055522-9aea`; PR #844 has BB consensus from anthropic+openai only (3 of 4 expected comments posted); PR #841 + PR #804 each got all 4 comments. |
+| 2026-05-11 ~06:42Z | BB cycle-2 run on PR #844 only (post Sprint 4A cycle-3 commits) | OBSERVED THIRD TIME — Google failed 3/3 at request_size=317766B (body grew further as cycle-3 added more files to the diff). Anthropic + OpenAI succeeded at 125KB + 78KB in the same invocation. **Recurrence-≥3 gate triggered.** | Run `bridgebuilder-20260511T064222-2e83`; PR #844 cycle-2 consensus comment (`https://github.com/0xHoneyJar/loa/pull/844#issuecomment-...`); upstream issue [#845](https://github.com/0xHoneyJar/loa/issues/845) filed with hypotheses + investigation paths. |
+| 2026-05-11 ~07:00Z | File upstream issue [#845](https://github.com/0xHoneyJar/loa/issues/845) per ledger discipline | DONE — upstream issue covers all three observations, distinguishes from KF-001, lists 4 hypotheses (Loa adapter config, Google API gateway, provider rate-limit-as-RST, Node 20 undici bug), and proposes 4 investigation paths (direct curl, adapter diff, body-size bisection, mobile-hotspot repro). | https://github.com/0xHoneyJar/loa/issues/845 |
+| not tried | Reproduce with smaller diff (split PR #844 into 2-3 smaller PRs) | — | proposed in #845: would identify whether the failure threshold is at ~150KB / 200KB / 250KB / 290KB |
+| not tried | Reproduce on a different network (mobile hotspot vs home/office) | — | proposed in #845: would distinguish operator-machine-network vs upstream provider |
+| not tried | Direct curl POST of the same ~300KB body to `streamGenerateContent` | — | proposed in #845: would isolate Node fetch vs upstream behavior. Three independent observations at ~300KB on the SAME PR within ~70 min strongly suggest the threshold is body-size-related, not transient. |
+
+### Reading guide
+
+Single observation — NOT yet structural. If your BB run shows `2 of 3`
+provider success with Google failing at request body sizes ≥250KB and
+the error shape matches `SocketError: other side closed` mid-stream:
+- Note as a recurrence here (increment count)
+- Do NOT retry the same BB invocation on the same large diff — accept
+  the degraded `2 of 3` consensus
+- If the BB consensus column shows non-zero disputed/blocker, the missing
+  Google input means single-model `single-model-true-positive-in-DISPUTED`
+  scrutiny applies to the Anthropic + OpenAI findings (per Sprint 1A
+  lore + `feedback_zero_blocker_demotion_pattern.md`)
+- If recurrence reaches 3: file upstream issue per the ledger discipline
+
+The Sprint 4A streaming transport (in cheval, Python) is unaffected — this
+is BB's Node fetch path. The KF-001 Happy Eyeballs fix in entry.sh
+(`NODE_OPTIONS=--network-family-autoselection-attempt-timeout=5000`)
+addressed pre-handshake failures and is still working. KF-008 is a
+distinct mid-stream failure pattern that the Happy Eyeballs fix does
+not address.
+
+---
 
 ## Why this file exists
 
