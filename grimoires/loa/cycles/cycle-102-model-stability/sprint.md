@@ -1121,3 +1121,104 @@ Next: `/build` (which will dispatch via `/run sprint-plan`).*
 **Iter-2 NOT gated** (consistent with PRD/SDD iter-1 rationale; pattern durably documented).
 
 **Cumulative Flatline cost across cycle-102 kickoff**: ~$5-8 across PRD + SDD + sprint-plan iter-1 manual dogfoods. **Caught**: 5 BLOCKER design defects + 30+ HIGH improvements + 7 adapter bugs (A1-A7). **Without iron-grip dogfood, all of these would have shipped silently.**
+
+---
+
+## Sprint 4A — Cheval Streaming Transport (AC-4.5e structural fix)
+
+**Scope**: MEDIUM (6 load-bearing tasks + test substrate + KF-002 closure)
+**Local ID**: 4A | **Global ID**: TBD (assigned at sprint-plan time)
+**Status**: PROPOSED — drafted 2026-05-11 (session 10) following empirical KF-002 layer-3 non-reproduction in `grimoires/loa/diagnostics/cheval-http-repro/`
+
+### Sprint 4A Goal
+
+Make cheval's HTTP transport stream provider responses end-to-end so the >60-second-wait-for-first-byte failure class (KF-002 layer 3 / Loa #774 — `httpx.RemoteProtocolError("Server disconnected without sending a response")` at exactly 60s wall-clock) becomes **structurally impossible**, independent of any intermediary timer config and regardless of whether the bug currently reproduces. This closes the "characterize threshold + deliver upstream PR or cheval-side mitigation" deliverable in AC-4.5e (Sprint 4) by choosing the **streaming-mitigation** path over chunking or pool-tuning. After this sprint, the per-model input-size gate (Sprint 1F) becomes belt-and-suspenders rather than load-bearing, and the thresholds can be raised toward each model's full `context_window` minus reserved output.
+
+Per `grimoires/loa/known-failures.md` KF-002 reproduction note (2026-05-11), layer 3 did not reproduce in single-call testing against Anthropic at 30K + 50K-token payloads. Three explanations remain consistent with the evidence (server-side fix, network-path dependence, concurrent-call trigger). The streaming structural fix is the response that closes the bug class regardless of which explanation is correct.
+
+### Sprint 4A Closes (PRD AC)
+
+- **AC-4.5e** — Cheval long-prompt PROVIDER_DISCONNECT (#774, A3): characterization complete (session 10 fixture-replay at 30K + 50K already done, documented in KF-002 Attempts table 2026-05-11 row); cheval-side mitigation via streaming response shipped this sprint.
+- **AC-4.5c (partial)** — Adapter parallel-dispatch concurrency (A6): streaming reduces per-call wall-clock and per-call connection lifetime, which materially improves the parallel-dispatch baseline. Full AC-4.5c closure (per-provider connection-pool tuning + sequential-fallback strategy) remains in Sprint 4 main scope.
+
+### Sprint 4A Closes (PRD M)
+
+→ partial **[M1]** — silent-degradation count metric: streaming eliminates the `PROVIDER_DISCONNECT → RETRIES_EXHAUSTED` trajectory that currently accounts for the majority of cheval failure-class events at >26K input.
+→ partial **[M3]** — graceful degradation: streaming gives cheval a first-token-time signal that probe-gated fallback can consume.
+
+### Sprint 4A Closes (KF / Issue)
+
+- **KF-002 layer 3** moves from `LAYER-3-OBSERVABILITY-LATENT` to `RESOLVED-BY-CONSTRUCTION`.
+- **Loa Issue [#774](https://github.com/0xHoneyJar/loa/issues/774)** closed with the structural-fix PR.
+
+### Sprint 4A Deliverables (checkbox list)
+
+- [ ] **`http_post_stream()` in `.claude/adapters/loa_cheval/providers/base.py`** — new module-level function returning an iterator over response bytes (HTTP/1.1 by default; HTTP/2 transparently when `h2` package is available). Signature: `def http_post_stream(url, headers, body, *, connect_timeout, read_timeout) -> Iterator[bytes]`. Uses `httpx.stream("POST", ...)` with a `Client` constructed per-call (matching current `http_post` lifecycle). Same `ConnectionLostError` exception classification as the non-streaming twin. The legacy `http_post()` retained unchanged for callers that don't need streaming (health probes, models-list endpoints, internal helpers).
+- [ ] **`h2` added to cheval Python dependency declaration** — `.claude/adapters/loa_cheval/__init__.py` or the appropriate `pyproject.toml`/`requirements.txt` declares `httpx[http2]>=0.28` (httpx + h2 + hpack). Backwards compat: if `h2` is missing at runtime, streaming falls back to HTTP/1.1 with a stderr WARN (no crash; HTTP/1.1 streaming still passes the 60s wall in our 2026-05-11 testing).
+- [ ] **Anthropic adapter streaming** (`anthropic_adapter.py`) — `complete()` sets `body["stream"] = True`, calls `http_post_stream()`, parses Anthropic's SSE event stream (`event: message_start | content_block_start | content_block_delta | content_block_stop | message_delta | message_stop`), and assembles the canonical `CompletionResult`. Tool-use blocks reconstructed from `content_block_delta` events with `type: input_json_delta`. Streaming is the **default** for Anthropic; non-streaming retained as fallback for the health-probe endpoint only.
+- [ ] **OpenAI adapter streaming** (`openai_adapter.py`) — both `/chat/completions` (SSE chunks ending `data: [DONE]`) and `/v1/responses` (the newer typed event stream with `response.output_item.added` / `response.output_text.delta` / etc.). The Sprint 1F `text.format=text` parameter remains in the request body; it's orthogonal to streaming. Streaming default; legacy non-streaming preserved behind `LOA_CHEVAL_DISABLE_STREAMING=1` env-var kill switch (operator one-shot backstop).
+- [ ] **Google adapter streaming** (`google_adapter.py::_complete_standard`) — Gemini's `:generateContent` becomes `:streamGenerateContent` with `?alt=sse` query parameter; chunks are JSON-array-fragmented response objects. The Deep Research / Interactions API path (`_complete_deep_research`) remains non-streaming because it's already an async-poll architecture.
+- [ ] **cheval CLI integration** — `.claude/adapters/cheval.py` defaults `stream=True` on calls; existing `--output-format json` consumer contract preserved (we assemble the streamed chunks into the same final `CompletionResult` JSON shape, only the under-the-hood transport differs). `--include-thinking` continues to work (thinking events captured during stream assembly).
+- [ ] **Regression test substrate** — `tests/cycle-102/cheval-streaming.bats` + `tests/cycle-102/test_streaming_adapters.py`:
+  - **R1 (transport pin)**: mock httpx-stream returning a 5-chunk SSE stream → assert `CompletionResult.content` equals concatenated visible-token chunks.
+  - **R2 (60s-wall regression)**: mock httpx server that delays first byte 65 seconds, then streams normally → non-streaming path raises `ConnectionLostError`; streaming path succeeds. This is the canonical anti-regression pin for KF-002 layer 3.
+  - **R3 (h2-missing fallback)**: simulate `import h2` failing → adapter still functions on HTTP/1.1 streaming; stderr WARN visible.
+  - **R4 (tool-use streaming)**: Anthropic streamed `input_json_delta` events → assembled `tool_calls` array byte-equal to non-streamed canonical fixture.
+  - **R5 (kill-switch)**: `LOA_CHEVAL_DISABLE_STREAMING=1` reverts to legacy non-streaming path; `--output-format json` output byte-equal to pre-streaming behavior.
+- [ ] **Input-size gate adjustment** — `.claude/defaults/model-config.yaml::max_input_tokens` raised on the gated models (`gpt-5.5-pro`, `gpt-5.5`, `claude-opus-4-6`, `claude-opus-4-7`) toward the model's full `context_window - reserved_output`. Empirically validated against the streaming path. The gate stays in place as a backstop against future intermediary-timer regressions, but defaults reflect the new reality.
+- [ ] **`grimoires/loa/known-failures.md` KF-002 closure** — status moves to `RESOLVED-BY-CONSTRUCTION 2026-05-XX (Sprint 4A streaming transport)`; the 2026-05-11 reproduction note stays as historical record.
+- [ ] **Sprint 4A runbook** — `grimoires/loa/runbooks/cheval-streaming-transport.md`: operator-visible documentation of the new transport behavior, the kill switch, the 60s-wall regression pin, and the upgrade path from old to new.
+- [ ] **AC-4.5e characterization addendum to cycle-102 SDD** — append the 2026-05-11 empirical findings to SDD §4.2 (HTTP transport) with the streaming-architecture spec for posterity.
+
+### Sprint 4A Acceptance Criteria (testable)
+
+- [ ] **AC-4A.1.test**: `tests/cycle-102/cheval-streaming.bats::R1` — 5-chunk mock stream → assembled `CompletionResult.content` matches concatenated visible content; usage tokens correctly summed across `message_delta` events.
+- [ ] **AC-4A.2.test**: `tests/cycle-102/cheval-streaming.bats::R2` — 65-second first-byte-delay regression pin: non-streaming path raises `ConnectionLostError`; streaming path completes successfully with content reflecting the post-delay chunks. This is the canonical anti-regression test; without it, layer-3 regression could re-enter silently.
+- [ ] **AC-4A.3.test**: `tests/cycle-102/cheval-streaming.bats::R3` — `h2` missing at runtime → HTTP/1.1 streaming still works; stderr contains `WARNING: h2 not installed; streaming via HTTP/1.1 (less robust under high concurrency)`.
+- [ ] **AC-4A.4.test**: `tests/cycle-102/cheval-streaming.bats::R4` — Anthropic tool-use streaming → `tool_calls[0].function.arguments` byte-equal to non-streamed fixture.
+- [ ] **AC-4A.5.test**: `tests/cycle-102/cheval-streaming.bats::R5` — `LOA_CHEVAL_DISABLE_STREAMING=1` kill switch reverts to legacy `http_post()` path; output JSON byte-equal to a frozen pre-streaming baseline fixture.
+- [ ] **AC-4A.6.test**: `tests/cycle-102/test_streaming_adapters.py` — per-provider streaming response parser correctness: Anthropic SSE event types, OpenAI `/chat/completions` SSE chunks, OpenAI `/v1/responses` typed events, Google `:streamGenerateContent` JSON-array fragments. Each provider's parser asserts shape conformance for at least 4 canonical streamed-fixture files.
+- [ ] **AC-4A.7.test**: integration smoke — real `/review-sprint` on a non-trivial PR with the streaming transport active; success criterion: no `PROVIDER_DISCONNECT` failure-class events; review completes in <90s for typical sprint diffs. (This is the session-9 #4 item, finally satisfied.)
+- [ ] **AC-4A.8.test**: `tests/cycle-102/cheval-input-size-gate-deprecation.bats` — with streaming default, payloads at 80K tokens to `claude-opus-4-7` succeed; the gate (now raised) does not refuse them; the 2026-05-11 baseline thresholds (24K / 36K) are demoted to backstop defaults only.
+- [ ] **AC-4A.9.test**: full bats corpus regression — sprint-1A through 1F tests all green; 0 net-new failures.
+
+### Sprint 4A Technical Tasks (one beadable unit each)
+
+- [ ] **T4A.1** Implement `http_post_stream(url, headers, body, *, connect_timeout, read_timeout) -> Iterator[bytes]` in `base.py`. Reuse the existing `ConnectionLostError` classification (same `except` clause set as `http_post`). Add the `h2`-missing fallback with stderr WARN. Unit test (Python): mock `httpx.stream` and assert iterator yields chunks; assert exception-class mapping holds when stream raises `RemoteProtocolError` mid-stream.
+- [ ] **T4A.2** Anthropic streaming parser — new module `loa_cheval/providers/anthropic_streaming.py` with `parse_anthropic_stream(byte_iter: Iterator[bytes]) -> CompletionResult`. Handles all 6 SSE event types per Anthropic's streaming docs. Tool-use reconstruction from `input_json_delta` chunks. Wire into `AnthropicAdapter.complete()` with `stream=True` body default. Preserve `_get_auth_header` + version-header behavior unchanged.
+- [ ] **T4A.3** OpenAI streaming parsers — extend `openai_adapter.py` with two new parsers (one per endpoint family). The `/v1/responses` parser is the more involved leg because typed events fire in a specific order (`response.created` → `response.output_item.added` → `response.output_text.delta` → ... → `response.completed`). Tool-call argument JSON assembled from `function_call_arguments.delta` events. Preserve the `text.format=text` body parameter from Sprint 1F.
+- [ ] **T4A.4** Google streaming parser — `google_adapter.py::_complete_standard` switches the URL builder to use `:streamGenerateContent?alt=sse`. Gemini's stream format is JSON-array-fragmented (each chunk is a partial JSON object). Parser must handle UTF-8 byte boundaries within chunks (a multi-byte codepoint may split across two TCP chunks). Wire into existing FLockSemaphore concurrency wrapper.
+- [ ] **T4A.5** cheval CLI integration — `cheval.py::main()` continues to return the same JSON output contract; only the transport beneath changes. Add the `LOA_CHEVAL_DISABLE_STREAMING=1` env-var kill switch routing to the legacy `http_post()` path. Audit-envelope `model.invoke.complete` payload gains a new field `streaming: bool` (additive; safe at schema level).
+- [ ] **T4A.6** Test substrate — author `tests/cycle-102/cheval-streaming.bats` (the AC-4A.1 through AC-4A.5 test set) + `tests/cycle-102/test_streaming_adapters.py` (the parser-correctness corpus). Use the existing curl-mock harness from Sprint 1C; extend it with a `delay-first-byte` mode for the R2 regression pin. Streaming fixtures: 4 per provider, captured from real API calls and committed as `.sse.txt` fixture files.
+- [ ] **T4A.7** Input-size gate adjustment — bump `.claude/defaults/model-config.yaml::max_input_tokens` per validated new thresholds. The gate becomes operator-tunable; the empirically-validated defaults reflect that streaming closes the 60s wall.
+- [ ] **T4A.8** Documentation closure — KF-002 entry updated; runbook written; cycle-102 SDD addendum appended; CHANGELOG entry drafted; Loa #774 closed with cross-references.
+
+### Sprint 4A Dependencies
+
+- **Inbound**: Sprint 1A (typed errors + `ConnectionLostError` taxonomy) + Sprint 1C (curl-mock harness extended with delay-first-byte fixture) + Sprint 1D (cheval audit envelope wiring — streaming bool field is additive on the existing `model.invoke.complete` schema) + Sprint 1F (input-size gate, now demoted from load-bearing to backstop).
+- **Outbound**: Sprint 4 main scope (AC-4.5c parallel-dispatch concurrency) consumes streaming transport because shorter per-call wall-clock improves the parallel-dispatch baseline. Sprint 5 (rollback-discipline + smoke fleet) inherits streaming as default and tests both paths (default streaming + kill-switched legacy) in the smoke fleet.
+
+### Sprint 4A Risks & Mitigation
+
+| ID | Risk | Mitigation |
+|---|---|---|
+| **S4A.R1** | Streaming-response parsers diverge per-provider, hard to maintain | Mitigation: each provider's SSE/stream format is captured as fixture `.sse.txt` files; parsers are pure functions (`bytes -> CompletionResult`); ≥4 fixtures per provider pin the parser behavior. |
+| **S4A.R2** | `h2` package adds a new dependency with its own CVE surface | Mitigation: `h2` is widely-used (`httpx[http2]` extra; pip-vetted package; maintained by `python-hyper` org). `h2`-missing fallback ensures graceful degradation. Lockfile-pin the version. |
+| **S4A.R3** | Streaming output contract differs subtly from non-streaming (token counting, usage timing) | Mitigation: AC-4A.5 kill switch + byte-equal fixture comparison for non-streamed output. If divergence is irreducible, document explicitly in the runbook and SDD addendum. |
+| **S4A.R4** | Tool-use reconstruction from streamed chunks introduces a new bug surface | Mitigation: AC-4A.4 tool-use parity test against non-streamed fixture; both Anthropic and OpenAI tool-call paths exercised. Property-based tests if budget permits (`hypothesis` Python lib). |
+| **S4A.R5** | Layer 3 may return before sprint completes; intermediate states need to keep working | Mitigation: input-size gate stays in place throughout the sprint; only deprecated as part of T4A.7. Even partial streaming (e.g., Anthropic-only) reduces the failure surface. |
+| **S4A.R6** | Google's `:streamGenerateContent` rate-limit or per-request-cost differs from non-streamed `:generateContent` | Mitigation: verify in the pre-implementation spike (T4A.4 first hour). If billing differs, document and route via operator config. Tests use mocked Google responses; live billing observation in AC-4A.7 integration smoke. |
+| **S4A.R7** | BB review of streaming changes may empty-content at >40K input per upstream #823 | Mitigation: PR-shape discipline — keep diffs <40K input where possible. If unavoidable, document the BB degradation explicitly and route findings through the fallback chain. The Sprint 1F input-size gate (still active during this sprint) prevents the failure mode from interrupting review iterations. |
+
+### Sprint 4A Success Metrics
+
+- 6/6 deliverables checked + AC-4A.1 through AC-4A.9 all green
+- 0 regressions on cycle-102 bats corpus (sprint-1A through 1F all green)
+- Real `/review-sprint` integration smoke (AC-4A.7) returns proper structured content for a representative 30K-50K-token sprint diff in <90s wall-clock with no `PROVIDER_DISCONNECT` failure-class events
+- Input-size gate raised; the 2026-05-11 thresholds (24K / 36K) move from load-bearing to backstop-only
+- KF-002 status `RESOLVED-BY-CONSTRUCTION`; #774 closed
+- BB plateau at ≤3 iterations on the sprint PR; ship/no-ship decision logged in NOTES.md
+
+### Sprint 4A Definition of Done
+
+Same shape as Sprint 1D: deliverables checked + AC tests green + `/review-sprint sprint-4A` APPROVED + `/audit-sprint sprint-4A` APPROVED + Bridgebuilder kaironic plateau on the sprint PR + ship/no-ship decision in NOTES.md + Decision Log entry on the streaming-vs-chunking-vs-pool-tuning choice (cycle-102 AC-4.5e mitigation path) + beads tasks closed.

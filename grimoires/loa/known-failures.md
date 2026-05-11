@@ -56,7 +56,7 @@ actually tried, not just what someone *said* was tried.
 | ID | Status | Feature | Recurrence |
 |----|--------|---------|------------|
 | [KF-001](#kf-001-bridgebuilder-cross-model-provider-network-failures-non-openai) | RESOLVED 2026-05-10 (Node 20 Happy Eyeballs autoselection-attempt-timeout) | bridgebuilder cross-model dissent | 3 |
-| [KF-002](#kf-002-adversarial-reviewsh-empty-content-on-review-type-prompts-at-scale) | MOSTLY-MITIGATED 2026-05-10 (text.format=text + provider fallback chain + per-model input-size gate shipped; the structural cheval HTTP-asymmetry bug class remains under investigation) | adversarial-review.sh review-type | 4 |
+| [KF-002](#kf-002-adversarial-reviewsh-empty-content-on-review-type-prompts-at-scale) | MOSTLY-MITIGATED 2026-05-10 + LAYER-3-OBSERVABILITY-LATENT 2026-05-11 (text.format=text + provider fallback chain + per-model input-size gate shipped; layer-3 connection-lost class did NOT reproduce in session 10 testing — see 2026-05-11 reproduction note) | adversarial-review.sh review-type | 4 |
 | [KF-003](#kf-003-gpt-55-pro-empty-content-on-27k-input-reasoning-class-prompts) | RESOLVED (model swap) | flatline_protocol code review | 1 |
 | [KF-004](#kf-004-validate_finding-silent-rejection-of-dissenter-payloads) | RESOLVED 2026-05-10 (sidecar dump landed; #814 mitigation shipped) | adversarial-review.sh validation pipeline | ≥4 |
 | [KF-005](#kf-005-beads_rust-021-migration-blocks-task-tracking) | DEGRADED-ACCEPTED — fix available on crates.io as `beads_rust 0.2.4`; operator must `cargo install beads_rust` to land locally | beads_rust task tracking | many |
@@ -150,7 +150,7 @@ evidence (different machine, different network, different time-of-day).
 
 ## KF-002: adversarial-review.sh empty-content on review-type prompts at scale
 
-**Status**: PARTIALLY-MITIGATED 2026-05-10 (text.format=text shipped for OpenAI; structural opus + connection-lost layers remain)
+**Status**: PARTIALLY-MITIGATED 2026-05-10 (text.format=text shipped for OpenAI; structural opus + connection-lost layers remain) + LAYER-3-OBSERVABILITY-LATENT 2026-05-11 (layer 3 did not reproduce empirically — see Attempts table 2026-05-11 entry and reproduction note below)
 
 ### Upstream cross-references (added 2026-05-10 during KF-002 deep-dive)
 
@@ -210,8 +210,55 @@ evidence (different machine, different network, different time-of-day).
 | 2026-05-09 | Sprint 1B T1B.4 model swap to `claude-opus-4-7` | WORKAROUND-AT-LIMIT — works to ~40K input, fails at >40K (Issue #823) | commit `0872780c` |
 | 2026-05-09 | Audit-type at 47K input (test if scale alone or prompt-structure) | RESOLVED FOR AUDIT-TYPE — audit-type at 47K succeeded | NOTES.md 2026-05-09 |
 | 2026-05-10 | Per-model input-size gate (Sprint 1F) — refuses prompts above empirically-observed safe thresholds before adapter call | MITIGATED LAYER 3 — connection-lost class no longer reachable via gated paths; structural cheval HTTP-asymmetry root cause remains under investigation | Sprint 1F PR (this entry) — `_lookup_max_input_tokens` in `.claude/adapters/cheval.py`; thresholds in `.claude/defaults/model-config.yaml` |
+| 2026-05-11 | Empirical reproduction attempt for layer 3 with `LOA_CHEVAL_DISABLE_INPUT_GATE`-equivalent (passed `--max-input-tokens 0`) | **LAYER 3 DID NOT REPRODUCE** in current production conditions — see Reproduction note below. Layer 1 (empty-content from reasoning-budget exhaustion) still reproduces on Anthropic when `max_tokens` is too small to cover thinking + visible output | Session 10 harness `/tmp/cheval-repro/repro.py` + real `model-invoke` with 183KB SDD payload (~50K tokens) returning structured content in 26s, exit 0 |
 | not tried | Adaptive truncation (lower review-type input cap to ~16K) | — | proposed in vision-023 §"What this teaches" |
 | not tried | Drop `reasoning.effort` to `low` for adversarial-review's task class | — | proposed in NOTES.md 2026-05-09 Decision Log |
+| not tried | Stream responses end-to-end (httpx.stream + `stream: true` body across all 3 adapters) — eliminates the >60s-wait-for-first-byte failure mode *by construction* regardless of intermediary timer behavior | — | proposed by session 10 cheval HTTP-asymmetry diagnosis; deep-fix candidate if layer 3 returns |
+
+### 2026-05-11 reproduction note (session 10)
+
+Direct httpx tests (HTTP/1.1, HTTP/2, streaming, TCP-keepalive variants) **all
+succeeded** against `api.anthropic.com` with 30K-token and 50K-token lorem
+payloads, returning HTTP 200 in 5-9s. Real `model-invoke` against
+`claude-opus-4.7` with the full repo SDD (183KB / ~50K tokens) returned
+proper structured content in 26 seconds. The 60-second wall-clock disconnect
+that defined layer 3 between 2026-05-09 and 2026-05-10 did not reappear in
+any test run.
+
+Three explanations are consistent with the evidence:
+
+1. **Server-side fix**: Anthropic / OpenAI may have lifted a CDN or
+   load-balancer idle-timeout from 60s. This is the cleanest explanation
+   but is invisible to us — we cannot confirm without provider
+   communication.
+2. **Network-path dependent**: the original observer was routed through a
+   particular CDN POP whose timer config differed from the path tested
+   on 2026-05-11. Time-of-day, ASN, and geographic routing all bias
+   Cloudflare's path selection.
+3. **Trigger conditions not matched**: the original failures came through
+   `flatline-orchestrator.sh` Phase 1 parallel-call pattern (concurrent
+   POSTs from one host) and `adversarial-review.sh` with specific
+   prompt shapes. The 2026-05-11 harness is single-call; some
+   concurrent-call interaction may be the actual trigger.
+
+**Operational status**: layer 3 is downgraded from `MITIGATED` (asserting
+the gate is the load-bearing fix) to `OBSERVABILITY-LATENT` — the gate
+remains in place as belt-and-suspenders, but we cannot currently
+demonstrate that it is required. The structural-fix candidate (streaming
+responses) is parked in the Attempts table; not implemented because the
+current failure mode cannot be reproduced to validate the fix against.
+
+**Next observation events that should re-open layer 3**:
+- Any `ConnectionLostError` with `transport_class=RemoteProtocolError`
+  observed in `.run/cheval-*.log` after 2026-05-11.
+- Any `[cheval] WARNING: Connection lost from {anthropic,openai}` in
+  flatline / BB / adversarial-review trajectories.
+- Operator-reported `Server disconnected` shape on `/review-sprint`.
+
+When the next instance is observed: increment recurrence count, add an
+Attempts row with the timestamp + payload size + network conditions,
+and consider whether the streaming-response structural fix should be
+promoted from "parked" to "in flight."
 
 ### Reading guide
 
