@@ -340,9 +340,22 @@ class TestAnthropicRequestBodyConstruction:
             "stop_reason": "end_turn",
             "usage": {"input_tokens": 5, "output_tokens": 2},
         }
-        with patch("loa_cheval.providers.anthropic_adapter.http_post", return_value=(200, mock_response)) as mock:
-            adapter.complete(request)
-            return mock.call_args[1]["body"]
+        # Sprint 4A: AnthropicAdapter.complete() defaults to the streaming path
+        # (http_post_stream), but these tests only care about the request body
+        # construction logic, not the transport. Route through the legacy
+        # non-streaming path so the existing http_post mock still intercepts.
+        import os
+        prev_kill_switch = os.environ.get("LOA_CHEVAL_DISABLE_STREAMING")
+        os.environ["LOA_CHEVAL_DISABLE_STREAMING"] = "1"
+        try:
+            with patch("loa_cheval.providers.anthropic_adapter.http_post", return_value=(200, mock_response)) as mock:
+                adapter.complete(request)
+                return mock.call_args[1]["body"]
+        finally:
+            if prev_kill_switch is None:
+                del os.environ["LOA_CHEVAL_DISABLE_STREAMING"]
+            else:
+                os.environ["LOA_CHEVAL_DISABLE_STREAMING"] = prev_kill_switch
 
     def test_temperature_omitted_when_unsupported(self):
         """Opus 4 family: params.temperature_supported=False → no temperature in body."""

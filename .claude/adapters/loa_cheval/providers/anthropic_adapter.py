@@ -1,15 +1,27 @@
-"""Anthropic provider adapter — handles Anthropic Messages API (SDD §4.2.5)."""
+"""Anthropic provider adapter — handles Anthropic Messages API (SDD §4.2.5).
+
+Sprint 4A (cycle-102, AC-4.5e): `complete()` defaults to the streaming
+transport (`http_post_stream` + `parse_anthropic_stream`). The
+non-streaming path is preserved behind the `LOA_CHEVAL_DISABLE_STREAMING=1`
+env-var kill switch for operator one-shot backstop. Streaming eliminates
+KF-002 layer 3 (`httpx.RemoteProtocolError` at 60s wall-clock) by
+construction — see `grimoires/loa/known-failures.md` and
+`grimoires/loa/cycles/cycle-102-model-stability/sprint.md` Sprint 4A.
+"""
 
 from __future__ import annotations
 
 import logging
+import os
 import time
 from typing import Any, Dict, List, Optional
 
+from loa_cheval.providers.anthropic_streaming import parse_anthropic_stream
 from loa_cheval.providers.base import (
     ProviderAdapter,
     enforce_context_window,
     http_post,
+    http_post_stream,
 )
 from loa_cheval.types import (
     CompletionRequest,
@@ -27,7 +39,12 @@ class AnthropicAdapter(ProviderAdapter):
     """Adapter for Anthropic Messages API (SDD §4.2.3, §4.2.5)."""
 
     def complete(self, request: CompletionRequest) -> CompletionResult:
-        """Send completion request to Anthropic API, return normalized result."""
+        """Send completion request to Anthropic API, return normalized result.
+
+        Sprint 4A: streaming is the default path (KF-002 layer 3 mitigation).
+        Set `LOA_CHEVAL_DISABLE_STREAMING=1` to force the legacy non-streaming
+        path as a one-shot operator backstop.
+        """
         model_config = self._get_model_config(request.model)
 
         # Context window enforcement (SDD §4.2.4)
@@ -71,6 +88,81 @@ class AnthropicAdapter(ProviderAdapter):
         }
 
         url = f"{self.config.endpoint}/messages"
+
+        # Sprint 4A: streaming default with operator kill switch.
+        streaming_disabled = os.environ.get("LOA_CHEVAL_DISABLE_STREAMING") == "1"
+        if streaming_disabled:
+            return self._complete_nonstreaming(url, headers, body)
+        return self._complete_streaming(url, headers, body)
+
+    def _complete_streaming(
+        self,
+        url: str,
+        headers: Dict[str, str],
+        body: Dict[str, Any],
+    ) -> CompletionResult:
+        """Sprint 4A default path: streaming Messages API."""
+        # Anthropic Messages API expects `stream: true` in the request body
+        # to switch to SSE response format.
+        body = dict(body)
+        body["stream"] = True
+
+        start = time.monotonic()
+        with http_post_stream(
+            url=url,
+            headers=headers,
+            body=body,
+            connect_timeout=self.config.connect_timeout,
+            read_timeout=self.config.read_timeout,
+        ) as resp:
+            status = resp.status_code
+
+            if status >= 400:
+                # On error, the body is regular JSON (not SSE). Drain + parse.
+                err_bytes = b"".join(resp.iter_bytes())
+                try:
+                    import json
+                    err_json = json.loads(err_bytes.decode("utf-8", errors="replace"))
+                except Exception:
+                    err_json = {"error": {"message": err_bytes.decode("utf-8", errors="replace")[:500]}}
+                if status == 429:
+                    raise RateLimitError(self.provider)
+                if status >= 500:
+                    raise ProviderUnavailableError(
+                        self.provider,
+                        f"HTTP {status}: {_extract_error_message(err_json)}",
+                    )
+                raise InvalidInputError(
+                    f"Anthropic API error (HTTP {status}): {_extract_error_message(err_json)}"
+                )
+
+            # Parse the SSE event stream into a CompletionResult.
+            result = parse_anthropic_stream(
+                resp.iter_bytes(),
+                provider=self.provider,
+            )
+
+        latency_ms = int((time.monotonic() - start) * 1000)
+        # Re-attach latency (the parser fills 0 when not passed).
+        return CompletionResult(
+            content=result.content,
+            tool_calls=result.tool_calls,
+            thinking=result.thinking,
+            usage=result.usage,
+            model=result.model,
+            latency_ms=latency_ms,
+            provider=result.provider,
+            metadata=result.metadata,
+        )
+
+    def _complete_nonstreaming(
+        self,
+        url: str,
+        headers: Dict[str, str],
+        body: Dict[str, Any],
+    ) -> CompletionResult:
+        """Legacy non-streaming path retained behind LOA_CHEVAL_DISABLE_STREAMING=1
+        kill switch (Sprint 4A operator backstop)."""
         start = time.monotonic()
 
         status, resp = http_post(
