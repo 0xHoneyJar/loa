@@ -1,0 +1,81 @@
+name: no-direct-llm-fetch (cycle-103 drift gate)
+
+# cycle-103 sprint-1 T1.7 — CI enforcer for the M1 (BB → cheval) and M2
+# (Flatline → cheval) cycle-exit invariants. Fails any PR or push to main
+# that reintroduces a direct provider-API URL (api.anthropic.com,
+# api.openai.com, generativelanguage.googleapis.com) in TS / bash / Python
+# code outside the canonical exempt set documented in
+# `tools/check-no-direct-llm-fetch.allowlist`.
+#
+# Scope mirrors sprint.md T1.7: .claude/skills/**/*.{ts,sh,py} +
+# .claude/scripts/**/*.{sh,py}. Out-of-scope (.md, .json, etc.) are skipped
+# by the scanner's file-type filter.
+
+on:
+  pull_request:
+    paths:
+      # Re-run when the scanner / allowlist / workflow itself changes.
+      - 'tools/check-no-direct-llm-fetch.sh'
+      - 'tools/check-no-direct-llm-fetch.allowlist'
+      - '.github/workflows/no-direct-llm-fetch.yml'
+      # Re-run when any file in scan scope changes.
+      - '.claude/skills/**/*.ts'
+      - '.claude/skills/**/*.tsx'
+      - '.claude/skills/**/*.sh'
+      - '.claude/skills/**/*.bash'
+      - '.claude/skills/**/*.py'
+      - '.claude/scripts/**/*.sh'
+      - '.claude/scripts/**/*.bash'
+      - '.claude/scripts/**/*.py'
+  push:
+    branches: [main]
+    paths:
+      - 'tools/check-no-direct-llm-fetch.sh'
+      - 'tools/check-no-direct-llm-fetch.allowlist'
+      - '.github/workflows/no-direct-llm-fetch.yml'
+      - '.claude/skills/**/*.ts'
+      - '.claude/skills/**/*.tsx'
+      - '.claude/skills/**/*.sh'
+      - '.claude/skills/**/*.bash'
+      - '.claude/skills/**/*.py'
+      - '.claude/scripts/**/*.sh'
+      - '.claude/scripts/**/*.bash'
+      - '.claude/scripts/**/*.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: no-direct-llm-fetch-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  drift-gate:
+    name: T1.7 drift gate — no direct provider URLs outside cheval
+    runs-on: ubuntu-latest
+    steps:
+      # PINNING: SHA verified against actions/checkout v4.3.1 tag (same
+      # pin used by sibling cycle-099 / cycle-102 workflows in this repo).
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Verify scanner is executable
+        run: |
+          set -euo pipefail
+          test -x tools/check-no-direct-llm-fetch.sh
+          test -f tools/check-no-direct-llm-fetch.allowlist
+          # Spec mandate: allowlist mode 0644. Refuse to run if the file
+          # has a tighter or looser mode (operator may have side-loaded a
+          # private allowlist that bypasses governance).
+          mode=$(stat -c '%a' tools/check-no-direct-llm-fetch.allowlist)
+          if [[ "$mode" != "644" ]]; then
+            echo "::error::tools/check-no-direct-llm-fetch.allowlist must be mode 0644 (got $mode)"
+            exit 1
+          fi
+
+      - name: Run drift gate
+        run: |
+          set -euo pipefail
+          # The scanner exits 0 on clean, 1 on violations. We want the
+          # job to fail on violations — let `set -e` propagate the exit
+          # code unchanged so the CI annotation maps to "drift detected".
+          ./tools/check-no-direct-llm-fetch.sh
