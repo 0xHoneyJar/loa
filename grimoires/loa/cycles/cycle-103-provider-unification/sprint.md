@@ -47,7 +47,7 @@ Cycle-103 is a **stabilization-and-unification cycle**. The deliverable is struc
 
 ### Deliverables
 
-- [ ] **D1.1** Sprint 1 perf-bench report at `grimoires/loa/cycles/cycle-103-provider-unification/handoffs/spawn-vs-daemon-benchmark.md` documenting p95 latency under (a) cold cache, (b) warm cache, (c) concurrent BB review pass shape (IMP-002 from prd.md §8.5.1)
+- [x] **D1.1** Sprint 1 perf-bench report at `grimoires/loa/cycles/cycle-103-provider-unification/handoffs/spawn-vs-daemon-benchmark.md` documenting p95 latency under (a) cold cache, (b) warm cache, (c) concurrent BB review pass shape (IMP-002 from prd.md §8.5.1) — **DONE 2026-05-11; GO spawn-mode (worst-case p95=126ms vs 1000ms threshold)**
 - [ ] **D1.2** `cheval-delegate.contract.md` runbook (versioned IPC contract) at `grimoires/loa/runbooks/cheval-delegate.contract.md` with: (a) CLI invocation spec, (b) stdin/stdout JSON Schema, (c) exit-code table with retry-eligibility per code (IMP-001)
 - [x] **D1.3** Pre-implementation httpx large-body spike report (172KB → 250KB → 318KB → 400KB) at `grimoires/loa/cycles/cycle-103-provider-unification/handoffs/httpx-large-body-spike.md` — FIRST commit on cycle-103 branch (IMP-005) — **DONE 2026-05-11; routes (a)**
 - [ ] **D1.4** `ChevalDelegateAdapter` (TS) implementing `ILLMProvider` port — spawn-mode and (conditionally) daemon-mode
@@ -75,11 +75,11 @@ Cycle-103 is a **stabilization-and-unification cycle**. The deliverable is struc
 
 - [x] **T1.0** Pre-implementation httpx large-body spike — invoke cheval Python httpx against Google `generativelanguage` API at 172KB / 250KB / 318KB / 400KB reproducing BB KF-008 scenario. Result is FIRST commit on cycle-103 branch. → **[G-1, G-3]** — **DONE 2026-05-11**
   > From prd.md §8.5.2 IMP-005; from sdd.md §10 Q2
-- [ ] **T1.1** Benchmark `ChevalDelegateAdapter` spawn-per-call latency. Methodology: 50 sequential calls under (a) cold cache, (b) warm cache, (c) concurrent BB review pass shape. p95 ≤ 1000ms = GO for spawn-mode; >1000ms = GO for daemon-mode (T1.3). Commit raw measurements + decision to D1.1. → **[G-1]**
+- [x] **T1.1** Benchmark `ChevalDelegateAdapter` spawn-per-call latency. Methodology: 50 sequential calls under (a) cold cache, (b) warm cache, (c) concurrent BB review pass shape. p95 ≤ 1000ms = GO for spawn-mode; >1000ms = GO for daemon-mode (T1.3). Commit raw measurements + decision to D1.1. → **[G-1]** — **DONE 2026-05-11; spawn-mode (worst p95=126ms)**
   > From sdd.md §7.4; PRD §8.5.1 IMP-002
 - [ ] **T1.2** Implement `ChevalDelegateAdapter` (`.claude/skills/bridgebuilder-review/resources/adapters/cheval-delegate.ts`) — spawn-mode. Implements `ILLMProvider`. Marshals `ReviewRequest` → cheval `CompletionRequest`. Translates cheval exit codes / stderr → `LLMProviderError` per §5.3 table. Adds `--mock-fixture-dir` passthrough (AC-1.2). Includes credential-handoff per AC-1.8. → **[G-1]**
   > From sdd.md §1.4.1, §5.3
-- [ ] **T1.3** (Conditional on T1.1 p95 >1000ms) Implement cheval daemon mode: (a) `.claude/adapters/loa_cheval/daemon/server.py` UDS entry point (mode 0600 at `.run/cheval-daemon.sock`); (b) length-prefixed JSON frames per sdd.md §5.2; (c) idle-timeout auto-terminate (default 300s); (d) PID file at `.run/cheval-daemon.pid`; (e) delegate daemon shim in `cheval-delegate.ts`; (f) `LOA_CHEVAL_DAEMON=1` activation env. → **[G-1]**
+- [~] **T1.3** ~~(Conditional on T1.1 p95 >1000ms) Implement cheval daemon mode~~ — **DESCOPED 2026-05-11 by T1.1 outcome.** Worst-case p95=126ms (~10× margin under 1000ms threshold). Daemon-mode is OUT OF SCOPE for Sprint 1; the SDD §5.2 protocol spec stays for cycle-104+ if a workload demands it. SDD §5.3 `mode?: "spawn" \| "daemon"` constructor option kept in TS types; T1.2 implements spawn-only. → **[G-1]**
   > From sdd.md §1.4.2, §5.2
 - [ ] **T1.4** Migrate `.claude/skills/bridgebuilder-review/resources/adapters/adapter-factory.ts` to always return delegate. Retire `anthropic.ts` / `openai.ts` / `google.ts` (mark deleted; preserve in git history per AC-1.5). → **[G-1]**
   > From sdd.md §2.1 (Removed in cycle-103)
