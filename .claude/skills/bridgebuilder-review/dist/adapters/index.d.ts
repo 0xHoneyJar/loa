@@ -18,9 +18,7 @@ export interface LocalAdapters {
 export declare function createLocalAdapters(config: BridgebuilderConfig, anthropicApiKey: string): LocalAdapters;
 export { GitHubCLIAdapter } from "./github-cli.js";
 export type { GitHubCLIAdapterConfig } from "./github-cli.js";
-export { AnthropicAdapter } from "./anthropic.js";
-export { OpenAIAdapter } from "./openai.js";
-export { GoogleAdapter } from "./google.js";
+export { ChevalDelegateAdapter } from "./cheval-delegate.js";
 export { PatternSanitizer } from "./sanitizer.js";
 export { NodeHasher } from "./node-hasher.js";
 export { ConsoleLogger } from "./console-logger.js";
