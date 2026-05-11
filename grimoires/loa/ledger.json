@@ -1078,7 +1078,7 @@
           "local_id": 1,
           "global_id": 148,
           "label": "Provider Boundary Unification",
-          "status": "pending",
+          "status": "completed",
           "scope": "LARGE",
           "tasks": 12
         },
@@ -1094,7 +1094,7 @@
           "local_id": 3,
           "global_id": 150,
           "label": "Sprint 4A Carry-Forwards Consolidation",
-          "status": "pending",
+          "status": "completed",
           "scope": "LARGE",
           "tasks": 9
         }

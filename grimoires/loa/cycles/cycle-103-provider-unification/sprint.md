@@ -186,48 +186,48 @@ Cycle-103 is a **stabilization-and-unification cycle**. The deliverable is struc
 
 ### Deliverables
 
-- [ ] **D3.1** `ProviderStreamError(category=...)` typed exception in `.claude/adapters/loa_cheval/types.py` + adapter dispatch table
-- [ ] **D3.2** `streaming` field derived from observed transport in `CompletionResult.metadata['streaming']`; `emit_model_invoke_complete` reads from there
-- [ ] **D3.3** `sanitize_provider_error_message` helper at `.claude/adapters/loa_cheval/redaction/sanitize.py` + invocation at every adapter exception-construction site
-- [ ] **D3.4** `streaming_max_input_tokens` / `legacy_max_input_tokens` config split in `.claude/data/model-config.yaml` + `_lookup_max_input_tokens` gate selection logic
-- [ ] **D3.5** `MAX_SSE_BUFFER_BYTES = 4 MiB` + `MAX_TEXT_PART_BYTES = 1 MiB` + `MAX_ARGS_PART_BYTES = 256 KiB` caps in all streaming parsers
-- [ ] **D3.6** `redact_payload_strings` extended to walk nested dicts with path-aware policy
-- [ ] **D3.7** `_GATE_BEARER` regex extended to cover `bearer:` (no space), percent-encoded, JSON-escaped variants
-- [ ] **D3.8** A6 parallel-dispatch decision: ship OR explicitly defer to cycle-104 with rationale (Sprint 1 R1 outcome informs this)
-- [ ] **D3.9** Sprint 3 test coverage report — ≥30 net-new tests; per-AC mapping per sdd.md §7.2
+- [x] **D3.1** `ProviderStreamError(category=...)` typed exception in `.claude/adapters/loa_cheval/types.py` + adapter dispatch table
+- [x] **D3.2** `streaming` field derived from observed transport in `CompletionResult.metadata['streaming']`; `emit_model_invoke_complete` reads from there
+- [x] **D3.3** `sanitize_provider_error_message` helper at `.claude/adapters/loa_cheval/redaction/sanitize.py` + invocation at every adapter exception-construction site
+- [x] **D3.4** `streaming_max_input_tokens` / `legacy_max_input_tokens` config split in `.claude/data/model-config.yaml` + `_lookup_max_input_tokens` gate selection logic
+- [x] **D3.5** `MAX_SSE_BUFFER_BYTES = 4 MiB` + `MAX_TEXT_PART_BYTES = 1 MiB` + `MAX_ARGS_PART_BYTES = 256 KiB` caps in all streaming parsers
+- [x] **D3.6** `redact_payload_strings` extended to walk nested dicts with path-aware policy
+- [x] **D3.7** `_GATE_BEARER` regex extended to cover `bearer:` (no space), percent-encoded, JSON-escaped variants
+- [x] **D3.8** A6 parallel-dispatch decision: ship OR explicitly defer to cycle-104 with rationale (Sprint 1 R1 outcome informs this)
+- [x] **D3.9** Sprint 3 test coverage report — ≥30 net-new tests; per-AC mapping per sdd.md §7.2
 
 ### Acceptance Criteria
 
-- [ ] **AC-3.1** Structured parser exception type. Parsers raise `ProviderStreamError(category=Literal["rate_limit","overloaded","malformed","policy","transient","unknown"], message, raw_payload)`. Adapter dispatch maps `category` → typed exception (`RateLimitError`, `ProviderUnavailableError`, `InvalidInputError`, retryable-transient). Restores retry classification cycle-3 flattened
-- [ ] **AC-3.2** Audit `streaming` field derived from observed transport. `CompletionResult.metadata['streaming']` populated by adapter at completion time; `emit_model_invoke_complete` reads from there instead of env. Legacy callers fall back to env-derived
-- [ ] **AC-3.3** Error-body redaction across exception construction. `sanitize_provider_error_message(s: str) -> str` invoked at every adapter exception-construction site that touches upstream bytes. Tests pin AKIA / PEM / Bearer / sk-ant-* / sk-* / AIza shapes scrubbed before reaching exception args
-- [ ] **AC-3.4** Kill-switch + gate auto-revert. When `LOA_CHEVAL_DISABLE_STREAMING=1` is set, `_lookup_max_input_tokens` returns legacy-safe value (24K / 36K) automatically instead of streaming-default value (200K / 180K). Split into `streaming_max_input_tokens` + `legacy_max_input_tokens`
-- [ ] **AC-3.5** MAX_SSE_BUFFER_BYTES cap in SSE parser. `_iter_sse_events` + `_iter_sse_events_raw_data` raise `ValueError` (mapped to `ConnectionLostError` at adapter layer) when buffer exceeds `4 * 1024 * 1024` bytes without event terminator. Cap per-event accumulators (text_parts, arguments_parts, etc.)
-- [ ] **AC-3.6** `redact_payload_strings` nested-dict walk. Current redactor checks field names at immediate parent level only; extend to walk nested structures with path-aware redaction policy. Nested string under any ancestor in `_REDACT_FIELDS` is redacted regardless of immediate parent key
-- [ ] **AC-3.7** `_GATE_BEARER` regex coverage gap. Extend pattern to cover `bearer:` (without space), percent-encoded forms, bare token shape in JSON-escaped contexts. Add tests for each escape variant
+- [x] **AC-3.1** Structured parser exception type. Parsers raise `ProviderStreamError(category=Literal["rate_limit","overloaded","malformed","policy","transient","unknown"], message, raw_payload)`. Adapter dispatch maps `category` → typed exception (`RateLimitError`, `ProviderUnavailableError`, `InvalidInputError`, retryable-transient). Restores retry classification cycle-3 flattened
+- [x] **AC-3.2** Audit `streaming` field derived from observed transport. `CompletionResult.metadata['streaming']` populated by adapter at completion time; `emit_model_invoke_complete` reads from there instead of env. Legacy callers fall back to env-derived
+- [x] **AC-3.3** Error-body redaction across exception construction. `sanitize_provider_error_message(s: str) -> str` invoked at every adapter exception-construction site that touches upstream bytes. Tests pin AKIA / PEM / Bearer / sk-ant-* / sk-* / AIza shapes scrubbed before reaching exception args
+- [x] **AC-3.4** Kill-switch + gate auto-revert. When `LOA_CHEVAL_DISABLE_STREAMING=1` is set, `_lookup_max_input_tokens` returns legacy-safe value (24K / 36K) automatically instead of streaming-default value (200K / 180K). Split into `streaming_max_input_tokens` + `legacy_max_input_tokens`
+- [x] **AC-3.5** MAX_SSE_BUFFER_BYTES cap in SSE parser. `_iter_sse_events` + `_iter_sse_events_raw_data` raise `ValueError` (mapped to `ConnectionLostError` at adapter layer) when buffer exceeds `4 * 1024 * 1024` bytes without event terminator. Cap per-event accumulators (text_parts, arguments_parts, etc.)
+- [x] **AC-3.6** `redact_payload_strings` nested-dict walk. Current redactor checks field names at immediate parent level only; extend to walk nested structures with path-aware redaction policy. Nested string under any ancestor in `_REDACT_FIELDS` is redacted regardless of immediate parent key
+- [x] **AC-3.7** `_GATE_BEARER` regex coverage gap. Extend pattern to cover `bearer:` (without space), percent-encoded forms, bare token shape in JSON-escaped contexts. Add tests for each escape variant
 - [~] **AC-3.8** ~~A6 / parallel-dispatch concurrency (AC-4.5c from cycle-102 Sprint 4 main scope): per-provider connection-pool tuning + sequential-fallback strategy when parallelism degrades >50%.~~ **DEFERRED to cycle-104** — Sprint 1 R1 landed spawn-mode (worst p95=126ms, 10× margin under 1000ms threshold). AC-3.8 is structurally inapplicable to spawn-mode (no long-lived connection pools, no cross-call concurrency state). Rationale + commit references in `grimoires/loa/NOTES.md` Decision Log entry dated 2026-05-11.
 
 ### Technical Tasks
 
 **Sequencing note (per prd.md R4 mitigation):** T3.1 lands FIRST as foundational; T3.2–T3.7 layer on top.
 
-- [ ] **T3.1** `ProviderStreamError` typed exception + dispatch table — single lookup table in adapter layer maps `category` → existing typed exception. `retry.py` unchanged (reads typed exception). Test: `tests/test_provider_stream_error_classification.py`. → **[G-5]**
+- [x] **T3.1** `ProviderStreamError` typed exception + dispatch table — single lookup table in adapter layer maps `category` → existing typed exception. `retry.py` unchanged (reads typed exception). Test: `tests/test_provider_stream_error_classification.py`. → **[G-5]**
   > From sdd.md §1.4.4, §6.1; prd.md AC-3.1
-- [ ] **T3.2** Observed-streaming audit field — adapter populates `CompletionResult.metadata['streaming']` at completion time. `emit_model_invoke_complete` in `audit/modelinv.py` reads from metadata, falls back to env for legacy callers. Test: `tests/test_modelinv_streaming_observed.py`. → **[G-5]**
+- [x] **T3.2** Observed-streaming audit field — adapter populates `CompletionResult.metadata['streaming']` at completion time. `emit_model_invoke_complete` in `audit/modelinv.py` reads from metadata, falls back to env for legacy callers. Test: `tests/test_modelinv_streaming_observed.py`. → **[G-5]**
   > From sdd.md §3.4 (new fields), prd.md AC-3.2
-- [ ] **T3.3** `sanitize_provider_error_message` helper at `.claude/adapters/loa_cheval/redaction/sanitize.py`. Scrubs AKIA / PEM markers / Bearer tokens / `sk-ant-*` / `sk-*` / `AIza*` 39-char keys + JSON-escaped variants. Wire at every adapter exception-construction site (anthropic / openai / google + streaming variants + `retry.py` `RetriesExhaustedError` final-cause chain per sdd.md §6.2). TDD per R8 mitigation. Test: `tests/test_sanitize_provider_error_message.py` (mirrors cycle-099 sprint-1E.a parity-test pattern). → **[G-5]**
+- [x] **T3.3** `sanitize_provider_error_message` helper at `.claude/adapters/loa_cheval/redaction/sanitize.py`. Scrubs AKIA / PEM markers / Bearer tokens / `sk-ant-*` / `sk-*` / `AIza*` 39-char keys + JSON-escaped variants. Wire at every adapter exception-construction site (anthropic / openai / google + streaming variants + `retry.py` `RetriesExhaustedError` final-cause chain per sdd.md §6.2). TDD per R8 mitigation. Test: `tests/test_sanitize_provider_error_message.py` (mirrors cycle-099 sprint-1E.a parity-test pattern). → **[G-5]**
   > From sdd.md §1.4.3, §6.2; prd.md AC-3.3
-- [ ] **T3.4** `streaming_max_input_tokens` / `legacy_max_input_tokens` config split: (a) extend `.claude/data/model-config.yaml` schema per sdd.md §3.5; (b) update `_lookup_max_input_tokens` in `loader.py` to branch on `_streaming_disabled()`; (c) backward-compat: legacy `max_input_tokens`-only configs continue working. Migration tool: extend cycle-099's `tools/migrate-model-config.py` with `--cycle103-split` flag. Test: `tests/test_max_input_token_gate_split.py`. → **[G-5]**
+- [x] **T3.4** `streaming_max_input_tokens` / `legacy_max_input_tokens` config split: (a) extend `.claude/data/model-config.yaml` schema per sdd.md §3.5; (b) update `_lookup_max_input_tokens` in `loader.py` to branch on `_streaming_disabled()`; (c) backward-compat: legacy `max_input_tokens`-only configs continue working. Migration tool: extend cycle-099's `tools/migrate-model-config.py` with `--cycle103-split` flag. Test: `tests/test_max_input_token_gate_split.py`. → **[G-5]**
   > From sdd.md §1.4.5, §3.5; prd.md AC-3.4
-- [ ] **T3.5** SSE buffer caps in `anthropic_streaming.py` / `openai_streaming.py` / `google_streaming.py`: `MAX_SSE_BUFFER_BYTES = 4 * 1024 * 1024`, `MAX_TEXT_PART_BYTES = 1 * 1024 * 1024`, `MAX_ARGS_PART_BYTES = 256 * 1024`. ValueError → `ConnectionLostError` at adapter layer (existing pattern). Test: `tests/test_sse_buffer_cap.py` + per-event-accumulator caps. → **[G-5]**
+- [x] **T3.5** SSE buffer caps in `anthropic_streaming.py` / `openai_streaming.py` / `google_streaming.py`: `MAX_SSE_BUFFER_BYTES = 4 * 1024 * 1024`, `MAX_TEXT_PART_BYTES = 1 * 1024 * 1024`, `MAX_ARGS_PART_BYTES = 256 * 1024`. ValueError → `ConnectionLostError` at adapter layer (existing pattern). Test: `tests/test_sse_buffer_cap.py` + per-event-accumulator caps. → **[G-5]**
   > From sdd.md §6.3; prd.md AC-3.5 / BF-005
-- [ ] **T3.6** `redact_payload_strings` nested-dict walk — path-aware: nested string under any ancestor in `_REDACT_FIELDS` is redacted. Test: `tests/test_redact_payload_nested.py` (nested-list / nested-dict / mixed structures). → **[G-5]**
+- [x] **T3.6** `redact_payload_strings` nested-dict walk — path-aware: nested string under any ancestor in `_REDACT_FIELDS` is redacted. Test: `tests/test_redact_payload_nested.py` (nested-list / nested-dict / mixed structures). → **[G-5]**
   > From prd.md AC-3.6 / DISS-003
-- [ ] **T3.7** `_GATE_BEARER` regex coverage extension — cover `bearer:` (no space), percent-encoded (`%20Bearer%20`), bare token shape in JSON-escaped contexts (`\"Bearer X\"`). Test: `tests/test_gate_bearer_regex_coverage.py`. Pattern follows cycle-099 sprint-1E.c.3.c Unicode-glob bypass closure (NFKC + control-byte scrubbing). → **[G-5]**
+- [x] **T3.7** `_GATE_BEARER` regex coverage extension — cover `bearer:` (no space), percent-encoded (`%20Bearer%20`), bare token shape in JSON-escaped contexts (`\"Bearer X\"`). Test: `tests/test_gate_bearer_regex_coverage.py`. Pattern follows cycle-099 sprint-1E.c.3.c Unicode-glob bypass closure (NFKC + control-byte scrubbing). → **[G-5]**
   > From prd.md AC-3.7 / DISS-004
 - [~] **T3.8** ~~A6 parallel-dispatch decision (gated on Sprint 1 R1)~~ — **DECISION: DEFERRED to cycle-104.** Sprint 1 R1 landed spawn-mode per T1.1 (`13a3bffa`); AC-3.8 is structurally inapplicable. Rationale + commit references documented in `grimoires/loa/NOTES.md` Decision Log entry 2026-05-11. → **[G-5]**
   > From prd.md AC-3.8; sdd.md §10 Q4
-- [ ] **T3.9** Cycle-103 cypherpunk pre-merge self-audit — run `/audit-sprint` on Sprint 3 redaction code (T3.3 / T3.6 / T3.7) BEFORE BB cycle-3. R8 mitigation: substrate-fragmentation pattern surfaces NEW critical findings in recursive-defect class. Audit verdict must be APPROVED with no NEW critical-class findings (carry-forwards acceptable if documented). → **[G-5]**
+- [x] **T3.9** Cycle-103 cypherpunk pre-merge self-audit — run `/audit-sprint` on Sprint 3 redaction code (T3.3 / T3.6 / T3.7) BEFORE BB cycle-3. R8 mitigation: substrate-fragmentation pattern surfaces NEW critical findings in recursive-defect class. Audit verdict must be APPROVED with no NEW critical-class findings (carry-forwards acceptable if documented). → **[G-5]**
 
 ### Dependencies
 
