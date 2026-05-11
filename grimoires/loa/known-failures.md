@@ -62,6 +62,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-005](#kf-005-beads_rust-021-migration-blocks-task-tracking) | DEGRADED-ACCEPTED — fix available on crates.io as `beads_rust 0.2.4`; operator must `cargo install beads_rust` to land locally | beads_rust task tracking | many |
 | [KF-006](#kf-006-t114-migrate-model-config-v2-schema-rejects-max_output_tokens) | RESOLVED 2026-05-10 (v2 schema modelEntry permits max_output_tokens + max_input_tokens) | T1.14 migrate-model-config v2 schema | every PR since dd54fe9c |
 | [KF-007](#kf-007-red-team-pipeline-hardcoded-single-model-evaluator-vestigial-config) | RESOLVED 2026-05-10 (multi-model evaluator) | red team pipeline hardcoded single-model evaluator | n/a — resolved in same session as discovery |
+| [KF-008](#kf-008-bridgebuilder-google-api-socketerror-on-large-request-bodies) | OPEN — single observation 2026-05-11; awaiting recurrence confirmation. Distinct from KF-001 (mid-stream `SocketError other side closed` vs pre-handshake `AggregateError`). | bridgebuilder Google provider Node fetch | 1 |
 
 ---
 
@@ -553,6 +554,79 @@ When a workaround promotes to a structural fix:
 2. Add a final row to `Attempts` with the closing fix and evidence.
 3. Keep the entry — it's load-bearing as a "we already solved this, here's how" reference.
 4. The Index table's status column reflects the change.
+
+---
+
+## KF-008: bridgebuilder Google API SocketError on large request bodies
+
+**Status**: OPEN — observed on 2026-05-11 during Sprint 4A post-merge BB
+test run; distinct from KF-001 (which was Happy Eyeballs pre-handshake;
+that fix held — Anthropic worked fine in today's runs)
+
+**Feature**: `/bridgebuilder` Google provider via
+`.claude/skills/bridgebuilder-review/resources/adapters/google` (Node fetch
+to `generativelanguage.googleapis.com:streamGenerateContent` or equivalent)
+
+**Symptom**: `gemini-3.1-pro-preview` review fails with `TypeError: fetch
+failed; cause=SocketError: other side closed` after 3/3 retry attempts.
+Failure occurs MID-STREAM (after TCP+TLS handshake completed and bytes were
+flowing) — distinct from KF-001's pre-handshake `AggregateError`. Request
+size when observed: **297209B** (~297KB). Anthropic + OpenAI succeed on
+the same BB invocation at similar request sizes (117KB and 73KB
+respectively — Anthropic completed in 68s, OpenAI in 304s, Google failed
+after retries).
+
+**First observed**: 2026-05-11 ~05:33Z (Sprint 4A post-merge BB test on
+PR #844 streaming transport; session 10)
+
+**Recurrence count**: 1 (first observation; not yet observed twice)
+
+**Current workaround**: BB's multi-model consensus scoring continues with
+2 of 3 providers when Google fails (anthropic + openai in this run);
+the run completes with `mode=multi-model, items=3, 6 findings, 0 consensus,
+1 disputed, 0 blocker`. Single-provider failure is degraded but not
+fatal. Per the recurrence-≥3 rule, ONE observation does NOT yet trigger
+the "stop retrying" gate — re-attempt if observed again to confirm
+recurrence vs transient.
+
+**Upstream issue**: Not yet filed (first observation; awaiting recurrence
+confirmation per the ledger discipline).
+
+**Related visions / lore**: KF-001 (different error class on same provider
++ tool, resolved 2026-05-10). vision-024 substrate-speaks-twice (the BB
+infrastructure articulating its own failure mode AGAIN).
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-05-11 ~05:33Z | First-time observation during BB dry-run on Sprint 4A PR #844 | OBSERVED — Google failed 3/3 attempts at request_size=297209B; Anthropic + OpenAI succeeded at 117KB + 73KB request sizes on the same invocation | Run `bridgebuilder-20260511T053301-a1d3`; log line `"[multi-model:google] Review failed","data":{"error":"Google API network error — TypeError: fetch failed; cause=SocketError: other side closed (request_size=297209B, attempt=3/3, model=gemini-3.1-pro-preview)"}` |
+| not tried | Reproduce with smaller diff (split PR #844 into 2-3 smaller PRs) | — | proposed: would identify whether the failure threshold is at ~150KB / 200KB / 250KB |
+| not tried | Reproduce on a different network (mobile hotspot vs home/office) | — | proposed: would distinguish operator-machine-network vs upstream provider |
+| not tried | Direct curl POST of the same 297KB body to `streamGenerateContent` | — | proposed: would isolate Node fetch vs upstream behavior |
+
+### Reading guide
+
+Single observation — NOT yet structural. If your BB run shows `2 of 3`
+provider success with Google failing at request body sizes ≥250KB and
+the error shape matches `SocketError: other side closed` mid-stream:
+- Note as a recurrence here (increment count)
+- Do NOT retry the same BB invocation on the same large diff — accept
+  the degraded `2 of 3` consensus
+- If the BB consensus column shows non-zero disputed/blocker, the missing
+  Google input means single-model `single-model-true-positive-in-DISPUTED`
+  scrutiny applies to the Anthropic + OpenAI findings (per Sprint 1A
+  lore + `feedback_zero_blocker_demotion_pattern.md`)
+- If recurrence reaches 3: file upstream issue per the ledger discipline
+
+The Sprint 4A streaming transport (in cheval, Python) is unaffected — this
+is BB's Node fetch path. The KF-001 Happy Eyeballs fix in entry.sh
+(`NODE_OPTIONS=--network-family-autoselection-attempt-timeout=5000`)
+addressed pre-handshake failures and is still working. KF-008 is a
+distinct mid-stream failure pattern that the Happy Eyeballs fix does
+not address.
+
+---
 
 ## Why this file exists
 
