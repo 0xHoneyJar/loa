@@ -19,7 +19,9 @@ from loa_cheval.providers.base import (
     ProviderAdapter,
     enforce_context_window,
     http_post,
+    http_post_stream,
 )
+from loa_cheval.providers.google_streaming import parse_google_stream
 from loa_cheval.types import (
     CompletionRequest,
     CompletionResult,
@@ -317,33 +319,90 @@ class GoogleAdapter(ProviderAdapter):
             "Content-Type": "application/json",
             "x-goog-api-key": auth,
         }
-        url = self._build_url(
-            "models/%s:generateContent" % request.model
-        )
 
-        # Call with retry + concurrency control (Flatline IMP-001, Task 2.4)
-        with FLockSemaphore("google-standard", max_concurrent=5):
-            start = time.monotonic()
-            status, resp = _call_with_retry(
-                url, headers, body,
-                connect_timeout=self.config.connect_timeout,
-                read_timeout=self.config.read_timeout,
-            )
-            latency_ms = int((time.monotonic() - start) * 1000)
+        # Sprint 4A (cycle-102, AC-4.5e): streaming default + operator kill switch.
+        streaming_disabled = os.environ.get("LOA_CHEVAL_DISABLE_STREAMING") == "1"
 
-        # Error mapping (Task 1.5)
-        if status >= 400:
-            _raise_for_status(status, resp, self.provider)
-
-        # Parse response (Task 1.4)
         # Pass input text length for token estimation when usageMetadata is absent
         input_text_len = sum(
             len(m.get("content", "")) for m in request.messages
             if isinstance(m.get("content"), str)
         )
-        return _parse_response(
-            resp, request.model, latency_ms, self.provider, model_config,
-            input_text_length=input_text_len,
+
+        if streaming_disabled:
+            url = self._build_url("models/%s:generateContent" % request.model)
+            with FLockSemaphore("google-standard", max_concurrent=5):
+                start = time.monotonic()
+                status, resp = _call_with_retry(
+                    url, headers, body,
+                    connect_timeout=self.config.connect_timeout,
+                    read_timeout=self.config.read_timeout,
+                )
+                latency_ms = int((time.monotonic() - start) * 1000)
+
+            if status >= 400:
+                _raise_for_status(status, resp, self.provider)
+
+            return _parse_response(
+                resp, request.model, latency_ms, self.provider, model_config,
+                input_text_length=input_text_len,
+            )
+
+        # Streaming path: Gemini's :streamGenerateContent + ?alt=sse.
+        url = self._build_url(
+            "models/%s:streamGenerateContent?alt=sse" % request.model
+        )
+
+        with FLockSemaphore("google-standard", max_concurrent=5):
+            start = time.monotonic()
+            try:
+                with http_post_stream(
+                    url=url,
+                    headers=headers,
+                    body=body,
+                    connect_timeout=self.config.connect_timeout,
+                    read_timeout=self.config.read_timeout,
+                ) as resp_stream:
+                    status = resp_stream.status_code
+
+                    if status >= 400:
+                        err_bytes = b"".join(resp_stream.iter_bytes())
+                        try:
+                            err_json = _json.loads(
+                                err_bytes.decode("utf-8", errors="replace")
+                            )
+                        except Exception:
+                            err_json = {
+                                "error": {
+                                    "message": err_bytes.decode(
+                                        "utf-8", errors="replace"
+                                    )[:500]
+                                }
+                            }
+                        _raise_for_status(status, err_json, self.provider)
+
+                    try:
+                        result = parse_google_stream(
+                            resp_stream.iter_bytes(),
+                            model_id=request.model,
+                            provider=self.provider,
+                            input_text_length=input_text_len,
+                        )
+                    except ValueError as ve:
+                        # Safety / Recitation / failure events surface here.
+                        raise InvalidInputError(str(ve))
+            finally:
+                latency_ms = int((time.monotonic() - start) * 1000)
+
+        return CompletionResult(
+            content=result.content,
+            tool_calls=result.tool_calls,
+            thinking=result.thinking,
+            usage=result.usage,
+            model=result.model,
+            latency_ms=latency_ms,
+            provider=result.provider,
+            metadata=result.metadata,
         )
 
     def _complete_deep_research(self, request, model_config):
