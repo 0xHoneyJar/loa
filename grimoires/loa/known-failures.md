@@ -62,7 +62,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-005](#kf-005-beads_rust-021-migration-blocks-task-tracking) | DEGRADED-ACCEPTED — fix available on crates.io as `beads_rust 0.2.4`; operator must `cargo install beads_rust` to land locally | beads_rust task tracking | many |
 | [KF-006](#kf-006-t114-migrate-model-config-v2-schema-rejects-max_output_tokens) | RESOLVED 2026-05-10 (v2 schema modelEntry permits max_output_tokens + max_input_tokens) | T1.14 migrate-model-config v2 schema | every PR since dd54fe9c |
 | [KF-007](#kf-007-red-team-pipeline-hardcoded-single-model-evaluator-vestigial-config) | RESOLVED 2026-05-10 (multi-model evaluator) | red team pipeline hardcoded single-model evaluator | n/a — resolved in same session as discovery |
-| [KF-008](#kf-008-bridgebuilder-google-api-socketerror-on-large-request-bodies) | OPEN — TWO observations 2026-05-11 (~25 min apart) on SAME PR (#844, request_size ~297-302KB). Other PRs with smaller bodies (5KB-7KB input) had Google succeed in the same invocation. Distinct from KF-001 (mid-stream `SocketError other side closed` vs pre-handshake `AggregateError`). Body-size threshold; not transient. | bridgebuilder Google provider Node fetch | 2 |
+| [KF-008](#kf-008-bridgebuilder-google-api-socketerror-on-large-request-bodies) | OPEN — THREE observations 2026-05-11 (~70 min span) on SAME PR (#844, request_sizes 297KB / 302KB / 318KB). Other PRs with smaller bodies had Google succeed in the same invocations. Distinct from KF-001 (mid-stream `SocketError other side closed` vs pre-handshake `AggregateError`). Body-size threshold; structural. Upstream issue [#845](https://github.com/0xHoneyJar/loa/issues/845) filed. | bridgebuilder Google provider Node fetch | 3 |
 
 ---
 
@@ -579,14 +579,18 @@ after retries).
 **First observed**: 2026-05-11 ~05:33Z (Sprint 4A post-merge BB dry-run
 on PR #844 streaming transport; session 10)
 
-**Recurrence count**: 2 (both observations on PR #844 / Sprint 4A within
-a ~25 min window on the same operator machine; first as dry-run at
-request_size=297209B, second as live run at request_size=302623B —
-the body grew slightly because the second pass re-enrichmented the same
-context. Anthropic + OpenAI succeeded on the SAME invocation at 117KB +
-73KB request sizes, ruling out general network outage or operator-side
-firewall block. Google's 91s success on the smaller PR #804 in the same
-invocation rules out provider account / API key issue.)
+**Recurrence count**: 3 (three observations on PR #844 / Sprint 4A
+within a ~70 min window on the same operator machine, request sizes
+297209B / 302623B / 317766B respectively. Anthropic + OpenAI succeeded
+on the SAME invocations at 117KB-125KB + 73KB-78KB request sizes,
+ruling out general network outage or operator-side firewall block.
+Google's 91s success on smaller PR #804 in the same invocation rules
+out provider account / API key issue. **Per the ledger discipline
+(recurrence-≥3), upstream issue filed.**)
+
+**Upstream issue**: [#845](https://github.com/0xHoneyJar/loa/issues/845)
+(filed 2026-05-11 after recurrence-3 observation; hypotheses + repro
+steps + investigation paths documented in the issue body).
 
 **Current workaround**: BB's multi-model consensus scoring continues with
 2 of 3 providers when Google fails (anthropic + openai in this run);
@@ -609,9 +613,11 @@ infrastructure articulating its own failure mode AGAIN).
 |------|---------------|---------|----------|
 | 2026-05-11 ~05:33Z | First-time observation during BB dry-run on Sprint 4A PR #844 | OBSERVED — Google failed 3/3 attempts at request_size=297209B; Anthropic + OpenAI succeeded at 117KB + 73KB request sizes on the same invocation | Run `bridgebuilder-20260511T053301-a1d3`; log line `"[multi-model:google] Review failed","data":{"error":"Google API network error — TypeError: fetch failed; cause=SocketError: other side closed (request_size=297209B, attempt=3/3, model=gemini-3.1-pro-preview)"}` |
 | 2026-05-11 ~05:55Z | Live BB run on the same PR #844 (~25 min after first observation) | OBSERVED AGAIN — Google failed 3/3 at request_size=302623B (slightly larger body — same PR, same SHA, but the second-pass enrichment context grew). Google then **succeeded** on the same invocation against PR #804 (91s, 1311 in / 475 out) and PR #841 (20s, 5912 in / 590 out) — ruling out network outage or account-level rate limit. The failure is body-size dependent. | Run `bridgebuilder-20260511T055522-9aea`; PR #844 has BB consensus from anthropic+openai only (3 of 4 expected comments posted); PR #841 + PR #804 each got all 4 comments. |
-| not tried | Reproduce with smaller diff (split PR #844 into 2-3 smaller PRs) | — | proposed: would identify whether the failure threshold is at ~150KB / 200KB / 250KB |
-| not tried | Reproduce on a different network (mobile hotspot vs home/office) | — | proposed: would distinguish operator-machine-network vs upstream provider |
-| not tried | Direct curl POST of the same 302KB body to `streamGenerateContent` | — | proposed: would isolate Node fetch vs upstream behavior. Two independent observations at ~300KB on the SAME PR within ~25 min strongly suggest the threshold is body-size-related, not transient. |
+| 2026-05-11 ~06:42Z | BB cycle-2 run on PR #844 only (post Sprint 4A cycle-3 commits) | OBSERVED THIRD TIME — Google failed 3/3 at request_size=317766B (body grew further as cycle-3 added more files to the diff). Anthropic + OpenAI succeeded at 125KB + 78KB in the same invocation. **Recurrence-≥3 gate triggered.** | Run `bridgebuilder-20260511T064222-2e83`; PR #844 cycle-2 consensus comment (`https://github.com/0xHoneyJar/loa/pull/844#issuecomment-...`); upstream issue [#845](https://github.com/0xHoneyJar/loa/issues/845) filed with hypotheses + investigation paths. |
+| 2026-05-11 ~07:00Z | File upstream issue [#845](https://github.com/0xHoneyJar/loa/issues/845) per ledger discipline | DONE — upstream issue covers all three observations, distinguishes from KF-001, lists 4 hypotheses (Loa adapter config, Google API gateway, provider rate-limit-as-RST, Node 20 undici bug), and proposes 4 investigation paths (direct curl, adapter diff, body-size bisection, mobile-hotspot repro). | https://github.com/0xHoneyJar/loa/issues/845 |
+| not tried | Reproduce with smaller diff (split PR #844 into 2-3 smaller PRs) | — | proposed in #845: would identify whether the failure threshold is at ~150KB / 200KB / 250KB / 290KB |
+| not tried | Reproduce on a different network (mobile hotspot vs home/office) | — | proposed in #845: would distinguish operator-machine-network vs upstream provider |
+| not tried | Direct curl POST of the same ~300KB body to `streamGenerateContent` | — | proposed in #845: would isolate Node fetch vs upstream behavior. Three independent observations at ~300KB on the SAME PR within ~70 min strongly suggest the threshold is body-size-related, not transient. |
 
 ### Reading guide
 
