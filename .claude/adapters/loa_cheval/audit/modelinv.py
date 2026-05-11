@@ -220,15 +220,16 @@ def _kill_switch_active() -> bool:
 def _streaming_active() -> bool:
     """True iff the Sprint 4A streaming transport was used for this call.
 
-    Streaming is the default; the operator kill switch is
-    `LOA_CHEVAL_DISABLE_STREAMING=1` (matches the env-var routing in the
-    Anthropic / OpenAI / Google adapters' complete() methods).
+    Sprint 4A DISS-001 closure: this helper now delegates to
+    `base._streaming_disabled()` to guarantee that adapters and audit-emit
+    consume an identical boolean. Before centralization, the adapters used
+    strict `== "1"` while this helper used case-insensitive multi-value —
+    that mismatch let an operator setting `LOA_CHEVAL_DISABLE_STREAMING=true`
+    route through streaming while the audit chain recorded `streaming=false`
+    (the silent-degradation pattern vision-019 M1 was built to detect).
     """
-    return os.environ.get("LOA_CHEVAL_DISABLE_STREAMING", "").lower() not in (
-        "1",
-        "true",
-        "yes",
-    )
+    from loa_cheval.providers.base import _streaming_disabled
+    return not _streaming_disabled()
 
 
 def emit_model_invoke_complete(

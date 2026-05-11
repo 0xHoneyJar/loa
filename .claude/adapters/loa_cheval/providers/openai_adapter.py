@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional
 
 from loa_cheval.providers.base import (
     ProviderAdapter,
+    _streaming_disabled,
     enforce_context_window,
     http_post,
     http_post_stream,
@@ -125,8 +126,9 @@ class OpenAIAdapter(ProviderAdapter):
             url = f"{self.config.endpoint}/chat/completions"
             body = self._build_chat_body(request, model_config)
 
-        streaming_disabled = os.environ.get("LOA_CHEVAL_DISABLE_STREAMING") == "1"
-        if streaming_disabled:
+        # Sprint 4A DISS-001 closure: centralized kill-switch detection so
+        # the adapter routing and the MODELINV audit field stay consistent.
+        if _streaming_disabled():
             return self._complete_nonstreaming(url, headers, body, family)
         return self._complete_streaming(url, headers, body, family)
 

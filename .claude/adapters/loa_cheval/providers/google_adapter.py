@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from loa_cheval.providers.base import (
     ProviderAdapter,
+    _streaming_disabled,
     enforce_context_window,
     http_post,
     http_post_stream,
@@ -320,8 +321,11 @@ class GoogleAdapter(ProviderAdapter):
             "x-goog-api-key": auth,
         }
 
-        # Sprint 4A (cycle-102, AC-4.5e): streaming default + operator kill switch.
-        streaming_disabled = os.environ.get("LOA_CHEVAL_DISABLE_STREAMING") == "1"
+        # Sprint 4A (cycle-102, AC-4.5e + DISS-001 closure): streaming default
+        # + operator kill switch. Detection centralized in
+        # `base._streaming_disabled()` so adapter routing and the MODELINV
+        # `streaming` audit field share identical semantics.
+        streaming_disabled = _streaming_disabled()
 
         # Pass input text length for token estimation when usageMetadata is absent
         input_text_len = sum(

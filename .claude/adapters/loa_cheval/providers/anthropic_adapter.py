@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional
 from loa_cheval.providers.anthropic_streaming import parse_anthropic_stream
 from loa_cheval.providers.base import (
     ProviderAdapter,
+    _streaming_disabled,
     enforce_context_window,
     http_post,
     http_post_stream,
@@ -90,8 +91,9 @@ class AnthropicAdapter(ProviderAdapter):
         url = f"{self.config.endpoint}/messages"
 
         # Sprint 4A: streaming default with operator kill switch.
-        streaming_disabled = os.environ.get("LOA_CHEVAL_DISABLE_STREAMING") == "1"
-        if streaming_disabled:
+        # Detection centralized in `base._streaming_disabled()` so adapters
+        # + audit-emit share identical semantics (Sprint 4A DISS-001 closure).
+        if _streaming_disabled():
             return self._complete_nonstreaming(url, headers, body)
         return self._complete_streaming(url, headers, body)
 

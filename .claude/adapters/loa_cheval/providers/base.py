@@ -98,6 +98,35 @@ def _reset_http_client_detection_for_tests() -> None:
     _HTTP2_AVAILABLE = None
 
 
+# Sprint 4A (cycle-102, AC-4.5e): centralized kill-switch detection.
+# Single source of truth — adapters AND audit-emit consume the SAME boolean.
+# Closes DISS-001 (Sprint 4A reviewer adversarial finding 2026-05-11): without
+# centralization, the 3 adapters used `== "1"` (strict, case-sensitive) while
+# `modelinv._streaming_active` used case-insensitive `.lower() in ("1","true","yes")`.
+# An operator setting `LOA_CHEVAL_DISABLE_STREAMING=true` would have routed
+# through the streaming path while the audit chain recorded `streaming=false`
+# — the exact silent-degradation pattern vision-019 M1 was built to detect,
+# manifesting in the substrate that audits it.
+_STREAMING_KILL_SWITCH_TRUTHY_VALUES = ("1", "true", "yes", "on")
+
+
+def _streaming_disabled() -> bool:
+    """Return True iff the operator has set the streaming kill switch.
+
+    Case-insensitive match against `_STREAMING_KILL_SWITCH_TRUTHY_VALUES`.
+    Centralized here so adapters AND `modelinv._streaming_active` consume
+    identical semantics — the boolean MUST agree at adapter-call time and
+    audit-emit time, otherwise the audit chain records a lie.
+
+    Truthy values: `1`, `true`, `yes`, `on` (case-insensitive). Anything
+    else (including unset, empty string, `0`, `false`, `no`, `off`) leaves
+    streaming active.
+    """
+    import os
+    val = os.environ.get("LOA_CHEVAL_DISABLE_STREAMING", "").strip().lower()
+    return val in _STREAMING_KILL_SWITCH_TRUTHY_VALUES
+
+
 def http_post(
     url: str,
     headers: Dict[str, str],
