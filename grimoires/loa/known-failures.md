@@ -56,7 +56,7 @@ actually tried, not just what someone *said* was tried.
 | ID | Status | Feature | Recurrence |
 |----|--------|---------|------------|
 | [KF-001](#kf-001-bridgebuilder-cross-model-provider-network-failures-non-openai) | RESOLVED 2026-05-10 (Node 20 Happy Eyeballs autoselection-attempt-timeout) | bridgebuilder cross-model dissent | 3 |
-| [KF-002](#kf-002-adversarial-reviewsh-empty-content-on-review-type-prompts-at-scale) | MOSTLY-MITIGATED 2026-05-10 + LAYER-3-OBSERVABILITY-LATENT 2026-05-11 (text.format=text + provider fallback chain + per-model input-size gate shipped; layer-3 connection-lost class did NOT reproduce in session 10 testing — see 2026-05-11 reproduction note) | adversarial-review.sh review-type | 4 |
+| [KF-002](#kf-002-adversarial-reviewsh-empty-content-on-review-type-prompts-at-scale) | LAYER-3-RESOLVED-BY-CONSTRUCTION 2026-05-11 (Sprint 4A streaming-transport default; layers 1+2 mitigated via text.format=text + provider fallback chain). Streaming eliminates the >60s-wait-for-first-byte failure mode independent of intermediary timer behavior. | adversarial-review.sh review-type | 4 |
 | [KF-003](#kf-003-gpt-55-pro-empty-content-on-27k-input-reasoning-class-prompts) | RESOLVED (model swap) | flatline_protocol code review | 1 |
 | [KF-004](#kf-004-validate_finding-silent-rejection-of-dissenter-payloads) | RESOLVED 2026-05-10 (sidecar dump landed; #814 mitigation shipped) | adversarial-review.sh validation pipeline | ≥4 |
 | [KF-005](#kf-005-beads_rust-021-migration-blocks-task-tracking) | DEGRADED-ACCEPTED — fix available on crates.io as `beads_rust 0.2.4`; operator must `cargo install beads_rust` to land locally | beads_rust task tracking | many |
@@ -150,7 +150,7 @@ evidence (different machine, different network, different time-of-day).
 
 ## KF-002: adversarial-review.sh empty-content on review-type prompts at scale
 
-**Status**: PARTIALLY-MITIGATED 2026-05-10 (text.format=text shipped for OpenAI; structural opus + connection-lost layers remain) + LAYER-3-OBSERVABILITY-LATENT 2026-05-11 (layer 3 did not reproduce empirically — see Attempts table 2026-05-11 entry and reproduction note below)
+**Status**: PARTIALLY-MITIGATED 2026-05-10 (text.format=text shipped for OpenAI; structural opus + connection-lost layers remain) + LAYER-3-RESOLVED-BY-CONSTRUCTION 2026-05-11 (Sprint 4A streaming-transport default eliminates the >60s-wait-for-first-byte failure mode; gate raised from 24K/36K to 200K/180K; see Attempts table 2026-05-11 row and Sprint 4A Resolution note below)
 
 ### Upstream cross-references (added 2026-05-10 during KF-002 deep-dive)
 
@@ -211,9 +211,9 @@ evidence (different machine, different network, different time-of-day).
 | 2026-05-09 | Audit-type at 47K input (test if scale alone or prompt-structure) | RESOLVED FOR AUDIT-TYPE — audit-type at 47K succeeded | NOTES.md 2026-05-09 |
 | 2026-05-10 | Per-model input-size gate (Sprint 1F) — refuses prompts above empirically-observed safe thresholds before adapter call | MITIGATED LAYER 3 — connection-lost class no longer reachable via gated paths; structural cheval HTTP-asymmetry root cause remains under investigation | Sprint 1F PR (this entry) — `_lookup_max_input_tokens` in `.claude/adapters/cheval.py`; thresholds in `.claude/defaults/model-config.yaml` |
 | 2026-05-11 | Empirical reproduction attempt for layer 3 with `LOA_CHEVAL_DISABLE_INPUT_GATE`-equivalent (passed `--max-input-tokens 0`) | **LAYER 3 DID NOT REPRODUCE** in current production conditions — see Reproduction note below. Layer 1 (empty-content from reasoning-budget exhaustion) still reproduces on Anthropic when `max_tokens` is too small to cover thinking + visible output | Session 10 harness `/tmp/cheval-repro/repro.py` + real `model-invoke` with 183KB SDD payload (~50K tokens) returning structured content in 26s, exit 0 |
-| not tried | Adaptive truncation (lower review-type input cap to ~16K) | — | proposed in vision-023 §"What this teaches" |
-| not tried | Drop `reasoning.effort` to `low` for adversarial-review's task class | — | proposed in NOTES.md 2026-05-09 Decision Log |
-| not tried | Stream responses end-to-end (httpx.stream + `stream: true` body across all 3 adapters) — eliminates the >60s-wait-for-first-byte failure mode *by construction* regardless of intermediary timer behavior | — | proposed by session 10 cheval HTTP-asymmetry diagnosis; deep-fix candidate if layer 3 returns |
+| 2026-05-11 | **Sprint 4A streaming-transport default** — `http_post_stream()` in `.claude/adapters/loa_cheval/providers/base.py` + `parse_*_stream()` in `anthropic_streaming.py` / `openai_streaming.py` / `google_streaming.py` + adapters defaulting to `_complete_streaming` (kill switch via `LOA_CHEVAL_DISABLE_STREAMING=1`). All 3 providers stream the response; server emits first token immediately; intermediaries never observe an idle TCP connection. | **LAYER 3 RESOLVED BY CONSTRUCTION** — the >60s-wait-for-first-byte failure class is no longer reachable on the streaming path, independent of any intermediary timer behavior. Input-size gate raised from 24K/36K to 200K/180K (still acts as belt-and-suspenders). 31 new pytest cases pin per-provider streaming behavior; live smokes against all 3 endpoints confirm end-to-end. | Sprint 4A PR series: ec65cdbf (transport) + 10df41f8 (Anthropic) + 1855953b (OpenAI) + b70c2cff (Google) + e6d08fc0 (audit) + dba04509 (gate) |
+| not tried | Adaptive truncation (lower review-type input cap to ~16K) | — | proposed in vision-023 §"What this teaches"; rendered moot by Sprint 4A streaming default — no truncation needed |
+| not tried | Drop `reasoning.effort` to `low` for adversarial-review's task class | — | proposed in NOTES.md 2026-05-09 Decision Log; still applicable for layer 1 (empty-content) cost-control, not load-bearing post Sprint 4A |
 
 ### 2026-05-11 reproduction note (session 10)
 
@@ -259,6 +259,44 @@ When the next instance is observed: increment recurrence count, add an
 Attempts row with the timestamp + payload size + network conditions,
 and consider whether the streaming-response structural fix should be
 promoted from "parked" to "in flight."
+
+### 2026-05-11 Sprint 4A Resolution
+
+Layer 3 is now closed BY CONSTRUCTION via the streaming-transport
+structural fix. The 60-second wait-for-first-byte window is no longer
+reachable on the streaming path — the server begins emitting bytes
+within a few seconds of request acceptance, so intermediaries
+(Cloudflare edge, ALBs, etc.) never observe an idle TCP connection.
+
+What shipped:
+
+| Commit | Scope |
+|--------|-------|
+| `ec65cdbf` | `http_post_stream()` in `base.py` — shared streaming transport with HTTP/2-via-h2 + HTTP/1.1 fallback. 12 regression-pin tests. |
+| `10df41f8` | Anthropic streaming adapter + `parse_anthropic_stream` (6 SSE event types). 11 parser tests. Live smoke: 27K tokens to claude-opus-4-5 in 3.09s. |
+| `1855953b` | OpenAI streaming adapter — both `/chat/completions` (SSE chunks) AND `/v1/responses` (typed events). 11 parser tests. Live smokes: 25K tokens to gpt-4o-mini in 6.11s + gpt-5.5-pro responses-API in 12.46s. |
+| `b70c2cff` | Google Gemini streaming adapter + `parse_google_stream`. 8 parser tests. Live smoke: 25K tokens to gemini-2.5-flash in 3.12s. |
+| `e6d08fc0` | MODELINV audit-payload `streaming: bool` field — surfaces transport choice for vision-019 M1 silent-degradation queries. 15 tests. |
+| `dba04509` | Input-size gate raised from 24K/36K → 200K/180K reflecting streaming's actual safe range. Gate retained as belt-and-suspenders + context-window backstop. |
+
+Streaming is the default for all three providers. Operators can revert
+to the legacy non-streaming path on a single call with
+`LOA_CHEVAL_DISABLE_STREAMING=1` (one-shot backstop); this also lowers
+the effective input-size ceiling back to the Sprint 1F empirical values.
+
+Why this resolution holds even though layer 3 didn't reproduce on
+2026-05-11: streaming closes the failure class by construction, not by
+mitigation. Even if Anthropic / OpenAI restore the 60s intermediary
+timer that originally caused KF-002 (or if a new intermediary's timer
+emerges), the streaming path's continuous byte emission keeps the TCP
+connection active and the failure mode unreachable. The fix targets the
+root mechanism (idle-TCP idle-detection at intermediaries) rather than
+the symptom (RemoteProtocolError at 60s).
+
+Runbook: `grimoires/loa/runbooks/cheval-streaming-transport.md` —
+operator-visible documentation of the new default behavior, the
+LOA_CHEVAL_DISABLE_STREAMING kill switch, the regression-pin tests, and
+the upgrade path.
 
 ### Reading guide
 
