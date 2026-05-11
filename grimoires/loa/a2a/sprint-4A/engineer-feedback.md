@@ -1,6 +1,18 @@
 # Sprint 4A — Engineer Feedback
 
-**Verdict**: CHANGES REQUIRED
+**Verdict (cycle-2)**: All good
+
+**Cycle-1 verdict was CHANGES REQUIRED (DISS-001 BLOCKING — truthy-value
+mismatch between adapters and audit). The fix shipped at commit
+`cb5bde56` centralized kill-switch detection in
+`base._streaming_disabled()`; cycle-2 review confirmed 0 BLOCKING
+remaining. Cycle-2 advisory findings (DISS-002 + DISS-003) addressed
+at commit `b4d12ae9`. Final test count: 921 (up from 887 pre-DISS-001
+fix). The cycle-1 review narrative below is preserved for audit trail.**
+
+---
+
+**Verdict (cycle-1)**: CHANGES REQUIRED
 
 **Reviewer**: Senior tech lead (autonomous review pass, session 10)
 **Adversarial cross-model dissenter**: claude-opus-4-7 via
