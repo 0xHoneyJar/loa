@@ -164,8 +164,14 @@ class AnthropicAdapter(ProviderAdapter):
                     stream_err, provider=self.provider
                 ) from stream_err
             except ValueError as parse_err:
+                # T3.3 / AC-3.3: parse_err's message comes from upstream
+                # bytes (mid-stream Anthropic error event, malformed data
+                # frame). Sanitize before reaching exception args.
+                from loa_cheval.redaction import sanitize_provider_error_message
                 raise InvalidInputError(
-                    f"Anthropic streaming error: {parse_err}"
+                    sanitize_provider_error_message(
+                        f"Anthropic streaming error: {parse_err}"
+                    )
                 ) from parse_err
 
         latency_ms = int((time.monotonic() - start) * 1000)
@@ -378,10 +384,22 @@ def _serialize_arguments(input_data: Any) -> str:
 
 
 def _extract_error_message(resp: Dict[str, Any]) -> str:
-    """Extract error message from Anthropic error response."""
+    """Extract error message from Anthropic error response.
+
+    cycle-103 T3.3 / AC-3.3: return value is sanitized via
+    `sanitize_provider_error_message` so secret-shape strings (AKIA /
+    PEM / Bearer / sk-ant-* / sk-* / AIza*) embedded in upstream error
+    bodies never reach exception args, audit envelopes, or operator
+    logs.
+    """
+    from loa_cheval.redaction import sanitize_provider_error_message
+
     if isinstance(resp, dict):
         error = resp.get("error", {})
         if isinstance(error, dict):
-            return error.get("message", str(resp))
-        return str(error)
-    return str(resp)
+            raw = error.get("message", str(resp))
+        else:
+            raw = str(error)
+    else:
+        raw = str(resp)
+    return sanitize_provider_error_message(raw)

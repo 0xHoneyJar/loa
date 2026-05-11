@@ -402,7 +402,11 @@ class GoogleAdapter(ProviderAdapter):
                         ) from stream_err
                     except ValueError as ve:
                         # Safety / Recitation / failure events surface here.
-                        raise InvalidInputError(str(ve))
+                        # T3.3 / AC-3.3: sanitize upstream-derived message.
+                        from loa_cheval.redaction import sanitize_provider_error_message
+                        raise InvalidInputError(
+                            sanitize_provider_error_message(str(ve))
+                        )
             finally:
                 latency_ms = int((time.monotonic() - start) * 1000)
 
@@ -883,13 +887,22 @@ def _raise_for_status(status, resp, provider):
 
 def _extract_error_message(resp):
     # type: (Dict[str, Any]) -> str
-    """Extract error message from Google API error response."""
+    """Extract error message from Google API error response.
+
+    cycle-103 T3.3 / AC-3.3: return value is sanitized via
+    `sanitize_provider_error_message` (secret-shape redaction).
+    """
+    from loa_cheval.redaction import sanitize_provider_error_message
+
     if isinstance(resp, dict):
         error = resp.get("error", {})
         if isinstance(error, dict):
-            return error.get("message", str(resp))
-        return str(error)
-    return str(resp)
+            raw = error.get("message", str(resp))
+        else:
+            raw = str(error)
+    else:
+        raw = str(resp)
+    return sanitize_provider_error_message(raw)
 
 
 # --- Retry Logic (Flatline IMP-001) ---

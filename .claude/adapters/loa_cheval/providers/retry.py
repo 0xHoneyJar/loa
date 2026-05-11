@@ -13,6 +13,7 @@ import time
 from typing import Any, Callable, Dict, Optional, Protocol
 
 from loa_cheval.providers.base import ProviderAdapter
+from loa_cheval.redaction import sanitize_provider_error_message
 from loa_cheval.types import (
     CompletionRequest,
     CompletionResult,
@@ -160,9 +161,15 @@ def invoke_with_retry(
         # Global attempt budget check
         total_attempts += 1
         if total_attempts > max_total:
+            # T3.3 / AC-3.3: sanitize the upstream-bytes-derived final-cause
+            # chain so secret shapes (AKIA / PEM / Bearer / provider keys)
+            # don't reach RetriesExhaustedError.last_error.
             raise RetriesExhaustedError(
                 total_attempts=total_attempts - 1,
-                last_error=f"Global attempt limit ({max_total}) reached. Last error: {last_error}",
+                last_error=sanitize_provider_error_message(
+                    f"Global attempt limit ({max_total}) reached. "
+                    f"Last error: {last_error}"
+                ),
             )
 
         # Budget check BEFORE each attempt
@@ -284,9 +291,10 @@ def invoke_with_retry(
             "request_size_bytes": last_typed_error.request_size_bytes,
         }
 
+    # T3.3 / AC-3.3: sanitize the final-cause chain.
     raise RetriesExhaustedError(
         total_attempts=total_attempts,
-        last_error=last_error,
+        last_error=sanitize_provider_error_message(last_error),
         last_error_class=last_error_class,
         last_error_context=last_error_context,
     )
