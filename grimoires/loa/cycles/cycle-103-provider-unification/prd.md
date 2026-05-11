@@ -1,7 +1,8 @@
 # Cycle-103 PRD — Provider Boundary Unification
 
-**Status**: DRAFT — pending operator approval before `/plan-and-analyze` formalization
+**Status**: APPROVED — ready for `/architect` (cycle-103 begins once PR #844 merges)
 **Drafted**: 2026-05-11 (session 10, end of cycle-102 Sprint 4A)
+**Approved**: 2026-05-11 via `/discovering-requirements cycle-103` (operator @janitooor)
 **Author**: Claude (cycle-102 closure pass)
 **Predecessor**: cycle-102 model-stability (PR #844 ready for HITL merge)
 
@@ -264,6 +265,52 @@ Sequential: Sprint 1 → Sprint 2 → Sprint 3. Sprint 2 is parallelizable with 
 
 ---
 
+## 8.5. Flatline-Integrated Refinements (2026-05-11)
+
+Multi-model adversarial review run via `/flatline-review prd sdd` against this PRD + the cycle-103 SDD. Run metadata: `grimoires/loa/cycles/cycle-103-provider-unification/flatline/{prd,sdd}-review.json`. The flatline substrate itself triggered KF-002 layer 2 (recurrence-4) + KF-003 (recurrence-2) — Opus returned empty content on both docs, GPT returned empty on the SDD, leaving Gemini-only cross-scoring with the primary scorer empty. Notwithstanding the degraded confidence, GPT and Gemini agreed on 10 substantive PRD findings at delta ≥ 690. Operator decision (this session): **integrate all 10**. Refinements are grouped by whether the cycle-103 SDD already addresses them or whether the PRD itself needs a new AC. None require a status reversion from §0's "APPROVED" banner — they tighten the PRD without changing the cycle's deliverables.
+
+### 8.5.1 — Already covered by SDD (PRD now cites the source explicitly)
+
+| ID | Finding (delta) | PRD refinement |
+|---|---|---|
+| **IMP-001** | TS↔Python IPC boundary contract is load-bearing; needs explicit CLI/stdin/stdout/error/exit-code spec (delta 940) | AC-1.1 augmented: the IPC contract is the load-bearing integration point and **MUST be defined before any adapter code lands**. Canonical contract spec lives in SDD §1 (component model). Sprint 1 deliverable expanded to require: (a) versioned `cheval-delegate.contract.md` checked into `grimoires/loa/runbooks/`, (b) JSON Schema for stdin/stdout messages, (c) exit-code table with retry-eligibility per code. |
+| **IMP-002** | Spawn-vs-daemon decision needs benchmark methodology + hard thresholds, not subjective judgement (delta 860) | AC-1.1 augmented: the p95≤1s threshold from SDD must be measured under (a) cold cache, (b) warm cache, (c) concurrent BB review pass shape, with the methodology + raw measurements committed to `grimoires/loa/cycles/cycle-103-provider-unification/handoffs/spawn-vs-daemon-benchmark.md` before Sprint 1 picks a default. |
+| **IMP-003** | Boundary replacement without rollback / feature-flag plan = unnecessary release risk (delta 890) | AC-1.5 augmented: `LOA_BB_FORCE_LEGACY_FETCH=1` (SDD escape hatch) is **required**, not optional. It MUST be in the merged code at Sprint 1 ship and MUST survive at least one full cycle (removed in cycle-104 only after operator-visible green signal on the unified path). PRD §7 R-table gets a new mitigation row pointing at this flag. |
+| **IMP-006** | Response-shape parity tests must be mocked / structural — not byte-equal on live LLM output (delta 775) | AC-1.2 augmented: cheval-delegate parity tests use mocked-fixture comparisons (`--mock-fixture-dir`). Byte-equal comparison is explicitly forbidden on live model output (LLMs are non-deterministic by construction). Test substrate normalizes (a) timestamps, (b) request IDs, (c) usage / metadata fields, (d) any non-content envelope fields before compare. Structural assertion targets `result.content` + `result.finish_reason` + the typed error category (from AC-3.1), not the raw provider JSON. |
+| **IMP-010** | CI drift gate covers bash + non-adapter Python, not just TypeScript (delta 735) | §5.5 drift-detection augmented: `tools/check-no-direct-llm-fetch.sh` scans `.claude/skills/**/*.{ts,sh,py}` AND `.claude/scripts/**/*.{sh,py}` AND any other code surface that may grow a direct-fetch path. Mirrors cycle-099 sprint-1E.c.3.c scanner-glob-blindness lesson (extension list + shebang detection, not just `*.sh`). Allowlist file: `tools/check-no-direct-llm-fetch.allowlist` (mode 0644, comment-stripped, one path per line). |
+
+### 8.5.2 — New ACs / refinements not previously in PRD or SDD
+
+| ID | Finding (delta) | New / refined AC |
+|---|---|---|
+| **IMP-004** | **Credential boundary across subprocess** — env inheritance, argv leakage, log redaction (delta 900) | **NEW AC-1.8**: Sprint 1 ships a credential-handoff contract for cheval-delegate. Specifically: (a) provider credentials (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`) MUST cross the subprocess boundary via env inheritance only — never argv, never stdin; (b) cheval-delegate stderr / log paths MUST route through the existing `redact_payload_strings` + `_GATE_BEARER` redactor (cycle-103 Sprint 3 AC-3.6 + AC-3.7 extend coverage); (c) if daemon mode ships per AC-1.1, the UDS at `.run/cheval-daemon.sock` MUST be mode 0600 with the credential-passing protocol per first-byte handshake — never re-read from env on every call; (d) bats integration tests pin AKIA / sk-ant- / Bearer / GOOGLE-API-KEY shapes scrubbed from delegate stderr at every error path. |
+| **IMP-005** | **Pre-implementation httpx large-body spike** — validate cheval Python at the failing 300KB size before committing Sprint 1 effort (delta 845) | **NEW AC-1.0 (sequencing)**: Sprint 1 begins with a 1-day spike: invoke cheval Python httpx against Google generativeLanguage API at progressively larger payload sizes (172KB, 250KB, 318KB, 400KB) reproducing the BB KF-008 scenario. Outcome routes Sprint 1: (a) httpx handles 400KB without error → unification trivially closes KF-008 (best case), (b) httpx hits the same threshold → KF-008 is vendor-side, cycle-103 ships unification + documented operator workaround per existing AC-1.6 path (b). The spike result is the first commit on the cycle-103 branch. |
+| **IMP-007** | **Promote parallel-dispatch (AC-3.8) to Sprint 1** — concurrency is not edge-case if BB does concurrent review passes (delta 820) | **NOTED — OPERATOR-DEFERRED PER §8.5.3**. Earlier in this PRD's discovery session (`/discovering-requirements cycle-103`, 2026-05-11), the operator selected "Keep AC-3.8 in Sprint 3 with carve-out option." The flatline finding has not changed that decision. The dispute is acknowledged here so a future planner reading just the flatline output sees the operator's countering rationale: spawn-vs-daemon outcome (AC-1.1, Sprint 1 week 1) materially changes what parallel-dispatch needs to do. Promoting to Sprint 1 before that decision lands risks scope-creep. Sprint 3 AC-3.8 is the holding place; carve-out trigger is "Sprint 1 picks daemon mode." |
+| **IMP-008** | Sprint 2 empirical rigor — needs explicit statistical method, not just "replay at 30K / 40K / …" (delta 720) | AC-2.1 augmented: empirical replay uses (a) n≥5 trials per input size, (b) fixed prompt corpus checked into `grimoires/loa/cycles/cycle-103-provider-unification/sprint-2-corpus/`, (c) measured outcomes are `{empty_content, partial_content, full_content}` per trial with the response shape preserved, (d) decision-rule before Sprint 2 starts: "structural fix viable" requires ≥80% full_content at the empirically-safe threshold across 5 trials; below that, AC-2.3 (vendor-side documented) path activates. |
+| **IMP-009** | **Subprocess crash / timeout / partial-stdout / orphan cleanup** behavior must be specified (delta 690) | **NEW AC-1.9**: Sprint 1 ships subprocess lifecycle semantics for cheval-delegate. Specifically: (a) crash semantics — non-zero exit codes map to typed exceptions per the AC-1.1 contract; (b) timeout — caller-supplied per-call timeout enforced via `subprocess.run(timeout=...)`; SIGTERM at timeout, SIGKILL at timeout+5s; (c) partial-stdout — incomplete JSON on stdout maps to `MalformedDelegateError` (retry-eligible); (d) orphan cleanup — daemon mode (if shipped per AC-1.1) registers a PID file at `.run/cheval-daemon.pid` checked by all callers, with `SIGTERM`-to-orphan-on-startup if PID is alive but socket is dead. Bats tests pin each path. |
+
+### 8.5.3 — Operator-deferred (countering rationale recorded)
+
+- **IMP-007** (parallel-dispatch promotion) — countering rationale: spawn-vs-daemon outcome (AC-1.1, decided Sprint 1 week 1) materially changes the parallel-dispatch design surface. Promoting to Sprint 1 before that decision risks scope-creep and rework. Re-evaluated when Sprint 1 day-7 benchmark lands.
+
+### 8.5.4 — Provenance
+
+Flatline run that produced these refinements:
+
+| Field | Value |
+|---|---|
+| Run date | 2026-05-11 |
+| Models attempted | opus + gpt-5.5-pro + gemini-3.1-pro-preview (3-model Flatline) |
+| Models that returned items | PRD: GPT (10 items) + Gemini (cross-scored). SDD: Gemini only. **Opus empty on both. GPT empty on SDD.** |
+| Consensus confidence (PRD) | `single_model` (mis-labeled by scoring engine — really 2-of-3 GPT+Gemini agreement; tracked as issue-class for cycle-104 scoring-engine refinement) |
+| Consensus confidence (SDD) | `degraded` — no items to score |
+| Failure class | KF-002 layer 2 recurrence-4 (Opus empty-content) + KF-003 recurrence-2 (GPT empty-content on 32KB SDD) |
+| Operator decision | Integrate all 10 PRD findings (this session) + log KF recurrences (done) + accept degraded SDD (no re-run) |
+
+The cycle-103 Sprint 2 ACs (KF-002 layer 2 structural) directly address the failure class that degraded this very run. Cycle-103's thesis is its own proof.
+
+---
+
 ## 9. Inbound state (the cold-start checklist for cycle-103 kickoff)
 
 **Branch state at cycle-103 start**:
@@ -331,7 +378,7 @@ A cycle-103 ship requires all of:
 - [ ] Sprint 1 closed: AC-1.1 through AC-1.7. BB invokes cheval; flatline routes through cheval; KF-001 NODE_OPTIONS fix marked vestigial.
 - [ ] Sprint 2 closed: AC-2.1 through AC-2.4. #823 has a structural fix OR documented workaround per AC-2.3 with operator sign-off.
 - [ ] Sprint 3 closed: AC-3.1 through AC-3.8. All Sprint 4A carry-forwards resolved or explicitly re-deferred with rationale.
-- [ ] Test count: ≥1000 cheval pytest cases pass (current 937 + Sprint 1 cross-language additions + Sprint 3 redactor / parser hardening tests).
+- [ ] Test coverage: no regression from cycle-102's 937-baseline; every Sprint 1 / Sprint 2 / Sprint 3 AC has at least one corresponding test (no arbitrary count threshold — coverage-per-AC is the gate).
 - [ ] Adversarial review: cycle-3 BB pass on the cycle-103 PR returns ≤1 HIGH-consensus finding (improvement from cycle-102 Sprint 4A cycle-2's 2 HIGH).
 - [ ] Cypherpunk audit: APPROVED with no NEW critical-class findings (carry-forwards from prior cycles acceptable if documented).
 - [ ] KF status updates: KF-002 layer 2 → RESOLVED or documented-vendor-side; KF-008 → either closed (if unification path doesn't reproduce) or carry-forward with upstream #845 progress noted.

@@ -198,7 +198,7 @@ evidence (different machine, different network, different time-of-day).
 **Feature**: `.claude/scripts/adversarial-review.sh --type review` (Phase 2.5 of `/review-sprint`)
 **Symptom**: Reasoning-class models (gpt-5.5-pro, claude-opus-4-7) return empty content for review-type prompts at >27K input (gpt-5.5-pro) or >40K input (claude-opus-4-7). 3 retries all empty. The script writes `status: api_failure` to the output JSON, the COMPLETED gate accepts api_failure as a "legitimate completion record," and Sprint audit passes despite no actual cross-model dissent applied. **Audit-type prompts at the same scale succeed** — the failure is prompt-structure-dependent, not pure input-size.
 **First observed**: 2026-05-09 (cycle-102 sprint-1A audit on PR #803)
-**Recurrence count**: 3+ (sprint-1A audit, sprint-1B audit, sprint-1B BB iter-6 — see NOTES.md 2026-05-09 Decision Log: T1B.4 ROOT-CAUSE REFRAME)
+**Recurrence count**: 4+ (sprint-1A audit, sprint-1B audit, sprint-1B BB iter-6, cycle-103 PRD+SDD flatline run 2026-05-11 — see NOTES.md 2026-05-09 Decision Log: T1B.4 ROOT-CAUSE REFRAME and cycle-103 row in Attempts below)
 **Current workaround**: Sprint 1B T1B.4 swapped `flatline_protocol.{code_review,security_audit}.model` from `gpt-5.5-pro` to `claude-opus-4-7`. Upstream Issue #812 proposes the same default for all Loa users. **Note: opus has the SAME bug at higher input threshold** (Issue #823 / vision-024) — the swap routes around the bug at one scale but the bug class is fractal, not solved.
 **Upstream issue**: [#812](https://github.com/0xHoneyJar/loa/issues/812) (model swap proposal), [#823](https://github.com/0xHoneyJar/loa/issues/823) (opus empty-content at >40K)
 **Related visions / lore**: vision-019 Bridgebuilder's Lament, vision-023 Fractal Recursion ("the very gate built to detect silent degradation experienced silent degradation, of the same bug class the gate was built to detect"), vision-024 Substrate Speaks Twice, vision-025 Substrate Becomes the Answer (the routing-around-not-fixing-through pattern)
@@ -215,6 +215,7 @@ evidence (different machine, different network, different time-of-day).
 | 2026-05-11 | **Sprint 4A streaming-transport default** — `http_post_stream()` in `.claude/adapters/loa_cheval/providers/base.py` + `parse_*_stream()` in `anthropic_streaming.py` / `openai_streaming.py` / `google_streaming.py` + adapters defaulting to `_complete_streaming` (kill switch via `LOA_CHEVAL_DISABLE_STREAMING=1`). All 3 providers stream the response; server emits first token immediately; intermediaries never observe an idle TCP connection. | **LAYER 3 RESOLVED BY CONSTRUCTION** — the >60s-wait-for-first-byte failure class is no longer reachable on the streaming path, independent of any intermediary timer behavior. Input-size gate raised from 24K/36K to 200K/180K (still acts as belt-and-suspenders). 31 new pytest cases pin per-provider streaming behavior; live smokes against all 3 endpoints confirm end-to-end. | Sprint 4A PR series: ec65cdbf (transport) + 10df41f8 (Anthropic) + 1855953b (OpenAI) + b70c2cff (Google) + e6d08fc0 (audit) + dba04509 (gate) |
 | not tried | Adaptive truncation (lower review-type input cap to ~16K) | — | proposed in vision-023 §"What this teaches"; rendered moot by Sprint 4A streaming default — no truncation needed |
 | not tried | Drop `reasoning.effort` to `low` for adversarial-review's task class | — | proposed in NOTES.md 2026-05-09 Decision Log; still applicable for layer 1 (empty-content) cost-control, not load-bearing post Sprint 4A |
+| 2026-05-11 | Cycle-103 PRD+SDD flatline run (`/flatline-review prd sdd` over cycle-103 PRD 14KB + SDD 32KB) — `flatline_protocol.models.primary: opus` + `.secondary: gpt-5.5-pro` + `.tertiary: gemini-3.1-pro-preview` per cycle-102 Sprint 1B T1B.4 config | **RECURRENCE-4** — Opus returned 0 items on PRD (14KB input, well under prior 40K threshold) AND 0 items on SDD; GPT returned 10 items on PRD but 0 on SDD (32KB input, matches KF-003 ≥27K threshold); only Gemini cross-scored. PRD consensus emitted as 10 DISPUTED at `confidence: single_model` (really 2-of-3 GPT+Gemini agreement); SDD emitted `degraded: true, degraded_model: "both", reason: "no_items_to_score"`. **The cycle whose thesis is exactly fixing this class just triggered the class on its own planning artifacts.** | `grimoires/loa/cycles/cycle-103-provider-unification/flatline/prd-review.json` + `sdd-review.json` (recurrence evidence); cycle-103 SDD §1 IPC contract is the structural fix |
 
 ### 2026-05-11 reproduction note (session 10)
 
@@ -318,7 +319,7 @@ with empty content, retries don't help.
 **Feature**: any cheval invocation routing to `gpt-5.5-pro` with `reasoning.effort: medium` and input ≥ 27K tokens
 **Symptom**: Provider returns 200 OK with empty `output` field; cheval treats as `INVALID_RESPONSE` exit code 5; retries return same.
 **First observed**: 2026-05-09 (cycle-102 sprint-1B kickoff during T1B.4 root-cause analysis)
-**Recurrence count**: 1 (originally believed scale-dependent within reasoning models; subsequent observation showed the bug class extends to opus at higher threshold, see KF-002)
+**Recurrence count**: 2 (originally believed scale-dependent within reasoning models; subsequent observation showed the bug class extends to opus at higher threshold, see KF-002; cycle-103 SDD flatline run 2026-05-11 reproduced on 32KB SDD input — see new Attempts row)
 **Current workaround**: Resolved by Sprint 1B T1B.4 model swap. cheval's per-model `max_output_tokens` lookup landed at T1.9 (Sprint 1A) addresses the budget-side; the empty-content failure mode is independent of budget.
 **Upstream issue**: [#812](https://github.com/0xHoneyJar/loa/issues/812)
 **Related visions / lore**: vision-019, vision-023; `feedback_loa_monkeypatch_always_upstream.md` (this entry exemplifies the "every project-local fix becomes upstream-issue-shaped" rule)
@@ -329,6 +330,7 @@ with empty content, retries don't help.
 |------|---------------|---------|----------|
 | 2026-05-09 | Verify T1.9 `max_output_tokens=32000` lookup applies | RESOLVED-AT-10K — bug class is empty-content not budget; lookup is correct but doesn't fix the deeper layer | sprint-bug-143 / NOTES.md 2026-05-09 Decision Log |
 | 2026-05-09 | Switch to `claude-opus-4-7` per T1B.4 | WORKAROUND HOLDS at this scale — opus has no empty-content bug for inputs <40K | commit `0872780c` |
+| 2026-05-11 | Cycle-103 flatline-review on SDD (32KB / ~32K-token input) with `gpt-5.5-pro` as `flatline_protocol.models.secondary` | **REPRODUCED** — both review and skeptic modes returned empty content. KF-002 row for same date shows Opus also returned empty on SDD; flatline scoring-engine emitted `degraded: true, degraded_model: "both"`. Note the cycle-103 PRD (14KB input) was below the 27K threshold and GPT returned 10 items there. | `grimoires/loa/cycles/cycle-103-provider-unification/flatline/sdd-review.json` (`degradation_reason: "no_items_to_score"`); log shows `[scoring-engine] WARNING: both input files empty (no items to score) — emitting degraded consensus per #759` |
 
 ### Reading guide
 
@@ -395,7 +397,7 @@ again.
 
 ## KF-005: beads_rust 0.2.1 migration blocks task tracking
 
-**Status**: DEGRADED-ACCEPTED (markdown fallback) — **fix available on crates.io as `beads_rust 0.2.4`; operator must `cargo install beads_rust` to upgrade locally**
+**Status**: DEGRADED-ACCEPTED (markdown fallback) — **REGRESSION CONFIRMED 2026-05-11 at beads_rust 0.2.4 AND 0.2.6**: upgraded local install to 0.2.6 (current latest); migration still fails with identical `NOT NULL constraint failed: dirty_issues.marked_at`. The "fix landed in 0.2.2/0.2.3/0.2.4" claim from 2026-05-10 is not supported by empirical test; either the fix doesn't address dirty databases (only fresh init), or it was reverted, or it never landed. **Upstream needs reopen / fresh issue at latest version.** Markdown fallback remains canonical.
 
 ### Upgrade path (verified 2026-05-10)
 
@@ -429,6 +431,7 @@ Loa #661 was closed upstream 2026-05-02; the schema-migration fix landed in 0.2.
 | various | Delete `.beads/` and re-initialize | DID NOT WORK in past cycles (operator may have tried more recently — verify before re-attempting) | — |
 | 2026-04+ | Markdown fallback per protocol | WORKS — ledger + reviewer.md + sprint.md checkboxes are sufficient SoT for sprint lifecycle | every cycle since 2026-04 |
 | 2026-05-10 | Verify upstream fix availability (P4.11 from cycle-102 session-9 handoff). `cargo search beads_rust` → 0.2.4 on crates.io; local install is 0.2.1 (3 patch versions behind). `br sync --import-only` on local 0.2.1 reproduces the original error. | UPGRADE PATH IDENTIFIED — operator must run `cargo install beads_rust` to land the upstream fix locally. Markdown fallback remains the safe bet until the upgrade is verified. | crates.io 0.2.4 / Loa #661 (closed 2026-05-02) |
+| 2026-05-11 | Operator upgraded to `br 0.2.4` (per session 11 message). Cycle-103 planning attempted `br ready` + `br create --dry-run`. Then `br upgrade` to `br 0.2.6` (current latest) and retried. | **REGRESSION CONFIRMED** — both 0.2.4 and 0.2.6 reproduce the exact original error: `run_migrations failed: Database(Internal("VDBE halted with code 19: NOT NULL constraint failed: dirty_issues.marked_at"))`. Health check still reports `MIGRATION_NEEDED` + `dirty_issues_migration: needs_repair`. The "fix landed in 0.2.2+" claim is empirically wrong for dirty databases. **Action needed**: file fresh upstream issue against `beads_rust 0.2.6` with evidence; reopen Loa #661 with regression note; markdown fallback remains canonical SoT until upstream is genuinely fixed. | `br --version` returns `br 0.2.6`; `.claude/scripts/beads/beads-health.sh --json` returns `MIGRATION_NEEDED` |
 
 ### Reading guide
 
