@@ -46,6 +46,12 @@ import json
 import logging
 from typing import Any, Dict, Iterator, List, Optional
 
+from loa_cheval.providers.streaming_caps import (
+    MAX_ARGS_PART_BYTES,
+    MAX_TEXT_PART_BYTES,
+    accumulate_capped,
+    check_buffer_cap,
+)
 from loa_cheval.types import CompletionResult, Usage
 
 logger = logging.getLogger("loa_cheval.providers.anthropic_streaming")
@@ -137,12 +143,25 @@ def parse_anthropic_stream(
             delta = event_payload.get("delta", {}) or {}
             delta_type = delta.get("type", "")
             if delta_type == "text_delta":
-                entry["text_parts"].append(delta.get("text", "") or "")
+                accumulate_capped(
+                    entry["text_parts"],
+                    delta.get("text", "") or "",
+                    cap=MAX_TEXT_PART_BYTES,
+                    kind="text",
+                )
             elif delta_type == "thinking_delta":
-                entry["text_parts"].append(delta.get("thinking", "") or "")
+                accumulate_capped(
+                    entry["text_parts"],
+                    delta.get("thinking", "") or "",
+                    cap=MAX_TEXT_PART_BYTES,
+                    kind="thinking",
+                )
             elif delta_type == "input_json_delta":
-                entry.setdefault("json_parts", []).append(
-                    delta.get("partial_json", "") or ""
+                accumulate_capped(
+                    entry.setdefault("json_parts", []),
+                    delta.get("partial_json", "") or "",
+                    cap=MAX_ARGS_PART_BYTES,
+                    kind="arguments",
                 )
 
         elif ev_type == "content_block_stop":
@@ -252,6 +271,7 @@ def _iter_sse_events(
         if not chunk:
             continue
         buffer += chunk
+        check_buffer_cap(len(buffer))
         while True:
             # Find the earliest event terminator. SSE spec: \n\n or \r\n\r\n.
             sep_idx = -1

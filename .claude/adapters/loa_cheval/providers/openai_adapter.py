@@ -33,10 +33,12 @@ from loa_cheval.types import (
     InvalidConfigError,
     InvalidInputError,
     ModelConfig,
+    ProviderStreamError,
     ProviderUnavailableError,
     RateLimitError,
     UnsupportedResponseShapeError,
     Usage,
+    dispatch_provider_stream_error,
 )
 
 logger = logging.getLogger("loa_cheval.providers.openai")
@@ -192,6 +194,12 @@ class OpenAIAdapter(ProviderAdapter):
                     result = parse_openai_chat_stream(
                         resp.iter_bytes(), provider=self.provider
                     )
+            except ProviderStreamError as stream_err:
+                # T3.5 / AC-3.5: dispatch SSE buffer + accumulator cap
+                # exhaustion through T3.1's table → typed exception.
+                raise dispatch_provider_stream_error(
+                    stream_err, provider=self.provider
+                ) from stream_err
             except ValueError as parse_err:
                 raise InvalidInputError(
                     f"OpenAI streaming error: {parse_err}"

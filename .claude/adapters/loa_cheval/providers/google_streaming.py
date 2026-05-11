@@ -36,6 +36,10 @@ import logging
 from typing import Any, Dict, Iterator, List, Optional
 
 from loa_cheval.providers.openai_streaming import _iter_sse_events_raw_data
+from loa_cheval.providers.streaming_caps import (
+    MAX_TEXT_PART_BYTES,
+    accumulate_capped,
+)
 from loa_cheval.types import CompletionResult, Usage
 
 logger = logging.getLogger("loa_cheval.providers.google_streaming")
@@ -115,9 +119,13 @@ def parse_google_stream(
             if not text:
                 continue
             if part.get("thought", False):
-                thinking_parts.append(text)
+                accumulate_capped(
+                    thinking_parts, text, cap=MAX_TEXT_PART_BYTES, kind="thinking"
+                )
             else:
-                text_parts.append(text)
+                accumulate_capped(
+                    text_parts, text, cap=MAX_TEXT_PART_BYTES, kind="text"
+                )
 
     content = "".join(text_parts)
     thinking = "".join(thinking_parts) if thinking_parts else None

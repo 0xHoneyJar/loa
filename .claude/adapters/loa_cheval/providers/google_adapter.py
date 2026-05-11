@@ -28,9 +28,11 @@ from loa_cheval.types import (
     CompletionResult,
     ConfigError,
     InvalidInputError,
+    ProviderStreamError,
     ProviderUnavailableError,
     RateLimitError,
     Usage,
+    dispatch_provider_stream_error,
 )
 
 logger = logging.getLogger("loa_cheval.providers.google")
@@ -392,6 +394,12 @@ class GoogleAdapter(ProviderAdapter):
                             provider=self.provider,
                             input_text_length=input_text_len,
                         )
+                    except ProviderStreamError as stream_err:
+                        # T3.5 / AC-3.5: dispatch SSE buffer + accumulator
+                        # cap exhaustion through T3.1's table → typed.
+                        raise dispatch_provider_stream_error(
+                            stream_err, provider=self.provider
+                        ) from stream_err
                     except ValueError as ve:
                         # Safety / Recitation / failure events surface here.
                         raise InvalidInputError(str(ve))

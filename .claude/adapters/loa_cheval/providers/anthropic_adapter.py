@@ -28,9 +28,11 @@ from loa_cheval.types import (
     CompletionRequest,
     CompletionResult,
     InvalidInputError,
+    ProviderStreamError,
     ProviderUnavailableError,
     RateLimitError,
     Usage,
+    dispatch_provider_stream_error,
 )
 
 logger = logging.getLogger("loa_cheval.providers.anthropic")
@@ -153,6 +155,14 @@ class AnthropicAdapter(ProviderAdapter):
                     resp.iter_bytes(),
                     provider=self.provider,
                 )
+            except ProviderStreamError as stream_err:
+                # T3.5 / AC-3.5: SSE buffer + per-event accumulator caps
+                # raise ProviderStreamError; dispatch through T3.1's table
+                # so retry.py sees a typed exception (e.g.
+                # ConnectionLostError for "transient" cap exhaustion).
+                raise dispatch_provider_stream_error(
+                    stream_err, provider=self.provider
+                ) from stream_err
             except ValueError as parse_err:
                 raise InvalidInputError(
                     f"Anthropic streaming error: {parse_err}"
