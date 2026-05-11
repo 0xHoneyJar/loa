@@ -108,6 +108,21 @@ providers:
         # in place as belt-and-suspenders. Kill streaming via
         # `LOA_CHEVAL_DISABLE_STREAMING=1` to fall back to the legacy
         # path (which still hits 27K).
+        #
+        # Sprint 4A cycle-3 (BB review F7 rationale): the 200K ceiling is
+        # PERMISSIVE BY DESIGN, not empirically tested at full range.
+        # Live smokes during Sprint 4A validated 25K-50K input on the
+        # streaming path. The 4-5x jump to 200K is intentional:
+        #   - Layer 3's structural fix (streaming) makes input-size
+        #     gate-tripping a "may waste 1 LLM call" issue, not a hard
+        #     PROVIDER_DISCONNECT.
+        #   - AC-4A.8 80K live smoke pending operator-driven /review-sprint
+        #     against an arbitrary non-trivial PR (post-merge work).
+        #   - Operators who want a more conservative ceiling override per-call
+        #     via `--max-input-tokens N` or in `.loa.config.yaml::providers.
+        #     openai.models.<id>.max_input_tokens`.
+        # If an operator-side regression surfaces at >100K input, lower the
+        # default to the next conservative band (100K, 50K, then 27K legacy).
         max_input_tokens: 200000
         # cycle-095 Sprint 2: probe_required dropped (same rationale as gpt-5.5).
         # Wire-protocol gate: same temperature restriction as gpt-5.5 above.

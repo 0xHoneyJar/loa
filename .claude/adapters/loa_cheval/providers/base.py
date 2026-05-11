@@ -77,12 +77,19 @@ def _detect_http2_available() -> bool:
         import h2  # noqa: F401
 
         _HTTP2_AVAILABLE = True
-    except ImportError:
+    except ImportError as exc:
         _HTTP2_AVAILABLE = False
+        # Sprint 4A cycle-3 (BF/F10): include the underlying exception class
+        # and message so a broken h2 install (partial install, version
+        # conflict, ImportError raised from h2's own dependencies, etc.) is
+        # distinguishable from a clean "h2 not installed" state. Production
+        # deployments investigating HTTP/1.1 fallback need this diagnostic.
         logger.warning(
-            "h2 not installed — streaming will use HTTP/1.1 "
+            "h2 unavailable (%s: %s) — streaming will use HTTP/1.1 "
             "(less robust under high concurrency, but correct). "
-            "Install with: pip install httpx[http2]"
+            "Install with: pip install httpx[http2]",
+            type(exc).__name__,
+            exc,
         )
     return _HTTP2_AVAILABLE
 

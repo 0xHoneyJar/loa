@@ -34,13 +34,14 @@ parsers + audit-payload field).
 
 ## AC Verification
 
-### AC-4A.1 — `tests/cycle-102/cheval-streaming.bats::R1`
+### AC-4A.1 — Transport regression pin (R1)
 
-> 5-chunk mock stream → assembled `CompletionResult.content` matches
-> concatenated visible content; usage tokens correctly summed across
-> `message_delta` events.
+**Original AC text** (`sprint.md`): "`tests/cycle-102/cheval-streaming.bats::R1` —
+5-chunk mock stream → assembled `CompletionResult.content` matches
+concatenated visible content; usage tokens correctly summed across
+`message_delta` events."
 
-**Status**: ✓ Met
+**Status**: ✓ Met (with deliberate path deviation, see below)
 
 **Evidence**: `.claude/adapters/tests/test_streaming_transport.py:74`
 (`test_r1_stream_yields_chunks_in_order`). 5-chunk SSE stream mocked
@@ -49,12 +50,18 @@ order with `status_code=200` + `http_version="HTTP/2"`. 4xx variant at
 `test_streaming_transport.py:112` confirms error JSON surfaces without
 raising.
 
-**Note on path**: deliverable spec named `tests/cycle-102/cheval-streaming.bats`;
-implementation placed Python tests at
+**Path deviation note** (Sprint 4A cycle-3 amendment per BB finding F8):
+the sprint plan named the test target as `tests/cycle-102/cheval-streaming.bats`;
+the shipped implementation placed Python tests at
 `.claude/adapters/tests/test_streaming_transport.py` to colocate with
-the existing cheval pytest suite. Bats integration with delay-injection
-fixture deferred to a follow-on task — pytest covers the unit surface
-adequately, and the live smokes (below) cover the integration surface.
+the existing cheval pytest suite (no bats wrappers ship for AC-4A.1
+through AC-4A.5 in this sprint). The pytest coverage is genuinely
+comprehensive (12 transport pins) but operators / future agents
+following the AC paths verbatim will not find `cheval-streaming.bats`
+on disk. Bats integration with delay-injection fixture deferred to a
+follow-on task. AC paths AC-4A.1 through AC-4A.5 below should be read
+as "behavioral assertion satisfied at `.claude/adapters/tests/test_*_streaming.py`"
+rather than literal-path-on-disk.
 
 ### AC-4A.2 — `tests/cycle-102/cheval-streaming.bats::R2`
 
@@ -170,10 +177,12 @@ validation lives in AC-4A.7 (integration smoke).
 > active; success criterion: no `PROVIDER_DISCONNECT` failure-class
 > events; review completes in <90s for typical sprint diffs.
 
-**Status**: ⚠ Partial
+**Status**: ⚠ Partial — meaningful indirect evidence; literal-AC
+not closed pre-merge (per BB cycle-3 finding F9)
 
-**Evidence**: Live smokes against all three providers confirm streaming
-works end-to-end at sprint-typical scale:
+**Indirect evidence** — live smokes via `model-invoke` + adapter
+direct-call confirm streaming works end-to-end at sprint-typical
+scale:
 - Anthropic claude-opus-4-5 + full 183KB SDD (~50K tokens): 26s
   (cheval CLI invocation via `model-invoke`)
 - Anthropic claude-opus-4-5 + 120KB lorem prompt: 6.6s via
@@ -182,10 +191,23 @@ works end-to-end at sprint-typical scale:
 - OpenAI gpt-5.5-pro `/v1/responses` + small prompt: 12.5s
 - Gemini gemini-2.5-flash + 25K tokens: 3.1s
 
-The literal `/review-sprint` invocation on a non-trivial PR is deferred
-to a post-merge validation pass — running `/review-sprint sprint-4A`
-on this very sprint will exercise the full pipeline against itself and
-satisfy the AC end-to-end. The /run loop wraps that automatically.
+**Stronger organic evidence** — Sprint 4A's own `/review-sprint`
+adversarial passes (cycle-1 + cycle-2) invoked `adversarial-review.sh`
+through cheval against the sprint diff itself (~120K and ~14K tokens
+respectively). Both passes returned `reviewed-status: reviewed`
+cleanly — the new streaming transport survived being dogfooded as
+part of its own review. **However, neither was the literal AC-4A.7
+test condition** (`/review-sprint` against an arbitrary non-trivial
+PR with all-providers consensus).
+
+**Honest disposition** (cycle-3 amendment): the literal AC-4A.7
+condition is **deferred-not-met** pre-merge. It will be exercised by
+the operator-driven post-merge `/review-sprint` invocation on the
+next non-trivial PR. The DoD checklist's `/review-sprint sprint-4A
+APPROVED` marker refers to the cycle-1/cycle-2 reviewer-skill
+verdicts on this PR specifically, NOT to AC-4A.7's
+"arbitrary-non-trivial-PR" condition. Operators should treat
+AC-4A.7 as outstanding until that smoke fires.
 
 ### AC-4A.8 — `tests/cycle-102/cheval-input-size-gate-deprecation.bats`
 

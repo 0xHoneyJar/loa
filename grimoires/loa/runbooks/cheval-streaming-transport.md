@@ -63,9 +63,9 @@ LOA_CHEVAL_DISABLE_STREAMING=1 .claude/scripts/model-invoke \
   --max-tokens 4096
 ```
 
-**Truthy values that activate the kill switch**: `1`, `true`, `yes`
-(case-insensitive). Anything else (including unset, empty, `0`,
-`false`, `no`) leaves streaming active.
+**Truthy values that activate the kill switch**: `1`, `true`, `yes`,
+`on` (case-insensitive; whitespace stripped). Anything else (including
+unset, empty, `0`, `false`, `no`, `off`) leaves streaming active.
 
 **Caveat**: when the kill switch is set, the per-model
 `max_input_tokens` gate in `.claude/defaults/model-config.yaml` still
