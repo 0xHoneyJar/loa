@@ -222,26 +222,45 @@ _REDACT_FIELDS = frozenset(
 
 def redact_payload_strings(payload: Any) -> Any:
     """Recursively walk a payload structure; redact strings under known
-    untrusted-content field names.
+    untrusted-content field names — **path-aware** (T3.6 / DISS-003).
 
-    The walk preserves list/dict structure exactly. Only string VALUES under
-    the configured field names are passed through `redact()`. Strings under
-    other keys (or in lists at the top level) are left unchanged.
+    Once a key in `_REDACT_FIELDS` is encountered, every descendant string
+    is redacted regardless of intermediate dict keys or list nesting. This
+    closes the gap where an adapter returns a structured exception body
+    (e.g. `{"error_message": {"detail": "<leaked>"}}` or
+    `{"error_message": [{"inner": "<leaked>"}]}`) and the original
+    immediate-parent-only walk would leave the nested untrusted string
+    intact.
 
-    This is field-aware redaction — distinct from blanket-redacting every
-    string value, which would over-redact operator-controlled identifiers.
+    Structure (dict shape, list shape, key names, ordering, non-string
+    types) is preserved exactly — only string VALUES under an
+    untrusted-content ancestor are passed through `redact()`. This matters
+    for the audit-envelope round-trip pin (sprint.md R8a).
     """
-    if isinstance(payload, dict):
+    return _redact_recurse(payload, under_untrusted=False)
+
+
+def _redact_recurse(node: Any, under_untrusted: bool) -> Any:
+    """Inner walk that threads the `under_untrusted` flag through the
+    recursion. Once set, the flag stays set for every descendant; redaction
+    applies to every string regardless of immediate-parent key.
+    """
+    if isinstance(node, dict):
         out = {}
-        for k, v in payload.items():
-            if k in _REDACT_FIELDS and isinstance(v, str):
+        for k, v in node.items():
+            child_untrusted = under_untrusted or (k in _REDACT_FIELDS)
+            if child_untrusted and isinstance(v, str):
                 out[k] = _REDACT(v)
             else:
-                out[k] = redact_payload_strings(v)
+                out[k] = _redact_recurse(v, child_untrusted)
         return out
-    if isinstance(payload, list):
-        return [redact_payload_strings(item) for item in payload]
-    return payload
+    if isinstance(node, list):
+        return [
+            _REDACT(item) if (under_untrusted and isinstance(item, str))
+            else _redact_recurse(item, under_untrusted)
+            for item in node
+        ]
+    return node
 
 
 # -----------------------------------------------------------------------------
