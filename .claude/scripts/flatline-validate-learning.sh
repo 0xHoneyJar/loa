@@ -60,6 +60,12 @@ if [[ -f "$SCRIPT_DIR/lib-security.sh" ]]; then
     source "$SCRIPT_DIR/lib-security.sh"
 fi
 
+# cycle-103 T1.6 / AC-1.4 — route LLM calls through model-invoke (cheval).
+# shellcheck source=lib-curl-fallback.sh
+if [[ -f "$SCRIPT_DIR/lib-curl-fallback.sh" ]]; then
+    source "$SCRIPT_DIR/lib-curl-fallback.sh"
+fi
+
 # =============================================================================
 # Configuration
 # =============================================================================
@@ -252,47 +258,17 @@ call_gpt_validation() {
         fi
     fi
 
-    local response
-    if declare -f call_api_with_retry &>/dev/null; then
-        response=$(call_api_with_retry "${OPENAI_API_BASE:-https://api.openai.com}/v1/chat/completions" "POST" \
-            "$(jq -n --arg prompt "$prompt" --arg model "$GPT_MODEL" '{
-                model: $model,
-                messages: [{role: "user", content: $prompt}],
-                temperature: 0.2,
-                max_tokens: 300
-            }')" "$TIMEOUT_SECONDS")
-    else
-        # SEC-AUDIT SEC-HIGH-01 + cycle-099 sprint-1E.c.3.b: auth tempfile +
-        # endpoint_validator__guarded_curl for SSRF allowlist enforcement.
-        local _curl_cfg
-        _curl_cfg=$(write_curl_auth_config "Authorization" "Bearer ${OPENAI_API_KEY:-}") || {
-            log_error "Failed to create secure curl config"
-            return 4
-        }
-        printf 'header = "Content-Type: application/json"\n' >> "$_curl_cfg"
-        response=$(endpoint_validator__guarded_curl \
-            --allowlist "$FLATLINE_PROVIDERS_ALLOWLIST" \
-            --config-auth "$_curl_cfg" \
-            --url "${OPENAI_API_BASE:-https://api.openai.com}/v1/chat/completions" \
-            -s --max-time "$TIMEOUT_SECONDS" \
-            -X POST \
-            -d "$(jq -n --arg prompt "$prompt" --arg model "$GPT_MODEL" '{
-                model: $model,
-                messages: [{role: "user", content: $prompt}],
-                temperature: 0.2,
-                max_tokens: 300
-            }')" 2>/dev/null)
-        rm -f "$_curl_cfg"
-    fi
-
-    if [[ -z "$response" ]]; then
-        log_error "Empty response from GPT"
+    # cycle-103 T1.6 / AC-1.4: route through model-invoke (cheval).
+    local result
+    if ! result=$(call_flatline_chat "$GPT_MODEL" "$prompt" "$TIMEOUT_SECONDS" 300); then
+        log_error "model-invoke failed for GPT validation"
         return 4
     fi
 
-    # Extract and validate response
-    local result
-    result=$(echo "$response" | jq -r '.choices[0].message.content // ""' 2>/dev/null)
+    if [[ -z "$result" ]]; then
+        log_error "Empty response from GPT"
+        return 4
+    fi
 
     # Try to extract JSON
     local json_result
@@ -333,37 +309,17 @@ call_opus_validation() {
         fi
     fi
 
-    local response
-    # SEC-AUDIT SEC-HIGH-01 + cycle-099 sprint-1E.c.3.b: auth tempfile +
-    # endpoint_validator__guarded_curl for SSRF allowlist enforcement.
-    local _curl_cfg
-    _curl_cfg=$(write_curl_auth_config "x-api-key" "${ANTHROPIC_API_KEY:-}") || {
-        log_error "Failed to create secure curl config"
-        return 4
-    }
-    printf 'header = "Content-Type: application/json"\n' >> "$_curl_cfg"
-    printf 'header = "anthropic-version: 2023-06-01"\n' >> "$_curl_cfg"
-    response=$(endpoint_validator__guarded_curl \
-        --allowlist "$FLATLINE_PROVIDERS_ALLOWLIST" \
-        --config-auth "$_curl_cfg" \
-        --url "https://api.anthropic.com/v1/messages" \
-        -s --max-time "$TIMEOUT_SECONDS" \
-        -X POST \
-        -d "$(jq -n --arg prompt "$prompt" --arg model "$OPUS_MODEL" '{
-            model: $model,
-            max_tokens: 300,
-            messages: [{role: "user", content: $prompt}]
-        }')" 2>/dev/null)
-    rm -f "$_curl_cfg"
-
-    if [[ -z "$response" ]]; then
-        log_error "Empty response from Opus"
+    # cycle-103 T1.6 / AC-1.4: route through model-invoke (cheval).
+    local result
+    if ! result=$(call_flatline_chat "$OPUS_MODEL" "$prompt" "$TIMEOUT_SECONDS" 300); then
+        log_error "model-invoke failed for Opus validation"
         return 4
     fi
 
-    # Extract and validate response
-    local result
-    result=$(echo "$response" | jq -r '.content[0].text // ""' 2>/dev/null)
+    if [[ -z "$result" ]]; then
+        log_error "Empty response from Opus"
+        return 4
+    fi
 
     # Try to extract JSON
     local json_result
