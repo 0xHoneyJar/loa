@@ -225,17 +225,28 @@ def _lookup_max_input_tokens(
     prompts well below their nominal `context_window`. The threshold here is
     a SEPARATE field from `context_window` — `context_window` is the model's
     advertised capacity; `max_input_tokens` is the field-observed prompt size
-    above which the cheval HTTP client path empties or disconnects. See
-    `grimoires/loa/known-failures.md` KF-002 for observed thresholds.
+    above which the cheval HTTP client path empties or disconnects.
+
+    cycle-103 sprint-3 T3.4 / AC-3.4 — streaming-vs-legacy split:
+      The model config may carry up to three fields:
+        - `streaming_max_input_tokens` — safe under streaming transport
+        - `legacy_max_input_tokens`    — safe under non-streaming legacy
+        - `max_input_tokens`           — backward-compat single value
+
+      When `LOA_CHEVAL_DISABLE_STREAMING=1` is set (operator killed
+      streaming), prefer `legacy_max_input_tokens`. Otherwise prefer
+      `streaming_max_input_tokens`. Fall back to `max_input_tokens` if
+      the preferred field is absent. This keeps the gate kill-switch
+      coherent with the transport in use — without the split, a kill
+      switch would still apply the streaming-safe ceiling (e.g. 200K)
+      to a legacy path that fails above 24K.
 
     cli_override semantics:
-      None: use config default (per-model `max_input_tokens` field; absent
-            means no gate fires)
+      None: use config default (split-aware per above)
       0:    explicit gate-disable for this call
       N>0:  explicit per-call threshold (overrides config)
 
-    Returns None when no gate should fire; positive integer = threshold in
-    estimated input tokens (charge: any kwarg with messages=...).
+    Returns None when no gate should fire; positive integer = threshold.
     """
     if cli_override is not None:
         if cli_override <= 0:
@@ -250,7 +261,21 @@ def _lookup_max_input_tokens(
     model_config = models.get(model_id, {})
     if not isinstance(model_config, dict):
         return None
-    threshold = model_config.get("max_input_tokens")
+
+    # T3.4 split-aware lookup. Operator kill switch decides which field.
+    import os
+    _streaming_killed = os.environ.get(
+        "LOA_CHEVAL_DISABLE_STREAMING", ""
+    ).strip().lower() in ("1", "true", "yes", "on")
+    preferred_field = (
+        "legacy_max_input_tokens" if _streaming_killed
+        else "streaming_max_input_tokens"
+    )
+
+    threshold = model_config.get(preferred_field)
+    if threshold is None:
+        # Backward-compat: legacy single-field configs.
+        threshold = model_config.get("max_input_tokens")
     if threshold is None:
         return None
     if not isinstance(threshold, int) or threshold <= 0:

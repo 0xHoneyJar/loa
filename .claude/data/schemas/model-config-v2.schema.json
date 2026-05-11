@@ -87,7 +87,17 @@
         "max_input_tokens": {
           "type": "integer",
           "minimum": 1,
-          "description": "Empirically-observed safe input-size threshold. Distinct from context_window (advertised capacity) — this is the field-observed prompt size above which cheval's HTTP path on this provider disconnects (KF-002 layer 3 / Loa #774). Optional. cycle-102 Sprint 1F."
+          "description": "Empirically-observed safe input-size threshold. Distinct from context_window (advertised capacity) — this is the field-observed prompt size above which cheval's HTTP path on this provider disconnects (KF-002 layer 3 / Loa #774). Optional. cycle-102 Sprint 1F. cycle-103 Sprint 3 T3.4: prefer `streaming_max_input_tokens` and `legacy_max_input_tokens` for new configs; this field remains as backward-compat fallback when the split fields are absent."
+        },
+        "streaming_max_input_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "cycle-103 Sprint 3 T3.4 / AC-3.4: streaming-transport safe input-size threshold. Active when `LOA_CHEVAL_DISABLE_STREAMING` is not set (default). Streaming-path KF-002 layer 3 wall is typically 4-7x higher than legacy (e.g. 180K-200K vs 24K-36K). Optional; falls back to `max_input_tokens` when absent."
+        },
+        "legacy_max_input_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "cycle-103 Sprint 3 T3.4 / AC-3.4: legacy-transport (non-streaming) safe input-size threshold. Active when `LOA_CHEVAL_DISABLE_STREAMING=1`. Reflects the pre-Sprint-4A field-observed wall (KF-002 layer 3: ~24K openai, ~36K anthropic). Optional; falls back to `max_input_tokens` when absent."
         },
         "token_param": {"type": "string"},
         "endpoint_family": {

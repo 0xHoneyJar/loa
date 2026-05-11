@@ -105,6 +105,13 @@ class ModelConfig:
 
     capabilities: List[str] = field(default_factory=list)
     context_window: int = 128000
+    # cycle-103 Sprint 3 T3.4: streaming-vs-legacy split for the
+    # cheval HTTP-asymmetry safe-input gate (KF-002 layer 3). When both
+    # are set, _lookup_max_input_tokens in cheval.py branches on the
+    # streaming kill switch. `max_input_tokens` remains as a backward-
+    # compat single-value fallback when the split fields are absent.
+    streaming_max_input_tokens: Optional[int] = None
+    legacy_max_input_tokens: Optional[int] = None
     token_param: str = "max_tokens"  # Wire name for max output tokens param (e.g., "max_completion_tokens" for GPT-5.2+)
     pricing: Optional[Dict[str, int]] = None  # {input_per_mtok, output_per_mtok} in micro-USD
     api_mode: Optional[str] = None  # "standard" (default) | "interactions" (Deep Research)
