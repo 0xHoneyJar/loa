@@ -79,6 +79,10 @@
     "kill_switch_active": {
       "description": "True iff LOA_FORCE_LEGACY_MODELS=1 at invocation time (SDD section 11 / gemini IMP-004 HIGH). Audits operator-driven legacy-mode use.",
       "type": "boolean"
+    },
+    "streaming": {
+      "description": "True iff the call used the Sprint 4A streaming transport (cycle-102 AC-4.5e). False if LOA_CHEVAL_DISABLE_STREAMING=1 routed the call through the legacy non-streaming http_post path. Additive field (Sprint 4A) — older audit entries written before this field existed will simply omit it; readers must handle absence as 'unknown' rather than 'false'.",
+      "type": "boolean"
     }
   }
 }

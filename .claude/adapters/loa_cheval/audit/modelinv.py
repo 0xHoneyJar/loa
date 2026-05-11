@@ -217,6 +217,20 @@ def _kill_switch_active() -> bool:
     return val.lower() in ("1", "true", "yes")
 
 
+def _streaming_active() -> bool:
+    """True iff the Sprint 4A streaming transport was used for this call.
+
+    Streaming is the default; the operator kill switch is
+    `LOA_CHEVAL_DISABLE_STREAMING=1` (matches the env-var routing in the
+    Anthropic / OpenAI / Google adapters' complete() methods).
+    """
+    return os.environ.get("LOA_CHEVAL_DISABLE_STREAMING", "").lower() not in (
+        "1",
+        "true",
+        "yes",
+    )
+
+
 def emit_model_invoke_complete(
     *,
     models_requested: List[str],
@@ -228,6 +242,7 @@ def emit_model_invoke_complete(
     probe_latency_ms: Optional[int] = None,
     invocation_latency_ms: Optional[int] = None,
     cost_micro_usd: Optional[int] = None,
+    streaming: Optional[bool] = None,
 ) -> None:
     """Emit a model.invoke.complete envelope to the MODELINV audit chain.
 
@@ -265,6 +280,10 @@ def emit_model_invoke_complete(
         "models_failed": models_failed,
         "operator_visible_warn": operator_visible_warn,
         "kill_switch_active": _kill_switch_active(),
+        # Sprint 4A: surface whether the streaming transport was used.
+        # Default-derived from the env-var kill switch so callers don't have
+        # to pass it explicitly. Caller may override for tests / dry-runs.
+        "streaming": streaming if streaming is not None else _streaming_active(),
     }
     # Optional fields — only set when caller provides a value, so the
     # additionalProperties: false schema constraint stays satisfied.
