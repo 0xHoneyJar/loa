@@ -563,14 +563,33 @@ When a workaround promotes to a structural fix:
 
 ## KF-008: bridgebuilder Google API SocketError on large request bodies
 
-**Status**: OPEN — observed on 2026-05-11 during Sprint 4A post-merge BB
-test run; distinct from KF-001 (which was Happy Eyeballs pre-handshake;
-that fix held — Anthropic worked fine in today's runs). **Root cause
-isolated 2026-05-11 (cycle-103 T1.0 spike)**: failure is confined to BB
-Node `fetch` adapter; cheval Python `httpx` does **not** reproduce at
-172/250/318/400KB. Resolution path: cycle-103 Sprint 1 T1.2/T1.4 migrates
-BB Google adapter to the cheval delegate. Anticipated closure:
-post-Sprint-1 merge.
+**Status**: RESOLVED-architectural — **closed via cycle-103 Sprint 1
+unification (2026-05-11, T1.9)**. The failing code path (BB Node fetch
+adapter for Google) was retired by T1.4 (commit `92c0057e`) when
+`adapter-factory.ts` collapsed to `ChevalDelegateAdapter` and the three
+per-provider Node adapters were deleted. Every Google provider call from
+BB now flows: BB TS → `python3 cheval.py` → cheval `httpx` to
+`generativelanguage.googleapis.com`. The T1.0 spike (commit `bed7db56`)
+proved cheval `httpx` does NOT reproduce the failure at 172/250/318/400KB.
+T1.7 (commit `14689c26`) ships the CI drift gate that fails any future PR
+that reintroduces a Node-side direct fetch path.
+
+**Closure caveat**: architectural closure is sufficient for the ledger
+(the code path that produced the SocketError no longer exists in BB).
+Operator-side live BB re-run on PR #844 (or a fresh ≥300KB test fixture)
+is the empirical confirmation; gated on the cycle-103 branch reaching
+operator-deployment. AC-1.6 path (a) "closes via cheval httpx" — MET.
+
+Original observation context preserved below for archaeological purposes.
+
+**Status (original)**: OPEN — observed on 2026-05-11 during Sprint 4A
+post-merge BB test run; distinct from KF-001 (which was Happy Eyeballs
+pre-handshake; that fix held — Anthropic worked fine in today's runs).
+**Root cause isolated 2026-05-11 (cycle-103 T1.0 spike)**: failure was
+confined to BB Node `fetch` adapter; cheval Python `httpx` did **not**
+reproduce at 172/250/318/400KB. Resolution path: cycle-103 Sprint 1
+T1.2/T1.4 migrated BB Google adapter to the cheval delegate. Closure:
+post-Sprint-1 merge (T1.9, this entry).
 
 **Feature**: `/bridgebuilder` Google provider via
 `.claude/skills/bridgebuilder-review/resources/adapters/google` (Node fetch
@@ -628,6 +647,7 @@ infrastructure articulating its own failure mode AGAIN).
 | not tried | Reproduce with smaller diff (split PR #844 into 2-3 smaller PRs) | — | proposed in #845: would identify whether the failure threshold is at ~150KB / 200KB / 250KB / 290KB |
 | not tried | Reproduce on a different network (mobile hotspot vs home/office) | — | proposed in #845: would distinguish operator-machine-network vs upstream provider |
 | not tried | Direct curl POST of the same ~300KB body to `streamGenerateContent` | — | proposed in #845: would isolate Node fetch vs upstream behavior. Three independent observations at ~300KB on the SAME PR within ~70 min strongly suggest the threshold is body-size-related, not transient. |
+| 2026-05-11 (T1.9 / AC-1.6) | **Cycle-103 Sprint 1 unification closes KF-008 architecturally.** T1.2 (`1e1381dd`) lands `ChevalDelegateAdapter`; T1.4 (`92c0057e`) collapses `adapter-factory.ts` and deletes `adapters/google.ts` (the failing path); T1.6 (`b430e48e`) migrates Flatline chat sites; T1.7 (`14689c26`) ships the CI drift gate that fails any reintroduction of a Node-side direct fetch. Every Google call from BB now routes through cheval `httpx` (T1.0 spike already proved this path does NOT reproduce the failure at 172/250/318/400KB). | **CLOSED-ARCHITECTURAL** — the BB Node fetch adapter that produced the `SocketError: other side closed` no longer exists. Live operator-side re-run on PR #844 (or a fresh ≥300KB test fixture) is the empirical confirmation; deferred to operator deployment. AC-1.6 path (a) "closes via cheval httpx" — MET. M3 cycle-exit invariant: MET. | Sprint 1 commits `1e1381dd` + `92c0057e` + `b430e48e` + `14689c26`; T1.9 report at `grimoires/loa/cycles/cycle-103-provider-unification/handoffs/T1.9-implementation-report.md` |
 
 ### Reading guide
 
