@@ -20,6 +20,11 @@ from loa_cheval.providers.base import (
     ProviderAdapter,
     enforce_context_window,
     http_post,
+    http_post_stream,
+)
+from loa_cheval.providers.openai_streaming import (
+    parse_openai_chat_stream,
+    parse_openai_responses_stream,
 )
 from loa_cheval.types import (
     CompletionRequest,
@@ -90,7 +95,14 @@ class OpenAIAdapter(ProviderAdapter):
         return family
 
     def complete(self, request: CompletionRequest) -> CompletionResult:
-        """Send completion request to OpenAI API, return normalized result."""
+        """Send completion request to OpenAI API, return normalized result.
+
+        Sprint 4A (cycle-102, AC-4.5e): streaming is the default path for both
+        /chat/completions and /v1/responses endpoint families. The
+        non-streaming path is preserved behind LOA_CHEVAL_DISABLE_STREAMING=1
+        as a one-shot operator backstop. Streaming eliminates KF-002 layer 3
+        (>60s-wait-for-first-byte → RemoteProtocolError) by construction.
+        """
         model_config = self._get_model_config(request.model)
 
         # Context window enforcement (SDD §4.2.4)
@@ -113,6 +125,88 @@ class OpenAIAdapter(ProviderAdapter):
             url = f"{self.config.endpoint}/chat/completions"
             body = self._build_chat_body(request, model_config)
 
+        streaming_disabled = os.environ.get("LOA_CHEVAL_DISABLE_STREAMING") == "1"
+        if streaming_disabled:
+            return self._complete_nonstreaming(url, headers, body, family)
+        return self._complete_streaming(url, headers, body, family)
+
+    def _complete_streaming(
+        self,
+        url: str,
+        headers: Dict[str, str],
+        body: Dict[str, Any],
+        family: str,
+    ) -> CompletionResult:
+        """Sprint 4A streaming default path for both endpoint families."""
+        body = dict(body)
+        body["stream"] = True
+        # Request usage in the final chunk for /chat/completions (the
+        # `stream_options.include_usage` flag). The /v1/responses path
+        # carries usage on `response.completed` by default — no flag.
+        if family != "responses":
+            body["stream_options"] = {"include_usage": True}
+
+        start = time.monotonic()
+        with http_post_stream(
+            url=url,
+            headers=headers,
+            body=body,
+            connect_timeout=self.config.connect_timeout,
+            read_timeout=self.config.read_timeout,
+        ) as resp:
+            status = resp.status_code
+
+            if status >= 400:
+                err_bytes = b"".join(resp.iter_bytes())
+                try:
+                    err_json = json.loads(err_bytes.decode("utf-8", errors="replace"))
+                except Exception:
+                    err_json = {
+                        "error": {
+                            "message": err_bytes.decode("utf-8", errors="replace")[:500]
+                        }
+                    }
+                if status == 429:
+                    raise RateLimitError(self.provider)
+                if status >= 500:
+                    raise ProviderUnavailableError(
+                        self.provider,
+                        f"HTTP {status}: {_extract_error_message(err_json)}",
+                    )
+                raise InvalidInputError(
+                    f"OpenAI API error (HTTP {status}): {_extract_error_message(err_json)}"
+                )
+
+            if family == "responses":
+                result = parse_openai_responses_stream(
+                    resp.iter_bytes(), provider=self.provider
+                )
+            else:
+                result = parse_openai_chat_stream(
+                    resp.iter_bytes(), provider=self.provider
+                )
+
+        latency_ms = int((time.monotonic() - start) * 1000)
+        return CompletionResult(
+            content=result.content,
+            tool_calls=result.tool_calls,
+            thinking=result.thinking,
+            usage=result.usage,
+            model=result.model,
+            latency_ms=latency_ms,
+            provider=result.provider,
+            metadata=result.metadata,
+        )
+
+    def _complete_nonstreaming(
+        self,
+        url: str,
+        headers: Dict[str, str],
+        body: Dict[str, Any],
+        family: str,
+    ) -> CompletionResult:
+        """Legacy non-streaming path retained behind LOA_CHEVAL_DISABLE_STREAMING=1
+        kill switch (Sprint 4A operator backstop)."""
         start = time.monotonic()
 
         status, resp = http_post(
