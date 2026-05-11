@@ -27,6 +27,33 @@ if [[ -f .env.local ]]; then
   set -a; source .env.local; set +a
 fi
 
+# ============================================================================
+# VESTIGIAL — cycle-103 sprint-1 T1.8 / AC-1.3
+# ============================================================================
+# This NODE_OPTIONS Happy Eyeballs fix is preserved at merge time per AC-1.5
+# but is no longer load-bearing. After cycle-103 sprint-1 unification, BB no
+# longer issues fetch() to provider APIs from Node — every LLM-API call goes
+# through .claude/adapters/cheval.py (via ChevalDelegateAdapter, commits
+# 1e1381dd + 92c0057e). Python httpx does not depend on Node's
+# --network-family-autoselection-attempt-timeout. The KF-001 failure mode
+# the flag was added to mitigate (cross-model degradation on
+# slow-but-reachable IPv4 paths) is now isolated to whatever Node fetch
+# remains in github-cli.ts and similar GitHub-API paths — NOT to LLM calls.
+#
+# TODO(cycle-104): remove this entire NODE_OPTIONS block AND its companion
+# LOA_BB_DISABLE_FAMILY_TIMEOUT_FIX env hatch. Removal is gated on:
+#   1. Observable operator-green signal across ≥1 full cycle that the
+#      cheval delegate path remains the BB hot path for provider calls
+#      (i.e., no operator has flipped LOA_BB_FORCE_LEGACY_FETCH=1).
+#   2. Confirmation that github-cli.ts and other Node fetch sites do not
+#      hit the same Happy Eyeballs failure mode (KF-001 is provider-API
+#      specific per the original diagnostic).
+# Until both gates are met, the flag stays for safety.
+#
+# Tracked by tests/unit/entry-sh-node-options-vestigial.bats which fails
+# if the VESTIGIAL marker is removed without the companion cycle-104
+# removal landing.
+# ============================================================================
 # Happy Eyeballs autoselection-attempt-timeout (cycle-102 sprint-1E / KF-001 fix).
 #
 # Node 20+ undici fetch uses RFC 8305 Happy Eyeballs to race concurrent IPv6 +
