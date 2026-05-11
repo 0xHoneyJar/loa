@@ -8,7 +8,7 @@ import type { IContextStore } from "../ports/context-store.js";
 import type { BridgebuilderConfig } from "../core/types.js";
 
 import { GitHubCLIAdapter } from "./github-cli.js";
-import { AnthropicAdapter } from "./anthropic.js";
+import { ChevalDelegateAdapter } from "./cheval-delegate.js";
 import { PatternSanitizer } from "./sanitizer.js";
 import { NodeHasher } from "./node-hasher.js";
 import { ConsoleLogger } from "./console-logger.js";
@@ -29,6 +29,10 @@ export function createLocalAdapters(
   config: BridgebuilderConfig,
   anthropicApiKey: string,
 ): LocalAdapters {
+  // cycle-103 T1.4: anthropicApiKey is still required (single-model BB
+  // defaults to Anthropic). Credential value crosses the subprocess boundary
+  // via env inheritance — passing it here is the operator's pre-flight check
+  // that ANTHROPIC_API_KEY is set in the parent environment.
   if (!anthropicApiKey) {
     throw new Error(
       "ANTHROPIC_API_KEY required. Set it in your environment: export ANTHROPIC_API_KEY=sk-ant-...",
@@ -47,7 +51,10 @@ export function createLocalAdapters(
   return {
     git: ghAdapter,
     poster: ghAdapter,
-    llm: new AnthropicAdapter(anthropicApiKey, config.model, timeoutMs),
+    llm: new ChevalDelegateAdapter({
+      model: config.model,
+      timeoutMs,
+    }),
     sanitizer: new PatternSanitizer(),
     hasher: new NodeHasher(),
     logger: new ConsoleLogger(),
@@ -55,12 +62,12 @@ export function createLocalAdapters(
   };
 }
 
-// Re-export individual adapters for testing
+// Re-export individual adapters for testing.
+// cycle-103 T1.4: AnthropicAdapter / OpenAIAdapter / GoogleAdapter retired —
+// see git history for the legacy per-provider implementations.
 export { GitHubCLIAdapter } from "./github-cli.js";
 export type { GitHubCLIAdapterConfig } from "./github-cli.js";
-export { AnthropicAdapter } from "./anthropic.js";
-export { OpenAIAdapter } from "./openai.js";
-export { GoogleAdapter } from "./google.js";
+export { ChevalDelegateAdapter } from "./cheval-delegate.js";
 export { PatternSanitizer } from "./sanitizer.js";
 export { NodeHasher } from "./node-hasher.js";
 export { ConsoleLogger } from "./console-logger.js";

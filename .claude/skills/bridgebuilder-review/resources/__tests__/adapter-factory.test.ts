@@ -1,91 +1,92 @@
+// cycle-103 Sprint 1 T1.4 — adapter-factory contract tests.
+//
+// Post-cycle-103: the factory returns ChevalDelegateAdapter for any provider.
+// The registry concept (registerAdapter / getRegisteredProviders) was retired
+// with the per-provider adapters. These tests pin the new universal-delegate
+// behavior.
+
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import {
-  createAdapter,
-  registerAdapter,
-  getRegisteredProviders,
-} from "../adapters/adapter-factory.js";
-import type { ILLMProvider, ReviewRequest, ReviewResponse } from "../ports/llm-provider.js";
+import { createAdapter } from "../adapters/adapter-factory.js";
+import { ChevalDelegateAdapter } from "../adapters/cheval-delegate.js";
 
-describe("createAdapter", () => {
-  it("creates Anthropic adapter for known provider", () => {
+describe("createAdapter (T1.4 — universal cheval delegate)", () => {
+  it("returns a ChevalDelegateAdapter for anthropic", () => {
     const adapter = createAdapter({
       provider: "anthropic",
-      modelId: "claude-opus-4-6",
-      apiKey: "sk-ant-test",
+      modelId: "claude-opus-4-7",
+      apiKey: "sk-ant-ignored-by-delegate",
       timeoutMs: 60_000,
     });
-    assert.ok(adapter);
+    assert.ok(adapter instanceof ChevalDelegateAdapter);
     assert.equal(typeof adapter.generateReview, "function");
   });
 
-  it("throws for unknown provider", () => {
-    assert.throws(
-      () =>
-        createAdapter({
-          provider: "unknown-provider",
-          modelId: "some-model",
-          apiKey: "key",
-        }),
-      (err: Error) => {
-        assert.ok(err.message.includes("Unknown provider"));
-        assert.ok(err.message.includes("unknown-provider"));
-        assert.ok(err.message.includes("anthropic")); // lists available
-        return true;
-      },
-    );
+  it("returns a ChevalDelegateAdapter for openai", () => {
+    const adapter = createAdapter({
+      provider: "openai",
+      modelId: "gpt-5.5-pro",
+      apiKey: "sk-ignored",
+    });
+    assert.ok(adapter instanceof ChevalDelegateAdapter);
+  });
+
+  it("returns a ChevalDelegateAdapter for google", () => {
+    const adapter = createAdapter({
+      provider: "google",
+      modelId: "gemini-3.1-pro-preview",
+      apiKey: "AIzaIgnored",
+    });
+    assert.ok(adapter instanceof ChevalDelegateAdapter);
+  });
+
+  it("returns a ChevalDelegateAdapter for any provider — cheval handles resolution", () => {
+    // Post-cycle-103: unknown providers don't throw at factory time. Cheval's
+    // resolver maps modelId → provider via model-config.yaml; an unrecognized
+    // modelId surfaces as cheval exit 2 → LLMProviderError(INVALID_REQUEST) at
+    // call time.
+    const adapter = createAdapter({
+      provider: "unknown-provider-xyz",
+      modelId: "claude-opus-4-7",
+      apiKey: "k",
+    });
+    assert.ok(adapter instanceof ChevalDelegateAdapter);
+  });
+
+  it("apiKey and costRates are accepted but ignored (backward-compat)", () => {
+    // Caller (multi-model-pipeline.ts) threads env-derived API keys into the
+    // factory. Delegate uses env-inheritance directly, so the value is unused.
+    // Accepting the field keeps the caller stable. costRates are also
+    // accepted; cost tracking now lives entirely on the cheval side.
+    const adapter = createAdapter({
+      provider: "anthropic",
+      modelId: "claude-opus-4-7",
+      apiKey: "sk-ant-anything",
+      costRates: { input: 0.000003, output: 0.000015 },
+    });
+    assert.ok(adapter instanceof ChevalDelegateAdapter);
   });
 
   it("uses default timeout when not specified", () => {
-    // Should not throw — default timeout applies
     const adapter = createAdapter({
       provider: "anthropic",
-      modelId: "claude-opus-4-6",
+      modelId: "claude-opus-4-7",
       apiKey: "sk-ant-test",
     });
-    assert.ok(adapter);
+    assert.ok(adapter instanceof ChevalDelegateAdapter);
   });
-});
 
-describe("registerAdapter", () => {
-  it("registers and creates a custom provider", () => {
-    const mockProvider: ILLMProvider = {
-      async generateReview(_req: ReviewRequest): Promise<ReviewResponse> {
-        return {
-          content: "mock review",
-          inputTokens: 100,
-          outputTokens: 50,
-          model: "mock-model",
-          provider: "mock",
-        };
-      },
-    };
-
-    registerAdapter("mock", () => mockProvider);
-
+  it("threads mockFixtureDir when provided (AC-1.2 substrate)", () => {
+    // Constructor accepts the option; the delegate forwards it as the cheval
+    // --mock-fixture-dir argv flag at generateReview time. We don't call
+    // generateReview here — that would spawn python3. The fact the
+    // constructor accepts the option without throwing is the contract pin.
     const adapter = createAdapter({
-      provider: "mock",
-      modelId: "mock-model",
-      apiKey: "mock-key",
+      provider: "anthropic",
+      modelId: "claude-opus-4-7",
+      apiKey: "sk-ant-test",
+      mockFixtureDir: "/tmp/fixture-dir",
     });
-    assert.ok(adapter);
-    assert.equal(adapter, mockProvider);
-  });
-});
-
-describe("getRegisteredProviders", () => {
-  it("includes anthropic in registered providers", () => {
-    const providers = getRegisteredProviders();
-    assert.ok(providers.includes("anthropic"));
-  });
-
-  it("includes custom registered providers", () => {
-    registerAdapter("test-provider", () => ({
-      async generateReview(): Promise<ReviewResponse> {
-        return { content: "", inputTokens: 0, outputTokens: 0, model: "" };
-      },
-    }));
-    const providers = getRegisteredProviders();
-    assert.ok(providers.includes("test-provider"));
+    assert.ok(adapter instanceof ChevalDelegateAdapter);
   });
 });
