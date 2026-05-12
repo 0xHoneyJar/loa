@@ -25,6 +25,7 @@
         "FALLBACK_EXHAUSTED",
         "PROVIDER_OUTAGE",
         "LOCAL_NETWORK_FAILURE",
+        "EMPTY_CONTENT",
         "UNKNOWN"
       ]
     },

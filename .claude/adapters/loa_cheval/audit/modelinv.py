@@ -335,6 +335,9 @@ def emit_model_invoke_complete(
     invocation_latency_ms: Optional[int] = None,
     cost_micro_usd: Optional[int] = None,
     streaming: Optional[bool] = None,
+    final_model_id: Optional[str] = None,
+    transport: Optional[str] = None,
+    config_observed: Optional[Dict[str, str]] = None,
 ) -> None:
     """Emit a model.invoke.complete envelope to the MODELINV audit chain.
 
@@ -400,6 +403,22 @@ def emit_model_invoke_complete(
         payload["invocation_latency_ms"] = invocation_latency_ms
     if cost_micro_usd is not None:
         payload["cost_micro_usd"] = cost_micro_usd
+    # cycle-104 Sprint 2 T2.6 (FR-S2.3 / SDD §3.4): chain-walk evidence.
+    # final_model_id, transport, config_observed are additive — the schema's
+    # additionalProperties:false constraint means we only attach them when
+    # populated to keep backward-compat with single-model emitters that
+    # haven't been migrated.
+    if final_model_id is not None:
+        payload["final_model_id"] = final_model_id
+    if transport is not None:
+        if transport not in ("http", "cli"):
+            raise ValueError(
+                f"emit_model_invoke_complete: transport must be 'http' or "
+                f"'cli', got {transport!r}"
+            )
+        payload["transport"] = transport
+    if config_observed is not None:
+        payload["config_observed"] = dict(config_observed)
 
     # Field-level redaction.
     payload = redact_payload_strings(payload)

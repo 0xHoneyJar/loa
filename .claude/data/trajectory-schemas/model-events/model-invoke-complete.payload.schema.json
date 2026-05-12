@@ -27,7 +27,7 @@
       "items": { "type": "string" }
     },
     "models_failed": {
-      "description": "Per-model failure record. Structurally compatible with the model-error.schema.json envelope but inlined here for audit-query ergonomics. The error_class enum is referenced from model-error.schema.json — keep in sync.",
+      "description": "Per-model failure record. Structurally compatible with the model-error.schema.json envelope but inlined here for audit-query ergonomics. The error_class enum is referenced from model-error.schema.json — keep in sync. cycle-104 Sprint 2 (T2.6): added optional 'provider' (per-entry provider) and 'missing_capabilities' (populated when error_class=CAPABILITY_MISS). Records appear in chain-walk order.",
       "type": "array",
       "items": {
         "type": "object",
@@ -41,7 +41,17 @@
           "message_redacted": { "type": "string", "maxLength": 8192 },
           "fallback_from": { "type": "string", "minLength": 1 },
           "fallback_to": { "type": "string", "minLength": 1 },
-          "retryable": { "type": "boolean" }
+          "retryable": { "type": "boolean" },
+          "provider": {
+            "description": "cycle-104 Sprint 2 (T2.6 / FR-S2.3). Provider key for this entry (e.g. openai, anthropic, google). Optional for backward compat; new emitters MUST populate.",
+            "type": "string",
+            "minLength": 1
+          },
+          "missing_capabilities": {
+            "description": "cycle-104 Sprint 2 (FR-S2.7). Populated when error_class=CAPABILITY_MISS; lists the capabilities the request required that this entry does not declare.",
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          }
         }
       }
     },
@@ -83,6 +93,37 @@
     "streaming": {
       "description": "True iff the call used the Sprint 4A streaming transport (cycle-102 AC-4.5e). False if LOA_CHEVAL_DISABLE_STREAMING=1 routed the call through the legacy non-streaming http_post path. Additive field (Sprint 4A) — older audit entries written before this field existed will simply omit it; readers must handle absence as 'unknown' rather than 'false'.",
       "type": "boolean"
+    },
+    "final_model_id": {
+      "description": "cycle-104 Sprint 2 (T2.6 / FR-S2.3). The model that produced the result, in provider:model_id form. May differ from models_requested[0] when within-company chain walked to a fallback entry. Null/absent when models_succeeded is empty (chain exhausted).",
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*:[a-zA-Z0-9._-]+$"
+        }
+      ]
+    },
+    "transport": {
+      "description": "cycle-104 Sprint 2 (T2.6). Transport of the FINAL successful entry — derived from its adapter_kind. 'http' for streaming/non-streaming HTTP adapters; 'cli' for headless subprocess adapters (claude-headless, codex-headless, gemini-headless). Null/absent when chain exhausted.",
+      "anyOf": [
+        { "type": "null" },
+        { "enum": ["http", "cli"] }
+      ]
+    },
+    "config_observed": {
+      "description": "cycle-104 Sprint 2 (T2.6). Audit-the-mode-source per PRD §1.3 axiom 2. Captures the operator-effective headless routing mode AND the precedence layer it came from (env > config > default), so audit consumers can prove which knob produced the chain walk shape.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["headless_mode", "headless_mode_source"],
+      "properties": {
+        "headless_mode": {
+          "enum": ["prefer-api", "prefer-cli", "api-only", "cli-only"]
+        },
+        "headless_mode_source": {
+          "enum": ["env", "config", "default"]
+        }
+      }
     }
   }
 }
