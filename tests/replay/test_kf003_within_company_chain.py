@@ -142,42 +142,71 @@ def _invoke_cheval_chain(prompt: str, model_alias: str) -> tuple[int, str, str, 
     """Invoke cheval with an alias whose fallback_chain is populated.
 
     Returns (exit_code, stdout, stderr_preview, parsed_audit_record).
-    The audit record is extracted from the MODELINV envelope in the
-    trajectory log. If the envelope can't be parsed, audit_record is
-    `{}` and the trial is recorded as best-effort.
+
+    Per-trial isolation: each call sets `LOA_MODELINV_LOG_PATH` to a
+    fresh tempfile so the trial's MODELINV envelope is recoverable
+    deterministically, without grepping the project-shared
+    `.run/model-invoke.jsonl` for the most-recent entry (which would
+    race across parallel pytest workers).
+
+    ARG_MAX defense: prompts at 80K tokens (~320K chars) exceed Linux
+    ARG_MAX as an argv string; we write to a tempfile and use
+    `--input <path>` instead of `--prompt <text>`.
     """
     if not CHEVAL.is_file():
         pytest.skip(f"cheval.py not at {CHEVAL}")
 
-    # Spawn cheval with --output-format json so stdout is structured.
-    cmd = [
-        sys.executable,
-        str(CHEVAL),
-        "invoke",
-        "--agent",
-        "flatline-reviewer",
-        "--model",
-        model_alias,
-        "--prompt",
-        prompt,
-        "--output-format",
-        "json",
-        "--json-errors",
-        "--timeout",
-        "300",
-    ]
-    started = datetime.now(timezone.utc)
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=320)
-    latency_ms = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
+    import tempfile
+    prompt_file = tempfile.NamedTemporaryFile(
+        mode="w", suffix=".txt", delete=False, encoding="utf-8"
+    )
+    modelinv_log = tempfile.NamedTemporaryFile(
+        mode="w", suffix=".jsonl", delete=False, encoding="utf-8"
+    )
+    modelinv_log.close()
+    try:
+        prompt_file.write(prompt)
+        prompt_file.flush()
+        prompt_file.close()
 
-    # Best-effort MODELINV extraction: cheval prints final-envelope JSON
-    # to stdout. Try to parse.
-    audit: dict[str, Any] = {}
-    if proc.stdout.strip():
+        env = {**os.environ, "LOA_MODELINV_LOG_PATH": modelinv_log.name}
+
+        cmd = [
+            sys.executable,
+            str(CHEVAL),
+            "--agent",
+            "flatline-reviewer",
+            "--model",
+            model_alias,
+            "--input",
+            prompt_file.name,
+            "--output-format",
+            "json",
+            "--json-errors",
+            "--timeout",
+            "300",
+        ]
+        started = datetime.now(timezone.utc)
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=320, env=env)
+        latency_ms = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
+
+        # Read the per-trial MODELINV envelope from its dedicated log.
+        # The audit envelope is wrapped (audit-emit envelope contains
+        # `payload` with the MODELINV body); extract the payload.
+        audit: dict[str, Any] = {}
         try:
-            audit = json.loads(proc.stdout.splitlines()[-1])
-        except (json.JSONDecodeError, IndexError):
+            with open(modelinv_log.name, "r", encoding="utf-8") as f:
+                # Last line should be the model.invoke.complete envelope
+                lines = [ln for ln in f if ln.strip()]
+                if lines:
+                    envelope = json.loads(lines[-1])
+                    # audit_emit envelope shape: {..., "payload": {...}, ...}
+                    audit = envelope.get("payload") or envelope
+        except (OSError, json.JSONDecodeError):
             pass
+    finally:
+        Path(prompt_file.name).unlink(missing_ok=True)
+        Path(modelinv_log.name).unlink(missing_ok=True)
 
     return proc.returncode, proc.stdout, proc.stderr[:500], audit | {"_latency_ms": latency_ms}
 
@@ -190,10 +219,15 @@ def _ensure_results_dir() -> Path:
     return RESULTS_DIR
 
 
+# Session-scoped output file: every trial in one pytest invocation
+# appends to the same JSONL so the aggregate test can read the whole
+# matrix. Computed once at module load.
+_SESSION_RESULTS_TS = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
 def _results_path() -> Path:
     _ensure_results_dir()
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    return RESULTS_DIR / f"kf003-results-{ts}.jsonl"
+    return RESULTS_DIR / f"kf003-results-{_SESSION_RESULTS_TS}.jsonl"
 
 
 # ---- 6. The replay matrix --------------------------------------------------
