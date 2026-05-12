@@ -14,33 +14,52 @@ name: no-direct-llm-fetch (cycle-103 drift gate)
 on:
   pull_request:
     paths:
-      # Re-run when the scanner / allowlist / workflow itself changes.
+      # Re-run when EITHER scanner / allowlist / workflow itself changes.
+      # cycle-104 sprint-3 T3.6: extended to cover the new BB-only scanner
+      # (tools/check-bb-no-direct-fetch.sh) so its allowlist + source
+      # changes also trip CI.
       - 'tools/check-no-direct-llm-fetch.sh'
       - 'tools/check-no-direct-llm-fetch.allowlist'
+      - 'tools/check-bb-no-direct-fetch.sh'
+      - 'tools/check-bb-no-direct-fetch.allowlist'
       - '.github/workflows/no-direct-llm-fetch.yml'
       # Re-run when any file in scan scope changes.
       - '.claude/skills/**/*.ts'
       - '.claude/skills/**/*.tsx'
+      - '.claude/skills/**/*.js'
+      - '.claude/skills/**/*.mjs'
       - '.claude/skills/**/*.sh'
       - '.claude/skills/**/*.bash'
       - '.claude/skills/**/*.py'
       - '.claude/scripts/**/*.sh'
       - '.claude/scripts/**/*.bash'
       - '.claude/scripts/**/*.py'
+      # Positive-control fixture: re-run when the fixture changes so a
+      # regression in the fixture itself surfaces immediately.
+      - 'tests/fixtures/parallel-dispatch-fetch-positive.ts'
+      - 'tests/unit/test_no_direct_fetch_extended.bats'
+      - 'tests/unit/test_bb_zero_direct_fetch.bats'
   push:
     branches: [main]
     paths:
       - 'tools/check-no-direct-llm-fetch.sh'
       - 'tools/check-no-direct-llm-fetch.allowlist'
+      - 'tools/check-bb-no-direct-fetch.sh'
+      - 'tools/check-bb-no-direct-fetch.allowlist'
       - '.github/workflows/no-direct-llm-fetch.yml'
       - '.claude/skills/**/*.ts'
       - '.claude/skills/**/*.tsx'
+      - '.claude/skills/**/*.js'
+      - '.claude/skills/**/*.mjs'
       - '.claude/skills/**/*.sh'
       - '.claude/skills/**/*.bash'
       - '.claude/skills/**/*.py'
       - '.claude/scripts/**/*.sh'
       - '.claude/scripts/**/*.bash'
       - '.claude/scripts/**/*.py'
+      - 'tests/fixtures/parallel-dispatch-fetch-positive.ts'
+      - 'tests/unit/test_no_direct_fetch_extended.bats'
+      - 'tests/unit/test_bb_zero_direct_fetch.bats'
 
 permissions:
   contents: read
@@ -72,10 +91,40 @@ jobs:
             exit 1
           fi
 
-      - name: Run drift gate
+      - name: Run drift gate (repo-wide)
         run: |
           set -euo pipefail
           # The scanner exits 0 on clean, 1 on violations. We want the
           # job to fail on violations — let `set -e` propagate the exit
           # code unchanged so the CI annotation maps to "drift detected".
           ./tools/check-no-direct-llm-fetch.sh
+
+      # cycle-104 sprint-3 T3.6: narrower BB-only scan. Catches raw-HTTP
+      # primitives (fetch / https.request / undici / node:https) in BB
+      # resources that bypass ChevalDelegateAdapter. Allowlist exempts
+      # github-cli.ts (legitimate non-LLM HTTP use).
+      - name: Run BB-only no-direct-fetch scan
+        run: |
+          set -euo pipefail
+          test -x tools/check-bb-no-direct-fetch.sh
+          ./tools/check-bb-no-direct-fetch.sh
+
+      # cycle-104 sprint-3 T3.2: positive-control verification. The
+      # fixture lives outside the default scan roots so it doesn't
+      # self-trigger on the repo-wide scan; we point the scanner at a
+      # scratch dir containing only the fixture and assert exit 1.
+      # If this step succeeds (i.e., scanner exits 0 on the fixture),
+      # the scanner has silently regressed and ALL clean-tree green
+      # signals are unreliable. Failing this step closes the negative-
+      # proof gap.
+      - name: Positive-control fixture must trip the gate
+        run: |
+          set -euo pipefail
+          scratch="$(mktemp -d)"
+          cp tests/fixtures/parallel-dispatch-fetch-positive.ts "$scratch/"
+          if ./tools/check-no-direct-llm-fetch.sh --root "$scratch" --quiet; then
+            echo "::error::Scanner failed to detect known-bad fixture — scanner has silently regressed."
+            exit 1
+          fi
+          rm -rf "$scratch"
+          echo "OK: positive control trips the gate."
