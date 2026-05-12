@@ -438,6 +438,12 @@ def _validate_endpoint_family(merged: Dict[str, Any]) -> None:
                 f"{type(model_data).__name__} ({model_data!r}). "
                 f"Check your .loa.config.yaml or System Zone defaults file."
             )
+        # cycle-104 Sprint 2: CLI-kind models bypass the endpoint_family
+        # check — they don't route through /v1/chat or /v1/responses at
+        # all; dispatch is via local subprocess (SDD §1.4.1, §3.2). The
+        # field is HTTP-specific by definition.
+        if model_data.get("kind") == "cli":
+            continue
         family = model_data.get("endpoint_family")
         if family is None:
             if backstop_active:
