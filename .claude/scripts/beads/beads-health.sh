@@ -418,26 +418,43 @@ main() {
 
     # If binary not found, stop here
     if [[ "${CHECKS[binary]}" == "not_found" ]]; then
-        local status="NOT_INSTALLED"
-        if [[ "${OUTPUT_MODE}" == "json" ]]; then
-            output_json "${status}" 1
+        # cycle-105 sprint-2 T2.3 amendment: --repair operates at the
+        # SQLite layer and does NOT require `br` to be installed (in fact
+        # the most common reason to invoke --repair is when br IS broken).
+        # When --repair is set and a database exists at the configured
+        # LOA_BEADS_DIR path, fall through to the migration check + repair
+        # block below instead of exiting NOT_INSTALLED.
+        if [[ "${REPAIR}" == true && -f "${BEADS_DIR}/beads.db" ]]; then
+            : # fall through
         else
-            output_text "${status}"
+            local status="NOT_INSTALLED"
+            if [[ "${OUTPUT_MODE}" == "json" ]]; then
+                output_json "${status}" 1
+            else
+                output_text "${status}"
+            fi
+            exit 1
         fi
-        exit 1
     fi
 
     check_initialized || true
 
-    # If not initialized, stop here
+    # If not initialized, stop here — UNLESS --repair is set and a
+    # database file exists (operator may be running --repair from a
+    # context where .beads is present but lacks the canonical
+    # init-marker file).
     if [[ "${CHECKS[initialized]}" == "false" ]]; then
-        local status="NOT_INITIALIZED"
-        if [[ "${OUTPUT_MODE}" == "json" ]]; then
-            output_json "${status}" 2
+        if [[ "${REPAIR}" == true && -f "${BEADS_DIR}/beads.db" ]]; then
+            : # fall through to migration check + repair
         else
-            output_text "${status}"
+            local status="NOT_INITIALIZED"
+            if [[ "${OUTPUT_MODE}" == "json" ]]; then
+                output_json "${status}" 2
+            else
+                output_text "${status}"
+            fi
+            exit 2
         fi
-        exit 2
     fi
 
     # Run remaining checks
