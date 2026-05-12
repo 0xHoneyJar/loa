@@ -229,6 +229,12 @@ class ClaudeHeadlessAdapter(ProviderAdapter):
         prompt: str,
     ) -> List[str]:
         """Build the claude argv. Headless, plan-mode (read-only), no tools."""
+        # cycle-104 sprint-2 T2.11 amendment: when the chain entry is a
+        # kind:cli alias (e.g. `claude-headless`) the CLI binary doesn't
+        # recognize the Loa alias as a model name. Honor `extra.cli_model`
+        # if declared so the operator can map the alias to a real CLI
+        # model identifier (e.g. `sonnet`, `opus`).
+        cli_model = (model_config.extra or {}).get("cli_model") or request.model
         cmd: List[str] = [
             self._claude_bin(),
             "-p",
@@ -243,7 +249,7 @@ class ClaudeHeadlessAdapter(ProviderAdapter):
             "--tools",
             "",
             "--model",
-            request.model,
+            cli_model,
         ]
 
         effort = self._resolve_effort(request, model_config)

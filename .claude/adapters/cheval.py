@@ -170,6 +170,66 @@ def _load_persona(agent_name: str, system_override: Optional[str] = None) -> Opt
         return None
 
 
+# cycle-104 Sprint 2 T2.11 amendment: kind:cli adapter routing.
+# `get_adapter(provider_config)` selects by `provider.type` (e.g. "anthropic"),
+# which returns the HTTP-flavored adapter for that provider. When a chain
+# entry carries `kind: cli` (chain_resolver._build_entry), dispatch MUST
+# route to the CLI-flavored adapter for the same provider instead — the HTTP
+# adapter unconditionally calls `_get_auth_header()` and bombs in cli-only
+# / zero-API-key environments (FR-S2.9 / AC-8).
+#
+# Map keyed by provider name (which corresponds to the provider block in
+# model-config.yaml) to the CLI adapter class registered in
+# loa_cheval.providers._ADAPTER_REGISTRY. Adding a new (provider, kind=cli)
+# pair = add a row here + a kind:cli entry in model-config.yaml. No change
+# to chain_resolver or get_adapter needed.
+_CLI_ADAPTER_BY_PROVIDER: Dict[str, str] = {
+    "anthropic": "claude-headless",
+    "openai": "codex-headless",
+    "google": "gemini-headless",
+}
+
+
+def _get_adapter_for_entry(entry: Any, hounfour: Dict[str, Any]):
+    """Select the adapter for a single ResolvedEntry honoring `adapter_kind`.
+
+    For `kind: http` entries, this is `get_adapter(_build_provider_config(...))`
+    — the legacy path that selects via `provider.type`.
+
+    For `kind: cli` entries, this looks up the CLI adapter type via
+    `_CLI_ADAPTER_BY_PROVIDER[entry.provider]` and constructs it directly
+    against the SAME provider block (so the operator's endpoint / auth
+    declarations are preserved for the HTTP siblings under the same
+    provider, but the CLI adapter never calls `_get_auth_header()`).
+
+    Raises `ConfigError` if a kind:cli entry's provider has no registered
+    CLI adapter — that's an operator config error (alias declared with
+    `kind: cli` for a provider that lacks a subscription-CLI binding).
+    """
+    provider_config = _build_provider_config(entry.provider, hounfour)
+    if getattr(entry, "adapter_kind", "http") == "cli":
+        cli_type = _CLI_ADAPTER_BY_PROVIDER.get(entry.provider)
+        if cli_type is None:
+            raise ConfigError(
+                f"Provider '{entry.provider}' has a kind:cli entry but no "
+                f"CLI adapter is registered. Supported CLI providers: "
+                f"{sorted(_CLI_ADAPTER_BY_PROVIDER.keys())}."
+            )
+        # Build a shallow-clone ProviderConfig with type overridden so
+        # get_adapter selects the CLI adapter class. All other fields
+        # (endpoint, auth, models, timeouts) flow through unchanged — the
+        # CLI adapter ignores the HTTP-specific ones. Tests that mock
+        # `_build_provider_config` to return a MagicMock won't have a
+        # dataclass instance; fall back to mutating the `.type` attribute
+        # directly (MagicMock accepts arbitrary attribute assignment).
+        from dataclasses import is_dataclass, replace as _dc_replace
+        if is_dataclass(provider_config) and not isinstance(provider_config, type):
+            return get_adapter(_dc_replace(provider_config, type=cli_type))
+        provider_config.type = cli_type
+        return get_adapter(provider_config)
+    return get_adapter(provider_config)
+
+
 def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> ProviderConfig:
     """Build ProviderConfig from merged hounfour config."""
     providers = config.get("providers", {})
@@ -756,9 +816,11 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                         continue
 
             # 3. Build adapter for THIS entry's provider; build entry request.
+            # T2.11 amendment: route kind:cli entries to the CLI-flavored
+            # adapter for the same provider (else HTTP adapter bombs on
+            # _get_auth_header in zero-API-key environments).
             try:
-                _provider_config = _build_provider_config(_entry.provider, hounfour)
-                _adapter = get_adapter(_provider_config)
+                _adapter = _get_adapter_for_entry(_entry, hounfour)
             except (ConfigError, InvalidInputError) as _e:
                 # Adapter wiring failure for THIS entry is treated as a
                 # routing miss (operator config error for this provider).

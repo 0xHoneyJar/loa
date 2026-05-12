@@ -229,6 +229,10 @@ class GeminiHeadlessAdapter(ProviderAdapter):
         prompt: str,
     ) -> List[str]:
         """Build the gemini argv. Headless, plan-mode (read-only), trusted."""
+        # cycle-104 sprint-2 T2.11 amendment: honor `extra.cli_model`
+        # so a kind:cli alias (`gemini-headless`) translates to the real
+        # gemini model id the CLI binary expects.
+        cli_model = (model_config.extra or {}).get("cli_model") or request.model
         cmd: List[str] = [
             self._gemini_bin(),
             "-p",
@@ -239,7 +243,7 @@ class GeminiHeadlessAdapter(ProviderAdapter):
             "plan",
             "--skip-trust",
             "-m",
-            request.model,
+            cli_model,
         ]
 
         # Forward `gemini --policy <path>` overrides if operator declared

@@ -168,6 +168,11 @@ providers:
         kind: cli                       # NEW field — distinguishes HTTP vs CLI
         capabilities: [chat, code]      # No tools, no structured_json
         # No pricing entry — CLI uses operator's Codex subscription.
+        # cycle-104 sprint-2 T2.11 amendment: cli_model is the model
+        # passed to `codex exec --model <name>`. The CLI doesn't
+        # recognize the Loa alias; this maps to the real codex model.
+        extra:
+          cli_model: gpt-5.5
 
   google:
     type: google
@@ -276,6 +281,11 @@ providers:
         kind: cli
         capabilities: [chat]            # No tools, no structured_json, no thinking
         # No pricing entry — CLI uses operator's Google AI Studio subscription.
+        # cycle-104 sprint-2 T2.11 amendment: cli_model is the model
+        # passed to `gemini --model <name>`. Maps to the real Gemini
+        # model id the CLI accepts.
+        extra:
+          cli_model: gemini-3.1-pro-preview
 
   anthropic:
     type: anthropic
@@ -399,6 +409,12 @@ providers:
         kind: cli
         capabilities: [chat]            # No tool_use, no thinking
         # No pricing entry — CLI uses operator's Claude Code subscription.
+        # cycle-104 sprint-2 T2.11 amendment: cli_model is the literal
+        # model name passed to `claude --model <name>` (the CLI doesn't
+        # recognize the Loa alias). Operator-overridable to switch
+        # between sonnet / opus per subscription tier.
+        extra:
+          cli_model: sonnet
 
   # ===========================================================================
   # AWS Bedrock — cycle-096 (issue #652)
