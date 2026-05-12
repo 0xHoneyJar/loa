@@ -388,6 +388,9 @@ def emit_model_invoke_complete(
     tier_resolution: Optional[str] = None,
     sprint_kind: Optional[str] = None,
     invocation_chain: Optional[List[str]] = None,
+    # Cycle-108 sprint-2 T2.J — envelope-captured pricing (SDD §20.9 ATK-A20).
+    # Snapshot of providers.<p>.models.<m>.pricing at invocation time.
+    pricing_snapshot: Optional[Dict[str, int]] = None,
 ) -> None:
     """Emit a model.invoke.complete envelope to the MODELINV audit chain.
 
@@ -499,6 +502,23 @@ def emit_model_invoke_complete(
     # cycle-108 ATK-A15: replay_marker (env-flag-controlled)
     if os.environ.get("LOA_REPLAY_CONTEXT") == "1":
         payload["replay_marker"] = True
+
+    # cycle-108 sprint-2 T2.J — envelope-captured pricing (SDD §20.9 ATK-A20).
+    # Optional; only emitted when caller supplied a snapshot. Rollup tool reads
+    # pricing FROM the envelope, so historical pricing changes never retroactively
+    # rewrite cost reports.
+    if pricing_snapshot is not None:
+        # Defensive copy + integer coerce. Caller may pass numpy ints etc.;
+        # JSON schema requires plain ints. Drops keys that don't validate.
+        _snapshot: Dict[str, Any] = {}
+        for _k in ("input_per_mtok", "output_per_mtok", "reasoning_per_mtok", "per_task_micro_usd"):
+            if _k in pricing_snapshot and pricing_snapshot[_k] is not None:
+                _snapshot[_k] = int(pricing_snapshot[_k])
+        if "pricing_mode" in pricing_snapshot and pricing_snapshot["pricing_mode"] is not None:
+            _snapshot["pricing_mode"] = str(pricing_snapshot["pricing_mode"])
+        # Required-key gate: schema requires input/output. Skip emit if missing.
+        if "input_per_mtok" in _snapshot and "output_per_mtok" in _snapshot:
+            payload["pricing_snapshot"] = _snapshot
 
     # Field-level redaction.
     payload = redact_payload_strings(payload)

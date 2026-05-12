@@ -54,3 +54,16 @@ grimoires/                      @janitooor
 .claude/defaults/model-config.yaml                  @janitooor
 .github/CODEOWNERS                                  @janitooor
 .github/workflows/cycle-108-*.yml                   @janitooor
+
+# Cycle-108 sprint-2 T2.J — pricing baseline + sprint-selection algorithm.
+# ATK-A6 (historical-medians.json) requires the file be CODEOWNERS-protected;
+# silent edits to the medians would distort the cost-cap pre-estimate.
+.run/historical-medians.json                        @janitooor
+.run/cycles/cycle-108-advisor-strategy/             @janitooor
+tests/fixtures/cycle-108/                           @janitooor
+tools/select-benchmark-sprints.py                   @janitooor
+tools/modelinv-rollup.sh                            @janitooor
+tools/sprint-kind-classify.py                       @janitooor
+tools/advisor-benchmark*.sh                         @janitooor
+tools/advisor-benchmark-stats.py                    @janitooor
+tools/modelinv-coverage-audit.py                    @janitooor
