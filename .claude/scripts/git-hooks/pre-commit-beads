@@ -63,10 +63,14 @@ if br sync --flush-only >/dev/null 2>"$br_stderr"; then
 fi
 
 # Failure path. Pattern-match for the known upstream migration bug.
+# cycle-105 sprint-2 T2.1 (FR-G4): WARN-not-FAIL semantics. The migration
+# bug is upstream-known + has a Loa-side repair tool now; blocking commits
+# at pre-commit punishes the operator for a substrate defect they didn't
+# author. CI is the appropriate hard gate.
 if grep -q "NOT NULL constraint failed: dirty_issues.marked_at" "$br_stderr" 2>/dev/null; then
     cat <<'DIAG' >&2
 =============================================================================
-br migration error detected (upstream beads_rust 0.2.1)
+br migration error detected (upstream beads_rust 0.2.1-0.2.6)
 =============================================================================
 The local beads database has a schema migration that fails when the upstream
 beads_rust crate adds a NOT NULL column without a DEFAULT value to the
@@ -77,15 +81,25 @@ DIAG
     sed 's/^/  /' "$br_stderr" >&2
     cat <<'DIAG' >&2
 
-Recommended workaround:
-  Use 'git commit --no-verify' for this commit only. Loa will surface the
-  diagnostic again on subsequent commits until the upstream fix lands.
+Recommended fix (cycle-105 sprint-1):
+  tools/beads-migration-repair.sh
+    heals the dirty .beads/beads.db in-place; safe + idempotent +
+    backup-before-mutation.
+
+Immediate workaround:
+  git commit --no-verify
+    bypasses this hook for the current commit. The hook will continue
+    to WARN until the database is repaired.
 
 Tracking:
-  https://github.com/0xHoneyJar/loa/issues/661
+  - https://github.com/0xHoneyJar/loa/issues/661 (downstream)
+  - https://github.com/Dicklesworthstone/beads_rust/issues/290 (upstream)
 =============================================================================
 DIAG
-    exit 1
+    # cycle-105 T2.1: exit 0 so the commit proceeds. Operators run
+    # tools/beads-migration-repair.sh at their convenience. CI remains
+    # the hard gate that fails non-repaired states.
+    exit 0
 fi
 
 # Unmatched failure — pass through the verbatim stderr (no swallowing)
