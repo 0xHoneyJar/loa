@@ -66,6 +66,14 @@ logging.basicConfig(
 logger = logging.getLogger("loa_cheval")
 
 # Exit code mapping (SDD §4.2.2)
+#
+# cycle-104 Sprint 2 (T2.5 / SDD §6.2 + §6.3) added two new exit codes:
+#   NO_ELIGIBLE_ADAPTER (chain_resolver mode transform left zero entries)
+#   CHAIN_EXHAUSTED     (every chain entry returned a walkable error)
+# The SDD aspirationally specced these as 8 / 9, but INTERACTION_PENDING already
+# pinned 8 from cycle-098 async-mode. Slid the new codes to 11 / 12 to avoid
+# breaking the existing CLI contract; downstream tooling that grep'd for
+# `exit_code == 8` for INTERACTION_PENDING keeps working unchanged.
 EXIT_CODES = {
     "SUCCESS": 0,
     "API_ERROR": 1,
@@ -82,6 +90,8 @@ EXIT_CODES = {
     "BUDGET_EXCEEDED": 6,
     "CONTEXT_TOO_LARGE": 7,
     "INTERACTION_PENDING": 8,
+    "NO_ELIGIBLE_ADAPTER": 11,
+    "CHAIN_EXHAUSTED": 12,
 }
 
 
@@ -158,6 +168,66 @@ def _load_persona(agent_name: str, system_override: Optional[str] = None) -> Opt
         return system_text
     else:
         return None
+
+
+# cycle-104 Sprint 2 T2.11 amendment: kind:cli adapter routing.
+# `get_adapter(provider_config)` selects by `provider.type` (e.g. "anthropic"),
+# which returns the HTTP-flavored adapter for that provider. When a chain
+# entry carries `kind: cli` (chain_resolver._build_entry), dispatch MUST
+# route to the CLI-flavored adapter for the same provider instead — the HTTP
+# adapter unconditionally calls `_get_auth_header()` and bombs in cli-only
+# / zero-API-key environments (FR-S2.9 / AC-8).
+#
+# Map keyed by provider name (which corresponds to the provider block in
+# model-config.yaml) to the CLI adapter class registered in
+# loa_cheval.providers._ADAPTER_REGISTRY. Adding a new (provider, kind=cli)
+# pair = add a row here + a kind:cli entry in model-config.yaml. No change
+# to chain_resolver or get_adapter needed.
+_CLI_ADAPTER_BY_PROVIDER: Dict[str, str] = {
+    "anthropic": "claude-headless",
+    "openai": "codex-headless",
+    "google": "gemini-headless",
+}
+
+
+def _get_adapter_for_entry(entry: Any, hounfour: Dict[str, Any]):
+    """Select the adapter for a single ResolvedEntry honoring `adapter_kind`.
+
+    For `kind: http` entries, this is `get_adapter(_build_provider_config(...))`
+    — the legacy path that selects via `provider.type`.
+
+    For `kind: cli` entries, this looks up the CLI adapter type via
+    `_CLI_ADAPTER_BY_PROVIDER[entry.provider]` and constructs it directly
+    against the SAME provider block (so the operator's endpoint / auth
+    declarations are preserved for the HTTP siblings under the same
+    provider, but the CLI adapter never calls `_get_auth_header()`).
+
+    Raises `ConfigError` if a kind:cli entry's provider has no registered
+    CLI adapter — that's an operator config error (alias declared with
+    `kind: cli` for a provider that lacks a subscription-CLI binding).
+    """
+    provider_config = _build_provider_config(entry.provider, hounfour)
+    if getattr(entry, "adapter_kind", "http") == "cli":
+        cli_type = _CLI_ADAPTER_BY_PROVIDER.get(entry.provider)
+        if cli_type is None:
+            raise ConfigError(
+                f"Provider '{entry.provider}' has a kind:cli entry but no "
+                f"CLI adapter is registered. Supported CLI providers: "
+                f"{sorted(_CLI_ADAPTER_BY_PROVIDER.keys())}."
+            )
+        # Build a shallow-clone ProviderConfig with type overridden so
+        # get_adapter selects the CLI adapter class. All other fields
+        # (endpoint, auth, models, timeouts) flow through unchanged — the
+        # CLI adapter ignores the HTTP-specific ones. Tests that mock
+        # `_build_provider_config` to return a MagicMock won't have a
+        # dataclass instance; fall back to mutating the `.type` attribute
+        # directly (MagicMock accepts arbitrary attribute assignment).
+        from dataclasses import is_dataclass, replace as _dc_replace
+        if is_dataclass(provider_config) and not isinstance(provider_config, type):
+            return get_adapter(_dc_replace(provider_config, type=cli_type))
+        provider_config.type = cli_type
+        return get_adapter(provider_config)
+    return get_adapter(provider_config)
 
 
 def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> ProviderConfig:
@@ -491,12 +561,53 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         # Dry-run does not invoke a model — no MODELINV emit.
         return EXIT_CODES["SUCCESS"]
 
-    # cycle-102 Sprint 1D / T1.7: MODELINV emit-state. Populated by each
-    # success/exception branch below; finally-clause emits a single envelope
-    # at function exit (success or failure). Pre-resolution failures (handled
-    # above) deliberately do NOT emit because no model invocation occurred.
-    _modelinv_target = f"{resolved.provider}:{resolved.model_id}"
+    # cycle-104 Sprint 2 (T2.5 / FR-S2.1, SDD §5.3): resolve within-company
+    # chain UPFRONT before any model invocation. Captures the operator-effective
+    # routing mode + the precedence layer it came from (env / config / default)
+    # for the audit envelope's `config_observed` field.
+    from loa_cheval.routing.chain_resolver import (
+        resolve as _resolve_chain,
+        resolve_headless_mode as _resolve_headless_mode,
+    )
+    from loa_cheval.routing.types import (
+        ChainExhaustedError as _ChainExhaustedError,
+        EmptyContentError as _EmptyContentError,
+        NoEligibleAdapterError as _NoEligibleAdapterError,
+    )
+    from loa_cheval.routing import capability_gate as _capability_gate
+
+    try:
+        _headless_mode, _headless_mode_source = _resolve_headless_mode(hounfour)
+    except ValueError as e:
+        print(_error_json("INVALID_CONFIG", str(e)), file=sys.stderr)
+        return EXIT_CODES["INVALID_CONFIG"]
+
+    # The alias the operator effectively requested. Prefer the explicit
+    # --model override (closer to caller intent); fall back to the canonical
+    # provider:model form so resolve_alias can route either way.
+    _primary_alias = args.model if args.model else f"{resolved.provider}:{resolved.model_id}"
+    try:
+        _chain = _resolve_chain(
+            _primary_alias,
+            model_config=hounfour,
+            headless_mode=_headless_mode,
+            headless_mode_source=_headless_mode_source,
+        )
+    except _NoEligibleAdapterError as e:
+        print(_error_json("NO_ELIGIBLE_ADAPTER", str(e), retryable=False), file=sys.stderr)
+        return EXIT_CODES["NO_ELIGIBLE_ADAPTER"]
+    except (ConfigError, InvalidInputError) as e:
+        print(_error_json(e.code, str(e)), file=sys.stderr)
+        return EXIT_CODES.get(e.code, 2)
+
+    # cycle-102 Sprint 1D / T1.7 + cycle-104 Sprint 2 T2.6: MODELINV emit-state.
+    # The finally-clause emits a single envelope at function exit (success or
+    # failure). Pre-resolution failures (handled above) deliberately do NOT
+    # emit because no model invocation occurred. `models_requested` enumerates
+    # the entire resolved chain so audit consumers see the FULL intended walk
+    # shape, not just whichever entry happened to succeed.
     _modelinv_capability_class = getattr(binding, "capability_class", None)
+    _modelinv_models_requested = [e.canonical for e in _chain.entries]
     _modelinv_state: Dict[str, Any] = {
         "models_succeeded": [],
         "models_failed": [],
@@ -507,7 +618,16 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         # report → emit falls back to env-derived value. True/False = actual
         # transport observed on this call.
         "streaming": None,
+        # cycle-104 Sprint 2 T2.6 (FR-S2.3 / SDD §3.4): chain-walk evidence.
+        # Populated on successful chain entry; remain None if chain exhausted.
+        "final_model_id": None,
+        "transport": None,
+        "config_observed": {
+            "headless_mode": _headless_mode,
+            "headless_mode_source": _headless_mode_source,
+        },
     }
+    _verbose = bool(os.environ.get("LOA_HEADLESS_VERBOSE"))
 
     # Load input content (--prompt takes priority over --input/stdin)
     input_text = ""
@@ -572,307 +692,467 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             is_native_runtime=(resolved.provider == NATIVE_PROVIDER),
         )
 
-    # Build request
-    request = CompletionRequest(
+    # Build request scaffold; per-entry the .model field is overridden inside
+    # the chain loop so each adapter sees its own model_id.
+    base_request = CompletionRequest(
         messages=messages,
-        model=resolved.model_id,
+        model=_chain.primary.model_id,
         temperature=binding.temperature or 0.7,
         max_tokens=args.max_tokens or 4096,
         metadata={"agent": agent_name},
     )
 
-    # Get adapter and call. cycle-102 Sprint 1D / T1.7 wraps this block in a
-    # try/finally so the MODELINV emit fires on EVERY post-resolution exit
-    # (success or failure) — vision-019 M1 silent-degradation audit query
-    # depends on continuous chain coverage. Async path sets the
+    # cycle-104 Sprint 2: async mode is incompatible with multi-entry chain
+    # walk (create_interaction returns synchronously with a pending handle, not
+    # a CompletionResult, so the loop has no error to route to a fallback).
+    # Reject upfront when chain has >1 entry — operator must pin a single-entry
+    # alias OR drop --async.
+    _async_mode = bool(getattr(args, "async_mode", False))
+    if _async_mode and len(_chain.entries) > 1:
+        print(_error_json(
+            "INVALID_INPUT",
+            (
+                f"--async is not supported with within-company chains "
+                f"(primary '{_primary_alias}' resolved to "
+                f"{len(_chain.entries)} entries). Pin a single-entry alias "
+                f"or invoke without --async."
+            ),
+        ), file=sys.stderr)
+        return EXIT_CODES["INVALID_INPUT"]
+
+    # Per-call setup (budget hook, mock-fixture dir). BudgetEnforcer state
+    # accumulates across the chain walk — a successful chain entry deducts
+    # before the next entry's pre_call check.
+    budget_hook = None
+    flags = hounfour.get("feature_flags", {})
+    metering_enabled = flags.get("metering", True)
+    if metering_enabled:
+        metering_config = hounfour.get("metering", {})
+        if metering_config.get("enabled", True):
+            ledger_path = metering_config.get("ledger_path", ".run/cost-ledger.jsonl")
+            budget_hook = BudgetEnforcer(
+                config=hounfour,
+                ledger_path=ledger_path,
+                trace_id=f"tr-{agent_name}-{os.getpid()}",
+            )
+            logger.info("Budget enforcement active: ledger=%s", ledger_path)
+    _mock_fixture_dir = getattr(args, "mock_fixture_dir", None)
+
+    # cycle-104 Sprint 2 (T2.5): chain walk wrapped in a try/finally so the
+    # MODELINV emit fires on EVERY post-resolution exit (success, chain
+    # exhausted, non-retryable error). vision-019 M1 silent-degradation audit
+    # query depends on continuous chain coverage. Async path sets the
     # `_modelinv_emit_required` flag to False because no model invocation has
     # occurred yet (the actual completion fires emit on result collection,
     # outside this function).
     _modelinv_emit_required = True
+    _result = None
+    _final_entry = None
+    # cycle-104 backward-compat: for single-entry chains (no fallback declared),
+    # `for-else` exhaustion should surface the ORIGINAL cycle-103 exit code
+    # (RETRIES_EXHAUSTED / RATE_LIMITED / PROVIDER_UNAVAILABLE) rather than the
+    # new CHAIN_EXHAUSTED — external consumers still grep for the legacy codes.
+    # Multi-entry chains use CHAIN_EXHAUSTED because the operator explicitly
+    # opted into a chain shape; the new signal is informative for them.
+    _last_walk_exit_code: int = EXIT_CODES["CHAIN_EXHAUSTED"]
+    _last_walk_exception: Optional[Exception] = None
+    _last_walk_extra: Dict[str, Any] = {}
     try:
-        try:
-            # cycle-102 Sprint 1F (KF-002 layer 3 / Loa #774): per-model
-            # input-size gate. Backstop for the cheval HTTP-asymmetry failure
-            # mode where anthropic + openai paths disconnect mid-stream on
-            # long prompts (gemini path doesn't share the failure). Threshold
-            # comes from per-model `max_input_tokens` in model-config.yaml;
-            # absent = no gate. Refuses (raise CONTEXT_TOO_LARGE) rather than
-            # truncating — preserves caller semantics and lets the
-            # adversarial-review fallback chain (PR #836) route to a
-            # different provider.
+        for _idx, _entry in enumerate(_chain.entries):
+            _entry_target = _entry.canonical
+
+            # 1. Capability gate — skip-and-walk per cycle-104 §1.4.2 contract.
+            #    A request that needs `tools` against a chat-only headless
+            #    entry records `CAPABILITY_MISS` with the missing list and
+            #    moves to the next entry. No raise.
+            _cap = _capability_gate.check(base_request, _entry)
+            if not _cap.ok:
+                _missing = list(_cap.missing)
+                _modelinv_state["models_failed"].append({
+                    "model": _entry_target,
+                    "provider": _entry.provider,
+                    "error_class": "CAPABILITY_MISS",
+                    "message_redacted": f"missing capabilities: {_missing}",
+                    "missing_capabilities": _missing,
+                })
+                if _verbose:
+                    print(
+                        f"[cheval] skip {_entry_target} "
+                        f"(capability_mismatch: missing={_missing})",
+                        file=sys.stderr,
+                    )
+                continue
+
+            # 2. Per-entry input-size gate (KF-002 layer 3 backstop). Each
+            #    entry has its own `max_input_tokens`; threshold absent ⇒ no
+            #    gate. Chain semantics: walk to the next entry rather than
+            #    raise CONTEXT_TOO_LARGE — the operator's declared chain shape
+            #    is the contract, and a walk-eligible cause is preferable.
             if not os.environ.get("LOA_CHEVAL_DISABLE_INPUT_GATE"):
                 _input_threshold = _lookup_max_input_tokens(
-                    resolved.provider,
-                    resolved.model_id,
-                    hounfour,
+                    _entry.provider, _entry.model_id, hounfour,
                     cli_override=getattr(args, "max_input_tokens", None),
                 )
                 if _input_threshold is not None:
                     from loa_cheval.providers.base import estimate_tokens
                     _estimated = estimate_tokens(messages)
                     if _estimated > _input_threshold:
-                        _modelinv_state["operator_visible_warn"] = True
-                        print(
-                            f"[input-gate] {resolved.provider}:{resolved.model_id} "
-                            f"refused: estimated {_estimated} input tokens > "
-                            f"{_input_threshold} threshold "
-                            f"(KF-002 layer 3 backstop, see "
-                            f"grimoires/loa/known-failures.md). "
-                            f"Override: --max-input-tokens 0 or "
-                            f"LOA_CHEVAL_DISABLE_INPUT_GATE=1.",
-                            file=sys.stderr,
-                        )
-                        raise ContextTooLargeError(
-                            estimated_tokens=_estimated,
-                            available=_input_threshold,
-                            context_window=_input_threshold,
-                        )
+                        _modelinv_state["models_failed"].append({
+                            "model": _entry_target,
+                            "provider": _entry.provider,
+                            "error_class": "ROUTING_MISS",
+                            "message_redacted": (
+                                f"estimated {_estimated} input tokens > "
+                                f"{_input_threshold} threshold"
+                            ),
+                        })
+                        if _verbose:
+                            print(
+                                f"[cheval] skip {_entry_target} "
+                                f"(input_too_large: {_estimated} > "
+                                f"{_input_threshold})",
+                                file=sys.stderr,
+                            )
+                        continue
 
-            provider_config = _build_provider_config(resolved.provider, hounfour)
-            adapter = get_adapter(provider_config)
+            # 3. Build adapter for THIS entry's provider; build entry request.
+            # T2.11 amendment: route kind:cli entries to the CLI-flavored
+            # adapter for the same provider (else HTTP adapter bombs on
+            # _get_auth_header in zero-API-key environments).
+            try:
+                _adapter = _get_adapter_for_entry(_entry, hounfour)
+            except (ConfigError, InvalidInputError) as _e:
+                # Adapter wiring failure for THIS entry is treated as a
+                # routing miss (operator config error for this provider).
+                # We surface immediately rather than walking — the chain
+                # shape is the operator's declared intent and adapter wiring
+                # errors mean the YAML is internally inconsistent.
+                _modelinv_state["models_failed"].append({
+                    "model": _entry_target,
+                    "provider": _entry.provider,
+                    "error_class": "ROUTING_MISS",
+                    "message_redacted": str(_e),
+                })
+                print(_error_json(_e.code, str(_e)), file=sys.stderr)
+                return EXIT_CODES.get(_e.code, 2)
 
-            # Non-blocking async mode (Task 2.5)
-            if getattr(args, "async_mode", False):
-                if not hasattr(adapter, "create_interaction"):
+            _entry_request = CompletionRequest(
+                messages=base_request.messages,
+                model=_entry.model_id,
+                temperature=base_request.temperature,
+                max_tokens=base_request.max_tokens,
+                metadata=base_request.metadata,
+                tools=getattr(base_request, "tools", None),
+            )
+
+            # 4. Async mode (chain length forced to 1 by upfront check).
+            if _async_mode:
+                if not hasattr(_adapter, "create_interaction"):
                     _modelinv_emit_required = False  # pre-call validation
-                    print(_error_json("INVALID_INPUT", f"Provider '{resolved.provider}' does not support --async"), file=sys.stderr)
+                    print(_error_json(
+                        "INVALID_INPUT",
+                        f"Provider '{_entry.provider}' does not support --async",
+                    ), file=sys.stderr)
                     return EXIT_CODES["INVALID_INPUT"]
-
-                model_config = adapter._get_model_config(resolved.model_id)
-                interaction = adapter.create_interaction(request, model_config)
-                output = {
-                    "interaction_id": interaction.get("name", ""),
-                    "model": resolved.model_id,
-                    "provider": resolved.provider,
+                _async_model_cfg = _adapter._get_model_config(_entry.model_id)
+                _interaction = _adapter.create_interaction(
+                    _entry_request, _async_model_cfg,
+                )
+                print(json.dumps({
+                    "interaction_id": _interaction.get("name", ""),
+                    "model": _entry.model_id,
+                    "provider": _entry.provider,
                     "status": "pending",
-                }
-                print(json.dumps(output), file=sys.stdout)
+                }), file=sys.stdout)
                 # Async creates a pending interaction, not a completed call.
-                # MODELINV emit happens when the interaction completes (separate
-                # code path). Skip emit here.
+                # MODELINV emit fires when the interaction completes
+                # downstream — skip the synchronous emit here.
                 _modelinv_emit_required = False
                 return EXIT_CODES["INTERACTION_PENDING"]
 
-            # Budget hook: real enforcer when metering enabled, no-op otherwise (Task 3.2)
-            budget_hook = None
-            flags = hounfour.get("feature_flags", {})
-            metering_enabled = flags.get("metering", True)
-            if metering_enabled:
-                metering_config = hounfour.get("metering", {})
-                if metering_config.get("enabled", True):
-                    ledger_path = metering_config.get("ledger_path", ".run/cost-ledger.jsonl")
-                    budget_hook = BudgetEnforcer(
-                        config=hounfour,
-                        ledger_path=ledger_path,
-                        trace_id=f"tr-{agent_name}-{os.getpid()}",
-                    )
-                    logger.info("Budget enforcement active: ledger=%s", ledger_path)
-
-            # T1.5 (cycle-103 sprint-1): --mock-fixture-dir bypass for AC-1.2.
-            # When set, load a pre-recorded CompletionResult from the fixture
-            # directory instead of dispatching to the real provider. Sits AFTER
-            # input-gate + budget setup so tests exercise those code paths
-            # identically; the fixture replaces ONLY the provider call.
-            _mock_fixture_dir = getattr(args, "mock_fixture_dir", None)
-            if _mock_fixture_dir:
-                if budget_hook:
-                    status = budget_hook.pre_call(request)
-                    if status == "BLOCK":
-                        raise BudgetExceededError(spent=0, limit=0)
-                result = _load_mock_fixture_response(
-                    _mock_fixture_dir,
-                    resolved.provider,
-                    resolved.model_id,
-                )
-                if budget_hook:
-                    budget_hook.post_call(result)
-            else:
-                # Import retry logic if available
-                try:
-                    from loa_cheval.providers.retry import invoke_with_retry
-
-                    result = invoke_with_retry(adapter, request, hounfour, budget_hook=budget_hook)
-                except ImportError:
-                    # Retry module not yet available — call directly with manual budget hooks
-                    # BB-405: ensure post_call runs on success, log on failure
-                    # NOTE (issue #675, sub-issue 1): the redundant local
-                    # `from loa_cheval.types import BudgetExceededError` previously here
-                    # was deleted. Python's scoping rule made `BudgetExceededError` a
-                    # function-local name throughout cmd_invoke(), and on the normal
-                    # path (retry module IS available, so this `except ImportError`
-                    # branch is skipped) the local was never bound — causing the outer
-                    # `except BudgetExceededError as e:` below to raise UnboundLocalError
-                    # and shadow the real RetriesExhaustedError. The module-scope import
-                    # at the top of this file (line 27-28) is the single source of truth.
+            # 5. Dispatch (mock-fixture OR live via retry).
+            try:
+                if _mock_fixture_dir:
                     if budget_hook:
-                        status = budget_hook.pre_call(request)
-                        if status == "BLOCK":
+                        _bstatus = budget_hook.pre_call(_entry_request)
+                        if _bstatus == "BLOCK":
                             raise BudgetExceededError(spent=0, limit=0)
-                    result = None
+                    _result = _load_mock_fixture_response(
+                        _mock_fixture_dir, _entry.provider, _entry.model_id,
+                    )
+                    if budget_hook:
+                        budget_hook.post_call(_result)
+                else:
                     try:
-                        result = adapter.complete(request)
-                    finally:
-                        if budget_hook and result is not None:
-                            budget_hook.post_call(result)
-                        elif budget_hook and result is None:
-                            logger.warning("budget_post_call_skipped reason=adapter_failure")
+                        from loa_cheval.providers.retry import invoke_with_retry
+                        _result = invoke_with_retry(
+                            _adapter, _entry_request, hounfour,
+                            budget_hook=budget_hook,
+                        )
+                    except ImportError:
+                        # Retry module unavailable — direct adapter call with
+                        # manual budget hooks. Mirrors the cycle-095/675 fix:
+                        # BudgetExceededError binding is module-scope.
+                        if budget_hook:
+                            _bstatus = budget_hook.pre_call(_entry_request)
+                            if _bstatus == "BLOCK":
+                                raise BudgetExceededError(spent=0, limit=0)
+                        _result = None
+                        try:
+                            _result = _adapter.complete(_entry_request)
+                        finally:
+                            if budget_hook and _result is not None:
+                                budget_hook.post_call(_result)
+                            elif budget_hook and _result is None:
+                                logger.warning(
+                                    "budget_post_call_skipped reason=adapter_failure"
+                                )
 
-            # T1.7: success — record state for MODELINV emit.
-            _modelinv_state["models_succeeded"] = [_modelinv_target]
-            _modelinv_state["invocation_latency_ms"] = getattr(result, "latency_ms", None)
-            _cost = getattr(result, "cost_micro_usd", None)
+            except BudgetExceededError as _e:
+                # Non-retryable across the chain — operator budget exhausted.
+                _modelinv_state["models_failed"].append({
+                    "model": _entry_target,
+                    "provider": _entry.provider,
+                    "error_class": "BUDGET_EXHAUSTED",
+                    "message_redacted": str(_e),
+                })
+                print(_error_json(_e.code, str(_e)), file=sys.stderr)
+                return EXIT_CODES["BUDGET_EXCEEDED"]
+            except ContextTooLargeError as _e:
+                # Walk to next entry — a different entry may have a different
+                # max_input_tokens ceiling.
+                _modelinv_state["models_failed"].append({
+                    "model": _entry_target,
+                    "provider": _entry.provider,
+                    "error_class": "ROUTING_MISS",
+                    "message_redacted": str(_e),
+                })
+                _last_walk_exit_code = EXIT_CODES["CONTEXT_TOO_LARGE"]
+                _last_walk_exception = _e
+                if _verbose:
+                    print(
+                        f"[cheval] fallback {_entry_target} -> next "
+                        f"(context_too_large)",
+                        file=sys.stderr,
+                    )
+                continue
+            except _EmptyContentError as _e:
+                # KF-003 class. Walk to next entry.
+                _modelinv_state["models_failed"].append({
+                    "model": _entry_target,
+                    "provider": _entry.provider,
+                    "error_class": "EMPTY_CONTENT",
+                    "message_redacted": str(_e),
+                })
+                _last_walk_exit_code = EXIT_CODES["API_ERROR"]
+                _last_walk_exception = _e
+                if _verbose:
+                    print(
+                        f"[cheval] fallback {_entry_target} -> next "
+                        f"(empty_content)",
+                        file=sys.stderr,
+                    )
+                continue
+            except RateLimitError as _e:
+                _modelinv_state["models_failed"].append({
+                    "model": _entry_target,
+                    "provider": _entry.provider,
+                    "error_class": "PROVIDER_OUTAGE",
+                    "message_redacted": str(_e),
+                })
+                _last_walk_exit_code = EXIT_CODES["RATE_LIMITED"]
+                _last_walk_exception = _e
+                if _verbose:
+                    print(
+                        f"[cheval] fallback {_entry_target} -> next "
+                        f"(rate_limited)",
+                        file=sys.stderr,
+                    )
+                continue
+            except ProviderUnavailableError as _e:
+                _modelinv_state["models_failed"].append({
+                    "model": _entry_target,
+                    "provider": _entry.provider,
+                    "error_class": "PROVIDER_OUTAGE",
+                    "message_redacted": str(_e),
+                })
+                _last_walk_exit_code = EXIT_CODES["PROVIDER_UNAVAILABLE"]
+                _last_walk_exception = _e
+                if _verbose:
+                    print(
+                        f"[cheval] fallback {_entry_target} -> next "
+                        f"(provider_unavailable)",
+                        file=sys.stderr,
+                    )
+                continue
+            except RetriesExhaustedError as _e:
+                # Per-adapter retry budget spent. Walk to next chain entry —
+                # the within-company chain is the higher-level retry layer.
+                # Preserve cycle-103 ConnectionLostError typing for stderr.
+                _re_class = "FALLBACK_EXHAUSTED"
+                if _e.context.get("last_error_class") == "ConnectionLostError":
+                    _re_class = "PROVIDER_DISCONNECT"
+                _modelinv_state["models_failed"].append({
+                    "model": _entry_target,
+                    "provider": _entry.provider,
+                    "error_class": _re_class,
+                    "message_redacted": str(_e),
+                })
+                _last_walk_exit_code = EXIT_CODES["RETRIES_EXHAUSTED"]
+                _last_walk_exception = _e
+                # Preserve cycle-103 ConnectionLostError diagnostic fields so
+                # single-entry backward-compat path can re-emit them.
+                if _e.context.get("last_error_class") == "ConnectionLostError":
+                    _last_walk_extra = {"failure_class": "PROVIDER_DISCONNECT"}
+                    _ctx = _e.context.get("last_error_context") or {}
+                    if _ctx.get("transport_class"):
+                        _last_walk_extra["transport_class"] = _ctx["transport_class"]
+                    if _ctx.get("request_size_bytes") is not None:
+                        _last_walk_extra["request_size_bytes"] = _ctx["request_size_bytes"]
+                    if _ctx.get("provider"):
+                        _last_walk_extra["provider"] = _ctx["provider"]
+                if _verbose:
+                    print(
+                        f"[cheval] fallback {_entry_target} -> next "
+                        f"({_re_class.lower()})",
+                        file=sys.stderr,
+                    )
+                continue
+            except ChevalError as _e:
+                # Non-retryable typed cheval error — surface immediately.
+                _modelinv_state["models_failed"].append({
+                    "model": _entry_target,
+                    "provider": _entry.provider,
+                    "error_class": "UNKNOWN",
+                    "message_redacted": str(_e),
+                })
+                print(_error_json(_e.code, str(_e), retryable=_e.retryable), file=sys.stderr)
+                return EXIT_CODES.get(_e.code, 1)
+            except Exception as _e:  # noqa: BLE001
+                # Catch-all: redact known env-var secrets before recording.
+                # Sets retryable=True in operator JSON to keep cycle-102
+                # behavior for unexpected errors.
+                _msg = str(_e)
+                for _env_key in [
+                    "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
+                    "MOONSHOT_API_KEY", "GOOGLE_API_KEY",
+                ]:
+                    _val = os.environ.get(_env_key)
+                    if _val and _val in _msg:
+                        _msg = _msg.replace(_val, "***REDACTED***")
+                _modelinv_state["models_failed"].append({
+                    "model": _entry_target,
+                    "provider": _entry.provider,
+                    "error_class": "UNKNOWN",
+                    "message_redacted": _msg,
+                })
+                print(_error_json("API_ERROR", _msg, retryable=True), file=sys.stderr)
+                return EXIT_CODES["API_ERROR"]
+
+            # 6. SUCCESS — record final-entry state and break out of the chain.
+            _final_entry = _entry
+            _modelinv_state["models_succeeded"] = [_entry_target]
+            _modelinv_state["invocation_latency_ms"] = getattr(_result, "latency_ms", None)
+            _cost = getattr(_result, "cost_micro_usd", None)
             if _cost is not None:
                 _modelinv_state["cost_micro_usd"] = _cost
-            # cycle-103 T3.2 / AC-3.2: capture observed-transport flag from
-            # the adapter's CompletionResult metadata. Adapter is the source
-            # of truth for which transport actually ran; the env-derived
-            # default (LOA_CHEVAL_DISABLE_STREAMING) is the fallback only
-            # for callers that don't set the metadata field.
-            _result_meta = getattr(result, "metadata", None) or {}
+            _result_meta = getattr(_result, "metadata", None) or {}
             _modelinv_state["streaming"] = _result_meta.get("streaming")
+            _modelinv_state["final_model_id"] = _entry_target
+            _modelinv_state["transport"] = _entry.adapter_kind
+            break
+        else:
+            # for-else: every entry walked, none succeeded.
+            #
+            # Backward-compat: single-entry chains (no fallback declared) keep
+            # the cycle-103 exit-code semantics — external tooling grep'd
+            # `exit == 1` for RETRIES_EXHAUSTED / RATE_LIMITED long before
+            # CHAIN_EXHAUSTED existed. Multi-entry chains use the new code so
+            # operators with explicit chain shapes can distinguish "single
+            # adapter died" from "entire chain absorbed nothing".
+            if len(_chain.entries) == 1:
+                if _last_walk_exception is not None and isinstance(
+                    _last_walk_exception, ChevalError
+                ):
+                    _le = _last_walk_exception
+                    print(_error_json(
+                        _le.code, str(_le),
+                        retryable=getattr(_le, "retryable", False),
+                        **_last_walk_extra,
+                    ), file=sys.stderr)
+                else:
+                    _final_msg = (
+                        _modelinv_state["models_failed"][-1]["message_redacted"]
+                        if _modelinv_state["models_failed"]
+                        else f"chain '{_chain.primary_alias}' exhausted"
+                    )
+                    print(_error_json(
+                        "CHAIN_EXHAUSTED", _final_msg, retryable=False,
+                    ), file=sys.stderr)
+                return _last_walk_exit_code
 
-            # Output response to stdout (I/O contract: stdout = response only)
-            if args.output_format == "json":
-                output = {
-                    "content": result.content,
-                    "model": result.model,
-                    "provider": result.provider,
-                    "usage": {
-                        "input_tokens": result.usage.input_tokens,
-                        "output_tokens": result.usage.output_tokens,
-                    },
-                    "latency_ms": result.latency_ms,
-                }
-                # Thinking trace policy (Task 2.6, SDD 4.6)
-                if result.thinking and getattr(args, "include_thinking", False):
-                    output["thinking"] = result.thinking
-                if result.tool_calls:
-                    output["tool_calls"] = result.tool_calls
-                print(json.dumps(output), file=sys.stdout)
-            else:
-                # Text mode: thinking NEVER printed
-                print(result.content, file=sys.stdout)
+            _exhausted = _ChainExhaustedError(
+                primary_alias=_chain.primary_alias,
+                models_failed=tuple(_modelinv_state["models_failed"]),
+            )
+            print(_error_json(
+                _exhausted.code, str(_exhausted),
+                retryable=False,
+                models_failed_count=len(_modelinv_state["models_failed"]),
+            ), file=sys.stderr)
+            return EXIT_CODES["CHAIN_EXHAUSTED"]
 
-            return EXIT_CODES["SUCCESS"]
+        # Output response to stdout (I/O contract: stdout = response only).
+        if args.output_format == "json":
+            output = {
+                "content": _result.content,
+                "model": _result.model,
+                "provider": _result.provider,
+                "usage": {
+                    "input_tokens": _result.usage.input_tokens,
+                    "output_tokens": _result.usage.output_tokens,
+                },
+                "latency_ms": _result.latency_ms,
+            }
+            if _result.thinking and getattr(args, "include_thinking", False):
+                output["thinking"] = _result.thinking
+            if _result.tool_calls:
+                output["tool_calls"] = _result.tool_calls
+            print(json.dumps(output), file=sys.stdout)
+        else:
+            # Text mode: thinking NEVER printed.
+            print(_result.content, file=sys.stdout)
 
-        except BudgetExceededError as e:
-            _modelinv_state["models_failed"] = [{
-                "model": _modelinv_target,
-                "error_class": "BUDGET_EXHAUSTED",
-                "message_redacted": str(e),
-            }]
-            print(_error_json(e.code, str(e)), file=sys.stderr)
-            return EXIT_CODES["BUDGET_EXCEEDED"]
-        except ContextTooLargeError as e:
-            # T1.5 carry will refine this to a typed CONTEXT_OVERFLOW class once
-            # the model-error.schema.json enum is extended. Until then, UNKNOWN
-            # is the canonical bucket per schema description.
-            _modelinv_state["models_failed"] = [{
-                "model": _modelinv_target,
-                "error_class": "UNKNOWN",
-                "message_redacted": str(e),
-            }]
-            print(_error_json(e.code, str(e)), file=sys.stderr)
-            return EXIT_CODES["CONTEXT_TOO_LARGE"]
-        except RateLimitError as e:
-            # Rate limits are treated as transient outage signals — the schema
-            # doesn't have a TIMEOUT/RATE_LIMIT class today (T1.5 carry); we use
-            # PROVIDER_OUTAGE as the closest semantic match.
-            _modelinv_state["models_failed"] = [{
-                "model": _modelinv_target,
-                "error_class": "PROVIDER_OUTAGE",
-                "message_redacted": str(e),
-            }]
-            print(_error_json(e.code, str(e), retryable=True), file=sys.stderr)
-            return EXIT_CODES["RATE_LIMITED"]
-        except ProviderUnavailableError as e:
-            _modelinv_state["models_failed"] = [{
-                "model": _modelinv_target,
-                "error_class": "PROVIDER_OUTAGE",
-                "message_redacted": str(e),
-            }]
-            print(_error_json(e.code, str(e), retryable=True), file=sys.stderr)
-            return EXIT_CODES["PROVIDER_UNAVAILABLE"]
-        except RetriesExhaustedError as e:
-            # Issue #774: surface typed failure_class when the underlying retries
-            # exhausted on a ConnectionLostError. Sanitization: only the typed
-            # class name, transport class name, and request size are surfaced —
-            # raw body, headers, and auth values stay scoped inside the adapter.
-            extra: Dict[str, Any] = {}
-            _re_class = "FALLBACK_EXHAUSTED"  # default
-            if e.context.get("last_error_class") == "ConnectionLostError":
-                last_ctx = e.context.get("last_error_context") or {}
-                extra["failure_class"] = "PROVIDER_DISCONNECT"
-                _re_class = "PROVIDER_DISCONNECT"
-                if last_ctx.get("transport_class"):
-                    extra["transport_class"] = last_ctx["transport_class"]
-                if last_ctx.get("request_size_bytes") is not None:
-                    extra["request_size_bytes"] = last_ctx["request_size_bytes"]
-                if last_ctx.get("provider"):
-                    extra["provider"] = last_ctx["provider"]
-            _modelinv_state["models_failed"] = [{
-                "model": _modelinv_target,
-                "error_class": _re_class,
-                "message_redacted": str(e),
-            }]
-            print(_error_json(e.code, str(e), **extra), file=sys.stderr)
-            return EXIT_CODES["RETRIES_EXHAUSTED"]
-        except ChevalError as e:
-            _modelinv_state["models_failed"] = [{
-                "model": _modelinv_target,
-                "error_class": "UNKNOWN",
-                "message_redacted": str(e),
-            }]
-            print(_error_json(e.code, str(e), retryable=e.retryable), file=sys.stderr)
-            return EXIT_CODES.get(e.code, 1)
-        except Exception as e:
-            # Redact sensitive information from unexpected errors
-            msg = str(e)
-            # Strip potential auth values from error messages
-            for env_key in ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "MOONSHOT_API_KEY", "GOOGLE_API_KEY"]:
-                val = os.environ.get(env_key)
-                if val and val in msg:
-                    msg = msg.replace(val, "***REDACTED***")
-            _modelinv_state["models_failed"] = [{
-                "model": _modelinv_target,
-                "error_class": "UNKNOWN",
-                "message_redacted": msg,
-            }]
-            print(_error_json("API_ERROR", msg, retryable=True), file=sys.stderr)
-            return EXIT_CODES["API_ERROR"]
+        return EXIT_CODES["SUCCESS"]
+
     finally:
-        # T1.7: emit MODELINV envelope. Runs regardless of success/failure
-        # outcome above, EXCEPT for paths that explicitly disabled it (async,
-        # async-not-supported pre-validation). The emitter applies field-level
-        # log-redactor passes + defense-in-depth gate before audit_emit.
-        # Failures inside the emitter are fail-soft (logged with marker, do
-        # NOT alter the user-facing exit code) — chain integrity is the gate's
+        # T1.7 + cycle-104 T2.6: emit MODELINV envelope. Runs on every
+        # post-resolution exit EXCEPT paths that explicitly disabled it
+        # (async, async-not-supported pre-validation). Failures inside the
+        # emitter are fail-soft — chain integrity is the redaction gate's
         # responsibility, not user-facing reliability.
         if _modelinv_emit_required:
             try:
                 _emit_modelinv(
-                    models_requested=[_modelinv_target],
+                    models_requested=_modelinv_models_requested,
                     models_succeeded=_modelinv_state["models_succeeded"],
                     models_failed=_modelinv_state["models_failed"],
                     operator_visible_warn=_modelinv_state["operator_visible_warn"],
                     capability_class=_modelinv_capability_class,
                     invocation_latency_ms=_modelinv_state["invocation_latency_ms"],
                     cost_micro_usd=_modelinv_state["cost_micro_usd"],
-                    # cycle-103 T3.2 / AC-3.2: pass observed-transport flag.
                     streaming=_modelinv_state["streaming"],
+                    final_model_id=_modelinv_state["final_model_id"],
+                    transport=_modelinv_state["transport"],
+                    config_observed=_modelinv_state["config_observed"],
                 )
             except _ModelinvRedactionFailure as _rf:
                 # Defense-in-depth gate rejected the payload: a secret shape
-                # survived the redactor pass. Audit chain integrity preserved
-                # (no leaked entry written). Operator signal via stderr marker.
+                # survived the redactor pass. Audit chain integrity preserved.
                 print(f"[REDACTION-GATE-FAILURE] {_rf}", file=sys.stderr)
             except Exception as _emit_err:  # noqa: BLE001
                 # Audit infrastructure failure (lock contention, missing key
-                # config, schema validation slip). Fail-soft: surface the
-                # error to operator stderr but don't break the user-facing
-                # call. The user-facing exit code is determined by the
-                # invocation outcome, independent of audit chain status.
-                # Override with LOA_MODELINV_FAIL_LOUD=1 in operator policy.
+                # config, schema validation slip). Fail-soft.
                 print(
                     f"[AUDIT-EMIT-FAILED] {type(_emit_err).__name__}: {_emit_err}",
                     file=sys.stderr,

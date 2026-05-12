@@ -205,6 +205,10 @@ class CodexHeadlessAdapter(ProviderAdapter):
         model_config,
     ) -> List[str]:
         """Build the codex exec argv. Single-shot, sandboxed read-only."""
+        # cycle-104 sprint-2 T2.11 amendment: honor `extra.cli_model`
+        # so a kind:cli alias (e.g. `codex-headless`) translates to the
+        # real codex model identifier the CLI binary expects.
+        cli_model = (model_config.extra or {}).get("cli_model") or request.model
         cmd: List[str] = [
             self._codex_bin(),
             "exec",
@@ -215,7 +219,7 @@ class CodexHeadlessAdapter(ProviderAdapter):
             "read-only",
             "--ignore-user-config",
             "--model",
-            request.model,
+            cli_model,
         ]
 
         effort = self._resolve_reasoning_effort(request, model_config)

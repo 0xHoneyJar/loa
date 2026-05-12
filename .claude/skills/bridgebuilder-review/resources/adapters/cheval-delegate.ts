@@ -78,17 +78,6 @@ export class ChevalDelegateAdapter implements ILLMProvider {
       throw new Error("ChevalDelegateAdapter: `model` is required");
     }
 
-    // IMP-003 / T1.11 escape-hatch — wired here so it triggers on construction,
-    // before any side effects. The legacy fetch path is removed in cycle-103;
-    // operators who set this env get a guided rollback prompt, not the path.
-    if (process.env.LOA_BB_FORCE_LEGACY_FETCH === "1") {
-      throw new LLMProviderError(
-        "INVALID_REQUEST",
-        "LOA_BB_FORCE_LEGACY_FETCH=1 set but legacy fetch path was removed in cycle-103. " +
-          "See grimoires/loa/runbooks/cheval-delegate-architecture.md for rollback guidance.",
-      );
-    }
-
     if (options.mode === "daemon") {
       throw new LLMProviderError(
         "INVALID_REQUEST",

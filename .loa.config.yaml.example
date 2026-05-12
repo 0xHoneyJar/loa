@@ -675,6 +675,35 @@ hounfour:
       warn_at_percent: 80                    # Warn when spending exceeds this %
       on_exceeded: downgrade                 # block | downgrade | warn
 
+  # Headless mode — within-company CLI fallback routing (cycle-104 Sprint 2)
+  # ---------------------------------------------------------------------------
+  # Routes between HTTP API adapters and local CLI binaries (`claude` /
+  # `codex` / `gemini`). Per-call override via env: LOA_HEADLESS_MODE=<mode>
+  # (env wins over this config; both unset → prefer-api).
+  #
+  # Modes (chain_resolver.resolve() applies them within-company only):
+  #   prefer-api : HTTP first, CLI last in each chain entry (today's default)
+  #   prefer-cli : CLI first, HTTP last (budget-constrained operators)
+  #   api-only   : drop CLI entries from chain
+  #   cli-only   : drop HTTP entries — zero-API-key path. Requires every
+  #                primary in your bindings to have a `kind: cli` chain
+  #                terminal (`claude-headless` / `codex-headless` /
+  #                `gemini-headless` in the default model-config.yaml).
+  #
+  # CLI binaries must be on $PATH (or pin paths below). The router REFUSES
+  # to issue HTTPS when the resolved chain is CLI-only (defense-in-depth,
+  # SDD §1.9). Operator runbooks (cycle-104 T2.12):
+  #   grimoires/loa/runbooks/headless-mode.md            # 4-mode reference
+  #   grimoires/loa/runbooks/headless-capability-matrix.md  # feature × adapter
+  #   grimoires/loa/runbooks/chain-walk-debugging.md     # LOA_HEADLESS_VERBOSE + envelope queries
+  headless:
+    mode: prefer-api                         # prefer-api | prefer-cli | api-only | cli-only
+    # cli_paths: discovery hints. If unset, $PATH is searched.
+    # cli_paths:
+    #   claude: /usr/local/bin/claude
+    #   codex: /usr/local/bin/codex
+    #   gemini: /usr/local/bin/gemini
+
   # Provider registry — override endpoints, auth, or add new providers
   # Providers not listed here use system defaults from model-config.yaml
   providers:

@@ -35,16 +35,20 @@ setup() {
     [ "$status" -eq 0 ]
 }
 
-@test "cycle-104 removal TODO is present alongside the marker" {
-    run grep -F 'TODO(cycle-104): remove this entire NODE_OPTIONS block' "$ENTRY"
+@test "cycle-104+ removal TODO is present alongside the marker" {
+    # cycle-104 sprint-2 T2.14: TODO suffix relaxed to "cycle-104+" since
+    # the env-var rollback signal (LOA_BB_FORCE_LEGACY_FETCH) was retired
+    # but the NODE_OPTIONS removal itself is gated on a later cycle. Match
+    # both shapes so the test survives the relaxation.
+    run grep -E 'TODO\(cycle-104\+?\): remove this entire NODE_OPTIONS block' "$ENTRY"
     [ "$status" -eq 0 ]
 }
 
 @test "removal gate conditions are documented inline" {
-    # Both gate conditions (LOA_BB_FORCE_LEGACY_FETCH + github-cli check)
-    # must remain in the comment so removers know what to verify.
-    run grep -F 'LOA_BB_FORCE_LEGACY_FETCH=1' "$ENTRY"
-    [ "$status" -eq 0 ]
+    # github-cli.ts gate condition must remain so removers know what to
+    # verify. The LOA_BB_FORCE_LEGACY_FETCH gate was retired in cycle-104
+    # sprint-2 T2.14 (the env var no longer exists); its historical
+    # mention in the TODO is acceptable but no longer load-bearing.
     run grep -F 'github-cli.ts' "$ENTRY"
     [ "$status" -eq 0 ]
 }

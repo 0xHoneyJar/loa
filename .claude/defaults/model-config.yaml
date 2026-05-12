@@ -15,6 +15,10 @@ providers:
         capabilities: [chat, tools, function_calling]
         context_window: 128000
         token_param: max_completion_tokens
+        # cycle-104 Sprint 2 T2.3: within-company chain. NO cross-company.
+        fallback_chain:
+          - openai:gpt-5.3-codex
+          - openai:codex-headless
         # cycle-095 Sprint 1 (SDD §3.4): endpoint_family is REQUIRED on every
         # OpenAI registry entry; loader.py rejects missing/unknown values.
         # Operators with custom OpenAI entries can use
@@ -35,6 +39,9 @@ providers:
         capabilities: [chat, tools, function_calling, code]
         context_window: 400000
         token_param: max_completion_tokens
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - openai:codex-headless
         endpoint_family: responses    # codex models route to /v1/responses
         # cycle-102 Sprint 1 T1.9: codex is reasoning-class on /v1/responses
         # (closes A1 from sprint-bug-143 for codex prompts).
@@ -53,6 +60,10 @@ providers:
         capabilities: [chat, tools, function_calling, code]
         context_window: 400000
         token_param: max_completion_tokens
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - openai:gpt-5.3-codex
+          - openai:codex-headless
         endpoint_family: responses      # cycle-095 Sprint 1: gpt-5.5 only routes through /v1/responses
         # cycle-102 Sprint 1 T1.9: reasoning-class /v1/responses (closes A1).
         max_output_tokens: 32000
@@ -95,6 +106,14 @@ providers:
         capabilities: [chat, tools, function_calling, code]
         context_window: 400000
         token_param: max_completion_tokens
+        # cycle-104 Sprint 2 T2.3: load-bearing chain — KF-003 absorption.
+        # Within-company ONLY. Empty-content on gpt-5.5-pro walks to
+        # gpt-5.5 → gpt-5.3-codex → codex-headless (CLI bypass). No
+        # cross-company entry (G1 — 3-company BB diversity).
+        fallback_chain:
+          - openai:gpt-5.5
+          - openai:gpt-5.3-codex
+          - openai:codex-headless
         endpoint_family: responses      # cycle-095 Sprint 1
         # cycle-102 Sprint 1 T1.9 (closes A1 from sprint-bug-143): per-model
         # max_output_tokens. Reasoning models on /v1/responses charge their
@@ -141,6 +160,20 @@ providers:
           input_per_mtok: 30000000      # $30.00 per million tokens (confirmed 2026-04-29)
           output_per_mtok: 180000000    # $180.00 per million tokens (includes reasoning_tokens — SDD §5.5)
 
+      # cycle-104 Sprint 2 T2.4: within-company headless terminal for OpenAI.
+      # CLI fallback (no rate limit, no API key, no empty-content failure
+      # mode — different transport entirely). Chain terminals MUST NOT
+      # declare fallback_chain (enforced by lint).
+      codex-headless:
+        kind: cli                       # NEW field — distinguishes HTTP vs CLI
+        capabilities: [chat, code]      # No tools, no structured_json
+        # No pricing entry — CLI uses operator's Codex subscription.
+        # cycle-104 sprint-2 T2.11 amendment: cli_model is the model
+        # passed to `codex exec --model <name>`. The CLI doesn't
+        # recognize the Loa alias; this maps to the real codex model.
+        extra:
+          cli_model: gpt-5.5
+
   google:
     type: google
     endpoint: "https://generativelanguage.googleapis.com/v1beta"
@@ -151,12 +184,19 @@ providers:
         # Pricing matches gemini-2.5-flash (both are Google flash-tier).
         capabilities: [chat]
         context_window: 1048576
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - google:gemini-2.5-flash
+          - google:gemini-headless
         pricing:
           input_per_mtok: 150000     # $0.15 per million tokens (micro-USD)
           output_per_mtok: 600000    # $0.60 per million tokens
       gemini-2.5-flash:
         capabilities: [chat]
         context_window: 1048576
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - google:gemini-headless
         pricing:
           input_per_mtok: 150000     # $0.15 per million tokens (micro-USD)
           output_per_mtok: 600000    # $0.60 per million tokens
@@ -168,7 +208,12 @@ providers:
       gemini-3-flash-preview:
         capabilities: [chat]
         context_window: 1048576
-        fallback_chain: ["google:gemini-2.5-flash"]
+        # cycle-104 Sprint 2 T2.3: extended existing chain to terminate in
+        # within-company headless. cycle-095 already declared the demotion
+        # to gemini-2.5-flash; we add gemini-headless as the CLI terminal.
+        fallback_chain:
+          - google:gemini-2.5-flash
+          - google:gemini-headless
         pricing:
           input_per_mtok: 150000     # $0.15 per million tokens (frozen 2026-04-29)
           output_per_mtok: 600000    # $0.60 per million tokens (frozen 2026-04-29)
@@ -177,6 +222,9 @@ providers:
         context_window: 1048576
         # cycle-102 Sprint 1 T1.9 (closes A2): thinking_traces output cap.
         max_output_tokens: 16000
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - google:gemini-headless
         pricing:
           input_per_mtok: 1250000    # $1.25 per million tokens
           output_per_mtok: 10000000  # $10.00 per million tokens
@@ -197,6 +245,10 @@ providers:
         # for thinking_traces models on long prompts. 32K matches the OpenAI
         # reasoning-class cap.
         max_output_tokens: 32000
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - google:gemini-2.5-pro
+          - google:gemini-headless
         pricing:
           input_per_mtok: 1250000   # $1.25 per million tokens (micro-USD)
           output_per_mtok: 10000000  # $10.00 per million tokens
@@ -207,12 +259,33 @@ providers:
         capabilities: [chat, thinking_traces, deep_research]
         context_window: 1048576
         api_mode: interactions
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        # Interactions API is a different shape than regular chat; chain
+        # terminates in pro/headless so consensus voice still survives if
+        # the Deep Research endpoint returns empty.
+        fallback_chain:
+          - google:gemini-3.1-pro-preview
+          - google:gemini-headless
         pricing:
           input_per_mtok: 5000000    # $5.00 per million tokens
           output_per_mtok: 20000000  # $20.00 per million tokens
         extra:
           polling_interval_s: 5
           max_poll_time_s: 600
+
+      # cycle-104 Sprint 2 T2.4: within-company headless terminal for Google.
+      # CLI fallback via `gemini` binary. Operator must install per
+      # `grimoires/loa/runbooks/headless-mode.md`. Chain terminal — no
+      # further fallback (enforced by lint).
+      gemini-headless:
+        kind: cli
+        capabilities: [chat]            # No tools, no structured_json, no thinking
+        # No pricing entry — CLI uses operator's Google AI Studio subscription.
+        # cycle-104 sprint-2 T2.11 amendment: cli_model is the model
+        # passed to `gemini --model <name>`. Maps to the real Gemini
+        # model id the CLI accepts.
+        extra:
+          cli_model: gemini-3.1-pro-preview
 
   anthropic:
     type: anthropic
@@ -223,6 +296,11 @@ providers:
         capabilities: [chat, tools, function_calling, thinking_traces]
         context_window: 200000
         token_param: max_tokens
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - anthropic:claude-opus-4-6
+          - anthropic:claude-sonnet-4-6
+          - anthropic:claude-headless
         # cycle-102 Sprint 1 T1.9: Anthropic legacy adapter previously
         # hardcoded max_tokens=4096 — too low for opus-class adversarial-
         # review on ≥10K-token prompts. 32K matches reasoning-class cap.
@@ -261,6 +339,10 @@ providers:
         capabilities: [chat, tools, function_calling, thinking_traces]
         context_window: 200000
         token_param: max_tokens
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - anthropic:claude-sonnet-4-6
+          - anthropic:claude-headless
         # cycle-102 Sprint 1 T1.9: parity with claude-opus-4-7.
         max_output_tokens: 32000
         # cycle-102 Sprint 1F + Sprint 4A: parity with claude-opus-4-7
@@ -279,6 +361,11 @@ providers:
         token_param: max_tokens
         # cycle-102 Sprint 1 T1.9: sonnet output cap (smaller than opus).
         max_output_tokens: 16000
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - anthropic:claude-sonnet-4-5-20250929
+          - anthropic:claude-haiku-4-5-20251001
+          - anthropic:claude-headless
         pricing:
           input_per_mtok: 3000000    # $3.00 per million tokens
           output_per_mtok: 15000000  # $15.00 per million tokens
@@ -292,6 +379,10 @@ providers:
         capabilities: [chat, tools, function_calling]
         context_window: 200000
         token_param: max_tokens
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - anthropic:claude-haiku-4-5-20251001
+          - anthropic:claude-headless
         pricing:
           input_per_mtok: 3000000    # $3.00 per million tokens (same tier as sonnet-4-6)
           output_per_mtok: 15000000  # $15.00 per million tokens
@@ -303,9 +394,27 @@ providers:
         capabilities: [chat, tools, function_calling]
         context_window: 200000
         token_param: max_tokens
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - anthropic:claude-headless
         pricing:
           input_per_mtok: 1000000    # $1.00 per million tokens (frozen 2026-04-29)
           output_per_mtok: 5000000   # $5.00 per million tokens (frozen 2026-04-29)
+
+      # cycle-104 Sprint 2 T2.4: within-company headless terminal for Anthropic.
+      # CLI fallback via `claude` binary (Claude Code subscription auth).
+      # Operator must install per `grimoires/loa/runbooks/headless-mode.md`.
+      # Chain terminal — no further fallback (enforced by lint).
+      claude-headless:
+        kind: cli
+        capabilities: [chat]            # No tool_use, no thinking
+        # No pricing entry — CLI uses operator's Claude Code subscription.
+        # cycle-104 sprint-2 T2.11 amendment: cli_model is the literal
+        # model name passed to `claude --model <name>` (the CLI doesn't
+        # recognize the Loa alias). Operator-overridable to switch
+        # between sonnet / opus per subscription tier.
+        extra:
+          cli_model: sonnet
 
   # ===========================================================================
   # AWS Bedrock — cycle-096 (issue #652)
@@ -435,6 +544,13 @@ aliases:
   gpt-5.5: "openai:gpt-5.5"
   gpt-5.5-pro: "openai:gpt-5.5-pro"
   gpt-5.3-codex: "openai:gpt-5.3-codex"
+
+  # cycle-104 Sprint 2 T2.4: headless aliases (kind: cli). Each terminates
+  # its company's fallback_chain. Operator must install the underlying CLI
+  # binary (`claude`, `codex`, `gemini`) per the headless-mode runbook.
+  claude-headless: "anthropic:claude-headless"
+  codex-headless: "openai:codex-headless"
+  gemini-headless: "google:gemini-headless"
 
 # Backward-compat aliases (legacy model IDs → canonical provider:model-id)
 # Used by gen-adapter-maps.sh to reproduce the hand-maintained bash map
