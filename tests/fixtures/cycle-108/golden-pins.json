@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "pins": {
+    "rollback-trace": {
+      "fixture_path": "tests/fixtures/cycle-108/golden-rollback-trace.modelinv",
+      "sha256": "2d6b33bc4b52d85a187d55d1042d760ab22aefe379ceab180b467a6fad3ef585",
+      "signed_by_key_id": "OPERATOR-UNSIGNED",
+      "signed": false,
+      "signed_at": "2026-05-12T15:47:29Z",
+      "rotation_policy": "operator-triggered; no automatic expiration",
+      "last_verified_at": "2026-05-12T15:47:29Z"
+    }
+  }
+}
