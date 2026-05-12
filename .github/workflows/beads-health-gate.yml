@@ -74,7 +74,7 @@ jobs:
 
       - name: Smoke the repair tool against the dirty fixture
         run: |
-          set -euo pipefail
+          set -euxo pipefail
           scratch="$(mktemp -d)"
           sqlite3 "$scratch/beads.db" < tests/fixtures/beads-migration/dirty-db.sql
           tools/beads-migration-repair.sh --db "$scratch/beads.db" --no-backup
@@ -87,6 +87,31 @@ jobs:
             echo "OK: smoke repair produced HEALTHY schema (notnull=$notnull, dflt=$dflt)"
           else
             echo "::error::smoke repair did NOT produce HEALTHY schema (notnull=$notnull, dflt=$dflt)"
+            exit 1
+          fi
+
+      - name: Smoke beads-health.sh --repair end-to-end
+        run: |
+          set -euxo pipefail
+          scratch="$(mktemp -d)"
+          mkdir -p "$scratch/.beads"
+          sqlite3 "$scratch/.beads/beads.db" < tests/fixtures/beads-migration/dirty-db.sql
+          echo "--- pre-repair PRAGMA ---"
+          sqlite3 "$scratch/.beads/beads.db" "PRAGMA table_info(dirty_issues);"
+          echo "--- running beads-health.sh --quick --repair ---"
+          LOA_BEADS_DIR="$scratch/.beads" .claude/scripts/beads/beads-health.sh --quick --repair 2>&1 | tail -20 || true
+          echo "--- post-repair PRAGMA ---"
+          sqlite3 "$scratch/.beads/beads.db" "PRAGMA table_info(dirty_issues);"
+          # Verify schema was healed.
+          row=$(sqlite3 "$scratch/.beads/beads.db" "PRAGMA table_info(dirty_issues);" \
+                  | awk -F'|' '$2 == "marked_at"')
+          notnull=$(echo "$row" | awk -F'|' '{print $4}')
+          dflt=$(echo "$row" | awk -F'|' '{print $5}')
+          if [ "$notnull" = "1" ] && [ -n "$dflt" ]; then
+            echo "OK: beads-health.sh --repair end-to-end produced HEALTHY schema"
+          else
+            echo "::error::beads-health.sh --repair did NOT heal schema (notnull=$notnull, dflt=$dflt)"
+            echo "::error::This is the regression that BHRF-T1 catches."
             exit 1
           fi
 
