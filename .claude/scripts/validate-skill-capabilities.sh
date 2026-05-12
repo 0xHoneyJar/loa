@@ -48,6 +48,27 @@ done
 # --- Internal sub-skills to skip ---
 SKIP_SKILLS=("flatline-reviewer" "flatline-scorer" "flatline-skeptic" "gpt-reviewer")
 
+# --- Cycle-108 T1.D: role/primary_role validation constants ---
+# Valid role enum (PRD §5 FR-3, SDD §4.1)
+VALID_ROLES=("planning" "review" "implementation")
+
+# Review-class keywords for heuristic linter (SDD §20.5 ATK-A13)
+# Skills declaring role: review|audit MUST have >=2 of these in body
+REVIEW_CLASS_KEYWORDS=(
+    "review" "audit" "validate" "verify" "score"
+    "consensus" "adversarial" "inspect" "findings" "regression"
+)
+REVIEW_KEYWORD_MIN=2
+
+# Advisor-wins-ties tiebreaker (SDD §4.1, IMP-012):
+# When primary_role != role, only these downgrades are permitted (most-restrictive wins).
+# review beats planning beats implementation. Permitted primary_role:role pairs:
+ADVISOR_WINS_PAIRS=(
+    "review:planning"
+    "review:implementation"
+    "planning:implementation"
+)
+
 should_skip() {
     local name="$1"
     for skip in "${SKIP_SKILLS[@]}"; do
@@ -68,6 +89,166 @@ is_write_capable_agent() {
         [[ "$agent" == "$a" ]] && return 0
     done
     return 1
+}
+
+# --- Cycle-108 T1.D helpers ---
+
+is_valid_role() {
+    local role="$1"
+    for r in "${VALID_ROLES[@]}"; do
+        [[ "$role" == "$r" ]] && return 0
+    done
+    return 1
+}
+
+is_permitted_role_pair() {
+    # Args: primary_role role
+    # Returns 0 if the (primary_role:role) combination is allowed under advisor-wins-ties
+    local pair="$1:$2"
+    for p in "${ADVISOR_WINS_PAIRS[@]}"; do
+        [[ "$pair" == "$p" ]] && return 0
+    done
+    return 1
+}
+
+count_review_keywords_in_body() {
+    # Count occurrences of review-class keywords in the SKILL.md body (after frontmatter)
+    # Args: path-to-SKILL.md
+    # Output: integer count of UNIQUE keywords matched
+    local skill_md="$1"
+    local body
+    # Strip first frontmatter block to get body
+    body=$(awk '/^---$/{n++; next} n>=2' "$skill_md")
+    if [[ -z "$body" ]]; then
+        echo 0
+        return 0
+    fi
+    local hits=0
+    for kw in "${REVIEW_CLASS_KEYWORDS[@]}"; do
+        # Word-boundary, case-insensitive match
+        if echo "$body" | grep -qiwF "$kw"; then
+            hits=$((hits + 1))
+        fi
+    done
+    echo "$hits"
+}
+
+has_review_exempt_comment() {
+    # Returns 0 if SKILL.md body contains a # REVIEW-EXEMPT: comment
+    local skill_md="$1"
+    grep -qE '^[[:space:]]*#[[:space:]]*REVIEW-EXEMPT:[[:space:]]+\S+' "$skill_md"
+}
+
+has_role_change_authorization() {
+    # Returns 0 if SKILL.md body contains a valid # ROLE-CHANGE-AUTHORIZED-BY: comment.
+    # Format: # ROLE-CHANGE-AUTHORIZED-BY: <operator> ON <YYYY-MM-DD>
+    local skill_md="$1"
+    grep -qE '^[[:space:]]*#[[:space:]]*ROLE-CHANGE-AUTHORIZED-BY:[[:space:]]+\S+[[:space:]]+ON[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2}' "$skill_md"
+}
+
+# Reads previous role from git for diff-aware role-change rule.
+# Output: previous role value, or empty string if file is untracked / no prior role.
+previous_role_from_git() {
+    local skill_md="$1"
+    # Only attempt git lookup if we're inside a git repo
+    if ! git -C "$PROJECT_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+        echo ""
+        return 0
+    fi
+    # If file is untracked (first commit), no previous role exists
+    if ! git -C "$PROJECT_ROOT" ls-files --error-unmatch "$skill_md" >/dev/null 2>&1; then
+        echo ""
+        return 0
+    fi
+    # Extract previous role from HEAD version of the file
+    local prev_content prev_role
+    prev_content=$(git -C "$PROJECT_ROOT" show "HEAD:$skill_md" 2>/dev/null) || prev_content=""
+    if [[ -z "$prev_content" ]]; then
+        echo ""
+        return 0
+    fi
+    local prev_frontmatter
+    prev_frontmatter=$(echo "$prev_content" | awk '/^---$/{if(n++) exit; next} n')
+    prev_role=$(echo "$prev_frontmatter" | yq eval '.role // ""' - 2>/dev/null) || prev_role=""
+    echo "$prev_role"
+}
+
+# Cycle-108 T1.D: validate role/primary_role/review-keyword/diff-aware rules
+# Args: skill_name skill_md frontmatter
+# Returns 0 if all checks pass; sets has_error=true in caller scope on failure
+# (mirrors the rest of this script's error-propagation convention).
+validate_skill_role() {
+    local skill_name="$1"
+    local skill_md="$2"
+    local frontmatter="$3"
+
+    local role primary_role
+    role=$(echo "$frontmatter" | yq eval '.role // ""' - 2>/dev/null) || role=""
+    primary_role=$(echo "$frontmatter" | yq eval '.primary_role // ""' - 2>/dev/null) || primary_role=""
+
+    # 1. role field is REQUIRED
+    if [[ -z "$role" || "$role" == "null" ]]; then
+        log_error "$skill_name" "Missing required 'role' field (one of: ${VALID_ROLES[*]}) — cycle-108 T1.D"
+        return 1
+    fi
+
+    # 2. role is a valid enum value
+    if ! is_valid_role "$role"; then
+        log_error "$skill_name" "Invalid role '$role' (must be one of: ${VALID_ROLES[*]}) — cycle-108 T1.D"
+        return 1
+    fi
+
+    # 3. primary_role consistency check (advisor-wins-ties)
+    if [[ -n "$primary_role" && "$primary_role" != "null" ]]; then
+        if ! is_valid_role "$primary_role"; then
+            log_error "$skill_name" "Invalid primary_role '$primary_role' (must be one of: ${VALID_ROLES[*]}) — cycle-108 T1.D"
+            return 1
+        fi
+        # primary_role == role is always fine
+        if [[ "$primary_role" != "$role" ]]; then
+            # Disagreement permitted only under advisor-wins-ties rule
+            if ! is_permitted_role_pair "$primary_role" "$role"; then
+                log_error "$skill_name" "primary_role '$primary_role' does not satisfy advisor-wins-ties rule against role '$role' (permitted: ${ADVISOR_WINS_PAIRS[*]}) — cycle-108 T1.D"
+                return 1
+            fi
+        fi
+    fi
+
+    # 4. Heuristic linter for role=review skills (ATK-A13)
+    # (SDD §20.5: role: review|audit must have >=2 review-class keywords in body
+    # unless REVIEW-EXEMPT magic comment is present.)
+    if [[ "$role" == "review" ]]; then
+        if ! has_review_exempt_comment "$skill_md"; then
+            local kw_count
+            kw_count=$(count_review_keywords_in_body "$skill_md")
+            if [[ "$kw_count" -lt "$REVIEW_KEYWORD_MIN" ]]; then
+                # Soft warning per SDD §20.5 step 1 (failure produces a soft warning unless REVIEW-EXEMPT)
+                log_warning "$skill_name" "role: review but body has only $kw_count review-class keyword(s) (>=$REVIEW_KEYWORD_MIN expected from: ${REVIEW_CLASS_KEYWORDS[*]}). Add '# REVIEW-EXEMPT: <rationale>' to opt out. — cycle-108 T1.D" || return 1
+            fi
+        fi
+    fi
+
+    # 5. Diff-aware role-change rule (SDD §20.10 ATK-A2 + §4.2 step 3)
+    # When role: changes on an existing SKILL.md (detected via git), require
+    # # ROLE-CHANGE-AUTHORIZED-BY: <operator> ON <YYYY-MM-DD> comment.
+    # In particular: review|audit -> implementation transitions MUST be co-signed.
+    local prev_role
+    prev_role=$(previous_role_from_git "$skill_md")
+    if [[ -n "$prev_role" && "$prev_role" != "$role" ]]; then
+        # Role change detected — check authorization
+        if ! has_role_change_authorization "$skill_md"; then
+            # Stricter for downgrades from review/audit
+            if [[ "$prev_role" == "review" && "$role" != "review" ]]; then
+                log_error "$skill_name" "role changed from '$prev_role' to '$role' without '# ROLE-CHANGE-AUTHORIZED-BY: <operator> ON <YYYY-MM-DD>' comment (cycle-108 T1.D ATK-A2: review->non-review downgrade requires explicit co-sign)"
+                return 1
+            else
+                # Softer warning for other changes
+                log_warning "$skill_name" "role changed from '$prev_role' to '$role' without '# ROLE-CHANGE-AUTHORIZED-BY: <operator> ON <YYYY-MM-DD>' comment — cycle-108 T1.D" || return 1
+            fi
+        fi
+    fi
+
+    return 0
 }
 
 # --- Counters ---
@@ -269,6 +450,18 @@ validate_skill() {
         fi
         if [[ "$needs_write" == "true" ]]; then
             log_error "$skill_name" "agent type '$agent_type' excludes Write/Edit tools but skill declares write capability (capabilities.write_files: true or allowed-tools contains Write/Edit) — remove agent: key or use a write-capable agent type (${WRITE_CAPABLE_AGENTS[*]})"
+            has_error=true
+        fi
+    fi
+
+    # --- Cycle-108 T1.D: role/primary_role validation ---
+    # Run only if cycle-108 role validation is opt-in (LOA_VALIDATE_ROLE=1)
+    # OR if the skill already declares a role: field (forward-compat: once a
+    # skill opts in, the validator enforces).
+    local declared_role
+    declared_role=$(echo "$frontmatter" | yq eval '.role // ""' - 2>/dev/null) || declared_role=""
+    if [[ "${LOA_VALIDATE_ROLE:-0}" == "1" || -n "$declared_role" ]]; then
+        if ! validate_skill_role "$skill_name" "$skill_md" "$frontmatter"; then
             has_error=true
         fi
     fi
