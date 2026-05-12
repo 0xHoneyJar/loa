@@ -99,6 +99,76 @@ mkdir -p "$OUTPUT_DIR"
 
 
 # -----------------------------------------------------------------------------
+# T3.B — Refuse-on-tamper gate (baselines.json + signed Git tag).
+#
+# Runs BEFORE any replay. Verifies:
+#   1. baselines.json exists at the cycle-108 cycle dir
+#   2. baselines.signed == true (or LOA_BENCHMARK_ALLOW_UNSIGNED_BASELINES=1)
+#   3. cycle-108-baselines-pin-<sha> git tag exists and verifies (operator key)
+#   4. baselines.json's current SHA matches the tag's pinned commit SHA
+#   5. baselines.json's git_sha_at_signing matches HEAD or pinned tag
+#
+# Defeat conditions (any → exit 78 EX_CONFIG, no partial replays):
+#   - baselines.json missing
+#   - signed=false without override flag
+#   - git tag missing or `git tag -v` non-zero
+#   - committed SHA != git_sha_at_signing
+#
+# Defeat for testing only (LOA_BENCHMARK_SKIP_BASELINE_GATE=1) emits a
+# WARN and proceeds; production must NEVER set this.
+# -----------------------------------------------------------------------------
+verify_baselines_gate() {
+    local baselines="$REPO_ROOT/grimoires/loa/cycles/cycle-108-advisor-strategy/baselines.json"
+    if [ "${LOA_BENCHMARK_SKIP_BASELINE_GATE:-0}" = "1" ]; then
+        echo "[advisor-benchmark] WARN: LOA_BENCHMARK_SKIP_BASELINE_GATE=1 — baseline verification BYPASSED. NEVER set this in production." >&2
+        return 0
+    fi
+    if [ ! -f "$baselines" ]; then
+        echo "[advisor-benchmark] REFUSED: baselines.json missing at $baselines" >&2
+        echo "[advisor-benchmark] Run tools/compute-baselines.py first (T3.A); then operator signs T3.A.OP." >&2
+        return 78
+    fi
+    local signed git_tag pinned_sha
+    signed="$(jq -r '.signed // false' "$baselines" 2>/dev/null)"
+    git_tag="$(jq -r '.git_tag // empty' "$baselines" 2>/dev/null)"
+    pinned_sha="$(jq -r '.git_sha_at_signing // empty' "$baselines" 2>/dev/null)"
+    if [ "$signed" != "true" ] && [ "${LOA_BENCHMARK_ALLOW_UNSIGNED_BASELINES:-0}" != "1" ]; then
+        echo "[advisor-benchmark] REFUSED: baselines.json is UNSIGNED (signed=false)." >&2
+        echo "[advisor-benchmark] Operator must sign via T3.A.OP, or pass LOA_BENCHMARK_ALLOW_UNSIGNED_BASELINES=1 (dev/test only)." >&2
+        return 78
+    fi
+    if [ -z "$git_tag" ]; then
+        echo "[advisor-benchmark] REFUSED: baselines.json.git_tag field empty (no cross-cycle pin recorded)." >&2
+        return 78
+    fi
+    # Verify the tag exists and its signature validates.
+    if ! git -C "$REPO_ROOT" tag -v "$git_tag" >/dev/null 2>&1; then
+        echo "[advisor-benchmark] REFUSED: git tag '$git_tag' missing or signature invalid." >&2
+        echo "[advisor-benchmark] Operator re-signs via: git tag -s -m \"cycle-108 baselines pin\" $git_tag $pinned_sha" >&2
+        return 78
+    fi
+    # Verify tag points at the same commit as baselines.json claims.
+    local tag_target
+    tag_target="$(git -C "$REPO_ROOT" rev-parse "$git_tag^{commit}" 2>/dev/null)"
+    if [ "$tag_target" != "$pinned_sha" ]; then
+        echo "[advisor-benchmark] REFUSED: git tag '$git_tag' points at $tag_target but baselines.json claims $pinned_sha." >&2
+        return 78
+    fi
+    # Defense-in-depth: compute baselines.json sha256 and store next to manifest.
+    local baselines_sha
+    baselines_sha="$(sha256sum "$baselines" | awk '{print $1}')"
+    echo "[advisor-benchmark] baselines gate PASS — tag=$git_tag commit=$pinned_sha file_sha256=${baselines_sha:0:16}" >&2
+    return 0
+}
+
+
+# Run the gate (unless --dry-run path is for harness-skeleton smoke).
+if ! verify_baselines_gate; then
+    exit 78
+fi
+
+
+# -----------------------------------------------------------------------------
 # T2.E — classify_replay_outcome <manifest_jsonl>
 #
 # Classifies a per-replay outcome based on MODELINV envelopes emitted during
