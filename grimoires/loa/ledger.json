@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-104-multi-model-stabilization",
+  "active_cycle": "cycle-105-beads-recovery",
   "cycles": [
     {
       "id": "cycle-036",
@@ -1135,6 +1135,22 @@
         "#848"
       ],
       "predecessor": "cycle-103-provider-unification"
+    },
+    {
+      "id": "cycle-105-beads-recovery",
+      "label": "beads_rust migration recovery (KF-005 closure)",
+      "status": "in-progress",
+      "created": "2026-05-12T06:47:53Z",
+      "prd": "grimoires/loa/cycles/cycle-105-beads-recovery/prd.md",
+      "sdd": null,
+      "sprint_plan": null,
+      "source_issues": [
+        "https://github.com/0xHoneyJar/loa/issues/661",
+        "https://github.com/Dicklesworthstone/beads_rust/issues/290"
+      ],
+      "predecessor_cycle": "cycle-104-multi-model-stabilization",
+      "cycle_folder": "grimoires/loa/cycles/cycle-105-beads-recovery/",
+      "sprints": []
     }
   ],
   "global_sprint_counter": 143,
