@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-105-beads-recovery",
+  "active_cycle": "cycle-106-zone-hygiene",
   "cycles": [
     {
       "id": "cycle-036",
@@ -1168,9 +1168,43 @@
           "tasks": 5
         }
       ]
+    },
+    {
+      "id": "cycle-106-zone-hygiene",
+      "label": "Framework Template Hygiene — zone boundaries",
+      "status": "in-progress",
+      "created": "2026-05-12T08:10:58Z",
+      "prd": "grimoires/loa/cycles/cycle-106-zone-hygiene/prd.md",
+      "sdd": "grimoires/loa/cycles/cycle-106-zone-hygiene/sdd.md",
+      "sprint_plan": "grimoires/loa/cycles/cycle-106-zone-hygiene/sprint.md",
+      "source_issues": [
+        "https://github.com/0xHoneyJar/loa/issues/818",
+        "https://github.com/0xHoneyJar/loa/issues/736",
+        "https://github.com/0xHoneyJar/loa/issues/817"
+      ],
+      "predecessor_cycle": "cycle-105-beads-recovery",
+      "cycle_folder": "grimoires/loa/cycles/cycle-106-zone-hygiene/",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 156,
+          "label": "Manifest + hook + gitignore migration",
+          "status": "pending",
+          "scope": "MEDIUM",
+          "tasks": 6
+        },
+        {
+          "local_id": 2,
+          "global_id": 157,
+          "label": "/update-loa filter + mount-loa seed + #818 closure",
+          "status": "pending",
+          "scope": "MEDIUM",
+          "tasks": 6
+        }
+      ]
     }
   ],
-  "global_sprint_counter": 155,
+  "global_sprint_counter": 157,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
@@ -1354,5 +1388,5 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 156
+  "next_sprint_number": 158
 }
