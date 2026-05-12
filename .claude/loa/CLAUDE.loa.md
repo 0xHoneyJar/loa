@@ -194,6 +194,33 @@ Multi-model adversarial review (Opus + GPT-5.2). HIGH_CONSENSUS auto-integrates,
 
 **Reference**: `.claude/loa/reference/flatline-reference.md`
 
+## Multi-Model Activation (v1.157.0 / cycle-107)
+
+The multi-model stabilization work shipped in cycle-104 (within-company fallback chains T2.5, voice-drop T2.8, MODELINV v1.1 envelope T2.6) routes through the `cheval.py` substrate. Activation is controlled by `hounfour.flatline_routing` in `.loa.config.yaml`.
+
+| Flag value | BB | Flatline | Red-team |
+|-----------|----|---------:|---------:|
+| `flatline_routing: true` (default post-cycle-107) | cheval | cheval | cheval |
+| `flatline_routing: false` (legacy rollback) | cheval (unconditional, BB always uses ChevalDelegateAdapter) | legacy model-adapter.sh.legacy (no chain-walk / voice-drop / MODELINV v1.1) | legacy |
+
+BB is unaffected by the flag — it has used `ChevalDelegateAdapter` unconditionally since cycle-103 PR #846. The flag only gates FL + RT.
+
+When `true`, all three consumers benefit from:
+- **Chain-walk**: cheval walks the within-company `fallback_chain` (e.g. gpt-5.5-pro → gpt-5.5 → gpt-5.3-codex → codex-headless) on retryable errors (EmptyContent, RateLimited, ProviderOutage, RetriesExhausted).
+- **Voice-drop**: when a voice's chain exhausts, flatline-orchestrator DROPS that voice from consensus instead of substituting another company's model. Audit log: `consensus.voice_dropped`.
+- **MODELINV v1.1 envelope**: emits per-invocation audit record at `.run/model-invoke.jsonl` with `final_model_id`, `transport`, `config_observed`, `models_failed[]`, `models_requested[]`.
+
+### Verification (cycle-107 sprint-1)
+
+Live evidence captured under operator config flatline_routing=true:
+- FL 3-model run: 549s, 3 voices' MODELINV envelopes recorded, chains populated, all primaries succeeded
+- RT review: 1 MODELINV envelope, cheval audit signature confirmed
+- BB: verified via cycle-104 sprint-3 T3.4 (4/4 trials at 297-539KB clean)
+
+### Rollback
+
+If a regression surfaces, flip `hounfour.flatline_routing: false` in `.loa.config.yaml` to revert FL + RT to the legacy model-adapter.sh.legacy path. BB unaffected.
+
 ## Invisible Prompt Enhancement (v1.17.0)
 
 Prompts automatically enhanced before skill execution. Silent, logged to trajectory.

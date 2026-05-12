@@ -652,15 +652,22 @@ beads:
 # Architecture: SDD §4.1.2 (Config Schema), §4.2 (Routing), §4.5 (Metering)
 # Feature flags and metering — Hounfour Model-Heterogeneous Agent Routing
 hounfour:
-  # Top-level flag — controls whether Flatline uses Hounfour routing
-  # or the legacy direct-call path. Set to true when ready to migrate.
-  flatline_routing: false
+  # Top-level flag — controls whether Flatline + Red-team use cheval
+  # routing or the legacy direct-call path.
+  # cycle-107 (2026-05-12) flipped the default from false → true. Without
+  # cheval routing, the cycle-104 multi-model stabilization work (within-
+  # company chain-walk T2.5, voice-drop T2.8, MODELINV v1.1 envelope T2.6)
+  # is INERT for FL + RT. BB is unaffected — it uses ChevalDelegateAdapter
+  # unconditionally since cycle-103 PR #846.
+  # Rollback path: flip to false to restore the legacy model-adapter.sh.legacy
+  # behavior (no chain-walk, no voice-drop, no MODELINV v1.1).
+  flatline_routing: true
 
   # Per-subsystem feature flags (all default true — opt-out, not opt-in)
   feature_flags:
     google_adapter: true     # Enable Google provider adapter
     deep_research: true      # Enable Deep Research models (Interactions API)
-    flatline_routing: false   # Route Flatline through Hounfour
+    flatline_routing: true   # cycle-107: flipped — engages cheval chain-walk + voice-drop
     metering: true           # Enable BudgetEnforcer cost tracking
     thinking_traces: true    # Include thinking config in request bodies
     jam_geometry: false      # Enable Jam multi-model parallel review (opt-in)

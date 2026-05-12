@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-106-zone-hygiene",
+  "active_cycle": "cycle-107-multimodel-activation",
   "cycles": [
     {
       "id": "cycle-036",
@@ -1202,9 +1202,31 @@
           "tasks": 6
         }
       ]
+    },
+    {
+      "id": "cycle-107-multimodel-activation",
+      "label": "Multi-Model Activation + Live Verification",
+      "status": "in-progress",
+      "created": "2026-05-12T12:18:54Z",
+      "prd": "grimoires/loa/cycles/cycle-107-multimodel-activation/prd.md",
+      "sdd": "grimoires/loa/cycles/cycle-107-multimodel-activation/sdd.md",
+      "sprint_plan": "grimoires/loa/cycles/cycle-107-multimodel-activation/sprint.md",
+      "source_issues": [],
+      "predecessor_cycle": "cycle-106-zone-hygiene",
+      "cycle_folder": "grimoires/loa/cycles/cycle-107-multimodel-activation/",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 158,
+          "label": "Flip + verify + document",
+          "status": "pending",
+          "scope": "SMALL",
+          "tasks": 8
+        }
+      ]
     }
   ],
-  "global_sprint_counter": 157,
+  "global_sprint_counter": 158,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
@@ -1388,5 +1410,5 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 158
+  "next_sprint_number": 159
 }
