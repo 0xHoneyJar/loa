@@ -1,0 +1,64 @@
+# Loa Zone Manifest — cycle-106 sprint-1 T1.2
+#
+# Declares which paths are framework-zone (propagate via /update-loa)
+# vs project-zone (operator-owned; /update-loa MUST NOT write here)
+# vs shared (both contribute; conflict-flagged on overlap).
+#
+# Validated by .claude/data/zones.schema.yaml. Read by:
+#   - .claude/hooks/safety/zone-write-guard.sh (PreToolUse:Write/Edit)
+#   - .claude/scripts/update-loa.sh Phase 5.X (merge filter)
+#   - .claude/skills/mounting-framework (new-install seeding)
+#
+# Project operators: this file lives in YOUR project. Adjust the path
+# lists if your project's conventions differ. The framework provides
+# this seed; you own the instance going forward.
+
+schema_version: "1.0"
+
+zones:
+  framework:
+    description: |
+      Framework-managed. /update-loa propagates from upstream. Operators
+      should NOT modify these directly — use overrides or file upstream.
+    tracked_paths:
+      - ".claude/loa/**"
+      - ".claude/scripts/**"
+      - ".claude/data/**"
+      - ".claude/skills/**"
+      - ".claude/hooks/**"
+      - ".claude/protocols/**"
+      - ".claude/rules/**"
+      - ".claude/commands/**"
+      - "tools/**"
+      - "grimoires/loa/runbooks/**"
+      - "grimoires/loa/.gitignore"
+
+  project:
+    description: |
+      Operator-owned. /update-loa MUST NOT propagate the framework's
+      version of these. Each project's content is sovereign.
+    tracked_paths:
+      - "grimoires/loa/cycles/**"
+      - "grimoires/loa/NOTES.md"
+      - "grimoires/loa/handoffs/**"
+      - "grimoires/loa/a2a/**"
+      - "grimoires/loa/visions/**"
+      - "grimoires/loa/memory/**"
+      - "grimoires/loa/proposals/**"
+      - "grimoires/loa/legacy/**"
+      - "grimoires/loa/context/**"
+      - "grimoires/loa/archive/**"
+      - "grimoires/loa/ledger.json"
+      - "grimoires/loa/ledger.json.bak*"
+      - "BUTTERFREEZONE.md"
+      - "CHANGELOG.md"
+      - "README.md"
+      - "SOUL.md"
+
+  shared:
+    description: |
+      Both framework and project contribute. /update-loa merges
+      sections; overlap surfaces as a conflict for operator resolution.
+    tracked_paths:
+      - "grimoires/loa/known-failures.md"
+      - "grimoires/loa/MEMORY.md"
