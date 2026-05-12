@@ -40,11 +40,14 @@ fi
 # slow-but-reachable IPv4 paths) is now isolated to whatever Node fetch
 # remains in github-cli.ts and similar GitHub-API paths — NOT to LLM calls.
 #
-# TODO(cycle-104): remove this entire NODE_OPTIONS block AND its companion
+# TODO(cycle-104+): remove this entire NODE_OPTIONS block AND its companion
 # LOA_BB_DISABLE_FAMILY_TIMEOUT_FIX env hatch. Removal is gated on:
 #   1. Observable operator-green signal across ≥1 full cycle that the
-#      cheval delegate path remains the BB hot path for provider calls
-#      (i.e., no operator has flipped LOA_BB_FORCE_LEGACY_FETCH=1).
+#      cheval delegate path remains the BB hot path for provider calls.
+#      (Cycle-104 sprint-2 T2.14 removed the companion
+#      LOA_BB_FORCE_LEGACY_FETCH operator-rollback signal because the
+#      legacy fetch path it gated was already gone — the constructor
+#      check is no longer load-bearing.)
 #   2. Confirmation that github-cli.ts and other Node fetch sites do not
 #      hit the same Happy Eyeballs failure mode (KF-001 is provider-API
 #      specific per the original diagnostic).

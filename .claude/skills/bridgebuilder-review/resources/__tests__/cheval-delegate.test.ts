@@ -128,28 +128,13 @@ describe("ChevalDelegateAdapter — constructor", () => {
     );
   });
 
-  it("LOA_BB_FORCE_LEGACY_FETCH=1 triggers guided rollback error", () => {
-    const prior = process.env.LOA_BB_FORCE_LEGACY_FETCH;
-    process.env.LOA_BB_FORCE_LEGACY_FETCH = "1";
-    try {
-      assert.throws(
-        () =>
-          new ChevalDelegateAdapter({
-            model: "anthropic:claude-sonnet-4-5",
-          }),
-        (err: unknown) => {
-          if (!(err instanceof LLMProviderError)) return false;
-          if (err.code !== "INVALID_REQUEST") return false;
-          if (!/legacy fetch path was removed/i.test(err.message)) return false;
-          if (!/cheval-delegate-architecture\.md/i.test(err.message)) return false;
-          return true;
-        },
-      );
-    } finally {
-      if (prior === undefined) delete process.env.LOA_BB_FORCE_LEGACY_FETCH;
-      else process.env.LOA_BB_FORCE_LEGACY_FETCH = prior;
-    }
-  });
+  // Note (cycle-104 sprint-2 T2.14): the prior
+  // "LOA_BB_FORCE_LEGACY_FETCH=1 triggers guided rollback error" test
+  // was removed alongside the env-var check itself. The legacy fetch
+  // path was deleted in cycle-103, so by cycle-104 the hatch only
+  // produced a guided-rollback message and carried no actual rollback
+  // capability — preserving the test surface would have pinned a dead
+  // env-var contract.
 });
 
 describe("ChevalDelegateAdapter — request marshaling", () => {
