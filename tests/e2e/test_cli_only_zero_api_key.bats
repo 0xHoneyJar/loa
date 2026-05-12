@@ -57,6 +57,15 @@ setup() {
         skip "cheval.py not at $CHEVAL"
     fi
 
+    # ----- ptrace_scope gating for strace-based tests --------------------
+    # On hardened kernels (`kernel.yama.ptrace_scope=2`), strace cannot
+    # attach to a non-descendant process without CAP_SYS_PTRACE / root.
+    # The strace-bearing assertions (T2.11-1 / T2.11-2) require ptrace_scope
+    # <= 1; the envelope cross-check (T2.11-3) does not. Per-test skip is
+    # set inside each strace test rather than here so T2.11-3 still runs.
+    PTRACE_SCOPE="$(cat /proc/sys/kernel/yama/ptrace_scope 2>/dev/null || echo 0)"
+    export PTRACE_SCOPE
+
     # ----- Per-test scratch ----------------------------------------------
     local slug
     slug=$(echo "${BATS_TEST_NAME:-test}" | tr -c 'A-Za-z0-9_' '_')
@@ -108,6 +117,9 @@ _count_non_https_connects() {
 # ---- T2.11 happy path -----------------------------------------------------
 
 @test "T2.11-1: cli-only mode succeeds with zero *_API_KEY env" {
+    if [[ "$PTRACE_SCOPE" -gt 1 ]]; then
+        skip "kernel.yama.ptrace_scope=$PTRACE_SCOPE — strace cannot attach. Run with sudo, set 'sysctl kernel.yama.ptrace_scope=1', or rely on T2.11-3 audit-envelope cross-check (structural proof: cli-only mode filters HTTP entries from the resolved chain at resolve time)."
+    fi
     # Unset every HTTP API key — defense-in-depth proof that nothing
     # leaks an env-derived auth header to the HTTPS path.
     unset ANTHROPIC_API_KEY OPENAI_API_KEY GOOGLE_API_KEY \
@@ -171,6 +183,9 @@ _count_non_https_connects() {
 # ---- T2.11 negative control: prefer-api MUST issue HTTPS ------------------
 
 @test "T2.11-2: control: prefer-api WITH api keys DOES issue HTTPS (proves strace works)" {
+    if [[ "$PTRACE_SCOPE" -gt 1 ]]; then
+        skip "kernel.yama.ptrace_scope=$PTRACE_SCOPE — strace control test cannot run."
+    fi
     # Negative control. Without this, a strace-broken test would pass
     # T2.11-1 by accident (zero HTTPS counted because strace logged
     # nothing). This test FAILS if strace didn't catch a known-HTTPS
@@ -200,11 +215,15 @@ _count_non_https_connects() {
 
 # ---- T2.11 audit envelope cross-check -------------------------------------
 
-@test "T2.11-3: audit trajectory records transport=cli for cli-only invocations" {
+@test "T2.11-3: audit envelope records transport=cli for cli-only invocations" {
+    # No strace — pure audit-envelope assertion. This test is the structural
+    # proof for ptrace_scope=2 environments where T2.11-1/T2.11-2 must skip.
     unset ANTHROPIC_API_KEY OPENAI_API_KEY GOOGLE_API_KEY
     export LOA_HEADLESS_MODE="cli-only"
+    local modelinv_log="$SCRATCH/modelinv.jsonl"
+    export LOA_MODELINV_LOG_PATH="$modelinv_log"
 
-    python3 "$CHEVAL" invoke \
+    python3 "$CHEVAL" \
         --agent flatline-reviewer \
         --model claude-headless \
         --prompt "Reply with the single word 'ack'." \
@@ -213,17 +232,23 @@ _count_non_https_connects() {
         --timeout 120 \
         >"$CHEVAL_STDOUT" 2>"$CHEVAL_STDERR" || true
 
-    # The cheval stdout envelope itself carries transport per T2.6.
-    run jq -r '.transport // empty' "$CHEVAL_STDOUT"
+    # The cheval stdout envelope carries content; transport lives in the
+    # MODELINV audit log (cycle-104 T2.6 / SDD §3.4). Verify both.
+    run jq -r '.content // empty' "$CHEVAL_STDOUT"
+    [ "$status" -eq 0 ]
+    [ -n "$output" ]
+
+    # MODELINV envelope must exist + carry transport=cli + cli-only mode.
+    [ -f "$modelinv_log" ]
+    run jq -r '.payload.transport // empty' "$modelinv_log"
     [ "$status" -eq 0 ]
     [ "$output" = "cli" ]
 
-    # config_observed.headless_mode must reflect the operator's env.
-    run jq -r '.config_observed.headless_mode // empty' "$CHEVAL_STDOUT"
+    run jq -r '.payload.config_observed.headless_mode // empty' "$modelinv_log"
     [ "$status" -eq 0 ]
     [ "$output" = "cli-only" ]
 
-    run jq -r '.config_observed.headless_mode_source // empty' "$CHEVAL_STDOUT"
+    run jq -r '.payload.config_observed.headless_mode_source // empty' "$modelinv_log"
     [ "$status" -eq 0 ]
     [ "$output" = "env" ]
 }
