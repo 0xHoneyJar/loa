@@ -1,5 +1,33 @@
 # Loa Project Notes
 
+## Decision Log — 2026-05-12 (cycle-104 Sprint 2 E + G — SHIPPED on /run-resume, Shape A)
+
+**Status**: 10/14 sprint tasks now landed across 9 commits on `feature/cycle-104-sprint-2-fallback-chains-headless`. Substantive scope COMPLETE; only operator-gated F (T2.9 + T2.10 + T2.11) remains.
+
+**Resumed from HALTED state** (operator-review checkpoint from the Group C continuator session). Operator picked Shape A (continue branch, single PR). 4 new commits this resume:
+
+| Commit | Task | Scope |
+|--------|------|-------|
+| `7fca3be8` | T2.8 | Voice-drop wiring in flatline-orchestrator. New lib `voice-drop-classifier.sh` (pure function: success/dropped/failed). `emit_voice_dropped` helper writes `consensus.voice_dropped` trajectory event. Phase 1 + Phase 2 wait loops distinguish failed vs chain-exhausted. NO_ELIGIBLE_ADAPTER (exit 11) NEVER silently drops — config error must surface (VDC-T3 + VDO-T6 pin this). 17 new bats tests. |
+| `bd7edec9` | T2.14 | Remove `LOA_BB_FORCE_LEGACY_FETCH` dead env var. The rollback target was already gone after cycle-103; the hatch only emitted a guided-rollback message. Constructor check + test removed; dist/ regenerated; drift gate passes. |
+| `ddf525a2` | T2.12 | Three runbooks shipped: `headless-mode.md` (4 modes + voice-drop section), `headless-capability-matrix.md` (feature × adapter table), `chain-walk-debugging.md` (`LOA_HEADLESS_VERBOSE` stderr contract + MODELINV jq queries). Linked from `.loa.config.yaml.example`. |
+| `2fd5749d` | T2.13 | Cross-runtime parity test for `kind: cli` entries. Bash (yq+jq), Python (PyYAML), Node (yaml package) emit byte-equal canonical JSON. Catches the silent-drift class where a future runtime parser would mishandle the new discriminator. 6 new bats tests. |
+
+**Voice-drop architectural decision (T2.8):** the cross-company `flatline_protocol.models.{secondary, tertiary}` defaults are now repurposed per SDD §6.5 — fire ONLY after within-company chain exhausts, drop the voice from consensus instead of substituting another company's model. The cycle-102 T1B.4 cross-company-swap anti-pattern is structurally retired. `dropped_count` is tracked separately from `failed_count` so the "all voices unavailable" diagnostic distinguishes "network outage" (all failed) from "chains exhausted" (all dropped). 17 bats tests pin every code path: VDC-T3 forbids silent-drop on `NO_ELIGIBLE_ADAPTER` (exit 11) so a typo'd `headless_mode` produces a hard failure, not a phantom voice loss.
+
+**Stash safety incident (recovered):** during a routine `git stash`/`git stash pop` sequence to verify a pre-existing test failure was not introduced by my work, the second `git stash` printed "No local changes to save" (working tree was already clean) and the subsequent `git stash pop` popped `stash@{0}` — which turned out to be unrelated cycle-095 work left behind by a prior session. The pop introduced merge conflicts in README.md + NOTES.md + 5 other files. Recovered cleanly via `git restore HEAD --` on the conflict set; stash@{0} was preserved by git's "entry kept" semantics (no data loss). My 4 T2.x commits were never at risk because they were already on HEAD. **Lesson:** even a well-formed `git stash`/`pop` pair is unsafe when the stash list has pre-existing entries from earlier sessions — `pop` defaults to `stash@{0}` and silently lands content from an unrelated branch. The `.claude/rules/stash-safety.md` rules cover the output-truncation hazard, but this is a DIFFERENT hazard class (stale-list latency). Future remediation: before invoking `git stash`, check `git stash list` is empty or push by explicit message. Not a blocker for cycle-104; documenting as observed-but-not-realized risk in the handoff.
+
+**Sprint exit posture:** branch ready for review/merge. Group F remains operator-gated:
+- T2.9 (`flatline_protocol.code_review.model` revert from `claude-opus-4-7` → `gpt-5.5-pro`) gated on T2.10 evidence per R8
+- T2.10 (KF-003 chain replay live API, ≤$3 budget) needs `LOA_RUN_LIVE_TESTS=1`
+- T2.11 (cli-only zero-API-key e2e) needs `claude` / `codex` / `gemini` CLI binaries on `$PATH`
+
+**Handoff doc**: `grimoires/loa/cycles/cycle-104-multi-model-stabilization/handoffs/sprint-2-complete-shape-a.md`
+
+— Claude Opus 4.7 (1M context, this session), 2026-05-12
+
+---
+
 ## Decision Log — 2026-05-12 (cycle-104 Sprint 2 Group C — SHIPPED on /run-resume)
 
 **Status**: 6/14 sprint tasks landed across 4 commits on `feature/cycle-104-sprint-2-fallback-chains-headless` (stacked off PR #849). Group C (T2.5 + T2.6) shipped at `5bb606fe`.
