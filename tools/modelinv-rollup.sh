@@ -52,6 +52,8 @@ STRIP_DETECT=1
 STRICT_STRIP=0
 REQUIRE_SIGNED=0
 
+PER_SKILL_DAILY_QUOTA=0  # T4.D sprint-4: emit alert when any skill exceeds this on a day
+
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --per-cycle)     GROUP_FIELDS+=("cycle_id");      shift ;;
@@ -70,6 +72,7 @@ while [ "$#" -gt 0 ]; do
         --no-strip-detect) STRIP_DETECT=0; shift ;;
         --strict-strip)  STRICT_STRIP=1; shift ;;
         --require-signed) REQUIRE_SIGNED=1; shift ;;
+        --per-skill-daily-quota) PER_SKILL_DAILY_QUOTA="$2"; shift 2 ;;
         --help|-h)       _USAGE; exit 0 ;;
         *)               echo "error: unknown flag $1" >&2; _USAGE >&2; exit 2 ;;
     esac
@@ -247,6 +250,38 @@ agg="$(jq -c -s \
 if [ -z "$agg" ]; then
     echo "error: jq aggregation failed" >&2
     exit 1
+fi
+
+# -----------------------------------------------------------------------------
+# T4.D — Per-skill daily token quota alert.
+# -----------------------------------------------------------------------------
+if [ "$PER_SKILL_DAILY_QUOTA" -gt 0 ]; then
+    quota_breaches="$(jq -c -s \
+        --arg quota "$PER_SKILL_DAILY_QUOTA" \
+        --argjson include_replays "$INCLUDE_REPLAYS" \
+        '
+        [.[] | select(type == "object")
+            | select(($include_replays == 1) or ((.payload.replay_marker // false) != true))
+            | {
+                day: ((.ts_utc // "")[0:10]),
+                skill: ((.payload.invocation_chain // []) | first // (.payload.calling_primitive // "unknown")),
+                tokens: (
+                    if (.payload.pricing_snapshot.input_per_mtok // 0) > 0
+                       and (.payload.cost_micro_usd // 0) > 0
+                    then ((.payload.cost_micro_usd * 1000000) / .payload.pricing_snapshot.input_per_mtok) | floor
+                    else 0
+                    end
+                )
+            }
+            | select(.day != "" and .skill != "")
+        ] | group_by([.day, .skill])
+          | map({day: .[0].day, skill: .[0].skill, tokens_total: (map(.tokens // 0) | add)})
+          | map(select(.tokens_total > ($quota | tonumber)))
+        ' "$INPUT_PATH" 2>/dev/null)"
+    if [ -n "$quota_breaches" ] && [ "$quota_breaches" != "[]" ]; then
+        echo "[modelinv-rollup] QUOTA-ALERT: per-skill daily token quota exceeded ($PER_SKILL_DAILY_QUOTA):" >&2
+        echo "$quota_breaches" | jq -r '.[] | "  - \(.day) \(.skill): \(.tokens_total) tokens"' >&2
+    fi
 fi
 
 # Emit JSON (default to stdout if no --output-* flags).
