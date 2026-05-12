@@ -1113,7 +1113,9 @@
           "global_id": 151,
           "label": "Framework Archival Hygiene + BB Dist Drift Gate",
           "status": "completed",
-          "completed": "2026-05-12T02:09:00Z"
+          "completed": "2026-05-12T02:09:00Z",
+          "pr": 849,
+          "branch": "feature/cycle-104-sprint-1-archive-hygiene"
         },
         {
           "local_id": 2,
