@@ -692,8 +692,10 @@ hounfour:
   #
   # CLI binaries must be on $PATH (or pin paths below). The router REFUSES
   # to issue HTTPS when the resolved chain is CLI-only (defense-in-depth,
-  # SDD §1.9). See `grimoires/loa/runbooks/headless-mode.md` for install
-  # pre-reqs, capability tradeoffs, and per-adapter feature matrix.
+  # SDD §1.9). Operator runbooks (cycle-104 T2.12):
+  #   grimoires/loa/runbooks/headless-mode.md            # 4-mode reference
+  #   grimoires/loa/runbooks/headless-capability-matrix.md  # feature × adapter
+  #   grimoires/loa/runbooks/chain-walk-debugging.md     # LOA_HEADLESS_VERBOSE + envelope queries
   headless:
     mode: prefer-api                         # prefer-api | prefer-cli | api-only | cli-only
     # cli_paths: discovery hints. If unset, $PATH is searched.
