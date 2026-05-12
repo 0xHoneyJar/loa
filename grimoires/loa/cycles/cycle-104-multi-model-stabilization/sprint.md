@@ -47,44 +47,44 @@ Cycle-104 is a **routing-layer stabilization cycle** built on cycle-103's unifie
 
 ### Deliverables
 
-- [ ] **D1.1** `archive-cycle.sh` per-cycle-subdir resolver — reads `grimoires/loa/ledger.json::cycles[].slug` for cycle N and expands to `grimoires/loa/cycles/cycle-N-<slug>/`; backward-compat fall-back to `${GRIMOIRE_DIR}` root for cycles ≤097 (SDD §1.4.3, §5.4)
-- [ ] **D1.2** `archive-cycle.sh --retention N` honored — replaces hardcoded 5-archive deletion list with dynamic enumeration sorted by ledger-recorded close date (FR-S1.2)
-- [ ] **D1.3** `archive-cycle.sh` copies `handoffs/` + `a2a/` + `flatline/` subdirs (modern + legacy compat) (FR-S1.3)
-- [ ] **D1.4** `tools/check-bb-dist-fresh.sh` — content-hash drift gate comparing committed `dist/` to fresh `npm run build` output (SDD §1.4.4)
-- [ ] **D1.5** `.github/workflows/check-bb-dist-fresh.yml` — CI workflow gating PRs touching `.claude/skills/bridgebuilder-review/resources/**` (SDD §7.3)
-- [ ] **D1.6** Optional pre-commit hook `.claude/hooks/pre-commit/bb-dist-check.sh` — soft-fail operator-side fast feedback with `npm run build` guidance
-- [ ] **D1.7** Operator runbook `grimoires/loa/runbooks/cycle-archive.md` — `--cycle N` semantics, per-cycle subdir layout, recovery procedure (FR-S1.5)
-- [ ] **D1.8** Sprint 1 test surface — `test_archive_cycle_per_subdir.bats`, `test_archive_cycle_retention.bats`, `test_bb_dist_drift_gate.bats` (~15 net-new bats)
-- [ ] **D1.9** Cycle-103 archive re-run validation — `archive-cycle.sh --cycle 103 --dry-run` enumerates cycle-103 artifacts correctly (was: empty archive at cycle-103 close per #848 reproduction)
+- [x] **D1.1** `archive-cycle.sh` per-cycle-subdir resolver — reads `grimoires/loa/ledger.json::cycles[].slug` for cycle N and expands to `grimoires/loa/cycles/cycle-N-<slug>/`; backward-compat fall-back to `${GRIMOIRE_DIR}` root for cycles ≤097 (SDD §1.4.3, §5.4)
+- [x] **D1.2** `archive-cycle.sh --retention N` honored — replaces hardcoded 5-archive deletion list with dynamic enumeration sorted by ledger-recorded close date (FR-S1.2)
+- [x] **D1.3** `archive-cycle.sh` copies `handoffs/` + `a2a/` + `flatline/` subdirs (modern + legacy compat) (FR-S1.3)
+- [x] **D1.4** `tools/check-bb-dist-fresh.sh` — content-hash drift gate comparing committed `dist/` to fresh `npm run build` output (SDD §1.4.4)
+- [x] **D1.5** `.github/workflows/check-bb-dist-fresh.yml` — CI workflow gating PRs touching `.claude/skills/bridgebuilder-review/resources/**` (SDD §7.3)
+- [x] **D1.6** Optional pre-commit hook `.claude/hooks/pre-commit/bb-dist-check.sh` — soft-fail operator-side fast feedback with `npm run build` guidance
+- [x] **D1.7** Operator runbook `grimoires/loa/runbooks/cycle-archive.md` — `--cycle N` semantics, per-cycle subdir layout, recovery procedure (FR-S1.5)
+- [x] **D1.8** Sprint 1 test surface — `test_archive_cycle_per_subdir.bats`, `test_archive_cycle_retention.bats`, `test_bb_dist_drift_gate.bats` (~15 net-new bats)
+- [x] **D1.9** Cycle-103 archive re-run validation — `archive-cycle.sh --cycle 103 --dry-run` enumerates cycle-103 artifacts correctly (was: empty archive at cycle-103 close per #848 reproduction)
 
 ### Acceptance Criteria
 
-- [ ] **AC-1.1** (FR-S1.1) `archive-cycle.sh --cycle 104 --dry-run` enumerates cycle-104's `prd.md`, `sdd.md`, `sprint.md`, `handoffs/`, `a2a/` correctly from `grimoires/loa/cycles/cycle-104-multi-model-stabilization/`
-- [ ] **AC-1.2** (FR-S1.1 backward compat) `archive-cycle.sh --cycle 097` (legacy cycle ≤097) still resolves via `${GRIMOIRE_DIR}` root fall-back path — no regression on archived cycles
-- [ ] **AC-1.3** (FR-S1.2) `archive-cycle.sh --retention 50` does NOT delete the same archives `--retention 5` deletes; `--retention 0` keeps all archives. Bats test pins all three points
-- [ ] **AC-1.4** (FR-S1.3) Cycle-103 archive re-run (post-fix) contains both `handoffs/` subdir AND cycle-103 sub-artifacts; bats fixture compares contents
-- [ ] **AC-1.5** (FR-S1.4) Pre-commit / CI gate fails when `.claude/skills/bridgebuilder-review/resources/**.ts` is modified without corresponding `dist/**` regeneration. Bats test pins reject behavior on a contrived `dist/`-out-of-sync fixture; positive control "dist matches src" passes
-- [ ] **AC-1.6** (FR-S1.4 false-positive defense) Content-hash comparison (NOT timestamp) used to determine staleness — legitimate dist edits do not trigger false flags (R6 mitigation)
-- [ ] **AC-1.7** (FR-S1.5) `grimoires/loa/runbooks/cycle-archive.md` exists and is linked from `CLAUDE.md` or `PROCESS.md` (whichever is canonical at land time); markdown link-check passes
-- [ ] **AC-1.8** (Q8 from SDD §10) Retention semantics documented as "keep newest N" (cycle-count, not date-based); runbook makes this explicit
+- [x] **AC-1.1** (FR-S1.1) `archive-cycle.sh --cycle 104 --dry-run` enumerates cycle-104's `prd.md`, `sdd.md`, `sprint.md`, `handoffs/`, `a2a/` correctly from `grimoires/loa/cycles/cycle-104-multi-model-stabilization/`
+- [x] **AC-1.2** (FR-S1.1 backward compat) `archive-cycle.sh --cycle 097` (legacy cycle ≤097) still resolves via `${GRIMOIRE_DIR}` root fall-back path — no regression on archived cycles
+- [x] **AC-1.3** (FR-S1.2) `archive-cycle.sh --retention 50` does NOT delete the same archives `--retention 5` deletes; `--retention 0` keeps all archives. Bats test pins all three points
+- [x] **AC-1.4** (FR-S1.3) Cycle-103 archive re-run (post-fix) contains both `handoffs/` subdir AND cycle-103 sub-artifacts; bats fixture compares contents
+- [x] **AC-1.5** (FR-S1.4) Pre-commit / CI gate fails when `.claude/skills/bridgebuilder-review/resources/**.ts` is modified without corresponding `dist/**` regeneration. Bats test pins reject behavior on a contrived `dist/`-out-of-sync fixture; positive control "dist matches src" passes
+- [x] **AC-1.6** (FR-S1.4 false-positive defense) Content-hash comparison (NOT timestamp) used to determine staleness — legitimate dist edits do not trigger false flags (R6 mitigation)
+- [x] **AC-1.7** (FR-S1.5) `grimoires/loa/runbooks/cycle-archive.md` exists and is linked from `CLAUDE.md` or `PROCESS.md` (whichever is canonical at land time); markdown link-check passes
+- [x] **AC-1.8** (Q8 from SDD §10) Retention semantics documented as "keep newest N" (cycle-count, not date-based); runbook makes this explicit
 
 ### Technical Tasks
 
-- [ ] **T1.1** `archive-cycle.sh` per-cycle-subdir resolver — surgical edit at `.claude/scripts/archive-cycle.sh:80-130`. Read ledger via `jq -r ".cycles[] | select(.number == ${N}) | .slug"`; expand to `cycle-${N}-${slug}/`; fall-back to legacy `${GRIMOIRE_DIR}` if dir absent. Test: `tests/test_archive_cycle_per_subdir.bats`. → **[G6]**
+- [x] **T1.1** `archive-cycle.sh` per-cycle-subdir resolver — surgical edit at `.claude/scripts/archive-cycle.sh:80-130`. Read ledger via `jq -r ".cycles[] | select(.number == ${N}) | .slug"`; expand to `cycle-${N}-${slug}/`; fall-back to legacy `${GRIMOIRE_DIR}` if dir absent. Test: `tests/test_archive_cycle_per_subdir.bats`. → **[G6]**
   > From sdd.md §1.4.3, §5.4
-- [ ] **T1.2** `archive-cycle.sh --retention N` honored — replace fixed-hardcoded deletion list with `ls -dt "${ARCHIVE_DIR}"/cycle-* | tail -n +"$((RETENTION + 1))" | xargs -r rm -rf`. Preserve `--dry-run` semantics (print deletion candidates first). Test: `tests/test_archive_cycle_retention.bats`. → **[G6]**
+- [x] **T1.2** `archive-cycle.sh --retention N` honored — replace fixed-hardcoded deletion list with `ls -dt "${ARCHIVE_DIR}"/cycle-* | tail -n +"$((RETENTION + 1))" | xargs -r rm -rf`. Preserve `--dry-run` semantics (print deletion candidates first). Test: `tests/test_archive_cycle_retention.bats`. → **[G6]**
   > From sdd.md §1.4.3, §5.4
-- [ ] **T1.3** Copy `handoffs/` subdir (modern, cycles ≥098) + `a2a/` backward-compat (cycles ≤097) + `flatline/` when present. Test extends `test_archive_cycle_per_subdir.bats` with subdir-presence assertions. → **[G6]**
+- [x] **T1.3** Copy `handoffs/` subdir (modern, cycles ≥098) + `a2a/` backward-compat (cycles ≤097) + `flatline/` when present. Test extends `test_archive_cycle_per_subdir.bats` with subdir-presence assertions. → **[G6]**
   > From prd.md FR-S1.3
-- [ ] **T1.4** `tools/check-bb-dist-fresh.sh` — content-hash drift gate. Run `npm run build` in hermetic tmpdir OR compute SHA-256 of `resources/**/*.ts` and compare to `dist/.build-manifest.json`. Mirrors cycle-099 sprint-1A `gen-bb-registry:check` precedent. Test: `tests/test_bb_dist_drift_gate.bats`. → **[G7]**
+- [x] **T1.4** `tools/check-bb-dist-fresh.sh` — content-hash drift gate. Run `npm run build` in hermetic tmpdir OR compute SHA-256 of `resources/**/*.ts` and compare to `dist/.build-manifest.json`. Mirrors cycle-099 sprint-1A `gen-bb-registry:check` precedent. Test: `tests/test_bb_dist_drift_gate.bats`. → **[G7]**
   > From sdd.md §1.4.4
-- [ ] **T1.5** `.github/workflows/check-bb-dist-fresh.yml` — paths-filter on `.claude/skills/bridgebuilder-review/{resources,dist}/**` + `package.json`; triggers on `pull_request` + `push` to main. Mirror cycle-103 T1.7 workflow-paths-filter pattern (both `pull_request` AND `push` triggers — cycle-099 scanner-glob-blindness lesson). → **[G7]**
+- [x] **T1.5** `.github/workflows/check-bb-dist-fresh.yml` — paths-filter on `.claude/skills/bridgebuilder-review/{resources,dist}/**` + `package.json`; triggers on `pull_request` + `push` to main. Mirror cycle-103 T1.7 workflow-paths-filter pattern (both `pull_request` AND `push` triggers — cycle-099 scanner-glob-blindness lesson). → **[G7]**
   > From sdd.md §7.3
-- [ ] **T1.6** Optional pre-commit hook `.claude/hooks/pre-commit/bb-dist-check.sh` — soft-fail with stderr instructions to run `npm run build`. Operator-side fast feedback; non-blocking (CI is the hard gate per FR-S1.4). → **[G7]**
-- [ ] **T1.7** Runbook `grimoires/loa/runbooks/cycle-archive.md` — `--cycle N` semantics, per-cycle subdir layout assumption, escape hatch (manual ledger-flip if script fails). Link from `PROCESS.md`. → **[G6]**
+- [x] **T1.6** Optional pre-commit hook `.claude/hooks/pre-commit/bb-dist-check.sh` — soft-fail with stderr instructions to run `npm run build`. Operator-side fast feedback; non-blocking (CI is the hard gate per FR-S1.4). → **[G7]**
+- [x] **T1.7** Runbook `grimoires/loa/runbooks/cycle-archive.md` — `--cycle N` semantics, per-cycle subdir layout assumption, escape hatch (manual ledger-flip if script fails). Link from `PROCESS.md`. → **[G6]**
   > From prd.md FR-S1.5
-- [ ] **T1.8** Bats integration — all three test artifacts (`test_archive_cycle_per_subdir.bats`, `test_archive_cycle_retention.bats`, `test_bb_dist_drift_gate.bats`) registered in CI; ~15 net-new tests pin all ACs. → **[G6, G7]**
-- [ ] **T1.9** Cycle-103 archive re-run validation — operator-validated `archive-cycle.sh --cycle 103 --dry-run` enumerates cycle-103 artifacts correctly (was empty per #848 reproduction). Documented in NOTES.md as the "before/after" evidence row. → **[G6]**
+- [x] **T1.8** Bats integration — all three test artifacts (`test_archive_cycle_per_subdir.bats`, `test_archive_cycle_retention.bats`, `test_bb_dist_drift_gate.bats`) registered in CI; ~15 net-new tests pin all ACs. → **[G6, G7]**
+- [x] **T1.9** Cycle-103 archive re-run validation — operator-validated `archive-cycle.sh --cycle 103 --dry-run` enumerates cycle-103 artifacts correctly (was empty per #848 reproduction). Documented in NOTES.md as the "before/after" evidence row. → **[G6]**
 
 ### Dependencies
 

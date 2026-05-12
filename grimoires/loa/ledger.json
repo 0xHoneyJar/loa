@@ -1112,7 +1112,8 @@
           "local_id": 1,
           "global_id": 151,
           "label": "Framework Archival Hygiene + BB Dist Drift Gate",
-          "status": "pending"
+          "status": "completed",
+          "completed": "2026-05-12T02:09:00Z"
         },
         {
           "local_id": 2,
