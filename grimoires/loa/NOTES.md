@@ -1,5 +1,75 @@
 # Loa Project Notes
 
+## Decision Log — 2026-05-12 (cycle-104 Sprint 1 — APPROVED, 3 non-blocking follow-ups filed)
+
+**Sprint 1 status: completed** (ledger updated, sprint.md checkboxes flipped).
+
+**Gate trail**:
+- /implement sprint-1: 9 tasks done, 3 commits (aab8f82d kickoff, 84771cef archive-cycle fix, d66c66f0 BB dist gate), 19/19 bats tests pass
+- /review-sprint sprint-1: "All good (with noted concerns)" — 3 non-blocking concerns surfaced (engineer-feedback.md)
+- /audit-sprint sprint-1: "APPROVED - LETS FUCKING GO" — 4.7/5 weighted security+quality, no CRIT/HIGH, same 3 non-blocking concerns echoed (auditor-sprint-feedback.md)
+- BB rebuild verified dist matches source (Concern #2 pre-audit validation): post-`npm run build`, only timestamp diff in manifest; reverted; original baseline correct.
+
+**3 non-blocking follow-ups filed for cycle-104 Sprint 2 or sprint-bug** (beads broken per KF-005 — tracked here):
+
+1. **macOS portability of `archive-cycle.sh:260` (`find -printf`)** — GNU-only flag. macOS operators silently get empty deletion list. Same shape as #848 root-cause class. Fix: detect platform (`uname -s`), branch to `stat -c %Y` (Linux) vs `stat -f %m` (macOS) OR use `python3 -c`. Priority: P2 (CI is Linux; operator-side only).
+
+2. **`dist/.build-manifest.json` baseline pre-verification UX** — manifest writer doesn't verify dist tree actually matches source at write time. Engineer's reviewer.md flagged it; senior lead escalated; audit echoed. Validated post-audit: BB rebuild was clean. Future: add a `--write-manifest --verify-dist` mode that re-builds + diffs before writing manifest. Priority: P3 (cosmetic UX).
+
+3. **AC-1.7 runbook cross-link deferred** — PROCESS.md doesn't exist; CLAUDE.md cross-link out of scope for cycle-scope changes. ACCEPTED-DEFERRED per senior lead + audit consensus. Runbook canonical path is discoverable via `grimoires/loa/runbooks/cycle-archive.md`. Future: link from `grimoires/loa/NOTES.md` "Runbooks" section if it's created, or from a `grimoires/loa/runbooks/README.md` index.
+
+**Pre-existing issue surfaced but not regressed**: `get_current_cycle()` in `archive-cycle.sh:132-139` returns `.cycles | length` (37) not cycle NUMBER. When `--cycle` is absent the script tries to archive cycle-37 which isn't a real cycle id. New resolver makes this more visible (now says "Cycle id: (not found in ledger)"). File as sprint-bug if it bites; not regressed by Sprint 1.
+
+**Patterns to propagate** (audit + review both flagged):
+- **`LOA_REPO_ROOT` + `unset PROJECT_ROOT` bats pattern** for hermetic tests of bootstrap-using scripts. Recommend extracting to `.claude/rules/bats-hermetic-tests.md`. Future hermetic bats tests will hit the same `bootstrap.sh` PROJECT_ROOT inheritance collision.
+- **Realpath canonicalization for relative-vs-absolute path comparisons** (cycle-104 Sprint 1's `_resolve_cycle_artifact_root` bug class).
+
+**Next**: push branch + draft PR via ICE → Sprint 2 (#847 within-company chains + headless opt-in + code_review revert).
+
+— Claude Opus 4.7, 2026-05-12
+
+---
+
+## Decision Log — 2026-05-12 (cycle-104 kickoff — Flatline degraded, treated as first finding)
+
+**Flatline review on cycle-104 PRD degraded with KF-003 recurrence-3** (gpt-5.5-pro empty content on 34KB input; both review + skeptic phase-1 calls failed; consensus engine emitted `degraded_model: "both", degradation_reason: "no_items_to_score"`, 0 findings).
+
+**Cycle-104 Sprint 2 exists to close this exact failure class** via within-company fallback chains. The Flatline degradation on the cycle's own kickoff PRD is the **recursive dogfood pattern** from `feedback_recursive_dogfood_pattern.md` and vision-020/vision-021 — the substrate articulates its problem statement on the artifact that proposes to fix it.
+
+**Operator decision (2026-05-12)**: accept degraded Flatline + proceed. Treating the degradation as cycle-104's first deliverable (per vision-021: the refusal-to-rubber-stamp IS the finding). Skipping SDD Flatline (54KB ≫ 27KB threshold; same outcome expected; KF-003 recurrence-3 PRD evidence row is sufficient).
+
+**Documented**:
+- KF-003 attempts table row added (2026-05-12 PRD evidence)
+- KF-003 recurrence_count: 2 → 3
+- Raw review JSON preserved at `grimoires/loa/cycles/cycle-104-multi-model-stabilization/a2a/flatline/prd-review.json`
+
+**Implication for cycle-104 success criterion**: AC-7 (empirical replay closing KF-003 within-company) is the canonical close-out for this finding. When AC-7 passes (Sprint 2 T2.10 per sprint.md), the next Flatline run on a cycle-105+ kickoff PRD of similar size should succeed — that re-run is the proof that the cycle worked.
+
+**Next**: `/run sprint-1` for the foundational #848 fix + BB dist hygiene. Sprint 1 doesn't touch the multi-model substrate, so it's the right surface to start on (and it's also a dependency for cycle-104's own clean archive at ship time).
+
+— Claude Opus 4.7, 2026-05-12
+
+---
+
+## Decision Log — 2026-05-12 (cycle-104 kickoff — PRD landed)
+
+**Cycle-104 multi-model-stabilization** activated in ledger; PRD at `grimoires/loa/cycles/cycle-104-multi-model-stabilization/prd.md` (312 lines).
+
+**3-sprint scope** per operator recommendation:
+1. **Sprint 1 (Foundational)** — #848 `archive-cycle.sh` per-cycle-subdir fix + retention bug + BB `dist/` build hygiene gate.
+2. **Sprint 2 (Main event)** — #847 8 ACs / 10 tasks. Within-company `fallback_chain` populated for every primary; `hounfour.headless.mode: prefer-api | prefer-cli | api-only | cli-only`; revert `flatline_protocol.code_review.model` from `claude-opus-4-7` → `gpt-5.5-pro` (the cycle-102 T1B.4 cross-company swap becomes unnecessary).
+3. **Sprint 3 (Boundary close-out)** — BB internal multi-model parallel dispatcher → cheval. Closes KF-008 recurrence-4 gap; after Sprint 3, BB owns zero direct provider HTTP code.
+
+**Discovery shortcut**: operator provided fully-scoped recommendation; #847 contains 8 ACs + 10 tasks + complete proposed architecture; #848 contains problem + fix + workaround. PRD authored as **trace** to these artifacts (with `(file:line)` / `(#NNN §section)` citations throughout) rather than re-interviewing. Per `feedback_autonomous_run_mode.md` + `feedback_operator_collaboration_pattern.md`.
+
+**Predecessor inheritance**: cycle-103 substrate (cheval Python `httpx` unified provider boundary) is the foundation. Cycle-104 extends the **routing layer** on top of it. Cycle-103 closed KF-008 architecturally for BB's review-adapter; KF-008 recurrence-4 note explicitly flagged cycle-104 for the internal-dispatcher path.
+
+**Next**: `/architect` to produce SDD. Sprint sequencing constraint: Sprint 1 must merge before Sprint 2 closes (so cycle-104 itself can archive cleanly via the fixed script).
+
+— Claude Opus 4.7, 2026-05-12
+
+---
+
 ## Decision Log — 2026-05-12 (cycle-103 Sprint 2 T2.2 — KF-002 LAYER 2 RESOLVED-STRUCTURAL)
 
 **M4 cycle-exit invariant: SATISFIED. KF-002 layer 2 closes structurally — no upstream issue required.**

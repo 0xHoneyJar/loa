@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": null,
+  "active_cycle": "cycle-104-multi-model-stabilization",
   "cycles": [
     {
       "id": "cycle-036",
@@ -1099,6 +1099,42 @@
           "tasks": 9
         }
       ]
+    },
+    {
+      "id": "cycle-104-multi-model-stabilization",
+      "label": "Multi-Model Stabilization — Within-Company Fallback + Headless Opt-In + BB Internal Dispatcher Unification",
+      "status": "active",
+      "created": "2026-05-12T00:59:16Z",
+      "prd": "grimoires/loa/cycles/cycle-104-multi-model-stabilization/prd.md",
+      "sdd": "grimoires/loa/cycles/cycle-104-multi-model-stabilization/sdd.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 151,
+          "label": "Framework Archival Hygiene + BB Dist Drift Gate",
+          "status": "completed",
+          "completed": "2026-05-12T02:09:00Z",
+          "pr": 849,
+          "branch": "feature/cycle-104-sprint-1-archive-hygiene"
+        },
+        {
+          "local_id": 2,
+          "global_id": 152,
+          "label": "Within-Company Fallback Chains + Headless Opt-In + code_review Revert",
+          "status": "pending"
+        },
+        {
+          "local_id": 3,
+          "global_id": 153,
+          "label": "BB Cheval-Routing Verification + Drift-Gate Extension + KF-008 Substrate Replay",
+          "status": "pending"
+        }
+      ],
+      "issues": [
+        "#847",
+        "#848"
+      ],
+      "predecessor": "cycle-103-provider-unification"
     }
   ],
   "global_sprint_counter": 143,
@@ -1285,5 +1321,5 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 151
+  "next_sprint_number": 154
 }
