@@ -1,5 +1,46 @@
 # Loa Project Notes
 
+## Decision Log — 2026-05-12 (cycle-104 Sprint 2 Group C — SHIPPED on /run-resume)
+
+**Status**: 6/14 sprint tasks landed across 4 commits on `feature/cycle-104-sprint-2-fallback-chains-headless` (stacked off PR #849). Group C (T2.5 + T2.6) shipped at `5bb606fe`.
+
+**Resumed from HALTED state** (architectural-safety checkpoint from session 1 — handoff doc at `grimoires/loa/cycles/cycle-104-multi-model-stabilization/handoffs/sprint-2-partial-groups-a-b-shipped.md`). Per autonomous /run mode + operator-collaboration discipline, continued execution rather than re-prompting.
+
+**T2.5 chain walk dispatch** (cheval.py cmd_invoke — 1057 LOC dispatch function refactor):
+- `chain_resolver.resolve()` called upfront. Per-entry walk: `capability_gate.check` (skip-and-walk on CAPABILITY_MISS) → per-entry `max_input_tokens` gate → adapter dispatch → walk-on-retryable (`EMPTY_CONTENT` / `RATE_LIMITED` / `PROVIDER_OUTAGE` / `RETRIES_EXHAUSTED` / `CONTEXT_TOO_LARGE`) / surface-on-non-retryable (`BUDGET_EXHAUSTED` + typed `ChevalError`).
+- For-else exhaustion: multi-entry → `CHAIN_EXHAUSTED` (12); single-entry → preserves cycle-103 exit codes (`RETRIES_EXHAUSTED` / `RATE_LIMITED` / `PROVIDER_UNAVAILABLE` / `CONTEXT_TOO_LARGE` / `API_ERROR`) for backward compat. External tooling that grep'd on legacy codes keeps working.
+- Async-mode rejected upfront for multi-entry chains (no error-routing path through `create_interaction` pending handles).
+- New exit codes: `NO_ELIGIBLE_ADAPTER=11`, `CHAIN_EXHAUSTED=12`. **SDD §6.2/6.3 aspirationally specced 8/9 but `INTERACTION_PENDING=8` was pinned from cycle-098** — slid the new codes to 11/12 to avoid breaking the CLI contract. Documented inline in `EXIT_CODES` dict.
+
+**T2.6 MODELINV envelope v1.1** (additive — every change keeps backward compat):
+- New optional payload fields: `final_model_id` (provider:model_id of successful entry), `transport` (`http` | `cli` from entry.adapter_kind), `config_observed.{headless_mode, headless_mode_source}` (audit-the-mode-source per PRD §1.3 axiom 2).
+- `models_failed[]` items gain optional `provider` + `missing_capabilities` (populated when error_class=`CAPABILITY_MISS`).
+- `error_class` enum gains `EMPTY_CONTENT` (KF-003 closure target).
+- Pre-T2.6 single-model emitters that don't pass new kwargs produce byte-identical payloads (new keys ABSENT, not null). Pinned by `test_modelinv_envelope_chain_walk.py::TestBackwardCompatSingleModel::test_legacy_single_model_payload_keys`.
+
+**Tests added** (14 new, all green, 0 flake):
+- `test_chain_walk_audit_envelope.py` (5) — primary-empty-walks-to-fallback, exhaust-multi-entry (CHAIN_EXHAUSTED + models_failed order), single-entry-cycle-103-compat, budget-no-walk (asserts retry called exactly once), capability-miss-walks (asserts retry never called).
+- `test_modelinv_envelope_chain_walk.py` (9) — final_model_id presence/absence, transport http/cli/invalid-rejection, config_observed round-trip, models_failed additive fields, backward-compat absent-key semantics.
+
+**Test status**: 1168 passed in `.claude/adapters/tests/` after this commit (1154 pre-commit baseline + 14 new). 3 pre-existing `test_flatline_routing.py` failures remain — confirmed not introduced by this commit via `git stash + re-run on HEAD` (codegen-drift in bash model-adapter.sh, sprint-2 carry per Group A+B handoff).
+
+**Why halted Group E/G after Group C landed**:
+- Group C is the architectural piece the previous session deliberately deferred ("1057-LOC dispatch function carries non-trivial regression risk"). Landing it as a clean, tested, backward-compat delta is its own deliverable worth operator review.
+- Group E (T2.8 voice-drop) is a bash refactor in `flatline-orchestrator.sh` (2200+ LOC) — separate code path, separate operator-review surface. T2.9 still gated on T2.10 per R8.
+- Group G (T2.12 runbooks, T2.13 cross-runtime parity, T2.14 LOA_BB_FORCE_LEGACY_FETCH removal) — T2.14 needs bun build + drift-gate dist regen (TS toolchain step), T2.13 extends cross-runtime parity bats matrix.
+- Group F (T2.10 + T2.11) remains operator-gated.
+
+**Next session continuation point**:
+- Branch: `feature/cycle-104-sprint-2-fallback-chains-headless` HEAD = `5bb606fe`.
+- The chain walk now actually USES the `fallback_chain` data that Sprint 1B+1C populated — first time the runtime sees those entries on a live call.
+- Two acceptable PR shapes: (a) extend this branch with E+G in follow-up commits and land Sprint 2 as one PR, OR (b) split Group C into its own stacked PR for isolated review and continue E+G on a fresh branch.
+
+**Operator-gated tasks (T2.10 + T2.11)**: still gated. T2.10 (KF-003 live replay) needs `LOA_RUN_LIVE_TESTS=1` + ≤$3 budget approval. T2.11 (cli-only e2e) needs `claude` / `codex` / `gemini` CLI binaries on `$PATH`.
+
+— Claude Opus 4.7, 2026-05-12
+
+---
+
 ## Decision Log — 2026-05-12 (cycle-104 Sprint 2 — PARTIAL: Groups A+B+D-doc shipped; Groups C/E/G + operator-gated tasks deferred)
 
 **Status**: 4/14 sprint tasks landed across 2 commits on `feature/cycle-104-sprint-2-fallback-chains-headless` (stacked off PR #849).
