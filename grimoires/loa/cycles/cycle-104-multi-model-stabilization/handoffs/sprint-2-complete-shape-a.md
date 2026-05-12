@@ -118,9 +118,9 @@ All 3 documented in Group C handoff as pre-existing on HEAD.
 
 | Task | Gate | Action needed |
 |------|------|---------------|
-| **T2.9** code_review revert (`flatline_protocol.code_review.model` → `gpt-5.5-pro`) | Per R8: depends on T2.10 KF-003 evidence that the chain absorbs EMPTY_CONTENT | Run T2.10 first; if chain demonstrably catches KF-003, land T2.9 |
-| **T2.10** KF-003 chain replay (live API) | `LOA_RUN_LIVE_TESTS=1` + ≤$3 budget approval | Operator approves budget, runs `pytest tests/replay/test_kf003_within_company_chain.py` |
-| **T2.11** cli-only zero-API-key e2e | `claude` / `codex` / `gemini` CLI binaries on `$PATH` + strace available | Operator installs CLIs per `headless-mode.md` §4, runs `bats tests/e2e/test_cli_only_zero_api_key.bats` |
+| **T2.9** code_review revert (`flatline_protocol.code_review.model` → `gpt-5.5-pro`) | Per R8: depends on T2.10 KF-003 evidence that the chain absorbs EMPTY_CONTENT | **STAYS GATED — T2.10 ran clean (no KF-003 surfaces) so the chain's absorption rate is unmeasured.** Either refresh the prompt corpus to real-document shape OR write a fault-injection alternative test (mock primary → EMPTY_CONTENT). |
+| **T2.10** KF-003 chain replay (live API) | `LOA_RUN_LIVE_TESTS=1` + ≤$3 budget approval | ✅ **EXECUTED 2026-05-12.** 25/25 trials all succeeded on primary; zero KF-003 surfaces. ~$2.50 spent. KF-003 may be provider-side fixed at OpenAI; see KF-003 row in `known-failures.md` for full evidence. |
+| **T2.11** cli-only zero-API-key e2e | `claude` / `codex` / `gemini` CLI binaries on `$PATH` + strace available | ✅ **EXECUTED 2026-05-12.** Surfaced a real 2-layer architecture gap (adapter routing + cli_model translation); both fixed in commit `5d0dca8f`. T2.11-3 audit-envelope cross-check passes (load-bearing structural proof); T2.11-1/T2.11-2 skip on hardened kernel (`ptrace_scope=2`). |
 
 ## PR readiness
 
