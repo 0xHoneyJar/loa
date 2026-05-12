@@ -204,7 +204,7 @@ Loa uses a **three-zone model** inspired by AWS Projen and Google's ADK:
 | **Spiral Orchestrator** | Self-improving meta-loop: plan → build → review → harvest → repeat | [RFC-060](grimoires/loa/proposals/rfc-060-spiral.md) |
 | **Evidence-Gated Harness** | Bash-enforced quality gates that LLMs cannot skip — flight recorder audit trail | [Architecture](grimoires/loa/proposals/spiral-harness-architecture.md) |
 | **Advisor Strategy** | Sonnet executes (~5x cheaper), Opus judges (review/audit quality) | [Benchmark](grimoires/loa/reports/spiral-harness-benchmark-report.md) |
-| **Vision Registry** | Speculative insight capture from bridge iterations, graduated to active mode | [Visions](grimoires/loa/visions/) |
+| **Vision Registry** | Speculative insight capture from bridge iterations, graduated to active mode | Per-project under `grimoires/loa/visions/` (project-zone; created on first vision) |
 | **Grounded Truth** | Checksum-verified codebase summaries extending `/ride` | [Script](.claude/scripts/ground-truth-gen.sh) |
 | **Simstim** | HITL accelerated development (PRD -> SDD -> Sprint -> Run) | [Command](.claude/commands/simstim.md) |
 | **Compound Learning** | Cross-session pattern detection + feedback loop | [CHANGELOG.md](CHANGELOG.md) |
