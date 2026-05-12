@@ -58,6 +58,13 @@ source "$SCRIPT_DIR/lib/context-isolation-lib.sh"
 # shellcheck source=lib/model-resolver.sh
 source "$SCRIPT_DIR/lib/model-resolver.sh"
 
+# Cycle-104 sprint-2 T2.8 (FR-S2.5): voice-drop classifier. Distinguishes
+# cheval's CHAIN_EXHAUSTED (exit 12) from other failures so a voice whose
+# within-company fallback chain ran to end is DROPPED from consensus
+# instead of being treated as a hard failure or silently substituted across
+# companies. SDD §6.5.
+VOICE_DROP_CLASSIFIER="$SCRIPT_DIR/lib/voice-drop-classifier.sh"
+
 # Note: bootstrap.sh already handles PROJECT_ROOT canonicalization via realpath
 TRAJECTORY_DIR=$(get_trajectory_dir)
 
@@ -288,6 +295,30 @@ log_trajectory() {
         --arg state "$STATE" \
         --argjson data "$data" \
         '{type: $type, event: $event, timestamp: $timestamp, state: $state, data: $data}' >> "$log_file"
+}
+
+# Cycle-104 sprint-2 T2.8 (FR-S2.5): emit a single `consensus.voice_dropped`
+# event when a voice's within-company chain exhausted. Caller passes the
+# voice label (e.g. "opus-review") and the orchestrator phase. Soft-fails
+# on jq errors so a logging glitch never aborts the consensus path.
+emit_voice_dropped() {
+    local voice_label="$1"
+    local phase="${2:-unknown}"
+    local payload
+    payload=$(jq -nc \
+        --arg voice "$voice_label" \
+        --arg phase "$phase" \
+        --arg reason "chain_exhausted" \
+        '{voice: $voice, phase: $phase, reason: $reason, exit_code: 12}' 2>/dev/null) || return 0
+    log_trajectory "consensus.voice_dropped" "$payload" || true
+    log "Voice dropped from consensus (chain exhausted): $voice_label"
+}
+
+# Cycle-104 sprint-2 T2.8: classify a captured call_model exit code.
+# Returns "success" | "dropped" | "failed" on stdout.
+classify_voice_exit_status() {
+    local code="$1"
+    "$VOICE_DROP_CLASSIFIER" "$code" 2>/dev/null || echo "failed"
 }
 
 # =============================================================================
@@ -1083,18 +1114,42 @@ run_phase1() {
         pid_labels+=("tertiary-skeptic")
     fi
 
-    # Wait for all processes and track failures
+    # Wait for all processes and track failures + voice-drops separately.
+    # Voice-drops (cheval exit 12 = CHAIN_EXHAUSTED) are the per-voice
+    # graceful-fall-through per SDD §6.5; they ARE NOT treated as failures
+    # because the within-company chain already walked to end and there is
+    # no cross-company substitute to try (FR-S2.5).
     local failed=0
     local failed_labels=()
+    local dropped_labels=()
     for i in "${!pids[@]}"; do
-        if ! wait "${pids[$i]}"; then
-            failed=$((failed + 1))
-            failed_labels+=("${pid_labels[$i]}")
-        fi
+        local _wait_exit=0
+        wait "${pids[$i]}" || _wait_exit=$?
+        local _classification
+        _classification=$(classify_voice_exit_status "$_wait_exit")
+        case "$_classification" in
+            success) ;;
+            dropped)
+                dropped_labels+=("${pid_labels[$i]}")
+                emit_voice_dropped "${pid_labels[$i]}" "$phase"
+                ;;
+            *)
+                failed=$((failed + 1))
+                failed_labels+=("${pid_labels[$i]}")
+                ;;
+        esac
     done
+    local dropped_count=${#dropped_labels[@]}
 
-    if [[ $failed -eq $total_calls ]]; then
-        error "All Phase 1 model calls failed"
+    # All voices unavailable (failures + chain-exhaustions) → hard error.
+    if [[ $((failed + dropped_count)) -eq $total_calls ]]; then
+        if [[ $failed -gt 0 && $dropped_count -gt 0 ]]; then
+            error "All Phase 1 model voices unavailable ($failed failed, $dropped_count chain-exhausted)"
+        elif [[ $dropped_count -eq $total_calls ]]; then
+            error "All Phase 1 model voices chain-exhausted (no within-company fallback succeeded)"
+        else
+            error "All Phase 1 model calls failed"
+        fi
         # Log stderr from all failed calls for diagnosis
         for label in "${failed_labels[@]}"; do
             local stderr_file="$TEMP_DIR/${label}-stderr.log"
@@ -1103,6 +1158,10 @@ run_phase1() {
             fi
         done
         return 3
+    fi
+
+    if [[ $dropped_count -gt 0 ]]; then
+        log "Voice-drop: $dropped_count of $total_calls Phase 1 voices dropped from consensus (chain exhausted): ${dropped_labels[*]}"
     fi
 
     if [[ $failed -gt 0 ]]; then
@@ -1247,16 +1306,30 @@ run_phase2() {
         pids+=($!)
     fi
 
-    # Wait for all processes
+    # Wait for all processes. Voice-drop classifier distinguishes the
+    # chain-exhausted case (cheval exit 12) per SDD §6.5; in Phase 2
+    # cross-scoring a dropped voice means that voice's chain ran out
+    # while scoring the other voice's items — we surface it but proceed
+    # with partial consensus (mirrors the pre-cycle-104 partial-tolerance
+    # behaviour for Phase 2).
     local failed=0
+    local dropped_p2=0
     for pid in "${pids[@]}"; do
-        if ! wait "$pid"; then
-            failed=$((failed + 1))
-        fi
+        local _wait_exit=0
+        wait "$pid" || _wait_exit=$?
+        local _classification
+        _classification=$(classify_voice_exit_status "$_wait_exit")
+        case "$_classification" in
+            success) ;;
+            dropped) dropped_p2=$((dropped_p2 + 1)) ;;
+            *) failed=$((failed + 1)) ;;
+        esac
     done
 
-    if [[ $failed -eq $total_calls ]]; then
-        log "Warning: All Phase 2 calls failed - using partial consensus"
+    if [[ $((failed + dropped_p2)) -eq $total_calls ]]; then
+        log "Warning: All Phase 2 calls unavailable ($failed failed, $dropped_p2 chain-exhausted) - using partial consensus"
+    elif [[ $dropped_p2 -gt 0 ]]; then
+        log "Voice-drop: $dropped_p2 of $total_calls Phase 2 cross-scoring calls chain-exhausted; partial scores aggregated"
     fi
 
     # Aggregate costs
