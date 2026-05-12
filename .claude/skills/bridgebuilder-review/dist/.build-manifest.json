@@ -1,7 +1,7 @@
 {
   "version": "1.0",
-  "generated_at": "2026-05-12T01:32:56Z",
-  "source_hash": "f773359d45f52bfbce5daa96a2868e3b7c4500663df4c8927f179928e9b79a73",
+  "generated_at": "2026-05-12T03:28:24Z",
+  "source_hash": "e246f29fa7d52de82ace789ce241fd73e88151c0cc7ffce5bdc775cae1eee6bc",
   "file_count": 41,
   "files": [
     {
@@ -10,7 +10,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/adapters/cheval-delegate.ts",
-      "sha256": "4be8d7a21d407f3b670d7f4de4f83699238de95613a1968b99b74a33a6b61537"
+      "sha256": "ff5fc7e7f28a137f50b6337cd4852e3a1060b8b5049c1b8f72b4ae047efc53f0"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/adapters/console-logger.ts",
