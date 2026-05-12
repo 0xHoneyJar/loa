@@ -1,0 +1,19 @@
+# Allowlist for tools/check-bb-no-direct-fetch.sh
+# Paths are repo-relative; the scanner rejects exact-match files only.
+# Lines beginning with `#` are comments; blank lines are ignored.
+#
+# cycle-104 sprint-3 T3.3: BB skill resources MUST NOT contain raw-HTTP
+# primitives (fetch / https.request / undici / node:http(s) imports) —
+# all LLM-provider calls funnel through ChevalDelegateAdapter and into
+# the cheval Python substrate. Exempt entries here belong to files that
+# either:
+#   (a) genuinely need a non-LLM HTTP path (e.g., GitHub API for issue/PR
+#       hygiene — not a model call), OR
+#   (b) carry the pattern in comments / type annotations only, and the
+#       per-line suppression marker would be more noise than signal.
+#
+# Adding an entry here is a reviewer-visible choice — keep the list small.
+
+# GitHub API helper. Not an LLM provider; uses Node fetch against
+# api.github.com for PR / issue metadata. Exempt is intentional.
+.claude/skills/bridgebuilder-review/resources/github-cli.ts
