@@ -1142,18 +1142,35 @@
       "status": "in-progress",
       "created": "2026-05-12T06:47:53Z",
       "prd": "grimoires/loa/cycles/cycle-105-beads-recovery/prd.md",
-      "sdd": null,
-      "sprint_plan": null,
+      "sdd": "grimoires/loa/cycles/cycle-105-beads-recovery/sdd.md",
+      "sprint_plan": "grimoires/loa/cycles/cycle-105-beads-recovery/sprint.md",
       "source_issues": [
         "https://github.com/0xHoneyJar/loa/issues/661",
         "https://github.com/Dicklesworthstone/beads_rust/issues/290"
       ],
       "predecessor_cycle": "cycle-104-multi-model-stabilization",
       "cycle_folder": "grimoires/loa/cycles/cycle-105-beads-recovery/",
-      "sprints": []
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 154,
+          "label": "Repair tool + bats coverage",
+          "status": "pending",
+          "scope": "MEDIUM",
+          "tasks": 6
+        },
+        {
+          "local_id": 2,
+          "global_id": 155,
+          "label": "CI gate + protocol + KF-005 closure",
+          "status": "pending",
+          "scope": "SMALL",
+          "tasks": 5
+        }
+      ]
     }
   ],
-  "global_sprint_counter": 143,
+  "global_sprint_counter": 155,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
@@ -1337,5 +1354,5 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 154
+  "next_sprint_number": 156
 }
