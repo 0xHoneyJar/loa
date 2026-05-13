@@ -337,6 +337,28 @@ def load_advisor_strategy(repo_root: Path | str) -> AdvisorStrategyConfig:
             )
         # 4b. NFR-Sec1: review/audit role overrides MUST be advisor
         skill_role = skill_registry[skill_name].get("primary_role") or skill_registry[skill_name].get("role")
+        # BB iter-4 F001 closure: if a per_skill_override targets a skill with
+        # BOTH role fields absent (unmigrated / partial-merge state), refuse
+        # the override entirely when its tier is non-advisor. The previous
+        # `if skill_role in ("review", "audit")` predicate let unannotated
+        # skills slip through as a silent skip — defense-in-depth gap.
+        if skill_role is None and tier != "advisor":
+            raise ConfigError(
+                f"NFR-Sec1 violation: per_skill_overrides['{skill_name}']='{tier}' "
+                f"but skill has no 'role' or 'primary_role' annotation. "
+                f"Operator must (a) annotate the skill via tools/migrate-skill-roles.sh, "
+                f"or (b) pin the override to 'advisor' (fail-safe)."
+            )
+        # Cross-check against audited_review_skills enum: any skill in the
+        # explicitly-audited allowlist MUST resolve to advisor regardless of
+        # its role annotation (covers the case where the enum is operator-
+        # curated but the SKILL.md role field is stale).
+        audited_enum = frozenset(raw.get("audited_review_skills", []))
+        if skill_name in audited_enum and tier != "advisor":
+            raise ConfigError(
+                f"NFR-Sec1 violation: per_skill_overrides['{skill_name}']='{tier}' "
+                f"but skill is in audited_review_skills enum (must be advisor regardless of role field)."
+            )
         if skill_role in ("review", "audit") and tier != "advisor":
             raise ConfigError(
                 f"NFR-Sec1 violation: per_skill_overrides['{skill_name}']='{tier}' "
