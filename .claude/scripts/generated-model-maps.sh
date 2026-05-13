@@ -51,6 +51,7 @@ declare -A MODEL_PROVIDERS=(
     ["gemini-headless"]="google"
     ["gpt-5.2-codex"]="openai"
     ["gpt-5.3-codex"]="openai"
+    ["claude-opus-4-7"]="anthropic"
     ["claude-opus-4.7"]="anthropic"
     ["claude-opus-4.6"]="anthropic"
     ["claude-opus-4-6"]="anthropic"
@@ -60,6 +61,7 @@ declare -A MODEL_PROVIDERS=(
     ["claude-opus-4-1"]="anthropic"
     ["claude-opus-4.0"]="anthropic"
     ["claude-opus-4-0"]="anthropic"
+    ["gemini-3.1-pro-preview"]="google"
 )
 
 declare -A MODEL_IDS=(
@@ -104,6 +106,7 @@ declare -A MODEL_IDS=(
     ["gemini-headless"]="gemini-headless"
     ["gpt-5.2-codex"]="gpt-5.3-codex"
     ["gpt-5.3-codex"]="gpt-5.3-codex"
+    ["claude-opus-4-7"]="claude-opus-4-7"
     ["claude-opus-4.7"]="claude-opus-4-7"
     ["claude-opus-4.6"]="claude-opus-4-7"
     ["claude-opus-4-6"]="claude-opus-4-7"
@@ -113,6 +116,7 @@ declare -A MODEL_IDS=(
     ["claude-opus-4-1"]="claude-opus-4-7"
     ["claude-opus-4.0"]="claude-opus-4-7"
     ["claude-opus-4-0"]="claude-opus-4-7"
+    ["gemini-3.1-pro-preview"]="gemini-3.1-pro-preview"
 )
 
 declare -A COST_INPUT=(
@@ -151,6 +155,7 @@ declare -A COST_INPUT=(
     ["gpt-5.3-codex"]="0.00175"
     ["gpt-5.2-codex"]="0.00175"
     ["gpt-5.3-codex"]="0.00175"
+    ["claude-opus-4-7"]="0.005"
     ["claude-opus-4.7"]="0.005"
     ["claude-opus-4.6"]="0.005"
     ["claude-opus-4-6"]="0.005"
@@ -160,6 +165,7 @@ declare -A COST_INPUT=(
     ["claude-opus-4-1"]="0.005"
     ["claude-opus-4.0"]="0.005"
     ["claude-opus-4-0"]="0.005"
+    ["gemini-3.1-pro-preview"]="0.00125"
 )
 
 declare -A COST_OUTPUT=(
@@ -198,6 +204,7 @@ declare -A COST_OUTPUT=(
     ["gpt-5.3-codex"]="0.014"
     ["gpt-5.2-codex"]="0.014"
     ["gpt-5.3-codex"]="0.014"
+    ["claude-opus-4-7"]="0.025"
     ["claude-opus-4.7"]="0.025"
     ["claude-opus-4.6"]="0.025"
     ["claude-opus-4-6"]="0.025"
@@ -207,6 +214,7 @@ declare -A COST_OUTPUT=(
     ["claude-opus-4-1"]="0.025"
     ["claude-opus-4.0"]="0.025"
     ["claude-opus-4-0"]="0.025"
+    ["gemini-3.1-pro-preview"]="0.01"
 )
 
 # VALID_FLATLINE_MODELS — Sprint-4 T4.2 (closes SDD §1.4 C4 SSOT coverage gap).

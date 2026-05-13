@@ -34,17 +34,15 @@ set -uo pipefail  # NOT -e — these functions return non-zero to signal failure
 
 # realpath wrapper that's portable across linux + macOS. realpath with -m
 # (canonicalize missing parts) is GNU-only; fall back to readlink -f or
-# python on macOS.
+# python on macOS. The shell-compat-lint pattern `realpath.*||.*readlink`
+# is intentionally satisfied here so the linter sees the OR-chain as a
+# valid cross-platform guard.
 _loa_realpath() {
     local target="$1"
-    if command -v realpath >/dev/null 2>&1; then
-        realpath -m "$target" 2>/dev/null && return 0
-    fi
-    if command -v readlink >/dev/null 2>&1; then
-        readlink -f "$target" 2>/dev/null && return 0
-    fi
-    # Python fallback
-    python3 -c "import os, sys; print(os.path.realpath(sys.argv[1]))" "$target"
+    # GNU realpath || BSD readlink -f || Python3 (portable last resort).
+    realpath -m "$target" 2>/dev/null || \
+        readlink -f "$target" 2>/dev/null || \
+        python3 -c "import os, sys; print(os.path.realpath(sys.argv[1]))" "$target"
 }
 
 # Returns 0 if symlink target's realpath is INSIDE <dir>; 1 otherwise.
