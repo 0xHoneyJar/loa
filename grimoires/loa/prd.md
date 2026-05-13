@@ -1,9 +1,9 @@
 # Cycle-109 PRD — Multi-Model Substrate Hardening
 
-> **Version**: 1.1 (post-Flatline integration; operator-override path 1 recorded)
-> **Status**: Draft (Flatline PRD gate: PASSED-WITH-DEGRADED-EVIDENCE per C109.OP-4; awaiting `/architect`)
+> **Version**: 1.4 (Flatline SDD-review v3/v4/v5/v6 BLOCKERs closed-or-overridden per C109.OP-8/9/10. v6 closures: truncation_waiver_applied schema field; consensus_outcome algorithm spec §3.2.2.1; voices_succeeded_ids schema field; §4.4 dead-code fix; chain-walk → DEGRADED surface; exit-code collision corrected. 3 residual operator-overridden per C109.OP-10 absorbed into Sprint 2 AC.)
+> **Status**: Draft — PRD gate PASSED-WITH-OPERATOR-OVERRIDE per C109.OP-4/8/9/10 precedent; ready for `/run sprint-1`
 > **Cycle**: cycle-109-substrate-hardening
-> **Created**: 2026-05-13 (v1.0); revised 2026-05-13 (v1.1 — Flatline IMP-001/002/003/004/005/007/008/009/014 integrated)
+> **Created**: 2026-05-13 (v1.0); v1.1 Flatline integrate; v1.2/1.3 v3/v4/v5 SKP closures; v1.4 v6 SKP closures + C109.OP-10 operator-override absorbed into Sprint 2 AC
 > **Author**: Claude (cycle-109 kickoff via `/plan-and-analyze`, autonomous mode under operator delegation)
 > **Predecessor**: cycle-108-advisor-strategy (PR #867 merged at `6e76582d`, substrate-validation close per decision-fork c')
 > **Operator**: @janitooor
@@ -504,7 +504,7 @@ cheval pre-flight gate that consults them before dispatch.
   The mapping is the canonical spec; ambiguous KF status strings fail-loud
   per IMP-005 below.
 
-  **[IMP-002] Manual operator override** for KF-auto-link decisions:
+  **[IMP-002 + SKP-004 hardening] Manual operator override** for KF-auto-link decisions:
   - Schema in `.loa.config.yaml`:
     ```yaml
     kf_auto_link:
@@ -512,19 +512,31 @@ cheval pre-flight gate that consults them before dispatch.
       overrides:
         - model: claude-opus-4-7
           role: review
-          decision: force_retain  # or: force_remove
+          decision: force_retain                     # or: force_remove
           reason: "operator-validated cycle-110 sprint-2"
-          effective_until: "2026-08-01T00:00:00Z"  # null = permanent
-          authorized_by: "@janitooor"  # OPERATORS.md slug
+          effective_until: "2026-08-01T00:00:00Z"    # REQUIRED (no null/permanent); max now()+90d
+          kf_references: [KF-002, KF-009]            # REQUIRED non-empty; entries must exist in known-failures.md
+          authorized_by: "@janitooor"                # OPERATORS.md slug
+          break_glass:                               # REQUIRED iff any kf_references is OPEN CRITICAL
+            operator_slug: "@janitooor"
+            reason: "production incident — must dispatch despite CRITICAL KF"
+            expiry: "2026-05-15T00:00:00Z"           # ≤ now() + 24h
+            audit_event_id: "..."                    # hash from cycle-098 signed audit event
     ```
-  - **Precedence**: operator override > KF auto-link > FR-1.2 default
-  - **Audit**: every override decision emitted to
+  - **Precedence (SKP-004 closure — Flatline SDD-review v3 HIGH BLOCKER)**:
+    operator override > KF auto-link > FR-1.2 default — BUT **conditional**, not unconditional. Override is REJECTED (KF auto-decision applies, stderr warning emitted) when:
+    - `effective_until` is missing, in the past, or > `now() + 90d`
+    - `kf_references[]` is empty OR contains an entry not present in `known-failures.md`
+    - `authorized_by` does not resolve via OPERATORS.md
+    - Any referenced KF is OPEN CRITICAL AND `break_glass` is missing or invalid (operator_slug mismatch, reason < 16 chars, expiry > now()+24h, audit_event_id unresolvable)
+  - **Rationale**: pre-cycle-109, "operator overrides win unconditionally over KF-derived downgrades, including CRITICAL open failures" — the Flatline reviewer caught this. Operator intent CAN be wrong (calibration drift, hot-fix copy-paste, stale config entries muting a fresh KF). The break-glass path remains available for genuine emergencies; the default override path is no longer the break-glass path.
+  - **Audit**: every override evaluation (accept OR reject) emitted to
     `.run/kf-auto-link.jsonl` with `before_state`, `after_state`,
-    `reason`, `authorized_by`, `kf_id_overridden`
-  - **Expiry**: `effective_until` honored; on expiry, auto-link resumes
-  - **CI**: PR touching `kf_auto_link.overrides` blocks unless
-    `authorized_by` resolves via `OPERATORS.md` (cycle-098 operator-identity
-    primitive)
+    `reason`, `authorized_by`, `kf_id_overridden`, `decision_outcome`
+    (`accepted` | `rejected:<failure-mode>`). Break-glass decisions
+    ALSO emit a signed L4 trust event to `.run/audit/kf-override-break-glass.jsonl` per cycle-098 audit envelope.
+  - **Expiry**: `effective_until` honored at every dispatch; on expiry, auto-link resumes immediately (no grace period beyond 60s clock-skew window).
+  - **CI**: PR touching `kf_auto_link.overrides` blocks on ANY of the rejection conditions above (CI failure surfaces the specific rejection reason). `authorized_by` resolution still gated by cycle-098 operator-identity primitive.
 
   **[IMP-005] Parsing policy for malformed/ambiguous KF entries**
   (deterministic, fail-loud, never auto-degrade on parse failure):
@@ -558,6 +570,9 @@ cheval pre-flight gate that consults them before dispatch.
 - [ ] KF-auto-link script runs in CI; integration test seeds a fake KF and verifies model degradation per the severity-to-downgrade mapping
 - [ ] **[IMP-001]** Severity-to-downgrade mapping table specified in this PRD (above); each row covered by at least one bats fixture
 - [ ] **[IMP-002]** Operator-override mechanism shipped with precedence rules + audit trail; integration test verifies precedence + expiry + CI block on missing `authorized_by`
+- [ ] **[SKP-004]** Override precedence is **conditional**: rejection conditions (missing/expired/excessive `effective_until`, empty/invalid `kf_references[]`, OPEN CRITICAL KF without `break_glass`) each have a bats fixture demonstrating the rejection path + stderr warning + KF auto-decision falling through; positive-control bats fixture verifies a well-formed break-glass override IS accepted
+- [ ] **[SKP-004]** Break-glass overrides emit a signed L4 trust event per cycle-098 audit envelope; conformance test loads the JSONL and verifies Ed25519 signature validates + hash-chain integrity holds
+- [ ] **[SKP-003]** `--ceiling-override` requires `--override-operator` + `--override-reason` (≥16 chars) + optional `--override-expiry` (default `now()+24h`, cap `now()+7d`); missing or invalid credential → exit 9; operator must appear in `OPERATORS.md::acls.ceiling-override-authorized`; successful override emits signed `cheval.ceiling_override` audit event to `.run/cheval-overrides.jsonl`
 - [ ] **[IMP-005]** Parsing-policy fixtures: malformed YAML, unknown status, missing model, multi-model, duplicate KF id — each produces the documented outcome
 - [ ] **[IMP-007]** Ceiling calibration: probe protocol shipped + 5 known models calibrated empirically at cycle-109 ship time; remaining models flagged for follow-up
 - [ ] **[IMP-008]** Conservative-default migration applied to all models lacking empirical data; documented in PR body
@@ -589,25 +604,59 @@ definitionally impossible when verdict quality is degraded.
   (`.claude/data/schemas/verdict-quality.schema.json` v1.0):
   ```jsonc
   {
-    "voices_planned": 3,
+    "status": "APPROVED | DEGRADED | FAILED",        // SKP-001 v3/v4 — REQUIRED canonical
+    "consensus_outcome": "consensus | impossible",   // SKP-002 v5 — REQUIRED (replaces unrepresentable private _consensus_impossible)
+    "voices_planned": 3,                              // ≥1 enforced by schema
     "voices_succeeded": 2,
     "voices_dropped": [
-      {"voice": "gpt-5.2", "reason": "EmptyContent", "exit_code": 1}
+      {
+        "voice": "gpt-5.2",
+        "reason": "EmptyContent",
+        "exit_code": 1,
+        "blocker_risk": "unknown | low | med | high" // SKP-002 v3/v4 — REQUIRED per drop entry
+      }
     ],
     "chain_health": "ok | degraded | exhausted",
     "confidence_floor": "high | med | low",
-    "rationale": "human-readable explanation of the floor"
+    "rationale": "human-readable explanation of the floor",
+    "chunks_reviewed": 0,                            // SKP-001 v5 — chunked-review counters load-bearing
+    "chunks_dropped": 0
   }
   ```
+
+  **[SKP-001 closure — Flatline SDD-review v3 CRITICAL BLOCKER]** The
+  `status` field is REQUIRED and is the **sole** classification surface
+  consumers may read. Re-deriving status from sub-fields is forbidden
+  (lints in CI via `tools/lint-verdict-consumers.py`). The cycle-109
+  PRD-review trajectory — where `confidence: full` was emitted while a
+  voice effectively dropped — recreates exactly here if `status` is
+  optional or computed at the consumer; refusing both is the load-bearing
+  invariant FR-2 exists to enforce.
+
+  **[SKP-002 closure — Flatline SDD-review v3 HIGH BLOCKER]** Every
+  entry in `voices_dropped[]` MUST carry a `blocker_risk` classifier
+  output (`unknown | low | med | high`). Computed by the canonical
+  `compute_verdict_status()` at envelope-emission time from (a) dropped-
+  voice role weight in the cohort, (b) sprint-kind risk band, (c) KF
+  priors for `(voice, sprint-kind)`. Operator may override per-call
+  via `--blocker-risk-override <enum>` (acceptance criterion).
+
 - **FR-2.2**: Substrate emits envelope on every call — cheval.cmd_invoke
   output extended; FL/RT/BB consumers receive it
-- **FR-2.3**: Define classification contract:
-  - `APPROVED` (or `clean`) requires: `voices_succeeded == voices_planned`
-    AND `chain_health == ok` AND no dropped voice findings would have been
+- **FR-2.3**: Define classification contract (single canonical function
+  `compute_verdict_status` in `cheval.py`; bash twins shell out for
+  byte-identical output):
+  - `APPROVED` requires: `voices_succeeded == voices_planned`
+    AND `chain_health == ok` AND every `voices_dropped[].blocker_risk
+    ∈ {unknown, low}` AND no dropped voice findings would have been
     BLOCKER class
-  - `DEGRADED` requires: voices_succeeded < voices_planned BUT remaining
-    voices reached consensus
-  - `FAILED` requires: chain_health == exhausted OR consensus impossible
+  - `DEGRADED` requires: `0 < voices_succeeded < voices_planned` AND
+    remaining voices reached consensus AND no dropped voice carries
+    `blocker_risk == "high"`
+  - `FAILED` requires: `voices_succeeded == 0` OR `chain_health ==
+    exhausted` OR consensus impossible OR any
+    `voices_dropped[].blocker_risk == "high"` (auto-promotes from
+    DEGRADED to FAILED)
 
 **[IMP-004] Consumer inventory + dependency-ordered refactor plan.**
 Additive envelope changes still fail if downstream consumers silently
@@ -661,6 +710,10 @@ the table. CI matrix has one job per consumer.
       now correctly classify as DEGRADED or FAILED
 - [ ] **[IMP-004]** Each consumer in the FR-2 table is refactored in declared dependency order; per-consumer PR (or labeled commit in single-PR variant) traceable in cycle-109 history
 - [ ] **[IMP-004]** Cycle-109 PRD-review trajectory (the run that just classified `confidence: full` while Opus voice dropped) is added to the conformance fixture corpus as the canonical "must-not-recur" regression
+- [ ] **[SKP-001]** `status: APPROVED|DEGRADED|FAILED` is REQUIRED in the schema (`additionalProperties: false` + required-list enforcement); envelope-emitted without `status` fails the producer-side schema gate AND the consumer-side conformance test
+- [ ] **[SKP-001]** Consumer-lint (`tools/lint-verdict-consumers.py`) ships in Sprint 2 and grep-detects any consumer that derives status locally instead of reading the canonical field; lint runs in CI and fails on violation
+- [ ] **[SKP-002]** Every `voices_dropped[]` entry carries a `blocker_risk` classifier output (`unknown|low|med|high`); schema requires the field; consumer-contract test asserts emit + correct classification on the cycle-109 PRD-review fixture (Opus drop on security-touching sprint-kind → `blocker_risk = med`)
+- [ ] **[SKP-002]** Operator `--blocker-risk-override <enum>` flag wired on `cheval invoke`; override is logged to MODELINV envelope (`blocker_risk_override: <enum>`) with operator slug + reason; missing reason = exit 2
 
 **Dependencies:** FR-1 (envelope cross-references capability_evaluation)
 
