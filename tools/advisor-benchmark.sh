@@ -128,13 +128,24 @@ verify_baselines_gate() {
         echo "[advisor-benchmark] Run tools/compute-baselines.py first (T3.A); then operator signs T3.A.OP." >&2
         return 78
     fi
-    local signed git_tag pinned_sha
+    local signed git_tag pinned_sha provisional
     signed="$(jq -r '.signed // false' "$baselines" 2>/dev/null)"
     git_tag="$(jq -r '.git_tag // empty' "$baselines" 2>/dev/null)"
     pinned_sha="$(jq -r '.git_sha_at_signing // empty' "$baselines" 2>/dev/null)"
+    provisional="$(jq -r '.provisional // false' "$baselines" 2>/dev/null)"
     if [ "$signed" != "true" ] && [ "${LOA_BENCHMARK_ALLOW_UNSIGNED_BASELINES:-0}" != "1" ]; then
         echo "[advisor-benchmark] REFUSED: baselines.json is UNSIGNED (signed=false)." >&2
         echo "[advisor-benchmark] Operator must sign via T3.A.OP, or pass LOA_BENCHMARK_ALLOW_UNSIGNED_BASELINES=1 (dev/test only)." >&2
+        return 78
+    fi
+    # BB iter-1 F007 closure: refuse provisional baselines for executor replays
+    # unless operator explicitly opts in. Provisional = at least one stratum
+    # uses PRD §3 SC defaults rather than historical data; the executor target
+    # is then derived from a constant, not from measured advisor performance.
+    if [ "$provisional" = "true" ] && [ "${LOA_BENCHMARK_ALLOW_PROVISIONAL_BASELINES:-0}" != "1" ]; then
+        echo "[advisor-benchmark] REFUSED: baselines.json is PROVISIONAL — at least one stratum uses default PRD §3 SC values." >&2
+        echo "[advisor-benchmark] Real-data benchmarks against provisional baselines fit the executor against arbitrary constants, not measured advisor performance." >&2
+        echo "[advisor-benchmark] Operator must populate historical data first (see rollout-policy.md §7 trigger conditions), or pass LOA_BENCHMARK_ALLOW_PROVISIONAL_BASELINES=1 (dev/test only)." >&2
         return 78
     fi
     if [ -z "$git_tag" ]; then

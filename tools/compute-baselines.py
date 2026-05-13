@@ -180,6 +180,13 @@ def _build_baselines(
                 "historical_n": sc["_historical_n"],
             },
         }
+    # BB iter-1 F007 closure: mark PROVISIONAL when ANY stratum's provenance
+    # is `default_baseline`. The harness's T3.B baselines-gate inspects this
+    # field and refuses to run executor replays against provisional baselines
+    # unless `--allow-provisional-baselines` is passed.
+    any_default = any(
+        sc["_source"] == "default_baseline" for sc in per_stratum.values()
+    )
     return {
         "schema_version": 1,
         "cycle_id": "cycle-108-advisor-strategy",
@@ -187,33 +194,53 @@ def _build_baselines(
         "ts_utc": ts,
         "signed_by_key_id": operator_key_id,
         "signed": False,
+        "provisional": any_default,
         "executor_target_ratio": _EXECUTOR_TARGET_RATIO,
         "strata": strata_block,
         "notes": (
             "Pre-registered baselines for cycle-108 advisor-strategy benchmark. "
             "Anti-fitting protection: this file is signed via audit_emit_signed "
             "AND the operator commits to a Git tag `cycle-108-baselines-pin-<sha>` "
-            "via T3.A.OP. Harness (T3.B) verifies tag signature before any replay."
+            "via T3.A.OP. Harness (T3.B) verifies tag signature before any replay. "
+            "When `provisional: true`, at least one stratum uses default PRD §3 SC "
+            "values rather than historical data; harness refuses to run executor "
+            "replays against provisional baselines unless --allow-provisional-baselines."
         ),
     }
 
 
 def _try_audit_sign(baselines_path: Path, audit_log: Path) -> bool:
-    """Attempt to sign via audit_emit_signed. Returns True on success."""
+    """Attempt to sign via audit_emit_signed. Returns True on success.
+
+    BB iter-1 F006 closure: pass payload via env var rather than f-string
+    interpolation into `bash -c`. Eliminates the shell-injection / quote-
+    confusion surface that the prior implementation carried. The wrapper
+    script reads `LOA_AUDIT_PAYLOAD` from env instead of argv.
+    """
     payload = json.dumps({
         "cycle_id": "cycle-108-advisor-strategy",
         "baselines_path": str(baselines_path),
         "baselines_sha": _sha256_of(baselines_path),
     })
-    cmd = (
-        f"source .claude/scripts/audit-envelope.sh && "
-        f"audit_emit_signed 'CYCLE_108_BASELINES' 'baselines.signed' "
-        f"'{payload}' '{audit_log}'"
+    # Use args list (no shell interpretation of script body); payload comes via
+    # env var so shell quoting cannot break it regardless of payload content.
+    script = (
+        'source .claude/scripts/audit-envelope.sh && '
+        'audit_emit_signed "$LOA_AUDIT_PRIMITIVE" "$LOA_AUDIT_EVENT_TYPE" '
+        '"$LOA_AUDIT_PAYLOAD" "$LOA_AUDIT_LOG_PATH"'
     )
+    env = {
+        **os.environ,
+        "LOA_AUDIT_PRIMITIVE": "CYCLE_108_BASELINES",
+        "LOA_AUDIT_EVENT_TYPE": "baselines.signed",
+        "LOA_AUDIT_PAYLOAD": payload,
+        "LOA_AUDIT_LOG_PATH": str(audit_log),
+    }
     try:
         result = subprocess.run(
-            ["bash", "-c", cmd],
+            ["bash", "-c", script],
             capture_output=True, text=True, check=False, timeout=30,
+            env=env,
         )
         return result.returncode == 0
     except (subprocess.SubprocessError, OSError):

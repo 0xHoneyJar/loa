@@ -570,6 +570,13 @@ backward_compat_aliases:
   # claude-opus-4-6 is ALSO listed in providers.anthropic.models but the
   # legacy bash adapter retargets the BASH-level resolution to 4-7 per
   # PR #207 pattern. The YAML/Python path preserves 4-6 for pinning.
+  # Self-map for the dash form of the current default (parity with
+  # gpt-5.3-codex self-map above). BB tool config.generated.js hardcodes
+  # the dash form `claude-opus-4-7` as modelId and passes it to cheval
+  # without a provider prefix — cheval's resolver expects an alias entry,
+  # so the bare dash form must self-map. Without this, BB review fails
+  # with "Unknown alias: 'claude-opus-4-7'" across all 3 substrate models.
+  "claude-opus-4-7": "anthropic:claude-opus-4-7"
   "claude-opus-4.7": "anthropic:claude-opus-4-7"
   "claude-opus-4.6": "anthropic:claude-opus-4-7"
   "claude-opus-4-6": "anthropic:claude-opus-4-7"
@@ -583,6 +590,12 @@ backward_compat_aliases:
   # `aliases` section. Duplicates across aliases + backward_compat_aliases
   # emit the same key twice into the generated bash maps (behaviorally
   # harmless since last-write-wins, but unnecessary noise).
+  #
+  # Self-map for `gemini-3.1-pro-preview` (the API model_id). Same pattern as
+  # `claude-opus-4-7` above + `gpt-5.3-codex` self-map: BB tool config passes
+  # the bare model_id to cheval, which expects an alias. Without this
+  # entry BB google leg fails with "Unknown alias: 'gemini-3.1-pro-preview'".
+  "gemini-3.1-pro-preview": "google:gemini-3.1-pro-preview"
 
 # Agent bindings (agent name → model + requirements)
 # Conservative profile: maximize quality, most agents on native (PRD FR-4)
