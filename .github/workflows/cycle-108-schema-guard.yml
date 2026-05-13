@@ -165,11 +165,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Use the gh CLI to check approvers.
-          reviewers=$(gh pr view "${{ github.event.pull_request.number }}" \
+          # BB iter-5 F002 closure: keep reviewers as a JSON array and check
+          # exact-login membership via jq. The previous `grep -q "janitooor"`
+          # substring match would admit any login containing the substring
+          # (e.g. `janitooor-fake`, `evil-janitooor-bot`) — trivial
+          # impersonation surface.
+          reviewers_json=$(gh pr view "${{ github.event.pull_request.number }}" \
             --repo "${{ github.repository }}" \
             --json reviews \
-            --jq '[.reviews[] | select(.state == "APPROVED") | .author.login] | unique | join(",")')
+            --jq '[.reviews[] | select(.state == "APPROVED") | .author.login] | unique')
 
           # Loosened slightly: pass if EITHER @janitooor is an approver OR
           # the PR author IS @janitooor (operator can approve their own
@@ -182,11 +186,13 @@ jobs:
             exit 0
           fi
 
-          if echo "$reviewers" | grep -q "janitooor"; then
+          # Exact-login membership check (NOT substring).
+          if printf '%s' "$reviewers_json" | jq -e 'any(. == "janitooor")' >/dev/null; then
             echo "@janitooor has approved this PR; reviewer check passes."
             exit 0
           fi
 
+          reviewers=$(printf '%s' "$reviewers_json" | jq -r 'join(",")')
           echo "::error::cycle-108 protected-surface PR requires @janitooor approval."
           echo "Current approvers: $reviewers"
           echo "PR author: $pr_author"
