@@ -112,17 +112,38 @@ run_cli() {
 }
 
 # yq helper using Python (ruamel.yaml) — keeps test deps minimal.
+# Path syntax: `.a.b.c` for simple lookups; `.a."key.with.dots".b` for keys
+# whose names contain dots (e.g., `"gpt-5.5-pro"`). The parser splits on `.`
+# only outside `"…"` quoted segments.
 yqp() {
     local path="$1"
     "$PYTHON_BIN" -c "
-import sys, json
+import sys, json, re
 from ruamel.yaml import YAML
 yaml = YAML(typ='safe')
 with open('$OUT') as f:
     doc = yaml.load(f)
+def split_path(path):
+    # Split on '.' except inside '\"...\"' quoted segments.
+    parts = []
+    cur = ''
+    in_q = False
+    for ch in path.lstrip('.'):
+        if ch == '\"':
+            in_q = not in_q
+            continue
+        if ch == '.' and not in_q:
+            if cur:
+                parts.append(cur)
+                cur = ''
+            continue
+        cur += ch
+    if cur:
+        parts.append(cur)
+    return parts
 def get(d, path):
     cur = d
-    for k in path.strip('.').split('.'):
+    for k in split_path(path):
         if k.startswith('[') and k.endswith(']'):
             cur = cur[int(k[1:-1])]
         else:

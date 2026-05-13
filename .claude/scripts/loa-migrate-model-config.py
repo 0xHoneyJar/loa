@@ -315,6 +315,32 @@ def main(argv: list[str] | None = None) -> int:
             "fields is a no-op for those entries."
         ),
     )
+    parser.add_argument(
+        "--to-v3",
+        action="store_true",
+        help=(
+            "cycle-109 Sprint 1 T1.2: chain v1→v2→v3 (or v2→v3 directly) and "
+            "validate against the v3 schema. Adds the capability-aware fields "
+            "per SDD §3.1.1 with conservative defaults per SDD §3.1.2: "
+            "effective_input_ceiling = min(50% × api_context_window, 30000); "
+            "reasoning_class opt-in for claude-opus-4-*, gpt-5.5-pro, "
+            "gemini-3.1-pro; recommended_for = allow-all 5-role list; "
+            "failure_modes_observed = []; ceiling_calibration "
+            "{source: conservative_default, stale_after_days: 30}; "
+            "streaming_recovery with 60s (reasoning) or 30s (non-reasoning) "
+            "first-token deadline. Idempotent on v3 input. When --to-v3 is "
+            "set, the validation schema defaults to model-config-v3.schema.json."
+        ),
+    )
+    parser.add_argument(
+        "--calibrated-at",
+        default="2026-05-13T00:00:00Z",
+        help=(
+            "ISO 8601 timestamp stamped on every ceiling_calibration block "
+            "populated by --to-v3. Defaults to the cycle-109 Sprint 1 land "
+            "date; CI/test fixtures pin this for determinism."
+        ),
+    )
 
     args = parser.parse_args(argv)
 
@@ -325,13 +351,18 @@ def main(argv: list[str] | None = None) -> int:
 
     output_path = Path(args.output)
 
-    # Resolve the v2 schema path (CLI override or repo default).
+    # Resolve the schema path (CLI override or repo default).
+    # --to-v3 routes to v3 schema by default; otherwise v2 schema.
     if args.schema:
         schema_path = Path(args.schema)
     else:
         repo_root = Path(__file__).resolve().parents[2]
+        schema_filename = (
+            "model-config-v3.schema.json" if args.to_v3
+            else "model-config-v2.schema.json"
+        )
         schema_path = (
-            repo_root / ".claude" / "data" / "schemas" / "model-config-v2.schema.json"
+            repo_root / ".claude" / "data" / "schemas" / schema_filename
         )
     if not args.no_validate and not schema_path.is_file():
         print(f"[SCHEMA-NOT-FOUND] {schema_path}", file=sys.stderr)
@@ -370,26 +401,49 @@ def main(argv: list[str] | None = None) -> int:
         _to_plain_dict(permissions_doc) if permissions_doc is not None else None
     )
 
-    # Run migration.
+    # Run migration. --to-v3 routes through migrate_to_latest (chains v1→v2→v3
+    # or v2→v3 directly per cycle-109 Sprint 1 T1.2); otherwise legacy v1→v2.
     migrate_mod = _load_migrate_module()
     try:
-        v2_dict, report = migrate_mod.migrate_v1_to_v2(v1_plain, permissions_plain)
+        if args.to_v3:
+            out_dict, report = migrate_mod.migrate_to_latest(
+                v1_plain,
+                target_version=3,
+                model_permissions=permissions_plain,
+                calibrated_at=args.calibrated_at,
+            )
+        else:
+            out_dict, report = migrate_mod.migrate_v1_to_v2(
+                v1_plain, permissions_plain
+            )
     except migrate_mod.MigrationError as exc:
         print(str(exc), file=sys.stderr)
         return EXIT_VALIDATION_FAIL
 
     # cycle-103 sprint-3 T3.4: optional max_input_tokens streaming/legacy split.
+    # Compatible with --to-v3 (operates on the v3 dict's provider/model tree).
     if args.cycle103_split:
-        _apply_cycle103_split(v2_dict, report)
+        _apply_cycle103_split(out_dict, report)
 
-    # Distinguish "operator-supplied invalid v2" from "migrator-produced invalid v2"
+    # Distinguish "operator-supplied invalid input" from "migrator-produced invalid output"
     # so the operator can route the fix correctly (review remediation G-M4).
-    input_was_v2 = any(entry.get("kind") == "idempotent_noop" for entry in report)
-    error_code = "CONFIG-V2-INVALID" if input_was_v2 else "MIGRATION-PRODUCED-INVALID-V2"
+    input_was_target_version = any(
+        entry.get("kind") == "idempotent_noop" for entry in report
+    )
+    if args.to_v3:
+        error_code = (
+            "CONFIG-V3-INVALID" if input_was_target_version
+            else "MIGRATION-PRODUCED-INVALID-V3"
+        )
+    else:
+        error_code = (
+            "CONFIG-V2-INVALID" if input_was_target_version
+            else "MIGRATION-PRODUCED-INVALID-V2"
+        )
 
     # Post-migration validation (default on).
     if not args.no_validate:
-        errors = _validate_v2(v2_dict, schema_path, error_code=error_code)
+        errors = _validate_v2(out_dict, schema_path, error_code=error_code)
         if errors:
             sys.stderr.write(_emit_validation_errors(errors, args.report_format))
             sys.stderr.write("\n")
@@ -401,10 +455,10 @@ def main(argv: list[str] | None = None) -> int:
     else:
         sys.stdout.write(_emit_text_report(report))
 
-    # Write v2 unless --dry-run.
+    # Write output unless --dry-run.
     if not args.dry_run:
         try:
-            _dump_yaml(v2_dict, output_path)
+            _dump_yaml(out_dict, output_path)
         except SymlinkRefusedError as exc:
             print(f"[OUTPUT-IS-SYMLINK] {exc}", file=sys.stderr)
             return EXIT_USAGE
