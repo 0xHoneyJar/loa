@@ -1,0 +1,260 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loa.dev/schemas/model-config-v3.schema.json",
+  "title": "Loa model-config.yaml v3",
+  "description": "cycle-109 Sprint 1 v3 schema (FR-1.1, IMP-008). Extends v2 ADDITIVELY with capability-aware per-model fields: effective_input_ceiling, reasoning_class, recommended_for, failure_modes_observed, ceiling_calibration (source + timestamps + staleness), streaming_recovery (first-token deadline + empty-detection + cot-budget per FR-4.4). Per SDD §3.1.3, v3 MUST accept all valid v2 documents with schema_version bumped to 3. Conservative defaults policy at SDD §3.1.2 (min(50% × api_context_window, 30000) for effective_input_ceiling, reasoning_class default false with opt-in list, recommended_for allow-all default).",
+  "type": "object",
+  "required": ["schema_version", "providers"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 3,
+      "description": "Locked to integer 3 in cycle-109 Sprint 1. v2 docs go through tools/migrate-model-config.py --to v3 first."
+    },
+    "providers": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/providerEntry"}
+    },
+    "aliases": {
+      "type": "object",
+      "additionalProperties": {"type": "string"}
+    },
+    "backward_compat_aliases": {
+      "type": "object",
+      "additionalProperties": {"type": "string"}
+    },
+    "agents": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/agentBinding"}
+    },
+    "tier_groups": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mappings": {"type": "object"},
+        "denylist": {"type": "array", "items": {"type": "string"}},
+        "max_cost_per_session_micro_usd": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
+    "routing": {"type": "object"},
+    "retry": {"type": "object"},
+    "metering": {"type": "object"},
+    "defaults": {"type": "object"},
+    "_archived_v1_fields": {
+      "type": "object",
+      "description": "v1 archive namespace (preserved from v2 migrator)."
+    },
+    "_archived_v2_fields": {
+      "type": "object",
+      "description": "v2 archive namespace populated by v2→v3 migrator when fields are renamed or removed in v3."
+    },
+    "_unknown_v1_fields": {
+      "type": "object",
+      "description": "v1 unknown-key namespace (preserved from v2 migrator)."
+    },
+    "_unknown_v2_fields": {
+      "type": "object",
+      "description": "v2 unknown-key namespace populated by v2→v3 migrator for keys not recognized in v3."
+    }
+  },
+  "$defs": {
+    "providerEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "v3 provider entry — additive extension of v2. Operator extensions still flow through .loa.config.yaml::model_aliases_extra rather than schema growth.",
+      "properties": {
+        "type": {"type": "string"},
+        "endpoint": {"type": "string"},
+        "auth": {"type": "string"},
+        "auth_modes": {"type": "array", "items": {"type": "string"}},
+        "compliance_profile": {"type": ["string", "null"]},
+        "connect_timeout": {"type": "number"},
+        "read_timeout": {"type": "number"},
+        "region_default": {"type": "string"},
+        "models": {
+          "type": "object",
+          "additionalProperties": {"$ref": "#/$defs/modelEntry"}
+        }
+      }
+    },
+    "modelEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "v3 model entry — extends v2 modelEntry with capability-aware fields per SDD §3.1.1. All v3 additions are OPTIONAL at the schema layer; the migrator populates conservative defaults per SDD §3.1.2.",
+      "properties": {
+        "capabilities": {"type": "array", "items": {"type": "string"}},
+        "context_window": {
+          "type": "integer",
+          "minimum": 1024,
+          "description": "Carried forward from v2."
+        },
+        "max_output_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Carried forward from v2 (KF-006 closure)."
+        },
+        "max_input_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Carried forward from v2."
+        },
+        "streaming_max_input_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Carried forward from v2 (cycle-103 Sprint 3 T3.4)."
+        },
+        "legacy_max_input_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Carried forward from v2 (cycle-103 Sprint 3 T3.4)."
+        },
+        "token_param": {"type": "string"},
+        "endpoint_family": {
+          "type": "string",
+          "enum": ["chat", "responses"],
+          "description": "Carried forward from v2 (cycle-095 Sprint 1)."
+        },
+        "api_format": {
+          "description": "Carried forward from v2.",
+          "type": ["string", "object"]
+        },
+        "api_mode": {"type": "string"},
+        "params": {"type": "object"},
+        "extra": {"type": "object"},
+        "pricing": {"type": "object"},
+        "permissions": {"$ref": "#/$defs/permissionsBlock"},
+        "fallback_to": {"type": "string"},
+        "fallback_mapping_version": {"type": "integer"},
+        "fallback_chain": {"type": "array", "items": {"type": "string"}},
+        "available_until": {"type": "string"},
+        "deprecated_since": {"type": "string"},
+        "notes": {"type": "string"},
+        "_archived_v1_fields": {
+          "type": "object",
+          "description": "Per-model archive namespace (v1)."
+        },
+        "_archived_v2_fields": {
+          "type": "object",
+          "description": "Per-model archive namespace populated by v2→v3 migrator."
+        },
+
+        "effective_input_ceiling": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "cycle-109 FR-1.1: empirically-validated safe input-size ceiling per SDD §3.1.1. Cheval pre-flight gate emits typed exit 7 (ContextTooLarge) when estimated_input > this value. Conservative default per SDD §3.1.2: min(50% × api_context_window, 30000)."
+        },
+        "reasoning_class": {
+          "type": "boolean",
+          "description": "cycle-109 FR-1.1: reasoning-class model flag (extended-thinking / o-series / equivalent). Default false; opt-in flip for claude-opus-4.x, gpt-5.5-pro, gemini-3.1-pro per SDD §3.1.2."
+        },
+        "recommended_for": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["review", "audit", "implementation", "dissent", "arbiter"]
+          },
+          "uniqueItems": true,
+          "description": "cycle-109 FR-1.1 + SKP-004 v5 closure: per-model role allow-list. Migration default per SDD §3.1.4 = allow-all [review, audit, implementation, dissent, arbiter]. KF-auto-link (FR-1.5) is the explicit reducer. Empty list `[]` is the operator kill-switch (substrate emits exit 11 NoEligibleAdapter at lookup per SDD §3.1.4)."
+        },
+        "failure_modes_observed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^KF-\\d+$"
+          },
+          "uniqueItems": true,
+          "description": "cycle-109 FR-1.1: KF-ledger references that have flagged this model. Populated automatically by FR-1.5 KF-auto-link on every CI run that touches known-failures.md. Pattern enforces `KF-NNN` shape."
+        },
+        "ceiling_calibration": {"$ref": "#/$defs/ceilingCalibration"},
+        "streaming_recovery": {"$ref": "#/$defs/streamingRecovery"}
+      }
+    },
+    "ceilingCalibration": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "cycle-109 FR-1.1 + IMP-007: how the effective_input_ceiling was determined + staleness tracking. SDD §3.1.1 schema. Cheval consults this to emit ceiling_stale: true to MODELINV envelope when stale_after_days elapsed.",
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": ["empirical_probe", "kf_derived", "operator_set", "conservative_default"],
+          "description": "How the ceiling value was determined. empirical_probe is the gold standard (per FR-1.6 5×5 binary-search protocol); conservative_default falls back to SDD §3.1.2 formula."
+        },
+        "calibrated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp of last calibration. Cheval compares against now() + stale_after_days for staleness detection."
+        },
+        "sample_size": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "description": "Number of probe runs that informed the ceiling. null when source != empirical_probe."
+        },
+        "stale_after_days": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Days after calibrated_at when ceiling is considered stale. Cheval emits ceiling_stale warning to MODELINV envelope past this threshold and routes through chunked path defensively (FR-4)."
+        },
+        "reprobe_trigger": {
+          "type": "string",
+          "description": "Human-readable description of conditions that should re-fire the probe (e.g., 'first KF entry referencing model OR 30d elapsed OR operator-forced')."
+        }
+      }
+    },
+    "streamingRecovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "cycle-109 FR-4.4: streaming-with-recovery thresholds per model. SDD §3.1.1 + §3.1.2 default policy. Distinct from effective_input_ceiling (which is the preemptive gate); these are the runtime recovery knobs once dispatch has started.",
+      "properties": {
+        "first_token_deadline_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Time-to-first-token before stream is considered hung. Default 30s for non-reasoning, 60s for reasoning_class (per SDD §3.1.2)."
+        },
+        "empty_detection_window_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of tokens to read before declaring 'empty content' (KF-002/003 detector). Default 200 per SDD §3.1.2."
+        },
+        "cot_token_budget": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "description": "Reasoning-class-only: chain-of-thought token allowance before treating subsequent silence as empty-content. Default 500 for reasoning_class; null for non-reasoning. Per FR-4.4."
+        }
+      }
+    },
+    "permissionsBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Carried forward from v2 DD-1 Option B per-model permissions block.",
+      "properties": {
+        "trust_level": {"type": "string"},
+        "trust_scopes": {"type": "object"},
+        "execution_mode": {"type": "string"},
+        "capabilities": {"type": "object"},
+        "notes": {"type": "string"}
+      }
+    },
+    "agentBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "model": {
+          "type": "string",
+          "not": {"enum": ["max", "cheap", "mid", "tiny"]},
+          "description": "Carried forward from v2."
+        },
+        "default_tier": {
+          "type": "string",
+          "enum": ["max", "cheap", "mid", "tiny"],
+          "description": "Carried forward from v2."
+        },
+        "temperature": {"type": "number"},
+        "requires": {"type": "object"}
+      },
+      "not": {
+        "required": ["model", "default_tier"],
+        "description": "An agent binding may have `model:` OR `default_tier:` but not both. Carried forward from v2."
+      }
+    }
+  }
+}
