@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-108-advisor-strategy",
+  "active_cycle": "cycle-109-substrate-hardening",
   "cycles": [
     {
       "id": "cycle-036",
@@ -1228,12 +1228,78 @@
     {
       "id": "cycle-108-advisor-strategy",
       "label": "Advisor-Strategy Benchmark — Role→Tier Routing for Sustainable Cycles",
-      "status": "in-progress",
+      "status": "completed",
       "created": "2026-05-13T00:00:00Z",
       "prd": "grimoires/loa/cycles/cycle-108-advisor-strategy/prd.md",
       "sdd": "grimoires/loa/cycles/cycle-108-advisor-strategy/sdd.md",
       "sprint": "grimoires/loa/cycles/cycle-108-advisor-strategy/sprint.md",
       "sprints": []
+    },
+    {
+      "id": "cycle-109-substrate-hardening",
+      "label": "Multi-Model Substrate Hardening — Capability-Aware Dispatch + Verdict-Quality Envelope + Legacy Sunset",
+      "status": "in-progress",
+      "created": "2026-05-13T00:00:00Z",
+      "prd": "grimoires/loa/cycles/cycle-109-substrate-hardening/prd.md",
+      "sdd": "grimoires/loa/cycles/cycle-109-substrate-hardening/sdd.md",
+      "sprint": "grimoires/loa/cycles/cycle-109-substrate-hardening/sprint.md",
+      "sprints": [
+        {
+          "id": "sprint-159",
+          "local_id": "sprint-1",
+          "cycle": "cycle-109-substrate-hardening",
+          "theme": "Capability-Aware Substrate Foundation",
+          "fr": "FR-1",
+          "scope": "LARGE",
+          "task_count": 11,
+          "status": "planned",
+          "created": "2026-05-13T05:14:02Z"
+        },
+        {
+          "id": "sprint-160",
+          "local_id": "sprint-2",
+          "cycle": "cycle-109-substrate-hardening",
+          "theme": "Verdict-Quality Envelope + Consumer Contracts",
+          "fr": "FR-2",
+          "scope": "LARGE",
+          "task_count": 10,
+          "status": "planned",
+          "created": "2026-05-13T05:14:02Z"
+        },
+        {
+          "id": "sprint-161",
+          "local_id": "sprint-3",
+          "cycle": "cycle-109-substrate-hardening",
+          "theme": "Legacy Adapter Sunset + Activation Regression Suite",
+          "fr": "FR-3",
+          "scope": "LARGE",
+          "task_count": 11,
+          "status": "planned",
+          "created": "2026-05-13T05:14:02Z"
+        },
+        {
+          "id": "sprint-162",
+          "local_id": "sprint-4",
+          "cycle": "cycle-109-substrate-hardening",
+          "theme": "Hierarchical / Chunked Review",
+          "fr": "FR-4",
+          "scope": "LARGE",
+          "task_count": 10,
+          "status": "planned",
+          "created": "2026-05-13T05:14:02Z"
+        },
+        {
+          "id": "sprint-163",
+          "local_id": "sprint-5",
+          "cycle": "cycle-109-substrate-hardening",
+          "theme": "Carry Items + Substrate Observability + Cycle Close",
+          "fr": "FR-5",
+          "scope": "LARGE",
+          "task_count": 10,
+          "status": "planned",
+          "created": "2026-05-13T05:14:02Z"
+        }
+      ]
     }
   ],
   "global_sprint_counter": 158,
@@ -1420,5 +1486,5 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 159
+  "next_sprint_number": 164
 }
