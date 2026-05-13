@@ -1,6 +1,7 @@
 ---
 name: audit
 description: Security and quality audit of application codebase
+role: review
 allowed-tools: Read, Grep, Glob, WebFetch, WebSearch
 capabilities:
   schema_version: 1

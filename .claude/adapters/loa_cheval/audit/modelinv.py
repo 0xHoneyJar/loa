@@ -323,6 +323,48 @@ def _streaming_active() -> bool:
     return not _streaming_disabled()
 
 
+# Cycle-108 sprint-1 T1.F — writer_version single source of truth.
+# Read from .claude/data/cycle-108/modelinv-writer-version once per process.
+# Cached for the lifetime of this module's import (per SDD §21.4 contract).
+_WRITER_VERSION_CACHE: Optional[str] = None
+_WRITER_VERSION_PATH = ".claude/data/cycle-108/modelinv-writer-version"
+
+
+def _read_writer_version() -> Optional[str]:
+    """Read writer_version from the SoT file. Cached after first read.
+
+    Returns the version string (e.g. '1.2') or None if the file is absent
+    (which preserves v1.1 legacy emit behavior in case of a partial install).
+    """
+    global _WRITER_VERSION_CACHE
+    if _WRITER_VERSION_CACHE is not None:
+        return _WRITER_VERSION_CACHE
+
+    # Resolve relative to repo root via Path traversal from this module
+    module_path = Path(__file__).resolve()
+    # .claude/adapters/loa_cheval/audit/modelinv.py → repo_root has 4 parents above
+    repo_root = module_path.parents[4]
+    sot_path = repo_root / _WRITER_VERSION_PATH
+
+    if not sot_path.exists():
+        return None
+
+    try:
+        version = sot_path.read_text().strip()
+        if version:
+            _WRITER_VERSION_CACHE = version
+            return version
+    except OSError:
+        pass
+    return None
+
+
+def _reset_writer_version_cache_for_tests() -> None:
+    """Test-only helper to clear the writer_version cache between tests."""
+    global _WRITER_VERSION_CACHE
+    _WRITER_VERSION_CACHE = None
+
+
 def emit_model_invoke_complete(
     *,
     models_requested: List[str],
@@ -338,6 +380,17 @@ def emit_model_invoke_complete(
     final_model_id: Optional[str] = None,
     transport: Optional[str] = None,
     config_observed: Optional[Dict[str, str]] = None,
+    # Cycle-108 sprint-1 T1.F — advisor-strategy additive fields (v1.2 envelope).
+    # Backward-compat: all None defaults → emitter produces v1.1-shaped output.
+    role: Optional[str] = None,
+    tier: Optional[str] = None,
+    tier_source: Optional[str] = None,
+    tier_resolution: Optional[str] = None,
+    sprint_kind: Optional[str] = None,
+    invocation_chain: Optional[List[str]] = None,
+    # Cycle-108 sprint-2 T2.J — envelope-captured pricing (SDD §20.9 ATK-A20).
+    # Snapshot of providers.<p>.models.<m>.pricing at invocation time.
+    pricing_snapshot: Optional[Dict[str, int]] = None,
 ) -> None:
     """Emit a model.invoke.complete envelope to the MODELINV audit chain.
 
@@ -419,6 +472,53 @@ def emit_model_invoke_complete(
         payload["transport"] = transport
     if config_observed is not None:
         payload["config_observed"] = dict(config_observed)
+
+    # Cycle-108 sprint-1 T1.F — advisor-strategy v1.2 additive fields.
+    # All optional; additionalProperties:false is satisfied because each
+    # field is now declared in the v1.2 schema. Backward-compat: when ALL
+    # of these are None (legacy callers), the emitted envelope is shape-
+    # identical to v1.1.
+    if role is not None:
+        payload["role"] = role
+    if tier is not None:
+        payload["tier"] = tier
+    if tier_source is not None:
+        payload["tier_source"] = tier_source
+    if tier_resolution is not None:
+        payload["tier_resolution"] = tier_resolution
+    if sprint_kind is not None:
+        payload["sprint_kind"] = sprint_kind
+    if invocation_chain is not None:
+        payload["invocation_chain"] = list(invocation_chain)
+
+    # writer_version is set unconditionally for cycle-108+ emitters
+    # (single source of truth from .claude/data/cycle-108/modelinv-writer-version).
+    # Note: ATK-A7 closure (strip-attack detection) lives in the rollup tool
+    # (Sprint 2 deliverable), not here — emitter side just records the version.
+    _writer_version = _read_writer_version()
+    if _writer_version is not None:
+        payload["writer_version"] = _writer_version
+
+    # cycle-108 ATK-A15: replay_marker (env-flag-controlled)
+    if os.environ.get("LOA_REPLAY_CONTEXT") == "1":
+        payload["replay_marker"] = True
+
+    # cycle-108 sprint-2 T2.J — envelope-captured pricing (SDD §20.9 ATK-A20).
+    # Optional; only emitted when caller supplied a snapshot. Rollup tool reads
+    # pricing FROM the envelope, so historical pricing changes never retroactively
+    # rewrite cost reports.
+    if pricing_snapshot is not None:
+        # Defensive copy + integer coerce. Caller may pass numpy ints etc.;
+        # JSON schema requires plain ints. Drops keys that don't validate.
+        _snapshot: Dict[str, Any] = {}
+        for _k in ("input_per_mtok", "output_per_mtok", "reasoning_per_mtok", "per_task_micro_usd"):
+            if _k in pricing_snapshot and pricing_snapshot[_k] is not None:
+                _snapshot[_k] = int(pricing_snapshot[_k])
+        if "pricing_mode" in pricing_snapshot and pricing_snapshot["pricing_mode"] is not None:
+            _snapshot["pricing_mode"] = str(pricing_snapshot["pricing_mode"])
+        # Required-key gate: schema requires input/output. Skip emit if missing.
+        if "input_per_mtok" in _snapshot and "output_per_mtok" in _snapshot:
+            payload["pricing_snapshot"] = _snapshot
 
     # Field-level redaction.
     payload = redact_payload_strings(payload)

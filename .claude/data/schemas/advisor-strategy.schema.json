@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.github.io/loa/schemas/advisor-strategy.schema.json",
+  "title": "Advisor-Strategy Configuration",
+  "description": "Schema for the .loa.config.yaml::advisor_strategy section. Cycle-108 sprint-1 T1.A. Closes PRD §5 FR-1, SDD §3.1-§3.2, and NFR-Sec1 hard-pin via const-pinning of review/audit role tiers.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "enabled"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version. Strict const-1 for cycle-108. Future versions dispatch through versioned schemas (SDD §3.4)."
+    },
+    "enabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "Master switch. Default false (opt-in). When false, all consumers behave identically to pre-cycle-108 (advisor-everywhere)."
+    },
+    "tier_resolution": {
+      "type": "string",
+      "enum": ["static", "dynamic"],
+      "default": "static",
+      "description": "Tier-alias resolution mode. static pins to .loa.config.yaml commit SHA at load time (Sprint 3 benchmark REQUIRED mode). dynamic re-resolves per invocation. SDD §3.6."
+    },
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Role-to-tier defaults. NFR-Sec1: review and audit are const-pinned to advisor.",
+      "properties": {
+        "planning": {
+          "type": "string",
+          "enum": ["advisor", "executor"]
+        },
+        "review": {
+          "type": "string",
+          "const": "advisor",
+          "description": "NFR-Sec1 hard-pin: review role MUST resolve to advisor tier. Schema-level enforcement (SDD §3.2, ATK-A1 closure)."
+        },
+        "audit": {
+          "type": "string",
+          "const": "advisor",
+          "description": "NFR-Sec1 hard-pin: audit role MUST resolve to advisor tier."
+        },
+        "implementation": {
+          "type": "string",
+          "enum": ["advisor", "executor"]
+        }
+      }
+    },
+    "tier_aliases": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Tier → per-provider model-id mapping. Within-provider only per OOS-4.",
+      "properties": {
+        "advisor": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "anthropic": {"type": "string", "pattern": "^[a-z0-9-]+$"},
+            "openai":    {"type": "string", "pattern": "^[a-z0-9.-]+$"},
+            "google":    {"type": "string", "pattern": "^[a-z0-9.-]+$"}
+          }
+        },
+        "executor": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "anthropic": {"type": "string", "pattern": "^[a-z0-9-]+$"},
+            "openai":    {"type": "string", "pattern": "^[a-z0-9.-]+$"},
+            "google":    {"type": "string", "pattern": "^[a-z0-9.-]+$"}
+          }
+        }
+      }
+    },
+    "per_skill_overrides": {
+      "type": "object",
+      "description": "Optional per-skill tier overrides. Loader §3.3 step 4 rejects review/audit skill overrides to non-advisor tier with exit 78. Skill names MUST exist in the skill registry (runtime check).",
+      "additionalProperties": {
+        "type": "string",
+        "enum": ["advisor", "executor"]
+      }
+    },
+    "audited_review_skills": {
+      "type": "array",
+      "description": "Schema-pinned allowlist of skills permitted to use review tier (cycle-108 ATK-A1 closure SDD §3.7). Adding a new review skill requires a schema-version bump approved by operator via CODEOWNERS.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "auditing-security",
+          "bridgebuilder-review",
+          "eval-running",
+          "flatline-knowledge",
+          "red-teaming",
+          "reviewing-code",
+          "rtfm-testing",
+          "validating-construct-manifest"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "benchmark": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "FR-4 / NFR-P3 benchmark configuration.",
+      "properties": {
+        "max_cost_usd": {
+          "type": "number",
+          "minimum": 0,
+          "default": 50.0,
+          "description": "Pre-run cost cap (USD). Harness aborts if estimate exceeds. NFR-P3 / IMP-011."
+        },
+        "historical_medians_path": {
+          "type": "string",
+          "description": "Path to historical-medians.json (CODEOWNERS-protected, computed by tools/modelinv-rollup.sh). ATK-A6 closure."
+        }
+      }
+    }
+  }
+}

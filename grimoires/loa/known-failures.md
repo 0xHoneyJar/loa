@@ -689,6 +689,32 @@ not address.
 
 ---
 
+## KF-009: cycle-108 advisor-strategy substrate shipped pre-empirical-data
+
+**Status**: DEGRADED-ACCEPTED
+**Feature**: cycle-108 advisor-strategy benchmark — empirical resolution of decision-fork
+**Symptom**: cycle-108 substrate-validation closes (all 5 strata DEFERRED) because production `.run/model-invoke.jsonl` has zero v1.2 envelopes with `sprint_kind` attribution yet. compute-baselines.py falls back to PRD §3 SC defaults; benchmark-report.md per-stratum cells read DEFERRED; rollout-policy.md decision-fork outcome resolves to (c') ship-substrate-defer-adoption.
+**First observed**: 2026-05-13 (cycle-108 session 2, sprint-3 close — substrate-validation mode)
+**Recurrence count**: 1 (first cycle to ship a benchmark substrate ahead of empirical data)
+**Current workaround**: ship the substrate behind `advisor_strategy.enabled: false` default; document follow-up trigger conditions in `rollout-policy.md` §7; operator triggers real-data benchmark when conditions are met.
+**Upstream issue**: not filed — this is by design, not a bug. Documented as a cycle-execution mode.
+**Related visions / lore**: `grimoires/loa/cycles/cycle-108-advisor-strategy/rollout-policy.md` §1 (decision-fork outcome), `feedback_advisor_benchmark.md` (memory)
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-05-13 | Ship full substrate without real LLM replays this session | WORKAROUND-AT-LIMIT (substrate verified end-to-end; adoption deferred) | commits 71998366..e5c9962a on `feat/cycle-108-advisor-strategy` |
+| 2026-05-13 | compute-baselines.py default-baseline fallback for empty historical data | WORKED — emits PRD §3 SC defaults with provenance=`default_baseline` | `tools/compute-baselines.py` smoke; baselines.json provenance fields |
+
+### Reading guide
+
+When cycle-108 substrate is invoked but `.run/model-invoke.jsonl` has insufficient v1.2 envelope data for the requested strata, the natural close shape is "substrate-validation mode". Do NOT treat DEFERRED classifications as failures — they're the expected outcome until the operator triggers a real-data benchmark (rollout-policy.md §7 trigger conditions). Coverage audit threshold (≥90%) is the canonical readiness check; if it fails, route the cycle to "extend the coverage window" rather than "ship anyway".
+
+When future cycles want to benchmark a NEW dimension (not in cycle-108), reuse the cycle-108 substrate end-to-end (rollup + classifier + harness + stats), supply the new dimension's stratifier rules, and capture the cycle's decision-fork outcome as a fresh `cycle-NNN-baselines-pin-<sha>` Git tag. The pattern is repo-substrate.
+
+---
+
 ## Why this file exists
 
 Per @janitooor 2026-05-10 (cycle-102 session 7, sprint-1D close):

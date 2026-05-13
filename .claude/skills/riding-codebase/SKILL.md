@@ -1,6 +1,7 @@
 ---
 name: ride
 description: Analyze codebase to extract reality into Loa artifacts
+role: planning
 context: fork
 allowed-tools: Read, Grep, Glob, Write, Bash(git *)
 capabilities:

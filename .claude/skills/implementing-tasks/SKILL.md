@@ -1,6 +1,7 @@
 ---
 name: implement
 description: "Execute sprint tasks with production-quality code and tests"
+role: implementation
 capabilities:
   schema_version: 1
   read_files: true

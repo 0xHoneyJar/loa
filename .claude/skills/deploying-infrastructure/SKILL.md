@@ -1,6 +1,7 @@
 ---
 name: deploy-production
 description: "Design and deploy production infrastructure"
+role: implementation
 capabilities:
   schema_version: 1
   read_files: true

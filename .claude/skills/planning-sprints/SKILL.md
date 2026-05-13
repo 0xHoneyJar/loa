@@ -1,6 +1,7 @@
 ---
 name: sprint-plan
 description: Create comprehensive sprint plan based on PRD and SDD
+role: planning
 capabilities:
   schema_version: 1
   read_files: true

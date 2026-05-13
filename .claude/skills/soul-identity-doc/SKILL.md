@@ -1,6 +1,7 @@
 ---
 name: soul-identity-doc
 description: L7 soul-identity-doc — schema + SessionStart hook for descriptive `SOUL.md` (descriptive identity complement to prescriptive `CLAUDE.md`). Composes with audit-envelope (soul.surface event), context-isolation-lib (sanitize body at SessionStart surfacing), and the prescriptive-rejection pattern file (NFR-Sec3 enforcement).
+role: implementation
 context: scoped
 parallel_threshold: 3000
 timeout_minutes: 5

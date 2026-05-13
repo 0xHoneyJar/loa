@@ -90,6 +90,14 @@ EXEMPT_FILES=(
     ".claude/scripts/mount-loa.sh"
     ".claude/scripts/model-health-probe.sh"
     ".claude/scripts/model-adapter.sh.legacy"
+    # cycle-108 sprint-2 T2.L: cheval-network-guard.sh defines bash function
+    # shims for curl/wget/nc/ftp that intercept under LOA_NETWORK_RESTRICTED=1.
+    # The shims delegate to `command curl` / `command wget` after the
+    # allowlist check passes — that's the same defense-in-depth pattern as
+    # endpoint-validator.sh's __guarded_curl. The strict scanner flags
+    # `command curl "$@"` as a raw curl invocation, but in this file the
+    # delegation IS the allowlisted path.
+    ".claude/scripts/lib/cheval-network-guard.sh"
 )
 
 QUIET=0

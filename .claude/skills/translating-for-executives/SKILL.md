@@ -1,6 +1,7 @@
 ---
 name: translate
 description: Translate technical documentation into executive-ready communications
+role: implementation
 allowed-tools: Read, Grep, Glob, Write
 capabilities:
   schema_version: 1

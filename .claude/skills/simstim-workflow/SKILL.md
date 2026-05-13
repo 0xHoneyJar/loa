@@ -1,6 +1,7 @@
 ---
 name: simstim
 description: "Simstim - HITL Accelerated Development Workflow"
+role: implementation
 capabilities:
   schema_version: 1
   read_files: true

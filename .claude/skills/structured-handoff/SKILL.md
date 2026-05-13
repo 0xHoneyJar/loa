@@ -1,6 +1,7 @@
 ---
 name: structured-handoff
 description: L6 structured-handoff — schema-validated markdown+frontmatter handoff documents with content-addressable handoff_id, atomic INDEX.md update, and OPERATORS.md cross-check. Composes with audit-envelope (handoff.write event), JCS canonicalization (handoff_id), context-isolation-lib (sanitize body at SessionStart surfacing), and operator-identity (verify_operators).
+role: implementation
 context: scoped
 parallel_threshold: 3000
 timeout_minutes: 5

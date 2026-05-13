@@ -524,6 +524,67 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         print(_error_json("INVALID_INPUT", "Missing --agent argument"), file=sys.stderr)
         return EXIT_CODES["INVALID_INPUT"]
 
+    # Cycle-108 sprint-1 T1.H + sprint-2 T2.J (C1 closure) — advisor-strategy
+    # role-based routing. Backward-compat: --role is OPTIONAL.
+    #
+    # C1 closure (sprint-1 reviewer concern): the agent binding's actual
+    # provider is discovered FIRST (via resolve_agent_binding + resolve_alias)
+    # before advisor.resolve is called. Earlier draft hardcoded "anthropic",
+    # which silently bypassed an agent's bound non-Anthropic provider.
+    _advisor_resolved = None  # captured for downstream MODELINV emit
+    _advisor_inferred_provider: Optional[str] = None
+    if getattr(args, "role", None) and not args.model:
+        try:
+            from loa_cheval.config.advisor_strategy import (
+                load_advisor_strategy,
+                ConfigError as _AdvisorConfigError,
+            )
+            from loa_cheval.routing.resolver import (
+                resolve_agent_binding as _resolve_binding_peek,
+                resolve_alias as _resolve_alias_peek,
+            )
+            _project_root = Path(__file__).resolve().parents[2]
+            _advisor_cfg = load_advisor_strategy(_project_root)
+            if _advisor_cfg.enabled:
+                # C1 closure: peek at the binding's resolved provider via
+                # alias chain BEFORE advisor resolve. Falls back to "anthropic"
+                # only if peek fails (e.g., unknown agent — error surfaces
+                # later in resolve_execution with a clearer message).
+                try:
+                    _binding_peek = _resolve_binding_peek(agent_name, hounfour)
+                    _aliases_peek = hounfour.get("aliases", {})
+                    _resolved_peek = _resolve_alias_peek(_binding_peek.model, _aliases_peek)
+                    _advisor_inferred_provider = _resolved_peek.provider
+                except Exception:  # noqa: BLE001 — defensive; resolve_execution will re-surface
+                    _advisor_inferred_provider = "anthropic"
+                _skill = args.skill or agent_name
+                try:
+                    _advisor_resolved = _advisor_cfg.resolve(
+                        role=args.role,
+                        skill=_skill,
+                        provider=_advisor_inferred_provider,
+                    )
+                    args.model = f"{_advisor_inferred_provider}:{_advisor_resolved.model_id}"
+                except _AdvisorConfigError as _e:
+                    _msg = str(_e)
+                    if "not in tier_aliases" in _msg:
+                        # Advisor strategy has no tier-mapping for this provider —
+                        # graceful fallback to the agent's bound model. C1
+                        # closure: a non-Anthropic provider no longer errors out
+                        # when advisor-strategy is only configured for Anthropic.
+                        _advisor_resolved = None
+                    else:
+                        # NFR-Sec1 violations and other ConfigErrors still fail.
+                        print(
+                            _error_json("INVALID_CONFIG", f"advisor-strategy resolve failed: {_e}"),
+                            file=sys.stderr,
+                        )
+                        return EXIT_CODES.get("INVALID_CONFIG", 2)
+        except ImportError:
+            # advisor_strategy module not yet present (pre-T1.C state) —
+            # silently skip; existing behavior preserved.
+            pass
+
     # Resolve agent → provider:model
     try:
         binding, resolved = resolve_execution(
@@ -626,6 +687,11 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             "headless_mode": _headless_mode,
             "headless_mode_source": _headless_mode_source,
         },
+        # cycle-108 sprint-2 T2.J — envelope-captured pricing snapshot.
+        # Populated from .claude/defaults/model-config.yaml::providers.<p>.models.<m>.pricing
+        # at successful chain entry time. Read by tools/modelinv-rollup.sh so
+        # historical pricing edits don't retroactively rewrite cost reports.
+        "pricing_snapshot": None,
     }
     _verbose = bool(os.environ.get("LOA_HEADLESS_VERBOSE"))
 
@@ -1060,6 +1126,28 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             _modelinv_state["streaming"] = _result_meta.get("streaming")
             _modelinv_state["final_model_id"] = _entry_target
             _modelinv_state["transport"] = _entry.adapter_kind
+            # cycle-108 sprint-2 T2.J — capture pricing for the successful
+            # entry. find_pricing reads from the current hounfour config; the
+            # snapshot is FROZEN into the envelope so later config edits don't
+            # mutate historical cost reports (SDD §20.9 ATK-A20).
+            try:
+                from loa_cheval.metering.pricing import find_pricing as _find_pricing
+                _pricing_entry = _find_pricing(_entry.provider, _entry.model_id, hounfour)
+                if _pricing_entry is not None:
+                    _snapshot: Dict[str, Any] = {
+                        "input_per_mtok": int(_pricing_entry.input_per_mtok),
+                        "output_per_mtok": int(_pricing_entry.output_per_mtok),
+                        "pricing_mode": _pricing_entry.pricing_mode,
+                    }
+                    if getattr(_pricing_entry, "reasoning_per_mtok", 0):
+                        _snapshot["reasoning_per_mtok"] = int(_pricing_entry.reasoning_per_mtok)
+                    if getattr(_pricing_entry, "per_task_micro_usd", 0):
+                        _snapshot["per_task_micro_usd"] = int(_pricing_entry.per_task_micro_usd)
+                    _modelinv_state["pricing_snapshot"] = _snapshot
+            except Exception:  # noqa: BLE001 — pricing capture is fail-soft
+                # Missing or malformed pricing → envelope omits the field
+                # (rollup will fall back to current model-config with a WARN).
+                pass
             break
         else:
             # for-else: every entry walked, none succeeded.
@@ -1132,6 +1220,30 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         # emitter are fail-soft — chain integrity is the redaction gate's
         # responsibility, not user-facing reliability.
         if _modelinv_emit_required:
+            # cycle-108 sprint-1 T1.F + sprint-2 T2.J: attach advisor-strategy
+            # additive fields (role/tier/tier_source/tier_resolution/sprint_kind/
+            # invocation_chain) and the envelope-captured pricing snapshot. All
+            # are optional; when --role was omitted (legacy callers), the
+            # envelope shape is byte-identical to v1.1.
+            _advisor_kwargs: Dict[str, Any] = {}
+            if _advisor_resolved is not None:
+                _advisor_kwargs["role"] = getattr(args, "role", None)
+                _advisor_kwargs["tier"] = _advisor_resolved.tier
+                _advisor_kwargs["tier_source"] = _advisor_resolved.tier_source
+                _advisor_kwargs["tier_resolution"] = _advisor_resolved.tier_resolution
+            elif getattr(args, "role", None):
+                # Advisor strategy was disabled OR provider had no tier_aliases
+                # entry → emit role only (no tier), so audit can detect
+                # role-without-advisor invocations.
+                _advisor_kwargs["role"] = args.role
+                _advisor_kwargs["tier_source"] = "disabled_legacy"
+            if getattr(args, "sprint_kind", None):
+                _advisor_kwargs["sprint_kind"] = args.sprint_kind
+            _invocation_chain_env = os.environ.get("LOA_INVOCATION_CHAIN", "")
+            if _invocation_chain_env:
+                _chain_list = [p.strip() for p in _invocation_chain_env.split(",") if p.strip()]
+                if _chain_list:
+                    _advisor_kwargs["invocation_chain"] = _chain_list[:16]
             try:
                 _emit_modelinv(
                     models_requested=_modelinv_models_requested,
@@ -1145,6 +1257,8 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     final_model_id=_modelinv_state["final_model_id"],
                     transport=_modelinv_state["transport"],
                     config_observed=_modelinv_state["config_observed"],
+                    pricing_snapshot=_modelinv_state["pricing_snapshot"],
+                    **_advisor_kwargs,
                 )
             except _ModelinvRedactionFailure as _rf:
                 # Defense-in-depth gate rejected the payload: a secret shape
@@ -1306,6 +1420,27 @@ def main() -> int:
             "to deterministic defaults at load time so test-side structural "
             "compares are stable."
         ),
+    )
+
+    # Cycle-108 sprint-1 T1.H — advisor-strategy role/skill/sprint-kind flags
+    # (PRD §5 FR-2, SDD §3.5). Backward-compat: when --role is omitted,
+    # cheval behavior is unchanged (legacy path preserved).
+    parser.add_argument(
+        "--role",
+        choices=["planning", "review", "implementation"],
+        default=None,
+        help="cycle-108 T1.H — caller's logical role; resolved to tier+model via advisor-strategy config",
+    )
+    parser.add_argument(
+        "--skill",
+        default=None,
+        help="cycle-108 T1.H — caller's skill name (e.g. 'implementing-tasks'); used for per_skill_overrides lookup",
+    )
+    parser.add_argument(
+        "--sprint-kind",
+        dest="sprint_kind",
+        default=None,
+        help="cycle-108 T1.H — stratification label for MODELINV (e.g. 'glue'); see SDD §8 taxonomy",
     )
 
     # Deep Research non-blocking mode (SDD 4.2.2, 4.5)

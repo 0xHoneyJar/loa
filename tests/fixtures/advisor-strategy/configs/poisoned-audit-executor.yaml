@@ -1,0 +1,16 @@
+# NEGATIVE fixture — defaults.audit set to executor (NFR-Sec1 violation)
+advisor_strategy:
+  schema_version: 1
+  enabled: true
+  tier_resolution: static
+  defaults:
+    planning: advisor
+    review: advisor
+    audit: executor       # NFR-Sec1 hard-pin violation
+    implementation: executor
+  tier_aliases:
+    advisor:
+      anthropic: claude-opus-4-7
+    executor:
+      anthropic: claude-sonnet-4-6
+  per_skill_overrides: {}

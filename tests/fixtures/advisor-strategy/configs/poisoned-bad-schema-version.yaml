@@ -1,0 +1,15 @@
+# NEGATIVE fixture — schema_version is not 1 (const violation)
+advisor_strategy:
+  schema_version: 999
+  enabled: true
+  tier_resolution: static
+  defaults:
+    planning: advisor
+    review: advisor
+    audit: advisor
+    implementation: executor
+  tier_aliases:
+    advisor:
+      anthropic: claude-opus-4-7
+    executor:
+      anthropic: claude-sonnet-4-6

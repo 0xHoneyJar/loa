@@ -2577,3 +2577,69 @@ qmd_context:
 # When alert_webhook_endpoint_validator_enabled: true, populate
 # .claude/scripts/lib/allowlists/webhook-hosts.json with the permitted hosts.
 # Override the allowlist path via the LOA_WEBHOOK_ALLOWLIST_PATH env var.
+
+# ============================================================================
+# Cycle-108 — Advisor-strategy routing (PRD §5 FR-1, SDD §3 + §21.1)
+# ----------------------------------------------------------------------------
+# Maps logical role (planning/review/implementation) → tier (advisor/executor)
+# → provider:model. Default-OFF until operator-approved benchmark resolves
+# decision-fork (see grimoires/loa/cycles/cycle-108-advisor-strategy/rollout-policy.md).
+#
+# Kill switch (env, takes precedence over `enabled`):
+#   LOA_ADVISOR_STRATEGY_DISABLE=1   # disables advisor-strategy at runtime
+#
+# NFR-Sec1: review/audit roles MUST resolve to advisor tier — enforced at
+# the loader layer (.claude/adapters/loa_cheval/config/advisor_strategy.py).
+# Attempting to map review→executor raises ConfigError at load time.
+# ============================================================================
+
+# advisor_strategy:
+#   # Master switch. Default false per cycle-108 decision-fork (c') —
+#   # see rollout-policy.md §1. Operators opt in per-stratum once the
+#   # real-data benchmark resolves DEFERRED classifications.
+#   enabled: false
+#
+#   # Resolution mode:
+#   #   static  — config_sha pinned at load time; safer for production
+#   #   dynamic — re-resolves per call; only for dev/test
+#   tier_resolution: static
+#
+#   # Default tier per role. NFR-Sec1 hard-pins review→advisor.
+#   defaults:
+#     planning: advisor
+#     review: advisor
+#     implementation: executor
+#
+#   # Tier → provider → model alias.
+#   tier_aliases:
+#     advisor:
+#       anthropic: claude-opus-4-7
+#       # openai: gpt-5.5-pro              # optional cross-provider
+#       # google: gemini-3.1-pro-preview   # optional cross-provider
+#     executor:
+#       anthropic: claude-sonnet-4-6
+#       # openai: gpt-5.5
+#       # google: gemini-2.5-pro
+#
+#   # Per-skill tier override. Map skill name → tier.
+#   # Skills in audited_review_skills CANNOT be overridden to executor
+#   # (NFR-Sec1 enforced at loader).
+#   per_skill_overrides: {}
+#
+#   # Skill names that MUST resolve to advisor tier regardless of role/override.
+#   # CI gate (cycle-108-schema-guard.yml) requires this enum to be co-edited
+#   # with the SKILL.md role field in a single commit.
+#   audited_review_skills: []
+#
+#   # Benchmark substrate (cycle-108 sprint-2 T2.A).
+#   benchmark:
+#     # Cost-cap pre-estimate aborts the benchmark harness above this USD.
+#     # Override via `tools/advisor-benchmark.sh --cost-cap-usd N`.
+#     max_cost_usd: 50
+#     # Cleanup strategy for worktrees: keep | defer | now
+#     cleanup_strategy: defer
+#
+#   # Per-skill daily token quota (cycle-108 sprint-4 T4.D).
+#   # tools/modelinv-rollup.sh --per-skill-daily-quota alerts when a single
+#   # skill exceeds this on any 24-hour window.
+#   daily_token_budget_default: 500000

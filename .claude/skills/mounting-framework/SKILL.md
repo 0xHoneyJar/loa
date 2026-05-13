@@ -1,6 +1,7 @@
 ---
 name: mount
 description: "Install Loa framework onto an existing repository"
+role: planning
 capabilities:
   schema_version: 1
   read_files: true

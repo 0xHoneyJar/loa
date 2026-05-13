@@ -1,6 +1,7 @@
 ---
 name: scheduled-cycle-template
 description: L3 generic 5-phase autonomous-cycle template — schedules a DispatchContract (reader → decider → dispatcher → awaiter → logger) via /schedule, with flock-guarded concurrency, content-addressed idempotency, and optional L2 budget pre-check
+role: implementation
 agent: general-purpose
 context: scoped
 parallel_threshold: 3000

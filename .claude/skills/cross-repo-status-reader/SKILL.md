@@ -1,6 +1,7 @@
 ---
 name: cross-repo-status-reader
 description: L5 cross-repo status reader — reads structured cross-repo state via gh API with TTL cache + stale fallback, BLOCKER extraction from NOTES.md, per-source error capture, p95 <30s for 10 repos
+role: implementation
 agent: general-purpose
 context: scoped
 parallel_threshold: 3000

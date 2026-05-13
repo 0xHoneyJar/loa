@@ -1,6 +1,7 @@
 ---
 name: hitl-jury-panel
 description: L1 jury-panel adjudication primitive — convenes ≥3 panelists, logs reasoning, selects binding view via deterministic seed
+role: implementation
 agent: general-purpose
 context: scoped
 parallel_threshold: 3000

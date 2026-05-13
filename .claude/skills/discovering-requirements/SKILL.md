@@ -1,6 +1,7 @@
 ---
 name: plan-and-analyze
 description: Launch PRD discovery with codebase grounding and context ingestion
+role: planning
 allowed-tools: Read, Grep, Glob, AskUserQuestion, WebFetch, Write, Bash(git log *), Bash(wc *)
 capabilities:
   schema_version: 1

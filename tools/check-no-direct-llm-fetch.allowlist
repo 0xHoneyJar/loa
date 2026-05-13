@@ -51,3 +51,11 @@
 # probes — not HTTP, just TCP handshake verification.
 .claude/scripts/lib/endpoint-validator.py
 .claude/scripts/lib/model-probe-cache.py
+
+# cycle-108 sprint-2 T2.L (cheval-network-guard.sh). The file's allowlist
+# constant `_LOA_NETWORK_GUARD_ALLOWLIST` enumerates LLM provider hosts
+# (api.anthropic.com, api.openai.com, generativelanguage.googleapis.com,
+# etc.) as strings — they are not API calls, they are the allowlist that
+# blocks non-allowlisted hosts when LOA_NETWORK_RESTRICTED=1. Same
+# disposition as endpoint-validator.py's docstring URLs.
+.claude/scripts/lib/cheval-network-guard.sh

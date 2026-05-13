@@ -1,0 +1,33 @@
+# Positive fixture — valid advisor-strategy config with NFR-Sec1-compliant defaults
+advisor_strategy:
+  schema_version: 1
+  enabled: true
+  tier_resolution: static
+  defaults:
+    planning: advisor
+    review: advisor
+    audit: advisor
+    implementation: executor
+  tier_aliases:
+    advisor:
+      anthropic: claude-opus-4-7
+      openai: gpt-5.5-pro
+      google: gemini-3.1-pro-preview
+    executor:
+      anthropic: claude-sonnet-4-6
+      openai: gpt-5.3-codex
+      google: gemini-3.1-flash
+  per_skill_overrides:
+    implementing-tasks: executor
+    bug-triaging: executor
+  audited_review_skills:
+    - auditing-security
+    - bridgebuilder-review
+    - eval-running
+    - flatline-knowledge
+    - red-teaming
+    - reviewing-code
+    - rtfm-testing
+    - validating-construct-manifest
+  benchmark:
+    max_cost_usd: 50.0

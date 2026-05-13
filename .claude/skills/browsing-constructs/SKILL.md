@@ -1,6 +1,7 @@
 ---
 name: constructs
 description: Browse and install construct packs from the Loa Constructs Registry
+role: implementation
 allowed-tools: Read, Grep, Glob, WebFetch, Bash(gh repo *), Bash(gh release *)
 capabilities:
   schema_version: 1

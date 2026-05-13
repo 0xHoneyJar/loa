@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-107-multimodel-activation",
+  "active_cycle": "cycle-108-advisor-strategy",
   "cycles": [
     {
       "id": "cycle-036",
@@ -1224,6 +1224,16 @@
           "tasks": 8
         }
       ]
+    },
+    {
+      "id": "cycle-108-advisor-strategy",
+      "label": "Advisor-Strategy Benchmark — Role→Tier Routing for Sustainable Cycles",
+      "status": "in-progress",
+      "created": "2026-05-13T00:00:00Z",
+      "prd": "grimoires/loa/cycles/cycle-108-advisor-strategy/prd.md",
+      "sdd": "grimoires/loa/cycles/cycle-108-advisor-strategy/sdd.md",
+      "sprint": "grimoires/loa/cycles/cycle-108-advisor-strategy/sprint.md",
+      "sprints": []
     }
   ],
   "global_sprint_counter": 158,

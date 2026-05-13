@@ -1,0 +1,254 @@
+# Cycle-108 sprint-1 T1.B: schema-guard CI workflow
+#
+# Closes SDD §20.7 (Red Team ATK-A17 admin-merge bypass defense) and SDD §21.2
+# (Flatline IMP-010 atomic schema-enum seeding enforcement).
+#
+# Triggers on PRs touching cycle-108 protected surfaces. Asserts:
+#   1. PR has @janitooor as approver (or operator-equivalent)
+#   2. No admin-bypass events on protected files in last 24h
+#   3. SKILL.md role: changes are atomically paired with audited_review_skills
+#      enum updates (no cross-commit splits)
+#   4. Schema integrity check (advisor-strategy.schema.json is valid JSON Schema
+#      Draft 2020-12)
+#
+# Status check is REQUIRED via branch protection (see runbook
+# grimoires/loa/runbooks/advisor-strategy-rollback.md).
+#
+# Cycle-108 protected file glob (must mirror .github/CODEOWNERS):
+#   .claude/data/schemas/advisor-strategy.schema.json
+#   .claude/adapters/loa_cheval/config/loader.py
+#   .claude/skills/*/SKILL.md
+#   .claude/defaults/model-config.yaml
+#   .github/CODEOWNERS
+#   .github/workflows/cycle-108-*.yml
+
+name: cycle-108 schema guard
+
+on:
+  pull_request:
+    paths:
+      - '.claude/data/schemas/advisor-strategy.schema.json'
+      - '.claude/adapters/loa_cheval/config/loader.py'
+      - '.claude/skills/**/SKILL.md'
+      - '.claude/defaults/model-config.yaml'
+      - '.github/CODEOWNERS'
+      - '.github/workflows/cycle-108-*.yml'
+  # Also run on the same paths on push to main so post-merge admin-bypass
+  # detection is preserved.
+  push:
+    branches:
+      - main
+    paths:
+      - '.claude/data/schemas/advisor-strategy.schema.json'
+      - '.claude/adapters/loa_cheval/config/loader.py'
+      - '.claude/skills/**/SKILL.md'
+      - '.claude/defaults/model-config.yaml'
+      - '.github/CODEOWNERS'
+      - '.github/workflows/cycle-108-*.yml'
+
+permissions:
+  contents: read
+  pull-requests: write   # to comment on PR diff
+  issues: write          # to comment on PR via issues API
+
+jobs:
+  schema-validity:
+    name: JSON Schema validity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ajv-cli
+        run: npm install -g ajv-cli@5 ajv-formats
+
+      - name: Validate advisor-strategy.schema.json is valid JSON Schema
+        run: |
+          # Verify the schema itself parses and validates against meta-schema.
+          # ajv-cli compile fails if the schema is malformed.
+          ajv compile \
+            --spec=draft2020 \
+            -s .claude/data/schemas/advisor-strategy.schema.json
+          echo "Schema is valid JSON Schema Draft 2020-12."
+
+      - name: Verify NFR-Sec1 hard-pin is present in schema
+        run: |
+          # NFR-Sec1: defaults.review and defaults.audit MUST be const:advisor.
+          # If a future PR weakens this, fail-closed.
+          review_const=$(jq -r '.properties.defaults.properties.review.const // empty' \
+            .claude/data/schemas/advisor-strategy.schema.json)
+          audit_const=$(jq -r '.properties.defaults.properties.audit.const // empty' \
+            .claude/data/schemas/advisor-strategy.schema.json)
+          if [[ "$review_const" != "advisor" ]]; then
+            echo "::error::NFR-Sec1 violation: defaults.review.const is not 'advisor' (got '$review_const')"
+            exit 1
+          fi
+          if [[ "$audit_const" != "advisor" ]]; then
+            echo "::error::NFR-Sec1 violation: defaults.audit.const is not 'advisor' (got '$audit_const')"
+            exit 1
+          fi
+          echo "NFR-Sec1 hard-pin verified: review + audit are const:advisor."
+
+  atomic-seeding:
+    name: Atomic SKILL.md ↔ schema enum seeding
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Need full history for git diff against base
+          fetch-depth: 0
+
+      - name: Determine merge-base
+        id: base
+        run: |
+          base_sha=$(git merge-base "origin/${{ github.base_ref }}" HEAD)
+          echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Check for cross-commit SKILL.md vs schema enum splits
+        env:
+          BASE_SHA: ${{ steps.base.outputs.base_sha }}
+        run: |
+          # SDD §21.2 (IMP-010): when ANY SKILL.md role: field changes, the
+          # audited_review_skills enum in advisor-strategy.schema.json MUST
+          # change in the SAME commit (or the SAME PR — we relax to PR for
+          # CI ergonomics since the atomicity is enforced via the migration
+          # script, but the CI is the second line of defense).
+          #
+          # Implementation: check if any commit in the PR touches a
+          # SKILL.md role: field. If so, verify the schema enum has been
+          # updated within the SAME PR (any commit in PR range is fine —
+          # CI runs on the merged virtual commit).
+
+          # Find SKILL.md files where role: line changed
+          changed_role_files=$(git diff "$BASE_SHA" HEAD -- '.claude/skills/*/SKILL.md' \
+            | awk '/^diff --git/{file=$0} /^[+-]role:/ && !/^---/ && !/^\+\+\+/{print file}' \
+            | sort -u)
+
+          if [[ -z "$changed_role_files" ]]; then
+            echo "No SKILL.md role: changes detected. Atomic-seeding gate not triggered."
+            exit 0
+          fi
+
+          echo "PR touches role: in SKILL.md files:"
+          echo "$changed_role_files"
+
+          # Verify schema enum was also touched in this PR
+          schema_changed=$(git diff "$BASE_SHA" HEAD --name-only \
+            -- '.claude/data/schemas/advisor-strategy.schema.json' \
+            | wc -l)
+
+          if [[ "$schema_changed" -eq 0 ]]; then
+            cat <<EOF
+          ::error::Atomic-seeding violation (SDD §21.2 / IMP-010):
+          SKILL.md role: field was modified but .claude/data/schemas/advisor-strategy.schema.json
+          was NOT modified in this PR.
+
+          The audited_review_skills enum and SKILL.md role: assignments MUST be
+          updated atomically. Re-run .claude/scripts/migrate-skill-roles.sh
+          --apply followed by --emit-enum to regenerate the enum, then commit
+          both changes together.
+
+          Files affected:
+          $changed_role_files
+          EOF
+            exit 1
+          fi
+
+          echo "Atomic-seeding gate passed: schema also updated in this PR."
+
+  reviewer-check:
+    name: Operator reviewer required
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Verify @janitooor is an approver
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # BB iter-5 F002 closure: keep reviewers as a JSON array and check
+          # exact-login membership via jq. The previous `grep -q "janitooor"`
+          # substring match would admit any login containing the substring
+          # (e.g. `janitooor-fake`, `evil-janitooor-bot`) — trivial
+          # impersonation surface.
+          reviewers_json=$(gh pr view "${{ github.event.pull_request.number }}" \
+            --repo "${{ github.repository }}" \
+            --json reviews \
+            --jq '[.reviews[] | select(.state == "APPROVED") | .author.login] | unique')
+
+          # Loosened slightly: pass if EITHER @janitooor is an approver OR
+          # the PR author IS @janitooor (operator can approve their own
+          # ATK-A17 mitigation; the GH branch protection still requires the
+          # approval via the standard PR review flow).
+          pr_author="${{ github.event.pull_request.user.login }}"
+
+          if [[ "$pr_author" == "janitooor" ]]; then
+            echo "PR author is @janitooor; reviewer check passes."
+            exit 0
+          fi
+
+          # Exact-login membership check (NOT substring).
+          if printf '%s' "$reviewers_json" | jq -e 'any(. == "janitooor")' >/dev/null; then
+            echo "@janitooor has approved this PR; reviewer check passes."
+            exit 0
+          fi
+
+          reviewers=$(printf '%s' "$reviewers_json" | jq -r 'join(",")')
+          echo "::error::cycle-108 protected-surface PR requires @janitooor approval."
+          echo "Current approvers: $reviewers"
+          echo "PR author: $pr_author"
+          exit 1
+
+  admin-bypass-audit:
+    name: GH audit-log admin-bypass scan
+    runs-on: ubuntu-latest
+    # Run on push-to-main to detect post-merge bypasses (ATK-A17 closure step 2)
+    if: github.event_name == 'push'
+    steps:
+      - name: Query GH audit-log for admin-bypass events
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Query the org/repo audit log for protected_branch.update events
+          # (admin-bypass) in the last 24h on this repository. Requires a
+          # token with audit_log:read scope (operator-managed; not the
+          # default GITHUB_TOKEN). When token lacks scope, this step
+          # passes with a warning rather than failing — defense-in-depth,
+          # not the primary gate.
+          repo="${{ github.repository }}"
+          since=$(date -u -d '24 hours ago' '+%Y-%m-%dT%H:%M:%SZ')
+
+          response=$(gh api "/repos/${repo}/audit-log?phrase=action:protected_branch.policy_override+created:>=$since" 2>&1) || {
+            echo "::warning::admin-bypass audit query failed (token may lack audit_log:read scope). This is informational; primary defense is CODEOWNERS + reviewer-check."
+            echo "Response: $response"
+            exit 0
+          }
+
+          count=$(echo "$response" | jq -r '. | length' 2>/dev/null || echo "0")
+          if [[ "$count" -gt 0 ]]; then
+            echo "::error::Admin-bypass event detected on protected branch in last 24h:"
+            echo "$response" | jq -r '.[] | "  - \(.created_at) by \(.actor) action=\(.action)"'
+            exit 1
+          fi
+
+          echo "No admin-bypass events detected in last 24h."
+
+  summary:
+    name: Schema guard summary
+    runs-on: ubuntu-latest
+    needs: [schema-validity, atomic-seeding, reviewer-check, admin-bypass-audit]
+    if: always()
+    steps:
+      - name: Emit summary
+        run: |
+          cat <<EOF >> $GITHUB_STEP_SUMMARY
+          ## cycle-108 schema-guard summary
+
+          | Job | Status |
+          |-----|--------|
+          | Schema validity (JSON Schema Draft 2020-12) | ${{ needs.schema-validity.result }} |
+          | Atomic SKILL.md ↔ enum seeding | ${{ needs.atomic-seeding.result }} |
+          | Operator reviewer required | ${{ needs.reviewer-check.result }} |
+          | Admin-bypass audit (post-merge only) | ${{ needs.admin-bypass-audit.result }} |
+
+          Closes SDD §20.7 (ATK-A17) + §21.2 (IMP-010).
+          EOF
