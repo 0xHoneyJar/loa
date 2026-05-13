@@ -178,6 +178,9 @@ def _build_baselines(
             "provenance": {
                 "source": sc["_source"],
                 "historical_n": sc["_historical_n"],
+                # BB iter-2 F010 closure: explicit per-stratum provisional bit
+                # so consumers don't have to re-derive from the source string.
+                "provisional": sc["_source"] == "default_baseline",
             },
         }
     # BB iter-1 F007 closure: mark PROVISIONAL when ANY stratum's provenance

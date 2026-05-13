@@ -178,13 +178,30 @@ def _try_audit_emit_signed(manifest: Dict[str, Any], rationale: str) -> None:
     }
     # Best-effort call to audit_emit_signed; if not available, fall back to
     # plain append. The benchmark pipeline's hash-chain verification is in T2.G.
+    #
+    # BB iter-2 F001 closure (same class as iter-1 F006): pass payload via
+    # env vars rather than f-string interpolation into `bash -c`. Operator-
+    # supplied `rationale` string previously flowed unchecked into argv —
+    # a literal single-quote in rationale would have broken parsing or
+    # opened a shell-injection surface.
+    payload_json = json.dumps(payload)
+    script = (
+        'source .claude/scripts/audit-envelope.sh && '
+        'audit_emit_signed "$LOA_AUDIT_PRIMITIVE" "$LOA_AUDIT_EVENT_TYPE" '
+        '"$LOA_AUDIT_PAYLOAD" "$LOA_AUDIT_LOG_PATH"'
+    )
+    env = {
+        **os.environ,
+        "LOA_AUDIT_PRIMITIVE": "CYCLE_108_SELECTION",
+        "LOA_AUDIT_EVENT_TYPE": "benchmark.manual_selection",
+        "LOA_AUDIT_PAYLOAD": payload_json,
+        "LOA_AUDIT_LOG_PATH": str(audit_log),
+    }
     try:
         result = subprocess.run(
-            ["bash", "-c",
-             f"source .claude/scripts/audit-envelope.sh && "
-             f"audit_emit_signed 'CYCLE_108_SELECTION' 'benchmark.manual_selection' "
-             f"'{json.dumps(payload)}' '{audit_log}'"],
+            ["bash", "-c", script],
             capture_output=True, text=True, check=False, timeout=10,
+            env=env,
         )
         if result.returncode != 0:
             # Fall back to plain unsigned append.
