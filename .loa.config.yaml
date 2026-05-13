@@ -33,6 +33,11 @@ hounfour:
   # Rollback: flip to false to restore the cycle-103 legacy model-adapter.sh.legacy path.
   flatline_routing: true # Route Flatline/GPT-review through model-invoke (cheval.py)
   flatline_tertiary_model: gemini-3.1-pro-preview # 3-model Flatline: Opus + GPT-5.5-pro + Gemini-3.1-pro
+  # cycle-109 (2026-05-13, C109.OP-8): headless mode default for /run invocations
+  # API path is billing-degraded (Anthropic + OpenAI Pro); CLI subscription path works.
+  # Restore to "api" once operator-side billing is resolved.
+  headless:
+    mode: cli-only
   # Per-subsystem feature flags (all default true — opt-out)
   feature_flags:
     google_adapter: true # Enable Google provider adapter
