@@ -150,26 +150,25 @@ if [ "$STRIP_DETECT" -eq 1 ]; then
     cutoff_ts="$(jq -r 'select(.payload.writer_version == "1.2") | .ts_utc' "$INPUT_PATH" \
         2>/dev/null | head -1)"
     if [ -n "$cutoff_ts" ]; then
-        # Find envelopes AFTER cutoff with payload missing or != "1.2".
-        # `select` on negation; report line numbers for operator triage.
-        strip_violations="$(awk -v cutoff="$cutoff_ts" '
-            { print NR ":" $0 }
-        ' "$INPUT_PATH" | while IFS=: read -r lineno rest; do
-            # Skip seal-marker lines.
-            case "$rest" in
-                \[*) continue ;;
-                "") continue ;;
-            esac
-            ts="$(printf '%s' "$rest" | jq -r '.ts_utc // empty' 2>/dev/null)"
-            wv="$(printf '%s' "$rest" | jq -r '.payload.writer_version // empty' 2>/dev/null)"
-            [ -z "$ts" ] && continue
-            # String comparison on ISO-8601 ts works lexicographically.
-            if [ "$ts" \> "$cutoff_ts" ] || [ "$ts" = "$cutoff_ts" ]; then
-                if [ -z "$wv" ] || [ "$wv" != "1.2" ]; then
-                    printf 'line %s: ts=%s writer_version=%s\n' "$lineno" "$ts" "${wv:-MISSING}"
-                fi
-            fi
-        done)"
+        # cycle-109 Sprint 5 T5.3 (#870): single-pass jq replaces the prior
+        # awk+while+per-line-jq pipeline that spawned 2N subprocesses for
+        # N envelopes. The awk prefix attaches NR (line number) with a TAB
+        # separator before each non-skipped line; jq -R -r processes each
+        # line once, parses the JSON, and emits violation strings. Tabs
+        # never appear literally in serialized JSON (they're escaped to
+        # \t), so split("\t") is safe. Measured ~11s → <200ms on 1001
+        # envelopes (per tests/unit/cycle-109-t5-3-modelinv-rollup-perf.bats).
+        strip_violations="$(awk '
+            /^\[/ { next }
+            NF == 0 { next }
+            { printf "%d\t%s\n", NR, $0 }
+        ' "$INPUT_PATH" | jq -R -r --arg cutoff "$cutoff_ts" '
+            (split("\t") | {n: .[0] | tonumber, rest: .[1:] | join("\t")}) as $r |
+            ($r.rest | fromjson? // null) as $env |
+            select($env != null and ($env.ts_utc // "") != "") |
+            select(($env.ts_utc >= $cutoff) and (($env.payload.writer_version // "") != "1.2")) |
+            "line \($r.n): ts=\($env.ts_utc) writer_version=\($env.payload.writer_version // "MISSING")"
+        ' 2>/dev/null)"
         if [ -n "$strip_violations" ]; then
             echo "[STRIP-ATTACK-DETECTED] cutoff=$cutoff_ts; post-cutoff entries lack writer_version=1.2:" >&2
             printf '%s\n' "$strip_violations" >&2
