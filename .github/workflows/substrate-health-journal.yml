@@ -1,0 +1,146 @@
+name: Substrate Health Journal
+
+# cycle-109 Sprint 5 T5.7 — daily substrate-health journal cron.
+#
+# Runs `python -m loa_cheval.journal --window 24h` once per day at 00:05 UTC
+# (offset by 5 min so it doesn't compete with rollover cron jobs at HH:00).
+# Appends a day-section to grimoires/loa/substrate-health/YYYY-MM.md if not
+# already present, then opens a PR labeled `auto-journal` on the
+# `substrate-health/journal` branch for operator review.
+#
+# Per C109.OP-5 Q2: cron uses `auto-journal` PR branch + operator-merge
+# (review queue). Direct commits to main are forbidden — every journal
+# update is operator-reviewed.
+#
+# Idempotency: if today's H2 already exists in the journal, the formatter
+# is a no-op and the workflow exits clean without opening a PR.
+
+on:
+  schedule:
+    # Daily 00:05 UTC — see file header for rationale
+    - cron: '5 0 * * *'
+  workflow_dispatch:
+    # Operator-on-demand trigger (e.g., catch-up after CI outage)
+    inputs:
+      window:
+        description: Aggregation window (24h / 7d / 30d)
+        required: false
+        default: '24h'
+      run_time:
+        description: Override run-time (ISO 8601 UTC; for replay)
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  journal:
+    name: Append substrate-health day-section
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        # actions/checkout@v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+        with:
+          fetch-depth: 0
+          # Need an authenticated token for the PR-open step
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python
+        # actions/setup-python@v5
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: '3.11'
+
+      - name: Run journal formatter
+        id: journal
+        env:
+          PYTHONPATH: ${{ github.workspace }}/.claude/adapters
+        run: |
+          set -euo pipefail
+          mkdir -p grimoires/loa/substrate-health
+
+          # Pick window + run-time from inputs (workflow_dispatch) or defaults
+          window="${{ github.event.inputs.window }}"
+          if [[ -z "$window" ]]; then window="24h"; fi
+          rtime_arg=()
+          if [[ -n "${{ github.event.inputs.run_time }}" ]]; then
+              rtime_arg=(--run-time "${{ github.event.inputs.run_time }}")
+          fi
+
+          # The formatter is idempotent — re-running on the same UTC day
+          # is a no-op. Output 'action' to step state.
+          result_json="$(
+            python3 -m loa_cheval.journal \
+              --journal-dir grimoires/loa/substrate-health \
+              --log-path .run/model-invoke.jsonl \
+              --window "$window" \
+              "${rtime_arg[@]}" \
+              --json
+          )"
+          echo "result=$result_json" >> "$GITHUB_OUTPUT"
+          action="$(echo "$result_json" | jq -r '.action')"
+          path="$(echo "$result_json" | jq -r '.path')"
+          echo "action=$action" >> "$GITHUB_OUTPUT"
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+          echo "[journal] action=$action path=$path"
+
+      - name: Skip PR when no change
+        if: steps.journal.outputs.action == 'skipped'
+        run: |
+          echo "Journal already has today's section — no PR needed."
+
+      - name: Open auto-journal PR
+        if: steps.journal.outputs.action != 'skipped'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # Branch naming: substrate-health/journal-YYYY-MM-DD for traceability
+          today_utc="$(date -u +%Y-%m-%d)"
+          branch="substrate-health/journal-${today_utc}"
+
+          git config user.name 'loa-substrate-health-journal[bot]'
+          git config user.email 'loa-substrate-health-journal+noreply@anthropic.com'
+
+          # Reset onto main, create the branch, commit the journal file
+          git fetch origin main
+          git checkout -B "$branch" origin/main
+
+          path="${{ steps.journal.outputs.path }}"
+          # Re-run the formatter on the freshly-checked-out base so the diff is
+          # against main (idempotent — same input, same output).
+          PYTHONPATH=.claude/adapters python3 -m loa_cheval.journal \
+            --journal-dir grimoires/loa/substrate-health \
+            --log-path .run/model-invoke.jsonl \
+            --window 24h \
+            --json > /dev/null
+
+          if git diff --quiet -- "$path"; then
+              echo "No diff against main — journal already up-to-date there."
+              exit 0
+          fi
+
+          git add "$path"
+          commit_msg=$(printf 'chore(substrate-health): journal entry for %s\n\nAutomated by .github/workflows/substrate-health-journal.yml.\nPer C109.OP-5 Q2 — operator-merge review queue.\n' "$today_utc")
+          git commit -m "$commit_msg"
+
+          git push --force-with-lease origin "$branch"
+
+          # Open or update the PR
+          if gh pr view "$branch" --json number >/dev/null 2>&1; then
+              echo "PR for $branch already exists — pushed an update."
+          else
+              pr_body=$(printf 'Automated daily substrate-health journal entry per cycle-109 Sprint 5 T5.7 / FR-5.8.\n\nPer **C109.OP-5 Q2** the journal lands on `substrate-health/journal-%s` and requires operator merge.\n\nIdempotent re-runs of the formatter on the same UTC day are a no-op; this PR exists only because today H2 was not already in the journal.\n' "$today_utc")
+              gh pr create \
+                  --base main \
+                  --head "$branch" \
+                  --title "auto-journal: substrate-health $today_utc" \
+                  --body "$pr_body" \
+                  --label "auto-journal"
+          fi
