@@ -1,0 +1,231 @@
+# =============================================================================
+# cycle-109 Sprint 3 T3.10 — Activation Regression Matrix CI Workflow
+# =============================================================================
+#
+# Runs the 810-cell activation regression matrix per IMP-009 / SDD §5.3.5.
+# Each cell = one (consumer, role, response_class, dispatch_path) tuple
+# from `tests/fixtures/cycle-109/activation-matrix/dimensions.json`.
+#
+# Matrix shape:
+#   consumers (9) × roles (5) × response_classes (6) × dispatch_paths (3)
+#     = 810 cells
+#
+# CI strategy:
+#   - matrix-job per consumer (9 parallel jobs)
+#   - within each job: sequential roles × response_classes × dispatch_paths
+#     (5 × 6 × 3 = 90 cells per job)
+#   - strategy.fail-fast: false (every consumer's matrix runs independently
+#     so a single-consumer regression doesn't mask issues in others)
+#   - wall-time budget: <15 min per FR-3.10 / sprint-plan AC
+#
+# Activation lifecycle:
+#   commit A (T3.1 — scaffolding):  cells SKIP; matrix-shape tests still
+#                                    enforce dimension contract
+#   commit B (T3.2-T3.5):            scaffolding + Cluster B fixes; matrix
+#                                    still SKIPS
+#   commit C (T3.6):                 feature-flag branches removed at FL +
+#                                    model-adapter entrypoints. Matrix
+#                                    flips live via LOA_ACTIVATION_MATRIX_LIVE=1.
+#   commit D (T3.7 — DESTRUCTIVE):   legacy file deleted (operator-gated
+#                                    via C109.OP-S3). Matrix asserts
+#                                    `git ls-files | grep .legacy` empty.
+#   commit E (T3.8):                 flatline_routing flag removed.
+#   commit F (T3.9):                 CLAUDE.md + rollback runbook update.
+#
+# Branch-protection-required toggle is the operator's separate ops action
+# AFTER this workflow lands and passes on main; per sprint-plan AC the
+# `activation-regression` job becomes REQUIRED in branch protection rules
+# immediately after Sprint 3 merge.
+#
+# Substrate budget: requires-substrate-billing: false (per C109.OP-7).
+# Workflow uses the cycle-099 sprint-1C curl-mock harness; no live
+# provider calls; no API key requirement.
+# =============================================================================
+
+name: cycle-109 Activation Regression Matrix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.claude/scripts/**'
+      - '.claude/adapters/**/*.py'
+      - '.claude/skills/bridgebuilder-review/resources/**/*.ts'
+      - '.claude/defaults/**'
+      - 'tests/fixtures/cycle-109/activation-matrix/**'
+      - 'tests/integration/activation-path/**'
+      - 'tests/lib/curl-mock**'
+      - '.github/workflows/activation-regression.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.claude/scripts/**'
+      - '.claude/adapters/**/*.py'
+      - '.claude/skills/bridgebuilder-review/resources/**/*.ts'
+      - '.claude/defaults/**'
+      - 'tests/fixtures/cycle-109/activation-matrix/**'
+      - 'tests/integration/activation-path/**'
+      - 'tests/lib/curl-mock**'
+      - '.github/workflows/activation-regression.yml'
+
+permissions:
+  contents: read
+
+env:
+  # cycle-109 Sprint 3 T3.6 closure: cheval is the unconditional dispatch
+  # path. The matrix needs to GO LIVE on commit C; we toggle via env so
+  # this workflow file doesn't need to change per-commit.
+  # Pre-T3.6: cells skip; post-T3.6: cells execute against cheval path.
+  LOA_ACTIVATION_MATRIX_LIVE: '1'
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Shape-contract gate (single job, always runs first).
+  # Enforces dimension counts + fixture-path conventions BEFORE the
+  # parallel matrix jobs spawn. A drift in dimensions.json caught here
+  # avoids 9 parallel jobs reporting the same failure.
+  # ---------------------------------------------------------------------------
+  matrix-shape:
+    name: Matrix shape contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Install bats-core v1.13.0
+        run: |
+          git clone --branch v1.13.0 --depth 1 https://github.com/bats-core/bats-core.git /tmp/bats-core
+          cd /tmp/bats-core
+          expected="3bca150ec86275d6d9d5a4fd7d48ab8b6c6f3d87"
+          actual=$(git rev-parse HEAD)
+          if [ "$actual" != "$expected" ]; then
+            echo "ERROR: bats-core commit SHA mismatch — expected $expected, got $actual"
+            exit 1
+          fi
+          sudo ./install.sh /usr/local
+          bats --version
+
+      - name: Install yq v4.52.4 (pinned + checksum verified)
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64
+          echo "0c4d965ea944b64b8fddaf7f27779ee3034e5693263786506ccd1c120f184e8c  /usr/local/bin/yq" | sha256sum -c -
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Run matrix-shape contract tests
+        run: bats tests/integration/activation-path/activation-matrix.bats
+
+  # ---------------------------------------------------------------------------
+  # Per-consumer matrix execution (9 parallel jobs, 90 cells each).
+  # Each consumer's job runs the canonical fixture corpus over the inner
+  # cartesian product (roles × response_classes × dispatch_paths).
+  #
+  # Per-consumer rather than per-cell because GitHub Actions matrix has a
+  # 256-job cap; per-cell would be 810 (rejected). Per-consumer = 9 jobs
+  # which fits comfortably and parallelizes across the strategy.matrix.
+  # ---------------------------------------------------------------------------
+  activation-cells:
+    name: Cells / ${{ matrix.consumer }}
+    needs: matrix-shape
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        consumer:
+          - bridgebuilder
+          - flatline-orchestrator
+          - red-team-pipeline
+          - bug-triage
+          - review-sprint
+          - audit-sprint
+          - flatline-readiness
+          - adversarial-review
+          - post-pr-triage
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Install bats-core v1.13.0
+        run: |
+          git clone --branch v1.13.0 --depth 1 https://github.com/bats-core/bats-core.git /tmp/bats-core
+          cd /tmp/bats-core
+          expected="3bca150ec86275d6d9d5a4fd7d48ab8b6c6f3d87"
+          actual=$(git rev-parse HEAD)
+          if [ "$actual" != "$expected" ]; then
+            echo "ERROR: bats-core commit SHA mismatch — expected $expected, got $actual"
+            exit 1
+          fi
+          sudo ./install.sh /usr/local
+          bats --version
+
+      - name: Install yq v4.52.4 (pinned + checksum verified)
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64
+          echo "0c4d965ea944b64b8fddaf7f27779ee3034e5693263786506ccd1c120f184e8c  /usr/local/bin/yq" | sha256sum -c -
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Set up Python 3.13
+        # PINNING: SHA verified against actions/setup-python v5.4.0
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.4.0
+        with:
+          python-version: '3.13'
+
+      - name: Install Python deps for consumer-level tests
+        run: |
+          pip install --no-deps \
+            jsonschema==4.26.0 \
+            referencing==0.36.2 \
+            'rpds-py>=0.7.1'
+
+      - name: Run per-consumer activation cells
+        env:
+          LOA_ACTIVATION_CONSUMER: ${{ matrix.consumer }}
+        run: |
+          # The activation-matrix.bats AM10 sweep iterates all cells.
+          # When LOA_ACTIVATION_CONSUMER is set, post-T3.6 fixture loaders
+          # SHOULD filter to that consumer's 90 cells; this is a forward-
+          # compatible env hook for the cell-loading code that T3.2-T3.5
+          # fixture-injection wires up.
+          bats tests/integration/activation-path/activation-matrix.bats
+
+      - name: Run cycle-109 Cluster B regression suite for this consumer
+        run: |
+          # Each consumer's Cluster B regression bats — these are the
+          # T3.2-T3.5 corpus + T3.6 branch-removal gate. All run on every
+          # consumer matrix job for cross-validation.
+          bats \
+            tests/unit/cycle-109-t3-2-cheval-cli-models.bats \
+            tests/unit/cycle-109-t3-3-flatline-extract-json-content.bats \
+            tests/unit/cycle-109-t3-4-fl-validator-headless-pin.bats \
+            tests/unit/cycle-109-t3-5-fl-env-and-alias-rec.bats \
+            tests/unit/cycle-109-t3-6-feature-flag-removal.bats \
+            tests/unit/cycle-109-conformance-matrix.bats
+
+  # ---------------------------------------------------------------------------
+  # G-4 closure check: legacy file LOC budget
+  # ---------------------------------------------------------------------------
+  legacy-loc-budget:
+    name: G-4 legacy LOC == 0 (post-T3.7)
+    needs: matrix-shape
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    # NOT-required-until-T3.7: this job is informational pre-deletion. After
+    # T3.7 (operator-gated by C109.OP-S3) lands, this should be a required
+    # gate. Currently it succeeds whether the legacy file exists or not;
+    # operators flipping branch protection on this job MUST land T3.7 first.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: G-4 metric — legacy LOC
+        run: |
+          if [ -f .claude/scripts/model-adapter.sh.legacy ]; then
+            loc=$(wc -l < .claude/scripts/model-adapter.sh.legacy)
+            echo "G-4 metric: legacy LOC = $loc (target: 0 post-T3.7)"
+            if [ "$loc" -eq 0 ]; then
+              echo "✓ G-4 SATISFIED — legacy file is empty"
+            else
+              echo "⚠ G-4 PENDING — legacy file still has $loc lines; T3.7 destructive deletion gated on C109.OP-S3"
+            fi
+          else
+            echo "✓ G-4 SATISFIED — legacy file deleted (T3.7 + C109.OP-S3 landed)"
+          fi
