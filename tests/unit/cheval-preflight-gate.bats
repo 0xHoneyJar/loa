@@ -503,17 +503,18 @@ print('OK')
     [[ "$output" == *"CONTEXT_TOO_LARGE"* ]] || [[ "$output" == *"ContextTooLarge"* ]]
 }
 
-@test "P16: cheval CLI emits exit 7 for non-reasoning class model" {
-    # Same shape as P15 but for a different agent binding. What this test
-    # asserts is that the gate fires regardless of the reasoning_class flag
-    # — both classes get pre-flight protection.
+@test "P16: cheval CLI emits exit 7 for non-reasoning class agent binding" {
+    # Same shape as P15 but for the `translating-for-executives` binding
+    # (model: cheap → non-reasoning tier). What this test asserts is that
+    # the gate fires regardless of the bound model's reasoning_class — both
+    # classes get pre-flight protection.
     local prompt_file="$BATS_TMP/prompt.txt"
     "$PYTHON_BIN" -c "open('$prompt_file', 'w').write('x' * 200000)"
 
     OPENAI_API_KEY="" ANTHROPIC_API_KEY="" GOOGLE_API_KEY="" \
     LOA_PREFLIGHT_GATE_FORCE=1 \
     run "$PYTHON_BIN" "$CHEVAL_PY" \
-        --agent implementing-tasks \
+        --agent translating-for-executives \
         --input "$prompt_file" \
         --max-input-tokens 1000 \
         2>&1

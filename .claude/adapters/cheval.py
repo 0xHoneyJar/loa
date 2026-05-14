@@ -11,13 +11,15 @@ I/O Contract:
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import logging
 import os
 import sys
 import traceback
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 # Add the adapters directory to Python path for imports
 _ADAPTERS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -282,6 +284,213 @@ def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> Provid
     )
 
 
+# cycle-109 Sprint 1 T1.3 — capability-aware substrate (SDD §1.4.2 / §3.1.1).
+# The v3 model-config.yaml adds 6 fields per model; the dispatcher consults
+# them via `_lookup_capability` and the pre-flight gate via `_preflight_check`.
+# Backward compatibility: missing v3 fields produce a Capability with
+# `effective_input_ceiling=None` so the new gate disables itself and the
+# legacy per-entry walk gate (cycle-102 KF-002 backstop) remains the only
+# protection. SKP-004 v5 closure: `recommended_for` defaults to allow-all
+# (not `[]`) when no per-role evidence exists — `[]` is the explicit
+# kill-switch path (exit 11 NoEligibleAdapter), not the migration default.
+_RECOMMENDED_FOR_ALLOW_ALL: List[str] = [
+    "review", "audit", "implementation", "dissent", "arbiter",
+]
+
+
+@dataclass(frozen=True)
+class Capability:
+    """v3 capability surface for a (provider, model_id) pair (SDD §3.1.1).
+
+    Fields:
+      effective_input_ceiling: empirically-safe input bound; None when the
+        config carries no v3 field (legacy v2 path).
+      reasoning_class: True when the model burns output budget on CoT.
+      recommended_for: role-tag allowlist; defaults to allow-all per
+        SKP-004 v5 closure (NOT [] — that path is the explicit kill switch).
+      ceiling_stale: derived from `ceiling_calibration.calibrated_at` +
+        `stale_after_days`; True when the empirical probe has aged past
+        the staleness window. False for `source: conservative_default`
+        (no probe exists to be stale ABOUT).
+    """
+    effective_input_ceiling: Optional[int]
+    reasoning_class: bool
+    recommended_for: List[str]
+    ceiling_stale: bool
+
+
+@dataclass(frozen=True)
+class PreflightDecision:
+    """Decision emitted by the pre-flight gate (SDD §1.4.2 / §1.5.2).
+
+    action: 'preempt' = emit exit 7 immediately; 'chunk' = route through
+    chunking primitive (Sprint 4 surface — Sprint 1 falls back to preempt
+    because the chunking primitive is not yet wired).
+    """
+    action: str
+    exit_code: int
+    estimated_input: int
+    effective_input_ceiling: int
+    ceiling_stale: bool
+    reasoning_class: bool
+    reason: str
+
+
+def _parse_iso8601_utc(timestamp: Optional[str]) -> Optional[datetime.datetime]:
+    """Parse the v3 calibrated_at ISO-8601 string. Returns None on malformed
+    input — the caller treats None as 'no calibration timestamp present'
+    and therefore non-stale."""
+    if not timestamp or not isinstance(timestamp, str):
+        return None
+    raw = timestamp.strip()
+    if not raw:
+        return None
+    # Accept 'Z' suffix as UTC.
+    if raw.endswith("Z"):
+        raw = raw[:-1] + "+00:00"
+    try:
+        dt = datetime.datetime.fromisoformat(raw)
+    except (ValueError, TypeError):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=datetime.timezone.utc)
+    return dt
+
+
+def _compute_ceiling_stale(calibration: Optional[Dict[str, Any]]) -> bool:
+    """Derive ceiling_stale from `ceiling_calibration` (SDD §3.1.1).
+
+    Stale when:
+      - source is an empirical class (`empirical_probe` / `kf_derived` /
+        `operator_set`) AND
+      - calibrated_at is present and older than `stale_after_days`.
+
+    Non-stale when:
+      - source is `conservative_default` (no probe exists — no staleness
+        applies), OR
+      - calibrated_at is missing or unparseable, OR
+      - the elapsed window is within stale_after_days.
+
+    Defaulting `conservative_default` to non-stale is the correct
+    conservative bias: forcing every default-configured model into a
+    chunked-defensive routing path would be a self-DoS surface on
+    migration day.
+    """
+    if not isinstance(calibration, dict):
+        return False
+    source = calibration.get("source", "")
+    if source == "conservative_default":
+        return False
+    stale_after_days = calibration.get("stale_after_days")
+    if not isinstance(stale_after_days, int) or stale_after_days <= 0:
+        return False
+    calibrated_at = _parse_iso8601_utc(calibration.get("calibrated_at"))
+    if calibrated_at is None:
+        return False
+    now = datetime.datetime.now(datetime.timezone.utc)
+    elapsed_days = (now - calibrated_at).total_seconds() / 86400.0
+    return elapsed_days > float(stale_after_days)
+
+
+def _lookup_capability(
+    provider: str,
+    model_id: str,
+    hounfour: Dict[str, Any],
+) -> Optional[Capability]:
+    """Look up v3 capability data for (provider, model_id) (SDD §1.4.2).
+
+    Returns:
+      - None when the model is not present in the config (unknown).
+      - Capability with `effective_input_ceiling=None` when the model
+        is present but carries no v3 fields (legacy v2 entry — gate
+        disabled, conservative defaults applied to the other fields).
+      - Capability with all v3 fields populated when present.
+    """
+    providers = hounfour.get("providers", {})
+    prov_config = providers.get(provider, {})
+    if not isinstance(prov_config, dict):
+        return None
+    models = prov_config.get("models", {})
+    if not isinstance(models, dict):
+        return None
+    if model_id not in models:
+        return None
+    model_config = models.get(model_id, {})
+    if not isinstance(model_config, dict):
+        return None
+
+    raw_ceiling = model_config.get("effective_input_ceiling")
+    ceiling: Optional[int] = None
+    if isinstance(raw_ceiling, int) and raw_ceiling > 0:
+        ceiling = raw_ceiling
+
+    reasoning_class = bool(model_config.get("reasoning_class", False))
+
+    raw_recommended = model_config.get("recommended_for")
+    if isinstance(raw_recommended, list) and all(isinstance(x, str) for x in raw_recommended):
+        # Preserve operator-declared list verbatim (including `[]` kill switch).
+        recommended_for = list(raw_recommended)
+    else:
+        # Conservative default — allow-all per SKP-004 v5 closure (§3.1.4).
+        recommended_for = list(_RECOMMENDED_FOR_ALLOW_ALL)
+
+    ceiling_stale = _compute_ceiling_stale(model_config.get("ceiling_calibration"))
+
+    return Capability(
+        effective_input_ceiling=ceiling,
+        reasoning_class=reasoning_class,
+        recommended_for=recommended_for,
+        ceiling_stale=ceiling_stale,
+    )
+
+
+def _preflight_check(
+    estimated_input: int,
+    capability: Optional[Capability],
+    chunking_enabled: bool,
+) -> Optional[PreflightDecision]:
+    """Pre-flight gate decision logic (SDD §1.4.2 / §1.5.2).
+
+    Returns:
+      - None when no gate fires (passthrough to chain walk).
+      - PreflightDecision with action='preempt' when ceiling exceeded AND
+        chunking not selected — caller emits exit 7 immediately.
+      - PreflightDecision with action='chunk' when ceiling exceeded AND
+        chunking selected — caller routes through chunking primitive
+        (Sprint 4 surface). Sprint 1 callers fall back to preempt because
+        the chunking primitive is not yet wired; the decision shape is
+        forward-compatible.
+
+    Gate disabled when:
+      - capability is None (unknown model — defer to legacy path), OR
+      - effective_input_ceiling is None (v2-only config — defer to
+        legacy per-entry walk gate at cheval.py:858), OR
+      - estimated_input <= effective_input_ceiling (under bound).
+    """
+    if capability is None:
+        return None
+    ceiling = capability.effective_input_ceiling
+    if ceiling is None or ceiling <= 0:
+        return None
+    if estimated_input <= ceiling:
+        return None
+    action = "chunk" if chunking_enabled else "preempt"
+    exit_code = 0 if chunking_enabled else EXIT_CODES["CONTEXT_TOO_LARGE"]
+    reason = (
+        f"estimated {estimated_input} input tokens > "
+        f"{ceiling} effective_input_ceiling"
+    )
+    return PreflightDecision(
+        action=action,
+        exit_code=exit_code,
+        estimated_input=estimated_input,
+        effective_input_ceiling=ceiling,
+        ceiling_stale=capability.ceiling_stale,
+        reasoning_class=capability.reasoning_class,
+        reason=reason,
+    )
+
+
 def _lookup_max_input_tokens(
     provider: str,
     model_id: str,
@@ -332,8 +541,17 @@ def _lookup_max_input_tokens(
     if not isinstance(model_config, dict):
         return None
 
+    # cycle-109 Sprint 1 T1.3 — prefer v3 `effective_input_ceiling` when
+    # present. The v3 field is the empirically-calibrated tight bound; v2
+    # streaming/legacy fields are the broader fallback for unmigrated
+    # entries. Sequencing: pre-flight gate consults `_lookup_capability`
+    # directly for the richer surface; this helper continues to return
+    # Optional[int] for the legacy chain-walk gate at cheval.py:858.
+    v3_ceiling = model_config.get("effective_input_ceiling")
+    if isinstance(v3_ceiling, int) and v3_ceiling > 0:
+        return v3_ceiling
+
     # T3.4 split-aware lookup. Operator kill switch decides which field.
-    import os
     _streaming_killed = os.environ.get(
         "LOA_CHEVAL_DISABLE_STREAMING", ""
     ).strip().lower() in ("1", "true", "yes", "on")
@@ -803,6 +1021,104 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             )
             logger.info("Budget enforcement active: ledger=%s", ledger_path)
     _mock_fixture_dir = getattr(args, "mock_fixture_dir", None)
+
+    # cycle-109 Sprint 1 T1.3 — capability-aware pre-flight gate (SDD §1.4.2).
+    # Runs BEFORE chain walk so a known-too-large input is preempted with a
+    # typed exit 7 (ContextTooLarge) instead of empirically discovering the
+    # ceiling per entry (the cycle-102 walk gate at cheval.py:858 remains as
+    # a safety net for v2-only entries). Two sources contribute the ceiling
+    # in precedence order:
+    #   1. Operator --max-input-tokens cli_override (when >0) — tightest
+    #      caller-supplied bound; useful for test fixtures and break-glass.
+    #   2. v3 `effective_input_ceiling` from the HEAD chain entry's
+    #      capability surface — the calibrated empirical bound.
+    # Gate disabled when neither source yields a positive integer, OR when
+    # LOA_CHEVAL_DISABLE_INPUT_GATE=1 globally bypasses the gate (preserves
+    # the existing cycle-102 operator escape hatch).
+    if not os.environ.get("LOA_CHEVAL_DISABLE_INPUT_GATE") and _chain.entries:
+        from loa_cheval.providers.base import estimate_tokens
+        _preflight_estimated = estimate_tokens(messages)
+        _preflight_head = _chain.entries[0]
+        _preflight_capability = _lookup_capability(
+            _preflight_head.provider, _preflight_head.model_id, hounfour,
+        )
+        _preflight_cli_override = getattr(args, "max_input_tokens", None)
+        # cli_override semantics from _lookup_max_input_tokens: 0 / negative
+        # = explicit disable; N>0 = tighten bound.
+        _preflight_synthetic_capability = _preflight_capability
+        if isinstance(_preflight_cli_override, int) and _preflight_cli_override > 0:
+            # Fold the operator override into a synthetic Capability so the
+            # downstream decision matrix sees a single ceiling. Preserves
+            # reasoning_class / recommended_for / ceiling_stale from the
+            # underlying capability when present.
+            if _preflight_capability is not None:
+                _preflight_synthetic_capability = Capability(
+                    effective_input_ceiling=_preflight_cli_override,
+                    reasoning_class=_preflight_capability.reasoning_class,
+                    recommended_for=_preflight_capability.recommended_for,
+                    ceiling_stale=_preflight_capability.ceiling_stale,
+                )
+            else:
+                _preflight_synthetic_capability = Capability(
+                    effective_input_ceiling=_preflight_cli_override,
+                    reasoning_class=False,
+                    recommended_for=list(_RECOMMENDED_FOR_ALLOW_ALL),
+                    ceiling_stale=False,
+                )
+        # Sprint 4 will wire chunking; Sprint 1 always preempts on breach.
+        _preflight_chunking_enabled = False
+        _preflight_decision = _preflight_check(
+            estimated_input=_preflight_estimated,
+            capability=_preflight_synthetic_capability,
+            chunking_enabled=_preflight_chunking_enabled,
+        )
+        if _preflight_decision is not None and _preflight_decision.action == "preempt":
+            # Emit operator-visible marker to stderr; the chain-walk gate
+            # marker is `[input-gate]`, the pre-flight gate marker is
+            # `[preflight]` so consumers can discriminate.
+            _stale_tag = " ceiling_stale=true" if _preflight_decision.ceiling_stale else ""
+            _reasoning_tag = (
+                " reasoning_class=true" if _preflight_decision.reasoning_class
+                else ""
+            )
+            print(
+                f"[preflight] preempt model={_preflight_head.canonical} "
+                f"estimated={_preflight_decision.estimated_input} "
+                f"ceiling={_preflight_decision.effective_input_ceiling}"
+                f"{_reasoning_tag}{_stale_tag}",
+                file=sys.stderr,
+            )
+            # Record pre-flight preemption on MODELINV envelope so the audit
+            # trail surfaces the decision before any adapter dispatch.
+            _modelinv_state["models_failed"].append({
+                "model": _preflight_head.canonical,
+                "provider": _preflight_head.provider,
+                "error_class": "PREFLIGHT_PREEMPT",
+                "message_redacted": _preflight_decision.reason,
+                "ceiling_stale": _preflight_decision.ceiling_stale,
+                "estimated_input": _preflight_decision.estimated_input,
+                "effective_input_ceiling": _preflight_decision.effective_input_ceiling,
+            })
+            print(_error_json(
+                "CONTEXT_TOO_LARGE",
+                f"[preflight] {_preflight_decision.reason} (KF-002 / SDD §1.4.2)",
+                retryable=False,
+                ceiling_stale=_preflight_decision.ceiling_stale,
+            ), file=sys.stderr)
+            return EXIT_CODES["CONTEXT_TOO_LARGE"]
+        # ceiling_stale informational warning (Sprint 4 wires chunked-defensive
+        # routing). For Sprint 1 we surface a stderr marker so operators see
+        # the staleness signal without blocking dispatch.
+        if (
+            _preflight_synthetic_capability is not None
+            and _preflight_synthetic_capability.ceiling_stale
+        ):
+            print(
+                f"[preflight] ceiling_stale model={_preflight_head.canonical} "
+                f"(empirical probe aged past stale_after_days; consider "
+                f"`loa substrate recalibrate`)",
+                file=sys.stderr,
+            )
 
     # cycle-104 Sprint 2 (T2.5): chain walk wrapped in a try/finally so the
     # MODELINV emit fires on EVERY post-resolution exit (success, chain
