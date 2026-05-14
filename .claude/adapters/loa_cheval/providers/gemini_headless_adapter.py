@@ -114,6 +114,17 @@ class GeminiHeadlessAdapter(ProviderAdapter):
             len(prompt),
         )
 
+        # Strip GOOGLE_API_KEY and GEMINI_API_KEY from the subprocess env so
+        # `gemini -p` uses the CLI's own subscription auth rather than an
+        # API key. Mirrors the claude_headless_adapter fix; same failure mode
+        # (a depleted/expired API key in env defeats the CLI fallback).
+        # Closes #883 Bug 2 (gemini variant). Both env vars are stripped
+        # because gemini-cli has historically honored either name across
+        # versions.
+        subprocess_env = {
+            k: v for k, v in os.environ.items()
+            if k not in ("GOOGLE_API_KEY", "GEMINI_API_KEY")
+        }
         start = time.monotonic()
         try:
             proc = subprocess.run(
@@ -127,6 +138,7 @@ class GeminiHeadlessAdapter(ProviderAdapter):
                 # and stdin are piped — we use -p exclusively so stdin stays
                 # closed (avoids hangs in some shell environments).
                 stdin=subprocess.DEVNULL,
+                env=subprocess_env,
             )
         except subprocess.TimeoutExpired:
             raise ProviderUnavailableError(

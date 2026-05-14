@@ -118,6 +118,12 @@ class CodexHeadlessAdapter(ProviderAdapter):
             len(prompt),
         )
 
+        # Strip OPENAI_API_KEY from the subprocess env so `codex` uses the
+        # CLI's own subscription auth rather than the API key. Mirrors the
+        # claude_headless_adapter fix; same failure mode (a depleted/expired
+        # OPENAI_API_KEY in env defeats the CLI fallback terminal).
+        # Closes #883 Bug 2 (codex variant).
+        subprocess_env = {k: v for k, v in os.environ.items() if k != "OPENAI_API_KEY"}
         start = time.monotonic()
         try:
             proc = subprocess.run(
@@ -127,6 +133,7 @@ class CodexHeadlessAdapter(ProviderAdapter):
                 text=True,
                 timeout=timeout_s,
                 check=False,
+                env=subprocess_env,
             )
         except subprocess.TimeoutExpired:
             raise ProviderUnavailableError(

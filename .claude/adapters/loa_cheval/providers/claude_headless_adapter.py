@@ -120,6 +120,15 @@ class ClaudeHeadlessAdapter(ProviderAdapter):
             len(prompt),
         )
 
+        # Strip ANTHROPIC_API_KEY from the subprocess env so `claude -p` uses
+        # the OAuth-managed credential store (populated by `claude /login`)
+        # rather than the API key — see docstring lines 6-7 + the `--bare`
+        # hazard at lines 26-27. Without this, an operator with both an
+        # ANTHROPIC_API_KEY in env AND a Claude Code subscription will have
+        # the CLI silently prefer the API key, defeating the entire purpose
+        # of this within-company CLI fallback terminal (especially when the
+        # API key is depleted, expired, or shadowed). Closes #883 Bug 2.
+        subprocess_env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
         start = time.monotonic()
         try:
             proc = subprocess.run(
@@ -131,6 +140,7 @@ class ClaudeHeadlessAdapter(ProviderAdapter):
                 # claude -p reads prompt from argv (we passed it via the cmd
                 # array). Stdin stays closed to avoid hangs.
                 stdin=subprocess.DEVNULL,
+                env=subprocess_env,
             )
         except subprocess.TimeoutExpired:
             raise ProviderUnavailableError(
