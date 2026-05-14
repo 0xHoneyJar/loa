@@ -498,18 +498,12 @@ get_notebooklm_timeout() {
 # Hounfour Routing (SDD §4.4.2)
 # =============================================================================
 
-# Feature flag: when true, call model-invoke directly instead of model-adapter.sh
-is_flatline_routing_enabled() {
-    if [[ "${HOUNFOUR_FLATLINE_ROUTING:-}" == "true" ]]; then
-        return 0
-    fi
-    if [[ "${HOUNFOUR_FLATLINE_ROUTING:-}" == "false" ]]; then
-        return 1
-    fi
-    local value
-    value=$(read_config '.hounfour.flatline_routing' 'false')
-    [[ "$value" == "true" ]]
-}
+# cycle-109 Sprint 3 T3.8 (commit E): is_flatline_routing_enabled()
+# definition removed. T3.6 removed the consuming branch at call_model
+# (cheval is now the unconditional dispatch path); T3.7 deleted the
+# legacy adapter the flag used to gate. Other files retain their own
+# copies of the helper for non-flatline-orchestrator callers; cleanup
+# of those callsites is tracked as a follow-up.
 
 # Mode → Agent mapping for model-invoke routing
 declare -A MODE_TO_AGENT=(

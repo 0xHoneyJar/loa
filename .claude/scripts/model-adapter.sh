@@ -64,31 +64,13 @@ source "$SCRIPT_DIR/lib/model-resolver.sh"
 # shellcheck source=lib/overlay-source-helper.sh
 source "$SCRIPT_DIR/lib/overlay-source-helper.sh"
 
-# =============================================================================
-# Feature Flag Check
-# =============================================================================
-
-is_flatline_routing_enabled() {
-    # Check environment override first
-    if [[ "${HOUNFOUR_FLATLINE_ROUTING:-}" == "true" ]]; then
-        return 0
-    fi
-    if [[ "${HOUNFOUR_FLATLINE_ROUTING:-}" == "false" ]]; then
-        return 1
-    fi
-
-    # Check config file
-    if [[ -f "$CONFIG_FILE" ]] && command -v yq &> /dev/null; then
-        local value
-        value=$(yq -r '.hounfour.flatline_routing // false' "$CONFIG_FILE" 2>/dev/null)
-        if [[ "$value" == "true" ]]; then
-            return 0
-        fi
-    fi
-
-    # Default: disabled
-    return 1
-}
+# cycle-109 Sprint 3 T3.8 (commit E): is_flatline_routing_enabled()
+# definition removed from this file. After T3.7 deleted the legacy
+# adapter, this helper had no internal consumer in model-adapter.sh.
+# Other files (gpt-review-api.sh, lib-route-table.sh, lib-curl-fallback.sh,
+# red-team-model-adapter.sh) define + consume their own copies of the
+# helper; cleanup of those is tracked as a follow-up since they still
+# branch on the value for their own historical reasons.
 
 # =============================================================================
 # Legacy Delegation
