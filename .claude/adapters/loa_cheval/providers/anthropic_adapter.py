@@ -136,8 +136,21 @@ class AnthropicAdapter(ProviderAdapter):
                         self.provider,
                         f"HTTP {status}: {_extract_error_message(err_json)}",
                     )
+                # Credit-balance / quota errors are structurally a
+                # provider-availability issue, not an input-validation one.
+                # Routing them as ProviderUnavailableError lets
+                # walk_fallback_chain advance to within-company headless
+                # terminals (claude-headless OAuth path) instead of dying on
+                # a non-walkable error. Mirrors the same branch in the
+                # non-streaming path below.
+                err_msg = _extract_error_message(err_json)
+                if status == 400 and "credit balance" in err_msg.lower():
+                    raise ProviderUnavailableError(
+                        self.provider,
+                        f"HTTP {status} credit-exhausted: {err_msg}",
+                    )
                 raise InvalidInputError(
-                    f"Anthropic API error (HTTP {status}): {_extract_error_message(err_json)}"
+                    f"Anthropic API error (HTTP {status}): {err_msg}"
                 )
 
             # Parse the SSE event stream into a CompletionResult.
@@ -220,6 +233,18 @@ class AnthropicAdapter(ProviderAdapter):
 
         if status >= 400:
             msg = _extract_error_message(resp)
+            # Credit-balance / quota errors are structurally a
+            # provider-availability issue, not an input-validation one.
+            # Routing them as ProviderUnavailableError lets
+            # walk_fallback_chain advance to within-company headless
+            # terminals (claude-headless OAuth path) instead of dying on a
+            # non-walkable error. Mirrors the same branch in the streaming
+            # path above.
+            if status == 400 and "credit balance" in msg.lower():
+                raise ProviderUnavailableError(
+                    self.provider,
+                    f"HTTP {status} credit-exhausted: {msg}",
+                )
             raise InvalidInputError(f"Anthropic API error (HTTP {status}): {msg}")
 
         # Parse response
