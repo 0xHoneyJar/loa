@@ -484,6 +484,54 @@ class TestEndToEnd:
 
 
 # ---------------------------------------------------------------------------
+# Subprocess env filtering (closes issues #879 / #880 — gemini symmetric)
+#
+# gemini CLI uses GCA OAuth (Google Cloud Auth) by default. When GOOGLE_API_KEY
+# or GEMINI_API_KEY is exported, the CLI prefers API mode over OAuth.
+# Adapter must strip both from subprocess env.
+# ---------------------------------------------------------------------------
+
+
+class TestSubprocessEnvFilter:
+    def test_google_api_keys_stripped_by_default(self, monkeypatch):
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-google-key")
+        monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
+        monkeypatch.delenv("LOA_HEADLESS_KEEP_API_KEY", raising=False)
+        adapter = GeminiHeadlessAdapter(_make_config())
+        with patch("loa_cheval.providers.gemini_headless_adapter.subprocess.run") as mock_run:
+            mock_run.return_value = _ok_proc(SAMPLE_OK_JSON)
+            adapter.complete(_make_request())
+        kwargs = mock_run.call_args.kwargs
+        assert "env" in kwargs, "subprocess.run must pass explicit env="
+        assert "GOOGLE_API_KEY" not in kwargs["env"]
+        assert "GEMINI_API_KEY" not in kwargs["env"]
+
+    def test_path_and_home_preserved(self, monkeypatch):
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
+        monkeypatch.setenv("PATH", "/test/bin:/usr/bin")
+        monkeypatch.setenv("HOME", "/test/home")
+        adapter = GeminiHeadlessAdapter(_make_config())
+        with patch("loa_cheval.providers.gemini_headless_adapter.subprocess.run") as mock_run:
+            mock_run.return_value = _ok_proc(SAMPLE_OK_JSON)
+            adapter.complete(_make_request())
+        env = mock_run.call_args.kwargs.get("env", {})
+        assert env.get("PATH") == "/test/bin:/usr/bin"
+        assert env.get("HOME") == "/test/home"
+
+    def test_opt_out_keeps_api_keys(self, monkeypatch):
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-google")
+        monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
+        monkeypatch.setenv("LOA_HEADLESS_KEEP_API_KEY", "1")
+        adapter = GeminiHeadlessAdapter(_make_config())
+        with patch("loa_cheval.providers.gemini_headless_adapter.subprocess.run") as mock_run:
+            mock_run.return_value = _ok_proc(SAMPLE_OK_JSON)
+            adapter.complete(_make_request())
+        env = mock_run.call_args.kwargs.get("env", {})
+        assert env.get("GOOGLE_API_KEY") == "test-google"
+        assert env.get("GEMINI_API_KEY") == "test-gemini"
+
+
+# ---------------------------------------------------------------------------
 # Live test (gated)
 # ---------------------------------------------------------------------------
 

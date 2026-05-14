@@ -534,6 +534,80 @@ class TestEndToEnd:
 
 
 # ---------------------------------------------------------------------------
+# Subprocess env filtering (closes issues #879 / #880)
+#
+# The claude_headless_adapter MUST strip ANTHROPIC_API_KEY from the subprocess
+# environment by default. The CLI's OAuth subscription path is selected only
+# when no API key is present; if the parent process exports ANTHROPIC_API_KEY
+# (depleted, expired, or just shadowing the subscription), claude -p falls
+# back to API mode and the headless adapter's purpose is defeated.
+#
+# Operator opt-out: LOA_HEADLESS_KEEP_API_KEY=1 preserves the variable for
+# operators who explicitly want API-mode routing through the CLI.
+# ---------------------------------------------------------------------------
+
+
+class TestSubprocessEnvFilter:
+    def test_anthropic_api_key_stripped_by_default(self, monkeypatch):
+        """Default behavior: ANTHROPIC_API_KEY must NOT leak into claude -p subprocess."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-depleted-key")
+        monkeypatch.delenv("LOA_HEADLESS_KEEP_API_KEY", raising=False)
+        adapter = ClaudeHeadlessAdapter(_make_config())
+        with patch("loa_cheval.providers.claude_headless_adapter.subprocess.run") as mock_run:
+            mock_run.return_value = _ok_proc(SAMPLE_OK_JSON)
+            adapter.complete(_make_request())
+        kwargs = mock_run.call_args.kwargs
+        assert "env" in kwargs, (
+            "subprocess.run MUST be invoked with an explicit env= kwarg so the "
+            "OAuth subscription path is reachable when ANTHROPIC_API_KEY is set"
+        )
+        env = kwargs["env"]
+        assert "ANTHROPIC_API_KEY" not in env, (
+            f"ANTHROPIC_API_KEY leaked into subprocess env: keys={sorted(env.keys())[:20]}"
+        )
+
+    def test_path_and_home_preserved(self, monkeypatch):
+        """Auth-class strip MUST NOT collapse the user's basic env (PATH, HOME, etc.)."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+        monkeypatch.setenv("PATH", "/test/bin:/usr/bin")
+        monkeypatch.setenv("HOME", "/test/home")
+        adapter = ClaudeHeadlessAdapter(_make_config())
+        with patch("loa_cheval.providers.claude_headless_adapter.subprocess.run") as mock_run:
+            mock_run.return_value = _ok_proc(SAMPLE_OK_JSON)
+            adapter.complete(_make_request())
+        env = mock_run.call_args.kwargs.get("env", {})
+        assert env.get("PATH") == "/test/bin:/usr/bin"
+        assert env.get("HOME") == "/test/home"
+
+    def test_opt_out_keeps_api_key(self, monkeypatch):
+        """Operator opt-out: LOA_HEADLESS_KEEP_API_KEY=1 preserves ANTHROPIC_API_KEY."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+        monkeypatch.setenv("LOA_HEADLESS_KEEP_API_KEY", "1")
+        adapter = ClaudeHeadlessAdapter(_make_config())
+        with patch("loa_cheval.providers.claude_headless_adapter.subprocess.run") as mock_run:
+            mock_run.return_value = _ok_proc(SAMPLE_OK_JSON)
+            adapter.complete(_make_request())
+        env = mock_run.call_args.kwargs.get("env", {})
+        assert env.get("ANTHROPIC_API_KEY") == "sk-ant-test", (
+            "LOA_HEADLESS_KEEP_API_KEY=1 must preserve the env var"
+        )
+
+    def test_no_api_key_in_parent_env_still_passes_clean_env(self, monkeypatch):
+        """When ANTHROPIC_API_KEY isn't in parent env, the env= kwarg is still passed
+        explicitly (defense-in-depth — the adapter's invariant is 'never inherit env')."""
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("LOA_HEADLESS_KEEP_API_KEY", raising=False)
+        adapter = ClaudeHeadlessAdapter(_make_config())
+        with patch("loa_cheval.providers.claude_headless_adapter.subprocess.run") as mock_run:
+            mock_run.return_value = _ok_proc(SAMPLE_OK_JSON)
+            adapter.complete(_make_request())
+        # env kwarg MUST be present (not None) even when no key needs stripping.
+        assert "env" in mock_run.call_args.kwargs
+        assert mock_run.call_args.kwargs["env"] is not None
+        assert "ANTHROPIC_API_KEY" not in mock_run.call_args.kwargs["env"]
+
+
+# ---------------------------------------------------------------------------
 # Live test (gated)
 # ---------------------------------------------------------------------------
 

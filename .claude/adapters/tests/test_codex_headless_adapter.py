@@ -464,6 +464,51 @@ class TestEndToEnd:
 
 
 # ---------------------------------------------------------------------------
+# Subprocess env filtering (closes issues #879 / #880 — codex symmetric)
+#
+# codex CLI uses OAuth via `codex login` (stored at ~/.codex/auth.json). When
+# OPENAI_API_KEY is exported in the parent process, codex prefers API mode
+# over the OAuth subscription. The headless adapter must strip OPENAI_API_KEY
+# from the subprocess env so the OAuth path is reachable.
+# ---------------------------------------------------------------------------
+
+
+class TestSubprocessEnvFilter:
+    def test_openai_api_key_stripped_by_default(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-proj-test-depleted")
+        monkeypatch.delenv("LOA_HEADLESS_KEEP_API_KEY", raising=False)
+        adapter = CodexHeadlessAdapter(_make_config())
+        with patch("loa_cheval.providers.codex_headless_adapter.subprocess.run") as mock_run:
+            mock_run.return_value = _ok_proc(SAMPLE_JSONL_OUTPUT)
+            adapter.complete(_make_request())
+        kwargs = mock_run.call_args.kwargs
+        assert "env" in kwargs, "subprocess.run must pass explicit env="
+        assert "OPENAI_API_KEY" not in kwargs["env"]
+
+    def test_path_and_home_preserved(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-proj-test")
+        monkeypatch.setenv("PATH", "/test/bin:/usr/bin")
+        monkeypatch.setenv("HOME", "/test/home")
+        adapter = CodexHeadlessAdapter(_make_config())
+        with patch("loa_cheval.providers.codex_headless_adapter.subprocess.run") as mock_run:
+            mock_run.return_value = _ok_proc(SAMPLE_JSONL_OUTPUT)
+            adapter.complete(_make_request())
+        env = mock_run.call_args.kwargs.get("env", {})
+        assert env.get("PATH") == "/test/bin:/usr/bin"
+        assert env.get("HOME") == "/test/home"
+
+    def test_opt_out_keeps_api_key(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-proj-test")
+        monkeypatch.setenv("LOA_HEADLESS_KEEP_API_KEY", "1")
+        adapter = CodexHeadlessAdapter(_make_config())
+        with patch("loa_cheval.providers.codex_headless_adapter.subprocess.run") as mock_run:
+            mock_run.return_value = _ok_proc(SAMPLE_JSONL_OUTPUT)
+            adapter.complete(_make_request())
+        env = mock_run.call_args.kwargs.get("env", {})
+        assert env.get("OPENAI_API_KEY") == "sk-proj-test"
+
+
+# ---------------------------------------------------------------------------
 # Live test (gated)
 # ---------------------------------------------------------------------------
 
