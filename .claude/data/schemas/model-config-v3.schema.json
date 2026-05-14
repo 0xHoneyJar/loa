@@ -114,6 +114,11 @@
           "enum": ["chat", "responses"],
           "description": "Carried forward from v2 (cycle-095 Sprint 1)."
         },
+        "kind": {
+          "type": "string",
+          "enum": ["http", "cli"],
+          "description": "Carried forward from v2 (cycle-104 Sprint 2 T2.11). Adapter routing discriminant: 'http' (default — calls the provider HTTP API) vs 'cli' (subprocess to claude-headless / codex-headless / gemini-headless for zero-API-key CLI-subscription environments). The cheval._CLI_ADAPTER_BY_PROVIDER map dispatches kind:cli entries to the per-provider CLI adapter."
+        },
         "api_format": {
           "description": "Carried forward from v2.",
           "type": ["string", "object"]
@@ -180,9 +185,9 @@
           "description": "How the ceiling value was determined. empirical_probe is the gold standard (per FR-1.6 5×5 binary-search protocol); conservative_default falls back to SDD §3.1.2 formula."
         },
         "calibrated_at": {
-          "type": "string",
+          "type": ["string", "null"],
           "format": "date-time",
-          "description": "ISO 8601 timestamp of last calibration. Cheval compares against now() + stale_after_days for staleness detection."
+          "description": "ISO 8601 timestamp of last calibration. Cheval compares against now() + stale_after_days for staleness detection. null when source=conservative_default (no probe has run; staleness check evaluates non-stale per SDD §3.1.2)."
         },
         "sample_size": {
           "type": ["integer", "null"],

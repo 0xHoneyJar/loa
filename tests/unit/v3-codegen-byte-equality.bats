@@ -380,7 +380,7 @@ aliases:
 agents: {}
 YAML
     _run_gen "$BATS_TMP/pre.yaml" "$BATS_TMP/pre.out.sh"
-    "$PYTHON_BIN" "$MIGRATE_CLI" \
+    run "$PYTHON_BIN" "$MIGRATE_CLI" \
         "$BATS_TMP/pre.yaml" \
         -o "$BATS_TMP/post.yaml" \
         --to-v3 \
