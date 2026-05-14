@@ -94,13 +94,18 @@ setup() {
 # T36-4: mock-mode delegation to legacy is RETAINED (T3.6 stays non-destructive)
 # =============================================================================
 
-@test "T36-4: mock-mode delegation to legacy is retained (T3.6 stays non-destructive)" {
-    # FLATLINE_MOCK_MODE=true at model-adapter.sh line ~520-526 delegates
-    # to legacy's get_mock_response. CI tests
-    # (test_flatline_routing.py + model-adapter-aliases.bats +
-    # adversarial-review-e2e.bats) depend on this path. T3.6 must NOT
-    # touch it; T3.7 + T3.8 handle the migration under operator approval.
-    grep -qE 'FLATLINE_MOCK_MODE.*delegate_to_legacy|delegate_to_legacy.*--model.*--mode' \
+@test "T36-4: mock-mode is routed through cheval --mock-fixture-dir (post-T3.7)" {
+    # Pre-T3.7 this test asserted that mock-mode still delegated to
+    # legacy. T3.7 (commit D, under C109.OP-S3) migrated FLATLINE_MOCK_MODE
+    # to cheval's --mock-fixture-dir substrate. Post-T3.7 the assertion is
+    # the inverse: mock-mode must route through cheval, not legacy.
+    grep -qE 'FLATLINE_MOCK_MODE.*--mock-fixture-dir|--mock-fixture-dir.*FLATLINE_MOCK_MODE' \
+        "$PROJECT_ROOT/.claude/scripts/model-adapter.sh" \
+        || grep -qE 'invoke_args.*--mock-fixture-dir' \
+        "$PROJECT_ROOT/.claude/scripts/model-adapter.sh"
+    # And the legacy delegate_to_legacy call site in the mock-mode block
+    # MUST be gone.
+    ! grep -qE 'Mock mode.*delegating to legacy' \
         "$PROJECT_ROOT/.claude/scripts/model-adapter.sh"
 }
 
@@ -108,8 +113,12 @@ setup() {
 # T36-5: legacy file still on disk (T3.6 is non-destructive)
 # =============================================================================
 
-@test "T36-5: legacy adapter file still on disk (T3.7 destructive deletion is gated)" {
-    [[ -f "$PROJECT_ROOT/.claude/scripts/model-adapter.sh.legacy" ]]
+@test "T36-5: legacy adapter file is deleted (T3.7 destructive deletion landed under C109.OP-S3)" {
+    # Pre-T3.7 this test asserted the legacy file was still on disk
+    # because T3.6 was the non-destructive prep step. T3.7 (commit D)
+    # deleted the file under C109.OP-S3. Post-T3.7 the assertion is
+    # inverted: the file MUST be gone (G-4 metric: legacy LOC = 0).
+    [[ ! -f "$PROJECT_ROOT/.claude/scripts/model-adapter.sh.legacy" ]]
 }
 
 # =============================================================================

@@ -40,10 +40,10 @@
 #       Legacy alert webhook path; operator-supplied dynamic webhook URL
 #       cannot be statically allowlisted. Opt-in to wrapper-routed dispatch
 #       via .loa.config.yaml::model_health_probe.alert_webhook_endpoint_validator_enabled.
-#   - .claude/scripts/model-adapter.sh.legacy
-#       Deprecated legacy adapter shim. New code MUST not add raw curl here;
-#       migration to the wrapper is deferred to the cycle-099 legacy sunset
-#       path (Sprint 4 gate). Tracked in cycle-099 sprint plan.
+# (Pre-cycle-109 the legacy adapter at .claude/scripts/model-adapter.sh.legacy
+# was on this exempt list. cycle-109 sprint-3 T3.7 deleted that file under
+# operator-approval marker C109.OP-S3; the exempt entry was removed from
+# EXEMPT_FILES alongside the deletion.)
 #
 # Detection logic (in order):
 #   1. File-type filter: scan `.sh` / `.bash` / `.legacy` extensions PLUS
@@ -89,7 +89,8 @@ EXEMPT_FILES=(
     ".claude/scripts/lib/endpoint-validator.sh"
     ".claude/scripts/mount-loa.sh"
     ".claude/scripts/model-health-probe.sh"
-    ".claude/scripts/model-adapter.sh.legacy"
+    # cycle-109 sprint-3 T3.7 (C109.OP-S3): legacy adapter deleted; exempt
+    # entry removed alongside.
     # cycle-108 sprint-2 T2.L: cheval-network-guard.sh defines bash function
     # shims for curl/wget/nc/ftp that intercept under LOA_NETWORK_RESTRICTED=1.
     # The shims delegate to `command curl` / `command wget` after the

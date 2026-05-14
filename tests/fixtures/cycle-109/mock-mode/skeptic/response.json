@@ -1,0 +1,7 @@
+{
+  "content": "{\"concerns\": [{\"id\": \"SKP-001\", \"concern\": \"Mock concern 1\", \"severity\": \"MEDIUM\", \"severity_score\": 650}, {\"id\": \"SKP-002\", \"concern\": \"Mock concern 2\", \"severity\": \"LOW\", \"severity_score\": 400}], \"summary\": \"2 mock concerns generated\"}",
+  "model": "mock-skeptic",
+  "provider": "mock",
+  "usage": {"input_tokens": 1000, "output_tokens": 500},
+  "latency_ms": 100
+}

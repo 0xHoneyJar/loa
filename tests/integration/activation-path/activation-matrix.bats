@@ -191,6 +191,10 @@ _require_curl_mock() {
 # AM-11: SDD §5.3.1 commit sequence checkpoint
 # =============================================================================
 
-@test "AM11: legacy adapter still present (commit A is non-destructive)" {
-    [[ -f "$PROJECT_ROOT/.claude/scripts/model-adapter.sh.legacy" ]]
+@test "AM11: legacy adapter deleted (post-T3.7 commit D under C109.OP-S3); G-4 satisfied" {
+    # Pre-T3.7: this test asserted the legacy file was still present
+    # (commit A was non-destructive). T3.7 (commit D, under operator-
+    # approval marker C109.OP-S3) deleted the file. Post-T3.7 the
+    # assertion is inverted: G-4 satisfied iff legacy LOC = 0.
+    [[ ! -f "$PROJECT_ROOT/.claude/scripts/model-adapter.sh.legacy" ]]
 }

@@ -37,7 +37,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
-LEGACY_ADAPTER="$SCRIPT_DIR/model-adapter.sh.legacy"
+# cycle-109 Sprint 3 T3.7 (C109.OP-S3): LEGACY_ADAPTER and the
+# delegate_to_legacy() function were removed alongside the deletion of
+# .claude/scripts/model-adapter.sh.legacy. cheval (model-invoke) is the
+# sole substrate dispatch path. See grimoires/loa/runbooks/cycle-109-rollback.md
+# for the git-revert rollback model.
 MODEL_INVOKE="$SCRIPT_DIR/model-invoke"
 
 # cycle-099 sprint-1B (T1.8): bring the canonical model registry into scope
@@ -90,13 +94,13 @@ is_flatline_routing_enabled() {
 # Legacy Delegation
 # =============================================================================
 
-delegate_to_legacy() {
-    if [[ ! -x "$LEGACY_ADAPTER" ]]; then
-        echo "ERROR: Legacy adapter not found: $LEGACY_ADAPTER" >&2
-        exit 2
-    fi
-    exec "$LEGACY_ADAPTER" "$@"
-}
+# cycle-109 Sprint 3 T3.7 (C109.OP-S3): delegate_to_legacy() removed.
+# The legacy adapter file was deleted; cheval is the sole substrate
+# dispatch path. Callers that previously invoked this function have been
+# migrated:
+#   - main() feature-flag guard (T3.6 commit C): removed
+#   - mock-mode delegation (T3.7 this commit): migrated to cheval
+#     --mock-fixture-dir at tests/fixtures/cycle-109/mock-mode/<mode>/
 
 # =============================================================================
 # Mode → Agent Mapping
@@ -517,15 +521,6 @@ main() {
         fi
     fi
 
-    # Mock mode — delegate to legacy which has mock fixtures
-    if [[ "${FLATLINE_MOCK_MODE:-}" == "true" ]]; then
-        log "Mock mode — delegating to legacy adapter"
-        delegate_to_legacy --model "$model" --mode "$mode" --input "$input_file" \
-            --phase "$phase" ${context_file:+--context "$context_file"} \
-            ${prompt_file:+--prompt "$prompt_file"} --timeout "$timeout"
-        # exec above means we never reach here
-    fi
-
     # Build model-invoke arguments
     local -a invoke_args=(
         --agent "$agent"
@@ -535,6 +530,38 @@ main() {
         --json-errors
         --timeout "$timeout"
     )
+
+    # cycle-109 Sprint 3 T3.7 — mock mode routes through cheval's
+    # --mock-fixture-dir instead of the (now-deleted) legacy adapter's
+    # get_mock_response synthetic-content generator.
+    #
+    # Lookup precedence:
+    #   1. $FLATLINE_MOCK_DIR/$mode/response.json     (test override + per-mode)
+    #   2. $FLATLINE_MOCK_DIR/response.json           (test override, flat)
+    #   3. tests/fixtures/cycle-109/mock-mode/$mode/  (default canonical)
+    #
+    # Backward-compat: tests that set FLATLINE_MOCK_DIR but place files
+    # there with names cheval doesn't recognize (e.g., legacy's pre-T3.7
+    # convention `<model>-<mode>-response.json`) fall through to the
+    # default canonical per-mode fixture. This preserves behavior for
+    # tests that previously hit the legacy synthetic-content fallback.
+    if [[ "${FLATLINE_MOCK_MODE:-}" == "true" ]]; then
+        local default_mock_root="$PROJECT_ROOT/tests/fixtures/cycle-109/mock-mode"
+        local mock_subdir=""
+        if [[ -n "${FLATLINE_MOCK_DIR:-}" ]]; then
+            if [[ -f "$FLATLINE_MOCK_DIR/$mode/response.json" ]]; then
+                mock_subdir="$FLATLINE_MOCK_DIR/$mode"
+            elif [[ -f "$FLATLINE_MOCK_DIR/response.json" ]]; then
+                mock_subdir="$FLATLINE_MOCK_DIR"
+            fi
+        fi
+        if [[ -z "$mock_subdir" ]]; then
+            # Default canonical per-mode fixture
+            mock_subdir="$default_mock_root/$mode"
+        fi
+        log "Mock mode — routing via cheval --mock-fixture-dir=$mock_subdir"
+        invoke_args+=(--mock-fixture-dir "$mock_subdir")
+    fi
 
     # Map --context to --system (context file becomes system prompt for model-invoke)
     if [[ -n "$context_file" && -f "$context_file" ]]; then
