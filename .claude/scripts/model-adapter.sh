@@ -365,13 +365,14 @@ EOF
 }
 
 main() {
-    # If feature flag is disabled, delegate entirely to legacy
-    if ! is_flatline_routing_enabled; then
-        delegate_to_legacy "$@"
-        # exec above means we never reach here
-    fi
-
-    log "Flatline routing enabled — using model-invoke"
+    # cycle-109 Sprint 3 T3.6 (commit C in SDD §5.3.1 sequence): the
+    # pre-fix feature-flag early-exit to delegate_to_legacy was removed.
+    # cheval is now the unconditional default for operator-facing dispatch.
+    # The flag-helper function is retained for other callers (gpt-review-
+    # api, lib-route-table, lib-curl-fallback, red-team-model-adapter);
+    # T3.8 cleans those up after T3.7 destructive legacy deletion under
+    # C109.OP-S3 operator-approval marker.
+    log "Using model-invoke (cheval) dispatch (cycle-109 T3.6 unconditional)"
 
     # cycle-099 sprint-2C (T2.5): initialize the operator-extras-aware
     # overlay. Best-effort — if the merged file is unavailable and the

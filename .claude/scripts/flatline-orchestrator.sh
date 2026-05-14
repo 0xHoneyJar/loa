@@ -623,7 +623,18 @@ call_model() {
     local context="${5:-}"
     local timeout="${6:-$DEFAULT_MODEL_TIMEOUT}"
 
-    if is_flatline_routing_enabled && [[ -x "$MODEL_INVOKE" ]]; then
+    # cycle-109 Sprint 3 T3.6 (commit C in SDD §5.3.1 sequence): the
+    # pre-fix `if is_flatline_routing_enabled && [[ -x "$MODEL_INVOKE" ]];
+    # then ... else <legacy> fi` branch was removed. cheval (model-invoke)
+    # is now the unconditional dispatch path. The legacy MODEL_ADAPTER
+    # fallback else-branch was deleted alongside the conditional;
+    # MODEL_ADAPTER is preserved (T3.8 cleanup) but no caller path here
+    # invokes it.
+    if [[ ! -x "$MODEL_INVOKE" ]]; then
+        log "ERROR: MODEL_INVOKE not executable at $MODEL_INVOKE — substrate misconfigured"
+        return 2
+    fi
+    {
         # Direct model-invoke path (SDD §4.4.2)
         local agent="${MODE_TO_AGENT[$mode]:-}"
         # cycle-099 Sprint 1B + post-Sprint-2E parity: prefer the SSOT-aware
@@ -728,13 +739,7 @@ call_model() {
                 cost_usd: 0,
                 verdict_quality: $vq
             }'
-    else
-        # Legacy path: model-adapter.sh (or shim)
-        "$MODEL_ADAPTER" --model "$model" --mode "$mode" \
-            --input "$input" --phase "$phase" \
-            ${context:+--context "$context"} \
-            --timeout "$timeout" --json
-    fi
+    }
 }
 
 # =============================================================================
