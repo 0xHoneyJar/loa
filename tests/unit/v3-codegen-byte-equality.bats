@@ -37,6 +37,23 @@ setup() {
     BATS_TMP="$(mktemp -d "${BATS_TMPDIR:-/tmp}/v3-codegen.XXXXXX")"
 }
 
+# Skip migrator-invoking tests when the Python environment lacks
+# ruamel.yaml (the cycle-099 sprint-1E migrator's structure-preserving
+# YAML library, pinned at 0.18.17 in cycle099-sprint-1e-tests.yml).
+# The framework's bats-tests.yml workflow doesn't install Python deps,
+# so Z5/Z6 must self-skip there rather than fail.
+_require_migrator_deps() {
+    "$PYTHON_BIN" -c "import ruamel.yaml, jsonschema" 2>/dev/null \
+        || skip "ruamel.yaml + jsonschema not installed in this Python env"
+}
+
+# Schema-validation tests (Z3/Z4) use jsonschema directly. Same self-skip
+# pattern for environments missing it.
+_require_schema_deps() {
+    "$PYTHON_BIN" -c "import jsonschema, yaml" 2>/dev/null \
+        || skip "jsonschema + PyYAML not installed in this Python env"
+}
+
 teardown() {
     rm -rf "$BATS_TMP" 2>/dev/null || true
 }
@@ -196,6 +213,7 @@ _run_gen() {
 # =============================================================================
 
 @test "Z3: v3 schema accepts kind: cli on model entries (headless adapter routing)" {
+    _require_schema_deps
     cat > "$BATS_TMP/kind-fixture.yaml" <<'YAML'
 schema_version: 3
 providers:
@@ -251,6 +269,7 @@ PY
 # =============================================================================
 
 @test "Z4: v3 schema rejects kind values outside the enum (e.g., 'invalid')" {
+    _require_schema_deps
     cat > "$BATS_TMP/bad-kind.yaml" <<'YAML'
 schema_version: 3
 providers:
@@ -302,6 +321,7 @@ PY
 # =============================================================================
 
 @test "Z5: migrator succeeds on a fixture with kind:cli headless entries" {
+    _require_migrator_deps
     cat > "$BATS_TMP/live-shape.yaml" <<'YAML'
 providers:
   anthropic:
@@ -360,6 +380,7 @@ YAML
 # =============================================================================
 
 @test "Z6: post-migration codegen output matches pre-migration baseline (drift-free)" {
+    _require_migrator_deps
     cat > "$BATS_TMP/pre.yaml" <<'YAML'
 providers:
   anthropic:

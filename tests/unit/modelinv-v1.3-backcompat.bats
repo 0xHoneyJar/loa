@@ -51,6 +51,17 @@ setup() {
     BATS_TMP="$(mktemp -d "${BATS_TMPDIR:-/tmp}/modelinv-v13.XXXXXX")"
 }
 
+# Skip the test gracefully when the Python environment is missing the
+# jsonschema + referencing libraries that the schema-with-$ref validation
+# path requires. The cycle099-sprint-1e-tests workflow installs these
+# (pinned jsonschema==4.26.0 + ruamel.yaml==0.18.17); the framework's
+# bats-tests.yml workflow does NOT install Python deps, so V2-V11 must
+# self-skip there rather than fail.
+_require_schema_deps() {
+    "$PYTHON_BIN" -c "import jsonschema; from referencing import Registry, Resource" 2>/dev/null \
+        || skip "jsonschema+referencing not installed in this Python env"
+}
+
 teardown() {
     rm -rf "$BATS_TMP" 2>/dev/null || true
 }
@@ -111,6 +122,7 @@ PY
 # =============================================================================
 
 @test "V2: v1.2 minimal envelope (no capability_evaluation) validates under v1.3 schema" {
+    _require_schema_deps
     local payload="$BATS_TMP/v12-minimal.json"
     cat > "$payload" <<'JSON'
 {
@@ -130,6 +142,7 @@ JSON
 # =============================================================================
 
 @test "V3: v1.2 full envelope (all v1.2 fields) validates under v1.3 schema" {
+    _require_schema_deps
     local payload="$BATS_TMP/v12-full.json"
     cat > "$payload" <<'JSON'
 {
@@ -168,6 +181,7 @@ JSON
 # =============================================================================
 
 @test "V4: v1.3 envelope with capability_evaluation (preflight_decision=preempt) validates" {
+    _require_schema_deps
     local payload="$BATS_TMP/v13-preempt.json"
     cat > "$payload" <<'JSON'
 {
@@ -203,6 +217,7 @@ JSON
 # =============================================================================
 
 @test "V5: v1.3 envelope with capability_evaluation (preflight_decision=dispatch) validates" {
+    _require_schema_deps
     local payload="$BATS_TMP/v13-dispatch.json"
     cat > "$payload" <<'JSON'
 {
@@ -231,6 +246,7 @@ JSON
 # =============================================================================
 
 @test "V6: v1.3 envelope with capability_evaluation (preflight_decision=chunk) validates" {
+    _require_schema_deps
     local payload="$BATS_TMP/v13-chunk.json"
     cat > "$payload" <<'JSON'
 {
@@ -259,6 +275,7 @@ JSON
 # =============================================================================
 
 @test "V7: capability_evaluation with null effective_input_ceiling validates (v2-config compat)" {
+    _require_schema_deps
     # When a v3 emitter walks against a model still on v2 config, the gate
     # disables itself but the audit envelope STILL records the evaluation
     # ran — distinguishes 'gate-disabled-because-no-v3-data' from
@@ -291,6 +308,7 @@ JSON
 # =============================================================================
 
 @test "V8: schema rejects unknown preflight_decision enum values" {
+    _require_schema_deps
     local payload="$BATS_TMP/v13-bad-decision.json"
     cat > "$payload" <<'JSON'
 {
@@ -318,6 +336,7 @@ JSON
 # =============================================================================
 
 @test "V9: schema rejects capability_evaluation with missing required keys" {
+    _require_schema_deps
     local payload="$BATS_TMP/v13-missing-keys.json"
     cat > "$payload" <<'JSON'
 {
@@ -342,6 +361,7 @@ JSON
 # =============================================================================
 
 @test "V10: schema rejects capability_evaluation with unknown nested keys" {
+    _require_schema_deps
     local payload="$BATS_TMP/v13-extra-key.json"
     cat > "$payload" <<'JSON'
 {
@@ -370,6 +390,7 @@ JSON
 # =============================================================================
 
 @test "V11: replay against last-30d .run/model-invoke.jsonl parses + validates payloads" {
+    _require_schema_deps
     # NFR-Rel-4 + sprint AC: "existing .run/model-invoke.jsonl entries
     # continue parsing; hash-chain signatures verify; replay against
     # last-30d log". This assertion covers the parse + payload-schema
