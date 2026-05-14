@@ -314,7 +314,18 @@ export async function executeMultiModelReview(
   // When enrichment context provided, the first primary model writes a prose
   // review over the consensus findings. Falls back to stats-only if enrichment
   // fails or is disabled.
-  let consensusBody = formatConsensusSummary(consensus, modelAdapters);
+  // cycle-109 Sprint 2 T2.6 — prepend the verdict_quality header
+  // (FR-2.8) before the consensus stats table. Returns empty string when
+  // no per-model envelopes carry verdictQuality (legacy / pre-T2.3
+  // cheval), so legacy review surfaces are unchanged.
+  const verdictHeader = formatVerdictQualityHeader(
+    modelResults.map((r) => ({
+      provider: r.provider,
+      modelId: r.model,
+      verdictQuality: r.response?.verdictQuality,
+    })),
+  );
+  let consensusBody = verdictHeader + formatConsensusSummary(consensus, modelAdapters);
 
   if (enrichment && findingsPerModel.length > 0 && modelAdapters.length > 0) {
     try {
@@ -443,6 +454,76 @@ export function extractFindingsFromContent(content: string): Array<{
 /**
  * Format a per-model comment with continuation numbering.
  */
+/**
+ * cycle-109 Sprint 2 T2.6 — render an operator-facing verdict_quality
+ * header for the BB PR comment (FR-2.8 surface).
+ *
+ * Takes per-model results carrying their `verdictQuality` envelopes
+ * (populated by ChevalDelegateAdapter from the LOA_VERDICT_QUALITY_SIDECAR
+ * transport) and produces a short markdown header line:
+ *
+ *   ✓ APPROVED — 3/3 voices, chain ok
+ *   ⚠ DEGRADED — 2/3 voices succeeded
+ *   ❌ FAILED — chain exhausted; verdict unsafe
+ *
+ * Returns an empty string when:
+ *   - The input list is empty.
+ *   - No per-model result carries a `verdictQuality` envelope (legacy /
+ *     pre-T2.3 cheval emits, or the sidecar mechanism is unavailable).
+ *
+ * Note: this is a presentation-layer summary, not the canonical aggregate.
+ * Persistence of the full multi-voice envelope happens at the FL orchestrator
+ * level (T2.4) via the Python aggregator. BB's PR comment surfaces the
+ * status banner derived from per-model envelopes for operator-visibility.
+ */
+export function formatVerdictQualityHeader(
+  perModelResults: Array<{
+    provider: string;
+    modelId: string;
+    verdictQuality?: {
+      status?: string;
+      voices_succeeded?: number;
+      voices_planned?: number;
+      chain_health?: string;
+    };
+  }>,
+): string {
+  if (perModelResults.length === 0) return "";
+
+  const withEnvelope = perModelResults.filter((r) => r.verdictQuality);
+  if (withEnvelope.length === 0) return "";
+
+  // Aggregate stats from per-voice envelopes. Each cheval cmd_invoke
+  // produces a SINGLE-voice envelope (voices_planned=1). For the BB
+  // multi-voice cohort we count the number of envelopes that ended in
+  // each status.
+  const total = perModelResults.length;
+  const succeeded = withEnvelope.filter(
+    (r) => r.verdictQuality?.status === "APPROVED" || r.verdictQuality?.status === "DEGRADED",
+  ).length;
+  const anyFailed = withEnvelope.some((r) => r.verdictQuality?.status === "FAILED");
+  const anyDegraded = withEnvelope.some(
+    (r) => r.verdictQuality?.status === "DEGRADED" || r.verdictQuality?.chain_health === "degraded",
+  );
+  const allApproved = withEnvelope.every((r) => r.verdictQuality?.status === "APPROVED");
+
+  // Promote to FAILED if any voice failed OR if not all voices ran (we
+  // never received envelopes for the missing ones, suggesting they
+  // didn't reach cheval) AND the responding voices are degraded.
+  const missingVoices = total - withEnvelope.length;
+
+  let banner: string;
+  if (anyFailed || (missingVoices === total)) {
+    banner = `❌ FAILED — ${succeeded}/${total} voices succeeded; verdict unsafe`;
+  } else if (anyDegraded || missingVoices > 0 || !allApproved) {
+    banner = `⚠ DEGRADED — ${succeeded}/${total} voices succeeded`;
+  } else {
+    banner = `✓ APPROVED — ${succeeded}/${total} voices, chain ok`;
+  }
+
+  return `**Verdict Quality**: ${banner}\n\n`;
+}
+
 function formatModelComment(
   provider: string,
   modelId: string,
