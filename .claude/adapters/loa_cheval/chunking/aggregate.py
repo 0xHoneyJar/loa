@@ -232,22 +232,117 @@ def detect_boundary_findings(
 
 
 def _default_dispatch_fn(input_text: str) -> List[Finding]:
-    """Default second-stage dispatch — production routes through cheval.
+    """Default second-stage dispatch — production routes through cheval
+    via subprocess.
+
+    Gating:
+      - LOA_CHEVAL_DISABLE_SECOND_STAGE=1 → no-op (returns []). Tests
+        and CI runs without API keys set this to skip the dispatch.
+      - LOA_CHEVAL_SECOND_STAGE_MODEL (default "opus") → model alias
+        used for the second-stage call.
+      - subprocess timeout 60s (hard cap; second-stage is bounded
+        per SDD §5.4.3).
 
     Test injection: monkeypatch this symbol on the aggregate module to
-    avoid live model calls. See test_chunking_cross_chunk_pass.py for
+    avoid the subprocess. See test_chunking_cross_chunk_pass.py for
     the canonical fixture-injection pattern.
 
-    For T4.4 v1 (this commit) the default is a no-op stub: returns
-    empty list. T4.5 wires this to the real cheval --role review
-    dispatch path. Until then, the test fixture (or T4.5 wiring) is
-    the only way to exercise second-stage behavior end-to-end.
+    Return: list of Finding parsed from cheval's JSON output. Empty list
+    on dispatch failure (caller of this fn — second_stage_review —
+    catches and gracefully degrades).
     """
-    # The substrate dispatch lives at the cheval layer (T4.5 wires it).
-    # For T4.4-only environments, return empty so the aggregator's
-    # cross-chunk-pass branch doesn't escalate (consumers get the
-    # IMP-006 result without second-stage augmentation).
-    return []
+    import os
+    import json
+    import subprocess
+    import tempfile
+
+    # Test/CI safety toggle
+    if os.environ.get("LOA_CHEVAL_DISABLE_SECOND_STAGE") == "1":
+        return []
+
+    model_alias = os.environ.get("LOA_CHEVAL_SECOND_STAGE_MODEL", "opus")
+
+    # cheval.py path. We use the same resolution as MODELINV
+    # writer_version (cheval lives at .claude/adapters/cheval.py).
+    import pathlib
+    cheval_path = pathlib.Path(__file__).resolve().parents[2] / "cheval.py"
+    if not cheval_path.is_file():
+        return []
+
+    # Write input to a temp file so we don't risk argv-size limits on
+    # large synthetic chunks
+    tmp = tempfile.NamedTemporaryFile(
+        mode="w", encoding="utf-8", suffix=".txt", delete=False,
+    )
+    try:
+        tmp.write(input_text)
+        tmp.close()
+
+        proc = subprocess.run(
+            [
+                "python3", str(cheval_path),
+                "invoke",
+                "--agent", "flatline-reviewer",
+                "--model", model_alias,
+                "--input", tmp.name,
+                "--output-format", "json",
+                "--json-errors",
+                "--timeout", "60",
+                "--role", "review",
+            ],
+            capture_output=True,
+            timeout=70,
+            text=True,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return []
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except OSError:
+            pass
+
+    if proc.returncode != 0:
+        return []
+
+    # Parse cheval JSON output → list of Finding. Content field carries
+    # the model's response. We expect a JSON array or {findings: [...]}.
+    try:
+        outer = json.loads(proc.stdout)
+        content = outer.get("content", "")
+    except (json.JSONDecodeError, AttributeError):
+        return []
+
+    # Best-effort extraction: try parsing content as JSON
+    findings_raw: List[Dict[str, Any]] = []
+    try:
+        parsed = json.loads(content)
+        if isinstance(parsed, list):
+            findings_raw = parsed
+        elif isinstance(parsed, dict) and isinstance(parsed.get("findings"), list):
+            findings_raw = parsed["findings"]
+    except (json.JSONDecodeError, AttributeError):
+        return []
+
+    # Coerce dict entries into Finding objects (defensive)
+    findings: List[Finding] = []
+    for entry in findings_raw:
+        if not isinstance(entry, dict):
+            continue
+        try:
+            findings.append(Finding(
+                id=str(entry.get("id", "stage2")),
+                file=str(entry.get("file", "")),
+                line=int(entry.get("line", 0)),
+                finding_class=str(entry.get("finding_class", entry.get("category", "unknown"))),
+                severity=str(entry.get("severity", "INFO")),
+                description=str(entry.get("description", "")),
+                evidence_anchors=list(entry.get("evidence_anchors", [])),
+            ))
+        except (TypeError, ValueError):
+            continue
+
+    return findings
 
 
 def second_stage_review(

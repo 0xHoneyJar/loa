@@ -296,6 +296,41 @@
         "chunks_dropped": { "type": "integer", "minimum": 0 },
         "chunks_aggregated_findings": { "type": "integer", "minimum": 0 }
       }
+    },
+    "chunked_review": {
+      "description": "cycle-109 Sprint 4 T4.7 (SDD §3.3.1 v1.3 additive + §5.4). Snapshot of the chunked-review dispatch state when the pre-flight gate routed input through the chunking package (loa_cheval.chunking). Absent when chunking was not invoked. Operator-facing PR-comment header (T4.8) renders this distinctly from the overall verdict so chunk-count + per-chunk degradation is visible.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["chunked"],
+      "properties": {
+        "chunked": { "type": "boolean" },
+        "chunks_reviewed": { "type": "integer", "minimum": 0 },
+        "chunks_dropped": { "type": "integer", "minimum": 0 },
+        "chunks_with_findings": { "type": "integer", "minimum": 0 },
+        "chunks_aggregated_findings": { "type": "integer", "minimum": 0 },
+        "cross_chunk_pass": { "type": "boolean" }
+      }
+    },
+    "streaming_recovery": {
+      "description": "cycle-109 Sprint 4 T4.7 (SDD §5.4.4 / IMP-014). Streaming-with-recovery telemetry: triggered = true when one of the three thresholds (first-token-deadline / empty-content-window / CoT-budget) aborted the stream. tokens_before_abort + reason populated only when triggered = true.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["triggered"],
+      "properties": {
+        "triggered": { "type": "boolean" },
+        "tokens_before_abort": {
+          "anyOf": [
+            { "type": "null" },
+            { "type": "integer", "minimum": 0 }
+          ]
+        },
+        "reason": {
+          "anyOf": [
+            { "type": "null" },
+            { "enum": ["first_token_deadline", "empty_content_window", "cot_budget_exhausted"] }
+          ]
+        }
+      }
     }
   }
 }

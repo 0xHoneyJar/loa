@@ -404,6 +404,14 @@ def emit_model_invoke_complete(
     # Optional/additive — callers that don't (yet) produce envelopes simply
     # omit the kwarg and the payload is shape-identical to pre-T2.3 emits.
     verdict_quality: Optional[Dict[str, Any]] = None,
+    # Cycle-109 Sprint 4 T4.7 — chunked-review snapshot (SDD §5.4).
+    # Populated when the pre-flight gate routed the call through the
+    # chunking package. Absent when chunking was not invoked.
+    chunked_review: Optional[Dict[str, Any]] = None,
+    # Cycle-109 Sprint 4 T4.7 — streaming-with-recovery telemetry
+    # (SDD §5.4.4 / IMP-014). Populated when the streaming code path
+    # observed (and possibly aborted via) one of the three thresholds.
+    streaming_recovery: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Emit a model.invoke.complete envelope to the MODELINV audit chain.
 
@@ -549,6 +557,15 @@ def emit_model_invoke_complete(
             payload["capability_evaluation"]["recommended_for"] = list(
                 payload["capability_evaluation"]["recommended_for"]
             )
+
+    # cycle-109 Sprint 4 T4.7 — chunked_review + streaming_recovery
+    # pass-throughs (SDD §3.3.1 v1.3 additive + §5.4 chunking +
+    # §5.4.4 IMP-014). Defensive copy at the top level so caller's
+    # dict cannot be mutated by downstream redaction passes.
+    if chunked_review is not None:
+        payload["chunked_review"] = dict(chunked_review)
+    if streaming_recovery is not None:
+        payload["streaming_recovery"] = dict(streaming_recovery)
 
     # cycle-109 Sprint 2 T2.3 — verdict_quality pass-through (SDD §3.3.1 v1.3
     # additive). Schema additivity: only emit when caller supplied the dict.
