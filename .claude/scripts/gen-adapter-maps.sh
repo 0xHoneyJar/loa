@@ -274,12 +274,27 @@ _emit_cost_map() {
     yq eval -o=json '.providers' "$CONFIG_FILE" | jq -r --arg f "$field" '
         to_entries[] as $p
         | $p.value.models | to_entries[] as $m
-        | "\($m.key)\t\($m.value.pricing[$f] // 0)"
-    ' | while IFS=$'\t' read -r model micro; do
+        | "\($m.key)\t\($m.value.pricing[$f] // 0)\t\($m.value.kind // "api")"
+    ' | while IFS=$'\t' read -r model micro kind; do
         # Note: variables inside piped `while` run in a subshell; no `local`
         # needed (and avoids a portability pitfall on older bash). The subshell
         # contract is to emit lines to stdout — we never need to propagate
         # state back to the function.
+        #
+        # cycle-104 Sprint 2 T2.4: CLI-kind headless terminals (claude-headless,
+        # codex-headless, gemini-headless) have NO pricing in YAML by design —
+        # they use the operator's CLI subscription, not a per-token API key.
+        # But model-adapter.sh.legacy:validate_model_registry() requires every
+        # MODEL_IDS key to have matching COST_INPUT/COST_OUTPUT entries; without
+        # the explicit "0" emission below, validation fails at orchestrator
+        # startup with `ERROR: COST_INPUT missing key: codex-headless` and the
+        # entire Flatline path is unusable. Emit "0" for CLI terminals so the
+        # validator is satisfied; cost accounting correctly attributes zero
+        # cost to CLI invocations (matches the no-per-token-charge semantics).
+        if [[ "$kind" == "cli" ]]; then
+            printf '    ["%s"]="0"\n' "$model"
+            continue
+        fi
         [[ "$micro" == "0" ]] && continue
         printf '    ["%s"]="%s"\n' "$model" "$(_micro_usd_to_per_1k "$micro")"
     done
