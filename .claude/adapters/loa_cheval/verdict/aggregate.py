@@ -50,6 +50,7 @@ from __future__ import annotations
 import copy
 from typing import Any, Dict, List, Optional
 
+from .consensus import classify_consensus
 from .quality import emit_envelope_with_status
 
 
@@ -58,7 +59,10 @@ _CHAIN_HEALTH_DEGRADED = "degraded"
 _CHAIN_HEALTH_EXHAUSTED = "exhausted"
 
 
-def aggregate_envelopes(envelopes: List[Dict[str, Any]]) -> Dict[str, Any]:
+def aggregate_envelopes(
+    envelopes: List[Dict[str, Any]],
+    findings_per_voice: Optional[List[List[Dict[str, Any]]]] = None,
+) -> Dict[str, Any]:
     """Aggregate N single-voice envelopes into a multi-voice envelope.
 
     Args:
@@ -67,6 +71,12 @@ def aggregate_envelopes(envelopes: List[Dict[str, Any]]) -> Dict[str, Any]:
         though this is not strictly enforced — non-conforming inputs
         will produce a structurally-valid aggregate but the semantics
         may be surprising.
+      findings_per_voice: optional (T2.9). When provided, the multi-voice
+        ``consensus_outcome`` is computed via
+        ``loa_cheval.verdict.consensus.classify_consensus`` per SDD
+        §3.2.2.1. When omitted, falls back to the T2.4 ``"consensus"``
+        placeholder (preserves backward compat for callers that don't
+        have per-voice findings handy yet).
 
     Returns:
       A validated, status-stamped multi-voice envelope.
@@ -141,8 +151,21 @@ def aggregate_envelopes(envelopes: List[Dict[str, Any]]) -> Dict[str, Any]:
         voices_dropped=voices_dropped,
     )
 
+    # cycle-109 Sprint 2 T2.9 — classify_consensus when caller provided
+    # per-voice findings. Without findings_per_voice we fall back to the
+    # T2.4 placeholder (matches single-voice substrate calls and tests
+    # that don't exercise the consensus path).
+    if findings_per_voice is not None and findings_per_voice:
+        # Compute against a partial envelope shell — classify_consensus
+        # only reads voices_succeeded so we pass a minimal dict.
+        consensus_outcome = classify_consensus(
+            {"voices_succeeded": voices_succeeded}, findings_per_voice,
+        )
+    else:
+        consensus_outcome = "consensus"
+
     envelope: Dict[str, Any] = {
-        "consensus_outcome": "consensus",  # T2.4 v1; T2.9 replaces this
+        "consensus_outcome": consensus_outcome,  # T2.9: classify_consensus or T2.4 placeholder
         "truncation_waiver_applied": truncation_waiver_any,
         "voices_planned": voices_planned,
         "voices_succeeded": voices_succeeded,
