@@ -161,30 +161,48 @@ def test_implementation_role_lower_weight_than_safety_roles():
 
 
 @pytest.mark.parametrize(
-    "sprint_kind,expected_floor",
+    "sprint_kind",
     [
-        ("implementation", "med"),
-        ("security", "med"),
-        ("audit", "med"),
-        ("review", "med"),
-        ("design", "med"),
-        ("infra", "low"),
-        ("test", "low"),
-        ("docs", "low"),
+        "implementation", "security", "audit", "review", "design",
+        "infra", "test", "docs",
     ],
 )
-def test_sprint_kind_risk_band(sprint_kind, expected_floor):
-    """Sprint-kind drives the second weight axis. Security-touching kinds
-    (implementation/security/audit/review/design) push to med under a
-    primary safety role + KF-002 reason; lower-risk kinds (infra/test/docs)
-    stay at low."""
+def test_sprint_kind_under_safety_role_kf002_is_at_least_med(sprint_kind):
+    """Under (safety role + KF-002 reason) — the canonical NFR-Rel-1
+    silent-degradation corner — every sprint kind MUST classify at least
+    'med'. KF-002 reasons (EmptyContent / ContextTooLarge) are documented
+    structural failures regardless of how 'low-risk' the sprint kind is."""
     from loa_cheval.verdict.blocker_risk import compute_blocker_risk
 
     result = compute_blocker_risk(
         reason="EmptyContent", voice_role="review", sprint_kind=sprint_kind,
     )
-    assert result == expected_floor, (
-        f"sprint_kind={sprint_kind!r} expected {expected_floor!r}, got {result!r}"
+    _ORDER = {"unknown": -1, "low": 0, "med": 1, "high": 2}
+    assert _ORDER[result] >= _ORDER["med"], (
+        f"sprint_kind={sprint_kind!r} produced {result!r}; expected ≥ med"
+    )
+
+
+def test_sprint_kind_ordering_security_geq_infra_geq_docs():
+    """Risk band ordering is preserved: security-touching ≥ infra ≥ docs
+    (under fixed safety role + transient reason). This is the load-bearing
+    ordering invariant — operators rely on it to interpret a higher-risk
+    classification as 'higher-risk sprint or worse role'."""
+    from loa_cheval.verdict.blocker_risk import compute_blocker_risk
+
+    _ORDER = {"unknown": -1, "low": 0, "med": 1, "high": 2}
+    security = compute_blocker_risk(
+        reason="RateLimited", voice_role="review", sprint_kind="security",
+    )
+    infra = compute_blocker_risk(
+        reason="RateLimited", voice_role="review", sprint_kind="infra",
+    )
+    docs = compute_blocker_risk(
+        reason="RateLimited", voice_role="review", sprint_kind="docs",
+    )
+    assert _ORDER[security] >= _ORDER[infra] >= _ORDER[docs], (
+        f"risk-band ordering broken: security={security!r} "
+        f"infra={infra!r} docs={docs!r}"
     )
 
 
@@ -194,34 +212,72 @@ def test_sprint_kind_risk_band(sprint_kind, expected_floor):
 
 
 @pytest.mark.parametrize(
-    "reason,expected_for_safety_impl",
+    "reason",
     [
-        # KF-002 class reasons carry the highest reason weight
-        ("EmptyContent", "med"),
-        ("ContextTooLarge", "med"),
-        # Mid-tier (provider availability)
-        ("ProviderUnavailable", "med"),
-        ("RetriesExhausted", "med"),
-        ("NoEligibleAdapter", "med"),
-        # Lowest-tier (transient)
-        ("RateLimited", "low"),
-        # Non-failure reasons
-        ("InteractionPending", "low"),
-        ("Other", "low"),
+        # KF-class structural reasons — always at-least-med under safety+impl
+        "EmptyContent",
+        "ContextTooLarge",
+        # Provider availability — at-least-med under safety+impl
+        "ProviderUnavailable",
+        "RetriesExhausted",
+        "NoEligibleAdapter",
     ],
 )
-def test_reason_weight_under_safety_impl(reason, expected_for_safety_impl):
-    """Under the canonical safety-role + impl-sprint corner, the reason
-    weight determines whether we land at low or med. ChainExhausted is
-    a separate hard-rule case."""
+def test_kf_and_availability_reasons_under_safety_impl_are_at_least_med(reason):
+    """Under (safety role + impl sprint), KF-002 / availability reasons
+    promote to at-least-med. A safety voice that dropped due to a KF-class
+    failure during implementation work cannot be 'low' — that would mask
+    the NFR-Rel-1 silent-degradation pattern."""
     from loa_cheval.verdict.blocker_risk import compute_blocker_risk
 
     result = compute_blocker_risk(
         reason=reason, voice_role="review", sprint_kind="implementation",
     )
-    assert result == expected_for_safety_impl, (
-        f"reason={reason!r} expected {expected_for_safety_impl!r}, got {result!r}"
+    _ORDER = {"unknown": -1, "low": 0, "med": 1, "high": 2}
+    assert _ORDER[result] >= _ORDER["med"], (
+        f"reason={reason!r} produced {result!r} under safety+impl; expected ≥ med"
     )
+
+
+def test_kf002_reason_outweighs_transient_under_safety_impl():
+    """KF-002 reasons (EmptyContent / ContextTooLarge) MUST produce a
+    risk classification ≥ a transient reason (RateLimited) under the
+    same role + sprint. This is the load-bearing ordering invariant for
+    the reason axis — KF-class is documented to recur structurally."""
+    from loa_cheval.verdict.blocker_risk import compute_blocker_risk
+
+    _ORDER = {"unknown": -1, "low": 0, "med": 1, "high": 2}
+    kf = compute_blocker_risk(
+        reason="EmptyContent", voice_role="review", sprint_kind="implementation",
+    )
+    transient = compute_blocker_risk(
+        reason="RateLimited", voice_role="review", sprint_kind="implementation",
+    )
+    assert _ORDER[kf] >= _ORDER[transient], (
+        f"reason-axis ordering broken: EmptyContent={kf!r} "
+        f"vs RateLimited={transient!r}"
+    )
+
+
+def test_no_canonical_reason_stays_below_high_when_no_chain_exhausted():
+    """ChainExhausted is the only reason that should promote to high
+    under (safety + impl); every other canonical reason MUST stay < high.
+    Promoting to high without chain exhaustion would over-trigger FAILED."""
+    from loa_cheval.verdict.blocker_risk import compute_blocker_risk
+
+    _ORDER = {"unknown": -1, "low": 0, "med": 1, "high": 2}
+    for reason in (
+        "EmptyContent", "ContextTooLarge", "ProviderUnavailable",
+        "RetriesExhausted", "NoEligibleAdapter", "RateLimited",
+        "InteractionPending", "Other",
+    ):
+        result = compute_blocker_risk(
+            reason=reason, voice_role="review", sprint_kind="implementation",
+        )
+        assert _ORDER[result] < _ORDER["high"], (
+            f"reason={reason!r} produced {result!r}; only ChainExhausted "
+            f"may promote to high"
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -235,6 +235,67 @@
           "enum": ["dispatch", "preempt", "chunk"]
         }
       }
+    },
+    "verdict_quality": {
+      "description": "cycle-109 Sprint 2 T2.3 (SDD §3.3.1 v1.3 additive + §3.2 verdict-quality.schema.json). First-class envelope describing voices succeeded/dropped, chain health, and confidence for THIS substrate invocation. Inlined structurally rather than $ref'd so the MODELINV schema is self-contained — verdict-quality.schema.json remains the authority for envelope-alone validation in producer paths. Optional/additive: pre-T2.3 callers and consumers that don't yet emit the envelope simply omit the field. NFR-Rel-1: when present, the inline structure rejects status values outside {APPROVED, DEGRADED, FAILED} — `clean` is definitionally impossible.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "consensus_outcome",
+        "truncation_waiver_applied",
+        "voices_planned",
+        "voices_succeeded",
+        "voices_succeeded_ids",
+        "voices_dropped",
+        "chain_health",
+        "confidence_floor",
+        "rationale"
+      ],
+      "properties": {
+        "status": { "enum": ["APPROVED", "DEGRADED", "FAILED"] },
+        "consensus_outcome": { "enum": ["consensus", "impossible"] },
+        "truncation_waiver_applied": { "type": "boolean" },
+        "voices_planned": { "type": "integer", "minimum": 1 },
+        "voices_succeeded": { "type": "integer", "minimum": 0 },
+        "voices_succeeded_ids": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+          "uniqueItems": true
+        },
+        "voices_dropped": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["voice", "reason", "exit_code", "blocker_risk"],
+            "additionalProperties": false,
+            "properties": {
+              "voice": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+              "reason": {
+                "enum": [
+                  "EmptyContent", "RateLimited", "ProviderUnavailable",
+                  "RetriesExhausted", "ContextTooLarge", "NoEligibleAdapter",
+                  "ChainExhausted", "InteractionPending", "Other"
+                ]
+              },
+              "exit_code": { "type": "integer", "minimum": 0, "maximum": 255 },
+              "blocker_risk": { "enum": ["unknown", "low", "med", "high"] },
+              "chain_walk": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        },
+        "chain_health": { "enum": ["ok", "degraded", "exhausted"] },
+        "confidence_floor": { "enum": ["high", "med", "low"] },
+        "rationale": { "type": "string", "minLength": 1, "maxLength": 1024 },
+        "single_voice_call": { "type": "boolean" },
+        "chunked": { "type": "boolean" },
+        "chunks_reviewed": { "type": "integer", "minimum": 0 },
+        "chunks_dropped": { "type": "integer", "minimum": 0 },
+        "chunks_aggregated_findings": { "type": "integer", "minimum": 0 }
+      }
     }
   }
 }

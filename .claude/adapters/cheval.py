@@ -59,6 +59,17 @@ from loa_cheval.audit.modelinv import (
     emit_model_invoke_complete as _emit_modelinv,
 )
 
+# cycle-109 Sprint 2 T2.3 — verdict-quality envelope (PRODUCER #1 per
+# SDD §3.2.3 IMP-004). Module-level import: keeps cmd_invoke hot path free
+# of import overhead and surfaces missing-dependency errors at module load
+# rather than at first invoke. The envelope is built in the finally block
+# of cmd_invoke from _modelinv_state and attached to the MODELINV payload.
+from loa_cheval.verdict.blocker_risk import compute_blocker_risk as _vq_compute_blocker_risk
+from loa_cheval.verdict.quality import (
+    EnvelopeInvariantViolation as _VqInvariantViolation,
+    emit_envelope_with_status as _vq_emit_with_status,
+)
+
 # Configure logging to stderr only
 logging.basicConfig(
     stream=sys.stderr,
@@ -730,6 +741,228 @@ def _load_mock_fixture_response(
         interaction_id=interaction_id,
         metadata={"mock_fixture": True, "fixture_path": fixture_path},
     )
+
+
+# ----------------------------------------------------------------------------
+# cycle-109 Sprint 2 T2.3 — verdict-quality envelope construction helpers
+# (PRODUCER #1 per SDD §3.2.3 IMP-004).
+#
+# These helpers translate the cheval-internal `_modelinv_state` shape into a
+# verdict_quality envelope conforming to verdict-quality.schema.json. cheval's
+# cmd_invoke is a single-substrate-call producer: voices_planned is always 1
+# (the chain walk is WITHIN one voice, not across voices). The verdict
+# captures whether that voice succeeded, whether the chain walked to a
+# fallback (chain_health = ok / degraded), and on full failure the
+# error-class → reason mapping plus a heuristic blocker_risk.
+# ----------------------------------------------------------------------------
+
+
+# Mapping from cheval error_class strings (the union of model-error.schema.json
+# enum values and cheval-specific class names like PREFLIGHT_PREEMPT) to the
+# verdict-quality.schema.json voices_dropped[].reason enum.
+_VQ_ERROR_CLASS_TO_REASON: Dict[str, str] = {
+    "EMPTY_CONTENT": "EmptyContent",
+    "BUDGET_EXHAUSTED": "Other",
+    "CAPABILITY_MISS": "NoEligibleAdapter",
+    "DEGRADED_PARTIAL": "Other",
+    "FALLBACK_EXHAUSTED": "RetriesExhausted",
+    "LOCAL_NETWORK_FAILURE": "ProviderUnavailable",
+    "PREFLIGHT_PREEMPT": "ContextTooLarge",
+    "PROVIDER_DISCONNECT": "ProviderUnavailable",
+    "PROVIDER_OUTAGE": "ProviderUnavailable",
+    "ROUTING_MISS": "ContextTooLarge",
+    "TIMEOUT": "RetriesExhausted",
+    "UNKNOWN": "Other",
+}
+
+
+def _vq_sanitize_voice_slug(raw: str) -> str:
+    """Coerce ``raw`` into the verdict-quality.schema.json voice / voice-id
+    pattern ``^[A-Za-z0-9._-]+$``. Disallowed characters become ``-``; an
+    empty result falls back to ``unknown``."""
+    if not raw:
+        return "unknown"
+    out_chars = []
+    for ch in raw:
+        if ch.isalnum() or ch in "._-":
+            out_chars.append(ch)
+        else:
+            out_chars.append("-")
+    cleaned = "".join(out_chars).strip("-")
+    return cleaned or "unknown"
+
+
+def _vq_derive_voice_slug(
+    role: Optional[str], primary_canonical: Optional[str]
+) -> str:
+    """Voice slug = ``--role`` when provided; otherwise the primary model_id
+    portion of the head chain entry (``provider:model_id`` → ``model_id``).
+    """
+    if role:
+        return _vq_sanitize_voice_slug(role)
+    if primary_canonical:
+        _, sep, model_id = primary_canonical.partition(":")
+        return _vq_sanitize_voice_slug(model_id if sep else primary_canonical)
+    return "unknown"
+
+
+def _vq_map_reason(
+    *,
+    models_failed: List[Dict[str, Any]],
+    chain_size: int,
+    succeeded: bool,
+) -> str:
+    """Resolve the verdict-quality voices_dropped[].reason enum value.
+
+    On full chain exhaustion with >= 2 chain entries we report
+    ``ChainExhausted`` per SDD §3.2.2 (the multi-entry walk-fallthrough
+    case). Single-entry exhaustion falls back to the last error_class
+    mapping so the reason captures the actual root cause.
+    """
+    if succeeded:
+        return "Other"  # caller MUST NOT consult reason when succeeded
+    if not models_failed:
+        return "Other"
+    # Multi-entry walked entirely → ChainExhausted is the canonical reason.
+    if chain_size >= 2:
+        return "ChainExhausted"
+    # Single-entry chain: use the last recorded error_class mapping.
+    last_class = str(models_failed[-1].get("error_class") or "UNKNOWN")
+    return _VQ_ERROR_CLASS_TO_REASON.get(last_class, "Other")
+
+
+def _vq_derive_chain_health(
+    *,
+    succeeded: bool,
+    final_model_id: Optional[str],
+    primary_canonical: Optional[str],
+) -> str:
+    """``ok`` = primary chain entry succeeded; ``degraded`` = walked to a
+    fallback that succeeded; ``exhausted`` = no entry succeeded."""
+    if not succeeded:
+        return "exhausted"
+    if (
+        final_model_id is not None
+        and primary_canonical is not None
+        and final_model_id == primary_canonical
+    ):
+        return "ok"
+    return "degraded"
+
+
+def _vq_build_rationale(
+    *,
+    succeeded: bool,
+    chain_health: str,
+    models_failed_count: int,
+    chain_size: int,
+    final_model_id: Optional[str],
+    voice_slug: str,
+) -> str:
+    """Compose a one-paragraph rationale per FR-2.8 / schema.rationale.
+    MUST NOT include credentials / endpoint URLs / API keys (NFR-Sec-4).
+    Only model identifiers, counts, and the voice slug appear; all of these
+    are bounded by the same schema patterns as the envelope fields."""
+    if succeeded and chain_health == "ok":
+        return (
+            f"single-voice cheval invoke (voice={voice_slug}); primary chain "
+            f"entry succeeded; chain_health=ok"
+        )
+    if succeeded and chain_health == "degraded":
+        # NOTE: final_model_id is provider:model_id form which matches the
+        # ^[a-z][a-z0-9_]*:[a-zA-Z0-9._-]+$ pattern; no shell metas to escape.
+        return (
+            f"single-voice cheval invoke (voice={voice_slug}); chain walked "
+            f"to fallback {final_model_id or 'unknown'} (succeeded); "
+            f"chain_health=degraded"
+        )
+    # Failure paths
+    return (
+        f"single-voice cheval invoke (voice={voice_slug}); chain exhausted "
+        f"after {models_failed_count}/{chain_size} entries; chain_health=exhausted"
+    )
+
+
+def _vq_build_envelope(
+    *,
+    models_requested: List[str],
+    models_succeeded: List[str],
+    models_failed: List[Dict[str, Any]],
+    final_model_id: Optional[str],
+    role: Optional[str],
+    sprint_kind: Optional[str],
+    last_walk_exit_code: int,
+) -> Dict[str, Any]:
+    """Build and validate a verdict_quality envelope for a single cmd_invoke.
+
+    Returns the validated, status-stamped envelope (per SDD §3.2.2). On
+    invariant violation raises ``_VqInvariantViolation`` which the caller
+    SHOULD catch + log + emit MODELINV without the field rather than
+    failing the user-facing call.
+    """
+    primary_canonical = models_requested[0] if models_requested else None
+    chain_size = len(models_requested)
+    succeeded = bool(models_succeeded)
+    voice_slug = _vq_derive_voice_slug(role, primary_canonical)
+
+    voices_succeeded = 1 if succeeded else 0
+    voices_succeeded_ids = [voice_slug] if succeeded else []
+
+    chain_health = _vq_derive_chain_health(
+        succeeded=succeeded,
+        final_model_id=final_model_id,
+        primary_canonical=primary_canonical,
+    )
+
+    voices_dropped: List[Dict[str, Any]] = []
+    if not succeeded:
+        reason = _vq_map_reason(
+            models_failed=models_failed,
+            chain_size=chain_size,
+            succeeded=succeeded,
+        )
+        blocker_risk = _vq_compute_blocker_risk(
+            reason=reason, voice_role=role, sprint_kind=sprint_kind,
+        )
+        chain_walk = [
+            str(f["model"])
+            for f in models_failed
+            if isinstance(f, dict) and f.get("model")
+        ]
+        # Clamp exit code to the POSIX range so schema validation (0..255)
+        # cannot reject the envelope on an out-of-band value.
+        exit_code = max(0, min(255, int(last_walk_exit_code)))
+        voices_dropped.append({
+            "voice": voice_slug,
+            "reason": reason,
+            "exit_code": exit_code,
+            "blocker_risk": blocker_risk,
+            "chain_walk": chain_walk,
+        })
+
+    rationale = _vq_build_rationale(
+        succeeded=succeeded,
+        chain_health=chain_health,
+        models_failed_count=len(models_failed),
+        chain_size=chain_size,
+        final_model_id=final_model_id,
+        voice_slug=voice_slug,
+    )
+
+    envelope: Dict[str, Any] = {
+        "consensus_outcome": "consensus",
+        "truncation_waiver_applied": False,
+        "voices_planned": 1,
+        "voices_succeeded": voices_succeeded,
+        "voices_succeeded_ids": voices_succeeded_ids,
+        "voices_dropped": voices_dropped,
+        "chain_health": chain_health,
+        "confidence_floor": "low",  # single-voice paths per schema §confidence_floor
+        "rationale": rationale,
+        "single_voice_call": True,
+    }
+    # validate_invariants + compute_verdict_status stamp `status` in-place.
+    return _vq_emit_with_status(envelope)
 
 
 def cmd_invoke(args: argparse.Namespace) -> int:
@@ -1584,6 +1817,38 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                 _chain_list = [p.strip() for p in _invocation_chain_env.split(",") if p.strip()]
                 if _chain_list:
                     _advisor_kwargs["invocation_chain"] = _chain_list[:16]
+
+            # cycle-109 Sprint 2 T2.3 — verdict-quality envelope construction.
+            # Build BEFORE _emit_modelinv so a builder error logs to stderr
+            # without preventing the MODELINV envelope from landing in the
+            # chain. SDD §3.2.3 IMP-004 row 1: cheval is PRODUCER #1; every
+            # invoke MUST attempt to emit. Failures here are fail-soft.
+            _vq_envelope: Optional[Dict[str, Any]] = None
+            try:
+                _vq_envelope = _vq_build_envelope(
+                    models_requested=_modelinv_models_requested,
+                    models_succeeded=_modelinv_state["models_succeeded"],
+                    models_failed=_modelinv_state["models_failed"],
+                    final_model_id=_modelinv_state["final_model_id"],
+                    role=getattr(args, "role", None),
+                    sprint_kind=getattr(args, "sprint_kind", None),
+                    last_walk_exit_code=_last_walk_exit_code,
+                )
+            except _VqInvariantViolation as _vqe:
+                # The envelope failed v5 SKP-005 invariant checks. This
+                # indicates a producer-side bug (we built a malformed
+                # envelope); log it loudly and proceed without the field.
+                print(
+                    f"[verdict-quality-invariant-violation] {_vqe}",
+                    file=sys.stderr,
+                )
+            except Exception as _vqe:  # noqa: BLE001 — defense-in-depth fail-soft
+                print(
+                    f"[verdict-quality-build-failed] "
+                    f"{type(_vqe).__name__}: {_vqe}",
+                    file=sys.stderr,
+                )
+
             try:
                 _emit_modelinv(
                     models_requested=_modelinv_models_requested,
@@ -1599,6 +1864,7 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     config_observed=_modelinv_state["config_observed"],
                     pricing_snapshot=_modelinv_state["pricing_snapshot"],
                     capability_evaluation=_modelinv_state["capability_evaluation"],
+                    verdict_quality=_vq_envelope,
                     **_advisor_kwargs,
                 )
             except _ModelinvRedactionFailure as _rf:

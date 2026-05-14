@@ -231,7 +231,7 @@ JSON
         {
             "model": "anthropic:claude-opus-4-7",
             "provider": "anthropic",
-            "error_class": "RETRIES_EXHAUSTED",
+            "error_class": "FALLBACK_EXHAUSTED",
             "message_redacted": "all retries failed"
         }
     ],

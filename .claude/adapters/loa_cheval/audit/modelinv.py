@@ -398,6 +398,12 @@ def emit_model_invoke_complete(
     # path bypassed the gate (LOA_CHEVAL_DISABLE_INPUT_GATE=1, async mode,
     # or pre-resolution failure).
     capability_evaluation: Optional[Dict[str, Any]] = None,
+    # Cycle-109 Sprint 2 T2.3 — verdict-quality envelope (SDD §3.3.1 v1.3
+    # additive + §3.2 schema). Validated + status-stamped envelope built
+    # by the caller via `loa_cheval.verdict.quality.emit_envelope_with_status`.
+    # Optional/additive — callers that don't (yet) produce envelopes simply
+    # omit the kwarg and the payload is shape-identical to pre-T2.3 emits.
+    verdict_quality: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Emit a model.invoke.complete envelope to the MODELINV audit chain.
 
@@ -543,6 +549,27 @@ def emit_model_invoke_complete(
             payload["capability_evaluation"]["recommended_for"] = list(
                 payload["capability_evaluation"]["recommended_for"]
             )
+
+    # cycle-109 Sprint 2 T2.3 — verdict_quality pass-through (SDD §3.3.1 v1.3
+    # additive). Schema additivity: only emit when caller supplied the dict.
+    # The caller (cheval.cmd_invoke for PRODUCER #1) is responsible for
+    # building + validating the envelope via emit_envelope_with_status; the
+    # emitter trusts the contract and passes the dict through verbatim
+    # (post-redaction) into the MODELINV payload.
+    if verdict_quality is not None:
+        # Defensive copy at the top level so caller's dict cannot be mutated
+        # by the redaction pass. voices_dropped[] entries are dicts too —
+        # do a one-level-deep copy on the list contents for the same reason.
+        _vq_copy: Dict[str, Any] = dict(verdict_quality)
+        _dropped = _vq_copy.get("voices_dropped")
+        if isinstance(_dropped, list):
+            _vq_copy["voices_dropped"] = [
+                dict(d) if isinstance(d, dict) else d for d in _dropped
+            ]
+        _succeeded_ids = _vq_copy.get("voices_succeeded_ids")
+        if isinstance(_succeeded_ids, list):
+            _vq_copy["voices_succeeded_ids"] = list(_succeeded_ids)
+        payload["verdict_quality"] = _vq_copy
 
     # Field-level redaction.
     payload = redact_payload_strings(payload)
