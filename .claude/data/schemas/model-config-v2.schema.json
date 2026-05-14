@@ -105,6 +105,11 @@
           "enum": ["chat", "responses"],
           "description": "cycle-095 Sprint 1 (SDD §3.4): REQUIRED on every OpenAI registry entry. Carried forward verbatim from v1."
         },
+        "kind": {
+          "type": "string",
+          "enum": ["http", "cli"],
+          "description": "cycle-104 Sprint 2 T2.11 adapter routing discriminant. 'http' (default — provider HTTP API) vs 'cli' (subprocess to claude-headless / codex-headless / gemini-headless for zero-API-key CLI-subscription environments). The cheval._CLI_ADAPTER_BY_PROVIDER map dispatches kind:cli entries to the per-provider CLI adapter. KF-006-symmetric: this field was added to the live model-config.yaml in cycle-104 e41b5575 but never landed in the v2 schema — the path-filtered cycle099-sprint-1e-tests workflow only surfaces the rejection when a PR touches the migrator, so main was 'passing' by virtue of not running. cycle-109 sprint-1 T1.8 added the symmetric field to v3; this entry closes the v2 gap."
+        },
         "api_format": {
           "description": "String shorthand or per-capability mapping (cycle-095 bedrock pattern: {chat: converse, tools: converse, ...}).",
           "type": ["string", "object"]
