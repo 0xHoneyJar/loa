@@ -162,11 +162,6 @@ _require_jsonschema() {
     [ "$status_value" = "APPROVED" ]
     [ "$voices_planned" -eq 3 ]
     [ "$voices_succeeded" -eq 3 ]
-
-    # Round-trip the aggregate through the schema validator.
-    run bash -c "echo '$output' | _validate_envelope_stdin"
-    # Note: heredoc subshell call — re-run with proper invocation
-    echo "$output" | _validate_envelope_stdin
 }
 
 # =============================================================================
@@ -190,7 +185,10 @@ _require_jsonschema() {
     chain_health=$(echo "$output" | jq -r '.chain_health')
     voices_dropped_count=$(echo "$output" | jq -r '.voices_dropped | length')
     [ "$status_value" = "DEGRADED" ]
-    [ "$chain_health" = "exhausted" ]
+    # Multi-voice chain_health: degraded (not exhausted) on partial success
+    # so the SDD §3.2.2 chain_health=exhausted ⇒ FAILED auto-promotion does
+    # not fire on a majority-success cohort.
+    [ "$chain_health" = "degraded" ]
     [ "$voices_dropped_count" -eq 1 ]
 }
 
@@ -275,18 +273,21 @@ _require_jsonschema() {
     agg=$("$PYTHON_BIN" -m loa_cheval.verdict.aggregate "$f1" "$f2" "$f3")
     [ -n "$agg" ]
 
-    run bash -c "echo '$agg' | $0:_validate_envelope_stdin" || true
-    # Inline validation (avoid bash function-export complexity):
-    local result
-    result=$(echo "$agg" | "$PYTHON_BIN" - <<PY
+    # Inline validation via heredoc (avoid bats function-export complexity).
+    # Write aggregate to a temp file so the python script can read it cleanly
+    # without quoting hazards on the embedded JSON content.
+    local agg_file="$BATS_TMP/agg.json"
+    echo "$agg" > "$agg_file"
+
+    run "$PYTHON_BIN" -c "
 import json, sys
 import jsonschema
-schema = json.load(open("$VERDICT_SCHEMA_PATH"))
-envelope = json.load(sys.stdin)
+schema = json.load(open('$VERDICT_SCHEMA_PATH'))
+envelope = json.load(open('$agg_file'))
 errors = list(jsonschema.validators.validator_for(schema)(schema).iter_errors(envelope))
-print("INVALID:" + errors[0].message if errors else "VALID")
+print('INVALID: ' + errors[0].message if errors else 'VALID')
 sys.exit(1 if errors else 0)
-PY
-)
-    [[ "$result" == "VALID" ]]
+"
+    [ "$status" -eq 0 ]
+    [[ "$output" == "VALID" ]]
 }

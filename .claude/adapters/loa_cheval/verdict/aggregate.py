@@ -1,0 +1,281 @@
+"""cycle-109 Sprint 2 T2.4 — verdict_quality multi-voice aggregator
+(CONSUMER #2 per SDD §3.2.3 IMP-004).
+
+flatline-orchestrator.sh runs N voices (canonically 3: GPT/Opus/Gemini)
+in parallel, each producing a single-voice verdict_quality envelope via
+the cheval cmd_invoke producer (T2.3 PRODUCER #1). This module
+aggregates those into a multi-voice envelope conforming to
+verdict-quality.schema.json, which FL writes to final_consensus.json.
+
+Per SDD §5.2.1 the aggregator is the canonical Python writer:
+flatline-orchestrator.sh shells out via
+``python -m loa_cheval.verdict.aggregate <file1> <file2> ...``. No jq
+logic in bash — drift impossible by construction.
+
+Aggregation contract (T2.4 v1):
+
+  voices_planned        = len(inputs)
+  voices_succeeded      = sum of voices_succeeded across inputs
+  voices_succeeded_ids  = flat list of succeeded ids
+  voices_dropped        = concatenation of dropped[] from each input
+  chain_health          = "exhausted" iff voices_succeeded == 0
+                          "ok"         iff voices_succeeded == voices_planned
+                                          AND every input chain_health == "ok"
+                          "degraded"   otherwise (any sub-optimal voice state
+                                          while at least one voice succeeded —
+                                          including a single-voice chain-walk
+                                          to fallback OR a fully-failed voice
+                                          alongside successful peers)
+  confidence_floor      = "high" if all succeeded
+                          "med"  if majority succeeded (>= half)
+                          "low"  otherwise
+  consensus_outcome     = "consensus" (T2.4 placeholder; T2.9 replaces
+                          with classify_consensus per SDD §3.2.2.1)
+  truncation_waiver_applied = false
+  rationale             = one-paragraph aggregate summary
+  single_voice_call     = (voices_planned == 1)
+  status                = computed by emit_envelope_with_status per
+                          SDD §3.2.2 (so any voices_dropped[].blocker_risk
+                          == "high" properly promotes to FAILED)
+
+The aggregator passes the final envelope through emit_envelope_with_status
+so validate_invariants + compute_verdict_status run on the aggregate
+shape; this closes the NFR-Rel-1 invariant that "clean ⇒ APPROVED only on
+full success" cannot be bypassed by a buggy aggregator emitting status
+directly.
+"""
+
+from __future__ import annotations
+
+import copy
+from typing import Any, Dict, List, Optional
+
+from .quality import emit_envelope_with_status
+
+
+_CHAIN_HEALTH_OK = "ok"
+_CHAIN_HEALTH_DEGRADED = "degraded"
+_CHAIN_HEALTH_EXHAUSTED = "exhausted"
+
+
+def aggregate_envelopes(envelopes: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Aggregate N single-voice envelopes into a multi-voice envelope.
+
+    Args:
+      envelopes: list of validated verdict_quality envelopes, one per
+        voice. Each MUST have ``voices_planned == 1`` (single-voice)
+        though this is not strictly enforced — non-conforming inputs
+        will produce a structurally-valid aggregate but the semantics
+        may be surprising.
+
+    Returns:
+      A validated, status-stamped multi-voice envelope.
+
+    Raises:
+      ValueError: if ``envelopes`` is empty (the schema requires
+        ``voices_planned >= 1`` so a zero-voice envelope cannot exist).
+      EnvelopeInvariantViolation: if the aggregate fails
+        ``validate_invariants``.
+    """
+    if not envelopes:
+        raise ValueError(
+            "aggregate_envelopes requires at least one input envelope "
+            "(verdict-quality.schema.json requires voices_planned >= 1)"
+        )
+
+    # Deep-copy inputs to avoid mutating caller's data — callers may
+    # keep references for per-voice logging downstream.
+    inputs = [copy.deepcopy(e) for e in envelopes]
+
+    voices_planned = len(inputs)
+
+    # Sum succeeded counts + concatenate succeeded ids.
+    voices_succeeded = 0
+    voices_succeeded_ids: List[str] = []
+    voices_dropped: List[Dict[str, Any]] = []
+    all_inputs_ok = True
+    truncation_waiver_any = False
+
+    for env in inputs:
+        voices_succeeded += int(env.get("voices_succeeded") or 0)
+        succeeded_ids = env.get("voices_succeeded_ids") or []
+        if isinstance(succeeded_ids, list):
+            voices_succeeded_ids.extend(str(s) for s in succeeded_ids)
+
+        dropped = env.get("voices_dropped") or []
+        if isinstance(dropped, list):
+            for d in dropped:
+                if isinstance(d, dict):
+                    voices_dropped.append(copy.deepcopy(d))
+
+        if env.get("chain_health", _CHAIN_HEALTH_OK) != _CHAIN_HEALTH_OK:
+            all_inputs_ok = False
+
+        if env.get("truncation_waiver_applied"):
+            truncation_waiver_any = True
+
+    # Multi-voice chain_health semantics differ from the single-voice case:
+    # "exhausted" only when EVERY voice failed (voices_succeeded == 0).
+    # Otherwise — partial success — the aggregate is at most "degraded"
+    # so the SDD §3.2.2 'chain_health=exhausted ⇒ FAILED' auto-promotion
+    # doesn't fire on majority-success cohorts (the canonical FL trajectory).
+    if voices_succeeded == 0:
+        chain_health = _CHAIN_HEALTH_EXHAUSTED
+    elif voices_succeeded == voices_planned and all_inputs_ok:
+        chain_health = _CHAIN_HEALTH_OK
+    else:
+        chain_health = _CHAIN_HEALTH_DEGRADED
+
+    # Confidence floor by ratio. Half (or more) succeeded = med; all = high.
+    if voices_succeeded == voices_planned:
+        confidence_floor = "high"
+    elif voices_succeeded * 2 >= voices_planned and voices_succeeded > 0:
+        confidence_floor = "med"
+    else:
+        confidence_floor = "low"
+
+    rationale = _build_aggregate_rationale(
+        voices_planned=voices_planned,
+        voices_succeeded=voices_succeeded,
+        chain_health=chain_health,
+        voices_dropped=voices_dropped,
+    )
+
+    envelope: Dict[str, Any] = {
+        "consensus_outcome": "consensus",  # T2.4 v1; T2.9 replaces this
+        "truncation_waiver_applied": truncation_waiver_any,
+        "voices_planned": voices_planned,
+        "voices_succeeded": voices_succeeded,
+        "voices_succeeded_ids": voices_succeeded_ids,
+        "voices_dropped": voices_dropped,
+        "chain_health": chain_health,
+        "confidence_floor": confidence_floor,
+        "rationale": rationale,
+        "single_voice_call": voices_planned == 1,
+    }
+    # emit_envelope_with_status runs validate_invariants then stamps
+    # status per SDD §3.2.2. Any voices_dropped[].blocker_risk == "high"
+    # auto-promotes to FAILED via the hard rule in compute_verdict_status.
+    return emit_envelope_with_status(envelope)
+
+
+def _build_aggregate_rationale(
+    *,
+    voices_planned: int,
+    voices_succeeded: int,
+    chain_health: str,
+    voices_dropped: List[Dict[str, Any]],
+) -> str:
+    """One-paragraph aggregate summary. NFR-Sec-4-safe (no credentials /
+    endpoint URLs — only voice slugs which match ^[A-Za-z0-9._-]+$).
+    Bounded to schema's max 1024 chars; truncates if many dropped voices
+    push the rationale past the limit."""
+    parts: List[str] = [
+        f"multi-voice aggregate ({voices_succeeded}/{voices_planned} succeeded);"
+        f" chain_health={chain_health}",
+    ]
+    if voices_dropped:
+        dropped_summaries: List[str] = []
+        for d in voices_dropped:
+            v = str(d.get("voice", "?"))
+            r = str(d.get("reason", "?"))
+            br = str(d.get("blocker_risk", "?"))
+            dropped_summaries.append(f"{v}({r}/{br})")
+        # Bound the joined list so a 30-voice cohort with verbose entries
+        # cannot push the rationale past 1024 chars (schema rejects).
+        joined = ", ".join(dropped_summaries)
+        if len(joined) > 800:
+            joined = joined[:797] + "..."
+        parts.append(f"dropped: {joined}")
+    result = "; ".join(parts)
+    if len(result) > 1024:
+        result = result[:1021] + "..."
+    return result
+
+
+# ---------------------------------------------------------------------------
+# CLI entry-point — bash twin (flatline-orchestrator.sh) shells out here.
+# ---------------------------------------------------------------------------
+
+
+def _cli_main(argv: Optional[List[str]] = None) -> int:
+    """`python -m loa_cheval.verdict.aggregate <file1> <file2> ...`
+
+    Reads each path as a single-voice envelope JSON, aggregates, and
+    prints the multi-voice envelope as compact JSON to stdout.
+
+    Exit codes:
+      0   success
+      2   EnvelopeInvariantViolation OR ValueError on aggregation
+      3   malformed JSON input OR missing file
+      64  usage error (no input files supplied)
+    """
+    import argparse
+    import json
+    import sys
+
+    parser = argparse.ArgumentParser(
+        prog="loa_cheval.verdict.aggregate",
+        description="Aggregate single-voice verdict_quality envelopes "
+                    "into a multi-voice envelope (cycle-109 Sprint 2 T2.4)",
+    )
+    parser.add_argument(
+        "files", nargs="*",
+        help="Paths to single-voice verdict_quality envelope JSON files.",
+    )
+    args = parser.parse_args(argv)
+
+    if not args.files:
+        parser.print_usage(file=sys.stderr)
+        print(
+            "error: at least one envelope file path is required",
+            file=sys.stderr,
+        )
+        return 64
+
+    envelopes: List[Dict[str, Any]] = []
+    for path in args.files:
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                envelopes.append(json.load(fh))
+        except FileNotFoundError as e:
+            print(
+                f"[verdict-aggregate] file not found: {path}: {e}",
+                file=sys.stderr,
+            )
+            return 3
+        except json.JSONDecodeError as e:
+            print(
+                f"[verdict-aggregate] malformed JSON in {path}: {e}",
+                file=sys.stderr,
+            )
+            return 3
+        except OSError as e:
+            print(
+                f"[verdict-aggregate] cannot read {path}: "
+                f"{type(e).__name__}: {e}",
+                file=sys.stderr,
+            )
+            return 3
+
+    # Lazy import here so the validation-failure exit-code path doesn't
+    # need quality.py to load successfully (defensive against test envs
+    # that mock the dependency).
+    from .quality import EnvelopeInvariantViolation
+
+    try:
+        out = aggregate_envelopes(envelopes)
+    except EnvelopeInvariantViolation as e:
+        print(f"[verdict-aggregate] invariant violation: {e}", file=sys.stderr)
+        return 2
+    except ValueError as e:
+        print(f"[verdict-aggregate] value error: {e}", file=sys.stderr)
+        return 2
+
+    print(json.dumps(out, separators=(",", ":"), ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    import sys
+    sys.exit(_cli_main())

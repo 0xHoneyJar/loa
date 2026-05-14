@@ -69,6 +69,7 @@ from loa_cheval.verdict.quality import (
     EnvelopeInvariantViolation as _VqInvariantViolation,
     emit_envelope_with_status as _vq_emit_with_status,
 )
+from loa_cheval.verdict.sidecar import write_sidecar as _vq_write_sidecar
 
 # Configure logging to stderr only
 logging.basicConfig(
@@ -1848,6 +1849,13 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     f"{type(_vqe).__name__}: {_vqe}",
                     file=sys.stderr,
                 )
+
+            # cycle-109 Sprint 2 T2.4 — sidecar transport for FL CONSUMER #2.
+            # When LOA_VERDICT_QUALITY_SIDECAR is set, write the envelope JSON
+            # to that path so flatline-orchestrator.sh (and other bash callers)
+            # can read it back without scraping the shared MODELINV log under
+            # parallel-dispatch races. Fail-soft; no-op when env var unset.
+            _vq_write_sidecar(_vq_envelope)
 
             try:
                 _emit_modelinv(

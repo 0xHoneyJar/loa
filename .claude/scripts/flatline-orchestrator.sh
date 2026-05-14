@@ -511,6 +511,82 @@ declare -A MODEL_TO_PROVIDER_ID=(
     ["gemini-2.5-pro"]="google:gemini-2.5-pro"
 )
 
+# cycle-109 Sprint 2 T2.4 — verdict_quality multi-voice aggregation
+# (CONSUMER #2 per SDD §3.2.3 IMP-004).
+#
+# Reads verdict_quality from each per-voice phase1 output file, shells out
+# to `python -m loa_cheval.verdict.aggregate` (the canonical Python
+# aggregator per SDD §5.2.1 — bash twin never reimplements the merge
+# logic), and writes the aggregated multi-voice envelope to
+# final_consensus.json alongside the existing phase artifacts.
+#
+# Usage: aggregate_and_write_final_consensus <phase> <file1> [<file2> ...]
+# Files are phase1 output JSON files; each is expected to carry a
+# verdict_quality field (legacy / pre-T2.3 cheval emits omit the field;
+# such voices are silently skipped from the aggregate).
+#
+# Fail-soft: missing python module / empty input / aggregator error
+# logs a warning but does NOT abort the orchestrator. The final
+# consensus calculation runs regardless.
+aggregate_and_write_final_consensus() {
+    local phase="$1"
+    shift
+    local -a input_files=("$@")
+    if [[ ${#input_files[@]} -eq 0 ]]; then
+        log "[vq-aggregate] no input files supplied — skipping"
+        return 0
+    fi
+
+    local output_dir="$PROJECT_ROOT/grimoires/loa/a2a/flatline"
+    mkdir -p "$output_dir"
+    local target="$output_dir/${phase}-final_consensus.json"
+
+    # Extract verdict_quality from each input file into per-voice tmp files.
+    local -a vq_files=()
+    local cleanup_files=()
+    local f vq
+    for f in "${input_files[@]}"; do
+        [[ -s "$f" ]] || continue
+        vq=$(jq -c '.verdict_quality // empty' "$f" 2>/dev/null || true)
+        if [[ -n "$vq" && "$vq" != "null" ]]; then
+            local tmp
+            tmp=$(mktemp "${TEMP_DIR:-/tmp}/vq-input.XXXXXX.json")
+            printf '%s' "$vq" > "$tmp"
+            vq_files+=("$tmp")
+            cleanup_files+=("$tmp")
+        fi
+    done
+
+    if [[ ${#vq_files[@]} -eq 0 ]]; then
+        log "[vq-aggregate] no verdict_quality envelopes found in inputs — skipping ${target##*/} (legacy / pre-T2.3 cheval emits)"
+        return 0
+    fi
+
+    # Shell out to the canonical Python aggregator. PYTHONPATH points at
+    # .claude/adapters so loa_cheval is importable without an install step.
+    local agg_out agg_rc=0
+    agg_out=$(PYTHONPATH="$PROJECT_ROOT/.claude/adapters" \
+        python3 -m loa_cheval.verdict.aggregate "${vq_files[@]}" 2>&1) || agg_rc=$?
+    if [[ $agg_rc -ne 0 ]]; then
+        log "[vq-aggregate] aggregator failed (rc=$agg_rc): $agg_out"
+    else
+        printf '%s\n' "$agg_out" | jq . > "$target" 2>/dev/null || {
+            log "[vq-aggregate] aggregator output not valid JSON; skipping write"
+        }
+        if [[ -s "$target" ]]; then
+            local final_status
+            final_status=$(jq -r '.status' "$target" 2>/dev/null || echo "?")
+            log "[vq-aggregate] wrote $target (status=$final_status, voices=${#vq_files[@]}/${#input_files[@]})"
+        fi
+    fi
+
+    # Clean up per-voice tmp inputs.
+    local c
+    for c in "${cleanup_files[@]}"; do
+        rm -f "$c" 2>/dev/null || true
+    done
+}
+
 # Unified model call: routes through model-invoke (direct) or model-adapter.sh (legacy)
 # Usage: call_model <model> <mode> <input> <phase> [context] [timeout]
 call_model() {
@@ -565,16 +641,27 @@ call_model() {
         local invoke_log
         invoke_log=$(setup_invoke_log "flatline-${mode}-${model}")
 
+        # cycle-109 Sprint 2 T2.4 — verdict_quality sidecar (CONSUMER #2).
+        # Allocate a per-call sidecar path so cheval writes its envelope
+        # back into a per-voice file. Parallel-dispatch safe because each
+        # invocation gets a unique TEMP_DIR-rooted path (TEMP_DIR is set
+        # by the orchestrator's setup; mode+model+PID-derived suffix keeps
+        # concurrent reviews on the same model distinct).
+        local vq_sidecar
+        vq_sidecar="${TEMP_DIR:-/tmp}/vq-${mode}-${model//[^A-Za-z0-9_-]/_}-$$-$RANDOM.json"
+
         local result exit_code=0
         # Synchronous stderr capture — avoids process substitution race condition
         # where >(redact_secrets) may not finish writing before log is read
-        result=$("$MODEL_INVOKE" "${args[@]}" 2>"${invoke_log}.raw") || exit_code=$?
+        result=$(LOA_VERDICT_QUALITY_SIDECAR="$vq_sidecar" \
+            "$MODEL_INVOKE" "${args[@]}" 2>"${invoke_log}.raw") || exit_code=$?
         if [[ -s "${invoke_log}.raw" ]]; then
             redact_secrets < "${invoke_log}.raw" >> "$invoke_log"
         fi
         rm -f "${invoke_log}.raw"
 
         if [[ $exit_code -ne 0 ]]; then
+            rm -f "$vq_sidecar" 2>/dev/null || true
             log_invoke_failure "$exit_code" "$invoke_log" "$timeout"
             return $exit_code
         fi
@@ -582,11 +669,27 @@ call_model() {
         # Clean up on success
         cleanup_invoke_log "$invoke_log"
 
-        # Translate output to legacy format for downstream compatibility
+        # cycle-109 Sprint 2 T2.4 — read verdict_quality sidecar back.
+        # Absent file = cheval was an older build or envelope construction
+        # failed; downstream consumers handle absent verdict_quality
+        # gracefully (no propagation = legacy shape).
+        local vq_envelope="null"
+        if [[ -s "$vq_sidecar" ]]; then
+            if jq empty < "$vq_sidecar" 2>/dev/null; then
+                vq_envelope=$(cat "$vq_sidecar")
+            else
+                log "[vq-warn] sidecar present but not valid JSON: $vq_sidecar"
+            fi
+        fi
+        rm -f "$vq_sidecar" 2>/dev/null || true
+
+        # Translate output to legacy format for downstream compatibility,
+        # attaching the verdict_quality envelope as a new additive field.
         echo "$result" | jq \
             --arg model "$model" \
             --arg mode "$mode" \
             --arg phase "$phase" \
+            --argjson vq "$vq_envelope" \
             '{
                 content: .content,
                 tokens_input: (.usage.input_tokens // 0),
@@ -596,7 +699,8 @@ call_model() {
                 model: $model,
                 mode: $mode,
                 phase: $phase,
-                cost_usd: 0
+                cost_usd: 0,
+                verdict_quality: $vq
             }'
     else
         # Legacy path: model-adapter.sh (or shim)
@@ -1984,6 +2088,18 @@ main() {
     # FR-3: Tertiary paths are lines 5-6 when present
     tertiary_review_file=$(echo "$phase1_output" | sed -n '5p')
     tertiary_skeptic_file=$(echo "$phase1_output" | sed -n '6p')
+
+    # cycle-109 Sprint 2 T2.4 — aggregate verdict_quality from per-voice
+    # phase1 review files into final_consensus.json. Uses ONLY the review
+    # files (not skeptic / tertiary skeptic) since those represent the
+    # canonical adversarial cohort voices that compute_blocker_risk and
+    # the schema-conformance suite (T2.8) anchor on. Skeptic / tertiary
+    # paths are inferential, not first-class voices.
+    local -a vq_phase1_files=("$gpt_review_file" "$opus_review_file")
+    if [[ -n "$tertiary_review_file" && -s "$tertiary_review_file" ]]; then
+        vq_phase1_files+=("$tertiary_review_file")
+    fi
+    aggregate_and_write_final_consensus "$phase" "${vq_phase1_files[@]}" || true
 
     # Check budget before Phase 2
     if ! check_budget 100 "$budget"; then

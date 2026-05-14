@@ -218,7 +218,13 @@ def test_chain_health_degraded_when_any_voice_degraded():
     assert out["chain_health"] == "degraded"
 
 
-def test_chain_health_exhausted_when_any_voice_exhausted():
+def test_chain_health_degraded_when_some_voices_failed_partial_success():
+    """Multi-voice semantics differ from single-voice: a partially-failed
+    cohort (some voices failed, some succeeded) reports chain_health=
+    'degraded' rather than 'exhausted'. This prevents the SDD §3.2.2
+    chain_health=exhausted ⇒ FAILED auto-promotion from firing on a
+    majority-success cohort — the canonical FL trajectory where 2 of 3
+    voices succeed and the aggregate should classify as DEGRADED."""
     from loa_cheval.verdict.aggregate import aggregate_envelopes
 
     inputs = [
@@ -227,15 +233,16 @@ def test_chain_health_exhausted_when_any_voice_exhausted():
         _single_voice_failed("c", blocker_risk="med"),
     ]
     out = aggregate_envelopes(inputs)
-    assert out["chain_health"] == "exhausted"
+    assert out["chain_health"] == "degraded"
 
 
-def test_chain_health_exhausted_outweighs_degraded():
-    """Worst-of-N strict ordering: exhausted > degraded > ok."""
+def test_chain_health_exhausted_only_when_all_voices_failed():
+    """chain_health=exhausted is reserved for the case where EVERY voice
+    failed. With any voice succeeding, the aggregate is at most degraded."""
     from loa_cheval.verdict.aggregate import aggregate_envelopes
 
     inputs = [
-        _single_voice_degraded("a"),
+        _single_voice_failed("a", blocker_risk="med"),
         _single_voice_failed("b", blocker_risk="med"),
     ]
     out = aggregate_envelopes(inputs)
