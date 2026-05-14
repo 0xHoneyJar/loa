@@ -391,6 +391,13 @@ def emit_model_invoke_complete(
     # Cycle-108 sprint-2 T2.J — envelope-captured pricing (SDD §20.9 ATK-A20).
     # Snapshot of providers.<p>.models.<m>.pricing at invocation time.
     pricing_snapshot: Optional[Dict[str, int]] = None,
+    # Cycle-109 Sprint 1 T1.4 — capability-aware substrate evaluation (SDD §3.3.1).
+    # Snapshot of the pre-flight gate decision: effective_input_ceiling,
+    # reasoning_class, recommended_for, ceiling_stale, estimated_input_tokens,
+    # preflight_decision ∈ {dispatch, preempt, chunk}. None when the call
+    # path bypassed the gate (LOA_CHEVAL_DISABLE_INPUT_GATE=1, async mode,
+    # or pre-resolution failure).
+    capability_evaluation: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Emit a model.invoke.complete envelope to the MODELINV audit chain.
 
@@ -519,6 +526,23 @@ def emit_model_invoke_complete(
         # Required-key gate: schema requires input/output. Skip emit if missing.
         if "input_per_mtok" in _snapshot and "output_per_mtok" in _snapshot:
             payload["pricing_snapshot"] = _snapshot
+
+    # cycle-109 Sprint 1 T1.4 — capability_evaluation pass-through. Schema
+    # additivity: only emit when caller supplied the dict. Required keys
+    # (effective_input_ceiling, reasoning_class, recommended_for,
+    # ceiling_stale, estimated_input_tokens, preflight_decision) are
+    # enforced by the JSON Schema downstream of redaction; the emitter
+    # passes the dict through verbatim so the caller's pre-flight gate
+    # state is recorded faithfully.
+    if capability_evaluation is not None:
+        # Defensive copy so the caller's dict cannot be mutated by downstream
+        # redaction passes.
+        payload["capability_evaluation"] = dict(capability_evaluation)
+        # Normalize recommended_for to a plain list (defensive against tuples).
+        if "recommended_for" in payload["capability_evaluation"]:
+            payload["capability_evaluation"]["recommended_for"] = list(
+                payload["capability_evaluation"]["recommended_for"]
+            )
 
     # Field-level redaction.
     payload = redact_payload_strings(payload)

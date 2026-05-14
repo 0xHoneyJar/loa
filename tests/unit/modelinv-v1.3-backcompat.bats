@@ -440,7 +440,7 @@ PY
 # =============================================================================
 
 @test "V12: emit_model_invoke_complete carries capability_evaluation into payload" {
-    "$PYTHON_BIN" - <<PY
+    run "$PYTHON_BIN" - <<PY
 import json
 import os
 import sys
@@ -498,7 +498,7 @@ PY
 # =============================================================================
 
 @test "V13: emit_model_invoke_complete without capability_evaluation omits the field" {
-    "$PYTHON_BIN" - <<PY
+    run "$PYTHON_BIN" - <<PY
 import os
 import sys
 import types

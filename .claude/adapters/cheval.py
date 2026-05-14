@@ -910,6 +910,11 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         # at successful chain entry time. Read by tools/modelinv-rollup.sh so
         # historical pricing edits don't retroactively rewrite cost reports.
         "pricing_snapshot": None,
+        # cycle-109 Sprint 1 T1.4 — capability_evaluation (SDD §3.3.1).
+        # Captures the pre-flight gate decision shape for this invocation.
+        # None means the gate did not evaluate (bypass path, e.g.
+        # LOA_CHEVAL_DISABLE_INPUT_GATE=1 or pre-resolution failure).
+        "capability_evaluation": None,
     }
     _verbose = bool(os.environ.get("LOA_HEADLESS_VERBOSE"))
 
@@ -1072,6 +1077,25 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             capability=_preflight_synthetic_capability,
             chunking_enabled=_preflight_chunking_enabled,
         )
+        # Record the capability_evaluation snapshot regardless of decision
+        # so the audit chain captures the gate's full state at invocation
+        # time (SDD §3.3.1 — distinguishes "gate-ran-and-dispatched" from
+        # "gate-not-evaluated").
+        if _preflight_synthetic_capability is not None:
+            if _preflight_decision is None:
+                _decision_str = "dispatch"
+            elif _preflight_decision.action == "chunk":
+                _decision_str = "chunk"
+            else:
+                _decision_str = "preempt"
+            _modelinv_state["capability_evaluation"] = {
+                "effective_input_ceiling": _preflight_synthetic_capability.effective_input_ceiling,
+                "reasoning_class": _preflight_synthetic_capability.reasoning_class,
+                "recommended_for": list(_preflight_synthetic_capability.recommended_for),
+                "ceiling_stale": _preflight_synthetic_capability.ceiling_stale,
+                "estimated_input_tokens": _preflight_estimated,
+                "preflight_decision": _decision_str,
+            }
         if _preflight_decision is not None and _preflight_decision.action == "preempt":
             # Emit operator-visible marker to stderr; the chain-walk gate
             # marker is `[input-gate]`, the pre-flight gate marker is
@@ -1574,6 +1598,7 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     transport=_modelinv_state["transport"],
                     config_observed=_modelinv_state["config_observed"],
                     pricing_snapshot=_modelinv_state["pricing_snapshot"],
+                    capability_evaluation=_modelinv_state["capability_evaluation"],
                     **_advisor_kwargs,
                 )
             except _ModelinvRedactionFailure as _rf:
