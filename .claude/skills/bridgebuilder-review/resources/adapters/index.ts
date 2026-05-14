@@ -25,17 +25,30 @@ export interface LocalAdapters {
   contextStore: IContextStore;
 }
 
+// cycle-109 followup #880 Defect 1: the precondition skips when the
+// operator-selected model is a kind:cli headless alias. Those models
+// route through claude-headless / codex-headless / gemini-headless
+// CLIs which use their own OAuth subscription paths (no API key
+// required at the BB layer). The `*-headless` suffix is the framework
+// convention for kind:cli aliases.
+function isHeadlessModel(model: string): boolean {
+  return typeof model === "string" && model.endsWith("-headless");
+}
+
 export function createLocalAdapters(
   config: BridgebuilderConfig,
   anthropicApiKey: string,
 ): LocalAdapters {
-  // cycle-103 T1.4: anthropicApiKey is still required (single-model BB
-  // defaults to Anthropic). Credential value crosses the subprocess boundary
-  // via env inheritance — passing it here is the operator's pre-flight check
-  // that ANTHROPIC_API_KEY is set in the parent environment.
-  if (!anthropicApiKey) {
+  // cycle-103 T1.4 + cycle-109 followup #880 Defect 1: pre-flight check
+  // that ANTHROPIC_API_KEY is set in the parent environment. Skipped
+  // when the operator routes BB through a kind:cli headless alias —
+  // ChevalDelegateAdapter handles its own auth routing internally (and
+  // PR #892 ensures the subprocess env is stripped of ANTHROPIC_API_KEY
+  // so claude -p reaches OAuth subscription).
+  if (!anthropicApiKey && !isHeadlessModel(config.model)) {
     throw new Error(
-      "ANTHROPIC_API_KEY required. Set it in your environment: export ANTHROPIC_API_KEY=sk-ant-...",
+      "ANTHROPIC_API_KEY required. Set it in your environment: export ANTHROPIC_API_KEY=sk-ant-... " +
+        "(or set BRIDGEBUILDER_MODEL=<provider>-headless to route through an OAuth CLI subscription).",
     );
   }
 

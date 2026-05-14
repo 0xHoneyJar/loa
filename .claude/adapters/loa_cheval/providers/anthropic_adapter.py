@@ -38,6 +38,45 @@ from loa_cheval.types import (
 logger = logging.getLogger("loa_cheval.providers.anthropic")
 
 
+# cycle-109 followup #883 Bug 3 — billing-class error classification.
+# Anthropic returns HTTP 400 with these signals when the API account is
+# unable to dispatch due to billing state (credit depleted, quota
+# exceeded, invoice overdue, etc.). Without this classifier, the
+# adapter raises InvalidInputError which is TERMINAL — preventing the
+# cycle-104 within-company chain from walking to its claude-headless
+# CLI terminal. Each token below is matched case-insensitively against
+# the upstream error message.
+_BILLING_CLASS_TOKENS = (
+    "credit balance",
+    "credit_balance",
+    "quota_exceeded",
+    "quota exceeded",
+    "invoice_overdue",
+    "invoice overdue",
+    "billing_disabled",
+    "billing disabled",
+    "payment_required",
+    "payment required",
+    "insufficient_quota",
+    "insufficient quota",
+)
+
+
+def _is_billing_class_error(message: str) -> bool:
+    """Return True when an HTTP 4xx error message indicates a billing-class
+    condition (account-side, NOT request-side). Billing-class errors should
+    chain-walk via ProviderUnavailableError; param errors stay terminal via
+    InvalidInputError.
+
+    Adding a token: append to `_BILLING_CLASS_TOKENS`. Each token matches
+    case-insensitively as a substring of the upstream error message.
+    """
+    if not message:
+        return False
+    haystack = message.lower()
+    return any(token in haystack for token in _BILLING_CLASS_TOKENS)
+
+
 class AnthropicAdapter(ProviderAdapter):
     """Adapter for Anthropic Messages API (SDD §4.2.3, §4.2.5)."""
 
@@ -136,8 +175,17 @@ class AnthropicAdapter(ProviderAdapter):
                         self.provider,
                         f"HTTP {status}: {_extract_error_message(err_json)}",
                     )
+                _msg = _extract_error_message(err_json)
+                # cycle-109 followup #883 Bug 3 — billing-class 400s raise
+                # ProviderUnavailableError so the cycle-104 within-company
+                # chain walks to its claude-headless CLI terminal.
+                if _is_billing_class_error(_msg):
+                    raise ProviderUnavailableError(
+                        self.provider,
+                        f"HTTP {status} billing-class: {_msg}",
+                    )
                 raise InvalidInputError(
-                    f"Anthropic API error (HTTP {status}): {_extract_error_message(err_json)}"
+                    f"Anthropic API error (HTTP {status}): {_msg}"
                 )
 
             # Parse the SSE event stream into a CompletionResult.
@@ -220,6 +268,13 @@ class AnthropicAdapter(ProviderAdapter):
 
         if status >= 400:
             msg = _extract_error_message(resp)
+            # cycle-109 followup #883 Bug 3 — billing-class 400s raise
+            # ProviderUnavailableError so the within-company chain walks.
+            if _is_billing_class_error(msg):
+                raise ProviderUnavailableError(
+                    self.provider,
+                    f"HTTP {status} billing-class: {msg}",
+                )
             raise InvalidInputError(f"Anthropic API error (HTTP {status}): {msg}")
 
         # Parse response
