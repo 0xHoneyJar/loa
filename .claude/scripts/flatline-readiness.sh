@@ -337,10 +337,33 @@ determine_status() {
     elif [[ $available_count -lt $configured_count ]] || [[ $alias_error_count -gt 0 ]]; then
         echo "DEGRADED"
         return 3
-    else
-        echo "READY"
-        return 0
     fi
+
+    # cycle-109 Sprint 2 T2.7 — CONSUMER #5 wiring: read recent verdict_quality
+    # envelopes from the MODELINV audit log and downgrade READY → DEGRADED
+    # when the last few invocations show chain_health: "exhausted". Per
+    # SDD §3.2.2 a chain-exhausted invocation is NFR-Rel-1 unsafe. If the
+    # substrate has been chain-exhausting consistently, reporting READY
+    # would be misleading even when API keys are present + valid.
+    #
+    # Heuristic: tail the last 5 MODELINV entries; if ≥3 are chain_health=
+    # exhausted (3/5 majority), downgrade. Reads from the audit log
+    # path configured in .loa.config.yaml or defaults to .run/model-invoke.jsonl.
+    local modelinv_log="${LOA_MODELINV_LOG:-${PROJECT_ROOT:-.}/.run/model-invoke.jsonl}"
+    if [[ -s "$modelinv_log" ]]; then
+        local exhausted_count
+        exhausted_count=$(tail -5 "$modelinv_log" 2>/dev/null \
+            | jq -r 'select(.payload.verdict_quality.chain_health == "exhausted") | "x"' 2>/dev/null \
+            | wc -l)
+        if [[ "${exhausted_count:-0}" -ge 3 ]]; then
+            RECOMMENDATIONS+=("Last 5 MODELINV entries show chain_health=exhausted ≥3 times — substrate health degraded; investigate provider availability before relying on /flatline-review verdicts.")
+            echo "DEGRADED"
+            return 3
+        fi
+    fi
+
+    echo "READY"
+    return 0
 }
 
 # =============================================================================
