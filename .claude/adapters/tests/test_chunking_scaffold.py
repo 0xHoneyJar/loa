@@ -183,12 +183,15 @@ def test_chunk_pr_for_review_is_implemented_post_t4_2():
     assert result == []
 
 
-def test_aggregate_findings_is_stubbed_for_t4_3():
+def test_aggregate_findings_is_implemented_post_t4_3():
+    """Pre-T4.3 this asserted NotImplementedError; T4.3 shipped the
+    impl so it now returns an empty AggregatedFindings for empty input."""
+    from loa_cheval.chunking import AggregatedFindings
     from loa_cheval.chunking.aggregate import aggregate_findings
 
-    with pytest.raises(NotImplementedError) as excinfo:
-        aggregate_findings([])
-    assert "T4.3" in str(excinfo.value)
+    result = aggregate_findings([])
+    assert isinstance(result, AggregatedFindings)
+    assert result.findings == []
 
 
 def test_detect_boundary_findings_is_stubbed_for_t4_4():
