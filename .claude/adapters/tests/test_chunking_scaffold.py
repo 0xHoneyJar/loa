@@ -194,28 +194,28 @@ def test_aggregate_findings_is_implemented_post_t4_3():
     assert result.findings == []
 
 
-def test_detect_boundary_findings_is_stubbed_for_t4_4():
+def test_detect_boundary_findings_is_implemented_post_t4_4():
+    """Pre-T4.4 this asserted NotImplementedError; T4.4 shipped the
+    impl so empty input → empty list."""
     from loa_cheval.chunking.aggregate import detect_boundary_findings
 
-    with pytest.raises(NotImplementedError) as excinfo:
-        detect_boundary_findings([], [])
-    assert "T4.4" in str(excinfo.value)
+    assert detect_boundary_findings([], []) == []
 
 
-def test_second_stage_review_is_stubbed_for_t4_4():
+def test_second_stage_review_is_implemented_post_t4_4():
+    """Pre-T4.4 this asserted NotImplementedError; T4.4 shipped the
+    impl so empty input → empty list."""
     from loa_cheval.chunking.aggregate import second_stage_review
 
-    with pytest.raises(NotImplementedError) as excinfo:
-        second_stage_review([])
-    assert "T4.4" in str(excinfo.value)
+    assert second_stage_review([]) == []
 
 
-def test_merge_with_second_stage_is_stubbed_for_t4_4():
+def test_merge_with_second_stage_is_implemented_post_t4_4():
+    """Pre-T4.4 this asserted NotImplementedError; T4.4 shipped the
+    impl so empty inputs → empty merged list."""
     from loa_cheval.chunking.aggregate import merge_with_second_stage
 
-    with pytest.raises(NotImplementedError) as excinfo:
-        merge_with_second_stage([], [])
-    assert "T4.4" in str(excinfo.value)
+    assert merge_with_second_stage([], []) == []
 
 
 # ---------------------------------------------------------------------------
