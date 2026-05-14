@@ -45,14 +45,14 @@ def _reset_caches(monkeypatch):
 def test_writer_version_reads_from_sot_file():
     """SoT file exists and reads cleanly."""
     version = _read_writer_version()
-    assert version == "1.2"
+    assert version == "1.3"
 
 
 def test_writer_version_is_cached():
     """Reads twice; second read uses cache."""
     v1 = _read_writer_version()
     v2 = _read_writer_version()
-    assert v1 == v2 == "1.2"
+    assert v1 == v2 == "1.3"
 
 
 # --- v1.2 envelope shape -----------------------------------------------------
@@ -109,7 +109,7 @@ def test_v12_envelope_with_all_advisor_fields(monkeypatch):
     assert payload["tier_resolution"] == "static:abc123def456"
     assert payload["sprint_kind"] == "glue"
     assert payload["invocation_chain"] == ["implement", "run-sprint-plan"]
-    assert payload["writer_version"] == "1.2"
+    assert payload["writer_version"] == "1.3"
 
 
 def test_v11_legacy_envelope_when_no_advisor_fields(monkeypatch):
@@ -130,7 +130,7 @@ def test_v11_legacy_envelope_when_no_advisor_fields(monkeypatch):
     assert "sprint_kind" not in payload
     assert "invocation_chain" not in payload
     # writer_version IS present (unconditional cycle-108+ marker)
-    assert payload["writer_version"] == "1.2"
+    assert payload["writer_version"] == "1.3"
 
 
 def test_partial_v12_envelope(monkeypatch):

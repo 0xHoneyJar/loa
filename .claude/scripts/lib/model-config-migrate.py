@@ -247,6 +247,244 @@ def migrate_v1_to_v2(
     return v2, report
 
 
+# =============================================================================
+# cycle-109 Sprint 1 T1.2 — v2 → v3 migration with conservative defaults
+# (SDD §3.1.2 IMP-008). All v3 model-entry additions per SDD §3.1.1.
+# =============================================================================
+
+# Reasoning-class opt-in list (SDD §3.1.2). The migrator flips `reasoning_class:
+# true` when the model_id matches one of these patterns; everything else
+# defaults to false. Operators can override post-migration.
+_REASONING_CLASS_MATCHERS: tuple[str, ...] = (
+    "claude-opus-4-",   # claude-opus-4-7, claude-opus-4-6, etc.
+    "claude-opus-4.",   # alias-style with dot separator
+    "gpt-5.5-pro",
+    "gpt-5.5-pro-",
+    "gemini-3.1-pro",
+)
+
+# Allow-all role list per SDD §3.1.4 (SKP-004 v5 closure).
+_RECOMMENDED_FOR_ALLOW_ALL: tuple[str, ...] = (
+    "review",
+    "audit",
+    "implementation",
+    "dissent",
+    "arbiter",
+)
+
+# Conservative-defaults floor for effective_input_ceiling when context_window
+# is absent. Matches SDD §3.1.2: min(50% × api_context_window, 30000) collapses
+# to 30000 when api is undefined.
+_EFFECTIVE_CEILING_FLOOR = 30000
+
+
+def _is_reasoning_class(model_id: str) -> bool:
+    """Return True iff model_id matches the reasoning-class opt-in list."""
+    return any(model_id.startswith(p) for p in _REASONING_CLASS_MATCHERS)
+
+
+def _compute_effective_input_ceiling(context_window: int | None) -> int:
+    """SDD §3.1.2: min(50% × api_context_window, 30000). Floors at 30000 when
+    context_window is unset (defensive default — operator should populate)."""
+    if context_window is None or context_window <= 0:
+        return _EFFECTIVE_CEILING_FLOOR
+    return min(context_window // 2, _EFFECTIVE_CEILING_FLOOR)
+
+
+def _default_ceiling_calibration(calibrated_at: str) -> dict[str, Any]:
+    """SDD §3.1.1 + §3.1.2 conservative_default ceiling_calibration block."""
+    return {
+        "source": "conservative_default",
+        "calibrated_at": calibrated_at,
+        "sample_size": None,
+        "stale_after_days": 30,
+        "reprobe_trigger": (
+            "first KF entry referencing model OR 30d elapsed OR operator-forced"
+        ),
+    }
+
+
+def _default_streaming_recovery(reasoning_class: bool) -> dict[str, Any]:
+    """SDD §3.1.2 streaming_recovery defaults — first-token deadline and
+    cot_token_budget vary with reasoning_class flag (FR-4.4)."""
+    return {
+        "first_token_deadline_seconds": 60 if reasoning_class else 30,
+        "empty_detection_window_tokens": 200,
+        "cot_token_budget": 500 if reasoning_class else None,
+    }
+
+
+def _apply_v3_defaults_to_model(
+    model_id: str,
+    entry: dict[str, Any],
+    calibrated_at: str,
+    report: list[dict[str, Any]],
+    path: str,
+) -> None:
+    """Mutate `entry` in place: add v3 fields with conservative defaults
+    per SDD §3.1.2. Fields already present on the model entry are preserved
+    verbatim (operator-set values win over migrator defaults)."""
+    if "effective_input_ceiling" not in entry:
+        entry["effective_input_ceiling"] = _compute_effective_input_ceiling(
+            entry.get("context_window")
+        )
+        report.append({
+            "kind": "populate",
+            "path": f"{path}.effective_input_ceiling",
+            "detail": f"defaulted to {entry['effective_input_ceiling']} (SDD §3.1.2)",
+            "severity": "INFO",
+        })
+
+    if "reasoning_class" not in entry:
+        entry["reasoning_class"] = _is_reasoning_class(model_id)
+        report.append({
+            "kind": "populate",
+            "path": f"{path}.reasoning_class",
+            "detail": (
+                f"defaulted to {entry['reasoning_class']} "
+                f"({'matched opt-in list' if entry['reasoning_class'] else 'no match'})"
+            ),
+            "severity": "INFO",
+        })
+
+    if "recommended_for" not in entry:
+        entry["recommended_for"] = list(_RECOMMENDED_FOR_ALLOW_ALL)
+        report.append({
+            "kind": "populate",
+            "path": f"{path}.recommended_for",
+            "detail": "defaulted to allow-all 5-role list (SKP-004 v5 closure)",
+            "severity": "INFO",
+        })
+
+    if "failure_modes_observed" not in entry:
+        entry["failure_modes_observed"] = []
+
+    if "ceiling_calibration" not in entry:
+        entry["ceiling_calibration"] = _default_ceiling_calibration(calibrated_at)
+        report.append({
+            "kind": "populate",
+            "path": f"{path}.ceiling_calibration",
+            "detail": "defaulted to conservative_default block (SDD §3.1.1)",
+            "severity": "INFO",
+        })
+
+    if "streaming_recovery" not in entry:
+        entry["streaming_recovery"] = _default_streaming_recovery(
+            entry["reasoning_class"]
+        )
+        report.append({
+            "kind": "populate",
+            "path": f"{path}.streaming_recovery",
+            "detail": (
+                f"defaulted to {'reasoning' if entry['reasoning_class'] else 'non-reasoning'} "
+                f"streaming-recovery defaults (FR-4.4)"
+            ),
+            "severity": "INFO",
+        })
+
+
+def migrate_v2_to_v3(
+    v2: dict[str, Any],
+    calibrated_at: str = "2026-05-13T00:00:00Z",
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Pure v2 → v3 migration with conservative defaults per SDD §3.1.2.
+
+    Returns (v3_dict, report). No I/O. Defensive copy of input.
+
+    `calibrated_at` (ISO 8601) is stamped on every ceiling_calibration block
+    populated at migration time. Tests can pin a deterministic value;
+    production callers default to migration-time wall clock if needed.
+
+    Idempotent on v3 input (returns deep copy + idempotent_noop report row).
+    Raises MigrationError on v1 input — caller should chain v1→v2 first.
+    """
+    version = detect_schema_version(v2)
+    if version == 3:
+        return copy.deepcopy(v2), [{
+            "kind": "idempotent_noop",
+            "path": "schema_version",
+            "detail": "input is already v3; no migration applied",
+            "severity": "WARN",
+            "code": "MIGRATION-NOOP-V3-INPUT",
+        }]
+    if version >= 4:
+        raise MigrationError(
+            "CONFIG-SCHEMA-VERSION-UNSUPPORTED",
+            f"schema_version {version} is newer than the migrator's target (v3). "
+            "Use a cycle-{N+1}+ migrator.",
+        )
+    if version != 2:
+        raise MigrationError(
+            "CONFIG-SCHEMA-VERSION-UNSUPPORTED",
+            f"migrate_v2_to_v3 requires v2 input; got version {version}. "
+            "Chain v1→v2 first via migrate_v1_to_v2.",
+        )
+
+    v3 = copy.deepcopy(v2)
+    report: list[dict[str, Any]] = [{
+        "kind": "version_bump",
+        "path": "schema_version",
+        "detail": "added schema_version: 3 (v2 → v3, cycle-109 Sprint 1)",
+        "severity": "INFO",
+    }]
+    v3["schema_version"] = 3
+
+    providers = v3.get("providers", {})
+    if isinstance(providers, dict):
+        for provider_id, provider_entry in providers.items():
+            if not isinstance(provider_entry, dict):
+                continue
+            models = provider_entry.get("models", {})
+            if not isinstance(models, dict):
+                continue
+            for model_id, model_entry in models.items():
+                if not isinstance(model_entry, dict):
+                    continue
+                _apply_v3_defaults_to_model(
+                    model_id,
+                    model_entry,
+                    calibrated_at,
+                    report,
+                    f"providers.{provider_id}.models.{model_id}",
+                )
+
+    return v3, report
+
+
+def migrate_to_latest(
+    data: dict[str, Any],
+    target_version: int = 3,
+    model_permissions: dict[str, Any] | None = None,
+    calibrated_at: str = "2026-05-13T00:00:00Z",
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Chain migrations from whatever the input version is up to target_version.
+
+    Currently supported targets: 2, 3.
+
+    For target_version=3 the chain is:
+        v1 → v2 (via migrate_v1_to_v2) → v3 (via migrate_v2_to_v3)
+        v2 → v3 directly
+        v3 → v3 (idempotent_noop)
+    """
+    if target_version not in (2, 3):
+        raise MigrationError(
+            "CONFIG-SCHEMA-VERSION-UNSUPPORTED",
+            f"migrate_to_latest target {target_version} not supported; expected 2 or 3",
+        )
+
+    source_version = detect_schema_version(data)
+
+    if target_version == 2:
+        return migrate_v1_to_v2(data, model_permissions=model_permissions)
+
+    # target_version == 3
+    if source_version <= 1:
+        v2, v1_report = migrate_v1_to_v2(data, model_permissions=model_permissions)
+        v3, v2_report = migrate_v2_to_v3(v2, calibrated_at=calibrated_at)
+        return v3, v1_report + v2_report
+    return migrate_v2_to_v3(data, calibrated_at=calibrated_at)
+
+
 def _migrate_providers(
     providers: dict[str, Any], report: list[dict[str, Any]]
 ) -> dict[str, Any]:

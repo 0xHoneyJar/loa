@@ -1,1735 +1,1819 @@
-# Cycle-108 SDD — Advisor-Strategy Benchmark + Role→Tier Routing
+# Cycle-109 SDD — Multi-Model Substrate Hardening
 
-> **Version**: 1.0 (pre-Flatline)
-> **Status**: draft (awaiting /flatline-review + /red-team on SDD)
-> **Cycle**: cycle-108-advisor-strategy
-> **Created**: 2026-05-13
-> **PRD**: `grimoires/loa/cycles/cycle-108-advisor-strategy/prd.md` v1.1 (Flatline-amended)
+> **Version**: 1.3 (Flatline SDD-review v3/v4/v5/v6 closures + C109.OP-10 operator-override on 3 residual design-tightenings absorbed into Sprint 2 AC. v6 closures: `truncation_waiver_applied` schema field replaces private-field recurrence; `consensus_outcome` algorithm spec §3.2.2.1; §4.4 helper restructured to eliminate dead `med` check; `voices_succeeded_ids` schema field enabling cross-set invariant; exit 11 kill-switch correction; recommended_for chain-walk surfaces DEGRADED minimum)
+> **Date**: 2026-05-13 (v1.0); v1.1 (v3/v4); v1.2 (v5); v1.3 (v6 + C109.OP-10 operator-override)
+> **Author**: Architecture Designer (autonomous mode under C109.OP-1 delegation)
+> **Status**: Draft — Flatline SDD-review v3/v4/v5/v6 BLOCKERs closed-or-overridden per C109.OP-8/9/10; ready for `/run sprint-1` per the §13.2 gate path C109.OP-4 precedent
+> **PRD Reference**: `grimoires/loa/cycles/cycle-109-substrate-hardening/prd.md` v1.4
+> **Cycle**: cycle-109-substrate-hardening
+> **Predecessor SDD**: `grimoires/loa/cycles/cycle-108-advisor-strategy/sdd.md` (advisor-strategy substrate; behind `enabled:false`)
 > **Operator**: @janitooor
+> **Approval ledger**: `grimoires/loa/cycles/cycle-109-substrate-hardening/operator-approval.md` (C109.OP-1/2/3/4 APPROVED)
+> **Reality ground-truth**: `grimoires/loa/reality/multimodel-substrate.md` (fresh /ride 2026-05-13 @ `6e76582d`)
+> **Known-failures**: `grimoires/loa/known-failures.md` (KF-001..KF-010)
 
 ---
 
-## 0. Pre-flight: Integrity + grounding
+## 0. Pre-flight: Integrity, grounding, and self-aware substrate posture
 
 | Check | Status |
 |-------|--------|
-| Integrity enforcement | `.loa.config.yaml::integrity_enforcement` honored; SDD modifies only State Zone (`grimoires/`) and proposes additions to System Zone via Sprint 1 (which is the only authorized writer) |
-| PRD read | `grimoires/loa/cycles/cycle-108-advisor-strategy/prd.md` v1.1 — full text, 543 lines, 14 FRs, 5 NFR clusters, 11 risks, 4 sprints |
+| Integrity enforcement | `.loa.config.yaml::integrity_enforcement` honored. SDD modifies only State Zone (`grimoires/loa/cycles/...`); System Zone (`.claude/`) writes are PRD-authorized (§FR-1 through §FR-5 each list explicit System Zone Authorization). |
+| PRD read | **Authoritative path**: `grimoires/loa/cycles/cycle-109-substrate-hardening/prd.md` v1.4 (mirrored to `grimoires/loa/prd.md` for consumer-tool compatibility). SHA-256 `9678592520d2e76d5540da7f4e420f2c72085b9e085d7c3c5f989edb46839de5` (2026-05-13 post-SKP-001..004 closure). 1480+ lines, 5 FRs, 6 NFR clusters, 9 risks, 5 sprints, 9 Flatline IMPs integrated, 4 SKP BLOCKER closures (SKP-001 canonical status, SKP-002 voices_dropped blocker_risk, SKP-003 ceiling-override break-glass, SKP-004 conditional override precedence). When the cycle PRD revs, `grimoires/loa/prd.md` is refreshed via `cp` BEFORE Flatline runs (SKP-002 v4 closure: single authoritative source + hash verification). |
+| Operator approval | C109.OP-1 (cycle scope), C109.OP-2 (KF-auto-link deeper variant), C109.OP-3 (full legacy delete), C109.OP-4 (Flatline gate path 1) — all APPROVED 2026-05-13 |
 | Integration context | `grimoires/loa/a2a/integration-context.md` — **MISSING**; proceeding with standard workflow per skill `Phase 0` |
-| Known failures | KF-001 RESOLVED, KF-002 LAYERS-2-3-RESOLVED (layer-1 latent — handled by FR-4 IMP-013 chain-exhaustion semantics), KF-005 RESOLVED, KF-008 RESOLVED. No active failure blocks SDD. |
-| Substrate grounding | cheval.py at `.claude/adapters/cheval.py:517` (cmd_invoke); MODELINV emitter at `.claude/adapters/loa_cheval/audit/modelinv.py`; config loader at `.claude/adapters/loa_cheval/config/loader.py:105` reads `hounfour:` section; envelope schema v1.1.0 confirmed live in `.run/model-invoke.jsonl` |
+| Reality grounding | All component paths/LOC counts/function lines cited against `multimodel-substrate.md` (≥95% grounding ratio per §12) |
+| Predecessor pattern | Cycle-108 SDD shape (mermaid component diagrams; FR-keyed §3 sprint sections; explicit ADR-002 substrate preservation per IMP-002 backward-compat) adopted unchanged for continuity |
+| Substrate self-awareness | The substrate being designed-against IS the substrate being hardened. Per C109.OP-4 precedent, Flatline SDD review trajectory will be recorded as cycle-109 evidence regardless of outcome (clean approval = green-on-meaningful-review; degraded approval = green-on-degraded-substrate = same fixture-class as PRD review). |
+
+### 0.1 Architectural posture (load-bearing)
+
+This SDD **preserves ADR-002** [reality §2]: cheval.py remains the canonical HTTP boundary; the 3-consumer × cheval × multi-provider topology is unchanged. Cycle-109 fills *inside* the existing shape:
+
+- **FR-1**: capability fields land *inside* `model-config.yaml`; pre-flight gate lands *inside* `cheval.cmd_invoke`.
+- **FR-2**: verdict envelope lands *inside* the existing JSON output (additive); consumer-side refactor surfaces it.
+- **FR-3**: legacy adapter and the `flatline_routing` flag are **removed**, reducing the architecture to its single canonical path (simplification, not new pattern).
+- **FR-4**: chunking lands *inside* cheval; no new orchestrator component.
+- **FR-5**: substrate health is a **read-only consumer** of `.run/model-invoke.jsonl` (already emitted; only the reader is new).
+
+No new components, no new providers, no new transports, no new feature flags. The cycle adds capability awareness, verdict honesty, single-pathedness, structural large-input handling, and observability *inside* a shape that has already converged.
 
 ---
 
-## 1. System overview
+## Table of contents
 
-### 1.1 Component architecture
+1. [System architecture](#1-system-architecture)
+2. [Software stack](#2-software-stack)
+3. [Data model & schema design](#3-data-model--schema-design)
+4. [API & interface specifications](#4-api--interface-specifications)
+5. [Sprint-by-sprint detailed design](#5-sprint-by-sprint-detailed-design)
+6. [Error handling, exit codes & failure semantics](#6-error-handling-exit-codes--failure-semantics)
+7. [Testing strategy](#7-testing-strategy)
+8. [Development phases & sequencing](#8-development-phases--sequencing)
+9. [Known risks and mitigation](#9-known-risks-and-mitigation)
+10. [Open questions](#10-open-questions)
+11. [Appendix](#11-appendix)
+
+---
+
+## 1. System architecture
+
+### 1.1 System overview
+
+The cycle-109 substrate is `cheval.py` (1472 LOC Python canonical HTTP boundary) plus 17 ancillary components [reality §1] across Python/bash/TypeScript. Cycle-109 hardens it by adding **capability awareness** (FR-1), **verdict-quality honesty** (FR-2), **single code path** (FR-3), **structural chunking** (FR-4), and **observability** (FR-5). The architectural pattern stays as ADR-002: *single canonical Python HTTP boundary fronting three-consumer topology with within-company chain-walk*. The cycle removes the parallel legacy path that drifts from cheval; it does not introduce a new pattern.
+
+### 1.2 Architectural pattern
+
+**Pattern**: *Capability-aware single-path substrate with explicit verdict-quality contracts*.
+
+**Justification** (PRD §2.2 meta-root-cause):
+
+The original substrate assumed providers/models were interchangeable behind the chain-walker. Newer reasoning-class models invalidate that assumption (KF-002/003). The cleanest fix is to surface model capability as **first-class typed metadata** that cheval consults before dispatch, paired with **typed verdict envelopes** that consumers cannot accidentally collapse into a misleading "clean" status.
+
+Three concrete consequences:
+
+1. **Capability becomes data, not folklore**. `effective_input_ceiling`, `reasoning_class`, `recommended_for`, `failure_modes_observed`, and `ceiling_calibration` are declared per model. Cheval's existing `_lookup_max_input_tokens` [cheval.py:285] is extended to consume the richer surface.
+
+2. **Verdict quality becomes a schema, not an inference**. `verdict-quality.schema.json` v1.0 defines `voices_planned / voices_succeeded / voices_dropped / chain_health / confidence_floor`. Consumers receive it as part of the envelope; emitting `APPROVED` on a degraded envelope **fails a CI conformance test** (FR-2.7).
+
+3. **One code path replaces two**. `model-adapter.sh.legacy` (1081 LOC) is deleted (C109.OP-3 approved). `flatline_routing` is removed. Activation regression suite covers every consumer × role × response-class × dispatch-path combination — a matrix the legacy/cheval split made impractical [PRD FR-3.5/IMP-009].
+
+### 1.3 Component diagram
 
 ```mermaid
 graph TD
     subgraph "Operator surface"
-        OP[".loa.config.yaml<br/>advisor_strategy section"]
-        ENV["LOA_ADVISOR_STRATEGY_DISABLE<br/>(kill-switch env var)"]
+        OP[".loa.config.yaml<br/>kf_auto_link.overrides[]<br/>(IMP-002)"]
+        KF["known-failures.md<br/>(append-only ledger)"]
     end
 
-    subgraph "Config-loader layer (single chokepoint)"
-        SCHEMA[".claude/data/schemas/<br/>advisor-strategy.schema.json"]
-        LOADER["loa_cheval/config/loader.py<br/>+ schema validator<br/>+ NFR-Sec1 enforcement"]
+    subgraph "Schema layer (single source of truth)"
+        MC[".claude/defaults/model-config.yaml<br/>(schema v3: +capability fields)"]
+        VQS[".claude/data/schemas/<br/>verdict-quality.schema.json v1.0"]
+        MIS[".claude/data/schemas/<br/>modelinv-envelope-v1.3.schema.json"]
     end
 
-    subgraph "Resolver layer"
-        RESOLVER[".claude/scripts/lib/<br/>advisor-strategy-resolver.sh<br/>(role→tier→model)"]
-        PYRES["loa_cheval/routing/<br/>advisor_strategy.py<br/>(Python twin)"]
+    subgraph "Capability + verdict primitives (new)"
+        KFAL[".claude/scripts/lib/kf-auto-link.py<br/>(FR-1.5)"]
+        PROBE[".claude/scripts/lib/ceiling-probe.py<br/>(FR-1.6)"]
+        CHUNK[".claude/adapters/loa_cheval/chunking/<br/>(FR-4)"]
     end
 
-    subgraph "Cheval invocation"
-        CHEVAL[".claude/adapters/cheval.py<br/>--role / --skill / --sprint-kind"]
-        MODELINV["modelinv.py<br/>envelope v1.2 (additive)"]
+    subgraph "Cheval canonical boundary (extended)"
+        CHEVAL[".claude/adapters/cheval.py<br/>cmd_invoke + preflight gate<br/>+ chunked dispatch"]
+        MODELINV[".claude/adapters/loa_cheval/audit/modelinv.py<br/>(envelope v1.3 additive)"]
     end
 
-    subgraph "6 consumers"
-        IMP["/implement, /bug"]
-        REV["/review-sprint, /audit-sprint"]
-        PLAN["/plan-and-analyze, /architect, /sprint-plan"]
+    subgraph "Consumers (verdict-envelope aware)"
+        BB["BB cheval-delegate.ts"]
         FL["flatline-orchestrator.sh"]
-        BB["adversarial-review.sh / BB"]
-        RT["red-team-pipeline.sh"]
+        RT["adversarial-review.sh"]
+        FLR["flatline-readiness.sh"]
+        RTP["red-team-pipeline.sh"]
+        PPT["post-pr-triage.sh"]
     end
 
-    subgraph "Measurement substrate (Sprint 2)"
-        BENCH["tools/advisor-benchmark.sh<br/>(worktree-hermetic)"]
-        ROLLUP["tools/modelinv-rollup.sh<br/>(per-stratum)"]
-        BASE["baselines.json<br/>(signed, FR-8)"]
+    subgraph "Audit + observability"
+        MIL[".run/model-invoke.jsonl<br/>(envelope log, signed)"]
+        KFL[".run/kf-auto-link.jsonl<br/>(decision log, signed)"]
+        HEALTH[".claude/scripts/loa-substrate-health.sh<br/>(FR-5.4 CLI)"]
+        JOURNAL["grimoires/loa/substrate-health/YYYY-MM.md<br/>(cron journal, FR-5.8)"]
     end
 
-    subgraph "Audit substrate"
-        ENV2[".run/model-invoke.jsonl<br/>(hash-chained)"]
-        L1[".claude/scripts/audit-envelope.sh<br/>(audit_emit_signed)"]
+    subgraph "Removed in Sprint 3"
+        LEGACY["model-adapter.sh.legacy<br/>(1081 LOC — DELETE)"]:::removed
+        FLAG["hounfour.flatline_routing<br/>(flag — REMOVE/INFORMATIONAL)"]:::removed
     end
 
-    OP --> LOADER
-    ENV --> LOADER
-    SCHEMA --> LOADER
-    LOADER --> RESOLVER
-    LOADER --> PYRES
-    IMP --> CHEVAL
-    REV --> CHEVAL
-    PLAN --> CHEVAL
-    FL --> CHEVAL
-    BB --> CHEVAL
-    RT --> CHEVAL
-    CHEVAL --> PYRES
-    PYRES --> MODELINV
-    MODELINV --> ENV2
-    BASE --> L1
-    BENCH --> CHEVAL
-    BENCH --> BASE
-    ROLLUP --> ENV2
+    OP --> KFAL
+    KF --> KFAL
+    KFAL --> MC
+    KFAL --> KFL
+    MC --> CHEVAL
+    PROBE --> MC
+    CHEVAL --> CHUNK
+    CHUNK --> CHEVAL
+    CHEVAL --> MODELINV
+    MODELINV --> MIL
+    MIS -.validates.-> MODELINV
+    CHEVAL --> BB
+    CHEVAL --> FL
+    CHEVAL --> RT
+    BB --> VQS
+    FL --> VQS
+    RT --> VQS
+    FLR --> VQS
+    RTP --> VQS
+    PPT --> VQS
+    MIL --> HEALTH
+    HEALTH --> JOURNAL
+
+    classDef removed fill:#fbb,stroke:#900,stroke-dasharray: 5 5
 ```
 
-### 1.2 Architectural pattern
+### 1.4 System components
 
-**Pattern**: *Operator-policy-driven additive routing* over the existing cycle-104 cheval substrate.
+#### 1.4.1 `model-config.yaml` schema v3 (FR-1) — *modified*
 
-**Justification**: PRD §6 NFR-R2 mandates "additive, not replacement" — the existing within-company fallback chain, voice-drop, and MODELINV v1.1 envelope are load-bearing for cycle-107 stability (production since e1032b76, 2026-05-09). The cleanest extension is:
+- **Purpose**: Single source of truth for model capabilities; codegen feeds bash + TS maps byte-identically (NFR-Codegen-1).
+- **Schema additions** (v3, additive over v2):
+  - `effective_input_ceiling: int` — tokens above which empty-content has been observed
+  - `reasoning_class: bool` — burns output budget on CoT
+  - `recommended_for: [role tag]` — `[review, dissent, audit, implementation, arbiter]`
+  - `failure_modes_observed: [KF-NNN]` — pointer into KF ledger
+  - `ceiling_calibration: object` — source/calibrated_at/sample_size/stale_after_days/reprobe_trigger
+  - `streaming_recovery: object` (FR-4.4) — first_token_deadline_seconds / empty_detection_window_tokens / cot_token_budget
+- **Migration**: v2 → v3 via `tools/migrate-model-config.py` extension. Conservative defaults policy (IMP-008): see §3.1.
+- **Codegen**: `gen-bb-registry.ts` (cycle-099 sprint-1A) and `generated-model-maps.sh` regenerated. Cross-runtime byte-equality enforced by `cross-runtime-diff.yml` (cycle-099 sprint-1D).
 
-1. A **single config section** (`advisor_strategy:`) read by a **single loader function** that produces a resolved **role→tier→model** table.
-2. A **single `--role` parameter** added to cheval; every consumer passes its role explicitly; cheval resolves via the table.
-3. A **MODELINV envelope bump v1.1 → v1.2** that *adds* five optional fields (`role`, `tier`, `tier_source`, `tier_resolution`, `sprint_kind`) — existing entries remain schema-valid (Flatline IMP-002 backward-compat).
+#### 1.4.2 Cheval pre-flight gate (FR-1.3) — *extended*
 
-This pattern preserves PRD §4 dependency reality: cycle-104 stability (DONE), cycle-099 model-resolver (DONE), cycle-107 multi-model activation (DONE). No replacement risk.
+- **Location**: `.claude/adapters/cheval.py::cmd_invoke` [cheval.py:517] before adapter dispatch.
+- **Logic**: `_lookup_max_input_tokens` [cheval.py:285] extended to ALSO return `(ceiling, reasoning_class, recommended_for, ceiling_stale)`. If `estimated_input > effective_input_ceiling` AND chunking not selected, emit typed exit 7 (ContextTooLarge) preemptively. If `ceiling_stale` (per `stale_after_days`), set `ceiling_stale: true` in MODELINV envelope and route through chunked path as defensive default.
+- **NFR-Perf-1**: <50ms overhead per dispatch — capability lookup is in-memory after first load (existing `_load_provider_table` cache extended).
 
-### 1.3 Single-chokepoint principle (NFR-Sec1, IMP-003)
+#### 1.4.3 KF-auto-link script (FR-1.5) — *new*
 
-All tier-resolution decisions flow through **one loader function** (`loa_cheval/config/loader.py::load_advisor_strategy()`) and **one resolver function** (`loa_cheval/routing/advisor_strategy.py::resolve_role_to_model()`). The bash twin (`.claude/scripts/lib/advisor-strategy-resolver.sh`) is a thin wrapper that exec's the Python resolver to guarantee single-source-of-truth resolution semantics — there is no parallel logic to drift.
+- **Location**: `.claude/scripts/lib/kf-auto-link.py`
+- **Trigger**: CI on changes to `known-failures.md`; manual via `loa substrate recalibrate`.
+- **Logic**: Parse KF entries → extract `model:` references → apply severity-to-downgrade mapping (PRD FR-1.5 IMP-001 table) → consult operator-overrides in `.loa.config.yaml::kf_auto_link.overrides[]` → emit before-state/after-state to `.run/kf-auto-link.jsonl` (signed via cycle-098 audit envelope).
+- **Idempotent + deterministic** (NFR-Rel-3): twice on same ledger state → byte-identical output.
 
-NFR-Sec1 enforcement (review/audit must be advisor) lives **in the loader**, not in each consumer. A consumer that asks for `role=review` and gets back an executor-tier model would mean the loader failed — which the schema validator (`advisor-strategy.schema.json`) prevents at config-load time (exit 78 EX_CONFIG).
+#### 1.4.4 Verdict-quality envelope schema (FR-2.1) — *new*
+
+- **Location**: `.claude/data/schemas/verdict-quality.schema.json` v1.0
+- **Shape**: see §3.2.
+- **Consumers**: 7 paths (cheval emitter + 6 consumer paths per FR-2 IMP-004 table).
+- **Conformance test (FR-2.7)**: CI matrix per-consumer; emitting `clean / APPROVED` on a degraded envelope **fails the build**.
+
+#### 1.4.5 Chunked review primitive (FR-4) — *new*
+
+- **Location**: `.claude/adapters/loa_cheval/chunking/` (new package; mirrors `routing/` and `audit/` package structure).
+- **Surface**: `chunk_pr_for_review(input, ceiling) -> [Chunk]` + `aggregate_findings(per_chunk_findings) -> AggregatedFindings`.
+- **Triggered**: cheval pre-flight when `estimated_input > effective_input_ceiling * 0.7`. Pre-flight gate (FR-1.3) drives the path selection.
+- **Aggregation algorithm**: dedupe by `(file, line, finding_class)`; cross-chunk pass for spans-boundary cases (IMP-006). Detailed algorithm in §5.4.
+
+#### 1.4.6 Substrate-health CLI (FR-5.4) — *new*
+
+- **Location**: `.claude/scripts/loa-substrate-health.sh` (bash; aggregates via `jq`).
+- **Surface**: `loa substrate health [--window 24h] [--json]` and `loa substrate recalibrate <model>`.
+- **Data source**: `.run/model-invoke.jsonl` (UNTRACKED log, read-only consumer).
+- **Performance**: <2s for 24h window on 100K-entry log (NFR-Perf-3).
+- **Journal cron** (FR-5.8): daily run writes to `grimoires/loa/substrate-health/YYYY-MM.md` (TRACKED — appended monthly).
+
+### 1.5 Data flow
+
+#### 1.5.1 Normal dispatch (single, capability-passing)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Consumer as Consumer (BB/FL/RT)
+    participant Cheval as cheval.cmd_invoke
+    participant Cap as Capability lookup<br/>(model-config.yaml v3)
+    participant Adapter as Provider adapter
+    participant ENV as MODELINV writer
+    participant Log as .run/model-invoke.jsonl
+
+    Consumer->>Cheval: invoke(role=review, model=X, input=Y)
+    Cheval->>Cap: lookup(X)
+    Cap-->>Cheval: ceiling=40K, reasoning_class=true, recommended_for=[review,audit]
+    alt input <= ceiling AND role in recommended_for
+        Cheval->>Adapter: dispatch(X, input)
+        Adapter-->>Cheval: response
+        Cheval->>ENV: emit envelope (capability_evaluation: dispatch + verdict_quality)
+        ENV->>Log: append signed entry
+        Cheval-->>Consumer: { result, verdict_quality, capability_evaluation }
+    end
+```
+
+#### 1.5.2 Pre-flight preemption (capability exceeded)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Consumer
+    participant Cheval as cheval.cmd_invoke
+    participant Cap as Capability lookup
+    participant Chunk as chunking primitive
+    participant ENV as MODELINV writer
+
+    Consumer->>Cheval: invoke(role=review, model=X, input=80K)
+    Cheval->>Cap: lookup(X)
+    Cap-->>Cheval: ceiling=40K
+    alt input > ceiling AND chunking_allowed
+        Cheval->>Chunk: chunk_pr_for_review(input, 40K * 0.7)
+        Chunk-->>Cheval: [Chunk1, Chunk2, Chunk3]
+        loop per chunk
+            Cheval->>Adapter: dispatch(X, chunk)
+            Adapter-->>Cheval: per-chunk findings
+        end
+        Cheval->>Chunk: aggregate_findings(...)
+        Chunk-->>Cheval: AggregatedFindings
+        Cheval->>ENV: emit envelope (chunked: true, chunks_reviewed: 3)
+        Cheval-->>Consumer: { result, verdict_quality, chunked: true }
+    else input > ceiling AND chunking_disallowed
+        Cheval->>ENV: emit envelope (preflight_decision: preempt)
+        Cheval-->>Consumer: exit 7 ContextTooLarge
+    end
+```
+
+#### 1.5.3 Verdict-quality propagation (degraded path)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant FL as flatline-orchestrator
+    participant Cheval
+    participant Adapter as Provider adapter (3 voices)
+    participant Op as Operator (PR comment)
+
+    FL->>Cheval: invoke voice 1 (Anthropic Opus)
+    Cheval-->>FL: ok, findings
+    FL->>Cheval: invoke voice 2 (OpenAI GPT-5.2)
+    Cheval-->>FL: exit 12 ChainExhausted (EmptyContent across chain)
+    FL->>Cheval: invoke voice 3 (Google Gemini)
+    Cheval-->>FL: ok, findings
+    Note over FL: voices_planned=3, voices_succeeded=2, voices_dropped=[gpt-5.2]
+    FL->>FL: compute verdict_quality (chain_health=degraded, confidence_floor=med)
+    FL->>FL: classify (FR-2.3): voices_succeeded < voices_planned → status=DEGRADED
+    FL-->>Op: PR comment header "⚠ DEGRADED — 2/3 voices (gpt-5.2 dropped: EmptyContent), chain degraded, confidence med"
+```
+
+### 1.6 External integrations
+
+| System | Integration type | Purpose | Reference |
+|--------|------------------|---------|-----------|
+| `model-config.yaml` | Schema extension | Capability fields (FR-1) | `.claude/defaults/model-config.yaml` |
+| `known-failures.md` | Watcher (CI) | KF auto-link (FR-1.5) | `grimoires/loa/known-failures.md` |
+| `.run/model-invoke.jsonl` | Read-only consumer + write target | Substrate health CLI (FR-5) | log path |
+| Cycle-098 audit envelope (`audit_emit_signed`) | Hash-chain extension | MODELINV v1.3 additive over v1.2 | `.claude/scripts/lib/audit-envelope.sh` |
+| Cycle-099 sprint-1C curl-mock-harness | Test fixture provider | Activation regression suite (FR-3.5) | `tests/fixtures/curl-mock/` |
+| Cycle-098 operator-identity primitive | OPERATORS.md validation | KF-auto-link operator-override `authorized_by` (FR-1.5/IMP-002) | `.claude/scripts/lib/operator-identity.sh` |
+| Cycle-099 sprint-1E.a log-redactor | Secret scrubbing | Substrate health CLI output (NFR-Sec-3) | `.claude/scripts/lib/log-redactor.{sh,py}` |
+
+### 1.7 Deployment architecture
+
+- Distribution: in-repo. No new services. No new endpoints.
+- Activation: each sprint lands as a PR, gated by Bridgebuilder review + post-PR audit (PRD §13.5).
+- Rollback (PRD §11.3): `git revert` of cycle-109 merge commits. After Sprint 3, the `flatline_routing` flag is no longer a rollback mechanism (C109.OP-3 acknowledged risk).
+
+### 1.8 Scalability + security architecture
+
+- **Scalability**: cheval pre-flight gate is in-memory lookup (<50ms NFR-Perf-1); chunking is bounded by `chunks_max` config knob (default 16 per call); substrate-health CLI is <2s for 24h on 100K entries (NFR-Perf-3).
+- **Security**: pre-flight gate logs input *size* not *content* (NFR-Sec-1); KF-auto-link parses YAML/markdown not eval (NFR-Sec-2); substrate-health output redacts secrets via cycle-099 log-redactor (NFR-Sec-3); verdict-quality envelope rejects unknown fields via JSON Schema `additionalProperties: false` (NFR-Sec-4).
 
 ---
 
 ## 2. Software stack
 
-### 2.1 Versions + justifications
+### 2.1 Languages + runtimes (existing — no new additions)
 
-| Component | Version / pin | Justification (PRD reference) |
-|-----------|---------------|-------------------------------|
-| Python (cheval, resolver) | 3.13 (existing repo standard) | Matches `.claude/adapters/__pycache__/cheval.cpython-313.pyc` — no version bump |
-| Bash | ≥4.4 (existing pin) | Required by audit-envelope.sh `flock` semantics |
-| `jsonschema` Python lib | 4.21+ (existing) | JSON Schema Draft 2020-12 compliance — matches L1 envelope schema |
-| `yq` v4+ | sha256-pinned 0c4d965e (linux) / 6bfa43a4 (darwin-arm64) — cycle-099 Sprint 1B precedent | CLAUDE.md "Configurable Paths v1.27.0" already mandates yq v4+; same pin re-used |
-| `ajv-cli` (Node, dev-only) | 5.0+ | CI-side JSON Schema validation; matches existing `tools/check-codegen-toolchain.sh` toolchain |
-| `bats-core` | 1.10+ (existing) | Test framework for `.bats` suites in `tests/unit/` + `tests/integration/` |
-| `flock` (util-linux) | system-default | Required by audit-envelope.sh + advisor-benchmark.sh worktree isolation |
-| GitHub Actions runner | `ubuntu-latest` + `macos-latest` matrix | Matches cycle-099 Sprint 1C codegen-drift gate platform matrix |
+| Category | Technology | Version | Justification |
+|----------|------------|---------|---------------|
+| Canonical adapter | Python | 3.11+ (existing cheval requirement) | cheval.py is canonical; new chunking module continues the package layout |
+| Bash twin / scripts | bash | 4.4+ (existing) | Shell wrappers, FL/RT orchestrators, substrate-health CLI |
+| TS port / BB delegate | TypeScript | (existing toolchain — cycle-099 sprint-1C pin) | BB cheval-delegate consumer (FR-2.6); codegen output for endpoint-validator |
+| Codegen | `gen-bb-registry.ts` via tsx | tsx ^4.21.0 (cycle-099 pin) | Schema v2 → v3 regeneration |
+| YAML toolchain | yq v4.52.4 (cycle-099 SHA256-pinned) | as-is | model-config.yaml read/write |
 
-**Zero new external dependencies.** Every primitive cycle-108 needs is already in the toolchain.
+### 2.2 Substrate libraries (existing — no new dependencies)
 
-### 2.2 File-system layout (proposed)
+| Category | Technology | Purpose |
+|----------|------------|---------|
+| HTTP | `httpx` (cheval-vendored) | Provider HTTP transport |
+| Schema validation | `jsonschema` (Python) + ajv (TS) | v1.3 envelope + v1.0 verdict-quality |
+| Signing | Ed25519 via cycle-098 `audit-envelope.sh` | MODELINV + kf-auto-link audit chains |
+| Cross-runtime parity | cycle-099 sprint-1D contract pins | Bash/Python/TS byte-equality |
+| Test harness | bats + pytest | Existing (52 substrate-scoped tests per reality §7) |
+| Curl-mock provider | cycle-099 sprint-1C harness | Fixture-driven activation regression suite (FR-3.5) |
+| Log redactor | cycle-099 sprint-1E.a `log-redactor.{sh,py}` | Substrate-health CLI output (NFR-Sec-3) |
 
-```
-.claude/
-├── adapters/
-│   ├── cheval.py                              (MODIFIED: add --role/--skill/--sprint-kind)
-│   └── loa_cheval/
-│       ├── config/
-│       │   └── loader.py                      (MODIFIED: + load_advisor_strategy(),
-│       │                                       schema validation, NFR-Sec1 reject)
-│       ├── routing/
-│       │   └── advisor_strategy.py            (NEW: resolve_role_to_model() canonical)
-│       └── audit/
-│           └── modelinv.py                    (MODIFIED: envelope v1.2 additive fields)
-├── data/schemas/
-│   └── advisor-strategy.schema.json           (NEW: JSON Schema for config section)
-├── scripts/
-│   └── lib/
-│       └── advisor-strategy-resolver.sh       (NEW: bash twin — execs Python resolver)
-└── skills/<skill>/SKILL.md                    (MODIFIED ×35: + role: / + primary_role:)
+**Explicitly NOT in this cycle** (PRD §3.3 + §8.5 constraints):
+- No new providers (Mistral, Cohere, OpenRouter, etc.)
+- No new transports (no new CLI integrations)
+- No new feature flags (`hounfour.flatline_routing` is being removed, FR-3.4)
+- No new model entries (capability fields only added to existing entries)
 
-tools/
-├── advisor-benchmark.sh                       (NEW)
-├── modelinv-rollup.sh                         (NEW)
-└── sprint-kind-classify.py                    (NEW: stratifier — used by both above)
+### 2.3 Infrastructure + DevOps
 
-tests/
-├── unit/
-│   ├── advisor-strategy-loader.bats           (NEW: NFR-Sec1 fixture suite)
-│   ├── advisor-strategy-resolver.bats         (NEW: bash twin parity)
-│   ├── advisor-strategy-resolver.test.py      (NEW: Python canonical)
-│   ├── modelinv-envelope-v12.bats             (NEW: hash-chain compat)
-│   └── sprint-kind-classify.test.py           (NEW: stratifier rules)
-├── integration/
-│   ├── rollback-trace-comparison.bats         (NEW: FR-7 IMP-010 mini-cycle)
-│   ├── advisor-benchmark-hermetic.bats        (NEW: NFR-R1 worktree isolation)
-│   └── modelinv-rollup-hash-chain.bats        (NEW: FR-5 IMP-008 fail-closed)
-└── fixtures/advisor-strategy/
-    ├── valid-default.yaml
-    ├── poisoned-audit-override.yaml           (NFR-Sec1 negative)
-    ├── unknown-skill-override.yaml            (FR-1 negative)
-    ├── missing-tier-alias.yaml                (FR-1 negative)
-    └── multi-role-skill-no-primary.yaml       (FR-3 IMP-012 negative)
-
-grimoires/loa/cycles/cycle-108-advisor-strategy/
-├── prd.md                                     (DONE)
-├── sdd.md                                     (THIS FILE)
-├── baselines.json                             (Sprint 3 — signed L1)
-├── benchmark-report.md                        (Sprint 3)
-└── rollout-policy.md                          (Sprint 4)
-```
+| Category | Technology | Purpose |
+|----------|------------|---------|
+| CI | GitHub Actions | Drift gates (cycle-099), activation regression suite (FR-3.5), conformance tests (FR-2.7), MODELINV coverage audit (cycle-108 T2.M) |
+| Audit log | `.run/audit.jsonl` + `.run/model-invoke.jsonl` + `.run/kf-auto-link.jsonl` + `.run/activation-regression/sprint-N.json` | Mutation logger hook + new envelope writers |
+| Cron (FR-5.8) | OS-level cron / GitHub Actions scheduled workflow | Daily `loa substrate health` → journal |
 
 ---
 
-## 3. Role→tier routing architecture (FR-1, FR-2, FR-9)
+## 3. Data model & schema design
 
-### 3.1 `.loa.config.yaml` schema
+### 3.1 `model-config.yaml` schema v3 (FR-1.1, IMP-008)
 
-The `advisor_strategy:` section is a peer of `hounfour:` (existing). Full canonical form:
+#### 3.1.1 New fields per model entry (additive over v2)
 
 ```yaml
-advisor_strategy:
-  schema_version: 1                            # Required. Migration semantics in §3.4.
-  enabled: false                               # Master switch. Default off (opt-in).
-  tier_resolution: static                      # static | dynamic (FR-9; default static)
-  defaults:                                    # Role → tier mapping
-    planning: advisor
-    review: advisor
-    implementation: executor
-  tier_aliases:                                # Tier → per-provider model-id
-    advisor:
-      anthropic: claude-opus-4-7
-      openai: gpt-5.5-pro
-      google: gemini-3.1-pro-preview
-    executor:
-      anthropic: claude-sonnet-4-6
-      openai: gpt-5.3-codex
-      google: gemini-3.1-flash               # [ASSUMPTION-A1] — validated in §3.6
-  per_skill_overrides:                         # Optional. Skill-name → tier
-    implement: executor
-    bug: executor
-  benchmark:                                   # FR-4 / NFR-P3 cost cap
-    max_cost_usd: 50.0
-    historical_median_tokens:                  # Per-stratum median (Sprint 2 populates)
-      glue: { input: 12000, output: 4000 }
-      parser: { input: 45000, output: 12000 }
-      cryptographic: { input: 60000, output: 18000 }
-      testing: { input: 30000, output: 9000 }
-      infrastructure: { input: 25000, output: 7500 }
+# .claude/defaults/model-config.yaml — example entry post-v3
+aliases:
+  claude-opus-4.7:
+    provider: anthropic
+    model_id: claude-opus-4-7
+    api_context_window: 200000     # existing v2 field
+    streaming_max_input_tokens: 80000  # existing cycle-103 field
+    legacy_max_input_tokens: 60000     # existing cycle-103 field
+
+    # ──── v3 additions (FR-1.1) ────
+    effective_input_ceiling: 40000     # IMP-008 conservative default = min(50% × api, 30K)
+                                       # for reasoning-class, but operator-set higher per KF-002 layer-1 study
+    reasoning_class: true              # IMP-008 opt-in flip (claude-opus-4.x, gpt-5.5-pro, gemini-3.1-pro)
+    recommended_for: [review, audit]   # informational at cycle-109; load-bearing post-FR-2.3
+    failure_modes_observed: [KF-002, KF-003]
+    ceiling_calibration:
+      source: empirical_probe          # | kf_derived | operator_set | conservative_default
+      calibrated_at: "2026-05-13T00:00:00Z"
+      sample_size: 25                  # null if not empirical
+      stale_after_days: 30
+      reprobe_trigger: "first KF entry referencing model OR 30d elapsed OR operator-forced"
+
+    # ──── FR-4.4 streaming-recovery (per-model, additive) ────
+    streaming_recovery:
+      first_token_deadline_seconds: 60         # reasoning_class default; 30 for non-reasoning
+      empty_detection_window_tokens: 200
+      cot_token_budget: 500                    # reasoning_class only
 ```
 
-### 3.2 JSON Schema (`.claude/data/schemas/advisor-strategy.schema.json`)
+#### 3.1.2 Conservative defaults policy (IMP-008 — applied at migration time)
 
-Schema enforces:
+| Field | Default when no empirical data | Source |
+|-------|---------------------------------|--------|
+| `effective_input_ceiling` | `min(50% × api_context_window, 30000)` | matches KF-002/003 30K knee |
+| `reasoning_class` | `false` (default); opt-in list flips known reasoning-class models | claude-opus-4.x, gpt-5.5-pro, gemini-3.1-pro = true |
+| `recommended_for` | `["review", "audit", "implementation", "dissent", "arbiter"]` (allow-all default; KF-auto-link is the explicit reducer — SKP-004 v5 closure) | — |
+| `failure_modes_observed` | `[]` | populated by FR-1.5 on next CI run |
+| `ceiling_calibration.source` | `conservative_default` | — |
+| `streaming_recovery.first_token_deadline_seconds` | 30 (non-reasoning) / 60 (reasoning) | matches cycle-103 timeout taxonomy |
+| `streaming_recovery.empty_detection_window_tokens` | 200 | FR-4.4 thresholds |
+| `streaming_recovery.cot_token_budget` | 500 (reasoning only; null for non-reasoning) | FR-4.4 |
 
-| Rule | Schema mechanism | Closes |
-|------|------------------|--------|
-| Required top-level keys | `required: [schema_version, enabled, defaults, tier_aliases]` | FR-1 |
-| `schema_version: 1` exact | `const: 1` | FR-1 migration |
-| `enabled` boolean | `type: boolean` | FR-1 |
-| `tier_resolution` enum | `enum: [static, dynamic]` | FR-9 |
-| `defaults.*` only known roles | `propertyNames: { enum: [planning, review, implementation] }` | FR-1 |
-| `defaults.review` + `defaults.audit` MUST be `advisor` | `properties.defaults.properties.review.const: advisor` (and audit) | **NFR-Sec1** |
-| `tier_aliases` keys are known tiers | `propertyNames: { enum: [advisor, executor] }` | FR-1 |
-| Per-tier provider keys are known | `propertyNames: { enum: [anthropic, openai, google] }` | FR-1 / OOS-4 (within-provider only) |
-| Per-tier provider values match `^[a-z0-9-]+$` (alias-name shape) | regex pattern | FR-1 |
-| `per_skill_overrides` values are tier names | `enum: [advisor, executor]` | FR-1 |
-| `per_skill_overrides` keys MUST exist in skill registry | runtime check post-schema (loader walks `.claude/skills/*/SKILL.md` + plugin skills) | FR-1 (fail-closed) |
-| `per_skill_overrides` key MUST NOT downgrade review/audit skills | runtime check: `if skill.role in {review, audit} and tier != advisor → reject` | **NFR-Sec1 / IMP-003** |
-| `benchmark.max_cost_usd` is number ≥ 0 | `type: number, minimum: 0` | NFR-P3 / IMP-011 |
-| `additionalProperties: false` at all levels | structural lock | NFR-Sec1 defense-in-depth |
+#### 3.1.3 JSON Schema location
 
-The schema is committed under `.claude/data/schemas/advisor-strategy.schema.json`. CODEOWNERS protection (operator-only edits) is configured via `.github/CODEOWNERS`:
+`.claude/data/schemas/model-config-v3.schema.json` (extends `model-config-v2.schema.json` per cycle-099 sprint-1A pattern). Validates additive-only — v3 must accept all valid v2 documents.
 
-```
-.claude/data/schemas/advisor-strategy.schema.json @janitooor
-.claude/adapters/loa_cheval/config/loader.py @janitooor
-```
+#### 3.1.4 `recommended_for` runtime semantics (SKP-004 v5 closure — Flatline SDD-review v5 HIGH BLOCKER)
 
-This closes **R-8** (NFR-Sec1 bypass via PR-planted schema).
+The v3/v4 design said `recommended_for: []` was "informational at cycle-109; load-bearing post-FR-2.3", and the conservative-default policy populated `[]` for migrated models. The v5 reviewer caught the resulting ambiguity: §1.5.1 normal dispatch says `role in recommended_for` is checked, but `[]` would block all migrated models. **Closure**: `recommended_for` IS load-bearing at cycle-109 ship, and migration MUST populate the allow-all default `[review, audit, implementation, dissent, arbiter]` for any model lacking explicit per-role evidence. The reducer is **KF-auto-link** (FR-1.5), which writes an explicit smaller list when a KF entry justifies the restriction.
 
-### 3.3 Loader-layer enforcement (`loa_cheval/config/loader.py`)
+| Migration scenario | `recommended_for` value | Runtime behavior |
+|---|---|---|
+| Model has explicit per-role evidence in source config | preserve as-declared | role must be in list to dispatch |
+| Model migrated with no per-role evidence | populate allow-all default `[review, audit, implementation, dissent, arbiter]` (NOT `[]`) | dispatch unrestricted |
+| KF-auto-link removes a role per IMP-001 mapping | role removed from list | dispatch with that role: substrate emits warning to MODELINV + falls back to next chain entry |
+| Operator-override sets `force_retain` per IMP-002 / §3.5.1 | KF-auto-link's removal reverted (conditional precedence per SKP-004 v3/v4) | dispatch allowed for that (model, role) |
+| Manual config edit sets `[]` explicitly (operator intentional) | `[]` — model dispatchable for NO role | substrate emits exit 11 (NoEligibleAdapter) at lookup; this is the explicit "kill switch" path (SKP-006 v6: exit 8 is InteractionPending, distinct semantics) |
 
-New function `load_advisor_strategy(repo_root: Path) -> AdvisorStrategyConfig`:
+**Dispatch enforcement**: `cheval._lookup_max_input_tokens` (extended per §1.4.2) returns `recommended_for` alongside ceiling/reasoning_class. The caller checks `requested_role in recommended_for` before dispatch; mismatch routes to the next chain entry per cycle-104 chain-walk semantics (NOT a hard fail unless the entire chain is exhausted).
 
-```python
-def load_advisor_strategy(repo_root: Path) -> AdvisorStrategyConfig:
-    # 1. Kill-switch wins (NFR-Sec3)
-    if os.environ.get("LOA_ADVISOR_STRATEGY_DISABLE") == "1":
-        return AdvisorStrategyConfig.disabled_legacy()
+**Verdict-quality surface for chain-walk fallthrough (SKP-005 v6 closure)**: every `recommended_for` mismatch that triggers chain-fallback emits a `voices_dropped[]` entry on the resulting envelope with `reason: NoEligibleAdapter`, `blocker_risk: med` (default; high if the dropped role was the cohort's primary safety voice), and a chain-walk trace. The classifier then surfaces a `DEGRADED` (or `FAILED` if blocker_risk == high) status, NOT `APPROVED`. This prevents chain-walk from silently masking primary-voice unavailability behind a fallback voice's verdict. Conformance fixtures (Sprint 1 deliverable):
 
-    # 2. Read .loa.config.yaml::advisor_strategy
-    raw = _read_yaml_section(repo_root, "advisor_strategy")
-    if raw is None:
-        return AdvisorStrategyConfig.disabled_legacy()
+- `migrated-no-evidence` → `[review, audit, implementation, dissent, arbiter]` → all 5 roles dispatchable
+- `kf-auto-link-removes-review` → role `review` removed → review-role dispatch falls through to chain[1]
+- `operator-restores-review` → conditional precedence path 1 wins → review-role dispatchable again
+- `manual-empty-list` → `[]` → all roles return exit 11 (NoEligibleAdapter; explicit kill switch acknowledged)
+- `partial-list` → `[review]` only → audit-role dispatch falls through; review-role dispatchable
 
-    # 3. Validate against JSON Schema (jsonschema.Draft202012Validator)
-    try:
-        _validate_schema(raw, SCHEMA_PATH)
-    except jsonschema.ValidationError as e:
-        sys.stderr.write(f"[advisor-strategy] EX_CONFIG: schema invalid: {e.message}\n")
-        sys.exit(78)  # EX_CONFIG per BSD sysexits.h
+### 3.2 Verdict-quality envelope schema (FR-2.1)
 
-    # 4. Runtime checks (post-schema)
-    skill_registry = _enumerate_skills(repo_root)
-    for skill_name, tier in raw.get("per_skill_overrides", {}).items():
-        if skill_name not in skill_registry:
-            sys.stderr.write(f"[advisor-strategy] EX_CONFIG: unknown skill '{skill_name}'\n")
-            sys.exit(78)
-        skill_role = skill_registry[skill_name].primary_role
-        if skill_role in {"review", "audit"} and tier != "advisor":
-            sys.stderr.write(
-                f"[advisor-strategy] EX_CONFIG: NFR-Sec1 violation — skill '{skill_name}' "
-                f"has role '{skill_role}' which is pinned to advisor tier (got '{tier}')\n"
-            )
-            sys.exit(78)
+#### 3.2.1 Schema definition
 
-    # 5. Static-mode pinning (FR-9): record commit SHA of .loa.config.yaml at load time
-    config_sha = _config_file_git_sha(repo_root, ".loa.config.yaml")
+**Location**: `.claude/data/schemas/verdict-quality.schema.json` v1.0
 
-    return AdvisorStrategyConfig.from_raw(raw, config_sha=config_sha)
-```
-
-**Exit code 78 (EX_CONFIG)** is the canonical fail-closed signal. Calling consumers MUST propagate (most already do — cheval.py:1187 cmd_poll has the pattern).
-
-The schema-validator is wired into `load_config()` (existing function at loader.py:138). It runs unconditionally on every `cheval` invocation — closing the per-call re-read requirement of FR-7 IMP-007 (in-flight kill-switch). Cost is bounded by the JSON Schema validator's O(n) walk over a small config object — well under NFR-P1's 5ms budget.
-
-### 3.4 Schema-version migration semantics
-
-| Version | Behavior |
-|---------|----------|
-| `schema_version: 1` | This SDD. Schema as documented in §3.1–§3.2. |
-| Absent `advisor_strategy` section | Treated as `enabled: false` legacy (advisor-everywhere). Identical to today. |
-| `schema_version: 0` or `schema_version: <unknown>` | Reject at loader (exit 78). |
-| Future `schema_version: 2+` | Schema files versioned as `advisor-strategy.v2.schema.json`. Migration: loader dispatches to versioned validator. Old config remains valid until operator opts to migrate. Documented in `grimoires/loa/runbooks/advisor-strategy-migration.md` (Sprint 4 deliverable). |
-
-This pattern is **explicit forward-compat** — we never silently accept future versions, which closes a class of schema-injection attacks.
-
-### 3.5 Cheval routing extension (FR-2)
-
-cheval.py argparse additions (canonical signature):
-
-```python
-parser.add_argument("--role",
-                    choices=["planning", "review", "implementation"],
-                    help="Caller's logical role; resolved to tier via advisor_strategy config")
-parser.add_argument("--skill",
-                    help="Caller's skill name (canonical, e.g. 'implement'); used for per_skill_overrides lookup")
-parser.add_argument("--sprint-kind", dest="sprint_kind",
-                    help="Stratification label for MODELINV; values from sprint-kind taxonomy §8")
-```
-
-`cmd_invoke()` resolution flow:
-
-```python
-def cmd_invoke(args):
-    advisor_cfg = load_advisor_strategy(repo_root)
-
-    if advisor_cfg.enabled and args.role and not args.model:
-        # Resolve role → tier → provider:model_id
-        resolved = advisor_cfg.resolve(
-            role=args.role,
-            skill=args.skill,
-            provider=_infer_provider_from_voice(args),
-        )
-        # resolved is a ResolvedTier dataclass: model_id, tier, tier_source, tier_resolution
-        args.model = resolved.model_id
-        _modelinv_extra_fields = {
-            "role": args.role,
-            "tier": resolved.tier,
-            "tier_source": resolved.tier_source,       # "default" | "per_skill_override" | "kill_switch"
-            "tier_resolution": resolved.tier_resolution, # "static:<sha>" | "dynamic"
-            "sprint_kind": args.sprint_kind,
+```jsonc
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": ".claude/data/schemas/verdict-quality.schema.json",
+  "title": "Verdict Quality Envelope v1.0",
+  "type": "object",
+  "required": ["status", "consensus_outcome", "truncation_waiver_applied",
+               "voices_planned", "voices_succeeded", "voices_succeeded_ids",
+               "voices_dropped", "chain_health", "confidence_floor", "rationale"],
+  "additionalProperties": false,
+  "properties": {
+    "status": {
+      "enum": ["APPROVED", "DEGRADED", "FAILED"],
+      "description": "SKP-001 canonical classification — REQUIRED. Computed exclusively by compute_verdict_status() per §3.2.2 contract; consumers MUST read this field rather than re-deriving from sub-fields. Producer-side writers MUST emit; consumer-side readers MUST treat absence as a contract violation (fail-CI in conformance test FR-2.7)."
+    },
+    "consensus_outcome": {
+      "enum": ["consensus", "impossible"],
+      "default": "consensus",
+      "description": "SKP-002 v5 closure (replaces unrepresentable private `_consensus_impossible`). Set per §3.2.2.1 consensus-outcome algorithm — REQUIRED. When `impossible`, compute_verdict_status() returns FAILED per §3.2.2 row 3."
+    },
+    "truncation_waiver_applied": {
+      "type": "boolean",
+      "default": false,
+      "description": "SKP-001 v6 closure (replaces unrepresentable private `_truncation_waiver_applied`). Set to true only by §4.1.3 break-glass path. Suppresses `chunks_dropped > 0 → FAILED` promotion when true."
+    },
+    "voices_planned": { "type": "integer", "minimum": 1 },
+    "voices_succeeded": { "type": "integer", "minimum": 0 },
+    "voices_succeeded_ids": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+      "description": "SKP-003 v6 closure — succeeded voice identities. Enables the §3.2.2 invariant that a voice cannot appear in BOTH voices_succeeded_ids AND voices_dropped[].voice."
+    },
+    "voices_dropped": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["voice", "reason", "exit_code", "blocker_risk"],
+        "additionalProperties": false,
+        "properties": {
+          "voice": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+          "reason": {
+            "enum": ["EmptyContent", "RateLimited", "ProviderUnavailable",
+                     "RetriesExhausted", "ContextTooLarge", "NoEligibleAdapter",
+                     "ChainExhausted", "InteractionPending", "Other"]
+          },
+          "exit_code": { "type": "integer", "minimum": 0, "maximum": 255 },
+          "blocker_risk": {
+            "enum": ["unknown", "low", "med", "high"],
+            "description": "SKP-002 — classifier-assessed likelihood that the dropped voice WOULD HAVE produced a BLOCKER-class finding had it succeeded. Heuristic computed from (a) dropped-voice role weight in adversarial cohort, (b) input-domain risk band (security-touching > docs-only), (c) KF priors for this (voice, sprint_kind). Default `unknown` for cohorts lacking historical priors. Consumed by §3.2.2 classification contract to refuse APPROVED when any dropped voice carries `blocker_risk >= med`."
+          },
+          "chain_walk": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Within-company fallback chain entries attempted"
+          }
         }
-    else:
-        # Legacy path — preserved verbatim
-        _modelinv_extra_fields = {}
-
-    # ... existing cheval flow ...
-    # MODELINV emit happens at end with _modelinv_extra_fields merged into envelope.payload
-```
-
-**Acceptance: backward-compat.** When `--role` is omitted (existing callers), cheval behaves identically — no envelope changes, no resolution, no errors. This is verified by `tests/unit/cheval-legacy-callers.bats` (existing) running unchanged.
-
-**Acceptance: cross-runtime round-trip.** A test fixture (same config + same `--role review --skill review-sprint`) produces byte-identical `args.model` from cheval.py and from `advisor-strategy-resolver.sh` (which exec's the Python). This is the cycle-099 cross-runtime parity pattern (see `feedback_cross_runtime_parity_traps.md`).
-
-### 3.6 Tier alias resolution mode (FR-9)
-
-`tier_resolution: static` (DEFAULT — and required by Sprint 3 benchmark):
-
-- At config load time, `_config_file_git_sha(repo_root, ".loa.config.yaml")` captures the commit SHA of `.loa.config.yaml`.
-- The MODELINV envelope records `tier_resolution: "static:<sha>"`.
-- The benchmark harness REQUIRES this mode (FR-4 acceptance) — verified by `tools/advisor-benchmark.sh` reading the MODELINV envelope of each replay and asserting `payload.tier_resolution` starts with `static:`.
-
-`tier_resolution: dynamic`:
-
-- No pinning; tier-aliases re-resolve on every invocation.
-- MODELINV records `tier_resolution: "dynamic"`.
-- Switching `static → dynamic` mid-cycle emits stderr warning `[advisor-strategy] WARN: tier_resolution changed mid-cycle; cross-replay variance may be affected` + writes an audit-envelope `L1` event `advisor_strategy.resolution_mode_changed`.
-
-**[ASSUMPTION-A1] validation** (FR-9 / §3.1): Sprint 1 task `T1.G` validates `gemini-3.1-flash` exists in `.claude/defaults/model-config.yaml` provider registry. If absent, Sprint 1 picks the available mid-tier Google model AND records the decision in this SDD's §8 as an SDD amendment. Falsification path is mechanical.
-
----
-
-## 4. Skill annotation contract (FR-3, IMP-012)
-
-### 4.1 Frontmatter schema addition
-
-Every `.claude/skills/*/SKILL.md` and every plugin-namespaced skill gains:
-
-```yaml
----
-name: implement
-description: "..."
-role: implementation               # NEW — one of: planning | review | implementation
-primary_role: implementation       # NEW (multi-role only) — explicit tiebreaker
-capabilities: { ... }              # existing
----
-```
-
-| Field | Required? | Values | Semantics |
-|-------|-----------|--------|-----------|
-| `role` | YES | `planning` \| `review` \| `implementation` | Default role used by `per_skill_overrides` lookup |
-| `primary_role` | YES IFF skill is multi-role | same enum | Tiebreaker; resolves NFR-Sec1 ambiguity |
-
-**Multi-role tiebreaker (IMP-012)**: when a skill is genuinely cross-cutting (e.g., `/run-bridge` runs BB-as-review THEN /run sprint-plan-as-planning+implementation), the YAML lists `role` once with the **most-restrictive** value (advisor wins ties: `review > planning > implementation`). `primary_role` documents the same value explicitly so downstream tools don't have to infer the tiebreaker.
-
-### 4.2 Validator extension
-
-`.claude/scripts/validate-skill-capabilities.sh` (existing at line 146 in current file) gains:
-
-```bash
-# After existing frontmatter extraction at line 147–157
-role=$(echo "$frontmatter" | yq eval '.role' - 2>/dev/null) || role="null"
-if [[ "$role" == "null" || -z "$role" ]]; then
-    log_error "$skill_name" "Missing required 'role' field (one of: planning|review|implementation)"
-    return 1
-fi
-case "$role" in
-    planning|review|implementation) ;;
-    *) log_error "$skill_name" "Invalid role '$role' (must be planning|review|implementation)"; return 1 ;;
-esac
-
-# Multi-role tiebreaker — currently only checked if primary_role is set
-primary_role=$(echo "$frontmatter" | yq eval '.primary_role' - 2>/dev/null) || primary_role="null"
-if [[ "$primary_role" != "null" && "$primary_role" != "$role" ]]; then
-    # Disagreement permitted only if primary_role explicitly "downgrades" to most-restrictive
-    case "$primary_role:$role" in
-        review:planning|review:implementation|planning:implementation) ;;  # advisor-wins tiebreaker
-        *) log_error "$skill_name" "primary_role '$primary_role' does not satisfy advisor-wins-ties rule against role '$role'"; return 1 ;;
-    esac
-fi
-```
-
-### 4.3 Migration plan (FR-3 acceptance)
-
-A Sprint 1 task ships `.claude/scripts/migrate-skill-roles.sh` which:
-
-1. Walks `.claude/skills/*/SKILL.md` (35 files in this repo) **and** discovered user-level + plugin-namespaced skills.
-2. Applies the following classification rules (mechanical, deterministic):
-
-| Heuristic | Maps to role |
-|-----------|--------------|
-| `name` matches `/plan-and-analyze\|architect\|sprint-plan\|discovering-requirements\|designing-architecture\|planning-sprints/` | `planning` |
-| `name` matches `/review-sprint\|audit-sprint\|reviewing-code\|auditing-security\|bridgebuilder-review\|flatline-review\|red-team\|gpt-review/` | `review` |
-| `name` matches `/implement\|implementing-tasks\|bug\|simstim\|continuous-learning\|build/` | `implementation` |
-| `name` matches multi-role patterns `/run-bridge\|spiraling\|run\|loa\|compound\|autonomous\|run-mode\|run-resume\|run-halt/` | **flagged for manual review** — script emits `role: review` (advisor-wins) + comment `# MULTI-ROLE: validated by operator on YYYY-MM-DD` |
-| Unmatched (utility / read-only / installer) | `implementation` (cheapest tier is acceptable for utility) |
-
-3. Emits a migration report at `grimoires/loa/cycles/cycle-108-advisor-strategy/skill-role-migration.md` with:
-   - Each skill's resolved role
-   - The classification rule that matched
-   - Multi-role skills flagged for operator review (expected list per PRD: `/run-bridge`, `/spiraling`, `/run`, `/loa`)
-4. The CI gate (validator) is **enabled only after** this migration commit lands — preventing chicken-and-egg fail-closed on a fresh repo.
-
-Manual review list (high-confidence multi-role candidates from skill inventory):
-
-| Skill | Reason | Recommended `role` / `primary_role` |
-|-------|--------|------------------------------------|
-| `run-bridge` | Iterative implement → review loop | `role: review`, `primary_role: review` |
-| `spiraling` | Autopoietic — covers planning + review + implementation | `role: review`, `primary_role: review` |
-| `run` | Outer wrapper around implement+review+audit | `role: review`, `primary_role: review` |
-| `loa` | Status/next-step router — could trigger any phase | `role: review`, `primary_role: review` |
-| `compound` | Multi-skill composition | `role: review`, `primary_role: review` |
-| `autonomous` | Runs all phases without operator | `role: review`, `primary_role: review` |
-
-**Acceptance**: post-Sprint 1, `validate-skill-capabilities.sh` runs in CI and fails any PR adding a SKILL.md without a `role` field — closing the silent-drift class.
-
----
-
-## 5. Benchmark harness architecture (FR-4, FR-8)
-
-### 5.1 `tools/advisor-benchmark.sh` overview
-
-**Inputs**:
-- `--sprints <comma-separated-PRs-or-sprint-ids>` (e.g., `--sprints PR#735,PR#738,PR#741`)
-- `--baselines <path>` (defaults to `grimoires/loa/cycles/cycle-108-advisor-strategy/baselines.json`)
-- `--replays <int>` (default 3, IMP-004 minimum)
-- `--cost-cap-usd <float>` (overrides config; default from `advisor_strategy.benchmark.max_cost_usd`)
-- `--fresh-run` (REQUIRED for Sprint 3; explicit; recorded-replay is the omit-default for harness smoke tests)
-
-**Outputs**:
-- `grimoires/loa/cycles/cycle-108-advisor-strategy/benchmark-report.md` (markdown report)
-- `grimoires/loa/cycles/cycle-108-advisor-strategy/benchmark-results.jsonl` (per-replay raw)
-- Updates `.run/model-invoke.jsonl` (each replay emits MODELINV envelopes naturally via cheval)
-
-### 5.2 Worktree isolation strategy (NFR-R1)
-
-Per-replay flow:
-
-```
-1. Determine pre-sprint SHA:
-   pre_sha = $(git log --format=%H "$sprint_pr_merge_sha^1" -1)   # parent of merge commit
-2. Create isolated worktree:
-   worktree_dir = $(mktemp -d /tmp/loa-advisor-replay-XXXXXX)
-   git worktree add "$worktree_dir" "$pre_sha"
-3. Materialize replay manifest:
-   - Copy .loa.config.yaml from worktree → override advisor_strategy.enabled = true,
-     defaults.implementation = <target tier>
-   - Pin temperature, top_p, system_prompt_sha, tool_definitions_sha (FR-4 IMP-004)
-4. Run replay:
-   cd "$worktree_dir"
-   # Reconstruct sprint inputs from PR body / original sprint plan
-   # Invoke /implement <sprint_id> with cheval --role implementation --skill implement
-   # Capture: cheval exit code, stdout, stderr, .run/model-invoke.jsonl deltas
-5. Run /review-sprint + /audit-sprint inside the worktree
-   - These ALWAYS use advisor tier (NFR-Sec1)
-   - Capture outcomes
-6. Capture metrics:
-   - Audit-sprint outcome (PASS|FAIL|INCONCLUSIVE)
-   - Review-sprint finding count by severity
-   - BB iter count to plateau (via run-bridge if invoked)
-   - MODELINV deltas: total tokens, cost USD, wall-clock
-7. Emit per-replay JSONL row
-8. Teardown:
-   git worktree remove "$worktree_dir" --force
-   rm -rf "$worktree_dir"
-```
-
-**Hermeticity guarantees** (CI-verified):
-- No `git push` from inside worktree (verified by `tests/integration/advisor-benchmark-hermetic.bats` running with a fake `git push` stub that fails the test if invoked).
-- No commits to tracked branches (worktree is at detached HEAD, abandoned post-replay).
-- `.run/model-invoke.jsonl` writes go to the *main* repo's path via absolute path override (`LOA_AUDIT_LOG_PATH` env) so envelopes are captured for the rollup — but the worktree's own `.run/` is discarded.
-- All other `grimoires/`, `.beads/`, `.ck/` writes inside the worktree are discarded with the worktree.
-
-### 5.3 State tracking
-
-`grimoires/loa/cycles/cycle-108-advisor-strategy/benchmark-state.json`:
-
-```json
-{
-  "schema_version": 1,
-  "baselines_sha": "<hash of baselines.json — must match for run to proceed>",
-  "planned_replays": [
-    {"sprint": "PR#735", "stratum": "testing", "tier": "advisor", "replay_idx": 0, "status": "pending"},
-    {"sprint": "PR#735", "stratum": "testing", "tier": "advisor", "replay_idx": 1, "status": "pending"},
-    {"sprint": "PR#735", "stratum": "testing", "tier": "executor", "replay_idx": 0, "status": "completed"}
-  ],
-  "cost_estimate_usd": 42.50,
-  "cost_actual_usd": 38.17,
-  "started_at": "2026-05-15T08:00:00Z",
-  "last_replay_at": "2026-05-15T10:32:11Z"
-}
-```
-
-Idempotent: harness reads state, skips completed replays, only runs pending. Enables resume-after-crash.
-
-### 5.4 Replay-manifest schema (per-replay reproducibility)
-
-`grimoires/loa/cycles/cycle-108-advisor-strategy/replay-manifests/<sprint>-<tier>-<idx>.json`:
-
-```json
-{
-  "sprint_pr": "PR#735",
-  "stratum": "testing",
-  "tier": "executor",
-  "replay_idx": 0,
-  "pre_sprint_sha": "78c59568...",
-  "config_overrides": {
-    "advisor_strategy.enabled": true,
-    "advisor_strategy.defaults.implementation": "executor"
-  },
-  "pinned": {
-    "temperature": 0.2,
-    "top_p": 0.95,
-    "system_prompt_sha": "<sha256>",
-    "tool_definitions_sha": "<sha256>",
-    "model_config_sha": "<sha256 of .claude/defaults/model-config.yaml>"
-  },
-  "started_at": "2026-05-15T10:30:00Z",
-  "completed_at": "2026-05-15T10:32:11Z",
-  "modelinv_envelope_ids": ["MODELINV-001", "MODELINV-002", "..."],
-  "outcomes": {
-    "audit_sprint": "PASS",
-    "review_findings_count": {"critical": 0, "high": 1, "medium": 4, "low": 7},
-    "bb_iters_to_plateau": 2,
-    "tokens_input": 14523,
-    "tokens_output": 4288,
-    "cost_usd": 1.42,
-    "wall_clock_s": 131
-  }
-}
-```
-
-### 5.5 Variance protocol (IMP-004)
-
-Implemented in `tools/advisor-benchmark-stats.py` (called by harness post-replay):
-
-```python
-def classify_pair(replays: list[ReplayResult], metric: str) -> ClassificationResult:
-    """
-    Per (sprint, tier) pair across ≥3 replays.
-    Returns one of: STABLE, FLAG_FOR_RERUN, DROP.
-    """
-    values = [r.metrics[metric] for r in replays]
-    mean = statistics.mean(values)
-    stdev = statistics.stdev(values)  # sample stdev (n-1 denominator)
-    cv = stdev / mean if mean else float("inf")
-
-    if max(values) - min(values) <= 2 * stdev:
-        return ClassificationResult.STABLE
-    elif len(replays) < 5:
-        return ClassificationResult.FLAG_FOR_RERUN  # add 2 more replays
-    else:
-        return ClassificationResult.DROP  # variance persists → harness defect candidate
-```
-
-The harness loops: ≥3 replays → classify → if FLAG_FOR_RERUN, schedule 2 more → re-classify → if still FLAG, DROP from stratum aggregate (recorded separately).
-
-### 5.6 Replay-semantics enforcement (IMP-005)
-
-The harness has TWO modes:
-
-| Mode | Flag | Purpose | Affects headline? |
-|------|------|---------|-------------------|
-| **fresh-run** | `--fresh-run` (REQUIRED for Sprint 3) | LLM generates code from prompts | YES — counted in benchmark-report.md headline scorecard |
-| **recorded-replay** | `--recorded-replay <manifest-dir>` | Replay cached prompt/response pairs (for harness smoke testing) | NO — emits to `benchmark-report.md` under `## Harness self-test (NOT a quality signal)` section |
-
-Enforcement: every row in `benchmark-results.jsonl` has a `replay_type: fresh-run|recorded-replay` field. The markdown emitter has separate templates for the two; recorded-replay rows can NEVER appear in the headline `## Stratum scorecard` section — enforced by a bats assertion `tests/integration/replay-semantics-isolation.bats`.
-
-### 5.7 Chain-exhaustion classification (IMP-013)
-
-After each replay, harness inspects the MODELINV envelopes for that replay's window:
-
-```python
-def classify_replay_outcome(envelopes: list[dict]) -> ReplayOutcome:
-    statuses = [e["payload"].get("models_failed", []) for e in envelopes]
-    succeeded = [e["payload"].get("models_succeeded", []) for e in envelopes]
-
-    if any(not s and f for s, f in zip(succeeded, statuses)):
-        return ReplayOutcome.INCONCLUSIVE  # chain exhausted
-    elif any(f for f in statuses):
-        return ReplayOutcome.OK_WITH_FALLBACK
-    else:
-        return ReplayOutcome.OK
-```
-
-| ReplayOutcome | Counted in stratum aggregate? | Reported where? |
-|---------------|--------------------------------|-----------------|
-| `OK` | YES | Headline + detail |
-| `OK_WITH_FALLBACK` | YES (flagged) | Headline + detail with badge |
-| `INCONCLUSIVE` | NO | Separate "Inconclusive runs" table |
-| `EXCLUDED` (operator-aborted) | NO | Not reported at all (audit log retains) |
-
-### 5.8 Cost-cap pre-estimate (IMP-011)
-
-Formula:
-
-```
-estimate_usd = Σ over planned_replays:
-  (median_input_tokens[stratum] × pricing[provider][model].input_per_1m / 1e6)
-+ (median_output_tokens[stratum] × pricing[provider][model].output_per_1m / 1e6)
-```
-
-`median_input_tokens` and `median_output_tokens` are read from `advisor_strategy.benchmark.historical_median_tokens.<stratum>`. Sprint 2 populates these by running `tools/modelinv-rollup.sh --per-stratum` over the last 90 days of `.run/model-invoke.jsonl`.
-
-Pre-run flow:
-
-```
-1. Compute estimate_usd
-2. Read max_cost_usd from config (overridable via --cost-cap-usd)
-3. If estimate_usd > max_cost_usd:
-   - Print "ERROR: Estimated cost $X exceeds cap $Y" to stderr
-   - Print breakdown: per-stratum × per-tier × per-replay
-   - Exit 6 (BudgetExceeded, matches cheval.py convention)
-4. Else: proceed; record estimate_usd in benchmark-state.json
-```
-
-Post-run: harness emits `actual_usd` vs `estimate_usd` delta in benchmark-report.md (closes IMP-011 reporting requirement).
-
-### 5.9 Pre-registered baselines (FR-8 / IMP-001)
-
-`grimoires/loa/cycles/cycle-108-advisor-strategy/baselines.json`:
-
-```json
-{
-  "schema_version": 1,
-  "git_sha_at_signing": "<sha of commit that contains this file>",
-  "signed_by_key_id": "<L1 audit signing key id>",
-  "timestamp": "2026-05-15T09:00:00Z",
-  "strata": {
-    "glue": {
-      "advisor_baseline": {
-        "audit_pass_rate": 0.97,
-        "review_findings_density": 12.4,
-        "bb_iters_mean": 2.0,
-        "cost_usd_mean": 4.20,
-        "wall_clock_s_mean": 180,
-        "source_sprints": ["PR#737", "PR#722", "PR#739"]
-      },
-      "executor_target": {
-        "audit_pass_rate_min": 0.92,
-        "review_findings_density_max": 14.88,
-        "bb_iters_max": 3.0,
-        "cost_usd_reduction_min": 0.40,
-        "wall_clock_overhead_max": 0.30
       }
     },
-    "parser": { "...": "..." },
-    "cryptographic": { "...": "..." },
-    "testing": { "...": "..." },
-    "infrastructure": { "...": "..." }
+    "chain_health": { "enum": ["ok", "degraded", "exhausted"] },
+    "confidence_floor": { "enum": ["high", "med", "low"] },
+    "rationale": { "type": "string", "minLength": 1, "maxLength": 1024 },
+    "single_voice_call": {
+      "type": "boolean",
+      "description": "FR-2.9 IMP-010: when 1 voice planned (e.g., BB single-pass), suppresses consensus inference"
+    },
+    "chunked": { "type": "boolean", "description": "FR-4 chunked-review aggregation occurred" },
+    "chunks_reviewed": { "type": "integer", "minimum": 0 },
+    "chunks_dropped": { "type": "integer", "minimum": 0 },
+    "chunks_aggregated_findings": { "type": "integer", "minimum": 0 }
   }
 }
 ```
 
-**Signing flow**:
+#### 3.2.2 Classification contract (FR-2.3 — load-bearing)
 
-```bash
-# Sprint 3 task: Sprint-3-T1 (baseline computation)
-tools/modelinv-rollup.sh --per-stratum --last-90-days > strata-historical.json
-tools/compute-baselines.py --historical strata-historical.json \
-    --sc-table grimoires/loa/cycles/cycle-108-advisor-strategy/prd.md \
-    --output baselines.json
+Implemented in **a single canonical function** (`compute_verdict_status` in `cheval.py` and exposed via `.claude/scripts/lib/verdict-quality.sh` for bash twins). NEVER duplicated across consumers — to avoid drift, the bash twin sources the Python via subprocess for byte-identical output. The function is the **sole writer** of the schema-required `status` field (SKP-001 closure).
 
-# Sprint 3 task: Sprint-3-T2 (sign)
-source .claude/scripts/audit-envelope.sh
-audit_emit_signed BASELINES baselines.signed \
-    "$(cat baselines.json | jq -c .)" \
-    grimoires/loa/cycles/cycle-108-advisor-strategy/baselines.audit.jsonl
+| Status | Required conditions | Forbidden conditions |
+|--------|---------------------|----------------------|
+| `APPROVED` | `voices_succeeded == voices_planned` AND `chain_health == "ok"` AND `consensus_outcome == "consensus"` AND every `voices_dropped[].blocker_risk` ∈ `{unknown, low}` (SKP-002 closure) AND `chunks_dropped == 0` (SKP-001 v5 closure — no chunked-review truncation tolerated) | any voices_dropped[].blocker_risk ∈ `{med, high}`; chain_health ≠ "ok"; voices_succeeded < voices_planned; consensus_outcome == "impossible"; chunks_dropped > 0 |
+| `DEGRADED` | `0 < voices_succeeded < voices_planned` AND remaining voices reached consensus AND no dropped voice carries `blocker_risk = high` AND `chunks_dropped == 0` | voices_succeeded == 0; any voices_dropped[].blocker_risk == "high"; consensus_outcome == "impossible"; chunks_dropped > 0 (all auto-promote to FAILED) |
+| `FAILED` | `voices_succeeded == 0` OR `chain_health == "exhausted"` OR `consensus_outcome == "impossible"` OR any `voices_dropped[].blocker_risk == "high"` OR `chunks_dropped > 0` (SKP-001 v5: any truncation drop is unsafe; operator can authorize via §4.1.2 `--truncation-waiver` break-glass family) | — |
 
-# Commit baselines.json + baselines.audit.jsonl in the same commit
-git add baselines.json baselines.audit.jsonl
-git commit -m "cycle-108: pre-register baselines for advisor-benchmark"
-```
+**Producer/consumer contract (FR-2.7 — closes SKP-001):**
 
-**Refusal logic in advisor-benchmark.sh**:
+- **Producer obligation**: every emitter (cheval, FL orchestrator, adversarial-review, BB cheval-delegate) MUST write `status` via `compute_verdict_status` BEFORE emitting the envelope. Envelope without `status` is a schema violation (additionalProperties: false enforcement; producer FAILS in CI). The §4.4 `emit_envelope_with_status` helper is the **single producer entry-point** — error paths (§6.2) and success paths both flow through it (SKP-003 v5 closure).
+- **Consumer obligation**: every reader (the 7 consumers in §3.2.3) MUST read `status` directly. Re-deriving status from sub-fields is forbidden (lints in CI via `tools/lint-verdict-consumers.py` — Sprint 2 deliverable). This closes the SKP-001 vector where §5.5.2 readers consulted a missing `verdict_quality.status`.
 
-```bash
-# Before any replay:
-expected_sha=$(jq -r '.git_sha_at_signing' baselines.json)
-actual_sha=$(git log -1 --format=%H -- baselines.json)
-if [[ "$expected_sha" != "$actual_sha" ]]; then
-    echo "ERROR: baselines.json hash mismatch — expected $expected_sha, got $actual_sha" >&2
-    echo "Replays REFUSED. Re-sign baselines.json if intentional." >&2
-    exit 78  # EX_CONFIG — same code class as schema-fail
-fi
-audit_verify_chain baselines.audit.jsonl || {
-    echo "ERROR: baselines audit chain invalid" >&2
-    exit 78
+#### 3.2.2.1 Consensus-outcome algorithm (SKP-001 v6 closure)
+
+`consensus_outcome` is set by `loa_cheval.verdict.consensus.classify_consensus(envelope, findings_per_voice)` BEFORE `compute_verdict_status` is called. Inputs: the envelope (for voice identities + planned/succeeded counts) and a list of finding-sets per voice (one set per successful voice). Algorithm:
+
+1. **Trivial cases**: if `voices_succeeded < 2`, return `"consensus"` (cannot have contradiction with fewer than 2 voices).
+2. **Per-finding cross-voice comparison**: for each BLOCKER-severity finding emitted by any voice, check whether at least one other voice's findings cover the same `(file_path, line_number_or_section)` location AND classify it as non-BLOCKER (any severity < HIGH).
+3. **Contradiction threshold**: if ANY BLOCKER finding from voice V₁ is contradicted (same location, non-BLOCKER severity) by voice V₂ in the same envelope, set `consensus_outcome = "impossible"`. Otherwise `"consensus"`.
+4. **Edge case**: if the BLOCKER finding from V₁ has no location field (rare; structural-class findings), require at least 2 voices to emit the same finding class to count as consensus; absence of corroboration is treated as `"consensus"` (single-voice signal, not contradiction).
+
+**Why this algorithm**: contradiction-on-BLOCKER is the highest-cost classifier mistake possible — a BLOCKER from one voice that the others affirmatively classify as non-BLOCKER means the substrate cannot agree on the safety status of a code location. The FAILED branch refuses to ship a verdict when this happens.
+
+**Implementation**: `loa_cheval.verdict.consensus` Python module + bash twin (shells out). Sprint 2 deliverable. Conformance fixtures (FR-2.7): single-voice → "consensus"; identical BLOCKERs from all voices → "consensus"; BLOCKER from V₁ + HIGH from V₂ at same location → "consensus" (both flag the issue); BLOCKER from V₁ + LOW from V₂ at same location → "impossible".
+
+**Producer-side cross-field invariants (SKP-005 v5 closure):**
+
+Before classification, the producer MUST validate the following invariants. Any violation = envelope rejected with `EnvelopeInvariantViolation`; classification is NOT attempted; the caller receives a typed exit + audit-logged error.
+
+| Invariant | Reason |
+|---|---|
+| `voices_planned ≥ 1` | A zero-voice envelope cannot be classified; the producer must refuse to emit |
+| `0 ≤ voices_succeeded ≤ voices_planned` | succeeded > planned is a counter bug; succeeded < 0 is meaningless |
+| `len(voices_dropped) == voices_planned - voices_succeeded` | The `voices_dropped[]` array MUST account for exactly the missing voices |
+| `len(voices_succeeded_ids) == voices_succeeded` | The succeeded-IDs array MUST account for exactly the succeeded voices |
+| Every `voice` in `voices_dropped[]` is unique | A voice cannot drop twice in the same envelope |
+| Every entry in `voices_succeeded_ids` is unique | A voice cannot succeed twice in the same envelope |
+| No `voice` appears in BOTH `voices_dropped[]` AND `voices_succeeded_ids` (SKP-003 v6 closure — schema now records succeeded identities so this is enforceable) | A voice is either succeeded or dropped, not both |
+| `chunks_reviewed + chunks_dropped` ≤ `chunks_aggregated_findings` source-count | Chunk counters must agree with aggregation reality |
+
+Validation is implemented in `loa_cheval.verdict.quality.validate_invariants()` and invoked by `emit_envelope_with_status` BEFORE `compute_verdict_status`. Conformance fixtures cover each violation row.
+
+**Blocker-risk computation (SKP-002 closure):**
+
+The `blocker_risk` field is set by the canonical classifier at envelope-emission time (not by downstream consumers). Inputs:
+
+| Input | Source | Weight |
+|---|---|---|
+| Role of dropped voice in cohort (e.g., "primary security reviewer") | Cohort metadata (FL voice plan) | 0.5 |
+| Sprint-kind risk band (security-touching > infra > docs) | `--sprint-kind` flag | 0.3 |
+| KF priors for (voice, sprint-kind) — historical BLOCKER yield from this voice on similar work | `grimoires/loa/known-failures.md` parser | 0.2 |
+
+Cutoffs: composite score ≥ 0.7 → `high`; 0.4–0.7 → `med`; < 0.4 → `low`; insufficient priors → `unknown`. Operator can override per-call via `--blocker-risk-override <enum>` (Sprint 2 acceptance criterion).
+
+**Conformance test (FR-2.7)**: synthetic envelope fixtures cover every classification edge, including the cycle-109 PRD-review trajectory (FR-2 AC: "the run that just classified confidence: full while Opus voice dropped" is added as canonical regression fixture). New conformance cases added at SKP-001/002 closure:
+
+- Envelope emitted WITHOUT `status` → conformance suite FAILS (schema rejection)
+- Envelope with `voices_dropped[].blocker_risk == "high"` but `status == "APPROVED"` → conformance suite FAILS (classifier-status mismatch)
+- Cycle-109 PRD-review trajectory replayed with the new schema → MUST classify as `DEGRADED` (1 voice effectively dropped, blocker_risk computed `med` from security-touching sprint-kind + Opus primary-reviewer role)
+
+#### 3.2.3 Consumer dependency-ordered refactor table (IMP-004)
+
+| # | Consumer | Path | Refactor | PR order |
+|---|----------|------|----------|----------|
+| 1 | cheval emitter | `.claude/adapters/cheval.py::cmd_invoke` | Emit envelope on every call (canonical producer) | Sprint 2 PR #1 |
+| 2 | flatline-orchestrator | `.claude/scripts/flatline-orchestrator.sh` | Consume + write to `final_consensus.json` | Sprint 2 PR #2 |
+| 3 | adversarial-review | `.claude/scripts/adversarial-review.sh` | Consume + write to `adversarial-{review,audit}.json` (closes #807) | Sprint 2 PR #3 |
+| 4 | BB cheval-delegate | `.claude/skills/bridgebuilder-review/resources/adapters/cheval-delegate.ts` | Consume + render in PR-comment summary | Sprint 2 PR #4 |
+| 5 | flatline-readiness | `.claude/scripts/flatline-readiness.sh` | Read envelope; gate readiness on `chain_health` | Sprint 2 PR #5 |
+| 6 | red-team-pipeline | `.claude/scripts/red-team-pipeline.sh` | Consume + log degraded paths | Sprint 2 PR #6 |
+| 7 | post-pr-triage | `post-pr-triage.sh` | Consume in classifier; degraded findings auto-route to next-bug-queue | Sprint 2 PR #7 |
+
+**Note**: PRs #1-7 may be batched into 2-3 PRs if dependency-ordering is preserved within the batch. Producer always lands first.
+
+### 3.3 MODELINV envelope v1.3 additive shape (FR-1.4 + FR-2.2 + FR-4.5)
+
+#### 3.3.1 v1.2 → v1.3 additions (existing v1.2 fields preserved unchanged)
+
+```jsonc
+{
+  // ── v1.0 / v1.1 / v1.2 fields preserved (no removals) ──
+  "final_model_id": "...",
+  "transport": "...",
+  "config_observed": { ... },
+  "models_failed": [ ... ],
+  "models_requested": [ ... ],
+  "advisor_strategy": { ... },        // cycle-108 v1.2
+  "writer_version": "1.3.0",          // bumped
+
+  // ── v1.3 additions (FR-1.4) ──
+  "capability_evaluation": {
+    "effective_input_ceiling": 40000,
+    "input_size_observed": 38000,
+    "preflight_decision": "dispatch",       // | preempt | warn | chunked
+    "reasoning_class": true,
+    "recommended_for_role": true,           // role in recommended_for list
+    "ceiling_calibration_source": "empirical_probe",
+    "ceiling_stale": false
+  },
+
+  // ── v1.3 additions (FR-2.2) ──
+  "verdict_quality": {
+    // exact shape from §3.2 verdict-quality.schema.json — embedded by reference
+  },
+
+  // ── v1.3 additions (FR-4.5) ──
+  "chunked_review": {
+    "chunked": false,
+    "chunks_reviewed": 0,
+    "chunks_dropped": 0,
+    "chunks_aggregated_findings": 0
+  },
+
+  // ── v1.3 additions (FR-4.4 streaming-recovery telemetry) ──
+  "streaming_recovery": {
+    "triggered": false,
+    "tokens_before_abort": null,            // null when triggered=false
+    "reason": null                          // null when triggered=false
+  }
 }
 ```
 
-This closes IMP-001: retrospective threshold-fitting is **mechanically prevented**. Operators who want to revise baselines mid-cycle must commit a new signed file with a new SHA, which is auditable.
+#### 3.3.2 Hash-chain integration with cycle-098 audit envelope (NFR-Rel-4 + NFR-Aud-1)
+
+MODELINV continues to delegate signing to `audit_emit_signed` from cycle-098 `audit-envelope.sh`. The v1.3 additions are **embedded inside the existing canonical-JSON payload** that flows into the SHA-256 hash chain — therefore no change to the chain protocol itself. Replay of v1.2 logs still verifies; new v1.3 logs verify with the new fields treated as opaque payload.
+
+**Migration test** (Sprint 1 AC): seed `.run/model-invoke.jsonl` with a v1.2 entry signed under cycle-098 key; emit a v1.3 entry as next; `audit_recover_chain` walks both successfully; v1.2 parser ignores v1.3 fields (forward-compat); v1.3 parser handles missing v1.3 fields (backward-compat).
+
+### 3.4 KF-auto-link audit log (FR-1.5)
+
+**Location**: `.run/kf-auto-link.jsonl` (UNTRACKED, signed via `audit_emit_signed`)
+
+**Payload schema**: `.claude/data/trajectory-schemas/kf-auto-link-events/decision.payload.schema.json`
+
+```jsonc
+{
+  "event": "kf_auto_link.decision",
+  "kf_id": "KF-011",
+  "model": "claude-opus-4-7",
+  "before_state": {
+    "recommended_for": ["review", "audit", "implementation"],
+    "failure_modes_observed": []
+  },
+  "after_state": {
+    "recommended_for": ["audit"],
+    "failure_modes_observed": ["KF-011"]
+  },
+  "rationale": "KF-011 Status=OPEN; severity-mapping = Remove all roles from recommended_for",
+  "operator_override_applied": false,
+  "operator_override_details": null,
+  "authorized_by": null,                 // operator slug if override
+  "decision_ts": "2026-05-14T12:00:00Z"
+}
+```
+
+### 3.5 Operator-override precedence in `.loa.config.yaml` (IMP-002 + SKP-004 closure)
+
+**Schema** (added under top-level keys; coexists with `hounfour:`, `advisor_strategy:`, `adversarial_review:` etc.):
+
+```yaml
+kf_auto_link:
+  enabled: true                          # default; setting false disables FR-1.5 entirely
+  overrides:
+    - model: claude-opus-4-7
+      role: review
+      decision: force_retain             # | force_remove
+      reason: "operator-validated cycle-110 sprint-2 — false-positive at this scale"
+      effective_until: "2026-08-01T00:00:00Z"   # REQUIRED — see §3.5.1 SKP-004 hardening; max 90d from now()
+      kf_references:                     # REQUIRED non-empty (SKP-004 closure) — KF entries this override addresses
+        - KF-002
+        - KF-009
+      authorized_by: "@janitooor"        # must resolve via OPERATORS.md (cycle-098)
+      break_glass:                       # OPTIONAL — required only for force_retain over an OPEN CRITICAL KF
+        operator_slug: "@janitooor"
+        reason: "production incident — must dispatch despite CRITICAL KF until <date>"
+        expiry: "2026-05-15T00:00:00Z"
+        audit_event_id: "..."            # hash from signed audit event (auto-populated post-write)
+```
+
+#### 3.5.1 Precedence rules (load-bearing decision point; SKP-004 hardening — Flatline SDD-review v3 HIGH BLOCKER)
+
+**Resolution order at substrate query time** (FR-1 capability lookup):
+
+1. **Operator override** in `.loa.config.yaml::kf_auto_link.overrides[]` matching `(model, role)` — **WINS conditionally**, NOT unconditionally. Pre-conditions (ALL must hold, evaluated in order; first failure → override REJECTED with stderr warning, KF auto-decision applies):
+   1. `enabled: true` at the top-level
+   2. `effective_until > now()` (clock-skew window: 60s grace)
+   3. `effective_until ≤ now() + 90d` (hard cap; longer overrides require operator amend-PR)
+   4. `kf_references[]` non-empty AND every entry resolves to a KF-id present in `known-failures.md`
+   5. `authorized_by` resolves via OPERATORS.md (cycle-098 operator-identity primitive)
+   6. If ANY referenced KF carries `Status: OPEN` AND `Severity: CRITICAL`: `break_glass` block REQUIRED with operator_slug match + reason ≥ 16 chars + expiry ≤ 24h + valid audit_event_id (the signed audit event MUST have been emitted before the config-write — Sprint 1 deliverable: `tools/kf-auto-link.py --register-break-glass`)
+2. **KF-auto-link auto-decision** from FR-1.5 severity-to-downgrade mapping (PRD FR-1.5 IMP-001 table).
+3. **FR-1.2 default** (conservative defaults policy IMP-008).
+
+**Why these constraints (SKP-004 reasoning)**: pre-cycle-109, operator overrides won "unconditionally over KF-derived downgrades, including CRITICAL open failures". The Flatline reviewer caught this — operator intent CAN be wrong (calibration drift, hasty hot-fix, copy-paste from stale PR), and the safety-net's job is to refuse to let a fresh CRITICAL KF be muted by a stale config entry. The break-glass path remains available for genuine emergencies (production incident; signed audit event; operator slug on file; 24h cap) but is no longer the default override mode.
+
+**CI validation** (added to existing `kf_auto_link.overrides` PR-block check):
+
+| Validation | Failure → |
+|---|---|
+| `effective_until` missing | CI block (was: optional; now: required) |
+| `kf_references[]` empty or missing | CI block |
+| Any `kf_references` entry not present in `known-failures.md` | CI block |
+| `effective_until > now() + 90d` | CI block |
+| `force_retain` on an OPEN CRITICAL KF without `break_glass` block | CI block |
+| `break_glass.expiry > now() + 24h` | CI block |
+| `break_glass.audit_event_id` not resolvable in `.run/audit/*.jsonl` | CI block |
+
+**Audit event for break-glass entries** — emitted to `.run/audit/kf-override-break-glass.jsonl` via the cycle-098 audit-emit primitive (Ed25519-signed, hash-chained):
+
+```jsonc
+{
+  "envelope_version": "1.1.0",
+  "primitive_id": "L4_TRUST",            // break-glass is a trust event
+  "event": "trust.force_grant",          // composes with cycle-098 L4 graduated-trust force-grant pattern
+  "payload": {
+    "operator_slug": "@janitooor",
+    "scope": "kf_auto_link.override",
+    "kf_references": ["KF-002", "KF-009"],
+    "open_critical_kfs_overridden": ["KF-009"],
+    "reason": "production incident — must dispatch despite CRITICAL KF until <date>",
+    "expiry": "2026-05-15T00:00:00Z"
+  }
+}
+```
+
+#### 3.5.2 Precedence with `model-config.yaml` overlay (the second sub-question)
+
+The substrate also supports cycle-099 sprint-2 `model-overlay-hook.py` (atomic-write overlay produced from `.loa.config.yaml::model_overlay:`). The composite precedence is:
+
+| Layer | Source | Wins when... |
+|-------|--------|-------------|
+| L0 (lowest) | `.claude/defaults/model-config.yaml` | nothing overrides |
+| L1 | `model_overlay:` in `.loa.config.yaml` (cycle-099 sprint-2) | overlay key present for field |
+| L2 | KF-auto-link's *automated* writes to `model-config.yaml::failure_modes_observed` + role downgrades | KF mapping applies |
+| L3 (highest) | `.loa.config.yaml::kf_auto_link.overrides[]` | matching override active |
+
+**Reasoning**: operator-overrides are the highest-priority *because they encode operator intent*. KF auto-link encodes ledger-derived heuristic. Overlays encode operator config-level intent (less specific than override). Defaults are the floor.
+
+**Conflict surfacing**: when L1 (overlay) AND L3 (override) both target the same `(model, role)` with different decisions, cheval emits a **stderr warning at startup** + sets MODELINV `capability_evaluation.override_overlay_conflict: true`. CI gate: lint `.loa.config.yaml` for this conflict via `tools/lint-overlay-override-conflict.py` (Sprint 1 deliverable).
+
+### 3.6 Migration strategy
+
+- **v2 → v3**: `tools/migrate-model-config.py` extension. Adds new fields with conservative defaults. **Idempotent** (running twice on already-v3 file = no-op).
+- **Existing v2 entries**: each gets the 6 new fields populated per §3.1.2 defaults.
+- **Empirical probe** (FR-1.6): 5 known reasoning-class models calibrated empirically at cycle-109 ship time via `tools/ceiling-probe.py` (Sprint 1 deliverable). Remaining models retain conservative defaults + are flagged for cycle-110 calibration.
+- **Reversibility**: `migrate-model-config.py --downgrade-to-v2` reverses by stripping v3 fields. Used only for git-revert rollback path (PRD §11.3).
+
+### 3.7 Caching strategy
+
+- Capability table (model-config.yaml parsed → in-memory dict) cached per-process. NFR-Perf-1 ≤50ms relies on this.
+- Cache key: SHA-256 of model-config.yaml content. Reload triggers on hash change (CI/dev workflows that touch config invalidate immediately on next run).
+- No external cache layer (Redis/Memcached) — substrate is short-lived per-process.
 
 ---
 
-## 6. Cost aggregator architecture (FR-5, IMP-008, IMP-014)
+## 4. API & interface specifications
 
-### 6.1 `tools/modelinv-rollup.sh` overview
+### 4.1 Cheval CLI surface (FR-1, FR-2, FR-4 — extended, additive only)
 
-**Inputs**:
-- `--log <path>` (default `.run/model-invoke.jsonl`)
-- `--group-by <field-list>` (comma-separated: `cycle_id,skill_name,role,tier,final_model_id,sprint_kind`)
-- `--last-N-days <int>` (optional time window)
-- `--output-json <path>` / `--output-md <path>` (optional; defaults to stdout JSON)
-- `--per-stratum` (shortcut for `--group-by sprint_kind`)
+`cheval.py invoke` — existing surface preserved; **two flag groups added** in cycle-109:
 
-**Read-only contract**: tool MUST NOT mutate `.run/model-invoke.jsonl`. Verified by `tests/integration/modelinv-rollup-readonly.bats`.
+```bash
+cheval invoke \
+  --model claude-opus-4.7 \
+  --role review \
+  --skill bridgebuilder-review \
+  --sprint-kind implementation \
+  # ──── cycle-109 additions ────
+  --allow-chunking true                  # default: true; --allow-chunking false forces preempt-on-overflow
+  # ──── --blocker-risk-override break-glass family (FR-2 SKP-002 v5 closure; same credentials as --ceiling-override) ────
+  --blocker-risk-override unknown        # downward overrides ALWAYS require break-glass credentials below
+  --override-operator '@janitooor'       # REQUIRED for downward override; OPERATORS.md::acls.blocker-risk-override-authorized
+  --override-reason "validated false-positive — KF-002 false-flag for this sprint-kind"  # REQUIRED ≥16 chars
+  --override-expiry 2026-05-14T00:00:00Z # OPTIONAL; default now()+24h; max now()+7d
+  --override-kf KF-002                   # OPTIONAL; KF cross-reference
+  # ──── --ceiling-override break-glass family (FR-1.3 closure; SKP-003) ────
+  --ceiling-override 50000               # bypass effective_input_ceiling
+  --override-operator '@janitooor'       # REQUIRED; must resolve via OPERATORS.md (cycle-098 operator-identity)
+  --override-reason "cycle-110 sprint-2 — empirically-validated calibration drift"  # REQUIRED; minLength 16
+  --override-expiry 2026-05-14T00:00:00Z # OPTIONAL; default = now() + 24h; max = now() + 7d
+  --override-kf KF-009                   # OPTIONAL; references a KF that justifies the override
+  < input.txt
+```
 
-### 6.2 Hash-chain validation order (FR-5 / IMP-008)
+#### 4.1.1 `--ceiling-override` break-glass semantics (SKP-003 closure — Flatline SDD-review v3 HIGH BLOCKER)
+
+`--ceiling-override` bypasses the FR-1.3 pre-flight safety gate. The cycle-109 design treats it as **break-glass-only**: a 4-element credential set is REQUIRED, the call is **fail-closed** if any element is missing or invalid, and every successful override emits a signed audit event.
+
+**Required credentials**:
+
+| Element | Source / validation | Failure mode if missing/invalid |
+|---|---|---|
+| `--override-operator` (slug) | MUST resolve via `OPERATORS.md` per cycle-098 operator-identity primitive | exit 9 (CHEVAL_OVERRIDE_OPERATOR_UNRESOLVED) |
+| `--override-reason` (≥16 chars) | Free text; structured for audit-log readability | exit 9 (CHEVAL_OVERRIDE_REASON_MISSING) |
+| `--override-expiry` (ISO 8601) | Defaults to `now() + 24h` if absent; **hard cap** = `now() + 7d` | exit 9 (CHEVAL_OVERRIDE_EXPIRY_EXCEEDS_CAP) |
+| OPERATORS.md ACL match | The operator slug MUST appear in the `ceiling-override-authorized` ACL inside OPERATORS.md (newly-defined ACL — Sprint 1 deliverable) | exit 9 (CHEVAL_OVERRIDE_OPERATOR_NOT_AUTHORIZED) |
+
+**Fail-closed semantics**:
+
+- If `--ceiling-override` is passed without ALL FOUR credentials resolving cleanly, the invocation aborts with exit code 9 BEFORE any model dispatch. NO partial override is permitted.
+- If the input size exceeds `--ceiling-override` itself (i.e., the operator-supplied ceiling is also exceeded), the pre-flight gate fires its standard exit 7 (CHEVAL_PREFLIGHT_INPUT_EXCEEDS_CEILING) — the override raises the ceiling but does not bypass it.
+- If `effective_until` has passed at dispatch time (clock-skew window: 60s grace), exit 9.
+
+**Audit obligation** — every successful override emits to the L1-L7 audit envelope:
+
+```jsonc
+{
+  "envelope_version": "1.1.0",
+  "primitive_id": "L2_BUDGET",          // composes with cycle-098 audit infrastructure
+  "event": "cheval.ceiling_override",
+  "payload": {
+    "operator_slug": "@janitooor",
+    "operator_acl_match": "ceiling-override-authorized",
+    "model": "claude-opus-4.7",
+    "role": "review",
+    "sprint_kind": "implementation",
+    "ceiling_original": 30000,
+    "ceiling_override": 50000,
+    "input_size_observed": 47000,
+    "expiry": "2026-05-14T00:00:00Z",
+    "expiry_default_applied": false,
+    "reason": "cycle-110 sprint-2 — empirically-validated calibration drift",
+    "kf_reference": "KF-009"            // null if absent
+  },
+  "signature": "...",                    // Ed25519 — break-glass class MUST be signed
+  "signing_key_id": "..."
+}
+```
+
+Audit-event signing is REQUIRED (no `--no-sign` path); a missing signing key is exit 78 (EX_CONFIG) per the cycle-098 audit-keys-bootstrap runbook. Audit-event sink: `.run/cheval-overrides.jsonl` (TRACKED; per cycle-098 retention policy).
+
+**Operator identity verification** is fail-closed: if OPERATORS.md is missing, malformed, or the slug+ACL combination doesn't resolve, exit 9. There is no "warn-mode" fallback for ceiling-override — break-glass commands cannot operate degraded.
+
+**ACL definition** (Sprint 1 deliverable in OPERATORS.md):
+
+```yaml
+acls:
+  ceiling-override-authorized:
+    - "@janitooor"                       # primary maintainer
+  # additional slugs added by operator-only PR per cycle-098 §1.4.2
+```
+
+**Output JSON** (additive):
+
+```jsonc
+{
+  // existing fields preserved...
+  "result": { ... },
+  "verdict_quality": { /* §3.2 envelope */ },
+  "capability_evaluation": { /* §3.3.1 */ },
+  "chunked_review": { /* §3.3.1 if chunking triggered */ },
+  "ceiling_override": {                  // present iff --ceiling-override fired
+    "applied": true,
+    "operator_slug": "@janitooor",
+    "ceiling_original": 30000,
+    "ceiling_override": 50000,
+    "expiry": "2026-05-14T00:00:00Z",
+    "audit_event_id": "..."              // hash from audit envelope for forensic trace
+  }
+}
+```
+
+#### 4.1.2 `--blocker-risk-override` break-glass semantics (SKP-002 v5 closure — Flatline SDD-review v5 HIGH BLOCKER)
+
+The v3/v4 design accepted `--blocker-risk-override <enum>` with only `--override-reason` (free text). The v5 reviewer caught that this is structurally weaker than `--ceiling-override` (no operator auth, no ACL, no expiry, no signed audit event) — a caller could silently downgrade `high → unknown` and convert FAILED → DEGRADED without a trail. **Closure**: any **downward** override (high→med, high→low, high→unknown, med→low, med→unknown) requires the same 4-element credential set as ceiling-override. **Upward** overrides (unknown→low/med/high, low→med/high, med→high) are unrestricted because they only ever increase severity, never reduce safety.
+
+| Direction | Credentials required | Audit |
+|---|---|---|
+| Upward (unknown/low/med → higher) | `--override-reason` only | INFO log line |
+| Downward (high/med → lower) | `--override-operator` (ACL `blocker-risk-override-authorized`) + `--override-reason` (≥16 chars) + `--override-expiry` (default `now()+24h`, cap `now()+7d`) | Signed `cheval.blocker_risk_override` event to `.run/cheval-overrides.jsonl` |
+
+Fail-closed exit codes mirror §4.1.1 (exit 9 family). The OPERATORS.md ACL `blocker-risk-override-authorized` is a separate ACL from `ceiling-override-authorized` (Sprint 1 deliverable adds both); operator presence on one does not imply the other.
+
+#### 4.1.3 `--truncation-waiver` break-glass semantics (SKP-001 v5 closure — Flatline SDD-review v5 CRITICAL BLOCKER)
+
+The §3.2.2 classification contract was hardened in v5 to treat `chunks_dropped > 0` as FAILED. The only authorized bypass is a `--truncation-waiver` break-glass invocation, mirroring the credential model of `--ceiling-override`:
+
+```bash
+cheval invoke \
+  --allow-chunking true \
+  --truncation-waiver \
+  --override-operator '@janitooor' \         # REQUIRED; OPERATORS.md::acls.truncation-waiver-authorized
+  --override-reason "approved partial review for non-security PR #1234 per docs-only policy" \  # REQUIRED ≥16 chars
+  --override-expiry 2026-05-14T00:00:00Z \   # OPTIONAL; default now()+24h; max now()+24h (hard cap; truncation waivers are extra-short-lived)
+  --override-scope 'pr:1234' \                # REQUIRED; ties waiver to a specific scope so it cannot bleed to other PRs
+  < input.txt
+```
+
+When `--truncation-waiver` is accepted, the producer sets `truncation_waiver_applied: true` in the envelope (schema-declared boolean per §3.2.1; SKP-001 v6 closure replaces the unrepresentable private field with a first-class schema property), which suppresses the `chunks_dropped > 0 → FAILED` promotion in §4.4. The waiver event is logged as a signed `cheval.truncation_waiver` audit event with the scope, reason, expiry, and `chunks_dropped` count. Conformance fixtures cover: (a) waiver missing → FAILED, (b) waiver expired → FAILED, (c) waiver scope mismatch → FAILED, (d) well-formed waiver → DEGRADED at minimum (never APPROVED — truncation always degrades verdict quality even when authorized).
+
+### 4.2 Substrate-health CLI (FR-5.4 — new)
+
+```bash
+loa substrate health [--window 24h | 7d | 30d] [--json] [--model <id>]
+
+# Example output (human-readable):
+Substrate health, last 24h:
+  claude-opus-4-7:    SUCCESS 87% (N=234) | drop 8% | exhaust 5% | p95 12s | $4.21
+  gpt-5.2:            SUCCESS 92% (N=189) | drop 6% | exhaust 2% | p95  8s | $2.84
+  gemini-2.5-pro:     DEGRADED 45% (N=92) | drop 41% | exhaust 14% | p95 18s | $0.91
+⚠ gemini-2.5-pro health DEGRADED: file a KF or restrict role
+
+# JSON mode:
+loa substrate health --window 24h --json
+# emits structured JSON for tooling integration (NFR-7.3)
+
+# Recalibration trigger (FR-1.6 — operator-forced reprobe):
+loa substrate recalibrate <model-id>
+```
+
+**Exit codes**:
+| Code | Meaning |
+|------|---------|
+| 0 | Success — at least one model present in log window |
+| 2 | Empty log window (no data) |
+| 3 | Schema-invalid envelope encountered (CI signal) |
+| 5 | At least one model below 50% success_rate (warn-on-CI mode) |
+
+### 4.3 KF-auto-link CLI (FR-1.5 — new)
+
+```bash
+# Run on KF ledger change (CI trigger or manual):
+python .claude/scripts/lib/kf-auto-link.py \
+  --kf-file grimoires/loa/known-failures.md \
+  --config-file .claude/defaults/model-config.yaml \
+  --override-config .loa.config.yaml \
+  [--dry-run]                            # print diff, don't write
+  [--audit-log .run/kf-auto-link.jsonl]
+
+# Exit codes:
+# 0 = success (model-config.yaml updated OR already in sync)
+# 2 = malformed KF entry (NFR-Sec-2 fail-loud per IMP-005)
+# 3 = duplicate KF-ID detected (fail-loud)
+# 4 = operator-override schema invalid in .loa.config.yaml (CI block)
+```
+
+### 4.4 Verdict-quality classification helper (FR-2.3 — single source; SKP-001 v4 closure)
+
+This is the **byte-for-byte enforcement** of the §3.2.2 contract. Any drift between §3.2.2 (the contract) and this helper (the implementation) is the SKP-001 v4 failure class — the helper MUST mirror the table exactly, use `blocker_risk` (schema field name, not `blocker_class`), promote `high` to FAILED, and round-trip validate the envelope before emission.
+
+```python
+# .claude/adapters/loa_cheval/verdict/quality.py
+from typing import Literal
+import jsonschema   # for round-trip validation per §3.2.2 producer obligation
+
+Status = Literal["APPROVED", "DEGRADED", "FAILED"]
+
+
+class EnvelopeInvariantViolation(ValueError):
+    """SKP-005 v5 closure: raised when producer-side cross-field invariants fail."""
+
+
+def validate_invariants(envelope: dict) -> None:
+    """SKP-005 v5 + SKP-003 v6 — invoked BEFORE compute_verdict_status."""
+    planned = envelope["voices_planned"]
+    succeeded = envelope["voices_succeeded"]
+    dropped = envelope["voices_dropped"]
+    succeeded_ids = envelope["voices_succeeded_ids"]
+    if planned < 1:
+        raise EnvelopeInvariantViolation("voices_planned must be >= 1")
+    if not (0 <= succeeded <= planned):
+        raise EnvelopeInvariantViolation(
+            f"voices_succeeded ({succeeded}) must be in [0, voices_planned={planned}]"
+        )
+    if len(dropped) != planned - succeeded:
+        raise EnvelopeInvariantViolation(
+            f"voices_dropped count ({len(dropped)}) must equal "
+            f"voices_planned - voices_succeeded ({planned - succeeded})"
+        )
+    if len(succeeded_ids) != succeeded:
+        raise EnvelopeInvariantViolation(
+            f"voices_succeeded_ids count ({len(succeeded_ids)}) must equal "
+            f"voices_succeeded ({succeeded})"
+        )
+    dropped_voice_ids = [d["voice"] for d in dropped]
+    if len(dropped_voice_ids) != len(set(dropped_voice_ids)):
+        raise EnvelopeInvariantViolation("voices_dropped contains duplicate `voice` entries")
+    if len(succeeded_ids) != len(set(succeeded_ids)):
+        raise EnvelopeInvariantViolation("voices_succeeded_ids contains duplicates")
+    overlap = set(dropped_voice_ids) & set(succeeded_ids)
+    if overlap:                                                # SKP-003 v6 closure
+        raise EnvelopeInvariantViolation(
+            f"voices appear in BOTH succeeded and dropped: {sorted(overlap)}"
+        )
+    # chunk-counter consistency (SKP-001 v5 closure)
+    reviewed = envelope.get("chunks_reviewed", 0)
+    chunks_dropped_count = envelope.get("chunks_dropped", 0)
+    if reviewed < 0 or chunks_dropped_count < 0:
+        raise EnvelopeInvariantViolation("chunk counters must be non-negative")
+
+
+def compute_verdict_status(envelope: dict) -> Status:
+    """Single canonical implementation per §3.2.2 contract; bash twin shells out.
+
+    SKP-001 v4: SOLE writer of envelope["status"]; consumers MUST read it.
+    SKP-002 v5: uses schema-declared `consensus_outcome` (no private fields).
+    SKP-001 v5: chunks_dropped > 0 is load-bearing for FAILED.
+    SKP-001/002 v6: uses schema-declared `truncation_waiver_applied` (no private fields);
+    `med` blocker_risk check moved BEFORE the succeeded==planned filter so it is
+    no longer dead code (v6 SKP-002 dead-code closure).
+    """
+    voices_dropped = envelope["voices_dropped"]
+    succeeded = envelope["voices_succeeded"]
+    planned = envelope["voices_planned"]
+    chain_health = envelope["chain_health"]
+    consensus_outcome = envelope["consensus_outcome"]                 # required by schema
+    chunks_dropped = envelope.get("chunks_dropped", 0)
+    truncation_waiver = envelope["truncation_waiver_applied"]         # required by schema
+
+    # FAILED conditions — checked first; any one triggers
+    if succeeded == 0:
+        return "FAILED"
+    if chain_health == "exhausted":
+        return "FAILED"
+    if consensus_outcome == "impossible":
+        return "FAILED"
+    if any(d["blocker_risk"] == "high" for d in voices_dropped):     # SKP-002 v3/v4
+        return "FAILED"
+    if chunks_dropped > 0 and not truncation_waiver:                 # SKP-001 v5
+        return "FAILED"
+
+    # APPROVED-blocking conditions (degrade BEFORE filtering on succeeded count)
+    # SKP-002 v6 closure: med-risk drops MUST degrade even on partial-drop envelopes;
+    # placement above the succeeded<planned branch ensures the check is reachable
+    # whether voices_dropped is non-empty due to drops OR due to invariant accounting.
+    if any(d["blocker_risk"] == "med" for d in voices_dropped):
+        return "DEGRADED"
+    if chain_health == "degraded":
+        return "DEGRADED"
+    if chain_health != "ok":
+        return "DEGRADED"
+
+    # Count-based DEGRADED (only reachable when no blocker_risk drop above triggered)
+    if 0 < succeeded < planned:
+        return "DEGRADED"
+
+    return "APPROVED"
+
+
+def emit_envelope_with_status(envelope: dict, schema: dict) -> dict:
+    """Producer-side write path per §3.2.2 producer obligation.
+
+    Order matters: invariants first (SKP-005), THEN classification, THEN
+    round-trip schema validation. Any failure aborts emission and surfaces
+    a typed error to the caller.
+
+    SKP-003 v5 closure: this function is the SINGLE producer entry-point.
+    §6.2 error envelopes flow through it; §4.1 success envelopes flow through it.
+    No alternative emission path exists; lint-enforced by
+    tools/lint-verdict-producers.py.
+    """
+    # Defaults applied BEFORE classification so invariants and classifier
+    # operate on schema-complete envelopes (SKP-001/002 v6 closure).
+    envelope.setdefault("consensus_outcome", "consensus")
+    envelope.setdefault("truncation_waiver_applied", False)
+    envelope.setdefault("voices_succeeded_ids", [])
+    validate_invariants(envelope)                              # SKP-005
+    envelope["status"] = compute_verdict_status(envelope)      # SKP-001
+    jsonschema.validate(envelope, schema)                      # closes drift
+    return envelope
+```
+
+**Conformance fixtures** (FR-2.7 — produced as Sprint 2 deliverable; each row is one bats case):
+
+| Fixture | Envelope shape | Expected `status` |
+|---|---|---|
+| `all-succeed-ok` | succeeded=3, planned=3, chain_health=ok, voices_dropped=[] | APPROVED |
+| `one-dropped-unknown-risk` | succeeded=2, planned=3, voices_dropped=[{blocker_risk: unknown}] | DEGRADED |
+| `one-dropped-low-risk` | succeeded=2, planned=3, voices_dropped=[{blocker_risk: low}] | DEGRADED |
+| `one-dropped-med-risk` | succeeded=2, planned=3, voices_dropped=[{blocker_risk: med}] | DEGRADED |
+| `one-dropped-high-risk` | succeeded=2, planned=3, voices_dropped=[{blocker_risk: high}] | FAILED (high promotes from DEGRADED) |
+| `all-succeed-med-risk-anyway` | succeeded=3, planned=3, voices_dropped=[{blocker_risk: med}] | impossible by construction — voices_dropped is empty when succeeded==planned; conformance asserts the producer never emits this shape |
+| `chain-exhausted-but-succeeded-positive` | succeeded=3, planned=3, chain_health=exhausted | FAILED |
+| `consensus-impossible-flag` | succeeded=3, planned=3, chain_health=ok, _consensus_impossible=true | FAILED |
+| `cycle-109-prd-review-trajectory` | succeeded=2, planned=3, voices_dropped=[{voice: opus, blocker_risk: med}] | DEGRADED |
+| `missing-status-from-producer` | envelope without `status` field passed through `emit_envelope_with_status` | producer recomputes + writes status; pre-existing `status` is OVERWRITTEN |
+| `consumer-without-status` | consumer reads envelope missing `status` | consumer MUST exit non-zero (§3.2.2 consumer obligation); conformance lint catches |
+```
+
+```bash
+# .claude/scripts/lib/verdict-quality.sh — bash twin sources the python (no duplicate logic)
+verdict_compute_status() {
+  local envelope_json="$1"
+  python3 -c "
+import json, sys
+from loa_cheval.verdict.quality import compute_verdict_status
+print(compute_verdict_status(json.loads(sys.argv[1])))
+" "$envelope_json"
+}
+```
+
+### 4.5 Activation regression suite contract (FR-3.5 — new CI surface)
+
+```yaml
+# .github/workflows/activation-regression.yml (Sprint 3)
+name: Activation Regression Matrix
+on:
+  pull_request:
+    paths:
+      - '.claude/adapters/cheval.py'
+      - '.claude/scripts/flatline-orchestrator.sh'
+      - '.claude/scripts/adversarial-review.sh'
+      - '.claude/defaults/model-config.yaml'
+      - 'tests/integration/activation-path/**'
+
+jobs:
+  matrix-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        consumer: [bb, fl, rt, bug, review-sprint, audit-sprint,
+                   flatline-readiness, red-team-pipeline, post-pr-triage]
+        role: [review, dissent, audit, implementation, arbiter]
+        response_class: [success, empty-content, rate-limited, chain-exhausted,
+                         provider-disconnect, context-too-large]
+        dispatch_path: [single, chunked-2, chunked-5]
+        # → 9 × 5 × 6 × 3 = 810 fixture combinations
+        # Bats parallelism + GitHub Actions matrix → target <15min wall-time
+```
+
+Each cell pins an **expected `verdict_quality`** outcome (`APPROVED | DEGRADED | FAILED`) which the runner cross-checks against the actual envelope produced. Mismatch fails the cell.
+
+### 4.6 Cycle-098 audit envelope integration
+
+No new audit-event types are introduced at the L1-L7 primitive level. MODELINV v1.3 continues using the existing `audit_emit_signed` writer with `primitive_id: MODELINV` and the v1.3 fields are additive payload (§3.3.2).
+
+A new envelope writer **wraps** the existing primitive: `kf-auto-link.jsonl` uses `primitive_id: KFAL` (Sprint 1 reservation) for clean separation in the chain. Hash-chain protocol unchanged.
+
+---
+
+## 5. Sprint-by-sprint detailed design
+
+### 5.1 Sprint 1 — Capability-aware substrate foundation (FR-1)
+
+#### 5.1.1 Architecture decisions
+
+| Decision | Choice | Justification |
+|----------|--------|---------------|
+| Schema location | `.claude/data/schemas/model-config-v3.schema.json` | mirrors cycle-099 sprint-1A v2 location; codegen-discoverable |
+| Pre-flight gate placement | Inside `_lookup_max_input_tokens` extension [cheval.py:285] | already-existing capability lookup function; no new boundary |
+| KF-auto-link triggering | CI on `known-failures.md` change + manual via `loa substrate recalibrate` | Operator-controlled (C109.OP-2 deeper variant); deterministic |
+| KF-auto-link script language | Python (mirrors cheval canonical) | shared lib with `loa_cheval.routing` package |
+| Ceiling-probe protocol | Binary search per cycle-104 T2.10 precedent | proven convergence; bounded trials |
+| MODELINV envelope version | v1.2 → v1.3 additive | NFR-Rel-4 forward/backward compat |
+
+#### 5.1.2 Implementation outline
+
+1. **Test-first**: bats fixtures land in commit-1 (failing); implementation in commit-2 (passing).
+   - `tests/unit/model-config-v3-schema.bats` (schema validation)
+   - `tests/unit/cheval-preflight-gate.bats` (ceiling enforcement)
+   - `tests/unit/kf-auto-link-mapping.bats` (severity-to-downgrade per IMP-001 table — every row)
+   - `tests/unit/kf-auto-link-overrides.bats` (precedence, expiry, OPERATORS.md verification per IMP-002)
+   - `tests/unit/kf-auto-link-parsing-policy.bats` (malformed YAML, unknown status, missing model, multi-model, duplicate IDs per IMP-005)
+   - `tests/unit/ceiling-calibration.bats` (probe protocol, staleness, reprobe triggers per IMP-007)
+2. **Migration**: `tools/migrate-model-config.py --target-version 3` extends v2→v3. Idempotent.
+3. **Codegen regen**: `gen-bb-registry.ts` updated; `generated-model-maps.sh` regenerated; cross-runtime byte-equality gate (cycle-099 sprint-1D) runs in CI.
+4. **Empirical probes**: `tools/ceiling-probe.py` runs at cycle-109 ship time against 5 reasoning-class models (claude-opus-4.x, gpt-5.5-pro, gemini-3.1-pro, plus 2 others operator-selects).
+5. **KF-auto-link CI integration**: GitHub Actions workflow `.github/workflows/kf-auto-link.yml` runs on `known-failures.md` changes.
+
+#### 5.1.3 Beads task graph (Sprint 1)
 
 ```
-1. Open .run/model-invoke.jsonl
-2. Read all envelopes in order
-3. Compute hash chain: for each envelope, recompute hash(prev_hash || canonical_payload)
-   and verify against next envelope's prev_hash field
-4. If any link breaks:
-   - Print: "ERROR: hash-chain broken at line N, primitive_id=<id>, expected prev_hash=<X>, got <Y>"
-   - Print: "Recovery: see grimoires/loa/runbooks/audit-log-recovery.md"
-   - Exit 1 (NOT 78 — this is a data-integrity error, not a config error)
-   - DO NOT EMIT PARTIAL REPORT (IMP-008 requirement)
-5. If all links valid: proceed to grouping
+T1.1 — Land model-config-v3 schema + JSON Schema validation tests (test-first)
+T1.2 — Extend tools/migrate-model-config.py v2→v3 + conservative defaults (IMP-008)
+T1.3 — Cheval pre-flight gate extension (cheval.py:285) + bats coverage
+T1.4 — MODELINV envelope v1.3 additive (capability_evaluation field) + replay tests
+T1.5 — KF-auto-link script (kf-auto-link.py) + severity-mapping (IMP-001) + parsing policy (IMP-005)
+T1.6 — Operator-override schema + precedence + audit log + CI block on missing authorized_by (IMP-002)
+T1.7 — Ceiling-probe protocol (ceiling-probe.py) + calibrate 5 known models (IMP-007)
+T1.8 — Codegen regen + cross-runtime byte-equality gate
+T1.9 — Overlay-override conflict lint (lint-overlay-override-conflict.py) for §3.5.2 conflict surfacing
+T1.10 — Baseline capture script (tools/cycle-baseline-capture.sh) per PRD §3.4
+T1.11 — Sprint debrief at grimoires/loa/cycles/cycle-109-substrate-hardening/sprint-1-debrief.md
 ```
 
-Implementation: re-use `audit_verify_chain` from `.claude/scripts/audit-envelope.sh` (existing function).
+#### 5.1.4 Acceptance criteria mapping
 
-### 6.3 Per-stratum grouping (IMP-014)
+| PRD AC | Implementation site |
+|--------|--------------------|
+| All models in model-config.yaml carry 6 new fields | T1.1 + T1.2 |
+| Cheval pre-flight gate emits typed exit 7 for inputs > ceiling | T1.3 |
+| MODELINV v1.3 schema lands additively over v1.2 | T1.4 |
+| KF-auto-link script runs in CI; integration test seeds fake KF | T1.5 |
+| IMP-001 severity-to-downgrade table — each row covered by bats | T1.5 |
+| IMP-002 operator-override precedence + expiry + CI block | T1.6 |
+| IMP-005 parsing-policy fixtures (malformed/unknown/missing/multi/dup) | T1.5 |
+| IMP-007 ceiling calibration: probe protocol + 5 models calibrated | T1.7 |
+| IMP-008 conservative-default migration applied | T1.2 |
+| Codegen byte-equality preserved across bash/python/TS | T1.8 |
 
-When `--per-stratum` (or `--group-by sprint_kind`), the rollup groups by `payload.sprint_kind`. Envelopes without `sprint_kind` (legacy or rollups outside benchmark windows) go into a `null` bucket — explicit, not silently dropped.
+### 5.2 Sprint 2 — Verdict-quality envelope + consumer contracts (FR-2)
+
+#### 5.2.1 Architecture decisions
+
+| Decision | Choice | Justification |
+|----------|--------|---------------|
+| Envelope schema location | `.claude/data/schemas/verdict-quality.schema.json` | mirrors §3.2 §1.4.4 |
+| Single classification function | Python canonical in `loa_cheval.verdict.quality` + bash twin shells out | NEVER duplicate classifier logic across consumers — prevents drift |
+| Consumer refactor order | producer-first; security-critical second; UI last (per IMP-004 table §3.2.3) | dependency-correct; closes #807 ASAP |
+| `clean` semantics | NOT removed (backward-compat); semantics tightened: `clean ⇔ APPROVED` | existing consumers continue parsing |
+| BLOCKER-class detection on dropped voices | conservative: if voice dropped AND would have been review/audit role, status downgrades to DEGRADED | over-trigger preferred to under-trigger |
+
+#### 5.2.2 Implementation outline
+
+1. **Test-first** as Sprint 1.
+2. **Schema land** in commit-1; **conformance fixture corpus** lands with cycle-109 PRD-review trajectory as anchor regression (per PRD §14.E + FR-2.7 AC).
+3. **Consumer refactor PR train** (7 PRs or 2-3 batched, in IMP-004 order).
+4. **Per-consumer PR-comment surfacing** (FR-2.8) — single-line verdict header at top of every operator-facing comment.
+
+#### 5.2.3 Beads task graph (Sprint 2)
+
+```
+T2.1 — verdict-quality.schema.json v1.0 + JSON Schema validation tests
+T2.2 — loa_cheval.verdict.quality + bash twin + classification contract tests (FR-2.3)
+T2.3 — cheval.cmd_invoke emits verdict_quality on every call (producer)
+T2.4 — flatline-orchestrator.sh consumes envelope + writes final_consensus.json
+T2.5 — adversarial-review.sh consumes envelope + adversarial-{review,audit}.json
+T2.6 — BB cheval-delegate.ts consumes + renders PR-comment header
+T2.7 — flatline-readiness.sh + red-team-pipeline.sh + post-pr-triage.sh
+T2.8 — Conformance test matrix (FR-2.7) with cycle-109 PRD-review trajectory as fixture
+T2.9 — Single-voice call semantics (FR-2.9 / IMP-010)
+T2.10 — Sprint debrief
+```
+
+#### 5.2.4 Failure mode reproductions added to conformance corpus
+
+Per PRD acceptance criteria, these MUST classify correctly:
+
+| Issue | Original substrate behavior | Expected verdict_quality classification |
+|-------|----------------------------|----------------------------------------|
+| #807 (shell-injection approved by fallback) | `status: clean` | `DEGRADED` (voices_succeeded < planned) |
+| #809 (dissenter 10-token empty findings) | `status: clean` | `DEGRADED` (chain_health degraded; rationale captures empty-finding signal) |
+| #868 (chain exhausted both phases) | `audit forced DEGRADED` ad-hoc | `FAILED` (chain_health == exhausted) |
+| #805 (BB Pass-2 80% failure) | silently swallowed | `DEGRADED` (single_voice_call: true but pass-2 reported as voice-2 dropped) |
+| cycle-109 PRD-review (Opus dropped, self-report `confidence: full`) | substrate self-reported clean | `DEGRADED` (voices_succeeded=2/3, Opus dropped) |
+
+### 5.3 Sprint 3 — Legacy adapter sunset + activation regression suite (FR-3)
+
+#### 5.3.1 FR-3 legacy delete sequence (the third sub-question)
+
+**Strategy**: Order the delete so CI is green at every commit boundary. This is the load-bearing safety property of the Sprint 3 PR train.
+
+**Sequence** (each step is a separate commit; CI passes between every commit):
+
+1. **Commit A — Test scaffolding lands**.
+   - `tests/integration/activation-path/` skeleton added with `flatline_routing: true` fixtures.
+   - Curl-mock harness fixtures for all matrix dimensions (consumer × role × response × dispatch_path).
+   - **CI state**: legacy still present; tests skip activation matrix if matrix not yet wired.
+
+2. **Commit B — Fix #864 / #863 / #793 / #820 at cheval path**.
+   - Each Cluster B issue patched at cheval/flatline-orchestrator level (not by patching the legacy).
+   - **CI state**: cheval path correct under `flatline_routing: true`; legacy still present but no longer needed.
+   - **Idempotency check**: tests confirm `flatline_routing: false` (legacy path) still works pre-delete — this is the safety gate before deletion.
+
+3. **Commit C — Remove `is_flatline_routing_enabled` branches from consumers**.
+   - `model-adapter.sh:67` `is_flatline_routing_enabled` becomes `true` (or removed); `delegate_to_legacy` removed.
+   - `flatline-orchestrator.sh:476` same.
+   - Adversarial-review.sh equivalent.
+   - **CI state**: legacy file still exists on disk but no caller invokes it. CI runs full matrix; all green.
+
+4. **Commit D — Delete `model-adapter.sh.legacy` (1081 LOC) + remove from .gitignore/MANIFEST/etc**.
+   - `git rm .claude/scripts/model-adapter.sh.legacy`
+   - `tools/check-no-raw-curl.sh` exempt-list (cycle-099 sprint-1E.c.3.c) updated to remove the file.
+   - **CI state**: full matrix green; no caller for legacy; file gone.
+
+5. **Commit E — Remove or informationalize `hounfour.flatline_routing` flag**.
+   - Either: remove key entirely (cleanest) OR keep as informational/audit-only (logs the operator's *historical* choice but no runtime effect).
+   - SDD recommendation: **remove entirely**. Rollback is `git revert`, per C109.OP-3. No purpose remains.
+   - **CI state**: full matrix green.
+
+6. **Commit F — Update CLAUDE.md + rollback docs**.
+   - Remove `Multi-Model Activation` section's rollback flag guidance.
+   - Replace with "rollback = revert" per FR-3.7.
+   - **CI state**: docs-only; CI green.
+
+**Branch strategy**: Each commit is reviewed independently via BB review on the same PR; PR contains the full 6-commit train. Failure at any commit → revert that single commit, leave prior commits green, do not advance to next commit.
+
+**Safety net during sequence**: between commits B and D, the system is in a "legacy-present-but-unreached" state — operationally safe (cheval path fully exercised). Commit D is the destructive step; commit C is the dry-run preceding it.
+
+#### 5.3.2 Activation regression suite (FR-3.5 — see §4.5)
+
+- 810 fixture combinations (9 consumers × 5 roles × 6 response classes × 3 dispatch paths)
+- Wall-clock target: <15 minutes full matrix on GitHub Actions parallel runners
+- Fixture provider: cycle-099 sprint-1C curl-mock harness
+- Result: each cell records actual `verdict_quality` outcome; mismatch with expected → cell fails
+- Artifact: `.run/activation-regression/sprint-N.json` summary per run (NFR-Aud-3)
+
+#### 5.3.3 Beads task graph (Sprint 3)
+
+```
+T3.1 — Test scaffolding + 810-cell matrix harness lands (test-first; commits A in §5.3.1)
+T3.2 — Fix #864 at cheval path (Cluster B regression)
+T3.3 — Fix #863 at cheval/flatline-orchestrator level
+T3.4 — Fix #793 (cheval-headless pin form acceptance in validator)
+T3.5 — Fix #820 (env loading, alias recommendation, scoring parser)
+T3.6 — Remove is_flatline_routing_enabled branches from consumers (commit C)
+T3.7 — Delete model-adapter.sh.legacy (commit D)
+T3.8 — Remove flatline_routing flag (commit E)
+T3.9 — Update CLAUDE.md + rollback runbook (commit F)
+T3.10 — Activation regression suite CI workflow file + matrix orchestration
+T3.11 — Sprint debrief
+```
+
+#### 5.3.4 Risk mitigations during sequence
+
+- **R-2** (legacy delete breaks a consumer not in inventory): FR-3.1 grep pass + activation matrix runs on *every* consumer in FR-2 table — any orphan consumer fails CI on commit C.
+- **R-8** (substrate becomes SPOF post-delete): already true at v1.157.0 default; mitigation is the cycle itself (capability awareness + verdict quality + activation matrix coverage).
+- **Pre-delete safety check**: a synthetic test at commit C runs `flatline_routing: false` one final time → records last-known-good baseline → archived in `grimoires/loa/cycles/cycle-109-substrate-hardening/baselines/legacy-final-baseline.json` for forensic comparison if rollback needed.
+
+### 5.4 Sprint 4 — Hierarchical / chunked review (FR-4)
+
+#### 5.4.1 Chunking strategy decisions
+
+| Decision | Choice | Justification |
+|----------|--------|---------------|
+| Chunk boundary | File-level (preserve coherent review units) | PR review semantics — file is the natural cognitive unit; alternative (token-budget greedy) loses semantic coherence |
+| Per-chunk size | `effective_input_ceiling × 0.7` | leaves 30% headroom for prompt overhead (system prompt, role context, instructions) |
+| Cross-chunk shared context | PR description + affected files list + relevant CLAUDE.md excerpts | reviewer needs cross-file context per file's review |
+| Max chunks per call | 16 (configurable via `model-config.yaml::models.<id>.chunks_max`) | bounded cost; if breached, emit warning + truncate to highest-priority files |
+| Chunk priority ordering | larger-diff-first → preserve high-signal files when truncated | matches operator review intuition |
+
+#### 5.4.2 Cross-chunk aggregation algorithm (the chunked-review aggregation sub-question)
+
+```python
+# .claude/adapters/loa_cheval/chunking/aggregate.py
+def aggregate_findings(per_chunk: list[ChunkFindings]) -> AggregatedFindings:
+    """
+    Conflict resolution per IMP-006:
+      - same (file, line, finding_class) → dedupe, keep highest severity, union evidence anchors
+      - same (file, line) different class → keep both, annotate cross_chunk_overlap
+      - same class different line → keep both
+      - conflicting severity for same logical finding → escalate, annotate severity_escalated_from
+      - finding spans chunk boundary → cross-chunk pass (second-stage)
+    """
+    by_anchor: dict[tuple[str, int], list[Finding]] = defaultdict(list)
+    for chunk_findings in per_chunk:
+        for f in chunk_findings.findings:
+            by_anchor[(f.file, f.line)].append(f)
+
+    aggregated: list[Finding] = []
+    overlap_pairs: list[tuple[Finding, Finding]] = []
+
+    for (file, line), findings in by_anchor.items():
+        by_class = group_by(findings, key=lambda f: f.finding_class)
+        for finding_class, instances in by_class.items():
+            # Dedupe same (file, line, class)
+            kept = max(instances, key=lambda f: SEVERITY_RANK[f.severity])
+            kept.evidence_anchors = union_all(f.evidence_anchors for f in instances)
+            # Severity escalation
+            if len({f.severity for f in instances}) > 1:
+                kept.severity_escalated_from = min(SEVERITY_RANK[f.severity] for f in instances)
+                kept.severity = max(SEVERITY_RANK[f.severity] for f in instances)
+            aggregated.append(kept)
+
+        # Cross-class same-anchor → flag as overlap pair
+        if len(by_class) > 1:
+            class_pairs = combinations(by_class.values(), 2)
+            for c1, c2 in class_pairs:
+                overlap_pairs.append((c1[0], c2[0]))
+
+    # Cross-chunk pass for spans-boundary findings
+    boundary_candidates = detect_boundary_findings(aggregated, per_chunk)
+    if boundary_candidates:
+        # Re-run review on adjacent chunk pairs (second-stage aggregation)
+        second_stage = second_stage_review(boundary_candidates)
+        aggregated = merge_with_second_stage(aggregated, second_stage)
+
+    return AggregatedFindings(
+        findings=aggregated,
+        cross_chunk_overlaps=overlap_pairs,
+        chunks_reviewed=len(per_chunk),
+        chunks_with_findings=sum(1 for c in per_chunk if c.findings),
+        second_stage_invoked=bool(boundary_candidates),
+    )
+```
+
+#### 5.4.3 Cross-chunk pass mechanism (the cross-chunk-pass sub-question)
+
+**Trigger**: when `detect_boundary_findings` identifies a finding whose evidence span (file + line range) crosses a chunk boundary.
+
+**Algorithm**:
+
+1. Identify adjacent chunk pairs that share suspicious boundary evidence (e.g., shell injection where sanitizer is in chunk N and sink is in chunk N+1).
+2. Build a **synthetic combined chunk** containing the relevant file slices from both chunks (no full re-review; just the spanning slice).
+3. Re-dispatch through cheval with `--role review` and the spanning slice as input.
+4. Merge findings from second-stage call into aggregated set, annotating `cross_chunk_pass: true` + linking original chunk indices.
+
+**Boundedness**: second-stage runs at most ONCE per chunked call (no recursive cross-chunk-of-cross-chunk). If boundary issues persist after second stage, emit operator warning via verdict_quality.rationale.
+
+**Cost control**: second-stage size is bounded to `effective_input_ceiling × 0.4` (smaller than main chunks); cost incrementally bounded.
+
+#### 5.4.4 Streaming-with-recovery (FR-4.4 / IMP-014 thresholds)
+
+Embedded in cheval's existing streaming code path (transport already supports streaming per cycle-103). Three thresholds (all in `model-config.yaml::models.<id>.streaming_recovery`):
+
+1. **First-token deadline**: 30s non-reasoning / 60s reasoning. Trip → typed exit 1 (EmptyContent).
+2. **Empty-content detection window**: first 200 tokens of content. Zero non-whitespace (non-reasoning) OR zero non-CoT (reasoning) → typed exit 1.
+3. **CoT-detection heuristic** (reasoning_class only): regex `^(thinking|let me|i'll|first[,]?\s+i)` (loose) PLUS `<thinking>` XML opening tag → tokens count as CoT. Abort if CoT budget (500 tokens default) exhausted without content emergence.
+
+**MODELINV envelope** records `streaming_recovery: {triggered: true, tokens_before_abort: 187, reason: "no_content_in_first_200_tokens"}`.
+
+#### 5.4.5 Beads task graph (Sprint 4)
+
+```
+T4.1 — loa_cheval.chunking package skeleton + fixture types + test-first
+T4.2 — chunk_pr_for_review function + file-level boundary tests
+T4.3 — aggregate_findings function + 5 IMP-006 conflict-resolution fixtures
+T4.4 — Cross-chunk pass mechanism + spans-boundary fixtures
+T4.5 — cheval pre-flight gate dispatches chunked path when input > ceiling × 0.7
+T4.6 — streaming-with-recovery (FR-4.4) + IMP-014 thresholds + reasoning-class CoT regex
+T4.7 — MODELINV envelope chunked_review + streaming_recovery fields
+T4.8 — Operator-facing PR-comment chunked annotation (chunks_reviewed: N rendering)
+T4.9 — #866 / #823 reproduction fixtures pass
+T4.10 — Sprint debrief
+```
+
+#### 5.4.6 Acceptance criteria coverage
+
+| PRD AC | Implementation site |
+|--------|--------------------|
+| >70KB FL completes successfully against fixtures | T4.5 + T4.9 |
+| >40K reasoning-class produces non-empty findings via chunking | T4.5 + T4.9 |
+| Chunked-review aggregation: dedupe + finding-anchor preservation | T4.3 |
+| Streaming early-abort on simulated empty-content | T4.6 |
+| #866 / #823 reproduction fixtures | T4.9 |
+| IMP-006 conflict-resolution: 5 fixture cases | T4.3 |
+| IMP-014 per-model streaming_recovery thresholds + CoT regex positive/negative | T4.6 |
+
+### 5.5 Sprint 5 — Carry items + substrate observability (FR-5)
+
+#### 5.5.1 Carry items (FR-5.1 / 5.2 / 5.3)
+
+| Issue | Fix |
+|-------|-----|
+| #874 cheval.py advisor-strategy provider-peek narrow 'anthropic' fallback | Generalize peek to walk `aliases[].provider` set (not hardcoded 'anthropic') |
+| #875 modelinv.py parents[4] hardcode | Replace with `_find_repo_root()` helper that walks for `.git/` marker (mirrors cheval's existing approach) |
+| #870 modelinv-rollup.sh O(N) per-line subprocess spawn | Refactor to single-pass `awk`/`jq -c` parse; eliminate per-line bash subshells |
+
+#### 5.5.2 FR-5 substrate-health CLI surface (the FR-5 sub-question)
+
+**Command shape** (from §4.2):
+
+```bash
+loa substrate health [--window 24h | 7d | 30d] [--json] [--model <id>]
+loa substrate recalibrate <model-id>
+```
+
+**Implementation**: `.claude/scripts/loa-substrate-health.sh` (bash) calling `.claude/adapters/loa_cheval/health.py` for aggregation.
+
+**Aggregation logic**:
+
+```python
+# .claude/adapters/loa_cheval/health.py
+def aggregate_health(log_path: Path, window: timedelta, model: Optional[str]) -> dict:
+    cutoff = utcnow() - window
+    per_model: dict[str, ModelHealth] = defaultdict(ModelHealth)
+
+    with log_path.open() as f:
+        for line in f:
+            envelope = json.loads(line)
+            ts = parse_iso(envelope["ts"])
+            if ts < cutoff:
+                continue
+            mid = envelope.get("final_model_id") or envelope.get("model_id")
+            if model and mid != model:
+                continue
+            outcome = envelope.get("verdict_quality", {}).get("status")  # or "outcome" field
+            per_model[mid].record(envelope, outcome)
+
+    return {m: h.summary() for m, h in per_model.items()}
+
+
+class ModelHealth:
+    def record(self, envelope, outcome):
+        self.n += 1
+        if outcome == "APPROVED":
+            self.success += 1
+        elif outcome == "DEGRADED":
+            self.degraded += 1
+        elif outcome == "FAILED":
+            self.failed += 1
+        # voice-drop count, chain-exhaust count, latency, cost...
+
+    def summary(self):
+        return {
+            "n": self.n,
+            "success_rate": self.success / self.n if self.n else 0,
+            "drop_rate": self.degraded / self.n,
+            "exhaust_rate": self.failed / self.n,
+            "p95_latency_s": percentile(self.latencies, 95),
+            "total_cost_usd": sum(self.costs),
+            "status": self._status(),  # SUCCESS | DEGRADED | FAILED per thresholds
+        }
+```
+
+**Performance** (NFR-Perf-3): single-pass file read; `defaultdict` aggregation; no DB. <2s for 100K entries on modern hardware (measured Sprint 5 ACT).
+
+**Health-threshold warnings** (FR-5.7):
+
+| Threshold | Output |
+|-----------|--------|
+| success_rate ≥ 80% | `SUCCESS 87%` (green) |
+| 50% ≤ success_rate < 80% | `DEGRADED 65%` + `⚠ ... DEGRADED: file a KF or restrict role` |
+| success_rate < 50% | `FAILED 41%` + `❌ ... FAILED — recommend KF entry + role restriction` |
+
+**Secret redaction**: output piped through `lib/log-redactor.{sh,py}` (cycle-099 sprint-1E.a) before stdout (NFR-Sec-3).
+
+#### 5.5.3 Cron journal format (the cron-journal sub-question)
+
+**File**: `grimoires/loa/substrate-health/YYYY-MM.md` (TRACKED — git history is the journal).
+
+**Schema** (markdown with structured H2/H3 sections; appended monthly):
 
 ```markdown
-## Per-stratum cost rollup (last 90 days)
+# Substrate Health Journal — 2026-05
 
-| Stratum | Replays | Tokens In | Tokens Out | Cost USD | Cost reduction vs advisor |
-|---------|---------|-----------|------------|----------|---------------------------|
-| glue | 12 | 144,000 | 48,000 | $4.32 | -68% |
-| parser | 8 | 360,000 | 96,000 | $19.20 | -42% |
-| cryptographic | 6 | 360,000 | 108,000 | $21.60 | -38% |
-| testing | 9 | 270,000 | 81,000 | $14.85 | -65% |
-| infrastructure | 5 | 125,000 | 37,500 | $7.50 | -51% |
-| (no sprint_kind) | 47 | 1,234,567 | 234,567 | $89.34 | N/A |
+## 2026-05-14 (cron run @ 00:00 UTC)
+
+### Per-model 24h health
+
+| Model | N | Success | Drop | Exhaust | p95 | Cost |
+|-------|---|---------|------|---------|-----|------|
+| claude-opus-4-7 | 234 | 87% | 8% | 5% | 12s | $4.21 |
+| gpt-5.2 | 189 | 92% | 6% | 2% | 8s | $2.84 |
+| gemini-2.5-pro | 92 | **45% (DEGRADED)** | 41% | 14% | 18s | $0.91 |
+
+### Warnings
+- ⚠ gemini-2.5-pro: success_rate 45% < 80% threshold (24h window). Recommend file a KF or restrict role.
+
+### Total cost (24h): $7.96
+
+---
+
+## 2026-05-15 (cron run @ 00:00 UTC)
+...
 ```
 
-### 6.4 Sprint-kind injection point
+**Cron mechanics**:
 
-**Decision**: `sprint_kind` is assigned **at sprint-start** by the stratifier (`tools/sprint-kind-classify.py`), not at cheval invocation time.
+- **Option A (preferred)**: GitHub Actions scheduled workflow `.github/workflows/substrate-health-journal.yml` runs daily at 00:00 UTC, commits journal update to a `substrate-health/journal` branch, opens PR labeled `auto-journal` for operator merge.
+- **Option B (fallback)**: OS-level cron on operator's dev machine writes to local file. Simpler but operator-machine-dependent.
+- **Recommendation**: Option A — gives operator review queue + zero-machine-dependency.
 
-Rationale:
-- A single sprint may emit dozens of MODELINV envelopes (multiple skill calls). Classifying each independently risks divergent labels for the same sprint.
-- Sprint-kind is a property of the *sprint*, not the *invocation*. Classifying once at sprint-start ensures consistency.
+**Idempotency**: cron job is no-op if the day's section already exists in the journal (date-string check).
 
-Mechanism:
-- `/run sprint-N` (and `/implement sprint-N` / `/bug`) writes `.run/sprint-plan-state.json::sprints[N].sprint_kind` at sprint-start.
-- Cheval reads this value (when present) and includes it as `--sprint-kind <kind>` in subsequent MODELINV envelopes via the existing `_modelinv_extra_fields` injection (§3.5).
-- For benchmark replays, the harness sets `--sprint-kind` explicitly from the replay manifest (§5.4).
-
-### 6.5 `tools/sprint-kind-classify.py` rules
-
-Mechanical classification (IMP-006 closure — formalizes Appendix A of PRD):
-
-```python
-def classify_sprint(sprint_meta: SprintMeta) -> SprintKind:
-    """
-    Inputs: sprint_meta has:
-      - files_touched: list of paths (from git diff)
-      - skills_used: list of skill names (from sprint-plan)
-      - test_categories: list of (e.g., 'bats', 'pytest', 'integration')
-
-    Returns one of: glue | parser | cryptographic | testing | infrastructure | (future) frontend
-    """
-    paths = sprint_meta.files_touched
-    skills = set(sprint_meta.skills_used)
-
-    # Highest-precedence rules first
-    if any(p.endswith(".schema.json") for p in paths) and any("audit" in p for p in paths):
-        return SprintKind.CRYPTOGRAPHIC
-    if any("trust-events" in p or "audit-envelope" in p or "soul-events" in p for p in paths):
-        return SprintKind.CRYPTOGRAPHIC
-
-    if any("canonicalize" in p or "endpoint-validator" in p or "log-redactor" in p for p in paths):
-        return SprintKind.PARSER
-    if any("jcs" in p or "frontmatter" in p for p in paths):
-        return SprintKind.PARSER
-
-    if (paths_touched_dirs(paths, ["tests/"]) > paths_touched_dirs(paths, [".claude/scripts/", ".claude/adapters/"])):
-        return SprintKind.TESTING
-    if "testing-harness" in skills or "testing-fuzzing" in skills:
-        return SprintKind.TESTING
-
-    if any("scheduled-cycle" in p or "flatline-orchestrator" in p or "cron" in p for p in paths):
-        return SprintKind.INFRASTRUCTURE
-    if any("dispatch-contract" in p for p in paths):
-        return SprintKind.INFRASTRUCTURE
-
-    # Default — small adapters, config wiring, helpers
-    return SprintKind.GLUE
-```
-
-Classification rules are **explicit and reviewable**; multi-rule ambiguity defaults to the more-restrictive (more-tail-risk-prone) class — `cryptographic` and `parser` are tail-risk strata where executor regression matters most.
-
-Sprint 3 deliverable: initial labels for the last 12+ sprints (FR-4 dependency). Generated by running the classifier over `git log --merges --since=90.days`.
-
----
-
-## 7. Rollback design (FR-7, IMP-007, IMP-010)
-
-### 7.1 In-flight kill-switch semantics (IMP-007)
-
-Two activation paths:
-
-| Path | Mechanism | Latency |
-|------|-----------|---------|
-| Config flip | Operator edits `.loa.config.yaml::advisor_strategy.enabled` to `false`, commits | Next cheval invocation re-reads config (no daemon caching) |
-| Env-var override | `export LOA_ADVISOR_STRATEGY_DISABLE=1` | Next cheval invocation reads env (immediate, no commit needed) |
-
-**Per-invocation re-read** is the key invariant. cheval.py NEVER caches the resolved config across invocations. Cost: O(few ms YAML parse + JSON Schema walk) per call — well under NFR-P1's 5ms budget.
-
-**Currently-running invocation behavior**: cheval makes ONE API call per invocation (synchronous). Mid-call swap is impossible; it would invalidate the call's audit envelope. So `enabled: false` mid-sprint means:
-- The currently-executing cheval call **finishes at its resolved tier** (executor, if that's where it started).
-- The NEXT cheval call within the same sprint reads the new config and routes to advisor.
-- `.run/sprint-plan-state.json::sprints[N].tier_transitions` is appended with a row:
-  ```json
-  {"at": "2026-05-15T11:23:45Z", "from": "executor", "to": "advisor", "trigger": "config_flip"}
-  ```
-- Operator sees on next cheval invocation:
-  ```
-  [advisor-strategy] WARN: tier transition mid-sprint: executor → advisor (config flip detected at <ts>)
-  ```
-
-This behavior is **eventually consistent, not transactional**. Documented in `grimoires/loa/runbooks/advisor-strategy-rollback.md` (Sprint 4 deliverable).
-
-### 7.2 Kill-switch precedence semantics across 6 consumers
-
-Single source of truth: `loa_cheval/config/loader.py::load_advisor_strategy()` (per §3.3). The precedence cascade is **only** in this function:
+#### 5.5.4 Beads task graph (Sprint 5)
 
 ```
-1. LOA_ADVISOR_STRATEGY_DISABLE=1 → return disabled_legacy (highest priority)
-2. .loa.config.yaml::advisor_strategy section missing → return disabled_legacy
-3. .loa.config.yaml::advisor_strategy.enabled = false → return disabled_legacy
-4. Schema validation fails → exit 78 (fail-closed; do NOT default to enabled)
-5. Otherwise → return enabled config
-```
-
-All 6 consumers (implement, review-sprint, audit-sprint, plan-and-analyze + architect + sprint-plan, flatline-orchestrator, adversarial-review BB, red-team-pipeline) route through cheval and therefore through `load_advisor_strategy()`. There is no per-consumer override path — this is a deliberate single-chokepoint to close NFR-Sec3 / IMP-007.
-
-CI verification: `tests/integration/rollback-precedence.bats` runs all 6 consumers under each of the 5 cascade conditions and asserts behavior matches the expected legacy-mode trace.
-
-### 7.3 Trace-comparison integration test (IMP-010)
-
-`tests/integration/rollback-trace-comparison.bats`:
-
-```bash
-@test "FR-7 IMP-010: full mini-cycle under enabled=false produces advisor-only trace" {
-    # Setup
-    setup_clean_worktree
-    cat > .loa.config.yaml.fragment <<EOF
-    advisor_strategy:
-      enabled: false
-    EOF
-
-    # Run mini-cycle: PRD → SDD → 1 sprint → review → audit → BB
-    run_mini_cycle --topic "trace-comparison-test"
-
-    # Collect MODELINV envelopes for this run
-    envelopes=$(jq -c '. | select(.payload.cycle_id == "trace-comparison-test")' .run/model-invoke.jsonl)
-
-    # Assert ALL envelopes have advisor-tier model IDs
-    for env in $envelopes; do
-        model_id=$(echo "$env" | jq -r '.payload.final_model_id')
-        case "$model_id" in
-            *opus-4-7*|*gpt-5.5-pro*|*gemini-3.1-pro*) ;;  # advisor models
-            *) fail "Found non-advisor model under enabled=false: $model_id"
-        esac
-    done
-
-    # Compare against golden trace
-    diff <(echo "$envelopes" | jq -c '.payload | {role, tier, final_model_id}') \
-         tests/fixtures/advisor-strategy/golden-disabled-trace.jsonl
-}
-```
-
-The golden trace is generated once (in Sprint 1) from a clean enabled=false run and committed. Subsequent runs that deviate fail the test — closing IMP-010.
-
----
-
-## 8. Stratification taxonomy (PRD Appendix A → SDD §8 formalization)
-
-### 8.1 Taxonomy
-
-| Stratum | Definition | Feature signals | Initial historical labels (for Sprint 3) |
-|---------|-----------|-----------------|------------------------------------------|
-| **glue** | Adapter wiring, config plumbing, thin helpers | files touched mostly in `.claude/scripts/lib/`, no schema changes, ≤200 LOC delta | PR#737 (T2.1 schema wiring), PR#722 (sprint-1A codegen foundation), PR#724 (codegen-toolchain) |
-| **parser** | Input parsing, format conversion, canonicalization, validation | files in `endpoint-validator`, `jcs`, `frontmatter`, `log-redactor`; regex / parser logic | PR#730 (endpoint-validator), PR#728 (log-redactor + migrate-model-config), PR#729 (endpoint-validator IPv4) |
-| **cryptographic** | Hash chains, signatures, audit-envelopes, trust ledgers | files in `audit-envelope`, `trust-events`, `soul-events`, signing helpers | cycle-098 L1, L4, L6, L7 sprints; cycle-099 sprint-1E.c.2 (DNS rebinding defense) |
-| **testing** | Test infrastructure, fixtures, golden files, harnesses | majority of LOC in `tests/`; `tests/fixtures/`, `.bats` files | PR#735 (sprint-1D cross-runtime parity), PR#724 (drift gate matrix) |
-| **infrastructure** | Cron, scheduling, dispatch contracts, retry/timeout, hooks | files in `scheduled-cycle-template`, `flatline-orchestrator`, `cron-*`, `dispatch-contract` | cycle-098 Sprint 3 (L3 scheduled-cycle); cycle-104 voice-drop; cycle-107 multi-model activation |
-| **frontend / TUI** | Terminal UI, layout, color | files in TUI-related dirs; out-of-scope for cycle-108 (no Loa-core TUI work) | (none) |
-
-### 8.2 Stratum-assignment rules
-
-See `tools/sprint-kind-classify.py` in §6.5 — ten ordered rules, deterministic, reviewable. Sprint 3 acceptance includes: every selected historical sprint (≥12) is classified by the script, classification is recorded in `replay-manifests/<sprint>-<tier>-<idx>.json::stratum`, and operator reviews the labels before signing baselines.json.
-
-### 8.3 Feature-extraction heuristics
-
-Inputs to the classifier are derived mechanically:
-
-| Feature | Source |
-|---------|--------|
-| `files_touched` | `git diff --name-only <pre-sha>..<post-sha>` |
-| `skills_used` | Parsed from sprint-plan markdown OR from `.run/sprint-plan-state.json::sprints[N].skills_invoked` |
-| `test_categories` | Discovered by file-extension + dir scan of `files_touched` |
-
-These features are reproducible from git state alone — supports NFR-O2 (benchmark report reproducible from git + jsonl).
-
----
-
-## 9. Statistical methodology (PRD §3 → SDD §9 formal spec)
-
-### 9.1 Paired bootstrap
-
-```python
-# tools/advisor-benchmark-stats.py
-
-import numpy as np
-
-def paired_bootstrap_ci(
-    advisor_results: list[float],
-    executor_results: list[float],
-    n_resamples: int = 10000,
-    ci_level: float = 0.95,
-    seed: int = 0,
-) -> tuple[float, float, float]:
-    """
-    Returns (mean_delta, ci_lower, ci_upper) for paired (advisor_i, executor_i) samples.
-    Pairing index: replay i of sprint X under advisor vs replay i of sprint X under executor.
-    """
-    assert len(advisor_results) == len(executor_results), "Pairs must align"
-    rng = np.random.default_rng(seed)
-    n = len(advisor_results)
-    deltas = np.array(executor_results) - np.array(advisor_results)
-
-    bootstrap_means = np.empty(n_resamples)
-    for k in range(n_resamples):
-        idxs = rng.integers(0, n, size=n)
-        bootstrap_means[k] = deltas[idxs].mean()
-
-    alpha = 1 - ci_level
-    ci_lower = np.quantile(bootstrap_means, alpha / 2)
-    ci_upper = np.quantile(bootstrap_means, 1 - alpha / 2)
-    return deltas.mean(), ci_lower, ci_upper
-```
-
-- `n_resamples = 10000` (PRD §3 pinned)
-- `ci_level = 0.95` (PRD §3 pinned)
-- `seed = 0` (deterministic — supports NFR-O2 reproducibility)
-- Pairing: replay-index pairing (replay-0 advisor vs replay-0 executor for sprint X)
-
-### 9.2 Variance flag
-
-Per §5.5 — sample stdev (denominator `n-1`), implemented via `statistics.stdev()`. Threshold: range / stdev > 2σ.
-
-### 9.3 Pass/Fail/Inconclusive classification (PRD §3 → mechanical implementation)
-
-```python
-def classify_stratum(
-    metrics: StratumMetrics,
-    targets: StratumTargets,
-) -> StratumOutcome:
-    # PRD §3 rules, translated to code:
-
-    # Inconclusive checks first
-    if metrics.n_replays < 3:
-        return StratumOutcome.INCONCLUSIVE("fewer than 3 replays")
-    if metrics.any_variance_flagged:
-        return StratumOutcome.INCONCLUSIVE("≥2σ variance flagged")
-    if (targets.sc1_min >= metrics.sc1_ci_lower and
-        targets.sc1_min <= metrics.sc1_ci_upper):
-        return StratumOutcome.INCONCLUSIVE("CI overlaps target boundary")
-
-    # FAIL checks
-    if (metrics.sc1_pass_rate < 0.85 or
-        metrics.sc2_findings_delta_pct > 40 or
-        metrics.sc3_bb_iters_delta > 3) and \
-       metrics.sc1_ci_upper < targets.sc1_min:
-        return StratumOutcome.FAIL
-
-    # OPT-IN check
-    if (metrics.sc1_pass_rate >= targets.sc1_min and
-        (metrics.sc2_findings_delta_pct > 20 or metrics.sc3_bb_iters_delta > 1)):
-        return StratumOutcome.OPT_IN_ONLY
-
-    # PASS check
-    if (metrics.sc1_pass_rate >= targets.sc1_min and
-        metrics.sc2_findings_delta_pct <= 20 and
-        metrics.sc3_bb_iters_delta <= 1 and
-        metrics.sc1_ci_upper >= targets.sc1_min):
-        return StratumOutcome.PASS
-
-    return StratumOutcome.INCONCLUSIVE("non-matching rule fall-through")
-```
-
-Tie handling: ties on SC-1 boundary value default to **INCONCLUSIVE** (conservative — operator decides). Edge case: zero variance + exact match means CI lower = CI upper = target — counted as PASS only if observed value ≥ target.
-
-### 9.4 Per-stratum aggregation
-
-The same logic runs per stratum (PRD SC-6: ≥4 strata × ≥3 replays = ≥12 runs). The benchmark report has one classification per stratum, plus an overall summary table.
-
----
-
-## 10. Integration with existing substrate
-
-| Substrate | Status | Cycle-108 interaction |
-|-----------|--------|----------------------|
-| cycle-104 within-company fallback chains (`fallback_chain` in model-config.yaml) | DONE | **Preserved verbatim.** cheval's chain-walk operates within the resolved tier. If `defaults.implementation = executor` and the executor chain exhausts, behavior is identical to today (chain-exhaustion → operator-visible error). |
-| cycle-104 T2.8 voice-drop semantics | DONE | **Preserved verbatim.** Voice-drop operates orthogonally to tier; a dropped voice is dropped regardless of tier. The cycle-108 advisor benchmark, ironically, depends on voice-drop continuing to work during its own SDD Flatline pass. |
-| cycle-099 model-resolver.sh (alias resolution) | DONE | **Extended additively.** New helper `resolve_role_to_tier()` in `.claude/scripts/lib/model-resolver.sh` (the existing file gains one function). Existing callers (`resolve_alias`, `resolve_provider_id`) unchanged. |
-| cycle-104 T2.6 MODELINV v1.1 envelope | DONE | **Schema-bumped to v1.2 additively.** Five optional fields (`role`, `tier`, `tier_source`, `tier_resolution`, `sprint_kind`). Hash-chain stays compatible (existing entries valid; new entries valid against new schema with optional fields). |
-| cycle-099 T1.13 log-redactor | DONE | **Preserved verbatim.** All five new MODELINV fields are scalars (role/tier/etc are short strings or null) and pass through the existing redaction pipeline unchanged. No new redaction-leak vectors. |
-| cycle-107 `flatline_routing: true` default | DONE | **Foundation.** Advisor-strategy assumes `hounfour.flatline_routing: true` (cheval is the canonical model dispatcher). If `flatline_routing: false`, advisor_strategy still works for FR-2 cheval routes but Flatline / RT bypass cheval — so the per-consumer guarantee weakens. Loader emits warning `[advisor-strategy] WARN: hounfour.flatline_routing is false; rollback semantics weakened for Flatline + RT consumers`. |
-
-**No replacement risk.** Every cycle-104 / 099 / 107 invariant is preserved.
-
----
-
-## 11. Security architecture
-
-### 11.1 NFR-Sec1 (config-tamper) — closed by IMP-003 / R-8
-
-| Layer | Mechanism |
-|-------|-----------|
-| Schema | `.claude/data/schemas/advisor-strategy.schema.json` pins `defaults.review.const = advisor` and `defaults.audit.const = advisor` |
-| Runtime | Loader rejects `per_skill_overrides` where `skill.role ∈ {review, audit}` and `tier != advisor` |
-| Repo | `.github/CODEOWNERS` protects `.claude/data/schemas/advisor-strategy.schema.json` and `loa_cheval/config/loader.py` (operator-only edits) |
-| CI | `tests/unit/advisor-strategy-loader.bats` has 5 negative fixtures (poisoned-audit, poisoned-review, unknown-skill, missing-tier, downgraded-via-override) — all MUST exit 78 |
-| Red Team gate | Sprint-1 SDD Red Team validates the threat model and fixture coverage |
-
-### 11.2 NFR-Sec2 (audit-log integrity)
-
-| Aspect | Mechanism |
-|--------|-----------|
-| Envelope schema bump | v1.1 → v1.2 with five optional fields; existing entries remain valid |
-| Hash chain | Unchanged — `prev_hash` computed over canonical payload via JCS (cycle-098 R15 invariant) |
-| Backward compat | Aggregator (`modelinv-rollup.sh`) handles `null` for new fields gracefully (entries pre-cycle-108 group as `null` for `role`/`tier`/etc) |
-| Forward compat | Existing readers ignore additional fields they don't recognize (JSON Schema `additionalProperties` is enforced only at writer side) |
-| Audit-recover | `audit_recover_chain` (per CLAUDE.md L1 envelope rules) unchanged — works on any v1.x envelope |
-
-### 11.3 NFR-Sec3 (kill-switch) — single source of truth
-
-The kill-switch cascade lives **only** in `load_advisor_strategy()` (§7.2). No consumer has a parallel implementation. CI verifies via `tests/integration/rollback-precedence.bats` running all 6 consumers under each cascade state.
-
-### 11.4 Threat model summary
-
-| Threat | Mitigation |
-|--------|------------|
-| Malicious PR plants `per_skill_overrides.audit-sprint: executor` | Schema + runtime reject (exit 78); CODEOWNERS protection on loader |
-| Malicious PR weakens schema (e.g., removes `defaults.review.const`) | CODEOWNERS protection on schema file |
-| Operator misconfigs `tier_aliases.advisor.anthropic` to a cheap model | Out-of-scope for cycle-108 (PRD OOS-3); future cycle may add tier-tier-id allowlist |
-| Replay results contaminate main branch | Worktree isolation (§5.2) + hermeticity bats test |
-| Recorded-replay leaks into benchmark headline | Two-mode separation + bats assertion (§5.6) |
-| Retrospective baseline fitting | Pre-registered + signed baselines.json (§5.9); refusal on hash mismatch |
-| Cost-cap circumvention | Pre-run estimate + abort; estimate-vs-actual reported |
-| Audit-log forgery to fake cost reductions | Hash-chain validation pre-report (§6.2); fail-closed |
-
----
-
-## 12. Testing strategy
-
-### 12.1 Test pyramid
-
-| Layer | Count (target) | Examples |
-|-------|----------------|----------|
-| Unit (bats + pytest) | ~120 tests | loader fixtures (Sec1), resolver parity (cycle-099 pattern), schema validation, classifier rules |
-| Integration | ~25 tests | full mini-cycle (FR-7 IMP-010), worktree hermeticity, rollup hash-chain, replay-semantics separation |
-| Cross-runtime parity | ~15 tests | bash twin = Python canonical (resolver), JSON output identity |
-| End-to-end | ~3 tests | Sprint 1 trace test; Sprint 2 dry-run benchmark; Sprint 3 actual benchmark (the deliverable itself) |
-
-### 12.2 Cycle-099 cross-runtime parity pattern reuse
-
-Resolver has bash + Python twins. Tests follow the cycle-099 sprint-1D pattern:
-
-- One canonical fixture YAML per case (`tests/fixtures/advisor-strategy/parity-cases/`)
-- Bash runner sources `advisor-strategy-resolver.sh`, emits JSON
-- Python runner imports `loa_cheval.routing.advisor_strategy`, emits JSON
-- byte-equal comparison via `diff -q`
-
-This closes the cross-runtime parity trap class documented in `feedback_cross_runtime_parity_traps.md`.
-
-### 12.3 Fixture inventory (Sprint 1 deliverable)
-
-```
-tests/fixtures/advisor-strategy/
-├── valid-default.yaml                 (happy path)
-├── valid-with-overrides.yaml          (per_skill_overrides happy path)
-├── valid-disabled.yaml                (enabled: false)
-├── poisoned-audit-override.yaml       (NFR-Sec1 negative)
-├── poisoned-review-override.yaml      (NFR-Sec1 negative)
-├── unknown-skill-override.yaml        (runtime check negative)
-├── missing-tier-alias.yaml            (schema negative)
-├── invalid-tier-resolution.yaml       (FR-9 enum negative)
-├── schema-v0.yaml                     (version reject)
-├── multi-role-skill-no-primary.yaml   (FR-3 IMP-012 negative)
-├── parity-cases/
-│   ├── case-01-default-planning.yaml
-│   ├── case-02-default-review.yaml
-│   ├── case-03-default-implementation.yaml
-│   ├── case-04-override-implementation.yaml
-│   ├── case-05-override-review-rejected.yaml
-│   └── case-06-dynamic-resolution.yaml
-└── golden-disabled-trace.jsonl         (FR-7 IMP-010 golden trace)
-```
-
-### 12.4 Error-handling strategy
-
-| Class | Exit code | Recovery |
-|-------|-----------|----------|
-| Schema invalid | 78 (EX_CONFIG) | Operator fixes `.loa.config.yaml`; commit; retry |
-| Unknown skill in overrides | 78 (EX_CONFIG) | Operator corrects skill name or removes override |
-| NFR-Sec1 violation | 78 (EX_CONFIG) | Operator removes review/audit downgrade; commit |
-| MODELINV hash-chain broken | 1 (general) | Run `audit_recover_chain` per `audit-log-recovery.md` runbook |
-| Baseline hash mismatch | 78 (EX_CONFIG) | Re-sign `baselines.json` with new SHA + commit (audit-trail preserved) |
-| Cost estimate > cap | 6 (BudgetExceeded; cheval.py convention) | Override `--cost-cap-usd N` or trim replay set |
-| Chain-exhausted during benchmark replay | (replay classified INCONCLUSIVE; benchmark continues) | Reported in benchmark-report.md; replay re-runnable |
-| Replay non-determinism > 2σ | (pair flagged; harness adds 2 more replays) | If still flagged after 5, pair DROPPED from stratum aggregate; benchmark continues |
-
----
-
-## 13. Development phases (sprint sequencing)
-
-Per PRD §7:
-
-```mermaid
-graph LR
-    S1[Sprint 1<br/>Routing substrate<br/>FR-1, FR-2, FR-3, FR-7, FR-9]
-    S2[Sprint 2<br/>Measurement substrate<br/>FR-4, FR-5, FR-8, sprint-kind classifier]
-    S3[Sprint 3<br/>Empirical benchmark<br/>baselines.json + ≥12 replays]
-    S4[Sprint 4<br/>Rollout policy<br/>FR-6 + decision-fork]
-
-    S1 --> S2 --> S3 --> S4
-```
-
-### 13.1 Sprint 1 — Routing substrate
-
-| Task | FR | Deliverable | Acceptance |
-|------|----|----|------------|
-| T1.A | FR-1 schema | `.claude/data/schemas/advisor-strategy.schema.json` | Schema validates with `ajv-cli`; 11 fixture cases pass/fail correctly |
-| T1.B | FR-1 loader | `load_advisor_strategy()` in `loa_cheval/config/loader.py` | 5 NFR-Sec1 negative fixtures all exit 78 |
-| T1.C | FR-2 cheval CLI | `--role` / `--skill` / `--sprint-kind` in cheval.py | Argparse accepts; cmd_invoke resolves; backward-compat fixture passes |
-| T1.D | FR-2 resolver | `loa_cheval/routing/advisor_strategy.py` + `.claude/scripts/lib/advisor-strategy-resolver.sh` | 6 parity cases byte-equal across bash + Python |
-| T1.E | FR-2 MODELINV v1.2 | Schema bump + emitter update | Hash-chain integrity preserved across schema-bump; v1.1 entries still validate |
-| T1.F | FR-3 skill annotation | Validator extension + migration script + 35 SKILL.md updates | `validate-skill-capabilities.sh` runs in CI; all 35 skills have valid `role` |
-| T1.G | FR-9 + [ASSUMPTION-A1] | `gemini-3.1-flash` validated; tier-resolution mode logged in MODELINV | If A1 wrong, SDD amendment lands in same sprint |
-| T1.H | FR-7 IMP-010 | Trace-comparison test + golden file | `rollback-trace-comparison.bats` green |
-| T1.I | FR-7 IMP-007 | In-flight kill-switch semantics + `sprint-plan-state.json` `tier_transitions` | Per-call re-read verified; mid-sprint flip test passes |
-| T1.J | CODEOWNERS | `.github/CODEOWNERS` updated | Schema + loader files require @janitooor review |
-| T1.K | Documentation | `grimoires/loa/runbooks/advisor-strategy-rollback.md` | Operator-facing rollback guide |
-
-### 13.2 Sprint 2 — Measurement substrate
-
-| Task | FR | Deliverable | Acceptance |
-|------|----|----|------------|
-| T2.A | FR-4 harness skeleton | `tools/advisor-benchmark.sh` (worktree, state, manifest) | Hermeticity bats test passes |
-| T2.B | FR-4 IMP-004 variance | `tools/advisor-benchmark-stats.py` + classify_pair | Unit tests for stable/flag/drop cases |
-| T2.C | FR-4 IMP-005 replay-semantics | Two-mode separation + bats isolation test | Recorded-replay never reaches headline section |
-| T2.D | FR-4 IMP-011 cost cap | Pre-run estimate + abort + report | Estimate-vs-actual fixture test |
-| T2.E | FR-4 IMP-013 chain-exhaustion | Classify_replay_outcome + report bucketing | INCONCLUSIVE doesn't bias aggregate |
-| T2.F | FR-5 rollup | `tools/modelinv-rollup.sh` | Hash-chain validate; per-stratum grouping |
-| T2.G | FR-5 IMP-008 hash-chain | Fail-closed integrity check before report | Broken-chain fixture exits 1, no partial report |
-| T2.H | FR-5 IMP-014 per-stratum | `--per-stratum` flag + markdown column | Rollup includes per-stratum cost reduction |
-| T2.I | Stratifier | `tools/sprint-kind-classify.py` + sprint-kind injection | Initial labels for ≥12 historical sprints generated |
-| T2.J | MODELINV coverage audit | Verify ≥90% MODELINV envelope coverage of cycle token spend ([ASSUMPTION-A4]) | Coverage report committed; if <90%, Sprint 2 ships coverage-improvement task before Sprint 3 |
-| T2.K | Median tokens | Populate `advisor_strategy.benchmark.historical_median_tokens.*` from rollup | 5 strata with median input/output |
-
-### 13.3 Sprint 3 — Empirical benchmark
-
-| Task | FR | Deliverable | Acceptance |
-|------|----|----|------------|
-| T3.A | FR-8 baselines compute | `tools/compute-baselines.py` runs over historical data | `baselines.json` candidates committed |
-| T3.B | FR-8 sign | `audit_emit_signed` over baselines.json | `baselines.audit.jsonl` committed; chain valid |
-| T3.C | FR-8 acceptance | benchmark refuses to run with mismatch | Negative test passes |
-| T3.D | Select replay sprints | ≥12 sprints across ≥4 strata; operator approves | Replay-manifest dir populated |
-| T3.E | Run replays | Execute ≥36 replays (12 sprints × 3 replays for executor + 0 for advisor — baseline is from history) | All replays complete OR INCONCLUSIVE classified |
-| T3.F | Stats + report | Paired bootstrap CIs; classification per stratum | `benchmark-report.md` committed |
-| T3.G | Cost reconciliation | estimate-vs-actual reported | Within ±20% expected; deviations explained |
-
-Sprint-3 wall-clock budget: NFR-P2 caps at ≤6 hours; with cost cap default $50, realistic for the substrate (cheaper-tier executor + advisor-baselines from history, not freshly run).
-
-### 13.4 Sprint 4 — Rollout policy + decision-fork
-
-| Task | FR | Deliverable | Acceptance |
-|------|----|----|------------|
-| T4.A | FR-6 rollout policy | `rollout-policy.md` with per-stratum recommendations | Cites data points from `benchmark-report.md` |
-| T4.B | Decision-fork (a/b/c) | Mechanical decision per PRD §7 Sprint 4 | Outcome recorded in rollout-policy.md |
-| T4.C | `.loa.config.yaml.example` | Defaults updated per outcome | Operator-facing default reflects decision |
-| T4.D | Migration guide | `grimoires/loa/runbooks/advisor-strategy-migration.md` | Operators can adopt or rollback safely |
-| T4.E | Auto-memory update | `feedback_advisor_benchmark.md` updated with cycle-108 datapoints | Replaces spiral-harness-only data |
-| T4.F | known-failures.md | Add KF-NNN entries for any failure classes observed during benchmark | Append-only per CLAUDE.md context-intake discipline |
-
----
-
-## 14. Risks & mitigation (PRD §8 mirror with SDD-specific additions)
-
-PRD §8 enumerates R-1 through R-11. SDD adds implementation-specific risks:
-
-| ID | Risk | Likelihood | Impact | SDD-specific mitigation |
-|----|------|------------|--------|-------------------------|
-| SR-1 | Loader perf regression > 5ms breaks NFR-P1 | Low | Medium | `tests/unit/advisor-strategy-loader-perf.bats` measures via `time` (p95 over 1000 calls < 5ms); regression fails CI |
-| SR-2 | Bash twin (`advisor-strategy-resolver.sh`) drifts from Python canonical | Medium | High | Twin is a thin exec wrapper around Python — there is no parallel logic to drift; cross-runtime parity test enforces byte-equal output |
-| SR-3 | JSON Schema validator differs across `jsonschema` (Python) and `ajv-cli` (Node) | Medium | Medium | Both use Draft 2020-12; cycle-099 Sprint 1A precedent shows compatibility for our schema patterns; differential test in CI |
-| SR-4 | Worktree teardown fails leaving orphan dirs in `/tmp` | Low | Low | `trap 'cleanup_worktree' EXIT` in harness; daily cron cleanup of `/tmp/loa-advisor-replay-*` older than 24h |
-| SR-5 | Pre-sprint SHA for replay isn't reproducible (e.g., merged-rebased) | Medium | Medium | Use `git log --format=%H "$pr_merge_sha^1"` for the parent of the merge commit; for squash-merged PRs, fall back to `git log --format=%H "$pr_merge_sha^"` and warn operator |
-| SR-6 | Skill migration miscategorizes a multi-role skill silently | Medium | Medium | Migration script outputs a review file; operator MUST sign off before Sprint 1 closes; 6 high-confidence multi-role skills hand-reviewed (§4.3 table) |
-| SR-7 | MODELINV envelope coverage <90% breaks Sprint 3 benchmark validity | Low (Medium per [ASSUMPTION-A4]) | High | Sprint 2 task T2.J audits coverage before Sprint 3 begins; if <90%, coverage-improvement task lands first |
-
----
-
-## 15. Open questions (carried from PRD + SDD-surfaced)
-
-### Resolved during SDD
-
-- **OQ-1 → RESOLVED via FR-9** (PRD): static is default; dynamic is opt-in with warning.
-- **NEW OQ-SDD-1 → RESOLVED in §6.4**: sprint_kind is assigned at sprint-start, not per-invocation.
-- **NEW OQ-SDD-2 → RESOLVED in §3.5**: backward-compat means cheval without `--role` behaves identically — no envelope changes.
-
-### Remaining for Red Team + SDD-Flatline to surface
-
-- **OQ-2** (PRD): How do `/implement` and `/bug` differ in same cycle? *SDD position*: `/bug` is implementation-role (same as `/implement`); per-skill override available if operator wants `/bug: advisor`. Recommend keeping symmetric.
-- **OQ-3** (PRD): Skill-level vs phase-level role granularity? *SDD position*: Skill-level only for cycle-108. Phase-level is an OOS-1-ish future cycle.
-- **OQ-4** (PRD): Should benchmark-report.md re-run on every cycle-N+1? *SDD position*: Out-of-scope for cycle-108. Operators can re-invoke `advisor-benchmark.sh` manually; automation is a future cycle.
-
-### [ASSUMPTION] resolution status
-
-| Tag | Resolution path | Sprint |
-|-----|-----------------|--------|
-| A1 (Gemini executor candidate) | T1.G validates `gemini-3.1-flash`; SDD amendment if wrong | Sprint 1 |
-| A2 (≥12 historical sprints exist) | T2.I generates initial labels; T3.D selects | Sprint 2/3 |
-| A3 (worktree hermeticity sufficient) | T2.A hermeticity bats test | Sprint 2 |
-| A4 (MODELINV coverage >90%) | T2.J coverage audit | Sprint 2 |
-| A5 (failures observable via existing signals) | T3.E observations; if defect-detection signal missing, SDD amendment | Sprint 3 |
-
----
-
-## 16. Compliance traceability matrix
-
-Every PRD requirement maps to ≥1 SDD section:
-
-| PRD ID | Description | SDD section(s) |
-|--------|-------------|---------------|
-| FR-1 | Role→tier config schema | §3.1, §3.2, §3.3, §3.4 |
-| FR-1 IMP-003 | NFR-Sec1 loader-layer enforcement | §3.3, §11.1 |
-| FR-2 | cheval routing extension | §3.5 |
-| FR-2 acceptance backward-compat | preserve callers without `role` | §3.5 |
-| FR-2 acceptance MODELINV bump | envelope v1.2 additive | §3.5, §11.2 |
-| FR-3 | Skill annotation contract | §4.1 |
-| FR-3 IMP-012 | Multi-role tiebreaker | §4.1, §4.3 |
-| FR-3 validator | extend `validate-skill-capabilities.sh` | §4.2 |
-| FR-3 migration | populate role for 35+ skills | §4.3 |
-| FR-4 | Benchmark harness | §5.1, §5.2, §5.3, §5.4 |
-| FR-4 IMP-004 | Variance protocol | §5.5, §9.2 |
-| FR-4 IMP-005 | Fresh-run / recorded-replay separation | §5.6 |
-| FR-4 IMP-011 | Cost-cap pre-estimate | §5.8, NFR-P3 |
-| FR-4 IMP-013 | Chain-exhaustion classification | §5.7 |
-| FR-5 | MODELINV cost aggregator | §6.1 |
-| FR-5 IMP-008 | Hash-chain fail-closed | §6.2, §12.4 |
-| FR-5 IMP-014 | Per-stratum reporting | §6.3 |
-| FR-6 | Rollout policy doc | §13.4 (Sprint 4 T4.A) |
-| FR-7 | Rollback semantics | §7.1, §7.2 |
-| FR-7 IMP-007 | In-flight kill-switch | §7.1 |
-| FR-7 IMP-010 | Trace-comparison test | §7.3 |
-| FR-8 IMP-001 | Pre-registered baselines | §5.9 |
-| FR-9 IMP-009 | Tier alias resolution mode | §3.6 |
-| NFR-Sec1 | Loader-layer review/audit pin | §3.3, §11.1 |
-| NFR-Sec2 | Audit-log integrity | §11.2 |
-| NFR-Sec3 | Kill-switch precedence | §7.2, §11.3 |
-| NFR-R1 | Hermetic replay | §5.2 |
-| NFR-R2 | Additive routing | §10 |
-| NFR-R3 | Chain-exhaustion error preserved | §10, §5.7 |
-| NFR-O1 | MODELINV always has role field | §3.5 |
-| NFR-O2 | Report reproducible from jsonl + git | §6.5, §9.1 (seeded) |
-| NFR-P1 | ≤5ms config-load overhead | §3.3, SR-1 |
-| NFR-P2 | ≤6h for 12 replays | §13.3 |
-| NFR-P3 IMP-011 | Cost-cap pre-estimate | §5.8 |
-| NFR-C1 | Dogfood quality gates | this SDD's Flatline + RT runs |
-| NFR-C2 | Never bypass gates | implicit in §13 sprint sequencing |
-| Appendix A IMP-006 | Sprint-kind taxonomy | §8.1, §8.2, §8.3 |
-| §3 Pass/Fail/Inconclusive | Decision rules | §9.3 |
-| R-8 NFR-Sec1 bypass | CODEOWNERS + schema + runtime | §11.1 |
-| R-9 IMP-011 benchmark cost overrun | Cost cap + abort | §5.8 |
-| R-10 Voice degradation recurs | (out-of-band; tracked in known-failures.md) | §10 (preserved voice-drop) |
-| R-11 IMP-005 recorded-replay leak | Two-mode separation | §5.6 |
-
----
-
-## 17. Visual: data flow at runtime
-
-```mermaid
-sequenceDiagram
-    participant Op as Operator
-    participant Skill as /implement
-    participant Cheval as cheval.py
-    participant Loader as load_advisor_strategy()
-    participant Resolver as advisor_strategy.py::resolve
-    participant Modelinv as modelinv.py
-    participant Provider as Anthropic/OpenAI/Google
-    participant Audit as .run/model-invoke.jsonl
-
-    Op->>Skill: /implement sprint-N
-    Skill->>Cheval: cheval --role implementation --skill implement --sprint-kind glue ...
-    Cheval->>Loader: load_advisor_strategy(repo_root)
-    Loader->>Loader: schema validate
-    Loader->>Loader: NFR-Sec1 runtime check
-    Loader-->>Cheval: AdvisorStrategyConfig
-    Cheval->>Resolver: resolve(role=implementation, skill=implement, provider=anthropic)
-    Resolver-->>Cheval: ResolvedTier(model_id=claude-sonnet-4-6, tier=executor, ...)
-    Cheval->>Provider: API call (model=claude-sonnet-4-6)
-    Provider-->>Cheval: response
-    Cheval->>Modelinv: emit_envelope(extra_fields={role, tier, tier_source, tier_resolution, sprint_kind})
-    Modelinv->>Audit: append hash-chained envelope v1.2
-    Audit-->>Op: (audit trail visible via tools/modelinv-rollup.sh)
+T5.1 — Fix #874 (provider-peek generalization) + test
+T5.2 — Fix #875 (modelinv parents[4] hardcode → repo-root walk) + test
+T5.3 — Fix #870 (rollup O(N) → single-pass) + perf test
+T5.4 — loa substrate health CLI (bash + python aggregator) + 24h window perf test
+T5.5 — Health-threshold warnings (FR-5.7) + redactor integration (NFR-Sec-3)
+T5.6 — loa substrate recalibrate CLI (FR-1.6 trigger)
+T5.7 — Cron journal workflow (.github/workflows/substrate-health-journal.yml)
+T5.8 — Journal markdown formatter + idempotency
+T5.9 — Cycle-baseline-capture.sh runs at cycle close per PRD §3.4
+T5.10 — Sprint debrief + cycle-close audit
 ```
 
 ---
 
-## 18. Visual: rollback flow
+## 6. Error handling, exit codes & failure semantics
 
-```mermaid
-stateDiagram-v2
-    [*] --> Enabled: advisor_strategy.enabled = true
-    Enabled --> KillSwitched: LOA_ADVISOR_STRATEGY_DISABLE=1
-    Enabled --> ConfigFlipped: edit .loa.config.yaml; commit
-    KillSwitched --> Enabled: unset env var
-    ConfigFlipped --> Enabled: revert commit
-    Enabled --> ChainExhausted: executor + fallback chain fails
-    ChainExhausted --> OperatorVisible: stderr error + audit log
-    OperatorVisible --> [*]
-    KillSwitched: All 6 consumers route to advisor on next invocation
-    ConfigFlipped: Per-call re-read picks up new config (NFR-P1)
-```
+### 6.1 Cheval exit codes (preserved from cycle-103; one extension)
 
----
+| Code | Class | Cycle-109 surface |
+|------|-------|------------------|
+| 0 | Success | Normal return |
+| 1 | Retryable provider error | EmptyContent / RateLimited / ProviderUnavailable / RetriesExhausted (streaming-recovery may add `subcode: EmptyContent` per FR-4.4) |
+| 7 | ContextTooLarge | **Preemptive** when input > effective_input_ceiling AND chunking disabled OR override-blocked |
+| 8 | InteractionPending | Async-mode in-progress |
+| 11 | NoEligibleAdapter | All adapters skipped |
+| 12 | ChainExhausted | All chain entries failed |
+| 13 | **(new, cycle-109)** ChunkingExceeded | Input requires > `chunks_max` chunks AND truncation forbidden via flag |
 
-## 19. Sources
+### 6.2 Error response shape (envelope-embedded; SKP-003 v5 closure)
 
-| Section | Source |
-|---------|--------|
-| §1 architecture overview | PRD §6 NFR-R2 (additive); `.claude/adapters/cheval.py:517`; `.claude/adapters/loa_cheval/audit/modelinv.py` |
-| §2 software stack | cycle-099 Sprint 1A toolchain pin (`grimoires/loa/runbooks/codegen-toolchain.md`) |
-| §3 role→tier routing | PRD §5 FR-1, FR-2, FR-9; existing `loa_cheval/config/loader.py:105` reads `hounfour:` |
-| §4 skill annotation | PRD §5 FR-3, IMP-012; `.claude/scripts/validate-skill-capabilities.sh:146` |
-| §5 benchmark harness | PRD §5 FR-4, FR-8; PRD §6 NFR-R1, NFR-P3 |
-| §6 cost aggregator | PRD §5 FR-5; `.claude/scripts/audit-envelope.sh::audit_emit` and `audit_verify_chain` |
-| §7 rollback | PRD §5 FR-7; PRD §6 NFR-Sec3 |
-| §8 stratification | PRD Appendix A (IMP-006); historical sprint metadata via `git log --merges` |
-| §9 statistics | PRD §3 pass/fail/inconclusive table; paired bootstrap canonical method (Efron & Tibshirani 1993) |
-| §10 integration | cycle-104 commits (within-company chains); cycle-099 PR#735 (model-resolver); cycle-107 commits ea12e236, e1032b76 (multi-model activation) |
-| §11 security | PRD §6 NFR-Sec1/2/3; CLAUDE.md L1 audit-envelope constraints |
-| §12 testing | cycle-099 cross-runtime parity pattern (`feedback_cross_runtime_parity_traps.md`); `feedback_atomic_write_symlink_defenses.md` |
-| §13 sprints | PRD §7 sprint-1..4 |
-| §14 risks | PRD §8 R-1..R-11; SDD-surfaced SR-1..SR-7 |
-| §16 traceability | full PRD walk |
+All cheval errors are JSON envelopes. **The verdict-quality block MUST be populated via `emit_envelope_with_status` per §3.2.2 producer obligation** — error paths flow through the same canonical helper as success paths. Status is REQUIRED on every emission, including failure paths; absence is a contract violation.
 
----
-
-## 20. Red-Team v1.0 → SDD v1.1 amendments (cycle-108 Red Team pass)
-
-> **Source**: `grimoires/loa/a2a/red-team/cycle-108-sdd-red-team.md` (manual fallback — automated runs degraded at 72KB doc size; KF-002 layer-1 substrate-edge signature). 20 attack scenarios analyzed. 2 CRITICAL + 7 HIGH + 7 MEDIUM + 4 LOW. Amendments below close the 9 BLOCK-class findings.
-
-### 20.1 ATK-A1 closure — skill-role registry (§3.7 NEW)
-
-**Attack**: Role-spoofing via new skill PR (operator-unprotected SKILL.md plants any role).
-
-**Amendments**:
-
-1. Extend `.github/CODEOWNERS` (Sprint 1 T1.A):
-   ```
-   .claude/skills/*/SKILL.md @janitooor
-   .github/CODEOWNERS @janitooor
-   .github/workflows/cycle-108-*.yml @janitooor
-   .claude/defaults/model-config.yaml @janitooor
-   ```
-2. New SDD §3.7 — **Schema-pinned skill registry**:
-   - `advisor-strategy.schema.json` gains `audited_review_skills: { type: array, items: { enum: [<explicit allowlist>] } }`.
-   - Initial allowlist: `[review-sprint, audit-sprint, reviewing-code, auditing-security, bridgebuilder-review, flatline-review, red-team, red-teaming, gpt-review, post-pr-validation]`.
-   - Adding a new review-class skill requires a schema-version bump + operator review of the schema PR.
-   - Loader at §3.3 step 4 gains: `for skill_name, skill in skill_registry.items(): if skill.role == "review" and skill_name not in cfg.audited_review_skills: sys.exit(78, "Unaudited review skill")`.
-3. Validator at §4.2 gains: invocation-chain audit — every cheval `--role review|audit` call records the parent slash-command in MODELINV envelope (`payload.invocation_chain: [...]`). Post-merge audit detects skills claiming review tier but never invoked from a review/audit-chain.
-
-### 20.2 ATK-A19 closure — deterministic sprint selection (§5.10 NEW)
-
-**Attack**: Cherry-pick easy sprints for the Sprint 3 benchmark input list.
-
-**Amendments**:
-
-1. New SDD §5.10 — **`tools/select-benchmark-sprints.py`** (Sprint 2 T2.K):
-   - Inputs: stratifier output for last 90 days of merged PRs; min-replays-per-stratum N (default 3).
-   - Rule: select the largest N such that ALL ≥4 strata have ≥N candidates. Pick the most-recent-merge-date N sprints from each stratum.
-   - Operator override: `--manual-selection <comma-list> --rationale <text>` requires an audit-envelope entry pinning the rationale; only valid if signed by the operator's L1 key.
-2. PRD §7 Sprint 4 amendment (cross-doc note in SDD §13.4): **per-stratum FAIL veto** — if ANY stratum FAILs at executor tier, decision-fork (a) "default-on" is unavailable regardless of aggregate. Operator can opt into (b) opt-in-per-stratum.
-3. Post-rollout 30-day watch period: any production FAIL within 30 days of executor-tier rollout auto-reverts `advisor_strategy.enabled` to false via a post-merge hook (Sprint 4 T4.B).
-
-### 20.3 ATK-A4 closure — baselines.json chain continuity (§5.9 PATCH)
-
-**Attack**: Tamper-and-resign attack — any contributor with L1 signing key access can rewrite baselines.
-
-**Amendments**:
-
-1. `baselines.audit.jsonl` MUST chain off the PREVIOUS cycle's audit chain (cycle-107's last L1 entry's hash becomes the genesis `prev_hash` for cycle-108 baselines). Pre-commit hook rejects audit-jsonl files that lack the cross-cycle linkage.
-2. New SDD §5.9.1 — **Out-of-band hash commitment via Git tag**:
-   - Sprint 3 task: after `audit_emit_signed`, the operator (NOT any contributor) runs `git tag -s -m "cycle-108 baselines pin" cycle-108-baselines-pin-$(jq -r .git_sha_at_signing baselines.json)` with their tag-signing key (separate from L1 signing key).
-   - Harness verifies the tag's existence + signature before any replay.
-3. Tag-signing key id MUST appear in `OPERATORS.md` keys list (operator-identity verification).
-
-### 20.4 ATK-A7 closure — MODELINV v1.2 strict cutoff + strip-attack detection (§6 PATCH)
-
-**Attack**: Strip v1.2 fields from envelopes to blind the tier-routing audit trail.
-
-**Amendments**:
-
-1. v1.2 envelope schema gains `schema_version: { const: "1.2" }` REQUIRED. Existing v1.1 entries (without `schema_version` or with `"1.1"`) remain readable.
-2. Rollup tool records the **cutoff timestamp** = `ts_utc` of the first v1.2 entry on file. Entries AFTER cutoff lacking `schema_version: "1.2"` → `[STRIP-ATTACK-DETECTED]` BLOCKER emitted; rollup aborts (exit 78).
-3. Every writer in cycle-108+ MUST declare `writer_version` in envelope payload. Rollup tracks per-writer schema evolution. Mirrors cycle-098 L1 strip-attack defense (CLAUDE.md L1 envelope rules).
-
-### 20.5 ATK-A13 closure — semantic-vs-declared role lie detection (§4 PATCH)
-
-**Attack**: A skill declares `role: review` to access advisor tokens for non-review work (cost exfiltration).
-
-**Amendments**:
-
-1. Validator at §4.2 gains a **heuristic linter**:
-   - For any skill with `role: review|audit`, the SKILL.md body MUST contain ≥2 review-class keywords from: `review`, `audit`, `validate`, `verify`, `score`, `consensus`, `adversarial`, `inspect`, `findings`, `regression`.
-   - Failures emit a soft warning + require `# REVIEW-EXEMPT: <rationale>` comment for explicit operator override (PR-reviewed).
-2. Cheval at §3.5 emits `payload.invocation_chain` capturing parent slash-command lineage. Post-merge audit (Sprint 4 task) detects skills claiming review tier but never invoked from a review/audit chain.
-3. Per-skill daily token quota (Sprint 4 task): MODELINV rollup alerts when any single skill exceeds `daily_token_budget_default` (operator-configurable).
-
-### 20.6 ATK-A14 closure — symlink-traversal defense (§5.2 PATCH)
-
-**Attack**: Replay creates a symlink pointing outside worktree; writes through it escape.
-
-**Amendments**:
-
-1. Pre-replay symlink scan: harness runs `find "$worktree_dir" -type l` and verifies every symlink's `realpath` resolves to INSIDE `$worktree_dir`. Outside-pointing symlinks → BLOCK replay, classify INCONCLUSIVE + harness-defect.
-2. Post-replay symlink scan: same check repeated; new outside-pointing symlinks → BLOCK + audit-log entry naming the symlink and target.
-3. Filesystem-snapshot diff (Sprint 1 acceptance):
-   - Pre-replay: capture mtimes + sizes for `~`, `/tmp`, `/var/tmp`, `<repo-root>-but-outside-worktree`, `.run/` (excluding `.run/model-invoke.jsonl` which is intentionally written).
-   - Post-replay: re-capture; diff. Any unexplained mutation → BLOCK + classify INCONCLUSIVE.
-4. Stretch (Sprint 2 task): container-isolated replays via `podman run --userns=keep-id --rm -v "$worktree_dir":/work:rw …` — deferred but documented.
-
-### 20.7 ATK-A17 closure — CI-side schema guard (§11.1 PATCH)
-
-**Attack**: GitHub admin-merge bypasses CODEOWNERS.
-
-**Amendments**:
-
-1. New CI workflow `.github/workflows/cycle-108-schema-guard.yml` (Sprint 1 T1.B):
-   - Triggers on PRs touching `.claude/data/schemas/advisor-strategy.schema.json`, `.claude/adapters/loa_cheval/config/loader.py`, `.claude/data/lore/agent-network/soul-prescriptive-rejection-patterns.txt` (extension point), `.claude/skills/*/SKILL.md`, `.claude/defaults/model-config.yaml`, `.github/CODEOWNERS`.
-   - Required-checks pinned via branch-protection — admins editing branch-protection settings logs to GH audit log + alerts.
-   - Asserts PR has @janitooor as approver; if absent, sets `failure` status check.
-   - Asserts no admin-bypass event in last 24h via GH API `/repos/.../audit-log` query; on detection, sets `failure` status check + emits Slack/email alert.
-2. Post-merge orchestrator extension (Sprint 4 T4.C): scans merged-commit metadata for branch-protection-bypass; if detected on protected files, opens an automatic revert PR + escalates to operator.
-
-### 20.8 ATK-A18 closure — CODEOWNERS self-protection (§3.2 PATCH)
-
-**Attack**: 2-PR sequence where PR1 removes CODEOWNERS coverage and PR2 plants malicious change.
-
-**Amendment**: Add to `.github/CODEOWNERS` (in §20.1's expanded block above):
-```
-.github/CODEOWNERS @janitooor
-.github/workflows/cycle-108-*.yml @janitooor
-```
-This makes CODEOWNERS self-protecting AND protects the workflows that enforce the schema guard.
-
-### 20.9 ATK-A20 closure — envelope-captured pricing (§6 PATCH)
-
-**Attack**: Pricing manipulation in `model-config.yaml` skews cost estimates and rollout decision.
-
-**Amendments**:
-
-1. Every MODELINV envelope emitted in cycle-108+ MUST include `payload.pricing_snapshot: { input_per_mtok: N, output_per_mtok: M }` captured at invocation time from the active model-config.
-2. `tools/modelinv-rollup.sh` reads pricing FROM envelopes (not from current `model-config.yaml`). Historical pricing changes don't retroactively rewrite cost reports — the envelope is the source of truth.
-3. CODEOWNERS on `.claude/defaults/model-config.yaml` (§20.1).
-4. CI check on pricing changes (Sprint 1 T1.B subtask): pre-merge comment with % diff per model; operator must approve.
-
-### 20.10 MEDIUM-findings batch (§5.7, §5.8, §3.1, §8, §7, §5.2, §6 PATCH)
-
-Compact closures for the 7 MEDIUM findings:
-
-| ID | Affected SDD section | Patch |
-|----|----------------------|-------|
-| ATK-A2 | §4.2 validator | Validator gains diff-aware rule: changes to `role` field on existing skills require a magic comment `# ROLE-CHANGE-AUTHORIZED-BY: <operator> ON <YYYY-MM-DD>` AND CI check that detects `review|audit → implementation` transitions and rejects without explicit operator co-sign in PR description. |
-| ATK-A5 | §5.7 chain-exhaustion | Add 5th outcome `UNTESTABLE`: if `INCONCLUSIVE_count / total_replays > 0.25` for any stratum, that stratum is `UNTESTABLE` and DOES NOT default to executor in rollout. Rollout-policy decision-fork is amended accordingly. |
-| ATK-A6 | §3.1, §5.8 cost-cap | `historical_median_tokens` is REMOVED from `.loa.config.yaml`; instead, Sprint 2 ships `historical-medians.json` computed by `tools/modelinv-rollup.sh --per-stratum --last-90-days`. The file is CODEOWNERS-protected + path-referenced from config. Running-total cost check during benchmark: after every replay, recompute `cost_so_far + remaining_estimate`; abort if it exceeds cap. |
-| ATK-A9 | §8 sprint-kind classifier | Rules become MULTI-FEATURE SCORED, not first-match: each rule emits `(stratum, confidence)`; classifier picks highest confidence. Ties broken by stratum priority `cryptographic > parser > audit-envelope > testing > infrastructure > glue`. Operator override `--stratum-override <name> --rationale <text>` with audit-log entry. |
-| ATK-A11 | §7 trace-comparison test | Golden MODELINV file content-addressed via `golden-pins.json` (signed via `audit_emit_signed`, CODEOWNERS-protected). Test reads pin, computes golden SHA, compares before running trace match. |
-| ATK-A15 | §5.2, §6 replay marker | Cheval invoked with `LOA_REPLAY_CONTEXT=1` env (set by harness) emits envelope with `payload.replay_marker: true`. Rollup tool's default mode EXCLUDES replay-marked envelopes from prod queries; `--include-replays` opts in. |
-| ATK-A16 | §5.2 network egress | Harness sets `LOA_NETWORK_RESTRICTED=1`; cheval + shell wrappers check this and refuse to invoke disallowed network tools (curl, wget, nc, ftp) unless explicitly allowlisted (LLM provider endpoints). Sprint 2 stretch: container netns with egress-only-to-allowlist. |
-
-### 20.11 Updated Sprint 1 acceptance criteria (delta from §13)
-
-Sprint 1 deliverables expanded to incorporate ATK-A1, ATK-A13, ATK-A14, ATK-A17, ATK-A18, ATK-A20:
-
-- T1.A: CODEOWNERS coverage (the full block in §20.1)
-- T1.B: `cycle-108-schema-guard.yml` workflow with required status checks
-- T1.C: Schema-pinned skill registry in `advisor-strategy.schema.json` (`audited_review_skills` enum); loader §3.3 step 4 enforcement
-- T1.D: Validator heuristic linter (ATK-A13) + role-change-diff rule (ATK-A2)
-- T1.E: Symlink scan + FS-snapshot-diff stubs (ATK-A14) — implemented as harness pre-/post-replay hooks
-- T1.F: Invocation-chain envelope field (ATK-A13)
-
-### 20.12 Updated Sprint 2 acceptance criteria (delta from §13)
-
-- T2.J: Envelope-captured pricing (ATK-A20) — modelinv.py + rollup tool reads from envelope
-- T2.K: Deterministic sprint-selection algorithm (ATK-A19) — `tools/select-benchmark-sprints.py`
-- T2.L: `historical-medians.json` computed + CODEOWNERS-protected (ATK-A6)
-- T2.M: Replay-marker field + rollup default-exclude (ATK-A15)
-- T2.N: Network-restriction env enforcement (ATK-A16)
-- T2.O: Multi-feature sprint-kind scorer (ATK-A9)
-- T2.P: UNTESTABLE outcome + INCONCLUSIVE-rate gate (ATK-A5)
-
-### 20.13 Updated Sprint 3 acceptance criteria (delta from §13)
-
-- T3.A: Operator generates `cycle-108-baselines-pin-<sha>` Git tag with separate tag-signing key (ATK-A4)
-- T3.B: Cross-cycle audit-chain continuity verified (ATK-A4 step 1)
-
-### 20.14 Updated Sprint 4 acceptance criteria (delta from §13)
-
-- T4.B: 30-day post-rollout watch hook (ATK-A19)
-- T4.C: Post-merge admin-bypass scan (ATK-A17)
-- T4.D: Per-skill daily token quota + alert (ATK-A13)
-- T4.E: Per-stratum FAIL veto codified in rollout-policy doc (ATK-A19)
-
-### 20.15 LOW-findings (deferred — implementation review)
-
-- ATK-A3 (YAML anchor injection): defended; no action.
-- ATK-A8 (hash-chain fork at schema-bump): defended by existing L1 envelope.
-- ATK-A10 (no classifier escape valve): closed by ATK-A9's operator override.
-- ATK-A12 (substring model-ID match): test acceptance criteria use exact match; documented in §12.
-
----
-
-> **SDD v1.1 status**: Red Team pass complete (manual fallback documented; substrate degradation noted in known-failures.md as KF-002 layer-1 recurrence). Ready for Phase 2c — `/flatline-review` on SDD v1.1 — before `/sprint-plan`.
-
----
-
-## 21. Flatline v1.1 → SDD v1.2 amendments (cycle-108 SDD Flatline pass)
-
-> **Source**: `grimoires/loa/a2a/flatline/sdd-review.json`. Three Flatline runs against SDD v1.1 (88KB) produced variable output — substrate variance at the cheval connection-loss threshold (~70KB; issue #774). Run-1 produced 12 findings from gpt-5.5-pro; runs 2 & 3 degraded. Opus + Gemini chain-exhausted across all runs. Treated as effective single-voice review per voice-drop semantics (cycle-104 T2.8). Findings IMP-001, IMP-009, IMP-010, IMP-012 integrated below; IMP-011 deferred to Sprint 2 AC; IMP-008 flagged for sprint-plan re-review.
-
-### 21.1 IMP-001 closure — canonical AdvisorStrategyConfig dataclass (§3.3 PATCH)
-
-The loader returns an `AdvisorStrategyConfig` dataclass. Canonical definition (Python; bash twin via dataclass-to-shell-env mapping):
-
-```python
-@dataclass(frozen=True)
-class ResolvedTier:
-    """Result of role→tier→model resolution for a single cheval invocation."""
-    model_id: str                          # e.g. "claude-sonnet-4-6"
-    tier: Literal["advisor", "executor"]
-    tier_source: Literal["default", "per_skill_override", "kill_switch"]
-    tier_resolution: str                   # "static:<sha>" or "dynamic"
-    provider: Literal["anthropic", "openai", "google"]
-
-@dataclass(frozen=True)
-class AdvisorStrategyConfig:
-    """Canonical config loaded from .loa.config.yaml::advisor_strategy."""
-    schema_version: int                    # 1 (current); future bump triggers migration path
-    enabled: bool                          # master switch
-    tier_resolution: Literal["static", "dynamic"]
-    defaults: dict[Literal["planning", "review", "implementation"], Literal["advisor", "executor"]]
-    tier_aliases: dict[Literal["advisor", "executor"], dict[Literal["anthropic", "openai", "google"], str]]
-    per_skill_overrides: dict[str, Literal["advisor", "executor"]]    # skill_name → tier
-    audited_review_skills: frozenset[str]  # §3.7 ATK-A1 closure
-    benchmark_max_cost_usd: float          # NFR-P3
-    config_sha: str                        # captured at load time for static-mode pin
-
-    @classmethod
-    def disabled_legacy(cls) -> "AdvisorStrategyConfig":
-        """Returned when advisor_strategy is absent OR LOA_ADVISOR_STRATEGY_DISABLE=1."""
-        return cls(
-            schema_version=1, enabled=False, tier_resolution="static",
-            defaults={}, tier_aliases={}, per_skill_overrides={},
-            audited_review_skills=frozenset(), benchmark_max_cost_usd=0.0,
-            config_sha="DISABLED",
-        )
-
-    def resolve(self, role: str, skill: str, provider: str) -> ResolvedTier:
-        """O(1) lookup: role + skill → ResolvedTier. Raises if NFR-Sec1 violated."""
-        ...
-```
-
-**Invariants** (asserted in `__post_init__`):
-
-- `schema_version == 1` for this SDD; future versions dispatched at loader layer.
-- If `enabled == False`: all other fields except `schema_version`, `tier_resolution`, `config_sha` MAY be empty.
-- If `enabled == True`: `defaults` MUST have all three role keys; `tier_aliases` MUST have both tier keys with at least one provider each.
-- `audited_review_skills` is FROZEN at load time — runtime mutation MUST raise.
-- `config_sha` is non-empty when `enabled == True` (static-mode pinning requirement).
-
-**Cross-runtime parity** (bash twin):
-
-The bash resolver `advisor-strategy-resolver.sh` exec's the Python resolver — there is no parallel data structure to drift. The Python `AdvisorStrategyConfig` is the canonical source; bash receives JSON-serialized `ResolvedTier` via stdout and parses with `jq`.
-
-**Test fixture** (Sprint 1 T1.D acceptance): `tests/fixtures/advisor-strategy/canonical-resolved-tier.json` is the golden output for a baseline (role=review, skill=review-sprint, provider=anthropic) lookup. Both bash + Python MUST produce byte-identical JSON.
-
-### 21.2 IMP-010 closure — atomic schema-enum seeding (§20.1 PATCH)
-
-Sprint 1 task T1.A is amended: the CODEOWNERS update + the `audited_review_skills` enum seeding + the SKILL.md `role` field additions MUST land in ONE commit (or one atomically-applied PR), NOT in separate PRs.
-
-Specifically:
-
-```bash
-# Sprint 1 T1.A — atomic commit sequence:
-1. tools/migrate-skill-roles.sh --dry-run > migration-plan.md   # operator reviews
-2. tools/migrate-skill-roles.sh --apply                          # writes role: to all SKILL.md
-3. tools/seed-audited-review-skills.py \                         # NEW — emits enum from migration
-     --migration-output migration-plan.md \
-     --schema .claude/data/schemas/advisor-strategy.schema.json \
-     --in-place                                                  # rewrites schema's audited_review_skills enum
-4. git add -p .claude/skills .claude/data/schemas .github/CODEOWNERS
-5. git commit -m "cycle-108 T1.A: atomic skill-role migration + schema enum seed"
-```
-
-The CI gate `cycle-108-schema-guard.yml` (§20.7) enforces: PRs touching SKILL.md `role:` fields MUST also touch `audited_review_skills` enum within the same commit (no cross-commit splits). Implementation: a CI step diffs the affected files and rejects mismatches.
-
-**Rollback path**: revert is also atomic — reverting the seeding commit restores prior schema enum + prior SKILL.md roles in lockstep.
-
-### 21.3 IMP-009 closure — golden-pins.json operational spec (§20.6.1 NEW)
-
-The golden-pins file (§7 trace-comparison + ATK-A11) requires explicit operational definitions. SDD §20.6.1:
-
-**File**: `tests/fixtures/cycle-108/golden-pins.json`
-
-```json
+```jsonc
 {
-  "schema_version": 1,
-  "pins": {
-    "rollback-trace": {
-      "fixture_path": "tests/fixtures/cycle-108/golden-rollback-trace.modelinv",
-      "sha256": "<canonical hex>",
-      "signed_by_key_id": "<operator-pinned key id from OPERATORS.md>",
-      "signed_at": "2026-05-15T09:00:00Z",
-      "rotation_policy": "operator-triggered; no automatic expiration",
-      "last_verified_at": "2026-05-15T09:00:00Z"
+  "error": {
+    "code": "ContextTooLarge",
+    "exit_code": 7,
+    "message": "input estimated at 82000 tokens exceeds effective_input_ceiling 40000 for claude-opus-4-7; chunking disabled by caller",
+    "details": {
+      "estimated_input": 82000,
+      "ceiling": 40000,
+      "ceiling_calibration_source": "empirical_probe",
+      "ceiling_stale": false
     }
+  },
+  "verdict_quality": {
+    "status": "FAILED",                              // SKP-001 v4 — REQUIRED; computed by emit_envelope_with_status
+    "consensus_outcome": "consensus",                // SKP-002 v5 — REQUIRED; impossible reserved for cross-voice contradictions
+    "voices_planned": 1,
+    "voices_succeeded": 0,
+    "voices_dropped": [
+      {
+        "voice": "claude-opus-4.7",
+        "reason": "ContextTooLarge",
+        "exit_code": 7,
+        "blocker_risk": "unknown"                    // SKP-002 v3/v4 — REQUIRED
+      }
+    ],
+    "chain_health": "exhausted",
+    "confidence_floor": "low",
+    "rationale": "preempted at gate — input exceeded ceiling"
   }
 }
 ```
 
-**Signing**: golden-pins.json signed via `audit_emit_signed` with operator's key (NOT contributor L1 keys); audit envelope path `tests/fixtures/cycle-108/golden-pins.audit.jsonl`. Pre-commit hook verifies signing key matches operator's id.
+**Construction rule**: every error constructor in cheval.py (one per exit code per §6.1; ~12 sites) MUST:
 
-**Verification timing**:
-- At test setup (per-test invocation): compute SHA256 of fixture file, compare to pin. Mismatch → test FAILS (not skipped).
-- Pre-commit hook: re-verify when golden-pins.json is touched.
-- Quarterly operator-triggered audit: re-verify all pins independent of test runs (recorded in `last_verified_at`).
+1. Build the partial `verdict_quality` block with `voices_planned`, `voices_succeeded`, `voices_dropped[]` (one entry per failed voice), `chain_health`, `confidence_floor`, `rationale`.
+2. Pass through `emit_envelope_with_status(envelope, schema)` which populates `status`, `consensus_outcome` default, and round-trip-validates.
+3. Emit the envelope. Error path has no permission to skip step 2.
 
-**Rotation**:
-- Operator triggers rotation when adding/removing pins. Existing pins remain valid; new pins added; deprecated pins flagged but retained for replay-history.
-- Signing key rotation: when operator's tag-signing key rotates, all pins are RE-signed with the new key; the audit envelope chain captures the rotation event.
+**Conformance fixtures (FR-2.7 — Sprint 2 deliverable)**: one fixture per error code (`ContextTooLarge`, `ChainExhausted`, `NoEligibleAdapter`, `RetriesExhausted`, `EmptyContent`, `RateLimited`, `ProviderUnavailable`, `InteractionPending`, `Other`). Each fixture asserts:
 
-**Implementation script**: `tools/cycle108-update-golden-pins.sh` (Sprint 1 T1.G) handles compute-sha → sign → emit-envelope → commit, all atomically.
+- envelope contains `verdict_quality.status` (NOT absent)
+- envelope contains `verdict_quality.consensus_outcome`
+- `status` is `FAILED` or `DEGRADED` (no error path emits `APPROVED`)
+- producer-side invariants validated before emission
 
-### 21.4 IMP-012 closure — writer_version single source of truth (§20.4.1 NEW)
+**Producer-lint**: `tools/lint-verdict-producers.py` greps for any cheval emission path that constructs `verdict_quality` outside `emit_envelope_with_status`. Lint fails CI on violation (Sprint 2 deliverable; companion to the consumer-lint in SKP-001).
 
-The `writer_version` field on MODELINV envelopes (§20.4) must have ONE source-of-truth file readable by all emitters (Python `modelinv.py`, bash `audit-envelope.sh` wrappers, future TS emitters):
+### 6.3 Logging strategy
 
-**File**: `.claude/data/cycle-108/modelinv-writer-version`
-
-Contents (single line): `1.2`
-
-**Emitter contract**:
-
-| Emitter | Read source | Behavior |
-|---------|-------------|----------|
-| `modelinv.py` (canonical) | `Path('.claude/data/cycle-108/modelinv-writer-version').read_text().strip()` | Always read at module import; cached for process lifetime |
-| `audit-envelope.sh` (bash) | `cat .claude/data/cycle-108/modelinv-writer-version` | Read on each emit (cheap) |
-| Future TS emitters | `fs.readFileSync('...', 'utf8').trim()` | Read at process init |
-
-**Bump procedure**:
-
-1. Increment version in `.claude/data/cycle-108/modelinv-writer-version` (e.g., `1.2` → `1.3`).
-2. Update v1.3 schema file at `.claude/data/schemas/modelinv-envelope-v1.3.schema.json`.
-3. Update rollup tool's `MAX_KNOWN_VERSION` constant.
-4. CI gate (`cycle-108-schema-guard.yml`): any commit touching `modelinv-writer-version` MUST also touch the corresponding schema file + rollup tool constant.
-
-**Cross-emitter parity test** (Sprint 1 T1.F): `tests/integration/modelinv-writer-version-parity.bats` invokes the bash emitter AND the Python emitter for the same logical event; both emit envelopes with identical `writer_version` field. Byte-equal assertion.
-
-### 21.5 IMP-011 deferral — replay-array memory budget (Sprint 2 AC)
-
-Sprint 2 T2.P AC gains: "`tools/advisor-benchmark-stats.py` MUST process replay-result JSONL in streaming mode (line-by-line iterator), NOT load all replay results into memory at once. Memory budget: ≤256MB resident for 100-replay aggregation. Verified by `tests/integration/benchmark-stats-memory.bats` running under `ulimit -v 262144`."
-
-### 21.6 IMP-008 flagged for sprint-plan re-review
-
-IMP-008 content was not fully captured in the Flatline artifact (substrate variance — see §21 substrate note). Sprint-plan phase MUST surface this gap explicitly: sprint-plan Flatline pass (Phase 3b) re-reviews the SDD's critical sections; if Flatline produces a re-emission of IMP-008's content, it gets integrated in sprint-plan v1.1. Otherwise carried as `cycle-108-IMP-008-LOST` in the cycle's outstanding-items log for cycle-109 Sprint 1 review.
+- **Log levels**: ERROR (typed-exit ≥ 1), WARN (degraded but completed), INFO (normal dispatch), DEBUG (chain-walk decisions via `LOA_HEADLESS_VERBOSE=1`).
+- **Structured JSON**: all substrate-emitted logs are JSON (already substrate convention).
+- **Correlation IDs**: cheval invocations carry `--invocation-id` UUID; envelope echoes it; cross-tool correlation possible.
 
 ---
 
-> **SDD v1.2 status**: Red Team v1.0 + Flatline v1.1 amendments integrated. 1 known gap (IMP-008 content unrecoverable from current substrate). Ready for `/sprint-plan` (Phase 3) with binding AC inherited from §13 + §20 (Red Team) + §21 (Flatline) sections.
+## 7. Testing strategy
+
+### 7.1 Testing pyramid (existing baseline + cycle-109 additions)
+
+| Level | Existing count | +Cycle-109 | Tooling |
+|-------|---------------|------------|---------|
+| Unit (bats + pytest) | 52 substrate-scoped | +~50 (capability + verdict + chunking + health) | bats, pytest, jsonschema |
+| Integration | small | +~30 (KF-auto-link, ceiling-probe, regression matrix) | bats with curl-mock |
+| Activation regression matrix | 0 | 810 cells (FR-3.5) | GitHub Actions matrix |
+| Cross-runtime parity | cycle-099 contract pins | +~10 (verdict-quality bash/python parity) | cycle-099 cross-runtime-diff.yml |
+
+### 7.2 Test-first protocol (PRD §8.4 mandate — every sprint)
+
+Every sprint PR has two-commit minimum:
+
+- **Commit 1**: tests added; CI is **red** (failing tests, no implementation).
+- **Commit 2** (+ commit 3..N): implementation makes tests pass; CI **green**.
+
+Enforced by post-PR audit checking commit history. Violations recorded as process incidents (PRD §13.8).
+
+### 7.3 Conformance test corpus (FR-2.7)
+
+The cycle-109 PRD-review trajectory (degraded Opus, substrate self-report `confidence: full`) is the **canonical regression fixture** for FR-2.7. Stored at:
+
+```
+tests/fixtures/verdict-quality-conformance/
+├── 001-cycle-109-prd-review-degraded.json    # the inciting fixture
+├── 002-issue-807-shell-injection-approved.json
+├── 003-issue-809-empty-findings-clean.json
+├── 004-issue-868-chain-exhausted.json
+├── 005-issue-805-bb-pass-2-failure.json
+└── ...
+```
+
+Each fixture pins (envelope_input, expected_status). Conformance runner checks every consumer in FR-2 table produces `expected_status` from `envelope_input`. Drift → CI fails.
+
+### 7.4 Substrate degradation during cycle-109 own testing
+
+Per the C109.OP-4 / "substrate-awareness" mandate: if the substrate degrades during cycle-109 testing (e.g., a Flatline SDD review hits the same Opus drop pattern), **the trajectory becomes a regression fixture**, not a blocker. Recorded in NOTES.md + appended to the corpus.
+
+### 7.5 CI integration
+
+- All cycle-109 tests required in CI per per-sprint quality gates (PRD §13.4).
+- Activation matrix runs in parallel; target wall-time <15 min.
+- Cross-runtime byte-equality gate from cycle-099 sprint-1D enforced on any model-config.yaml change.
+- MODELINV coverage audit (cycle-108 T2.M) raised from 0.90 to 0.95 strict-threshold (NFR-Aud-1).
 
 ---
 
-> **Next gate**: `/sprint-plan` (Phase 3). Sprint-plan Flatline pass (Phase 3b) follows; expected to produce smaller doc → more reliable consensus.
+## 8. Development phases & sequencing
+
+### 8.1 Phase plan (mirrors PRD §12 timeline)
+
+| Phase | Sprint | Deliverables | Dependencies |
+|-------|--------|--------------|--------------|
+| 1 (Foundation) | Sprint 1 (FR-1) | Capability fields + pre-flight gate + KF-auto-link + MODELINV v1.3 + baseline-capture | None |
+| 2 (Honesty) | Sprint 2 (FR-2) | Verdict-quality schema + 7-consumer refactor + conformance corpus | Sprint 1 (envelope cross-refs capability_evaluation) |
+| 3 (Single path) | Sprint 3 (FR-3) | Legacy delete (6-commit sequence) + activation regression matrix + #864/863/793/820 fixes | Sprint 1 + 2 (matrix tests against capability + verdict envelopes) |
+| 4 (Big inputs) | Sprint 4 (FR-4) | Chunked review + streaming-recovery + cross-chunk pass | Sprint 1 + 2 + 3 |
+| 5 (Operability) | Sprint 5 (FR-5) | Carry items + substrate-health CLI + cron journal | All prior |
+
+### 8.2 Per-sprint gates (PRD §13.4 — iron-grip)
+
+Each sprint:
+
+- [ ] `/run sprint-N` invocation (never direct `/implement`)
+- [ ] test-first commit-1; implementation commit-2..N
+- [ ] Bridgebuilder review → iterate to plateau
+- [ ] Post-PR audit (cycle-053 amendment phase sequence)
+- [ ] Beads task lifecycle (created → in-progress → closed)
+- [ ] KF cross-reference in PR body when sprint addresses KF entry
+- [ ] MODELINV v1.3 envelope emitted; coverage audit ≥0.95
+- [ ] Sprint debrief at `grimoires/loa/cycles/cycle-109-substrate-hardening/sprint-N-debrief.md`
+
+### 8.3 Cycle-close
+
+- [ ] All 5 sprints shipped
+- [ ] Activation regression matrix required-in-CI
+- [ ] CHANGELOG.md updated
+- [ ] Signed tag `cycle-109-substrate-hardened-<hash>` per cycle-108 precedent
+- [ ] Cycle-baseline-capture run; baselines compared against kickoff
+- [ ] Operator-approval entries complete for each substrate-affecting sprint
+
+---
+
+## 9. Known risks and mitigation
+
+(Mirrors PRD §11.1 with SDD-level concrete mitigations.)
+
+| ID | Risk | Probability | Impact | SDD Mitigation |
+|----|------|-------------|--------|----------------|
+| R-1 | Capability data wrong (ceiling too high/low) | Med | Med | FR-4.4 streaming-recovery (defensive bottom guard); FR-1.6 reprobe trigger; ceiling_stale field surfaces to MODELINV when calibration aged out; KF feedback loop self-corrects |
+| R-2 | Legacy delete breaks consumer not in inventory | Med | High | 6-commit sequence (§5.3.1) leaves system green at each boundary; commit-C dry run; commit-D destructive only after activation matrix green; pre-delete baseline archived |
+| R-3 | Verdict-quality envelope breaks existing consumer | Low | Med | Additive only; producer-first PR order (§3.2.3 table); single canonical classification function (§4.4) prevents consumer-drift; conformance test fails CI on regression |
+| R-4 | Chunked review changes finding behavior (false +/-) | Med | Med | IMP-006 5-case fixture corpus; A/B against single-dispatch baseline on representative PR corpus during Sprint 4; cross-chunk pass for spans-boundary findings |
+| R-5 | MODELINV v1.3 break existing replay logs | Low | High | NFR-Rel-4 enforced: v1.3 additive only; replay test in Sprint 1 ACT verifies v1.2-and-mixed-chain replay; audit_emit_signed unchanged |
+| R-6 | Cycle scope too large | Med | High | Per-sprint independent value; if Sprint 4-5 slip, Sprints 1-3 alone close 8/13 issues + substrate-quality contract |
+| R-7 | KF-auto-link over-degrades models | Low | Med | IMP-001 mapping documented + 6-row bats fixture; IMP-002 operator-override; decisions reversible (KF resolves → re-upgrade); audit log enables post-hoc analysis |
+| R-8 | Substrate becomes SPOF after legacy delete | Low | High | True at v1.157.0 default; mitigation = invest in substrate quality (this cycle); operator-acknowledged per C109.OP-3 |
+| R-9 | Test fixtures drift from real provider behavior | Med | Med | cycle-099 sprint-1C fixture versioning; periodic real-provider smoke run via existing operator workflow; flag fixture-staleness via dated calibration metadata |
+| R-10 | **(new)** Cycle-109's own substrate degrades during SDD/sprint-plan Flatline reviews | High | Low (operationally) | C109.OP-4 precedent: record trajectory as cycle-109 evidence + add to FR-2.7 conformance corpus; operator-override gate-pass; do not silently approve |
+| R-11 | **(new)** Operator-override and overlay precedence conflict introduces dispatch ambiguity (§3.5.2) | Low | Med | Lint script `lint-overlay-override-conflict.py` (T1.9) flags conflicts at CI; MODELINV envelope `override_overlay_conflict: true` audit trail; documented precedence stack §3.5.2 |
+
+---
+
+## 10. Open questions
+
+| Q | Owner | Due | Status |
+|---|-------|-----|--------|
+| Should `--ceiling-override` flag be operator-only (require OPERATORS.md slug authentication)? | @janitooor | Sprint 1 | Open — SDD recommends YES (mirrors cycle-098 force-grant audit pattern) |
+| Should cron journal land on a separate branch or main? | @janitooor | Sprint 5 | Open — SDD recommends `auto-journal` branch + operator-merge PR (review queue model) |
+| What is the truncation behavior when > `chunks_max` chunks needed? | implementation | Sprint 4 | Open — SDD recommends: emit warning, dispatch highest-priority chunks (by diff size), annotate dropped chunks in verdict_quality.rationale + chunks_dropped count |
+| Is FL-readiness ready for verdict-quality consumption pre-Sprint 2, or does it land in Sprint 2's PR train? | implementation | Sprint 2 | Open — defer to FR-2 table dependency order (consumer #5; lands in Sprint 2 PR #5) |
+| `effective_input_ceiling` migration: empirical-probe-now vs conservative-default-and-probe-later for non-reasoning-class models? | @janitooor | Sprint 1 | Open — SDD recommends conservative-default-and-probe-later for non-reasoning-class (low risk); empirical-probe-now for 5 reasoning-class (high risk) |
+| Should `loa substrate recalibrate <model>` trigger a re-probe asynchronously (background) or block until done? | implementation | Sprint 5 | Open — SDD recommends synchronous with progress output (operator-driven; foreground OK; ~2-5 min per model) |
+
+---
+
+## 11. Appendix
+
+### A. Glossary
+
+(Extends PRD §14.D)
+
+| Term | Definition |
+|------|------------|
+| Pre-flight gate | The capability check `cheval.py::cmd_invoke` runs BEFORE dispatch (§5.1.1) |
+| Verdict-quality envelope | The JSON schema (§3.2) describing how a verdict was reached |
+| Activation regression matrix | The 810-cell CI suite (§4.5 + §5.3.2) covering consumer × role × response × dispatch_path |
+| Cross-chunk pass | The second-stage chunked-review mechanism (§5.4.3) for findings spanning chunk boundaries |
+| Streaming-with-recovery | Defensive bottom-guard (FR-4.4) — early-abort on first-N-token empty content with typed exit |
+| KF-auto-link | The CI mechanism (FR-1.5) that propagates KF ledger entries into model-config.yaml |
+| Capability evaluation | The MODELINV envelope field (§3.3.1) recording pre-flight gate decision |
+| Operator-override | `.loa.config.yaml::kf_auto_link.overrides[]` entries that take precedence over auto-link |
+
+### B. References
+
+**Internal**:
+- PRD (authoritative): `grimoires/loa/cycles/cycle-109-substrate-hardening/prd.md` v1.4 — SHA-256 `9678592520d2e76d5540da7f4e420f2c72085b9e085d7c3c5f989edb46839de5`; mirrored to `grimoires/loa/prd.md` for tool compatibility (refresh before each Flatline run)
+- Reality file: `grimoires/loa/reality/multimodel-substrate.md` (fresh /ride 2026-05-13)
+- Operator-approval ledger: `grimoires/loa/cycles/cycle-109-substrate-hardening/operator-approval.md`
+- Cycle-108 SDD precedent: `grimoires/loa/cycles/cycle-108-advisor-strategy/sdd.md`
+- ADR-002: `docs/architecture/ADR-002-multimodel-cheval-substrate.md`
+- KF ledger: `grimoires/loa/known-failures.md`
+- Audit envelope library: `.claude/scripts/lib/audit-envelope.sh` (cycle-098)
+- Curl-mock harness: cycle-099 sprint-1C (`tests/fixtures/curl-mock/`)
+- Log redactor: `.claude/scripts/lib/log-redactor.{sh,py}` (cycle-099 sprint-1E.a)
+- Cross-runtime diff gate: cycle-099 sprint-1D (`cross-runtime-diff.yml`)
+- MODELINV writer: `.claude/adapters/loa_cheval/audit/modelinv.py`
+- Cheval canonical: `.claude/adapters/cheval.py`
+- Operator-identity primitive: `.claude/scripts/lib/operator-identity.sh` (cycle-098 L4)
+
+**Schemas added**:
+- `.claude/data/schemas/model-config-v3.schema.json`
+- `.claude/data/schemas/verdict-quality.schema.json`
+- `.claude/data/schemas/modelinv-envelope-v1.3.schema.json`
+- `.claude/data/trajectory-schemas/kf-auto-link-events/decision.payload.schema.json`
+
+**Standards**:
+- JSON Schema Draft 2020-12 (existing repo convention)
+- RFC 8785 JCS canonical JSON (cycle-098 audit envelope dependency)
+- Ed25519 signing (cycle-098)
+
+### C. Change log
+
+| Version | Date | Changes | Author |
+|---------|------|---------|--------|
+| 1.0 | 2026-05-13 | Initial SDD post-PRD v1.1; addresses all 5 FRs + 6 architectural decision points (MODELINV v1.3 shape §3.3, verdict-quality schema location + hash-chain integration §3.2/§3.3.2, chunked aggregation + cross-chunk pass §5.4.2/§5.4.3, operator-override precedence with overlay §3.5, FR-3 legacy delete sequence §5.3.1, FR-5 substrate-health CLI + cron journal §4.2/§5.5.2/§5.5.3); Flatline IMPs 1/2/3/4/5/7/8/9/14 design-level resolution; IMP-006/010 detailed (deferred-to-SDD per PRD §14.E) | Architecture Designer Agent (autonomous mode, C109.OP-1) |
+| 1.3 | 2026-05-13 | Flatline SDD-review v6 closures + C109.OP-10 operator-override on residual design-tightenings. v6 SKP-001 CRIT (910): replaced private `_truncation_waiver_applied` with schema-declared `truncation_waiver_applied: boolean`. v6 SKP-001 CRIT (860): added §3.2.2.1 consensus-outcome algorithm specification (component `loa_cheval.verdict.consensus.classify_consensus`; per-finding cross-voice comparison; contradiction threshold; edge cases). v6 SKP-002 HIGH (740): §4.4 helper restructured — `med` blocker_risk check moved above succeeded==planned filter so it is reachable. v6 SKP-003 CRIT (825): added `voices_succeeded_ids: string[]` schema field + cross-set non-overlap invariant in `validate_invariants`. v6 SKP-005 HIGH (735): §3.1.4 amended — chain-walk fallthrough emits `voices_dropped[]` entry with `blocker_risk: med` default; classifier surfaces DEGRADED minimum (FAILED if primary safety voice). v6 SKP-006 HIGH (705): exit 8 vs 11 collision corrected — kill-switch path uses exit 11 (NoEligibleAdapter). v6 residual operator-overridden per C109.OP-10 + absorbed into Sprint 2 AC: v6 SKP-002 CRIT blocker_risk reproducibility (Sprint 2 canonical Python + golden fixtures); v6 SKP-003 HIGH `unknown`→APPROVED safety gap (hardening-mode toggle: `unknown_treated_as_med_until_priors`); v6 SKP-004 HIGH schema-additive-vs-populated apparent contradiction (Sprint 1 PR-body clarification). | Implementer Agent (autonomous mode, C109.OP-9 + C109.OP-10) |
+| 1.2 | 2026-05-13 | Closes Flatline SDD-review v5 (CLI-mode) BLOCKERs (substrate self-found schema/contract tightenings). v5 SKP-001 CRITICAL: `chunks_dropped > 0` → FAILED unless §4.1.3 `--truncation-waiver` break-glass with operator/scope/reason/expiry/signed audit. v5 SKP-002 CRITICAL: replaced unrepresentable private `_consensus_impossible` with schema-declared `consensus_outcome: consensus\|impossible` enum (REQUIRED). v5 SKP-003 CRITICAL: §6.2 error envelope path routed through `emit_envelope_with_status` (single producer entry-point); `tools/lint-verdict-producers.py` enforces. v5 SKP-005 HIGH: producer-side `validate_invariants` (voices_planned ≥ 1, succeeded in [0, planned], len(dropped) == planned-succeeded, unique voices, chunk-counter non-negative) before classification; `EnvelopeInvariantViolation` raised. v5 SKP-002/006 HIGH: `--blocker-risk-override` downward direction requires `--override-operator` (ACL `blocker-risk-override-authorized`) + ≥16-char reason + ≤7d expiry + signed `cheval.blocker_risk_override` audit (upward direction unrestricted). v5 SKP-004 HIGH: §3.1.4 defines `recommended_for` runtime semantics — migration default = allow-all `[review, audit, implementation, dissent, arbiter]`; KF-auto-link is explicit reducer; manual `[]` is operator kill-switch (exit 8). | Implementer Agent (autonomous mode, C109.OP-9) |
+| 1.1 | 2026-05-13 | Closes Flatline SDD-review v3 (CLI-mode) BLOCKERs SKP-001..004: canonical `status` field REQUIRED in verdict-quality schema with sole-writer contract + consumer-lint (SKP-001); `blocker_risk` REQUIRED per `voices_dropped[]` with classifier computation + high→FAILED promotion (SKP-002); `--ceiling-override` break-glass family with operator/reason/expiry/ACL credentials + fail-closed + signed audit event (SKP-003); operator-override precedence converted from unconditional to conditional with kf_references + effective_until + break_glass + L4 audit (SKP-004). Aligns SDD §3.2/§3.5/§4.1/§4.4 with PRD v1.4. v4 SDD-review BLOCKER closures: §4.4 helper rewritten to match §3.2.2 contract byte-for-byte (uses schema field `blocker_risk`; promotes high to FAILED; round-trip schema validation) and PRD reference unified to v1.2 with SHA-256 hash (header §0 + Appendix B). | Architecture Designer + Implementer Agents (autonomous mode, C109.OP-8 + C109.OP-9) |
+
+### D. Substrate-awareness self-note
+
+Per the cycle's substrate-awareness mandate: this SDD was produced under operator-delegated autonomous mode (C109.OP-1). The next gate is `/flatline-review` of this SDD (PRD §13.2). If that Flatline run degrades (Opus drop, empty content, chain exhaustion, cost-map zero, etc.), the trajectory will be recorded as cycle-109 evidence and added to the FR-2.7 conformance corpus — exactly as the PRD-review trajectory was per C109.OP-4. The substrate hardening this SDD designs is the substrate the SDD-review will exercise; the recursive irony is the point of the cycle, not a process failure.
+
+---
+
+*Generated by `/architect` (designing-architecture skill) for cycle-109-substrate-hardening, 2026-05-13 (v1.0); revised 2026-05-13 (v1.1 — closes Flatline SDD-review v3 + v4 BLOCKERs SKP-001..004). Source-cited against PRD v1.4 (SHA-256 `9678592520d2e76d5540da7f4e420f2c72085b9e085d7c3c5f989edb46839de5`) + fresh reality file + KF ledger + operator-approval entries C109.OP-1/2/3/4/8/9. Awaiting Flatline SDD review v5 (or operator-override on residual DISPUTED) before `/sprint-plan`.*
