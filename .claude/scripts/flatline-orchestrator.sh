@@ -415,8 +415,14 @@ fi
 VALID_MODEL_PATTERNS=(
     '^gpt-[0-9]+\.[0-9]+(-codex)?$'          # openai: gpt-5.2, gpt-5.3-codex, gpt-5.4-codex, gpt-6.0
     '^claude-(opus|sonnet|haiku)-[0-9]+[-.][0-9]+$'  # anthropic: claude-opus-4-7, claude-sonnet-4-6
-    '^gemini-[0-9]+\.[0-9]+(-flash|-pro)?$'  # google: gemini-2.5-pro, gemini-2.5-flash
+    '^gemini-[0-9]+\.[0-9]+(-flash|-pro)?(-preview)?$'  # google: gemini-2.5-pro, gemini-3.1-pro-preview (cycle-109 T3.4 #793: -preview suffix)
     '^(opus|sonnet|haiku)$'                  # short anthropic aliases (DISS-002: anchored alternation)
+    # cycle-109 Sprint 3 T3.4 (#793): cheval-headless pin form.
+    # PR #727 (cycle-098) introduced subscription-auth headless adapters;
+    # the orchestrator's pre-validator must admit the canonical pin shape
+    # so operators following the cycle-098/099 setup don't fall back to
+    # API providers (which defeats the cost-via-subscription benefit).
+    '^(claude|codex|gemini)-headless:.+$'    # cheval-headless pin form
 )
 
 validate_model() {
