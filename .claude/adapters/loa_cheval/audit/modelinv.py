@@ -330,6 +330,33 @@ _WRITER_VERSION_CACHE: Optional[str] = None
 _WRITER_VERSION_PATH = ".claude/data/cycle-108/modelinv-writer-version"
 
 
+def _find_repo_root(start: Path) -> Path:
+    """Walk up from ``start`` looking for a stable repo-root marker.
+
+    Looks for either ``.git`` or ``.loa.config.yaml`` as the marker
+    (both are present at the canonical loa repo root). Falls back to
+    ``start.parents[4]`` if no marker is found within 10 ancestors —
+    preserves backward-compat with the original hardcoded depth.
+
+    cycle-109 Sprint 5 T5.2 (#875): replaces the brittle ``parents[4]``
+    hardcode that broke when the module moved or was site-packaged.
+    """
+    current = start
+    for _ in range(10):  # bounded walk
+        parent = current.parent
+        if parent == current:
+            break  # reached filesystem root
+        if (parent / ".git").exists() or (parent / ".loa.config.yaml").exists():
+            return parent
+        current = parent
+    # Fallback: original parents[4] depth for callers in well-known
+    # locations (.claude/adapters/loa_cheval/audit/<file>.py → 4 levels up)
+    try:
+        return start.parents[4]
+    except IndexError:
+        return start.parent
+
+
 def _read_writer_version() -> Optional[str]:
     """Read writer_version from the SoT file. Cached after first read.
 
@@ -340,10 +367,13 @@ def _read_writer_version() -> Optional[str]:
     if _WRITER_VERSION_CACHE is not None:
         return _WRITER_VERSION_CACHE
 
-    # Resolve relative to repo root via Path traversal from this module
-    module_path = Path(__file__).resolve()
-    # .claude/adapters/loa_cheval/audit/modelinv.py → repo_root has 4 parents above
-    repo_root = module_path.parents[4]
+    # cycle-109 Sprint 5 T5.2 (#875): repo-root resolution via marker
+    # walker rather than parents[N] hardcode. parents[4] was brittle —
+    # it broke when the module moved, when callers patched __file__,
+    # or when the package was installed as site-packages. The walker
+    # looks for a stable repo-root marker (.git directory or .loa.config.yaml)
+    # and falls back to parents[4] for backward compat.
+    repo_root = _find_repo_root(Path(__file__).resolve())
     sot_path = repo_root / _WRITER_VERSION_PATH
 
     if not sot_path.exists():
