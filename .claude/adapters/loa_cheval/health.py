@@ -243,10 +243,14 @@ def render_text(report: Dict[str, Any]) -> str:
         f"  overall: {overall['succeeded']}/{report['total_invocations']} "
         f"= {overall['success_rate']:.1%} {band_marker} {overall['band'].upper()}"
     )
-    if overall["band"] == "red":
-        lines.append("  ❌ RED band — substrate is degraded. Consider filing a KF entry.")
-    elif overall["band"] == "yellow":
-        lines.append("  ⚠ YELLOW band — substrate showing some degradation. Watch for trends.")
+    # Only emit band-warning text when there's actual data — a zero-
+    # invocation report (missing log or empty window) computes 0/0 = 0.0
+    # which classifies as 'red' but is not a real degradation signal.
+    if report["total_invocations"] > 0:
+        if overall["band"] == "red":
+            lines.append("  ❌ RED band — substrate is degraded. Consider filing a KF entry.")
+        elif overall["band"] == "yellow":
+            lines.append("  ⚠ YELLOW band — substrate showing some degradation. Watch for trends.")
     lines.append("")
     lines.append("## Per-model:")
     for model_id in sorted(report["per_model"].keys()):

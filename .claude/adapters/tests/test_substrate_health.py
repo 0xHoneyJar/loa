@@ -288,3 +288,80 @@ def test_text_rendering_includes_band_marker(tmp_path):
     text = render_text(report)
     assert "GREEN" in text
     assert "anthropic:claude-opus-4-7" in text
+
+
+def test_text_rendering_red_band_emits_warning(tmp_path):
+    """T5.5 FR-5.7: red band emits KF-suggest warning text."""
+    from loa_cheval.health import aggregate_substrate_health, render_text
+
+    now = datetime(2026, 5, 14, 13, 0, 0, tzinfo=timezone.utc)
+    envelopes = []
+    for _ in range(2):
+        envelopes.append(_make_modelinv_envelope({
+            "models_requested": ["anthropic:claude-opus-4-7"],
+            "models_succeeded": ["anthropic:claude-opus-4-7"],
+            "models_failed": [], "operator_visible_warn": False,
+            "final_model_id": "anthropic:claude-opus-4-7",
+        }, timestamp="2026-05-14T12:00:00Z"))
+    for _ in range(8):
+        envelopes.append(_make_modelinv_envelope({
+            "models_requested": ["anthropic:claude-opus-4-7"],
+            "models_succeeded": [],
+            "models_failed": [{
+                "model": "anthropic:claude-opus-4-7", "provider": "anthropic",
+                "error_class": "EMPTY_CONTENT", "message_redacted": "x",
+            }],
+            "operator_visible_warn": True,
+        }, timestamp="2026-05-14T12:00:00Z"))
+    log = _write_log(tmp_path, envelopes)
+    report = aggregate_substrate_health(log, now=now)
+    text = render_text(report)
+    assert report["overall"]["band"] == "red"
+    assert "RED" in text
+    assert "RED band" in text
+    assert "KF entry" in text
+
+
+def test_text_rendering_yellow_band_emits_warning(tmp_path):
+    """T5.5 FR-5.7: yellow band emits a degradation-watch warning."""
+    from loa_cheval.health import aggregate_substrate_health, render_text
+
+    now = datetime(2026, 5, 14, 13, 0, 0, tzinfo=timezone.utc)
+    envelopes = []
+    for _ in range(6):
+        envelopes.append(_make_modelinv_envelope({
+            "models_requested": ["anthropic:claude-opus-4-7"],
+            "models_succeeded": ["anthropic:claude-opus-4-7"],
+            "models_failed": [], "operator_visible_warn": False,
+            "final_model_id": "anthropic:claude-opus-4-7",
+        }, timestamp="2026-05-14T12:00:00Z"))
+    for _ in range(4):
+        envelopes.append(_make_modelinv_envelope({
+            "models_requested": ["anthropic:claude-opus-4-7"],
+            "models_succeeded": [],
+            "models_failed": [{
+                "model": "anthropic:claude-opus-4-7", "provider": "anthropic",
+                "error_class": "EMPTY_CONTENT", "message_redacted": "x",
+            }],
+            "operator_visible_warn": True,
+        }, timestamp="2026-05-14T12:00:00Z"))
+    log = _write_log(tmp_path, envelopes)
+    report = aggregate_substrate_health(log, now=now)
+    text = render_text(report)
+    assert report["overall"]["band"] == "yellow"
+    assert "YELLOW band" in text
+
+
+def test_text_rendering_zero_invocations_suppresses_band_warning(tmp_path):
+    """T5.5: zero invocations classifies as red mathematically but
+    should NOT emit the 'degraded' warning text (it's not a real
+    degradation signal — just an empty window)."""
+    from loa_cheval.health import aggregate_substrate_health, render_text
+
+    log = tmp_path / "empty.jsonl"
+    log.write_text("")
+    report = aggregate_substrate_health(log)
+    text = render_text(report)
+    assert report["total_invocations"] == 0
+    assert "RED band" not in text
+    assert "YELLOW band" not in text
