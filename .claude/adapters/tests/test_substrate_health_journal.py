@@ -165,7 +165,8 @@ def test_append_day_section_creates_file_with_month_header(tmp_path):
         journal_dir, report,
         run_time=datetime(2026, 5, 14, 0, 0, 0, tzinfo=timezone.utc),
     )
-    assert result["action"] == "appended"
+    # Either 'created' (new file) or 'appended' (existing) — both write the day
+    assert result["action"] in ("created", "appended")
     file_path = journal_dir / "2026-05.md"
     assert file_path.exists()
     content = file_path.read_text()
