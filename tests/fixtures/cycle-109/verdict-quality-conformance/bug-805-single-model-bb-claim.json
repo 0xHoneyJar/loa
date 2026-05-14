@@ -1,0 +1,13 @@
+{
+    "status": "DEGRADED",
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 1,
+    "voices_succeeded": 1,
+    "voices_succeeded_ids": ["claude-opus-4-6"],
+    "voices_dropped": [],
+    "chain_health": "degraded",
+    "confidence_floor": "low",
+    "rationale": "#805 fixture: BB advertised multi-model but actual invocation is single-voice TS (Pass-2 enrichment fails ~80% of the time). The cheval-delegate single-voice envelope walks claude-opus-4-7 → claude-opus-4-6 (succeeded on fallback). chain_health=degraded surfaces the walk explicitly; status DEGRADED (not APPROVED) because chain_health != ok.",
+    "single_voice_call": true
+}

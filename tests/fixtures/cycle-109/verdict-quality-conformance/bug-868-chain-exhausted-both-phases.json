@@ -1,0 +1,25 @@
+{
+    "status": "FAILED",
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 1,
+    "voices_succeeded": 0,
+    "voices_succeeded_ids": [],
+    "voices_dropped": [
+        {
+            "voice": "review",
+            "reason": "ChainExhausted",
+            "exit_code": 12,
+            "blocker_risk": "high",
+            "chain_walk": [
+                "openai:gpt-5.2",
+                "google:gemini-2.5-pro",
+                "anthropic:claude-headless"
+            ]
+        }
+    ],
+    "chain_health": "exhausted",
+    "confidence_floor": "low",
+    "rationale": "#868 fixture: adversarial-review's fallback chain (gpt-5.2 → gemini-2.5-pro → claude-headless) exhausts entirely. Both review AND audit phases observed this trajectory. ChainExhausted reason short-circuits to blocker_risk=high per SDD §3.2.2 hard rule. Pre-T2.x reported status:DEGRADED with no chain_health signal; post-T2.5 reports FAILED + chain_health=exhausted explicitly.",
+    "single_voice_call": true
+}
