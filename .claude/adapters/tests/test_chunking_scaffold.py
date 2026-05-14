@@ -174,12 +174,13 @@ def test_severity_rank_praise_is_lowest():
 # ---------------------------------------------------------------------------
 
 
-def test_chunk_pr_for_review_is_stubbed_for_t4_2():
+def test_chunk_pr_for_review_is_implemented_post_t4_2():
+    """Pre-T4.2 this test asserted NotImplementedError; T4.2 landed
+    the impl so the function now returns a list of Chunks."""
     from loa_cheval.chunking.chunker import chunk_pr_for_review
 
-    with pytest.raises(NotImplementedError) as excinfo:
-        chunk_pr_for_review("input", 1000)
-    assert "T4.2" in str(excinfo.value)
+    result = chunk_pr_for_review("", 1000)
+    assert result == []
 
 
 def test_aggregate_findings_is_stubbed_for_t4_3():

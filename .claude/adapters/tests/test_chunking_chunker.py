@@ -91,13 +91,15 @@ def test_two_small_files_fit_in_one_chunk_when_under_ceiling():
 
 
 def test_two_files_each_larger_than_threshold_split_into_two_chunks():
-    """Two files whose combined size would exceed ceiling × 0.7 but each
+    """Two files whose combined size exceeds ceiling × 0.7 but each
     individually fits split into two chunks (file boundaries preserved)."""
     from loa_cheval.chunking.chunker import chunk_pr_for_review
 
-    # Each file ~30K chars; ceiling 60K → ceiling × 0.7 = 42K budget
+    # Each file ≈ 26K chars ≈ 8.7K tokens. Ceiling 10K → budget = 7K.
+    # Each file alone exceeds budget (no mid-file split), so each ends
+    # up in its own chunk — total 2 chunks.
     diff = _make_diff("src/a.py", line_count=500) + _make_diff("src/b.py", line_count=500)
-    chunks = chunk_pr_for_review(diff, effective_input_ceiling=60_000)
+    chunks = chunk_pr_for_review(diff, effective_input_ceiling=10_000)
     assert len(chunks) == 2
     # Each chunk holds exactly one file (file-level boundary preserved)
     assert all(len(c.files) == 1 for c in chunks)
@@ -163,15 +165,19 @@ def test_default_chunks_max_is_16():
 
 def test_chunks_max_breach_raises_chunking_exceeded():
     """When the input requires more chunks than chunks_max, the chunker
-    raises ChunkingExceeded. T4.5 maps this to exit code 13."""
+    raises ChunkingExceeded. T4.5 maps this to exit code 13.
+
+    Math: each file = 500 lines × 52 chars ≈ 26K chars ≈ 8.7K tokens.
+    Ceiling 10K → budget = 7K (each file individually exceeds budget →
+    one chunk per file). 5 files → 5 chunks. chunks_max=3 → breach.
+    """
     from loa_cheval.chunking.chunker import chunk_pr_for_review, ChunkingExceeded
 
-    # 5 files, each large enough to require its own chunk; chunks_max=3
-    diff = "".join(_make_diff(f"src/f{i}.py", line_count=300) for i in range(5))
+    diff = "".join(_make_diff(f"src/f{i}.py", line_count=500) for i in range(5))
     with pytest.raises(ChunkingExceeded) as excinfo:
-        chunk_pr_for_review(diff, effective_input_ceiling=20_000, chunks_max=3)
-    # Exception carries the would-have-been-chunks count
-    assert "5" in str(excinfo.value) or hasattr(excinfo.value, "chunks_needed")
+        chunk_pr_for_review(diff, effective_input_ceiling=10_000, chunks_max=3)
+    assert excinfo.value.context.get("chunks_needed") == 5
+    assert excinfo.value.context.get("chunks_max") == 3
 
 
 def test_chunks_max_default_16_accepts_15_chunks():
@@ -190,11 +196,15 @@ def test_chunks_max_default_16_accepts_15_chunks():
 
 def test_shared_header_is_attached_to_every_chunk():
     """SDD §5.4.1: shared header attaches to every chunk so reviewers
-    have cross-file context per file's review."""
+    have cross-file context per file's review.
+
+    Math: each file = 500 lines ≈ 8.7K tokens. Ceiling 10K → budget = 7K.
+    Both files individually exceed budget → 2 chunks, both carry the header.
+    """
     from loa_cheval.chunking.chunker import chunk_pr_for_review
 
     header = "## PR description\n\nFix auth bug.\n\n## Affected files\n- src/a.py\n- src/b.py\n"
-    diff = _make_diff("src/a.py", 200) + _make_diff("src/b.py", 200)
+    diff = _make_diff("src/a.py", 500) + _make_diff("src/b.py", 500)
     chunks = chunk_pr_for_review(
         diff, effective_input_ceiling=10_000, shared_header=header,
     )
