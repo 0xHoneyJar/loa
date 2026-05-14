@@ -590,13 +590,58 @@ invoke_dissenter() {
   local user_prompt_file="$2"
   local model="$3"
   local timeout="$4"
+  # cycle-109 Sprint 2 T2.5 — optional sidecar path. When provided,
+  # LOA_VERDICT_QUALITY_SIDECAR is exported for the cheval subprocess
+  # so the verdict_quality envelope lands in this file. Backward-compat:
+  # callers that don't pass the arg get the legacy non-sidecar behavior.
+  local vq_sidecar="${5:-}"
 
-  "$SCRIPT_DIR/model-adapter.sh" \
-    --model "$model" \
-    --mode dissent \
-    --input "$user_prompt_file" \
-    --context "$system_prompt_file" \
-    --timeout "$timeout"
+  if [[ -n "$vq_sidecar" ]]; then
+    LOA_VERDICT_QUALITY_SIDECAR="$vq_sidecar" \
+      "$SCRIPT_DIR/model-adapter.sh" \
+      --model "$model" \
+      --mode dissent \
+      --input "$user_prompt_file" \
+      --context "$system_prompt_file" \
+      --timeout "$timeout"
+  else
+    "$SCRIPT_DIR/model-adapter.sh" \
+      --model "$model" \
+      --mode dissent \
+      --input "$user_prompt_file" \
+      --context "$system_prompt_file" \
+      --timeout "$timeout"
+  fi
+}
+
+# cycle-109 Sprint 2 T2.5 — verdict_quality multi-attempt aggregator.
+# Shells out to the canonical Python aggregator
+# (loa_cheval.verdict.aggregate per SDD §5.2.1) on the list of per-attempt
+# envelope files collected during the fallback_chain walk. Bash never
+# reimplements the merge logic — drift impossible by construction.
+#
+# Usage:
+#   _adv_aggregate_envelopes <file1> [<file2> ...]
+#     Echoes aggregated multi-voice envelope JSON (compact) to stdout.
+#     Returns 0 on success, non-zero when no valid envelope files supplied.
+#
+# Skips missing / empty / malformed-JSON files silently — adversarial-
+# review's fallback walk may produce zero or partial envelopes when
+# cheval is older / a write failed / the sidecar mechanism is unavailable.
+_adv_aggregate_envelopes() {
+  local f
+  local -a valid_files=()
+  for f in "$@"; do
+    [[ -s "$f" ]] || continue
+    if jq empty < "$f" 2>/dev/null; then
+      valid_files+=("$f")
+    fi
+  done
+  if [[ ${#valid_files[@]} -eq 0 ]]; then
+    return 1
+  fi
+  PYTHONPATH="$PROJECT_ROOT/.claude/adapters" \
+    python3 -m loa_cheval.verdict.aggregate "${valid_files[@]}"
 }
 
 # =============================================================================
@@ -1230,11 +1275,26 @@ main() {
   # Invocation loop
   local raw_response="" api_exit=0 result="" final_model=""
   local -a model_attempts=()
+  # cycle-109 Sprint 2 T2.5 — per-attempt verdict_quality sidecar paths.
+  # Each invoke_dissenter call gets a unique path; the envelope cheval
+  # writes lands there and is collected for aggregation after the loop.
+  local -a vq_attempt_files=()
+  local -a vq_cleanup_files=()
   local try_model status
+  local _vq_tmpdir="${_ADVERSARIAL_WORKDIR:-${TMPDIR:-/tmp}}"
 
   for try_model in "${fallback_chain[@]}"; do
     api_exit=0
-    raw_response=$(invoke_dissenter "$_ADVERSARIAL_WORKDIR/system-prompt.txt" "$_ADVERSARIAL_WORKDIR/user-prompt.txt" "$try_model" "$timeout") || api_exit=$?
+    # Allocate per-attempt sidecar path under the adversarial workdir so
+    # parallel adversarial-review invocations don't collide.
+    local vq_sidecar
+    vq_sidecar="$_vq_tmpdir/vq-${type}-${try_model//[^A-Za-z0-9_-]/_}-$$-$RANDOM.json"
+    raw_response=$(invoke_dissenter "$_ADVERSARIAL_WORKDIR/system-prompt.txt" "$_ADVERSARIAL_WORKDIR/user-prompt.txt" "$try_model" "$timeout" "$vq_sidecar") || api_exit=$?
+    # Collect the per-attempt envelope (if cheval wrote one).
+    if [[ -s "$vq_sidecar" ]]; then
+      vq_attempt_files+=("$vq_sidecar")
+      vq_cleanup_files+=("$vq_sidecar")
+    fi
     result=$(process_findings "$raw_response" "$type" "$try_model" "$sprint_id" "$api_exit" "$diff_files")
     status=$(echo "$result" | jq -r '.metadata.status // "unknown"' 2>/dev/null || echo "unknown")
     model_attempts+=("${try_model}:${status}")
@@ -1260,6 +1320,30 @@ main() {
     --arg fm "$final_model" \
     '.metadata.model_attempts = $attempts | .metadata.final_model = $fm')
 
+  # cycle-109 Sprint 2 T2.5 — aggregate per-attempt verdict_quality
+  # envelopes via the canonical Python aggregator (SDD §5.2.1). The
+  # aggregator embeds chain_health (worst-of-N), voices_dropped[] entries
+  # from failed attempts, and a status that surfaces #807 / #823 / #868
+  # class regressions explicitly. Fail-soft: legacy / pre-T2.3 cheval emits
+  # produce empty vq_attempt_files; in that case result.verdict_quality
+  # stays absent (downstream consumers handle).
+  if [[ ${#vq_attempt_files[@]} -gt 0 ]]; then
+    local _vq_agg
+    if _vq_agg=$(_adv_aggregate_envelopes "${vq_attempt_files[@]}" 2>/dev/null); then
+      if [[ -n "$_vq_agg" ]]; then
+        result=$(echo "$result" | jq --argjson vq "$_vq_agg" \
+          '.verdict_quality = $vq')
+      fi
+    else
+      log "[vq-aggregate] aggregator unavailable or returned no output; result emitted without verdict_quality"
+    fi
+  fi
+  # Clean up per-attempt sidecar tmp files
+  local _vqf
+  for _vqf in "${vq_cleanup_files[@]}"; do
+    rm -f "$_vqf" 2>/dev/null || true
+  done
+
   # cycle-093 T1.3 (#618): post-process hallucination filter.
   # Downgrades findings that reference `{{DOCUMENT_CONTENT}}`-family tokens
   # absent from the source diff. Bidirectional + normalization per SDD §3.7.
@@ -1273,4 +1357,11 @@ main() {
   echo "$result"
 }
 
-main "$@"
+# cycle-109 Sprint 2 T2.5 — source-vs-exec guard. When the script is
+# sourced (e.g. by a bats helper that wants to test individual functions
+# in isolation), main() must NOT auto-run; the sourcing caller invokes
+# it explicitly or skips it. Standard bash idiom: BASH_SOURCE[0]==$0 iff
+# script was executed directly.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi

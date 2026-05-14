@@ -228,11 +228,15 @@ _source_adv_review_helpers() {
 # =============================================================================
 
 @test "AV7: invoke_dissenter accepts a sidecar path argument" {
-    # Verify the source-level wiring: invoke_dissenter signature MUST
-    # accept a 5th positional arg for the sidecar path. The full
-    # behavioral test is gated on a live cheval invocation (T2.8).
+    # Verify the source-level wiring: invoke_dissenter signature accepts
+    # a 5th positional arg for the sidecar path, AND the main loop passes
+    # one. The full behavioral test is gated on a live cheval invocation
+    # (T2.8 conformance matrix).
     grep -q "invoke_dissenter()" "$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
-    grep -qE 'invoke_dissenter[ "]+.+(sidecar|vq)' "$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
+    # Function body references vq_sidecar parameter
+    grep -q "vq_sidecar=" "$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
+    # Main loop calls invoke_dissenter with the 5th arg
+    grep -qE 'invoke_dissenter[^)]*"\$vq_sidecar"' "$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
 }
 
 # =============================================================================
