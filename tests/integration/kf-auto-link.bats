@@ -163,12 +163,28 @@ PY
 # =============================================================================
 # E3: operator-override force_retain → KF auto-link does not remove the role
 #
-# T1.5 ships a basic override consult (override wins unconditionally for
-# the (model, role) pair). T1.6 will harden with conditional precedence
-# (effective_until, kf_references, break_glass, OPERATORS.md resolution).
+# T1.6 hardens this path with SKP-004 conditional precedence: the
+# override must declare effective_until ≤ 90d, non-empty
+# kf_references[], and an authorized_by slug present in OPERATORS.md
+# (LOA_OPERATORS_FILE points at a per-test fixture).
 # =============================================================================
 
-@test "E3: operator-override force_retain preserves role despite OPEN KF" {
+@test "E3: well-formed operator-override force_retain preserves role" {
+    # Per-test OPERATORS.md fixture (T1.6 SKP-004 ACL resolution).
+    cat > "$BATS_TMP/OPERATORS.md" <<'MD'
+---
+schema_version: "1.0"
+operators:
+  - id: test-operator
+    display_name: "Test Operator"
+    github_handle: test-operator
+    git_email: "test-operator@example.com"
+    capabilities: [dispatch, merge]
+    active_since: "2026-01-01T00:00:00Z"
+---
+MD
+    export LOA_OPERATORS_FILE="$BATS_TMP/OPERATORS.md"
+
     cat > "$BATS_TMP/kf.md" <<'MD'
 # Known Failures
 
@@ -187,7 +203,14 @@ PY
 
 E2E fixture.
 MD
-    cat > "$BATS_TMP/loa-config.yaml" <<'YAML'
+    # effective_until ~30d in the future (within 90d cap).
+    local future
+    future="$("$PYTHON_BIN" - <<'PY'
+import datetime
+print((datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30)).isoformat().replace("+00:00", "Z"))
+PY
+)"
+    cat > "$BATS_TMP/loa-config.yaml" <<YAML
 kf_auto_link:
   enabled: true
   overrides:
@@ -195,9 +218,9 @@ kf_auto_link:
       role: review
       decision: force_retain
       reason: "operator-validated cycle-109 sprint-1 fixture"
-      effective_until: "2026-08-01T00:00:00Z"
+      effective_until: "$future"
       kf_references: [KF-302]
-      authorized_by: "@janitooor"
+      authorized_by: test-operator
 YAML
 
     run "$PYTHON_BIN" "$KF_AUTO_LINK" \
@@ -211,8 +234,8 @@ YAML
 import yaml
 cfg = yaml.safe_load(open("$BATS_TMP/model-config.yaml"))
 opus = cfg["providers"]["anthropic"]["models"]["claude-opus-4-7"]
-# Override retained 'review' even though RESOLVED-VIA-WORKAROUND would have removed it.
 assert "review" in opus["recommended_for"], f"review missing: {opus['recommended_for']}"
 print("OK")
 PY
+    unset LOA_OPERATORS_FILE
 }

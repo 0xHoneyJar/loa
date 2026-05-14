@@ -63,12 +63,13 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
+import os
 import re
 import sys
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 try:
     import yaml
@@ -346,14 +347,222 @@ def decide_for_entry(
 
 
 # ---------------------------------------------------------------------------
-# Overrides (T1.5 stub — T1.6 hardens with SKP-004 conditional precedence)
+# Overrides — SKP-004 conditional precedence (T1.6).
 # ---------------------------------------------------------------------------
+
+# Caps per PRD §FR-1.5 IMP-002 / SDD §3.5.1.
+OVERRIDE_EFFECTIVE_UNTIL_MAX_DAYS = 90
+BREAK_GLASS_EXPIRY_MAX_HOURS = 24
+BREAK_GLASS_REASON_MIN_LEN = 16
+
 
 @dataclass
 class OverrideMatch:
     decision: str  # 'force_retain' | 'force_remove'
     reason: str
     authorized_by: Optional[str]
+    break_glass_operator: Optional[str] = None
+
+
+@dataclass
+class OverrideEvaluation:
+    """Result of evaluating a (model, role) override against SKP-004 gates."""
+    matched: bool
+    accepted: bool
+    match: Optional[OverrideMatch]
+    rejection_reason: Optional[str]
+    raw_override: Optional[Dict[str, Any]]
+
+
+def _parse_iso_or_none(value: Optional[Any]) -> Optional[datetime.datetime]:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    raw = value.strip()
+    if raw.endswith("Z"):
+        raw = raw[:-1] + "+00:00"
+    try:
+        dt = datetime.datetime.fromisoformat(raw)
+    except (ValueError, TypeError):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=datetime.timezone.utc)
+    return dt
+
+
+def _load_operator_slugs(operators_path: Optional[Path]) -> Set[str]:
+    """Parse OPERATORS.md frontmatter and return the set of ACTIVE
+    operator IDs (active_until missing or in the future).
+
+    Returns an empty set when the file is missing or malformed; the
+    caller treats that state as 'no operator slug resolves'.
+    """
+    if operators_path is None or not operators_path.is_file():
+        return set()
+    text = operators_path.read_text(encoding="utf-8")
+    # Extract YAML frontmatter between the first two '---' delimiters.
+    lines = text.splitlines()
+    fm_lines: List[str] = []
+    started = False
+    for line in lines:
+        if line.strip() == "---":
+            if not started:
+                started = True
+                continue
+            else:
+                break
+        if started:
+            fm_lines.append(line)
+    if not fm_lines:
+        return set()
+    try:
+        parsed = yaml.safe_load("\n".join(fm_lines)) or {}
+    except yaml.YAMLError:
+        return set()
+    operators = parsed.get("operators", [])
+    if not isinstance(operators, list):
+        return set()
+    active: Set[str] = set()
+    now = datetime.datetime.now(datetime.timezone.utc)
+    for entry in operators:
+        if not isinstance(entry, dict):
+            continue
+        slug = entry.get("id")
+        if not isinstance(slug, str) or not slug:
+            continue
+        active_until = _parse_iso_or_none(entry.get("active_until"))
+        if active_until is not None and active_until < now:
+            # Offboarded.
+            continue
+        active.add(slug)
+    return active
+
+
+def _validate_override(
+    entry: Dict[str, Any],
+    *,
+    valid_kf_ids: Set[str],
+    open_kf_ids: Set[str],
+    operator_slugs: Set[str],
+    now: datetime.datetime,
+) -> Tuple[bool, Optional[str]]:
+    """Apply SKP-004 conditional-precedence gates to an override entry.
+
+    Returns (accepted, rejection_reason). rejection_reason is None when
+    accepted. The reason strings are stable identifiers consumed by
+    `tests/integration/kf-override-conditional.bats` substring matches.
+    """
+    decision = str(entry.get("decision", "")).strip()
+    if decision not in ("force_retain", "force_remove"):
+        return False, "rejected:decision-invalid"
+
+    # effective_until — REQUIRED, not in past, not > now()+90d.
+    effective_until_raw = entry.get("effective_until")
+    if effective_until_raw is None:
+        return False, "rejected:effective_until-missing"
+    effective_until = _parse_iso_or_none(effective_until_raw)
+    if effective_until is None:
+        return False, "rejected:effective_until-malformed"
+    if effective_until < now:
+        return False, "rejected:effective_until-past"
+    if effective_until > now + datetime.timedelta(days=OVERRIDE_EFFECTIVE_UNTIL_MAX_DAYS):
+        return False, "rejected:effective_until-exceeds-90d"
+
+    # kf_references — REQUIRED non-empty; all entries present in ledger.
+    refs = entry.get("kf_references")
+    if not isinstance(refs, list) or len(refs) == 0:
+        return False, "rejected:kf_references-empty"
+    for ref in refs:
+        if not isinstance(ref, str) or ref not in valid_kf_ids:
+            return False, f"rejected:kf_references-unknown:{ref!r}"
+
+    # authorized_by — REQUIRED; resolves via OPERATORS.md.
+    authorized_by = entry.get("authorized_by")
+    if not isinstance(authorized_by, str) or not authorized_by.strip():
+        return False, "rejected:authorized_by-missing"
+    if authorized_by not in operator_slugs:
+        return False, f"rejected:authorized_by-unknown-operator:{authorized_by!r}"
+
+    # Break-glass requirement: force_retain on OPEN KF.
+    references_open = any(ref in open_kf_ids for ref in refs)
+    is_force_retain = decision == "force_retain"
+    break_glass = entry.get("break_glass")
+
+    if is_force_retain and references_open:
+        if not isinstance(break_glass, dict):
+            return False, "rejected:break_glass-required-for-OPEN-KF"
+        bg_operator = break_glass.get("operator_slug")
+        if not isinstance(bg_operator, str) or not bg_operator:
+            return False, "rejected:break_glass-operator_slug-missing"
+        if bg_operator not in operator_slugs:
+            return False, f"rejected:break_glass-operator_slug-unknown:{bg_operator!r}"
+        bg_reason = break_glass.get("reason")
+        if not isinstance(bg_reason, str) or len(bg_reason) < BREAK_GLASS_REASON_MIN_LEN:
+            return False, f"rejected:break_glass-reason-min-{BREAK_GLASS_REASON_MIN_LEN}-chars"
+        bg_expiry = _parse_iso_or_none(break_glass.get("expiry"))
+        if bg_expiry is None:
+            return False, "rejected:break_glass-expiry-missing-or-malformed"
+        if bg_expiry > now + datetime.timedelta(hours=BREAK_GLASS_EXPIRY_MAX_HOURS):
+            return False, f"rejected:break_glass-expiry-exceeds-{BREAK_GLASS_EXPIRY_MAX_HOURS}h"
+        if bg_expiry < now:
+            return False, "rejected:break_glass-expiry-past"
+        audit_event_id = break_glass.get("audit_event_id")
+        if not isinstance(audit_event_id, str) or not audit_event_id.strip():
+            return False, "rejected:break_glass-audit_event_id-missing"
+    elif break_glass is not None and not isinstance(break_glass, dict):
+        return False, "rejected:break_glass-malformed"
+
+    return True, None
+
+
+def evaluate_override(
+    overrides: List[Dict[str, Any]],
+    model_id: str,
+    role: str,
+    *,
+    valid_kf_ids: Set[str],
+    open_kf_ids: Set[str],
+    operator_slugs: Set[str],
+    now: datetime.datetime,
+) -> OverrideEvaluation:
+    """Find the first override matching (model_id, role) and evaluate it
+    against the SKP-004 conditional-precedence gates.
+
+    Returns an OverrideEvaluation; the caller logs the decision_outcome
+    and only applies the override when ``accepted is True``.
+    """
+    if not overrides:
+        return OverrideEvaluation(False, False, None, None, None)
+    for entry in overrides:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("model") != model_id:
+            continue
+        if entry.get("role") != role:
+            continue
+        accepted, rejection_reason = _validate_override(
+            entry,
+            valid_kf_ids=valid_kf_ids,
+            open_kf_ids=open_kf_ids,
+            operator_slugs=operator_slugs,
+            now=now,
+        )
+        decision = str(entry.get("decision", "")).strip()
+        bg = entry.get("break_glass") if isinstance(entry.get("break_glass"), dict) else None
+        bg_operator = bg.get("operator_slug") if isinstance(bg, dict) else None
+        match = OverrideMatch(
+            decision=decision,
+            reason=str(entry.get("reason", "")),
+            authorized_by=entry.get("authorized_by"),
+            break_glass_operator=bg_operator,
+        )
+        return OverrideEvaluation(
+            matched=True,
+            accepted=accepted,
+            match=match,
+            rejection_reason=rejection_reason,
+            raw_override=entry,
+        )
+    return OverrideEvaluation(False, False, None, None, None)
 
 
 def lookup_override(
@@ -361,11 +570,11 @@ def lookup_override(
     model_id: str,
     role: str,
 ) -> Optional[OverrideMatch]:
-    """Return the first override matching (model_id, role), or None.
+    """Legacy unconditional lookup retained for backward compatibility.
 
-    T1.5 stub: applies the override unconditionally. T1.6 will add
-    conditional precedence checks (effective_until, kf_references,
-    OPERATORS.md resolution, break-glass gating).
+    Callers that need SKP-004 conditional precedence should use
+    ``evaluate_override`` instead. This shim preserves the T1.5 surface
+    used by older imports; new code paths go through ``evaluate_override``.
     """
     if not overrides:
         return None
@@ -395,6 +604,11 @@ def apply_decisions(
     model_config: Dict[str, Any],
     decisions: List[Decision],
     overrides: List[Dict[str, Any]],
+    *,
+    valid_kf_ids: Optional[Set[str]] = None,
+    open_kf_ids: Optional[Set[str]] = None,
+    operator_slugs: Optional[Set[str]] = None,
+    now: Optional[datetime.datetime] = None,
 ) -> List[Dict[str, Any]]:
     """Mutate ``model_config`` per the accumulated decisions.
 
@@ -404,8 +618,20 @@ def apply_decisions(
     makes the script idempotent (NFR-Rel-3): re-running on the same
     inputs yields the same output.
 
+    SKP-004 conditional precedence: each override is evaluated against
+    effective_until / kf_references / authorized_by / break_glass gates.
+    Rejected overrides do NOT apply; the audit record carries
+    ``decision_outcome: rejected:<reason>`` and the KF auto-decision
+    falls through. Accepted overrides apply per their direction
+    (force_retain inserts; force_remove removes) and the audit record
+    carries ``decision_outcome: accepted``.
+
     Returns the list of audit-log records for the caller to append.
     """
+    valid_kf_ids = set(valid_kf_ids or set())
+    open_kf_ids = set(open_kf_ids or set())
+    operator_slugs = set(operator_slugs or set())
+    now = now or datetime.datetime.now(datetime.timezone.utc)
     # Group decisions by (provider, model_id).
     by_model: "OrderedDict[Tuple[str, str], List[Decision]]" = OrderedDict()
     for d in decisions:
@@ -447,15 +673,40 @@ def apply_decisions(
         # Apply KF removals.
         effective = [r for r in effective if r not in removed_roles]
 
-        # Apply overrides (T1.5 unconditional; T1.6 conditional).
+        # SKP-004 conditional-precedence override evaluation. Each
+        # (model, role) override is evaluated against the full gate set;
+        # only accepted overrides mutate `effective`. Rejected overrides
+        # leave the KF auto-decision in place and append a rejection
+        # record to the audit log.
         for role in list(ALLOW_ALL_ROLES):
-            match = lookup_override(overrides, model_id, role)
-            if match is None:
+            ev = evaluate_override(
+                overrides, model_id, role,
+                valid_kf_ids=valid_kf_ids,
+                open_kf_ids=open_kf_ids,
+                operator_slugs=operator_slugs,
+                now=now,
+            )
+            if not ev.matched:
                 continue
-            if match.decision == "force_retain" and role not in effective:
-                effective.append(role)
-            elif match.decision == "force_remove" and role in effective:
-                effective.remove(role)
+            if ev.accepted and ev.match is not None:
+                if ev.match.decision == "force_retain" and role not in effective:
+                    effective.append(role)
+                elif ev.match.decision == "force_remove" and role in effective:
+                    effective.remove(role)
+                audit_records.append(_override_to_audit(
+                    model_id, role, ev, outcome="accepted",
+                ))
+            else:
+                # Rejected — emit a warning and audit the rejection.
+                reason = ev.rejection_reason or "rejected:unknown"
+                print(
+                    f"[kf-override-rejected] model={model_id} role={role} "
+                    f"reason={reason}",
+                    file=sys.stderr,
+                )
+                audit_records.append(_override_to_audit(
+                    model_id, role, ev, outcome=reason,
+                ))
 
         # Preserve canonical role ordering for byte-stable output.
         effective_ordered = [r for r in ALLOW_ALL_ROLES if r in effective]
@@ -477,6 +728,33 @@ def apply_decisions(
             ))
 
     return audit_records
+
+
+def _override_to_audit(
+    model_id: str,
+    role: str,
+    ev: OverrideEvaluation,
+    outcome: str,
+) -> Dict[str, Any]:
+    """Audit record for an SKP-004 override evaluation. ``outcome`` is
+    ``accepted`` on acceptance or ``rejected:<reason>`` on rejection."""
+    match = ev.match
+    raw = ev.raw_override or {}
+    kf_refs = raw.get("kf_references") if isinstance(raw, dict) else None
+    return {
+        "event": "kf-override-evaluation",
+        "model": model_id,
+        "role": role,
+        "decision_outcome": outcome,
+        "decision": match.decision if match else None,
+        "authorized_by": match.authorized_by if match else None,
+        "break_glass_operator_slug": match.break_glass_operator if match else None,
+        "kf_references": list(kf_refs) if isinstance(kf_refs, list) else None,
+        "reason": match.reason if match else None,
+        "rejection_reason": ev.rejection_reason,
+        "timestamp": datetime.datetime.now(datetime.timezone.utc)
+        .isoformat().replace("+00:00", "Z"),
+    }
 
 
 def _decision_to_audit(
@@ -630,12 +908,36 @@ def main(argv: Optional[List[str]] = None) -> int:
         for provider, model_id in entry.model_refs:
             decisions.append(decide_for_entry(entry, provider, model_id))
 
+    # Build the SKP-004 evaluation context: which KFs exist and which
+    # are OPEN (for break-glass requirement). OPERATORS.md is resolved
+    # via LOA_OPERATORS_FILE override, falling back to the default path.
+    valid_kf_ids: Set[str] = {entry.kf_id for entry in entries}
+    open_kf_ids: Set[str] = {
+        entry.kf_id for entry in entries
+        if entry.status_canonical == STATUS_OPEN
+    }
+    operators_path_env = os.environ.get("LOA_OPERATORS_FILE")
+    if operators_path_env:
+        operators_path: Optional[Path] = Path(operators_path_env)
+    else:
+        operators_path = Path(__file__).resolve().parents[2] / "grimoires" / "loa" / "operators.md"
+    operator_slugs = _load_operator_slugs(operators_path)
+    now = datetime.datetime.now(datetime.timezone.utc)
+
     if args.dry_run:
         records = [_decision_to_audit(d, None, None, "dry-run") for d in decisions]
         append_audit_log(args.audit_log, records)
         return 0
 
-    audit_records = apply_decisions(model_config, decisions, overrides)
+    audit_records = apply_decisions(
+        model_config,
+        decisions,
+        overrides,
+        valid_kf_ids=valid_kf_ids,
+        open_kf_ids=open_kf_ids,
+        operator_slugs=operator_slugs,
+        now=now,
+    )
     _dump_yaml(model_config, args.model_config)
     append_audit_log(args.audit_log, audit_records)
     return 0
