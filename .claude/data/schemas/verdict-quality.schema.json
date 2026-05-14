@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.dev/loa/schemas/verdict-quality.schema.json",
+  "title": "Verdict Quality Envelope v1.0",
+  "description": "cycle-109 Sprint 2 T2.1 (PRD §FR-2.1 + SDD §3.2.1). First-class envelope describing voices succeeded/dropped, chain health, and confidence on every substrate output (cheval / Flatline orchestrator / adversarial-review / BB cheval-delegate / flatline-readiness / red-team-pipeline / post-PR-triage — the 7 consumers in IMP-004). NFR-Rel-1: `status: clean | APPROVED` is definitionally impossible when verdict quality is degraded.",
+  "type": "object",
+  "required": [
+    "status",
+    "consensus_outcome",
+    "truncation_waiver_applied",
+    "voices_planned",
+    "voices_succeeded",
+    "voices_succeeded_ids",
+    "voices_dropped",
+    "chain_health",
+    "confidence_floor",
+    "rationale"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "status": {
+      "enum": ["APPROVED", "DEGRADED", "FAILED"],
+      "description": "SKP-001 canonical classification — REQUIRED. Computed exclusively by `compute_verdict_status()` per SDD §3.2.2 contract; consumers MUST read this field rather than re-deriving from sub-fields. Producer-side writers MUST emit; consumer-side readers MUST treat absence as a contract violation (fail-CI in conformance test FR-2.7)."
+    },
+    "consensus_outcome": {
+      "enum": ["consensus", "impossible"],
+      "default": "consensus",
+      "description": "SKP-002 v5 closure (replaces unrepresentable private `_consensus_impossible`). Set per SDD §3.2.2.1 consensus-outcome algorithm — REQUIRED. When `impossible`, `compute_verdict_status()` returns FAILED per SDD §3.2.2 row 3."
+    },
+    "truncation_waiver_applied": {
+      "type": "boolean",
+      "default": false,
+      "description": "SKP-001 v6 closure (replaces unrepresentable private `_truncation_waiver_applied`). Set to true only by SDD §4.1.3 break-glass path. Suppresses the `chunks_dropped > 0 → FAILED` promotion when true."
+    },
+    "voices_planned": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of voices in this adversarial cohort (e.g., 3 for the canonical Flatline orchestrator triad). Producer-side `validate_invariants` enforces `voices_planned >= 1` per v5 SKP-005 closure."
+    },
+    "voices_succeeded": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of voices that produced a usable finding-set. `validate_invariants` enforces `0 <= voices_succeeded <= voices_planned` per v5 SKP-005 closure."
+    },
+    "voices_succeeded_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9._-]+$"
+      },
+      "uniqueItems": true,
+      "description": "SKP-003 v6 closure — succeeded voice identities. Enables the SDD §3.2.2 invariant that a voice cannot appear in BOTH voices_succeeded_ids AND voices_dropped[].voice. `validate_invariants` enforces (a) len matches voices_succeeded, (b) entries unique, (c) NO overlap with voices_dropped[].voice."
+    },
+    "voices_dropped": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["voice", "reason", "exit_code", "blocker_risk"],
+        "additionalProperties": false,
+        "properties": {
+          "voice": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]+$",
+            "description": "Voice identifier (model alias or role-tag — e.g., `opus`, `gpt-5.5-pro`, `gemini-3.1-pro`)."
+          },
+          "reason": {
+            "enum": [
+              "EmptyContent",
+              "RateLimited",
+              "ProviderUnavailable",
+              "RetriesExhausted",
+              "ContextTooLarge",
+              "NoEligibleAdapter",
+              "ChainExhausted",
+              "InteractionPending",
+              "Other"
+            ],
+            "description": "Canonical drop-reason taxonomy. `Other` reserved for edge cases that don't map to the above; consumers route per the reason value."
+          },
+          "exit_code": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255,
+            "description": "POSIX exit code reported by the dropped voice's invocation (per cheval.py::EXIT_CODES taxonomy)."
+          },
+          "blocker_risk": {
+            "enum": ["unknown", "low", "med", "high"],
+            "description": "SKP-002 — classifier-assessed likelihood that the dropped voice WOULD HAVE produced a BLOCKER-class finding had it succeeded. Heuristic computed from (a) dropped-voice role weight in adversarial cohort, (b) input-domain risk band (security-touching > docs-only), (c) KF priors for this (voice, sprint_kind). Default `unknown` for cohorts lacking historical priors. Consumed by SDD §3.2.2 classification contract to refuse APPROVED when any dropped voice carries `blocker_risk >= med`. v6 SKP-003 hardening-mode toggle (`.loa.config.yaml::blocker_risk_override.unknown_treated_as_med_until_priors: N`) treats `unknown` as `med` until N priors exist."
+          },
+          "chain_walk": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Within-company fallback chain entries attempted before the voice was finally dropped (e.g., `[opus-4-7, opus-4-6, sonnet-4-6, claude-headless]`). Empty array when no fallback was attempted."
+          }
+        }
+      },
+      "description": "Per-voice failure records. Cross-set invariant with voices_succeeded_ids: a voice cannot appear in both."
+    },
+    "chain_health": {
+      "enum": ["ok", "degraded", "exhausted"],
+      "description": "Within-company fallback chain health for this invocation. `ok` = primary succeeded; `degraded` = chain walked to a fallback that succeeded; `exhausted` = every chain entry failed."
+    },
+    "confidence_floor": {
+      "enum": ["high", "med", "low"],
+      "description": "Lower-bound confidence for the verdict given the voices_succeeded / voices_dropped state. `high` requires all planned voices succeed AND consensus reached; `med` requires majority succeed; `low` for single-voice or chain-degraded paths."
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "description": "Human-readable one-paragraph summary of WHY this status was assigned. Renders in PR-comment headers (FR-2.8). MUST NOT carry credentials / endpoint URLs / API keys (NFR-Sec-4); producer-side redaction applies."
+    },
+    "single_voice_call": {
+      "type": "boolean",
+      "description": "FR-2.9 IMP-010: when 1 voice planned (e.g., BB single-pass), suppresses consensus inference. Classifier skips the consensus algorithm and routes per the single voice's outcome directly."
+    },
+    "chunked": {
+      "type": "boolean",
+      "description": "FR-4 chunked-review aggregation occurred (sprint-4 surface). When true, chunks_reviewed + chunks_dropped + chunks_aggregated_findings fields carry the per-chunk telemetry."
+    },
+    "chunks_reviewed": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "FR-4: count of chunks the chunking primitive successfully reviewed and aggregated into the final finding-set."
+    },
+    "chunks_dropped": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "FR-4: count of chunks that failed mid-review. v5 SKP-001: `chunks_dropped > 0` promotes envelope to FAILED unless `truncation_waiver_applied: true` (set only by SDD §4.1.3 break-glass path)."
+    },
+    "chunks_aggregated_findings": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "FR-4: total findings emitted across all reviewed chunks (pre-deduplication)."
+    }
+  }
+}
