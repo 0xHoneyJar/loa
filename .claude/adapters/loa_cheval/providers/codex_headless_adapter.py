@@ -50,7 +50,11 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from loa_cheval.providers.base import ProviderAdapter, enforce_context_window
+from loa_cheval.providers.base import (
+    ProviderAdapter,
+    build_headless_subprocess_env,
+    enforce_context_window,
+)
 from loa_cheval.types import (
     CompletionRequest,
     CompletionResult,
@@ -127,6 +131,9 @@ class CodexHeadlessAdapter(ProviderAdapter):
                 text=True,
                 timeout=timeout_s,
                 check=False,
+                # cycle-109 follow-up (#879 / #880 symmetric): strip
+                # OPENAI_API_KEY so codex exec uses OAuth, not API mode.
+                env=build_headless_subprocess_env(),
             )
         except subprocess.TimeoutExpired:
             raise ProviderUnavailableError(

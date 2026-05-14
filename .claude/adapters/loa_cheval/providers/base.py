@@ -459,6 +459,51 @@ def http_post_stream(
 # --- Token Estimation ---
 
 
+# -----------------------------------------------------------------------------
+# Headless adapter subprocess env helper (closes issues #879 / #880)
+# -----------------------------------------------------------------------------
+
+# Auth-class env vars that headless adapters MUST strip from their subprocess
+# environment by default. The CLI tools (claude / codex / gemini) prefer their
+# OAuth-subscription auth path, but if any of these vars are exported in the
+# parent process the CLI falls back to API mode — defeating the headless
+# adapter's purpose. Operators who explicitly want API-mode routing through
+# the CLI opt in via LOA_HEADLESS_KEEP_API_KEY=1.
+_HEADLESS_STRIPPED_AUTH_VARS: tuple = (
+    "ANTHROPIC_API_KEY",
+    "OPENAI_API_KEY",
+    "GOOGLE_API_KEY",
+    "GEMINI_API_KEY",
+    "GOOGLE_APPLICATION_CREDENTIALS",
+)
+
+
+def build_headless_subprocess_env(parent_env=None) -> Dict[str, str]:
+    """Return an env dict suitable for headless adapter subprocess.run(env=...).
+
+    Default: copy parent env (or os.environ if parent_env is None) and remove
+    auth-class vars per `_HEADLESS_STRIPPED_AUTH_VARS`. Operator opt-out via
+    `LOA_HEADLESS_KEEP_API_KEY=1` preserves the auth vars verbatim.
+
+    The kwarg is ALWAYS supposed to be passed explicitly by callers — even
+    when no key needs stripping. The headless adapter's contract is
+    "never inherit subprocess env"; an explicit env= makes the contract
+    visible at the call site.
+
+    Closes issues #879 / #880 (and symmetric for codex / gemini).
+    """
+    import os as _os
+    base = dict(parent_env if parent_env is not None else _os.environ)
+    keep_opt_in = base.get("LOA_HEADLESS_KEEP_API_KEY", "").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+    if keep_opt_in:
+        return base
+    for var in _HEADLESS_STRIPPED_AUTH_VARS:
+        base.pop(var, None)
+    return base
+
+
 def estimate_tokens(messages: List[Dict[str, Any]]) -> int:
     """Best-effort token estimation (SDD §4.2.4).
 

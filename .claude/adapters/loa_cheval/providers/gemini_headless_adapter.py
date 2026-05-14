@@ -44,7 +44,11 @@ import subprocess
 import time
 from typing import Any, Dict, List, Optional
 
-from loa_cheval.providers.base import ProviderAdapter, enforce_context_window
+from loa_cheval.providers.base import (
+    ProviderAdapter,
+    build_headless_subprocess_env,
+    enforce_context_window,
+)
 from loa_cheval.types import (
     CompletionRequest,
     CompletionResult,
@@ -127,6 +131,10 @@ class GeminiHeadlessAdapter(ProviderAdapter):
                 # and stdin are piped — we use -p exclusively so stdin stays
                 # closed (avoids hangs in some shell environments).
                 stdin=subprocess.DEVNULL,
+                # cycle-109 follow-up (#879 / #880 symmetric): strip
+                # GOOGLE_API_KEY + GEMINI_API_KEY so gemini -p uses GCA
+                # OAuth, not API mode.
+                env=build_headless_subprocess_env(),
             )
         except subprocess.TimeoutExpired:
             raise ProviderUnavailableError(
