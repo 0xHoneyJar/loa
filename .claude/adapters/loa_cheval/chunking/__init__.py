@@ -25,6 +25,13 @@ from .types import (
     Finding,
     SEVERITY_RANK,
 )
+from .chunker import chunk_pr_for_review, ChunkingExceeded
+from .aggregate import (
+    aggregate_findings,
+    detect_boundary_findings,
+    second_stage_review,
+    merge_with_second_stage,
+)
 
 
 __all__ = [
@@ -33,4 +40,10 @@ __all__ = [
     "AggregatedFindings",
     "Finding",
     "SEVERITY_RANK",
+    "chunk_pr_for_review",
+    "ChunkingExceeded",
+    "aggregate_findings",
+    "detect_boundary_findings",
+    "second_stage_review",
+    "merge_with_second_stage",
 ]

@@ -476,6 +476,59 @@ export function extractFindingsFromContent(content: string): Array<{
  * level (T2.4) via the Python aggregator. BB's PR comment surfaces the
  * status banner derived from per-model envelopes for operator-visibility.
  */
+/**
+ * cycle-109 Sprint 4 T4.8 — operator-facing chunked-review annotation
+ * for the BB PR comment. Per FR-2.8 + SDD §5.4 IMP-006: when the
+ * substrate dispatched through the chunking package, the PR comment
+ * header surfaces the chunk count + per-chunk degradation distinctly
+ * from the overall verdict_quality status banner.
+ *
+ * Rendered above formatVerdictQualityHeader so operators see the
+ * "chunked: 5 chunks reviewed" annotation BEFORE the verdict banner.
+ * Returns empty string when no chunked review occurred.
+ */
+export function formatChunkedReviewAnnotation(
+  perModelResults: Array<{
+    provider: string;
+    modelId: string;
+    chunkedReview?: {
+      chunked?: boolean;
+      chunks_reviewed?: number;
+      chunks_dropped?: number;
+      chunks_with_findings?: number;
+      cross_chunk_pass?: boolean;
+    };
+  }>,
+): string {
+  const chunked = perModelResults.filter((r) => r.chunkedReview?.chunked === true);
+  if (chunked.length === 0) return "";
+
+  // Aggregate counts across the per-model results
+  const totalChunks = chunked.reduce(
+    (acc, r) => acc + (r.chunkedReview?.chunks_reviewed ?? 0), 0,
+  );
+  const totalDropped = chunked.reduce(
+    (acc, r) => acc + (r.chunkedReview?.chunks_dropped ?? 0), 0,
+  );
+  const totalWithFindings = chunked.reduce(
+    (acc, r) => acc + (r.chunkedReview?.chunks_with_findings ?? 0), 0,
+  );
+  const anyCrossChunkPass = chunked.some(
+    (r) => r.chunkedReview?.cross_chunk_pass === true,
+  );
+
+  const lines: string[] = [
+    `**Chunked review**: ${chunked.length} model${chunked.length > 1 ? "s" : ""} dispatched through chunking package (KF-002 layer-1 closure)`,
+    `- Total chunks reviewed: ${totalChunks}` +
+      (totalDropped > 0 ? ` (⚠ ${totalDropped} dropped)` : "") +
+      ` — ${totalWithFindings} produced findings`,
+  ];
+  if (anyCrossChunkPass) {
+    lines.push("- Cross-chunk pass invoked (boundary-spanning findings)");
+  }
+  return lines.join("\n") + "\n\n";
+}
+
 export function formatVerdictQualityHeader(
   perModelResults: Array<{
     provider: string;
