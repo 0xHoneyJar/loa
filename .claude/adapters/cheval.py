@@ -970,6 +970,41 @@ def _vq_build_envelope(
     return _vq_emit_with_status(envelope)
 
 
+def _peek_provider_for_advisor(
+    agent_name: str,
+    hounfour: Dict[str, Any],
+) -> Optional[str]:
+    """Resolve the agent → binding → alias → provider chain for advisor-strategy
+    PROVIDER inference. Returns the provider name on success, or None on
+    ANY failure (unknown agent, missing alias, broken chain).
+
+    cycle-109 Sprint 5 T5.1 (#874): closes the BB iter-2 F009 / iter-3 F008
+    carry-in. Earlier inline peek caught a bare Exception and defaulted to
+    ``"anthropic"``, silently mutating ``args.model`` with the wrong provider
+    when a non-anthropic binding had a benign alias-chain typo. The helper
+    surface contract is: failures observably disable advisor for this
+    invocation (the caller treats None as "advisor disabled") rather than
+    pretending the binding is anthropic.
+    """
+    try:
+        from loa_cheval.routing.resolver import (
+            resolve_agent_binding,
+            resolve_alias,
+        )
+    except ImportError:
+        return None
+    try:
+        binding = resolve_agent_binding(agent_name, hounfour)
+    except Exception:  # noqa: BLE001 — known agent or fail-disable
+        return None
+    aliases = hounfour.get("aliases", {}) if isinstance(hounfour, dict) else {}
+    try:
+        resolved = resolve_alias(binding.model, aliases)
+    except Exception:  # noqa: BLE001 — known alias or fail-disable
+        return None
+    return getattr(resolved, "provider", None)
+
+
 def cmd_invoke(args: argparse.Namespace) -> int:
     """Main invocation: resolve agent → call provider → return response."""
     config, sources = load_config(cli_args=vars(args))
@@ -995,47 +1030,41 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                 load_advisor_strategy,
                 ConfigError as _AdvisorConfigError,
             )
-            from loa_cheval.routing.resolver import (
-                resolve_agent_binding as _resolve_binding_peek,
-                resolve_alias as _resolve_alias_peek,
-            )
             _project_root = Path(__file__).resolve().parents[2]
             _advisor_cfg = load_advisor_strategy(_project_root)
             if _advisor_cfg.enabled:
-                # C1 closure: peek at the binding's resolved provider via
-                # alias chain BEFORE advisor resolve. Falls back to "anthropic"
-                # only if peek fails (e.g., unknown agent — error surfaces
-                # later in resolve_execution with a clearer message).
-                try:
-                    _binding_peek = _resolve_binding_peek(agent_name, hounfour)
-                    _aliases_peek = hounfour.get("aliases", {})
-                    _resolved_peek = _resolve_alias_peek(_binding_peek.model, _aliases_peek)
-                    _advisor_inferred_provider = _resolved_peek.provider
-                except Exception:  # noqa: BLE001 — defensive; resolve_execution will re-surface
-                    _advisor_inferred_provider = "anthropic"
-                _skill = args.skill or agent_name
-                try:
-                    _advisor_resolved = _advisor_cfg.resolve(
-                        role=args.role,
-                        skill=_skill,
-                        provider=_advisor_inferred_provider,
-                    )
-                    args.model = f"{_advisor_inferred_provider}:{_advisor_resolved.model_id}"
-                except _AdvisorConfigError as _e:
-                    _msg = str(_e)
-                    if "not in tier_aliases" in _msg:
-                        # Advisor strategy has no tier-mapping for this provider —
-                        # graceful fallback to the agent's bound model. C1
-                        # closure: a non-Anthropic provider no longer errors out
-                        # when advisor-strategy is only configured for Anthropic.
-                        _advisor_resolved = None
-                    else:
-                        # NFR-Sec1 violations and other ConfigErrors still fail.
-                        print(
-                            _error_json("INVALID_CONFIG", f"advisor-strategy resolve failed: {_e}"),
-                            file=sys.stderr,
+                # cycle-109 T5.1 (#874): peek-failure → advisor DISABLED for
+                # this invocation (helper returns None) rather than defaulting
+                # to "anthropic" and silently mutating args.model with the
+                # wrong provider. resolve_execution will surface the original
+                # binding / alias error with a clearer message.
+                _advisor_inferred_provider = _peek_provider_for_advisor(
+                    agent_name, hounfour,
+                )
+                if _advisor_inferred_provider is not None:
+                    _skill = args.skill or agent_name
+                    try:
+                        _advisor_resolved = _advisor_cfg.resolve(
+                            role=args.role,
+                            skill=_skill,
+                            provider=_advisor_inferred_provider,
                         )
-                        return EXIT_CODES.get("INVALID_CONFIG", 2)
+                        args.model = f"{_advisor_inferred_provider}:{_advisor_resolved.model_id}"
+                    except _AdvisorConfigError as _e:
+                        _msg = str(_e)
+                        if "not in tier_aliases" in _msg:
+                            # Advisor strategy has no tier-mapping for this provider —
+                            # graceful fallback to the agent's bound model. C1
+                            # closure: a non-Anthropic provider no longer errors out
+                            # when advisor-strategy is only configured for Anthropic.
+                            _advisor_resolved = None
+                        else:
+                            # NFR-Sec1 violations and other ConfigErrors still fail.
+                            print(
+                                _error_json("INVALID_CONFIG", f"advisor-strategy resolve failed: {_e}"),
+                                file=sys.stderr,
+                            )
+                            return EXIT_CODES.get("INVALID_CONFIG", 2)
         except ImportError:
             # advisor_strategy module not yet present (pre-T1.C state) —
             # silently skip; existing behavior preserved.
