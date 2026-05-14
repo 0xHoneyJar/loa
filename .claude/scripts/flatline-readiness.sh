@@ -251,7 +251,12 @@ check_alias_registry() {
                 hint=" Available aliases: $(printf '%s, ' "${REGISTERED_ALIASES_CACHE[@]}" | sed 's/, $//')"
             fi
             ALIAS_VALIDATION_ERRORS[$role]="Configured $role '$model' is not a registered alias and not a 'provider:model_id' pin.$hint"
-            RECOMMENDATIONS+=("Set ${role^} to a registered alias (e.g. 'gemini-3.1-pro' instead of 'gemini-3.1-pro-preview') or use 'google:<model_id>' pin form")
+            # cycle-109 Sprint 3 T3.5 (#820 Issue C): drop the literal
+            # 'gemini-3.1-pro' suggestion — it was unregistered in
+            # model-config.yaml and the recommendation actively misled
+            # operators. Point at the canonical pin form + the cached
+            # registry of actually-existing aliases (already in $hint).
+            RECOMMENDATIONS+=("Set ${role^} to a registered alias or use '<provider>:<model_id>' pin form (e.g. google:gemini-3.1-pro-preview, anthropic:claude-opus-4-7).${hint:+ See available aliases above.}")
         fi
     done
 }
