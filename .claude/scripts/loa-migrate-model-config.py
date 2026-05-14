@@ -341,6 +341,20 @@ def main(argv: list[str] | None = None) -> int:
             "date; CI/test fixtures pin this for determinism."
         ),
     )
+    parser.add_argument(
+        "--preserve-thresholds",
+        action="store_true",
+        help=(
+            "cycle-109 followup B (#888): when --to-v3 populates "
+            "effective_input_ceiling, source the value from the existing "
+            "v2 threshold field (streaming_max_input_tokens, then "
+            "legacy_max_input_tokens, then max_input_tokens) instead of "
+            "the SDD §3.1.2 conservative formula. No-behavior-change "
+            "migration semantics: pre-flight gate fires at the same "
+            "threshold the substrate already operates at. Falls back to "
+            "the formula when no v2 threshold field is present."
+        ),
+    )
 
     args = parser.parse_args(argv)
 
@@ -411,6 +425,7 @@ def main(argv: list[str] | None = None) -> int:
                 target_version=3,
                 model_permissions=permissions_plain,
                 calibrated_at=args.calibrated_at,
+                preserve_thresholds=args.preserve_thresholds,
             )
         else:
             out_dict, report = migrate_mod.migrate_v1_to_v2(
