@@ -173,6 +173,14 @@ def _check_circuit_breaker(
     # from failures' from 'circuit unreadable due to flock contention'. The
     # write is best-effort — if it fails, the caller has already logged the
     # ERROR-level diagnostic above.
+    _emit_cb_starvation_marker(provider, auth_type, holder_pid, "degraded-to-OPEN")
+    return "OPEN"
+
+
+def _emit_cb_starvation_marker(
+    provider: str, auth_type: str, holder_pid: int, action: str,
+) -> None:
+    """Emit `[L4-CB-STARVATION]` to substrate-health journal. Best-effort."""
     try:
         from loa_cheval.routing.circuit_breaker import _emit_journal_marker
         _emit_journal_marker(
@@ -183,30 +191,103 @@ def _check_circuit_breaker(
                 "auth_type": auth_type,
                 "holder_pid": holder_pid,
                 "retries": len(_CB_MIGRATION_RETRY_DELAYS) + 1,
-                "action": "degraded-to-OPEN",
+                "action": action,
             },
         )
     except Exception:  # noqa: BLE001 — observability is best-effort
         pass
-    return "OPEN"
+
+
+def _with_cb_migration_retry(
+    fn: Callable[..., Any],
+    *args: Any,
+    on_starvation_value: Optional[Any] = None,
+    starvation_action: str = "degraded-to-noop",
+    provider_for_log: str = "<unknown>",
+    auth_type_for_log: str = "<unknown>",
+) -> Any:
+    """BB iter-2 F5 closure: shared SDD §5.3 starvation-retry envelope.
+
+    Wraps any callable that may raise `CircuitBreakerMigrationTimeout` in the
+    canonical (1s, 2s, 4s) exponential-backoff retry envelope. On exhaustion,
+    logs ERROR + emits [L4-CB-STARVATION] journal marker + returns the
+    caller-provided `on_starvation_value` (None for record_* paths which are
+    fire-and-forget; "OPEN" for check_state).
+
+    Symmetric application across check / record_failure / record_success
+    closes BB iter-2 F5: asymmetric envelopes were a known source of
+    intermittent crashes under migration-lock contention.
+    """
+    from loa_cheval.routing.circuit_breaker import CircuitBreakerMigrationTimeout
+
+    last_exc: Optional[CircuitBreakerMigrationTimeout] = None
+    for attempt in range(len(_CB_MIGRATION_RETRY_DELAYS) + 1):
+        try:
+            return fn(*args)
+        except CircuitBreakerMigrationTimeout as exc:
+            last_exc = exc
+            if attempt >= len(_CB_MIGRATION_RETRY_DELAYS):
+                break
+            delay = _CB_MIGRATION_RETRY_DELAYS[attempt]
+            logger.warning(
+                "CB migration lock contended for %s/%s "
+                "(attempt %d/%d, holder_pid=%d) — backing off %ss",
+                provider_for_log, auth_type_for_log,
+                attempt + 1, len(_CB_MIGRATION_RETRY_DELAYS) + 1,
+                exc.holder_pid, delay,
+            )
+            time.sleep(delay)
+    holder_pid = last_exc.holder_pid if last_exc else 0
+    logger.error(
+        "CB migration starvation for %s/%s on %s after %d retries "
+        "(holder_pid=%d) — %s",
+        provider_for_log, auth_type_for_log,
+        fn.__name__, len(_CB_MIGRATION_RETRY_DELAYS) + 1,
+        holder_pid, starvation_action,
+    )
+    _emit_cb_starvation_marker(
+        provider_for_log, auth_type_for_log, holder_pid, starvation_action,
+    )
+    return on_starvation_value
 
 
 def _record_failure(
     provider: str, auth_type: str, config: Dict[str, Any]
 ) -> None:
-    """Record a failure for the (provider, auth_type) bucket."""
+    """Record a failure for the (provider, auth_type) bucket.
+
+    BB iter-2 F5 closure: wrapped in the SDD §5.3 starvation envelope so
+    a long-held migration lock cannot crash the record path. record_*
+    is fire-and-forget; on starvation we degrade to no-op (the next
+    invocation's check_state will re-evaluate).
+    """
     from loa_cheval.routing.circuit_breaker import record_failure
 
-    record_failure(provider, auth_type, config)
+    _with_cb_migration_retry(
+        record_failure, provider, auth_type, config,
+        on_starvation_value=None,
+        starvation_action="degraded-record-failure-to-noop",
+        provider_for_log=provider, auth_type_for_log=auth_type,
+    )
 
 
 def _record_success(
     provider: str, auth_type: str, config: Dict[str, Any]
 ) -> None:
-    """Record a success for the (provider, auth_type) bucket."""
+    """Record a success for the (provider, auth_type) bucket.
+
+    BB iter-2 F5 closure: same symmetric starvation envelope as
+    _record_failure. On starvation, no-op (lose this success-credit;
+    the circuit breaker's worst case is staying OPEN slightly longer).
+    """
     from loa_cheval.routing.circuit_breaker import record_success
 
-    record_success(provider, auth_type, config)
+    _with_cb_migration_retry(
+        record_success, provider, auth_type, config,
+        on_starvation_value=None,
+        starvation_action="degraded-record-success-to-noop",
+        provider_for_log=provider, auth_type_for_log=auth_type,
+    )
 
 
 # --- Main retry function ---

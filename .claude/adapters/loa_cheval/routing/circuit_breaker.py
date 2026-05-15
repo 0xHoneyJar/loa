@@ -333,6 +333,13 @@ def _create_transitional_symlink(
     Idempotent. Skips creation if the path already exists as a regular file
     (the caller's migration has not yet unlinked the legacy file) — the
     symlink is materialized only after the legacy file is removed.
+
+    BB iter-2 F12 closure: uses `os.symlink` to a temp name + `os.rename`
+    to atomically replace the legacy path. POSIX rename(2) is the only
+    primitive that replaces-and-links in a single syscall, so SIGKILL/OOM
+    between steps cannot leave a permanent gap (which would have violated
+    FR-0.6). The temp-name + rename pattern matches Postgres WAL and
+    Git's index.lock → index discipline.
     """
     legacy_path = _legacy_state_file_path(provider, run_dir)
     http_api_target = f"circuit-breaker-{provider}-http_api.json"
@@ -342,21 +349,34 @@ def _create_transitional_symlink(
     # has been unlinked first, so this path is either absent or a symlink.
     if os.path.lexists(legacy_path):
         if _state_file_is_symlink(legacy_path):
-            # Already a symlink — confirm target; if mismatched, fix it.
             try:
                 if os.readlink(legacy_path) == http_api_target:
                     return
-                os.unlink(legacy_path)
             except OSError:
                 return
+            # Mismatched target — fall through to atomic-rename replacement.
         else:
             # A regular file (not yet unlinked by migration) — leave it.
             return
+
+    # Atomic two-step: create symlink under temp name, then rename onto
+    # legacy_path. The rename is atomic — no SIGKILL window.
+    tmp_path = f"{legacy_path}.tmp.symlink.{os.getpid()}.{int(time.time() * 1e6)}"
     try:
-        os.symlink(http_api_target, legacy_path)
+        os.symlink(http_api_target, tmp_path)
     except FileExistsError:
-        # Concurrent migrator beat us; harmless.
-        pass
+        # Astronomically unlikely temp-name collision; bail.
+        return
+    try:
+        # os.replace works on symlinks (it operates on the path, not what it
+        # points to). On Linux it's a single rename(2) syscall.
+        os.replace(tmp_path, legacy_path)
+    except OSError:
+        # Cleanup tmp on failure.
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
 
 
 def _migrate_legacy_state_if_present(
