@@ -44,12 +44,22 @@ class ResolvedEntry:
 
     Immutable. Constructed only via chain_resolver.resolve() so that the
     within-company invariant and capability frozenset are enforced uniformly.
+
+    Cycle-110 sprint-2b1 (T2.6): adds `auth_type` + `dispatch_group` per-entry
+    metadata. Both default to "http_api" / "" for backward-compat with pre-
+    cycle-110 callers that build ResolvedEntry directly (tests). Production
+    callers always go through chain_resolver.resolve() which populates from
+    model-config.
     """
 
     provider: str  # e.g. "openai" / "anthropic" / "google"
     model_id: str  # e.g. "gpt-5.5-pro" or "codex-headless"
     adapter_kind: AdapterKind  # "http" or "cli"
     capabilities: FrozenSet[str]  # e.g. frozenset({"chat", "tools"})
+    # Cycle-110 additive fields (FR-2.3 propagation). Default-valued so legacy
+    # constructors don't break; chain_resolver populates from model-config.
+    auth_type: str = "http_api"
+    dispatch_group: str = ""
 
     def __post_init__(self) -> None:
         if self.adapter_kind not in ADAPTER_KINDS:
@@ -61,6 +71,15 @@ class ResolvedEntry:
             raise TypeError(
                 "ResolvedEntry.capabilities must be a frozenset (got "
                 f"{type(self.capabilities).__name__})"
+            )
+        # Cycle-110: validate auth_type. Tolerate empty dispatch_group at this
+        # layer — chain_resolver populates from model-config which is loader-
+        # validated. The default-empty path lets test fixtures keep working.
+        if self.auth_type not in ("headless", "http_api", "aws_iam"):
+            raise ValueError(
+                "ResolvedEntry.auth_type must be one of "
+                "('headless', 'http_api', 'aws_iam'), "
+                f"got {self.auth_type!r}"
             )
 
     @property

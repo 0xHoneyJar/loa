@@ -442,6 +442,17 @@ def emit_model_invoke_complete(
     # (SDD §5.4.4 / IMP-014). Populated when the streaming code path
     # observed (and possibly aborted via) one of the three thresholds.
     streaming_recovery: Optional[Dict[str, Any]] = None,
+    # Cycle-110 sprint-2b1 T2.8 — MODELINV v1.4 additive fields
+    # ([PRD:FR-3.4, FR-7.1], SDD §3.4). All optional — when ALL are None,
+    # the emitted envelope is shape-identical to v1.3. Operators reading v1.3
+    # envelopes tolerate unknown fields per the cycle-109 forward-compat
+    # contract; cycle-110 readers default absent fields to "http_api" /
+    # per_token / None.
+    auth_type_resolved: Optional[str] = None,
+    auth_type_selection_reason: Optional[str] = None,
+    auto_selection_inputs: Optional[Dict[str, Any]] = None,
+    auto_evaluation_timestamp: Optional[float] = None,
+    semaphore_exhausted: Optional[bool] = None,
 ) -> None:
     """Emit a model.invoke.complete envelope to the MODELINV audit chain.
 
@@ -596,6 +607,53 @@ def emit_model_invoke_complete(
         payload["chunked_review"] = dict(chunked_review)
     if streaming_recovery is not None:
         payload["streaming_recovery"] = dict(streaming_recovery)
+
+    # Cycle-110 sprint-2b1 T2.8 — MODELINV v1.4 additive fields.
+    # All four flow through the redactor at the end of this function (the
+    # redactor walks the dict recursively, so adding keys here does not
+    # require redaction-table changes). auth_type_resolved is validated
+    # against the closed enum at the call site (resolver), but we defense-
+    # in-depth re-validate here so a stale caller cannot smuggle bad values.
+    if auth_type_resolved is not None:
+        if auth_type_resolved not in ("headless", "http_api", "aws_iam"):
+            raise ValueError(
+                "emit_model_invoke_complete: auth_type_resolved must be one of "
+                f"('headless', 'http_api', 'aws_iam'), got {auth_type_resolved!r}"
+            )
+        payload["auth_type_resolved"] = auth_type_resolved
+    if auth_type_selection_reason is not None:
+        # Match dispatch_filter.SELECTION_REASONS enum.
+        if auth_type_selection_reason not in (
+            "explicit-dispatch_preference",
+            "auto-band-comparison",
+            "auto-cold-start-recommended_for",
+            "auto-cold-start-default-headless",
+        ):
+            raise ValueError(
+                "emit_model_invoke_complete: auth_type_selection_reason must "
+                "be one of {explicit-dispatch_preference, auto-band-comparison, "
+                "auto-cold-start-recommended_for, auto-cold-start-default-headless}, "
+                f"got {auth_type_selection_reason!r}"
+            )
+        payload["auth_type_selection_reason"] = auth_type_selection_reason
+    if auto_selection_inputs is not None:
+        # Defensive copy + shape check. C11 carry-in: must conform to SDD §3.4
+        # canonical example. Three required keys per the spec.
+        if not isinstance(auto_selection_inputs, dict):
+            raise ValueError(
+                "auto_selection_inputs must be a dict, got "
+                f"{type(auto_selection_inputs).__name__}"
+            )
+        # Defensive copy at top level + dict-coerce on the three sub-keys.
+        _aux: Dict[str, Any] = {}
+        for k in ("sample_n_per_bucket", "band_per_bucket", "success_rate_per_bucket"):
+            if k in auto_selection_inputs and auto_selection_inputs[k] is not None:
+                _aux[k] = dict(auto_selection_inputs[k])
+        payload["auto_selection_inputs"] = _aux
+    if auto_evaluation_timestamp is not None:
+        payload["auto_evaluation_timestamp"] = float(auto_evaluation_timestamp)
+    if semaphore_exhausted is not None:
+        payload["semaphore_exhausted"] = bool(semaphore_exhausted)
 
     # cycle-109 Sprint 2 T2.3 — verdict_quality pass-through (SDD §3.3.1 v1.3
     # additive). Schema additivity: only emit when caller supplied the dict.

@@ -183,11 +183,20 @@ def _build_entry(
     adapter_kind: AdapterKind = kind_raw  # type: ignore[assignment]
 
     capabilities = frozenset(model_cfg.get("capabilities") or ())
+    # Cycle-110 sprint-2b1 (T2.6): propagate auth_type + dispatch_group from
+    # model-config into the resolved entry so downstream callers (auto-mode
+    # algorithm + envelope emitter + CB key derivation) read from one source.
+    # The loader already validated both fields at process start; the empty-
+    # string fallback is defensive for fixture/test paths that bypass loader.
+    auth_type = model_cfg.get("auth_type", "http_api") or "http_api"
+    dispatch_group = model_cfg.get("dispatch_group", "") or ""
     return ResolvedEntry(
         provider=model.provider,
         model_id=model.model_id,
         adapter_kind=adapter_kind,
         capabilities=capabilities,
+        auth_type=auth_type,
+        dispatch_group=dispatch_group,
     )
 
 
