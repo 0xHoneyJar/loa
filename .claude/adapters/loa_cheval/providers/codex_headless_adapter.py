@@ -106,6 +106,10 @@ class CodexHeadlessAdapter(ProviderAdapter):
           reasoning: codex-headless:gpt-5.5
     """
 
+    # Cycle-110 FR-2.3 — subscription-CLI dispatch; circuit-breaker writes
+    # route to the (openai, headless) bucket.
+    auth_type: str = "headless"
+
     def complete(self, request: CompletionRequest) -> CompletionResult:
         """Invoke `codex exec` and return a normalized CompletionResult."""
         model_config = self._get_model_config(request.model)

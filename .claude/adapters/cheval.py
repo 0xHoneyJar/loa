@@ -1170,6 +1170,95 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         print(_error_json(e.code, str(e)), file=sys.stderr)
         return EXIT_CODES.get(e.code, 2)
 
+    # =========================================================================
+    # Cycle-110 sprint-2b2a — dispatch_preference filter + auto-mode wire-up.
+    # =========================================================================
+    # Closes BB #903 + #905 REFRAME-plateau findings: the sprint-2b1 substrate
+    # (filter + auto-mode + envelope) is now exercised in the production
+    # dispatch path, not just in unit tests.
+    #
+    # Gating: only fires when `advisor_strategy.enabled: true` in the merged
+    # config. The disabled-legacy default preserves pre-cycle-110 behavior
+    # exactly (chain returned by chain_resolver flows through unmodified).
+    # =========================================================================
+    _auth_type_resolved: Optional[str] = None
+    _auth_type_selection_reason: Optional[str] = None
+    _auto_selection_inputs: Optional[Dict[str, Any]] = None
+    _auto_evaluation_timestamp: Optional[float] = None
+    try:
+        from loa_cheval.config.advisor_strategy import load_advisor_strategy
+        from loa_cheval.routing.dispatch_filter import (
+            DISPATCH_AUTO,
+            filter_chain_by_dispatch_preference,
+            run_auto_mode,
+        )
+        from pathlib import Path as _Path
+
+        _adv_cfg = load_advisor_strategy(_Path(os.getcwd()))
+        if _adv_cfg.enabled:
+            # Resolve effective dispatch_preference per the caller's role,
+            # honoring the per-role override map. `args.role` is the cheval
+            # CLI flag (cycle-108 T1.H); None means no role-routing.
+            _eff_pref = _adv_cfg.effective_dispatch_preference(args.role)
+            _eff_xfb = _adv_cfg.effective_cross_auth_fallback(args.role)
+
+            _auto_resolution = None
+            if _eff_pref == DISPATCH_AUTO:
+                # Sprint-2b2a ships with EMPTY stats — auto-mode falls to
+                # cold-start path (default-headless when chain has headless,
+                # else first auth_type). Sprint-3 wires the MODELINV reader
+                # for the warm windowed band-comparison stats.
+                _auto_resolution = run_auto_mode(
+                    _chain,
+                    stats={},
+                    advisor_config={
+                        "auto_mode": {
+                            "headless_margin_bps": _adv_cfg.auto_mode_headless_margin_bps,
+                        }
+                    },
+                    capability_evaluation=None,
+                )
+                _auto_evaluation_timestamp = _auto_resolution.evaluation_timestamp
+                if _auto_resolution.reason == "auto-band-comparison":
+                    _auto_selection_inputs = _auto_resolution.as_selection_inputs()
+
+            try:
+                _filtered_entries, _reason = filter_chain_by_dispatch_preference(
+                    _chain,
+                    dispatch_preference=_eff_pref,
+                    allow_cross_auth_fallback=_eff_xfb,
+                    auto_resolution=_auto_resolution,
+                )
+            except _NoEligibleAdapterError as e:
+                print(
+                    _error_json("NO_ELIGIBLE_ADAPTER", str(e), retryable=False),
+                    file=sys.stderr,
+                )
+                return EXIT_CODES["NO_ELIGIBLE_ADAPTER"]
+
+            # Rebuild _chain with the filtered entries — downstream dispatch
+            # walks _chain.entries verbatim.
+            from loa_cheval.routing.types import ResolvedChain as _ResolvedChain
+            _chain = _ResolvedChain(
+                primary_alias=_chain.primary_alias,
+                entries=tuple(_filtered_entries),
+                headless_mode=_chain.headless_mode,
+                headless_mode_source=_chain.headless_mode_source,
+            )
+            # _auth_type_resolved = the auth_type of the FIRST entry — that's
+            # the bucket the dispatch will actually start with (chain walk
+            # may move to a later auth_type on failure, but the SELECTED
+            # bucket per the MODELINV envelope semantics is the first.).
+            _auth_type_resolved = _chain.entries[0].auth_type
+            _auth_type_selection_reason = _reason
+    except (ConfigError, InvalidInputError) as e:
+        print(_error_json(e.code, str(e)), file=sys.stderr)
+        return EXIT_CODES.get(e.code, 2)
+    except ImportError:
+        # dispatch_filter module absent — substrate not yet on this branch.
+        # Preserve legacy behavior; envelope fields stay None.
+        pass
+
     # cycle-102 Sprint 1D / T1.7 + cycle-104 Sprint 2 T2.6: MODELINV emit-state.
     # The finally-clause emits a single envelope at function exit (success or
     # failure). Pre-resolution failures (handled above) deliberately do NOT
@@ -2172,6 +2261,13 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     pricing_snapshot=_modelinv_state["pricing_snapshot"],
                     capability_evaluation=_modelinv_state["capability_evaluation"],
                     verdict_quality=_vq_envelope,
+                    # Cycle-110 sprint-2b2a — MODELINV v1.4 fields wired into
+                    # the production emit. None values are skipped by the
+                    # emitter (additive evolution per cycle-109 contract).
+                    auth_type_resolved=_auth_type_resolved,
+                    auth_type_selection_reason=_auth_type_selection_reason,
+                    auto_selection_inputs=_auto_selection_inputs,
+                    auto_evaluation_timestamp=_auto_evaluation_timestamp,
                     **_advisor_kwargs,
                 )
             except _ModelinvRedactionFailure as _rf:

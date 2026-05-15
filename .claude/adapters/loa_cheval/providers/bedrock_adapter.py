@@ -144,6 +144,8 @@ class BedrockAdapter(ProviderAdapter):
     """Adapter for AWS Bedrock Converse API (SDD §5.1)."""
 
     PROVIDER_TYPE = "bedrock"
+    # Cycle-110 FR-2.3 — Bedrock dispatches via AWS IAM SigV4 / Bearer-token.
+    auth_type: str = "aws_iam"
 
     # Class-level circuit breaker reference (re-exported for tests).
     _DAILY_QUOTA_EXCEEDED = _DAILY_QUOTA_EXCEEDED
