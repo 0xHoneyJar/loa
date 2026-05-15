@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.162.0] — 2026-05-15
+
 ## [1.157.0] — 2026-05-12 — Multi-Model Live: Cheval Substrate + Within-Company Chains + Voice-Drop
 
 This is a **named milestone release** that bundles the multi-model-stabilization arc spanning cycles 102 → 107 (~3 weeks of work). The framework's three review consumers — **Bridgebuilder (BB)**, **Flatline (FL)**, and **Red-team (RT)** — now route through a single unified provider substrate with within-company fallback chains, voice-drop on chain exhaustion, and the MODELINV v1.1 audit envelope.
@@ -1125,6 +1127,8 @@ Full convergence trajectory: `grimoires/loa/a2a/trajectory/bridge-triage-2026-04
 - ATK-011: Blocks `unset LOA_TEAM_MEMBER` and `env -u` privilege escalation in Agent Teams
 
 ## [Unreleased]
+
+## [1.162.0] — 2026-05-15
 
 ## [1.94.0] — 2026-04-17
 
