@@ -114,41 +114,61 @@ class GeminiHeadlessAdapter(ProviderAdapter):
         prompt = self._build_prompt(request.messages)
         cmd = self._build_command(request, model_config, prompt)
         timeout_s = self._compute_timeout()
+        # Cycle-110 sprint-2b2b1 BB iter-2 F-001 closure: read per-model
+        # headless_concurrency_limit (cycle-110 ModelConfig field). Default 50
+        # when operator hasn't seeded a stress-test-discovered value (SDD §5.6).
+        n_slots = getattr(model_config, "headless_concurrency_limit", None) or 50
 
         logger.debug(
-            "gemini-headless invoking: model=%s timeout=%.0fs prompt_chars=%d",
+            "gemini-headless invoking: model=%s timeout=%.0fs prompt_chars=%d slots=%d",
             request.model,
             timeout_s,
             len(prompt),
+            n_slots,
+        )
+
+        # Cycle-110 sprint-2b2b1 T2.11 — N-slot semaphore wire-up.
+        from loa_cheval.adapters.headless_concurrency import (
+            SemaphoreExhausted as _SemaphoreExhausted,
+            acquire_slot as _acquire_slot,
         )
 
         start = time.monotonic()
         try:
-            proc = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=timeout_s,
-                check=False,
-                # gemini-cli's `-p` flag triggers headless mode and consumes the
-                # prompt argument directly. Stdin is appended only when both -p
-                # and stdin are piped — we use -p exclusively so stdin stays
-                # closed (avoids hangs in some shell environments).
-                stdin=subprocess.DEVNULL,
-                # cycle-109 follow-up (#879 / #880 symmetric): strip
-                # GOOGLE_API_KEY + GEMINI_API_KEY so gemini -p uses GCA
-                # OAuth, not API mode.
-                env=build_headless_subprocess_env(),
-            )
-        except subprocess.TimeoutExpired:
+            with _acquire_slot("gemini-headless", n_slots=n_slots):
+                try:
+                    proc = subprocess.run(
+                        cmd,
+                        capture_output=True,
+                        text=True,
+                        timeout=timeout_s,
+                        check=False,
+                        # gemini-cli's `-p` flag triggers headless mode and consumes the
+                        # prompt argument directly. Stdin is appended only when both -p
+                        # and stdin are piped — we use -p exclusively so stdin stays
+                        # closed (avoids hangs in some shell environments).
+                        stdin=subprocess.DEVNULL,
+                        # cycle-109 follow-up (#879 / #880 symmetric): strip
+                        # GOOGLE_API_KEY + GEMINI_API_KEY so gemini -p uses GCA
+                        # OAuth, not API mode.
+                        env=build_headless_subprocess_env(),
+                    )
+                except subprocess.TimeoutExpired:
+                    raise ProviderUnavailableError(
+                        self.provider,
+                        f"gemini -p timed out after {timeout_s:.0f}s",
+                    )
+                except FileNotFoundError as exc:
+                    raise ConfigError(
+                        f"gemini CLI not found on PATH (set GEMINI_HEADLESS_BIN to override). "
+                        f"Install with: npm install -g @google/gemini-cli. Original: {exc}"
+                    ) from exc
+        except _SemaphoreExhausted as exc:
             raise ProviderUnavailableError(
                 self.provider,
-                f"gemini -p timed out after {timeout_s:.0f}s",
-            )
-        except FileNotFoundError as exc:
-            raise ConfigError(
-                f"gemini CLI not found on PATH (set GEMINI_HEADLESS_BIN to override). "
-                f"Install with: npm install -g @google/gemini-cli. Original: {exc}"
+                f"[CHAIN-EXHAUSTED-CONCURRENCY] gemini-headless semaphore "
+                f"exhausted after {exc.waited_seconds:.1f}s "
+                f"(n_slots={exc.n_slots})",
             ) from exc
 
         latency_ms = int((time.monotonic() - start) * 1000)
