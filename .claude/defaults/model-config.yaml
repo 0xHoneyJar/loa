@@ -182,6 +182,12 @@ providers:
         dispatch_group: openai-gpt
         kind: cli                       # NEW field — distinguishes HTTP vs CLI
         capabilities: [chat, code]      # No tools, no structured_json
+        # #898/#881 close: declare the real per-CLI context window so
+        # cheval's enforce_context_window does not pull the 128000-token
+        # global default (loa_cheval/types.py:107). The codex CLI dispatches
+        # gpt-5.5 by default — same 200000 figure the http_api gpt-5.5 entry
+        # in this file declares.
+        context_window: 200000
         # No pricing entry — CLI uses operator's Codex subscription.
         # cycle-104 sprint-2 T2.11 amendment: cli_model is the model
         # passed to `codex exec --model <name>`. The CLI doesn't
@@ -316,6 +322,10 @@ providers:
         dispatch_group: google-gemini
         kind: cli
         capabilities: [chat]            # No tools, no structured_json, no thinking
+        # #881 close: gemini CLI dispatches gemini-3.1-pro-preview, which
+        # advertises 1048576-token context per Google's published spec
+        # (matches the http_api gemini-3.1-pro-preview entry in this file).
+        context_window: 1048576
         # No pricing entry — CLI uses operator's Google AI Studio subscription.
         # cycle-104 sprint-2 T2.11 amendment: cli_model is the model
         # passed to `gemini --model <name>`. Maps to the real Gemini
@@ -462,6 +472,10 @@ providers:
         dispatch_group: anthropic-claude
         kind: cli
         capabilities: [chat]            # No tool_use, no thinking
+        # #881 close: claude CLI dispatches sonnet/opus, both of which
+        # advertise 200000-token context (matches the http_api
+        # claude-opus-4-7 / claude-sonnet-4-6 entries in this file).
+        context_window: 200000
         # No pricing entry — CLI uses operator's Claude Code subscription.
         # cycle-104 sprint-2 T2.11 amendment: cli_model is the literal
         # model name passed to `claude --model <name>` (the CLI doesn't
