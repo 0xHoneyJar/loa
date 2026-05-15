@@ -1,7 +1,7 @@
 {
   "version": "1.0",
-  "generated_at": "2026-05-14T07:16:35Z",
-  "source_hash": "aaf4c8f9be5b13d238a09f7a10013835410a96df28c31242c2d02fac1fc1b0bd",
+  "generated_at": "2026-05-15T03:21:55Z",
+  "source_hash": "76da65207e8d26f55fbaa04d247310185976956b72c487df6d3e385b7d5b4bef",
   "file_count": 41,
   "files": [
     {
@@ -10,7 +10,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/adapters/cheval-delegate.ts",
-      "sha256": "ff5fc7e7f28a137f50b6337cd4852e3a1060b8b5049c1b8f72b4ae047efc53f0"
+      "sha256": "bafda4073a3bfd6bd3506a124640135fbd02397f5157bfef7009390861818470"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/adapters/console-logger.ts",
@@ -86,7 +86,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts",
-      "sha256": "855f4e05cb4cf8c7e132985f6b8437c5cb843dab720183d8b511e4cc04596af7"
+      "sha256": "38a85405eb1a75bffd51c6d82de208d0ae43e856804993c58a376db1d7a143be"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/progress.ts",
@@ -150,11 +150,11 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/ports/index.ts",
-      "sha256": "acfafa621721e840d3091e47d6cd10be975773ecf8464bc0e72d033bd23f3dba"
+      "sha256": "f3175c30134915d3fb8156f22f0748e91942d1717db0fba76c04f9a41df46f8d"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/ports/llm-provider.ts",
-      "sha256": "8a1f4e1b3b5b0fc2ae6c7ad639bc6c7d3ef26792e43b5611e6a343698698cf46"
+      "sha256": "ab33520e606d998c6b2e938ade3d4803ce5768a547e24759f64ccd9f0dddad3f"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/ports/logger.ts",

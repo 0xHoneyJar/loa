@@ -89,4 +89,61 @@ export declare function extractFindingsFromContent(content: string): Array<{
     confidence?: number;
     [key: string]: unknown;
 }>;
+/**
+ * Format a per-model comment with continuation numbering.
+ */
+/**
+ * cycle-109 Sprint 2 T2.6 — render an operator-facing verdict_quality
+ * header for the BB PR comment (FR-2.8 surface).
+ *
+ * Takes per-model results carrying their `verdictQuality` envelopes
+ * (populated by ChevalDelegateAdapter from the LOA_VERDICT_QUALITY_SIDECAR
+ * transport) and produces a short markdown header line:
+ *
+ *   ✓ APPROVED — 3/3 voices, chain ok
+ *   ⚠ DEGRADED — 2/3 voices succeeded
+ *   ❌ FAILED — chain exhausted; verdict unsafe
+ *
+ * Returns an empty string when:
+ *   - The input list is empty.
+ *   - No per-model result carries a `verdictQuality` envelope (legacy /
+ *     pre-T2.3 cheval emits, or the sidecar mechanism is unavailable).
+ *
+ * Note: this is a presentation-layer summary, not the canonical aggregate.
+ * Persistence of the full multi-voice envelope happens at the FL orchestrator
+ * level (T2.4) via the Python aggregator. BB's PR comment surfaces the
+ * status banner derived from per-model envelopes for operator-visibility.
+ */
+/**
+ * cycle-109 Sprint 4 T4.8 — operator-facing chunked-review annotation
+ * for the BB PR comment. Per FR-2.8 + SDD §5.4 IMP-006: when the
+ * substrate dispatched through the chunking package, the PR comment
+ * header surfaces the chunk count + per-chunk degradation distinctly
+ * from the overall verdict_quality status banner.
+ *
+ * Rendered above formatVerdictQualityHeader so operators see the
+ * "chunked: 5 chunks reviewed" annotation BEFORE the verdict banner.
+ * Returns empty string when no chunked review occurred.
+ */
+export declare function formatChunkedReviewAnnotation(perModelResults: Array<{
+    provider: string;
+    modelId: string;
+    chunkedReview?: {
+        chunked?: boolean;
+        chunks_reviewed?: number;
+        chunks_dropped?: number;
+        chunks_with_findings?: number;
+        cross_chunk_pass?: boolean;
+    };
+}>): string;
+export declare function formatVerdictQualityHeader(perModelResults: Array<{
+    provider: string;
+    modelId: string;
+    verdictQuality?: {
+        status?: string;
+        voices_succeeded?: number;
+        voices_planned?: number;
+        chain_health?: string;
+    };
+}>): string;
 //# sourceMappingURL=multi-model-pipeline.d.ts.map
