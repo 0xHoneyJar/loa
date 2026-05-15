@@ -268,6 +268,82 @@ class TestInvalidDispatchPreference:
             )
 
 
+class TestAutoModeAwsIamPreservation:
+    """BB iter-1 #905 F-002 closure: auto-mode selecting aws_iam must route
+    through aws_iam buckets, NOT collapse to http_api."""
+
+    def test_aws_iam_selected_uses_exact_aws_iam_filter(self):
+        bedrock_chain = _chain(
+            _entry("bedrock", "us.anthropic.claude-opus-4-7", "aws_iam",
+                   dispatch_group="bedrock-anthropic"),
+            _entry("bedrock", "us.anthropic.claude-sonnet-4-6", "aws_iam",
+                   dispatch_group="bedrock-anthropic"),
+        )
+        ar = AutoResolution(
+            selected_auth_type="aws_iam",
+            reason=SELECTION_REASON_AUTO_BAND,
+            evaluation_timestamp=1.0,
+        )
+        out, reason = filter_chain_by_dispatch_preference(
+            bedrock_chain, dispatch_preference=DISPATCH_AUTO,
+            allow_cross_auth_fallback=False, auto_resolution=ar,
+        )
+        assert all(e.auth_type == "aws_iam" for e in out)
+        assert reason == SELECTION_REASON_AUTO_BAND
+
+    def test_aws_iam_selected_does_NOT_pull_http_api_entries(self):
+        # Mixed chain: aws_iam selection must NOT pick up http_api entries
+        # (the pre-fix collapse would have).
+        mixed = _chain(
+            _entry("bedrock", "us.anthropic.claude-opus-4-7", "aws_iam",
+                   dispatch_group="bedrock-anthropic"),
+            _entry("bedrock", "us.anthropic.claude-sonnet-4-6", "http_api",
+                   dispatch_group="bedrock-anthropic"),
+        )
+        ar = AutoResolution(
+            selected_auth_type="aws_iam",
+            reason=SELECTION_REASON_AUTO_BAND,
+            evaluation_timestamp=1.0,
+        )
+        out, _ = filter_chain_by_dispatch_preference(
+            mixed, dispatch_preference=DISPATCH_AUTO,
+            allow_cross_auth_fallback=False, auto_resolution=ar,
+        )
+        # Only the aws_iam entry; http_api entry is NOT preferred under
+        # auto-mode aws_iam selection.
+        assert len(out) == 1
+        assert out[0].auth_type == "aws_iam"
+
+
+class TestAutoResolutionConstructionValidation:
+    """BB iter-1 #905 F-002 closure: AutoResolution validates at construction."""
+
+    def test_invalid_selected_auth_type_raises(self):
+        with pytest.raises(ValueError, match="selected_auth_type"):
+            AutoResolution(
+                selected_auth_type="subscription",  # not in enum
+                reason=SELECTION_REASON_AUTO_BAND,
+                evaluation_timestamp=1.0,
+            )
+
+    def test_invalid_reason_raises(self):
+        with pytest.raises(ValueError, match="reason"):
+            AutoResolution(
+                selected_auth_type="headless",
+                reason="bogus-reason",
+                evaluation_timestamp=1.0,
+            )
+
+    def test_all_three_valid_auth_types_construct(self):
+        for at in ("headless", "http_api", "aws_iam"):
+            ar = AutoResolution(
+                selected_auth_type=at,
+                reason=SELECTION_REASON_AUTO_BAND,
+                evaluation_timestamp=1.0,
+            )
+            assert ar.selected_auth_type == at
+
+
 # --- T2.7 coverage — auto-mode algorithm -------------------------------------
 
 

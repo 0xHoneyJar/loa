@@ -73,12 +73,21 @@ HTTP_API_LIKE_AUTH_TYPES = frozenset({"http_api", "aws_iam"})
 # --- Data types ---------------------------------------------------------------
 
 
+_VALID_AUTH_TYPES_FOR_RESOLUTION = ("headless", "http_api", "aws_iam")
+
+
 @dataclass(frozen=True)
 class AutoResolution:
     """Output of the auto-mode algorithm (FR-3.4 MODELINV v1.4 input).
 
     All fields are JSON-serializable for direct inclusion in the
     `auto_selection_inputs` MODELINV envelope field.
+
+    BB iter-1 #905 F-002 closure: `selected_auth_type` is validated against
+    the closed auth_type enum at construction. Previously, an invalid value
+    would silently collapse to http_api at filter-time, producing a MODELINV
+    envelope whose `auth_type_resolved` lied about which bucket the dispatch
+    actually traversed.
     """
 
     selected_auth_type: str  # "headless" | "http_api" | "aws_iam"
@@ -87,6 +96,19 @@ class AutoResolution:
     sample_n_per_bucket: Dict[str, int] = field(default_factory=dict)
     band_per_bucket: Dict[str, str] = field(default_factory=dict)
     success_rate_per_bucket: Dict[str, float] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.selected_auth_type not in _VALID_AUTH_TYPES_FOR_RESOLUTION:
+            raise ValueError(
+                "AutoResolution.selected_auth_type must be one of "
+                f"{_VALID_AUTH_TYPES_FOR_RESOLUTION}, got "
+                f"{self.selected_auth_type!r}"
+            )
+        if self.reason not in SELECTION_REASONS:
+            raise ValueError(
+                f"AutoResolution.reason must be one of {SELECTION_REASONS}, "
+                f"got {self.reason!r}"
+            )
 
     def as_selection_inputs(self) -> Dict[str, Any]:
         """Return the `auto_selection_inputs` MODELINV envelope sub-dict
@@ -111,6 +133,11 @@ def _entry_matches_preference(
     - `headless` → only entries with auth_type == "headless".
     - `http_api` → entries with auth_type ∈ {"http_api", "aws_iam"}.
     - `auto`     → match all entries (caller passes filtered chain post-auto).
+
+    BB iter-1 #905 F-002 NOTE: for `auto` mode, the caller MUST use
+    `_entry_matches_auto_resolved_auth_type` directly with the resolved
+    auth_type (not this function's binary preference enum) so aws_iam
+    selections route through aws_iam buckets, not the http_api collapse.
     """
     if dispatch_preference == DISPATCH_HEADLESS:
         return entry.auth_type == "headless"
@@ -122,6 +149,21 @@ def _entry_matches_preference(
         f"dispatch_preference must be one of {DISPATCH_PREFERENCES}, "
         f"got {dispatch_preference!r}"
     )
+
+
+def _entry_matches_auto_resolved_auth_type(
+    entry: ResolvedEntry,
+    resolved_auth_type: str,
+) -> bool:
+    """Exact-auth_type match used by auto-mode dispatch (F-002 closure).
+
+    Unlike `_entry_matches_preference`, this does NOT collapse aws_iam +
+    http_api into one HTTP-like bucket. Auto-mode selects a SPECIFIC
+    auth_type from the chain; the filter MUST honor that selection
+    exactly so the emitted `auth_type_resolved` matches the bucket the
+    dispatch actually traverses.
+    """
+    return entry.auth_type == resolved_auth_type
 
 
 def filter_chain_by_dispatch_preference(
@@ -163,17 +205,40 @@ def filter_chain_by_dispatch_preference(
                 "filter_chain_by_dispatch_preference: dispatch_preference=auto "
                 "requires auto_resolution (run_auto_mode output)"
             )
-        # Auto-mode resolves to a concrete auth_type; treat it as explicit
-        # downstream. The reason carries the auto sub-class.
-        effective_pref = (
-            DISPATCH_HEADLESS
-            if auto_resolution.selected_auth_type == "headless"
-            else DISPATCH_HTTP_API
-        )
+        # BB iter-1 #905 F-002 closure: auto-mode selects a SPECIFIC auth_type
+        # — do NOT collapse to the binary preference enum (which would route
+        # aws_iam selections through http_api buckets and produce a MODELINV
+        # `auth_type_resolved` mismatch with the bucket actually traversed).
+        # Match on the resolved auth_type verbatim.
+        resolved_at = auto_resolution.selected_auth_type
         reason = auto_resolution.reason
-    else:
-        effective_pref = dispatch_preference
-        reason = SELECTION_REASON_EXPLICIT
+        preferred: List[ResolvedEntry] = [
+            e for e in chain.entries
+            if _entry_matches_auto_resolved_auth_type(e, resolved_at)
+        ]
+        # Compute the non-preferred set for the xfb branch below using the
+        # same exact-match semantics — non-preferred = chain MINUS preferred.
+        non_preferred: List[ResolvedEntry] = [
+            e for e in chain.entries
+            if not _entry_matches_auto_resolved_auth_type(e, resolved_at)
+        ]
+        if preferred:
+            if allow_cross_auth_fallback:
+                return preferred + non_preferred, reason
+            return preferred, reason
+        if allow_cross_auth_fallback and non_preferred:
+            return non_preferred, reason
+        raise NoEligibleAdapterError(
+            primary_alias=chain.primary_alias,
+            headless_mode=chain.headless_mode,
+            reason=(
+                f"auto-mode resolved auth_type={resolved_at!r} produced "
+                f"empty chain for {chain.primary_alias!r}"
+            ),
+        )
+
+    effective_pref = dispatch_preference
+    reason = SELECTION_REASON_EXPLICIT
 
     preferred: List[ResolvedEntry] = [
         e for e in chain.entries if _entry_matches_preference(e, effective_pref)
