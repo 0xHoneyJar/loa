@@ -333,7 +333,7 @@
       }
     },
     "auth_type_resolved": {
-      "description": "Cycle-110 sprint-2b1 T2.8 (FR-3.4): auth_type bucket the resolver selected for this invocation. Bedrock entries use aws_iam; HTTP-API providers use http_api; subscription-CLI providers use headless. v1.3 readers tolerate this additive field; absence means pre-cycle-110 entry — readers MUST default to http_api per cycle-110 SDD §3.4 backward-compat.",
+      "description": "Cycle-110 sprint-2b1 T2.8 (FR-3.4): auth_type bucket the resolver SELECTED for this invocation. Bedrock entries use aws_iam; HTTP-API providers use http_api; subscription-CLI providers use headless. **SELECTED, not FULFILLED**: this is the FIRST chain entry's auth_type after dispatch_preference filtering; on chain-walk failover the actually-succeeding entry may have a different auth_type (visible via final_model_id + model-config lookup). BB #907 iter-1 F-007 explicit clarification. v1.3 readers tolerate this additive field; absence means pre-cycle-110 entry — readers MUST default to http_api per cycle-110 SDD §3.4 backward-compat.",
       "type": "string",
       "enum": ["headless", "http_api", "aws_iam"]
     },
