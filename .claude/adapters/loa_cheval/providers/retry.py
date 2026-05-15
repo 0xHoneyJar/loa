@@ -89,15 +89,25 @@ def _adapter_auth_type(adapter: "ProviderAdapter") -> str:
     structural fix; this helper now reads the declared attribute directly.
     """
     auth_type = getattr(adapter, "auth_type", None)
-    # Accept only declared-string auth_type values. MagicMock and other
-    # synthetic attributes (auto-generated test doubles) read as non-str —
-    # treat as "not declared" and fall back to http_api conservatively
-    # without raising, since the test surface is well-controlled. Real
-    # adapters inheriting from ProviderAdapter ALWAYS get the base
-    # `auth_type: str = "http_api"` class default, then headless/bedrock
-    # subclasses override.
-    if not isinstance(auth_type, str):
-        return "http_api"
+    # BB iter-1 #907 F-003 + F-004 closure: fail loud for missing/invalid
+    # auth_type. Real adapters that inherit from ProviderAdapter ALWAYS
+    # get the base class default `auth_type: str = "http_api"`, then
+    # headless/bedrock subclasses override. A non-string value reaching
+    # this point means an adapter bypassed the base class (programming
+    # error) OR a test fixture supplied a Mock without `spec=ProviderAdapter`
+    # / without setting auth_type explicitly. Either case is operator-
+    # visible misconfiguration; the silent http_api fallback was the
+    # exact pattern BB iter-1 flagged as cycle-110's anti-goal.
+    if not isinstance(auth_type, str) or not auth_type:
+        raise AttributeError(
+            f"adapter {type(adapter).__name__} for provider="
+            f"{getattr(adapter, 'provider', '<unknown>')!r} does not declare "
+            "a string auth_type. Cycle-110 FR-2.3 requires every adapter to "
+            "inherit from ProviderAdapter (base sets auth_type='http_api'); "
+            "override in subclass for headless (cli) / aws_iam (bedrock). "
+            "Test fixtures using MagicMock must either use "
+            "spec=ProviderAdapter or set mock.auth_type='http_api' explicitly."
+        )
     if auth_type not in ("headless", "http_api", "aws_iam"):
         raise ValueError(
             f"adapter {type(adapter).__name__} declares "

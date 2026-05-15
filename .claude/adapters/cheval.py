@@ -1254,10 +1254,20 @@ def cmd_invoke(args: argparse.Namespace) -> int:
     except (ConfigError, InvalidInputError) as e:
         print(_error_json(e.code, str(e)), file=sys.stderr)
         return EXIT_CODES.get(e.code, 2)
-    except ImportError:
-        # dispatch_filter module absent — substrate not yet on this branch.
-        # Preserve legacy behavior; envelope fields stay None.
-        pass
+    except ModuleNotFoundError as _exc:
+        # BB iter-1 #907 F-002 + F-005 closure (MEDIUM): narrowed from bare
+        # ImportError to ModuleNotFoundError + visible warning. The
+        # substrate is in-tree as of sprint-2b1; a ModuleNotFoundError
+        # means a partial install / sparse-checkout / framework-update gap
+        # — degrade silently to legacy behavior but log so operators see
+        # the substrate regression.
+        logger.warning(
+            "[CYCLE-110-WIRE-UP-DEGRADED] dispatch_filter module not "
+            "found (%s) — falling back to pre-cycle-110 chain behavior. "
+            "advisor_strategy.dispatch_preference is ignored on this "
+            "invocation. Run substrate doctor to verify install state.",
+            _exc,
+        )
 
     # cycle-102 Sprint 1D / T1.7 + cycle-104 Sprint 2 T2.6: MODELINV emit-state.
     # The finally-clause emits a single envelope at function exit (success or

@@ -163,21 +163,26 @@ def _capture_with_byte_cap(
             elif fd == stderr_fd:
                 if len(stderr_buf) < max_bytes:
                     stderr_buf.extend(chunk[: max_bytes - len(stderr_buf)])
-        # Check whether the process has exited even if both streams still
-        # appear open — the kernel sometimes leaves the FDs readable until
-        # the next select call.
-        if proc.poll() is not None and not open_fds:
-            break
-    # Final wait — bounded.
-    try:
-        proc.wait(timeout=max(0.5, deadline - time.monotonic()))
-    except subprocess.TimeoutExpired:
-        pass
-    # `proc.returncode or -1` is a Python falsiness bug — returncode 0 is
-    # falsy, so it would collapse "success" to -1. Use explicit `is None`.
+    # BB iter-1 #907 F-001 closure (HIGH): if the child has CLOSED both
+    # stdout + stderr but is STILL RUNNING, the read loop exits naturally
+    # with proc.returncode is None. Pre-fix code would swallow the wait()
+    # timeout and return rc=-1, leaving _run_probe blind to the still-
+    # running child (no process-group cleanup). Post-fix: distinguish
+    # "exited" from "pipes closed", and raise TimeoutExpired so the
+    # caller's except branch performs killpg + ProcessLookupError-safe
+    # cleanup.
+    if proc.poll() is None:
+        # Pipes closed, child still alive. Give it one last bounded wait.
+        try:
+            proc.wait(timeout=max(0.1, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            # Bubble up — _run_probe handles killpg + ProcessLookupError.
+            raise
     rc = proc.returncode
     if rc is None:
-        rc = -1
+        # Defensive: should be unreachable after the wait above. Treat as
+        # timeout — _run_probe will kill the child.
+        raise subprocess.TimeoutExpired(proc.args, timeout_s)
     return bytes(stdout_buf), bytes(stderr_buf), rc
 
 
