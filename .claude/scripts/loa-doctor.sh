@@ -212,9 +212,25 @@ check_optional_tools() {
     fi
 
     # ajv — optional (full JSON Schema validation)
+    # bug-725: ajv-cli v5.0.0+ dropped `--version` / `-V` / the `version`
+    # subcommand. The legacy `ajv --version 2>&1 | head -1` captured the
+    # v5 usage-error stderr text ("error: parameter ... is required") as
+    # if it were the version. Try v4-shape first, fall back to parsing
+    # `--help` output for a version line, fall back further to a
+    # labeled placeholder.
     if command -v ajv &>/dev/null; then
-        local ajv_ver
-        ajv_ver=$(ajv --version 2>&1 | head -1 || echo "unknown")
+        local ajv_ver=""
+        # v4 path: `ajv --version` prints "5.0.0\n" with exit 0.
+        if ajv_ver=$(ajv --version 2>/dev/null) && [[ "$ajv_ver" =~ ^[0-9]+\.[0-9]+ ]]; then
+            : # use ajv_ver as-is
+        else
+            # v5+ fallback: parse `--help` output for a "version X.Y.Z" line
+            # (ajv-cli's help text on v5 includes the package version).
+            ajv_ver=$(ajv --help 2>&1 | grep -oE 'version [0-9]+\.[0-9]+(\.[0-9]+)?' | head -1 | awk '{print $2}')
+            # Last-resort labeled placeholder so operators don't see
+            # "error: parameter -s is required" displayed as a version.
+            [[ -z "$ajv_ver" ]] && ajv_ver="unknown (ajv-cli@5+)"
+        fi
         _doctor_add_check "optional_tools" "ajv" "ok" "JSON Schema validator" "$ajv_ver"
     else
         _doctor_add_check "optional_tools" "ajv" "info" "Not installed — enables full JSON Schema validation"
