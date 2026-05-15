@@ -9,6 +9,11 @@ name: cycle-099 Sprint 1E hardening primitives
 on:
   pull_request:
     paths:
+      # bug-887: include the canonical YAML so live-schema defects
+      # (e.g. cycle-104 `kind: cli` added without schema extension —
+      # KF-006) trigger this workflow on main, not just on migrator
+      # edits.
+      - '.claude/defaults/model-config.yaml'
       - '.claude/scripts/lib/log-redactor.py'
       - '.claude/scripts/lib/log-redactor.sh'
       - '.claude/scripts/lib/model-config-migrate.py'
@@ -21,6 +26,11 @@ on:
   push:
     branches: [main]
     paths:
+      # bug-887: include the canonical YAML so live-schema defects
+      # (e.g. cycle-104 `kind: cli` added without schema extension —
+      # KF-006) trigger this workflow on main, not just on migrator
+      # edits.
+      - '.claude/defaults/model-config.yaml'
       - '.claude/scripts/lib/log-redactor.py'
       - '.claude/scripts/lib/log-redactor.sh'
       - '.claude/scripts/lib/model-config-migrate.py'
