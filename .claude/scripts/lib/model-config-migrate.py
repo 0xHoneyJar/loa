@@ -291,6 +291,27 @@ def _compute_effective_input_ceiling(context_window: int | None) -> int:
     return min(context_window // 2, _EFFECTIVE_CEILING_FLOOR)
 
 
+def _preserve_threshold_ceiling(entry: dict[str, Any]) -> int | None:
+    """cycle-109 followup B (#888) — Shape B effective_input_ceiling sourcing.
+
+    Returns the operator's existing v2 threshold (streaming → legacy → max,
+    in priority order) so the pre-flight gate fires at the same threshold
+    the substrate already operates at. Returns None when no v2 threshold
+    field is set; caller falls back to the Shape A formula.
+
+    This preserves no-behavior-change semantics for the live YAML migration:
+    every dispatch that succeeded pre-migration continues to succeed
+    post-migration; every dispatch that failed via the cycle-102 walking
+    gate still preempts (now via the cycle-109 pre-flight gate, at the
+    same threshold).
+    """
+    for field in ("streaming_max_input_tokens", "legacy_max_input_tokens", "max_input_tokens"):
+        value = entry.get(field)
+        if isinstance(value, int) and value > 0:
+            return value
+    return None
+
+
 def _default_ceiling_calibration(calibrated_at: str) -> dict[str, Any]:
     """SDD §3.1.1 + §3.1.2 conservative_default ceiling_calibration block."""
     return {
@@ -320,20 +341,60 @@ def _apply_v3_defaults_to_model(
     calibrated_at: str,
     report: list[dict[str, Any]],
     path: str,
+    preserve_thresholds: bool = False,
 ) -> None:
     """Mutate `entry` in place: add v3 fields with conservative defaults
     per SDD §3.1.2. Fields already present on the model entry are preserved
-    verbatim (operator-set values win over migrator defaults)."""
+    verbatim (operator-set values win over migrator defaults).
+
+    cycle-109 followup B (#888): when ``preserve_thresholds=True``, the
+    effective_input_ceiling sourcing picks from existing v2 threshold
+    fields (streaming_max_input_tokens → legacy_max_input_tokens →
+    max_input_tokens) before falling back to the SDD §3.1.2 formula. This
+    is the no-behavior-change migration shape — pre-flight gate fires at
+    the same threshold the substrate already operates at.
+    """
     if "effective_input_ceiling" not in entry:
-        entry["effective_input_ceiling"] = _compute_effective_input_ceiling(
-            entry.get("context_window")
-        )
-        report.append({
-            "kind": "populate",
-            "path": f"{path}.effective_input_ceiling",
-            "detail": f"defaulted to {entry['effective_input_ceiling']} (SDD §3.1.2)",
-            "severity": "INFO",
-        })
+        if preserve_thresholds:
+            preserved = _preserve_threshold_ceiling(entry)
+            if preserved is not None:
+                entry["effective_input_ceiling"] = preserved
+                report.append({
+                    "kind": "populate",
+                    "path": f"{path}.effective_input_ceiling",
+                    "detail": (
+                        f"preserved to {preserved} from existing v2 threshold "
+                        f"(cycle-109 followup B #888 — Shape B no-behavior-change)"
+                    ),
+                    "severity": "INFO",
+                })
+            else:
+                # Shape B + no v2 threshold field → leave the v3 field
+                # UNSET. _lookup_capability handles missing
+                # effective_input_ceiling as "no gate" so the substrate
+                # continues to dispatch unrestricted (matches pre-migration
+                # behavior for these models). cycle-109 followup B #888.
+                report.append({
+                    "kind": "populate",
+                    "path": f"{path}.effective_input_ceiling",
+                    "detail": (
+                        "omitted (Shape B + no v2 threshold present — "
+                        "preserves pre-migration unrestricted-dispatch "
+                        "semantics; operator can populate later via "
+                        "tools/ceiling-probe.py)"
+                    ),
+                    "severity": "INFO",
+                })
+        else:
+            entry["effective_input_ceiling"] = _compute_effective_input_ceiling(
+                entry.get("context_window")
+            )
+            report.append({
+                "kind": "populate",
+                "path": f"{path}.effective_input_ceiling",
+                "detail": f"defaulted to {entry['effective_input_ceiling']} (SDD §3.1.2)",
+                "severity": "INFO",
+            })
 
     if "reasoning_class" not in entry:
         entry["reasoning_class"] = _is_reasoning_class(model_id)
@@ -386,6 +447,7 @@ def _apply_v3_defaults_to_model(
 def migrate_v2_to_v3(
     v2: dict[str, Any],
     calibrated_at: str = "2026-05-13T00:00:00Z",
+    preserve_thresholds: bool = False,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Pure v2 → v3 migration with conservative defaults per SDD §3.1.2.
 
@@ -446,6 +508,7 @@ def migrate_v2_to_v3(
                     calibrated_at,
                     report,
                     f"providers.{provider_id}.models.{model_id}",
+                    preserve_thresholds=preserve_thresholds,
                 )
 
     return v3, report
@@ -456,6 +519,7 @@ def migrate_to_latest(
     target_version: int = 3,
     model_permissions: dict[str, Any] | None = None,
     calibrated_at: str = "2026-05-13T00:00:00Z",
+    preserve_thresholds: bool = False,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Chain migrations from whatever the input version is up to target_version.
 
@@ -480,9 +544,17 @@ def migrate_to_latest(
     # target_version == 3
     if source_version <= 1:
         v2, v1_report = migrate_v1_to_v2(data, model_permissions=model_permissions)
-        v3, v2_report = migrate_v2_to_v3(v2, calibrated_at=calibrated_at)
+        v3, v2_report = migrate_v2_to_v3(
+            v2,
+            calibrated_at=calibrated_at,
+            preserve_thresholds=preserve_thresholds,
+        )
         return v3, v1_report + v2_report
-    return migrate_v2_to_v3(data, calibrated_at=calibrated_at)
+    return migrate_v2_to_v3(
+        data,
+        calibrated_at=calibrated_at,
+        preserve_thresholds=preserve_thresholds,
+    )
 
 
 def _migrate_providers(
