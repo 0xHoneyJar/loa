@@ -2307,7 +2307,6 @@ def _substrate_init_janitor() -> None:
 
 def main() -> int:
     """CLI entry point."""
-    _substrate_init_janitor()
     parser = argparse.ArgumentParser(
         prog="model-invoke",
         description="Hounfour model-invoke — unified model API entry point",
@@ -2393,6 +2392,14 @@ def main() -> int:
     parser.add_argument("--validate-bindings", action="store_true", dest="validate_bindings", help="Validate all agent bindings")
 
     args = parser.parse_args()
+
+    # BB iter-1 F8 closure: run the substrate-init janitor AFTER argparse so
+    # `--help` exits without touching .run/. Janitor only fires on the actual
+    # dispatch paths (print-config / validate-bindings / poll / cancel /
+    # invoke) — every path benefits from the cleanup; --help is the only path
+    # that does not, and is now untouched (UNIX 'help is side-effect-free'
+    # convention preserved).
+    _substrate_init_janitor()
 
     # Route to subcommand
     if args.print_config:

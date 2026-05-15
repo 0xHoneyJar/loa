@@ -682,7 +682,13 @@ def list_buckets(run_dir: str = ".run") -> Dict[str, Dict[str, Dict[str, Any]]]:
     if not os.path.isdir(run_dir):
         return out
 
-    for fname in os.listdir(run_dir):
+    # BB iter-1 F2 closure: sort listdir BEFORE iterating so operator-visible
+    # output is deterministic (POSIX makes no order guarantee). Files that
+    # don't match the canonical `circuit-breaker-{provider}-{auth_type}.json`
+    # shape are skipped with a one-time WARN — they indicate either a stale
+    # legacy file the migration should have handled OR an operator-planted
+    # file outside the cycle-110 schema.
+    for fname in sorted(os.listdir(run_dir)):
         if not fname.startswith("circuit-breaker-") or not fname.endswith(".json"):
             continue
         if fname == MIGRATION_LOCK_NAME:
@@ -692,17 +698,23 @@ def list_buckets(run_dir: str = ".run") -> Dict[str, Dict[str, Dict[str, Any]]]:
             # Transitional symlink — skip; the http_api bucket it points to
             # will be enumerated separately.
             continue
-        # Parse `circuit-breaker-{provider}-{auth_type}.json` — be tolerant of
-        # legacy `circuit-breaker-{provider}.json` (no auth_type segment).
+        # Parse `circuit-breaker-{provider}-{auth_type}.json` — require the
+        # canonical shape. Files matching the prefix but lacking the auth_type
+        # suffix are post-migration residue (the migration should have
+        # unlinked them); WARN once and skip rather than misclassifying as
+        # http_api (which would collide silently with the real http_api
+        # bucket and produce listdir-order-dependent behavior).
         stem = fname[len("circuit-breaker-"):-len(".json")]
-        # Split on the LAST hyphen — provider names may contain hyphens.
         parts = stem.rsplit("-", 1)
-        if len(parts) == 2 and parts[1] in AUTH_TYPES:
-            provider, auth_type = parts
-        else:
-            # Legacy / unknown — surface under http_api conservatively.
-            provider = stem
-            auth_type = LEGACY_AUTH_TYPE
+        if len(parts) != 2 or parts[1] not in AUTH_TYPES:
+            logger.warning(
+                "[CB-NON-CANONICAL-BUCKET] skipping %s in %s — does not match "
+                "circuit-breaker-{provider}-{auth_type}.json shape (auth_type "
+                "suffix missing or unknown). Run substrate cleanup to remove.",
+                fname, run_dir,
+            )
+            continue
+        provider, auth_type = parts
         try:
             with open(full, "r", encoding="utf-8") as fh:
                 data = json.load(fh)

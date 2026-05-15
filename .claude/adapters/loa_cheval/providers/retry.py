@@ -73,6 +73,9 @@ class NoOpMetricsHook:
 # --- Circuit breaker (cycle-110: keyed on (provider, auth_type) — FR-0) ---
 
 
+_ADAPTER_AUTH_TYPE_WARN_SEEN: set = set()
+
+
 def _adapter_auth_type(adapter: "ProviderAdapter") -> str:
     """Resolve the auth_type bucket for an adapter.
 
@@ -81,10 +84,35 @@ def _adapter_auth_type(adapter: "ProviderAdapter") -> str:
     auth_type explicitly onto every adapter dataclass. Until then, the
     conservative default is `http_api` — that is the bucket legacy state
     is preserved into and the HTTP-path is what existing adapters use.
+
+    Sprint-1 → Sprint-2 attribution gap (BB #903 iter-1 F7 closure):
+    when the adapter does NOT declare `auth_type`, every headless-only
+    provider's failures still route to the http_api bucket. To prevent
+    silently re-creating the FR-0.4 masking pattern under a different
+    bucket name, the missing-attribute path emits a one-time WARN per
+    (provider) so operators see the gap. Sprint-2 T2.3 propagation
+    eliminates the gap entirely.
     """
+    # TODO(cycle-110 sprint-2 T2.3 / FR-2.3): adapter.auth_type becomes
+    # mandatory; this getattr fallback is removed.
     from loa_cheval.routing.circuit_breaker import AUTH_TYPE_HTTP_API
 
-    return getattr(adapter, "auth_type", AUTH_TYPE_HTTP_API)
+    if hasattr(adapter, "auth_type"):
+        return adapter.auth_type  # type: ignore[no-any-return]
+
+    provider = getattr(adapter, "provider", "<unknown>")
+    if provider not in _ADAPTER_AUTH_TYPE_WARN_SEEN:
+        _ADAPTER_AUTH_TYPE_WARN_SEEN.add(provider)
+        logger.warning(
+            "[CB-AUTH-TYPE-FALLBACK] adapter for provider=%s lacks "
+            "explicit auth_type; defaulting to http_api per cycle-110 "
+            "sprint-1 transition contract. Sprint-2 T2.3 (FR-2.3) lands "
+            "the per-adapter declaration; until then, headless-only "
+            "providers will route failures through the http_api bucket. "
+            "This warning fires once per provider per process.",
+            provider,
+        )
+    return AUTH_TYPE_HTTP_API
 
 
 # Cycle-110 SDD §5.3 starvation guard: exponential-backoff retry envelope
@@ -132,13 +160,34 @@ def _check_circuit_breaker(
             time.sleep(delay)
     # Starvation: cannot read bucket state. Treat as OPEN (fail-closed) so the
     # caller skips this adapter rather than blowing up.
+    holder_pid = last_exc.holder_pid if last_exc else 0
     logger.error(
         "CB migration starvation for %s/%s after %d retries (holder_pid=%d) "
         "— degrading to OPEN",
         provider, auth_type,
         len(_CB_MIGRATION_RETRY_DELAYS) + 1,
-        last_exc.holder_pid if last_exc else 0,
+        holder_pid,
     )
+    # BB iter-1 F4 closure: emit a distinct [L4-CB-STARVATION] marker to the
+    # substrate-health journal so operators can distinguish 'circuit tripped
+    # from failures' from 'circuit unreadable due to flock contention'. The
+    # write is best-effort — if it fails, the caller has already logged the
+    # ERROR-level diagnostic above.
+    try:
+        from loa_cheval.routing.circuit_breaker import _emit_journal_marker
+        _emit_journal_marker(
+            ".run",
+            "L4-CB-STARVATION",
+            {
+                "provider": provider,
+                "auth_type": auth_type,
+                "holder_pid": holder_pid,
+                "retries": len(_CB_MIGRATION_RETRY_DELAYS) + 1,
+                "action": "degraded-to-OPEN",
+            },
+        )
+    except Exception:  # noqa: BLE001 — observability is best-effort
+        pass
     return "OPEN"
 
 
