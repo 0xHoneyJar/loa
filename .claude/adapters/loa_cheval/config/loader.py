@@ -491,7 +491,7 @@ def _validate_model_auth_metadata(merged: Dict[str, Any]) -> None:
                     f"[CONFIG-INVALID] providers.{provider_id}.models.{model_id}"
                     f".dispatch_group={dispatch_group!r}; must match "
                     f"{_DISPATCH_GROUP_PATTERN.pattern!r} (lower-case alphanumeric + hyphens, "
-                    f"1-64 chars, starting with a letter)."
+                    f"2-64 chars, starting with a letter)."
                 )
 
 

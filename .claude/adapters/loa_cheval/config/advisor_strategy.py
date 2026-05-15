@@ -470,19 +470,26 @@ def load_advisor_strategy(repo_root: Path | str) -> AdvisorStrategyConfig:
             f"got {type(per_role_pref).__name__}"
         )
 
+    # BB iter-2 #904 F-005 closure: mirror the _CROSS_AUTH_FALLBACK_LADDER
+    # MappingProxyType pattern (PRAISE'd in F-007). The dataclass claims
+    # `frozen=True` but Dict fields remain mutable through their own methods —
+    # MappingProxyType wraps the dict into a read-only proxy view so the
+    # immutability claim matches reality. Done at load_advisor_strategy edge
+    # (not in the dataclass annotation) because per_role_dispatch_preference
+    # IS variable per operator-config, unlike the constant ladder.
     return AdvisorStrategyConfig(
         schema_version=raw["schema_version"],
         enabled=raw.get("enabled", False),
         tier_resolution=raw.get("tier_resolution", "static"),
-        defaults=raw.get("defaults", {}),
+        defaults=MappingProxyType(dict(raw.get("defaults", {}))),
         tier_aliases=raw.get("tier_aliases", {}),
-        per_skill_overrides=raw.get("per_skill_overrides", {}),
+        per_skill_overrides=MappingProxyType(dict(raw.get("per_skill_overrides", {}))),
         audited_review_skills=audited,
         benchmark_max_cost_usd=float(raw.get("benchmark", {}).get("max_cost_usd", 50.0)),
         config_sha=config_sha,
         dispatch_preference=raw.get("dispatch_preference", "auto"),
         allow_cross_auth_fallback=raw.get("allow_cross_auth_fallback"),  # None = derive
-        per_role_dispatch_preference=dict(per_role_pref),
+        per_role_dispatch_preference=MappingProxyType(dict(per_role_pref)),
         auto_mode_headless_margin_bps=int(auto_mode_raw.get("headless_margin_bps", 200)),
         headless_concurrency_scope=raw.get("headless_concurrency_scope", "cross_process"),
         headless_concurrency_limit=int(raw.get("headless_concurrency_limit", 50)),
