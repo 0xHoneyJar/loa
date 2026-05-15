@@ -73,46 +73,47 @@ class NoOpMetricsHook:
 # --- Circuit breaker (cycle-110: keyed on (provider, auth_type) — FR-0) ---
 
 
-_ADAPTER_AUTH_TYPE_WARN_SEEN: set = set()
-
-
 def _adapter_auth_type(adapter: "ProviderAdapter") -> str:
     """Resolve the auth_type bucket for an adapter.
 
-    Cycle-110 FR-0 keys the circuit breaker on `(provider, auth_type)`.
-    Sprint-1 introduces the key-widening; Sprint-2 (FR-2.3) propagates
-    auth_type explicitly onto every adapter dataclass. Until then, the
-    conservative default is `http_api` — that is the bucket legacy state
-    is preserved into and the HTTP-path is what existing adapters use.
+    Cycle-110 FR-2.3 (sprint-2b2a): every adapter class declares `auth_type`
+    explicitly via ProviderAdapter base + per-class overrides. The sprint-1
+    `getattr(..., default="http_api")` fallback is RETIRED — adapters MUST
+    label themselves, and a missing label is a programming error (the base
+    class always defines `auth_type: str = "http_api"`, so the only way this
+    helper sees no attribute is if an out-of-tree adapter forgot to inherit
+    from ProviderAdapter).
 
-    Sprint-1 → Sprint-2 attribution gap (BB #903 iter-1 F7 closure):
-    when the adapter does NOT declare `auth_type`, every headless-only
-    provider's failures still route to the http_api bucket. To prevent
-    silently re-creating the FR-0.4 masking pattern under a different
-    bucket name, the missing-attribute path emits a one-time WARN per
-    (provider) so operators see the gap. Sprint-2 T2.3 propagation
-    eliminates the gap entirely.
+    Closes BB #903 iter-1 F7 + iter-2 F-001 (REFRAME) fail-loud per
+    `feedback_bb_plateau_via_reframe.md` — the sprint-2 PRs are the
+    structural fix; this helper now reads the declared attribute directly.
     """
-    # TODO(cycle-110 sprint-2 T2.3 / FR-2.3): adapter.auth_type becomes
-    # mandatory; this getattr fallback is removed.
-    from loa_cheval.routing.circuit_breaker import AUTH_TYPE_HTTP_API
-
-    if hasattr(adapter, "auth_type"):
-        return adapter.auth_type  # type: ignore[no-any-return]
-
-    provider = getattr(adapter, "provider", "<unknown>")
-    if provider not in _ADAPTER_AUTH_TYPE_WARN_SEEN:
-        _ADAPTER_AUTH_TYPE_WARN_SEEN.add(provider)
-        logger.warning(
-            "[CB-AUTH-TYPE-FALLBACK] adapter for provider=%s lacks "
-            "explicit auth_type; defaulting to http_api per cycle-110 "
-            "sprint-1 transition contract. Sprint-2 T2.3 (FR-2.3) lands "
-            "the per-adapter declaration; until then, headless-only "
-            "providers will route failures through the http_api bucket. "
-            "This warning fires once per provider per process.",
-            provider,
+    auth_type = getattr(adapter, "auth_type", None)
+    # BB iter-1 #907 F-003 + F-004 closure: fail loud for missing/invalid
+    # auth_type. Real adapters that inherit from ProviderAdapter ALWAYS
+    # get the base class default `auth_type: str = "http_api"`, then
+    # headless/bedrock subclasses override. A non-string value reaching
+    # this point means an adapter bypassed the base class (programming
+    # error) OR a test fixture supplied a Mock without `spec=ProviderAdapter`
+    # / without setting auth_type explicitly. Either case is operator-
+    # visible misconfiguration; the silent http_api fallback was the
+    # exact pattern BB iter-1 flagged as cycle-110's anti-goal.
+    if not isinstance(auth_type, str) or not auth_type:
+        raise AttributeError(
+            f"adapter {type(adapter).__name__} for provider="
+            f"{getattr(adapter, 'provider', '<unknown>')!r} does not declare "
+            "a string auth_type. Cycle-110 FR-2.3 requires every adapter to "
+            "inherit from ProviderAdapter (base sets auth_type='http_api'); "
+            "override in subclass for headless (cli) / aws_iam (bedrock). "
+            "Test fixtures using MagicMock must either use "
+            "spec=ProviderAdapter or set mock.auth_type='http_api' explicitly."
         )
-    return AUTH_TYPE_HTTP_API
+    if auth_type not in ("headless", "http_api", "aws_iam"):
+        raise ValueError(
+            f"adapter {type(adapter).__name__} declares "
+            f"auth_type={auth_type!r}; allowed: headless, http_api, aws_iam"
+        )
+    return auth_type
 
 
 # Cycle-110 SDD §5.3 starvation guard: exponential-backoff retry envelope

@@ -114,6 +114,7 @@ def test_retry_propagates_connection_lost_through_retries_exhausted():
 
     fake_adapter = MagicMock()
     fake_adapter.provider = "anthropic"
+    fake_adapter.auth_type = "http_api"
     fake_adapter.complete.side_effect = ConnectionLostError(
         provider="anthropic",
         transport_class="RemoteProtocolError",

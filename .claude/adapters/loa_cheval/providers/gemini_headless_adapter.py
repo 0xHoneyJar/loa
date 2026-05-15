@@ -102,6 +102,10 @@ class GeminiHeadlessAdapter(ProviderAdapter):
           fast-thinker: gemini-headless:gemini-3-flash
     """
 
+    # Cycle-110 FR-2.3 — subscription-CLI dispatch; circuit-breaker writes
+    # route to the (google, headless) bucket.
+    auth_type: str = "headless"
+
     def complete(self, request: CompletionRequest) -> CompletionResult:
         """Invoke `gemini -p` and return a normalized CompletionResult."""
         model_config = self._get_model_config(request.model)

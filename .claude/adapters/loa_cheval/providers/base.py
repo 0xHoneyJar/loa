@@ -558,7 +558,28 @@ def enforce_context_window(
 
 
 class ProviderAdapter(ABC):
-    """Base class for model provider adapters (SDD §4.2.3)."""
+    """Base class for model provider adapters (SDD §4.2.3).
+
+    Cycle-110 sprint-2b2a: `auth_type` class attribute declares which
+    auth_type bucket this adapter's circuit-breaker writes route to
+    (per FR-2.3 / SDD §3.2). Subclasses override:
+
+    | Adapter                       | auth_type   |
+    |-------------------------------|-------------|
+    | OpenAIAdapter / GoogleAdapter | "http_api"  |
+    | AnthropicAdapter              | "http_api"  |
+    | BedrockAdapter                | "aws_iam"   |
+    | ClaudeHeadlessAdapter         | "headless"  |
+    | CodexHeadlessAdapter          | "headless"  |
+    | GeminiHeadlessAdapter         | "headless"  |
+
+    Eliminates the sprint-1 `getattr(adapter, "auth_type", "http_api")` fallback
+    (closes BB #903 F-001 + F7 fully — adapter labels itself at construction).
+    """
+
+    # Default — overridden by subclasses. The default itself is informational:
+    # any concrete HTTP-API adapter inherits this; bedrock + headless override.
+    auth_type: str = "http_api"
 
     def __init__(self, config: ProviderConfig):
         self.config = config

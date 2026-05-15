@@ -108,6 +108,10 @@ class ClaudeHeadlessAdapter(ProviderAdapter):
           cheap: claude-headless:claude-sonnet-4-6
     """
 
+    # Cycle-110 FR-2.3 — subscription-CLI dispatch; circuit-breaker writes
+    # route to the (anthropic, headless) bucket.
+    auth_type: str = "headless"
+
     def complete(self, request: CompletionRequest) -> CompletionResult:
         """Invoke `claude -p` and return a normalized CompletionResult."""
         model_config = self._get_model_config(request.model)
