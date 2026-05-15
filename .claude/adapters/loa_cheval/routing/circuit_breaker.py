@@ -456,14 +456,14 @@ def _migrate_legacy_state_if_present(
                 preserved["auth_type"] = AUTH_TYPE_HTTP_API
                 _atomic_write_json(http_api_path, preserved)
 
-        # Seed CLOSED-default buckets for the other auth_types.
-        for at in AUTH_TYPES:
-            if at == AUTH_TYPE_HTTP_API:
-                continue
-            # bedrock is the only provider that pre-seeds aws_iam per SDD
-            # §3.3; for other providers we still seed lazily here (creating
-            # the file at-rest is cheap and removes a runtime branch).
-            _seed_default_bucket(provider, at, run_dir)
+        # Seed CLOSED-default buckets for the other auth_types per SDD §3.3
+        # step 2c: headless always; aws_iam ONLY for bedrock (else lazy-seeded
+        # on first dispatch). Matching the spec narrows the at-rest surface
+        # — substrate-health operators don't see empty aws_iam buckets for
+        # providers that will never use them.
+        _seed_default_bucket(provider, AUTH_TYPE_HEADLESS, run_dir)
+        if provider == "bedrock":
+            _seed_default_bucket(provider, AUTH_TYPE_AWS_IAM, run_dir)
 
         # Only AFTER new files exist, unlink legacy.
         try:

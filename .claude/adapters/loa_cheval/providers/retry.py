@@ -87,6 +87,13 @@ def _adapter_auth_type(adapter: "ProviderAdapter") -> str:
     return getattr(adapter, "auth_type", AUTH_TYPE_HTTP_API)
 
 
+# Cycle-110 SDD §5.3 starvation guard: exponential-backoff retry envelope
+# wrapping the migration timeout. Per SDD: "bash callers wrap migration in a
+# 3-retry exponential backoff (1s/2s/4s) before treating MigrationTimeout as
+# fatal." Implemented Python-side because retry.py is the canonical caller.
+_CB_MIGRATION_RETRY_DELAYS = (1.0, 2.0, 4.0)
+
+
 def _check_circuit_breaker(
     provider: str, auth_type: str, config: Dict[str, Any]
 ) -> str:
@@ -94,10 +101,45 @@ def _check_circuit_breaker(
 
     Returns: 'CLOSED', 'OPEN', 'HALF_OPEN'.
     Reads .run/circuit-breaker-{provider}-{auth_type}.json.
-    """
-    from loa_cheval.routing.circuit_breaker import check_state
 
-    return check_state(provider, auth_type, config)
+    Wraps the underlying call in an SDD §5.3 starvation guard: if the
+    legacy-migration flock cannot be acquired within its 10s timeout, retry
+    with exponential backoff (1s / 2s / 4s). After exhausting retries,
+    degrade fail-CLOSED-but-treated-as-OPEN: we cannot read the bucket
+    state safely, so we refuse the dispatch rather than crash with an
+    unhandled typed exception.
+    """
+    from loa_cheval.routing.circuit_breaker import (
+        CircuitBreakerMigrationTimeout, check_state,
+    )
+
+    last_exc: Optional[CircuitBreakerMigrationTimeout] = None
+    for attempt in range(len(_CB_MIGRATION_RETRY_DELAYS) + 1):
+        try:
+            return check_state(provider, auth_type, config)
+        except CircuitBreakerMigrationTimeout as exc:
+            last_exc = exc
+            if attempt >= len(_CB_MIGRATION_RETRY_DELAYS):
+                break
+            delay = _CB_MIGRATION_RETRY_DELAYS[attempt]
+            logger.warning(
+                "CB migration lock contended for %s/%s "
+                "(attempt %d/%d, holder_pid=%d) — backing off %ss",
+                provider, auth_type,
+                attempt + 1, len(_CB_MIGRATION_RETRY_DELAYS) + 1,
+                exc.holder_pid, delay,
+            )
+            time.sleep(delay)
+    # Starvation: cannot read bucket state. Treat as OPEN (fail-closed) so the
+    # caller skips this adapter rather than blowing up.
+    logger.error(
+        "CB migration starvation for %s/%s after %d retries (holder_pid=%d) "
+        "— degrading to OPEN",
+        provider, auth_type,
+        len(_CB_MIGRATION_RETRY_DELAYS) + 1,
+        last_exc.holder_pid if last_exc else 0,
+    )
+    return "OPEN"
 
 
 def _record_failure(

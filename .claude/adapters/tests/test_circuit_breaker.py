@@ -501,6 +501,83 @@ class TestCleanupStaleFiles:
         assert other.exists()
 
 
+class TestIncrementProbe:
+    """LOW-1: increment_probe was exported but untested before sprint-1 review."""
+
+    def test_increments_only_in_half_open(self, tmp_path):
+        path = tmp_path / "circuit-breaker-openai-http_api.json"
+        path.write_text(json.dumps({
+            "provider": "openai",
+            "auth_type": AUTH_TYPE_HTTP_API,
+            "state": HALF_OPEN,
+            "failure_count": 3,
+            "opened_at": time.time(),
+            "half_open_probes": 0,
+        }))
+        increment_probe("openai", AUTH_TYPE_HTTP_API, str(tmp_path))
+        data = json.loads(path.read_text())
+        assert data["half_open_probes"] == 1
+
+    def test_noop_in_closed(self, tmp_path):
+        path = tmp_path / "circuit-breaker-openai-http_api.json"
+        path.write_text(json.dumps({
+            "provider": "openai",
+            "auth_type": AUTH_TYPE_HTTP_API,
+            "state": CLOSED,
+            "failure_count": 0,
+            "half_open_probes": 0,
+        }))
+        increment_probe("openai", AUTH_TYPE_HTTP_API, str(tmp_path))
+        data = json.loads(path.read_text())
+        assert data["half_open_probes"] == 0
+
+    def test_noop_in_open(self, tmp_path):
+        path = tmp_path / "circuit-breaker-openai-http_api.json"
+        path.write_text(json.dumps({
+            "provider": "openai",
+            "auth_type": AUTH_TYPE_HTTP_API,
+            "state": OPEN,
+            "failure_count": 5,
+            "opened_at": time.time(),
+            "half_open_probes": 0,
+        }))
+        increment_probe("openai", AUTH_TYPE_HTTP_API, str(tmp_path))
+        data = json.loads(path.read_text())
+        assert data["half_open_probes"] == 0
+
+
+class TestBedrockOnlyAwsIamSeeding:
+    """MED-1 closure: aws_iam bucket seeded ONLY for bedrock per SDD §3.3 step 2c."""
+
+    def _write_legacy(self, tmp_path, provider):
+        (tmp_path / f"circuit-breaker-{provider}.json").write_text(json.dumps({
+            "provider": provider,
+            "state": CLOSED,
+            "failure_count": 0,
+            "last_failure_ts": None,
+            "opened_at": None,
+            "half_open_probes": 0,
+        }))
+
+    def test_bedrock_seeds_aws_iam(self, tmp_path):
+        self._write_legacy(tmp_path, "bedrock")
+        _migrate_legacy_state_if_present("bedrock", str(tmp_path))
+        assert (tmp_path / "circuit-breaker-bedrock-aws_iam.json").is_file()
+        assert (tmp_path / "circuit-breaker-bedrock-headless.json").is_file()
+        assert (tmp_path / "circuit-breaker-bedrock-http_api.json").is_file()
+
+    def test_non_bedrock_does_not_seed_aws_iam(self, tmp_path):
+        for provider in ("openai", "anthropic", "google"):
+            self._write_legacy(tmp_path, provider)
+            _migrate_legacy_state_if_present(provider, str(tmp_path))
+            assert not (tmp_path / f"circuit-breaker-{provider}-aws_iam.json").exists(), (
+                f"{provider} must not pre-seed aws_iam (SDD §3.3 step 2c)"
+            )
+            # Headless and http_api are always present.
+            assert (tmp_path / f"circuit-breaker-{provider}-headless.json").is_file()
+            assert (tmp_path / f"circuit-breaker-{provider}-http_api.json").is_file()
+
+
 class TestCleanupStaleTempfiles:
     """T1.3 C8 closure — startup tempfile janitor."""
 
