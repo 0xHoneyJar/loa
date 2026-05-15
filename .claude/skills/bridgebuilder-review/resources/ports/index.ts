@@ -11,6 +11,7 @@ export type {
   ReviewRequest,
   ReviewResponse,
   ILLMProvider,
+  VerdictQualityEnvelope,
 } from "./llm-provider.js";
 
 export type {

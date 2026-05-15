@@ -1,0 +1,14 @@
+{
+  "issue": "#866",
+  "title": "Large-doc empty-content (>70KB FL input → cheval returns empty)",
+  "input_class": "large-document-review",
+  "input_size_chars": 75000,
+  "estimated_input_tokens": 25000,
+  "effective_input_ceiling": 30000,
+  "should_chunk": true,
+  "pre_sprint_4_behavior": "Cheval pre-flight gate emits CONTEXT_TOO_LARGE (exit 7) when input exceeds ceiling OR (when ceiling not yet enforced via cycle-099 chunking_enabled=false default) the model dispatches but returns empty content. Operator-visible symptom: 'status: clean' from FL with zero findings despite 70KB+ of substantive PR diff. Original KF-002 layer-1 environment had ceilings around 30K tokens for the affected reasoning-class models.",
+  "post_sprint_4_behavior": "Pre-flight gate detects estimated_input (25000) > effective_input_ceiling × 0.7 (30000 × 0.7 = 21000). preflight_decision = 'chunk'. chunk_pr_for_review partitions input by file boundaries with chunks bounded at 21000 tokens. Per-chunk dispatch produces ChunkFindings; aggregate_findings merges via IMP-006. MODELINV envelope chunked_review.{chunked: true, chunks_reviewed: N} surfaces the chunked-dispatch state.",
+  "kf_002_class": true,
+  "kf_002_layer": 1,
+  "g_2_relevant": true
+}

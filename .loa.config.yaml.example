@@ -652,16 +652,15 @@ beads:
 # Architecture: SDD §4.1.2 (Config Schema), §4.2 (Routing), §4.5 (Metering)
 # Feature flags and metering — Hounfour Model-Heterogeneous Agent Routing
 hounfour:
-  # Top-level flag — controls whether Flatline + Red-team use cheval
-  # routing or the legacy direct-call path.
-  # cycle-107 (2026-05-12) flipped the default from false → true. Without
-  # cheval routing, the cycle-104 multi-model stabilization work (within-
-  # company chain-walk T2.5, voice-drop T2.8, MODELINV v1.1 envelope T2.6)
-  # is INERT for FL + RT. BB is unaffected — it uses ChevalDelegateAdapter
-  # unconditionally since cycle-103 PR #846.
-  # Rollback path: flip to false to restore the legacy model-adapter.sh.legacy
-  # behavior (no chain-walk, no voice-drop, no MODELINV v1.1).
-  flatline_routing: true
+  # cycle-109 Sprint 3 T3.8 (commit E): `hounfour.flatline_routing` config
+  # key REMOVED. Cycle-109 deleted the legacy adapter (T3.7 under
+  # C109.OP-S3) and removed the consuming branches (T3.6 commit C).
+  # cheval is now the unconditional substrate dispatch path; there is no
+  # runtime-flag rollback. Rollback model post-cycle-109: `git revert` per
+  # grimoires/loa/runbooks/cycle-109-rollback.md. The `feature_flags.flatline_routing`
+  # sub-key below is preserved as an informational audit-log surface
+  # (other consumers still read it for telemetry) but does NOT gate
+  # dispatch behavior anymore.
 
   # Per-subsystem feature flags (all default true — opt-out, not opt-in)
   feature_flags:

@@ -1,0 +1,21 @@
+{
+    "status": "DEGRADED",
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 3,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": ["gpt-5.5-pro", "gemini-3.1-pro"],
+    "voices_dropped": [
+        {
+            "voice": "claude-opus-4-7",
+            "reason": "EmptyContent",
+            "exit_code": 1,
+            "blocker_risk": "med",
+            "chain_walk": ["anthropic:claude-opus-4-7"]
+        }
+    ],
+    "chain_health": "degraded",
+    "confidence_floor": "med",
+    "rationale": "cycle-109 PRD-review trajectory canonical regression: Opus voice dropped (EmptyContent) under implementation sprint; 2/3 voices reached consensus; substrate-degraded but verdict carries 2-of-3 majority signal.",
+    "single_voice_call": false
+}

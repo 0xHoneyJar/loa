@@ -10,7 +10,7 @@
 // Mode: spawn-only. T1.1 benchmark (worst p95=126ms) put daemon-mode out of
 // scope for Sprint 1; the `mode` option is reserved for cycle-104+.
 import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { LLMProviderError } from "../ports/llm-provider.js";
@@ -54,6 +54,10 @@ export class ChevalDelegateAdapter {
         const tempDir = mkdtempSync(join(tmpdir(), "cheval-delegate-"));
         const systemPath = join(tempDir, "system.txt");
         const inputPath = join(tempDir, "input.txt");
+        // cycle-109 Sprint 2 T2.6 — sidecar path for cheval's verdict_quality
+        // envelope write. Unique per spawn (tempDir is mkdtemp'd per call so
+        // parallel BB cohort calls don't collide on the path).
+        const verdictQualitySidecar = join(tempDir, "verdict-quality.json");
         let child;
         let killTimer;
         let sigkillTimer;
@@ -87,9 +91,19 @@ export class ChevalDelegateAdapter {
                 args.push("--mock-fixture-dir", this.opts.mockFixtureDir);
             }
             const spawnImpl = this.opts.spawnFn ?? spawn;
+            // cycle-109 Sprint 2 T2.6 — export LOA_VERDICT_QUALITY_SIDECAR for
+            // the cheval subprocess. Build a fresh env object that inherits
+            // process.env (per AC-1.8 (a) credential-via-env contract) AND adds
+            // the per-call sidecar path. Order: process.env first, then our
+            // override — caller-supplied LOA_VERDICT_QUALITY_SIDECAR is replaced
+            // by the adapter's per-call path so nested invocations don't trample.
+            const spawnEnv = {
+                ...process.env,
+                LOA_VERDICT_QUALITY_SIDECAR: verdictQualitySidecar,
+            };
             child = spawnImpl(this.opts.pythonBin, args, {
                 stdio: ["ignore", "pipe", "pipe"],
-                env: process.env,
+                env: spawnEnv,
                 windowsHide: true,
             });
             let stdoutBuf = "";
@@ -138,6 +152,12 @@ export class ChevalDelegateAdapter {
             const outputTokens = parsed.usage?.output_tokens ?? 0;
             const latencyFromCheval = parsed.latency_ms;
             const wallClockLatency = Date.now() - startedAt;
+            // cycle-109 Sprint 2 T2.6 — read verdict_quality sidecar (if present).
+            // Fail-soft on absent / malformed JSON: legacy / pre-T2.3 cheval
+            // doesn't write the sidecar, and we MUST NOT block the user-facing
+            // call on audit-shape glitches. ReviewResponse.verdictQuality stays
+            // undefined when the sidecar isn't usable.
+            const verdictQuality = _readVerdictQualitySidecar(verdictQualitySidecar);
             return {
                 content: parsed.content,
                 inputTokens,
@@ -147,6 +167,7 @@ export class ChevalDelegateAdapter {
                 // Prefer cheval's reported provider-call latency. Fall back to our wall
                 // clock (which includes Python startup) when cheval doesn't report.
                 latencyMs: typeof latencyFromCheval === "number" ? latencyFromCheval : wallClockLatency,
+                ...(verdictQuality ? { verdictQuality } : {}),
             };
         }
         finally {
@@ -248,5 +269,50 @@ function stderrPreview(stderr) {
     // user-facing error text. Cheval's own redactor runs before this point.
     const head = trimmed.split(/\r?\n/).pop() ?? "";
     return head.length > 256 ? `${head.slice(0, 256)}…` : head;
+}
+/**
+ * cycle-109 Sprint 2 T2.6 — read the verdict_quality sidecar file that
+ * cheval optionally writes when LOA_VERDICT_QUALITY_SIDECAR is set.
+ *
+ * Returns the parsed envelope on success, or undefined when:
+ *   - The file does not exist (legacy / pre-T2.3 cheval).
+ *   - The file is empty (cheval crashed before writing).
+ *   - The file contains malformed JSON (partial write).
+ *   - The parsed JSON lacks the structural shape of an envelope.
+ *
+ * Fail-soft per T2.6 contract: the cheval invocation succeeded; an
+ * absent / malformed sidecar must NOT break the user-facing return.
+ */
+function _readVerdictQualitySidecar(path) {
+    let raw;
+    try {
+        raw = readFileSync(path, "utf8");
+    }
+    catch {
+        return undefined;
+    }
+    const trimmed = raw.trim();
+    if (!trimmed)
+        return undefined;
+    let parsed;
+    try {
+        parsed = JSON.parse(trimmed);
+    }
+    catch {
+        return undefined;
+    }
+    if (!parsed || typeof parsed !== "object")
+        return undefined;
+    // Minimal structural shape check — verdict-quality.schema.json requires
+    // these fields. We rely on the producer (cheval T2.3) to emit valid
+    // envelopes; this gate just rejects obvious corruption.
+    const env = parsed;
+    if (typeof env.status !== "string")
+        return undefined;
+    if (typeof env.voices_planned !== "number")
+        return undefined;
+    if (typeof env.chain_health !== "string")
+        return undefined;
+    return env;
 }
 //# sourceMappingURL=cheval-delegate.js.map

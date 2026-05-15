@@ -191,7 +191,16 @@ export async function executeMultiModelReview(item, systemPrompt, userPrompt, co
     // When enrichment context provided, the first primary model writes a prose
     // review over the consensus findings. Falls back to stats-only if enrichment
     // fails or is disabled.
-    let consensusBody = formatConsensusSummary(consensus, modelAdapters);
+    // cycle-109 Sprint 2 T2.6 — prepend the verdict_quality header
+    // (FR-2.8) before the consensus stats table. Returns empty string when
+    // no per-model envelopes carry verdictQuality (legacy / pre-T2.3
+    // cheval), so legacy review surfaces are unchanged.
+    const verdictHeader = formatVerdictQualityHeader(modelResults.map((r) => ({
+        provider: r.provider,
+        modelId: r.model,
+        verdictQuality: r.response?.verdictQuality,
+    })));
+    let consensusBody = verdictHeader + formatConsensusSummary(consensus, modelAdapters);
     if (enrichment && findingsPerModel.length > 0 && modelAdapters.length > 0) {
         try {
             logger.info("[multi-model] Generating enriched consensus review...");
@@ -286,6 +295,90 @@ export function extractFindingsFromContent(content) {
 /**
  * Format a per-model comment with continuation numbering.
  */
+/**
+ * cycle-109 Sprint 2 T2.6 — render an operator-facing verdict_quality
+ * header for the BB PR comment (FR-2.8 surface).
+ *
+ * Takes per-model results carrying their `verdictQuality` envelopes
+ * (populated by ChevalDelegateAdapter from the LOA_VERDICT_QUALITY_SIDECAR
+ * transport) and produces a short markdown header line:
+ *
+ *   ✓ APPROVED — 3/3 voices, chain ok
+ *   ⚠ DEGRADED — 2/3 voices succeeded
+ *   ❌ FAILED — chain exhausted; verdict unsafe
+ *
+ * Returns an empty string when:
+ *   - The input list is empty.
+ *   - No per-model result carries a `verdictQuality` envelope (legacy /
+ *     pre-T2.3 cheval emits, or the sidecar mechanism is unavailable).
+ *
+ * Note: this is a presentation-layer summary, not the canonical aggregate.
+ * Persistence of the full multi-voice envelope happens at the FL orchestrator
+ * level (T2.4) via the Python aggregator. BB's PR comment surfaces the
+ * status banner derived from per-model envelopes for operator-visibility.
+ */
+/**
+ * cycle-109 Sprint 4 T4.8 — operator-facing chunked-review annotation
+ * for the BB PR comment. Per FR-2.8 + SDD §5.4 IMP-006: when the
+ * substrate dispatched through the chunking package, the PR comment
+ * header surfaces the chunk count + per-chunk degradation distinctly
+ * from the overall verdict_quality status banner.
+ *
+ * Rendered above formatVerdictQualityHeader so operators see the
+ * "chunked: 5 chunks reviewed" annotation BEFORE the verdict banner.
+ * Returns empty string when no chunked review occurred.
+ */
+export function formatChunkedReviewAnnotation(perModelResults) {
+    const chunked = perModelResults.filter((r) => r.chunkedReview?.chunked === true);
+    if (chunked.length === 0)
+        return "";
+    // Aggregate counts across the per-model results
+    const totalChunks = chunked.reduce((acc, r) => acc + (r.chunkedReview?.chunks_reviewed ?? 0), 0);
+    const totalDropped = chunked.reduce((acc, r) => acc + (r.chunkedReview?.chunks_dropped ?? 0), 0);
+    const totalWithFindings = chunked.reduce((acc, r) => acc + (r.chunkedReview?.chunks_with_findings ?? 0), 0);
+    const anyCrossChunkPass = chunked.some((r) => r.chunkedReview?.cross_chunk_pass === true);
+    const lines = [
+        `**Chunked review**: ${chunked.length} model${chunked.length > 1 ? "s" : ""} dispatched through chunking package (KF-002 layer-1 closure)`,
+        `- Total chunks reviewed: ${totalChunks}` +
+            (totalDropped > 0 ? ` (⚠ ${totalDropped} dropped)` : "") +
+            ` — ${totalWithFindings} produced findings`,
+    ];
+    if (anyCrossChunkPass) {
+        lines.push("- Cross-chunk pass invoked (boundary-spanning findings)");
+    }
+    return lines.join("\n") + "\n\n";
+}
+export function formatVerdictQualityHeader(perModelResults) {
+    if (perModelResults.length === 0)
+        return "";
+    const withEnvelope = perModelResults.filter((r) => r.verdictQuality);
+    if (withEnvelope.length === 0)
+        return "";
+    // Aggregate stats from per-voice envelopes. Each cheval cmd_invoke
+    // produces a SINGLE-voice envelope (voices_planned=1). For the BB
+    // multi-voice cohort we count the number of envelopes that ended in
+    // each status.
+    const total = perModelResults.length;
+    const succeeded = withEnvelope.filter((r) => r.verdictQuality?.status === "APPROVED" || r.verdictQuality?.status === "DEGRADED").length;
+    const anyFailed = withEnvelope.some((r) => r.verdictQuality?.status === "FAILED");
+    const anyDegraded = withEnvelope.some((r) => r.verdictQuality?.status === "DEGRADED" || r.verdictQuality?.chain_health === "degraded");
+    const allApproved = withEnvelope.every((r) => r.verdictQuality?.status === "APPROVED");
+    // Promote to FAILED if any voice failed OR if not all voices ran (we
+    // never received envelopes for the missing ones, suggesting they
+    // didn't reach cheval) AND the responding voices are degraded.
+    const missingVoices = total - withEnvelope.length;
+    let banner;
+    if (anyFailed || (missingVoices === total)) {
+        banner = `❌ FAILED — ${succeeded}/${total} voices succeeded; verdict unsafe`;
+    }
+    else if (anyDegraded || missingVoices > 0 || !allApproved) {
+        banner = `⚠ DEGRADED — ${succeeded}/${total} voices succeeded`;
+    }
+    else {
+        banner = `✓ APPROVED — ${succeeded}/${total} voices, chain ok`;
+    }
+    return `**Verdict Quality**: ${banner}\n\n`;
+}
 function formatModelComment(provider, modelId, content, index, total) {
     const header = total > 1
         ? `**[${index}/${total + 1}] Review by ${provider} (${modelId})**\n\n`

@@ -1,0 +1,7 @@
+{
+  "content": "{\"scores\": [{\"id\": \"IMP-001\", \"score\": 850, \"evaluation\": \"Strong improvement\", \"would_integrate\": true}, {\"id\": \"IMP-002\", \"score\": 550, \"evaluation\": \"Nice to have\", \"would_integrate\": false}]}",
+  "model": "mock-score",
+  "provider": "mock",
+  "usage": {"input_tokens": 1000, "output_tokens": 500},
+  "latency_ms": 100
+}

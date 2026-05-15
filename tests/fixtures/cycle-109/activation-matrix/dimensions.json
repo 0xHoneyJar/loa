@@ -1,0 +1,100 @@
+{
+  "comment": "cycle-109 Sprint 3 T3.1 (FR-3.5 / IMP-009). Canonical dimensions for the 810-cell activation regression matrix. consumers × roles × response_classes × dispatch_paths = 9 × 5 × 6 × 3 = 810.",
+  "consumers": [
+    {
+      "id": "bridgebuilder",
+      "path": ".claude/skills/bridgebuilder-review/resources/adapters/cheval-delegate.ts",
+      "kind": "ts"
+    },
+    {
+      "id": "flatline-orchestrator",
+      "path": ".claude/scripts/flatline-orchestrator.sh",
+      "kind": "bash"
+    },
+    {
+      "id": "red-team-pipeline",
+      "path": ".claude/scripts/red-team-pipeline.sh",
+      "kind": "bash"
+    },
+    {
+      "id": "bug-triage",
+      "path": ".claude/skills/bug-triaging/",
+      "kind": "skill"
+    },
+    {
+      "id": "review-sprint",
+      "path": ".claude/skills/reviewing-code/",
+      "kind": "skill"
+    },
+    {
+      "id": "audit-sprint",
+      "path": ".claude/skills/auditing-security/",
+      "kind": "skill"
+    },
+    {
+      "id": "flatline-readiness",
+      "path": ".claude/scripts/flatline-readiness.sh",
+      "kind": "bash"
+    },
+    {
+      "id": "adversarial-review",
+      "path": ".claude/scripts/adversarial-review.sh",
+      "kind": "bash"
+    },
+    {
+      "id": "post-pr-triage",
+      "path": ".claude/scripts/post-pr-triage.sh",
+      "kind": "bash"
+    }
+  ],
+  "roles": ["review", "dissent", "audit", "implementation", "arbiter"],
+  "response_classes": [
+    {
+      "id": "success",
+      "description": "Provider returns parseable findings JSON; cheval emits status=APPROVED"
+    },
+    {
+      "id": "empty-content",
+      "description": "KF-002 class — provider returns valid-shape envelope with empty/near-empty content. Expected: voices_dropped[].reason=EmptyContent, blocker_risk=med under impl sprint, aggregate→DEGRADED."
+    },
+    {
+      "id": "rate-limited",
+      "description": "Provider 429. cheval retries within budget; if exhausted, voices_dropped[].reason=RateLimited, blocker_risk=low."
+    },
+    {
+      "id": "chain-exhausted",
+      "description": "All fallback chain entries fail. voices_dropped[].reason=ChainExhausted, blocker_risk=high (hard rule) → FAILED."
+    },
+    {
+      "id": "provider-disconnect",
+      "description": "#774 transient transport failure. voices_dropped[].reason=ProviderUnavailable."
+    },
+    {
+      "id": "context-too-large-preempt",
+      "description": "Pre-flight gate (T1.3) preempts before adapter dispatch. voices_dropped[].reason=ContextTooLarge."
+    }
+  ],
+  "dispatch_paths": [
+    {
+      "id": "single",
+      "description": "Standard single-call dispatch (no chunking). Most consumers default to this path."
+    },
+    {
+      "id": "chunked-2",
+      "description": "Sprint 4 chunked review at 2 chunks. Tests chunked verdict_quality aggregation."
+    },
+    {
+      "id": "chunked-5",
+      "description": "Sprint 4 chunked review at 5 chunks. Tests larger chunked aggregation + truncation handling."
+    }
+  ],
+  "expected_cells": {
+    "comment": "Total cells = consumers (9) × roles (5) × response_classes (6) × dispatch_paths (3) = 810. Each cell asserts: (1) cheval emits the expected verdict_quality envelope; (2) consumer reads/renders/aggregates correctly; (3) downstream artifact (FL final_consensus.json / adversarial-{review,audit}.json / BB PR comment) carries the expected status.",
+    "total": 810
+  },
+  "ci_budget": {
+    "comment": "FR-3.10 / sprint-plan §AC: matrix wall-time <15 min on GitHub Actions. Parallelization: matrix-job per consumer (9 jobs) × strategy.fail-fast=false; per-job sequential roles × response_classes × dispatch_paths (5 × 6 × 3 = 90 cells per job).",
+    "wall_time_max_minutes": 15,
+    "parallel_jobs": 9
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "issue": "#823",
+  "title": "adversarial-review.sh claude-opus-4-7 empty-content at >40K-input scale",
+  "input_class": "adversarial-review-reasoning-class",
+  "input_size_chars": 120000,
+  "estimated_input_tokens": 40000,
+  "effective_input_ceiling": 35000,
+  "reasoning_class": true,
+  "should_chunk": true,
+  "pre_sprint_4_behavior": "claude-opus-4-7 (reasoning-class) emits empty content at >40K-input scale. Pre-Sprint-4 cheval had no streaming-with-recovery guard; the stream completed with empty .content and the per-call envelope passed validation as 'clean'. Adversarial review then produced no findings despite reasoning-class engagement.",
+  "post_sprint_4_behavior": "Two-layer defense: (1) pre-flight gate routes through chunking when estimated_input > ceiling × 0.7 (35000 × 0.7 = 24500; 40000 > 24500 → chunk). (2) streaming-with-recovery on the dispatched chunks: empty_content_window_tokens=200 aborts the stream if first 200 tokens are empty; cot_budget_tokens=500 aborts if reasoning-class CoT runs away without visible content. Either path produces typed EmptyContent / cot_budget_exhausted exit, which the chain-walk consumes for fallback.",
+  "kf_002_class": true,
+  "kf_002_layer": 1,
+  "g_2_relevant": true
+}

@@ -1,0 +1,28 @@
+{
+    "status": "DEGRADED",
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 3,
+    "voices_succeeded": 1,
+    "voices_succeeded_ids": ["gpt-5.5-pro"],
+    "voices_dropped": [
+        {
+            "voice": "claude-opus-4-7",
+            "reason": "EmptyContent",
+            "exit_code": 1,
+            "blocker_risk": "med",
+            "chain_walk": ["anthropic:claude-opus-4-7", "anthropic:claude-opus-4-6"]
+        },
+        {
+            "voice": "gemini-3.1-pro",
+            "reason": "ProviderUnavailable",
+            "exit_code": 1,
+            "blocker_risk": "med",
+            "chain_walk": ["google:gemini-3.1-pro"]
+        }
+    ],
+    "chain_health": "degraded",
+    "confidence_floor": "low",
+    "rationale": "#807 fixture: 2 of 3 voices walked their full chains and never produced a usable response; only 1 voice succeeded. Pre-T2.x adversarial-review fallback masked this as 'status: clean'. Post-T2.5 the verdict_quality envelope surfaces both dropped voices with blocker_risk=med under implementation sprint — DEGRADED reflects the 1-of-3 minority verdict.",
+    "single_voice_call": false
+}

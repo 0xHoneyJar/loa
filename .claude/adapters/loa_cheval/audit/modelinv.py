@@ -330,6 +330,33 @@ _WRITER_VERSION_CACHE: Optional[str] = None
 _WRITER_VERSION_PATH = ".claude/data/cycle-108/modelinv-writer-version"
 
 
+def _find_repo_root(start: Path) -> Path:
+    """Walk up from ``start`` looking for a stable repo-root marker.
+
+    Looks for either ``.git`` or ``.loa.config.yaml`` as the marker
+    (both are present at the canonical loa repo root). Falls back to
+    ``start.parents[4]`` if no marker is found within 10 ancestors —
+    preserves backward-compat with the original hardcoded depth.
+
+    cycle-109 Sprint 5 T5.2 (#875): replaces the brittle ``parents[4]``
+    hardcode that broke when the module moved or was site-packaged.
+    """
+    current = start
+    for _ in range(10):  # bounded walk
+        parent = current.parent
+        if parent == current:
+            break  # reached filesystem root
+        if (parent / ".git").exists() or (parent / ".loa.config.yaml").exists():
+            return parent
+        current = parent
+    # Fallback: original parents[4] depth for callers in well-known
+    # locations (.claude/adapters/loa_cheval/audit/<file>.py → 4 levels up)
+    try:
+        return start.parents[4]
+    except IndexError:
+        return start.parent
+
+
 def _read_writer_version() -> Optional[str]:
     """Read writer_version from the SoT file. Cached after first read.
 
@@ -340,10 +367,13 @@ def _read_writer_version() -> Optional[str]:
     if _WRITER_VERSION_CACHE is not None:
         return _WRITER_VERSION_CACHE
 
-    # Resolve relative to repo root via Path traversal from this module
-    module_path = Path(__file__).resolve()
-    # .claude/adapters/loa_cheval/audit/modelinv.py → repo_root has 4 parents above
-    repo_root = module_path.parents[4]
+    # cycle-109 Sprint 5 T5.2 (#875): repo-root resolution via marker
+    # walker rather than parents[N] hardcode. parents[4] was brittle —
+    # it broke when the module moved, when callers patched __file__,
+    # or when the package was installed as site-packages. The walker
+    # looks for a stable repo-root marker (.git directory or .loa.config.yaml)
+    # and falls back to parents[4] for backward compat.
+    repo_root = _find_repo_root(Path(__file__).resolve())
     sot_path = repo_root / _WRITER_VERSION_PATH
 
     if not sot_path.exists():
@@ -398,6 +428,20 @@ def emit_model_invoke_complete(
     # path bypassed the gate (LOA_CHEVAL_DISABLE_INPUT_GATE=1, async mode,
     # or pre-resolution failure).
     capability_evaluation: Optional[Dict[str, Any]] = None,
+    # Cycle-109 Sprint 2 T2.3 — verdict-quality envelope (SDD §3.3.1 v1.3
+    # additive + §3.2 schema). Validated + status-stamped envelope built
+    # by the caller via `loa_cheval.verdict.quality.emit_envelope_with_status`.
+    # Optional/additive — callers that don't (yet) produce envelopes simply
+    # omit the kwarg and the payload is shape-identical to pre-T2.3 emits.
+    verdict_quality: Optional[Dict[str, Any]] = None,
+    # Cycle-109 Sprint 4 T4.7 — chunked-review snapshot (SDD §5.4).
+    # Populated when the pre-flight gate routed the call through the
+    # chunking package. Absent when chunking was not invoked.
+    chunked_review: Optional[Dict[str, Any]] = None,
+    # Cycle-109 Sprint 4 T4.7 — streaming-with-recovery telemetry
+    # (SDD §5.4.4 / IMP-014). Populated when the streaming code path
+    # observed (and possibly aborted via) one of the three thresholds.
+    streaming_recovery: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Emit a model.invoke.complete envelope to the MODELINV audit chain.
 
@@ -543,6 +587,36 @@ def emit_model_invoke_complete(
             payload["capability_evaluation"]["recommended_for"] = list(
                 payload["capability_evaluation"]["recommended_for"]
             )
+
+    # cycle-109 Sprint 4 T4.7 — chunked_review + streaming_recovery
+    # pass-throughs (SDD §3.3.1 v1.3 additive + §5.4 chunking +
+    # §5.4.4 IMP-014). Defensive copy at the top level so caller's
+    # dict cannot be mutated by downstream redaction passes.
+    if chunked_review is not None:
+        payload["chunked_review"] = dict(chunked_review)
+    if streaming_recovery is not None:
+        payload["streaming_recovery"] = dict(streaming_recovery)
+
+    # cycle-109 Sprint 2 T2.3 — verdict_quality pass-through (SDD §3.3.1 v1.3
+    # additive). Schema additivity: only emit when caller supplied the dict.
+    # The caller (cheval.cmd_invoke for PRODUCER #1) is responsible for
+    # building + validating the envelope via emit_envelope_with_status; the
+    # emitter trusts the contract and passes the dict through verbatim
+    # (post-redaction) into the MODELINV payload.
+    if verdict_quality is not None:
+        # Defensive copy at the top level so caller's dict cannot be mutated
+        # by the redaction pass. voices_dropped[] entries are dicts too —
+        # do a one-level-deep copy on the list contents for the same reason.
+        _vq_copy: Dict[str, Any] = dict(verdict_quality)
+        _dropped = _vq_copy.get("voices_dropped")
+        if isinstance(_dropped, list):
+            _vq_copy["voices_dropped"] = [
+                dict(d) if isinstance(d, dict) else d for d in _dropped
+            ]
+        _succeeded_ids = _vq_copy.get("voices_succeeded_ids")
+        if isinstance(_succeeded_ids, list):
+            _vq_copy["voices_succeeded_ids"] = list(_succeeded_ids)
+        payload["verdict_quality"] = _vq_copy
 
     # Field-level redaction.
     payload = redact_payload_strings(payload)

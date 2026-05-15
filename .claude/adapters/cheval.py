@@ -59,6 +59,18 @@ from loa_cheval.audit.modelinv import (
     emit_model_invoke_complete as _emit_modelinv,
 )
 
+# cycle-109 Sprint 2 T2.3 — verdict-quality envelope (PRODUCER #1 per
+# SDD §3.2.3 IMP-004). Module-level import: keeps cmd_invoke hot path free
+# of import overhead and surfaces missing-dependency errors at module load
+# rather than at first invoke. The envelope is built in the finally block
+# of cmd_invoke from _modelinv_state and attached to the MODELINV payload.
+from loa_cheval.verdict.blocker_risk import compute_blocker_risk as _vq_compute_blocker_risk
+from loa_cheval.verdict.quality import (
+    EnvelopeInvariantViolation as _VqInvariantViolation,
+    emit_envelope_with_status as _vq_emit_with_status,
+)
+from loa_cheval.verdict.sidecar import write_sidecar as _vq_write_sidecar
+
 # Configure logging to stderr only
 logging.basicConfig(
     stream=sys.stderr,
@@ -94,6 +106,10 @@ EXIT_CODES = {
     "INTERACTION_PENDING": 8,
     "NO_ELIGIBLE_ADAPTER": 11,
     "CHAIN_EXHAUSTED": 12,
+    # cycle-109 Sprint 4 T4.5 — chunked review couldn't fit input in
+    # chunks_max chunks AND truncation was forbidden. Mapped from
+    # loa_cheval.chunking.chunker.ChunkingExceeded per SDD §6.1.
+    "CHUNKING_EXCEEDED": 13,
 }
 
 
@@ -732,6 +748,287 @@ def _load_mock_fixture_response(
     )
 
 
+# ----------------------------------------------------------------------------
+# cycle-109 Sprint 2 T2.3 — verdict-quality envelope construction helpers
+# (PRODUCER #1 per SDD §3.2.3 IMP-004).
+#
+# These helpers translate the cheval-internal `_modelinv_state` shape into a
+# verdict_quality envelope conforming to verdict-quality.schema.json. cheval's
+# cmd_invoke is a single-substrate-call producer: voices_planned is always 1
+# (the chain walk is WITHIN one voice, not across voices). The verdict
+# captures whether that voice succeeded, whether the chain walked to a
+# fallback (chain_health = ok / degraded), and on full failure the
+# error-class → reason mapping plus a heuristic blocker_risk.
+# ----------------------------------------------------------------------------
+
+
+# Mapping from cheval error_class strings (the union of model-error.schema.json
+# enum values and cheval-specific class names like PREFLIGHT_PREEMPT) to the
+# verdict-quality.schema.json voices_dropped[].reason enum.
+_VQ_ERROR_CLASS_TO_REASON: Dict[str, str] = {
+    "EMPTY_CONTENT": "EmptyContent",
+    "BUDGET_EXHAUSTED": "Other",
+    "CAPABILITY_MISS": "NoEligibleAdapter",
+    "DEGRADED_PARTIAL": "Other",
+    "FALLBACK_EXHAUSTED": "RetriesExhausted",
+    "LOCAL_NETWORK_FAILURE": "ProviderUnavailable",
+    "PREFLIGHT_PREEMPT": "ContextTooLarge",
+    "PROVIDER_DISCONNECT": "ProviderUnavailable",
+    "PROVIDER_OUTAGE": "ProviderUnavailable",
+    "ROUTING_MISS": "ContextTooLarge",
+    "TIMEOUT": "RetriesExhausted",
+    "UNKNOWN": "Other",
+}
+
+
+def _vq_sanitize_voice_slug(raw: str) -> str:
+    """Coerce ``raw`` into the verdict-quality.schema.json voice / voice-id
+    pattern ``^[A-Za-z0-9._-]+$``. Disallowed characters become ``-``; an
+    empty result falls back to ``unknown``."""
+    if not raw:
+        return "unknown"
+    out_chars = []
+    for ch in raw:
+        if ch.isalnum() or ch in "._-":
+            out_chars.append(ch)
+        else:
+            out_chars.append("-")
+    cleaned = "".join(out_chars).strip("-")
+    return cleaned or "unknown"
+
+
+def _vq_derive_voice_slug(
+    role: Optional[str], primary_canonical: Optional[str]
+) -> str:
+    """Voice slug — the per-invocation IDENTIFIER inside a multi-model
+    cohort.
+
+    PR #896 BB iter-1 FIND-002 closure: prior shape returned ``role``
+    verbatim when set, causing voice-ID COLLISION in multi-model cohorts
+    where two reviewers shared the same role (e.g. anthropic + openai
+    both called with ``--role review``). The aggregator's invariant
+    "voices_succeeded_ids has no duplicates" then rejected legitimate
+    cohorts.
+
+    New shape: ``role`` becomes a METADATA tag carried separately in
+    the envelope; the SLUG always derives from the primary canonical
+    (``provider:model_id`` → ``model_id``), with role prefixed for
+    operator readability when both are present. Falls back to ``role``
+    when no primary is available (degraded pre-resolution path).
+
+    Examples:
+      role="review", primary="anthropic:claude-opus-4-7" →
+        "review-claude-opus-4-7"
+      role=None,    primary="openai:gpt-5.5-pro" →
+        "gpt-5.5-pro"
+      role="audit", primary=None →
+        "audit"  (degraded fallback)
+    """
+    if primary_canonical:
+        _, sep, model_id = primary_canonical.partition(":")
+        model_slug = _vq_sanitize_voice_slug(model_id if sep else primary_canonical)
+        if role:
+            return _vq_sanitize_voice_slug(f"{role}-{model_slug}")
+        return model_slug
+    if role:
+        return _vq_sanitize_voice_slug(role)
+    return "unknown"
+
+
+def _vq_map_reason(
+    *,
+    models_failed: List[Dict[str, Any]],
+    chain_size: int,
+    succeeded: bool,
+) -> str:
+    """Resolve the verdict-quality voices_dropped[].reason enum value.
+
+    On full chain exhaustion with >= 2 chain entries we report
+    ``ChainExhausted`` per SDD §3.2.2 (the multi-entry walk-fallthrough
+    case). Single-entry exhaustion falls back to the last error_class
+    mapping so the reason captures the actual root cause.
+    """
+    if succeeded:
+        return "Other"  # caller MUST NOT consult reason when succeeded
+    if not models_failed:
+        return "Other"
+    # Multi-entry walked entirely → ChainExhausted is the canonical reason.
+    if chain_size >= 2:
+        return "ChainExhausted"
+    # Single-entry chain: use the last recorded error_class mapping.
+    last_class = str(models_failed[-1].get("error_class") or "UNKNOWN")
+    return _VQ_ERROR_CLASS_TO_REASON.get(last_class, "Other")
+
+
+def _vq_derive_chain_health(
+    *,
+    succeeded: bool,
+    final_model_id: Optional[str],
+    primary_canonical: Optional[str],
+) -> str:
+    """``ok`` = primary chain entry succeeded; ``degraded`` = walked to a
+    fallback that succeeded; ``exhausted`` = no entry succeeded."""
+    if not succeeded:
+        return "exhausted"
+    if (
+        final_model_id is not None
+        and primary_canonical is not None
+        and final_model_id == primary_canonical
+    ):
+        return "ok"
+    return "degraded"
+
+
+def _vq_build_rationale(
+    *,
+    succeeded: bool,
+    chain_health: str,
+    models_failed_count: int,
+    chain_size: int,
+    final_model_id: Optional[str],
+    voice_slug: str,
+) -> str:
+    """Compose a one-paragraph rationale per FR-2.8 / schema.rationale.
+    MUST NOT include credentials / endpoint URLs / API keys (NFR-Sec-4).
+    Only model identifiers, counts, and the voice slug appear; all of these
+    are bounded by the same schema patterns as the envelope fields."""
+    if succeeded and chain_health == "ok":
+        return (
+            f"single-voice cheval invoke (voice={voice_slug}); primary chain "
+            f"entry succeeded; chain_health=ok"
+        )
+    if succeeded and chain_health == "degraded":
+        # NOTE: final_model_id is provider:model_id form which matches the
+        # ^[a-z][a-z0-9_]*:[a-zA-Z0-9._-]+$ pattern; no shell metas to escape.
+        return (
+            f"single-voice cheval invoke (voice={voice_slug}); chain walked "
+            f"to fallback {final_model_id or 'unknown'} (succeeded); "
+            f"chain_health=degraded"
+        )
+    # Failure paths
+    return (
+        f"single-voice cheval invoke (voice={voice_slug}); chain exhausted "
+        f"after {models_failed_count}/{chain_size} entries; chain_health=exhausted"
+    )
+
+
+def _vq_build_envelope(
+    *,
+    models_requested: List[str],
+    models_succeeded: List[str],
+    models_failed: List[Dict[str, Any]],
+    final_model_id: Optional[str],
+    role: Optional[str],
+    sprint_kind: Optional[str],
+    last_walk_exit_code: int,
+) -> Dict[str, Any]:
+    """Build and validate a verdict_quality envelope for a single cmd_invoke.
+
+    Returns the validated, status-stamped envelope (per SDD §3.2.2). On
+    invariant violation raises ``_VqInvariantViolation`` which the caller
+    SHOULD catch + log + emit MODELINV without the field rather than
+    failing the user-facing call.
+    """
+    primary_canonical = models_requested[0] if models_requested else None
+    chain_size = len(models_requested)
+    succeeded = bool(models_succeeded)
+    voice_slug = _vq_derive_voice_slug(role, primary_canonical)
+
+    voices_succeeded = 1 if succeeded else 0
+    voices_succeeded_ids = [voice_slug] if succeeded else []
+
+    chain_health = _vq_derive_chain_health(
+        succeeded=succeeded,
+        final_model_id=final_model_id,
+        primary_canonical=primary_canonical,
+    )
+
+    voices_dropped: List[Dict[str, Any]] = []
+    if not succeeded:
+        reason = _vq_map_reason(
+            models_failed=models_failed,
+            chain_size=chain_size,
+            succeeded=succeeded,
+        )
+        blocker_risk = _vq_compute_blocker_risk(
+            reason=reason, voice_role=role, sprint_kind=sprint_kind,
+        )
+        chain_walk = [
+            str(f["model"])
+            for f in models_failed
+            if isinstance(f, dict) and f.get("model")
+        ]
+        # Clamp exit code to the POSIX range so schema validation (0..255)
+        # cannot reject the envelope on an out-of-band value.
+        exit_code = max(0, min(255, int(last_walk_exit_code)))
+        voices_dropped.append({
+            "voice": voice_slug,
+            "reason": reason,
+            "exit_code": exit_code,
+            "blocker_risk": blocker_risk,
+            "chain_walk": chain_walk,
+        })
+
+    rationale = _vq_build_rationale(
+        succeeded=succeeded,
+        chain_health=chain_health,
+        models_failed_count=len(models_failed),
+        chain_size=chain_size,
+        final_model_id=final_model_id,
+        voice_slug=voice_slug,
+    )
+
+    envelope: Dict[str, Any] = {
+        "consensus_outcome": "consensus",
+        "truncation_waiver_applied": False,
+        "voices_planned": 1,
+        "voices_succeeded": voices_succeeded,
+        "voices_succeeded_ids": voices_succeeded_ids,
+        "voices_dropped": voices_dropped,
+        "chain_health": chain_health,
+        "confidence_floor": "low",  # single-voice paths per schema §confidence_floor
+        "rationale": rationale,
+        "single_voice_call": True,
+    }
+    # validate_invariants + compute_verdict_status stamp `status` in-place.
+    return _vq_emit_with_status(envelope)
+
+
+def _peek_provider_for_advisor(
+    agent_name: str,
+    hounfour: Dict[str, Any],
+) -> Optional[str]:
+    """Resolve the agent → binding → alias → provider chain for advisor-strategy
+    PROVIDER inference. Returns the provider name on success, or None on
+    ANY failure (unknown agent, missing alias, broken chain).
+
+    cycle-109 Sprint 5 T5.1 (#874): closes the BB iter-2 F009 / iter-3 F008
+    carry-in. Earlier inline peek caught a bare Exception and defaulted to
+    ``"anthropic"``, silently mutating ``args.model`` with the wrong provider
+    when a non-anthropic binding had a benign alias-chain typo. The helper
+    surface contract is: failures observably disable advisor for this
+    invocation (the caller treats None as "advisor disabled") rather than
+    pretending the binding is anthropic.
+    """
+    try:
+        from loa_cheval.routing.resolver import (
+            resolve_agent_binding,
+            resolve_alias,
+        )
+    except ImportError:
+        return None
+    try:
+        binding = resolve_agent_binding(agent_name, hounfour)
+    except Exception:  # noqa: BLE001 — known agent or fail-disable
+        return None
+    aliases = hounfour.get("aliases", {}) if isinstance(hounfour, dict) else {}
+    try:
+        resolved = resolve_alias(binding.model, aliases)
+    except Exception:  # noqa: BLE001 — known alias or fail-disable
+        return None
+    return getattr(resolved, "provider", None)
+
+
 def cmd_invoke(args: argparse.Namespace) -> int:
     """Main invocation: resolve agent → call provider → return response."""
     config, sources = load_config(cli_args=vars(args))
@@ -757,47 +1054,41 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                 load_advisor_strategy,
                 ConfigError as _AdvisorConfigError,
             )
-            from loa_cheval.routing.resolver import (
-                resolve_agent_binding as _resolve_binding_peek,
-                resolve_alias as _resolve_alias_peek,
-            )
             _project_root = Path(__file__).resolve().parents[2]
             _advisor_cfg = load_advisor_strategy(_project_root)
             if _advisor_cfg.enabled:
-                # C1 closure: peek at the binding's resolved provider via
-                # alias chain BEFORE advisor resolve. Falls back to "anthropic"
-                # only if peek fails (e.g., unknown agent — error surfaces
-                # later in resolve_execution with a clearer message).
-                try:
-                    _binding_peek = _resolve_binding_peek(agent_name, hounfour)
-                    _aliases_peek = hounfour.get("aliases", {})
-                    _resolved_peek = _resolve_alias_peek(_binding_peek.model, _aliases_peek)
-                    _advisor_inferred_provider = _resolved_peek.provider
-                except Exception:  # noqa: BLE001 — defensive; resolve_execution will re-surface
-                    _advisor_inferred_provider = "anthropic"
-                _skill = args.skill or agent_name
-                try:
-                    _advisor_resolved = _advisor_cfg.resolve(
-                        role=args.role,
-                        skill=_skill,
-                        provider=_advisor_inferred_provider,
-                    )
-                    args.model = f"{_advisor_inferred_provider}:{_advisor_resolved.model_id}"
-                except _AdvisorConfigError as _e:
-                    _msg = str(_e)
-                    if "not in tier_aliases" in _msg:
-                        # Advisor strategy has no tier-mapping for this provider —
-                        # graceful fallback to the agent's bound model. C1
-                        # closure: a non-Anthropic provider no longer errors out
-                        # when advisor-strategy is only configured for Anthropic.
-                        _advisor_resolved = None
-                    else:
-                        # NFR-Sec1 violations and other ConfigErrors still fail.
-                        print(
-                            _error_json("INVALID_CONFIG", f"advisor-strategy resolve failed: {_e}"),
-                            file=sys.stderr,
+                # cycle-109 T5.1 (#874): peek-failure → advisor DISABLED for
+                # this invocation (helper returns None) rather than defaulting
+                # to "anthropic" and silently mutating args.model with the
+                # wrong provider. resolve_execution will surface the original
+                # binding / alias error with a clearer message.
+                _advisor_inferred_provider = _peek_provider_for_advisor(
+                    agent_name, hounfour,
+                )
+                if _advisor_inferred_provider is not None:
+                    _skill = args.skill or agent_name
+                    try:
+                        _advisor_resolved = _advisor_cfg.resolve(
+                            role=args.role,
+                            skill=_skill,
+                            provider=_advisor_inferred_provider,
                         )
-                        return EXIT_CODES.get("INVALID_CONFIG", 2)
+                        args.model = f"{_advisor_inferred_provider}:{_advisor_resolved.model_id}"
+                    except _AdvisorConfigError as _e:
+                        _msg = str(_e)
+                        if "not in tier_aliases" in _msg:
+                            # Advisor strategy has no tier-mapping for this provider —
+                            # graceful fallback to the agent's bound model. C1
+                            # closure: a non-Anthropic provider no longer errors out
+                            # when advisor-strategy is only configured for Anthropic.
+                            _advisor_resolved = None
+                        else:
+                            # NFR-Sec1 violations and other ConfigErrors still fail.
+                            print(
+                                _error_json("INVALID_CONFIG", f"advisor-strategy resolve failed: {_e}"),
+                                file=sys.stderr,
+                            )
+                            return EXIT_CODES.get("INVALID_CONFIG", 2)
         except ImportError:
             # advisor_strategy module not yet present (pre-T1.C state) —
             # silently skip; existing behavior preserved.
@@ -1070,8 +1361,13 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     recommended_for=list(_RECOMMENDED_FOR_ALLOW_ALL),
                     ceiling_stale=False,
                 )
-        # Sprint 4 will wire chunking; Sprint 1 always preempts on breach.
-        _preflight_chunking_enabled = False
+        # cycle-109 Sprint 4 T4.5: chunking is enabled by default; the
+        # pre-flight gate now routes oversized inputs to the chunked
+        # dispatch path via loa_cheval.chunking instead of preempting
+        # with CONTEXT_TOO_LARGE. Operators can disable via env var.
+        _preflight_chunking_enabled = os.environ.get(
+            "LOA_CHEVAL_DISABLE_CHUNKING", "0",
+        ) != "1"
         _preflight_decision = _preflight_check(
             estimated_input=_preflight_estimated,
             capability=_preflight_synthetic_capability,
@@ -1130,6 +1426,243 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                 ceiling_stale=_preflight_decision.ceiling_stale,
             ), file=sys.stderr)
             return EXIT_CODES["CONTEXT_TOO_LARGE"]
+
+        # cycle-109 Sprint 4 T4.5: chunked dispatch path. When the
+        # pre-flight gate decided "chunk" (input > ceiling × 0.7 AND
+        # chunking enabled), partition the input via the chunking
+        # package, dispatch each chunk through cheval recursively,
+        # aggregate findings via IMP-006, and emit the aggregated
+        # result. ChunkingExceeded → exit code 13 (T4.5 closure).
+        if _preflight_decision is not None and _preflight_decision.action == "chunk":
+            from loa_cheval.chunking.chunker import (
+                chunk_pr_for_review, ChunkingExceeded,
+            )
+            from loa_cheval.chunking.aggregate import aggregate_findings
+
+            # PR #896 BB iter-4 closure: hoist the chunked MODELINV +
+            # verdict_quality + sidecar emit helper ABOVE the chunker
+            # try/except so BOTH success and ChunkingExceeded paths route
+            # through the same audit envelope. iter-3 left ChunkingExceeded
+            # emitting MODELINV without verdict_quality; this closes it.
+            def _emit_chunked_audit_envelope(last_walk_exit_code: int = 0) -> None:
+                _vq_chunked: Optional[Dict[str, Any]] = None
+                try:
+                    _vq_chunked = _vq_build_envelope(
+                        models_requested=_modelinv_models_requested,
+                        models_succeeded=_modelinv_state["models_succeeded"],
+                        models_failed=_modelinv_state["models_failed"],
+                        final_model_id=_modelinv_state["final_model_id"],
+                        role=getattr(args, "role", None),
+                        sprint_kind=getattr(args, "sprint_kind", None),
+                        last_walk_exit_code=last_walk_exit_code,
+                    )
+                except Exception as _vq_err:  # noqa: BLE001
+                    print(
+                        f"[VQ-BUILD-FAILED:chunked] {type(_vq_err).__name__}: {_vq_err}",
+                        file=sys.stderr,
+                    )
+                if _vq_chunked is not None:
+                    try:
+                        _vq_write_sidecar(_vq_chunked)
+                    except Exception as _sc_err:  # noqa: BLE001
+                        print(
+                            f"[VQ-SIDECAR-FAILED:chunked] {type(_sc_err).__name__}: {_sc_err}",
+                            file=sys.stderr,
+                        )
+                try:
+                    _emit_modelinv(
+                        models_requested=_modelinv_models_requested,
+                        models_succeeded=_modelinv_state["models_succeeded"],
+                        models_failed=_modelinv_state["models_failed"],
+                        operator_visible_warn=_modelinv_state["operator_visible_warn"],
+                        capability_class=_modelinv_capability_class,
+                        invocation_latency_ms=_modelinv_state["invocation_latency_ms"],
+                        cost_micro_usd=_modelinv_state["cost_micro_usd"],
+                        streaming=_modelinv_state["streaming"],
+                        final_model_id=_modelinv_state["final_model_id"],
+                        transport=_modelinv_state["transport"],
+                        config_observed=_modelinv_state["config_observed"],
+                        pricing_snapshot=_modelinv_state["pricing_snapshot"],
+                        capability_evaluation=_modelinv_state["capability_evaluation"],
+                        chunked_review=_modelinv_state.get("chunked_review"),
+                        verdict_quality=_vq_chunked,
+                    )
+                except Exception as _emit_err:  # noqa: BLE001
+                    print(
+                        f"[AUDIT-EMIT-FAILED:chunked] {type(_emit_err).__name__}: {_emit_err}",
+                        file=sys.stderr,
+                    )
+
+            try:
+                _chunks = chunk_pr_for_review(
+                    input_text=input_text,
+                    effective_input_ceiling=_preflight_decision.effective_input_ceiling,
+                    shared_header="",  # T4.8 may populate from PR description
+                )
+            except ChunkingExceeded as _ce:
+                print(
+                    f"[preflight] chunked-dispatch refused: {_ce}",
+                    file=sys.stderr,
+                )
+                print(_error_json(
+                    "CHUNKING_EXCEEDED",
+                    str(_ce),
+                    retryable=False,
+                    **_ce.context,
+                ), file=sys.stderr)
+                _modelinv_state["models_failed"].append({
+                    "model": _preflight_head.canonical,
+                    "provider": _preflight_head.provider,
+                    "error_class": "DEGRADED_PARTIAL",
+                    "message_redacted": f"ChunkingExceeded: {_ce.context}",
+                })
+                _modelinv_state["final_model_id"] = _preflight_head.canonical
+                _modelinv_state["transport"] = _preflight_head.adapter_kind
+                _modelinv_state["operator_visible_warn"] = True
+                _modelinv_state.setdefault("chunked_review", {})
+                _modelinv_state["chunked_review"].update({
+                    "chunked": True,
+                    "dispatch_mode": "chunks_exceeded_max",
+                    "chunks_planned": _ce.context.get("required_chunks", -1)
+                    if hasattr(_ce, "context") else -1,
+                    "chunks_reviewed": 0,
+                })
+                # PR #896 BB iter-4 FIND-3 closure: ChunkingExceeded early-
+                # return now routes through the SAME audit-envelope helper
+                # used by the fail-closed + placeholder paths, so a
+                # verdict_quality envelope + sidecar land alongside MODELINV.
+                # exit code 13 (CHUNKING_EXCEEDED) is the verdict; VQ
+                # surfaces the drop-reason for downstream consumers.
+                _emit_chunked_audit_envelope(
+                    last_walk_exit_code=EXIT_CODES["CHUNKING_EXCEEDED"],
+                )
+                return EXIT_CODES["CHUNKING_EXCEEDED"]
+
+            # PR #896 BB iter-4 closure: chunked-branch emit consolidated to
+            # the hoisted `_emit_chunked_audit_envelope` helper defined above
+            # so ChunkingExceeded AND fail-closed AND placeholder paths share
+            # the same audit shape (MODELINV + verdict_quality + sidecar).
+
+            # PR #896 BB iter-1 F001/FIND-001 closure: per-chunk recursive
+            # cheval dispatch (production wiring) is cycle-110 scope. Until
+            # that lands, the chunked-dispatch branch is FAIL-CLOSED — it
+            # MUST NOT return SUCCESS + empty findings, because doing so
+            # is the exact NFR-Rel-1 anti-pattern this cycle was built to
+            # eliminate (a "smoke detector that says all clear because its
+            # battery is dead").
+            #
+            # Operators who genuinely need to bypass chunking can set
+            # LOA_CHEVAL_DISABLE_CHUNKING=1, which routes via the normal
+            # single-call path (and surfaces a clean ContextTooLarge if
+            # that exceeds the ceiling). Operators who genuinely need to
+            # ship a placeholder-success can set
+            # LOA_CHEVAL_CHUNKING_PLACEHOLDER=1 — explicitly opt-in to the
+            # degraded-success path with a stderr WARN + envelope marker.
+            # Default is fail-closed.
+            print(
+                f"[preflight] chunked dispatch: chunks={len(_chunks)} "
+                f"ceiling={_preflight_decision.effective_input_ceiling} "
+                f"estimated={_preflight_decision.estimated_input}",
+                file=sys.stderr,
+            )
+            # PR #896 BB iter-5 F001 closure: placeholder mode requires
+            # BOTH the env var AND the --force-chunking-placeholder CLI
+            # flag (dual-gate). The previous single-env-var gate let any
+            # caller flip into the NFR-Rel-1 anti-pattern by setting a
+            # well-known variable; the CLI flag forces the caller to ATTEST
+            # at every invocation. Caller-attested + env var = explicit
+            # opt-in trail visible to both audit envelope (envvar) and
+            # invocation log (argv).
+            _placeholder_env = os.environ.get(
+                "LOA_CHEVAL_CHUNKING_PLACEHOLDER", ""
+            ).strip().lower() in ("1", "true", "yes", "on")
+            _placeholder_flag = bool(getattr(args, "force_chunking_placeholder", False))
+            _placeholder_opt_in = _placeholder_env and _placeholder_flag
+            if _placeholder_env and not _placeholder_flag:
+                print(
+                    "[preflight] LOA_CHEVAL_CHUNKING_PLACEHOLDER=1 set but "
+                    "--force-chunking-placeholder CLI flag NOT supplied — "
+                    "iter-5 dual-gate refuses placeholder mode without "
+                    "argv attestation.",
+                    file=sys.stderr,
+                )
+
+            # Either way, record chunk count + dispatch metadata in
+            # MODELINV so substrate-health rollups (T4.7) see the
+            # invocation (BB iter-1 F002 closure: the chunked path
+            # MUST NOT be invisible to the audit envelope).
+            _modelinv_state["final_model_id"] = _preflight_head.canonical
+            _modelinv_state["transport"] = _preflight_head.adapter_kind
+            _modelinv_state.setdefault("chunked_review", {})
+            _modelinv_state["chunked_review"].update({
+                "chunked": True,
+                "chunks_planned": len(_chunks),
+                "chunks_reviewed": 0,
+                "dispatch_mode": (
+                    "placeholder_opt_in" if _placeholder_opt_in
+                    else "fail_closed_pending_cycle_110"
+                ),
+            })
+
+            if not _placeholder_opt_in:
+                # Fail-closed: surface DEGRADED + non-zero exit. Caller
+                # observes the same shape as any other chain-exhausted /
+                # provider-failure path so audit envelopes downstream
+                # don't see "APPROVED + zero findings" by accident.
+                _modelinv_state["models_failed"].append({
+                    "model": _preflight_head.canonical,
+                    "provider": _preflight_head.provider,
+                    "error_class": "DEGRADED_PARTIAL",
+                    "message_redacted": (
+                        f"chunked-dispatch fail-closed pending cycle-110 "
+                        f"production wiring; chunks_planned={len(_chunks)}, "
+                        f"estimated_input={_preflight_decision.estimated_input}"
+                    ),
+                })
+                _modelinv_state["operator_visible_warn"] = True
+                print(_error_json(
+                    "CHUNKED_DISPATCH_FAIL_CLOSED",
+                    (
+                        f"chunked-dispatch path is fail-closed pending cycle-110 "
+                        f"production wiring (BB iter-1 F001). "
+                        f"chunks_planned={len(_chunks)}. "
+                        "Set LOA_CHEVAL_CHUNKING_PLACEHOLDER=1 to opt into "
+                        "the legacy placeholder-success path (NOT recommended)."
+                    ),
+                    retryable=False,
+                ), file=sys.stderr)
+                _emit_chunked_audit_envelope()
+                # Same exit code as ChainExhausted — caller treats this
+                # as a chain-walk failure for audit-trail consistency.
+                return EXIT_CODES["CHAIN_EXHAUSTED"]
+
+            # Placeholder opt-in path (legacy behavior; emits
+            # operator_visible_warn for explicit traceability).
+            print(
+                "[preflight] WARNING: LOA_CHEVAL_CHUNKING_PLACEHOLDER=1 — "
+                "emitting empty findings; this bypasses NFR-Rel-1 gate.",
+                file=sys.stderr,
+            )
+            _aggregated = aggregate_findings([])
+            _modelinv_state["models_succeeded"] = [_preflight_head.canonical]
+            _modelinv_state["operator_visible_warn"] = True
+            output = {
+                "content": "{\"findings\": []}",
+                "model": _preflight_head.canonical,
+                "provider": _preflight_head.provider,
+                "usage": {"input_tokens": _preflight_decision.estimated_input,
+                          "output_tokens": 0},
+                "latency_ms": 0,
+                "chunked": True,
+                "chunks_reviewed": _aggregated.chunks_reviewed,
+                "chunks_with_findings": _aggregated.chunks_with_findings,
+                "second_stage_invoked": _aggregated.second_stage_invoked,
+                "placeholder_opt_in": True,
+            }
+            print(json.dumps(output), file=sys.stdout)
+            _emit_chunked_audit_envelope()
+            return EXIT_CODES["SUCCESS"]
+
         # ceiling_stale informational warning (Sprint 4 wires chunked-defensive
         # routing). For Sprint 1 we surface a stderr marker so operators see
         # the staleness signal without blocking dispatch.
@@ -1584,6 +2117,45 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                 _chain_list = [p.strip() for p in _invocation_chain_env.split(",") if p.strip()]
                 if _chain_list:
                     _advisor_kwargs["invocation_chain"] = _chain_list[:16]
+
+            # cycle-109 Sprint 2 T2.3 — verdict-quality envelope construction.
+            # Build BEFORE _emit_modelinv so a builder error logs to stderr
+            # without preventing the MODELINV envelope from landing in the
+            # chain. SDD §3.2.3 IMP-004 row 1: cheval is PRODUCER #1; every
+            # invoke MUST attempt to emit. Failures here are fail-soft.
+            _vq_envelope: Optional[Dict[str, Any]] = None
+            try:
+                _vq_envelope = _vq_build_envelope(
+                    models_requested=_modelinv_models_requested,
+                    models_succeeded=_modelinv_state["models_succeeded"],
+                    models_failed=_modelinv_state["models_failed"],
+                    final_model_id=_modelinv_state["final_model_id"],
+                    role=getattr(args, "role", None),
+                    sprint_kind=getattr(args, "sprint_kind", None),
+                    last_walk_exit_code=_last_walk_exit_code,
+                )
+            except _VqInvariantViolation as _vqe:
+                # The envelope failed v5 SKP-005 invariant checks. This
+                # indicates a producer-side bug (we built a malformed
+                # envelope); log it loudly and proceed without the field.
+                print(
+                    f"[verdict-quality-invariant-violation] {_vqe}",
+                    file=sys.stderr,
+                )
+            except Exception as _vqe:  # noqa: BLE001 — defense-in-depth fail-soft
+                print(
+                    f"[verdict-quality-build-failed] "
+                    f"{type(_vqe).__name__}: {_vqe}",
+                    file=sys.stderr,
+                )
+
+            # cycle-109 Sprint 2 T2.4 — sidecar transport for FL CONSUMER #2.
+            # When LOA_VERDICT_QUALITY_SIDECAR is set, write the envelope JSON
+            # to that path so flatline-orchestrator.sh (and other bash callers)
+            # can read it back without scraping the shared MODELINV log under
+            # parallel-dispatch races. Fail-soft; no-op when env var unset.
+            _vq_write_sidecar(_vq_envelope)
+
             try:
                 _emit_modelinv(
                     models_requested=_modelinv_models_requested,
@@ -1599,6 +2171,7 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     config_observed=_modelinv_state["config_observed"],
                     pricing_snapshot=_modelinv_state["pricing_snapshot"],
                     capability_evaluation=_modelinv_state["capability_evaluation"],
+                    verdict_quality=_vq_envelope,
                     **_advisor_kwargs,
                 )
             except _ModelinvRedactionFailure as _rf:
@@ -1791,6 +2364,17 @@ def main() -> int:
 
     # Utility commands
     parser.add_argument("--dry-run", action="store_true", dest="dry_run", help="Validate and print resolved model, don't call API")
+    parser.add_argument(
+        "--force-chunking-placeholder", action="store_true",
+        dest="force_chunking_placeholder",
+        help=(
+            "PR #896 BB iter-5 F001 closure — opt into the chunked-dispatch "
+            "PLACEHOLDER path that returns SUCCESS + empty findings. This is "
+            "the documented NFR-Rel-1 anti-pattern escape hatch; ONLY accept "
+            "for fixture-replay and operator-attested debugging. Requires "
+            "LOA_CHEVAL_CHUNKING_PLACEHOLDER=1 ALSO set (dual-gate)."
+        ),
+    )
     parser.add_argument("--print-effective-config", action="store_true", dest="print_config", help="Print merged config with source annotations")
     parser.add_argument("--validate-bindings", action="store_true", dest="validate_bindings", help="Validate all agent bindings")
 
