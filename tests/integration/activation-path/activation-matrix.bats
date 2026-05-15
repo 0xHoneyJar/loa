@@ -158,22 +158,24 @@ _require_curl_mock() {
         skip "matrix execution deferred until commit C (T3.6 — is_flatline_routing_enabled branches removed). Set LOA_ACTIVATION_MATRIX_LIVE=1 post-T3.6 to run."
     fi
 
-    # PR #896 BB iter-1 FIND-004 closure: the previous "live" path was a
-    # silent no-op (`cells_passed=$((cells_passed + 1))` without loading
-    # any fixture or asserting any verdict). That made `LOA_ACTIVATION_MATRIX_LIVE=1`
-    # report a green 810/810 pass while the real per-cell fixtures, verdict
-    # assertion, and LOA_ACTIVATION_CONSUMER sharding were still TODO.
-    # A test that always passes consumes the trust budget worse than no
-    # test — it actively misleads.
+    # PR #896 BB iter-1 FIND-004 + iter-2 FIND-005 closure: the previous
+    # "live" path was a silent no-op (`cells_passed=$((cells_passed + 1))`
+    # without loading any fixture or asserting any verdict). That made
+    # `LOA_ACTIVATION_MATRIX_LIVE=1` report a green 810/810 pass while
+    # the real per-cell fixtures, verdict assertion, and
+    # LOA_ACTIVATION_CONSUMER sharding were still TODO.
     #
-    # Until the per-cell fixture loader lands (cycle-110 scope), `LIVE=1`
-    # is a HARD SKIP with a clear reason rather than a fake green pass.
-    # Operators who explicitly want the cartesian smoke (cell-count only,
-    # NO verdict assertion) can opt in via
-    # `LOA_ACTIVATION_MATRIX_SMOKE_ONLY=1`, which preserves the legacy
-    # behavior under an explicit, traceable name.
+    # iter-1 fix was to skip-pass (LIVE=1 alone → skip). iter-2 BB flagged
+    # that as still vacuous when this becomes a required check: required +
+    # skip = green job = phantom voter. The correct semantic is HARD FAIL
+    # when the loader is absent. Operators who explicitly want the
+    # cartesian-count smoke (NO verdict assertion) can opt in via
+    # `LOA_ACTIVATION_MATRIX_SMOKE_ONLY=1`.
     if [[ "${LOA_ACTIVATION_MATRIX_SMOKE_ONLY:-0}" != "1" ]]; then
-        skip "AM10 live-mode per-cell fixture loader is cycle-110 scope (PR #896 BB iter-1 FIND-004). Set LOA_ACTIVATION_MATRIX_SMOKE_ONLY=1 to run the cartesian-count smoke only (NO verdict assertion)."
+        echo "AM10 live-mode per-cell fixture loader is cycle-110 scope (PR #896 BB iter-2 FIND-005)." >&2
+        echo "Set LOA_ACTIVATION_MATRIX_SMOKE_ONLY=1 to run the cartesian-count smoke only (NO verdict assertion)." >&2
+        echo "Set LOA_ACTIVATION_MATRIX_LIVE=0 to keep this test as a non-blocking skip." >&2
+        return 1
     fi
 
     # Smoke-only path: legacy cartesian-product loop preserved verbatim
