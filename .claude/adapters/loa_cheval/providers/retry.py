@@ -70,39 +70,224 @@ class NoOpMetricsHook:
         pass
 
 
-# --- Circuit breaker (Sprint 3 — file-based state machine) ---
+# --- Circuit breaker (cycle-110: keyed on (provider, auth_type) — FR-0) ---
 
 
-def _check_circuit_breaker(provider: str, config: Dict[str, Any]) -> str:
-    """Check circuit breaker state for a provider.
+_ADAPTER_AUTH_TYPE_WARN_SEEN: set = set()
+
+
+def _adapter_auth_type(adapter: "ProviderAdapter") -> str:
+    """Resolve the auth_type bucket for an adapter.
+
+    Cycle-110 FR-0 keys the circuit breaker on `(provider, auth_type)`.
+    Sprint-1 introduces the key-widening; Sprint-2 (FR-2.3) propagates
+    auth_type explicitly onto every adapter dataclass. Until then, the
+    conservative default is `http_api` — that is the bucket legacy state
+    is preserved into and the HTTP-path is what existing adapters use.
+
+    Sprint-1 → Sprint-2 attribution gap (BB #903 iter-1 F7 closure):
+    when the adapter does NOT declare `auth_type`, every headless-only
+    provider's failures still route to the http_api bucket. To prevent
+    silently re-creating the FR-0.4 masking pattern under a different
+    bucket name, the missing-attribute path emits a one-time WARN per
+    (provider) so operators see the gap. Sprint-2 T2.3 propagation
+    eliminates the gap entirely.
+    """
+    # TODO(cycle-110 sprint-2 T2.3 / FR-2.3): adapter.auth_type becomes
+    # mandatory; this getattr fallback is removed.
+    from loa_cheval.routing.circuit_breaker import AUTH_TYPE_HTTP_API
+
+    if hasattr(adapter, "auth_type"):
+        return adapter.auth_type  # type: ignore[no-any-return]
+
+    provider = getattr(adapter, "provider", "<unknown>")
+    if provider not in _ADAPTER_AUTH_TYPE_WARN_SEEN:
+        _ADAPTER_AUTH_TYPE_WARN_SEEN.add(provider)
+        logger.warning(
+            "[CB-AUTH-TYPE-FALLBACK] adapter for provider=%s lacks "
+            "explicit auth_type; defaulting to http_api per cycle-110 "
+            "sprint-1 transition contract. Sprint-2 T2.3 (FR-2.3) lands "
+            "the per-adapter declaration; until then, headless-only "
+            "providers will route failures through the http_api bucket. "
+            "This warning fires once per provider per process.",
+            provider,
+        )
+    return AUTH_TYPE_HTTP_API
+
+
+# Cycle-110 SDD §5.3 starvation guard: exponential-backoff retry envelope
+# wrapping the migration timeout. Per SDD: "bash callers wrap migration in a
+# 3-retry exponential backoff (1s/2s/4s) before treating MigrationTimeout as
+# fatal." Implemented Python-side because retry.py is the canonical caller.
+_CB_MIGRATION_RETRY_DELAYS = (1.0, 2.0, 4.0)
+
+
+def _check_circuit_breaker(
+    provider: str, auth_type: str, config: Dict[str, Any]
+) -> str:
+    """Check circuit breaker state for a (provider, auth_type) bucket.
 
     Returns: 'CLOSED', 'OPEN', 'HALF_OPEN'.
-    Reads .run/circuit-breaker-{provider}.json.
+    Reads .run/circuit-breaker-{provider}-{auth_type}.json.
+
+    Wraps the underlying call in an SDD §5.3 starvation guard: if the
+    legacy-migration flock cannot be acquired within its 10s timeout, retry
+    with exponential backoff (1s / 2s / 4s). After exhausting retries,
+    degrade fail-CLOSED-but-treated-as-OPEN: we cannot read the bucket
+    state safely, so we refuse the dispatch rather than crash with an
+    unhandled typed exception.
     """
-    from loa_cheval.routing.circuit_breaker import check_state
+    from loa_cheval.routing.circuit_breaker import (
+        CircuitBreakerMigrationTimeout, check_state,
+    )
 
-    return check_state(provider, config)
+    last_exc: Optional[CircuitBreakerMigrationTimeout] = None
+    for attempt in range(len(_CB_MIGRATION_RETRY_DELAYS) + 1):
+        try:
+            return check_state(provider, auth_type, config)
+        except CircuitBreakerMigrationTimeout as exc:
+            last_exc = exc
+            if attempt >= len(_CB_MIGRATION_RETRY_DELAYS):
+                break
+            delay = _CB_MIGRATION_RETRY_DELAYS[attempt]
+            logger.warning(
+                "CB migration lock contended for %s/%s "
+                "(attempt %d/%d, holder_pid=%d) — backing off %ss",
+                provider, auth_type,
+                attempt + 1, len(_CB_MIGRATION_RETRY_DELAYS) + 1,
+                exc.holder_pid, delay,
+            )
+            time.sleep(delay)
+    # Starvation: cannot read bucket state. Treat as OPEN (fail-closed) so the
+    # caller skips this adapter rather than blowing up.
+    holder_pid = last_exc.holder_pid if last_exc else 0
+    logger.error(
+        "CB migration starvation for %s/%s after %d retries (holder_pid=%d) "
+        "— degrading to OPEN",
+        provider, auth_type,
+        len(_CB_MIGRATION_RETRY_DELAYS) + 1,
+        holder_pid,
+    )
+    # BB iter-1 F4 closure: emit a distinct [L4-CB-STARVATION] marker to the
+    # substrate-health journal so operators can distinguish 'circuit tripped
+    # from failures' from 'circuit unreadable due to flock contention'. The
+    # write is best-effort — if it fails, the caller has already logged the
+    # ERROR-level diagnostic above.
+    _emit_cb_starvation_marker(provider, auth_type, holder_pid, "degraded-to-OPEN")
+    return "OPEN"
 
 
-def _record_failure(provider: str, config: Dict[str, Any]) -> None:
-    """Record a failure for circuit breaker tracking.
+def _emit_cb_starvation_marker(
+    provider: str, auth_type: str, holder_pid: int, action: str,
+) -> None:
+    """Emit `[L4-CB-STARVATION]` to substrate-health journal. Best-effort."""
+    try:
+        from loa_cheval.routing.circuit_breaker import _emit_journal_marker
+        _emit_journal_marker(
+            ".run",
+            "L4-CB-STARVATION",
+            {
+                "provider": provider,
+                "auth_type": auth_type,
+                "holder_pid": holder_pid,
+                "retries": len(_CB_MIGRATION_RETRY_DELAYS) + 1,
+                "action": action,
+            },
+        )
+    except Exception:  # noqa: BLE001 — observability is best-effort
+        pass
 
-    Updates .run/circuit-breaker-{provider}.json.
-    May transition CLOSED → OPEN or HALF_OPEN → OPEN.
+
+def _with_cb_migration_retry(
+    fn: Callable[..., Any],
+    *args: Any,
+    on_starvation_value: Optional[Any] = None,
+    starvation_action: str = "degraded-to-noop",
+    provider_for_log: str = "<unknown>",
+    auth_type_for_log: str = "<unknown>",
+) -> Any:
+    """BB iter-2 F5 closure: shared SDD §5.3 starvation-retry envelope.
+
+    Wraps any callable that may raise `CircuitBreakerMigrationTimeout` in the
+    canonical (1s, 2s, 4s) exponential-backoff retry envelope. On exhaustion,
+    logs ERROR + emits [L4-CB-STARVATION] journal marker + returns the
+    caller-provided `on_starvation_value` (None for record_* paths which are
+    fire-and-forget; "OPEN" for check_state).
+
+    Symmetric application across check / record_failure / record_success
+    closes BB iter-2 F5: asymmetric envelopes were a known source of
+    intermittent crashes under migration-lock contention.
+    """
+    from loa_cheval.routing.circuit_breaker import CircuitBreakerMigrationTimeout
+
+    last_exc: Optional[CircuitBreakerMigrationTimeout] = None
+    for attempt in range(len(_CB_MIGRATION_RETRY_DELAYS) + 1):
+        try:
+            return fn(*args)
+        except CircuitBreakerMigrationTimeout as exc:
+            last_exc = exc
+            if attempt >= len(_CB_MIGRATION_RETRY_DELAYS):
+                break
+            delay = _CB_MIGRATION_RETRY_DELAYS[attempt]
+            logger.warning(
+                "CB migration lock contended for %s/%s "
+                "(attempt %d/%d, holder_pid=%d) — backing off %ss",
+                provider_for_log, auth_type_for_log,
+                attempt + 1, len(_CB_MIGRATION_RETRY_DELAYS) + 1,
+                exc.holder_pid, delay,
+            )
+            time.sleep(delay)
+    holder_pid = last_exc.holder_pid if last_exc else 0
+    logger.error(
+        "CB migration starvation for %s/%s on %s after %d retries "
+        "(holder_pid=%d) — %s",
+        provider_for_log, auth_type_for_log,
+        fn.__name__, len(_CB_MIGRATION_RETRY_DELAYS) + 1,
+        holder_pid, starvation_action,
+    )
+    _emit_cb_starvation_marker(
+        provider_for_log, auth_type_for_log, holder_pid, starvation_action,
+    )
+    return on_starvation_value
+
+
+def _record_failure(
+    provider: str, auth_type: str, config: Dict[str, Any]
+) -> None:
+    """Record a failure for the (provider, auth_type) bucket.
+
+    BB iter-2 F5 closure: wrapped in the SDD §5.3 starvation envelope so
+    a long-held migration lock cannot crash the record path. record_*
+    is fire-and-forget; on starvation we degrade to no-op (the next
+    invocation's check_state will re-evaluate).
     """
     from loa_cheval.routing.circuit_breaker import record_failure
 
-    record_failure(provider, config)
+    _with_cb_migration_retry(
+        record_failure, provider, auth_type, config,
+        on_starvation_value=None,
+        starvation_action="degraded-record-failure-to-noop",
+        provider_for_log=provider, auth_type_for_log=auth_type,
+    )
 
 
-def _record_success(provider: str, config: Dict[str, Any]) -> None:
-    """Record a success for circuit breaker tracking.
+def _record_success(
+    provider: str, auth_type: str, config: Dict[str, Any]
+) -> None:
+    """Record a success for the (provider, auth_type) bucket.
 
-    May transition HALF_OPEN → CLOSED on successful probe.
+    BB iter-2 F5 closure: same symmetric starvation envelope as
+    _record_failure. On starvation, no-op (lose this success-credit;
+    the circuit breaker's worst case is staying OPEN slightly longer).
     """
     from loa_cheval.routing.circuit_breaker import record_success
 
-    record_success(provider, config)
+    _with_cb_migration_retry(
+        record_success, provider, auth_type, config,
+        on_starvation_value=None,
+        starvation_action="degraded-record-success-to-noop",
+        provider_for_log=provider, auth_type_for_log=auth_type,
+    )
 
 
 # --- Main retry function ---
@@ -180,11 +365,15 @@ def invoke_with_retry(
         elif budget_status == "DOWNGRADE":
             logger.warning("Budget downgrade triggered — continuing with current model")
 
-        # Circuit breaker check
-        cb_state = _check_circuit_breaker(adapter.provider, config)
+        # Circuit breaker check (cycle-110 FR-0: keyed on (provider, auth_type))
+        auth_type = _adapter_auth_type(adapter)
+        cb_state = _check_circuit_breaker(adapter.provider, auth_type, config)
         if cb_state == "OPEN":
-            logger.info("Circuit breaker OPEN for %s, skipping", adapter.provider)
-            last_error = f"Circuit open for {adapter.provider}"
+            logger.info(
+                "Circuit breaker OPEN for %s/%s, skipping",
+                adapter.provider, auth_type,
+            )
+            last_error = f"Circuit open for {adapter.provider}/{auth_type}"
             # Don't count against retries — just skip
             continue
 
@@ -196,14 +385,14 @@ def invoke_with_retry(
             # Post-call hooks
             budget_hook.post_call(result)
             metrics_hook.record_attempt(adapter.provider, True, latency_ms)
-            _record_success(adapter.provider, config)
+            _record_success(adapter.provider, auth_type, config)
 
             return result
 
         except RateLimitError as e:
             latency_ms = int((time.monotonic() - start) * 1000)
             metrics_hook.record_attempt(adapter.provider, False, latency_ms)
-            _record_failure(adapter.provider, config)
+            _record_failure(adapter.provider, auth_type, config)
             last_error = str(e)
 
             # Exponential backoff with jitter
@@ -217,7 +406,7 @@ def invoke_with_retry(
         except ProviderUnavailableError as e:
             latency_ms = int((time.monotonic() - start) * 1000)
             metrics_hook.record_attempt(adapter.provider, False, latency_ms)
-            _record_failure(adapter.provider, config)
+            _record_failure(adapter.provider, auth_type, config)
             last_error = str(e)
 
             logger.warning(
@@ -239,7 +428,7 @@ def invoke_with_retry(
             # The remediation hint here MUST NOT recommend that flag.
             latency_ms = int((time.monotonic() - start) * 1000)
             metrics_hook.record_attempt(adapter.provider, False, latency_ms)
-            _record_failure(adapter.provider, config)
+            _record_failure(adapter.provider, auth_type, config)
             last_error = str(e)
             last_typed_error = e
 
@@ -267,7 +456,7 @@ def invoke_with_retry(
         except Exception as e:
             latency_ms = int((time.monotonic() - start) * 1000)
             metrics_hook.record_attempt(adapter.provider, False, latency_ms)
-            _record_failure(adapter.provider, config)
+            _record_failure(adapter.provider, auth_type, config)
             last_error = str(e)
 
             logger.warning(
