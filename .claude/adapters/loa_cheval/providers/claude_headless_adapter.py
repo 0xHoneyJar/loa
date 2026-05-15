@@ -120,38 +120,64 @@ class ClaudeHeadlessAdapter(ProviderAdapter):
         prompt = self._build_prompt(request.messages)
         cmd = self._build_command(request, model_config, prompt)
         timeout_s = self._compute_timeout()
+        # Cycle-110 sprint-2b2b1: default 50 (SDD §5.6). Operator override
+        # via advisor_strategy.headless_concurrency_limit is sprint-3 plumbing.
+        n_slots = 50
 
         logger.debug(
-            "claude-headless invoking: model=%s timeout=%.0fs prompt_chars=%d",
+            "claude-headless invoking: model=%s timeout=%.0fs prompt_chars=%d slots=%d",
             request.model,
             timeout_s,
             len(prompt),
+            n_slots,
+        )
+
+        # Cycle-110 sprint-2b2b1 T2.11 — acquire a slot in the cross-process
+        # N-slot semaphore before subprocess invocation. Caps headless
+        # concurrency at the per-CLI safe limit (FR-8.6 / SDD §5.6 v1.1).
+        # On exhaustion → [CHAIN-EXHAUSTED-CONCURRENCY] distinct from
+        # CHAIN_EXHAUSTED so MODELINV can record semaphore_exhausted=true.
+        from loa_cheval.adapters.headless_concurrency import (
+            SemaphoreExhausted as _SemaphoreExhausted,
+            acquire_slot as _acquire_slot,
         )
 
         start = time.monotonic()
         try:
-            proc = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=timeout_s,
-                check=False,
-                # claude -p reads prompt from argv (we passed it via the cmd
-                # array). Stdin stays closed to avoid hangs.
-                stdin=subprocess.DEVNULL,
-                # cycle-109 follow-up (#879 / #880): strip ANTHROPIC_API_KEY
-                # so claude -p uses OAuth subscription, not API mode.
-                env=build_headless_subprocess_env(),
-            )
-        except subprocess.TimeoutExpired:
+            with _acquire_slot("claude-headless", n_slots=n_slots):
+                try:
+                    proc = subprocess.run(
+                        cmd,
+                        capture_output=True,
+                        text=True,
+                        timeout=timeout_s,
+                        check=False,
+                        # claude -p reads prompt from argv (we passed it via the cmd
+                        # array). Stdin stays closed to avoid hangs.
+                        stdin=subprocess.DEVNULL,
+                        # cycle-109 follow-up (#879 / #880): strip ANTHROPIC_API_KEY
+                        # so claude -p uses OAuth subscription, not API mode.
+                        env=build_headless_subprocess_env(),
+                    )
+                except subprocess.TimeoutExpired:
+                    raise ProviderUnavailableError(
+                        self.provider,
+                        f"claude -p timed out after {timeout_s:.0f}s",
+                    )
+                except FileNotFoundError as exc:
+                    raise ConfigError(
+                        f"claude CLI not found on PATH (set CLAUDE_HEADLESS_BIN to override). "
+                        f"Install with: npm install -g @anthropic-ai/claude-code. Original: {exc}"
+                    ) from exc
+        except _SemaphoreExhausted as exc:
+            # C12 closure: distinct exit class so MODELINV records
+            # semaphore_exhausted=true and the caller routes the failure
+            # separately from CHAIN_EXHAUSTED.
             raise ProviderUnavailableError(
                 self.provider,
-                f"claude -p timed out after {timeout_s:.0f}s",
-            )
-        except FileNotFoundError as exc:
-            raise ConfigError(
-                f"claude CLI not found on PATH (set CLAUDE_HEADLESS_BIN to override). "
-                f"Install with: npm install -g @anthropic-ai/claude-code. Original: {exc}"
+                f"[CHAIN-EXHAUSTED-CONCURRENCY] claude-headless semaphore "
+                f"exhausted after {exc.waited_seconds:.1f}s "
+                f"(n_slots={exc.n_slots})",
             ) from exc
 
         latency_ms = int((time.monotonic() - start) * 1000)

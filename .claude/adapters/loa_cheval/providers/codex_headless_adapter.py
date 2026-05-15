@@ -118,36 +118,55 @@ class CodexHeadlessAdapter(ProviderAdapter):
         prompt = self._build_prompt(request.messages)
         cmd = self._build_command(request, model_config)
         timeout_s = self._compute_timeout()
+        # Cycle-110 sprint-2b2b1: default 50 (SDD §5.6). Operator override
+        # via advisor_strategy.headless_concurrency_limit is sprint-3 plumbing.
+        n_slots = 50
 
         logger.debug(
-            "codex-headless invoking: model=%s timeout=%.0fs prompt_chars=%d",
+            "codex-headless invoking: model=%s timeout=%.0fs prompt_chars=%d slots=%d",
             request.model,
             timeout_s,
             len(prompt),
+            n_slots,
+        )
+
+        # Cycle-110 sprint-2b2b1 T2.11 — N-slot semaphore wire-up.
+        from loa_cheval.adapters.headless_concurrency import (
+            SemaphoreExhausted as _SemaphoreExhausted,
+            acquire_slot as _acquire_slot,
         )
 
         start = time.monotonic()
         try:
-            proc = subprocess.run(
-                cmd,
-                input=prompt,
-                capture_output=True,
-                text=True,
-                timeout=timeout_s,
-                check=False,
-                # cycle-109 follow-up (#879 / #880 symmetric): strip
-                # OPENAI_API_KEY so codex exec uses OAuth, not API mode.
-                env=build_headless_subprocess_env(),
-            )
-        except subprocess.TimeoutExpired:
+            with _acquire_slot("codex-headless", n_slots=n_slots):
+                try:
+                    proc = subprocess.run(
+                        cmd,
+                        input=prompt,
+                        capture_output=True,
+                        text=True,
+                        timeout=timeout_s,
+                        check=False,
+                        # cycle-109 follow-up (#879 / #880 symmetric): strip
+                        # OPENAI_API_KEY so codex exec uses OAuth, not API mode.
+                        env=build_headless_subprocess_env(),
+                    )
+                except subprocess.TimeoutExpired:
+                    raise ProviderUnavailableError(
+                        self.provider,
+                        f"codex exec timed out after {timeout_s:.0f}s",
+                    )
+                except FileNotFoundError as exc:
+                    raise ConfigError(
+                        f"codex CLI not found on PATH (set CODEX_HEADLESS_BIN to override). "
+                        f"Install with: npm install -g @openai/codex. Original: {exc}"
+                    ) from exc
+        except _SemaphoreExhausted as exc:
             raise ProviderUnavailableError(
                 self.provider,
-                f"codex exec timed out after {timeout_s:.0f}s",
-            )
-        except FileNotFoundError as exc:
-            raise ConfigError(
-                f"codex CLI not found on PATH (set CODEX_HEADLESS_BIN to override). "
-                f"Install with: npm install -g @openai/codex. Original: {exc}"
+                f"[CHAIN-EXHAUSTED-CONCURRENCY] codex-headless semaphore "
+                f"exhausted after {exc.waited_seconds:.1f}s "
+                f"(n_slots={exc.n_slots})",
             ) from exc
 
         latency_ms = int((time.monotonic() - start) * 1000)
