@@ -77,6 +77,15 @@ env:
   # this workflow file doesn't need to change per-commit.
   # Pre-T3.6: cells skip; post-T3.6: cells execute against cheval path.
   LOA_ACTIVATION_MATRIX_LIVE: '1'
+  # PR #896 BB iter-3 FIND-002 closure: AM10 was tightened in iter-2 so
+  # that LIVE=1 hard-FAILS unless SMOKE_ONLY=1 explicitly opts into the
+  # cartesian-count smoke (no per-cell verdict assertion). Until
+  # cycle-110 lands the per-cell fixture loader, the workflow opts in
+  # to SMOKE_ONLY=1 so the activation-regression gate is a green-when-
+  # cells-walked check, NOT a phantom-green required check.
+  # See `tests/integration/activation-path/activation-matrix.bats::AM10`
+  # for the contract and cycle-110 follow-up for the loader.
+  LOA_ACTIVATION_MATRIX_SMOKE_ONLY: '1'
 
 jobs:
   # ---------------------------------------------------------------------------
