@@ -1,6 +1,46 @@
 # Loa Configuration
 # Active: Eval Sandbox (#277)
 
+# Cycle-110 sprint-2b2b1 (2026-05-15): advisor_strategy enabled per operator
+# instruction. Enables headless-first dispatch wire-up shipped in PRs
+# #903-#908. MODELINV envelopes now carry v1.4 fields
+# (auth_type_resolved + auth_type_selection_reason + auto_selection_inputs
+# + auto_evaluation_timestamp). Auto-mode runs with empty stats (cold-start)
+# until 7-day measurement window completes and sprint-3 wires the windowed
+# stats reader.
+#
+# Sprint-3 entry condition (cycle-110 PRD §M2.5): operator runs
+# `.claude/scripts/loa-substrate-doctor.sh` and attests OAuth state OK across
+# all three providers BEFORE flipping `dispatch_preference: headless`. Until
+# then, leaving as `auto` (default) lets cold-start path prefer headless
+# only when the chain has a headless entry.
+advisor_strategy:
+  schema_version: 2
+  enabled: true
+  # dispatch_preference defaults to "auto" per advisor-strategy.schema.json.
+  # Auto-mode falls to cold-start-default-headless (preferring headless
+  # when a chain has a headless entry) until warm stats accumulate.
+  # Operator may explicitly set "headless" or "http_api" per role here:
+  # per_role_dispatch_preference:
+  #   review: headless
+  #   audit: headless
+  #   planning: auto    # planning may want gpt-5.5-pro reasoning
+  # allow_cross_auth_fallback: null  # null → derive from FR-1.4 ladder
+  defaults:
+    planning: advisor
+    review: advisor
+    audit: advisor
+    implementation: advisor
+  tier_aliases:
+    advisor:
+      anthropic: claude-opus-4-7
+      openai: gpt-5.5-pro
+      google: gemini-3.1-pro-preview
+    executor:
+      anthropic: claude-sonnet-4-6
+      openai: gpt-5.3-codex
+      google: gemini-2.5-pro
+
 simstim:
   enabled: true
   bridgebuilder_design_review: true # Phase 3.5 gate — enabled for cycle-048
