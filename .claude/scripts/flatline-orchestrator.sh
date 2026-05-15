@@ -73,20 +73,18 @@ TRAJECTORY_DIR=$(get_trajectory_dir)
 # cheval.py subprocess chain. Mirrors the BB pattern at
 # .claude/skills/bridgebuilder-review/resources/entry.sh (cycle-037 #395).
 #
-# .env Trust Model: `source .env` executes arbitrary shell code by
-# design. .env files are trusted local input — user-controlled, never
-# committed (.gitignore'd). Same trust model as Node's dotenv and
-# Python's python-dotenv. API keys sourced here are available to the
-# subsequent subprocess invocations.
-#
-# set -a exports all sourced variables (so they cross subprocess
-# boundaries); set +a restores default behavior.
-if [[ -f .env ]]; then
-    set -a; source .env; set +a
-fi
-if [[ -f .env.local ]]; then
-    set -a; source .env.local; set +a
-fi
+# .env Trust Model (Issue #898): the legacy `set -a; source .env; set +a`
+# pattern executes ANY bash inside .env files (`$(...)`, backticks,
+# chained commands). A hostile or carelessly-edited .env at the repo
+# root becomes arbitrary code execution as the FL orchestrator. We now
+# parse .env structurally via lib/env-loader.sh, which exports KEY=VALUE
+# pairs but refuses to expand command substitution / shell metas.
+# Exported vars still cross subprocess boundaries (the loader uses
+# `export`).
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/env-loader.sh"
+load_env_file .env
+load_env_file .env.local
 
 # Component scripts
 MODEL_ADAPTER="$SCRIPT_DIR/model-adapter.sh"

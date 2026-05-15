@@ -10,22 +10,18 @@ SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 # Bash 4.0+ version guard
 source "${SKILL_DIR}/../../scripts/bash-version-guard.sh"
 
-# .env Trust Model (Decision Trail — Bridgebuilder Deep Review, cycle-037):
-# `source .env` executes arbitrary shell code — this is by design.
-# .env files are trusted local input: user-controlled, never committed (.gitignore'd).
-# Same trust model as Node's dotenv and Python's python-dotenv libraries.
-# API keys sourced here are available to the Node child process (exec'd below).
-# Secrets in review output are stripped by the redaction pipeline
-# (bridge-github-trail.sh § redact_security_content).
-#
-# Original: Source .env files for API keys (ANTHROPIC_API_KEY etc.) — issue #395
-# set -a exports all sourced variables; set +a restores default behavior
-if [[ -f .env ]]; then
-  set -a; source .env; set +a
-fi
-if [[ -f .env.local ]]; then
-  set -a; source .env.local; set +a
-fi
+# .env Trust Model (Issue #898 — reversed from cycle-037 #395): the legacy
+# `set -a; source .env; set +a` pattern executes ANY bash inside .env files
+# (`$(...)`, backticks, chained commands), turning a hostile or
+# carelessly-edited .env into arbitrary code execution as the BB
+# orchestrator. .env is now parsed structurally by
+# .claude/scripts/lib/env-loader.sh — KEY=VALUE only, no shell expansion.
+# API keys are still exported so the Node child process (exec'd below)
+# inherits them. Same trust improvement applied to flatline-orchestrator.sh.
+# shellcheck disable=SC1091
+source "${SKILL_DIR}/../../scripts/lib/env-loader.sh"
+load_env_file .env
+load_env_file .env.local
 
 # ============================================================================
 # VESTIGIAL — cycle-103 sprint-1 T1.8 / AC-1.3
