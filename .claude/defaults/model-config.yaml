@@ -12,6 +12,9 @@ providers:
     auth: "{env:OPENAI_API_KEY}"
     models:
       gpt-5.2:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: openai-gpt
         capabilities: [chat, tools, function_calling]
         context_window: 128000
         token_param: max_completion_tokens
@@ -36,6 +39,9 @@ providers:
           input_per_mtok: 10000000    # $10.00 per million tokens
           output_per_mtok: 30000000   # $30.00 per million tokens
       gpt-5.3-codex:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: openai-gpt
         capabilities: [chat, tools, function_calling, code]
         context_window: 400000
         token_param: max_completion_tokens
@@ -57,6 +63,9 @@ providers:
       # context_window + pricing are placeholders (R13 ASSUMPTION); update via
       # single-line edits at ship time.
       gpt-5.5:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: openai-gpt
         capabilities: [chat, tools, function_calling, code]
         context_window: 400000
         token_param: max_completion_tokens
@@ -103,6 +112,9 @@ providers:
           input_per_mtok: 5000000       # $5.00 per million tokens (confirmed 2026-04-29)
           output_per_mtok: 30000000     # $30.00 per million tokens (output_tokens INCLUSIVE of reasoning_tokens; SDD §5.5)
       gpt-5.5-pro:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: openai-gpt
         capabilities: [chat, tools, function_calling, code]
         context_window: 400000
         token_param: max_completion_tokens
@@ -165,6 +177,9 @@ providers:
       # mode — different transport entirely). Chain terminals MUST NOT
       # declare fallback_chain (enforced by lint).
       codex-headless:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: headless
+        dispatch_group: openai-gpt
         kind: cli                       # NEW field — distinguishes HTTP vs CLI
         capabilities: [chat, code]      # No tools, no structured_json
         # No pricing entry — CLI uses operator's Codex subscription.
@@ -180,6 +195,9 @@ providers:
     auth: "{env:GOOGLE_API_KEY}"
     models:
       gemini-2.0-flash:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: google-gemini
         # Legacy model retained for backward-compat via `gemini-2.0` alias.
         # Pricing matches gemini-2.5-flash (both are Google flash-tier).
         capabilities: [chat]
@@ -192,6 +210,9 @@ providers:
           input_per_mtok: 150000     # $0.15 per million tokens (micro-USD)
           output_per_mtok: 600000    # $0.60 per million tokens
       gemini-2.5-flash:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: google-gemini
         capabilities: [chat]
         context_window: 1048576
         # cycle-104 Sprint 2 T2.3: within-company chain.
@@ -206,6 +227,9 @@ providers:
       # fallback_chain triggers _resolve_active_model demotion when probe
       # state goes UNAVAILABLE (SDD §3.5 + §5.8).
       gemini-3-flash-preview:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: google-gemini
         capabilities: [chat]
         context_window: 1048576
         # cycle-104 Sprint 2 T2.3: extended existing chain to terminate in
@@ -218,6 +242,9 @@ providers:
           input_per_mtok: 150000     # $0.15 per million tokens (frozen 2026-04-29)
           output_per_mtok: 600000    # $0.60 per million tokens (frozen 2026-04-29)
       gemini-2.5-pro:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: google-gemini
         capabilities: [chat, thinking_traces]
         context_window: 1048576
         # cycle-102 Sprint 1 T1.9 (closes A2): thinking_traces output cap.
@@ -233,6 +260,9 @@ providers:
       # gemini-3-flash, gemini-3-pro removed per #574 — Google v1beta returned
       # NOT_FOUND at runtime. Re-add with pricing when Google confirms availability.
       gemini-3.1-pro-preview:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: google-gemini
         # Re-added cycle-093 sprint-4 (T2.1 — closes G4). Regulated by the
         # Sprint-3 health-probe (`model-health-probe.sh`); if Google v1beta
         # ListModels stops returning this id, the probe gate fails the PR.
@@ -256,6 +286,9 @@ providers:
           thinking_level: high
           thinking_budget: -1        # Dynamic thinking budget
       deep-research-pro:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: google-gemini
         capabilities: [chat, thinking_traces, deep_research]
         context_window: 1048576
         api_mode: interactions
@@ -278,6 +311,9 @@ providers:
       # `grimoires/loa/runbooks/headless-mode.md`. Chain terminal — no
       # further fallback (enforced by lint).
       gemini-headless:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: headless
+        dispatch_group: google-gemini
         kind: cli
         capabilities: [chat]            # No tools, no structured_json, no thinking
         # No pricing entry — CLI uses operator's Google AI Studio subscription.
@@ -293,6 +329,9 @@ providers:
     auth: "{env:ANTHROPIC_API_KEY}"
     models:
       claude-opus-4-7:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: anthropic-claude
         capabilities: [chat, tools, function_calling, thinking_traces]
         context_window: 200000
         token_param: max_tokens
@@ -334,6 +373,9 @@ providers:
           input_per_mtok: 5000000    # $5.00 per million tokens
           output_per_mtok: 25000000  # $25.00 per million tokens
       claude-opus-4-6:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: anthropic-claude
         # Retained as pinnable fallback (PRD cycle-082 §13).
         # Operators who want exact 4.6 behavior use `anthropic:claude-opus-4-6` in .loa.config.yaml.
         capabilities: [chat, tools, function_calling, thinking_traces]
@@ -356,6 +398,9 @@ providers:
           input_per_mtok: 5000000    # $5.00 per million tokens
           output_per_mtok: 25000000  # $25.00 per million tokens
       claude-sonnet-4-6:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: anthropic-claude
         capabilities: [chat, tools, function_calling]
         context_window: 200000
         token_param: max_tokens
@@ -376,6 +421,9 @@ providers:
       # snapshot (e.g., for repro on dated benchmarks) use
       # `anthropic:claude-sonnet-4-5-20250929` in .loa.config.yaml.
       claude-sonnet-4-5-20250929:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: anthropic-claude
         capabilities: [chat, tools, function_calling]
         context_window: 200000
         token_param: max_tokens
@@ -391,6 +439,9 @@ providers:
       # in YAML per PRD FR-3 AC + SDD §5.7. Refresh cadence: quarterly or on
       # release-bound reminder per Sprint 2 risks (Flatline iter-2 SKP-004).
       claude-haiku-4-5-20251001:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: anthropic-claude
         capabilities: [chat, tools, function_calling]
         context_window: 200000
         token_param: max_tokens
@@ -406,6 +457,9 @@ providers:
       # Operator must install per `grimoires/loa/runbooks/headless-mode.md`.
       # Chain terminal — no further fallback (enforced by lint).
       claude-headless:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: headless
+        dispatch_group: anthropic-claude
         kind: cli
         capabilities: [chat]            # No tool_use, no thinking
         # No pricing entry — CLI uses operator's Claude Code subscription.
@@ -440,6 +494,9 @@ providers:
     models:
       # Day-1 inference profile IDs (from Sprint 0 G-S0-2 probe #1 ListInferenceProfiles)
       "us.anthropic.claude-opus-4-7":                # Newest convention: no -v1:0 suffix
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: aws_iam
+        dispatch_group: bedrock-anthropic
         capabilities: [chat, tools, function_calling, thinking_traces]
         context_window: 200000
         token_param: max_tokens
@@ -459,6 +516,9 @@ providers:
         fallback_to: "anthropic:claude-opus-4-7"
         fallback_mapping_version: 1
       "us.anthropic.claude-sonnet-4-6":              # No -v1:0 suffix on newest
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: aws_iam
+        dispatch_group: bedrock-anthropic
         capabilities: [chat, tools, function_calling]
         context_window: 200000
         token_param: max_tokens
@@ -472,6 +532,9 @@ providers:
         fallback_to: "anthropic:claude-sonnet-4-6"
         fallback_mapping_version: 1
       "us.anthropic.claude-haiku-4-5-20251001-v1:0": # Older convention: keeps datestamp + v1:0 suffix (colon-bearing!)
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: aws_iam
+        dispatch_group: bedrock-anthropic
         capabilities: [chat, tools, function_calling]
         context_window: 200000
         token_param: max_tokens

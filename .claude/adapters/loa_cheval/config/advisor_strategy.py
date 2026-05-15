@@ -54,6 +54,11 @@ class AdvisorStrategyConfig:
     Loaded ONLY by ``load_advisor_strategy()``. Frozen dataclass — no
     runtime mutation. Callers must invoke ``.resolve(role, skill, provider)``
     to perform tier-routing lookups.
+
+    Cycle-110 sprint-2a (T2.2) extends with dispatch_preference + per-role
+    overrides + auto_mode + headless_concurrency_* fields. Pre-cycle-110
+    configs (schema_version=1) load with cycle-110 defaults applied per
+    SDD §3.6.
     """
     schema_version: int
     enabled: bool
@@ -64,6 +69,52 @@ class AdvisorStrategyConfig:
     audited_review_skills: FrozenSet[str]                      # SDD §3.7 ATK-A1
     benchmark_max_cost_usd: float                              # NFR-P3
     config_sha: str                                            # static-mode pin
+
+    # Cycle-110 sprint-2a additions (FR-1)
+    dispatch_preference: str                                   # "headless" | "http_api" | "auto"
+    allow_cross_auth_fallback: Optional[bool]                  # None = derive per FR-1.4 ladder
+    per_role_dispatch_preference: Dict[str, str]               # role -> dispatch_preference enum
+    auto_mode_headless_margin_bps: int                         # C15 carry-in (default 200)
+    headless_concurrency_scope: str                            # C7 (cross_process | process_only)
+    headless_concurrency_limit: int                            # C7 (default 50)
+
+    # Cycle-110 default ladder per FR-1.4 (C16 closure)
+    # When allow_cross_auth_fallback is None, derive from dispatch_preference:
+    #   headless → False  (operator chose headless explicitly; do NOT fallback
+    #                      to paid HTTP silently)
+    #   http_api → True   (legacy behavior — falls back to headless when
+    #                      available)
+    #   auto     → True   (auto-mode already evaluates all buckets)
+    _CROSS_AUTH_FALLBACK_LADDER: Dict[str, bool] = field(
+        default_factory=lambda: {
+            "headless": False,
+            "http_api": True,
+            "auto": True,
+        },
+        repr=False,
+        compare=False,
+    )
+
+    def effective_cross_auth_fallback(self, role: Optional[str] = None) -> bool:
+        """Resolve allow_cross_auth_fallback per FR-1.4 (C16 closure).
+
+        Explicit operator setting always wins. Otherwise derives from the
+        effective dispatch_preference (per-role override applied if present).
+        """
+        if self.allow_cross_auth_fallback is not None:
+            return self.allow_cross_auth_fallback
+        pref = self.effective_dispatch_preference(role)
+        # Defensive fallback — schema enforces the enum so this should never
+        # trip in practice, but the dataclass MUST not crash if a future
+        # schema version adds a new value before this map is updated.
+        return self._CROSS_AUTH_FALLBACK_LADDER.get(pref, True)
+
+    def effective_dispatch_preference(self, role: Optional[str] = None) -> str:
+        """Resolve per-role dispatch_preference override (FR-1.3) or fall back
+        to the cycle-wide setting."""
+        if role and role in self.per_role_dispatch_preference:
+            return self.per_role_dispatch_preference[role]
+        return self.dispatch_preference
 
     @classmethod
     def disabled_legacy(cls) -> "AdvisorStrategyConfig":
@@ -82,6 +133,14 @@ class AdvisorStrategyConfig:
             audited_review_skills=frozenset(),
             benchmark_max_cost_usd=0.0,
             config_sha="DISABLED",
+            # cycle-110 defaults — match schema defaults for the absent-field
+            # case (legacy / disabled configs behave as auto + None ladder).
+            dispatch_preference="auto",
+            allow_cross_auth_fallback=None,
+            per_role_dispatch_preference={},
+            auto_mode_headless_margin_bps=200,
+            headless_concurrency_scope="cross_process",
+            headless_concurrency_limit=50,
         )
 
     def resolve(
@@ -397,6 +456,17 @@ def load_advisor_strategy(repo_root: Path | str) -> AdvisorStrategyConfig:
     # 5. Static-mode pinning
     config_sha = _config_file_git_sha(repo_root, ".loa.config.yaml")
 
+    # Cycle-110 sprint-2a additions (FR-1). Defaults match the schema's
+    # default ladder so pre-cycle-110 (schema_version=1) configs that omit
+    # these fields load with sensible behavior.
+    auto_mode_raw = raw.get("auto_mode", {}) or {}
+    per_role_pref = raw.get("per_role_dispatch_preference", {}) or {}
+    if not isinstance(per_role_pref, dict):
+        raise ConfigError(
+            f"advisor_strategy.per_role_dispatch_preference must be a mapping; "
+            f"got {type(per_role_pref).__name__}"
+        )
+
     return AdvisorStrategyConfig(
         schema_version=raw["schema_version"],
         enabled=raw.get("enabled", False),
@@ -407,4 +477,10 @@ def load_advisor_strategy(repo_root: Path | str) -> AdvisorStrategyConfig:
         audited_review_skills=audited,
         benchmark_max_cost_usd=float(raw.get("benchmark", {}).get("max_cost_usd", 50.0)),
         config_sha=config_sha,
+        dispatch_preference=raw.get("dispatch_preference", "auto"),
+        allow_cross_auth_fallback=raw.get("allow_cross_auth_fallback"),  # None = derive
+        per_role_dispatch_preference=dict(per_role_pref),
+        auto_mode_headless_margin_bps=int(auto_mode_raw.get("headless_margin_bps", 200)),
+        headless_concurrency_scope=raw.get("headless_concurrency_scope", "cross_process"),
+        headless_concurrency_limit=int(raw.get("headless_concurrency_limit", 50)),
     )

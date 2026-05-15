@@ -436,11 +436,27 @@ def _write_synthetic_project(
 
     Optionally writes the .claude/defaults/aliases-legacy.yaml snapshot used
     by the force-legacy-aliases kill-switch.
+
+    Cycle-110 sprint-2a T2.4 ([PRD:FR-2]): backfill required `auth_type` +
+    `dispatch_group` fields on every test model entry that does not already
+    carry them. This keeps pre-cycle-110 fixtures working under the new
+    strict-validation loader without forcing every legacy test case to add
+    cycle-110 metadata. Tests that DO want to exercise missing/invalid
+    auth_type pass it explicitly.
     """
     import yaml as _yaml
 
     root = Path(tmpdir)
     (root / ".claude" / "defaults").mkdir(parents=True, exist_ok=True)
+
+    # Cycle-110 backfill: every model entry MUST have auth_type + dispatch_group
+    # post-cycle-110. Default to http_api / openai-gpt for the synthetic
+    # OpenAI fixture (the legacy default these tests already operate against).
+    for _mid, _m in openai_models.items():
+        if not isinstance(_m, dict):
+            continue
+        _m.setdefault("auth_type", "http_api")
+        _m.setdefault("dispatch_group", "openai-gpt")
 
     config_doc: dict = {
         "providers": {

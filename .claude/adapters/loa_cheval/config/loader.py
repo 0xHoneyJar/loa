@@ -187,6 +187,12 @@ def load_config(
     # env-var backstop with WARN per affected entry.
     _validate_endpoint_family(merged)
 
+    # cycle-110 sprint-2a T2.4 — auth_type + dispatch_group strict validation
+    # ([PRD:FR-2.1, FR-2.2], SDD §3.2). Walks providers.*.models and rejects
+    # missing/enum-invalid values with EX_CONFIG (78). Closes C14 (dispatch_group
+    # required) + C9 (unknown preferred_model_id) on the model-config side.
+    _validate_model_auth_metadata(merged)
+
     # cycle-095 Sprint 2 post-merge step C — fold backward_compat_aliases
     # into the resolved aliases: dict so the Python resolver can chain
     # through legacy keys (matches the bash adapter's gen-adapter-maps.sh
@@ -395,6 +401,90 @@ def _maybe_apply_force_legacy_aliases(
 
 
 _ALLOWED_ENDPOINT_FAMILIES = ("chat", "responses")
+
+# cycle-110 sprint-2a T2.4 ([PRD:FR-2.2]): closed enum for auth_type.
+_ALLOWED_AUTH_TYPES = ("headless", "http_api", "aws_iam")
+
+# Pattern for dispatch_group field — closed-form alphanumeric + hyphen.
+# Rejects empty / whitespace / shell-meta values at the loader boundary.
+_DISPATCH_GROUP_PATTERN = re.compile(r"^[a-z][a-z0-9-]{1,63}$")
+
+
+def _validate_model_auth_metadata(merged: Dict[str, Any]) -> None:
+    """Reject merged configs whose model entries lack `auth_type` or
+    `dispatch_group`, or carry enum-invalid values.
+
+    Cycle-110 sprint-2a T2.4 closure ([PRD:FR-2.1, FR-2.2, FR-2.4], SDD §3.2):
+
+    - Every `providers.{provider}.models.{model_id}` MUST have `auth_type`
+      ∈ {headless, http_api, aws_iam}.
+    - Every entry MUST have `dispatch_group` (C14 closure — auto-mode bucket
+      key derivation requires it).
+    - Missing → `[CONFIG-INVALID]` BLOCKER. Enum-invalid → `[CONFIG-ENUM-INVALID]`
+      with allowed-list hint (C9 spirit applied to auth_type).
+    - Empty `providers` mapping is permitted (some test fixtures omit it).
+    """
+    providers = merged.get("providers", {}) or {}
+    if not isinstance(providers, dict):
+        raise ConfigError(
+            "providers must be a mapping; got "
+            f"{type(providers).__name__}"
+        )
+
+    for provider_id, provider in providers.items():
+        if not isinstance(provider, dict):
+            raise ConfigError(
+                f"providers.{provider_id} must be a mapping; "
+                f"got {type(provider).__name__}"
+            )
+        models = provider.get("models") or {}
+        if not isinstance(models, dict):
+            raise ConfigError(
+                f"providers.{provider_id}.models must be a mapping; "
+                f"got {type(models).__name__}"
+            )
+        for model_id, model in models.items():
+            if not isinstance(model, dict):
+                # Bedrock keys are quoted; surface a precise diagnostic.
+                raise ConfigError(
+                    f"providers.{provider_id}.models.{model_id} must be a "
+                    f"mapping with auth_type + dispatch_group + ..., got "
+                    f"{type(model).__name__}"
+                )
+
+            auth_type = model.get("auth_type")
+            if auth_type is None:
+                raise ConfigError(
+                    f"[CONFIG-INVALID] providers.{provider_id}.models.{model_id} "
+                    f"is missing required 'auth_type' (cycle-110 SDD §3.2). "
+                    f"Allowed values: {', '.join(_ALLOWED_AUTH_TYPES)}."
+                )
+            if auth_type not in _ALLOWED_AUTH_TYPES:
+                raise ConfigError(
+                    f"[CONFIG-ENUM-INVALID] providers.{provider_id}.models.{model_id}"
+                    f".auth_type={auth_type!r}; allowed: "
+                    f"{', '.join(_ALLOWED_AUTH_TYPES)}."
+                )
+
+            dispatch_group = model.get("dispatch_group")
+            if dispatch_group is None:
+                # C14 closure: dispatch_group is REQUIRED so auto-mode bucket
+                # key derivation (FR-3.3) has a deterministic equivalence
+                # class. Without it the resolver cannot compare auth_type
+                # buckets across model_ids that share a billing surface.
+                raise ConfigError(
+                    f"[CONFIG-INVALID] providers.{provider_id}.models.{model_id} "
+                    f"is missing required 'dispatch_group' (cycle-110 SDD §3.2 / "
+                    f"C14 carry-in). dispatch_group identifies the billing-entity "
+                    f"equivalence class for auto-mode bucket comparison."
+                )
+            if not isinstance(dispatch_group, str) or not _DISPATCH_GROUP_PATTERN.match(dispatch_group):
+                raise ConfigError(
+                    f"[CONFIG-INVALID] providers.{provider_id}.models.{model_id}"
+                    f".dispatch_group={dispatch_group!r}; must match "
+                    f"{_DISPATCH_GROUP_PATTERN.pattern!r} (lower-case alphanumeric + hyphens, "
+                    f"1-64 chars, starting with a letter)."
+                )
 
 
 def _validate_endpoint_family(merged: Dict[str, Any]) -> None:

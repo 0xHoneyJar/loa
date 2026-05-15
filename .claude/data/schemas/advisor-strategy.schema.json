@@ -2,15 +2,15 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://0xhoneyjar.github.io/loa/schemas/advisor-strategy.schema.json",
   "title": "Advisor-Strategy Configuration",
-  "description": "Schema for the .loa.config.yaml::advisor_strategy section. Cycle-108 sprint-1 T1.A. Closes PRD §5 FR-1, SDD §3.1-§3.2, and NFR-Sec1 hard-pin via const-pinning of review/audit role tiers.",
+  "description": "Schema for the .loa.config.yaml::advisor_strategy section. Cycle-108 sprint-1 T1.A; extended in cycle-110 sprint-2a T2.1 with dispatch_preference + headless-concurrency fields. Closes PRD §5 FR-1, SDD §3.1-§3.2, and NFR-Sec1 hard-pin via const-pinning of review/audit role tiers.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "enabled"],
   "properties": {
     "schema_version": {
       "type": "integer",
-      "const": 1,
-      "description": "Schema version. Strict const-1 for cycle-108. Future versions dispatch through versioned schemas (SDD §3.4)."
+      "enum": [1, 2],
+      "description": "Schema version. cycle-108 ships v1; cycle-110 sprint-2a bumps to v2 (additive: dispatch_preference + per-role overrides + auto_mode + headless_concurrency). v1 configs continue to load (additive evolution per cycle-110 SDD §3.6)."
     },
     "enabled": {
       "type": "boolean",
@@ -115,6 +115,55 @@
           "description": "Path to historical-medians.json (CODEOWNERS-protected, computed by tools/modelinv-rollup.sh). ATK-A6 closure."
         }
       }
+    },
+    "dispatch_preference": {
+      "type": "string",
+      "enum": ["headless", "http_api", "auto"],
+      "default": "auto",
+      "description": "Cycle-110 FR-1.1: cycle-wide dispatch preference. 'headless' prefers CLI-based subscription dispatch; 'http_api' prefers HTTP API dispatch; 'auto' uses windowed success-rate band comparison with cold-start fallback to recommended_for per FR-3.3. Per-role overrides via per_role_dispatch_preference."
+    },
+    "allow_cross_auth_fallback": {
+      "type": ["boolean", "null"],
+      "default": null,
+      "description": "Cycle-110 FR-1.2: when set, controls whether resolver may fall back across auth_types when the preferred bucket's chain is exhausted. NULL derives from dispatch_preference per the FR-1.4 default ladder: headless→false (operator opted into headless explicitly; do NOT silently fall back to paid HTTP); http_api→true (legacy behavior — fall back to headless if available); auto→true (auto-mode already considers all buckets). C16 carry-in: this ladder is the canonical default and MUST be documented in operator-facing docs."
+    },
+    "per_role_dispatch_preference": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Cycle-110 FR-1.3: per-role override of dispatch_preference. Useful when planning needs reasoning (gpt-5.5-pro headless route may not exist) while review/audit prefer headless. Each value MUST be one of the dispatch_preference enum values.",
+      "properties": {
+        "planning":       {"type": "string", "enum": ["headless", "http_api", "auto"]},
+        "review":         {"type": "string", "enum": ["headless", "http_api", "auto"]},
+        "audit":          {"type": "string", "enum": ["headless", "http_api", "auto"]},
+        "implementation": {"type": "string", "enum": ["headless", "http_api", "auto"]}
+      }
+    },
+    "auto_mode": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Cycle-110 FR-3.3: deterministic 'auto' resolution-mode parameters. Operators rarely tune these; defaults match SDD §5.2 spec.",
+      "properties": {
+        "headless_margin_bps": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000,
+          "default": 200,
+          "description": "C15 carry-in: headless preferred-margin in basis-points. When auto-mode compares per-(provider, auth_type) success rates, headless wins ties + ties-within-margin. 200 bps = 2pp. Set to 0 to disable preference (strict equality required for headless to win)."
+        }
+      }
+    },
+    "headless_concurrency_scope": {
+      "type": "string",
+      "enum": ["cross_process", "process_only"],
+      "default": "cross_process",
+      "description": "C7 carry-in / SDD §5.6: scope of the N-slot semaphore guarding headless CLI dispatch. cross_process (default) coordinates via slot-lock files; process_only is in-process threading.Semaphore only. Operators may downgrade to process_only AFTER FR-8.6 stress test confirms session-safety at the per-CLI N limit."
+    },
+    "headless_concurrency_limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "default": 50,
+      "description": "C7 carry-in / FR-8.6: per-CLI concurrency cap (N-slot semaphore). Default 50 (per-CLI safe values are discovered at sprint-2 T2.16 stress test and may seed model-config.yaml::headless_concurrency_limit per provider/model)."
     }
   }
 }

@@ -119,6 +119,58 @@ declare -A MODEL_IDS=(
     ["gemini-3.1-pro-preview"]="gemini-3.1-pro-preview"
 )
 
+# Cycle-110 sprint-2a T2.5 ([PRD:FR-2.3], SDD §3.2): propagate auth_type +
+# dispatch_group into the generated bash maps so downstream bash callers
+# (resolver, cheval, substrate-health, gen-bb-registry consumer scripts)
+# can look up the same metadata the Python loader validates.
+declare -A MODEL_AUTH_TYPE=(
+    ["gpt-5.2"]="http_api"
+    ["gpt-5.3-codex"]="http_api"
+    ["gpt-5.5"]="http_api"
+    ["gpt-5.5-pro"]="http_api"
+    ["codex-headless"]="headless"
+    ["gemini-2.0-flash"]="http_api"
+    ["gemini-2.5-flash"]="http_api"
+    ["gemini-3-flash-preview"]="http_api"
+    ["gemini-2.5-pro"]="http_api"
+    ["gemini-3.1-pro-preview"]="http_api"
+    ["deep-research-pro"]="http_api"
+    ["gemini-headless"]="headless"
+    ["claude-opus-4-7"]="http_api"
+    ["claude-opus-4-6"]="http_api"
+    ["claude-sonnet-4-6"]="http_api"
+    ["claude-sonnet-4-5-20250929"]="http_api"
+    ["claude-haiku-4-5-20251001"]="http_api"
+    ["claude-headless"]="headless"
+    ["us.anthropic.claude-opus-4-7"]="aws_iam"
+    ["us.anthropic.claude-sonnet-4-6"]="aws_iam"
+    ["us.anthropic.claude-haiku-4-5-20251001-v1:0"]="aws_iam"
+)
+
+declare -A MODEL_DISPATCH_GROUP=(
+    ["gpt-5.2"]="openai-gpt"
+    ["gpt-5.3-codex"]="openai-gpt"
+    ["gpt-5.5"]="openai-gpt"
+    ["gpt-5.5-pro"]="openai-gpt"
+    ["codex-headless"]="openai-gpt"
+    ["gemini-2.0-flash"]="google-gemini"
+    ["gemini-2.5-flash"]="google-gemini"
+    ["gemini-3-flash-preview"]="google-gemini"
+    ["gemini-2.5-pro"]="google-gemini"
+    ["gemini-3.1-pro-preview"]="google-gemini"
+    ["deep-research-pro"]="google-gemini"
+    ["gemini-headless"]="google-gemini"
+    ["claude-opus-4-7"]="anthropic-claude"
+    ["claude-opus-4-6"]="anthropic-claude"
+    ["claude-sonnet-4-6"]="anthropic-claude"
+    ["claude-sonnet-4-5-20250929"]="anthropic-claude"
+    ["claude-haiku-4-5-20251001"]="anthropic-claude"
+    ["claude-headless"]="anthropic-claude"
+    ["us.anthropic.claude-opus-4-7"]="bedrock-anthropic"
+    ["us.anthropic.claude-sonnet-4-6"]="bedrock-anthropic"
+    ["us.anthropic.claude-haiku-4-5-20251001-v1:0"]="bedrock-anthropic"
+)
+
 declare -A COST_INPUT=(
     ["gpt-5.2"]="0.01"
     ["gpt-5.3-codex"]="0.00175"

@@ -170,6 +170,36 @@ EOF
     cat <<EOF
 )
 
+# Cycle-110 sprint-2a T2.5 ([PRD:FR-2.3], SDD §3.2): propagate auth_type +
+# dispatch_group into the generated bash maps so downstream bash callers
+# (resolver, cheval, substrate-health, gen-bb-registry consumer scripts)
+# can look up the same metadata the Python loader validates.
+declare -A MODEL_AUTH_TYPE=(
+EOF
+
+    yq eval -o=json '.providers' "$CONFIG_FILE" | jq -r '
+        to_entries[] as $p
+        | $p.value.models | to_entries[] as $m
+        | ($m.value.auth_type // "") as $at
+        | "    [\"\($m.key)\"]=\"\($at)\""
+    '
+
+    cat <<EOF
+)
+
+declare -A MODEL_DISPATCH_GROUP=(
+EOF
+
+    yq eval -o=json '.providers' "$CONFIG_FILE" | jq -r '
+        to_entries[] as $p
+        | $p.value.models | to_entries[] as $m
+        | ($m.value.dispatch_group // "") as $dg
+        | "    [\"\($m.key)\"]=\"\($dg)\""
+    '
+
+    cat <<EOF
+)
+
 declare -A COST_INPUT=(
 EOF
 
