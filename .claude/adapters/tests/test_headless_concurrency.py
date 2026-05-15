@@ -100,6 +100,8 @@ class TestWaitAllSlots:
     """C5 closure: waiter must find any released slot, not just slot-0."""
 
     def test_blocked_acquirer_wakes_when_any_slot_releases(self, tmp_path):
+        # BB iter-1 #908 F-006 closure: assert ready.wait() actually fired
+        # (not just that we didn't deadlock); check subprocess exit code.
         ctx = multiprocessing.get_context("spawn")
         ready = ctx.Event()
         done = ctx.Event()
@@ -108,10 +110,10 @@ class TestWaitAllSlots:
             args=("claude-headless", 2, str(tmp_path), 0.3, ready, done),
         )
         proc.start()
-        ready.wait(timeout=3)
+        assert ready.wait(timeout=3) is True, "holder failed to acquire its slot"
         with acquire_slot("claude-headless", n_slots=2, run_dir=str(tmp_path)) as main_idx:
             t0 = time.monotonic()
-            done.wait(timeout=3)
+            assert done.wait(timeout=3) is True, "holder failed to release"
             with acquire_slot(
                 "claude-headless", n_slots=2, run_dir=str(tmp_path),
                 timeout_seconds=2,
@@ -120,6 +122,53 @@ class TestWaitAllSlots:
                 assert second_idx != main_idx
                 assert elapsed < 1.5
         proc.join(timeout=2)
+        assert proc.exitcode == 0, f"holder process exited non-zero: {proc.exitcode}"
+
+
+class TestRelativeRunDirResolved:
+    """BB iter-1 #908 F-004 closure (HIGH): relative run_dir resolved to
+    absolute path so cwd-divergent cheval processes share the same
+    semaphore scope, not phantom-multiply-allocate by 2x."""
+
+    def test_relative_run_dir_resolved_to_abspath_for_slot_files(self, tmp_path, monkeypatch):
+        # cd into tmp_path so relative run_dir="." resolves to tmp_path absolute.
+        monkeypatch.chdir(tmp_path)
+        with acquire_slot("claude-headless", n_slots=1, run_dir="."):
+            # Slot file should live under tmp_path/headless-concurrency-claude-headless/
+            slot_path = tmp_path / "headless-concurrency-claude-headless" / "slot-0.lock"
+            assert slot_path.is_file(), (
+                f"slot file should land under resolved abspath, got dir contents: "
+                f"{list(tmp_path.iterdir())}"
+            )
+
+    def test_two_processes_different_cwd_but_same_abspath_share_slots(self, tmp_path):
+        """If both processes pass the SAME abspath, they share the semaphore
+        scope. This is the post-fix behavior — relative paths get resolved
+        BEFORE the cross-process flock layer sees them."""
+        shared_dir = tmp_path  # absolute
+        with acquire_slot("claude-headless", n_slots=1, run_dir=str(shared_dir)):
+            # Second attempt with the same absolute run_dir must hit the
+            # semaphore (n=1, both in same scope).
+            with pytest.raises(SemaphoreExhausted):
+                with acquire_slot(
+                    "claude-headless", n_slots=1, run_dir=str(shared_dir),
+                    timeout_seconds=0.3,
+                ):
+                    pass  # pragma: no cover
+
+
+class TestExistingDirChmodEnforced:
+    """BB iter-1 #908 F-003 closure (MEDIUM): existing slot dir gets explicit
+    chmod to 0o700 even if it was created earlier with a looser umask."""
+
+    def test_existing_dir_with_loose_perms_chmod_to_0700(self, tmp_path):
+        slot_dir = tmp_path / "headless-concurrency-claude-headless"
+        slot_dir.mkdir(mode=0o755)  # intentionally permissive
+        assert (slot_dir.stat().st_mode & 0o777) == 0o755
+        with acquire_slot("claude-headless", n_slots=1, run_dir=str(tmp_path)):
+            assert (slot_dir.stat().st_mode & 0o777) == 0o700, (
+                "headless-concurrency dir must be tightened to 0o700 on reuse"
+            )
 
 
 class TestFileMode:

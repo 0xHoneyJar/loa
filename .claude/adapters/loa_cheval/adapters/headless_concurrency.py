@@ -109,11 +109,42 @@ def _slot_path(cli: str, slot_idx: int, run_dir: str) -> str:
     return os.path.join(_slot_dir(cli, run_dir), f"slot-{slot_idx}.lock")
 
 
+def _resolve_run_dir(run_dir: str) -> str:
+    """BB iter-1 #908 F-004 closure (HIGH): resolve to absolute path.
+
+    A relative `.run` default silently partitions the cross-process semaphore
+    by cwd: two cheval processes running from different working directories
+    would lock distinct slot files and over-allocate by 2× the intended N.
+    Resolving to abspath at the boundary makes the partition deterministic
+    (CWD at acquire-time pins the semaphore scope) and lets operators see
+    the resolved path in DEBUG logs.
+    """
+    abs_path = os.path.abspath(run_dir)
+    if abs_path != run_dir:
+        logger.debug(
+            "headless-concurrency: resolved run_dir %r → %r (cycle-110 F-004)",
+            run_dir, abs_path,
+        )
+    return abs_path
+
+
 def _ensure_slot_dir(cli: str, run_dir: str) -> None:
-    """Create `.run/headless-concurrency-{cli}/` mode 0700."""
+    """Create `.run/headless-concurrency-{cli}/` mode 0700.
+
+    BB iter-1 #908 F-003 closure (MEDIUM): on existing-dir reuse, explicitly
+    chmod to 0o700. `os.makedirs(mode=)` is a no-op on existing paths —
+    matches CVE-2019-14287 / OpenSSH safe_path discipline.
+    """
     path = _slot_dir(cli, run_dir)
     try:
         os.makedirs(path, mode=0o700, exist_ok=True)
+        # F-003: enforce 0o700 even if the dir already existed with looser
+        # perms. chmod is idempotent + cheap; protects against a previous
+        # invocation that created the dir with a wider umask.
+        try:
+            os.chmod(path, 0o700)
+        except OSError:
+            pass  # best-effort; the slot-file open will still enforce 0o600
     except OSError as exc:
         raise OSError(f"failed to create slot dir {path}: {exc}") from exc
 
@@ -214,6 +245,9 @@ def acquire_slot(
             f"n_slots must be 1..1000, got {n_slots}"
         )
 
+    # F-004 closure: resolve run_dir to absolute path BEFORE any FS ops so
+    # both _ensure_slot_dir AND _slot_path see the same canonical scope.
+    run_dir = _resolve_run_dir(run_dir)
     _ensure_slot_dir(cli, run_dir)
 
     started_at = time.monotonic()
