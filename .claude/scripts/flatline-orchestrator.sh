@@ -700,6 +700,46 @@ call_model() {
         rm -f "${invoke_log}.raw"
 
         if [[ $exit_code -ne 0 ]]; then
+            # bug-899: preserve verdict_quality envelope on failure so the
+            # cohort aggregator (see line 534 region) can attribute
+            # blocker_risk / reason / chain health to this voice. cheval
+            # writes the envelope to the sidecar BEFORE the failure mode
+            # that drives a non-zero exit becomes observable, so the
+            # sidecar's FAILED/DEGRADED envelope carries the attribution
+            # we need; deleting it before the aggregator runs causes the
+            # cohort verdict to silently drop this voice's failure signal.
+            # Mirror of the success-path read below at line ~715.
+            local vq_envelope_on_failure="null"
+            if [[ -s "$vq_sidecar" ]] && jq empty < "$vq_sidecar" 2>/dev/null; then
+                vq_envelope_on_failure=$(cat "$vq_sidecar")
+            fi
+            if [[ "$vq_envelope_on_failure" != "null" ]]; then
+                # Emit a failure-shaped per-voice output to stdout so the
+                # caller's `>` redirect captures the envelope. Aggregator
+                # reads .verdict_quality from each per-voice file; the
+                # additional `status` / `exit_code` fields are additive
+                # and ignored by legacy consumers.
+                jq -cn \
+                    --argjson vq "$vq_envelope_on_failure" \
+                    --arg model "$model" \
+                    --arg mode "$mode" \
+                    --arg phase "$phase" \
+                    --argjson exit_code "$exit_code" \
+                    '{
+                        content: "",
+                        tokens_input: 0,
+                        tokens_output: 0,
+                        latency_ms: 0,
+                        retries: 0,
+                        model: $model,
+                        mode: $mode,
+                        phase: $phase,
+                        cost_usd: 0,
+                        status: "failed",
+                        exit_code: $exit_code,
+                        verdict_quality: $vq
+                    }' || true
+            fi
             rm -f "$vq_sidecar" 2>/dev/null || true
             log_invoke_failure "$exit_code" "$invoke_log" "$timeout"
             return $exit_code
