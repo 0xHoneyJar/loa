@@ -270,6 +270,30 @@ extract_json_content() {
     echo "$normalized"
 }
 
+# Normalize skeptic prepared JSON to the {"concerns":[...]} envelope expected
+# by scoring-engine.sh. Skeptic prompts request the object form, but some
+# adapters emit a bare top-level array of concern objects. scoring-engine's
+# `$skeptic_x[0].concerns` lookup then errors with
+#   jq: Cannot index array with string "concerns"
+# because --slurpfile wraps a bare-array file as [[{...}]], making $s[0] the
+# inner array. Caller writes the prepared file then calls this in-place.
+normalize_skeptic_envelope() {
+    local file="$1"
+    [[ -f "$file" ]] || return 0
+
+    local normalized
+    if normalized=$(jq -c '
+        if type == "object" then .
+        elif type == "array" then {concerns: .}
+        else {concerns: []}
+        end
+    ' "$file" 2>/dev/null) && [[ -n "$normalized" ]]; then
+        printf '%s\n' "$normalized" > "$file"
+    else
+        printf '%s\n' '{"concerns":[]}' > "$file"
+    fi
+}
+
 # Log to trajectory
 log_trajectory() {
     local event_type="$1"
@@ -1392,6 +1416,8 @@ run_consensus() {
 
     extract_json_content "$gpt_skeptic_file" '{"concerns":[]}' > "$gpt_skeptic_prepared"
     extract_json_content "$opus_skeptic_file" '{"concerns":[]}' > "$opus_skeptic_prepared"
+    normalize_skeptic_envelope "$gpt_skeptic_prepared"
+    normalize_skeptic_envelope "$opus_skeptic_prepared"
 
     # FR-3: Prepare tertiary scoring and skeptic files when available
     local tertiary_args=()
@@ -1420,6 +1446,7 @@ run_consensus() {
     if [[ -n "$tertiary_skeptic_file" && -s "$tertiary_skeptic_file" ]]; then
         local tertiary_skeptic_prepared="$TEMP_DIR/tertiary-skeptic-prepared.json"
         extract_json_content "$tertiary_skeptic_file" '{"concerns":[]}' > "$tertiary_skeptic_prepared"
+        normalize_skeptic_envelope "$tertiary_skeptic_prepared"
         tertiary_skeptic_args=(--skeptic-tertiary "$tertiary_skeptic_prepared")
         log "Including tertiary model skeptic concerns in consensus"
     fi
