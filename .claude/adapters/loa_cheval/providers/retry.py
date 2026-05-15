@@ -70,39 +70,52 @@ class NoOpMetricsHook:
         pass
 
 
-# --- Circuit breaker (Sprint 3 — file-based state machine) ---
+# --- Circuit breaker (cycle-110: keyed on (provider, auth_type) — FR-0) ---
 
 
-def _check_circuit_breaker(provider: str, config: Dict[str, Any]) -> str:
-    """Check circuit breaker state for a provider.
+def _adapter_auth_type(adapter: "ProviderAdapter") -> str:
+    """Resolve the auth_type bucket for an adapter.
+
+    Cycle-110 FR-0 keys the circuit breaker on `(provider, auth_type)`.
+    Sprint-1 introduces the key-widening; Sprint-2 (FR-2.3) propagates
+    auth_type explicitly onto every adapter dataclass. Until then, the
+    conservative default is `http_api` — that is the bucket legacy state
+    is preserved into and the HTTP-path is what existing adapters use.
+    """
+    from loa_cheval.routing.circuit_breaker import AUTH_TYPE_HTTP_API
+
+    return getattr(adapter, "auth_type", AUTH_TYPE_HTTP_API)
+
+
+def _check_circuit_breaker(
+    provider: str, auth_type: str, config: Dict[str, Any]
+) -> str:
+    """Check circuit breaker state for a (provider, auth_type) bucket.
 
     Returns: 'CLOSED', 'OPEN', 'HALF_OPEN'.
-    Reads .run/circuit-breaker-{provider}.json.
+    Reads .run/circuit-breaker-{provider}-{auth_type}.json.
     """
     from loa_cheval.routing.circuit_breaker import check_state
 
-    return check_state(provider, config)
+    return check_state(provider, auth_type, config)
 
 
-def _record_failure(provider: str, config: Dict[str, Any]) -> None:
-    """Record a failure for circuit breaker tracking.
-
-    Updates .run/circuit-breaker-{provider}.json.
-    May transition CLOSED → OPEN or HALF_OPEN → OPEN.
-    """
+def _record_failure(
+    provider: str, auth_type: str, config: Dict[str, Any]
+) -> None:
+    """Record a failure for the (provider, auth_type) bucket."""
     from loa_cheval.routing.circuit_breaker import record_failure
 
-    record_failure(provider, config)
+    record_failure(provider, auth_type, config)
 
 
-def _record_success(provider: str, config: Dict[str, Any]) -> None:
-    """Record a success for circuit breaker tracking.
-
-    May transition HALF_OPEN → CLOSED on successful probe.
-    """
+def _record_success(
+    provider: str, auth_type: str, config: Dict[str, Any]
+) -> None:
+    """Record a success for the (provider, auth_type) bucket."""
     from loa_cheval.routing.circuit_breaker import record_success
 
-    record_success(provider, config)
+    record_success(provider, auth_type, config)
 
 
 # --- Main retry function ---
@@ -180,11 +193,15 @@ def invoke_with_retry(
         elif budget_status == "DOWNGRADE":
             logger.warning("Budget downgrade triggered — continuing with current model")
 
-        # Circuit breaker check
-        cb_state = _check_circuit_breaker(adapter.provider, config)
+        # Circuit breaker check (cycle-110 FR-0: keyed on (provider, auth_type))
+        auth_type = _adapter_auth_type(adapter)
+        cb_state = _check_circuit_breaker(adapter.provider, auth_type, config)
         if cb_state == "OPEN":
-            logger.info("Circuit breaker OPEN for %s, skipping", adapter.provider)
-            last_error = f"Circuit open for {adapter.provider}"
+            logger.info(
+                "Circuit breaker OPEN for %s/%s, skipping",
+                adapter.provider, auth_type,
+            )
+            last_error = f"Circuit open for {adapter.provider}/{auth_type}"
             # Don't count against retries — just skip
             continue
 
@@ -196,14 +213,14 @@ def invoke_with_retry(
             # Post-call hooks
             budget_hook.post_call(result)
             metrics_hook.record_attempt(adapter.provider, True, latency_ms)
-            _record_success(adapter.provider, config)
+            _record_success(adapter.provider, auth_type, config)
 
             return result
 
         except RateLimitError as e:
             latency_ms = int((time.monotonic() - start) * 1000)
             metrics_hook.record_attempt(adapter.provider, False, latency_ms)
-            _record_failure(adapter.provider, config)
+            _record_failure(adapter.provider, auth_type, config)
             last_error = str(e)
 
             # Exponential backoff with jitter
@@ -217,7 +234,7 @@ def invoke_with_retry(
         except ProviderUnavailableError as e:
             latency_ms = int((time.monotonic() - start) * 1000)
             metrics_hook.record_attempt(adapter.provider, False, latency_ms)
-            _record_failure(adapter.provider, config)
+            _record_failure(adapter.provider, auth_type, config)
             last_error = str(e)
 
             logger.warning(
@@ -239,7 +256,7 @@ def invoke_with_retry(
             # The remediation hint here MUST NOT recommend that flag.
             latency_ms = int((time.monotonic() - start) * 1000)
             metrics_hook.record_attempt(adapter.provider, False, latency_ms)
-            _record_failure(adapter.provider, config)
+            _record_failure(adapter.provider, auth_type, config)
             last_error = str(e)
             last_typed_error = e
 
@@ -267,7 +284,7 @@ def invoke_with_retry(
         except Exception as e:
             latency_ms = int((time.monotonic() - start) * 1000)
             metrics_hook.record_attempt(adapter.provider, False, latency_ms)
-            _record_failure(adapter.provider, config)
+            _record_failure(adapter.provider, auth_type, config)
             last_error = str(e)
 
             logger.warning(

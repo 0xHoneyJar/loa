@@ -2292,8 +2292,22 @@ def cmd_cancel(args: argparse.Namespace) -> int:
         return EXIT_CODES["API_ERROR"]
 
 
+def _substrate_init_janitor() -> None:
+    """Cycle-110 T1.3 / C8: idempotent tempfile-janitor on substrate init.
+
+    Sweeps `.run/tmp-redaction-*` older than 1h. Best-effort: any error here
+    is swallowed because janitor failure must not block a model invocation.
+    """
+    try:
+        from loa_cheval.routing.circuit_breaker import cleanup_stale_tempfiles
+        cleanup_stale_tempfiles()
+    except Exception:  # noqa: BLE001 — janitor is best-effort
+        pass
+
+
 def main() -> int:
     """CLI entry point."""
+    _substrate_init_janitor()
     parser = argparse.ArgumentParser(
         prog="model-invoke",
         description="Hounfour model-invoke — unified model API entry point",

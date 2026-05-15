@@ -118,12 +118,45 @@ def iter_modelinv_entries(
         return
 
 
+def aggregate_circuit_breaker_state(
+    run_dir: str = ".run",
+) -> Dict[str, Dict[str, Dict[str, Any]]]:
+    """Cycle-110 T1.9 (FR-0.3 prep): surface per-(provider, auth_type) CB state.
+
+    Reads `.run/circuit-breaker-{provider}-{auth_type}.json` buckets and
+    returns a per-provider mapping. The transitional symlink is excluded.
+
+    Returns:
+      {
+        "<provider>": {
+          "<auth_type>": {
+            "state": "CLOSED"|"OPEN"|"HALF_OPEN",
+            "failure_count": int,
+            "opened_at": float|None,
+            "half_open_probes": int,
+          }, ...
+        }, ...
+      }
+    """
+    from loa_cheval.routing.circuit_breaker import list_buckets
+    raw = list_buckets(run_dir)
+    # Strip the on-disk `path` field — operator surface only needs state.
+    out: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    for provider, buckets in raw.items():
+        out[provider] = {
+            at: {k: v for k, v in info.items() if k != "path"}
+            for at, info in buckets.items()
+        }
+    return out
+
+
 def aggregate_substrate_health(
     log_path: Path,
     *,
     window: str = "24h",
     model_filter: Optional[str] = None,
     now: Optional[datetime] = None,
+    run_dir: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Aggregate substrate-health metrics over the window.
 
@@ -210,6 +243,10 @@ def aggregate_substrate_health(
 
     overall_rate = (overall_succeeded / total) if total > 0 else 0.0
 
+    cb_state = aggregate_circuit_breaker_state(
+        run_dir if run_dir is not None else str(log_path.parent)
+    )
+
     return {
         "window": window,
         "since": since.isoformat(),
@@ -222,6 +259,8 @@ def aggregate_substrate_health(
             "band": classify_band(overall_rate),
         },
         "per_model": dict(per_model),
+        # Cycle-110 T1.9 / FR-0.3 prep: per-(provider, auth_type) CB state.
+        "circuit_breaker": cb_state,
     }
 
 
@@ -267,6 +306,21 @@ def render_text(report: Dict[str, Any]) -> str:
         ch_nonzero = {k: v for k, v in b["chain_health"].items() if v > 0}
         if ch_nonzero:
             lines.append(f"    chain_health: {ch_nonzero}")
+    cb = report.get("circuit_breaker") or {}
+    if cb:
+        lines.append("")
+        lines.append("## Circuit-breaker state (provider / auth_type):")
+        for provider in sorted(cb.keys()):
+            for auth_type in sorted(cb[provider].keys()):
+                info = cb[provider][auth_type]
+                marker = {"CLOSED": "✓", "HALF_OPEN": "⚠", "OPEN": "❌"}.get(
+                    info.get("state", "CLOSED"), "?"
+                )
+                lines.append(
+                    f"  {marker} {provider}/{auth_type}: "
+                    f"{info.get('state', 'CLOSED')} "
+                    f"(failures={info.get('failure_count', 0)})"
+                )
     return "\n".join(lines)
 
 
