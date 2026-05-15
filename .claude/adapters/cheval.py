@@ -1565,9 +1565,27 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                 f"estimated={_preflight_decision.estimated_input}",
                 file=sys.stderr,
             )
-            _placeholder_opt_in = os.environ.get(
+            # PR #896 BB iter-5 F001 closure: placeholder mode requires
+            # BOTH the env var AND the --force-chunking-placeholder CLI
+            # flag (dual-gate). The previous single-env-var gate let any
+            # caller flip into the NFR-Rel-1 anti-pattern by setting a
+            # well-known variable; the CLI flag forces the caller to ATTEST
+            # at every invocation. Caller-attested + env var = explicit
+            # opt-in trail visible to both audit envelope (envvar) and
+            # invocation log (argv).
+            _placeholder_env = os.environ.get(
                 "LOA_CHEVAL_CHUNKING_PLACEHOLDER", ""
             ).strip().lower() in ("1", "true", "yes", "on")
+            _placeholder_flag = bool(getattr(args, "force_chunking_placeholder", False))
+            _placeholder_opt_in = _placeholder_env and _placeholder_flag
+            if _placeholder_env and not _placeholder_flag:
+                print(
+                    "[preflight] LOA_CHEVAL_CHUNKING_PLACEHOLDER=1 set but "
+                    "--force-chunking-placeholder CLI flag NOT supplied — "
+                    "iter-5 dual-gate refuses placeholder mode without "
+                    "argv attestation.",
+                    file=sys.stderr,
+                )
 
             # Either way, record chunk count + dispatch metadata in
             # MODELINV so substrate-health rollups (T4.7) see the
@@ -2346,6 +2364,17 @@ def main() -> int:
 
     # Utility commands
     parser.add_argument("--dry-run", action="store_true", dest="dry_run", help="Validate and print resolved model, don't call API")
+    parser.add_argument(
+        "--force-chunking-placeholder", action="store_true",
+        dest="force_chunking_placeholder",
+        help=(
+            "PR #896 BB iter-5 F001 closure — opt into the chunked-dispatch "
+            "PLACEHOLDER path that returns SUCCESS + empty findings. This is "
+            "the documented NFR-Rel-1 anti-pattern escape hatch; ONLY accept "
+            "for fixture-replay and operator-attested debugging. Requires "
+            "LOA_CHEVAL_CHUNKING_PLACEHOLDER=1 ALSO set (dual-gate)."
+        ),
+    )
     parser.add_argument("--print-effective-config", action="store_true", dest="print_config", help="Print merged config with source annotations")
     parser.add_argument("--validate-bindings", action="store_true", dest="validate_bindings", help="Validate all agent bindings")
 
