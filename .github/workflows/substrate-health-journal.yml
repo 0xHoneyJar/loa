@@ -56,8 +56,36 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Verify MODELINV log presence (PR #896 BB iter-4 closure)
+        id: log_check
+        run: |
+          # The scheduled cron runs on a fresh runner that has no
+          # .run/model-invoke.jsonl. Without explicit retrieval the
+          # aggregator sees zero invocations and the journal entry would
+          # be empty-but-successful (forever). Fail loudly when the log
+          # is absent or empty so the operator notices.
+          #
+          # cycle-110 follow-up: wire an artifact-download / S3 sync
+          # step that restores the production MODELINV log from a
+          # persistent source before this step. Until that lands, the
+          # workflow exits early on this gate so we never journal zero
+          # data silently.
+          if [[ ! -s .run/model-invoke.jsonl ]]; then
+              echo "[journal-precheck] .run/model-invoke.jsonl missing or empty on runner — skipping journal write" >&2
+              echo "[journal-precheck] cycle-110: wire log-retrieval (artifact/S3) before re-enabling this workflow as scheduled" >&2
+              echo "log_present=false" >> "$GITHUB_OUTPUT"
+              # workflow_dispatch operator runs explicitly: still surface
+              # the empty-log state but do NOT fail (returning 0 here lets
+              # workflow_dispatch end clean; the scheduled cron skips PR).
+              exit 0
+          fi
+          line_count=$(wc -l < .run/model-invoke.jsonl)
+          echo "[journal-precheck] log lines: $line_count"
+          echo "log_present=true" >> "$GITHUB_OUTPUT"
+
       - name: Run journal formatter
         id: journal
+        if: steps.log_check.outputs.log_present == 'true'
         # PR #896 BB iter-2 FIND-001 closure: workflow_dispatch inputs are
         # passed through `env:` (which the shell reads via "$VAR" — quoted,
         # not interpolated) instead of `${{ github.event.inputs.* }}`
@@ -109,12 +137,12 @@ jobs:
           echo "[journal] action=$action path=$path"
 
       - name: Skip PR when no change
-        if: steps.journal.outputs.action == 'skipped'
+        if: steps.log_check.outputs.log_present == 'true' && steps.journal.outputs.action == 'skipped'
         run: |
           echo "Journal already has today's section — no PR needed."
 
       - name: Open auto-journal PR
-        if: steps.journal.outputs.action != 'skipped'
+        if: steps.log_check.outputs.log_present == 'true' && steps.journal.outputs.action != 'skipped'
         # PR #896 BB iter-2 FIND-001 closure: pass step output through
         # `env:` (so shell sees "$JOURNAL_PATH" — quoted, not interpolated).
         # Validate the path before any shell use.

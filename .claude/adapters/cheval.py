@@ -1438,6 +1438,61 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                 chunk_pr_for_review, ChunkingExceeded,
             )
             from loa_cheval.chunking.aggregate import aggregate_findings
+
+            # PR #896 BB iter-4 closure: hoist the chunked MODELINV +
+            # verdict_quality + sidecar emit helper ABOVE the chunker
+            # try/except so BOTH success and ChunkingExceeded paths route
+            # through the same audit envelope. iter-3 left ChunkingExceeded
+            # emitting MODELINV without verdict_quality; this closes it.
+            def _emit_chunked_audit_envelope(last_walk_exit_code: int = 0) -> None:
+                _vq_chunked: Optional[Dict[str, Any]] = None
+                try:
+                    _vq_chunked = _vq_build_envelope(
+                        models_requested=_modelinv_models_requested,
+                        models_succeeded=_modelinv_state["models_succeeded"],
+                        models_failed=_modelinv_state["models_failed"],
+                        final_model_id=_modelinv_state["final_model_id"],
+                        role=getattr(args, "role", None),
+                        sprint_kind=getattr(args, "sprint_kind", None),
+                        last_walk_exit_code=last_walk_exit_code,
+                    )
+                except Exception as _vq_err:  # noqa: BLE001
+                    print(
+                        f"[VQ-BUILD-FAILED:chunked] {type(_vq_err).__name__}: {_vq_err}",
+                        file=sys.stderr,
+                    )
+                if _vq_chunked is not None:
+                    try:
+                        _vq_write_sidecar(_vq_chunked)
+                    except Exception as _sc_err:  # noqa: BLE001
+                        print(
+                            f"[VQ-SIDECAR-FAILED:chunked] {type(_sc_err).__name__}: {_sc_err}",
+                            file=sys.stderr,
+                        )
+                try:
+                    _emit_modelinv(
+                        models_requested=_modelinv_models_requested,
+                        models_succeeded=_modelinv_state["models_succeeded"],
+                        models_failed=_modelinv_state["models_failed"],
+                        operator_visible_warn=_modelinv_state["operator_visible_warn"],
+                        capability_class=_modelinv_capability_class,
+                        invocation_latency_ms=_modelinv_state["invocation_latency_ms"],
+                        cost_micro_usd=_modelinv_state["cost_micro_usd"],
+                        streaming=_modelinv_state["streaming"],
+                        final_model_id=_modelinv_state["final_model_id"],
+                        transport=_modelinv_state["transport"],
+                        config_observed=_modelinv_state["config_observed"],
+                        pricing_snapshot=_modelinv_state["pricing_snapshot"],
+                        capability_evaluation=_modelinv_state["capability_evaluation"],
+                        chunked_review=_modelinv_state.get("chunked_review"),
+                        verdict_quality=_vq_chunked,
+                    )
+                except Exception as _emit_err:  # noqa: BLE001
+                    print(
+                        f"[AUDIT-EMIT-FAILED:chunked] {type(_emit_err).__name__}: {_emit_err}",
+                        file=sys.stderr,
+                    )
+
             try:
                 _chunks = chunk_pr_for_review(
                     input_text=input_text,
@@ -1472,96 +1527,21 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     if hasattr(_ce, "context") else -1,
                     "chunks_reviewed": 0,
                 })
-                # iter-3 FIND-004: ChunkingExceeded early-return must also
-                # emit MODELINV + verdict_quality. The `_emit_chunked_modelinv`
-                # helper is defined below the chunker try-block; we inline
-                # a small partial emit here that only covers the audit
-                # path (no verdict_quality envelope, but with the standard
-                # MODELINV shape so substrate-health sees the invocation).
-                try:
-                    _emit_modelinv(
-                        models_requested=_modelinv_models_requested,
-                        models_succeeded=_modelinv_state["models_succeeded"],
-                        models_failed=_modelinv_state["models_failed"],
-                        operator_visible_warn=_modelinv_state["operator_visible_warn"],
-                        capability_class=_modelinv_capability_class,
-                        invocation_latency_ms=None,
-                        cost_micro_usd=None,
-                        streaming=None,
-                        final_model_id=_modelinv_state["final_model_id"],
-                        transport=_modelinv_state["transport"],
-                        config_observed=_modelinv_state["config_observed"],
-                        pricing_snapshot=None,
-                        capability_evaluation=_modelinv_state["capability_evaluation"],
-                        chunked_review=_modelinv_state["chunked_review"],
-                    )
-                except Exception as _emit_err:  # noqa: BLE001
-                    print(
-                        f"[AUDIT-EMIT-FAILED:chunking-exceeded] "
-                        f"{type(_emit_err).__name__}: {_emit_err}",
-                        file=sys.stderr,
-                    )
+                # PR #896 BB iter-4 FIND-3 closure: ChunkingExceeded early-
+                # return now routes through the SAME audit-envelope helper
+                # used by the fail-closed + placeholder paths, so a
+                # verdict_quality envelope + sidecar land alongside MODELINV.
+                # exit code 13 (CHUNKING_EXCEEDED) is the verdict; VQ
+                # surfaces the drop-reason for downstream consumers.
+                _emit_chunked_audit_envelope(
+                    last_walk_exit_code=EXIT_CODES["CHUNKING_EXCEEDED"],
+                )
                 return EXIT_CODES["CHUNKING_EXCEEDED"]
 
-            # PR #896 BB iter-1 F002 + iter-3 FIND-004 closure: emit MODELINV
-            # *with* verdict_quality + sidecar from the chunked branch before
-            # returning. The big try/finally at line ~1575 doesn't cover this
-            # branch, so substrate-health rollups + verdict-quality consumers
-            # would never see chunked invocations without this inline emit.
-            # iter-3 hardened: also build + attach verdict_quality envelope
-            # AND write the LOA_VERDICT_QUALITY_SIDECAR (T2.3 producer
-            # contract — "every invoke emits verdict_quality") so chunked
-            # invocations are first-class citizens of the audit surface.
-            def _emit_chunked_modelinv(last_walk_exit_code: int = 0) -> None:
-                _vq_chunked: Optional[Dict[str, Any]] = None
-                try:
-                    _vq_chunked = _vq_build_envelope(
-                        models_requested=_modelinv_models_requested,
-                        models_succeeded=_modelinv_state["models_succeeded"],
-                        models_failed=_modelinv_state["models_failed"],
-                        final_model_id=_modelinv_state["final_model_id"],
-                        role=getattr(args, "role", None),
-                        sprint_kind=getattr(args, "sprint_kind", None),
-                        last_walk_exit_code=last_walk_exit_code,
-                    )
-                except Exception as _vq_err:  # noqa: BLE001
-                    print(
-                        f"[VQ-BUILD-FAILED:chunked] {type(_vq_err).__name__}: {_vq_err}",
-                        file=sys.stderr,
-                    )
-                # Sidecar write (fail-soft; LOA_VERDICT_QUALITY_SIDECAR
-                # gate is enforced inside the helper).
-                if _vq_chunked is not None:
-                    try:
-                        _vq_write_sidecar(_vq_chunked)
-                    except Exception as _sc_err:  # noqa: BLE001
-                        print(
-                            f"[VQ-SIDECAR-FAILED:chunked] {type(_sc_err).__name__}: {_sc_err}",
-                            file=sys.stderr,
-                        )
-                try:
-                    _emit_modelinv(
-                        models_requested=_modelinv_models_requested,
-                        models_succeeded=_modelinv_state["models_succeeded"],
-                        models_failed=_modelinv_state["models_failed"],
-                        operator_visible_warn=_modelinv_state["operator_visible_warn"],
-                        capability_class=_modelinv_capability_class,
-                        invocation_latency_ms=_modelinv_state["invocation_latency_ms"],
-                        cost_micro_usd=_modelinv_state["cost_micro_usd"],
-                        streaming=_modelinv_state["streaming"],
-                        final_model_id=_modelinv_state["final_model_id"],
-                        transport=_modelinv_state["transport"],
-                        config_observed=_modelinv_state["config_observed"],
-                        pricing_snapshot=_modelinv_state["pricing_snapshot"],
-                        capability_evaluation=_modelinv_state["capability_evaluation"],
-                        chunked_review=_modelinv_state.get("chunked_review"),
-                        verdict_quality=_vq_chunked,
-                    )
-                except Exception as _emit_err:  # noqa: BLE001
-                    print(
-                        f"[AUDIT-EMIT-FAILED:chunked] {type(_emit_err).__name__}: {_emit_err}",
-                        file=sys.stderr,
-                    )
+            # PR #896 BB iter-4 closure: chunked-branch emit consolidated to
+            # the hoisted `_emit_chunked_audit_envelope` helper defined above
+            # so ChunkingExceeded AND fail-closed AND placeholder paths share
+            # the same audit shape (MODELINV + verdict_quality + sidecar).
 
             # PR #896 BB iter-1 F001/FIND-001 closure: per-chunk recursive
             # cheval dispatch (production wiring) is cycle-110 scope. Until
@@ -1633,7 +1613,7 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     ),
                     retryable=False,
                 ), file=sys.stderr)
-                _emit_chunked_modelinv()
+                _emit_chunked_audit_envelope()
                 # Same exit code as ChainExhausted — caller treats this
                 # as a chain-walk failure for audit-trail consistency.
                 return EXIT_CODES["CHAIN_EXHAUSTED"]
@@ -1662,7 +1642,7 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                 "placeholder_opt_in": True,
             }
             print(json.dumps(output), file=sys.stdout)
-            _emit_chunked_modelinv()
+            _emit_chunked_audit_envelope()
             return EXIT_CODES["SUCCESS"]
 
         # ceiling_stale informational warning (Sprint 4 wires chunked-defensive
