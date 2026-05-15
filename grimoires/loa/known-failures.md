@@ -151,7 +151,7 @@ evidence (different machine, different network, different time-of-day).
 
 ## KF-002: adversarial-review.sh empty-content on review-type prompts at scale
 
-**Status**: PARTIALLY-MITIGATED 2026-05-10 (text.format=text shipped for OpenAI; structural opus + connection-lost layers remain) + LAYER-3-RESOLVED-BY-CONSTRUCTION 2026-05-11 (Sprint 4A streaming-transport default eliminates the >60s-wait-for-first-byte failure mode; gate raised from 24K/36K to 200K/180K; see Attempts table 2026-05-11 row and Sprint 4A Resolution note below)
+**Status**: **RESOLVED-STRUCTURAL 2026-05-15** (cycle-109 Sprint 4 T4.10 closure) — Layer 1 (reasoning-budget / large-input class) closed by three composing pieces: (a) `loa_cheval.chunking` package routes oversized inputs through per-file chunked dispatch with IMP-006 conflict resolution + cross-chunk pass; (b) `loa_cheval.streaming.recovery` with 3 IMP-014 thresholds (first_token_deadline, empty_content_window, cot_budget) aborts empty/runaway streams with typed exits; (c) MODELINV v1.3 envelope surfaces `chunked_review` + `streaming_recovery` telemetry. Layers 2+3 previously resolved cycle-103 Sprint 2 T2.2. The bug class is now structurally impossible across all 3 layers. **Prior partial mitigations preserved for history**: PARTIALLY-MITIGATED 2026-05-10 (text.format=text shipped for OpenAI; structural opus + connection-lost layers remained); LAYER-3-RESOLVED-BY-CONSTRUCTION 2026-05-11 (Sprint 4A streaming-transport default eliminated the >60s-wait-for-first-byte failure mode; gate raised from 24K/36K to 200K/180K).
 
 ### Upstream cross-references (added 2026-05-10 during KF-002 deep-dive)
 
