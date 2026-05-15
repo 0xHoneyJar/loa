@@ -151,14 +151,34 @@ _require_curl_mock() {
 # explode test-suite reporting). Per-cell granularity comes back when
 # T3.10 CI workflow shards by consumer.
 
-@test "AM10: 810-cell sweep — currently SKIPPED (commit A scaffolding)" {
+@test "AM10: 810-cell sweep — SKIPPED pending per-cell fixture loader (BB iter-1 FIND-004 fail-loud)" {
     _require_curl_mock
 
     if [[ "${LOA_ACTIVATION_MATRIX_LIVE:-0}" != "1" ]]; then
         skip "matrix execution deferred until commit C (T3.6 — is_flatline_routing_enabled branches removed). Set LOA_ACTIVATION_MATRIX_LIVE=1 post-T3.6 to run."
     fi
 
-    # Live mode (post-T3.6) — iterate the cartesian product.
+    # PR #896 BB iter-1 FIND-004 closure: the previous "live" path was a
+    # silent no-op (`cells_passed=$((cells_passed + 1))` without loading
+    # any fixture or asserting any verdict). That made `LOA_ACTIVATION_MATRIX_LIVE=1`
+    # report a green 810/810 pass while the real per-cell fixtures, verdict
+    # assertion, and LOA_ACTIVATION_CONSUMER sharding were still TODO.
+    # A test that always passes consumes the trust budget worse than no
+    # test — it actively misleads.
+    #
+    # Until the per-cell fixture loader lands (cycle-110 scope), `LIVE=1`
+    # is a HARD SKIP with a clear reason rather than a fake green pass.
+    # Operators who explicitly want the cartesian smoke (cell-count only,
+    # NO verdict assertion) can opt in via
+    # `LOA_ACTIVATION_MATRIX_SMOKE_ONLY=1`, which preserves the legacy
+    # behavior under an explicit, traceable name.
+    if [[ "${LOA_ACTIVATION_MATRIX_SMOKE_ONLY:-0}" != "1" ]]; then
+        skip "AM10 live-mode per-cell fixture loader is cycle-110 scope (PR #896 BB iter-1 FIND-004). Set LOA_ACTIVATION_MATRIX_SMOKE_ONLY=1 to run the cartesian-count smoke only (NO verdict assertion)."
+    fi
+
+    # Smoke-only path: legacy cartesian-product loop preserved verbatim
+    # under explicit opt-in flag so any operator using it knows the
+    # limitations.
     local consumers_count roles_count classes_count paths_count
     consumers_count=$(jq '.consumers | length' "$DIMENSIONS_FILE")
     roles_count=$(jq '.roles | length' "$DIMENSIONS_FILE")
@@ -175,8 +195,6 @@ _require_curl_mock() {
             for ((cl = 0; cl < classes_count; cl++)); do
                 for ((pa = 0; pa < paths_count; pa++)); do
                     cells_run=$((cells_run + 1))
-                    # T3.2-T3.5 fill in per-cell fixture loading + assertion.
-                    # Placeholder: count cells visited as a smoke check.
                     cells_passed=$((cells_passed + 1))
                 done
             done

@@ -800,14 +800,38 @@ def _vq_sanitize_voice_slug(raw: str) -> str:
 def _vq_derive_voice_slug(
     role: Optional[str], primary_canonical: Optional[str]
 ) -> str:
-    """Voice slug = ``--role`` when provided; otherwise the primary model_id
-    portion of the head chain entry (``provider:model_id`` → ``model_id``).
+    """Voice slug — the per-invocation IDENTIFIER inside a multi-model
+    cohort.
+
+    PR #896 BB iter-1 FIND-002 closure: prior shape returned ``role``
+    verbatim when set, causing voice-ID COLLISION in multi-model cohorts
+    where two reviewers shared the same role (e.g. anthropic + openai
+    both called with ``--role review``). The aggregator's invariant
+    "voices_succeeded_ids has no duplicates" then rejected legitimate
+    cohorts.
+
+    New shape: ``role`` becomes a METADATA tag carried separately in
+    the envelope; the SLUG always derives from the primary canonical
+    (``provider:model_id`` → ``model_id``), with role prefixed for
+    operator readability when both are present. Falls back to ``role``
+    when no primary is available (degraded pre-resolution path).
+
+    Examples:
+      role="review", primary="anthropic:claude-opus-4-7" →
+        "review-claude-opus-4-7"
+      role=None,    primary="openai:gpt-5.5-pro" →
+        "gpt-5.5-pro"
+      role="audit", primary=None →
+        "audit"  (degraded fallback)
     """
-    if role:
-        return _vq_sanitize_voice_slug(role)
     if primary_canonical:
         _, sep, model_id = primary_canonical.partition(":")
-        return _vq_sanitize_voice_slug(model_id if sep else primary_canonical)
+        model_slug = _vq_sanitize_voice_slug(model_id if sep else primary_canonical)
+        if role:
+            return _vq_sanitize_voice_slug(f"{role}-{model_slug}")
+        return model_slug
+    if role:
+        return _vq_sanitize_voice_slug(role)
     return "unknown"
 
 
@@ -1439,29 +1463,119 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                 })
                 return EXIT_CODES["CHUNKING_EXCEEDED"]
 
-            # Per-chunk dispatch. For T4.5 v1 we use a passthrough
-            # synthesis: each chunk's content is reviewed in isolation
-            # via a fixture-injectable dispatch. The real recursive
-            # cheval call lives in aggregate's _default_dispatch_fn
-            # for second-stage; per-chunk first-stage dispatch is the
-            # same envelope-emit pipeline and is currently a passthrough
-            # that emits chunk content directly (LOA_CHEVAL_DISABLE_CHUNKING=1
-            # is the operator opt-out for environments where this
-            # heuristic doesn't fit).
+            # PR #896 BB iter-1 F002 closure: emit MODELINV from the chunked
+            # branch before returning. The big try/finally at line ~1575 doesn't
+            # cover this branch, so substrate-health rollups would never see
+            # chunked invocations without this inline emit.
+            def _emit_chunked_modelinv() -> None:
+                try:
+                    _emit_modelinv(
+                        models_requested=_modelinv_models_requested,
+                        models_succeeded=_modelinv_state["models_succeeded"],
+                        models_failed=_modelinv_state["models_failed"],
+                        operator_visible_warn=_modelinv_state["operator_visible_warn"],
+                        capability_class=_modelinv_capability_class,
+                        invocation_latency_ms=_modelinv_state["invocation_latency_ms"],
+                        cost_micro_usd=_modelinv_state["cost_micro_usd"],
+                        streaming=_modelinv_state["streaming"],
+                        final_model_id=_modelinv_state["final_model_id"],
+                        transport=_modelinv_state["transport"],
+                        config_observed=_modelinv_state["config_observed"],
+                        pricing_snapshot=_modelinv_state["pricing_snapshot"],
+                        capability_evaluation=_modelinv_state["capability_evaluation"],
+                        chunked_review=_modelinv_state.get("chunked_review"),
+                    )
+                except Exception as _emit_err:  # noqa: BLE001
+                    print(
+                        f"[AUDIT-EMIT-FAILED:chunked] {type(_emit_err).__name__}: {_emit_err}",
+                        file=sys.stderr,
+                    )
+
+            # PR #896 BB iter-1 F001/FIND-001 closure: per-chunk recursive
+            # cheval dispatch (production wiring) is cycle-110 scope. Until
+            # that lands, the chunked-dispatch branch is FAIL-CLOSED — it
+            # MUST NOT return SUCCESS + empty findings, because doing so
+            # is the exact NFR-Rel-1 anti-pattern this cycle was built to
+            # eliminate (a "smoke detector that says all clear because its
+            # battery is dead").
+            #
+            # Operators who genuinely need to bypass chunking can set
+            # LOA_CHEVAL_DISABLE_CHUNKING=1, which routes via the normal
+            # single-call path (and surfaces a clean ContextTooLarge if
+            # that exceeds the ceiling). Operators who genuinely need to
+            # ship a placeholder-success can set
+            # LOA_CHEVAL_CHUNKING_PLACEHOLDER=1 — explicitly opt-in to the
+            # degraded-success path with a stderr WARN + envelope marker.
+            # Default is fail-closed.
             print(
                 f"[preflight] chunked dispatch: chunks={len(_chunks)} "
                 f"ceiling={_preflight_decision.effective_input_ceiling} "
                 f"estimated={_preflight_decision.estimated_input}",
                 file=sys.stderr,
             )
-            # Emit a structured chunked-dispatch result with the chunk
-            # count + an empty findings aggregate. T4.7 wires the
-            # MODELINV envelope chunked_review fields; T4.9 lands the
-            # repro fixtures that exercise this path end-to-end.
-            _aggregated = aggregate_findings([])
-            _modelinv_state["models_succeeded"] = [_preflight_head.canonical]
+            _placeholder_opt_in = os.environ.get(
+                "LOA_CHEVAL_CHUNKING_PLACEHOLDER", ""
+            ).strip().lower() in ("1", "true", "yes", "on")
+
+            # Either way, record chunk count + dispatch metadata in
+            # MODELINV so substrate-health rollups (T4.7) see the
+            # invocation (BB iter-1 F002 closure: the chunked path
+            # MUST NOT be invisible to the audit envelope).
             _modelinv_state["final_model_id"] = _preflight_head.canonical
             _modelinv_state["transport"] = _preflight_head.adapter_kind
+            _modelinv_state.setdefault("chunked_review", {})
+            _modelinv_state["chunked_review"].update({
+                "chunked": True,
+                "chunks_planned": len(_chunks),
+                "chunks_reviewed": 0,
+                "dispatch_mode": (
+                    "placeholder_opt_in" if _placeholder_opt_in
+                    else "fail_closed_pending_cycle_110"
+                ),
+            })
+
+            if not _placeholder_opt_in:
+                # Fail-closed: surface DEGRADED + non-zero exit. Caller
+                # observes the same shape as any other chain-exhausted /
+                # provider-failure path so audit envelopes downstream
+                # don't see "APPROVED + zero findings" by accident.
+                _modelinv_state["models_failed"].append({
+                    "model": _preflight_head.canonical,
+                    "provider": _preflight_head.provider,
+                    "error_class": "DEGRADED_PARTIAL",
+                    "message_redacted": (
+                        f"chunked-dispatch fail-closed pending cycle-110 "
+                        f"production wiring; chunks_planned={len(_chunks)}, "
+                        f"estimated_input={_preflight_decision.estimated_input}"
+                    ),
+                })
+                _modelinv_state["operator_visible_warn"] = True
+                print(_error_json(
+                    "CHUNKED_DISPATCH_FAIL_CLOSED",
+                    (
+                        f"chunked-dispatch path is fail-closed pending cycle-110 "
+                        f"production wiring (BB iter-1 F001). "
+                        f"chunks_planned={len(_chunks)}. "
+                        "Set LOA_CHEVAL_CHUNKING_PLACEHOLDER=1 to opt into "
+                        "the legacy placeholder-success path (NOT recommended)."
+                    ),
+                    retryable=False,
+                ), file=sys.stderr)
+                _emit_chunked_modelinv()
+                # Same exit code as ChainExhausted — caller treats this
+                # as a chain-walk failure for audit-trail consistency.
+                return EXIT_CODES["CHAIN_EXHAUSTED"]
+
+            # Placeholder opt-in path (legacy behavior; emits
+            # operator_visible_warn for explicit traceability).
+            print(
+                "[preflight] WARNING: LOA_CHEVAL_CHUNKING_PLACEHOLDER=1 — "
+                "emitting empty findings; this bypasses NFR-Rel-1 gate.",
+                file=sys.stderr,
+            )
+            _aggregated = aggregate_findings([])
+            _modelinv_state["models_succeeded"] = [_preflight_head.canonical]
+            _modelinv_state["operator_visible_warn"] = True
             output = {
                 "content": "{\"findings\": []}",
                 "model": _preflight_head.canonical,
@@ -1473,8 +1587,10 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                 "chunks_reviewed": _aggregated.chunks_reviewed,
                 "chunks_with_findings": _aggregated.chunks_with_findings,
                 "second_stage_invoked": _aggregated.second_stage_invoked,
+                "placeholder_opt_in": True,
             }
             print(json.dumps(output), file=sys.stdout)
+            _emit_chunked_modelinv()
             return EXIT_CODES["SUCCESS"]
 
         # ceiling_stale informational warning (Sprint 4 wires chunked-defensive

@@ -62,6 +62,7 @@ _CHAIN_HEALTH_EXHAUSTED = "exhausted"
 def aggregate_envelopes(
     envelopes: List[Dict[str, Any]],
     findings_per_voice: Optional[List[List[Dict[str, Any]]]] = None,
+    expected_voices_count: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Aggregate N single-voice envelopes into a multi-voice envelope.
 
@@ -77,6 +78,14 @@ def aggregate_envelopes(
         §3.2.2.1. When omitted, falls back to the T2.4 ``"consensus"``
         placeholder (preserves backward compat for callers that don't
         have per-voice findings handy yet).
+      expected_voices_count: PR #896 BB iter-1 FIND-003 closure. When
+        provided and > len(envelopes), the aggregate's `voices_planned`
+        uses this value (the EXPECTED cohort size, not the OBSERVED
+        envelope count), and the missing voices appear in `voices_dropped`
+        as synthesized `EnvelopeMissing` entries. Without this argument
+        the legacy behavior holds: ``voices_planned = len(envelopes)``,
+        which the BB iter-1 review flagged as the "2-of-3 degraded silently
+        promoted to APPROVED 2-of-2" defect.
 
     Returns:
       A validated, status-stamped multi-voice envelope.
@@ -97,7 +106,17 @@ def aggregate_envelopes(
     # keep references for per-voice logging downstream.
     inputs = [copy.deepcopy(e) for e in envelopes]
 
-    voices_planned = len(inputs)
+    # FIND-003 closure: voices_planned reflects the EXPECTED cohort size
+    # when the caller knows it (e.g., the flatline orchestrator counted
+    # 3 input files but only 2 produced verdict_quality envelopes). The
+    # legacy shape uses len(inputs) which silently elides missing voices.
+    observed_count = len(inputs)
+    if expected_voices_count is not None and expected_voices_count > observed_count:
+        voices_planned = int(expected_voices_count)
+        _missing_count = voices_planned - observed_count
+    else:
+        voices_planned = observed_count
+        _missing_count = 0
 
     # Sum succeeded counts + concatenate succeeded ids.
     voices_succeeded = 0
@@ -123,6 +142,24 @@ def aggregate_envelopes(
 
         if env.get("truncation_waiver_applied"):
             truncation_waiver_any = True
+
+    # FIND-003: synthesize voices_dropped entries for the missing envelopes
+    # so the audit trail explicitly shows the gap (vs silently shrinking
+    # the denominator). Reason maps to "Other" (the schema's catch-all);
+    # the rationale string carries the human-readable "missing envelope"
+    # context. blocker_risk=unknown is the safe default per schema
+    # description — consumers can treat unknown as med via the
+    # blocker_risk_override.unknown_treated_as_med_until_priors toggle.
+    # all_inputs_ok flips false because the cohort is no longer fully-ok.
+    if _missing_count > 0:
+        for _i in range(_missing_count):
+            voices_dropped.append({
+                "voice": f"missing-voice-{_i + 1}",
+                "reason": "Other",
+                "exit_code": 0,
+                "blocker_risk": "unknown",
+            })
+        all_inputs_ok = False
 
     # Multi-voice chain_health semantics differ from the single-voice case:
     # "exhausted" only when EVERY voice failed (voices_succeeded == 0).
@@ -246,6 +283,18 @@ def _cli_main(argv: Optional[List[str]] = None) -> int:
         "files", nargs="*",
         help="Paths to single-voice verdict_quality envelope JSON files.",
     )
+    parser.add_argument(
+        "--expected-voices-count",
+        type=int,
+        default=None,
+        help=(
+            "PR #896 BB iter-1 FIND-003: pass the EXPECTED cohort size "
+            "(distinct from len(files), which counts envelopes actually "
+            "produced). When supplied and greater than len(files), the "
+            "missing voices appear as Other-reason voices_dropped entries "
+            "instead of being silently elided from voices_planned."
+        ),
+    )
     args = parser.parse_args(argv)
 
     if not args.files:
@@ -287,7 +336,10 @@ def _cli_main(argv: Optional[List[str]] = None) -> int:
     from .quality import EnvelopeInvariantViolation
 
     try:
-        out = aggregate_envelopes(envelopes)
+        out = aggregate_envelopes(
+            envelopes,
+            expected_voices_count=args.expected_voices_count,
+        )
     except EnvelopeInvariantViolation as e:
         print(f"[verdict-aggregate] invariant violation: {e}", file=sys.stderr)
         return 2

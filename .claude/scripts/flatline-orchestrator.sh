@@ -584,9 +584,17 @@ aggregate_and_write_final_consensus() {
 
     # Shell out to the canonical Python aggregator. PYTHONPATH points at
     # .claude/adapters so loa_cheval is importable without an install step.
+    #
+    # PR #896 BB iter-1 FIND-003 closure: pass `--expected-voices-count`
+    # = ${#input_files[@]} (the EXPECTED cohort size, not the count of
+    # envelopes that actually arrived). Missing voices are recorded in
+    # voices_dropped[] instead of silently shrinking voices_planned —
+    # which would have turned "2-of-3 degraded" into "APPROVED 2-of-2".
     local agg_out agg_rc=0
     agg_out=$(PYTHONPATH="$PROJECT_ROOT/.claude/adapters" \
-        python3 -m loa_cheval.verdict.aggregate "${vq_files[@]}" 2>&1) || agg_rc=$?
+        python3 -m loa_cheval.verdict.aggregate \
+            --expected-voices-count "${#input_files[@]}" \
+            "${vq_files[@]}" 2>&1) || agg_rc=$?
     if [[ $agg_rc -ne 0 ]]; then
         log "[vq-aggregate] aggregator failed (rc=$agg_rc): $agg_out"
     else
