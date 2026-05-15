@@ -331,6 +331,49 @@
           ]
         }
       }
+    },
+    "auth_type_resolved": {
+      "description": "Cycle-110 sprint-2b1 T2.8 (FR-3.4): auth_type bucket the resolver selected for this invocation. Bedrock entries use aws_iam; HTTP-API providers use http_api; subscription-CLI providers use headless. v1.3 readers tolerate this additive field; absence means pre-cycle-110 entry — readers MUST default to http_api per cycle-110 SDD §3.4 backward-compat.",
+      "type": "string",
+      "enum": ["headless", "http_api", "aws_iam"]
+    },
+    "auth_type_selection_reason": {
+      "description": "Cycle-110 sprint-2b1 T2.8 (FR-3.4): how the auth_type was chosen. explicit-dispatch_preference = operator set dispatch_preference to a concrete value; auto-band-comparison = auto-mode used warm-window stats; auto-cold-start-recommended_for = capability_evaluation.recommended_for hint; auto-cold-start-default-headless = no warm data and no hint, defaulted to headless when available.",
+      "type": "string",
+      "enum": [
+        "explicit-dispatch_preference",
+        "auto-band-comparison",
+        "auto-cold-start-recommended_for",
+        "auto-cold-start-default-headless"
+      ]
+    },
+    "auto_selection_inputs": {
+      "description": "Cycle-110 sprint-2b1 T2.8 (FR-3.4 / SDD §5.5 [Q7] resolution). C11 carry-in: canonical example shape pinned by tests/test_dispatch_filter.py::TestAutoResolutionEnvelopeShape. Present ONLY when auth_type_selection_reason == 'auto-band-comparison'. Aggregate-only counters; no operator content. NFR-Sec-4 redaction pass still runs as defense-in-depth.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sample_n_per_bucket": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "band_per_bucket": {
+          "type": "object",
+          "additionalProperties": { "enum": ["green", "yellow", "red"] }
+        },
+        "success_rate_per_bucket": {
+          "type": "object",
+          "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
+      }
+    },
+    "auto_evaluation_timestamp": {
+      "description": "Cycle-110 sprint-2b1 T2.8 (C10 carry-in): epoch-seconds when the auto-mode algorithm ran. FROZEN at evaluation time so retrospective config changes don't shift the audit-trail interpretation. Present only when auth_type_selection_reason starts with 'auto-'.",
+      "type": "number",
+      "minimum": 0
+    },
+    "semaphore_exhausted": {
+      "description": "Cycle-110 sprint-2b1 T2.8 (C12 carry-in): true when the headless-concurrency semaphore (sprint-2b2 T2.11) rejected the call after exhausting bounded retries; distinct from chain_exhausted. Future-compat — sprint-2b2 wires the actual emitter; sprint-2b1 only declares the schema slot so the readers can be coded against it now.",
+      "type": "boolean"
     }
   }
 }
