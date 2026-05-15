@@ -423,8 +423,14 @@ def _validate_model_auth_metadata(merged: Dict[str, Any]) -> None:
     - Missing → `[CONFIG-INVALID]` BLOCKER. Enum-invalid → `[CONFIG-ENUM-INVALID]`
       with allowed-list hint (C9 spirit applied to auth_type).
     - Empty `providers` mapping is permitted (some test fixtures omit it).
+
+    BB iter-1 #904 F-001 closure (MED, conf 0.9): use explicit `is None` checks
+    instead of `or {}` so falsy non-mapping values (`[]`, `""`, `False`, `0`)
+    are caught by the isinstance check rather than silently coerced to `{}`.
     """
-    providers = merged.get("providers", {}) or {}
+    providers = merged.get("providers")
+    if providers is None:
+        providers = {}
     if not isinstance(providers, dict):
         raise ConfigError(
             "providers must be a mapping; got "
@@ -437,7 +443,9 @@ def _validate_model_auth_metadata(merged: Dict[str, Any]) -> None:
                 f"providers.{provider_id} must be a mapping; "
                 f"got {type(provider).__name__}"
             )
-        models = provider.get("models") or {}
+        models = provider.get("models")
+        if models is None:
+            models = {}
         if not isinstance(models, dict):
             raise ConfigError(
                 f"providers.{provider_id}.models must be a mapping; "

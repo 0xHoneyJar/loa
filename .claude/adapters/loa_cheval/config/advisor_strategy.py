@@ -24,7 +24,8 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, FrozenSet, List, Literal, Optional
+from types import MappingProxyType
+from typing import Any, ClassVar, Dict, FrozenSet, List, Literal, Mapping, Optional
 
 
 # Exit codes (BSD sysexits.h)
@@ -78,22 +79,24 @@ class AdvisorStrategyConfig:
     headless_concurrency_scope: str                            # C7 (cross_process | process_only)
     headless_concurrency_limit: int                            # C7 (default 50)
 
-    # Cycle-110 default ladder per FR-1.4 (C16 closure)
-    # When allow_cross_auth_fallback is None, derive from dispatch_preference:
+    # Cycle-110 default ladder per FR-1.4 (C16 closure).
+    #
+    # BB iter-1 #904 F1 closure (HIGH, conf 0.9): ClassVar + MappingProxyType
+    # so the ladder is a single class-level constant (not allocated per
+    # instance via dataclass default_factory). MappingProxyType blocks
+    # mutation; ClassVar excludes the field from __init__ and __eq__.
+    #
+    # Semantic:
     #   headless → False  (operator chose headless explicitly; do NOT fallback
     #                      to paid HTTP silently)
     #   http_api → True   (legacy behavior — falls back to headless when
     #                      available)
     #   auto     → True   (auto-mode already evaluates all buckets)
-    _CROSS_AUTH_FALLBACK_LADDER: Dict[str, bool] = field(
-        default_factory=lambda: {
-            "headless": False,
-            "http_api": True,
-            "auto": True,
-        },
-        repr=False,
-        compare=False,
-    )
+    _CROSS_AUTH_FALLBACK_LADDER: ClassVar[Mapping[str, bool]] = MappingProxyType({
+        "headless": False,
+        "http_api": True,
+        "auto": True,
+    })
 
     def effective_cross_auth_fallback(self, role: Optional[str] = None) -> bool:
         """Resolve allow_cross_auth_fallback per FR-1.4 (C16 closure).
