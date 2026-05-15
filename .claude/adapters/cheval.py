@@ -282,6 +282,10 @@ def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> Provid
             api_format=model_data.get("api_format"),
             fallback_to=model_data.get("fallback_to"),
             fallback_mapping_version=model_data.get("fallback_mapping_version"),
+            # cycle-110 sprint-2b2b1 BB iter-2 F-001: honor per-model
+            # headless_concurrency_limit if declared (default None → adapter
+            # uses 50). FR-8.6 stress-test discovery seeds per-CLI values.
+            headless_concurrency_limit=model_data.get("headless_concurrency_limit"),
         )
 
     return ProviderConfig(

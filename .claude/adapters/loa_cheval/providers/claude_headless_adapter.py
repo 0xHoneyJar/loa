@@ -120,9 +120,10 @@ class ClaudeHeadlessAdapter(ProviderAdapter):
         prompt = self._build_prompt(request.messages)
         cmd = self._build_command(request, model_config, prompt)
         timeout_s = self._compute_timeout()
-        # Cycle-110 sprint-2b2b1: default 50 (SDD §5.6). Operator override
-        # via advisor_strategy.headless_concurrency_limit is sprint-3 plumbing.
-        n_slots = 50
+        # Cycle-110 sprint-2b2b1 BB iter-2 F-001 closure: read per-model
+        # headless_concurrency_limit (cycle-110 ModelConfig field). Default 50
+        # when operator hasn't seeded a stress-test-discovered value (SDD §5.6).
+        n_slots = getattr(model_config, "headless_concurrency_limit", None) or 50
 
         logger.debug(
             "claude-headless invoking: model=%s timeout=%.0fs prompt_chars=%d slots=%d",

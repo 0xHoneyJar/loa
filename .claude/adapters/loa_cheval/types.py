@@ -150,6 +150,11 @@ class ModelConfig:
     # delta that breaks fallback equivalence. Operator acknowledges via
     # sentinel file (NFR-Sec9 IR runbook).
     fallback_mapping_version: Optional[int] = None
+    # cycle-110 sprint-2b2b1 BB iter-2 F-001 closure: per-model concurrency
+    # cap for the cross-process N-slot semaphore (SDD §5.6 v1.1). Seeded
+    # from FR-8.6 stress test results; defaults to 50 if absent. Operator
+    # tunes per model in `.claude/defaults/model-config.yaml`.
+    headless_concurrency_limit: Optional[int] = None
 
 
 # --- Error Types ---

@@ -84,6 +84,28 @@ class SemaphoreExhausted(RuntimeError):
         self.waited_seconds = waited_seconds
 
 
+class ConcurrencyInfrastructureError(RuntimeError):
+    """BB iter-2 #908 F-002 closure: distinct exit class for slot-open
+    failures (EMFILE / ELOOP / EPERM / etc.) that are NOT contention.
+
+    SemaphoreExhausted means "all slots busy" — a steady-state signal that
+    operators tune by raising N or shedding load. ConcurrencyInfrastructureError
+    means "filesystem misconfiguration" — EMFILE (out of file descriptors),
+    ELOOP (symlink loop at slot path), EPERM (lost permission to slot dir).
+    Operators triage these differently; collapsing them defeats the dashboard
+    (Netflix Hystrix's contention-vs-thread-pool-vs-timeout discipline).
+    """
+
+    def __init__(self, cli: str, slot_idx: int, original: OSError):
+        super().__init__(
+            f"headless-concurrency infrastructure failure for {cli!r} "
+            f"slot={slot_idx}: {type(original).__name__}: {original}"
+        )
+        self.cli = cli
+        self.slot_idx = slot_idx
+        self.original = original
+
+
 # --- Slot directory helpers --------------------------------------------------
 
 
@@ -257,17 +279,33 @@ def acquire_slot(
     # until either we acquire one OR the deadline passes.
     held_fd: Optional[int] = None
     held_idx: Optional[int] = None
+    # BB iter-2 #908 F-002 closure: track first non-EAGAIN OSError so we
+    # can distinguish "all slots busy" (steady-state contention) from
+    # "filesystem is broken" (EMFILE / ELOOP / EPERM at slot-open).
+    infra_error: Optional[OSError] = None
+    infra_error_idx: int = -1
     while True:
+        slots_opened_this_sweep = 0
         for slot_idx in range(n_slots):
             path = _slot_path(cli, slot_idx, run_dir)
             try:
                 fd = _open_slot_file(path)
             except OSError as exc:
+                if infra_error is None:
+                    infra_error = exc
+                    infra_error_idx = slot_idx
+                # ELOOP at the slot path is a hard-fail — never recover from
+                # a symlink-redirected slot file. Raise immediately.
+                if exc.errno == errno.ELOOP:
+                    raise ConcurrencyInfrastructureError(
+                        cli=cli, slot_idx=slot_idx, original=exc,
+                    ) from exc
                 logger.warning(
                     "slot file open failed for %s slot=%d: %s",
                     cli, slot_idx, exc,
                 )
                 continue
+            slots_opened_this_sweep += 1
             if _try_acquire_slot(fd):
                 held_fd = fd
                 held_idx = slot_idx
@@ -276,6 +314,13 @@ def acquire_slot(
             os.close(fd)
         if held_fd is not None:
             break
+        # F-002 closure: if NO slot opened cleanly this sweep AND we have
+        # a recorded infra error, raise distinct class — the issue is
+        # infrastructure, not contention.
+        if slots_opened_this_sweep == 0 and infra_error is not None:
+            raise ConcurrencyInfrastructureError(
+                cli=cli, slot_idx=infra_error_idx, original=infra_error,
+            ) from infra_error
         if time.monotonic() >= deadline:
             raise SemaphoreExhausted(
                 cli=cli,
@@ -299,6 +344,7 @@ def acquire_slot(
 
 
 __all__ = [
+    "ConcurrencyInfrastructureError",
     "SemaphoreExhausted",
     "acquire_slot",
 ]
