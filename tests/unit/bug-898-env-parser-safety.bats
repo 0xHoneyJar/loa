@@ -200,3 +200,130 @@ EOF
         return 1
     fi
 }
+
+# =============================================================================
+# SEC-001 — key-name denylist for ambient-execution variables
+#
+# BB #912 review caught that the value-side gate alone is insufficient: even
+# with `KEY=value` shape, certain key NAMES (BASH_ENV, LD_PRELOAD, NODE_OPTIONS,
+# etc.) coerce code into every subprocess at startup. Shellshock pattern.
+# =============================================================================
+
+@test "bug-898-15: rejects BASH_ENV (every non-interactive bash sources it)" {
+    cat > "$TEST_TMP/.env" <<EOF
+BASH_ENV=/tmp/should-not-execute.sh
+EOF
+    unset BASH_ENV
+    load_env_file "$TEST_TMP/.env"
+    [ -z "${BASH_ENV:-}" ]
+}
+
+@test "bug-898-16: rejects LD_PRELOAD (shared-object injection)" {
+    cat > "$TEST_TMP/.env" <<EOF
+LD_PRELOAD=/tmp/hostile.so
+EOF
+    unset LD_PRELOAD
+    load_env_file "$TEST_TMP/.env"
+    [ -z "${LD_PRELOAD:-}" ]
+}
+
+@test "bug-898-17: rejects NODE_OPTIONS (node --require code injection)" {
+    cat > "$TEST_TMP/.env" <<EOF
+NODE_OPTIONS=--require=/tmp/hostile.js
+EOF
+    unset NODE_OPTIONS
+    load_env_file "$TEST_TMP/.env"
+    [ -z "${NODE_OPTIONS:-}" ]
+}
+
+@test "bug-898-18: rejects PYTHONSTARTUP (python REPL init injection)" {
+    cat > "$TEST_TMP/.env" <<EOF
+PYTHONSTARTUP=/tmp/hostile.py
+EOF
+    unset PYTHONSTARTUP
+    load_env_file "$TEST_TMP/.env"
+    [ -z "${PYTHONSTARTUP:-}" ]
+}
+
+@test "bug-898-19: rejects GIT_SSH_COMMAND (arbitrary command on git ops)" {
+    cat > "$TEST_TMP/.env" <<EOF
+GIT_SSH_COMMAND=/tmp/hostile-ssh
+EOF
+    unset GIT_SSH_COMMAND
+    load_env_file "$TEST_TMP/.env"
+    [ -z "${GIT_SSH_COMMAND:-}" ]
+}
+
+@test "bug-898-20: rejects DYLD_INSERT_LIBRARIES (macOS dyld injection)" {
+    cat > "$TEST_TMP/.env" <<EOF
+DYLD_INSERT_LIBRARIES=/tmp/hostile.dylib
+EOF
+    unset DYLD_INSERT_LIBRARIES
+    load_env_file "$TEST_TMP/.env"
+    [ -z "${DYLD_INSERT_LIBRARIES:-}" ]
+}
+
+@test "bug-898-21: rejects PROMPT_COMMAND (bash prompt-hook code path)" {
+    cat > "$TEST_TMP/.env" <<EOF
+PROMPT_COMMAND=touch /tmp/owned
+EOF
+    unset PROMPT_COMMAND
+    load_env_file "$TEST_TMP/.env"
+    [ -z "${PROMPT_COMMAND:-}" ]
+}
+
+@test "bug-898-22: rejects denylisted key even with single-quoted value" {
+    cat > "$TEST_TMP/.env" <<EOF
+BASH_ENV='/tmp/quoted-still-rejected.sh'
+EOF
+    unset BASH_ENV
+    load_env_file "$TEST_TMP/.env"
+    [ -z "${BASH_ENV:-}" ]
+}
+
+@test "bug-898-23: rejects denylisted key with 'export' prefix" {
+    cat > "$TEST_TMP/.env" <<EOF
+export BASH_ENV=/tmp/export-prefix.sh
+EOF
+    unset BASH_ENV
+    load_env_file "$TEST_TMP/.env"
+    [ -z "${BASH_ENV:-}" ]
+}
+
+@test "bug-898-24: positive control — non-denylisted key with PATH-shaped value still allowed" {
+    cat > "$TEST_TMP/.env" <<'EOF'
+MY_SAFE_PATH_VAR=/usr/local/bin
+EOF
+    load_env_file "$TEST_TMP/.env"
+    [ "$MY_SAFE_PATH_VAR" = "/usr/local/bin" ]
+}
+
+@test "bug-898-25: positive control — caller's existing BASH_ENV (set before load_env_file) is NOT clobbered" {
+    # If the caller has BASH_ENV legitimately set, the loader's refusal is
+    # to assign a NEW one — not to scrub the existing one. This preserves
+    # operator-set values while blocking .env-supplied hijacks.
+    BASH_ENV="/operator/set/value.sh"
+    cat > "$TEST_TMP/.env" <<'EOF'
+BASH_ENV=/hostile/value.sh
+EOF
+    load_env_file "$TEST_TMP/.env"
+    [ "$BASH_ENV" = "/operator/set/value.sh" ]
+    unset BASH_ENV
+}
+
+@test "bug-898-26: denylist applies to non-quoted, double-quoted, single-quoted, and exported forms" {
+    # Cross-cut sanity: 4 quote-shape variants of the same denylisted key,
+    # all must end with the key UNset.
+    for fixture in 'LD_PRELOAD=/x.so' \
+                   'LD_PRELOAD="/x.so"' \
+                   "LD_PRELOAD='/x.so'" \
+                   'export LD_PRELOAD=/x.so'; do
+        echo "$fixture" > "$TEST_TMP/.env"
+        unset LD_PRELOAD
+        load_env_file "$TEST_TMP/.env"
+        if [[ -n "${LD_PRELOAD:-}" ]]; then
+            echo "FAIL: LD_PRELOAD leaked for fixture: $fixture" >&2
+            return 1
+        fi
+    done
+}

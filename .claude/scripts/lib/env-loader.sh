@@ -34,6 +34,14 @@ if [[ "${_LOA_ENV_LOADER_SOURCED:-0}" == "1" ]]; then
 fi
 _LOA_ENV_LOADER_SOURCED=1
 
+_env_loader_reject_denylist_key() {
+    # bug-898 SEC-001: shared rejection helper for ambient-execution key names.
+    # See the case-statement in load_env_file for the full denylist + rationale.
+    local key="$1" file="$2" lineno="$3"
+    printf 'WARN: env-loader: rejected denylisted key %s in %s line %d (ambient-execution key — sourcing would let an attacker hijack subprocesses regardless of value content)\n' \
+        "$key" "$file" "$lineno" >&2
+}
+
 load_env_file() {
     local file="$1"
     local line key value
@@ -67,6 +75,49 @@ load_env_file() {
         fi
         key="${BASH_REMATCH[1]}"
         value="${BASH_REMATCH[2]}"
+
+        # bug-898 SEC-001: key-name denylist for ambient-execution variables.
+        # The value-side gate below blocks `$(cmd)` / backticks / `;` chains,
+        # but the legacy SHELLSHOCK class (CVE-2014-6271) and adjacent ones
+        # exploit dangerous KEY NAMES that turn a plain `KEY=path` assignment
+        # into deferred code execution in every child process. BASH_ENV is
+        # sourced by every non-interactive bash subprocess at startup;
+        # LD_PRELOAD / LD_LIBRARY_PATH inject shared objects; NODE_OPTIONS,
+        # PYTHONSTARTUP, PERL5OPT, RUBYOPT, GIT_SSH_COMMAND, GIT_EXEC_PATH
+        # all coerce code into otherwise-trusted runtimes.
+        # Refuse these key names regardless of value shape.
+        case "$key" in
+            BASH_ENV|ENV|CDPATH|PROMPT_COMMAND|BASH_FUNC_*|FUNCNEST)
+                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
+                continue ;;
+            LD_PRELOAD|LD_LIBRARY_PATH|LD_AUDIT|LD_BIND_NOW|LD_DEBUG)
+                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
+                continue ;;
+            DYLD_INSERT_LIBRARIES|DYLD_LIBRARY_PATH|DYLD_FRAMEWORK_PATH|DYLD_FALLBACK_LIBRARY_PATH|DYLD_FALLBACK_FRAMEWORK_PATH)
+                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
+                continue ;;
+            NODE_OPTIONS|NODE_PATH)
+                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
+                continue ;;
+            PYTHONSTARTUP|PYTHONPATH|PYTHONHOME|PYTHONINSPECT|PYTHONDEBUG|PYTHONUSERBASE)
+                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
+                continue ;;
+            PERL5OPT|PERL5LIB|PERL5DB|PERLIO_DEBUG|PERL_UNICODE)
+                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
+                continue ;;
+            RUBYOPT|RUBYLIB)
+                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
+                continue ;;
+            GIT_SSH_COMMAND|GIT_EXEC_PATH|GIT_DIR|GIT_WORK_TREE|GIT_INDEX_FILE|GIT_CONFIG_GLOBAL|GIT_CONFIG_SYSTEM)
+                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
+                continue ;;
+            SSH_ASKPASS|SUDO_ASKPASS|SSH_AUTH_SOCK)
+                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
+                continue ;;
+            IFS|PS4|HISTFILE|HISTCMD)
+                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
+                continue ;;
+        esac
 
         # Strip trailing whitespace from unquoted values (but preserve it
         # inside quoted values).
