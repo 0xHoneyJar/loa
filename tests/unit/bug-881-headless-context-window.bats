@@ -9,13 +9,19 @@
 # `CONTEXT_TOO_LARGE` even though the underlying CLI tools natively
 # support 200k+ tokens.
 #
-# Fix: declare per-entry context_window in YAML
-#   - codex-headless:   200000 (gpt-5.5 capacity)
-#   - claude-headless:  200000 (sonnet/opus capacity)
-#   - gemini-headless: 1048576 (gemini-3.1-pro-preview capacity)
+# Fix: declare per-entry context_window in YAML. Canonical values live in
+# `.claude/defaults/model-config.yaml` (single source of truth). Each
+# headless entry MUST agree with its `extra.cli_model` http_api sibling;
+# the cross-entry invariant is pinned by bug-881-1b below.
 #
 # These tests prove the YAML side (presence + canonical values) and the
 # loader-side roundtrip (resolved ModelConfig carries the value).
+#
+# Note (BB #914 F-001-test-header): the previous header duplicated the
+# expected numeric values inline (`codex-headless: 200000`, etc.); the
+# assertions below diverged from that list (codex-headless is 400000),
+# which would have misled the next editor reading the header before the
+# assertions. The duplicated list was removed; the YAML is canonical.
 # =============================================================================
 
 setup() {
@@ -55,21 +61,74 @@ PY
 import yaml, sys
 with open('.claude/defaults/model-config.yaml') as f:
     cfg = yaml.safe_load(f)
+
+aliases = cfg.get('aliases') or {}
+backcompat = cfg.get('backward_compat_aliases') or {}
+all_aliases = {**backcompat, **aliases}
+
+def resolve_sibling(prov, ref, providers):
+    """`ref` may be a direct model name in providers[prov].models, or an
+    alias that resolves to `<provider>:<model>`. Return (provider, model_dict)
+    or (None, None) if unresolvable."""
+    models = providers[prov].get('models') or {}
+    if ref in models:
+        return prov, models[ref]
+    target = all_aliases.get(ref)
+    if target and ':' in target:
+        target_prov, target_name = target.split(':', 1)
+        target_models = (providers.get(target_prov) or {}).get('models') or {}
+        if target_name in target_models:
+            return target_prov, target_models[target_name]
+    return None, None
+
 errors = []
-for prov, models in cfg['providers'].items():
-    for name, m in (models.get('models') or {}).items():
+cli_kind_count = 0
+for prov, prov_block in cfg['providers'].items():
+    for name, m in (prov_block.get('models') or {}).items():
         if m.get('kind') != 'cli':
             continue
+        cli_kind_count += 1
+        # BB #914 F-002 fix: a missing context_window / cli_model is a
+        # hard failure of the contract this PR pins; a non-resolvable
+        # cli_model is a soft signal (some CLIs accept tool-internal
+        # short forms like `claude --model sonnet` that don't appear in
+        # YAML — operator-overridable on purpose). Distinguish:
+        #
+        #   HARD: kind:cli entry MUST declare context_window
+        #   HARD: kind:cli entry MUST declare extra.cli_model
+        #   SOFT: IF the cli_model resolves via YAML/aliases, cw MUST match
+        #         the sibling. Unresolved short forms are accepted but
+        #         logged so a typo-driven drop is still visible.
         cli_model = (m.get('extra') or {}).get('cli_model')
         if not cli_model:
-            continue
-        sibling = models['models'].get(cli_model)
-        if not sibling:
+            errors.append(f"{prov}.{name} kind:cli but no extra.cli_model")
             continue
         cw_self = m.get('context_window')
-        cw_sib  = sibling.get('context_window')
-        if cw_self is not None and cw_sib is not None and cw_self != cw_sib:
-            errors.append(f"{prov}.{name} cw={cw_self} != cli_model {cli_model} cw={cw_sib}")
+        if cw_self is None:
+            errors.append(f"{prov}.{name} missing context_window (the fix this PR pins)")
+            continue
+        sib_prov, sibling = resolve_sibling(prov, cli_model, cfg['providers'])
+        if not sibling:
+            # Tool-internal alias (e.g. claude CLI's `sonnet` short form
+            # that the CLI itself resolves). Acceptable; cw cross-check
+            # is best-effort and skipped.
+            continue
+        sib_kind = sibling.get('kind', 'http_api')
+        if sib_kind == 'cli':
+            errors.append(f"{prov}.{name} cli_model={cli_model!r} resolves to "
+                          f"another kind:cli entry (would form a cli→cli cycle)")
+            continue
+        cw_sib = sibling.get('context_window')
+        if cw_sib is None:
+            errors.append(f"{prov}.{name} sibling {cli_model!r} missing context_window")
+            continue
+        if cw_self != cw_sib:
+            errors.append(f"{prov}.{name} cw={cw_self} != cli_model {cli_model!r} cw={cw_sib}")
+# Vacuous-loop guard: the regression test is meaningless if no kind:cli
+# entries exist. If a future YAML edit drops them all, fail loudly.
+if cli_kind_count == 0:
+    print("FATAL: no kind:cli entries discovered — regression test is vacuous", file=sys.stderr)
+    sys.exit(1)
 if errors:
     print('\n'.join(errors), file=sys.stderr)
     sys.exit(1)
