@@ -90,7 +90,13 @@ fi
 
 # Component scripts
 MODEL_ADAPTER="$SCRIPT_DIR/model-adapter.sh"
-MODEL_INVOKE="$SCRIPT_DIR/model-invoke"
+# bug-899 / BB #915 F-001: honor a pre-set MODEL_INVOKE so tests sourcing
+# this script can substitute a stub. Production callers always invoke as
+# a top-level executable (BASH_SOURCE guard runs main()), so MODEL_INVOKE
+# isn't in their env — `:-` is a no-op there. Tests that source the
+# script can `export MODEL_INVOKE=/path/to/stub` before sourcing and
+# exercise call_model end-to-end.
+MODEL_INVOKE="${MODEL_INVOKE:-$SCRIPT_DIR/model-invoke}"
 SCORING_ENGINE="$SCRIPT_DIR/scoring-engine.sh"
 KNOWLEDGE_LOCAL="$SCRIPT_DIR/flatline-knowledge-local.sh"
 NOTEBOOKLM_QUERY="$PROJECT_ROOT/.claude/skills/flatline-knowledge/resources/notebooklm-query.py"
@@ -700,6 +706,62 @@ call_model() {
         rm -f "${invoke_log}.raw"
 
         if [[ $exit_code -ne 0 ]]; then
+            # bug-899: preserve verdict_quality envelope on failure so the
+            # cohort aggregator (see line 534 region) can attribute
+            # blocker_risk / reason / chain health to this voice. cheval
+            # writes the envelope to the sidecar BEFORE the failure mode
+            # that drives a non-zero exit becomes observable, so the
+            # sidecar's FAILED/DEGRADED envelope carries the attribution
+            # we need; deleting it before the aggregator runs causes the
+            # cohort verdict to silently drop this voice's failure signal.
+            # Mirror of the success-path read below at line ~715.
+            local vq_envelope_on_failure="null"
+            if [[ -s "$vq_sidecar" ]] && jq empty < "$vq_sidecar" 2>/dev/null; then
+                vq_envelope_on_failure=$(cat "$vq_sidecar")
+            fi
+            if [[ "$vq_envelope_on_failure" != "null" ]]; then
+                # Emit a failure-shaped per-voice output to stdout so the
+                # caller's `>` redirect captures the envelope. Aggregator
+                # reads .verdict_quality from each per-voice file; the
+                # additional `status` / `exit_code` fields are additive
+                # and ignored by legacy consumers.
+                #
+                # BB #915 F-004 fix: previously suffixed with `|| true`,
+                # which recreated the silent-drop pattern this fix exists
+                # to prevent — a jq failure (OOM, missing binary, sidecar
+                # mutation between `jq empty` and `cat`) would absorb the
+                # error and leave the envelope unwritten with no log
+                # signal. Now: capture jq's status, log on failure to
+                # `$invoke_log` (already opened above), continue to the
+                # rm + return. The aggregator will see no envelope on
+                # double-failure, but the operator will see WHY in the
+                # log instead of silent attrition.
+                local _vq_jq_status=0
+                jq -cn \
+                    --argjson vq "$vq_envelope_on_failure" \
+                    --arg model "$model" \
+                    --arg mode "$mode" \
+                    --arg phase "$phase" \
+                    --argjson exit_code "$exit_code" \
+                    '{
+                        content: "",
+                        tokens_input: 0,
+                        tokens_output: 0,
+                        latency_ms: 0,
+                        retries: 0,
+                        model: $model,
+                        mode: $mode,
+                        phase: $phase,
+                        cost_usd: 0,
+                        status: "failed",
+                        exit_code: $exit_code,
+                        verdict_quality: $vq
+                    }' || _vq_jq_status=$?
+                if [[ $_vq_jq_status -ne 0 ]]; then
+                    printf '[vq-warn] failure-envelope jq exit=%d for model=%s mode=%s phase=%s — verdict_quality dropped from cohort attribution; sidecar may have been mutated between validation and emit\n' \
+                        "$_vq_jq_status" "$model" "$mode" "$phase" >> "$invoke_log" 2>/dev/null || true
+                fi
+            fi
             rm -f "$vq_sidecar" 2>/dev/null || true
             log_invoke_failure "$exit_code" "$invoke_log" "$timeout"
             return $exit_code
