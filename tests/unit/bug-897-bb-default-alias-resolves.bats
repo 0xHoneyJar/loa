@@ -37,7 +37,7 @@ setup() {
 
 @test "bug-897-1: BB default model alias resolves via load_config()" {
     cd "$PROJECT_ROOT"
-    run python3 - <<PY
+    run env BB_DEFAULT_MODEL="$BB_DEFAULT_MODEL" python3 - <<'PY'
 import os, sys
 sys.path.insert(0, '.claude/adapters')
 from loa_cheval.config.loader import load_config
@@ -63,19 +63,36 @@ PY
 
 @test "bug-897-2: dot-form of the BB default resolves to the same target as the dash form" {
     cd "$PROJECT_ROOT"
-    run python3 - <<PY
-import os, sys
+    run env BB_DEFAULT_MODEL="$BB_DEFAULT_MODEL" python3 - <<'PY'
+import os, re, sys
 sys.path.insert(0, '.claude/adapters')
 from loa_cheval.config.loader import load_config
 cfg, _ = load_config()
 aliases = cfg.get('aliases', {}) or {}
 backcompat = cfg.get('backward_compat_aliases', {}) or {}
 dash = os.environ['BB_DEFAULT_MODEL']
-dot  = dash.replace('-', '.', 1) if '-' in dash else dash
-# Only compare when both forms exist; if the model name has no dash-form
-# variant in the registry, this assertion is vacuous (sonnet/haiku style).
+# BB #913 v4 fix (claude F-001 HIGH 0.97 — vacuous test): the v3 form
+# used `dash.replace('-', '.', 1)` which replaces the FIRST dash, so
+# 'claude-opus-4-7' became 'claude.opus-4-7' (wrong) instead of the
+# intended 'claude-opus-4.7'. The conditional `if dot in merged` then
+# silently skipped the assertion. Corrected substitution: target only
+# the trailing version-separator dash. Examples:
+#   claude-opus-4-7   → claude-opus-4.7
+#   claude-sonnet-4-6 → claude-sonnet-4.6
+#   gpt-5.5-pro       → unchanged (no trailing -\d+)
+dot = re.sub(r'-(\d+)$', r'.\1', dash)
 merged = {**backcompat, **aliases}
-if dot != dash and dot in merged:
+# BB #913 v4 fix (gpt F-002 MEDIUM 0.90 — conditional assertion): the
+# previous `if dot in merged: assert X` form silently passed when the
+# registry dropped the dot-form alias — the exact regression bug-897
+# was opened to close. When the dash/dot forms genuinely differ, the
+# dot form MUST be present AND resolve to the same target.
+if dot != dash:
+    assert dot in merged, (
+        f"BB default dot-form {dot!r} (derived from {dash!r}) missing from "
+        f"aliases / backward_compat_aliases — sample aliases: "
+        f"{sorted(aliases)[:10]}"
+    )
     assert merged[dash] == merged[dot], (
         f"alias divergence: dash form '{dash}'→{merged[dash]!r}  "
         f"dot form '{dot}'→{merged[dot]!r}"
@@ -96,12 +113,16 @@ PY
     # `aliases:` or `backward_compat_aliases:`. Anchors the path, not just
     # the key.
     cd "$PROJECT_ROOT"
-    run python3 - <<PY
-import os, sys, yaml
-# BB #913 review F-002 fix: match the sys.path setup tests 1+2 use, so
-# if pyyaml is ever vendored under .claude/adapters this test picks up
-# the same copy as the rest of the suite.
+    run env BB_DEFAULT_MODEL="$BB_DEFAULT_MODEL" python3 - <<'PY'
+import os, sys
+# BB #913 v4 (gpt F-001 MEDIUM 0.98 — sys.path ordering): sys.path
+# must be configured BEFORE `import yaml` for a vendored copy under
+# .claude/adapters to take effect. Otherwise the system pyyaml wins
+# and tests 1+2 (which do this in the right order via the imports
+# preceding the load_config call) end up using a different yaml lib
+# than test 3.
 sys.path.insert(0, '.claude/adapters')
+import yaml
 default = os.environ['BB_DEFAULT_MODEL']
 with open('.claude/defaults/model-config.yaml') as f:
     cfg = yaml.safe_load(f)
