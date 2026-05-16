@@ -165,6 +165,50 @@ EOF
     [[ "$status" -eq 0 ]]
 }
 
+@test "T-SCHEMA-6b last_updated UNQUOTED bare ISO date form accepted (date-serialization regression)" {
+    # Regression for the YAML-date → datetime.date → json.dumps TypeError
+    # discovered 2026-05-09 by Claude session-D when validating SOUL.md
+    # as drafted by an earlier session. _make_soul writes
+    # `last_updated: '2026-05-08'` (QUOTED string) — the natural YAML
+    # form people actually write is unquoted, which yaml.safe_load parses
+    # as datetime.date. Pre-fix, validator failed with
+    # `TypeError: Object of type date is not JSON serializable`.
+    # Fix: _to_serializable walker normalizes date/datetime to ISO strings.
+    local path; path="$(_make_soul "bare-iso-date.md")"
+    sed -i.bak "s/last_updated: '2026-05-08'/last_updated: 2026-05-08/" "$path"
+    rm -f "$path.bak"
+    # BB #804 T-SCHEMA-SED-FRAGILITY closure: assert the sed mutation
+    # actually landed. sed exits 0 on zero matches — without this assert,
+    # the test would silently pass if _make_soul ever drops the
+    # hardcoded '2026-05-08' (e.g., switches to $(date -I)), exercising
+    # the QUOTED-date path instead of the unquoted-date regression.
+    grep -qE "^last_updated: 2026-05-08$" "$path" || {
+        printf 'FAIL: sed mutation did not land — fixture date drifted from 2026-05-08?\n' >&2
+        return 1
+    }
+    run soul_validate "$path" --strict
+    [[ "$status" -eq 0 ]] || {
+        printf 'FAIL: bare ISO date rejected — date-serialization regression?\n' >&2
+        printf 'Output: %s\n' "$output" >&2
+        return 1
+    }
+}
+
+@test "T-SCHEMA-6c last_updated UNQUOTED bare ISO datetime accepted (datetime-serialization)" {
+    local path; path="$(_make_soul "bare-iso-datetime.md")"
+    # YAML parses bare datetime as datetime.datetime — different code path
+    # in _to_serializable than datetime.date.
+    sed -i.bak "s/last_updated: '2026-05-08'/last_updated: 2026-05-08T12:00:00Z/" "$path"
+    rm -f "$path.bak"
+    # BB #804 T-SCHEMA-SED-FRAGILITY closure: assert the mutation landed.
+    grep -qE "^last_updated: 2026-05-08T12:00:00Z$" "$path" || {
+        printf 'FAIL: sed mutation did not land — fixture date drifted from 2026-05-08?\n' >&2
+        return 1
+    }
+    run soul_validate "$path" --strict
+    [[ "$status" -eq 0 ]]
+}
+
 @test "T-SCHEMA-7 last_updated date-time form accepted" {
     local path; path="$(_make_soul "valid-datetime.md")"
     sed -i.bak "s/last_updated: '2026-05-08'/last_updated: '2026-05-08T12:00:00Z'/" "$path"
