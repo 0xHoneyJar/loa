@@ -182,12 +182,14 @@ providers:
         dispatch_group: openai-gpt
         kind: cli                       # NEW field — distinguishes HTTP vs CLI
         capabilities: [chat, code]      # No tools, no structured_json
-        # #898/#881 close: declare the real per-CLI context window so
-        # cheval's enforce_context_window does not pull the 128000-token
-        # global default (loa_cheval/types.py:107). The codex CLI dispatches
-        # gpt-5.5 by default — same 200000 figure the http_api gpt-5.5 entry
-        # in this file declares.
-        context_window: 200000
+        # #881 close, #914 F-001 correction: declare the real per-CLI context
+        # window so cheval's enforce_context_window does not pull the 128000-
+        # token global default (loa_cheval/types.py:107). The codex CLI
+        # dispatches gpt-5.5 by default — matches the http_api gpt-5.5 entry
+        # in this file (context_window: 400000). The initial PR shipped
+        # 200000 with an inaccurate comment claiming gpt-5.5 was 200000;
+        # corrected post-BB review to the real 400000 capacity.
+        context_window: 400000
         # No pricing entry — CLI uses operator's Codex subscription.
         # cycle-104 sprint-2 T2.11 amendment: cli_model is the model
         # passed to `codex exec --model <name>`. The CLI doesn't

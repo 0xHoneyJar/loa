@@ -29,7 +29,7 @@ export const GENERATED_TOKEN_BUDGETS: Record<string, TokenBudget> = {
   "gemini-3-flash-preview": { maxInput: 1048576, maxOutput: 8192, coefficient: 0.25 },
   "gemini-3.1-pro-preview": { maxInput: 1048576, maxOutput: 8192, coefficient: 0.25 },
   "gemini-headless": { maxInput: 1048576, maxOutput: 8192, coefficient: 0.25 },
-  "codex-headless": { maxInput: 200000, maxOutput: 4096, coefficient: 0.23 },
+  "codex-headless": { maxInput: 400000, maxOutput: 4096, coefficient: 0.23 },
   "gpt-5.2": { maxInput: 128000, maxOutput: 4096, coefficient: 0.23 },
   "gpt-5.3-codex": { maxInput: 400000, maxOutput: 4096, coefficient: 0.23 },
   "gpt-5.5": { maxInput: 400000, maxOutput: 4096, coefficient: 0.23 },

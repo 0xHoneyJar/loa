@@ -132,7 +132,7 @@ export const GENERATED_MODEL_REGISTRY: Record<string, GeneratedModelEntry> = {
   "codex-headless": {
     provider: "openai",
     modelId: "codex-headless",
-    contextWindow: 200000,
+    contextWindow: 400000,
     capabilities: ["chat", "code"],
   },
   "gpt-5.2": {

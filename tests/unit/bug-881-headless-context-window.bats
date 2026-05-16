@@ -30,16 +30,53 @@ setup() {
 # YAML field presence + canonical values
 # =============================================================================
 
-@test "bug-881-1: codex-headless declares context_window=200000" {
+@test "bug-881-1: codex-headless declares context_window=400000 (matches gpt-5.5 capacity)" {
+    # BB #914 F-001 correction: the initial PR shipped 200000 with an
+    # inaccurate comment. gpt-5.5 (which the codex CLI dispatches by
+    # default) declares context_window: 400000 in this same YAML.
     run python3 - <<'PY'
 import yaml, sys, os
 y = yaml.safe_load(open(os.environ['YAML']))
 v = y['providers']['openai']['models']['codex-headless'].get('context_window')
 print(v)
-assert v == 200000, f"expected 200000 got {v}"
+assert v == 400000, f"expected 400000 got {v}"
 PY
     [ "$status" -eq 0 ]
-    [[ "$output" == *"200000"* ]]
+    [[ "$output" == *"400000"* ]]
+}
+
+@test "bug-881-1b: each headless context_window matches its cli_model's http_api sibling (BB #914 F-001 invariant)" {
+    # Pin the cross-entry invariant the BB F-001 finding surfaced: when a
+    # headless entry's `extra.cli_model: X` exists and X has an http_api
+    # sibling with `context_window`, the two MUST agree. Prevents future
+    # cli_model edits from silently desyncing the budget.
+    cd "$PROJECT_ROOT"
+    run python3 - <<'PY'
+import yaml, sys
+with open('.claude/defaults/model-config.yaml') as f:
+    cfg = yaml.safe_load(f)
+errors = []
+for prov, models in cfg['providers'].items():
+    for name, m in (models.get('models') or {}).items():
+        if m.get('kind') != 'cli':
+            continue
+        cli_model = (m.get('extra') or {}).get('cli_model')
+        if not cli_model:
+            continue
+        sibling = models['models'].get(cli_model)
+        if not sibling:
+            continue
+        cw_self = m.get('context_window')
+        cw_sib  = sibling.get('context_window')
+        if cw_self is not None and cw_sib is not None and cw_self != cw_sib:
+            errors.append(f"{prov}.{name} cw={cw_self} != cli_model {cli_model} cw={cw_sib}")
+if errors:
+    print('\n'.join(errors), file=sys.stderr)
+    sys.exit(1)
+print("OK")
+PY
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"OK"* ]]
 }
 
 @test "bug-881-2: claude-headless declares context_window=200000" {
@@ -80,7 +117,7 @@ cfg, _ = load_config()
 providers = cfg['providers']
 
 cases = [
-    ('openai',    'codex-headless',   200000),
+    ('openai',    'codex-headless',   400000),
     ('anthropic', 'claude-headless',  200000),
     ('google',    'gemini-headless', 1048576),
 ]
@@ -119,9 +156,19 @@ PY
 # Checksum — drift gate must stay green
 # =============================================================================
 
-@test "bug-881-6: model-config.yaml.checksum matches the current YAML" {
+@test "bug-881-6: model-config.yaml.checksum matches the current YAML (portable across linux + macos)" {
+    # BB #914 F-002 fix: `sha256sum` is GNU coreutils and absent on macOS;
+    # macOS ships `shasum -a 256` instead. The drift-gate CI matrix
+    # includes macos-latest, so this test must work on both. Prefer
+    # sha256sum (linux), fall back to shasum (macos).
     cd "$PROJECT_ROOT"
     expected=$(cat .claude/defaults/model-config.yaml.checksum)
-    actual=$(sha256sum .claude/defaults/model-config.yaml | awk '{print $1}')
+    if command -v sha256sum >/dev/null 2>&1; then
+        actual=$(sha256sum .claude/defaults/model-config.yaml | awk '{print $1}')
+    elif command -v shasum >/dev/null 2>&1; then
+        actual=$(shasum -a 256 .claude/defaults/model-config.yaml | awk '{print $1}')
+    else
+        skip "Neither sha256sum nor shasum available — no checksum tool"
+    fi
     [ "$expected" = "$actual" ]
 }
