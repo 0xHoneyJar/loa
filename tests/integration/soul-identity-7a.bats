@@ -177,6 +177,15 @@ EOF
     local path; path="$(_make_soul "bare-iso-date.md")"
     sed -i.bak "s/last_updated: '2026-05-08'/last_updated: 2026-05-08/" "$path"
     rm -f "$path.bak"
+    # BB #804 T-SCHEMA-SED-FRAGILITY closure: assert the sed mutation
+    # actually landed. sed exits 0 on zero matches — without this assert,
+    # the test would silently pass if _make_soul ever drops the
+    # hardcoded '2026-05-08' (e.g., switches to $(date -I)), exercising
+    # the QUOTED-date path instead of the unquoted-date regression.
+    grep -qE "^last_updated: 2026-05-08$" "$path" || {
+        printf 'FAIL: sed mutation did not land — fixture date drifted from 2026-05-08?\n' >&2
+        return 1
+    }
     run soul_validate "$path" --strict
     [[ "$status" -eq 0 ]] || {
         printf 'FAIL: bare ISO date rejected — date-serialization regression?\n' >&2
@@ -191,6 +200,11 @@ EOF
     # in _to_serializable than datetime.date.
     sed -i.bak "s/last_updated: '2026-05-08'/last_updated: 2026-05-08T12:00:00Z/" "$path"
     rm -f "$path.bak"
+    # BB #804 T-SCHEMA-SED-FRAGILITY closure: assert the mutation landed.
+    grep -qE "^last_updated: 2026-05-08T12:00:00Z$" "$path" || {
+        printf 'FAIL: sed mutation did not land — fixture date drifted from 2026-05-08?\n' >&2
+        return 1
+    }
     run soul_validate "$path" --strict
     [[ "$status" -eq 0 ]]
 }
