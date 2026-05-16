@@ -57,10 +57,32 @@ PY
     [[ "$output" == *"OK"* ]]
 }
 
-@test "bug-897-3: bridgebuilder default model entry matches the resolved alias" {
-    # BB's generated config sets `claude-opus-4-7` as the default model.
-    # Pin that the YAML still declares it in either the live aliases
-    # map OR backward_compat_aliases.
-    run grep -E '^\s*claude-opus-4-7\s*:' "$PROJECT_ROOT/.claude/defaults/model-config.yaml"
+@test "bug-897-3: bridgebuilder default model lives in a loader-readable section" {
+    # BB #913 review (F-001 DISPUTED, 0.88 conf — drop-or-replace): the
+    # previous version grepped `^\s*claude-opus-4-7\s*:` against the raw
+    # YAML, which matches the key anywhere in the document tree (including
+    # a hypothetical `deprecations:` section the fold helper never reads).
+    # Replaced with a structural assertion that the alias lives in one of
+    # the two sections `_fold_backward_compat_aliases` actually consults:
+    # `aliases:` or `backward_compat_aliases:`. Anchors the path, not just
+    # the key.
+    cd "$PROJECT_ROOT"
+    run python3 - <<'PY'
+import yaml, sys
+with open('.claude/defaults/model-config.yaml') as f:
+    cfg = yaml.safe_load(f)
+in_aliases  = 'claude-opus-4-7' in (cfg.get('aliases') or {})
+in_backcompat = 'claude-opus-4-7' in (cfg.get('backward_compat_aliases') or {})
+assert in_aliases or in_backcompat, (
+    "claude-opus-4-7 not in aliases:{} or backward_compat_aliases:{} — "
+    "the fold helper at loader.py:573-606 won't see it. "
+    "Found 'claude-opus-4-7' present only in: {}".format(
+        [k for k, v in cfg.items()
+         if isinstance(v, dict) and 'claude-opus-4-7' in v]
+    )
+)
+print("OK")
+PY
     [ "$status" -eq 0 ]
+    [[ "$output" == *"OK"* ]]
 }
