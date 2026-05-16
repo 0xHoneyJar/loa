@@ -31,39 +31,41 @@ teardown() {
     rm -rf "$TEST_TMP"
 }
 
-# Helper: run the ajv probe block in isolation against a stubbed PATH.
-# Sources just the probe shape (mirroring the function in loa-doctor.sh)
-# to exercise it without invoking the full doctor.
+# Helper: extract the production `_loa_probe_ajv_version` function from
+# loa-doctor.sh and exercise it under a stubbed PATH. BB #916 F-001
+# closure — tests now hit the real code path, not a hand-written replica.
+# F1 closure — the harness enables `set -e` + `set -o pipefail` so the
+# pipefail-guard in the production function is verified end-to-end.
 _run_probe() {
     local stub_path="$STUB_BIN"
-    PATH="$stub_path:$PATH" bash -c '
+    PATH="$stub_path:/usr/bin:/bin" bash -c "
+        set -eo pipefail
+        # Extract just _loa_probe_ajv_version() from the production
+        # script via awk (same pattern as bug-899 in-place extraction).
+        # Avoids running loa-doctor.sh's main() side effects.
+        eval \"\$(awk '/^_loa_probe_ajv_version\\(\\)/,/^}/' '$PROJECT_ROOT/.claude/scripts/loa-doctor.sh')\"
         if command -v ajv >/dev/null 2>&1; then
-            ajv_ver=""
-            if ajv_ver=$(ajv --version 2>/dev/null) && [[ "$ajv_ver" =~ ^[0-9]+\.[0-9]+ ]]; then
-                :
-            else
-                ajv_ver=$(ajv --help 2>&1 | grep -oE "version [0-9]+\.[0-9]+(\.[0-9]+)?" | head -1 | awk "{print \$2}")
-                [[ -z "$ajv_ver" ]] && ajv_ver="unknown (ajv-cli@5+)"
-            fi
-            echo "ajv_ver=$ajv_ver"
+            ajv_ver=\$(_loa_probe_ajv_version)
+            echo \"ajv_ver=\$ajv_ver\"
         else
-            echo "ajv_ver=not-installed"
+            echo \"ajv_ver=not-installed\"
         fi
-    '
+    "
 }
 
-@test "bug-725-1: v4 ajv (returns version string) — probe surfaces the version" {
+@test "bug-725-1: v4 ajv (working --version flag) — probe surfaces the version" {
+    # BB #916 F-002 fix: v4-era version string (was 5.6.0 — looked like v5).
     cat > "$STUB_BIN/ajv" <<'STUB'
 #!/usr/bin/env bash
 case "$1" in
-    --version) echo "5.6.0"; exit 0 ;;
+    --version) echo "4.2.0"; exit 0 ;;
     *)         echo "v4 stub: unhandled $*" >&2; exit 0 ;;
 esac
 STUB
     chmod +x "$STUB_BIN/ajv"
     run _run_probe
     [ "$status" -eq 0 ]
-    [[ "$output" == *"ajv_ver=5.6.0"* ]]
+    [[ "$output" == *"ajv_ver=4.2.0"* ]]
 }
 
 @test "bug-725-2: v5+ ajv (--version errors, --help has version) — probe falls back to --help parse" {
@@ -146,12 +148,57 @@ STUB
     grep -qE '# bug-725:' "$PROJECT_ROOT/.claude/scripts/loa-doctor.sh"
 }
 
-@test "bug-725-6-source: probe contains --help fallback parse" {
-    grep -qE 'ajv --help.*grep.*version' "$PROJECT_ROOT/.claude/scripts/loa-doctor.sh"
+@test "bug-725-6-source: probe contains --help fallback parse (post-extraction multi-line)" {
+    # After BB #916 F-001 extraction into _loa_probe_ajv_version, the
+    # pipe is multi-line. Verify the two anchor pieces are present:
+    # (1) the `ajv --help` capture and (2) the `version X.Y` regex parse.
+    grep -qE 'ajv --help' "$PROJECT_ROOT/.claude/scripts/loa-doctor.sh"
+    grep -qE "version \[0-9\]\+\\\\\.\[0-9\]\+" "$PROJECT_ROOT/.claude/scripts/loa-doctor.sh"
 }
 
 @test "bug-725-7-source: probe contains 'unknown (ajv-cli@5+)' placeholder" {
     grep -qF 'unknown (ajv-cli@5+)' "$PROJECT_ROOT/.claude/scripts/loa-doctor.sh"
+}
+
+@test "bug-725-9: BB #916 F1 — pipefail-guarded fallback returns placeholder, doesn't abort caller" {
+    # BB #916 F1 (MEDIUM, 0.82 conf — gpt-5.5-pro): the help-fallback pipe
+    # was unguarded against `set -e` + `pipefail`. If --help output has no
+    # matching version line, grep returns 1, pipefail propagates it, and
+    # errexit aborts the caller BEFORE the "unknown (ajv-cli@5+)"
+    # placeholder is assigned. This test exercises EXACTLY that path under
+    # `set -eo pipefail` (active in _run_probe's bash -c) — function MUST
+    # return the placeholder cleanly, not abort.
+    cat > "$STUB_BIN/ajv" <<'STUB'
+#!/usr/bin/env bash
+case "$1" in
+    --version)
+        echo "error: unknown flag" >&2; exit 1 ;;
+    --help)
+        # Deliberately NO "version X.Y.Z" line — exercises the F1 path.
+        echo "Usage: ajv command [options]"; exit 0 ;;
+esac
+STUB
+    chmod +x "$STUB_BIN/ajv"
+    run _run_probe
+    [ "$status" -eq 0 ]   # MUST NOT abort — function must complete cleanly
+    [[ "$output" == *"ajv_ver=unknown (ajv-cli@5+)"* ]]
+}
+
+@test "bug-725-10: BB #916 F1 — pipefail-guarded fallback when ajv --help itself errors (exit non-zero)" {
+    # F1 corollary: if `ajv --help` itself returns non-zero (e.g., the v5
+    # CLI's --help path also errors on some sub-invocation), the function
+    # must still produce the placeholder without aborting the caller.
+    cat > "$STUB_BIN/ajv" <<'STUB'
+#!/usr/bin/env bash
+case "$1" in
+    --version) echo "error" >&2; exit 1 ;;
+    --help)    echo "error: help broke" >&2; exit 2 ;;
+esac
+STUB
+    chmod +x "$STUB_BIN/ajv"
+    run _run_probe
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"ajv_ver=unknown (ajv-cli@5+)"* ]]
 }
 
 @test "bug-725-8-source: legacy single-line probe shape is NOT present on a code line (anti-regression)" {
