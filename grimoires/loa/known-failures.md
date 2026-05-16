@@ -722,9 +722,9 @@ When future cycles want to benchmark a NEW dimension (not in cycle-108), reuse t
 **Feature**: bridgebuilder multi-model review — `google/gemini-3.1-pro-preview` voice via cheval-delegate subprocess
 **Symptom**: Every google voice invocation in a 6-PR concurrent BB sweep returned `cheval-delegate: process exceeded timeout=300000ms (signal=SIGTERM)`. The BB TS layer (`adapters/llm-google.ts` or equivalent) imposes a 300s SIGTERM on the cheval-delegate subprocess. Anthropic + OpenAI voices completed normally (anthropic 80-275s, openai 39-138s on same runs). Consensus scoring proceeds with 2/3 voices but verdict-quality envelope is DEGRADED per NFR-Rel-1. BB does NOT surface the degradation in the GitHub-posted review comment — the comment header lists all 3 INTENDED models without distinguishing which actually returned a verdict. Operators relying on the comment alone cannot tell quality is degraded.
 **First observed**: 2026-05-16 (cycle-110 BB sweep batch 5, run IDs `bridgebuilder-20260516T0721{19,26,33,40,46,53}-*`)
-**Recurrence count**: 6 (single batch, all 6 PRs in the sweep, all hitting exactly the 300s wall — pattern strongly suggests provider-side issue rather than client-side per-call latency variance)
-**Current workaround**: Treat any BB run missing a `google] Complete` log line as DEGRADED → do NOT auto-merge under operator-approval `Verdict quality NOT DEGRADED` clause. Re-run BB sequentially (not concurrent) if convergence is required; or accept 2-voice consensus and route the merge through human review.
-**Upstream issue**: not filed yet — needs investigation to distinguish (a) Google API throttling/slowness on concurrent reqs, (b) cheval google httpx-adapter hang, (c) BB's 300s timeout being too tight for current Gemini response latency.
+**Recurrence count**: 8 (6× concurrent batch 2026-05-16T0721Z + 2× sequential single-PR #920 + #912-anthropic 2026-05-16T1159Z — all hitting exactly the 300_000ms wall)
+**Current workaround**: Treat any BB run missing a `google] Complete` log line as DEGRADED → do NOT auto-merge under operator-approval `Verdict quality NOT DEGRADED` clause. Re-run BB sequentially (not concurrent) if convergence is required; or accept 2-voice consensus and route the merge through human review. **Note 2026-05-16 evening**: per upstream #921, the failure also hits Anthropic `claude-opus-4-7` on large diffs — the issue is NOT Google-specific, so even "2-voice consensus" can degrade to 1-voice if Anthropic also blows the 300s wall.
+**Upstream issue**: [#921](https://github.com/0xHoneyJar/loa/issues/921) (filed 2026-05-16 evening) — root cause is `deriveTimeoutMs` reasoning-class predicate at `.claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts:42-48` being OpenAI-only. The cycle-100 fix granted 1_800_000ms (30-min) budget to `gpt-*-pro` only; Anthropic Opus + Google Gemini-pro are also reasoning-class models that need the same budget but get the 300_000ms ceiling instead.
 **Related visions / lore**: KF-001 (different mechanism — Node 20 Happy Eyeballs at 250ms, resolved), KF-008 (different mechanism — Google SocketError on large bodies, resolved via cheval httpx). This is a NEW failure class: process-level subprocess timeout, not connection-level.
 
 ### Attempts
@@ -732,10 +732,22 @@ When future cycles want to benchmark a NEW dimension (not in cycle-108), reuse t
 | Date | What we tried | Outcome | Evidence |
 |------|---------------|---------|----------|
 | 2026-05-16 07:21Z | 6 BB invocations launched concurrently with 5s stagger across PRs #804/#885/#912/#913/#914/#917 | DID NOT WORK — all 6 google voices SIGTERM'd at 300s; anthropic+openai succeeded | `/tmp/bb-runs-5/pr-{804,885,912,913,914,917}.log`; GitHub comments timestamped 07:28Z on each PR |
+| 2026-05-16 11:59Z | Sequential single-PR BB on #920 (cycle-111 sprint-164 impl) | DID NOT WORK — **anthropic ALSO SIGTERM'd at 300_000ms** (245s budget broken on larger diff), google SIGTERM'd at 300_000ms, only openai/gpt-5.5-pro completed (244s; covered by cycle-100 reasoning-class extension). Operator authorized Amendment 4 (1-voice override, PR-scoped) and merged. | `/tmp/bb-runs-9/pr-920.log` |
+| 2026-05-16 evening | Root-cause investigation: direct Gemini API timing (3-10s healthy), cheval `_call_with_retry` analysis, BB-side `deriveTimeoutMs` audit | ROOT CAUSE IDENTIFIED — BB `deriveTimeoutMs` reasoning-class predicate is OpenAI-only (`^gpt-\d+(\.\d+)?-pro$`). Anthropic Opus + Google Gemini-pro fall into the 300_000ms ceiling despite being reasoning-class. Filed upstream #921 with fix proposal (extend predicate to multi-provider, or use capability-driven lookup against the model registry). | issue #921; `.claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts:42-48`; this entry's Upstream issue field |
 
 ### Reading guide
 
-When a BB sweep shows uniform `cheval-delegate: process exceeded timeout=300000ms` on the google voice across all PRs, treat as DEGRADED-voice batch-level and refuse auto-merge per the operator-approval doc's `Verdict quality NOT DEGRADED` clause. Don't retry the same batch — investigate the substrate first: (a) check Gemini API status / rate-limit posture, (b) run a single sequential BB and observe wall time, (c) examine cheval google adapter for hang patterns (similar to KF-008's pre-cheval-httpx era). The pattern is suspicious because all 6 hit exactly 300s — concurrent reqs from same key may be queueing server-side and timing out client-side together, not on individual call latency. **Do NOT increase BB's 300s timeout as a workaround** — that hides the underlying provider issue; instead, route batch-mode invocations through sequential queue or accept 2-voice consensus with explicit human gate.
+**Recurrence count 8 — STRUCTURAL. Root cause filed at upstream #921.** Do NOT
+retry BB cross-model on this machine until #921 lands. The 1/3-voice and
+2/3-voice operator-approval amendments are bridge measures, not solutions —
+the substrate fix is the `deriveTimeoutMs` predicate extension.
+
+When a BB sweep shows uniform `cheval-delegate: process exceeded timeout=300000ms` on the google voice across all PRs, OR Anthropic Opus on large diffs (>50K input tokens), it is the same root cause: reasoning-class models without the 30-min budget extension. Treat as DEGRADED-voice batch-level and refuse auto-merge per the operator-approval doc's `Verdict quality NOT DEGRADED` clause. **Do NOT increase BB's 300s timeout as a one-off workaround** — that hides the underlying scope-error in the predicate; instead, extend the predicate per #921 fix proposal, or route batch-mode invocations through sequential queue and accept 2-voice consensus with explicit human gate.
+
+Diagnostic disambiguation (preserved for future agents):
+- Direct Gemini call: small (6 tokens) = 3.5s; medium (5KB) = 10s — API healthy
+- BB run logs show exact `latencyMs=300000` on failing voices, `latencyMs=244794` on surviving gpt-5.5-pro (which has the 1_800_000ms extension)
+- The cycle-100 docstring at `multi-model-pipeline.ts:25-37` already explains the failure pattern: "model spends most of its budget on internal reasoning before emitting visible tokens." The fix was scoped to OpenAI; KF-010 is that same pattern resurfacing on the other two BB triad members.
 
 ---
 

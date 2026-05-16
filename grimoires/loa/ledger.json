@@ -1300,6 +1300,15 @@
           "created": "2026-05-13T05:14:02Z"
         }
       ]
+    },
+    {
+      "id": "cycle-111-dcg-native-integration",
+      "label": "DCG pattern coverage native to Loa (side-cycle parallel to cycle-109)",
+      "status": "active",
+      "created_at": "2026-05-16T11:46:53Z",
+      "prd": "grimoires/loa/cycles/cycle-111-dcg-native-integration/prd.md",
+      "sdd": "grimoires/loa/cycles/cycle-111-dcg-native-integration/sdd.md",
+      "sprints": []
     }
   ],
   "global_sprint_counter": 158,
