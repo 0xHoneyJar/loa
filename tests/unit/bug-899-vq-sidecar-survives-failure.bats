@@ -116,10 +116,11 @@ STUB
 }
 
 @test "bug-899-3-source: failure-path rm of sidecar happens AFTER the envelope-read block" {
-    # Extract lines 700-755 (the failure block region) and verify lexical
-    # order: vq_envelope_on_failure read appears BEFORE the rm.
+    # Extract the failure block by anchoring on the bug-899 comment + rm,
+    # surviving line-number drift as the block grows for follow-up fixes.
     local block
-    block=$(sed -n '700,760p' "$PROJECT_ROOT/.claude/scripts/flatline-orchestrator.sh")
+    block=$(awk '/# bug-899:/{flag=1} flag{print; if (/rm -f "\$vq_sidecar"/ && flag) exit}' \
+        "$PROJECT_ROOT/.claude/scripts/flatline-orchestrator.sh")
     local read_line rm_line
     read_line=$(echo "$block" | grep -n 'vq_envelope_on_failure=' | head -1 | cut -d: -f1)
     rm_line=$(echo "$block"  | grep -n 'rm -f "$vq_sidecar"'      | head -1 | cut -d: -f1)
@@ -264,4 +265,85 @@ fi
 HARNESS
     [ "$status" -eq 0 ]
     [[ "$output" == *"invalid JSON safely ignored"* ]]
+}
+
+# =============================================================================
+# BB #915 F-001 closure — production-code path test
+#
+# Sources the REAL flatline-orchestrator.sh (BASH_SOURCE-guarded; main()
+# does not run) and exercises the actual `call_model` function against a
+# stubbed MODEL_INVOKE. Closes the divergence surface between inline
+# replicas (bug-899-4..6) and production behavior.
+# =============================================================================
+
+@test "bug-899-7-real: production call_model emits failure-stub on stub-driven non-zero exit" {
+    # Build a stub MODEL_INVOKE that writes a known envelope then exits 12.
+    cat > "$TEST_TMP/stub-invoke" <<'STUB'
+#!/usr/bin/env bash
+if [[ -n "${LOA_VERDICT_QUALITY_SIDECAR:-}" ]]; then
+    cat > "$LOA_VERDICT_QUALITY_SIDECAR" <<'JSON'
+{"status":"FAILED","voices_planned":1,"voices_succeeded":0,"chain_health":"exhausted","rationale":"real call_model test","blocker_risk":"high"}
+JSON
+fi
+exit 12
+STUB
+    chmod +x "$TEST_TMP/stub-invoke"
+
+    # Run call_model via a subshell that sources the production script.
+    # The BASH_SOURCE guard at the end of flatline-orchestrator.sh
+    # prevents main() from running on source.
+    cd "$PROJECT_ROOT"
+    voice_out="$TEST_TMP/voice-real-call.json"
+    run env \
+        MODEL_INVOKE="$TEST_TMP/stub-invoke" \
+        TEMP_DIR="$TEST_TMP" \
+        VOICE_OUT="$voice_out" \
+        bash -c '
+            set +e  # tolerate optional-dep load failures (e.g., generated-model-maps)
+            source .claude/scripts/flatline-orchestrator.sh
+            set -e
+            # call_model arg order: model, mode, input, phase, context, timeout
+            call_model "test-voice" "review" "doc-content" "prd" "" "30" > "$VOICE_OUT" 2>/dev/null
+        '
+    # Read what landed in the per-voice file
+    [[ -s "$voice_out" ]]
+    local got_status got_vq_status got_chain_health got_exit_code
+    got_status=$(jq -r '.status // empty' "$voice_out" 2>/dev/null)
+    got_vq_status=$(jq -r '.verdict_quality.status // empty' "$voice_out" 2>/dev/null)
+    got_chain_health=$(jq -r '.verdict_quality.chain_health // empty' "$voice_out" 2>/dev/null)
+    got_exit_code=$(jq -r '.exit_code // empty' "$voice_out" 2>/dev/null)
+    [[ "$got_status" == "failed" ]]
+    [[ "$got_vq_status" == "FAILED" ]]
+    [[ "$got_chain_health" == "exhausted" ]]
+    [[ "$got_exit_code" == "12" ]]
+}
+
+@test "bug-899-8-source: failure block has the F-004 fix — jq emit is NOT suffixed with || true on the closing brace" {
+    # BB #915 F-004 (DISPUTED, claude-opus-4-7): the original commit ended
+    # the jq invocation with `|| true`, recreating the silent-drop pattern
+    # this PR exists to prevent. After F-004 fix, the jq invocation
+    # captures status into _vq_jq_status and logs on failure instead.
+    #
+    # Anchor: the literal `|| true` MUST NOT appear immediately after the
+    # closing `}'` of the failure-stub jq invocation. We check the
+    # ~50-line failure block specifically (not the rest of the file, which
+    # has unrelated legitimate `|| true` usages).
+    local block
+    block=$(awk '/# bug-899:/,/^[[:space:]]*rm -f "\$vq_sidecar"/' \
+        "$PROJECT_ROOT/.claude/scripts/flatline-orchestrator.sh")
+    # The jq closing line ends with `}'` followed by either nothing or
+    # an explicit capture. The legacy bad shape was `}' || true`.
+    if echo "$block" | grep -qE "}'[[:space:]]*\|\|[[:space:]]*true"; then
+        echo "FAIL: BB #915 F-004 regression — failure-stub jq emit is suffixed with || true" >&2
+        echo "$block" | grep -nE "}'[[:space:]]*\|\|" >&2
+        return 1
+    fi
+}
+
+@test "bug-899-9-source: failure block logs jq failure to invoke_log instead of silently dropping" {
+    # F-004 corollary: the new shape captures jq's exit via _vq_jq_status
+    # and writes a `[vq-warn]` line to $invoke_log so a double-failure
+    # (sidecar valid at jq-empty but jq fails on emit) is observable.
+    grep -qE '_vq_jq_status' "$PROJECT_ROOT/.claude/scripts/flatline-orchestrator.sh"
+    grep -qE '\[vq-warn\] failure-envelope jq exit' "$PROJECT_ROOT/.claude/scripts/flatline-orchestrator.sh"
 }

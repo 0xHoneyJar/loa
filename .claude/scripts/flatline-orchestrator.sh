@@ -90,7 +90,13 @@ fi
 
 # Component scripts
 MODEL_ADAPTER="$SCRIPT_DIR/model-adapter.sh"
-MODEL_INVOKE="$SCRIPT_DIR/model-invoke"
+# bug-899 / BB #915 F-001: honor a pre-set MODEL_INVOKE so tests sourcing
+# this script can substitute a stub. Production callers always invoke as
+# a top-level executable (BASH_SOURCE guard runs main()), so MODEL_INVOKE
+# isn't in their env — `:-` is a no-op there. Tests that source the
+# script can `export MODEL_INVOKE=/path/to/stub` before sourcing and
+# exercise call_model end-to-end.
+MODEL_INVOKE="${MODEL_INVOKE:-$SCRIPT_DIR/model-invoke}"
 SCORING_ENGINE="$SCRIPT_DIR/scoring-engine.sh"
 KNOWLEDGE_LOCAL="$SCRIPT_DIR/flatline-knowledge-local.sh"
 NOTEBOOKLM_QUERY="$PROJECT_ROOT/.claude/skills/flatline-knowledge/resources/notebooklm-query.py"
@@ -719,6 +725,18 @@ call_model() {
                 # reads .verdict_quality from each per-voice file; the
                 # additional `status` / `exit_code` fields are additive
                 # and ignored by legacy consumers.
+                #
+                # BB #915 F-004 fix: previously suffixed with `|| true`,
+                # which recreated the silent-drop pattern this fix exists
+                # to prevent — a jq failure (OOM, missing binary, sidecar
+                # mutation between `jq empty` and `cat`) would absorb the
+                # error and leave the envelope unwritten with no log
+                # signal. Now: capture jq's status, log on failure to
+                # `$invoke_log` (already opened above), continue to the
+                # rm + return. The aggregator will see no envelope on
+                # double-failure, but the operator will see WHY in the
+                # log instead of silent attrition.
+                local _vq_jq_status=0
                 jq -cn \
                     --argjson vq "$vq_envelope_on_failure" \
                     --arg model "$model" \
@@ -738,7 +756,11 @@ call_model() {
                         status: "failed",
                         exit_code: $exit_code,
                         verdict_quality: $vq
-                    }' || true
+                    }' || _vq_jq_status=$?
+                if [[ $_vq_jq_status -ne 0 ]]; then
+                    printf '[vq-warn] failure-envelope jq exit=%d for model=%s mode=%s phase=%s — verdict_quality dropped from cohort attribution; sidecar may have been mutated between validation and emit\n' \
+                        "$_vq_jq_status" "$model" "$mode" "$phase" >> "$invoke_log" 2>/dev/null || true
+                fi
             fi
             rm -f "$vq_sidecar" 2>/dev/null || true
             log_invoke_failure "$exit_code" "$invoke_log" "$timeout"
