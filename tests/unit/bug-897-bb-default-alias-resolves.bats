@@ -24,12 +24,28 @@ setup() {
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     export PROJECT_ROOT
-    # Extract the BB default model from config.ts. The DEFAULTS block
-    # declares `model: "..."` — read it once and export so all three
-    # test bodies pin THIS value, not a stale literal.
-    BB_DEFAULT_MODEL="$(grep -oE 'model:\s*"[^"]+"' "$PROJECT_ROOT/.claude/skills/bridgebuilder-review/resources/config.ts" | head -1 | sed -E 's/.*"([^"]+)".*/\1/')"
+    # Extract the BB default model from config.ts.
+    # BB #913 v5 (F-001 MEDIUM — unanchored grep / test oracle correlation):
+    # the v3/v4 form `grep -oE 'model:\s*"..."' | head -1` matched the
+    # FIRST `model:` line in config.ts. Today line 165 happens to be in
+    # the DEFAULTS block, but a future edit that inserts a `model: "..."`
+    # earlier (a comment, another struct, a Zod schema default) would
+    # silently pin the wrong alias — making the anti-regression check
+    # correlated with the regression it's meant to detect.
+    # Fix: anchor on the `const DEFAULTS:` block with awk, then capture
+    # the first `model:` line WITHIN that block. `exit` stops at
+    # DEFAULTS.model and never sees later `model:` references.
+    BB_DEFAULT_MODEL="$(awk '
+        /^const DEFAULTS:[[:space:]]*BridgebuilderConfig[[:space:]]*=/{flag=1; next}
+        flag && /^\}/{flag=0; exit}
+        flag && /^[[:space:]]*model:[[:space:]]*"/{
+            match($0, /"[^"]+"/)
+            print substr($0, RSTART+1, RLENGTH-2)
+            exit
+        }
+    ' "$PROJECT_ROOT/.claude/skills/bridgebuilder-review/resources/config.ts")"
     [ -n "$BB_DEFAULT_MODEL" ] || {
-        echo "FATAL: could not extract DEFAULTS.model from config.ts" >&2
+        echo "FATAL: could not extract DEFAULTS.model from config.ts (anchored awk found no match in the DEFAULTS block)" >&2
         return 1
     }
     export BB_DEFAULT_MODEL
