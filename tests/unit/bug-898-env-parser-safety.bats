@@ -92,72 +92,72 @@ EOF
 
 @test "bug-898-4: plain KEY=VALUE exports as expected" {
     cat > "$TEST_TMP/.env" <<'EOF'
-SIMPLE_KEY=simple_value
+LOA_SIMPLE_KEY=simple_value
 EOF
     load_env_file "$TEST_TMP/.env"
-    [ "$SIMPLE_KEY" = "simple_value" ]
+    [ "$LOA_SIMPLE_KEY" = "simple_value" ]
 }
 
 @test "bug-898-5: double-quoted values preserve whitespace and limited escapes" {
     cat > "$TEST_TMP/.env" <<'EOF'
-QUOTED="hello   world"
-ESCAPED="line1\nline2"
+LOA_QUOTED="hello   world"
+LOA_ESCAPED="line1\nline2"
 EOF
     load_env_file "$TEST_TMP/.env"
-    [ "$QUOTED" = "hello   world" ]
+    [ "$LOA_QUOTED" = "hello   world" ]
     # \n should expand to a newline (limited-escape contract).
-    [[ "$ESCAPED" == *$'\n'* ]]
+    [[ "$LOA_ESCAPED" == *$'\n'* ]]
 }
 
 @test "bug-898-5b: single-quoted values pass through raw (no escape expansion)" {
     cat > "$TEST_TMP/.env" <<'EOF'
-RAW='no\nexpand'
+LOA_RAW='no\nexpand'
 EOF
     load_env_file "$TEST_TMP/.env"
     # Single quotes: \n must remain literal characters.
-    [ "$RAW" = 'no\nexpand' ]
+    [ "$LOA_RAW" = 'no\nexpand' ]
 }
 
 @test "bug-898-6: comment lines starting with # are skipped" {
     cat > "$TEST_TMP/.env" <<'EOF'
 # This is a comment
-GOOD_KEY=good_value
+LOA_GOOD_KEY=good_value
   # indented comment
-ANOTHER=another_value
+LOA_ANOTHER=another_value
 EOF
     load_env_file "$TEST_TMP/.env"
-    [ "$GOOD_KEY" = "good_value" ]
-    [ "$ANOTHER" = "another_value" ]
+    [ "$LOA_GOOD_KEY" = "good_value" ]
+    [ "$LOA_ANOTHER" = "another_value" ]
 }
 
 @test "bug-898-7: blank lines are skipped" {
     cat > "$TEST_TMP/.env" <<'EOF'
-KEY_A=value_a
+LOA_KEY_A=value_a
 
-KEY_B=value_b
+LOA_KEY_B=value_b
 
-KEY_C=value_c
+LOA_KEY_C=value_c
 EOF
     load_env_file "$TEST_TMP/.env"
-    [ "$KEY_A" = "value_a" ]
-    [ "$KEY_B" = "value_b" ]
-    [ "$KEY_C" = "value_c" ]
+    [ "$LOA_KEY_A" = "value_a" ]
+    [ "$LOA_KEY_B" = "value_b" ]
+    [ "$LOA_KEY_C" = "value_c" ]
 }
 
 @test "bug-898-8: CRLF line endings tolerated" {
     # Embed CR explicitly to avoid editor / heredoc stripping.
-    printf 'KEY_X=value_x\r\nKEY_Y=value_y\r\n' > "$TEST_TMP/.env"
+    printf 'LOA_KEY_X=value_x\r\nLOA_KEY_Y=value_y\r\n' > "$TEST_TMP/.env"
     load_env_file "$TEST_TMP/.env"
-    [ "$KEY_X" = "value_x" ]
-    [ "$KEY_Y" = "value_y" ]
+    [ "$LOA_KEY_X" = "value_x" ]
+    [ "$LOA_KEY_Y" = "value_y" ]
 }
 
 @test "bug-898-9: 'export KEY=VALUE' form is accepted" {
     cat > "$TEST_TMP/.env" <<'EOF'
-export EXPORTED_KEY=exported_value
+export LOA_EXPORTED_KEY=exported_value
 EOF
     load_env_file "$TEST_TMP/.env"
-    [ "$EXPORTED_KEY" = "exported_value" ]
+    [ "$LOA_EXPORTED_KEY" = "exported_value" ]
 }
 
 @test "bug-898-10: missing file returns 0 (no-op semantics)" {
@@ -292,10 +292,10 @@ EOF
 
 @test "bug-898-24: positive control — non-denylisted key with PATH-shaped value still allowed" {
     cat > "$TEST_TMP/.env" <<'EOF'
-MY_SAFE_PATH_VAR=/usr/local/bin
+LOA_SAFE_PATH_VAR=/usr/local/bin
 EOF
     load_env_file "$TEST_TMP/.env"
-    [ "$MY_SAFE_PATH_VAR" = "/usr/local/bin" ]
+    [ "$LOA_SAFE_PATH_VAR" = "/usr/local/bin" ]
 }
 
 @test "bug-898-25: positive control — caller's existing BASH_ENV (set before load_env_file) is NOT clobbered" {
@@ -433,27 +433,27 @@ EOF
 
 @test "bug-898-37: COR-001 — quoted value with trailing ' # comment' has comment stripped" {
     cat > "$TEST_TMP/.env" <<'EOF'
-QUOTED_KEY="hello world" # trailing comment
+LOA_QUOTED_KEY="hello world" # trailing comment
 EOF
     load_env_file "$TEST_TMP/.env"
-    [ "$QUOTED_KEY" = "hello world" ]
+    [ "$LOA_QUOTED_KEY" = "hello world" ]
 }
 
 @test "bug-898-38: COR-001 — '#' INSIDE the value (no preceding space) is preserved" {
     # `KEY=foo#bar` is a legitimate value; only ` #` (space + hash) starts a comment.
     cat > "$TEST_TMP/.env" <<'EOF'
-LEGIT_HASH=foo#bar
+LOA_LEGIT_HASH=foo#bar
 EOF
     load_env_file "$TEST_TMP/.env"
-    [ "$LEGIT_HASH" = "foo#bar" ]
+    [ "$LOA_LEGIT_HASH" = "foo#bar" ]
 }
 
 @test "bug-898-39: COR-001 — '#' inside double-quoted value is preserved" {
     cat > "$TEST_TMP/.env" <<'EOF'
-QUOTED_HASH="value with # inside"
+LOA_QUOTED_HASH="value with # inside"
 EOF
     load_env_file "$TEST_TMP/.env"
-    [ "$QUOTED_HASH" = "value with # inside" ]
+    [ "$LOA_QUOTED_HASH" = "value with # inside" ]
 }
 
 # =============================================================================
@@ -519,16 +519,16 @@ EOF
     # before sourcing the loader. The loader's export must fail gracefully
     # WITHOUT propagating exit to the caller (which is what would crash a
     # set -e orchestrator).
-    declare -r USER_READONLY="frozen-value" 2>/dev/null
+    declare -r LOA_USER_READONLY="frozen-value" 2>/dev/null
     cat > "$TEST_TMP/.env" <<'EOF'
-USER_READONLY=hostile-value
+LOA_USER_READONLY=hostile-value
 EOF
     # We use a subshell because `declare -r` is process-local and persists
     # for the rest of this bats test file otherwise.
     run bash -c "
         unset _LOA_ENV_LOADER_SOURCED
         source '$PROJECT_ROOT/.claude/scripts/lib/env-loader.sh'
-        declare -r USER_READONLY='frozen-value'
+        declare -r LOA_USER_READONLY='frozen-value'
         set -e
         load_env_file '$TEST_TMP/.env'
         echo 'reached-after-load'
@@ -538,19 +538,106 @@ EOF
 }
 
 @test "bug-898-45: REL-001 — export-failure warns to stderr but continues to next line" {
-    declare -r USER_READONLY="frozen-value" 2>/dev/null
+    declare -r LOA_USER_READONLY="frozen-value" 2>/dev/null
     cat > "$TEST_TMP/.env" <<'EOF'
-USER_READONLY=should-fail-but-not-abort
-GOOD_KEY_AFTER=this-must-still-load
+LOA_USER_READONLY=should-fail-but-not-abort
+LOA_GOOD_KEY_AFTER=this-must-still-load
 EOF
     run bash -c "
         unset _LOA_ENV_LOADER_SOURCED
         source '$PROJECT_ROOT/.claude/scripts/lib/env-loader.sh'
-        declare -r USER_READONLY='frozen-value'
+        declare -r LOA_USER_READONLY='frozen-value'
         load_env_file '$TEST_TMP/.env'
-        echo \"GOOD_KEY_AFTER=\$GOOD_KEY_AFTER\"
+        echo \"LOA_GOOD_KEY_AFTER=\$LOA_GOOD_KEY_AFTER\"
     " 2>&1
     [ "$status" -eq 0 ]
     [[ "$output" == *"export failed"* ]]
-    [[ "$output" == *"GOOD_KEY_AFTER=this-must-still-load"* ]]
+    [[ "$output" == *"LOA_GOOD_KEY_AFTER=this-must-still-load"* ]]
+}
+
+# =============================================================================
+# BB #912 v4 → v5 — positive-allowlist closes the denylist whack-a-mole
+#
+# After v3 BB found PATH + REL-001, v4 BB found YET MORE denylist gaps:
+#   - GIT_CONFIG_COUNT + GIT_CONFIG_KEY_* + GIT_CONFIG_VALUE_* (git env-config
+#     injection — can set core.sshCommand without touching the global config)
+#   - lowercase npm_config_* bypasses the uppercase NPM_CONFIG_* glob
+# At which point: BB has explicitly suggested positive-allowlist three
+# iterations in a row. v5 switches to positive allowlist; these tests
+# pin the architectural invariant.
+# =============================================================================
+
+@test "bug-898-46: v5 architectural — GIT_CONFIG_COUNT rejected (not in allowlist)" {
+    cat > "$TEST_TMP/.env" <<'EOF'
+GIT_CONFIG_COUNT=1
+GIT_CONFIG_KEY_0=core.sshCommand
+GIT_CONFIG_VALUE_0=/tmp/hostile-ssh
+EOF
+    unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
+    load_env_file "$TEST_TMP/.env"
+    [ -z "${GIT_CONFIG_COUNT:-}" ]
+    [ -z "${GIT_CONFIG_KEY_0:-}" ]
+    [ -z "${GIT_CONFIG_VALUE_0:-}" ]
+}
+
+@test "bug-898-47: v5 architectural — lowercase npm_config_* rejected (case-insensitive bypass)" {
+    cat > "$TEST_TMP/.env" <<'EOF'
+npm_config_node_options=--require=/tmp/x.js
+npm_config_script_shell=/tmp/hostile-shell
+EOF
+    unset npm_config_node_options npm_config_script_shell
+    load_env_file "$TEST_TMP/.env"
+    [ -z "${npm_config_node_options:-}" ]
+    [ -z "${npm_config_script_shell:-}" ]
+}
+
+@test "bug-898-48: v5 architectural — arbitrary unknown keys rejected (default-deny)" {
+    cat > "$TEST_TMP/.env" <<'EOF'
+HYPOTHETICAL_FUTURE_HOOK_VAR=/tmp/whatever
+SOME_RANDOM_THING=value
+ATTACKER_INVENTED_KEY=arbitrary
+EOF
+    unset HYPOTHETICAL_FUTURE_HOOK_VAR SOME_RANDOM_THING ATTACKER_INVENTED_KEY
+    load_env_file "$TEST_TMP/.env"
+    [ -z "${HYPOTHETICAL_FUTURE_HOOK_VAR:-}" ]
+    [ -z "${SOME_RANDOM_THING:-}" ]
+    [ -z "${ATTACKER_INVENTED_KEY:-}" ]
+}
+
+@test "bug-898-49: v5 positive controls — every documented allowlist pattern accepts a representative key" {
+    cat > "$TEST_TMP/.env" <<'EOF'
+ANTHROPIC_API_KEY=sk-ant-test
+OPENAI_API_KEY=sk-test
+GOOGLE_API_KEY=key-test
+GEMINI_API_KEY=gemini-test
+ANTHROPIC_BASE_URL=https://api.example.com
+OPENAI_BASE_URL=https://api.example.com
+GOOGLE_APPLICATION_CREDENTIALS=/tmp/adc.json
+AWS_ACCESS_KEY_ID=AKIA-test
+AWS_SECRET_ACCESS_KEY=secret-test
+AWS_REGION=us-east-1
+BEDROCK_MODEL_ID=anthropic.claude-opus-4
+LOA_DEBUG=1
+HONEYJAR_PROJECT=test
+GITHUB_TOKEN=ghp_test
+EOF
+    unset ANTHROPIC_API_KEY OPENAI_API_KEY GOOGLE_API_KEY GEMINI_API_KEY \
+          ANTHROPIC_BASE_URL OPENAI_BASE_URL GOOGLE_APPLICATION_CREDENTIALS \
+          AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_REGION \
+          BEDROCK_MODEL_ID LOA_DEBUG HONEYJAR_PROJECT GITHUB_TOKEN
+    load_env_file "$TEST_TMP/.env"
+    [ "$ANTHROPIC_API_KEY" = "sk-ant-test" ]
+    [ "$OPENAI_API_KEY" = "sk-test" ]
+    [ "$GOOGLE_API_KEY" = "key-test" ]
+    [ "$GEMINI_API_KEY" = "gemini-test" ]
+    [ "$ANTHROPIC_BASE_URL" = "https://api.example.com" ]
+    [ "$OPENAI_BASE_URL" = "https://api.example.com" ]
+    [ "$GOOGLE_APPLICATION_CREDENTIALS" = "/tmp/adc.json" ]
+    [ "$AWS_ACCESS_KEY_ID" = "AKIA-test" ]
+    [ "$AWS_SECRET_ACCESS_KEY" = "secret-test" ]
+    [ "$AWS_REGION" = "us-east-1" ]
+    [ "$BEDROCK_MODEL_ID" = "anthropic.claude-opus-4" ]
+    [ "$LOA_DEBUG" = "1" ]
+    [ "$HONEYJAR_PROJECT" = "test" ]
+    [ "$GITHUB_TOKEN" = "ghp_test" ]
 }

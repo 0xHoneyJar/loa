@@ -34,11 +34,81 @@ if [[ "${_LOA_ENV_LOADER_SOURCED:-0}" == "1" ]]; then
 fi
 _LOA_ENV_LOADER_SOURCED=1
 
-_env_loader_reject_denylist_key() {
-    # bug-898 SEC-001: shared rejection helper for ambient-execution key names.
-    # See the case-statement in load_env_file for the full denylist + rationale.
+# bug-898 SEC-001 v4 — positive allowlist of key names load_env_file will
+# export. Anything NOT matching at least one of these patterns is rejected
+# (warn-and-continue). This is the architecturally clean answer to the
+# v1-v3 denylist whack-a-mole. Patterns are bash glob (`*` wildcards).
+#
+# Adding a key: append the literal name OR a pattern. The allowlist is
+# intentionally narrow — extend it deliberately, with rationale, and
+# prefer parent-process-set env vars for project-local keys when possible.
+_LOA_ENV_LOADER_ALLOWLIST=(
+    # Provider API auth — covers most LLM providers via suffix pattern
+    API_KEY                        # bare form (used by some scripts / generic tooling)
+    '*_API_KEY'                    # ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY, GEMINI_API_KEY, ...
+    '*_AUTH_TOKEN'                 # ANTHROPIC_AUTH_TOKEN (Bedrock-style bearer)
+    '*_BASE_URL'                   # ANTHROPIC_BASE_URL, OPENAI_BASE_URL, etc. (operator-configurable endpoint)
+
+    # Anthropic / OpenAI / Google specific (explicit — pattern-match would
+    # be too loose). Each name is the exact env var their SDKs honor.
+    ANTHROPIC_API_KEY
+    ANTHROPIC_AUTH_TOKEN
+    ANTHROPIC_BASE_URL
+    ANTHROPIC_BEDROCK_BASE_URL
+    ANTHROPIC_VERTEX_BASE_URL
+    OPENAI_API_KEY
+    OPENAI_BASE_URL
+    OPENAI_ORG_ID
+    OPENAI_PROJECT_ID
+    GOOGLE_API_KEY
+    GEMINI_API_KEY
+    GOOGLE_APPLICATION_CREDENTIALS
+
+    # AWS / Bedrock (cycle-096 provider)
+    AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY
+    AWS_SESSION_TOKEN
+    AWS_REGION
+    AWS_DEFAULT_REGION
+    AWS_PROFILE
+    'BEDROCK_*'                    # cycle-096 Bedrock-specific config
+
+    # Project-namespaced (Loa + HoneyJar org)
+    'LOA_*'
+    'HONEYJAR_*'
+
+    # GitHub (used by `gh` CLI invocations inside orchestrator)
+    GITHUB_TOKEN
+    GH_TOKEN
+
+    # Test-mode toggles (bats fixtures set these to gate test paths)
+    'LOA_*_TEST_MODE'              # already matched by LOA_*; explicit for clarity
+)
+
+_env_loader_key_is_allowlisted() {
+    # Returns 0 (true) if the given key matches at least one pattern in
+    # _LOA_ENV_LOADER_ALLOWLIST. Bash glob match — pattern need not match
+    # the whole string, but in our use the patterns are anchored shapes.
+    local key="$1"
+    local pattern
+    # shellcheck disable=SC2068
+    for pattern in ${_LOA_ENV_LOADER_ALLOWLIST[@]}; do
+        # shellcheck disable=SC2053
+        if [[ "$key" == $pattern ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+_env_loader_reject_non_allowlisted_key() {
+    # bug-898 SEC-001 v4: shared rejection helper for keys outside the
+    # allowlist. The allowlist replaces the v1-v3 denylist that BB kept
+    # finding bypasses around (PATH, SHELLOPTS, GIT_CONFIG_COUNT,
+    # lowercase npm_config_*, etc.). Operator-controlled extension lives
+    # in _LOA_ENV_LOADER_ALLOWLIST above this function.
     local key="$1" file="$2" lineno="$3"
-    printf 'WARN: env-loader: rejected denylisted key %s in %s line %d (ambient-execution key — sourcing would let an attacker hijack subprocesses regardless of value content)\n' \
+    printf 'WARN: env-loader: rejected key %s in %s line %d (not in positive allowlist — see _LOA_ENV_LOADER_ALLOWLIST in env-loader.sh to extend)\n' \
         "$key" "$file" "$lineno" >&2
 }
 
@@ -88,93 +158,23 @@ load_env_file() {
         key="${BASH_REMATCH[1]}"
         value="${BASH_REMATCH[2]}"
 
-        # bug-898 SEC-001: key-name denylist for ambient-execution variables.
-        # The value-side gate below blocks `$(cmd)` / backticks / `;` chains,
-        # but the legacy SHELLSHOCK class (CVE-2014-6271) and adjacent ones
-        # exploit dangerous KEY NAMES that turn a plain `KEY=path` assignment
-        # into deferred code execution in every child process. BASH_ENV is
-        # sourced by every non-interactive bash subprocess at startup;
-        # LD_PRELOAD / LD_LIBRARY_PATH inject shared objects; NODE_OPTIONS,
-        # PYTHONSTARTUP, PERL5OPT, RUBYOPT, GIT_SSH_COMMAND, GIT_EXEC_PATH
-        # all coerce code into otherwise-trusted runtimes.
-        # Refuse these key names regardless of value shape.
-        case "$key" in
-            BASH_ENV|ENV|CDPATH|PROMPT_COMMAND|BASH_FUNC_*|FUNCNEST)
-                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
-                continue ;;
-            LD_PRELOAD|LD_LIBRARY_PATH|LD_AUDIT|LD_BIND_NOW|LD_DEBUG)
-                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
-                continue ;;
-            DYLD_INSERT_LIBRARIES|DYLD_LIBRARY_PATH|DYLD_FRAMEWORK_PATH|DYLD_FALLBACK_LIBRARY_PATH|DYLD_FALLBACK_FRAMEWORK_PATH)
-                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
-                continue ;;
-            NODE_OPTIONS|NODE_PATH)
-                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
-                continue ;;
-            PYTHONSTARTUP|PYTHONPATH|PYTHONHOME|PYTHONINSPECT|PYTHONDEBUG|PYTHONUSERBASE)
-                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
-                continue ;;
-            PERL5OPT|PERL5LIB|PERL5DB|PERLIO_DEBUG|PERL_UNICODE)
-                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
-                continue ;;
-            RUBYOPT|RUBYLIB)
-                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
-                continue ;;
-            GIT_SSH_COMMAND|GIT_EXEC_PATH|GIT_DIR|GIT_WORK_TREE|GIT_INDEX_FILE|GIT_CONFIG_GLOBAL|GIT_CONFIG_SYSTEM)
-                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
-                continue ;;
-            # BB #912 v2 SEC-001: additional git tool-hook keys that
-            # subprocess execution arbitrary binaries: GIT_ASKPASS runs an
-            # askpass helper; GIT_EXTERNAL_DIFF/GIT_DIFF_OPTS run a diff
-            # driver; GIT_PAGER/PAGER/MANPAGER pipe output through any
-            # binary; GIT_EDITOR/EDITOR/VISUAL/SEQUENCE_EDITOR get invoked
-            # by interactive git commands (commit, rebase, etc.).
-            GIT_ASKPASS|GIT_EXTERNAL_DIFF|GIT_DIFF_OPTS|GIT_PAGER|GIT_EDITOR|GIT_SEQUENCE_EDITOR|GIT_PROXY_COMMAND|GIT_TRACE_SETUP_PROGRAM|GIT_CONFIG_PARAMETERS)
-                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
-                continue ;;
-            PAGER|MANPAGER|EDITOR|VISUAL|BROWSER)
-                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
-                continue ;;
-            # Compiler / toolchain wrapper hooks — cargo / rustup / cc / make
-            # all honor these to swap the underlying compiler / linker /
-            # invocation with an arbitrary path supplied at env-load time.
-            RUSTC_WRAPPER|RUSTC|RUSTFLAGS|CARGO_HOME|CARGO_TARGET_DIR|CARGO_BUILD_RUSTC|CC|CXX|CPP|LD|AR|AS|NM|RANLIB|MAKE)
-                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
-                continue ;;
-            # Node / npm execution-hook keys. NPM_CONFIG_NODE_OPTIONS is
-            # the npm-config form of NODE_OPTIONS; npm exposes any
-            # `--<key>=<val>` CLI flag as `NPM_CONFIG_<KEY>`, so the
-            # safer move is to reject the whole NPM_CONFIG_ family.
-            NPM_CONFIG_*)
-                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
-                continue ;;
-            SSH_ASKPASS|SUDO_ASKPASS|SSH_AUTH_SOCK)
-                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
-                continue ;;
-            IFS|PS4|HISTFILE|HISTCMD)
-                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
-                continue ;;
-            # BB #912 v3 SEC-001 (HIGH, 0.95 conf): PATH is THE ambient
-            # execution vector — every unqualified subprocess call resolves
-            # through it. A hostile .env with `PATH=/tmp/evil:/usr/bin`
-            # makes every later `git`/`jq`/`curl`/etc. invocation pick up
-            # an attacker-controlled binary. Refuse to assign PATH from
-            # .env regardless of value shape. Operator must set PATH via
-            # the parent process.
-            PATH|MANPATH|INFOPATH|XDG_DATA_DIRS|XDG_CONFIG_DIRS)
-                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
-                continue ;;
-            # BB #912 v3 REL-001 (MEDIUM): bash's built-in readonly /
-            # special variables. Assigning to them either silently no-ops
-            # (UID/EUID are readonly), or breaks the shell's own state
-            # tracking (SHELLOPTS/BASHOPTS control set -e / set -u / etc.;
-            # changing them at .env-load time would alter the orchestrator's
-            # error-handling posture mid-run). Refusing is safer than the
-            # defensive export-wrap below.
-            SHELLOPTS|BASHOPTS|BASH_VERSION|BASH_VERSINFO|BASH_REMATCH|BASH_LINENO|BASH_SOURCE|FUNCNAME|UID|EUID|GROUPS|PPID|RANDOM|SECONDS|LINENO|OLDPWD|PWD|SHLVL)
-                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
-                continue ;;
-        esac
+        # bug-898 SEC-001 (BB #912 v4 architectural fix — positive allowlist).
+        #
+        # The v1-v3 denylist approach was unwinnable whack-a-mole — every
+        # BB iteration kept finding more exec-hook namespaces (PATH,
+        # SHELLOPTS, GIT_CONFIG_COUNT, lowercase npm_config_*, etc.). BB
+        # explicitly recommended positive allowlist three iterations in a
+        # row. Switched at v4: the loader now exports ONLY keys whose
+        # name matches one of the documented allowlist patterns below;
+        # everything else is rejected with a WARN regardless of value
+        # shape. Operator must set non-allowlisted keys via the parent
+        # process or extend the allowlist in this file.
+        #
+        # Allowlist patterns (bash extended glob, case-sensitive):
+        if ! _env_loader_key_is_allowlisted "$key"; then
+            _env_loader_reject_non_allowlisted_key "$key" "$file" "$lineno"
+            continue
+        fi
 
         # BB #912 v2 COR-001 fix: strip inline trailing comments on
         # UNQUOTED values. A common dotenv shape is `KEY=value # note`;
