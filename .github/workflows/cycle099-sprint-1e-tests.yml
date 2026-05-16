@@ -12,8 +12,11 @@ on:
       # bug-887: include the canonical YAML so live-schema defects
       # (e.g. cycle-104 `kind: cli` added without schema extension —
       # KF-006) trigger this workflow on main, not just on migrator
-      # edits.
+      # edits. BB #917 BF-001 also lists the bug-887 anti-regression
+      # bats file itself so edits to the guard test re-trigger the
+      # workflow that owns the invariant.
       - '.claude/defaults/model-config.yaml'
+      - 'tests/unit/bug-887-workflow-path-filters.bats'
       - '.claude/scripts/lib/log-redactor.py'
       - '.claude/scripts/lib/log-redactor.sh'
       - '.claude/scripts/lib/model-config-migrate.py'
@@ -29,8 +32,11 @@ on:
       # bug-887: include the canonical YAML so live-schema defects
       # (e.g. cycle-104 `kind: cli` added without schema extension —
       # KF-006) trigger this workflow on main, not just on migrator
-      # edits.
+      # edits. BB #917 BF-001 also lists the bug-887 anti-regression
+      # bats file itself so edits to the guard test re-trigger the
+      # workflow that owns the invariant.
       - '.claude/defaults/model-config.yaml'
+      - 'tests/unit/bug-887-workflow-path-filters.bats'
       - '.claude/scripts/lib/log-redactor.py'
       - '.claude/scripts/lib/log-redactor.sh'
       - '.claude/scripts/lib/model-config-migrate.py'

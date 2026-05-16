@@ -74,8 +74,15 @@ setup() {
     [ "$status" -eq 0 ]
 }
 
-@test "bug-887-5-source: workflow references bug-887 / KF-006 in the rationale comment" {
-    grep -qE 'bug-887|KF-006' "$WORKFLOW"
+@test "bug-887-5-source: workflow references BOTH bug-887 AND KF-006 in the rationale comment" {
+    # BB #917 BF-002 (0.9 conf): the OR-predicate version of this test
+    # exhibited "assertion erosion" (Google Testing Grouplet pattern) —
+    # the contract requires BOTH ticket references (the bug and the
+    # known-failure), but the OR-grep would have passed with only one.
+    # Mutate to AND-predicate so a future cleanup that drops either
+    # token fails the test loudly.
+    grep -q 'bug-887' "$WORKFLOW"
+    grep -q 'KF-006' "$WORKFLOW"
 }
 
 @test "bug-887-6: parity — pull_request.paths and push.paths have the same model-config-yaml entry count" {
