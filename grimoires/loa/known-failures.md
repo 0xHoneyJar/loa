@@ -63,6 +63,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-006](#kf-006-t114-migrate-model-config-v2-schema-rejects-max_output_tokens) | RESOLVED 2026-05-10 (v2 schema modelEntry permits max_output_tokens + max_input_tokens) | T1.14 migrate-model-config v2 schema | every PR since dd54fe9c |
 | [KF-007](#kf-007-red-team-pipeline-hardcoded-single-model-evaluator-vestigial-config) | RESOLVED 2026-05-10 (multi-model evaluator) | red team pipeline hardcoded single-model evaluator | n/a — resolved in same session as discovery |
 | [KF-008](#kf-008-bridgebuilder-google-api-socketerror-on-large-request-bodies) | RESOLVED-architectural-complete — cycle-103 Sprint 1 unification (review-adapter path) + cycle-104 Sprint 3 T3.4 substrate-replay closure 2026-05-12 (4/4 trials clean at 297/302/317/539KB via cheval httpx). | bridgebuilder Google provider | 4 reproductions + 1 final non-reproduction |
+| [KF-010](#kf-010-cheval-delegate-google-adapter-300s-process-timeout-on-concurrent-bb-runs) | OPEN | bridgebuilder google voice / cheval-delegate subprocess timeout | 6 (single batch, 2026-05-16) |
 
 ---
 
@@ -712,6 +713,29 @@ not address.
 When cycle-108 substrate is invoked but `.run/model-invoke.jsonl` has insufficient v1.2 envelope data for the requested strata, the natural close shape is "substrate-validation mode". Do NOT treat DEFERRED classifications as failures — they're the expected outcome until the operator triggers a real-data benchmark (rollout-policy.md §7 trigger conditions). Coverage audit threshold (≥90%) is the canonical readiness check; if it fails, route the cycle to "extend the coverage window" rather than "ship anyway".
 
 When future cycles want to benchmark a NEW dimension (not in cycle-108), reuse the cycle-108 substrate end-to-end (rollup + classifier + harness + stats), supply the new dimension's stratifier rules, and capture the cycle's decision-fork outcome as a fresh `cycle-NNN-baselines-pin-<sha>` Git tag. The pattern is repo-substrate.
+
+---
+
+## KF-010: cheval-delegate google adapter 300s process timeout on concurrent BB runs
+
+**Status**: OPEN
+**Feature**: bridgebuilder multi-model review — `google/gemini-3.1-pro-preview` voice via cheval-delegate subprocess
+**Symptom**: Every google voice invocation in a 6-PR concurrent BB sweep returned `cheval-delegate: process exceeded timeout=300000ms (signal=SIGTERM)`. The BB TS layer (`adapters/llm-google.ts` or equivalent) imposes a 300s SIGTERM on the cheval-delegate subprocess. Anthropic + OpenAI voices completed normally (anthropic 80-275s, openai 39-138s on same runs). Consensus scoring proceeds with 2/3 voices but verdict-quality envelope is DEGRADED per NFR-Rel-1. BB does NOT surface the degradation in the GitHub-posted review comment — the comment header lists all 3 INTENDED models without distinguishing which actually returned a verdict. Operators relying on the comment alone cannot tell quality is degraded.
+**First observed**: 2026-05-16 (cycle-110 BB sweep batch 5, run IDs `bridgebuilder-20260516T0721{19,26,33,40,46,53}-*`)
+**Recurrence count**: 6 (single batch, all 6 PRs in the sweep, all hitting exactly the 300s wall — pattern strongly suggests provider-side issue rather than client-side per-call latency variance)
+**Current workaround**: Treat any BB run missing a `google] Complete` log line as DEGRADED → do NOT auto-merge under operator-approval `Verdict quality NOT DEGRADED` clause. Re-run BB sequentially (not concurrent) if convergence is required; or accept 2-voice consensus and route the merge through human review.
+**Upstream issue**: not filed yet — needs investigation to distinguish (a) Google API throttling/slowness on concurrent reqs, (b) cheval google httpx-adapter hang, (c) BB's 300s timeout being too tight for current Gemini response latency.
+**Related visions / lore**: KF-001 (different mechanism — Node 20 Happy Eyeballs at 250ms, resolved), KF-008 (different mechanism — Google SocketError on large bodies, resolved via cheval httpx). This is a NEW failure class: process-level subprocess timeout, not connection-level.
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-05-16 07:21Z | 6 BB invocations launched concurrently with 5s stagger across PRs #804/#885/#912/#913/#914/#917 | DID NOT WORK — all 6 google voices SIGTERM'd at 300s; anthropic+openai succeeded | `/tmp/bb-runs-5/pr-{804,885,912,913,914,917}.log`; GitHub comments timestamped 07:28Z on each PR |
+
+### Reading guide
+
+When a BB sweep shows uniform `cheval-delegate: process exceeded timeout=300000ms` on the google voice across all PRs, treat as DEGRADED-voice batch-level and refuse auto-merge per the operator-approval doc's `Verdict quality NOT DEGRADED` clause. Don't retry the same batch — investigate the substrate first: (a) check Gemini API status / rate-limit posture, (b) run a single sequential BB and observe wall time, (c) examine cheval google adapter for hang patterns (similar to KF-008's pre-cheval-httpx era). The pattern is suspicious because all 6 hit exactly 300s — concurrent reqs from same key may be queueing server-side and timing out client-side together, not on individual call latency. **Do NOT increase BB's 300s timeout as a workaround** — that hides the underlying provider issue; instead, route batch-mode invocations through sequential queue or accept 2-voice consensus with explicit human gate.
 
 ---
 
