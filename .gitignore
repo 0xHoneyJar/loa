@@ -284,3 +284,14 @@ grimoires/loa/ledger.json.bak*
 #   grimoires/loa/runbooks/           (framework-shipped runbooks)
 #   grimoires/loa/known-failures.md   (shared zone)
 #   grimoires/loa/ledger.json         (project sprint ledger)
+
+# Skill-run ephemeral output (cycle-099/108 reports; never load-bearing across sessions)
+grimoires/loa/consistency-report.md
+grimoires/loa/drift-report.md
+grimoires/loa/gaps.md
+grimoires/loa/governance-report.md
+grimoires/loa/trajectory-audit.md
+
+# Runtime session state (lockfiles + test output, regenerated per-session)
+.claude/scheduled_tasks.lock
+report.xml
