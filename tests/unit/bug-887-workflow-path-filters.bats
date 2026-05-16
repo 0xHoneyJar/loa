@@ -34,7 +34,7 @@ setup() {
     [ "$output" = "true" ]
 }
 
-@test "bug-887-3: existing migrator paths are preserved (no accidental removals)" {
+@test "bug-887-3: existing migrator paths are preserved in pull_request.paths (no accidental removals)" {
     # Spot-check that the original entries still appear in pull_request.paths.
     local existing_paths=(
         ".claude/scripts/lib/log-redactor.py"
@@ -45,6 +45,25 @@ setup() {
     )
     for p in "${existing_paths[@]}"; do
         run yq eval ".on.pull_request.paths | contains([\"$p\"])" "$WORKFLOW"
+        [ "$status" -eq 0 ]
+        [ "$output" = "true" ]
+    done
+}
+
+@test "bug-887-3b: existing migrator paths are preserved in push.paths (closes #917 MEDIUM-1 — asymmetric-coverage gap)" {
+    # BB #917 review (MEDIUM-1, 0.95 conf): the original defect class — a
+    # path silently absent from one trigger — could recur on the push
+    # trigger without bug-887-3 catching it. This test mirrors bug-887-3
+    # against `push.paths` to close that asymmetry.
+    local existing_paths=(
+        ".claude/scripts/lib/log-redactor.py"
+        ".claude/scripts/lib/log-redactor.sh"
+        ".claude/scripts/lib/model-config-migrate.py"
+        ".claude/data/schemas/model-config-v2.schema.json"
+        "tests/integration/migrate-model-config.bats"
+    )
+    for p in "${existing_paths[@]}"; do
+        run yq eval ".on.push.paths | contains([\"$p\"])" "$WORKFLOW"
         [ "$status" -eq 0 ]
         [ "$output" = "true" ]
     done
