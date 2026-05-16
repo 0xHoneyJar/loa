@@ -494,7 +494,12 @@ EOF
     # what we test is the denylist *refused* the assignment, by checking the
     # WARN message landed.
     run load_env_file "$TEST_TMP/.env"
-    [[ "$output" == *"SHELLOPTS"* ]] || [[ "$output" == *"denylisted"* ]]
+    # BB-912 v6 F-003 fix: pin BOTH the key name AND the rejection reason.
+    # The previous OR-chain accepted "denylisted" as a v1-era artifact; the
+    # current v4+ loader emits "not in positive allowlist". OR-chained
+    # assertions hide refactor-driven regressions in the reason text.
+    [[ "$output" == *"SHELLOPTS"* ]]
+    [[ "$output" == *"positive allowlist"* ]]
 }
 
 @test "bug-898-43: rejects UID / EUID / readonly-built-in shell vars" {
@@ -610,8 +615,6 @@ ANTHROPIC_API_KEY=sk-ant-test
 OPENAI_API_KEY=sk-test
 GOOGLE_API_KEY=key-test
 GEMINI_API_KEY=gemini-test
-ANTHROPIC_BASE_URL=https://api.example.com
-OPENAI_BASE_URL=https://api.example.com
 GOOGLE_APPLICATION_CREDENTIALS=/tmp/adc.json
 AWS_ACCESS_KEY_ID=AKIA-test
 AWS_SECRET_ACCESS_KEY=secret-test
@@ -622,7 +625,7 @@ HONEYJAR_PROJECT=test
 GITHUB_TOKEN=ghp_test
 EOF
     unset ANTHROPIC_API_KEY OPENAI_API_KEY GOOGLE_API_KEY GEMINI_API_KEY \
-          ANTHROPIC_BASE_URL OPENAI_BASE_URL GOOGLE_APPLICATION_CREDENTIALS \
+          GOOGLE_APPLICATION_CREDENTIALS \
           AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_REGION \
           BEDROCK_MODEL_ID LOA_DEBUG HONEYJAR_PROJECT GITHUB_TOKEN
     load_env_file "$TEST_TMP/.env"
@@ -630,8 +633,6 @@ EOF
     [ "$OPENAI_API_KEY" = "sk-test" ]
     [ "$GOOGLE_API_KEY" = "key-test" ]
     [ "$GEMINI_API_KEY" = "gemini-test" ]
-    [ "$ANTHROPIC_BASE_URL" = "https://api.example.com" ]
-    [ "$OPENAI_BASE_URL" = "https://api.example.com" ]
     [ "$GOOGLE_APPLICATION_CREDENTIALS" = "/tmp/adc.json" ]
     [ "$AWS_ACCESS_KEY_ID" = "AKIA-test" ]
     [ "$AWS_SECRET_ACCESS_KEY" = "secret-test" ]
@@ -640,4 +641,54 @@ EOF
     [ "$LOA_DEBUG" = "1" ]
     [ "$HONEYJAR_PROJECT" = "test" ]
     [ "$GITHUB_TOKEN" = "ghp_test" ]
+}
+
+@test "bug-898-50: v6 SEC-001 — base URL keys are REJECTED (credential-redirection threat tier)" {
+    # BB-912 v6 SEC-001 fix: .env-loaded BASE_URL would let a hostile .env
+    # redirect provider traffic to an attacker-controlled endpoint while
+    # real API keys come from the parent env. The allowlist no longer
+    # accepts destinations; operators must set them via parent env or
+    # .env.local.
+    cat > "$TEST_TMP/.env" <<'EOF'
+ANTHROPIC_BASE_URL=https://attacker.example.com
+OPENAI_BASE_URL=https://attacker.example.com
+ANTHROPIC_BEDROCK_BASE_URL=https://attacker.example.com
+ANTHROPIC_VERTEX_BASE_URL=https://attacker.example.com
+EVIL_BASE_URL=https://attacker.example.com
+EOF
+    unset ANTHROPIC_BASE_URL OPENAI_BASE_URL ANTHROPIC_BEDROCK_BASE_URL \
+          ANTHROPIC_VERTEX_BASE_URL EVIL_BASE_URL
+    run load_env_file "$TEST_TMP/.env"
+    [ "$status" -eq 0 ]
+    [ -z "${ANTHROPIC_BASE_URL:-}" ]
+    [ -z "${OPENAI_BASE_URL:-}" ]
+    [ -z "${ANTHROPIC_BEDROCK_BASE_URL:-}" ]
+    [ -z "${ANTHROPIC_VERTEX_BASE_URL:-}" ]
+    [ -z "${EVIL_BASE_URL:-}" ]
+    # WARN should fire for each one
+    [[ "$output" == *"ANTHROPIC_BASE_URL"* ]]
+    [[ "$output" == *"OPENAI_BASE_URL"* ]]
+}
+
+@test "bug-898-51: v6 COR-001 — allowlist iteration is CWD-independent (quoted array expansion)" {
+    # BB-912 v6 COR-001 fix: unquoted `${arr[@]}` in the allowlist
+    # iterator let bash filename-expand glob entries like `*_API_KEY`
+    # against the caller's CWD. A file literally named OPENAI_API_KEY in
+    # CWD would replace the wildcard and legitimate API key loads would
+    # silently fail. Test runs from a CWD seeded with such a file.
+    local trap_dir
+    trap_dir="$(mktemp -d -p "$TEST_TMP")"
+    : > "$trap_dir/OPENAI_API_KEY"   # the trap file
+    : > "$trap_dir/ANTHROPIC_API_KEY"
+    cat > "$trap_dir/.env" <<'EOF'
+ANTHROPIC_API_KEY=sk-ant-real
+OPENAI_API_KEY=sk-real
+EOF
+    unset ANTHROPIC_API_KEY OPENAI_API_KEY
+    (
+        cd "$trap_dir"
+        load_env_file "$trap_dir/.env"
+        [ "$ANTHROPIC_API_KEY" = "sk-ant-real" ]
+        [ "$OPENAI_API_KEY" = "sk-real" ]
+    )
 }

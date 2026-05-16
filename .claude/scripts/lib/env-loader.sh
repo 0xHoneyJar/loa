@@ -42,27 +42,44 @@ _LOA_ENV_LOADER_SOURCED=1
 # Adding a key: append the literal name OR a pattern. The allowlist is
 # intentionally narrow — extend it deliberately, with rationale, and
 # prefer parent-process-set env vars for project-local keys when possible.
+#
+# Allowlist tiers (BB #912 v6 SEC-001 fix — credential-vs-destination separation):
+#   Tier 1 (credentials) — exfiltratable but NOT redirecting. .env may carry these.
+#   Tier 2 (destinations) — redirecting (and thus credential-exfiltrating in transit).
+#                            MUST come from parent env or .env.local, NEVER from .env.
+# Rationale: a hostile .env at repo root that sets OPENAI_BASE_URL to an
+# attacker-controlled endpoint will silently exfiltrate every API call's
+# headers + bodies (including real API keys sourced from parent env or
+# .env.local). Allowlisting destinations alongside credentials collapses
+# two threat tiers into one. Operators who need a non-default base URL for
+# Bedrock / Vertex / a corporate proxy MUST set it via the parent process or
+# .env.local — both are trusted boundaries that .env is not.
 _LOA_ENV_LOADER_ALLOWLIST=(
+    # ---- Tier 1: credentials (loadable from .env) ----
     # Provider API auth — covers most LLM providers via suffix pattern
     API_KEY                        # bare form (used by some scripts / generic tooling)
     '*_API_KEY'                    # ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY, GEMINI_API_KEY, ...
     '*_AUTH_TOKEN'                 # ANTHROPIC_AUTH_TOKEN (Bedrock-style bearer)
-    '*_BASE_URL'                   # ANTHROPIC_BASE_URL, OPENAI_BASE_URL, etc. (operator-configurable endpoint)
 
     # Anthropic / OpenAI / Google specific (explicit — pattern-match would
     # be too loose). Each name is the exact env var their SDKs honor.
     ANTHROPIC_API_KEY
     ANTHROPIC_AUTH_TOKEN
-    ANTHROPIC_BASE_URL
-    ANTHROPIC_BEDROCK_BASE_URL
-    ANTHROPIC_VERTEX_BASE_URL
     OPENAI_API_KEY
-    OPENAI_BASE_URL
     OPENAI_ORG_ID
     OPENAI_PROJECT_ID
     GOOGLE_API_KEY
     GEMINI_API_KEY
     GOOGLE_APPLICATION_CREDENTIALS
+
+    # ---- Tier 2: destinations — INTENTIONALLY ABSENT from this allowlist. ----
+    # ANTHROPIC_BASE_URL, OPENAI_BASE_URL, ANTHROPIC_BEDROCK_BASE_URL,
+    # ANTHROPIC_VERTEX_BASE_URL, and the `*_BASE_URL` wildcard were removed
+    # in BB-912 v6 SEC-001 fix. A hostile .env that sets one of these would
+    # redirect provider traffic — and thus exfiltrate credentials sourced
+    # from the parent env — to an attacker-controlled endpoint. Operators
+    # who need a non-default base URL (Bedrock, Vertex, corporate proxy)
+    # MUST set it via the parent process or .env.local.
 
     # AWS / Bedrock (cycle-096 provider)
     AWS_ACCESS_KEY_ID
@@ -91,8 +108,12 @@ _env_loader_key_is_allowlisted() {
     # the whole string, but in our use the patterns are anchored shapes.
     local key="$1"
     local pattern
-    # shellcheck disable=SC2068
-    for pattern in ${_LOA_ENV_LOADER_ALLOWLIST[@]}; do
+    # BB-912 v6 COR-001 fix: quoted array expansion — `${arr[@]}` (unquoted)
+    # lets bash filename-expand glob entries like `*_API_KEY` against the
+    # caller's CWD BEFORE the loop iterates. If a file named OPENAI_API_KEY
+    # exists in CWD, the wildcard is replaced with that filename and the
+    # real allowlist patterns silently vanish from iteration.
+    for pattern in "${_LOA_ENV_LOADER_ALLOWLIST[@]}"; do
         # shellcheck disable=SC2053
         if [[ "$key" == $pattern ]]; then
             return 0
