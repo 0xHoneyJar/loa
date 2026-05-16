@@ -7,8 +7,11 @@
 #   Issue C: flatline-readiness.sh recommendation references
 #            'gemini-3.1-pro' (unregistered) instead of an alias that
 #            actually exists in model-config.yaml.
-#   Issue D: flatline-orchestrator.sh does not source .env / .env.local
+#   Issue D: flatline-orchestrator.sh does not load .env / .env.local
 #            before invoking model adapters (BB does; FL does not).
+#            Updated post-#898: loading is via load_env_file (safe
+#            KEY=VALUE parser) instead of `set -a; source .env; set +a`
+#            because the latter executes arbitrary bash inside .env.
 #   Issue D': scoring parser empty-output — already covered by T3.3
 #             extract_json_content regression corpus.
 #
@@ -25,25 +28,41 @@ setup() {
 }
 
 # =============================================================================
-# T35-1..3: Issue D — flatline-orchestrator.sh sources .env / .env.local
+# T35-1..3: Issue D — flatline-orchestrator.sh loads .env / .env.local
+# (post-#898: via load_env_file safe parser; T35-3 inverted to NEGATIVE
+# control — the legacy `set -a; source .env; set +a` pattern MUST NOT
+# reappear, because it would re-introduce the RCE vector.)
 # =============================================================================
 
-@test "T35-1: flatline-orchestrator.sh sources .env when present" {
-    grep -qE 'source[[:space:]]+\.env\b|set[[:space:]]+-a[[:space:]]*;[[:space:]]*source[[:space:]]+\.env' \
+@test "T35-1: flatline-orchestrator.sh loads .env via load_env_file" {
+    grep -qE 'load_env_file[[:space:]]+\.env\b' \
         "$PROJECT_ROOT/.claude/scripts/flatline-orchestrator.sh"
 }
 
-@test "T35-2: flatline-orchestrator.sh sources .env.local when present" {
-    grep -qE 'source[[:space:]]+\.env\.local|\.env\.local[[:space:]]+;' \
+@test "T35-2: flatline-orchestrator.sh loads .env.local via load_env_file" {
+    grep -qE 'load_env_file[[:space:]]+\.env\.local' \
         "$PROJECT_ROOT/.claude/scripts/flatline-orchestrator.sh"
 }
 
-@test "T35-3: flatline-orchestrator.sh uses 'set -a / set +a' export pattern" {
-    # Mirror the BB pattern: set -a exports all sourced vars, set +a restores.
-    # Anchors the contract that .env vars CROSS subprocess boundaries (which
-    # is the whole point of sourcing — env vars only propagate when exported).
-    grep -qE 'set[[:space:]]+-a' "$PROJECT_ROOT/.claude/scripts/flatline-orchestrator.sh"
-    grep -qE 'set[[:space:]]+\+a' "$PROJECT_ROOT/.claude/scripts/flatline-orchestrator.sh"
+@test "T35-3: flatline-orchestrator.sh does NOT use the unsafe 'set -a; source .env' pattern (#898 anti-regression)" {
+    # Inverted post-#898: this is now a NEGATIVE control. The previous
+    # version of T35-3 asserted the presence of `set -a / set +a`, but
+    # that pattern is exactly what made .env loading an RCE vector.
+    # `source .env` executes any bash inside the file (command
+    # substitution, backticks, ; chains); the safe replacement
+    # load_env_file parses KEY=VALUE structurally and refuses shell
+    # metacharacters. See lib/env-loader.sh.
+    # Comment lines that mention the legacy pattern (documenting WHY it
+    # was removed) are filtered out — only CODE-line matches fail this.
+    local hits
+    hits=$(grep -hE 'set[[:space:]]+-a[[:space:]]*;[[:space:]]*source[[:space:]]+\.env' \
+        "$PROJECT_ROOT/.claude/scripts/flatline-orchestrator.sh" \
+        | grep -vE '^[[:space:]]*#' || true)
+    if [[ -n "$hits" ]]; then
+        echo "FAIL: legacy 'set -a; source .env' pattern resurfaced on a code line:" >&2
+        echo "$hits" >&2
+        return 1
+    fi
 }
 
 # =============================================================================
@@ -73,8 +92,8 @@ setup() {
 # T35-5: BB / FL .env-load parity (positive control on the design intent)
 # =============================================================================
 
-@test "T35-5: BB entry.sh has the same .env loading pattern (parity baseline)" {
-    grep -qE 'set[[:space:]]+-a[[:space:]]*;[[:space:]]*source[[:space:]]+\.env' \
+@test "T35-5: BB entry.sh uses load_env_file (post-#898 parity baseline)" {
+    grep -qE 'load_env_file[[:space:]]+\.env\b' \
         "$PROJECT_ROOT/.claude/skills/bridgebuilder-review/resources/entry.sh"
 }
 

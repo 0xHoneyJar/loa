@@ -26,6 +26,12 @@ export const GENERATED_MODEL_REGISTRY: Record<string, GeneratedModelEntry> = {
     capabilities: ["chat", "function_calling", "tools"],
     pricing: { inputPerMtok: 1000000, outputPerMtok: 5000000 },
   },
+  "claude-headless": {
+    provider: "anthropic",
+    modelId: "claude-headless",
+    contextWindow: 200000,
+    capabilities: ["chat"],
+  },
   "claude-opus-4-6": {
     provider: "anthropic",
     modelId: "claude-opus-4-6",
@@ -116,6 +122,18 @@ export const GENERATED_MODEL_REGISTRY: Record<string, GeneratedModelEntry> = {
     contextWindow: 1048576,
     capabilities: ["chat", "thinking_traces"],
     pricing: { inputPerMtok: 1250000, outputPerMtok: 10000000 },
+  },
+  "gemini-headless": {
+    provider: "google",
+    modelId: "gemini-headless",
+    contextWindow: 1048576,
+    capabilities: ["chat"],
+  },
+  "codex-headless": {
+    provider: "openai",
+    modelId: "codex-headless",
+    contextWindow: 400000,
+    capabilities: ["chat", "code"],
   },
   "gpt-5.2": {
     provider: "openai",
