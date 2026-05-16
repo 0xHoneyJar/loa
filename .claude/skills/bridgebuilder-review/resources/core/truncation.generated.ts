@@ -14,6 +14,7 @@ import type { TokenBudget } from "./types.js";
 
 export const GENERATED_TOKEN_BUDGETS: Record<string, TokenBudget> = {
   "claude-haiku-4-5-20251001": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
+  "claude-headless": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
   "claude-opus-4-6": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
   "claude-opus-4-7": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
   "claude-sonnet-4-5-20250929": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
@@ -27,6 +28,8 @@ export const GENERATED_TOKEN_BUDGETS: Record<string, TokenBudget> = {
   "gemini-2.5-pro": { maxInput: 1048576, maxOutput: 8192, coefficient: 0.25 },
   "gemini-3-flash-preview": { maxInput: 1048576, maxOutput: 8192, coefficient: 0.25 },
   "gemini-3.1-pro-preview": { maxInput: 1048576, maxOutput: 8192, coefficient: 0.25 },
+  "gemini-headless": { maxInput: 1048576, maxOutput: 8192, coefficient: 0.25 },
+  "codex-headless": { maxInput: 400000, maxOutput: 4096, coefficient: 0.23 },
   "gpt-5.2": { maxInput: 128000, maxOutput: 4096, coefficient: 0.23 },
   "gpt-5.3-codex": { maxInput: 400000, maxOutput: 4096, coefficient: 0.23 },
   "gpt-5.5": { maxInput: 400000, maxOutput: 4096, coefficient: 0.23 },
