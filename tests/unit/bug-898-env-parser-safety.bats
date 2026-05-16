@@ -327,3 +327,131 @@ EOF
         fi
     done
 }
+
+# =============================================================================
+# BB #912 v2 SEC-001 — extended exec-hook denylist
+# =============================================================================
+
+@test "bug-898-27: rejects GIT_ASKPASS (git asks an arbitrary helper)" {
+    cat > "$TEST_TMP/.env" <<EOF
+GIT_ASKPASS=/tmp/hostile-askpass.sh
+EOF
+    unset GIT_ASKPASS
+    load_env_file "$TEST_TMP/.env"
+    [ -z "${GIT_ASKPASS:-}" ]
+}
+
+@test "bug-898-28: rejects GIT_EXTERNAL_DIFF (git diff driver swap)" {
+    cat > "$TEST_TMP/.env" <<EOF
+GIT_EXTERNAL_DIFF=/tmp/hostile-diff
+EOF
+    unset GIT_EXTERNAL_DIFF
+    load_env_file "$TEST_TMP/.env"
+    [ -z "${GIT_EXTERNAL_DIFF:-}" ]
+}
+
+@test "bug-898-29: rejects GIT_PAGER (pipes git output through arbitrary binary)" {
+    cat > "$TEST_TMP/.env" <<EOF
+GIT_PAGER=/tmp/hostile-pager
+EOF
+    unset GIT_PAGER
+    load_env_file "$TEST_TMP/.env"
+    [ -z "${GIT_PAGER:-}" ]
+}
+
+@test "bug-898-30: rejects PAGER (any tool's pager → arbitrary exec)" {
+    cat > "$TEST_TMP/.env" <<EOF
+PAGER=/tmp/hostile-pager
+EOF
+    unset PAGER
+    load_env_file "$TEST_TMP/.env"
+    [ -z "${PAGER:-}" ]
+}
+
+@test "bug-898-31: rejects EDITOR / VISUAL (interactive git commands invoke them)" {
+    cat > "$TEST_TMP/.env" <<EOF
+EDITOR=/tmp/hostile-editor
+VISUAL=/tmp/hostile-visual
+EOF
+    unset EDITOR VISUAL
+    load_env_file "$TEST_TMP/.env"
+    [ -z "${EDITOR:-}" ]
+    [ -z "${VISUAL:-}" ]
+}
+
+@test "bug-898-32: rejects RUSTC_WRAPPER (cargo invokes arbitrary compiler)" {
+    cat > "$TEST_TMP/.env" <<EOF
+RUSTC_WRAPPER=/tmp/hostile-rustc
+EOF
+    unset RUSTC_WRAPPER
+    load_env_file "$TEST_TMP/.env"
+    [ -z "${RUSTC_WRAPPER:-}" ]
+}
+
+@test "bug-898-33: rejects CC / LD (make / cargo / build systems honor them)" {
+    cat > "$TEST_TMP/.env" <<EOF
+CC=/tmp/hostile-cc
+LD=/tmp/hostile-ld
+EOF
+    unset CC LD
+    load_env_file "$TEST_TMP/.env"
+    [ -z "${CC:-}" ]
+    [ -z "${LD:-}" ]
+}
+
+@test "bug-898-34: rejects BROWSER (xdg-open, devtools, etc. invoke it)" {
+    cat > "$TEST_TMP/.env" <<EOF
+BROWSER=/tmp/hostile-browser
+EOF
+    unset BROWSER
+    load_env_file "$TEST_TMP/.env"
+    [ -z "${BROWSER:-}" ]
+}
+
+@test "bug-898-35: rejects NPM_CONFIG_* glob (any npm CLI flag via env)" {
+    cat > "$TEST_TMP/.env" <<EOF
+NPM_CONFIG_NODE_OPTIONS=--require=/tmp/x.js
+NPM_CONFIG_PREFIX=/tmp/hostile-npm-prefix
+EOF
+    unset NPM_CONFIG_NODE_OPTIONS NPM_CONFIG_PREFIX
+    load_env_file "$TEST_TMP/.env"
+    [ -z "${NPM_CONFIG_NODE_OPTIONS:-}" ]
+    [ -z "${NPM_CONFIG_PREFIX:-}" ]
+}
+
+# =============================================================================
+# BB #912 v2 COR-001 — inline-comment stripping
+# =============================================================================
+
+@test "bug-898-36: COR-001 — unquoted value with inline ' # comment' has comment stripped" {
+    cat > "$TEST_TMP/.env" <<'EOF'
+API_KEY=sk-real-key # do not commit
+EOF
+    load_env_file "$TEST_TMP/.env"
+    [ "$API_KEY" = "sk-real-key" ]
+}
+
+@test "bug-898-37: COR-001 — quoted value with trailing ' # comment' has comment stripped" {
+    cat > "$TEST_TMP/.env" <<'EOF'
+QUOTED_KEY="hello world" # trailing comment
+EOF
+    load_env_file "$TEST_TMP/.env"
+    [ "$QUOTED_KEY" = "hello world" ]
+}
+
+@test "bug-898-38: COR-001 — '#' INSIDE the value (no preceding space) is preserved" {
+    # `KEY=foo#bar` is a legitimate value; only ` #` (space + hash) starts a comment.
+    cat > "$TEST_TMP/.env" <<'EOF'
+LEGIT_HASH=foo#bar
+EOF
+    load_env_file "$TEST_TMP/.env"
+    [ "$LEGIT_HASH" = "foo#bar" ]
+}
+
+@test "bug-898-39: COR-001 — '#' inside double-quoted value is preserved" {
+    cat > "$TEST_TMP/.env" <<'EOF'
+QUOTED_HASH="value with # inside"
+EOF
+    load_env_file "$TEST_TMP/.env"
+    [ "$QUOTED_HASH" = "value with # inside" ]
+}

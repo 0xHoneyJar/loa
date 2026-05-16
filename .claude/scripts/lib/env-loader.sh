@@ -111,6 +111,31 @@ load_env_file() {
             GIT_SSH_COMMAND|GIT_EXEC_PATH|GIT_DIR|GIT_WORK_TREE|GIT_INDEX_FILE|GIT_CONFIG_GLOBAL|GIT_CONFIG_SYSTEM)
                 _env_loader_reject_denylist_key "$key" "$file" "$lineno"
                 continue ;;
+            # BB #912 v2 SEC-001: additional git tool-hook keys that
+            # subprocess execution arbitrary binaries: GIT_ASKPASS runs an
+            # askpass helper; GIT_EXTERNAL_DIFF/GIT_DIFF_OPTS run a diff
+            # driver; GIT_PAGER/PAGER/MANPAGER pipe output through any
+            # binary; GIT_EDITOR/EDITOR/VISUAL/SEQUENCE_EDITOR get invoked
+            # by interactive git commands (commit, rebase, etc.).
+            GIT_ASKPASS|GIT_EXTERNAL_DIFF|GIT_DIFF_OPTS|GIT_PAGER|GIT_EDITOR|GIT_SEQUENCE_EDITOR|GIT_PROXY_COMMAND|GIT_TRACE_SETUP_PROGRAM|GIT_CONFIG_PARAMETERS)
+                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
+                continue ;;
+            PAGER|MANPAGER|EDITOR|VISUAL|BROWSER)
+                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
+                continue ;;
+            # Compiler / toolchain wrapper hooks — cargo / rustup / cc / make
+            # all honor these to swap the underlying compiler / linker /
+            # invocation with an arbitrary path supplied at env-load time.
+            RUSTC_WRAPPER|RUSTC|RUSTFLAGS|CARGO_HOME|CARGO_TARGET_DIR|CARGO_BUILD_RUSTC|CC|CXX|CPP|LD|AR|AS|NM|RANLIB|MAKE)
+                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
+                continue ;;
+            # Node / npm execution-hook keys. NPM_CONFIG_NODE_OPTIONS is
+            # the npm-config form of NODE_OPTIONS; npm exposes any
+            # `--<key>=<val>` CLI flag as `NPM_CONFIG_<KEY>`, so the
+            # safer move is to reject the whole NPM_CONFIG_ family.
+            NPM_CONFIG_*)
+                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
+                continue ;;
             SSH_ASKPASS|SUDO_ASKPASS|SSH_AUTH_SOCK)
                 _env_loader_reject_denylist_key "$key" "$file" "$lineno"
                 continue ;;
@@ -119,10 +144,30 @@ load_env_file() {
                 continue ;;
         esac
 
-        # Strip trailing whitespace from unquoted values (but preserve it
-        # inside quoted values).
+        # BB #912 v2 COR-001 fix: strip inline trailing comments on
+        # UNQUOTED values. A common dotenv shape is `KEY=value # note`;
+        # without this, the comment text would be exported as part of
+        # the value (silent corruption of API keys / config values). For
+        # quoted values, comments after the closing quote are stripped;
+        # comments inside the quoted region are preserved verbatim (they
+        # may legitimately appear in the value).
         if [[ ! "$value" =~ ^[\"\'] ]]; then
+            # Unquoted: drop everything from the first ` #` onward.
+            # Note the leading space is required — `KEY=foo#bar` is NOT
+            # a comment (legitimate "#" in value), only `KEY=foo # bar` is.
+            if [[ "$value" =~ ^([^[:space:]#].*[^[:space:]])[[:space:]]+#.*$ ]]; then
+                value="${BASH_REMATCH[1]}"
+            elif [[ "$value" =~ ^[[:space:]]+#.*$ ]]; then
+                # Pure-comment value (KEY=  # only): treat as empty value.
+                value=""
+            fi
+            # Strip remaining trailing whitespace.
             value="${value%"${value##*[![:space:]]}"}"
+        elif [[ "$value" =~ ^(\"[^\"]*\")[[:space:]]+#.*$ ]] \
+          || [[ "$value" =~ ^(\'[^\']*\')[[:space:]]+#.*$ ]]; then
+            # Quoted value followed by ` # comment` — drop the comment,
+            # keep the quoted region for the regex below to parse.
+            value="${BASH_REMATCH[1]}"
         fi
 
         # Quoted-value handling.
