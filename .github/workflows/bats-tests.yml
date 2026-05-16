@@ -150,10 +150,13 @@ jobs:
         if: always()
         run: |
           set -euo pipefail
-          # Sprint-1C scope only — the 3 files this PR added/modified
+          # Sprint-1C scope only — the files this PR added/modified.
+          # NOTE: tests/integration/model-adapter-call-shape.bats was
+          # deleted in cycle-109 Sprint 3 T3.7 alongside model-adapter.sh.legacy
+          # (commit 2ecaac54 under C109.OP-S3); list entry removed for
+          # CI greenness. The other two sprint-1C bats files remain.
           SPRINT_1C_TESTS=(
             tests/integration/curl-mock-harness.bats
-            tests/integration/model-adapter-call-shape.bats
             tests/integration/cheval-error-json-shape.bats
           )
           missing=()

@@ -1,33 +1,92 @@
-"""Anthropic provider adapter — handles Anthropic Messages API (SDD §4.2.5)."""
+"""Anthropic provider adapter — handles Anthropic Messages API (SDD §4.2.5).
+
+Sprint 4A (cycle-102, AC-4.5e): `complete()` defaults to the streaming
+transport (`http_post_stream` + `parse_anthropic_stream`). The
+non-streaming path is preserved behind the `LOA_CHEVAL_DISABLE_STREAMING=1`
+env-var kill switch for operator one-shot backstop. Streaming eliminates
+KF-002 layer 3 (`httpx.RemoteProtocolError` at 60s wall-clock) by
+construction — see `grimoires/loa/known-failures.md` and
+`grimoires/loa/cycles/cycle-102-model-stability/sprint.md` Sprint 4A.
+"""
 
 from __future__ import annotations
 
 import logging
+import os
 import time
 from typing import Any, Dict, List, Optional
 
+from loa_cheval.providers.anthropic_streaming import parse_anthropic_stream
 from loa_cheval.providers.base import (
     ProviderAdapter,
+    _streaming_disabled,
     enforce_context_window,
     http_post,
+    http_post_stream,
 )
 from loa_cheval.types import (
     CompletionRequest,
     CompletionResult,
     InvalidInputError,
+    ProviderStreamError,
     ProviderUnavailableError,
     RateLimitError,
     Usage,
+    dispatch_provider_stream_error,
 )
 
 logger = logging.getLogger("loa_cheval.providers.anthropic")
+
+
+# cycle-109 followup #883 Bug 3 — billing-class error classification.
+# Anthropic returns HTTP 400 with these signals when the API account is
+# unable to dispatch due to billing state (credit depleted, quota
+# exceeded, invoice overdue, etc.). Without this classifier, the
+# adapter raises InvalidInputError which is TERMINAL — preventing the
+# cycle-104 within-company chain from walking to its claude-headless
+# CLI terminal. Each token below is matched case-insensitively against
+# the upstream error message.
+_BILLING_CLASS_TOKENS = (
+    "credit balance",
+    "credit_balance",
+    "quota_exceeded",
+    "quota exceeded",
+    "invoice_overdue",
+    "invoice overdue",
+    "billing_disabled",
+    "billing disabled",
+    "payment_required",
+    "payment required",
+    "insufficient_quota",
+    "insufficient quota",
+)
+
+
+def _is_billing_class_error(message: str) -> bool:
+    """Return True when an HTTP 4xx error message indicates a billing-class
+    condition (account-side, NOT request-side). Billing-class errors should
+    chain-walk via ProviderUnavailableError; param errors stay terminal via
+    InvalidInputError.
+
+    Adding a token: append to `_BILLING_CLASS_TOKENS`. Each token matches
+    case-insensitively as a substring of the upstream error message.
+    """
+    if not message:
+        return False
+    haystack = message.lower()
+    return any(token in haystack for token in _BILLING_CLASS_TOKENS)
 
 
 class AnthropicAdapter(ProviderAdapter):
     """Adapter for Anthropic Messages API (SDD §4.2.3, §4.2.5)."""
 
     def complete(self, request: CompletionRequest) -> CompletionResult:
-        """Send completion request to Anthropic API, return normalized result."""
+        """Send completion request to Anthropic API, return normalized result.
+
+        Sprint 4A: streaming is the default path (KF-002 layer 3 mitigation).
+        Set `LOA_CHEVAL_DISABLE_STREAMING=1` to force the legacy non-streaming
+        path as a one-shot operator backstop.
+        """
         model_config = self._get_model_config(request.model)
 
         # Context window enforcement (SDD §4.2.4)
@@ -71,6 +130,122 @@ class AnthropicAdapter(ProviderAdapter):
         }
 
         url = f"{self.config.endpoint}/messages"
+
+        # Sprint 4A: streaming default with operator kill switch.
+        # Detection centralized in `base._streaming_disabled()` so adapters
+        # + audit-emit share identical semantics (Sprint 4A DISS-001 closure).
+        if _streaming_disabled():
+            return self._complete_nonstreaming(url, headers, body)
+        return self._complete_streaming(url, headers, body)
+
+    def _complete_streaming(
+        self,
+        url: str,
+        headers: Dict[str, str],
+        body: Dict[str, Any],
+    ) -> CompletionResult:
+        """Sprint 4A default path: streaming Messages API."""
+        # Anthropic Messages API expects `stream: true` in the request body
+        # to switch to SSE response format.
+        body = dict(body)
+        body["stream"] = True
+
+        start = time.monotonic()
+        with http_post_stream(
+            url=url,
+            headers=headers,
+            body=body,
+            connect_timeout=self.config.connect_timeout,
+            read_timeout=self.config.read_timeout,
+        ) as resp:
+            status = resp.status_code
+
+            if status >= 400:
+                # On error, the body is regular JSON (not SSE). Drain + parse.
+                err_bytes = b"".join(resp.iter_bytes())
+                try:
+                    import json
+                    err_json = json.loads(err_bytes.decode("utf-8", errors="replace"))
+                except Exception:
+                    err_json = {"error": {"message": err_bytes.decode("utf-8", errors="replace")[:500]}}
+                if status == 429:
+                    raise RateLimitError(self.provider)
+                if status >= 500:
+                    raise ProviderUnavailableError(
+                        self.provider,
+                        f"HTTP {status}: {_extract_error_message(err_json)}",
+                    )
+                _msg = _extract_error_message(err_json)
+                # cycle-109 followup #883 Bug 3 — billing-class 400s raise
+                # ProviderUnavailableError so the cycle-104 within-company
+                # chain walks to its claude-headless CLI terminal.
+                if _is_billing_class_error(_msg):
+                    raise ProviderUnavailableError(
+                        self.provider,
+                        f"HTTP {status} billing-class: {_msg}",
+                    )
+                raise InvalidInputError(
+                    f"Anthropic API error (HTTP {status}): {_msg}"
+                )
+
+            # Parse the SSE event stream into a CompletionResult.
+            # Sprint 4A cycle-3 (BF-001): map parser-raised ValueError to
+            # typed adapter exception so the retry layer routes it via the
+            # same arms as non-streaming HTTP error paths. Mid-stream
+            # provider errors (Anthropic `error` SSE events, malformed data
+            # frames, OpenAI `response.failed`, Google SAFETY/RECITATION
+            # blocks) all surface as ValueError from the parser; without
+            # this wrapper, they would bypass RateLimitError /
+            # ProviderUnavailableError / InvalidInputError classification
+            # and the retry layer's typed-transient handling.
+            try:
+                result = parse_anthropic_stream(
+                    resp.iter_bytes(),
+                    provider=self.provider,
+                )
+            except ProviderStreamError as stream_err:
+                # T3.5 / AC-3.5: SSE buffer + per-event accumulator caps
+                # raise ProviderStreamError; dispatch through T3.1's table
+                # so retry.py sees a typed exception (e.g.
+                # ConnectionLostError for "transient" cap exhaustion).
+                raise dispatch_provider_stream_error(
+                    stream_err, provider=self.provider
+                ) from stream_err
+            except ValueError as parse_err:
+                # T3.3 / AC-3.3: parse_err's message comes from upstream
+                # bytes (mid-stream Anthropic error event, malformed data
+                # frame). Sanitize before reaching exception args.
+                from loa_cheval.redaction import sanitize_provider_error_message
+                raise InvalidInputError(
+                    sanitize_provider_error_message(
+                        f"Anthropic streaming error: {parse_err}"
+                    )
+                ) from parse_err
+
+        latency_ms = int((time.monotonic() - start) * 1000)
+        # Re-attach latency (the parser fills 0 when not passed).
+        # cycle-103 T3.2 / AC-3.2: set observed-transport flag for audit.
+        _meta = dict(result.metadata or {})
+        _meta["streaming"] = True
+        return CompletionResult(
+            content=result.content,
+            tool_calls=result.tool_calls,
+            thinking=result.thinking,
+            usage=result.usage,
+            model=result.model,
+            latency_ms=latency_ms,
+            provider=result.provider,
+            metadata=_meta,
+        )
+
+    def _complete_nonstreaming(
+        self,
+        url: str,
+        headers: Dict[str, str],
+        body: Dict[str, Any],
+    ) -> CompletionResult:
+        """Legacy non-streaming path retained behind LOA_CHEVAL_DISABLE_STREAMING=1
+        kill switch (Sprint 4A operator backstop)."""
         start = time.monotonic()
 
         status, resp = http_post(
@@ -93,6 +268,13 @@ class AnthropicAdapter(ProviderAdapter):
 
         if status >= 400:
             msg = _extract_error_message(resp)
+            # cycle-109 followup #883 Bug 3 — billing-class 400s raise
+            # ProviderUnavailableError so the within-company chain walks.
+            if _is_billing_class_error(msg):
+                raise ProviderUnavailableError(
+                    self.provider,
+                    f"HTTP {status} billing-class: {msg}",
+                )
             raise InvalidInputError(f"Anthropic API error (HTTP {status}): {msg}")
 
         # Parse response
@@ -137,6 +319,7 @@ class AnthropicAdapter(ProviderAdapter):
             source="actual" if usage_data else "estimated",
         )
 
+        # cycle-103 T3.2 / AC-3.2: non-streaming path → metadata['streaming']=False.
         return CompletionResult(
             content=content,
             tool_calls=tool_calls if tool_calls else None,
@@ -145,6 +328,7 @@ class AnthropicAdapter(ProviderAdapter):
             model=resp.get("model", "unknown"),
             latency_ms=latency_ms,
             provider=self.provider,
+            metadata={"streaming": False},
         )
 
     def validate_config(self) -> List[str]:
@@ -255,10 +439,22 @@ def _serialize_arguments(input_data: Any) -> str:
 
 
 def _extract_error_message(resp: Dict[str, Any]) -> str:
-    """Extract error message from Anthropic error response."""
+    """Extract error message from Anthropic error response.
+
+    cycle-103 T3.3 / AC-3.3: return value is sanitized via
+    `sanitize_provider_error_message` so secret-shape strings (AKIA /
+    PEM / Bearer / sk-ant-* / sk-* / AIza*) embedded in upstream error
+    bodies never reach exception args, audit envelopes, or operator
+    logs.
+    """
+    from loa_cheval.redaction import sanitize_provider_error_message
+
     if isinstance(resp, dict):
         error = resp.get("error", {})
         if isinstance(error, dict):
-            return error.get("message", str(resp))
-        return str(error)
-    return str(resp)
+            raw = error.get("message", str(resp))
+        else:
+            raw = str(error)
+    else:
+        raw = str(resp)
+    return sanitize_provider_error_message(raw)

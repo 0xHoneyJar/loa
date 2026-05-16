@@ -462,3 +462,63 @@ call_api() {
 
   echo "$content_response"
 }
+
+# =============================================================================
+# Generic chat via model-invoke (cycle-103 T1.6)
+# =============================================================================
+#
+# call_flatline_chat — generic chat call through model-invoke. Unlike
+# call_api_via_model_invoke (gpt-reviewer-specific, validates a gpt-reviewer
+# schema), this helper returns content text directly so the caller can do its
+# own JSON extraction / schema validation. Used by the flatline-* scripts to
+# replace direct OpenAI/Anthropic API calls.
+#
+# Args: model prompt timeout [max_tokens]
+# Outputs: raw content text on stdout (model-invoke --output-format text)
+# Returns: 0 on success, non-zero on model-invoke failure
+#
+# Closes cycle-103 sprint-1 T1.6 / AC-1.4 / M2 cycle-exit invariant for
+# Flatline chat paths. Embeddings are out of scope (cheval has no embeddings
+# substrate; flatline-semantic-similarity.sh's /v1/embeddings call is
+# documented in handoffs/T1.6-flatline-api-audit.md as a separate undertaking).
+call_flatline_chat() {
+  local model="$1"
+  local prompt="$2"
+  local timeout="$3"
+  local max_tokens="${4:-500}"
+
+  if [[ -z "$model" || -z "$prompt" || -z "$timeout" ]]; then
+    echo "ERROR: call_flatline_chat requires (model, prompt, timeout) args" >&2
+    return 2
+  fi
+
+  # Write prompt to temp file — avoids shell argv-length limits and keeps the
+  # full prompt out of process listings.
+  local input_file
+  input_file=$(mktemp) || {
+    echo "ERROR: call_flatline_chat: mktemp failed" >&2
+    return 4
+  }
+  chmod 600 "$input_file"
+  printf '%s' "$prompt" > "$input_file"
+
+  local result exit_code=0
+  result=$("$_MODEL_INVOKE" \
+    --agent flatline-reviewer \
+    --model "$model" \
+    --input "$input_file" \
+    --output-format text \
+    --json-errors \
+    --max-tokens "$max_tokens" \
+    --timeout "$timeout" \
+    2>/dev/null) || exit_code=$?
+
+  rm -f "$input_file"
+
+  if [[ $exit_code -ne 0 ]]; then
+    echo "ERROR: model-invoke failed with exit code $exit_code (model=$model)" >&2
+    return "$exit_code"
+  fi
+
+  echo "$result"
+}

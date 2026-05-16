@@ -1,6 +1,7 @@
 ---
 name: review-sprint
 description: Validate sprint implementation against acceptance criteria
+role: review
 allowed-tools: Read, Grep, Glob, WebFetch, Bash(git diff *), Bash(git log *)
 capabilities:
   schema_version: 1

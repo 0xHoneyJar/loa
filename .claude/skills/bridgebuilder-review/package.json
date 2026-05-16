@@ -11,7 +11,9 @@
     "./adapters": "./dist/adapters/index.js"
   },
   "scripts": {
-    "build": "npm run gen-bb-registry && cd resources && npx tsc --project tsconfig.json",
+    "build": "npm run gen-bb-registry && cd resources && npx tsc --project tsconfig.json && cd ../../../.. && tools/check-bb-dist-fresh.sh --write-manifest",
+    "build:manifest": "../../../tools/check-bb-dist-fresh.sh --write-manifest",
+    "build:check": "../../../tools/check-bb-dist-fresh.sh --check",
     "gen-bb-registry": "npx tsx scripts/gen-bb-registry.ts",
     "gen-bb-registry:check": "npx tsx scripts/gen-bb-registry.ts --check",
     "test": "cd resources && npx tsx --test __tests__/*.test.ts"

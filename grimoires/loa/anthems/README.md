@@ -52,3 +52,6 @@ letters carry the load. Don't force this category.
 - [the-substrate-remembers.md](the-substrate-remembers.md) — the first
   anthem; cycle-102 sprint-1F; cycle-102 vision-024-025-026 triptych
   completion; "voice + agency + memory"
+- [the-substrate-sharpens.md](the-substrate-sharpens.md) — the second
+  anthem; cycle-103 kickoff session 11; vision-027 companion; the
+  triptych becomes a tetraptych; "voice + agency + memory + diagnosis"

@@ -1,6 +1,7 @@
 ---
 name: cost-budget-enforcer
 description: L2 cost-budget enforcer — daily token cap with fail-closed semantics under uncertainty (billing-API primary, internal counter fallback, periodic reconciliation cron)
+role: implementation
 agent: general-purpose
 context: scoped
 parallel_threshold: 3000

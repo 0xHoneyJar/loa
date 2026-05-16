@@ -1,6 +1,7 @@
 ---
 name: bridgebuilder-review
 description: "Bridgebuilder — Autonomous PR Review"
+role: review
 capabilities:
   schema_version: 1
   read_files: true

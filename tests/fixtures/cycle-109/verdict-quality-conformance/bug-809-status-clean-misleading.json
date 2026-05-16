@@ -1,0 +1,35 @@
+{
+    "status": "FAILED",
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 3,
+    "voices_succeeded": 0,
+    "voices_succeeded_ids": [],
+    "voices_dropped": [
+        {
+            "voice": "gpt-5.5-pro",
+            "reason": "EmptyContent",
+            "exit_code": 1,
+            "blocker_risk": "med",
+            "chain_walk": ["openai:gpt-5.5-pro"]
+        },
+        {
+            "voice": "claude-opus-4-7",
+            "reason": "EmptyContent",
+            "exit_code": 1,
+            "blocker_risk": "med",
+            "chain_walk": ["anthropic:claude-opus-4-7"]
+        },
+        {
+            "voice": "gemini-3.1-pro",
+            "reason": "EmptyContent",
+            "exit_code": 1,
+            "blocker_risk": "med",
+            "chain_walk": ["google:gemini-3.1-pro"]
+        }
+    ],
+    "chain_health": "exhausted",
+    "confidence_floor": "low",
+    "rationale": "#809 fixture: all 3 cohort voices returned 10-token empty findings. Pre-T2.x would emit 'status: clean' (no findings to report). NFR-Rel-1: clean is definitionally impossible when 0/3 voices produced usable output — status auto-promotes to FAILED via compute_verdict_status (voices_succeeded=0 short-circuit).",
+    "single_voice_call": false
+}

@@ -12,9 +12,16 @@ providers:
     auth: "{env:OPENAI_API_KEY}"
     models:
       gpt-5.2:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: openai-gpt
         capabilities: [chat, tools, function_calling]
         context_window: 128000
         token_param: max_completion_tokens
+        # cycle-104 Sprint 2 T2.3: within-company chain. NO cross-company.
+        fallback_chain:
+          - openai:gpt-5.3-codex
+          - openai:codex-headless
         # cycle-095 Sprint 1 (SDD §3.4): endpoint_family is REQUIRED on every
         # OpenAI registry entry; loader.py rejects missing/unknown values.
         # Operators with custom OpenAI entries can use
@@ -32,9 +39,15 @@ providers:
           input_per_mtok: 10000000    # $10.00 per million tokens
           output_per_mtok: 30000000   # $30.00 per million tokens
       gpt-5.3-codex:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: openai-gpt
         capabilities: [chat, tools, function_calling, code]
         context_window: 400000
         token_param: max_completion_tokens
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - openai:codex-headless
         endpoint_family: responses    # codex models route to /v1/responses
         # cycle-102 Sprint 1 T1.9: codex is reasoning-class on /v1/responses
         # (closes A1 from sprint-bug-143 for codex prompts).
@@ -50,15 +63,38 @@ providers:
       # context_window + pricing are placeholders (R13 ASSUMPTION); update via
       # single-line edits at ship time.
       gpt-5.5:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: openai-gpt
         capabilities: [chat, tools, function_calling, code]
         context_window: 400000
         token_param: max_completion_tokens
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - openai:gpt-5.3-codex
+          - openai:codex-headless
         endpoint_family: responses      # cycle-095 Sprint 1: gpt-5.5 only routes through /v1/responses
         # cycle-102 Sprint 1 T1.9: reasoning-class /v1/responses (closes A1).
         max_output_tokens: 32000
         # cycle-102 Sprint 1F: parity with gpt-5.5-pro input-size gate. Same
         # cheval HTTP-asymmetry failure mode (KF-002 layer 3).
-        max_input_tokens: 24000
+        # Sprint 4A (cycle-102, AC-4.5e): streaming transport now defaults
+        # on for openai_adapter._complete_streaming, eliminating the 60s
+        # server-side disconnect class by construction. The gate stays as
+        # belt-and-suspenders against future intermediary-timer regressions
+        # AND against context-window overflow (well below 400K). Raised
+        # from 24000 → 200000 to reflect streaming's actual safe range.
+        # Operator override per-call: `--max-input-tokens N` (0 disables);
+        # global: `LOA_CHEVAL_DISABLE_INPUT_GATE=1`. Kill streaming via
+        # `LOA_CHEVAL_DISABLE_STREAMING=1` to fall back to the legacy
+        # non-streaming path (which still hits the original 24K wall).
+        # cycle-103 Sprint 3 T3.4 / AC-3.4: split into streaming-default
+        # vs legacy-fallback. When `LOA_CHEVAL_DISABLE_STREAMING=1`, the
+        # gate uses `legacy_max_input_tokens` automatically — operator no
+        # longer has to manually lower the cap after killing streaming.
+        max_input_tokens: 200000          # backward-compat fallback
+        streaming_max_input_tokens: 200000
+        legacy_max_input_tokens: 24000    # pre-Sprint-4A KF-002 wall
         # cycle-095 Sprint 2: probe_required dropped — gpt-5.5 is GA on /v1/models
         # since 2026-04-23. Probe-gated fail-fast still applies via the
         # generic AVAILABLE/UNAVAILABLE state in .run/model-health-cache.json
@@ -76,9 +112,20 @@ providers:
           input_per_mtok: 5000000       # $5.00 per million tokens (confirmed 2026-04-29)
           output_per_mtok: 30000000     # $30.00 per million tokens (output_tokens INCLUSIVE of reasoning_tokens; SDD §5.5)
       gpt-5.5-pro:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: openai-gpt
         capabilities: [chat, tools, function_calling, code]
         context_window: 400000
         token_param: max_completion_tokens
+        # cycle-104 Sprint 2 T2.3: load-bearing chain — KF-003 absorption.
+        # Within-company ONLY. Empty-content on gpt-5.5-pro walks to
+        # gpt-5.5 → gpt-5.3-codex → codex-headless (CLI bypass). No
+        # cross-company entry (G1 — 3-company BB diversity).
+        fallback_chain:
+          - openai:gpt-5.5
+          - openai:gpt-5.3-codex
+          - openai:codex-headless
         endpoint_family: responses      # cycle-095 Sprint 1
         # cycle-102 Sprint 1 T1.9 (closes A1 from sprint-bug-143): per-model
         # max_output_tokens. Reasoning models on /v1/responses charge their
@@ -87,14 +134,36 @@ providers:
         # for adversarial-review / flatline dissent on ≥10K-token prompts.
         max_output_tokens: 32000
         # cycle-102 Sprint 1F (KF-002 layer 3 / Loa #774): empirically-observed
-        # safe input-size threshold. cheval HTTP path on openai disconnects
-        # mid-stream above ~27K input on this model; 24000 leaves headroom for
-        # token-estimator drift (~10-30%). Far below context_window=400000 —
-        # this is a separate field tracking the field-observed failure
-        # threshold, not the advertised capacity. Override per-call via
-        # --max-input-tokens N (0 = disable). Bypass globally with
-        # LOA_CHEVAL_DISABLE_INPUT_GATE=1.
-        max_input_tokens: 24000
+        # safe input-size threshold. cheval HTTP path on openai disconnected
+        # mid-stream above ~27K input on this model in legacy non-streaming
+        # mode; 24000 left headroom for token-estimator drift.
+        # Sprint 4A (cycle-102, AC-4.5e): streaming transport now defaults
+        # on for openai_adapter._complete_streaming (server emits first
+        # token immediately, intermediaries never see idle TCP). The 27K
+        # wall is closed by construction. Raised from 24000 → 200000 to
+        # reflect the streaming-default safe range while keeping the gate
+        # in place as belt-and-suspenders. Kill streaming via
+        # `LOA_CHEVAL_DISABLE_STREAMING=1` to fall back to the legacy
+        # path (which still hits 27K).
+        #
+        # Sprint 4A cycle-3 (BB review F7 rationale): the 200K ceiling is
+        # PERMISSIVE BY DESIGN, not empirically tested at full range.
+        # Live smokes during Sprint 4A validated 25K-50K input on the
+        # streaming path. The 4-5x jump to 200K is intentional:
+        #   - Layer 3's structural fix (streaming) makes input-size
+        #     gate-tripping a "may waste 1 LLM call" issue, not a hard
+        #     PROVIDER_DISCONNECT.
+        #   - AC-4A.8 80K live smoke pending operator-driven /review-sprint
+        #     against an arbitrary non-trivial PR (post-merge work).
+        #   - Operators who want a more conservative ceiling override per-call
+        #     via `--max-input-tokens N` or in `.loa.config.yaml::providers.
+        #     openai.models.<id>.max_input_tokens`.
+        # If an operator-side regression surfaces at >100K input, lower the
+        # default to the next conservative band (100K, 50K, then 27K legacy).
+        # cycle-103 Sprint 3 T3.4 / AC-3.4: streaming-vs-legacy split.
+        max_input_tokens: 200000          # backward-compat fallback
+        streaming_max_input_tokens: 200000
+        legacy_max_input_tokens: 27000    # pre-Sprint-4A KF-002 wall
         # cycle-095 Sprint 2: probe_required dropped (same rationale as gpt-5.5).
         # Wire-protocol gate: same temperature restriction as gpt-5.5 above.
         params:
@@ -103,22 +172,60 @@ providers:
           input_per_mtok: 30000000      # $30.00 per million tokens (confirmed 2026-04-29)
           output_per_mtok: 180000000    # $180.00 per million tokens (includes reasoning_tokens — SDD §5.5)
 
+      # cycle-104 Sprint 2 T2.4: within-company headless terminal for OpenAI.
+      # CLI fallback (no rate limit, no API key, no empty-content failure
+      # mode — different transport entirely). Chain terminals MUST NOT
+      # declare fallback_chain (enforced by lint).
+      codex-headless:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: headless
+        dispatch_group: openai-gpt
+        kind: cli                       # NEW field — distinguishes HTTP vs CLI
+        capabilities: [chat, code]      # No tools, no structured_json
+        # #881 close, #914 F-001 correction: declare the real per-CLI context
+        # window so cheval's enforce_context_window does not pull the 128000-
+        # token global default (loa_cheval/types.py:107). The codex CLI
+        # dispatches gpt-5.5 by default — matches the http_api gpt-5.5 entry
+        # in this file (context_window: 400000). The initial PR shipped
+        # 200000 with an inaccurate comment claiming gpt-5.5 was 200000;
+        # corrected post-BB review to the real 400000 capacity.
+        context_window: 400000
+        # No pricing entry — CLI uses operator's Codex subscription.
+        # cycle-104 sprint-2 T2.11 amendment: cli_model is the model
+        # passed to `codex exec --model <name>`. The CLI doesn't
+        # recognize the Loa alias; this maps to the real codex model.
+        extra:
+          cli_model: gpt-5.5
+
   google:
     type: google
     endpoint: "https://generativelanguage.googleapis.com/v1beta"
     auth: "{env:GOOGLE_API_KEY}"
     models:
       gemini-2.0-flash:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: google-gemini
         # Legacy model retained for backward-compat via `gemini-2.0` alias.
         # Pricing matches gemini-2.5-flash (both are Google flash-tier).
         capabilities: [chat]
         context_window: 1048576
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - google:gemini-2.5-flash
+          - google:gemini-headless
         pricing:
           input_per_mtok: 150000     # $0.15 per million tokens (micro-USD)
           output_per_mtok: 600000    # $0.60 per million tokens
       gemini-2.5-flash:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: google-gemini
         capabilities: [chat]
         context_window: 1048576
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - google:gemini-headless
         pricing:
           input_per_mtok: 150000     # $0.15 per million tokens (micro-USD)
           output_per_mtok: 600000    # $0.60 per million tokens
@@ -128,17 +235,31 @@ providers:
       # fallback_chain triggers _resolve_active_model demotion when probe
       # state goes UNAVAILABLE (SDD §3.5 + §5.8).
       gemini-3-flash-preview:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: google-gemini
         capabilities: [chat]
         context_window: 1048576
-        fallback_chain: ["google:gemini-2.5-flash"]
+        # cycle-104 Sprint 2 T2.3: extended existing chain to terminate in
+        # within-company headless. cycle-095 already declared the demotion
+        # to gemini-2.5-flash; we add gemini-headless as the CLI terminal.
+        fallback_chain:
+          - google:gemini-2.5-flash
+          - google:gemini-headless
         pricing:
           input_per_mtok: 150000     # $0.15 per million tokens (frozen 2026-04-29)
           output_per_mtok: 600000    # $0.60 per million tokens (frozen 2026-04-29)
       gemini-2.5-pro:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: google-gemini
         capabilities: [chat, thinking_traces]
         context_window: 1048576
         # cycle-102 Sprint 1 T1.9 (closes A2): thinking_traces output cap.
         max_output_tokens: 16000
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - google:gemini-headless
         pricing:
           input_per_mtok: 1250000    # $1.25 per million tokens
           output_per_mtok: 10000000  # $10.00 per million tokens
@@ -147,6 +268,9 @@ providers:
       # gemini-3-flash, gemini-3-pro removed per #574 — Google v1beta returned
       # NOT_FOUND at runtime. Re-add with pricing when Google confirms availability.
       gemini-3.1-pro-preview:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: google-gemini
         # Re-added cycle-093 sprint-4 (T2.1 — closes G4). Regulated by the
         # Sprint-3 health-probe (`model-health-probe.sh`); if Google v1beta
         # ListModels stops returning this id, the probe gate fails the PR.
@@ -159,6 +283,10 @@ providers:
         # for thinking_traces models on long prompts. 32K matches the OpenAI
         # reasoning-class cap.
         max_output_tokens: 32000
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - google:gemini-2.5-pro
+          - google:gemini-headless
         pricing:
           input_per_mtok: 1250000   # $1.25 per million tokens (micro-USD)
           output_per_mtok: 10000000  # $10.00 per million tokens
@@ -166,9 +294,19 @@ providers:
           thinking_level: high
           thinking_budget: -1        # Dynamic thinking budget
       deep-research-pro:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: google-gemini
         capabilities: [chat, thinking_traces, deep_research]
         context_window: 1048576
         api_mode: interactions
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        # Interactions API is a different shape than regular chat; chain
+        # terminates in pro/headless so consensus voice still survives if
+        # the Deep Research endpoint returns empty.
+        fallback_chain:
+          - google:gemini-3.1-pro-preview
+          - google:gemini-headless
         pricing:
           input_per_mtok: 5000000    # $5.00 per million tokens
           output_per_mtok: 20000000  # $20.00 per million tokens
@@ -176,25 +314,65 @@ providers:
           polling_interval_s: 5
           max_poll_time_s: 600
 
+      # cycle-104 Sprint 2 T2.4: within-company headless terminal for Google.
+      # CLI fallback via `gemini` binary. Operator must install per
+      # `grimoires/loa/runbooks/headless-mode.md`. Chain terminal — no
+      # further fallback (enforced by lint).
+      gemini-headless:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: headless
+        dispatch_group: google-gemini
+        kind: cli
+        capabilities: [chat]            # No tools, no structured_json, no thinking
+        # #881 close: gemini CLI dispatches gemini-3.1-pro-preview, which
+        # advertises 1048576-token context per Google's published spec
+        # (matches the http_api gemini-3.1-pro-preview entry in this file).
+        context_window: 1048576
+        # No pricing entry — CLI uses operator's Google AI Studio subscription.
+        # cycle-104 sprint-2 T2.11 amendment: cli_model is the model
+        # passed to `gemini --model <name>`. Maps to the real Gemini
+        # model id the CLI accepts.
+        extra:
+          cli_model: gemini-3.1-pro-preview
+
   anthropic:
     type: anthropic
     endpoint: "https://api.anthropic.com/v1"
     auth: "{env:ANTHROPIC_API_KEY}"
     models:
       claude-opus-4-7:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: anthropic-claude
         capabilities: [chat, tools, function_calling, thinking_traces]
         context_window: 200000
         token_param: max_tokens
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - anthropic:claude-opus-4-6
+          - anthropic:claude-sonnet-4-6
+          - anthropic:claude-headless
         # cycle-102 Sprint 1 T1.9: Anthropic legacy adapter previously
         # hardcoded max_tokens=4096 — too low for opus-class adversarial-
         # review on ≥10K-token prompts. 32K matches reasoning-class cap.
         max_output_tokens: 32000
         # cycle-102 Sprint 1F (KF-002 layer 3 / Loa #774, vision-024): empty-
-        # content / disconnect threshold for cheval anthropic HTTP path is
-        # ~40K input on this model (Issue #823). 36000 leaves token-estimator
-        # headroom. Far below context_window=200000 — see gpt-5.5-pro entry
-        # for field semantics.
-        max_input_tokens: 36000
+        # content / disconnect threshold for cheval anthropic HTTP path was
+        # ~40K input on this model (Issue #823) in legacy non-streaming mode.
+        # Sprint 4A (cycle-102, AC-4.5e): streaming transport now defaults
+        # on for anthropic_adapter._complete_streaming. Server emits the
+        # first token immediately; intermediaries never observe idle TCP.
+        # Raised from 36000 → 180000 to reflect streaming's actual safe
+        # range (just below context_window=200000 for max_tokens headroom).
+        # Layer 1 (empty content from reasoning-budget exhaustion) is a
+        # separate upstream bug — mitigate via `max_output_tokens >= 8000`
+        # in the reviewer config or by enabling extended thinking.
+        # Kill streaming via `LOA_CHEVAL_DISABLE_STREAMING=1` to revert
+        # to the 36K wall.
+        # cycle-103 Sprint 3 T3.4 / AC-3.4: streaming-vs-legacy split.
+        max_input_tokens: 180000          # backward-compat fallback
+        streaming_max_input_tokens: 180000
+        legacy_max_input_tokens: 36000    # pre-Sprint-4A KF-002 wall
         # Wire-protocol gates (#641): Anthropic deprecated `temperature` for
         # Opus 4 and rejects requests carrying it with HTTP 400. The cheval
         # adapter consults `params.temperature_supported` per request and
@@ -207,24 +385,44 @@ providers:
           input_per_mtok: 5000000    # $5.00 per million tokens
           output_per_mtok: 25000000  # $25.00 per million tokens
       claude-opus-4-6:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: anthropic-claude
         # Retained as pinnable fallback (PRD cycle-082 §13).
         # Operators who want exact 4.6 behavior use `anthropic:claude-opus-4-6` in .loa.config.yaml.
         capabilities: [chat, tools, function_calling, thinking_traces]
         context_window: 200000
         token_param: max_tokens
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - anthropic:claude-sonnet-4-6
+          - anthropic:claude-headless
         # cycle-102 Sprint 1 T1.9: parity with claude-opus-4-7.
         max_output_tokens: 32000
-        # cycle-102 Sprint 1F: parity with claude-opus-4-7 input-size gate.
-        max_input_tokens: 36000
+        # cycle-102 Sprint 1F + Sprint 4A: parity with claude-opus-4-7
+        # input-size gate. Streaming default raised the safe ceiling from
+        # 36000 → 180000. See claude-opus-4-7 entry above for context.
+        # cycle-103 Sprint 3 T3.4 / AC-3.4: streaming-vs-legacy split.
+        max_input_tokens: 180000          # backward-compat fallback
+        streaming_max_input_tokens: 180000
+        legacy_max_input_tokens: 36000    # pre-Sprint-4A KF-002 wall
         pricing:
           input_per_mtok: 5000000    # $5.00 per million tokens
           output_per_mtok: 25000000  # $25.00 per million tokens
       claude-sonnet-4-6:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: anthropic-claude
         capabilities: [chat, tools, function_calling]
         context_window: 200000
         token_param: max_tokens
         # cycle-102 Sprint 1 T1.9: sonnet output cap (smaller than opus).
         max_output_tokens: 16000
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - anthropic:claude-sonnet-4-5-20250929
+          - anthropic:claude-haiku-4-5-20251001
+          - anthropic:claude-headless
         pricing:
           input_per_mtok: 3000000    # $3.00 per million tokens
           output_per_mtok: 15000000  # $15.00 per million tokens
@@ -235,9 +433,16 @@ providers:
       # snapshot (e.g., for repro on dated benchmarks) use
       # `anthropic:claude-sonnet-4-5-20250929` in .loa.config.yaml.
       claude-sonnet-4-5-20250929:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: anthropic-claude
         capabilities: [chat, tools, function_calling]
         context_window: 200000
         token_param: max_tokens
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - anthropic:claude-haiku-4-5-20251001
+          - anthropic:claude-headless
         pricing:
           input_per_mtok: 3000000    # $3.00 per million tokens (same tier as sonnet-4-6)
           output_per_mtok: 15000000  # $15.00 per million tokens
@@ -246,12 +451,40 @@ providers:
       # in YAML per PRD FR-3 AC + SDD §5.7. Refresh cadence: quarterly or on
       # release-bound reminder per Sprint 2 risks (Flatline iter-2 SKP-004).
       claude-haiku-4-5-20251001:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: anthropic-claude
         capabilities: [chat, tools, function_calling]
         context_window: 200000
         token_param: max_tokens
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - anthropic:claude-headless
         pricing:
           input_per_mtok: 1000000    # $1.00 per million tokens (frozen 2026-04-29)
           output_per_mtok: 5000000   # $5.00 per million tokens (frozen 2026-04-29)
+
+      # cycle-104 Sprint 2 T2.4: within-company headless terminal for Anthropic.
+      # CLI fallback via `claude` binary (Claude Code subscription auth).
+      # Operator must install per `grimoires/loa/runbooks/headless-mode.md`.
+      # Chain terminal — no further fallback (enforced by lint).
+      claude-headless:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: headless
+        dispatch_group: anthropic-claude
+        kind: cli
+        capabilities: [chat]            # No tool_use, no thinking
+        # #881 close: claude CLI dispatches sonnet/opus, both of which
+        # advertise 200000-token context (matches the http_api
+        # claude-opus-4-7 / claude-sonnet-4-6 entries in this file).
+        context_window: 200000
+        # No pricing entry — CLI uses operator's Claude Code subscription.
+        # cycle-104 sprint-2 T2.11 amendment: cli_model is the literal
+        # model name passed to `claude --model <name>` (the CLI doesn't
+        # recognize the Loa alias). Operator-overridable to switch
+        # between sonnet / opus per subscription tier.
+        extra:
+          cli_model: sonnet
 
   # ===========================================================================
   # AWS Bedrock — cycle-096 (issue #652)
@@ -277,6 +510,9 @@ providers:
     models:
       # Day-1 inference profile IDs (from Sprint 0 G-S0-2 probe #1 ListInferenceProfiles)
       "us.anthropic.claude-opus-4-7":                # Newest convention: no -v1:0 suffix
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: aws_iam
+        dispatch_group: bedrock-anthropic
         capabilities: [chat, tools, function_calling, thinking_traces]
         context_window: 200000
         token_param: max_tokens
@@ -296,6 +532,9 @@ providers:
         fallback_to: "anthropic:claude-opus-4-7"
         fallback_mapping_version: 1
       "us.anthropic.claude-sonnet-4-6":              # No -v1:0 suffix on newest
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: aws_iam
+        dispatch_group: bedrock-anthropic
         capabilities: [chat, tools, function_calling]
         context_window: 200000
         token_param: max_tokens
@@ -309,6 +548,9 @@ providers:
         fallback_to: "anthropic:claude-sonnet-4-6"
         fallback_mapping_version: 1
       "us.anthropic.claude-haiku-4-5-20251001-v1:0": # Older convention: keeps datestamp + v1:0 suffix (colon-bearing!)
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: aws_iam
+        dispatch_group: bedrock-anthropic
         capabilities: [chat, tools, function_calling]
         context_window: 200000
         token_param: max_tokens
@@ -382,6 +624,13 @@ aliases:
   gpt-5.5-pro: "openai:gpt-5.5-pro"
   gpt-5.3-codex: "openai:gpt-5.3-codex"
 
+  # cycle-104 Sprint 2 T2.4: headless aliases (kind: cli). Each terminates
+  # its company's fallback_chain. Operator must install the underlying CLI
+  # binary (`claude`, `codex`, `gemini`) per the headless-mode runbook.
+  claude-headless: "anthropic:claude-headless"
+  codex-headless: "openai:codex-headless"
+  gemini-headless: "google:gemini-headless"
+
 # Backward-compat aliases (legacy model IDs → canonical provider:model-id)
 # Used by gen-adapter-maps.sh to reproduce the hand-maintained bash map
 # entries that retarget historical IDs to current canonical models.
@@ -400,6 +649,13 @@ backward_compat_aliases:
   # claude-opus-4-6 is ALSO listed in providers.anthropic.models but the
   # legacy bash adapter retargets the BASH-level resolution to 4-7 per
   # PR #207 pattern. The YAML/Python path preserves 4-6 for pinning.
+  # Self-map for the dash form of the current default (parity with
+  # gpt-5.3-codex self-map above). BB tool config.generated.js hardcodes
+  # the dash form `claude-opus-4-7` as modelId and passes it to cheval
+  # without a provider prefix — cheval's resolver expects an alias entry,
+  # so the bare dash form must self-map. Without this, BB review fails
+  # with "Unknown alias: 'claude-opus-4-7'" across all 3 substrate models.
+  "claude-opus-4-7": "anthropic:claude-opus-4-7"
   "claude-opus-4.7": "anthropic:claude-opus-4-7"
   "claude-opus-4.6": "anthropic:claude-opus-4-7"
   "claude-opus-4-6": "anthropic:claude-opus-4-7"
@@ -413,6 +669,12 @@ backward_compat_aliases:
   # `aliases` section. Duplicates across aliases + backward_compat_aliases
   # emit the same key twice into the generated bash maps (behaviorally
   # harmless since last-write-wins, but unnecessary noise).
+  #
+  # Self-map for `gemini-3.1-pro-preview` (the API model_id). Same pattern as
+  # `claude-opus-4-7` above + `gpt-5.3-codex` self-map: BB tool config passes
+  # the bare model_id to cheval, which expects an alias. Without this
+  # entry BB google leg fails with "Unknown alias: 'gemini-3.1-pro-preview'".
+  "gemini-3.1-pro-preview": "google:gemini-3.1-pro-preview"
 
 # Agent bindings (agent name → model + requirements)
 # Conservative profile: maximize quality, most agents on native (PRD FR-4)

@@ -1,0 +1,46 @@
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://0xhoneyjar.github.io/loa/schemas/zones.schema.json"
+title: "Loa Zone Manifest"
+description: |
+  Declares which paths in a Loa-mounted project belong to framework-zone
+  (propagate from upstream via /update-loa) vs project-zone (owned by
+  the operator; never overwritten by /update-loa) vs shared (merge with
+  conflict surfacing).
+
+  Cycle-106 sprint-1 T1.1.
+
+type: object
+required: [schema_version, zones]
+additionalProperties: false
+properties:
+  schema_version:
+    type: string
+    pattern: "^1\\."
+    description: "Schema major.minor version. Currently 1.0."
+  zones:
+    type: object
+    required: [framework, project]
+    additionalProperties: false
+    properties:
+      framework:
+        $ref: "#/$defs/zone"
+      project:
+        $ref: "#/$defs/zone"
+      shared:
+        $ref: "#/$defs/zone"
+
+$defs:
+  zone:
+    type: object
+    required: [tracked_paths]
+    additionalProperties: false
+    properties:
+      tracked_paths:
+        type: array
+        minItems: 1
+        items:
+          type: string
+          description: "POSIX glob; `**` for recursive match."
+      description:
+        type: string
+        description: "Operator-readable summary of what the zone covers."

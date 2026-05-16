@@ -1,6 +1,7 @@
 ---
 name: flatline-knowledge
 description: Query Flatline protocol knowledge base via NotebookLM integration
+role: review
 allowed-tools: Read, Grep, Glob
 capabilities:
   schema_version: 1

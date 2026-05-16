@@ -58,12 +58,43 @@ source "$SCRIPT_DIR/lib/context-isolation-lib.sh"
 # shellcheck source=lib/model-resolver.sh
 source "$SCRIPT_DIR/lib/model-resolver.sh"
 
+# Cycle-104 sprint-2 T2.8 (FR-S2.5): voice-drop classifier. Distinguishes
+# cheval's CHAIN_EXHAUSTED (exit 12) from other failures so a voice whose
+# within-company fallback chain ran to end is DROPPED from consensus
+# instead of being treated as a hard failure or silently substituted across
+# companies. SDD §6.5.
+VOICE_DROP_CLASSIFIER="$SCRIPT_DIR/lib/voice-drop-classifier.sh"
+
 # Note: bootstrap.sh already handles PROJECT_ROOT canonicalization via realpath
 TRAJECTORY_DIR=$(get_trajectory_dir)
 
+# cycle-109 Sprint 3 T3.5 (#820 Issue D): source .env / .env.local so
+# provider API keys cross into the model-adapter / model-invoke /
+# cheval.py subprocess chain. Mirrors the BB pattern at
+# .claude/skills/bridgebuilder-review/resources/entry.sh (cycle-037 #395).
+#
+# .env Trust Model (Issue #898): the legacy `set -a; source .env; set +a`
+# pattern executes ANY bash inside .env files (`$(...)`, backticks,
+# chained commands). A hostile or carelessly-edited .env at the repo
+# root becomes arbitrary code execution as the FL orchestrator. We now
+# parse .env structurally via lib/env-loader.sh, which exports KEY=VALUE
+# pairs but refuses to expand command substitution / shell metas.
+# Exported vars still cross subprocess boundaries (the loader uses
+# `export`).
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/env-loader.sh"
+load_env_file .env
+load_env_file .env.local
+
 # Component scripts
 MODEL_ADAPTER="$SCRIPT_DIR/model-adapter.sh"
-MODEL_INVOKE="$SCRIPT_DIR/model-invoke"
+# bug-899 / BB #915 F-001: honor a pre-set MODEL_INVOKE so tests sourcing
+# this script can substitute a stub. Production callers always invoke as
+# a top-level executable (BASH_SOURCE guard runs main()), so MODEL_INVOKE
+# isn't in their env — `:-` is a no-op there. Tests that source the
+# script can `export MODEL_INVOKE=/path/to/stub` before sourcing and
+# exercise call_model end-to-end.
+MODEL_INVOKE="${MODEL_INVOKE:-$SCRIPT_DIR/model-invoke}"
 SCORING_ENGINE="$SCRIPT_DIR/scoring-engine.sh"
 KNOWLEDGE_LOCAL="$SCRIPT_DIR/flatline-knowledge-local.sh"
 NOTEBOOKLM_QUERY="$PROJECT_ROOT/.claude/skills/flatline-knowledge/resources/notebooklm-query.py"
@@ -290,6 +321,30 @@ log_trajectory() {
         '{type: $type, event: $event, timestamp: $timestamp, state: $state, data: $data}' >> "$log_file"
 }
 
+# Cycle-104 sprint-2 T2.8 (FR-S2.5): emit a single `consensus.voice_dropped`
+# event when a voice's within-company chain exhausted. Caller passes the
+# voice label (e.g. "opus-review") and the orchestrator phase. Soft-fails
+# on jq errors so a logging glitch never aborts the consensus path.
+emit_voice_dropped() {
+    local voice_label="$1"
+    local phase="${2:-unknown}"
+    local payload
+    payload=$(jq -nc \
+        --arg voice "$voice_label" \
+        --arg phase "$phase" \
+        --arg reason "chain_exhausted" \
+        '{voice: $voice, phase: $phase, reason: $reason, exit_code: 12}' 2>/dev/null) || return 0
+    log_trajectory "consensus.voice_dropped" "$payload" || true
+    log "Voice dropped from consensus (chain exhausted): $voice_label"
+}
+
+# Cycle-104 sprint-2 T2.8: classify a captured call_model exit code.
+# Returns "success" | "dropped" | "failed" on stdout.
+classify_voice_exit_status() {
+    local code="$1"
+    "$VOICE_DROP_CLASSIFIER" "$code" 2>/dev/null || echo "failed"
+}
+
 # =============================================================================
 # Configuration
 # =============================================================================
@@ -384,8 +439,14 @@ fi
 VALID_MODEL_PATTERNS=(
     '^gpt-[0-9]+\.[0-9]+(-codex)?$'          # openai: gpt-5.2, gpt-5.3-codex, gpt-5.4-codex, gpt-6.0
     '^claude-(opus|sonnet|haiku)-[0-9]+[-.][0-9]+$'  # anthropic: claude-opus-4-7, claude-sonnet-4-6
-    '^gemini-[0-9]+\.[0-9]+(-flash|-pro)?$'  # google: gemini-2.5-pro, gemini-2.5-flash
+    '^gemini-[0-9]+\.[0-9]+(-flash|-pro)?(-preview)?$'  # google: gemini-2.5-pro, gemini-3.1-pro-preview (cycle-109 T3.4 #793: -preview suffix)
     '^(opus|sonnet|haiku)$'                  # short anthropic aliases (DISS-002: anchored alternation)
+    # cycle-109 Sprint 3 T3.4 (#793): cheval-headless pin form.
+    # PR #727 (cycle-098) introduced subscription-auth headless adapters;
+    # the orchestrator's pre-validator must admit the canonical pin shape
+    # so operators following the cycle-098/099 setup don't fall back to
+    # API providers (which defeats the cost-via-subscription benefit).
+    '^(claude|codex|gemini)-headless:.+$'    # cheval-headless pin form
 )
 
 validate_model() {
@@ -441,18 +502,12 @@ get_notebooklm_timeout() {
 # Hounfour Routing (SDD §4.4.2)
 # =============================================================================
 
-# Feature flag: when true, call model-invoke directly instead of model-adapter.sh
-is_flatline_routing_enabled() {
-    if [[ "${HOUNFOUR_FLATLINE_ROUTING:-}" == "true" ]]; then
-        return 0
-    fi
-    if [[ "${HOUNFOUR_FLATLINE_ROUTING:-}" == "false" ]]; then
-        return 1
-    fi
-    local value
-    value=$(read_config '.hounfour.flatline_routing' 'false')
-    [[ "$value" == "true" ]]
-}
+# cycle-109 Sprint 3 T3.8 (commit E): is_flatline_routing_enabled()
+# definition removed. T3.6 removed the consuming branch at call_model
+# (cheval is now the unconditional dispatch path); T3.7 deleted the
+# legacy adapter the flag used to gate. Other files retain their own
+# copies of the helper for non-flatline-orchestrator callers; cleanup
+# of those callsites is tracked as a follow-up.
 
 # Mode → Agent mapping for model-invoke routing
 declare -A MODE_TO_AGENT=(
@@ -480,6 +535,90 @@ declare -A MODEL_TO_PROVIDER_ID=(
     ["gemini-2.5-pro"]="google:gemini-2.5-pro"
 )
 
+# cycle-109 Sprint 2 T2.4 — verdict_quality multi-voice aggregation
+# (CONSUMER #2 per SDD §3.2.3 IMP-004).
+#
+# Reads verdict_quality from each per-voice phase1 output file, shells out
+# to `python -m loa_cheval.verdict.aggregate` (the canonical Python
+# aggregator per SDD §5.2.1 — bash twin never reimplements the merge
+# logic), and writes the aggregated multi-voice envelope to
+# final_consensus.json alongside the existing phase artifacts.
+#
+# Usage: aggregate_and_write_final_consensus <phase> <file1> [<file2> ...]
+# Files are phase1 output JSON files; each is expected to carry a
+# verdict_quality field (legacy / pre-T2.3 cheval emits omit the field;
+# such voices are silently skipped from the aggregate).
+#
+# Fail-soft: missing python module / empty input / aggregator error
+# logs a warning but does NOT abort the orchestrator. The final
+# consensus calculation runs regardless.
+aggregate_and_write_final_consensus() {
+    local phase="$1"
+    shift
+    local -a input_files=("$@")
+    if [[ ${#input_files[@]} -eq 0 ]]; then
+        log "[vq-aggregate] no input files supplied — skipping"
+        return 0
+    fi
+
+    local output_dir="$PROJECT_ROOT/grimoires/loa/a2a/flatline"
+    mkdir -p "$output_dir"
+    local target="$output_dir/${phase}-final_consensus.json"
+
+    # Extract verdict_quality from each input file into per-voice tmp files.
+    local -a vq_files=()
+    local cleanup_files=()
+    local f vq
+    for f in "${input_files[@]}"; do
+        [[ -s "$f" ]] || continue
+        vq=$(jq -c '.verdict_quality // empty' "$f" 2>/dev/null || true)
+        if [[ -n "$vq" && "$vq" != "null" ]]; then
+            local tmp
+            tmp=$(mktemp "${TEMP_DIR:-/tmp}/vq-input.XXXXXX.json")
+            printf '%s' "$vq" > "$tmp"
+            vq_files+=("$tmp")
+            cleanup_files+=("$tmp")
+        fi
+    done
+
+    if [[ ${#vq_files[@]} -eq 0 ]]; then
+        log "[vq-aggregate] no verdict_quality envelopes found in inputs — skipping ${target##*/} (legacy / pre-T2.3 cheval emits)"
+        return 0
+    fi
+
+    # Shell out to the canonical Python aggregator. PYTHONPATH points at
+    # .claude/adapters so loa_cheval is importable without an install step.
+    #
+    # PR #896 BB iter-1 FIND-003 closure: pass `--expected-voices-count`
+    # = ${#input_files[@]} (the EXPECTED cohort size, not the count of
+    # envelopes that actually arrived). Missing voices are recorded in
+    # voices_dropped[] instead of silently shrinking voices_planned —
+    # which would have turned "2-of-3 degraded" into "APPROVED 2-of-2".
+    local agg_out agg_rc=0
+    agg_out=$(PYTHONPATH="$PROJECT_ROOT/.claude/adapters" \
+        python3 -m loa_cheval.verdict.aggregate \
+            --expected-voices-count "${#input_files[@]}" \
+            "${vq_files[@]}" 2>&1) || agg_rc=$?
+    if [[ $agg_rc -ne 0 ]]; then
+        log "[vq-aggregate] aggregator failed (rc=$agg_rc): $agg_out"
+    else
+        printf '%s\n' "$agg_out" | jq . > "$target" 2>/dev/null || {
+            log "[vq-aggregate] aggregator output not valid JSON; skipping write"
+        }
+        if [[ -s "$target" ]]; then
+            local final_status
+            final_status=$(jq -r '.status' "$target" 2>/dev/null || echo "?")
+            log "[vq-aggregate] wrote $target (status=$final_status, voices=${#vq_files[@]}/${#input_files[@]})"
+        fi
+    fi
+
+    # Clean up per-voice tmp inputs.
+    local c
+    for c in "${cleanup_files[@]}"; do
+        rm -f "$c" 2>/dev/null || true
+    done
+}
+
 # Unified model call: routes through model-invoke (direct) or model-adapter.sh (legacy)
 # Usage: call_model <model> <mode> <input> <phase> [context] [timeout]
 call_model() {
@@ -490,7 +629,18 @@ call_model() {
     local context="${5:-}"
     local timeout="${6:-$DEFAULT_MODEL_TIMEOUT}"
 
-    if is_flatline_routing_enabled && [[ -x "$MODEL_INVOKE" ]]; then
+    # cycle-109 Sprint 3 T3.6 (commit C in SDD §5.3.1 sequence): the
+    # pre-fix `if is_flatline_routing_enabled && [[ -x "$MODEL_INVOKE" ]];
+    # then ... else <legacy> fi` branch was removed. cheval (model-invoke)
+    # is now the unconditional dispatch path. The legacy MODEL_ADAPTER
+    # fallback else-branch was deleted alongside the conditional;
+    # MODEL_ADAPTER is preserved (T3.8 cleanup) but no caller path here
+    # invokes it.
+    if [[ ! -x "$MODEL_INVOKE" ]]; then
+        log "ERROR: MODEL_INVOKE not executable at $MODEL_INVOKE — substrate misconfigured"
+        return 2
+    fi
+    {
         # Direct model-invoke path (SDD §4.4.2)
         local agent="${MODE_TO_AGENT[$mode]:-}"
         # cycle-099 Sprint 1B + post-Sprint-2E parity: prefer the SSOT-aware
@@ -534,16 +684,83 @@ call_model() {
         local invoke_log
         invoke_log=$(setup_invoke_log "flatline-${mode}-${model}")
 
+        # cycle-109 Sprint 2 T2.4 — verdict_quality sidecar (CONSUMER #2).
+        # Allocate a per-call sidecar path so cheval writes its envelope
+        # back into a per-voice file. Parallel-dispatch safe because each
+        # invocation gets a unique TEMP_DIR-rooted path (TEMP_DIR is set
+        # by the orchestrator's setup; mode+model+PID-derived suffix keeps
+        # concurrent reviews on the same model distinct).
+        local vq_sidecar
+        vq_sidecar="${TEMP_DIR:-/tmp}/vq-${mode}-${model//[^A-Za-z0-9_-]/_}-$$-$RANDOM.json"
+
         local result exit_code=0
         # Synchronous stderr capture — avoids process substitution race condition
         # where >(redact_secrets) may not finish writing before log is read
-        result=$("$MODEL_INVOKE" "${args[@]}" 2>"${invoke_log}.raw") || exit_code=$?
+        result=$(LOA_VERDICT_QUALITY_SIDECAR="$vq_sidecar" \
+            "$MODEL_INVOKE" "${args[@]}" 2>"${invoke_log}.raw") || exit_code=$?
         if [[ -s "${invoke_log}.raw" ]]; then
             redact_secrets < "${invoke_log}.raw" >> "$invoke_log"
         fi
         rm -f "${invoke_log}.raw"
 
         if [[ $exit_code -ne 0 ]]; then
+            # bug-899: preserve verdict_quality envelope on failure so the
+            # cohort aggregator (see line 534 region) can attribute
+            # blocker_risk / reason / chain health to this voice. cheval
+            # writes the envelope to the sidecar BEFORE the failure mode
+            # that drives a non-zero exit becomes observable, so the
+            # sidecar's FAILED/DEGRADED envelope carries the attribution
+            # we need; deleting it before the aggregator runs causes the
+            # cohort verdict to silently drop this voice's failure signal.
+            # Mirror of the success-path read below at line ~715.
+            local vq_envelope_on_failure="null"
+            if [[ -s "$vq_sidecar" ]] && jq empty < "$vq_sidecar" 2>/dev/null; then
+                vq_envelope_on_failure=$(cat "$vq_sidecar")
+            fi
+            if [[ "$vq_envelope_on_failure" != "null" ]]; then
+                # Emit a failure-shaped per-voice output to stdout so the
+                # caller's `>` redirect captures the envelope. Aggregator
+                # reads .verdict_quality from each per-voice file; the
+                # additional `status` / `exit_code` fields are additive
+                # and ignored by legacy consumers.
+                #
+                # BB #915 F-004 fix: previously suffixed with `|| true`,
+                # which recreated the silent-drop pattern this fix exists
+                # to prevent — a jq failure (OOM, missing binary, sidecar
+                # mutation between `jq empty` and `cat`) would absorb the
+                # error and leave the envelope unwritten with no log
+                # signal. Now: capture jq's status, log on failure to
+                # `$invoke_log` (already opened above), continue to the
+                # rm + return. The aggregator will see no envelope on
+                # double-failure, but the operator will see WHY in the
+                # log instead of silent attrition.
+                local _vq_jq_status=0
+                jq -cn \
+                    --argjson vq "$vq_envelope_on_failure" \
+                    --arg model "$model" \
+                    --arg mode "$mode" \
+                    --arg phase "$phase" \
+                    --argjson exit_code "$exit_code" \
+                    '{
+                        content: "",
+                        tokens_input: 0,
+                        tokens_output: 0,
+                        latency_ms: 0,
+                        retries: 0,
+                        model: $model,
+                        mode: $mode,
+                        phase: $phase,
+                        cost_usd: 0,
+                        status: "failed",
+                        exit_code: $exit_code,
+                        verdict_quality: $vq
+                    }' || _vq_jq_status=$?
+                if [[ $_vq_jq_status -ne 0 ]]; then
+                    printf '[vq-warn] failure-envelope jq exit=%d for model=%s mode=%s phase=%s — verdict_quality dropped from cohort attribution; sidecar may have been mutated between validation and emit\n' \
+                        "$_vq_jq_status" "$model" "$mode" "$phase" >> "$invoke_log" 2>/dev/null || true
+                fi
+            fi
+            rm -f "$vq_sidecar" 2>/dev/null || true
             log_invoke_failure "$exit_code" "$invoke_log" "$timeout"
             return $exit_code
         fi
@@ -551,11 +768,27 @@ call_model() {
         # Clean up on success
         cleanup_invoke_log "$invoke_log"
 
-        # Translate output to legacy format for downstream compatibility
+        # cycle-109 Sprint 2 T2.4 — read verdict_quality sidecar back.
+        # Absent file = cheval was an older build or envelope construction
+        # failed; downstream consumers handle absent verdict_quality
+        # gracefully (no propagation = legacy shape).
+        local vq_envelope="null"
+        if [[ -s "$vq_sidecar" ]]; then
+            if jq empty < "$vq_sidecar" 2>/dev/null; then
+                vq_envelope=$(cat "$vq_sidecar")
+            else
+                log "[vq-warn] sidecar present but not valid JSON: $vq_sidecar"
+            fi
+        fi
+        rm -f "$vq_sidecar" 2>/dev/null || true
+
+        # Translate output to legacy format for downstream compatibility,
+        # attaching the verdict_quality envelope as a new additive field.
         echo "$result" | jq \
             --arg model "$model" \
             --arg mode "$mode" \
             --arg phase "$phase" \
+            --argjson vq "$vq_envelope" \
             '{
                 content: .content,
                 tokens_input: (.usage.input_tokens // 0),
@@ -565,15 +798,10 @@ call_model() {
                 model: $model,
                 mode: $mode,
                 phase: $phase,
-                cost_usd: 0
+                cost_usd: 0,
+                verdict_quality: $vq
             }'
-    else
-        # Legacy path: model-adapter.sh (or shim)
-        "$MODEL_ADAPTER" --model "$model" --mode "$mode" \
-            --input "$input" --phase "$phase" \
-            ${context:+--context "$context"} \
-            --timeout "$timeout" --json
-    fi
+    }
 }
 
 # =============================================================================
@@ -1083,18 +1311,42 @@ run_phase1() {
         pid_labels+=("tertiary-skeptic")
     fi
 
-    # Wait for all processes and track failures
+    # Wait for all processes and track failures + voice-drops separately.
+    # Voice-drops (cheval exit 12 = CHAIN_EXHAUSTED) are the per-voice
+    # graceful-fall-through per SDD §6.5; they ARE NOT treated as failures
+    # because the within-company chain already walked to end and there is
+    # no cross-company substitute to try (FR-S2.5).
     local failed=0
     local failed_labels=()
+    local dropped_labels=()
     for i in "${!pids[@]}"; do
-        if ! wait "${pids[$i]}"; then
-            failed=$((failed + 1))
-            failed_labels+=("${pid_labels[$i]}")
-        fi
+        local _wait_exit=0
+        wait "${pids[$i]}" || _wait_exit=$?
+        local _classification
+        _classification=$(classify_voice_exit_status "$_wait_exit")
+        case "$_classification" in
+            success) ;;
+            dropped)
+                dropped_labels+=("${pid_labels[$i]}")
+                emit_voice_dropped "${pid_labels[$i]}" "$phase"
+                ;;
+            *)
+                failed=$((failed + 1))
+                failed_labels+=("${pid_labels[$i]}")
+                ;;
+        esac
     done
+    local dropped_count=${#dropped_labels[@]}
 
-    if [[ $failed -eq $total_calls ]]; then
-        error "All Phase 1 model calls failed"
+    # All voices unavailable (failures + chain-exhaustions) → hard error.
+    if [[ $((failed + dropped_count)) -eq $total_calls ]]; then
+        if [[ $failed -gt 0 && $dropped_count -gt 0 ]]; then
+            error "All Phase 1 model voices unavailable ($failed failed, $dropped_count chain-exhausted)"
+        elif [[ $dropped_count -eq $total_calls ]]; then
+            error "All Phase 1 model voices chain-exhausted (no within-company fallback succeeded)"
+        else
+            error "All Phase 1 model calls failed"
+        fi
         # Log stderr from all failed calls for diagnosis
         for label in "${failed_labels[@]}"; do
             local stderr_file="$TEMP_DIR/${label}-stderr.log"
@@ -1103,6 +1355,10 @@ run_phase1() {
             fi
         done
         return 3
+    fi
+
+    if [[ $dropped_count -gt 0 ]]; then
+        log "Voice-drop: $dropped_count of $total_calls Phase 1 voices dropped from consensus (chain exhausted): ${dropped_labels[*]}"
     fi
 
     if [[ $failed -gt 0 ]]; then
@@ -1247,16 +1503,30 @@ run_phase2() {
         pids+=($!)
     fi
 
-    # Wait for all processes
+    # Wait for all processes. Voice-drop classifier distinguishes the
+    # chain-exhausted case (cheval exit 12) per SDD §6.5; in Phase 2
+    # cross-scoring a dropped voice means that voice's chain ran out
+    # while scoring the other voice's items — we surface it but proceed
+    # with partial consensus (mirrors the pre-cycle-104 partial-tolerance
+    # behaviour for Phase 2).
     local failed=0
+    local dropped_p2=0
     for pid in "${pids[@]}"; do
-        if ! wait "$pid"; then
-            failed=$((failed + 1))
-        fi
+        local _wait_exit=0
+        wait "$pid" || _wait_exit=$?
+        local _classification
+        _classification=$(classify_voice_exit_status "$_wait_exit")
+        case "$_classification" in
+            success) ;;
+            dropped) dropped_p2=$((dropped_p2 + 1)) ;;
+            *) failed=$((failed + 1)) ;;
+        esac
     done
 
-    if [[ $failed -eq $total_calls ]]; then
-        log "Warning: All Phase 2 calls failed - using partial consensus"
+    if [[ $((failed + dropped_p2)) -eq $total_calls ]]; then
+        log "Warning: All Phase 2 calls unavailable ($failed failed, $dropped_p2 chain-exhausted) - using partial consensus"
+    elif [[ $dropped_p2 -gt 0 ]]; then
+        log "Voice-drop: $dropped_p2 of $total_calls Phase 2 cross-scoring calls chain-exhausted; partial scores aggregated"
     fi
 
     # Aggregate costs
@@ -1911,6 +2181,18 @@ main() {
     # FR-3: Tertiary paths are lines 5-6 when present
     tertiary_review_file=$(echo "$phase1_output" | sed -n '5p')
     tertiary_skeptic_file=$(echo "$phase1_output" | sed -n '6p')
+
+    # cycle-109 Sprint 2 T2.4 — aggregate verdict_quality from per-voice
+    # phase1 review files into final_consensus.json. Uses ONLY the review
+    # files (not skeptic / tertiary skeptic) since those represent the
+    # canonical adversarial cohort voices that compute_blocker_risk and
+    # the schema-conformance suite (T2.8) anchor on. Skeptic / tertiary
+    # paths are inferential, not first-class voices.
+    local -a vq_phase1_files=("$gpt_review_file" "$opus_review_file")
+    if [[ -n "$tertiary_review_file" && -s "$tertiary_review_file" ]]; then
+        vq_phase1_files+=("$tertiary_review_file")
+    fi
+    aggregate_and_write_final_consensus "$phase" "${vq_phase1_files[@]}" || true
 
     # Check budget before Phase 2
     if ! check_budget 100 "$budget"; then

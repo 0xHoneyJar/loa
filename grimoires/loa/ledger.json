@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-102-model-stability",
+  "active_cycle": "cycle-109-substrate-hardening",
   "cycles": [
     {
       "id": "cycle-036",
@@ -997,7 +997,7 @@
     {
       "id": "cycle-102-model-stability",
       "label": "Loa Model-Integration FAANG-Grade Stabilization",
-      "status": "active",
+      "status": "archived",
       "created": "2026-05-08T16:10:31Z",
       "prd": "grimoires/loa/cycles/cycle-102-model-stability/prd.md",
       "sdd": "grimoires/loa/cycles/cycle-102-model-stability/sdd.md",
@@ -1054,10 +1054,255 @@
         }
       ],
       "thesis": "Silent degradation is the bug. Every model failure must be (typed → operator-visible → graceful-fallback-with-WARN). Rollback is a workaround with a deadline.",
-      "vision_source": "grimoires/loa/visions/entries/vision-019.md"
+      "vision_source": "grimoires/loa/visions/entries/vision-019.md",
+      "archived": "2026-05-11T09:12:26Z",
+      "archive_path": "grimoires/loa/cycles/cycle-102-model-stability/"
+    },
+    {
+      "id": "cycle-103-provider-unification",
+      "label": "Provider Boundary Unification — collapse 3 HTTP boundaries to cheval substrate",
+      "status": "archived",
+      "created": "2026-05-11T09:12:26Z",
+      "prd": "grimoires/loa/cycles/cycle-103-provider-unification/prd.md",
+      "sdd": "grimoires/loa/cycles/cycle-103-provider-unification/sdd.md",
+      "sprint_plan": "grimoires/loa/cycles/cycle-103-provider-unification/sprint.md",
+      "source_issues": [
+        "https://github.com/0xHoneyJar/loa/issues/843",
+        "https://github.com/0xHoneyJar/loa/issues/823",
+        "https://github.com/0xHoneyJar/loa/issues/845"
+      ],
+      "predecessor_cycle": "cycle-102-model-stability",
+      "cycle_folder": "grimoires/loa/cycles/cycle-103-provider-unification/",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 148,
+          "label": "Provider Boundary Unification",
+          "status": "completed",
+          "scope": "LARGE",
+          "tasks": 12
+        },
+        {
+          "local_id": 2,
+          "global_id": 149,
+          "label": "KF-002 Layer 2 Structural",
+          "status": "completed",
+          "scope": "SMALL",
+          "tasks": 3
+        },
+        {
+          "local_id": 3,
+          "global_id": 150,
+          "label": "Sprint 4A Carry-Forwards Consolidation",
+          "status": "completed",
+          "scope": "LARGE",
+          "tasks": 9
+        }
+      ]
+    },
+    {
+      "id": "cycle-104-multi-model-stabilization",
+      "label": "Multi-Model Stabilization — Within-Company Fallback + Headless Opt-In + BB Internal Dispatcher Unification",
+      "status": "active",
+      "created": "2026-05-12T00:59:16Z",
+      "prd": "grimoires/loa/cycles/cycle-104-multi-model-stabilization/prd.md",
+      "sdd": "grimoires/loa/cycles/cycle-104-multi-model-stabilization/sdd.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 151,
+          "label": "Framework Archival Hygiene + BB Dist Drift Gate",
+          "status": "completed",
+          "completed": "2026-05-12T02:09:00Z",
+          "pr": 849,
+          "branch": "feature/cycle-104-sprint-1-archive-hygiene"
+        },
+        {
+          "local_id": 2,
+          "global_id": 152,
+          "label": "Within-Company Fallback Chains + Headless Opt-In + code_review Revert",
+          "status": "pending"
+        },
+        {
+          "local_id": 3,
+          "global_id": 153,
+          "label": "BB Cheval-Routing Verification + Drift-Gate Extension + KF-008 Substrate Replay",
+          "status": "pending"
+        }
+      ],
+      "issues": [
+        "#847",
+        "#848"
+      ],
+      "predecessor": "cycle-103-provider-unification"
+    },
+    {
+      "id": "cycle-105-beads-recovery",
+      "label": "beads_rust migration recovery (KF-005 closure)",
+      "status": "in-progress",
+      "created": "2026-05-12T06:47:53Z",
+      "prd": "grimoires/loa/cycles/cycle-105-beads-recovery/prd.md",
+      "sdd": "grimoires/loa/cycles/cycle-105-beads-recovery/sdd.md",
+      "sprint_plan": "grimoires/loa/cycles/cycle-105-beads-recovery/sprint.md",
+      "source_issues": [
+        "https://github.com/0xHoneyJar/loa/issues/661",
+        "https://github.com/Dicklesworthstone/beads_rust/issues/290"
+      ],
+      "predecessor_cycle": "cycle-104-multi-model-stabilization",
+      "cycle_folder": "grimoires/loa/cycles/cycle-105-beads-recovery/",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 154,
+          "label": "Repair tool + bats coverage",
+          "status": "pending",
+          "scope": "MEDIUM",
+          "tasks": 6
+        },
+        {
+          "local_id": 2,
+          "global_id": 155,
+          "label": "CI gate + protocol + KF-005 closure",
+          "status": "pending",
+          "scope": "SMALL",
+          "tasks": 5
+        }
+      ]
+    },
+    {
+      "id": "cycle-106-zone-hygiene",
+      "label": "Framework Template Hygiene — zone boundaries",
+      "status": "in-progress",
+      "created": "2026-05-12T08:10:58Z",
+      "prd": "grimoires/loa/cycles/cycle-106-zone-hygiene/prd.md",
+      "sdd": "grimoires/loa/cycles/cycle-106-zone-hygiene/sdd.md",
+      "sprint_plan": "grimoires/loa/cycles/cycle-106-zone-hygiene/sprint.md",
+      "source_issues": [
+        "https://github.com/0xHoneyJar/loa/issues/818",
+        "https://github.com/0xHoneyJar/loa/issues/736",
+        "https://github.com/0xHoneyJar/loa/issues/817"
+      ],
+      "predecessor_cycle": "cycle-105-beads-recovery",
+      "cycle_folder": "grimoires/loa/cycles/cycle-106-zone-hygiene/",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 156,
+          "label": "Manifest + hook + gitignore migration",
+          "status": "pending",
+          "scope": "MEDIUM",
+          "tasks": 6
+        },
+        {
+          "local_id": 2,
+          "global_id": 157,
+          "label": "/update-loa filter + mount-loa seed + #818 closure",
+          "status": "pending",
+          "scope": "MEDIUM",
+          "tasks": 6
+        }
+      ]
+    },
+    {
+      "id": "cycle-107-multimodel-activation",
+      "label": "Multi-Model Activation + Live Verification",
+      "status": "in-progress",
+      "created": "2026-05-12T12:18:54Z",
+      "prd": "grimoires/loa/cycles/cycle-107-multimodel-activation/prd.md",
+      "sdd": "grimoires/loa/cycles/cycle-107-multimodel-activation/sdd.md",
+      "sprint_plan": "grimoires/loa/cycles/cycle-107-multimodel-activation/sprint.md",
+      "source_issues": [],
+      "predecessor_cycle": "cycle-106-zone-hygiene",
+      "cycle_folder": "grimoires/loa/cycles/cycle-107-multimodel-activation/",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 158,
+          "label": "Flip + verify + document",
+          "status": "pending",
+          "scope": "SMALL",
+          "tasks": 8
+        }
+      ]
+    },
+    {
+      "id": "cycle-108-advisor-strategy",
+      "label": "Advisor-Strategy Benchmark — Role→Tier Routing for Sustainable Cycles",
+      "status": "completed",
+      "created": "2026-05-13T00:00:00Z",
+      "prd": "grimoires/loa/cycles/cycle-108-advisor-strategy/prd.md",
+      "sdd": "grimoires/loa/cycles/cycle-108-advisor-strategy/sdd.md",
+      "sprint": "grimoires/loa/cycles/cycle-108-advisor-strategy/sprint.md",
+      "sprints": []
+    },
+    {
+      "id": "cycle-109-substrate-hardening",
+      "label": "Multi-Model Substrate Hardening — Capability-Aware Dispatch + Verdict-Quality Envelope + Legacy Sunset",
+      "status": "in-progress",
+      "created": "2026-05-13T00:00:00Z",
+      "prd": "grimoires/loa/cycles/cycle-109-substrate-hardening/prd.md",
+      "sdd": "grimoires/loa/cycles/cycle-109-substrate-hardening/sdd.md",
+      "sprint": "grimoires/loa/cycles/cycle-109-substrate-hardening/sprint.md",
+      "sprints": [
+        {
+          "id": "sprint-159",
+          "local_id": "sprint-1",
+          "cycle": "cycle-109-substrate-hardening",
+          "theme": "Capability-Aware Substrate Foundation",
+          "fr": "FR-1",
+          "scope": "LARGE",
+          "task_count": 11,
+          "status": "planned",
+          "created": "2026-05-13T05:14:02Z"
+        },
+        {
+          "id": "sprint-160",
+          "local_id": "sprint-2",
+          "cycle": "cycle-109-substrate-hardening",
+          "theme": "Verdict-Quality Envelope + Consumer Contracts",
+          "fr": "FR-2",
+          "scope": "LARGE",
+          "task_count": 10,
+          "status": "planned",
+          "created": "2026-05-13T05:14:02Z"
+        },
+        {
+          "id": "sprint-161",
+          "local_id": "sprint-3",
+          "cycle": "cycle-109-substrate-hardening",
+          "theme": "Legacy Adapter Sunset + Activation Regression Suite",
+          "fr": "FR-3",
+          "scope": "LARGE",
+          "task_count": 11,
+          "status": "planned",
+          "created": "2026-05-13T05:14:02Z"
+        },
+        {
+          "id": "sprint-162",
+          "local_id": "sprint-4",
+          "cycle": "cycle-109-substrate-hardening",
+          "theme": "Hierarchical / Chunked Review",
+          "fr": "FR-4",
+          "scope": "LARGE",
+          "task_count": 10,
+          "status": "planned",
+          "created": "2026-05-13T05:14:02Z"
+        },
+        {
+          "id": "sprint-163",
+          "local_id": "sprint-5",
+          "cycle": "cycle-109-substrate-hardening",
+          "theme": "Carry Items + Substrate Observability + Cycle Close",
+          "fr": "FR-5",
+          "scope": "LARGE",
+          "task_count": 10,
+          "status": "planned",
+          "created": "2026-05-13T05:14:02Z"
+        }
+      ]
     }
   ],
-  "global_sprint_counter": 143,
+  "global_sprint_counter": 158,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
@@ -1241,5 +1486,5 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 148
+  "next_sprint_number": 164
 }

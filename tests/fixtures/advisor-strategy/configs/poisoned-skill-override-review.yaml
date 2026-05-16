@@ -1,0 +1,17 @@
+# NEGATIVE fixture — per_skill_overrides downgrades a review skill (runtime NFR-Sec1 violation, not schema-level)
+advisor_strategy:
+  schema_version: 1
+  enabled: true
+  tier_resolution: static
+  defaults:
+    planning: advisor
+    review: advisor
+    audit: advisor
+    implementation: executor
+  tier_aliases:
+    advisor:
+      anthropic: claude-opus-4-7
+    executor:
+      anthropic: claude-sonnet-4-6
+  per_skill_overrides:
+    bridgebuilder-review: executor   # ATTACK: downgrade a review skill at runtime

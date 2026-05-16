@@ -287,14 +287,47 @@ br init
 
 ### MIGRATION_NEEDED Recovery
 
-```bash
-# Check current schema
-sqlite3 .beads/beads.db "PRAGMA table_info(issues);"
+**Canonical first action (cycle-105 sprint-1)**: invoke the Loa-side
+migration repair tool. It heals the upstream beads_rust 0.2.1-0.2.6
+`NOT NULL constraint failed: dirty_issues.marked_at` shape in-place
+using the SQLite recreate-and-swap pattern, with backup-before-mutation
+and post-flight verify.
 
-# Manual migration if needed
-# (br typically handles this automatically on upgrade)
+```bash
+# Heal the dirty_issues schema (idempotent + reversible)
+tools/beads-migration-repair.sh
+
+# Or via the wrapped health-check surface
+.claude/scripts/beads/beads-health.sh --repair
+
+# Preview the SQL without mutating
+tools/beads-migration-repair.sh --dry-run
+```
+
+The repair tool exit codes:
+- `0` repair succeeded (or no-op when already HEALTHY)
+- `1` repair failed; database auto-restored from backup
+- `2` argument / I/O error
+- `3` unrecoverable schema (operator action required)
+
+If the repair tool returns `3`, the database is in a shape the
+automated heal can't handle (e.g., `dirty_issues` table missing, extra
+columns). Fall back to manual inspection:
+
+```bash
+# Inspect current schema
+sqlite3 .beads/beads.db "PRAGMA table_info(dirty_issues);"
+
+# Snapshot before any manual mutation
+cp .beads/beads.db .beads/_manual-backup-$(date +%s).db
+
+# Last-resort: fresh init + re-import from JSONL
 br doctor
 ```
+
+Tracking:
+- Loa #661 (downstream)
+- Dicklesworthstone/beads_rust#290 (upstream, filed 2026-05-11)
 
 ### DEGRADED Recovery
 

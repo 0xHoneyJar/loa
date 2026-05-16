@@ -1,3 +1,21 @@
+---
+name: spiraling
+description: "Spiraling — /spiral Autopoietic Meta-Orchestrator (multi-role: covers planning + review + implementation; advisor-wins per cycle-108 §4.3)"
+role: review
+primary_role: review
+cost-profile: heavy
+capabilities:
+  schema_version: 1
+  read_files: true
+  write_files: true
+allowed-tools:
+  - Read
+  - Write
+  - Edit
+  - Bash
+  - Task
+---
+
 # Spiraling — /spiral Autopoietic Meta-Orchestrator
 
 ## DISPATCH GUARD — READ THIS FIRST

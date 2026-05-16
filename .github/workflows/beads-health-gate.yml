@@ -1,0 +1,125 @@
+name: beads-health-gate (cycle-105 sprint-2 T2.3)
+
+# cycle-105 sprint-2 T2.3 — CI gate for the KF-005 migration-repair surface.
+# Runs the BMR unit tests + BHRF integration tests on every PR or push to
+# main that touches the repair tool, the beads health check, the fixture
+# corpus, or this workflow itself. Catches regressions in the repair flow
+# and surfaces them as red checks (the pre-commit hook now WARNs rather
+# than FAILs per T2.1; CI is the new hard gate).
+
+on:
+  pull_request:
+    paths:
+      - 'tools/beads-migration-repair.sh'
+      - '.claude/scripts/beads/beads-health.sh'
+      - '.claude/scripts/install-beads-precommit.sh'
+      - '.claude/scripts/git-hooks/pre-commit-beads'
+      - 'tests/fixtures/beads-migration/**'
+      - 'tests/unit/beads-migration-repair.bats'
+      - 'tests/integration/beads-health-repair-flow.bats'
+      - '.github/workflows/beads-health-gate.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'tools/beads-migration-repair.sh'
+      - '.claude/scripts/beads/beads-health.sh'
+      - '.claude/scripts/install-beads-precommit.sh'
+      - '.claude/scripts/git-hooks/pre-commit-beads'
+      - 'tests/fixtures/beads-migration/**'
+      - 'tests/unit/beads-migration-repair.bats'
+      - 'tests/integration/beads-health-repair-flow.bats'
+      - '.github/workflows/beads-health-gate.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: beads-health-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  beads-health:
+    name: BMR unit + BHRF integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Verify tool + fixtures present
+        run: |
+          set -euo pipefail
+          test -x tools/beads-migration-repair.sh
+          test -f .claude/scripts/beads/beads-health.sh
+          test -d tests/fixtures/beads-migration
+          # All 5 fixtures must be present.
+          for f in dirty healthy missing-table partial-schema dirty-with-rows; do
+            test -f "tests/fixtures/beads-migration/${f}-db.sql" \
+              || { echo "::error::missing fixture ${f}-db.sql"; exit 1; }
+          done
+
+      - name: Confirm sqlite3 + bats available
+        run: |
+          set -euo pipefail
+          sqlite3 --version
+          which bats || sudo apt-get install -y bats
+
+      - name: Run BMR unit tests
+        run: |
+          set -euo pipefail
+          bats tests/unit/beads-migration-repair.bats
+
+      - name: Run BHRF integration tests
+        run: |
+          set -euo pipefail
+          bats tests/integration/beads-health-repair-flow.bats
+
+      - name: Smoke the repair tool against the dirty fixture
+        run: |
+          set -euxo pipefail
+          scratch="$(mktemp -d)"
+          sqlite3 "$scratch/beads.db" < tests/fixtures/beads-migration/dirty-db.sql
+          tools/beads-migration-repair.sh --db "$scratch/beads.db" --no-backup
+          # Post-flight: confirm HEALTHY shape.
+          row=$(sqlite3 "$scratch/beads.db" "PRAGMA table_info(dirty_issues);" \
+                  | awk -F'|' '$2 == "marked_at"')
+          notnull=$(echo "$row" | awk -F'|' '{print $4}')
+          dflt=$(echo "$row" | awk -F'|' '{print $5}')
+          if [ "$notnull" = "1" ] && [ -n "$dflt" ]; then
+            echo "OK: smoke repair produced HEALTHY schema (notnull=$notnull, dflt=$dflt)"
+          else
+            echo "::error::smoke repair did NOT produce HEALTHY schema (notnull=$notnull, dflt=$dflt)"
+            exit 1
+          fi
+
+      - name: Smoke beads-health.sh --repair end-to-end
+        # Run even if BHRF bats failed — we WANT the diagnostic to see
+        # why CI diverges from local.
+        if: always()
+        run: |
+          set -euxo pipefail
+          scratch="$(mktemp -d)"
+          mkdir -p "$scratch/.beads"
+          sqlite3 "$scratch/.beads/beads.db" < tests/fixtures/beads-migration/dirty-db.sql
+          echo "--- pre-repair PRAGMA ---"
+          sqlite3 "$scratch/.beads/beads.db" "PRAGMA table_info(dirty_issues);"
+          echo "--- running beads-health.sh --quick --repair ---"
+          LOA_BEADS_DIR="$scratch/.beads" .claude/scripts/beads/beads-health.sh --quick --repair 2>&1 | tail -20 || true
+          echo "--- post-repair PRAGMA ---"
+          sqlite3 "$scratch/.beads/beads.db" "PRAGMA table_info(dirty_issues);"
+          # Verify schema was healed.
+          row=$(sqlite3 "$scratch/.beads/beads.db" "PRAGMA table_info(dirty_issues);" \
+                  | awk -F'|' '$2 == "marked_at"')
+          notnull=$(echo "$row" | awk -F'|' '{print $4}')
+          dflt=$(echo "$row" | awk -F'|' '{print $5}')
+          if [ "$notnull" = "1" ] && [ -n "$dflt" ]; then
+            echo "OK: beads-health.sh --repair end-to-end produced HEALTHY schema"
+          else
+            echo "::error::beads-health.sh --repair did NOT heal schema (notnull=$notnull, dflt=$dflt)"
+            echo "::error::This is the regression that BHRF-T1 catches."
+            exit 1
+          fi
+
+      # Note: a positive-control step (assert bats fails when the tool is
+      # broken) was considered but dropped. The 14 BMR + 5 BHRF tests
+      # already form a comprehensive regression catcher; a separate
+      # broken-tool-mocking step would duplicate coverage without adding
+      # signal. If a future regression class needs it, re-add here.

@@ -309,6 +309,25 @@ process_findings_file() {
     return 0
   fi
 
+  # cycle-109 Sprint 2 T2.7 — CONSUMER #7: surface verdict_quality from the
+  # findings artifact (when present). BB cheval-delegate (T2.6) writes
+  # verdict_quality alongside findings in the per-iteration output; this
+  # consumer reads .verdict_quality (or .metadata.verdict_quality, depending
+  # on upstream shape) and logs the status banner so operators see the
+  # substrate health at triage time. NFR-Rel-1: a degraded substrate
+  # produced these findings; triage decisions should account for that.
+  local vq_status vq_chain_health
+  vq_status=$(jq -r '(.verdict_quality.status // .metadata.verdict_quality.status // "")' \
+      "$findings_file" 2>/dev/null || echo "")
+  vq_chain_health=$(jq -r '(.verdict_quality.chain_health // .metadata.verdict_quality.chain_health // "")' \
+      "$findings_file" 2>/dev/null || echo "")
+  if [[ -n "$vq_status" && "$vq_status" != "null" ]]; then
+    log "Substrate verdict_quality: status=$vq_status chain_health=${vq_chain_health:-?}"
+    if [[ "$vq_status" == "FAILED" || "$vq_chain_health" == "exhausted" ]]; then
+      log "[vq-warn] Findings produced by a FAILED/exhausted substrate — triage decisions are advisory only (NFR-Rel-1)."
+    fi
+  fi
+
   log "Processing $total_findings findings from $findings_file (iter $iteration)"
 
   # Iterate through findings

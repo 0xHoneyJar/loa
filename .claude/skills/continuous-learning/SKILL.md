@@ -1,6 +1,7 @@
 ---
 name: continuous-learning
 description: |
+role: implementation
   Autonomous skill extraction from debugging discoveries. Activates when agents
   find non-obvious solutions through investigation, experimentation, or trial-and-error.
   Captures these discoveries as reusable skills for future sessions.

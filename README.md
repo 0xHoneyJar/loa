@@ -6,12 +6,12 @@ Power user interface: 48 slash commands (truenames).
 Architecture: Three-zone model (System: .claude/, State: grimoires/ + .beads/, App: src/).
 Configuration: .loa.config.yaml (user-owned, never modified by framework).
 Health check: /loa doctor
-Version: 1.130.0
+Version: 1.157.0
 -->
 
-[![Version](https://img.shields.io/badge/version-1.130.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.157.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE.md)
-[![Release](https://img.shields.io/badge/release-Spiral%20Autopoietic%20Orchestrator-purple.svg)](CHANGELOG.md#1880---2026-04-15)
+[![Release](https://img.shields.io/badge/release-v1.157.0%20Multi--Model%20Live-purple.svg)](CHANGELOG.md#1157---2026-05-12)
 
 > *"The Loa are pragmatic entities... They're not worshipped for salvation—they're worked with for practical results."*
 
@@ -26,14 +26,6 @@ In William Gibson's Sprawl trilogy (*Neuromancer*, *Count Zero*), Loa are AI ent
 ## Quick Start (~2 minutes)
 
 **Prerequisites**: [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) (Anthropic's CLI for Claude), Git, jq, [yq v4+](https://github.com/mikefarah/yq). See **[INSTALLATION.md](INSTALLATION.md)** for full details.
-
-> [!WARNING]
-> **Some Loa features invoke external AI APIs and incur costs.** The three most expensive are:
-> - **Flatline Protocol** — multi-model adversarial review (~$15–25 per planning cycle, Opus + GPT-5.3-codex)
-> - **Simstim** — HITL-accelerated full cycle (~$25–65 per cycle, Opus + GPT-5.3-codex + Gemini)
-> - **Spiral** — autonomous multi-cycle orchestrator (~$10–35 per cycle depending on profile)
->
-> **Flatline Protocol** and **Simstim** are **enabled by default** but require API keys (`OPENAI_API_KEY`, `GOOGLE_API_KEY`) to function — without them, multi-model review phases are skipped. **Spiral** is **disabled by default** and must be explicitly enabled. See [`docs/CONFIG_REFERENCE.md`](docs/CONFIG_REFERENCE.md#cost-matrix) for the full cost table. Run `/loa setup` inside Claude Code before enabling autonomous modes to choose a budget-appropriate configuration.
 
 ```bash
 # Install (one command, any existing repo — adds Loa as git submodule)
@@ -204,7 +196,7 @@ Loa uses a **three-zone model** inspired by AWS Projen and Google's ADK:
 | **Spiral Orchestrator** | Self-improving meta-loop: plan → build → review → harvest → repeat | [RFC-060](grimoires/loa/proposals/rfc-060-spiral.md) |
 | **Evidence-Gated Harness** | Bash-enforced quality gates that LLMs cannot skip — flight recorder audit trail | [Architecture](grimoires/loa/proposals/spiral-harness-architecture.md) |
 | **Advisor Strategy** | Sonnet executes (~5x cheaper), Opus judges (review/audit quality) | [Benchmark](grimoires/loa/reports/spiral-harness-benchmark-report.md) |
-| **Vision Registry** | Speculative insight capture from bridge iterations, graduated to active mode | [Visions](grimoires/loa/visions/) |
+| **Vision Registry** | Speculative insight capture from bridge iterations, graduated to active mode | Per-project under `grimoires/loa/visions/` (project-zone; created on first vision) |
 | **Grounded Truth** | Checksum-verified codebase summaries extending `/ride` | [Script](.claude/scripts/ground-truth-gen.sh) |
 | **Simstim** | HITL accelerated development (PRD -> SDD -> Sprint -> Run) | [Command](.claude/commands/simstim.md) |
 | **Compound Learning** | Cross-session pattern detection + feedback loop | [CHANGELOG.md](CHANGELOG.md) |

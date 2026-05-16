@@ -14,17 +14,20 @@ declare -A MODEL_PROVIDERS=(
     ["gpt-5.3-codex"]="openai"
     ["gpt-5.5"]="openai"
     ["gpt-5.5-pro"]="openai"
+    ["codex-headless"]="openai"
     ["gemini-2.0-flash"]="google"
     ["gemini-2.5-flash"]="google"
     ["gemini-3-flash-preview"]="google"
     ["gemini-2.5-pro"]="google"
     ["gemini-3.1-pro-preview"]="google"
     ["deep-research-pro"]="google"
+    ["gemini-headless"]="google"
     ["claude-opus-4-7"]="anthropic"
     ["claude-opus-4-6"]="anthropic"
     ["claude-sonnet-4-6"]="anthropic"
     ["claude-sonnet-4-5-20250929"]="anthropic"
     ["claude-haiku-4-5-20251001"]="anthropic"
+    ["claude-headless"]="anthropic"
     ["us.anthropic.claude-opus-4-7"]="bedrock"
     ["us.anthropic.claude-sonnet-4-6"]="bedrock"
     ["us.anthropic.claude-haiku-4-5-20251001-v1:0"]="bedrock"
@@ -43,8 +46,12 @@ declare -A MODEL_PROVIDERS=(
     ["gpt-5.5"]="openai"
     ["gpt-5.5-pro"]="openai"
     ["gpt-5.3-codex"]="openai"
+    ["claude-headless"]="anthropic"
+    ["codex-headless"]="openai"
+    ["gemini-headless"]="google"
     ["gpt-5.2-codex"]="openai"
     ["gpt-5.3-codex"]="openai"
+    ["claude-opus-4-7"]="anthropic"
     ["claude-opus-4.7"]="anthropic"
     ["claude-opus-4.6"]="anthropic"
     ["claude-opus-4-6"]="anthropic"
@@ -54,6 +61,7 @@ declare -A MODEL_PROVIDERS=(
     ["claude-opus-4-1"]="anthropic"
     ["claude-opus-4.0"]="anthropic"
     ["claude-opus-4-0"]="anthropic"
+    ["gemini-3.1-pro-preview"]="google"
 )
 
 declare -A MODEL_IDS=(
@@ -61,17 +69,20 @@ declare -A MODEL_IDS=(
     ["gpt-5.3-codex"]="gpt-5.3-codex"
     ["gpt-5.5"]="gpt-5.5"
     ["gpt-5.5-pro"]="gpt-5.5-pro"
+    ["codex-headless"]="codex-headless"
     ["gemini-2.0-flash"]="gemini-2.0-flash"
     ["gemini-2.5-flash"]="gemini-2.5-flash"
     ["gemini-3-flash-preview"]="gemini-3-flash-preview"
     ["gemini-2.5-pro"]="gemini-2.5-pro"
     ["gemini-3.1-pro-preview"]="gemini-3.1-pro-preview"
     ["deep-research-pro"]="deep-research-pro"
+    ["gemini-headless"]="gemini-headless"
     ["claude-opus-4-7"]="claude-opus-4-7"
     ["claude-opus-4-6"]="claude-opus-4-6"
     ["claude-sonnet-4-6"]="claude-sonnet-4-6"
     ["claude-sonnet-4-5-20250929"]="claude-sonnet-4-5-20250929"
     ["claude-haiku-4-5-20251001"]="claude-haiku-4-5-20251001"
+    ["claude-headless"]="claude-headless"
     ["us.anthropic.claude-opus-4-7"]="us.anthropic.claude-opus-4-7"
     ["us.anthropic.claude-sonnet-4-6"]="us.anthropic.claude-sonnet-4-6"
     ["us.anthropic.claude-haiku-4-5-20251001-v1:0"]="us.anthropic.claude-haiku-4-5-20251001-v1:0"
@@ -90,8 +101,12 @@ declare -A MODEL_IDS=(
     ["gpt-5.5"]="gpt-5.5"
     ["gpt-5.5-pro"]="gpt-5.5-pro"
     ["gpt-5.3-codex"]="gpt-5.3-codex"
+    ["claude-headless"]="claude-headless"
+    ["codex-headless"]="codex-headless"
+    ["gemini-headless"]="gemini-headless"
     ["gpt-5.2-codex"]="gpt-5.3-codex"
     ["gpt-5.3-codex"]="gpt-5.3-codex"
+    ["claude-opus-4-7"]="claude-opus-4-7"
     ["claude-opus-4.7"]="claude-opus-4-7"
     ["claude-opus-4.6"]="claude-opus-4-7"
     ["claude-opus-4-6"]="claude-opus-4-7"
@@ -101,6 +116,59 @@ declare -A MODEL_IDS=(
     ["claude-opus-4-1"]="claude-opus-4-7"
     ["claude-opus-4.0"]="claude-opus-4-7"
     ["claude-opus-4-0"]="claude-opus-4-7"
+    ["gemini-3.1-pro-preview"]="gemini-3.1-pro-preview"
+)
+
+# Cycle-110 sprint-2a T2.5 ([PRD:FR-2.3], SDD §3.2): propagate auth_type +
+# dispatch_group into the generated bash maps so downstream bash callers
+# (resolver, cheval, substrate-health, gen-bb-registry consumer scripts)
+# can look up the same metadata the Python loader validates.
+declare -A MODEL_AUTH_TYPE=(
+    ["gpt-5.2"]="http_api"
+    ["gpt-5.3-codex"]="http_api"
+    ["gpt-5.5"]="http_api"
+    ["gpt-5.5-pro"]="http_api"
+    ["codex-headless"]="headless"
+    ["gemini-2.0-flash"]="http_api"
+    ["gemini-2.5-flash"]="http_api"
+    ["gemini-3-flash-preview"]="http_api"
+    ["gemini-2.5-pro"]="http_api"
+    ["gemini-3.1-pro-preview"]="http_api"
+    ["deep-research-pro"]="http_api"
+    ["gemini-headless"]="headless"
+    ["claude-opus-4-7"]="http_api"
+    ["claude-opus-4-6"]="http_api"
+    ["claude-sonnet-4-6"]="http_api"
+    ["claude-sonnet-4-5-20250929"]="http_api"
+    ["claude-haiku-4-5-20251001"]="http_api"
+    ["claude-headless"]="headless"
+    ["us.anthropic.claude-opus-4-7"]="aws_iam"
+    ["us.anthropic.claude-sonnet-4-6"]="aws_iam"
+    ["us.anthropic.claude-haiku-4-5-20251001-v1:0"]="aws_iam"
+)
+
+declare -A MODEL_DISPATCH_GROUP=(
+    ["gpt-5.2"]="openai-gpt"
+    ["gpt-5.3-codex"]="openai-gpt"
+    ["gpt-5.5"]="openai-gpt"
+    ["gpt-5.5-pro"]="openai-gpt"
+    ["codex-headless"]="openai-gpt"
+    ["gemini-2.0-flash"]="google-gemini"
+    ["gemini-2.5-flash"]="google-gemini"
+    ["gemini-3-flash-preview"]="google-gemini"
+    ["gemini-2.5-pro"]="google-gemini"
+    ["gemini-3.1-pro-preview"]="google-gemini"
+    ["deep-research-pro"]="google-gemini"
+    ["gemini-headless"]="google-gemini"
+    ["claude-opus-4-7"]="anthropic-claude"
+    ["claude-opus-4-6"]="anthropic-claude"
+    ["claude-sonnet-4-6"]="anthropic-claude"
+    ["claude-sonnet-4-5-20250929"]="anthropic-claude"
+    ["claude-haiku-4-5-20251001"]="anthropic-claude"
+    ["claude-headless"]="anthropic-claude"
+    ["us.anthropic.claude-opus-4-7"]="bedrock-anthropic"
+    ["us.anthropic.claude-sonnet-4-6"]="bedrock-anthropic"
+    ["us.anthropic.claude-haiku-4-5-20251001-v1:0"]="bedrock-anthropic"
 )
 
 declare -A COST_INPUT=(
@@ -139,6 +207,7 @@ declare -A COST_INPUT=(
     ["gpt-5.3-codex"]="0.00175"
     ["gpt-5.2-codex"]="0.00175"
     ["gpt-5.3-codex"]="0.00175"
+    ["claude-opus-4-7"]="0.005"
     ["claude-opus-4.7"]="0.005"
     ["claude-opus-4.6"]="0.005"
     ["claude-opus-4-6"]="0.005"
@@ -148,6 +217,7 @@ declare -A COST_INPUT=(
     ["claude-opus-4-1"]="0.005"
     ["claude-opus-4.0"]="0.005"
     ["claude-opus-4-0"]="0.005"
+    ["gemini-3.1-pro-preview"]="0.00125"
 )
 
 declare -A COST_OUTPUT=(
@@ -186,6 +256,7 @@ declare -A COST_OUTPUT=(
     ["gpt-5.3-codex"]="0.014"
     ["gpt-5.2-codex"]="0.014"
     ["gpt-5.3-codex"]="0.014"
+    ["claude-opus-4-7"]="0.025"
     ["claude-opus-4.7"]="0.025"
     ["claude-opus-4.6"]="0.025"
     ["claude-opus-4-6"]="0.025"
@@ -195,6 +266,7 @@ declare -A COST_OUTPUT=(
     ["claude-opus-4-1"]="0.025"
     ["claude-opus-4.0"]="0.025"
     ["claude-opus-4-0"]="0.025"
+    ["gemini-3.1-pro-preview"]="0.01"
 )
 
 # VALID_FLATLINE_MODELS — Sprint-4 T4.2 (closes SDD §1.4 C4 SSOT coverage gap).
@@ -207,6 +279,7 @@ declare -A COST_OUTPUT=(
 declare -a VALID_FLATLINE_MODELS=(
     cheap
     claude-haiku-4-5-20251001
+    claude-headless
     claude-opus-4-0
     claude-opus-4-1
     claude-opus-4-5
@@ -219,6 +292,7 @@ declare -a VALID_FLATLINE_MODELS=(
     claude-opus-4.7
     claude-sonnet-4-5-20250929
     claude-sonnet-4-6
+    codex-headless
     deep-research-pro
     deep-thinker
     gemini-2.0
@@ -229,6 +303,7 @@ declare -a VALID_FLATLINE_MODELS=(
     gemini-3-flash-preview
     gemini-3.1-pro
     gemini-3.1-pro-preview
+    gemini-headless
     gpt-5.2
     gpt-5.2-codex
     gpt-5.3-codex

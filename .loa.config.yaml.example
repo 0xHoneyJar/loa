@@ -652,15 +652,21 @@ beads:
 # Architecture: SDD §4.1.2 (Config Schema), §4.2 (Routing), §4.5 (Metering)
 # Feature flags and metering — Hounfour Model-Heterogeneous Agent Routing
 hounfour:
-  # Top-level flag — controls whether Flatline uses Hounfour routing
-  # or the legacy direct-call path. Set to true when ready to migrate.
-  flatline_routing: false
+  # cycle-109 Sprint 3 T3.8 (commit E): `hounfour.flatline_routing` config
+  # key REMOVED. Cycle-109 deleted the legacy adapter (T3.7 under
+  # C109.OP-S3) and removed the consuming branches (T3.6 commit C).
+  # cheval is now the unconditional substrate dispatch path; there is no
+  # runtime-flag rollback. Rollback model post-cycle-109: `git revert` per
+  # grimoires/loa/runbooks/cycle-109-rollback.md. The `feature_flags.flatline_routing`
+  # sub-key below is preserved as an informational audit-log surface
+  # (other consumers still read it for telemetry) but does NOT gate
+  # dispatch behavior anymore.
 
   # Per-subsystem feature flags (all default true — opt-out, not opt-in)
   feature_flags:
     google_adapter: true     # Enable Google provider adapter
     deep_research: true      # Enable Deep Research models (Interactions API)
-    flatline_routing: false   # Route Flatline through Hounfour
+    flatline_routing: true   # cycle-107: flipped — engages cheval chain-walk + voice-drop
     metering: true           # Enable BudgetEnforcer cost tracking
     thinking_traces: true    # Include thinking config in request bodies
     jam_geometry: false      # Enable Jam multi-model parallel review (opt-in)
@@ -674,6 +680,35 @@ hounfour:
       daily_micro_usd: 500000000             # $500/day (500M micro-USD)
       warn_at_percent: 80                    # Warn when spending exceeds this %
       on_exceeded: downgrade                 # block | downgrade | warn
+
+  # Headless mode — within-company CLI fallback routing (cycle-104 Sprint 2)
+  # ---------------------------------------------------------------------------
+  # Routes between HTTP API adapters and local CLI binaries (`claude` /
+  # `codex` / `gemini`). Per-call override via env: LOA_HEADLESS_MODE=<mode>
+  # (env wins over this config; both unset → prefer-api).
+  #
+  # Modes (chain_resolver.resolve() applies them within-company only):
+  #   prefer-api : HTTP first, CLI last in each chain entry (today's default)
+  #   prefer-cli : CLI first, HTTP last (budget-constrained operators)
+  #   api-only   : drop CLI entries from chain
+  #   cli-only   : drop HTTP entries — zero-API-key path. Requires every
+  #                primary in your bindings to have a `kind: cli` chain
+  #                terminal (`claude-headless` / `codex-headless` /
+  #                `gemini-headless` in the default model-config.yaml).
+  #
+  # CLI binaries must be on $PATH (or pin paths below). The router REFUSES
+  # to issue HTTPS when the resolved chain is CLI-only (defense-in-depth,
+  # SDD §1.9). Operator runbooks (cycle-104 T2.12):
+  #   grimoires/loa/runbooks/headless-mode.md            # 4-mode reference
+  #   grimoires/loa/runbooks/headless-capability-matrix.md  # feature × adapter
+  #   grimoires/loa/runbooks/chain-walk-debugging.md     # LOA_HEADLESS_VERBOSE + envelope queries
+  headless:
+    mode: prefer-api                         # prefer-api | prefer-cli | api-only | cli-only
+    # cli_paths: discovery hints. If unset, $PATH is searched.
+    # cli_paths:
+    #   claude: /usr/local/bin/claude
+    #   codex: /usr/local/bin/codex
+    #   gemini: /usr/local/bin/gemini
 
   # Provider registry — override endpoints, auth, or add new providers
   # Providers not listed here use system defaults from model-config.yaml
@@ -2541,3 +2576,69 @@ qmd_context:
 # When alert_webhook_endpoint_validator_enabled: true, populate
 # .claude/scripts/lib/allowlists/webhook-hosts.json with the permitted hosts.
 # Override the allowlist path via the LOA_WEBHOOK_ALLOWLIST_PATH env var.
+
+# ============================================================================
+# Cycle-108 — Advisor-strategy routing (PRD §5 FR-1, SDD §3 + §21.1)
+# ----------------------------------------------------------------------------
+# Maps logical role (planning/review/implementation) → tier (advisor/executor)
+# → provider:model. Default-OFF until operator-approved benchmark resolves
+# decision-fork (see grimoires/loa/cycles/cycle-108-advisor-strategy/rollout-policy.md).
+#
+# Kill switch (env, takes precedence over `enabled`):
+#   LOA_ADVISOR_STRATEGY_DISABLE=1   # disables advisor-strategy at runtime
+#
+# NFR-Sec1: review/audit roles MUST resolve to advisor tier — enforced at
+# the loader layer (.claude/adapters/loa_cheval/config/advisor_strategy.py).
+# Attempting to map review→executor raises ConfigError at load time.
+# ============================================================================
+
+# advisor_strategy:
+#   # Master switch. Default false per cycle-108 decision-fork (c') —
+#   # see rollout-policy.md §1. Operators opt in per-stratum once the
+#   # real-data benchmark resolves DEFERRED classifications.
+#   enabled: false
+#
+#   # Resolution mode:
+#   #   static  — config_sha pinned at load time; safer for production
+#   #   dynamic — re-resolves per call; only for dev/test
+#   tier_resolution: static
+#
+#   # Default tier per role. NFR-Sec1 hard-pins review→advisor.
+#   defaults:
+#     planning: advisor
+#     review: advisor
+#     implementation: executor
+#
+#   # Tier → provider → model alias.
+#   tier_aliases:
+#     advisor:
+#       anthropic: claude-opus-4-7
+#       # openai: gpt-5.5-pro              # optional cross-provider
+#       # google: gemini-3.1-pro-preview   # optional cross-provider
+#     executor:
+#       anthropic: claude-sonnet-4-6
+#       # openai: gpt-5.5
+#       # google: gemini-2.5-pro
+#
+#   # Per-skill tier override. Map skill name → tier.
+#   # Skills in audited_review_skills CANNOT be overridden to executor
+#   # (NFR-Sec1 enforced at loader).
+#   per_skill_overrides: {}
+#
+#   # Skill names that MUST resolve to advisor tier regardless of role/override.
+#   # CI gate (cycle-108-schema-guard.yml) requires this enum to be co-edited
+#   # with the SKILL.md role field in a single commit.
+#   audited_review_skills: []
+#
+#   # Benchmark substrate (cycle-108 sprint-2 T2.A).
+#   benchmark:
+#     # Cost-cap pre-estimate aborts the benchmark harness above this USD.
+#     # Override via `tools/advisor-benchmark.sh --cost-cap-usd N`.
+#     max_cost_usd: 50
+#     # Cleanup strategy for worktrees: keep | defer | now
+#     cleanup_strategy: defer
+#
+#   # Per-skill daily token quota (cycle-108 sprint-4 T4.D).
+#   # tools/modelinv-rollup.sh --per-skill-daily-quota alerts when a single
+#   # skill exceeds this on any 24-hour window.
+#   daily_token_budget_default: 500000

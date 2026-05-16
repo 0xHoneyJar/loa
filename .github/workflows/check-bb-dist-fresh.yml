@@ -1,0 +1,63 @@
+name: BB Dist Drift Gate
+
+# cycle-104 sprint-1 T1.5 — CI workflow gating PRs that touch BB TypeScript
+# source without regenerating dist/. Closes the cycle-103 near-miss in which
+# source-only BB changes could silently ship and not actually run.
+#
+# The gate uses content-hash drift detection (tools/check-bb-dist-fresh.sh)
+# rather than timestamps, so legitimate dist edits do NOT produce false
+# positives (PRD AC-1.6 / SDD §1.4.4 R6 mitigation).
+#
+# Trigger semantics: both pull_request AND push events with a paths filter.
+# The push trigger covers main-branch direct pushes (rare but possible);
+# pull_request is the primary enforcement gate. Both-trigger pattern mirrors
+# cycle-099 sprint-1E.c.3.c scanner-glob-blindness lesson — a workflow that
+# only triggers on one event class is silently bypassable.
+
+on:
+  pull_request:
+    paths:
+      - '.claude/skills/bridgebuilder-review/resources/**'
+      - '.claude/skills/bridgebuilder-review/dist/**'
+      - '.claude/skills/bridgebuilder-review/package.json'
+      - '.claude/skills/bridgebuilder-review/package-lock.json'
+      - 'tools/check-bb-dist-fresh.sh'
+      - '.github/workflows/check-bb-dist-fresh.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.claude/skills/bridgebuilder-review/resources/**'
+      - '.claude/skills/bridgebuilder-review/dist/**'
+      - '.claude/skills/bridgebuilder-review/package.json'
+      - '.claude/skills/bridgebuilder-review/package-lock.json'
+      - 'tools/check-bb-dist-fresh.sh'
+      - '.github/workflows/check-bb-dist-fresh.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  bb-dist-fresh-gate:
+    name: BB dist manifest content-hash check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify check script is executable
+        run: |
+          if [[ ! -x tools/check-bb-dist-fresh.sh ]]; then
+            echo "::error::tools/check-bb-dist-fresh.sh is not executable"
+            exit 1
+          fi
+
+      - name: Run drift gate (content-hash, not timestamp)
+        id: gate
+        run: |
+          if ! tools/check-bb-dist-fresh.sh --json > /tmp/gate-result.json 2>&1; then
+            cat /tmp/gate-result.json
+            outcome=$(jq -r '.outcome // "error"' /tmp/gate-result.json)
+            echo "::error::BB dist is ${outcome}. Fix: cd .claude/skills/bridgebuilder-review && npm run build && git add dist/"
+            exit 1
+          fi
+          jq . /tmp/gate-result.json

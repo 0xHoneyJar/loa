@@ -1,6 +1,7 @@
 ---
 name: butterfreezone
 description: "BUTTERFREEZONE Generation Skill"
+role: implementation
 capabilities:
   schema_version: 1
   read_files: true

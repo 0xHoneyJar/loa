@@ -7,15 +7,93 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
+## [1.157.0] — 2026-05-12 — Multi-Model Live: Cheval Substrate + Within-Company Chains + Voice-Drop
 
-- `semver-bump.sh` now recognizes prerelease tags (`vX.Y.Z-{alpha,beta,rc}.N`)
-  and increments the prerelease counter type-agnostically when the project
-  is on a prerelease cadence. Previously the strict release-only tag glob
-  silently skipped every prerelease tag, causing the post-merge orchestrator
-  to no-op the tag/CHANGELOG/release phases for any project shipping
-  through alpha/beta/rc cycles. Operators no longer need to manually tag
-  prerelease bumps. (#785)
+This is a **named milestone release** that bundles the multi-model-stabilization arc spanning cycles 102 → 107 (~3 weeks of work). The framework's three review consumers — **Bridgebuilder (BB)**, **Flatline (FL)**, and **Red-team (RT)** — now route through a single unified provider substrate with within-company fallback chains, voice-drop on chain exhaustion, and the MODELINV v1.1 audit envelope.
+
+### Three architectural shifts
+
+1. **Cycle-103 — Cheval substrate (one HTTP boundary)**. The per-provider Node adapter registry (`adapters/anthropic.ts` + `adapters/openai.ts` + `adapters/google.ts`) was retired. `adapter-factory.ts:46` now unconditionally returns `ChevalDelegateAdapter` (PR #846). Every BB review → `ChevalDelegateAdapter` → `python3 cheval.py` → cheval's `httpx` substrate. Same for Flatline (`call_flatline_chat`) and Red-team (via `model-adapter.sh` shim). One HTTP boundary; provider-side fixes ship once and propagate to every TS/bash consumer.
+
+2. **Cycle-104 — Multi-model stabilization (within-company chains + voice-drop + MODELINV v1.1)**:
+   - **Within-company fallback chains** populated for every primary in `model-config.yaml`. Example: `openai:gpt-5.5-pro → openai:gpt-5.5 → openai:gpt-5.3-codex → openai:codex-headless`. Cheval walks the chain on retryable errors (EmptyContent / RateLimited / ProviderOutage / RetriesExhausted / ContextTooLarge).
+   - **Headless opt-in routing** via `LOA_HEADLESS_MODE` env (4 modes: `prefer-api` / `prefer-cli` / `api-only` / `cli-only`). CLI-only mode operates with zero API keys against the operator's Claude Code / Codex / Gemini CLI subscription quota.
+   - **`kind: cli` adapter routing fix** (T2.11) — closed a 2-layer architecture gap where CLI dispatch was being routed to the HTTP adapter and bombing on `_get_auth_header`. Each `kind: cli` entry now declares `extra.cli_model` to map Loa aliases to real CLI model names.
+   - **Voice-drop wiring** (T2.8) — when a voice's within-company chain exhausts (cheval exit 12 = `CHAIN_EXHAUSTED`), the flatline orchestrator **drops** that voice from consensus instead of substituting another company's model. The cycle-102 T1B.4 cross-company-substitution anti-pattern is structurally retired.
+   - **MODELINV v1.1 audit envelope** with additive `final_model_id`, `transport`, `config_observed`, `models_failed[]` fields. Every cheval invocation emits a signed envelope at `.run/model-invoke.jsonl`.
+
+3. **Cycle-107 — Multi-model activation**. Flipped `hounfour.flatline_routing: false → true` as the framework default. Without this flip, the cycle-104 work was **INERT for FL + RT** — they fell through to the legacy `model-adapter.sh.legacy` path. Live verification this release confirms:
+   - **FL**: 3-model run (Opus + GPT-5.5-pro + Gemini-3.1-pro-preview), 549s, MODELINV envelopes emitted per voice with correct chain population.
+   - **RT**: MODELINV envelope confirmed, cheval audit signature present, legacy path NOT invoked.
+   - **BB**: already live via cycle-103 path; cycle-104 sprint-3 T3.4 verified Google substrate at 297-539KB (KF-008 RESOLVED-architectural-complete).
+
+### Substrate validation (live evidence)
+
+| Replay | Trials | Result |
+|--------|--------|--------|
+| T2.10 KF-003 within-company chain (cycle-104 sprint-2) | 25 (5 sizes × 5 prompts at 30K-80K input) | 25/25 primary success; **0 KF-003 reproductions** — the EMPTY_CONTENT failure class is not reproducible at OpenAI in current deployment with our synthetic corpus. ~$2.50 spent. |
+| T3.4 KF-008 substrate replay (cycle-104 sprint-3) | 4 (297K, 302K, 317K, 539K body sizes) | 4/4 clean; `transport: http`, latencies 16.8-17.8s, no SocketError. KF-008 closed. ~$1 spent. |
+| T1.4 FL live multi-model (cycle-107 sprint-1) | 1 run, 3 voices | All voices' MODELINV envelopes correct; chains populated. |
+| T1.5 RT live cheval-mode (cycle-107 sprint-1) | 1 run | Envelope confirmed. |
+
+### Two supporting infrastructure cycles
+
+- **Cycle-105 — beads_rust migration recovery (KF-005 closure)**. `tools/beads-migration-repair.sh` heals dirty `.beads/beads.db` files via SQLite's canonical recreate-and-swap pattern; transactional + idempotent + backup-before-mutation + post-flight verify + auto-restore on failure. `beads-health.sh --repair` wraps the tool. Pre-commit hook flipped from FAIL → WARN. CI workflow `.github/workflows/beads-health-gate.yml`. **CLAUDE.md Beads-First v1.29.0 claim is now empirically true** (beads works on healthy installs; healable in one command on dirty installs).
+
+- **Cycle-106 — Framework template hygiene (closes #818)**. The framework's own operator history (`grimoires/loa/cycles/`, `NOTES.md`, `a2a/`, `visions/`, `memory/`, `proposals/` per-cycle, `context/`) was tracked in the repo and propagating to downstream consumers via `/update-loa` merges (76 leaked files in `loa-constructs`). Cycle-106 lands a 3-mode zone manifest at `grimoires/loa/zones.yaml` (framework / project / shared), a PreToolUse `zone-write-guard.sh` hook, mount-loa scaffold expansion, and a forward-only migration via `git rm --cached` of 288 files. New operators cloning Loa now get a clean project-zone scaffolding.
+
+### Removed / deprecated
+
+- `LOA_BB_FORCE_LEGACY_FETCH` env var (cycle-104 T2.14). The legacy Node-fetch path it gated was already deleted in cycle-103; the env hatch only produced a guided-rollback error and carried no actual rollback capability.
+
+### Rollback path
+
+Operators who hit a regression can revert `flatline_protocol.code_review.model` swap behavior + the cheval routing in `.loa.config.yaml`:
+
+```yaml
+hounfour:
+  flatline_routing: false   # legacy: revert FL + RT to model-adapter.sh.legacy
+```
+
+BB is unaffected by the flag — it has used `ChevalDelegateAdapter` unconditionally since cycle-103. To rollback BB to pre-cheval state would require a much larger revert.
+
+### Operator action needed post-upgrade
+
+- **Refresh local config**: if your `.loa.config.yaml` had `flatline_routing: false`, flip it to `true` to engage the multi-model work (or accept the new framework default by removing the override).
+- **Refresh pre-commit hook**: run `.claude/scripts/install-beads-precommit.sh --force` to pick up the WARN-not-FAIL behavior for the beads migration bug.
+- **(Optional) Zone manifest**: review `grimoires/loa/zones.yaml` — the framework seeds it with reasonable defaults; you own the instance going forward. Edit per your project's conventions.
+
+### Migration guide
+
+See `docs/migration/v1.157-multimodel-live.md` for full operator-facing details + the activation-flag behavior matrix.
+
+### Architecture Decision Record
+
+See `docs/architecture/ADR-002-multimodel-cheval-substrate.md` for the design rationale (why cheval-as-single-HTTP-boundary, why within-company chains, why voice-drop vs cross-company substitution).
+
+### Cycle PR lineage
+
+- Cycle-103: #846 (cheval unification merged before this milestone)
+- Cycle-104: #849 (sprint-1), #851 (sprint-2), #852 (sprint-3), #853 (T2.9)
+- Cycle-105: #854 (kickoff), #855 (planning), #856 (sprint-1), #857 (sprint-2)
+- Cycle-106: #858 (kickoff), #859 (sprint-1), #860 (sprint-2 + closes #818)
+- Cycle-107: #861 (multi-model activation + live verification)
+
+### Closes
+
+- #843 (unify provider boundary via loa_cheval — implementation complete)
+- #845 (KF-008 BB Google API SocketError — RESOLVED-architectural-complete)
+- #847 (cycle-104 within-company fallback chains + headless mode)
+- #818 (zone-boundary leak — framework's project-state files propagate downstream)
+- #661 (beads_rust 0.2.1 migration NOT NULL constraint — RESOLVED-VIA-WORKAROUND)
+
+### Bundled tags
+
+v1.131.0 → v1.156.0 (26 incremental auto-tags) plus the unreleased semver-bump.sh prerelease-tag fix (#785).
+
+### Fixed (during this milestone)
+
+- `semver-bump.sh` now recognizes prerelease tags (`vX.Y.Z-{alpha,beta,rc}.N`) and increments the prerelease counter type-agnostically. (#785)
 
 ## [1.130.0] — 2026-05-06 — Model-registry consolidation, agent-network audit infrastructure, subscription-auth headless adapters
 

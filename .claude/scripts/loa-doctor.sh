@@ -214,11 +214,50 @@ check_optional_tools() {
     # ajv — optional (full JSON Schema validation)
     if command -v ajv &>/dev/null; then
         local ajv_ver
-        ajv_ver=$(ajv --version 2>&1 | head -1 || echo "unknown")
+        ajv_ver=$(_loa_probe_ajv_version)
         _doctor_add_check "optional_tools" "ajv" "ok" "JSON Schema validator" "$ajv_ver"
     else
         _doctor_add_check "optional_tools" "ajv" "info" "Not installed — enables full JSON Schema validation"
     fi
+}
+
+# =============================================================================
+# Probe helpers (extracted for testability per BB #916 F-001/F2)
+# =============================================================================
+
+_loa_probe_ajv_version() {
+    # bug-725: ajv-cli v5.0.0+ dropped `--version` / `-V` / the `version`
+    # subcommand. The legacy `ajv --version 2>&1 | head -1` captured the
+    # v5 usage-error stderr text ("error: parameter ... is required") as
+    # if it were the version. Three-tier fallback:
+    #   1. `ajv --version` — v4 happy path (output matches X.Y[.Z])
+    #   2. `ajv --help` parse — v5+ help text includes "version X.Y.Z"
+    #   3. literal "unknown (ajv-cli@5+)" — informative placeholder
+    #
+    # bug-725 / BB #916 F1: the --help parse pipe is guarded against
+    # `set -e` + `pipefail` callers. `grep` returns 1 when no match,
+    # `set -o pipefail` propagates that as the pipe's exit code, and
+    # `set -e` would abort the calling script before assigning the
+    # placeholder. The `|| true` on the pipe (and `2>&1 || true` on the
+    # initial `--help` capture) keep the chain non-fatal.
+    local ajv_ver=""
+    # v4 path: `ajv --version` prints "5.0.0\n" with exit 0.
+    if ajv_ver=$(ajv --version 2>/dev/null) && [[ "$ajv_ver" =~ ^[0-9]+\.[0-9]+ ]]; then
+        printf '%s' "$ajv_ver"
+        return 0
+    fi
+    # v5+ fallback: parse `--help` output for a "version X.Y.Z" line.
+    # Capture help text first (errexit-safe), then parse (pipefail-safe).
+    local help_text
+    help_text=$(ajv --help 2>&1 || true)
+    ajv_ver=$(printf '%s\n' "$help_text" \
+        | grep -oE 'version [0-9]+\.[0-9]+(\.[0-9]+)?' \
+        | head -1 \
+        | awk '{print $2}' || true)
+    if [[ -z "$ajv_ver" ]]; then
+        ajv_ver="unknown (ajv-cli@5+)"
+    fi
+    printf '%s' "$ajv_ver"
 }
 
 check_framework() {

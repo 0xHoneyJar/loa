@@ -1,6 +1,7 @@
 ---
 name: loa-credentials
 description: Credential management and audit for API keys and secrets
+role: implementation
 allowed-tools: Read, Grep, Glob, Bash(printenv LOA_*)
 capabilities:
   schema_version: 1

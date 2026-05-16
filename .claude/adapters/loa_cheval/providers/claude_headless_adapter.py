@@ -53,7 +53,11 @@ import subprocess
 import time
 from typing import Any, Dict, List, Optional
 
-from loa_cheval.providers.base import ProviderAdapter, enforce_context_window
+from loa_cheval.providers.base import (
+    ProviderAdapter,
+    build_headless_subprocess_env,
+    enforce_context_window,
+)
 from loa_cheval.types import (
     CompletionRequest,
     CompletionResult,
@@ -104,6 +108,10 @@ class ClaudeHeadlessAdapter(ProviderAdapter):
           cheap: claude-headless:claude-sonnet-4-6
     """
 
+    # Cycle-110 FR-2.3 — subscription-CLI dispatch; circuit-breaker writes
+    # route to the (anthropic, headless) bucket.
+    auth_type: str = "headless"
+
     def complete(self, request: CompletionRequest) -> CompletionResult:
         """Invoke `claude -p` and return a normalized CompletionResult."""
         model_config = self._get_model_config(request.model)
@@ -112,35 +120,65 @@ class ClaudeHeadlessAdapter(ProviderAdapter):
         prompt = self._build_prompt(request.messages)
         cmd = self._build_command(request, model_config, prompt)
         timeout_s = self._compute_timeout()
+        # Cycle-110 sprint-2b2b1 BB iter-2 F-001 closure: read per-model
+        # headless_concurrency_limit (cycle-110 ModelConfig field). Default 50
+        # when operator hasn't seeded a stress-test-discovered value (SDD §5.6).
+        n_slots = getattr(model_config, "headless_concurrency_limit", None) or 50
 
         logger.debug(
-            "claude-headless invoking: model=%s timeout=%.0fs prompt_chars=%d",
+            "claude-headless invoking: model=%s timeout=%.0fs prompt_chars=%d slots=%d",
             request.model,
             timeout_s,
             len(prompt),
+            n_slots,
+        )
+
+        # Cycle-110 sprint-2b2b1 T2.11 — acquire a slot in the cross-process
+        # N-slot semaphore before subprocess invocation. Caps headless
+        # concurrency at the per-CLI safe limit (FR-8.6 / SDD §5.6 v1.1).
+        # On exhaustion → [CHAIN-EXHAUSTED-CONCURRENCY] distinct from
+        # CHAIN_EXHAUSTED so MODELINV can record semaphore_exhausted=true.
+        from loa_cheval.adapters.headless_concurrency import (
+            SemaphoreExhausted as _SemaphoreExhausted,
+            acquire_slot as _acquire_slot,
         )
 
         start = time.monotonic()
         try:
-            proc = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=timeout_s,
-                check=False,
-                # claude -p reads prompt from argv (we passed it via the cmd
-                # array). Stdin stays closed to avoid hangs.
-                stdin=subprocess.DEVNULL,
-            )
-        except subprocess.TimeoutExpired:
+            with _acquire_slot("claude-headless", n_slots=n_slots):
+                try:
+                    proc = subprocess.run(
+                        cmd,
+                        capture_output=True,
+                        text=True,
+                        timeout=timeout_s,
+                        check=False,
+                        # claude -p reads prompt from argv (we passed it via the cmd
+                        # array). Stdin stays closed to avoid hangs.
+                        stdin=subprocess.DEVNULL,
+                        # cycle-109 follow-up (#879 / #880): strip ANTHROPIC_API_KEY
+                        # so claude -p uses OAuth subscription, not API mode.
+                        env=build_headless_subprocess_env(),
+                    )
+                except subprocess.TimeoutExpired:
+                    raise ProviderUnavailableError(
+                        self.provider,
+                        f"claude -p timed out after {timeout_s:.0f}s",
+                    )
+                except FileNotFoundError as exc:
+                    raise ConfigError(
+                        f"claude CLI not found on PATH (set CLAUDE_HEADLESS_BIN to override). "
+                        f"Install with: npm install -g @anthropic-ai/claude-code. Original: {exc}"
+                    ) from exc
+        except _SemaphoreExhausted as exc:
+            # C12 closure: distinct exit class so MODELINV records
+            # semaphore_exhausted=true and the caller routes the failure
+            # separately from CHAIN_EXHAUSTED.
             raise ProviderUnavailableError(
                 self.provider,
-                f"claude -p timed out after {timeout_s:.0f}s",
-            )
-        except FileNotFoundError as exc:
-            raise ConfigError(
-                f"claude CLI not found on PATH (set CLAUDE_HEADLESS_BIN to override). "
-                f"Install with: npm install -g @anthropic-ai/claude-code. Original: {exc}"
+                f"[CHAIN-EXHAUSTED-CONCURRENCY] claude-headless semaphore "
+                f"exhausted after {exc.waited_seconds:.1f}s "
+                f"(n_slots={exc.n_slots})",
             ) from exc
 
         latency_ms = int((time.monotonic() - start) * 1000)
@@ -229,6 +267,12 @@ class ClaudeHeadlessAdapter(ProviderAdapter):
         prompt: str,
     ) -> List[str]:
         """Build the claude argv. Headless, plan-mode (read-only), no tools."""
+        # cycle-104 sprint-2 T2.11 amendment: when the chain entry is a
+        # kind:cli alias (e.g. `claude-headless`) the CLI binary doesn't
+        # recognize the Loa alias as a model name. Honor `extra.cli_model`
+        # if declared so the operator can map the alias to a real CLI
+        # model identifier (e.g. `sonnet`, `opus`).
+        cli_model = (model_config.extra or {}).get("cli_model") or request.model
         cmd: List[str] = [
             self._claude_bin(),
             "-p",
@@ -243,7 +287,7 @@ class ClaudeHeadlessAdapter(ProviderAdapter):
             "--tools",
             "",
             "--model",
-            request.model,
+            cli_model,
         ]
 
         effort = self._resolve_effort(request, model_config)

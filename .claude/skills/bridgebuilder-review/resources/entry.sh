@@ -10,23 +10,49 @@ SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 # Bash 4.0+ version guard
 source "${SKILL_DIR}/../../scripts/bash-version-guard.sh"
 
-# .env Trust Model (Decision Trail — Bridgebuilder Deep Review, cycle-037):
-# `source .env` executes arbitrary shell code — this is by design.
-# .env files are trusted local input: user-controlled, never committed (.gitignore'd).
-# Same trust model as Node's dotenv and Python's python-dotenv libraries.
-# API keys sourced here are available to the Node child process (exec'd below).
-# Secrets in review output are stripped by the redaction pipeline
-# (bridge-github-trail.sh § redact_security_content).
-#
-# Original: Source .env files for API keys (ANTHROPIC_API_KEY etc.) — issue #395
-# set -a exports all sourced variables; set +a restores default behavior
-if [[ -f .env ]]; then
-  set -a; source .env; set +a
-fi
-if [[ -f .env.local ]]; then
-  set -a; source .env.local; set +a
-fi
+# .env Trust Model (Issue #898 — reversed from cycle-037 #395): the legacy
+# `set -a; source .env; set +a` pattern executes ANY bash inside .env files
+# (`$(...)`, backticks, chained commands), turning a hostile or
+# carelessly-edited .env into arbitrary code execution as the BB
+# orchestrator. .env is now parsed structurally by
+# .claude/scripts/lib/env-loader.sh — KEY=VALUE only, no shell expansion.
+# API keys are still exported so the Node child process (exec'd below)
+# inherits them. Same trust improvement applied to flatline-orchestrator.sh.
+# shellcheck disable=SC1091
+source "${SKILL_DIR}/../../scripts/lib/env-loader.sh"
+load_env_file .env
+load_env_file .env.local
 
+# ============================================================================
+# VESTIGIAL — cycle-103 sprint-1 T1.8 / AC-1.3
+# ============================================================================
+# This NODE_OPTIONS Happy Eyeballs fix is preserved at merge time per AC-1.5
+# but is no longer load-bearing. After cycle-103 sprint-1 unification, BB no
+# longer issues fetch() to provider APIs from Node — every LLM-API call goes
+# through .claude/adapters/cheval.py (via ChevalDelegateAdapter, commits
+# 1e1381dd + 92c0057e). Python httpx does not depend on Node's
+# --network-family-autoselection-attempt-timeout. The KF-001 failure mode
+# the flag was added to mitigate (cross-model degradation on
+# slow-but-reachable IPv4 paths) is now isolated to whatever Node fetch
+# remains in github-cli.ts and similar GitHub-API paths — NOT to LLM calls.
+#
+# TODO(cycle-104+): remove this entire NODE_OPTIONS block AND its companion
+# LOA_BB_DISABLE_FAMILY_TIMEOUT_FIX env hatch. Removal is gated on:
+#   1. Observable operator-green signal across ≥1 full cycle that the
+#      cheval delegate path remains the BB hot path for provider calls.
+#      (Cycle-104 sprint-2 T2.14 removed the companion
+#      LOA_BB_FORCE_LEGACY_FETCH operator-rollback signal because the
+#      legacy fetch path it gated was already gone — the constructor
+#      check is no longer load-bearing.)
+#   2. Confirmation that github-cli.ts and other Node fetch sites do not
+#      hit the same Happy Eyeballs failure mode (KF-001 is provider-API
+#      specific per the original diagnostic).
+# Until both gates are met, the flag stays for safety.
+#
+# Tracked by tests/unit/entry-sh-node-options-vestigial.bats which fails
+# if the VESTIGIAL marker is removed without the companion cycle-104
+# removal landing.
+# ============================================================================
 # Happy Eyeballs autoselection-attempt-timeout (cycle-102 sprint-1E / KF-001 fix).
 #
 # Node 20+ undici fetch uses RFC 8305 Happy Eyeballs to race concurrent IPv6 +

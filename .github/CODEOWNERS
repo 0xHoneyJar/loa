@@ -40,3 +40,30 @@ evals/baselines/                @janitooor
 # Grimoire state (State Zone)
 # ─────────────────────────────────────────────────────────────────────────────
 grimoires/                      @janitooor
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Cycle-108 advisor-strategy — security-critical surface
+# Red Team ATK-A1 (skill-role spoofing), ATK-A17 (admin-merge bypass defense),
+# ATK-A18 (CODEOWNERS self-protection), ATK-A20 (pricing manipulation defense).
+# These rules supplement the catch-all .claude/ owner above; left explicit
+# so future grep'ers can audit the cycle-108 attack surface in isolation.
+# ─────────────────────────────────────────────────────────────────────────────
+.claude/data/schemas/advisor-strategy.schema.json   @janitooor
+.claude/adapters/loa_cheval/config/loader.py        @janitooor
+.claude/skills/*/SKILL.md                           @janitooor
+.claude/defaults/model-config.yaml                  @janitooor
+.github/CODEOWNERS                                  @janitooor
+.github/workflows/cycle-108-*.yml                   @janitooor
+
+# Cycle-108 sprint-2 T2.J — pricing baseline + sprint-selection algorithm.
+# ATK-A6 (historical-medians.json) requires the file be CODEOWNERS-protected;
+# silent edits to the medians would distort the cost-cap pre-estimate.
+.run/historical-medians.json                        @janitooor
+.run/cycles/cycle-108-advisor-strategy/             @janitooor
+tests/fixtures/cycle-108/                           @janitooor
+tools/select-benchmark-sprints.py                   @janitooor
+tools/modelinv-rollup.sh                            @janitooor
+tools/sprint-kind-classify.py                       @janitooor
+tools/advisor-benchmark*.sh                         @janitooor
+tools/advisor-benchmark-stats.py                    @janitooor
+tools/modelinv-coverage-audit.py                    @janitooor

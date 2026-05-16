@@ -170,6 +170,48 @@ EOF
     cat <<EOF
 )
 
+# Cycle-110 sprint-2a T2.5 ([PRD:FR-2.3], SDD §3.2): propagate auth_type +
+# dispatch_group into the generated bash maps so downstream bash callers
+# (resolver, cheval, substrate-health, gen-bb-registry consumer scripts)
+# can look up the same metadata the Python loader validates.
+declare -A MODEL_AUTH_TYPE=(
+EOF
+
+    # BB iter-1 #904 F-002 / jq-null-iteration closure (MED): match Python
+    # loader strictness — every model entry MUST have auth_type;
+    # missing field = jq error with the offending model_id named. Empty
+    # `models` is permitted via `// {}` (matches test_provider_without_models_passes).
+    yq eval -o=json '.providers' "$CONFIG_FILE" | jq -r '
+        to_entries[] as $p
+        | ($p.value.models // {}) | to_entries[] as $m
+        | if ($m.value.auth_type // null) == null
+          then error("[CODEGEN-INVALID] providers.\($p.key).models.\($m.key) missing required auth_type — run gen-adapter-maps after annotating model-config.yaml per SDD §3.2")
+          elif ([$m.value.auth_type] | inside(["headless", "http_api", "aws_iam"]) | not)
+          then error("[CODEGEN-ENUM-INVALID] providers.\($p.key).models.\($m.key).auth_type=\($m.value.auth_type); allowed: headless|http_api|aws_iam")
+          else "    [\"\($m.key)\"]=\"\($m.value.auth_type)\""
+          end
+    '
+
+    cat <<EOF
+)
+
+declare -A MODEL_DISPATCH_GROUP=(
+EOF
+
+    yq eval -o=json '.providers' "$CONFIG_FILE" | jq -r '
+        to_entries[] as $p
+        | ($p.value.models // {}) | to_entries[] as $m
+        | if ($m.value.dispatch_group // null) == null
+          then error("[CODEGEN-INVALID] providers.\($p.key).models.\($m.key) missing required dispatch_group — run gen-adapter-maps after annotating model-config.yaml per SDD §3.2 / C14")
+          elif ($m.value.dispatch_group | test("^[a-z][a-z0-9-]{1,63}$") | not)
+          then error("[CODEGEN-INVALID] providers.\($p.key).models.\($m.key).dispatch_group=\($m.value.dispatch_group); must match ^[a-z][a-z0-9-]{1,63}$")
+          else "    [\"\($m.key)\"]=\"\($m.value.dispatch_group)\""
+          end
+    '
+
+    cat <<EOF
+)
+
 declare -A COST_INPUT=(
 EOF
 

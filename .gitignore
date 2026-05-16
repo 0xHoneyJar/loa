@@ -265,3 +265,22 @@ app/package.json
 app/package-lock.json
 app/tsconfig.json
 app/ecosystem.config.js
+
+# cycle-106 sprint-1 T1.6: framework template hygiene (zone boundaries).
+# Framework's own operator history must NOT track into the template.
+# Each operator's working tree keeps these locally; git ignores them.
+# Declared as project-zone in grimoires/loa/zones.yaml.
+grimoires/loa/cycles/
+grimoires/loa/NOTES.md
+grimoires/loa/handoffs/
+grimoires/loa/a2a/
+grimoires/loa/visions/
+grimoires/loa/memory/
+grimoires/loa/legacy/
+grimoires/loa/context/
+grimoires/loa/ledger.json.bak*
+# NOT gitignored (still tracked):
+#   grimoires/loa/zones.yaml          (project-authored, version-controlled)
+#   grimoires/loa/runbooks/           (framework-shipped runbooks)
+#   grimoires/loa/known-failures.md   (shared zone)
+#   grimoires/loa/ledger.json         (project sprint ledger)

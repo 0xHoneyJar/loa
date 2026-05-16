@@ -1,6 +1,7 @@
 ---
 name: enhance
 description: Enhance a prompt for better outputs with analysis and optimization
+role: implementation
 allowed-tools: Read, Grep, Glob
 capabilities:
   schema_version: 1

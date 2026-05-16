@@ -1,6 +1,7 @@
 ---
 name: loa-setup
 description: "Loa onboarding wizard: environment detection, profile questionnaire, config generation, and post-config explanation in ≤10 turns"
+role: planning
 capabilities:
   schema_version: 1
   read_files: true

@@ -1,6 +1,7 @@
 ---
 name: architect
 description: Create comprehensive Software Design Document based on PRD
+role: planning
 capabilities:
   schema_version: 1
   read_files: true

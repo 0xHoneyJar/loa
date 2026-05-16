@@ -317,11 +317,14 @@ curl \
     grep -qF '.claude/scripts/lib/endpoint-validator.sh' "$SCANNER"
     grep -qF '.claude/scripts/mount-loa.sh' "$SCANNER"
     grep -qF '.claude/scripts/model-health-probe.sh' "$SCANNER"
-    grep -qF '.claude/scripts/model-adapter.sh.legacy' "$SCANNER"
     [[ -f .claude/scripts/lib/endpoint-validator.sh ]]
     [[ -f .claude/scripts/mount-loa.sh ]]
     [[ -f .claude/scripts/model-health-probe.sh ]]
-    [[ -f .claude/scripts/model-adapter.sh.legacy ]]
+    # cycle-109 sprint-3 T3.7 (C109.OP-S3): legacy adapter deleted;
+    # exempt-list entry removed alongside. The legacy path MUST be absent
+    # from both the scanner's EXEMPT_FILES and from the filesystem.
+    ! grep -qF '.claude/scripts/model-adapter.sh.legacy' "$SCANNER"
+    [[ ! -f .claude/scripts/model-adapter.sh.legacy ]]
 }
 
 # ---------------------------------------------------------------------------

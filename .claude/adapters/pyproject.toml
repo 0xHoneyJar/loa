@@ -10,8 +10,15 @@ requires-python = ">=3.8"
 dependencies = []
 
 [project.optional-dependencies]
-full = ["httpx>=0.24.0", "pyyaml>=6.0"]
-dev = ["pytest>=7.0"]
+# Sprint 4A (cycle-102, AC-4.5e): httpx[http2] pulls in h2 + hpack so the new
+# `http_post_stream()` transport in providers/base.py negotiates HTTP/2 via
+# ALPN. HTTP/2 is the preferred path for the streaming transport because
+# multiplexing + PING-frame keepalive survives Cloudflare/ALB idle timers
+# more robustly than HTTP/1.1. The `h2`-missing fallback in
+# `_detect_http2_available` keeps HTTP/1.1 streaming functional when h2
+# isn't installed (graceful degradation, not a hard requirement).
+full = ["httpx[http2]>=0.24.0", "pyyaml>=6.0"]
+dev = ["pytest>=7.0", "pytest-httpx>=0.30.0"]
 
 [project.scripts]
 cheval = "loa_cheval.__main__:main"

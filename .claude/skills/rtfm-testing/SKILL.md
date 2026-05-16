@@ -1,6 +1,7 @@
 ---
 name: rtfm
 description: Run documentation-driven testing against Ground Truth and protocols
+role: review
 allowed-tools: Read, Grep, Glob, Bash(bats tests/*), Bash(npm test *), Bash(.claude/scripts/rtfm-*)
 capabilities:
   schema_version: 1

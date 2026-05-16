@@ -1,6 +1,8 @@
 ---
 name: run-bridge
 description: "Run Bridge — Autonomous Excellence Loop"
+role: review
+primary_role: review
 capabilities:
   schema_version: 1
   read_files: true

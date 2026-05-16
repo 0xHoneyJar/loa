@@ -1,676 +1,1532 @@
-# Product Requirements Document: Model Registry Consolidation + Per-Skill Granularity
+# Cycle-109 PRD — Multi-Model Substrate Hardening
 
-**Version:** 1.3 (Flatline pass #3 kaironic plateau: 2 PRD-level themes integrated; 4 SDD-shape operational refinements deferred to `/architect`)
-**Date:** 2026-05-04
-**Author:** PRD Architect (deep-name + Claude Opus 4.7 1M)
-**Status:** Draft — 3 PRD-level Flatline passes complete (kaironic stop at pass #3: 90% agreement, finding-rotation at finer grain, first DISPUTED item appearing). Ready for `/architect`.
-**Cycle (proposed):** `cycle-099-model-registry` *(actual ID assigned by ledger when `/sprint-plan` runs)*
+> **Version**: 1.4 (Flatline SDD-review v3/v4/v5/v6 BLOCKERs closed-or-overridden per C109.OP-8/9/10. v6 closures: truncation_waiver_applied schema field; consensus_outcome algorithm spec §3.2.2.1; voices_succeeded_ids schema field; §4.4 dead-code fix; chain-walk → DEGRADED surface; exit-code collision corrected. 3 residual operator-overridden per C109.OP-10 absorbed into Sprint 2 AC.)
+> **Status**: Draft — PRD gate PASSED-WITH-OPERATOR-OVERRIDE per C109.OP-4/8/9/10 precedent; ready for `/run sprint-1`
+> **Cycle**: cycle-109-substrate-hardening
+> **Created**: 2026-05-13 (v1.0); v1.1 Flatline integrate; v1.2/1.3 v3/v4/v5 SKP closures; v1.4 v6 SKP closures + C109.OP-10 operator-override absorbed into Sprint 2 AC
+> **Author**: Claude (cycle-109 kickoff via `/plan-and-analyze`, autonomous mode under operator delegation)
+> **Predecessor**: cycle-108-advisor-strategy (PR #867 merged at `6e76582d`, substrate-validation close per decision-fork c')
+> **Operator**: @janitooor
+> **Approval ledger**: `grimoires/loa/cycles/cycle-109-substrate-hardening/operator-approval.md`
+> **Flatline trajectory**: `grimoires/loa/a2a/flatline/cycle-109-prd-review.json` — substrate self-reported `confidence: full` while Opus voice effectively dropped (1/14 findings); operator-override recorded as cycle-109 evidence per C109.OP-4
+> **Reality ground-truth**: `grimoires/loa/reality/multimodel-substrate.md` (fresh /ride 2026-05-13 against HEAD `6e76582d`)
+> **Known-failures ground-truth**: `grimoires/loa/known-failures.md` (KF-001 through KF-010)
 
-**Source issue:**
-- [#710](https://github.com/0xHoneyJar/loa/issues/710) — Refactor: consolidate model registries to single source of truth + add config extension mechanism
+---
 
-> **v1.2 → v1.3 changes** (Flatline pass #3, `grimoires/loa/a2a/flatline/cycle-099-prd-review-v12.json`, Opus + GPT-5.3-codex + Gemini-3.1-pro-preview, **90% model agreement, 1 DISPUTED, 6 BLOCKERS, 4 HIGH_CONSENSUS — kaironic plateau signal**):
-> - **Kaironic stop declared** per cycle-098 PRD v1.4 → v1.5 pattern: finding-rotation at finer grain (IPv6/IDN/punycode URL canonicalization, shell-escape safety, flock over network filesystems, BB hybrid divergence detection — all NEW themes that are increasingly specific operational refinements appropriate for SDD-level), DISPUTED item emerging (IMP-004 GPT 480 vs Gemini 880 delta 330), agreement decreasing.
-> - **2 PRD-level themes integrated**:
->   - **IMP-001 (HIGH 865) credential contract for operator-added providers** — New NFR-Sec-5: v1 scope clarified — operator-added models in `model_aliases_extra` REUSE the provider's existing credential env var (per cycle-095); no new credential surface introduced. Operator wanting different credentials per operator-added model: not supported in v1; must use System Zone registration (cycle-level approval). FR-2.8 endpoint allowlist + NFR-Sec-1 SSRF defenses already prevent operator from routing to a different provider via spoofed endpoint.
->   - **IMP-005 (HIGH 845) fail-closed vs legacy compat conflict** — FR-3.7 strengthened: during cycle-099 deprecation window, legacy shape unresolved bindings emit deprecation warning AND fall back to skill's framework default tier mapping (FR-3.5). This is the **ONE EXCEPTION** to FR-3.8 fail-closed semantics, explicitly time-bounded to one cycle. New `skill_models` shape always fail-closed. Cycle-100 (or operator setting `legacy_shapes_fail_closed: true` for early opt-in) makes legacy bindings also fail-closed.
-> - **4 SDD-shape operational refinements deferred to `/architect` SDD review** (per kaironic plateau — appropriate level): SKP-003 (URL canonicalization edge cases: IPv6 literals, IDN/punycode, port specs); SKP-004 (shell-escape safety in `.run/merged-model-aliases.sh`); SKP-005 (flock semantics over network filesystems — NFS/SMB caveats); SKP-006 (hybrid BB TS-runtime vs runtime-overlay divergence detection). These will surface in SDD-level Flatline reviews and integrate as architecture-level mitigations rather than PRD-level scope.
-> - **DISPUTED item recorded but NOT integrated**: IMP-004 (avg 645, delta 330) — per-invocation cost forecasts at resolution time. GPT 480 (low value, complex) vs Gemini 880 (high operator-safety value). Decision: defer to operator's discretion at SDD; cycle-098 disputed-rotation pattern says "rotation is signal, not action."
->
-> **v1.1 → v1.2 changes** (Flatline pass #2, `grimoires/loa/a2a/flatline/cycle-099-prd-review-v11.json`, Opus + GPT-5.3-codex + Gemini-3.1-pro-preview, 100% model agreement, 9 BLOCKERS → 5 BLOCKERS = 4 closed by v1.1):
-> - **SKP-001 (CRITICAL 910) integrated** — Deferred Decisions table strengthened with **owner**, **deadline**, **fallback-if-no-consensus** columns for DD-1..DD-5. 48-72h ceiling per decision; missed deadline triggers fallback choice.
-> - **SKP-002 (CRITICAL 885) integrated** — FR-3.4 + FR-3.9 strengthened: legacy `prefer_pro_models` overlay gated behind explicit `respect_prefer_pro: true` opt-in for legacy-shape skills (default false during deprecation window) — isolates overlay surprise to migrated skills. **NEW: property-based tests** for FR-3.9 precedence invariants per cycle-098 SKP-002 pattern. Algorithm complexity preserved (6 stages); state-space reduced by gating.
-> - **SKP-003 (HIGH 770) integrated** — FR-1.9 strengthened: atomic write (temp + `rename(2)`), `flock` shared/exclusive locks, monotonic version header in `.run/merged-model-aliases.sh` first line.
-> - **SKP-004 (HIGH 755) integrated** — NFR-Sec-1 + FR-2.8 strengthened: canonical URL parser (HTTPS only, default port enforced, path normalized); DNS-resolved IP re-verified at request time (defeats DNS rebinding); HTTP redirects crossing trust boundaries denied; TLS verification mandatory; no operator `verify=false` override.
-> - **SKP-005 (HIGH 730) integrated** — FR-1.4 strengthened: operator-added models default to **minimal permissions baseline** (`chat` only). Higher permissions require System Zone `model-config.yaml` registration (cycle-level approval) OR explicit operator-acknowledged baseline (`acknowledge_permissions_baseline: true`).
-> - **IMP-001 (HIGH_CONSENSUS 890) integrated** — DD-3 row in Deferred Decisions table strengthened: explicit `model_aliases_override` field design specification required from `/architect`; partial vs full override semantics documented; silent override rejected.
-> - **IMP-002 (HIGH_CONSENSUS 820) integrated** — New FR-5.7: runtime resolution tracing via `LOA_DEBUG_MODEL_RESOLUTION=1` env var; structured `[MODEL-RESOLVE]` stderr log per resolution showing stage-by-stage path. `model-invoke --validate-bindings --verbose` enables it for dry-run.
-> - **IMP-003 (HIGH_CONSENSUS 835) integrated** — FR-1.9 strengthened: explicit fail-closed semantics for file-missing (regenerate), parse-error (refuse to start), permission failure (refuse to start), stale (regenerate via SHA256 hash mismatch).
-> - **IMP-004 (HIGH_CONSENSUS 735) integrated** — FR-1.9 strengthened: SHA256-based invalidation (NOT mtime — under concurrent writes mtime can lie); invalidation check under shared `flock`; regeneration under exclusive `flock`. Race-condition mitigation explicit.
-> - **IMP-006 (HIGH_CONSENSUS 845) integrated** — New SC-13: legacy compatibility golden tests at `tests/integration/legacy-config-golden.bats` covering all 4 existing config shapes; cycle-098-vintage `.loa.config.yaml` fixtures resolve identically before/after migration.
->
-> **v0 → v1.1 changes** (Flatline pass #1, `grimoires/loa/a2a/flatline/cycle-099-prd-review.json`, Opus + GPT-5.3-codex + Gemini-3.1-pro-preview, 100% model agreement):
-> - **SKP-001 (CRITICAL 950) integrated** — Decision 4 revised from "build-time codegen" to **hybrid (build-time codegen for defaults + runtime YAML overlay for operator-added entries)**. Bridgebuilder reads `.loa.config.yaml::model_aliases_extra` at startup and merges with compiled defaults. Closes runtime/build-time visibility gap.
-> - **SKP-003 (CRITICAL 910 + HIGH 750) integrated** — NFR-Sec-1 strengthened: provider-specific endpoint allowlist; localhost / 169.254.169.254 / RFC 1918 IPs blocked unless `allow_local_endpoints` System Zone flag set; api_id format normalization (`^[a-zA-Z0-9._-]+$`); SSRF + command-injection security test corpus (NFR-Sec-1.1). New FR-2.8 enforces endpoint allowlist per provider.
-> - **SKP-004 (CRITICAL 860 + HIGH 720) integrated** — FR-3.5 strengthened: startup validation refuses launch on unresolved (skill, role, tier) bindings. New FR-3.8 makes fail-closed semantics explicit. FR-1.4 adds permissions-elevation rejection (operator can't elevate via `model_aliases_extra`).
-> - **SKP-002 BASH-YAML (HIGH 780) integrated** — New FR-1.9: startup hook (Python/Node) writes merged config to `.run/merged-model-aliases.sh` (mode 0600); bash adapters source this file. No bash YAML parsing.
-> - **SKP-002 PRECEDENCE (HIGH 780) integrated** — New FR-3.9: deterministic 6-stage resolution algorithm with explicit precedence + tiebreakers + conflict errors. Golden tests per skill in SC-9.
-> - **SKP-001 DEFERRED-DECISIONS (HIGH 760) integrated** — New "Deferred Decisions to Resolve Before Sprint 1" subsection. FR-1.4 / FR-2.1 / FR-2.3 marked release blockers for /architect SDD.
-> - **SKP-005 REPRODUCIBILITY (HIGH 720) integrated** — New NFR-Op-5: codegen reproducibility (pinned toolchain, canonical serialization, matrix CI). New FR-5.5 enforces in CI.
-> - **IMP-001 PRECEDENCE (avg 875) integrated** — covered by FR-3.9.
-> - **IMP-002 FALLBACK (avg 835) integrated** — covered by FR-3.8.
-> - **IMP-003 ROLLBACK (avg 785) integrated** — R-1 strengthened: dist regeneration rollback path + version-comment header (`// Generated from model-config.yaml@<sha>`) + dist tag for downstream submodule pinning.
-> - **IMP-004 SCHEMA-ARTIFACT (avg 815) integrated** — FR-2.2 strengthened: normative JSON Schema at `.claude/data/trajectory-schemas/model-aliases-extra.schema.json` (ajv-validated).
-> - **IMP-005 CLI-CONTRACT (avg 735) integrated** — New FR-5.6: `model-invoke --validate-bindings` contract spec (input, output schema, exit codes).
-> - **Postmortem of Flatline pass #1 itself**: 2 attempts failed in 3 distinct ways, all caused by the very registry fragmentation cycle-099 solves. Captured at `grimoires/loa/cycles/cycle-099-model-registry/decisions/02-flatline-prd-review-failure-postmortem-2026-05-04.md` as primary-source evidence for the cycle.
+## Source citations
 
-**Operator-approved scope decisions** (interview 2026-05-04 + Flatline integration):
+This PRD is grounded against three classes of source:
 
-| Decision | Locked value |
-|----------|--------------|
-| Cycle scope | Narrow — `#710` only (no cycle-098 follow-ups) |
-| Migration ordering | Phased — Sprint 1 SoT → Sprint 2 extension+granularity → Sprint 3 BB-TS codegen → Sprint 4 (optional) sunset |
-| Per-skill granularity shape | Tier-tag per skill (composes with cycle-095 `tier_groups`) |
-| Bridgebuilder TS migration | **Hybrid (v1.1 reframe)** — build-time codegen for defaults + runtime YAML overlay for operator-added entries. Per Flatline SKP-001 CRITICAL (950). |
+- **[CODE:file:line]** — direct citations to substrate code at HEAD `6e76582d`
+- **[REALITY:multimodel-substrate.md:§N]** — ride-extracted substrate facts
+- **[ISSUE:#N]** — GitHub issues verified OPEN at HEAD via `gh issue list` 2026-05-13
+- **[KF-NNN]** — `grimoires/loa/known-failures.md` ledger entries
+- **[OPERATOR:date]** — operator instructions in the /plan-and-analyze session
 
-**Replaces**: cycle-098 PRD (now archived at `grimoires/loa/cycles/cycle-098-agent-network/prd.md`).
-
-**Predecessor cycle**: `cycle-095-model-currency` shipped the YAML registry as SoT for the hounfour/cheval (Python) path. This PRD finishes that consolidation by extending SoT coverage to the remaining consumers (Bridgebuilder TS, Red Team adapter, model-permissions, personas, docs) and adding the operator-facing extension mechanism + per-skill granularity layer that #710 + the operator's follow-up comment ask for.
+Ungrounded inference is tagged `[ASSUMPTION]` and is explicitly listed in §11.4.
 
 ---
 
 ## Table of Contents
 
-1. [Executive Summary](#executive-summary)
-2. [Problem Statement](#problem-statement)
-3. [Goals & Success Metrics](#goals--success-metrics)
-4. [User Personas & Use Cases](#user-personas--use-cases)
-5. [Functional Requirements](#functional-requirements)
-6. [Non-Functional Requirements](#non-functional-requirements)
-7. [User Experience](#user-experience)
-8. [Technical Considerations](#technical-considerations)
-9. [Scope & Prioritization](#scope--prioritization)
-10. [Success Criteria](#success-criteria)
-11. [Risks & Mitigation](#risks--mitigation)
-12. [Timeline & Milestones](#timeline--milestones)
-13. [Appendix](#appendix)
+1. [Executive Summary](#1-executive-summary)
+2. [Problem Statement](#2-problem-statement)
+3. [Goals & Success Metrics](#3-goals--success-metrics)
+4. [User Personas & Use Cases](#4-user-personas--use-cases)
+5. [Functional Requirements](#5-functional-requirements)
+6. [Non-Functional Requirements](#6-non-functional-requirements)
+7. [User Experience](#7-user-experience)
+8. [Technical Considerations](#8-technical-considerations)
+9. [Scope & Prioritization](#9-scope--prioritization)
+10. [Success Criteria](#10-success-criteria)
+11. [Risks & Mitigation](#11-risks--mitigation)
+12. [Timeline & Milestones](#12-timeline--milestones)
+13. [Quality Gates & Loa Process Conformance](#13-quality-gates--loa-process-conformance)
+14. [Appendix](#14-appendix)
 
 ---
 
-## Executive Summary
+## 1. Executive Summary
 
-Loa's model selection logic is fragmented across **5+ independent registries** that drift independently and require coordinated multi-file edits to keep in sync. Cycle-095 began consolidating this by promoting `.claude/defaults/model-config.yaml` to be the source of truth for the hounfour/cheval (Python) execution path. Cycle-099 finishes the job: extends SoT coverage to all remaining consumers (Bridgebuilder TypeScript, Red Team bash adapter, `model-permissions.yaml`, persona docs, protocol docs), adds an operator-facing config extension mechanism (`model_aliases_extra`), introduces per-skill tier-tag granularity composing with cycle-095's `tier_groups`, and sunsets the legacy bash adapter.
+The multi-model substrate is Loa's flagship feature and the foundation of its
+quality-control system. Cycles 103-108 unified the substrate architecturally
+behind `cheval.py` and activated it as the default at v1.157.0. **The
+activation has succeeded structurally and is now failing operationally**:
+13 OPEN substrate issues, 5 with recurrence ≥ 3 in `known-failures.md`,
+12 of 13 classified as degradation-under-real-workloads rather than
+missing-capability. [REALITY:multimodel-substrate.md:§11]
 
-Operator outcome: "edit one YAML field in `.loa.config.yaml`, get the latest model in your skill of choice." No System Zone edits, no Loa release wait, no multi-file PR.
+The operator's framing — *"used to work well with the older models"* —
+identifies the load-bearing diagnostic: the substrate was built on the
+assumption that providers/models are interchangeable behind the chain-walker.
+Newer reasoning-class models invalidate that assumption. They burn output
+budget on internal CoT; they have heterogeneous empty-content failure modes;
+they fail at smaller effective input ceilings than their advertised context
+windows. [KF-002][KF-003] The substrate has no first-class concept of *which
+models fail at what*, so it dispatches blind and discovers failures
+empirically — leaking those failures into operator-facing "clean" verdicts
+[ISSUE:#807][ISSUE:#809] and timing out 70KB+ FL calls [ISSUE:#866].
 
-**Estimated cycle**: 4 sprints (~4-5 weeks), modest scope per sprint, full quality-gate chain per cycle-098 pattern.
+Cycle-109 is a five-sprint substrate-hardening cycle scoped to fix the
+**cause**, not the symptoms. It introduces a capability-aware model
+descriptor (Sprint 1), a verdict-quality envelope (Sprint 2), sunsets the
+1,081-LOC legacy adapter that drifts from cheval (Sprint 3), ships
+hierarchical/chunked review for inputs exceeding model capability
+(Sprint 4), and closes carry items + delivers operator-facing substrate
+observability (Sprint 5). The cycle ships under iron-grip Loa quality gates:
+Flatline at PRD/SDD/sprint-plan, implement → review → audit per sprint,
+Bridgebuilder + post-PR audit for every PR, circuit-breaker on /run.
+[OPERATOR:2026-05-13]
 
----
-
-## Problem Statement
-
-### Current state (citation-grounded)
-
-> From #710 issue body: "Model selection across the Loa framework is hardcoded in **at least five separate registries** — a legacy bash adapter, a 'hounfour' generated map, two skill-internal TypeScript registries, and a Red Team-specific bash adapter."
-
-Concrete inventory verified against current codebase:
-
-| # | Location | Role | SoT-derived today? |
-|---|----------|------|---------------------|
-| 1 | `.claude/scripts/model-adapter.sh.legacy` | Default Flatline + dissent gates (when `hounfour.flatline_routing: false`, the **default**) | ❌ Independent 4-array bash dict |
-| 2 | `.claude/scripts/generated-model-maps.sh` | hounfour/cheval path (when `flatline_routing: true`) | ✅ Generated from YAML SoT (cycle-095) |
-| 3 | `.claude/defaults/model-config.yaml` | YAML SoT for the generator above | n/a — source |
-| 4 | `.claude/scripts/red-team-model-adapter.sh` | `/red-team` skill | ❌ Independent bash dict |
-| 5 | `.claude/scripts/red-team-code-vs-design.sh` | Red Team gate | ❌ Hardcoded `--model opus` flag |
-| 6 | `.claude/skills/bridgebuilder-review/resources/config.ts` | Bridgebuilder default | ❌ Hardcoded `claude-opus-4-7` |
-| 7 | `.claude/skills/bridgebuilder-review/resources/core/truncation.ts` | Bridgebuilder context budgets | ❌ Hardcoded map; only 3 entries (2 already stale: `4-6`, `gpt-5.2`) |
-| 8 | `.claude/skills/bridgebuilder-review/resources/adapters/openai.ts` | Bridgebuilder OpenAI endpoint routing | ❌ String-match `"codex"` — heuristic, not derived |
-| 9 | `.claude/skills/bridgebuilder-review/resources/personas/*.md` | Bridgebuilder persona-aware model selection | ❌ Per-persona model name in markdown |
-| 10 | `.claude/data/model-permissions.yaml` | Permission system | ❌ Independent model-name listing |
-| 11 | `.claude/data/personas/alternative-model.md` | Panel persona docs | ❌ Per-persona model refs |
-| 12 | `.claude/protocols/flatline-protocol.md` | Documentation | ❌ Hardcoded model names in examples |
-| 13 | `.claude/protocols/gpt-review-integration.md` | Documentation | ❌ Hardcodes `gpt-5.3-codex` |
-
-> From [CODE:`grimoires/loa/reality/decisions.md:86-87`]: "Modifications to `.claude/scripts/model-adapter.sh` MUST update all 4 associative arrays (`MODEL_PROVIDERS`, `MODEL_IDS`, `COST_INPUT`, `COST_OUTPUT`) **atomically**; backward compat aliases must exist in ALL four maps"
-
-This codified constraint is precisely the friction #710 names. The constraint exists because the adapter is hand-maintained, not derived.
-
-### Two parallel runtime systems, gated by feature flag
-
-> From #710 issue body: "There are effectively **two model-resolution systems** in Loa:
-> 1. **Legacy (default)** — `model-adapter.sh.legacy` with the small dict. Used when `hounfour.flatline_routing` is unset/false.
-> 2. **Hounfour (newer)** — `model-invoke` → `cheval.py` reading `generated-model-maps.sh`. Used when `hounfour.flatline_routing: true`."
-
-The legacy registry is significantly behind the hounfour one. Operators on the default path can't use models that exist in `generated-model-maps.sh` (e.g., `gpt-5.5`, `gpt-5.5-pro`, `gemini-3.1-pro-preview`, `claude-haiku-4-5`) without flipping a flag whose discoverability is poor.
-
-### Operator-facing problem (cited from #710 comment)
-
-> "as an operator i want to trivially be able to choose which models will be used for either:
-> - ALL (e.g. flatline, red team, bridgebuilder etc)
-> - or in a more granular way (e.g. flatline use all the most powerful models, for red team cheaper, for bridge buidler max for opus and codex but cheaper for gemini)
->
-> all of this should be possible from a single location e.g. the loa config and trivial for anyone to get their claude to help set up"
-
-Today's `.loa.config.yaml` exposes per-skill model selection, but the **shape is inconsistent across skills** (verified against current `.loa.config.yaml`):
-- `flatline_protocol.models.{primary,secondary,tertiary}` (3-position)
-- `bridgebuilder.multi_model.models[]` (array of `{provider, model_id, role}` objects)
-- `gpt_review.models.{primary,secondary}` (2-position)
-- `adversarial_review.model` (single string)
-- `spiral.executor_model` / `spiral.advisor_model` (cycle-072 advisor pattern)
-
-Each skill invented its own schema. There's no operator-facing "tier" abstraction that unifies them.
-
-### Brownfield codebase grounding
-
-> Codebase grounding via `/ride --enriched` (2026-05-04) confirmed:
-> - GAP-003-4d6f [P1]: README.md:32 says "GPT-5.3-codex"; README.md:191 says "GPT-5.2"; `.loa.config.yaml.example` says "GPT-5.3-codex" — confirming live drift across docs.
-> - [CODE:`grimoires/loa/reality/structure.md:11`]: cheval Python adapter at `.claude/adapters/` is the multi-provider runtime substrate.
-> - [CODE:`grimoires/loa/reality/terminology.md:108`]: Flatline canonically defined as "Multi-model adversarial review (Opus + GPT)" — confirms multi-model isn't optional, it's structural.
-
-> Sources: #710 issue body + comment, [CODE:`reality/decisions.md:86-87`], [CODE:`reality/terminology.md:108`], [CODE:`.claude/defaults/model-config.yaml:1-460`], [CODE:`.loa.config.yaml`], `gaps.md:GAP-003-4d6f`, Phase 0 synthesis (interview, 2026-05-04).
+Expected outcome: substrate health is observable and operator-honest;
+KF-002-class recurrence is structurally closed (not pushed one zoom level
+deeper); the 5 BLOCKING-class false-positives [ISSUE:#807] become
+impossible by construction; runway pressure on the operator's main mission
+is removed because multi-model stops consuming headspace, tokens, money,
+and time disproportionate to its value.
 
 ---
 
-## Goals & Success Metrics
+## 2. Problem Statement
 
-### Goals
+### 2.1 The Problem
 
-| ID | Goal |
-|----|------|
-| **G-1** | Single edit point for model registration: framework defaults via one `model-config.yaml` entry; operator extensions via one `.loa.config.yaml::model_aliases_extra` entry. No System Zone edits required for operators. |
-| **G-2** | Per-skill tier-tag granularity expressible from one config block, composing with cycle-095's `tier_groups` schema. Operators say "flatline use max, red team use cheap" in plain YAML. |
-| **G-3** | Zero drift between registries — CI gate fails when generated artifacts diverge from SoT. |
-| **G-4** | Bridgebuilder model defaults derive from SoT via build-time codegen (operators don't need to rebuild TS for new models — framework releases ship updated `dist/`). |
-| **G-5** | Legacy adapter sunset path exists with operator opt-in fallback during deprecation window. |
+Multi-model is operationally broken in v1.157.0 in four distinct but
+related failure modes (the "four clusters"):
 
-### Success metrics (SMART)
+**Cluster A — Large-document degradation (KF-002 next-zoom recurrence)**
+- [ISSUE:#866] FL orchestrator degrades on documents >70KB — five
+  consecutive observations during cycle-108
+- [ISSUE:#823] `claude-opus-4-7` empty-content failure on review-type
+  prompts at >40K-input scale (vision-024 fractal recursion at next
+  zoom level)
+- [KF-002] Layer 1 (reasoning-budget exhaustion) still latent; layers 2+3
+  closed by cycle-103 streaming substrate; **recurrence 5 = structural**
 
-| Metric | Baseline (today) | Target | Measurement |
-|--------|------------------|--------|-------------|
-| Time to add a new framework-default model | 5+ files, 4-array atomic edits, Loa release cycle | 1 line in `model-config.yaml` + `gen-adapter-maps.sh` + `gen-bb-registry.ts` regen, single PR | Stopwatch + git-diff scope on a probe-confirmed model addition during Sprint 2 |
-| Time for operator to add a model not yet in framework | Impossible without forking / System Zone edit | <5 min: 1 entry in `.loa.config.yaml::model_aliases_extra` | E2E test: fresh-clone operator adds hypothetical `gpt-5.7-pro` via config alone; resolves at runtime |
-| Drift between registries | Visible (truncation.ts has 2 stale entries vs SoT) | 0 (CI gate enforces) | CI check exits non-zero on divergence; PR cannot merge |
-| Per-skill tier expressivity | Inconsistent shape across 5+ skills | One `skill_models` block, ≤10 lines for "flatline max + red team cheap + bridgebuilder mixed" | Operator config audit: count YAML lines for the example above |
-| Bridgebuilder default upgrade | Manual TS edit + rebuild + Loa release | Auto-regenerated by `bun run build` reading SoT YAML | Sprint 3 acceptance: adding a model to YAML + rebuilding regenerates `dist/truncation.js` and `dist/config.js` |
+**Cluster B — v1.157.0 milestone regressions (activation exposed defects)**
+- [ISSUE:#864] Flatline substrate broken in v1.157.0: legacy adapter
+  crashes on CLI models + config knob ignored + scoring engine empty on
+  prefer-api
+- [ISSUE:#863] `/flatline-review` 3 regressions (cost-map, scoring engine
+  empty, GPT/Gemini orchestrator fail)
+- [ISSUE:#793] flatline-orchestrator validator rejects cheval-headless
+  pin form (`<provider>-headless:<model_id>`)
+- [ISSUE:#820] flatline-orchestrator + flatline-readiness 3 issues (env
+  loading, alias recommendation, scoring parser)
 
-> Sources: #710 acceptance criteria, operator interview confirmation (2026-05-04), cycle-098 sprint pattern (test-first quality-gate chain).
+**Cluster C — Degraded-state semantics (substrate misleads operators)**
+- [ISSUE:#807] Multi-model adversarial review fallback approves issues
+  single-model misses — **5 BLOCKING incl. shell-injection** approved
+- [ISSUE:#809] flatline-dissenter consistently returns 10-token empty
+  findings → operator-misleading `status: clean` semantics
+- [ISSUE:#868] Adversarial review/audit fallback chain (gpt-5.2 →
+  gemini-2.5-pro) fails on both phases — chain exhausts, audit forced
+  to DEGRADED
+- [ISSUE:#805] `/run-bridge` multi-model claim misleading: BB TS app is
+  single-model two-pass; Pass 2 fails ~80% on real PRs
 
----
+**Cluster D — Cycle-108 carry items**
+- [ISSUE:#874] cheval.py advisor-strategy provider-peek narrow 'anthropic'
+  fallback (C-S2-1)
+- [ISSUE:#875] modelinv.py parents[4] hardcode (C2 from sprint-1)
+- [ISSUE:#870] modelinv-rollup.sh strip-attack scanner O(N) with per-line
+  subprocess spawn
 
-## User Personas & Use Cases
+### 2.2 The Meta-Root-Cause
 
-### Personas
+> The substrate was built assuming providers/models are interchangeable
+> behind the chain-walker. They are not.
 
-| ID | Persona | Goal |
-|----|---------|------|
-| **P1 (Primary)** | **Operator** running Loa in their own repo | Use newer/different models without forking the framework or editing System Zone code |
-| **P2 (Secondary)** | **Framework maintainer** (deep-name + Loa contributors) | One-step model-config.yaml updates that propagate to all consumers; CI catches drift |
-| **P3 (Tertiary)** | **Agent runtime** (cheval, bash adapters, BB skill) | Deterministic model resolution from operator config + framework defaults; clear failure modes |
+Three concrete consequences of this incorrect abstraction:
 
-### Use cases
+1. **Capability blindness**. `model-config.yaml` declares models by
+   `provider:model_id` only [CODE:.claude/defaults/model-config.yaml]. It
+   has no field for `effective_input_ceiling` (where empty-content starts,
+   which is *less* than the API-advertised context window), no field for
+   `reasoning_class` (true = burns output on CoT, distinct from
+   classical completion models), no link to the KF ledger. So cheval
+   dispatches with no way to predict that `claude-opus-4-7` at 40K+ will
+   empty-content [ISSUE:#823] — it discovers the failure empirically and
+   walks the chain.
 
-**UC-1 — Operator adopts a newly-released GPT model the day it ships**
-> Provider releases `gpt-5.7-pro` on Tuesday. Operator wants to use it for Flatline by Wednesday morning. Adds 3 lines to `.loa.config.yaml::model_aliases_extra` (provider, api_id, capabilities) + 1 line to `skill_models.flatline_protocol.primary: max` (or directly references the new model). Restarts agent. Done. No PR upstream.
+2. **Verdict-quality blindness**. Substrate outputs carry findings, but
+   no first-class verdict envelope describing *how the verdict was
+   reached*. Consumers infer "clean" from finding count, so 0 findings
+   from healthy voices and 0 findings from voice-drop look identical
+   [ISSUE:#807][ISSUE:#809]. The substrate emits voice-drop trajectory
+   events [CODE:.claude/scripts/flatline-orchestrator.sh:304
+   `emit_voice_dropped`] but the consumer-facing summary loses this
+   signal.
 
-**UC-2 — Operator wants per-skill cost/quality tradeoff**
-> Operator wants Flatline maxed out (paying for top-tier review) but Red Team cheap (it's an unguided exploration, doesn't need top-tier reasoning). Adds:
-> ```yaml
-> skill_models:
->   flatline_protocol: { primary: max, secondary: max, tertiary: max }
->   red_team: { primary: cheap }
-> ```
-> Done. Tier resolution happens at runtime startup.
+3. **Two-code-path drift**. The substrate has cheval (canonical) AND
+   `model-adapter.sh.legacy` (1,081 LOC, `flatline_routing: false`
+   rollback path). The activation flip exposed defects in the legacy
+   path that hadn't surfaced because tests covered routing-OFF less than
+   routing-ON [ISSUE:#864]. Maintaining both costs more than the rollback
+   path is worth, given cheval has now operated as default for a release
+   cycle.
 
-**UC-3 — Framework maintainer ships Loa release with new tier-of-Anthropic model**
-> Anthropic releases Opus 4.8. Maintainer adds 1 entry to `model-config.yaml` (provider, capabilities, pricing), updates `aliases.opus: anthropic:claude-opus-4-8`, runs `gen-adapter-maps.sh` + `gen-bb-registry.ts`, commits source + generated artifacts in a single PR. CI verifies drift = 0. Ships.
+### 2.3 User Pain Points (operator-stated, 2026-05-13)
 
-**UC-4 — Operator pins a legacy model for backward compatibility**
-> Operator's pipeline depends on `gpt-5.3-codex` exact behavior. Operator adds explicit `skill_models.bridgebuilder.gpt_role: gpt-5.3-codex` (bypassing the `max` tier). Backward compat aliases in cycle-095 ensure literal model IDs continue resolving.
+- **Headspace consumption**: "consuming alot of our budget in terms of
+  headspace, tokens, money and time" — multi-model is a tax on every
+  other initiative
+- **Regression from prior state**: "used to work well with the older
+  models so this is really painful" — substrate worked under prior model
+  generation; current pain is regression, not absence
+- **Mission-blocking**: "stopping us from advancing in our main mission
+  which are the things which will bring revenue as we are significantly
+  running out of runway" — substrate failures have downstream runway impact
 
-**UC-5 — Framework maintainer sunsets the legacy adapter**
-> Sprint 4 gate decision (operator at gate). If chosen: flip default to `hounfour.flatline_routing: true`, mark `model-adapter.sh.legacy` deprecated with operator-visible warning, schedule full removal for follow-up cycle. If not chosen: continue deprecation indefinitely with warnings active.
+### 2.4 Current State
 
-> Sources: #710 issue body + comment, Phase 4 functional-requirement decomposition, operator interview confirmation (2026-05-04).
+Substrate works when:
+- Inputs are small (<30K for reasoning-class models)
+- Routing is `flatline_routing: false` (legacy path) AND prior to v1.157.0
+- All three voices succeed (no chain-walk required for FL)
 
----
+Substrate fails when:
+- Large inputs (>40K reasoning-class, >70KB FL) → empty content,
+  silent timeouts, chain exhaustion [Cluster A]
+- `flatline_routing: true` (the activated default) hits any of four
+  specific defects [Cluster B]
+- Voices drop or chain exhausts → consumer reports "clean" or "APPROVED"
+  anyway [Cluster C]
 
-## Functional Requirements
+### 2.5 Desired State
 
-### FR-1 — Single Source of Truth Extension (P0)
+Substrate **knows its models** (capability-aware), **tells the truth
+about its verdicts** (verdict-quality envelope), **has one code path**
+(legacy deleted), **handles big inputs structurally** (hierarchical/
+chunked review), and is **operated as an SRE'd system** (observability
++ KF-ledger feedback loop).
 
-`.claude/defaults/model-config.yaml` becomes the registry for all consumers. Cycle-095 covered the hounfour/cheval path; cycle-099 covers the rest.
-
-| AC | Acceptance criterion |
-|----|----------------------|
-| **FR-1.1** | Bridgebuilder TypeScript registries follow a **hybrid pattern** (revised v1.1 per Flatline SKP-001 CRITICAL): (a) **Build-time codegen** of compiled defaults — `gen-bb-registry.ts` reads `model-config.yaml`, emits `truncation.generated.ts` (truncation map keyed by model_id) and `config.generated.ts` (default-model alias resolution). Generated files committed alongside source; `bun run build` invokes generator. (b) **Runtime overlay** at Bridgebuilder startup — reads `.loa.config.yaml::model_aliases_extra` + `.loa.config.yaml::skill_models` and merges into the compiled tables. Operator-added models become visible to Bridgebuilder without rebuilding. Resolution order: operator override > runtime overlay > compiled default. Truncation entries for operator-added models computed at startup using a generic context-window-based formula (see Technical Considerations §"Hybrid Bridgebuilder pattern"); operators may override per-model truncation by populating `model_aliases_extra.<id>.context.truncation_coefficient`. |
-| **FR-1.1.1** | Endpoint routing in `adapters/openai.ts`: replace `string-match "codex"` heuristic with explicit `endpoint_family` field lookup. `/v1/responses` vs `/v1/chat/completions` decision sources from compiled defaults (build-time) AND runtime overlay (operator-added models declare `endpoint_family` in `model_aliases_extra`). |
-| **FR-1.2** | Red Team bash adapter (`red-team-model-adapter.sh`) reads from `generated-model-maps.sh` (sourced in shell) — eliminating the independent associative array. |
-| **FR-1.3** | `red-team-code-vs-design.sh` resolves `--model opus` via the SoT's alias chain (no hardcoded `opus` literal — uses the `opus` alias defined in YAML). |
-| **FR-1.4** | `.claude/data/model-permissions.yaml` is either (a) derived from `model-config.yaml` via codegen, or (b) merged into `model-config.yaml` as a `permissions` field per model. **`/architect` MUST resolve before Sprint 1 implementation begins** (release blocker per Flatline SKP-001 deferred-decision finding). v1.0 PRD recommendation: merge into `model-config.yaml` since permissions are a per-model attribute. **Permissions-elevation rejection** (per Flatline SKP-004 CRITICAL): if `model_aliases_extra` includes a `permissions` field, validate against framework-default provider baseline; reject operator entries that declare permissions higher than the baseline. Permission elevation requires System Zone change (and cycle-level approval per zone-system rule). **Baseline for new operator-added models with no framework baseline entry** (per v1.2 Flatline SKP-005 HIGH 730): default to **minimal permissions baseline** (`chat` only — no `tools`, no `function_calling`, no `code`, no `thinking_traces`). If operator wants higher permissions for an operator-added model, two paths: (a) add the model to System Zone `model-config.yaml::providers.<p>.models.<id>.permissions` (cycle-level approval, NOT operator-extensible); OR (b) explicitly opt into the minimal baseline by setting `model_aliases_extra.<id>.acknowledge_permissions_baseline: true` (explicit operator acknowledgement that the operator-added model gets minimal-only permissions). Validation rejects operator-added models with no baseline entry AND no `acknowledge_permissions_baseline: true` flag. |
-| **FR-1.5** | Persona docs (both `.claude/data/personas/*.md` and `.claude/skills/bridgebuilder-review/resources/personas/*.md`) replace hardcoded model names with tier-tag references (e.g., `# tier: max` instead of `# model: claude-opus-4-7`). Backward compat: parsers accept both forms; tier-tag wins if present. |
-| **FR-1.6** | Protocol docs (`.claude/protocols/flatline-protocol.md`, `gpt-review-integration.md`) replace hardcoded model names with operator-config references ("configure your top-of-provider in `.loa.config.yaml`"). Examples reference tier names (`max`, `cheap`), not specific model IDs. |
-| **FR-1.7** | `.claude/scripts/model-adapter.sh` (the *non*-`.legacy` shipped variant) sources `generated-model-maps.sh` at init, eliminating its own dictionary. (Note: cycle-095's `vision-011 activation` bug-fix already converted this script to runtime-swap to `generated-model-maps.sh` at runtime — verify against current state in Sprint 1.) |
-| **FR-1.8** | After all migrations land, the only hand-maintained model registry in the codebase is `.claude/defaults/model-config.yaml`. |
-| **FR-1.9** | **Runtime config consolidation** (per Flatline SKP-002 HIGH bash-YAML-parsing finding): a startup hook (Python or Node, decision DD-4) reads merged config (`model-config.yaml` ∪ `.loa.config.yaml::model_aliases_extra`) and writes `.run/merged-model-aliases.sh` with mode `0600`. Bash adapters (Red Team, model-adapter.sh, etc.) `source` this file at init — they do NOT parse YAML at runtime. **Atomic write semantics** (per v1.2 Flatline SKP-003 HIGH 770): write to temp file with random suffix in same directory, then `rename(2)` to final path (POSIX-atomic on same filesystem). **Concurrency control**: writers acquire `flock` exclusive lock on `.run/merged-model-aliases.sh.lock`; readers acquire shared lock; lock file is permanent and 0-byte. **Version header**: first line of `.run/merged-model-aliases.sh` is `# version=<monotonic_counter>` AND second line is `# source-sha256=<hash-of-merged-input-yaml>`; readers verify version match before sourcing — version mismatch triggers re-read after lock acquisition. **Invalidation** (per v1.2 Flatline IMP-004 HIGH_CONSENSUS 735): SHA256-based (NOT mtime alone — under concurrent writes mtime can be inconsistent); invalidation check happens under shared `flock` lock; regeneration under exclusive lock. **Failure modes** (per v1.2 Flatline IMP-003 HIGH_CONSENSUS 835): (a) file-missing → regenerate via startup hook; (b) parse-error / bash syntax check fails → refuse to start (fail-closed, `[MERGED-ALIASES-CORRUPT]` structured error); (c) write permission failure / disk full → refuse to start (fail-closed, `[MERGED-ALIASES-WRITE-FAILED]`); (d) stale per SHA256 → regenerate. Pattern mirrors cycle-095's `gen-adapter-maps.sh` (build-time) + adds runtime equivalent. |
-
-### FR-2 — Config Extension Mechanism (P0)
-
-Operators register new models without System Zone edits. Mirrors the existing `protected_classes_extra` pattern from cycle-098 Sprint 1B.
-
-| AC | Acceptance criterion |
-|----|----------------------|
-| **FR-2.1** | New `.loa.config.yaml` field `model_aliases_extra` (top-level or nested under `models:`, **`/architect` MUST resolve placement before Sprint 1**, release blocker per Flatline SKP-001 deferred-decision finding) accepts an array of model definitions matching the YAML schema for `providers.<provider>.models.<id>` entries. |
-| **FR-2.2** | Schema validation at config load time using **normative JSON Schema published at `.claude/data/trajectory-schemas/model-aliases-extra.schema.json`** (per Flatline IMP-004 HIGH_CONSENSUS, ajv-validated). Reject: malformed entries, missing required fields, duplicate model IDs (collide with framework defaults). Structured error includes offending line + remediation hint. Schema versioned via `schema_version` field; breaking changes bump major version. |
-| **FR-2.3** | Merge order: framework defaults (`model-config.yaml`) ∪ operator extras (`model_aliases_extra`). On duplicate ID: error (do not silently override; operator must rename or explicitly opt into override via a separate `model_aliases_override` field — **`/architect` MUST resolve override-semantics design before Sprint 1**, release blocker per Flatline SKP-001 deferred-decision finding). |
-| **FR-2.4** | Backward-compat aliases from cycle-095 (legacy model IDs, e.g., `claude-opus-4.x` → `claude-opus-4-7`) preserved without operator action. |
-| **FR-2.5** | Hot-reload **NOT** required for v1 (YAGNI). Config loaded at runtime startup; restart-to-apply is acceptable. |
-| **FR-2.6** | Operators can extend BOTH `models` and `aliases` — i.e., they can define a new model AND give it a friendly tier-tag in one config block. |
-| **FR-2.7** | `.loa.config.yaml.example` documents the `model_aliases_extra` field with a worked example. |
-| **FR-2.8** | **Provider-specific endpoint allowlist** (per Flatline SKP-003 CRITICAL 910 + HIGH 750): each provider has a framework-defined list of permitted endpoint hostnames in `.claude/defaults/loa.defaults.yaml::providers.<p>.allowed_endpoints` (e.g., `openai: [api.openai.com]`, `anthropic: [api.anthropic.com]`, `google: [generativelanguage.googleapis.com, *.googleapis.com]`, `bedrock: [bedrock-runtime.{region}.amazonaws.com]`). Operator `model_aliases_extra` entries whose `endpoint` does NOT match the provider's allowlist are rejected at load time UNLESS `allow_local_endpoints: true` is explicitly set in System Zone defaults (cycle-level authorization, NOT operator-extensible). Localhost variants (`localhost`, `127.0.0.0/8`, `::1`), AWS IMDS (`169.254.169.254`), and RFC 1918 private IPs (`10/8`, `172.16/12`, `192.168/16`) are blocked even when `allow_local_endpoints: true` UNLESS additionally `allow_internal_endpoints: true` is set. `api_id` format normalization: must match `^[a-zA-Z0-9._-]+$` — shell metacharacters and path separators rejected with structured error. |
-
-### FR-3 — Per-Skill Tier-Tag Granularity (P0)
-
-Operators express which tier each skill should use via a single config block. Composes with cycle-095's `tier_groups` schema (mappings empty as of cycle-095 Sprint 2).
-
-| AC | Acceptance criterion |
-|----|----------------------|
-| **FR-3.1** | New `.loa.config.yaml` field `skill_models` (top-level or under `agents:`, decision in `/architect`). Schema: `{<skill_name>: {<role>: <tier_or_model_ref>}}`. Example: `skill_models: { flatline_protocol: {primary: max, secondary: max, tertiary: max}, red_team: {primary: cheap}, bridgebuilder: {opus_role: max, gpt_role: max, gemini_role: cheap}, adversarial_review: {primary: max} }` |
-| **FR-3.2** | Tier-tag → concrete model resolution via `tier_groups.mappings` (cycle-095 Sprint 2 schema). Cycle-099 Sprint 2 populates default mappings: `max` → top-of-provider per provider; `cheap` → budget-tier per provider; `mid` → middle-tier. Operator can override `tier_groups.mappings` in `.loa.config.yaml`. |
-| **FR-3.3** | Per-role tier (when a skill has multiple roles, e.g., bridgebuilder's opus/gpt/gemini reviewer roles). Each role independently tier-taggable. |
-| **FR-3.4** | Composes with cycle-095's `prefer_pro_models` flag — `prefer_pro_models: true` retargets the `max` tier to the pro variant per provider (e.g., `gpt-5.5` → `gpt-5.5-pro`). **Legacy-shape isolation** (per v1.2 Flatline SKP-002 CRITICAL 885 — algorithm-complexity scope reduction): for skills using new `skill_models` shape, `prefer_pro_models` overlay applies automatically. For skills still using legacy `flatline_protocol.models.<role>` / `bridgebuilder.multi_model.models[]` / `gpt_review.models.<role>` / `adversarial_review.model` shape, `prefer_pro_models` overlay is **opt-in** via per-skill `respect_prefer_pro: true` (default `false` during deprecation window). This isolates the overlay surprise to migrated skills only and reduces FR-3.9 algorithm state-space for legacy paths. |
-| **FR-3.5** | Each skill ships with sensible default tier mapping in `model-config.yaml::agents.<skill_name>` so that no operator config is required for default behavior. The `skill_models` block is purely override. **Startup validation** (per Flatline SKP-004 CRITICAL 860): every (skill, role) pair in the effective merged config MUST resolve to a concrete `provider:model_id`. If any (skill, role) maps to a tier without a tier_groups mapping for the resolved provider, OR maps to a model_id absent from both framework defaults and `model_aliases_extra`, the agent **refuses to start** with structured error listing all unresolved bindings. No silent fallback. |
-| **FR-3.6** | Mixed mode supported: an operator can specify a tier-tag for some roles AND an explicit model ID for others (e.g., `bridgebuilder.opus_role: max, bridgebuilder.gpt_role: gpt-5.3-codex`). Resolution: tier-tags resolve via `tier_groups`; explicit IDs resolve directly via `aliases` + `models`. |
-| **FR-3.7** | Migration of existing config shapes: `flatline_protocol.models.{primary,secondary,tertiary}`, `bridgebuilder.multi_model.models[]`, `gpt_review.models.{primary,secondary}`, `adversarial_review.model` continue to work via deprecation aliases (one cycle's deprecation window). New `skill_models` is the canonical shape going forward. **Legacy-shape fail-closed exception** (per v1.3 Flatline IMP-005 HIGH 845 — fail-closed vs legacy compat conflict resolution): during the cycle-099 deprecation window, legacy-shape unresolved bindings (e.g., a legacy `flatline_protocol.models.secondary` referencing a model not in any registry) emit a deprecation warning `[LEGACY-SHAPE-UNRESOLVED] skill=X role=Y — recommend migration to skill_models`. Resolution falls back to the skill's **framework default tier mapping** per FR-3.5 (i.e., the cycle-095 `agents.<skill_name>` tier resolves via `tier_groups.mappings`). This is the **ONE EXCEPTION** to FR-3.8 fail-closed semantics, explicitly time-bounded to one cycle. New `skill_models` shape **always fail-closed** (no exception). Cycle-100 (or operators opting in early via `legacy_shapes_fail_closed: true`) makes legacy bindings also fail-closed — the deprecation window ends. Operators on legacy shapes during cycle-099 receive deprecation-warning telemetry on every resolution; aggregate count surfaces in `model-invoke --validate-bindings`. |
-| **FR-3.8** | **Fail-closed tier fallback semantics** (per Flatline SKP-004 CRITICAL + HIGH): when `tier_groups.mappings` lacks the required tier for a provider OR the required provider for a tier-tagged binding, refuse to start. Diagnostic: `[BINDING-UNRESOLVED] skill=flatline_protocol role=primary tier=max provider=openai (no max mapping for openai in tier_groups)`. Operator remediation paths (printed in error message): (1) populate `tier_groups.mappings` to map the missing tier; (2) pin an explicit `provider:model_id` in `skill_models`; (3) drop the binding and accept the framework default for the skill. The agent NEVER starts with unresolved bindings — explicit operator action required. |
-| **FR-3.9** | **Deterministic resolution algorithm** (per Flatline SKP-002 HIGH precedence + IMP-001 HIGH_CONSENSUS 875): when multiple resolution mechanisms could apply to the same (skill, role) pair, precedence is applied in this fixed order: (1) explicit `provider:model_id` in `.loa.config.yaml::skill_models.<skill>.<role>` wins absolutely; (2) tier-tag in `skill_models` resolves via operator-set `tier_groups.mappings` if present; (3) tier-tag resolves via framework-default `tier_groups.mappings` from `model-config.yaml`; (4) legacy shape (`flatline_protocol.models.<role>`, `bridgebuilder.multi_model.models[]`, etc.) resolves directly via `aliases` + `models` namespaces with deprecation warning emitted; (5) framework default for skill in `model-config.yaml::agents.<skill_name>`; (6) `prefer_pro_models: true` overlay applied AFTER step 1-5 (retargets resolved `*-pro` variants per provider; **gated per FR-3.4 for legacy shapes**). Conflict between (1) and (4) → (1) wins (no silent tiebreaker). Two same-priority mechanisms produce error. **Property-based test coverage** (per v1.2 Flatline SKP-002 CRITICAL 885 mitigation; cycle-098 SKP-002 invariant pattern): Sprint 2 ships property-based tests at `tests/property/model-resolution-properties.bats` verifying invariants: (i) "if (1) and (4) both present, (1) wins"; (ii) "two same-priority mechanisms always produce error, never silent tiebreaker"; (iii) "prefer_pro overlay always applied last (step 6)"; (iv) "deprecation warning emitted ⟺ stage (4) was the resolution path"; (v) "operator-extra-tier resolves before framework-default-tier when both define same provider mapping"; (vi) "unmapped tier produces FR-3.8 fail-closed error, never silent fallback to (5)". Test runner: `bats` + simple property-generator (random valid configs across the 6-stage state-space, run resolution, assert invariants). |
-
-### FR-4 — Sunset Legacy Adapter (P1, gated)
-
-| AC | Acceptance criterion |
-|----|----------------------|
-| **FR-4.1** | `.claude/scripts/model-adapter.sh.legacy` marked `DEPRECATED` in file header with sunset target cycle. |
-| **FR-4.2** | Default flip: `hounfour.flatline_routing: true` becomes the framework default in `.claude/defaults/loa.defaults.yaml` (currently `false`). Operators with custom config get migration warning at startup. |
-| **FR-4.3** | One-cycle deprecation window: when an operator runs the legacy path (explicitly opts in OR has stale config), agent emits operator-visible `[LEGACY-MODEL-ADAPTER-DEPRECATED]` warning at every Flatline invocation. |
-| **FR-4.4** | **Sprint 4 gate decision** (operator at gate review): full removal in cycle-099 OR continued deprecation through cycle-100. Decision logged in `grimoires/loa/cycles/cycle-099-model-registry/decisions/`. |
-| **FR-4.5** | Backward compat for operators currently pinning legacy via env var or feature flag preserved. Removal documented in release notes. |
-| **FR-4.6** | If full removal chosen: `model-adapter.sh.legacy` deleted; `hounfour.flatline_routing` feature flag removed from `loa.defaults.yaml` and `.loa.config.yaml.example`; migration runbook published at `grimoires/loa/runbooks/legacy-adapter-removal.md`. |
-
-### FR-5 — Drift Detection (cross-cutting, P0)
-
-| AC | Acceptance criterion |
-|----|----------------------|
-| **FR-5.1** | New CI workflow `.github/workflows/model-registry-drift.yml` runs on every PR. Compares: (a) `generated-model-maps.sh` against `model-config.yaml` (regenerate + diff); (b) Bridgebuilder generated TS (`dist/truncation.js`, `dist/config.js`) against source YAML (regenerate + diff); (c) `model-permissions.yaml` against `model-config.yaml` (per FR-1.4 decision). |
-| **FR-5.2** | Failure mode: CI exits non-zero with structured diff output. PR cannot merge until generated artifacts match SoT. |
-| **FR-5.3** | Documentation drift: `grep`-based check for hardcoded model names in `.claude/protocols/*.md`. Warning (not block) on hit; PR description must acknowledge. |
-| **FR-5.4** | Lockfile approach: `model-config.yaml.checksum` committed alongside source. CI verifies generated artifacts' hash matches the lockfile. |
-| **FR-5.5** | **Codegen reproducibility** (per Flatline SKP-005 HIGH 720): `gen-adapter-maps.sh`, `gen-bb-registry.ts`, `gen-model-permissions.sh` (per FR-1.4 Option A), and the FR-1.9 startup hook MUST produce byte-identical output for the same input across Linux + macOS. Pinning: bash `>= 5.x`, bun `1.1.x` (specific minor pinned in `.tool-versions` or equivalent), jq `>= 1.7`, python `>= 3.11`. Canonical serialization rules: keys sorted alphabetically, trailing newline normalized to LF, no trailing whitespace, integer scalars unquoted. CI matrix runs codegen on `ubuntu-latest` + `macos-latest`; byte-for-byte mismatch fails the build. |
-| **FR-5.6** | **`model-invoke --validate-bindings` contract** (per Flatline IMP-005 HIGH_CONSENSUS 735): input = effective merged config (framework defaults + `model_aliases_extra` + `skill_models` + `tier_groups`); output (default `--format json`) = JSON array of `{skill, role, resolved_provider_id, resolution_path}` tuples where `resolution_path` enumerates which step of the FR-3.9 algorithm produced the resolution; pretty-print mode `--format text` for operator readability. Exit codes: `0` = all bindings resolve cleanly; `78` = config error (`EX_CONFIG`, e.g., schema-invalid `model_aliases_extra`); `1` = at least one unresolved binding (FR-3.8 violation). Behavior is dry-run (no API calls). |
-| **FR-5.7** | **Runtime resolution tracing** (per v1.2 Flatline IMP-002 HIGH_CONSENSUS 820): when `LOA_DEBUG_MODEL_RESOLUTION=1` is set in the agent's environment, every model resolution emits a structured log entry to stderr in the format: `[MODEL-RESOLVE] skill=<X> role=<Y> input='<operator-or-default-spec>' resolved='<provider:model_id>' resolution_path=[stage1_pin_check:miss, stage2_tier_lookup_operator:miss, stage3_tier_lookup_default:hit, stage6_prefer_pro_overlay:applied]`. Each stage in the path identifies which FR-3.9 algorithm stage matched, with `:hit`, `:miss`, `:applied`, `:skipped`, or `:error` outcome. `model-invoke --validate-bindings --verbose` automatically enables tracing for the dry-run resolution. Per-resolution overhead under tracing: <2ms (logging-only; no behavior change). Default: tracing OFF — production hot path unaffected. |
-
-> Sources: #710 acceptance criteria, operator interview confirmation (2026-05-04), cycle-095 SoT pattern from `model-config.yaml`, cycle-098 `protected_classes_extra` pattern reference.
+A consumer asking "did this PR pass review?" receives an answer of the
+form `{status: APPROVED | DEGRADED | FAILED, voices_planned: N,
+voices_succeeded: M, confidence_floor: high|med|low, chain_health: ok|
+degraded|exhausted}`. `APPROVED` is *definitionally impossible* when
+`voices_succeeded < voices_planned` OR `chain_health != ok`. The
+substrate cannot lie by construction.
 
 ---
 
-## Non-Functional Requirements
+## 3. Goals & Success Metrics
 
-### NFR-Performance
+### 3.1 Primary Goals
 
-| ID | Requirement |
-|----|-------------|
-| **NFR-Perf-1** | Model resolution overhead at runtime startup: <50ms p95 (target: indistinguishable from cycle-095 baseline; YAML already parsed for hounfour). |
-| **NFR-Perf-2** | Build-time codegen for Bridgebuilder TS adds <10s to CI build time. |
-| **NFR-Perf-3** | CI drift gate adds <30s to PR check time. |
+| ID | Goal | Measurement | Validation Method |
+|----|------|-------------|-------------------|
+| G-1 | Close all 13 OPEN substrate issues identified in reality file §9 | `gh issue list` count drops to 0 for the cycle-109 issue set | Per-sprint issue closure tracked; cycle-close audit verifies |
+| G-2 | Eliminate KF-002 layer-1 recurrence (structural, not patched) | KF-002 status field updates to `RESOLVED-STRUCTURAL` (currently `LAYER-1 LATENT`); no new layer surfaces in cycle-110 first 30 days | KF ledger inspection; production-FL telemetry from Sprint-5 observability |
+| G-3 | Substrate "clean" verdict accuracy = 100% | Zero instances of `status: clean` emitted when `voices_succeeded < voices_planned` OR `chain_health != ok` | bats unit + integration tests; production audit log replay |
+| G-4 | Delete legacy adapter path entirely | `git ls-files` reports zero references to `model-adapter.sh.legacy`; the file is removed | CI scanner enforces; final cycle audit verifies |
+| G-5 | Cycle ships under iron-grip Loa quality gates | Every PR has Flatline PRD/SDD/sprint-plan reviews + BB review + post-PR audit + KF cross-reference recorded | `.run/audit.jsonl` audit; cycle-close verification |
 
-### NFR-Security
+### 3.2 Key Performance Indicators (KPIs)
 
-| ID | Requirement |
-|----|-------------|
-| **NFR-Sec-1** | **`model_aliases_extra` SSRF + injection hardening** (strengthened in v1.1 per Flatline SKP-003 CRITICAL 910 + HIGH 750; further strengthened in v1.2 per Flatline SKP-004 HIGH 755): schema validated at load time via the JSON Schema in FR-2.2. Rejects (with structured error citing the violating field + remediation): (a) shell metacharacters / path separators / nullbytes in `api_id` (must match `^[a-zA-Z0-9._-]+$` per FR-2.8); (b) `endpoint` URLs whose hostname does NOT match the provider's allowlist in `.claude/defaults/loa.defaults.yaml::providers.<p>.allowed_endpoints` (per FR-2.8) — UNLESS `allow_local_endpoints: true` is set in System Zone defaults; (c) `endpoint` URLs resolving to localhost / `127.0.0.0/8` / `::1` / AWS IMDS `169.254.169.254` / RFC 1918 ranges, even with `allow_local_endpoints: true`, UNLESS additionally `allow_internal_endpoints: true` is explicitly set; (d) unknown provider `type` (provider plugin contract is System Zone, not operator-extensible in v1, per NFR-Sec-4); (e) `params` fields containing executable values (function references, eval strings, raw shell commands). **URL canonicalization** (per v1.2 Flatline SKP-004): use Python `urllib.parse.urlsplit` (or Node `URL` constructor — pick per DD-4) for parsing; require `scheme == 'https'` (no HTTP, no custom schemes); enforce default port (`443`) — operator-supplied custom ports rejected unless explicitly allowlisted per provider; normalize path (no `..` / `./` / repeated slashes). **DNS rebinding defense**: at REQUEST time (not just config load), resolve hostname; if resolved IP falls into blocked ranges per (c), reject the request and emit `[ENDPOINT-DNS-REBOUND]` audit log. **Redirect denial**: HTTP redirect responses crossing trust boundaries (different hostname OR different IP range than the originally-resolved-and-verified IP) are rejected; only same-host redirects honored. **TLS verification** mandatory; no operator `verify=false` override permitted for `model_aliases_extra` endpoints. |
-| **NFR-Sec-1.1** | **Security test corpus** (new in v1.1 per Flatline SKP-003 CRITICAL): Sprint 2 ships an integration test suite at `tests/integration/model-aliases-extra-security.bats` covering: SSRF probes via `endpoint` (localhost, IMDS, internal IPs); command injection via `api_id` (shell metacharacters, command substitution, env-var expansion); path traversal via field values (`../`, `~/`, absolute paths); permission escalation via `permissions` field (per FR-1.4); schema-invalid entries crashing loader (vs failing-closed); duplicate ID handling. Each probe produces a deterministic structured error; exit codes match FR-5.6. |
-| **NFR-Sec-2** | Same trust model as `protected_classes_extra` (cycle-098 Sprint 1B): operator zone, not System Zone. Validation happens before any HTTP call. |
-| **NFR-Sec-3** | No new secrets surface introduced — model resolution doesn't handle API keys (those remain in environment variables per cycle-095). |
-| **NFR-Sec-4** | If `model_aliases_extra` adds a new provider type (not in framework defaults), reject with structured error directing to upstream PR (provider plugin contract is System Zone, not operator-extensible in v1). |
-| **NFR-Sec-5** | **Credential contract for operator-added models** (per v1.3 Flatline IMP-001 HIGH 865): v1 scope — operator-added models in `model_aliases_extra` MUST reuse the provider's existing credential env var (per cycle-095: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `AWS_BEARER_TOKEN_BEDROCK`). The `auth` field in `model_aliases_extra` entries is rejected at load time (operator-defined credentials NOT supported in v1). Combined with FR-2.8 endpoint allowlist + NFR-Sec-1 SSRF defenses, this prevents operators from routing requests to a different-trust-domain provider via custom credentials. Operators wanting different credentials per operator-added model must use System Zone registration (`.claude/defaults/model-config.yaml::providers.<p>.models.<id>` with explicit `auth` field; cycle-level approval). Documented in `.loa.config.yaml.example` operator-facing comment block. v2 follow-up (out of scope for cycle-099): per-operator-model credential namespace (`OPENAI_API_KEY_<model_id>` pattern) — defer to operator demand. |
+| Metric | Current Baseline | Target | Timeline | Goal ID |
+|--------|------------------|--------|----------|---------|
+| OPEN substrate issues (per reality §9) | 13 | 0 | end of Sprint 5 | G-1 |
+| KF-002 recurrence count | 5 (LATENT layer 1) | 0 new recurrences cycle-110 first 30d | 30d post-merge | G-2 |
+| Substrate "clean" verdict false-positive rate | unknown (currently un-measurable; #807 demonstrated 5 BLOCKING approved) | 0 (impossible by construction) | end of Sprint 2 | G-3 |
+| LOC in legacy adapter path | 1,081 | 0 | end of Sprint 3 | G-4 |
+| `flatline_routing: true` activated-path test coverage | unknown (insufficient to catch #863/#864) | every consumer × every substrate role × representative provider responses covered in CI | end of Sprint 3 | G-1, G-4 |
+| MODELINV v1.2 envelope coverage | per cycle-108 T2.M baseline | ≥0.95 (raised from 0.90 strict-threshold) | end of Sprint 1 | G-3 |
+| Substrate observability surface | none (operators learn of degradation when a session blows up) | 24h rolling dashboard: voices succeeded/dropped/by-model | end of Sprint 5 | G-2 |
 
-### NFR-Compatibility
+### 3.3 Constraints
 
-| ID | Requirement |
-|----|-------------|
-| **NFR-Compat-1** | All `backward_compat_aliases` from cycle-095 (`claude-opus-4.x` → `4-7`, `gpt-5.2-codex` → `gpt-5.3-codex`, etc.) preserved without operator action. |
-| **NFR-Compat-2** | Downstream loa-as-submodule projects (e.g., #642 reporter pattern) unaffected: `git submodule update --remote` produces no breaking changes to user config format. |
-| **NFR-Compat-3** | Existing operator `.loa.config.yaml` files continue working unchanged through cycle-099. Deprecation warnings for legacy shapes (`flatline_protocol.models.{primary,...}`) but no breaking changes within the cycle. |
-| **NFR-Compat-4** | Bridgebuilder existing `dist/` consumers (operators who depend on the compiled artifacts) get a regenerated `dist/` in cycle-099 that matches the new SoT-derived defaults. No breaking API changes to the skill's external interface. |
+- **No new providers, models, transports, or feature flags** in cycle scope
+  (see §9 explicit out-of-scope). Cycle is substrate-internal only.
+- **No replacement of the substrate with an external aggregator
+  (OpenRouter etc.)**. Operator-evaluated 2026-05-13 and rejected:
+  routing is not the failure surface; three of four clusters are not
+  routing problems. [OPERATOR:2026-05-13]
+- **Codegen byte-equality preserved**. Any change to `model-config.yaml`
+  schema must regenerate `generated-model-maps.sh` and the TS port
+  byte-identically across runtimes. [REALITY:multimodel-substrate.md:§1]
+- **MODELINV envelope continuity**. v1.2 → v1.3 (cycle-109) must be
+  additive-only; existing fields preserved; existing replay logs remain
+  parseable. [REALITY:multimodel-substrate.md:§5]
+- **Iron-grip quality gates**: see §13.
 
-### NFR-Operability
+### 3.4 Baseline Measurement Methodology [IMP-003]
 
-| ID | Requirement |
-|----|-------------|
-| **NFR-Op-1** | Drift detection CI runs in GitHub Actions with clear error messages — operator sees exactly which file diverged and which line. |
-| **NFR-Op-2** | All failure modes fail-closed (operator-visible) not fail-silent. Specifically: invalid `model_aliases_extra` → refuse to load + structured error; legacy adapter active → visible warning; codegen failure → CI fails. |
-| **NFR-Op-3** | Sprint 4 sunset (if approved) ships with migration runbook + rollback path. Rollback = restore `hounfour.flatline_routing: false` default + un-deprecate the legacy adapter. |
-| **NFR-Op-4** | All sprints ship with operator-facing release notes (cycle-098 `release-notes-sprint*.md` pattern). |
-| **NFR-Op-5** | **Codegen reproducibility operability** (per Flatline SKP-005 HIGH 720, paired with FR-5.5): toolchain pinning surfaced at the operability boundary — Sprint 1 publishes `grimoires/loa/runbooks/codegen-toolchain.md` documenting required `bash`, `bun`, `jq`, `python` versions; `loa doctor` (or equivalent) verifies versions on operator install. CI matrix produces a published `dist-checksum.txt` per release; downstream submodule consumers can verify their pinned dist matches the released hash. Reproducibility failure mode: if codegen on operator's machine differs from the released hash, drift gate fails the operator's local PR with structured error directing to the runbook. |
+Several success criteria (§3.2 KPIs, §10.1-10.3 launch criteria, §11.3
+rollback decision threshold) compare against a "pre-cycle baseline".
+This subsection defines how that baseline is measured, when, and where
+results land — so rollback / escape-hatch / launch eval decisions are
+verifiable rather than vibes.
 
-> Sources: cycle-098 NFR pattern (PRD v1.3), `protected_classes_extra` security model from cycle-098 Sprint 1B, cycle-095 backward_compat preservation from `model-config.yaml:282-313`.
+**Baseline measurement protocol** (executed at cycle-109 kickoff, BEFORE
+Sprint 1 lands):
+
+| Metric | Measurement method | Source | Cadence | Persistence |
+|--------|--------------------|--------|---------|-------------|
+| OPEN substrate issue count | `gh issue list --label substrate --state open` | GitHub | One-shot at kickoff + per-sprint-close + cycle-close | `grimoires/loa/cycles/cycle-109-substrate-hardening/baselines/issue-counts.json` |
+| KF-002 recurrence count | grep `KF-002` rows in `known-failures.md` Attempts table | Repo | Same cadence | `baselines/kf-recurrence.json` |
+| "clean" verdict false-positive rate | Replay last-30-day MODELINV log; count outputs where `status: clean` AND `voices_succeeded < voices_planned` | `.run/model-invoke.jsonl` | One-shot at kickoff (no production telemetry exists yet — establishes T0); post-Sprint-5 re-measure on 30d window | `baselines/clean-fp-rate.json` |
+| LOC in legacy adapter | `wc -l .claude/scripts/model-adapter.sh.legacy` | Repo | One-shot at kickoff (baseline = 1,081); end-of-Sprint-3 (target = 0) | `baselines/legacy-loc.json` |
+| MODELINV envelope coverage | `tools/modelinv-coverage-audit.py --window 30d` (cycle-108 T2.M) | `.run/model-invoke.jsonl` | One-shot at kickoff + per-sprint-close | `baselines/modelinv-coverage.json` |
+| Substrate-issue-filing rate | `gh issue list --label substrate --created` since cycle-108 close | GitHub | One-shot at kickoff (baseline window: 2026-05-09 to 2026-05-13) + post-Sprint-5 30d window | `baselines/issue-rate.json` |
+| Operator-attention-tax (qualitative) | Operator self-rating on cycle-109 kickoff vs cycle-109 close ("how much headspace does multi-model consume right now, 1-10") | Operator | Kickoff + cycle-close | `baselines/operator-self-rating.md` |
+
+**Storage**: all baseline measurements land at
+`grimoires/loa/cycles/cycle-109-substrate-hardening/baselines/` —
+TRACKED in git so they persist across cycles and allow cycle-110
+to retrospectively compare cycle-109 outcomes against the baseline.
+
+**Sprint 1 deliverable**: write `tools/cycle-baseline-capture.sh` —
+a single CLI that reads the current state and emits the
+`baselines/*.json` files. Runs at cycle kickoff + each sprint close
++ cycle close + 30d post-cycle. Idempotent; signed via cycle-098 audit
+envelope.
+
+**Decision thresholds** (referenced from §11.3 rollback):
+- **Rollback triggered** if cycle-109 introduces a regression where
+  any baseline metric worsens by >20% (e.g., substrate issue count
+  rises above 16 from baseline 13)
+- **Launch criteria met** (§10.1) only when ALL baselines have moved in
+  the documented direction beyond the documented threshold
+
+This makes §10.2/§10.3 "engagement signal" / "headspace reduction"
+metrics measurable rather than aspirational.
 
 ---
 
-## User Experience
+## 4. User Personas & Use Cases
 
-### Operator path: "I want to use a newer model"
+### 4.1 Primary Persona: The Operator (`@janitooor`)
 
-1. Open `.loa.config.yaml`
-2. Add (if model not yet in framework):
+**Demographics:**
+- Role: Repository maintainer; runs autonomous Loa cycles; consumes
+  multi-model verdicts to gate PR merges
+- Technical Proficiency: Expert (writes the framework)
+- Goals: Ship revenue-bearing work without multi-model imposing a tax;
+  trust verdicts; reduce headspace consumption of substrate operations
+
+**Behaviors:**
+- Invokes `/run sprint-plan` autonomously; expects to be paged only when
+  intervention is required
+- Reads MODELINV audit envelopes when diagnosing substrate degradation
+- Consults `known-failures.md` before triaging
+- Files `gh issue` against substrate when degradation observed
+
+**Pain Points:**
+- Cannot trust `status: clean` because [ISSUE:#807][ISSUE:#809] proved
+  it can be empty-string-with-no-findings rather than actual approval
+- Cannot predict when substrate will degrade (no observability surface);
+  finds out when a session blows up
+- Has to triage repeated KF-002-class failures at each new zoom level;
+  the pattern recurs because the fix is at the wrong layer
+
+### 4.2 Secondary Persona: The Agent (substrate consumer)
+
+**Demographics:**
+- Role: A Loa skill (BB, FL, RT, /bug, /review-sprint, /audit-sprint)
+  that consumes substrate verdicts as part of its workflow
+- Technical Proficiency: N/A (programmatic consumer)
+
+**Behaviors:**
+- Calls substrate via cheval HTTP boundary [REALITY:§2 diagram]
+- Receives JSON; routes based on findings count, status field
+- Today: cannot distinguish "approved by N healthy voices" from
+  "approved because voices dropped"
+
+**Pain Points:**
+- Inherits substrate's verdict-quality blindness; emits
+  operator-misleading PR comments and reviews
+- Has no typed-exit path to "verdict-unsafe-to-trust"
+
+### 4.3 Tertiary Persona: Revenue-Bearing Work (downstream beneficiary)
+
+The operator's "main mission" — work that brings revenue, runway-bearing,
+and is currently blocked because multi-model consumes disproportionate
+headspace. Not a direct user of the substrate, but the primary
+beneficiary of this cycle's success: removing substrate as a tax on
+forward velocity. [OPERATOR:2026-05-13]
+
+### 4.4 Use Cases
+
+#### UC-1: Operator runs autonomous /run sprint-plan and trusts the verdict
+
+**Actor:** Operator
+**Preconditions:** Sprint plan exists; multi-model substrate is the default review path
+**Flow:**
+1. Operator invokes `/run sprint-plan`
+2. Substrate executes implement → review → audit cycle per sprint
+3. At each phase, FL/RT emit verdicts with explicit `verdict_quality` envelope
+4. Operator receives final PR with verdict summary; can read at a glance:
+   `APPROVED — 3/3 voices, chain ok, confidence high` OR
+   `DEGRADED — 2/3 voices (gpt-5.2 dropped: empty-content), chain ok, confidence med` OR
+   `FAILED — chain exhausted; verdict unsafe`
+5. Operator merges only when `APPROVED`; intervenes when `DEGRADED`+; never sees a misleading `clean`
+
+**Postconditions:** Operator trusts substrate output; merge decisions correlate to actual verdict quality
+**Acceptance Criteria:**
+- [ ] Every substrate output carries `verdict_quality` envelope (Sprint 2)
+- [ ] `APPROVED` is definitionally impossible when voices dropped or chain degraded (Sprint 2)
+- [ ] Operator-facing summary surfaces `verdict_quality` prominently (Sprint 2)
+
+#### UC-2: Substrate gracefully handles a >70KB PR without operator intervention
+
+**Actor:** Substrate (cheval)
+**Preconditions:** A large PR triggers FL review; total input size exceeds the model's `effective_input_ceiling`
+**Flow:**
+1. Cheval pre-flight: looks up effective_input_ceiling for target model
+2. If input > ceiling, cheval invokes hierarchical/chunked review (Sprint 4) — not raw dispatch
+3. Chunks reviewed independently; findings aggregated; deduplicated
+4. Output emitted with `chunked: true, chunks_reviewed: N, chunks_dropped: 0` annotation
+5. If chunk exceeds ceiling individually (rare), cheval emits typed exit `ContextTooLarge` (code 7) preemptively — does NOT dispatch and wait for empty-content
+
+**Postconditions:** Large-doc reviews succeed; operator no longer sees [ISSUE:#866]-class timeouts; KF-002 layer 1 is structurally closed
+**Acceptance Criteria:**
+- [ ] All models in `model-config.yaml` declare `effective_input_ceiling` (Sprint 1)
+- [ ] Cheval pre-flight gate invokes chunked path or fails fast (Sprint 4)
+- [ ] No silent timeouts on >70KB FL inputs in 30-day production telemetry (Sprint 5 observability)
+
+#### UC-3: A new KF entry auto-degrades the affected model
+
+**Actor:** Operator (logs KF) and Substrate (consumes the ledger)
+**Preconditions:** Operator observes a substrate failure, files a new `KF-NNN` entry referencing model `X`
+**Flow:**
+1. Operator appends entry to `known-failures.md` (existing process)
+2. KF-ledger watcher (Sprint 1) parses entry; finds model reference `X`
+3. Substrate updates `model-config.yaml::models.X.failure_modes_observed[]` (or equivalent runtime overlay) with KF-NNN reference
+4. Substrate `recommended_for` for model `X` is downgraded per KF severity
+5. Future dispatches to model `X` either avoid that role OR proceed with degraded-confidence flag
+
+**Postconditions:** Operator-logged knowledge propagates to substrate behavior automatically; no manual model-pinning required
+**Acceptance Criteria:**
+- [ ] `failure_modes_observed` populated from KF ledger via deterministic script (Sprint 1)
+- [ ] `recommended_for` downgrade follows documented mapping (Sprint 1)
+- [ ] Substrate decisions reference KF entries in MODELINV envelope (Sprint 1)
+
+#### UC-4: Operator inspects substrate health for the past 24h
+
+**Actor:** Operator
+**Preconditions:** Substrate has been running; some calls succeeded, some degraded, some failed
+**Flow:**
+1. Operator runs `loa substrate health --window 24h` (new — Sprint 5)
+2. Output: per-model success rate, voice-drop rate, chain-exhaustion rate, p95 latency, total cost
+3. Operator identifies any model with deteriorating health BEFORE it costs a sprint
+4. Operator either updates KF ledger (triggers UC-3) or files a substrate issue
+
+**Postconditions:** Substrate operated as SRE'd system; degradation visible before catastrophic
+**Acceptance Criteria:**
+- [ ] CLI surface `loa substrate health` exists and reads from `.run/model-invoke.jsonl` (Sprint 5)
+- [ ] 24h window query completes in <2s for typical log volumes (Sprint 5)
+- [ ] Output is operator-readable AND machine-readable (`--json` flag) (Sprint 5)
+
+---
+
+## 5. Functional Requirements
+
+Each functional requirement maps to a sprint. Sprint identifiers are the
+top-level FR numbers (FR-1 = Sprint 1, etc.).
+
+### FR-1: Capability-Aware Substrate Foundation (Sprint 1)
+
+**Priority:** Must Have
+**Description:** Extend `model-config.yaml` with capability fields and add a
+cheval pre-flight gate that consults them before dispatch.
+
+**Sub-requirements:**
+
+- **FR-1.1**: Add fields to each model entry in `model-config.yaml`:
+  - `effective_input_ceiling` (int, tokens) — where empty-content starts;
+    distinct from API-advertised context window
+  - `reasoning_class` (bool) — true = burns output budget on CoT
+  - `recommended_for` (list of role tags, e.g., `[review, dissent, audit,
+    implementation]`) — informational, not load-bearing yet
+  - `failure_modes_observed` (list of KF-IDs) — pointer to ledger entries
+  - `ceiling_calibration` (object) — provenance + staleness for
+    `effective_input_ceiling`:
     ```yaml
-    model_aliases_extra:
-      - id: gpt-5.7-pro
-        provider: openai
-        api_id: gpt-5.7-pro
-        endpoint_family: responses
-        capabilities: [chat, tools, function_calling, code]
-        context_window: 256000
-        pricing:
-          input_per_mtok: 40000000   # $40/Mtok
-          output_per_mtok: 200000000 # $200/Mtok
+    ceiling_calibration:
+      source: empirical_probe | kf_derived | operator_set | conservative_default
+      calibrated_at: "2026-05-13T00:00:00Z"
+      sample_size: 25  # null if not empirical
+      stale_after_days: 30
+      reprobe_trigger: "first KF entry referencing model OR 30d elapsed OR operator-forced"
     ```
-3. Add (per-skill granularity):
-    ```yaml
-    skill_models:
-      flatline_protocol:
-        primary: max     # resolves via tier_groups.mappings to gpt-5.7-pro if mapped, else falls back
-    ```
-4. Optionally override the `max` tier mapping:
-    ```yaml
-    tier_groups:
-      mappings:
-        max:
-          openai: gpt-5.7-pro
-    ```
-5. Restart Loa
-6. Verify: `model-invoke --validate-bindings` confirms `flatline_protocol.primary` resolves to `openai:gpt-5.7-pro`
-
-### Framework maintainer path: "Anthropic shipped Opus 4.8"
-
-1. Edit `.claude/defaults/model-config.yaml`:
-    ```yaml
-    providers:
-      anthropic:
-        models:
-          claude-opus-4-8:
-            capabilities: [chat, tools, function_calling, thinking_traces]
-            context_window: 200000
-            token_param: max_tokens
-            params: { temperature_supported: false }
-            pricing:
-              input_per_mtok: 5000000
-              output_per_mtok: 25000000
-    aliases:
-      opus: anthropic:claude-opus-4-8   # retarget alias
-    backward_compat_aliases:
-      claude-opus-4.7: anthropic:claude-opus-4-8   # add legacy pin
-    ```
-2. Run `bash .claude/scripts/gen-adapter-maps.sh` — regenerates `generated-model-maps.sh`
-3. Run `bun run build` from `.claude/skills/bridgebuilder-review/` — regenerates `dist/`
-4. Commit source + generated artifacts + lockfile in single PR
-5. CI verifies drift = 0
-6. Ship
-
-> Sources: #710 acceptance criteria, operator interview confirmation (2026-05-04), `model-config.yaml:251-281` aliases pattern.
-
----
-
-## Technical Considerations
-
-### Hybrid Bridgebuilder pattern (FR-1.1, revised v1.1 per Flatline SKP-001)
-
-The hybrid pattern combines **build-time codegen** (for compiled defaults that ship with the framework release) with a **runtime overlay** (for operator-added entries from `model_aliases_extra`).
-
-**Build-time path** (unchanged from v1.0): a Bun script reads `model-config.yaml` at build time, emits TS literal maps for `truncation.generated.ts` and `config.generated.ts`. Generated TS files are committed alongside source (mirrors the `generated-model-maps.sh` pattern). `bun run build` invokes the generator before `tsc`. CI verifies `dist/*.js` matches a fresh build (drift gate).
-
-```typescript
-// .claude/skills/bridgebuilder-review/scripts/gen-bb-registry.ts
-import { parse } from 'yaml';
-import { readFileSync, writeFileSync } from 'fs';
-
-const config = parse(readFileSync('.claude/defaults/model-config.yaml', 'utf8'));
-const truncationMap = computeTruncationMap(config);
-const defaultModel = config.aliases.opus;  // resolves alias chain
-
-writeFileSync('resources/core/truncation.generated.ts', renderTruncation(truncationMap));
-writeFileSync('resources/config.generated.ts', renderConfig(defaultModel));
-```
-
-**Runtime overlay path** (new in v1.1): at Bridgebuilder skill init, a small loader reads `.loa.config.yaml::model_aliases_extra` and `.loa.config.yaml::skill_models`, merges them with the compiled tables, and computes truncation entries for any operator-added model:
-
-```typescript
-// .claude/skills/bridgebuilder-review/resources/core/runtime-overlay.ts
-import { TRUNCATION_DEFAULTS } from './truncation.generated';
-import { DEFAULT_MODEL } from '../config.generated';
-import { parseLoaConfig } from './config-loader';
-
-export function buildEffectiveTruncation(): TruncationMap {
-  const userConfig = parseLoaConfig();
-  const effective = new Map(TRUNCATION_DEFAULTS);
-  for (const extra of userConfig.model_aliases_extra ?? []) {
-    if (effective.has(extra.id)) continue;  // operator-override resolution per FR-3.9 step 1
-    effective.set(extra.id, computeTruncationFromContext(extra.context));
+- **FR-1.2**: Schema validation — `migrate-model-config.py` updated to v3
+  schema; existing v2 entries migrated.
+  **[IMP-008] Conservative defaults policy** at migration time when no
+  empirical data exists yet:
+  - `effective_input_ceiling` = `min(50% × api_context_window, 30000)` —
+    matches the 30K knee observed in KF-002/003
+  - `reasoning_class`: defaults to `false`; documented opt-in list flips
+    known reasoning-class models (claude-opus-4.x, gpt-5.5-pro,
+    gemini-3.1-pro) to `true`
+  - `recommended_for`: defaults to `[]` (informational; load-bearing
+    semantics only land after Sprint 2 FR-2.3 classification contract)
+  - `failure_modes_observed`: empty; populated by FR-1.5 on next CI run
+  - `ceiling_calibration.source: conservative_default`
+- **FR-1.3**: Cheval pre-flight gate at `cheval.py::_lookup_max_input_tokens`
+  [CODE:cheval.py:285] extended:
+  - If input > `effective_input_ceiling`, emit typed exit 7 (ContextTooLarge)
+    preemptively
+  - If model `reasoning_class: true` AND requested role in
+    `not-recommended-for`, emit warning to MODELINV envelope
+- **FR-1.4**: MODELINV v1.3 envelope adds `capability_evaluation` field:
+  ```jsonc
+  "capability_evaluation": {
+    "effective_input_ceiling": 40000,
+    "input_size_observed": 38000,
+    "preflight_decision": "dispatch | preempt | warn",
+    "reasoning_class": false,
+    "recommended_for_role": true,
+    "ceiling_calibration_source": "empirical_probe",
+    "ceiling_stale": false
   }
-  return effective;
-}
+  ```
+- **FR-1.5**: KF-ledger auto-link script — `tools/kf-auto-link.py`:
+  - Parses `known-failures.md` for `model: <id>` references in active KF entries
+  - Updates `failure_modes_observed` in `model-config.yaml`
+  - Downgrades `recommended_for` per the severity-to-downgrade mapping below
+  - Runs in CI on changes to `known-failures.md`
+  - **OPERATOR-AUTHORIZED**: per operator-approval C109.OP-2
+
+  **[IMP-001 HIGH_CONSENSUS] Severity-to-downgrade mapping** (canonical
+  spec, not deferred to SDD):
+
+  | KF status | Effect on referenced model |
+  |---|---|
+  | `OPEN` (new entry, no resolution) | Remove all roles from `recommended_for`; substrate dispatches with warning emitted to MODELINV |
+  | `RESOLVED` | No degradation; substrate may use freely |
+  | `RESOLVED-VIA-WORKAROUND` | Remove only the specific role mentioned in KF (e.g., "review" if KF describes review-prompt failure); other roles retained |
+  | `RESOLVED-STRUCTURAL` | No degradation |
+  | `LATENT` / `LAYER-N-LATENT` | Remove role(s) referenced in the latent layer; emit warning on dispatch |
+  | `DEGRADED-ACCEPTED` | No automated change (operator explicitly chose to accept); informational only |
+
+  The mapping is the canonical spec; ambiguous KF status strings fail-loud
+  per IMP-005 below.
+
+  **[IMP-002 + SKP-004 hardening] Manual operator override** for KF-auto-link decisions:
+  - Schema in `.loa.config.yaml`:
+    ```yaml
+    kf_auto_link:
+      enabled: true  # default
+      overrides:
+        - model: claude-opus-4-7
+          role: review
+          decision: force_retain                     # or: force_remove
+          reason: "operator-validated cycle-110 sprint-2"
+          effective_until: "2026-08-01T00:00:00Z"    # REQUIRED (no null/permanent); max now()+90d
+          kf_references: [KF-002, KF-009]            # REQUIRED non-empty; entries must exist in known-failures.md
+          authorized_by: "@janitooor"                # OPERATORS.md slug
+          break_glass:                               # REQUIRED iff any kf_references is OPEN CRITICAL
+            operator_slug: "@janitooor"
+            reason: "production incident — must dispatch despite CRITICAL KF"
+            expiry: "2026-05-15T00:00:00Z"           # ≤ now() + 24h
+            audit_event_id: "..."                    # hash from cycle-098 signed audit event
+    ```
+  - **Precedence (SKP-004 closure — Flatline SDD-review v3 HIGH BLOCKER)**:
+    operator override > KF auto-link > FR-1.2 default — BUT **conditional**, not unconditional. Override is REJECTED (KF auto-decision applies, stderr warning emitted) when:
+    - `effective_until` is missing, in the past, or > `now() + 90d`
+    - `kf_references[]` is empty OR contains an entry not present in `known-failures.md`
+    - `authorized_by` does not resolve via OPERATORS.md
+    - Any referenced KF is OPEN CRITICAL AND `break_glass` is missing or invalid (operator_slug mismatch, reason < 16 chars, expiry > now()+24h, audit_event_id unresolvable)
+  - **Rationale**: pre-cycle-109, "operator overrides win unconditionally over KF-derived downgrades, including CRITICAL open failures" — the Flatline reviewer caught this. Operator intent CAN be wrong (calibration drift, hot-fix copy-paste, stale config entries muting a fresh KF). The break-glass path remains available for genuine emergencies; the default override path is no longer the break-glass path.
+  - **Audit**: every override evaluation (accept OR reject) emitted to
+    `.run/kf-auto-link.jsonl` with `before_state`, `after_state`,
+    `reason`, `authorized_by`, `kf_id_overridden`, `decision_outcome`
+    (`accepted` | `rejected:<failure-mode>`). Break-glass decisions
+    ALSO emit a signed L4 trust event to `.run/audit/kf-override-break-glass.jsonl` per cycle-098 audit envelope.
+  - **Expiry**: `effective_until` honored at every dispatch; on expiry, auto-link resumes immediately (no grace period beyond 60s clock-skew window).
+  - **CI**: PR touching `kf_auto_link.overrides` blocks on ANY of the rejection conditions above (CI failure surfaces the specific rejection reason). `authorized_by` resolution still gated by cycle-098 operator-identity primitive.
+
+  **[IMP-005] Parsing policy for malformed/ambiguous KF entries**
+  (deterministic, fail-loud, never auto-degrade on parse failure):
+  - Unrecognized `Status:` value → log warning + skip auto-link (no
+    downgrade), surface in CI report
+  - Empty or missing `model:` reference → skip entry (no-op)
+  - Malformed YAML/markdown in KF entry → exit non-zero with line
+    reference; CI fails; operator must repair KF entry
+  - Multiple model references in one KF → process each independently
+    (per-model decision)
+  - Duplicate KF IDs → exit non-zero; CI fails
+
+- **FR-1.6**: Ceiling calibration + staleness detection (IMP-007):
+  - **Initial population** (per model): empirical probe (preferred,
+    binary-search method per cycle-104 T2.10 precedent) OR KF-derived
+    (read existing KF entries) OR conservative-default (FR-1.2)
+  - **Probe protocol**: 5 prompts × 5 input sizes (10K, 20K, 30K, 40K,
+    50K tokens); ceiling = lowest size with empty-content rate > 5%
+  - **Staleness detection**: cheval consults `ceiling_calibration.calibrated_at`
+    + `stale_after_days`; if stale, emit warning to MODELINV envelope
+    (`ceiling_stale: true`) and route through chunked path (FR-4) as
+    defensive default
+  - **Re-calibration trigger**: any of (a) new KF entry referencing model,
+    (b) stale_after_days elapsed, (c) operator-forced via `loa substrate
+    recalibrate <model>` CLI
+
+**Acceptance Criteria:**
+- [ ] All models in `model-config.yaml` carry the 5 new fields (4 capability + ceiling_calibration), populated correctly
+- [ ] Cheval pre-flight gate emits typed exit 7 for inputs > ceiling (bats coverage)
+- [ ] MODELINV v1.3 schema lands additively over v1.2 (existing logs parse)
+- [ ] KF-auto-link script runs in CI; integration test seeds a fake KF and verifies model degradation per the severity-to-downgrade mapping
+- [ ] **[IMP-001]** Severity-to-downgrade mapping table specified in this PRD (above); each row covered by at least one bats fixture
+- [ ] **[IMP-002]** Operator-override mechanism shipped with precedence rules + audit trail; integration test verifies precedence + expiry + CI block on missing `authorized_by`
+- [ ] **[SKP-004]** Override precedence is **conditional**: rejection conditions (missing/expired/excessive `effective_until`, empty/invalid `kf_references[]`, OPEN CRITICAL KF without `break_glass`) each have a bats fixture demonstrating the rejection path + stderr warning + KF auto-decision falling through; positive-control bats fixture verifies a well-formed break-glass override IS accepted
+- [ ] **[SKP-004]** Break-glass overrides emit a signed L4 trust event per cycle-098 audit envelope; conformance test loads the JSONL and verifies Ed25519 signature validates + hash-chain integrity holds
+- [ ] **[SKP-003]** `--ceiling-override` requires `--override-operator` + `--override-reason` (≥16 chars) + optional `--override-expiry` (default `now()+24h`, cap `now()+7d`); missing or invalid credential → exit 9; operator must appear in `OPERATORS.md::acls.ceiling-override-authorized`; successful override emits signed `cheval.ceiling_override` audit event to `.run/cheval-overrides.jsonl`
+- [ ] **[IMP-005]** Parsing-policy fixtures: malformed YAML, unknown status, missing model, multi-model, duplicate KF id — each produces the documented outcome
+- [ ] **[IMP-007]** Ceiling calibration: probe protocol shipped + 5 known models calibrated empirically at cycle-109 ship time; remaining models flagged for follow-up
+- [ ] **[IMP-008]** Conservative-default migration applied to all models lacking empirical data; documented in PR body
+- [ ] Codegen byte-equality preserved across bash/python/TS for new fields
+
+**Dependencies:** None (foundation sprint)
+
+**System Zone Authorization** [per `.claude/rules/zone-system.md`]:
+- Modifies `.claude/defaults/model-config.yaml` (schema additions)
+- Modifies `.claude/adapters/cheval.py` (pre-flight gate extension)
+- Modifies `.claude/data/schemas/` (MODELINV v1.3)
+- Modifies `.claude/scripts/lib/model-config-migrate.py` (v3 migration)
+- Adds `.claude/scripts/lib/kf-auto-link.py`
+- Modifies `.claude/scripts/generated-model-maps.sh` (codegen output)
+- All authorized by this PRD.
+
+---
+
+### FR-2: Verdict-Quality Envelope + Consumer Contracts (Sprint 2)
+
+**Priority:** Must Have
+**Description:** Every substrate output carries a first-class verdict-quality
+envelope. Consumers refactored to surface it. `status: clean | APPROVED` is
+definitionally impossible when verdict quality is degraded.
+
+**Sub-requirements:**
+
+- **FR-2.1**: Define verdict-quality envelope schema
+  (`.claude/data/schemas/verdict-quality.schema.json` v1.0):
+  ```jsonc
+  {
+    "status": "APPROVED | DEGRADED | FAILED",        // SKP-001 v3/v4 — REQUIRED canonical
+    "consensus_outcome": "consensus | impossible",   // SKP-002 v5 — REQUIRED (replaces unrepresentable private _consensus_impossible)
+    "voices_planned": 3,                              // ≥1 enforced by schema
+    "voices_succeeded": 2,
+    "voices_dropped": [
+      {
+        "voice": "gpt-5.2",
+        "reason": "EmptyContent",
+        "exit_code": 1,
+        "blocker_risk": "unknown | low | med | high" // SKP-002 v3/v4 — REQUIRED per drop entry
+      }
+    ],
+    "chain_health": "ok | degraded | exhausted",
+    "confidence_floor": "high | med | low",
+    "rationale": "human-readable explanation of the floor",
+    "chunks_reviewed": 0,                            // SKP-001 v5 — chunked-review counters load-bearing
+    "chunks_dropped": 0
+  }
+  ```
+
+  **[SKP-001 closure — Flatline SDD-review v3 CRITICAL BLOCKER]** The
+  `status` field is REQUIRED and is the **sole** classification surface
+  consumers may read. Re-deriving status from sub-fields is forbidden
+  (lints in CI via `tools/lint-verdict-consumers.py`). The cycle-109
+  PRD-review trajectory — where `confidence: full` was emitted while a
+  voice effectively dropped — recreates exactly here if `status` is
+  optional or computed at the consumer; refusing both is the load-bearing
+  invariant FR-2 exists to enforce.
+
+  **[SKP-002 closure — Flatline SDD-review v3 HIGH BLOCKER]** Every
+  entry in `voices_dropped[]` MUST carry a `blocker_risk` classifier
+  output (`unknown | low | med | high`). Computed by the canonical
+  `compute_verdict_status()` at envelope-emission time from (a) dropped-
+  voice role weight in the cohort, (b) sprint-kind risk band, (c) KF
+  priors for `(voice, sprint-kind)`. Operator may override per-call
+  via `--blocker-risk-override <enum>` (acceptance criterion).
+
+- **FR-2.2**: Substrate emits envelope on every call — cheval.cmd_invoke
+  output extended; FL/RT/BB consumers receive it
+- **FR-2.3**: Define classification contract (single canonical function
+  `compute_verdict_status` in `cheval.py`; bash twins shell out for
+  byte-identical output):
+  - `APPROVED` requires: `voices_succeeded == voices_planned`
+    AND `chain_health == ok` AND every `voices_dropped[].blocker_risk
+    ∈ {unknown, low}` AND no dropped voice findings would have been
+    BLOCKER class
+  - `DEGRADED` requires: `0 < voices_succeeded < voices_planned` AND
+    remaining voices reached consensus AND no dropped voice carries
+    `blocker_risk == "high"`
+  - `FAILED` requires: `voices_succeeded == 0` OR `chain_health ==
+    exhausted` OR consensus impossible OR any
+    `voices_dropped[].blocker_risk == "high"` (auto-promotes from
+    DEGRADED to FAILED)
+
+**[IMP-004] Consumer inventory + dependency-ordered refactor plan.**
+Additive envelope changes still fail if downstream consumers silently
+ignore the new field. Enumerated consumers (per reality §3 + grep pass
+2026-05-13), refactored in this order:
+
+| # | Consumer | Path | Refactor | Migration order rationale |
+|---|----------|------|----------|---------------------------|
+| 1 | cheval (canonical emitter) | `.claude/adapters/cheval.py` | Emit envelope on every call | Producer first — all consumers read this |
+| 2 | flatline-orchestrator | `.claude/scripts/flatline-orchestrator.sh` | Consume + surface in `final_consensus.json` | Highest-volume consumer; canary |
+| 3 | adversarial-review | `.claude/scripts/adversarial-review.sh` | Consume + surface in adversarial-{review,audit}.json | Security-critical (closes #807) |
+| 4 | BB cheval-delegate adapter | `.claude/skills/bridgebuilder-review/resources/adapters/cheval-delegate.ts` | Consume + render in PR-comment summary | Operator-facing UI; ships after backend stable |
+| 5 | flatline-readiness | `.claude/scripts/flatline-readiness.sh` | Read envelope; gate readiness on `chain_health` | Downstream of FL (#2) |
+| 6 | red-team-pipeline | `.claude/scripts/red-team-pipeline.sh` | Consume + log degraded paths | Lowest-volume; lowest priority |
+| 7 | post-PR triage | `post-pr-triage.sh` + cycle-053 amendment | Consume in classifier; degraded findings auto-route to next-bug-queue | Independent track; ships after #1-4 |
+
+Consumer-contract conformance (FR-2.7) runs against EVERY consumer in
+the table. CI matrix has one job per consumer.
+
+- **FR-2.4**: Refactor FL orchestrator to compute and surface envelope
+  [CODE:flatline-orchestrator.sh — existing `emit_voice_dropped` extended
+  + `compute_grounding_stats` extended] — consumer #2 in table above
+- **FR-2.5**: Refactor adversarial-review to compute and surface envelope
+  [CODE:adversarial-review.sh — `assemble_dissent_context` +
+  `invoke_dissenter` extended] — consumer #3
+- **FR-2.6**: Refactor BB cheval-delegate adapter (TS) to consume envelope
+  and surface in PR comment summary
+  [CODE:.claude/skills/bridgebuilder-review/resources/adapters/cheval-delegate.ts]
+  — consumer #4
+- **FR-2.6b**: Refactor consumers #5-7 (flatline-readiness, red-team-pipeline,
+  post-PR triage) per dependency order
+- **FR-2.7**: Consumer-contract test: a consumer that emits `clean` /
+  `APPROVED` on a degraded envelope **fails CI** — enforced by a new
+  conformance test pack, one job per consumer in the table above
+- **FR-2.8**: Operator-facing PR-comment summary includes verdict_quality
+  line at top: `✓ APPROVED — 3/3 voices, chain ok, confidence high`
+- **FR-2.9**: Single-voice call semantics (IMP-010 reference) —
+  consensus-oriented telemetry fields (`model_agreement_percent`,
+  `voices_succeeded`) are emitted with `single_voice_call: true` flag
+  when only 1 voice is planned (e.g., BB single-pass review). Consumers
+  reading these fields treat them as non-applicable rather than
+  inferring degradation from "100% agreement of 1 voice"
+
+**Acceptance Criteria:**
+- [ ] Schema lands at `.claude/data/schemas/verdict-quality.schema.json`
+- [ ] Every substrate output (all 7 consumers in FR-2 table) carries verdict-quality envelope
+- [ ] Conformance test: emitting `clean` on `voices_succeeded < voices_planned`
+      fails CI; current [ISSUE:#807] / [ISSUE:#809] fixtures are added to suite
+- [ ] PR comment summary surfaces verdict_quality at top of comment
+- [ ] [ISSUE:#807] / [ISSUE:#809] / [ISSUE:#868] / [ISSUE:#805] reproductions
+      now correctly classify as DEGRADED or FAILED
+- [ ] **[IMP-004]** Each consumer in the FR-2 table is refactored in declared dependency order; per-consumer PR (or labeled commit in single-PR variant) traceable in cycle-109 history
+- [ ] **[IMP-004]** Cycle-109 PRD-review trajectory (the run that just classified `confidence: full` while Opus voice dropped) is added to the conformance fixture corpus as the canonical "must-not-recur" regression
+- [ ] **[SKP-001]** `status: APPROVED|DEGRADED|FAILED` is REQUIRED in the schema (`additionalProperties: false` + required-list enforcement); envelope-emitted without `status` fails the producer-side schema gate AND the consumer-side conformance test
+- [ ] **[SKP-001]** Consumer-lint (`tools/lint-verdict-consumers.py`) ships in Sprint 2 and grep-detects any consumer that derives status locally instead of reading the canonical field; lint runs in CI and fails on violation
+- [ ] **[SKP-002]** Every `voices_dropped[]` entry carries a `blocker_risk` classifier output (`unknown|low|med|high`); schema requires the field; consumer-contract test asserts emit + correct classification on the cycle-109 PRD-review fixture (Opus drop on security-touching sprint-kind → `blocker_risk = med`)
+- [ ] **[SKP-002]** Operator `--blocker-risk-override <enum>` flag wired on `cheval invoke`; override is logged to MODELINV envelope (`blocker_risk_override: <enum>`) with operator slug + reason; missing reason = exit 2
+
+**Dependencies:** FR-1 (envelope cross-references capability_evaluation)
+
+**System Zone Authorization**:
+- Adds `.claude/data/schemas/verdict-quality.schema.json`
+- Modifies `.claude/adapters/cheval.py`
+- Modifies `.claude/scripts/flatline-orchestrator.sh`
+- Modifies `.claude/scripts/adversarial-review.sh`
+- Modifies `.claude/skills/bridgebuilder-review/resources/adapters/cheval-delegate.ts`
+- All authorized by this PRD.
+
+---
+
+### FR-3: Legacy Adapter Sunset + Activation Regression Suite (Sprint 3)
+
+**Priority:** Must Have
+**Description:** Fully delete `model-adapter.sh.legacy` (1,081 LOC) and
+all consumer branch paths. Build a CI suite that runs every substrate
+consumer with `flatline_routing: true` against fixture provider responses.
+
+**Sub-requirements:**
+
+- **FR-3.1**: Inventory all references to `model-adapter.sh.legacy` (grep
+  pass; expected: ~10-15 sites across FL/RT/cycles tests)
+- **FR-3.2**: Fix the four v1.157.0 regression issues at the cheval path
+  (not by patching legacy):
+  - [ISSUE:#864] — root-cause legacy CLI crash; verify cheval path
+    handles CLI models correctly; close issue when legacy is deleted
+  - [ISSUE:#863] — cost-map, scoring engine empty, GPT/Gemini orchestrator
+    fail; each fixed at cheval/flatline-orchestrator level
+  - [ISSUE:#793] — flatline-orchestrator validator accepts cheval-headless
+    pin form
+  - [ISSUE:#820] — env loading, alias recommendation, scoring parser
+    each fixed at FL level
+- **FR-3.3**: Delete `model-adapter.sh.legacy` (1,081 LOC) — operator authorized
+  (C109.OP-3)
+- **FR-3.4**: Delete or refactor all consumer branches conditional on
+  `is_flatline_routing_enabled` returning false [CODE:model-adapter.sh:67,
+  flatline-orchestrator.sh:476] — the flag becomes informational-only
+  (audit logging) or is removed entirely
+- **FR-3.5**: Build activation regression suite
+  (`tests/integration/activation-path/`):
+  - **[IMP-009] Matrix dimensions** (explicit):
+    1. **Consumer**: BB, FL, RT, /bug, /review-sprint, /audit-sprint,
+       flatline-readiness, red-team-pipeline, post-PR triage (the FR-2
+       table)
+    2. **Substrate role**: review, dissent, audit, implementation,
+       arbiter (per `recommended_for` taxonomy)
+    3. **Provider response class**: success, empty-content (KF-002),
+       rate-limited (KF-001-class), chain-exhausted, provider-disconnect
+       (#774), context-too-large preempt
+    4. **Dispatch path** (IMP-009 dimension): single-dispatch AND
+       chunked-dispatch (FR-4) — every consumer × every response class
+       executed against BOTH paths; chunked path tested with 2-chunk
+       and 5-chunk fixtures
+    5. **Verdict-quality outcome**: APPROVED, DEGRADED, FAILED
+       (cross-checked against expected for each fixture combo)
+  - Fixture-driven; uses cycle-099 sprint-1C curl-mock-harness
+  - Runs in CI on every PR touching substrate code; matrix-jobs run in
+    parallel (target: <15 min wall-time for full matrix)
+- **FR-3.6**: Update rollback documentation: cycle-109 rollback is a `git
+  revert` of merge commits, NOT a runtime flag flip (per
+  operator-approval C109.OP-3 risk acknowledgment)
+- **FR-3.7**: Update `CLAUDE.md` Multi-Model Activation section to remove
+  legacy-fallback rollback path; replace with "rollback = revert" guidance
+
+**Acceptance Criteria:**
+- [ ] `git ls-files` reports zero references to `model-adapter.sh.legacy`
+- [ ] All 4 Cluster B issues closed (#864, #863, #793, #820)
+- [ ] Activation regression suite runs in CI with all matrices passing
+- [ ] `hounfour.flatline_routing` config key is removed OR fully informational
+- [ ] CLAUDE.md updated to reflect new rollback model
+
+**Dependencies:** FR-1 + FR-2 (the suite tests against capability + verdict envelopes)
+
+**System Zone Authorization**:
+- Deletes `.claude/scripts/model-adapter.sh.legacy`
+- Modifies `.claude/scripts/model-adapter.sh` (remove flag-gated branches)
+- Modifies `.claude/scripts/flatline-orchestrator.sh` (remove flag-gated branches)
+- Adds `tests/integration/activation-path/` suite
+- Modifies `.claude/loa/CLAUDE.loa.md` rollback section
+- All authorized by this PRD.
+
+---
+
+### FR-4: Hierarchical / Chunked Review for Large Inputs (Sprint 4)
+
+**Priority:** Must Have
+**Description:** When input exceeds a model's `effective_input_ceiling`,
+cheval automatically chunks the review and aggregates findings, rather
+than dispatching and discovering empty-content empirically.
+
+**Sub-requirements:**
+
+- **FR-4.1**: Define chunking strategy for diff/PR review (the primary
+  large-input case):
+  - Chunk boundary: file-level (preserve coherent review units)
+  - Per-chunk size: max `effective_input_ceiling * 0.7` (headroom for
+    prompt overhead)
+  - Cross-chunk context: shared header (PR description, affected files
+    list) prepended to each chunk
+- **FR-4.2**: Cheval orchestrates chunked dispatch when pre-flight gate
+  (FR-1.3) determines input > ceiling
+- **FR-4.3**: Findings aggregation: dedupe by (file, line, finding-class);
+  preserve grounded anchors.
+
+  **[IMP-006] Conflict resolution policy** for cross-chunk findings:
+  - **Same (file, line, finding-class)** → dedupe, keep highest-severity
+    instance + union of evidence anchors
+  - **Same (file, line) but different finding-class** → keep both; emit
+    `cross_chunk_overlap: true` annotation for operator review
+  - **Same finding-class but different line** within same file → keep
+    both (different sites)
+  - **Conflicting severities** for the same logical finding (rare;
+    cross-chunk reviewer disagreement) → escalate to higher severity +
+    annotate `severity_escalated_from: <lower>` in finding payload
+  - **Finding spans chunk boundary** (e.g., shell injection where
+    sanitizer + sink in different chunks) → cross-chunk pass: cheval
+    re-runs review on adjacent-chunk pairs that triggered overlap
+    annotations; this is a second-stage aggregation
+- **FR-4.4**: Streaming-with-recovery (defensive): for non-chunked calls
+  where pre-flight gate passed but model still empty-contents within
+  first N tokens, abort early with typed exit (not silent timeout)
+  — this protects against capability data being wrong/stale.
+
+  **[IMP-014] Specific thresholds** (per-model, override via
+  `model-config.yaml::models.<id>.streaming_recovery`):
+  - **First-token-deadline**: 30s default; per-model override
+    (reasoning-class models may need 60s for CoT prelude)
+  - **Empty-content detection**: first 200 tokens of output content
+    examined; if zero non-whitespace tokens AND `reasoning_class: false`,
+    OR if zero non-CoT tokens AND `reasoning_class: true`, treat as
+    empty-content
+  - **CoT-detection heuristic** (for `reasoning_class: true`): tokens
+    matching `^(thinking|let me|i'll|first[,]? i)` regex (loose) plus
+    XML-like `<thinking>` opening tags counted as CoT, not content
+  - **Abort emission**: typed exit code 1 with subcode `EmptyContent`
+    (matches cycle-103 taxonomy); MODELINV envelope records
+    `streaming_recovery: {triggered: true, tokens_before_abort: N,
+    reason: "no_content_in_first_200_tokens"}`
+  - **Per-model thresholds** lives in `model-config.yaml` (additive to
+    Sprint 1 schema):
+    ```yaml
+    streaming_recovery:
+      first_token_deadline_seconds: 60  # reasoning_class default
+      empty_detection_window_tokens: 200
+      cot_token_budget: 500  # reasoning_class only; abort if CoT consumes more
+    ```
+- **FR-4.5**: MODELINV envelope records `chunked: true, chunks_reviewed:
+  N, chunks_dropped: 0, chunks_aggregated_findings: M`
+- **FR-4.6**: Operator-facing summary on chunked review: surfaces chunk
+  count and any per-chunk degradation distinctly from overall verdict
+- **FR-4.7**: References [ISSUE:#791] (cycle-101 BB hierarchical review
+  pipeline) as the design lineage; closes [ISSUE:#866] / [ISSUE:#823] /
+  [KF-002 layer-1 structural]
+
+**Acceptance Criteria:**
+- [ ] >70KB FL input completes successfully against fixture providers (bats)
+- [ ] >40K reasoning-class input produces non-empty findings via chunking
+- [ ] Chunked-review aggregation: deduplication + finding-anchor preservation tested
+- [ ] Streaming early-abort triggers on simulated empty-content (bats with mock)
+- [ ] [ISSUE:#866] / [ISSUE:#823] reproduction fixtures pass
+- [ ] **[IMP-006]** Each conflict-resolution case has at least one fixture: dedupe-same, dedupe-different-class, different-line, severity-escalation, cross-chunk-overlap
+- [ ] **[IMP-014]** Per-model `streaming_recovery` thresholds shipped in `model-config.yaml`; bats verify abort triggers at the documented thresholds; reasoning-class CoT-detection regex tested with positive AND negative controls
+
+**Dependencies:** FR-1 (uses `effective_input_ceiling`), FR-2 (chunked
+output carries verdict envelope with per-chunk drilldown), FR-3
+(activation regression suite covers chunked path)
+
+**System Zone Authorization**:
+- Modifies `.claude/adapters/cheval.py` (chunking orchestration)
+- Modifies `.claude/scripts/flatline-orchestrator.sh` (chunked-review aggregation)
+- Adds chunking helper module under `.claude/adapters/`
+- All authorized by this PRD.
+
+---
+
+### FR-5: Carry Items + Substrate Observability (Sprint 5)
+
+**Priority:** Should Have (carry items) + Must Have (observability)
+**Description:** Close cycle-108 carry items and deliver operator-facing
+substrate health surface.
+
+**Sub-requirements:**
+
+**Carry items:**
+- **FR-5.1**: [ISSUE:#874] — cheval.py advisor-strategy provider-peek
+  narrow 'anthropic' fallback (C-S2-1) — generalize peek across providers
+- **FR-5.2**: [ISSUE:#875] — modelinv.py parents[4] hardcode (C2 from
+  sprint-1) — replace with path resolution against repo root marker
+- **FR-5.3**: [ISSUE:#870] — modelinv-rollup.sh O(N) per-line subprocess
+  spawn — refactor to single-pass parse
+
+**Observability:**
+- **FR-5.4**: CLI surface: `loa substrate health [--window 24h] [--json]`
+  — reads `.run/model-invoke.jsonl` (MODELINV envelope log); aggregates
+  per-model success/drop/exhaustion/p95/cost
+- **FR-5.5**: Output format:
+  ```
+  Substrate health, last 24h:
+    claude-opus-4-7:    SUCCESS 87% (N=234) | drop 8% | exhaust 5% | p95 12s | $4.21
+    gpt-5.2:            SUCCESS 92% (N=189) | drop 6% | exhaust 2% | p95 8s | $2.84
+    gemini-2.5-pro:     DEGRADED 45% (N=92) | drop 41% | exhaust 14% | p95 18s | $0.91
+  ⚠ gemini-2.5-pro health DEGRADED: file a KF or restrict role
+  ```
+- **FR-5.6**: Performance: <2s for 24h window on typical log volumes
+- **FR-5.7**: Health-threshold warnings: model below 80% success_rate
+  emits a warning line; below 50% emits an error and suggests filing
+  a KF entry (closes the UC-3 feedback loop)
+- **FR-5.8**: Optional: scheduled job (cron) that runs `loa substrate
+  health` daily and writes to a journal file (`grimoires/loa/substrate-health/YYYY-MM.md`)
+
+**Acceptance Criteria:**
+- [ ] All 3 carry items closed (#874, #875, #870)
+- [ ] `loa substrate health` CLI ships; tested with synthetic envelope corpus
+- [ ] Performance target met (<2s 24h window)
+- [ ] Operator can identify a degrading model BEFORE filing a substrate issue (UC-4)
+
+**Dependencies:** FR-1 (envelope fields), FR-2 (verdict-quality), FR-4
+(chunked annotations) — observability surface reads everything prior
+sprints emit.
+
+**System Zone Authorization**:
+- Modifies `.claude/adapters/cheval.py` (FR-5.1)
+- Modifies `.claude/scripts/lib/modelinv*.{py,sh}` (FR-5.2, FR-5.3)
+- Adds CLI subcommand under `.claude/scripts/` for FR-5.4
+- All authorized by this PRD.
+
+---
+
+## 6. Non-Functional Requirements
+
+### 6.1 Performance
+
+- **NFR-Perf-1**: Cheval pre-flight gate adds <50ms overhead per dispatch
+  (capability lookup is in-memory after first load)
+- **NFR-Perf-2**: Chunked review for a 100KB PR completes in ≤2.5× the
+  time of a single dispatch on a same-size PR (with chunking overhead
+  budgeted)
+- **NFR-Perf-3**: `loa substrate health --window 24h` completes in <2s
+  on a 100K-entry MODELINV log
+
+### 6.2 Reliability
+
+- **NFR-Rel-1**: No substrate output may emit `status: clean | APPROVED`
+  when verdict_quality is degraded (enforced by FR-2.7 consumer-contract test)
+- **NFR-Rel-2**: Cheval pre-flight gate exits with typed code 7
+  (ContextTooLarge) — never silent timeout — when capability is breached
+- **NFR-Rel-3**: KF-auto-link script (FR-1.5) is idempotent and
+  deterministic — running twice on the same ledger state produces
+  byte-identical `model-config.yaml`
+- **NFR-Rel-4**: MODELINV envelope hash-chain integrity preserved across
+  v1.2 → v1.3 migration (additive only; no field removals; existing
+  signatures verify)
+
+### 6.3 Security
+
+- **NFR-Sec-1**: Capability-evaluation pre-flight gate MUST NOT leak
+  prompt content to logs (input size only — already gate-controlled)
+- **NFR-Sec-2**: KF-auto-link script reads `known-failures.md` (TRACKED,
+  git-managed) only — no arbitrary file inputs; no shell injection
+  surface (parsed as YAML/markdown, not eval'd)
+- **NFR-Sec-3**: `loa substrate health` output redacts secrets per
+  existing redactor (`lib/log-redactor.{sh,py}` — cycle-099 sprint-1E.a);
+  reuse, do not reinvent
+- **NFR-Sec-4**: Verdict-quality envelope NEVER carries credentials,
+  endpoint URLs, or API keys — schema validation rejects unknown fields
+
+### 6.4 Maintainability
+
+- **NFR-Maint-1**: Substrate code path is **single-pathed** — no legacy
+  fallback after Sprint 3
+- **NFR-Maint-2**: Substrate-affecting changes carry KF cross-reference
+  in commit message or PR body (enforced by post-PR audit)
+- **NFR-Maint-3**: `model-config.yaml` schema v3 is forward-compatible:
+  v3 → v4 transitions follow the v1 → v2 migration precedent
+  (`tools/migrate-model-config.py`)
+
+### 6.5 Auditability
+
+- **NFR-Aud-1**: Every substrate dispatch produces a MODELINV v1.3
+  envelope in `.run/model-invoke.jsonl` — coverage ≥0.95 (raised from
+  cycle-108 baseline 0.90)
+- **NFR-Aud-2**: KF-auto-link decisions logged to
+  `.run/kf-auto-link.jsonl` with `before_state`, `after_state`, `kf_id`
+- **NFR-Aud-3**: Activation regression suite (FR-3.5) emits per-run
+  artifact summaries to `.run/activation-regression/` for cycle-close audit
+
+### 6.6 Codegen Byte-Equality
+
+- **NFR-Codegen-1**: Any change to `model-config.yaml` schema MUST
+  regenerate `generated-model-maps.sh` AND the TS port AND remain
+  byte-identical across runtimes (cycle-099 sprint-1D precedent —
+  enforced by `cross-runtime-diff.yml` CI gate)
+
+---
+
+## 7. User Experience
+
+### 7.1 Operator Flows
+
+#### Flow 1: Trusting a verdict
+
+```
+operator: /run sprint-plan
+substrate (post-cycle-109):
+  → implement (sprint-N)
+  → review: BB cheval-delegate
+    → emits PR comment header:
+      "✓ APPROVED — 3/3 voices, chain ok, confidence high"
+  → audit: FL multi-model
+    → emits audit summary header:
+      "✓ APPROVED — 3/3 voices, chain ok, confidence high"
+  → CI green; merge enabled
+operator: merge with confidence
 ```
 
-**Truncation computation for operator-added models**: `computeTruncationFromContext()` uses a generic formula based on `context.max_input` + `context.truncation_coefficient` (default `0.20`). Operators may pin per-model truncation by populating `model_aliases_extra.<id>.context.truncation_coefficient` explicitly.
+Compare to current state:
+```
+operator: /run sprint-plan
+substrate (current):
+  → review: BB single-model two-pass; Pass 2 fails ~80% (#805)
+  → audit: 2/3 voices dropped silently; output says "status: clean" (#807)
+operator: merges; ships shell-injection to production (#807 actual incident class)
+```
 
-**Resolution order at runtime**: operator override (`skill_models.bridgebuilder.<role>: <provider:id>`) > runtime overlay (`model_aliases_extra` entries) > compiled default (`truncation.generated.ts` + `config.generated.ts`). Mirrors FR-3.9 algorithm.
+#### Flow 2: Substrate degradation surfaces before catastrophe
 
-### Red Team adapter migration (FR-1.2)
+```
+operator: loa substrate health
+substrate:
+  → reads 24h MODELINV log
+  → reports per-model rates
+  → flags gemini-2.5-pro at 45% success (DEGRADED)
+operator: files KF-NNN against gemini-2.5-pro
+KF-auto-link script:
+  → parses new KF entry
+  → updates model-config.yaml::gemini-2.5-pro.recommended_for
+  → drops gemini-2.5-pro from primary-review roles
+substrate (next dispatch):
+  → routes to anthropic primary; cites KF-NNN in MODELINV envelope
+```
 
-`red-team-model-adapter.sh` currently maintains its own associative array. Migration: source `generated-model-maps.sh` at init, drop the local arrays. The `red-team-code-vs-design.sh`'s `--model opus` literal becomes `--model "$(resolve_alias opus)"` which resolves to the alias-mapped model.
+### 7.2 Interaction Patterns
 
-### model-permissions.yaml strategy (FR-1.4)
+- **Verdict-first summaries**: every substrate output leads with a single
+  unambiguous line — `APPROVED | DEGRADED | FAILED` + voice/chain/
+  confidence; full findings list follows
+- **Fail-loud over fail-silent**: when the substrate cannot complete a
+  call, it emits a typed exit code with rationale, not a silent timeout
+  or an empty success
+- **KF ledger as feedback loop**: operator observations flow into
+  substrate behavior through the existing `known-failures.md` mechanism;
+  no separate "model preferences" UI
 
-Two options for `/architect` to decide:
+### 7.3 Accessibility
 
-**Option A — Codegen from SoT**: `model-permissions.yaml` becomes a generated artifact. New script `gen-model-permissions.sh` reads each model's permissions from `model-config.yaml::providers.<p>.models.<id>.permissions` and writes `model-permissions.yaml`. Drift gate enforces match.
-
-**Option B — Merge into SoT**: permissions become a per-model field in `model-config.yaml` directly. `model-permissions.yaml` becomes a thin compatibility wrapper that lists `<model_id>: <permissions_block>`. Eventually deleted in cycle-100.
-
-PRD recommendation: **Option B** — permissions are a per-model attribute and merging them into the SoT eliminates an entire registry. Operator decision at `/architect`.
-
-### Persona docs migration (FR-1.5)
-
-Markdown frontmatter currently uses `# model: <id>`. New convention: `# tier: <tier>` resolves at runtime via the same tier-resolution path skills use. Backward compat: parsers accept both forms; `# tier:` wins if present.
-
-### Operator-config schema expansion impact
-
-Adding `model_aliases_extra` and `skill_models` to `.loa.config.yaml` schema. Loader rejects unknown top-level fields today (per cycle-095 SDD §1.4.5 strict-mode), so loader code MUST be updated to accept the new fields. Schema validation happens at load — invalid entries reject the entire load (fail-closed).
-
-### Backward-compat for legacy skill_models shapes
-
-Existing `flatline_protocol.models.{primary,secondary,tertiary}`, `bridgebuilder.multi_model.models[]`, `gpt_review.models.{primary,secondary}`, `adversarial_review.model` continue working. Loader reads both shapes; `skill_models` block (if present) wins. Deprecation warning emitted on legacy-shape detection.
-
-> Sources: cycle-095 `model-config.yaml`, cycle-095 SDD §1.4.5 strict-mode loader, Bridgebuilder skill structure observed in `/ride` reality.
-
----
-
-## Scope & Prioritization
-
-### In scope (cycle-099)
-
-| Priority | Item |
-|----------|------|
-| P0 | FR-1 Single Source of Truth Extension (Sprints 1, 2, 3) |
-| P0 | FR-2 Config Extension Mechanism (`model_aliases_extra`) (Sprint 2) |
-| P0 | FR-3 Per-Skill Tier-Tag Granularity (`skill_models`) (Sprint 2) |
-| P0 | FR-5 Drift Detection CI gate (Sprint 1) |
-| P1 | FR-4 Legacy Adapter Sunset — gated at Sprint 4 review (Sprint 4 if approved) |
-
-### Out of scope (deferred)
-
-| Item | Rationale |
-|------|-----------|
-| **Cycle-098 follow-ups** (L4 graduated-trust, L5/L6/L7 primitives) | Different problem domain — agent trust tiers, not model tiers. Belongs in a separate cycle. |
-| **Beads DB recovery (#661)** | Operations work, not model-registry-shaped. Handle as `/bug` between cycles or as a Sprint 0 chore. |
-| **Bridgebuilder iter-2 polish (#714, #719)** | T3 cosmetic backlog; not cycle-shaped. |
-| **Hot-reload of model config** | YAGNI for v1 — restart-to-apply is acceptable. Could be follow-up cycle if operator demand emerges. |
-| **Provider plugin contract for `model_aliases_extra`** | New providers (beyond OpenAI/Anthropic/Google/Bedrock) require System Zone code. Operator extension limited to existing provider types in v1. |
-| **Multi-tenant model billing isolation** | Not in #710 scope; separate concern. |
-| **Schema redesign of `model-config.yaml`** | Adding fields, not redesigning. Existing schema absorbs the changes. |
-| **Ledger.json activation** | Chore PR after PRD lands (matches cycle-098 #679 pattern). |
-| **Renaming `model-config.yaml`** | Stable identifier, no value in renaming. |
-
-### Deferred decisions to resolve before Sprint 1 (release blockers)
-
-Per Flatline SKP-001 HIGH 760 — `/architect` MUST resolve all of these in the cycle-099 SDD before Sprint 1 implementation begins. Treat as Sprint 1 release blockers; Sprint 1 cannot enter `/run` until each decision is documented in `grimoires/loa/cycles/cycle-099-model-registry/decisions/`.
-
-| ID | Decision | Owner | Deadline | Fallback (if no consensus by deadline) | Sources |
-|----|----------|-------|----------|----------------------------------------|---------|
-| **DD-1** | `model-permissions.yaml` strategy: Option A (codegen from SoT) vs Option B (merge into `model-config.yaml`). PRD recommendation: B. | deep-name (operator) | `/architect` SDD merge — 48h post-PRD-approval | Default to **Option B** per PRD recommendation; `/architect` adds rationale | FR-1.4, Technical Considerations |
-| **DD-2** | `model_aliases_extra` schema field placement: top-level vs nested under `models:` | deep-name (operator) | `/architect` SDD merge — 48h post-PRD-approval | Default to **top-level** (mirrors `protected_classes_extra` pattern from cycle-098 Sprint 1B) | FR-2.1 |
-| **DD-3** | `model_aliases_override` field design (override semantics): allowed fields, nesting depth, conflict reporting | deep-name (operator) | `/architect` SDD merge — 72h post-PRD-approval (more design surface) | Default to **partial-merge override** (operator override merges with framework default at field level; explicit fields override; missing fields inherit from default); silent override REJECTED in all cases per IMP-001 | FR-2.3 |
-| **DD-4** | FR-1.9 startup hook implementation language: Python vs Node | deep-name (operator) | `/architect` SDD merge — 48h post-PRD-approval | Default to **Python** (cheval is already Python; mirrors loa_cheval extension) | FR-1.9 |
-| **DD-5** | FR-2.2 JSON Schema location + ajv adapter language (matches the language chosen for DD-4) | deep-name (operator) | `/architect` SDD merge — same as DD-4 | Schema at `.claude/data/trajectory-schemas/model-aliases-extra.schema.json`; validator language follows DD-4 | FR-2.2 |
-|   |   |   |   |   |   |
-| **DD-6** *(new v1.2)* | Property-based test runner (FR-3.9): `bats` + simple property generator vs port-fast (Hedgehog/Hypothesis-style) external tool | `/architect` author | Sprint 2 design — 48h post-SDD-merge | Default to **bats + simple bash property generator** (sufficient for deterministic stage-by-stage assertion; 0 new dependencies) | FR-3.9 |
-
-> Sources: operator interview decision (2026-05-04, scope = narrow), conflation-risk callout from operator during interview, **Flatline SKP-001 HIGH (760) — deferred-decisions-as-spec-gaps**.
+- All output is plaintext / JSON; no GUI dependencies
+- `loa substrate health --json` enables tooling integrations (dashboards,
+  alerting)
 
 ---
 
-## Success Criteria
+## 8. Technical Considerations
 
-Cycle-099 is shipped when:
+### 8.1 Architecture Notes
 
-| ID | Criterion | Verification |
-|----|-----------|--------------|
-| **SC-1** | All non-legacy registries derive from `model-config.yaml` | CI drift gate passes; `grep -r 'claude-opus-[0-9]'` or similar finds zero hardcoded model names outside SoT, generated artifacts, and explicit backward-compat aliases |
-| **SC-2** | Operator can register a model in `.loa.config.yaml::model_aliases_extra` and reference it from `skill_models` | E2E test: fresh-clone repo + sample operator config + `model-invoke --validate-bindings` resolves operator model |
-| **SC-3** | `skill_models` block expresses Flatline-max / Red-Team-cheap / Bridgebuilder-mixed in ≤10 lines | Operator config audit during Sprint 2 acceptance |
-| **SC-4** | Bridgebuilder `dist/` defaults regenerated from SoT via `bun run build` | Sprint 3 acceptance: `git diff --quiet dist/` after fresh build |
-| **SC-5** | If FR-4 approved at Sprint 4 gate: `hounfour.flatline_routing: true` is default; legacy adapter marked deprecated; migration runbook published | Sprint 4 acceptance gate review |
-| **SC-6** | No regressions in existing Flatline / Red Team / Bridgebuilder runs | Existing test suite (480+ from cycle-098) + new Sprint tests pass |
-| **SC-7** | Backward compat preserved: existing operator configs work without changes | Migration test: cycle-098-vintage `.loa.config.yaml` resolves correctly |
-| **SC-8** | Drift between registries = 0 | CI drift gate green on every PR |
-| **SC-9** | **Deterministic resolution algorithm** (FR-3.9) produces consistent output across configs | Golden tests at `tests/integration/model-resolution-golden.bats` cover 10+ scenario configs per skill (Flatline, Red Team, Bridgebuilder, Adversarial Review): each scenario asserts (skill, role) → expected `provider:model_id` AND expected `resolution_path` matches the FR-3.9 algorithm. Per Flatline SKP-002 + IMP-001. |
-| **SC-10** | **Failure paths produce structured errors not silent fallback** (FR-3.8) | E2E test: operator binds skill to unmapped tier; system refuses to start with structured error listing unresolved bindings. Per Flatline SKP-004. |
-| **SC-11** | **Security test corpus passes** (NFR-Sec-1.1) | `tests/integration/model-aliases-extra-security.bats` covers SSRF + injection + permission-escalation probes; all tests pass. Per Flatline SKP-003 + SKP-004 permissions. |
-| **SC-12** | **Bridgebuilder runtime sees operator-added models** (FR-1.1 hybrid) | E2E test: operator adds `gpt-5.7-pro` to `model_aliases_extra`, sets `skill_models.bridgebuilder.gpt_role: gpt-5.7-pro`, restarts; Bridgebuilder logs show operator model in effective config. Per Flatline SKP-001. |
-| **SC-13** | **Legacy compatibility golden tests** (per v1.2 Flatline IMP-006 HIGH_CONSENSUS 845) | Golden tests at `tests/integration/legacy-config-golden.bats` cover all 4 existing config shapes: `flatline_protocol.models.{primary,secondary,tertiary}`, `bridgebuilder.multi_model.models[]`, `gpt_review.models.{primary,secondary}`, `adversarial_review.model`. Each shape has a representative cycle-098-vintage `.loa.config.yaml` fixture in `tests/fixtures/legacy-configs/`; `model-invoke --validate-bindings` produces the same `provider:model_id` resolution before and after cycle-099 migration code lands. Adds 4+ fixture configs and ~20 assertions. |
-| **SC-14** | **Property-based test invariants pass** (per v1.2 Flatline SKP-002) | `tests/property/model-resolution-properties.bats` runs random valid configs through resolution algorithm; all 6 invariants from FR-3.9 hold. ~100 random scenarios per CI run; 0 invariant violations across 1000-iteration stress-test. |
+The substrate's architectural shape per ADR-002 [REALITY:multimodel-substrate.md:§2]
+is **preserved**, not replaced. Cycle-109 fills in capability awareness
+*inside* the existing cheval-canonical-HTTP-boundary shape; it does not
+introduce a new boundary, a new aggregator (OpenRouter rejected), or a
+new top-level component.
 
-> Sources: G-1..G-5 with measurement criteria, cycle-098 success-criteria pattern.
+Concretely:
+
+- Pre-flight gate (FR-1.3) is added inside `cheval.py::cmd_invoke`
+  before adapter dispatch
+- Verdict-quality envelope (FR-2.1) extends the existing JSON output
+  schema — additive, not replacement
+- Legacy delete (FR-3.3) simplifies the shape by removing a parallel
+  path, not by introducing one
+- Chunked review (FR-4) is orchestrated inside cheval, not as a new
+  consumer
+- Observability surface (FR-5.4) is a read-only consumer of the existing
+  MODELINV log
+
+### 8.2 Integrations
+
+| System | Integration Type | Purpose |
+|--------|------------------|---------|
+| `model-config.yaml` | Schema extension | New capability fields (FR-1) |
+| `known-failures.md` | Watcher | KF-auto-link script (FR-1.5) |
+| `.run/model-invoke.jsonl` | Read-only consumer | Substrate health CLI (FR-5.4) |
+| Cycle-099 curl-mock-harness | Test fixture provider | Activation regression suite (FR-3.5) |
+| Cycle-098 audit envelope | Hash-chain extension | MODELINV v1.3 additive |
+| `verdict-quality.schema.json` | Schema definition | Consumer-contract enforcement (FR-2) |
+
+### 8.3 Dependencies
+
+- **No new external dependencies** — all work uses existing Python,
+  bash, TypeScript, yq, jq, gh tooling already in the substrate
+- **Internal dependencies**: FR-2 depends on FR-1; FR-3 depends on FR-1+2;
+  FR-4 depends on FR-1+2+3; FR-5 depends on all prior (read-only consumer
+  of their emissions)
+
+### 8.4 Technical Constraints
+
+- **Codegen byte-equality** [NFR-Codegen-1] — every schema change must
+  regenerate across runtimes
+- **MODELINV envelope continuity** — v1.2 → v1.3 must be additive only;
+  signatures preserve
+- **Test-first** [CLAUDE.md `/bug` precedent extended to all cycle-109
+  sprints] — every sprint's PR carries failing tests in the first
+  commit, passing tests in the implementing commit
+- **Iron-grip quality gates** — see §13
+
+### 8.5 Out-of-Scope Architectural Decisions (Explicit)
+
+- **No OpenRouter (or similar aggregator) integration** — analyzed and
+  rejected 2026-05-13. Three of four clusters are not routing problems;
+  integration would add a dependency layer without addressing root causes.
+- **No new providers / transports** — substrate-internal only
+- **No new feature flags** — `hounfour.flatline_routing` is being removed
+  (FR-3.4); no replacement
+- **No new model entries added during the cycle** — capability fields
+  are added to existing entries; new model additions are post-cycle work
 
 ---
 
-## Risks & Mitigation
+## 9. Scope & Prioritization
 
-| ID | Risk | Severity | Mitigation |
-|----|------|----------|------------|
-| **R-1** | Bridgebuilder TS dist regeneration breaks existing skill consumers (downstream Loa-mounted projects pin `dist/`) | HIGH | **Strengthened v1.1 per Flatline IMP-003 HIGH_CONSENSUS 785**: (a) Generate `dist/` deterministically in PR; CI verifies dist matches source. (b) **Rollback path**: every cycle-099 release publishes a git tag `cycle-099-dist-v<N>` so downstream submodule consumers can pin a specific dist generation; rollback runbook at `grimoires/loa/runbooks/bridgebuilder-dist-rollback.md` documents `git submodule update --init --reference <previous-tag>` recovery. (c) **Version-comment header**: every generated `dist/` file emits `// Generated from model-config.yaml@<sha>` as the first line for traceability. (d) **Staged gate**: cycle-099 sprint-3 publishes a release-candidate dist as a separate npm-style artifact tag (`@loa/bridgebuilder-dist@cycle099-rc1`) before the cycle-099 final release; downstream consumers can opt-in to the RC for compatibility validation before the cycle-099 default flips. (e) Backward-compat at API surface preserved (only defaults change, not interfaces). |
-| **R-2** | Operator's existing `.loa.config.yaml` stops working when loader strict-mode rejects new fields | MEDIUM | One-cycle deprecation path: loader accepts both old and new shapes; operator-visible warning on legacy shape; new shape wins on conflict; full schema migration in cycle-100 |
-| **R-3** | Legacy adapter sunset breaks operators with `hounfour.flatline_routing: false` (the default today) | MEDIUM | Sprint 4 sunset is gated — operator approves at Sprint 4 review; flip the default in Sprint 4, deprecate but don't delete in cycle-099; full removal scheduled for cycle-100 |
-| **R-4** | Drift detection CI false positives (regenerate produces non-deterministic output) | LOW | Lockfile approach with checksum verification; codegen scripts produce sorted, stable output; CI runs codegen + diff, not just diff |
-| **R-5** | Beads UNHEALTHY (#661) workaround friction across 4 sprints | MEDIUM | Ledger fallback documented (per cycle-098 protocol); `--no-verify` for commits per cycle-098 pattern; consider Sprint 0 beads recovery if friction > 4h cumulative across cycle-099 — operator decision at Sprint 0 boundary |
-| **R-6** | tier_groups mapping defaults populated wrong (e.g., `max` resolves to a deprecated model) | MEDIUM | Sprint 2 default mappings explicitly probe-confirmed via `model-health-probe.sh` (cycle-095 pattern); per-provider mapping reviewed in Sprint 2 design doc; operator override always wins |
-| **R-7** | Operator config schema explosion (skill_models + model_aliases_extra + tier_groups + agents legacy + skill-specific legacy) confuses new operators | MEDIUM | `.loa.config.yaml.example` provides a worked example showing the canonical (new) shape; legacy shapes documented as deprecation-only; `loa setup` wizard updates to use new shape |
-| **R-8** | Bridgebuilder `gen-bb-registry.ts` introduces a build-time dependency that breaks in CI environments without Bun | LOW | Bun is already a Bridgebuilder dependency (current `bun run build` pattern); CI containers already include Bun; no new dependency surface |
-| **R-9** | `model_aliases_extra` security: operator adds malformed entry that crashes loader at startup | LOW | Schema validation rejects malformed entries with structured error; loader fails-fast at startup with clear remediation |
-| **R-10** | cheval HTTP/2 bug (#675) mid-cycle resurfaces during Flatline review of cycle-099 PRDs/SDDs | MEDIUM | Already mitigated in cycle-098 via direct curl fallback; same workaround applies; cheval bug fix is its own follow-up |
+### 9.1 In Scope (Cycle-109)
 
-> Sources: cycle-098 risk-assessment pattern, R-5 from cycle-098 RESUMPTION beads workaround, R-10 from cycle-098 SDD v1.5 cheval reference.
+**Sprint 1** (FR-1) — Capability-aware substrate foundation
+**Sprint 2** (FR-2) — Verdict-quality envelope + consumer contracts
+**Sprint 3** (FR-3) — Legacy adapter sunset + activation regression suite
+**Sprint 4** (FR-4) — Hierarchical / chunked review for large inputs
+**Sprint 5** (FR-5) — Carry items + substrate observability
+
+### 9.2 Explicitly Out of Scope
+
+| Item | Reason |
+|------|--------|
+| OpenRouter / aggregator integration | Routing is not the failure surface (operator-rejected 2026-05-13) |
+| New providers (Mistral, Cohere, etc.) | Substrate-internal hardening cycle only |
+| New transports (additional CLI integrations) | Substrate-internal hardening cycle only |
+| Cycle-108 advisor-strategy adoption (decision-fork c' → a/b) | Behind `enabled: false`; separate cycle when triggers met (`rollout-policy.md`) |
+| Multi-model UI/dashboard (beyond CLI surface) | Out of cycle scope; CLI is sufficient operator surface |
+| Changes to BB skill output format beyond verdict-quality surfacing | Scope-creep risk; existing format preserved |
+
+### 9.3 Future Iterations (Post-Cycle-109)
+
+- **Cycle-110+**: Advisor-strategy adoption (cycle-108 decision-fork c' → a/b)
+  if production telemetry meets `rollout-policy.md` triggers
+- **Cycle-110+**: Substrate cost-optimization (per-call routing by cost)
+- **Cycle-110+**: New provider integrations IF substrate health
+  demonstrably stable for 30+ days post-cycle-109
+
+### 9.4 Priority Matrix
+
+| Sprint | Priority | Effort | Impact | Risk if skipped |
+|--------|----------|--------|--------|-----------------|
+| FR-1 (Capability) | P0 | M | High | All other sprints depend on it |
+| FR-2 (Verdict envelope) | P0 | M | High | Trust crisis unaddressed (#807-class continues) |
+| FR-3 (Legacy sunset) | P0 | L | High | Cluster B regenerates next release |
+| FR-4 (Chunked review) | P0 | L | High | KF-002 next-zoom in cycle-110 |
+| FR-5 (Carry + observability) | P1 | M | Medium | Carry items deferred; degradation invisible |
 
 ---
 
-## Timeline & Milestones
+## 10. Success Criteria
 
-Phased migration ordering (operator-locked at interview).
+### 10.1 Launch Criteria (End of Cycle-109)
 
-| Sprint | Scope | Estimated tests | Estimated cost | Risk |
-|--------|-------|-----------------|----------------|------|
-| **Sprint 1** | SoT extension foundation: Bridgebuilder TS codegen script (`gen-bb-registry.ts`); Red Team bash adapter migration to `generated-model-maps.sh`; `red-team-code-vs-design.sh` alias resolution; Drift detection CI gate (FR-5); Lockfile approach for generated artifacts | ~30 | ~$30-50 | LOW |
-| **Sprint 2** | Config extension + per-skill granularity: `model_aliases_extra` schema + loader (FR-2); `skill_models` config block (FR-3.1); `tier_groups.mappings` populated for max/cheap/mid (FR-3.2); Per-role tier resolution (FR-3.3); `prefer_pro_models` composition (FR-3.4); Backward-compat aliases for legacy `models.{primary,...}` shapes (FR-3.7) | ~30 | ~$30-50 | MEDIUM (loader changes) |
-| **Sprint 3** | Persona + docs migration + model-permissions: Persona docs use tier-tag (FR-1.5); Protocol docs reference operator config (FR-1.6); `model-permissions.yaml` derived from SoT (FR-1.4); Bridgebuilder `dist/` regenerated from SoT | ~25 | ~$25-40 | MEDIUM (Bridgebuilder dist) |
-| **Sprint 4 (gated)** | Legacy adapter sunset: Mark `model-adapter.sh.legacy` deprecated (FR-4.1); Default flip: `hounfour.flatline_routing: true` (FR-4.2); Deprecation warnings active (FR-4.3); Sprint 4 gate review: full removal vs continued deprecation (FR-4.4); Migration runbook + release notes (NFR-Op-3) | ~25 | ~$25-40 | MEDIUM (default flip) |
+- [ ] All 13 OPEN substrate issues from reality §9 closed (#793, #805, #807,
+      #809, #820, #823, #863, #864, #866, #868, #870, #874, #875)
+- [ ] G-1 through G-5 met (see §3.1)
+- [ ] All sprint acceptance criteria met (§5 FR-1 through FR-5)
+- [ ] All NFR thresholds met (§6)
+- [ ] Activation regression suite is green and required-in-CI
+- [ ] Final cycle audit passes (per /audit-sprint + /ship pattern)
+- [ ] CHANGELOG.md updated; cycle-109 tag signed; operator-approval ledger
+      complete
 
-**Total estimated**: ~110 tests, ~$110-180 cost, ~4-5 weeks wall-clock with full quality-gate chain per sprint (cycle-098 pattern: implement → review → audit → bridgebuilder kaironic 2-iter → admin-squash).
+### 10.2 Post-Launch Success (30 days)
 
-**Buffer**: Sprint 3.5 buffer week available for cross-sprint integration testing if Sprint 1-3 reveal shared-state interactions (e.g., Bridgebuilder dist regen + persona migration timing).
+- [ ] Zero new KF-002-class entries (large-doc empty-content)
+- [ ] Zero `status: clean` false positives in production audit log replay
+- [ ] Substrate observability (`loa substrate health`) used by operator
+      ≥3 times (engagement signal)
+- [ ] Operator headspace reduction observable: ratio of multi-model issue
+      filings to revenue-work commits drops materially
 
-> Sources: cycle-098 sprint-cost actuals (~$25-50 per sprint with 4-slice + full quality gate), Sprint counter at 138 (cycle-099 reservations would be 139-142 or 139-143 with buffer).
+### 10.3 Long-term Success (90 days)
+
+- [ ] Substrate becomes "boring infrastructure" — operator does not
+      mention multi-model when describing pain points in cycle reviews
+- [ ] Advisor-strategy decision-fork c' → a/b unblocked by sustained
+      substrate health
+- [ ] Cycle-110+ work proceeds without substrate as a tax
 
 ---
 
-## Appendix
+## 11. Risks & Mitigation
 
-### Appendix A — Full registry inventory (verified against current codebase)
+### 11.1 Risk Register
 
-See "Problem Statement" §1 for the table of 13 locations. Cross-referenced against [CODE:`grimoires/loa/reality/structure.md:11`] cheval adapter and [CODE:`grimoires/loa/reality/api-surface.md`] for current state.
+| ID | Risk | Probability | Impact | Mitigation |
+|----|------|-------------|--------|------------|
+| R-1 | Capability data is wrong (effective_input_ceiling set too high or low) | Med | Med | FR-4.4 streaming-with-recovery defensive fallback; FR-1.5 KF auto-link feedback loop self-corrects |
+| R-2 | Legacy delete (FR-3) breaks a consumer not in our inventory | Med | High | FR-3.1 inventory pass; FR-3.5 activation regression suite catches before merge; per-sprint Bridgebuilder review; operator approves Sprint 3 PR specifically |
+| R-3 | Verdict-quality envelope breaks existing consumer integrations | Low | Med | FR-2 envelope is additive; existing fields preserved; per-consumer refactor (FR-2.4-2.6) explicit; conformance test (FR-2.7) catches divergence |
+| R-4 | Chunked review (FR-4) changes finding behavior (false positives/negatives) | Med | Med | Deduplication tests; finding-anchor preservation tests; A/B comparison against single-dispatch baseline on representative PR corpus |
+| R-5 | MODELINV envelope v1.3 break existing replay logs | Low | High | v1.3 schema is additive only (NFR-Aud-1); existing parsers tested for backward compatibility |
+| R-6 | Cycle scope is too large; runway pressure forces premature ship | Med | High | Per-sprint independent value; if Sprint 4-5 slips, Sprints 1-3 alone meaningfully harden substrate; operator-visible escape via §11.3 |
+| R-7 | KF-auto-link (FR-1.5) over-degrades models (false-positive degradation) | Low | Med | Severity-mapping documented; degradations reversible (KF resolves → re-upgrade); operator can manual-override in `.loa.config.yaml` |
+| R-8 | Substrate becomes single-point-of-failure after legacy delete | Low | High | This was already true at v1.157.0 for the activated default; legacy was nominal-not-real safety net; mitigation is investing in substrate quality (which is what the cycle does) |
+| R-9 | Test substrate (curl-mock-harness, fixture provider responses) drifts from real provider behavior | Med | Med | Fixtures versioned and reviewed; sprint-1C precedent established; periodic real-provider smoke run |
 
-### Appendix B — Cycle-095 baseline references
+### 11.2 Assumptions
 
-| What cycle-095 shipped | Where | Cycle-099 leverages |
-|------------------------|-------|---------------------|
-| YAML-as-SoT for hounfour path | [CODE:`.claude/defaults/model-config.yaml`] | Extend to all consumers |
-| Provider registry + aliases + agents | [CODE:`model-config.yaml:7-381`] | Add `model_aliases_extra` as operator-extension layer |
-| `tier_groups` schema (mappings empty) | [CODE:`model-config.yaml:402-413`] | Populate mappings in Sprint 2 |
-| `prefer_pro_models` flag | cycle-095 Sprint 3 (closed) | Compose with `skill_models.X.tier: max` |
-| `backward_compat_aliases` | [CODE:`model-config.yaml:282-313`] | Preserve unchanged |
-| `gen-adapter-maps.sh` generator | cycle-095 Sprint 2 | Add `gen-bb-registry.ts` companion |
-| Probe-gated rollout | cycle-095 Sprint 1 | Reuse for default tier mapping verification |
+- **[ASSUMPTION]** OpenAI API quota restored 2026-05-13 [OPERATOR:2026-05-13]
+  — adversarial review can use OpenAI again; this unblocks portions of
+  Cluster B+C testing. If quota lapses again mid-cycle, fall back to
+  fixture-only testing per cycle-099 sprint-1C harness.
+- **[ASSUMPTION]** No new substrate-class issues surface that fundamentally
+  change the four-cluster diagnosis. If a fifth cluster emerges mid-cycle
+  (e.g., transport-layer failure not captured by current clusters),
+  evaluate against cycle scope: defer if feature-class, fold into Sprint 5
+  if hardening-class.
+- **[ASSUMPTION]** `effective_input_ceiling` can be determined empirically
+  for each model (probing or prior-KF data). If a model has no signal
+  yet, default conservatively (50% of advertised context window) and let
+  the KF feedback loop tune.
+- **[ASSUMPTION]** Existing cycle-098 audit envelope hash-chain semantics
+  apply unchanged to MODELINV v1.3 (additive-only preserves the chain).
+- **[ASSUMPTION]** Cycle-110 will exist and is the appropriate destination
+  for any cycle-109 scope-slip; no calendar dependency forces cycle-109
+  to absorb scope it should defer.
 
-### Appendix C — Decision log
+### 11.3 Escape Hatch (operator-visible rollback)
 
-| Date | Decision | Source | Rationale |
-|------|----------|--------|-----------|
-| 2026-05-04 | Cycle-099 scope = narrow (#710 only); cycle-098 follow-ups deferred | Operator interview | Conflation risk between agent-tier (L4) and model-tier (cycle-099); narrow scope ships faster |
-| 2026-05-04 | Migration ordering = phased (Sprint 1 SoT → 2 extension+granularity → 3 BB-TS codegen → 4 sunset) | Operator interview | Independently shippable per sprint; lower integration risk |
-| 2026-05-04 | Per-skill granularity = tier-tag per skill (composes with `tier_groups`) | Operator interview | Simpler than direct-model-per-role; composes with cycle-095 |
-| 2026-05-04 | Bridgebuilder TS migration = build-time codegen | Operator interview | Preserves current ship pattern; simpler than runtime YAML reads |
-| 2026-05-04 (revised) | Bridgebuilder TS migration = **hybrid (build-time codegen for defaults + runtime YAML overlay for operator-added entries)** | Flatline pass #1 SKP-001 CRITICAL (950) | Build-time alone leaves operator-added models invisible to Bridgebuilder; hybrid closes the gap while preserving compiled-defaults ship pattern |
-| 2026-05-04 | NFR-Sec-1 strengthened with provider-specific endpoint allowlist + SSRF blocks + api_id format normalization + security test corpus (NFR-Sec-1.1) | Flatline pass #1 SKP-003 CRITICAL (910) + HIGH (750) | Operator-extensible model definitions create SSRF + injection surface; layered defenses required |
-| 2026-05-04 | FR-3.5 strengthened: startup validation refuses launch on unresolved bindings; FR-3.8 added: fail-closed semantics; FR-1.4 adds permissions-elevation rejection | Flatline pass #1 SKP-004 CRITICAL (860) + HIGH (720) | Tier mapping fallback was undefined ("else falls back" without spec); silent fallback masks misconfiguration |
-| 2026-05-04 | FR-1.9 added: runtime config consolidation via Python/Node startup hook (decision DD-4); bash adapters source `.run/merged-model-aliases.sh` | Flatline pass #1 SKP-002 HIGH (780) — bash YAML parsing | Bash YAML parsing is fragile; cleaner to dump merged config once at startup |
-| 2026-05-04 | FR-3.9 added: deterministic 6-stage resolution algorithm with explicit precedence + conflict errors; SC-9 golden tests | Flatline pass #1 SKP-002 HIGH (780) + IMP-001 (875) — resolution precedence | Multiple overlapping resolution mechanisms (skill_models, aliases, backward_compat, tier_groups, prefer_pro_models, legacy shapes) without deterministic precedence creates inconsistent runtime behavior |
-| 2026-05-04 | FR-1.4 / FR-2.1 / FR-2.3 marked release blockers; new "Deferred Decisions" section listing DD-1..DD-5 | Flatline pass #1 SKP-001 HIGH (760) — deferred-decisions-as-spec-gaps | Implementation cannot start cleanly with unresolved spec questions |
-| 2026-05-04 | NFR-Op-5 + FR-5.5 added: codegen reproducibility (pinned toolchain + canonical serialization + matrix CI Linux/macOS) | Flatline pass #1 SKP-005 HIGH (720) | Cross-language codegen across Bash/Python/Bun assumes determinism but didn't specify it |
-| 2026-05-04 | R-1 strengthened: rollback runbook + version-comment header + dist tag for downstream pinning | Flatline pass #1 IMP-003 HIGH_CONSENSUS (785) | dist regen is a real compatibility hazard; staged rollout reduces blast radius |
-| 2026-05-04 | FR-2.2 strengthened: normative JSON Schema published at `.claude/data/trajectory-schemas/model-aliases-extra.schema.json` (ajv-validated) | Flatline pass #1 IMP-004 HIGH_CONSENSUS (815) | Schema validation needs an exact artifact, not prose |
-| 2026-05-04 | FR-5.6 added: `model-invoke --validate-bindings` contract spec (input, output JSON shape, exit codes) | Flatline pass #1 IMP-005 HIGH_CONSENSUS (735) | CLI is referenced in success criteria; needs explicit contract |
-| 2026-05-04 (pass #2) | Deferred Decisions table strengthened with Owner / Deadline / Fallback columns; DD-6 added for FR-3.9 property-test runner | Flatline pass #2 SKP-001 CRITICAL (910) — deferred decisions need explicit accountability | Bare deadline isn't enough; missed deadlines need explicit fallback choice to prevent decision-stalling |
-| 2026-05-04 (pass #2) | FR-3.4 strengthened: `prefer_pro_models` overlay for legacy shapes is opt-in via `respect_prefer_pro: true` (default false during deprecation window) | Flatline pass #2 SKP-002 CRITICAL (885) — algorithm complexity reframe | Reduces FR-3.9 algorithm state-space for legacy paths without forcing migration |
-| 2026-05-04 (pass #2) | FR-3.9 strengthened: property-based tests at `tests/property/model-resolution-properties.bats` covering 6 invariants | Flatline pass #2 SKP-002 CRITICAL (885) | Property-based tests verify algorithm correctness without forcing scope reduction |
-| 2026-05-04 (pass #2) | FR-1.9 strengthened: atomic write (`temp + rename(2)`), `flock` shared/exclusive locks, monotonic version header, SHA256-based invalidation under shared lock + exclusive lock for regen, file-missing/parse-error/permission-failure/stale failure modes | Flatline pass #2 SKP-003 HIGH (770) + IMP-003 (835) + IMP-004 (735) | Concurrency / race conditions / startup edge cases were underspecified |
-| 2026-05-04 (pass #2) | NFR-Sec-1 strengthened: URL canonicalization (`urlsplit`-style), HTTPS-only + default port enforcement, DNS rebinding defense (resolve-and-verify at request time), redirect denial across trust boundaries, mandatory TLS verification | Flatline pass #2 SKP-004 HIGH (755) | Endpoint allowlist alone bypassed by DNS rebinding / HTTP→HTTPS redirects / canonicalization gaps |
-| 2026-05-04 (pass #2) | FR-1.4 strengthened: minimal permissions baseline for operator-added models; explicit System Zone path OR `acknowledge_permissions_baseline: true` flag required | Flatline pass #2 SKP-005 HIGH (730) | Operator-added models without baseline entries had undefined permissions; rejection rule was incomplete |
-| 2026-05-04 (pass #2) | DD-3 row in Deferred Decisions strengthened with `model_aliases_override` semantics specification (partial-merge default, explicit fields override, silent override always rejected) | Flatline pass #2 IMP-001 HIGH_CONSENSUS (890) | Override/merge semantics are core to correctness; left undefined creates divergent implementations |
-| 2026-05-04 (pass #2) | FR-5.7 added: runtime resolution tracing via `LOA_DEBUG_MODEL_RESOLUTION=1` env var; structured `[MODEL-RESOLVE]` stderr log per resolution | Flatline pass #2 IMP-002 HIGH_CONSENSUS (820) | Pre-flight validation (FR-5.6) is insufficient for runtime debugging in a precedence resolver |
-| 2026-05-04 (pass #2) | SC-13 added: legacy compatibility golden tests at `tests/integration/legacy-config-golden.bats` covering all 4 existing config shapes | Flatline pass #2 IMP-006 HIGH_CONSENSUS (845) | PRD promises legacy support; golden tests prevent silent regression |
-| 2026-05-04 (pass #2) | SC-14 added: property-based test invariants pass | Flatline pass #2 SKP-002 mitigation | Companion to FR-3.9 property test addition |
-| 2026-05-04 (pass #3) | **Kaironic stop declared** at PRD pass #3 (90% agreement, DISPUTED appearing, finding-rotation at finer grain) | Flatline pass #3 plateau analysis | Per cycle-098 PRD v1.4→v1.5 pattern; remaining BLOCKERs are SDD-shape operational refinements |
-| 2026-05-04 (pass #3) | NFR-Sec-5 added: credential contract for operator-added models (reuse provider env var; `auth` field rejected; v2 namespacing deferred) | Flatline pass #3 IMP-001 HIGH (865) | Operator-added models implied a credential surface; PRD didn't address; v1 scope clarified to existing-provider env vars only |
-| 2026-05-04 (pass #3) | FR-3.7 strengthened: legacy-shape fail-closed exception (deprecation warning + framework-default tier mapping fallback) during cycle-099 window only; new shape always fail-closed | Flatline pass #3 IMP-005 HIGH (845) | Real spec conflict between FR-3.8 fail-closed and SC-7 legacy-compat-no-changes; explicit time-bounded exception resolves the tension |
-| 2026-05-04 (pass #3) | 4 SDD-shape findings explicitly deferred to `/architect`: SKP-003 (URL canonicalization edge cases — IPv6/IDN/punycode/port specs), SKP-004 (shell-escape safety in `.run/merged-model-aliases.sh`), SKP-005 (flock semantics over network filesystems), SKP-006 (hybrid BB TS-runtime/runtime-overlay divergence) | Flatline pass #3 BLOCKERs analysis | These are operational refinements appropriate for SDD-level architecture review, not PRD-level scope; will surface in SDD Flatline reviews |
-| 2026-05-04 (pass #3) | DISPUTED item recorded but NOT integrated: IMP-004 per-invocation cost forecasts at resolution time (avg 645, delta 330) | Flatline pass #3 disputed-rotation pattern | Cycle-098 disputed-rotation precedent: rotation is signal, not action; defer to operator at SDD if cost-observability emerges as a felt need |
-| 2026-05-04 | model-permissions.yaml strategy: Option B (merge into SoT) recommended; `/architect` decides | PRD recommendation | Permissions are a per-model attribute; merging eliminates a registry |
-| 2026-05-04 | Legacy adapter sunset gated at Sprint 4 review | PRD framing | Operator opts in to full removal vs deprecation-window |
+If cycle-109 introduces a regression that materially worsens substrate
+health vs the pre-cycle baseline, the rollback procedure is:
 
-### Appendix D — Glossary
+1. `git revert` of the cycle-109 merge commits
+2. Operator approval recorded in cycle-109 operator-approval.md as `C109.OP-N-ROLLBACK`
+3. Substrate reverts to v1.157.0 + cycle-108 baseline
+4. Post-mortem KF entry recorded
+5. **Not via `flatline_routing: false`** — after FR-3.3, the legacy path
+   no longer exists, so the runtime flag is not a rollback option
+6. Acknowledged risk per operator-approval C109.OP-3
+
+### 11.4 Unverified Assumptions (Tagged for Future Verification)
+
+- ~~[ASSUMPTION] KF-auto-link severity mapping deferred~~ — **RESOLVED in v1.1
+  per IMP-001 HIGH_CONSENSUS**; canonical table now in FR-1.5
+- [ASSUMPTION] §6.1 NFR-Perf-1 50ms overhead target — to be measured
+  in Sprint 1 against pre-flight-gate-disabled baseline
+- [ASSUMPTION] §5 FR-4.1 file-level chunking is the right boundary for
+  PR review — alternative (token-budget greedy packing) to be evaluated
+  in Sprint 4 SDD
+- ~~[ASSUMPTION] §10.2 30-day metric "ratio of multi-model issue filings
+  to revenue-work commits"~~ — **RESOLVED in v1.1 per IMP-003**; defined
+  in §3.4 baseline methodology table
+- [ASSUMPTION] §3.4 baseline measurement protocol assumes 30d of MODELINV
+  log data available for "clean false-positive rate" baseline; if log
+  history is shorter, baseline window adjusts to available data and is
+  noted in `baselines/clean-fp-rate.json` metadata
+- [ASSUMPTION] FR-1.6 empirical-probe binary-search reliably converges
+  on `effective_input_ceiling` within ~5 trials per model; if convergence
+  fails for a model, conservative-default (FR-1.2) is used and KF entry
+  filed for follow-up
+
+### 11.5 Dependencies on External Factors
+
+- **OpenAI API access** for adversarial review testing (per operator
+  funding 2026-05-13)
+- **`gh` API access** for issue lifecycle tracking (existing dependency)
+- **No upstream model behavior changes** that invalidate
+  `effective_input_ceiling` values mid-cycle (if Anthropic/OpenAI/Google
+  changes model behavior under the hood, KF feedback loop captures it)
+
+---
+
+## 12. Timeline & Milestones
+
+| Milestone | Target | Deliverables |
+|-----------|--------|--------------|
+| PRD complete | 2026-05-13 (today) | This document; operator-approval C109.OP-1 |
+| Flatline PRD review | 2026-05-14 | Flatline review passes (multi-model adversarial check; ironic — uses the substrate it audits) |
+| SDD complete | 2026-05-15 | `/architect` produces SDD for all 5 sprints |
+| Sprint plan complete | 2026-05-16 | `/sprint-plan` produces task graph in beads |
+| Sprint 1 (Capability) | ~1 week | FR-1 shipped; G-1 partial; G-2 foundation |
+| Sprint 2 (Verdict envelope) | ~1 week | FR-2 shipped; G-3 met |
+| Sprint 3 (Legacy sunset) | ~1.5 weeks | FR-3 shipped; G-4 met; G-1 substantially advanced |
+| Sprint 4 (Chunked review) | ~1 week | FR-4 shipped; G-2 met |
+| Sprint 5 (Carry + observability) | ~1 week | FR-5 shipped; cycle launch criteria met |
+| Cycle close + tag | end of cycle | Cycle-109 archived; CHANGELOG; signed release tag; operator-approval complete |
+
+**Total estimate**: 4-6 weeks engineering time; cycle ships when criteria met, not on calendar pressure (operator-explicit: "don't cut corners").
+
+---
+
+## 13. Quality Gates & Loa Process Conformance
+
+This section is the **iron-grip enforcement** the operator mandated.
+
+### 13.1 PRD Gate (this document)
+
+- [ ] **Flatline PRD review** before `/architect` — must pass HIGH_CONSENSUS or have explicit operator override (per cycle-108 precedent)
+- [ ] Operator-approval entry C109.OP-1 in place — done
+- [ ] Cited against reality + KF ledger — done
+
+### 13.2 SDD Gate
+
+- [ ] `/architect` produces SDD for all 5 sprints
+- [ ] **Flatline SDD review** before `/sprint-plan` — must pass HIGH_CONSENSUS or operator override
+- [ ] SDD addresses all FR / NFR / risks from this PRD
+- [ ] SDD specifies test-first patches for every sprint
+
+### 13.3 Sprint Plan Gate
+
+- [ ] `/sprint-plan` produces beads task graph
+- [ ] **Flatline sprint-plan review** before `/run` — must pass HIGH_CONSENSUS or operator override
+- [ ] Every sprint has explicit acceptance criteria mapped to FR-N + AC list
+- [ ] Sprint Ledger updated; cycle-109 sprints registered with global IDs
+
+### 13.4 Per-Sprint Gates
+
+For every sprint:
+
+- [ ] **`/run sprint-N`** — never direct `/implement` (per CLAUDE.md NEVER rule)
+- [ ] **implement → review → audit cycle** — full cycle, no skipping
+- [ ] **Test-first**: PR's first commit lands failing tests; second commit makes them pass
+- [ ] **Bridgebuilder review** on the PR; iterate until plateau
+- [ ] **Post-PR audit** ((`post_pr_validation.phases.bridgebuilder_review.enabled: true`) — process per cycle-053 amendment
+- [ ] **Beads task lifecycle**: every task transitions `created → in-progress → closed`; orphan tasks investigated
+- [ ] **KF cross-reference** in PR body when sprint addresses a KF entry
+- [ ] **MODELINV v1.3 envelope** emitted for every cheval call during sprint testing — `.run/model-invoke.jsonl` reviewed at sprint close
+
+### 13.5 Per-PR Gates
+
+- [ ] `auto_push: false` (or operator-explicit push approval)
+- [ ] CODEOWNERS auto-assignment → @janitooor primary reviewer
+- [ ] CI green (all activation regression matrix + unit + integration)
+- [ ] Bridgebuilder review posted as PR comment
+- [ ] Post-PR triage classified findings (CRITICAL/BLOCKER → next-bug-queue; HIGH → logged; PRAISE → lore candidate per cycle-053)
+- [ ] No commit skips hooks (no `--no-verify`, no `--no-gpg-sign`) per project safety hooks
+
+### 13.6 Audit Trail
+
+Every sprint produces:
+
+- `grimoires/loa/cycles/cycle-109-substrate-hardening/sprint-N-debrief.md` — handoff per cycle-109 sprint structure
+- `.run/audit.jsonl` entries (mutation logger hook)
+- `.run/model-invoke.jsonl` envelopes (substrate dispatches)
+- `.run/activation-regression/sprint-N.json` (after FR-3.5 lands)
+- Bridgebuilder review on PR
+- Operator-approval entry for any substrate-changing sprint (per cycle-108 precedent)
+
+### 13.7 Circuit Breaker
+
+`/run sprint-plan` circuit-breaker remains active throughout cycle-109.
+Tripping conditions (per existing `run-mode` design):
+
+- 3 consecutive sprint failures → HALT, await `/run-resume`
+- Audit-gate failure → HALT, await operator review
+- Substrate degradation observed during cycle execution (irony case —
+  if multi-model fails on its own audit) → HALT, fall back to
+  single-model BB with operator notification
+
+Operator may /run-halt at any time; /run-resume requires the halt
+reason addressed.
+
+### 13.8 Escape from Quality Gates (NOT permitted in cycle-109)
+
+Per operator instruction "iron grip", the following shortcuts are
+**forbidden** during cycle-109:
+
+- ❌ Skipping Flatline review on PRD/SDD/sprint-plan
+- ❌ Direct `/implement` without `/run sprint-N` wrapper
+- ❌ Direct PR merge without Bridgebuilder + post-PR audit
+- ❌ Committing without test-first
+- ❌ Using `/bug` to bypass cycle scope on feature work
+- ❌ TaskCreate as a replacement for beads task tracking
+- ❌ Manual `.run/` edits (lead-only in Agent Teams mode; mutation logger captures)
+
+Violations of any of these constitute a process incident; record in
+NOTES.md and route through `/feedback` to upstream Loa.
+
+---
+
+## 14. Appendix
+
+### A. Stakeholder Insights
+
+**Operator (2026-05-13)**:
+
+- "this is our flagship feature and is the foundation to our entire
+  approach and quality control" — substrate is load-bearing infrastructure
+- "used to work well with the older models so this is really painful" —
+  diagnostic clue: substrate regressed with newer reasoning-class models
+- "this is now consuming alot of our budget in terms of headspace, tokens,
+  money and time" — substrate has crossed from asset to liability
+- "stopping us from advancing in our main mission which are the things
+  which will bring revenue as we are significantly running out of runway"
+  — runway pressure is the operational context for this cycle
+- "i want us to invest in getting this right sooner then later. don't cut
+  corners i don't mind investing, but lets get this right" — depth over
+  speed; root cause over symptom
+- "i defer to you on implementation details providing we're following loa
+  process and quality control / gates / loops with an iron grip" —
+  autonomous authorization with iron-grip quality constraint
+
+### B. Competitive Analysis
+
+**OpenRouter and similar aggregators**: evaluated as substitute for the
+cheval substrate; rejected. Analysis (2026-05-13):
+
+| Cluster | Substrate failure mode | OpenRouter addresses? |
+|---------|------------------------|------------------------|
+| A — Large-doc | Model returns empty content at >40K input | No — same model, same failure |
+| B — v1.157.0 regressions | Defects in our code (legacy adapter, scoring) | No — our code, not their layer |
+| C — Degraded semantics | Consumer-side classification logic | No — our logic, not theirs |
+| D — Carry items | Substrate code paths | No — our code |
+
+OpenRouter would consolidate chain-walking (which cheval already does)
+while adding a dependency layer, lacking CLI transports (claude-code,
+codex-headless, gemini-cli), and not addressing the actual failure
+surface. Substrate stays.
+
+### C. Bibliography
+
+**Internal Resources:**
+- Reality file: `grimoires/loa/reality/multimodel-substrate.md`
+- Known-failures ledger: `grimoires/loa/known-failures.md`
+- Cycle-108 PRD/SDD/sprint: `grimoires/loa/cycles/cycle-108-advisor-strategy/`
+- ADR-002: `docs/architecture/ADR-002-multimodel-cheval-substrate.md` (referenced from reality §2)
+- Operator-approval ledger: `grimoires/loa/cycles/cycle-109-substrate-hardening/operator-approval.md`
+- CLAUDE.md framework instructions: `.claude/loa/CLAUDE.loa.md`
+
+**GitHub Issues (cycle-109 inputs, OPEN at HEAD 6e76582d):**
+- #793, #805, #807, #809, #820, #823, #863, #864, #866, #868, #870, #874, #875
+
+**KF Ledger Entries (substrate-class):**
+- KF-001 (RESOLVED), KF-002 (LAYER-1 LATENT — cycle-109 target), KF-003
+  (RESOLVED), KF-004 (RESOLVED), KF-005 (RESOLVED-VIA-WORKAROUND), KF-006
+  (RESOLVED), KF-007 (RESOLVED), KF-008 (RESOLVED), KF-009
+  (DEGRADED-ACCEPTED), KF-010 (status per ledger)
+
+### D. Glossary
 
 | Term | Definition |
 |------|------------|
-| **SoT** | Source of Truth — the single authoritative registry. In cycle-099, `model-config.yaml`. |
-| **Tier** | Operator-facing abstraction: `max`, `cheap`, `mid`. Resolves via `tier_groups.mappings` to a concrete model per provider. |
-| **Tier-tag** | Tier reference at the operator-config level (e.g., `flatline_protocol.primary: max`). |
-| **Tier-group** | The cycle-095 schema in `model-config.yaml::tier_groups` that maps tier names to model IDs. |
-| **Hounfour path** | The cheval (Python) execution path. Activated by `hounfour.flatline_routing: true`. Today: not the default. |
-| **Legacy adapter** | `model-adapter.sh.legacy` — the bash dict-based resolver used when `hounfour.flatline_routing: false` (today's default). |
-| **cheval** | The multi-provider Python adapter at `.claude/adapters/cheval.py`. Routes requests to OpenAI, Anthropic, Google, Bedrock. |
-| **Bridgebuilder dist** | Pre-compiled TypeScript output at `.claude/skills/bridgebuilder-review/dist/`. Today's pattern: maintainer commits dist alongside source. |
-| **Codegen** | Build-time generation of artifacts (bash maps, TS literals, lockfile checksums) from SoT YAML. |
-| **Drift gate** | CI check that fails when generated artifacts diverge from SoT. |
-| **Backward compat aliases** | Legacy model IDs in `model-config.yaml::backward_compat_aliases` that resolve to current canonical models. |
-
-### Appendix E — Sources cited
-
-| Source | Use |
-|--------|-----|
-| [#710](https://github.com/0xHoneyJar/loa/issues/710) issue body | Problem statement, registry audit, FR-1/2/3 acceptance criteria |
-| [#710](https://github.com/0xHoneyJar/loa/issues/710#issuecomment-4367754767) operator comment | Per-skill granularity scope (FR-3) |
-| [CODE:`grimoires/loa/reality/decisions.md:86-87`] | Existing 4-array atomic-edit constraint — pain point being solved |
-| [CODE:`grimoires/loa/reality/terminology.md:106-108`] | Bridgebuilder + Flatline canonical multi-model definitions |
-| [CODE:`grimoires/loa/reality/structure.md:11`] | cheval adapter at `.claude/adapters/` confirmed as Python multi-provider substrate |
-| [CODE:`.claude/defaults/model-config.yaml:1-460`] | Cycle-095 SoT baseline — providers, aliases, agents, tier_groups, backward_compat |
-| [CODE:`.loa.config.yaml`] | Current per-skill config shapes (inconsistent across skills) |
-| `grimoires/loa/context/model-currency-cycle-preflight.md` (102 lines) | Cycle-095 live API state capture |
-| `grimoires/loa/cycles/cycle-098-agent-network/RESUMPTION.md` Brief A | Cycle-099 brief, scope, locked patterns |
-| `grimoires/loa/gaps.md:GAP-003-4d6f` | Doc drift confirmation |
-| Phase 0 synthesis (interview, 2026-05-04) | Pre-interview context map |
-| Phase 1-7 confirmations (interview, 2026-05-04) | 4 locked decisions on scope, ordering, granularity, Bridgebuilder TS |
-| `grimoires/loa/a2a/flatline/cycle-099-prd-review.json` | Flatline pass #1 output: 5 HIGH_CONSENSUS + 9 BLOCKERS, 100% model agreement (Opus + GPT-5.3-codex + Gemini-3.1-pro-preview) |
-| `grimoires/loa/a2a/flatline/cycle-099-prd-review-v11.json` | Flatline pass #2 output: 5 HIGH_CONSENSUS + 5 BLOCKERS, 100% model agreement; 4 BLOCKERS closed by v1.1 integration (convergence in progress) |
-| `grimoires/loa/a2a/flatline/cycle-099-prd-review-v12.json` | Flatline pass #3 output: 4 HIGH_CONSENSUS + 6 BLOCKERS + 1 DISPUTED, 90% model agreement — kaironic plateau signal (finding-rotation at finer grain, agreement decreasing, DISPUTED emerging). 2 PRD-level themes integrated to v1.3; 4 SDD-shape operational refinements deferred to `/architect`. |
-| `grimoires/loa/cycles/cycle-099-model-registry/decisions/02-flatline-prd-review-failure-postmortem-2026-05-04.md` | Flatline-on-cycle-099-PRD failure modes; primary-source evidence for the cycle (the PRD review was failing because of the very registry fragmentation cycle-099 solves) |
+| Substrate | The multi-model dispatch layer: cheval.py + supporting bash/TS components |
+| Cheval | Canonical Python HTTP boundary for model dispatch [REALITY:§2] |
+| Voice | A model called as part of a consensus / dissent / arbitration pattern |
+| Voice-drop | When a voice's chain exhausts and the substrate proceeds without it (cycle-104 T2.8) |
+| Chain-walk | Cheval's within-company fallback chain traversal on retryable errors |
+| Effective input ceiling | The input size at which a model starts empty-contenting, distinct from API-advertised context window |
+| Reasoning class | Models that burn output budget on internal CoT (newer Opus, GPT-5.5-pro, etc.) |
+| Verdict quality | The new envelope describing HOW a verdict was reached (FR-2) |
+| KF ledger | `grimoires/loa/known-failures.md` — append-only log of observed degradation patterns |
+| Activation regression suite | New CI suite (FR-3.5) testing every consumer × every role under `flatline_routing: true` |
+| MODELINV envelope | Audit record per dispatch in `.run/model-invoke.jsonl` (v1.3 in cycle-109) |
+| Decision-fork c' | Cycle-108 close pattern: ship substrate, defer adoption pending empirical data |
 
 ---
 
-*This PRD is the cycle-099 charter. Operator approves scope, then `/architect` produces SDD, then `/sprint-plan` produces sprint plan, then `/run sprint-1` begins implementation. Cycle-098's PRD/SDD are preserved at `grimoires/loa/cycles/cycle-098-agent-network/`. Ledger activation (transition `active_cycle` to `cycle-099-model-registry`) is a separate chore step after PRD approval, matching the cycle-098 #679 pattern.*
+### E. Flatline Integration Log (v1.0 → v1.1)
+
+Run: `grimoires/loa/a2a/flatline/cycle-109-prd-review.json` (2026-05-13)
+Gate decision: PASSED-WITH-DEGRADED-EVIDENCE; operator-override path 1 per C109.OP-4.
+
+**Substrate degradation observed during this very review** (the meta-finding):
+- 3 models nominally active (opus + gpt-5.5-pro + gemini-3.1-pro-preview)
+- Opus produced 1 of 14 review items; all 13 DISPUTED findings had `opus_score: 0`
+- Model agreement: 7%
+- Substrate self-report: `degraded: false, confidence: full, tertiary_status: active`
+- Cost reported: 0 cents (cost-map defect, separate manifestation of #863)
+- **Conclusion**: substrate operated at ~1.5 voices of 3 while self-reporting full confidence — the exact failure mode FR-2 (verdict-quality envelope) addresses. Recorded as the canonical regression fixture for FR-2.7 conformance test (per acceptance criterion in FR-2).
+
+**Findings integrated into v1.1:**
+
+| ID | Avg Score | Where integrated | Status |
+|----|-----------|------------------|--------|
+| IMP-001 | 885 (HIGH_CONSENSUS) | FR-1.5 severity-to-downgrade mapping table | ✓ Integrated |
+| IMP-002 | 895 | FR-1.5 operator-override schema + precedence + audit | ✓ Integrated |
+| IMP-003 | 930 | §3.4 baseline measurement methodology | ✓ Integrated |
+| IMP-004 | 805 | FR-2 consumer inventory + dependency ordering table | ✓ Integrated |
+| IMP-005 | 735 | FR-1.5 parsing policy for malformed KF entries | ✓ Integrated |
+| IMP-007 | 820 | FR-1.6 ceiling calibration + staleness detection | ✓ Integrated |
+| IMP-008 | 760 | FR-1.2 conservative defaults policy | ✓ Integrated |
+| IMP-009 | 705 | FR-3.5 matrix dimensions (chunked path as explicit dimension) | ✓ Integrated |
+| IMP-014 | ~745 | FR-4.4 streaming-recovery thresholds (per-model) | ✓ Integrated |
+
+**Findings deferred to SDD or sprint-plan absorption:**
+
+| ID | Avg Score | Rationale for deferral |
+|----|-----------|------------------------|
+| IMP-006 | 690 | Conflict resolution: integrated lightly in FR-4.3; SDD will expand into algorithm spec |
+| IMP-010 | 650 | Single-voice telemetry semantics: light-touch in FR-2.9; SDD finalizes |
+| IMP-011 | 625 | Explicit consumer list: superseded by IMP-004 integration (FR-2 table) |
+| IMP-012 | 575 | Success metric definition: largely absorbed by §3.4 IMP-003 integration |
+| IMP-013 | 505 | JSONL backward compat: NFR-Rel-4 (v1.2→v1.3 additive only) already enforces this; SDD adds explicit compat test |
+
+**Process note**: The Flatline review's HIGH_CONSENSUS finding (IMP-001) was about the same gap the operator delegated to autonomous mode via C109.OP-2 (KF-ledger auto-linking deeper variant). The substrate independently identified what the operator had already authorized. Convergence between independent operator judgment and adversarial multi-model review is a positive signal even when one of the voices in that review effectively dropped.
+
+---
+
+*Generated by `/plan-and-analyze` (discovering-requirements skill) for
+cycle-109-substrate-hardening, 2026-05-13. Source-cited against fresh
+`/ride` reality file + known-failures ledger + 13 verified OPEN GitHub
+issues + operator instructions. Awaiting Flatline PRD review before
+`/architect`.*

@@ -37,7 +37,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
-LEGACY_ADAPTER="$SCRIPT_DIR/model-adapter.sh.legacy"
+# cycle-109 Sprint 3 T3.7 (C109.OP-S3): LEGACY_ADAPTER and the
+# delegate_to_legacy() function were removed alongside the deletion of
+# .claude/scripts/model-adapter.sh.legacy. cheval (model-invoke) is the
+# sole substrate dispatch path. See grimoires/loa/runbooks/cycle-109-rollback.md
+# for the git-revert rollback model.
 MODEL_INVOKE="$SCRIPT_DIR/model-invoke"
 
 # cycle-099 sprint-1B (T1.8): bring the canonical model registry into scope
@@ -60,43 +64,25 @@ source "$SCRIPT_DIR/lib/model-resolver.sh"
 # shellcheck source=lib/overlay-source-helper.sh
 source "$SCRIPT_DIR/lib/overlay-source-helper.sh"
 
-# =============================================================================
-# Feature Flag Check
-# =============================================================================
-
-is_flatline_routing_enabled() {
-    # Check environment override first
-    if [[ "${HOUNFOUR_FLATLINE_ROUTING:-}" == "true" ]]; then
-        return 0
-    fi
-    if [[ "${HOUNFOUR_FLATLINE_ROUTING:-}" == "false" ]]; then
-        return 1
-    fi
-
-    # Check config file
-    if [[ -f "$CONFIG_FILE" ]] && command -v yq &> /dev/null; then
-        local value
-        value=$(yq -r '.hounfour.flatline_routing // false' "$CONFIG_FILE" 2>/dev/null)
-        if [[ "$value" == "true" ]]; then
-            return 0
-        fi
-    fi
-
-    # Default: disabled
-    return 1
-}
+# cycle-109 Sprint 3 T3.8 (commit E): is_flatline_routing_enabled()
+# definition removed from this file. After T3.7 deleted the legacy
+# adapter, this helper had no internal consumer in model-adapter.sh.
+# Other files (gpt-review-api.sh, lib-route-table.sh, lib-curl-fallback.sh,
+# red-team-model-adapter.sh) define + consume their own copies of the
+# helper; cleanup of those is tracked as a follow-up since they still
+# branch on the value for their own historical reasons.
 
 # =============================================================================
 # Legacy Delegation
 # =============================================================================
 
-delegate_to_legacy() {
-    if [[ ! -x "$LEGACY_ADAPTER" ]]; then
-        echo "ERROR: Legacy adapter not found: $LEGACY_ADAPTER" >&2
-        exit 2
-    fi
-    exec "$LEGACY_ADAPTER" "$@"
-}
+# cycle-109 Sprint 3 T3.7 (C109.OP-S3): delegate_to_legacy() removed.
+# The legacy adapter file was deleted; cheval is the sole substrate
+# dispatch path. Callers that previously invoked this function have been
+# migrated:
+#   - main() feature-flag guard (T3.6 commit C): removed
+#   - mock-mode delegation (T3.7 this commit): migrated to cheval
+#     --mock-fixture-dir at tests/fixtures/cycle-109/mock-mode/<mode>/
 
 # =============================================================================
 # Mode → Agent Mapping
@@ -365,13 +351,14 @@ EOF
 }
 
 main() {
-    # If feature flag is disabled, delegate entirely to legacy
-    if ! is_flatline_routing_enabled; then
-        delegate_to_legacy "$@"
-        # exec above means we never reach here
-    fi
-
-    log "Flatline routing enabled — using model-invoke"
+    # cycle-109 Sprint 3 T3.6 (commit C in SDD §5.3.1 sequence): the
+    # pre-fix feature-flag early-exit to delegate_to_legacy was removed.
+    # cheval is now the unconditional default for operator-facing dispatch.
+    # The flag-helper function is retained for other callers (gpt-review-
+    # api, lib-route-table, lib-curl-fallback, red-team-model-adapter);
+    # T3.8 cleans those up after T3.7 destructive legacy deletion under
+    # C109.OP-S3 operator-approval marker.
+    log "Using model-invoke (cheval) dispatch (cycle-109 T3.6 unconditional)"
 
     # cycle-099 sprint-2C (T2.5): initialize the operator-extras-aware
     # overlay. Best-effort — if the merged file is unavailable and the
@@ -516,15 +503,6 @@ main() {
         fi
     fi
 
-    # Mock mode — delegate to legacy which has mock fixtures
-    if [[ "${FLATLINE_MOCK_MODE:-}" == "true" ]]; then
-        log "Mock mode — delegating to legacy adapter"
-        delegate_to_legacy --model "$model" --mode "$mode" --input "$input_file" \
-            --phase "$phase" ${context_file:+--context "$context_file"} \
-            ${prompt_file:+--prompt "$prompt_file"} --timeout "$timeout"
-        # exec above means we never reach here
-    fi
-
     # Build model-invoke arguments
     local -a invoke_args=(
         --agent "$agent"
@@ -534,6 +512,38 @@ main() {
         --json-errors
         --timeout "$timeout"
     )
+
+    # cycle-109 Sprint 3 T3.7 — mock mode routes through cheval's
+    # --mock-fixture-dir instead of the (now-deleted) legacy adapter's
+    # get_mock_response synthetic-content generator.
+    #
+    # Lookup precedence:
+    #   1. $FLATLINE_MOCK_DIR/$mode/response.json     (test override + per-mode)
+    #   2. $FLATLINE_MOCK_DIR/response.json           (test override, flat)
+    #   3. tests/fixtures/cycle-109/mock-mode/$mode/  (default canonical)
+    #
+    # Backward-compat: tests that set FLATLINE_MOCK_DIR but place files
+    # there with names cheval doesn't recognize (e.g., legacy's pre-T3.7
+    # convention `<model>-<mode>-response.json`) fall through to the
+    # default canonical per-mode fixture. This preserves behavior for
+    # tests that previously hit the legacy synthetic-content fallback.
+    if [[ "${FLATLINE_MOCK_MODE:-}" == "true" ]]; then
+        local default_mock_root="$PROJECT_ROOT/tests/fixtures/cycle-109/mock-mode"
+        local mock_subdir=""
+        if [[ -n "${FLATLINE_MOCK_DIR:-}" ]]; then
+            if [[ -f "$FLATLINE_MOCK_DIR/$mode/response.json" ]]; then
+                mock_subdir="$FLATLINE_MOCK_DIR/$mode"
+            elif [[ -f "$FLATLINE_MOCK_DIR/response.json" ]]; then
+                mock_subdir="$FLATLINE_MOCK_DIR"
+            fi
+        fi
+        if [[ -z "$mock_subdir" ]]; then
+            # Default canonical per-mode fixture
+            mock_subdir="$default_mock_root/$mode"
+        fi
+        log "Mock mode — routing via cheval --mock-fixture-dir=$mock_subdir"
+        invoke_args+=(--mock-fixture-dir "$mock_subdir")
+    fi
 
     # Map --context to --system (context file becomes system prompt for model-invoke)
     if [[ -n "$context_file" && -f "$context_file" ]]; then

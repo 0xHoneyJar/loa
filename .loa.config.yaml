@@ -1,6 +1,46 @@
 # Loa Configuration
 # Active: Eval Sandbox (#277)
 
+# Cycle-110 sprint-2b2b1 (2026-05-15): advisor_strategy enabled per operator
+# instruction. Enables headless-first dispatch wire-up shipped in PRs
+# #903-#908. MODELINV envelopes now carry v1.4 fields
+# (auth_type_resolved + auth_type_selection_reason + auto_selection_inputs
+# + auto_evaluation_timestamp). Auto-mode runs with empty stats (cold-start)
+# until 7-day measurement window completes and sprint-3 wires the windowed
+# stats reader.
+#
+# Sprint-3 entry condition (cycle-110 PRD §M2.5): operator runs
+# `.claude/scripts/loa-substrate-doctor.sh` and attests OAuth state OK across
+# all three providers BEFORE flipping `dispatch_preference: headless`. Until
+# then, leaving as `auto` (default) lets cold-start path prefer headless
+# only when the chain has a headless entry.
+advisor_strategy:
+  schema_version: 2
+  enabled: true
+  # dispatch_preference defaults to "auto" per advisor-strategy.schema.json.
+  # Auto-mode falls to cold-start-default-headless (preferring headless
+  # when a chain has a headless entry) until warm stats accumulate.
+  # Operator may explicitly set "headless" or "http_api" per role here:
+  # per_role_dispatch_preference:
+  #   review: headless
+  #   audit: headless
+  #   planning: auto    # planning may want gpt-5.5-pro reasoning
+  # allow_cross_auth_fallback: null  # null → derive from FR-1.4 ladder
+  defaults:
+    planning: advisor
+    review: advisor
+    audit: advisor
+    implementation: advisor
+  tier_aliases:
+    advisor:
+      anthropic: claude-opus-4-7
+      openai: gpt-5.5-pro
+      google: gemini-3.1-pro-preview
+    executor:
+      anthropic: claude-sonnet-4-6
+      openai: gpt-5.3-codex
+      google: gemini-2.5-pro
+
 simstim:
   enabled: true
   bridgebuilder_design_review: true # Phase 3.5 gate — enabled for cycle-048
@@ -26,13 +66,23 @@ run_mode:
     include_commits_by_sprint: true
 # Hounfour — Model-Heterogeneous Agent Routing (cycle-026)
 hounfour:
-  flatline_routing: false # Route Flatline/GPT-review through model-invoke (cheval.py)
+  # cycle-107 (2026-05-12): flipped to true. Without this, Flatline + Red-team
+  # bypass cheval.py entirely → no chain-walk (cycle-104 T2.5), no voice-drop
+  # (T2.8), no MODELINV v1.1 (T2.6). The cycle-104 multi-model stabilization
+  # is INERT for FL+RT until this flag is true.
+  # Rollback: flip to false to restore the cycle-103 legacy model-adapter.sh.legacy path.
+  flatline_routing: true # Route Flatline/GPT-review through model-invoke (cheval.py)
   flatline_tertiary_model: gemini-3.1-pro-preview # 3-model Flatline: Opus + GPT-5.5-pro + Gemini-3.1-pro
+  # cycle-109 (2026-05-13, C109.OP-8): headless mode default for /run invocations
+  # API path is billing-degraded (Anthropic + OpenAI Pro); CLI subscription path works.
+  # Restore to "api" once operator-side billing is resolved.
+  headless:
+    mode: cli-only
   # Per-subsystem feature flags (all default true — opt-out)
   feature_flags:
     google_adapter: true # Enable Google provider adapter
     deep_research: true # Enable Deep Research models (Interactions API)
-    flatline_routing: false # Route Flatline through Hounfour (same as top-level)
+    flatline_routing: true # cycle-107: flipped to engage cheval chain-walk + voice-drop
     metering: true # Enable BudgetEnforcer cost tracking
     thinking_traces: true # Include thinking config in request bodies
     jam_geometry: false # Enable Jam multi-model parallel review (opt-in)
@@ -225,7 +275,15 @@ flatline_protocol:
     sprint: true
   models:
     primary: opus
-    secondary: gpt-5.5-pro # most powerful OpenAI (was gpt-5.3-codex)
+    # cycle-109 substrate-debug (2026-05-13): switched secondary from gpt-5.5-pro
+    # to gpt-5.5 (non-pro). Direct probe of current OpenAI key showed it lacks
+    # Pro-tier access (gpt-5.5-pro → 404 "not a chat model" on /v1/chat/completions
+    # AND insufficient_quota on /v1/responses; gpt-5.5 → success with correct
+    # params). gpt-5.5 is the cost-safe default per cycle-095 Sprint 2; alias
+    # already in substrate catalog. Filed as cycle-109 evidence (C109.OP-6):
+    # substrate misdiagnosed model-tier-access-denied as insufficient_quota —
+    # FR-1 capability-aware substrate would have caught this at boot.
+    secondary: gpt-5.5
     tertiary: gemini-3.1-pro # cheval bare-alias (resolves to API id gemini-3.1-pro-preview); was gemini-3.1-pro-preview which is not a valid cheval alias — see cycle-102 flatline-prd-degradation.md
   thresholds:
     high_consensus: 700
@@ -241,20 +299,30 @@ flatline_protocol:
   # Emergency override: LOA_ADVERSARIAL_REVIEW_ENFORCE=false.
   code_review:
     enabled: true
-    # cycle-102 Sprint 1B T1B.4 (2026-05-09): swapped from gpt-5.5-pro to
-    # claude-opus-4-7. gpt-5.5-pro returns empty content for >=27K-token
-    # inputs at reasoning.effort: medium even with max_output_tokens=32000
-    # (sprint-bug-143 deeper scale-dependent layer; T1.9 threshold verified
-    # only at 10K). Opus has no documented empty-content bug and produces
-    # higher-quality cross-model dissent. Supersedes the T1B.4 model-adapter
-    # coverage hypothesis. See grimoires/loa/NOTES.md 2026-05-09 Decision Log.
-    model: claude-opus-4-7
+    # cycle-104 Sprint 2 T2.9 (2026-05-12): REVERTED to gpt-5.5-pro per
+    # SDD R8. Closing evidence:
+    #   (1) Architecture proof — chain_resolver populates the within-
+    #       company chain `gpt-5.5-pro → gpt-5.5 → gpt-5.3-codex → codex-headless`
+    #       and cheval.cmd_invoke walks it on EmptyContentError. Pinned by
+    #       .claude/adapters/tests/test_chain_walk_audit_envelope.py
+    #       (test_primary_empty_content_walks_to_fallback mocks the
+    #       primary returning EMPTY_CONTENT and asserts walk to fallback).
+    #   (2) Empirical evidence — cycle-104 sprint-2 T2.10 25-trial live
+    #       replay (2026-05-12) showed KF-003 NOT REPRODUCIBLE at OpenAI
+    #       across 5 sizes × 5 prompts at 30K-80K input tokens.
+    # The T1B.4 workaround is no longer load-bearing. If KF-003 returns,
+    # the chain absorbs it; if the chain exhausts, T2.8 voice-drop keeps
+    # consensus available with the remaining voices. gpt-5.5-pro restores
+    # cross-model dissent diversity per cycle-102 §G2 rationale.
+    # Original cycle-102 T1B.4 swap comment retained in git history.
+    model: gpt-5.5-pro
     budget_cents: 200
     timeout_seconds: 600
   security_audit:
     enabled: true
-    # Same swap rationale as code_review (cycle-102 Sprint 1B T1B.4).
-    model: claude-opus-4-7
+    # Same revert rationale as code_review (cycle-104 Sprint 2 T2.9).
+    # gpt-5.5-pro restored; chain absorbs KF-003 if it returns.
+    model: gpt-5.5-pro
     budget_cents: 200
     timeout_seconds: 600
   secret_scanning:

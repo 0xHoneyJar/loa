@@ -41,10 +41,13 @@ fi
 # Source config paths if available
 if [[ -f "${SCRIPT_DIR}/../get-config-paths.sh" ]]; then
     source "${SCRIPT_DIR}/../get-config-paths.sh"
-    BEADS_DIR="${LOA_BEADS_DIR:-${PROJECT_ROOT}/.beads}"
-else
-    BEADS_DIR="${PROJECT_ROOT}/.beads"
 fi
+# Honor LOA_BEADS_DIR env override regardless of whether the helper
+# sourced (cycle-105 sprint-1 T1.5: the helper script wasn't present in
+# the framework defaults, so the override was silently ignored — making
+# the bats integration tests un-isolatable). Always fall back to
+# PROJECT_ROOT/.beads when LOA_BEADS_DIR isn't set.
+BEADS_DIR="${LOA_BEADS_DIR:-${PROJECT_ROOT}/.beads}"
 
 # Thresholds (can be overridden via config)
 JSONL_WARN_SIZE_MB="${LOA_BEADS_JSONL_WARN_MB:-50}"
@@ -55,6 +58,9 @@ SYNC_STALE_HOURS="${LOA_BEADS_SYNC_STALE_HOURS:-24}"
 OUTPUT_MODE="text"
 VERBOSE=false
 QUICK=false
+REPAIR=false
+REPAIR_DRY_RUN=false
+REPAIR_FORCE=false
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -69,6 +75,21 @@ while [[ $# -gt 0 ]]; do
             ;;
         --quick)
             QUICK=true
+            shift
+            ;;
+        # cycle-105 sprint-1 T1.5: --repair runs detection, and if status
+        # is MIGRATION_NEEDED, dispatches to tools/beads-migration-repair.sh
+        # then re-runs the check. Pass-throughs for --dry-run / --force.
+        --repair)
+            REPAIR=true
+            shift
+            ;;
+        --dry-run)
+            REPAIR_DRY_RUN=true
+            shift
+            ;;
+        --force)
+            REPAIR_FORCE=true
             shift
             ;;
         *)
@@ -397,26 +418,43 @@ main() {
 
     # If binary not found, stop here
     if [[ "${CHECKS[binary]}" == "not_found" ]]; then
-        local status="NOT_INSTALLED"
-        if [[ "${OUTPUT_MODE}" == "json" ]]; then
-            output_json "${status}" 1
+        # cycle-105 sprint-2 T2.3 amendment: --repair operates at the
+        # SQLite layer and does NOT require `br` to be installed (in fact
+        # the most common reason to invoke --repair is when br IS broken).
+        # When --repair is set and a database exists at the configured
+        # LOA_BEADS_DIR path, fall through to the migration check + repair
+        # block below instead of exiting NOT_INSTALLED.
+        if [[ "${REPAIR}" == true && -f "${BEADS_DIR}/beads.db" ]]; then
+            : # fall through
         else
-            output_text "${status}"
+            local status="NOT_INSTALLED"
+            if [[ "${OUTPUT_MODE}" == "json" ]]; then
+                output_json "${status}" 1
+            else
+                output_text "${status}"
+            fi
+            exit 1
         fi
-        exit 1
     fi
 
     check_initialized || true
 
-    # If not initialized, stop here
+    # If not initialized, stop here — UNLESS --repair is set and a
+    # database file exists (operator may be running --repair from a
+    # context where .beads is present but lacks the canonical
+    # init-marker file).
     if [[ "${CHECKS[initialized]}" == "false" ]]; then
-        local status="NOT_INITIALIZED"
-        if [[ "${OUTPUT_MODE}" == "json" ]]; then
-            output_json "${status}" 2
+        if [[ "${REPAIR}" == true && -f "${BEADS_DIR}/beads.db" ]]; then
+            : # fall through to migration check + repair
         else
-            output_text "${status}"
+            local status="NOT_INITIALIZED"
+            if [[ "${OUTPUT_MODE}" == "json" ]]; then
+                output_json "${status}" 2
+            else
+                output_text "${status}"
+            fi
+            exit 2
         fi
-        exit 2
     fi
 
     # Run remaining checks
@@ -425,6 +463,62 @@ main() {
     check_dirty_issues_migration || true
     check_doctor || true
     check_jsonl_sync || true
+
+    # cycle-105 sprint-1 T1.5: --repair flag — when status is
+    # MIGRATION_NEEDED (per dirty_issues_migration check above),
+    # dispatch to tools/beads-migration-repair.sh and re-run the check
+    # before reporting. The repair tool is idempotent and pre-flight-
+    # checks the schema itself, so calling it for already-healthy
+    # databases is a cheap no-op.
+    if [[ "${REPAIR}" == true ]]; then
+        local repair_status="${CHECKS[dirty_issues_migration]:-unknown}"
+        if [[ "${repair_status}" == "needs_repair" ]] || [[ "${REPAIR_FORCE}" == true ]]; then
+            local repair_tool
+            repair_tool="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)/tools/beads-migration-repair.sh"
+            if [[ -x "${repair_tool}" ]]; then
+                local repair_args=()
+                [[ "${REPAIR_DRY_RUN}" == true ]] && repair_args+=("--dry-run")
+                [[ "${REPAIR_FORCE}" == true ]] && repair_args+=("--force")
+                # Determine the db path the repair tool should target.
+                local db_path="${BEADS_DIR}/beads.db"
+                repair_args=("--db" "${db_path}" "${repair_args[@]+${repair_args[@]}}")
+
+                # Run repair; capture exit code without aborting.
+                set +e
+                "${repair_tool}" "${repair_args[@]}" >&2
+                local repair_exit=$?
+                set -e
+
+                if [[ ${repair_exit} -ne 0 ]]; then
+                    RECOMMENDATIONS+=("Repair tool exited ${repair_exit}; see stderr for details.")
+                fi
+
+                # Re-run the migration check after a non-dry-run repair so
+                # the reported status reflects post-repair state. Clear the
+                # MIGRATION-BUG recommendations from the pre-repair check
+                # first — otherwise stale "MIGRATION BUG DETECTED" lines
+                # would appear in the output alongside a HEALTHY post-status.
+                if [[ "${REPAIR_DRY_RUN}" != true ]]; then
+                    # Filter out the bug-detection recommendations (they're
+                    # the lines tagged with "Issue #661" or "MIGRATION BUG").
+                    local cleaned=()
+                    local rec
+                    for rec in "${RECOMMENDATIONS[@]+${RECOMMENDATIONS[@]}}"; do
+                        case "$rec" in
+                            *"MIGRATION BUG DETECTED"*) continue ;;
+                            *"git commit --no-verify"*) continue ;;
+                            *"Issue #661"*) continue ;;
+                            *) cleaned+=("$rec") ;;
+                        esac
+                    done
+                    RECOMMENDATIONS=("${cleaned[@]+${cleaned[@]}}")
+                    check_dirty_issues_migration || true
+                fi
+            else
+                RECOMMENDATIONS+=("--repair requested but tools/beads-migration-repair.sh not found at ${repair_tool}")
+            fi
+        fi
+    fi
 
     # Determine overall status
     # Disable errexit for this assignment: determine_status uses non-zero

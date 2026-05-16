@@ -1,6 +1,7 @@
 ---
 name: bug
 description: Triage a bug report through structured phases and create micro-sprint
+role: implementation
 context: fork
 agent: general-purpose
 parallel_threshold: 3000

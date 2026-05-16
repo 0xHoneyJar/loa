@@ -194,6 +194,70 @@ def _emit_validation_errors(errors: list[dict[str, Any]], fmt: str) -> str:
     return "\n".join(lines)
 
 
+# cycle-103 sprint-3 T3.4: provider-by-provider legacy walls (KF-002 layer 3
+# observed pre-streaming thresholds). Operators should hand-tune for their
+# fleet — these are conservative defaults.
+_CYCLE103_LEGACY_DEFAULTS_BY_PROVIDER: dict[str, int] = {
+    "openai": 24000,
+    "anthropic": 36000,
+    "google": 24000,
+}
+
+
+def _apply_cycle103_split(v2_dict: Any, report: list) -> None:
+    """Walk every model entry that carries `max_input_tokens` and inject the
+    `streaming_max_input_tokens` + `legacy_max_input_tokens` split fields
+    when they're absent. Idempotent: re-running is a no-op for entries that
+    already have the split.
+    """
+    providers = v2_dict.get("providers")
+    if not isinstance(providers, dict):
+        return
+    for provider_name, prov in providers.items():
+        if not isinstance(prov, dict):
+            continue
+        models = prov.get("models")
+        if not isinstance(models, dict):
+            continue
+        legacy_default = _CYCLE103_LEGACY_DEFAULTS_BY_PROVIDER.get(
+            provider_name, 0
+        )
+        for model_id, m in models.items():
+            if not isinstance(m, dict):
+                continue
+            mi = m.get("max_input_tokens")
+            if not isinstance(mi, int) or mi <= 0:
+                continue
+            changed = False
+            if "streaming_max_input_tokens" not in m:
+                m["streaming_max_input_tokens"] = mi
+                changed = True
+            if "legacy_max_input_tokens" not in m:
+                # Prefer provider default; if unknown, use the existing
+                # max_input_tokens (conservative: no behavior change vs
+                # backward-compat path).
+                m["legacy_max_input_tokens"] = (
+                    legacy_default if legacy_default > 0 else mi
+                )
+                changed = True
+            if changed:
+                report.append(
+                    {
+                        "kind": "cycle103_split_injected",
+                        "path": (
+                            f"providers.{provider_name}."
+                            f"models.{model_id}"
+                        ),
+                        "streaming_max_input_tokens": (
+                            m["streaming_max_input_tokens"]
+                        ),
+                        "legacy_max_input_tokens": (
+                            m["legacy_max_input_tokens"]
+                        ),
+                    }
+                )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="loa migrate-model-config",
@@ -236,6 +300,61 @@ def main(argv: list[str] | None = None) -> int:
             "assumes responsibility for v2 conformance. Default is to validate."
         ),
     )
+    parser.add_argument(
+        "--cycle103-split",
+        action="store_true",
+        help=(
+            "cycle-103 sprint-3 T3.4: post-migration, walk every model entry "
+            "with `max_input_tokens` and inject `streaming_max_input_tokens` "
+            "+ `legacy_max_input_tokens` if absent. `streaming_*` defaults to "
+            "the existing `max_input_tokens` value; `legacy_*` defaults to "
+            "the documented pre-streaming wall (openai=24000, anthropic=36000, "
+            "google=24000, other=existing). Operator should hand-tune the "
+            "values before merging if they have field-observed thresholds. "
+            "Idempotent: re-running on a config that already has the split "
+            "fields is a no-op for those entries."
+        ),
+    )
+    parser.add_argument(
+        "--to-v3",
+        action="store_true",
+        help=(
+            "cycle-109 Sprint 1 T1.2: chain v1→v2→v3 (or v2→v3 directly) and "
+            "validate against the v3 schema. Adds the capability-aware fields "
+            "per SDD §3.1.1 with conservative defaults per SDD §3.1.2: "
+            "effective_input_ceiling = min(50% × api_context_window, 30000); "
+            "reasoning_class opt-in for claude-opus-4-*, gpt-5.5-pro, "
+            "gemini-3.1-pro; recommended_for = allow-all 5-role list; "
+            "failure_modes_observed = []; ceiling_calibration "
+            "{source: conservative_default, stale_after_days: 30}; "
+            "streaming_recovery with 60s (reasoning) or 30s (non-reasoning) "
+            "first-token deadline. Idempotent on v3 input. When --to-v3 is "
+            "set, the validation schema defaults to model-config-v3.schema.json."
+        ),
+    )
+    parser.add_argument(
+        "--calibrated-at",
+        default="2026-05-13T00:00:00Z",
+        help=(
+            "ISO 8601 timestamp stamped on every ceiling_calibration block "
+            "populated by --to-v3. Defaults to the cycle-109 Sprint 1 land "
+            "date; CI/test fixtures pin this for determinism."
+        ),
+    )
+    parser.add_argument(
+        "--preserve-thresholds",
+        action="store_true",
+        help=(
+            "cycle-109 followup B (#888): when --to-v3 populates "
+            "effective_input_ceiling, source the value from the existing "
+            "v2 threshold field (streaming_max_input_tokens, then "
+            "legacy_max_input_tokens, then max_input_tokens) instead of "
+            "the SDD §3.1.2 conservative formula. No-behavior-change "
+            "migration semantics: pre-flight gate fires at the same "
+            "threshold the substrate already operates at. Falls back to "
+            "the formula when no v2 threshold field is present."
+        ),
+    )
 
     args = parser.parse_args(argv)
 
@@ -246,13 +365,18 @@ def main(argv: list[str] | None = None) -> int:
 
     output_path = Path(args.output)
 
-    # Resolve the v2 schema path (CLI override or repo default).
+    # Resolve the schema path (CLI override or repo default).
+    # --to-v3 routes to v3 schema by default; otherwise v2 schema.
     if args.schema:
         schema_path = Path(args.schema)
     else:
         repo_root = Path(__file__).resolve().parents[2]
+        schema_filename = (
+            "model-config-v3.schema.json" if args.to_v3
+            else "model-config-v2.schema.json"
+        )
         schema_path = (
-            repo_root / ".claude" / "data" / "schemas" / "model-config-v2.schema.json"
+            repo_root / ".claude" / "data" / "schemas" / schema_filename
         )
     if not args.no_validate and not schema_path.is_file():
         print(f"[SCHEMA-NOT-FOUND] {schema_path}", file=sys.stderr)
@@ -291,22 +415,50 @@ def main(argv: list[str] | None = None) -> int:
         _to_plain_dict(permissions_doc) if permissions_doc is not None else None
     )
 
-    # Run migration.
+    # Run migration. --to-v3 routes through migrate_to_latest (chains v1→v2→v3
+    # or v2→v3 directly per cycle-109 Sprint 1 T1.2); otherwise legacy v1→v2.
     migrate_mod = _load_migrate_module()
     try:
-        v2_dict, report = migrate_mod.migrate_v1_to_v2(v1_plain, permissions_plain)
+        if args.to_v3:
+            out_dict, report = migrate_mod.migrate_to_latest(
+                v1_plain,
+                target_version=3,
+                model_permissions=permissions_plain,
+                calibrated_at=args.calibrated_at,
+                preserve_thresholds=args.preserve_thresholds,
+            )
+        else:
+            out_dict, report = migrate_mod.migrate_v1_to_v2(
+                v1_plain, permissions_plain
+            )
     except migrate_mod.MigrationError as exc:
         print(str(exc), file=sys.stderr)
         return EXIT_VALIDATION_FAIL
 
-    # Distinguish "operator-supplied invalid v2" from "migrator-produced invalid v2"
+    # cycle-103 sprint-3 T3.4: optional max_input_tokens streaming/legacy split.
+    # Compatible with --to-v3 (operates on the v3 dict's provider/model tree).
+    if args.cycle103_split:
+        _apply_cycle103_split(out_dict, report)
+
+    # Distinguish "operator-supplied invalid input" from "migrator-produced invalid output"
     # so the operator can route the fix correctly (review remediation G-M4).
-    input_was_v2 = any(entry.get("kind") == "idempotent_noop" for entry in report)
-    error_code = "CONFIG-V2-INVALID" if input_was_v2 else "MIGRATION-PRODUCED-INVALID-V2"
+    input_was_target_version = any(
+        entry.get("kind") == "idempotent_noop" for entry in report
+    )
+    if args.to_v3:
+        error_code = (
+            "CONFIG-V3-INVALID" if input_was_target_version
+            else "MIGRATION-PRODUCED-INVALID-V3"
+        )
+    else:
+        error_code = (
+            "CONFIG-V2-INVALID" if input_was_target_version
+            else "MIGRATION-PRODUCED-INVALID-V2"
+        )
 
     # Post-migration validation (default on).
     if not args.no_validate:
-        errors = _validate_v2(v2_dict, schema_path, error_code=error_code)
+        errors = _validate_v2(out_dict, schema_path, error_code=error_code)
         if errors:
             sys.stderr.write(_emit_validation_errors(errors, args.report_format))
             sys.stderr.write("\n")
@@ -318,10 +470,10 @@ def main(argv: list[str] | None = None) -> int:
     else:
         sys.stdout.write(_emit_text_report(report))
 
-    # Write v2 unless --dry-run.
+    # Write output unless --dry-run.
     if not args.dry_run:
         try:
-            _dump_yaml(v2_dict, output_path)
+            _dump_yaml(out_dict, output_path)
         except SymlinkRefusedError as exc:
             print(f"[OUTPUT-IS-SYMLINK] {exc}", file=sys.stderr)
             return EXIT_USAGE

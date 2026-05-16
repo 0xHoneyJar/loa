@@ -700,11 +700,18 @@ clean_grimoire_state() {
     find "${grimoire_dir}/archive" -mindepth 1 -exec rm -rf {} + 2>/dev/null || true
   fi
 
-  # Preserve directory structure
+  # Preserve directory structure. cycle-106 sprint-2 T2.3: scaffold the
+  # full project-zone tree declared in grimoires/loa/zones.yaml so fresh
+  # installs have ready-to-use dirs for cycles, handoffs, visions, etc.
+  # (Upstream's gitignore from cycle-106 sprint-1 keeps these untracked.)
   mkdir -p "${grimoire_dir}/a2a/trajectory"
   mkdir -p "${grimoire_dir}/archive"
   mkdir -p "${grimoire_dir}/context"
   mkdir -p "${grimoire_dir}/memory"
+  mkdir -p "${grimoire_dir}/cycles"
+  mkdir -p "${grimoire_dir}/handoffs"
+  mkdir -p "${grimoire_dir}/visions/entries"
+  mkdir -p "${grimoire_dir}/legacy"
 
   # Initialize clean ledger
   cat > "${grimoire_dir}/ledger.json" << 'LEDGER_EOF'

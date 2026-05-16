@@ -1,4 +1,12 @@
-"""Tests for Google Gemini provider adapter (SDD 4.1, Sprint 1 Task 1.8)."""
+"""Tests for Google Gemini provider adapter (SDD 4.1, Sprint 1 Task 1.8).
+
+Sprint 4A (cycle-102): GoogleAdapter._complete_standard defaults to the
+streaming transport (`:streamGenerateContent?alt=sse` + parse_google_stream).
+This test file exercises the LEGACY non-streaming path. Streaming-specific
+behavior is covered in test_google_streaming.py. The module-level autouse
+fixture below sets LOA_CHEVAL_DISABLE_STREAMING=1 so existing
+http_post / _call_with_retry mocks continue to intercept.
+"""
 
 import json
 import logging
@@ -9,6 +17,16 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+
+@pytest.fixture(autouse=True)
+def _force_nonstreaming_path(monkeypatch):
+    """Route GoogleAdapter._complete_standard through the legacy non-streaming
+    path so existing mocks intercept correctly. Sprint 4A streaming default
+    is covered separately in test_google_streaming.py.
+    """
+    monkeypatch.setenv("LOA_CHEVAL_DISABLE_STREAMING", "1")
+    yield
 
 from loa_cheval.providers.google_adapter import (
     GoogleAdapter,

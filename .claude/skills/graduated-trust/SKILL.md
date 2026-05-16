@@ -1,6 +1,7 @@
 ---
 name: graduated-trust
 description: L4 graduated-trust ledger — per-(scope, capability, actor) trust tier with hash-chained immutable history, configurable transitions, auto-drop on operator override + cooldown enforcement, and force-grant audit-logged exceptions
+role: implementation
 agent: general-purpose
 context: scoped
 parallel_threshold: 3000
