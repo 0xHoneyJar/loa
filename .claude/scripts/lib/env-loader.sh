@@ -43,11 +43,23 @@ _env_loader_reject_denylist_key() {
 }
 
 load_env_file() {
+    # BB #912 v3 REL-001: the loader's contract is "best-effort parse;
+    # NEVER abort the caller". We handle per-line failures internally
+    # via warn-and-continue; the caller's `set -e` would otherwise abort
+    # the orchestrator on the first hostile/readonly value. Save the
+    # caller's errexit state, disable it for the function body, restore
+    # before return.
+    local _se_was_set=0
+    case $- in *e*) _se_was_set=1; set +e ;; esac
+
     local file="$1"
     local line key value
     local lineno=0
 
-    [[ -f "$file" ]] || return 0
+    if [[ ! -f "$file" ]]; then
+        [[ $_se_was_set -eq 1 ]] && set -e
+        return 0
+    fi
 
     while IFS= read -r line || [[ -n "$line" ]]; do
         lineno=$((lineno + 1))
@@ -142,6 +154,26 @@ load_env_file() {
             IFS|PS4|HISTFILE|HISTCMD)
                 _env_loader_reject_denylist_key "$key" "$file" "$lineno"
                 continue ;;
+            # BB #912 v3 SEC-001 (HIGH, 0.95 conf): PATH is THE ambient
+            # execution vector — every unqualified subprocess call resolves
+            # through it. A hostile .env with `PATH=/tmp/evil:/usr/bin`
+            # makes every later `git`/`jq`/`curl`/etc. invocation pick up
+            # an attacker-controlled binary. Refuse to assign PATH from
+            # .env regardless of value shape. Operator must set PATH via
+            # the parent process.
+            PATH|MANPATH|INFOPATH|XDG_DATA_DIRS|XDG_CONFIG_DIRS)
+                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
+                continue ;;
+            # BB #912 v3 REL-001 (MEDIUM): bash's built-in readonly /
+            # special variables. Assigning to them either silently no-ops
+            # (UID/EUID are readonly), or breaks the shell's own state
+            # tracking (SHELLOPTS/BASHOPTS control set -e / set -u / etc.;
+            # changing them at .env-load time would alter the orchestrator's
+            # error-handling posture mid-run). Refusing is safer than the
+            # defensive export-wrap below.
+            SHELLOPTS|BASHOPTS|BASH_VERSION|BASH_VERSINFO|BASH_REMATCH|BASH_LINENO|BASH_SOURCE|FUNCNAME|UID|EUID|GROUPS|PPID|RANDOM|SECONDS|LINENO|OLDPWD|PWD|SHLVL)
+                _env_loader_reject_denylist_key "$key" "$file" "$lineno"
+                continue ;;
         esac
 
         # BB #912 v2 COR-001 fix: strip inline trailing comments on
@@ -198,7 +230,30 @@ load_env_file() {
             fi
         fi
 
+        # BB #912 v3 REL-001 (MEDIUM, 0.85 conf): `export "$key=$value"`
+        # was unchecked. Under `set -e` in a sourcing caller, any export
+        # failure (readonly user variable, restricted shell namespace,
+        # quota exhaustion) would propagate and abort the orchestrator
+        # mid-run — turning the loader into a DoS vector. Wrap the export
+        # so failures warn + continue instead of crashing the parent.
+        # (The denylist above already rejects bash's built-in readonly
+        # set; this catches user-readonly vars or edge-case shell states.)
+        #
+        # Form: use `|| { ...; continue; }` rather than `if ! cmd; then`.
+        # Per bash man page: "The shell does not exit if the command that
+        # fails is ... part of any command executed in a && or || list
+        # except the command following the final && or ||". The `if !`
+        # form trips `set -e` in some bash versions; this form is
+        # documented-safe.
         # shellcheck disable=SC2163
-        export "$key=$value"
+        export "$key=$value" 2>/dev/null || {
+            printf 'WARN: env-loader: export failed for %s in %s line %d (readonly variable, restricted namespace, or shell-state conflict — skipping)\n' \
+                "$key" "$file" "$lineno" >&2
+            continue
+        }
     done < "$file"
+
+    # Restore caller's errexit state (matched at function entry).
+    [[ $_se_was_set -eq 1 ]] && set -e
+    return 0
 }

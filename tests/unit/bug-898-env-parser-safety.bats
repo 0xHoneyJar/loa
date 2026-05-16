@@ -455,3 +455,102 @@ EOF
     load_env_file "$TEST_TMP/.env"
     [ "$QUOTED_HASH" = "value with # inside" ]
 }
+
+# =============================================================================
+# BB #912 v3 SEC-001 — PATH and ambient exec-vector denylist
+# =============================================================================
+
+@test "bug-898-40: rejects PATH (THE ambient exec vector — every subprocess call resolves through it)" {
+    # Pre-set PATH so we can verify it's NOT overwritten by the hostile .env.
+    local orig_path="$PATH"
+    cat > "$TEST_TMP/.env" <<EOF
+PATH=/tmp/evil:/usr/bin
+EOF
+    load_env_file "$TEST_TMP/.env"
+    [ "$PATH" = "$orig_path" ]
+}
+
+@test "bug-898-41: rejects MANPATH / INFOPATH / XDG_*_DIRS (lookup-path ambient vectors)" {
+    cat > "$TEST_TMP/.env" <<EOF
+MANPATH=/tmp/evil-man
+INFOPATH=/tmp/evil-info
+XDG_DATA_DIRS=/tmp/evil-xdg
+EOF
+    unset MANPATH INFOPATH XDG_DATA_DIRS
+    load_env_file "$TEST_TMP/.env"
+    [ -z "${MANPATH:-}" ]
+    [ -z "${INFOPATH:-}" ]
+    [ -z "${XDG_DATA_DIRS:-}" ]
+}
+
+@test "bug-898-42: rejects SHELLOPTS / BASHOPTS (shell-state hijack)" {
+    cat > "$TEST_TMP/.env" <<EOF
+SHELLOPTS=xtrace:errexit
+BASHOPTS=expand_aliases
+EOF
+    load_env_file "$TEST_TMP/.env"
+    # SHELLOPTS is bash-readonly; the denylist refusal is the primary check.
+    # The shell's own SHELLOPTS may still be set (legitimately) by bash itself —
+    # what we test is the denylist *refused* the assignment, by checking the
+    # WARN message landed.
+    run load_env_file "$TEST_TMP/.env"
+    [[ "$output" == *"SHELLOPTS"* ]] || [[ "$output" == *"denylisted"* ]]
+}
+
+@test "bug-898-43: rejects UID / EUID / readonly-built-in shell vars" {
+    cat > "$TEST_TMP/.env" <<EOF
+UID=99999
+EUID=99999
+GROUPS=hijack
+PPID=99999
+EOF
+    # Real UID/EUID are readonly; the denylist rejects the assignment regardless.
+    # Test passes if the loader doesn't crash (REL-001 wrap also matters here).
+    run load_env_file "$TEST_TMP/.env"
+    [ "$status" -eq 0 ]
+}
+
+# =============================================================================
+# BB #912 v3 REL-001 — export-failure wrap (loader doesn't DoS the orchestrator)
+# =============================================================================
+
+@test "bug-898-44: REL-001 — readonly user variable does NOT abort the loader (set -e safe)" {
+    # Simulate a user-readonly var (not bash built-in) by declaring one
+    # before sourcing the loader. The loader's export must fail gracefully
+    # WITHOUT propagating exit to the caller (which is what would crash a
+    # set -e orchestrator).
+    declare -r USER_READONLY="frozen-value" 2>/dev/null
+    cat > "$TEST_TMP/.env" <<'EOF'
+USER_READONLY=hostile-value
+EOF
+    # We use a subshell because `declare -r` is process-local and persists
+    # for the rest of this bats test file otherwise.
+    run bash -c "
+        unset _LOA_ENV_LOADER_SOURCED
+        source '$PROJECT_ROOT/.claude/scripts/lib/env-loader.sh'
+        declare -r USER_READONLY='frozen-value'
+        set -e
+        load_env_file '$TEST_TMP/.env'
+        echo 'reached-after-load'
+    " 2>&1
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"reached-after-load"* ]]
+}
+
+@test "bug-898-45: REL-001 — export-failure warns to stderr but continues to next line" {
+    declare -r USER_READONLY="frozen-value" 2>/dev/null
+    cat > "$TEST_TMP/.env" <<'EOF'
+USER_READONLY=should-fail-but-not-abort
+GOOD_KEY_AFTER=this-must-still-load
+EOF
+    run bash -c "
+        unset _LOA_ENV_LOADER_SOURCED
+        source '$PROJECT_ROOT/.claude/scripts/lib/env-loader.sh'
+        declare -r USER_READONLY='frozen-value'
+        load_env_file '$TEST_TMP/.env'
+        echo \"GOOD_KEY_AFTER=\$GOOD_KEY_AFTER\"
+    " 2>&1
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"export failed"* ]]
+    [[ "$output" == *"GOOD_KEY_AFTER=this-must-still-load"* ]]
+}
