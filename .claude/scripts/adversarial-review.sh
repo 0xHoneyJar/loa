@@ -688,6 +688,53 @@ process_findings() {
   findings_array=$(echo "$parsed" | jq -r '.findings // empty' 2>/dev/null || echo "")
   if [[ -z "$findings_array" ]]; then
     log "Malformed response: missing 'findings' key"
+
+    # KF-011 diagnostic capture (issue #930).
+    # When LOA_ADVERSARIAL_DEBUG=1, write the raw response body to a sidecar
+    # so future fixes can disambiguate between (a) prompt-schema drift,
+    # (b) parser brittleness on wrapped envelopes, (c) reasoning-class
+    # meta-commentary. Pipes through log-redactor for NFR-Sec-1.
+    # Default behavior (env unset) is unchanged — no observable change.
+    if [[ "${LOA_ADVERSARIAL_DEBUG:-0}" == "1" ]]; then
+      local debug_dir="$PROJECT_ROOT/grimoires/loa/a2a/${sprint_id}"
+      mkdir -p "$debug_dir" 2>/dev/null || true
+      # Slug the model name to a filesystem-safe form (provider:id has `:`).
+      # Use `__` so the namespace boundary stays visible in filenames
+      # (single `_` would be ambiguous with literal underscores in model ids).
+      local model_slug
+      model_slug=$(echo "$model" | sed 's|:|__|g; s|/|__|g')
+      # Slug colons out of the ISO timestamp too — `:` is illegal in
+      # filenames on Windows/FAT and confuses cross-platform tarball
+      # extraction. Replace with `-` for human readability.
+      local timestamp_slug
+      timestamp_slug=$(echo "$timestamp" | tr ':' '-')
+      local debug_file="$debug_dir/adversarial-debug-${model_slug}-${timestamp_slug}.txt"
+      local redactor="$PROJECT_ROOT/.claude/scripts/lib/log-redactor.sh"
+      {
+        echo "# KF-011 debug capture (LOA_ADVERSARIAL_DEBUG=1)"
+        echo "# model: $model"
+        echo "# sprint_id: $sprint_id"
+        echo "# type: $type"
+        echo "# timestamp: $timestamp"
+        echo "# ---"
+        echo "## raw_response (model-adapter envelope):"
+        echo "$raw_response"
+        echo ""
+        echo "## extracted content (.content field):"
+        echo "$content"
+        echo ""
+        echo "## parsed (post markdown-fence strip):"
+        echo "$parsed"
+      } | (
+        if [[ -x "$redactor" ]]; then
+          "$redactor"
+        else
+          cat
+        fi
+      ) > "$debug_file" 2>/dev/null || true
+      log "KF-011 debug: raw response captured to $debug_file"
+    fi
+
     jq -n \
       --arg type "$type" --arg model "$model" --arg sid "$sprint_id" \
       --arg ts "$timestamp" \
