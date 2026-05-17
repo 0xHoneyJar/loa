@@ -433,3 +433,73 @@ red_team:
     skip_if_no_sdd: true # Skip silently when no SDD exists
     severity_threshold: 700 # Only divergences >700 trigger re-implementation
     token_budget: 150000 # 150K token ceiling per invocation
+
+# =============================================================================
+# Workload Tier Map (cycle-112 FR-3)
+# =============================================================================
+# Per-skill mapping to model dispatch tier (advisor / executor / headless).
+# Drift-gated in CI via .github/workflows/workload-tier-map-drift.yml — any
+# mutation must carry a `Tier-Change-Evidence:` or `Operator-Approval:`
+# trailer in the PR body. See grimoires/loa/runbooks/model-economy.md
+# §"How to justify a tier change in a PR body" for the format.
+#
+# Schema: .claude/data/schemas/workload-tier-map.schema.json
+# Audit:  tools/audit-workload-tier-map.sh (exhaustiveness check)
+workload_tier_map:
+  schema_version: "1.0"
+  defaults:
+    tier: advisor   # conservative default — quality floor protection
+  entries:
+    # ---- Empirically calibrated this cycle (from operator memory) ----
+    /review-sprint:
+      tier: advisor
+      rationale: "executor tier missed 1 HC + 60% fewer findings on PR #885 A/B"
+      evidence_ref: "memory:feedback_advisor_benchmark.md"
+    /audit-sprint:
+      tier: advisor
+      rationale: "executor tier missed 1 HC + 60% fewer findings on PR #885 A/B"
+      evidence_ref: "memory:feedback_advisor_benchmark.md"
+    bridgebuilder-review:
+      tier: advisor
+      rationale: "BB needs cross-model dissent diversity; executor tier degrades to single-model"
+      evidence_ref: "memory:feedback_advisor_benchmark.md"
+    adversarial-review:
+      tier: advisor
+      rationale: "dissenter needs to catch reviewer blind spots; quality floor non-negotiable"
+      evidence_ref: "memory:feedback_advisor_benchmark.md"
+
+    # ---- Default-tier entries (exhaustive per FR-3 AC) ----
+    # Each dispatching skill listed below uses workload_tier_map.defaults.tier
+    # until empirically overridden. evidence_ref:"default" pins this state.
+    auditing-security:
+      tier: advisor
+      rationale: "security audit shares quality-floor requirement with /audit-sprint"
+      evidence_ref: "default"
+    autonomous-agent:
+      tier: advisor
+      rationale: "autonomous mode is long-running and amplifies model-quality differences"
+      evidence_ref: "default"
+    hitl-jury-panel:
+      tier: advisor
+      rationale: "jury panel requires diverse-perspective dissent; tier impacts diversity"
+      evidence_ref: "default"
+    managing-credentials:
+      tier: advisor
+      rationale: "credential lifecycle reasoning has security-floor sensitivity"
+      evidence_ref: "default"
+    red-teaming:
+      tier: advisor
+      rationale: "red-team adversarial generation benefits from advisor-tier creativity"
+      evidence_ref: "default"
+    reviewing-code:
+      tier: advisor
+      rationale: "code review is the same workload class as /review-sprint"
+      evidence_ref: "default"
+    run-bridge:
+      tier: advisor
+      rationale: "bridge review composes BB; same tier as bridgebuilder-review"
+      evidence_ref: "default"
+    simstim-workflow:
+      tier: advisor
+      rationale: "simstim orchestrates the same review+audit pipeline as /run"
+      evidence_ref: "default"

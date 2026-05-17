@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "workload-tier-map.schema.json",
+  "title": "Workload Tier Map",
+  "description": "Schema for `.loa.config.yaml::workload_tier_map` (cycle-112 FR-3). Configures which model dispatch tier (advisor / executor / headless) each skill uses, with rationale and evidence references. Drift-gated in CI via .github/workflows/workload-tier-map-drift.yml (cycle-112 FR-4).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "defaults", "entries"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "Semantic-version-shaped string. Major bumps signal breaking schema changes (Phase B/C); minor bumps add backward-compatible fields."
+    },
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tier"],
+      "properties": {
+        "tier": {
+          "$ref": "#/$defs/tier",
+          "description": "Default tier applied to any dispatching skill not enumerated in entries. Operators SHOULD enumerate exhaustively (cycle-112 FR-3 AC); the default is a quality-floor safeguard."
+        }
+      }
+    },
+    "entries": {
+      "type": "object",
+      "description": "Per-skill tier mapping. Skill names are the keys (e.g., '/review-sprint', 'bridgebuilder-review'). Drift gate (FR-4) requires every mutation to carry a Tier-Change-Evidence: or Operator-Approval: trailer in the PR body.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["tier", "rationale", "evidence_ref"],
+        "properties": {
+          "tier": {
+            "$ref": "#/$defs/tier"
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Free-text justification for the tier assignment. Cite empirical evidence (A/B benchmark, PR comparison, prior bench result) or 'default' for unevidenced entries."
+          },
+          "evidence_ref": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(memory:|pr:|default$|operator-decision:|grimoire:|kf:).*",
+            "description": "Pointer to the evidence backing the rationale. Recognized prefixes: 'memory:<file>' (auto-memory artifact), 'pr:<url>' (GitHub PR), 'default' (no specific evidence — used the workload_tier_map.defaults.tier), 'operator-decision:<NOTES.md anchor>', 'grimoire:<path>', 'kf:<KF-NNN>'."
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "tier": {
+      "type": "string",
+      "enum": ["advisor", "executor", "headless"],
+      "description": "Workload tier. 'advisor' = highest-quality reasoning models (Opus, gpt-5.5-pro, gemini-3.1-pro). 'executor' = mid-tier (Sonnet, gpt-5.5). 'headless' = cheapest task-only models (claude-headless, codex-headless, gemini-headless)."
+    }
+  }
+}

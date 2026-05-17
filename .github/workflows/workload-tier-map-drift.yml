@@ -1,0 +1,139 @@
+name: Workload Tier Map Drift Gate
+
+# cycle-112 Sprint 2 (#167) T2.4 — FR-4 drift gate.
+#
+# Trips when `.loa.config.yaml::workload_tier_map` (subtree-only) changes
+# without an accompanying `Tier-Change-Evidence:` or `Operator-Approval:`
+# trailer in the PR body. yq subtree projection isolates the relevant
+# slice (R-3 false-positive mitigation; harmless reformatting elsewhere
+# in .loa.config.yaml does NOT trip the gate).
+#
+# See: grimoires/loa/runbooks/model-economy.md §"How to justify a tier
+# change in a PR body" for the format.
+
+on:
+  pull_request:
+    paths:
+      - '.loa.config.yaml'
+      - '.claude/data/schemas/workload-tier-map.schema.json'
+      - '.github/workflows/workload-tier-map-drift.yml'
+      - 'tools/audit-workload-tier-map.sh'
+  push:
+    branches: [main]
+    paths:
+      # cycle-108 post-merge admin-bypass detection pattern: re-validate
+      # on main so a force-pushed bypass surfaces in the workflow run log.
+      - '.loa.config.yaml'
+      - '.claude/data/schemas/workload-tier-map.schema.json'
+      - '.github/workflows/workload-tier-map-drift.yml'
+      - 'tools/audit-workload-tier-map.sh'
+
+jobs:
+  drift-gate:
+    name: workload_tier_map drift gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: Checkout
+        # actions/checkout@v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+        with:
+          fetch-depth: 0  # need history for git show main:.loa.config.yaml
+
+      - name: Install yq (sha256-pinned, cycle-099 pattern)
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64
+          echo "0c4d965ea944b64b8fddaf7f27779ee3034e5693263786506ccd1c120f184e8c  /usr/local/bin/yq" | sha256sum -c -
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Install python dependencies
+        run: |
+          python3 -m pip install --upgrade --user pyyaml jsonschema
+
+      - name: Schema validate + exhaustiveness audit (tools/audit-workload-tier-map.sh)
+        # Must pass regardless of whether mutation happened.
+        run: |
+          bash tools/audit-workload-tier-map.sh
+
+      - name: Detect workload_tier_map subtree change
+        id: detect_change
+        run: |
+          # SDD §4.4.2: yq subtree projection isolates the relevant slice.
+          # Whole-file diff would trip on harmless reformatting elsewhere
+          # in .loa.config.yaml (R-3 false-positive class).
+          yq eval '.workload_tier_map' .loa.config.yaml > /tmp/head_wtm.yaml
+
+          # Base ref: PR base SHA for pull_request, main for push
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            base_sha="${{ github.event.pull_request.base.sha }}"
+          else
+            # push: compare against the previous commit on main
+            base_sha="${{ github.event.before }}"
+            # Guard against zero-SHA (first push to branch) — assume changed
+            if [[ "$base_sha" == "0000000000000000000000000000000000000000" ]]; then
+              echo "first push, treating as changed"
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+
+          # Extract base workload_tier_map. If the file didn't exist at
+          # base, treat that as "changed" (introducing the key).
+          if git show "${base_sha}:.loa.config.yaml" 2>/dev/null \
+             | yq eval '.workload_tier_map' - > /tmp/base_wtm.yaml; then
+            :
+          else
+            echo "base .loa.config.yaml unreadable — treating as changed"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if diff -q /tmp/head_wtm.yaml /tmp/base_wtm.yaml >/dev/null; then
+            echo "no workload_tier_map subtree change"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "workload_tier_map subtree changed:"
+            diff -u /tmp/base_wtm.yaml /tmp/head_wtm.yaml || true
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Enforce PR-body trailer (Tier-Change-Evidence | Operator-Approval)
+        if: steps.detect_change.outputs.changed == 'true' && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # SDD §4.4.2 logic step 2: mutation detected → require trailer.
+          pr_body=$(gh pr view "${{ github.event.pull_request.number }}" \
+            --json body --jq '.body' || echo "")
+
+          # grep -c can return 0 on no-match without -E; ensure 0 fallback
+          set +e
+          has_evidence=$(echo "$pr_body" | grep -c "^Tier-Change-Evidence:")
+          has_operator=$(echo "$pr_body" | grep -c "^Operator-Approval:")
+          set -e
+
+          if [[ "$has_evidence" -eq 0 && "$has_operator" -eq 0 ]]; then
+            echo "::error::workload_tier_map subtree mutated without Tier-Change-Evidence or Operator-Approval trailer."
+            echo "::error::See grimoires/loa/runbooks/model-economy.md §How to justify a tier change in a PR body"
+            exit 1
+          fi
+          if [[ "$has_evidence" -gt 0 ]]; then
+            echo "✓ Tier-Change-Evidence trailer present ($has_evidence occurrence(s))"
+          fi
+          if [[ "$has_operator" -gt 0 ]]; then
+            echo "✓ Operator-Approval trailer present ($has_operator occurrence(s))"
+          fi
+
+      - name: Post-merge re-validation (push-to-main only)
+        if: steps.detect_change.outputs.changed == 'true' && github.event_name == 'push'
+        run: |
+          # cycle-108 admin-bypass-detection pattern: if a maintainer
+          # force-merged a workload_tier_map change without the gate, this
+          # job still runs on main and logs the bypass in the action run.
+          # Does not gate (push-to-main cannot reject post-hoc) but creates
+          # an auditable trail.
+          echo "::warning::workload_tier_map subtree changed on main push. Verify Tier-Change-Evidence / Operator-Approval was present in the merge commit."
