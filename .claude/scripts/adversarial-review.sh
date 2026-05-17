@@ -683,6 +683,40 @@ process_findings() {
     parsed="$content"
   fi
 
+  # KF-011 fix (closes second observation 2026-05-17): reasoning-class models
+  # (gpt-5.5-pro, gpt-5.5, opus-4-7) now routinely emit a conversational
+  # preamble BEFORE the JSON envelope, e.g.:
+  #   "Using the `ubs` review skill because... I'll keep the final response
+  #    to the requested JSON shape.\n{"findings":[...]}"
+  # Direct jq on the full content fails because `.findings` doesn't exist at
+  # the top level of "prose\n{json}". Extract the first balanced JSON object
+  # containing "findings" using Python's json.JSONDecoder.raw_decode, which
+  # handles arbitrarily nested envelopes safely. Falls back to original
+  # `parsed` if no embedded envelope is found (preserves prior behavior for
+  # the literal-JSON path).
+  if ! echo "$parsed" | jq -e '.findings' >/dev/null 2>&1; then
+    local extracted
+    extracted=$(echo "$content" | python3 -c '
+import sys, json
+text = sys.stdin.read()
+decoder = json.JSONDecoder()
+i = 0
+while i < len(text):
+    if text[i] == "{":
+        try:
+            obj, _ = decoder.raw_decode(text[i:])
+            if isinstance(obj, dict) and "findings" in obj:
+                print(json.dumps(obj))
+                break
+        except json.JSONDecodeError:
+            pass
+    i += 1
+' 2>/dev/null || echo "")
+    if [[ -n "$extracted" ]]; then
+      parsed="$extracted"
+    fi
+  fi
+
   # STATE 2: Malformed response
   local findings_array
   findings_array=$(echo "$parsed" | jq -r '.findings // empty' 2>/dev/null || echo "")

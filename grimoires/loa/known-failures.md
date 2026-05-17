@@ -64,7 +64,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-007](#kf-007-red-team-pipeline-hardcoded-single-model-evaluator-vestigial-config) | RESOLVED 2026-05-10 (multi-model evaluator) | red team pipeline hardcoded single-model evaluator | n/a — resolved in same session as discovery |
 | [KF-008](#kf-008-bridgebuilder-google-api-socketerror-on-large-request-bodies) | RESOLVED-architectural-complete — cycle-103 Sprint 1 unification (review-adapter path) + cycle-104 Sprint 3 T3.4 substrate-replay closure 2026-05-12 (4/4 trials clean at 297/302/317/539KB via cheval httpx). | bridgebuilder Google provider | 4 reproductions + 1 final non-reproduction |
 | [KF-010](#kf-010-cheval-delegate-google-adapter-300s-process-timeout-on-concurrent-bb-runs) | RESOLVED 2026-05-16 (sprint-bug-165, issue #921) | bridgebuilder google + anthropic voices / `deriveTimeoutMs` predicate scope | 6 (single batch, 2026-05-16) |
-| [KF-011](#kf-011-adversarial-reviewsh-malformed-response-on-review-type-prompts-post-kf-002-closure) | OPEN | adversarial-review.sh review-type — JSON contract layer | 1 (3-of-3 fallback chain in one invocation) |
+| [KF-011](#kf-011-adversarial-reviewsh-malformed-response-on-review-type-prompts-post-kf-002-closure) | **RESOLVED 2026-05-17** (sprint-bug + cycle-112 follow-up: parser extended via Python `json.JSONDecoder.raw_decode` to extract embedded JSON envelope from prose-prefixed content; closes sub-mode (b) — Gemini empty-content sub-mode (c) covered by KF-002 layer). | adversarial-review.sh review-type — JSON contract layer | 2 (initial obs sprint-166 review + repro on parser-fix branch) |
 
 ---
 
@@ -744,14 +744,15 @@ When a BB sweep shows uniform `cheval-delegate: process exceeded timeout=300000m
 
 ## KF-011: adversarial-review.sh `malformed_response` on review-type prompts post KF-002 closure
 
-**Status**: OPEN
+**Status**: **RESOLVED 2026-05-17** (sub-mode (b) parser-side fix; sub-mode (c) Gemini empty-content covered by KF-002 layer per cycle-109 T4.10 chunking/streaming)
 **Feature**: `.claude/scripts/adversarial-review.sh --type review` (Phase 2.5 of `/review-sprint`)
 **Symptom**: 3-of-3 fallback chain (`gpt-5.5-pro` → `gpt-5.5` → `gemini-3.1-pro-preview`) returns `malformed_response: missing 'findings' key` on a review-type prompt. **Crucially distinct from KF-002**: HTTP responses are received with non-empty content (not the empty-content failure KF-002 documented), but the content does not parse as the expected `{findings: [...]}` envelope shape. The script writes `status: malformed_response` to the output JSON with `model_attempts` showing all 3 chain members returned the same failure class within a 30-second window. cycle-109 Sprint 4 T4.10's structural closure of KF-002 (chunking + streaming-recovery) addresses empty-content; it does NOT address malformed-content.
 **First observed**: 2026-05-17 (cycle-112 sprint-166 review pass; same operator machine that ran 3/3-clean dissenter calls on the cycle-112 bug fix earlier in the same session — see sprint-166 session-handoff note "defer-and-watch" caveat that explicitly anticipated this recurrence shape)
-**Recurrence count**: 1
-**Current workaround**: Single-model floor-assessment substituted per the `/review-sprint` and `/audit-sprint` skill fallback policy ("If adversarial review is unavailable, proceed with single-model assessment and log warning"). Cycle-112 sprint-166 + sprint-167 both shipped with single-model review and audit; the audit-trail evidence is `grimoires/loa/a2a/sprint-166/adversarial-review.json` containing the full `model_attempts` chain.
-**Upstream issue**: not filed yet — needs diagnostic capture (see Reading guide)
-**Related visions / lore**: KF-002 (parent failure class, RESOLVED-STRUCTURAL — but only for empty-content layer; this entry documents the malformed-content sibling); vision-024 Substrate Speaks Twice ("the fix routes around one symptom; another symptom of the same class can re-emerge"); vision-025 Substrate Becomes the Answer
+**Recurrence count**: 2 (initial 2026-05-17T07:31Z sprint-166 review; reproduced 2026-05-17T08:28Z on the parser-fix branch with the same input diff)
+**Resolution**: Parser extended via Python `json.JSONDecoder.raw_decode` to extract first balanced JSON object containing `"findings"` from anywhere in the content. Handles the discovered shape (prose preamble + JSON envelope) without changing behavior for the literal-JSON or markdown-fence paths. Captured-content evidence at `grimoires/loa/a2a/sprint-kf011-repro-large/adversarial-debug-{gpt-5.5-pro,gpt-5.5,gemini-3.1-pro}-*.txt` from the 2026-05-17 reproduction shows: OpenAI emits prose-then-JSON (covered by fix); Gemini emits empty content (KF-002 territory). 11 bats tests pin the parser behavior across all 3 sub-modes.
+**Workaround prior to resolution**: Single-model floor-assessment per the `/review-sprint` and `/audit-sprint` skill fallback policy. Cycle-112 sprint-166 + sprint-167 shipped under this DEGRADED state; audit-trail evidence at `grimoires/loa/a2a/sprint-166/adversarial-review.json` (before-fix) and `grimoires/loa/a2a/sprint-kf011-repro-large-fix/adversarial-review.json` (post-fix, `gpt-5.5-pro:reviewed` first try).
+**Upstream issue**: #930 (diagnostic that captured the content; closed by PR #932) + this entry's resolution PR
+**Related visions / lore**: KF-002 (sibling failure class; empty-content layer remains in scope of KF-002's cycle-109 T4.10 closure for OpenAI/Anthropic; Gemini empty-content surfaced today is per-provider observation but cycle-109 T4.10's structural fix at the streaming layer is generic); vision-024 Substrate Speaks Twice (the fix routed around one symptom — KF-002 empty-content — and a sibling symptom emerged at the next-layer-up parser contract); vision-025 Substrate Becomes the Answer
 
 ### Distinguishing from KF-002
 
@@ -771,23 +772,28 @@ The three-provider correlation in a 30-second window is the strongest signal tha
 | Date | What we tried | Outcome | Evidence |
 |------|---------------|---------|----------|
 | 2026-05-17 | Default adversarial-review.sh dispatch with chain `gpt-5.5-pro → gpt-5.5 → gemini-3.1-pro-preview` on cycle-112 sprint-166 review (171102 input tokens → truncated to 24000 → 3 large files SIZE-CAP-SKIPPED) | DID NOT WORK — all 3 returned `malformed_response: missing 'findings' key` | `grimoires/loa/a2a/sprint-166/adversarial-review.json` (model_attempts shows all 3 chain members); merge commit `e1f27859` PR #928 |
-| not tried | Capture raw response content via `LOA_ADVERSARIAL_DEBUG=1`-equivalent env to disambiguate (a) refusal-class output, (b) alternate JSON envelope (`{review: {...}}`), (c) prose explanation | — | proposed in this entry's Reading guide |
-| not tried | Inspect dissenter system prompt for output-schema clarity — has the `findings` envelope shape been re-specified since cycle-109? | — | needs codebase walk |
-| not tried | Check whether truncation that happened sliced through a load-bearing schema instruction (171K → 24K token cap dropped 3 large source files; if the schema instruction was in one of them, models had no contract to honor) | — | inspect `adversarial-review.sh` prompt assembly + truncation order |
-| not tried | Replay against a TINY review-type prompt (e.g., 1KB diff) to test whether the failure is size-correlated or shape-correlated | — | one-line diff smoke test |
+| 2026-05-17 | TINY review-type prompt (~1KB diff, 8-line file) against the same chain | SUCCEEDED — `gpt-5.5-pro:reviewed` first try, no chain walk | session reproduction; demonstrates the failure is size/structure-correlated, not provider-availability |
+| 2026-05-17 | Ship `LOA_ADVERSARIAL_DEBUG=1` raw-response capture (PR #932, closes #930) | DIAGNOSTIC SHIPPED | merge commit `13aab142`; 6 bats tests pin the capture behavior |
+| 2026-05-17 | Reproduce KF-011 with original triggering diff (`git diff 8a4293f4..cddf2506`, sprint-166 cycle-112 deliverables) + `LOA_ADVERSARIAL_DEBUG=1` | REPRODUCED — captured all 3 raw responses; sidecar files written under `grimoires/loa/a2a/sprint-kf011-repro-large/` | per-model debug captures `adversarial-debug-{model}-*.txt`; chain trail in `adversarial-review.json` |
+| 2026-05-17 | Inspect captured content — discovered TWO failure sub-modes mixing in one symptom: (b) OpenAI (gpt-5.5-pro + gpt-5.5) emit "prose preamble + valid JSON envelope" — parser's `jq -r '.findings'` fails on prose-prefixed content; (c) Gemini-3.1-pro emits truly empty content (KF-002 territory, persists despite cycle-109 T4.10 streaming layer fix on Gemini specifically) | ROOT CAUSE IDENTIFIED | direct inspection of captured `adversarial-debug-gpt-5.5-pro-*.txt` (~5.7KB, prose + 2 findings) vs `adversarial-debug-gemini-3.1-pro-*.txt` (~481B, empty .content field) |
+| 2026-05-17 | Extend parser via Python `json.JSONDecoder.raw_decode` — scan content character-by-character for the first balanced `{...}` containing `"findings"`. Falls back to existing literal-JSON and markdown-fence paths unchanged. | **RESOLVED-SUB-MODE-B** — re-fired diagnostic against same large diff: `gpt-5.5-pro:reviewed` first try, `voices_succeeded: 1`, `chain_health: ok`, `status: APPROVED`. The KF-011 prose-preamble class is structurally impossible to mis-parse now. | Same reproduction file path with `-fix` suffix; before/after `model_attempts` arrays in `adversarial-review.json`; 11 bats tests pin the fix (5 new fix-specific + 6 diagnostic) |
+| not tried | Sub-mode (c) — Gemini empty-content on review-type prompts post cycle-109 T4.10. KF-002 §"Resolved Layers" claims Gemini empty-content not observed; today's reproduction is the second documented Gemini empty-content (after 2026-05-11 KF-002 RECURRENCE-5). May warrant promoting that observation back to KF-002 OPEN-LAYER or filing a sister entry. | DEFERRED to operator triage | `adversarial-debug-gemini-3.1-pro-2026-05-17T08-35-44Z.txt` shows .content is empty string |
 
 ### Reading guide
 
-When `adversarial-review.sh --type review` returns `status: malformed_response` with all chain members showing the same failure class:
+KF-011 is now RESOLVED for sub-mode (b) — the "prose preamble + JSON envelope" emission that reasoning-class models started producing on large review-type prompts. If you observe the symptom again:
 
-1. **Do NOT** treat this as KF-002. Cycle-109 T4.10's chunking + streaming-recovery fixes do not apply — they were built for empty-content. The shape "content present but not envelope-conformant" is a different bug class.
-2. **First diagnostic action**: capture one of the malformed responses verbatim. The default script does not log response bodies, only metadata. Wrap one re-invocation with a quick patch that dumps `$model_response` to a tmpfile before the parser runs. The actual content reveals which sub-mode applies (refusal, alternate envelope, prose, schema drift).
-3. **Three sub-modes likely**:
-   - (a) **Prompt-schema drift**: dissenter system prompt has weakened the `findings`-key guarantee. Fix: re-tighten the schema instruction. One-line.
-   - (b) **Parser brittleness**: models are returning a wrapped envelope (`{review: {findings: [...]}}` or `{result: {...}}`); parser should accept either shape. Fix: extend parser. ~10-line.
-   - (c) **Model behavior change**: reasoning-class models now produce meta-commentary on review-type tasks (especially recursive/meta-review prompts). Fix: prompt redesign with explicit "respond ONLY with JSON envelope" anchor. One-cycle effort.
-4. **Operator surface for the interim**: the `/review-sprint` and `/audit-sprint` skill fallback policy already handles unavailability ("proceed with single-model assessment"). DEGRADED markers in `auditor-sprint-feedback.md` capture the substrate state. Do NOT auto-merge KF-011-flagged sprints without explicit operator review.
-5. **Do NOT retry the same chain on a strictly-larger prompt** (e.g., audit-type prompt that includes review feedback) — the failure class is prompt-structure-dependent and will re-trigger. Sprint-167 demonstrated this pattern explicitly: skipping the audit dissenter because sprint-166 had already established the precedent on the same review-type substrate.
+1. **Verify the resolution is in place**: `grep -A5 "KF-011 fix" .claude/scripts/adversarial-review.sh` should show the Python `json.JSONDecoder.raw_decode` extraction. If missing, your branch is pre-resolution; rebase onto main.
+2. **If the parser fix is in place AND you still see `status: malformed_response`**:
+   - Set `LOA_ADVERSARIAL_DEBUG=1` and re-run
+   - Inspect `grimoires/loa/a2a/{sprint_id}/adversarial-debug-*.txt`
+   - You're now likely seeing sub-mode (c) Gemini empty-content (KF-002 sibling) OR a new sub-mode the fix doesn't cover
+3. **Original sub-mode taxonomy (preserved for the historical record)**:
+   - (a) **Prompt-schema drift**: dissenter system prompt weakened the `findings`-key guarantee — not observed at root cause; the prompt was unchanged
+   - (b) **Parser brittleness on prose-prefixed JSON** — **CONFIRMED + RESOLVED** 2026-05-17 via raw_decode extraction
+   - (c) **Model behavior change → empty content**: Gemini-3.1-pro returns empty `.content`. Persists despite cycle-109 T4.10 because T4.10's streaming-recovery is per-provider and the Gemini implementation may not enforce the same first-token deadline. Track under KF-002 if recurrent.
+4. **Operator surface**: cross-model dissent is again functional. `/review-sprint` and `/audit-sprint` should produce 1/3 to 3/3 voices depending on whether Gemini (sub-mode c) is up. The single-model fallback policy remains in place for ≤0-voice cases.
+5. **Sub-mode (c) Gemini empty-content** is the next-leverage fix — if Gemini continues to fail on review-type prompts, consider either (i) extending the dispatch fallback chain to include claude-headless as a 4th-line voice, or (ii) investigating Gemini's adapter-specific streaming behavior on review-type prompt structures.
 
 ---
 

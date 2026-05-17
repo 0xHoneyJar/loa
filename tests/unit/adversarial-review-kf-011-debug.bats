@@ -150,6 +150,89 @@ _populated_envelope() {
     grep -q "REDACTED-AKIA" "$sidecar"
 }
 
+# ============================================================================
+# KF-011 PARSER FIX (closes the malformed_response on prose-prefixed JSON)
+# ============================================================================
+
+@test "KF-011 fix: prose preamble + JSON envelope is correctly extracted" {
+    # Verbatim shape from the 2026-05-17 capture
+    # (grimoires/loa/a2a/sprint-kf011-repro-large/adversarial-debug-gpt-5.5-pro-*.txt):
+    # model emits "Using the `ubs` review skill because... I'll keep...\n{findings:[...]}"
+    raw=$(jq -n '{
+        content: "Using the `ubs` review skill because this is a bug-focused adversarial review. I’ll keep the final response to the requested JSON shape.\n{\"findings\":[{\"id\":\"DISS-001\",\"severity\":\"BLOCKING\",\"category\":\"spec-violation\",\"summary\":\"missing arg form\",\"detail\":\"shim does not recognize --foo=bar\",\"file\":\"tools/example.sh\",\"line\":10,\"anchor\":\"echo hi\"}]}",
+        model: "openai:gpt-5.5-pro",
+        cost_cents: 12
+    }')
+
+    result=$(process_findings "$raw" "review" "openai:gpt-5.5-pro" "$SPRINT_ID" "0" "" 2>/dev/null)
+    status_val=$(echo "$result" | jq -r '.metadata.status' 2>/dev/null)
+    # Must NOT be malformed_response — the fix extracted the JSON envelope
+    [ "$status_val" != "malformed_response" ]
+    # Should be either "reviewed" (with findings) or "clean" (empty findings)
+    case "$status_val" in
+        reviewed|clean) ;;
+        *)
+            echo "unexpected status: $status_val"
+            echo "result: $result" >&3
+            false
+            ;;
+    esac
+}
+
+@test "KF-011 fix: prose preamble + JSON does NOT fire debug capture" {
+    # When the parser fix successfully extracts, the malformed_response branch
+    # is not entered, so LOA_ADVERSARIAL_DEBUG=1 should NOT write a sidecar.
+    export LOA_ADVERSARIAL_DEBUG=1
+    raw=$(jq -n '{
+        content: "I will produce JSON now:\n{\"findings\":[]}",
+        model: "openai:gpt-5.5-pro"
+    }')
+    result=$(process_findings "$raw" "review" "openai:gpt-5.5-pro" "$SPRINT_ID" "0" "" 2>/dev/null)
+    status_val=$(echo "$result" | jq -r '.metadata.status' 2>/dev/null)
+    [ "$status_val" != "malformed_response" ]
+    sidecar_count=$( (ls -1 "$SIDECAR_DIR"/adversarial-debug-*.txt 2>/dev/null || true) | wc -l )
+    [ "$sidecar_count" -eq 0 ]
+}
+
+@test "KF-011 fix: refusal-only content (no JSON anywhere) is still malformed" {
+    # Negative control: when model truly refuses with no JSON, the fix should
+    # NOT manufacture one. The state should remain malformed_response so the
+    # diagnostic capture continues to fire.
+    raw=$(jq -n '{
+        content: "I cannot review this content as it contains sensitive information.",
+        model: "openai:gpt-5.5-pro"
+    }')
+    result=$(process_findings "$raw" "review" "openai:gpt-5.5-pro" "$SPRINT_ID" "0" "" 2>/dev/null)
+    status_val=$(echo "$result" | jq -r '.metadata.status' 2>/dev/null)
+    [ "$status_val" = "malformed_response" ]
+}
+
+@test "KF-011 fix: nested JSON envelope (other top-level fields besides findings) extracts findings" {
+    # Some models may return {review: {findings:[]}} or include findings as a
+    # nested key. The fix uses raw_decode which expects the OUTER object to
+    # contain "findings" — verify this works when "findings" is at top level
+    # alongside other fields.
+    raw=$(jq -n '{
+        content: "Here is my analysis:\n{\"findings\":[{\"id\":\"X\",\"severity\":\"MEDIUM\",\"category\":\"quality\",\"summary\":\"s\",\"detail\":\"d\",\"file\":\"f\",\"line\":1,\"anchor\":\"a\"}],\"metadata_extra\":\"ignored\",\"model_thoughts\":\"some reasoning\"}",
+        model: "openai:gpt-5.5-pro"
+    }')
+    result=$(process_findings "$raw" "review" "openai:gpt-5.5-pro" "$SPRINT_ID" "0" "" 2>/dev/null)
+    status_val=$(echo "$result" | jq -r '.metadata.status' 2>/dev/null)
+    [ "$status_val" != "malformed_response" ]
+}
+
+@test "KF-011 fix: markdown code fence wrapping the JSON still works (regression: existing behavior)" {
+    # The existing ```json fence extraction should still work — the new
+    # Python fallback only kicks in when fence extraction + direct parse both fail.
+    raw=$(jq -n '{
+        content: "```json\n{\"findings\":[]}\n```",
+        model: "openai:gpt-5.5-pro"
+    }')
+    result=$(process_findings "$raw" "review" "openai:gpt-5.5-pro" "$SPRINT_ID" "0" "" 2>/dev/null)
+    status_val=$(echo "$result" | jq -r '.metadata.status' 2>/dev/null)
+    [ "$status_val" = "clean" ]
+}
+
 @test "KF-011 debug: filename slugs colon in model id" {
     export LOA_ADVERSARIAL_DEBUG=1
     raw=$(_malformed_envelope)
