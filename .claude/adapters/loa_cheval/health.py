@@ -160,6 +160,21 @@ def aggregate_substrate_health(
 ) -> Dict[str, Any]:
     """Aggregate substrate-health metrics over the window.
 
+    Two parallel attribution dimensions live in each per-model bucket:
+
+    - `invocations` / `succeeded` / `success_rate` / `band` — keyed by
+      `final_model_id`. The model that actually answered (after any
+      fallback walk) gets credit. Backward-compatible with existing
+      consumers (journal renderer, dashboards).
+
+    - `attempts` / `first_try_success` / `first_try_success_rate` —
+      keyed by each entry in `models_requested[]`. Closes the
+      primary-failure visibility gap (issue #900): a primary that fails
+      and is rescued by a fallback is no longer invisible to the
+      operator-facing report. `first_try_success` only increments when
+      a model was both `models_requested[0]` AND `models_succeeded[0]`
+      (i.e., succeeded without a fallback walk).
+
     Returns:
       {
         "window": "24h",
@@ -167,10 +182,13 @@ def aggregate_substrate_health(
         "total_invocations": int,
         "per_model": {
           "<model_id>": {
-            "invocations": int,
-            "succeeded": int,
+            "invocations": int,              # final-model bucketed
+            "succeeded": int,                # final-model bucketed
             "success_rate": float,
             "band": "green"|"yellow"|"red",
+            "attempts": int,                 # per models_requested[]
+            "first_try_success": int,        # primary-succeeded count
+            "first_try_success_rate": float, # first_try_success/attempts
             "chain_health": {"ok": N, "degraded": N, "exhausted": N},
             "chunked": int,
             "streaming_aborts": {"first_token_deadline": N, ...},
@@ -187,6 +205,8 @@ def aggregate_substrate_health(
     per_model: Dict[str, Dict[str, Any]] = defaultdict(lambda: {
         "invocations": 0,
         "succeeded": 0,
+        "attempts": 0,
+        "first_try_success": 0,
         "chain_health": {"ok": 0, "degraded": 0, "exhausted": 0},
         "chunked": 0,
         "streaming_aborts": defaultdict(int),
@@ -207,6 +227,17 @@ def aggregate_substrate_health(
         bucket["invocations"] += 1
         if models_succeeded:
             bucket["succeeded"] += 1
+
+        # Issue #900: per-`models_requested` attempt attribution so the
+        # failing primary is visible even when a fallback rescues it.
+        for requested in models_requested:
+            per_model[requested]["attempts"] += 1
+        if (
+            models_requested
+            and models_succeeded
+            and models_requested[0] == models_succeeded[0]
+        ):
+            per_model[models_requested[0]]["first_try_success"] += 1
 
         # verdict_quality envelope
         vq = payload.get("verdict_quality") or {}
@@ -237,6 +268,9 @@ def aggregate_substrate_health(
         rate = (s / n) if n > 0 else 0.0
         bucket["success_rate"] = round(rate, 4)
         bucket["band"] = classify_band(rate)
+        a = bucket["attempts"]
+        fts = bucket["first_try_success"]
+        bucket["first_try_success_rate"] = round((fts / a) if a > 0 else 0.0, 4)
         bucket["streaming_aborts"] = dict(bucket["streaming_aborts"])
         total += n
         overall_succeeded += s
@@ -299,6 +333,13 @@ def render_text(report: Dict[str, Any]) -> str:
             f"  {marker} {model_id}: {b['succeeded']}/{b['invocations']} "
             f"= {b['success_rate']:.1%} ({b['band']})"
         )
+        # Issue #900: surface per-`models_requested` first-try rate so
+        # primary degradation is visible even when a fallback rescues.
+        if b.get("attempts", 0) > 0:
+            lines.append(
+                f"    first-try: {b['first_try_success']}/{b['attempts']} "
+                f"= {b['first_try_success_rate']:.1%}"
+            )
         if b["chunked"] > 0:
             lines.append(f"    chunked: {b['chunked']} invocations")
         if b["streaming_aborts"]:

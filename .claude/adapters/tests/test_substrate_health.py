@@ -365,3 +365,161 @@ def test_text_rendering_zero_invocations_suppresses_band_warning(tmp_path):
     assert report["total_invocations"] == 0
     assert "RED band" not in text
     assert "YELLOW band" not in text
+
+
+# ---------------------------------------------------------------------------
+# Bug #900 — primary-failure visibility after fallback rescue
+#
+# Regression: `aggregate_substrate_health` buckets per-model state by
+# `final_model_id`, so a primary that fails and gets rescued by a chain
+# fallback is invisible to the operator-facing health report. Fix adds
+# additive `attempts`, `first_try_success`, `first_try_success_rate`
+# counters keyed by `models_requested[]`.
+# ---------------------------------------------------------------------------
+
+
+def test_rescued_primary_visible_in_per_model_with_zero_first_try_success(tmp_path):
+    """Bug #900: a primary that fails and is rescued by a fallback walk
+    MUST appear in `per_model` with `attempts >= 1` and
+    `first_try_success_rate == 0.0`. Pre-fix, the failing primary is
+    absent from `per_model` entirely when every invocation is rescued."""
+    from loa_cheval.health import aggregate_substrate_health
+
+    now = datetime(2026, 5, 14, 13, 0, 0, tzinfo=timezone.utc)
+    log = _write_log(tmp_path, [
+        _make_modelinv_envelope({
+            "models_requested": [
+                "anthropic:claude-opus-4-7",
+                "anthropic:claude-opus-4-6",
+            ],
+            "models_succeeded": ["anthropic:claude-opus-4-6"],
+            "models_failed": [{
+                "model": "anthropic:claude-opus-4-7", "provider": "anthropic",
+                "error_class": "EMPTY_CONTENT", "message_redacted": "x",
+            }],
+            "operator_visible_warn": True,
+            "final_model_id": "anthropic:claude-opus-4-6",
+        }, timestamp="2026-05-14T12:00:00Z"),
+    ])
+    result = aggregate_substrate_health(log, now=now)
+
+    # Primary MUST be visible.
+    assert "anthropic:claude-opus-4-7" in result["per_model"], (
+        "failing primary missing from per_model — primary-failure visibility regression"
+    )
+    primary = result["per_model"]["anthropic:claude-opus-4-7"]
+    assert primary["attempts"] == 1
+    assert primary["first_try_success"] == 0
+    assert primary["first_try_success_rate"] == 0.0
+
+    # Rescuer is also visible and counted in attempts (it was requested too).
+    rescuer = result["per_model"]["anthropic:claude-opus-4-6"]
+    assert rescuer["attempts"] == 1
+    # Rescuer was NOT the head of models_requested → no first-try credit.
+    assert rescuer["first_try_success"] == 0
+    assert rescuer["first_try_success_rate"] == 0.0
+    # Backward-compat: rescuer keeps its final-model success.
+    assert rescuer["succeeded"] == 1
+
+
+def test_clean_first_try_increments_both_attempts_and_first_try_success(tmp_path):
+    """When the primary succeeds without a fallback walk, BOTH `attempts`
+    and `first_try_success` increment on the same model."""
+    from loa_cheval.health import aggregate_substrate_health
+
+    now = datetime(2026, 5, 14, 13, 0, 0, tzinfo=timezone.utc)
+    log = _write_log(tmp_path, [
+        _make_modelinv_envelope({
+            "models_requested": ["anthropic:claude-opus-4-7"],
+            "models_succeeded": ["anthropic:claude-opus-4-7"],
+            "models_failed": [],
+            "operator_visible_warn": False,
+            "final_model_id": "anthropic:claude-opus-4-7",
+        }, timestamp="2026-05-14T12:00:00Z"),
+    ])
+    result = aggregate_substrate_health(log, now=now)
+    primary = result["per_model"]["anthropic:claude-opus-4-7"]
+    assert primary["attempts"] == 1
+    assert primary["first_try_success"] == 1
+    assert primary["first_try_success_rate"] == 1.0
+    # Existing semantics preserved (additive change).
+    assert primary["invocations"] == 1
+    assert primary["succeeded"] == 1
+    assert primary["success_rate"] == 1.0
+
+
+def test_total_chain_exhaustion_attempts_all_with_zero_success(tmp_path):
+    """When the full chain is exhausted (no `models_succeeded`), every
+    entry in `models_requested[]` gets `attempts++`, none get
+    `first_try_success++`, none get `succeeded++`."""
+    from loa_cheval.health import aggregate_substrate_health
+
+    now = datetime(2026, 5, 14, 13, 0, 0, tzinfo=timezone.utc)
+    log = _write_log(tmp_path, [
+        _make_modelinv_envelope({
+            "models_requested": [
+                "anthropic:claude-opus-4-7",
+                "anthropic:claude-opus-4-6",
+                "openai:gpt-5-5-pro",
+            ],
+            "models_succeeded": [],
+            "models_failed": [
+                {"model": "anthropic:claude-opus-4-7", "provider": "anthropic",
+                 "error_class": "EMPTY_CONTENT", "message_redacted": "x"},
+                {"model": "anthropic:claude-opus-4-6", "provider": "anthropic",
+                 "error_class": "EMPTY_CONTENT", "message_redacted": "x"},
+                {"model": "openai:gpt-5-5-pro", "provider": "openai",
+                 "error_class": "RATE_LIMITED", "message_redacted": "x"},
+            ],
+            "operator_visible_warn": True,
+        }, timestamp="2026-05-14T12:00:00Z"),
+    ])
+    result = aggregate_substrate_health(log, now=now)
+    for model_id in (
+        "anthropic:claude-opus-4-7",
+        "anthropic:claude-opus-4-6",
+        "openai:gpt-5-5-pro",
+    ):
+        bucket = result["per_model"][model_id]
+        assert bucket["attempts"] == 1, f"{model_id} attempts"
+        assert bucket["first_try_success"] == 0, f"{model_id} first_try_success"
+        assert bucket["first_try_success_rate"] == 0.0, f"{model_id} rate"
+        assert bucket["succeeded"] == 0, f"{model_id} succeeded"
+
+
+def test_render_text_surfaces_first_try_rate_for_rescued_primary(tmp_path):
+    """Bug #900 UX: the text renderer surfaces `first_try_success_rate` so
+    the operator sees primary degradation even when the rescuer's band is
+    green. Without this, a rescued chain looks healthy in the report."""
+    from loa_cheval.health import aggregate_substrate_health, render_text
+
+    now = datetime(2026, 5, 14, 13, 0, 0, tzinfo=timezone.utc)
+    envelopes = []
+    for _ in range(3):
+        envelopes.append(_make_modelinv_envelope({
+            "models_requested": [
+                "anthropic:claude-opus-4-7",
+                "anthropic:claude-opus-4-6",
+            ],
+            "models_succeeded": ["anthropic:claude-opus-4-6"],
+            "models_failed": [{
+                "model": "anthropic:claude-opus-4-7", "provider": "anthropic",
+                "error_class": "EMPTY_CONTENT", "message_redacted": "x",
+            }],
+            "operator_visible_warn": True,
+            "final_model_id": "anthropic:claude-opus-4-6",
+        }, timestamp="2026-05-14T12:00:00Z"))
+    log = _write_log(tmp_path, envelopes)
+    report = aggregate_substrate_health(log, now=now)
+    text = render_text(report)
+    assert "first-try" in text.lower()
+    # The failing primary's header line is followed by its first-try
+    # detail line (indented sub-line; doesn't repeat the model id).
+    lines = text.splitlines()
+    primary_header_idx = next(
+        i for i, line in enumerate(lines)
+        if "anthropic:claude-opus-4-7" in line
+    )
+    primary_first_try = lines[primary_header_idx + 1]
+    assert "first-try" in primary_first_try.lower()
+    assert "0.0%" in primary_first_try
