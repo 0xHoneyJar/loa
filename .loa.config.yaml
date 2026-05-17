@@ -318,6 +318,14 @@ flatline_protocol:
     model: gpt-5.5-pro
     budget_cents: 200
     timeout_seconds: 600
+    # KF-011 sub-mode (c) mitigation (2026-05-17): Gemini-3.1-pro empty-content
+    # on review-type prompts post cycle-109 T4.10. Adding claude-headless as a
+    # 4th-line voice so quorum is reachable when Gemini is silent. KF-011
+    # sub-mode (b) resolved by parser fix in d9ec8cb5; this entry covers (c).
+    fallback_chain:
+      - gpt-5.5
+      - gemini-3.1-pro
+      - claude-headless
   security_audit:
     enabled: true
     # Same revert rationale as code_review (cycle-104 Sprint 2 T2.9).
@@ -325,6 +333,11 @@ flatline_protocol:
     model: gpt-5.5-pro
     budget_cents: 200
     timeout_seconds: 600
+    # KF-011 sub-mode (c) mitigation — same as code_review above.
+    fallback_chain:
+      - gpt-5.5
+      - gemini-3.1-pro
+      - claude-headless
   secret_scanning:
     patterns:
       - "AIzaSy[A-Za-z0-9_-]{33}"
