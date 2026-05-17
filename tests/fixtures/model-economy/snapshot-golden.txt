@@ -1,0 +1,15 @@
+Model-Economy Roll-Up — last 9999d
+Source: tests/fixtures/model-economy/snapshot-input.jsonl (3 envelopes)
+Coverage: skill attribution 100% (D-6 follow-up) · cost 100% · verdict_quality 100%
+
+Skill                    Model                                    Runs    Cost/run   p95-latency   VQ-healthy
+-------------------------------------------------------------------------------------------------------------
+/review-sprint           anthropic:claude-opus-4-7                   2     $0.04 *        3100ms         100%
+/audit-sprint            google:gemini-3.1-pro-preview               1     $0.01 *       15000ms         100%
+
+* cost shown only when envelope has both pricing_snapshot and capability_evaluation;
+  rows without cost data show "—". Coverage line above quantifies the gap.
+
+Footer:
+  model-config.yaml ref: .claude/defaults/model-config.yaml
+  substrate-health: not cross-referenced (run loa-substrate-health.sh --window 9999d for the partner view)

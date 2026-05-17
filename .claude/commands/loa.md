@@ -20,7 +20,29 @@ Show current workflow state, health, progress, and suggest the next command. The
 /loa --json       # JSON output for scripting
 /loa --version    # Only show version info (quick check)
 /loa doctor       # Run full health check (delegates to loa-doctor.sh)
+/loa status --economy           # 30-day model-economy roll-up (cycle-112 FR-2)
+/loa status --economy --window 7d
+/loa status --economy --skill /review-sprint
+/loa status --economy --json    # JSON for scripting
 ```
+
+### `/loa status --economy`
+
+View 30-day model-economy roll-up. Shows `(skill, model)` cost-per-clean-output,
+p95 latency, verdict-quality health, and degradation markers (⚠ when DEGRADED +
+FAILED ≥ 2 for the cell). Default window is 30 days; override with
+`--window <h|d|m>`. Filter with `--skill <substr>` and/or `--model <substr>`.
+Use `--cost-snapshot <git-ref>` to price against historical model-config.yaml.
+
+Delegates to `tools/model-economy-roll-up.sh` — single source of truth for
+aggregation. See `grimoires/loa/runbooks/model-economy.md` for column
+interpretations and operating principles.
+
+Phase A coverage caveats (surfaced in the output's coverage line):
+- skill attribution is 0% today (D-6 Phase A.1 follow-up wires it)
+- cost is input-side only (D-7 Phase A.1 follow-up wires output tokens)
+- verdict_quality coverage ~48% (gradually rising as more dispatch sites
+  set the envelope)
 
 ## Workflow
 

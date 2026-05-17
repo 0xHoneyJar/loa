@@ -37,22 +37,45 @@ NC='\033[0m'
 # Arguments
 JSON_OUTPUT=false
 VERSION_ONLY=false
+ECONOMY_MODE=false
+ECONOMY_ARGS=()
 
 for arg in "$@"; do
   case "$arg" in
-    --json) JSON_OUTPUT=true ;;
+    --economy) ECONOMY_MODE=true ;;
+    --json) JSON_OUTPUT=true; ECONOMY_ARGS+=("--json") ;;
     --version) VERSION_ONLY=true ;;
     --help|-h)
-      echo "Usage: loa-status.sh [--json] [--version] [--help]"
+      echo "Usage: loa-status.sh [--json] [--version] [--economy [...]] [--help]"
       echo ""
       echo "Options:"
-      echo "  --json      Output JSON format"
-      echo "  --version   Only show version info"
-      echo "  --help      Show this help"
+      echo "  --json                Output JSON format"
+      echo "  --version             Only show version info"
+      echo "  --economy             Show model-economy roll-up (cycle-112 FR-2)"
+      echo "                          Accepts: --window <h|d|m>, --skill <substr>,"
+      echo "                          --model <substr>, --cost-snapshot <git-ref>,"
+      echo "                          --log-path <path>, --json"
+      echo "                        See: grimoires/loa/runbooks/model-economy.md"
+      echo "  --help                Show this help"
       exit 0
+      ;;
+    *)
+      # In --economy mode, forward unknown args to the roll-up tool.
+      ECONOMY_ARGS+=("$arg")
       ;;
   esac
 done
+
+# Economy mode: short-circuit to the model-economy roll-up tool.
+# Single source of truth — loa-status.sh never reimplements aggregation.
+if [[ "$ECONOMY_MODE" == "true" ]]; then
+  ECONOMY_TOOL="${PROJECT_ROOT}/tools/model-economy-roll-up.sh"
+  if [[ ! -x "$ECONOMY_TOOL" ]]; then
+    echo "[loa-status] error: model-economy roll-up tool not found at $ECONOMY_TOOL" >&2
+    exit 1
+  fi
+  exec "$ECONOMY_TOOL" ${ECONOMY_ARGS[@]+"${ECONOMY_ARGS[@]}"}
+fi
 
 # === Version Information Functions ===
 

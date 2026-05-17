@@ -1,0 +1,229 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "model-economy-rollup.schema.json",
+  "title": "Model Economy Roll-Up",
+  "description": "Authoritative shape of the model-economy aggregator output (cycle-112 FR-1). Conforms to SDD §3.2.1. Conservative shape: every cell value can be null because Phase A ships partial coverage (skill attribution 0%, cost coverage 35%, verdict_quality coverage 48%). Coverage block documents the gap honestly.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "window",
+    "since",
+    "now",
+    "log_path",
+    "coverage",
+    "per_skill_model",
+    "footer"
+  ],
+  "properties": {
+    "window": {
+      "type": "string",
+      "pattern": "^[0-9]+[hdm]$",
+      "description": "Aggregation window in compact form: 24h, 7d, 30d, etc."
+    },
+    "since": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC lower bound of the window (inclusive)."
+    },
+    "now": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC upper bound of the window (the aggregator's notion of 'now')."
+    },
+    "log_path": {
+      "type": "string",
+      "description": "Path of the MODELINV JSONL log that was stream-parsed."
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_envelopes",
+        "with_skill_attribution",
+        "with_pricing_snapshot",
+        "with_verdict_quality",
+        "with_capability_evaluation",
+        "skill_attribution_pct",
+        "cost_coverage_pct",
+        "verdict_quality_coverage_pct",
+        "malformed_lines"
+      ],
+      "properties": {
+        "total_envelopes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Count of envelopes that fell within the window after timestamp + filter gating."
+        },
+        "with_skill_attribution": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Count of envelopes whose payload carried skill / calling_primitive / phase / role / tier. SDD §0.3 finding: 0/808 today."
+        },
+        "with_pricing_snapshot": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Count of envelopes carrying payload.pricing_snapshot (35% coverage as of cycle-112 baseline)."
+        },
+        "with_verdict_quality": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Count of envelopes carrying payload.verdict_quality (48% coverage as of cycle-112 baseline)."
+        },
+        "with_capability_evaluation": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Count of envelopes carrying payload.capability_evaluation.estimated_input_tokens (50% coverage). Both pricing_snapshot AND capability_evaluation are required to compute cost; cost_coverage_pct is the joint denominator."
+        },
+        "skill_attribution_pct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "100 * with_skill_attribution / total_envelopes. Surfaced in the text-mode coverage line for operator awareness of D-6 gap."
+        },
+        "cost_coverage_pct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "100 * (envelopes with both pricing_snapshot AND capability_evaluation) / total_envelopes."
+        },
+        "verdict_quality_coverage_pct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "100 * with_verdict_quality / total_envelopes."
+        },
+        "malformed_lines": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Non-empty lines that failed json.loads. Stream-parse skips them; this counter surfaces the rate honestly per SDD §6 error table."
+        }
+      }
+    },
+    "per_skill_model": {
+      "type": "object",
+      "description": "Keyed by '<skill>|<model>' string. Per-cell aggregation results.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "skill",
+          "model",
+          "runs",
+          "cost_total_usd",
+          "cost_per_run_usd",
+          "cost_per_clean_output_usd",
+          "cost_input_only",
+          "p95_latency_ms",
+          "verdict_quality_distribution",
+          "verdict_quality_healthy_pct",
+          "degradation_marker",
+          "first_try_success",
+          "attempts",
+          "unpriced_runs"
+        ],
+        "properties": {
+          "skill": {
+            "type": "string",
+            "description": "Skill / calling_primitive identifier. '(unattributed)' when payload lacks attribution (100% today per SDD §0.3)."
+          },
+          "model": {
+            "type": "string",
+            "description": "final_model_id (or models_succeeded[0] / models_requested[0] fallback). '(unknown_model)' if none resolved."
+          },
+          "runs": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total envelopes bucketed to this (skill, model) cell."
+          },
+          "cost_total_usd": {
+            "type": ["number", "null"],
+            "description": "Sum of input-side cost across priced runs in this cell. null when no run in the cell was priceable."
+          },
+          "cost_per_run_usd": {
+            "type": ["number", "null"],
+            "description": "cost_total_usd / runs_with_cost. null when no run was priced."
+          },
+          "cost_per_clean_output_usd": {
+            "type": ["number", "null"],
+            "description": "PRD §4 FR-1 primary metric. sum(cost where verdict_quality.status=='APPROVED' AND chain_health=='ok') / count(same). null when denominator is 0 (no clean runs in cell)."
+          },
+          "cost_input_only": {
+            "type": "boolean",
+            "description": "True when tokens_output is unavailable in the MODELINV writer signature (current state). D-7 wires output tokens; this flag flips to false once that lands."
+          },
+          "p95_latency_ms": {
+            "type": ["integer", "null"],
+            "description": "95th-percentile invocation_latency_ms across runs in this cell. null when runs == 0 or all invocation_latency_ms missing."
+          },
+          "verdict_quality_distribution": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "APPROVED": {"type": "integer", "minimum": 0},
+              "DEGRADED": {"type": "integer", "minimum": 0},
+              "FAILED": {"type": "integer", "minimum": 0},
+              "UNKNOWN": {"type": "integer", "minimum": 0}
+            },
+            "required": ["APPROVED", "DEGRADED", "FAILED", "UNKNOWN"]
+          },
+          "verdict_quality_healthy_pct": {
+            "type": ["number", "null"],
+            "minimum": 0,
+            "maximum": 100,
+            "description": "100 * APPROVED-with-chain-health-ok / runs. null when no runs had verdict_quality data."
+          },
+          "degradation_marker": {
+            "type": "boolean",
+            "description": "PRD §4 FR-2: true when DEGRADED + FAILED >= 2 for this cell."
+          },
+          "first_try_success": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Count of runs where models_requested[0] == models_succeeded[0] (no fallback walk). Mirrors health.py first_try_success."
+          },
+          "attempts": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Count of times this model appeared in models_requested[] across runs in this cell."
+          },
+          "unpriced_runs": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "runs - runs_with_cost. Surfaces the partial-priced reality at the row level."
+          }
+        }
+      }
+    },
+    "footer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model_config_ref", "substrate_health_window_summary"],
+      "properties": {
+        "model_config_ref": {
+          "type": "string",
+          "description": "Origin of pricing data. Default is .claude/defaults/model-config.yaml@HEAD; --cost-snapshot <ref> swaps in historical."
+        },
+        "substrate_health_window_summary": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "description": "PRD R-5 mitigation: cross-reference to cycle-109 substrate-health for the same window. null when the cross-ref was not requested or could not be computed.",
+          "properties": {
+            "overall_success_rate": {
+              "type": ["number", "null"],
+              "minimum": 0,
+              "maximum": 1
+            },
+            "overall_band": {
+              "type": ["string", "null"],
+              "enum": ["green", "yellow", "red", null]
+            },
+            "degradation_events_in_window": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    }
+  }
+}
