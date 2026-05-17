@@ -56,9 +56,14 @@ export function createLocalAdapters(
     reviewMarker: config.reviewMarker,
   });
 
-  // Sprint-bug-143 #789a: shared deriveTimeoutMs helper. For Anthropic
-  // single-model the reasoning-class branch never fires (provider !== openai),
-  // so this preserves the existing tiered ladder for the default path.
+  // Shared deriveTimeoutMs helper. Sprint-bug-143 #789a granted OpenAI
+  // `gpt-*-pro` the 30-min reasoning-class budget; cycle-111 sprint-bug-165
+  // (#921, KF-010) extended the predicate to Anthropic Opus + Google
+  // Gemini-Pro. The single-model Anthropic path here therefore now picks
+  // up the 30-min budget when `config.model` is an Opus variant
+  // (e.g. claude-opus-4-7) — intentional, same KF-010 root cause applies.
+  // Non-Opus Anthropic models (claude-sonnet-*, claude-haiku-*) remain on
+  // the tier-based ladder.
   const timeoutMs = deriveTimeoutMs("anthropic", config.model, config);
 
   return {

@@ -63,7 +63,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-006](#kf-006-t114-migrate-model-config-v2-schema-rejects-max_output_tokens) | RESOLVED 2026-05-10 (v2 schema modelEntry permits max_output_tokens + max_input_tokens) | T1.14 migrate-model-config v2 schema | every PR since dd54fe9c |
 | [KF-007](#kf-007-red-team-pipeline-hardcoded-single-model-evaluator-vestigial-config) | RESOLVED 2026-05-10 (multi-model evaluator) | red team pipeline hardcoded single-model evaluator | n/a — resolved in same session as discovery |
 | [KF-008](#kf-008-bridgebuilder-google-api-socketerror-on-large-request-bodies) | RESOLVED-architectural-complete — cycle-103 Sprint 1 unification (review-adapter path) + cycle-104 Sprint 3 T3.4 substrate-replay closure 2026-05-12 (4/4 trials clean at 297/302/317/539KB via cheval httpx). | bridgebuilder Google provider | 4 reproductions + 1 final non-reproduction |
-| [KF-010](#kf-010-cheval-delegate-google-adapter-300s-process-timeout-on-concurrent-bb-runs) | OPEN | bridgebuilder google voice / cheval-delegate subprocess timeout | 6 (single batch, 2026-05-16) |
+| [KF-010](#kf-010-cheval-delegate-google-adapter-300s-process-timeout-on-concurrent-bb-runs) | RESOLVED 2026-05-16 (sprint-bug-165, issue #921) | bridgebuilder google + anthropic voices / `deriveTimeoutMs` predicate scope | 6 (single batch, 2026-05-16) |
 
 ---
 
@@ -718,8 +718,8 @@ When future cycles want to benchmark a NEW dimension (not in cycle-108), reuse t
 
 ## KF-010: cheval-delegate google adapter 300s process timeout on concurrent BB runs
 
-**Status**: OPEN
-**Feature**: bridgebuilder multi-model review — `google/gemini-3.1-pro-preview` voice via cheval-delegate subprocess
+**Status**: RESOLVED 2026-05-16 (sprint-bug-165 — issue #921 — `deriveTimeoutMs` predicate extended to cover reasoning-class Anthropic + Google models)
+**Feature**: bridgebuilder multi-model review — `google/gemini-3.1-pro-preview` voice via cheval-delegate subprocess (and `claude-opus-4-7` — see Attempts row 2026-05-16 root-cause finding)
 **Symptom**: Every google voice invocation in a 6-PR concurrent BB sweep returned `cheval-delegate: process exceeded timeout=300000ms (signal=SIGTERM)`. The BB TS layer (`adapters/llm-google.ts` or equivalent) imposes a 300s SIGTERM on the cheval-delegate subprocess. Anthropic + OpenAI voices completed normally (anthropic 80-275s, openai 39-138s on same runs). Consensus scoring proceeds with 2/3 voices but verdict-quality envelope is DEGRADED per NFR-Rel-1. BB does NOT surface the degradation in the GitHub-posted review comment — the comment header lists all 3 INTENDED models without distinguishing which actually returned a verdict. Operators relying on the comment alone cannot tell quality is degraded.
 **First observed**: 2026-05-16 (cycle-110 BB sweep batch 5, run IDs `bridgebuilder-20260516T0721{19,26,33,40,46,53}-*`)
 **Recurrence count**: 6 (single batch, all 6 PRs in the sweep, all hitting exactly the 300s wall — pattern strongly suggests provider-side issue rather than client-side per-call latency variance)
@@ -732,6 +732,7 @@ When future cycles want to benchmark a NEW dimension (not in cycle-108), reuse t
 | Date | What we tried | Outcome | Evidence |
 |------|---------------|---------|----------|
 | 2026-05-16 07:21Z | 6 BB invocations launched concurrently with 5s stagger across PRs #804/#885/#912/#913/#914/#917 | DID NOT WORK — all 6 google voices SIGTERM'd at 300s; anthropic+openai succeeded | `/tmp/bb-runs-5/pr-{804,885,912,913,914,917}.log`; GitHub comments timestamped 07:28Z on each PR |
+| 2026-05-16 (root-cause + fix) | Root-cause traced to `.claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts:42-48` — `isReasoningClassOpenAI` predicate only granted the 1_800_000ms budget to OpenAI `gpt-*-pro`; Anthropic Opus + Google Gemini Pro fell into the 300_000ms tier. Direct provider APIs confirmed healthy (Gemini 3.5s on 6-token prompt, 10s on 5KB). Fix: predicate renamed to `isReasoningClass` and extended with anthropic `/opus/i` + google `/^gemini-\d+(\.\d+)?-pro/i` branches. 11 unit tests pin all 3 providers + tier-ladder regressions. | RESOLVED | sprint-bug-165 (bug ID `20260516-i921-e386d6`); issue #921; test file `.claude/skills/bridgebuilder-review/resources/__tests__/multi-model-pipeline-timeout.test.ts` (11/11 pass post-fix; 8/11 pre-fix proving the bug) |
 
 ### Reading guide
 

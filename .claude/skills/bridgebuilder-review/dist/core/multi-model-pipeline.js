@@ -2,32 +2,39 @@ import { scoreFindings } from "./scoring.js";
 import { createAdapter } from "../adapters/adapter-factory.js";
 import { PROVIDER_API_KEY_ENV, validateApiKeys } from "../config.js";
 /**
- * Sprint-bug-143 #789a fix: per-model timeout derivation.
+ * Per-model timeout derivation — reasoning-class predicate (multi-provider).
  *
- * Reasoning-class OpenAI models (gpt-5.5-pro and similar) need substantially
- * more time than the prior 300_000ms cap allowed — observed cycle-100
- * sprint-2 BB iter-1: gpt-5.5-pro hung past 900s on a 95k-token diff because
- * the model spends most of its budget on internal reasoning before emitting
- * visible tokens. The previous 300s ceiling forced a silent timeout and
- * BB degraded to single-model.
+ * History:
+ *   - cycle-100 sprint-bug-143 (#789a) introduced the 1_800_000ms (30-min)
+ *     budget for OpenAI `gpt-*-pro` after gpt-5.5-pro hung past 900s on a
+ *     95k-token diff (most of the budget is spent on internal reasoning
+ *     before any visible tokens emit).
+ *   - cycle-111 sprint-bug-165 (#921) extended the predicate to the rest
+ *     of the BB triad. Claude Opus + Gemini Pro are reasoning-class too —
+ *     they were silently SIGTERMing at the 300_000ms ceiling on realistic
+ *     BB prompts (KF-010, recurrence ≥20× by 2026-05-16). Direct provider
+ *     API health was fine; the predicate scope was the bug.
  *
- * Detection by model_id substring is intentionally narrow — we want to grant
- * the longer budget ONLY where it's needed, not as a blanket increase. New
- * reasoning-class models added to the BB triad must extend this regex.
+ * Detection by model_id pattern is intentionally narrow — we want the longer
+ * budget ONLY where it's needed, not as a blanket increase. To add a new
+ * reasoning-class model: extend the relevant provider's branch. Non-reasoning
+ * variants on the same provider (e.g. claude-sonnet-4-6, gemini-3.1-flash,
+ * gpt-5.3-codex) MUST remain on the tier-based ladder.
  *
- * 1_800_000ms = 30min, comfortably above gpt-5.5-pro's observed 900-1100s
- * end-to-end on large reviews while keeping operator-visible latency bounded.
+ * 1_800_000ms = 30min, comfortably above observed 900-1100s end-to-end on
+ * large reviews while keeping operator-visible latency bounded.
  */
-function isReasoningClassOpenAI(provider, modelId) {
-    if (provider !== "openai")
-        return false;
-    // gpt-5.5-pro, gpt-5.6-pro, etc. — `pro` suffix on /v1/responses path.
-    // Codex variants (gpt-5.3-codex) are non-reasoning despite using
-    // /v1/responses; exclude them via the `-pro` anchor.
-    return /^gpt-\d+(\.\d+)?-pro$/i.test(modelId);
+function isReasoningClass(provider, modelId) {
+    if (provider === "openai" && /^gpt-\d+(\.\d+)?-pro$/i.test(modelId))
+        return true;
+    if (provider === "anthropic" && /opus/i.test(modelId))
+        return true;
+    if (provider === "google" && /^gemini-\d+(\.\d+)?-pro/i.test(modelId))
+        return true;
+    return false;
 }
 export function deriveTimeoutMs(provider, modelId, config) {
-    if (isReasoningClassOpenAI(provider, modelId)) {
+    if (isReasoningClass(provider, modelId)) {
         return 1_800_000; // 30 minutes
     }
     // Existing tiered ladder for non-reasoning paths.
