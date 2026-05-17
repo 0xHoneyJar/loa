@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import Any, Dict, Iterator, List, Optional
 
 from loa_cheval.providers.streaming_caps import (
@@ -51,6 +52,11 @@ from loa_cheval.providers.streaming_caps import (
     MAX_TEXT_PART_BYTES,
     accumulate_capped,
     check_buffer_cap,
+)
+from loa_cheval.streaming import (
+    StreamingRecoveryAbort,
+    StreamingRecoveryConfig,
+    StreamingRecoveryTracker,
 )
 from loa_cheval.types import CompletionResult, Usage
 
@@ -63,6 +69,9 @@ def parse_anthropic_stream(
     provider: str = "anthropic",
     latency_ms_at_first_byte: Optional[int] = None,
     latency_ms_at_completion: Optional[int] = None,
+    model_data: Optional[Dict[str, Any]] = None,
+    reasoning_class: bool = False,
+    now_provider: Any = time.monotonic,
 ) -> CompletionResult:
     """Reconstruct a CompletionResult from Anthropic's SSE event stream.
 
@@ -72,6 +81,20 @@ def parse_anthropic_stream(
         latency_ms_at_first_byte: optional wall-clock first-byte time;
             stored for observability but not currently surfaced.
         latency_ms_at_completion: total wall-clock time at stream end.
+        model_data: cycle-113 — per-model entry from `model-config.yaml`;
+            consumed by ``StreamingRecoveryConfig.for_model`` to populate
+            the per-call recovery thresholds (FR-B-1). ``None`` falls
+            back to library defaults.
+        reasoning_class: cycle-113 — when ``True``, the recovery tracker
+            applies the reasoning-class first-token-deadline (60s
+            vs 30s) AND enforces the CoT-budget threshold. Adapter
+            derives this from
+            ``model-config.yaml::models.<id>.reasoning_class``
+            (cycle-109 SDD §3.1.2 existing field). Default ``False``.
+        now_provider: cycle-113 — injectable monotonic-clock source
+            (callable returning a float-seconds value). Tests inject a
+            controllable clock; production callers use the default
+            ``time.monotonic``.
 
     Returns:
         CompletionResult with content, thinking, tool_calls, usage, and
@@ -81,7 +104,35 @@ def parse_anthropic_stream(
         ValueError: on malformed SSE (event without data, JSON parse
             failure on a data line). Callers should typically catch and
             translate to InvalidInputError or treat as transport degradation.
+        StreamingRecoveryAbort: cycle-113 — raised when the
+            StreamingRecoveryTracker observes a stream pathology and
+            decides to abort (one of: ``first_token_deadline``,
+            ``empty_content_window``, ``cot_budget_exhausted``).
+            Adapter wrapper translates to the appropriate retryable
+            error class so cycle-099 chain-walk takes over.
     """
+    # ──────────────────────────────────────────────────────────────────
+    # cycle-113 sprint-168 T1.6 — StreamingRecoveryTracker integration
+    # per SDD §3.1 common pattern + §3.2 Anthropic specifics.
+    # ──────────────────────────────────────────────────────────────────
+    recovery_config = StreamingRecoveryConfig.for_model(
+        model_data or {}, reasoning_class=reasoning_class,
+    )
+    recovery_tracker = StreamingRecoveryTracker(
+        config=recovery_config,
+        start_time_s=now_provider(),
+    )
+    config_applied: Dict[str, Any] = {
+        "first_token_deadline_s": recovery_config.first_token_deadline_s,
+        "empty_content_window_tokens": recovery_config.empty_content_window_tokens,
+        "cot_budget_tokens": recovery_config.cot_budget_tokens,
+        "reasoning_class": recovery_config.reasoning_class,
+    }
+    # Partial content snapshot — passed into StreamingRecoveryAbort so the
+    # adapter can populate the MODELINV envelope's
+    # `streaming_recovery.partial_content` field with what the model HAD
+    # produced before the abort fired (NFR-Obs-1 diagnostic value).
+    partial_text_seen: List[str] = []
     # Block accumulators indexed by Anthropic's `index` field. Each entry:
     #   {"type": "text"|"thinking"|"tool_use",
     #    "text_parts": [str, ...]              # text + thinking blocks
@@ -94,7 +145,9 @@ def parse_anthropic_stream(
     input_tokens = 0
     output_tokens = 0
 
-    for event_name, event_payload in _iter_sse_events(byte_iter):
+    for event_name, event_payload in _iter_sse_events_with_deadline(
+        byte_iter, recovery_tracker, config_applied, now_provider,
+    ):
         if event_name == "ping" or event_payload is None:
             continue
 
@@ -143,20 +196,47 @@ def parse_anthropic_stream(
             delta = event_payload.get("delta", {}) or {}
             delta_type = delta.get("type", "")
             if delta_type == "text_delta":
+                text = delta.get("text", "") or ""
+                # cycle-113 T1.6: feed tracker BEFORE accumulating so an
+                # abort decision short-circuits before the partial text is
+                # committed to the result. Empty strings are intentionally
+                # fed (SDD §2.1 — skipping empty desyncs tokens_seen from
+                # the empty_content_window threshold).
+                _recovery_feed(
+                    recovery_tracker, text, partial_text_seen,
+                    config_applied, now_provider,
+                )
                 accumulate_capped(
                     entry["text_parts"],
-                    delta.get("text", "") or "",
+                    text,
                     cap=MAX_TEXT_PART_BYTES,
                     kind="text",
                 )
             elif delta_type == "thinking_delta":
+                thinking_text = delta.get("thinking", "") or ""
+                # cycle-113 T1.6: thinking_delta participates in CoT
+                # detection (SDD §3.2 — Anthropic emits thinking as a
+                # separate delta type). The tracker's CoT regex matches
+                # `<thinking>` open + "thinking"/"let me"/"I'll"/"first I"
+                # prefixes, so most thinking content registers as CoT.
+                # reasoning_class=True is required for cot_budget abort to
+                # fire (recovery.py:219-228).
+                _recovery_feed(
+                    recovery_tracker, thinking_text, partial_text_seen,
+                    config_applied, now_provider,
+                )
                 accumulate_capped(
                     entry["text_parts"],
-                    delta.get("thinking", "") or "",
+                    thinking_text,
                     cap=MAX_TEXT_PART_BYTES,
                     kind="thinking",
                 )
             elif delta_type == "input_json_delta":
+                # cycle-113 T1.6: tool-call arguments are NOT fed to the
+                # recovery tracker. Tool-only responses are legitimately
+                # empty-content (no visible text) but never KF-002 failures;
+                # feeding json_delta would confuse the empty_content_window
+                # detector. SDD §3.3 OpenAI shares this exclusion rule.
                 accumulate_capped(
                     entry.setdefault("json_parts", []),
                     delta.get("partial_json", "") or "",
@@ -237,6 +317,17 @@ def parse_anthropic_stream(
     metadata: Dict[str, Any] = {"streaming": True}
     if stop_reason:
         metadata["stop_reason"] = stop_reason
+    # cycle-113 T1.6 / I-3: streaming_recovery telemetry MUST be populated
+    # on EVERY streaming invocation (healthy or aborted). On the healthy
+    # path the abort exception is never raised, so we attach the
+    # config_applied snapshot here. On the abort path the adapter wrapper
+    # reconstructs the dict from the exception fields per SDD §3.5.
+    metadata["streaming_recovery"] = {
+        "triggered": False,
+        "tokens_before_abort": None,
+        "reason": None,
+        "config_applied": config_applied,
+    }
 
     return CompletionResult(
         content=content,
@@ -248,6 +339,70 @@ def parse_anthropic_stream(
         provider=provider,
         metadata=metadata,
     )
+
+
+# --- cycle-113 T1.6 — recovery integration helpers ---
+
+
+def _recovery_feed(
+    tracker: StreamingRecoveryTracker,
+    text: str,
+    partial_text_seen: List[str],
+    config_applied: Dict[str, Any],
+    now_provider: Any,
+) -> None:
+    """Feed one text/thinking delta into the recovery tracker.
+
+    On a non-abort decision: append the text to ``partial_text_seen``
+    so the snapshot is available if a later token triggers an abort.
+
+    On an abort decision: raise StreamingRecoveryAbort carrying the
+    decision context + accumulated partial content for adapter MODELINV
+    plumbing.
+    """
+    if text:
+        partial_text_seen.append(text)
+    decision = tracker.on_token(text, now_provider())
+    if decision.abort:
+        raise StreamingRecoveryAbort(
+            reason=decision.reason,
+            tokens_before_abort=decision.tokens_before_abort,
+            config_applied=config_applied,
+            partial_content="".join(partial_text_seen),
+        )
+
+
+def _iter_sse_events_with_deadline(
+    byte_iter: Iterator[bytes],
+    tracker: StreamingRecoveryTracker,
+    config_applied: Dict[str, Any],
+    now_provider: Any,
+) -> Iterator[tuple]:
+    """SDD §3.1 deadline-shim — wraps ``_iter_sse_events`` so
+    ``tracker.check_deadline(now_s)`` is called BEFORE each blocking
+    ``next(byte_iter)`` call.
+
+    This is one of three identical shim copies (Anthropic / OpenAI /
+    Google streaming parsers). Per SDD R-SDD-1, the AST-uniformity
+    parity test lands in sprint-169 alongside the third copy. Do NOT
+    refactor to a shared helper — the library is frozen for cycle-113
+    and refactoring would risk breaking the Sprint-4A fail-closed
+    invariants in each parser.
+    """
+    underlying = _iter_sse_events(byte_iter)
+    while True:
+        decision = tracker.check_deadline(now_provider())
+        if decision.abort:
+            raise StreamingRecoveryAbort(
+                reason=decision.reason,
+                tokens_before_abort=0,
+                config_applied=config_applied,
+                partial_content=None,
+            )
+        try:
+            yield next(underlying)
+        except StopIteration:
+            return
 
 
 # --- SSE event-stream parser ---
