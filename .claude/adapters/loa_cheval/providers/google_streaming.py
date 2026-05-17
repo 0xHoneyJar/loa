@@ -83,6 +83,31 @@ def parse_google_stream(
     # Shares the openai_streaming.py deadline-shim because Google already
     # cross-imports the base SSE iterator (line 38) — keeps the shim copy
     # count at 3 (anthropic + openai-chat + openai-responses/google shared).
+    #
+    # cycle-113 sprint-169 review iter-2 BLOCKING finding (DISS-001):
+    # the deadline-shim's `check_deadline()` fires BEFORE each
+    # `yield next(byte_iter)`. If `next()` BLOCKS waiting for bytes
+    # that never arrive — which is the real Google API's behavior on a
+    # pre-first-token stall (no keepalives) — the deadline-shim's
+    # check_deadline is never called again and first_token_deadline_s
+    # does NOT fire at the parser layer.
+    #
+    # Production safety for true Google no-byte stalls is provided by
+    # the TRANSPORT-LAYER timeout (cycle-102 Sprint 4A `http_post_stream`
+    # configured httpx ReadTimeout). The recovery-layer first_token_deadline
+    # at the parser is a BEST-EFFORT addition: it fires reliably for
+    # Anthropic + OpenAI streams (which emit SSE keepalives during stalls)
+    # but only fires for Google when the test harness injects clock
+    # advancement OR keepalive bytes arrive (e.g., from a CDN sitting
+    # in front of the API).
+    #
+    # The synthetic-keepalive parity fixture (T2.x-review commit
+    # c13f0add) exercises the deadline-shim code path uniformly across
+    # providers; production-stall behavior relies on the transport
+    # layer. Sprint-170 / cycle-114 carry: add a transport-layer
+    # integration test for true Google no-byte stalls and confirm
+    # the chain-walk activates via transport-timeout → InvalidInputError
+    # → ProviderUnavailableError path.
     recovery_config = StreamingRecoveryConfig.for_model(
         model_data or {}, reasoning_class=reasoning_class,
     )

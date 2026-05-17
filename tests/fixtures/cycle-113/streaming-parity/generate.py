@@ -65,23 +65,38 @@ def _sse_keepalive_openai() -> bytes:
 
 
 def _sse_keepalive_google() -> bytes:
-    """Synthetic keepalive for the Google first-token-deadline fixture.
+    """SYNTHETIC TEST-ONLY keepalive for the Google first-token-deadline
+    fixture. DOES NOT REPRESENT REAL GOOGLE API BEHAVIOR.
 
     The real Google API never emits keepalives during a stall — the
     stream just blocks indefinitely on the TCP socket. A byte fixture
-    can't represent "blocked indefinitely"; an empty `b""` would
-    represent immediate EOF, which is a DIFFERENT failure mode (parser
-    sees StopIteration rather than the deadline-shim firing on its
-    pre-yield check_deadline call).
+    cannot represent "blocked indefinitely"; an empty `b""` represents
+    immediate EOF (different failure mode — parser sees StopIteration
+    rather than the deadline-shim firing on its pre-yield check_deadline).
 
-    cycle-113 sprint-169 review-iter-2 fix (BLOCKING DISS-001): emit
-    an SSE comment line (`: keep-alive\\n\\n`) so the iterator yields
-    bytes that the underlying SSE parser silently discards (per RFC
-    8895 §9 comment-line semantics; matches OpenAI keepalive shape).
-    This keeps the iterator open across N keepalive cycles, the
-    deadline-shim's `check_deadline()` fires on each loop iteration,
-    and the injected fake-clock advances past the 30s deadline before
-    the test consumes the (non-existent) tokens.
+    Production safety for true Google no-byte stalls is provided by the
+    TRANSPORT-LAYER httpx ReadTimeout (cycle-102 Sprint 4A
+    http_post_stream). The recovery-layer first_token_deadline at the
+    parser is a BEST-EFFORT addition that fires reliably ONLY when the
+    byte iterator yields periodically (Anthropic + OpenAI SSE keepalives
+    do this; Google does not).
+
+    Cycle-113 sprint-169 review iter-2 BLOCKING finding (DISS-001 v2)
+    documented this limitation as ACCEPTED-DEFERRED:
+      - The synthetic SSE comment keepalive emitted here exercises the
+        deadline-shim code path uniformly across providers in tests
+      - Production-stall behavior for Google is covered by transport-
+        layer timeout, not by this recovery layer
+      - Sprint-170 / cycle-114 carry: add an explicit production-stall
+        integration test using a blocking iterator + transport timeout
+        to confirm the chain-walk path activates via the transport →
+        ValueError → InvalidInputError → ProviderUnavailableError chain
+        (separate from the synthetic recovery-layer path tested here)
+
+    Per RFC 8895 §9, SSE comment lines (`:` prefix) are silently
+    discarded by SSE parsers. The synthetic keepalive matches the
+    OpenAI keepalive shape so the synthetic test exercises the same
+    deadline-shim code path for all four providers.
     """
     return b": keep-alive\n\n"
 
