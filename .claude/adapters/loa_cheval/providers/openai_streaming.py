@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import Any, Dict, Iterator, List, Optional
 
 from loa_cheval.providers.streaming_caps import (
@@ -32,6 +33,11 @@ from loa_cheval.providers.streaming_caps import (
     MAX_TEXT_PART_BYTES,
     accumulate_capped,
     check_buffer_cap,
+)
+from loa_cheval.streaming import (
+    StreamingRecoveryAbort,
+    StreamingRecoveryConfig,
+    StreamingRecoveryTracker,
 )
 from loa_cheval.types import CompletionResult, Usage
 
@@ -45,6 +51,9 @@ def parse_openai_chat_stream(
     byte_iter: Iterator[bytes],
     *,
     provider: str = "openai",
+    model_data: Optional[Dict[str, Any]] = None,
+    reasoning_class: bool = False,
+    now_provider: Any = time.monotonic,
 ) -> CompletionResult:
     """Parse OpenAI /v1/chat/completions SSE stream.
 
@@ -62,7 +71,30 @@ def parse_openai_chat_stream(
     Usage: final chunk may contain `usage: {...}` (per OpenAI's
     `stream_options: {include_usage: true}` request body — most LLM SDKs
     request this by default for cost accounting).
+
+    cycle-113 sprint-169 T2.2: kwargs `model_data`, `reasoning_class`,
+    `now_provider` wire the StreamingRecoveryTracker per SDD §3.3.
+    Tool-call `function.arguments` deltas are NOT fed to the tracker
+    (tool-only responses legitimately empty-content; feeding would
+    confuse the empty_content_window detector). Raises
+    ``StreamingRecoveryAbort`` per FR-B-2 / I-2.
     """
+    # cycle-113 T2.2 — recovery tracker init (parity with anthropic T1.6).
+    recovery_config = StreamingRecoveryConfig.for_model(
+        model_data or {}, reasoning_class=reasoning_class,
+    )
+    recovery_tracker = StreamingRecoveryTracker(
+        config=recovery_config,
+        start_time_s=now_provider(),
+    )
+    config_applied: Dict[str, Any] = {
+        "first_token_deadline_s": recovery_config.first_token_deadline_s,
+        "empty_content_window_tokens": recovery_config.empty_content_window_tokens,
+        "cot_budget_tokens": recovery_config.cot_budget_tokens,
+        "reasoning_class": recovery_config.reasoning_class,
+    }
+    partial_text_seen: List[str] = []
+
     text_parts: List[str] = []
     # tool_calls accumulator keyed by index. Each entry:
     #   {"id": str, "name": str, "arguments_parts": [str, ...]}
@@ -71,7 +103,9 @@ def parse_openai_chat_stream(
     final_model: Optional[str] = None
     usage_data: Dict[str, Any] = {}
 
-    for chunk in _iter_chat_stream_chunks(byte_iter):
+    for chunk in _iter_chat_stream_chunks_with_deadline(
+        byte_iter, recovery_tracker, config_applied, now_provider,
+    ):
         if chunk is None or chunk == "[DONE]":
             continue
         try:
@@ -119,19 +153,36 @@ def parse_openai_chat_stream(
 
         # Text content
         content = delta.get("content")
-        if content:
-            accumulate_capped(
-                text_parts, content, cap=MAX_TEXT_PART_BYTES, kind="text"
+        if content is not None:
+            # cycle-113 T2.2: feed tracker on content deltas (incl. empty
+            # strings per SDD §2.1). Refusal text is also visible content
+            # and gets the same treatment below.
+            _recovery_feed_openai(
+                recovery_tracker, content, partial_text_seen,
+                config_applied, now_provider,
             )
+            if content:
+                accumulate_capped(
+                    text_parts, content, cap=MAX_TEXT_PART_BYTES, kind="text"
+                )
 
         # Refusal (Responses API style; rare on /chat/completions but possible)
         refusal = delta.get("refusal")
-        if refusal:
-            accumulate_capped(
-                text_parts, refusal, cap=MAX_TEXT_PART_BYTES, kind="refusal"
+        if refusal is not None:
+            _recovery_feed_openai(
+                recovery_tracker, refusal, partial_text_seen,
+                config_applied, now_provider,
             )
+            if refusal:
+                accumulate_capped(
+                    text_parts, refusal, cap=MAX_TEXT_PART_BYTES, kind="refusal"
+                )
 
-        # Tool calls
+        # Tool calls. cycle-113 T2.2: function.arguments deltas are
+        # intentionally NOT fed to the recovery tracker per SDD §3.3 —
+        # tool-only responses are legitimately empty-content but never
+        # KF-002 failures; feeding json_delta would confuse the
+        # empty_content_window detector.
         for tc in delta.get("tool_calls", []) or []:
             idx = tc.get("index", 0)
             entry = tool_calls_by_index.setdefault(
@@ -181,6 +232,15 @@ def parse_openai_chat_stream(
     metadata: Dict[str, Any] = {"streaming": True}
     if finish_reason:
         metadata["finish_reason"] = finish_reason
+    # cycle-113 T2.2 / I-3: streaming_recovery telemetry on every
+    # streaming invocation. Healthy path attaches triggered=false +
+    # config_applied; abort path raises StreamingRecoveryAbort.
+    metadata["streaming_recovery"] = {
+        "triggered": False,
+        "tokens_before_abort": None,
+        "reason": None,
+        "config_applied": config_applied,
+    }
 
     return CompletionResult(
         content=content,
@@ -280,6 +340,9 @@ def parse_openai_responses_stream(
     byte_iter: Iterator[bytes],
     *,
     provider: str = "openai",
+    model_data: Optional[Dict[str, Any]] = None,
+    reasoning_class: bool = False,
+    now_provider: Any = time.monotonic,
 ) -> CompletionResult:
     """Parse OpenAI /v1/responses typed-event stream.
 
@@ -311,6 +374,22 @@ def parse_openai_responses_stream(
     visible text item even when reasoning exhausts the budget — the
     streaming response carries the same property.
     """
+    # cycle-113 T2.3 — recovery tracker init (parity with T1.6 / T2.2).
+    recovery_config = StreamingRecoveryConfig.for_model(
+        model_data or {}, reasoning_class=reasoning_class,
+    )
+    recovery_tracker = StreamingRecoveryTracker(
+        config=recovery_config,
+        start_time_s=now_provider(),
+    )
+    config_applied: Dict[str, Any] = {
+        "first_token_deadline_s": recovery_config.first_token_deadline_s,
+        "empty_content_window_tokens": recovery_config.empty_content_window_tokens,
+        "cot_budget_tokens": recovery_config.cot_budget_tokens,
+        "reasoning_class": recovery_config.reasoning_class,
+    }
+    partial_text_seen: List[str] = []
+
     # Per-output-item accumulator keyed by item.id (or fallback to index).
     # Each entry:
     #   {"type": "message"|"function_call"|"reasoning",
@@ -329,7 +408,9 @@ def parse_openai_responses_stream(
     refusal_text_top: Optional[str] = None
     usage_data: Dict[str, Any] = {}
 
-    for event_name, payload in _iter_sse_events_raw_data(byte_iter):
+    for event_name, payload in _iter_sse_events_raw_data_with_deadline(
+        byte_iter, recovery_tracker, config_applied, now_provider,
+    ):
         if payload is None:
             continue
         if payload == "[DONE]":
@@ -390,25 +471,40 @@ def parse_openai_responses_stream(
 
         elif ev_type == "response.output_text.delta":
             item_id = data.get("item_id")
+            delta_text = data.get("delta", "") or ""
+            # cycle-113 T2.3: feed tracker on output_text.delta per SDD §3.3.
+            _recovery_feed_openai(
+                recovery_tracker, delta_text, partial_text_seen,
+                config_applied, now_provider,
+            )
             if item_id and item_id in items_by_id:
                 accumulate_capped(
                     items_by_id[item_id]["text_parts"],
-                    data.get("delta", "") or "",
+                    delta_text,
                     cap=MAX_TEXT_PART_BYTES,
                     kind="text",
                 )
 
         elif ev_type == "response.refusal.delta":
             item_id = data.get("item_id")
+            delta_text = data.get("delta", "") or ""
+            # Refusals are visible content; feed tracker for parity with
+            # output_text.delta (refusal text counts toward visible content).
+            _recovery_feed_openai(
+                recovery_tracker, delta_text, partial_text_seen,
+                config_applied, now_provider,
+            )
             if item_id and item_id in items_by_id:
                 accumulate_capped(
                     items_by_id[item_id]["refusal_parts"],
-                    data.get("delta", "") or "",
+                    delta_text,
                     cap=MAX_TEXT_PART_BYTES,
                     kind="refusal",
                 )
 
         elif ev_type == "response.function_call_arguments.delta":
+            # cycle-113 T2.3: tool-call arguments NOT fed (SDD §3.3
+            # exclusion rule — tool-only responses legitimately empty).
             item_id = data.get("item_id")
             if item_id and item_id in items_by_id:
                 accumulate_capped(
@@ -420,10 +516,18 @@ def parse_openai_responses_stream(
 
         elif ev_type == "response.reasoning_summary_text.delta":
             item_id = data.get("item_id")
+            delta_text = data.get("delta", "") or ""
+            # cycle-113 T2.3: reasoning_summary deltas ARE fed (SDD §3.3
+            # — they're visible reasoning content; CoT-budget heuristic
+            # applies via reasoning_class=True flag).
+            _recovery_feed_openai(
+                recovery_tracker, delta_text, partial_text_seen,
+                config_applied, now_provider,
+            )
             if item_id and item_id in items_by_id:
                 accumulate_capped(
                     items_by_id[item_id]["summary_text_parts"],
-                    data.get("delta", "") or "",
+                    delta_text,
                     cap=MAX_TEXT_PART_BYTES,
                     kind="reasoning_summary",
                 )
@@ -475,6 +579,13 @@ def parse_openai_responses_stream(
     thinking_parts: List[str] = []
     tool_calls: List[Dict[str, Any]] = []
     metadata: Dict[str, Any] = {"streaming": True}
+    # cycle-113 T2.3 / I-3: streaming_recovery telemetry — healthy path.
+    metadata["streaming_recovery"] = {
+        "triggered": False,
+        "tokens_before_abort": None,
+        "reason": None,
+        "config_applied": config_applied,
+    }
 
     for item_id in item_order:
         entry = items_by_id[item_id]
@@ -542,3 +653,86 @@ def parse_openai_responses_stream(
         provider=provider,
         metadata=metadata,
     )
+
+
+# --- cycle-113 T2.2 + T2.3 — recovery integration helpers ---
+
+
+def _recovery_feed_openai(
+    tracker: StreamingRecoveryTracker,
+    text: str,
+    partial_text_seen: List[str],
+    config_applied: Dict[str, Any],
+    now_provider: Any,
+) -> None:
+    """Feed one text/refusal/reasoning_summary delta into the recovery
+    tracker. On abort: raise StreamingRecoveryAbort with partial
+    snapshot. Parity with anthropic_streaming._recovery_feed (SDD §3.1).
+    """
+    if text:
+        partial_text_seen.append(text)
+    decision = tracker.on_token(text, now_provider())
+    if decision.abort:
+        raise StreamingRecoveryAbort(
+            reason=decision.reason,
+            tokens_before_abort=decision.tokens_before_abort,
+            config_applied=config_applied,
+            partial_content="".join(partial_text_seen),
+        )
+
+
+def _iter_chat_stream_chunks_with_deadline(
+    byte_iter: Iterator[bytes],
+    tracker: StreamingRecoveryTracker,
+    config_applied: Dict[str, Any],
+    now_provider: Any,
+) -> Iterator[Optional[str]]:
+    """SDD §3.1 deadline-shim for /v1/chat/completions chunk iteration.
+
+    Wraps ``_iter_chat_stream_chunks`` so ``tracker.check_deadline()``
+    is called BEFORE each blocking ``next()``. first_token_deadline
+    fires here. One of four shim copies (Anthropic + OpenAI Chat +
+    OpenAI Responses + Google); AST-uniformity test pins behavior parity.
+    """
+    underlying = _iter_chat_stream_chunks(byte_iter)
+    while True:
+        decision = tracker.check_deadline(now_provider())
+        if decision.abort:
+            raise StreamingRecoveryAbort(
+                reason=decision.reason,
+                tokens_before_abort=0,
+                config_applied=config_applied,
+                partial_content=None,
+            )
+        try:
+            yield next(underlying)
+        except StopIteration:
+            return
+
+
+def _iter_sse_events_raw_data_with_deadline(
+    byte_iter: Iterator[bytes],
+    tracker: StreamingRecoveryTracker,
+    config_applied: Dict[str, Any],
+    now_provider: Any,
+) -> Iterator[tuple]:
+    """SDD §3.1 deadline-shim for /v1/responses SSE iteration.
+
+    Wraps ``_iter_sse_events_raw_data`` so ``tracker.check_deadline()``
+    is called BEFORE each blocking ``next()``. first_token_deadline
+    fires here. Shape: yields (event_name, raw_data_str) tuples.
+    """
+    underlying = _iter_sse_events_raw_data(byte_iter)
+    while True:
+        decision = tracker.check_deadline(now_provider())
+        if decision.abort:
+            raise StreamingRecoveryAbort(
+                reason=decision.reason,
+                tokens_before_abort=0,
+                config_applied=config_applied,
+                partial_content=None,
+            )
+        try:
+            yield next(underlying)
+        except StopIteration:
+            return

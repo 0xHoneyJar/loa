@@ -138,13 +138,33 @@ def emit_openai_responses_text_delta(text: str) -> bytes:
 
     Shape (from openai_streaming.py):
         event: response.output_text.delta
-        data: {"type":"response.output_text.delta","delta":"..."}
+        data: {"type":"response.output_text.delta","item_id":"...","delta":"..."}
+
+    item_id MUST match a previously-emitted ``response.output_item.added``
+    so the parser binds the delta to its message accumulator.
     """
     return _sse_event(
         "response.output_text.delta",
         {
             "delta": text,
+            "item_id": "msg_fixture",
             "type": "response.output_text.delta",
+        },
+    )
+
+
+def emit_openai_responses_item_added() -> bytes:
+    """OpenAI Responses-API ``response.output_item.added`` event for the
+    ``msg_fixture`` message item that subsequent deltas bind to.
+    """
+    return _sse_event(
+        "response.output_item.added",
+        {
+            "item": {
+                "id": "msg_fixture",
+                "type": "message",
+            },
+            "type": "response.output_item.added",
         },
     )
 
@@ -238,6 +258,9 @@ PROVIDER_BUILDERS = {
         terminator=emit_openai_responses_complete,
         keepalive=_sse_keepalive_openai,
     ),
+    # OpenAI Responses also needs a `response.output_item.added` prelude
+    # before any text deltas so the parser binds them to msg_fixture.
+    # `build_stream` handles this via the prelude branch below.
     "google": StreamBuilders(
         text_delta=emit_google_text_delta,
         terminator=emit_google_stop,
@@ -253,7 +276,12 @@ def build_stream(provider: str, tokens: Iterable[str], *,
 
     ``keepalive_count`` interleaves N keepalive frames at the START of
     the stream (used by first_token_deadline fixtures to simulate a
-    server emitting keepalives but no content)."""
+    server emitting keepalives but no content).
+
+    For ``openai-responses``, a `response.output_item.added` prelude
+    event is emitted before any text deltas so the parser binds them
+    to the ``msg_fixture`` item — without it, deltas land on a missing
+    item_id and content reconstruction silently drops them."""
     if provider not in PROVIDER_BUILDERS:
         raise ValueError(f"unknown provider: {provider}")
     builder = PROVIDER_BUILDERS[provider]
@@ -261,7 +289,15 @@ def build_stream(provider: str, tokens: Iterable[str], *,
     out = bytearray()
     for _ in range(keepalive_count):
         out.extend(builder.keepalive())
-    for tok in tokens:
+
+    # openai-responses prelude — required ONLY when emitting text deltas
+    # (the abort-first-token-deadline scenario has no tokens, so no item
+    # needs binding).
+    tokens_list = list(tokens)
+    if provider == "openai-responses" and tokens_list:
+        out.extend(emit_openai_responses_item_added())
+
+    for tok in tokens_list:
         out.extend(builder.text_delta(tok))
     if emit_terminator:
         out.extend(builder.terminator())

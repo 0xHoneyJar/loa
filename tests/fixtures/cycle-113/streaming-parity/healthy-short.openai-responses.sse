@@ -1,62 +1,65 @@
-event: response.output_text.delta
-data: {"delta":"## Findings\n","type":"response.output_text.delta"}
+event: response.output_item.added
+data: {"item":{"id":"msg_fixture","type":"message"},"type":"response.output_item.added"}
 
 event: response.output_text.delta
-data: {"delta":"Token 2","type":"response.output_text.delta"}
+data: {"delta":"## Findings\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"Token 3","type":"response.output_text.delta"}
+data: {"delta":"Token 2","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"Token 4","type":"response.output_text.delta"}
+data: {"delta":"Token 3","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"Token 5","type":"response.output_text.delta"}
+data: {"delta":"Token 4","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"Token 6","type":"response.output_text.delta"}
+data: {"delta":"Token 5","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"Token 7","type":"response.output_text.delta"}
+data: {"delta":"Token 6","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"Token 8","type":"response.output_text.delta"}
+data: {"delta":"Token 7","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"Token 9","type":"response.output_text.delta"}
+data: {"delta":"Token 8","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"Token 10","type":"response.output_text.delta"}
+data: {"delta":"Token 9","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"Token 11","type":"response.output_text.delta"}
+data: {"delta":"Token 10","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"Token 12","type":"response.output_text.delta"}
+data: {"delta":"Token 11","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"Token 13","type":"response.output_text.delta"}
+data: {"delta":"Token 12","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"Token 14","type":"response.output_text.delta"}
+data: {"delta":"Token 13","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"Token 15","type":"response.output_text.delta"}
+data: {"delta":"Token 14","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"Token 16","type":"response.output_text.delta"}
+data: {"delta":"Token 15","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"Token 17","type":"response.output_text.delta"}
+data: {"delta":"Token 16","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"Token 18","type":"response.output_text.delta"}
+data: {"delta":"Token 17","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"Token 19","type":"response.output_text.delta"}
+data: {"delta":"Token 18","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"Token 20","type":"response.output_text.delta"}
+data: {"delta":"Token 19","item_id":"msg_fixture","type":"response.output_text.delta"}
+
+event: response.output_text.delta
+data: {"delta":"Token 20","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.completed
 data: {"type":"response.completed"}

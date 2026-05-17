@@ -1,603 +1,606 @@
+event: response.output_item.added
+data: {"item":{"id":"msg_fixture","type":"message"},"type":"response.output_item.added"}
+
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":" ","type":"response.output_text.delta"}
+data: {"delta":" ","item_id":"msg_fixture","type":"response.output_text.delta"}
 

@@ -1,1503 +1,1506 @@
+event: response.output_item.added
+data: {"item":{"id":"msg_fixture","type":"message"},"type":"response.output_item.added"}
+
 event: response.output_text.delta
-data: {"delta":"thinking about step 1\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 1\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 2\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 2\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 3\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 3\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 4\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 4\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 5\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 5\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 6\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 6\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 7\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 7\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 8\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 8\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 9\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 9\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 10\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 10\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 11\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 11\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 12\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 12\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 13\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 13\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 14\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 14\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 15\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 15\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 16\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 16\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 17\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 17\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 18\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 18\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 19\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 19\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 20\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 20\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 21\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 21\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 22\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 22\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 23\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 23\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 24\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 24\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 25\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 25\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 26\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 26\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 27\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 27\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 28\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 28\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 29\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 29\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 30\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 30\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 31\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 31\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 32\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 32\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 33\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 33\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 34\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 34\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 35\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 35\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 36\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 36\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 37\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 37\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 38\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 38\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 39\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 39\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 40\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 40\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 41\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 41\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 42\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 42\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 43\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 43\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 44\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 44\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 45\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 45\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 46\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 46\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 47\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 47\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 48\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 48\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 49\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 49\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 50\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 50\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 51\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 51\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 52\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 52\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 53\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 53\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 54\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 54\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 55\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 55\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 56\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 56\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 57\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 57\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 58\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 58\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 59\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 59\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 60\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 60\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 61\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 61\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 62\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 62\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 63\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 63\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 64\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 64\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 65\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 65\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 66\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 66\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 67\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 67\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 68\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 68\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 69\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 69\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 70\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 70\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 71\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 71\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 72\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 72\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 73\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 73\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 74\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 74\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 75\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 75\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 76\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 76\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 77\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 77\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 78\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 78\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 79\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 79\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 80\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 80\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 81\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 81\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 82\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 82\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 83\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 83\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 84\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 84\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 85\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 85\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 86\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 86\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 87\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 87\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 88\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 88\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 89\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 89\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 90\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 90\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 91\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 91\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 92\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 92\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 93\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 93\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 94\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 94\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 95\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 95\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 96\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 96\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 97\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 97\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 98\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 98\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 99\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 99\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 100\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 100\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 101\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 101\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 102\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 102\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 103\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 103\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 104\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 104\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 105\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 105\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 106\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 106\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 107\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 107\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 108\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 108\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 109\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 109\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 110\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 110\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 111\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 111\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 112\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 112\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 113\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 113\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 114\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 114\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 115\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 115\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 116\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 116\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 117\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 117\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 118\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 118\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 119\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 119\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 120\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 120\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 121\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 121\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 122\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 122\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 123\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 123\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 124\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 124\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 125\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 125\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 126\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 126\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 127\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 127\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 128\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 128\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 129\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 129\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 130\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 130\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 131\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 131\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 132\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 132\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 133\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 133\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 134\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 134\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 135\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 135\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 136\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 136\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 137\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 137\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 138\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 138\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 139\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 139\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 140\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 140\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 141\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 141\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 142\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 142\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 143\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 143\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 144\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 144\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 145\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 145\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 146\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 146\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 147\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 147\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 148\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 148\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 149\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 149\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 150\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 150\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 151\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 151\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 152\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 152\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 153\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 153\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 154\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 154\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 155\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 155\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 156\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 156\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 157\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 157\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 158\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 158\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 159\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 159\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 160\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 160\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 161\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 161\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 162\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 162\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 163\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 163\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 164\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 164\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 165\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 165\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 166\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 166\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 167\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 167\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 168\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 168\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 169\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 169\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 170\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 170\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 171\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 171\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 172\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 172\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 173\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 173\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 174\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 174\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 175\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 175\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 176\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 176\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 177\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 177\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 178\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 178\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 179\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 179\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 180\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 180\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 181\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 181\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 182\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 182\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 183\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 183\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 184\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 184\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 185\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 185\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 186\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 186\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 187\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 187\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 188\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 188\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 189\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 189\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 190\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 190\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 191\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 191\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 192\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 192\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 193\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 193\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 194\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 194\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 195\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 195\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 196\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 196\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 197\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 197\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 198\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 198\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 199\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 199\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 200\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 200\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 201\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 201\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 202\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 202\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 203\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 203\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 204\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 204\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 205\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 205\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 206\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 206\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 207\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 207\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 208\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 208\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 209\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 209\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 210\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 210\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 211\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 211\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 212\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 212\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 213\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 213\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 214\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 214\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 215\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 215\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 216\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 216\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 217\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 217\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 218\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 218\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 219\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 219\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 220\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 220\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 221\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 221\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 222\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 222\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 223\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 223\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 224\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 224\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 225\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 225\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 226\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 226\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 227\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 227\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 228\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 228\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 229\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 229\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 230\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 230\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 231\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 231\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 232\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 232\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 233\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 233\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 234\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 234\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 235\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 235\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 236\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 236\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 237\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 237\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 238\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 238\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 239\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 239\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 240\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 240\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 241\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 241\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 242\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 242\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 243\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 243\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 244\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 244\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 245\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 245\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 246\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 246\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 247\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 247\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 248\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 248\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 249\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 249\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 250\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 250\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 251\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 251\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 252\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 252\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 253\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 253\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 254\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 254\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 255\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 255\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 256\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 256\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 257\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 257\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 258\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 258\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 259\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 259\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 260\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 260\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 261\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 261\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 262\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 262\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 263\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 263\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 264\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 264\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 265\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 265\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 266\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 266\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 267\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 267\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 268\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 268\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 269\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 269\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 270\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 270\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 271\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 271\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 272\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 272\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 273\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 273\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 274\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 274\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 275\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 275\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 276\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 276\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 277\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 277\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 278\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 278\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 279\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 279\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 280\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 280\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 281\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 281\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 282\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 282\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 283\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 283\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 284\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 284\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 285\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 285\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 286\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 286\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 287\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 287\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 288\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 288\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 289\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 289\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 290\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 290\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 291\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 291\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 292\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 292\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 293\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 293\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 294\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 294\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 295\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 295\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 296\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 296\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 297\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 297\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 298\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 298\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 299\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 299\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 300\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 300\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 301\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 301\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 302\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 302\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 303\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 303\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 304\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 304\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 305\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 305\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 306\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 306\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 307\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 307\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 308\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 308\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 309\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 309\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 310\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 310\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 311\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 311\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 312\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 312\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 313\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 313\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 314\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 314\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 315\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 315\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 316\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 316\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 317\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 317\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 318\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 318\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 319\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 319\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 320\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 320\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 321\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 321\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 322\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 322\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 323\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 323\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 324\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 324\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 325\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 325\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 326\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 326\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 327\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 327\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 328\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 328\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 329\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 329\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 330\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 330\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 331\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 331\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 332\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 332\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 333\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 333\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 334\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 334\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 335\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 335\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 336\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 336\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 337\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 337\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 338\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 338\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 339\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 339\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 340\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 340\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 341\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 341\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 342\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 342\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 343\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 343\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 344\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 344\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 345\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 345\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 346\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 346\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 347\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 347\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 348\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 348\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 349\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 349\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 350\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 350\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 351\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 351\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 352\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 352\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 353\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 353\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 354\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 354\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 355\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 355\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 356\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 356\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 357\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 357\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 358\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 358\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 359\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 359\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 360\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 360\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 361\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 361\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 362\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 362\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 363\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 363\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 364\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 364\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 365\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 365\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 366\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 366\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 367\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 367\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 368\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 368\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 369\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 369\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 370\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 370\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 371\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 371\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 372\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 372\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 373\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 373\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 374\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 374\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 375\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 375\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 376\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 376\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 377\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 377\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 378\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 378\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 379\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 379\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 380\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 380\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 381\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 381\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 382\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 382\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 383\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 383\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 384\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 384\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 385\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 385\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 386\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 386\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 387\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 387\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 388\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 388\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 389\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 389\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 390\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 390\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 391\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 391\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 392\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 392\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 393\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 393\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 394\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 394\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 395\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 395\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 396\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 396\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 397\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 397\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 398\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 398\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 399\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 399\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 400\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 400\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 401\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 401\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 402\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 402\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 403\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 403\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 404\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 404\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 405\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 405\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 406\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 406\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 407\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 407\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 408\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 408\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 409\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 409\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 410\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 410\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 411\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 411\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 412\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 412\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 413\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 413\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 414\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 414\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 415\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 415\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 416\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 416\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 417\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 417\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 418\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 418\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 419\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 419\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 420\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 420\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 421\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 421\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 422\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 422\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 423\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 423\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 424\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 424\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 425\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 425\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 426\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 426\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 427\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 427\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 428\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 428\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 429\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 429\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 430\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 430\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 431\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 431\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 432\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 432\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 433\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 433\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 434\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 434\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 435\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 435\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 436\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 436\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 437\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 437\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 438\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 438\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 439\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 439\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 440\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 440\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 441\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 441\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 442\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 442\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 443\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 443\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 444\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 444\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 445\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 445\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 446\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 446\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 447\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 447\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 448\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 448\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 449\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 449\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 450\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 450\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 451\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 451\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 452\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 452\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 453\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 453\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 454\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 454\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 455\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 455\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 456\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 456\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 457\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 457\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 458\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 458\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 459\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 459\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 460\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 460\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 461\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 461\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 462\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 462\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 463\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 463\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 464\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 464\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 465\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 465\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 466\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 466\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 467\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 467\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 468\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 468\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 469\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 469\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 470\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 470\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 471\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 471\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 472\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 472\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 473\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 473\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 474\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 474\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 475\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 475\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 476\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 476\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 477\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 477\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 478\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 478\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 479\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 479\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 480\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 480\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 481\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 481\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 482\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 482\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 483\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 483\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 484\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 484\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 485\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 485\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 486\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 486\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 487\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 487\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 488\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 488\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 489\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 489\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 490\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 490\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 491\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 491\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 492\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 492\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 493\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 493\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 494\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 494\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 495\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 495\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 496\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 496\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 497\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 497\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 498\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 498\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 499\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 499\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 500\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 500\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
 event: response.output_text.delta
-data: {"delta":"thinking about step 501\n","type":"response.output_text.delta"}
+data: {"delta":"thinking about step 501\n","item_id":"msg_fixture","type":"response.output_text.delta"}
 
