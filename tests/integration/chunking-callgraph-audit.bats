@@ -20,8 +20,14 @@ setup() {
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     CHUNKING_DIR="$PROJECT_ROOT/.claude/adapters/loa_cheval/chunking"
+    # cycle-113 sprint-170 audit-amendment: original SEARCH_ROOTS scope
+    # (loa_cheval/ + scripts/) MISSED .claude/adapters/cheval.py which
+    # imports + invokes chunk_pr_for_review at line 1540-1600. Sprint-168
+    # T1.2's "no callers" finding was a SCOPE BUG, not a structural defect.
+    # Widening to .claude/adapters/ catches cheval.py as the production
+    # caller. Cycle-114 #937 closes with this correction.
     SEARCH_ROOTS=(
-        "$PROJECT_ROOT/.claude/adapters/loa_cheval"
+        "$PROJECT_ROOT/.claude/adapters"
         "$PROJECT_ROOT/.claude/scripts"
     )
 }
