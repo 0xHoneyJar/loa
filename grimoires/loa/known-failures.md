@@ -64,6 +64,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-007](#kf-007-red-team-pipeline-hardcoded-single-model-evaluator-vestigial-config) | RESOLVED 2026-05-10 (multi-model evaluator) | red team pipeline hardcoded single-model evaluator | n/a — resolved in same session as discovery |
 | [KF-008](#kf-008-bridgebuilder-google-api-socketerror-on-large-request-bodies) | RESOLVED-architectural-complete — cycle-103 Sprint 1 unification (review-adapter path) + cycle-104 Sprint 3 T3.4 substrate-replay closure 2026-05-12 (4/4 trials clean at 297/302/317/539KB via cheval httpx). | bridgebuilder Google provider | 4 reproductions + 1 final non-reproduction |
 | [KF-010](#kf-010-cheval-delegate-google-adapter-300s-process-timeout-on-concurrent-bb-runs) | RESOLVED 2026-05-16 (sprint-bug-165, issue #921) | bridgebuilder google + anthropic voices / `deriveTimeoutMs` predicate scope | 6 (single batch, 2026-05-16) |
+| [KF-011](#kf-011-adversarial-reviewsh-malformed-response-on-review-type-prompts-post-kf-002-closure) | OPEN | adversarial-review.sh review-type — JSON contract layer | 1 (3-of-3 fallback chain in one invocation) |
 
 ---
 
@@ -738,6 +739,55 @@ When future cycles want to benchmark a NEW dimension (not in cycle-108), reuse t
 ### Reading guide
 
 When a BB sweep shows uniform `cheval-delegate: process exceeded timeout=300000ms` on the google voice across all PRs, treat as DEGRADED-voice batch-level and refuse auto-merge per the operator-approval doc's `Verdict quality NOT DEGRADED` clause. Don't retry the same batch — investigate the substrate first: (a) check Gemini API status / rate-limit posture, (b) run a single sequential BB and observe wall time, (c) examine cheval google adapter for hang patterns (similar to KF-008's pre-cheval-httpx era). The pattern is suspicious because all 6 hit exactly 300s — concurrent reqs from same key may be queueing server-side and timing out client-side together, not on individual call latency. **Do NOT increase BB's 300s timeout as a workaround** — that hides the underlying provider issue; instead, route batch-mode invocations through sequential queue or accept 2-voice consensus with explicit human gate.
+
+---
+
+## KF-011: adversarial-review.sh `malformed_response` on review-type prompts post KF-002 closure
+
+**Status**: OPEN
+**Feature**: `.claude/scripts/adversarial-review.sh --type review` (Phase 2.5 of `/review-sprint`)
+**Symptom**: 3-of-3 fallback chain (`gpt-5.5-pro` → `gpt-5.5` → `gemini-3.1-pro-preview`) returns `malformed_response: missing 'findings' key` on a review-type prompt. **Crucially distinct from KF-002**: HTTP responses are received with non-empty content (not the empty-content failure KF-002 documented), but the content does not parse as the expected `{findings: [...]}` envelope shape. The script writes `status: malformed_response` to the output JSON with `model_attempts` showing all 3 chain members returned the same failure class within a 30-second window. cycle-109 Sprint 4 T4.10's structural closure of KF-002 (chunking + streaming-recovery) addresses empty-content; it does NOT address malformed-content.
+**First observed**: 2026-05-17 (cycle-112 sprint-166 review pass; same operator machine that ran 3/3-clean dissenter calls on the cycle-112 bug fix earlier in the same session — see sprint-166 session-handoff note "defer-and-watch" caveat that explicitly anticipated this recurrence shape)
+**Recurrence count**: 1
+**Current workaround**: Single-model floor-assessment substituted per the `/review-sprint` and `/audit-sprint` skill fallback policy ("If adversarial review is unavailable, proceed with single-model assessment and log warning"). Cycle-112 sprint-166 + sprint-167 both shipped with single-model review and audit; the audit-trail evidence is `grimoires/loa/a2a/sprint-166/adversarial-review.json` containing the full `model_attempts` chain.
+**Upstream issue**: not filed yet — needs diagnostic capture (see Reading guide)
+**Related visions / lore**: KF-002 (parent failure class, RESOLVED-STRUCTURAL — but only for empty-content layer; this entry documents the malformed-content sibling); vision-024 Substrate Speaks Twice ("the fix routes around one symptom; another symptom of the same class can re-emerge"); vision-025 Substrate Becomes the Answer
+
+### Distinguishing from KF-002
+
+| Dimension | KF-002 | KF-011 |
+|---|---|---|
+| HTTP status | 200 | 200 |
+| Response content | empty (zero bytes / empty `output_text`) | non-empty (content present) |
+| Parser failure mode | Nothing to parse | Parses as JSON or text, but does NOT contain `findings` key |
+| cycle-109 T4.10 fix applies | ✅ YES (chunking + streaming-recovery resolve it) | ❌ NO (the content-shape contract is downstream of streaming) |
+| Trigger axis | Input size / reasoning budget | Prompt-structure / output-schema agreement |
+| 3-of-3 provider correlation | Seen post cycle-103 (KF-002 Attempts row 2026-05-11 RECURRENCE-5) | YES — first observation |
+
+The three-provider correlation in a 30-second window is the strongest signal that this is NOT per-provider model degradation. It points at either our prompt or our parser.
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-05-17 | Default adversarial-review.sh dispatch with chain `gpt-5.5-pro → gpt-5.5 → gemini-3.1-pro-preview` on cycle-112 sprint-166 review (171102 input tokens → truncated to 24000 → 3 large files SIZE-CAP-SKIPPED) | DID NOT WORK — all 3 returned `malformed_response: missing 'findings' key` | `grimoires/loa/a2a/sprint-166/adversarial-review.json` (model_attempts shows all 3 chain members); merge commit `e1f27859` PR #928 |
+| not tried | Capture raw response content via `LOA_ADVERSARIAL_DEBUG=1`-equivalent env to disambiguate (a) refusal-class output, (b) alternate JSON envelope (`{review: {...}}`), (c) prose explanation | — | proposed in this entry's Reading guide |
+| not tried | Inspect dissenter system prompt for output-schema clarity — has the `findings` envelope shape been re-specified since cycle-109? | — | needs codebase walk |
+| not tried | Check whether truncation that happened sliced through a load-bearing schema instruction (171K → 24K token cap dropped 3 large source files; if the schema instruction was in one of them, models had no contract to honor) | — | inspect `adversarial-review.sh` prompt assembly + truncation order |
+| not tried | Replay against a TINY review-type prompt (e.g., 1KB diff) to test whether the failure is size-correlated or shape-correlated | — | one-line diff smoke test |
+
+### Reading guide
+
+When `adversarial-review.sh --type review` returns `status: malformed_response` with all chain members showing the same failure class:
+
+1. **Do NOT** treat this as KF-002. Cycle-109 T4.10's chunking + streaming-recovery fixes do not apply — they were built for empty-content. The shape "content present but not envelope-conformant" is a different bug class.
+2. **First diagnostic action**: capture one of the malformed responses verbatim. The default script does not log response bodies, only metadata. Wrap one re-invocation with a quick patch that dumps `$model_response` to a tmpfile before the parser runs. The actual content reveals which sub-mode applies (refusal, alternate envelope, prose, schema drift).
+3. **Three sub-modes likely**:
+   - (a) **Prompt-schema drift**: dissenter system prompt has weakened the `findings`-key guarantee. Fix: re-tighten the schema instruction. One-line.
+   - (b) **Parser brittleness**: models are returning a wrapped envelope (`{review: {findings: [...]}}` or `{result: {...}}`); parser should accept either shape. Fix: extend parser. ~10-line.
+   - (c) **Model behavior change**: reasoning-class models now produce meta-commentary on review-type tasks (especially recursive/meta-review prompts). Fix: prompt redesign with explicit "respond ONLY with JSON envelope" anchor. One-cycle effort.
+4. **Operator surface for the interim**: the `/review-sprint` and `/audit-sprint` skill fallback policy already handles unavailability ("proceed with single-model assessment"). DEGRADED markers in `auditor-sprint-feedback.md` capture the substrate state. Do NOT auto-merge KF-011-flagged sprints without explicit operator review.
+5. **Do NOT retry the same chain on a strictly-larger prompt** (e.g., audit-type prompt that includes review feedback) — the failure class is prompt-structure-dependent and will re-trigger. Sprint-167 demonstrated this pattern explicitly: skipping the audit dissenter because sprint-166 had already established the precedent on the same review-type substrate.
 
 ---
 
