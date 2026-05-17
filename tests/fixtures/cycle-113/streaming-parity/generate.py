@@ -65,11 +65,25 @@ def _sse_keepalive_openai() -> bytes:
 
 
 def _sse_keepalive_google() -> bytes:
-    """Google emits no keepalives during stall — the stream just blocks.
-    For first-token-deadline fixtures we encode this as an EMPTY byte
-    payload; the test harness pairs the fixture with an injected
-    monotonic-clock advance past the deadline."""
-    return b""
+    """Synthetic keepalive for the Google first-token-deadline fixture.
+
+    The real Google API never emits keepalives during a stall — the
+    stream just blocks indefinitely on the TCP socket. A byte fixture
+    can't represent "blocked indefinitely"; an empty `b""` would
+    represent immediate EOF, which is a DIFFERENT failure mode (parser
+    sees StopIteration rather than the deadline-shim firing on its
+    pre-yield check_deadline call).
+
+    cycle-113 sprint-169 review-iter-2 fix (BLOCKING DISS-001): emit
+    an SSE comment line (`: keep-alive\\n\\n`) so the iterator yields
+    bytes that the underlying SSE parser silently discards (per RFC
+    8895 §9 comment-line semantics; matches OpenAI keepalive shape).
+    This keeps the iterator open across N keepalive cycles, the
+    deadline-shim's `check_deadline()` fires on each loop iteration,
+    and the injected fake-clock advances past the 30s deadline before
+    the test consumes the (non-existent) tokens.
+    """
+    return b": keep-alive\n\n"
 
 
 # ---------------------------------------------------------------------------
