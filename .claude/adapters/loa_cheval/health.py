@@ -175,6 +175,10 @@ def aggregate_substrate_health(
       a model was both `models_requested[0]` AND `models_succeeded[0]`
       (i.e., succeeded without a fallback walk).
 
+    When `model_filter` is set, the new per-`models_requested`
+    attribution is gated to models matching the filter substring so
+    `--model X` does not leak buckets for co-requested models.
+
     Returns:
       {
         "window": "24h",
@@ -230,12 +234,19 @@ def aggregate_substrate_health(
 
         # Issue #900: per-`models_requested` attempt attribution so the
         # failing primary is visible even when a fallback rescues it.
+        # When `model_filter` is set, gate the new attribution so the
+        # CLI `--model X` contract ("Filter to a single model id") holds
+        # for the new metrics — surviving envelopes can include
+        # co-requested models, but they should not leak into per_model.
         for requested in models_requested:
+            if model_filter and model_filter not in requested:
+                continue
             per_model[requested]["attempts"] += 1
         if (
             models_requested
             and models_succeeded
             and models_requested[0] == models_succeeded[0]
+            and (not model_filter or model_filter in models_requested[0])
         ):
             per_model[models_requested[0]]["first_try_success"] += 1
 

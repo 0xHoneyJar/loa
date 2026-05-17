@@ -523,3 +523,63 @@ def test_render_text_surfaces_first_try_rate_for_rescued_primary(tmp_path):
     primary_first_try = lines[primary_header_idx + 1]
     assert "first-try" in primary_first_try.lower()
     assert "0.0%" in primary_first_try
+
+
+def test_aggregate_with_model_filter_excludes_co_requested_models(tmp_path):
+    """DISS-001 (adversarial-review iter-1): `--model X` MUST NOT credit
+    `attempts` to co-requested models. CLI-contract pin — without this
+    gate, filtering by the primary surfaces the rescuer (and vice
+    versa) in `per_model` with nonzero `attempts`."""
+    from loa_cheval.health import aggregate_substrate_health
+
+    now = datetime(2026, 5, 14, 13, 0, 0, tzinfo=timezone.utc)
+    log = _write_log(tmp_path, [
+        _make_modelinv_envelope({
+            "models_requested": [
+                "anthropic:claude-opus-4-7",
+                "anthropic:claude-opus-4-6",
+            ],
+            "models_succeeded": ["anthropic:claude-opus-4-6"],
+            "models_failed": [{
+                "model": "anthropic:claude-opus-4-7", "provider": "anthropic",
+                "error_class": "EMPTY_CONTENT", "message_redacted": "x",
+            }],
+            "operator_visible_warn": True,
+            "final_model_id": "anthropic:claude-opus-4-6",
+        }, timestamp="2026-05-14T12:00:00Z"),
+    ])
+
+    # Filter on the failing primary — co-requested rescuer must not get
+    # `attempts` credit in the filtered output.
+    result_primary = aggregate_substrate_health(
+        log, now=now, model_filter="anthropic:claude-opus-4-7",
+    )
+    primary = result_primary["per_model"]["anthropic:claude-opus-4-7"]
+    assert primary["attempts"] == 1
+    # The rescuer's bucket may still be present via the pre-existing
+    # final_model bucketing, but its `attempts` MUST be zero under the
+    # filter (the new metric is gated).
+    rescuer = result_primary["per_model"].get("anthropic:claude-opus-4-6")
+    if rescuer is not None:
+        assert rescuer["attempts"] == 0, (
+            "rescuer leaked into filtered per-models_requested attribution"
+        )
+        assert rescuer["first_try_success"] == 0
+
+    # And the inverse: filter on the rescuer — primary must not get
+    # `attempts` credit in the filtered output.
+    result_rescuer = aggregate_substrate_health(
+        log, now=now, model_filter="anthropic:claude-opus-4-6",
+    )
+    primary_via_rescuer = result_rescuer["per_model"].get(
+        "anthropic:claude-opus-4-7",
+    )
+    if primary_via_rescuer is not None:
+        assert primary_via_rescuer["attempts"] == 0, (
+            "primary leaked into filtered per-models_requested attribution"
+        )
+
+    # Unfiltered: existing behavior preserved — both models get attempts.
+    result_all = aggregate_substrate_health(log, now=now)
+    assert result_all["per_model"]["anthropic:claude-opus-4-7"]["attempts"] == 1
+    assert result_all["per_model"]["anthropic:claude-opus-4-6"]["attempts"] == 1
