@@ -268,10 +268,8 @@ validate_references() {
     local checked=0
 
     # Only scan backtick-fenced references (SDD 3.1.15)
-    # First char restricted to alnum/./_ so Express/Fastify route params
-    # like `/factors/:factorId` don't get parsed as path `/factors/` + symbol `factorId`.
     local refs
-    refs=$(grep -oE '`[a-zA-Z0-9_.][a-zA-Z0-9_./-]*:[a-zA-Z_L][a-zA-Z0-9_]*`' "$FILE" 2>/dev/null \
+    refs=$(grep -oE '`[a-zA-Z0-9_./-]+:[a-zA-Z_L][a-zA-Z0-9_]*`' "$FILE" 2>/dev/null \
         | sed 's/`//g' | sort -u) || true
 
     while IFS= read -r ref; do
@@ -280,8 +278,7 @@ validate_references() {
         local file="${ref%%:*}"
         local symbol="${ref#*:}"
 
-        # Skip non-file references (URLs, timestamps, meta fields, route params)
-        [[ "$file" == /* ]] && continue
+        # Skip non-file references (URLs, timestamps, meta fields)
         [[ "$file" == *"http"* ]] && continue
         [[ "$file" == *"//"* ]] && continue
         [[ "$file" == "head_sha" ]] && continue

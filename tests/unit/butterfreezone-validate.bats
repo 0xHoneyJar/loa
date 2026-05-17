@@ -200,41 +200,6 @@ EOF
     [[ "$output" == *"missing"* ]]
 }
 
-@test "validate: Express/Fastify route params are not treated as missing files" {
-    # Regression: HTTP Routes section emits `/path/:paramName` patterns
-    # which previously matched the file-ref regex and produced a false
-    # "Referenced file missing: /path/" failure.
-    cat > "$MOCK_REPO/routes.md" <<'EOF'
-<!-- AGENT-CONTEXT
-name: test
-type: app
-purpose: testing
-version: 1.0.0
--->
-
-# Test
-<!-- provenance: DERIVED -->
-
-## HTTP Routes
-<!-- provenance: DERIVED -->
-
-- **GET** `/factors/:factorId` (`./src/routes/config.ts:154`)
-- **POST** `/users/:userId/items/:itemId` (`./src/routes/users.ts:42`)
-
-<!-- ground-truth-meta
-head_sha: abc123
-generated_at: 2026-02-13T00:00:00Z
-generator: butterfreezone-gen v1.0.0
-sections:
--->
-EOF
-
-    run "$SCRIPT" --file "$MOCK_REPO/routes.md"
-    # Route params must not appear as missing-file failures
-    [[ "$output" != *"Referenced file missing: /factors/"* ]]
-    [[ "$output" != *"Referenced file missing: /users/"* ]]
-}
-
 # =============================================================================
 # Check 6: Stale SHA (Advisory)
 # =============================================================================
