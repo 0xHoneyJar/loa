@@ -21,6 +21,7 @@ All thresholds are configurable per-model via:
   }
 """
 
+from .exceptions import StreamingRecoveryAbort
 from .recovery import (
     StreamingRecoveryConfig,
     StreamingRecoveryDecision,
@@ -34,6 +35,7 @@ from .recovery import (
 
 
 __all__ = [
+    "StreamingRecoveryAbort",
     "StreamingRecoveryConfig",
     "StreamingRecoveryDecision",
     "StreamingRecoveryReason",
