@@ -466,8 +466,20 @@ def emit_all(out_dir: Path, providers: Iterable[str]) -> List[Path]:
 
 def check_idempotency(out_dir: Path, providers: Iterable[str]) -> bool:
     """Verify re-running the generator produces byte-identical output
+    AND that every regenerated file has a matching on-disk counterpart
     (cycle-099 sprint-1D parity-test precedent — determinism is the
-    parity-test's load-bearing invariant)."""
+    parity-test's load-bearing invariant).
+
+    Three failure modes are detected:
+      * DIVERGED — on-disk hash differs from regenerated hash (regen drift)
+      * MISSING  — on-disk file absent for a fixture the generator emits
+                   (committed corpus incomplete)
+      * NEW      — only when ``providers`` differs from the on-disk
+                   subset (legitimate `--provider` subset), still failing
+                   safe by flipping ``ok`` so CI catches the drift.
+
+    Caller gets a non-zero exit on any of the three failure modes.
+    """
     import hashlib
     import tempfile
 
@@ -484,17 +496,33 @@ def check_idempotency(out_dir: Path, providers: Iterable[str]) -> bool:
             ep = expected_path(out_dir, scenario.name)
             if ep.exists():
                 expected_hashes[ep.name] = hashlib.sha256(ep.read_bytes()).hexdigest()
+        # Also catalog on-disk files that DO NOT match the scenario grid —
+        # these are orphans (e.g., from a deleted SCENARIOS entry, a
+        # provider rename, or an accidental hand-edit). Tracked separately
+        # from ``expected_hashes`` to keep the diverged-vs-orphan
+        # diagnostics clear.
+        for f in out_dir.iterdir():
+            if f.is_file() and f.name not in expected_hashes:
+                if f.suffix in (".sse",) or f.name.endswith(".expected.json"):
+                    expected_hashes[f.name] = hashlib.sha256(f.read_bytes()).hexdigest()
 
     # Re-emit into a temp directory and compare hashes.
     with tempfile.TemporaryDirectory() as tmp_root:
         tmp = Path(tmp_root) / "regen"
         emit_all(tmp, providers)
         ok = True
+        regen_names: set = set()
         for path in sorted(tmp.iterdir()):
+            regen_names.add(path.name)
             actual = hashlib.sha256(path.read_bytes()).hexdigest()
             expected = expected_hashes.get(path.name)
             if expected is None:
-                print(f"  [NEW]      {path.name} (no on-disk version)")
+                # cycle-113 sprint-168 review-feedback fix (Phase 2.5
+                # BLOCKING finding): missing on-disk file MUST fail loud.
+                # Earlier draft printed [NEW] and left ok=True, which
+                # silently accepted a partially-deleted fixture corpus.
+                print(f"  [MISSING]  {path.name} (regen emits but no on-disk version)")
+                ok = False
             elif expected != actual:
                 print(f"  [DIVERGED] {path.name}")
                 print(f"    on-disk: {expected}")
@@ -502,6 +530,18 @@ def check_idempotency(out_dir: Path, providers: Iterable[str]) -> bool:
                 ok = False
             else:
                 print(f"  [OK]       {path.name}")
+
+        # Reverse direction: on-disk has fixtures the regen did NOT emit.
+        # This catches a deletion of SCENARIOS / PROVIDERS that left
+        # orphaned on-disk files unaccounted for. Only fails when the
+        # caller asked for a full-provider run (providers == PROVIDERS);
+        # `--provider <subset>` runs legitimately produce orphans for
+        # the un-requested providers.
+        if set(providers) == set(PROVIDERS):
+            orphans = set(expected_hashes.keys()) - regen_names
+            for name in sorted(orphans):
+                print(f"  [ORPHAN]   {name} (on-disk but generator did not emit)")
+                ok = False
     return ok
 
 
