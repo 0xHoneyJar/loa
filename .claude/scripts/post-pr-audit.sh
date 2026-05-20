@@ -19,6 +19,10 @@ set -euo pipefail
 # Configuration
 # ============================================================================
 
+
+# sprint-bug-172 / bug-911: sha256_portable from compat-lib
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/compat-lib.sh"
+
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly STATE_SCRIPT="${SCRIPT_DIR}/post-pr-state.sh"
 
@@ -105,7 +109,7 @@ finding_identity() {
   local identity_str="${category}|${rule_id}|${file}|${normalized_line}|${severity}"
 
   # Generate SHA256 and take first 16 chars
-  echo -n "$identity_str" | sha256sum | cut -c1-16
+  echo -n "$identity_str" | sha256_portable | cut -c1-16
 }
 
 # Check if finding identity is already known (circuit breaker)

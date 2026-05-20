@@ -1042,7 +1042,7 @@ generate_checksums() {
 
   local first=true
   while IFS= read -r -d '' file; do
-    local hash=$(sha256sum "$file" | cut -d' ' -f1)
+    local hash=$(sha256_portable "$file" | cut -d' ' -f1)
     local relpath="${file#./}"
     if [[ "$first" == "true" ]]; then
       first=false
@@ -1905,7 +1905,7 @@ Then re-run:
       local expected_hash actual_hash
       expected_hash=$(jq -r --arg f "$relpath" '.files[$f] // ""' "$CHECKSUMS_FILE" 2>/dev/null)
       if [[ -n "$expected_hash" && "$expected_hash" != "null" ]]; then
-        actual_hash=$(sha256sum "$file" | cut -d' ' -f1)
+        actual_hash=$(sha256_portable "$file" | cut -d' ' -f1)
         if [[ "$expected_hash" == "$actual_hash" ]]; then
           framework_files+=("$relpath")
         else

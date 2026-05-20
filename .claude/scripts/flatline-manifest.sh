@@ -25,6 +25,10 @@
 
 set -euo pipefail
 
+
+# sprint-bug-172 / bug-911: sha256_portable from compat-lib
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/compat-lib.sh"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
@@ -220,7 +224,7 @@ create_manifest() {
     # Calculate document hash
     local doc_hash=""
     if [[ -f "$document" ]]; then
-        doc_hash=$(sha256sum "$document" | cut -d' ' -f1)
+        doc_hash=$(sha256_portable "$document" | cut -d' ' -f1)
     fi
 
     # Normalize document path

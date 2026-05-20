@@ -22,6 +22,10 @@
 # =============================================================================
 
 # Prevent double-sourcing
+
+# sprint-bug-172 / bug-911: sha256_portable from compat-lib
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/compat-lib.sh"
+
 if [[ "${_SPIRAL_EVIDENCE_LOADED:-}" == "true" ]]; then
     return 0 2>/dev/null || exit 0
 fi
@@ -128,7 +132,7 @@ _verify_artifact() {
     fi
 
     local checksum
-    checksum=$(sha256sum "$artifact" | awk '{print $1}')
+    checksum=$(sha256_portable "$artifact" | awk '{print $1}')
 
     _record_action "$phase" "evidence-gate" "verified" "" "$checksum" "$artifact" "$bytes" 0 0 "OK"
 
@@ -166,7 +170,7 @@ _verify_flatline_output() {
     blockers=$(jq '.consensus_summary.blocker_count // 0' "$output")
 
     local checksum
-    checksum=$(sha256sum "$output" | awk '{print $1}')
+    checksum=$(sha256_portable "$output" | awk '{print $1}')
     _record_action "GATE_${phase}" "flatline-orchestrator" "multi_model_review" \
         "" "$checksum" "$output" "$(wc -c < "$output")" 0 0 "high=${high} blockers=${blockers}"
 
@@ -189,7 +193,7 @@ _verify_review_verdict() {
 
     if grep -qi "All good\|APPROVED" "$feedback"; then
         local checksum
-        checksum=$(sha256sum "$feedback" | awk '{print $1}')
+        checksum=$(sha256_portable "$feedback" | awk '{print $1}')
         _record_action "GATE_${phase}" "claude-opus" "verdict" "" "$checksum" "$feedback" \
             "$(wc -c < "$feedback")" 0 0 "APPROVED"
         return 0

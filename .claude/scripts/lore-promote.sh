@@ -29,6 +29,10 @@ shopt -s nullglob
 # Defaults
 # =============================================================================
 
+
+# sprint-bug-172 / bug-911: sha256_portable from compat-lib
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/compat-lib.sh"
+
 QUEUE_PATH=".run/bridge-lore-candidates.jsonl"
 LORE_PATH="grimoires/loa/lore/patterns.yaml"
 JOURNAL_PATH=".run/lore-promote-journal.jsonl"
@@ -310,7 +314,7 @@ process_candidate() {
     context=$(extract_finding_field "$entry" "reasoning")
     [[ -z "$context" ]] && context=$(echo "$entry" | jq -r '.reasoning // ""')
     tags_json=$(echo "$entry" | jq -c '(.finding_content.tags // .tags // [])')
-    content_hash=$(echo "$entry" | sha256sum | cut -c1-64)
+    content_hash=$(echo "$entry" | sha256_portable | cut -c1-64)
 
     # Sanitize each field. On rejection, log + journal + return.
     local sterm sshort scontext rejection_reason=""

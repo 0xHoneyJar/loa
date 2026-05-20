@@ -65,6 +65,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-008](#kf-008-bridgebuilder-google-api-socketerror-on-large-request-bodies) | RESOLVED-architectural-complete — cycle-103 Sprint 1 unification (review-adapter path) + cycle-104 Sprint 3 T3.4 substrate-replay closure 2026-05-12 (4/4 trials clean at 297/302/317/539KB via cheval httpx). | bridgebuilder Google provider | 4 reproductions + 1 final non-reproduction |
 | [KF-010](#kf-010-cheval-delegate-google-adapter-300s-process-timeout-on-concurrent-bb-runs) | RESOLVED 2026-05-16 (sprint-bug-165, issue #921) | bridgebuilder google + anthropic voices / `deriveTimeoutMs` predicate scope | 6 (single batch, 2026-05-16) |
 | [KF-011](#kf-011-adversarial-reviewsh-malformed-response-on-review-type-prompts-post-kf-002-closure) | **RESOLVED 2026-05-17** (sub-mode (b): parser raw_decode extracts prose-prefixed JSON — PR #933 `d9ec8cb5`; sub-mode (c): route-around via 4-voice fallback chain — PR #934 `ccd510b0`; structural sub-mode (c) Gemini streaming-recovery tracked at issue #935). | adversarial-review.sh review-type — JSON contract layer + Gemini streaming-recovery gap | 2 (initial obs sprint-166 review + repro on parser-fix branch) |
+| [KF-012](#kf-012-sha256sum-not-portable-to-bsd-macos-silent-empty-hash-cascade-into-validation-failures) | **RESOLVED-STRUCTURAL 2026-05-20** (sprint-bug-172 / #911: `sha256_portable` helper in compat-lib.sh + 38 production call sites migrated + CI scanner `tools/check-no-raw-sha256sum.sh` + `tests/unit/compat-lib-sha256.bats` + masked-PATH integration test). Structural analog of cycle-099 sprint-1E.c.3.c curl wrapper migration. | macOS / BSD users of `/butterfreezone-gen` + 37 other framework scripts | 1 (single observation, sprint-bug-172 closure) |
 
 ---
 
@@ -837,6 +838,53 @@ KF-011 is now RESOLVED for sub-mode (b) — the "prose preamble + JSON envelope"
 5. **Sub-mode (c) Gemini empty-content**: route-around SHIPPED 2026-05-17 (PR #934 / `ccd510b0`) via 4th-line `claude-headless` voice in `flatline_protocol.{code_review,security_audit}.fallback_chain`. Operator surface functional. Structural fix TRACKED at issue #935 — needs streaming-recovery debug-trail diagnostic against `loa_cheval/providers/google_streaming.py` to identify which of three sub-sub-modes applies (adapter not wired, recovery silenced, thresholds mis-tuned).
 
 6. **Convergent design observation**: bridgebuilder-review uses HTML-comment markers as its envelope contract, which is structurally robust to prose preamble by design. If a future KF-011-class sub-mode emerges in adversarial-review.sh that the `raw_decode` extraction doesn't cover, consider migrating adversarial-review.sh to the marker contract. BB's `multi-model-pipeline.ts:442-444` is the reference implementation.
+
+---
+
+## KF-012: `sha256sum` not portable to BSD/macOS — silent empty-hash cascade into validation failures
+
+**Status**: RESOLVED-STRUCTURAL 2026-05-20 (sprint-bug-172 / [#911](https://github.com/0xHoneyJar/loa/issues/911)) via `sha256_portable` helper in `compat-lib.sh`, 38 production call-site migrations, CI scanner `tools/check-no-raw-sha256sum.sh`, masked-PATH integration test.
+
+**Feature**: SHA-256 hashing across 38 framework scripts — bootstrap (`mount-loa.sh`, `preflight.sh`, `update-loa.sh`), audit chain (`audit-envelope.sh`, `validate-constraints.sh`, `flatline-manifest.sh`, `flatline-snapshot.sh`, `ground-truth-gen.sh`), butterfreezone gen+validate, spiral / learning / memory / proposal / construct utilities.
+
+**Symptom**: macOS users (Darwin 25.3.0 + Loa v1.157.0+) running `/butterfreezone-gen` see `sha256sum: command not found` interleaved with normal output — 10 occurrences per gen run. Script exits 0 but with checksums silently missing. Downstream `/butterfreezone-validate` reports `FAIL: Missing provenance tags: 10/12 sections tagged` — not because provenance was genuinely missing, but because the hashing step silently failed. Identical pattern across all 38 production call sites.
+
+**First observed**: 2026-05-20 (issue #911 filed against framework v1.157.0; observation by external macOS operator).
+
+**Recurrence count**: 1 (single observation across multi-PR sweep).
+
+**Root cause**: GNU `sha256sum` ships in coreutils on Linux; macOS ships `shasum` (Perl-based, BSD lineage) without sha256sum. 38 framework scripts called raw `sha256sum`; macOS PATH-lookup failed silently because most callers piped through `awk '{print $1}'` or `cut -d' ' -f1` which mask the empty stdin → empty hash.
+
+**Resolution path** (sprint-bug-172, 5 commits expected):
+
+1. **Failing test** (G-5 gate): `tests/unit/compat-lib-sha256.bats` with 6 cases (GNU-only / BSD-only / both / neither / byte-equality / file-argv form).
+2. **Helper** in `.claude/scripts/compat-lib.sh`: `sha256_portable` dispatches via cached `_COMPAT_SHA256_CMD` detection at source time. Fails loud (exit 127, stderr diagnostic) when neither tool available — no silent empty hash. `_COMPAT_LIB_VERSION` bumped to `1.2.0`.
+3. **Sweep**: 38 production call sites migrated. Each script sources `compat-lib.sh` (idempotent thanks to `_COMPAT_LIB_LOADED` guard), then calls `sha256_portable` with the same argv shape as the original `sha256sum`. Output format byte-identical (`<hex>  <name>` with two spaces) so downstream `awk '{print $1}'` / `cut -d' ' -f1` parsing is unchanged.
+4. **audit-envelope.sh special case**: `_audit_sha256` delegates to `sha256_portable` for the GNU/BSD branch but PRESERVES the python3 last-resort fallback for hash-chain integrity defense-in-depth.
+5. **Integration test**: `tests/integration/butterfreezone-gen-sha256-portability.bats` simulates macOS by overriding the `command` builtin to fake `sha256sum` absence; asserts byte-equality of `sha256_portable` output against canonical GNU sha256sum.
+6. **CI scanner**: `tools/check-no-raw-sha256sum.sh` (mirrors cycle-099 sprint-1E.c.3.c `check-no-raw-curl.sh`). Detects raw `sha256sum` outside the EXEMPT_FILES set, with positive control + negative control in `.github/workflows/check-no-raw-sha256sum.yml`.
+
+**Structural analog**: cycle-099 sprint-1E.c.3.c (curl wrapper migration). Same pattern: per-site portability gap → helper + sweep + CI scanner + integration test.
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-05-20 | Discovered class via #911 (macOS operator report — Darwin 25.3.0, v1.157.0, butterfreezone repro). Triage revealed scope is 38 production scripts + 5 test sites, not the 11 the issue claimed. | TRIAGE — bug-20260520-i911-60baf5, sprint-bug-172, beads `bd-52sc` | grimoires/loa/a2a/bug-20260520-i911-60baf5/triage.md |
+| 2026-05-20 | Helper + 38-site sweep + CI scanner + integration test + 6-case unit test | RESOLVED-STRUCTURAL — single-pass migration, scanner prevents regression on subsequent PRs | sprint-bug-172 PR (this entry); `.claude/scripts/compat-lib.sh`, `tools/check-no-raw-sha256sum.sh`, `tests/unit/compat-lib-sha256.bats`, `tests/integration/butterfreezone-gen-sha256-portability.bats` |
+
+### Reading guide
+
+If you see `sha256sum: command not found` in any `.claude/scripts/` script output:
+1. Verify the script sources `compat-lib.sh`. If not, that's a regression — the CI scanner should have caught the PR that introduced it.
+2. If the script DOES source compat-lib.sh but still calls `sha256sum`, that's a different bug — the helper exists; the call site was missed by the sweep. File a follow-up under KF-012 attempts.
+3. The scanner `tools/check-no-raw-sha256sum.sh` runs on every PR via `.github/workflows/check-no-raw-sha256sum.yml`. Suppression marker `# check-no-raw-sha256sum: ok` is available for narrow exceptions (each occurrence reviewable in PR diff).
+4. Operator running on a host where NEITHER `sha256sum` NOR `shasum` is available: install GNU coreutils (`brew install coreutils` on macOS) OR Perl 5.10+ (which provides `/usr/bin/shasum` by default on macOS).
+
+### Cross-references
+
+- Structural precedent: cycle-099 sprint-1E.c.3.c (`tools/check-no-raw-curl.sh`) — same shape, applied to `curl`/`wget`.
+- Related framework-portability concerns: `compat-lib.sh` already handles `sed_inplace`, `get_canonical_path`, `version_sort`, `make_temp`, `get_file_mtime`, `find_sorted_by_time` — this entry adds `sha256_portable` to that list (helper version 1.1.0 → 1.2.0).
 
 ---
 

@@ -4,6 +4,10 @@
 set -euo pipefail
 
 # === Configuration ===
+
+# sprint-bug-172 / bug-911: sha256_portable from compat-lib
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/compat-lib.sh"
+
 STAGING_DIR=".claude_staging"
 SYSTEM_DIR=".claude"
 OVERRIDES_DIR=".claude/overrides"
@@ -298,7 +302,7 @@ check_deps() {
   command -v jq >/dev/null || err "jq is required"
   command -v yq >/dev/null || err "yq is required"
   command -v git >/dev/null || err "git is required"
-  command -v sha256sum >/dev/null || err "sha256sum is required"
+  command -v sha256_portable >/dev/null || err "sha256_portable is required"
 }
 
 get_version() {
@@ -419,7 +423,7 @@ generate_checksums() {
 
   local first=true
   while IFS= read -r -d '' file; do
-    local hash=$(sha256sum "$file" | cut -d' ' -f1)
+    local hash=$(sha256_portable "$file" | cut -d' ' -f1)
     local relpath="${file#./}"
     [[ "$first" == "true" ]] && first=false || checksums+=','
     checksums+='"'"$relpath"'": "'"$hash"'"'
@@ -448,7 +452,7 @@ check_integrity() {
     [[ -z "$expected" ]] && continue
 
     if [[ -f "$file" ]]; then
-      local actual=$(sha256sum "$file" | cut -d' ' -f1)
+      local actual=$(sha256_portable "$file" | cut -d' ' -f1)
       if [[ "$expected" != "$actual" ]]; then
         drift_detected=true
         drifted_files+=("$file")

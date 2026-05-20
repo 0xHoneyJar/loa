@@ -37,6 +37,10 @@
 set -euo pipefail
 
 # Configuration
+
+# sprint-bug-172 / bug-911: sha256_portable from compat-lib
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/compat-lib.sh"
+
 readonly DEFAULT_THEME="github"
 readonly DEFAULT_SERVICE_URL="https://agents.craft.do/mermaid"
 readonly DEFAULT_MODE="github"
@@ -328,7 +332,7 @@ render_local() {
 
     # Generate hash for unique filename
     local hash
-    hash=$(printf '%s' "$mermaid" | sha256sum | cut -c1-8)
+    hash=$(printf '%s' "$mermaid" | sha256_portable | cut -c1-8)
     local outfile="${output_dir}/diagram-${hash}.${format}"
 
     # Create temp file for input

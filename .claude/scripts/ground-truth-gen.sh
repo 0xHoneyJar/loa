@@ -19,6 +19,10 @@
 
 set -euo pipefail
 
+
+# sprint-bug-172 / bug-911: sha256_portable from compat-lib
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/compat-lib.sh"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/bootstrap.sh"
 
@@ -110,8 +114,8 @@ check_dependencies() {
     missing=1
   fi
 
-  if ! command -v sha256sum &>/dev/null && ! command -v shasum &>/dev/null; then
-    echo "ERROR: sha256sum or shasum is required but not installed" >&2
+  if ! command -v sha256_portable &>/dev/null && ! command -v shasum &>/dev/null; then
+    echo "ERROR: sha256_portable or shasum is required but not installed" >&2
     missing=1
   fi
 
@@ -127,8 +131,8 @@ check_dependencies() {
 # Cross-platform SHA-256
 compute_sha256() {
   local file="$1"
-  if command -v sha256sum &>/dev/null; then
-    sha256sum "$file" | awk '{print $1}'
+  if command -v sha256_portable &>/dev/null; then
+    sha256_portable "$file" | awk '{print $1}'
   elif command -v shasum &>/dev/null; then
     shasum -a 256 "$file" | awk '{print $1}'
   fi

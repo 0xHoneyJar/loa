@@ -12,6 +12,10 @@ set -euo pipefail
 
 # MED-001 FIX: Set restrictive umask for secure temp file creation
 # This ensures mktemp creates files with 600 permissions atomically
+
+# sprint-bug-172 / bug-911: sha256_portable from compat-lib
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/compat-lib.sh"
+
 umask 077
 
 # =============================================================================
@@ -138,7 +142,7 @@ compute_hash() {
       ;;
   esac
 
-  echo -n "$content" | sha256sum | cut -d' ' -f1
+  echo -n "$content" | sha256_portable | cut -d' ' -f1
 }
 
 # Verify file hash matches marker

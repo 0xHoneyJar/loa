@@ -147,7 +147,7 @@ test_failure_identity() {
   local identity_str="${test_name}|${file}|${error_type}"
 
   # Generate SHA256 and take first 16 chars
-  echo -n "$identity_str" | sha256sum | cut -c1-16
+  echo -n "$identity_str" | sha256_portable | cut -c1-16
 }
 
 # Add failure identity to state

@@ -21,6 +21,10 @@
 
 set -euo pipefail
 
+
+# sprint-bug-172 / bug-911: sha256_portable from compat-lib
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/compat-lib.sh"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Source bootstrap if available
@@ -129,7 +133,7 @@ count_beads() {
 # Get bead structure hash for change detection
 get_bead_hash() {
     if command -v br &>/dev/null; then
-        br list --json 2>/dev/null | jq -S '.' 2>/dev/null | sha256sum | cut -d' ' -f1
+        br list --json 2>/dev/null | jq -S '.' 2>/dev/null | sha256_portable | cut -d' ' -f1
     else
         echo "none"
     fi

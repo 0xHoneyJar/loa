@@ -63,6 +63,12 @@ _LOA_AUDIT_SCHEMA="${_LOA_AUDIT_REPO_ROOT}/data/trajectory-schemas/agent-network
 _LOA_AUDIT_JCS_LIB="${_LOA_AUDIT_REPO_ROOT}/../lib/jcs.sh"
 _LOA_AUDIT_SIGNING_HELPER="${_LOA_AUDIT_DIR}/lib/audit-signing-helper.py"
 
+# sprint-bug-172 / bug-911: compat-lib provides sha256_portable for the
+# _audit_sha256 helper below. python3 fallback at line ~157 stays as
+# defense-in-depth for hash-chain integrity when neither GNU sha256sum
+# nor BSD shasum is available.
+source "${_LOA_AUDIT_DIR}/compat-lib.sh"
+
 # Source JCS canonicalizer.
 # shellcheck source=../../lib/jcs.sh
 source "${_LOA_AUDIT_JCS_LIB}"
@@ -142,13 +148,13 @@ print(datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ"))
 
 # -----------------------------------------------------------------------------
 # _audit_sha256() — SHA-256 hex digest of stdin bytes.
-# Tries `sha256sum` (Linux) first, then `shasum -a 256` (macOS), then python3.
+# Delegates to compat-lib's sha256_portable (GNU sha256sum + BSD shasum dispatch).
+# Falls through to python3 as a last-resort defense-in-depth for hash-chain
+# integrity when neither GNU nor BSD shasum is available. sprint-bug-172.
 # -----------------------------------------------------------------------------
 _audit_sha256() {
-    if command -v sha256sum >/dev/null 2>&1; then
-        sha256sum | awk '{print $1}'
-    elif command -v shasum >/dev/null 2>&1; then
-        shasum -a 256 | awk '{print $1}'
+    if [[ -n "${_COMPAT_SHA256_CMD:-}" ]]; then
+        sha256_portable | awk '{print $1}'
     else
         python3 -c '
 import hashlib, sys

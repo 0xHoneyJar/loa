@@ -49,7 +49,7 @@ compute_section_hash() {
   printf '%s' "$1" \
     | tr -d '\r' \
     | sed 's/[[:space:]]*$//' \
-    | sha256sum \
+    | sha256_portable \
     | cut -c1-16
 }
 

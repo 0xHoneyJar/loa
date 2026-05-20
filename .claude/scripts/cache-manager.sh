@@ -3,6 +3,10 @@
 # Part of the Loa framework's Recursive JIT Context System
 set -euo pipefail
 
+
+# sprint-bug-172 / bug-911: sha256_portable from compat-lib
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/compat-lib.sh"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # shellcheck source=lib/normalize-json.sh
@@ -122,8 +126,8 @@ check_dependencies() {
         missing+=("jq")
     fi
 
-    if ! command -v sha256sum &>/dev/null && ! command -v shasum &>/dev/null; then
-        missing+=("sha256sum or shasum")
+    if ! command -v sha256_portable &>/dev/null && ! command -v shasum &>/dev/null; then
+        missing+=("sha256_portable or shasum")
     fi
 
     if [[ ${#missing[@]} -gt 0 ]]; then
@@ -143,8 +147,8 @@ check_dependencies() {
 #######################################
 sha256_hash() {
     local input="$1"
-    if command -v sha256sum &>/dev/null; then
-        echo -n "$input" | sha256sum | cut -d' ' -f1
+    if command -v sha256_portable &>/dev/null; then
+        echo -n "$input" | sha256_portable | cut -d' ' -f1
     else
         echo -n "$input" | shasum -a 256 | cut -d' ' -f1
     fi

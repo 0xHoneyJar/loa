@@ -1,0 +1,86 @@
+name: check-no-raw-sha256sum
+
+# sprint-bug-172 / bug-911 — CI gate ensuring no raw `sha256sum` invocations
+# slip back into the framework. All bash SHA-256 hashing in Loa MUST route
+# through `sha256_portable` in `.claude/scripts/compat-lib.sh` so macOS / BSD
+# hosts (where sha256sum is genuinely absent) fall back to `shasum -a 256`.
+#
+# Pre-existing class: KF-006 structural pattern. Same approach as cycle-099
+# sprint-1E.c.3.c's `check-no-raw-curl.sh` — strict tripwire, not exhaustive
+# defense.
+
+on:
+  pull_request:
+    paths:
+      - '.claude/scripts/**/*.sh'
+      - '.claude/scripts/**/*.bash'
+      - '.claude/scripts/**/*.legacy'
+      - '.claude/scripts/**/*.bats'
+      - 'tools/check-no-raw-sha256sum.sh'
+      - '.github/workflows/check-no-raw-sha256sum.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.claude/scripts/**/*.sh'
+      - '.claude/scripts/**/*.bash'
+      - '.claude/scripts/**/*.legacy'
+      - 'tools/check-no-raw-sha256sum.sh'
+
+permissions:
+  contents: read
+
+jobs:
+  sha256-tripwire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan for raw sha256sum invocations outside sha256_portable
+        run: |
+          set -euo pipefail
+          # The scanner enforces the literal-token contract. Exempt files
+          # (the helper itself, audit-envelope.sh defense-in-depth comments,
+          # and the scanner itself) are listed in EXEMPT_FILES in the script.
+          # Suppression marker `# check-no-raw-sha256sum: ok` is available for
+          # rare edge cases (reviewable per occurrence).
+          if ! bash tools/check-no-raw-sha256sum.sh; then
+              echo "::error::raw sha256sum detected; route through sha256_portable from compat-lib.sh"
+              echo "::error::see tools/check-no-raw-sha256sum.sh --help and KF-006 'Structural pattern' subsection"
+              exit 1
+          fi
+
+      - name: Positive control — scanner rejects a deliberately-bad sentinel
+        run: |
+          set -euo pipefail
+          # Verify the scanner ACTUALLY catches a violation (defends against
+          # the scanner accidentally exiting 0 from a syntax error).
+          SENTINEL_DIR="$(mktemp -d)"
+          cat > "$SENTINEL_DIR/sentinel.sh" <<'EOF'
+          #!/usr/bin/env bash
+          echo "test" | sha256sum | awk '{print $1}'
+          EOF
+          if bash tools/check-no-raw-sha256sum.sh --root "$SENTINEL_DIR" --quiet; then
+              echo "::error::scanner failed to reject sentinel — scanner regression"
+              exit 1
+          fi
+          echo "OK: scanner correctly rejected sentinel"
+
+      - name: Negative control — scanner accepts a sha256_portable usage
+        run: |
+          set -euo pipefail
+          # Verify the scanner does NOT over-match on sha256_portable
+          # (defends against a regex regression that catches sha256_portable
+          # because of the shared sha256 prefix).
+          NEG_DIR="$(mktemp -d)"
+          cat > "$NEG_DIR/uses-portable.sh" <<'EOF'
+          #!/usr/bin/env bash
+          # shellcheck disable=SC1091
+          source .claude/scripts/compat-lib.sh
+          echo "test" | sha256_portable | awk '{print $1}'
+          EOF
+          if ! bash tools/check-no-raw-sha256sum.sh --root "$NEG_DIR" --quiet; then
+              echo "::error::scanner false-positive on sha256_portable usage"
+              exit 1
+          fi
+          echo "OK: scanner correctly accepted sha256_portable usage"

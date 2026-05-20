@@ -10,6 +10,10 @@
 
 set -euo pipefail
 
+
+# sprint-bug-172 / bug-911: sha256_portable from compat-lib
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/compat-lib.sh"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Require bash 4.0+ (associative arrays)
 # shellcheck source=bash-version-guard.sh
@@ -700,7 +704,7 @@ stage1_copy_to_staging() {
             while IFS= read -r -d '' file; do
                 local relfile="${file#$src/}"
                 local checksum
-                checksum=$(sha256sum "$file" | cut -d' ' -f1)
+                checksum=$(sha256_portable "$file" | cut -d' ' -f1)
                 checksums["$path/$relfile"]="$checksum"
             done < <(find "$src" -type f -print0)
         else
@@ -711,7 +715,7 @@ stage1_copy_to_staging() {
             }
             # Compute checksum
             local checksum
-            checksum=$(sha256sum "$src" | cut -d' ' -f1)
+            checksum=$(sha256_portable "$src" | cut -d' ' -f1)
             checksums["$path"]="$checksum"
         fi
     done
@@ -742,7 +746,7 @@ stage2_verify_checksums() {
         fi
 
         local actual_sum
-        actual_sum=$(sha256sum "$full_path" | cut -d' ' -f1)
+        actual_sum=$(sha256_portable "$full_path" | cut -d' ' -f1)
 
         if [[ "$expected_sum" != "$actual_sum" ]]; then
             error "Checksum mismatch for: $file_path"

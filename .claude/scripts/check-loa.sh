@@ -4,6 +4,10 @@
 # Exit codes: 0 = success, 1 = failure
 set -euo pipefail
 
+
+# sprint-bug-172 / bug-911: sha256_portable from compat-lib
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/compat-lib.sh"
+
 VERSION_FILE=".loa-version.json"
 CHECKSUMS_FILE=".claude/checksums.json"
 CONFIG_FILE=".loa.config.yaml"
@@ -43,7 +47,7 @@ check_integrity() {
     [[ -z "$expected" || "$expected" == "null" ]] && continue
 
     if [[ -f "$file" ]]; then
-      local actual=$(sha256sum "$file" | cut -d' ' -f1)
+      local actual=$(sha256_portable "$file" | cut -d' ' -f1)
       if [[ "$expected" != "$actual" ]]; then
         fail "Tampered: $file"
         drift=true

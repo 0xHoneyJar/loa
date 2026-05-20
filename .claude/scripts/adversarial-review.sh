@@ -35,6 +35,10 @@
 
 set -euo pipefail
 
+
+# sprint-bug-172 / bug-911: sha256_portable from compat-lib
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/compat-lib.sh"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIG_FILE="${CONFIG_FILE:-$PROJECT_ROOT/.loa.config.yaml}"
@@ -1011,9 +1015,9 @@ compute_finding_id() {
 
   if [[ "$anchor" == "no_anchor" ]]; then
     # No-anchor findings are always unique — include index to prevent collision
-    printf 'noanch:%s:%s' "$category" "$index" | sha256sum | cut -c1-8
+    printf 'noanch:%s:%s' "$category" "$index" | sha256_portable | cut -c1-8
   else
-    printf '%s:%s' "$anchor" "$category" | sha256sum | cut -c1-8
+    printf '%s:%s' "$anchor" "$category" | sha256_portable | cut -c1-8
   fi
 }
 

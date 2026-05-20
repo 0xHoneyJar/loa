@@ -15,6 +15,10 @@
 # =============================================================================
 
 # Guard against double-source
+
+# sprint-bug-172 / bug-911: sha256_portable from compat-lib
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/compat-lib.sh"
+
 [[ -n "${_SPIRAL_HARVEST_ADAPTER_LOADED:-}" ]] && return 0
 readonly _SPIRAL_HARVEST_ADAPTER_LOADED=1
 
@@ -60,7 +64,7 @@ emit_cycle_outcome_sidecar() {
     local reviewer_path="${cycle_dir}/reviewer.md"
     local auditor_path="${cycle_dir}/auditor-sprint-feedback.md"
     if [[ -f "$reviewer_path" && -f "$auditor_path" ]]; then
-        content_hash="\"sha256:$(cat "$reviewer_path" "$auditor_path" | sha256sum | cut -d' ' -f1)\""
+        content_hash="\"sha256:$(cat "$reviewer_path" "$auditor_path" | sha256_portable | cut -d' ' -f1)\""
     fi
 
     # Compute flatline signature if not provided
@@ -403,7 +407,7 @@ fallback_parse_markdown() {
     # Compute content hash
     local content_hash="null"
     if [[ -f "$reviewer_path" && -f "$auditor_path" ]]; then
-        content_hash="\"sha256:$(cat "$reviewer_path" "$auditor_path" | sha256sum | cut -d' ' -f1)\""
+        content_hash="\"sha256:$(cat "$reviewer_path" "$auditor_path" | sha256_portable | cut -d' ' -f1)\""
     fi
 
     local review_arg audit_arg
@@ -465,7 +469,7 @@ compute_flatline_signature() {
     # Concatenate and hash
     local input="${norm_review}\n${norm_audit}\n${norm_findings}\n${norm_content_hash}"
     local hash
-    hash=$(printf '%b' "$input" | sha256sum | cut -d' ' -f1)
+    hash=$(printf '%b' "$input" | sha256_portable | cut -d' ' -f1)
 
     echo "sha256:${hash}"
 }

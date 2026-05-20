@@ -39,6 +39,10 @@
 # It is designed to be sourced by other scripts.
 
 # Guard against double-sourcing
+
+# sprint-bug-172 / bug-911: sha256_portable from compat-lib
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/compat-lib.sh"
+
 if [[ "${_LIB_ROUTE_TABLE_LOADED:-}" == "true" ]]; then
   return 0 2>/dev/null || true
 fi
@@ -632,7 +636,7 @@ log_route_table() {
   done
 
   local hash
-  hash=$(printf '%s' "$table_str" | sha256sum | cut -d' ' -f1)
+  hash=$(printf '%s' "$table_str" | sha256_portable | cut -d' ' -f1)
 
   log "[route-table] effective routes: ${table_str}"
   log "[route-table] hash: sha256:${hash:0:16}"

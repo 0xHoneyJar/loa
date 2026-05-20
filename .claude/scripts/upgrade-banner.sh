@@ -5,6 +5,10 @@
 # Usage: upgrade-banner.sh <old_version> <new_version> [--json]
 set -euo pipefail
 
+
+# sprint-bug-172 / bug-911: sha256_portable from compat-lib
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/compat-lib.sh"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 
@@ -68,7 +72,7 @@ QUOTES=(
 # Get a deterministic but rotating quote based on user + week
 get_quote() {
     local seed="${USER:-unknown}$(date +%Y-%W)"
-    local hash=$(echo -n "$seed" | sha256sum | cut -c1-8)
+    local hash=$(echo -n "$seed" | sha256_portable | cut -c1-8)
     local index=$((16#$hash % ${#QUOTES[@]}))
     echo "${QUOTES[$index]}"
 }

@@ -15,6 +15,10 @@
 # =============================================================================
 
 # Setup and teardown
+
+# sprint-bug-172 / bug-911: sha256_portable from compat-lib
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/compat-lib.sh"
+
 setup() {
     # Create temporary test directory
     export TEST_DIR=$(mktemp -d)
@@ -372,13 +376,13 @@ EOF
 
     local content="unique test content $(date +%s)"
     echo "$content" > grimoires/loa/prd.md
-    local original_sum=$(sha256sum grimoires/loa/prd.md | cut -d' ' -f1)
+    local original_sum=$(sha256_portable grimoires/loa/prd.md | cut -d' ' -f1)
 
     run bash "$SCRIPT" --grimoire grimoires/loa --yes
     [ "$status" -eq 0 ]
 
     local archive_dir=$(find grimoires/loa/archive -maxdepth 1 -type d -name "20*" | head -1)
-    local archived_sum=$(sha256sum "$archive_dir/prd.md" | cut -d' ' -f1)
+    local archived_sum=$(sha256_portable "$archive_dir/prd.md" | cut -d' ' -f1)
 
     [ "$original_sum" = "$archived_sum" ]
 }

@@ -29,6 +29,10 @@
 
 set -euo pipefail
 
+
+# sprint-bug-172 / bug-911: sha256_portable from compat-lib
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/compat-lib.sh"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
@@ -492,7 +496,7 @@ generate_exchange_file() {
     # Generate learning exchange ID: LX-YYYYMMDD-hexhash
     local date_part hash_part learning_id
     date_part=$(date +%Y%m%d)
-    hash_part=$(printf '%s' "$id$title" | sha256sum | cut -c1-10)
+    hash_part=$(printf '%s' "$id$title" | sha256_portable | cut -c1-10)
     learning_id="LX-${date_part}-${hash_part}"
 
     # Run content through redact-export.sh

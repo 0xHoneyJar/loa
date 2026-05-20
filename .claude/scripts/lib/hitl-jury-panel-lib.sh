@@ -39,6 +39,10 @@
 
 set -euo pipefail
 
+
+# sprint-bug-172 / bug-911: sha256_portable from compat-lib
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/compat-lib.sh"
+
 if [[ "${_LOA_PANEL_LIB_SOURCED:-0}" == "1" ]]; then
     return 0 2>/dev/null || exit 0
 fi
@@ -102,7 +106,7 @@ panel_select() {
 
     # Compute seed = sha256(decision_id || context_hash) hex.
     local seed
-    seed=$(printf '%s%s' "$decision_id" "$context_hash" | sha256sum | awk '{print $1}')
+    seed=$(printf '%s%s' "$decision_id" "$context_hash" | sha256_portable | awk '{print $1}')
 
     # Compute index = seed-as-uint256 mod count (Python big-int).
     local index selected

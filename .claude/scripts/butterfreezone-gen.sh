@@ -2178,7 +2178,7 @@ generate_ground_truth_meta() {
         content=$(extract_section_content "$document" "$section")
         if [[ -n "$content" ]]; then
             local hash
-            hash=$(printf '%s' "$content" | sha256sum | awk '{print $1}')
+            hash=$(printf '%s' "$content" | sha256_portable | awk '{print $1}')
             checksums="${checksums}
   ${section}: ${hash}"
         fi

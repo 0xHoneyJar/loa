@@ -19,6 +19,10 @@
 set -uo pipefail
 
 # === Constants ===
+
+# sprint-bug-172 / bug-911: sha256_portable from compat-lib
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/compat-lib.sh"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 VERSION_FILE="${PROJECT_ROOT}/.loa-version.json"
@@ -251,8 +255,8 @@ verify_copy() {
 
   # Deep check: sha256 checksums
   local source_checksums target_checksums
-  source_checksums=$(cd "$source_dir" && find . -type f -print0 | sort -z | xargs -0 sha256sum 2>/dev/null)
-  target_checksums=$(cd "$target_dir" && find . -type f -print0 | sort -z | xargs -0 sha256sum 2>/dev/null)
+  source_checksums=$(cd "$source_dir" && find . -type f -print0 | sort -z | xargs -0 sha256_portable 2>/dev/null)
+  target_checksums=$(cd "$target_dir" && find . -type f -print0 | sort -z | xargs -0 sha256_portable 2>/dev/null)
 
   if [[ "$source_checksums" != "$target_checksums" ]]; then
     warn "Checksum mismatch between source and target"

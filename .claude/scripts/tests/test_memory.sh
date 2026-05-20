@@ -7,6 +7,10 @@
 
 set -euo pipefail
 
+
+# sprint-bug-172 / bug-911: sha256_portable from compat-lib
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/compat-lib.sh"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MEMORY_WRITER="$(dirname "$SCRIPT_DIR")/../hooks/memory-writer.sh"
 MEMORY_QUERY="$(dirname "$SCRIPT_DIR")/memory-query.sh"
@@ -70,7 +74,7 @@ teardown() {
 create_test_observation() {
     local type="${1:-discovery}"
     local summary="${2:-Test observation}"
-    local id="obs-$(date +%s)-$(echo "$summary" | sha256sum | cut -c1-8)"
+    local id="obs-$(date +%s)-$(echo "$summary" | sha256_portable | cut -c1-8)"
 
     cat <<EOF
 {"id":"$id","timestamp":"$(date -u +%Y-%m-%dT%H:%M:%SZ)","session_id":"$LOA_SESSION_ID","type":"$type","summary":"$summary","tool":"test","private":false,"details":"","tags":[],"references":[]}

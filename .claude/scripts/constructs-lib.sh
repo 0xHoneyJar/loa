@@ -22,6 +22,10 @@ set -euo pipefail
 #   $1 - Config key under registry section (e.g., "enabled", "default_url")
 #   $2 - Default value if key not found
 # Returns: Config value or default
+
+# sprint-bug-172 / bug-911: sha256_portable from compat-lib
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/compat-lib.sh"
+
 get_registry_config() {
     local key="$1"
     local default="${2:-}"
@@ -902,9 +906,9 @@ verify_content_hash() {
 
     # Calculate SHA256 (portable: works on Linux and macOS)
     local actual_hash
-    if command -v sha256sum &>/dev/null; then
+    if command -v sha256_portable &>/dev/null; then
         # Linux
-        actual_hash=$(sha256sum "$file" | cut -d' ' -f1)
+        actual_hash=$(sha256_portable "$file" | cut -d' ' -f1)
     elif command -v shasum &>/dev/null; then
         # macOS
         actual_hash=$(shasum -a 256 "$file" | cut -d' ' -f1)
@@ -936,8 +940,8 @@ calculate_file_hash() {
         return 1
     fi
 
-    if command -v sha256sum &>/dev/null; then
-        sha256sum "$file" | cut -d' ' -f1
+    if command -v sha256_portable &>/dev/null; then
+        sha256_portable "$file" | cut -d' ' -f1
     elif command -v shasum &>/dev/null; then
         shasum -a 256 "$file" | cut -d' ' -f1
     else

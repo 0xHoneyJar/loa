@@ -29,6 +29,10 @@
 
 set -euo pipefail
 
+
+# sprint-bug-172 / bug-911: sha256_portable from compat-lib
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/compat-lib.sh"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/bootstrap.sh"
 
@@ -889,7 +893,7 @@ check_artifact_drift() {
 
             if [[ -f "$PROJECT_ROOT/$path" ]]; then
                 local current
-                current=$(sha256sum "$PROJECT_ROOT/$path" | cut -d' ' -f1)
+                current=$(sha256_portable "$PROJECT_ROOT/$path" | cut -d' ' -f1)
                 local stored_hash
                 stored_hash=$(echo "$stored" | sed 's/sha256://')
 

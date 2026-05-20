@@ -18,6 +18,10 @@ set -euo pipefail
 # Configuration
 # =============================================================================
 
+
+# sprint-bug-172 / bug-911: sha256_portable from compat-lib
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/compat-lib.sh"
+
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_NAME="$(basename "$0")"
 readonly PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -111,7 +115,7 @@ get_file_checksum() {
     local full_path="$PROJECT_ROOT/$path"
 
     if [[ -f "$full_path" ]]; then
-        sha256sum "$full_path" 2>/dev/null | cut -d' ' -f1 || echo ""
+        sha256_portable "$full_path" 2>/dev/null | cut -d' ' -f1 || echo ""
     else
         echo ""
     fi
