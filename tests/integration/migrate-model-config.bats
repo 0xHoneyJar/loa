@@ -754,3 +754,66 @@ EOF
     [[ "$status" -eq 0 ]]
     [[ "$output" != *"MIGRATION-PRODUCED-INVALID-V2"* ]]
 }
+
+@test "M19.4 KF-006-symmetric: auth_type passes v2 validation (cycle-110 sprint-2a field)" {
+    # Third occurrence of the KF-006 pattern: cycle-110 sprint-2a (PR #904)
+    # added auth_type to live model-config.yaml without bumping v2 schema.
+    # /bug #888 closure.
+    local v1="$WORK_DIR/v1-with-auth-type.yaml"
+    cat > "$v1" <<'EOF'
+providers:
+  openai:
+    type: openai
+    endpoint: "https://api.openai.com/v1"
+    models:
+      gpt-5.5-pro:
+        capabilities: [chat]
+        context_window: 400000
+        endpoint_family: responses
+        auth_type: http_api
+EOF
+    run "$PYTHON_BIN" "$CLI" "$v1" -o "$OUT"
+    [[ "$status" -eq 0 ]]
+    # Field MUST be carried through unchanged (not stripped or archived)
+    _python_assert <<'EOF'
+import os
+from ruamel.yaml import YAML
+y = YAML(typ='safe')
+with open(os.environ["OUT"]) as f:
+    data = y.load(f)
+m = data["providers"]["openai"]["models"]["gpt-5.5-pro"]
+assert m["auth_type"] == "http_api", m
+# Must NOT be archived (would mean migrator stripped it)
+assert "auth_type" not in (m.get("_archived_v1_fields") or {})
+EOF
+}
+
+@test "M19.5 KF-006-symmetric: dispatch_group passes v2 validation (cycle-110 sprint-2a field)" {
+    # Paired with M19.4 — same root cause: cycle-110 sprint-2a added
+    # dispatch_group alongside auth_type without symmetric schema bump.
+    local v1="$WORK_DIR/v1-with-dispatch-group.yaml"
+    cat > "$v1" <<'EOF'
+providers:
+  openai:
+    type: openai
+    endpoint: "https://api.openai.com/v1"
+    models:
+      gpt-5.5-pro:
+        capabilities: [chat]
+        context_window: 400000
+        endpoint_family: responses
+        dispatch_group: openai-gpt
+EOF
+    run "$PYTHON_BIN" "$CLI" "$v1" -o "$OUT"
+    [[ "$status" -eq 0 ]]
+    _python_assert <<'EOF'
+import os
+from ruamel.yaml import YAML
+y = YAML(typ='safe')
+with open(os.environ["OUT"]) as f:
+    data = y.load(f)
+m = data["providers"]["openai"]["models"]["gpt-5.5-pro"]
+assert m["dispatch_group"] == "openai-gpt", m
+assert "dispatch_group" not in (m.get("_archived_v1_fields") or {})
+EOF
+}
