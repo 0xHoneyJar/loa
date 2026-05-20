@@ -66,6 +66,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-010](#kf-010-cheval-delegate-google-adapter-300s-process-timeout-on-concurrent-bb-runs) | RESOLVED 2026-05-16 (sprint-bug-165, issue #921) | bridgebuilder google + anthropic voices / `deriveTimeoutMs` predicate scope | 6 (single batch, 2026-05-16) |
 | [KF-011](#kf-011-adversarial-reviewsh-malformed-response-on-review-type-prompts-post-kf-002-closure) | **RESOLVED 2026-05-17** (sub-mode (b): parser raw_decode extracts prose-prefixed JSON — PR #933 `d9ec8cb5`; sub-mode (c): route-around via 4-voice fallback chain — PR #934 `ccd510b0`; structural sub-mode (c) Gemini streaming-recovery tracked at issue #935). | adversarial-review.sh review-type — JSON contract layer + Gemini streaming-recovery gap | 2 (initial obs sprint-166 review + repro on parser-fix branch) |
 | [KF-012](#kf-012-sha256sum-not-portable-to-bsd-macos-silent-empty-hash-cascade-into-validation-failures) | **RESOLVED-STRUCTURAL 2026-05-20** (sprint-bug-172 / #911: `sha256_portable` helper in compat-lib.sh + 38 production call sites migrated + CI scanner `tools/check-no-raw-sha256sum.sh` + `tests/unit/compat-lib-sha256.bats` + masked-PATH integration test). Structural analog of cycle-099 sprint-1E.c.3.c curl wrapper migration. | macOS / BSD users of `/butterfreezone-gen` + 37 other framework scripts | 1 (single observation, sprint-bug-172 closure) |
+| [KF-013](#kf-013-headless-cli-env-mode-selector-vars-defeat-subscription-oauth) | **RESOLVED 2026-05-20** (sprint-bug-173 / #894: `_HEADLESS_STRIPPED_AUTH_VARS` tuple extended with `GOOGLE_GENAI_USE_VERTEXAI` + `GOOGLE_GENAI_USE_GCA`; canonical scrub list mirrors `construct-k-hole/scripts/dig-search.ts`). | cheval headless CLI adapters (gemini / codex / claude) | 1 (single observation, sprint-bug-173 closure) |
 
 ---
 
@@ -885,6 +886,60 @@ If you see `sha256sum: command not found` in any `.claude/scripts/` script outpu
 
 - Structural precedent: cycle-099 sprint-1E.c.3.c (`tools/check-no-raw-curl.sh`) — same shape, applied to `curl`/`wget`.
 - Related framework-portability concerns: `compat-lib.sh` already handles `sed_inplace`, `get_canonical_path`, `version_sort`, `make_temp`, `get_file_mtime`, `find_sorted_by_time` — this entry adds `sha256_portable` to that list (helper version 1.1.0 → 1.2.0).
+
+---
+
+## KF-013: headless CLI env-mode-selector vars defeat subscription OAuth
+
+**Status**: RESOLVED 2026-05-20 (sprint-bug-173 / PR pending merge — `_HEADLESS_STRIPPED_AUTH_VARS` extended)
+**Feature**: cheval headless CLI adapters (`gemini-headless`, `codex-headless`, `claude-headless`) — env hygiene for spawned subprocess
+**Symptom**: A `kind: cli` headless adapter invocation returns `RATE_LIMITED: Rate limited by google` (or analogous 429) even though the operator's CLI works fine when invoked directly with its OAuth subscription path (`~/.gemini/settings.json`, `~/.codex/auth.json`, `~/.claude/`). Root cause: the parent shell exports an *auth-mode-selector* env var (not a credential — just a flag) that flips the CLI off OAuth onto API/Vertex/GCA mode, where it then hits API rate limits.
+**First observed**: 2026-05-20 (sprint-bug-173, issue #894). The defect class was visible since cycle-109 #879/#880 introduced `_HEADLESS_STRIPPED_AUTH_VARS` — the original tuple only scrubbed *credentials*, not *mode-selectors*. The gap was made visible by the `construct-k-hole/scripts/dig-search.ts` external pattern, which scrubs both classes.
+**Recurrence count**: 1
+**Current workaround**: `_HEADLESS_STRIPPED_AUTH_VARS` (in `.claude/adapters/loa_cheval/providers/base.py:472-489`) now scrubs both sub-classes: credentials AND auth-mode-selectors. `LOA_HEADLESS_KEEP_API_KEY=1` preserves both (operator opt-in to API mode).
+**Upstream issue**: [#894](https://github.com/0xHoneyJar/loa/issues/894); fix in sprint-bug-173 PR (pending).
+**Related visions / lore**: KF-002 (large-input class — different layer, same headless substrate); `feedback_bias_correction_protocol_validated.md` (cross-model adversarial review caught analogous defect-class gap in sprint-bug-172).
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-05-20 | Initial fix: extended `_HEADLESS_STRIPPED_AUTH_VARS` tuple with `GOOGLE_GENAI_USE_VERTEXAI` + `GOOGLE_GENAI_USE_GCA`, mirroring `construct-k-hole/scripts/dig-search.ts`. Added paired unit tests. Failing-first proven (default-scrub FAIL pre-fix, PASS post-fix). | PARTIAL — covered 2 of 4 selectors | sprint-bug-173 PR commit-1; bd-rt9u; 101 headless tests pass. |
+| 2026-05-20 | Phase 2.5 cross-model adversarial review (`adversarial-review.sh --type review --sprint-id sprint-bug-173`, gpt-5.5-pro, 102.7s, 60.7K input / 5.8K output tokens) surfaced ADVISORY DISS-001: dig-search.ts scrub list is incomplete; gemini-cli's `getAuthTypeFromEnv()` checks additional auth-mode selectors. | CAUGHT-GAP | `grimoires/loa/a2a/sprint-bug-173/adversarial-review.json`; bias-correction protocol per `feedback_bias_correction_protocol_validated.md`. |
+| 2026-05-20 | Verified DISS-001 directly against gemini-cli main branch source (`packages/core/src/core/contentGenerator.ts::getAuthTypeFromEnv()`). Confirmed two more env-mode selectors: `GOOGLE_GEMINI_BASE_URL` (→ AuthType.GATEWAY) and `GEMINI_CLI_USE_COMPUTE_ADC` (→ AuthType.COMPUTE_ADC). Extended tuple in same sprint commit. Added paired scrub-by-default tests for both, plus `test_all_mode_selectors_preserved_under_keep_api_key_opt_in` confirming the docstring contract, plus `test_cloud_shell_preserved_legitimate_environment_signal` pinning the explicit decision to NOT scrub `CLOUD_SHELL=true` (legit Cloud Shell environment signal). | RESOLVED — verified against canonical source | sprint-bug-173 PR commit-2; 105/105 headless tests pass; zero regressions. |
+| 2026-05-20 | Symmetric audit of `codex_headless_adapter.py` + `claude_headless_adapter.py` for analogous OpenAI / Anthropic env-mode-selector vars. | NONE FOUND — no equivalents | `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL` are endpoint-redirects (not mode-switches); `OPENAI_API_TYPE` is legacy-Azure-SDK (not consumed by codex CLI); claude's `--bare` is a CLI flag (already forbidden in adapter docstring per `claude_headless_adapter.py:26`), not an env var. Existing `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` scrubs remain sufficient. |
+
+### Reading guide
+
+When you observe `RATE_LIMITED` or `403`/`401` from a `kind: cli` headless
+adapter despite the operator's direct-CLI invocation working with subscription
+OAuth: check whether a NEW auth-mode-selector env var was introduced by a CLI
+update (gemini / codex / claude). The canonical scrub list is
+`_HEADLESS_STRIPPED_AUTH_VARS` in `.claude/adapters/loa_cheval/providers/base.py`.
+
+**Canonical source-of-truth for the gemini selector class** is gemini-cli's
+`packages/core/src/core/contentGenerator.ts::getAuthTypeFromEnv()` — the
+switch ladder of env-var checks IS the auth-mode-selector list. The original
+sprint-bug-173 fix mirrored `construct-k-hole/scripts/dig-search.ts` and got
+2 of 4 selectors right; the cross-model adversarial review caught the other
+two (`GOOGLE_GEMINI_BASE_URL`, `GEMINI_CLI_USE_COMPUTE_ADC`). When auditing
+a new CLI version, read the CLI's own source rather than relying on third-party
+scrub lists. Dig-search.ts is prior art, not specification.
+
+The opt-in preserves-test under `LOA_HEADLESS_KEEP_API_KEY=1` is regression-guard
+(the env returns the parent verbatim, so the assertion holds pre- AND post-fix).
+The failing-first proof comes from the default-scrub test alone.
+
+The codex + claude CLIs were audited (2026-05-20) for analogous env-mode-selectors
+and none exist as of the audit date. Future agents observing the same symptom
+class on the codex / claude path should first check CLI changelogs for newly-added
+env-mode-selector vars rather than re-running the same audit.
+
+**Meta-lesson for future provider-CLI additions**: this entry is the empirical
+evidence-base for the operator's `feedback_bias_correction_protocol_validated.md`
+— the Phase 2.5 cross-model adversarial review (`adversarial-review.sh`) caught
+a same-class gap that single-author audit missed. When landing a new headless
+adapter, do not skip the cross-model review under "the fix is trivial" pressure.
 
 ---
 
