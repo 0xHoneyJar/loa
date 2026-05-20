@@ -125,11 +125,8 @@ check_dependencies() {
 #######################################
 sha256_hash() {
     local input="$1"
-    if command -v sha256_portable &>/dev/null; then
-        echo -n "$input" | sha256_portable | cut -d' ' -f1
-    else
-        echo -n "$input" | shasum -a 256 | cut -d' ' -f1
-    fi
+    # sprint-bug-172: sha256_portable handles GNU/BSD/fail-loud dispatch.
+    echo -n "$input" | sha256_portable | cut -d' ' -f1
 }
 
 #######################################

@@ -302,7 +302,8 @@ check_deps() {
   command -v jq >/dev/null || err "jq is required"
   command -v yq >/dev/null || err "yq is required"
   command -v git >/dev/null || err "git is required"
-  command -v sha256_portable >/dev/null || err "sha256_portable is required"
+  # sprint-bug-172: sha256_portable backend availability tracked in _COMPAT_SHA256_CMD.
+  [[ -n "${_COMPAT_SHA256_CMD:-}" ]] || err "GNU coreutils or BSD shasum (sha-256 tool) is required"
 }
 
 get_version() {

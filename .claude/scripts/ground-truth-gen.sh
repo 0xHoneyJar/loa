@@ -114,8 +114,9 @@ check_dependencies() {
     missing=1
   fi
 
-  if ! command -v sha256_portable &>/dev/null && ! command -v shasum &>/dev/null; then
-    echo "ERROR: sha256_portable or shasum is required but not installed" >&2
+  # sprint-bug-172: sha256_portable backend availability tracked in _COMPAT_SHA256_CMD.
+  if [[ -z "${_COMPAT_SHA256_CMD:-}" ]]; then
+    echo "ERROR: GNU coreutils or BSD shasum (sha-256 tool) is required but not installed" >&2
     missing=1
   fi
 
@@ -128,14 +129,10 @@ check_dependencies() {
 # Helpers
 # =============================================================================
 
-# Cross-platform SHA-256
+# Cross-platform SHA-256 — sprint-bug-172: sha256_portable handles dispatch.
 compute_sha256() {
   local file="$1"
-  if command -v sha256_portable &>/dev/null; then
-    sha256_portable "$file" | awk '{print $1}'
-  elif command -v shasum &>/dev/null; then
-    shasum -a 256 "$file" | awk '{print $1}'
-  fi
+  sha256_portable "$file" | awk '{print $1}'
 }
 
 # Estimate tokens from word count (1 token ≈ 0.75 words)
