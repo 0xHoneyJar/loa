@@ -109,13 +109,21 @@ AWK_SCAN=$(cat <<'AWK'
 # Step 1: skip line-leading comments.
 /^[[:space:]]*#/ { next }
 
-# Step 2: skip `command -v sha256sum` and `which sha256sum` existence checks.
-/command[[:space:]]+-v[[:space:]]+sha256sum/ { next }
-/which[[:space:]]+sha256sum/ { next }
-
-# Step 3: skip lines with the suppression marker. Requires `#` leader so
+# Step 2: skip lines with the suppression marker. Requires `#` leader so
 # string-literal mentions don't silence real invocations.
 /#[^\n]*check-no-raw-sha256sum:[[:space:]]*ok/ { next }
+
+# Step 3 (DISS-001 closure): there is NO existence-check skip. The
+# post-sprint-bug-172 invariant is that NO production code references
+# raw `sha256sum` — neither as an invocation nor as a `command -v`
+# existence check. Existence checks should use `_COMPAT_SHA256_CMD`
+# instead. If a future PR adds `command -v sha256sum`, the scanner
+# correctly flags it. (Original draft of this scanner had a
+# `command -v sha256sum` line-skip — the cross-model adversarial review
+# flagged it as a smuggling vector: `command -v sha256sum && sha256sum
+# "$file"` would have been accepted because the whole line was skipped
+# before the invocation match ran. Removed entirely; matches the strict
+# tripwire semantics this scanner is meant to provide.)
 
 # Step 4: match raw sha256sum (word-boundary both sides).
 # LHS: start-of-line or non-alphanumeric/non-underscore.

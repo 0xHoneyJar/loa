@@ -11,19 +11,20 @@ name: check-no-raw-sha256sum
 
 on:
   pull_request:
+    # DISS-002 closure: broad `.claude/scripts/**` filter so that
+    # extensionless shell scripts (`.claude/scripts/some-tool` with a bash
+    # shebang) trigger the workflow. The scanner's internal file-type filter
+    # (extension OR bash/sh shebang) is then the load-bearing decision about
+    # what to inspect. Narrow extension-only filters previously created a
+    # bypass class: extensionless shell scripts would land without scanning.
     paths:
-      - '.claude/scripts/**/*.sh'
-      - '.claude/scripts/**/*.bash'
-      - '.claude/scripts/**/*.legacy'
-      - '.claude/scripts/**/*.bats'
+      - '.claude/scripts/**'
       - 'tools/check-no-raw-sha256sum.sh'
       - '.github/workflows/check-no-raw-sha256sum.yml'
   push:
     branches: [main]
     paths:
-      - '.claude/scripts/**/*.sh'
-      - '.claude/scripts/**/*.bash'
-      - '.claude/scripts/**/*.legacy'
+      - '.claude/scripts/**'
       - 'tools/check-no-raw-sha256sum.sh'
 
 permissions:

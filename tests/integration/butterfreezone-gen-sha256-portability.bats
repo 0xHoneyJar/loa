@@ -28,7 +28,14 @@ setup() {
     # Require shasum on test host so the bsd-fallback branch can be exercised.
     command -v shasum >/dev/null 2>&1 || skip "shasum not available on test host"
 
-    EXPECTED_HASH="$(printf 'sprint-bug-172-integration\n' | sha256sum | awk '{print $1}')"
+    # DISS-003 closure: hard-coded expected digest for the fixed test input
+    # `sprint-bug-172-integration\n`. The previous implementation computed
+    # EXPECTED_HASH via raw `sha256sum`, which on an actual macOS host (where
+    # this test is most needed) would fail in setup before reaching the
+    # fallback-path assertions. Hard-coding the digest makes the test itself
+    # portable to the platform it's testing for. Verified via:
+    #   printf 'sprint-bug-172-integration\n' | sha256sum
+    EXPECTED_HASH="2c975fccab45c25947b44b0acfb81c2aaaeff32012a82574f089beab3d60fb81"
     export EXPECTED_HASH
 }
 
