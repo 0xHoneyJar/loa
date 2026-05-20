@@ -484,6 +484,8 @@ markdown fallback is sufficient.
 | 2026-05-09 | Sprint 1A T1.9 added `max_output_tokens` fields without bumping v2 schema | INTRODUCED THE REGRESSION | commit `dd54fe9c` |
 | 2026-05-10 | Sprint 1D PR #826 hit the same failure on T1.14 smoke step; cross-runtime T1.13 step itself passed 59/59 | OBSERVED — pre-existing not introduced | run `25621265130` / PR #826 |
 | 2026-05-10 | Extend v2 schema `modelEntry.properties` with `max_output_tokens` + `max_input_tokens`; add 3 bats regression tests (M19.1–M19.3) | RESOLVED — production-yaml smoke-migrates exit 0 | Sprint 1F PR (this entry) — `.claude/data/schemas/model-config-v2.schema.json` + `tests/integration/migrate-model-config.bats` |
+| 2026-05-15 | cycle-110 sprint-2a added `auth_type` + `dispatch_group` per-model fields without bumping v2 OR v3 schema (silent recurrence — workflow path-filter didn't fire on the sprint-2a PR) | RECURRENCE 2 — symbolically distinct but structurally identical to 2026-05-09 | commit `073842c0` (PR #904) — same pattern: live-yaml field addition without symmetric schema admission |
+| 2026-05-20 | Extend v2 + v3 schemas `modelEntry.properties` with `auth_type` (enum aws_iam/headless/http_api) + `dispatch_group` (enum anthropic-claude/bedrock-anthropic/google-gemini/openai-gpt); add 2 bats regression tests (M19.4 + M19.5); document third occurrence | RESOLVED-PER-SYMBOL — production-yaml smoke-migrates exit 0; **structural cause persists** — see Reading guide §"Structural pattern" | sprint-bug-171 (/bug closure of #888) — `.claude/data/schemas/model-config-v2.schema.json` + `.claude/data/schemas/model-config-v3.schema.json` + `tests/integration/migrate-model-config.bats` |
 
 ### Reading guide
 
@@ -496,6 +498,39 @@ attempt to "fix" by removing the field from `model-config.yaml` (that
 would break Sprint 1A T1.9's cheval `_lookup_max_output_tokens` function).
 The right fix is upstream: extend the v2 schema. Until then, treat as
 pre-existing-main-failure for merge purposes.
+
+### Structural pattern (3 occurrences as of 2026-05-20)
+
+Each per-symbol resolution closes the immediate red but the underlying
+class — *adding fields to live `model-config.yaml` without symmetric bumps
+to `model-config-v{2,3}.schema.json`* — recurs every 1–2 cycles:
+
+| # | Symbol | Introduced | Schema gap closed |
+|---|--------|------------|-------------------|
+| 1 | `max_output_tokens` | cycle-102 sprint-1A T1.9 (commit `dd54fe9c`) | cycle-102 sprint-1F (entry 2026-05-10) |
+| 2 | `kind` | cycle-104 commit `e41b5575` | cycle-109 sprint-1 T1.8 (v3 only — v2 closed by 2026-05-10 entry above per code comment) |
+| 3 | `auth_type` + `dispatch_group` | cycle-110 sprint-2a commit `073842c0` (PR #904) | sprint-bug-171 / `/bug #888` (entry 2026-05-20) |
+
+The path-filtered `cycle099-sprint-1e-tests` workflow only triggers when a
+PR touches the migrator's path globs. Field-additions to `model-config.yaml`
+on PRs that DON'T touch those paths therefore land silently on main, and
+the smoke red surfaces only on the next PR that does touch them — turning
+every framework-author cycle into the inadvertent reporter of the prior
+cycle's schema-bump miss.
+
+Per-symbol fixes will continue until either:
+- A pre-commit / pre-push hook fires the smoke against the live yaml on
+  EVERY PR (regardless of path glob), OR
+- The schema is intentionally relaxed (e.g., per-provider extension blocks
+  with `additionalProperties: true` under explicitly-allowlisted keys), OR
+- A test pin asserts that **every** top-level key in
+  `model-config.yaml::providers.*.models.*` corresponds to a declared
+  property in v2 + v3 schemas — catching the gap at PR time on the
+  introducing PR, not the next unrelated one.
+
+Operator may re-classify this entry to `RESOLVED-STRUCTURAL` once one of
+the above lands. Until then, treat per-symbol resolutions as defense-in-depth
+not structural closure.
 
 ## KF-007: red team pipeline hardcoded single-model evaluator (config keys vestigial)
 

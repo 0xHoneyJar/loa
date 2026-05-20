@@ -119,6 +119,16 @@
           "enum": ["http", "cli"],
           "description": "Carried forward from v2 (cycle-104 Sprint 2 T2.11). Adapter routing discriminant: 'http' (default — calls the provider HTTP API) vs 'cli' (subprocess to claude-headless / codex-headless / gemini-headless for zero-API-key CLI-subscription environments). The cheval._CLI_ADAPTER_BY_PROVIDER map dispatches kind:cli entries to the per-provider CLI adapter."
         },
+        "auth_type": {
+          "type": "string",
+          "enum": ["aws_iam", "headless", "http_api"],
+          "description": "cycle-110 sprint-2a T2.3 (SDD §3.2): auth-classifier for the headless-first dispatch path. 'http_api' = HTTP API key transport; 'aws_iam' = Bedrock SigV4; 'headless' = CLI-subscription via subprocess (paired with kind:cli). KF-006-symmetric third occurrence (after max_output_tokens cycle-102 Sprint 1F and kind cycle-104): cycle-110 sprint-2a added this field to the live model-config.yaml in PR #904 commit 073842c0 without bumping v3 either. /bug #888 closure."
+        },
+        "dispatch_group": {
+          "type": "string",
+          "enum": ["anthropic-claude", "bedrock-anthropic", "google-gemini", "openai-gpt"],
+          "description": "cycle-110 sprint-2a T2.3 (SDD §3.2): logical model family for dispatch routing. Independent of provider — Bedrock-Anthropic models share this with native Anthropic API for capability-equivalence. KF-006-symmetric third occurrence: paired with auth_type, also landed in PR #904 commit 073842c0. /bug #888 closure."
+        },
         "api_format": {
           "description": "Carried forward from v2.",
           "type": ["string", "object"]
