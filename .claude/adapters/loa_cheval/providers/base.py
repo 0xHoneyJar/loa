@@ -469,12 +469,35 @@ def http_post_stream(
 # parent process the CLI falls back to API mode — defeating the headless
 # adapter's purpose. Operators who explicitly want API-mode routing through
 # the CLI opt in via LOA_HEADLESS_KEEP_API_KEY=1.
+#
+# Two sub-classes are scrubbed:
+#   1. Credential vars — the secret itself (ANTHROPIC_API_KEY, OPENAI_API_KEY,
+#      GOOGLE_API_KEY, GEMINI_API_KEY, GOOGLE_APPLICATION_CREDENTIALS).
+#   2. Auth-mode-selector vars — flags that flip the CLI's auth strategy
+#      off the persisted OAuth subscription path even when no credential
+#      is present. For gemini, verified against gemini-cli's
+#      `packages/core/src/core/contentGenerator.ts::getAuthTypeFromEnv()`:
+#        - GOOGLE_GENAI_USE_GCA=true             → AuthType.LOGIN_WITH_GOOGLE
+#        - GOOGLE_GENAI_USE_VERTEXAI=true        → AuthType.USE_VERTEX_AI
+#        - GOOGLE_GEMINI_BASE_URL=<url>          → AuthType.GATEWAY
+#        - GEMINI_CLI_USE_COMPUTE_ADC=true       → AuthType.COMPUTE_ADC
+#      (`CLOUD_SHELL=true` also routes to COMPUTE_ADC but is set by Google
+#      Cloud Shell as a legitimate environment signal; scrubbing it would
+#      surprise operators running cheval from Cloud Shell, so it stays.)
+#      The codex + claude CLIs have no analogous env-var selectors as of
+#      2026-05-20 (sprint-bug-173 audit); their auth-mode is selected by
+#      CLI flags (claude `--bare`) or by file presence (`~/.codex/auth.json`),
+#      not env vars. See KF-013 for the recurring-class taxonomy.
 _HEADLESS_STRIPPED_AUTH_VARS: tuple = (
     "ANTHROPIC_API_KEY",
     "OPENAI_API_KEY",
     "GOOGLE_API_KEY",
     "GEMINI_API_KEY",
     "GOOGLE_APPLICATION_CREDENTIALS",
+    "GOOGLE_GENAI_USE_VERTEXAI",
+    "GOOGLE_GENAI_USE_GCA",
+    "GOOGLE_GEMINI_BASE_URL",
+    "GEMINI_CLI_USE_COMPUTE_ADC",
 )
 
 
@@ -482,8 +505,12 @@ def build_headless_subprocess_env(parent_env=None) -> Dict[str, str]:
     """Return an env dict suitable for headless adapter subprocess.run(env=...).
 
     Default: copy parent env (or os.environ if parent_env is None) and remove
-    auth-class vars per `_HEADLESS_STRIPPED_AUTH_VARS`. Operator opt-out via
-    `LOA_HEADLESS_KEEP_API_KEY=1` preserves the auth vars verbatim.
+    every entry in `_HEADLESS_STRIPPED_AUTH_VARS` — both the credential
+    sub-class (e.g., GOOGLE_API_KEY) and the auth-mode-selector sub-class
+    (e.g., GOOGLE_GENAI_USE_VERTEXAI). Operator opt-out via
+    `LOA_HEADLESS_KEEP_API_KEY=1` preserves ALL entries verbatim
+    (credentials AND mode-selectors — the opt-in is a full env-bypass,
+    not credential-only).
 
     The kwarg is ALWAYS supposed to be passed explicitly by callers — even
     when no key needs stripping. The headless adapter's contract is
