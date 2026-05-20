@@ -1579,6 +1579,12 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                         models_failed=_modelinv_state["models_failed"],
                         operator_visible_warn=_modelinv_state["operator_visible_warn"],
                         capability_class=_modelinv_capability_class,
+                        # Cycle-112 D-6 (#931): propagate caller identity for
+                        # /loa status --economy attribution. Prefer explicit
+                        # --skill; fall back to --agent so every existing
+                        # invocation site lands attribution without bash-side
+                        # changes (see cycle-112 SDD §0.3 R-1 finding).
+                        calling_primitive=(getattr(args, "skill", None) or agent_name),
                         invocation_latency_ms=_modelinv_state["invocation_latency_ms"],
                         cost_micro_usd=_modelinv_state["cost_micro_usd"],
                         streaming=_modelinv_state["streaming"],
@@ -2278,6 +2284,10 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     models_failed=_modelinv_state["models_failed"],
                     operator_visible_warn=_modelinv_state["operator_visible_warn"],
                     capability_class=_modelinv_capability_class,
+                    # Cycle-112 D-6 (#931): propagate caller identity for
+                    # /loa status --economy attribution. Same fallback chain
+                    # as the chunked-path emit above.
+                    calling_primitive=(getattr(args, "skill", None) or agent_name),
                     invocation_latency_ms=_modelinv_state["invocation_latency_ms"],
                     cost_micro_usd=_modelinv_state["cost_micro_usd"],
                     streaming=_modelinv_state["streaming"],

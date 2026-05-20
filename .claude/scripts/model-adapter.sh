@@ -42,7 +42,11 @@ CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
 # .claude/scripts/model-adapter.sh.legacy. cheval (model-invoke) is the
 # sole substrate dispatch path. See grimoires/loa/runbooks/cycle-109-rollback.md
 # for the git-revert rollback model.
-MODEL_INVOKE="$SCRIPT_DIR/model-invoke"
+# Cycle-112 D-6 (#931) — honor env override so test harnesses can
+# substitute a recording shim. Mirrors the long-standing pattern in
+# flatline-orchestrator.sh (line 97). Production callers don't set
+# MODEL_INVOKE and get the canonical path.
+MODEL_INVOKE="${MODEL_INVOKE:-$SCRIPT_DIR/model-invoke}"
 
 # cycle-099 sprint-1B (T1.8): bring the canonical model registry into scope
 # (MODEL_PROVIDERS / MODEL_IDS / COST_INPUT / COST_OUTPUT). The local
@@ -375,6 +379,11 @@ main() {
     local prompt_file=""
     local timeout="60"
     local dry_run=false
+    # Cycle-112 D-6 (#931) — caller-supplied skill name for MODELINV
+    # attribution. Empty default preserves backward-compat: when caller
+    # omits --skill, model-invoke (cheval) falls back to --agent name
+    # as calling_primitive.
+    local skill=""
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -404,6 +413,12 @@ main() {
                 ;;
             --timeout)
                 timeout="$2"
+                shift 2
+                ;;
+            --skill)
+                # cycle-112 D-6 — forwarded to MODEL_INVOKE for
+                # calling_primitive attribution
+                skill="$2"
                 shift 2
                 ;;
             --max-retries)
@@ -512,6 +527,13 @@ main() {
         --json-errors
         --timeout "$timeout"
     )
+
+    # Cycle-112 D-6 (#931) — forward caller-supplied skill to MODEL_INVOKE
+    # for calling_primitive attribution. Backward-compat: when --skill
+    # was not passed to model-adapter, cheval falls back to agent name.
+    if [[ -n "$skill" ]]; then
+        invoke_args+=(--skill "$skill")
+    fi
 
     # cycle-109 Sprint 3 T3.7 — mock mode routes through cheval's
     # --mock-fixture-dir instead of the (now-deleted) legacy adapter's
