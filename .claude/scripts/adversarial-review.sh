@@ -599,6 +599,19 @@ invoke_dissenter() {
   # so the verdict_quality envelope lands in this file. Backward-compat:
   # callers that don't pass the arg get the legacy non-sidecar behavior.
   local vq_sidecar="${5:-}"
+  # Cycle-112 D-6 (#931) — attribution type so MODELINV envelopes record
+  # which phase of adversarial review (review/audit/design) issued the
+  # call. Defaults empty for backward-compat with any pre-D-6 caller.
+  local type="${6:-}"
+
+  # Build the skill string for /loa status --economy attribution.
+  # adversarial-review:review / adversarial-review:audit / etc. Empty
+  # when type wasn't supplied — model-adapter.sh treats absent --skill
+  # as no-op.
+  local -a skill_args=()
+  if [[ -n "$type" ]]; then
+    skill_args=(--skill "adversarial-review:$type")
+  fi
 
   if [[ -n "$vq_sidecar" ]]; then
     LOA_VERDICT_QUALITY_SIDECAR="$vq_sidecar" \
@@ -607,14 +620,16 @@ invoke_dissenter() {
       --mode dissent \
       --input "$user_prompt_file" \
       --context "$system_prompt_file" \
-      --timeout "$timeout"
+      --timeout "$timeout" \
+      ${skill_args[@]+"${skill_args[@]}"}
   else
     "$SCRIPT_DIR/model-adapter.sh" \
       --model "$model" \
       --mode dissent \
       --input "$user_prompt_file" \
       --context "$system_prompt_file" \
-      --timeout "$timeout"
+      --timeout "$timeout" \
+      ${skill_args[@]+"${skill_args[@]}"}
   fi
 }
 
@@ -1374,7 +1389,7 @@ main() {
     # parallel adversarial-review invocations don't collide.
     local vq_sidecar
     vq_sidecar="$_vq_tmpdir/vq-${type}-${try_model//[^A-Za-z0-9_-]/_}-$$-$RANDOM.json"
-    raw_response=$(invoke_dissenter "$_ADVERSARIAL_WORKDIR/system-prompt.txt" "$_ADVERSARIAL_WORKDIR/user-prompt.txt" "$try_model" "$timeout" "$vq_sidecar") || api_exit=$?
+    raw_response=$(invoke_dissenter "$_ADVERSARIAL_WORKDIR/system-prompt.txt" "$_ADVERSARIAL_WORKDIR/user-prompt.txt" "$try_model" "$timeout" "$vq_sidecar" "$type") || api_exit=$?
     # Collect the per-attempt envelope (if cheval wrote one).
     if [[ -s "$vq_sidecar" ]]; then
       vq_attempt_files+=("$vq_sidecar")
