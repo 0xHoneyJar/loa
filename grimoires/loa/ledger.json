@@ -1397,9 +1397,25 @@
           "created": "2026-05-17T09:21:12Z"
         }
       ]
+    },
+    {
+      "id": "cycle-bug-20260520-i888-8a4363",
+      "label": "Bug Fix \u2014 cycle-110 auth_type + dispatch_group reject v2/v3 schema validation",
+      "type": "bugfix",
+      "status": "completed",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/888",
+      "created_at": "2026-05-20T07:48:00Z",
+      "completed_at": "2026-05-20T08:25:01Z",
+      "merge_pr": "https://github.com/0xHoneyJar/loa/pull/943",
+      "merge_commit": "ae02b505",
+      "sprints": [
+        "sprint-bug-171"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260520-i888-8a4363/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260520-i888-8a4363/sprint.md"
     }
   ],
-  "global_sprint_counter": 167,
+  "global_sprint_counter": 171,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
