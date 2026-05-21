@@ -86,6 +86,16 @@
       "type": "integer",
       "minimum": 0
     },
+    "tokens_input": {
+      "description": "Post-flight input token count reported by the provider (Anthropic usage.input_tokens, OpenAI usage.prompt_tokens, Gemini usageMetadata.promptTokenCount). Cycle-112 Phase A.1 D-7 (#948). Populated from CompletionResult.usage on successful invocations; absent on chain-exhausted / cancelled paths and on legacy emits.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "tokens_output": {
+      "description": "Post-flight output token count reported by the provider (Anthropic usage.output_tokens, OpenAI usage.completion_tokens, Gemini usageMetadata.candidatesTokenCount). Cycle-112 Phase A.1 D-7 (#948). Together with tokens_input replaces the pre-flight capability_evaluation.estimated_input_tokens used as a cost-estimate proxy in Phase A.",
+      "type": "integer",
+      "minimum": 0
+    },
     "kill_switch_active": {
       "description": "True iff LOA_FORCE_LEGACY_MODELS=1 at invocation time (SDD section 11 / gemini IMP-004 HIGH). Audits operator-driven legacy-mode use.",
       "type": "boolean"

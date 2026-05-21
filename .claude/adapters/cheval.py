@@ -1309,6 +1309,14 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         # None means the gate did not evaluate (bypass path, e.g.
         # LOA_CHEVAL_DISABLE_INPUT_GATE=1 or pre-resolution failure).
         "capability_evaluation": None,
+        # Cycle-112 Phase A.1 D-7 (#948) — post-flight token counts.
+        # Set from _result.usage on successful chain entry; remain None
+        # on chain-exhausted / cancelled paths. Together with the pre-
+        # flight estimated_input_tokens these support honest cost-per-
+        # clean-output in /loa status --economy (replaces the Phase A
+        # estimate-only proxy).
+        "tokens_input": None,
+        "tokens_output": None,
     }
     _verbose = bool(os.environ.get("LOA_HEADLESS_VERBOSE"))
 
@@ -1587,6 +1595,12 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                         calling_primitive=(getattr(args, "skill", None) or agent_name),
                         invocation_latency_ms=_modelinv_state["invocation_latency_ms"],
                         cost_micro_usd=_modelinv_state["cost_micro_usd"],
+                        # Cycle-112 D-7 (#948): post-flight token counts
+                        # captured from CompletionResult.usage above.
+                        # None preserved when chain exhausted before any
+                        # entry returned a usage envelope.
+                        tokens_input=_modelinv_state.get("tokens_input"),
+                        tokens_output=_modelinv_state.get("tokens_output"),
                         streaming=_modelinv_state["streaming"],
                         final_model_id=_modelinv_state["final_model_id"],
                         transport=_modelinv_state["transport"],
@@ -2107,6 +2121,21 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             _cost = getattr(_result, "cost_micro_usd", None)
             if _cost is not None:
                 _modelinv_state["cost_micro_usd"] = _cost
+            # Cycle-112 Phase A.1 D-7 (#948) — capture post-flight token
+            # counts from CompletionResult.usage. Defensive getattr chain:
+            # _result.usage is typed as `Usage` in types.py but some headless
+            # / mock paths may produce a result without a usage field, or
+            # with zero-valued usage. Treat 0 as valid (some providers
+            # report 0 output_tokens on empty responses), only None as "no
+            # signal." The schema permits integer >= 0.
+            _usage = getattr(_result, "usage", None)
+            if _usage is not None:
+                _in = getattr(_usage, "input_tokens", None)
+                _out = getattr(_usage, "output_tokens", None)
+                if isinstance(_in, int) and _in >= 0:
+                    _modelinv_state["tokens_input"] = _in
+                if isinstance(_out, int) and _out >= 0:
+                    _modelinv_state["tokens_output"] = _out
             _result_meta = getattr(_result, "metadata", None) or {}
             _modelinv_state["streaming"] = _result_meta.get("streaming")
             # cycle-113 sprint-170 T3.3 (FR-C-1, I-3): propagate the
@@ -2290,6 +2319,10 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     calling_primitive=(getattr(args, "skill", None) or agent_name),
                     invocation_latency_ms=_modelinv_state["invocation_latency_ms"],
                     cost_micro_usd=_modelinv_state["cost_micro_usd"],
+                    # Cycle-112 D-7 (#948): post-flight token counts.
+                    # Same source-of-truth as chunked-path emit above.
+                    tokens_input=_modelinv_state.get("tokens_input"),
+                    tokens_output=_modelinv_state.get("tokens_output"),
                     streaming=_modelinv_state["streaming"],
                     final_model_id=_modelinv_state["final_model_id"],
                     transport=_modelinv_state["transport"],
