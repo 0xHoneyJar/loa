@@ -453,6 +453,19 @@ def emit_model_invoke_complete(
     auto_selection_inputs: Optional[Dict[str, Any]] = None,
     auto_evaluation_timestamp: Optional[float] = None,
     semaphore_exhausted: Optional[bool] = None,
+    # Cycle-112 Phase A.1 D-7 (#948) — post-flight token counts captured
+    # from CompletionResult.usage. Per-provider extraction (already done in
+    # provider adapters; this is the metadata pass-through layer):
+    #   - Anthropic:  usage.input_tokens     / usage.output_tokens
+    #   - OpenAI:     usage.prompt_tokens    / usage.completion_tokens
+    #   - Gemini:     usageMetadata.promptTokenCount / candidatesTokenCount
+    # Together with the existing pricing_snapshot field these enable
+    # honest cost-per-clean-output in /loa status --economy (replacing
+    # the Phase A pre-flight capability_evaluation.estimated_input_tokens
+    # proxy). Optional/additive — legacy callers omitting them produce
+    # shape-identical envelopes (no `tokens_*` keys in payload).
+    tokens_input: Optional[int] = None,
+    tokens_output: Optional[int] = None,
 ) -> None:
     """Emit a model.invoke.complete envelope to the MODELINV audit chain.
 
@@ -518,6 +531,14 @@ def emit_model_invoke_complete(
         payload["invocation_latency_ms"] = invocation_latency_ms
     if cost_micro_usd is not None:
         payload["cost_micro_usd"] = cost_micro_usd
+    # Cycle-112 Phase A.1 D-7 (#948) — post-flight token attribution.
+    # Caller is responsible for validation (provider responses occasionally
+    # contain nulls / negatives on partial-stream failures); we accept the
+    # value verbatim and let the JSON-schema gate catch out-of-range.
+    if tokens_input is not None:
+        payload["tokens_input"] = tokens_input
+    if tokens_output is not None:
+        payload["tokens_output"] = tokens_output
     # cycle-104 Sprint 2 T2.6 (FR-S2.3 / SDD §3.4): chain-walk evidence.
     # final_model_id, transport, config_observed are additive — the schema's
     # additionalProperties:false constraint means we only attach them when
