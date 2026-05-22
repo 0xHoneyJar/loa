@@ -75,8 +75,16 @@ if [[ -z "${BASH_SOURCE[0]:-}" ]] && [[ -z "${_LOA_MOUNT_REEXEC:-}" ]]; then
     exit 1
   fi
 
-  # Download auxiliary scripts (non-fatal if missing in older versions)
-  for _f in bootstrap.sh bash-version-guard.sh lib/symlink-manifest.sh; do
+  # Download auxiliary scripts (non-fatal if missing in older versions).
+  # #865: mount-loa.sh + mount-submodule.sh source lib/scaffold-post-merge-workflow.sh
+  # and lib/portable-realpath.sh respectively. Without these in the pipe-mode
+  # download set, the curl|bash install path errors with "No such file or
+  # directory" on the first mount. The clone-then-run path is unaffected
+  # because those files exist on disk from the clone.
+  for _f in bootstrap.sh bash-version-guard.sh \
+            lib/symlink-manifest.sh \
+            lib/scaffold-post-merge-workflow.sh \
+            lib/portable-realpath.sh; do
     curl --proto =https --proto-redir =https --max-redirs 10 \
          -fsSL -o "$_loa_tmpdir/$_f" -- "$_loa_base/$_f" 2>/dev/null || true
   done
