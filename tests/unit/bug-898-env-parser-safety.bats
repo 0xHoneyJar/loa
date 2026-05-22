@@ -670,6 +670,38 @@ EOF
     [[ "$output" == *"OPENAI_BASE_URL"* ]]
 }
 
+@test "bug-898-52: AWS_BEARER_TOKEN_BEDROCK accepted (Bedrock bearer-token credential, allowlisted)" {
+    # The Bedrock provider path uses AWS_BEARER_TOKEN_BEDROCK as its
+    # bearer/API-key credential. Unlike *_AUTH_TOKEN-suffix names, the
+    # 'BEDROCK' suffix sits at the END so the *_AUTH_TOKEN glob doesn't
+    # match. The allowlist names AWS_BEARER_TOKEN_BEDROCK explicitly to
+    # avoid widening to a generic *BEARER_TOKEN* pattern (which would
+    # accept arbitrary attacker-named bearer keys).
+    cat > "$TEST_TMP/.env" <<'EOF'
+AWS_BEARER_TOKEN_BEDROCK=dummy-bedrock-bearer-token-for-test
+EOF
+    unset AWS_BEARER_TOKEN_BEDROCK
+    load_env_file "$TEST_TMP/.env"
+    [ "$AWS_BEARER_TOKEN_BEDROCK" = "dummy-bedrock-bearer-token-for-test" ]
+}
+
+@test "bug-898-53: arbitrary *_BEARER_TOKEN_* keys still rejected (narrow allowlist preserved)" {
+    # Defensive control: the AWS_BEARER_TOKEN_BEDROCK addition must NOT
+    # have widened to a generic bearer/token pattern. Unknown
+    # bearer-shaped names remain rejected so an attacker can't smuggle
+    # in *_BEARER_* hooks via .env.
+    cat > "$TEST_TMP/.env" <<'EOF'
+EVIL_BEARER_TOKEN_FOO=should-be-rejected
+RANDOM_BEARER_TOKEN=should-be-rejected
+BEARER_TOKEN_GENERIC=should-be-rejected
+EOF
+    unset EVIL_BEARER_TOKEN_FOO RANDOM_BEARER_TOKEN BEARER_TOKEN_GENERIC
+    load_env_file "$TEST_TMP/.env"
+    [ -z "${EVIL_BEARER_TOKEN_FOO:-}" ]
+    [ -z "${RANDOM_BEARER_TOKEN:-}" ]
+    [ -z "${BEARER_TOKEN_GENERIC:-}" ]
+}
+
 @test "bug-898-51: v6 COR-001 — allowlist iteration is CWD-independent (quoted array expansion)" {
     # BB-912 v6 COR-001 fix: unquoted `${arr[@]}` in the allowlist
     # iterator let bash filename-expand glob entries like `*_API_KEY`
