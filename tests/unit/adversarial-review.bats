@@ -22,6 +22,10 @@ setup() {
     # eval'd script can't find it (BASH_SOURCE[0] resolves to bats tmp dir).
     # The double-source guard in lib-content.sh prevents duplicate loading.
     source "$PROJECT_ROOT/.claude/scripts/lib-content.sh"
+    # sprint-bug-172 follow-up: same eval-time BASH_SOURCE problem applies
+    # to compat-lib.sh (sha256_portable). Pre-source before eval; the
+    # script's own source line falls through defensively under eval.
+    source "$PROJECT_ROOT/.claude/scripts/compat-lib.sh"
 
     # Source the script functions (but don't run main)
     eval "$(sed 's/^main "\$@"/# main disabled for testing/' "$ADVERSARIAL_REVIEW")"

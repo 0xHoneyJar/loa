@@ -36,12 +36,19 @@
 set -euo pipefail
 
 
-# sprint-bug-172 / bug-911: sha256_portable from compat-lib
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/compat-lib.sh"
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIG_FILE="${CONFIG_FILE:-$PROJECT_ROOT/.loa.config.yaml}"
+
+# sprint-bug-172 / bug-911: sha256_portable from compat-lib.
+# Defensive source pattern (`|| true`) mirrors the lib-content.sh import
+# below: under eval-based test sourcing, BASH_SOURCE[0] resolves to a bats
+# temp file, so the absolute SCRIPT_DIR-rooted path is the safe form, and
+# the soft-failure allows tests to pre-source compat-lib.sh in setup().
+# See: Bridgebuilder Review Finding #1 (PR #235), KF-011 debug regression.
+_COMPAT_LIB_PATH="$SCRIPT_DIR/compat-lib.sh"
+# shellcheck source=compat-lib.sh
+source "$_COMPAT_LIB_PATH" 2>/dev/null || true
 
 # Source shared content processing functions (file_priority, prepare_content, estimate_tokens)
 # These were extracted from gpt-review-api.sh into lib-content.sh to avoid the

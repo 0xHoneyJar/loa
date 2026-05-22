@@ -27,6 +27,10 @@ setup() {
 
     local saved_root="$PROJECT_ROOT"
     source "$PROJECT_ROOT/.claude/scripts/lib-content.sh"
+    # sprint-bug-172 follow-up: pre-source compat-lib.sh so sha256_portable
+    # is available when adversarial-review.sh is eval'd below (the script's
+    # own source line falls through defensively under eval).
+    source "$PROJECT_ROOT/.claude/scripts/compat-lib.sh"
     eval "$(sed 's/^main "\$@"/# main disabled for testing/' "$ADVERSARIAL_REVIEW")"
 
     PROJECT_ROOT="$SANDBOX_ROOT"

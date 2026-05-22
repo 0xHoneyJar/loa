@@ -158,6 +158,19 @@ jobs:
         working-directory: .claude/skills/bridgebuilder-review
         run: npm ci
 
+      - name: Install GNU bash on macOS (toolchain requires bash 5.0+)
+        if: matrix.os == 'macos-latest'
+        # macOS runners ship bash 3.2 by default (Apple stopped updating
+        # due to GPL3 licensing). tools/check-codegen-toolchain.sh requires
+        # bash >= 5.0 and was failing the macos-latest matrix variant on
+        # every PR since the gate landed (admin-merged through #945, #946,
+        # #949, #950 before this fix). brew bash installs to /opt/homebrew/
+        # bin/bash, which `command -v bash` then prefers over /bin/bash.
+        run: |
+          brew install bash
+          # Verify the new bash is on PATH (homebrew prepends /opt/homebrew/bin)
+          bash --version | head -1
+
       - name: Verify pinned codegen toolchain
         # Closes BB iter-1 F7: the paths filter triggers this workflow when
         # tools/check-codegen-toolchain.sh changes, but until this step was

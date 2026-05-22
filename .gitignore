@@ -136,6 +136,19 @@ grimoires/loa/BEAUVOIR.md
 grimoires/loa/SOUL.md
 grimoires/loa/decisions.yaml
 
+# /ride --enriched analysis artifacts (regenerable from current codebase state).
+# Were untracked across multiple sessions causing git-status noise; pinning
+# them as ignored keeps the working tree clean while preserving local copies
+# for reference when /ride runs.
+grimoires/loa/consistency-report.md
+grimoires/loa/drift-report.md
+grimoires/loa/gaps.md
+grimoires/loa/governance-report.md
+grimoires/loa/trajectory-audit.md
+
+# /schedule skill runtime locks
+.claude/scheduled_tasks.lock
+
 # User config (copy from .loa.config.yaml.example)
 .loa.config.yaml
 # But DO track config files inside eval fixtures (needed for CI)
