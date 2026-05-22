@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+bats_require_minimum_version 1.5.0
 # Unit tests for spiral-simstim-dispatch.sh
 # Cycle-070: Dispatch rewrite to claude -p
 

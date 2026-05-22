@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+bats_require_minimum_version 1.5.0
 # cycle-103 sprint-1 T1.6 — unit tests for call_flatline_chat in
 # .claude/scripts/lib-curl-fallback.sh.
 #
