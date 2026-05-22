@@ -523,6 +523,43 @@ create_symlinks() {
     log "  Linked command: $cmd_name"
   done
 
+  # #842: Phase 5 — COPY phase for items that can't be symlinked because
+  # Claude Code's hook executor cannot follow relative `..` symlinks from
+  # subprocess context on macOS. See lib/symlink-manifest.sh MANIFEST_COPY_*.
+  if [[ ${#MANIFEST_COPY_DIRS[@]} -gt 0 ]] || [[ ${#MANIFEST_COPY_FILES[@]} -gt 0 ]]; then
+    step "Copying executor-sensitive paths..."
+    local entry source target
+    for entry in ${MANIFEST_COPY_DIRS[@]+"${MANIFEST_COPY_DIRS[@]}"}; do
+      source="${entry%%:*}"   # destination in consumer tree
+      target="${entry#*:}"    # source path inside submodule (relative to repo root)
+      if [[ ! -d "$target" ]]; then
+        warn "  Copy source missing: $target — skipping $source"
+        continue
+      fi
+      # Replace any existing symlink or directory at the destination
+      if [[ -L "$source" ]] || [[ -e "$source" ]]; then
+        rm -rf "$source"
+      fi
+      mkdir -p "$(dirname "$source")"
+      cp -R "$target" "$source"
+      log "  Copied dir: $source"
+    done
+    for entry in ${MANIFEST_COPY_FILES[@]+"${MANIFEST_COPY_FILES[@]}"}; do
+      source="${entry%%:*}"
+      target="${entry#*:}"
+      if [[ ! -f "$target" ]]; then
+        warn "  Copy source missing: $target — skipping $source"
+        continue
+      fi
+      if [[ -L "$source" ]] || [[ -e "$source" ]]; then
+        rm -f "$source"
+      fi
+      mkdir -p "$(dirname "$source")"
+      cp "$target" "$source"
+      log "  Copied file: $source"
+    done
+  fi
+
   # Also link settings.local.json if it exists (not in manifest — optional file)
   if [[ -f "$SUBMODULE_PATH/.claude/settings.local.json" ]]; then
     safe_symlink ".claude/settings.local.json" "../$SUBMODULE_PATH/.claude/settings.local.json"
