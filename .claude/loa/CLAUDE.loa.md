@@ -85,8 +85,56 @@ Grimoire and state file locations configurable via `.loa.config.yaml`. Overrides
 
 - **Memory**: Maintain `grimoires/loa/NOTES.md`
 - **Feedback**: Check audit feedback FIRST, then engineer feedback
-- **Karpathy**: Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven
 - **Git Safety**: 4-layer upstream detection with soft block
+
+## Karpathy Principles (applies on EVERY turn, not just /implement)
+
+Adapted from [Andrej Karpathy's LLM coding observations](https://x.com/karpathy/status/2015883857489522876).
+The four principles apply to every code-touching turn in Loa — not just the
+two skills that embed `<karpathy_principles>` (`implementing-tasks`,
+`reviewing-code`). Detailed protocol: `.claude/protocols/karpathy-principles.md`.
+
+### 1. Think Before Coding
+
+Surface assumptions explicitly. When multiple interpretations exist, present
+them rather than choosing silently. When requirements are unclear, ask before
+implementing. Use `AskUserQuestion` for clarifications rather than inferring
+beyond what was stated.
+
+### 2. Simplicity First
+
+Write minimum code that solves the request — nothing speculative.
+- No features beyond what was asked
+- No abstractions for single-use code
+- No "flexibility" or "configurability" that wasn't requested
+- No error handling for impossible scenarios
+- If 200 lines could be 50, rewrite simpler
+
+The test: would a senior engineer call this overcomplicated?
+
+### 3. Surgical Changes
+
+Touch only what the request requires. When editing existing code:
+- Match existing style, even if you'd do it differently
+- Don't "improve" adjacent code, comments, or formatting
+- Don't refactor things that aren't broken
+- Only remove imports/variables that YOUR changes made unused
+- Leave pre-existing dead code alone (mention separately if noticed)
+
+Every changed line should trace directly to the user's request. No
+"while I'm here" changes — note them in the PR description instead.
+
+### 4. Goal-Driven Execution
+
+Transform tasks into verifiable goals before starting:
+- "Add validation" → "write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "write a test that reproduces it, then make it pass"
+- "Refactor X" → "ensure tests pass before and after"
+
+For multi-step tasks, state the plan + per-step verification before
+implementing. Vague success criteria ("make it robust", "improve quality")
+get replaced with concrete checks ("returns 401 on invalid creds", "test
+file X passes").
 
 ## Process Compliance
 
