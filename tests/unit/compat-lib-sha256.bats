@@ -98,9 +98,14 @@ _sandboxed_path() {
 }
 
 @test "A4 Neither present: sha256_portable fails loud with non-zero exit" {
-    # Nothing installed in SHIM_DIR — both backends absent
-    PATH="$SHIM_DIR" run bash -c "source '$COMPAT_LIB'; printf 'sprint-bug-172\n' | sha256_portable"
-    [[ "$status" -ne 0 ]]
+    # Nothing installed in SHIM_DIR — both backends absent.
+    # sha256_portable's contract pins exit 127 (see compat-lib.sh "Exit codes" docblock):
+    # the function returns 127 explicitly when neither backend is found, mirroring
+    # bash's command-not-found convention so callers can distinguish missing-tool
+    # from tool-failure. `run -127` declares the expected status to bats so BW01
+    # doesn't flag the intentional non-zero exit.
+    PATH="$SHIM_DIR" run -127 "$BASH" -c "source '$COMPAT_LIB'; printf 'sprint-bug-172\n' | sha256_portable"
+    [[ "$status" -eq 127 ]]
     # Stderr must mention the diagnostic (forwarded to bats output via run)
     [[ "$output" =~ "sha256" ]] || [[ "$output" =~ "not found" ]] || [[ "$output" =~ "ERROR" ]]
 }
