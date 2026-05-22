@@ -369,27 +369,61 @@ get_repo_root() {
 # Returns: 0 if safe, 1 if escapes bounds
 validate_symlink_target() {
   local target="$1"
+  # #927: accept optional `source` (the symlink file path) as 2nd arg
+  # so we can resolve RELATIVE targets correctly. Pre-fix, this function
+  # resolved targets from the CWD, which is wrong for symlinks like
+  # `.claude/scripts -> ../.loa/.claude/scripts` (target is relative to
+  # `.claude/`, not to CWD). Result was a "Cannot resolve symlink target"
+  # warning fired for every valid relative target — ~100+ warnings per
+  # install on the mount-submodule path.
+  local source="${2:-}"
   local repo_root
   repo_root=$(get_repo_root)
 
-  # Resolve the target to an absolute path
+  # Determine the base directory against which a relative target should
+  # be resolved:
+  #   - Absolute target → no base needed
+  #   - Source provided → dirname of source (the symlink's parent dir)
+  #   - Source omitted  → CWD (legacy behavior — preserves call sites
+  #     that haven't been migrated)
+  local resolve_base=""
+  if [[ "$target" != /* ]]; then
+    if [[ -n "$source" ]]; then
+      resolve_base=$(cd "$(dirname "$source")" 2>/dev/null && pwd)
+    fi
+    if [[ -z "$resolve_base" ]]; then
+      resolve_base="$(pwd)"
+    fi
+  fi
+
+  # Build the candidate absolute path
+  local candidate
+  if [[ "$target" = /* ]]; then
+    candidate="$target"
+  else
+    candidate="$resolve_base/$target"
+  fi
+
+  # Resolve the candidate to a canonical absolute path
   local resolved_target
-  if [[ -e "$target" ]]; then
-    resolved_target=$(cd "$(dirname "$target")" && pwd)/$(basename "$target")
+  if [[ -e "$candidate" ]]; then
+    resolved_target=$(cd "$(dirname "$candidate")" 2>/dev/null && pwd)/$(basename "$candidate")
   else
     # For not-yet-existing paths, resolve the parent
     local parent_dir
-    parent_dir=$(dirname "$target")
+    parent_dir=$(dirname "$candidate")
     if [[ -d "$parent_dir" ]]; then
-      resolved_target=$(cd "$parent_dir" && pwd)/$(basename "$target")
+      resolved_target=$(cd "$parent_dir" 2>/dev/null && pwd)/$(basename "$candidate")
     else
-      # Cannot resolve, allow but warn
-      warn "Cannot resolve symlink target: $target"
+      # Genuinely unresolvable — neither candidate nor its parent exists.
+      # Allow but warn (preserves existing fail-soft behavior for the
+      # actually-pathological case).
+      warn "Cannot resolve symlink target: $target (source=${source:-<unset>})"
       return 0
     fi
   fi
 
-  # Normalize paths (remove trailing slashes, resolve ..)
+  # Normalize paths (resolve .. components)
   repo_root=$(realpath "$repo_root" 2>/dev/null || echo "$repo_root")
   resolved_target=$(realpath "$resolved_target" 2>/dev/null || echo "$resolved_target")
 
@@ -410,8 +444,9 @@ safe_symlink() {
   local source="$1"
   local target="$2"
 
-  # Validate target is within repository
-  if ! validate_symlink_target "$target"; then
+  # #927: pass source so validate_symlink_target can resolve relative
+  # targets correctly (against dirname source, not CWD).
+  if ! validate_symlink_target "$target" "$source"; then
     return 1
   fi
 
