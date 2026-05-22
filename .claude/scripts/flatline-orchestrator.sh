@@ -574,7 +574,14 @@ aggregate_and_write_final_consensus() {
         vq=$(jq -c '.verdict_quality // empty' "$f" 2>/dev/null || true)
         if [[ -n "$vq" && "$vq" != "null" ]]; then
             local tmp
-            tmp=$(mktemp "${TEMP_DIR:-/tmp}/vq-input.XXXXXX.json")
+            # #878: guard mktemp failure (template collision, disk full, no
+            # mktemp on PATH). Without the check, downstream chmod/printf on
+            # an empty $tmp produces confusing "No such file or directory"
+            # errors that mask the real mktemp failure.
+            if ! tmp=$(mktemp "${TEMP_DIR:-/tmp}/vq-input.XXXXXX.json"); then
+                log "WARNING: mktemp failed for vq-input ($(date)) — skipping verdict-quality envelope for $f"
+                continue
+            fi
             printf '%s' "$vq" > "$tmp"
             vq_files+=("$tmp")
             cleanup_files+=("$tmp")
@@ -2279,7 +2286,16 @@ main() {
 
             # Build arbiter prompt
             local arbiter_prompt_file
-            arbiter_prompt_file=$(mktemp)
+            # #878: guard mktemp failure. Without this, the subsequent
+            # `chmod 600 "$arbiter_prompt_file"` with an empty arg produces
+            # `chmod: : No such file or directory` and the prompt-write at
+            # L2298 silently writes to the current working directory or
+            # fails with cwd permission errors. Fail fast with a clear
+            # message instead of cascading to downstream confusion.
+            if ! arbiter_prompt_file=$(mktemp); then
+                log "ERROR: mktemp failed for arbiter prompt — skipping arbiter step for $phase"
+                continue
+            fi
             chmod 600 "$arbiter_prompt_file"
 
             local doc_excerpt=""
