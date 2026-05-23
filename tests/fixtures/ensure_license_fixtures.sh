@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# ensure_license_fixtures.sh — idempotently ensure license-validation test
+# fixtures exist (gitignored .pem + paired license JSON files).
+#
+# Background: cycle-028 sprint-19 removed static PEM files from the repo
+# and made keypairs ephemeral via generate_test_keypair() in mock_server.py.
+# But 4 bats files in tests/unit/ still call `cp $FIXTURES_DIR/mock_public_key.pem`
+# at setup() — that fixture path is gitignored and absent on a fresh checkout.
+# Result: ~108 bats failures all stem from this one missing fixture (#953).
+#
+# This helper is called from each affected bats file's setup(). On first
+# call per checkout, it runs generate_test_licenses.py which now writes
+# the public key + regenerates the signed license fixtures together. On
+# subsequent calls (file exists), it's a no-op.
+#
+# Usage:
+#   In bats setup(): source "$FIXTURES_DIR/ensure_license_fixtures.sh"
+#
+# Exit codes:
+#   0  ready (fixtures exist or were just generated)
+#   1  generator failed
+#   2  python3 missing
+
+set -uo pipefail
+
+_ELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_ELF_PUBKEY="$_ELF_DIR/mock_public_key.pem"
+_ELF_GEN="$_ELF_DIR/generate_test_licenses.py"
+
+# Fast path: fixtures already present.
+if [[ -s "$_ELF_PUBKEY" ]]; then
+    return 0 2>/dev/null || exit 0
+fi
+
+# Generate. Requires python3.
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "ensure_license_fixtures: python3 not on PATH; cannot generate fixtures" >&2
+    return 2 2>/dev/null || exit 2
+fi
+
+if [[ ! -f "$_ELF_GEN" ]]; then
+    echo "ensure_license_fixtures: $_ELF_GEN not found" >&2
+    return 1 2>/dev/null || exit 1
+fi
+
+# Run the generator from the fixtures dir so relative paths resolve.
+if ! (cd "$_ELF_DIR" && python3 "$_ELF_GEN" >/dev/null 2>&1); then
+    echo "ensure_license_fixtures: $_ELF_GEN failed (check python deps: 'cryptography' or openssl)" >&2
+    return 1 2>/dev/null || exit 1
+fi
+
+if [[ ! -s "$_ELF_PUBKEY" ]]; then
+    echo "ensure_license_fixtures: generator ran but mock_public_key.pem missing or empty" >&2
+    return 1 2>/dev/null || exit 1
+fi
+
+return 0 2>/dev/null || exit 0

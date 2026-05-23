@@ -18,8 +18,20 @@ setup() {
     export LOA_CACHE_DIR="$TEST_DIR"
     CACHE="$TEST_DIR/model-health-cache.json"
 
-    # Source helpers without invoking main.
-    eval "$(sed 's|^main "\$@"$|: # main_disabled|' "$ADAPTER")"
+    # #953: pre-source libs so the eval'd model-adapter.sh's own BASH_SOURCE-
+    # based lib sources don't crash (same eval-time BASH_SOURCE class as
+    # PR #951 fixed for adversarial-review.sh).
+    source "$PROJECT_ROOT/.claude/scripts/lib/model-resolver.sh" 2>/dev/null || true
+    source "$PROJECT_ROOT/.claude/scripts/lib/overlay-source-helper.sh" 2>/dev/null || true
+
+    # Source helpers without invoking main. ALSO strip the script's own
+    # `source "$SCRIPT_DIR/lib/*.sh"` lines — under set -e + eval-time
+    # BASH_SOURCE pointing at the bats temp path, those lines abort the
+    # eval entirely. Pre-sourced above already provides the functions.
+    eval "$(sed \
+        -e 's|^main "\$@"$|: # main_disabled|' \
+        -e '/source "\$SCRIPT_DIR\/lib\//d' \
+        "$ADAPTER")"
     PROBE_CACHE_PATH="$CACHE"
 
     # Hermetic config in tmp dir.

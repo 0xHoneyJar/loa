@@ -33,6 +33,11 @@ setup() {
     export LOA_CACHE_DIR="$TEST_TMPDIR/cache"
     mkdir -p "$LOA_CACHE_DIR/public-keys"
 
+    # #953: ensure license fixtures exist (cycle-028 made keys ephemeral
+    # + gitignored; helper generates on first call).
+    # shellcheck source=../fixtures/ensure_license_fixtures.sh
+    source "$FIXTURES_DIR/ensure_license_fixtures.sh"
+
     # Copy public key to test cache
     cp "$FIXTURES_DIR/mock_public_key.pem" "$LOA_CACHE_DIR/public-keys/test-key-01.pem"
     cat > "$LOA_CACHE_DIR/public-keys/test-key-01.meta.json" << EOF
