@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+bats_require_minimum_version 1.5.0
 # Unit tests for spiral-simstim-dispatch.sh
 # Cycle-070: Dispatch rewrite to claude -p
 
@@ -73,14 +74,19 @@ teardown() {
     local saved_path="$PATH"
     export PATH=$(echo "$PATH" | tr ':' '\n' | grep -v nvm | grep -v node | tr '\n' ':')
 
-    run "$SCRIPT" "$TEST_TMPDIR/cycle-test" "cycle-test" ""
-    # Should exit 127 since claude won't be found
-    # (unless it's in a path we didn't filter)
-    if ! command -v claude &>/dev/null; then
-        [ "$status" -eq 127 ]
-    else
+    # Decide skip vs run BEFORE invoking the script. If claude is still
+    # findable on the filtered PATH, we can't exercise the missing-CLI branch
+    # and skip. Otherwise we run with `run -127` to declare the expected
+    # status (the script's contract: exit 127 on missing claude — see
+    # spiral-simstim-dispatch.sh). Declaring the expected status keeps bats
+    # BW01 silent for the intentional non-zero exit.
+    if command -v claude &>/dev/null; then
+        export PATH="$saved_path"
         skip "claude found on filtered PATH — can't test missing CLI"
     fi
+
+    run -127 "$SCRIPT" "$TEST_TMPDIR/cycle-test" "cycle-test" ""
+    [ "$status" -eq 127 ]
 
     export PATH="$saved_path"
 }

@@ -85,6 +85,7 @@ _LOA_ENV_LOADER_ALLOWLIST=(
     AWS_ACCESS_KEY_ID
     AWS_SECRET_ACCESS_KEY
     AWS_SESSION_TOKEN
+    AWS_BEARER_TOKEN_BEDROCK       # Bedrock bearer-token / API-key auth (Anthropic-on-Bedrock review substrate)
     AWS_REGION
     AWS_DEFAULT_REGION
     AWS_PROFILE

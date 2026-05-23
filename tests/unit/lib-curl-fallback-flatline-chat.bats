@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+bats_require_minimum_version 1.5.0
 # cycle-103 sprint-1 T1.6 — unit tests for call_flatline_chat in
 # .claude/scripts/lib-curl-fallback.sh.
 #
@@ -158,9 +159,14 @@ STUB
 }
 
 @test "call_flatline_chat returns non-zero when model-invoke binary missing" {
+    # Missing binary path → bash command-not-found → exit 127 propagates through
+    # the helper's `|| exit_code=$?` capture and `return $exit_code` chain. The
+    # 127 is intentional (it's how the helper signals "tool absent" vs other
+    # failure classes); `run -127` declares the expected status to bats so BW01
+    # doesn't flag the deliberate non-zero exit.
     MODEL_INVOKE="$TMP_DIR/no-such-binary" _source_helper
-    run call_flatline_chat "claude-opus-4-7" "p" "30" "500"
-    [ "$status" -ne 0 ]
+    run -127 call_flatline_chat "claude-opus-4-7" "p" "30" "500"
+    [ "$status" -eq 127 ]
 }
 
 # --------------------------------------------------------------------------
