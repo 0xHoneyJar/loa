@@ -23,9 +23,9 @@ setup() {
     mkdir -p "$TEST_TMPDIR"
 
     # Override registry directory for testing
-    export LOA_REGISTRY_DIR="$TEST_TMPDIR/registry"
-    mkdir -p "$LOA_REGISTRY_DIR/skills"
-    mkdir -p "$LOA_REGISTRY_DIR/packs"
+    export LOA_CONSTRUCTS_DIR="$TEST_TMPDIR/registry"
+    mkdir -p "$LOA_CONSTRUCTS_DIR/skills"
+    mkdir -p "$LOA_CONSTRUCTS_DIR/packs"
 
     # Override cache directory for testing
     export LOA_CACHE_DIR="$TEST_TMPDIR/cache"
@@ -71,7 +71,7 @@ create_test_pack() {
     local license_file="$2"
     local skill_count="${3:-2}"
 
-    local pack_dir="$LOA_REGISTRY_DIR/packs/$pack_slug"
+    local pack_dir="$LOA_CONSTRUCTS_DIR/packs/$pack_slug"
     mkdir -p "$pack_dir/skills"
 
     # Copy license if provided
@@ -122,7 +122,7 @@ create_test_skill() {
     local skill_name="$2"
     local license_file="$3"
 
-    local skill_dir="$LOA_REGISTRY_DIR/skills/$vendor/$skill_name"
+    local skill_dir="$LOA_CONSTRUCTS_DIR/skills/$vendor/$skill_name"
     mkdir -p "$skill_dir"
 
     if [[ -n "$license_file" ]] && [[ -f "$license_file" ]]; then
@@ -207,7 +207,7 @@ EOF
 @test "validate-pack returns 3 for pack without license" {
     skip_if_not_implemented
 
-    local pack_dir="$LOA_REGISTRY_DIR/packs/no-license-pack"
+    local pack_dir="$LOA_CONSTRUCTS_DIR/packs/no-license-pack"
     mkdir -p "$pack_dir/skills/skill-1"
     cat > "$pack_dir/manifest.json" << EOF
 {
@@ -226,7 +226,7 @@ EOF
 @test "validate-pack returns error for missing manifest" {
     skip_if_not_implemented
 
-    local pack_dir="$LOA_REGISTRY_DIR/packs/no-manifest"
+    local pack_dir="$LOA_CONSTRUCTS_DIR/packs/no-manifest"
     mkdir -p "$pack_dir"
     cp "$FIXTURES_DIR/valid_license.json" "$pack_dir/.license.json"
 
@@ -341,7 +341,7 @@ EOF
     [[ "$status" -eq 0 ]]
 
     # Check meta file was created
-    [[ -f "$LOA_REGISTRY_DIR/.registry-meta.json" ]]
+    [[ -f "$LOA_CONSTRUCTS_DIR/.registry-meta.json" ]]
 }
 
 @test "registry-meta tracks installed skills" {
@@ -354,9 +354,9 @@ EOF
     [[ "$status" -eq 0 ]]
 
     # Check skill is tracked in meta
-    [[ -f "$LOA_REGISTRY_DIR/.registry-meta.json" ]]
+    [[ -f "$LOA_CONSTRUCTS_DIR/.registry-meta.json" ]]
     local meta_content
-    meta_content=$(cat "$LOA_REGISTRY_DIR/.registry-meta.json")
+    meta_content=$(cat "$LOA_CONSTRUCTS_DIR/.registry-meta.json")
     [[ "$meta_content" == *"tracked-skill"* ]] || [[ "$meta_content" == *"installed_skills"* ]]
 }
 
@@ -370,9 +370,9 @@ EOF
     [[ "$status" -eq 0 ]]
 
     # Check pack is tracked in meta
-    [[ -f "$LOA_REGISTRY_DIR/.registry-meta.json" ]]
+    [[ -f "$LOA_CONSTRUCTS_DIR/.registry-meta.json" ]]
     local meta_content
-    meta_content=$(cat "$LOA_REGISTRY_DIR/.registry-meta.json")
+    meta_content=$(cat "$LOA_CONSTRUCTS_DIR/.registry-meta.json")
     [[ "$meta_content" == *"tracked-pack"* ]] || [[ "$meta_content" == *"installed_packs"* ]]
 }
 
@@ -386,9 +386,9 @@ EOF
     [[ "$status" -eq 0 ]]
 
     # Check from_pack field
-    [[ -f "$LOA_REGISTRY_DIR/.registry-meta.json" ]]
+    [[ -f "$LOA_CONSTRUCTS_DIR/.registry-meta.json" ]]
     local meta_content
-    meta_content=$(cat "$LOA_REGISTRY_DIR/.registry-meta.json")
+    meta_content=$(cat "$LOA_CONSTRUCTS_DIR/.registry-meta.json")
     [[ "$meta_content" == *"from_pack"* ]] || [[ "$meta_content" == *"source-pack"* ]]
 }
 
@@ -401,9 +401,9 @@ EOF
     run "$LOADER" validate "$skill_dir"
     [[ "$status" -eq 0 ]]
 
-    [[ -f "$LOA_REGISTRY_DIR/.registry-meta.json" ]]
+    [[ -f "$LOA_CONSTRUCTS_DIR/.registry-meta.json" ]]
     local meta_content
-    meta_content=$(cat "$LOA_REGISTRY_DIR/.registry-meta.json")
+    meta_content=$(cat "$LOA_CONSTRUCTS_DIR/.registry-meta.json")
     [[ "$meta_content" == *"schema_version"* ]]
     [[ "$meta_content" == *"1"* ]]
 }
@@ -446,10 +446,10 @@ EOF
 @test "preload blocks reserved skill names" {
     skip_if_not_implemented
 
-    mkdir -p "$LOA_REGISTRY_DIR/skills/test-vendor/implementing-tasks"
-    cp "$FIXTURES_DIR/valid_license.json" "$LOA_REGISTRY_DIR/skills/test-vendor/implementing-tasks/.license.json"
+    mkdir -p "$LOA_CONSTRUCTS_DIR/skills/test-vendor/implementing-tasks"
+    cp "$FIXTURES_DIR/valid_license.json" "$LOA_CONSTRUCTS_DIR/skills/test-vendor/implementing-tasks/.license.json"
 
-    run "$LOADER" preload "$LOA_REGISTRY_DIR/skills/test-vendor/implementing-tasks"
+    run "$LOADER" preload "$LOA_CONSTRUCTS_DIR/skills/test-vendor/implementing-tasks"
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"reserved"* ]] || [[ "$output" == *"conflict"* ]]
 }
@@ -472,7 +472,7 @@ EOF
 @test "handles pack with no skills gracefully" {
     skip_if_not_implemented
 
-    local pack_dir="$LOA_REGISTRY_DIR/packs/empty-pack"
+    local pack_dir="$LOA_CONSTRUCTS_DIR/packs/empty-pack"
     mkdir -p "$pack_dir"
     cp "$FIXTURES_DIR/valid_license.json" "$pack_dir/.license.json"
     cat > "$pack_dir/manifest.json" << EOF
@@ -492,7 +492,7 @@ EOF
 @test "handles malformed manifest.json gracefully" {
     skip_if_not_implemented
 
-    local pack_dir="$LOA_REGISTRY_DIR/packs/bad-manifest"
+    local pack_dir="$LOA_CONSTRUCTS_DIR/packs/bad-manifest"
     mkdir -p "$pack_dir"
     cp "$FIXTURES_DIR/valid_license.json" "$pack_dir/.license.json"
     echo "{ invalid json" > "$pack_dir/manifest.json"

@@ -27,8 +27,17 @@ _ELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _ELF_PUBKEY="$_ELF_DIR/mock_public_key.pem"
 _ELF_GEN="$_ELF_DIR/generate_test_licenses.py"
 
-# Fast path: fixtures already present.
-if [[ -s "$_ELF_PUBKEY" ]]; then
+# Fast path: ALL fixtures already present. The license JSONs and pubkey are
+# paired (signed by the same keypair) so we re-run the generator if any are
+# missing. Just checking the pubkey was insufficient: if a user deletes a
+# license JSON (or after `git clean` since they're gitignored), the pubkey
+# may still exist but the licenses won't, leaving downstream tests broken.
+_ELF_ALL_PRESENT=true
+for _lic in valid_license.json grace_period_license.json expired_license.json \
+            invalid_signature_license.json team_license.json enterprise_license.json; do
+    [[ -s "$_ELF_DIR/$_lic" ]] || { _ELF_ALL_PRESENT=false; break; }
+done
+if [[ -s "$_ELF_PUBKEY" && "$_ELF_ALL_PRESENT" == "true" ]]; then
     return 0 2>/dev/null || exit 0
 fi
 

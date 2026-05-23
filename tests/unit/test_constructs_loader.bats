@@ -28,9 +28,9 @@ setup() {
     mkdir -p "$TEST_TMPDIR"
 
     # Override registry directory for testing
-    export LOA_REGISTRY_DIR="$TEST_TMPDIR/registry"
-    mkdir -p "$LOA_REGISTRY_DIR/skills"
-    mkdir -p "$LOA_REGISTRY_DIR/packs"
+    export LOA_CONSTRUCTS_DIR="$TEST_TMPDIR/registry"
+    mkdir -p "$LOA_CONSTRUCTS_DIR/skills"
+    mkdir -p "$LOA_CONSTRUCTS_DIR/packs"
 
     # Override cache directory for testing
     export LOA_CACHE_DIR="$TEST_TMPDIR/cache"
@@ -82,7 +82,7 @@ create_test_skill() {
     local skill_name="$2"
     local license_file="$3"  # Path to fixture license file
 
-    local skill_dir="$LOA_REGISTRY_DIR/skills/$vendor/$skill_name"
+    local skill_dir="$LOA_CONSTRUCTS_DIR/skills/$vendor/$skill_name"
     mkdir -p "$skill_dir"
 
     # Copy license file
@@ -173,7 +173,7 @@ EOF
     skip_if_not_implemented
 
     # Create skill without license file
-    local skill_dir="$LOA_REGISTRY_DIR/skills/test-vendor/no-license-skill"
+    local skill_dir="$LOA_CONSTRUCTS_DIR/skills/test-vendor/no-license-skill"
     mkdir -p "$skill_dir"
     cat > "$skill_dir/index.yaml" << EOF
 name: no-license-skill
@@ -191,8 +191,8 @@ EOF
     skip_if_not_implemented
 
     # Create a reserved name skill (should be filtered)
-    mkdir -p "$LOA_REGISTRY_DIR/skills/test-vendor/implementing-tasks"
-    cat > "$LOA_REGISTRY_DIR/skills/test-vendor/implementing-tasks/index.yaml" << EOF
+    mkdir -p "$LOA_CONSTRUCTS_DIR/skills/test-vendor/implementing-tasks"
+    cat > "$LOA_CONSTRUCTS_DIR/skills/test-vendor/implementing-tasks/index.yaml" << EOF
 name: implementing-tasks
 version: "1.0.0"
 EOF
@@ -272,8 +272,8 @@ EOF
     create_test_skill "test-vendor" "valid-skill" "$FIXTURES_DIR/valid_license.json"
 
     # Create skill without license
-    mkdir -p "$LOA_REGISTRY_DIR/skills/test-vendor/no-license"
-    cat > "$LOA_REGISTRY_DIR/skills/test-vendor/no-license/index.yaml" << EOF
+    mkdir -p "$LOA_CONSTRUCTS_DIR/skills/test-vendor/no-license"
+    cat > "$LOA_CONSTRUCTS_DIR/skills/test-vendor/no-license/index.yaml" << EOF
 name: no-license
 version: "1.0.0"
 EOF
@@ -288,8 +288,8 @@ EOF
     skip_if_not_implemented
 
     # Create reserved name skill with valid license
-    mkdir -p "$LOA_REGISTRY_DIR/skills/test-vendor/implementing-tasks"
-    cp "$FIXTURES_DIR/valid_license.json" "$LOA_REGISTRY_DIR/skills/test-vendor/implementing-tasks/.license.json"
+    mkdir -p "$LOA_CONSTRUCTS_DIR/skills/test-vendor/implementing-tasks"
+    cp "$FIXTURES_DIR/valid_license.json" "$LOA_CONSTRUCTS_DIR/skills/test-vendor/implementing-tasks/.license.json"
 
     # Create valid non-reserved skill
     create_test_skill "test-vendor" "my-skill" "$FIXTURES_DIR/valid_license.json"
@@ -353,7 +353,7 @@ EOF
     skip_if_not_implemented
 
     # Create skill without license
-    local skill_dir="$LOA_REGISTRY_DIR/skills/test-vendor/no-license"
+    local skill_dir="$LOA_CONSTRUCTS_DIR/skills/test-vendor/no-license"
     mkdir -p "$skill_dir"
 
     run "$LOADER" validate "$skill_dir"
@@ -415,7 +415,7 @@ EOF
 @test "handles missing registry directory gracefully" {
     skip_if_not_implemented
 
-    rm -rf "$LOA_REGISTRY_DIR"
+    rm -rf "$LOA_CONSTRUCTS_DIR"
 
     run "$LOADER" list
     [[ "$status" -eq 0 ]]
