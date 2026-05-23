@@ -292,7 +292,10 @@ app/ecosystem.config.js
 grimoires/loa/cycles/
 grimoires/loa/NOTES.md
 grimoires/loa/handoffs/
-grimoires/loa/a2a/
+# #953 batch-3: `grimoires/loa/a2a/` (with trailing slash) was duplicated here
+# but conflicts with the line ~183 `grimoires/loa/a2a/*` pattern that supports
+# `!` exceptions. Removed the duplicate; line ~183 already handles a2a/ correctly
+# and the `!.../subagent-reports/.gitkeep` exception there now works.
 grimoires/loa/visions/
 grimoires/loa/memory/
 grimoires/loa/legacy/

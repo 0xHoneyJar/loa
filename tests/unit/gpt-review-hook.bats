@@ -50,7 +50,7 @@ setup() {
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$TEST_DIR/.loa.config.yaml"
     cd "$TEST_DIR"
 
-    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"src/test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
     [[ "$status" -eq 0 ]]
     echo "$output" | jq empty
 }
@@ -59,7 +59,7 @@ setup() {
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$TEST_DIR/.loa.config.yaml"
     cd "$TEST_DIR"
 
-    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"src/test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
     [[ "$status" -eq 0 ]]
     echo "$output" | jq -e '.hookSpecificOutput' > /dev/null
 }
@@ -68,7 +68,7 @@ setup() {
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$TEST_DIR/.loa.config.yaml"
     cd "$TEST_DIR"
 
-    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"src/test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
     [[ "$status" -eq 0 ]]
     echo "$output" | jq -e '.hookSpecificOutput.additionalContext' > /dev/null
 }
@@ -77,7 +77,7 @@ setup() {
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$TEST_DIR/.loa.config.yaml"
     cd "$TEST_DIR"
 
-    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"src/test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
     [[ "$status" -eq 0 ]]
     local context
     context=$(echo "$output" | jq -r '.hookSpecificOutput.additionalContext')
@@ -88,7 +88,7 @@ setup() {
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$TEST_DIR/.loa.config.yaml"
     cd "$TEST_DIR"
 
-    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"src/test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
     [[ "$status" -eq 0 ]]
     local context
     context=$(echo "$output" | jq -r '.hookSpecificOutput.additionalContext')
@@ -110,7 +110,7 @@ setup() {
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$TEST_DIR/.loa.config.yaml"
     cd "$TEST_DIR"
 
-    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"src/test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
     [[ "$status" -eq 0 ]]
     local context
     context=$(echo "$output" | jq -r '.hookSpecificOutput.additionalContext')
@@ -123,7 +123,7 @@ setup() {
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$TEST_DIR/.loa.config.yaml"
     cd "$TEST_DIR"
 
-    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"src/test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
     [[ "$status" -eq 0 ]]
     local context
     context=$(echo "$output" | jq -r '.hookSpecificOutput.additionalContext')
@@ -138,7 +138,7 @@ setup() {
     cp "$FIXTURES_DIR/configs/disabled.yaml" "$TEST_DIR/.loa.config.yaml"
     cd "$TEST_DIR"
 
-    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"src/test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
     [[ "$status" -eq 0 ]]
     [[ -z "$output" ]]
 }
@@ -146,7 +146,7 @@ setup() {
 @test "no output when config file missing" {
     cd "$TEST_DIR"
 
-    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"src/test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
     [[ "$status" -eq 0 ]]
     [[ -z "$output" ]]
 }
@@ -167,7 +167,7 @@ setup() {
     cp "$FIXTURES_DIR/configs/enabled.yaml" "$TEST_DIR/.loa.config.yaml"
     cd "$TEST_DIR"
 
-    run timeout 5 bash -c 'echo "{\"tool_input\":{\"file_path\":\"test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
+    run timeout 5 bash -c 'echo "{\"tool_input\":{\"file_path\":\"src/test.ts\"}}" | .claude/scripts/gpt-review-hook.sh'
     [[ "$status" -eq 0 ]]
 }
 
@@ -177,6 +177,9 @@ setup() {
 
     run bash -c 'echo "{\"tool_input\":{}}" | .claude/scripts/gpt-review-hook.sh'
     [[ "$status" -eq 0 ]]
-    # Should still output (with "a file" as fallback)
-    echo "$output" | jq -e '.hookSpecificOutput' > /dev/null
+    # Per #711 resolution: conservative default — when classification is
+    # ambiguous (empty file_path, malformed input), SKIP rather than fire.
+    # The hook should exit 0 with NO output, not fall back to "a file".
+    # Old behavior (output with fallback string) was the #711 bug.
+    [[ -z "$output" ]]
 }

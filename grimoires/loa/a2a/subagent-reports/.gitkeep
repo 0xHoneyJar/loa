@@ -1,0 +1,5 @@
+# Subagent reports landing zone.
+# Subagent invocations (architecture-validator, security-scanner,
+# test-adequacy-reviewer, goal-validation) write reports here.
+# This .gitkeep is tracked so a fresh checkout has the directory
+# the loaders expect (tests/unit/subagent-reports.bats:235).
