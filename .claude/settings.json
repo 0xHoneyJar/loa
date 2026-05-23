@@ -584,6 +584,15 @@
             "command": ".claude/hooks/audit/write-mutation-logger.sh"
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/quality/karpathy-surgical-diff-check.sh"
+          }
+        ]
       }
     ],
     "Stop": [

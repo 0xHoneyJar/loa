@@ -481,6 +481,68 @@ Before implementing:
 - Reference test file paths and coverage metrics
 </citation_requirements>
 
+<karpathy_goal_driven_gate>
+## Goal-Driven Gate (Karpathy principle 4 — applies before any tool call)
+
+Karpathy principle 4 (Goal-Driven Execution) requires testable verification
+before implementation. Tasks without written success criteria invite scope
+drift and unverifiable completion claims. This gate enforces the principle at
+the /implement entry point.
+
+### When the gate fires
+
+Before Phase -2 (Beads-First Integration) runs:
+
+1. Read `grimoires/loa/sprint.md`
+2. Check for a section heading matching one of:
+   - "Success criteria" (case-insensitive)
+   - "Acceptance criteria" (case-insensitive)
+   - "Verification" (case-insensitive)
+3. Section body MUST be non-empty (a heading with no follow-up content fails the check)
+4. Read config: `yq eval '.karpathy_principles.require_success_criteria // true' .loa.config.yaml`
+
+### Gate decision
+
+| Section present | Config `require_success_criteria` | Action |
+|---|---|---|
+| Yes | any | Proceed to Phase -2 normally |
+| No  | `false` | Proceed (operator opted out) — log to trajectory: `{"phase":"karpathy_check","principle":"goal_driven","verdict":"skipped_by_config",...}` |
+| No  | `true` (default) | **AskUserQuestion** before any tool call |
+
+### AskUserQuestion shape
+
+When the gate fires, present these 3 options:
+
+| Option | Effect |
+|---|---|
+| **Provide criteria now** | Operator dictates the criteria; agent appends a "Success Criteria" section to sprint.md, then proceeds |
+| **Skip with rationale** | Operator provides a 1-line rationale; agent logs to trajectory and proceeds |
+| **Abort** | Exit cleanly (no tool calls); operator can re-invoke /implement after updating sprint.md |
+
+### Trajectory log
+
+Every gate decision emits a single event to `grimoires/loa/a2a/trajectory/karpathy-{date}.jsonl`:
+
+```jsonl
+{"phase":"karpathy_check","principle":"goal_driven","verdict":"passed|skipped_by_config|skipped_by_operator|aborted","timestamp":"...","sprint_path":"..."}
+```
+
+The schema at `.claude/data/trajectory-schemas/karpathy-check.payload.schema.json`
+permits `principle: goal_driven` alongside the `surgical_changes` events from
+the K-1 hook.
+
+### Why this is a hard precondition
+
+This gate is intentionally NOT a "remind once and proceed" check — it's a
+precondition. Even autonomous /run cycles MUST satisfy it, either via
+config-driven opt-out (`require_success_criteria: false` for trusted batch
+runs) or via per-invocation skip with rationale. The rationale itself is the
+audit trail.
+
+See: #961 K-3 / FR-4, PR #960 (companion: inline Karpathy in CLAUDE.loa.md),
+`.claude/protocols/karpathy-principles.md` (full protocol doc).
+</karpathy_goal_driven_gate>
+
 <workflow>
 ## Phase -2: Beads-First Integration (v1.29.0)
 
