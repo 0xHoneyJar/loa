@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "karpathy-check.payload.schema.json",
+  "title": "Karpathy principles check event",
+  "description": "Trajectory event emitted by .claude/hooks/quality/karpathy-surgical-diff-check.sh when a session's diff-size threshold is exceeded. See #961 + grimoires/loa/sdd.md §4.3 for the producer contract.",
+  "type": "object",
+  "required": ["phase", "principle", "verdict", "timestamp"],
+  "additionalProperties": false,
+  "properties": {
+    "phase": {
+      "description": "Constant marker for filtering across trajectory streams.",
+      "const": "karpathy_check"
+    },
+    "principle": {
+      "description": "Which Karpathy principle the event relates to. v1 only emits 'surgical_changes' from the diff-size hook; the other values are reserved for v2/v3 consumers.",
+      "enum": ["think_before_coding", "simplicity_first", "surgical_changes", "goal_driven"]
+    },
+    "verdict": {
+      "description": "What the check concluded. 'under' = below threshold (currently never emitted; reserved for v2 observability); 'warn' = threshold exceeded, advisory only; 'block' = threshold exceeded and BLOCK mode active (reserved for v2 — v1 never emits this).",
+      "enum": ["under", "warn", "block"]
+    },
+    "timestamp": {
+      "description": "ISO 8601 UTC timestamp of the event.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "files_modified": {
+      "description": "Count of unique file paths touched in the session up to this event.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "lines_total": {
+      "description": "Cumulative lines-changed across the session.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "threshold": {
+      "description": "The diff_lines_per_task threshold that was exceeded.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "tool_call_count": {
+      "description": "Number of Write/Edit/NotebookEdit tool calls in the session up to this event.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "session_id": {
+      "description": "Opaque session identifier — sourced from LOA_SESSION_ID env var or computed from user+date.",
+      "type": "string"
+    }
+  }
+}

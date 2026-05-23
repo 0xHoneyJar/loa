@@ -2642,3 +2642,47 @@ qmd_context:
 #   # tools/modelinv-rollup.sh --per-skill-daily-quota alerts when a single
 #   # skill exceeds this on any 24-hour window.
 #   daily_token_budget_default: 500000
+
+# =============================================================================
+# Karpathy Principles (#961 enforcement v1)
+# =============================================================================
+# Mechanical reinforcement of the 4 Karpathy principles documented inline in
+# .claude/loa/CLAUDE.loa.md (post-PR #960) and detailed in
+# .claude/protocols/karpathy-principles.md.
+#
+# v1 ships:
+#   - Surgical-Changes diff-size hook (warn-by-default, opt-in BLOCK reserved for v2)
+#   - Goal-Driven success-criteria gate in /implement
+#   - Trajectory logging at grimoires/loa/a2a/trajectory/karpathy-*.jsonl
+karpathy_principles:
+  # Advisory — used by skills' Think-Before-Coding internal checks. No hook
+  # consumer in v1; reserved for v2 when surface-assumption analysis lands.
+  surface_assumptions: true
+
+  # G-1 — master switch for the PostToolUse:Write|Edit surgical-diff hook
+  # at .claude/hooks/quality/karpathy-surgical-diff-check.sh. When false,
+  # the hook fast-paths to exit 0 in <10ms.
+  surgical_diff_warning: true
+
+  # G-1 — per-session diff-lines threshold. When the session accumulator
+  # exceeds this, the hook emits a [karpathy-surgical-warn] stderr line
+  # and writes a trajectory event. Raised from the original protocol-doc
+  # sketch of 50 because 50 was empirically too tight for bug-fix sprints
+  # that legitimately touch 60-80 lines (test file + production diff).
+  diff_lines_per_task: 100
+
+  # Reserved for v2 — no v1 consumer. Cyclomatic complexity check.
+  simplicity_check: true
+
+  # Reserved for v2 — no v1 consumer. AST-level abstraction-depth analysis.
+  max_abstraction_depth: 2
+
+  # G-3 — when true, /implement refuses to write code if sprint.md lacks a
+  # "Success criteria" / "Acceptance criteria" / "Verification" section.
+  # Operator can [Skip with rationale] to override per-invocation.
+  require_success_criteria: true
+
+  # warn | block. v1 honors only "warn" — block-mode is reserved for v2 to
+  # avoid surprise breaking changes during initial rollout. Even with
+  # `enforce: block` set, the v1 hook returns 0 (informational only).
+  enforce: warn
