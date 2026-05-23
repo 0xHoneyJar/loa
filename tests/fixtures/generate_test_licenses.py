@@ -154,9 +154,20 @@ def create_license_file(
 
 
 def main():
-    # Use ephemeral generated key (cycle-028 FR-1 — no more static PEM files)
-    private_key_pem, _ = generate_test_keypair()
+    # Use ephemeral generated key (cycle-028 FR-1 — no more static PEM files).
+    # #953 follow-up: ALSO persist the matching public key so bats tests can
+    # verify the signed license fixtures produced below. The .pem file remains
+    # gitignored (per cycle-028 sprint-19 .gitignore patterns); it's generated
+    # on-demand by tests/fixtures/ensure_license_fixtures.sh.
+    private_key_pem, public_key_pem = generate_test_keypair()
     private_key_path = None  # Not used when HAS_CRYPTO=True
+
+    # Write the public key alongside the license fixtures so test setup() can
+    # `cp` it without regenerating the keypair (which would produce a different
+    # keypair than the one that just signed the licenses).
+    with open(FIXTURES_DIR / "mock_public_key.pem", 'wb') as f:
+        f.write(public_key_pem)
+    print("Created: mock_public_key.pem (paired with the keypair signing the licenses below)")
 
     now = datetime.utcnow()
 
