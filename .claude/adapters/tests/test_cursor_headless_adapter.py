@@ -203,9 +203,26 @@ class TestErrorClassification:
             with pytest.raises(ConfigError):
                 _adapter().complete(_req())
 
-    def test_is_error_true_raises(self):
+    def test_is_error_true_generic_raises_unavailable(self):
+        # is_error with no recognized token → generic ProviderUnavailableError.
         with patch(_POPEN, return_value=_popen('{"type":"result","is_error":true,"result":"boom"}')):
             with pytest.raises(ProviderUnavailableError):
+                _adapter().complete(_req())
+
+    def test_is_error_with_result_resource_exhausted_is_ratelimit(self):
+        # CURSOR-001: on is_error, the diagnostic lives in `result` (cursor's own
+        # message) and MUST be classified — not stripped as if it were untrusted output.
+        env = '{"type":"result","is_error":true,"result":"ConnectError: [resource_exhausted]"}'
+        with patch(_POPEN, return_value=_popen(env)):
+            with pytest.raises(RateLimitError):
+                _adapter().complete(_req())
+
+    def test_is_error_with_result_unauthorized_is_configerror(self):
+        # CURSOR-001 (auth half): an auth failure delivered via the error envelope
+        # must classify as ConfigError, not collapse into a retryable generic outage.
+        env = '{"type":"result","is_error":true,"result":"unauthorized — please log in"}'
+        with patch(_POPEN, return_value=_popen(env)):
+            with pytest.raises(ConfigError):
                 _adapter().complete(_req())
 
     def test_generic_nonzero_is_unavailable(self):

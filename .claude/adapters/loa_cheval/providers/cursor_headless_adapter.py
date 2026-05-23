@@ -64,7 +64,10 @@ logger = logging.getLogger("loa_cheval.providers.cursor_headless")
 # cursor-agent CLI binary name (override via CURSOR_HEADLESS_BIN for testing)
 _CURSOR_BIN_DEFAULT = "cursor-agent"
 
-# Conservative subprocess wall-clock floors. ProviderConfig.read_timeout wins when set.
+# Conservative subprocess wall-clock floors. The effective timeout is connect+read,
+# each clamped UP to its floor — a configured value BELOW the floor does NOT lower it
+# (the floor wins; this protects agent sessions from being killed mid-reasoning).
+# (BB CURSOR-007: comment now matches _compute_timeout's actual max()-with-floor behavior.)
 _CONNECT_TIMEOUT_FLOOR = 10.0
 _READ_TIMEOUT_FLOOR = 600.0  # 10 min — agent sessions can be slow
 
@@ -147,6 +150,13 @@ class CursorHeadlessAdapter(ProviderAdapter):
                 f"cursor-agent CLI not found on PATH (set CURSOR_HEADLESS_BIN to "
                 f"override). Install Cursor + run `cursor-agent login`. Original: {exc}"
             ) from exc
+        except OSError as exc:
+            # PermissionError / ENOMEM / "Exec format error" etc. — Popen never
+            # started, so clean up the workspace it would otherwise leak. (BB CURSOR-004)
+            shutil.rmtree(workspace, ignore_errors=True)
+            raise ProviderUnavailableError(
+                self.provider, f"failed to spawn cursor-agent: {type(exc).__name__}: {exc}"
+            ) from exc
 
         try:
             stdout, stderr = proc.communicate(timeout=timeout_s)
@@ -155,7 +165,17 @@ class CursorHeadlessAdapter(ProviderAdapter):
                 os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
             except (ProcessLookupError, PermissionError):
                 pass
-            proc.communicate()  # reap the killed tree
+            # Bound the reap — if killpg failed (PermissionError) the tree may be
+            # alive and an unbounded communicate() would block forever, re-creating
+            # the host-DoS hang the process-group design exists to prevent. (BB CURSOR-005)
+            try:
+                proc.communicate(timeout=10)
+            except subprocess.TimeoutExpired:
+                proc.kill()  # last resort: SIGKILL the direct child
+                try:
+                    proc.communicate(timeout=5)
+                except subprocess.TimeoutExpired:
+                    pass  # abandon the reap rather than block the caller forever
             raise ProviderUnavailableError(
                 self.provider,
                 f"cursor-agent timed out after {timeout_s:.0f}s",
@@ -327,6 +347,11 @@ class CursorHeadlessAdapter(ProviderAdapter):
         )
 
         if not content:
+            # Empty-as-success deliberately matches the codex/gemini headless adapters
+            # (warn + return, NOT raise) — consistency with the peer contract over
+            # divergence. (BB CURSOR-003: finding accepted, suggested EmptyContent raise
+            # rejected with evidence — neither codex_headless nor gemini_headless raises;
+            # they warn + return empty. Diverging here would make this adapter the odd one.)
             logger.warning(
                 "cursor-headless: empty result from cursor-agent (model=%s)",
                 requested_model,
@@ -351,14 +376,22 @@ class CursorHeadlessAdapter(ProviderAdapter):
     def _transport_probe_text(self, stdout: str, stderr: str) -> str:
         """Text safe for transport-error substring heuristics.
 
-        CRITICAL: on a successful JSON envelope the model's answer lives in
-        `result` — and this adapter REVIEWS untrusted diffs, which routinely quote
-        `401 unauthorized`, `429`, `rate limit`, `resource_exhausted`. Scanning
-        `result` would misclassify a successful review as a transport failure (and
-        let an attacker silence this voice by embedding those tokens in a diff). So
-        we strip `result` from the envelope before matching, scanning only the
-        envelope metadata + stderr. Non-JSON output (a raw transport dump) is
-        scanned in full — that is where genuine zero-exit transport errors appear.
+        The `result` field carries TWO different trust levels depending on the
+        sibling `is_error` flag, so the trust decision MUST branch on that flag
+        (BB CURSOR-001 — a field-name-keyed rule is eventually wrong):
+
+        - is_error == false (success): `result` is the model's answer — untrusted
+          reviewed content. This adapter REVIEWS untrusted diffs, which routinely
+          quote `401 unauthorized` / `429` / `resource_exhausted`; scanning it would
+          misclassify a successful review as a transport failure and let an attacker
+          silence this voice by embedding those tokens. EXCLUDE it.
+        - is_error == true: `result` is cursor's OWN diagnostic (the actual
+          `resource_exhausted` / `unauthorized` message). EXCLUDING it here blinds
+          the classifier exactly when classification matters — collapsing a
+          non-retryable auth failure into a retryable generic outage. INCLUDE it.
+
+        Non-JSON output (a raw transport dump) is scanned in full — that is where
+        genuine zero-exit transport errors appear.
         """
         trimmed = (stdout or "").strip()
         if trimmed.startswith("{"):
@@ -368,6 +401,8 @@ class CursorHeadlessAdapter(ProviderAdapter):
                 return f"{stdout}\n{stderr}"
             if isinstance(envelope, dict):
                 meta = {k: v for k, v in envelope.items() if k != "result"}
+                if envelope.get("is_error"):
+                    return f"{json.dumps(meta)}\n{envelope.get('result', '')}\n{stderr}"
                 return f"{json.dumps(meta)}\n{stderr}"
         return f"{stdout}\n{stderr}"
 
