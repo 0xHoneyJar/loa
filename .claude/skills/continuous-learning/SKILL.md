@@ -1,10 +1,7 @@
 ---
 name: continuous-learning
-description: |
+description: "Autonomous skill extraction from debugging discoveries. Activates when agents find non-obvious solutions through investigation, experimentation, or trial-and-error. Captures these discoveries as reusable skills for future sessions."
 role: implementation
-  Autonomous skill extraction from debugging discoveries. Activates when agents
-  find non-obvious solutions through investigation, experimentation, or trial-and-error.
-  Captures these discoveries as reusable skills for future sessions.
 capabilities:
   schema_version: 1
   read_files: true

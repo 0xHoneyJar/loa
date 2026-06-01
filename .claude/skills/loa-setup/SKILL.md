@@ -18,7 +18,7 @@ capabilities:
   user_interaction: true
   agent_spawn: false
   task_management: false
-cost-profile: minimal
+cost-profile: lightweight
 ---
 
 # /loa setup — Onboarding Wizard
