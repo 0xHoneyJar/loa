@@ -48,7 +48,12 @@ classify_pr_type() {
         return 0
     fi
 
-    if echo "$title" | grep -qE '\bcycle-[0-9]+\b'; then
+    # cycle-114 #971: case-INSENSITIVE so a capitalized token like "Cycle-114:"
+    # classifies as cycle (PR #970 merge subject was misrouted to "other" by the
+    # prior case-sensitive match, skipping the post-merge Full Pipeline). The
+    # \b word-boundary + [0-9]+ anchors are preserved, so "Precycle-082" and
+    # "Cycle-abc" still classify as "other".
+    if echo "$title" | grep -qiE '\bcycle-[0-9]+\b'; then
         echo "cycle"
         return 0
     fi

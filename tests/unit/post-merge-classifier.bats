@@ -67,6 +67,24 @@ setup() {
 }
 
 # =========================================================================
+# PCT-T-CASE: capitalized cycle-NNN token (#971 regression — PR #970 misroute)
+# The merge subject "Cycle-114: ..." (capital C) was classified 'other' because
+# rule #2 used case-sensitive grep, so the post-merge Full Pipeline was skipped.
+# =========================================================================
+
+@test "Cycle-114: capitalized leading token → cycle (#971 / PR #970)" {
+    run "$CLASSIFIER" --title "Cycle-114: Harness Modernization for Opus 4.8 (#970)"
+    [ "$status" -eq 0 ]
+    [ "$output" = "cycle" ]
+}
+
+@test "mid-title uppercase CYCLE-099 → cycle (#971 triangulation)" {
+    run "$CLASSIFIER" --title "Some CYCLE-099 work in progress"
+    [ "$status" -eq 0 ]
+    [ "$output" = "cycle" ]
+}
+
+# =========================================================================
 # PCT-T11..PCT-T13: anti-false-positive (the bug's mirror image)
 # =========================================================================
 
