@@ -1318,7 +1318,7 @@
       "id": "cycle-112-empirical-model-economy",
       "label": "Empirical Model Economy (Phase A) — roll-up + workload tier map seed",
       "type": "feature",
-      "status": "in-progress",
+      "status": "archived",
       "source_issue": "https://github.com/0xHoneyJar/loa/issues/925",
       "created_at": "2026-05-17T06:06:23Z",
       "sprints": [
@@ -1331,8 +1331,9 @@
           "fr": "FR-1, FR-2",
           "scope": "LARGE",
           "task_count": 8,
-          "status": "planned",
-          "created": "2026-05-17T06:30:00Z"
+          "status": "completed",
+          "created": "2026-05-17T06:30:00Z",
+          "completed": "2026-06-01T06:23:24Z"
         },
         {
           "id": "sprint-167",
@@ -1343,14 +1344,17 @@
           "fr": "FR-3, FR-4, FR-5",
           "scope": "LARGE",
           "task_count": 7,
-          "status": "planned",
-          "created": "2026-05-17T06:30:00Z"
+          "status": "completed",
+          "created": "2026-05-17T06:30:00Z",
+          "completed": "2026-06-01T06:23:24Z"
         }
       ],
       "prd": "grimoires/loa/cycles/cycle-112-empirical-model-economy/prd.md",
       "phase": "A of 3 (Activate → Codify → Optimize)",
       "sdd": "grimoires/loa/cycles/cycle-112-empirical-model-economy/sdd.md",
-      "sprint_plan": "grimoires/loa/cycles/cycle-112-empirical-model-economy/sprint.md"
+      "sprint_plan": "grimoires/loa/cycles/cycle-112-empirical-model-economy/sprint.md",
+      "archived": "2026-06-01T06:23:24Z",
+      "archive_path": "grimoires/loa/archive/2026-05-17-cycle-112-empirical-model-economy"
     },
     {
       "id": "cycle-113-streaming-recovery-completion",
