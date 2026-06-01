@@ -51,6 +51,9 @@ SKIP_SKILLS=("flatline-reviewer" "flatline-scorer" "flatline-skeptic" "gpt-revie
 # --- Cycle-108 T1.D: role/primary_role validation constants ---
 # Valid role enum (PRD §5 FR-3, SDD §4.1)
 VALID_ROLES=("planning" "review" "implementation")
+# cycle-114 FR-3: valid values for the optional `effort:` frontmatter key
+# (maps to the Anthropic output_config.effort control on Opus 4.5+/Sonnet 4.6).
+VALID_EFFORTS=("low" "medium" "high" "xhigh" "max")
 
 # Review-class keywords for heuristic linter (SDD §20.5 ATK-A13)
 # Skills declaring role: review|audit MUST have >=2 of these in body
@@ -428,6 +431,27 @@ validate_skill() {
         wf=$(echo "$frontmatter" | yq eval '.capabilities.write_files' - 2>/dev/null) || wf="null"
         if [[ "$wf" == "true" ]]; then
             log_warning "$skill_name" "cost-profile: lightweight but capabilities.write_files: true (correlation mismatch)" || has_error=true
+        fi
+    fi
+
+    # --- cycle-114 FR-3: optional `effort:` validation ---
+    # effort is optional. When present it must be a valid level. A
+    # deep-reasoning (xhigh/max) effort paired with a lightweight cost-profile
+    # is a suspicious combination (cheap-tier skill asking for the deepest
+    # reasoning) → WARN, not ERROR.
+    local effort
+    effort=$(echo "$frontmatter" | yq eval '.effort // ""' - 2>/dev/null) || effort=""
+    if [[ -n "$effort" ]]; then
+        local effort_valid=false
+        local e
+        for e in "${VALID_EFFORTS[@]}"; do
+            [[ "$effort" == "$e" ]] && effort_valid=true && break
+        done
+        if [[ "$effort_valid" == "false" ]]; then
+            log_error "$skill_name" "Invalid effort '$effort' (must be one of: ${VALID_EFFORTS[*]}) — cycle-114 FR-3"
+            has_error=true
+        elif [[ "$cp" == "lightweight" && ( "$effort" == "xhigh" || "$effort" == "max" ) ]]; then
+            log_warning "$skill_name" "cost-profile: lightweight but effort: $effort (deep reasoning on a cheap-tier skill — correlation mismatch)" || has_error=true
         fi
     fi
 

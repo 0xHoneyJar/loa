@@ -2,6 +2,7 @@
 name: red-team
 description: "Red Team — Generative Adversarial Security Design"
 role: review
+effort: xhigh  # cycle-114 FR-3: adversarial generation — deepest reasoning
 capabilities:
   schema_version: 1
   read_files: true

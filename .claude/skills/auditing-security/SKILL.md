@@ -2,6 +2,7 @@
 name: audit
 description: Security and quality audit of application codebase
 role: review
+effort: high  # cycle-114 FR-3: deep-reasoning skill — override baseline /effort
 allowed-tools: Read, Grep, Glob, WebFetch, WebSearch
 capabilities:
   schema_version: 1

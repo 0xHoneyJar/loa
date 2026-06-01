@@ -483,3 +483,86 @@ cost-profile: moderate
     [[ "$output" == *"agent type 'Plan'"* ]]
     [[ "$output" == *"excludes Write/Edit"* ]]
 }
+
+# =========================================================================
+# cycle-114 FR-3: optional `effort:` frontmatter validation
+# =========================================================================
+
+@test "c114-FR3: valid effort: high passes" {
+    create_skill "effort-good" "---
+name: effort-good
+description: skill with valid effort
+role: review
+effort: high
+capabilities:
+  schema_version: 1
+  read_files: true
+  search_code: true
+  write_files: false
+  execute_commands: false
+  web_access: false
+  user_interaction: false
+  agent_spawn: false
+  task_management: false
+cost-profile: heavy
+---
+# Effort Good"
+
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill effort-good
+    [ "$status" -eq 0 ]
+}
+
+@test "c114-FR3: invalid effort value is ERROR" {
+    create_skill "effort-bad" "---
+name: effort-bad
+description: skill with bogus effort
+role: review
+effort: turbo
+capabilities:
+  schema_version: 1
+  read_files: true
+  search_code: true
+  write_files: false
+  execute_commands: false
+  web_access: false
+  user_interaction: false
+  agent_spawn: false
+  task_management: false
+cost-profile: heavy
+---
+# Effort Bad"
+
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill effort-bad
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid effort 'turbo'"* ]]
+}
+
+@test "c114-FR3: lightweight cost-profile + effort xhigh WARNs (not error)" {
+    create_skill "effort-mismatch" "---
+name: effort-mismatch
+description: cheap-tier skill asking for deepest reasoning
+role: review
+effort: xhigh
+capabilities:
+  schema_version: 1
+  read_files: true
+  search_code: true
+  write_files: false
+  execute_commands: false
+  web_access: false
+  user_interaction: false
+  agent_spawn: false
+  task_management: false
+cost-profile: lightweight
+---
+# Effort Mismatch"
+
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill effort-mismatch
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"effort: xhigh"* ]]
+}
+
+@test "c114-FR3: real red-team skill (effort: xhigh) validates clean" {
+    run "$VALIDATOR" --skill red-teaming
+    [ "$status" -eq 0 ]
+}

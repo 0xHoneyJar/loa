@@ -2,6 +2,7 @@
 name: bridgebuilder-review
 description: "Bridgebuilder — Autonomous PR Review"
 role: review
+effort: xhigh  # cycle-114 FR-3: multi-model deep review — deepest reasoning
 capabilities:
   schema_version: 1
   read_files: true
