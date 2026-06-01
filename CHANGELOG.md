@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.173.2] — 2026-06-01
+
 ## [1.173.0] — 2026-06-01 — Harness Modernization: Opus 4.8
 
 Cycle-114 (`/oracle` audit-driven). 9 framework improvements + 1 ADR, all additive/opt-in and test-first (55 new bats + 14 pytest). PR #970.
@@ -1144,6 +1146,8 @@ Full convergence trajectory: `grimoires/loa/a2a/trajectory/bridge-triage-2026-04
 - ATK-011: Blocks `unset LOA_TEAM_MEMBER` and `env -u` privilege escalation in Agent Teams
 
 ## [Unreleased]
+
+## [1.173.2] — 2026-06-01
 
 ## [1.94.0] — 2026-04-17
 
