@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-113-streaming-recovery-completion",
+  "active_cycle": "cycle-114-harness-modernization-opus-4.8",
   "cycles": [
     {
       "id": "cycle-036",
@@ -1355,7 +1355,7 @@
     {
       "id": "cycle-113-streaming-recovery-completion",
       "label": "Streaming-Recovery-Completion",
-      "status": "in-progress",
+      "status": "archived",
       "created_at": "2026-05-17T09:21:12Z",
       "prd": "grimoires/loa/cycles/cycle-113-streaming-recovery-completion/prd.md",
       "sdd": "grimoires/loa/cycles/cycle-113-streaming-recovery-completion/sdd.md",
@@ -1369,8 +1369,9 @@
           "fr": "FR-A-1, FR-A-2, FR-B-1, FR-B-5 (Anthropic slice), FR-B-4 (fixture scaffold)",
           "scope": "LARGE",
           "task_count": 9,
-          "status": "planned",
-          "created": "2026-05-17T09:21:12Z"
+          "status": "completed",
+          "created": "2026-05-17T09:21:12Z",
+          "completed": "2026-06-01T03:34:03Z"
         },
         {
           "id": "sprint-169",
@@ -1381,8 +1382,9 @@
           "fr": "FR-B-2, FR-B-3, FR-B-4, FR-B-5 (OpenAI+Google), FR-C-3",
           "scope": "LARGE",
           "task_count": 10,
-          "status": "planned",
-          "created": "2026-05-17T09:21:12Z"
+          "status": "completed",
+          "created": "2026-05-17T09:21:12Z",
+          "completed": "2026-06-01T03:34:03Z"
         },
         {
           "id": "sprint-170",
@@ -1393,10 +1395,13 @@
           "fr": "FR-C-1, FR-C-2, FR-C-4, FR-C-5, KF-002 + KF-011 footer updates",
           "scope": "LARGE",
           "task_count": 9,
-          "status": "planned",
-          "created": "2026-05-17T09:21:12Z"
+          "status": "completed",
+          "created": "2026-05-17T09:21:12Z",
+          "completed": "2026-06-01T03:34:03Z"
         }
-      ]
+      ],
+      "archived": "2026-06-01T03:35:08Z",
+      "archive_path": "grimoires/loa/archive/2026-06-01-cycle-113-streaming-recovery-completion"
     },
     {
       "id": "cycle-bug-20260520-i888-8a4363",
@@ -1426,6 +1431,52 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260520-i911-60baf5/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260520-i911-60baf5/sprint.md"
+    },
+    {
+      "id": "cycle-114-harness-modernization-opus-4.8",
+      "label": "Harness Modernization — Opus 4.8",
+      "status": "in-progress",
+      "created_at": "2026-06-01T03:34:03Z",
+      "prd": "grimoires/loa/cycles/cycle-114-harness-modernization-opus-4.8/prd.md",
+      "sdd": "grimoires/loa/cycles/cycle-114-harness-modernization-opus-4.8/sdd.md",
+      "sprints": [
+        {
+          "id": "sprint-177",
+          "local_id": "sprint-1",
+          "global_id": 177,
+          "cycle": "cycle-114-harness-modernization-opus-4.8",
+          "theme": "Model substrate — Opus 4.8 registry + effort threading + deep-reasoning effort frontmatter",
+          "fr": "FR-1, FR-2, FR-3",
+          "scope": "LARGE",
+          "task_count": 3,
+          "status": "planned",
+          "created": "2026-06-01T04:11:15Z"
+        },
+        {
+          "id": "sprint-178",
+          "local_id": "sprint-2",
+          "global_id": 178,
+          "cycle": "cycle-114-harness-modernization-opus-4.8",
+          "theme": "Gate & safety hardening — disallowed-tools + stop-guard bg-tasks + rm regex + egress doc",
+          "fr": "FR-4, FR-5, FR-6, FR-7",
+          "scope": "LARGE",
+          "task_count": 4,
+          "status": "planned",
+          "created": "2026-06-01T04:11:15Z"
+        },
+        {
+          "id": "sprint-179",
+          "local_id": "sprint-3",
+          "global_id": 179,
+          "cycle": "cycle-114-harness-modernization-opus-4.8",
+          "theme": "Economy, recovery UX & ADR — effort in MODELINV/tier_map + sessionTitle + native-Workflow ADR",
+          "fr": "FR-8, FR-9, FR-10",
+          "scope": "MEDIUM",
+          "task_count": 3,
+          "status": "planned",
+          "created": "2026-06-01T04:11:15Z"
+        }
+      ]
     }
   ],
   "global_sprint_counter": 176,
@@ -1638,5 +1689,5 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 177
+  "next_sprint_number": 180
 }
