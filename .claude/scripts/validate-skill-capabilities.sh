@@ -54,6 +54,12 @@ VALID_ROLES=("planning" "review" "implementation")
 # cycle-114 FR-3: valid values for the optional `effort:` frontmatter key
 # (maps to the Anthropic output_config.effort control on Opus 4.5+/Sonnet 4.6).
 VALID_EFFORTS=("low" "medium" "high" "xhigh" "max")
+# cycle-114 FR-4: review skills that legitimately retain Write because they
+# author STATE-zone artifacts (reports, vision/lore). For these the C-PROC-001
+# "no application code" boundary is enforced by ZONES, not by removing Write.
+# Adding a new write-capable review skill is intentionally a one-line edit here
+# with reviewer visibility (mirrors WRITE_CAPABLE_AGENTS).
+REVIEW_WRITE_EXCEPTIONS=("red-teaming" "bridgebuilder-review" "spiraling")
 
 # Review-class keywords for heuristic linter (SDD §20.5 ATK-A13)
 # Skills declaring role: review|audit MUST have >=2 of these in body
@@ -452,6 +458,29 @@ validate_skill() {
             has_error=true
         elif [[ "$cp" == "lightweight" && ( "$effort" == "xhigh" || "$effort" == "max" ) ]]; then
             log_warning "$skill_name" "cost-profile: lightweight but effort: $effort (deep reasoning on a cheap-tier skill — correlation mismatch)" || has_error=true
+        fi
+    fi
+
+    # --- cycle-114 FR-4: review skills must mechanically disallow Write ---
+    # A role:review skill that can write_files but neither disallows Write nor
+    # is a documented write-exception leaves C-PROC-001 ("no application code
+    # outside /implement") enforced only by prose. Surface that gap as a WARN.
+    local fr4_role
+    fr4_role=$(echo "$frontmatter" | yq eval '.role // ""' - 2>/dev/null) || fr4_role=""
+    if [[ "$fr4_role" == "review" ]]; then
+        local fr4_wf
+        fr4_wf=$(echo "$frontmatter" | yq eval '.capabilities.write_files // "null"' - 2>/dev/null) || fr4_wf="null"
+        if [[ "$fr4_wf" == "true" ]]; then
+            local disallowed
+            disallowed=$(echo "$frontmatter" | yq eval '(.disallowed-tools // []) | join(",")' - 2>/dev/null) || disallowed=""
+            local is_exception=false
+            local x
+            for x in "${REVIEW_WRITE_EXCEPTIONS[@]}"; do
+                [[ "$skill_name" == "$x" ]] && is_exception=true && break
+            done
+            if [[ "$is_exception" == "false" ]] && ! has_tool "$disallowed" "Write"; then
+                log_warning "$skill_name" "role: review with capabilities.write_files: true but Write not in disallowed-tools and not a documented write-exception — C-PROC-001 is enforced only by prose (cycle-114 FR-4)" || has_error=true
+            fi
         fi
     fi
 

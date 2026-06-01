@@ -566,3 +566,73 @@ cost-profile: lightweight
     run "$VALIDATOR" --skill red-teaming
     [ "$status" -eq 0 ]
 }
+
+# =========================================================================
+# cycle-114 FR-4: review skills must mechanically disallow Write (C-PROC-001)
+# =========================================================================
+
+@test "c114-FR4: review + write_files:true + Write NOT disallowed + not excepted → WARN" {
+    create_skill "leaky-review" "---
+name: leaky-review
+description: review skill that can write but does not disallow it
+role: review
+capabilities:
+  schema_version: 1
+  read_files: true
+  search_code: true
+  write_files: true
+  execute_commands: false
+  web_access: false
+  user_interaction: false
+  agent_spawn: false
+  task_management: false
+cost-profile: heavy
+---
+# Leaky Review"
+
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill leaky-review
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"C-PROC-001 is enforced only by prose"* ]]
+}
+
+@test "c114-FR4: review + write_files:true + Write disallowed → no WARN" {
+    create_skill "tight-review" "---
+name: tight-review
+description: review skill that disallows Write
+role: review
+disallowed-tools:
+  - Write
+  - Edit
+  - NotebookEdit
+capabilities:
+  schema_version: 1
+  read_files: true
+  search_code: true
+  write_files: true
+  execute_commands: false
+  web_access: false
+  user_interaction: false
+  agent_spawn: false
+  task_management: false
+cost-profile: heavy
+---
+# Tight Review"
+
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill tight-review
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"C-PROC-001 is enforced only by prose"* ]]
+}
+
+@test "c114-FR4: real pure-review skills declare disallowed Write" {
+    grep -q 'disallowed-tools' "$PROJECT_ROOT/.claude/skills/reviewing-code/SKILL.md"
+    grep -q 'Write' "$PROJECT_ROOT/.claude/skills/reviewing-code/SKILL.md"
+    grep -q 'disallowed-tools' "$PROJECT_ROOT/.claude/skills/auditing-security/SKILL.md"
+}
+
+@test "c114-FR4: real write-exception review skills (red-team/BB) validate clean" {
+    run "$VALIDATOR" --skill red-teaming
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"C-PROC-001 is enforced only by prose"* ]]
+    run "$VALIDATOR" --skill bridgebuilder-review
+    [ "$status" -eq 0 ]
+}

@@ -4,6 +4,12 @@ description: Security and quality audit of application codebase
 role: review
 effort: high  # cycle-114 FR-3: deep-reasoning skill — override baseline /effort
 allowed-tools: Read, Grep, Glob, WebFetch, WebSearch
+# cycle-114 FR-4: pure-review skill (write_files: false) — harness removes the
+# write tools while active, mechanically enforcing C-PROC-001.
+disallowed-tools:
+  - Write
+  - Edit
+  - NotebookEdit
 capabilities:
   schema_version: 1
   read_files: true
