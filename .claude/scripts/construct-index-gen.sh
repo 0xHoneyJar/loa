@@ -299,10 +299,11 @@ process_pack() {
 
     # Extract events into emits/consumes arrays
     local emits_json consumes_json
-    emits_json=$(jq -c '.events.emits // [] | [.[].name // empty]' "$manifest" 2>/dev/null || echo "[]")
-    # GAP C fix: manifests use `.name` for consumed-event ids (matching emits), not `.event`.
-    # The bare `.[].event` silently dropped every consumes entry estate-wide. Defensive union.
-    consumes_json=$(jq -c '.events.consumes // [] | [.[].event // .name // empty]' "$manifest" 2>/dev/null || echo "[]")
+    # GAP C fix: event-id key varies by pack — `.name` (the-arcade/the-easel), `.event`, OR
+    # `.type` (gecko + the MAJORITY of packs). A single-key extraction drops the others, and a
+    # bare `.[].name` on a `.type`-keyed array throws (swallowed → []). Defensive union over all three.
+    emits_json=$(jq -c '.events.emits // [] | [.[].name // .event // .type // empty]' "$manifest" 2>/dev/null || echo "[]")
+    consumes_json=$(jq -c '.events.consumes // [] | [.[].event // .name // .type // empty]' "$manifest" 2>/dev/null || echo "[]")
 
     # Initialize overlay fields
     local writes_json="[]"
@@ -335,10 +336,11 @@ process_pack() {
 
         # GAP C fix: several constructs (e.g. the-arcade) declare their event membrane in
         # construct.yaml, not manifest.json. Overlay it (construct.yaml wins when present);
-        # tolerate both `.name` and `.event` shapes.
+        # tolerate `.name`, `.event`, AND `.type` shapes (gecko + most packs key on `.type` —
+        # a `.name // .event`-only union wrote [null,...] for them; regression caught by BB on #981).
         local cy_emits cy_consumes
-        cy_emits=$(yq eval -o=json '[.events.emits[] | (.name // .event)] // []' "$construct_yaml" 2>/dev/null || echo "[]")
-        cy_consumes=$(yq eval -o=json '[.events.consumes[] | (.name // .event)] // []' "$construct_yaml" 2>/dev/null || echo "[]")
+        cy_emits=$(yq eval -o=json '[.events.emits[] | (.name // .event // .type)] // []' "$construct_yaml" 2>/dev/null || echo "[]")
+        cy_consumes=$(yq eval -o=json '[.events.consumes[] | (.name // .event // .type)] // []' "$construct_yaml" 2>/dev/null || echo "[]")
         [[ -n "$cy_emits" && "$cy_emits" != "null" && "$cy_emits" != "[]" ]] && emits_json="$cy_emits"
         [[ -n "$cy_consumes" && "$cy_consumes" != "null" && "$cy_consumes" != "[]" ]] && consumes_json="$cy_consumes"
 
