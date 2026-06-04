@@ -4,8 +4,13 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import select
+import signal
 import socket
+import subprocess
 import sys
+import threading
 import time
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
@@ -529,6 +534,162 @@ def build_headless_subprocess_env(parent_env=None) -> Dict[str, str]:
     for var in _HEADLESS_STRIPPED_AUTH_VARS:
         base.pop(var, None)
     return base
+
+
+# Memory backstop for a runaway CLI flooding a stream. subprocess.run buffered
+# unbounded; we keep that effective behavior for real review payloads while
+# capping pathological floods. We always DRAIN beyond the cap (so the child's
+# pipe never fills and deadlocks) but only RETAIN up to this many bytes.
+_HEADLESS_CAPTURE_MAX_BYTES = 64 * 1024 * 1024  # 64 MiB per stream
+
+
+def run_subprocess_pgkill(
+    cmd: List[str],
+    *,
+    input: Optional[str] = None,  # noqa: A002 — mirrors subprocess.run kwarg name
+    timeout: float,
+    env: Dict[str, str],
+    max_bytes: int = _HEADLESS_CAPTURE_MAX_BYTES,
+) -> "subprocess.CompletedProcess":
+    """Drop-in for `subprocess.run` that bounds an agentic CLI by PROCESS GROUP.
+
+    KF-014 (recurrence-3, STRUCTURAL): the headless completion adapters used
+    `subprocess.run(timeout=...)`, whose timeout cleanup `process.kill()`s only
+    the IMMEDIATE child (the `node` CLI) — never the process group. An agentic
+    CLI (`codex exec` / `gemini -p` / `claude -p`) spawns helper grandchildren;
+    on timeout those are orphaned (proven: a SIGKILL of the parent leaves the
+    grandchildren running). The orphans keep consuming the rate-limited
+    subscription, so a transient provider throttle compounds into a multi-minute
+    "hang" that reads as unbounded and never falls through cleanly.
+
+    This helper applies the cycle-110 `doctor.py` pattern to the COMPLETION path:
+      - `start_new_session=True` → the child is its own process-group leader.
+      - streaming `select` read with a per-stream byte cap (never
+        `communicate()`, which buffers unbounded).
+      - on the wall-clock deadline → `os.killpg(SIGKILL)` tears down the WHOLE
+        tree, then re-raise `subprocess.TimeoutExpired` so the existing
+        `except subprocess.TimeoutExpired` branch converts the hang into a
+        `ProviderUnavailableError` and the cheval fallback chain advances.
+
+    Contract parity with `subprocess.run(..., capture_output=True, text=True,
+    check=False)`: returns a `CompletedProcess` with `.returncode`, `.stdout`
+    (str), `.stderr` (str); raises `subprocess.TimeoutExpired` on deadline and
+    `FileNotFoundError` when `cmd[0]` is not on PATH.
+    """
+    proc = subprocess.Popen(  # noqa: S603 — cmd is adapter-built argv, not shell
+        cmd,
+        stdin=subprocess.PIPE if input is not None else subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        start_new_session=True,  # process-group isolation for killpg
+        env=env,
+    )
+
+    # `writer`/buffers are declared before the try so the finally can reap the
+    # already-spawned child even if SETUP below (encode / thread-start / fileno)
+    # raises — that window would otherwise orphan the process group (the exact
+    # KF-014 failure mode, reintroduced on the error path).
+    writer: Optional[threading.Thread] = None
+    out_buf = bytearray()
+    err_buf = bytearray()
+    timed_out = False
+
+    try:
+        # Pump stdin on a thread so a large prompt never deadlocks against the
+        # child filling stdout (the classic write-all-then-read deadlock).
+        if input is not None and proc.stdin is not None:
+            payload = input.encode("utf-8")
+
+            def _pump_stdin() -> None:
+                try:
+                    proc.stdin.write(payload)
+                    proc.stdin.close()
+                except (BrokenPipeError, ValueError, OSError):
+                    # ValueError: the finally may close stdin while this daemon
+                    # writer is still blocked mid-write — swallow (no leak/hang).
+                    pass
+
+            writer = threading.Thread(target=_pump_stdin, daemon=True)
+            writer.start()
+
+        out_fd = proc.stdout.fileno() if proc.stdout else -1
+        err_fd = proc.stderr.fileno() if proc.stderr else -1
+        open_fds = [fd for fd in (out_fd, err_fd) if fd >= 0]
+        deadline = time.monotonic() + timeout
+
+        while open_fds:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                timed_out = True
+                break
+            readable, _, _ = select.select(open_fds, [], [], remaining)
+            if not readable:
+                timed_out = True
+                break
+            for fd in readable:
+                try:
+                    chunk = os.read(fd, 65536)
+                except OSError:
+                    chunk = b""
+                if not chunk:
+                    open_fds.remove(fd)
+                    continue
+                buf = out_buf if fd == out_fd else err_buf
+                if len(buf) < max_bytes:
+                    buf.extend(chunk[: max_bytes - len(buf)])
+                # else: drained but discarded — pipe stays unblocked.
+
+        if not timed_out:
+            # Pipes hit EOF. The child is normally already exiting; bound the
+            # reap so a child that closed its pipes but lingers can't hang us.
+            try:
+                proc.wait(timeout=max(0.5, deadline - time.monotonic()))
+            except subprocess.TimeoutExpired:
+                timed_out = True
+
+        if timed_out:
+            _killpg(proc)
+            try:
+                proc.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                pass
+            raise subprocess.TimeoutExpired(
+                cmd,
+                timeout,
+                output=bytes(out_buf).decode("utf-8", "replace"),
+                stderr=bytes(err_buf).decode("utf-8", "replace"),
+            )
+
+        return subprocess.CompletedProcess(
+            cmd,
+            proc.returncode if proc.returncode is not None else -1,
+            stdout=bytes(out_buf).decode("utf-8", "replace"),
+            stderr=bytes(err_buf).decode("utf-8", "replace"),
+        )
+    finally:
+        # Never leak the tree on any exit path (incl. unexpected exceptions).
+        if proc.poll() is None:
+            _killpg(proc)
+        if writer is not None:
+            writer.join(timeout=1.0)
+        for stream in (proc.stdout, proc.stderr, proc.stdin):
+            try:
+                if stream is not None:
+                    stream.close()
+            except (OSError, ValueError):
+                pass
+
+
+def _killpg(proc: "subprocess.Popen") -> None:
+    """Best-effort SIGKILL of the child's whole process group (ProcessLookupError-safe)."""
+    try:
+        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        # Already exited, or group gone between poll and kill — idempotent.
+        try:
+            proc.kill()
+        except ProcessLookupError:
+            pass
 
 
 def estimate_tokens(messages: List[Dict[str, Any]]) -> int:

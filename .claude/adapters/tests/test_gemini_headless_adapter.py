@@ -259,7 +259,7 @@ class TestPromptFlattening:
 class TestJsonParsing:
     def test_parses_response_and_stats(self):
         adapter = GeminiHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.gemini_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _ok_proc(SAMPLE_OK_JSON)
             result = adapter.complete(_make_request())
         assert result.content == "pong"
@@ -289,7 +289,7 @@ class TestJsonParsing:
             }
         )
         adapter = GeminiHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.gemini_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _ok_proc(stats_under_alt)
             result = adapter.complete(_make_request())
         assert result.usage.input_tokens == 100
@@ -298,7 +298,7 @@ class TestJsonParsing:
     def test_missing_stats_yields_estimated_source(self):
         no_stats = json.dumps({"session_id": "x", "response": "ok"})
         adapter = GeminiHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.gemini_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _ok_proc(no_stats)
             result = adapter.complete(_make_request())
         assert result.content == "ok"
@@ -315,7 +315,7 @@ class TestJsonParsing:
             }
         )
         adapter = GeminiHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.gemini_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _ok_proc(with_warnings)
             result = adapter.complete(_make_request())
         assert result.metadata.get("warnings") == ["some non-fatal warning", "another"]
@@ -335,7 +335,7 @@ class TestJsonParsing:
             }
         )
         adapter = GeminiHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.gemini_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _ok_proc(with_cached)
             result = adapter.complete(_make_request())
         assert result.metadata.get("cached_tokens") == 80
@@ -351,7 +351,7 @@ class TestErrorClassification:
         adapter = GeminiHeadlessAdapter(_make_config())
         # gemini may exit non-zero AND emit JSON error — verify we surface the
         # structured diagnostic.
-        with patch("loa_cheval.providers.gemini_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _fail_proc(41, stdout=AUTH_ERROR_JSON)
             with pytest.raises(ConfigError) as exc_info:
                 adapter.complete(_make_request())
@@ -359,21 +359,21 @@ class TestErrorClassification:
 
     def test_quota_error_raises_rate_limit(self):
         adapter = GeminiHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.gemini_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _fail_proc(8, stdout=QUOTA_ERROR_JSON)
             with pytest.raises(RateLimitError):
                 adapter.complete(_make_request())
 
     def test_stderr_429_raises_rate_limit(self):
         adapter = GeminiHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.gemini_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _fail_proc(1, stderr="HTTP 429 Too Many Requests")
             with pytest.raises(RateLimitError):
                 adapter.complete(_make_request())
 
     def test_generic_failure_raises_provider_unavailable(self):
         adapter = GeminiHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.gemini_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _fail_proc(2, stderr="some unexpected internal error")
             with pytest.raises(ProviderUnavailableError) as exc_info:
                 adapter.complete(_make_request())
@@ -381,7 +381,7 @@ class TestErrorClassification:
 
     def test_timeout_raises_provider_unavailable(self):
         adapter = GeminiHeadlessAdapter(_make_config(read_timeout=5.0))
-        with patch("loa_cheval.providers.gemini_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.side_effect = subprocess.TimeoutExpired(cmd=["gemini"], timeout=5)
             with pytest.raises(ProviderUnavailableError) as exc_info:
                 adapter.complete(_make_request())
@@ -389,7 +389,7 @@ class TestErrorClassification:
 
     def test_gemini_not_on_path_raises_config_error(self):
         adapter = GeminiHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.gemini_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.side_effect = FileNotFoundError("gemini: command not found")
             with pytest.raises(ConfigError) as exc_info:
                 adapter.complete(_make_request())
@@ -397,7 +397,7 @@ class TestErrorClassification:
 
     def test_unparseable_stdout_raises_provider_unavailable(self):
         adapter = GeminiHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.gemini_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _ok_proc("this is not json at all")
             with pytest.raises(ProviderUnavailableError) as exc_info:
                 adapter.complete(_make_request())
@@ -455,7 +455,7 @@ class TestValidateAndHealth:
 class TestEndToEnd:
     def test_complete_round_trip(self):
         adapter = GeminiHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.gemini_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _ok_proc(SAMPLE_OK_JSON)
             result = adapter.complete(
                 _make_request(
@@ -498,7 +498,7 @@ class TestSubprocessEnvFilter:
         monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
         monkeypatch.delenv("LOA_HEADLESS_KEEP_API_KEY", raising=False)
         adapter = GeminiHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.gemini_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _ok_proc(SAMPLE_OK_JSON)
             adapter.complete(_make_request())
         kwargs = mock_run.call_args.kwargs
@@ -511,7 +511,7 @@ class TestSubprocessEnvFilter:
         monkeypatch.setenv("PATH", "/test/bin:/usr/bin")
         monkeypatch.setenv("HOME", "/test/home")
         adapter = GeminiHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.gemini_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _ok_proc(SAMPLE_OK_JSON)
             adapter.complete(_make_request())
         env = mock_run.call_args.kwargs.get("env", {})
@@ -523,7 +523,7 @@ class TestSubprocessEnvFilter:
         monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
         monkeypatch.setenv("LOA_HEADLESS_KEEP_API_KEY", "1")
         adapter = GeminiHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.gemini_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _ok_proc(SAMPLE_OK_JSON)
             adapter.complete(_make_request())
         env = mock_run.call_args.kwargs.get("env", {})
@@ -540,7 +540,7 @@ class TestSubprocessEnvFilter:
         monkeypatch.setenv("GOOGLE_GENAI_USE_GCA", "true")
         monkeypatch.delenv("LOA_HEADLESS_KEEP_API_KEY", raising=False)
         adapter = GeminiHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.gemini_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _ok_proc(SAMPLE_OK_JSON)
             adapter.complete(_make_request())
         kwargs = mock_run.call_args.kwargs
@@ -553,7 +553,7 @@ class TestSubprocessEnvFilter:
         monkeypatch.setenv("GOOGLE_GENAI_USE_GCA", "true")
         monkeypatch.setenv("LOA_HEADLESS_KEEP_API_KEY", "1")
         adapter = GeminiHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.gemini_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _ok_proc(SAMPLE_OK_JSON)
             adapter.complete(_make_request())
         env = mock_run.call_args.kwargs.get("env", {})
@@ -572,7 +572,7 @@ class TestSubprocessEnvFilter:
         monkeypatch.setenv("GOOGLE_GEMINI_BASE_URL", "https://gateway.example.com")
         monkeypatch.delenv("LOA_HEADLESS_KEEP_API_KEY", raising=False)
         adapter = GeminiHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.gemini_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _ok_proc(SAMPLE_OK_JSON)
             adapter.complete(_make_request())
         assert "GOOGLE_GEMINI_BASE_URL" not in mock_run.call_args.kwargs["env"]
@@ -581,7 +581,7 @@ class TestSubprocessEnvFilter:
         monkeypatch.setenv("GEMINI_CLI_USE_COMPUTE_ADC", "true")
         monkeypatch.delenv("LOA_HEADLESS_KEEP_API_KEY", raising=False)
         adapter = GeminiHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.gemini_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _ok_proc(SAMPLE_OK_JSON)
             adapter.complete(_make_request())
         assert "GEMINI_CLI_USE_COMPUTE_ADC" not in mock_run.call_args.kwargs["env"]
@@ -594,7 +594,7 @@ class TestSubprocessEnvFilter:
         monkeypatch.setenv("GEMINI_CLI_USE_COMPUTE_ADC", "true")
         monkeypatch.setenv("LOA_HEADLESS_KEEP_API_KEY", "1")
         adapter = GeminiHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.gemini_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _ok_proc(SAMPLE_OK_JSON)
             adapter.complete(_make_request())
         env = mock_run.call_args.kwargs.get("env", {})
@@ -610,7 +610,7 @@ class TestSubprocessEnvFilter:
         monkeypatch.setenv("CLOUD_SHELL", "true")
         monkeypatch.delenv("LOA_HEADLESS_KEEP_API_KEY", raising=False)
         adapter = GeminiHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.gemini_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _ok_proc(SAMPLE_OK_JSON)
             adapter.complete(_make_request())
         env = mock_run.call_args.kwargs.get("env", {})

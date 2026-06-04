@@ -48,6 +48,7 @@ from loa_cheval.providers.base import (
     ProviderAdapter,
     build_headless_subprocess_env,
     enforce_context_window,
+    run_subprocess_pgkill,
 )
 from loa_cheval.types import (
     CompletionRequest,
@@ -137,17 +138,15 @@ class GeminiHeadlessAdapter(ProviderAdapter):
         try:
             with _acquire_slot("gemini-headless", n_slots=n_slots):
                 try:
-                    proc = subprocess.run(
+                    proc = run_subprocess_pgkill(
                         cmd,
-                        capture_output=True,
-                        text=True,
                         timeout=timeout_s,
-                        check=False,
-                        # gemini-cli's `-p` flag triggers headless mode and consumes the
-                        # prompt argument directly. Stdin is appended only when both -p
-                        # and stdin are piped — we use -p exclusively so stdin stays
-                        # closed (avoids hangs in some shell environments).
-                        stdin=subprocess.DEVNULL,
+                        # gemini-cli's `-p` flag carries the prompt directly; stdin
+                        # stays closed (input=None → DEVNULL in the helper).
+                        # KF-014: process-group-killing bound (base.py) so a
+                        # throttled/hung `gemini -p` is SIGKILL'd by group and
+                        # converted to TimeoutExpired → fallback chain advances,
+                        # instead of leaking orphan grandchildren and "hanging".
                         # cycle-109 follow-up (#879 / #880 symmetric): strip
                         # GOOGLE_API_KEY + GEMINI_API_KEY so gemini -p uses GCA
                         # OAuth, not API mode.
