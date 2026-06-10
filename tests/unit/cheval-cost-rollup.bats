@@ -70,3 +70,13 @@ _rollup() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"empty"* ]]
 }
+
+@test "rollup: default ledger resolves from model-config metering.ledger_path (codex P2)" {
+    cd "$REPO_ROOT"
+    run python3 -c "
+from loa_cheval.metering.rollup import default_ledger_path
+print(default_ledger_path())
+"
+    [ "$status" -eq 0 ]
+    [ "$output" = "grimoires/loa/a2a/cost-ledger.jsonl" ]
+}

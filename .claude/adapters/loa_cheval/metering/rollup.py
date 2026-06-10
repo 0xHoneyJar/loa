@@ -38,6 +38,22 @@ from loa_cheval.metering.ledger import read_ledger
 
 GROUP_KEYS = ("agent", "model", "provider", "day", "trace")
 
+FALLBACK_LEDGER = ".run/cost-ledger.jsonl"
+
+
+def default_ledger_path() -> str:
+    """Resolve the ledger path the way cheval itself does (codex P2 on #1000):
+    metering.ledger_path from the merged config when loadable, else the
+    literal fallback cheval.py uses. An explicit --ledger always wins."""
+    try:
+        import yaml  # repo CI installs PyYAML; degrade gracefully without it
+
+        with open(".claude/defaults/model-config.yaml") as f:
+            cfg = yaml.safe_load(f) or {}
+        return (cfg.get("metering") or {}).get("ledger_path") or FALLBACK_LEDGER
+    except Exception:
+        return FALLBACK_LEDGER
+
 
 def _group_value(entry: Dict[str, Any], by: str) -> str:
     if by == "day":
@@ -135,13 +151,18 @@ def main(argv: List[str] | None = None) -> int:
         prog="cheval-cost-rollup",
         description="Per-actor cost attribution over the cheval ledger.",
     )
-    ap.add_argument("--ledger", default=".run/cost-ledger.jsonl")
+    ap.add_argument(
+        "--ledger",
+        default=None,
+        help="ledger path (default: metering.ledger_path from model-config.yaml)",
+    )
     ap.add_argument("--by", default="agent", choices=GROUP_KEYS)
     ap.add_argument("--since", default="", help="YYYY-MM-DD inclusive lower bound")
     ap.add_argument("--json", action="store_true", help="emit JSON rows")
     args = ap.parse_args(argv)
 
-    rows = rollup_entries(read_ledger(args.ledger), by=args.by, since=args.since)
+    ledger = args.ledger or default_ledger_path()
+    rows = rollup_entries(read_ledger(ledger), by=args.by, since=args.since)
     if args.json:
         print(json.dumps({"by": args.by, "since": args.since or None, "rows": rows}))
     else:
