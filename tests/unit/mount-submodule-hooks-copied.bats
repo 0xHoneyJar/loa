@@ -88,7 +88,7 @@ setup() {
     # The copy phase must use `cp -R` for directories (preserves perms,
     # follows symlinks within source tree — required because the framework
     # may itself contain inner symlinks we want copied as files).
-    grep -qE 'cp -R "\$target"' "$MOUNT" \
+    grep -qE 'cp -R "\$(abs_)?target"' "$MOUNT" \
         || {
             echo "REGRESSION: copy phase doesn't use cp -R for dirs" >&2
             return 1
@@ -98,9 +98,11 @@ setup() {
 @test "#842: copy phase replaces stale symlinks at the destination" {
     # If a user has already mounted (with old symlink behavior) and re-runs
     # mount, the existing `.claude/hooks` symlink must be removed before cp.
-    # The implementation uses `rm -rf "$source"` before `cp -R`.
-    awk '/MANIFEST_COPY_DIRS\[@\]/,/done/' "$MOUNT" \
-        | grep -qE 'rm -rf "\$source"' \
+    # #968 extracted the copy phase into _refresh_copy_entry, which removes
+    # the stale dest ("$abs_dest") before cp -R. Behavior is ALSO pinned
+    # functionally by bug-968-reconcile-copy-refresh.bats test 2.
+    awk '/_refresh_copy_entry\(\)/,/^}/' "$MOUNT" \
+        | grep -qE 'rm -rf "\$abs_dest"' \
         || {
             echo "REGRESSION: copy phase doesn't remove stale symlinks/dirs before copy" >&2
             echo "Without this, re-running mount on a previously-mounted tree leaves the old symlink intact." >&2

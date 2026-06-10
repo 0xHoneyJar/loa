@@ -262,6 +262,13 @@ update_submodule() {
         step "Reconciling symlinks..."
         verify_and_reconcile_symlinks
       fi
+      # #968: refresh the #842 copy set (hooks/, settings.json) so a
+      # submodule bump propagates executor-sensitive paths without a
+      # destructive --force re-mount.
+      if type refresh_copy_set &>/dev/null; then
+        step "Refreshing copy set..."
+        refresh_copy_set "true"
+      fi
     fi
   fi
 

@@ -523,42 +523,10 @@ create_symlinks() {
     log "  Linked command: $cmd_name"
   done
 
-  # #842: Phase 5 — COPY phase for items that can't be symlinked because
-  # Claude Code's hook executor cannot follow relative `..` symlinks from
-  # subprocess context on macOS. See lib/symlink-manifest.sh MANIFEST_COPY_*.
-  if [[ ${#MANIFEST_COPY_DIRS[@]} -gt 0 ]] || [[ ${#MANIFEST_COPY_FILES[@]} -gt 0 ]]; then
-    step "Copying executor-sensitive paths..."
-    local entry source target
-    for entry in ${MANIFEST_COPY_DIRS[@]+"${MANIFEST_COPY_DIRS[@]}"}; do
-      source="${entry%%:*}"   # destination in consumer tree
-      target="${entry#*:}"    # source path inside submodule (relative to repo root)
-      if [[ ! -d "$target" ]]; then
-        warn "  Copy source missing: $target — skipping $source"
-        continue
-      fi
-      # Replace any existing symlink or directory at the destination
-      if [[ -L "$source" ]] || [[ -e "$source" ]]; then
-        rm -rf "$source"
-      fi
-      mkdir -p "$(dirname "$source")"
-      cp -R "$target" "$source"
-      log "  Copied dir: $source"
-    done
-    for entry in ${MANIFEST_COPY_FILES[@]+"${MANIFEST_COPY_FILES[@]}"}; do
-      source="${entry%%:*}"
-      target="${entry#*:}"
-      if [[ ! -f "$target" ]]; then
-        warn "  Copy source missing: $target — skipping $source"
-        continue
-      fi
-      if [[ -L "$source" ]] || [[ -e "$source" ]]; then
-        rm -f "$source"
-      fi
-      mkdir -p "$(dirname "$source")"
-      cp "$target" "$source"
-      log "  Copied file: $source"
-    done
-  fi
+  # #842: Phase 5 — COPY phase. Extracted to refresh_copy_set (#968) so
+  # --reconcile / --check-symlinks and update-loa.sh's submodule path can
+  # refresh these without a destructive --force re-mount.
+  refresh_copy_set "true"
 
   # Also link settings.local.json if it exists (not in manifest — optional file)
   if [[ -f "$SUBMODULE_PATH/.claude/settings.local.json" ]]; then
@@ -882,6 +850,78 @@ update_gitignore_for_submodule() {
   log ".gitignore updated for submodule mode"
 }
 
+# === Refresh #842 COPY set (issue #968) ===
+# The #842 copy set (.claude/hooks, .claude/settings.json) cannot be
+# symlinked (macOS hook executors can't traverse `..` symlinks from
+# subprocess context) and previously was written ONLY by a full mount —
+# after a submodule bump it silently went stale, and on repos mounted
+# pre-#842 the destinations were stale SYMLINKS (the exact breakage #842
+# exists to avoid). Mode mirrors verify_and_reconcile_symlinks:
+#   "true"  = refresh (replace dest with a fresh copy from the submodule)
+#   "false" = check-only (report COPY-STALE / COPY-MISSING, mutate nothing)
+# Returns non-zero when issues are found in check mode or an entry is
+# refused/fails in apply mode (#660 fail-loud contract).
+_refresh_copy_entry() {
+  local apply="$1" entry="$2" repo_root="$3"
+  local dest="${entry%%:*}"
+  local target="${entry#*:}"
+  # Deletion-surface guard: every manifest copy destination is .claude/-rooted.
+  # Refuse anything else so a future manifest edit cannot widen the deletion
+  # surface of the refresh below.
+  if [[ "$dest" != .claude/* ]]; then
+    warn "  COPY-SET: refusing non-.claude destination '$dest'"
+    return 1
+  fi
+  local abs_dest="${repo_root}/${dest}"
+  local abs_target="${repo_root}/${target}"
+  if [[ ! -e "$abs_target" ]]; then
+    warn "  Copy source missing: $target — skipping $dest"
+    return 0
+  fi
+  if [[ "$apply" != "true" ]]; then
+    if [[ -L "$abs_dest" ]]; then
+      warn "  COPY-STALE: $dest is a symlink (pre-#842 state) — run --reconcile"
+      return 1
+    elif [[ ! -e "$abs_dest" ]]; then
+      warn "  COPY-MISSING: $dest — run --reconcile"
+      return 1
+    fi
+    return 0
+  fi
+  # Apply: replace whatever is at the destination with a fresh copy.
+  if [[ -L "$abs_dest" ]] || [[ -e "$abs_dest" ]]; then
+    rm -rf "$abs_dest"
+  fi
+  mkdir -p "$(dirname "$abs_dest")"
+  if [[ -d "$abs_target" ]]; then
+    cp -R "$abs_target" "$abs_dest"
+  else
+    cp "$abs_target" "$abs_dest"
+  fi
+  log "  Refreshed copy: $dest"
+  return 0
+}
+
+refresh_copy_set() {
+  local apply="${1:-true}"
+  local repo_root
+  repo_root=$(get_repo_root)
+  local submodule="${SUBMODULE_PATH:-.loa}"
+  get_symlink_manifest "$submodule" "$repo_root"
+
+  local issues=0
+  local entry
+  step "Copy set (#842): $([[ "$apply" == "true" ]] && echo refreshing || echo checking)..."
+  for entry in ${MANIFEST_COPY_DIRS[@]+"${MANIFEST_COPY_DIRS[@]}"} ${MANIFEST_COPY_FILES[@]+"${MANIFEST_COPY_FILES[@]}"}; do
+    _refresh_copy_entry "$apply" "$entry" "$repo_root" || issues=$((issues + 1))
+  done
+  if [[ $issues -gt 0 ]]; then
+    warn "Copy set: ${issues} issue(s)$([[ "$apply" != "true" ]] && echo " — run --reconcile")"
+    return 1
+  fi
+  return 0
+}
+
 # === Verify and Reconcile Symlinks (Task 2.6 — cycle-035 sprint-2) ===
 # Authoritative symlink manifest. Detects dangling, removes stale, recreates from manifest.
 # Uses canonical path resolver (realpath) to avoid CWD assumptions (Flatline SKP-002).
@@ -977,6 +1017,8 @@ check_symlinks_subcommand() {
   echo ""
   verify_and_reconcile_symlinks "false"
   local result=$?
+  # #968: report #842 copy-set state too (stale symlink / missing dest)
+  refresh_copy_set "false" || result=1
   if [[ $result -eq 0 ]]; then
     log "All symlinks healthy."
   else
@@ -997,8 +1039,12 @@ main() {
   if [[ "$RECONCILE_SYMLINKS" == "true" ]]; then
     echo ""
     log "Reconciling symlinks..."
-    verify_and_reconcile_symlinks "true"
-    exit $?
+    reconcile_rc=0
+    verify_and_reconcile_symlinks "true" || reconcile_rc=1
+    # #968: also refresh the #842 copy set (hooks/, settings.json), which
+    # the symlink walk above never touches.
+    refresh_copy_set "true" || reconcile_rc=1
+    exit $reconcile_rc
   fi
 
   echo ""
