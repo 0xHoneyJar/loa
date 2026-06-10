@@ -1483,7 +1483,7 @@
       ]
     }
   ],
-  "global_sprint_counter": 177,
+  "global_sprint_counter": 180,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
@@ -1689,6 +1689,19 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260601-i971-727e7f/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260601-i971-727e7f/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260610-i942-0f917b",
+      "label": "Bug Fix — next-bug-sprint-id.sh emits colliding sprint ids (ignores ledger cycles[].sprints, #942)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/942",
+      "created_at": "2026-06-10T08:46:53Z",
+      "sprints": [
+        "sprint-bug-180"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260610-i942-0f917b/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260610-i942-0f917b/sprint.md"
     }
   ],
   "bugfixes": [
@@ -1706,5 +1719,5 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 180
+  "next_sprint_number": 181
 }

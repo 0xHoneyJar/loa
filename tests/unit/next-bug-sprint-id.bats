@@ -154,3 +154,114 @@ EOF
     [[ "$(echo "$output" | wc -l)" == "1" ]]
     [[ "$output" =~ ^sprint-bug-[0-9]+$ ]]
 }
+
+# =============================================================================
+# Issue #942 — cycle-claimed global sprint ids in ledger cycles[].sprints /
+# bugfix_cycles[].sprints must be consulted. Observed live 2026-06-10:
+# global_sprint_counter=177 while cycle-114 claimed ids 177/178/179, so the
+# helper emitted sprint-bug-178 — colliding with cycle-114's sprint-178.
+# =============================================================================
+
+@test "issue#942: cycle-claimed object-shape ids beat a stale counter (live 177-vs-179 shape)" {
+    cat > "$PROJECT_ROOT/grimoires/loa/ledger.json" <<'EOF'
+{
+  "global_sprint_counter": 177,
+  "cycles": [
+    {
+      "cycle_id": "cycle-114-harness-modernization",
+      "sprints": [
+        {"id": "sprint-177", "global_id": 177},
+        {"id": "sprint-178", "global_id": 178},
+        {"id": "sprint-179", "global_id": 179}
+      ]
+    }
+  ],
+  "bugfix_cycles": []
+}
+EOF
+    cd "$PROJECT_ROOT" && git init --quiet
+    run bash "$SCRIPT"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == "sprint-bug-180" ]]
+}
+
+@test "issue#942: string-shape sprint claims in cycles[].sprints are consulted" {
+    cat > "$PROJECT_ROOT/grimoires/loa/ledger.json" <<'EOF'
+{
+  "global_sprint_counter": 50,
+  "cycles": [
+    {"cycle_id": "cycle-x", "sprints": ["sprint-184", "sprint-bug-185"]}
+  ],
+  "bugfix_cycles": []
+}
+EOF
+    cd "$PROJECT_ROOT" && git init --quiet
+    run bash "$SCRIPT"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == "sprint-bug-186" ]]
+}
+
+@test "issue#942: bugfix_cycles[].sprints claims are consulted too" {
+    cat > "$PROJECT_ROOT/grimoires/loa/ledger.json" <<'EOF'
+{
+  "global_sprint_counter": 50,
+  "cycles": [],
+  "bugfix_cycles": [
+    {"cycle_id": "cycle-bug-x", "sprints": [{"id": "sprint-bug-240", "global_id": 240}]}
+  ]
+}
+EOF
+    cd "$PROJECT_ROOT" && git init --quiet
+    run bash "$SCRIPT"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == "sprint-bug-241" ]]
+}
+
+@test "issue#942: malformed cycles/bugfix_cycles keys degrade gracefully to other sources" {
+    cat > "$PROJECT_ROOT/grimoires/loa/ledger.json" <<'EOF'
+{
+  "global_sprint_counter": 50,
+  "cycles": "not-an-array",
+  "bugfix_cycles": [
+    {"cycle_id": "ok", "sprints": [42, "weird-entry", {"id": "no-global-id"}]},
+    {"cycle_id": "no-sprints-key"}
+  ]
+}
+EOF
+    cd "$PROJECT_ROOT" && git init --quiet
+    run bash "$SCRIPT"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == "sprint-bug-51" ]]
+}
+
+@test "issue#942: origin/main ledger's cycle claims are consulted (not just its counter)" {
+    cd "$PROJECT_ROOT" && git init --quiet
+    git config user.email "test@example.com"
+    git config user.name "Test"
+
+    local upstream="$BATS_TEST_TMPDIR/upstream-claims"
+    mkdir -p "$upstream/grimoires/loa"
+    cat > "$upstream/grimoires/loa/ledger.json" <<'EOF'
+{
+  "global_sprint_counter": 300,
+  "cycles": [
+    {"cycle_id": "cycle-y", "sprints": [{"id": "sprint-310", "global_id": 310}]}
+  ],
+  "bugfix_cycles": []
+}
+EOF
+    (
+        cd "$upstream" && git init --quiet
+        git add -A
+        git -c user.email=t@t -c user.name=t commit -q -m init
+        git checkout -b main 2>/dev/null || true
+    )
+    cd "$PROJECT_ROOT"
+    git remote add origin "$upstream" 2>/dev/null || true
+    git fetch --quiet origin main 2>/dev/null || skip "could not set up upstream fetch"
+
+    _write_ledger 50
+    run bash "$SCRIPT"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == "sprint-bug-311" ]]
+}
