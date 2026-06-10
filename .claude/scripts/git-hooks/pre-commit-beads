@@ -52,7 +52,15 @@ fi
 br_stderr=$(mktemp)
 trap 'rm -f "$br_stderr"' EXIT
 
-if br sync --flush-only >/dev/null 2>"$br_stderr"; then
+# bug-991 / KF-014: br resolves .beads/ from CWD. In a linked worktree the
+# CWD has no .beads, so run the flush from the main checkout root (the
+# MAIN_REPO_ROOT already resolved above). Subshell keeps the hook's own CWD.
+BR_RUN_DIR="."
+if [ -n "${MAIN_REPO_ROOT:-}" ] && [ "$BEADS_DIR" = "$MAIN_REPO_ROOT/.beads" ]; then
+    BR_RUN_DIR="$MAIN_REPO_ROOT"
+fi
+
+if (cd "$BR_RUN_DIR" && br sync --flush-only) >/dev/null 2>"$br_stderr"; then
     # Success path — stage updated JSONL if applicable
     if [ -f "$BEADS_DIR/issues.jsonl" ]; then
         if [ "$(git rev-parse --git-dir)" = "$(git rev-parse --git-common-dir)" ]; then
