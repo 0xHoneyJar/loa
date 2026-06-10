@@ -100,5 +100,23 @@ if [[ -z "${LOA_BB_DISABLE_FAMILY_TIMEOUT_FIX:-}" ]]; then
   fi
 fi
 
+# Issue #805 F7: dist/ imports zod/v4 at runtime, but node_modules/ is
+# gitignored and nothing installs deps on mount — fresh submodule mounts
+# crash with "Cannot find package 'zod'". Preflight the SPECIFIC package
+# (a devDeps-present/zod-absent node_modules is a real observed state) and
+# abort with the remediation. Deliberately NO network install here: entry
+# paths must not perform silent network installs.
+if [[ ! -d "${SKILL_DIR}/node_modules/zod" ]]; then
+  echo "ERROR: bridgebuilder dependencies missing — node_modules/zod not found." >&2
+  echo "" >&2
+  echo "The compiled app (dist/) imports zod at runtime, and node_modules/ is" >&2
+  echo "not tracked. Install once per clone:" >&2
+  echo "" >&2
+  echo "  cd ${SKILL_DIR} && npm ci" >&2
+  echo "" >&2
+  echo "(package-lock.json is tracked; zod is the only production dependency.)" >&2
+  exit 3
+fi
+
 # Run compiled TypeScript via Node (no npx tsx — SKP-002)
 exec node "${SKILL_DIR}/dist/main.js" "$@"
