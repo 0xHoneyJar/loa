@@ -1533,9 +1533,48 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260610-i991-9c97f1/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260610-i991-9c97f1/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260610-i986-b28220",
+      "label": "Bug Fix — post-merge.yml fails on submodule mounts with gitignored .claude symlinks (exit-127/chmod)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/986",
+      "created_at": "2026-06-10T13:44:31Z",
+      "sprints": [
+        "sprint-bug-191"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260610-i986-b28220/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260610-i986-b28220/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260611-i968-d2db26",
+      "label": "Bug Fix — Submodule-mode update path incomplete: /update-loa lacks submodule routing; --reconcile skips the #842 COPY set",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/968",
+      "created_at": "2026-06-10T14:03:45Z",
+      "sprints": [
+        "sprint-bug-192"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260611-i968-d2db26/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260611-i968-d2db26/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260611-i805-732c34",
+      "label": "Bug Fix — bridgebuilder entry.sh crashes module-not-found (zod) on fresh submodule mounts — #805 residual F7",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/805",
+      "created_at": "2026-06-10T14:26:08Z",
+      "sprints": [
+        "sprint-bug-193"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260611-i805-732c34/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260611-i805-732c34/sprint.md"
     }
   ],
-  "global_sprint_counter": 190,
+  "global_sprint_counter": 193,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
@@ -1771,5 +1810,5 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 188
+  "next_sprint_number": 192
 }
