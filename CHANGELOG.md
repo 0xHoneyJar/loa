@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.173.6] — 2026-06-10 — Pre-OSS-release hardening wave (patch rollup 1.173.1–1.173.6)
+
+Tag-only patch releases consolidated. Full triage + wave plan: `grimoires/loa/proposals/oss-release-wave-triage-2026-06-10.md`.
+
+### Fixed
+- **CLAUDE.loa.md always-loaded budget cut 56%** (8,923 → 3,927 tokens/turn): L1–L7 agent-network constraint tables, multi-model detail, and safety-hooks detail moved byte-verbatim to on-demand reference files behind a MUST-read routing table; all `@constraint-generated` blocks byte-identical (#988, PR #990 → v1.173.3).
+- **`next-bug-sprint-id.sh` sprint-id collisions**: cycle-claimed global ids in `ledger.json` `cycles[].sprints`/`bugfix_cycles[].sprints` (both shapes, both local + origin ledgers) now consulted; live 177-vs-179 collision shape pinned by bats (#942, PR #993 → v1.173.4).
+- **Secret scanning silently zero on main**: removed the TruffleHog `base`/`head` pin that made every push-to-main and weekly scheduled scan exit with "BASE and HEAD commits are the same" — first green (and first actual) main scan since 2026-05-22; contract test pins the workflow shape + SHA-pinned action (#992, PR #994 → v1.173.5).
+- **Shell Tests dependency failures (68 → 50)**: `bats-tests.yml` now installs pinned Python deps (`rfc8785`, `jsonschema`, `ruamel.yaml`, `cryptography`, `pyyaml`, `idna`) under a SHA-pinned setup-python before `tests/unit/`; two additional missing pins discovered by the PR's own empirical CI gate (#886, PR #996 → v1.173.6).
+- Tracker hygiene: 9 stale/resolved issues closed with evidence; KF-014 filed (#991) and `secret-scanning` misconfig filed (#992).
+
 ## [1.173.0] — 2026-06-01 — Harness Modernization: Opus 4.8
 
 Cycle-114 (`/oracle` audit-driven). 9 framework improvements + 1 ADR, all additive/opt-in and test-first (55 new bats + 14 pytest). PR #970.
