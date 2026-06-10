@@ -29,6 +29,7 @@ declare -A MODEL_PROVIDERS=(
     ["claude-sonnet-4-6"]="anthropic"
     ["claude-sonnet-4-5-20250929"]="anthropic"
     ["claude-haiku-4-5-20251001"]="anthropic"
+    ["claude-fable-headless"]="anthropic"
     ["claude-headless"]="anthropic"
     ["us.anthropic.claude-opus-4-8"]="bedrock"
     ["us.anthropic.claude-opus-4-7"]="bedrock"
@@ -51,6 +52,7 @@ declare -A MODEL_PROVIDERS=(
     ["gpt-5.5-pro"]="openai"
     ["gpt-5.3-codex"]="openai"
     ["claude-headless"]="anthropic"
+    ["fable-headless"]="anthropic"
     ["codex-headless"]="openai"
     ["gemini-headless"]="google"
     ["gpt-5.2-codex"]="openai"
@@ -90,6 +92,7 @@ declare -A MODEL_IDS=(
     ["claude-sonnet-4-6"]="claude-sonnet-4-6"
     ["claude-sonnet-4-5-20250929"]="claude-sonnet-4-5-20250929"
     ["claude-haiku-4-5-20251001"]="claude-haiku-4-5-20251001"
+    ["claude-fable-headless"]="claude-fable-headless"
     ["claude-headless"]="claude-headless"
     ["us.anthropic.claude-opus-4-8"]="us.anthropic.claude-opus-4-8"
     ["us.anthropic.claude-opus-4-7"]="us.anthropic.claude-opus-4-7"
@@ -112,6 +115,7 @@ declare -A MODEL_IDS=(
     ["gpt-5.5-pro"]="gpt-5.5-pro"
     ["gpt-5.3-codex"]="gpt-5.3-codex"
     ["claude-headless"]="claude-headless"
+    ["fable-headless"]="claude-fable-headless"
     ["codex-headless"]="codex-headless"
     ["gemini-headless"]="gemini-headless"
     ["gpt-5.2-codex"]="gpt-5.3-codex"
@@ -155,6 +159,7 @@ declare -A MODEL_AUTH_TYPE=(
     ["claude-sonnet-4-6"]="http_api"
     ["claude-sonnet-4-5-20250929"]="http_api"
     ["claude-haiku-4-5-20251001"]="http_api"
+    ["claude-fable-headless"]="headless"
     ["claude-headless"]="headless"
     ["us.anthropic.claude-opus-4-8"]="aws_iam"
     ["us.anthropic.claude-opus-4-7"]="aws_iam"
@@ -182,6 +187,7 @@ declare -A MODEL_DISPATCH_GROUP=(
     ["claude-sonnet-4-6"]="anthropic-claude"
     ["claude-sonnet-4-5-20250929"]="anthropic-claude"
     ["claude-haiku-4-5-20251001"]="anthropic-claude"
+    ["claude-fable-headless"]="anthropic-claude"
     ["claude-headless"]="anthropic-claude"
     ["us.anthropic.claude-opus-4-8"]="bedrock-anthropic"
     ["us.anthropic.claude-opus-4-7"]="bedrock-anthropic"
@@ -309,6 +315,7 @@ declare -A COST_OUTPUT=(
 declare -a VALID_FLATLINE_MODELS=(
     cheap
     claude-fable-5
+    claude-fable-headless
     claude-haiku-4-5-20251001
     claude-headless
     claude-opus-4-0
@@ -329,6 +336,7 @@ declare -a VALID_FLATLINE_MODELS=(
     deep-research-pro
     deep-thinker
     fable
+    fable-headless
     gemini-2.0
     gemini-2.0-flash
     gemini-2.5-flash
