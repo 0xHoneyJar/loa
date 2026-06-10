@@ -340,6 +340,35 @@ providers:
     endpoint: "https://api.anthropic.com/v1"
     auth: "{env:ANTHROPIC_API_KEY}"
     models:
+      claude-fable-5:
+        # 2026-06-10 (intel-routing review): the top intelligence tier — a class
+        # ABOVE Opus. Same API surface as Opus 4.7/4.8 (adaptive thinking only;
+        # sampling params + thinking.budget_tokens REJECTED with HTTP 400) with
+        # one extra: an explicit thinking.type=disabled also 400s — omit the
+        # thinking param instead (anthropic_adapter concern). Actual context
+        # window is 1M / 128K out; conservative envelope mirrors the Opus
+        # entries below. PRICING REGISTERED BEFORE ROUTABILITY (review fix-plan
+        # #2): an unpriced model meters as $0 and becomes invisible to the
+        # budget governor.
+        auth_type: http_api
+        dispatch_group: anthropic-claude
+        capabilities: [chat, tools, function_calling, thinking_traces]
+        context_window: 200000
+        token_param: max_tokens
+        # Within-company chain: degrade to the Opus class, then headless.
+        fallback_chain:
+          - anthropic:claude-opus-4-8
+          - anthropic:claude-sonnet-4-6
+          - anthropic:claude-headless
+        max_output_tokens: 32000
+        max_input_tokens: 180000
+        streaming_max_input_tokens: 180000
+        params:
+          temperature_supported: false
+        pricing:
+          # Unit: micro-USD per million tokens. ($10/$50 per MTok.)
+          input_per_mtok: 10000000
+          output_per_mtok: 50000000
       claude-opus-4-8:
         # cycle-114 (harness-modernization-opus-4.8): newest Opus class.
         # Released 2026-05-28 (Claude Code 2.1.154). Pricing == 4.7
@@ -623,6 +652,7 @@ aliases:
   reviewer: "openai:gpt-5.5"
   reasoning: "openai:gpt-5.5"
   cheap: "anthropic:claude-sonnet-4-6"  # Budget-conscious model
+  fable: "anthropic:claude-fable-5"     # Top intelligence tier (2026-06-10 intel-routing review)
   opus: "anthropic:claude-opus-4-8"     # High-quality model (retargeted 4-6→4-7 cycle-082; 4-7→4-8 cycle-114)
   # cycle-095 Sprint 2 (Task 2.3): tiny tier alias points at Haiku 4.5.
   tiny: "anthropic:claude-haiku-4-5-20251001"
@@ -857,7 +887,7 @@ tier_groups:
     tiny: low
   mappings:
     max:
-      anthropic: opus              # → claude-opus-4-8 (cycle-114 retarget)
+      anthropic: fable             # → claude-fable-5 (2026-06-10 intel-routing review; was opus)
       openai: gpt-5.5-pro          # top-of-OpenAI per probe-confirmation
       google: gemini-3.1-pro       # → gemini-3.1-pro-preview
     cheap:
