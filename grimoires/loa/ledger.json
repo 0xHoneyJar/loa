@@ -1481,9 +1481,22 @@
           "created": "2026-06-01T04:11:15Z"
         }
       ]
+    },
+    {
+      "id": "cycle-bug-20260610-i992-8fc4da",
+      "label": "Bug Fix — secret-scanning.yml TruffleHog base==HEAD on push/schedule — zero scan coverage on main",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/992",
+      "created_at": "2026-06-10T09:21:02Z",
+      "sprints": [
+        "sprint-bug-187"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260610-i992-8fc4da/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260610-i992-8fc4da/sprint.md"
     }
   ],
-  "global_sprint_counter": 180,
+  "global_sprint_counter": 187,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
@@ -1719,5 +1732,5 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 181
+  "next_sprint_number": 188
 }
