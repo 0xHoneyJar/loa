@@ -117,6 +117,27 @@ check_claude_md() {
   else
     report "WARN" "claude-md" "CLAUDE.loa.md missing @loa-managed header"
   fi
+
+  # bug-989: verify the header integrity hash. WARN-only by design — drift is
+  # informational (operators re-stamp via marker-utils.sh update-hash), never
+  # a lint blocker. marker-utils resolves relative to THIS script's dir so the
+  # check works regardless of caller CWD.
+  local lint_dir
+  lint_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local hash_status
+  hash_status=$(bash "$lint_dir/marker-utils.sh" verify-hash "$file" 2>/dev/null || echo "NO_HASH")
+  case "$hash_status" in
+    VALID) report "PASS" "claude-md" "CLAUDE.loa.md header integrity hash verifies (VALID)" ;;
+    *)     report "WARN" "claude-md" "CLAUDE.loa.md header integrity hash check: ${hash_status} — re-stamp via .claude/scripts/marker-utils.sh update-hash" ;;
+  esac
+
+  # bug-989 review DISS-001: verify_hash compares the hex PREFIX only, so a
+  # header glued by the pre-fix update_hash ("<correct-hex>PLACEHOLDER") still
+  # verifies VALID. Flag the residue independently so installed-base repos get
+  # the re-stamp signal too.
+  if head -1 "$file" | grep -q 'PLACEHOLDER'; then
+    report "WARN" "claude-md" "CLAUDE.loa.md header carries a PLACEHOLDER residue — re-stamp via .claude/scripts/marker-utils.sh update-hash"
+  fi
 }
 
 # ---------------------------------------------------------------------------

@@ -67,7 +67,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-011](#kf-011-adversarial-reviewsh-malformed-response-on-review-type-prompts-post-kf-002-closure) | **RESOLVED 2026-05-17** (sub-mode (b): parser raw_decode extracts prose-prefixed JSON — PR #933 `d9ec8cb5`; sub-mode (c): route-around via 4-voice fallback chain — PR #934 `ccd510b0`; structural sub-mode (c) Gemini streaming-recovery tracked at issue #935). | adversarial-review.sh review-type — JSON contract layer + Gemini streaming-recovery gap | 2 (initial obs sprint-166 review + repro on parser-fix branch) |
 | [KF-012](#kf-012-sha256sum-not-portable-to-bsd-macos-silent-empty-hash-cascade-into-validation-failures) | **RESOLVED-STRUCTURAL 2026-05-20** (sprint-bug-172 / #911: `sha256_portable` helper in compat-lib.sh + 38 production call sites migrated + CI scanner `tools/check-no-raw-sha256sum.sh` + `tests/unit/compat-lib-sha256.bats` + masked-PATH integration test). Structural analog of cycle-099 sprint-1E.c.3.c curl wrapper migration. | macOS / BSD users of `/butterfreezone-gen` + 37 other framework scripts | 1 (single observation, sprint-bug-172 closure) |
 | [KF-013](#kf-013-headless-cli-env-mode-selector-vars-defeat-subscription-oauth) | **RESOLVED 2026-05-20** (sprint-bug-173 / #894: `_HEADLESS_STRIPPED_AUTH_VARS` tuple extended with `GOOGLE_GENAI_USE_VERTEXAI` + `GOOGLE_GENAI_USE_GCA`; canonical scrub list mirrors `construct-k-hole/scripts/dig-search.ts`). | cheval headless CLI adapters (gemini / codex / claude) | 1 (single observation, sprint-bug-173 closure) |
-| [KF-014](#kf-014-pre-commit-beads-hook-fails-in-linked-git-worktrees) | OPEN (upstream [#991](https://github.com/0xHoneyJar/loa/issues/991)) | pre-commit beads flush in linked worktrees | 1 |
+| [KF-014](#kf-014-pre-commit-beads-hook-fails-in-linked-git-worktrees) | **RESOLVED 2026-06-10** (sprint-bug-190 / #991: hook flushes from MAIN_REPO_ROOT subshell in worktrees; PCB-T7/T8/T9 pin it; live worktree-commit verification) | pre-commit beads flush in linked worktrees | 1 |
 
 ---
 
@@ -968,7 +968,9 @@ re-discovery cost on every cycle.
 
 ## KF-014: pre-commit beads hook fails in linked git worktrees
 
-**Status**: OPEN
+**Status**: RESOLVED 2026-06-10 (sprint-bug-190 / #991 — `.claude/scripts/git-hooks/pre-commit-beads` now runs the flush as `(cd "$MAIN_REPO_ROOT" && br sync --flush-only)` when the resolved beads dir is the main checkout's; bats PCB-T7 (worktree CWD assertion via recording stub), PCB-T8 (main-checkout regression guard), PCB-T9 (worktree failure-path stderr passthrough); live verification: empty-commit in a fresh linked worktree succeeded without --no-verify)
+
+**Original Status**: OPEN
 **Feature**: `.git/hooks/pre-commit` beads flush (`br sync --flush-only`)
 **Symptom**: `git commit` in any `git worktree add` linked worktree fails with `Error: Beads not initialized: run 'br init' first` — the hook resolves the main checkout's `.beads/` via `--git-common-dir` but then invokes plain `br sync`, which resolves `.beads/` from CWD (the worktree, which has none). The worktree-detection branch is dead code for the actual invocation.
 **First observed**: 2026-06-10 (CLAUDE.loa.md token-refactor branch build, PR #990)
