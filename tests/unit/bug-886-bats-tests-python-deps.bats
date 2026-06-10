@@ -38,6 +38,9 @@ setup() {
     [[ "$output" == *"jsonschema==4.26.0"* ]]
     [[ "$output" == *"ruamel.yaml==0.18.17"* ]]
     [[ "$output" == *"cryptography==46.0.7"* ]]
+    # pyyaml: fresh setup-python env loses ubuntu's system python3-yaml;
+    # 16+ suites `import yaml` (PR #996 run 27268920412: 182 failures without it)
+    [[ "$output" == *"pyyaml==6.0.2"* ]]
 }
 
 @test "bug-886: pip-install step runs BEFORE the unit-test step" {
