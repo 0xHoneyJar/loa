@@ -1494,9 +1494,22 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260610-i992-8fc4da/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260610-i992-8fc4da/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260610-i886-b5cddf",
+      "label": "Bug Fix — bats-tests.yml runs tests/unit/ without installing Python dependencies",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/886",
+      "created_at": "2026-06-10T10:00:12Z",
+      "sprints": [
+        "sprint-bug-188"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260610-i886-b5cddf/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260610-i886-b5cddf/sprint.md"
     }
   ],
-  "global_sprint_counter": 187,
+  "global_sprint_counter": 188,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",

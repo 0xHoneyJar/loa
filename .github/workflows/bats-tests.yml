@@ -69,6 +69,23 @@ jobs:
           git config --global user.name "CI Bot"
           git config --global user.email "ci@example.com"
 
+      # PINNING: SHA matches the actions/setup-python v5.3.0 pin used by
+      # cycle099-sprint-1e-tests.yml and jcs-conformance.yml. Rotate together.
+      # bug-886: tests/unit/ exercises lib/jcs.sh (rfc8785), trust-store
+      # signing (rfc8785 + cryptography), and yaml/schema suites
+      # (ruamel.yaml + jsonschema) — without these installs ~22 bats fail.
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: '3.13'
+
+      - name: Install Python deps for bats suites
+        run: |
+          python -m pip install --upgrade pip
+          # Pins match cycle099-sprint-1e-tests.yml (ruamel.yaml, jsonschema),
+          # the jcs-conformance suite (rfc8785), and ubuntu-latest's
+          # cryptography floor. Keep pin sites in sync when rotating.
+          pip install 'rfc8785==0.1.4' 'jsonschema==4.26.0' 'ruamel.yaml==0.18.17' 'cryptography==46.0.7'
+
       # NOTE: yq install step is below (line ~85) and is pre-existing on main.
       # cycle-102 Sprint 1C T1C.1 made yq a hard requirement for the curl-mock
       # harness shim (per BB iter-1 F1/FIND-001: tool absence must be a hard
