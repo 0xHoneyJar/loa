@@ -41,6 +41,9 @@ setup() {
     # pyyaml: fresh setup-python env loses ubuntu's system python3-yaml;
     # 16+ suites `import yaml` (PR #996 run 27268920412: 182 failures without it)
     [[ "$output" == *"pyyaml==6.0.2"* ]]
+    # idna: endpoint-validator hard dep (lib/endpoint-validator.sh:39); absent
+    # from clean env -> guarded_curl chain fails (PR #996 run 27269518686)
+    [[ "$output" == *"idna==3.10"* ]]
 }
 
 @test "bug-886: pip-install step runs BEFORE the unit-test step" {

@@ -88,7 +88,11 @@ jobs:
           # consumers previously leaned on ubuntu's system python3-yaml (PR #996
           # empirical run: omitting it broke 182 tests). Pin matches
           # cycle099-sprint-2d-c-ts-tests.yml.
-          pip install 'rfc8785==0.1.4' 'jsonschema==4.26.0' 'ruamel.yaml==0.18.17' 'cryptography==46.0.7' 'pyyaml==6.0.2'
+          # idna: endpoint-validator's Unicode hostname canonicalization
+          # (lib/endpoint-validator.sh:39 requires idna>=3.6) — system python has
+          # it, the clean env does not (PR #996 run 2: broke the guarded_curl
+          # chain behind call_api / 401-handler suites).
+          pip install 'rfc8785==0.1.4' 'jsonschema==4.26.0' 'ruamel.yaml==0.18.17' 'cryptography==46.0.7' 'pyyaml==6.0.2' 'idna==3.10'
 
       # NOTE: yq install step is below (line ~85) and is pre-existing on main.
       # cycle-102 Sprint 1C T1C.1 made yq a hard requirement for the curl-mock
