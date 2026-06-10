@@ -1507,9 +1507,35 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260610-i886-b5cddf/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260610-i886-b5cddf/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260610-i989-e8ab1c",
+      "label": "Bug Fix — Kernel integrity stamp is a hollow PLACEHOLDER — @loa-managed hash verifies nothing",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/989",
+      "created_at": "2026-06-10T12:32:23Z",
+      "sprints": [
+        "sprint-bug-189"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260610-i989-e8ab1c/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260610-i989-e8ab1c/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260610-i991-9c97f1",
+      "label": "Bug Fix — pre-commit beads hook fails in linked git worktrees: br sync runs from worktree CWD",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/991",
+      "created_at": "2026-06-10T12:46:49Z",
+      "sprints": [
+        "sprint-bug-190"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260610-i991-9c97f1/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260610-i991-9c97f1/sprint.md"
     }
   ],
-  "global_sprint_counter": 188,
+  "global_sprint_counter": 190,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
