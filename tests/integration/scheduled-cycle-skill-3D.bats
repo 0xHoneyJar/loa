@@ -141,17 +141,19 @@ print('OK')
 }
 
 # -----------------------------------------------------------------------------
-# CLAUDE.md L3 constraint section
+# L3 constraint section (agent-network reference) + CLAUDE.md routing row
 # -----------------------------------------------------------------------------
-@test "CLAUDE.md: L3 Scheduled-Cycle Template section present with constraints table" {
-    local cl="${REPO_ROOT}/.claude/loa/CLAUDE.loa.md"
-    grep -q "^## L3 Scheduled-Cycle Template" "$cl"
-    grep -q "^### Scheduled-Cycle Constraints" "$cl"
+@test "agent-network reference: L3 Scheduled-Cycle Template section present with constraints table" {
+    local ref="${REPO_ROOT}/.claude/loa/reference/agent-network-reference.md"
+    grep -q "^## L3 Scheduled-Cycle Template" "$ref"
+    grep -q "^### Scheduled-Cycle Constraints" "$ref"
     # Spot-check at least 4 constraints by anchor text.
-    grep -q "ALWAYS use \`cycle_invoke\`" "$cl"
-    grep -q "cycle.complete\` as the ONLY idempotency gate" "$cl"
-    grep -q "hold the flock across the entire cycle" "$cl"
-    grep -q "compose L2 budget pre-check" "$cl"
+    grep -q "ALWAYS use \`cycle_invoke\`" "$ref"
+    grep -q "cycle.complete\` as the ONLY idempotency gate" "$ref"
+    grep -q "hold the flock across the entire cycle" "$ref"
+    grep -q "compose L2 budget pre-check" "$ref"
+    # Per-turn routing row in CLAUDE.loa.md points at the reference.
+    grep -q "Scheduled cycles (L3" "${REPO_ROOT}/.claude/loa/CLAUDE.loa.md"
 }
 
 # -----------------------------------------------------------------------------
