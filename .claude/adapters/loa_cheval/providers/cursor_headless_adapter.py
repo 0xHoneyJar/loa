@@ -102,7 +102,6 @@ def _extract_envelope(stdout: str) -> Optional[Dict[str, Any]]:
     text = (stdout or "").strip()
     idx = text.find("{")
     decoder = json.JSONDecoder()
-    first_dict: Optional[Dict[str, Any]] = None
     while idx != -1:
         try:
             obj, consumed = decoder.raw_decode(text[idx:])
@@ -110,17 +109,17 @@ def _extract_envelope(stdout: str) -> Optional[Dict[str, Any]]:
             idx = text.find("{", idx + 1)
             continue
         if isinstance(obj, dict):
-            # Prefer the dict that is SHAPED like cursor's result envelope —
-            # a JSON-formatted log line before it must not shadow the real
-            # envelope (BB #966 round-3). Fall back to the first dict only
-            # when nothing envelope-shaped appears.
+            # ONLY a dict SHAPED like cursor's result envelope counts — a
+            # JSON-formatted log line must neither shadow the real envelope
+            # (BB #966 round-3) nor stand in for it: returning a non-envelope
+            # dict turned classifiable failures into silent EMPTY successes
+            # (BB #966 round-4). No fallback — callers treat None as
+            # no-parseable-envelope and classify/raise accordingly.
             if obj.get("type") == "result" or "is_error" in obj or "result" in obj:
                 return obj
-            if first_dict is None:
-                first_dict = obj
         # Resume AFTER the consumed object so its nested dicts aren't rescanned.
         idx = text.find("{", idx + consumed)
-    return first_dict
+    return None
 
 
 class CursorHeadlessAdapter(ProviderAdapter):
@@ -190,12 +189,18 @@ class CursorHeadlessAdapter(ProviderAdapter):
                     # Review #966 / #982 parity: run_subprocess_pgkill replaces the
                     # hand-rolled Popen + communicate + killpg block — whole-tree
                     # SIGKILL on timeout (cursor-agent forks node/MCP helpers),
-                    # bounded output capture, BaseException teardown. `--` ends
-                    # option parsing so the untrusted prompt can never be read as
-                    # a flag. cwd= keeps the isolated-workspace defense (additive
-                    # helper kwarg, this PR).
+                    # bounded output capture, BaseException teardown. The prompt
+                    # is fed via STDIN (verified live 2026-06-11: cursor-agent -p
+                    # reads the prompt from stdin when no positional arg is
+                    # given) — it never touches argv, which (a) removes the OS
+                    # ARG_MAX cliff on large-diff reviews (BB #966 round-4
+                    # HIGH_CONSENSUS: argv caps ~256KB, ~6x below the advertised
+                    # context window) and (b) removes the flag-parsing surface
+                    # entirely (stronger than the previous `--` terminator).
+                    # cwd= keeps the isolated-workspace defense.
                     proc = run_subprocess_pgkill(
-                        cmd + ["--", prompt],
+                        cmd,
+                        input=prompt,
                         timeout=timeout_s,
                         env=build_headless_subprocess_env(),
                         cwd=workspace,
@@ -474,13 +479,15 @@ class CursorHeadlessAdapter(ProviderAdapter):
 
         # Quota / rate limit. Cursor surfaces gRPC "resource_exhausted" (plan quota
         # depleted or free tier without Composer headless access) and rate-limit text.
-        # "429" matches only as a standalone number (BB #966 round-3): stderr is
-        # probe surface even on success, and incidental digit runs ("14290ms",
-        # request ids) must not classify a billed success as rate-limited.
+        # "429" matches only as a standalone token (BB #966 rounds 3-4): stderr
+        # is probe surface even on success, and incidental runs ("14290ms",
+        # "429ms", request ids) must not classify a billed success as
+        # rate-limited. Alphanumeric boundaries on both sides; "http 429" and
+        # "code=429." still match.
         if (
             "resource_exhausted" in combined
             or "rate limit" in combined
-            or re.search(r"(?<!\d)429(?!\d)", combined)
+            or re.search(r"(?<![0-9a-z])429(?![0-9a-z])", combined)
             or "too many requests" in combined
         ):
             raise RateLimitError(self.provider)

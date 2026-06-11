@@ -256,6 +256,22 @@ class TestTransportProbeSafety:
         assert r.content == '{"verdict":"APPROVED"}'
         assert r.usage.input_tokens == 120
 
+    def test_log_line_only_stdout_is_failure_not_empty_success(self):
+        # BB #966 round-4 (MEDIUM): stdout containing ONLY a non-envelope JSON
+        # dict must classify as no-parseable-envelope (chain advances), never
+        # as a silent EMPTY success.
+        out = '{"level":"error","msg":"something broke"}'
+        with patch(_PGKILL, return_value=_completed(out)):
+            with pytest.raises(ProviderUnavailableError, match="no parseable JSON"):
+                _adapter().complete(_req())
+
+    def test_stderr_429ms_not_misclassified(self):
+        # BB #966 round-4: alphanumeric-adjacent runs ("429ms") must not
+        # rate-limit-classify a billed success; standalone 429 still does.
+        with patch(_PGKILL, return_value=_completed(_OK_ENVELOPE, stderr="warmup took 429ms")):
+            r = _adapter().complete(_req())
+        assert r.content == '{"verdict":"APPROVED"}'
+
 
 # ---------------------------------------------------------------------------
 # Error classification
@@ -365,14 +381,24 @@ class TestSubstrateWiring:
         kwargs = pg.call_args.kwargs
         assert "loa-cursor-ws-" in (kwargs.get("cwd") or "")
 
-    def test_prompt_passed_after_option_terminator(self):
-        # `--` must end option parsing so the untrusted prompt can never be
-        # read as a flag.
+    def test_prompt_delivered_via_stdin_not_argv(self):
+        # BB #966 round-4 (HIGH_CONSENSUS): the prompt rides STDIN, never argv —
+        # no OS ARG_MAX cliff on large-diff reviews and no flag-parsing surface
+        # at all (an injected "--yolo" cannot be an argument).
         with patch(_PGKILL, return_value=_completed(_OK_ENVELOPE)) as pg:
             _adapter().complete(_req("--yolo injected"))
         argv = pg.call_args.args[0]
-        sep = argv.index("--")
-        assert any("--yolo injected" in a for a in argv[sep + 1:])
+        assert not any("--yolo injected" in a for a in argv)
+        assert "--yolo injected" in pg.call_args.kwargs["input"]
+
+    def test_large_prompt_keeps_argv_small(self):
+        # The ARG_MAX regression: a ~1MB prompt must not appear in argv.
+        big = "x" * 1_000_000
+        with patch(_PGKILL, return_value=_completed(_OK_ENVELOPE)) as pg:
+            _adapter().complete(_req(big))
+        argv = pg.call_args.args[0]
+        assert sum(len(a) for a in argv) < 10_000
+        assert big in pg.call_args.kwargs["input"]
 
     def test_cli_adapter_types_includes_cursor(self):
         # cheval's kind:cli escape hatch derives from the registry — the gap
