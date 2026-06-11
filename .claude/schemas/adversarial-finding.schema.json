@@ -4,19 +4,32 @@
   "title": "Adversarial Finding",
   "description": "Documentation contract for adversarial cross-model dissent findings. Runtime validation uses jq-based validate_finding() in adversarial-review.sh, NOT this schema file directly.",
   "type": "object",
-  "required": ["findings", "metadata"],
+  "required": [
+    "findings",
+    "metadata"
+  ],
   "properties": {
     "findings": {
       "type": "array",
-      "items": { "$ref": "#/$defs/finding" }
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
     },
-    "metadata": { "$ref": "#/$defs/metadata" }
+    "metadata": {
+      "$ref": "#/$defs/metadata"
+    }
   },
   "additionalProperties": false,
   "$defs": {
     "finding": {
       "type": "object",
-      "required": ["id", "severity", "category", "description", "failure_mode"],
+      "required": [
+        "id",
+        "severity",
+        "category",
+        "description",
+        "failure_mode"
+      ],
       "properties": {
         "id": {
           "type": "string",
@@ -27,18 +40,47 @@
           "type": "string",
           "description": "Review: BLOCKING|ADVISORY. Audit: CRITICAL|HIGH|MEDIUM|LOW",
           "oneOf": [
-            { "enum": ["BLOCKING", "ADVISORY"], "title": "Review severities" },
-            { "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"], "title": "Audit severities" }
+            {
+              "enum": [
+                "BLOCKING",
+                "ADVISORY"
+              ],
+              "title": "Review severities"
+            },
+            {
+              "enum": [
+                "CRITICAL",
+                "HIGH",
+                "MEDIUM",
+                "LOW"
+              ],
+              "title": "Audit severities"
+            }
           ]
         },
         "category": {
           "type": "string",
           "enum": [
-            "injection", "authz", "data-loss", "null-safety", "concurrency",
-            "type-error", "resource-leak", "error-handling", "spec-violation",
-            "performance", "secrets", "xss", "ssrf", "deserialization",
-            "crypto", "info-disclosure", "rate-limiting", "input-validation",
-            "config", "other"
+            "injection",
+            "authz",
+            "data-loss",
+            "null-safety",
+            "concurrency",
+            "type-error",
+            "resource-leak",
+            "error-handling",
+            "spec-violation",
+            "performance",
+            "secrets",
+            "xss",
+            "ssrf",
+            "deserialization",
+            "crypto",
+            "info-disclosure",
+            "rate-limiting",
+            "input-validation",
+            "config",
+            "other"
           ],
           "description": "Constrained category from prompt template enum"
         },
@@ -58,22 +100,40 @@
         },
         "anchor_type": {
           "type": "string",
-          "enum": ["function", "hunk", "line", "file"],
+          "enum": [
+            "function",
+            "hunk",
+            "line",
+            "file"
+          ],
           "description": "Type of anchor reference"
         },
         "anchor_stability": {
           "type": "string",
-          "enum": ["symbol", "hunk_header", "line_number"],
+          "enum": [
+            "symbol",
+            "hunk_header",
+            "line_number"
+          ],
           "description": "Set by process_findings: stability classification of the anchor"
         },
         "anchor_status": {
           "type": "string",
-          "enum": ["valid", "cross_file", "out_of_scope", "needs_triage", "unresolved"],
+          "enum": [
+            "valid",
+            "cross_file",
+            "out_of_scope",
+            "needs_triage",
+            "unresolved"
+          ],
           "description": "Set by process_findings: validation result of anchor against diff"
         },
         "scope": {
           "type": "string",
-          "enum": ["diff", "cross_file"],
+          "enum": [
+            "diff",
+            "cross_file"
+          ],
           "description": "Whether finding is within diff or references cross-file impact"
         },
         "trigger_anchor": {
@@ -98,11 +158,17 @@
     },
     "metadata": {
       "type": "object",
-      "required": ["type", "status"],
+      "required": [
+        "type",
+        "status"
+      ],
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["review", "audit"],
+          "enum": [
+            "review",
+            "audit"
+          ],
           "description": "Dissent type: code review or security audit"
         },
         "model": {
@@ -140,7 +206,12 @@
         },
         "status": {
           "type": "string",
-          "enum": ["api_failure", "malformed_response", "clean", "reviewed"],
+          "enum": [
+            "api_failure",
+            "malformed_response",
+            "clean",
+            "reviewed"
+          ],
           "description": "Response state machine outcome"
         },
         "context_escalated": {
@@ -154,6 +225,10 @@
         "error": {
           "type": "string",
           "description": "Error message when status is api_failure"
+        },
+        "status_note": {
+          "type": "string",
+          "description": "bug-809: qualifier on status=clean \u2014 zero findings means nothing met the BLOCKING/ADVISORY bar, not an affirmative approval"
         }
       },
       "additionalProperties": false

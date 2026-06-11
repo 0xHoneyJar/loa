@@ -1895,7 +1895,7 @@ main() {
     doc_bytes=$(wc -c < "$doc" 2>/dev/null || echo 0)
     doc_kb=$(( (doc_bytes + 512) / 1024 ))   # round to nearest KB
     if [[ "$doc_bytes" -gt 30720 ]]; then
-        echo "WARNING: Document size ${doc_kb} KB; long prompts may trip the cheval connection-loss path on Anthropic + OpenAI. See issue #774 if Phase 1 reports failure_class=PROVIDER_DISCONNECT. The --per-call-max-tokens flag does NOT address this failure mode." >&2
+        echo "WARNING: Document size ${doc_kb} KB. Large documents are handled by the streaming transport default + chunked dispatch (KF-002 RESOLVED-STRUCTURAL); if Phase 1 still reports provider failures at this size, check the verdict_quality envelope and .run/model-invoke.jsonl rather than retrying. The --per-call-max-tokens flag does NOT change input handling." >&2
     fi
 
     # Validate orchestrator mode

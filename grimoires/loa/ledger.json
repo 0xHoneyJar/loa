@@ -1572,9 +1572,35 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260611-i805-732c34/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260611-i805-732c34/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260611-i984-8b8a94",
+      "label": "Bug Fix — red-team-code-vs-design.sh silently passes quality gate on degraded runs — #984 + #985",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/984",
+      "created_at": "2026-06-11T00:41:32Z",
+      "sprints": [
+        "sprint-bug-194"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260611-i984-8b8a94/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260611-i984-8b8a94/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260611-i809-0cef92",
+      "label": "Bug Fix — adversarial-review status:clean qualifier + stale #774 warning + missing --phase attribution",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/809",
+      "created_at": "2026-06-11T01:02:10Z",
+      "sprints": [
+        "sprint-bug-195"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260611-i809-0cef92/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260611-i809-0cef92/sprint.md"
     }
   ],
-  "global_sprint_counter": 193,
+  "global_sprint_counter": 195,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
