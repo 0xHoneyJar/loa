@@ -652,6 +652,7 @@ def run_subprocess_pgkill(
     timeout: float,
     env: Optional[Dict[str, str]] = None,
     max_bytes: int = _PGKILL_MAX_BYTES_DEFAULT,
+    cwd: Optional[str] = None,
 ) -> subprocess.CompletedProcess:
     """Drop-in for subprocess.run(capture_output=True, text=True) that kills
     the WHOLE process tree on timeout.
@@ -678,6 +679,10 @@ def run_subprocess_pgkill(
     descendants that remain in the child's process group. A CLI that
     double-forks + setsid escapes the group and survives — acceptable for
     the known agentic CLIs, which do not daemonize their workers.
+
+    `cwd=` runs the child in the given directory (subprocess.Popen
+    passthrough) — used by adapters that confine the CLI to an isolated
+    empty workspace as part of an untrusted-prompt defense (cursor-headless).
     """
     proc = subprocess.Popen(
         cmd,
@@ -690,6 +695,7 @@ def run_subprocess_pgkill(
         bufsize=0,
         close_fds=True,
         env=env,
+        cwd=cwd,
     )
     try:
         if input is not None:

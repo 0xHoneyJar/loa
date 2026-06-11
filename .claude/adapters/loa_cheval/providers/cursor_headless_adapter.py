@@ -39,7 +39,6 @@ import json
 import logging
 import os
 import shutil
-import signal
 import subprocess
 import tempfile
 import time
@@ -47,8 +46,10 @@ from typing import Any, Dict, List, Optional
 
 from loa_cheval.providers.base import (
     ProviderAdapter,
+    SubprocessOutputCapExceeded,
     build_headless_subprocess_env,
     enforce_context_window,
+    run_subprocess_pgkill,
 )
 from loa_cheval.types import (
     CompletionRequest,
@@ -106,6 +107,11 @@ class CursorHeadlessAdapter(ProviderAdapter):
           reviewer: cursor-headless:composer-2.5
     """
 
+    # Review #966 (Bundle-E parity): subscription-CLI dispatch; circuit-breaker
+    # writes route to the (cursor-headless, headless) bucket, and headless-mode
+    # transforms keep this adapter under cli-only mode.
+    auth_type: str = "headless"
+
     def complete(self, request: CompletionRequest) -> CompletionResult:
         """Invoke `cursor-agent -p` and return a normalized CompletionResult."""
         model_config = self._get_model_config(request.model)
@@ -114,78 +120,84 @@ class CursorHeadlessAdapter(ProviderAdapter):
         prompt = self._build_prompt(request.messages)
         cmd = self._build_command(request, model_config)
         timeout_s = self._compute_timeout()
+        # Review #966: per-model headless concurrency slots (peer pattern,
+        # cycle-110 SDD §5.6). Default 50 when the operator hasn't seeded a
+        # stress-test-discovered value.
+        n_slots = getattr(model_config, "headless_concurrency_limit", None) or 50
 
         logger.debug(
-            "cursor-headless invoking: model=%s timeout=%.0fs prompt_chars=%d",
+            "cursor-headless invoking: model=%s timeout=%.0fs prompt_chars=%d slots=%d",
             request.model,
             timeout_s,
             len(prompt),
+            n_slots,
         )
 
         # Isolated empty cwd so a (denied) tool call has nothing to reach. Combined
         # with --mode plan + --sandbox enabled, this is defense-in-depth for the
         # untrusted prompt.
         workspace = tempfile.mkdtemp(prefix="loa-cursor-ws-")
-        start = time.monotonic()
-        # cursor-agent is an agent runtime that forks helpers (node, MCP servers).
-        # start_new_session puts the whole tree in its own process group so a
-        # timeout can SIGKILL ALL of it — subprocess.run(timeout=) reaps only the
-        # direct child and leaks grandchildren on every hung call (host DoS under
-        # the error path). `--` ends option parsing so the untrusted prompt can
-        # never be read as a flag, regardless of formatting. (panel: opus-skeptic)
-        try:
-            proc = subprocess.Popen(
-                cmd + ["--", prompt],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                stdin=subprocess.DEVNULL,
-                text=True,
-                cwd=workspace,
-                env=build_headless_subprocess_env(),
-                start_new_session=True,
-            )
-        except FileNotFoundError as exc:
-            shutil.rmtree(workspace, ignore_errors=True)
-            raise ConfigError(
-                f"cursor-agent CLI not found on PATH (set CURSOR_HEADLESS_BIN to "
-                f"override). Install Cursor + run `cursor-agent login`. Original: {exc}"
-            ) from exc
-        except OSError as exc:
-            # PermissionError / ENOMEM / "Exec format error" etc. — Popen never
-            # started, so clean up the workspace it would otherwise leak. (BB CURSOR-004)
-            shutil.rmtree(workspace, ignore_errors=True)
-            raise ProviderUnavailableError(
-                self.provider, f"failed to spawn cursor-agent: {type(exc).__name__}: {exc}"
-            ) from exc
+        from loa_cheval.adapters.headless_concurrency import (
+            SemaphoreExhausted as _SemaphoreExhausted,
+            acquire_slot as _acquire_slot,
+        )
 
+        start = time.monotonic()
         try:
-            stdout, stderr = proc.communicate(timeout=timeout_s)
-        except subprocess.TimeoutExpired:
-            try:
-                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
-            except (ProcessLookupError, PermissionError):
-                pass
-            # Bound the reap — if killpg failed (PermissionError) the tree may be
-            # alive and an unbounded communicate() would block forever, re-creating
-            # the host-DoS hang the process-group design exists to prevent. (BB CURSOR-005)
-            try:
-                proc.communicate(timeout=10)
-            except subprocess.TimeoutExpired:
-                proc.kill()  # last resort: SIGKILL the direct child
+            with _acquire_slot("cursor-headless", n_slots=n_slots):
                 try:
-                    proc.communicate(timeout=5)
+                    # Review #966 / #982 parity: run_subprocess_pgkill replaces the
+                    # hand-rolled Popen + communicate + killpg block — whole-tree
+                    # SIGKILL on timeout (cursor-agent forks node/MCP helpers),
+                    # bounded output capture, BaseException teardown. `--` ends
+                    # option parsing so the untrusted prompt can never be read as
+                    # a flag. cwd= keeps the isolated-workspace defense (additive
+                    # helper kwarg, this PR).
+                    proc = run_subprocess_pgkill(
+                        cmd + ["--", prompt],
+                        timeout=timeout_s,
+                        env=build_headless_subprocess_env(),
+                        cwd=workspace,
+                    )
                 except subprocess.TimeoutExpired:
-                    pass  # abandon the reap rather than block the caller forever
+                    raise ProviderUnavailableError(
+                        self.provider,
+                        f"cursor-agent timed out after {timeout_s:.0f}s",
+                    )
+                except SubprocessOutputCapExceeded as exc:
+                    # Truncated output is a provider failure, not a successful
+                    # completion — the chain advances like a timeout.
+                    raise ProviderUnavailableError(
+                        self.provider,
+                        f"cursor-agent {exc}",
+                    ) from exc
+                except FileNotFoundError as exc:
+                    raise ConfigError(
+                        f"cursor-agent CLI not found on PATH (set CURSOR_HEADLESS_BIN to "
+                        f"override). Install Cursor + run `cursor-agent login`. Original: {exc}"
+                    ) from exc
+                except OSError as exc:
+                    # PermissionError / ENOMEM / "Exec format error" etc. — the CLI
+                    # never started. (BB CURSOR-004)
+                    raise ProviderUnavailableError(
+                        self.provider,
+                        f"failed to spawn cursor-agent: {type(exc).__name__}: {exc}",
+                    ) from exc
+        except _SemaphoreExhausted as exc:
+            # Distinct exit class so MODELINV records semaphore_exhausted=true and
+            # the caller routes the failure separately from CHAIN_EXHAUSTED.
             raise ProviderUnavailableError(
                 self.provider,
-                f"cursor-agent timed out after {timeout_s:.0f}s",
-            )
+                f"[CHAIN-EXHAUSTED-CONCURRENCY] cursor-headless semaphore "
+                f"exhausted after {exc.waited_seconds:.1f}s "
+                f"(n_slots={exc.n_slots})",
+            ) from exc
         finally:
             shutil.rmtree(workspace, ignore_errors=True)
 
         latency_ms = int((time.monotonic() - start) * 1000)
-        stdout = stdout or ""
-        stderr = stderr or ""
+        stdout = proc.stdout or ""
+        stderr = proc.stderr or ""
 
         # cursor-agent can surface transport errors (e.g. resource_exhausted) on
         # stdout with a zero exit code, so classify from BOTH the exit code and the

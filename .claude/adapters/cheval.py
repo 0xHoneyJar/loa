@@ -45,7 +45,7 @@ from loa_cheval.routing.resolver import (
     validate_bindings,
 )
 from loa_cheval.routing.context_filter import audit_filter_context
-from loa_cheval.providers import get_adapter
+from loa_cheval.providers import cli_adapter_types, get_adapter
 from loa_cheval.types import ProviderConfig, ModelConfig
 from loa_cheval.metering.budget import BudgetEnforcer
 
@@ -234,9 +234,11 @@ def _get_adapter_for_entry(entry: Any, hounfour: Dict[str, Any]):
             # example shape) don't appear in the family map; their type
             # selects the CLI adapter directly. Without this branch the
             # kind:cli inference broke their invocation with the ConfigError
-            # below.
+            # below. Review #966: check the REGISTRY's CLI types, not the
+            # closed family-map values — cursor-headless (and any future
+            # headless adapter) is admitted without editing this site.
             ptype = getattr(provider_config, "type", None)
-            if ptype in _CLI_ADAPTER_BY_PROVIDER.values():
+            if ptype in cli_adapter_types():
                 return get_adapter(provider_config)
             raise ConfigError(
                 f"Provider '{entry.provider}' has a kind:cli entry but no "

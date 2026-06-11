@@ -52,6 +52,17 @@ def get_adapter(config: ProviderConfig) -> ProviderAdapter:
     return adapter_cls(config)
 
 
+def cli_adapter_types() -> frozenset:
+    """Adapter types that dispatch via a subscription-CLI subprocess (kind: cli).
+
+    Derived from the registry so a NEW headless adapter is admitted by the
+    kind:cli dispatch path automatically — review #966 closed the gap where
+    cursor-headless was registered here but rejected by cheval's closed
+    escape-hatch list.
+    """
+    return frozenset(t for t in _ADAPTER_REGISTRY if t.endswith("-headless"))
+
+
 __all__ = [
     "ProviderAdapter",
     "OpenAIAdapter",
@@ -63,4 +74,5 @@ __all__ = [
     "ClaudeHeadlessAdapter",
     "CursorHeadlessAdapter",
     "get_adapter",
+    "cli_adapter_types",
 ]

@@ -417,7 +417,7 @@ _ALLOWED_AUTH_TYPES = ("headless", "http_api", "aws_iam")
 _DISPATCH_GROUP_PATTERN = re.compile(r"^[a-z][a-z0-9-]{1,63}$")
 
 
-# sprint-bug-197 (#979): auth posture is fully inferable for the three
+# sprint-bug-197 (#979): auth posture is fully inferable for the
 # headless adapter types — each adapter hard-codes auth_type = "headless"
 # (e.g. claude_headless_adapter.py ClaudeHeadlessAdapter.auth_type), and the
 # System-Zone defaults pin one dispatch_group per provider family. Keys MUST
@@ -426,14 +426,17 @@ _DISPATCH_GROUP_PATTERN = re.compile(r"^[a-z][a-z0-9-]{1,63}$")
 # Iter-1 B1 (cross-model): `kind` joins the table — chain_resolver defaults
 # kind to "http", so a field-less custom headless provider loaded fine but
 # resolved as an HTTP entry, breaking the headless-mode ordering/filter
-# transforms. All three types dispatch through a CLI subprocess: kind is
+# transforms. Every type here dispatches through a CLI subprocess: kind is
 # "cli" for the whole table. (Consumer sweep: fallback_chain/capabilities
 # are optional-by-design; auth_type/dispatch_group are loader-validated;
 # kind was the only remaining silent-default misclassification.)
+# Review #966: cursor-headless joins — without an entry the documented
+# custom-provider config shape dies [CONFIG-INVALID] at load.
 _HEADLESS_TYPE_INFERENCE = {
     "claude-headless": ("headless", "anthropic-claude"),
     "codex-headless": ("headless", "openai-gpt"),
     "gemini-headless": ("headless", "google-gemini"),
+    "cursor-headless": ("headless", "cursor-composer"),
 }
 _HEADLESS_INFERRED_KIND = "cli"
 
