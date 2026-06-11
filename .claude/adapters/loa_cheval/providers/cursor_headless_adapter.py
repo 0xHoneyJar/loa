@@ -31,6 +31,9 @@ Design notes:
     does NOT report the served model id, so `CompletionResult.model` falls back to the
     requested model (a silent `-fast` downgrade cannot be detected from CLI output
     today — documented limitation). Subscription billing → pricing should be 0.
+  - `request.max_tokens` and `request.temperature` are IGNORED: cursor-agent exposes
+    no flags for them. Documented limitation (BB #966 round-3), same class as the
+    served-model gap above.
 """
 
 from __future__ import annotations
@@ -38,6 +41,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -98,14 +102,25 @@ def _extract_envelope(stdout: str) -> Optional[Dict[str, Any]]:
     text = (stdout or "").strip()
     idx = text.find("{")
     decoder = json.JSONDecoder()
+    first_dict: Optional[Dict[str, Any]] = None
     while idx != -1:
         try:
-            obj, _ = decoder.raw_decode(text[idx:])
+            obj, consumed = decoder.raw_decode(text[idx:])
         except json.JSONDecodeError:
             idx = text.find("{", idx + 1)
             continue
-        return obj if isinstance(obj, dict) else None
-    return None
+        if isinstance(obj, dict):
+            # Prefer the dict that is SHAPED like cursor's result envelope —
+            # a JSON-formatted log line before it must not shadow the real
+            # envelope (BB #966 round-3). Fall back to the first dict only
+            # when nothing envelope-shaped appears.
+            if obj.get("type") == "result" or "is_error" in obj or "result" in obj:
+                return obj
+            if first_dict is None:
+                first_dict = obj
+        # Resume AFTER the consumed object so its nested dicts aren't rescanned.
+        idx = text.find("{", idx + consumed)
+    return first_dict
 
 
 class CursorHeadlessAdapter(ProviderAdapter):
@@ -459,10 +474,13 @@ class CursorHeadlessAdapter(ProviderAdapter):
 
         # Quota / rate limit. Cursor surfaces gRPC "resource_exhausted" (plan quota
         # depleted or free tier without Composer headless access) and rate-limit text.
+        # "429" matches only as a standalone number (BB #966 round-3): stderr is
+        # probe surface even on success, and incidental digit runs ("14290ms",
+        # request ids) must not classify a billed success as rate-limited.
         if (
             "resource_exhausted" in combined
             or "rate limit" in combined
-            or "429" in combined
+            or re.search(r"(?<!\d)429(?!\d)", combined)
             or "too many requests" in combined
         ):
             raise RateLimitError(self.provider)

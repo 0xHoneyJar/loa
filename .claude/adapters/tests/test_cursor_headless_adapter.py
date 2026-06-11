@@ -234,6 +234,28 @@ class TestTransportProbeSafety:
             r = _adapter().complete(_req())
         assert "429" in r.content  # returned as content, not raised
 
+    def test_stderr_digit_runs_not_misclassified(self):
+        # BB #966 round-3 (HIGH): stderr is probe surface even on success —
+        # incidental digit runs containing 429 ("14290ms") must not classify
+        # a billed success as rate-limited. Standalone 429 still does.
+        with patch(_PGKILL, return_value=_completed(_OK_ENVELOPE, stderr="request took 14290ms (id 84293)")):
+            r = _adapter().complete(_req())
+        assert r.content == '{"verdict":"APPROVED"}'
+
+    def test_standalone_429_in_stderr_still_ratelimit(self):
+        with patch(_PGKILL, return_value=_completed(_OK_ENVELOPE, stderr="HTTP 429 from upstream")):
+            with pytest.raises(RateLimitError):
+                _adapter().complete(_req())
+
+    def test_json_log_line_does_not_shadow_envelope(self):
+        # BB #966 round-3 (MEDIUM): a JSON-formatted log line before the result
+        # envelope must not be picked as the envelope.
+        out = '{"level":"warn","msg":"slow start"}\n' + _OK_ENVELOPE
+        with patch(_PGKILL, return_value=_completed(out)):
+            r = _adapter().complete(_req())
+        assert r.content == '{"verdict":"APPROVED"}'
+        assert r.usage.input_tokens == 120
+
 
 # ---------------------------------------------------------------------------
 # Error classification
