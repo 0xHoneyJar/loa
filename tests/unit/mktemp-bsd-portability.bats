@@ -172,3 +172,11 @@ EOF
     [ "$status" -eq 1 ]
     [[ "$output" == *"flagged.bats"* ]]
 }
+
+@test "bug-978: scanner rejects option-shaped roots loudly (no silent fence bypass)" {
+    # Audit iter-1 (MEDIUM): a root like --exclude=*.sh would otherwise be
+    # eaten by grep as an option, silently neutering the fence.
+    run "$PROJECT_ROOT/.claude/scripts/tools/check-no-suffixed-mktemp.sh" "--exclude=*.sh"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"not a directory"* ]]
+}

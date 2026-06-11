@@ -37,13 +37,23 @@ if [[ ${#roots[@]} -eq 0 ]]; then
     roots=("$REPO_ROOT/.claude/scripts" "$REPO_ROOT/tests")
 fi
 
+# Audit iter-1 (MEDIUM): a root like `--exclude=*.sh` would be consumed by
+# grep as an option and silently neuter the fence. Roots must be existing
+# directories, and `--` terminates option parsing below.
+for r in "${roots[@]}"; do
+    if [[ ! -d "$r" ]]; then
+        echo "ERROR: scan root is not a directory: $r" >&2
+        exit 2
+    fi
+done
+
 # Class 1: X-run of 3+ followed by .<alpha> — the non-trailing-suffix shape.
 # Class 2: GNU-only -p / GNU-vs-BSD-divergent -t flags.
 pattern='mktemp[^#]*XXX+\.[A-Za-z]|mktemp[[:space:]]+-[pt][[:space:]"]'
 
 # mktemp-bsd-portability.bats plants hazard strings on purpose (the
 # scanner-not-toothless tests) — excluded like the scanner itself.
-hits=$(grep -rnE "$pattern" "${roots[@]}" --include='*.sh' --include='*.bats' 2>/dev/null \
+hits=$(grep -rnE --include='*.sh' --include='*.bats' "$pattern" -- "${roots[@]}" 2>/dev/null \
     | grep -v 'check-no-suffixed-mktemp' \
     | grep -v 'mktemp-bsd-portability\.bats' || true)
 

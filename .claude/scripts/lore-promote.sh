@@ -287,7 +287,7 @@ append_lore_entry() {
     # the .json extension, and BSD mktemp has neither -p nor mid-template X
     # expansion.
     local entry_file; entry_file=$(mktemp "${TMPDIR:-/tmp}/lore-entry.XXXXXX")
-    mv "$entry_file" "${entry_file}.json"
+    mv "$entry_file" "${entry_file}.json" || { rm -f "$entry_file"; return 1; }
     entry_file="${entry_file}.json"
     printf '%s' "$entry_json" > "$entry_file"
     yq ea -i 'select(fi==0) + [select(fi==1)]' "$tmp" "$entry_file"

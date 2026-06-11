@@ -71,7 +71,7 @@ setup_invoke_log() {
   # every later call died "File exists". Trailing-X create, then rename to
   # keep the operator-friendly .log extension.
   log_file=$(mktemp "${TMPDIR:-/tmp}/loa-${suffix}-XXXXXX") || return 1
-  mv "$log_file" "${log_file}.log"
+  mv "$log_file" "${log_file}.log" || { rm -f "$log_file"; return 1; }
   log_file="${log_file}.log"
   chmod 600 "$log_file"
   echo "$log_file"

@@ -128,9 +128,11 @@ run_smoke_test() {
   # bug-978 (#978): trailing-X create then rename — tsx needs the real .ts
   # extension, and BSD mktemp only expands trailing X-runs.
   smoke_file="$(mktemp "$LIB_DIR/smoke-XXXXXX")"
-  mv "$smoke_file" "${smoke_file}.ts"
+  mv "$smoke_file" "${smoke_file}.ts" || { rm -f "$smoke_file"; return 1; }
   smoke_file="${smoke_file}.ts"
+  SMOKE_TS_FILE="$smoke_file"
   trap "rm -f '$smoke_file'" RETURN
+  trap cleanup_vitest EXIT
 
   local pass=0 fail=0 skip=0
   for barrel in "${barrels[@]}"; do
@@ -175,11 +177,18 @@ TSEOF
 
 # ── Vitest Mode ──────────────────────────────────────────
 VITEST_TMPDIR=""
+SMOKE_TS_FILE=""
 
 cleanup_vitest() {
   if [[ -n "$VITEST_TMPDIR" ]] && [[ -d "$VITEST_TMPDIR" ]]; then
     debug "Cleaning up vitest temp dir: $VITEST_TMPDIR"
     rm -rf "$VITEST_TMPDIR"
+  fi
+  # bug-978 audit: the smoke .ts lives in the SOURCE tree ($LIB_DIR — tsx
+  # needs sibling-relative imports), and a RETURN-scoped trap misses signal
+  # exits. The shared EXIT handler sweeps it.
+  if [[ -n "$SMOKE_TS_FILE" ]]; then
+    rm -f "$SMOKE_TS_FILE"
   fi
 }
 
