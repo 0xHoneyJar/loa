@@ -1,13 +1,23 @@
 [build-system]
 requires = ["setuptools>=64"]
-build-backend = "setuptools.backends._legacy:_Backend"
+# #982: was "setuptools.backends._legacy:_Backend" — a backend path that no
+# setuptools release provides, so every `pip install .claude/adapters` died
+# with BackendUnavailable before dependency resolution. build_meta is the
+# real setuptools PEP-517 backend.
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "loa-cheval"
 version = "1.0.0"
 description = "Hounfour multi-model provider adapter for the Loa framework"
 requires-python = ">=3.8"
-dependencies = []
+# #982 (secondary): runtime deps that were previously self-admitted gaps —
+# loa_cheval.jcs requires rfc8785 (jcs.py: RFC 8785 canonicalization for the
+# MODELINV audit envelope; absent → fail-soft [AUDIT-EMIT-FAILED], envelope
+# silently suppressed) and load_advisor_strategy requires jsonschema>=4.21
+# (absent → hard ModuleNotFoundError blocking every cheval invocation on a
+# clean install).
+dependencies = ["rfc8785>=0.1.4", "jsonschema>=4.21"]
 
 [project.optional-dependencies]
 # Sprint 4A (cycle-102, AC-4.5e): httpx[http2] pulls in h2 + hpack so the new
