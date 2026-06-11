@@ -125,8 +125,18 @@ run_smoke_test() {
   # Write a temp .ts file that imports each barrel using relative .js specifiers
   # (tsx -e treats code as CJS and cannot resolve .js→.ts, so we need a real file)
   local smoke_file
-  smoke_file="$(mktemp "$LIB_DIR/smoke-XXXXXX.ts")"
+  # bug-978 (#978): trailing-X create then rename — tsx needs the real .ts
+  # extension, and BSD mktemp only expands trailing X-runs.
+  smoke_file="$(mktemp "$LIB_DIR/smoke-XXXXXX")"
+  mv "$smoke_file" "${smoke_file}.ts" || { rm -f "$smoke_file"; return 1; }
+  smoke_file="${smoke_file}.ts"
+  SMOKE_TS_FILE="$smoke_file"
   trap "rm -f '$smoke_file'" RETURN
+  # Audit iter-2: bash does NOT fire EXIT traps on unhandled SIGTERM/SIGINT
+  # (CI cancellation default) — sweep then re-raise with default disposition.
+  trap cleanup_vitest EXIT
+  trap 'cleanup_vitest; trap - TERM; kill -TERM $$' TERM
+  trap 'cleanup_vitest; trap - INT; kill -INT $$' INT
 
   local pass=0 fail=0 skip=0
   for barrel in "${barrels[@]}"; do
@@ -171,11 +181,18 @@ TSEOF
 
 # ── Vitest Mode ──────────────────────────────────────────
 VITEST_TMPDIR=""
+SMOKE_TS_FILE=""
 
 cleanup_vitest() {
   if [[ -n "$VITEST_TMPDIR" ]] && [[ -d "$VITEST_TMPDIR" ]]; then
     debug "Cleaning up vitest temp dir: $VITEST_TMPDIR"
     rm -rf "$VITEST_TMPDIR"
+  fi
+  # bug-978 audit: the smoke .ts lives in the SOURCE tree ($LIB_DIR — tsx
+  # needs sibling-relative imports), and a RETURN-scoped trap misses signal
+  # exits. The shared EXIT handler sweeps it.
+  if [[ -n "$SMOKE_TS_FILE" ]]; then
+    rm -f "$SMOKE_TS_FILE"
   fi
 }
 
@@ -184,6 +201,10 @@ run_vitest() {
 
   VITEST_TMPDIR="$(mktemp -d)"
   trap cleanup_vitest EXIT
+  # Audit iter-3: same EXIT-trap signal gap as the smoke file — sweep
+  # VITEST_TMPDIR on CI cancellation, then re-raise.
+  trap 'cleanup_vitest; trap - TERM; kill -TERM $$' TERM
+  trap 'cleanup_vitest; trap - INT; kill -INT $$' INT
 
   info "Setting up vitest in $VITEST_TMPDIR..."
 

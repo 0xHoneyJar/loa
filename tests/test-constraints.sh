@@ -199,7 +199,9 @@ run_test "--dry-run doesn't modify files" test_dry_run
 # Test 11: --bootstrap inserts markers on unmarked file
 test_bootstrap() {
   local tmpfile
-  tmpfile=$(mktemp /tmp/test-bootstrap-XXXXXX.md)
+  # bug-978: trailing-X template (BSD mktemp expands only trailing X-runs);
+  # the consumer reads the path it is handed — extension was cosmetic.
+  tmpfile=$(mktemp /tmp/test-bootstrap-XXXXXX)
 
   # Create a minimal file with the expected anchor
   cat > "$tmpfile" <<'ENDFILE'

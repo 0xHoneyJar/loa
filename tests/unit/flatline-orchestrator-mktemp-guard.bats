@@ -42,7 +42,7 @@ setup() {
         || {
             echo "REGRESSION: vq-input mktemp is no longer guarded." >&2
             echo "See issue #878. Expected pattern:" >&2
-            echo "    if ! tmp=\$(mktemp \"\${TEMP_DIR:-/tmp}/vq-input.XXXXXX.json\"); then" >&2
+            echo "    if ! tmp=\$(mktemp \"\${TEMP_DIR:-/tmp}/vq-input.XXXXXX\"); then" >&2
             return 1
         }
 }

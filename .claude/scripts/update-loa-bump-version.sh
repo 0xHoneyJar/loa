@@ -144,8 +144,9 @@ bump_version_json() {
 # Header format:
 #   <!-- @loa-managed: true | version: X.Y.Z | hash: <hash>PLACEHOLDER -->
 #
-# Idempotent: no-op if version already matches target. Preserves the hash
-# segment (and its PLACEHOLDER suffix) untouched.
+# Idempotent: no-op if version already matches target. On a real bump the
+# integrity hash is re-stamped via marker-utils.sh update-hash (bug-989);
+# the bootstrap PLACEHOLDER suffix is dropped on first stamp.
 # -----------------------------------------------------------------------------
 bump_claude_loa_header() {
     local target="$1"
@@ -180,6 +181,16 @@ bump_claude_loa_header() {
     } { print }' "$file" > "$tmp"
     mv "$tmp" "$file"
     _log "Bumped $file header version: $current_version → $target"
+
+    # bug-989: refresh the integrity hash after rewriting the header. The hash
+    # covers content below line 1 (marker excluded by compute_hash), so
+    # stamping post-bump is stable across future version-only bumps. Failure
+    # is non-fatal — lint-invariants surfaces a stale hash as WARN.
+    if bash "$SCRIPT_DIR/marker-utils.sh" update-hash "$file" >/dev/null 2>&1; then
+        _log "Stamped integrity hash in $file header"
+    else
+        _log "WARN: could not stamp integrity hash in $file (marker-utils update-hash failed)"
+    fi
 }
 
 # -----------------------------------------------------------------------------

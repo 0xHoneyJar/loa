@@ -17,6 +17,8 @@ Claude Code recommends keeping CLAUDE.md under ~500 lines. Reference documentati
 | `scripts-reference.md` | Helper scripts documentation and usage |
 | `version-features.md` | Version-specific feature documentation (v1.x.0) |
 | `context-engineering.md` | Context editing, memory schema, effort parameter, attention budgets |
+| `agent-network-reference.md` | L1–L7 agent-network primitives: full ALWAYS/NEVER constraint tables (audit envelope, L3 scheduled cycles, L4 trust, L5 cross-repo, L6 handoffs, L7 SOUL.md) |
+| `multi-model-reference.md` | Multi-model activation detail: cheval migration tables, T3.x sequencing, verification logs |
 
 ## When to Consult
 

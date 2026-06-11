@@ -58,7 +58,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-001](#kf-001-bridgebuilder-cross-model-provider-network-failures-non-openai) | RESOLVED 2026-05-10 (Node 20 Happy Eyeballs autoselection-attempt-timeout) | bridgebuilder cross-model dissent | 3 |
 | [KF-002](#kf-002-adversarial-reviewsh-empty-content-on-review-type-prompts-at-scale) | **RESOLVED-STRUCTURAL 2026-05-15** (cycle-109 Sprint 4 T4.10 closure). Layer 1 (reasoning-budget / large-input class) closed by: (a) loa_cheval.chunking package routes oversized inputs through per-file chunked dispatch with IMP-006 conflict resolution + cross-chunk pass; (b) loa_cheval.streaming.recovery with 3 IMP-014 thresholds (first_token_deadline, empty_content_window, cot_budget) aborts empty/runaway streams with typed exits; (c) MODELINV v1.3 envelope surfaces chunked_review + streaming_recovery telemetry. Layers 2+3 previously resolved cycle-103 Sprint 2 T2.2. Bug class is now structurally impossible across all 3 layers. | adversarial-review.sh review-type | 5 |
 | [KF-003](#kf-003-gpt-55-pro-empty-content-on-27k-input-reasoning-class-prompts) | RESOLVED (model swap) | flatline_protocol code review | 1 |
-| [KF-004](#kf-004-validate_finding-silent-rejection-of-dissenter-payloads) | RESOLVED 2026-05-10 (sidecar dump landed; #814 mitigation shipped) | adversarial-review.sh validation pipeline | ≥4 |
+| [KF-004](#kf-004-validate_finding-silent-rejection-of-dissenter-payloads) | RESOLVED 2026-05-10 (sidecar dump landed; #814 mitigation shipped) | adversarial-review.sh validation pipeline | ≥7 |
 | [KF-005](#kf-005-beads_rust-021-migration-blocks-task-tracking) | RESOLVED-VIA-WORKAROUND — cycle-105 (2026-05-12) shipped `tools/beads-migration-repair.sh` + `beads-health.sh --repair` + WARN-not-FAIL pre-commit + CI gate. Upstream `beads_rust#290` still OPEN. | beads_rust task tracking | many reproductions + cycle-105 closure |
 | [KF-006](#kf-006-t114-migrate-model-config-v2-schema-rejects-max_output_tokens) | RESOLVED 2026-05-10 (v2 schema modelEntry permits max_output_tokens + max_input_tokens) | T1.14 migrate-model-config v2 schema | every PR since dd54fe9c |
 | [KF-007](#kf-007-red-team-pipeline-hardcoded-single-model-evaluator-vestigial-config) | RESOLVED 2026-05-10 (multi-model evaluator) | red team pipeline hardcoded single-model evaluator | n/a — resolved in same session as discovery |
@@ -67,6 +67,8 @@ actually tried, not just what someone *said* was tried.
 | [KF-011](#kf-011-adversarial-reviewsh-malformed-response-on-review-type-prompts-post-kf-002-closure) | **RESOLVED 2026-05-17** (sub-mode (b): parser raw_decode extracts prose-prefixed JSON — PR #933 `d9ec8cb5`; sub-mode (c): route-around via 4-voice fallback chain — PR #934 `ccd510b0`; structural sub-mode (c) Gemini streaming-recovery tracked at issue #935). | adversarial-review.sh review-type — JSON contract layer + Gemini streaming-recovery gap | 2 (initial obs sprint-166 review + repro on parser-fix branch) |
 | [KF-012](#kf-012-sha256sum-not-portable-to-bsd-macos-silent-empty-hash-cascade-into-validation-failures) | **RESOLVED-STRUCTURAL 2026-05-20** (sprint-bug-172 / #911: `sha256_portable` helper in compat-lib.sh + 38 production call sites migrated + CI scanner `tools/check-no-raw-sha256sum.sh` + `tests/unit/compat-lib-sha256.bats` + masked-PATH integration test). Structural analog of cycle-099 sprint-1E.c.3.c curl wrapper migration. | macOS / BSD users of `/butterfreezone-gen` + 37 other framework scripts | 1 (single observation, sprint-bug-172 closure) |
 | [KF-013](#kf-013-headless-cli-env-mode-selector-vars-defeat-subscription-oauth) | **RESOLVED 2026-05-20** (sprint-bug-173 / #894: `_HEADLESS_STRIPPED_AUTH_VARS` tuple extended with `GOOGLE_GENAI_USE_VERTEXAI` + `GOOGLE_GENAI_USE_GCA`; canonical scrub list mirrors `construct-k-hole/scripts/dig-search.ts`). | cheval headless CLI adapters (gemini / codex / claude) | 1 (single observation, sprint-bug-173 closure) |
+| [KF-014](#kf-014-pre-commit-beads-hook-fails-in-linked-git-worktrees) | **RESOLVED 2026-06-10** (sprint-bug-190 / #991: hook flushes from MAIN_REPO_ROOT subshell in worktrees; PCB-T7/T8/T9 pin it; live worktree-commit verification) | pre-commit beads flush in linked worktrees | 1 |
+| [KF-015](#kf-015-red-team-code-vs-designsh-silent-clean-gate-pass-on-degraded-runs) | **RESOLVED 2026-06-11** (sprint-bug-194 / #984+#985: trap script-scoped, empty/shape validation, degraded-record contract on model failure; RTC-T1..T7 pin all three defects) | red-team code-vs-design gate (silent-clean degraded run) | 4 (4/4 sprints, one downstream cycle) + 1 local repro |
 
 ---
 
@@ -381,7 +383,7 @@ The original cycle-102 manifest of this bug — 5 silent rejections during the S
 **Feature**: `.claude/scripts/adversarial-review.sh` validation pipeline
 **Symptom**: When adversarial-review.sh receives findings from the dissenter that don't conform to the strict schema (e.g., missing required field, out-of-enum severity, malformed `anchor_type`), the validator emits `[adversarial-review] Rejected invalid finding at index N` to stderr and **drops the payload entirely** — the rejected finding's content is unrecoverable. The output JSON shows fewer findings than the dissenter actually produced; the rejected payloads never reach the consensus scorer or the operator. Headline counts are misleadingly low.
 **First observed**: 2026-05-09 mid-session (caught by operator's "i am always suspicious when there are 0" interjection during BB iter-2 of sprint-1B PR #813)
-**Recurrence count**: ≥4 across cycle-102 (sprint-1A iter-5, sprint-1B BB iter-2, sprint-1D /audit-sprint adversarial-audit returned 0 findings + 5 silent rejections, sprint-1D BB iter-1 + iter-2)
+**Recurrence count**: ≥7 across cycle-102 (sprint-1A iter-5, sprint-1B BB iter-2, sprint-1D /audit-sprint adversarial-audit returned 0 findings + 5 silent rejections, sprint-1D BB iter-1 + iter-2); 2026-06-10 wave: sprint-bug-187 audit (2 eaten MEDIUMs recovered), sprint-bug-194 audit (2 eaten HIGHs recovered); 2026-06-11 sprint-bug-196 audit (verdict reviewed/0-findings while sidecar held 1 MEDIUM + 2 HIGH codex-headless hardening findings, all rejected `missing-or-non-string-id`; recovered → issue #1008). The sidecar recovery loop works as designed, but the upstream model keeps omitting `id` — every zero-findings audit verdict MUST be sidecar-checked.
 **Current workaround**: Apply suspicion lens manually whenever adversarial-review.sh reports "0 findings" or "low N findings" — re-read the substrate the headline is supposed to summarize, walk the most likely concerns the rejected findings could have raised, route them as documented limitations or backlog inputs.
 **Upstream issue**: [#814](https://github.com/0xHoneyJar/loa/issues/814)
 **Related visions / lore**: vision-024 substrate-speaks-twice (this is the third consensus-classification failure mode — single-model security true-positive in DISPUTED + demotion-by-relabel + silent-rejection); `feedback_zero_blocker_demotion_pattern.md`
@@ -962,3 +964,55 @@ work to make the new models reliable. This file is the operational ledger
 of that work — what we've tried, what didn't fix it, what we do today
 instead. Future agents read it at session start so we don't pay the
 re-discovery cost on every cycle.
+
+---
+
+## KF-014: pre-commit beads hook fails in linked git worktrees
+
+**Status**: RESOLVED 2026-06-10 (sprint-bug-190 / #991 — `.claude/scripts/git-hooks/pre-commit-beads` now runs the flush as `(cd "$MAIN_REPO_ROOT" && br sync --flush-only)` when the resolved beads dir is the main checkout's; bats PCB-T7 (worktree CWD assertion via recording stub), PCB-T8 (main-checkout regression guard), PCB-T9 (worktree failure-path stderr passthrough); live verification: empty-commit in a fresh linked worktree succeeded without --no-verify)
+
+**Original Status**: OPEN
+**Feature**: `.git/hooks/pre-commit` beads flush (`br sync --flush-only`)
+**Symptom**: `git commit` in any `git worktree add` linked worktree fails with `Error: Beads not initialized: run 'br init' first` — the hook resolves the main checkout's `.beads/` via `--git-common-dir` but then invokes plain `br sync`, which resolves `.beads/` from CWD (the worktree, which has none). The worktree-detection branch is dead code for the actual invocation.
+**First observed**: 2026-06-10 (CLAUDE.loa.md token-refactor branch build, PR #990)
+**Recurrence count**: 1
+**Current workaround**: For commits containing no beads state, `git commit --no-verify` with the bypass disclosed in the PR body. For commits that DO touch beads state, commit from the main checkout instead of a worktree.
+**Upstream issue**: [#991](https://github.com/0xHoneyJar/loa/issues/991)
+**Related visions / lore**: `.claude/rules/stash-safety.md` recommends worktrees for pre-commit-adjacent work — the recommended pattern collides with the hook.
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-06-10 | `git commit` in linked worktree (normal path) | DID NOT WORK — br resolves .beads from CWD | PR #990 commit `3ea85ad9` |
+| 2026-06-10 | `git commit --no-verify` (no beads state in commit) | WORKAROUND — semantically safe only because the commit carries no beads changes | PR #990 |
+
+### Reading guide
+
+If a commit fails with `Beads not initialized` inside a linked worktree: do NOT run `br init` there (it would create a second, divergent beads DB). Either commit from the main checkout or, for beads-free commits, use `--no-verify` and disclose it. Route the structural fix through #991 (hook should `cd` to the main repo root for the flush).
+
+---
+
+## KF-015: red-team-code-vs-design.sh silent-clean gate pass on degraded runs
+
+**Status**: RESOLVED 2026-06-11 (sprint-bug-194 — `.claude/scripts/red-team-code-vs-design.sh`: (1) prompt/stderr temp vars script-scoped so the EXIT trap works under `set -u`; (2) validation requires non-empty content + object-with-findings-array (bare `jq .` passed EMPTY input — the silent-clean bypass); (3) model failure (incl. exit-12 CHAIN_EXHAUSTED) writes a `{degraded:true, degradation_reason, model_exit_code, stderr_tail}` record and exits non-zero, matching the scoring-engine contract. Pinned by `tests/unit/red-team-code-vs-design.bats` RTC-T1..T7 incl. functional empty-content and exit-12 cases via the test-mode-gated adapter seam.)
+
+**Original Status**: OPEN (fix in flight: sprint-bug-194, triaged 2026-06-11 from #984 + #985)
+**Feature**: `.claude/scripts/red-team-code-vs-design.sh` — RED_TEAM_CODE gate (Deliberative Council code-vs-design layer, `red_team.code_vs_design.enabled: true`)
+**Symptom**: The gate reports success on degraded runs. Three composing defects (script untouched since 2026-05-05 / PR #723, predates cycle-104/109 degraded-run hardening): (1) EXIT trap references function-local vars under `set -u` → `line 1: prompt_file: unbound variable` on every success path (cleanup never runs, temp files leak, exit code bash-version-dependent); (2) line-484 `jq '.'` exits 0 on EMPTY input → empty model content writes a 0-byte findings file, logs blank counts (`Findings:  total,  divergences`), exits 0 — silent-clean gate pass; (3) model-invoke failure (incl. exit-12 CHAIN_EXHAUSTED, timeout) exits 1 with NO record at `--output` — failure produces no auditable artifact, unlike the SDD-phase pipeline's `{degraded: true, degradation_reason}` contract (scoring-engine.sh:736-763).
+**First observed**: 2026-06-06 (#984, Loa v1.171.6 submodule mount); 4/4 sprint failures across deadwax (hosaka-fm) cycle 1 (#985); local repro confirmed 2026-06-11 (sprint-bug-194 triage)
+**Recurrence count**: 4 (4 distinct failure modes, one per sprint, single downstream cycle) + 1 local repro
+**Current workaround**: Gate callers must NOT trust exit code alone — inspect the findings file content and treat empty/0-byte/missing as degraded → fail-open with an auditable manual-pass record (the deadwax pattern). Independent `adversarial-review.sh` cross-model dissent carries coverage while this gate is dead weight.
+**Upstream issue**: [#984](https://github.com/0xHoneyJar/loa/issues/984) + [#985](https://github.com/0xHoneyJar/loa/issues/985); fix sprint: sprint-bug-194 (`grimoires/loa/a2a/bug-20260611-i984-8b8a94/`)
+**Related visions / lore**: vision-023 Fractal Recursion ("the very gate built to detect silent degradation experienced silent degradation"); KF-002/KF-004 are the same silent-degradation class at other pipeline layers; `feedback_zero_blocker_demotion_pattern.md`
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-06-06..09 | deadwax cycle 1 ran the gate 4/4 sprints (alias exit-12, trap crash + 0-byte file, empty output ×2) | DID NOT WORK — gate never exercised once; fail-opened each time with manual records | #985 failure table; grimoires/loa/a2a/sprint-{1..4}/red-team-code-findings.json in hosaka-fm/deadwax |
+| 2026-06-11 | sprint-bug-194 triage: minimal trap repro + jq-on-empty mechanics verification | ROOT CAUSES CONFIRMED — all three defects verified at source (script:338-341, :484, :463-516); fix is structural (trap scope + `jq -e` output assertion + degraded-record contract) | triage.md in `grimoires/loa/a2a/bug-20260611-i984-8b8a94/` |
+
+### Reading guide
+
+If a RED_TEAM_CODE gate logs `Findings:  total,  divergences` (blank counts), writes a 0-byte findings file, or stderr shows `prompt_file: unbound variable`: this is the documented defect cluster, NOT a model/provider problem — do not retry the invocation or bump budgets. Note the exit-12 sub-case is environmentally distinct: exit 12 IS `CHAIN_EXHAUSTED` (cheval.py EXIT_CODES) and `claude-opus-4-7` HAS a within-company fallback_chain (model-config.yaml:381) — the chain was walked and exhausted (e.g., submodule mount lacking auth for chain entries); fix the environment's auth, not the script's model routing. Until sprint-bug-194 lands: treat empty/0-byte/missing findings files as degraded and fail-open with an auditable record. After it lands: the script itself writes `{degraded: true, degradation_reason, model_exit_code}` and exits non-zero on every degraded run.

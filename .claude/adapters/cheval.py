@@ -228,6 +228,16 @@ def _get_adapter_for_entry(entry: Any, hounfour: Dict[str, Any]):
     if getattr(entry, "adapter_kind", "http") == "cli":
         cli_type = _CLI_ADAPTER_BY_PROVIDER.get(entry.provider)
         if cli_type is None:
+            # sprint-bug-197 iter-2 (#979): custom providers whose TYPE is
+            # already a CLI adapter type (e.g. a provider literally named
+            # `claude-headless` with `type: claude-headless` — the documented
+            # example shape) don't appear in the family map; their type
+            # selects the CLI adapter directly. Without this branch the
+            # kind:cli inference broke their invocation with the ConfigError
+            # below.
+            ptype = getattr(provider_config, "type", None)
+            if ptype in _CLI_ADAPTER_BY_PROVIDER.values():
+                return get_adapter(provider_config)
             raise ConfigError(
                 f"Provider '{entry.provider}' has a kind:cli entry but no "
                 f"CLI adapter is registered. Supported CLI providers: "

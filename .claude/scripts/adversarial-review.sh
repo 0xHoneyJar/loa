@@ -617,7 +617,9 @@ invoke_dissenter() {
   # as no-op.
   local -a skill_args=()
   if [[ -n "$type" ]]; then
-    skill_args=(--skill "adversarial-review:$type")
+    # bug-868 residue: also pass --phase so model-adapter logs the real
+    # phase instead of its cosmetic "prd" default on review/audit calls.
+    skill_args=(--skill "adversarial-review:$type" --phase "$type")
   fi
 
   if [[ -n "$vq_sidecar" ]]; then
@@ -807,11 +809,17 @@ while i < len(text):
   local finding_count
   finding_count=$(echo "$parsed" | jq '.findings | length' 2>/dev/null || echo "0")
   if [[ "$finding_count" == "0" ]]; then
+    # bug-809: keep status "clean" for backward compat, but qualify it —
+    # zero findings means nothing met the BLOCKING/ADVISORY bar, NOT an
+    # affirmative approval of the reviewed surface. verdict_quality covers
+    # the degraded axis; status_note covers the high-bar-lens axis.
     jq -n \
       --arg type "$type" --arg model "$model" --arg sid "$sprint_id" \
       --arg ts "$timestamp" \
       '{findings: [], metadata: {type: $type, model: $model, sprint_id: $sid,
-        timestamp: $ts, status: "clean", degraded: false}}'
+        timestamp: $ts, status: "clean",
+        status_note: "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+        degraded: false}}'
     return 0
   fi
 

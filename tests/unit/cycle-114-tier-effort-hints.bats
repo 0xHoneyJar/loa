@@ -41,9 +41,11 @@ setup() {
     done
 }
 
-@test "c114-FR8: tier mappings shape unchanged (max→opus, providers intact)" {
+@test "c114-FR8: tier mappings shape unchanged (max→fable, providers intact)" {
+    # 2026-06-10 intel-routing review: max retargeted opus → fable (the top
+    # intelligence tier), with pricing registered before routability.
     run yq eval '.tier_groups.mappings.max.anthropic' "$CONFIG"
-    [ "$output" = "opus" ]
+    [ "$output" = "fable" ]
     # each tier still maps the three providers
     for tier in max mid cheap tiny; do
         keys=$(yq eval ".tier_groups.mappings.$tier | keys | join(\",\")" "$CONFIG")

@@ -31,6 +31,7 @@ on:
       - 'tests/run-unit-tests.sh'
       - 'grimoires/loa/runbooks/curl-mock-harness.md'  # BB iter-1 FIND-005
       - '.github/workflows/bats-tests.yml'
+      - '.github/workflows/secret-scanning.yml' # bug-992: contract test pins this workflow's shape
   pull_request:
     branches: [main]
     paths:
@@ -44,6 +45,7 @@ on:
       - 'tests/run-unit-tests.sh'
       - 'grimoires/loa/runbooks/curl-mock-harness.md'  # BB iter-1 FIND-005
       - '.github/workflows/bats-tests.yml'
+      - '.github/workflows/secret-scanning.yml' # bug-992: contract test pins this workflow's shape
 
 permissions:
   contents: read
@@ -66,6 +68,31 @@ jobs:
         run: |
           git config --global user.name "CI Bot"
           git config --global user.email "ci@example.com"
+
+      # PINNING: SHA matches the actions/setup-python v5.3.0 pin used by
+      # cycle099-sprint-1e-tests.yml and jcs-conformance.yml. Rotate together.
+      # bug-886: tests/unit/ exercises lib/jcs.sh (rfc8785), trust-store
+      # signing (rfc8785 + cryptography), and yaml/schema suites
+      # (ruamel.yaml + jsonschema) — without these installs ~22 bats fail.
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: '3.13'
+
+      - name: Install Python deps for bats suites
+        run: |
+          python -m pip install --upgrade pip
+          # Pins match cycle099-sprint-1e-tests.yml (ruamel.yaml, jsonschema),
+          # the jcs-conformance suite (rfc8785), and ubuntu-latest's
+          # cryptography floor. Keep pin sites in sync when rotating.
+          # pyyaml: setup-python creates a CLEAN env — the suite's 16+ `import yaml`
+          # consumers previously leaned on ubuntu's system python3-yaml (PR #996
+          # empirical run: omitting it broke 182 tests). Pin matches
+          # cycle099-sprint-2d-c-ts-tests.yml.
+          # idna: endpoint-validator's Unicode hostname canonicalization
+          # (lib/endpoint-validator.sh:39 requires idna>=3.6) — system python has
+          # it, the clean env does not (PR #996 run 2: broke the guarded_curl
+          # chain behind call_api / 401-handler suites).
+          pip install 'rfc8785==0.1.4' 'jsonschema==4.26.0' 'ruamel.yaml==0.18.17' 'cryptography==46.0.7' 'pyyaml==6.0.2' 'idna==3.10'
 
       # NOTE: yq install step is below (line ~85) and is pre-existing on main.
       # cycle-102 Sprint 1C T1C.1 made yq a hard requirement for the curl-mock

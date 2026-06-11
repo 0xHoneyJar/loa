@@ -46,8 +46,10 @@ from typing import Any, Dict, List, Optional
 
 from loa_cheval.providers.base import (
     ProviderAdapter,
+    SubprocessOutputCapExceeded,
     build_headless_subprocess_env,
     enforce_context_window,
+    run_subprocess_pgkill,
 )
 from loa_cheval.types import (
     CompletionRequest,
@@ -137,17 +139,15 @@ class GeminiHeadlessAdapter(ProviderAdapter):
         try:
             with _acquire_slot("gemini-headless", n_slots=n_slots):
                 try:
-                    proc = subprocess.run(
+                    # #982: process-group-killing drop-in for subprocess.run —
+                    # on timeout the whole CLI tree dies and the fallback
+                    # chain advances instead of hanging on orphaned pipes.
+                    # gemini-cli's `-p` flag triggers headless mode and consumes
+                    # the prompt argument directly; without `input=` the helper
+                    # keeps stdin on DEVNULL (avoids hangs in some shells).
+                    proc = run_subprocess_pgkill(
                         cmd,
-                        capture_output=True,
-                        text=True,
                         timeout=timeout_s,
-                        check=False,
-                        # gemini-cli's `-p` flag triggers headless mode and consumes the
-                        # prompt argument directly. Stdin is appended only when both -p
-                        # and stdin are piped — we use -p exclusively so stdin stays
-                        # closed (avoids hangs in some shell environments).
-                        stdin=subprocess.DEVNULL,
                         # cycle-109 follow-up (#879 / #880 symmetric): strip
                         # GOOGLE_API_KEY + GEMINI_API_KEY so gemini -p uses GCA
                         # OAuth, not API mode.
@@ -158,6 +158,13 @@ class GeminiHeadlessAdapter(ProviderAdapter):
                         self.provider,
                         f"gemini -p timed out after {timeout_s:.0f}s",
                     )
+                except SubprocessOutputCapExceeded as exc:
+                    # Iter-1 B2: truncated output is a provider failure, not a
+                    # successful completion — chain advances like a timeout.
+                    raise ProviderUnavailableError(
+                        self.provider,
+                        f"gemini -p {exc}",
+                    ) from exc
                 except FileNotFoundError as exc:
                     raise ConfigError(
                         f"gemini CLI not found on PATH (set GEMINI_HEADLESS_BIN to override). "

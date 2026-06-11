@@ -90,7 +90,11 @@ main() {
   # Prefer python3+jsonschema (full draft-07). Fall back to jq required-field check.
   if command -v python3 >/dev/null 2>&1 && python3 -c "import jsonschema" >/dev/null 2>&1; then
     local payload_tmp
-    payload_tmp=$(mktemp -t stream-validate-payload.XXXXXX.json)
+    # bug-978 (#978): plain trailing-X template — `-t` diverges between GNU
+    # (deprecated template flag) and BSD (prefix flag), and the .json suffix
+    # broke BSD expansion. The python consumer takes a path; no extension
+    # needed.
+    payload_tmp=$(mktemp "${TMPDIR:-/tmp}/stream-validate-payload.XXXXXX")
     # shellcheck disable=SC2064  # expand trap path now
     trap "rm -f '$payload_tmp'" EXIT
     printf '%s' "$payload" > "$payload_tmp"

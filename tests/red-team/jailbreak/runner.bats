@@ -30,7 +30,7 @@ RUNNER_REDACTION_MARKERS="${RUNNER_REPO_ROOT}/.claude/data/lore/agent-network/ja
 
 # Stash corpus rows in a tmpfile keyed by encoded test name so the test body
 # can look them up at run time.
-RUNNER_VECTOR_TMP="$(mktemp -t "jailbreak-runner-vectors-XXXXXX.tsv")"
+RUNNER_VECTOR_TMP="$(mktemp "${TMPDIR:-/tmp}/jailbreak-runner-vectors-XXXXXX")"
 export RUNNER_VECTOR_TMP
 
 # Schema-first: validate corpus before any payload work (NFR-Rel1).
@@ -195,7 +195,7 @@ _run_one_vector() {
     source "$RUNNER_SUT_LIB"
 
     local actual_stdout actual_stderr_file actual_exit
-    actual_stderr_file="$(mktemp -t "jailbreak-stderr-${vid}-XXXXXX")"
+    actual_stderr_file="$(mktemp "${TMPDIR:-/tmp}/jailbreak-stderr-${vid}-XXXXXX")"
     set +e
     actual_stdout="$(timeout 5s bash -c '
         # shellcheck disable=SC1090
