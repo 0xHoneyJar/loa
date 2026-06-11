@@ -33,6 +33,31 @@
 # Source: Trail of Bits Stop hook pattern
 
 # ---------------------------------------------------------------------------
+# cycle-114 FR-5: background-task / scheduled-cron awareness
+#
+# Stop / SubagentStop input (Claude Code 2.1.145+) carries `background_tasks`
+# and `session_crons`. Live background tasks must not be silently orphaned by
+# a Stop, so soft-block (decision:block) when any background task is still
+# running. `session_crons` are surfaced for context but do NOT block on their
+# own (they are designed to outlive a session). Fail-open: malformed/absent
+# stdin or a missing jq → allow the stop (never crash a Stop guard).
+# ---------------------------------------------------------------------------
+STOP_INPUT="$(cat 2>/dev/null || true)"
+if [[ -n "$STOP_INPUT" ]]; then
+  bg_count=$(printf '%s' "$STOP_INPUT" | jq -r '(.background_tasks // []) | length' 2>/dev/null || echo 0)
+  if [[ "${bg_count:-0}" =~ ^[0-9]+$ ]] && [[ "${bg_count:-0}" -gt 0 ]]; then
+    bg_ids=$(printf '%s' "$STOP_INPUT" | jq -r '[.background_tasks[]? | (.id // .task_id // .)] | map(tostring) | join(", ")' 2>/dev/null || echo "")
+    cron_count=$(printf '%s' "$STOP_INPUT" | jq -r '(.session_crons // []) | length' 2>/dev/null || echo 0)
+    cron_note=""
+    [[ "${cron_count:-0}" =~ ^[0-9]+$ ]] && [[ "${cron_count:-0}" -gt 0 ]] && cron_note=" (${cron_count} scheduled cron(s) will persist beyond this session)"
+    cat <<EOF
+{"decision": "block", "reason": "${bg_count} background task(s) still running: [${bg_ids}]${cron_note}. Cancel them via TaskStop <id>, or wait for completion before stopping — background agents left running may be orphaned."}
+EOF
+    exit 0
+  fi
+fi
+
+# ---------------------------------------------------------------------------
 # Check sprint-plan state
 # ---------------------------------------------------------------------------
 SPRINT_STATE_FILE=".run/sprint-plan-state.json"

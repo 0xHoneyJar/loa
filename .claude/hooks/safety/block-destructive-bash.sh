@@ -310,7 +310,12 @@ if echo "$command" | grep -qE '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*(
         any_ambiguous=1; matched_arg="$arg"; continue
       fi
       # BLOCK list (catastrophic paths).
-      if echo "$unquoted" | grep -qE '^(/|\$HOME|~|~/|/etc|/usr|/var|/home|\*|\.)$|^(/etc/|/usr/|/var/|/home/|~/)'; then
+      # cycle-114 FR-6: the home-root trailing-slash forms ($HOME/, ${HOME}/,
+      # ~/) are catastrophic-equivalent to bare $HOME/~ and must hit BLOCK, not
+      # the AMBIGUOUS fallback. A CHILD path (e.g. $HOME/projects, ~/subdir) is
+      # NOT matched here and correctly falls through to AMBIGUOUS. Mirrors the
+      # Claude Code 2.1.154 $HOME-trailing-slash fix.
+      if echo "$unquoted" | grep -qE '^(/|\$HOME|\$\{HOME\}|~|~/|/etc|/usr|/var|/home|\*|\.)$|^(/etc/|/usr/|/var/|/home/|~/|\$HOME/$|\$\{HOME\}/$)'; then
         any_block=1; matched_arg="$arg"; break
       fi
       # ALLOW-EXCLUDE (was bypassing via `./` prefix).

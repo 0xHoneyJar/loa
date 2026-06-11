@@ -183,9 +183,9 @@ corpus_iter_active() {
     # runs in a subshell on the LHS of a pipe (variable assignments don't
     # propagate back to the caller in that shape).
     local _jq_failed_flag
-    _jq_failed_flag="$(mktemp -t "corpus-iter-jq-failed-XXXXXX")"
+    _jq_failed_flag="$(mktemp "${TMPDIR:-/tmp}/corpus-iter-jq-failed-XXXXXX")"
     local _jq_stderr
-    _jq_stderr="$(mktemp -t "corpus-iter-jq-stderr-XXXXXX")"
+    _jq_stderr="$(mktemp "${TMPDIR:-/tmp}/corpus-iter-jq-stderr-XXXXXX")"
     while IFS= read -r file; do
         [[ -z "$file" ]] && continue
         if ! _corpus_strip_comments "$file" | jq -c --arg cat "$cat" \

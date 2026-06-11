@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-113-streaming-recovery-completion",
+  "active_cycle": "cycle-114-harness-modernization-opus-4.8",
   "cycles": [
     {
       "id": "cycle-036",
@@ -1318,7 +1318,7 @@
       "id": "cycle-112-empirical-model-economy",
       "label": "Empirical Model Economy (Phase A) — roll-up + workload tier map seed",
       "type": "feature",
-      "status": "in-progress",
+      "status": "archived",
       "source_issue": "https://github.com/0xHoneyJar/loa/issues/925",
       "created_at": "2026-05-17T06:06:23Z",
       "sprints": [
@@ -1331,8 +1331,9 @@
           "fr": "FR-1, FR-2",
           "scope": "LARGE",
           "task_count": 8,
-          "status": "planned",
-          "created": "2026-05-17T06:30:00Z"
+          "status": "completed",
+          "created": "2026-05-17T06:30:00Z",
+          "completed": "2026-06-01T06:23:24Z"
         },
         {
           "id": "sprint-167",
@@ -1343,19 +1344,22 @@
           "fr": "FR-3, FR-4, FR-5",
           "scope": "LARGE",
           "task_count": 7,
-          "status": "planned",
-          "created": "2026-05-17T06:30:00Z"
+          "status": "completed",
+          "created": "2026-05-17T06:30:00Z",
+          "completed": "2026-06-01T06:23:24Z"
         }
       ],
       "prd": "grimoires/loa/cycles/cycle-112-empirical-model-economy/prd.md",
       "phase": "A of 3 (Activate → Codify → Optimize)",
       "sdd": "grimoires/loa/cycles/cycle-112-empirical-model-economy/sdd.md",
-      "sprint_plan": "grimoires/loa/cycles/cycle-112-empirical-model-economy/sprint.md"
+      "sprint_plan": "grimoires/loa/cycles/cycle-112-empirical-model-economy/sprint.md",
+      "archived": "2026-06-01T06:23:24Z",
+      "archive_path": "grimoires/loa/archive/2026-05-17-cycle-112-empirical-model-economy"
     },
     {
       "id": "cycle-113-streaming-recovery-completion",
       "label": "Streaming-Recovery-Completion",
-      "status": "in-progress",
+      "status": "archived",
       "created_at": "2026-05-17T09:21:12Z",
       "prd": "grimoires/loa/cycles/cycle-113-streaming-recovery-completion/prd.md",
       "sdd": "grimoires/loa/cycles/cycle-113-streaming-recovery-completion/sdd.md",
@@ -1369,8 +1373,9 @@
           "fr": "FR-A-1, FR-A-2, FR-B-1, FR-B-5 (Anthropic slice), FR-B-4 (fixture scaffold)",
           "scope": "LARGE",
           "task_count": 9,
-          "status": "planned",
-          "created": "2026-05-17T09:21:12Z"
+          "status": "completed",
+          "created": "2026-05-17T09:21:12Z",
+          "completed": "2026-06-01T03:34:03Z"
         },
         {
           "id": "sprint-169",
@@ -1381,8 +1386,9 @@
           "fr": "FR-B-2, FR-B-3, FR-B-4, FR-B-5 (OpenAI+Google), FR-C-3",
           "scope": "LARGE",
           "task_count": 10,
-          "status": "planned",
-          "created": "2026-05-17T09:21:12Z"
+          "status": "completed",
+          "created": "2026-05-17T09:21:12Z",
+          "completed": "2026-06-01T03:34:03Z"
         },
         {
           "id": "sprint-170",
@@ -1393,10 +1399,13 @@
           "fr": "FR-C-1, FR-C-2, FR-C-4, FR-C-5, KF-002 + KF-011 footer updates",
           "scope": "LARGE",
           "task_count": 9,
-          "status": "planned",
-          "created": "2026-05-17T09:21:12Z"
+          "status": "completed",
+          "created": "2026-05-17T09:21:12Z",
+          "completed": "2026-06-01T03:34:03Z"
         }
-      ]
+      ],
+      "archived": "2026-06-01T03:35:08Z",
+      "archive_path": "grimoires/loa/archive/2026-06-01-cycle-113-streaming-recovery-completion"
     },
     {
       "id": "cycle-bug-20260520-i888-8a4363",
@@ -1426,9 +1435,211 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260520-i911-60baf5/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260520-i911-60baf5/sprint.md"
+    },
+    {
+      "id": "cycle-114-harness-modernization-opus-4.8",
+      "label": "Harness Modernization — Opus 4.8",
+      "status": "in-progress",
+      "created_at": "2026-06-01T03:34:03Z",
+      "prd": "grimoires/loa/cycles/cycle-114-harness-modernization-opus-4.8/prd.md",
+      "sdd": "grimoires/loa/cycles/cycle-114-harness-modernization-opus-4.8/sdd.md",
+      "sprints": [
+        {
+          "id": "sprint-177",
+          "local_id": "sprint-1",
+          "global_id": 177,
+          "cycle": "cycle-114-harness-modernization-opus-4.8",
+          "theme": "Model substrate — Opus 4.8 registry + effort threading + deep-reasoning effort frontmatter",
+          "fr": "FR-1, FR-2, FR-3",
+          "scope": "LARGE",
+          "task_count": 3,
+          "status": "completed",
+          "created": "2026-06-01T04:11:15Z"
+        },
+        {
+          "id": "sprint-178",
+          "local_id": "sprint-2",
+          "global_id": 178,
+          "cycle": "cycle-114-harness-modernization-opus-4.8",
+          "theme": "Gate & safety hardening — disallowed-tools + stop-guard bg-tasks + rm regex + egress doc",
+          "fr": "FR-4, FR-5, FR-6, FR-7",
+          "scope": "LARGE",
+          "task_count": 4,
+          "status": "completed",
+          "created": "2026-06-01T04:11:15Z"
+        },
+        {
+          "id": "sprint-179",
+          "local_id": "sprint-3",
+          "global_id": 179,
+          "cycle": "cycle-114-harness-modernization-opus-4.8",
+          "theme": "Economy, recovery UX & ADR — effort in MODELINV/tier_map + sessionTitle + native-Workflow ADR",
+          "fr": "FR-8, FR-9, FR-10",
+          "scope": "MEDIUM",
+          "task_count": 3,
+          "status": "completed",
+          "created": "2026-06-01T04:11:15Z"
+        }
+      ]
+    },
+    {
+      "id": "cycle-bug-20260610-i992-8fc4da",
+      "label": "Bug Fix — secret-scanning.yml TruffleHog base==HEAD on push/schedule — zero scan coverage on main",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/992",
+      "created_at": "2026-06-10T09:21:02Z",
+      "sprints": [
+        "sprint-bug-187"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260610-i992-8fc4da/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260610-i992-8fc4da/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260610-i886-b5cddf",
+      "label": "Bug Fix — bats-tests.yml runs tests/unit/ without installing Python dependencies",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/886",
+      "created_at": "2026-06-10T10:00:12Z",
+      "sprints": [
+        "sprint-bug-188"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260610-i886-b5cddf/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260610-i886-b5cddf/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260610-i989-e8ab1c",
+      "label": "Bug Fix — Kernel integrity stamp is a hollow PLACEHOLDER — @loa-managed hash verifies nothing",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/989",
+      "created_at": "2026-06-10T12:32:23Z",
+      "sprints": [
+        "sprint-bug-189"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260610-i989-e8ab1c/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260610-i989-e8ab1c/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260610-i991-9c97f1",
+      "label": "Bug Fix — pre-commit beads hook fails in linked git worktrees: br sync runs from worktree CWD",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/991",
+      "created_at": "2026-06-10T12:46:49Z",
+      "sprints": [
+        "sprint-bug-190"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260610-i991-9c97f1/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260610-i991-9c97f1/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260610-i986-b28220",
+      "label": "Bug Fix — post-merge.yml fails on submodule mounts with gitignored .claude symlinks (exit-127/chmod)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/986",
+      "created_at": "2026-06-10T13:44:31Z",
+      "sprints": [
+        "sprint-bug-191"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260610-i986-b28220/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260610-i986-b28220/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260611-i968-d2db26",
+      "label": "Bug Fix — Submodule-mode update path incomplete: /update-loa lacks submodule routing; --reconcile skips the #842 COPY set",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/968",
+      "created_at": "2026-06-10T14:03:45Z",
+      "sprints": [
+        "sprint-bug-192"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260611-i968-d2db26/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260611-i968-d2db26/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260611-i805-732c34",
+      "label": "Bug Fix — bridgebuilder entry.sh crashes module-not-found (zod) on fresh submodule mounts — #805 residual F7",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/805",
+      "created_at": "2026-06-10T14:26:08Z",
+      "sprints": [
+        "sprint-bug-193"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260611-i805-732c34/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260611-i805-732c34/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260611-i984-8b8a94",
+      "label": "Bug Fix — red-team-code-vs-design.sh silently passes quality gate on degraded runs — #984 + #985",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/984",
+      "created_at": "2026-06-11T00:41:32Z",
+      "sprints": [
+        "sprint-bug-194"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260611-i984-8b8a94/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260611-i984-8b8a94/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260611-i809-0cef92",
+      "label": "Bug Fix — adversarial-review status:clean qualifier + stale #774 warning + missing --phase attribution",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/809",
+      "created_at": "2026-06-11T01:02:10Z",
+      "sprints": [
+        "sprint-bug-195"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260611-i809-0cef92/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260611-i809-0cef92/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260611-i982-cc9459",
+      "label": "Bug Fix — cheval headless adapters: process-group kill on completion-path timeout (issue #982)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/982",
+      "created_at": "2026-06-11T01:39:20Z",
+      "sprints": [
+        "sprint-bug-196"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260611-i982-cc9459/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260611-i982-cc9459/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260611-i979-afeb52",
+      "label": "Bug Fix — cheval auth_type/dispatch_group inference for custom .loa.config.yaml headless providers (#979)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/979",
+      "created_at": "2026-06-11T01:43:37Z",
+      "sprints": [
+        "sprint-bug-197"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260611-i979-afeb52/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260611-i979-afeb52/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260611-i978-17e08f",
+      "label": "Bug Fix — flatline: mktemp templates do not expand on BSD/macOS — literal-XXXXXX temp files + cross-run collisions degrade 3-voice review",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/978",
+      "created_at": "2026-06-11T01:50:32Z",
+      "sprints": [
+        "sprint-bug-198"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260611-i978-17e08f/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260611-i978-17e08f/sprint.md"
     }
   ],
-  "global_sprint_counter": 176,
+  "global_sprint_counter": 198,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
@@ -1621,6 +1832,32 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260520-i894-cdaf96/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260520-i894-cdaf96/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260601-i971-727e7f",
+      "label": "Bug Fix — classify-pr-type.sh rule #2 case-sensitive (Cycle-NNN misroute, #971)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/971",
+      "created_at": "2026-06-01T06:11:21Z",
+      "sprints": [
+        "sprint-bug-177"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260601-i971-727e7f/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260601-i971-727e7f/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260610-i942-0f917b",
+      "label": "Bug Fix — next-bug-sprint-id.sh emits colliding sprint ids (ignores ledger cycles[].sprints, #942)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/942",
+      "created_at": "2026-06-10T08:46:53Z",
+      "sprints": [
+        "sprint-bug-180"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260610-i942-0f917b/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260610-i942-0f917b/sprint.md"
     }
   ],
   "bugfixes": [
@@ -1638,5 +1875,5 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 177
+  "next_sprint_number": 192
 }

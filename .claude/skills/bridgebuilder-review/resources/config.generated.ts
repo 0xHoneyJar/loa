@@ -19,6 +19,19 @@ export interface GeneratedModelEntry {
 }
 
 export const GENERATED_MODEL_REGISTRY: Record<string, GeneratedModelEntry> = {
+  "claude-fable-5": {
+    provider: "anthropic",
+    modelId: "claude-fable-5",
+    contextWindow: 200000,
+    capabilities: ["chat", "function_calling", "thinking_traces", "tools"],
+    pricing: { inputPerMtok: 10000000, outputPerMtok: 50000000 },
+  },
+  "claude-fable-headless": {
+    provider: "anthropic",
+    modelId: "claude-fable-headless",
+    contextWindow: 200000,
+    capabilities: ["chat"],
+  },
   "claude-haiku-4-5-20251001": {
     provider: "anthropic",
     modelId: "claude-haiku-4-5-20251001",
@@ -42,6 +55,13 @@ export const GENERATED_MODEL_REGISTRY: Record<string, GeneratedModelEntry> = {
   "claude-opus-4-7": {
     provider: "anthropic",
     modelId: "claude-opus-4-7",
+    contextWindow: 200000,
+    capabilities: ["chat", "function_calling", "thinking_traces", "tools"],
+    pricing: { inputPerMtok: 5000000, outputPerMtok: 25000000 },
+  },
+  "claude-opus-4-8": {
+    provider: "anthropic",
+    modelId: "claude-opus-4-8",
     contextWindow: 200000,
     capabilities: ["chat", "function_calling", "thinking_traces", "tools"],
     pricing: { inputPerMtok: 5000000, outputPerMtok: 25000000 },
@@ -70,6 +90,13 @@ export const GENERATED_MODEL_REGISTRY: Record<string, GeneratedModelEntry> = {
   "us.anthropic.claude-opus-4-7": {
     provider: "bedrock",
     modelId: "us.anthropic.claude-opus-4-7",
+    contextWindow: 200000,
+    capabilities: ["chat", "function_calling", "thinking_traces", "tools"],
+    pricing: { inputPerMtok: 5000000, outputPerMtok: 25000000 },
+  },
+  "us.anthropic.claude-opus-4-8": {
+    provider: "bedrock",
+    modelId: "us.anthropic.claude-opus-4-8",
     contextWindow: 200000,
     capabilities: ["chat", "function_calling", "thinking_traces", "tools"],
     pricing: { inputPerMtok: 5000000, outputPerMtok: 25000000 },

@@ -13,14 +13,18 @@
 import type { TokenBudget } from "./types.js";
 
 export const GENERATED_TOKEN_BUDGETS: Record<string, TokenBudget> = {
+  "claude-fable-5": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
+  "claude-fable-headless": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
   "claude-haiku-4-5-20251001": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
   "claude-headless": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
   "claude-opus-4-6": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
   "claude-opus-4-7": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
+  "claude-opus-4-8": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
   "claude-sonnet-4-5-20250929": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
   "claude-sonnet-4-6": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
   "us.anthropic.claude-haiku-4-5-20251001-v1:0": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
   "us.anthropic.claude-opus-4-7": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
+  "us.anthropic.claude-opus-4-8": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
   "us.anthropic.claude-sonnet-4-6": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
   "deep-research-pro": { maxInput: 1048576, maxOutput: 8192, coefficient: 0.25 },
   "gemini-2.0-flash": { maxInput: 1048576, maxOutput: 8192, coefficient: 0.25 },

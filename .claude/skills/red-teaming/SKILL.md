@@ -2,6 +2,16 @@
 name: red-team
 description: "Red Team — Generative Adversarial Security Design"
 role: review
+effort: xhigh  # cycle-114 FR-3: adversarial generation — deepest reasoning
+# cycle-114 FR-4: this review skill legitimately writes STATE-zone artifacts
+# (attack-scenario designs), so Write is retained; app-code prevention is
+# governed by zones. The harness removes the implementation-only mutations
+# (notebook edits + git index/commit/push) so it cannot land code like /implement.
+disallowed-tools:
+  - NotebookEdit
+  - Bash(git add *)
+  - Bash(git commit *)
+  - Bash(git push *)
 capabilities:
   schema_version: 1
   read_files: true

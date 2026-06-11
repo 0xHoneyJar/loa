@@ -33,7 +33,12 @@
       "properties": {
         "mappings": {"type": "object"},
         "denylist": {"type": "array", "items": {"type": "string"}},
-        "max_cost_per_session_micro_usd": {"type": ["integer", "null"], "minimum": 0}
+        "max_cost_per_session_micro_usd": {"type": ["integer", "null"], "minimum": 0},
+        "effort_hints": {
+          "description": "cycle-114 FR-8: informational-only per-tier reasoning-effort hints. NOT consumed by the resolver/dispatch — advisory for operators + the economy roll-up.",
+          "type": "object",
+          "additionalProperties": {"enum": ["low", "medium", "high", "xhigh", "max"]}
+        }
       }
     },
     "routing": {"type": "object"},

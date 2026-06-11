@@ -340,6 +340,65 @@ providers:
     endpoint: "https://api.anthropic.com/v1"
     auth: "{env:ANTHROPIC_API_KEY}"
     models:
+      claude-fable-5:
+        # 2026-06-10 (intel-routing review): the top intelligence tier — a class
+        # ABOVE Opus. Same API surface as Opus 4.7/4.8 (adaptive thinking only;
+        # sampling params + thinking.budget_tokens REJECTED with HTTP 400) with
+        # one extra: an explicit thinking.type=disabled also 400s — omit the
+        # thinking param instead (anthropic_adapter concern). Actual context
+        # window is 1M / 128K out; conservative envelope mirrors the Opus
+        # entries below. PRICING REGISTERED BEFORE ROUTABILITY (review fix-plan
+        # #2): an unpriced model meters as $0 and becomes invisible to the
+        # budget governor.
+        auth_type: http_api
+        dispatch_group: anthropic-claude
+        capabilities: [chat, tools, function_calling, thinking_traces]
+        context_window: 200000
+        token_param: max_tokens
+        # Within-company chain: degrade to the Opus class, then headless.
+        fallback_chain:
+          - anthropic:claude-opus-4-8
+          - anthropic:claude-sonnet-4-6
+          - anthropic:claude-headless
+        max_output_tokens: 32000
+        max_input_tokens: 180000
+        streaming_max_input_tokens: 180000
+        params:
+          temperature_supported: false
+        pricing:
+          # Unit: micro-USD per million tokens. ($10/$50 per MTok.)
+          input_per_mtok: 10000000
+          output_per_mtok: 50000000
+      claude-opus-4-8:
+        # cycle-114 (harness-modernization-opus-4.8): newest Opus class.
+        # Released 2026-05-28 (Claude Code 2.1.154). Pricing == 4.7
+        # ($5/$25 per Mtok; fast-mode $10/$50). Adaptive-thinking model:
+        # effort is controlled via output_config.effort (low|medium|high|
+        # xhigh|max); manual thinking.budget_tokens is REJECTED with HTTP
+        # 400 — see anthropic_adapter.py (cycle-114 FR-2).
+        auth_type: http_api
+        dispatch_group: anthropic-claude
+        capabilities: [chat, tools, function_calling, thinking_traces]
+        context_window: 200000
+        token_param: max_tokens
+        # cycle-114: within-company chain → 4.7 → sonnet-4.6 → headless.
+        fallback_chain:
+          - anthropic:claude-opus-4-7
+          - anthropic:claude-sonnet-4-6
+          - anthropic:claude-headless
+        # Opus-class token envelope mirrors 4.7 (streaming default-on;
+        # see claude-opus-4-7 below for the full KF-002 derivation).
+        max_output_tokens: 32000
+        max_input_tokens: 180000          # backward-compat fallback
+        streaming_max_input_tokens: 180000
+        legacy_max_input_tokens: 36000    # pre-Sprint-4A KF-002 wall
+        # Anthropic deprecated `temperature` for Opus 4 (#641); omit it.
+        params:
+          temperature_supported: false
+        pricing:
+          # Unit: micro-USD per million tokens.
+          input_per_mtok: 5000000    # $5.00 per million tokens (== 4.7)
+          output_per_mtok: 25000000  # $25.00 per million tokens (== 4.7)
       claude-opus-4-7:
         # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
         auth_type: http_api
@@ -468,6 +527,23 @@ providers:
       # CLI fallback via `claude` binary (Claude Code subscription auth).
       # Operator must install per `grimoires/loa/runbooks/headless-mode.md`.
       # Chain terminal — no further fallback (enforced by lint).
+      claude-fable-headless:
+        # 2026-06-11 (BB-on-Fable): the claude CLI dispatching the TOP
+        # intelligence tier on the operator's subscription (OAuth, no API
+        # key, no marginal cost). Proven live: `claude -p --model fable`
+        # self-identifies claude-fable-5. Mirror of claude-headless below;
+        # cli_model is the literal passed to `claude --model <name>`.
+        # Intended consumers: BRIDGEBUILDER_MODEL=fable-headless (critical
+        # PRs), FAGAN council fable voice, any flatline agent binding that
+        # opts in via `model: fable-headless`.
+        auth_type: headless
+        dispatch_group: anthropic-claude
+        kind: cli
+        capabilities: [chat]            # No tool_use, no thinking
+        context_window: 200000
+        # No pricing entry — CLI uses operator's Claude Code subscription.
+        extra:
+          cli_model: fable
       claude-headless:
         # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
         auth_type: headless
@@ -509,6 +585,24 @@ providers:
     read_timeout: 120                                # Vision-capable; matches base default
     models:
       # Day-1 inference profile IDs (from Sprint 0 G-S0-2 probe #1 ListInferenceProfiles)
+      "us.anthropic.claude-opus-4-8":                # cycle-114: newest Opus on Bedrock
+        auth_type: aws_iam
+        dispatch_group: bedrock-anthropic
+        capabilities: [chat, tools, function_calling, thinking_traces]
+        context_window: 200000
+        token_param: max_tokens
+        api_format:
+          chat: converse
+          tools: converse
+          thinking_traces: converse                  # Bedrock requires `thinking.type: adaptive`
+          function_calling: converse
+        params:
+          temperature_supported: false               # Mirrors direct Anthropic Opus 4 (#641)
+        pricing:
+          input_per_mtok: 5000000                    # $5.00/Mtok (matches direct Anthropic on-demand)
+          output_per_mtok: 25000000                  # $25.00/Mtok
+        fallback_to: "anthropic:claude-opus-4-8"
+        fallback_mapping_version: 1
       "us.anthropic.claude-opus-4-7":                # Newest convention: no -v1:0 suffix
         # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
         auth_type: aws_iam
@@ -575,7 +669,8 @@ aliases:
   reviewer: "openai:gpt-5.5"
   reasoning: "openai:gpt-5.5"
   cheap: "anthropic:claude-sonnet-4-6"  # Budget-conscious model
-  opus: "anthropic:claude-opus-4-7"     # High-quality model (retargeted from 4-6 to 4-7, cycle-082)
+  fable: "anthropic:claude-fable-5"     # Top intelligence tier (2026-06-10 intel-routing review)
+  opus: "anthropic:claude-opus-4-8"     # High-quality model (retargeted 4-6→4-7 cycle-082; 4-7→4-8 cycle-114)
   # cycle-095 Sprint 2 (Task 2.3): tiny tier alias points at Haiku 4.5.
   tiny: "anthropic:claude-haiku-4-5-20251001"
   # Gemini 3.1 Pro Preview re-added cycle-093 sprint-4 (T2.1 — closes G4)
@@ -628,6 +723,7 @@ aliases:
   # its company's fallback_chain. Operator must install the underlying CLI
   # binary (`claude`, `codex`, `gemini`) per the headless-mode runbook.
   claude-headless: "anthropic:claude-headless"
+  fable-headless: "anthropic:claude-fable-headless"   # top tier on subscription (BB critical PRs)
   codex-headless: "openai:codex-headless"
   gemini-headless: "google:gemini-headless"
 
@@ -655,6 +751,11 @@ backward_compat_aliases:
   # without a provider prefix — cheval's resolver expects an alias entry,
   # so the bare dash form must self-map. Without this, BB review fails
   # with "Unknown alias: 'claude-opus-4-7'" across all 3 substrate models.
+  # cycle-114: 4-8 self-maps (dash + dot). The BB tool config.generated.js
+  # passes the bare dash form to cheval without a provider prefix, so both
+  # forms must self-map (parity with the 4-7 entries below).
+  "claude-opus-4-8": "anthropic:claude-opus-4-8"
+  "claude-opus-4.8": "anthropic:claude-opus-4-8"
   "claude-opus-4-7": "anthropic:claude-opus-4-7"
   "claude-opus-4.7": "anthropic:claude-opus-4-7"
   "claude-opus-4.6": "anthropic:claude-opus-4-7"
@@ -792,9 +893,19 @@ agents:
 #   `providers.<provider>.models`. Live probe (with API keys) is the
 #   operator's responsibility on opt-in.
 tier_groups:
+  # cycle-114 FR-8: informational-only effort hints per tier. NOT consumed by
+  # the FR-3.9 resolver or any dispatch path this cycle — purely advisory for
+  # operators and the Empirical Model Economy roll-up (which reports cost by
+  # effort). A future cycle may wire binding behavior; until then these values
+  # MUST NOT change model resolution. Pinned by tests/unit/cycle-114-tier-effort-hints.bats.
+  effort_hints:
+    max: xhigh
+    mid: medium
+    cheap: low
+    tiny: low
   mappings:
     max:
-      anthropic: opus              # → claude-opus-4-7
+      anthropic: fable             # → claude-fable-5 (2026-06-10 intel-routing review; was opus)
       openai: gpt-5.5-pro          # top-of-OpenAI per probe-confirmation
       google: gemini-3.1-pro       # → gemini-3.1-pro-preview
     cheap:

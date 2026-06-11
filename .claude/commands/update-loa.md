@@ -155,6 +155,26 @@ State is tracked via `.claude/scripts/branch-state.sh`:
 .claude/scripts/branch-state.sh clear
 ```
 
+## Submodule Mode (issue #968)
+
+The workflow below documents the VENDORED flow (`git fetch loa main` →
+merge). **Submodule-mode mounts have no `loa`/`upstream` remote** — those
+steps will fail with "remote not configured". For submodule mounts, route to
+the dedicated script instead, which already implements detection, tag-pinned
+update, symlink reconcile, and (since #968) the #842 copy-set refresh:
+
+```bash
+.claude/scripts/update-loa.sh            # bumps the .loa submodule pointer to the
+                                         # latest v* tag, reconciles symlinks,
+                                         # refreshes .claude/hooks + settings.json,
+                                         # and commits the gitlink
+```
+
+Manual equivalent: bump the submodule pointer → `mount-submodule.sh
+--reconcile` (now refreshes the copy set too) → commit the gitlink. Never use
+`mount-submodule.sh --force` just to pick up an update — it deinits and
+re-adds the submodule destructively.
+
 ## Prerequisites
 
 - Working tree must be clean (no uncommitted changes)

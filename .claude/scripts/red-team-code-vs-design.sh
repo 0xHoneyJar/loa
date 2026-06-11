@@ -39,6 +39,18 @@ CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
 # shellcheck source=lib/model-resolver.sh
 source "$SCRIPT_DIR/lib/model-resolver.sh"
 MODEL_ADAPTER="$SCRIPT_DIR/model-adapter.sh"
+# bug-984: test-mode-gated adapter override (canonical dual-gate: opt-in flag
+# AND bats marker, per the L7 / cycle-099 #761 pattern). Production ignores it.
+if [[ "${LOA_RTCD_TEST_MODE:-}" == "1" ]] && [[ -n "${BATS_TEST_FILENAME:-}${BATS_VERSION:-}" ]]; then
+    MODEL_ADAPTER="${LOA_RTCD_MODEL_ADAPTER:-$MODEL_ADAPTER}"
+fi
+
+# bug-984: script-scope the model-path temp files so the EXIT trap (set at
+# function depth) can both SEE them under set -u and actually clean them up.
+# Pre-fix they were function-locals: the trap died with "prompt_file: unbound
+# variable" on every run and the temp files leaked (KF-015).
+prompt_file=""
+stderr_tmp=""
 
 # Source shared libraries (cycle-047 T3.3)
 source "$SCRIPT_DIR/lib/findings-lib.sh"
@@ -334,11 +346,10 @@ main() {
         exit 0
     fi
 
-    # Build comparison prompt
-    local prompt_file stderr_tmp
+    # Build comparison prompt (vars are script-scope — see bug-984 note at top)
     prompt_file=$(mktemp)
     stderr_tmp=$(mktemp)
-    trap 'rm -f "$prompt_file" "$stderr_tmp"' EXIT
+    trap 'rm -f "${prompt_file:-}" "${stderr_tmp:-}"' EXIT
     cat > "$prompt_file" << 'PROMPT'
 You are a security design verification agent. Compare the SDD security design specifications below to the actual code changes.
 
@@ -470,6 +481,15 @@ PROMPT
         local stderr_tail
         stderr_tail=$(tail -5 "$stderr_tmp" 2>/dev/null || echo "(no stderr)")
         error "Model invocation failed (exit $exit_code): $stderr_tail"
+        # bug-984/#985 (KF-015): leave a structured degraded record (the
+        # scoring-engine contract) instead of exiting with no artifact.
+        # Note: adapter exit 12 is cheval CHAIN_EXHAUSTED — the chain WAS
+        # walked; exhaustion is typically environmental (missing auth for
+        # chain entries on submodule mounts).
+        mkdir -p "$(dirname "$output_path")"
+        jq -n --argjson code "$exit_code" --arg stderr_tail "$stderr_tail" \
+            '{findings: [], summary: {total: 0, confirmed_divergence: 0, partial_implementation: 0, fully_implemented: 0, actionable: 0}, degraded: true, degradation_reason: "model_invocation_failed", model_exit_code: $code, stderr_tail: $stderr_tail}' > "$output_path"
+        chmod 600 "$output_path"
         exit 1
     fi
 
@@ -480,11 +500,16 @@ PROMPT
     # Strip markdown code fences if present (delegated to findings-lib.sh, cycle-047 T3.3)
     findings_json=$(strip_code_fences "$findings_json")
 
-    # Validate JSON
-    if ! echo "$findings_json" | jq '.' > /dev/null 2>&1; then
-        error "Model output is not valid JSON"
-        # Write error findings
-        jq -n '{findings: [], summary: {total: 0, confirmed_divergence: 0, partial_implementation: 0, fully_implemented: 0}, error: "invalid_model_output"}' > "$output_path"
+    # Validate JSON. bug-984 (KF-015): `jq .` exits 0 on EMPTY input — empty
+    # model content used to write a 0-byte findings file and exit 0 (the
+    # silent-clean gate bypass). Require non-empty content AND an object
+    # carrying a findings array.
+    if [[ -z "${findings_json//[$' \t\n\r']/}" ]] || \
+       ! echo "$findings_json" | jq -e 'type == "object" and (.findings | type == "array")' > /dev/null 2>&1; then
+        error "Model output is empty or not a findings object"
+        mkdir -p "$(dirname "$output_path")"
+        jq -n '{findings: [], summary: {total: 0, confirmed_divergence: 0, partial_implementation: 0, fully_implemented: 0, actionable: 0}, degraded: true, degradation_reason: "empty_or_invalid_model_output"}' > "$output_path"
+        chmod 600 "$output_path"
         exit 1
     fi
 

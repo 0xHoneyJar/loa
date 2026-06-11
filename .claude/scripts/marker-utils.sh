@@ -356,8 +356,10 @@ update_hash() {
       return 1
     fi
   else
-    # Replace the hash value in the marker line
-    sed "s/\(${MARKER_PREFIX}.*hash: \)[a-f0-9]*/\1${new_hash}/" "$file" > "$temp_file"
+    # Replace the hash value in the marker line. The bootstrap form carries a
+    # literal "PLACEHOLDER" suffix glued to the hex (bug-989) — consume it so
+    # the first real stamp drops it instead of gluing the new hash in front.
+    sed "s/\(${MARKER_PREFIX}.*hash: \)[a-f0-9]*\(PLACEHOLDER\)\{0,1\}/\1${new_hash}/" "$file" > "$temp_file"
   fi
 
   mv "$temp_file" "$file"

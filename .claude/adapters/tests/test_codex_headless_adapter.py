@@ -340,21 +340,21 @@ class TestJsonlParsing:
 class TestErrorClassification:
     def test_rate_limit_in_stderr_raises_rate_limit_error(self):
         adapter = CodexHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.codex_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.codex_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _fail_proc(1, "Error: rate limit exceeded — retry in 60s")
             with pytest.raises(RateLimitError):
                 adapter.complete(_make_request())
 
     def test_429_in_stderr_raises_rate_limit_error(self):
         adapter = CodexHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.codex_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.codex_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _fail_proc(1, "HTTP 429 Too Many Requests")
             with pytest.raises(RateLimitError):
                 adapter.complete(_make_request())
 
     def test_auth_failure_raises_config_error(self):
         adapter = CodexHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.codex_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.codex_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _fail_proc(1, "Error: not authenticated. Run codex login.")
             with pytest.raises(ConfigError) as exc_info:
                 adapter.complete(_make_request())
@@ -362,7 +362,7 @@ class TestErrorClassification:
 
     def test_generic_failure_raises_provider_unavailable(self):
         adapter = CodexHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.codex_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.codex_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _fail_proc(2, "some unexpected error")
             with pytest.raises(ProviderUnavailableError) as exc_info:
                 adapter.complete(_make_request())
@@ -370,7 +370,7 @@ class TestErrorClassification:
 
     def test_timeout_raises_provider_unavailable(self):
         adapter = CodexHeadlessAdapter(_make_config(read_timeout=5.0))
-        with patch("loa_cheval.providers.codex_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.codex_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.side_effect = subprocess.TimeoutExpired(cmd=["codex"], timeout=5)
             with pytest.raises(ProviderUnavailableError) as exc_info:
                 adapter.complete(_make_request())
@@ -378,7 +378,7 @@ class TestErrorClassification:
 
     def test_codex_not_on_path_raises_config_error(self):
         adapter = CodexHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.codex_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.codex_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.side_effect = FileNotFoundError("codex: command not found")
             with pytest.raises(ConfigError) as exc_info:
                 adapter.complete(_make_request())
@@ -437,7 +437,7 @@ class TestValidateAndHealth:
 class TestEndToEnd:
     def test_complete_round_trip(self):
         adapter = CodexHeadlessAdapter(_make_config(extra={"reasoning_effort": "high"}))
-        with patch("loa_cheval.providers.codex_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.codex_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _ok_proc(SAMPLE_JSONL_OUTPUT)
             result = adapter.complete(
                 _make_request(
@@ -478,7 +478,7 @@ class TestSubprocessEnvFilter:
         monkeypatch.setenv("OPENAI_API_KEY", "sk-proj-test-depleted")
         monkeypatch.delenv("LOA_HEADLESS_KEEP_API_KEY", raising=False)
         adapter = CodexHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.codex_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.codex_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _ok_proc(SAMPLE_JSONL_OUTPUT)
             adapter.complete(_make_request())
         kwargs = mock_run.call_args.kwargs
@@ -490,7 +490,7 @@ class TestSubprocessEnvFilter:
         monkeypatch.setenv("PATH", "/test/bin:/usr/bin")
         monkeypatch.setenv("HOME", "/test/home")
         adapter = CodexHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.codex_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.codex_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _ok_proc(SAMPLE_JSONL_OUTPUT)
             adapter.complete(_make_request())
         env = mock_run.call_args.kwargs.get("env", {})
@@ -501,7 +501,7 @@ class TestSubprocessEnvFilter:
         monkeypatch.setenv("OPENAI_API_KEY", "sk-proj-test")
         monkeypatch.setenv("LOA_HEADLESS_KEEP_API_KEY", "1")
         adapter = CodexHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.codex_headless_adapter.subprocess.run") as mock_run:
+        with patch("loa_cheval.providers.codex_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _ok_proc(SAMPLE_JSONL_OUTPUT)
             adapter.complete(_make_request())
         env = mock_run.call_args.kwargs.get("env", {})

@@ -268,7 +268,9 @@ teardown() {
     grep -F 'id: cooldown' "$PROJECT_ROOT/grimoires/loa/lore/patterns.yaml"
 }
 
-@test "4D handoff: CLAUDE.md has L4 Graduated-Trust Constraints section" {
-    grep -F 'L4 Graduated-Trust' "$PROJECT_ROOT/.claude/loa/CLAUDE.loa.md"
-    grep -F 'Graduated-Trust Constraints' "$PROJECT_ROOT/.claude/loa/CLAUDE.loa.md"
+@test "4D handoff: agent-network reference has L4 Graduated-Trust Constraints section" {
+    grep -F 'L4 Graduated-Trust' "$PROJECT_ROOT/.claude/loa/reference/agent-network-reference.md"
+    grep -F 'Graduated-Trust Constraints' "$PROJECT_ROOT/.claude/loa/reference/agent-network-reference.md"
+    # Per-turn routing row in CLAUDE.loa.md points at the reference.
+    grep -F 'Trust ledger (L4' "$PROJECT_ROOT/.claude/loa/CLAUDE.loa.md"
 }

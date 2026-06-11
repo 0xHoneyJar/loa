@@ -87,6 +87,33 @@ Template of recommended file access deny rules for credential protection. Blocks
 **Template**: `.claude/hooks/settings.deny.json`
 **Installer**: `.claude/scripts/install-deny-rules.sh`
 
+## Known Scope Boundaries (cycle-114 FR-7)
+
+The safety layer is a **fence against routine destructive mistakes**, not a
+hardened security boundary. It defends two surfaces:
+
+- **Filesystem destruction** — `block-destructive-bash.sh` blocks `rm -rf` on
+  catastrophic paths, force-push, hard-reset, `DROP`/`TRUNCATE`, etc.
+- **Credential reads** — `settings.deny.json` blocks access to `~/.ssh/`,
+  `~/.aws/`, `~/.kube/`, `~/.gnupg/`, and credential stores.
+
+It does **NOT** guard:
+
+- **Network egress / data exfiltration.** There is no monitoring or restriction
+  of outbound data — `curl`/`wget` POSTs, `scp`, cloud uploads (S3, gcs), or
+  bulk transfers of repository contents are not inspected. Preventing
+  exfiltration is the **operator's responsibility**, via network policy /
+  firewall / egress proxy external to Claude Code (Claude Code's own auto-mode
+  classifier provides some bulk-exfil detection, but Loa does not add a guard).
+- **Documented bypass classes.** Newline statement separators, subshell
+  wrapping (`bash -c`, `$(...)`), `eval`/base64 decode, SQL comments containing
+  `WHERE`, python scripts loaded from disk, and `jq` absent from PATH all bypass
+  `block-destructive-bash.sh` by design — see cycle-111 SDD §11 for the full
+  accepted-bypass list and rationale.
+
+Treat the safety hooks as defense-in-depth against accidental damage by
+autonomous agents — not as a sandbox.
+
 ## All Hook Registrations
 
 See `.claude/hooks/settings.hooks.json` for the complete hook configuration.
@@ -148,3 +175,9 @@ See `.claude/hooks/settings.hooks.json` for the complete hook configuration.
 - Labeled ADVISORY in all output messages
 
 **Tests**: `tests/unit/compliance-hook.bats` (7 tests)
+
+## block-destructive-bash.sh — Full Pattern Set & Posture (moved from CLAUDE.loa.md)
+
+Blocks 12 destructive shapes: `rm -rf` (context-aware: blocks `/`, `~`, `$HOME`, `*`, `.`, `./.git`; allows `./build`, `./node_modules`, `/tmp/*`), `git push --force`/`-f`, `git reset --hard`, `git clean -f`, `git branch -D`/force-delete, `git stash drop`/`clear`, `git checkout -- <path>`, SQL `DROP {DATABASE,TABLE,SCHEMA}`, `TRUNCATE`, `DELETE FROM` no-WHERE (multi-statement loop), `kubectl delete namespace`, `kubectl delete --all`/`-A`. Audit-log trail to `.run/audit.jsonl` on every block with sanitized command + matched substring. Ported from Anthropic DCG public pattern set (cycle-111).
+
+**Defense-in-depth posture (cycle-111)**: this hook is a fence against routine destructive mistakes by autonomous agents — NOT a hardened security boundary. Documented accepted bypass classes (cycle-111 SDD §11): newline statement separators, subshell wrapping (`bash -c '...'` quoted-differently, `$(...)`), eval/base64 decode, SQL comments containing WHERE, python scripts loaded from disk, jq absent from PATH. ERE flavor: GNU/BSD-compatible extensions (`\s`, `\b`), NOT strict POSIX. Latency budget: p95 < 80ms across 100 invocations (bash startup + jq + 13 grep passes).

@@ -800,6 +800,11 @@ hounfour:
     # Same gemini-3.x line as the google provider, just a different transport.
     # Useful when deep-thinker / fast-thinker / flatline-tertiary token spend
     # is large enough that subscription economics beat per-token API pricing.
+    #
+    # NOTE (#979): `auth_type` and `dispatch_group` are inferred for the three
+    # *-headless provider types (headless + the provider family's group) —
+    # the field-less model shape below loads as-is. Set them explicitly only
+    # to override.
     gemini-headless:
       type: gemini-headless
       # No `auth:` field — auth is file-based (~/.gemini/settings.json) or env-var

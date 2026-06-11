@@ -13,8 +13,8 @@ set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 SUT="${REPO_ROOT}/.claude/scripts/lib/context-isolation-lib.sh"
-SUT_BACKUP="$(mktemp -t "ctx-iso-backup-XXXXXX.sh")"
-LOG="$(mktemp -t "smoke-revert-log-XXXXXX")"
+SUT_BACKUP="$(mktemp "${TMPDIR:-/tmp}/ctx-iso-backup-XXXXXX")"
+LOG="$(mktemp "${TMPDIR:-/tmp}/smoke-revert-log-XXXXXX")"
 
 # Sprint-3 T3.8 F10: refuse to run on a dirty SUT — backing up a WIP edit
 # means a HUP/KILL during the run leaves the WIP overwritten with a revert

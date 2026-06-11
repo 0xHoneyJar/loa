@@ -41,10 +41,11 @@ setup() {
     [ "$output" = "anthropic" ]
 }
 
-@test "generated MODEL_IDS resolves opus alias to claude-opus-4-7" {
+@test "generated MODEL_IDS resolves opus alias to claude-opus-4-8" {
+    # cycle-114 FR-1: opus alias retargeted 4-7 → 4-8.
     run bash -c "source '$GENERATED'; echo \"\${MODEL_IDS[opus]}\""
     [ "$status" -eq 0 ]
-    [ "$output" = "claude-opus-4-7" ]
+    [ "$output" = "claude-opus-4-8" ]
 }
 
 @test "generated MODEL_IDS resolves claude-opus-4-6 backward-compat to 4-7" {

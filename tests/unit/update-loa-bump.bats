@@ -90,15 +90,19 @@ teardown() {
 }
 
 # =========================================================================
-# UB-T5: CLAUDE.loa.md header preserves hash + PLACEHOLDER segments
+# UB-T5: CLAUDE.loa.md header hash is RE-STAMPED on bump (bug-989)
 # =========================================================================
+# Contract change: pre-#989 the bump preserved the bootstrap
+# "abc123PLACEHOLDER" hash untouched; the header stamp was hollow. The bump
+# now re-stamps a real verifiable hash and drops the PLACEHOLDER suffix.
 
-@test "bump preserves hash + PLACEHOLDER in CLAUDE.loa.md header" {
+@test "bump re-stamps a real hash and drops PLACEHOLDER in CLAUDE.loa.md header (bug-989)" {
     run "$BUMP_SCRIPT" --target "2.5.0"
     [ "$status" -eq 0 ]
     local header
     header=$(head -n 1 "$CLAUDE_LOA_FILE")
-    [[ "$header" == *"hash: abc123PLACEHOLDER"* ]]
+    [[ "$header" != *"PLACEHOLDER"* ]]
+    [[ "$header" =~ hash:\ [a-f0-9]{64} ]]
     [[ "$header" == *"@loa-managed: true"* ]]
 }
 

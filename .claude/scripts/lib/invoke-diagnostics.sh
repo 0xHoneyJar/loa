@@ -66,7 +66,13 @@ redact_secrets() {
 setup_invoke_log() {
   local suffix="${1:-invoke}"
   local log_file
-  log_file=$(mktemp "${TMPDIR:-/tmp}/loa-${suffix}-XXXXXX.log")
+  # bug-978 (#978): BSD/macOS mktemp expands only a TRAILING X-run — the old
+  # `loa-${suffix}-XXXXXX.log` template created a literal -XXXXXX.log file and
+  # every later call died "File exists". Trailing-X create, then rename to
+  # keep the operator-friendly .log extension.
+  log_file=$(mktemp "${TMPDIR:-/tmp}/loa-${suffix}-XXXXXX") || return 1
+  mv "$log_file" "${log_file}.log" || { rm -f "$log_file"; return 1; }
+  log_file="${log_file}.log"
   chmod 600 "$log_file"
   echo "$log_file"
 }

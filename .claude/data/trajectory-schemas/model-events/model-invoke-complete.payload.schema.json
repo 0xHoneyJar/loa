@@ -406,6 +406,10 @@
     "semaphore_exhausted": {
       "description": "Cycle-110 sprint-2b1 T2.8 (C12 carry-in): true when the headless-concurrency semaphore (sprint-2b2 T2.11) rejected the call after exhausting bounded retries; distinct from chain_exhausted. Future-compat — sprint-2b2 wires the actual emitter; sprint-2b1 only declares the schema slot so the readers can be coded against it now.",
       "type": "boolean"
+    },
+    "effort": {
+      "description": "Cycle-114 FR-8: reasoning-effort level requested for this invocation (Anthropic output_config.effort on Opus 4.5+/Sonnet 4.6). Optional — absent on calls that did not set effort (model default = high). Lets the Empirical Model Economy roll-up report cost-per-clean-output by (skill x model x effort).",
+      "enum": ["low", "medium", "high", "xhigh", "max"]
     }
   }
 }

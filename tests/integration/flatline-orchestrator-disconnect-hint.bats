@@ -20,7 +20,7 @@
 
 # Canonical warning phrase the orchestrator emits at the 30KB threshold.
 # Pinning ONE canonical string (not an OR over substrings) per BB F1.
-readonly CANONICAL_WARN="long prompts may trip the cheval connection-loss path"
+readonly CANONICAL_WARN="Large documents are handled by the streaming transport default + chunked dispatch"
 
 setup() {
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"

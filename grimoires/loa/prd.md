@@ -1,317 +1,251 @@
-# Cycle-112 PRD — Empirical Model Economy (Phase A)
+# Cycle-114 PRD — Harness Modernization: Opus 4.8
 
 > **Version**: 1.0
-> **Source issue**: [#925](https://github.com/0xHoneyJar/loa/issues/925) — `feat(empirical-model-selection): Phase A — model-economy roll-up + workload tier map seed`
-> **Cycle**: cycle-112-empirical-model-economy
-> **Phase of roadmap**: A of 3 (Activate → Codify → Optimize)
-> **Generated**: 2026-05-17 via `/plan` golden-path → `/plan-and-analyze`
-> **Discovery shortcut taken**: #925 body is proposal-grade. Skipped greenfield 7-phase interview; relied on issue body + brownfield codebase reality (cycle-109 substrate-hardening artifacts) + memory citations.
+> **Cycle**: cycle-114-harness-modernization-opus-4.8
+> **Status**: Draft (awaiting operator sign-off)
+> **Source of requirements**: `grimoires/pub/research/anthropic-updates-2026-05-31.md` (the `/oracle` audit; requirements already discovered + code-grounded there — no fresh interview conducted, per operator direction)
+> **Branch**: `feature/sprint-plan-cycle-114`
+
+---
+
+## 0. System Zone Authorization (REQUIRED — read first)
+
+Every change in this cycle modifies the Loa framework itself under `.claude/`
+(the **System Zone**), plus framework state/docs. In this repository the
+framework *is* the product, and `.claude/` rules (`zone-system.md`) permit
+System Zone writes when **explicitly authorized at cycle level in the PRD**.
+
+**This PRD authorizes the following System Zone write surfaces for cycle-114, and no others:**
+
+| Path | Why |
+|------|-----|
+| `.claude/defaults/model-config.yaml` | Add Opus 4.8 model entry + aliases + Bedrock profile (FR-1) |
+| `.claude/scripts/generated-model-maps.sh` + `gen-adapter-maps.sh` outputs | Regenerated maps after FR-1 (never hand-edited) |
+| `.claude/skills/bridgebuilder-review/resources/config.generated.*` | Regenerated BB registry after FR-1 |
+| `.claude/adapters/loa_cheval/providers/anthropic_adapter.py`, `types.py` | Thread `output_config.effort` (FR-2) |
+| `.claude/skills/{designing-architecture,red-teaming,auditing-security,bridgebuilder-review,reviewing-code,...}/SKILL.md` | `effort:` + `disallowed-tools:` frontmatter (FR-3, FR-4) |
+| `.claude/scripts/validate-skill-capabilities.sh` | New validation rule for FR-4 |
+| `.claude/hooks/safety/run-mode-stop-guard.sh` | `background_tasks`/`session_crons` awareness (FR-5) |
+| `.claude/hooks/safety/block-destructive-bash.sh` | `$HOME/` regex precision (FR-6) |
+| `.claude/data/trajectory-schemas/model-events/*.schema.json` | `effort` field in MODELINV envelope (FR-8) |
+| `.claude/hooks/session-start/` (new hook) | `sessionTitle` recovery (FR-9) |
+| `.claude/loa/reference/hooks-reference.md` + Safety section docs | Egress non-guarantee (FR-7) |
+| `grimoires/loa/**`, `tests/**`, `.github/workflows/**` | State Zone + tests + CI (normal) |
+
+**Out of scope / explicitly forbidden this cycle:** any `.claude/` path not
+listed above; any orchestration-engine migration (FR-10 is documentation only);
+reconciling cycle-112's stale ledger status (separate pre-existing drift).
 
 ---
 
 ## 1. Problem Statement
 
-The cost dimension of model dispatch is currently invisible to operators. All the raw telemetry exists — `MODELINV v1.3` envelopes at `.run/model-invoke.jsonl`, `verdict_quality` envelopes attached to every substrate output, `cost_input`/`cost_output` per model in `model-config.yaml` — but no consolidated view turns that telemetry into a decision-grade roll-up. Tier-selection decisions (e.g., "should `/implement` run on executor tier?", "should `/audit-sprint` stay on advisor?") are currently made on operator intuition + scattered memory notes, not on empirical roll-up data.
+The local Claude Code harness is already at **2.1.158 running Opus 4.8**, but the
+Loa framework that rides on top of it was last calibrated for the Opus 4.7 era.
+The `/oracle` audit (2026-05-31) found, with verified `file:line` grounding,
+that the framework lags the harness in five concrete ways:
 
-> Source: #925 body, "Context" section
->
-> > "The *cost* side is currently invisible. We have all the raw signal (`MODELINV v1.3` envelopes at `.run/model-invoke.jsonl`, `verdict_quality` on every substrate output, `cost_input`/`cost_output` per model in `model-config.yaml`) but no consolidated view. Decisions like 'should /implement use executor tier?' or 'should /audit-sprint stay on advisor tier?' are made on operator intuition + scattered memory notes, not on empirical roll-up data."
+1. **The model registry has no Opus 4.8.** `.claude/defaults/model-config.yaml`
+   tops out at `claude-opus-4-7` (L343) and the `opus` alias still resolves to
+   4-7 (L578). The framework cannot dispatch the model the operator is already
+   running.
+2. **The `effort` reasoning-depth control is unreachable on the API path.**
+   `claude_headless_adapter.py` passes `--effort` (L293), but
+   `anthropic_adapter.py` only *reads back* thinking traces (L316–354) — it
+   cannot *send* `output_config.effort`. So Flatline / Bridgebuilder / audit
+   runs that dispatch via the HTTP API cannot run at `xhigh`.
+3. **A load-bearing safety rule is advisory, not enforced.** "NEVER write
+   application code outside `/implement`" (C-PROC-001) is enforced only by prose
+   in `CLAUDE.loa.md` + `constraints.json`. Claude Code 2.1.152 shipped
+   `disallowed-tools` frontmatter — a *mechanical* enforcement primitive Loa
+   does not yet use.
+4. **New Stop-hook signals are ignored.** Claude Code 2.1.145 added
+   `background_tasks` / `session_crons` to Stop/SubagentStop input.
+   `run-mode-stop-guard.sh` checks only `.run/*-state.json`, so autonomous runs
+   can now orphan background agents.
+5. **A destructive-command guard has a precision gap.** `block-destructive-bash.sh`
+   recognizes `~/` and `/home/` but not `$HOME/` (trailing slash) in its BLOCK
+   alternation; `rm -rf $HOME/` falls to the AMBIGUOUS branch — still exit-2
+   blocked, but mislabeled. Anthropic fixed the analogous class in 2.1.154.
 
-The quality dimension was the focus of cycle-109 (substrate hardening, closed); the cost dimension is what cycle-112 makes legible.
+Secondary: the Empirical Model Economy roll-up cannot report cost-per-clean-output
+*by effort level* (no `effort` in the MODELINV envelope), and post-compact
+recovery UX could use the new SessionStart `sessionTitle` return.
 
-### Why now
-
-Two prerequisites converged in the days before cycle-112 kickoff:
-
-1. **Substrate quality validated** (cycle-111 / today). PR #923 + #924 closed KF-010 empirically — the BB triad now runs 3/3-voice consensus on previously-failing PRs. The substrate is stable enough that cost-vs-quality tradeoffs can be measured without the measurement being confounded by primary failures.
-2. **Primary-failure visibility shipped** (this session, [PR #926](https://github.com/0xHoneyJar/loa/pull/926), closes #900). Without #900's fix, fallback-rescue success silently overwrote primary-failure signal, so any cost-per-clean-output roll-up would have produced inflated quality numbers. With #900 closed, `attempts` vs `first_try_success` give the roll-up a clean foundation.
-
-> Source: today's session handoff context + #925 "Dependencies" section
->
-> > "Depends on (soft — preferable but not strict): #900 — substrate-health hides primary failures after fallback success. Without #900, roll-up data is confounded by silent fallback-promotion … The roll-up will work without #900 but with a known accuracy caveat documented in the runbook."
-
-Cycle-112 lands AFTER #900 merged, so the caveat is no longer needed.
-
-### Three-phase roadmap context
-
-This cycle ships **Phase A only**:
-
-| Phase | Goal | This cycle |
-|---|---|---|
-| **A — Activate what exists** | Make existing telemetry visible and usable | **YES** |
-| B — Codify the tier mapping | Skills consume `workload_tier_map`; per-skill cost ceilings | Future |
-| C — Closed-loop optimization | Auto-demotion proposals, auto-promotion on degradation, regression detector | Future |
-
-> Source: #925 body, "Context" section (phase table verbatim)
-
-Phase B+C are explicitly out of scope and have separate proposal issues (see §6).
-
----
+> **Source**: `grimoires/pub/research/anthropic-updates-2026-05-31.md` — Executive
+> Summary + Gaps Analysis + Verification Notes.
 
 ## 2. Goals & Success Metrics
 
-### Goal G-1 (primary): Operator-readable cost roll-up
+| Goal | Success metric (verifiable) |
+|------|------------------------------|
+| Opus 4.8 dispatchable | `model-resolver` resolves `opus` and `claude-opus-4-8`/`claude-opus-4.8` to a valid 4.8 entry; `validate_model_registry()` exits 0; all four maps + BB `config.generated.*` contain 4.8; drift gate green |
+| Effort expressible on API | A cheval HTTP-adapter request with `effort="xhigh"` serializes `output_config.effort` and omits any `thinking.budget_tokens`; unit test asserts both |
+| Gate enforced mechanically | `role: review` skills carry `disallowed-tools:[Write,Edit,NotebookEdit]`; validator fails a deliberately mis-configured fixture; bats green |
+| No orphaned background agents | `run-mode-stop-guard.sh` soft-blocks (decision=block) when Stop input carries a non-empty `background_tasks`; bats with mocked input green |
+| rm precision | `rm -rf $HOME/`, `${HOME}/`, `~/` hit FR-2-BLOCK (not AMBIGUOUS); `rm -rf ~/subdir` stays AMBIGUOUS; bats green |
+| Economy effort-aware | MODELINV envelope schema accepts optional `effort`; economy roll-up groups by effort; schema-validation test green |
+| Recovery UX | A SessionStart hook returns `hookSpecificOutput.sessionTitle` reflecting active run-mode state; bats green |
+| Zero regressions | Existing bats + pytest + drift gates remain green; no model-registry inconsistency |
 
-Operators can run a single command and see the last 30d of model-dispatch activity broken down by `(skill, model)` with `cost-per-clean-output`, `p95 latency`, and `verdict_quality` distribution.
+## 3. Users & Stakeholders
 
-**Success metric**: An operator who has been away from the project for a week can run `/loa status --economy` and within 30 seconds identify (a) the most expensive skill+model combination, (b) any skill where verdict_quality_healthy_pct < 90%, (c) any model with p95 latency > some configurable threshold.
+- **Primary**: Loa operators (e.g. @janitooor) running autonomous `/run`,
+  `/run-bridge`, `/spiral`, Flatline, and Bridgebuilder against the framework.
+- **Secondary**: Loa agents themselves (the review/audit/planning skills whose
+  tool access FR-4 hardens; the Stop guard FR-5 protects).
+- **Downstream**: operators of repos that consume Loa via `/update-loa`.
 
-### Goal G-2: Calibration capture
-
-The empirical calibrations currently living in operator memory (e.g., "executor tier UNSAFE for BB review", "advisor tier required for review+audit") are codified in a `workload_tier_map` in `.loa.config.yaml` with provenance references.
-
-**Success metric**: Every entry in `workload_tier_map` either (a) cites a specific memory file or PR-comment trail, or (b) is annotated as "default, no empirical override". A `grep -c "Tier-Change-Evidence:" .loa.config.yaml` returns ≥ 1 (at least one calibration from memory is captured).
-
-### Goal G-3: Drift protection
-
-Future tier-map changes require empirical justification or an operator-approval marker. The CI gate rejects synthetic PRs that mutate the map without a `Tier-Change-Evidence:` trailer or operator-approval marker.
-
-**Success metric**: A synthetic PR that edits `workload_tier_map` without a `Tier-Change-Evidence:` trailer fails CI with an actionable error message pointing to the runbook.
-
-### Goal G-4: Zero behavior regression
-
-Existing model dispatch behavior is unchanged this cycle. The map is *informational*. Phase B (consumption) is a separate cycle.
-
-**Success metric**: After this cycle ships, every existing skill that dispatches a model produces the same model choice it did before the cycle. Verified by a smoke test that diffs the dispatch choice for a fixed input across pre-cycle and post-cycle `main`.
-
-### Timeline
-
-Single sprint, scope-defined by issue body's 5 deliverables. No external dependencies beyond the existing `MODELINV v1.3` envelope schema (shipped in cycle-109).
-
----
-
-## 3. User & Stakeholder Context
-
-### Primary user: Loa operator (single persona)
-
-- @janitooor (deep-name) and any agent-swarm operator running Loa in autonomous or interactive mode.
-- Reads CLI output, edits `.loa.config.yaml`, reviews PRs from autonomous runs.
-- Cares about cost-vs-quality tradeoffs across long-running agent swarms — these add up to real spend over weeks of autonomous operation.
-- Does NOT want a Grafana dashboard or external observability surface (explicit out-of-scope in #925).
-
-> Source: #925 body, "Out of scope" section
->
-> > "Cost dashboards / external observability — the goal is in-tree CLI visibility, not Grafana boards"
-
-### Secondary stakeholder: future-self / cross-session memory
-
-The cost roll-up and the `workload_tier_map` both serve as memory: a future session can `cat .loa.config.yaml` and learn "advisor tier is required for /audit-sprint because of empirical evidence on PR #885 A/B". Today this lives in memory files (`feedback_advisor_benchmark.md`). After this cycle, it lives in tracked config with provenance.
-
----
+> Persona priority: the **autonomous-run operator** is primary — every FR is
+> framed around making autonomous cycles safer (FR-4/5/6), cheaper-per-quality
+> (FR-2/3/8), and current (FR-1).
 
 ## 4. Functional Requirements
 
-### FR-1: `tools/model-economy-roll-up.sh`
+Each FR maps to one audit action (audit "Recommended Actions" table #) and one sprint.
 
-A bash CLI consolidates `.run/model-invoke.jsonl` (and any older-format MODELINV logs we want to absorb) into a tabular roll-up.
+### Sprint S1 — Model Substrate
 
-**Behavior**:
-- One row per `(skill, model, cost-per-clean-output, p95-latency, verdict_quality-distribution)` tuple
-- Default time window: 30 days (configurable via `--window 30d`, parses same way `loa_cheval.health` does)
-- Output modes: text (human-readable table) and `--json` (machine-readable for `/loa status --economy` consumption)
-- Filtering: `--skill <name>` and `--model <id>` (substring match, same semantics as today's `loa_cheval.health --model X`, gated per #900 fix)
-- Reads `cost_input` / `cost_output` per model from `model-config.yaml` and joins against MODELINV `tokens_input` / `tokens_output` to compute cost-per-invocation
-- "Clean output" = `verdict_quality.status == "APPROVED"` AND `chain_health == "ok"`; cost-per-clean-output divides total cost by clean-invocation count
-- Skill attribution: read from MODELINV envelope's `phase` / `skill` field (cycle-109 added the phase field; verify schema)
+**FR-1 (audit #1) — Add Opus 4.8 to the model registry.**
+Add `claude-opus-4-8` to `.claude/defaults/model-config.yaml`: model entry
+(capabilities, context window, `max_tokens` token param, pricing $5/$25 per Mtok,
+fast-mode $10/$50, fallback chain → 4.7 → sonnet-4.6 → headless); retarget the
+`opus` alias from 4-7 → 4-8; add backward-compat aliases in **both** dash
+(`claude-opus-4-8`) and dot (`claude-opus-4.8`) form (per the cycle-108 BB
+substrate alias-gap learning); add the Bedrock `us.anthropic.claude-opus-4-8`
+inference profile. Regenerate all four maps via `gen-adapter-maps.sh` and the BB
+`config.generated.*`. **Acceptance**: `validate_model_registry()` exits 0;
+resolver resolves all three alias forms; drift gate green; no map left without 4.8.
 
-> Source: #925 body, Deliverable 1 (verbatim)
+**FR-2 (audit #2) — Thread `effort` through the Anthropic HTTP adapter.**
+Add an optional `effort: Optional[str]` field to `CompletionRequest`
+(`loa_cheval/types.py`) and serialize it as `output_config: {effort: <value>}`
+in `anthropic_adapter.py`. **CRITICAL**: use `output_config.effort`, NOT
+`thinking.budget_tokens` — Opus 4.8 rejects manual `budget_tokens` with HTTP 400
+(verified against platform.claude.com effort doc). Validate the level against
+`{low,medium,high,xhigh,max}`; omit the field entirely when unset (preserve
+current default-high behavior). **Acceptance**: unit test proves `effort="xhigh"`
+→ body contains `output_config.effort=="xhigh"` and contains no `thinking` block;
+unset → body unchanged from today.
 
-**EARS notation** (high-precision because this is the load-bearing computation):
+**FR-3 (audit #5) — Declare `effort:` on deep-reasoning skills.**
+After FR-2 lands, add `effort:` frontmatter to the deep-reasoning skills:
+`designing-architecture` → `high`, `auditing-security` → `high`,
+`red-teaming` → `xhigh`, `bridgebuilder-review` → `xhigh`. **Acceptance**:
+frontmatter present + valid; `validate-skill-capabilities.sh` accepts the
+`effort` enum and warns on `cost-profile: lightweight` + `effort: xhigh`.
 
-- **Ubiquitous**: The roll-up tool shall compute `cost_per_clean_output` as `(total_cost_usd / count_of_envelopes_where_verdict_quality.status == "APPROVED" AND chain_health == "ok")` for each `(skill, model)` tuple over the window.
-- **Conditional**: If an MODELINV envelope is missing a `skill` / `phase` attribution field, the tool shall bucket it under `(unknown)` rather than skip it, so total cost is conserved.
-- **Event-driven**: When invoked with `--json`, the tool shall emit a JSON document that conforms to a published schema at `.claude/data/model-economy-rollup.schema.json` (delivered with this sprint).
+### Sprint S2 — Gate & Safety Hardening
 
-### FR-2: `/loa status --economy`
+**FR-4 (audit #3) — Mechanically enforce C-PROC-001 via `disallowed-tools`.**
+Add `disallowed-tools: [Write, Edit, NotebookEdit]` (plus
+`Bash(git push *)`, `Bash(git commit *)`, `Bash(git add *)`) to `role: review`
+skills (`reviewing-code`, `auditing-security`, `red-teaming`,
+`bridgebuilder-review`). Skills that legitimately author artifacts
+(`designing-architecture`→SDD, `planning-sprints`→sprint.md) are **excluded** —
+they keep Write but may disallow application-code Bash. `spiraling` (role:review
+but dispatches writes via harness) is **excluded** and documented as an
+exception. Add a `validate-skill-capabilities.sh` rule: if `role: review` and
+`capabilities.write_files: true` and no `disallowed-tools` Write entry → WARN.
+**Acceptance**: bats proves a review skill cannot Write; validator flags a
+deliberately mis-configured fixture; exception list documented.
 
-The `/loa` golden-path command gains an `--economy` flag that surfaces the FR-1 roll-up.
+**FR-5 (audit #4) — Stop-guard `background_tasks`/`session_crons` awareness.**
+Teach `run-mode-stop-guard.sh` to parse the new `background_tasks` and
+`session_crons` arrays from Stop/SubagentStop hook input and soft-block
+(`{"decision":"block","reason":...}`) when tasks are still live, with guidance to
+`TaskStop <id>` or force-stop. Graceful no-op when fields are absent (back-compat).
+**Acceptance**: bats with mocked Stop input (non-empty `background_tasks`) →
+decision=block; absent → exit 0.
 
-**Behavior**:
-- Default window: 30d
-- Default output: text table
-- Suggested format (from #925 body):
-  ```
-  Skill              Model                   Runs   Cost/run    p95 latency   VQ-healthy %
-  /implement         claude-sonnet-4-6       42     $0.18       42s           98%
-  /review-sprint     claude-opus-4-7         15     $1.20       190s          93%
-  /audit-sprint      gpt-5.5-pro             15     $0.95       240s          87%   ⚠ degraded twice
-  ```
-- Degradation marker (the `⚠ degraded twice` suffix) fires when ≥ 2 envelopes in the window had `verdict_quality.status` ∈ {DEGRADED, FAILED} for that `(skill, model)` tuple
-- Implementation: shells out to `tools/model-economy-roll-up.sh` (the CLI is the canonical implementation; `/loa status --economy` is a thin wrapper that runs `--json` and pretty-prints)
+**FR-6 (audit #7) — `block-destructive-bash.sh` `$HOME/` precision.**
+Extend the BLOCK alternation to recognize `$HOME/`, `${HOME}/`, and `~/`
+(currently `$HOME` matches only exact, `~/` already partial) so they hit
+FR-2-BLOCK with the correct catastrophic-path message instead of AMBIGUOUS.
+Preserve `rm -rf ~/subdir` → AMBIGUOUS (not a catastrophic collapse).
+**Acceptance**: bats cases for `$HOME/`, `${HOME}/`, `~/` → BLOCK; `~/subdir` →
+AMBIGUOUS; existing cases unchanged.
 
-### FR-3: Seeded `workload_tier_map` in `.loa.config.yaml`
+**FR-7 (audit #10) — Document the egress/exfiltration non-guarantee.**
+Add a "Known Scope Boundaries" note to the Safety Hooks documentation
+(`.claude/loa/reference/hooks-reference.md` and/or the CLAUDE.md Safety section
+context): the destructive-bash hook + `settings.deny.json` defend filesystem and
+credential-read surfaces but do **not** monitor network egress / bulk data
+exfiltration; that is operator responsibility (network policy external to Claude
+Code). **Acceptance**: doc note present + cross-references cycle-111 SDD §11
+accepted-bypass list. (Documentation-only; no code.)
 
-A new top-level config section `workload_tier_map` maps `(skill_name) → {tier, rationale, evidence_ref}`.
+### Sprint S3 — Economy, Recovery UX & ADR
 
-**Behavior**:
-- Skills covered: every skill that currently dispatches a model (identified by `grep "model-adapter\|cheval" .claude/skills/` per #925 AC)
-- Tiers (initial vocabulary): `advisor` (highest quality, e.g. Opus 4.7 / GPT-5.5-pro / Gemini-3.1-pro), `executor` (efficient, e.g. Sonnet 4.6 / Haiku 4.5), `headless` (CI-tier, e.g. codex-headless / claude-headless)
-- Schema: each entry has `tier`, `rationale` (free text), `evidence_ref` (a memory filename or PR URL or "default")
-- Seeded entries (from operator memory + this session's adversarial-review experience):
-  - `/review-sprint`: `advisor` — rationale "executor tier missed 1 HC + 60% fewer findings on PR #885 A/B"; evidence_ref `feedback_advisor_benchmark.md`
-  - `/audit-sprint`: `advisor` — same rationale; evidence_ref `feedback_advisor_benchmark.md`
-  - `bridgebuilder-review`: `advisor` — rationale "BB needs cross-model dissent diversity; executor tier degrades to single-model"; evidence_ref `feedback_advisor_benchmark.md`
-  - `adversarial-review`: `advisor` — rationale "dissenter needs to catch reviewer blind spots; quality floor non-negotiable"; evidence_ref `feedback_advisor_benchmark.md`
-- Default (no empirical override) entries are still written, marked `evidence_ref: default` — this makes the map exhaustive over the skill surface and prevents "silent absence == default" ambiguity
+**FR-8 (audit #6) — Effort dimension in MODELINV + `workload_tier_map`.**
+Add an optional `effort` field to the MODELINV envelope schema
+(`model-invoke-complete.payload.schema.json`) and have the economy roll-up group
+cost-per-clean-output by `(skill × model × effort)`. Add an optional `effort`
+key to `tier_groups`/`workload_tier_map` entries (informational only this cycle,
+mirroring the Phase-A invariant that `workload_tier_map` is non-binding).
+**Acceptance**: schema accepts/omits `effort`; roll-up test shows an effort
+column; the informational-only invariant has a pinning test.
 
-> Source: #925 body, Deliverable 3 (and ACs)
-> Source: memory `feedback_advisor_benchmark.md` (executor unsafe for BB review)
-> Source: today's session adversarial-review run on PR #885 (referenced in memory note 2026-05-16 evening)
+**FR-9 (audit #8) — SessionStart `sessionTitle` recovery.**
+Add a SessionStart hook returning `{"hookSpecificOutput":{"sessionTitle":...}}`
+that reflects active run-mode state (e.g. `LOA: [sprint-plan RUNNING] resume
+sprint-N`) by reading `.run/*-state.json`. No-op when no active run.
+**Acceptance**: bats with a RUNNING `.run/sprint-plan-state.json` → emits a
+sessionTitle; with none → no title / exit 0.
 
-### FR-4: CI drift gate
-
-A GitHub Actions workflow rejects PRs that mutate `.loa.config.yaml::workload_tier_map` without providing empirical justification.
-
-**Behavior**:
-- Trigger: `pull_request` events that touch `.loa.config.yaml`
-- Logic: if the PR diff contains changes to lines within the `workload_tier_map` section, the PR body must contain EITHER:
-  1. A `Tier-Change-Evidence:` trailer followed by a roll-up table (markdown) showing N HEALTHY verdict_quality runs at the new tier, OR
-  2. An `Operator-Approval:` trailer with a deep-name signature (same pattern as cycle-108 baseline-pin drift gate per #925)
-- Failure mode: actionable error message pointing to `grimoires/loa/runbooks/model-economy.md` "How to justify a tier change" section
-- Same architectural pattern as the cycle-108 baseline-pin drift gate (referenced in #925 verbatim)
-
-> Source: #925 body, Deliverable 4 (verbatim)
-
-### FR-5: Operator runbook at `grimoires/loa/runbooks/model-economy.md`
-
-A standalone runbook covering five operator-facing sections:
-
-1. **How to read the roll-up** — column meanings, how to interpret cost-per-clean-output, when "degraded twice" warrants action
-2. **When to consider a tier change** — quality floors per skill (defer to operating principles), what signals justify investigating a demotion (e.g., 30+ HEALTHY runs at current tier with stable verdict_quality)
-3. **How to justify a tier change in a PR body** — exact format of `Tier-Change-Evidence:` trailer, what counts as evidence, when `Operator-Approval:` is the right path instead
-4. **What triggers the drift gate** — which lines, why, and how to avoid surprise failures
-5. **Operating principles** — the five from #925 body, verbatim, codified so future operators don't have to rediscover them
-
-> Source: #925 body, Deliverable 5 (verbatim)
-> Source: #925 body, "Operating principles" section (verbatim)
-
----
+**FR-10 (audit #9) — Native Workflow adoption ADR (DOCUMENTATION ONLY).**
+Produce an ADR / proposal at `grimoires/loa/proposals/native-workflow-adoption.md`
+documenting: where the native `Workflow` tool could serve as a dispatch engine
+for Claude-only fan-out (parallel sprint-task impl, parallel audit file review,
+spiral/run-bridge loops); where Loa must keep its bespoke substrate (cross-vendor
+flatline consensus, circuit breakers, MODELINV audit); a scoped pilot design; and
+go/no-go decision criteria. **No orchestration code.** **Acceptance**: ADR exists
+with a decision-criteria section and an explicit "no code this cycle" statement.
 
 ## 5. Technical & Non-Functional Requirements
 
-### NFR-Perf-1: Roll-up speed
-
-`tools/model-economy-roll-up.sh` must complete in < 5 seconds for a 30d window over a 100K-entry `.run/model-invoke.jsonl`. Same bar as cycle-109's `aggregate_substrate_health` (NFR-Perf-3 there is < 2s for 24h / 100K — we're 7× the window so 5s is conservative).
-
-### NFR-Sec-1: No secret leakage
-
-The roll-up consumes MODELINV envelopes. MODELINV payloads have already been sanitized through `lib/log-redactor` (cycle-099 T1.13). The roll-up tool MUST NOT introduce new paths that bypass redactor — specifically, it must NOT print `models_failed[].message_redacted` content or any other free-text envelope field that could carry secret-shape strings. Display surface is restricted to model IDs, skill names, integer counts, latency stats, cost numbers, and verdict_quality enum values.
-
-### NFR-Quality-1: Quality floor preservation
-
-Per #925 operating principle 1: "Quality is a hard floor; cost is the optimization variable. Never trade a HIGH_CONSENSUS finding for cost." This sprint ships INFRASTRUCTURE for quality-floor-respecting tier decisions. The drift gate (FR-4) is the mechanism: changes to `workload_tier_map` are gated on empirical evidence, which means the gate refuses to let cost arguments override quality.
-
-### NFR-Determinism-1: Roll-up determinism
-
-Given an identical MODELINV log and identical `model-config.yaml`, the roll-up output must be byte-identical across runs (modulo timestamp banner). No floating-point nondeterminism in cost or rate calculations — use the same `round(..., 4)` discipline as `aggregate_substrate_health`.
-
-### NFR-Compat-1: Existing dispatch unchanged
-
-Per AC: "Zero regression: existing model dispatch unchanged in behavior (the map is *informational* this sprint — Phase B is when skills start consuming it)". Skills do not read `workload_tier_map`. The map exists in config for human readers and for the drift gate.
-
-### Technical stack alignment
-
-- **Bash** for the CLI (`tools/model-economy-roll-up.sh`) — consistent with other tools in `tools/` and with `loa_cheval.health` shim
-- **Python (optional)** for the heavy aggregation if bash JSONL parsing becomes unwieldy — Python is already in tree for `loa_cheval`; precedent set
-- **jq** for envelope parsing and JSON output — already a hard dep
-- **YAML for config** — `workload_tier_map` lives in `.loa.config.yaml` per #925; `yq` v4 already a hard dep
-- **GitHub Actions** for the drift gate — same workflow style as cycle-108 baseline-pin gate
-- **No new top-level deps** — everything is already in tree
-
----
+- **NFR-1 (Determinism / drift)**: generated maps are never hand-edited;
+  `gen-adapter-maps.sh` is the only writer; the drift CI gate must pass.
+- **NFR-2 (Back-compat)**: every new field (`effort`, schema `effort`,
+  `disallowed-tools`) is optional; absence reproduces today's behavior exactly.
+- **NFR-3 (Test-first)**: each FR lands with failing-first tests (bats/pytest)
+  that assert the new behavior, per Karpathy goal-driven execution.
+- **NFR-4 (No 400-regression)**: FR-2 must never emit `thinking.budget_tokens`
+  for 4.7/4.8 (adaptive-thinking models); a test asserts its absence.
+- **NFR-5 (Hook fail-open)**: FR-5/FR-9 hooks must not break sessions on
+  malformed/absent input (exit 0 / no-op).
+- **NFR-6 (Zone discipline)**: only the surfaces in §0 are touched.
 
 ## 6. Scope & Prioritization
 
-### In scope (this cycle / Phase A)
-
-- FR-1 through FR-5 as listed above
-- 5 ACs as written in #925 issue body verbatim (replicated below for traceability)
-
-### Out of scope (explicit)
-
-| Out of scope | Reason | Where it lives |
-|---|---|---|
-| Skills *consume* the `workload_tier_map` | Phase B | Separate future cycle |
-| Auto-demotion / auto-promotion proposals | Phase C | Separate future cycle(s) |
-| Cost dashboards / external observability | Explicit out-of-scope per #925 | Not planned |
-| Per-cycle cost summaries (e.g., "cycle-110 spent $X total") | Could be added but isn't a deliverable here | Possible Phase A.1 polish |
-| #919 model-tier economization (the *proposal-side* counterpart) | Already merged | n/a |
-| Cleaning up the pre-existing ledger drift (cycle-109/110/111 ledger inconsistency) | Out of band; tangential to model-economy | Separate operator-led cleanup |
-
-> Source: #925 body, "Out of scope" section (replicated verbatim)
-
-### Acceptance Criteria (verbatim from #925)
-
-- [ ] `tools/model-economy-roll-up.sh` runs against a real `.run/model-invoke.jsonl` and emits well-formed tabular output (text + JSON modes)
-- [ ] `/loa status --economy` displays the 30d roll-up without requiring extra args
-- [ ] The seeded `workload_tier_map` covers every skill that currently dispatches a model (audit by `grep "model-adapter\|cheval" .claude/skills/`)
-- [ ] At least one calibration from memory is pinned in the map with a reference (e.g. `# Tier-Change-Evidence: feedback_advisor_benchmark.md — executor 6× cheaper but 1 HC missed on PR #885 A/B`)
-- [ ] Drift gate is wired into CI and rejects a synthetic PR that edits the map without a `Tier-Change-Evidence:` trailer
-- [ ] Operator runbook reviewed via /review-sprint + /audit-sprint
-- [ ] Zero regression: existing model dispatch unchanged in behavior (the map is *informational* this sprint — Phase B is when skills start consuming it)
-
----
+- **MVP (must land)**: FR-1, FR-2, FR-4, FR-5, FR-6 (the five gaps the audit
+  rated High value or safety-relevant).
+- **Should land**: FR-3, FR-7, FR-8, FR-9.
+- **Doc-only**: FR-10 (ADR).
+- **Explicitly out of scope**: native-Workflow migration code; effort as a
+  *binding* tier control (informational only this cycle); cycle-112 ledger
+  reconciliation; any egress-guard implementation (FR-7 documents the gap, does
+  not close it).
 
 ## 7. Risks & Dependencies
 
-### Risks
+| Risk | Mitigation |
+|------|------------|
+| Model-registry edit causes cross-map drift → `validate_model_registry()` exit 2 | Edit YAML source only, regenerate via `gen-adapter-maps.sh`, run drift gate before commit (the audit & memory both flag this fragility) |
+| FR-2 mis-implemented as `budget_tokens` → 400 on 4.8 | NFR-4 test asserts absence of `thinking` block; PRD §0 + FR-2 call it out explicitly |
+| FR-4 `disallowed-tools` over-restricts a skill that legitimately writes | Explicit exclusion list (architect/sprint-plan/spiraling); validator WARN not ERROR for ambiguous cases |
+| FR-3 effort frontmatter unsupported by installed Claude Code | Local harness is 2.1.158 (supports it); field is inert on older versions |
+| Dispatching at `xhigh` raises token cost | Effort is opt-in per skill; FR-8 makes the cost observable |
+| Flatline/BB (multi-model) may be degraded (KF-002/003 cross-model fatigue) during review gates | Known-failures protocol; voice-drop; do not block on transient cross-model degradation |
 
-| ID | Risk | Likelihood | Impact | Mitigation |
-|---|---|---|---|---|
-| R-1 | MODELINV envelopes are missing the `skill` / `phase` attribution field on older log lines | medium | medium | FR-1 conditional EARS: bucket missing-attribution envelopes under `(unknown)` rather than skip. Cost is conserved even when bucket attribution is partial. |
-| R-2 | `cost_input` / `cost_output` per model in `model-config.yaml` is stale or wrong for older models | medium | low | Roll-up footer surfaces the model→cost table used in the run with the version pin of `model-config.yaml` for transparency. Operator can re-run with `--cost-snapshot <ref>` to use a historical version. |
-| R-3 | The drift gate triggers false positives on harmless reformatting of `.loa.config.yaml` | medium | low | Drift gate scopes detection to changes WITHIN the `workload_tier_map` YAML section (using yq path-aware diff), not the whole file. Same pattern as cycle-108 baseline-pin gate. |
-| R-4 | Operator forgets to update `workload_tier_map` when adding a new skill, leaving the map non-exhaustive | low | low | Defer to Phase B — that's where the map becomes load-bearing. Phase A's drift gate is informational. |
-| R-5 | Per #925 operating principle 5: "Substrate-health is upstream of tier selection." If the substrate is degraded during the data-collection window, the roll-up surfaces a misleading cost-per-clean-output (because the "clean" denominator is suppressed). | medium | medium | Roll-up explicitly surfaces `substrate_health_window_summary` in the footer — operator can see if the window included a substrate degradation event and reason about confounded data. |
-| R-6 | Pre-existing `final_model` bucketing leakage (deferred from #900 fix) confounds `(skill, model)` attribution when filtering by model | low | medium | NOTES.md Decision Log already documents this. Roll-up tool inherits the same scope split — uses post-`models_requested` attribution where appropriate, notes the leakage in the runbook. |
+## 8. Sprint Mapping
 
-### Dependencies
+| Sprint | Local | Global | FRs | Theme |
+|--------|-------|--------|-----|-------|
+| S1 | sprint-1 | 177 | FR-1, FR-2, FR-3 | Model substrate (Opus 4.8 + effort) |
+| S2 | sprint-2 | 178 | FR-4, FR-5, FR-6, FR-7 | Gate & safety hardening |
+| S3 | sprint-3 | 179 | FR-8, FR-9, FR-10 | Economy, recovery UX & ADR |
 
-| Dep | Status | Notes |
-|---|---|---|
-| #900 substrate-health primary-failure visibility | **Closed today** ([PR #926](https://github.com/0xHoneyJar/loa/pull/926), `602568c5`) | Was a soft-dep; closing removes the accuracy caveat from this cycle's data |
-| MODELINV v1.3 envelope schema | Shipped (cycle-109) | Includes `tokens_input` / `tokens_output` / `verdict_quality` / `chain_health` — everything the roll-up needs |
-| `.loa.config.yaml` `model-config` section with `cost_input` / `cost_output` per model | Already in tree | Verify in SDD phase that all dispatched models have cost entries |
-| `lib/log-redactor` (cycle-099 T1.13) | Already enforced on MODELINV writes | NFR-Sec-1 inherits this |
-| cycle-108 baseline-pin drift gate workflow | Shipped (PR #867) | Provides the architectural template for FR-4 |
-
-### Unlocks (this cycle enables future work)
-
-- **#876 real-data benchmark operator trigger gate** — the benchmark engine needs the roll-up infrastructure to compare A/B runs against. After this cycle, #876 can be activated with the roll-up as its data foundation.
-- **Phase B** — straightforward once the map exists and the drift gate is in place; skills start consuming `workload_tier_map`
-- **Phase C** — needs N cycles of operational data from this sprint's roll-up
-
----
-
-## 8. Operating Principles (codified for runbook)
-
-Per #925 body, these five principles govern future tier decisions and are the source-of-truth for the runbook (FR-5 §5):
-
-1. **Quality is a hard floor; cost is the optimization variable.** Never trade a HIGH_CONSENSUS finding for cost. Memory's "executor unsafe for BB review" (6× cheaper, 1 HC missed, 60% fewer findings) is the canonical example.
-2. **Different work has different quality floors.** `/implement` can tolerate lower tier than `/audit-sprint`. Codify per-skill, not globally.
-3. **Empirical beats theoretical.** Don't move tiers based on intuition. Require N HEALTHY verdict_quality runs before any demotion proposal.
-4. **One-way doors require operator approval.** Demotions to cheaper tier are easy to slip into and hard to detect regressing-out-of. Promotions are safer defaults.
-5. **Substrate-health is upstream of tier selection.** When the substrate is degraded (chain-exhausted, malformed_response, voice-dropped), no model choice produces a clean verdict. Fix substrate first, then optimize within healthy substrate.
-
-> Source: #925 body, "Operating principles" section (verbatim)
-
----
-
-## 9. Sources & Traceability
-
-- **Issue**: [#925](https://github.com/0xHoneyJar/loa/issues/925) — primary source, body cited verbatim throughout
-- **Memory**: `feedback_advisor_benchmark.md` (executor unsafe for BB review), `project_next_priorities_2026_05_13.md` (cycle-108 close, top priorities), `feedback_substrate_validation_close_shape.md` (substrate-validation shape pattern)
-- **Recent PRs**: #923 (KF-010 close, deriveTimeoutMs reasoning-class predicate), #924 (KF-010 empirical confirmation), [#926](https://github.com/0xHoneyJar/loa/pull/926) (#900 close, substrate-health primary-failure visibility)
-- **Reality grounding (codebase)**: `.claude/adapters/loa_cheval/health.py` (MODELINV envelope aggregation pattern this cycle extends), `.run/model-invoke.jsonl` (raw telemetry source), `.loa.config.yaml::flatline_protocol` (existing model + budget config pattern this cycle echoes)
-- **Architectural template**: cycle-108 PR #867 baseline-pin drift gate (template for FR-4 drift gate)
-
-### Discovery shortcut justification
-
-The /plan-and-analyze skill's default 7-phase interview was skipped because:
-
-1. #925 body is proposal-grade — already contains problem statement, deliverables, ACs, dependencies, out-of-scope, operating principles
-2. The operator explicitly authorized the shortcut in this session's hand-off
-3. Brownfield grounding is already fresh: cycle-109 substrate-hardening reality at `grimoires/loa/cycles/cycle-109-substrate-hardening/sdd.md` documents the MODELINV envelope shape this cycle consumes; that work was completed by the same operator within the last 2 weeks
-4. Phase 0 confirmation gate (this PRD) is the operator's review surface — interview compression at the front does not lose the operator-review gate at the back
-
-The compressed-interview decision is captured in `grimoires/loa/NOTES.md` Decision Log (2026-05-17 entry) per cycle hygiene.
+> **Sources**: `grimoires/pub/research/anthropic-updates-2026-05-31.md`
+> (Recommended Actions #1–#10, Verification Notes); operator scope decisions
+> (2026-06-01): #9 → ADR-only, one cycle full-gates, approve-plan-then-autonomous.

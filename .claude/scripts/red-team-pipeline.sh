@@ -104,12 +104,12 @@ render_attack_template() {
 
     # Phase is short and safe for inline sed (portable: temp-file-and-mv)
     local tmpphase
-    tmpphase=$(mktemp -p "$TEMP_DIR")
+    tmpphase=$(mktemp "$TEMP_DIR/rt-phase.XXXXXX")
     sed "s|{{PHASE}}|${phase}|g" "$output_file" > "$tmpphase" && mv "$tmpphase" "$output_file"
 
     # For large content blocks, use file-based replacement via awk to avoid shell escaping
     local tmpwork
-    tmpwork=$(mktemp -p "$TEMP_DIR")
+    tmpwork=$(mktemp "$TEMP_DIR/rt-work.XXXXXX")
 
     # Replace {{SURFACE_CONTEXT}} with file content
     awk -v marker="{{SURFACE_CONTEXT}}" -v file="$surface_context_file" '
@@ -140,12 +140,12 @@ render_counter_template() {
     # Use sed/awk for safe template variable substitution (portable: temp-file-and-mv)
     cp "$COUNTER_TEMPLATE" "$output_file"
     local tmpphase2
-    tmpphase2=$(mktemp -p "$TEMP_DIR")
+    tmpphase2=$(mktemp "$TEMP_DIR/rt-phase2.XXXXXX")
     sed "s|{{PHASE}}|${phase}|g" "$output_file" > "$tmpphase2" && mv "$tmpphase2" "$output_file"
 
     # Replace {{ATTACKS_JSON}} with file content via awk
     local tmpwork
-    tmpwork=$(mktemp -p "$TEMP_DIR")
+    tmpwork=$(mktemp "$TEMP_DIR/rt-work.XXXXXX")
     awk -v marker="{{ATTACKS_JSON}}" -v file="$attacks_json_file" '
         index($0, marker) { while ((getline line < file) > 0) print line; close(file); next }
         { print }

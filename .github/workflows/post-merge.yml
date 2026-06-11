@@ -61,6 +61,18 @@ jobs:
           # non-submodule consumer repos.
           submodules: recursive
 
+      # Issue #986: on submodule mounts the .claude/* symlinks are GITIGNORED
+      # ("recreated on mount" — mount-submodule.sh writes them to .gitignore),
+      # so even a `submodules: recursive` checkout lacks them and every
+      # .claude/scripts/* invocation is exit-127. Reconcile recreates the
+      # symlink set. No-op on vendored mounts and the Loa repo itself (.loa/
+      # absent). No `|| true` — partial reconcile must fail loud (#660 pt 2).
+      - name: Reconcile Loa symlinks (submodule mounts)
+        run: |
+          if [ -x .loa/.claude/scripts/mount-submodule.sh ]; then
+            bash .loa/.claude/scripts/mount-submodule.sh --reconcile
+          fi
+
       - name: Classify PR type
         id: classify
         env:
@@ -100,6 +112,18 @@ jobs:
           # fails with `exit-127: No such file or directory`. No-op on
           # non-submodule consumer repos.
           submodules: recursive
+
+      # Issue #986: on submodule mounts the .claude/* symlinks are GITIGNORED
+      # ("recreated on mount" — mount-submodule.sh writes them to .gitignore),
+      # so even a `submodules: recursive` checkout lacks them and every
+      # .claude/scripts/* invocation is exit-127. Reconcile recreates the
+      # symlink set. No-op on vendored mounts and the Loa repo itself (.loa/
+      # absent). No `|| true` — partial reconcile must fail loud (#660 pt 2).
+      - name: Reconcile Loa symlinks (submodule mounts)
+        run: |
+          if [ -x .loa/.claude/scripts/mount-submodule.sh ]; then
+            bash .loa/.claude/scripts/mount-submodule.sh --reconcile
+          fi
 
       - name: Install jq
         run: sudo apt-get install -y jq
@@ -174,6 +198,18 @@ jobs:
           # fails with `exit-127: No such file or directory`. No-op on
           # non-submodule consumer repos.
           submodules: recursive
+
+      # Issue #986: on submodule mounts the .claude/* symlinks are GITIGNORED
+      # ("recreated on mount" — mount-submodule.sh writes them to .gitignore),
+      # so even a `submodules: recursive` checkout lacks them and every
+      # .claude/scripts/* invocation is exit-127. Reconcile recreates the
+      # symlink set. No-op on vendored mounts and the Loa repo itself (.loa/
+      # absent). No `|| true` — partial reconcile must fail loud (#660 pt 2).
+      - name: Reconcile Loa symlinks (submodule mounts)
+        run: |
+          if [ -x .loa/.claude/scripts/mount-submodule.sh ]; then
+            bash .loa/.claude/scripts/mount-submodule.sh --reconcile
+          fi
 
       - name: Configure git identity
         run: |

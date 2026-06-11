@@ -119,7 +119,9 @@ setup() {
 @test "T3: truncation.generated.ts contains 'default' fallback entry" {
     "$TSX" "$GEN_SCRIPT" --output-dir "$OUTPUT_DIR"
     # Default fallback: maxInput=100000, maxOutput=4096, coefficient=0.25 (matches existing TOKEN_BUDGETS["default"])
-    grep -E 'default:[[:space:]]*\{[[:space:]]*maxInput:[[:space:]]*100000,[[:space:]]*maxOutput:[[:space:]]*4096,[[:space:]]*coefficient:[[:space:]]*0\.25' "$TRUNC_OUT"
+    # #972: the generator emits a QUOTED key ("default":) — consistent with the
+    # T11 quoted-string-key invariant — so the regex must match the quote.
+    grep -E '"default":[[:space:]]*\{[[:space:]]*maxInput:[[:space:]]*100000,[[:space:]]*maxOutput:[[:space:]]*4096,[[:space:]]*coefficient:[[:space:]]*0\.25' "$TRUNC_OUT"
 }
 
 # ---------------------------------------------------------------------------

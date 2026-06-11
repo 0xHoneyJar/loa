@@ -147,3 +147,53 @@ _stub_br_missing() {
     # Must NOT include the migration-specific diagnostic (signature didn't match)
     [[ "$output" != *"upstream beads_rust 0.2.1"* ]]
 }
+
+# =============================================================================
+# bug-991 / KF-014: linked-worktree support. The hook resolved the main
+# checkout's .beads via --git-common-dir but invoked plain `br sync` from the
+# worktree CWD, where br finds no .beads and dies with "Beads not initialized".
+# =============================================================================
+
+# Helper: br stub that mimics real br's CWD resolution — succeeds only when
+# CWD contains .beads, and records its physical CWD for assertions.
+_stub_br_cwd_sensitive() {
+    cat >"$STUB_BIN/br" <<'STUB'
+#!/usr/bin/env bash
+pwd -P >> "${BR_CWD_LOG:?}"
+if [ -d .beads ]; then
+    exit 0
+fi
+echo "Error: Beads not initialized: run 'br init' first" >&2
+exit 1
+STUB
+    chmod +x "$STUB_BIN/br"
+}
+
+@test "PCB-T7 (bug-991): hook runs flush from MAIN repo root inside a linked worktree" {
+    _stub_br_cwd_sensitive
+    export BR_CWD_LOG="$TMPDIR_TEST/br-cwd.log"
+    git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
+    git worktree add -q "$TMPDIR_TEST/wt" -b wt-branch
+    cd "$TMPDIR_TEST/wt"
+    run sh "$HOOK"
+    [ "$status" -eq 0 ]
+    grep -qx "$(cd "$TEST_REPO" && pwd -P)" "$BR_CWD_LOG"
+}
+
+@test "PCB-T8 (bug-991): main-checkout invocation still flushes from the repo root (regression guard)" {
+    _stub_br_cwd_sensitive
+    export BR_CWD_LOG="$TMPDIR_TEST/br-cwd-main.log"
+    run sh "$HOOK"
+    [ "$status" -eq 0 ]
+    grep -qx "$(cd "$TEST_REPO" && pwd -P)" "$BR_CWD_LOG"
+}
+
+@test "PCB-T9 (bug-991): worktree failure path still surfaces verbatim stderr" {
+    _stub_br_other_failure
+    git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
+    git worktree add -q "$TMPDIR_TEST/wt9" -b wt-branch-9
+    cd "$TMPDIR_TEST/wt9"
+    run sh "$HOOK"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"connection to remote refused"* ]]
+}

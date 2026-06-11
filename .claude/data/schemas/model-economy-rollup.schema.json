@@ -190,6 +190,18 @@
             "type": "integer",
             "minimum": 0,
             "description": "runs - runs_with_cost. Surfaces the partial-priced reality at the row level."
+          },
+          "effort_counts": {
+            "type": "object",
+            "description": "cycle-114 FR-8: count of runs per requested effort level for this (skill, model) cell. Empty {} when no run in the cell set effort. Additive observability dimension; does not change the row key.",
+            "additionalProperties": false,
+            "properties": {
+              "low": {"type": "integer", "minimum": 0},
+              "medium": {"type": "integer", "minimum": 0},
+              "high": {"type": "integer", "minimum": 0},
+              "xhigh": {"type": "integer", "minimum": 0},
+              "max": {"type": "integer", "minimum": 0}
+            }
           }
         }
       }

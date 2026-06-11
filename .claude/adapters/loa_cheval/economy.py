@@ -44,6 +44,8 @@ DEFAULT_WINDOW = "30d"
 DEGRADATION_THRESHOLD = 2  # PRD §4 FR-2: DEGRADED + FAILED >= 2 → marker
 UNATTRIBUTED = "(unattributed)"
 UNKNOWN_MODEL = "(unknown_model)"
+# cycle-114 FR-8: valid effort levels (mirrors the anthropic adapter set).
+_VALID_EFFORT_LEVELS = frozenset({"low", "medium", "high", "xhigh", "max"})
 
 
 # ---------------------------------------------------------------------------
@@ -424,6 +426,10 @@ def aggregate_economy(
             "first_try_success": 0,
             "attempts": 0,
             "unpriced_runs": 0,
+            # cycle-114 FR-8: count of runs per requested effort level. Additive
+            # observability dimension — does NOT change the (skill, model) cell
+            # key, so existing roll-up rows are unaffected.
+            "effort_counts": {},
         }
 
     cells: Dict[Tuple[str, str], Dict[str, Any]] = defaultdict(_empty_cell)
@@ -461,6 +467,11 @@ def aggregate_economy(
         cell["skill"] = skill
         cell["model"] = model
         cell["runs"] += 1
+
+        # cycle-114 FR-8: tally requested effort (when present + valid).
+        effort = payload.get("effort")
+        if isinstance(effort, str) and effort in _VALID_EFFORT_LEVELS:
+            cell["effort_counts"][effort] = cell["effort_counts"].get(effort, 0) + 1
 
         # Cost
         fallback = pricing.get(model)
@@ -542,6 +553,9 @@ def aggregate_economy(
             "first_try_success": cell["first_try_success"],
             "attempts": cell["attempts"],
             "unpriced_runs": cell["unpriced_runs"],
+            # cycle-114 FR-8: per-effort run counts ({} when no run set effort).
+            # Lets `/loa status --economy` attribute cost to reasoning depth.
+            "effort_counts": cell["effort_counts"],
         }
 
     # Footer cross-ref

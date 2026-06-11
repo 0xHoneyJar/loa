@@ -27,6 +27,29 @@ Source: Claude Code agent-type definitions in the system prompt.
 
 The allowlist is maintained in the `WRITE_CAPABLE_AGENTS` array near the top of the script. Adding a new write-capable agent type is intentionally a one-line edit with reviewer visibility.
 
+## Mechanical C-PROC-001 enforcement via `disallowed-tools` (cycle-114 FR-4)
+
+`disallowed-tools` frontmatter (Claude Code ≥2.1.152) removes tools from the
+model while a skill is active — a harness-level barrier that instructions
+cannot override. Cycle-114 uses it to make C-PROC-001 ("NEVER write application
+code outside `/implement`") mechanical for review skills rather than prose-only.
+
+| Skill class | `disallowed-tools` | Why |
+|-------------|--------------------|-----|
+| Pure-review (`reviewing-code`, `auditing-security`; `write_files: false`) | `Write`, `Edit`, `NotebookEdit` | Never writes anything — remove the write tools outright |
+| Report-authoring review (`red-teaming`, `bridgebuilder-review`; `write_files: true`) | `NotebookEdit`, `Bash(git add/commit/push *)` | Legitimately write STATE-zone reports/vision/lore, so `Write` is retained; app-code prevention is governed by **zones**, and the implementation-only git mutations are removed |
+
+**`REVIEW_WRITE_EXCEPTIONS`** (in `validate-skill-capabilities.sh`):
+`red-teaming`, `bridgebuilder-review`, `spiraling`, `autonomous-agent`,
+`run-bridge`, `run-mode`. These `role: review` skills keep `Write` by design —
+the adversarial/report authors write STATE-zone artifacts, and the autonomous
+orchestrators dispatch implementation through the harness (which runs inside
+`/implement`, where writes are sanctioned). The validator emits a WARN for any *other* `role: review`
+skill that declares `write_files: true` without disallowing `Write` — surfacing
+a new C-PROC-001 gap at lint time. `disallowed-tools` is tool-granular, not
+path-granular; it cannot express "no `src/` writes but yes `grimoires/` writes",
+which is why report-authoring skills rely on zones for path-level control.
+
 ## Scope
 
 Applies to every `.claude/skills/**/SKILL.md`. The lint runs as part of the normal validation suite (`bats tests/unit/skill-capabilities.bats`).
