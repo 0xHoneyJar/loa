@@ -162,7 +162,9 @@ snapshot_one() {
     mkdir -p "$ARCHIVE_DIR"
     # Atomically write via temp + rename.
     local tmp
-    tmp="$(mktemp "${archive}.XXXXXX.tmp")"
+    # bug-978 (#978): X-run must trail for BSD mktemp; the .tmp marker now
+    # sits mid-name (still identifies partial files on crash).
+    tmp="$(mktemp "${archive}.tmp.XXXXXX")"
     if ! gzip -c "$source_log" > "$tmp"; then
         _log "ERROR: gzip failed for $source_log"
         rm -f "$tmp"

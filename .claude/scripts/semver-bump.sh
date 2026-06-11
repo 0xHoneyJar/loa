@@ -288,8 +288,10 @@ main() {
   local commits_json bump
   local tmpdir="${TMPDIR:-/tmp}"
   local tmpfile_commits tmpfile_bump
-  tmpfile_commits=$(mktemp "${tmpdir}/semver-commits-XXXXXXXXXX.json")
-  tmpfile_bump=$(mktemp "${tmpdir}/semver-bump-XXXXXXXXXX.txt")
+  # bug-978 (#978): trailing-X templates (BSD expands only trailing X-runs).
+  # Both files are internal redirect targets; extensions were cosmetic.
+  tmpfile_commits=$(mktemp "${tmpdir}/semver-commits.XXXXXXXXXX")
+  tmpfile_bump=$(mktemp "${tmpdir}/semver-bump.XXXXXXXXXX")
 
   # Ensure cleanup on exit or error
   trap 'rm -f "$tmpfile_commits" "$tmpfile_bump"' EXIT

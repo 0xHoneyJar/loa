@@ -125,7 +125,11 @@ run_smoke_test() {
   # Write a temp .ts file that imports each barrel using relative .js specifiers
   # (tsx -e treats code as CJS and cannot resolve .js→.ts, so we need a real file)
   local smoke_file
-  smoke_file="$(mktemp "$LIB_DIR/smoke-XXXXXX.ts")"
+  # bug-978 (#978): trailing-X create then rename — tsx needs the real .ts
+  # extension, and BSD mktemp only expands trailing X-runs.
+  smoke_file="$(mktemp "$LIB_DIR/smoke-XXXXXX")"
+  mv "$smoke_file" "${smoke_file}.ts"
+  smoke_file="${smoke_file}.ts"
   trap "rm -f '$smoke_file'" RETURN
 
   local pass=0 fail=0 skip=0

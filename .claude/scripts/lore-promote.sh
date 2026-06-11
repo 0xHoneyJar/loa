@@ -283,7 +283,12 @@ append_lore_entry() {
     # eval-all. fileIndex selectors mean no attacker-influenceable content
     # ever flows into the yq expression itself — the values come from the
     # parsed JSON file. This is the injection-safe pattern.
-    local entry_file; entry_file=$(mktemp -p "${TMPDIR:-/tmp}" lore-entry.XXXXXX.json)
+    # bug-978 (#978): trailing-X create then rename — yq format-detects via
+    # the .json extension, and BSD mktemp has neither -p nor mid-template X
+    # expansion.
+    local entry_file; entry_file=$(mktemp "${TMPDIR:-/tmp}/lore-entry.XXXXXX")
+    mv "$entry_file" "${entry_file}.json"
+    entry_file="${entry_file}.json"
     printf '%s' "$entry_json" > "$entry_file"
     yq ea -i 'select(fi==0) + [select(fi==1)]' "$tmp" "$entry_file"
     rm -f "$entry_file"

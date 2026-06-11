@@ -602,7 +602,11 @@ aggregate_and_write_final_consensus() {
             # mktemp on PATH). Without the check, downstream chmod/printf on
             # an empty $tmp produces confusing "No such file or directory"
             # errors that mask the real mktemp failure.
-            if ! tmp=$(mktemp "${TEMP_DIR:-/tmp}/vq-input.XXXXXX.json"); then
+            # bug-978 (#978): trailing-X template — BSD mktemp expands only
+            # trailing X-runs; the old .XXXXXX.json shape collided across the
+            # 3 voices and degraded the review to voices=1/3. The aggregator
+            # takes file paths; no extension needed.
+            if ! tmp=$(mktemp "${TEMP_DIR:-/tmp}/vq-input.XXXXXX"); then
                 log "WARNING: mktemp failed for vq-input ($(date)) — skipping verdict-quality envelope for $f"
                 continue
             fi
