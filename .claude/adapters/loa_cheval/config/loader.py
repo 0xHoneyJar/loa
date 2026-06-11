@@ -423,11 +423,19 @@ _DISPATCH_GROUP_PATTERN = re.compile(r"^[a-z][a-z0-9-]{1,63}$")
 # System-Zone defaults pin one dispatch_group per provider family. Keys MUST
 # match _ADAPTER_REGISTRY in providers/__init__.py; values MUST satisfy
 # _DISPATCH_GROUP_PATTERN and the family values consumed by chain_resolver.
+# Iter-1 B1 (cross-model): `kind` joins the table — chain_resolver defaults
+# kind to "http", so a field-less custom headless provider loaded fine but
+# resolved as an HTTP entry, breaking the headless-mode ordering/filter
+# transforms. All three types dispatch through a CLI subprocess: kind is
+# "cli" for the whole table. (Consumer sweep: fallback_chain/capabilities
+# are optional-by-design; auth_type/dispatch_group are loader-validated;
+# kind was the only remaining silent-default misclassification.)
 _HEADLESS_TYPE_INFERENCE = {
     "claude-headless": ("headless", "anthropic-claude"),
     "codex-headless": ("headless", "openai-gpt"),
     "gemini-headless": ("headless", "google-gemini"),
 }
+_HEADLESS_INFERRED_KIND = "cli"
 
 # Shared fix-location hint for missing-field diagnostics: the operator's fix
 # lives in their .loa.config.yaml, not deep in model-invoke stderr.
@@ -439,7 +447,7 @@ _AUTH_METADATA_FIX_HINT = (
 
 
 def _infer_model_auth_metadata(merged: Dict[str, Any]) -> None:
-    """Stamp inferable auth_type/dispatch_group onto *-headless provider models.
+    """Stamp inferable auth_type/dispatch_group/kind onto *-headless models.
 
     Only fills MISSING keys (setdefault) — operator-explicit values are never
     overwritten. Non-dict providers/models shapes are left untouched so
@@ -464,6 +472,7 @@ def _infer_model_auth_metadata(merged: Dict[str, Any]) -> None:
                 continue
             model.setdefault("auth_type", auth_type)
             model.setdefault("dispatch_group", dispatch_group)
+            model.setdefault("kind", _HEADLESS_INFERRED_KIND)
 
 
 def _validate_model_auth_metadata(merged: Dict[str, Any]) -> None:

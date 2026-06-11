@@ -323,3 +323,43 @@ class TestHeadlessProviderInference:
 
         for group in ("anthropic-claude", "openai-gpt", "google-gemini"):
             assert _DISPATCH_GROUP_PATTERN.match(group)
+
+    # Iter-1 B1: chain_resolver defaults kind to "http" — field-less custom
+    # headless providers loaded but resolved as HTTP entries, breaking the
+    # headless-mode ordering/filter transforms.
+    def test_fieldless_headless_models_infer_kind_cli(self, tmp_path):
+        for provider_id, ptype, model in [
+            ("claude-headless", "claude-headless", "claude-opus-4-7"),
+            ("my-codex", "codex-headless", "gpt-5.5"),
+            ("gemini-headless", "gemini-headless", "gemini-3.1-pro-preview"),
+        ]:
+            clear_config_cache()
+            root = _write_project_with_custom_provider(
+                tmp_path / ptype, provider_id, ptype, {model: _fieldless_model()},
+            )
+            merged, _ = load_config(project_root=root)
+            assert merged["providers"][provider_id]["models"][model]["kind"] == "cli"
+
+    def test_operator_explicit_kind_never_overwritten(self, tmp_path):
+        model = _fieldless_model()
+        model["kind"] = "http"
+        root = _write_project_with_custom_provider(
+            tmp_path, "claude-headless", "claude-headless",
+            {"claude-opus-4-7": model},
+        )
+        merged, _ = load_config(project_root=root)
+        assert (
+            merged["providers"]["claude-headless"]["models"]["claude-opus-4-7"]["kind"]
+            == "http"
+        )
+
+    # Reviewer advisory: inference keys must stay registered adapter types —
+    # a registry rename would otherwise silently kill inference.
+    def test_inference_keys_are_registered_adapter_types(self):
+        from loa_cheval.config.loader import _HEADLESS_TYPE_INFERENCE
+        from loa_cheval.providers import _ADAPTER_REGISTRY
+
+        for key in _HEADLESS_TYPE_INFERENCE:
+            assert key in _ADAPTER_REGISTRY, (
+                f"inference key {key!r} is not a registered adapter type"
+            )
