@@ -85,6 +85,29 @@ def _safe_int(v: Any) -> int:
         return 0
 
 
+def _extract_envelope(stdout: str) -> Optional[Dict[str, Any]]:
+    """Locate cursor-agent's JSON result envelope in stdout.
+
+    Tolerates non-JSON preamble (node experimental warnings, deprecation
+    notices). Without this, the strict startswith("{") check failed on any
+    preamble, which (a) turned a billed success into ProviderUnavailableError
+    in _parse_output and (b) made _transport_probe_text fall back to scanning
+    FULL stdout — re-exposing the untrusted `result` to the substring probes,
+    the CURSOR-001 silencing channel. (BB #966 round-2, 2-voice converged)
+    """
+    text = (stdout or "").strip()
+    idx = text.find("{")
+    decoder = json.JSONDecoder()
+    while idx != -1:
+        try:
+            obj, _ = decoder.raw_decode(text[idx:])
+        except json.JSONDecodeError:
+            idx = text.find("{", idx + 1)
+            continue
+        return obj if isinstance(obj, dict) else None
+    return None
+
+
 class CursorHeadlessAdapter(ProviderAdapter):
     """Adapter that routes inference through `cursor-agent -p` (Composer).
 
@@ -133,14 +156,17 @@ class CursorHeadlessAdapter(ProviderAdapter):
             n_slots,
         )
 
-        # Isolated empty cwd so a (denied) tool call has nothing to reach. Combined
-        # with --mode plan + --sandbox enabled, this is defense-in-depth for the
-        # untrusted prompt.
-        workspace = tempfile.mkdtemp(prefix="loa-cursor-ws-")
+        # Import BEFORE mkdtemp — an import failure after it would leak the
+        # workspace (it sits outside the try/finally). (BB #966 round-2)
         from loa_cheval.adapters.headless_concurrency import (
             SemaphoreExhausted as _SemaphoreExhausted,
             acquire_slot as _acquire_slot,
         )
+
+        # Isolated empty cwd so a (denied) tool call has nothing to reach. Combined
+        # with --mode plan + --sandbox enabled, this is defense-in-depth for the
+        # untrusted prompt.
+        workspace = tempfile.mkdtemp(prefix="loa-cursor-ws-")
 
         start = time.monotonic()
         try:
@@ -324,23 +350,21 @@ class CursorHeadlessAdapter(ProviderAdapter):
            "result":"<model answer text>","session_id":"...","request_id":"...",
            "usage":{"inputTokens":N,"outputTokens":N,"cacheReadTokens":N,"cacheWriteTokens":N}}
         """
-        payload: Optional[Dict[str, Any]] = None
-        text = stdout.strip()
-        if text.startswith("{"):
-            try:
-                payload = json.loads(text)
-            except json.JSONDecodeError:
-                payload = None
+        payload = _extract_envelope(stdout)
 
         if payload is None:
             # Non-JSON output that wasn't caught by _raise_for_known_errors.
-            snippet = (text or stderr.strip())[:500] or "empty output"
+            snippet = (stdout.strip() or stderr.strip())[:500] or "empty output"
             raise ProviderUnavailableError(
                 self.provider, f"cursor-agent produced no parseable JSON: {snippet}"
             )
 
         if payload.get("is_error"):
-            self._raise_for_known_errors(1, json.dumps(payload), stderr)
+            # returncode=0: only the typed rate-limit/auth branches can fire —
+            # the generic nonzero-exit branch stays quiet, so the descriptive
+            # raise below is REACHABLE for unrecognized diagnostics. (BB #966
+            # round-2: rc=1 made it dead code and fabricated "exit 1".)
+            self._raise_for_known_errors(0, json.dumps(payload), stderr)
             raise ProviderUnavailableError(
                 self.provider,
                 f"cursor-agent reported is_error: {str(payload.get('result'))[:300]}",
@@ -404,18 +428,22 @@ class CursorHeadlessAdapter(ProviderAdapter):
 
         Non-JSON output (a raw transport dump) is scanned in full — that is where
         genuine zero-exit transport errors appear.
+
+        BB #966 round-2 (HIGH, 2-voice converged): envelope META is excluded
+        from the probe on BOTH branches. Usage token counts and session/request
+        ids are numeric/opaque strings that substring-match "429" stochastically
+        — a billed success must never classify as RateLimitError off its own
+        token counts. On success, only stderr is probe-safe; on is_error, the
+        classifying strings are `subtype` and `result` (cursor's own
+        diagnostic), never ids/usage.
         """
-        trimmed = (stdout or "").strip()
-        if trimmed.startswith("{"):
-            try:
-                envelope = json.loads(trimmed)
-            except json.JSONDecodeError:
-                return f"{stdout}\n{stderr}"
-            if isinstance(envelope, dict):
-                meta = {k: v for k, v in envelope.items() if k != "result"}
-                if envelope.get("is_error"):
-                    return f"{json.dumps(meta)}\n{envelope.get('result', '')}\n{stderr}"
-                return f"{json.dumps(meta)}\n{stderr}"
+        envelope = _extract_envelope(stdout)
+        if envelope is not None:
+            if envelope.get("is_error"):
+                subtype = envelope.get("subtype") or ""
+                result = envelope.get("result") or ""
+                return f"{subtype}\n{result}\n{stderr}"
+            return stderr or ""
         return f"{stdout}\n{stderr}"
 
     def _raise_for_known_errors(self, returncode: int, stdout: str, stderr: str) -> None:
@@ -426,7 +454,8 @@ class CursorHeadlessAdapter(ProviderAdapter):
         `result` is excluded — see _transport_probe_text). Returns silently when
         no known error is present (the caller then parses the JSON envelope).
         """
-        combined = self._transport_probe_text(stdout, stderr).lower()
+        probe = self._transport_probe_text(stdout, stderr)
+        combined = probe.lower()
 
         # Quota / rate limit. Cursor surfaces gRPC "resource_exhausted" (plan quota
         # depleted or free tier without Composer headless access) and rate-limit text.
@@ -445,10 +474,13 @@ class CursorHeadlessAdapter(ProviderAdapter):
             or "unauthorized" in combined
             or "please log in" in combined
         ):
+            # Diagnostic from the probe text, not stderr alone — cursor often
+            # delivers the auth message on stdout or in the is_error result.
+            # (BB #966 round-2)
             raise ConfigError(
                 f"cursor-agent not authenticated. Run: cursor-agent login "
                 f"(a Cursor plan including Composer is required). "
-                f"stderr: {stderr.strip()[:300]}"
+                f"diagnostic: {probe.strip()[:300]}"
             )
 
         # A non-zero exit with no recognized class → provider-unavailable so the

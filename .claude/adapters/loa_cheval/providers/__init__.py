@@ -58,9 +58,15 @@ def cli_adapter_types() -> frozenset:
     Derived from the registry so a NEW headless adapter is admitted by the
     kind:cli dispatch path automatically — review #966 closed the gap where
     cursor-headless was registered here but rejected by cheval's closed
-    escape-hatch list.
+    escape-hatch list. Keyed on the adapter class's own auth_type contract,
+    not the name convention (BB #966 round-2): the attribute IS the semantic;
+    a rename cannot silently drop an adapter from CLI admission.
     """
-    return frozenset(t for t in _ADAPTER_REGISTRY if t.endswith("-headless"))
+    return frozenset(
+        t
+        for t, cls in _ADAPTER_REGISTRY.items()
+        if getattr(cls, "auth_type", None) == "headless"
+    )
 
 
 __all__ = [

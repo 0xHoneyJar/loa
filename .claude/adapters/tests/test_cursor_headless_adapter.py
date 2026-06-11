@@ -187,6 +187,53 @@ class TestTransportProbeSafety:
             r = _adapter().complete(_req())
         assert "429" in r.content and "unauthorized" in r.content  # returned, not raised
 
+    def test_success_meta_429_not_misclassified(self):
+        # BB #966 round-2 (HIGH, 2-voice converged): usage token counts and
+        # session ids containing "429" as a substring must not classify a
+        # billed success as RateLimitError.
+        env = (
+            '{"type":"result","is_error":false,"result":"ok",'
+            '"session_id":"sess-429abc","request_id":"req-14290",'
+            '"usage":{"inputTokens":14290,"outputTokens":429}}'
+        )
+        with patch(_PGKILL, return_value=_completed(env)):
+            r = _adapter().complete(_req())
+        assert r.content == "ok"
+        assert r.usage.input_tokens == 14290 and r.usage.output_tokens == 429
+
+    def test_error_meta_429_with_benign_result_not_ratelimit(self):
+        # On is_error, only subtype/result/stderr classify — 429-bearing usage
+        # must not turn an unrecognized failure into RateLimitError.
+        env = (
+            '{"type":"result","is_error":true,"result":"boom",'
+            '"usage":{"inputTokens":4290,"outputTokens":1}}'
+        )
+        with patch(_PGKILL, return_value=_completed(env)):
+            with pytest.raises(ProviderUnavailableError, match="reported is_error"):
+                _adapter().complete(_req())
+
+    def test_preamble_success_still_parses(self):
+        # BB #966 round-2 (MEDIUM): a non-JSON stdout preamble (node warnings)
+        # must not turn a billed success into ProviderUnavailableError.
+        out = "(node:123) ExperimentalWarning: glob is experimental\n" + _OK_ENVELOPE
+        with patch(_PGKILL, return_value=_completed(out)):
+            r = _adapter().complete(_req())
+        assert r.content == '{"verdict":"APPROVED"}'
+
+    def test_preamble_does_not_reopen_silencing_channel(self):
+        # BB #966 round-2 (MEDIUM): with a preamble, the probe must STILL mask
+        # the untrusted result — error tokens quoted in a successful review must
+        # not raise (the CURSOR-001 regression at the preamble level).
+        env = (
+            '{"type":"result","is_error":false,'
+            '"result":"finding: 429 unauthorized rate limit resource_exhausted",'
+            '"usage":{"inputTokens":10,"outputTokens":5}}'
+        )
+        out = "DeprecationWarning: punycode\n" + env
+        with patch(_PGKILL, return_value=_completed(out)):
+            r = _adapter().complete(_req())
+        assert "429" in r.content  # returned as content, not raised
+
 
 # ---------------------------------------------------------------------------
 # Error classification
@@ -224,6 +271,14 @@ class TestErrorClassification:
         env = '{"type":"result","is_error":true,"result":"unauthorized — please log in"}'
         with patch(_PGKILL, return_value=_completed(env)):
             with pytest.raises(ConfigError):
+                _adapter().complete(_req())
+
+    def test_is_error_auth_diagnostic_preserved_from_stdout(self):
+        # BB #966 round-2 (LOW): the ConfigError must carry the diagnostic even
+        # when it arrived on stdout (is_error result) and stderr is empty.
+        env = '{"type":"result","is_error":true,"result":"unauthorized — please log in"}'
+        with patch(_PGKILL, return_value=_completed(env)):
+            with pytest.raises(ConfigError, match="unauthorized"):
                 _adapter().complete(_req())
 
     def test_generic_nonzero_is_unavailable(self):
@@ -302,6 +357,18 @@ class TestSubstrateWiring:
         # where cursor-headless was registered but rejected stays closed.
         from loa_cheval.providers import cli_adapter_types
         assert "cursor-headless" in cli_adapter_types()
+
+    def test_cli_adapter_types_attribute_keyed_covers_all_peers(self):
+        # BB #966 round-2: admission keys on the auth_type class contract, not
+        # the "-headless" name convention. All four CLI adapters must appear;
+        # a peer losing its auth_type attr should fail HERE, not at dispatch.
+        from loa_cheval.providers import cli_adapter_types
+        assert cli_adapter_types() >= {
+            "claude-headless",
+            "codex-headless",
+            "gemini-headless",
+            "cursor-headless",
+        }
 
     def test_headless_inference_covers_cursor(self):
         # config loader stamps auth_type/dispatch_group/kind for cursor-headless
