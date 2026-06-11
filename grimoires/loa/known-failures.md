@@ -68,6 +68,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-012](#kf-012-sha256sum-not-portable-to-bsd-macos-silent-empty-hash-cascade-into-validation-failures) | **RESOLVED-STRUCTURAL 2026-05-20** (sprint-bug-172 / #911: `sha256_portable` helper in compat-lib.sh + 38 production call sites migrated + CI scanner `tools/check-no-raw-sha256sum.sh` + `tests/unit/compat-lib-sha256.bats` + masked-PATH integration test). Structural analog of cycle-099 sprint-1E.c.3.c curl wrapper migration. | macOS / BSD users of `/butterfreezone-gen` + 37 other framework scripts | 1 (single observation, sprint-bug-172 closure) |
 | [KF-013](#kf-013-headless-cli-env-mode-selector-vars-defeat-subscription-oauth) | **RESOLVED 2026-05-20** (sprint-bug-173 / #894: `_HEADLESS_STRIPPED_AUTH_VARS` tuple extended with `GOOGLE_GENAI_USE_VERTEXAI` + `GOOGLE_GENAI_USE_GCA`; canonical scrub list mirrors `construct-k-hole/scripts/dig-search.ts`). | cheval headless CLI adapters (gemini / codex / claude) | 1 (single observation, sprint-bug-173 closure) |
 | [KF-014](#kf-014-pre-commit-beads-hook-fails-in-linked-git-worktrees) | **RESOLVED 2026-06-10** (sprint-bug-190 / #991: hook flushes from MAIN_REPO_ROOT subshell in worktrees; PCB-T7/T8/T9 pin it; live worktree-commit verification) | pre-commit beads flush in linked worktrees | 1 |
+| [KF-015](#kf-015-red-team-code-vs-designsh-silent-clean-gate-pass-on-degraded-runs) | **RESOLVED 2026-06-11** (sprint-bug-194 / #984+#985: trap script-scoped, empty/shape validation, degraded-record contract on model failure; RTC-T1..T7 pin all three defects) | red-team code-vs-design gate (silent-clean degraded run) | 4 (4/4 sprints, one downstream cycle) + 1 local repro |
 
 ---
 
@@ -989,3 +990,29 @@ re-discovery cost on every cycle.
 ### Reading guide
 
 If a commit fails with `Beads not initialized` inside a linked worktree: do NOT run `br init` there (it would create a second, divergent beads DB). Either commit from the main checkout or, for beads-free commits, use `--no-verify` and disclose it. Route the structural fix through #991 (hook should `cd` to the main repo root for the flush).
+
+---
+
+## KF-015: red-team-code-vs-design.sh silent-clean gate pass on degraded runs
+
+**Status**: RESOLVED 2026-06-11 (sprint-bug-194 — `.claude/scripts/red-team-code-vs-design.sh`: (1) prompt/stderr temp vars script-scoped so the EXIT trap works under `set -u`; (2) validation requires non-empty content + object-with-findings-array (bare `jq .` passed EMPTY input — the silent-clean bypass); (3) model failure (incl. exit-12 CHAIN_EXHAUSTED) writes a `{degraded:true, degradation_reason, model_exit_code, stderr_tail}` record and exits non-zero, matching the scoring-engine contract. Pinned by `tests/unit/red-team-code-vs-design.bats` RTC-T1..T7 incl. functional empty-content and exit-12 cases via the test-mode-gated adapter seam.)
+
+**Original Status**: OPEN (fix in flight: sprint-bug-194, triaged 2026-06-11 from #984 + #985)
+**Feature**: `.claude/scripts/red-team-code-vs-design.sh` — RED_TEAM_CODE gate (Deliberative Council code-vs-design layer, `red_team.code_vs_design.enabled: true`)
+**Symptom**: The gate reports success on degraded runs. Three composing defects (script untouched since 2026-05-05 / PR #723, predates cycle-104/109 degraded-run hardening): (1) EXIT trap references function-local vars under `set -u` → `line 1: prompt_file: unbound variable` on every success path (cleanup never runs, temp files leak, exit code bash-version-dependent); (2) line-484 `jq '.'` exits 0 on EMPTY input → empty model content writes a 0-byte findings file, logs blank counts (`Findings:  total,  divergences`), exits 0 — silent-clean gate pass; (3) model-invoke failure (incl. exit-12 CHAIN_EXHAUSTED, timeout) exits 1 with NO record at `--output` — failure produces no auditable artifact, unlike the SDD-phase pipeline's `{degraded: true, degradation_reason}` contract (scoring-engine.sh:736-763).
+**First observed**: 2026-06-06 (#984, Loa v1.171.6 submodule mount); 4/4 sprint failures across deadwax (hosaka-fm) cycle 1 (#985); local repro confirmed 2026-06-11 (sprint-bug-194 triage)
+**Recurrence count**: 4 (4 distinct failure modes, one per sprint, single downstream cycle) + 1 local repro
+**Current workaround**: Gate callers must NOT trust exit code alone — inspect the findings file content and treat empty/0-byte/missing as degraded → fail-open with an auditable manual-pass record (the deadwax pattern). Independent `adversarial-review.sh` cross-model dissent carries coverage while this gate is dead weight.
+**Upstream issue**: [#984](https://github.com/0xHoneyJar/loa/issues/984) + [#985](https://github.com/0xHoneyJar/loa/issues/985); fix sprint: sprint-bug-194 (`grimoires/loa/a2a/bug-20260611-i984-8b8a94/`)
+**Related visions / lore**: vision-023 Fractal Recursion ("the very gate built to detect silent degradation experienced silent degradation"); KF-002/KF-004 are the same silent-degradation class at other pipeline layers; `feedback_zero_blocker_demotion_pattern.md`
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-06-06..09 | deadwax cycle 1 ran the gate 4/4 sprints (alias exit-12, trap crash + 0-byte file, empty output ×2) | DID NOT WORK — gate never exercised once; fail-opened each time with manual records | #985 failure table; grimoires/loa/a2a/sprint-{1..4}/red-team-code-findings.json in hosaka-fm/deadwax |
+| 2026-06-11 | sprint-bug-194 triage: minimal trap repro + jq-on-empty mechanics verification | ROOT CAUSES CONFIRMED — all three defects verified at source (script:338-341, :484, :463-516); fix is structural (trap scope + `jq -e` output assertion + degraded-record contract) | triage.md in `grimoires/loa/a2a/bug-20260611-i984-8b8a94/` |
+
+### Reading guide
+
+If a RED_TEAM_CODE gate logs `Findings:  total,  divergences` (blank counts), writes a 0-byte findings file, or stderr shows `prompt_file: unbound variable`: this is the documented defect cluster, NOT a model/provider problem — do not retry the invocation or bump budgets. Note the exit-12 sub-case is environmentally distinct: exit 12 IS `CHAIN_EXHAUSTED` (cheval.py EXIT_CODES) and `claude-opus-4-7` HAS a within-company fallback_chain (model-config.yaml:381) — the chain was walked and exhausted (e.g., submodule mount lacking auth for chain entries); fix the environment's auth, not the script's model routing. Until sprint-bug-194 lands: treat empty/0-byte/missing findings files as degraded and fail-open with an auditable record. After it lands: the script itself writes `{degraded: true, degradation_reason, model_exit_code}` and exits non-zero on every degraded run.

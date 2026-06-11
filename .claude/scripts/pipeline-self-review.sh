@@ -310,6 +310,7 @@ main() {
 
     # Run Red Team code-vs-design against each governing SDD
     local total_findings=0
+    local degraded_count=0
     local sdd_index=0
 
     while IFS= read -r sdd; do
@@ -336,11 +337,22 @@ main() {
         elif [[ $exit_code -eq 3 ]]; then
             log "  → No security sections in SDD, skipped"
         else
-            log "  → Red Team gate returned exit $exit_code"
+            # bug-984 DISS-001: the gate now exits non-zero WITH a degraded
+            # artifact on model failure / empty content. Count it so the
+            # summary can't read as a clean sweep, and surface the reason.
+            degraded_count=$((degraded_count + 1))
+            local degr_reason="unknown"
+            if [[ -f "$output_file" ]]; then
+                degr_reason=$(jq -r '.degradation_reason // "unknown"' "$output_file" 2>/dev/null || echo "unknown")
+            fi
+            log "  → DEGRADED: Red Team gate exit $exit_code (${degr_reason})"
         fi
     done <<< "$sdds"
 
     log "Pipeline self-review complete: $total_findings total divergence finding(s) across $sdd_count SDD(s)"
+    if [[ $degraded_count -gt 0 ]]; then
+        log "WARNING: $degraded_count of $sdd_count SDD review(s) DEGRADED — totals above are partial; see per-SDD artifacts"
+    fi
 
     # Write summary (includes constitutional markers, T2.1 cycle-047)
     local constitutional_count=${#constitutional_changes[@]}
@@ -355,11 +367,13 @@ main() {
         --argjson change_count "$change_count" \
         --argjson constitutional_count "$constitutional_count" \
         --argjson constitutional_files "$constitutional_json" \
+        --argjson degraded_reviews "$degraded_count" \
         '{
             type: "pipeline_self_review",
             pipeline_files_changed: $change_count,
             sdds_reviewed: $sdd_count,
             total_divergence_findings: $total_findings,
+            degraded_reviews: $degraded_reviews,
             constitutional_changes: $constitutional_count,
             constitutional_files: $constitutional_files
         }' > "$output_dir/pipeline-self-review-summary.json"
