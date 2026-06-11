@@ -340,8 +340,10 @@ process_pack() {
         # tolerate `.name`, `.event`, AND `.type` shapes (gecko + most packs key on `.type` —
         # a `.name // .event`-only union wrote [null,...] for them; regression caught by BB on #981).
         local cy_emits cy_consumes
-        cy_emits=$(yq eval -o=json '[.events.emits[] | (.name // .event // .type)] // []' "$construct_yaml" 2>/dev/null || echo "[]")
-        cy_consumes=$(yq eval -o=json '[.events.consumes[] | (.name // .event // .type)] // []' "$construct_yaml" 2>/dev/null || echo "[]")
+        # BB #981 (2fc2685b round): filter nulls like the manifest path's `// empty` —
+        # an entry with none of the three keys must not inject null into the membrane.
+        cy_emits=$(yq eval -o=json '[.events.emits[] | (.name // .event // .type) | select(. != null)] // []' "$construct_yaml" 2>/dev/null || echo "[]")
+        cy_consumes=$(yq eval -o=json '[.events.consumes[] | (.name // .event // .type) | select(. != null)] // []' "$construct_yaml" 2>/dev/null || echo "[]")
         [[ -n "$cy_emits" && "$cy_emits" != "null" && "$cy_emits" != "[]" ]] && emits_json="$cy_emits"
         [[ -n "$cy_consumes" && "$cy_consumes" != "null" && "$cy_consumes" != "[]" ]] && consumes_json="$cy_consumes"
 

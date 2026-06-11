@@ -609,8 +609,42 @@ compose_with:
     run "$SCRIPT" --json --output "$TEST_OUTPUT" --quiet
     [ "$status" -eq 0 ]
 
-    local composes
-    composes=$(jq -c '.constructs[] | select(.slug == "composer-pack") | .composes_with' "$TEST_OUTPUT")
-    [[ "$composes" == *"test-pack"* ]]
-    [[ "$composes" == *"ghost-pack"* ]]
+    # Structural membership (BB #981: substring matching could false-match a
+    # slug that merely contains the target as a prefix/suffix)
+    [ "$(jq '.constructs[] | select(.slug == "composer-pack") | .composes_with | index("test-pack") != null' "$TEST_OUTPUT")" = "true" ]
+    [ "$(jq '.constructs[] | select(.slug == "composer-pack") | .composes_with | index("ghost-pack") != null' "$TEST_OUTPUT")" = "true" ]
+}
+
+# =============================================================================
+# T16: explicitly empty construct.yaml events do NOT clear manifest events
+# =============================================================================
+# Pins the overlay's absence-vs-empty semantics (BB #981, 3-model converged
+# finding): the `!= "[]"` gate means `events: {emits: [], consumes: []}` reads
+# as "not declared", so manifest events survive. "Explicitly declare zero
+# events" needs a distinct sentinel and is tracked as a follow-up enhancement;
+# this test makes the current semantics a deliberate contract, not an accident.
+
+@test "T16: empty construct.yaml events keep manifest events (absence semantics)" {
+    command -v yq >/dev/null || skip "yq not installed"
+
+    create_mock_pack "keeper-pack" '{
+      "name": "Keeper Pack",
+      "slug": "keeper-pack",
+      "version": "1.0.0",
+      "events": {
+        "emits": [{"name": "manifest.kept_event"}],
+        "consumes": []
+      }
+    }'
+    create_mock_construct_yaml "keeper-pack" 'name: Keeper Pack
+version: 1.0.0
+events:
+  emits: []
+  consumes: []'
+
+    run "$SCRIPT" --json --output "$TEST_OUTPUT" --quiet
+    [ "$status" -eq 0 ]
+
+    [ "$(jq '.constructs[0].events.emits | length' "$TEST_OUTPUT")" -eq 1 ]
+    [ "$(jq -r '.constructs[0].events.emits[0]' "$TEST_OUTPUT")" = "manifest.kept_event" ]
 }
