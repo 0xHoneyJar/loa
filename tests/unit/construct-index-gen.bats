@@ -499,3 +499,118 @@ allowed-tools: Read
     # No warning about missing capabilities
     [[ "$output" != *"capabilities"* ]]
 }
+
+# =============================================================================
+# T13: .type-keyed manifest events extracted (per-element alternation, PR #981)
+# =============================================================================
+# Regression for the GAP C event-key fix: `[.[].name // .event // .type]`
+# evaluates `.event`/`.type` against the outer ARRAY, errors on .type-keyed
+# manifests, and the stderr swallow turned that into []. The per-element form
+# must extract .type-keyed AND mixed-key arrays with no nulls.
+
+@test "T13: .type-keyed and mixed-key manifest events are extracted" {
+    create_mock_pack "type-pack" '{
+      "name": "Type Pack",
+      "slug": "type-pack",
+      "version": "1.0.0",
+      "events": {
+        "emits": [
+          {"type": "gecko.drift_detected", "version": "1.0.0"},
+          {"name": "gecko.patrol_complete", "version": "1.0.0"}
+        ],
+        "consumes": [
+          {"type": "keeper.sweep_requested"}
+        ]
+      }
+    }'
+
+    run "$SCRIPT" --json --output "$TEST_OUTPUT" --quiet
+    [ "$status" -eq 0 ]
+
+    # Both emit shapes extracted, in order, no nulls
+    [ "$(jq '.constructs[0].events.emits | length' "$TEST_OUTPUT")" -eq 2 ]
+    [ "$(jq -r '.constructs[0].events.emits[0]' "$TEST_OUTPUT")" = "gecko.drift_detected" ]
+    [ "$(jq -r '.constructs[0].events.emits[1]' "$TEST_OUTPUT")" = "gecko.patrol_complete" ]
+    [ "$(jq '[.constructs[0].events.emits[] | select(. == null)] | length' "$TEST_OUTPUT")" -eq 0 ]
+
+    # .type-keyed consume extracted
+    [ "$(jq '.constructs[0].events.consumes | length' "$TEST_OUTPUT")" -eq 1 ]
+    [ "$(jq -r '.constructs[0].events.consumes[0]' "$TEST_OUTPUT")" = "keeper.sweep_requested" ]
+}
+
+# =============================================================================
+# T14: construct.yaml event membrane overlays manifest events (PR #981)
+# =============================================================================
+
+@test "T14: construct.yaml event membrane overlays manifest events" {
+    command -v yq >/dev/null || skip "yq not installed"
+
+    create_mock_pack "overlay-pack" '{
+      "name": "Overlay Pack",
+      "slug": "overlay-pack",
+      "version": "1.0.0",
+      "events": {
+        "emits": [{"name": "manifest.event_old"}],
+        "consumes": []
+      }
+    }'
+
+    # construct.yaml declares the real membrane with .type-keyed events —
+    # overlay must WIN over manifest.json when present
+    create_mock_construct_yaml "overlay-pack" 'name: Overlay Pack
+version: 1.0.0
+events:
+  emits:
+    - type: arcade.loop_designed
+    - name: arcade.economy_balanced
+  consumes:
+    - type: keeper.gap_reported'
+
+    run "$SCRIPT" --json --output "$TEST_OUTPUT" --quiet
+    [ "$status" -eq 0 ]
+
+    # Overlay replaced manifest events entirely
+    [ "$(jq '.constructs[0].events.emits | length' "$TEST_OUTPUT")" -eq 2 ]
+    [ "$(jq -r '.constructs[0].events.emits[0]' "$TEST_OUTPUT")" = "arcade.loop_designed" ]
+    [ "$(jq -r '.constructs[0].events.emits[1]' "$TEST_OUTPUT")" = "arcade.economy_balanced" ]
+    [ "$(jq -r '.constructs[0].events.consumes[0]' "$TEST_OUTPUT")" = "keeper.gap_reported" ]
+    [[ "$(jq -c '.constructs[0].events.emits' "$TEST_OUTPUT")" != *"manifest.event_old"* ]]
+}
+
+# =============================================================================
+# T15: compose_with[].slug seeding incl. dangling slug (PR #981)
+# =============================================================================
+# compose_with declarations seed composes_with and are unioned with derived
+# read/write overlaps. A dangling slug (no such pack) is PRESERVED — the field
+# is a declaration overlay, not a resolved reference; silent filtering would
+# hide misdeclarations. This test pins that semantic so a future change to
+# filter/warn is a deliberate one.
+
+@test "T15: compose_with slugs seed composes_with, dangling slug preserved" {
+    command -v yq >/dev/null || skip "yq not installed"
+
+    create_mock_pack "composer-pack" '{
+      "name": "Composer Pack",
+      "slug": "composer-pack",
+      "version": "1.0.0",
+      "events": {}
+    }'
+    create_mock_construct_yaml "composer-pack" 'name: Composer Pack
+version: 1.0.0
+compose_with:
+  - slug: test-pack
+    reason: real peer
+  - slug: ghost-pack
+    reason: dangling — no such pack'
+
+    # Real peer exists in the index; ghost-pack does not
+    create_mock_pack "test-pack" "$FULL_MANIFEST"
+
+    run "$SCRIPT" --json --output "$TEST_OUTPUT" --quiet
+    [ "$status" -eq 0 ]
+
+    local composes
+    composes=$(jq -c '.constructs[] | select(.slug == "composer-pack") | .composes_with' "$TEST_OUTPUT")
+    [[ "$composes" == *"test-pack"* ]]
+    [[ "$composes" == *"ghost-pack"* ]]
+}

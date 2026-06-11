@@ -300,10 +300,11 @@ process_pack() {
     # Extract events into emits/consumes arrays
     local emits_json consumes_json
     # GAP C fix: event-id key varies by pack — `.name` (the-arcade/the-easel), `.event`, OR
-    # `.type` (gecko + the MAJORITY of packs). A single-key extraction drops the others, and a
-    # bare `.[].name` on a `.type`-keyed array throws (swallowed → []). Defensive union over all three.
-    emits_json=$(jq -c '.events.emits // [] | [.[].name // .event // .type // empty]' "$manifest" 2>/dev/null || echo "[]")
-    consumes_json=$(jq -c '.events.consumes // [] | [.[].event // .name // .type // empty]' "$manifest" 2>/dev/null || echo "[]")
+    # `.type` (gecko + the MAJORITY of packs). The alternation MUST run per element:
+    # `[.[].name // .event // .type]` evaluates `.event`/`.type` against the outer ARRAY,
+    # which errors on every non-.name shape (and the stderr swallow turned that into []).
+    emits_json=$(jq -c '.events.emits // [] | [.[] | (.name // .event // .type) // empty]' "$manifest" 2>/dev/null || echo "[]")
+    consumes_json=$(jq -c '.events.consumes // [] | [.[] | (.event // .name // .type) // empty]' "$manifest" 2>/dev/null || echo "[]")
 
     # Initialize overlay fields
     local writes_json="[]"
