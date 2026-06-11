@@ -46,6 +46,7 @@ from typing import Any, Dict, List, Optional
 
 from loa_cheval.providers.base import (
     ProviderAdapter,
+    SubprocessOutputCapExceeded,
     build_headless_subprocess_env,
     enforce_context_window,
     run_subprocess_pgkill,
@@ -157,6 +158,13 @@ class GeminiHeadlessAdapter(ProviderAdapter):
                         self.provider,
                         f"gemini -p timed out after {timeout_s:.0f}s",
                     )
+                except SubprocessOutputCapExceeded as exc:
+                    # Iter-1 B2: truncated output is a provider failure, not a
+                    # successful completion — chain advances like a timeout.
+                    raise ProviderUnavailableError(
+                        self.provider,
+                        f"gemini -p {exc}",
+                    ) from exc
                 except FileNotFoundError as exc:
                     raise ConfigError(
                         f"gemini CLI not found on PATH (set GEMINI_HEADLESS_BIN to override). "

@@ -30,8 +30,10 @@ dependencies = ["rfc8785>=0.1.4", "jsonschema>=4.21"]
 full = ["httpx[http2]>=0.24.0", "pyyaml>=6.0"]
 dev = ["pytest>=7.0", "pytest-httpx>=0.30.0"]
 
-[project.scripts]
-cheval = "loa_cheval.__main__:main"
+# (no [project.scripts] — iter-1 B1: the old `cheval = loa_cheval.__main__:main`
+# entry pointed at a module that does not exist; the real CLI is
+# .claude/adapters/cheval.py, invoked by path (see model-adapter.sh). With the
+# build backend repaired, pip would otherwise ship a broken `cheval` command.)
 
 [tool.setuptools.packages.find]
 where = ["."]

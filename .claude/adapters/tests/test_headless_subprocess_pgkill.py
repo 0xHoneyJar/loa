@@ -199,21 +199,73 @@ class TestRunContractParity:
 
 
 class TestByteCap:
-    def test_stdout_capped_at_max_bytes(self, tmp_path):
+    def test_flood_above_cap_raises_not_truncated_success(self, tmp_path):
+        # Iter-1 B2 (cross-model BLOCKING): a capped-but-successful return let
+        # a truncated JSONL prefix parse as a valid, silently incomplete model
+        # answer. Exceeding the cap must raise after the group is killed.
+        from loa_cheval.providers.base import SubprocessOutputCapExceeded
+
         run_subprocess_pgkill = _import_helper()
         cli = _write_cli(
             tmp_path,
             "flood-cli",
             "head -c 1048576 /dev/zero | tr '\\0' 'x'\nexit 0\n",
         )
+        with pytest.raises(SubprocessOutputCapExceeded, match="stdout exceeded"):
+            run_subprocess_pgkill(
+                [cli], timeout=15, env=dict(os.environ), max_bytes=1024
+            )
+
+    def test_output_below_cap_unaffected(self, tmp_path):
+        run_subprocess_pgkill = _import_helper()
+        cli = _write_cli(tmp_path, "small-cli", "printf 'abc'\nexit 0\n")
         proc = run_subprocess_pgkill(
             [cli], timeout=15, env=dict(os.environ), max_bytes=1024
         )
         assert proc.returncode == 0
-        assert len(proc.stdout) <= 1024, (
-            f"stdout is {len(proc.stdout)} bytes — cap not enforced "
-            f"(unbounded buffering)"
-        )
+        assert proc.stdout == "abc"
+
+    def test_adapters_convert_cap_exceeded_to_provider_unavailable(
+        self, monkeypatch
+    ):
+        # Iter-1 B2 wiring: the chain-walk advances only on
+        # ProviderUnavailableError — each adapter must convert.
+        import importlib
+
+        from loa_cheval.providers.base import SubprocessOutputCapExceeded
+
+        for module_path, class_name, ptype, model, _ in [
+            p.values for p in ADAPTER_CASES
+        ]:
+            module = importlib.import_module(module_path)
+            adapter_cls = getattr(module, class_name)
+
+            def _boom(*args, **kwargs):
+                raise SubprocessOutputCapExceeded("stdout exceeded the 1-byte cap")
+
+            monkeypatch.setattr(module, "run_subprocess_pgkill", _boom)
+            adapter = adapter_cls(_provider_config(ptype, ptype, model))
+            with pytest.raises(ProviderUnavailableError, match="exceeded"):
+                adapter.complete(_request(model))
+
+
+class TestStdinWriterRaces:
+    def test_writer_swallows_closed_file_valueerror(self):
+        # Iter-1 item 3: the finally block closes proc.stdin while the daemon
+        # writer may be mid-write — ValueError("I/O operation on closed
+        # file") must not escape as an unhandled daemon-thread traceback.
+        from types import SimpleNamespace
+
+        from loa_cheval.providers.base import _pgkill_stdin_writer
+
+        class ClosedStdin:
+            def write(self, data):
+                raise ValueError("I/O operation on closed file")
+
+            def close(self):
+                raise ValueError("I/O operation on closed file")
+
+        _pgkill_stdin_writer(SimpleNamespace(stdin=ClosedStdin()), "payload")
 
 
 # ---------------------------------------------------------------------------

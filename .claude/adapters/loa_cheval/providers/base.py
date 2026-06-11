@@ -543,18 +543,34 @@ def build_headless_subprocess_env(parent_env=None) -> Dict[str, str]:
 _PGKILL_MAX_BYTES_DEFAULT = 64 * 1024 * 1024
 
 
+class SubprocessOutputCapExceeded(RuntimeError):
+    """A headless CLI exceeded the per-stream output byte cap.
+
+    Sprint-bug-196 iteration-1 (cross-model B2): a capped-but-successful
+    CompletedProcess would let a truncated JSONL prefix parse as a valid,
+    silently incomplete model answer. Exceeding the cap is a provider
+    failure — adapters convert this to ProviderUnavailableError so the
+    fallback chain advances. run_subprocess_pgkill kills the process group
+    before this propagates.
+    """
+
+
 def _pgkill_stdin_writer(proc: subprocess.Popen, payload: str) -> None:
     """Feed `input=` on a side thread so the read loop keeps draining.
 
     Writing a large prompt (> pipe buffer, ~64 KiB) from the main thread
     before reading would deadlock against a child that writes output while
     consuming stdin. BrokenPipe means the child exited or closed stdin
-    early — subprocess.run swallows that too.
+    early — subprocess.run swallows that too. ValueError covers the
+    timeout-path race where run_subprocess_pgkill's finally block closes
+    proc.stdin while this thread is mid-write ("I/O operation on closed
+    file") — without it the daemon thread dumps a traceback onto our
+    stderr, polluting orchestrator diagnostics.
     """
     try:
         proc.stdin.write(payload.encode("utf-8"))
         proc.stdin.close()
-    except (BrokenPipeError, OSError):
+    except (BrokenPipeError, OSError, ValueError):
         pass
 
 
@@ -601,11 +617,20 @@ def _pgkill_capture(
                 open_fds.remove(fd)
                 continue
             if fd == stdout_fd:
-                if len(stdout_buf) < max_bytes:
-                    stdout_buf.extend(chunk[: max_bytes - len(stdout_buf)])
+                if len(stdout_buf) + len(chunk) > max_bytes:
+                    # Iter-1 B2: never return truncated output as success —
+                    # the caller kills the process group, adapters convert
+                    # to ProviderUnavailableError (chain advances).
+                    raise SubprocessOutputCapExceeded(
+                        f"stdout exceeded the {max_bytes}-byte cap"
+                    )
+                stdout_buf.extend(chunk)
             elif fd == stderr_fd:
-                if len(stderr_buf) < max_bytes:
-                    stderr_buf.extend(chunk[: max_bytes - len(stderr_buf)])
+                if len(stderr_buf) + len(chunk) > max_bytes:
+                    raise SubprocessOutputCapExceeded(
+                        f"stderr exceeded the {max_bytes}-byte cap"
+                    )
+                stderr_buf.extend(chunk)
     if proc.poll() is None:
         # Pipes closed, child still alive — bounded wait, then treat as
         # timeout so the caller performs the process-group kill (doctor.py
@@ -644,7 +669,15 @@ def run_subprocess_pgkill(
     returns CompletedProcess[str]; raises subprocess.TimeoutExpired on
     deadline (after SIGKILLing the process group) and FileNotFoundError when
     cmd[0] is absent; `input=` is fed without large-prompt deadlock; stdin is
-    DEVNULL when `input=` is not given.
+    DEVNULL when `input=` is not given. Divergence from subprocess.run:
+    output beyond max_bytes raises SubprocessOutputCapExceeded (group killed
+    first) instead of buffering unbounded — truncated output must never
+    masquerade as a successful completion.
+
+    Known limitation (shared with doctor.py's probe path): killpg reaps only
+    descendants that remain in the child's process group. A CLI that
+    double-forks + setsid escapes the group and survives — acceptable for
+    the known agentic CLIs, which do not daemonize their workers.
     """
     proc = subprocess.Popen(
         cmd,

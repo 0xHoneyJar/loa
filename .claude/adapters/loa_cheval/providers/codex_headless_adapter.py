@@ -52,6 +52,7 @@ from typing import Any, Dict, List, Optional
 
 from loa_cheval.providers.base import (
     ProviderAdapter,
+    SubprocessOutputCapExceeded,
     build_headless_subprocess_env,
     enforce_context_window,
     run_subprocess_pgkill,
@@ -158,6 +159,13 @@ class CodexHeadlessAdapter(ProviderAdapter):
                         self.provider,
                         f"codex exec timed out after {timeout_s:.0f}s",
                     )
+                except SubprocessOutputCapExceeded as exc:
+                    # Iter-1 B2: truncated output is a provider failure, not a
+                    # successful completion — chain advances like a timeout.
+                    raise ProviderUnavailableError(
+                        self.provider,
+                        f"codex exec {exc}",
+                    ) from exc
                 except FileNotFoundError as exc:
                     raise ConfigError(
                         f"codex CLI not found on PATH (set CODEX_HEADLESS_BIN to override). "

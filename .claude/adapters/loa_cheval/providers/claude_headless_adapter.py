@@ -55,6 +55,7 @@ from typing import Any, Dict, List, Optional
 
 from loa_cheval.providers.base import (
     ProviderAdapter,
+    SubprocessOutputCapExceeded,
     build_headless_subprocess_env,
     enforce_context_window,
     run_subprocess_pgkill,
@@ -166,6 +167,13 @@ class ClaudeHeadlessAdapter(ProviderAdapter):
                         self.provider,
                         f"claude -p timed out after {timeout_s:.0f}s",
                     )
+                except SubprocessOutputCapExceeded as exc:
+                    # Iter-1 B2: truncated output is a provider failure, not a
+                    # successful completion — chain advances like a timeout.
+                    raise ProviderUnavailableError(
+                        self.provider,
+                        f"claude -p {exc}",
+                    ) from exc
                 except FileNotFoundError as exc:
                     raise ConfigError(
                         f"claude CLI not found on PATH (set CLAUDE_HEADLESS_BIN to override). "
