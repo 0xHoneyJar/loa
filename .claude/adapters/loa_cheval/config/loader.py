@@ -187,6 +187,13 @@ def load_config(
     # env-var backstop with WARN per affected entry.
     _validate_endpoint_family(merged)
 
+    # sprint-bug-197 (#979) — infer auth_type + dispatch_group for the three
+    # *-headless provider types BEFORE strict validation. PR #904 stamped the
+    # fields only onto System-Zone defaults; operator-defined custom headless
+    # providers in .loa.config.yaml (the documented example shape) have no
+    # defaults counterpart to deep-merge from and died at the validator.
+    _infer_model_auth_metadata(merged)
+
     # cycle-110 sprint-2a T2.4 — auth_type + dispatch_group strict validation
     # ([PRD:FR-2.1, FR-2.2], SDD §3.2). Walks providers.*.models and rejects
     # missing/enum-invalid values with EX_CONFIG (78). Closes C14 (dispatch_group
@@ -410,6 +417,55 @@ _ALLOWED_AUTH_TYPES = ("headless", "http_api", "aws_iam")
 _DISPATCH_GROUP_PATTERN = re.compile(r"^[a-z][a-z0-9-]{1,63}$")
 
 
+# sprint-bug-197 (#979): auth posture is fully inferable for the three
+# headless adapter types — each adapter hard-codes auth_type = "headless"
+# (e.g. claude_headless_adapter.py ClaudeHeadlessAdapter.auth_type), and the
+# System-Zone defaults pin one dispatch_group per provider family. Keys MUST
+# match _ADAPTER_REGISTRY in providers/__init__.py; values MUST satisfy
+# _DISPATCH_GROUP_PATTERN and the family values consumed by chain_resolver.
+_HEADLESS_TYPE_INFERENCE = {
+    "claude-headless": ("headless", "anthropic-claude"),
+    "codex-headless": ("headless", "openai-gpt"),
+    "gemini-headless": ("headless", "google-gemini"),
+}
+
+# Shared fix-location hint for missing-field diagnostics: the operator's fix
+# lives in their .loa.config.yaml, not deep in model-invoke stderr.
+_AUTH_METADATA_FIX_HINT = (
+    "Fix: add the field under hounfour.providers.{provider_id}.models."
+    "{model_id} in .loa.config.yaml (or .claude/defaults/model-config.yaml "
+    "for System-Zone providers)."
+)
+
+
+def _infer_model_auth_metadata(merged: Dict[str, Any]) -> None:
+    """Stamp inferable auth_type/dispatch_group onto *-headless provider models.
+
+    Only fills MISSING keys (setdefault) — operator-explicit values are never
+    overwritten. Non-dict providers/models shapes are left untouched so
+    _validate_model_auth_metadata's existing diagnostics fire unchanged.
+    Providers with unknown or absent `type` get no inference.
+    """
+    providers = merged.get("providers")
+    if not isinstance(providers, dict):
+        return
+    for provider in providers.values():
+        if not isinstance(provider, dict):
+            continue
+        inference = _HEADLESS_TYPE_INFERENCE.get(provider.get("type"))
+        if inference is None:
+            continue
+        auth_type, dispatch_group = inference
+        models = provider.get("models")
+        if not isinstance(models, dict):
+            continue
+        for model in models.values():
+            if not isinstance(model, dict):
+                continue
+            model.setdefault("auth_type", auth_type)
+            model.setdefault("dispatch_group", dispatch_group)
+
+
 def _validate_model_auth_metadata(merged: Dict[str, Any]) -> None:
     """Reject merged configs whose model entries lack `auth_type` or
     `dispatch_group`, or carry enum-invalid values.
@@ -465,7 +521,10 @@ def _validate_model_auth_metadata(merged: Dict[str, Any]) -> None:
                 raise ConfigError(
                     f"[CONFIG-INVALID] providers.{provider_id}.models.{model_id} "
                     f"is missing required 'auth_type' (cycle-110 SDD §3.2). "
-                    f"Allowed values: {', '.join(_ALLOWED_AUTH_TYPES)}."
+                    f"Allowed values: {', '.join(_ALLOWED_AUTH_TYPES)}. "
+                    + _AUTH_METADATA_FIX_HINT.format(
+                        provider_id=provider_id, model_id=model_id
+                    )
                 )
             if auth_type not in _ALLOWED_AUTH_TYPES:
                 raise ConfigError(
@@ -484,7 +543,10 @@ def _validate_model_auth_metadata(merged: Dict[str, Any]) -> None:
                     f"[CONFIG-INVALID] providers.{provider_id}.models.{model_id} "
                     f"is missing required 'dispatch_group' (cycle-110 SDD §3.2 / "
                     f"C14 carry-in). dispatch_group identifies the billing-entity "
-                    f"equivalence class for auto-mode bucket comparison."
+                    f"equivalence class for auto-mode bucket comparison. "
+                    + _AUTH_METADATA_FIX_HINT.format(
+                        provider_id=provider_id, model_id=model_id
+                    )
                 )
             if not isinstance(dispatch_group, str) or not _DISPATCH_GROUP_PATTERN.match(dispatch_group):
                 raise ConfigError(
