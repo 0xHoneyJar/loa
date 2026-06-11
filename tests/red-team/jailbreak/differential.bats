@@ -113,7 +113,7 @@ if [[ ! -s "$DIFF_REGISTRATION_TSV" ]]; then
     mv -f "${DIFF_REGISTRATION_TSV}.tmp" "$DIFF_REGISTRATION_TSV"
 fi
 
-DIFF_VECTOR_TMP="$(mktemp -t "jailbreak-diff-vectors-XXXXXX.tsv")"
+DIFF_VECTOR_TMP="$(mktemp "${TMPDIR:-/tmp}/jailbreak-diff-vectors-XXXXXX")"
 export DIFF_VECTOR_TMP
 
 while IFS=$'\t' read -r vid category title encoded_json; do
@@ -175,8 +175,8 @@ _run_diff_vector() {
 
     local cur_stdout cur_stderr_file cur_exit
     local base_stdout base_stderr_file base_exit
-    cur_stderr_file="$(mktemp -t "diff-cur-${vid}-XXXXXX")"
-    base_stderr_file="$(mktemp -t "diff-base-${vid}-XXXXXX")"
+    cur_stderr_file="$(mktemp "${TMPDIR:-/tmp}/diff-cur-${vid}-XXXXXX")"
+    base_stderr_file="$(mktemp "${TMPDIR:-/tmp}/diff-base-${vid}-XXXXXX")"
 
     cur_stdout="$(_invoke_sut_under_envi "$DIFF_SUT_CURRENT" "$payload" "$cur_stderr_file")"
     cur_exit=$?
@@ -280,7 +280,7 @@ _emit_diff_jsonl() {
     # (the common case), the fallback is bit-equivalent to the flock path.
     if ! command -v flock >/dev/null 2>&1; then
         local _diff_tmp
-        _diff_tmp="$(mktemp -t "diff-emit-XXXXXX.jsonl")"
+        _diff_tmp="$(mktemp "${TMPDIR:-/tmp}/diff-emit-XXXXXX")"
         jq -cn \
             --arg run_id "$run_id" \
             --arg vid "$vid" \

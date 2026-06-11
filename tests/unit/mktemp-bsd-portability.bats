@@ -154,3 +154,21 @@ EOF
     [ "$status" -eq 1 ]
     [[ "$output" == *"bad.sh"* ]]
 }
+
+@test "bug-978: scanner detects GNU-only -p / divergent -t flags, including in .bats files" {
+    # Iteration-1: mktemp -p does not exist on BSD; -t diverges. The
+    # red-team jailbreak suite (.bats) runs on operator macOS machines, so
+    # the scan must cover the test tree too.
+    local plant_dir="$BATS_TEST_TMPDIR/plant-flags"
+    mkdir -p "$plant_dir"
+    cat > "$plant_dir/flagged.bats" <<'EOF'
+#!/usr/bin/env bats
+@test "x" {
+    a="$(mktemp -p "$TMPDIR")"
+    b="$(mktemp -t "prefix-XXXXXX")"
+}
+EOF
+    run "$PROJECT_ROOT/.claude/scripts/tools/check-no-suffixed-mktemp.sh" "$plant_dir"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"flagged.bats"* ]]
+}

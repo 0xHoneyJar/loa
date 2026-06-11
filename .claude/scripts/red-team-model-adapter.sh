@@ -415,7 +415,7 @@ invoke_live() {
     # CONSUMER #6 wiring: cheval writes its envelope here, we read after
     # the call returns and propagate into wrap_live_response output.
     local vq_sidecar
-    vq_sidecar=$(mktemp -t "rt-vq-${role}-XXXXXX")
+    vq_sidecar=$(mktemp "${TMPDIR:-/tmp}/rt-vq-${role}-XXXXXX")
     local exit_code=0
 
     LOA_VERDICT_QUALITY_SIDECAR="$vq_sidecar" \
