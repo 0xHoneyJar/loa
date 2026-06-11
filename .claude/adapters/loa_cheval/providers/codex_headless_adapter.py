@@ -54,6 +54,7 @@ from loa_cheval.providers.base import (
     ProviderAdapter,
     build_headless_subprocess_env,
     enforce_context_window,
+    run_subprocess_pgkill,
 )
 from loa_cheval.types import (
     CompletionRequest,
@@ -141,13 +142,13 @@ class CodexHeadlessAdapter(ProviderAdapter):
         try:
             with _acquire_slot("codex-headless", n_slots=n_slots):
                 try:
-                    proc = subprocess.run(
+                    # #982: process-group-killing drop-in for subprocess.run —
+                    # on timeout the whole CLI tree dies and the fallback
+                    # chain advances instead of hanging on orphaned pipes.
+                    proc = run_subprocess_pgkill(
                         cmd,
                         input=prompt,
-                        capture_output=True,
-                        text=True,
                         timeout=timeout_s,
-                        check=False,
                         # cycle-109 follow-up (#879 / #880 symmetric): strip
                         # OPENAI_API_KEY so codex exec uses OAuth, not API mode.
                         env=build_headless_subprocess_env(),

@@ -57,6 +57,7 @@ from loa_cheval.providers.base import (
     ProviderAdapter,
     build_headless_subprocess_env,
     enforce_context_window,
+    run_subprocess_pgkill,
 )
 from loa_cheval.types import (
     CompletionRequest,
@@ -147,15 +148,15 @@ class ClaudeHeadlessAdapter(ProviderAdapter):
         try:
             with _acquire_slot("claude-headless", n_slots=n_slots):
                 try:
-                    proc = subprocess.run(
+                    # #982: process-group-killing drop-in for subprocess.run —
+                    # on timeout the whole CLI tree dies and the fallback
+                    # chain advances instead of hanging on orphaned pipes.
+                    # claude -p reads the prompt from argv (passed via the cmd
+                    # array); without `input=` the helper keeps stdin on
+                    # DEVNULL to avoid hangs.
+                    proc = run_subprocess_pgkill(
                         cmd,
-                        capture_output=True,
-                        text=True,
                         timeout=timeout_s,
-                        check=False,
-                        # claude -p reads prompt from argv (we passed it via the cmd
-                        # array). Stdin stays closed to avoid hangs.
-                        stdin=subprocess.DEVNULL,
                         # cycle-109 follow-up (#879 / #880): strip ANTHROPIC_API_KEY
                         # so claude -p uses OAuth subscription, not API mode.
                         env=build_headless_subprocess_env(),

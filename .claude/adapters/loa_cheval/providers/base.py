@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import signal
 import socket
+import subprocess
 import sys
+import threading
 import time
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
@@ -529,6 +533,164 @@ def build_headless_subprocess_env(parent_env=None) -> Dict[str, str]:
     for var in _HEADLESS_STRIPPED_AUTH_VARS:
         base.pop(var, None)
     return base
+
+
+# --- Headless subprocess with process-group kill (#982 / sprint-bug-196) ----
+
+# Per-stream cap for captured CLI output. Mirrors doctor.py's C2-closure
+# rationale: a runaway/malicious CLI flooding stdout must not buffer unbounded
+# in memory. 64 MiB comfortably exceeds any legitimate completion payload.
+_PGKILL_MAX_BYTES_DEFAULT = 64 * 1024 * 1024
+
+
+def _pgkill_stdin_writer(proc: subprocess.Popen, payload: str) -> None:
+    """Feed `input=` on a side thread so the read loop keeps draining.
+
+    Writing a large prompt (> pipe buffer, ~64 KiB) from the main thread
+    before reading would deadlock against a child that writes output while
+    consuming stdin. BrokenPipe means the child exited or closed stdin
+    early — subprocess.run swallows that too.
+    """
+    try:
+        proc.stdin.write(payload.encode("utf-8"))
+        proc.stdin.close()
+    except (BrokenPipeError, OSError):
+        pass
+
+
+def _pgkill_capture(
+    proc: subprocess.Popen,
+    *,
+    max_bytes: int,
+    timeout_s: float,
+) -> Tuple[bytes, bytes, int]:
+    """Read stdout + stderr with byte-cap and deadline — NEVER proc.communicate().
+
+    Port of doctor.py's _capture_with_byte_cap (cycle-110 C2 closure) to the
+    completion path. communicate() blocks until the pipe write-ends close,
+    which includes any grandchild that inherited them — exactly the #982
+    unbounded-hang mechanism.
+
+    Raises:
+        subprocess.TimeoutExpired: on deadline exceed, or when both pipes are
+            closed but the child (or a pipe-holding descendant) is still
+            running. The caller kills the process group.
+    """
+    import select
+
+    deadline = time.monotonic() + timeout_s
+    stdout_buf = bytearray()
+    stderr_buf = bytearray()
+    stdout_fd = proc.stdout.fileno() if proc.stdout else -1
+    stderr_fd = proc.stderr.fileno() if proc.stderr else -1
+    open_fds = [fd for fd in (stdout_fd, stderr_fd) if fd >= 0]
+
+    while open_fds:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise subprocess.TimeoutExpired(proc.args, timeout_s)
+        readable, _, _ = select.select(open_fds, [], [], remaining)
+        if not readable:
+            raise subprocess.TimeoutExpired(proc.args, timeout_s)
+        for fd in readable:
+            try:
+                chunk = os.read(fd, 4096)
+            except OSError:
+                chunk = b""
+            if not chunk:
+                open_fds.remove(fd)
+                continue
+            if fd == stdout_fd:
+                if len(stdout_buf) < max_bytes:
+                    stdout_buf.extend(chunk[: max_bytes - len(stdout_buf)])
+            elif fd == stderr_fd:
+                if len(stderr_buf) < max_bytes:
+                    stderr_buf.extend(chunk[: max_bytes - len(stderr_buf)])
+    if proc.poll() is None:
+        # Pipes closed, child still alive — bounded wait, then treat as
+        # timeout so the caller performs the process-group kill (doctor.py
+        # BB iter-1 #907 F-001 closure).
+        try:
+            proc.wait(timeout=max(0.1, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            raise
+    rc = proc.returncode
+    if rc is None:
+        raise subprocess.TimeoutExpired(proc.args, timeout_s)
+    return bytes(stdout_buf), bytes(stderr_buf), rc
+
+
+def run_subprocess_pgkill(
+    cmd: List[str],
+    *,
+    input: Optional[str] = None,
+    timeout: float,
+    env: Optional[Dict[str, str]] = None,
+    max_bytes: int = _PGKILL_MAX_BYTES_DEFAULT,
+) -> subprocess.CompletedProcess:
+    """Drop-in for subprocess.run(capture_output=True, text=True) that kills
+    the WHOLE process tree on timeout.
+
+    Closes #982: subprocess.run's timeout path kills only the immediate
+    child. An agentic CLI's grandchildren (1) survive as orphans, still
+    consuming the rate-limited subscription, and (2) hold the inherited
+    stdout/stderr write-ends, so run()'s post-kill communicate() drain blocks
+    until they exit — the observed unbounded hang with no fallback-chain
+    advance. doctor.py shipped the correct pattern (cycle-110) on the
+    health-probe path only; this is that pattern as a shared completion-path
+    helper.
+
+    Contract parity with the subprocess.run call shape it replaces:
+    returns CompletedProcess[str]; raises subprocess.TimeoutExpired on
+    deadline (after SIGKILLing the process group) and FileNotFoundError when
+    cmd[0] is absent; `input=` is fed without large-prompt deadlock; stdin is
+    DEVNULL when `input=` is not given.
+    """
+    proc = subprocess.Popen(
+        cmd,
+        stdin=subprocess.PIPE if input is not None else subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        # The child leads its own process group so one killpg reaps the
+        # entire CLI tree (start_new_session ⇒ setsid in the child).
+        start_new_session=True,
+        bufsize=0,
+        close_fds=True,
+        env=env,
+    )
+    try:
+        if input is not None:
+            threading.Thread(
+                target=_pgkill_stdin_writer, args=(proc, input), daemon=True
+            ).start()
+        stdout_b, stderr_b, rc = _pgkill_capture(
+            proc, max_bytes=max_bytes, timeout_s=timeout
+        )
+    except BaseException:
+        # Every post-Popen failure — deadline, injected error, KeyboardInterrupt —
+        # tears down the process group. ProcessLookupError-safe (C6 pattern).
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        try:
+            proc.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            pass
+        raise
+    finally:
+        for stream in (proc.stdout, proc.stderr, proc.stdin):
+            if stream:
+                try:
+                    stream.close()
+                except OSError:
+                    pass
+    return subprocess.CompletedProcess(
+        cmd,
+        rc,
+        stdout_b.decode("utf-8", errors="replace"),
+        stderr_b.decode("utf-8", errors="replace"),
+    )
 
 
 def estimate_tokens(messages: List[Dict[str, Any]]) -> int:
