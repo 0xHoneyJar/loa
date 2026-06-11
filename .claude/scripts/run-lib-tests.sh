@@ -132,7 +132,11 @@ run_smoke_test() {
   smoke_file="${smoke_file}.ts"
   SMOKE_TS_FILE="$smoke_file"
   trap "rm -f '$smoke_file'" RETURN
+  # Audit iter-2: bash does NOT fire EXIT traps on unhandled SIGTERM/SIGINT
+  # (CI cancellation default) — sweep then re-raise with default disposition.
   trap cleanup_vitest EXIT
+  trap 'cleanup_vitest; trap - TERM; kill -TERM $$' TERM
+  trap 'cleanup_vitest; trap - INT; kill -INT $$' INT
 
   local pass=0 fail=0 skip=0
   for barrel in "${barrels[@]}"; do

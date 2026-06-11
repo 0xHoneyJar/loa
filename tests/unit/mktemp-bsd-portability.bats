@@ -180,3 +180,15 @@ EOF
     [ "$status" -eq 2 ]
     [[ "$output" == *"not a directory"* ]]
 }
+
+@test "bug-978: scanner fails loud when grep cannot read the tree (no OK-without-scanning)" {
+    # Audit iter-2 (MEDIUM): grep exit 2 previously collapsed into "clean".
+    local locked_dir="$BATS_TEST_TMPDIR/locked"
+    mkdir -p "$locked_dir/sub"
+    echo '#!/bin/bash' > "$locked_dir/sub/x.sh"
+    chmod 000 "$locked_dir/sub"
+    run "$PROJECT_ROOT/.claude/scripts/tools/check-no-suffixed-mktemp.sh" "$locked_dir"
+    chmod 755 "$locked_dir/sub"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"NOT verified"* ]]
+}

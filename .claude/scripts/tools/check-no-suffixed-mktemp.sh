@@ -53,7 +53,16 @@ pattern='mktemp[^#]*XXX+\.[A-Za-z]|mktemp[[:space:]]+-[pt][[:space:]"]'
 
 # mktemp-bsd-portability.bats plants hazard strings on purpose (the
 # scanner-not-toothless tests) — excluded like the scanner itself.
-hits=$(grep -rnE --include='*.sh' --include='*.bats' "$pattern" -- "${roots[@]}" 2>/dev/null \
+# Audit iter-2 (MEDIUM): grep exit 2 (unreadable file, I/O error) previously
+# collapsed into "clean" via 2>/dev/null + || true — a fence that reports OK
+# without having scanned. rc=1 (no matches) is the only benign non-zero.
+grep_out=$(grep -rnE --include='*.sh' --include='*.bats' "$pattern" -- "${roots[@]}") \
+    && grep_rc=0 || grep_rc=$?
+if [[ $grep_rc -ge 2 ]]; then
+    echo "ERROR: scan failed (grep exit $grep_rc) — tree NOT verified." >&2
+    exit 2
+fi
+hits=$(printf '%s\n' "$grep_out" \
     | grep -v 'check-no-suffixed-mktemp' \
     | grep -v 'mktemp-bsd-portability\.bats' || true)
 
