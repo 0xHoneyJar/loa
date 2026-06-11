@@ -201,6 +201,10 @@ run_vitest() {
 
   VITEST_TMPDIR="$(mktemp -d)"
   trap cleanup_vitest EXIT
+  # Audit iter-3: same EXIT-trap signal gap as the smoke file — sweep
+  # VITEST_TMPDIR on CI cancellation, then re-raise.
+  trap 'cleanup_vitest; trap - TERM; kill -TERM $$' TERM
+  trap 'cleanup_vitest; trap - INT; kill -INT $$' INT
 
   info "Setting up vitest in $VITEST_TMPDIR..."
 
