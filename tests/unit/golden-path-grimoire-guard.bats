@@ -58,3 +58,18 @@ setup() {
         [ "$status" -eq 7 ]
     fi
 }
+
+@test "GPG-T4 bug-980 iter-1: empty PROJECT_ROOT fails at init entry even via the config branch" {
+    run bash -c '
+        cd "$1"
+        source .claude/scripts/path-lib.sh
+        PROJECT_ROOT=""
+        export CONFIG_FILE="$1/.loa.config.yaml"   # exists → config branch
+        _path_lib_initialized=false
+        _init_path_lib 2>&1
+        echo "rc=$?"
+        echo "GRIMOIRE=${LOA_GRIMOIRE_DIR:-UNSET}"
+    ' _ "$PROJECT_ROOT"
+    [[ "$output" == *"PROJECT_ROOT is empty"* ]]
+    [[ "$output" != *"GRIMOIRE=/grimoires"* ]]
+}

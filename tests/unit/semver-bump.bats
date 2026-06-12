@@ -687,3 +687,17 @@ EOF
         [ "$status" -eq 2 ]
     fi
 }
+
+@test "bug-745 iter-1: release tag wins over its own prerelease at the same M.M.P (versionsort precedence)" {
+    skip_if_deps_missing
+    make_commit "initial"
+    make_tag "1.0.0-alpha.1"
+    make_commit "c2"
+    make_tag "1.0.0"
+    make_commit "fix: post-release"
+    run "$TEST_SCRIPT" --from-tag
+    [ "$status" -eq 0 ]
+    # must bump the RELEASE (→1.0.1), not the prerelease (→1.0.0-alpha.2)
+    [ "$(echo "$output" | jq -r '.current')" = "1.0.0" ]
+    [ "$(echo "$output" | jq -r '.next')" = "1.0.1" ]
+}

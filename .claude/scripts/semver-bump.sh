@@ -72,7 +72,15 @@ get_version_from_tag() {
   # covered alpha|beta|rc.N only; pre.N/dev.N/dotted forms and +metadata
   # were silently filtered, skipping tag/CHANGELOG/release downstream.
   local semver_re='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?(\+([0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*))?$'
-  tag=$(git -C "$PROJECT_ROOT" tag -l 'v[0-9]*.[0-9]*.[0-9]*' 'v[0-9]*.[0-9]*.[0-9]*-*' 'v[0-9]*.[0-9]*.[0-9]*+*' \
+  # bug-745 (review iter-1): git's -v:refname does NOT honor SemVer
+  # prerelease precedence by default — `v1.0.0-alpha` sorts AFTER `v1.0.0`,
+  # so a prerelease could be picked ahead of its own stable release.
+  # `-c versionsort.suffix=-` tells git the '-' introduces a prerelease,
+  # restoring §11 precedence (v1.0.0-alpha < v1.0.0) under descending sort.
+  # (Build-metadata '+' tags are equal-precedence per §10; the grep keeps
+  # them eligible and version sort breaks ties deterministically.)
+  tag=$(git -C "$PROJECT_ROOT" -c versionsort.suffix=- \
+    tag -l 'v[0-9]*.[0-9]*.[0-9]*' 'v[0-9]*.[0-9]*.[0-9]*-*' 'v[0-9]*.[0-9]*.[0-9]*+*' \
     --sort=-v:refname 2>/dev/null \
     | grep -E "$semver_re" \
     | head -1)
