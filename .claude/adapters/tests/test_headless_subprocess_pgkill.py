@@ -394,3 +394,101 @@ class TestAdapterTimeoutReapsTree:
             f"{ptype}: grandchild {grandchild} survived the timeout — "
             f"process tree not killed (the #982 orphan bug)"
         )
+
+
+# ---------------------------------------------------------------------------
+# sprint-bug-201 (#1011): three deltas salvaged from PR #983 (@notzerker)
+# ---------------------------------------------------------------------------
+
+
+class TestSalvagedDeltas:
+    def test_lone_surrogate_input_raises_fast_and_reaps_child(self, tmp_path, reaper):
+        # Pre-fix: encode happened inside the daemon writer and
+        # UnicodeEncodeError (a ValueError subclass) was swallowed — stdin
+        # never closed, a stdin-reading CLI waited for EOF, and the call
+        # burned the FULL timeout with a misleading TimeoutExpired.
+        run_subprocess_pgkill = _import_helper()
+        cli = _write_cli(
+            tmp_path, "stdin-cli",
+            'echo $$ > "$PGKILL_TEST_PIDFILE"\nexec cat\n',
+        )
+        pidfile = tmp_path / "child.pid"
+        env = dict(os.environ, PGKILL_TEST_PIDFILE=str(pidfile))
+
+        start = time.monotonic()
+        with pytest.raises(UnicodeEncodeError):
+            run_subprocess_pgkill(
+                [cli], input="x\ud800y", timeout=10, env=env
+            )
+        elapsed = time.monotonic() - start
+
+        assert elapsed < 3.0, (
+            f"took {elapsed:.1f}s — encode error was swallowed in the "
+            f"writer thread and the call burned toward the 10s timeout"
+        )
+        # The teardown usually SIGKILLs the child before bash even writes
+        # the pidfile — an absent pidfile after a short grace IS proof of
+        # prompt reaping. If it did get written, the child must be dead.
+        deadline = time.monotonic() + 1.0
+        while time.monotonic() < deadline and not pidfile.exists():
+            time.sleep(0.05)
+        content = pidfile.read_text().strip() if pidfile.exists() else ""
+        if content:
+            child = int(content)
+            reaper.append(child)
+            assert _wait_dead(child), (
+                f"child {child} survived the encode failure — setup-window "
+                f"teardown must reap on every exit path"
+            )
+
+    def test_killpg_eperm_falls_back_to_proc_kill(self, tmp_path, reaper, monkeypatch):
+        # Pre-fix: PermissionError from os.killpg replaced the in-flight
+        # TimeoutExpired with an exception no adapter branch handles.
+        import loa_cheval.providers.base as base_mod
+
+        run_subprocess_pgkill = _import_helper()
+
+        def _eperm(pgid, sig):
+            raise PermissionError("simulated EPERM (setuid descendant)")
+
+        monkeypatch.setattr(base_mod.os, "killpg", _eperm)
+
+        cli = _write_cli(
+            tmp_path, "hang-cli",
+            'echo $$ > "$PGKILL_TEST_PIDFILE"\nexec sleep 15\n',
+        )
+        pidfile = tmp_path / "child.pid"
+        env = dict(os.environ, PGKILL_TEST_PIDFILE=str(pidfile))
+
+        with pytest.raises(subprocess.TimeoutExpired):
+            run_subprocess_pgkill([cli], timeout=1.0, env=env)
+
+        child = _read_pidfile(pidfile)
+        reaper.append(child)
+        assert _wait_dead(child), (
+            f"child {child} survived — proc.kill() fallback did not fire "
+            f"after the killpg EPERM"
+        )
+
+    def test_timeout_expired_carries_partial_output(self, tmp_path, reaper):
+        # Pre-fix: all TimeoutExpired raises discarded the in-scope buffers;
+        # partial stderr often carries the CLI's throttle/error message.
+        run_subprocess_pgkill = _import_helper()
+        cli = _write_cli(
+            tmp_path, "partial-cli",
+            'echo "partial-stdout-marker"\n'
+            'echo "partial-stderr-marker" >&2\n'
+            'echo $$ > "$PGKILL_TEST_PIDFILE"\n'
+            "exec sleep 15\n",
+        )
+        pidfile = tmp_path / "child.pid"
+        env = dict(os.environ, PGKILL_TEST_PIDFILE=str(pidfile))
+
+        with pytest.raises(subprocess.TimeoutExpired) as exc_info:
+            run_subprocess_pgkill([cli], timeout=1.5, env=env)
+
+        child = _read_pidfile(pidfile)
+        reaper.append(child)
+        assert exc_info.value.output is not None
+        assert b"partial-stdout-marker" in exc_info.value.output
+        assert b"partial-stderr-marker" in exc_info.value.stderr
