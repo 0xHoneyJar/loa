@@ -54,6 +54,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -n "$LINT_ROOT" ]]; then
+  # Audit iter (bug-1002): a full lint run EXECUTES scripts from the lint
+  # target (Invariant 8 runs test-safety-hooks.sh) — running it against an
+  # untrusted checkout would execute attacker-controlled code. --root is
+  # only safe for the read-only wiring check.
+  if [[ "$HOOKS_WIRING_ONLY" != "true" ]]; then
+    echo "--root requires --hooks-wiring-only (full lint executes scripts from the target tree)" >&2
+    exit 2
+  fi
   cd "$LINT_ROOT" || { echo "cannot cd to --root $LINT_ROOT" >&2; exit 2; }
 fi
 

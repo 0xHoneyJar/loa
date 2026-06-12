@@ -58,14 +58,21 @@ fi
 # always empty under real hook execution and every write was allowed.
 TARGET="${CLAUDE_TOOL_FILE_PATH:-${1:-}}"
 if [[ -z "${TARGET}" ]] && [[ ! -t 0 ]]; then
-    _stdin_payload="$(cat 2>/dev/null || true)"
-    if [[ -n "${_stdin_payload}" ]]; then
-        TARGET="$(printf '%s' "${_stdin_payload}" | jq -r '.tool_input.file_path // empty' 2>/dev/null || true)"
-    fi
+    # Audit iter: stream stdin straight into jq (no shell-variable copy of
+    # potentially large Write payloads); notebook_path covers NotebookEdit.
+    TARGET="$(jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' 2>/dev/null || true)"
 fi
 if [[ -z "${TARGET}" ]]; then
     # No path = nothing to guard
     exit 0
+fi
+
+# Audit iter (traversal): canonicalize ./.. components BEFORE zone
+# classification — `tests/../.claude/x` must classify as framework, not
+# unclassified. realpath -m resolves lexically without requiring existence.
+_canon="$(realpath -m --relative-to=. "${TARGET}" 2>/dev/null || true)"
+if [[ -n "${_canon}" && "${_canon}" != ..* ]]; then
+    TARGET="${_canon}"
 fi
 
 # ---- locate zones.yaml ---------------------------------------------------
