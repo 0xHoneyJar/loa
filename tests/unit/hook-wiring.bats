@@ -135,3 +135,14 @@ EOF
     [ "$status" -eq 2 ]
     [[ "$output" == *"BLOCKED"* ]]
 }
+
+@test "W9 bug-1002 audit: writing the live hook wiring (.claude/settings.json) is itself guarded" {
+    # iter-4: an unclassified settings.json let any actor unwire the guards
+    # with a single ALLOWED write. settings.local.json stays user-editable.
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\".claude/settings.json\"}}" | "$0"' \
+        "$PROJECT_ROOT/.claude/hooks/safety/zone-write-guard.sh"
+    [ "$status" -eq 2 ]
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\".claude/settings.local.json\"}}" | "$0"' \
+        "$PROJECT_ROOT/.claude/hooks/safety/zone-write-guard.sh"
+    [ "$status" -eq 0 ]
+}

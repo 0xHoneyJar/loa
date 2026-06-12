@@ -27,6 +27,11 @@ zones:
       - ".claude/skills/**"
       - ".claude/hooks/**"
       - ".claude/protocols/**"
+      # bug-1002 audit iter-4: the LIVE hook wiring is security-sensitive —
+      # an unclassified settings.json let any actor unwire the guards.
+      # settings.local.json stays user-editable (deliberately not tracked).
+      - ".claude/settings.json"
+      - ".claude/checksums.json"
       - ".claude/rules/**"
       - ".claude/commands/**"
       - "tools/**"
