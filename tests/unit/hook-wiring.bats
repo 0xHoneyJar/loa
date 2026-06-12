@@ -126,3 +126,12 @@ EOF
         "$PROJECT_ROOT/.claude/hooks/safety/zone-write-guard.sh"
     [ "$status" -eq 0 ]
 }
+
+@test "W8 bug-1002 audit: submodule physical prefix .loa/.claude/ classifies as framework (BLOCK)" {
+    # In submodule mounts the .claude symlink resolves to .loa/.claude/ —
+    # which matched no zone glob and fell through unclassified->ALLOW.
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\".loa/.claude/scripts/x.sh\"}}" | "$0"' \
+        "$PROJECT_ROOT/.claude/hooks/safety/zone-write-guard.sh"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"BLOCKED"* ]]
+}

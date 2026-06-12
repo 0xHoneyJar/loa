@@ -85,6 +85,14 @@ if [[ -n "${_abs}" ]]; then
         *) TARGET="${_abs}" ;;
     esac
 fi
+# Audit iter-3 (submodule mode): realpath resolves the .claude symlink to
+# its physical home under .loa/.claude/, which matches no zone glob —
+# framework writes fell through unclassified->ALLOW on consumer repos.
+# Map the physical prefix back to the logical zone before classification
+# (covers both symlink-resolved and direct .loa/.claude/ targets).
+case "${TARGET}" in
+    .loa/.claude/*) TARGET=".claude/${TARGET#.loa/.claude/}" ;;
+esac
 ZONES_FILE="${LOA_ZONES_FILE:-${PROJECT_ROOT}/grimoires/loa/zones.yaml}"
 
 if [[ ! -f "${ZONES_FILE}" ]]; then
