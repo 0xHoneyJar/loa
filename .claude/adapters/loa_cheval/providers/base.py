@@ -652,7 +652,13 @@ def _pgkill_capture(
         try:
             proc.wait(timeout=max(0.1, deadline - time.monotonic()))
         except subprocess.TimeoutExpired:
-            raise
+            # #1011 iter-1: wait() raises a FRESH TimeoutExpired without the
+            # captured buffers — re-raise with partial output like the
+            # explicit raise sites.
+            raise subprocess.TimeoutExpired(
+                proc.args, timeout_s,
+                output=bytes(stdout_buf), stderr=bytes(stderr_buf),
+            ) from None
     rc = proc.returncode
     if rc is None:
         raise subprocess.TimeoutExpired(
