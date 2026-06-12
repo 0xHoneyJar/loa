@@ -760,3 +760,56 @@ create_git_local_source() {
     [ -f "$LOA_CONSTRUCTS_DIR/packs/offtol/payload.txt" ]
     [ "$(cat "$LOA_CONSTRUCTS_DIR/packs/offtol/payload.txt")" = "main-content" ]
 }
+
+@test "resync prunes files deleted from origin/main after a prior install (DISS-001)" {
+    skip_if_not_implemented
+    command -v git >/dev/null 2>&1 || skip "git not available"
+
+    export HOME="$TEST_TMPDIR/home"
+    mkdir -p "$HOME"
+
+    local src
+    src=$(create_git_local_source "pruner")
+
+    # First install from local SoT — pack gains payload.txt
+    run bash "$INSTALL_SCRIPT" pack pruner
+    [ "$status" -eq 0 ]
+    [ -f "$LOA_CONSTRUCTS_DIR/packs/pruner/payload.txt" ]
+
+    # Upstream deletes payload.txt on main
+    git -C "$src" checkout -q main
+    git -C "$src" rm -q payload.txt
+    git -C "$src" commit -qm "remove payload"
+    git -C "$src" push -q origin main
+    git -C "$src" checkout -q wip
+
+    run bash "$INSTALL_SCRIPT" resync pruner
+
+    [ "$status" -eq 0 ]
+    # Mirror semantics: the deleted file must be pruned, kept files remain
+    [ ! -f "$LOA_CONSTRUCTS_DIR/packs/pruner/payload.txt" ]
+    [ -f "$LOA_CONSTRUCTS_DIR/packs/pruner/construct.yaml" ]
+}
+
+@test "license file from a prior install survives a local re-sync (DISS-001 guard)" {
+    skip_if_not_implemented
+    command -v git >/dev/null 2>&1 || skip "git not available"
+
+    export HOME="$TEST_TMPDIR/home"
+    mkdir -p "$HOME"
+
+    create_git_local_source "licensed" >/dev/null
+
+    run bash "$INSTALL_SCRIPT" pack licensed
+    [ "$status" -eq 0 ]
+
+    # Simulate registry-era runtime state not tracked in the source repo
+    echo '{"token":"keep-me"}' > "$LOA_CONSTRUCTS_DIR/packs/licensed/.license.json"
+
+    run bash "$INSTALL_SCRIPT" resync licensed
+
+    [ "$status" -eq 0 ]
+    [ -f "$LOA_CONSTRUCTS_DIR/packs/licensed/.license.json" ]
+    [ "$(cat "$LOA_CONSTRUCTS_DIR/packs/licensed/.license.json")" = '{"token":"keep-me"}' ]
+    [ "$(cat "$LOA_CONSTRUCTS_DIR/packs/licensed/payload.txt")" = "main-content" ]
+}

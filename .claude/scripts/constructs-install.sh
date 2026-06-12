@@ -399,17 +399,18 @@ unlink_pack_skills() {
 # (skipped in offline mode; failure tolerated, the existing origin/main ref is
 # used). Non-git sources (or clones without an origin/main ref) fall back to a
 # working-tree copy.
+# Materializes into a STAGING directory supplied by the caller (DISS-001 /
+# BB-002): never writes into the live pack dir, so a failed materialization
+# leaves the prior install untouched, and a successful one can atomically
+# replace it — making the result a true mirror (files deleted upstream are
+# pruned).
 # Args:
-#   $1 - Pack slug
-#   $2 - Local source path
-#   $3 - Packs directory
+#   $1 - Local source path
+#   $2 - Staging directory (must exist, empty)
 # Outputs: resolved origin/main commit to stdout (empty for working-tree copy)
 materialize_pack_from_local() {
-    local pack_slug="$1"
-    local local_source="$2"
-    local packs_dir="$3"
-
-    mkdir -p "$packs_dir/$pack_slug"
+    local local_source="$1"
+    local staging_dir="$2"
 
     if git -C "$local_source" rev-parse --git-dir >/dev/null 2>&1; then
         if [[ "${LOA_OFFLINE:-}" != "1" ]]; then
@@ -417,7 +418,7 @@ materialize_pack_from_local() {
                 echo "  WARN: git fetch failed for $local_source — using existing origin/main ref" >&2
         fi
         if git -C "$local_source" rev-parse --verify --quiet origin/main >/dev/null 2>&1; then
-            if git -C "$local_source" archive origin/main | tar -x -C "$packs_dir/$pack_slug"; then
+            if git -C "$local_source" archive origin/main | tar -x -C "$staging_dir"; then
                 git -C "$local_source" rev-parse origin/main
                 return 0
             fi
@@ -427,7 +428,7 @@ materialize_pack_from_local() {
         fi
     fi
 
-    cp -r "$local_source/." "$packs_dir/$pack_slug/"
+    cp -r "$local_source/." "$staging_dir/"
 }
 
 # Install (or re-sync) a pack from a local source clone: materialize content,
@@ -444,16 +445,40 @@ install_pack_from_local() {
 
     echo "  Installing from local source: $local_source"
 
+    # DISS-001 / BB-002: materialize into a staging dir, then atomically
+    # replace the pack dir — a true mirror (deleted-upstream files pruned),
+    # and a failed materialization leaves the prior install untouched.
+    # Deterministic name (no $$) so a crashed prior run is self-healed here;
+    # hidden so do_resync's glob never treats it as an installed pack.
+    local pack_dir="$packs_dir/$pack_slug"
+    local staging_dir="$packs_dir/.${pack_slug}.staging"
+    rm -rf "$staging_dir"
+    mkdir -p "$staging_dir"
+
     local resolved_commit
-    resolved_commit=$(materialize_pack_from_local "$pack_slug" "$local_source" "$packs_dir") || {
-        print_error "ERROR: Failed to materialize '$pack_slug' from $local_source"
+    if ! resolved_commit=$(materialize_pack_from_local "$local_source" "$staging_dir"); then
+        rm -rf "$staging_dir"
+        print_error "ERROR: Failed to materialize '$pack_slug' from $local_source (prior install untouched)"
         return $EXIT_EXTRACT_ERROR
-    }
+    fi
     if [[ -n "$resolved_commit" ]]; then
         echo "  Mirrored origin/main @ ${resolved_commit:0:12}"
     else
         echo "  Copied working tree (no git origin/main ref at source)"
     fi
+
+    if [[ -d "$pack_dir" ]]; then
+        # Preserve runtime state written by prior (registry) installs
+        if [[ -f "$pack_dir/.license.json" && ! -f "$staging_dir/.license.json" ]]; then
+            cp "$pack_dir/.license.json" "$staging_dir/.license.json"
+        fi
+        # Drop symlinks into the old tree (including commands/skills removed
+        # upstream) before replacing it; relinked from the clean tree below
+        unlink_pack_commands "$pack_slug" >/dev/null 2>&1 || true
+        unlink_pack_skills "$pack_slug" >/dev/null 2>&1 || true
+        rm -rf "$pack_dir"
+    fi
+    mv "$staging_dir" "$pack_dir"
 
     # Update metadata
     local meta_file
@@ -462,12 +487,17 @@ install_pack_from_local() {
     now_ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     init_registry_meta
     local meta_tmp="${meta_file}.tmp.$$"
-    jq --arg slug "$pack_slug" --arg ts "$now_ts" --arg src "$local_source" --arg commit "$resolved_commit" \
+    if ! jq --arg slug "$pack_slug" --arg ts "$now_ts" --arg src "$local_source" --arg commit "$resolved_commit" \
         '.installed_packs[$slug].installed_at = $ts
          | .installed_packs[$slug].source = "local"
          | .installed_packs[$slug].local_source = $src
          | (if $commit != "" then .installed_packs[$slug].commit = $commit else . end)' \
-        "$meta_file" > "$meta_tmp" && mv "$meta_tmp" "$meta_file"
+        "$meta_file" > "$meta_tmp"; then
+        rm -f "$meta_tmp"
+        print_error "ERROR: Failed to update registry meta for '$pack_slug'"
+        return $EXIT_ERROR
+    fi
+    mv "$meta_tmp" "$meta_file"
 
     # Symlink commands
     echo "  Linking commands..."
@@ -527,10 +557,12 @@ do_resync() {
     done
 
     echo ""
-    print_success "Resync complete: $synced synced, $skipped skipped (no local source), $failed failed"
+    # BB-003: banner must agree with the exit code — no green on partial failure
     if [[ $failed -gt 0 ]]; then
+        print_error "Resync partial: $synced synced, $skipped skipped (no local source), $failed failed"
         return $EXIT_ERROR
     fi
+    print_success "Resync complete: $synced synced, $skipped skipped (no local source), $failed failed"
     return $EXIT_SUCCESS
 }
 
