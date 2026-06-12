@@ -633,3 +633,130 @@ EOF
     run check_pack_staleness "missing-pack" 7
     [ "$status" -eq 1 ]
 }
+
+# =============================================================================
+# Local SoT preference & resync (sprint-bug-205, loa-constructs#253)
+# =============================================================================
+
+# Helper: create a git local source clone for a slug under the current $HOME.
+# main branch (pushed to a file-based origin) carries payload.txt=main-content;
+# the clone is then parked on a WIP branch with divergent payload.txt, so tests
+# can distinguish origin/main content from working-tree content.
+create_git_local_source() {
+    local slug="$1"
+    local src="$HOME/Documents/GitHub/construct-$slug"
+    local bare="$TEST_TMPDIR/origins/$slug.git"
+
+    mkdir -p "$HOME/Documents/GitHub" "$TEST_TMPDIR/origins"
+    git init -q "$src"
+    git -C "$src" checkout -q -b main 2>/dev/null || true
+    git -C "$src" config user.email "test@test.invalid"
+    git -C "$src" config user.name "test"
+    echo "name: $slug" > "$src/construct.yaml"
+    echo "main-content" > "$src/payload.txt"
+    git -C "$src" add -A
+    git -C "$src" commit -qm "main content"
+    git init -q --bare "$bare"
+    git -C "$src" remote add origin "$bare"
+    git -C "$src" push -q origin main
+    git -C "$src" fetch -q origin
+    git -C "$src" checkout -q -b wip
+    echo "wip-content" > "$src/payload.txt"
+    git -C "$src" add -A
+    git -C "$src" commit -qm "wip divergence"
+    echo "$src"
+}
+
+@test "installed pack with local source and absent meta installs from local SoT (not registry)" {
+    skip_if_not_implemented
+    command -v git >/dev/null 2>&1 || skip "git not available"
+
+    export HOME="$TEST_TMPDIR/home"
+    mkdir -p "$HOME"
+    export LOA_CONSTRUCTS_API_KEY="test-key"
+    export LOA_REGISTRY_URL="https://127.0.0.1:1"
+
+    create_git_local_source "metaless" >/dev/null
+
+    # Pack already installed (stale copy: payload.txt missing), meta file ABSENT
+    mkdir -p "$LOA_CONSTRUCTS_DIR/packs/metaless"
+    echo 'name: metaless' > "$LOA_CONSTRUCTS_DIR/packs/metaless/construct.yaml"
+    [ ! -f ".claude/constructs/.constructs-meta.json" ]
+
+    source "$INSTALL_SCRIPT"
+    run do_install_pack "metaless"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"Downloading from"* ]]
+    [[ "$output" == *"local source"* ]]
+    [ -f "$LOA_CONSTRUCTS_DIR/packs/metaless/payload.txt" ]
+}
+
+@test "local source parked on WIP branch installs origin/main content, not working tree" {
+    skip_if_not_implemented
+    command -v git >/dev/null 2>&1 || skip "git not available"
+
+    export HOME="$TEST_TMPDIR/home"
+    mkdir -p "$HOME"
+    export LOA_CONSTRUCTS_API_KEY="test-key"
+    export LOA_REGISTRY_URL="https://127.0.0.1:1"
+
+    create_git_local_source "wipper" >/dev/null
+
+    source "$INSTALL_SCRIPT"
+    run do_install_pack "wipper"
+
+    [ "$status" -eq 0 ]
+    [ -f "$LOA_CONSTRUCTS_DIR/packs/wipper/payload.txt" ]
+    [ "$(cat "$LOA_CONSTRUCTS_DIR/packs/wipper/payload.txt")" = "main-content" ]
+}
+
+@test "resync --all re-syncs packs with local sources and skips packs without" {
+    skip_if_not_implemented
+    command -v git >/dev/null 2>&1 || skip "git not available"
+
+    export HOME="$TEST_TMPDIR/home"
+    mkdir -p "$HOME"
+    # Deliberately NO API key: resync is a pure local primitive and must
+    # never require registry authentication.
+
+    create_git_local_source "resync-a" >/dev/null
+
+    # resync-a installed but stale (payload.txt missing); resync-b has no local source
+    mkdir -p "$LOA_CONSTRUCTS_DIR/packs/resync-a"
+    echo 'name: resync-a' > "$LOA_CONSTRUCTS_DIR/packs/resync-a/construct.yaml"
+    mkdir -p "$LOA_CONSTRUCTS_DIR/packs/resync-b"
+    echo 'name: resync-b' > "$LOA_CONSTRUCTS_DIR/packs/resync-b/construct.yaml"
+
+    run bash "$INSTALL_SCRIPT" resync --all
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"Downloading from"* ]]
+    [ -f "$LOA_CONSTRUCTS_DIR/packs/resync-a/payload.txt" ]
+    [ "$(cat "$LOA_CONSTRUCTS_DIR/packs/resync-a/payload.txt")" = "main-content" ]
+    [[ "$output" == *"resync-b"*"no local source"* ]]
+    [[ "$output" == *"1 synced"* ]]
+    [[ "$output" == *"1 skipped"* ]]
+}
+
+@test "fetch failure tolerated: install still mirrors existing origin/main ref" {
+    skip_if_not_implemented
+    command -v git >/dev/null 2>&1 || skip "git not available"
+
+    export HOME="$TEST_TMPDIR/home"
+    mkdir -p "$HOME"
+    export LOA_CONSTRUCTS_API_KEY="test-key"
+    export LOA_REGISTRY_URL="https://127.0.0.1:1"
+
+    local src
+    src=$(create_git_local_source "offtol")
+    # Break the origin remote: fetch will fail, but refs/remotes/origin/main persists
+    git -C "$src" remote set-url origin "$TEST_TMPDIR/nonexistent-origin.git"
+
+    source "$INSTALL_SCRIPT"
+    run do_install_pack "offtol"
+
+    [ "$status" -eq 0 ]
+    [ -f "$LOA_CONSTRUCTS_DIR/packs/offtol/payload.txt" ]
+    [ "$(cat "$LOA_CONSTRUCTS_DIR/packs/offtol/payload.txt")" = "main-content" ]
+}
