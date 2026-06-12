@@ -1637,9 +1637,61 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260611-i978-17e08f/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260611-i978-17e08f/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260612-i1002-bebe8a",
+      "label": "Bug Fix — Framework ships duplicate hook entries + unwired safety/compliance gates",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1002",
+      "created_at": "2026-06-12T03:57:14Z",
+      "sprints": [
+        "sprint-bug-199"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260612-i1002-bebe8a/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260612-i1002-bebe8a/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260612-i1004-850c0b",
+      "label": "Bug Fix — BB skip stamps the reviewed-marker, making bridgebuilder:self-review unreachable without API surgery",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1004",
+      "created_at": "2026-06-12T04:02:41Z",
+      "sprints": [
+        "sprint-bug-200"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260612-i1004-850c0b/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260612-i1004-850c0b/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260612-i1011-50143a",
+      "label": "Bug Fix — port #983 salvage into run_subprocess_pgkill: pre-encode stdin + killpg PermissionError fallback + TimeoutExpired partial output",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1011",
+      "created_at": "2026-06-12T04:05:09Z",
+      "sprints": [
+        "sprint-bug-201"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260612-i1011-50143a/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260612-i1011-50143a/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260612-1fd0bf",
+      "label": "Bug Fix — L7 SOUL.md validator crashes with TypeError on unquoted YAML dates",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": null,
+      "created_at": "2026-06-12T04:10:40Z",
+      "sprints": [
+        "sprint-bug-202"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260612-1fd0bf/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260612-1fd0bf/sprint.md"
     }
   ],
-  "global_sprint_counter": 198,
+  "global_sprint_counter": 202,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",

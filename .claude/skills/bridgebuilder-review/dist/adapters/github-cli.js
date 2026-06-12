@@ -270,13 +270,18 @@ export class GitHubCLIAdapter {
             totalCommits: data.total_commits ?? 0,
         };
     }
-    async hasExistingReview(owner, repo, prNumber, headSha) {
+    async hasExistingReview(owner, repo, prNumber, headSha, markerKind = "review") {
         const reviews = await this.getPRReviews(owner, repo, prNumber);
-        const exact = `<!-- ${this.marker}: ${headSha} -->`;
+        // bug-1004: skip notices carry a distinct `-skip` marker — the genuine
+        // matcher must never treat a skip-stamped sha as reviewed (that made
+        // bridgebuilder:self-review unreachable without API surgery).
+        const name = markerKind === "skip" ? `${this.marker}-skip` : this.marker;
+        const exact = `<!-- ${name}: ${headSha} -->`;
         return reviews.some((r) => r.body.includes(exact));
     }
     async postReview(input) {
-        const marker = `\n\n<!-- ${this.marker}: ${input.headSha} -->`;
+        const name = input.markerKind === "skip" ? `${this.marker}-skip` : this.marker;
+        const marker = `\n\n<!-- ${name}: ${input.headSha} -->`;
         const body = input.body + marker;
         const makeArgs = (event) => [
             "api",

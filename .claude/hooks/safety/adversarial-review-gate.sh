@@ -27,29 +27,47 @@
 # Contract (hook):
 #   stdin  = {tool_name, tool_input: {file_path, ...}}
 #   exit 0 = allow (also emitted for unparseable input or non-Write calls)
-#   exit 1 = block (with message on stderr)
+#   exit 2 = block (with message on stderr) — Claude Code blocks PreToolUse
+#            on exit 2 only; exit 2 is a non-blocking hook error (bug-1002)
 # =============================================================================
 
 # No `set -euo pipefail` — this hook must never fail closed. A jq or yq
 # failure, a missing config file, a malformed path all must allow the write.
+
+# Trust model note (audit, bug-1002 wave): the artifact check accepts any
+# JSON with .metadata.type/.model — FORGEABLE by an actor who can already
+# write the sprint directory. Accepted class: this is a mistake-fence
+# against skipping Phase 2.5, not a security boundary; the writer and the
+# gated agent share a trust domain (same accepted-bypass posture as
+# block-destructive-bash.sh — see hooks-reference.md).
 
 # Opt-out first (cheapest check)
 if [[ "${LOA_ADVERSARIAL_REVIEW_ENFORCE:-true}" == "false" ]]; then
   exit 0
 fi
 
-# Bound stdin read (CWE-770). tool_name/file_path are near the top of the
-# payload; 64 KiB is ample for JSON metadata while avoiding OOM on oversized
-# tool_input.content from large file writes.
-input=$(head -c 65536)
+# Audit iter (bug-1002): the old 64 KiB head-cap truncated large Write
+# payloads MID-JSON, jq failed, and the `|| exit 0` fail-open meant any
+# */COMPLETED write over 64 KiB bypassed the gate. Read the full payload
+# (bounded by the tool-call size) and parse once; on a parse failure,
+# fail CLOSED only when the raw payload visibly targets a COMPLETED
+# marker — everything else stays fail-open (this is a mistake-fence).
+input=$(cat)
 
-# printf instead of echo — `echo` on POSIX-compliant shells interprets
-# backslash sequences, which can mangle paths containing `\n`, `\t`, etc.
-tool_name=$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null) || exit 0
-file_path=$(printf '%s' "$input" | jq -r '.tool_input.file_path // empty' 2>/dev/null) || exit 0
+parsed=$(printf '%s' "$input" | jq -r '[.tool_name // "", .tool_input.file_path // .tool_input.notebook_path // ""] | @tsv' 2>/dev/null) || parsed=""
+if [[ -z "$parsed" ]]; then
+  if printf '%s' "$input" | grep -q '/COMPLETED'; then
+    echo "[adversarial-review-gate] BLOCKED: unparseable hook payload mentioning a COMPLETED marker — refusing fail-open" >&2
+    exit 2
+  fi
+  exit 0
+fi
+tool_name="${parsed%%$'\t'*}"
+file_path="${parsed#*$'\t'}"
 
-# Only gate Write calls to */COMPLETED markers
-[[ "$tool_name" == "Write" ]] || exit 0
+# Gate Write AND Edit calls to */COMPLETED markers (audit: an Edit to an
+# existing marker bypassed the Write-only check).
+case "$tool_name" in Write|Edit|MultiEdit|NotebookEdit) ;; *) exit 0 ;; esac
 [[ "$file_path" == */COMPLETED ]] || exit 0
 
 sprint_dir=$(dirname "$file_path")
@@ -90,7 +108,7 @@ if [[ -z "$config" ]]; then
     echo "  Set LOA_CONFIG_PATH_OVERRIDE or run from a repo with .loa.config.yaml."
     echo "  Emergency override: LOA_ADVERSARIAL_REVIEW_ENFORCE=false (not recommended)"
   } >&2
-  exit 1
+  exit 2
 fi
 
 # yq is a hard dependency for this gate. If it's absent the gate cannot read
@@ -138,7 +156,7 @@ if (( ${#missing[@]} > 0 )); then
     echo ""
     echo "  Emergency override: LOA_ADVERSARIAL_REVIEW_ENFORCE=false (not recommended)"
   } >&2
-  exit 1
+  exit 2
 fi
 
 exit 0

@@ -1,7 +1,7 @@
 {
   "version": "1.0",
-  "generated_at": "2026-06-10T22:52:55Z",
-  "source_hash": "fc456c2219efae29471f0d08eef21e3b8bff180397518ea1fd897e25dd2231d5",
+  "generated_at": "2026-06-12T04:30:56Z",
+  "source_hash": "96c21df34757d43a19d126119ebd58182f6765de51f31b14c22d77b1e4b05201",
   "file_count": 41,
   "files": [
     {
@@ -22,7 +22,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/adapters/github-cli.ts",
-      "sha256": "6b372f4283f3f0f6a0f8f333492052eb4338375beb51629c21461bb0fc3f80c2"
+      "sha256": "1809eedc1418fc7879361ced5d9ef567af0a71f18bedd00addabd2a6bff3d875"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/adapters/index.ts",
@@ -98,7 +98,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/reviewer.ts",
-      "sha256": "545d20c5b2042ca8ee264b2db613ac4bb8e1ff2d71e0cad0e2fbbf5544283f8d"
+      "sha256": "dd8e597a84a9861973cda4c447d778b41b40cffeebe6a2e9bccbb0bcbb9c6494"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/schemas.ts",
@@ -150,7 +150,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/ports/index.ts",
-      "sha256": "f3175c30134915d3fb8156f22f0748e91942d1717db0fba76c04f9a41df46f8d"
+      "sha256": "0bdd07b84a4d78d8e8bddd23e08297f60baf10d6a235e39384cd52f1023dee4f"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/ports/llm-provider.ts",
@@ -166,7 +166,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/ports/review-poster.ts",
-      "sha256": "a7b86b5cbf9cf43b1d500bdfc616a28c14dffbce1b0beabc6ea1c2f7fb577c1a"
+      "sha256": "11d0721c042c671187aab2e7ff4efc08d1df506aaf12eda565f3746a25c0cbc1"
     }
   ]
 }

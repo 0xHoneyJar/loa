@@ -12,7 +12,7 @@ export declare class GitHubCLIAdapter implements IGitProvider, IReviewPoster {
     preflight(): Promise<PreflightResult>;
     preflightRepo(owner: string, repo: string): Promise<RepoPreflightResult>;
     getCommitDiff(owner: string, repo: string, base: string, head: string): Promise<CommitCompareResult>;
-    hasExistingReview(owner: string, repo: string, prNumber: number, headSha: string): Promise<boolean>;
+    hasExistingReview(owner: string, repo: string, prNumber: number, headSha: string, markerKind?: "review" | "skip"): Promise<boolean>;
     postReview(input: PostReviewInput): Promise<boolean>;
     /**
      * Post an issue comment (not a review). Used for multi-model per-model comments

@@ -355,14 +355,23 @@ export class ReviewPipeline {
         });
 
         if (!this.config.dryRun) {
-          await this.poster.postReview({
-            owner,
-            repo,
-            prNumber: pr.number,
-            headSha: pr.headSha,
-            body: "All changes in this PR are Loa framework files. No application code changes to review. Override with `loa_aware: false` to review framework changes.",
-            event: "COMMENT",
-          });
+          // bug-1004: a skip notice is not a review — stamp the distinct
+          // skip marker (sha stays reviewable by a later labeled run) and
+          // dedup repeat skips on that marker so re-runs don't spam.
+          const skipAlreadyPosted = await this.poster.hasExistingReview(
+            owner, repo, pr.number, pr.headSha, "skip",
+          );
+          if (!skipAlreadyPosted) {
+            await this.poster.postReview({
+              owner,
+              repo,
+              prNumber: pr.number,
+              headSha: pr.headSha,
+              body: "All changes in this PR are Loa framework files. No application code changes to review. Override with `loa_aware: false` to review framework changes.",
+              event: "COMMENT",
+              markerKind: "skip",
+            });
+          }
         }
 
         return this.skipResult(item, "all_files_excluded");
@@ -812,11 +821,19 @@ export class ReviewPipeline {
       });
 
       if (!this.config.dryRun) {
-        await this.poster.postReview({
-          owner, repo, prNumber: pr.number, headSha: pr.headSha,
-          body: "All changes in this PR are Loa framework files. No application code changes to review. Override with `loa_aware: false` to review framework changes.",
-          event: "COMMENT",
-        });
+        // bug-1004: distinct skip marker + skip-marker dedup (see the
+        // single-pass site for rationale).
+        const skipAlreadyPosted = await this.poster.hasExistingReview(
+          owner, repo, pr.number, pr.headSha, "skip",
+        );
+        if (!skipAlreadyPosted) {
+          await this.poster.postReview({
+            owner, repo, prNumber: pr.number, headSha: pr.headSha,
+            body: "All changes in this PR are Loa framework files. No application code changes to review. Override with `loa_aware: false` to review framework changes.",
+            event: "COMMENT",
+            markerKind: "skip",
+          });
+        }
       }
 
       return this.skipResult(item, "all_files_excluded");
