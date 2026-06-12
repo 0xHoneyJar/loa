@@ -228,7 +228,7 @@ invoke_mock() {
 
     # Check budget against tokens_used in fixture
     local tokens_used
-    tokens_used=$(jq '.tokens_used // 0' "$output_file" 2>/dev/null || echo 0)
+    tokens_used=$(jq '.tokens_used // 0' "$output_file" 2>/dev/null || echo 0)  # check-no-swallowed-jq: ok (pending #1025 sweep)
     if [[ "$budget" -gt 0 ]] && (( tokens_used > budget )); then
         log "Budget exceeded: fixture reports ${tokens_used} tokens > budget ${budget}"
         return 2
@@ -307,7 +307,7 @@ wrap_live_response() {
         :
     else
         # Try to extract JSON from a fenced code block
-        parsed=$(echo "$content" | sed -n '/```json/,/```/p' | sed '1d;$d' | jq -c . 2>/dev/null || echo "")
+        parsed=$(echo "$content" | sed -n '/```json/,/```/p' | sed '1d;$d' | jq -c . 2>/dev/null || echo "")  # check-no-swallowed-jq: ok (pending #1025 sweep)
     fi
 
     case "$role" in
@@ -439,9 +439,9 @@ invoke_live() {
 
     # Parse model-invoke JSON envelope
     local content tokens_input tokens_output
-    content=$(jq -r '.content // empty' "$response_file" 2>/dev/null || echo "")
-    tokens_input=$(jq -r '.usage.input_tokens // 0' "$response_file" 2>/dev/null || echo 0)
-    tokens_output=$(jq -r '.usage.output_tokens // 0' "$response_file" 2>/dev/null || echo 0)
+    content=$(jq -r '.content // empty' "$response_file" 2>/dev/null || echo "")  # check-no-swallowed-jq: ok (pending #1025 sweep)
+    tokens_input=$(jq -r '.usage.input_tokens // 0' "$response_file" 2>/dev/null || echo 0)  # check-no-swallowed-jq: ok (pending #1025 sweep)
+    tokens_output=$(jq -r '.usage.output_tokens // 0' "$response_file" 2>/dev/null || echo 0)  # check-no-swallowed-jq: ok (pending #1025 sweep)
 
     if [[ -z "$content" ]]; then
         error "model-invoke returned empty content"

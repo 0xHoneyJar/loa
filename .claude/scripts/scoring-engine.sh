@@ -718,11 +718,11 @@ main() {
     # Check for scores/attacks arrays (attack-mode uses .attacks, standard uses .scores)
     local gpt_count opus_count
     if [[ "$attack_mode" == "true" ]]; then
-        gpt_count=$(jq '(.attacks // .scores // []) | length' "$gpt_scores_file" 2>/dev/null || echo "0")
-        opus_count=$(jq '(.attacks // .scores // []) | length' "$opus_scores_file" 2>/dev/null || echo "0")
+        gpt_count=$(jq '(.attacks // .scores // []) | length' "$gpt_scores_file" 2>/dev/null || echo "0")  # check-no-swallowed-jq: ok (pending #1025 sweep)
+        opus_count=$(jq '(.attacks // .scores // []) | length' "$opus_scores_file" 2>/dev/null || echo "0")  # check-no-swallowed-jq: ok (pending #1025 sweep)
     else
-        gpt_count=$(jq '.scores | length' "$gpt_scores_file" 2>/dev/null || echo "0")
-        opus_count=$(jq '.scores | length' "$opus_scores_file" 2>/dev/null || echo "0")
+        gpt_count=$(jq '.scores | length' "$gpt_scores_file" 2>/dev/null || echo "0")  # check-no-swallowed-jq: ok (pending #1025 sweep)
+        opus_count=$(jq '.scores | length' "$opus_scores_file" 2>/dev/null || echo "0")  # check-no-swallowed-jq: ok (pending #1025 sweep)
     fi
 
     if [[ "$gpt_count" == "0" && "$opus_count" == "0" ]]; then

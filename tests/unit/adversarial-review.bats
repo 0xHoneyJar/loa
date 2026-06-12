@@ -628,3 +628,110 @@ EOF
     # Should be 400 (bytes/3), not 300 (bytes/4)
     [[ "$tokens" -eq 400 ]]
 }
+
+# =============================================================================
+# sprint-bug-208 / #1025 — output-swallowing guard (KF-004/KF-015 mechanism)
+#
+# Parse/extract failures on verdict-bearing content must be LOUD (stderr
+# diagnostic + malformed_response / non-zero), never a clean default.
+# Covers the six migrated sites: content-extract, findings-presence,
+# finding-count, hallucination-filter, merge-existing, result-status.
+# =============================================================================
+
+@test "KF-004 guard: extraction failure on valid envelope never aliases to clean-zero (site: finding-count)" {
+    # {"findings": true} passes the STATE-2 presence check ('.findings // empty'
+    # yields "true") but '.findings | length' errors (boolean has no length).
+    # Pre-#1025: '|| echo 0' aliased this to status "clean" — the literal
+    # KF-004 zero-findings mechanism.
+    local raw='{"content": "{\"findings\": true}"}'
+    local err_file="$TEST_DIR/stderr-finding-count.txt"
+    result=$(process_findings "$raw" "review" "gpt-5.3-codex" "sprint-1" "0" "" 2>"$err_file")
+    local status
+    status=$(echo "$result" | jq -r '.metadata.status')
+    [[ "$status" == "malformed_response" ]]
+    grep -q "jq_strict" "$err_file"
+}
+
+@test "KF-004 guard: unparseable adapter response is loud, routes to malformed_response (site: content-extract)" {
+    local err_file="$TEST_DIR/stderr-content-extract.txt"
+    result=$(process_findings "totally not json" "review" "gpt-5.3-codex" "sprint-1" "0" "" 2>"$err_file")
+    local status
+    status=$(echo "$result" | jq -r '.metadata.status')
+    [[ "$status" == "malformed_response" ]]
+    grep -q "jq_strict" "$err_file"
+}
+
+@test "KF-004 guard: prose-only content is loud on the findings-presence path (site: findings-presence)" {
+    # Valid adapter envelope, but content is prose with no JSON object at all:
+    # survives content-extract, fails JSON parse at the findings-presence
+    # check. Destination stays malformed_response; the parse failure must now
+    # be attributable on stderr.
+    local raw='{"content": "I could not produce the requested JSON today."}'
+    local err_file="$TEST_DIR/stderr-findings-presence.txt"
+    result=$(process_findings "$raw" "review" "gpt-5.3-codex" "sprint-1" "0" "" 2>"$err_file")
+    local status
+    status=$(echo "$result" | jq -r '.metadata.status')
+    [[ "$status" == "malformed_response" ]]
+    grep -q "jq_strict" "$err_file"
+}
+
+@test "KF-004 guard: hallucination filter is loud + non-fatal on unparseable result (site: hallucination-filter)" {
+    # Documented contract: 'Non-fatal on all errors: on any failure, returns
+    # input unchanged'. Pre-#1025 the swallow aliased the count to 0 and the
+    # follow-up annotation jq crashed, emitting empty output. Post-fix: input
+    # passes through byte-identical, rc 0, failure attributable on stderr.
+    local diff_file="$TEST_DIR/diff.txt"
+    echo "some diff content" > "$diff_file"
+    local err_file="$TEST_DIR/stderr-hallucination.txt"
+    local out rc=0
+    out=$(_apply_hallucination_filter "not json at all" "$diff_file" 2>"$err_file") || rc=$?
+    [[ "$rc" -eq 0 ]]
+    [[ "$out" == "not json at all" ]]
+    grep -q "jq_strict" "$err_file"
+}
+
+@test "KF-004 guard: merge_findings fails loud on corrupt existing-findings file (site: merge-existing)" {
+    # Pre-#1025: a corrupt existing file silently merged against [] — prior
+    # findings dropped without trace. Post-fix: non-zero exit + diagnostic.
+    local existing_file="$TEST_DIR/corrupt-existing.json"
+    printf 'garbage{{{' > "$existing_file"
+    local dissenter_json='{"findings":[{"id":"DISS-001","severity":"BLOCKING","category":"injection","anchor":"src/a.ts:f","description":"d","failure_mode":"fm"}]}'
+    local err_file="$TEST_DIR/stderr-merge.txt"
+    local rc=0
+    result=$(merge_findings "$dissenter_json" "$existing_file" 2>"$err_file") || rc=$?
+    [[ "$rc" -ne 0 ]]
+    grep -q "jq_strict" "$err_file"
+}
+
+@test "KF-004 guard: merge_findings still treats valid file without .findings as empty (merge-existing, absence != parse failure)" {
+    local existing_file="$TEST_DIR/valid-no-findings.json"
+    printf '{"metadata": {"status": "clean"}}' > "$existing_file"
+    local dissenter_json='{"findings":[{"id":"DISS-001","severity":"BLOCKING","category":"injection","anchor":"src/a.ts:f","description":"d","failure_mode":"fm"}]}'
+    result=$(merge_findings "$dissenter_json" "$existing_file")
+    local count
+    count=$(echo "$result" | jq 'length')
+    [[ "$count" == "1" ]]
+}
+
+@test "KF-004 guard: _extract_result_status maps unparseable result to malformed_response (site: result-status)" {
+    # Pre-#1025: '|| echo unknown' made garbage look like a SUCCESS status
+    # ("unknown" != malformed_response/api_failure), breaking out of the
+    # fallback chain with an unusable result.
+    local err_file="$TEST_DIR/stderr-status.txt"
+    local status_out
+    status_out=$(_extract_result_status "not json" 2>"$err_file")
+    [[ "$status_out" == "malformed_response" ]]
+    grep -q "jq_strict" "$err_file"
+}
+
+@test "_extract_result_status: valid result passes status through (result-status)" {
+    local status_out
+    status_out=$(_extract_result_status '{"metadata":{"status":"reviewed"}}')
+    [[ "$status_out" == "reviewed" ]]
+}
+
+@test "_extract_result_status: valid result with absent status yields unknown (absence != parse failure)" {
+    local status_out
+    status_out=$(_extract_result_status '{"metadata":{}}')
+    [[ "$status_out" == "unknown" ]]
+}

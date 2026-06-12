@@ -393,6 +393,7 @@ The original cycle-102 manifest of this bug — 5 silent rejections during the S
 | Date | What we tried | Outcome | Evidence |
 |------|---------------|---------|----------|
 | 2026-05-09 | File upstream Issue #814 to dump rejected payloads to a sidecar JSONL | OUTSTANDING — fix not yet shipped | [#814](https://github.com/0xHoneyJar/loa/issues/814) |
+| 2026-06-13 | **Structural mitigation of the swallow mechanism** (sprint-bug-208 / [#1025](https://github.com/0xHoneyJar/loa/issues/1025) R11): `jq_strict` helper in compat-lib.sh (fail-loud, no default-on-error), `tools/check-no-swallowed-jq.sh` CI tripwire on gate-critical scripts, and migration of all six `jq … 2>/dev/null \|\| echo` sites in adversarial-review.sh — a finding-count extraction failure now emits `status: malformed_response`, never `finding_count=0` → `status: clean`. The sidecar remains (upstream model id/failure_mode omission is a different layer, still #814-tracked); this removes the parse-failure-as-clean-zero alias that made the sidecar the only channel. Remaining ~270 repo-wide sites + 22 marker-suppressed gate-critical sites are the #1025 follow-up sweep. | STRUCTURAL-MITIGATION-SHIPPED (one layer of the class) | sprint-bug-208 / branch fix/sprint-bug-208-swallowed-jq; tests/unit/compat-lib-jq-strict.bats + tests/integration/check-no-swallowed-jq.bats + adversarial-review.bats KF-004 section |
 
 ### Reading guide
 

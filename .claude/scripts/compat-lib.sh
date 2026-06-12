@@ -41,7 +41,7 @@ if [[ "${_COMPAT_LIB_LOADED:-}" == "true" ]]; then
 fi
 _COMPAT_LIB_LOADED=true
 
-_COMPAT_LIB_VERSION="1.2.0"
+_COMPAT_LIB_VERSION="1.3.0"
 
 # =============================================================================
 # Platform Detection (run once at source time)
@@ -522,10 +522,57 @@ sha256_portable() {
 }
 
 # =============================================================================
+# jq_strict - Fail-loud jq wrapper (sprint-bug-208 / issue #1025)
+# =============================================================================
+#
+# The shape `jq ... 2>/dev/null || echo <default>` converts a jq parse or
+# extraction failure into a clean default with exit 0. On verdict-bearing
+# paths this is the literal mechanism behind KF-004 (zero-findings canonical
+# verdicts masking real findings, recurrence >=20) and KF-015 (silent-clean
+# red-team gate pass) — see grimoires/loa/known-failures.md.
+#
+# jq_strict passes all arguments through to jq unchanged and:
+#   - propagates jq's non-zero exit code (parse error, filter runtime error,
+#     missing file, compile error) instead of substituting a default;
+#   - writes ONE attributable diagnostic line to stderr, tagged with the
+#     optional JQ_STRICT_CTX env var so trajectories can name the call site;
+#   - never suppresses jq's own stderr (parse diagnostics stay visible).
+#
+# Design choice (documented per #1025 triage): jq_strict does NOT add `-e`.
+# It is for VALUE EXTRACTION where pipeline failure must be loud. `-e` exits
+# 1 when the last output is false/null — correct for boolean tests, wrong
+# for extraction of legitimately-falsy values. Callers wanting boolean
+# falsy-exit semantics use plain `jq -e` directly (and own the exit-1 case).
+#
+# "Field legitimately absent inside valid JSON" is NOT a failure: express
+# the default inside the filter (`.foo // "default"`), which succeeds on a
+# clean parse. Only broken input / broken extraction exits non-zero.
+#
+# Arguments: identical to jq (filter, files, flags). Reads stdin when no
+#            file arguments are given, exactly like jq.
+# Environment:
+#   JQ_STRICT_CTX  optional call-site tag included in the stderr diagnostic
+# Exit codes: 0 on success; jq's own non-zero exit code on any failure.
+#
+# Usage:
+#   count=$(echo "$payload" | JQ_STRICT_CTX="myscript:count" jq_strict '.findings | length') || handle_failure
+#   value=$(jq_strict -r '.field // "absent"' "$file") || return 1
+#
+jq_strict() {
+  local _jq_strict_rc=0
+  jq "$@" || _jq_strict_rc=$?
+  if [[ "$_jq_strict_rc" -ne 0 ]]; then
+    echo "ERROR: jq_strict${JQ_STRICT_CTX:+ [${JQ_STRICT_CTX}]}: jq exited ${_jq_strict_rc} — no default substituted; treat as parse/extract failure (KF-004 guard, #1025)" >&2
+    return "$_jq_strict_rc"
+  fi
+  return 0
+}
+
+# =============================================================================
 # Version
 # =============================================================================
 
-_COMPAT_LIB_VERSION="1.2.0"
+_COMPAT_LIB_VERSION="1.3.0"
 
 get_compat_lib_version() {
   echo "$_COMPAT_LIB_VERSION"
