@@ -188,6 +188,14 @@ def _to_serializable(obj):
         # YAML parses `2026-05-08T12:00:00Z` with tzinfo=UTC; isoformat()
         # would emit `+00:00` which the schema regex rejects.
         if obj.tzinfo is not None and obj.utcoffset() == _dt.timedelta(0):
+            if obj.microsecond:
+                # Same honesty line as naive datetimes: the schema admits
+                # seconds-precision Z form only — silently truncating
+                # fractional seconds would rewrite the operator's value.
+                print(
+                    "ERR:fractional-seconds-unsupported: use seconds "
+                    "precision (2026-05-08T12:00:00Z)", file=sys.stderr)
+                sys.exit(2)
             return obj.strftime("%Y-%m-%dT%H:%M:%SZ")
         if obj.tzinfo is None:
             # bug-202 review iter-1: a NAIVE datetime (e.g.

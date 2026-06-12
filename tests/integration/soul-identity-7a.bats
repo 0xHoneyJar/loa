@@ -638,3 +638,13 @@ BODY
     [[ "$status" -ne 0 ]]
     [[ "$output" == *"naive-datetime-ambiguous"* ]] || [[ "$(echo "$output")" == *"naive"* ]]
 }
+
+@test "T-SCHEMA-6e fractional-seconds UTC datetime rejected loud (no silent truncation)" {
+    local path; path="$(_make_soul "frac-datetime.md")"
+    sed -i.bak "s/last_updated: '2026-05-08'/last_updated: 2026-05-08T12:00:00.123456Z/" "$path"
+    rm -f "$path.bak"
+    grep -q "last_updated: 2026-05-08T12:00:00.123456Z" "$path" || return 1
+    run soul_validate "$path" --strict
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"fractional-seconds-unsupported"* ]]
+}

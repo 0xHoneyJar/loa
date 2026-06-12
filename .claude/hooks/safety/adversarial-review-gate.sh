@@ -27,7 +27,8 @@
 # Contract (hook):
 #   stdin  = {tool_name, tool_input: {file_path, ...}}
 #   exit 0 = allow (also emitted for unparseable input or non-Write calls)
-#   exit 1 = block (with message on stderr)
+#   exit 2 = block (with message on stderr) — Claude Code blocks PreToolUse
+#            on exit 2 only; exit 2 is a non-blocking hook error (bug-1002)
 # =============================================================================
 
 # No `set -euo pipefail` — this hook must never fail closed. A jq or yq
@@ -90,7 +91,7 @@ if [[ -z "$config" ]]; then
     echo "  Set LOA_CONFIG_PATH_OVERRIDE or run from a repo with .loa.config.yaml."
     echo "  Emergency override: LOA_ADVERSARIAL_REVIEW_ENFORCE=false (not recommended)"
   } >&2
-  exit 1
+  exit 2
 fi
 
 # yq is a hard dependency for this gate. If it's absent the gate cannot read
@@ -138,7 +139,7 @@ if (( ${#missing[@]} > 0 )); then
     echo ""
     echo "  Emergency override: LOA_ADVERSARIAL_REVIEW_ENFORCE=false (not recommended)"
   } >&2
-  exit 1
+  exit 2
 fi
 
 exit 0
