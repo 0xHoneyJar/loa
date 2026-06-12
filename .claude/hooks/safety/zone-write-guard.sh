@@ -67,18 +67,24 @@ if [[ -z "${TARGET}" ]]; then
     exit 0
 fi
 
-# Audit iter (traversal): canonicalize ./.. components BEFORE zone
-# classification — `tests/../.claude/x` must classify as framework, not
-# unclassified. realpath -m resolves lexically without requiring existence.
-_canon="$(realpath -m --relative-to=. "${TARGET}" 2>/dev/null || true)"
-if [[ -n "${_canon}" && "${_canon}" != ..* ]]; then
-    TARGET="${_canon}"
-fi
-
 # ---- locate zones.yaml ---------------------------------------------------
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+
+# Audit iter-2 (traversal, hardened): canonicalize ./.. lexically and anchor
+# against PROJECT_ROOT — NOT the hook CWD. With a subdirectory CWD,
+# `../.claude/x` canonicalized-relative-to-. kept a ..-prefixed raw string
+# that matched no framework glob (unclassified -> ALLOW bypass). Absolute
+# canon + root-strip classifies it correctly regardless of CWD; absolute
+# paths outside the project stay absolute and match no repo glob.
+_abs="$(realpath -m "${TARGET}" 2>/dev/null || true)"
+if [[ -n "${_abs}" ]]; then
+    case "${_abs}" in
+        "${PROJECT_ROOT}"/*) TARGET="${_abs#"${PROJECT_ROOT}"/}" ;;
+        *) TARGET="${_abs}" ;;
+    esac
+fi
 ZONES_FILE="${LOA_ZONES_FILE:-${PROJECT_ROOT}/grimoires/loa/zones.yaml}"
 
 if [[ ! -f "${ZONES_FILE}" ]]; then
