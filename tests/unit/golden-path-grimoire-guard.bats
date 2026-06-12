@@ -73,3 +73,18 @@ setup() {
     [[ "$output" == *"PROJECT_ROOT is empty"* ]]
     [[ "$output" != *"GRIMOIRE=/grimoires"* ]]
 }
+
+@test "GPG-T5 bug-980 iter-2: empty PROJECT_ROOT fails even in legacy-paths mode" {
+    run bash -c '
+        cd "$1"
+        source .claude/scripts/path-lib.sh
+        PROJECT_ROOT=""
+        export LOA_USE_LEGACY_PATHS=1
+        _path_lib_initialized=false
+        _init_path_lib 2>&1
+        echo "rc=$?"
+        echo "GRIMOIRE=${LOA_GRIMOIRE_DIR:-UNSET}"
+    ' _ "$PROJECT_ROOT"
+    [[ "$output" == *"PROJECT_ROOT is empty"* ]]
+    [[ "$output" != *"GRIMOIRE=/grimoires"* ]]
+}

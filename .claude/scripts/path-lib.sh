@@ -58,7 +58,10 @@ _init_path_lib() {
   # bug-980 (review iter-1): an empty PROJECT_ROOT root-anchors EVERY branch
   # (config read, env inherit, defaults) at "/grimoires/loa" — guard once at
   # the entry, not only in _use_defaults. Legacy mode resolves its own paths.
-  if [[ -z "${PROJECT_ROOT:-}" && "${LOA_USE_LEGACY_PATHS:-}" != "1" ]]; then
+  # Empty PROJECT_ROOT root-anchors at "/" in EVERY branch (config, env
+  # inherit, defaults, AND legacy) — no mode makes that valid, so no
+  # exemption (review iter-2).
+  if [[ -z "${PROJECT_ROOT:-}" ]]; then
     echo "[path-lib] ERROR: PROJECT_ROOT is empty — refusing to anchor state paths at / (set PROJECT_ROOT or run bootstrap.sh)" >&2
     return 1
   fi

@@ -79,6 +79,13 @@ get_version_from_tag() {
   # restoring §11 precedence (v1.0.0-alpha < v1.0.0) under descending sort.
   # (Build-metadata '+' tags are equal-precedence per §10; the grep keeps
   # them eligible and version sort breaks ties deterministically.)
+  # KNOWN LIMIT (review iter-2): git version-sort is NOT a full SemVer §11
+  # comparator — it can misorder two prereleases with arbitrary hyphenated /
+  # dotted identifiers (e.g. alpha.1 vs alpha.beta). Accepted: this picker
+  # selects among the project's own monotonic release tags, and the
+  # CHANGELOG header is the authoritative current-version source
+  # (get_version_from_tag is the fallback). A full bash SemVer comparator is
+  # out of scope; release-vs-prerelease (the real-world failure) is correct.
   tag=$(git -C "$PROJECT_ROOT" -c versionsort.suffix=- \
     tag -l 'v[0-9]*.[0-9]*.[0-9]*' 'v[0-9]*.[0-9]*.[0-9]*-*' 'v[0-9]*.[0-9]*.[0-9]*+*' \
     --sort=-v:refname 2>/dev/null \
