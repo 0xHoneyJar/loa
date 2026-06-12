@@ -321,13 +321,16 @@ check_hooks_wiring() {
     fi
   done < <(jq -r '.hooks.PreToolUse // [] | .[].hooks[].command' "$template" 2>/dev/null | sort -u)
 
-  # (b) on-disk scripts -> wired or parked
-  local script name
+  # (b) on-disk scripts -> wired or parked. Iter-1 ADVISORY closure: match
+  # against actual command entries via jq, not a raw filename grep (a
+  # commented-out mention must not count as wired).
+  local wired_cmds script name
+  wired_cmds=$(jq -r '.hooks // {} | to_entries[] | .value[]? | select(type == "object" and has("hooks")) | .hooks[].command' "$template" 2>/dev/null)
   for script in .claude/hooks/safety/*.sh .claude/hooks/compliance/*.sh; do
     [[ -e "$script" ]] || continue
     name="${script##*/}"
     case " $PARKED_HOOK_SCRIPTS " in *" $name "*) continue ;; esac
-    if ! grep -q "$name" "$template"; then
+    if ! printf '%s\n' "$wired_cmds" | grep -q "/${name}$"; then
       report "ERROR" "hooks-wiring" "hook script neither template-wired nor parked: $name"
       gaps=$((gaps + 1))
     fi
@@ -389,12 +392,17 @@ if [[ "$JSON_OUTPUT" != "true" ]]; then
   echo ""
 fi
 
-if [[ "$HOOKS_WIRING_ONLY" == "true" ]]; then
-  check_hooks_wiring
-  if [[ $ERRORS -gt 0 ]]; then exit 1; fi
-  exit 0
-fi
+check_all_or_wiring_only() {
+  # bug-1002 review iter-1 B2: the wiring-only path must flow through the
+  # SAME output + exit handling as a full run (JSON mode, summary, counts).
+  if [[ "$HOOKS_WIRING_ONLY" == "true" ]]; then
+    check_hooks_wiring
+    return
+  fi
+  check_all_invariants
+}
 
+check_all_invariants() {
 check_system_zone
 check_claude_md
 check_constraints
@@ -405,6 +413,9 @@ check_hooks_json
 check_hooks_wiring
 check_safety_hook_tests
 check_deny_rules_active
+}
+
+check_all_or_wiring_only
 
 # ---------------------------------------------------------------------------
 # Output

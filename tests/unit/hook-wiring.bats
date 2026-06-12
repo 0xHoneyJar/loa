@@ -111,3 +111,17 @@ EOF
     [ -n "$row" ]
     echo "$row" | grep -qiE 'opt-in|unwired|parked'
 }
+
+@test "W7 bug-1002 iter-1: zone-write-guard BLOCKS .claude/ writes via the REAL stdin hook contract" {
+    # Review iter-1 BLOCKING: the guard read CLAUDE_TOOL_FILE_PATH/$1 only —
+    # under real hook execution (payload on stdin) TARGET was empty and every
+    # write was ALLOWED. The wired gate was inert. Pin the stdin contract.
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\".claude/scripts/x.sh\"}}" | "$0"' \
+        "$PROJECT_ROOT/.claude/hooks/safety/zone-write-guard.sh"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"BLOCKED"* ]]
+
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"grimoires/loa/NOTES.md\"}}" | "$0"' \
+        "$PROJECT_ROOT/.claude/hooks/safety/zone-write-guard.sh"
+    [ "$status" -eq 0 ]
+}

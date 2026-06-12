@@ -49,8 +49,18 @@ if [[ "${LOA_ZONE_GUARD_DISABLE:-}" == "1" ]]; then
     exit 0  # framework bootstrap path
 fi
 
-# Resolve target path
+# Resolve target path. Precedence: env (legacy contract) > $1 (bats CLI) >
+# stdin JSON (the ACTUAL Claude Code PreToolUse contract — payload arrives
+# as {"tool_input":{"file_path":...}} on stdin). bug-1002 review iter-1:
+# without the stdin branch, wiring this hook made it INERT — TARGET was
+# always empty under real hook execution and every write was allowed.
 TARGET="${CLAUDE_TOOL_FILE_PATH:-${1:-}}"
+if [[ -z "${TARGET}" ]] && [[ ! -t 0 ]]; then
+    _stdin_payload="$(cat 2>/dev/null || true)"
+    if [[ -n "${_stdin_payload}" ]]; then
+        TARGET="$(printf '%s' "${_stdin_payload}" | jq -r '.tool_input.file_path // empty' 2>/dev/null || true)"
+    fi
+fi
 if [[ -z "${TARGET}" ]]; then
     # No path = nothing to guard
     exit 0
