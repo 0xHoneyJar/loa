@@ -27,10 +27,15 @@ zones:
       - ".claude/skills/**"
       - ".claude/hooks/**"
       - ".claude/protocols/**"
-      # bug-1002 audit iter-4: the LIVE hook wiring is security-sensitive —
-      # an unclassified settings.json let any actor unwire the guards.
-      # settings.local.json stays user-editable (deliberately not tracked).
+      # bug-1002 audit iter-4/5: every settings scope that can carry hook
+      # wiring is guard-tracked — settings.local.json is Local-scope and
+      # OVERRIDES project settings (hook keys included), so an agent write
+      # there was a one-shot hook bypass. The HUMAN still edits these files
+      # freely (hooks only fire on agent tool calls); agents use
+      # LOA_ZONE_GUARD_BYPASS=1 when an operator explicitly directs a change.
+      # NB: tracked here for write-policy, not upstream-management provenance.
       - ".claude/settings.json"
+      - ".claude/settings.local.json"
       - ".claude/checksums.json"
       - ".claude/rules/**"
       - ".claude/commands/**"

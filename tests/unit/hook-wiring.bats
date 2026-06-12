@@ -136,13 +136,15 @@ EOF
     [[ "$output" == *"BLOCKED"* ]]
 }
 
-@test "W9 bug-1002 audit: writing the live hook wiring (.claude/settings.json) is itself guarded" {
-    # iter-4: an unclassified settings.json let any actor unwire the guards
-    # with a single ALLOWED write. settings.local.json stays user-editable.
-    run bash -c 'echo "{\"tool_input\":{\"file_path\":\".claude/settings.json\"}}" | "$0"' \
-        "$PROJECT_ROOT/.claude/hooks/safety/zone-write-guard.sh"
-    [ "$status" -eq 2 ]
-    run bash -c 'echo "{\"tool_input\":{\"file_path\":\".claude/settings.local.json\"}}" | "$0"' \
-        "$PROJECT_ROOT/.claude/hooks/safety/zone-write-guard.sh"
-    [ "$status" -eq 0 ]
+@test "W9 bug-1002 audit: every hook-wiring settings scope is guarded (incl. Local-scope override)" {
+    # iter-4: unclassified settings.json let any actor unwire the guards.
+    # iter-5: settings.local.json is Local-scope and OVERRIDES project
+    # settings (hook keys included) — agent writes there were a one-shot
+    # bypass. Humans edit these outside the harness; agents need
+    # LOA_ZONE_GUARD_BYPASS=1 under explicit operator direction.
+    for f in ".claude/settings.json" ".claude/settings.local.json"; do
+        run bash -c "echo '{\"tool_input\":{\"file_path\":\"$f\"}}' | \"\$0\"" \
+            "$PROJECT_ROOT/.claude/hooks/safety/zone-write-guard.sh"
+        [ "$status" -eq 2 ]
+    done
 }
