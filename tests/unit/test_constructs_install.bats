@@ -813,3 +813,69 @@ create_git_local_source() {
     [ "$(cat "$LOA_CONSTRUCTS_DIR/packs/licensed/.license.json")" = '{"token":"keep-me"}' ]
     [ "$(cat "$LOA_CONSTRUCTS_DIR/packs/licensed/payload.txt")" = "main-content" ]
 }
+
+# =============================================================================
+# Configured-path slug matching (sprint-bug-207, bd-mjd)
+# =============================================================================
+# constructs.local_source_paths entries were checked only for existence +
+# manifest presence, never matched against the requested slug — any slug
+# resolved to the first existing configured dir. Post-#1021 (local-SoT-first
+# with atomic replace), that mis-resolution would mirror the WRONG pack's
+# content over an installed pack.
+
+@test "bd-mjd: configured path for a different pack does not satisfy an unrelated slug" {
+    skip_if_not_implemented
+
+    mkdir -p "$TEST_TMPDIR/sources/construct-gecko"
+    echo 'name: gecko' > "$TEST_TMPDIR/sources/construct-gecko/construct.yaml"
+    cat > "$TEST_TMPDIR/.loa.config.yaml" << EOF
+constructs:
+  local_source_paths:
+    - $TEST_TMPDIR/sources/construct-gecko
+EOF
+
+    source "$PROJECT_ROOT/.claude/scripts/constructs-lib.sh"
+    run find_local_source "kranz"
+
+    # Slug-blind behavior returned the gecko path with rc=0; a non-matching
+    # configured path must be skipped → no source found → return 1.
+    [ "$status" -eq 1 ]
+}
+
+@test "bd-mjd: configured path satisfies its own slug via basename match" {
+    skip_if_not_implemented
+
+    mkdir -p "$TEST_TMPDIR/sources/construct-gecko"
+    echo 'name: gecko' > "$TEST_TMPDIR/sources/construct-gecko/construct.yaml"
+    cat > "$TEST_TMPDIR/.loa.config.yaml" << EOF
+constructs:
+  local_source_paths:
+    - $TEST_TMPDIR/sources/construct-gecko
+EOF
+
+    source "$PROJECT_ROOT/.claude/scripts/constructs-lib.sh"
+    run find_local_source "gecko"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"construct-gecko"* ]]
+}
+
+@test "bd-mjd: configured path with non-slug basename matches via manifest name (case-insensitive)" {
+    skip_if_not_implemented
+
+    # Checkout dir name carries no slug; construct.yaml declares the name in
+    # uppercase (the real construct-fagan manifest declares name: "FAGAN").
+    mkdir -p "$TEST_TMPDIR/sources/my-pack-checkout"
+    echo 'name: "KRANZ"' > "$TEST_TMPDIR/sources/my-pack-checkout/construct.yaml"
+    cat > "$TEST_TMPDIR/.loa.config.yaml" << EOF
+constructs:
+  local_source_paths:
+    - $TEST_TMPDIR/sources/my-pack-checkout
+EOF
+
+    source "$PROJECT_ROOT/.claude/scripts/constructs-lib.sh"
+    run find_local_source "kranz"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"my-pack-checkout"* ]]
+}

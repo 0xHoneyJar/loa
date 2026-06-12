@@ -588,12 +588,47 @@ find_local_source() {
 
     for path in "${search_paths[@]}"; do
         if [[ -d "$path" && ( -f "$path/construct.yaml" || -f "$path/manifest.json" ) ]]; then
-            echo "$path"
-            return 0
+            # bd-mjd: a candidate dir must MATCH the requested slug — without
+            # this, every configured local_source_paths entry satisfied every
+            # slug, and the first existing dir won (post-#1021 that mirrors
+            # the WRONG pack's content over an installed pack). Default paths
+            # embed the slug, so they pass the basename check unchanged.
+            if _local_source_matches_slug "$path" "$slug"; then
+                echo "$path"
+                return 0
+            fi
         fi
     done
 
     return 1
+}
+
+# Does a candidate local-source dir belong to the requested slug? (bd-mjd)
+# Accepts: basename `construct-<slug>` or `<slug>` (case-insensitive), OR a
+# declared name/slug in the dir's construct.yaml (.name) / manifest.json
+# (.slug, falling back to .name) equal to the slug case-insensitively.
+# Args: $1 = candidate dir, $2 = requested slug
+_local_source_matches_slug() {
+    local path="$1"
+    local slug="$2"
+
+    local slug_lc base_lc
+    slug_lc=$(printf '%s' "$slug" | tr '[:upper:]' '[:lower:]')
+    base_lc=$(basename "$path" | tr '[:upper:]' '[:lower:]')
+    if [[ "$base_lc" == "construct-$slug_lc" || "$base_lc" == "$slug_lc" ]]; then
+        return 0
+    fi
+
+    local declared=""
+    if [[ -f "$path/construct.yaml" ]]; then
+        declared=$(yq eval '.name // ""' "$path/construct.yaml" 2>/dev/null) || declared=""
+    fi
+    if [[ -z "$declared" && -f "$path/manifest.json" ]]; then
+        declared=$(jq -r '.slug // .name // ""' "$path/manifest.json" 2>/dev/null) || declared=""
+    fi
+    declared=$(printf '%s' "$declared" | tr '[:upper:]' '[:lower:]')
+
+    [[ -n "$declared" && "$declared" == "$slug_lc" ]]
 }
 
 # Update registry meta file
