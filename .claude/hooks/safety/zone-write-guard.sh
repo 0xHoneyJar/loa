@@ -31,10 +31,12 @@
 #   $CLAUDE_TOOL_FILE_PATH — the path being written
 #   Falls back to $1 when run as a CLI for testing.
 #
-# Exit codes:
+# Exit codes (bug-1002 review iter-2 — Claude Code blocks PreToolUse on
+# exit 2; exit 1 is a NON-blocking hook error, so the old 1=BLOCK contract
+# reported BLOCKED while the write proceeded):
 #   0 = ALLOW
-#   1 = BLOCK (Claude Code: refuses the tool call)
-#   2 = bad config (missing zones.yaml + LOA_REQUIRE_ZONES=1, malformed YAML)
+#   2 = BLOCK (policy violation, or strict-config failure under
+#       LOA_REQUIRE_ZONES=1 — fail-closed)
 #
 # Tested by tests/unit/zone-write-guard.bats (ZWG-T1..T12).
 # =============================================================================
@@ -150,7 +152,7 @@ _block() {
   Reference: grimoires/loa/runbooks/zone-hygiene.md
 EOF
     _emit_decision "BLOCK" "${reason}"
-    exit 1
+    exit 2
 }
 
 _allow() {

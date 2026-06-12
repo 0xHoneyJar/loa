@@ -190,7 +190,15 @@ def _to_serializable(obj):
         if obj.tzinfo is not None and obj.utcoffset() == _dt.timedelta(0):
             return obj.strftime("%Y-%m-%dT%H:%M:%SZ")
         if obj.tzinfo is None:
-            return obj.strftime("%Y-%m-%dT%H:%M:%SZ")
+            # bug-202 review iter-1: a NAIVE datetime (e.g.
+            # `last_updated: 2026-05-08 12:00:00`) has no stated timezone —
+            # silently stamping Z would assert UTC for an ambiguous value
+            # and let schema validation pass misrepresented data. Fail loud
+            # with the fix in the message.
+            print(
+                "ERR:naive-datetime-ambiguous: add a Z suffix "
+                "(2026-05-08T12:00:00Z) or use a bare date", file=sys.stderr)
+            sys.exit(2)
         return obj.isoformat()  # non-UTC offset preserved as ±HH:MM (schema rejects this; surfaces as schema error)
     if isinstance(obj, _dt.date):
         return obj.isoformat()

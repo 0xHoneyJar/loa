@@ -628,3 +628,13 @@ BODY
         [[ "$status" -eq 0 ]] || { echo "outcome=$outcome stdout: $output"; false; }
     done
 }
+
+@test "T-SCHEMA-6d NAIVE unquoted datetime rejected loud (review iter-1: no silent UTC assertion)" {
+    local path; path="$(_make_soul "naive-datetime.md")"
+    sed -i.bak "s/last_updated: '2026-05-08'/last_updated: 2026-05-08 12:00:00/" "$path"
+    rm -f "$path.bak"
+    grep -qE "^last_updated: 2026-05-08 12:00:00$" "$path" || return 1
+    run soul_validate "$path" --strict
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"naive-datetime-ambiguous"* ]] || [[ "$(echo "$output")" == *"naive"* ]]
+}

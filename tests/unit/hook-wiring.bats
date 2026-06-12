@@ -118,7 +118,8 @@ EOF
     # write was ALLOWED. The wired gate was inert. Pin the stdin contract.
     run bash -c 'echo "{\"tool_input\":{\"file_path\":\".claude/scripts/x.sh\"}}" | "$0"' \
         "$PROJECT_ROOT/.claude/hooks/safety/zone-write-guard.sh"
-    [ "$status" -eq 1 ]
+    # iter-2: Claude Code blocks on exit 2 (exit 1 = non-blocking hook error)
+    [ "$status" -eq 2 ]
     [[ "$output" == *"BLOCKED"* ]]
 
     run bash -c 'echo "{\"tool_input\":{\"file_path\":\"grimoires/loa/NOTES.md\"}}" | "$0"' \
