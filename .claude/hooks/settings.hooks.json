@@ -1,7 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "_comment": "Hook configuration for Loa. Merge into ~/.claude/settings.json",
-
   "hooks": {
     "PreCompact": [
       {
@@ -40,7 +39,7 @@
         ]
       },
       {
-        "matcher": "Write",
+        "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
@@ -52,20 +51,16 @@
           },
           {
             "type": "command",
-            "command": ".claude/hooks/safety/adversarial-review-gate.sh"
+            "command": ".claude/hooks/safety/zone-write-guard.sh"
           }
         ]
       },
       {
-        "matcher": "Edit",
+        "matcher": "Write",
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/safety/team-role-guard-write.sh"
-          },
-          {
-            "type": "command",
-            "command": ".claude/hooks/safety/spiral-dispatch-guard.sh"
+            "command": ".claude/hooks/safety/adversarial-review-gate.sh"
           }
         ]
       },
