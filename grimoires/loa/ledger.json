@@ -1689,9 +1689,22 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260612-1fd0bf/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260612-1fd0bf/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260612-i745-731985",
+      "label": "Bug Fix — semver-bump.sh rejects SemVer 2.0 pre-release versions (regex too strict)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/745",
+      "created_at": "2026-06-12T06:31:32Z",
+      "sprints": [
+        "sprint-bug-203"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260612-i745-731985/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260612-i745-731985/sprint.md"
     }
   ],
-  "global_sprint_counter": 202,
+  "global_sprint_counter": 203,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
@@ -1927,5 +1940,5 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 192
+  "next_sprint_number": 204
 }

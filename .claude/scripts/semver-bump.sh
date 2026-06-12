@@ -66,9 +66,15 @@ get_version_from_tag() {
   # `tag -l` accepts multiple patterns; combine release + prerelease shapes,
   # then filter by precise regex (the glob is permissive — matches strings
   # like "v1.2.3-foo" too).
-  tag=$(git -C "$PROJECT_ROOT" tag -l 'v[0-9]*.[0-9]*.[0-9]*' 'v[0-9]*.[0-9]*.[0-9]*-*' \
+  # bug-745 residual (sprint-bug-203): full SemVer 2.0 §9/§10 — the official
+  # grammar (pre-release: dot-separated alphanumeric/hyphen identifiers, no
+  # leading-zero numerics, none empty; build metadata after '+'). PR #785
+  # covered alpha|beta|rc.N only; pre.N/dev.N/dotted forms and +metadata
+  # were silently filtered, skipping tag/CHANGELOG/release downstream.
+  local semver_re='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?(\+([0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*))?$'
+  tag=$(git -C "$PROJECT_ROOT" tag -l 'v[0-9]*.[0-9]*.[0-9]*' 'v[0-9]*.[0-9]*.[0-9]*-*' 'v[0-9]*.[0-9]*.[0-9]*+*' \
     --sort=-v:refname 2>/dev/null \
-    | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$' \
+    | grep -E "$semver_re" \
     | head -1)
   if [[ -n "$tag" ]]; then
     echo "${tag#v}"
@@ -105,16 +111,38 @@ get_version_from_changelog() {
 # Validate version format (M-05) — accept either release or prerelease.
 bump_version() {
   local current="$1" bump="$2"
-  local prerelease_re='^([0-9]+)\.([0-9]+)\.([0-9]+)-(alpha|beta|rc)\.([0-9]+)$'
+  # bug-745: SemVer §10 — build metadata denotes a build of a version; the
+  # NEXT version never inherits it. Strip before bumping (validated below
+  # via the identifier grammar on what remains).
+  local meta_re='^([^+]+)\+([0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)$'
+  if [[ "$current" =~ $meta_re ]]; then
+    current="${BASH_REMATCH[1]}"
+  fi
+  # Full SemVer §9 pre-release grammar (PR #785 covered alpha|beta|rc.N only)
+  local pre_id='(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)'
+  local prerelease_re="^([0-9]+)\.([0-9]+)\.([0-9]+)-(${pre_id}(\.${pre_id})*)\$"
   local release_re='^([0-9]+)\.([0-9]+)\.([0-9]+)$'
 
   if [[ "$current" =~ $prerelease_re ]]; then
     local major="${BASH_REMATCH[1]}"
     local minor="${BASH_REMATCH[2]}"
     local patch="${BASH_REMATCH[3]}"
-    local pre_kind="${BASH_REMATCH[4]}"
-    local pre_num="${BASH_REMATCH[5]}"
-    echo "${major}.${minor}.${patch}-${pre_kind}.$((pre_num + 1))"
+    local pre="${BASH_REMATCH[4]}"
+    # #785 policy preserved: any commit during a pre-release advances the
+    # pre-release counter. Trailing numeric identifier increments; a
+    # non-numeric tail gains a .1 (deterministic, precedence-increasing
+    # per §11: alpha.beta < alpha.beta.1).
+    local pre_head="${pre%.*}" pre_tail="${pre##*.}"
+    if [[ "$pre" != *.* ]]; then pre_head=""; fi
+    if [[ "$pre_tail" =~ ^(0|[1-9][0-9]*)$ ]]; then
+      if [[ -n "$pre_head" ]]; then
+        echo "${major}.${minor}.${patch}-${pre_head}.$((pre_tail + 1))"
+      else
+        echo "${major}.${minor}.${patch}-$((pre_tail + 1))"
+      fi
+    else
+      echo "${major}.${minor}.${patch}-${pre}.1"
+    fi
     return 0
   fi
 
