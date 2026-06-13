@@ -33,7 +33,7 @@ advisor_strategy:
     implementation: advisor
   tier_aliases:
     advisor:
-      anthropic: claude-opus-4-7
+      anthropic: claude-opus-4-8
       openai: gpt-5.5-pro
       google: gemini-3.1-pro-preview
     executor:
@@ -94,6 +94,22 @@ hounfour:
       daily_micro_usd: 500000000 # $500/day default
       warn_at_percent: 80
       on_exceeded: downgrade # block | downgrade | warn
+  # 2026-06-13 (operator: "the model should be 4.8") — fix the broken anthropic
+  # multi-model voice. The System Zone default pins claude-headless.cli_model:
+  # fable, but Claude Fable 5 is unavailable on this subscription (mythos-access)
+  # → `claude --model fable` exit 1 → EVERY claude-headless consumer (BB panel,
+  # council claude voice, chain-walk fallbacks) chain-exhausts. This pin is the
+  # SINGLE SOURCE of the headless model. Override it to `opus` = the latest Opus
+  # (4.8) that this Claude Code subscription actually runs. `opus` (CLI alias)
+  # over a literal `claude-opus-4-8` deliberately — a hard version pin is exactly
+  # what staled fable + claude-opus-4-7 into chain-exhaustion. Deep-merged over
+  # .claude/defaults/model-config.yaml. REVERT = delete this block (restores fable).
+  providers:
+    anthropic:
+      models:
+        claude-headless:
+          extra:
+            cli_model: opus
 # BUTTERFREEZONE — Cross-Repo Agent Legibility (cycle-017)
 butterfreezone:
   ecosystem:
@@ -225,7 +241,7 @@ run_bridge:
       # #789b deferred to cycle-101 follow-up: invoke-time probe gate for preview-tier models.
       models:
         - provider: anthropic
-          model_id: claude-opus-4-7
+          model_id: claude-opus-4-8
           role: primary
         - provider: openai
           model_id: gpt-5.5-pro
@@ -379,7 +395,7 @@ red_team:
     # + google), so red team now invokes all 3 like Bridgebuilder + Flatline.
     # See grimoires/loa/known-failures.md (post KF-001 resolution context).
     evaluator_multi_model: true
-    evaluator_primary: claude-opus-4-7   # anthropic
+    evaluator_primary: claude-opus-4-8   # anthropic
     evaluator_secondary: gpt-5.5-pro     # openai
     evaluator_tertiary: gemini-3.1-pro   # google
   defaults:
