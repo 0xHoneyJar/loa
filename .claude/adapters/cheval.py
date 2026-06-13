@@ -108,8 +108,9 @@ EXIT_CODES = {
     "CHAIN_EXHAUSTED": 12,
     # cycle-109 Sprint 4 T4.5 — chunked review couldn't fit input in
     # chunks_max chunks AND truncation was forbidden. Mapped from
-    # loa_cheval.chunking.chunker.ChunkingExceeded per SDD §6.1.
-    "CHUNKING_EXCEEDED": 13,
+    # 13 was CHUNKING_EXCEEDED (loa_cheval.chunking.chunker.ChunkingExceeded,
+    # SDD §6.1) — RETIRED with the chunking package (#937 / sprint-bug-211).
+    # Reserved (do not reuse) so exit-code numbering never shifts for consumers.
 }
 
 
@@ -479,19 +480,20 @@ def _lookup_capability(
 def _preflight_check(
     estimated_input: int,
     capability: Optional[Capability],
-    chunking_enabled: bool,
 ) -> Optional[PreflightDecision]:
     """Pre-flight gate decision logic (SDD §1.4.2 / §1.5.2).
 
     Returns:
       - None when no gate fires (passthrough to chain walk).
-      - PreflightDecision with action='preempt' when ceiling exceeded AND
-        chunking not selected — caller emits exit 7 immediately.
-      - PreflightDecision with action='chunk' when ceiling exceeded AND
-        chunking selected — caller routes through chunking primitive
-        (Sprint 4 surface). Sprint 1 callers fall back to preempt because
-        the chunking primitive is not yet wired; the decision shape is
-        forward-compatible.
+      - PreflightDecision with action='preempt' when ceiling exceeded —
+        caller emits exit 7 (CONTEXT_TOO_LARGE) immediately.
+
+    The 'chunk' action and the loa_cheval.chunking dispatch path were removed
+    in #937 / sprint-bug-211: the chunk branch was permanently unreachable
+    (no production caller set effective_input_ceiling) and fail-closed by
+    design. Oversized input now always preempts. The KF-002 oversized-input
+    layer is closed by the streaming-transport default + 200K/180K walk gate,
+    not by chunking.
 
     Gate disabled when:
       - capability is None (unknown model — defer to legacy path), OR
@@ -506,15 +508,13 @@ def _preflight_check(
         return None
     if estimated_input <= ceiling:
         return None
-    action = "chunk" if chunking_enabled else "preempt"
-    exit_code = 0 if chunking_enabled else EXIT_CODES["CONTEXT_TOO_LARGE"]
     reason = (
         f"estimated {estimated_input} input tokens > "
         f"{ceiling} effective_input_ceiling"
     )
     return PreflightDecision(
-        action=action,
-        exit_code=exit_code,
+        action="preempt",
+        exit_code=EXIT_CODES["CONTEXT_TOO_LARGE"],
         estimated_input=estimated_input,
         effective_input_ceiling=ceiling,
         ceiling_stale=capability.ceiling_stale,
@@ -1484,17 +1484,12 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     recommended_for=list(_RECOMMENDED_FOR_ALLOW_ALL),
                     ceiling_stale=False,
                 )
-        # cycle-109 Sprint 4 T4.5: chunking is enabled by default; the
-        # pre-flight gate now routes oversized inputs to the chunked
-        # dispatch path via loa_cheval.chunking instead of preempting
-        # with CONTEXT_TOO_LARGE. Operators can disable via env var.
-        _preflight_chunking_enabled = os.environ.get(
-            "LOA_CHEVAL_DISABLE_CHUNKING", "0",
-        ) != "1"
+        # #937 / sprint-bug-211: the chunked-dispatch path was removed (dead +
+        # fail-closed). The pre-flight gate now always preempts oversized input
+        # with CONTEXT_TOO_LARGE (exit 7).
         _preflight_decision = _preflight_check(
             estimated_input=_preflight_estimated,
             capability=_preflight_synthetic_capability,
-            chunking_enabled=_preflight_chunking_enabled,
         )
         # Record the capability_evaluation snapshot regardless of decision
         # so the audit chain captures the gate's full state at invocation
@@ -1503,8 +1498,6 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         if _preflight_synthetic_capability is not None:
             if _preflight_decision is None:
                 _decision_str = "dispatch"
-            elif _preflight_decision.action == "chunk":
-                _decision_str = "chunk"
             else:
                 _decision_str = "preempt"
             _modelinv_state["capability_evaluation"] = {
@@ -1550,256 +1543,11 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             ), file=sys.stderr)
             return EXIT_CODES["CONTEXT_TOO_LARGE"]
 
-        # cycle-109 Sprint 4 T4.5: chunked dispatch path. When the
-        # pre-flight gate decided "chunk" (input > ceiling × 0.7 AND
-        # chunking enabled), partition the input via the chunking
-        # package, dispatch each chunk through cheval recursively,
-        # aggregate findings via IMP-006, and emit the aggregated
-        # result. ChunkingExceeded → exit code 13 (T4.5 closure).
-        if _preflight_decision is not None and _preflight_decision.action == "chunk":
-            from loa_cheval.chunking.chunker import (
-                chunk_pr_for_review, ChunkingExceeded,
-            )
-            from loa_cheval.chunking.aggregate import aggregate_findings
-
-            # PR #896 BB iter-4 closure: hoist the chunked MODELINV +
-            # verdict_quality + sidecar emit helper ABOVE the chunker
-            # try/except so BOTH success and ChunkingExceeded paths route
-            # through the same audit envelope. iter-3 left ChunkingExceeded
-            # emitting MODELINV without verdict_quality; this closes it.
-            def _emit_chunked_audit_envelope(last_walk_exit_code: int = 0) -> None:
-                _vq_chunked: Optional[Dict[str, Any]] = None
-                try:
-                    _vq_chunked = _vq_build_envelope(
-                        models_requested=_modelinv_models_requested,
-                        models_succeeded=_modelinv_state["models_succeeded"],
-                        models_failed=_modelinv_state["models_failed"],
-                        final_model_id=_modelinv_state["final_model_id"],
-                        role=getattr(args, "role", None),
-                        sprint_kind=getattr(args, "sprint_kind", None),
-                        last_walk_exit_code=last_walk_exit_code,
-                    )
-                except Exception as _vq_err:  # noqa: BLE001
-                    print(
-                        f"[VQ-BUILD-FAILED:chunked] {type(_vq_err).__name__}: {_vq_err}",
-                        file=sys.stderr,
-                    )
-                if _vq_chunked is not None:
-                    try:
-                        _vq_write_sidecar(_vq_chunked)
-                    except Exception as _sc_err:  # noqa: BLE001
-                        print(
-                            f"[VQ-SIDECAR-FAILED:chunked] {type(_sc_err).__name__}: {_sc_err}",
-                            file=sys.stderr,
-                        )
-                try:
-                    _emit_modelinv(
-                        models_requested=_modelinv_models_requested,
-                        models_succeeded=_modelinv_state["models_succeeded"],
-                        models_failed=_modelinv_state["models_failed"],
-                        operator_visible_warn=_modelinv_state["operator_visible_warn"],
-                        capability_class=_modelinv_capability_class,
-                        # Cycle-112 D-6 (#931): propagate caller identity for
-                        # /loa status --economy attribution. Prefer explicit
-                        # --skill; fall back to --agent so every existing
-                        # invocation site lands attribution without bash-side
-                        # changes (see cycle-112 SDD §0.3 R-1 finding).
-                        calling_primitive=(getattr(args, "skill", None) or agent_name),
-                        invocation_latency_ms=_modelinv_state["invocation_latency_ms"],
-                        cost_micro_usd=_modelinv_state["cost_micro_usd"],
-                        # Cycle-112 D-7 (#948): post-flight token counts
-                        # captured from CompletionResult.usage above.
-                        # None preserved when chain exhausted before any
-                        # entry returned a usage envelope.
-                        tokens_input=_modelinv_state.get("tokens_input"),
-                        tokens_output=_modelinv_state.get("tokens_output"),
-                        streaming=_modelinv_state["streaming"],
-                        final_model_id=_modelinv_state["final_model_id"],
-                        transport=_modelinv_state["transport"],
-                        config_observed=_modelinv_state["config_observed"],
-                        pricing_snapshot=_modelinv_state["pricing_snapshot"],
-                        capability_evaluation=_modelinv_state["capability_evaluation"],
-                        chunked_review=_modelinv_state.get("chunked_review"),
-                        # cycle-113 sprint-170 T3.3 (FR-C-1, I-3): propagate
-                        # streaming_recovery on chunked-path too.
-                        streaming_recovery=_modelinv_state.get("streaming_recovery"),
-                        verdict_quality=_vq_chunked,
-                    )
-                except Exception as _emit_err:  # noqa: BLE001
-                    print(
-                        f"[AUDIT-EMIT-FAILED:chunked] {type(_emit_err).__name__}: {_emit_err}",
-                        file=sys.stderr,
-                    )
-
-            try:
-                _chunks = chunk_pr_for_review(
-                    input_text=input_text,
-                    effective_input_ceiling=_preflight_decision.effective_input_ceiling,
-                    shared_header="",  # T4.8 may populate from PR description
-                )
-            except ChunkingExceeded as _ce:
-                print(
-                    f"[preflight] chunked-dispatch refused: {_ce}",
-                    file=sys.stderr,
-                )
-                print(_error_json(
-                    "CHUNKING_EXCEEDED",
-                    str(_ce),
-                    retryable=False,
-                    **_ce.context,
-                ), file=sys.stderr)
-                _modelinv_state["models_failed"].append({
-                    "model": _preflight_head.canonical,
-                    "provider": _preflight_head.provider,
-                    "error_class": "DEGRADED_PARTIAL",
-                    "message_redacted": f"ChunkingExceeded: {_ce.context}",
-                })
-                _modelinv_state["final_model_id"] = _preflight_head.canonical
-                _modelinv_state["transport"] = _preflight_head.adapter_kind
-                _modelinv_state["operator_visible_warn"] = True
-                _modelinv_state.setdefault("chunked_review", {})
-                _modelinv_state["chunked_review"].update({
-                    "chunked": True,
-                    "dispatch_mode": "chunks_exceeded_max",
-                    "chunks_planned": _ce.context.get("required_chunks", -1)
-                    if hasattr(_ce, "context") else -1,
-                    "chunks_reviewed": 0,
-                })
-                # PR #896 BB iter-4 FIND-3 closure: ChunkingExceeded early-
-                # return now routes through the SAME audit-envelope helper
-                # used by the fail-closed + placeholder paths, so a
-                # verdict_quality envelope + sidecar land alongside MODELINV.
-                # exit code 13 (CHUNKING_EXCEEDED) is the verdict; VQ
-                # surfaces the drop-reason for downstream consumers.
-                _emit_chunked_audit_envelope(
-                    last_walk_exit_code=EXIT_CODES["CHUNKING_EXCEEDED"],
-                )
-                return EXIT_CODES["CHUNKING_EXCEEDED"]
-
-            # PR #896 BB iter-4 closure: chunked-branch emit consolidated to
-            # the hoisted `_emit_chunked_audit_envelope` helper defined above
-            # so ChunkingExceeded AND fail-closed AND placeholder paths share
-            # the same audit shape (MODELINV + verdict_quality + sidecar).
-
-            # PR #896 BB iter-1 F001/FIND-001 closure: per-chunk recursive
-            # cheval dispatch (production wiring) is cycle-110 scope. Until
-            # that lands, the chunked-dispatch branch is FAIL-CLOSED — it
-            # MUST NOT return SUCCESS + empty findings, because doing so
-            # is the exact NFR-Rel-1 anti-pattern this cycle was built to
-            # eliminate (a "smoke detector that says all clear because its
-            # battery is dead").
-            #
-            # Operators who genuinely need to bypass chunking can set
-            # LOA_CHEVAL_DISABLE_CHUNKING=1, which routes via the normal
-            # single-call path (and surfaces a clean ContextTooLarge if
-            # that exceeds the ceiling). Operators who genuinely need to
-            # ship a placeholder-success can set
-            # LOA_CHEVAL_CHUNKING_PLACEHOLDER=1 — explicitly opt-in to the
-            # degraded-success path with a stderr WARN + envelope marker.
-            # Default is fail-closed.
-            print(
-                f"[preflight] chunked dispatch: chunks={len(_chunks)} "
-                f"ceiling={_preflight_decision.effective_input_ceiling} "
-                f"estimated={_preflight_decision.estimated_input}",
-                file=sys.stderr,
-            )
-            # PR #896 BB iter-5 F001 closure: placeholder mode requires
-            # BOTH the env var AND the --force-chunking-placeholder CLI
-            # flag (dual-gate). The previous single-env-var gate let any
-            # caller flip into the NFR-Rel-1 anti-pattern by setting a
-            # well-known variable; the CLI flag forces the caller to ATTEST
-            # at every invocation. Caller-attested + env var = explicit
-            # opt-in trail visible to both audit envelope (envvar) and
-            # invocation log (argv).
-            _placeholder_env = os.environ.get(
-                "LOA_CHEVAL_CHUNKING_PLACEHOLDER", ""
-            ).strip().lower() in ("1", "true", "yes", "on")
-            _placeholder_flag = bool(getattr(args, "force_chunking_placeholder", False))
-            _placeholder_opt_in = _placeholder_env and _placeholder_flag
-            if _placeholder_env and not _placeholder_flag:
-                print(
-                    "[preflight] LOA_CHEVAL_CHUNKING_PLACEHOLDER=1 set but "
-                    "--force-chunking-placeholder CLI flag NOT supplied — "
-                    "iter-5 dual-gate refuses placeholder mode without "
-                    "argv attestation.",
-                    file=sys.stderr,
-                )
-
-            # Either way, record chunk count + dispatch metadata in
-            # MODELINV so substrate-health rollups (T4.7) see the
-            # invocation (BB iter-1 F002 closure: the chunked path
-            # MUST NOT be invisible to the audit envelope).
-            _modelinv_state["final_model_id"] = _preflight_head.canonical
-            _modelinv_state["transport"] = _preflight_head.adapter_kind
-            _modelinv_state.setdefault("chunked_review", {})
-            _modelinv_state["chunked_review"].update({
-                "chunked": True,
-                "chunks_planned": len(_chunks),
-                "chunks_reviewed": 0,
-                "dispatch_mode": (
-                    "placeholder_opt_in" if _placeholder_opt_in
-                    else "fail_closed_pending_cycle_110"
-                ),
-            })
-
-            if not _placeholder_opt_in:
-                # Fail-closed: surface DEGRADED + non-zero exit. Caller
-                # observes the same shape as any other chain-exhausted /
-                # provider-failure path so audit envelopes downstream
-                # don't see "APPROVED + zero findings" by accident.
-                _modelinv_state["models_failed"].append({
-                    "model": _preflight_head.canonical,
-                    "provider": _preflight_head.provider,
-                    "error_class": "DEGRADED_PARTIAL",
-                    "message_redacted": (
-                        f"chunked-dispatch fail-closed pending cycle-110 "
-                        f"production wiring; chunks_planned={len(_chunks)}, "
-                        f"estimated_input={_preflight_decision.estimated_input}"
-                    ),
-                })
-                _modelinv_state["operator_visible_warn"] = True
-                print(_error_json(
-                    "CHUNKED_DISPATCH_FAIL_CLOSED",
-                    (
-                        f"chunked-dispatch path is fail-closed pending cycle-110 "
-                        f"production wiring (BB iter-1 F001). "
-                        f"chunks_planned={len(_chunks)}. "
-                        "Set LOA_CHEVAL_CHUNKING_PLACEHOLDER=1 to opt into "
-                        "the legacy placeholder-success path (NOT recommended)."
-                    ),
-                    retryable=False,
-                ), file=sys.stderr)
-                _emit_chunked_audit_envelope()
-                # Same exit code as ChainExhausted — caller treats this
-                # as a chain-walk failure for audit-trail consistency.
-                return EXIT_CODES["CHAIN_EXHAUSTED"]
-
-            # Placeholder opt-in path (legacy behavior; emits
-            # operator_visible_warn for explicit traceability).
-            print(
-                "[preflight] WARNING: LOA_CHEVAL_CHUNKING_PLACEHOLDER=1 — "
-                "emitting empty findings; this bypasses NFR-Rel-1 gate.",
-                file=sys.stderr,
-            )
-            _aggregated = aggregate_findings([])
-            _modelinv_state["models_succeeded"] = [_preflight_head.canonical]
-            _modelinv_state["operator_visible_warn"] = True
-            output = {
-                "content": "{\"findings\": []}",
-                "model": _preflight_head.canonical,
-                "provider": _preflight_head.provider,
-                "usage": {"input_tokens": _preflight_decision.estimated_input,
-                          "output_tokens": 0},
-                "latency_ms": 0,
-                "chunked": True,
-                "chunks_reviewed": _aggregated.chunks_reviewed,
-                "chunks_with_findings": _aggregated.chunks_with_findings,
-                "second_stage_invoked": _aggregated.second_stage_invoked,
-                "placeholder_opt_in": True,
-            }
-            print(json.dumps(output), file=sys.stdout)
-            _emit_chunked_audit_envelope()
-            return EXIT_CODES["SUCCESS"]
+        # #937 / sprint-bug-211: the chunked-dispatch branch (action=="chunk")
+        # was removed here — it was permanently unreachable (no production
+        # caller set effective_input_ceiling) and fail-closed by design. The
+        # only MODELINV emit is now the finally-block below (single site;
+        # moots #1016). Oversized input preempts above with exit 7.
 
         # ceiling_stale informational warning (Sprint 4 wires chunked-defensive
         # routing). For Sprint 1 we surface a stderr marker so operators see
@@ -2557,17 +2305,6 @@ def main() -> int:
 
     # Utility commands
     parser.add_argument("--dry-run", action="store_true", dest="dry_run", help="Validate and print resolved model, don't call API")
-    parser.add_argument(
-        "--force-chunking-placeholder", action="store_true",
-        dest="force_chunking_placeholder",
-        help=(
-            "PR #896 BB iter-5 F001 closure — opt into the chunked-dispatch "
-            "PLACEHOLDER path that returns SUCCESS + empty findings. This is "
-            "the documented NFR-Rel-1 anti-pattern escape hatch; ONLY accept "
-            "for fixture-replay and operator-attested debugging. Requires "
-            "LOA_CHEVAL_CHUNKING_PLACEHOLDER=1 ALSO set (dual-gate)."
-        ),
-    )
     parser.add_argument("--print-effective-config", action="store_true", dest="print_config", help="Print merged config with source annotations")
     parser.add_argument("--validate-bindings", action="store_true", dest="validate_bindings", help="Validate all agent bindings")
 

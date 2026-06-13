@@ -214,7 +214,7 @@
       ]
     },
     "capability_evaluation": {
-      "description": "cycle-109 Sprint 1 T1.4 (SDD §3.3.1). Snapshot of the capability-aware substrate pre-flight gate decision for THIS invocation. Optional/additive — legacy emitters and unmigrated callers omit the field; v1.3 emitters populate when the pre-flight gate ran (whether it preempted, dispatched, or routed through chunking). preflight_decision enum: 'dispatch' = passthrough to chain walk; 'preempt' = exit 7 ContextTooLarge emitted before adapter dispatch; 'chunk' = routed through Sprint 4 chunking primitive. effective_input_ceiling MAY be null when the head chain entry's model-config is still v2-shape (gate disabled but evaluation ran). recommended_for echoes the v3 capability surface verbatim (allow-all default `[review, audit, implementation, dissent, arbiter]` per SKP-004 v5 closure).",
+      "description": "cycle-109 Sprint 1 T1.4 (SDD §3.3.1). Snapshot of the capability-aware substrate pre-flight gate decision for THIS invocation. Optional/additive — legacy emitters and unmigrated callers omit the field; v1.3 emitters populate when the pre-flight gate ran (whether it preempted, dispatched, or routed through chunking). preflight_decision enum: 'dispatch' = passthrough to chain walk; 'preempt' = exit 7 ContextTooLarge emitted before adapter dispatch; 'chunk' = (RETIRED #937/sprint-bug-211 — the loa_cheval.chunking dispatch path was deleted as dead+fail-closed; the enum value is RETAINED so historical envelopes still validate, but no current emitter produces it; oversized input now always preempts). effective_input_ceiling MAY be null when the head chain entry's model-config is still v2-shape (gate disabled but evaluation ran). recommended_for echoes the v3 capability surface verbatim (allow-all default `[review, audit, implementation, dissent, arbiter]` per SKP-004 v5 closure).",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -308,7 +308,7 @@
       }
     },
     "chunked_review": {
-      "description": "cycle-109 Sprint 4 T4.7 (SDD §3.3.1 v1.3 additive + §5.4). Snapshot of the chunked-review dispatch state when the pre-flight gate routed input through the chunking package (loa_cheval.chunking). Absent when chunking was not invoked. Operator-facing PR-comment header (T4.8) renders this distinctly from the overall verdict so chunk-count + per-chunk degradation is visible.",
+      "description": "cycle-109 Sprint 4 T4.7 (SDD §3.3.1 v1.3 additive + §5.4). RETIRED #937/sprint-bug-211 — the loa_cheval.chunking package was deleted (dead + fail-closed). This field + its sub-properties are RETAINED so historical envelopes still validate; no current emitter populates it. Previously: snapshot of the chunked-review dispatch state when the pre-flight gate routed input through the chunking package. Operator-facing PR-comment header (T4.8) renders this distinctly from the overall verdict so chunk-count + per-chunk degradation is visible.",
       "type": "object",
       "additionalProperties": false,
       "required": ["chunked"],

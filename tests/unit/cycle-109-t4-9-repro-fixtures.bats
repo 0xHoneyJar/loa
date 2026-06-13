@@ -39,12 +39,14 @@ setup() {
 # =============================================================================
 
 @test "RP3: #866 fixture asserts should_chunk = true" {
+    skip "chunking package deleted (#937 / sprint-bug-211) — should_chunk / chunked-routing concept retired; oversized input now always preempts"
     local should
     should=$(jq -r '.should_chunk' "$FIXTURE_DIR/issue-866-large-doc-empty-content.json")
     [ "$should" = "true" ]
 }
 
 @test "RP4: #823 fixture asserts should_chunk = true" {
+    skip "chunking package deleted (#937 / sprint-bug-211) — should_chunk / chunked-routing concept retired; oversized input now always preempts"
     local should
     should=$(jq -r '.should_chunk' "$FIXTURE_DIR/issue-823-empty-content-40k.json")
     [ "$should" = "true" ]
@@ -72,6 +74,7 @@ setup() {
 # =============================================================================
 
 @test "RP6: each fixture's input would route through chunking per pre-flight" {
+    skip "chunking package deleted (#937 / sprint-bug-211) — should_chunk / chunked-routing concept retired; oversized input now always preempts"
     for f in "$FIXTURE_DIR/issue-866-large-doc-empty-content.json" \
              "$FIXTURE_DIR/issue-823-empty-content-40k.json"; do
         local est_input ceiling
@@ -92,6 +95,7 @@ setup() {
 # =============================================================================
 
 @test "RP7: loa_cheval.chunking package importable (post-Sprint-4 substrate present)" {
+    skip "chunking package deleted (#937 / sprint-bug-211) — should_chunk / chunked-routing concept retired; oversized input now always preempts"
     if [[ -x "$PROJECT_ROOT/.venv/bin/python" ]]; then
         PYTHON_BIN="$PROJECT_ROOT/.venv/bin/python"
     else
@@ -108,6 +112,10 @@ setup() {
 # RP-8: Exit code 13 wired in cheval (post-T4.5)
 # =============================================================================
 
-@test "RP8: cheval.py declares CHUNKING_EXCEEDED = 13 exit code" {
-    grep -q '"CHUNKING_EXCEEDED": 13' "$PROJECT_ROOT/.claude/adapters/cheval.py"
+@test "RP8: cheval.py reserves (does NOT reuse) retired exit code 13" {
+    # CHUNKING_EXCEEDED=13 was retired with the chunking package (#937 /
+    # sprint-bug-211). Pin that 13 is documented retired+reserved and NOT
+    # reassigned to a different exit code.
+    grep -q '13 was CHUNKING_EXCEEDED' "$PROJECT_ROOT/.claude/adapters/cheval.py"
+    ! grep -qE '"[A-Z_]+": 13' "$PROJECT_ROOT/.claude/adapters/cheval.py"
 }
