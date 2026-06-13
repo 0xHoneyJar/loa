@@ -531,7 +531,7 @@
         ]
       },
       {
-        "matcher": "Write",
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
         "hooks": [
           {
             "type": "command",
@@ -540,19 +540,19 @@
           {
             "type": "command",
             "command": ".claude/hooks/safety/spiral-dispatch-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/safety/zone-write-guard.sh"
           }
         ]
       },
       {
-        "matcher": "Edit",
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/safety/team-role-guard-write.sh"
-          },
-          {
-            "type": "command",
-            "command": ".claude/hooks/safety/spiral-dispatch-guard.sh"
+            "command": ".claude/hooks/safety/adversarial-review-gate.sh"
           }
         ]
       },

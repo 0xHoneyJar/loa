@@ -26,8 +26,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/bootstrap.sh"
 source "${SCRIPT_DIR}/compat-lib.sh"
 
-# Resolve paths using path-lib getters
-_GP_GRIMOIRE_DIR=$(get_grimoire_dir)
+# Resolve paths using path-lib getters.
+# bug-980: errexit is disabled when this file is sourced from a suppressed
+# context (the normal skill-invocation shape), so a failing substitution
+# does NOT abort — guard explicitly and return (sourced) or exit loud.
+_GP_GRIMOIRE_DIR=$(get_grimoire_dir) || _GP_GRIMOIRE_DIR=""
+if [[ -z "${_GP_GRIMOIRE_DIR}" ]]; then
+  echo "[golden-path] ERROR: grimoire dir unresolved (path-lib init failed) — refusing phase detection against root-anchored paths" >&2
+  return 1 2>/dev/null || exit 1
+fi
 _GP_PRD_FILE="${_GP_GRIMOIRE_DIR}/prd.md"
 _GP_SDD_FILE="${_GP_GRIMOIRE_DIR}/sdd.md"
 _GP_SPRINT_FILE="${_GP_GRIMOIRE_DIR}/sprint.md"

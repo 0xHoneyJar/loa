@@ -51,7 +51,7 @@ teardown() {
     CLAUDE_TOOL_FILE_PATH=".claude/loa/CLAUDE.loa.md" \
     LOA_ACTOR="project-work" \
     run "$HOOK"
-    [ "$status" -eq 1 ]
+    [ "$status" -eq 2 ]
     [[ "$output" == *"BLOCKED"* ]]
     [[ "$output" == *"framework-zone"* ]]
 }
@@ -67,7 +67,7 @@ teardown() {
     CLAUDE_TOOL_FILE_PATH="grimoires/loa/cycles/cycle-X/sprint.md" \
     LOA_ACTOR="update-loa" \
     run "$HOOK"
-    [ "$status" -eq 1 ]
+    [ "$status" -eq 2 ]
     [[ "$output" == *"BLOCKED"* ]]
     [[ "$output" == *"update-loa MUST NOT"* ]]
 }
@@ -142,7 +142,7 @@ teardown() {
     CLAUDE_TOOL_FILE_PATH=".claude/scripts/beads/beads-health.sh" \
     LOA_ACTOR="project-work" \
     run "$HOOK"
-    [ "$status" -eq 1 ]
+    [ "$status" -eq 2 ]
     [[ "$output" == *"BLOCKED"* ]]
 }
 
@@ -150,7 +150,7 @@ teardown() {
     CLAUDE_TOOL_FILE_PATH="grimoires/loa/NOTES.md" \
     LOA_ACTOR="update-loa" \
     run "$HOOK"
-    [ "$status" -eq 1 ]
+    [ "$status" -eq 2 ]
 }
 
 # ---- ZWG-T12 trajectory logging (best-effort, soft check) --------------
@@ -166,7 +166,7 @@ teardown() {
     CLAUDE_TOOL_FILE_PATH=".claude/loa/CLAUDE.loa.md" \
     LOA_ACTOR="project-work" \
     run "$HOOK"
-    [ "$status" -eq 1 ]
+    [ "$status" -eq 2 ]
 }
 
 # ---- ZWG-T13 absolute path normalization --------------------------------
@@ -175,6 +175,6 @@ teardown() {
     CLAUDE_TOOL_FILE_PATH="${PROJECT_ROOT}/.claude/loa/CLAUDE.loa.md" \
     LOA_ACTOR="project-work" \
     run "$HOOK"
-    [ "$status" -eq 1 ]
+    [ "$status" -eq 2 ]
     [[ "$output" == *"BLOCKED"* ]]
 }

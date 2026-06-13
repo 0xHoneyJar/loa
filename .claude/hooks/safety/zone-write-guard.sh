@@ -31,10 +31,12 @@
 #   $CLAUDE_TOOL_FILE_PATH — the path being written
 #   Falls back to $1 when run as a CLI for testing.
 #
-# Exit codes:
+# Exit codes (bug-1002 review iter-2 — Claude Code blocks PreToolUse on
+# exit 2; exit 1 is a NON-blocking hook error, so the old 1=BLOCK contract
+# reported BLOCKED while the write proceeded):
 #   0 = ALLOW
-#   1 = BLOCK (Claude Code: refuses the tool call)
-#   2 = bad config (missing zones.yaml + LOA_REQUIRE_ZONES=1, malformed YAML)
+#   2 = BLOCK (policy violation, or strict-config failure under
+#       LOA_REQUIRE_ZONES=1 — fail-closed)
 #
 # Tested by tests/unit/zone-write-guard.bats (ZWG-T1..T12).
 # =============================================================================
@@ -49,8 +51,17 @@ if [[ "${LOA_ZONE_GUARD_DISABLE:-}" == "1" ]]; then
     exit 0  # framework bootstrap path
 fi
 
-# Resolve target path
+# Resolve target path. Precedence: env (legacy contract) > $1 (bats CLI) >
+# stdin JSON (the ACTUAL Claude Code PreToolUse contract — payload arrives
+# as {"tool_input":{"file_path":...}} on stdin). bug-1002 review iter-1:
+# without the stdin branch, wiring this hook made it INERT — TARGET was
+# always empty under real hook execution and every write was allowed.
 TARGET="${CLAUDE_TOOL_FILE_PATH:-${1:-}}"
+if [[ -z "${TARGET}" ]] && [[ ! -t 0 ]]; then
+    # Audit iter: stream stdin straight into jq (no shell-variable copy of
+    # potentially large Write payloads); notebook_path covers NotebookEdit.
+    TARGET="$(jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' 2>/dev/null || true)"
+fi
 if [[ -z "${TARGET}" ]]; then
     # No path = nothing to guard
     exit 0
@@ -60,6 +71,28 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+
+# Audit iter-2 (traversal, hardened): canonicalize ./.. lexically and anchor
+# against PROJECT_ROOT — NOT the hook CWD. With a subdirectory CWD,
+# `../.claude/x` canonicalized-relative-to-. kept a ..-prefixed raw string
+# that matched no framework glob (unclassified -> ALLOW bypass). Absolute
+# canon + root-strip classifies it correctly regardless of CWD; absolute
+# paths outside the project stay absolute and match no repo glob.
+_abs="$(realpath -m "${TARGET}" 2>/dev/null || true)"
+if [[ -n "${_abs}" ]]; then
+    case "${_abs}" in
+        "${PROJECT_ROOT}"/*) TARGET="${_abs#"${PROJECT_ROOT}"/}" ;;
+        *) TARGET="${_abs}" ;;
+    esac
+fi
+# Audit iter-3 (submodule mode): realpath resolves the .claude symlink to
+# its physical home under .loa/.claude/, which matches no zone glob —
+# framework writes fell through unclassified->ALLOW on consumer repos.
+# Map the physical prefix back to the logical zone before classification
+# (covers both symlink-resolved and direct .loa/.claude/ targets).
+case "${TARGET}" in
+    .loa/.claude/*) TARGET=".claude/${TARGET#.loa/.claude/}" ;;
+esac
 ZONES_FILE="${LOA_ZONES_FILE:-${PROJECT_ROOT}/grimoires/loa/zones.yaml}"
 
 if [[ ! -f "${ZONES_FILE}" ]]; then
@@ -140,7 +173,7 @@ _block() {
   Reference: grimoires/loa/runbooks/zone-hygiene.md
 EOF
     _emit_decision "BLOCK" "${reason}"
-    exit 1
+    exit 2
 }
 
 _allow() {

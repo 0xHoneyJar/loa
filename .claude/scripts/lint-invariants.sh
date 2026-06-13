@@ -26,21 +26,44 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 JSON_OUTPUT=false
 AUTO_FIX=false
+LINT_ROOT=""
+HOOKS_WIRING_ONLY=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --json) JSON_OUTPUT=true; shift ;;
     --fix) AUTO_FIX=true; shift ;;
+    --root)
+      # bug-1002: scan an alternate project root (tests use synthetic trees)
+      [[ $# -ge 2 ]] || { echo "--root requires a value" >&2; exit 2; }
+      LINT_ROOT="$2"; shift 2 ;;
+    --hooks-wiring-only)
+      # bug-1002: run only Invariant 7b (template<->live wiring parity)
+      HOOKS_WIRING_ONLY=true; shift ;;
     -h|--help)
-      echo "Usage: lint-invariants.sh [--json] [--fix]"
+      echo "Usage: lint-invariants.sh [--json] [--fix] [--root DIR] [--hooks-wiring-only]"
       echo ""
-      echo "  --json  Output results as JSON"
-      echo "  --fix   Auto-fix where possible"
+      echo "  --json               Output results as JSON"
+      echo "  --fix                Auto-fix where possible"
+      echo "  --root DIR           Lint DIR instead of the current project"
+      echo "  --hooks-wiring-only  Run only the hook wiring-parity invariant"
       exit 0
       ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
+
+if [[ -n "$LINT_ROOT" ]]; then
+  # Audit iter (bug-1002): a full lint run EXECUTES scripts from the lint
+  # target (Invariant 8 runs test-safety-hooks.sh) — running it against an
+  # untrusted checkout would execute attacker-controlled code. --root is
+  # only safe for the read-only wiring check.
+  if [[ "$HOOKS_WIRING_ONLY" != "true" ]]; then
+    echo "--root requires --hooks-wiring-only (full lint executes scripts from the target tree)" >&2
+    exit 2
+  fi
+  cd "$LINT_ROOT" || { echo "cannot cd to --root $LINT_ROOT" >&2; exit 2; }
+fi
 
 # ---------------------------------------------------------------------------
 # Counters
@@ -272,6 +295,61 @@ check_hooks_json() {
 }
 
 # ---------------------------------------------------------------------------
+# Invariant 7b: hook wiring parity (bug-1002 / #1002)
+# ---------------------------------------------------------------------------
+# Three documented gates were inert because the TEMPLATE
+# (.claude/hooks/settings.hooks.json) and LIVE (.claude/settings.json) files
+# drifted, and nothing checked that hook scripts on disk are actually wired.
+# Two parity rules:
+#   (a) every PreToolUse command in the template must appear in live
+#   (b) every .claude/hooks/{safety,compliance}/*.sh must be wired in the
+#       template OR explicitly parked below
+# Parked = deliberately opt-in, never auto-wired.
+PARKED_HOOK_SCRIPTS="implement-gate.sh"
+
+check_hooks_wiring() {
+  local template=".claude/hooks/settings.hooks.json"
+  local live=".claude/settings.json"
+
+  if [[ ! -f "$template" || ! -f "$live" ]]; then
+    report "WARN" "hooks-wiring" "template or live settings missing — parity not checkable"
+    return
+  fi
+
+  local gaps=0
+
+  # (a) template -> live parity
+  local cmd
+  while IFS= read -r cmd; do
+    if ! jq -e --arg c "$cmd" \
+        '[.hooks.PreToolUse // [] | .[].hooks[].command] | index($c)' \
+        "$live" >/dev/null 2>&1; then
+      report "ERROR" "hooks-wiring" "template-wired but absent from live settings.json: ${cmd##*/}"
+      gaps=$((gaps + 1))
+    fi
+  done < <(jq -r '.hooks.PreToolUse // [] | .[].hooks[].command' "$template" 2>/dev/null | sort -u)
+
+  # (b) on-disk scripts -> wired or parked. Iter-1 ADVISORY closure: match
+  # against actual command entries via jq, not a raw filename grep (a
+  # commented-out mention must not count as wired).
+  local wired_cmds script name
+  wired_cmds=$(jq -r '.hooks // {} | to_entries[] | .value[]? | select(type == "object" and has("hooks")) | .hooks[].command' "$template" 2>/dev/null)
+  for script in .claude/hooks/safety/*.sh .claude/hooks/compliance/*.sh; do
+    [[ -e "$script" ]] || continue
+    name="${script##*/}"
+    case " $PARKED_HOOK_SCRIPTS " in *" $name "*) continue ;; esac
+    if ! printf '%s\n' "$wired_cmds" | grep -q "/${name}$"; then
+      report "ERROR" "hooks-wiring" "hook script neither template-wired nor parked: $name"
+      gaps=$((gaps + 1))
+    fi
+  done
+
+  if [[ $gaps -eq 0 ]]; then
+    report "PASS" "hooks-wiring" "template<->live parity holds; all hook scripts wired or parked"
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # Invariant 8: Safety hook tests pass
 # ---------------------------------------------------------------------------
 check_safety_hook_tests() {
@@ -322,6 +400,17 @@ if [[ "$JSON_OUTPUT" != "true" ]]; then
   echo ""
 fi
 
+check_all_or_wiring_only() {
+  # bug-1002 review iter-1 B2: the wiring-only path must flow through the
+  # SAME output + exit handling as a full run (JSON mode, summary, counts).
+  if [[ "$HOOKS_WIRING_ONLY" == "true" ]]; then
+    check_hooks_wiring
+    return
+  fi
+  check_all_invariants
+}
+
+check_all_invariants() {
 check_system_zone
 check_claude_md
 check_constraints
@@ -329,8 +418,12 @@ check_constraint_blocks
 check_required_files
 check_hook_executables
 check_hooks_json
+check_hooks_wiring
 check_safety_hook_tests
 check_deny_rules_active
+}
+
+check_all_or_wiring_only
 
 # ---------------------------------------------------------------------------
 # Output

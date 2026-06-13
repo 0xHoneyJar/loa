@@ -23,7 +23,7 @@ set -euo pipefail
 #
 # Redact known secret patterns from stdin.
 # Expanded patterns: sk-*, ghp_*, gho_*, ghs_*, ghr_*, Bearer, Authorization,
-# AKIA* (AWS), eyJ* (JWT).
+# AWS key IDs (AKIA/ASIA/AROA/AGPA/AIPA/ANPA/ANVA), eyJ* (JWT).
 
 redact_secrets() {
   # Pattern coverage:
@@ -32,9 +32,11 @@ redact_secrets() {
   #   gho_*    — GitHub OAuth tokens
   #   ghs_*    — GitHub App installation tokens
   #   ghr_*    — GitHub Refresh tokens
-  #   Bearer   — OAuth/JWT Bearer tokens in headers
+  #   Bearer   — OAuth/JWT Bearer tokens in headers (incl. base64 '=' padding)
   #   Authorization — Full Authorization header values
-  #   AKIA*    — AWS IAM access key IDs
+  #   AKIA* &c — AWS key IDs: access (AKIA), session (ASIA), role (AROA),
+  #              group (AGPA), instance-profile (AIPA), managed-policy (ANPA),
+  #              policy-version (ANVA) — #1009
   #   eyJ*     — JWT/JWS tokens (base64-encoded JSON header starting with {"...)
   #
   # Pattern Maintenance: When new model providers are added to the Hounfour
@@ -45,9 +47,9 @@ redact_secrets() {
     -e 's/gho_[A-Za-z0-9]{36}/gho_***REDACTED***/g' \
     -e 's/ghs_[A-Za-z0-9]{36}/ghs_***REDACTED***/g' \
     -e 's/ghr_[A-Za-z0-9]{36}/ghr_***REDACTED***/g' \
-    -e 's/(Bearer )[A-Za-z0-9._-]+/\1***REDACTED***/g' \
+    -e 's/(Bearer )[A-Za-z0-9=._-]+/\1***REDACTED***/g' \
     -e 's/(Authorization: )[A-Za-z0-9._: -]+/\1***REDACTED***/g' \
-    -e 's/AKIA[A-Z0-9]{16}/AKIA***REDACTED***/g' \
+    -e 's/(AKIA|ASIA|AROA|AGPA|AIPA|ANPA|ANVA)[A-Z0-9]{16}/\1***REDACTED***/g' \
     -e 's/eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*/eyJ***REDACTED***/g'
 }
 

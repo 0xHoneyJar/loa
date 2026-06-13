@@ -892,7 +892,7 @@ registry:
   check_updates_on_setup: true
 ```
 
-See [CLI-INSTALLATION.md](grimoires/loa/context/CLI-INSTALLATION.md) for the full setup guide.
+See [CLI-INSTALLATION.md](https://github.com/0xHoneyJar/loa-constructs/blob/main/docs/CLI-INSTALLATION.md) for the full setup guide.
 
 ## Frictionless Permissions
 

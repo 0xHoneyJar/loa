@@ -583,3 +583,45 @@ def test_aggregate_with_model_filter_excludes_co_requested_models(tmp_path):
     result_all = aggregate_substrate_health(log, now=now)
     assert result_all["per_model"]["anthropic:claude-opus-4-7"]["attempts"] == 1
     assert result_all["per_model"]["anthropic:claude-opus-4-6"]["attempts"] == 1
+
+
+# ---------------------------------------------------------------------------
+# R12 (refactor review 2026-06-12): the window filter read `timestamp`/`ts`
+# but the audit writer emits ONLY `ts_utc` (audit_envelope.py:349; real
+# on-disk envelopes carry no `timestamp` key), so `since` never excluded
+# anything — every "24h" health report was silently all-time. economy.py
+# already had the correct ts_utc-first lookup; health.py drifted.
+# ---------------------------------------------------------------------------
+
+def _make_modelinv_envelope_ts_utc(ts_utc, model="opus", outcome="success", first_try=True):
+    """Production-shape envelope: ts_utc only (matches audit_envelope.py)."""
+    return {
+        "event_type": "model_invoke_complete",
+        "ts_utc": ts_utc,
+        "payload": {"model": model, "outcome": outcome, "first_try_success": first_try},
+    }
+
+
+def test_window_filter_excludes_old_ts_utc_only_envelopes(tmp_path):
+    from datetime import datetime, timezone, timedelta
+    import json as _json
+    from loa_cheval.health import aggregate_substrate_health
+
+    log = tmp_path / "model-invoke.jsonl"
+    now = datetime(2026, 6, 12, 12, 0, 0, tzinfo=timezone.utc)
+    old = (now - timedelta(hours=48)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    recent = (now - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    with log.open("w") as f:
+        f.write(_json.dumps(_make_modelinv_envelope_ts_utc(old)) + "\n")
+        f.write(_json.dumps(_make_modelinv_envelope_ts_utc(recent)) + "\n")
+
+    result = aggregate_substrate_health(log, window="24h", now=now)
+    # Only the 1-hour-old envelope is inside the 24h window; the 48h-old one
+    # MUST be excluded. Pre-fix, both counted (the reader looked up
+    # `timestamp`/`ts`, which production envelopes never carry → None → no
+    # filter). The existing window test passes only because ITS fixture uses
+    # the wrong `timestamp` key, feeding the buggy reader the key it reads.
+    assert result["total_invocations"] == 1, (
+        f"window filter counted {result['total_invocations']} — old ts_utc-only "
+        f"envelope was not excluded (the silent all-time-aggregation bug)"
+    )

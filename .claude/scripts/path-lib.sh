@@ -55,6 +55,17 @@ _init_path_lib() {
     return 0
   fi
 
+  # bug-980 (review iter-1): an empty PROJECT_ROOT root-anchors EVERY branch
+  # (config read, env inherit, defaults) at "/grimoires/loa" — guard once at
+  # the entry, not only in _use_defaults. Legacy mode resolves its own paths.
+  # Empty PROJECT_ROOT root-anchors at "/" in EVERY branch (config, env
+  # inherit, defaults, AND legacy) — no mode makes that valid, so no
+  # exemption (review iter-2).
+  if [[ -z "${PROJECT_ROOT:-}" ]]; then
+    echo "[path-lib] ERROR: PROJECT_ROOT is empty — refusing to anchor state paths at / (set PROJECT_ROOT or run bootstrap.sh)" >&2
+    return 1
+  fi
+
   # Check for legacy mode (rollback during migration)
   if [[ "${LOA_USE_LEGACY_PATHS:-}" == "1" ]]; then
     _use_legacy_paths
@@ -101,6 +112,11 @@ _init_path_lib() {
 }
 
 _use_defaults() {
+  # bug-980: defense-in-depth (the primary guard is at _init_path_lib entry).
+  if [[ -z "${PROJECT_ROOT:-}" ]]; then
+    echo "[path-lib] ERROR: PROJECT_ROOT is empty — refusing to anchor state paths at /" >&2
+    return 1
+  fi
   export LOA_GRIMOIRE_DIR="${PROJECT_ROOT}/${_DEFAULT_GRIMOIRE}"
   export LOA_BEADS_DIR="${PROJECT_ROOT}/${_DEFAULT_BEADS}"
   export LOA_SOUL_SOURCE="${PROJECT_ROOT}/${_DEFAULT_SOUL_SOURCE}"
@@ -330,7 +346,13 @@ _validate_paths() {
 # =============================================================================
 
 get_grimoire_dir() {
-  _init_path_lib || return 1
+  # bug-980: init failure must be LOUD — the silent empty echo turned every
+  # caller's derived path root-anchored (/prd.md) and golden-path reported
+  # phase "discovery" regardless of project state.
+  if ! _init_path_lib; then
+    echo "[path-lib] ERROR: init failed — cannot resolve grimoire dir (check yq + .loa.config.yaml)" >&2
+    return 1
+  fi
   echo "$LOA_GRIMOIRE_DIR"
 }
 
