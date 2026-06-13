@@ -113,10 +113,11 @@ def _extract_envelope(stdout: str) -> Optional[Dict[str, Any]]:
     grok --output-format json prints a (pretty-printed, multi-line) JSON object:
         {"text": ..., "stopReason": ..., "sessionId": ..., "requestId": ...,
          "thought": ...}
-    Tolerates any non-JSON preamble. Returns the FIRST dict that looks like the
-    grok envelope (carries "text" or "stopReason") — a JSON-formatted log line
-    must neither shadow nor stand in for the real envelope. Returns None when no
-    grok-shaped object is present (caller classifies/raises accordingly).
+    Tolerates any non-JSON preamble. Returns the FIRST dict carrying a STABLE
+    grok envelope identifier ("stopReason" / "sessionId" / "requestId") — a
+    JSON-formatted log/preamble line carrying only "text" must neither shadow
+    nor stand in for the real envelope. Returns None when no grok-shaped object
+    is present (caller classifies/raises accordingly).
     """
     text = (stdout or "").strip()
     idx = text.find("{")
@@ -127,7 +128,12 @@ def _extract_envelope(stdout: str) -> Optional[Dict[str, Any]]:
         except json.JSONDecodeError:
             idx = text.find("{", idx + 1)
             continue
-        if isinstance(obj, dict) and ("text" in obj or "stopReason" in obj):
+        # BB #1057 (F4): gate on a stable envelope identifier, not a lone
+        # "text" key — the real grok result always carries stopReason +
+        # session/request ids; a "text"-only log line must not shadow it.
+        if isinstance(obj, dict) and any(
+            k in obj for k in ("stopReason", "sessionId", "requestId")
+        ):
             return obj
         # Resume AFTER the consumed object so its nested dicts aren't rescanned.
         idx = text.find("{", idx + consumed)
@@ -479,6 +485,18 @@ class GrokHeadlessAdapter(ProviderAdapter):
             source="estimated",
         )
 
+        # BB #1057 (low-001/002): interaction_id MUST be str-or-None for
+        # downstream logging/envelopes (parity with the content/thinking guards
+        # above). Prefer sessionId; fall back to requestId; a numeric/null id
+        # normalizes to None rather than leaking a non-string downstream.
+        _sid = payload.get("sessionId")
+        _rid = payload.get("requestId")
+        interaction_id = (
+            _sid if isinstance(_sid, str)
+            else _rid if isinstance(_rid, str)
+            else None
+        )
+
         return CompletionResult(
             content=content,
             tool_calls=None,
@@ -488,7 +506,7 @@ class GrokHeadlessAdapter(ProviderAdapter):
             model=requested_model,
             latency_ms=latency_ms,
             provider=self.provider,
-            interaction_id=payload.get("sessionId"),
+            interaction_id=interaction_id,
         )
 
     # ---------------------------------------------------------------------

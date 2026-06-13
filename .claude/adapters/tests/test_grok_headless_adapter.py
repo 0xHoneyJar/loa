@@ -221,6 +221,34 @@ class TestOutputParsing:
         assert r.content == ""
         assert r.interaction_id == "s2"
 
+    def test_text_carrying_preamble_does_not_shadow_envelope(self):
+        # BB #1057 (F4): a JSON preamble/log line that carries a "text" key but
+        # NO stable identifier must not be mistaken for the result envelope.
+        # The old `"text" in obj or "stopReason" in obj` gate would have shadowed.
+        out = '{"text":"booting model grok-build..."}\n' + _OK_ENVELOPE
+        with patch(_PGKILL, return_value=_completed(out)):
+            r = _adapter().complete(_req())
+        assert r.content == "PONG"            # the real envelope, not the preamble
+        assert r.interaction_id == "sess-1"
+
+    def test_non_string_session_id_falls_back_to_request_id(self):
+        # BB #1057 (low-001/002): a numeric sessionId must not leak a non-string
+        # interaction_id — prefer sessionId (str), else the requestId fallback.
+        env = ('{"text":"PONG","stopReason":"EndTurn",'
+               '"sessionId":12345,"requestId":"req-9"}')
+        with patch(_PGKILL, return_value=_completed(env)):
+            r = _adapter().complete(_req())
+        assert r.interaction_id == "req-9"
+        assert r.content == "PONG"
+
+    def test_null_ids_normalize_interaction_id_to_none(self):
+        env = ('{"text":"PONG","stopReason":"EndTurn",'
+               '"sessionId":null,"requestId":null}')
+        with patch(_PGKILL, return_value=_completed(env)):
+            r = _adapter().complete(_req())
+        assert r.interaction_id is None
+        assert r.content == "PONG"
+
 
 # ---------------------------------------------------------------------------
 # The stderr-noise contract (the misclassification trap)
