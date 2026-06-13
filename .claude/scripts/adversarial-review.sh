@@ -1123,6 +1123,13 @@ merge_findings() {
     log "merge_findings: existing findings file unparseable: $existing_file (KF-004 guard, #1025)"
     return 1
   fi
+  # DISS-002 (review iter-1): jq exits 0 with NO output on zero-byte input —
+  # the swallow's quieter sibling. A valid findings artifact is never empty;
+  # refuse to merge against unknown state.
+  if [[ -z "$existing_findings" ]]; then
+    log "merge_findings: existing findings file is empty — refusing merge against unknown state: $existing_file (KF-004 guard, #1025)"
+    return 1
+  fi
 
   # Build merged set
   local merged="$existing_findings"
@@ -1255,6 +1262,14 @@ _extract_result_status() {
   local status
   if ! status=$(printf '%s' "$result" | JQ_STRICT_CTX="adversarial-review:result-status" jq_strict -r '.metadata.status // "unknown"'); then
     log "process_findings result failed to parse — treating as malformed_response (KF-004 guard, #1025)"
+    printf 'malformed_response'
+    return 0
+  fi
+  # DISS-002 (review iter-1): empty result through jq -r yields "" with
+  # exit 0; the fallback-chain loop would read "" as success. A valid
+  # process_findings envelope is never empty.
+  if [[ -z "$status" ]]; then
+    log "process_findings result was empty — treating as malformed_response (KF-004 guard, #1025)"
     printf 'malformed_response'
     return 0
   fi

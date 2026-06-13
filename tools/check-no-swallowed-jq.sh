@@ -18,8 +18,9 @@
 #
 # Detection logic (in order):
 #   1. Default mode scans the ENFORCED_FILES gate-critical set plus the
-#      .claude/scripts/red-team-*.sh glob (new red-team scripts are
-#      auto-enforced). `--root <dir>` scans a directory tree instead (used
+#      extension-agnostic .claude/scripts/red-team-* glob (new red-team
+#      scripts are auto-enforced even without a .sh extension — DISS-001;
+#      the _is_script filter below decides scriptness, not the glob). `--root <dir>` scans a directory tree instead (used
 #      by the bats contract tests and the incremental #1025 sweep).
 #   2. File-type filter (--root mode): .sh/.bash/.legacy/.bats extensions or
 #      a bash/sh shebang — same approach as check-no-raw-sha256sum.sh, so
@@ -58,7 +59,8 @@ set -euo pipefail
 
 # Gate-critical scripts where the swallow shape is forbidden — the #1025
 # scoped enforcement set (adversarial-review, flatline-orchestrator,
-# scoring-engine, post-pr-triage; red-team-* resolved by glob below).
+# scoring-engine, post-pr-triage; red-team-* resolved by the
+# extension-agnostic glob below).
 # Paths are repo-root-relative; default mode assumes invocation from the
 # project root (as CI does).
 ENFORCED_FILES=(
@@ -130,7 +132,7 @@ _list_files() {
     fi
     local f
     local found_any=0
-    for f in "${ENFORCED_FILES[@]}" .claude/scripts/red-team-*.sh; do
+    for f in "${ENFORCED_FILES[@]}" .claude/scripts/red-team-*; do
         # Missing enforced files are skipped (consumer installs may not ship
         # every gate script); an unmatched glob falls through the -f test.
         if [[ -f "$f" ]]; then

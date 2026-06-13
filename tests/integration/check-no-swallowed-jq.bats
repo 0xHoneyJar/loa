@@ -131,3 +131,33 @@ EOF
     [[ "$status" -eq 1 ]]
     [[ -z "$output" ]]
 }
+
+@test "scanner: default mode catches extensionless red-team script (SW-12, DISS-001)" {
+    # The red-team glob must be extension-agnostic: an extensionless
+    # gate-critical script (bash shebang) is auto-enforced in DEFAULT mode,
+    # not just under --root. _is_script decides scriptness, not the glob.
+    mkdir -p "$BATS_TEST_TMPDIR/repo/.claude/scripts"
+    cat > "$BATS_TEST_TMPDIR/repo/.claude/scripts/red-team-runner" <<'EOF'
+#!/usr/bin/env bash
+count=$(jq '.n' "$f" 2>/dev/null || echo "0")
+EOF
+    run bash -c "cd \"$BATS_TEST_TMPDIR/repo\" && bash \"$SCANNER\""
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"red-team-runner:2"* ]]
+}
+
+@test "scanner: default mode skips non-script red-team-* files (SW-13)" {
+    # Companion to SW-12: the widened glob must not flag prose files that
+    # happen to share the red-team- prefix.
+    mkdir -p "$BATS_TEST_TMPDIR/repo2/.claude/scripts"
+    cat > "$BATS_TEST_TMPDIR/repo2/.claude/scripts/red-team-notes.md" <<'EOF'
+count=$(jq '.n' "$f" 2>/dev/null || echo "0")
+EOF
+    # Provide one clean enforced file so found_any guard passes
+    cat > "$BATS_TEST_TMPDIR/repo2/.claude/scripts/red-team-clean.sh" <<'EOF'
+#!/usr/bin/env bash
+true
+EOF
+    run bash -c "cd \"$BATS_TEST_TMPDIR/repo2\" && bash \"$SCANNER\""
+    [[ "$status" -eq 0 ]]
+}

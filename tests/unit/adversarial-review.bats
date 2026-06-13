@@ -735,3 +735,25 @@ EOF
     status_out=$(_extract_result_status '{"metadata":{}}')
     [[ "$status_out" == "unknown" ]]
 }
+
+@test "KF-004 guard: merge_findings fails loud on EMPTY existing-findings file (DISS-002)" {
+    # jq exits 0 with no output on zero-byte input — the swallow's quieter
+    # sibling. A valid findings artifact is never zero-byte; refuse the merge.
+    local existing_file="$TEST_DIR/empty-existing.json"
+    : > "$existing_file"
+    local dissenter_json='{"findings":[{"id":"DISS-001","severity":"BLOCKING","category":"injection","anchor":"src/a.ts:f","description":"d","failure_mode":"fm"}]}'
+    local err_file="$TEST_DIR/stderr-merge-empty.txt"
+    local rc=0
+    result=$(merge_findings "$dissenter_json" "$existing_file" 2>"$err_file") || rc=$?
+    [[ "$rc" -ne 0 ]]
+    grep -q "empty" "$err_file"
+}
+
+@test "KF-004 guard: _extract_result_status maps EMPTY result to malformed_response (DISS-002)" {
+    # Empty result through jq -r yields "" with exit 0; the fallback-chain
+    # loop would treat "" as success and break out with nothing usable.
+    local err_file="$TEST_DIR/stderr-status-empty.txt"
+    local status_out
+    status_out=$(_extract_result_status "" 2>"$err_file")
+    [[ "$status_out" == "malformed_response" ]]
+}
