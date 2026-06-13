@@ -13,7 +13,10 @@
 #
 # Exit codes:
 #   0 - Success (or nothing to purge)
-#   1 - Configuration error
+#   1 - Configuration error (bad argument)
+#   2 - Dependency/config error: required jq / compat-lib helpers
+#       (jq_strict, _date_to_epoch) unavailable — aborts BEFORE any deletion
+#       decision so a missing helper can't mass-purge valid reports (#1025)
 #   3 - Completed with conservative dispositions (sprint-bug-210 / #1025):
 #       one or more result files were unparseable or lacked a usable
 #       timestamp; they were aged by file mtime under the most-restrictive
