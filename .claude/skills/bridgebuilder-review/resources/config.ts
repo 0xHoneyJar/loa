@@ -54,8 +54,11 @@ export const MultiModelConfigSchema = z.object({
   cross_repo: z.object({
     auto_detect: z.boolean().default(true),
     manual_refs: z.array(z.string()).default([]),
+    // #1014: extra owners (beyond the PR own org) whose auto-detected refs may
+    // be fetched. Empty default = org-only (secure by default).
+    allowed_owners: z.array(z.string()).default([]),
   }).default(
-    () => ({ auto_detect: true, manual_refs: [] }),
+    () => ({ auto_detect: true, manual_refs: [], allowed_owners: [] }),
   ),
   rating: z.object({
     enabled: z.boolean().default(true),
