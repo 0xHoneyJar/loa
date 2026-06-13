@@ -213,9 +213,18 @@ def load_config(
     # null with bedrock_only / prefer_bedrock / unset based on env-var state.
     # Also enforces the SKP-003 gate: prefer_bedrock requires explicit
     # fallback_to on every model (no heuristic name matching).
+    _warn_misnested_compliance_profile(merged)
     _resolve_bedrock_compliance_profile(merged)
     _reject_unsupported_bedrock_auth_modes(merged)
     _reject_unsupported_bedrock_auth_lifetime(merged)
+
+    # bedrock-forward-routing (this PR): when the resolved Bedrock posture is
+    # bedrock_only / prefer_bedrock, rewrite aliases that target the direct
+    # Anthropic API to their Bedrock equivalent so the INITIAL dispatch goes to
+    # Bedrock — not just the fallback. The equivalence is read from each Bedrock
+    # model's already-required `fallback_to` field (no new mapping, no heuristic
+    # name matching — SKP-003 compatible). See docs/bedrock-routing.md.
+    _apply_bedrock_forward_routing(merged)
 
     # Resolve secret interpolation
     extra_env_patterns = []
@@ -771,6 +780,109 @@ def _enforce_prefer_bedrock_fallback_to(bedrock: Dict[str, Any]) -> None:
             f"Missing on: {missing}. "
             "(Flatline BLOCKER SKP-003 — no heuristic name matching; operator "
             "must declare equivalence explicitly.)"
+        )
+
+
+def _warn_misnested_compliance_profile(merged: Dict[str, Any]) -> None:
+    """Warn when ``compliance_profile`` is set at the wrong nesting level.
+
+    The loader reads the field at ``hounfour.providers.bedrock.compliance_profile``
+    (which deep-merges to ``providers.bedrock.compliance_profile`` in ``merged``).
+    A common operator mistake (observed in the field) is to set it one level too
+    high — directly under ``hounfour.compliance_profile`` — where it is silently
+    ignored and the operator's Bedrock posture never takes effect.
+
+    The flattened ``merged`` preserves a stray top-level ``compliance_profile``
+    key when the operator mis-nested it. If that key exists while the real
+    ``providers.bedrock.compliance_profile`` is unset, emit a loud one-shot
+    WARNING pointing at the correct location, converting a silent
+    misconfiguration into an actionable message.
+    """
+    stray = merged.get("compliance_profile")
+    if not (isinstance(stray, str) and stray):
+        return
+    bedrock = (merged.get("providers") or {}).get("bedrock")
+    nested = bedrock.get("compliance_profile") if isinstance(bedrock, dict) else None
+    if nested:
+        return  # Correctly nested value present; the stray key is harmless.
+    sys.stderr.write(
+        "[loader] WARNING: `compliance_profile: %r` is set at the WRONG level "
+        "and is being IGNORED. Move it under `providers.bedrock.compliance_profile` "
+        "(i.e. hounfour.providers.bedrock.compliance_profile in .loa.config.yaml). "
+        "As written, Bedrock routing/fallback posture is NOT applied.\n" % stray
+    )
+
+
+def _build_anthropic_to_bedrock_map(bedrock: Dict[str, Any]) -> Dict[str, str]:
+    """Invert each Bedrock model's ``fallback_to`` into an anthropic->bedrock map.
+
+    Every Bedrock model entry under ``prefer_bedrock`` is already required to
+    declare ``fallback_to: <provider>:<model_id>`` (enforced by
+    ``_enforce_prefer_bedrock_fallback_to`` per SKP-003). That field IS the
+    equivalence the operator has explicitly asserted: "Bedrock model X stands in
+    for direct-API model Y." Inverting it gives the forward-routing table with
+    zero new config and zero heuristic name matching.
+
+    Returns ``{"anthropic:claude-opus-4-8": "bedrock:us.anthropic.claude-opus-4-8", ...}``.
+    """
+    models = bedrock.get("models") or {}
+    table: Dict[str, str] = {}
+    if not isinstance(models, dict):
+        return table
+    for bedrock_model_id, mc in models.items():
+        if not isinstance(mc, dict):
+            continue
+        fallback = mc.get("fallback_to")
+        if isinstance(fallback, str) and ":" in fallback:
+            table[fallback] = f"bedrock:{bedrock_model_id}"
+    return table
+
+
+def _apply_bedrock_forward_routing(merged: Dict[str, Any]) -> None:
+    """Rewrite Anthropic-targeted aliases to their Bedrock equivalent.
+
+    Active only when the resolved ``providers.bedrock.compliance_profile`` is
+    ``bedrock_only`` or ``prefer_bedrock``. Uses the inverted ``fallback_to``
+    map so an alias resolving to ``anthropic:<model>`` is retargeted to the
+    Bedrock model whose ``fallback_to`` points back at it. Under
+    ``prefer_bedrock`` the original ``anthropic:<model>`` remains the fallback
+    (via the model's own ``fallback_to``); under ``bedrock_only`` the adapter
+    fails closed as before.
+
+    This makes the INITIAL dispatch honor the operator's Bedrock posture — the
+    half of ``prefer_bedrock`` that previously only governed fallback. Idempotent:
+    aliases already pointing at ``bedrock:`` are left untouched.
+    """
+    providers = merged.get("providers") or {}
+    bedrock = providers.get("bedrock")
+    if not isinstance(bedrock, dict):
+        return
+    posture = bedrock.get("compliance_profile")
+    if posture not in ("bedrock_only", "prefer_bedrock"):
+        return
+
+    redirect = _build_anthropic_to_bedrock_map(bedrock)
+    if not redirect:
+        return
+
+    aliases = merged.get("aliases")
+    if not isinstance(aliases, dict):
+        return
+
+    rewritten = []
+    for alias_key, target in list(aliases.items()):
+        if not isinstance(target, str):
+            continue
+        new_target = redirect.get(target)
+        if new_target and new_target != target:
+            aliases[alias_key] = new_target
+            rewritten.append(f"{alias_key}: {target} -> {new_target}")
+
+    if rewritten:
+        sys.stderr.write(
+            "[loader] bedrock-forward-routing active (compliance_profile=%s): "
+            "retargeted %d alias(es) to Bedrock: %s\n"
+            % (posture, len(rewritten), "; ".join(rewritten))
         )
 
 
