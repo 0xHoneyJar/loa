@@ -14,7 +14,6 @@ import type { TokenBudget } from "./types.js";
 
 export const GENERATED_TOKEN_BUDGETS: Record<string, TokenBudget> = {
   "claude-fable-5": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
-  "claude-fable-headless": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
   "claude-haiku-4-5-20251001": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
   "claude-headless": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
   "claude-opus-4-6": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
