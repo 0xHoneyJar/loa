@@ -196,3 +196,23 @@ EOF
     [ ! -f "$RT/rt-noclass-result.json" ]
     grep -q "PURGED: rt-noclass" "$AUDIT"
 }
+
+@test "AUDIT-config: zero/invalid retention_days must not mass-purge (safe default) (T-B13)" {
+    command -v yq >/dev/null 2>&1 || skip "yq required for config-path test"
+    # A config typo (retention_days_restricted: 0) would make max_age_seconds=0
+    # → every report purged. Guard must reject it and use the safe 30d default.
+    cat > "$TEST_TMPDIR/.loa.config.yaml" <<'YML'
+red_team:
+  safety:
+    retention_days_restricted: 0
+    retention_days_internal: 90
+YML
+    local ts; ts=$(date -u -d "10 days ago" +%Y-%m-%dT%H:%M:%SZ)
+    cat > "$RT/rt-cfg-result.json" <<EOF
+{"run_id": "rt-cfg", "timestamp": "$ts", "classification": "RESTRICTED"}
+EOF
+    run "$SCRIPT"
+    # 10d old < 30d safe default → RETAINED (bug would purge at 0d)
+    [ -f "$RT/rt-cfg-result.json" ]
+    echo "$output" | grep -qiE "invalid|retention_days"
+}

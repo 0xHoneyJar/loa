@@ -204,6 +204,15 @@ purge_expired() {
         fi
 
         max_age_days=$(get_retention_days "$classification")
+        # AUDIT-config (#1025): retention_days comes from .loa.config.yaml via
+        # yq; an invalid value (0, negative, empty, non-numeric) would make
+        # max_age_seconds <= 0 → mass-purge of every report through the rm -f
+        # sink. Refuse a non-positive-integer and fall back to the
+        # most-restrictive hardcoded default (30d) — loud, never silent-destructive.
+        if ! [[ "$max_age_days" =~ ^[1-9][0-9]*$ ]]; then
+            log "ERROR: invalid retention_days ('$max_age_days') for classification=$classification — refusing destructive mass-purge; using safe 30d default (#1025)"
+            max_age_days=30
+        fi
         max_age_seconds=$((max_age_days * 86400))
 
         # AUDIT-2b (#1025): a future `created` (from a future .timestamp OR a
