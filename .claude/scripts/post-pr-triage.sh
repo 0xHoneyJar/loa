@@ -399,7 +399,23 @@ process_findings_file() {
   done
 }
 
+# DISS-001 (review iter-3): hard-require jq + the soft-sourced compat-lib
+# helper before processing. A missing helper must surface as a clear config
+# error (exit 2), not as a misleading per-file DEGRADED (which would conflate
+# "environment broken" with "all findings artifacts corrupt").
+_require_deps() {
+  local missing=()
+  command -v jq >/dev/null 2>&1 || missing+=("jq")
+  declare -F jq_strict >/dev/null 2>&1 || missing+=("jq_strict (compat-lib.sh)")
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    log "FATAL: required dependencies unavailable: ${missing[*]} — config error (#1025 / DISS-001)"
+    return 2
+  fi
+}
+
 main() {
+  _require_deps || exit $?
+
   if [[ ! -d "$REVIEW_DIR" ]]; then
     log "Review directory not found: $REVIEW_DIR"
     log "No findings to triage (bridge-orchestrator may not have run yet)"

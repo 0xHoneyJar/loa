@@ -115,3 +115,18 @@ EOF
         ! grep -qiE "CONSERVATIVE|PARSE-FAILURE" "$AUDIT"
     fi
 }
+
+@test "dep-guard: missing compat-lib (jq_strict undefined) → abort exit 2, no purge (T-B7, DISS-001 iter-3)" {
+    # A MISSING dependency must not be treated like a corrupt data file —
+    # otherwise every report hits the conservative path and valid material is
+    # mass-purged. Remove the co-located helper to simulate the broken env.
+    rm -f "$TEST_TMPDIR/.claude/scripts/compat-lib.sh"
+    cat > "$RT/rt-ggg-result.json" <<EOF
+{"run_id": "rt-ggg", "timestamp": "$(_old_date)", "classification": "RESTRICTED"}
+EOF
+    run "$SCRIPT"
+    [ "$status" -eq 2 ]
+    # The aged-but-VALID report must survive a dependency failure
+    [ -f "$RT/rt-ggg-result.json" ]
+    [[ "$output" == *"dependencies unavailable"* || "$output" == *"FATAL"* ]]
+}

@@ -432,6 +432,14 @@ EOF
     [ ! -f "$TEST_TMPDIR/.run/bridge-pending-bugs.jsonl" ]
 }
 
+@test "dep-guard: missing compat-lib (jq_strict undefined) → config-error exit 2, not misleading DEGRADED (T-A6, DISS-001 iter-3)" {
+    rm -f "$TEST_TMPDIR/.claude/scripts/compat-lib.sh"
+    create_findings_file "bridge-x-iter1-findings.json" "CRITICAL" "c1" "Real finding"
+    run "$TEST_TMPDIR/.claude/scripts/post-pr-triage.sh" --pr 100 --auto-triage true
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"dependencies unavailable"* || "$output" == *"FATAL"* ]]
+}
+
 @test "KF-004 guard: corrupt bridge-state.json overwrites stale FLATLINE convergence → DEGRADED (T-A5)" {
     # DISS-001: the corrupt-state early-return must not let a prior iteration's
     # clean convergence record survive — the orchestrator reads .state from it.

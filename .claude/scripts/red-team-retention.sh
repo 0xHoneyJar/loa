@@ -43,6 +43,25 @@ _file_mtime_epoch() {
     stat -c %Y "$1" 2>/dev/null || stat -f %m "$1"
 }
 
+# DISS-001 (review iter-3): a MISSING dependency must abort loudly, never be
+# treated like a corrupt data file. compat-lib is soft-sourced (|| true); if
+# it failed, jq_strict/_date_to_epoch are undefined and every result file
+# would hit the conservative path → mass-purge of valid reports. Hard-require
+# the deletion-path dependencies before any purge decision (the sha256_portable
+# exit-127 principle: missing tool = loud abort, not destructive degrade).
+_require_deps() {
+    local missing=()
+    command -v jq >/dev/null 2>&1 || missing+=("jq")
+    declare -F jq_strict >/dev/null 2>&1 || missing+=("jq_strict (compat-lib.sh)")
+    declare -F _date_to_epoch >/dev/null 2>&1 || missing+=("_date_to_epoch (compat-lib.sh)")
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        log "FATAL: required dependencies unavailable: ${missing[*]}"
+        log "Refusing to make deletion decisions without them — a missing helper must not"
+        log "mass-purge valid reports as conservative (#1025 / DISS-001)."
+        exit 2
+    fi
+}
+
 # =============================================================================
 # Logging
 # =============================================================================
@@ -222,6 +241,7 @@ main() {
         esac
     done
 
+    _require_deps
     mkdir -p "$(dirname "$AUDIT_LOG")"
     purge_expired "$dry_run" "$verbose"
     if [[ "$CONSERVATIVE_COUNT" -gt 0 ]]; then
