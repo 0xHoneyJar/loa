@@ -170,3 +170,29 @@ EOF
     # 45d < 90d INTERNAL → retained
     [ -f "$RT/rt-internal-result.json" ]
 }
+
+@test "AUDIT-2b: future FILE MTIME on conservative file → age clamped >=0, not retained-forever (T-B11)" {
+    # A corrupt file whose mtime is in the future → mtime fallback gives a
+    # future `created` → negative age → retained forever. age must clamp >=0.
+    printf 'not json' > "$RT/rt-futuremtime-result.json"
+    touch -d "+5 years" "$RT/rt-futuremtime-result.json"
+    run "$SCRIPT" --verbose
+    [ "$status" -eq 3 ]
+    # The clamp makes age >= 0. Pre-fix the log showed a NEGATIVE age
+    # (e.g. "-1826d"), the negative-age-retains-forever bypass. Post-fix: no
+    # negative age anywhere in the output.
+    ! echo "$output" | grep -qE -- '-[0-9]+d'
+}
+
+@test "AUDIT-secrets-b: MISSING classification → conservative RESTRICTED (30d), not INTERNAL (90d) (T-B12)" {
+    # Valid JSON with NO classification field. The extraction default must not
+    # be the less-restrictive INTERNAL.
+    local ts; ts=$(date -u -d "45 days ago" +%Y-%m-%dT%H:%M:%SZ)
+    cat > "$RT/rt-noclass-result.json" <<EOF
+{"run_id": "rt-noclass", "timestamp": "$ts"}
+EOF
+    run "$SCRIPT"
+    # 45d old: purged under 30d RESTRICTED default; would survive under 90d INTERNAL
+    [ ! -f "$RT/rt-noclass-result.json" ]
+    grep -q "PURGED: rt-noclass" "$AUDIT"
+}

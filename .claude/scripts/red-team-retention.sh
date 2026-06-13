@@ -149,7 +149,12 @@ purge_expired() {
                 parse_ok=false
                 timestamp=""
             fi
-            if ! classification=$(JQ_STRICT_CTX="red-team-retention:classification" jq_strict -r '.classification // "INTERNAL"' "$result_file"); then
+            # AUDIT-secrets-b (#1025): default a MISSING classification to a
+            # non-INTERNAL sentinel so get_retention_days applies the
+            # most-restrictive (RESTRICTED 30d) policy — defaulting to
+            # "INTERNAL" here would grant the longer 90d window to unlabeled
+            # (potentially sensitive) reports.
+            if ! classification=$(JQ_STRICT_CTX="red-team-retention:classification" jq_strict -r '.classification // "UNKNOWN"' "$result_file"); then
                 parse_ok=false
                 classification="RESTRICTED"
             fi
@@ -201,6 +206,14 @@ purge_expired() {
         max_age_days=$(get_retention_days "$classification")
         max_age_seconds=$((max_age_days * 86400))
 
+        # AUDIT-2b (#1025): a future `created` (from a future .timestamp OR a
+        # future file mtime fallback) makes age negative → retained forever.
+        # Clamp to now so age is never negative; a future-dated file is then
+        # young (retained) but LOUDLY flagged via the conservative WARN + exit 3
+        # rather than silently bypassing retention via negative arithmetic.
+        if (( created > now )); then
+            created=$now
+        fi
         local age=$((now - created))
         local age_days=$((age / 86400))
 
