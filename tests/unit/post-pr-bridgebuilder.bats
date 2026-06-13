@@ -25,6 +25,10 @@ setup() {
     cp "$PROJECT_ROOT/.claude/scripts/post-pr-triage.sh" "$TEST_TMPDIR/.claude/scripts/"
     chmod +x "$TEST_TMPDIR/.claude/scripts/post-pr-triage.sh"
 
+    # sprint-bug-210 (#1025): the triage script soft-sources compat-lib.sh
+    # (jq_strict) from its own SCRIPT_DIR — copy it alongside.
+    cp "$PROJECT_ROOT/.claude/scripts/compat-lib.sh" "$TEST_TMPDIR/.claude/scripts/"
+
     cd "$TEST_TMPDIR"
 }
 
@@ -216,11 +220,14 @@ EOF
     [[ "$output" == *crit-xyz* ]]
 }
 
-@test "triage: malformed findings file is handled gracefully" {
+@test "triage: malformed findings file fails loud (DEGRADED, not silent skip)" {
+    # sprint-bug-210 (#1025): this test previously asserted exit 0 ("just skip
+    # malformed files") — that silent skip WAS the KF-004 bug. The corrected
+    # contract: a corrupt findings artifact exits 3 with a DEGRADED convergence
+    # record, never a clean FLATLINE. (See T-A1 for the convergence assertions.)
     echo "not valid json" > "$TEST_TMPDIR/.run/bridge-reviews/bridge-broken-iter1-findings.json"
     run "$TEST_TMPDIR/.claude/scripts/post-pr-triage.sh" --pr 100
-    # Should not crash — just skip malformed files
-    [ "$status" -eq 0 ]
+    [ "$status" -eq 3 ]
 }
 
 # ============================================================================
@@ -374,6 +381,9 @@ EOF
     local alt_script_dir="$TEST_TMPDIR/alt-install"
     mkdir -p "$alt_script_dir"
     cp "$PROJECT_ROOT/.claude/scripts/post-pr-triage.sh" "$alt_script_dir/"
+    # sprint-bug-210 (#1025): compat-lib.sh (jq_strict) is a co-located sibling
+    # in every real .claude/scripts/ install and travels via the copy-set.
+    cp "$PROJECT_ROOT/.claude/scripts/compat-lib.sh" "$alt_script_dir/"
 
     # Run from $TEST_TMPDIR — default paths should resolve relative to cwd
     create_findings_file "bridge-test-iter1-findings.json" "HIGH" "h1" "Test H4"
@@ -384,4 +394,48 @@ EOF
     local traj_count
     traj_count=$(ls "$TEST_TMPDIR/grimoires/loa/a2a/trajectory/"bridge-triage-*.jsonl 2>/dev/null | wc -l)
     [ "$traj_count" -ge 1 ]
+}
+
+
+# =============================================================================
+# sprint-bug-210 / #1025 sweep leg 2 — KF-004 guards (post-pr-triage.sh)
+# A corrupt Bridgebuilder findings artifact must never produce a clean
+# FLATLINE / exit-0 triage; a corrupt bridge-state.json must never fall
+# through to the glob-all legacy path (#676 Defect B resurrection).
+# =============================================================================
+
+@test "KF-004 guard: corrupt findings file → exit 3 + DEGRADED convergence, never FLATLINE (T-A1)" {
+    echo 'this is not json' > "$TEST_TMPDIR/.run/bridge-reviews/bridge-x-iter1-findings.json"
+    run "$TEST_TMPDIR/.claude/scripts/post-pr-triage.sh" --pr 100 --auto-triage true
+    [ "$status" -eq 3 ]
+    local conv="$TEST_TMPDIR/.run/bridge-triage-convergence.json"
+    [ -f "$conv" ]
+    [ "$(jq -r '.state' "$conv")" == "DEGRADED" ]
+    [ "$(jq -r '.parse_failures' "$conv")" -ge 1 ]
+}
+
+@test "KF-004 guard: valid+corrupt mix → CRITICAL still queued, run degraded (T-A2)" {
+    create_findings_file "bridge-x-iter1-findings.json" "CRITICAL" "crit-1" "Real blocker"
+    echo '{broken' > "$TEST_TMPDIR/.run/bridge-reviews/bridge-x-iter2-findings.json"
+    run "$TEST_TMPDIR/.claude/scripts/post-pr-triage.sh" --pr 100 --auto-triage true
+    [ "$status" -eq 3 ]
+    [ -f "$TEST_TMPDIR/.run/bridge-pending-bugs.jsonl" ]
+    [ "$(jq -r '.finding.severity' "$TEST_TMPDIR/.run/bridge-pending-bugs.jsonl")" == "CRITICAL" ]
+    [ "$(jq -r '.state' "$TEST_TMPDIR/.run/bridge-triage-convergence.json")" == "DEGRADED" ]
+}
+
+@test "KF-004 guard: corrupt bridge-state.json → exit 1, no glob fall-through (T-A3)" {
+    echo 'garbage{' > "$TEST_TMPDIR/.run/bridge-state.json"
+    create_findings_file "stale-bridge-iter1-findings.json" "CRITICAL" "stale-1" "Stale finding"
+    run "$TEST_TMPDIR/.claude/scripts/post-pr-triage.sh" --pr 100 --auto-triage true
+    [ "$status" -eq 1 ]
+    [ ! -f "$TEST_TMPDIR/.run/bridge-pending-bugs.jsonl" ]
+}
+
+@test "regression pin: bridge-state.json without bridge_id → legacy glob unchanged (T-A4)" {
+    echo '{}' > "$TEST_TMPDIR/.run/bridge-state.json"
+    create_findings_file "any-iter1-findings.json" "PRAISE" "p-1" "Nice work"
+    run "$TEST_TMPDIR/.claude/scripts/post-pr-triage.sh" --pr 100 --auto-triage true
+    [ "$status" -eq 0 ]
+    [ -f "$TEST_TMPDIR/.run/bridge-lore-candidates.jsonl" ]
 }

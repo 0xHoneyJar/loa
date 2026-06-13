@@ -1768,9 +1768,22 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260613-i966-01593f/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260613-i966-01593f/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260613-i1025-004d22",
+      "label": "Bug Fix — #1025 sweep leg 2: swallowed-jq sites in post-pr-triage.sh + red-team-retention.sh",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1025",
+      "created_at": "2026-06-13T01:51:48Z",
+      "sprints": [
+        "sprint-bug-210"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260613-i1025-004d22/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260613-i1025-004d22/sprint.md"
     }
   ],
-  "global_sprint_counter": 209,
+  "global_sprint_counter": 210,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",

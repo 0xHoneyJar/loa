@@ -17,12 +17,26 @@
 #
 # Exit codes:
 #   0 - Triage complete (findings processed or none present — both success)
-#   1 - Input validation error
+#   1 - Input validation error (incl. corrupt .run/bridge-state.json)
 #   2 - Configuration error
+#   3 - Triage DEGRADED: one or more findings artifacts failed to parse
+#       (sprint-bug-210 / #1025; convergence record carries state=DEGRADED +
+#       parse_failures — that record, not this exit code, is the load-bearing
+#       channel for the orchestrator)
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# sprint-bug-210 (#1025): jq_strict (fail-loud jq) from compat-lib. Defensive
+# source pattern per adversarial-review.sh:43-51 — absolute SCRIPT_DIR path,
+# soft-fail so eval-based test sourcing can pre-source.
+# shellcheck source=compat-lib.sh
+source "$SCRIPT_DIR/compat-lib.sh" 2>/dev/null || true
+
+# Accumulate-then-fail: parse failures are counted, every remaining artifact
+# is still processed, and main exits 3 with a DEGRADED convergence record.
+PARSE_FAILURES=0
 
 # Default paths resolve relative to cwd (not script location) to stay consistent
 # with how post-pr-orchestrator.sh passes paths and with how bridge-orchestrator.sh
@@ -302,7 +316,14 @@ process_findings_file() {
   iteration=$(basename "$findings_file" | grep -oE 'iter[0-9]+' | grep -oE '[0-9]+' || echo "1")
 
   local total_findings
-  total_findings=$(jq '.findings | length // 0' "$findings_file" 2>/dev/null || echo "0")  # check-no-swallowed-jq: ok (pending #1025 sweep)
+  # sprint-bug-210 (#1025) / KF-004 guard: a corrupt findings artifact must
+  # never read as zero-findings-clean — that silently drops CRITICAL/BLOCKER
+  # findings from the bug queue and lets the run emit FLATLINE.
+  if ! total_findings=$(JQ_STRICT_CTX="post-pr-triage:total-findings" jq_strict '.findings | length // 0' "$findings_file"); then
+    log "ERROR: findings file unparseable: $findings_file — triage will exit DEGRADED, not clean (KF-004 guard, #1025)"
+    PARSE_FAILURES=$((PARSE_FAILURES + 1))
+    return 0
+  fi
 
   if [[ "$total_findings" -eq 0 ]]; then
     log "No findings in $findings_file"
@@ -334,7 +355,11 @@ process_findings_file() {
   local idx=0
   while [[ $idx -lt $total_findings ]]; do
     local finding_json
-    finding_json=$(jq -c ".findings[$idx]" "$findings_file" 2>/dev/null || echo "null")  # check-no-swallowed-jq: ok (pending #1025 sweep)
+    if ! finding_json=$(JQ_STRICT_CTX="post-pr-triage:finding-extract" jq_strict -c ".findings[$idx]" "$findings_file"); then
+      log "ERROR: finding[$idx] extraction failed in $findings_file (KF-004 guard, #1025)"
+      PARSE_FAILURES=$((PARSE_FAILURES + 1))
+      finding_json="null"
+    fi
 
     if [[ "$finding_json" == "null" ]]; then
       idx=$((idx + 1))
@@ -389,7 +414,14 @@ main() {
   local bridge_state_file="$CWD_AT_INVOKE/.run/bridge-state.json"
   local bridge_id=""
   if [[ -f "$bridge_state_file" ]]; then
-    bridge_id=$(jq -r '.bridge_id // empty' "$bridge_state_file" 2>/dev/null || echo "")  # check-no-swallowed-jq: ok (pending #1025 sweep)
+    # sprint-bug-210 (#1025): a CORRUPT state file must not fall through to
+    # the glob-all legacy path — that resurrects #676 Defect B (stale findings
+    # re-tagged to the current PR). Absent file / absent bridge_id (valid
+    # JSON) keep the documented legacy behavior.
+    if ! bridge_id=$(JQ_STRICT_CTX="post-pr-triage:bridge-id" jq_strict -r '.bridge_id // empty' "$bridge_state_file"); then
+      log "ERROR: corrupt bridge-state.json: $bridge_state_file — refusing glob fall-through (#676 Defect B guard, #1025)"
+      return 1
+    fi
   fi
 
   local findings_files=()
@@ -460,7 +492,12 @@ main() {
   fi
 
   local convergence_state
-  if [[ "$actionable_high" -eq 0 && "$blocker_count" -eq 0 ]]; then
+  # sprint-bug-210 (#1025): parse failures force DEGRADED — never FLATLINE.
+  # The convergence record is the orchestrator's load-bearing channel
+  # (post-pr-orchestrator.sh treats the triage exit code as non-fatal).
+  if [[ "$PARSE_FAILURES" -gt 0 ]]; then
+    convergence_state="DEGRADED"
+  elif [[ "$actionable_high" -eq 0 && "$blocker_count" -eq 0 ]]; then
     convergence_state="FLATLINE"
   else
     convergence_state="KEEP_ITERATING"
@@ -479,7 +516,8 @@ main() {
       --argjson blocker "$blocker_count" \
       --argjson disputed "$disputed_count" \
       --arg state "$convergence_state" \
-      '{timestamp: $ts, pr_number: $pr, state: $state, actionable_high: $high, blocker_count: $blocker, disputed_count: $disputed}' \
+      --argjson pf "$PARSE_FAILURES" \
+      '{timestamp: $ts, pr_number: $pr, state: $state, actionable_high: $high, blocker_count: $blocker, disputed_count: $disputed, parse_failures: $pf}' \
       > "$convergence_file"
   fi
 
@@ -492,6 +530,10 @@ main() {
     fi
   fi
 
+  if [[ "$PARSE_FAILURES" -gt 0 ]]; then
+    log "Triage DEGRADED: $PARSE_FAILURES parse failure(s) — exit 3 (convergence record carries state=DEGRADED)"
+    return 3
+  fi
   return 0
 }
 

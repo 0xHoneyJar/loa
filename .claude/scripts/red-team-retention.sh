@@ -14,6 +14,12 @@
 # Exit codes:
 #   0 - Success (or nothing to purge)
 #   1 - Configuration error
+#   3 - Completed with conservative dispositions (sprint-bug-210 / #1025):
+#       one or more result files were unparseable or lacked a usable
+#       timestamp; they were aged by file mtime under the most-restrictive
+#       (RESTRICTED) policy — purged when expired, retained with a loud
+#       WARN when young. Quarantine was rejected (it just relocates the
+#       indefinite retention this fixes).
 # =============================================================================
 
 set -euo pipefail
@@ -23,6 +29,19 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
 RED_TEAM_DIR="$PROJECT_ROOT/.run/red-team"
 AUDIT_LOG="$PROJECT_ROOT/.run/red-team-audit.log"
+
+# sprint-bug-210 (#1025): jq_strict (fail-loud jq) from compat-lib.
+# shellcheck source=compat-lib.sh
+source "$SCRIPT_DIR/compat-lib.sh" 2>/dev/null || true
+
+# Conservative dispositions applied this run (parse failures + missing/
+# unparseable timestamps). Non-zero → main exits 3.
+CONSERVATIVE_COUNT=0
+
+# Portable file mtime (GNU stat -c, BSD stat -f).
+_file_mtime_epoch() {
+    stat -c %Y "$1" 2>/dev/null || stat -f %m "$1"
+}
 
 # =============================================================================
 # Logging
@@ -87,21 +106,56 @@ purge_expired() {
         [[ -f "$result_file" ]] || continue
 
         local timestamp classification max_age_days max_age_seconds created run_id
+        local parse_ok=true conservative=false
 
-        run_id=$(jq -r '.run_id // "unknown"' "$result_file" 2>/dev/null || echo "unknown")  # check-no-swallowed-jq: ok (pending #1025 sweep)
-        timestamp=$(jq -r '.timestamp // ""' "$result_file" 2>/dev/null || echo "")  # check-no-swallowed-jq: ok (pending #1025 sweep)
-        classification=$(jq -r '.classification // "INTERNAL"' "$result_file" 2>/dev/null || echo "INTERNAL")  # check-no-swallowed-jq: ok (pending #1025 sweep)
-
-        if [[ -z "$timestamp" ]]; then
-            [[ "$verbose" == "true" ]] && log "Skipping $result_file (no timestamp)"
-            continue
+        # sprint-bug-210 (#1025) / KF-004 guard: a corrupt result JSON must
+        # never be silently SKIPPED — pre-fix, the jq swallow yielded an
+        # empty timestamp and expired RESTRICTED reports were retained
+        # indefinitely. Parse failure → most-restrictive disposition.
+        if ! run_id=$(JQ_STRICT_CTX="red-team-retention:run_id" jq_strict -r '.run_id // "unknown"' "$result_file"); then
+            parse_ok=false
+            run_id="unknown"
+            timestamp=""
+            classification="RESTRICTED"
+        else
+            if ! timestamp=$(JQ_STRICT_CTX="red-team-retention:timestamp" jq_strict -r '.timestamp // ""' "$result_file"); then
+                parse_ok=false
+                timestamp=""
+            fi
+            if ! classification=$(JQ_STRICT_CTX="red-team-retention:classification" jq_strict -r '.classification // "INTERNAL"' "$result_file"); then
+                parse_ok=false
+                classification="RESTRICTED"
+            fi
         fi
 
-        # Parse timestamp to epoch
-        created=$(date -d "$timestamp" +%s 2>/dev/null || echo "0")
-        if [[ "$created" == "0" ]]; then
-            [[ "$verbose" == "true" ]] && log "Skipping $result_file (unparseable timestamp: $timestamp)"
-            continue
+        if [[ "$parse_ok" == "false" ]]; then
+            conservative=true
+            classification="RESTRICTED"
+            audit "PARSE-FAILURE: $result_file unparseable — conservative disposition: RESTRICTED policy, mtime age (#1025)"
+        fi
+
+        # Conservative timestamp handling: missing or unparseable timestamp
+        # (even in VALID JSON) falls back to file mtime under the
+        # most-restrictive classification, instead of skipping forever.
+        if [[ -z "$timestamp" ]]; then
+            if [[ "$conservative" != "true" ]]; then
+                conservative=true
+                classification="RESTRICTED"
+                audit "CONSERVATIVE: $result_file has no usable timestamp — RESTRICTED policy, mtime age (#1025)"
+            fi
+            created=$(_file_mtime_epoch "$result_file")
+        else
+            created=$(date -d "$timestamp" +%s 2>/dev/null || echo "0")
+            if [[ "$created" == "0" ]]; then
+                conservative=true
+                classification="RESTRICTED"
+                audit "CONSERVATIVE: $result_file unparseable timestamp '$timestamp' — RESTRICTED policy, mtime age (#1025)"
+                created=$(_file_mtime_epoch "$result_file")
+            fi
+        fi
+
+        if [[ "$conservative" == "true" ]]; then
+            CONSERVATIVE_COUNT=$((CONSERVATIVE_COUNT + 1))
         fi
 
         max_age_days=$(get_retention_days "$classification")
@@ -124,7 +178,11 @@ purge_expired() {
                 purged=$((purged + 1))
             fi
         else
-            [[ "$verbose" == "true" ]] && log "RETAIN: $run_id ($classification, ${age_days}d/${max_age_days}d)"
+            if [[ "$conservative" == "true" ]]; then
+                log "WARN: RETAIN (conservative): $result_file unparseable/un-timestamped, mtime age ${age_days}d under RESTRICTED ${max_age_days}d — will purge when expired (#1025)"
+            else
+                [[ "$verbose" == "true" ]] && log "RETAIN: $run_id ($classification, ${age_days}d/${max_age_days}d)"
+            fi
         fi
     done
 
@@ -161,6 +219,10 @@ main() {
 
     mkdir -p "$(dirname "$AUDIT_LOG")"
     purge_expired "$dry_run" "$verbose"
+    if [[ "$CONSERVATIVE_COUNT" -gt 0 ]]; then
+        log "Retention DEGRADED: $CONSERVATIVE_COUNT conservative disposition(s) applied — exit 3 (#1025)"
+        exit 3
+    fi
 }
 
 main "$@"
