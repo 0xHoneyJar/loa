@@ -302,7 +302,7 @@ process_findings_file() {
   iteration=$(basename "$findings_file" | grep -oE 'iter[0-9]+' | grep -oE '[0-9]+' || echo "1")
 
   local total_findings
-  total_findings=$(jq '.findings | length // 0' "$findings_file" 2>/dev/null || echo "0")
+  total_findings=$(jq '.findings | length // 0' "$findings_file" 2>/dev/null || echo "0")  # check-no-swallowed-jq: ok (pending #1025 sweep)
 
   if [[ "$total_findings" -eq 0 ]]; then
     log "No findings in $findings_file"
@@ -334,7 +334,7 @@ process_findings_file() {
   local idx=0
   while [[ $idx -lt $total_findings ]]; do
     local finding_json
-    finding_json=$(jq -c ".findings[$idx]" "$findings_file" 2>/dev/null || echo "null")
+    finding_json=$(jq -c ".findings[$idx]" "$findings_file" 2>/dev/null || echo "null")  # check-no-swallowed-jq: ok (pending #1025 sweep)
 
     if [[ "$finding_json" == "null" ]]; then
       idx=$((idx + 1))
@@ -389,7 +389,7 @@ main() {
   local bridge_state_file="$CWD_AT_INVOKE/.run/bridge-state.json"
   local bridge_id=""
   if [[ -f "$bridge_state_file" ]]; then
-    bridge_id=$(jq -r '.bridge_id // empty' "$bridge_state_file" 2>/dev/null || echo "")
+    bridge_id=$(jq -r '.bridge_id // empty' "$bridge_state_file" 2>/dev/null || echo "")  # check-no-swallowed-jq: ok (pending #1025 sweep)
   fi
 
   local findings_files=()

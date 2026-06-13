@@ -1744,6 +1744,19 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260612-ca7070/sprint.md"
     },
     {
+      "id": "cycle-bug-20260613-i1025-9a0abc",
+      "label": "Bug Fix — Output-swallowing jq shape silently converts parse errors into clean gate verdicts (KF-004/KF-015 mechanism)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1025",
+      "created_at": "2026-06-12T23:32:04Z",
+      "sprints": [
+        "sprint-bug-208"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260613-i1025-9a0abc/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260613-i1025-9a0abc/sprint.md"
+    },
+    {
       "id": "cycle-bug-20260613-i966-01593f",
       "label": "Bug Fix — PR #966 cursor-headless adapter config-dead/misdispatched on post-Bundle-E main",
       "type": "bugfix",

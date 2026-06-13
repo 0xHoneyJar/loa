@@ -34,6 +34,10 @@ setup() {
     # Provide the log() helper the filter depends on
     {
         echo 'log() { echo "[test] $*" >&2; }'
+        # sprint-bug-208 (#1025): the filter now routes verdict-bearing jq
+        # through jq_strict from compat-lib.sh; provide it to the extracted
+        # function set (same pre-source pattern as adversarial-review.bats).
+        echo "source \"$repo_root/.claude/scripts/compat-lib.sh\""
         cat ext.sh
     } > filter-fns.sh
     source filter-fns.sh

@@ -702,7 +702,18 @@ process_findings() {
 
   # Extract content from model-adapter response
   local content
-  content=$(echo "$raw_response" | jq -r '.content // empty' 2>/dev/null || echo "")
+  # sprint-bug-208 (#1025) / KF-004 guard: a parse failure here must be LOUD
+  # and route to malformed_response — never alias to empty-but-clean content.
+  if ! content=$(echo "$raw_response" | JQ_STRICT_CTX="adversarial-review:content-extract" jq_strict -r '.content // empty'); then
+    log "Adapter response is not parseable JSON — emitting malformed_response (KF-004 guard, #1025)"
+    jq -n \
+      --arg type "$type" --arg model "$model" --arg sid "$sprint_id" \
+      --arg ts "$timestamp" \
+      --arg err "adapter response failed JSON parse at content extraction" \
+      '{findings: [], metadata: {type: $type, model: $model, sprint_id: $sid,
+        timestamp: $ts, status: "malformed_response", degraded: false, error: $err}}'
+    return 0
+  fi
 
   # Try to parse as JSON (handle markdown ```json wrapping)
   local parsed
@@ -747,7 +758,10 @@ while i < len(text):
 
   # STATE 2: Malformed response
   local findings_array
-  findings_array=$(echo "$parsed" | jq -r '.findings // empty' 2>/dev/null || echo "")
+  if ! findings_array=$(echo "$parsed" | JQ_STRICT_CTX="adversarial-review:findings-presence" jq_strict -r '.findings // empty'); then
+    log "Parsed content failed JSON parse at findings extraction — malformed_response path (KF-004 guard, #1025)"
+    findings_array=""
+  fi
   if [[ -z "$findings_array" ]]; then
     log "Malformed response: missing 'findings' key"
 
@@ -807,7 +821,19 @@ while i < len(text):
 
   # STATE 3: Empty findings
   local finding_count
-  finding_count=$(echo "$parsed" | jq '.findings | length' 2>/dev/null || echo "0")
+  if ! finding_count=$(echo "$parsed" | JQ_STRICT_CTX="adversarial-review:finding-count" jq_strict '.findings | length'); then
+    # KF-004: an extraction failure must NEVER alias to clean-zero — that is
+    # the literal mechanism behind >=20 zero-findings canonical verdicts that
+    # masked real findings (#1025).
+    log "finding-count extraction failed on parsed content — emitting malformed_response, not clean-zero (KF-004 guard, #1025)"
+    jq -n \
+      --arg type "$type" --arg model "$model" --arg sid "$sprint_id" \
+      --arg ts "$timestamp" \
+      --arg err "finding-count extraction failed (.findings | length)" \
+      '{findings: [], metadata: {type: $type, model: $model, sprint_id: $sid,
+        timestamp: $ts, status: "malformed_response", degraded: false, error: $err}}'
+    return 0
+  fi
   if [[ "$finding_count" == "0" ]]; then
     # bug-809: keep status "clean" for backward compat, but qualify it —
     # zero findings means nothing met the BLOCKING/ADVISORY bar, NOT an
@@ -969,7 +995,14 @@ _apply_hallucination_filter() {
 
     # Short-circuit: no findings → nothing to filter, but emit metadata.
     local finding_count
-    finding_count=$(echo "$result" | jq '.findings | length' 2>/dev/null || echo "0")
+    if ! finding_count=$(echo "$result" | JQ_STRICT_CTX="adversarial-review:hallucination-filter" jq_strict '.findings | length'); then
+        # Documented non-fatal contract: return input unchanged — but LOUDLY
+        # (#1025). Annotating an unparseable result is impossible; the
+        # downstream result-status guard handles the malformed result.
+        log "hallucination filter: result unparseable — passing through unchanged (KF-004 guard, #1025)"
+        printf '%s' "$result"
+        return 0
+    fi
     if [[ "$finding_count" == "0" ]]; then
         printf '%s' "$result" | jq '.metadata.hallucination_filter = {applied: false, downgraded: 0, reason: "no_findings"}'
         return 0
@@ -1082,7 +1115,21 @@ merge_findings() {
   fi
 
   local existing_findings
-  existing_findings=$(jq '.findings // []' "$existing_file" 2>/dev/null || echo "[]")
+  # sprint-bug-208 (#1025): a corrupt existing-findings file must fail the
+  # merge loudly — silently merging against [] would drop prior findings.
+  # `.findings // []` still yields [] for a VALID file without the key
+  # (absence != parse failure).
+  if ! existing_findings=$(JQ_STRICT_CTX="adversarial-review:merge-existing" jq_strict '.findings // []' "$existing_file"); then
+    log "merge_findings: existing findings file unparseable: $existing_file (KF-004 guard, #1025)"
+    return 1
+  fi
+  # DISS-002 (review iter-1): jq exits 0 with NO output on zero-byte input —
+  # the swallow's quieter sibling. A valid findings artifact is never empty;
+  # refuse to merge against unknown state.
+  if [[ -z "$existing_findings" ]]; then
+    log "merge_findings: existing findings file is empty — refusing merge against unknown state: $existing_file (KF-004 guard, #1025)"
+    return 1
+  fi
 
   # Build merged set
   local merged="$existing_findings"
@@ -1204,6 +1251,30 @@ write_output() {
 # =============================================================================
 # Main
 # =============================================================================
+
+# sprint-bug-208 (#1025) / KF-004 guard: status extraction from a
+# process_findings result. A result that fails to parse is a
+# malformed_response (drives the fallback chain to the next model) — never
+# a silent "unknown" that reads as success. Absence of .metadata.status
+# inside VALID JSON still yields "unknown" (absence != parse failure).
+_extract_result_status() {
+  local result="$1"
+  local status
+  if ! status=$(printf '%s' "$result" | JQ_STRICT_CTX="adversarial-review:result-status" jq_strict -r '.metadata.status // "unknown"'); then
+    log "process_findings result failed to parse — treating as malformed_response (KF-004 guard, #1025)"
+    printf 'malformed_response'
+    return 0
+  fi
+  # DISS-002 (review iter-1): empty result through jq -r yields "" with
+  # exit 0; the fallback-chain loop would read "" as success. A valid
+  # process_findings envelope is never empty.
+  if [[ -z "$status" ]]; then
+    log "process_findings result was empty — treating as malformed_response (KF-004 guard, #1025)"
+    printf 'malformed_response'
+    return 0
+  fi
+  printf '%s' "$status"
+}
 
 main() {
   local type="" sprint_id="" diff_file="" context_file="" model="" budget="" timeout=""
@@ -1411,7 +1482,7 @@ main() {
       vq_cleanup_files+=("$vq_sidecar")
     fi
     result=$(process_findings "$raw_response" "$type" "$try_model" "$sprint_id" "$api_exit" "$diff_files")
-    status=$(echo "$result" | jq -r '.metadata.status // "unknown"' 2>/dev/null || echo "unknown")
+    status=$(_extract_result_status "$result")
     model_attempts+=("${try_model}:${status}")
 
     if [[ "$status" != "malformed_response" && "$status" != "api_failure" ]]; then

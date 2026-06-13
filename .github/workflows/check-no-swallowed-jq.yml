@@ -1,0 +1,88 @@
+name: check-no-swallowed-jq
+
+# sprint-bug-208 / #1025 — CI gate fencing the output-swallowing jq class
+# (`jq … || echo <default>`) on gate-critical scripts. The shape converts a
+# jq parse/extract failure into a clean default with exit 0 — the literal
+# mechanism behind KF-004 (zero-findings canonical verdicts masking real
+# findings, recurrence ≥20) and KF-015 (silent-clean red-team gate pass).
+# Verdict-bearing jq MUST route through `jq_strict` in
+# .claude/scripts/compat-lib.sh. Same strict-tripwire approach as
+# check-no-raw-sha256sum.yml (KF-012 precedent).
+
+on:
+  pull_request:
+    # Broad `.claude/scripts/**` filter (DISS-002 class): extensionless shell
+    # scripts must still trigger the workflow; the scanner's internal
+    # enforced-set + file-type filter is the load-bearing decision about
+    # what to inspect.
+    paths:
+      - '.claude/scripts/**'
+      - 'tools/check-no-swallowed-jq.sh'
+      - '.github/workflows/check-no-swallowed-jq.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.claude/scripts/**'
+      - 'tools/check-no-swallowed-jq.sh'
+
+permissions:
+  contents: read
+
+jobs:
+  swallowed-jq-tripwire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan gate-critical scripts for output-swallowing jq shapes
+        run: |
+          set -euo pipefail
+          # The scanner enforces the gate-critical set (adversarial-review,
+          # flatline-orchestrator, scoring-engine, post-pr-triage,
+          # red-team-*). Un-migrated legacy sites carry per-line
+          # `# check-no-swallowed-jq: ok (pending #1025 sweep)` markers;
+          # new sites are flagged here at PR time.
+          if ! bash tools/check-no-swallowed-jq.sh; then
+              echo "::error::output-swallowing jq shape detected; route through jq_strict from compat-lib.sh"
+              echo "::error::see tools/check-no-swallowed-jq.sh --help and known-failures.md KF-004/KF-015"
+              exit 1
+          fi
+
+      - name: Positive control — scanner rejects a deliberately-bad sentinel
+        run: |
+          set -euo pipefail
+          # Verify the scanner ACTUALLY catches a violation (defends against
+          # the scanner accidentally exiting 0 from a syntax error).
+          SENTINEL_DIR="$(mktemp -d)"
+          cat > "$SENTINEL_DIR/sentinel.sh" <<'EOF'
+          #!/usr/bin/env bash
+          count=$(echo "$payload" | jq '.findings | length' 2>/dev/null || echo "0")
+          EOF
+          if bash tools/check-no-swallowed-jq.sh --root "$SENTINEL_DIR" --quiet; then
+              echo "::error::scanner failed to reject sentinel — scanner regression"
+              exit 1
+          fi
+          echo "OK: scanner correctly rejected sentinel"
+
+      - name: Negative control — scanner accepts jq_strict and plain jq usage
+        run: |
+          set -euo pipefail
+          # Verify the scanner does NOT over-match on jq_strict (shared `jq`
+          # prefix) or on jq invocations without a `|| echo` default.
+          NEG_DIR="$(mktemp -d)"
+          cat > "$NEG_DIR/uses-strict.sh" <<'EOF'
+          #!/usr/bin/env bash
+          # shellcheck disable=SC1091
+          source .claude/scripts/compat-lib.sh
+          if ! count=$(echo "$payload" | jq_strict '.findings | length'); then
+              echo "ERROR: payload unparseable" >&2
+              exit 5
+          fi
+          plain=$(echo "$payload" | jq -r '.name')
+          EOF
+          if ! bash tools/check-no-swallowed-jq.sh --root "$NEG_DIR" --quiet; then
+              echo "::error::scanner false-positive on jq_strict / plain jq usage"
+              exit 1
+          fi
+          echo "OK: scanner correctly accepted jq_strict usage"

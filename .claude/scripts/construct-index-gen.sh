@@ -299,13 +299,18 @@ process_pack() {
 
     # Extract events into emits/consumes arrays
     local emits_json consumes_json
-    emits_json=$(jq -c '.events.emits // [] | [.[].name // empty]' "$manifest" 2>/dev/null || echo "[]")
-    consumes_json=$(jq -c '.events.consumes // [] | [.[].event // empty]' "$manifest" 2>/dev/null || echo "[]")
+    # GAP C fix: event-id key varies by pack — `.name` (the-arcade/the-easel), `.event`, OR
+    # `.type` (gecko + the MAJORITY of packs). The alternation MUST run per element:
+    # `[.[].name // .event // .type]` evaluates `.event`/`.type` against the outer ARRAY,
+    # which errors on every non-.name shape (and the stderr swallow turned that into []).
+    emits_json=$(jq -c '.events.emits // [] | [.[] | (.name // .event // .type) // empty]' "$manifest" 2>/dev/null || echo "[]")
+    consumes_json=$(jq -c '.events.consumes // [] | [.[] | (.event // .name // .type) // empty]' "$manifest" 2>/dev/null || echo "[]")
 
     # Initialize overlay fields
     local writes_json="[]"
     local reads_json="[]"
     local gates_json="{}"
+    local compose_with_json="[]"
 
     # Check for construct.yaml overlay
     local construct_yaml="$pack_dir/construct.yaml"
@@ -326,6 +331,21 @@ process_pack() {
         writes_json=$(yq eval -o=json '.writes // []' "$construct_yaml" 2>/dev/null || echo "[]")
         reads_json=$(yq eval -o=json '.reads // []' "$construct_yaml" 2>/dev/null || echo "[]")
         gates_json=$(yq eval -o=json '.gates // {}' "$construct_yaml" 2>/dev/null || echo "{}")
+        # GAP C fix: explicit compose_with[].slug declarations were never read — composition
+        # was derived ONLY from reads/writes overlap, which is empty for every pack.
+        compose_with_json=$(yq eval -o=json '[.compose_with[].slug] // []' "$construct_yaml" 2>/dev/null || echo "[]")
+
+        # GAP C fix: several constructs (e.g. the-arcade) declare their event membrane in
+        # construct.yaml, not manifest.json. Overlay it (construct.yaml wins when present);
+        # tolerate `.name`, `.event`, AND `.type` shapes (gecko + most packs key on `.type` —
+        # a `.name // .event`-only union wrote [null,...] for them; regression caught by BB on #981).
+        local cy_emits cy_consumes
+        # BB #981 (2fc2685b round): filter nulls like the manifest path's `// empty` —
+        # an entry with none of the three keys must not inject null into the membrane.
+        cy_emits=$(yq eval -o=json '[.events.emits[] | (.name // .event // .type) | select(. != null)] // []' "$construct_yaml" 2>/dev/null || echo "[]")
+        cy_consumes=$(yq eval -o=json '[.events.consumes[] | (.name // .event // .type) | select(. != null)] // []' "$construct_yaml" 2>/dev/null || echo "[]")
+        [[ -n "$cy_emits" && "$cy_emits" != "null" && "$cy_emits" != "[]" ]] && emits_json="$cy_emits"
+        [[ -n "$cy_consumes" && "$cy_consumes" != "null" && "$cy_consumes" != "[]" ]] && consumes_json="$cy_consumes"
 
         # Extract tags from construct.yaml if present
         local cy_tags
@@ -374,6 +394,7 @@ process_pack() {
         --argjson gates "$gates_json" \
         --argjson emits "$emits_json" \
         --argjson consumes "$consumes_json" \
+        --argjson compose_with "$compose_with_json" \
         --argjson tags "$tags_json" \
         --argjson aggregated_capabilities "$aggregated_caps" \
         '{
@@ -393,7 +414,7 @@ process_pack() {
                 consumes: $consumes
             },
             tags: $tags,
-            composes_with: [],
+            composes_with: $compose_with,
             aggregated_capabilities: $aggregated_capabilities
         }'
 }
@@ -411,7 +432,7 @@ compute_composition() {
             . as $i |
             $all[$i] as $current |
             $current + {
-                composes_with: [
+                composes_with: (([
                     $all | to_entries[] |
                     select(.key != $i) |
                     select(
@@ -419,7 +440,7 @@ compute_composition() {
                         (.value.reads as $r | $current.writes | any(. as $w | $r | index($w)))
                     ) |
                     .value.slug
-                ] | unique
+                ]) + ($current.composes_with // [])) | unique
             }
         )
     ' <<< "$constructs_json"

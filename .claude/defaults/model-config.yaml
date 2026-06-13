@@ -527,23 +527,6 @@ providers:
       # CLI fallback via `claude` binary (Claude Code subscription auth).
       # Operator must install per `grimoires/loa/runbooks/headless-mode.md`.
       # Chain terminal — no further fallback (enforced by lint).
-      claude-fable-headless:
-        # 2026-06-11 (BB-on-Fable): the claude CLI dispatching the TOP
-        # intelligence tier on the operator's subscription (OAuth, no API
-        # key, no marginal cost). Proven live: `claude -p --model fable`
-        # self-identifies claude-fable-5. Mirror of claude-headless below;
-        # cli_model is the literal passed to `claude --model <name>`.
-        # Intended consumers: BRIDGEBUILDER_MODEL=fable-headless (critical
-        # PRs), FAGAN council fable voice, any flatline agent binding that
-        # opts in via `model: fable-headless`.
-        auth_type: headless
-        dispatch_group: anthropic-claude
-        kind: cli
-        capabilities: [chat]            # No tool_use, no thinking
-        context_window: 200000
-        # No pricing entry — CLI uses operator's Claude Code subscription.
-        extra:
-          cli_model: fable
       claude-headless:
         # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
         auth_type: headless
@@ -558,9 +541,17 @@ providers:
         # cycle-104 sprint-2 T2.11 amendment: cli_model is the literal
         # model name passed to `claude --model <name>` (the CLI doesn't
         # recognize the Loa alias). Operator-overridable to switch
-        # between sonnet / opus per subscription tier.
+        # tiers per subscription.
+        # 2026-06-11 operator decision: fable (was sonnet) — headless
+        # dispatch runs the TOP intelligence tier on the subscription.
+        # NOTE the adapter always passes --model explicitly, so the
+        # operator's Claude Code session default does NOT apply here;
+        # this pin is the single source of the headless model. Applies
+        # to every claude-headless consumer (BB, council claude voice,
+        # chain-walk fallbacks — fallbacks now silently UPGRADE rather
+        # than downgrade; per-request honesty is loa#1006).
         extra:
-          cli_model: sonnet
+          cli_model: fable
 
   # ===========================================================================
   # AWS Bedrock — cycle-096 (issue #652)
@@ -723,7 +714,6 @@ aliases:
   # its company's fallback_chain. Operator must install the underlying CLI
   # binary (`claude`, `codex`, `gemini`) per the headless-mode runbook.
   claude-headless: "anthropic:claude-headless"
-  fable-headless: "anthropic:claude-fable-headless"   # top tier on subscription (BB critical PRs)
   codex-headless: "openai:codex-headless"
   gemini-headless: "google:gemini-headless"
 

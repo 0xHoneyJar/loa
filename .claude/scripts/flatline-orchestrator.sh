@@ -642,7 +642,7 @@ aggregate_and_write_final_consensus() {
         }
         if [[ -s "$target" ]]; then
             local final_status
-            final_status=$(jq -r '.status' "$target" 2>/dev/null || echo "?")
+            final_status=$(jq -r '.status' "$target" 2>/dev/null || echo "?")  # check-no-swallowed-jq: ok (pending #1025 sweep)
             log "[vq-aggregate] wrote $target (status=$final_status, voices=${#vq_files[@]}/${#input_files[@]})"
         fi
     fi
@@ -2379,7 +2379,7 @@ main() {
                 # Extract JSON decisions from arbiter response
                 local decisions
                 decisions=$(echo "$arbiter_result" | jq -r '.content // .' 2>/dev/null | \
-                    grep -oE '\[.*\]' | head -1 | jq '.' 2>/dev/null || echo "[]")
+                    grep -oE '\[.*\]' | head -1 | jq '.' 2>/dev/null || echo "[]")  # check-no-swallowed-jq: ok (pending #1025 sweep)
 
                 if echo "$decisions" | jq -e 'type == "array"' >/dev/null 2>&1; then
                     # Process each decision
