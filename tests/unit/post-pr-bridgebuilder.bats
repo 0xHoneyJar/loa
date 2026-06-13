@@ -440,6 +440,21 @@ EOF
     [[ "$output" == *"dependencies unavailable"* || "$output" == *"FATAL"* ]]
 }
 
+@test "dep-guard: dependency failure invalidates a stale FLATLINE convergence record (T-A7, DISS-002 iter-4)" {
+    # The dep-guard exit must not leave a prior run's FLATLINE record for the
+    # orchestrator to read as clean (same stale-convergence class as T-A5).
+    mkdir -p "$TEST_TMPDIR/.run"
+    cat > "$TEST_TMPDIR/.run/bridge-triage-convergence.json" <<'JSON'
+{"timestamp":"2020-01-01T00:00:00Z","pr_number":100,"state":"FLATLINE","actionable_high":0,"blocker_count":0,"disputed_count":0}
+JSON
+    rm -f "$TEST_TMPDIR/.claude/scripts/compat-lib.sh"
+    create_findings_file "bridge-x-iter1-findings.json" "CRITICAL" "c1" "Real finding"
+    run "$TEST_TMPDIR/.claude/scripts/post-pr-triage.sh" --pr 100 --auto-triage true
+    [ "$status" -eq 2 ]
+    # Stale FLATLINE must be gone (absent → orchestrator defaults KEEP_ITERATING, not clean)
+    [ ! -f "$TEST_TMPDIR/.run/bridge-triage-convergence.json" ]
+}
+
 @test "KF-004 guard: corrupt bridge-state.json overwrites stale FLATLINE convergence → DEGRADED (T-A5)" {
     # DISS-001: the corrupt-state early-return must not let a prior iteration's
     # clean convergence record survive — the orchestrator reads .state from it.

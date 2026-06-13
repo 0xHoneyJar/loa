@@ -414,7 +414,16 @@ _require_deps() {
 }
 
 main() {
-  _require_deps || exit $?
+  if ! _require_deps; then
+    # DISS-002 iter-4: the dep-guard exits before the normal convergence write,
+    # so a stale (possibly FLATLINE) record from a prior run must be invalidated
+    # — else the orchestrator reads it as clean. rm (not a DEGRADED jq-write)
+    # because jq itself may be the missing dependency.
+    if [[ "$DRY_RUN" != "true" ]]; then
+      rm -f "$CWD_AT_INVOKE/.run/bridge-triage-convergence.json"
+    fi
+    exit 2
+  fi
 
   if [[ ! -d "$REVIEW_DIR" ]]; then
     log "Review directory not found: $REVIEW_DIR"
