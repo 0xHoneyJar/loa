@@ -150,6 +150,16 @@ class TestCommandConstruction:
         for arg in cmd:
             assert "model_reasoning_effort" not in arg
 
+    def test_agent_tool_surface_disabled(self):
+        # #1008 finding 1 (audit): the agent's shell/browser/computer tools must
+        # be disabled so a prompt-injected diff cannot execute commands to
+        # read + exfiltrate files despite --sandbox read-only.
+        adapter = CodexHeadlessAdapter(_make_config())
+        cmd = adapter._build_command(_make_request(), ModelConfig())
+        disabled = {cmd[i + 1] for i, a in enumerate(cmd) if a == "--disable"}
+        for feature in ("shell_tool", "browser_use", "browser_use_external", "computer_use"):
+            assert feature in disabled, f"{feature} must be disabled"
+
     def test_reasoning_effort_from_metadata_overrides_model_config(self):
         adapter = CodexHeadlessAdapter(_make_config(extra={"reasoning_effort": "high"}))
         req = _make_request(metadata={"reasoning_effort": "low"})
@@ -168,18 +178,18 @@ class TestCommandConstruction:
         # "extreme" is not in allowed set; should be dropped silently with a WARN
         assert not any("model_reasoning_effort=" in arg for arg in cmd)
 
-    def test_extra_codex_config_overrides_passed_through(self):
+    def test_extra_codex_config_overrides_allowlisted_key_passes(self):
+        # #1008 finding 2: an inference-only key on the allowlist still passes
+        # through as `-c key=value`; reasoning_effort is not duplicated.
         extra = {
             "reasoning_effort": "low",
             "codex_config_overrides": {
                 "reasoning_summaries": "true",
-                "model_provider": "oss",
             },
         }
         adapter = CodexHeadlessAdapter(_make_config(extra=extra))
         cmd = adapter._build_command(_make_request(), adapter.config.models["gpt-5.5"])
         assert "reasoning_summaries=true" in cmd
-        assert "model_provider=oss" in cmd
         # reasoning_effort still present once (not duplicated by extra dict)
         effort_count = sum(1 for arg in cmd if "model_reasoning_effort=" in arg)
         assert effort_count == 1
@@ -506,6 +516,213 @@ class TestSubprocessEnvFilter:
             adapter.complete(_make_request())
         env = mock_run.call_args.kwargs.get("env", {})
         assert env.get("OPENAI_API_KEY") == "sk-proj-test"
+
+
+# ---------------------------------------------------------------------------
+# #1008 finding 1 — isolate the agent read-surface (workspace cwd + -C)
+#
+# `--sandbox read-only` prevents writes, not reads. Untrusted flattened prompt
+# content (review diffs / issue bodies) could instruct the codex agent to read
+# workspace files and return them via the normal CompletionResult path. Mirror
+# the audit-blessed cursor_headless defense: run codex in a fresh empty tempdir
+# (cwd=workspace + `-C <workspace>`), removed in a finally even on raise.
+# ---------------------------------------------------------------------------
+
+
+class TestWorkspaceIsolation:
+    def test_build_command_includes_cd_workspace(self):
+        adapter = CodexHeadlessAdapter(_make_config())
+        cmd = adapter._build_command(
+            _make_request(), ModelConfig(), workspace="/tmp/loa-codex-ws-XXXX"
+        )
+        idx = cmd.index("-C")
+        assert cmd[idx + 1] == "/tmp/loa-codex-ws-XXXX"
+        # The read-only sandbox is retained alongside the isolation.
+        assert "read-only" in cmd
+
+    def test_pgkill_called_with_isolated_workspace_cwd(self):
+        # The helper must receive cwd=<fresh loa-codex-ws-* tempdir> so a
+        # (read-only-but-still-capable) agent tool call has nothing to reach.
+        adapter = CodexHeadlessAdapter(_make_config())
+        with patch(
+            "loa_cheval.providers.codex_headless_adapter.run_subprocess_pgkill"
+        ) as mock_run:
+            mock_run.return_value = _ok_proc(SAMPLE_JSONL_OUTPUT)
+            adapter.complete(_make_request())
+        kwargs = mock_run.call_args.kwargs
+        assert "loa-codex-ws-" in (kwargs.get("cwd") or "")
+
+    def test_workspace_removed_after_completion(self):
+        adapter = CodexHeadlessAdapter(_make_config())
+        with patch(
+            "loa_cheval.providers.codex_headless_adapter.run_subprocess_pgkill"
+        ) as mock_run:
+            mock_run.return_value = _ok_proc(SAMPLE_JSONL_OUTPUT)
+            adapter.complete(_make_request())
+            ws = mock_run.call_args.kwargs.get("cwd")
+        assert ws and "loa-codex-ws-" in ws
+        assert not os.path.exists(ws), "workspace tempdir must be cleaned up"
+
+    def test_workspace_removed_even_on_failure(self):
+        adapter = CodexHeadlessAdapter(_make_config())
+        captured = {}
+        with patch(
+            "loa_cheval.providers.codex_headless_adapter.run_subprocess_pgkill"
+        ) as mock_run:
+            def _capture(*args, **kwargs):
+                captured["cwd"] = kwargs.get("cwd")
+                return _fail_proc(2, "some unexpected error")
+
+            mock_run.side_effect = _capture
+            with pytest.raises(ProviderUnavailableError):
+                adapter.complete(_make_request())
+        ws = captured.get("cwd")
+        assert ws and "loa-codex-ws-" in ws
+        assert not os.path.exists(ws), "workspace must be cleaned up on the failure path too"
+
+    def test_mkdtemp_failure_raises_typed_provider_error(self):
+        # DISS-002 (review): a tempdir-creation failure must surface as a typed
+        # ProviderUnavailableError so the fallback chain still reacts — not a
+        # raw OSError — and must not leave the rmtree path dereferencing None.
+        adapter = CodexHeadlessAdapter(_make_config())
+        with patch(
+            "loa_cheval.providers.codex_headless_adapter.tempfile.mkdtemp",
+            side_effect=OSError("No space left on device"),
+        ):
+            with pytest.raises(ProviderUnavailableError):
+                adapter.complete(_make_request())
+
+
+# ---------------------------------------------------------------------------
+# #1008 finding 2 — default-deny allowlist for codex_config_overrides
+#
+# Every key under ModelConfig.extra.codex_config_overrides used to be appended
+# as `-c key=value` with no allowlist, letting (potentially untrusted) project
+# config alter codex's security posture (provider routing, sandbox, approval,
+# network, mcp/features/tools, auth). Only inference/display knobs may pass.
+# ---------------------------------------------------------------------------
+
+
+class TestConfigOverrideAllowlist:
+    def _cmd_with_overrides(self, overrides):
+        extra = {"codex_config_overrides": overrides}
+        adapter = CodexHeadlessAdapter(_make_config(extra=extra))
+        return adapter._build_command(_make_request(), adapter.config.models["gpt-5.5"])
+
+    def test_security_posture_key_rejected(self, caplog):
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            cmd = self._cmd_with_overrides({"model_provider": "oss"})
+        # The provider-routing key never reaches the argv.
+        assert not any("model_provider" in arg for arg in cmd)
+        assert any("model_provider" in rec.getMessage() for rec in caplog.records)
+
+    def test_multiple_security_keys_all_rejected(self):
+        cmd = self._cmd_with_overrides(
+            {
+                "sandbox_mode": "danger-full-access",
+                "approval_policy": "never",
+                "model_provider": "oss",
+                "shell_environment_policy": "all",
+                "mcp_servers": "x",
+            }
+        )
+        for bad in (
+            "sandbox_mode",
+            "approval_policy",
+            "model_provider",
+            "shell_environment_policy",
+            "mcp_servers",
+        ):
+            assert not any(bad in arg for arg in cmd), f"{bad} must be rejected"
+
+    def test_dotted_nested_key_rejected(self):
+        cmd = self._cmd_with_overrides({"model_providers.oss.base_url": "http://evil"})
+        assert not any("base_url" in arg for arg in cmd)
+        assert not any("model_providers" in arg for arg in cmd)
+
+    def test_allowlisted_key_passes(self):
+        cmd = self._cmd_with_overrides({"reasoning_summaries": "true"})
+        assert "reasoning_summaries=true" in cmd
+
+    def test_rejection_does_not_raise(self):
+        # Parity with reasoning_effort fall-through: a bad key is dropped with a
+        # warning; the request still proceeds (cmd is built, not an exception).
+        cmd = self._cmd_with_overrides({"model_provider": "oss", "reasoning_summaries": "true"})
+        assert "reasoning_summaries=true" in cmd
+        assert not any("model_provider" in arg for arg in cmd)
+
+    def test_allowlisted_key_with_injection_value_rejected(self):
+        # sprint-bug-214 audit (cross-model DISS): an allowlisted key carrying a
+        # TOML/newline injection value must NOT reach argv — the smuggled second
+        # assignment (sandbox_mode) must never appear.
+        cmd = self._cmd_with_overrides(
+            {"reasoning_summaries": 'true\nsandbox_mode="danger-full-access"'}
+        )
+        assert not any("sandbox_mode" in arg for arg in cmd)
+        assert not any("danger-full-access" in arg for arg in cmd)
+        assert not any("reasoning_summaries=true\n" in arg for arg in cmd)
+
+    def test_allowlisted_key_safe_scalar_value_passes(self):
+        # Sanity: a normal scalar value still passes after value-charset hardening.
+        cmd = self._cmd_with_overrides({"model_verbosity": "high"})
+        assert "model_verbosity=high" in cmd
+
+
+# ---------------------------------------------------------------------------
+# #1008 finding 3 — sanitize codex stderr before embedding in exceptions
+#
+# Both the auth (ConfigError) and generic (ProviderUnavailableError) branches
+# embedded up to 300-500 chars of raw stderr, which can carry prompt fragments,
+# paths, or account/secret tokens into caller-visible error output.
+# ---------------------------------------------------------------------------
+
+
+class TestStderrSanitization:
+    def test_generic_failure_redacts_secret_in_stderr(self):
+        adapter = CodexHeadlessAdapter(_make_config())
+        secret = "sk-proj-abcdEFGH1234ijklMNOP5678qrstUVWX"
+        with patch(
+            "loa_cheval.providers.codex_headless_adapter.run_subprocess_pgkill"
+        ) as mock_run:
+            mock_run.return_value = _fail_proc(2, f"boom leaked {secret} in trace")
+            with pytest.raises(ProviderUnavailableError) as exc_info:
+                adapter.complete(_make_request())
+        msg = str(exc_info.value)
+        assert secret not in msg
+        assert "[REDACTED" in msg
+
+    def test_auth_failure_redacts_secret_in_stderr(self):
+        adapter = CodexHeadlessAdapter(_make_config())
+        secret = "sk-proj-abcdEFGH1234ijklMNOP5678qrstUVWX"
+        with patch(
+            "loa_cheval.providers.codex_headless_adapter.run_subprocess_pgkill"
+        ) as mock_run:
+            mock_run.return_value = _fail_proc(
+                1, f"Error: not authenticated; token {secret}; run codex login"
+            )
+            with pytest.raises(ConfigError) as exc_info:
+                adapter.complete(_make_request())
+        msg = str(exc_info.value)
+        assert secret not in msg
+        # Actionable guidance is preserved even after redaction.
+        assert "codex login" in msg
+
+    def test_sanitize_then_truncate_no_prefix_leak(self):
+        # A secret near the 300/500-char truncation boundary must not survive as
+        # a leaked prefix: sanitize happens BEFORE truncation.
+        adapter = CodexHeadlessAdapter(_make_config())
+        secret = "sk-proj-" + "Z" * 60
+        padding = "x" * 470
+        with patch(
+            "loa_cheval.providers.codex_headless_adapter.run_subprocess_pgkill"
+        ) as mock_run:
+            mock_run.return_value = _fail_proc(2, padding + secret)
+            with pytest.raises(ProviderUnavailableError) as exc_info:
+                adapter.complete(_make_request())
+        msg = str(exc_info.value)
+        assert "sk-proj-ZZZ" not in msg
 
 
 # ---------------------------------------------------------------------------
