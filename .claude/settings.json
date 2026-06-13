@@ -447,7 +447,17 @@
       "Bash(iptables -X:*)",
       "Bash(ufw disable:*)",
       "Bash(eval *curl*)",
-      "Bash(eval *wget*)"
+      "Bash(eval *wget*)",
+      "Write(.run/cron.d/**)",
+      "Edit(.run/cron.d/**)",
+      "Write(.run/*.sh)",
+      "Edit(.run/*.sh)",
+      "Write(.run/**/*.sh)",
+      "Edit(.run/**/*.sh)",
+      "Write(.run/merged-model-aliases.sh)",
+      "Edit(.run/merged-model-aliases.sh)",
+      "Write(grimoires/loa/skills/**)",
+      "Edit(grimoires/loa/skills/**)"
     ]
   },
   "hooks": {

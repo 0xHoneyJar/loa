@@ -271,6 +271,126 @@ if echo "$command" | grep -qE '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*(
 fi
 
 # -----------------------------------------------------------------------------
+# FR-SZ — State-Zone executable/lifecycle write guard (sprint-bug-213 / #1044)
+# -----------------------------------------------------------------------------
+# Blocks DIRECT inline agent writes to the executable / lifecycle-controlled
+# subset of the State Zone, which the shipped Bash allow-list (cp/tee/cat/echo/
+# python3/bash/sh/ln/dd/tar/sed/...) otherwise permits with no prompt:
+#   - .run/cron.d           deferred-execution cron scripts (dir + descendants)
+#   - .run/...*.sh          sourced for model routing (incl. merged-model-aliases.sh)
+#   - grimoires/loa/skills  skill-approval lifecycle (dir + descendants)
+# Companion tool-layer half: the Write/Edit deny rules in .claude/settings.json
+# (deny > allow). A Write-only deny without this Bash guard is theater (#1044).
+#
+# SCOPE (validated): the PreToolUse:Bash hook sees only the agent's OUTER command
+# string. A generator invoked as `python3 .../model-overlay-hook.py` or `bash X.sh`
+# that writes these paths INTERNALLY is invisible here (the redirect lives inside an
+# already-approved subprocess) — so this guard blocks only DIRECT inline writes and
+# leaves the legitimate generators frictionless (recon: zero inline callers).
+#
+# Coverage (sprint-bug-213 iter-2, cross-model dissent CR-1..CR-5): directory
+# destinations with or without a trailing slash; option-form destinations
+# (-t/--target-directory for the copy family, -C/--directory for tar, -d for unzip);
+# tee long-options and non-first operands; grouped/long in-place editor flags
+# (-Ei, --in-place); and a trailing shell comment as a statement terminator.
+#
+# Accepted bypass classes (defense-in-depth fence, NOT a hardened boundary; cf. the
+# header section-11 list): post-cd relative writes, variable-indirected targets,
+# obfuscated interpreter writes (base64/concat path in -c), a pipe-delimited sed
+# in-place edit (the statement-bound stops at the first pipe), git checkout of a
+# tracked path, non-allow-listed writers (truncate/sponge/ex/ed already prompt),
+# and a trailing comment that merely mentions a protected path. Sanctioned override
+# for the skill-audit approve move + operator use: LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1.
+# -----------------------------------------------------------------------------
+# Path fragments (ERE; substring match also covers absolute / $PWD-prefixed forms).
+_sz_pc="[^[:space:]'\";&|#]"                              # one path character
+_sz_sh="\\.run/${_sz_pc}*\\.sh"                          # a .sh file anywhere under .run/
+_sz_root="(\\.run/cron\\.d|grimoires/loa/skills)"        # protected directory roots
+_sz_tgt="(${_sz_sh}|${_sz_root}(/${_sz_pc}*)?)"          # a protected target (file OR dir[/desc])
+_sz_file="(${_sz_sh}|${_sz_root}/${_sz_pc}*)"            # a protected descendant FILE
+_sz_b="([[:space:]]|['\"]|[;&|#]|\$)"                    # right token boundary (NOT '/')
+_sz_end="([[:space:]]+--?[a-zA-Z][a-zA-Z0-9-]*)*[[:space:]]*([;&|#]|\$)"  # end-of-stmt; allows trailing option flags (GNU options-after-operands)
+_sz_pre="${_sz_pc}*"                                     # optional leading path prefix (./, abs, $PWD/, repo-root)
+
+if echo "$command" | grep -qE "(${_sz_sh}|\\.run/cron\\.d|grimoires/loa/skills)" 2>/dev/null; then
+  if [[ "${LOA_ALLOW_STATE_ZONE_EXEC_WRITE:-}" == "1" ]]; then
+    # Sanctioned override — allow, warn once, audit the bypass (best-effort).
+    if [[ -z "${LOA_SZ_EXEC_WRITE_BYPASS_WARNED:-}" ]]; then
+      echo "WARNING: block-destructive-bash: LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1 — State-Zone executable/lifecycle write guard bypassed this session." >&2
+      export LOA_SZ_EXEC_WRITE_BYPASS_WARNED=1
+    fi
+    {
+      _sz_redactor="${LOA_REPO_ROOT:-.}/.claude/scripts/lib/log-redactor.sh"
+      _sz_cmd=$(printf '%s' "$command" | "$_sz_redactor" 2>/dev/null) || _sz_cmd="[REDACTOR-FAILED]"
+      [[ ${#_sz_cmd} -gt 2048 ]] && _sz_cmd="${_sz_cmd:0:2048}[...TRUNCATED]"
+      mkdir -p "${LOA_REPO_ROOT:-.}/.run" 2>/dev/null || true
+      jq -cn --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg cmd "$_sz_cmd" --arg cwd "$(pwd)" \
+        '{ts: $ts, tool: "Bash", command: $cmd, exit_code: 0, cwd: $cwd, hook: "block-destructive-bash", action: "bypass", pattern_id: "FR-SZ"}' \
+        >> "${LOA_REPO_ROOT:-.}/.run/audit.jsonl" 2>/dev/null || true
+    } 2>/dev/null || true
+  else
+    # Write-intent tests — first match blocks (emit_block exits 2). Anchored to write
+    # operations so read-only references (cat/ls/grep/source/cp-FROM) pass through.
+
+    # SZ-REDIR: redirect (any fd / append / noclobber-override) INTO a protected file.
+    if echo "$command" | grep -qE "([0-9]*|&)?>>?\\|?[[:space:]]*['\"]?${_sz_pre}${_sz_file}${_sz_b}" 2>/dev/null; then
+      matched=$(echo "$command" | grep -oE ">>?[[:space:]]*['\"]?${_sz_pre}${_sz_file}" | head -1)
+      emit_block "FR-SZ-REDIR" "$matched" "Redirect-write to a State-Zone executable/lifecycle path. These are generator/approval-only. Run the owning generator/skill, or set LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1 for an audited override."
+    fi
+
+    # SZ-TEE: tee writes ALL its file operands (any position, short or long flags).
+    if echo "$command" | grep -qE "\\btee\\b[^|;&]*[[:space:]]['\"]?${_sz_pre}${_sz_file}${_sz_b}" 2>/dev/null; then
+      matched=$(echo "$command" | grep -oE "${_sz_file}" | head -1)
+      emit_block "FR-SZ-TEE" "$matched" "tee-write to a State-Zone executable/lifecycle path. Use the owning generator/skill, or LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1."
+    fi
+
+    # SZ-COPY: cp/mv/install/rsync. (a) protected DESTINATION as last operand
+    # (end-anchored, so reading a protected file OUT stays allowed); (b) protected
+    # directory via -t / --target-directory.
+    if echo "$command" | grep -qE "\\b(cp|mv|install|rsync)\\b[^|;&]+[[:space:]]['\"]?${_sz_pre}${_sz_tgt}['\"]?${_sz_end}" 2>/dev/null \
+       || echo "$command" | grep -qE "\\b(cp|mv|install|ln)\\b[^|;&]*[[:space:]](-t|--target-directory)(=|[[:space:]]+)['\"]?${_sz_pre}${_sz_tgt}${_sz_b}" 2>/dev/null; then
+      matched=$(echo "$command" | grep -oE "${_sz_tgt}" | head -1)
+      emit_block "FR-SZ-COPY" "$matched" "copy/move into a State-Zone executable/lifecycle path. Use the owning generator/skill, or LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1."
+    fi
+
+    # SZ-LINK: ln with a protected linkname as last operand (positional dest).
+    if echo "$command" | grep -qE "\\bln\\b[^|;&]+[[:space:]]['\"]?${_sz_pre}${_sz_tgt}['\"]?${_sz_end}" 2>/dev/null; then
+      matched=$(echo "$command" | grep -oE "${_sz_tgt}" | head -1)
+      emit_block "FR-SZ-LINK" "$matched" "symlink/hardlink into a State-Zone executable/lifecycle path. Use the owning generator/skill, or LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1."
+    fi
+
+    # SZ-DD: dd of=<protected file>.
+    if echo "$command" | grep -qE "\\bdd\\b[^|;&]*of=['\"]?${_sz_pre}${_sz_file}${_sz_b}" 2>/dev/null; then
+      matched=$(echo "$command" | grep -oE "of=['\"]?${_sz_pre}${_sz_file}" | head -1)
+      emit_block "FR-SZ-DD" "$matched" "dd-write to a State-Zone executable/lifecycle path. Use the owning generator/skill, or LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1."
+    fi
+
+    # SZ-INPLACE: sed/perl/awk in-place edit of a protected file. Recognizes grouped
+    # short clusters (-Ei) and the long --in-place[=...] form; end-anchors the file
+    # operand so a sed EXPRESSION that merely mentions a protected path while editing
+    # another file is NOT blocked.
+    if echo "$command" | grep -qE "\\b(sed|perl|awk|gawk)\\b[^|;&]*[[:space:]](-[a-zA-Z]*i[a-zA-Z.]*|--in-place)(=|[[:space:]]|['\"])[^|;&]*[[:space:]]['\"]?${_sz_pre}${_sz_tgt}['\"]?${_sz_end}" 2>/dev/null; then
+      matched=$(echo "$command" | grep -oE "${_sz_tgt}['\"]?${_sz_end}" | head -1)
+      emit_block "FR-SZ-INPLACE" "$matched" "in-place edit of a State-Zone executable/lifecycle path (tamper with an approved skill or the sourced overlay). Use the owning generator/skill, or LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1."
+    fi
+
+    # SZ-EXTRACT: archive extraction INTO a protected dir (tar -C/--directory, unzip -d).
+    if echo "$command" | grep -qE "\\btar\\b[^|;&]*[[:space:]](-C|--directory)(=|[[:space:]]+)['\"]?${_sz_pre}${_sz_tgt}${_sz_b}" 2>/dev/null \
+       || echo "$command" | grep -qE "\\bunzip\\b[^|;&]*[[:space:]]-d(=|[[:space:]]+)['\"]?${_sz_pre}${_sz_tgt}${_sz_b}" 2>/dev/null; then
+      matched=$(echo "$command" | grep -oE "(-C|--directory|-d)(=|[[:space:]]+)['\"]?${_sz_pre}${_sz_tgt}" | head -1)
+      emit_block "FR-SZ-EXTRACT" "$matched" "archive extraction into a State-Zone executable/lifecycle path (drops cron-eligible / lifecycle files). Extract elsewhere, or set LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1."
+    fi
+
+    # SZ-INTERP: naive interpreter -c/-e literal write (fence value vs. injected agents;
+    # obfuscated/variable-built interpreter writes remain an accepted bypass).
+    if echo "$command" | grep -qE "\\b(python3?|python|perl|ruby|node|bash|sh)\\b[^|;&]*[[:space:]]-[ce].*(${_sz_sh}|\\.run/cron\\.d|grimoires/loa/skills)" 2>/dev/null \
+       && echo "$command" | grep -qE "(,[[:space:]]*['\"][wax]|>>?[[:space:]]*['\"]?${_sz_pre}${_sz_file}|write_text|\\.write\\b|O_WRONLY|O_CREAT|write_bytes|copyfile|copy2|shutil.copy)" 2>/dev/null; then
+      emit_block "FR-SZ-INTERP" "interpreter-inline" "naive interpreter inline write to a State-Zone executable/lifecycle path. Use the owning generator/skill, or LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1. (Obfuscated interpreter writes are an accepted bypass — fence, not boundary.)"
+    fi
+  fi
+fi
+
+# -----------------------------------------------------------------------------
 # FR-2 — Context-aware rm -rf (P1 refined)
 # SDD §5.1 v1.3: multi-invocation iteration + per-arg classification.
 # Replaces the v1.37.0 blanket-block. Block on catastrophic paths; allow

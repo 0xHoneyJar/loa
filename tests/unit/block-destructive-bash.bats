@@ -498,3 +498,381 @@ hook_invoke() {
     [ "$status" -eq 2 ]
     [[ "$output" =~ "[FR-1.7]" ]]
 }
+
+# =============================================================================
+# Group H — State-Zone executable/lifecycle write guard (sprint-bug-213 / #1044)
+# Protected paths (PROT): .run/cron.d/ , .run/...*.sh (incl. merged-model-aliases.sh),
+# grimoires/loa/skills/ . Guard blocks DIRECT inline agent writes; generators that
+# write these paths internally (invoked as `python3 X.py`/`bash X.sh`) are invisible
+# to the hook and unaffected. See grimoires/loa/a2a/bug-20260613-i1044-8f8c49/design-recon.md.
+# =============================================================================
+
+# --- BLOCK (exit 2): write-shapes × protected paths -------------------------
+
+@test "FR-SZ-REDIR: cat > .run/cron.d/x.sh blocks" {
+    run hook_invoke "cat > .run/cron.d/job.sh"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-REDIR" ]]
+}
+
+@test "FR-SZ-REDIR: append >> to a cron script blocks" {
+    run hook_invoke 'echo "* * * * * evil" >> .run/cron.d/job.sh'
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-REDIR" ]]
+}
+
+@test "FR-SZ-REDIR: redirect to merged-model-aliases.sh blocks (routing hijack)" {
+    run hook_invoke "echo 'alias evil=x' > .run/merged-model-aliases.sh"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-REDIR" ]]
+}
+
+@test "FR-SZ-REDIR: fd-prefixed redirect (2>) to a .run .sh blocks" {
+    run hook_invoke "some-cmd 2> .run/cron.d/job.sh"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-REDIR" ]]
+}
+
+@test "FR-SZ-TEE: tee into merged-model-aliases.sh blocks" {
+    run hook_invoke "echo x | tee .run/merged-model-aliases.sh"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-TEE" ]]
+}
+
+@test "FR-SZ-TEE: tee -a into a cron script blocks" {
+    run hook_invoke "echo x | tee -a .run/cron.d/job.sh"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-TEE" ]]
+}
+
+@test "FR-SZ-COPY: cp (dest) into cron.d blocks" {
+    run hook_invoke "cp /tmp/evil.sh .run/cron.d/job.sh"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-COPY" ]]
+}
+
+@test "FR-SZ-COPY: mv (dest) into grimoires/loa/skills blocks (lifecycle bypass)" {
+    run hook_invoke "mv /tmp/evil grimoires/loa/skills/pwn/SKILL.md"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-COPY" ]]
+}
+
+@test "FR-SZ-LINK: ln -s into cron.d blocks" {
+    run hook_invoke "ln -s /tmp/evil .run/cron.d/job.sh"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-LINK" ]]
+}
+
+@test "FR-SZ-DD: dd of= a cron script blocks" {
+    run hook_invoke "dd if=/tmp/evil of=.run/cron.d/job.sh"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-DD" ]]
+}
+
+@test "FR-SZ-INPLACE: sed -i on an approved skill blocks (tamper)" {
+    run hook_invoke "sed -i 's/old/new/' grimoires/loa/skills/approved/SKILL.md"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-INPLACE" ]]
+}
+
+@test "FR-SZ-INPLACE: perl -i on merged-model-aliases.sh blocks" {
+    run hook_invoke "perl -i -pe 's/a/b/' .run/merged-model-aliases.sh"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-INPLACE" ]]
+}
+
+@test "FR-SZ-INPLACE: awk -i inplace on a cron script blocks" {
+    run hook_invoke "awk -i inplace '{print}' .run/cron.d/job.sh"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-INPLACE" ]]
+}
+
+@test "FR-SZ-EXTRACT: tar -C into cron.d blocks (drops cron-eligible files)" {
+    run hook_invoke "tar -xf /tmp/jobs.tar -C .run/cron.d/"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-EXTRACT" ]]
+}
+
+@test "FR-SZ-EXTRACT: unzip -d into grimoires/loa/skills blocks" {
+    run hook_invoke "unzip /tmp/x.zip -d grimoires/loa/skills/"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-EXTRACT" ]]
+}
+
+@test "FR-SZ-INTERP: naive python3 -c open(w) literal blocks" {
+    run hook_invoke "python3 -c \"open('.run/cron.d/z.sh','w').write('x')\""
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-INTERP" ]]
+}
+
+# --- ALLOW (exit 0): ordinary State-Zone DATA writes stay frictionless ------
+
+@test "FR-SZ negative: append to NOTES.md allowed (data write)" {
+    run hook_invoke 'echo "- observation" >> grimoires/loa/NOTES.md'
+    [ "$status" -eq 0 ]
+}
+
+@test "FR-SZ negative: write run-state json allowed (data write)" {
+    run hook_invoke "cat > .run/sprint-plan-state.json"
+    [ "$status" -eq 0 ]
+}
+
+@test "FR-SZ negative: append to beads JSONL allowed (data write)" {
+    run hook_invoke "echo '{}' >> .beads/issues.jsonl"
+    [ "$status" -eq 0 ]
+}
+
+@test "FR-SZ negative: ledger.json write allowed (data write, not skills/)" {
+    run hook_invoke "cat > grimoires/loa/ledger.json"
+    [ "$status" -eq 0 ]
+}
+
+# --- ALLOW (exit 0): reads / source-position references must NOT block ------
+
+@test "FR-SZ negative: cp FROM a protected path (backup) allowed — dest-anchored" {
+    run hook_invoke "cp .run/cron.d/job.sh /tmp/backup.sh"
+    [ "$status" -eq 0 ]
+}
+
+@test "FR-SZ negative: rsync FROM cron.d (backup) allowed — PROT is source" {
+    run hook_invoke "rsync -avz .run/cron.d/ backup-host:/backups/"
+    [ "$status" -eq 0 ]
+}
+
+@test "FR-SZ negative: cat (read) a cron script allowed" {
+    run hook_invoke "cat .run/cron.d/job.sh"
+    [ "$status" -eq 0 ]
+}
+
+@test "FR-SZ negative: ls the cron dir allowed" {
+    run hook_invoke "ls -la .run/cron.d/"
+    [ "$status" -eq 0 ]
+}
+
+@test "FR-SZ negative: grep (read) merged-model-aliases.sh allowed" {
+    run hook_invoke "grep alias .run/merged-model-aliases.sh"
+    [ "$status" -eq 0 ]
+}
+
+@test "FR-SZ negative: git add a skills path allowed (git not in write-verb set)" {
+    run hook_invoke "git add grimoires/loa/skills/approved/SKILL.md"
+    [ "$status" -eq 0 ]
+}
+
+# --- Escape hatch -----------------------------------------------------------
+
+@test "FR-SZ escape hatch: LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1 allows the write" {
+    export LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1
+    run hook_invoke "cat > .run/cron.d/job.sh"
+    unset LOA_ALLOW_STATE_ZONE_EXEC_WRITE
+    [ "$status" -eq 0 ]
+}
+
+# =============================================================================
+# Group I — cross-model dissent fixes CR-1..CR-5 (sprint-bug-213 iter-2, #1044)
+# Frictionless bypasses surfaced by the Phase-2.5 dissenter (gpt-5.5-pro).
+# =============================================================================
+
+# --- CR-1 (DISS-001): directory destination WITHOUT a trailing slash ---------
+
+@test "CR-1: cp into cron.d dir (no trailing slash) blocks" {
+    run hook_invoke "cp /tmp/job.sh .run/cron.d"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-COPY" ]]
+}
+
+@test "CR-1: mv into skills dir (no trailing slash) blocks" {
+    run hook_invoke "mv /tmp/skill grimoires/loa/skills"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-COPY" ]]
+}
+
+@test "CR-1: tar -C into cron.d (no trailing slash) blocks" {
+    run hook_invoke "tar -xf /tmp/a.tar -C .run/cron.d"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-EXTRACT" ]]
+}
+
+@test "CR-1 negative: a sibling like .run/cron.daemon is NOT a protected dir" {
+    run hook_invoke "cp /tmp/x .run/cron.daemon"
+    [ "$status" -eq 0 ]
+}
+
+# --- CR-2 (DISS-003): tee long-option + non-first operand --------------------
+
+@test "CR-2: tee --append (long opt) into a cron script blocks" {
+    run hook_invoke "echo x | tee --append .run/cron.d/job.sh"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-TEE" ]]
+}
+
+@test "CR-2: tee with PROT as a non-first operand blocks" {
+    run hook_invoke "echo x | tee /tmp/log .run/merged-model-aliases.sh"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-TEE" ]]
+}
+
+# --- CR-3 (DISS-004): -t / --target-directory / --directory dest forms -------
+
+@test "CR-3: cp -t cron.d (dest-as-option) blocks" {
+    run hook_invoke "cp -t .run/cron.d/ /tmp/job.sh"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-COPY" ]]
+}
+
+@test "CR-3: tar --directory cron.d (long -C) blocks" {
+    run hook_invoke "tar --directory .run/cron.d/ -xf /tmp/a.tar"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-EXTRACT" ]]
+}
+
+@test "CR-3: ln -s -t cron.d (dest-as-option) blocks" {
+    run hook_invoke "ln -s -t .run/cron.d/ /tmp/evil"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-COPY" ]]
+}
+
+# --- CR-4 (DISS-005): grouped / long-form in-place edit ----------------------
+
+@test "CR-4: sed -Ei (grouped) on merged-model-aliases blocks" {
+    run hook_invoke "sed -Ei s/a/b/ .run/merged-model-aliases.sh"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-INPLACE" ]]
+}
+
+@test "CR-4: sed --in-place (long) on an approved skill blocks" {
+    run hook_invoke "sed --in-place s/a/b/ grimoires/loa/skills/approved/SKILL.md"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-INPLACE" ]]
+}
+
+# --- CR-5 (DISS-002): trailing comment must not defeat the dest-anchor -------
+
+@test "CR-5: cp into cron.d with a trailing comment blocks" {
+    run hook_invoke "cp /tmp/evil.sh .run/cron.d/job.sh # install"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-COPY" ]]
+}
+
+# --- negative-pins: the fixes must NOT reintroduce source-read FPs -----------
+
+@test "CR negative: mv a protected file OUT to /tmp (source) allowed" {
+    run hook_invoke "mv .run/cron.d/old /tmp/archive/"
+    [ "$status" -eq 0 ]
+}
+
+@test "CR negative: tar backing up cron.d (PROT source, no -C) allowed" {
+    run hook_invoke "tar -czf /tmp/backup.tar .run/cron.d"
+    [ "$status" -eq 0 ]
+}
+
+@test "CR negative: grep -i on merged-model-aliases (read, not sed/perl/awk) allowed" {
+    run hook_invoke "grep -i alias .run/merged-model-aliases.sh"
+    [ "$status" -eq 0 ]
+}
+
+@test "CR negative: ls the skills dir (no slash, read) allowed" {
+    run hook_invoke "ls grimoires/loa/skills"
+    [ "$status" -eq 0 ]
+}
+
+@test "CR negative: cat a cron script with a trailing comment (read) allowed" {
+    run hook_invoke "cat .run/cron.d/job.sh # show it"
+    [ "$status" -eq 0 ]
+}
+
+# =============================================================================
+# Group J — iter-3 dissent (sprint-bug-213, #1044): DISS-002 path-prefix bypass,
+# DISS-003 glued empty-backup in-place flag. (DISS-001 mv-out is deletion, not a
+# write INTO the surface — out of #1044 scope; the CR-negative mv-out pin stands.)
+# Protected paths are held in a var so this test source carries no literal
+# write-to-protected-path (which the now-live guard would itself block).
+# =============================================================================
+
+@test "DISS-002: redirect with ./ prefix into cron.d blocks" {
+    p=".run/cron.d/job.sh"
+    run hook_invoke "echo x > ./$p"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-REDIR" ]]
+}
+
+@test "DISS-002: cp with absolute-style prefix into cron.d blocks" {
+    p=".run/cron.d/job.sh"
+    run hook_invoke "cp /tmp/x /abs/repo/$p"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-COPY" ]]
+}
+
+@test "DISS-002: in-place edit with ./ prefix on a skill blocks" {
+    s="grimoires/loa/skills/approved/SKILL.md"
+    run hook_invoke "sed -i s/a/b/ ./$s"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-INPLACE" ]]
+}
+
+@test "DISS-003: sed -i'' (glued empty backup) on merged-model-aliases blocks" {
+    m=".run/merged-model-aliases.sh"
+    run hook_invoke "sed -i'' s/a/b/ $m"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-INPLACE" ]]
+}
+
+@test "DISS-002 negative: cat a ./prefixed cron script (read) allowed" {
+    p=".run/cron.d/job.sh"
+    run hook_invoke "cat ./$p"
+    [ "$status" -eq 0 ]
+}
+
+@test "DISS-002 negative: cp FROM a ./prefixed protected path (backup) allowed" {
+    p=".run/cron.d/job.sh"
+    run hook_invoke "cp ./$p /tmp/backup"
+    [ "$status" -eq 0 ]
+}
+
+# =============================================================================
+# Group K — audit dissent (sprint-bug-213, #1044): SA-HIGH-4 trailing GNU options
+# after the protected destination; SA-HIGH-3 common naive Python write-sinks.
+# (SA-HIGH-1 quoted-concat/line-continuation + SA-HIGH-2 archive-member injection
+# are documented accepted limitations — deliberate lexical evasion / out of reach
+# for a PreToolUse grep; not regressions, surface was open pre-fix.)
+# =============================================================================
+
+@test "SA-HIGH-4: cp into cron.d with a trailing -f option blocks" {
+    p=".run/cron.d/job.sh"
+    run hook_invoke "cp /tmp/x $p -f"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-COPY" ]]
+}
+
+@test "SA-HIGH-4: mv into skills with a trailing -f option blocks" {
+    s="grimoires/loa/skills/pwn/SKILL.md"
+    run hook_invoke "mv /tmp/x $s -f"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-COPY" ]]
+}
+
+@test "SA-HIGH-3: python3 -c shutil.copyfile into cron.d blocks" {
+    p=".run/cron.d/job.sh"
+    run hook_invoke "python3 -c \"import shutil; shutil.copyfile('/tmp/p','$p')\""
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-INTERP" ]]
+}
+
+@test "SA-HIGH-3: python3 -c Path.write_bytes into cron.d blocks" {
+    p=".run/cron.d/job.sh"
+    run hook_invoke "python3 -c \"from pathlib import Path; Path('$p').write_bytes(b'x')\""
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-INTERP" ]]
+}
+
+@test "SA-HIGH-4 negative: cp FROM protected to /tmp with trailing -f (source) allowed" {
+    p=".run/cron.d/job.sh"
+    run hook_invoke "cp $p /tmp/dst -f"
+    [ "$status" -eq 0 ]
+}
+
+@test "SA-HIGH-3 negative: python3 -c reading a protected file allowed" {
+    p=".run/cron.d/job.sh"
+    run hook_invoke "python3 -c \"print(open('$p').read())\""
+    [ "$status" -eq 0 ]
+}
