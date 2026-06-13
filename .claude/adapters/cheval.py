@@ -1541,6 +1541,29 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                 retryable=False,
                 ceiling_stale=_preflight_decision.ceiling_stale,
             ), file=sys.stderr)
+            # #1041: this preempt path returns BEFORE the try/finally that emits
+            # the MODELINV envelope, so without this the preemption never lands
+            # in .run/model-invoke.jsonl (vision-019 M1 observability gap). The
+            # full finally-emit assumes post-resolution state not yet available
+            # here (_modelinv_emit_required / _last_walk_exit_code are assigned
+            # later), so emit a minimal self-contained envelope directly from the
+            # 4 required fields + the pre-flight capability context. Fail-soft:
+            # an emitter error must NEVER mask the exit-7 result.
+            try:
+                _emit_modelinv(
+                    models_requested=_modelinv_models_requested,
+                    models_succeeded=_modelinv_state["models_succeeded"],
+                    models_failed=_modelinv_state["models_failed"],
+                    operator_visible_warn=_modelinv_state["operator_visible_warn"],
+                    capability_class=_modelinv_capability_class,
+                    capability_evaluation=_modelinv_state.get("capability_evaluation"),
+                    calling_primitive=(getattr(args, "skill", None) or agent_name),
+                )
+            except Exception as _emit_err:  # noqa: BLE001 — fail-soft; never mask exit 7
+                print(
+                    f"[AUDIT-EMIT-FAILED] {type(_emit_err).__name__}: {_emit_err}",
+                    file=sys.stderr,
+                )
             return EXIT_CODES["CONTEXT_TOO_LARGE"]
 
         # #937 / sprint-bug-211: the chunked-dispatch branch (action=="chunk")
