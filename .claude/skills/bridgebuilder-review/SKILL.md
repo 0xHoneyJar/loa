@@ -81,6 +81,18 @@ Set in `.loa.config.yaml` under `bridgebuilder:` section, or via environment var
 | max_output_tokens | — | `4000` |
 | persona_path | — | `grimoires/bridgebuilder/BEAUVOIR.md` |
 
+### Invocation trust contract (#1050)
+
+Run `/bridgebuilder` from a **trusted checkout** (your default branch or a clean clone) — never
+from a working tree where untrusted PR-head content has been checked out (e.g. after a manual
+`gh pr checkout`). BB fetches PR data via `gh api` (diff-as-data) and never writes PR files to the
+working tree, so the reviewed diff is safe; but `.loa.config.yaml` (models, budgets,
+`cross_repo.allowed_owners`, `cross_repo.manual_refs`) is read from the **local checkout**, which
+must therefore be trusted. The auto-detected cross-repo allowlist defaults to the reviewed PR's own
+org (derived from PR metadata, independent of config); `allowed_owners` / `manual_refs` only widen
+that and assume a trusted config source. Investigated + closed as not-applicable in the shipped
+invocation model (no PR-head checkout) — see #1050.
+
 ## Self-Review Opt-In (#796 / vision-013)
 
 When BB reviews a PR that modifies BB itself — or any other framework file under `.claude/`, `grimoires/`, `.beads/`, etc. — the Loa-aware filter normally strips those files from the review payload before the multi-model pass. This is correct for code-PR reviews (no review noise from grimoire side-effects) but inverts on self-modifying PRs (the framework files ARE the substance).
