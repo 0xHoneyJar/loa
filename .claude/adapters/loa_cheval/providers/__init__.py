@@ -34,10 +34,12 @@ from loa_cheval.types import ConfigError, ProviderConfig
 #   cursor_headless_adapter.py.
 # - grok-headless: routes through `grok --prompt-file ... --output-format json`
 #   (xAI Grok Build CLI) for xAI subscription auth (OIDC; no API key consumed).
-#   The FIRST new-COMPANY headless voice (xAI is a distinct training lineage)
-#   AND the first router-of-routers port: one `xai` provider serves MULTIPLE
-#   models (grok-build + grok-composer-2.5-fast) via --model per call. Pure
-#   inference, isolated cwd, prompt-via-file (the prompt is untrusted). See
+#   A headless CLI is a multi-model client (`grok models` → grok-build +
+#   grok-composer-2.5-fast; `cursor-agent models` spans Claude/GPT/Gemini/Grok/
+#   Kimi/Composer — CLIs cross-serve). Cheval pins this `xai` entry to grok's
+#   served models via cli_model; it adds direct-subscription access to grok-build
+#   (an xAI agentic model not pinned elsewhere). Pure inference, isolated cwd,
+#   prompt-via-file (the prompt is untrusted). See
 #   grok_headless_adapter.py.
 _ADAPTER_REGISTRY: Dict[str, Type[ProviderAdapter]] = {
     "openai": OpenAIAdapter,

@@ -5,24 +5,28 @@ Routes Loa's cheval calls through the xAI Grok Build CLI (`grok --prompt-file ..
 (OIDC against auth.x.ai — `auth_mode: oidc`), so no API key is consumed for
 these calls.
 
-This is the FIRST genuinely NEW-COMPANY headless voice in the cheval roster.
-Every prior headless terminal is within-company (codex→openai, gemini→google,
-claude→anthropic; cursor→Composer, a Moonshot-Kimi base). xAI is a distinct
-training lineage, so in a consensus panel (flatline / FAGAN) it fails
-differently — it catches what the same-lab voices miss. That corpus
-independence is the point.
+A headless CLI is a multi-model CLIENT, not a single-company port. It serves a
+set of models that can span providers. Grounded 2026-06-13 (`<cli> models`):
+  - `grok models`         → grok-build (default), grok-composer-2.5-fast
+  - `cursor-agent models` → Claude, GPT/Codex, Gemini, Grok-4.3, Kimi, Composer
+So "grok = a distinct new-company voice" is NOT grounded — models cross-serve
+(cursor brokers Grok and Kimi; grok exposes a Composer variant). What this
+adapter actually adds is direct xAI-subscription access (`grok login`, OIDC, no
+API key) to grok's served models — notably grok-build, an xAI agentic model not
+pinned elsewhere in the cheval roster (cursor exposes grok-4.3, a different
+grok model). Any council-diversity benefit is a property of the MODEL run
+(grok-build ≠ claude/gpt/gemini), not of "which company's CLI" — and is left
+unclaimed here beyond what `<cli> models` shows.
 
-ROUTER-OF-ROUTERS — one port, a STACK behind it:
-  A headless CLI is not a model; it is a connection-point to a COMPANY that
-  serves its own model stack. `grok models` proves it: grok-build (default) +
-  grok-composer-2.5-fast. So this single adapter (one `xai` provider) serves
-  MULTIPLE models via `--model <cli_model>` per call — the port is
-  model-agnostic. Cheval routes by the intelligence tier it needs and lands on
-  the right (company-port, model); xAI routes to the model on its end.
+ROUTER-OF-ROUTERS — one CLI, a model set behind it:
+  Cheval PINS each headless entry to a served model via `extra.cli_model`. The
+  `xai` provider declares >1 (grok-build + grok-composer-2.5-fast), chosen by
+  `--model <cli_model>` per call; the CLI itself is model-agnostic. Cheval
+  routes by the intelligence tier it needs → (this CLI, a served model).
 
 When to use:
   - You have an xAI/Grok subscription (`grok login`) and want flatline /
-    bridgebuilder / FAGAN councils to draw a fourth, distinct-lineage voice
+    bridgebuilder / FAGAN councils (or any cheval consumer) to reach grok-build
     from the subscription quota — no API key provisioned.
 
 Design notes (grounded against grok 0.2.51, probed live 2026-06-13):

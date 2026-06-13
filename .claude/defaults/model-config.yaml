@@ -650,15 +650,15 @@ providers:
         fallback_mapping_version: 1
 
   # ─────────────────────────────────────────────────────────────────────
-  # xAI — the FIRST new-COMPANY headless provider, and the first
-  # ROUTER-OF-ROUTERS port: ONE provider serving MULTIPLE models. `type:
-  # grok-headless` maps directly to GrokHeadlessAdapter (no HTTP sibling — a
-  # brand-new company reachable only via the `grok` CLI / OIDC subscription,
-  # `grok login`). Grounded 2026-06-13 against grok 0.2.51: `grok models` →
-  # grok-build (default) + grok-composer-2.5-fast. Both kind:cli, chain-terminal
+  # xAI grok — a CLI-only headless provider (no HTTP sibling; auth is grok's
+  # OIDC subscription, `grok login`). `type: grok-headless` maps directly to
+  # GrokHeadlessAdapter. A headless CLI is a multi-model client, NOT a single-
+  # company port: grounded 2026-06-13, `grok models` → grok-build (default) +
+  # grok-composer-2.5-fast, while `cursor-agent models` spans Claude/GPT/Gemini/
+  # Grok/Kimi/Composer (CLIs cross-serve). Declaring BOTH grok models lets the
+  # tier router target grok's served stack via `cli_model` (the real id `grok
+  # --model` expects); do NOT collapse to one pin. Both kind:cli, chain-terminal
   # (NO fallback_chain — lint-enforced), NO pricing (subscription → metered $0).
-  # `cli_model` carries the real model id `grok --model` expects. Do NOT collapse
-  # to a single pinned model: the port serves a stack (the router-of-routers core).
   xai:
     type: grok-headless
     # endpoint + auth are ignored; auth is grok's own OIDC login (`grok login`).
