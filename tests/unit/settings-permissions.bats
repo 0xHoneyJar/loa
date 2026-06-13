@@ -393,9 +393,11 @@ setup() {
 # Pattern Format Tests
 # =============================================================================
 
-@test "all allow patterns use Bash() format" {
+@test "all allow patterns use Bash()/Write()/Edit() format" {
+    # sprint-bug-212 (#1043): State-Zone Write()/Edit() allow-rules joined the
+    # previously Bash-only allow-list. Widen the format predicate accordingly.
     local bad_patterns
-    bad_patterns=$(jq -r '.permissions.allow[] | select(startswith("Bash(") | not)' "$SETTINGS_FILE" | wc -l)
+    bad_patterns=$(jq -r '.permissions.allow[] | select((startswith("Bash(") or startswith("Write(") or startswith("Edit(")) | not)' "$SETTINGS_FILE" | wc -l)
     [ "$bad_patterns" -eq 0 ]
 }
 
@@ -423,4 +425,41 @@ setup() {
     run jq -e '[.hooks.SessionStart[].hooks[].command] | any(test("check-updates"))' "$SETTINGS_FILE"
     [ "$status" -eq 0 ]
     [ "$output" = "true" ]
+}
+
+# =============================================================================
+# State-Zone Write/Edit Permission Tests (sprint-bug-212 / #1043)
+# Encode the Three-Zone Model's State-Zone (grimoires/, .beads/, .run/, .ck/)
+# write-freedom in the permission allow-list so gate-skill artifact writes
+# (reviewer.md, engineer-feedback.md, auditor-sprint-feedback.md, COMPLETED,
+# ledger.json, NOTES.md, beads JSONL) never stall on a declined Write prompt.
+# =============================================================================
+
+@test "SZ1: State-Zone Write() rules present (grimoires/.beads/.run/.ck)" {
+    for p in 'Write(grimoires/**)' 'Write(.beads/**)' 'Write(.run/**)' 'Write(.ck/**)'; do
+        run jq -e --arg p "$p" '.permissions.allow | index($p)' "$SETTINGS_FILE"
+        [ "$status" -eq 0 ] || { echo "MISSING allow rule: $p" >&2; return 1; }
+    done
+}
+
+@test "SZ2: State-Zone Edit() rules present (grimoires/.beads/.run/.ck)" {
+    for p in 'Edit(grimoires/**)' 'Edit(.beads/**)' 'Edit(.run/**)' 'Edit(.ck/**)'; do
+        run jq -e --arg p "$p" '.permissions.allow | index($p)' "$SETTINGS_FILE"
+        [ "$status" -eq 0 ] || { echo "MISSING allow rule: $p" >&2; return 1; }
+    done
+}
+
+@test "SZ3: NO over-grant — System Zone (.claude/**) and wildcard writes are NOT allowed" {
+    # The fix must NOT grant Write/Edit to the System Zone or globally.
+    for forbidden in 'Write(.claude/**)' 'Edit(.claude/**)' 'Write(**)' 'Edit(**)' 'Write(*)' 'Edit(*)'; do
+        run jq -e --arg p "$forbidden" '.permissions.allow | index($p)' "$SETTINGS_FILE"
+        [ "$status" -ne 0 ] || { echo "OVER-GRANT present: $forbidden" >&2; return 1; }
+    done
+}
+
+@test "SZ4: NO App-Zone write grant (src/lib/app stay confirm-on-write)" {
+    for forbidden in 'Write(src/**)' 'Edit(src/**)' 'Write(lib/**)' 'Write(app/**)'; do
+        run jq -e --arg p "$forbidden" '.permissions.allow | index($p)' "$SETTINGS_FILE"
+        [ "$status" -ne 0 ] || { echo "App-Zone grant present: $forbidden" >&2; return 1; }
+    done
 }

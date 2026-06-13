@@ -385,7 +385,15 @@
       "Bash(.:*)",
       "Bash(bash:*)",
       "Bash(sh:*)",
-      "Bash(zsh:*)"
+      "Bash(zsh:*)",
+      "Write(grimoires/**)",
+      "Edit(grimoires/**)",
+      "Write(.beads/**)",
+      "Edit(.beads/**)",
+      "Write(.run/**)",
+      "Edit(.run/**)",
+      "Write(.ck/**)",
+      "Edit(.ck/**)"
     ],
     "deny": [
       "Bash(sudo:*)",
