@@ -1796,7 +1796,7 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260613-i937-ddbd73/sprint.md"
     }
   ],
-  "global_sprint_counter": 211,
+  "global_sprint_counter": 212,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
@@ -2015,6 +2015,19 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260610-i942-0f917b/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260610-i942-0f917b/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260613-i1043-2ee50c",
+      "label": "Bug Fix — default permission allow-list doesn't encode the Three-Zone Model's State-Zone write-freedom (#1043)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1043",
+      "created_at": "2026-06-13T04:35:40Z",
+      "sprints": [
+        "sprint-bug-212"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260613-i1043-2ee50c/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260613-i1043-2ee50c/sprint.md"
     }
   ],
   "bugfixes": [
@@ -2032,5 +2045,5 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 212
+  "next_sprint_number": 213
 }
