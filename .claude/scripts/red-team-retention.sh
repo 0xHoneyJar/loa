@@ -13,7 +13,16 @@
 #
 # Exit codes:
 #   0 - Success (or nothing to purge)
-#   1 - Configuration error
+#   1 - Configuration error (bad argument)
+#   2 - Dependency/config error: required jq / compat-lib helpers
+#       (jq_strict, _date_to_epoch) unavailable — aborts BEFORE any deletion
+#       decision so a missing helper can't mass-purge valid reports (#1025)
+#   3 - Completed with conservative dispositions (sprint-bug-210 / #1025):
+#       one or more result files were unparseable or lacked a usable
+#       timestamp; they were aged by file mtime under the most-restrictive
+#       (RESTRICTED) policy — purged when expired, retained with a loud
+#       WARN when young. Quarantine was rejected (it just relocates the
+#       indefinite retention this fixes).
 # =============================================================================
 
 set -euo pipefail
@@ -23,6 +32,38 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
 RED_TEAM_DIR="$PROJECT_ROOT/.run/red-team"
 AUDIT_LOG="$PROJECT_ROOT/.run/red-team-audit.log"
+
+# sprint-bug-210 (#1025): jq_strict (fail-loud jq) from compat-lib.
+# shellcheck source=compat-lib.sh
+source "$SCRIPT_DIR/compat-lib.sh" 2>/dev/null || true
+
+# Conservative dispositions applied this run (parse failures + missing/
+# unparseable timestamps). Non-zero → main exits 3.
+CONSERVATIVE_COUNT=0
+
+# Portable file mtime (GNU stat -c, BSD stat -f).
+_file_mtime_epoch() {
+    stat -c %Y "$1" 2>/dev/null || stat -f %m "$1"
+}
+
+# DISS-001 (review iter-3): a MISSING dependency must abort loudly, never be
+# treated like a corrupt data file. compat-lib is soft-sourced (|| true); if
+# it failed, jq_strict/_date_to_epoch are undefined and every result file
+# would hit the conservative path → mass-purge of valid reports. Hard-require
+# the deletion-path dependencies before any purge decision (the sha256_portable
+# exit-127 principle: missing tool = loud abort, not destructive degrade).
+_require_deps() {
+    local missing=()
+    command -v jq >/dev/null 2>&1 || missing+=("jq")
+    declare -F jq_strict >/dev/null 2>&1 || missing+=("jq_strict (compat-lib.sh)")
+    declare -F _date_to_epoch >/dev/null 2>&1 || missing+=("_date_to_epoch (compat-lib.sh)")
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        log "FATAL: required dependencies unavailable: ${missing[*]}"
+        log "Refusing to make deletion decisions without them — a missing helper must not"
+        log "mass-purge valid reports as conservative (#1025 / DISS-001)."
+        exit 2
+    fi
+}
 
 # =============================================================================
 # Logging
@@ -49,19 +90,24 @@ get_retention_days() {
     local default_restricted=30
     local default_internal=90
 
+    # AUDIT-secrets (#1025): unknown/mislabeled classification defaults to the
+    # MOST-restrictive policy (RESTRICTED, shorter retention), not INTERNAL.
+    # Previously a RESTRICTED report mislabeled PUBLIC / lowercase / trailing-
+    # space won the longer 90d window — keeping sensitive material past its
+    # policy. Only an explicit INTERNAL gets the 90d window now.
     if [[ -f "$CONFIG_FILE" ]] && command -v yq &>/dev/null; then
         case "$classification" in
-            RESTRICTED)
-                yq ".red_team.safety.retention_days_restricted // $default_restricted" "$CONFIG_FILE" 2>/dev/null || echo "$default_restricted"
+            INTERNAL)
+                yq ".red_team.safety.retention_days_internal // $default_internal" "$CONFIG_FILE" 2>/dev/null || echo "$default_internal"
                 ;;
             *)
-                yq ".red_team.safety.retention_days_internal // $default_internal" "$CONFIG_FILE" 2>/dev/null || echo "$default_internal"
+                yq ".red_team.safety.retention_days_restricted // $default_restricted" "$CONFIG_FILE" 2>/dev/null || echo "$default_restricted"
                 ;;
         esac
     else
         case "$classification" in
-            RESTRICTED) echo "$default_restricted" ;;
-            *)          echo "$default_internal" ;;
+            INTERNAL) echo "$default_internal" ;;
+            *)        echo "$default_restricted" ;;
         esac
     fi
 }
@@ -87,26 +133,96 @@ purge_expired() {
         [[ -f "$result_file" ]] || continue
 
         local timestamp classification max_age_days max_age_seconds created run_id
+        local parse_ok=true conservative=false
 
-        run_id=$(jq -r '.run_id // "unknown"' "$result_file" 2>/dev/null || echo "unknown")  # check-no-swallowed-jq: ok (pending #1025 sweep)
-        timestamp=$(jq -r '.timestamp // ""' "$result_file" 2>/dev/null || echo "")  # check-no-swallowed-jq: ok (pending #1025 sweep)
-        classification=$(jq -r '.classification // "INTERNAL"' "$result_file" 2>/dev/null || echo "INTERNAL")  # check-no-swallowed-jq: ok (pending #1025 sweep)
-
-        if [[ -z "$timestamp" ]]; then
-            [[ "$verbose" == "true" ]] && log "Skipping $result_file (no timestamp)"
-            continue
+        # sprint-bug-210 (#1025) / KF-004 guard: a corrupt result JSON must
+        # never be silently SKIPPED — pre-fix, the jq swallow yielded an
+        # empty timestamp and expired RESTRICTED reports were retained
+        # indefinitely. Parse failure → most-restrictive disposition.
+        if ! run_id=$(JQ_STRICT_CTX="red-team-retention:run_id" jq_strict -r '.run_id // "unknown"' "$result_file"); then
+            parse_ok=false
+            run_id="unknown"
+            timestamp=""
+            classification="RESTRICTED"
+        else
+            if ! timestamp=$(JQ_STRICT_CTX="red-team-retention:timestamp" jq_strict -r '.timestamp // ""' "$result_file"); then
+                parse_ok=false
+                timestamp=""
+            fi
+            # AUDIT-secrets-b (#1025): default a MISSING classification to a
+            # non-INTERNAL sentinel so get_retention_days applies the
+            # most-restrictive (RESTRICTED 30d) policy — defaulting to
+            # "INTERNAL" here would grant the longer 90d window to unlabeled
+            # (potentially sensitive) reports.
+            if ! classification=$(JQ_STRICT_CTX="red-team-retention:classification" jq_strict -r '.classification // "UNKNOWN"' "$result_file"); then
+                parse_ok=false
+                classification="RESTRICTED"
+            fi
         fi
 
-        # Parse timestamp to epoch
-        created=$(date -d "$timestamp" +%s 2>/dev/null || echo "0")
-        if [[ "$created" == "0" ]]; then
-            [[ "$verbose" == "true" ]] && log "Skipping $result_file (unparseable timestamp: $timestamp)"
-            continue
+        if [[ "$parse_ok" == "false" ]]; then
+            conservative=true
+            classification="RESTRICTED"
+            audit "PARSE-FAILURE: $result_file unparseable — conservative disposition: RESTRICTED policy, mtime age (#1025)"
+        fi
+
+        # Conservative timestamp handling: missing or unparseable timestamp
+        # (even in VALID JSON) falls back to file mtime under the
+        # most-restrictive classification, instead of skipping forever.
+        if [[ -z "$timestamp" ]]; then
+            if [[ "$conservative" != "true" ]]; then
+                conservative=true
+                classification="RESTRICTED"
+                audit "CONSERVATIVE: $result_file has no usable timestamp — RESTRICTED policy, mtime age (#1025)"
+            fi
+            created=$(_file_mtime_epoch "$result_file")
+        else
+            # DISS-002 (review iter-1): portable parse via compat-lib
+            # _date_to_epoch (GNU/BSD/perl tiers). Raw `date -d` is GNU-only —
+            # on macOS it failed for EVERY valid ISO timestamp, which post-fix
+            # would have mass-purged valid reports as conservative RESTRICTED.
+            # Only a genuine unparseable timestamp now triggers conservative.
+            created=$(_date_to_epoch "$timestamp" 2>/dev/null || echo "")
+            if [[ -z "$created" || "$created" == "0" ]]; then
+                conservative=true
+                classification="RESTRICTED"
+                audit "CONSERVATIVE: $result_file unparseable timestamp '$timestamp' — RESTRICTED policy, mtime age (#1025)"
+                created=$(_file_mtime_epoch "$result_file")
+            elif (( created > now + 86400 )); then
+                # AUDIT-2 (#1025): a beyond-clock-skew FUTURE timestamp makes
+                # age negative → indefinite retention. Treat as suspicious:
+                # conservative RESTRICTED, age by mtime (not the future value).
+                conservative=true
+                classification="RESTRICTED"
+                audit "CONSERVATIVE: $result_file has a future timestamp '$timestamp' — RESTRICTED policy, mtime age (#1025)"
+                created=$(_file_mtime_epoch "$result_file")
+            fi
+        fi
+
+        if [[ "$conservative" == "true" ]]; then
+            CONSERVATIVE_COUNT=$((CONSERVATIVE_COUNT + 1))
         fi
 
         max_age_days=$(get_retention_days "$classification")
+        # AUDIT-config (#1025): retention_days comes from .loa.config.yaml via
+        # yq; an invalid value (0, negative, empty, non-numeric) would make
+        # max_age_seconds <= 0 → mass-purge of every report through the rm -f
+        # sink. Refuse a non-positive-integer and fall back to the
+        # most-restrictive hardcoded default (30d) — loud, never silent-destructive.
+        if ! [[ "$max_age_days" =~ ^[1-9][0-9]*$ ]]; then
+            log "ERROR: invalid retention_days ('$max_age_days') for classification=$classification — refusing destructive mass-purge; using safe 30d default (#1025)"
+            max_age_days=30
+        fi
         max_age_seconds=$((max_age_days * 86400))
 
+        # AUDIT-2b (#1025): a future `created` (from a future .timestamp OR a
+        # future file mtime fallback) makes age negative → retained forever.
+        # Clamp to now so age is never negative; a future-dated file is then
+        # young (retained) but LOUDLY flagged via the conservative WARN + exit 3
+        # rather than silently bypassing retention via negative arithmetic.
+        if (( created > now )); then
+            created=$now
+        fi
         local age=$((now - created))
         local age_days=$((age / 86400))
 
@@ -124,7 +240,11 @@ purge_expired() {
                 purged=$((purged + 1))
             fi
         else
-            [[ "$verbose" == "true" ]] && log "RETAIN: $run_id ($classification, ${age_days}d/${max_age_days}d)"
+            if [[ "$conservative" == "true" ]]; then
+                log "WARN: RETAIN (conservative): $result_file unparseable/un-timestamped, mtime age ${age_days}d under RESTRICTED ${max_age_days}d — will purge when expired (#1025)"
+            else
+                [[ "$verbose" == "true" ]] && log "RETAIN: $run_id ($classification, ${age_days}d/${max_age_days}d)"
+            fi
         fi
     done
 
@@ -159,8 +279,13 @@ main() {
         esac
     done
 
+    _require_deps
     mkdir -p "$(dirname "$AUDIT_LOG")"
     purge_expired "$dry_run" "$verbose"
+    if [[ "$CONSERVATIVE_COUNT" -gt 0 ]]; then
+        log "Retention DEGRADED: $CONSERVATIVE_COUNT conservative disposition(s) applied — exit 3 (#1025)"
+        exit 3
+    fi
 }
 
 main "$@"
