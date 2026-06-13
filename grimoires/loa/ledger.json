@@ -1796,6 +1796,19 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260613-i937-ddbd73/sprint.md"
     },
     {
+      "id": "cycle-bug-20260613-i1008-8d489a",
+      "label": "Bug Fix \u2014 codex-headless tool-surface / config-allowlist / stderr-redaction hardening",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1008",
+      "created_at": "2026-06-13T07:30:54Z",
+      "sprints": [
+        "sprint-bug-214"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260613-i1008-8d489a/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260613-i1008-8d489a/sprint.md"
+    },
+    {
       "id": "cycle-bug-20260613-i1014-a965b4",
       "label": "Bug Fix \u2014 Untrusted PR titles drive authenticated cross-repo gh fetches (cross_repo.auto_detect) (#1014)",
       "type": "bugfix",
