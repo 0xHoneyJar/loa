@@ -420,6 +420,18 @@ main() {
     # JSON) keep the documented legacy behavior.
     if ! bridge_id=$(JQ_STRICT_CTX="post-pr-triage:bridge-id" jq_strict -r '.bridge_id // empty' "$bridge_state_file"); then
       log "ERROR: corrupt bridge-state.json: $bridge_state_file — refusing glob fall-through (#676 Defect B guard, #1025)"
+      # DISS-001 (review iter-1): overwrite any stale convergence record so a
+      # prior iteration's FLATLINE can't survive this refusal — the
+      # orchestrator reads .state from this file, not the exit code.
+      if [[ "$DRY_RUN" != "true" ]]; then
+        local conv="$CWD_AT_INVOKE/.run/bridge-triage-convergence.json"
+        mkdir -p "$(dirname "$conv")"
+        jq -nc \
+          --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+          --argjson pr "$PR_NUMBER" \
+          '{timestamp: $ts, pr_number: $pr, state: "DEGRADED", actionable_high: 0, blocker_count: 0, disputed_count: 0, parse_failures: 1, reason: "corrupt bridge-state.json"}' \
+          > "$conv"
+      fi
       return 1
     fi
   fi

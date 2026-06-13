@@ -432,6 +432,20 @@ EOF
     [ ! -f "$TEST_TMPDIR/.run/bridge-pending-bugs.jsonl" ]
 }
 
+@test "KF-004 guard: corrupt bridge-state.json overwrites stale FLATLINE convergence → DEGRADED (T-A5)" {
+    # DISS-001: the corrupt-state early-return must not let a prior iteration's
+    # clean convergence record survive — the orchestrator reads .state from it.
+    mkdir -p "$TEST_TMPDIR/.run"
+    cat > "$TEST_TMPDIR/.run/bridge-triage-convergence.json" <<'JSON'
+{"timestamp":"2020-01-01T00:00:00Z","pr_number":100,"state":"FLATLINE","actionable_high":0,"blocker_count":0,"disputed_count":0}
+JSON
+    echo 'garbage{' > "$TEST_TMPDIR/.run/bridge-state.json"
+    run "$TEST_TMPDIR/.claude/scripts/post-pr-triage.sh" --pr 100 --auto-triage true
+    [ "$status" -eq 1 ]
+    # Stale FLATLINE must have been overwritten with DEGRADED
+    [ "$(jq -r '.state' "$TEST_TMPDIR/.run/bridge-triage-convergence.json")" == "DEGRADED" ]
+}
+
 @test "regression pin: bridge-state.json without bridge_id → legacy glob unchanged (T-A4)" {
     echo '{}' > "$TEST_TMPDIR/.run/bridge-state.json"
     create_findings_file "any-iter1-findings.json" "PRAISE" "p-1" "Nice work"

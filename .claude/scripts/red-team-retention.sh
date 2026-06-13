@@ -145,8 +145,13 @@ purge_expired() {
             fi
             created=$(_file_mtime_epoch "$result_file")
         else
-            created=$(date -d "$timestamp" +%s 2>/dev/null || echo "0")
-            if [[ "$created" == "0" ]]; then
+            # DISS-002 (review iter-1): portable parse via compat-lib
+            # _date_to_epoch (GNU/BSD/perl tiers). Raw `date -d` is GNU-only —
+            # on macOS it failed for EVERY valid ISO timestamp, which post-fix
+            # would have mass-purged valid reports as conservative RESTRICTED.
+            # Only a genuine unparseable timestamp now triggers conservative.
+            created=$(_date_to_epoch "$timestamp" 2>/dev/null || echo "")
+            if [[ -z "$created" || "$created" == "0" ]]; then
                 conservative=true
                 classification="RESTRICTED"
                 audit "CONSERVATIVE: $result_file unparseable timestamp '$timestamp' — RESTRICTED policy, mtime age (#1025)"

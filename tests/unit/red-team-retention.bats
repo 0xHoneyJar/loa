@@ -27,6 +27,7 @@ setup() {
     RT="$TEST_TMPDIR/.run/red-team"
     AUDIT="$TEST_TMPDIR/.run/red-team-audit.log"
     SCRIPT="$TEST_TMPDIR/.claude/scripts/red-team-retention.sh"
+    REAL_DATE="$(command -v date)"
 }
 
 teardown() {
@@ -84,4 +85,33 @@ EOF
     [ "$status" -eq 3 ]
     [ -f "$RT/rt-eee-result.json" ]
     [[ "$output" == *"WOULD PURGE"* ]]
+}
+
+@test "portability: valid timestamp parses without GNU date -d → not conservative (T-B6, DISS-002)" {
+    # DISS-002: a -d-rejecting `date` (simulating macOS/BSD) must NOT push a
+    # valid-timestamp report onto the conservative RESTRICTED-by-mtime path.
+    # Pins that timestamp parsing routes through compat-lib _date_to_epoch
+    # (GNU/BSD/perl tiers), not raw `date -d`.
+    local shim="$TEST_TMPDIR/shim"
+    mkdir -p "$shim"
+    cat > "$shim/date" <<EOF
+#!/usr/bin/env bash
+for a in "\$@"; do [[ "\$a" == "-d" ]] && exit 1; done
+exec "$REAL_DATE" "\$@"
+EOF
+    chmod +x "$shim/date"
+    # Valid INTERNAL report, well within 90d retention → must RETAIN, exit 0,
+    # and NOT be marked conservative (no PARSE-FAILURE/CONSERVATIVE audit).
+    cat > "$RT/rt-fff-result.json" <<EOF
+{"run_id": "rt-fff", "timestamp": "$("$REAL_DATE" -u -d "5 days ago" +%Y-%m-%dT%H:%M:%SZ)", "classification": "INTERNAL"}
+EOF
+    PATH="$shim:$PATH" run "$SCRIPT" --verbose
+    [ "$status" -eq 0 ]
+    [ -f "$RT/rt-fff-result.json" ]
+    # A correctly-parsed valid timestamp triggers no conservative disposition
+    # and no purge → audit() is never called → the audit log may not exist at
+    # all. Either way, there must be zero CONSERVATIVE/PARSE-FAILURE entries.
+    if [[ -f "$AUDIT" ]]; then
+        ! grep -qiE "CONSERVATIVE|PARSE-FAILURE" "$AUDIT"
+    fi
 }
