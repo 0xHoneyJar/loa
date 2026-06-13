@@ -20,8 +20,11 @@ setup() {
 @test "bug-809: STATE-3 clean emission carries a status_note qualifier (shape)" {
     # The zero-findings jq emission must include status_note alongside
     # status: "clean" (backward-compat field retained).
-    grep -B 3 -A 8 'STATE 3: Empty findings' "$ADV" | grep -q 'status_note'
-    grep -B 3 -A 8 'STATE 3: Empty findings' "$ADV" | grep -q '"clean"'
+    # Window widened sprint-bug-208 (#1025): the KF-004 jq_strict guard block
+    # now sits between the STATE-3 anchor and the emission; the functional
+    # test below remains the behavior pin.
+    grep -B 3 -A 25 'STATE 3: Empty findings' "$ADV" | grep -q 'status_note'
+    grep -B 3 -A 25 'STATE 3: Empty findings' "$ADV" | grep -q '"clean"'
 }
 
 @test "bug-809: status_note text disclaims approval of unreviewed surface" {
