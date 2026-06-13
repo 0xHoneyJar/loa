@@ -13,6 +13,7 @@ from loa_cheval.providers.codex_headless_adapter import CodexHeadlessAdapter
 from loa_cheval.providers.gemini_headless_adapter import GeminiHeadlessAdapter
 from loa_cheval.providers.claude_headless_adapter import ClaudeHeadlessAdapter
 from loa_cheval.providers.cursor_headless_adapter import CursorHeadlessAdapter
+from loa_cheval.providers.grok_headless_adapter import GrokHeadlessAdapter
 from loa_cheval.types import ConfigError, ProviderConfig
 
 # Provider type → adapter class mapping.
@@ -31,6 +32,13 @@ from loa_cheval.types import ConfigError, ProviderConfig
 #   line (Moonshot-Kimi base + agentic RL) in as a distinct-corpus voice for
 #   consensus panels. Read-only + sandboxed (the prompt is untrusted). See
 #   cursor_headless_adapter.py.
+# - grok-headless: routes through `grok --prompt-file ... --output-format json`
+#   (xAI Grok Build CLI) for xAI subscription auth (OIDC; no API key consumed).
+#   The FIRST new-COMPANY headless voice (xAI is a distinct training lineage)
+#   AND the first router-of-routers port: one `xai` provider serves MULTIPLE
+#   models (grok-build + grok-composer-2.5-fast) via --model per call. Pure
+#   inference, isolated cwd, prompt-via-file (the prompt is untrusted). See
+#   grok_headless_adapter.py.
 _ADAPTER_REGISTRY: Dict[str, Type[ProviderAdapter]] = {
     "openai": OpenAIAdapter,
     "anthropic": AnthropicAdapter,
@@ -41,6 +49,7 @@ _ADAPTER_REGISTRY: Dict[str, Type[ProviderAdapter]] = {
     "gemini-headless": GeminiHeadlessAdapter,
     "claude-headless": ClaudeHeadlessAdapter,
     "cursor-headless": CursorHeadlessAdapter,
+    "grok-headless": GrokHeadlessAdapter,
 }
 
 
@@ -79,6 +88,7 @@ __all__ = [
     "GeminiHeadlessAdapter",
     "ClaudeHeadlessAdapter",
     "CursorHeadlessAdapter",
+    "GrokHeadlessAdapter",
     "get_adapter",
     "cli_adapter_types",
 ]

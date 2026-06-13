@@ -3,7 +3,7 @@
 > **Status**: Accepted
 > **Released**: v1.157.0 (2026-05-12)
 > **Predecessor**: ADR-001 (model-registry consolidation, cycle-099)
-> **Sources**: cycle-103 (provider unification), cycle-104 (multi-model stabilization), cycle-107 (multi-model activation)
+> **Sources**: cycle-103 (provider unification), cycle-104 (multi-model stabilization), cycle-107 (multi-model activation), 2026-06-13 (xAI `grok-headless` — first new-company voice + router-of-routers port)
 
 ---
 
@@ -65,6 +65,45 @@ Within-company chains preserve diversity by design:
 
 The rule: **dispatch substitution within a company; never across.**
 
+### Why the xAI voice + the router-of-routers port (2026-06-13, `grok-headless`)
+
+Until now every headless terminal was *within-company* (codex→OpenAI,
+gemini→Google, claude→Anthropic; cursor→Composer, a Moonshot-Kimi base). xAI
+(`grok-headless`) is the **first brand-new COMPANY** added to the roster — a
+genuinely distinct training lineage. That is the entire point of slotting it
+into FAGAN / Flatline councils: a fourth voice that **fails differently** from
+the OpenAI/Anthropic/Google trio, so it catches what the same-lab voices miss.
+It is wired as its own `xai` provider, chain-terminal, with **no cross-company
+fallback** — it obeys the within-company rule above (an exhausted `xai` voice
+drops; it never substitutes another company's model).
+
+It is also the first **router-of-routers port**, and this reframes what a
+headless adapter *is*:
+
+> A headless CLI is not a model. It is a connection-point to a COMPANY that
+> serves its own model STACK behind it.
+
+`grok models` proves the stack: `grok-build` (reasoning default) +
+`grok-composer-2.5-fast` (fast tier). So the `xai` provider is **one port
+serving MULTIPLE models** (`--model <cli_model>` per call) — deliberately NOT
+pinned to a single model. Cheval routes by the *intelligence tier* it needs and
+lands on the right `(company-port, model)`; xAI routes to the model on its end.
+This is the composition-deployment hook: a composition's stages route by tier
+(`tier_groups.mappings` gains an `xai` company column) and land on the right
+model of the right company-port.
+
+Mechanically this needed **zero router code** — the `provider` value is an open
+string, the only company-specific loader branch (OpenAI `endpoint_family`)
+skips `kind: cli`, and a provider whose `type` is itself a registered CLI
+adapter type dispatches via the `cli_adapter_types()` fallback in
+`cheval._get_adapter_for_entry`. Pure config + the adapter (the cursor
+precedent generalizes to a no-HTTP-sibling company). Auth is OIDC subscription
+(`grok login`); `XAI_API_KEY` / `GROK_CODE_XAI_API_KEY` are stripped from the
+subprocess env so the CLI stays on its OAuth path. The prompt rides
+`--prompt-file` in an isolated empty cwd (untrusted-content + ARG_MAX defense);
+the single-JSON envelope is the success signal, never the non-fatal MCP-worker
+stderr noise.
+
 ### Why voice-drop (not silent substitution)
 
 Three reasons:
@@ -122,6 +161,7 @@ Force `flatline_routing: true` with no opt-out.
 - **Audit transparency**: `.run/model-invoke.jsonl` is the canonical trail. Every model call emits a signed MODELINV envelope.
 - **Failure isolation**: voice-drop lets consensus survive partial provider outages without silent substitution.
 - **Headless mode**: operators with subscription quotas can route through CLI binaries without API-key infrastructure.
+- **Cross-company verdict diversity**: the `xai` voice (2026-06-13) adds a fourth, distinct-training-lineage company to consensus councils — it fails differently from the OpenAI/Anthropic/Google voices, raising the diversity ceiling for FAGAN/Flatline. First multi-model headless port: one company-port (`xai`) serves a stack (`grok-build` + `grok-composer-2.5-fast`) the tier router can target by intelligence tier.
 
 ### Negative
 

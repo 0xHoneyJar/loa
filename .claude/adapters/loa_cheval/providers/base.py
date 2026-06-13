@@ -492,6 +492,22 @@ def http_post_stream(
 #      2026-05-20 (sprint-bug-173 audit); their auth-mode is selected by
 #      CLI flags (claude `--bare`) or by file presence (`~/.codex/auth.json`),
 #      not env vars. See KF-013 for the recurring-class taxonomy.
+#
+#      grok (xAI Grok Build CLI): grounded 2026-06-13 by stringing the binary
+#      (grok 0.2.51). It persists OIDC auth in ~/.grok/auth.json (auth_mode:
+#      oidc); an API-key env present in the parent process flips it off that
+#      OAuth path. Two API-key selectors are read by the binary:
+#        - XAI_API_KEY            (the public xAI API key)
+#        - GROK_CODE_XAI_API_KEY  (the grok-code API key — NOT in the brief;
+#                                  surfaced by the explore-first binary scan)
+#      GROK_API_KEY is ALSO scrubbed: the binary does NOT read it today (no
+#      string match), but it is the obvious operator-typo / forward-compat
+#      shape, and scrubbing a non-present var is a no-op. Base-URL overrides
+#      (GROK_GATEWAY_URL / GROK_CLI_CHAT_PROXY_BASE_URL / GROK_MODELS_BASE_URL)
+#      are endpoint redirects, NOT proven auth-MODE selectors, and a custom
+#      auth-provider command (GROK_AUTH_PROVIDER_COMMAND) is a legitimate
+#      managed-auth path — left intact (same reasoning that KEEPS CLOUD_SHELL
+#      for gemini).
 _HEADLESS_STRIPPED_AUTH_VARS: tuple = (
     "ANTHROPIC_API_KEY",
     "OPENAI_API_KEY",
@@ -502,6 +518,9 @@ _HEADLESS_STRIPPED_AUTH_VARS: tuple = (
     "GOOGLE_GENAI_USE_GCA",
     "GOOGLE_GEMINI_BASE_URL",
     "GEMINI_CLI_USE_COMPUTE_ADC",
+    "XAI_API_KEY",
+    "GROK_CODE_XAI_API_KEY",
+    "GROK_API_KEY",
 )
 
 
