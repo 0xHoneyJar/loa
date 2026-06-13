@@ -492,3 +492,34 @@ class TestSalvagedDeltas:
         assert exc_info.value.output is not None
         assert b"partial-stdout-marker" in exc_info.value.output
         assert b"partial-stderr-marker" in exc_info.value.stderr
+
+
+# ---------------------------------------------------------------------------
+# sprint-bug-209 (#966 review fix 5): cwd kwarg passthrough.
+# The additive cwd kwarg landed with f4c00c19 for the cursor adapter's
+# isolated-workspace defense; only an adapter-level mock asserted the kwarg
+# was PASSED. These pin the helper-level contract: the child actually runs
+# in the requested directory, and omitting cwd inherits the parent's.
+# ---------------------------------------------------------------------------
+
+
+class TestCwdPassthrough:
+    def test_cwd_kwarg_child_runs_in_requested_dir(self, tmp_path):
+        run_subprocess_pgkill = _import_helper()
+        result = run_subprocess_pgkill(
+            [sys.executable, "-c", "import os; print(os.getcwd())"],
+            timeout=30,
+            cwd=str(tmp_path),
+        )
+        assert result.returncode == 0
+        assert Path(result.stdout.strip()).resolve() == tmp_path.resolve()
+
+    def test_cwd_omitted_inherits_parent_dir(self, tmp_path, monkeypatch):
+        run_subprocess_pgkill = _import_helper()
+        monkeypatch.chdir(tmp_path)
+        result = run_subprocess_pgkill(
+            [sys.executable, "-c", "import os; print(os.getcwd())"],
+            timeout=30,
+        )
+        assert result.returncode == 0
+        assert Path(result.stdout.strip()).resolve() == tmp_path.resolve()

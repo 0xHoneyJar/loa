@@ -353,6 +353,23 @@ class TestHeadlessProviderInference:
             == "http"
         )
 
+    # sprint-bug-209 repro (a): the documented cursor custom-provider config
+    # shape loads end-to-end. The original PR #966 review found this died
+    # [CONFIG-INVALID] at load because _HEADLESS_TYPE_INFERENCE had no
+    # cursor-headless entry; f4c00c19 added it — this pins the load path,
+    # not just the dict literal.
+    def test_cursor_custom_provider_shape_loads(self, tmp_path):
+        clear_config_cache()
+        root = _write_project_with_custom_provider(
+            tmp_path, "my-cursor", "cursor-headless",
+            {"composer-1": _fieldless_model()},
+        )
+        merged, _ = load_config(project_root=root)
+        m = merged["providers"]["my-cursor"]["models"]["composer-1"]
+        assert m["auth_type"] == "headless"
+        assert m["dispatch_group"] == "cursor-composer"
+        assert m["kind"] == "cli"
+
     # Reviewer advisory: inference keys must stay registered adapter types —
     # a registry rename would otherwise silently kill inference.
     def test_inference_keys_are_registered_adapter_types(self):
@@ -381,3 +398,25 @@ class TestHeadlessProviderInference:
                 f"a registered adapter type — kind:cli dispatch for {family} "
                 f"would raise at invocation (the PR #966 config-dead class)"
             )
+
+    # sprint-bug-209 (#966 review fix 6): the REVERSE direction of the
+    # inference parity above. Every REGISTERED adapter that declares the
+    # headless class contract (auth_type == "headless" — the same attribute
+    # keying cli_adapter_types(), providers/__init__.py) must carry a
+    # _HEADLESS_TYPE_INFERENCE entry, or the documented custom-provider
+    # config shape dies [CONFIG-INVALID] at load. Fails on pre-f4c00c19
+    # code, where cursor-headless was registered without an inference
+    # entry — the exact config-dead gap PR #966 originally shipped with.
+    # With the forward test above, the pair pins inference == registry-headless.
+    def test_registry_headless_types_have_inference_entries(self):
+        from loa_cheval.config.loader import _HEADLESS_TYPE_INFERENCE
+        from loa_cheval.providers import _ADAPTER_REGISTRY
+
+        for adapter_type, cls in _ADAPTER_REGISTRY.items():
+            if getattr(cls, "auth_type", None) == "headless":
+                assert adapter_type in _HEADLESS_TYPE_INFERENCE, (
+                    f"registered headless adapter {adapter_type!r} has no "
+                    f"_HEADLESS_TYPE_INFERENCE entry — the documented "
+                    f"custom-provider config shape for it dies "
+                    f"[CONFIG-INVALID] at load (the PR #966 config-dead class)"
+                )

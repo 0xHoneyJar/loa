@@ -392,8 +392,12 @@ class TestSubstrateWiring:
         assert "--yolo injected" in pg.call_args.kwargs["input"]
 
     def test_large_prompt_keeps_argv_small(self):
-        # The ARG_MAX regression: a ~1MB prompt must not appear in argv.
-        big = "x" * 1_000_000
+        # The ARG_MAX regression: a large prompt must not appear in argv.
+        # ~0.5MB: far beyond any argv comfort zone, but inside the 200K-token
+        # context gate (1MB estimated ~285K tokens and tripped
+        # enforce_context_window before reaching subprocess assembly — the
+        # test shipped red in the round-4 commit; sprint-bug-209 fix).
+        big = "x" * 500_000
         with patch(_PGKILL, return_value=_completed(_OK_ENVELOPE)) as pg:
             _adapter().complete(_req(big))
         argv = pg.call_args.args[0]
