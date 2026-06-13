@@ -90,19 +90,24 @@ get_retention_days() {
     local default_restricted=30
     local default_internal=90
 
+    # AUDIT-secrets (#1025): unknown/mislabeled classification defaults to the
+    # MOST-restrictive policy (RESTRICTED, shorter retention), not INTERNAL.
+    # Previously a RESTRICTED report mislabeled PUBLIC / lowercase / trailing-
+    # space won the longer 90d window — keeping sensitive material past its
+    # policy. Only an explicit INTERNAL gets the 90d window now.
     if [[ -f "$CONFIG_FILE" ]] && command -v yq &>/dev/null; then
         case "$classification" in
-            RESTRICTED)
-                yq ".red_team.safety.retention_days_restricted // $default_restricted" "$CONFIG_FILE" 2>/dev/null || echo "$default_restricted"
+            INTERNAL)
+                yq ".red_team.safety.retention_days_internal // $default_internal" "$CONFIG_FILE" 2>/dev/null || echo "$default_internal"
                 ;;
             *)
-                yq ".red_team.safety.retention_days_internal // $default_internal" "$CONFIG_FILE" 2>/dev/null || echo "$default_internal"
+                yq ".red_team.safety.retention_days_restricted // $default_restricted" "$CONFIG_FILE" 2>/dev/null || echo "$default_restricted"
                 ;;
         esac
     else
         case "$classification" in
-            RESTRICTED) echo "$default_restricted" ;;
-            *)          echo "$default_internal" ;;
+            INTERNAL) echo "$default_internal" ;;
+            *)        echo "$default_restricted" ;;
         esac
     fi
 }

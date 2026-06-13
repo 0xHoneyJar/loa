@@ -146,3 +146,27 @@ EOF
     # A future-dated report aged by a recent mtime is young → retained, but no
     # longer via the silent negative-age path.
 }
+
+@test "AUDIT-secrets: unknown/mislabeled classification → conservative RESTRICTED (30d), not INTERNAL (90d) (T-B9)" {
+    # A RESTRICTED report mislabeled PUBLIC/lowercase/trailing-space must NOT
+    # win the longer 90d window. Default unknown classification → most-restrictive.
+    # 45-day-old report: purged under 30d RESTRICTED, retained under 90d INTERNAL.
+    local ts; ts=$(date -u -d "45 days ago" +%Y-%m-%dT%H:%M:%SZ)
+    cat > "$RT/rt-mislabel-result.json" <<EOF
+{"run_id": "rt-mislabel", "timestamp": "$ts", "classification": "PUBLIC"}
+EOF
+    run "$SCRIPT"
+    # Purged → unknown classification was treated as RESTRICTED (30d), not INTERNAL (90d)
+    [ ! -f "$RT/rt-mislabel-result.json" ]
+    grep -q "PURGED: rt-mislabel" "$AUDIT"
+}
+
+@test "regression pin: explicit INTERNAL still gets 90d (not over-purged) (T-B10)" {
+    local ts; ts=$(date -u -d "45 days ago" +%Y-%m-%dT%H:%M:%SZ)
+    cat > "$RT/rt-internal-result.json" <<EOF
+{"run_id": "rt-internal", "timestamp": "$ts", "classification": "INTERNAL"}
+EOF
+    run "$SCRIPT"
+    # 45d < 90d INTERNAL → retained
+    [ -f "$RT/rt-internal-result.json" ]
+}

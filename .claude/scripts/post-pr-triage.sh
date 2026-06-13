@@ -315,12 +315,25 @@ process_findings_file() {
   local iteration
   iteration=$(basename "$findings_file" | grep -oE 'iter[0-9]+' | grep -oE '[0-9]+' || echo "1")
 
-  local total_findings
+  local total_findings ftype
   # sprint-bug-210 (#1025) / KF-004 guard: a corrupt findings artifact must
   # never read as zero-findings-clean — that silently drops CRITICAL/BLOCKER
   # findings from the bug queue and lets the run emit FLATLINE.
-  if ! total_findings=$(JQ_STRICT_CTX="post-pr-triage:total-findings" jq_strict '.findings | length // 0' "$findings_file"); then
+  if ! ftype=$(JQ_STRICT_CTX="post-pr-triage:findings-type" jq_strict -r '.findings | type' "$findings_file"); then
     log "ERROR: findings file unparseable: $findings_file — triage will exit DEGRADED, not clean (KF-004 guard, #1025)"
+    PARSE_FAILURES=$((PARSE_FAILURES + 1))
+    return 0
+  fi
+  # DISS-001 (#1025): a non-array .findings (object/string/absent) is a shape
+  # failure, not zero clean findings. `{"findings":{}}` / `""` would otherwise
+  # `length` to 0 and read as clean.
+  if [[ "$ftype" != "array" ]]; then
+    log "ERROR: .findings is '$ftype' (not an array) in $findings_file — DEGRADED, not zero-clean (#1025)"
+    PARSE_FAILURES=$((PARSE_FAILURES + 1))
+    return 0
+  fi
+  if ! total_findings=$(JQ_STRICT_CTX="post-pr-triage:total-findings" jq_strict '.findings | length' "$findings_file"); then
+    log "ERROR: findings count failed: $findings_file — DEGRADED (#1025)"
     PARSE_FAILURES=$((PARSE_FAILURES + 1))
     return 0
   fi
@@ -361,18 +374,15 @@ process_findings_file() {
       finding_json="null"
     fi
 
-    if [[ "$finding_json" == "null" ]]; then
-      idx=$((idx + 1))
-      continue
-    fi
-
-    # AUDIT-1 (#1025): a schema-valid but non-object element (e.g.
-    # {"findings": ["str"]}) survives the jq_strict guards above, but the
-    # per-field `.id // "unknown"` extraction below errors on a non-object and
-    # aborts under set -e BEFORE the convergence write — a stale-clean hole.
-    # Route shape-invalid elements to DEGRADED instead.
+    # AUDIT-1 + DISS-001 (#1025): every element must be a JSON object. A
+    # non-object element (literal null, string, number, nested array) survives
+    # the jq_strict array extraction, but the per-field `.id // "unknown"`
+    # below errors on a non-object and aborts under set -e BEFORE the
+    # convergence write — a stale-clean hole. Route shape-invalid elements to
+    # DEGRADED. (Replaces the old literal-"null" skip, which silently dropped
+    # null elements instead of flagging them.)
     if ! echo "$finding_json" | jq -e 'type == "object"' >/dev/null 2>&1; then
-      log "ERROR: finding[$idx] is not a JSON object (shape-invalid) in $findings_file — DEGRADED, not silent abort (#1025)"
+      log "ERROR: finding[$idx] is not a JSON object (shape-invalid) in $findings_file — DEGRADED, not silent skip/abort (#1025)"
       PARSE_FAILURES=$((PARSE_FAILURES + 1))
       idx=$((idx + 1))
       continue

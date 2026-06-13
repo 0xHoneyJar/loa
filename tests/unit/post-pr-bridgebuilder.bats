@@ -455,6 +455,18 @@ JSON
     [ ! -f "$TEST_TMPDIR/.run/bridge-triage-convergence.json" ]
 }
 
+@test "KF-004 guard: non-array .findings (object/string/null-element) → DEGRADED, not zero-clean (T-A9, DISS-001)" {
+    mkdir -p "$TEST_TMPDIR/.run"
+    for shape in '{"findings":{}}' '{"findings":""}' '{"findings":[null]}'; do
+        rm -f "$TEST_TMPDIR/.run/bridge-triage-convergence.json"
+        rm -f "$TEST_TMPDIR/.run/bridge-reviews/"*-findings.json
+        echo "$shape" > "$TEST_TMPDIR/.run/bridge-reviews/bridge-s-iter1-findings.json"
+        run "$TEST_TMPDIR/.claude/scripts/post-pr-triage.sh" --pr 100 --auto-triage true
+        [ "$status" -eq 3 ]
+        [ "$(jq -r '.state' "$TEST_TMPDIR/.run/bridge-triage-convergence.json")" == "DEGRADED" ]
+    done
+}
+
 @test "KF-004 guard: schema-valid non-object finding → DEGRADED, no set-e abort (T-A8, AUDIT-1)" {
     # {"findings": ["not-an-object"]} parses fine and survives the jq_strict
     # guards, but per-field extraction on a string element aborts under set -e
