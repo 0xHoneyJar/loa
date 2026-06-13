@@ -44,8 +44,10 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -57,6 +59,7 @@ from loa_cheval.providers.base import (
     enforce_context_window,
     run_subprocess_pgkill,
 )
+from loa_cheval.redaction import sanitize_provider_error_message
 from loa_cheval.types import (
     CompletionRequest,
     CompletionResult,
@@ -70,6 +73,52 @@ logger = logging.getLogger("loa_cheval.providers.codex_headless")
 
 # Allowed reasoning effort levels (codex CLI >= 0.125.0)
 _ALLOWED_REASONING_EFFORTS = ("low", "medium", "high", "xhigh")
+
+# Default-deny allowlist for `codex_config_overrides` (#1008 finding 2).
+# Only inference / reasoning-summary / output-verbosity *display* knobs may be
+# forwarded as `-c key=value`. Because ModelConfig.extra can come from project
+# config, an unrestricted pass-through would let an untrusted repository alter
+# codex's security posture (provider routing, sandbox, approval, network,
+# mcp/features/tools, auth) and bypass the fixed
+# `--ignore-user-config --sandbox read-only` stance. Any key NOT in this set —
+# including every dotted/nested key (e.g. `model_providers.x.base_url`) — is
+# dropped with a warning. reasoning_effort is handled separately and skipped.
+_ALLOWED_CONFIG_OVERRIDE_KEYS = frozenset(
+    {
+        "model_reasoning_summary",
+        "model_reasoning_summary_format",
+        "model_verbosity",
+        "reasoning_summaries",
+        "hide_agent_reasoning",
+    }
+)
+
+# sprint-bug-214 audit (cross-model DISS, KF-004 sidecar recovery): allowlisted
+# override VALUES are still interpolated into `-c key=value`. Restrict values to
+# a safe scalar charset so a value cannot carry TOML/newline/control
+# metacharacters that might smuggle a second config assignment past codex's
+# `-c` parser. Every legitimate value for the allowlisted keys is a simple token
+# (true/false, auto/concise/detailed/none, low/medium/high, experimental).
+_SAFE_OVERRIDE_VALUE_RE = re.compile(r"^[A-Za-z0-9_.\-]+$")
+
+# #1008 finding 1 (sprint-bug-214 audit, cross-model DISS): make the codex agent
+# NON-AGENTIC for the pure-inference use case by disabling its real-world tool
+# surface. Without the shell tool the agent cannot execute `cat`/`sed` to read +
+# exfiltrate absolute-path secrets (e.g. ~/.codex/auth.json) — closing the read
+# vector at its ROOT rather than relying on filesystem isolation. (codex
+# `--sandbox read-only` uses bubblewrap and gives a read-everything view on
+# standard hosts, so empty-cwd alone does not stop absolute-path reads.) Browser
+# / computer tools are disabled to remove network/action exfil paths. MCP/app
+# tools are already neutralized by `--ignore-user-config` (no servers load).
+# Empty-cwd (`-C`) + `--sandbox read-only` are retained as defense-in-depth.
+# Verified live: with these disabled, codex emits zero command_execution events
+# and reports it has no shell tool.
+_DISABLED_AGENT_FEATURES = (
+    "shell_tool",
+    "browser_use",
+    "browser_use_external",
+    "computer_use",
+)
 
 # codex CLI binary name (override via CODEX_HEADLESS_BIN env var for testing)
 _CODEX_BIN_DEFAULT = "codex"
@@ -118,7 +167,6 @@ class CodexHeadlessAdapter(ProviderAdapter):
         enforce_context_window(request, model_config)
 
         prompt = self._build_prompt(request.messages)
-        cmd = self._build_command(request, model_config)
         timeout_s = self._compute_timeout()
         # Cycle-110 sprint-2b2b1 BB iter-2 F-001 closure: read per-model
         # headless_concurrency_limit (cycle-110 ModelConfig field). Default 50
@@ -133,14 +181,34 @@ class CodexHeadlessAdapter(ProviderAdapter):
             n_slots,
         )
 
-        # Cycle-110 sprint-2b2b1 T2.11 — N-slot semaphore wire-up.
+        # Cycle-110 sprint-2b2b1 T2.11 — N-slot semaphore wire-up. Import BEFORE
+        # mkdtemp so an import failure can't leak the workspace (cursor #966
+        # round-2 lesson).
         from loa_cheval.adapters.headless_concurrency import (
             SemaphoreExhausted as _SemaphoreExhausted,
             acquire_slot as _acquire_slot,
         )
 
+        # #1008 finding 1: run codex in a fresh empty workspace so the
+        # read-only-sandboxed agent has no project files to read + exfiltrate
+        # via the normal completion path. `cwd=workspace` + `-C <workspace>`
+        # pin the agent's working root to the empty dir (mirrors
+        # cursor_headless). Created INSIDE the try and cleaned up in `finally`
+        # so a mkdtemp failure maps to a typed ProviderUnavailableError (not a
+        # raw OSError that would bypass the fallback chain) and never leaks a
+        # tempdir (sprint-bug-214 review DISS-002).
+        workspace: Optional[str] = None
         start = time.monotonic()
         try:
+            try:
+                workspace = tempfile.mkdtemp(prefix="loa-codex-ws-")
+            except OSError as exc:
+                raise ProviderUnavailableError(
+                    self.provider,
+                    f"codex-headless: failed to create isolated workspace: "
+                    f"{type(exc).__name__}",
+                ) from exc
+            cmd = self._build_command(request, model_config, workspace)
             with _acquire_slot("codex-headless", n_slots=n_slots):
                 try:
                     # #982: process-group-killing drop-in for subprocess.run —
@@ -153,6 +221,7 @@ class CodexHeadlessAdapter(ProviderAdapter):
                         # cycle-109 follow-up (#879 / #880 symmetric): strip
                         # OPENAI_API_KEY so codex exec uses OAuth, not API mode.
                         env=build_headless_subprocess_env(),
+                        cwd=workspace,
                     )
                 except subprocess.TimeoutExpired:
                     raise ProviderUnavailableError(
@@ -178,6 +247,9 @@ class CodexHeadlessAdapter(ProviderAdapter):
                 f"exhausted after {exc.waited_seconds:.1f}s "
                 f"(n_slots={exc.n_slots})",
             ) from exc
+        finally:
+            if workspace is not None:
+                shutil.rmtree(workspace, ignore_errors=True)
 
         latency_ms = int((time.monotonic() - start) * 1000)
 
@@ -243,8 +315,16 @@ class CodexHeadlessAdapter(ProviderAdapter):
         self,
         request: CompletionRequest,
         model_config,
+        workspace: Optional[str] = None,
     ) -> List[str]:
-        """Build the codex exec argv. Single-shot, sandboxed read-only."""
+        """Build the codex exec argv. Single-shot, sandboxed read-only.
+
+        When `workspace` is provided, `-C <workspace>` pins codex's working
+        root to that (empty) directory so the read-only-sandboxed agent has no
+        project files to read + exfiltrate (#1008 finding 1). `complete()`
+        always supplies a fresh tempdir; the parameter is optional only so the
+        argv-shaping unit tests can exercise the other flags in isolation.
+        """
         # cycle-104 sprint-2 T2.11 amendment: honor `extra.cli_model`
         # so a kind:cli alias (e.g. `codex-headless`) translates to the
         # real codex model identifier the CLI binary expects.
@@ -262,19 +342,48 @@ class CodexHeadlessAdapter(ProviderAdapter):
             cli_model,
         ]
 
+        # Disable the agent's real-world tool surface so it cannot read +
+        # exfiltrate files (#1008 finding 1). See _DISABLED_AGENT_FEATURES.
+        for feature in _DISABLED_AGENT_FEATURES:
+            cmd.extend(["--disable", feature])
+
+        if workspace:
+            cmd.extend(["-C", workspace])
+
         effort = self._resolve_reasoning_effort(request, model_config)
         if effort:
             cmd.extend(["-c", f"model_reasoning_effort={effort}"])
 
-        # Forward additional codex `-c key=value` overrides if the operator
-        # set them in ModelConfig.extra. This is the escape hatch for
-        # codex-specific knobs we don't have first-class fields for yet
-        # (e.g., model_provider="oss", reasoning_summaries=true).
+        # Forward additional codex `-c key=value` overrides ONLY for keys on the
+        # default-deny allowlist (#1008 finding 2). Project config
+        # (ModelConfig.extra) must not be able to alter codex's security posture
+        # (provider routing, sandbox, approval, network, mcp/features/tools,
+        # auth); any non-allowlisted key — including every dotted/nested key —
+        # is dropped with a warning, matching the reasoning_effort
+        # fall-through (no raise, request still proceeds).
         extra = (model_config.extra or {}).get("codex_config_overrides")
         if isinstance(extra, dict):
             for key, value in extra.items():
                 # Skip the reasoning_effort key — already handled above
                 if key == "reasoning_effort":
+                    continue
+                if key not in _ALLOWED_CONFIG_OVERRIDE_KEYS:
+                    logger.warning(
+                        "codex-headless: rejecting non-allowlisted "
+                        "codex_config_overrides key=%r (allowed: %s)",
+                        key,
+                        ", ".join(sorted(_ALLOWED_CONFIG_OVERRIDE_KEYS)),
+                    )
+                    continue
+                if not _SAFE_OVERRIDE_VALUE_RE.match(str(value)):
+                    # Defense in depth (sprint-bug-214 audit): reject values
+                    # carrying TOML/newline/control metacharacters that could
+                    # smuggle a second `-c` assignment past codex's parser.
+                    logger.warning(
+                        "codex-headless: rejecting codex_config_overrides "
+                        "key=%r with unsafe value (must be a simple scalar token)",
+                        key,
+                    )
                     continue
                 cmd.extend(["-c", f"{key}={value}"])
 
@@ -468,6 +577,13 @@ class CodexHeadlessAdapter(ProviderAdapter):
         if "rate limit" in stderr_lower or "429" in stderr or "too many requests" in stderr_lower:
             raise RateLimitError(self.provider)
 
+        # #1008 finding 3: codex stderr can carry prompt fragments, paths, or
+        # account/secret tokens. Route it through the shared provider-error
+        # redactor (cycle-103 T3.3) and sanitize BEFORE truncating, so a
+        # secret-shape token can't be cut mid-string and leak a prefix. The
+        # classification above still keys off the raw stderr.
+        safe_stderr = sanitize_provider_error_message(stderr.strip())
+
         # Auth failure — most actionable for operators new to subscription mode
         if (
             "not authenticated" in stderr_lower
@@ -478,12 +594,12 @@ class CodexHeadlessAdapter(ProviderAdapter):
             raise ConfigError(
                 f"codex CLI not authenticated. Run: codex login. "
                 f"(Auth file: {_CODEX_AUTH_FILE}; "
-                f"stderr: {stderr.strip()[:300]})"
+                f"stderr: {safe_stderr[:300]})"
             )
 
         # Anything else: surface as provider-unavailable so retry/fallback
         # logic in cheval can react.
-        snippet = stderr.strip()[:500] or f"exit code {returncode}, no stderr"
+        snippet = safe_stderr[:500] or f"exit code {returncode}, no stderr"
         raise ProviderUnavailableError(
             self.provider,
             f"codex exec failed (exit {returncode}): {snippet}",
