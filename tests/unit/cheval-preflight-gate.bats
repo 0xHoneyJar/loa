@@ -329,7 +329,7 @@ from cheval import _lookup_capability, _preflight_check
 cfg = $(_v3_cfg_reasoning_py)
 cap = _lookup_capability('anthropic', 'claude-opus-4-7', cfg)
 # estimated 50000 > ceiling 40000 → preempt
-decision = _preflight_check(estimated_input=50000, capability=cap, chunking_enabled=False)
+decision = _preflight_check(estimated_input=50000, capability=cap)
 assert decision is not None, 'must emit a decision when ceiling exceeded'
 assert decision.action == 'preempt', f'action: {decision.action!r}'
 assert decision.exit_code == 7, f'exit_code: {decision.exit_code!r}'
@@ -347,7 +347,7 @@ from cheval import _lookup_capability, _preflight_check
 
 cfg = $(_v3_cfg_nonreasoning_py)
 cap = _lookup_capability('openai', 'gpt-4o-mini', cfg)
-decision = _preflight_check(estimated_input=40000, capability=cap, chunking_enabled=False)
+decision = _preflight_check(estimated_input=40000, capability=cap)
 assert decision is not None
 assert decision.action == 'preempt'
 assert decision.exit_code == 7
@@ -365,11 +365,11 @@ from cheval import _lookup_capability, _preflight_check
 cfg = $(_v3_cfg_reasoning_py)
 cap = _lookup_capability('anthropic', 'claude-opus-4-7', cfg)
 # 30000 < 40000 → no decision
-decision = _preflight_check(estimated_input=30000, capability=cap, chunking_enabled=False)
+decision = _preflight_check(estimated_input=30000, capability=cap)
 assert decision is None, f'passthrough expected: got {decision!r}'
 
 # Equal-to-ceiling is also passthrough (gate fires only on strictly greater)
-decision_eq = _preflight_check(estimated_input=40000, capability=cap, chunking_enabled=False)
+decision_eq = _preflight_check(estimated_input=40000, capability=cap)
 assert decision_eq is None, f'equal-to-ceiling must passthrough: got {decision_eq!r}'
 print('OK')
 "
@@ -377,20 +377,19 @@ print('OK')
     [[ "$output" == *"OK"* ]]
 }
 
-@test "P10: _preflight_check returns 'chunk' decision when input > ceiling AND chunking enabled" {
+@test "P10: _preflight_check ALWAYS preempts when input > ceiling (chunking deleted, #937/sprint-bug-211)" {
     run _run_pysnippet "
 from cheval import _lookup_capability, _preflight_check
 
 cfg = $(_v3_cfg_reasoning_py)
 cap = _lookup_capability('anthropic', 'claude-opus-4-7', cfg)
-decision = _preflight_check(estimated_input=80000, capability=cap, chunking_enabled=True)
-# Sprint 4 will materialize chunking; for Sprint 1, the decision exists but
-# the executor falls back to preempt because the chunking primitive is absent.
-# Either: the decision shape is 'chunk' (Sprint 4 path), OR it's 'preempt'
-# (Sprint 1 — chunking not yet wired). Both are acceptable; we assert that
-# the decision is NOT None (gate fired) and exit_code is not 0.
+decision = _preflight_check(estimated_input=80000, capability=cap)
+# The dead loa_cheval.chunking package was deleted (#937): a ceiling-exceeded
+# input now ALWAYS preempts (exit 7), never routes to a 'chunk' action. The
+# chunking_enabled parameter is gone from the signature.
 assert decision is not None, 'gate must fire when ceiling exceeded'
-assert decision.action in ('chunk', 'preempt'), f'action: {decision.action!r}'
+assert decision.action == 'preempt', f'action: {decision.action!r}'
+assert decision.exit_code != 0, f'exit_code: {decision.exit_code}'
 print('OK')
 "
     [ "$status" -eq 0 ]
@@ -402,7 +401,7 @@ print('OK')
 from cheval import _preflight_check
 
 # capability=None → no gate fires (backward-compat / unknown model)
-decision = _preflight_check(estimated_input=999999, capability=None, chunking_enabled=False)
+decision = _preflight_check(estimated_input=999999, capability=None)
 assert decision is None, f'None capability must not trigger gate: got {decision!r}'
 print('OK')
 "
@@ -419,7 +418,7 @@ cap = _lookup_capability('openai', 'gpt-5.5-pro', cfg)
 assert cap.effective_input_ceiling is None
 # v2-only config — v3 gate must NOT fire (the legacy per-entry input gate
 # downstream is the v2 protection mechanism, not this pre-flight gate).
-decision = _preflight_check(estimated_input=999999, capability=cap, chunking_enabled=False)
+decision = _preflight_check(estimated_input=999999, capability=cap)
 assert decision is None, f'v2-only must passthrough new gate: got {decision!r}'
 print('OK')
 "
