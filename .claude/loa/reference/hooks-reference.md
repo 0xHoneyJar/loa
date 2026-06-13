@@ -131,7 +131,7 @@ See `.claude/hooks/settings.hooks.json` for the complete hook configuration.
 | PostToolUse | Write | `audit/write-mutation-logger.sh` | Log Write tool file modifications |
 | PostToolUse | Edit | `audit/write-mutation-logger.sh` | Log Edit tool file modifications |
 | Stop | (all) | `safety/run-mode-stop-guard.sh` | Guard against premature exit |
-| PreToolUse | Write/Edit | `compliance/implement-gate.sh` | ADVISORY: App Zone write outside /implement |
+| PreToolUse (opt-in, UNWIRED by default) | Write/Edit | `compliance/implement-gate.sh` | ADVISORY FR-7 prototype: App Zone write outside /implement — parked; wire manually per §implement-gate.sh |
 
 ## Compliance Hooks — Agent Hook Pattern (v1.40.0)
 

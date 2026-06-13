@@ -175,7 +175,48 @@ for k, v in fm.items():
             if isinstance(item, str) and _has_control_byte(item):
                 print("ERR:control-byte-in-list-item:" + str(k), file=sys.stderr); sys.exit(2)
 
-print(json.dumps(fm))
+# YAML parses bare ISO dates (`last_updated: 2026-05-09`) as Python
+# datetime.date — which json.dumps cannot serialize. The schema expects
+# a string matching the RFC 3339 regex, so the natural YAML form (no
+# quotes) silently failed the validator before this normalization
+# walker existed. Discovered by Claude session-D 2026-05-09 when
+# attempting to validate SOUL.md as drafted by an earlier session.
+import datetime as _dt
+def _to_serializable(obj):
+    if isinstance(obj, _dt.datetime):
+        # Schema regex requires the `Z` suffix for UTC, not `+00:00`.
+        # YAML parses `2026-05-08T12:00:00Z` with tzinfo=UTC; isoformat()
+        # would emit `+00:00` which the schema regex rejects.
+        if obj.tzinfo is not None and obj.utcoffset() == _dt.timedelta(0):
+            if obj.microsecond:
+                # Same honesty line as naive datetimes: the schema admits
+                # seconds-precision Z form only — silently truncating
+                # fractional seconds would rewrite the operator's value.
+                print(
+                    "ERR:fractional-seconds-unsupported: use seconds "
+                    "precision (2026-05-08T12:00:00Z)", file=sys.stderr)
+                sys.exit(2)
+            return obj.strftime("%Y-%m-%dT%H:%M:%SZ")
+        if obj.tzinfo is None:
+            # bug-202 review iter-1: a NAIVE datetime (e.g.
+            # `last_updated: 2026-05-08 12:00:00`) has no stated timezone —
+            # silently stamping Z would assert UTC for an ambiguous value
+            # and let schema validation pass misrepresented data. Fail loud
+            # with the fix in the message.
+            print(
+                "ERR:naive-datetime-ambiguous: add a Z suffix "
+                "(2026-05-08T12:00:00Z) or use a bare date", file=sys.stderr)
+            sys.exit(2)
+        return obj.isoformat()  # non-UTC offset preserved as ±HH:MM (schema rejects this; surfaces as schema error)
+    if isinstance(obj, _dt.date):
+        return obj.isoformat()
+    if isinstance(obj, dict):
+        return {k: _to_serializable(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_to_serializable(x) for x in obj]
+    return obj
+
+print(json.dumps(_to_serializable(fm)))
 PY
 }
 

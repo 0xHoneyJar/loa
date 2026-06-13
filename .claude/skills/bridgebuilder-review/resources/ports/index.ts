@@ -17,6 +17,7 @@ export type {
 export type {
   ReviewEvent,
   PostReviewInput,
+  ReviewMarkerKind,
   IReviewPoster,
 } from "./review-poster.js";
 

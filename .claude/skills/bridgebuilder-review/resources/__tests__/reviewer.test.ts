@@ -941,6 +941,58 @@ describe("ReviewPipeline", () => {
       assert.equal(summary.results[0].skipReason, "all_files_excluded");
     });
 
+    // bug-1004: a skip notice is NOT a review — it must not stamp the
+    // genuine reviewed-marker (which made bridgebuilder:self-review
+    // unreachable for that sha without API surgery).
+    it("two-pass all-excluded skip posts with markerKind 'skip'", async () => {
+      let postedKind: string | undefined = "unset";
+      const pipeline = buildPipeline({
+        config: { reviewMode: "two-pass", loaAware: true },
+        git: {
+          listOpenPRs: async () => [
+            { number: 1, title: "PR", headSha: "sha1", baseBranch: "main", labels: [], author: "dev" },
+          ],
+          getPRFiles: async () => [
+            { filename: ".claude/loa/something.md", status: "modified" as const, additions: 5, deletions: 3, patch: "+code" },
+          ],
+          getPRReviews: async () => [],
+          preflight: async () => ({ remaining: 5000, scopes: ["repo"] }),
+          preflightRepo: async () => ({ owner: "test", repo: "repo", accessible: true }),
+        },
+        poster: {
+          postReview: async (input) => { postedKind = input.markerKind; return true; },
+        },
+      });
+      await pipeline.run("run-loa");
+      assert.equal(postedKind, "skip");
+    });
+
+    it("two-pass all-excluded skip notice is deduped via the skip marker, not the review marker", async () => {
+      let posted = 0;
+      const pipeline = buildPipeline({
+        config: { reviewMode: "two-pass", loaAware: true },
+        git: {
+          listOpenPRs: async () => [
+            { number: 1, title: "PR", headSha: "sha1", baseBranch: "main", labels: [], author: "dev" },
+          ],
+          getPRFiles: async () => [
+            { filename: ".claude/loa/something.md", status: "modified" as const, additions: 5, deletions: 3, patch: "+code" },
+          ],
+          getPRReviews: async () => [],
+          preflight: async () => ({ remaining: 5000, scopes: ["repo"] }),
+          preflightRepo: async () => ({ owner: "test", repo: "repo", accessible: true }),
+        },
+        poster: {
+          postReview: async () => { posted++; return true; },
+          hasExistingReview: async (_o: string, _r: string, _n: number, _sha: string, kind?: string) =>
+            kind === "skip", // skip notice already present; genuine review absent
+        },
+      });
+      const summary = await pipeline.run("run-loa");
+      assert.equal(summary.results[0].skipReason, "all_files_excluded");
+      assert.equal(posted, 0, "skip notice must not be re-posted when the skip marker already exists");
+    });
+
     it("two-pass falls back to unenriched when enrichment-only fields preserved but pass2 valid", async () => {
       let callCount = 0;
       let postedBody = "";

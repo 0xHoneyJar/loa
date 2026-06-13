@@ -363,3 +363,21 @@ class TestHeadlessProviderInference:
             assert key in _ADAPTER_REGISTRY, (
                 f"inference key {key!r} is not a registered adapter type"
             )
+
+    # R1-interim (refactor review 2026-06-12): the THIRD headless registry,
+    # _CLI_ADAPTER_BY_PROVIDER in cheval.py, drives kind:cli dispatch. PR #966
+    # shipped config-dead because a registry drifted; the two existing parity
+    # tests above cover _HEADLESS_TYPE_INFERENCE but not this one. Pin that the
+    # CLI-adapter VALUES are registered types. Closes the last unguarded leg
+    # of the documented three-registry hand-sync (full fix = R1, derive all
+    # three from one declarative table).
+    def test_cli_adapter_registry_values_are_registered_types(self):
+        import cheval
+        from loa_cheval.providers import _ADAPTER_REGISTRY
+
+        for family, adapter_type in cheval._CLI_ADAPTER_BY_PROVIDER.items():
+            assert adapter_type in _ADAPTER_REGISTRY, (
+                f"_CLI_ADAPTER_BY_PROVIDER[{family!r}] = {adapter_type!r} is not "
+                f"a registered adapter type — kind:cli dispatch for {family} "
+                f"would raise at invocation (the PR #966 config-dead class)"
+            )

@@ -555,8 +555,8 @@ class SubprocessOutputCapExceeded(RuntimeError):
     """
 
 
-def _pgkill_stdin_writer(proc: subprocess.Popen, payload: str) -> None:
-    """Feed `input=` on a side thread so the read loop keeps draining.
+def _pgkill_stdin_writer(proc: subprocess.Popen, payload: bytes) -> None:
+    """Feed pre-encoded `input=` on a side thread so the read loop drains.
 
     Writing a large prompt (> pipe buffer, ~64 KiB) from the main thread
     before reading would deadlock against a child that writes output while
@@ -566,9 +566,15 @@ def _pgkill_stdin_writer(proc: subprocess.Popen, payload: str) -> None:
     proc.stdin while this thread is mid-write ("I/O operation on closed
     file") — without it the daemon thread dumps a traceback onto our
     stderr, polluting orchestrator diagnostics.
+
+    #1011 delta 1 (salvaged from PR #983, credit @notzerker): the payload
+    arrives as BYTES — encoding happens in the MAIN thread so a lone
+    surrogate raises UnicodeEncodeError immediately instead of being
+    swallowed here as a ValueError subclass, which left stdin open and a
+    stdin-reading CLI waiting for EOF until the full ~610s timeout.
     """
     try:
-        proc.stdin.write(payload.encode("utf-8"))
+        proc.stdin.write(payload)
         proc.stdin.close()
     except (BrokenPipeError, OSError, ValueError):
         pass
@@ -604,10 +610,18 @@ def _pgkill_capture(
     while open_fds:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
-            raise subprocess.TimeoutExpired(proc.args, timeout_s)
+            # #1011 delta 3: carry partial output — stderr often holds the
+            # CLI's throttle/error message (diagnostics, MODELINV later).
+            raise subprocess.TimeoutExpired(
+                proc.args, timeout_s,
+                output=bytes(stdout_buf), stderr=bytes(stderr_buf),
+            )
         readable, _, _ = select.select(open_fds, [], [], remaining)
         if not readable:
-            raise subprocess.TimeoutExpired(proc.args, timeout_s)
+            raise subprocess.TimeoutExpired(
+                proc.args, timeout_s,
+                output=bytes(stdout_buf), stderr=bytes(stderr_buf),
+            )
         for fd in readable:
             try:
                 chunk = os.read(fd, 4096)
@@ -638,10 +652,19 @@ def _pgkill_capture(
         try:
             proc.wait(timeout=max(0.1, deadline - time.monotonic()))
         except subprocess.TimeoutExpired:
-            raise
+            # #1011 iter-1: wait() raises a FRESH TimeoutExpired without the
+            # captured buffers — re-raise with partial output like the
+            # explicit raise sites.
+            raise subprocess.TimeoutExpired(
+                proc.args, timeout_s,
+                output=bytes(stdout_buf), stderr=bytes(stderr_buf),
+            ) from None
     rc = proc.returncode
     if rc is None:
-        raise subprocess.TimeoutExpired(proc.args, timeout_s)
+        raise subprocess.TimeoutExpired(
+            proc.args, timeout_s,
+            output=bytes(stdout_buf), stderr=bytes(stderr_buf),
+        )
     return bytes(stdout_buf), bytes(stderr_buf), rc
 
 
@@ -699,8 +722,12 @@ def run_subprocess_pgkill(
     )
     try:
         if input is not None:
+            # #1011 delta 1: encode HERE (main thread) — UnicodeEncodeError
+            # propagates through the except-BaseException teardown below,
+            # reaping the just-spawned child instead of burning the timeout.
+            payload = input.encode("utf-8")
             threading.Thread(
-                target=_pgkill_stdin_writer, args=(proc, input), daemon=True
+                target=_pgkill_stdin_writer, args=(proc, payload), daemon=True
             ).start()
         stdout_b, stderr_b, rc = _pgkill_capture(
             proc, max_bytes=max_bytes, timeout_s=timeout
@@ -712,6 +739,14 @@ def run_subprocess_pgkill(
             os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
         except ProcessLookupError:
             pass
+        except PermissionError:
+            # #1011 delta 2: EPERM (e.g. a setuid descendant joined the
+            # group) must not replace the in-flight exception — fall back
+            # to killing the direct child.
+            try:
+                proc.kill()
+            except ProcessLookupError:
+                pass
         try:
             proc.wait(timeout=2)
         except subprocess.TimeoutExpired:

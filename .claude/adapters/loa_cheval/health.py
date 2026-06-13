@@ -100,7 +100,16 @@ def iter_modelinv_entries(
                     continue
                 # Timestamp filter
                 if since is not None:
-                    ts_raw = envelope.get("timestamp") or envelope.get("ts")
+                    # R12: the audit writer emits `ts_utc` (audit_envelope.py)
+                    # — production envelopes carry no `timestamp`/`ts` key, so
+                    # the old lookup was always None and the window never
+                    # filtered (silent all-time aggregation). Match economy.py's
+                    # ts_utc-first lookup; keep the legacy keys as fallbacks.
+                    ts_raw = (
+                        envelope.get("ts_utc")
+                        or envelope.get("timestamp")
+                        or envelope.get("ts")
+                    )
                     if ts_raw:
                         try:
                             ts = datetime.fromisoformat(ts_raw.replace("Z", "+00:00"))

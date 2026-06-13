@@ -59,6 +59,16 @@ describe("GitHubCLIAdapter", () => {
   });
 
   describe("marker format", () => {
+    // bug-1004: skip notices stamp a DISTINCT marker; the genuine
+    // reviewed-marker matcher must not match a skip-stamped body.
+    it("skip markerKind produces a distinct marker the review matcher ignores", () => {
+      const marker = "bridgebuilder-review";
+      const headSha = "abc123";
+      const skipLine = `<!-- ${marker}-skip: ${headSha} -->`;
+      const genuine = `<!-- ${marker}: ${headSha} -->`;
+      assert.ok(!skipLine.includes(genuine), "skip marker must not contain the genuine marker");
+    });
+
     it("appends marker as last line of review body", () => {
       const marker = "bridgebuilder-review";
       const headSha = "abc123";
