@@ -1,4 +1,15 @@
 import type { ILogger } from "../ports/logger.js";
+/**
+ * Injectable exec seam (#1014). Defaults to the real promisified execFile;
+ * tests inject a fake to prove the allowlist blocks fetches without shelling
+ * out to a real gh.
+ */
+export type CrossRepoExec = (file: string, args: readonly string[], options: {
+    timeout: number;
+}) => Promise<{
+    stdout: string;
+}>;
+export declare function sanitizeUntrusted(text: string): string;
 export interface CrossRepoRef {
     owner: string;
     repo: string;
@@ -32,5 +43,5 @@ export declare function parseManualRefs(refs: string[]): CrossRepoRef[];
  * Fetch context for cross-repo references via gh CLI.
  * Respects per-ref (5s) and total (30s) timeouts.
  */
-export declare function fetchCrossRepoContext(refs: CrossRepoRef[], logger?: ILogger): Promise<CrossRepoContextResult>;
+export declare function fetchCrossRepoContext(refs: CrossRepoRef[], logger?: ILogger, allowedOwners?: ReadonlySet<string>, exec?: CrossRepoExec): Promise<CrossRepoContextResult>;
 //# sourceMappingURL=cross-repo.d.ts.map

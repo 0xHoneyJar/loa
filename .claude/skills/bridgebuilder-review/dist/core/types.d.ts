@@ -96,6 +96,8 @@ export interface MultiModelConfig {
     cross_repo: {
         auto_detect: boolean;
         manual_refs: string[];
+        /** #1014: extra owners whose auto-detected refs may be fetched (org-only by default). */
+        allowed_owners: string[];
     };
     rating: {
         enabled: boolean;

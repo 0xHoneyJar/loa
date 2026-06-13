@@ -470,10 +470,17 @@ async function main() {
                 // Dedupe detected against manual to avoid double-fetching the same ref.
                 const manualKeys = new Set(manualRefs.map((r) => `${r.owner}/${r.repo}#${r.number ?? ""}`));
                 const detectedNew = detected.filter((r) => !manualKeys.has(`${r.owner}/${r.repo}#${r.number ?? ""}`));
+                // #1014: auto-detected refs are parsed from the UNTRUSTED PR title.
+                // Constrain authenticated cross-repo fetches to the PR own org plus any
+                // operator-configured allowed_owners (org-only by default).
+                const allowedOwners = new Set([
+                    item.owner.toLowerCase(),
+                    ...(config.multiModel.cross_repo?.allowed_owners ?? []).map((o) => o.toLowerCase()),
+                ]);
                 let detectedContext = null;
                 if (detectedNew.length > 0) {
                     const fetchStart = Date.now();
-                    detectedContext = await fetchCrossRepoContext(detectedNew, adapters.logger);
+                    detectedContext = await fetchCrossRepoContext(detectedNew, adapters.logger, allowedOwners);
                     adapters.logger.info(`[bridgebuilder] cross-repo (auto, per-item): fetched ${detectedContext.context.length}/${detectedNew.length} refs ` +
                         `(${detectedContext.errors.length} errors) in ${Date.now() - fetchStart}ms`);
                 }

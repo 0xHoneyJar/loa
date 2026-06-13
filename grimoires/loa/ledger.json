@@ -1794,9 +1794,22 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260613-i937-ddbd73/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260613-i937-ddbd73/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260613-i1014-a965b4",
+      "label": "Bug Fix \u2014 Untrusted PR titles drive authenticated cross-repo gh fetches (cross_repo.auto_detect) (#1014)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1014",
+      "created_at": "2026-06-13T08:32:05Z",
+      "sprints": [
+        "sprint-bug-215"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260613-i1014-a965b4/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260613-i1014-a965b4/sprint.md"
     }
   ],
-  "global_sprint_counter": 213,
+  "global_sprint_counter": 215,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
@@ -2041,6 +2054,19 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260613-i1044-8f8c49/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260613-i1044-8f8c49/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260613-i1014-a965b4",
+      "label": "Bug Fix \u2014 Untrusted PR titles drive authenticated cross-repo gh fetches (cross_repo.auto_detect) (#1014)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1014",
+      "created_at": "2026-06-13T08:32:05Z",
+      "sprints": [
+        "sprint-bug-215"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260613-i1014-a965b4/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260613-i1014-a965b4/sprint.md"
     }
   ],
   "bugfixes": [
@@ -2058,5 +2084,5 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 214
+  "next_sprint_number": 215
 }

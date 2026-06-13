@@ -40,6 +40,7 @@ export declare const MultiModelConfigSchema: z.ZodObject<{
     cross_repo: z.ZodDefault<z.ZodObject<{
         auto_detect: z.ZodDefault<z.ZodBoolean>;
         manual_refs: z.ZodDefault<z.ZodArray<z.ZodString>>;
+        allowed_owners: z.ZodDefault<z.ZodArray<z.ZodString>>;
     }, z.core.$strip>>;
     rating: z.ZodDefault<z.ZodObject<{
         enabled: z.ZodDefault<z.ZodBoolean>;
