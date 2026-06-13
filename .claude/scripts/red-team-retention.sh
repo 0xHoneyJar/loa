@@ -178,6 +178,14 @@ purge_expired() {
                 classification="RESTRICTED"
                 audit "CONSERVATIVE: $result_file unparseable timestamp '$timestamp' — RESTRICTED policy, mtime age (#1025)"
                 created=$(_file_mtime_epoch "$result_file")
+            elif (( created > now + 86400 )); then
+                # AUDIT-2 (#1025): a beyond-clock-skew FUTURE timestamp makes
+                # age negative → indefinite retention. Treat as suspicious:
+                # conservative RESTRICTED, age by mtime (not the future value).
+                conservative=true
+                classification="RESTRICTED"
+                audit "CONSERVATIVE: $result_file has a future timestamp '$timestamp' — RESTRICTED policy, mtime age (#1025)"
+                created=$(_file_mtime_epoch "$result_file")
             fi
         fi
 

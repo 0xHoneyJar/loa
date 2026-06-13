@@ -455,6 +455,22 @@ JSON
     [ ! -f "$TEST_TMPDIR/.run/bridge-triage-convergence.json" ]
 }
 
+@test "KF-004 guard: schema-valid non-object finding → DEGRADED, no set-e abort (T-A8, AUDIT-1)" {
+    # {"findings": ["not-an-object"]} parses fine and survives the jq_strict
+    # guards, but per-field extraction on a string element aborts under set -e
+    # BEFORE the convergence write — leaving a stale clean record. Must route
+    # to DEGRADED instead.
+    mkdir -p "$TEST_TMPDIR/.run"
+    cat > "$TEST_TMPDIR/.run/bridge-triage-convergence.json" <<'JSON'
+{"timestamp":"2020-01-01T00:00:00Z","pr_number":100,"state":"FLATLINE","actionable_high":0,"blocker_count":0,"disputed_count":0}
+JSON
+    echo '{"findings": ["not-an-object"]}' > "$TEST_TMPDIR/.run/bridge-reviews/bridge-z-iter1-findings.json"
+    run "$TEST_TMPDIR/.claude/scripts/post-pr-triage.sh" --pr 100 --auto-triage true
+    [ "$status" -eq 3 ]
+    [ "$(jq -r '.state' "$TEST_TMPDIR/.run/bridge-triage-convergence.json")" == "DEGRADED" ]
+    [ "$(jq -r '.parse_failures' "$TEST_TMPDIR/.run/bridge-triage-convergence.json")" -ge 1 ]
+}
+
 @test "KF-004 guard: corrupt bridge-state.json overwrites stale FLATLINE convergence → DEGRADED (T-A5)" {
     # DISS-001: the corrupt-state early-return must not let a prior iteration's
     # clean convergence record survive — the orchestrator reads .state from it.

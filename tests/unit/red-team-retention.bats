@@ -130,3 +130,19 @@ EOF
     [ -f "$RT/rt-ggg-result.json" ]
     [[ "$output" == *"dependencies unavailable"* || "$output" == *"FATAL"* ]]
 }
+
+@test "AUDIT-2: future timestamp → conservative RESTRICTED, not indefinite retention (T-B8)" {
+    # A far-future .timestamp makes age negative → retained forever. Must be
+    # treated as suspicious (conservative RESTRICTED + mtime age), exit 3.
+    local future
+    future=$(date -u -d "+5 years" +%Y-%m-%dT%H:%M:%SZ)
+    cat > "$RT/rt-future-result.json" <<EOF
+{"run_id": "rt-future", "timestamp": "$future", "classification": "RESTRICTED"}
+EOF
+    # mtime now → young → retained with WARN (not purged), but flagged conservative + exit 3
+    run "$SCRIPT"
+    [ "$status" -eq 3 ]
+    grep -qiE "future|CONSERVATIVE" "$AUDIT"
+    # A future-dated report aged by a recent mtime is young → retained, but no
+    # longer via the silent negative-age path.
+}

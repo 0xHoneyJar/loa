@@ -366,6 +366,18 @@ process_findings_file() {
       continue
     fi
 
+    # AUDIT-1 (#1025): a schema-valid but non-object element (e.g.
+    # {"findings": ["str"]}) survives the jq_strict guards above, but the
+    # per-field `.id // "unknown"` extraction below errors on a non-object and
+    # aborts under set -e BEFORE the convergence write — a stale-clean hole.
+    # Route shape-invalid elements to DEGRADED instead.
+    if ! echo "$finding_json" | jq -e 'type == "object"' >/dev/null 2>&1; then
+      log "ERROR: finding[$idx] is not a JSON object (shape-invalid) in $findings_file — DEGRADED, not silent abort (#1025)"
+      PARSE_FAILURES=$((PARSE_FAILURES + 1))
+      idx=$((idx + 1))
+      continue
+    fi
+
     local fid severity title
     fid=$(echo "$finding_json" | jq -r '.id // "unknown"')
     severity=$(echo "$finding_json" | jq -r '.severity // "UNKNOWN"')
