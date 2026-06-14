@@ -982,7 +982,7 @@ extract_capabilities() {
         grimoire_dir=$(get_config_value "paths.grimoire" "grimoires/loa")
         if [[ -f "${grimoire_dir}/reality/api-surface.md" ]]; then
             caps=$(head -50 "${grimoire_dir}/reality/api-surface.md" 2>/dev/null | \
-                grep -E '^[-*]|^#+' | head -20) || true
+                grep -E '^[-*]|^#+' | head -20 | sed -E 's/^(#+) /##\1 /') || true
         fi
     fi
 
@@ -1338,7 +1338,7 @@ extract_interfaces() {
         local grimoire_dir
         grimoire_dir=$(get_config_value "paths.grimoire" "grimoires/loa")
         if [[ -f "${grimoire_dir}/reality/contracts.md" ]]; then
-            ifaces=$(head -50 "${grimoire_dir}/reality/contracts.md" 2>/dev/null) || true
+            ifaces=$(head -50 "${grimoire_dir}/reality/contracts.md" 2>/dev/null | sed -E 's/^(#+) /##\1 /') || true
         fi
     fi
 
