@@ -97,6 +97,23 @@ warn() {
     echo "WARNING: $*" >&2
 }
 
+# Run an extractor (jq/yq ...); on NON-ZERO exit, warn with context and return
+# the resilient default (the generator must not halt on one malformed pack).
+# Replaces the silent `<extract> 2>/dev/null || echo "<default>"` swallow that
+# masked malformed packs as empty/absent values (KF-004/KF-015 class, #1012).
+_strict_or_default() {
+    local default="$1" ctx="$2"; shift 2
+    local out errf rc=0
+    errf=$(mktemp)
+    out=$("$@" 2>"$errf") || rc=$?
+    if (( rc != 0 )); then
+        warn "${ctx}: extraction failed (exit ${rc}): $(tr "\n" " " <"$errf" | cut -c1-160); using default"
+    fi
+    rm -f "$errf"
+    if (( rc != 0 )); then printf "%s" "$default"; else printf "%s" "$out"; fi
+    return 0
+}
+
 # =============================================================================
 # Capability Aggregation (Task 103.2)
 # =============================================================================
@@ -303,8 +320,8 @@ process_pack() {
     # `.type` (gecko + the MAJORITY of packs). The alternation MUST run per element:
     # `[.[].name // .event // .type]` evaluates `.event`/`.type` against the outer ARRAY,
     # which errors on every non-.name shape (and the stderr swallow turned that into []).
-    emits_json=$(jq -c '.events.emits // [] | [.[] | (.name // .event // .type) // empty]' "$manifest" 2>/dev/null || echo "[]")
-    consumes_json=$(jq -c '.events.consumes // [] | [.[] | (.event // .name // .type) // empty]' "$manifest" 2>/dev/null || echo "[]")
+    emits_json=$(_strict_or_default "[]" "events.emits" jq -c '.events.emits // [] | [.[] | (if type=="object" then (.name // .event // .type) elif type=="string" then . else empty end) // empty]' "$manifest")
+    consumes_json=$(_strict_or_default "[]" "events.consumes" jq -c '.events.consumes // [] | [.[] | (if type=="object" then (.event // .name // .type) elif type=="string" then . else empty end) // empty]' "$manifest")
 
     # Initialize overlay fields
     local writes_json="[]"
@@ -328,12 +345,12 @@ process_pack() {
         [[ -n "$cy_description" && "$cy_description" != "null" ]] && description="$cy_description"
 
         # Extract writes, reads, gates
-        writes_json=$(yq eval -o=json '.writes // []' "$construct_yaml" 2>/dev/null || echo "[]")
-        reads_json=$(yq eval -o=json '.reads // []' "$construct_yaml" 2>/dev/null || echo "[]")
-        gates_json=$(yq eval -o=json '.gates // {}' "$construct_yaml" 2>/dev/null || echo "{}")
+        writes_json=$(_strict_or_default "[]" "construct.yaml writes" yq eval -o=json '.writes // []' "$construct_yaml")
+        reads_json=$(_strict_or_default "[]" "construct.yaml reads" yq eval -o=json '.reads // []' "$construct_yaml")
+        gates_json=$(_strict_or_default "{}" "construct.yaml gates" yq eval -o=json '.gates // {}' "$construct_yaml")
         # GAP C fix: explicit compose_with[].slug declarations were never read — composition
         # was derived ONLY from reads/writes overlap, which is empty for every pack.
-        compose_with_json=$(yq eval -o=json '[.compose_with[].slug] // []' "$construct_yaml" 2>/dev/null || echo "[]")
+        compose_with_json=$(_strict_or_default "[]" "construct.yaml compose_with" yq eval -o=json '[.compose_with[].slug] // []' "$construct_yaml")
 
         # GAP C fix: several constructs (e.g. the-arcade) declare their event membrane in
         # construct.yaml, not manifest.json. Overlay it (construct.yaml wins when present);
@@ -342,14 +359,14 @@ process_pack() {
         local cy_emits cy_consumes
         # BB #981 (2fc2685b round): filter nulls like the manifest path's `// empty` —
         # an entry with none of the three keys must not inject null into the membrane.
-        cy_emits=$(yq eval -o=json '[.events.emits[] | (.name // .event // .type) | select(. != null)] // []' "$construct_yaml" 2>/dev/null || echo "[]")
-        cy_consumes=$(yq eval -o=json '[.events.consumes[] | (.name // .event // .type) | select(. != null)] // []' "$construct_yaml" 2>/dev/null || echo "[]")
+        cy_emits=$(_strict_or_default "[]" "construct.yaml events.emits" yq eval -o=json '[.events.emits[] | (.name // .event // .type) | select(. != null)] // []' "$construct_yaml")
+        cy_consumes=$(_strict_or_default "[]" "construct.yaml events.consumes" yq eval -o=json '[.events.consumes[] | (.name // .event // .type) | select(. != null)] // []' "$construct_yaml")
         [[ -n "$cy_emits" && "$cy_emits" != "null" && "$cy_emits" != "[]" ]] && emits_json="$cy_emits"
         [[ -n "$cy_consumes" && "$cy_consumes" != "null" && "$cy_consumes" != "[]" ]] && consumes_json="$cy_consumes"
 
         # Extract tags from construct.yaml if present
         local cy_tags
-        cy_tags=$(yq eval -o=json '.tags // null' "$construct_yaml" 2>/dev/null || echo "null")
+        cy_tags=$(_strict_or_default "null" "construct.yaml tags" yq eval -o=json '.tags // null' "$construct_yaml")
         if [[ "$cy_tags" != "null" ]]; then
             tags_json="$cy_tags"
         fi

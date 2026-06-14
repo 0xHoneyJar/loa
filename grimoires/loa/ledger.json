@@ -1820,9 +1820,22 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260613-i1014-a965b4/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260613-i1014-a965b4/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260614-i1012-e52467",
+      "label": "Bug Fix \u2014 construct-index-gen stderr-swallow sites silently mask malformed packs (#1012)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1012",
+      "created_at": "2026-06-14T09:03:39Z",
+      "sprints": [
+        "sprint-bug-221"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260614-i1012-e52467/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260614-i1012-e52467/sprint.md"
     }
   ],
-  "global_sprint_counter": 215,
+  "global_sprint_counter": 221,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
@@ -2080,6 +2093,19 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260613-i1014-a965b4/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260613-i1014-a965b4/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260614-i1012-e52467",
+      "label": "Bug Fix \u2014 construct-index-gen stderr-swallow sites silently mask malformed packs (#1012)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1012",
+      "created_at": "2026-06-14T09:03:39Z",
+      "sprints": [
+        "sprint-bug-221"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260614-i1012-e52467/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260614-i1012-e52467/sprint.md"
     }
   ],
   "bugfixes": [
@@ -2097,5 +2123,5 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 215
+  "next_sprint_number": 221
 }
