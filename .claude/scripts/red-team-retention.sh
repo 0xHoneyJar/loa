@@ -75,6 +75,13 @@ log() {
 
 audit() {
     local msg="$1"
+    # #1039: msg can embed JSON-derived fields (run_id) that may carry
+    # newlines/control chars — a crafted value could forge audit-log lines.
+    # Strip ALL control chars (incl. CR/LF) and cap length before writing so the
+    # audit log stays one-line-per-event (forensic integrity). Single chokepoint
+    # covers every call site.
+    msg=$(printf '%s' "$msg" | tr -d '[:cntrl:]')
+    msg=${msg:0:512}
     local timestamp
     timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     echo "${timestamp} ${msg}" >> "$AUDIT_LOG"

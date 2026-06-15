@@ -216,3 +216,22 @@ EOF
     [ -f "$RT/rt-cfg-result.json" ]
     echo "$output" | grep -qiE "invalid|retention_days"
 }
+
+# -----------------------------------------------------------------------------
+# #1039: a run_id with an embedded newline/control char must not forge audit
+# lines in .run/red-team-audit.log (audit() must sanitize before writing).
+# -----------------------------------------------------------------------------
+@test "audit-log injection: run_id newline cannot forge audit lines (#1039)" {
+    jq -nc --arg rid "rt-evil
+PURGED: rt-FORGED-INJECTED (fake)" --arg ts "$(_old_date)" \
+        '{run_id:$rid, timestamp:$ts, classification:"RESTRICTED"}' > "$RT/rt-evil-result.json"
+    run "$SCRIPT"
+    [[ -f "$AUDIT" ]] || { echo "no audit log written"; return 1; }
+    if grep -qE '^PURGED: rt-FORGED-INJECTED' "$AUDIT"; then
+        echo "FORGED audit line present (injection succeeded):"; cat "$AUDIT"; return 1
+    fi
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        echo "$line" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]+Z ' || { echo "audit line lacks ISO ts prefix (injected line?): [$line]"; return 1; }
+    done < "$AUDIT"
+}

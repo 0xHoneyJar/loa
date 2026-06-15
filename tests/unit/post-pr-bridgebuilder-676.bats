@@ -261,3 +261,33 @@ _write_findings() {
         return 1
     }
 }
+
+# -----------------------------------------------------------------------------
+# #1038: a JSON-valid but charset-invalid bridge_id must be treated as corrupt
+# (glob metacharacters / path traversal must not reach the find -name pattern).
+# -----------------------------------------------------------------------------
+@test "676-triage: charset-invalid bridge_id treated as corrupt — no glob fall-through (#1038)" {
+    _write_bridge_state 'bad-*-/../injection'
+    _write_findings "$TEST_REPO/.run/bridge-reviews/${STALE_BRIDGE_ID}-iter1-findings.json" "stale" "HIGH"
+    run "$TRIAGE_SCRIPT" --pr 1234 --review-dir "$TEST_REPO/.run/bridge-reviews"
+    [[ "$status" -ne 0 ]] || { echo "Expected non-zero (corrupt disposition); got status=$status: $output"; return 1; }
+    echo "$output" | grep -qE "invalid bridge_id|refusing glob|ERROR.*bridge" || { echo "Expected bridge_id charset ERROR; got: $output"; return 1; }
+    local conv="$TEST_REPO/.run/bridge-triage-convergence.json"
+    [[ -f "$conv" ]] || { echo "Expected DEGRADED convergence record at $conv"; return 1; }
+    jq -e '.state == "DEGRADED" and (.reason | test("charset|invalid bridge_id"))' "$conv" >/dev/null || { echo "Expected DEGRADED+charset reason; got: $(cat "$conv" 2>/dev/null)"; return 1; }
+}
+
+# -----------------------------------------------------------------------------
+# #1038 audit MEDIUM: a rejected (charset-invalid) bridge_id containing a newline
+# must NOT forge a triage-log line when it is logged.
+# -----------------------------------------------------------------------------
+@test "676-triage: invalid bridge_id with newline cannot forge a triage-log line (#1038 audit)" {
+    jq -n --arg id $'bad\nINJECTED-LOG-LINE' \
+        '{bridge_id:$id, state:"REVIEWING", depth:5, flatline_threshold:1, repos:["test/repo"], prs_handled:[]}' \
+        > "$TEST_REPO/.run/bridge-state.json"
+    run "$TRIAGE_SCRIPT" --pr 1234 --review-dir "$TEST_REPO/.run/bridge-reviews"
+    [[ "$status" -ne 0 ]] || { echo "Expected non-zero (rejected); got status=$status"; return 1; }
+    if echo "$output" | grep -qE '^INJECTED-LOG-LINE'; then
+        echo "FORGED triage-log line present (log injection): $output"; return 1
+    fi
+}

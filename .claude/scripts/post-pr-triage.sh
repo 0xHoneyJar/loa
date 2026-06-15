@@ -104,7 +104,13 @@ fi
 # ============================================================================
 
 log() {
-  echo "[post-pr-triage] $*" >&2
+  # #1038 audit: log messages may interpolate attacker-controlled JSON-derived
+  # values (e.g. an invalid bridge_id read from bridge-state.json). Strip control
+  # chars so a crafted value (embedded newline) cannot forge triage-log lines
+  # (log-injection / forensic integrity — same class as the #1039 audit() fix).
+  local _m
+  _m=$(printf '%s' "$*" | tr -d '[:cntrl:]')
+  echo "[post-pr-triage] ${_m}" >&2
 }
 
 # Append a trajectory entry per bridge-triage.schema.json
@@ -477,6 +483,22 @@ main() {
           --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
           --argjson pr "$PR_NUMBER" \
           '{timestamp: $ts, pr_number: $pr, state: "DEGRADED", actionable_high: 0, blocker_count: 0, disputed_count: 0, parse_failures: 1, reason: "corrupt bridge-state.json"}' \
+          > "$conv"
+      fi
+      return 1
+    fi
+    # #1038: a JSON-valid but charset-invalid bridge_id (glob metacharacters,
+    # path traversal, whitespace) must NOT reach the find -name pattern. Treat
+    # it as corrupt — same disposition as a parse failure (#676 Defect B guard).
+    if [[ -n "$bridge_id" && ! "$bridge_id" =~ ^[A-Za-z0-9_-]+$ ]]; then
+      log "ERROR: invalid bridge_id charset: '$bridge_id' in $bridge_state_file — refusing glob fall-through (#676 Defect B guard, #1038)"
+      if [[ "$DRY_RUN" != "true" ]]; then
+        local conv="$CWD_AT_INVOKE/.run/bridge-triage-convergence.json"
+        mkdir -p "$(dirname "$conv")"
+        jq -nc \
+          --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+          --argjson pr "$PR_NUMBER" \
+          '{timestamp: $ts, pr_number: $pr, state: "DEGRADED", actionable_high: 0, blocker_count: 0, disputed_count: 0, parse_failures: 1, reason: "invalid bridge_id charset"}' \
           > "$conv"
       fi
       return 1
