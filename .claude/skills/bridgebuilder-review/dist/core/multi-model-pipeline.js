@@ -25,6 +25,8 @@ import { PROVIDER_API_KEY_ENV, validateApiKeys } from "../config.js";
  * large reviews while keeping operator-visible latency bounded.
  */
 function isReasoningClass(provider, modelId) {
+    if (/-headless$/i.test(modelId))
+        return true;
     if (provider === "openai" && /^gpt-\d+(\.\d+)?-pro$/i.test(modelId))
         return true;
     if (provider === "anthropic" && /opus/i.test(modelId))
