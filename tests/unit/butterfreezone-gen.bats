@@ -77,6 +77,48 @@ EOF
     [[ "${lines[0]}" == *"tier: 1"* ]] || [[ "$output" == *"CODE-FACTUAL"* ]] || true
 }
 
+@test "butterfreezone-gen: Tier 1 demotes reality-file headers so provenance census passes (#1035)" {
+    # Regression for #1035: Tier-1 extractors lifted verbatim `## ` headers from
+    # reality/api-surface.md and reality/contracts.md into the generated doc under a
+    # SINGLE provenance tag. The validator counts `grep -c '^## '` sections vs
+    # `<!-- provenance:` tags, so the lifted headers became untagged top-level
+    # sections -> "Missing provenance tags" -> deterministic validate FAIL.
+    mkdir -p grimoires/loa/reality
+    cat > grimoires/loa/reality/api-surface.md <<'EOF'
+# API Surface
+
+This API surface documentation has more than ten words of content to trigger Tier 1 detection.
+
+## Public (no auth)
+- GET /health returns service status
+## REST groups
+- /v1/users user management endpoints
+EOF
+    cat > grimoires/loa/reality/contracts.md <<'EOF'
+# Contracts
+
+## Request schema
+- id: string identifier for the resource
+## Response schema
+- status: resulting status code and message
+EOF
+    git add -A && git commit -q -m "Add reality with ## headers"
+
+    run "$SCRIPT" --tier 1
+    [ "$status" -eq 0 ]
+
+    # The fix demotes lifted headers (### / ####) so they nest under the tagged
+    # parent and never appear as top-level `## ` in the census. Pre-fix, these
+    # matched as top-level sections; post-fix none survive.
+    run grep -E '^## (Public|REST|Request|Response)' BUTTERFREEZONE.md
+    [ "$status" -ne 0 ]
+
+    VALIDATE="$PROJECT_ROOT/.claude/scripts/butterfreezone-validate.sh"
+    run bash "$VALIDATE"
+    [[ "$output" == *"valid provenance tags"* ]]
+    [[ "$output" != *"Missing provenance tags"* ]]
+}
+
 @test "butterfreezone-gen: tier detection — Tier 2 with package.json" {
     # Create package.json (no reality files)
     cat > package.json <<'EOF'

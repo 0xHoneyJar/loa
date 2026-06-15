@@ -46,6 +46,7 @@ import type { LoreEntry, PRReviewTemplate } from "./template.js";
  * large reviews while keeping operator-visible latency bounded.
  */
 function isReasoningClass(provider: string, modelId: string): boolean {
+  if (/-headless$/i.test(modelId)) return true;
   if (provider === "openai" && /^gpt-\d+(\.\d+)?-pro$/i.test(modelId)) return true;
   if (provider === "anthropic" && /opus/i.test(modelId)) return true;
   if (provider === "google" && /^gemini-\d+(\.\d+)?-pro/i.test(modelId)) return true;
