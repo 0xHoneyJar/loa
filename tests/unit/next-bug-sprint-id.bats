@@ -265,3 +265,31 @@ EOF
     [[ "$status" -eq 0 ]]
     [[ "$output" == "sprint-bug-311" ]]
 }
+
+# =============================================================================
+# Issue #1064 — the bug-*/sprint.md disk-scan missed the sprint-bug-N/ directory
+# layout (used by #1053/#1056/#1059+). When the counter lagged a claimed id, the
+# helper re-emitted an already-used sprint-bug-N (observed: sprint-bug-217 this
+# session). Extraction must be exact-anchored so the malformed live dir
+# sprint-bug-622-623 is rejected, not mis-parsed as 623.
+# =============================================================================
+
+@test "issue#1064: sprint-bug-N/ directory layout is consulted when counter lags" {
+    _write_ledger 200
+    mkdir -p "$PROJECT_ROOT/grimoires/loa/a2a/sprint-bug-230"
+    cd "$PROJECT_ROOT" && git init --quiet
+    run bash "$SCRIPT"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == "sprint-bug-231" ]]
+}
+
+@test "issue#1064: malformed sprint-bug-622-623 dir is not mis-parsed (anchored)" {
+    _write_ledger 200
+    mkdir -p "$PROJECT_ROOT/grimoires/loa/a2a/sprint-bug-230"
+    mkdir -p "$PROJECT_ROOT/grimoires/loa/a2a/sprint-bug-622-623"
+    cd "$PROJECT_ROOT" && git init --quiet
+    run bash "$SCRIPT"
+    [[ "$status" -eq 0 ]]
+    # 622-623 rejected (else would parse 623 -> 624); max real id is 230 -> 231
+    [[ "$output" == "sprint-bug-231" ]]
+}
