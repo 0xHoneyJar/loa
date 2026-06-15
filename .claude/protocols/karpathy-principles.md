@@ -73,7 +73,22 @@ SIMPLICITY CHECK:
 IF code is longer than necessary:
   → Rewrite simpler
   → Delete speculative additions
+
+YAGNI LADDER (walk before writing code, stop at the first rung that holds):
+  1. Need it at all?            → no: skip (YAGNI)
+  2. Stdlib does it?            → use it
+  3. Native platform feature?   → use it
+  4. Installed dependency?      → use it (never add one for a few lines)
+  5. One line?                  → one line
+  6. Only then: minimum that works
+The ladder is a reflex, not a research project.
+
+NEVER simplify away: trust-boundary validation, data-loss handling, security,
+accessibility, real-hardware calibration, or anything explicitly requested.
 ```
+
+> Attribution: the YAGNI ladder and the `loa:shortcut:` marker are adapted
+> from [ponytail](https://github.com/DietrichGebert/ponytail) (Dietrich Gebert), MIT.
 
 **Metrics**:
 | Smell | Action |
@@ -82,6 +97,7 @@ IF code is longer than necessary:
 | Unused parameters | Remove them |
 | "Extensibility" hooks | Delete unless requested |
 | Generic interfaces for specific use | Simplify to concrete |
+| Reinventing stdlib / native feature | Use the platform |
 
 ---
 
@@ -111,6 +127,12 @@ DIFF REVIEW:
 - Every changed line should relate to the request
 - No "while I'm here" changes
 - If you see issues elsewhere, note them separately
+
+INTENTIONAL SHORTCUTS:
+- Mark deliberate simplifications in-code: `// loa:shortcut: <what>`
+- If the shortcut has a known ceiling, name the ceiling AND the upgrade trigger
+  (`# loa:shortcut: global lock; per-account locks if throughput matters`)
+- A marker naming a ceiling with no upgrade trigger rots — don't leave one
 ```
 
 **Verification**:

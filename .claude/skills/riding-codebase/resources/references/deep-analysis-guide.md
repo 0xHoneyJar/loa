@@ -140,10 +140,10 @@ grep -roh 'process\.env\.\w\+\|os\.environ\[.\+\]\|os\.Getenv\(.\+\)\|env\.\w\+\
 
 ```bash
 .claude/scripts/search-orchestrator.sh regex \
-  "TODO|FIXME|HACK|XXX|BUG|@deprecated|eslint-disable|@ts-ignore|type:\\s*any" \
+  "TODO|FIXME|HACK|XXX|BUG|@deprecated|eslint-disable|@ts-ignore|type:\\s*any|loa:shortcut" \
   "${TARGET_REPO}/src" 100 0.0 \
   > grimoires/loa/reality/tech-debt.txt 2>/dev/null || \
-grep -rn "TODO\|FIXME\|HACK\|XXX\|BUG\|@deprecated\|eslint-disable\|@ts-ignore\|type: any" \
+grep -rn "TODO\|FIXME\|HACK\|XXX\|BUG\|@deprecated\|eslint-disable\|@ts-ignore\|type: any\|loa:shortcut" \
   --include="*.ts" --include="*.js" --include="*.py" --include="*.go" "${TARGET_REPO}" 2>/dev/null \
   > grimoires/loa/reality/tech-debt.txt
 ```
