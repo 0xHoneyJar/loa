@@ -1,4 +1,4 @@
-<!-- @loa-managed: true | version: 1.173.6 | hash: 3824353f16dfd31c7a7552fdbf7ae154797685ca95a203ff433aeb797ffde6d4 -->
+<!-- @loa-managed: true | version: 1.173.6 | hash: 22b1c12d01593178b467221dc6d3d190ffe49b2027cf994b39f67cd56db69997 -->
 <!-- WARNING: This file is managed by the Loa Framework. Do not edit directly. -->
 
 # Loa Framework Instructions
@@ -114,6 +114,23 @@ Write minimum code that solves the request — nothing speculative.
 
 The test: would a senior engineer call this overcomplicated?
 
+Before writing code, walk the ladder — stop at the first rung that holds:
+1. Does this need to be built at all? (YAGNI — speculative need: say so and skip)
+2. Does the standard library already do it? Use it.
+3. Does a native platform feature cover it? Use it.
+4. Does an already-installed dependency solve it? Use it. (Never add one for a few lines.)
+5. Can it be one line? Make it one line.
+6. Only then: write the minimum code that works.
+
+The ladder is a reflex, not a research project — the first lazy solution that
+works is the right one.
+
+Never simplify away: input validation at trust boundaries, error handling that
+prevents data loss, security, accessibility, real-hardware calibration, and
+anything explicitly requested. Lazy means efficient, not careless (the audit
+gate enforces this floor). When the user asks for the full version, build it —
+don't re-argue.
+
 ### 3. Surgical Changes
 
 Touch only what the request requires. When editing existing code:
@@ -126,6 +143,12 @@ Touch only what the request requires. When editing existing code:
 Every changed line should trace directly to the user's request. No
 "while I'm here" changes — note them in the PR description instead.
 
+Mark deliberate simplifications in-code so they read as intent, not ignorance:
+`// loa:shortcut: <what>`. When the shortcut has a known ceiling, name both the
+ceiling and the upgrade trigger — `# loa:shortcut: global lock; per-account
+locks if throughput matters`. A marker that names a ceiling with no upgrade
+trigger rots silently — don't leave one.
+
 ### 4. Goal-Driven Execution
 
 Transform tasks into verifiable goals before starting:
@@ -137,6 +160,11 @@ For multi-step tasks, state the plan + per-step verification before
 implementing. Vague success criteria ("make it robust", "improve quality")
 get replaced with concrete checks ("returns 401 on invalid creds", "test
 file X passes").
+
+Non-trivial logic (a branch, loop, parser, money or security path) MUST leave at
+least one runnable check that fails if the logic breaks — satisfied by the
+sprint's acceptance-criteria tests. Trivial one-liners need no test (YAGNI
+applies to tests too) — but never skip the check on logic that can break.
 
 ## Process Compliance
 

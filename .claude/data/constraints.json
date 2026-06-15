@@ -1356,6 +1356,28 @@
       ],
       "severity": "critical",
       "source_incident": "#506"
+    },
+    {
+      "id": "C-PROC-011",
+      "name": "yagni_ladder",
+      "category": "process",
+      "rule_type": "ALWAYS",
+      "text": "walk the YAGNI ladder before writing code — stop at the first rung that holds (need it? → stdlib → native → installed dependency → one line → minimum code)",
+      "text_variants": {
+        "skill-md": "DO walk the YAGNI ladder before writing code — stop at the first rung that holds (need it? → stdlib → native → installed dependency → one line → minimum code); reinventing stdlib/native features is a dominant over-engineering class"
+      },
+      "why": "Speculative code and reinvented stdlib/native features are dominant over-engineering classes; the ladder is the reflex that prevents them (adapted from ponytail, MIT)",
+      "severity": "medium",
+      "order": 13,
+      "layers": [
+        {
+          "target": "skill-md",
+          "skills": [
+            "implementing-tasks"
+          ],
+          "render_as": "constraint_rule"
+        }
+      ]
     }
   ]
 }
