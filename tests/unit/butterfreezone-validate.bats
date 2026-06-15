@@ -292,3 +292,33 @@ EOF
     # Should have no PASS/FAIL output
     [[ "$output" != *"PASS"* ]]
 }
+
+# =============================================================================
+# Check 5b: Freshness portability (#1034) — GNU-only `date -d` regression
+# =============================================================================
+
+@test "validate: freshness survives BSD-style date without -d (#1034)" {
+    # generate_valid stamps a FRESH generated_at (gen.sh uses date -u).
+    generate_valid
+
+    # Simulate BSD/macOS: a `date` with no `-d` support (exits non-zero on it),
+    # passing every other form through to the real date. Pre-fix, validate's raw
+    # `date -d "$generated_at"` failed -> `|| echo 0` -> epoch 0 -> a bogus
+    # ~20000-day staleness WARN even on a freshly generated file. Post-fix,
+    # _date_to_epoch falls through to its perl tier and resolves the stamp.
+    local shimdir="$MOCK_REPO/bin-shim"
+    mkdir -p "$shimdir"
+    cat > "$shimdir/date" <<'SHIM'
+#!/usr/bin/env bash
+if [[ "$1" == "-d" ]]; then exit 1; fi
+exec /usr/bin/date "$@"
+SHIM
+    chmod +x "$shimdir/date"
+
+    PATH="$shimdir:$PATH" run "$SCRIPT" --file "$MOCK_REPO/BUTTERFREEZONE.md"
+    [ "$status" -eq 0 ]
+    # The fix routes through _date_to_epoch -> perl, so a fresh file is fresh:
+    [[ "$output" == *"Freshness check passed"* ]]
+    # The bug signature (bogus multi-thousand-day staleness) must NOT appear:
+    [[ "$output" != *"is 2"[0-9][0-9][0-9][0-9]" days old"* ]]
+}

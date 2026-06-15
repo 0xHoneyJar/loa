@@ -19,6 +19,7 @@ export TZ=UTC
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/compat-lib.sh"
 SCRIPT_VERSION="1.0.0"
 
 # =============================================================================
@@ -481,7 +482,7 @@ validate_freshness() {
 
     # Parse the timestamp and compare with current time
     local gen_epoch
-    gen_epoch=$(date -d "$generated_at" +%s 2>/dev/null || echo 0)
+    gen_epoch=$(_date_to_epoch "$generated_at" 2>/dev/null || echo 0)
     local now_epoch
     now_epoch=$(date +%s)
     local diff_days=$(( (now_epoch - gen_epoch) / 86400 ))

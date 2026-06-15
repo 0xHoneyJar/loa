@@ -70,6 +70,8 @@ providers:
     models:
       claude-opus-4-7:
         capabilities: [chat, tools]
+        auth_type: http_api
+        dispatch_group: anthropic-claude
         context_window: 200000
         token_param: max_tokens
         max_output_tokens: 32000
@@ -85,6 +87,8 @@ providers:
     models:
       gpt-5.5-pro:
         capabilities: [chat, tools, function_calling]
+        auth_type: http_api
+        dispatch_group: openai-gpt
         context_window: 128000
         token_param: max_completion_tokens
         endpoint_family: chat
@@ -115,6 +119,8 @@ providers:
     models:
       claude-opus-4-7:
         capabilities: [chat, tools]
+        auth_type: http_api
+        dispatch_group: anthropic-claude
         context_window: 200000
         token_param: max_tokens
         max_output_tokens: 32000
@@ -141,6 +147,8 @@ providers:
     models:
       gpt-5.5-pro:
         capabilities: [chat, tools, function_calling]
+        auth_type: http_api
+        dispatch_group: openai-gpt
         context_window: 128000
         token_param: max_completion_tokens
         endpoint_family: chat
@@ -390,6 +398,8 @@ providers:
     models:
       claude-opus-4-7:
         capabilities: [chat]
+        auth_type: http_api
+        dispatch_group: anthropic-claude
         context_window: 200000
         token_param: max_tokens
         max_output_tokens: 32000
