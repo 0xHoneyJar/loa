@@ -73,6 +73,27 @@ describe("deriveTimeoutMs — reasoning-class predicate across all 3 providers",
     );
   });
 
+  it("Anthropic claude-headless → 30-min budget (NEW — closes #1013, KF-010 headless SIGTERM)", () => {
+    assert.equal(
+      deriveTimeoutMs("anthropic", "claude-headless", largeContextConfig),
+      REASONING_BUDGET_MS,
+    );
+  });
+
+  it("OpenAI codex-headless → 30-min budget (NEW — closes #1013)", () => {
+    assert.equal(
+      deriveTimeoutMs("openai", "codex-headless", largeContextConfig),
+      REASONING_BUDGET_MS,
+    );
+  });
+
+  it("Google gemini-headless → 30-min budget (NEW — closes #1013)", () => {
+    assert.equal(
+      deriveTimeoutMs("google", "gemini-headless", largeContextConfig),
+      REASONING_BUDGET_MS,
+    );
+  });
+
   it("Anthropic claude-sonnet-4-6 → tier-based (non-Opus Anthropic, non-reasoning)", () => {
     assert.equal(
       deriveTimeoutMs("anthropic", "claude-sonnet-4-6", largeContextConfig),

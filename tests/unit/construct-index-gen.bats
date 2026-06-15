@@ -648,3 +648,44 @@ events:
     [ "$(jq '.constructs[0].events.emits | length' "$TEST_OUTPUT")" -eq 1 ]
     [ "$(jq -r '.constructs[0].events.emits[0]' "$TEST_OUTPUT")" = "manifest.kept_event" ]
 }
+
+# =============================================================================
+# T17: scalar-string events tolerated (#1012 Item 3)
+# =============================================================================
+
+@test "T17: scalar-string manifest events are tolerated (#1012)" {
+    create_mock_pack "scalar-evt" '{
+      "name": "Scalar Pack",
+      "slug": "scalar-evt",
+      "version": "1.0.0",
+      "events": { "emits": ["evt.a", "evt.b"], "consumes": ["evt.c"] }
+    }'
+
+    run "$SCRIPT" --json --output "$TEST_OUTPUT" --quiet
+    [ "$status" -eq 0 ]
+    # Pre-fix the scalar array crashed the object-index filter and was swallowed to [].
+    [ "$(jq '.constructs[0].events.emits | length' "$TEST_OUTPUT")" -eq 2 ]
+    [ "$(jq -r '.constructs[0].events.emits[0]' "$TEST_OUTPUT")" = "evt.a" ]
+    [ "$(jq -r '.constructs[0].events.emits[1]' "$TEST_OUTPUT")" = "evt.b" ]
+    [ "$(jq -r '.constructs[0].events.consumes[0]' "$TEST_OUTPUT")" = "evt.c" ]
+}
+
+# =============================================================================
+# T18: malformed event block WARNS (not silently swallowed) + resilient default (#1012 Item 1)
+# =============================================================================
+
+@test "T18: malformed event block warns instead of silently swallowing (#1012)" {
+    create_mock_pack "bad-evt" '{
+      "name": "Bad Pack",
+      "slug": "bad-evt",
+      "version": "1.0.0",
+      "events": { "emits": "notanarray" }
+    }'
+
+    # NOT --quiet: assert the warning surfaces (the KF-004/KF-015 fix — failures
+    # must not be silently converted to a default).
+    run "$SCRIPT" --json --output "$TEST_OUTPUT"
+    [ "$status" -eq 0 ]                                          # resilient: generator does not halt
+    [[ "$output" == *"events.emits: extraction failed"* ]]      # warn surfaced
+    [ "$(jq -c '.constructs[0].events.emits' "$TEST_OUTPUT")" = "[]" ]  # resilient default applied
+}

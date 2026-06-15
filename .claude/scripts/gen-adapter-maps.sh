@@ -91,6 +91,51 @@ _micro_usd_to_per_1k() {
     awk -v m="$micro" 'BEGIN { printf "%g", m / 1000000000 }'
 }
 
+# bedrock-forward-routing (this PR): when the resolved Bedrock posture is
+# bedrock_only / prefer_bedrock, rewrite aliases that target the direct Anthropic
+# API to their Bedrock equivalent BEFORE emitting the bash maps, so flatline's
+# bash resolve_provider_id agrees with the Python loader. Equivalence comes from
+# each Bedrock model's `fallback_to` (inverted) — no new mapping, no heuristic
+# name matching (SKP-003 compatible). Mirrors loader._apply_bedrock_forward_routing.
+# Produces a temp config that `generate()` then reads via CONFIG_FILE.
+_maybe_apply_bedrock_forward_routing() {
+    local profile
+    profile=$(yq eval -r '.providers.bedrock.compliance_profile // ""' "$CONFIG_FILE" 2>/dev/null || echo "")
+    if [[ "$profile" != "bedrock_only" && "$profile" != "prefer_bedrock" ]]; then
+        return 0  # posture not Bedrock-forward; leave config untouched.
+    fi
+
+    # Build the inverse fallback_to map: { "anthropic:opus": "bedrock:us...opus", ... }
+    local invmap
+    invmap=$(yq eval -o=json '.providers.bedrock.models // {}' "$CONFIG_FILE" 2>/dev/null \
+        | jq -c 'to_entries
+                 | map(select(.value.fallback_to != null and (.value.fallback_to | test(":"))))
+                 | map({ (.value.fallback_to): ("bedrock:" + .key) })
+                 | add // {}')
+    if [[ -z "$invmap" || "$invmap" == "{}" || "$invmap" == "null" ]]; then
+        return 0
+    fi
+
+    # Rewrite each alias whose target appears in the inverse map.
+    local routed_config
+    routed_config="$(mktemp /tmp/loa-model-config-bedrock-routed.XXXXXX.yaml)"
+    yq eval -o=json '.' "$CONFIG_FILE" \
+        | jq --argjson inv "$invmap" '
+            .aliases |= ( to_entries
+                | map(.value = ( if (.value | type) == "string" and ($inv[.value] != null)
+                                  then $inv[.value] else .value end ))
+                | from_entries )
+          ' \
+        | yq eval -P '.' - > "$routed_config" 2>/dev/null
+
+    if [[ -s "$routed_config" ]]; then
+        echo "INFO: bedrock-forward-routing active (compliance_profile=$profile): aliases retargeted to Bedrock for codegen" >&2
+        CONFIG_FILE="$routed_config"
+    else
+        rm -f "$routed_config"
+    fi
+}
+
 generate() {
     local now
     now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -309,6 +354,11 @@ _emit_cost_map() {
         printf '    ["%s"]="%s"\n' "$alias" "$(_micro_usd_to_per_1k "$micro")"
     done
 }
+
+# Apply Bedrock forward-routing to CONFIG_FILE (no-op unless compliance_profile
+# is bedrock_only / prefer_bedrock). Must run before any generate() call so the
+# CHECK, DRY_RUN, and write paths all emit the routed maps.
+_maybe_apply_bedrock_forward_routing
 
 if [[ "$CHECK" == "true" ]]; then
     tmpfile=$(mktemp)
