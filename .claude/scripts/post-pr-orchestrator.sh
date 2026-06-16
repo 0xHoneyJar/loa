@@ -472,6 +472,10 @@ phase_flatline_pr() {
 #   - False positives acceptable during experimentation
 #   - depth=5 (inherit from /run-bridge)
 #   - No budget gating (yet)
+#   - REQUIRES the /run-bridge skill harness to drive the SIGNAL:* protocol.
+#     Run from the bare orchestrator (no driving skill) the bridge no-ops;
+#     #1076 defect 4 makes that fail loud (phase=failed + HALT) instead of
+#     silently marking the phase 'skipped' and reaching READY_FOR_HITL.
 phase_bridgebuilder_review() {
   log_phase "BRIDGEBUILDER_REVIEW"
 
@@ -547,9 +551,18 @@ phase_bridgebuilder_review() {
     if [[ -n "$current_bridge_id" ]]; then
       local iter_findings_file="${review_dir}/${current_bridge_id}-iter${iter}-findings.json"
       if [[ ! -f "$iter_findings_file" ]]; then
-        log_info "WARN: bridge-orchestrator produced no findings file for iter=${iter} (expected ${iter_findings_file##*/}); marking phase skipped"
-        _update_phase bridgebuilder_review skipped
-        return 0
+        # #1076 defect 4: an ENABLED bridgebuilder phase that produces no
+        # findings file is a silent no-op — the bare orchestrator cannot drive
+        # the SIGNAL:* protocol (that needs the /run-bridge skill harness).
+        # Fail loud instead of marking the phase 'skipped' and marching on to
+        # READY_FOR_HITL (which made `enabled: true` silently do nothing).
+        log_error "Bridgebuilder phase is ENABLED but produced no findings file for iter=${iter} (expected ${iter_findings_file##*/})."
+        log_error "The bare post-pr-orchestrator cannot drive the Bridgebuilder SIGNAL:* protocol; this phase requires the /run-bridge skill harness."
+        log_error "Remedy: run post-PR validation through /run-bridge, or set post_pr_validation.phases.bridgebuilder_review.enabled: false."
+        _update_phase bridgebuilder_review failed
+        update_state "$STATE_HALTED"
+        "$STATE_SCRIPT" set "halt_reason" "bridgebuilder_no_findings_requires_run_bridge_harness"
+        return 3
       fi
     fi
 
@@ -609,9 +622,17 @@ phase_bridgebuilder_review() {
       return 0
       ;;
     *)
-      log_info "Bridgebuilder review failed (exit: $bridge_result), continuing"
-      _update_phase bridgebuilder_review skipped
-      return 0
+      # #1076 defect 4: a non-zero bridge exit means the bridge could not run
+      # (e.g. bridge-orchestrator's "produced no findings files" no-op when no
+      # /run-bridge harness drives the SIGNAL:* protocol). Fail loud instead of
+      # mislabelling the failure 'skipped' and proceeding to READY_FOR_HITL.
+      log_error "Bridgebuilder review failed (bridge-orchestrator exit: $bridge_result)."
+      log_error "If the bridge produced no findings, the bare post-pr-orchestrator cannot drive the SIGNAL:* protocol; this phase requires the /run-bridge skill harness."
+      log_error "Remedy: run post-PR validation through /run-bridge, or set post_pr_validation.phases.bridgebuilder_review.enabled: false."
+      _update_phase bridgebuilder_review failed
+      update_state "$STATE_HALTED"
+      "$STATE_SCRIPT" set "halt_reason" "bridgebuilder_failed"
+      return 3
       ;;
   esac
 }
