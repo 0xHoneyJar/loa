@@ -108,11 +108,12 @@ Scan the user's invocation for these flags:
 | `--with-gaps` | `ENRICH_GAPS` | `false` | Enable Phase 12: Gap Tracker |
 | `--with-decisions` | `ENRICH_DECISIONS` | `false` | Enable Phase 13: Decision Archaeology |
 | `--with-terms` | `ENRICH_TERMS` | `false` | Enable Phase 14: Terminology Extraction |
-| `--enriched` | Sets all three above | `false` | Enable all enrichment phases |
+| `--with-simplicity` | `ENRICH_SIMPLICITY` | `false` | Enable Phase 15: Over-Engineering Audit + shortcut ledger |
+| `--enriched` | Sets all four above | `false` | Enable all enrichment phases |
 
 ### Parsing Rules
 
-1. If `--enriched` is present, set `ENRICH_GAPS=true`, `ENRICH_DECISIONS=true`, `ENRICH_TERMS=true`
+1. If `--enriched` is present, set `ENRICH_GAPS=true`, `ENRICH_DECISIONS=true`, `ENRICH_TERMS=true`, `ENRICH_SIMPLICITY=true`
 2. Individual flags can be combined: `--with-gaps --with-decisions`
 3. If NO enrichment flags are present, all variables remain `false` — standard ride proceeds unchanged
 4. Log parsed flags to trajectory:
@@ -974,6 +975,55 @@ After writing, verify with `Glob` pattern `grimoires/loa/reality/terminology.md`
 Log phase completion:
 ```json
 {"phase": 14, "action": "terminology_extraction", "status": "complete", "details": {"terms_extracted": N, "domains": N, "output": "grimoires/loa/reality/terminology.md"}}
+```
+
+---
+
+## Phase 15: Over-Engineering Audit + Shortcut Ledger (`ENRICH_SIMPLICITY` only)
+
+**Skip condition**: If `ENRICH_SIMPLICITY == false`, skip this phase. Log skip to trajectory:
+```json
+{"phase": 15, "action": "simplicity_audit", "status": "skipped", "details": {"reason": "ENRICH_SIMPLICITY not set"}}
+```
+
+The complexity-only counterpart to a security audit: a ranked, whole-repo
+over-engineering pass plus a dedicated `loa:shortcut:` debt ledger. Reports
+only, applies no fixes.
+
+### 15.1 Over-engineering scan (ranked, biggest cut first)
+
+Apply the reviewing-code over-engineering taxonomy (`delete` / `stdlib` /
+`native` / `yagni` / `shrink`) tree-wide instead of to a diff. Hunt:
+dependencies the stdlib or platform already ships, single-implementation
+interfaces, factories with one product, wrappers that only delegate, dead
+flags/config, hand-rolled stdlib. One line per finding, ranked biggest-cut
+first: `<tag>: <what to cut>. <replacement>. [path:line]`. End with
+`net: -<N> lines, -<M> deps possible.` Nothing to cut: `Lean already. Ship.`
+
+### 15.2 `loa:shortcut:` debt ledger
+
+Harvest deliberate-simplification markers (distinct from the generic
+TODO/FIXME tech-debt scan in the standard ride):
+
+```bash
+grep -rnE '(#|//|--) ?loa:shortcut:' . \
+  --exclude-dir={.git,node_modules,dist,build} \
+  > grimoires/loa/reality/shortcut-ledger.raw 2>/dev/null || true
+```
+
+One row per marker, grouped by file, parsing the `loa:shortcut: <ceiling>,
+<upgrade>` convention:
+`<file>:<line> - <what was simplified>. ceiling: <limit>. upgrade: <trigger>.`
+Any marker naming a ceiling with NO upgrade trigger gets a `no-trigger` tag,
+those rot silently. End with `<N> markers, <M> no-trigger.` None found:
+`No loa:shortcut: debt. Clean ledger.`
+
+### 15.3 Write the report
+
+Write both sections to `grimoires/loa/reality/over-engineering.md` (ranked
+findings, then ledger). Log completion:
+```json
+{"phase": 15, "action": "simplicity_audit", "status": "complete", "details": {"findings": N, "net_lines": -N, "markers": N, "no_trigger": N, "output": "grimoires/loa/reality/over-engineering.md"}}
 ```
 
 ---

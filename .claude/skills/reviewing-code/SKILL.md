@@ -822,6 +822,11 @@ Tag each over-engineering finding so the engineer gets a crisp delete-list
 
 A `loa:shortcut:` marker that names a ceiling with **no upgrade trigger** is a
 `SIMPLICITY[shrink]` finding — the deferred work rots without a trigger.
+
+End an over-engineering pass with the only metric that matters:
+`net: -<N> lines possible`. If nothing should be cut, say `Lean already. Ship.`
+and stop. Never flag the one required acceptance-check behind non-trivial logic
+(the smallest runnable check) for deletion — that is the YAGNI minimum, not bloat.
 </complexity_review>
 
 <beads_workflow>
