@@ -469,3 +469,30 @@ def test_live_complete():
     r = _adapter().complete(_req("Reply with ONLY the word PONG"))
     assert r.provider == "xai"
     assert r.content
+
+
+# ---------------------------------------------------------------------------
+# Subprocess env filter — xAI/Grok auth-key stripping (#1057 review gap)
+# ---------------------------------------------------------------------------
+# grok persists OIDC auth in ~/.grok/auth.json; an xAI API-key env in the parent
+# process flips the CLI off that OAuth path. base._HEADLESS_STRIPPED_AUTH_VARS
+# appends XAI_API_KEY / GROK_CODE_XAI_API_KEY / GROK_API_KEY, but no test pinned
+# that the grok-specific keys are actually stripped (only the Google keys were
+# covered, in test_gemini_headless_adapter.py). This closes that gap so a future
+# base.py refactor can't silently drop a grok var. Mirrors the gemini coverage.
+
+
+class TestSubprocessEnvFilter:
+    def test_xai_grok_keys_stripped_by_default(self, monkeypatch):
+        monkeypatch.setenv("XAI_API_KEY", "test-xai-key")
+        monkeypatch.setenv("GROK_CODE_XAI_API_KEY", "test-grok-code-key")
+        monkeypatch.setenv("GROK_API_KEY", "test-grok-key")
+        monkeypatch.delenv("LOA_HEADLESS_KEEP_API_KEY", raising=False)
+        with patch(_PGKILL) as mock_run:
+            mock_run.return_value = _completed(_OK_ENVELOPE)
+            _adapter().complete(_req())
+        kwargs = mock_run.call_args.kwargs
+        assert "env" in kwargs, "subprocess.run must pass explicit env="
+        assert "XAI_API_KEY" not in kwargs["env"]
+        assert "GROK_CODE_XAI_API_KEY" not in kwargs["env"]
+        assert "GROK_API_KEY" not in kwargs["env"]
