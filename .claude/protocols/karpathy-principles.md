@@ -82,6 +82,9 @@ YAGNI LADDER (walk before writing code, stop at the first rung that holds):
   5. One line?                  → one line
   6. Only then: minimum that works
 The ladder is a reflex, not a research project.
+Tie-break: two same-size stdlib options -> the edge-case-correct one (lazy is
+less code, not a flimsier algorithm). Deletion over addition, fewest files,
+shortest working diff.
 
 NEVER simplify away: trust-boundary validation, data-loss handling, security,
 accessibility, real-hardware calibration, or anything explicitly requested.
@@ -89,6 +92,15 @@ accessibility, real-hardware calibration, or anything explicitly requested.
 
 > Attribution: the YAGNI ladder and the `loa:shortcut:` marker are adapted
 > from [ponytail](https://github.com/DietrichGebert/ponytail) (Dietrich Gebert), MIT.
+
+**Output discipline**: code first, then at most three lines (what was skipped,
+when to add it: `[code] → skipped: X, add when Y`). An explanation longer than
+the code is complexity as prose — cut it. Reports / walkthroughs the user
+explicitly asked for are exempt.
+
+**Intensity** (`simplicity_intensity`, default `full`): `full` enforces the
+ladder; `ultra` is deletion-first and challenges the requirement before
+building. No advise-only level — the floor is never softened.
 
 **Metrics**:
 | Smell | Action |

@@ -125,11 +125,27 @@ Before writing code, walk the ladder — stop at the first rung that holds:
 The ladder is a reflex, not a research project — the first lazy solution that
 works is the right one.
 
+Two stdlib options the same size? Take the edge-case-correct one — lazy means
+less code, not the flimsier algorithm. Deletion over addition, boring over
+clever, fewest files, shortest working diff.
+
 Never simplify away: input validation at trust boundaries, error handling that
 prevents data loss, security, accessibility, real-hardware calibration, and
 anything explicitly requested. Lazy means efficient, not careless (the audit
 gate enforces this floor). When the user asks for the full version, build it —
 don't re-argue.
+
+**Output discipline**: code first, then at most three lines — what you skipped
+and when to add it (`[code] → skipped: X, add when Y`). An explanation longer
+than the code is complexity smuggled back as prose; cut it. Reports,
+walkthroughs, or per-phase notes the user explicitly asked for are exempt —
+give those in full.
+
+**Intensity** (`simplicity_intensity`, default `full`): `full` enforces the
+ladder — stdlib and native first, shortest diff. `ultra` is deletion-first —
+challenge whether the requirement should shrink before building; ship the
+one-liner and question the rest of the requirement in the same response. There
+is no advise-only level — the floor above is never softened.
 
 ### 3. Surgical Changes
 

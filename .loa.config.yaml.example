@@ -2664,6 +2664,12 @@ karpathy_principles:
   # consumer in v1; reserved for v2 when surface-assumption analysis lands.
   surface_assumptions: true
 
+  # Simplicity enforcement intensity: full (default, enforced — the YAGNI ladder,
+  # stdlib/native first, shortest diff) or ultra (deletion-first, challenges the
+  # requirement before building). There is NO advise-only 'lite' level: the
+  # "never simplify away" floor (C-PROC-011) stays enforced at every level.
+  simplicity_intensity: full
+
   # G-1 — master switch for the PostToolUse:Write|Edit surgical-diff hook
   # at .claude/hooks/quality/karpathy-surgical-diff-check.sh. When false,
   # the hook fast-paths to exit 0 in <10ms.
