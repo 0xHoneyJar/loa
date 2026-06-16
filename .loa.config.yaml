@@ -33,7 +33,7 @@ advisor_strategy:
     implementation: advisor
   tier_aliases:
     advisor:
-      anthropic: claude-opus-4-7
+      anthropic: claude-opus-4-8
       openai: gpt-5.5-pro
       google: gemini-3.1-pro-preview
     executor:
@@ -225,7 +225,7 @@ run_bridge:
       # #789b deferred to cycle-101 follow-up: invoke-time probe gate for preview-tier models.
       models:
         - provider: anthropic
-          model_id: claude-opus-4-7
+          model_id: claude-opus-4-8
           role: primary
         - provider: openai
           model_id: gpt-5.5-pro
@@ -379,7 +379,7 @@ red_team:
     # + google), so red team now invokes all 3 like Bridgebuilder + Flatline.
     # See grimoires/loa/known-failures.md (post KF-001 resolution context).
     evaluator_multi_model: true
-    evaluator_primary: claude-opus-4-7   # anthropic
+    evaluator_primary: claude-opus-4-8   # anthropic
     evaluator_secondary: gpt-5.5-pro     # openai
     evaluator_tertiary: gemini-3.1-pro   # google
   defaults:
