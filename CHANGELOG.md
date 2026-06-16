@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.180.0] — 2026-06-17 — Ponytail 1:1 Parity
+
+Closes the 8 ponytail v4.7.0 capability gaps found by a 21-agent grounded parity audit. loa already carried ponytail's core YAGNI doctrine (the 6-rung ladder, safety floor, one-runnable-check, `loa:shortcut:` marker, 5-tag taxonomy, C-PROC-011) via #1067 (~72%); this brings it to behavioral 1:1. Capability-mapped into loa's existing skills/constraints — no standalone `/ponytail*` port (which would duplicate `reviewing-code`/`auditing-security`/`/ride`). Full audit: `grimoires/loa/proposals/ponytail-parity-audit-2026-06-16.md`.
+
+### Added
+- **`simplicity_intensity` dial** (`.loa.config.yaml`, default `full`): `full` enforces the YAGNI ladder (stdlib/native first, shortest diff); `ultra` is deletion-first and challenges whether the requirement should shrink before building. No advise-only `lite` level — the "never simplify away" floor stays enforced (#1074).
+- **Output discipline** in the Karpathy core (`CLAUDE.loa.md` + `karpathy-principles.md`): code first, then at most three lines (`[code] → skipped: X, add when Y`); an explanation longer than the code is cut as smuggled complexity; user-requested reports/walkthroughs are exempt (#1074).
+- **`/ride --with-simplicity` (Phase 15)**: a whole-repo over-engineering audit — ranked 5-tag findings (`delete`/`stdlib`/`native`/`yagni`/`shrink`) ending with `net: -N lines, -M deps possible` — plus a dedicated `loa:shortcut:` debt ledger that parses each marker's ceiling/upgrade path and flags `no-trigger` markers that rot silently (#1074).
+
+### Changed
+- **`reviewing-code` over-engineering pass** now ends with the `net: -<N> lines possible` metric and a `Lean already. Ship.` clean-bill, and never flags the one required acceptance-check (the smallest runnable check) for deletion (#1074).
+- **Simplicity First ladder** gains two ponytail clauses: the edge-case-correctness tie-break (two same-size stdlib options → the one correct on edge cases) and "deletion over addition, fewest files, shortest working diff" (`CLAUDE.loa.md` + `karpathy-principles.md`) (#1074).
+
+Host adapters (Cursor/Windsurf/Copilot rules, statusline hooks) intentionally **not** ported — loa is its own host, not a guest. Additive/opt-in: no runtime behavior change unless `ultra` is set or `--with-simplicity` is invoked. Review + audit gates clean (gpt-5.5-pro, full diff).
+
 ## [1.179.0] — 2026-06-16 — Honest Routing & Hardened Substrate
 
 Names and documents the v1.174–v1.179 tag-only patch wave (everything since the last named release, [1.173.6]) as one release. The throughline: two new subscription-auth headless voices (xAI Grok, Cursor Composer) join the cheval multi-model roster; the dispatch core moves toward honest routing (claude-fable-5 registered pricing-first, claude-headless retargeted to fable, Bedrock `compliance_profile` now governs initial routing); and a broad pre-OSS security/gate-honesty pass kills the silent-clean verdict pattern, wires three previously-inert enforcement walls live, and hardens every headless adapter against prompt-injection exfiltration.
