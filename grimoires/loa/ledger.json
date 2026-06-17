@@ -1859,9 +1859,22 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260613-i1038-7bc405/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260613-i1038-7bc405/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260617-i1076-f214d0",
+      "label": "Bug Fix \u2014 post-pr-orchestrator 4 DX defects on macOS (#1076)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1076",
+      "created_at": "2026-06-16T23:49:50Z",
+      "sprints": [
+        "sprint-bug-223"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260617-i1076-f214d0/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260617-i1076-f214d0/sprint.md"
     }
   ],
-  "global_sprint_counter": 222,
+  "global_sprint_counter": 223,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
@@ -2201,5 +2214,5 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 221
+  "next_sprint_number": 223
 }

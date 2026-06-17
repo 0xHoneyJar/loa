@@ -111,16 +111,24 @@ EOF
     local temp_file
     temp_file=$(mktemp)
 
-    awk -v checkpoint="$checkpoint_content" '
+    # #1076 defect 2: pass the (multi-line) checkpoint to awk via a FILE read
+    # with getline, never via `awk -v` — BSD awk (macOS default) rejects an
+    # embedded newline in a -v value ("awk: newline in string"). Here the -v
+    # value is only a filename, so it is portable across gawk / mawk / BSD awk.
+    local cp_file
+    cp_file=$(mktemp)
+    printf '%s\n' "$checkpoint_content" > "$cp_file"
+    awk -v cpfile="$cp_file" '
       /^## Session Continuity/ {
         print
-        getline
-        print
-        print checkpoint
+        if ((getline nextline) > 0) print nextline
+        while ((getline cpline < cpfile) > 0) print cpline
+        close(cpfile)
         next
       }
       { print }
     ' "$NOTES_FILE" > "$temp_file"
+    rm -f "$cp_file"
 
     mv "$temp_file" "$NOTES_FILE"
   else
@@ -263,4 +271,7 @@ main() {
   exit 0
 }
 
-main "$@"
+# Run main only when executed directly, not when sourced (enables unit tests).
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
+fi

@@ -119,3 +119,21 @@ teardown() {
     [ "$status" -ne 0 ]
     [[ "$output" == *"Invalid status"* ]]
 }
+
+# =========================================================================
+# PPS-T10..T11 (#1076 defect 4): "failed" is a valid phase status so an
+# enabled-but-no-op Bridgebuilder phase is recorded as failed (fail loud)
+# instead of being mislabelled 'skipped' on the way to READY_FOR_HITL.
+# =========================================================================
+
+@test "PPS-T10: update-phase bridgebuilder_review failed → exit 0 (#1076)" {
+    run "$SCRIPT" update-phase bridgebuilder_review failed
+    [ "$status" -eq 0 ]
+}
+
+@test "PPS-T11: state file records bridgebuilder_review=failed (#1076)" {
+    run "$SCRIPT" update-phase bridgebuilder_review failed
+    [ "$status" -eq 0 ]
+    run jq -r '.phases.bridgebuilder_review' "$STATE_FILE"
+    [ "$output" = "failed" ]
+}

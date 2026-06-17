@@ -52,7 +52,10 @@ readonly VALID_STATES=(
 )
 
 # Valid phase statuses
-readonly VALID_PHASE_STATUSES=("pending" "in_progress" "completed" "skipped")
+# #1076 defect 4: "failed" distinguishes a phase that genuinely failed from one
+# that was legitimately skipped — conflating the two let an enabled-but-no-op
+# Bridgebuilder phase silently reach READY_FOR_HITL.
+readonly VALID_PHASE_STATUSES=("pending" "in_progress" "completed" "skipped" "failed")
 
 # ============================================================================
 # Utility Functions

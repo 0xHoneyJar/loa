@@ -228,6 +228,79 @@ EOF
   echo "$context_dir"
 }
 
+# Fetch the PR unified diff (best-effort) for diff-scoped quality rules.
+# #1076 defect 1: the quality nits (todo-comment, console-log) must only fire
+# on lines ADDED by the PR, not on pre-existing content in a touched file.
+# Honors LOA_POST_PR_DIFF_FILE (tests / callers may pre-supply a diff).
+fetch_pr_diff() {
+  local pr_url="$1"
+  local out_file="$2"
+
+  # Test/CI override: a pre-supplied diff is consumed directly by run_audit.
+  if [[ -n "${LOA_POST_PR_DIFF_FILE:-}" ]]; then
+    return 0
+  fi
+
+  local pr_path owner repo number
+  pr_path=$(echo "$pr_url" | sed 's|https://github.com/||')
+  owner=$(echo "$pr_path" | cut -d'/' -f1)
+  repo=$(echo "$pr_path" | cut -d'/' -f2)
+  number=$(echo "$pr_path" | cut -d'/' -f4)
+
+  if gh pr diff "$number" --repo "$owner/$repo" > "$out_file" 2>/dev/null; then
+    log_info "PR diff fetched (${out_file##*/})"
+  else
+    log_info "WARN: PR diff unavailable; diff-scoped quality rules (todo-comment, console-log) skipped this run"
+    rm -f "$out_file" 2>/dev/null || true
+  fi
+}
+
+# Print the content of lines ADDED for $target in a unified diff (leading '+'
+# stripped). Portable awk: single-line rules only, no multi-line string literals
+# (BSD-awk safe — see #1076 defect 2). Empty output if the diff is unavailable.
+_added_lines_for_file() {
+  local target="$1"
+  local diff_file="$2"
+  [[ -n "$diff_file" && -f "$diff_file" ]] || return 0
+  # prev_minus guards an ADDED line whose content begins with "++ " from being
+  # mis-read as a "+++" file header; the trailing-tab strip handles paths with
+  # spaces (git appends a tab to the +++ header line in that case).
+  awk -v target="$target" '
+    /^--- / { prev_minus = 1; next }
+    /^\+\+\+ / && prev_minus { p = substr($0, 5); sub(/^b\//, "", p); sub(/\t.*$/, "", p); cur = p; prev_minus = 0; next }
+    { prev_minus = 0 }
+    (cur == target) && /^\+/ { print substr($0, 2) }
+  ' "$diff_file" 2>/dev/null || true
+}
+
+# Echo the current-file line number of the first match of $pattern in $file
+# whose line CONTENT was added by the PR (per the diff). Optional $exclude is a
+# regex of lines to ignore (e.g. eslint-disable). Empty if no added match.
+_first_added_match() {
+  local file="$1"
+  local diff_file="$2"
+  local pattern="$3"
+  local exclude="${4:-}"
+
+  local added
+  added="$(_added_lines_for_file "$file" "$diff_file")"
+  [[ -n "$added" ]] || return 0
+
+  local m content
+  while IFS= read -r m; do
+    [[ -n "$m" ]] || continue
+    content="${m#*:}"
+    if [[ -n "$exclude" ]] && printf '%s\n' "$content" | grep -qE "$exclude"; then
+      continue
+    fi
+    if printf '%s\n' "$added" | grep -Fqx -- "$content"; then
+      printf '%s' "${m%%:*}"
+      return 0
+    fi
+  done < <(grep -nE "$pattern" "$file" 2>/dev/null || true)
+  return 0
+}
+
 # Run audit and classify findings
 run_audit() {
   local context_dir="$1"
@@ -239,6 +312,9 @@ run_audit() {
   # Get changed files
   local changed_files
   changed_files=$(jq -r '.files[].path' "${context_dir}/pr-metadata.json" 2>/dev/null | tr '\n' ' ')
+
+  # Diff used to scope auto-fixable quality nits to ADDED lines (#1076 defect 1).
+  local diff_file="${LOA_POST_PR_DIFF_FILE:-${context_dir}/pr-diff.patch}"
 
   if [[ -z "$changed_files" ]]; then
     log_info "No files changed, audit APPROVED"
@@ -279,11 +355,12 @@ run_audit() {
       add_finding_identity "$identity"
     fi
 
-    # 2. Console.log in production code (auto-fixable)
+    # 2. Console.log in production code (auto-fixable) — diff-scoped (#1076 defect 1)
     if [[ "$file" == *.ts || "$file" == *.js ]] && [[ "$file" != *.test.* ]] && [[ "$file" != *.spec.* ]]; then
-      if grep -nE "console\.(log|debug|info)" "$file" 2>/dev/null | grep -v "// eslint-disable"; then
-        local line
-        line=$(grep -nE "console\.(log|debug|info)" "$file" 2>/dev/null | head -1 | cut -d: -f1)
+      local cl_line
+      cl_line=$(_first_added_match "$file" "$diff_file" "console\.(log|debug|info)" "// eslint-disable")
+      if [[ -n "$cl_line" ]]; then
+        local line="$cl_line"
         local identity
         identity=$(finding_identity "quality" "console-log" "$file" "$line" "low")
 
@@ -303,10 +380,13 @@ run_audit() {
       fi
     fi
 
-    # 3. TODO/FIXME comments (auto-fixable)
-    if grep -nE "(TODO|FIXME|XXX|HACK):" "$file" 2>/dev/null; then
-      local line
-      line=$(grep -nE "(TODO|FIXME|XXX|HACK):" "$file" 2>/dev/null | head -1 | cut -d: -f1)
+    # 3. TODO/FIXME comments (auto-fixable) — diff-scoped (#1076 defect 1):
+    # only flag TODOs on lines ADDED by this PR, never pre-existing TODOs or
+    # prose in a touched file (those drove a non-converging audit fix loop).
+    local todo_line
+    todo_line=$(_first_added_match "$file" "$diff_file" "(TODO|FIXME|XXX|HACK):")
+    if [[ -n "$todo_line" ]]; then
+      local line="$todo_line"
       local identity
       identity=$(finding_identity "quality" "todo-comment" "$file" "$line" "low")
 
@@ -490,6 +570,9 @@ main() {
   context_dir=$(create_audit_context "$pr_number" "$metadata_file")
   log_info "Audit context: $context_dir"
 
+  # Fetch the PR diff for diff-scoped quality rules (#1076 defect 1, best-effort)
+  fetch_pr_diff "$pr_url" "${context_dir}/pr-diff.patch"
+
   # Run audit
   run_audit "$context_dir"
 
@@ -517,4 +600,7 @@ main() {
   esac
 }
 
-main "$@"
+# Run main only when executed directly, not when sourced (enables unit tests).
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
+fi
