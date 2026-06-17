@@ -423,7 +423,7 @@ describe_from_name() {
         sed 's/_/ /g' | \
         sed 's/\([a-z]\)\([A-Z]\)/\1 \2/g' | \
         tr '[:upper:]' '[:lower:]' | \
-        sed 's/^./\U&/' | \
+        ucfirst | \
         head -c 80
 }
 
@@ -442,12 +442,18 @@ extract_project_description() {
 
     # Strategy 2: README.md first real paragraph (skip title, badges, quotes, HTML comments)
     if [[ -z "$desc" || "$desc" == "null" ]] && [[ -f "README.md" ]]; then
+        # #1069 bug 3: skip markdown horizontal rules (---, ***, ___ and spaced
+        # variants) so a rule following a badge row is not captured as the
+        # description (observed downstream: "purpose: ---").
         desc=$(awk '
             /^#/{next}
             /^\[!\[/{next}
             /^>/{next}
             /<!--/{skip=1; next} /-->/{skip=0; next}
             skip{next}
+            /^[[:space:]]*-[[:space:]]*-[[:space:]]*-([[:space:]]*-)*[[:space:]]*$/{next}
+            /^[[:space:]]*\*[[:space:]]*\*[[:space:]]*\*([[:space:]]*\*)*[[:space:]]*$/{next}
+            /^[[:space:]]*_[[:space:]]*_[[:space:]]*_([[:space:]]*_)*[[:space:]]*$/{next}
             /^[[:space:]]*$/{if(found) exit; next}
             {found=1; printf "%s ", $0}
         ' README.md 2>/dev/null | sed 's/ *$//' | cut -c1-220 | sed 's/ [^ ]*$//' | \
@@ -583,7 +589,7 @@ infer_module_purpose() {
 
     # Strategy 4: Capitalize directory name as last resort
     if [[ -z "$purpose" ]]; then
-        purpose=$(echo "$dname" | sed 's/[-_]/ /g' | sed 's/^./\U&/')
+        purpose=$(echo "$dname" | sed 's/[-_]/ /g' | ucfirst)
     fi
 
     echo "$purpose"
@@ -981,8 +987,26 @@ extract_capabilities() {
         local grimoire_dir
         grimoire_dir=$(get_config_value "paths.grimoire" "grimoires/loa")
         if [[ -f "${grimoire_dir}/reality/api-surface.md" ]]; then
+            # #1069 bug 1: reality/api-surface.md is frequently authored as
+            # markdown TABLES (rows start with '|'). The old grep kept only
+            # bullet/header lines, dropping every table row -> empty
+            # capabilities -> sparse output that failed min_words. Include table
+            # rows and lift each into a bullet, skipping the |---|---| separator.
             caps=$(head -50 "${grimoire_dir}/reality/api-surface.md" 2>/dev/null | \
-                grep -E '^[-*]|^#+' | head -20 | sed -E 's/^(#+) /##\1 /') || true
+                grep -E '^[-*]|^#+|^\|' | \
+                sed -E 's/^(#+) /##\1 /' | \
+                awk '
+                    /^[[:space:]|:-]+$/ { next }
+                    /^\|/ {
+                        line = $0
+                        sub(/^\|[[:space:]]*/, "", line)
+                        sub(/[[:space:]]*\|[[:space:]]*$/, "", line)
+                        gsub(/[[:space:]]*\|[[:space:]]*/, " — ", line)
+                        print "- " line
+                        next
+                    }
+                    { print }
+                ' | head -20) || true
         fi
     fi
 
@@ -1407,7 +1431,7 @@ extract_interfaces() {
 
                 # Strategy 3: Synthesize from directory name
                 if [[ -z "$skill_desc" ]]; then
-                    skill_desc=$(echo "$sname" | sed 's/-/ /g' | sed 's/^./\U&/')
+                    skill_desc=$(echo "$sname" | sed 's/-/ /g' | ucfirst)
                 fi
 
                 local provenance_class
@@ -1802,7 +1826,7 @@ extract_persona_agents() {
 
         # Extract heading
         agent_name=$(grep -m1 '^# ' "$pf" 2>/dev/null | sed 's/^# //') || true
-        [[ -z "$agent_name" ]] && agent_name=$(basename "$pf" | sed 's/-persona\.md//' | sed 's/-/ /g;s/^./\U&/')
+        [[ -z "$agent_name" ]] && agent_name=$(basename "$pf" | sed 's/-persona\.md//' | sed 's/-/ /g' | ucfirst)
 
         # Extract Identity first sentence (sentence boundary, then char safety limit)
         identity=$(awk '/^## Identity/{f=1;next} f && /^##/{exit} f && /^[[:space:]]*$/{next} f{print;exit}' \

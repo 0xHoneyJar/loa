@@ -522,6 +522,21 @@ sha256_portable() {
 }
 
 # =============================================================================
+# ucfirst - Portable upper-case of the first character (issue #1069)
+# =============================================================================
+#
+# GNU sed's `s/^./\U&/` uppercase escape is NOT portable: BSD/macOS sed takes
+# `\U` literally and emits a stray `U` prefix (e.g. "Ucompositions"). This
+# stdin filter upper-cases the first character of each line via awk's toupper(),
+# which is POSIX (gawk / mawk / BSD awk). Same portability family as
+# sha256_portable (#911) and _date_to_epoch (#1034).
+#
+# Usage (stdin filter):  printf '%s' "$name" | ucfirst
+ucfirst() {
+  awk '{ print toupper(substr($0, 1, 1)) substr($0, 2) }'
+}
+
+# =============================================================================
 # jq_strict - Fail-loud jq wrapper (sprint-bug-208 / issue #1025)
 # =============================================================================
 #
