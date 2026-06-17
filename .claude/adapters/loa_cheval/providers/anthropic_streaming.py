@@ -144,6 +144,9 @@ def parse_anthropic_stream(
     stop_reason: Optional[str] = None
     input_tokens = 0
     output_tokens = 0
+    # cycle-114 FR-12: prompt-cache token telemetry (surfacing only).
+    cache_read_input_tokens = 0
+    cache_creation_input_tokens = 0
 
     for event_name, event_payload in _iter_sse_events_with_deadline(
         byte_iter, recovery_tracker, config_applied, now_provider,
@@ -161,6 +164,9 @@ def parse_anthropic_stream(
             # `output_tokens` in message_start is the initial sample (usually 1);
             # the canonical total arrives in `message_delta`.
             output_tokens = usage.get("output_tokens", 0) or 0
+            # FR-12: cache tokens are known at message_start.
+            cache_read_input_tokens = usage.get("cache_read_input_tokens", 0) or 0
+            cache_creation_input_tokens = usage.get("cache_creation_input_tokens", 0) or 0
 
         elif ev_type == "content_block_start":
             idx = event_payload.get("index")
@@ -311,6 +317,8 @@ def parse_anthropic_stream(
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         reasoning_tokens=0,  # Anthropic streams thinking as separate blocks, not via usage.
+        cache_read_input_tokens=cache_read_input_tokens,  # FR-12
+        cache_creation_input_tokens=cache_creation_input_tokens,  # FR-12
         source="actual" if (input_tokens or output_tokens) else "estimated",
     )
 
