@@ -249,3 +249,59 @@ with a decision-criteria section and an explicit "no code this cycle" statement.
 > **Sources**: `grimoires/pub/research/anthropic-updates-2026-05-31.md`
 > (Recommended Actions #1–#10, Verification Notes); operator scope decisions
 > (2026-06-01): #9 → ADR-only, one cycle full-gates, approve-plan-then-autonomous.
+
+---
+
+## 4b. Functional Requirements — Sprint S4 (Cost Telemetry & Tiering)
+
+> Added 2026-06-17. Continuation of cycle-114's economy/MODELINV theme (FR-8),
+> grounded in the merged research `grimoires/loa/proposals/cost-telemetry-scope.md`
+> and `grimoires/loa/proposals/anthropic-advances-oracle-2026-06-17.md` (§3a/§5).
+> Scope discipline: **observability + cost-routing only** — NO memoization, NO
+> `cache_control` writes (that is the separate bd-w7bh caching cycle), NO change
+> to *what* re-runs. All new fields optional (NFR-2 back-compat).
+
+### Sprint S4 — Cost Telemetry & Tiering
+
+**FR-11 (bd-kyn5) — Per-iteration cost telemetry.**
+loa records `cost_micro_usd`/`tokens_*` per MODELINV invocation and rolls up
+per-(skill, model) in `economy.py`, but carries **no iteration dimension**, so
+it cannot answer "is a bridge/audit loop's cost O(depth) or sub-linear?" — the
+central question of the linear-nonlinear cost research (risk R3). Add optional
+`loop_context` (enum `bridge|audit|e2e|spiral`, or absent) + `loop_iteration`
+(int ≥1) to the MODELINV envelope, threaded from the orchestrators that already
+track an iteration; add a per-(`loop_context`,`loop_iteration`) roll-up + a
+cost-delta-per-iteration series to `economy.py`; add a `--by-iteration` view to
+`cost-report.sh`. Absent fields ⇒ today's behavior byte-for-byte.
+
+**FR-12 (oracle C2) — Cache-token telemetry.**
+The `Usage` dataclass + the Anthropic streaming parser + `economy.py` do not
+capture `cache_read_input_tokens` / `cache_creation_input_tokens` (the
+bedrock/headless adapters already read them). Surface them end-to-end so a
+future prompt-caching cycle (bd-w7bh) is **provable** (`cache_read>0` on
+reuse). **Surfacing only — no `cache_control` writes in this sprint.**
+
+**FR-13 (oracle C5) — Cheap-tier binding for cheap subtasks.**
+`flatline-scorer` runs on the expensive `reviewer` tier and the `tiny`/Haiku
+tier has zero bindings. Bind mechanical subtasks (severity/convergence scoring,
+triage/classification) to the cheap/tiny tier, reserving Opus-class budget for
+the adversarial voices where dissent is the load-bearing quality signal. Voice
+dispatch for CRITICAL/BLOCKER review is **unchanged** (that redundancy is the
+quality mechanism, per the cost research §6).
+
+**FR-14 (oracle C6) — Wire the budget DOWNGRADE (decision: WIRE, not delete).**
+`retry.py` logs "Budget downgrade triggered — continuing with current model" and
+never invokes `walk_downgrade_chain`, while `model-config.yaml` advertises
+`downgrade: reviewer: [cheap]` / `on_exceeded: downgrade`. **Decision: wire the
+DOWNGRADE path to actually invoke `walk_downgrade_chain`** (rather than delete the
+config) — cost-aware downgrade is a genuine lever that FR-13 makes first-class,
+and wiring makes behavior match the documented config. Fail-open: if no downgrade
+target resolves, keep current behavior (log + proceed), never error.
+
+| Sprint | Local | Global | FRs | Theme |
+|--------|-------|--------|-----|-------|
+| S4 | sprint-4 | 180 | FR-11, FR-12, FR-13, FR-14 | Cost telemetry & tiering |
+
+> **Sources (S4)**: `grimoires/loa/proposals/cost-telemetry-scope.md`;
+> `grimoires/loa/proposals/anthropic-advances-oracle-2026-06-17.md` §3a/§5
+> (C2/C5/C6) + §4 (NOT memoizing verdicts); beads bd-kyn5/bd-w7bh.
