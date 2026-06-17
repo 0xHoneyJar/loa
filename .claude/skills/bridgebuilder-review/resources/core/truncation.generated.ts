@@ -37,5 +37,7 @@ export const GENERATED_TOKEN_BUDGETS: Record<string, TokenBudget> = {
   "gpt-5.3-codex": { maxInput: 400000, maxOutput: 4096, coefficient: 0.23 },
   "gpt-5.5": { maxInput: 400000, maxOutput: 4096, coefficient: 0.23 },
   "gpt-5.5-pro": { maxInput: 400000, maxOutput: 4096, coefficient: 0.23 },
+  "grok-build": { maxInput: 256000, maxOutput: 4096, coefficient: 0.25 },
+  "grok-composer-2.5-fast": { maxInput: 256000, maxOutput: 4096, coefficient: 0.25 },
   "default": { maxInput: 100000, maxOutput: 4096, coefficient: 0.25 },
 };

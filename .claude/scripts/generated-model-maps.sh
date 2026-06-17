@@ -34,6 +34,8 @@ declare -A MODEL_PROVIDERS=(
     ["us.anthropic.claude-opus-4-7"]="bedrock"
     ["us.anthropic.claude-sonnet-4-6"]="bedrock"
     ["us.anthropic.claude-haiku-4-5-20251001-v1:0"]="bedrock"
+    ["grok-build"]="xai"
+    ["grok-composer-2.5-fast"]="xai"
     ["gemini-2.0"]="google"
     ["reviewer"]="openai"
     ["reasoning"]="openai"
@@ -53,6 +55,10 @@ declare -A MODEL_PROVIDERS=(
     ["claude-headless"]="anthropic"
     ["codex-headless"]="openai"
     ["gemini-headless"]="google"
+    ["grok-build"]="xai"
+    ["grok-composer"]="xai"
+    ["grok-fast"]="xai"
+    ["grok-headless"]="xai"
     ["gpt-5.2-codex"]="openai"
     ["gpt-5.3-codex"]="openai"
     ["claude-opus-4-8"]="anthropic"
@@ -95,6 +101,8 @@ declare -A MODEL_IDS=(
     ["us.anthropic.claude-opus-4-7"]="us.anthropic.claude-opus-4-7"
     ["us.anthropic.claude-sonnet-4-6"]="us.anthropic.claude-sonnet-4-6"
     ["us.anthropic.claude-haiku-4-5-20251001-v1:0"]="us.anthropic.claude-haiku-4-5-20251001-v1:0"
+    ["grok-build"]="grok-build"
+    ["grok-composer-2.5-fast"]="grok-composer-2.5-fast"
     ["gemini-2.0"]="gemini-2.0-flash"
     ["reviewer"]="gpt-5.5"
     ["reasoning"]="gpt-5.5"
@@ -114,6 +122,10 @@ declare -A MODEL_IDS=(
     ["claude-headless"]="claude-headless"
     ["codex-headless"]="codex-headless"
     ["gemini-headless"]="gemini-headless"
+    ["grok-build"]="grok-build"
+    ["grok-composer"]="grok-composer-2.5-fast"
+    ["grok-fast"]="grok-composer-2.5-fast"
+    ["grok-headless"]="grok-build"
     ["gpt-5.2-codex"]="gpt-5.3-codex"
     ["gpt-5.3-codex"]="gpt-5.3-codex"
     ["claude-opus-4-8"]="claude-opus-4-8"
@@ -160,6 +172,8 @@ declare -A MODEL_AUTH_TYPE=(
     ["us.anthropic.claude-opus-4-7"]="aws_iam"
     ["us.anthropic.claude-sonnet-4-6"]="aws_iam"
     ["us.anthropic.claude-haiku-4-5-20251001-v1:0"]="aws_iam"
+    ["grok-build"]="headless"
+    ["grok-composer-2.5-fast"]="headless"
 )
 
 declare -A MODEL_DISPATCH_GROUP=(
@@ -187,6 +201,8 @@ declare -A MODEL_DISPATCH_GROUP=(
     ["us.anthropic.claude-opus-4-7"]="bedrock-anthropic"
     ["us.anthropic.claude-sonnet-4-6"]="bedrock-anthropic"
     ["us.anthropic.claude-haiku-4-5-20251001-v1:0"]="bedrock-anthropic"
+    ["grok-build"]="xai-grok"
+    ["grok-composer-2.5-fast"]="xai-grok"
 )
 
 declare -A COST_INPUT=(
@@ -343,6 +359,11 @@ declare -a VALID_FLATLINE_MODELS=(
     gpt-5.3-codex
     gpt-5.5
     gpt-5.5-pro
+    grok-build
+    grok-composer
+    grok-composer-2.5-fast
+    grok-fast
+    grok-headless
     opus
     reasoning
     researcher

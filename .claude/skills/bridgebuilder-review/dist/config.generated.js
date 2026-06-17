@@ -178,5 +178,17 @@ export const GENERATED_MODEL_REGISTRY = {
         capabilities: ["chat", "code", "function_calling", "tools"],
         pricing: { inputPerMtok: 30000000, outputPerMtok: 180000000 },
     },
+    "grok-build": {
+        provider: "xai",
+        modelId: "grok-build",
+        contextWindow: 256000,
+        capabilities: ["chat", "code"],
+    },
+    "grok-composer-2.5-fast": {
+        provider: "xai",
+        modelId: "grok-composer-2.5-fast",
+        contextWindow: 256000,
+        capabilities: ["chat", "code"],
+    },
 };
 //# sourceMappingURL=config.generated.js.map
