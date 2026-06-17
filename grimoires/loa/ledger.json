@@ -1872,9 +1872,22 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260617-i1076-f214d0/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260617-i1076-f214d0/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260617-i1069-8b7a4c",
+      "label": "Bug Fix \u2014 butterfreezone-gen 3 residual macOS/BSD defects (#1069)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1069",
+      "created_at": "2026-06-17T00:47:51Z",
+      "sprints": [
+        "sprint-bug-224"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260617-i1069-8b7a4c/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260617-i1069-8b7a4c/sprint.md"
     }
   ],
-  "global_sprint_counter": 223,
+  "global_sprint_counter": 224,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
@@ -2214,5 +2227,5 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 223
+  "next_sprint_number": 224
 }
