@@ -1479,6 +1479,18 @@
           "task_count": 3,
           "status": "completed",
           "created": "2026-06-01T04:11:15Z"
+        },
+        {
+          "id": "sprint-225",
+          "local_id": "sprint-4",
+          "global_id": 225,
+          "cycle": "cycle-114-harness-modernization-opus-4.8",
+          "theme": "Cost telemetry & tiering \u2014 per-iteration MODELINV + cache-token telemetry + Haiku tiering + DOWNGRADE wiring",
+          "fr": "FR-11, FR-12, FR-13, FR-14",
+          "scope": "MEDIUM",
+          "task_count": 4,
+          "status": "planned",
+          "created": "2026-06-17T02:28:21Z"
         }
       ]
     },
@@ -1887,7 +1899,7 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260617-i1069-8b7a4c/sprint.md"
     }
   ],
-  "global_sprint_counter": 224,
+  "global_sprint_counter": 225,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
@@ -2227,5 +2239,5 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 224
+  "next_sprint_number": 225
 }

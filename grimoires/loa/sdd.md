@@ -349,3 +349,72 @@ remain green (Goal §2 "Zero regressions").
 > L343/L578, anthropic_adapter.py L316–354, block-destructive-bash.sh BLOCK regex,
 > claude_headless_adapter.py L293); platform.claude.com effort doc
 > (`output_config.effort`, budget_tokens→400 on 4.7/4.8).
+
+---
+
+## 2b. Component Design — Sprint S4 (Cost Telemetry & Tiering)
+
+> Added 2026-06-17. Extends §2.8 (FR-8 effort-in-MODELINV). All fields optional
+> (NFR-2); absent ⇒ byte-for-byte today's behavior.
+
+### 2.11 FR-11 — Per-iteration cost telemetry
+
+- **Schema** (`.claude/data/trajectory-schemas/model-events/model-invoke-complete.payload.schema.json`):
+  add `loop_context` (`{type:[string,null], enum:[bridge,audit,e2e,spiral,null]}`)
+  and `loop_iteration` (`{type:[integer,null], minimum:1}`) as **optional** props
+  (NOT added to `required`) — keeps the schema-guard CI gate green for all
+  existing emitters.
+- **Writer** (`.claude/adapters/loa_cheval/audit/modelinv.py`): read
+  `LOA_LOOP_CONTEXT` / `LOA_LOOP_ITERATION` from the environment (mirrors how
+  other invocation context reaches the writer); stamp them on the envelope when
+  present, else omit.
+- **Producers**: orchestrators that already track an iteration `export` the env
+  at dispatch — `bridge-orchestrator.sh` (its `iteration` var), `post-pr-orchestrator.sh`
+  (`audit.iteration`/`e2e.iteration`). One `export` per dispatch site; no logic change.
+- **Aggregator** (`economy.py`): a per-(`loop_context`,`loop_iteration`) roll-up
+  + `cost_delta` between consecutive iterations of the same run; mirrors the
+  existing `effort_counts` precedent (FR-8).
+- **Surfacing** (`cost-report.sh`): `--by-iteration` view (per-iteration cost +
+  Δ + a one-line "O(depth) vs converging" verdict).
+
+### 2.12 FR-12 — Cache-token telemetry
+
+- `Usage` dataclass (`types.py`): add `cache_read_input_tokens` +
+  `cache_creation_input_tokens` (default 0/None) — additive, back-compat.
+- Anthropic streaming parser (`anthropic_streaming.py`): parse the
+  `cache_read_input_tokens`/`cache_creation_input_tokens` fields from the
+  `message_start`/`message_delta` usage (today only input/output parsed).
+- `economy.py`: roll up the cache fields (mirrors `claude_headless_adapter.py`
+  which already reads them). **No `cache_control` request-side writes.**
+
+### 2.13 FR-13 — Cheap-tier binding
+
+- `model-config.yaml`: retarget mechanical subtasks (the `flatline-scorer`
+  binding + any triage/classification workload tier) from the expensive
+  `reviewer` tier to the `cheap`/`tiny` (Haiku-class) tier. Adversarial review
+  voice bindings are **unchanged**. Regenerate any derived maps if the binding
+  surface feeds them (drift gate stays green).
+
+### 2.14 FR-14 — Wire budget DOWNGRADE
+
+- `retry.py`: on the DOWNGRADE disposition, invoke `walk_downgrade_chain`
+  (`routing/chains.py`) to resolve a cheaper model and continue with it, instead
+  of logging "continuing with current model". Fail-open: if the walker yields no
+  target (empty/exhausted downgrade chain), keep current behavior + log. Pin with
+  a test asserting DOWNGRADE now calls the walker (was a no-op).
+
+### Test Strategy (S4)
+
+Test-first per NFR-3. Each FR's failing test precedes its implementation.
+
+| FR | Layer | Test | Pass criteria |
+|----|-------|------|---------------|
+| FR-11 | pytest + bats | economy + schema + cost-report fixtures | iteration-tagged MODELINV → per-iteration roll-up + Δ; absent fields → unchanged; schema-guard green |
+| FR-12 | pytest | cheval Usage + streaming-parser tests | cache fields parsed from usage; absent → 0/None; economy roll-up includes them |
+| FR-13 | bats | model-config validation | cheap subtasks bound to tiny/cheap tier; adversarial voices unchanged; drift gate green |
+| FR-14 | pytest | retry DOWNGRADE test | DOWNGRADE invokes walk_downgrade_chain; empty chain → fail-open (no error) |
+
+> **Sources (S4)**: PRD FR-11…FR-14; `cost-telemetry-scope.md` (design sketch);
+> `anthropic-advances-oracle-2026-06-17.md` §3a (C2/C5/C6) + §6 (verified
+> file:line: `retry.py:366-367` no-op, `Usage` types.py:48-53, economy.py
+> `effort_counts` precedent, schema additive-optional contract).
