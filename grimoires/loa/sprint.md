@@ -43,3 +43,31 @@
 
 > **Sources**: PRD §4b (FR-11…FR-14), SDD §2b; `cost-telemetry-scope.md`;
 > `anthropic-advances-oracle-2026-06-17.md` §3a/§5.
+
+## Implementation findings (pre-code grounding, 2026-06-17)
+
+Grounding the tasks against the actual code surfaced two refinements the
+oracle's surface grep did not capture — both are quality-vs-cost traps the
+linear-nonlinear research §6 explicitly warns about:
+
+- **FR-14 is MEDIUM, not S (architectural).** `retry.py`'s DOWNGRADE handler
+  (`providers/retry.py:366`) operates on `(adapter, request)` and has no access
+  to `ResolvedModel` / `AgentBinding` / `config` — the required inputs of
+  `walk_downgrade_chain(original, agent, config)` (`routing/chains.py:140`).
+  Resolution happens upstream in `cheval.py`. Correct fix: handle DOWNGRADE at
+  the resolution/dispatch layer (or thread a downgrade-callback into the retry
+  loop) — NOT a one-liner at `retry.py:367`. Re-scope before implementing.
+- **FR-13 is a quality-vs-cost decision, not a blind retarget.**
+  `flatline-scorer` (`model: reviewer` = `openai:gpt-5.5`, model-config.yaml:858)
+  gates FLATLINE convergence (the bridge loop's pruning). Downgrading the scorer
+  risks mis-firing the gate. Prefer `cheap` (Sonnet 4.6) over `tiny` (Haiku) and
+  validate scoring parity empirically before committing. Pure-mechanical triage
+  (not the convergence scorer) is the safer first Haiku binding.
+
+**Recommended implementation order (revised):** FR-12 (cache-token telemetry —
+pure additive, zero quality/behavior risk) → FR-11 (per-iteration telemetry —
+additive, the measurement prerequisite) → FR-13 (tiering, with the cheap-vs-tiny
+decision + parity check) → FR-14 (re-scoped to the resolution layer). The two
+telemetry items are unambiguously safe; the two cost-routing items carry
+quality tradeoffs that warrant care + (ideally) the very per-iteration data
+FR-11/FR-12 produce.
