@@ -123,6 +123,7 @@ EOF
         print
         if ((getline nextline) > 0) print nextline
         while ((getline cpline < cpfile) > 0) print cpline
+        close(cpfile)
         next
       }
       { print }

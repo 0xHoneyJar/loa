@@ -124,3 +124,22 @@ DIFF
     [ "$(jq -r '.verdict' ctx/audit-findings.json)" = "APPROVED" ]
     [ "$(jq -r '[.findings[]|select(.rule_id=="todo-comment")]|length' ctx/audit-findings.json)" = "0" ]
 }
+
+# Audit follow-up (F2): git appends a trailing tab to the "+++ b/<path>" header
+# when the filename contains a space; the parser must strip it so added lines
+# are still matched (otherwise the nit silently never fires for such files).
+@test "#1076 d1: path with a space — added TODO is still flagged (trailing-tab strip)" {
+    mkdir -p app
+    printf '%s\n' '# header' 'z = 3  # TODO: spaced path' > "app/has space.py"
+    _metadata "app/has space.py"
+    printf '%s\n' \
+        'diff --git a/app/has space.py b/app/has space.py' \
+        $'--- a/app/has space.py\t' \
+        $'+++ b/app/has space.py\t' \
+        '@@ -1,1 +1,2 @@' \
+        ' # header' \
+        '+z = 3  # TODO: spaced path' > ctx/pr-diff.patch
+    run run_audit "ctx"
+    [ "$status" -eq 0 ]
+    [ "$(jq -r '[.findings[]|select(.rule_id=="todo-comment")]|length' ctx/audit-findings.json)" = "1" ]
+}

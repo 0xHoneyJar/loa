@@ -262,9 +262,13 @@ _added_lines_for_file() {
   local target="$1"
   local diff_file="$2"
   [[ -n "$diff_file" && -f "$diff_file" ]] || return 0
+  # prev_minus guards an ADDED line whose content begins with "++ " from being
+  # mis-read as a "+++" file header; the trailing-tab strip handles paths with
+  # spaces (git appends a tab to the +++ header line in that case).
   awk -v target="$target" '
-    /^\+\+\+ / { p = substr($0, 5); sub(/^b\//, "", p); cur = p; next }
-    /^--- / { next }
+    /^--- / { prev_minus = 1; next }
+    /^\+\+\+ / && prev_minus { p = substr($0, 5); sub(/^b\//, "", p); sub(/\t.*$/, "", p); cur = p; prev_minus = 0; next }
+    { prev_minus = 0 }
     (cur == target) && /^\+/ { print substr($0, 2) }
   ' "$diff_file" 2>/dev/null || true
 }

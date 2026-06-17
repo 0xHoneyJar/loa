@@ -67,9 +67,19 @@ EOF
 }
 
 @test "#1076 d2: no leftover awk checkpoint temp files after a run" {
+    export TMPDIR="$WORK/tmp"
+    mkdir -p "$TMPDIR"
     NOTES_FILE="$WORK/NOTES.md"
     printf '%s\n' '# Session Notes' '' '## Session Continuity' '' '<!-- x -->' > "$WORK/NOTES.md"
+
+    local before after
+    before=$(find "$TMPDIR" -type f | wc -l)
     run write_notes_checkpoint "pp-2" "https://github.com/o/r/pull/9" "9" "POST_PR_AUDIT"
     [ "$status" -eq 0 ]
     grep -q "### Post-PR Validation Checkpoint" "$WORK/NOTES.md"
+
+    # The checkpoint + content temp files (mktemp under $TMPDIR) must be gone:
+    # temp_file is mv'd onto NOTES.md and cp_file is rm'd.
+    after=$(find "$TMPDIR" -type f | wc -l)
+    [ "$before" -eq "$after" ]
 }
