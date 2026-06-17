@@ -407,6 +407,12 @@ bridge_main() {
     echo "  ITERATION $iteration / $DEPTH"
     echo "───────────────────────────────────────────────────"
 
+    # cycle-114 FR-11: tag every model invocation in this iteration with the
+    # loop context + iteration so MODELINV / economy can attribute per-iteration
+    # cost (answers "is bridge cost O(depth)?"). Inherited by cheval children.
+    export LOA_LOOP_CONTEXT="bridge"
+    export LOA_LOOP_ITERATION="$iteration"
+
     # Track iteration
     local source="existing"
     if [[ $iteration -gt 1 ]]; then

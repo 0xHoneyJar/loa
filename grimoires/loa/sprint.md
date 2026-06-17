@@ -71,3 +71,23 @@ decision + parity check) → FR-14 (re-scoped to the resolution layer). The two
 telemetry items are unambiguously safe; the two cost-routing items carry
 quality tradeoffs that warrant care + (ideally) the very per-iteration data
 FR-11/FR-12 produce.
+
+## Delivery status (2026-06-17, sprint-4 part 2)
+
+- **FR-12** (cache-token telemetry) — DONE, merged in #1083.
+- **FR-11** (per-iteration telemetry) — PRODUCER done here: MODELINV schema
+  (`loop_context`/`loop_iteration`, additive-optional), the writer env-read,
+  and the bridge-orchestrator per-iteration export. Data is now captured in
+  `.run/model-invoke.jsonl` during bridge runs (queryable via jq). **Deferred**
+  to a tight follow-up (bd-kyn5): the `economy.py` per-iteration roll-up + the
+  `cost-report.sh --by-iteration` view — both cascade into the SECOND schema
+  `model-economy-rollup.schema.json` + its tests (FR-8-style cell wiring), which
+  warrants its own careful pass rather than a session-tail rush.
+- **FR-13** (cheap-tier binding) — DONE: flatline-scorer rebound reviewer→cheap
+  (Sonnet 4.6, per the quality-vs-cost decision; adversarial voices unchanged).
+- **FR-14** (wire DOWNGRADE) — DEFERRED (bd-u2ss): architectural (resolution
+  layer, not retry.py), as recorded in the pre-code grounding findings.
+
+Tests: +FR-11 modelinv loop-telemetry (14), +FR-13 bats (3), test_flatline_routing
+dry-run expectation updated for FR-13. Full cheval suite: 4 pre-existing
+test_flatline_routing fails (documented baseline), zero new.

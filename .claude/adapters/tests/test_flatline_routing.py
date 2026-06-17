@@ -207,7 +207,9 @@ class TestModelInvokeDryRun:
     def test_flatline_scorer_dry_run(self):
         data = self._dry_run("flatline-scorer")
         assert data["agent"] == "flatline-scorer"
-        assert data["resolved_provider"] == "openai"
+        # cycle-114 FR-13: flatline-scorer rebound from reviewer (openai:gpt-5.5)
+        # to the cheap tier (anthropic:claude-sonnet-4-6) — mechanical scoring.
+        assert data["resolved_provider"] == "anthropic"
 
     def test_flatline_dissenter_dry_run(self):
         data = self._dry_run("flatline-dissenter")

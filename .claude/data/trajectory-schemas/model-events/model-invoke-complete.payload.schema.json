@@ -410,6 +410,15 @@
     "effort": {
       "description": "Cycle-114 FR-8: reasoning-effort level requested for this invocation (Anthropic output_config.effort on Opus 4.5+/Sonnet 4.6). Optional — absent on calls that did not set effort (model default = high). Lets the Empirical Model Economy roll-up report cost-per-clean-output by (skill x model x effort).",
       "enum": ["low", "medium", "high", "xhigh", "max"]
+    },
+    "loop_context": {
+      "description": "cycle-114 FR-11 (sprint-4): orchestrator loop this invocation ran inside, for per-iteration cost telemetry. Set from LOA_LOOP_CONTEXT by the bridge/post-pr orchestrators. Absent for one-shot (non-loop) calls; readers treat absence as 'not in a tracked loop'. Additive/optional.",
+      "enum": ["bridge", "audit", "e2e", "spiral"]
+    },
+    "loop_iteration": {
+      "description": "cycle-114 FR-11 (sprint-4): 1-based iteration index within loop_context, enabling cost-O(depth) analysis. Set from LOA_LOOP_ITERATION. Absent for one-shot calls.",
+      "type": "integer",
+      "minimum": 1
     }
   }
 }
