@@ -723,6 +723,11 @@ bridge_main() {
     fi
   done
 
+  # cycle-114 FR-11: the per-iteration loop tags are loop-scoped — clear them so
+  # the divergent-exploration (RESEARCHING) + finalization phases below, which
+  # are explicitly NOT bridge iterations, are not mis-attributed in MODELINV.
+  unset LOA_LOOP_CONTEXT LOA_LOOP_ITERATION
+
   # Research Mode (FR-2 — Divergent Exploration Iteration)
   # After iteration 1, optionally transition to RESEARCHING state for one
   # divergent exploration iteration. Produces SPECULATION-only findings

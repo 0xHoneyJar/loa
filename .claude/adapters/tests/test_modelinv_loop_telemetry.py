@@ -47,7 +47,9 @@ def test_loop_telemetry_drops_invalid_context(monkeypatch, bad_ctx):
     assert it == 2
 
 
-@pytest.mark.parametrize("bad_iter", ["0", "-1", "abc", "", "1.5"])
+# "³"/"②" are isdigit()=True but int()-unparseable — the class that crashed the
+# pre-fix isdigit() guard (FR-11 review finding 1); they MUST be dropped, not raise.
+@pytest.mark.parametrize("bad_iter", ["0", "-1", "abc", "", "1.5", "³", "②"])
 def test_loop_telemetry_drops_invalid_iteration(monkeypatch, bad_iter):
     monkeypatch.setenv("LOA_LOOP_CONTEXT", "audit")
     monkeypatch.setenv("LOA_LOOP_ITERATION", bad_iter)

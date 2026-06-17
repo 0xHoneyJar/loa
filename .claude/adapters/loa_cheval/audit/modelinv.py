@@ -334,7 +334,17 @@ def _loop_telemetry() -> "tuple[Optional[str], Optional[int]]":
     if ctx not in ("bridge", "audit", "e2e", "spiral"):
         ctx = None
     it_raw = os.environ.get("LOA_LOOP_ITERATION", "")
-    it: Optional[int] = int(it_raw) if it_raw.isdigit() and int(it_raw) >= 1 else None
+    # Defensive parse: str.isdigit() accepts non-ASCII digits (e.g. "³", "②",
+    # circled/superscript) that int() then rejects with ValueError. A try/except
+    # is the only true fail-safe — a malformed env var must never crash the
+    # MODELINV emit (which would silently lose the audit record).
+    it: Optional[int] = None
+    try:
+        _parsed = int(it_raw)
+        if _parsed >= 1:
+            it = _parsed
+    except (TypeError, ValueError):
+        it = None
     return ctx, it
 
 
