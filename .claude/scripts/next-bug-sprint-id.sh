@@ -84,6 +84,22 @@ for f in "$PROJECT_ROOT"/grimoires/loa/a2a/bug-*/sprint.md; do
 done
 shopt -u nullglob
 
+# 2b. Max sprint-bug-N from the sprint-bug-N/ directory layout (#1064). The
+#     bug-*/sprint.md scan above misses these dirs (used by #1053/#1056/#1059+).
+#     Extraction is EXACT-anchored (^sprint-bug-([0-9]+)$) so the malformed live
+#     dir `sprint-bug-622-623` is rejected, not mis-parsed as 623.
+shopt -s nullglob
+for d in "$PROJECT_ROOT"/grimoires/loa/a2a/sprint-bug-*/; do
+    base="$(basename "$d")"
+    if [[ "$base" =~ ^sprint-bug-([0-9]+)$ ]]; then
+        n="${BASH_REMATCH[1]}"
+        if [[ "$n" -gt "$disk_max" ]]; then
+            disk_max="$n"
+        fi
+    fi
+done
+shopt -u nullglob
+
 # 3. origin/main's global_sprint_counter + cycle claims (best-effort, no fetch)
 origin_counter=0
 origin_claims=0

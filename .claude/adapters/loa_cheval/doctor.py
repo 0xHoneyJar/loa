@@ -62,6 +62,14 @@ logger = logging.getLogger("loa_cheval.doctor")
 # - codex: clean `codex login status` exit-0 path
 # - claude: no status subcommand; FR-4.5 fallback via `claude -p "ping" < /dev/null`
 # - gemini: no status subcommand; FR-4.5 fallback via `gemini -p "ping" < /dev/null`
+#
+# NOTE: this `loa substrate doctor` probe table is a [PRD:FR-4] cycle-110
+# artifact, contract-pinned to the THREE original headless CLIs
+# (test_doctor.py::TestProbeTableContract). New-company headless adapters
+# (cursor-headless, grok-headless) deliberately do NOT extend it — each ships
+# its own health_check()/validate_config() on the adapter instead. `grok models`
+# is a no-inference auth check (prints "You are logged in", exits 0) available if
+# a future cycle re-scopes this pre-flight to N CLIs.
 _PROBE_TABLE: Dict[str, Dict[str, Any]] = {
     "claude": {
         "provider": "anthropic",

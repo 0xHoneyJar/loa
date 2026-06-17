@@ -441,11 +441,18 @@ _DISPATCH_GROUP_PATTERN = re.compile(r"^[a-z][a-z0-9-]{1,63}$")
 # kind was the only remaining silent-default misclassification.)
 # Review #966: cursor-headless joins — without an entry the documented
 # custom-provider config shape dies [CONFIG-INVALID] at load.
+# grok-headless joins (2026-06-13): a CLI-only headless provider with NO HTTP
+# sibling (auth is grok's OIDC subscription). type: grok-headless maps directly
+# to GrokHeadlessAdapter; this entry lets a minimal `providers.xai: {type:
+# grok-headless, models: {...}}` shape (no per-model auth_type/dispatch_group/
+# kind) load without [CONFIG-INVALID]. dispatch_group `xai-grok`; the `grok` CLI
+# is itself multi-model, so cheval pins each entry to a served model via cli_model.
 _HEADLESS_TYPE_INFERENCE = {
     "claude-headless": ("headless", "anthropic-claude"),
     "codex-headless": ("headless", "openai-gpt"),
     "gemini-headless": ("headless", "google-gemini"),
     "cursor-headless": ("headless", "cursor-composer"),
+    "grok-headless": ("headless", "xai-grok"),
 }
 _HEADLESS_INFERRED_KIND = "cli"
 

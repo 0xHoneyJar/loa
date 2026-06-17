@@ -806,6 +806,27 @@ During Phase 2 (Code Review), add complexity checks:
 - Functions 40-50 lines (borderline)
 - 2-3 duplicate patterns
 - Minor naming inconsistencies
+
+### YAGNI over-engineering taxonomy (#1012-adjacent)
+
+Tag each over-engineering finding so the engineer gets a crisp delete-list
+(reuse the existing `SIMPLICITY:` feedback template):
+
+| Tag | Meaning | Example finding |
+|-----|---------|-----------------|
+| `delete` | Needn't exist (YAGNI) | `SIMPLICITY[delete]: unused config layer — remove` |
+| `stdlib` | Reinvents the standard library | `SIMPLICITY[stdlib]: hand-rolled debounce — use stdlib` |
+| `native` | Reinvents a native platform feature | `SIMPLICITY[native]: custom date widget — native input` |
+| `yagni` | Speculative flexibility/abstraction | `SIMPLICITY[yagni]: generic iface for one caller — inline` |
+| `shrink` | Correct but larger than needed | `SIMPLICITY[shrink]: 40 lines that fit in 5` |
+
+A `loa:shortcut:` marker that names a ceiling with **no upgrade trigger** is a
+`SIMPLICITY[shrink]` finding — the deferred work rots without a trigger.
+
+End an over-engineering pass with the only metric that matters:
+`net: -<N> lines possible`. If nothing should be cut, say `Lean already. Ship.`
+and stop. Never flag the one required acceptance-check behind non-trivial logic
+(the smallest runnable check) for deletion — that is the YAGNI minimum, not bloat.
 </complexity_review>
 
 <beads_workflow>

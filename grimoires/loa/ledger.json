@@ -2184,6 +2184,19 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260614-i1012-e52467/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260614-i1012-e52467/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260615-i1064-2e8933",
+      "label": "Bug Fix \u2014 next-bug-sprint-id.sh disk-scan misses sprint-bug-N/ layout (#1064)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1064",
+      "created_at": "2026-06-15T03:41:37Z",
+      "sprints": [
+        "sprint-bug-222"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260615-i1064-2e8933/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260615-i1064-2e8933/sprint.md"
     }
   ],
   "bugfixes": [

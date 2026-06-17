@@ -649,6 +649,40 @@ providers:
         fallback_to: "anthropic:claude-haiku-4-5-20251001"
         fallback_mapping_version: 1
 
+  # ─────────────────────────────────────────────────────────────────────
+  # xAI grok — a CLI-only headless provider (no HTTP sibling; auth is grok's
+  # OIDC subscription, `grok login`). `type: grok-headless` maps directly to
+  # GrokHeadlessAdapter. A headless CLI is a multi-model client, NOT a single-
+  # company port: grounded 2026-06-13, `grok models` → grok-build (default) +
+  # grok-composer-2.5-fast, while `cursor-agent models` spans Claude/GPT/Gemini/
+  # Grok/Kimi/Composer (CLIs cross-serve). Declaring BOTH grok models lets the
+  # tier router target grok's served stack via `cli_model` (the real id `grok
+  # --model` expects); do NOT collapse to one pin. Both kind:cli, chain-terminal
+  # (NO fallback_chain — lint-enforced), NO pricing (subscription → metered $0).
+  xai:
+    type: grok-headless
+    # endpoint + auth are ignored; auth is grok's own OIDC login (`grok login`).
+    endpoint: ""
+    models:
+      grok-build:
+        auth_type: headless
+        dispatch_group: xai-grok
+        kind: cli
+        capabilities: [chat, code]      # No tools, no structured_json
+        # grok's default model; 256K context per xAI's published spec.
+        context_window: 256000
+        # No pricing entry — CLI uses the operator's xAI/Grok subscription.
+        extra:
+          cli_model: grok-build
+      grok-composer-2.5-fast:
+        auth_type: headless
+        dispatch_group: xai-grok
+        kind: cli
+        capabilities: [chat, code]
+        context_window: 256000
+        extra:
+          cli_model: grok-composer-2.5-fast
+
 # Aliases (short names → provider:model-id)
 aliases:
   gemini-2.0: "google:gemini-2.0-flash"  # Backward-compat alias
@@ -716,6 +750,15 @@ aliases:
   claude-headless: "anthropic:claude-headless"
   codex-headless: "openai:codex-headless"
   gemini-headless: "google:gemini-headless"
+
+  # xAI Grok aliases (kind: cli) — one company-port, two models. Operator must
+  # `grok login` (OIDC subscription). `grok-build` (default) + a `grok-fast`
+  # alias for the composer model; `grok-headless` mirrors the *-headless family
+  # naming. These names are what tier_groups.mappings + skill bindings reference.
+  grok-build: "xai:grok-build"
+  grok-composer: "xai:grok-composer-2.5-fast"
+  grok-fast: "xai:grok-composer-2.5-fast"
+  grok-headless: "xai:grok-build"
 
 # Backward-compat aliases (legacy model IDs → canonical provider:model-id)
 # Used by gen-adapter-maps.sh to reproduce the hand-maintained bash map
@@ -893,23 +936,35 @@ tier_groups:
     mid: medium
     cheap: low
     tiny: low
+  # The nested {tier: {company: alias}} form. Consumer = model-resolver.py
+  # _stage3_tier_groups, which picks `sorted(mapping.keys())[0]` deterministically
+  # (anthropic always first). The `xai` column (added 2026-06-13) sorts LAST, so
+  # it is ZERO-behavior-change to existing default tier resolution — it just makes
+  # xAI's stack a selectable company-port for any per-company router (the
+  # router-of-routers / composition-deployment hook). max/mid → grok-build (the
+  # reasoning default); cheap/tiny → grok-fast (the composer model). Each value is
+  # an ALIAS NAME defined in the aliases: block above.
   mappings:
     max:
       anthropic: fable             # → claude-fable-5 (2026-06-10 intel-routing review; was opus)
       openai: gpt-5.5-pro          # top-of-OpenAI per probe-confirmation
       google: gemini-3.1-pro       # → gemini-3.1-pro-preview
+      xai: grok-build              # → xai:grok-build
     cheap:
       anthropic: cheap             # → claude-sonnet-4-6
       openai: gpt-5.3-codex        # cost-safe codex tier
       google: gemini-3-flash       # → gemini-3-flash-preview
+      xai: grok-fast               # → xai:grok-composer-2.5-fast
     mid:
       anthropic: cheap             # sonnet is the mid choice during cycle-099
       openai: gpt-5.5
       google: gemini-2.5-pro
+      xai: grok-build              # → xai:grok-build
     tiny:
       anthropic: tiny              # → claude-haiku-4-5-20251001
       openai: gpt-5.3-codex        # no smaller OpenAI in registry (SDD §10 open question)
       google: gemini-3-flash
+      xai: grok-fast               # → xai:grok-composer-2.5-fast
   denylist: []                          # operator opt-out — alias names; populated in user .loa.config.yaml
   max_cost_per_session_micro_usd: null  # null = no enforcement; integer >= 0 for hard cap
 
