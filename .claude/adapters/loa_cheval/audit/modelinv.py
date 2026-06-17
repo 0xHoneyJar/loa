@@ -323,6 +323,31 @@ def _streaming_active() -> bool:
     return not _streaming_disabled()
 
 
+def _loop_telemetry() -> "tuple[Optional[str], Optional[int]]":
+    """cycle-114 FR-11: per-iteration cost telemetry. Read the orchestrator loop
+    context + 1-based iteration from the environment (set by the bridge / post-pr
+    orchestrators at dispatch). Returns (context, iteration), or (None, None) for
+    one-shot calls. Invalid values are dropped (fail-safe) so a malformed env var
+    never produces a schema-invalid envelope.
+    """
+    ctx = os.environ.get("LOA_LOOP_CONTEXT") or None
+    if ctx not in ("bridge", "audit", "e2e", "spiral"):
+        ctx = None
+    it_raw = os.environ.get("LOA_LOOP_ITERATION", "")
+    # Defensive parse: str.isdigit() accepts non-ASCII digits (e.g. "³", "②",
+    # circled/superscript) that int() then rejects with ValueError. A try/except
+    # is the only true fail-safe — a malformed env var must never crash the
+    # MODELINV emit (which would silently lose the audit record).
+    it: Optional[int] = None
+    try:
+        _parsed = int(it_raw)
+        if _parsed >= 1:
+            it = _parsed
+    except (TypeError, ValueError):
+        it = None
+    return ctx, it
+
+
 # Cycle-108 sprint-1 T1.F — writer_version single source of truth.
 # Read from .claude/data/cycle-108/modelinv-writer-version once per process.
 # Cached for the lifetime of this module's import (per SDD §21.4 contract).
@@ -539,6 +564,14 @@ def emit_model_invoke_complete(
         payload["tokens_input"] = tokens_input
     if tokens_output is not None:
         payload["tokens_output"] = tokens_output
+    # cycle-114 FR-11 (sprint-4): per-iteration cost telemetry from the
+    # orchestrator env. Optional — absent for one-shot (non-loop) calls so the
+    # additionalProperties:false schema constraint stays satisfied.
+    _loop_ctx, _loop_iter = _loop_telemetry()
+    if _loop_ctx is not None:
+        payload["loop_context"] = _loop_ctx
+    if _loop_iter is not None:
+        payload["loop_iteration"] = _loop_iter
     # cycle-104 Sprint 2 T2.6 (FR-S2.3 / SDD §3.4): chain-walk evidence.
     # final_model_id, transport, config_observed are additive — the schema's
     # additionalProperties:false constraint means we only attach them when

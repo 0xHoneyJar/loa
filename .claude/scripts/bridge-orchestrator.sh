@@ -407,6 +407,12 @@ bridge_main() {
     echo "  ITERATION $iteration / $DEPTH"
     echo "───────────────────────────────────────────────────"
 
+    # cycle-114 FR-11: tag every model invocation in this iteration with the
+    # loop context + iteration so MODELINV / economy can attribute per-iteration
+    # cost (answers "is bridge cost O(depth)?"). Inherited by cheval children.
+    export LOA_LOOP_CONTEXT="bridge"
+    export LOA_LOOP_ITERATION="$iteration"
+
     # Track iteration
     local source="existing"
     if [[ $iteration -gt 1 ]]; then
@@ -716,6 +722,11 @@ bridge_main() {
       exit 0
     fi
   done
+
+  # cycle-114 FR-11: the per-iteration loop tags are loop-scoped — clear them so
+  # the divergent-exploration (RESEARCHING) + finalization phases below, which
+  # are explicitly NOT bridge iterations, are not mis-attributed in MODELINV.
+  unset LOA_LOOP_CONTEXT LOA_LOOP_ITERATION
 
   # Research Mode (FR-2 — Divergent Exploration Iteration)
   # After iteration 1, optionally transition to RESEARCHING state for one
