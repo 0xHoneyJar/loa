@@ -55,6 +55,7 @@ declare -A MODEL_PROVIDERS=(
     ["claude-headless"]="anthropic"
     ["codex-headless"]="openai"
     ["gemini-headless"]="google"
+    ["gemini-api"]="google"
     ["grok-build"]="xai"
     ["grok-composer"]="xai"
     ["grok-fast"]="xai"
@@ -122,6 +123,7 @@ declare -A MODEL_IDS=(
     ["claude-headless"]="claude-headless"
     ["codex-headless"]="codex-headless"
     ["gemini-headless"]="gemini-headless"
+    ["gemini-api"]="gemini-2.5-pro"
     ["grok-build"]="grok-build"
     ["grok-composer"]="grok-composer-2.5-fast"
     ["grok-fast"]="grok-composer-2.5-fast"
@@ -243,6 +245,7 @@ declare -A COST_INPUT=(
     ["gpt-5.5"]="0.005"
     ["gpt-5.5-pro"]="0.03"
     ["gpt-5.3-codex"]="0.00175"
+    ["gemini-api"]="0.00125"
     ["gpt-5.2-codex"]="0.00175"
     ["gpt-5.3-codex"]="0.00175"
     ["claude-opus-4-8"]="0.005"
@@ -298,6 +301,7 @@ declare -A COST_OUTPUT=(
     ["gpt-5.5"]="0.03"
     ["gpt-5.5-pro"]="0.18"
     ["gpt-5.3-codex"]="0.014"
+    ["gemini-api"]="0.01"
     ["gpt-5.2-codex"]="0.014"
     ["gpt-5.3-codex"]="0.014"
     ["claude-opus-4-8"]="0.025"
@@ -353,6 +357,7 @@ declare -a VALID_FLATLINE_MODELS=(
     gemini-3-flash-preview
     gemini-3.1-pro
     gemini-3.1-pro-preview
+    gemini-api
     gemini-headless
     gpt-5.2
     gpt-5.2-codex

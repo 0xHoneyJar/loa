@@ -751,6 +751,14 @@ aliases:
   codex-headless: "openai:codex-headless"
   gemini-headless: "google:gemini-headless"
 
+  # #1089: key-based Gemini terminal — the HTTP / GOOGLE_API_KEY path (auth_type
+  # http_api) as an alternative to the deprecated `gemini-headless` CLI ("Gemini
+  # Code Assist for individuals" retired → IneligibleTierError; see KF-018).
+  # Operators swap `gemini-headless` → `gemini-api` (e.g. the Flatline tertiary
+  # voice) where the CLI is unavailable. Targets the capable thinking HTTP model;
+  # re-point to a cheaper google:gemini-* if cost-sensitive.
+  gemini-api: "google:gemini-2.5-pro"
+
   # xAI Grok aliases (kind: cli) — one company-port, two models. Operator must
   # `grok login` (OIDC subscription). `grok-build` (default) + a `grok-fast`
   # alias for the composer model; `grok-headless` mirrors the *-headless family
