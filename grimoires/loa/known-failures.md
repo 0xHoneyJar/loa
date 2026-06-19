@@ -1065,3 +1065,28 @@ If a flatline / adversarial-review / bridgebuilder run on a **Bedrock-only** ope
 
 ### Reading guide
 If cross-model voices all return `api_failure` / the gates degrade: do NOT assume KF-002 (empty-content) — check `.run/model-invoke.jsonl` `message_redacted` for the actual per-leg error. The 2026-06-15 cause was billing (Anthropic $0 credits) + an invalidated codex subscription token, with openai+google HTTP keys still valid. Fastest unblock: `LOA_HEADLESS_MODE=api-only` (uses the valid HTTP keys). A `codex login status` of "logged in" is NOT authoritative — the token can be server-side-invalidated while the local auth.json looks fine.
+
+---
+
+## KF-018: gemini-headless CLI auth-tier deprecated (Gemini Code Assist for individuals retired) — Gemini voice silently drops from multi-model review
+
+**Status**: OPEN — MITIGATED-BY-WORKAROUND (upstream migration BLOCKED on Antigravity CLI availability)
+**Feature**: cheval `gemini-headless` adapter (`.claude/adapters/loa_cheval/providers/gemini_headless_adapter.py`) → Flatline / Bridgebuilder / any `google:*` multi-model consumer
+**Symptom**: every `gemini-headless` dispatch fails auth with `IneligibleTierError: This client is no longer supported for Gemini Code Assist for individuals … migrate to … antigravity.google`. cheval's circuit breaker `google/headless` trips HALF_OPEN→OPEN and the Gemini voice is silently removed from the consensus (degrades to fewer voices, no visible error to the operator).
+**First observed**: 2026-06-18 (issue #1089, live Flatline run on loa-laplas)
+**Recurrence count**: 1
+**Current workaround**: `LOA_HEADLESS_MODE=api-only` routes google through the HTTP API (valid `GOOGLE_API_KEY` against `generativelanguage.googleapis.com/v1beta`, already `providers.google.endpoint`) instead of the dead CLI; OR operators drop the tertiary Gemini voice (`flatline_protocol.models.tertiary`) / re-point it at another provider so reviews run on the remaining voices instead of silently degrading. (Sibling to the Fable-5 headless retirement — re-pin `extra.cli_model: fable → opus` via the `hounfour:` override; see bd-01o1.)
+**Upstream issue**: [#1089](https://github.com/0xHoneyJar/loa/issues/1089)
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-06-18 | Continue using the `@google/gemini-cli` headless path | DID NOT WORK — Google retired the "Code Assist for individuals" tier the CLI auths against; `IneligibleTierError` on every dispatch | issue #1089 cheval log |
+| 2026-06-19 | Assess the issue's proposed `flatline-readiness.sh` headless-CLI probe | WORKAROUND-AT-LIMIT — the existing `health_check()` probes `gemini --version` (binary presence), which still SUCCEEDS while the auth TIER is dead (the error fires only on real inference). A presence probe does NOT catch tier-deprecation; a real-auth probe (`gemini -p ping`) would but is slow/costly and trips the breaker. Readiness CLI-tier probe DEFERRED (bd-yohy). | this entry |
+| not started | Migrate `gemini-headless` to the Antigravity CLI | BLOCKED — Google's replacement is not publicly available; cannot implement against an unreleased CLI | antigravity.google |
+| not started | Add a `gemini-api` terminal (GOOGLE_API_KEY → v1beta REST) as a key-based alternative | DEFERRED — needs model-config schema + fallback-chain wiring + tests; design separately | issue #1089 fix (2) |
+
+### Reading guide
+
+If the Gemini voice vanishes from Flatline/BB (`google/headless` circuit OPEN, `IneligibleTierError`): the gemini CLI tier is dead, not a transient outage — do NOT wait for recovery. Apply `LOA_HEADLESS_MODE=api-only` (uses the valid `GOOGLE_API_KEY` HTTP path) or drop/re-point the tertiary voice. `flatline-readiness.sh` reports providers by API-KEY presence and a `gemini --version` probe passes, so neither currently flags this — treat a silent voice-drop in consensus as the signal. The structural fix (Antigravity migration / gemini-api terminal) is upstream-blocked / deferred.

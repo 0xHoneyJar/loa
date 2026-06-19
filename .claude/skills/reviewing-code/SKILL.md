@@ -416,6 +416,22 @@ Read ALL context documents in order:
 6. Perform security audit (see `resources/REFERENCE.md` §Security)
 7. Check performance and resource management
 8. **Karpathy Principles Check** (see below)
+9. **Fast-Gate Parity Check** (see below) — confirm format-check + typecheck were run
+
+### Fast-Gate Parity — match CI (#1086)
+
+The implementer's self-check must equal CI's fast gate, not just lint + tests.
+When the project configures them, verify the implementer ran (and re-run if in
+doubt):
+
+- the **formatter in check mode** (`ruff format --check`, `prettier --check`,
+  `gofmt -l`, …), and
+- the **type checker** (`mypy`, `tsc --noEmit`, `pyright`, …).
+
+Flag an unrun or failing check as feedback with the same weight as a lint/test
+failure, e.g. "FAST-GATE: `mypy` not run — a type error in src/x.py:N would fail
+CI" or "FAST-GATE: `ruff format --check` flags 3 just-written files". Tool-agnostic
+— detect from `pyproject.toml` / `package.json` / the CI workflows.
 
 ### Karpathy Principles Verification
 
