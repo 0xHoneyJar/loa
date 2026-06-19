@@ -199,7 +199,7 @@ Agents SHOULD proactively run CLI tools from the approved allowlist without aski
 |------|-----------------|-------|
 | `git` | `status`, `log`, `diff`, `branch`, `show` | Local only, no network |
 | `gh` | `issue list`, `issue view`, `pr list`, `pr view`, `pr checks` | Use `--json` + field filtering to avoid leaking secrets from PR bodies |
-| `npm`/`bun` | `test`, `run lint`, `run typecheck` | Build/check commands |
+| `npm`/`bun` | `test`, `run lint`, `run typecheck`, `run format` | Build/check + format-check commands (#1086) |
 | `cargo` | `check`, `test`, `clippy` | Build/check commands |
 
 ### Require Confirmation
@@ -408,6 +408,23 @@ See `resources/templates/implementation-report.md` for the structured
 - Document specific file paths and line numbers: NOT "updated auth" → "src/auth/middleware.ts:42-67"
 - Include exact commands to reproduce: NOT "run tests" → "npm test -- --coverage --watch=false"
 - Reference specific commits or branches when relevant
+
+## Pre-Handoff Verification Gate — match CI's fast gate (#1086)
+
+Before marking a task done, run the SAME fast checks CI will run — not just a
+linter + tests. When the project configures them (detect from `pyproject.toml`,
+`package.json` scripts, `.golangci.yml`, `Cargo.toml`, or the `.github/workflows`
+files), ALSO run, in addition to the linter and tests:
+
+- the **formatter in check mode** — `ruff format --check`, `prettier --check`,
+  `gofmt -l`, `cargo fmt --check`, … (a formatter that would *rewrite* files is
+  a red CI waiting to happen), and
+- the **type checker** — `mypy`, `tsc --noEmit`, `pyright`, `go vet`, ….
+
+Treat a format-check or type-check failure exactly like a lint/test failure: fix
+it before handoff. Goal: **the agent's self-check == CI's fast gate**, so work
+marked done doesn't bounce on formatting/types after it's otherwise approved.
+Tool-agnostic — the above are examples; run whatever the project configures.
 </kernel_framework>
 
 <uncertainty_protocol>
