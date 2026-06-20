@@ -92,6 +92,18 @@ export const GENERATED_MODEL_REGISTRY = {
         capabilities: ["chat", "function_calling", "tools"],
         pricing: { inputPerMtok: 3000000, outputPerMtok: 15000000 },
     },
+    "composer-2.5": {
+        provider: "cursor",
+        modelId: "composer-2.5",
+        contextWindow: 200000,
+        capabilities: ["chat", "code"],
+    },
+    "composer-2.5-fast": {
+        provider: "cursor",
+        modelId: "composer-2.5-fast",
+        contextWindow: 200000,
+        capabilities: ["chat", "code"],
+    },
     "deep-research-pro": {
         provider: "google",
         modelId: "deep-research-pro",

@@ -25,6 +25,8 @@ export const GENERATED_TOKEN_BUDGETS: Record<string, TokenBudget> = {
   "us.anthropic.claude-opus-4-7": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
   "us.anthropic.claude-opus-4-8": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
   "us.anthropic.claude-sonnet-4-6": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
+  "composer-2.5": { maxInput: 200000, maxOutput: 4096, coefficient: 0.25 },
+  "composer-2.5-fast": { maxInput: 200000, maxOutput: 4096, coefficient: 0.25 },
   "deep-research-pro": { maxInput: 1048576, maxOutput: 8192, coefficient: 0.25 },
   "gemini-2.0-flash": { maxInput: 1048576, maxOutput: 8192, coefficient: 0.25 },
   "gemini-2.5-flash": { maxInput: 1048576, maxOutput: 8192, coefficient: 0.25 },
