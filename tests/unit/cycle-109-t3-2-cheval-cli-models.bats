@@ -321,3 +321,98 @@ PY
         [ "$first" = "anthropic" ] || { echo "tier $t sorted-first=$first (expected anthropic)"; return 1; }
     done
 }
+
+# =============================================================================
+# T32-12: Cursor Composer — a second new-company headless port (parity with the
+# xai/grok T32-7 port). ONE provider, TWO kind:cli models (composer-2.5 +
+# composer-2.5-fast), both no-pricing. The adapter (CursorHeadlessAdapter) +
+# registry + loader inference already shipped; this declares the SoT entry.
+# =============================================================================
+
+@test "T32-12: cursor provider declares BOTH composer models as kind:cli, no pricing" {
+    _require_yq
+    local cfg="$PROJECT_ROOT/.claude/defaults/model-config.yaml"
+    local cur_kind fast_kind cur_price fast_price ptype
+    ptype=$(yq eval '.providers.cursor.type // ""' "$cfg")
+    cur_kind=$(yq eval '.providers.cursor.models["composer-2.5"].kind // ""' "$cfg")
+    fast_kind=$(yq eval '.providers.cursor.models["composer-2.5-fast"].kind // ""' "$cfg")
+    cur_price=$(yq eval '.providers.cursor.models["composer-2.5"].pricing // "null"' "$cfg")
+    fast_price=$(yq eval '.providers.cursor.models["composer-2.5-fast"].pricing // "null"' "$cfg")
+    [ "$ptype" = "cursor-headless" ]
+    [ "$cur_kind" = "cli" ]
+    [ "$fast_kind" = "cli" ]
+    [ "$cur_price" = "null" ]
+    [ "$fast_price" = "null" ]
+}
+
+# =============================================================================
+# T32-13: cursor is chain-terminal — NEITHER composer model declares a
+# fallback_chain (no cross-company substitution; lint-enforced invariant).
+# =============================================================================
+
+@test "T32-13: cursor composer models are chain-terminal (no fallback_chain)" {
+    _require_yq
+    local cfg="$PROJECT_ROOT/.claude/defaults/model-config.yaml"
+    local cur_fb fast_fb
+    cur_fb=$(yq eval '.providers.cursor.models["composer-2.5"].fallback_chain // "null"' "$cfg")
+    fast_fb=$(yq eval '.providers.cursor.models["composer-2.5-fast"].fallback_chain // "null"' "$cfg")
+    [ "$cur_fb" = "null" ]
+    [ "$fast_fb" = "null" ]
+}
+
+# =============================================================================
+# T32-14: cli_model maps each port-model to the real `cursor-agent --model` id.
+# =============================================================================
+
+@test "T32-14: each cursor model carries its cli_model id" {
+    _require_yq
+    local cfg="$PROJECT_ROOT/.claude/defaults/model-config.yaml"
+    local cur_cli fast_cli
+    cur_cli=$(yq eval '.providers.cursor.models["composer-2.5"].extra.cli_model // ""' "$cfg")
+    fast_cli=$(yq eval '.providers.cursor.models["composer-2.5-fast"].extra.cli_model // ""' "$cfg")
+    [ "$cur_cli" = "composer-2.5" ]
+    [ "$fast_cli" = "composer-2.5-fast" ]
+}
+
+# =============================================================================
+# T32-15: the loader resolves BOTH cursor models without raising, kind:cli +
+# pricing None (parity with T32-10 for the second new-company provider).
+# =============================================================================
+
+@test "T32-15: loader resolves both cursor composer models as kind:cli with no pricing" {
+    "$PYTHON_BIN" - <<'PY'
+import sys
+sys.path.insert(0, ".claude/adapters")
+from loa_cheval.config.loader import load_config
+
+config, _ = load_config()
+hounfour = config if "providers" in config else config.get("hounfour", config)
+
+required = [
+    ("cursor", "composer-2.5"),
+    ("cursor", "composer-2.5-fast"),
+]
+errors = []
+for provider, model_id in required:
+    try:
+        provider_models = hounfour.get("providers", {}).get(provider, {}).get("models", {})
+        model_data = provider_models.get(model_id)
+        if not model_data:
+            errors.append(f"{provider}:{model_id} not found in providers config")
+            continue
+        if model_data.get("kind") != "cli":
+            errors.append(f"{provider}:{model_id} kind={model_data.get('kind')!r} (expected 'cli')")
+        if model_data.get("pricing") is not None:
+            errors.append(f"{provider}:{model_id} pricing={model_data.get('pricing')!r} (expected None)")
+        if model_data.get("auth_type") != "headless":
+            errors.append(f"{provider}:{model_id} auth_type={model_data.get('auth_type')!r} (expected 'headless')")
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"{provider}:{model_id} raised {type(e).__name__}: {e}")
+
+if errors:
+    for e in errors:
+        print(f"FAIL: {e}", file=sys.stderr)
+    sys.exit(1)
+print("OK")
+PY
+}

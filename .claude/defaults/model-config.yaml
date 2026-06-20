@@ -683,6 +683,43 @@ providers:
         extra:
           cli_model: grok-composer-2.5-fast
 
+  # ─────────────────────────────────────────────────────────────────────
+  # Cursor Composer — a CLI-only headless provider (no HTTP sibling; auth is
+  # Cursor's subscription, `cursor-agent login`). `type: cursor-headless` maps
+  # directly to CursorHeadlessAdapter. A headless CLI is a multi-model client,
+  # NOT a single-company port: `cursor-agent models` spans Claude/GPT/Gemini/
+  # Grok/Kimi/Composer (CLIs cross-serve). Cheval pins this `cursor` entry to
+  # Cursor's OWN distinct-corpus models — the Composer line (Moonshot-Kimi base
+  # + agentic RL) — via cli_model; cross-served models are reached through their
+  # own company providers. `cursor-agent models` → composer-2.5 (current) +
+  # composer-2.5-fast (default). Both kind:cli, chain-terminal (NO fallback_chain
+  # — lint-enforced), NO pricing (subscription → metered $0).
+  cursor:
+    type: cursor-headless
+    # endpoint + auth are ignored; auth is cursor-agent's own login.
+    endpoint: ""
+    models:
+      composer-2.5:
+        auth_type: headless
+        dispatch_group: cursor-composer
+        kind: cli
+        capabilities: [chat, code]      # No tools, no structured_json
+        # Cursor Composer 2.5 (current). Declared window is a conservative floor
+        # so cheval's enforce_context_window does not fall back to the 128000
+        # global default; refine when Cursor publishes the Composer 2.5 spec.
+        context_window: 200000
+        # No pricing entry — CLI uses the operator's Cursor subscription.
+        extra:
+          cli_model: composer-2.5
+      composer-2.5-fast:
+        auth_type: headless
+        dispatch_group: cursor-composer
+        kind: cli
+        capabilities: [chat, code]
+        context_window: 200000
+        extra:
+          cli_model: composer-2.5-fast
+
 # Aliases (short names → provider:model-id)
 aliases:
   gemini-2.0: "google:gemini-2.0-flash"  # Backward-compat alias
@@ -767,6 +804,15 @@ aliases:
   grok-composer: "xai:grok-composer-2.5-fast"
   grok-fast: "xai:grok-composer-2.5-fast"
   grok-headless: "xai:grok-build"
+
+  # Cursor Composer aliases (kind: cli) — one company-port, two Composer models.
+  # Operator must `cursor-agent login`. `cursor-headless` mirrors the *-headless
+  # family naming (→ composer-2.5, the current Composer); `cursor-fast` exposes
+  # the fast variant. These names are what tier_groups.mappings + skill bindings
+  # reference.
+  cursor-composer: "cursor:composer-2.5"
+  cursor-fast: "cursor:composer-2.5-fast"
+  cursor-headless: "cursor:composer-2.5"
 
 # Backward-compat aliases (legacy model IDs → canonical provider:model-id)
 # Used by gen-adapter-maps.sh to reproduce the hand-maintained bash map

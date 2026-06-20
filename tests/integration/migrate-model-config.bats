@@ -863,3 +863,48 @@ with open(os.environ["OUT"]) as f:
 assert data["providers"]["xai"]["models"]["grok-build"]["dispatch_group"] == "xai-grok"
 EOF
 }
+
+@test "M19.7: cursor-composer dispatch_group passes v2/v3 validation" {
+    # The Cursor Composer provider ships dispatch_group: cursor-composer as its
+    # own company family (CursorHeadlessAdapter). Pin the enum value directly,
+    # independent of whether cursor stays in the production config — parity with
+    # M19.6's xai-grok guard.
+    local v1="$WORK_DIR/v1-with-cursor-composer.yaml"
+    cat > "$v1" <<'EOF'
+providers:
+  cursor:
+    type: cursor-headless
+    endpoint: "ignored"
+    models:
+      composer-2.5:
+        capabilities: [chat]
+        context_window: 200000
+        dispatch_group: cursor-composer
+EOF
+    # v2 path (default)
+    run "$PYTHON_BIN" "$CLI" "$v1" -o "$OUT"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" != *"MIGRATION-PRODUCED-INVALID-V2"* ]]
+    _python_assert <<'EOF'
+import os
+from ruamel.yaml import YAML
+y = YAML(typ='safe')
+with open(os.environ["OUT"]) as f:
+    data = y.load(f)
+m = data["providers"]["cursor"]["models"]["composer-2.5"]
+assert m["dispatch_group"] == "cursor-composer", m
+assert "dispatch_group" not in (m.get("_archived_v1_fields") or {})
+EOF
+    # v3 path (--to-v3 validates against model-config-v3.schema.json)
+    run "$PYTHON_BIN" "$CLI" "$v1" --to-v3 -o "$OUT"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" != *"INVALID"* ]]
+    _python_assert <<'EOF'
+import os
+from ruamel.yaml import YAML
+y = YAML(typ='safe')
+with open(os.environ["OUT"]) as f:
+    data = y.load(f)
+assert data["providers"]["cursor"]["models"]["composer-2.5"]["dispatch_group"] == "cursor-composer"
+EOF
+}

@@ -91,6 +91,7 @@ When neither env nor config is set, cheval logs
 | `codex-headless` | `codex` (OpenAI Codex CLI) | `npm i -g @openai/codex-cli` | OAuth via `codex` once |
 | `gemini-headless` | `gemini` (Google Gemini CLI) | `npm i -g @google/gemini-cli` | OAuth via `gemini` once |
 | `grok-build` / `grok-fast` | `grok` (xAI Grok Build CLI) | per xAI install docs | OIDC via `grok login` once |
+| `cursor-headless` / `cursor-fast` | `cursor-agent` (Cursor Agent CLI) | per Cursor install docs | login via `cursor-agent login` once |
 
 Each CLI maintains its own credential store in the user's home directory.
 cheval does not pass API keys to CLIs; it `spawn`s the binary and reads
@@ -119,6 +120,28 @@ Anthropic / OpenAI / Google), so in a flatline / FAGAN council it fails
 differently — a fourth genuinely-independent voice. It is chain-terminal: an
 `xai` voice NEVER falls back across companies (within-company chains only;
 ADR-002).
+
+### One port, a stack — Cursor Composer
+
+`cursor-headless` and `cursor-fast` are likewise two models on **one**
+company-port. The `cursor` provider (`type: cursor-headless`) pins Cursor's OWN
+distinct-corpus models — the Composer line (`composer-2.5` is the current
+Composer, `composer-2.5-fast` the fast variant) — via `--model <id>` per call.
+`cursor-agent models` lists the full served stack, but it cross-serves
+Claude / GPT / Gemini / Grok / Kimi too; cheval declares ONLY Composer here (the
+cross-served models are reached through their own company-ports). So a Cursor
+voice is a genuinely distinct lineage (Composer = Moonshot-Kimi base + agentic
+RL), not a re-skin of a roster company already present.
+
+Setup once, both Composer models then available:
+
+```bash
+cursor-agent login    # Cursor account (a paid Cursor subscription)
+cursor-agent models   # confirm login + composer-2.5, composer-2.5-fast
+```
+
+Like xAI, Cursor's Composer is chain-terminal: a `cursor` voice NEVER falls back
+across companies (within-company chains only; ADR-002).
 
 When a chain entry's CLI binary is missing, cheval skips the entry with
 `error_class: ROUTING_MISS` and continues walking the chain. The
