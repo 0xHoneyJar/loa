@@ -1118,3 +1118,26 @@ If the Gemini voice vanishes from Flatline/BB (`google/headless` circuit OPEN, `
 ### Reading guide
 
 If you are about to assert that a model path, terminal, or routing capability "doesn't exist" / "is API-only" / "can't route": STOP and grep the SoT first — `grep -nE 'headless|native|<the-capability>' .claude/defaults/model-config.yaml` and check `flatline-orchestrator.sh` `VALID_MODEL_PATTERNS` for the pin form (`^(claude|codex|gemini)-headless:.+$`). The `claude-headless` / `codex-headless` / `gemini-headless` terminals shipped in cycle-098/099 (PR #727) and are what the pin-form regex admits; the xAI `grok-headless` port landed separately (#1057) and is chain-terminal (not in the `(claude|codex|gemini)` pin form). All are richly present in the SoT (52 `headless` refs, 2026-06-19). If YOUR copy shows 0, your vendored framework is stale — that is the confabulation trap; run `/update-loa`, do not conclude absence. The failure is not malice and not cost — it is a confident next-token guess over a stale read, and it is provable-false from the file alone. See the headless runbook (`grimoires/loa/runbooks/headless-mode.md`) for the terminals + pin form, and `sensing-confabulated-absence` (construct-gecko) for the detector that surfaces the pattern from transcript text.
+
+---
+
+## KF-020: `claude -p` subscription OAuth metered as per-token "extra usage", not flat-rate Max/Pro plan quota
+
+- **Status:** OPEN — external/upstream (Anthropic billing policy); not loa-fixable, mitigation + surfacing only.
+- **Feature:** cheval `claude-headless` adapter (`.claude/adapters/loa_cheval/providers/claude_headless_adapter.py`) — the within-company Anthropic chain terminal and the council/Bridgebuilder Claude voice. Invoked as `claude -p <prompt> --output-format json` with `ANTHROPIC_API_KEY` stripped, using Claude Code's OAuth-managed credential store (the same command shape as upstream `claude-code#43333`).
+- **Symptom:** Since Anthropic's **2026-04-04 policy change**, third-party-harness use of a Claude Pro/Max subscription via OAuth — **including `claude -p` print mode** — is billed **per-token as "extra usage", NOT against flat-rate plan limits**. loa's adapter, config comments (`model-config.yaml:540`, adapter docstring "informational on Max"), and the cost model all assume flat-rate subscription economics. So any chain-walk fallback to `claude-headless` (incl. the KF-017 trigger) silently spends real money at per-token Opus/Fable rates, and the cost ledger records it as a `$0` unpriced call (`metadata['total_cost_usd']` is captured at `claude_headless_adapter.py:482-484` but not plumbed into the rollup).
+- **First observed:** 2026-06-22 (investigation; grounded against upstream `anthropics/claude-code#43333` ($1,800+ surprise charges), `#37686`, pi `#3372`/`#3670`, and the Anthropic policy). No in-loa cost incident yet observed.
+- **Recurrence count:** 0 (documented pre-emptively — this is a latent economics exposure, not yet an observed loa failure).
+- **Current workaround:** for cost-sensitive operators, set `hounfour.cheval.headless.mode: api-only` (or `export LOA_HEADLESS_MODE=api-only`) to exclude `claude-headless` from the chain (`chain_resolver.py`). Resilience-first operators who keep `claude-headless` should monitor `metadata.total_cost_usd` per call. **Do NOT treat the Claude subscription as flat-rate when driven through loa.**
+- **Upstream:** `anthropics/claude-code#43333` (closed), `#37686`. loa tracker: see the filed bug (below).
+- **Related:** KF-017 (same chain-walk-to-headless trigger; same `api-only` remediation), KF-013 (headless OAuth env hygiene).
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-06-22 | Grounded loa's `claude -p` adapter + consumers (BB/Flatline/red-team/post-pr-triage) and verified the upstream Anthropic policy + #43333 | DOCUMENTED — NOT loa-fixable (external billing). Mitigation = telemetry (plumb `total_cost_usd` into the ledger), a once-per-process metered-usage WARN, and the `api-only` doc pointer. Filed as a tracked bug. | this investigation; `claude-code#43333`; `claude_headless_adapter.py:482-484` |
+
+### Reading guide
+
+If an operator reports surprise Anthropic charges while on a Max/Pro plan with loa's default chains: suspect `claude-headless` chain-walk (often triggered by a degraded HTTP leg, cf. KF-017). The Claude subscription is **not** flat-rate when driven by a third-party harness post-2026-04. Read `metadata.total_cost_usd` from the MODELINV envelope to quantify, and route cost-sensitive operators to `api-only`. This is distinct from KF-018 (tier-*death* / dead subscription) — here the subscription is alive but billed per-token. The metering is upstream policy; loa can only **surface** it (warn + ledger) and **avoid** it (api-only), not prevent it.
