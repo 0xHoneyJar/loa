@@ -314,6 +314,30 @@ class ConfigError(ChevalError):
         super().__init__("INVALID_CONFIG", message, retryable=False)
 
 
+class AuthRevokedError(ChevalError):
+    """Runtime auth-credential revocation on a CLI/subscription leg (KF-017/#1071).
+
+    Distinct from ConfigError (INVALID_CONFIG / static misconfig). A token that
+    WAS valid and is now server-side-invalidated ("401 Unauthorized: token
+    invalidated", expired session) makes THIS leg unusable but says nothing
+    about the operator's other legs. retryable=True, code AUTH_REVOKED so the
+    cheval chain-walk loop walks to the next entry (e.g. a valid HTTP leg)
+    rather than hard-aborting. NOT a ProviderUnavailableError subclass: it must
+    reach cheval.py via retry.py's `except ChevalError: raise`, like
+    EmptyContentError. STATIC misconfig still raises ConfigError (hard-abort) so
+    operator config errors are never silently masked.
+    """
+
+    def __init__(self, provider: str, message: str):
+        super().__init__(
+            "AUTH_REVOKED",
+            f"auth credential revoked for {provider}: {message}",
+            retryable=True,
+            context={"provider": provider},
+        )
+        self.provider = provider
+
+
 class InvalidInputError(ChevalError):
     """Invalid input to model-invoke."""
 

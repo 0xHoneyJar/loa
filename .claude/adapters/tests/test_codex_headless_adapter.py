@@ -32,6 +32,7 @@ from loa_cheval.providers.codex_headless_adapter import (
 )
 from loa_cheval.types import (
     CompletionRequest,
+    AuthRevokedError,
     ConfigError,
     ModelConfig,
     ProviderConfig,
@@ -366,6 +367,31 @@ class TestErrorClassification:
         adapter = CodexHeadlessAdapter(_make_config())
         with patch("loa_cheval.providers.codex_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _fail_proc(1, "Error: not authenticated. Run codex login.")
+            with pytest.raises(ConfigError) as exc_info:
+                adapter.complete(_make_request())
+            assert "codex login" in str(exc_info.value)
+
+    def test_runtime_token_revocation_raises_auth_revoked(self):
+        # KF-017/#1071: a previously-valid token, server-invalidated, must be
+        # classified WALKABLE (AuthRevokedError), not a hard-abort ConfigError.
+        adapter = CodexHeadlessAdapter(_make_config())
+        with patch("loa_cheval.providers.codex_headless_adapter.run_subprocess_pgkill") as mock_run:
+            mock_run.return_value = _fail_proc(
+                1, "401 Unauthorized: your authentication token has been invalidated"
+            )
+            with pytest.raises(AuthRevokedError) as exc_info:
+                adapter.complete(_make_request())
+            assert exc_info.value.code == "AUTH_REVOKED"
+            assert exc_info.value.retryable is True
+
+    def test_ambiguous_unauthorized_with_static_marker_still_config_error(self):
+        # #1095 safety: "unauthorized" co-occurring with a never-authenticated
+        # marker must STILL hard-abort (ConfigError), not be silently walked.
+        adapter = CodexHeadlessAdapter(_make_config())
+        with patch("loa_cheval.providers.codex_headless_adapter.run_subprocess_pgkill") as mock_run:
+            mock_run.return_value = _fail_proc(
+                1, "Error: unauthorized — not authenticated. Run: codex login."
+            )
             with pytest.raises(ConfigError) as exc_info:
                 adapter.complete(_make_request())
             assert "codex login" in str(exc_info.value)

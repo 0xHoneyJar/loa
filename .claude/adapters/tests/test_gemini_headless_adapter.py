@@ -30,6 +30,7 @@ from loa_cheval.providers import get_adapter
 from loa_cheval.providers.gemini_headless_adapter import GeminiHeadlessAdapter
 from loa_cheval.types import (
     CompletionRequest,
+    AuthRevokedError,
     ConfigError,
     ModelConfig,
     ProviderConfig,
@@ -356,6 +357,28 @@ class TestErrorClassification:
             with pytest.raises(ConfigError) as exc_info:
                 adapter.complete(_make_request())
             assert "settings.json" in str(exc_info.value) or "Auth method" in str(exc_info.value)
+
+    def test_runtime_token_revocation_raises_auth_revoked(self):
+        # KF-017/#1071: server-invalidated token → WALKABLE (AuthRevokedError).
+        adapter = GeminiHeadlessAdapter(_make_config())
+        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
+            mock_run.return_value = _fail_proc(
+                1, stderr="401 Unauthorized: your token has been invalidated"
+            )
+            with pytest.raises(AuthRevokedError) as exc_info:
+                adapter.complete(_make_request())
+            assert exc_info.value.code == "AUTH_REVOKED"
+
+    def test_ambiguous_unauthorized_with_static_marker_still_config_error(self):
+        # #1095 safety: "unauthorized" co-occurring with a static-misconfig
+        # marker must STILL hard-abort (ConfigError), not be walked.
+        adapter = GeminiHeadlessAdapter(_make_config())
+        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
+            mock_run.return_value = _fail_proc(
+                1, stderr="unauthorized: set an auth method in settings.json"
+            )
+            with pytest.raises(ConfigError):
+                adapter.complete(_make_request())
 
     def test_quota_error_raises_rate_limit(self):
         adapter = GeminiHeadlessAdapter(_make_config())

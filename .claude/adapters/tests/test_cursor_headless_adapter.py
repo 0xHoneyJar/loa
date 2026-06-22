@@ -34,6 +34,7 @@ from loa_cheval.providers import get_adapter
 from loa_cheval.providers.cursor_headless_adapter import CursorHeadlessAdapter
 from loa_cheval.types import (
     CompletionRequest,
+    AuthRevokedError,
     ConfigError,
     ModelConfig,
     ProviderConfig,
@@ -286,6 +287,19 @@ class TestErrorClassification:
 
     def test_not_logged_in_is_configerror(self):
         with patch(_PGKILL, return_value=_completed("", stderr="Not logged in", returncode=1)):
+            with pytest.raises(ConfigError):
+                _adapter().complete(_req())
+
+    def test_runtime_token_revocation_raises_auth_revoked(self):
+        # KF-017/#1071: server-invalidated token → WALKABLE (AuthRevokedError).
+        with patch(_PGKILL, return_value=_completed("", stderr="401 Unauthorized: session expired", returncode=1)):
+            with pytest.raises(AuthRevokedError) as exc_info:
+                _adapter().complete(_req())
+            assert exc_info.value.code == "AUTH_REVOKED"
+
+    def test_ambiguous_unauthorized_with_static_marker_still_config_error(self):
+        # #1095 safety: "unauthorized" + a not-logged-in marker → ConfigError.
+        with patch(_PGKILL, return_value=_completed("", stderr="unauthorized — please log in", returncode=1)):
             with pytest.raises(ConfigError):
                 _adapter().complete(_req())
 

@@ -34,6 +34,7 @@ from loa_cheval.providers.claude_headless_adapter import (
 )
 from loa_cheval.types import (
     CompletionRequest,
+    AuthRevokedError,
     ConfigError,
     ModelConfig,
     ProviderConfig,
@@ -397,6 +398,35 @@ class TestErrorClassification:
             with pytest.raises(ConfigError) as exc_info:
                 adapter.complete(_make_request())
             assert "claude /login" in str(exc_info.value)
+
+    def test_runtime_token_revocation_raises_auth_revoked(self):
+        # KF-017/#1071: server-invalidated token → WALKABLE (AuthRevokedError).
+        adapter = ClaudeHeadlessAdapter(_make_config())
+        revoked_json = json.dumps({
+            "type": "result", "subtype": "success", "is_error": True,
+            "api_error_status": 401,
+            "result": "401 Unauthorized: your authentication token has been invalidated",
+            "session_id": "x", "usage": {"input_tokens": 0, "output_tokens": 0},
+        })
+        with patch("loa_cheval.providers.claude_headless_adapter.run_subprocess_pgkill") as mock_run:
+            mock_run.return_value = _ok_proc(revoked_json)
+            with pytest.raises(AuthRevokedError) as exc_info:
+                adapter.complete(_make_request())
+            assert exc_info.value.code == "AUTH_REVOKED"
+
+    def test_ambiguous_unauthorized_with_static_marker_still_config_error(self):
+        # #1095 safety: "unauthorized" + a never-logged-in marker → ConfigError.
+        adapter = ClaudeHeadlessAdapter(_make_config())
+        static_json = json.dumps({
+            "type": "result", "subtype": "success", "is_error": True,
+            "api_error_status": None,
+            "result": "unauthorized — not logged in. Please run /login",
+            "session_id": "x", "usage": {"input_tokens": 0, "output_tokens": 0},
+        })
+        with patch("loa_cheval.providers.claude_headless_adapter.run_subprocess_pgkill") as mock_run:
+            mock_run.return_value = _ok_proc(static_json)
+            with pytest.raises(ConfigError):
+                adapter.complete(_make_request())
 
     def test_overloaded_raises_rate_limit(self):
         adapter = ClaudeHeadlessAdapter(_make_config())
