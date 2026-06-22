@@ -485,7 +485,6 @@ class GeminiHeadlessAdapter(ProviderAdapter):
             "invalidated" in diag_lower
             or "session expired" in diag_lower
             or "token expired" in diag_lower
-            or "permission_denied" in diag_lower
             or (("unauthorized" in diag_lower or "401" in full_diag) and not _static_auth)
         ):
             raise AuthRevokedError(

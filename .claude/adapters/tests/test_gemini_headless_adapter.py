@@ -380,6 +380,18 @@ class TestErrorClassification:
             with pytest.raises(ConfigError):
                 adapter.complete(_make_request())
 
+    def test_permission_denied_is_static_config_error_not_walkable(self):
+        # gRPC PERMISSION_DENIED (status 7) is a static authorization misconfig
+        # (API not enabled / bad key / missing scope), NOT runtime revocation —
+        # must hard-abort (ConfigError), never be walked. (#1095 / PR #1101 review)
+        adapter = GeminiHeadlessAdapter(_make_config())
+        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
+            mock_run.return_value = _fail_proc(
+                1, stderr="PERMISSION_DENIED: set an auth method in settings.json (code=7)"
+            )
+            with pytest.raises(ConfigError):
+                adapter.complete(_make_request())
+
     def test_quota_error_raises_rate_limit(self):
         adapter = GeminiHeadlessAdapter(_make_config())
         with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
