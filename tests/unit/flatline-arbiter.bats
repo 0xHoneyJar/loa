@@ -273,3 +273,22 @@ teardown() {
     echo "$log_entry" | jq -e '.decision == "accept"'
     echo "$log_entry" | jq -e '.cascade_attempts == 1'
 }
+
+# =============================================================================
+# Arbiter Prompt Schema — Fable readiness (issue #1102)
+# =============================================================================
+
+@test "arbiter: prompt schema drops free-text rationale (Fable refusal trigger #1102)" {
+    local orch="$PROJECT_ROOT/.claude/scripts/flatline-orchestrator.sh"
+    [ -f "$orch" ]
+    # The arbiter response-schema line must NOT request a free-text rationale
+    # field: per the Fable 5 prompting guide, instructions that make the model
+    # reproduce its reasoning as output can trip the reasoning_extraction
+    # refusal. It must still carry the two fields the orchestrator consumes.
+    local schema_line
+    schema_line=$(grep 'Respond with a JSON array' "$orch")
+    [ -n "$schema_line" ]
+    [[ "$schema_line" != *rationale* ]]
+    [[ "$schema_line" == *finding_id* ]]
+    [[ "$schema_line" == *decision* ]]
+}

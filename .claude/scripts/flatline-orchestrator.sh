@@ -2341,7 +2341,7 @@ main() {
                 --arg doc_excerpt "$doc_excerpt" \
                 --arg phase "$phase" \
                 --argjson findings "$findings_to_arbitrate" \
-                '"You are the arbiter for this Flatline review. For each finding below, decide: accept (integrate the suggestion) or reject (with rationale). Your decision is final.\n\nDocument (" + $phase + ") excerpt:\n" + $doc_excerpt[0:2048] + "\n\nFindings requiring your decision:\n" + ($findings | tojson) + "\n\nRespond with a JSON array:\n[{\"finding_id\": \"...\", \"decision\": \"accept\"|\"reject\", \"rationale\": \"...\"}]"' \
+                '"You are the arbiter for this Flatline review. For each finding below, decide: accept (integrate the suggestion) or reject. Your decision is final.\n\nDocument (" + $phase + ") excerpt:\n" + $doc_excerpt[0:2048] + "\n\nFindings requiring your decision:\n" + ($findings | tojson) + "\n\nRespond with a JSON array:\n[{\"finding_id\": \"...\", \"decision\": \"accept\"|\"reject\"}]"' \
                 | jq -r '.' > "$arbiter_prompt_file"
 
             # Invoke with provider cascade (SKP-006)
