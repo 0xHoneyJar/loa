@@ -1897,9 +1897,22 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260617-i1069-8b7a4c/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260617-i1069-8b7a4c/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260623-i1102-f309a6",
+      "label": "Bug Fix \u2014 Fable readiness: arbiter rationale field + missing stop_reason:refusal fallback (#1102)",
+      "type": "bugfix",
+      "status": "completed",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1102",
+      "created_at": "2026-06-23T00:21:08Z",
+      "sprints": [
+        "sprint-bug-226"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260623-i1102-f309a6/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260623-i1102-f309a6/sprint.md"
     }
   ],
-  "global_sprint_counter": 225,
+  "global_sprint_counter": 226,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
