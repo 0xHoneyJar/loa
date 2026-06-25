@@ -135,6 +135,19 @@ class TestCommandConstruction:
             cmd = self._cmd()
             assert cmd[0] == "/opt/agy-test"
 
+    def test_extra_flags_cannot_weaken_sandbox(self):
+        # council #1109: agy_extra_flags must not disable the sandbox — the prompt is
+        # untrusted review content, so a --no-sandbox here would be an injection foothold.
+        for bad in (["--no-sandbox"], ["--yolo"], ["--dangerously-skip-permissions", "x"]):
+            with pytest.raises(ConfigError):
+                self._cmd(cli_model=_GEMINI_LABEL, agy_extra_flags=bad)
+
+    def test_sandbox_pairing_is_appended_last(self):
+        # the pairing goes LAST so no operator flag precedes/overrides it.
+        cmd = self._cmd(cli_model=_GEMINI_LABEL, agy_extra_flags=["--verbose"])
+        assert cmd[-2:] == ["--sandbox", "--dangerously-skip-permissions"]
+        assert "--verbose" in cmd
+
 
 # ---------------------------------------------------------------------------
 # Plain-text output parsing (agy emits no JSON / no token stats)
@@ -195,6 +208,27 @@ class TestErrors:
         with patch(_PGKILL, side_effect=FileNotFoundError("agy")):
             with pytest.raises(ConfigError):
                 _adapter().complete(_req())
+
+    def test_oversized_prompt_oserror_walks(self):
+        # council #1109: ARG_MAX/E2BIG (huge diff on argv) → walkable, not a raw OSError crash
+        with patch(_WHICH, return_value="/usr/bin/agy"), \
+             patch(_PGKILL, side_effect=OSError(7, "Argument list too long")):
+            with pytest.raises(ProviderUnavailableError):
+                _adapter().complete(_req())
+
+    def test_never_authed_with_401_is_hard_abort(self):
+        # council #1109: a never-authed failure carrying "401" must NOT walk (static guard)
+        with pytest.raises(ConfigError):
+            self._fail(stderr="not authenticated (401)")
+
+    def test_ambiguous_401_without_static_marker_walks(self):
+        with pytest.raises(AuthRevokedError):
+            self._fail(stderr="request failed: 401")
+
+    def test_permission_denied_is_walkable(self):
+        # council #1109: permission_denied is ambiguous for OAuth → walkable, not hard-abort
+        with pytest.raises(ProviderUnavailableError):
+            self._fail(stderr="permission_denied: blocked")
 
 
 # ---------------------------------------------------------------------------

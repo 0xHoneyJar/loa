@@ -154,6 +154,15 @@ class AgyHeadlessAdapter(ProviderAdapter):
                         f"Install + authenticate the Antigravity CLI on the cheval host. "
                         f"Original: {exc}"
                     ) from exc
+                except OSError as exc:
+                    # E2BIG (ARG_MAX — a huge diff on argv; agy is argv-transport, no
+                    # --prompt-file exists) or another exec failure → WALK the chain,
+                    # never crash with a raw OSError. The gemini-api HTTP fallback
+                    # covers oversized diffs. (FileNotFoundError is handled above.)
+                    raise ProviderUnavailableError(
+                        self.provider,
+                        f"agy -p exec failed (likely ARG_MAX on an oversized prompt): {exc}",
+                    ) from exc
         except _SemaphoreExhausted as exc:
             raise ProviderUnavailableError(
                 self.provider,
@@ -242,23 +251,41 @@ class AgyHeadlessAdapter(ProviderAdapter):
             prompt,
             "--model",
             cli_model,
-            # --sandbox keeps agy terminal-restricted (read-only analog of gemini's
-            # plan mode); --dangerously-skip-permissions stops the non-TTY hang on a
-            # tool-permission prompt. The pairing is load-bearing — never skip-perms alone.
-            "--sandbox",
-            "--dangerously-skip-permissions",
         ]
 
-        # Forward additional agy CLI flags an operator may need but we haven't
-        # promoted to first-class fields. Format: list of [flag, value?] entries.
+        # Forward additional agy CLI flags an operator may need — VALIDATED so they
+        # can NEVER weaken the review sandbox (council #1109): the prompt is untrusted
+        # review content, so a sandbox-disabling / auto-approve flag here would be an
+        # injection foothold. Reject them; the pairing below is also appended LAST so
+        # no operator flag can precede and override it. Format: list of [flag, value?].
         extra = (model_config.extra or {})
         extra_flags = extra.get("agy_extra_flags")
         if isinstance(extra_flags, list):
             for entry in extra_flags:
-                if isinstance(entry, str):
-                    cmd.append(entry)
-                elif isinstance(entry, list):
-                    cmd.extend(str(x) for x in entry)
+                tokens = (
+                    [entry] if isinstance(entry, str)
+                    else [str(x) for x in entry] if isinstance(entry, list)
+                    else []
+                )
+                joined = " ".join(tokens).lower()
+                if any(
+                    bad in joined
+                    for bad in (
+                        "no-sandbox", "sandbox=false", "skip-permission",
+                        "dangerously", "yolo", "full-auto", "auto-approve",
+                    )
+                ):
+                    raise ConfigError(
+                        f"Provider '{self.provider}': agy_extra_flags must not weaken the "
+                        f"review sandbox — rejected {tokens!r}"
+                    )
+                cmd.extend(tokens)
+
+        # The load-bearing non-TTY pairing goes LAST — no operator flag precedes it.
+        # --sandbox keeps agy terminal-restricted (read-only analog of gemini's plan
+        # mode); --dangerously-skip-permissions + a closed stdin stops the non-TTY hang
+        # on a tool-permission prompt. Never one without the other (spike safety).
+        cmd += ["--sandbox", "--dangerously-skip-permissions"]
 
         return cmd
 
@@ -374,24 +401,38 @@ class AgyHeadlessAdapter(ProviderAdapter):
         full_diag = (stderr.strip() or stdout.strip()) or f"exit code {returncode}"
         diag_lower = full_diag.lower()
 
-        # Rate-limit / quota.
+        # Rate-limit / quota. (No bare "429" substring — too loose against plain-text
+        # review output, e.g. "line 429"; the word markers cover real agy/Gemini limits.
+        # council #1109.)
         if (
             "rate limit" in diag_lower
-            or "429" in full_diag
             or "quota" in diag_lower
             or "resource_exhausted" in diag_lower
             or "too many requests" in diag_lower
         ):
             raise RateLimitError(self.provider)
 
+        # A static "never authenticated" marker pins the failure to hard-abort and
+        # makes an ambiguous 401/unauthorized NON-walkable (parity with the gemini
+        # adapter's _static_auth guard; council #1109 — without it a never-authed
+        # failure carrying "401" wrongly walks the chain forever).
+        _static_auth = (
+            "not authenticated" in diag_lower
+            or "not logged in" in diag_lower
+            or "no auth" in diag_lower
+            or "please log in" in diag_lower
+            or "run `agy`" in diag_lower
+        )
+
         # Runtime OAuth-token revocation/expiry → WALKABLE (re-auth fixes it).
+        # Ambiguous 401/unauthorized is walkable ONLY when no static marker is present.
         if (
             "session expired" in diag_lower
             or "token expired" in diag_lower
             or "token revoked" in diag_lower
             or "re-authenticate" in diag_lower
             or "reauthenticate" in diag_lower
-            or "401" in full_diag
+            or (("401" in diag_lower or "unauthorized" in diag_lower) and not _static_auth)
         ):
             raise AuthRevokedError(
                 self.provider,
@@ -400,14 +441,9 @@ class AgyHeadlessAdapter(ProviderAdapter):
             )
 
         # Never authenticated (no OAuth session) → hard-abort (static misconfig).
-        if (
-            "not authenticated" in diag_lower
-            or "not logged in" in diag_lower
-            or "no auth" in diag_lower
-            or "please log in" in diag_lower
-            or "permission_denied" in diag_lower
-            or "unauthorized" in diag_lower
-        ):
+        # (permission_denied is NOT mapped here — for OAuth it is ambiguous/often
+        # transient, so it falls through to a WALKABLE ProviderUnavailableError.)
+        if _static_auth:
             raise ConfigError(
                 f"agy CLI not authenticated. Run `agy` once interactively to log in "
                 f"(OAuth) on the cheval host. (diagnostic: {full_diag[:300]})"
