@@ -63,7 +63,7 @@ Two coupled problems in cheval's headless-CLI layer:
 
 | Risk | Sev | Mitigation |
 |---|---|---|
-| `agy` non-TTY stdout behavior breaks headless parsing | **High** | FR-6 is the load-bearing adapter task; spike it first; reference the documented CI workaround |
+| `agy` non-TTY stdout behavior breaks headless parsing | **High → Low** | **retired by spike T4.1**: `--sandbox --dangerously-skip-permissions </dev/null` → clean plain-text, exit 0, zero ANSI |
 | `agy` headless auth not set up on cheval host | Med | document + verify in a smoke run before declaring #1089 closed |
 | Refactor blast radius (touches all 5 live adapters) | Med | 38 test files pin behavior; gemini-api stopgap covers the gap during the work |
 | Repoint vs new-terminal regret | Low | decided: repoint keeps all aliases; reversible |

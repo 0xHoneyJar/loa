@@ -25,7 +25,7 @@ Split sequencing: Phase 1+2 are one cycle (AGV is the live-down #1089 fix); Phas
 
 - **#1089 (OPEN)** — `gemini-headless` CLI is dead (Google retired "Code Assist for individuals" → Antigravity). The Google flatline voice silently drops. PR **#1091** already shipped `gemini-api` (HTTP, `GOOGLE_API_KEY`) as a stopgap — **so the Google voice is NOT fully down; urgency is mitigated**, which is what makes "refactor-first" affordable.
 - **#1027 (OPEN)** — the 5 headless adapters (claude/codex/cursor/gemini/grok) are ~75% clones (~448 ln each); the `HeadlessCLIAdapter` base (R8) + declarative registry (R1) refactor was meant to land *before* adding more. It didn't. AGV as a 6th raw clone makes it worse → do the base first.
-- **AGV is viable** ([codelab](https://codelabs.developers.google.com/antigravity-cli-hands-on)) — the `agy` CLI has a `-p`/`--print` non-interactive mode; auth is OAuth (device-code over SSH) or API key. **Risk:** documented non-TTY stdout behavior change ([antigravitylab](https://antigravitylab.net/en/articles/integrations/antigravity-cli-agy-headless-non-tty-stdout-ci)) — cheval shells it non-TTY, so the adapter must handle it.
+- **AGV is viable** ([codelab](https://codelabs.developers.google.com/antigravity-cli-hands-on)) — the `agy` CLI has a `-p` non-interactive mode; auth is **OAuth** (spike T4.1: `agy models` → exit 0; no API-key flag exists). **Risk:** documented non-TTY stdout behavior change ([antigravitylab](https://antigravitylab.net/en/articles/integrations/antigravity-cli-agy-headless-non-tty-stdout-ci)) — **retired by the spike**: `--sandbox --dangerously-skip-permissions </dev/null` → clean plain-text.
 - **GLM premise overturned** — GLM-5.2 is **756B → cloud-only** (`glm-5.2:cloud`); it does not run locally. So "ollama-headless local" is moot. It's a *hosted* model, reachable via OpenRouter HTTP (`z-ai/glm-5.2`, 1M ctx). Cheval is already a router → add a hosted backend, not a local one.
 
 ## Decisions (this session)
@@ -51,10 +51,10 @@ The "improve the baseline" the operator asked for; **must land before AGV** so A
 
 ## Phase 2 — AGV (now)
 
-- **Repoint** the `gemini-headless` terminal: swap the shelled binary `gemini -p` → `agy -p/--print`, update auth (OAuth device-code / API key), as a thin subclass on the Phase-1 base. Keep the `gemini-headless` name + aliases so every existing config/ref resolves unchanged. `gemini-api` (#1091) stays as the HTTP fallback.
+- **Repoint** the `gemini-headless` terminal: swap the shelled binary `gemini -p` → `agy -p`, update auth (agy **OAuth**; spike T4.1: no API-key flag), as a thin subclass on the Phase-1 base. Keep the `gemini-headless` name + aliases so every existing config/ref resolves unchanged. `gemini-api` (#1091) stays as the HTTP fallback.
 - **Handle the non-TTY stdout gotcha** explicitly (the documented `agy` CI behavior) — likely the highest-effort part of the adapter.
 - **Acceptance:** `gemini-headless` dispatch resolves via `agy` and returns a clean completion non-TTY; the Google flatline voice is restored on a live `agy` auth; circuit breaker no longer trips on `IneligibleTierError`; **#1089 closed**. Tests + a live `agy` smoke run.
-- **Prereq (operator):** an authenticated `agy` install on the machine that runs cheval (OAuth once, or an API key).
+- **Prereq (operator):** an OAuth-authenticated `agy` install on the machine that runs cheval (spike T4.1: `agy models` → exit 0; no API-key flag).
 
 ## Phase 3 — GLM via OpenRouter (after)
 
