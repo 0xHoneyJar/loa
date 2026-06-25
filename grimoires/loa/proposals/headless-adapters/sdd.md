@@ -53,7 +53,7 @@ Target: ONE declarative table (the R1 "single source"), e.g. `providers/headless
 
 ```python
 HEADLESS_TERMINALS = {
-  "gemini-headless": HeadlessSpec(cls=AgyHeadlessAdapter, bin_default="agy",  bin_env="AGY_HEADLESS_BIN",  prompt_transport="file"),
+  "gemini-headless": HeadlessSpec(cls=AgyHeadlessAdapter, bin_default="agy",  bin_env="AGY_HEADLESS_BIN",  prompt_transport="argv"),  # spike T4.1: agy is -p argv; no --prompt-file exists
   "claude-headless": HeadlessSpec(cls=ClaudeHeadlessAdapter, bin_default="claude", ...),
   ... (codex, cursor, grok)
 }
@@ -70,11 +70,11 @@ Decision: **repoint the existing `gemini-headless` terminal to `agy`** — keep 
 | Aspect | Gemini (today) | Agy (target) |
 |---|---|---|
 | binary | `gemini` (gemini:260) | `agy` (`_BIN_DEFAULT="agy"`, `_BIN_ENV="AGY_HEADLESS_BIN"`) |
-| headless flag | `-p <prompt>` argv (gemini:278) | `agy -p/--print` — **prompt via stdin or `--prompt-file`** (fix the ARG_MAX cliff while here; `_PROMPT_TRANSPORT`) |
+| headless flag | `-p <prompt>` argv (gemini:278) | `agy -p` — **prompt on argv** (`_PROMPT_TRANSPORT=argv`; spike T4.1: **no `--prompt-file` flag exists** → ARG_MAX cliff PERSISTS, not fixed here) |
 | auth | strips GOOGLE_API_KEY/GEMINI_API_KEY → GCA OAuth (gemini:151) | agy OAuth device-code / `AGV` API key — update `_HEADLESS_STRIPPED_AUTH_VARS` (base.py:511) for agy's cred vars |
-| output parse | `{session_id, response, stats.models.<id>.tokens}` (gemini:359–437) | **TBD — spike**; override `_parse_output` if agy's JSON differs |
+| output parse | `{session_id, response, stats.models.<id>.tokens}` (gemini:359–437) | **PLAIN TEXT** (spike T4.1) — agy emits no JSON / no `--output-format`; `_parse_output` is a stdout passthrough + `estimate_tokens()` (clone grok's `_build_result`, NOT gemini's JSON parser; loses real token counts) |
 | error markers | gemini auth/rate strings (gemini:443–494) | **TBD — spike**; agy-specific markers |
-| **non-TTY (FR-6)** | n/a | `agy` changes behavior on TTY vs non-TTY (documented CI gotcha). cheval shells non-TTY → must force non-interactive/CI mode + parse the non-TTY stdout shape. **The load-bearing task.** |
+| **non-TTY (FR-6)** | n/a | agy HANGS in non-TTY on agentic output (waits on a tool-permission prompt that never comes). **Spike-resolved (T4.1):** `--sandbox --dangerously-skip-permissions </dev/null` → clean output, exit 0, zero ANSI/control bytes. `--sandbox` keeps it terminal-restricted (the read-only analog of gemini's `--approval-mode plan`); never `--dangerously-skip-permissions` alone on a review path. Risk **High→Low**. |
 
 `gemini-api` (#1091, HTTP) stays as the fallback chain entry; only the CLI terminal swaps gemini→agy.
 
@@ -106,7 +106,7 @@ Output: a one-page spike note that turns the TBD rows in §4 into concrete overr
 | agy non-TTY stdout breaks parsing (FR-6) | **High** | the §6 spike resolves it before the adapter; isolate in `_parse_output` + a forced-non-interactive flag in `_build_command` |
 | agy auth not establishable headless on host | Med | spike step 3 verifies; document in headless-mode runbook; gemini-api stopgap covers until then |
 | base extraction regresses one adapter's quirk (cursor envelope-preamble, codex JSONL, grok prompt-file) | Med | hooks isolate quirks; 38 tests pin; migrate one-at-a-time |
-| ARG_MAX change (argv→stdin/file) alters behavior | Low | covered by tests; it's a fix, flagged in the PR |
+| ARG_MAX cliff on huge diffs (agy is argv like gemini; no `--prompt-file`) | Low | **unchanged** from gemini per spike T4.1 — NOT fixed here; the `gemini-api` HTTP fallback (§4) covers oversized diffs |
 
 ## 9. Out of scope
 

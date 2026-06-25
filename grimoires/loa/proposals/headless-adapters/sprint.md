@@ -65,14 +65,14 @@ S1–S3 = Phase 1 (refactor, independent of AGV). S4 = Phase 2 (AGV). S4.1 can b
 | Task | Acceptance criteria |
 |---|---|
 | **T4.1 SPIKE (GATE)** Resolve against the real `agy` on the host: (a) invocation `-p`/`--print` + prompt transport (stdin/`--prompt-file`/argv), (b) output JSON shape, (c) auth flow + cred env vars, (d) the non-TTY stdout behavior + workaround | a one-page spike note answering (a)–(d); **gates T4.2–T4.6** |
-| **T4.2** `AgyHeadlessAdapter(HeadlessCLIAdapter)` — `_build_command` (agy syntax + `_PROMPT_TRANSPORT` from spike, fixing the gemini argv ARG_MAX cliff), `_parse_output` (agy JSON), `_raise_for_error` (agy markers), bin/auth class-attrs | unit tests with mocked `agy` green (command, parse, error paths) |
-| **T4.3** FR-6 non-TTY handling — force non-interactive/CI mode in `_build_command`; parse the non-TTY stdout shape | a test feeding non-TTY-shaped stdout parses to a clean `CompletionResult` |
-| **T4.4** Repoint registry row `gemini-headless` → `AgyHeadlessAdapter`; update `model-config.yaml` `extra.cli_model` → agy model id; **keep the `gemini-headless` type string + aliases** (`:752`) | `get_adapter("gemini-headless")` returns the agy adapter; existing aliases/refs resolve unchanged |
+| **T4.2** `AgyHeadlessAdapter(HeadlessCLIAdapter)` — `_build_command` = `agy -p <prompt> --model <label> --sandbox --dangerously-skip-permissions` with stdin closed (`</dev/null`), `_PROMPT_TRANSPORT=argv` (spike: agy is argv like gemini — ARG_MAX cliff PERSISTS, NOT fixed); `_parse_output` = **plain-text passthrough + `estimate_tokens()`** (clone grok's `_build_result`, NOT a JSON parser); `_raise_for_error` (agy markers), bin/auth class-attrs | unit tests with mocked `agy` green (command incl. the sandbox pairing, plain-text parse, error paths) |
+| **T4.3** FR-6 non-TTY handling — `_build_command` emits the spike's pairing `--sandbox --dangerously-skip-permissions` and closes stdin (`</dev/null`) so agy doesn't hang on a tool-permission prompt; parse the clean plain-text stdout | a test feeding non-TTY plain-text stdout parses to a clean `CompletionResult` |
+| **T4.4** Repoint registry row `gemini-headless` → `AgyHeadlessAdapter`; update `model-config.yaml` `extra.cli_model` → an agy model **label** (human-readable, e.g. `"Gemini 3.1 Pro (High)"` — spike: agy takes the label from `agy models`, NOT an API id); **keep the `gemini-headless` type string + aliases** (`:752`) | `get_adapter("gemini-headless")` returns the agy adapter; existing aliases/refs resolve unchanged |
 | **T4.5** Update `_HEADLESS_STRIPPED_AUTH_VARS` (base.py:511) for agy creds; document the agy auth prereq in `grimoires/loa/runbooks/headless-mode.md` | env-strip test covers agy vars; runbook updated |
 | **T4.6** Live `agy` smoke (gated by `LOA_AGY_HEADLESS_LIVE=1`) — real dispatch returns a clean completion; Flatline shows the Google voice live | smoke passes on the host; **#1089 closeable** |
 
 **Verification:** gemini-headless tests adapted to agy green; live smoke passes; circuit breaker no longer trips on `IneligibleTierError`.
-**Risk:** **High** on T4.3 (non-TTY) — the spike (T4.1) de-risks it first.
+**Risk:** T4.3 (non-TTY) was **High** — the spike (T4.1) **retired it to Low** (`--sandbox --dangerously-skip-permissions </dev/null`; gated PASS). ARG_MAX on huge diffs is unchanged from gemini (agy is argv; no `--prompt-file`) — `gemini-api` HTTP covers oversized diffs.
 
 ---
 
