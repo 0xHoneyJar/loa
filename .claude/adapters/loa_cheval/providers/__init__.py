@@ -14,14 +14,18 @@ from loa_cheval.providers.gemini_headless_adapter import GeminiHeadlessAdapter
 from loa_cheval.providers.claude_headless_adapter import ClaudeHeadlessAdapter
 from loa_cheval.providers.cursor_headless_adapter import CursorHeadlessAdapter
 from loa_cheval.providers.grok_headless_adapter import GrokHeadlessAdapter
+from loa_cheval.providers.agy_headless_adapter import AgyHeadlessAdapter
 from loa_cheval.types import ConfigError, ProviderConfig
 
 # Provider type → adapter class mapping.
 # - cycle-096 Sprint 1 added 'bedrock'.
 # - codex-headless: routes through `codex exec` for ChatGPT subscription auth
 #   (no OPENAI_API_KEY consumed). See codex_headless_adapter.py.
-# - gemini-headless: routes through `gemini -p` for Google AI subscription
-#   auth (no GOOGLE_API_KEY consumed). See gemini_headless_adapter.py.
+# - gemini-headless: routes through `agy -p` (Antigravity CLI) — the FR-5 repoint
+#   (loa#1096, #1089) after Google retired the gemini-cli's individual Code Assist
+#   tier (IneligibleTierError, "migrate to Antigravity"). agy's Gemini models restore
+#   the Google-lineage voice. See agy_headless_adapter.py. The GeminiHeadlessAdapter
+#   class is kept for reference; `gemini-api` (#1091, HTTP) stays the fallback.
 # - claude-headless: routes through `claude -p` (Claude Code CLI) for Claude
 #   Max/Pro subscription auth (no ANTHROPIC_API_KEY consumed). Different
 #   from `claude-code:session` (NATIVE_PROVIDER) — that's the in-process
@@ -48,7 +52,7 @@ _ADAPTER_REGISTRY: Dict[str, Type[ProviderAdapter]] = {
     "google": GoogleAdapter,
     "bedrock": BedrockAdapter,
     "codex-headless": CodexHeadlessAdapter,
-    "gemini-headless": GeminiHeadlessAdapter,
+    "gemini-headless": AgyHeadlessAdapter,  # FR-5 repoint: gemini-cli (dead, IneligibleTier) → agy
     "claude-headless": ClaudeHeadlessAdapter,
     "cursor-headless": CursorHeadlessAdapter,
     "grok-headless": GrokHeadlessAdapter,
@@ -88,6 +92,7 @@ __all__ = [
     "BedrockAdapter",
     "CodexHeadlessAdapter",
     "GeminiHeadlessAdapter",
+    "AgyHeadlessAdapter",
     "ClaudeHeadlessAdapter",
     "CursorHeadlessAdapter",
     "GrokHeadlessAdapter",
