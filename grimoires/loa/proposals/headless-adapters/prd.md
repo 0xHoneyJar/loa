@@ -40,7 +40,7 @@ Two coupled problems in cheval's headless-CLI layer:
 - **FR-4** — Adjacent cleanups in the sweep (operator may trim at sprint-plan): R10 split `base.py` (891 ln) by consumer group; R11 structurally guard the output-swallow class.
 
 **Phase 2 — AGV migration**
-- **FR-5** — Repoint the `gemini-headless` terminal to shell the `agy` (Antigravity) CLI via `-p`/`--print`; swap auth to `agy`'s OAuth device-code / API-key flow. Implemented as a thin subclass on the FR-1 base.
+- **FR-5** — Repoint the `gemini-headless` terminal to shell the `agy` (Antigravity) CLI via `-p`; swap auth to `agy`'s **OAuth** (spike T4.1: no API-key flag exists). Implemented as a thin subclass on the FR-1 base.
 - **FR-6** — Handle `agy`'s non-TTY stdout behavior (documented CI gotcha) so non-interactive cheval dispatch yields clean parseable output.
 - **FR-7** — Preserve the `gemini-headless` name + all aliases (`model-config.yaml:752`) so existing configs/refs resolve unchanged; keep `gemini-api` (#1091) as the HTTP fallback.
 
@@ -50,7 +50,7 @@ Two coupled problems in cheval's headless-CLI layer:
 
 - **Behavior preservation** — the 38 headless test files must pass unchanged; collapse the per-adapter clone test suites into one parametrized suite where possible (R8 companion).
 - **No new gates** — the refactor adds no `workflow.gates`; cheval routing semantics (chains, circuit breaker, voice-drop) are preserved.
-- **Auth prerequisite** — an authenticated `agy` on the cheval host (OAuth once, or `AGV` API key); document in the headless-mode runbook.
+- **Auth prerequisite** — an OAuth-authenticated `agy` on the cheval host (spike T4.1: `agy models` → exit 0; no API-key flag); document in the headless-mode runbook.
 - **Chain ordering** — confirm `gemini-headless` (agy CLI) vs `gemini-api` (HTTP) precedence under each `LOA_HEADLESS_MODE`.
 
 ## 6. Scope & Prioritization
