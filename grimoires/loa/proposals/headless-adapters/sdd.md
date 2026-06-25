@@ -73,7 +73,7 @@ Decision: **repoint the existing `gemini-headless` terminal to `agy`** — keep 
 | headless flag | `-p <prompt>` argv (gemini:278) | `agy -p` — **prompt on argv** (`_PROMPT_TRANSPORT=argv`; spike T4.1: **no `--prompt-file` flag exists** → ARG_MAX cliff PERSISTS, not fixed here) |
 | auth | strips GOOGLE_API_KEY/GEMINI_API_KEY → GCA OAuth (gemini:151) | **agy OAuth** (spike T4.1: `agy models` → exit 0; **no API-key flag exists**; creds in an OAuth store, NOT `~/.agy` / NOT `GOOGLE_API_KEY`). The gemini env-strip (`_HEADLESS_STRIPPED_AUTH_VARS`, base.py:511) is **likely a no-op for agy** — verify at T4.5; do NOT assume gemini's transfers |
 | output parse | `{session_id, response, stats.models.<id>.tokens}` (gemini:359–437) | **PLAIN TEXT** (spike T4.1) — agy emits no JSON / no `--output-format`; `_parse_output` is a stdout passthrough + `estimate_tokens()` (clone grok's `_build_result`, NOT gemini's JSON parser; loses real token counts) |
-| error markers | gemini auth/rate strings (gemini:443–494) | **TBD — spike**; agy-specific markers |
+| error markers | gemini auth/rate strings (gemini:443–494) | derive during **T4.2** from agy's stderr (the spike scoped to the 4 high-risk TBDs — invocation/output/auth/non-TTY; error-path strings are a normal T4.2 implementation detail, NOT gate-blocking). `health_check` uses `agy --version` — verified present (`agy --version` → `1.0.12`, rc 0) |
 | **non-TTY (FR-6)** | n/a | agy HANGS in non-TTY on agentic output (waits on a tool-permission prompt that never comes). **Spike-resolved (T4.1):** the `--sandbox --dangerously-skip-permissions` flags (argv) with a closed stdin (subprocess `stdin=DEVNULL`, NOT a shell redirect in the argv) → clean output, exit 0, zero ANSI/control bytes. `--sandbox` keeps it terminal-restricted (the read-only analog of gemini's `--approval-mode plan`); never `--dangerously-skip-permissions` alone on a review path. Risk **High→Low**. |
 
 `gemini-api` (#1091, HTTP) stays as the fallback chain entry; only the CLI terminal swaps gemini→agy.
@@ -103,7 +103,7 @@ Output: a one-page spike note that turns the TBD rows in §4 into concrete overr
 
 | Risk | Sev | Design mitigation |
 |---|---|---|
-| agy non-TTY stdout breaks parsing (FR-6) | **High** | the §6 spike resolves it before the adapter; isolate in `_parse_output` + a forced-non-interactive flag in `_build_command` |
+| agy non-TTY stdout breaks parsing (FR-6) | **High → Low** | **retired by spike T4.1** (`--sandbox --dangerously-skip-permissions` + a closed stdin → clean plain-text); `_parse_output` is a plain-text passthrough |
 | agy auth not establishable headless on host | Med | spike step 3 verifies; document in headless-mode runbook; gemini-api stopgap covers until then |
 | base extraction regresses one adapter's quirk (cursor envelope-preamble, codex JSONL, grok prompt-file) | Med | hooks isolate quirks; 38 tests pin; migrate one-at-a-time |
 | ARG_MAX cliff on huge diffs (agy is argv like gemini; no `--prompt-file`) | Low | **unchanged** from gemini per spike T4.1 — NOT fixed here; the `gemini-api` HTTP fallback (§4) covers oversized diffs |
