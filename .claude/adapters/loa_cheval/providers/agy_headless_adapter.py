@@ -69,6 +69,32 @@ _AGY_BIN_DEFAULT = "agy"
 _CONNECT_TIMEOUT_FLOOR = 10.0
 _READ_TIMEOUT_FLOOR = 600.0  # 10 min
 
+# Substrings that, in an operator-supplied agy flag, would weaken the review
+# sandbox. The prompt is UNTRUSTED review content, so a sandbox-disabling /
+# auto-approve flag is an injection foothold — rejected at both validate_config
+# and command-build time (council #1109). Broad by design (covers `--no-sandbox`,
+# `--no_sandbox`, `--sandbox=false/off`, `--skip-permissions`, `--permission-mode`,
+# `--yolo`, `--full-auto`, `--auto-approve`); over-rejecting an operator flag is
+# safer than letting one disable the sandbox on an untrusted-input path.
+_SANDBOX_WEAKENING = (
+    "no-sandbox",
+    "no_sandbox",
+    "sandbox=",
+    "sandbox off",
+    "skip-permission",
+    "permission-mode",
+    "dangerous",
+    "yolo",
+    "full-auto",
+    "auto-approve",
+)
+
+
+def _weakens_sandbox(tokens: List[str]) -> bool:
+    """True if any operator flag token would weaken the review sandbox."""
+    joined = " ".join(tokens).lower()
+    return any(bad in joined for bad in _SANDBOX_WEAKENING)
+
 
 class AgyHeadlessAdapter(ProviderAdapter):
     """Adapter that routes inference through `agy -p` (non-interactive, sandboxed).
@@ -204,6 +230,30 @@ class AgyHeadlessAdapter(ProviderAdapter):
                 f"Provider '{self.provider}': '{bin_name}' CLI not found on PATH. "
                 f"Install + OAuth-authenticate the Antigravity CLI on the cheval host."
             )
+
+        # Each model needs an agy --model LABEL (agy rejects internal ids — silently
+        # falling back to request.model would fail at dispatch), and any agy_extra_flags
+        # must not weaken the sandbox — surface BOTH at config-validate time, not at
+        # first dispatch (council #1109).
+        for model_id, mc in (self.config.models or {}).items():
+            extra = mc.extra or {}
+            if not extra.get("cli_model"):
+                errors.append(
+                    f"Provider '{self.provider}': model '{model_id}' needs extra.cli_model "
+                    f'— the agy --model LABEL (e.g. "Gemini 3.1 Pro (High)"); agy rejects '
+                    f"internal model ids."
+                )
+            for entry in (extra.get("agy_extra_flags") or []):
+                tokens = (
+                    [entry] if isinstance(entry, str)
+                    else [str(x) for x in entry] if isinstance(entry, list)
+                    else []
+                )
+                if _weakens_sandbox(tokens):
+                    errors.append(
+                        f"Provider '{self.provider}': model '{model_id}' agy_extra_flags "
+                        f"weakens the review sandbox: {tokens!r}"
+                    )
         return errors
 
     def health_check(self) -> bool:
@@ -267,14 +317,7 @@ class AgyHeadlessAdapter(ProviderAdapter):
                     else [str(x) for x in entry] if isinstance(entry, list)
                     else []
                 )
-                joined = " ".join(tokens).lower()
-                if any(
-                    bad in joined
-                    for bad in (
-                        "no-sandbox", "sandbox=false", "skip-permission",
-                        "dangerously", "yolo", "full-auto", "auto-approve",
-                    )
-                ):
+                if _weakens_sandbox(tokens):
                     raise ConfigError(
                         f"Provider '{self.provider}': agy_extra_flags must not weaken the "
                         f"review sandbox — rejected {tokens!r}"
@@ -398,14 +441,18 @@ class AgyHeadlessAdapter(ProviderAdapter):
         IneligibleTier path; we classify rate-limit, token-revocation (walkable),
         and not-authenticated (hard-abort), else provider-unavailable (walkable).
         """
-        full_diag = (stderr.strip() or stdout.strip()) or f"exit code {returncode}"
-        diag_lower = full_diag.lower()
+        # Classify against STDERR ONLY — the error channel. On a failed agy run, stdout
+        # may carry untrusted review TEXT, which must NEVER drive classification
+        # (council #1109): "line 401" / "rate limit" inside a review would misroute the
+        # fallback chain. stdout is allowed only in the final operator-facing snippet.
+        err_diag = stderr.strip()
+        diag_lower = err_diag.lower()
 
-        # Rate-limit / quota. (No bare "429" substring — too loose against plain-text
-        # review output, e.g. "line 429"; the word markers cover real agy/Gemini limits.
-        # council #1109.)
+        # Rate-limit / quota. Bare "429" is safe here — it's stderr (the error/HTTP
+        # channel), never review text.
         if (
             "rate limit" in diag_lower
+            or "429" in diag_lower
             or "quota" in diag_lower
             or "resource_exhausted" in diag_lower
             or "too many requests" in diag_lower
@@ -437,7 +484,7 @@ class AgyHeadlessAdapter(ProviderAdapter):
             raise AuthRevokedError(
                 self.provider,
                 f"agy OAuth token revoked/expired — re-auth by running `agy` "
-                f"interactively on the host. (diagnostic: {full_diag[:300]})",
+                f"interactively on the host. (diagnostic: {err_diag[:300]})",
             )
 
         # Never authenticated (no OAuth session) → hard-abort (static misconfig).
@@ -446,10 +493,12 @@ class AgyHeadlessAdapter(ProviderAdapter):
         if _static_auth:
             raise ConfigError(
                 f"agy CLI not authenticated. Run `agy` once interactively to log in "
-                f"(OAuth) on the cheval host. (diagnostic: {full_diag[:300]})"
+                f"(OAuth) on the cheval host. (diagnostic: {err_diag[:300]})"
             )
 
-        snippet = full_diag[:500] or f"exit code {returncode}, no diagnostic"
+        # Generic failure → WALKABLE. The snippet MAY include stdout for operator
+        # diagnostics, but it never drove classification above.
+        snippet = (err_diag or stdout.strip())[:500] or f"exit code {returncode}, no diagnostic"
         raise ProviderUnavailableError(
             self.provider,
             f"agy -p failed (exit {returncode}): {snippet}",

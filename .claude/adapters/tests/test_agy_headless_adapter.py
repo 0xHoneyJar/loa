@@ -230,6 +230,13 @@ class TestErrors:
         with pytest.raises(ProviderUnavailableError):
             self._fail(stderr="permission_denied: blocked")
 
+    def test_stdout_does_not_drive_classification(self):
+        # council #1109: untrusted review TEXT in stdout must NEVER classify — only stderr.
+        # stdout mentions rate-limit/401/429 but stderr is empty → generic walkable, not a
+        # mis-typed RateLimitError/AuthRevokedError.
+        with pytest.raises(ProviderUnavailableError):
+            self._fail(stdout="the review notes a rate limit near line 429 and a 401 path", stderr="")
+
 
 # ---------------------------------------------------------------------------
 # validate_config + health_check
@@ -244,6 +251,21 @@ class TestValidateAndHealth:
         with patch(_WHICH, return_value=None):
             errs = _adapter().validate_config()
             assert any("not found on PATH" in e for e in errs)
+
+    def test_validate_flags_missing_cli_model(self):
+        # council #1109: a model without extra.cli_model would fail at dispatch — catch early
+        with patch(_WHICH, return_value="/usr/bin/agy"):
+            errs = _adapter(gemini_3_pro=ModelConfig(context_window=1048576, extra={})).validate_config()
+            assert any("cli_model" in e for e in errs)
+
+    def test_validate_flags_sandbox_weakening_extra_flags(self):
+        # council #1109: validate_config also rejects sandbox-weakening agy_extra_flags
+        with patch(_WHICH, return_value="/usr/bin/agy"):
+            errs = _adapter(m=ModelConfig(
+                context_window=1048576,
+                extra={"cli_model": _GEMINI_LABEL, "agy_extra_flags": ["--no-sandbox"]},
+            )).validate_config()
+            assert any("weakens the review sandbox" in e for e in errs)
 
     def test_health_check_runs_version(self):
         with patch(_WHICH, return_value="/usr/bin/agy"), \
