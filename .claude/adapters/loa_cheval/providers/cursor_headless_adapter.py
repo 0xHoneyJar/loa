@@ -58,6 +58,7 @@ from loa_cheval.providers.base import (
 from loa_cheval.types import (
     CompletionRequest,
     CompletionResult,
+    AuthRevokedError,
     ConfigError,
     ProviderUnavailableError,
     RateLimitError,
@@ -492,6 +493,26 @@ class CursorHeadlessAdapter(ProviderAdapter):
         ):
             raise RateLimitError(self.provider)
 
+        # Runtime auth revocation → WALKABLE (KF-017/#1071). Ambiguous
+        # "unauthorized"/"401" walkable only when no static-misconfig marker.
+        _static_auth = (
+            "not logged in" in combined
+            or "press any key to sign in" in combined
+            or "please log in" in combined
+        )
+        if (
+            "invalidated" in combined
+            or "session expired" in combined
+            or "token expired" in combined
+            or (("unauthorized" in combined or "401" in combined) and not _static_auth)
+        ):
+            raise AuthRevokedError(
+                self.provider,
+                f"cursor token revoked/expired — re-auth with `cursor-agent login`. "
+                f"diagnostic: {probe.strip()[:300]}",
+            )
+
+        # Static misconfig (never authenticated / no key) → hard-abort.
         # Auth failure — most actionable for operators new to Cursor headless.
         if (
             "not logged in" in combined

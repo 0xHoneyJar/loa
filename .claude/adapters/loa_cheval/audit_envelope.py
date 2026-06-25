@@ -133,11 +133,16 @@ def _load_private_key(key_id: str, password: Optional[bytes] = None):
     return priv
 
 
-def _resolve_pubkey_pem(key_id: str) -> Optional[str]:
+def _strict_verify_enabled(verify_for_merge: bool = False) -> bool:
+    """True when verification is running as a merge gate."""
+    return verify_for_merge or os.environ.get("LOA_AUDIT_STRICT_VERIFY", "0") == "1"
+
+
+def _resolve_pubkey_pem(key_id: str, *, allow_local_fallback: bool = True) -> Optional[str]:
     """
     Resolve the PEM-encoded pubkey for <key_id>:
       1. Trust-store entry (when YAML + yaml package available)
-      2. <key-dir>/<key_id>.pub (test/CI fallback)
+      2. <key-dir>/<key_id>.pub (test/CI fallback, refused in strict verify)
     Returns the PEM string or None if unresolvable.
     """
     ts_path = _trust_store_path()
@@ -153,6 +158,9 @@ def _resolve_pubkey_pem(key_id: str) -> Optional[str]:
                         return pem
         except Exception:  # pragma: no cover — defensive
             pass
+    # ATK-3: verify-for-merge must not trust producer-writable local pubkeys.
+    if not allow_local_fallback:
+        return None
     # Local fallback.
     pub_path = _key_dir() / f"{key_id}.pub"
     if pub_path.is_file():
@@ -459,21 +467,30 @@ def _trust_store_status() -> str:
     return status
 
 
-def _check_trust_store() -> None:
+def _check_trust_store(*, strict_verify: bool = False) -> None:
     """
     Gate function called at top of audit_emit + audit_verify_chain.
     Raises RuntimeError with [TRUST-STORE-INVALID] on tampered trust-stores.
     """
     status = _trust_store_status()
-    if status in ("BOOTSTRAP-PENDING", "VERIFIED"):
+    if status == "VERIFIED":
         return
+    # ATK-3: BOOTSTRAP-PENDING is acceptable for install-time writes, but a
+    # merge verifier must fail closed until the trust root is signed.
+    if status == "BOOTSTRAP-PENDING" and not strict_verify:
+        return
+    if status == "BOOTSTRAP-PENDING":
+        raise RuntimeError(
+            "[TRUST-STORE-BOOTSTRAP-PENDING] trust-store is not signed; "
+            "strict audit verification refuses BOOTSTRAP-PENDING (ATK-3)"
+        )
     raise RuntimeError(
         "[TRUST-STORE-INVALID] trust-store root_signature does NOT verify "
         "against pinned root pubkey; refusing all writes/reads (issue #690)"
     )
 
 
-def _read_trust_cutoff() -> Optional[str]:
+def _read_trust_cutoff(*, strict_verify: bool = False) -> Optional[str]:
     """
     Read trust_cutoff.default_strict_after from the active trust-store.
 
@@ -483,6 +500,11 @@ def _read_trust_cutoff() -> Optional[str]:
     """
     ts_path = _trust_store_path()
     if not ts_path.is_file():
+        if strict_verify:
+            raise RuntimeError(
+                "[TRUST-STORE-MISSING] strict audit verification requires "
+                "a readable trust-store (ATK-4)"
+            )
         return None
     try:
         import yaml
@@ -491,6 +513,11 @@ def _read_trust_cutoff() -> Optional[str]:
         cutoff = ((doc.get("trust_cutoff") or {}).get("default_strict_after") or "").strip()
         return cutoff or None
     except Exception:  # pragma: no cover — defensive
+        if strict_verify:
+            raise RuntimeError(
+                "[TRUST-STORE-UNREADABLE] strict audit verification requires "
+                "a readable trust-store cutoff (ATK-4)"
+            )
         return None
 
 
@@ -505,7 +532,7 @@ def _ts_ge_cutoff(ts_utc: str, cutoff: Optional[str]) -> bool:
     return ts_utc >= cutoff
 
 
-def audit_verify_chain(log_path: PathLike) -> Tuple[bool, str]:
+def audit_verify_chain(log_path: PathLike, *, verify_for_merge: bool = False) -> Tuple[bool, str]:
     """
     Walk `log_path` line-by-line; verify each entry's prev_hash matches the
     SHA-256 of the prior entry's canonical chain-input. First entry must have
@@ -528,14 +555,19 @@ def audit_verify_chain(log_path: PathLike) -> Tuple[bool, str]:
     if not log_path.exists():
         return False, f"file not found: {log_path}"
 
+    strict_verify = _strict_verify_enabled(verify_for_merge)
+
     # Issue #690 (Sprint 1.5): auto-verify trust-store before chain walk.
     try:
-        _check_trust_store()
+        _check_trust_store(strict_verify=strict_verify)
     except RuntimeError as exc:
         return False, str(exc)
 
     verify_sigs = os.environ.get("LOA_AUDIT_VERIFY_SIGS", "1") != "0"
-    cutoff = _read_trust_cutoff()
+    try:
+        cutoff = _read_trust_cutoff(strict_verify=strict_verify)
+    except RuntimeError as exc:
+        return False, str(exc)
 
     expected_prev = "GENESIS"
     count = 0
@@ -575,7 +607,10 @@ def audit_verify_chain(log_path: PathLike) -> Tuple[bool, str]:
                         )
 
                 if sig_b64 and kid:
-                    pubkey_pem = _resolve_pubkey_pem(kid)
+                    pubkey_pem = _resolve_pubkey_pem(
+                        kid,
+                        allow_local_fallback=not strict_verify,
+                    )
                     if pubkey_pem is None:
                         return False, (
                             f"BROKEN line {lineno}: cannot resolve public key "

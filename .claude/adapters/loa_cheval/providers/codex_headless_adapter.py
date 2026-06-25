@@ -63,6 +63,7 @@ from loa_cheval.redaction import sanitize_provider_error_message
 from loa_cheval.types import (
     CompletionRequest,
     CompletionResult,
+    AuthRevokedError,
     ConfigError,
     ProviderUnavailableError,
     RateLimitError,
@@ -584,6 +585,28 @@ class CodexHeadlessAdapter(ProviderAdapter):
         # classification above still keys off the raw stderr.
         safe_stderr = sanitize_provider_error_message(stderr.strip())
 
+        # Runtime auth revocation (was valid, server-invalidated) → WALKABLE
+        # (KF-017/#1071). The ambiguous "unauthorized"/"401" is walkable only
+        # when no static-misconfig marker is present, so a never-authenticated
+        # error still hard-aborts below (#1095 safety constraint).
+        _static_auth = (
+            "not authenticated" in stderr_lower
+            or "auth.json" in stderr_lower
+            or "codex login" in stderr_lower
+        )
+        if (
+            "invalidated" in stderr_lower
+            or "session expired" in stderr_lower
+            or "token expired" in stderr_lower
+            or (("unauthorized" in stderr_lower or "401" in stderr) and not _static_auth)
+        ):
+            raise AuthRevokedError(
+                self.provider,
+                f"codex token revoked/expired — re-auth with `codex login`. "
+                f"(stderr: {safe_stderr[:300]})",
+            )
+
+        # Static misconfig (never authenticated / no key) → hard-abort.
         # Auth failure — most actionable for operators new to subscription mode
         if (
             "not authenticated" in stderr_lower

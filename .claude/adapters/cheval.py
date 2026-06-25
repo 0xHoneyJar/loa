@@ -31,6 +31,7 @@ from loa_cheval.types import (
     ChevalError,
     CompletionRequest,
     ConfigError,
+    AuthRevokedError,
     ContextTooLargeError,
     InvalidInputError,
     NativeRuntimeRequired,
@@ -95,6 +96,7 @@ EXIT_CODES = {
     "PROVIDER_UNAVAILABLE": 1,
     "RETRIES_EXHAUSTED": 1,
     "CONNECTION_LOST": 1,  # Issue #774: typed transient transport failure
+    "AUTH_REVOKED": 1,  # KF-017/#1071: runtime token revocation — walk-eligible
     "INVALID_INPUT": 2,
     "INVALID_CONFIG": 2,
     "NATIVE_RUNTIME_REQUIRED": 2,
@@ -1863,6 +1865,28 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     print(
                         f"[cheval] fallback {_entry_target} -> next "
                         f"({_re_class.lower()})",
+                        file=sys.stderr,
+                    )
+                continue
+            except AuthRevokedError as _e:
+                # KF-017/#1071: a leg's credential was server-side revoked (was
+                # valid, now invalidated). The leg is unusable NOW, but the
+                # operator's other legs (e.g. a valid HTTP key) may still work,
+                # so walk to the next chain entry instead of hard-aborting.
+                # STATIC misconfig (ConfigError/INVALID_CONFIG) still falls
+                # through to the hard-abort arm below — operator config errors
+                # are NEVER silently masked (#1095 safety constraint).
+                _modelinv_state["models_failed"].append({
+                    "model": _entry_target,
+                    "provider": _entry.provider,
+                    "error_class": "AUTH_REVOKED",
+                    "message_redacted": str(_e),
+                })
+                _last_walk_exit_code = EXIT_CODES["AUTH_REVOKED"]
+                _last_walk_exception = _e
+                if _verbose:
+                    print(
+                        f"[cheval] fallback {_entry_target} -> next (auth_revoked)",
                         file=sys.stderr,
                     )
                 continue

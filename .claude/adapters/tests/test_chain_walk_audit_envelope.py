@@ -39,6 +39,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from loa_cheval.types import (
+    AuthRevokedError,
     BudgetExceededError,
     CompletionRequest,
     CompletionResult,
@@ -389,3 +390,81 @@ def test_capability_miss_records_missing_and_walks(capsys, monkeypatch):
     for item in captured["models_failed"]:
         assert item["error_class"] == "CAPABILITY_MISS"
         assert item["missing_capabilities"] == ["tools"]
+
+
+# ----------------------------------------------------------------------------
+# KF-017 / #1071: a leg whose credential was server-side REVOKED must WALK to
+# the next chain entry (e.g. a valid HTTP leg), not hard-abort the dispatch.
+# ----------------------------------------------------------------------------
+def test_auth_revoked_leg_walks_to_http_fallback(capsys):
+    cfg = _multi_entry_config()
+    fake_binding = MagicMock(temperature=0.7, capability_class=None)
+    fake_resolved = MagicMock(provider="openai", model_id="gpt-5.5-pro")
+    fake_provider_cfg = MagicMock()
+    primary_adapter = MagicMock()
+    fallback_adapter = MagicMock()
+    fallback_result = _build_completion_result("codex-headless", "openai")
+    calls = {"n": 0}
+
+    def _retry_side(_adapter, _req, _cfg, budget_hook=None):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            # KF-017 trigger: the codex CLI leg's token was server-invalidated.
+            raise AuthRevokedError(
+                "openai",
+                "401 Unauthorized: your authentication token has been invalidated",
+            )
+        return fallback_result
+
+    captured, fake_emit = _capture_modelinv()
+    with patch.object(cheval, "load_config", return_value=(cfg, {})), \
+         patch.object(cheval, "resolve_execution", return_value=(fake_binding, fake_resolved)), \
+         patch.object(cheval, "_build_provider_config", return_value=fake_provider_cfg), \
+         patch.object(cheval, "get_adapter", side_effect=[primary_adapter, fallback_adapter]), \
+         patch("loa_cheval.providers.retry.invoke_with_retry", side_effect=_retry_side), \
+         patch("loa_cheval.audit_envelope.audit_emit", fake_emit), \
+         patch("loa_cheval.audit.modelinv.redact_payload_strings", side_effect=lambda x: x), \
+         patch("loa_cheval.audit.modelinv.assert_no_secret_shapes_remain"):
+        exit_code = cheval.cmd_invoke(_make_args())
+
+    out = capsys.readouterr()
+    assert exit_code == cheval.EXIT_CODES["SUCCESS"], out.err
+    assert calls["n"] == 2, f"Expected walk to fallback, got {calls['n']} dispatch(es)"
+    assert len(captured["models_failed"]) == 1
+    assert captured["models_failed"][0]["error_class"] == "AUTH_REVOKED"
+    assert captured["final_model_id"] == "openai:codex-headless"
+
+
+# ----------------------------------------------------------------------------
+# KF-017 SAFETY (#1095 constraint): a genuine STATIC misconfig (ConfigError /
+# INVALID_CONFIG) must STILL hard-abort — it is never silently walked/masked.
+# ----------------------------------------------------------------------------
+def test_static_misconfig_still_hard_aborts(capsys):
+    from loa_cheval.types import ConfigError
+    cfg = _multi_entry_config()
+    fake_binding = MagicMock(temperature=0.7, capability_class=None)
+    fake_resolved = MagicMock(provider="openai", model_id="gpt-5.5-pro")
+    fake_provider_cfg = MagicMock()
+    primary_adapter = MagicMock()
+    fallback_adapter = MagicMock()
+    calls = {"n": 0}
+
+    def _retry_side(_adapter, _req, _cfg, budget_hook=None):
+        calls["n"] += 1
+        raise ConfigError("codex CLI not authenticated. Run: codex login.")
+
+    captured, fake_emit = _capture_modelinv()
+    with patch.object(cheval, "load_config", return_value=(cfg, {})), \
+         patch.object(cheval, "resolve_execution", return_value=(fake_binding, fake_resolved)), \
+         patch.object(cheval, "_build_provider_config", return_value=fake_provider_cfg), \
+         patch.object(cheval, "get_adapter", side_effect=[primary_adapter, fallback_adapter]), \
+         patch("loa_cheval.providers.retry.invoke_with_retry", side_effect=_retry_side), \
+         patch("loa_cheval.audit_envelope.audit_emit", fake_emit), \
+         patch("loa_cheval.audit.modelinv.redact_payload_strings", side_effect=lambda x: x), \
+         patch("loa_cheval.audit.modelinv.assert_no_secret_shapes_remain"):
+        exit_code = cheval.cmd_invoke(_make_args())
+
+    out = capsys.readouterr()
+    # Hard-abort on the FIRST leg — must NOT walk to the fallback.
+    assert exit_code == cheval.EXIT_CODES["INVALID_CONFIG"], out.err
+    assert calls["n"] == 1, f"Static misconfig must hard-abort, not walk (got {calls['n']})"

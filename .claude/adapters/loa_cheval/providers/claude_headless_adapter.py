@@ -63,6 +63,7 @@ from loa_cheval.providers.base import (
 from loa_cheval.types import (
     CompletionRequest,
     CompletionResult,
+    AuthRevokedError,
     ConfigError,
     ProviderUnavailableError,
     RateLimitError,
@@ -558,6 +559,25 @@ class ClaudeHeadlessAdapter(ProviderAdapter):
         ):
             raise RateLimitError(self.provider)
 
+        # Runtime auth revocation → WALKABLE (KF-017/#1071). Ambiguous
+        # "unauthorized"/"401" walkable only when no static-misconfig marker.
+        _static_auth = (
+            "not logged in" in diag_lower
+            or "/login" in diag_lower
+        )
+        if (
+            "invalidated" in diag_lower
+            or "session expired" in diag_lower
+            or "token expired" in diag_lower
+            or (("unauthorized" in diag_lower or "401" in full_diag) and not _static_auth)
+        ):
+            raise AuthRevokedError(
+                self.provider,
+                f"claude token revoked/expired — re-auth with {_CLAUDE_LOGIN_HINT}. "
+                f"(diagnostic: {full_diag[:300]})",
+            )
+
+        # Static misconfig (never authenticated / no key) → hard-abort.
         # Auth failure — Claude Code's most common first-run failure
         if (
             "not logged in" in diag_lower
