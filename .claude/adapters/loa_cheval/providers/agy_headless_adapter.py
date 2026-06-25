@@ -163,6 +163,16 @@ class AgyHeadlessAdapter(ProviderAdapter):
                         self.provider,
                         f"agy -p exec failed (likely ARG_MAX on an oversized prompt): {exc}",
                     ) from exc
+                except ValueError as exc:
+                    # An untrusted prompt with an embedded NUL byte makes subprocess raise
+                    # ValueError("embedded null byte") at exec — NOT an OSError, so the
+                    # catch above misses it. WALK the chain, never crash raw. (Found by the
+                    # Gemini council voice via agy — codex+cursor missed it. The review
+                    # content is untrusted, so a NUL in a diff is a real reachable input.)
+                    raise ProviderUnavailableError(
+                        self.provider,
+                        f"agy -p got un-execable argv (embedded NUL in the prompt?): {exc}",
+                    ) from exc
         except _SemaphoreExhausted as exc:
             raise ProviderUnavailableError(
                 self.provider,

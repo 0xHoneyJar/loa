@@ -220,6 +220,14 @@ class TestErrors:
             with pytest.raises(ProviderUnavailableError):
                 _adapter().complete(_req())
 
+    def test_nul_byte_prompt_walks_not_crashes(self):
+        # Gemini council voice (via agy) finding: an untrusted prompt with an embedded NUL
+        # makes subprocess raise ValueError (NOT OSError) → must walk, not crash the chain.
+        with patch(_WHICH, return_value="/usr/bin/agy"), \
+             patch(_PGKILL, side_effect=ValueError("embedded null byte")):
+            with pytest.raises(ProviderUnavailableError):
+                _adapter().complete(_req())
+
     def test_never_authed_with_401_is_hard_abort(self):
         # council #1109: a never-authed failure carrying "401" must NOT walk (static guard)
         with pytest.raises(ConfigError):
