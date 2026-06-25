@@ -135,18 +135,22 @@ class TestCommandConstruction:
             cmd = self._cmd()
             assert cmd[0] == "/opt/agy-test"
 
-    def test_extra_flags_cannot_weaken_sandbox(self):
-        # council #1109: agy_extra_flags must not disable the sandbox — the prompt is
-        # untrusted review content, so a --no-sandbox here would be an injection foothold.
-        for bad in (["--no-sandbox"], ["--yolo"], ["--dangerously-skip-permissions", "x"]):
-            with pytest.raises(ConfigError):
-                self._cmd(cli_model=_GEMINI_LABEL, agy_extra_flags=bad)
+    def test_build_command_requires_cli_model(self):
+        # council #1109: no silent fallback to request.model (agy rejects internal ids).
+        with pytest.raises(ConfigError):
+            self._cmd(some_key="x")  # extra present but no cli_model
 
-    def test_sandbox_pairing_is_appended_last(self):
-        # the pairing goes LAST so no operator flag precedes/overrides it.
-        cmd = self._cmd(cli_model=_GEMINI_LABEL, agy_extra_flags=["--verbose"])
-        assert cmd[-2:] == ["--sandbox", "--dangerously-skip-permissions"]
-        assert "--verbose" in cmd
+    def test_no_operator_extra_flags_surface(self):
+        # council #1109: agy_extra_flags is deliberately NOT supported — an operator
+        # escape hatch on an untrusted-input path was a sandbox-bypass foothold (a
+        # split-token bypass a denylist can't reliably close). The argv is FIXED, so a
+        # would-be bypass flag (even split across tokens) never reaches agy.
+        cmd = self._cmd(cli_model=_GEMINI_LABEL, agy_extra_flags=["--no-sandbox", "false"])
+        assert "--no-sandbox" not in cmd and "false" not in cmd
+        assert cmd == [
+            "agy", "-p", "FLAT PROMPT", "--model", _GEMINI_LABEL,
+            "--sandbox", "--dangerously-skip-permissions",
+        ]
 
 
 # ---------------------------------------------------------------------------
@@ -258,14 +262,6 @@ class TestValidateAndHealth:
             errs = _adapter(gemini_3_pro=ModelConfig(context_window=1048576, extra={})).validate_config()
             assert any("cli_model" in e for e in errs)
 
-    def test_validate_flags_sandbox_weakening_extra_flags(self):
-        # council #1109: validate_config also rejects sandbox-weakening agy_extra_flags
-        with patch(_WHICH, return_value="/usr/bin/agy"):
-            errs = _adapter(m=ModelConfig(
-                context_window=1048576,
-                extra={"cli_model": _GEMINI_LABEL, "agy_extra_flags": ["--no-sandbox"]},
-            )).validate_config()
-            assert any("weakens the review sandbox" in e for e in errs)
 
     def test_health_check_runs_version(self):
         with patch(_WHICH, return_value="/usr/bin/agy"), \

@@ -69,32 +69,6 @@ _AGY_BIN_DEFAULT = "agy"
 _CONNECT_TIMEOUT_FLOOR = 10.0
 _READ_TIMEOUT_FLOOR = 600.0  # 10 min
 
-# Substrings that, in an operator-supplied agy flag, would weaken the review
-# sandbox. The prompt is UNTRUSTED review content, so a sandbox-disabling /
-# auto-approve flag is an injection foothold — rejected at both validate_config
-# and command-build time (council #1109). Broad by design (covers `--no-sandbox`,
-# `--no_sandbox`, `--sandbox=false/off`, `--skip-permissions`, `--permission-mode`,
-# `--yolo`, `--full-auto`, `--auto-approve`); over-rejecting an operator flag is
-# safer than letting one disable the sandbox on an untrusted-input path.
-_SANDBOX_WEAKENING = (
-    "no-sandbox",
-    "no_sandbox",
-    "sandbox=",
-    "sandbox off",
-    "skip-permission",
-    "permission-mode",
-    "dangerous",
-    "yolo",
-    "full-auto",
-    "auto-approve",
-)
-
-
-def _weakens_sandbox(tokens: List[str]) -> bool:
-    """True if any operator flag token would weaken the review sandbox."""
-    joined = " ".join(tokens).lower()
-    return any(bad in joined for bad in _SANDBOX_WEAKENING)
-
 
 class AgyHeadlessAdapter(ProviderAdapter):
     """Adapter that routes inference through `agy -p` (non-interactive, sandboxed).
@@ -231,29 +205,16 @@ class AgyHeadlessAdapter(ProviderAdapter):
                 f"Install + OAuth-authenticate the Antigravity CLI on the cheval host."
             )
 
-        # Each model needs an agy --model LABEL (agy rejects internal ids — silently
-        # falling back to request.model would fail at dispatch), and any agy_extra_flags
-        # must not weaken the sandbox — surface BOTH at config-validate time, not at
-        # first dispatch (council #1109).
+        # Each model needs an agy --model LABEL (agy rejects internal ids — without it
+        # _build_command raises) — surface at config-validate time, not first dispatch
+        # (council #1109).
         for model_id, mc in (self.config.models or {}).items():
-            extra = mc.extra or {}
-            if not extra.get("cli_model"):
+            if not (mc.extra or {}).get("cli_model"):
                 errors.append(
                     f"Provider '{self.provider}': model '{model_id}' needs extra.cli_model "
                     f'— the agy --model LABEL (e.g. "Gemini 3.1 Pro (High)"); agy rejects '
                     f"internal model ids."
                 )
-            for entry in (extra.get("agy_extra_flags") or []):
-                tokens = (
-                    [entry] if isinstance(entry, str)
-                    else [str(x) for x in entry] if isinstance(entry, list)
-                    else []
-                )
-                if _weakens_sandbox(tokens):
-                    errors.append(
-                        f"Provider '{self.provider}': model '{model_id}' agy_extra_flags "
-                        f"weakens the review sandbox: {tokens!r}"
-                    )
         return errors
 
     def health_check(self) -> bool:
@@ -292,45 +253,33 @@ class AgyHeadlessAdapter(ProviderAdapter):
         The stdin-close is NOT part of this argv — it is a subprocess setting
         (`run_subprocess_pgkill` keeps stdin on DEVNULL when no `input=` is passed).
         """
-        # `extra.cli_model` is an agy MODEL LABEL (e.g. "Gemini 3.1 Pro (High)"),
-        # not an api id — the agy `--model` flag wants the human-readable label.
-        cli_model = (model_config.extra or {}).get("cli_model") or request.model
-        cmd: List[str] = [
+        # `extra.cli_model` is REQUIRED — an agy MODEL LABEL (e.g. "Gemini 3.1 Pro
+        # (High)"), not an api id (agy's `--model` wants the human-readable label).
+        # No fallback to request.model: agy rejects internal ids, so a silent fallback
+        # would just fail at dispatch with a confusing error (council #1109).
+        cli_model = (model_config.extra or {}).get("cli_model")
+        if not cli_model:
+            raise ConfigError(
+                f"Provider '{self.provider}': model '{request.model}' is missing "
+                f'extra.cli_model (the agy --model LABEL, e.g. "Gemini 3.1 Pro (High)").'
+            )
+
+        # The argv is FIXED — there is deliberately no operator-supplied extra-flags
+        # escape hatch. The prompt is untrusted review content; an extra-flags surface
+        # was a sandbox-bypass foothold (council #1109 found a split-token bypass that a
+        # denylist can't reliably close). The non-TTY pairing (--sandbox keeps agy
+        # terminal-restricted, the read-only analog of gemini's plan mode;
+        # --dangerously-skip-permissions + a closed stdin stops the non-TTY hang) is
+        # non-negotiable. A genuinely-needed flag is a deliberate, reviewed code change.
+        return [
             self._agy_bin(),
             "-p",
             prompt,
             "--model",
             cli_model,
+            "--sandbox",
+            "--dangerously-skip-permissions",
         ]
-
-        # Forward additional agy CLI flags an operator may need — VALIDATED so they
-        # can NEVER weaken the review sandbox (council #1109): the prompt is untrusted
-        # review content, so a sandbox-disabling / auto-approve flag here would be an
-        # injection foothold. Reject them; the pairing below is also appended LAST so
-        # no operator flag can precede and override it. Format: list of [flag, value?].
-        extra = (model_config.extra or {})
-        extra_flags = extra.get("agy_extra_flags")
-        if isinstance(extra_flags, list):
-            for entry in extra_flags:
-                tokens = (
-                    [entry] if isinstance(entry, str)
-                    else [str(x) for x in entry] if isinstance(entry, list)
-                    else []
-                )
-                if _weakens_sandbox(tokens):
-                    raise ConfigError(
-                        f"Provider '{self.provider}': agy_extra_flags must not weaken the "
-                        f"review sandbox — rejected {tokens!r}"
-                    )
-                cmd.extend(tokens)
-
-        # The load-bearing non-TTY pairing goes LAST — no operator flag precedes it.
-        # --sandbox keeps agy terminal-restricted (read-only analog of gemini's plan
-        # mode); --dangerously-skip-permissions + a closed stdin stops the non-TTY hang
-        # on a tool-permission prompt. Never one without the other (spike safety).
-        cmd += ["--sandbox", "--dangerously-skip-permissions"]
-
-        return cmd
 
     def _compute_timeout(self) -> float:
         """Resolve the subprocess timeout. read_timeout wins when set."""
