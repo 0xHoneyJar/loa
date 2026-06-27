@@ -1,0 +1,40 @@
+name: Construct Manifest Validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.claude/scripts/lib/symlink-manifest.sh'
+      - '.claude/scripts/tests/symlink-manifest-construct-hardening.bats'
+      - '.github/workflows/construct-manifest-validation.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.claude/scripts/lib/symlink-manifest.sh'
+      - '.claude/scripts/tests/symlink-manifest-construct-hardening.bats'
+      - '.github/workflows/construct-manifest-validation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  construct-manifest:
+    name: Construct Manifest Fixtures
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Install bats-core v1.13.0
+        run: |
+          git clone --branch v1.13.0 --depth 1 https://github.com/bats-core/bats-core.git /tmp/bats-core
+          cd /tmp/bats-core
+          expected="3bca150ec86275d6d9d5a4fd7d48ab8b6c6f3d87"
+          actual=$(git rev-parse HEAD)
+          if [ "$actual" != "$expected" ]; then
+            echo "ERROR: bats-core commit SHA mismatch — expected $expected, got $actual"
+            exit 1
+          fi
+          sudo ./install.sh /usr/local
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Run construct manifest fixtures
+        run: bats .claude/scripts/tests/symlink-manifest-construct-hardening.bats
