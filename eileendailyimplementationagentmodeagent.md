@@ -1,6 +1,6 @@
 # Eileen Daily Implementation Agent Mode Agent
 
-This file is the repo-local runbook for the daily GPT-5.5 Thinking implementation agent. The daily agent prompt must explicitly read this file before editing this repo. This file is intentionally separate from `AGENTS.md`; it is a workflow contract for converting Daily Deep Research Report issues into additive implementation PRs.
+This is the repo-local runbook for the daily GPT-5.5 Thinking implementation agent. The daily agent prompt must explicitly read this file before editing this repo. The purpose is not only to code: the agent must first explain what should be implemented, why it matters, why it fits this repo, how it advances the repo endgame, and how the implementation remains safe at scale.
 
 ## Repository responsibility
 
@@ -10,7 +10,7 @@ This repo is not the place for product-specific Freeside behavior, Straylight es
 
 ## Eligible input
 
-Only implement from a Daily Deep Research Report issue or follow-up plan-audit issue/comment that contains:
+Only implement from a Daily Deep Research Report issue or follow-up plan-audit item with:
 
 - `PROPOSED_NEXT_LANE_SEED`
 - candidate ID
@@ -19,85 +19,74 @@ Only implement from a Daily Deep Research Report issue or follow-up plan-audit i
 - rollback path
 - `VERDICT: ACCEPT_PLAN`
 
-If the candidate lacks `VERDICT: ACCEPT_PLAN`, the agent may perform in-run plan audit only for docs, fixtures, tests, or checkers. Runtime-sensitive work requires explicit external acceptance.
+Without `VERDICT: ACCEPT_PLAN`, the agent may self-audit only docs, fixtures, tests, or checkers. Runtime-sensitive work requires explicit external acceptance.
 
-## Selection rule
+## Mandatory pre-implementation thesis
 
-Pick at most one candidate per run. Prefer the lowest-risk candidate that improves future agent/developer workflow reliability.
+Before editing, write this in the run log and later carry it into the PR body:
 
-Priority order:
+1. Candidate chosen: issue, candidate ID, and verdict.
+2. What should be implemented: precise change, not a vague theme.
+3. Why this should be implemented now: source evidence plus current repo state.
+4. Why this belongs in `loa`: repo-fit and why sibling repos should not own it.
+5. What this is good for: developer/agent workflow improvement and future leverage.
+6. Why this approach should work: mechanism, expected behavior, and proof path.
+7. Endgame contribution: how this moves Loa toward a better agentic development framework.
+8. Creative/innovative extension path: next possible lanes after this PR, clearly marked as future work.
+9. Mass-user scaling impact: whether the change improves, preserves, or risks scale characteristics.
+10. Security scope: trust boundaries, data/code execution surfaces, and misuse risks.
+11. Simplification / exploit-prevention argument: how the change reduces complexity or avoids new exploit paths.
+12. Non-goals and forbidden surfaces.
+13. Tests/checks and rollback path.
 
-1. docs-only workflow guidance
-2. fixture-only examples
-3. test-only coverage
-4. checker/validator-only additions
-5. default-off framework helpers
+If the agent cannot complete this thesis convincingly, it must not implement.
 
 ## Additive-only policy
 
 Nothing currently working may stop functioning.
 
-Allowed by default:
+Allowed by default: new docs, examples, fixtures, tests, validators/checkers, default-off helpers, review/audit checklist improvements.
 
-- new docs
-- new examples/fixtures
-- new tests
-- new validation/checker scripts
-- new default-off commands or helpers
-- review/audit checklist improvements
-
-Forbidden without explicit Eileen approval:
-
-- deleting files
-- renaming public commands or exports
-- changing default command behavior
-- changing project bootstrap behavior
-- broad refactors
-- unrelated dependency upgrades
-- secrets or real env changes
-- sibling repo mutation
-- deployment changes
-- auto-merge
-- closing source issues
+Forbidden without explicit Eileen approval: deleting files, renaming public commands or exports, changing default command behavior, changing bootstrap behavior, broad refactors, unrelated dependency upgrades, secrets or real env changes, sibling repo mutation, deployment changes, auto-merge, or closing source issues.
 
 ## Loa-specific stop conditions
 
-Stop and return `VERDICT: NEEDS_HUMAN` if the candidate would:
-
-- change a Golden Path command contract
-- alter `/loa`, `/plan`, `/build`, `/review`, or `/ship` semantics
-- change framework memory/state behavior by default
-- rewrite Claude/Codex role boundaries
-- introduce hidden automation that can mutate repos without explicit issue/PR authority
+Stop and return `VERDICT: NEEDS_HUMAN` if the candidate would change a Golden Path command contract, alter `/loa`, `/plan`, `/build`, `/review`, or `/ship` semantics, change framework memory/state behavior by default, rewrite Claude/Codex role boundaries, or introduce hidden repo-mutating automation.
 
 ## Implementation steps
 
 1. Read this file, README/package scripts, and relevant docs near the target surface.
-2. Inspect the source issue and confirm `VERDICT: ACCEPT_PLAN`.
+2. Confirm the source item has `VERDICT: ACCEPT_PLAN`.
 3. Check for obvious duplicate open issues/PRs.
-4. Write a short plan: selected candidate, implementation class, allowed files, forbidden surfaces, checks, rollback.
+4. Write the mandatory pre-implementation thesis.
 5. Create a branch named `daily-impl/YYYY-MM-DD-loa-<candidate>`.
 6. Implement exactly one candidate with a minimal diff.
-7. Run relevant checks from the repo.
-8. Open a draft PR.
-9. Add `CODEX AUDIT REQUEST` to the PR body.
-10. Comment: `@codex review for additive-only scope violations, accidental default-behavior changes, failing or missing tests, rollback clarity, repo-boundary violations, and security regressions`.
-11. Do not merge and do not close the source issue.
+7. Prefer simpler code and explicit checks over clever abstractions.
+8. Run relevant checks.
+9. Open a draft PR.
+10. Add `CODEX AUDIT REQUEST` and the required traceability report.
+11. Comment: `@codex review for additive-only scope violations, accidental default-behavior changes, scaling risks, security regressions, exploit-prone complexity, failing or missing tests, rollback clarity, and repo-boundary violations`.
+12. Do not merge and do not close the source issue.
 
-## PR body requirements
+## Required PR traceability report
 
-The PR must include:
+Every implementation PR must include:
 
-- source issue
-- candidate ID
-- implementation class
-- what changed
-- what did not change
-- checks run
-- skipped or failing checks
-- rollback path
-- Codex audit request
+- Source issue and candidate ID
+- Pre-implementation thesis summary
+- What changed, with file-by-file commit/change rationale
+- Why each changed file is good for this repo
+- Why the implementation advances the repo endgame
+- Why this implementation should work
+- Mass-user scaling analysis
+- Security scope and exploit/hack prevention analysis
+- Simplicity analysis: what complexity was avoided
+- Tests/checks run and results
+- Skipped checks with reason
+- Rollback path
+- Future creative/innovative solution paths not implemented in this PR
+- `CODEX AUDIT REQUEST`
 
 ## Final run report
 
-Report the selected repo, source issue, branch, PR URL, files changed, checks run, Codex review status, blockers, and whether any boundary was approached.
+Report selected repo, source issue, branch, PR URL, files changed, checks run, Codex review status, blockers, and boundaries approached.
