@@ -1,0 +1,29 @@
+name: Installer Safety
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.claude/scripts/mount-loa.sh'
+      - '.claude/scripts/mount-submodule.sh'
+      - '.claude/scripts/check-installer-safety.sh'
+      - '.github/workflows/installer-safety.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.claude/scripts/mount-loa.sh'
+      - '.claude/scripts/mount-submodule.sh'
+      - '.claude/scripts/check-installer-safety.sh'
+      - '.github/workflows/installer-safety.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  installer-safety:
+    name: Installer Safety Guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Run installer safety guard
+        run: bash .claude/scripts/check-installer-safety.sh
