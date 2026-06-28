@@ -26,6 +26,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 SCRIPT_VERSION="1.1.0"
+source "${SCRIPT_DIR}/compat-lib.sh"
 
 GOLDEN_JSON="${PROJECT_ROOT}/.claude/data/golden-path.json"
 COMMANDS_DIR="${PROJECT_ROOT}/.claude/commands"
@@ -168,8 +169,7 @@ case "${MODE}" in
   write)
     mv "$TMP" "${OUT}"; trap - EXIT
     CHK="${OUT}.checksum"   # checksum path derives from OUT (no decoupling)
-    if command -v sha256sum >/dev/null 2>&1; then sha256sum "${OUT}" | awk '{print $1}' > "${CHK}"
-    else shasum -a 256 "${OUT}" | awk '{print $1}' > "${CHK}"; fi
+    sha256_portable "${OUT}" | awk '{print $1}' > "${CHK}"
     [[ ${EMIT_JSON} -eq 1 ]] && echo "{\"output\":\"${OUT}\",\"checksum\":\"$(cat "${CHK}")\",\"version\":\"${SCRIPT_VERSION}\",\"total_commands\":$(total_command_count)}" >&2
     echo "agents-md: wrote ${OUT} (+ $(basename "${CHK}"))" ;;
 esac

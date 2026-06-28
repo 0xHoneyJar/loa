@@ -33,6 +33,7 @@ OUT_MD="${G}/INDEX.md"
 OUT_JSON="${PROJECT_ROOT}/.run/grimoire-index.json"
 LOCK="${PROJECT_ROOT}/.run/.grimoire-index.lock"
 MODE="write"; QUIET=0
+source "${SCRIPT_DIR}/compat-lib.sh"
 
 require_jq(){ command -v jq >/dev/null 2>&1 || { echo "grimoire-index: jq required" >&2; exit 3; }; }
 log(){ [[ $QUIET -eq 0 ]] && echo "$@" >&2 || true; }
@@ -115,7 +116,7 @@ emit_obs(){
     ty="$(echo "$line"   | jq -r '.type // ""')"
     cat="$(echo "$line"  | jq -r '.category // ""')"
     title="$(echo "$line"| jq -r '.title // ""')"
-    sha="$(printf '%s|%s' "$ts" "$title" | { command -v sha256sum >/dev/null 2>&1 && sha256sum || shasum -a 256; } | cut -c1-8)"
+    sha="$(printf '%s|%s' "$ts" "$title" | sha256_portable | cut -c1-8)"
     id="obs-${sha}"
     printf 'obs\t%s\t%s\t%s\t%s\t%s\n' \
       "$id" "$(san "$ty")" "$(san "$title")" "grimoires/loa/memory/observations.jsonl#L${n}" ""
