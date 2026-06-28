@@ -319,14 +319,18 @@ _audit_verify_signature_inline() {
 # Returns the PEM on stdout, non-zero exit if not resolvable.
 # -----------------------------------------------------------------------------
 _audit_pubkey_for_key_id() {
-    local key_id="$1"
+    local key_id="$1" strict="${2:-0}"
 
     # Prefer trust-store entry when available.
     local trust_store="${LOA_TRUST_STORE_FILE:-${_LOA_AUDIT_TRUST_STORE_DEFAULT}}"
     if [[ -f "$trust_store" ]] && command -v yq >/dev/null 2>&1; then
         local pem
-        pem="$(yq -r --arg id "$key_id" \
-            '.keys[]? | select(.writer_id == $id) | .pubkey_pem // ""' \
+        # mikefarah yq (v4, the repo's pinned yq) has no --arg; pass the key id via
+        # an env var and read it with env(). The old jq-style --arg silently errored
+        # → empty pem → fell through to the local .pub path, which strict mode refuses
+        # (so EVERY trust-store-rooted signed entry failed strict verify). Fixed here.
+        pem="$(LOA_KID="$key_id" yq -r \
+            '.keys[]? | select(.writer_id == env(LOA_KID)) | .pubkey_pem // ""' \
             "$trust_store" 2>/dev/null || true)"
         if [[ -n "$pem" && "$pem" != "null" ]]; then
             printf '%s\n' "$pem"
@@ -334,6 +338,12 @@ _audit_pubkey_for_key_id() {
         fi
     fi
 
+    # ATK-3: strict verify-for-merge must NOT trust producer-writable local
+    # pubkeys — only trust-store-rooted writer keys (mirror Python
+    # _resolve_pubkey_pem allow_local_fallback=not strict).
+    if [[ "$strict" == "1" ]]; then
+        return 1
+    fi
     # Fallback: local <key-dir>/<key_id>.pub (test path).
     local key_dir
     key_dir="$(_audit_resolve_key_dir)"
@@ -482,11 +492,28 @@ PY
 # audit_verify_chain. Returns 0 to permit, non-zero to block.
 # On INVALID: emits [TRUST-STORE-INVALID] BLOCKER on stderr.
 # -----------------------------------------------------------------------------
+# Strict (verify-for-merge) mode: opt-in via the audit_verify_chain
+# --verify-for-merge flag OR LOA_AUDIT_STRICT_VERIFY=1. Mirrors Python
+# _strict_verify_enabled (audit_envelope.py) for ATK-3/ATK-4 parity.
+_audit_strict_verify_enabled() { [[ "${1:-0}" == "1" || "${LOA_AUDIT_STRICT_VERIFY:-0}" == "1" ]]; }
+
 _audit_check_trust_store() {
-    local status
+    # $1 (optional): strict flag. Non-strict (default) keeps install-time
+    # BOOTSTRAP-PENDING writes permitted; strict (verify-for-merge) fails closed.
+    local strict="${1:-0}" status
     status="$(_audit_trust_store_status)"
     case "$status" in
-        BOOTSTRAP-PENDING|VERIFIED)
+        VERIFIED)
+            return 0
+            ;;
+        BOOTSTRAP-PENDING)
+            # ATK-3: a merge verifier must fail closed until the trust root is signed.
+            # Uses the EXPLICIT strict arg (not the env) so exporting
+            # LOA_AUDIT_STRICT_VERIFY can never block the audit_emit write path.
+            if [[ "$strict" == "1" ]]; then
+                _audit_log "[TRUST-STORE-BOOTSTRAP-PENDING] trust-store is not signed; strict audit verification refuses BOOTSTRAP-PENDING (ATK-3)"
+                return 1
+            fi
             return 0
             ;;
         INVALID)
@@ -756,6 +783,14 @@ _audit_ts_ge_cutoff() {
 # first mismatch and exits non-zero.
 # -----------------------------------------------------------------------------
 audit_verify_chain() {
+    # OKF cycle Sprint 9 (R2): opt-in strict "verify-for-merge" parity with Python.
+    # Default (no flag) preserves the existing permissive behavior for the 3 real
+    # callers (audit-snapshot / recover-chain / graduated-trust).
+    local strict=0
+    if [[ "${1:-}" == "--verify-for-merge" ]]; then strict=1; shift; fi
+    # Fold the flag AND the env toggle into strict HERE — on the verify path only —
+    # so LOA_AUDIT_STRICT_VERIFY can never leak into the audit_emit WRITE path.
+    _audit_strict_verify_enabled "$strict" && strict=1
     local log_path="$1"
     if [[ ! -f "$log_path" ]]; then
         _audit_log "audit_verify_chain: file not found: $log_path"
@@ -765,7 +800,10 @@ audit_verify_chain() {
     # Issue #690 (Sprint 1.5): auto-verify trust-store before chain walk.
     # An attacker who tampers trust-store.yaml (adds malicious writer pubkey,
     # signs entries with corresponding private key) is undetected without this.
-    _audit_check_trust_store || return 1
+    # Strict (verify-for-merge) additionally fails closed on a non-VERIFIED store:
+    # BOOTSTRAP-PENDING → ATK-3, and a MISSING store resolves to BOOTSTRAP-PENDING so
+    # it too fails closed here (mirrors Python, whose ATK-4 missing-branch is shadowed).
+    _audit_check_trust_store "$strict" || return 1
 
     local lineno=0
     local expected_prev="GENESIS"
@@ -816,7 +854,7 @@ audit_verify_chain() {
 
             if [[ -n "$sig_b64" && -n "$kid" ]]; then
                 local pubkey_pem canonical
-                if ! pubkey_pem="$(_audit_pubkey_for_key_id "$kid" 2>/dev/null)"; then
+                if ! pubkey_pem="$(_audit_pubkey_for_key_id "$kid" "$strict" 2>/dev/null)"; then
                     echo "BROKEN line $lineno: cannot resolve public key for signing_key_id=$kid" >&2
                     return 1
                 fi
@@ -1217,8 +1255,11 @@ Commands:
       Append a validated envelope (signed when LOA_AUDIT_SIGNING_KEY_ID set).
   emit-signed <primitive_id> <event_type> <payload_json> <log_path> [--password-fd N|--password-file PATH]
       Same as emit; signing required (fails if LOA_AUDIT_SIGNING_KEY_ID unset).
-  verify-chain <log_path>
+  verify-chain [--verify-for-merge] <log_path>
       Walk a JSONL log; verify hash-chain + signatures (when present).
+      --verify-for-merge (or LOA_AUDIT_STRICT_VERIFY=1): STRICT mode — fail closed
+      on a BOOTSTRAP-PENDING/missing trust-store and producer-writable local
+      pubkeys (ATK-3/ATK-4). Opt-in; see runbooks/audit-verify-for-merge-activation.md.
   verify-trust-store [<trust-store-path>]
       Verify trust-store root_signature against pinned root pubkey.
   recover-chain <log_path>
