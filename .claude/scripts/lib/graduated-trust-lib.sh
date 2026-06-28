@@ -2,6 +2,17 @@
 # =============================================================================
 # graduated-trust-lib.sh — L4 graduated-trust (cycle-098 Sprint 4)
 #
+# ============================================================================
+#  STATUS: EXPERIMENTAL / BUILD-AHEAD (DORMANT) — relabel cycle OKF/ICM, 2026-06-28
+#  Only slice 4A (foundation) shipped; 4B/4C/4D are TODO (see slice list below).
+#  This tier is `enabled: false` by default, has NO runtime footprint (no trust
+#  ledger on disk, not enabled in active config, never ratcheted) and is NOT a
+#  live control. Do NOT reason about graduated-trust as an active guarantee.
+#  Retained build-ahead for a future multi-tenant / standards-contribution path.
+#  See agent-network-reference.md (L4 §) + proposals/okf-icm-comparative-analysis-
+#  2026-06-27.md (rec #6). Relabel-only: behavior unchanged, nothing deleted.
+# ============================================================================
+#
 # cycle-098 Sprint 4 — implementation of the L4 per-(scope, capability, actor)
 # trust ledger per RFC #656, PRD FR-L4 (8 ACs), SDD §1.4.2 + §5.6.
 #
