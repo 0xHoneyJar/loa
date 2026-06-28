@@ -39,6 +39,7 @@ claude
 
 # These are slash commands typed inside Claude Code, not your terminal.
 # 5 commands. Full development cycle.
+/loa       # Where am I? Status, health, next step
 /plan      # Requirements -> Architecture -> Sprints
 /build     # Implement the current sprint
 /review    # Code review + security audit

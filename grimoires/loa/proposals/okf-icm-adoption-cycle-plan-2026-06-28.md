@@ -9,7 +9,7 @@ This plan turns the 14 report recommendations into **9 sprints**. Each code-touc
 ---
 
 ## Folded inbound issues (verified)
-The "machine-verify a hand-maintained doc claim, fail CI on drift" cluster folds into **Sprint 2** (one primitive, not per-issue machinery): **#1143** (umbrella AC), **#1132** (Quick Start 5-vs-4 golden-path commands), **#1135** (command-count generated verification), **#1149** (docs-generation proof), **#1130/#1124** (version-surface parity).
+The "machine-verify a hand-maintained doc claim, fail CI on drift" cluster folds into **Sprint 2** (one primitive, not per-issue machinery): **#1143** (umbrella AC), **#1132** (Quick Start 5-vs-4 golden-path commands), **#1135** (command-count generated verification), **#1149** (docs-generation proof). Version-surface parity **#1130/#1124** is the same family but DEFERRED to a follow-up (separate version surface — not done in the Sprint 2 PR).
 **NOT absorbed** (separate installer/update-reconcile cycle): #1138/#1150/#1123/#1131/#1136/#1144/#1151 + codex audit-lane PRs #1152/#1153. zkSoju #1108/#1109/#1110 are independent (zero file overlap).
 
 ---
@@ -28,7 +28,7 @@ The "machine-verify a hand-maintained doc claim, fail CI on drift" cluster folds
 - `.claude/data/golden-path.json` — canonical golden-5 + excluded-from-count list (operator decides the 5 exclusions; reconciles 53 command files → README's "48").
 - **MUST-FIX** operator-detection collision: patch `autonomous-agent/operator-detection.md` + SKILL.md so a *generated* AGENTS.md (carrying the generated-by sentinel) does NOT count as an AI_OPERATOR signal.
 - `.github/workflows/agents-md-drift.yml` (copy `model-registry-drift.yml`): checksum lockfile (`AGENTS.md.checksum`, body-only) + `--check` regen job.
-- **Folds #1132/#1135/#1143/#1149/#1130/#1124**: a `--check` consistency assertion (README golden list == golden-path.json; "48 total" == files-minus-excludes; version surfaces agree) that fails CI on drift; fix README #1132 (include `/loa` or reword).
+- **Folds #1132/#1135/#1143/#1149** (version-surface parity #1130/#1124 deferred to a follow-up — separate surface): a `--check` consistency assertion (README golden list == golden-path.json; "48 total" == files-minus-excludes) that fails CI on drift; fix README #1132 (include `/loa` or reword).
 **Acceptance:** `agents-md-gen.sh` byte-deterministic; AGENTS.md present + drift gate fails on tampered claim; #1132 doc fixed; operator-detection no longer flips on generated AGENTS.md.
 
 ## Sprint 3 — Global cross-family grimoire index  *(effort M, keystone)*
