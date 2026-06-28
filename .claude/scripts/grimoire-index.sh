@@ -20,6 +20,8 @@
 #   family,id under LC_ALL=C — output is stable and drift-gateable.
 #
 # Emits: grimoires/loa/INDEX.md (human) + .run/grimoire-index.json (machine).
+#   Both are DERIVED + gitignored — regenerate on demand (e.g. at session start); they
+#   index partly-gitignored families, so committing them would carry dangling refs.
 # Flags: --json (print JSON to stdout) --validate (integrity + KF-table drift) --quiet
 # =============================================================================
 export LC_ALL=C

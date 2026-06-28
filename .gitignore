@@ -306,3 +306,9 @@ grimoires/loa/ledger.json.bak*
 #   grimoires/loa/runbooks/           (framework-shipped runbooks)
 #   grimoires/loa/known-failures.md   (shared zone)
 #   grimoires/loa/ledger.json         (project sprint ledger)
+
+# OKF/ICM cycle Sprint 3: grimoire-index is a DERIVED artifact (regenerate on demand:
+# bash .claude/scripts/grimoire-index.sh). Not committed — it indexes partly-gitignored
+# families (visions/handoffs/observations), so a committed copy would carry dangling refs
+# in a fresh clone (violates the OKF fail-soft non-adoption rule).
+grimoires/loa/INDEX.md

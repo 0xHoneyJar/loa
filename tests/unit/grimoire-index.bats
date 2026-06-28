@@ -23,8 +23,9 @@ setup() {
   [ "$status" -eq 0 ]
   # KF-009 has a ## KF-009: heading but is missing from the hand-maintained Index table
   echo "$output" | jq -e '.families.kf[] | select(.id=="KF-009")' >/dev/null
-  # at least the 5 well-known families present
-  echo "$output" | jq -e '(.counts.kf>0) and (.counts.vision>0) and (.counts.lore>0) and (.counts.handoff>0)' >/dev/null
+  # only KF + lore are git-tracked (vision/handoff/obs are gitignored local-only state,
+  # absent in a fresh CI checkout); assert the tracked families + a non-empty index.
+  echo "$output" | jq -e '(.counts.kf>0) and (.counts.lore>0) and (.total>0)' >/dev/null
 }
 
 @test "grimoire-index: --validate passes (integrity: every entry has id+path)" {
