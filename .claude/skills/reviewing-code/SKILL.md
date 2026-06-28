@@ -39,6 +39,12 @@ zones:
   app:
     paths: [src, lib, app]
     permission: read
+inputs:
+  # ICM Layer-2 advisory manifest (glass-box). Advisory only — missing path WARNs.
+  - path: grimoires/loa/known-failures.md
+    why: Context-Intake Discipline — read first
+  - path: .claude/loa/CLAUDE.loa.md
+    why: review/audit gate rules + NEVER/ALWAYS constraints
 ---
 
 <input_guardrails>

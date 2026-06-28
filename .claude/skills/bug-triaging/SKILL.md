@@ -27,6 +27,12 @@ capabilities:
   agent_spawn: true
   task_management: false
 cost-profile: heavy
+inputs:
+  # ICM Layer-2 advisory manifest (glass-box). Advisory only — missing path WARNs.
+  - path: grimoires/loa/known-failures.md
+    why: Context-Intake Discipline — read first (is this a known failure?)
+  - path: .claude/rules/zone-state.md
+    why: State-Zone rules for the micro-sprint artifacts
 ---
 
 <input_guardrails>
