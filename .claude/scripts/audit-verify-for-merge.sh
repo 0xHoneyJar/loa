@@ -21,7 +21,7 @@
 # =============================================================================
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="${PROJECT_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
+PROJECT_ROOT="${PROJECT_ROOT:-$(cd "${SCRIPT_DIR}/../.." && pwd)}"
 AENV="${SCRIPT_DIR}/audit-envelope.sh"
 
 if [[ "${LOA_AUDIT_VERIFY_FOR_MERGE:-0}" != "1" ]]; then

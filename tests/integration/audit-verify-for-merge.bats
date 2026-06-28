@@ -66,6 +66,17 @@ teardown() { [[ -n "${TEST_DIR:-}" ]] && find "$TEST_DIR" -mindepth 0 -delete 2>
   [[ "$output" == *"FAIL-CLOSED"* ]]
 }
 
+@test "gate: default PROJECT_ROOT resolves to the repo root (a repo-relative log is FOUND, not skipped)" {
+  # Regression: PROJECT_ROOT default was SCRIPT_DIR/.. (=.claude) — it must be the
+  # repo root, else .run/model-invoke.jsonl is never found and the gate fail-OPENS.
+  # Use a tracked repo-root-relative file: it is FOUND (gate tries to verify it →
+  # FAIL-CLOSED on non-JSONL), NOT "skip (absent)".
+  run env -u PROJECT_ROOT LOA_AUDIT_VERIFY_FOR_MERGE=1 LOA_TRUST_STORE_FILE="$BOOT_TS" \
+      LOA_AUDIT_MERGE_LOGS="grimoires/loa/known-failures.md" bash "$GATE"
+  [[ "$output" != *"skip (absent)"* ]]
+  [[ "$output" == *"known-failures.md"* ]]
+}
+
 @test "gate: ENABLED but no target logs present → exit 0 (nothing to verify)" {
   run env LOA_AUDIT_VERIFY_FOR_MERGE=1 LOA_TRUST_STORE_FILE="$BOOT_TS" \
       LOA_AUDIT_MERGE_LOGS="$TEST_DIR/absent.jsonl" PROJECT_ROOT="$TEST_DIR" bash "$GATE"
