@@ -42,17 +42,17 @@ A single MEDIUM sprint (3 tasks) closing the agent-doable residuals surfaced whe
 Land three already-specified OKF residuals — a drift-proof generated KF index (D1), an honest EXPERIMENTAL relabel of the dead recall pipeline (D2), and a truthful audit-moat positioning doc (D3) — each test-first, with zero weakening of any fail-closed gate.
 
 ### Deliverables
-- [ ] **D1** — `known-failures.md ## Index` table generated FROM the actual `## KF-NNN:` headings (drift structurally impossible), with a Symptom column + numeric recurrence; `grimoire-index.sh --validate` hardened to a fail-on-drift assertion; default-OFF `loa-kf-surface.sh` SessionStart hook (loud-but-nonblocking); hook registered in `settings.json`; flag documented in `.loa.config.yaml.example`. → bead `bd-kf-index-reframe-hbya`
-- [ ] **D2** — EXPERIMENTAL banner + corrected ownership table across `memory-reference.md`, `recommended-hooks.md`, `hooks/README.md`; docs-only with a regression guard. → bead `bd-dead-recall-relabel-7hi2`
-- [ ] **D3** — new STATE-zone doc `grimoires/loa/proposals/audit-moat-positioning-2026-06-29.md`: Tier-1 integrity TRUE-TODAY (cited), Tier-2 authorship DEFERRED, root-key caveat. → bead `bd-audit-moat-positioning-sji4`
+- [x] **D1** — `known-failures.md ## Index` table generated FROM the actual `## KF-NNN:` headings (drift structurally impossible), with a Symptom column + numeric recurrence; `grimoire-index.sh --validate` hardened to a fail-on-drift assertion; default-OFF `loa-kf-surface.sh` SessionStart hook (loud-but-nonblocking); hook registered in `settings.json`; flag documented in `.loa.config.yaml.example`. → bead `bd-kf-index-reframe-hbya`
+- [x] **D2** — EXPERIMENTAL banner + corrected ownership table across `memory-reference.md`, `recommended-hooks.md`, `hooks/README.md`; docs-only with a regression guard. → bead `bd-dead-recall-relabel-7hi2`
+- [x] **D3** — new STATE-zone doc `grimoires/loa/proposals/audit-moat-positioning-2026-06-29.md`: Tier-1 integrity TRUE-TODAY (cited), Tier-2 authorship DEFERRED, root-key caveat. → bead `bd-audit-moat-positioning-sji4`
 
 ### Acceptance Criteria
-- [ ] **D1**: bats `TEST-1..TEST-7` pass; **TEST-5 (loud-but-nonblocking) is load-bearing** — asserts a visible `[KF-SURFACE]` WARNING on enabled+degraded/zero-KF/unreadable, and silence ONLY when the flag is disabled. `--validate` fails (non-zero) when index-row-count ≠ heading-count.
-- [ ] **D1**: generated `## Index` lists all 20 `## KF-NNN:` headings (currently 14 rows; **missing KF-009, KF-016, KF-017, KF-018, KF-019, KF-020** — verified drift); KF prose is NOT bot-rewritten.
-- [ ] **D1**: hook ships **default-OFF**; with the flag disabled it exits 0 silently and emits nothing.
-- [ ] **D2**: grep/doc-lint asserts the EXPERIMENTAL marker is present near the recall/Memory-Writer-Hook section in each of the 3 files; ownership-table cell corrected to "hand-authored, zero hook-generated entries" (NOT "all-null").
-- [ ] **D2**: docs-only regression guard — `git diff --name-only` touches **NO** `.claude/hooks/*.sh`, `memory-*.sh`, `settings.hooks.json`, or `.loa*/` (relabel changes ZERO behavior). Version stamps (v1.28.0 / v1.40.0) left as historical provenance.
-- [ ] **D3**: every integrity-mechanism claim cites a resolving `file:line`; **NO authorship/non-repudiation verb appears outside the labeled DEFERRED section**; the signed-count statement is reproducible over `.run/model-invoke.jsonl`; root-key-on-disk caveat present; file under `grimoires/loa/proposals/` NOT `.claude/`.
+- [x] **D1**: bats `TEST-1..TEST-7` pass; **TEST-5 (loud-but-nonblocking) is load-bearing** — asserts a visible `[KF-SURFACE]` WARNING on enabled+degraded/zero-KF/unreadable, and silence ONLY when the flag is disabled. `--validate` fails (non-zero) when index-row-count ≠ heading-count.
+- [x] **D1**: generated `## Index` lists all 20 `## KF-NNN:` headings (currently 14 rows; **missing KF-009, KF-016, KF-017, KF-018, KF-019, KF-020** — verified drift); KF prose is NOT bot-rewritten.
+- [x] **D1**: hook ships **default-OFF**; with the flag disabled it exits 0 silently and emits nothing.
+- [x] **D2**: grep/doc-lint asserts the EXPERIMENTAL marker is present near the recall/Memory-Writer-Hook section in each of the 3 files; ownership-table cell corrected to "hand-authored, zero hook-generated entries" (NOT "all-null").
+- [x] **D2**: docs-only regression guard — `git diff --name-only` touches **NO** `.claude/hooks/*.sh`, `memory-*.sh`, `settings.hooks.json`, or `.loa*/` (relabel changes ZERO behavior). Version stamps (v1.28.0 / v1.40.0) left as historical provenance.
+- [x] **D3**: every integrity-mechanism claim cites a resolving `file:line`; **NO authorship/non-repudiation verb appears outside the labeled DEFERRED section**; the signed-count statement is reproducible over `.run/model-invoke.jsonl`; root-key-on-disk caveat present; file under `grimoires/loa/proposals/` NOT `.claude/`.
 
 ### Technical Tasks
 
