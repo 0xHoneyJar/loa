@@ -1931,13 +1931,14 @@
           "fr": "D1, D2, D3",
           "scope": "MEDIUM",
           "task_count": 3,
-          "status": "planned",
+          "status": "completed",
           "created": "2026-06-29T05:50:00Z",
           "beads": [
             "bd-kf-index-reframe-hbya",
             "bd-dead-recall-relabel-7hi2",
             "bd-audit-moat-positioning-sji4"
-          ]
+          ],
+          "completed_at": "2026-06-29T06:34:52Z"
         }
       ]
     }
