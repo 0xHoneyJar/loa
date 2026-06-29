@@ -63,11 +63,23 @@ Only now: set `LOA_AUDIT_VERIFY_FOR_MERGE=1` and wire the gate into the release 
 LOA_AUDIT_VERIFY_FOR_MERGE=1 bash .claude/scripts/audit-verify-for-merge.sh
 ```
 
-and treats a non-zero exit as a blocking failure. (To add it as a `post-merge-orchestrator.sh` phase, register it in the phase matrix + ordered list after the existing phases; keep it gated on the env flag so it stays inert until activated.)
+and treat a non-zero exit as a blocking failure.
 
-## Verifying the handoff locally (no root key needed)
-- `bash .claude/scripts/audit-envelope.sh verify-chain --verify-for-merge .run/model-invoke.jsonl` → today this **fails closed** with `[TRUST-STORE-BOOTSTRAP-PENDING] … (ATK-3)`. That failure **is** the correct pre-ceremony behavior.
-- `bash .claude/scripts/audit-verify-for-merge.sh` → prints `DISABLED` and exits 0 (opt-in off).
+**Where to wire it — local pre-push, NOT CI.** `.run/model-invoke.jsonl` is gitignored/local: it exists only on the operator's box, never in a stateless CI checkout. So wiring the gate into `post-merge-orchestrator.sh` or any GitHub-Actions job would be a **no-op (integrity theater)** — the log is absent there, the gate finds nothing and exits 0, manufacturing false assurance. The one surface with both the real log AND the power to block transmission is a **local `pre-push` hook**:
+
+```bash
+bash .claude/scripts/install-audit-prepush.sh   # installs .git/hooks/pre-push (opt-in, default-off)
+export LOA_AUDIT_VERIFY_FOR_MERGE=1             # flip on to enforce; a broken/unsigned chain then blocks push
+```
+
+The hook is inert until `LOA_AUDIT_VERIFY_FOR_MERGE=1`; it delegates to `audit-verify-for-merge.sh` and refuses to clobber a pre-existing non-loa pre-push hook. (Confirmed by the gate-wiring investigation: CI emits no real MODELINV, so no CI signing secret is needed; the gate belongs local.)
+
+## Verifying locally (post-ceremony state)
+The ceremony is DONE (commit `bf68a4e2`): the trust-store is **VERIFIED** (root_signature populated; writer `deep-name` in `keys[]`; `trust_cutoff` advanced to `2026-06-29` grandfathering the legacy entries). So:
+- `LOA_AUDIT_VERIFY_FOR_MERGE=1 bash .claude/scripts/audit-verify-for-merge.sh` → `OK … entries`, exit 0 — the strict gate now **PASSES** over the local log.
+- `bash .claude/scripts/audit-verify-for-merge.sh` (no env) → prints `DISABLED`, exits 0 (opt-in off).
+- `LOA_AUDIT_REQUIRE_LOG=1` makes a missing/deleted log fail closed (defends the rm-the-log soft spot).
+- *Pre-ceremony* it failed closed with `[TRUST-STORE-BOOTSTRAP-PENDING]/ATK-3` — that was the correct behavior **before** signing.
 
 ## Tracking
 - Agent-doable half: OKF cycle Sprint 9 (this commit).

@@ -58,8 +58,13 @@ if [[ $rc -ne 0 ]]; then
   exit $rc
 fi
 if [[ $checked -eq 0 ]]; then
-  # Don't pass silently when there was nothing to check — surface it loudly so an
-  # absent/renamed MODELINV log can't read as a green gate.
+  # Absent log: WARN + pass by default (legit first-push before any MODELINV exists),
+  # but FAIL CLOSED when the operator opts into LOA_AUDIT_REQUIRE_LOG=1 (a deleted/renamed
+  # chain must not read as a green gate — closes the rm-the-log soft spot).
+  if [[ "${LOA_AUDIT_REQUIRE_LOG:-0}" == "1" ]]; then
+    echo "[audit-gate] FAIL-CLOSED: no target audit chain found and LOA_AUDIT_REQUIRE_LOG=1 — a missing/deleted log is not acceptable" >&2
+    exit 1
+  fi
   echo "[audit-gate] WARNING: no target audit chain found to verify (nothing checked) — confirm LOA_AUDIT_MERGE_LOGS / .run/model-invoke.jsonl is present" >&2
   exit 0
 fi

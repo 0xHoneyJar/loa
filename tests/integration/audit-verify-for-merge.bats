@@ -83,6 +83,13 @@ teardown() { [[ -n "${TEST_DIR:-}" ]] && find "$TEST_DIR" -mindepth 0 -delete 2>
   [ "$status" -eq 0 ]
 }
 
+@test "gate: LOA_AUDIT_REQUIRE_LOG=1 makes an absent/deleted log FAIL CLOSED (closes the rm-the-log soft spot)" {
+  run env LOA_AUDIT_VERIFY_FOR_MERGE=1 LOA_AUDIT_REQUIRE_LOG=1 LOA_TRUST_STORE_FILE="$BOOT_TS" \
+      LOA_AUDIT_MERGE_LOGS="$TEST_DIR/absent.jsonl" PROJECT_ROOT="$TEST_DIR" bash "$GATE"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"FAIL-CLOSED"* ]]
+}
+
 # Build a VERIFIED (root-signed) trust-store with a writer in keys[] + the writer
 # keypair on disk. Echoes the writer_id. Skips if crypto deps are unavailable.
 _build_verified_store() {
