@@ -14,6 +14,8 @@ Subcommands:
        Reads {chain_input_json}\\n{base64_sig}\\n from stdin; exits 0 on valid.
   trust-store-verify --pinned-pubkey <path> --trust-store <path>
        Verifies the trust-store's root_signature against the pinned pubkey.
+  trust-store-sign --root-priv <path> --trust-store <path> --signer-pubkey-from <path> --signed-at <iso>
+       MAINTAINER offline ceremony: root-sign the trust-store (refuses on pubkey divergence).
 
 Security invariants:
   - Passwords are loaded via fd or via mode-0600 file. NEVER from argv (the
@@ -354,12 +356,140 @@ def cmd_trust_store_verify(args: argparse.Namespace) -> int:
         "revocations": ts_doc.get("revocations") or [],
         "trust_cutoff": ts_doc.get("trust_cutoff") or {},
     }
-    canonical = rfc8785.dumps(core)
+    try:
+        canonical = rfc8785.dumps(core)
+    except Exception as exc:  # parity with trust-store-sign: same structured error, byte-identical handling
+        _err("trust-store: a field is not JSON-canonicalizable ("
+             + type(exc).__name__ + "). QUOTE all timestamps so YAML keeps them as strings.")
+        return EX_VERIFY_FAIL
     try:
         pinned_pub.verify(sig, canonical)
     except InvalidSignature:
         _err("trust-store: root_signature does NOT verify against pinned pubkey")
         return EX_VERIFY_FAIL
+    return 0
+
+
+
+def cmd_trust_store_sign(args: argparse.Namespace) -> int:
+    """
+    OFFLINE root-sign a trust-store (maintainer ceremony Step 4 — audit-keys-bootstrap.md).
+
+    Produces the EXACT signed payload `trust-store-verify` checks: the JCS (rfc8785)
+    canonicalization of {schema_version, keys, revocations, trust_cutoff}, signed with
+    the offline ROOT private key, written into root_signature{algorithm, signer_pubkey,
+    signed_at, signature}.
+
+    SAFETY: this only signs with a key the operator already holds; the root private key
+    is read from --root-priv (a path, never argv) and never logged. It REFUSES to sign
+    if the derived signer pubkey does not match --signer-pubkey-from (the pinned root
+    pubkey) — so you cannot accidentally establish a divergent trust root
+    ([ROOT-PUBKEY-DIVERGENCE]). After signing it self-verifies the result.
+
+    Run this ONLY on the air-gapped workstation that holds the root key.
+    """
+    try:
+        import yaml
+    except ImportError:  # pragma: no cover
+        _err("trust-store-sign: PyYAML required"); return EX_CONFIG
+    try:
+        import rfc8785
+    except ImportError:  # pragma: no cover
+        _err("trust-store-sign: rfc8785 required"); return EX_CONFIG
+
+    root_priv_path = Path(args.root_priv)
+    if not root_priv_path.is_file():
+        _err(f"root private key not found: {root_priv_path}"); return EX_KEY_LOAD
+    st_mode = root_priv_path.stat().st_mode
+    if st_mode & (stat.S_IRWXG | stat.S_IRWXO):
+        _err(f"root private key {root_priv_path} too permissive ({oct(st_mode & 0o777)}); require 0600"); return EX_KEY_LOAD
+    pw = _read_password(args)
+    try:
+        root_priv = serialization.load_pem_private_key(root_priv_path.read_bytes(), password=pw)
+    except (TypeError, ValueError) as exc:
+        _err(f"failed to load root private key: {exc}"); return EX_KEY_LOAD
+    if not isinstance(root_priv, ed25519.Ed25519PrivateKey):
+        _err("root private key is not Ed25519"); return EX_KEY_LOAD
+
+    signer_pub = root_priv.public_key()
+    signer_pub_pem = signer_pub.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    ).decode()
+
+    # MANDATORY safety: the root key MUST correspond to the pinned root pubkey.
+    pinned_path = Path(args.signer_pubkey_from)
+    if not pinned_path.is_file():
+        _err(f"[ROOT-PUBKEY-MISSING] pinned root pubkey not found: {pinned_path}"); return EX_VERIFY_FAIL
+    try:
+        pinned_pub = serialization.load_pem_public_key(pinned_path.read_bytes())
+    except ValueError as exc:
+        _err(f"pinned pubkey not valid PEM: {exc}"); return EX_KEY_LOAD
+    raw = lambda k: k.public_bytes(encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw)
+    if not isinstance(pinned_pub, ed25519.Ed25519PublicKey) or raw(pinned_pub) != raw(signer_pub):
+        _err("[ROOT-PUBKEY-DIVERGENCE] --root-priv does not match the pinned root pubkey at "
+             + str(pinned_path) + "; refusing to sign (would establish a divergent trust root)")
+        return EX_VERIFY_FAIL
+
+    ts_path = Path(args.trust_store)
+    if not ts_path.is_file():
+        _err(f"trust-store not found: {ts_path}"); return EX_VERIFY_FAIL
+    with ts_path.open("r", encoding="utf-8") as fh:
+        ts_doc = yaml.safe_load(fh)
+    if not isinstance(ts_doc, dict):
+        _err("trust-store: not a YAML mapping"); return EX_VERIFY_FAIL
+    schema_version = ts_doc.get("schema_version")
+    if schema_version is None:
+        _err("trust-store: missing schema_version (required for the signed payload — add it before signing)")
+        return EX_VERIFY_FAIL
+
+    core = {
+        "schema_version": schema_version,
+        "keys": ts_doc.get("keys") or [],
+        "revocations": ts_doc.get("revocations") or [],
+        "trust_cutoff": ts_doc.get("trust_cutoff") or {},
+    }
+    try:
+        canonical = rfc8785.dumps(core)
+    except Exception as exc:  # rfc8785 CanonicalizationError on a non-JSON scalar (e.g. an UNQUOTED yaml timestamp coerced to datetime)
+        _err("trust-store: a field is not JSON-canonicalizable ("
+             + type(exc).__name__ + "). QUOTE all timestamps (e.g. trust_cutoff.default_strict_after: \"2026-05-03T00:00:00Z\") so YAML keeps them as strings.")
+        return EX_VERIFY_FAIL
+    signature = base64.b64encode(root_priv.sign(canonical)).decode()
+
+    ts_doc["root_signature"] = {
+        "algorithm": "ed25519",
+        "signer_pubkey": signer_pub_pem,
+        "signed_at": args.signed_at,
+        "signature": signature,
+    }
+
+    # Self-verify before emitting: the freshly-signed payload MUST verify.
+    try:
+        pinned_pub.verify(base64.b64decode(signature), canonical)
+    except InvalidSignature:  # pragma: no cover - defensive
+        _err("internal error: freshly-produced signature did not self-verify"); return EX_VERIFY_FAIL
+
+    if args.output_mode == "signature-only":
+        sys.stdout.write(yaml.safe_dump({"root_signature": ts_doc["root_signature"]}, sort_keys=False))
+    elif args.output_mode == "in-place":
+        # Atomic: write a sibling tmp then os.replace, so an interrupted write can
+        # never leave the ROOT OF TRUST truncated/unverifiable.
+        import tempfile
+        fd, tmp = tempfile.mkstemp(dir=str(ts_path.parent), prefix=".trust-store.", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as tf:
+                tf.write(yaml.safe_dump(ts_doc, sort_keys=False))
+                tf.flush()
+                os.fsync(tf.fileno())
+            os.replace(tmp, ts_path)
+        except BaseException:
+            try: os.unlink(tmp)
+            except OSError: pass
+            raise
+        _err(f"trust-store signed in place: {ts_path} (review the diff before committing)")
+    else:  # stdout (default)
+        sys.stdout.write(yaml.safe_dump(ts_doc, sort_keys=False))
     return 0
 
 
@@ -388,6 +518,17 @@ def main() -> int:
     tsp.add_argument("--pinned-pubkey", required=True)
     tsp.add_argument("--trust-store", required=True)
     tsp.set_defaults(func=cmd_trust_store_verify)
+
+    tss = sub.add_parser("trust-store-sign")
+    tss.add_argument("--root-priv", required=True, help="path to the offline ROOT private key (PEM); never argv-passed")
+    tss.add_argument("--trust-store", required=True)
+    tss.add_argument("--signer-pubkey-from", required=True, help="pinned root pubkey to cross-check the root key against")
+    tss.add_argument("--signed-at", required=True, help="ISO-8601 UTC timestamp for root_signature.signed_at")
+    tss.add_argument("--output-mode", choices=["stdout", "in-place", "signature-only"], default="stdout")
+    grp2 = tss.add_mutually_exclusive_group()
+    grp2.add_argument("--password-fd", type=int, default=None)
+    grp2.add_argument("--password-file", type=str, default=None)
+    tss.set_defaults(func=cmd_trust_store_sign)
 
     args = p.parse_args()
     return args.func(args)

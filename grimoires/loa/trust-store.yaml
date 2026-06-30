@@ -33,8 +33,8 @@ root_signature:
     -----BEGIN PUBLIC KEY-----
     MCowBQYDK2VwAyEAdXgpsndtu9p+fI3Rw/rqr+LjQYtOrZKsXgHKN974o+M=
     -----END PUBLIC KEY-----
-  signed_at: ""    # populated when maintainer signs offline
-  signature: ""    # populated when maintainer signs offline
+  signed_at: "2026-06-28T00:00:00Z"
+  signature: "bqwY72N5JDjrK34F6ZTt7Br8NnBL86j0tHl04wgS6Ak47zh4Dwb9xFi5vUWeBV6wuXlNJRat0uk317pG2/RrAQ=="
 
 # Per-writer audit-key entries. Each writer has a keypair with the private
 # key at ~/.config/loa/audit-keys/<writer_id>.priv (mode 0600).
@@ -49,7 +49,16 @@ root_signature:
 #     valid_from: <iso-8601>
 #     valid_until: null             # null = current
 #     notes: <text>                 # free-form
-keys: []
+keys:
+  - writer_id: deep-name
+    pubkey_pem: |
+      -----BEGIN PUBLIC KEY-----
+      MCowBQYDK2VwAyEAsFfcoN4/xuAIApK1W3hv1sx6qUySte4Tr5AJUkQsIzQ=
+      -----END PUBLIC KEY-----
+    operator_id: deep-name
+    valid_from: "2026-06-28T00:00:00Z"
+    valid_until: null
+    notes: "MODELINV writer; bootstrapped via OKF/ICM cycle audit activation (bd-31b5)"
 
 # Per-writer revocation entries (compromise playbook step 3, SDD §1.9.3.1).
 #   - writer_id: <slug>
@@ -67,4 +76,4 @@ revocations: []
 # verification does NOT fail when signing_key_id is absent from this trust-store.
 # This permits cycle-098 to ship into a repo with prior history.
 trust_cutoff:
-  default_strict_after: "2026-05-03T00:00:00Z"
+  default_strict_after: "2026-06-29T00:00:00Z"

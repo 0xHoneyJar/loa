@@ -1,0 +1,8 @@
+{
+  "_comment": "Canonical Golden Path command list + command-count reconciliation. Single source of truth for the '5 Golden Path commands' and '48 total commands' claims in README/AGENTS.md. Generated artifacts (agents-md-gen.sh) and the docs-consistency drift gate read this. Closes #1132 (Quick Start golden-list drift) + #1135 (command-count generated verification).",
+  "golden": ["loa", "plan", "build", "review", "ship"],
+  "golden_count": 5,
+  "excluded_from_count": ["loa", "plan", "build", "review", "ship"],
+  "excluded_rationale": "The 5 Golden Path commands are the simplified zero-arg interface presented separately ('5 Golden Path commands'); the '48 total commands' figure counts the truename/all-commands surface beneath them. total command files (.claude/commands/*.md) minus the 5 Golden Path routers == 48.",
+  "expected_total_commands": 48
+}

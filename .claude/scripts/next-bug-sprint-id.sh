@@ -11,8 +11,8 @@
 #
 # This script is the source-of-truth for next-id picking. It consults:
 #   1. local ledger.json's `global_sprint_counter`
-#   2. max sprint-bug-N referenced on disk in any
-#      `grimoires/loa/a2a/bug-*/sprint.md`
+#   2. max sprint-bug-N DECLARED on disk (the `**Sprint**:` / `**Sprint ID**:`
+#      field — NOT every mention) in any `grimoires/loa/a2a/bug-*/sprint.md`
 #   3. origin/main's ledger.json's `global_sprint_counter` (best-effort —
 #      no fetch; uses whatever's in the local refspec)
 #   4. max cycle-claimed global sprint id in `cycles[].sprints` +
@@ -71,6 +71,12 @@ if [[ -f "$LEDGER" ]]; then
 fi
 
 # 2. Max sprint-bug-N on disk under grimoires/loa/a2a/bug-*/sprint.md
+#    POSITION-AUTHORITY FIX (R8): read ONLY the sprint's own authoritative id
+#    declaration (`**Sprint**: sprint-bug-N`), NOT every sprint-bug-N mentioned in
+#    the markdown body. The old body-wide grep conflated a *reference* with the
+#    *claimed id* — e.g. a sprint.md whose AC prose cited `sprint-bug-622-623`
+#    poisoned disk_max to 622 (true next was 227). A body mention is content, not
+#    position; the `**Sprint**:` field is the authoritative on-disk id.
 disk_max=0
 shopt -s nullglob
 for f in "$PROJECT_ROOT"/grimoires/loa/a2a/bug-*/sprint.md; do
@@ -80,7 +86,12 @@ for f in "$PROJECT_ROOT"/grimoires/loa/a2a/bug-*/sprint.md; do
         if [[ "$n" -gt "$disk_max" ]]; then
             disk_max="$n"
         fi
-    done < <(grep -oE 'sprint-bug-[0-9]+' "$f" 2>/dev/null | grep -oE '[0-9]+$' || true)
+    # Anchored own-id declarations ONLY (**Sprint**: / **Sprint ID**:), never inline
+    # prose. NOTE: heading-only or other deviant id formats are NOT caught here — the
+    # ledger (counter + cycle claims) stays authoritative for those, and /bug always
+    # records the new id in the ledger, so this disk-scan is belt-and-suspenders.
+    done < <(sed -nE -e 's/^\*\*Sprint\*\*:[[:space:]]*sprint-bug-([0-9]+).*$/\1/p' \
+                     -e 's/^\*\*Sprint ID\*\*:[[:space:]]*sprint-bug-([0-9]+).*$/\1/p' "$f" 2>/dev/null || true)
 done
 shopt -u nullglob
 

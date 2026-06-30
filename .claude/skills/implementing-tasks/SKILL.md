@@ -25,6 +25,13 @@ zones:
   app:
     paths: [src, lib, app]
     permission: read
+inputs:
+  # ICM Layer-2 advisory manifest (glass-box: what knowledge this skill ingests
+  # first). Advisory only — a missing path WARNs (drift signal), never fails.
+  - path: grimoires/loa/known-failures.md
+    why: Context-Intake Discipline — read first (prior dead-ends)
+  - path: CLAUDE.md
+    why: process compliance + Karpathy principles
 ---
 
 <input_guardrails>

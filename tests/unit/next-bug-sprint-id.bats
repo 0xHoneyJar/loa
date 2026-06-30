@@ -293,3 +293,64 @@ EOF
     # 622-623 rejected (else would parse 623 -> 624); max real id is 230 -> 231
     [[ "$output" == "sprint-bug-231" ]]
 }
+
+# =============================================================================
+# R8 (OKF cycle Sprint 7) — POSITION AUTHORITY: a sprint-bug-N mentioned in the
+# markdown BODY (prose / AC text) is CONTENT, not position. The disk-scan must
+# read only the sprint's own authoritative `**Sprint**: sprint-bug-N` declaration.
+# Live bug: bug-20260615-i1064 declared sprint-bug-222 but its AC prose cited
+# `sprint-bug-622-623`, so the old body-wide grep harvested 622 → emitted
+# sprint-bug-623 when the true next was 227.
+# =============================================================================
+
+@test "R8: a stray sprint-bug-N in body PROSE is NOT harvested (only **Sprint**: counts)" {
+    _write_ledger 226
+    local dir="$PROJECT_ROOT/grimoires/loa/a2a/bug-prose-poison"
+    mkdir -p "$dir"
+    cat > "$dir/sprint.md" <<'EOF'
+# Sprint Plan: Bug Fix — disk-scan poison repro
+
+**Sprint**: sprint-bug-50
+**Type**: bugfix
+
+## Acceptance
+- A malformed dir `grimoires/loa/a2a/sprint-bug-622-623` is NOT parsed as 623.
+- Context carried over from the earlier sprint-bug-9999 investigation.
+EOF
+    cd "$PROJECT_ROOT" && git init --quiet
+    run bash "$SCRIPT"
+    [[ "$status" -eq 0 ]]
+    # ledger 226 wins; the prose mentions (622, 9999) are content, not ids → 227
+    [[ "$output" == "sprint-bug-227" ]]
+}
+
+@test "R8: the **Sprint ID**: declaration form is also honored (deviant-format coverage)" {
+    _write_ledger 10
+    local dir="$PROJECT_ROOT/grimoires/loa/a2a/bug-sprintid-form"
+    mkdir -p "$dir"
+    cat > "$dir/sprint.md" <<'EOF'
+# Micro-Sprint
+**Sprint ID**: sprint-bug-70
+EOF
+    cd "$PROJECT_ROOT" && git init --quiet
+    run bash "$SCRIPT"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == "sprint-bug-71" ]]
+}
+
+@test "R8: the **Sprint**: declaration is still honored as the disk safety-net (ledger behind)" {
+    _write_ledger 10
+    local dir="$PROJECT_ROOT/grimoires/loa/a2a/bug-declared-high"
+    mkdir -p "$dir"
+    cat > "$dir/sprint.md" <<'EOF'
+# Sprint Plan
+**Sprint**: sprint-bug-80
+
+This sprint references sprint-bug-3 and sprint-bug-7 in prose.
+EOF
+    cd "$PROJECT_ROOT" && git init --quiet
+    run bash "$SCRIPT"
+    [[ "$status" -eq 0 ]]
+    # declared id 80 (> ledger 10) is the safety-net source; prose 3/7 ignored → 81
+    [[ "$output" == "sprint-bug-81" ]]
+}

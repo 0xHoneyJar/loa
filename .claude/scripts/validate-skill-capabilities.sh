@@ -295,6 +295,19 @@ log_warning() {
     results_json=$(echo "$results_json" | jq --arg s "$skill" --arg m "$msg" '. + [{"skill": $s, "level": "warning", "message": $m}]')
 }
 
+log_advisory() {
+    # # ICM-L2-INPUTS-LINT: advisory WARN, NEVER promoted to error (even under --strict).
+    # Used by the inputs rot-lint: a declared-but-absent input is a glass-box DRIFT
+    # signal, not a gate. There is deliberately no fail-closed declared-but-not-read
+    # rule (conditional-by-phase reads make undeclared-read flagging wrong-by-construction).
+    local skill="$1" msg="$2"
+    warnings=$((warnings + 1))
+    if [[ "$JSON_OUTPUT" == "false" ]]; then
+        echo -e "  ${YELLOW}WARN${NC}: $msg"
+    fi
+    results_json=$(echo "$results_json" | jq --arg s "$skill" --arg m "$msg" '. + [{"skill": $s, "level": "advisory", "message": $m}]')
+}
+
 log_pass() {
     local skill="$1"
     passed=$((passed + 1))
@@ -310,6 +323,35 @@ has_tool() {
     # Use word-boundary matching to prevent substring false positives
     # (e.g., "WriteConfig" should not match "Write")
     echo "$allowed" | grep -qiwF "$tool"
+}
+
+# # ICM-L2-INPUTS-LINT: ICM Layer-2 advisory inputs manifest rot-lint.
+# Reads the optional top-level `inputs:` frontmatter list (each entry: path[, why]).
+# For each DECLARED path, WARNs (advisory only) if it is absent on disk — a drift
+# signal that the skill's known-failures-first / context inputs have moved. It NEVER
+# flags an undeclared read and NEVER fails the build. Absence of a manifest is fine.
+validate_skill_inputs() {
+    local skill_name="$1" frontmatter="$2"
+    local inputs_raw n i p
+    inputs_raw=$(echo "$frontmatter" | yq eval '.inputs' - 2>/dev/null) || inputs_raw="null"
+    [[ "$inputs_raw" == "null" || -z "$inputs_raw" ]] && return 0
+    local itype; itype=$(echo "$frontmatter" | yq eval '.inputs | type' - 2>/dev/null) || itype=""
+    [[ "$itype" == "!!seq" ]] || { log_advisory "$skill_name" "inputs: is not a list (manifest ignored)"; return 0; }
+    n=$(echo "$frontmatter" | yq eval '.inputs | length' - 2>/dev/null) || n=0
+    [[ "$n" =~ ^[0-9]+$ ]] || return 0
+    for ((i=0; i<n; i++)); do
+        p=$(echo "$frontmatter" | yq eval ".inputs[$i].path // \"\"" - 2>/dev/null) || p=""
+        if [[ -z "$p" ]]; then
+            log_advisory "$skill_name" "inputs[$i] declares no 'path' (advisory manifest entry ignored)"
+            continue
+        fi
+        if [[ "$p" == *'*'* ]]; then
+            compgen -G "$PROJECT_ROOT/$p" >/dev/null 2>&1 || log_advisory "$skill_name" "declared input not found on disk (drift): $p"
+        else
+            [[ -e "$PROJECT_ROOT/$p" ]] || log_advisory "$skill_name" "declared input not found on disk (drift): $p"
+        fi
+    done
+    return 0
 }
 
 validate_skill() {
@@ -518,6 +560,9 @@ validate_skill() {
             has_error=true
         fi
     fi
+
+    # # ICM-L2-INPUTS-LINT: advisory inputs manifest drift check (never fails the build)
+    validate_skill_inputs "$skill_name" "$frontmatter"
 
     if [[ "$has_error" == "false" ]]; then
         log_pass "$skill_name"

@@ -2,6 +2,19 @@
 # =============================================================================
 # graduated-trust-lib.sh — L4 graduated-trust (cycle-098 Sprint 4)
 #
+# ============================================================================
+#  STATUS: IMPLEMENTED-BUT-DORMANT — relabel cycle OKF/ICM, 2026-06-28
+#  All of FR-L4-1..8 shipped + tested (~70 bats; commit a15cd30c / PR #764); the
+#  '4B/4C/4D — TODO' notes in the slice list below are STALE (written during 4A;
+#  all slices landed together). BUT this tier is `enabled: false` by default, has
+#  NO runtime footprint (no trust
+#  ledger on disk, not enabled in active config, never ratcheted) and is NOT a
+#  live control. Do NOT reason about graduated-trust as an active guarantee.
+#  Retained build-ahead for a future multi-tenant / standards-contribution path.
+#  See agent-network-reference.md (L4 §) + PR #1155 analysis (rec #6).
+#  Relabel-only: behavior unchanged, nothing deleted.
+# ============================================================================
+#
 # cycle-098 Sprint 4 — implementation of the L4 per-(scope, capability, actor)
 # trust ledger per RFC #656, PRD FR-L4 (8 ACs), SDD §1.4.2 + §5.6.
 #
@@ -16,12 +29,12 @@
 #   - 4A (FOUNDATION): schemas, config getters, input validators,
 #                      trust_query + ledger walker (FR-L4-1)
 #   - 4B (TRANSITIONS): trust_grant, trust_record_override
-#                       (FR-L4-2, FR-L4-3) — TODO Sprint 4B
+#                       (FR-L4-2, FR-L4-3) — shipped (a15cd30c, PR #764)
 #   - 4C (INTEGRITY):   trust_verify_chain, reconstruction, force-grant,
 #                       auto-raise stub (FR-L4-4, FR-L4-5, FR-L4-7, FR-L4-8)
-#                       — TODO Sprint 4C
+#                       — shipped (a15cd30c, PR #764)
 #   - 4D (SEAL/CLI):    trust_disable, concurrent-write tests
-#                       (FR-L4-6) — TODO Sprint 4D
+#                       (FR-L4-6) — shipped (a15cd30c, PR #764)
 #
 # Verdict semantics (PRD §FR-L4 + SDD §5.6.3):
 #   - First query returns default_tier (FR-L4-1).
