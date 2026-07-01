@@ -292,27 +292,47 @@ process_pack() {
     pack_slug=$(basename "$pack_dir")
 
     local manifest="$pack_dir/manifest.json"
-    if [[ ! -f "$manifest" ]]; then
-        return 1
-    fi
-
-    # Validate manifest is valid JSON
-    if ! jq empty "$manifest" 2>/dev/null; then
-        warn "Malformed manifest.json in pack '$pack_slug' — skipping"
+    local construct_yaml="$pack_dir/construct.yaml"
+    local manifest_json
+    if [[ -f "$manifest" ]]; then
+        # Validate manifest is valid JSON
+        if ! jq empty "$manifest" 2>/dev/null; then
+            warn "Malformed manifest.json in pack '$pack_slug' — skipping"
+            return 1
+        fi
+        manifest_json=$(cat "$manifest")
+    elif [[ -f "$construct_yaml" ]] && command -v yq &>/dev/null; then
+        # v4 packs ship construct.yaml only (no legacy manifest.json) — derive the manifest
+        # base from it instead of silently dropping the pack from the index. The construct.yaml
+        # overlay below still applies. construct.yaml's .skills is already [{slug,path}]-shaped.
+        manifest_json=$(yq eval -o=json '{
+            "name": (.name // ""),
+            "version": ((.version // "0.0.0") | tostring),
+            "description": (.description // ""),
+            "tags": (.tags // []),
+            "skills": (.skills // []),
+            "commands": (.commands // []),
+            "events": (.events // {})
+        }' "$construct_yaml" 2>/dev/null) || return 1
+        if ! jq empty <<<"$manifest_json" 2>/dev/null; then
+            warn "Could not derive manifest base from construct.yaml in '$pack_slug' — skipping"
+            return 1
+        fi
+    else
         return 1
     fi
 
     log "  Processing pack: $pack_slug"
 
-    # Extract base fields from manifest.json
+    # Extract base fields (from manifest.json, or the construct.yaml-derived base above)
     local name version description tags_json skills_json commands_json events_json
-    name=$(jq -r '.name // ""' "$manifest")
-    version=$(jq -r '.version // ""' "$manifest")
-    description=$(jq -r '.description // ""' "$manifest")
-    tags_json=$(jq -c '.tags // []' "$manifest")
-    skills_json=$(jq -c '.skills // []' "$manifest")
-    commands_json=$(jq -c '.commands // []' "$manifest")
-    events_json=$(jq -c '.events // {}' "$manifest")
+    name=$(jq -r '.name // ""' <<<"$manifest_json")
+    version=$(jq -r '.version // ""' <<<"$manifest_json")
+    description=$(jq -r '.description // ""' <<<"$manifest_json")
+    tags_json=$(jq -c '.tags // []' <<<"$manifest_json")
+    skills_json=$(jq -c '.skills // []' <<<"$manifest_json")
+    commands_json=$(jq -c '.commands // []' <<<"$manifest_json")
+    events_json=$(jq -c '.events // {}' <<<"$manifest_json")
 
     # Extract events into emits/consumes arrays
     local emits_json consumes_json
@@ -320,8 +340,8 @@ process_pack() {
     # `.type` (gecko + the MAJORITY of packs). The alternation MUST run per element:
     # `[.[].name // .event // .type]` evaluates `.event`/`.type` against the outer ARRAY,
     # which errors on every non-.name shape (and the stderr swallow turned that into []).
-    emits_json=$(_strict_or_default "[]" "events.emits" jq -c '.events.emits // [] | [.[] | (if type=="object" then (.name // .event // .type) elif type=="string" then . else empty end) // empty]' "$manifest")
-    consumes_json=$(_strict_or_default "[]" "events.consumes" jq -c '.events.consumes // [] | [.[] | (if type=="object" then (.event // .name // .type) elif type=="string" then . else empty end) // empty]' "$manifest")
+    emits_json=$(_strict_or_default "[]" "events.emits" jq -c '.events.emits // [] | [.[] | (if type=="object" then (.name // .event // .type) elif type=="string" then . else empty end) // empty]' <(printf '%s' "$manifest_json"))
+    consumes_json=$(_strict_or_default "[]" "events.consumes" jq -c '.events.consumes // [] | [.[] | (if type=="object" then (.event // .name // .type) elif type=="string" then . else empty end) // empty]' <(printf '%s' "$manifest_json"))
 
     # Initialize overlay fields
     local writes_json="[]"
@@ -477,11 +497,11 @@ main() {
         exit 1
     fi
 
-    # Find all packs with manifest.json
+    # Find all packs with a manifest.json OR a construct.yaml (v4 packs ship the latter only)
     local pack_dirs=()
     for pack_path in "$PACKS_DIR"/*/; do
         [[ -d "$pack_path" ]] || continue
-        if [[ -f "$pack_path/manifest.json" ]]; then
+        if [[ -f "$pack_path/manifest.json" || -f "$pack_path/construct.yaml" ]]; then
             pack_dirs+=("$pack_path")
         fi
     done

@@ -689,3 +689,37 @@ events:
     [[ "$output" == *"events.emits: extraction failed"* ]]      # warn surfaced
     [ "$(jq -c '.constructs[0].events.emits' "$TEST_OUTPUT")" = "[]" ]  # resilient default applied
 }
+
+# =============================================================================
+# T19: construct.yaml-only pack (no manifest.json) is indexed (v4 packs)
+# =============================================================================
+
+@test "T19: construct.yaml-only pack (no manifest.json) is indexed" {
+    # v4 packs ship construct.yaml and NO legacy manifest.json — must not be dropped
+    mkdir -p "$TEST_PACKS_DIR/yaml-only"
+    create_mock_construct_yaml "yaml-only" "
+name: Yaml Only
+version: 4.0.0
+description: A v4 pack with no manifest.json
+tags:
+  - v4
+skills:
+  - slug: alpha
+    path: skills/alpha
+  - slug: beta
+    path: skills/beta
+commands:
+  - name: run-alpha
+    path: commands/run-alpha.md
+"
+    run "$SCRIPT" --json --output "$TEST_OUTPUT" --quiet
+    [ "$status" -eq 0 ]
+
+    [ "$(jq -r '.constructs[0].slug' "$TEST_OUTPUT")" = "yaml-only" ]
+    [ "$(jq -r '.constructs[0].name' "$TEST_OUTPUT")" = "Yaml Only" ]
+    [ "$(jq -r '.constructs[0].version' "$TEST_OUTPUT")" = "4.0.0" ]
+    [ "$(jq '.constructs[0].skills | length' "$TEST_OUTPUT")" -eq 2 ]
+    [ "$(jq -r '.constructs[0].skills[0].slug' "$TEST_OUTPUT")" = "alpha" ]
+    [ "$(jq '.constructs[0].commands | length' "$TEST_OUTPUT")" -eq 1 ]
+    [ "$(jq '.constructs[0].tags | length' "$TEST_OUTPUT")" -eq 1 ]
+}
