@@ -258,6 +258,22 @@ memory_schema:
     check_on_session_start: true
 
 # -----------------------------------------------------------------------------
+# Known Failures surface (cycle-115)
+# -----------------------------------------------------------------------------
+# The operational log at grimoires/loa/known-failures.md records degradation
+# patterns the framework has hit. Its ## Index is generated (drift-proof) by
+# .claude/scripts/grimoire-index.sh from the ## KF-NNN: headings.
+known_failures:
+  # When true, the .claude/hooks/loa-kf-surface.sh SessionStart hook surfaces a
+  # compact symptom -> KF table (with numeric recurrence) at session start so an
+  # agent sees the failure log before triaging. DEFAULT-OFF: the hook is
+  # observability only — it always exits 0, never blocks a session, and emits
+  # NOTHING while this flag is false. When true it is loud-but-nonblocking: it
+  # warns visibly ([KF-SURFACE] WARNING) if the surface is enabled-but-degraded
+  # (known-failures.md unreadable or zero entries parsed).
+  surface_at_session_start: false
+
+# -----------------------------------------------------------------------------
 # Skills (v1.14.0)
 # -----------------------------------------------------------------------------
 skills:

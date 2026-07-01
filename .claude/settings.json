@@ -499,6 +499,12 @@
             "command": ".claude/hooks/session-start/loa-run-mode-session-title.sh",
             "async": true,
             "once": true
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/loa-kf-surface.sh",
+            "async": true,
+            "once": true
           }
         ]
       }

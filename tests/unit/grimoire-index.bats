@@ -33,10 +33,22 @@ setup() {
   [ "$status" -eq 0 ]
 }
 
-@test "grimoire-index: --validate WARNs on KF Index-table staleness (does not fail)" {
-  run bash "$GEN" --validate
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"Index table"* && "$output" == *"warning"* ]] || skip "KF Index table is in sync (no drift to warn about)"
+@test "grimoire-index: --validate FAILS when generated kf count != ## KF- heading count" {
+  # cycle-115 D1 — the index-row-vs-heading check is now a fail-on-drift
+  # assertion, not an informational ::warning::. The generated kf Index is
+  # authoritative; if it cannot reproduce every ## KF- heading, validate fails.
+  local dir; dir="$(mktemp -d)"
+  mkdir -p "$dir/grimoires/loa" "$dir/.claude/scripts" "$dir/.run"
+  cp "$GEN" "$dir/.claude/scripts/grimoire-index.sh"
+  cp "$PROJECT_ROOT/.claude/scripts/compat-lib.sh" "$dir/.claude/scripts/compat-lib.sh"
+  # Plant drift: two ## KF-001: headings — raw grep sees 2, generator dedupes to 1.
+  {
+    printf '# Known Failures\n\n## Index\n\n| ID | Status |\n|----|--------|\n'
+    printf '## KF-001: first\n\n**Symptom**: a.\n**Recurrence count**: 1\n\n'
+    printf '## KF-001: duplicate\n\n**Symptom**: b.\n**Recurrence count**: 2\n\n'
+  } > "$dir/grimoires/loa/known-failures.md"
+  run bash "$dir/.claude/scripts/grimoire-index.sh" --validate
+  [ "$status" -ne 0 ]
 }
 
 @test "grimoire-index: observation entries get a synthesized obs-<hex> surrogate id" {
