@@ -117,6 +117,16 @@ def any_glob(path: str, patterns: Iterable[str]) -> bool:
     return any(glob_match(path, p) for p in patterns)
 
 
+def classify_zone(rel_path: str, zones: Dict[str, Iterable[str]]) -> str:
+    """Which danger-ring does this repo-relative path fall in? (system|state|app|unknown)."""
+    if not rel_path:
+        return "unknown"
+    for zone_name, patterns in zones.items():
+        if any_glob(rel_path, patterns):
+            return zone_name
+    return "unknown"
+
+
 def redact(obj: Any, keys: Iterable[str]) -> Any:
     keyset = {k.lower() for k in keys}
     if isinstance(obj, dict):
@@ -143,6 +153,9 @@ class Harness:
         self.events_path = self.root / runtime.get("events_jsonl", ".loa-harness/runtime/events.jsonl")
         self.state_path = self.root / runtime.get("state_json", ".loa-harness/runtime/state.json")
         self.transition_path = self.root / runtime.get("transition_request", ".loa-harness/runtime/transition.request.json")
+        # World/zone awareness: the substrate computes "where am I" so a weak model never has to.
+        self.zones = policy.get("zones", {})
+        self.world = self.root.name or "unknown"
         self.runtime_dir.mkdir(parents=True, exist_ok=True)
         self._init_db()
         self._ensure_state()
@@ -173,6 +186,12 @@ class Harness:
                 )
                 """
             )
+            # Additive migration: zone/world on already-initialized installs.
+            cols = {row[1] for row in db.execute("pragma table_info(events)").fetchall()}
+            if "zone" not in cols:
+                db.execute("alter table events add column zone text")
+            if "world" not in cols:
+                db.execute("alter table events add column world text")
 
     def _db_get(self, key: str) -> Optional[str]:
         with sqlite3.connect(self.sqlite_path) as db:
@@ -227,6 +246,51 @@ class Harness:
         self._db_set("state", new_state)
         write_json(self.state_path, self.status_obj())
 
+    def zone_of(self, path_value: str) -> str:
+        return classify_zone(relpath(self.root, path_value), self.zones)
+
+    def event_zone(self, payload: Dict[str, Any]) -> str:
+        """The write-zone a tool call touches (the meaningful spatial fact per event)."""
+        tool_input = payload.get("tool_input") or {}
+        path_value = tool_input.get("file_path") or tool_input.get("path") or ""
+        return self.zone_of(path_value) if path_value else "unknown"
+
+    def next_gate(self) -> List[Dict[str, Any]]:
+        """The concrete evidence the current state's exits require — the pre-computed
+        answer to 'what must be legible to move.' Turns the transition slogan into an
+        instruction a weak model can act on."""
+        states = self.policy.get("states", {})
+        gates = self.policy.get("default_transition_evidence", {})
+        current = self.state()
+        out: List[Dict[str, Any]] = []
+        for nxt in states.get(current, {}).get("allowed_next", []):
+            items = gates.get(f"{current}->{nxt}", [])
+            item = next((i for i in items if not i.get("optional")), items[0] if items else None)
+            out.append({
+                "to": nxt,
+                "path": (item or {}).get("path", ""),
+                "markers": (item or {}).get("contains_any") or (item or {}).get("contains_all") or [],
+                "min_bytes": (item or {}).get("min_bytes", 0),
+            })
+        return out
+
+    def recent_denials(self, n: int = 3) -> List[Dict[str, Any]]:
+        """Denial-recall: the wall remembers. The reasons this worldline got blocked, most
+        recent first, with how many times each hit — so a weak model stops resubmitting a
+        denied action (the denial-bounce it otherwise can't see). Pure ledger read; only
+        called when continuity is injected, not on every append."""
+        try:
+            with sqlite3.connect(self.sqlite_path, timeout=10.0) as db:
+                rows = db.execute(
+                    "select reason, count(*) c, max(seq) m from events "
+                    "where decision in ('deny','block') and worldline_id=? and reason != '' "
+                    "group by reason order by m desc limit ?",
+                    (self.worldline_id(), n),
+                ).fetchall()
+            return [{"reason": r[0], "count": r[1]} for r in rows]
+        except Exception:
+            return []
+
     def append_event(
         self,
         hook_event_name: str,
@@ -241,50 +305,63 @@ class Harness:
         state_before = state_before or self.state()
         state_after = state_after or state_before
         redacted_payload = redact(payload, self.policy.get("redact_keys", []))
-        seq = self.seq() + 1
-        rec = {
-            "seq": seq,
-            "ts": utc_now(),
-            "worldline_id": self.worldline_id(),
-            "hook_event_name": hook_event_name,
-            "session_id": payload.get("session_id"),
-            "cwd": payload.get("cwd"),
-            "state_before": state_before,
-            "state_after": state_after,
-            "decision": decision,
-            "reason": reason,
-            "input_sha256": sha256_bytes(canonical(redacted_payload)),
-            "prev_hash": self.head_hash(),
-            "payload": redacted_payload,
-            "output": output or {},
-        }
-        event_hash = sha256_bytes(canonical(rec))
-        rec["event_hash"] = event_hash
-        self.events_path.parent.mkdir(parents=True, exist_ok=True)
-        with self.events_path.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(rec, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n")
-        with sqlite3.connect(self.sqlite_path) as db:
+        zone = self.event_zone(payload)
+        world = self.world
+        worldline_id = self.worldline_id()
+        input_sha = sha256_bytes(canonical(redacted_payload))
+        ts = utc_now()
+        session_id = payload.get("session_id")
+        cwd = payload.get("cwd")
+        # Atomic append: seq allocation + head-hash read + jsonl write + sqlite mirror all
+        # happen under ONE SQLite reserved lock (begin immediate + busy_timeout). Concurrent
+        # hooks serialize instead of racing the read-modify-write to a duplicate seq — the
+        # collision that corrupted a real ledger under concurrent cursor-gate calls (BB-F4).
+        # loa:shortcut: lock covers concurrency, not crash-torn writes (jsonl-then-commit);
+        # a crash mid-append is recovered by re-init, not by this lock. Add WAL fsync if
+        # crash-durability ever matters.
+        db = sqlite3.connect(self.sqlite_path, timeout=30.0)
+        try:
+            db.isolation_level = None
+            db.execute("pragma busy_timeout=30000")
+            db.execute("begin immediate")
+            row = db.execute("select value from meta where key='seq'").fetchone()
+            seq = int(row[0] if row else "0") + 1
+            hrow = db.execute("select value from meta where key='head_hash'").fetchone()
+            prev_hash = hrow[0] if hrow else "genesis"
+            rec = {
+                "seq": seq,
+                "ts": ts,
+                "worldline_id": worldline_id,
+                "hook_event_name": hook_event_name,
+                "session_id": session_id,
+                "cwd": cwd,
+                "zone": zone,
+                "world": world,
+                "state_before": state_before,
+                "state_after": state_after,
+                "decision": decision,
+                "reason": reason,
+                "input_sha256": input_sha,
+                "prev_hash": prev_hash,
+                "payload": redacted_payload,
+                "output": output or {},
+            }
+            event_hash = sha256_bytes(canonical(rec))
+            rec["event_hash"] = event_hash
+            self.events_path.parent.mkdir(parents=True, exist_ok=True)
+            with self.events_path.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(rec, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n")
             db.execute(
                 """
                 insert into events(seq, ts, worldline_id, hook_event_name, session_id,
-                state_before, state_after, decision, reason, input_sha256, prev_hash,
-                event_hash, payload_json)
-                values(?,?,?,?,?,?,?,?,?,?,?,?,?)
+                zone, world, state_before, state_after, decision, reason, input_sha256,
+                prev_hash, event_hash, payload_json)
+                values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
-                    seq,
-                    rec["ts"],
-                    rec["worldline_id"],
-                    hook_event_name,
-                    payload.get("session_id"),
-                    state_before,
-                    state_after,
-                    decision,
-                    reason,
-                    rec["input_sha256"],
-                    rec["prev_hash"],
-                    event_hash,
-                    json.dumps(redacted_payload, sort_keys=True, ensure_ascii=False),
+                    seq, ts, worldline_id, hook_event_name, session_id, zone, world,
+                    state_before, state_after, decision, reason, input_sha, prev_hash,
+                    event_hash, json.dumps(redacted_payload, sort_keys=True, ensure_ascii=False),
                 ),
             )
             db.execute(
@@ -295,6 +372,9 @@ class Harness:
                 "insert into meta(key,value) values('head_hash',?) on conflict(key) do update set value=excluded.value",
                 (event_hash,),
             )
+            db.execute("commit")
+        finally:
+            db.close()
         # Keep the JSON sidecar in sync for adapters that read state.json directly.
         write_json(self.state_path, self.status_obj())
         return rec
@@ -303,10 +383,13 @@ class Harness:
         states = self.policy.get("states", {})
         current = self.state()
         return {
-            "schema_version": "loa-harness.state/v0.1",
+            "schema_version": "loa-harness.state/v0.2",
             "worldline_id": self.worldline_id(),
+            "world": self.world,
             "state": current,
             "allowed_next": states.get(current, {}).get("allowed_next", []),
+            "next_gate": self.next_gate(),
+            "zones": list(self.zones.keys()),
             "seq": self.seq(),
             "head_hash": self.head_hash(),
             "policy": relpath(self.root, str(self.policy_path)),
@@ -315,17 +398,39 @@ class Harness:
         }
 
     def context_message(self) -> str:
+        # Fill the continuity seam with the WORLD, not the FSM skeleton. A weak model
+        # reads its position, the forbidden zones, and the concrete next gate — it never
+        # has to spend attention deriving where it is or what the gate wants.
         s = self.status_obj()
+        gate_lines = []
+        for g in s["next_gate"]:
+            if g["path"]:
+                markers = "|".join(g["markers"]) if g["markers"] else "(any content)"
+                gate_lines.append(
+                    f"  -> {g['to']}: produce {g['path']} (>= {g['min_bytes']} bytes, contains {markers})"
+                )
+            else:
+                gate_lines.append(f"  -> {g['to']}: (no evidence gate)")
+        gate_block = "\n".join(gate_lines) or "  (none)"
+        zones = ", ".join(s["zones"]) or "(none)"
+        denials = self.recent_denials()
+        if denials:
+            dlines = "\n".join(f"  x{d['count']}  {d['reason']}" for d in denials)
+            denial_block = "recent denials (the wall remembers — do not resubmit these):\n" + dlines + "\n"
+        else:
+            denial_block = ""
         return (
             "LOA HARNESS CONTINUITY\n"
             f"worldline_id: {s['worldline_id']}\n"
-            f"state: {s['state']}\n"
-            f"allowed_next: {', '.join(s['allowed_next']) or '(none)'}\n"
-            f"event_seq: {s['seq']}\n"
+            f"world: {s['world']}\n"
+            f"state: {s['state']}   (event_seq {s['seq']})\n"
+            f"zones (write-rings): {zones}  [system = SEALED, no writes; state = writable; app = confirm]\n"
+            "next gate(s) — the concrete evidence to advance:\n"
+            f"{gate_block}\n"
+            f"{denial_block}"
             f"head_hash: {s['head_hash']}\n"
-            "State transitions are executable, not prose. To advance, write "
-            ".loa-harness/runtime/transition.request.json with from/to/reason/evidence; "
-            "the Stop hook will validate evidence and advance or block."
+            "Transitions are executable, not prose: write .loa-harness/runtime/transition.request.json; "
+            "the Stop hook validates evidence against the policy floor and advances or blocks."
         )
 
     def deny_json(self, event_name: str, reason: str) -> Dict[str, Any]:
@@ -427,9 +532,13 @@ class Harness:
         if dst not in allowed:
             return False, f"illegal transition: {cur} -> {dst}; allowed: {allowed}", None, req
         transition_key = f"{src}->{dst}"
-        evidence = req.get("evidence")
-        if evidence is None:
-            evidence = self.policy.get("default_transition_evidence", {}).get(transition_key, [])
+        # Policy floor (weak-model safety): the policy default_transition_evidence is ALWAYS
+        # enforced; a request may ADD stricter evidence but can never weaken or replace the
+        # floor. Prevents an agent from self-authoring a trivial passing gate (the
+        # self-attestation hole — BB F2/F3, Thompson F8). The substrate holds the gate.
+        policy_evidence = self.policy.get("default_transition_evidence", {}).get(transition_key, [])
+        req_evidence = req.get("evidence") or []
+        evidence = list(policy_evidence) + [e for e in req_evidence if e not in policy_evidence]
         messages: List[str] = []
         hard_ok = True
         seen_required = False
