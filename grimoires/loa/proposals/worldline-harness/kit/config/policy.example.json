@@ -1,0 +1,84 @@
+{
+  "schema_version": "loa-harness.policy/v0.1",
+  "name": "loa-portable-harness",
+  "description": "Minimal deterministic harness policy for LOA-compatible Claude CLI workflows.",
+  "runtime": {
+    "dir": ".loa-harness/runtime",
+    "sqlite": ".loa-harness/runtime/harness.sqlite3",
+    "events_jsonl": ".loa-harness/runtime/events.jsonl",
+    "state_json": ".loa-harness/runtime/state.json",
+    "transition_request": ".loa-harness/runtime/transition.request.json"
+  },
+  "zones": {
+    "system": [".claude/**", ".loa-harness/bin/**", ".loa-harness/policy.json", ".git/**"],
+    "state": ["grimoires/loa/**", ".beads/**", ".run/**", ".ck/**", ".loa-harness/runtime/**"],
+    "app": ["src/**", "lib/**", "app/**", "packages/**", "tests/**", "test/**"]
+  },
+  "writes": {
+    "protected_globs": [".claude/**", ".git/**", ".env", ".env.*", ".loa-harness/bin/**", ".loa-harness/policy.json"],
+    "allowed_globs": [".claude/overrides/**", ".loa-harness/runtime/transition.request.json", "grimoires/loa/**", ".beads/**", ".run/**", ".ck/**"],
+    "deny_message": "This path is governed by the LOA harness. Use state-zone artifacts or .claude/overrides instead of editing framework/system files directly."
+  },
+  "bash": {
+    "deny_regex": [
+      "(?i)rm\\s+-rf\\s+(/|~|\\$HOME|\\.\\.)",
+      "(?i)curl\\b.*\\|\\s*(sh|bash)",
+      "(?i)wget\\b.*\\|\\s*(sh|bash)",
+      "(?i)git\\s+push\\s+--force",
+      "(?i)chmod\\s+-R\\s+777",
+      "(?i)dd\\s+if=.*of=/dev/",
+      "(?i)>\\s*\\.claude/",
+      "(?i)tee\\s+.*\\.claude/"
+    ]
+  },
+  "states": {
+    "INIT": {"allowed_next": ["ORIENTING"]},
+    "ORIENTING": {"allowed_next": ["PLANNING"]},
+    "PLANNING": {"allowed_next": ["ARCHITECTING"]},
+    "ARCHITECTING": {"allowed_next": ["SPRINTING"]},
+    "SPRINTING": {"allowed_next": ["IMPLEMENTING"]},
+    "IMPLEMENTING": {"allowed_next": ["REVIEWING"]},
+    "REVIEWING": {"allowed_next": ["AUDITING", "IMPLEMENTING"]},
+    "AUDITING": {"allowed_next": ["SHIPPING", "IMPLEMENTING"]},
+    "SHIPPING": {"allowed_next": ["ARCHIVED"]},
+    "ARCHIVED": {"allowed_next": ["ORIENTING"]}
+  },
+  "default_transition_evidence": {
+    "INIT->ORIENTING": [
+      {"path": "CLAUDE.md", "min_bytes": 10, "contains_any": ["Project", "@.claude", "Instructions"]}
+    ],
+    "ORIENTING->PLANNING": [
+      {"path": "BUTTERFREEZONE.md", "min_bytes": 200, "optional": true},
+      {"path": "README.md", "min_bytes": 200, "optional": true}
+    ],
+    "PLANNING->ARCHITECTING": [
+      {"path": "grimoires/loa/prd.md", "min_bytes": 500, "contains_any": ["Acceptance", "Requirements", "PRD"]}
+    ],
+    "ARCHITECTING->SPRINTING": [
+      {"path": "grimoires/loa/sdd.md", "min_bytes": 500, "contains_any": ["Architecture", "Design", "SDD"]}
+    ],
+    "SPRINTING->IMPLEMENTING": [
+      {"path": "grimoires/loa/sprint.md", "min_bytes": 300, "contains_any": ["Sprint", "Task", "Acceptance"]}
+    ],
+    "IMPLEMENTING->REVIEWING": [
+      {"path": ".run/tests/latest.json", "min_bytes": 10, "optional": true},
+      {"path": ".run/diffstat.txt", "min_bytes": 10, "optional": true}
+    ],
+    "REVIEWING->AUDITING": [
+      {"path": "grimoires/loa/a2a/engineer-feedback.md", "min_bytes": 50, "contains_any": ["All good", "APPROVED"]}
+    ],
+    "REVIEWING->IMPLEMENTING": [
+      {"path": "grimoires/loa/a2a/engineer-feedback.md", "min_bytes": 50, "contains_any": ["CHANGES_REQUIRED", "Changes required"]}
+    ],
+    "AUDITING->SHIPPING": [
+      {"path": "grimoires/loa/a2a/auditor-feedback.md", "min_bytes": 50, "contains_any": ["APPROVED", "All good"]}
+    ],
+    "AUDITING->IMPLEMENTING": [
+      {"path": "grimoires/loa/a2a/auditor-feedback.md", "min_bytes": 50, "contains_any": ["CHANGES_REQUIRED", "VULNERABILITY", "BLOCKER"]}
+    ],
+    "SHIPPING->ARCHIVED": [
+      {"path": "grimoires/loa/deployment/ship.md", "min_bytes": 100, "optional": true}
+    ]
+  },
+  "redact_keys": ["authorization", "api_key", "token", "password", "secret", "cookie"]
+}

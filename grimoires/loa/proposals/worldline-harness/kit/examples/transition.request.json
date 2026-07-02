@@ -1,0 +1,14 @@
+{
+  "schema_version": "loa-harness.transition-request/v0.1",
+  "from": "PLANNING",
+  "to": "ARCHITECTING",
+  "actor": "claude-cli",
+  "reason": "PRD exists and acceptance criteria are ready for architecture.",
+  "evidence": [
+    {
+      "path": "grimoires/loa/prd.md",
+      "min_bytes": 500,
+      "contains_any": ["Acceptance", "Requirements", "PRD"]
+    }
+  ]
+}
