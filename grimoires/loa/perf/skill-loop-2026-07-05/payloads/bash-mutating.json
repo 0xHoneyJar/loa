@@ -1,0 +1,14 @@
+{
+  "session_id": "bench0000-0000-4000-8000-000000000000",
+  "transcript_path": "__ROOT__/transcript.jsonl",
+  "cwd": "__ROOT__",
+  "hook_event_name": "PostToolUse",
+  "permission_mode": "default",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "git commit -m \"chore(bench): update notes\"",
+    "description": "Commit staged changes"
+  },
+  "tool_result": { "exit_code": 0 },
+  "tool_response": { "stdout": "[main 0000000] chore(bench): update notes", "stderr": "", "interrupted": false }
+}

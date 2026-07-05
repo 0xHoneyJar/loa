@@ -1,0 +1,24 @@
+label	child_spawns	breakdown
+block-destructive/bash-benign	2	jq x1, grep x1
+block-destructive/bash-mutating	2	jq x1, grep x1
+block-destructive/bash-destructive	3	grep x2, jq x1
+block-destructive/bash-blocked	9	sed x4, jq x2, mkdir x1, head x1, grep x1
+team-role-guard/bash-benign	0	
+team-role-guard/bash-mutating+TEAM	1	jq x1
+mutation-logger/bash-benign	4	jq x2, grep x1, cat x1
+mutation-logger/bash-mutating	9	jq x3, stat x2, mkdir x1, grep x1, date x1, cat x1
+team-role-guard-write/write-grim	0	
+spiral-dispatch-guard/write-grim	1	jq x1
+zone-write-guard/write-grim	4	yq x2, realpath x1, jq x1
+zone-write-guard/write-claude	3	yq x1, realpath x1, jq x1
+adversarial-gate/write-grim	1	jq x1
+adversarial-gate/write-completed	3	yq x2, jq x1
+write-mutation-logger/write-grim	6	jq x3, mkdir x1, date x1, cat x1
+karpathy-diff/write-grim-warn	22	jq x7, date x3, yq x2, wc x2, tr x2, mkdir x2, dirname x2, cat x1, awk x1
+team-skill-guard/skill-implement	0	
+spiral-skill-sentinel/skill-impl	1	jq x1
+run-mode-stop-guard/stop-idle	7	jq x7
+settings-cleanup/small	1	stat x1
+settings-cleanup/large	35	grep x24, jq x6, stat x1, mv x1, mkdir x1, dirname x1, date x1
+post-compact-reminder/no-marker	0	
+post-compact-reminder/marker	17	cat x9, jq x4, rm x1, mkdir x1, dirname x1, date x1

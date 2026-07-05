@@ -1,0 +1,16 @@
+COMBO: adversarial-gate__write-completed
+EXIT: 2
+--- STDOUT ---
+--- STDERR ---
+BLOCKED: adversarial review required before COMPLETED marker
+  Sprint dir: __ROOT__/grimoires/loa/cycles/cycle-bench/sprints/sprint-1
+  Config requests: code_review=true, security_audit=true
+  Missing or invalid: adversarial-review.json adversarial-audit.json
+
+  Artefact must contain .metadata.type and .metadata.model.
+  To proceed, run Phase 2.5 cross-model review:
+    .claude/scripts/adversarial-review.sh \
+      --type review --sprint-id $(basename __ROOT__/grimoires/loa/cycles/cycle-bench/sprints/sprint-1) \
+      --diff-file <path-to-diff>
+
+  Emergency override: LOA_ADVERSARIAL_REVIEW_ENFORCE=false (not recommended)

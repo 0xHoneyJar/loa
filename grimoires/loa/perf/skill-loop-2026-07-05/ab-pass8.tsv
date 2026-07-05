@@ -1,0 +1,13 @@
+# ab-pass8: block-destructive-bash old vs new, per-run alternation, 20 runs
+bash-benign(ls -la)	old	runs=20	mean=14.2	p95=19	min=6	max=19
+bash-benign(ls -la)	new	runs=20	mean=9.5	p95=12	min=3	max=12
+bash-mutating(git commit)	old	runs=20	mean=9.5	p95=16	min=6	max=17
+bash-mutating(git commit)	new	runs=20	mean=7.0	p95=11	min=3	max=12
+bash-destructive(rm /tmp ok)	old	runs=20	mean=18.7	p95=22	min=10	max=22
+bash-destructive(rm /tmp ok)	new	runs=20	mean=14.3	p95=16	min=7	max=17
+bash-blocked(git push --force)	old	runs=20	mean=27.8	p95=37	min=13	max=38
+bash-blocked(git push --force)	new	runs=20	mean=28.1	p95=37	min=11	max=39
+bash-nearmiss(git commit w/push word)	old	runs=20	mean=14.8	p95=17	min=7	max=18
+bash-nearmiss(git commit w/push word)	new	runs=20	mean=9.9	p95=13	min=5	max=13
+bash-100KB-benign	old	runs=20	mean=27.3	p95=32	min=20	max=33
+bash-100KB-benign	new	runs=20	mean=15.1	p95=21	min=9	max=23

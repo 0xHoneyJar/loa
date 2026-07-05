@@ -1,0 +1,5 @@
+COMBO: karpathy-diff__write-grim-warn
+EXIT: 0
+--- STDOUT ---
+--- STDERR ---
+[karpathy-surgical-warn] Session diff total 212 lines exceeds threshold 100. Karpathy principle 3 (Surgical Changes): verify every changed line traces to the stated task. State: __ROOT__/.run/karpathy-task-state.jsonl

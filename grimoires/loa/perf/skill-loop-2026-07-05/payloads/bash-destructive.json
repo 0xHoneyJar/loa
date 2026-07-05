@@ -1,0 +1,14 @@
+{
+  "session_id": "bench0000-0000-4000-8000-000000000000",
+  "transcript_path": "__ROOT__/transcript.jsonl",
+  "cwd": "__ROOT__",
+  "hook_event_name": "PreToolUse",
+  "permission_mode": "default",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "rm -rf /tmp/x",
+    "description": "Remove scratch directory"
+  },
+  "tool_result": { "exit_code": 0 },
+  "tool_response": { "stdout": "", "stderr": "", "interrupted": false }
+}

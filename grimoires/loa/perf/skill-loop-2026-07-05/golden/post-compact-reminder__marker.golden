@@ -1,0 +1,34 @@
+COMBO: post-compact-reminder__marker
+EXIT: 0
+--- STDOUT ---
+
+════════════════════════════════════════════════════════════════════
+ 🚨 CONTEXT COMPACTION DETECTED - RECOVERY REQUIRED
+════════════════════════════════════════════════════════════════════
+
+You MUST perform these recovery steps BEFORE responding to the user:
+
+## Step 1: Re-read Project Conventions
+Read CLAUDE.md to restore project guidelines, conventions, and patterns.
+
+## Step 2: Check Run Mode State
+**Run Mode was ACTIVE** (state: RUNNING)
+
+⚠️  CRITICAL: Resume sprint execution AUTONOMOUSLY without asking the user.
+    Check .run/sprint-plan-state.json for current sprint and continue.
+
+## Step 3: Check Simstim State
+Check if simstim is active:
+```bash
+cat .run/simstim-state.json 2>/dev/null || echo "No active simstim"
+```
+Resume from last incomplete phase if active.
+
+## Step 4: Review Project Memory
+Scan `grimoires/loa/NOTES.md` for project-specific learnings and patterns.
+
+════════════════════════════════════════════════════════════════════
+ DO NOT proceed with user's request until recovery steps are complete
+════════════════════════════════════════════════════════════════════
+
+--- STDERR ---

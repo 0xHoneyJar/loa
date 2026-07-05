@@ -1,0 +1,5 @@
+COMBO: settings-cleanup__large
+EXIT: 0
+--- STDOUT ---
+--- STDERR ---
+[settings-cleanup] Cleaned 1 entries from permissions.allow (901 → 900)

@@ -1,0 +1,17 @@
+label	side	runs	min_ms	mean_ms	p95_ms
+chain-bash	old	20	29.11	56.70	79.74
+chain-bash	new	20	8.23	19.05	26.13
+chain-write	old	20	70.99	135.04	169.18
+chain-write	new	20	26.50	51.58	66.21
+chain-edit	old	20	85.02	148.10	178.49
+chain-edit	new	20	27.09	50.98	65.20
+chain-skill	old	20	9.92	14.52	16.31
+chain-skill	new	20	3.97	7.56	9.18
+chain-stop	old	20	38.64	47.49	52.03
+chain-stop	new	20	10.14	17.12	20.13
+bh-quick-json	old	20	24.77	52.34	65.70
+bh-quick-json	new	20	16.69	35.55	48.63
+cu-notify-freshcache	old	20	45.39	80.22	99.52
+cu-notify-freshcache	new	20	14.55	28.69	34.92
+gp-source	old	20	42.21	82.27	102.48
+gp-source	new	20	20.98	39.88	51.03

@@ -1,0 +1,15 @@
+# Per-run alternating A/B (old,new,old,new...; 40 alternations; same window)
+# — run for pairs where the 20-run-block A/B (ab-pass3.tsv) showed suspect
+# deltas under the powersave governor. label	variant	min_ms	mean_ms	p95_ms
+advgate/write-grim	ALT-OLD	3.459	7.451	11.322
+advgate/write-grim	ALT-NEW	3.266	7.355	10.956
+advgate/completed	ALT-OLD	11.606	25.334	33.239
+advgate/completed	ALT-NEW	18.127	33.474	43.075
+zwg/write-claude	ALT-OLD	9.137	19.438	25.454
+zwg/write-claude	ALT-NEW	10.731	21.405	26.958
+zwg/write-grim	ALT-OLD	10.685	25.863	33.762
+zwg/write-grim	ALT-NEW	10.169	20.370	27.924
+ml/bash-benign	ALT-OLD	10.580	18.002	22.011
+ml/bash-benign	ALT-NEW	7.683	12.404	15.080
+stop/idle	ALT-OLD	16.040	32.281	40.317
+stop/idle	ALT-NEW	3.463	9.052	12.479
