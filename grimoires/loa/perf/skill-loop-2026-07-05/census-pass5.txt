@@ -1,0 +1,6 @@
+bh-quick-old             spawns=22   stat x6, sqlite3 x3, awk x3, jq x2, head x2, date x2, grep x1, dirname x1, cat x1, br x1
+bh-quick-new             spawns=9    stat x3, sqlite3 x3, jq x1, grep x1, br x1
+cu-notify-old            spawns=17   yq x5, jq x5, seq x2, stat x1, mkdir x1, dirname x1, date x1, cat x1
+cu-notify-new            spawns=4    jq x2, yq x1, stat x1
+gp-source-old            spawns=22   yq x6, realpath x6, dirname x2, stat x1, sort x1, sed x1, rm x1, mktemp x1, head x1, grep x1, find x1
+gp-source-new            spawns=9    realpath x3, yq x2, stat x1, sort x1, sed x1, find x1

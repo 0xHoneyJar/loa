@@ -1,0 +1,8 @@
+bh-quick-json	old	20	28.16	48.94	65.45
+bh-quick-json	new	20	19.76	37.99	49.46
+bh-full-json	old	20	99.56	111.78	123.06
+bh-full-json	new	20	94.23	108.45	117.75
+cu-notify-freshcache	old	20	41.78	81.63	103.05
+cu-notify-freshcache	new	20	11.23	29.94	37.45
+gp-source	old	20	41.95	84.33	104.30
+gp-source	new	20	17.10	42.72	52.26
