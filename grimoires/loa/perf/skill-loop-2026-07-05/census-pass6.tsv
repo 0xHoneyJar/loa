@@ -1,0 +1,13 @@
+label	child_spawns	breakdown
+zwg/write-grim OLD	3	yq x1, realpath x1, jq x1
+zwg/write-grim NEW-cold	6	yq x1, stat x1, realpath x1, mv x1, mkdir x1, jq x1
+zwg/write-grim NEW-warm	3	stat x1, realpath x1, jq x1
+zwg/write-claude OLD	3	yq x1, realpath x1, jq x1
+zwg/write-claude NEW-warm	3	stat x1, realpath x1, jq x1
+zwg/edit-tests OLD	3	yq x1, realpath x1, jq x1
+zwg/edit-tests NEW-warm	3	stat x1, realpath x1, jq x1
+kp/write-grim-warn OLD	3	yq x1, jq x1, awk x1
+kp/write-grim-warn NEW-cold	6	yq x1, stat x1, mv x1, mkdir x1, jq x1, awk x1
+kp/write-grim-warn NEW-warm	3	stat x1, jq x1, awk x1
+kp/edit-tests-warn OLD	3	yq x1, jq x1, awk x1
+kp/edit-tests-warn NEW-warm	3	stat x1, jq x1, awk x1
