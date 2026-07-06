@@ -94,3 +94,47 @@ _in_fixture() {
     grep -qi 'submodule' "$DOC"
     grep -q 'update-loa.sh' "$DOC"
 }
+
+# =============================================================================
+# #1177 (item G): check mode must detect CONTENT drift of an existing
+# regular-file / dir copy — not just symlink/missing. This is the crate/ledger
+# class reproduced live (settings.json stuck at a pre-#1045 allow-list while
+# --check-symlinks reported "healthy").
+# =============================================================================
+
+@test "#1177-G: check mode flags a drifted settings.json regular file as COPY-DRIFT" {
+    # In-sync hooks so only settings.json drifts.
+    cp -R "$FIX/.loa/.claude/hooks" "$FIX/.claude/hooks"
+    printf '%s' '{"permissions":{"allow":["Write(grimoires/**)","Edit(.beads/**)"],"deny":["Write(.run/*.sh)"]}}' \
+        > "$FIX/.loa/.claude/settings.json"
+    printf '%s' '{"permissions":{"allow":[],"deny":[]}}' > "$FIX/.claude/settings.json"
+    run bash -c "cd '$FIX' && SUBMODULE_PATH='.loa' source '$MOUNT' --source-only && refresh_copy_set false"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"COPY-DRIFT"* ]]
+    # The structural allow diff names the exact missing rules (AC-a legibility).
+    [[ "$output" == *"permissions.allow"* ]]
+    # No mutation in check mode.
+    grep -q '"allow":\[\]' "$FIX/.claude/settings.json"
+}
+
+@test "#1177-G: check mode flags a drifted .claude/hooks directory as COPY-DRIFT" {
+    # In-sync settings so only the hooks dir drifts.
+    cp "$FIX/.loa/.claude/settings.json" "$FIX/.claude/settings.json"
+    mkdir -p "$FIX/.claude/hooks"
+    printf '#!/bin/sh\necho OLD\n' > "$FIX/.claude/hooks/probe.sh"
+    run bash -c "cd '$FIX' && SUBMODULE_PATH='.loa' source '$MOUNT' --source-only && refresh_copy_set false"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"COPY-DRIFT"* ]]
+    # Not mutated in check mode.
+    grep -q OLD "$FIX/.claude/hooks/probe.sh"
+}
+
+@test "#1177-G: check mode on an in-sync repo returns 0 with no drift (idempotent success)" {
+    cp -R "$FIX/.loa/.claude/hooks" "$FIX/.claude/hooks"
+    cp "$FIX/.loa/.claude/settings.json" "$FIX/.claude/settings.json"
+    run bash -c "cd '$FIX' && SUBMODULE_PATH='.loa' source '$MOUNT' --source-only && refresh_copy_set false"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"COPY-DRIFT"* ]]
+    [[ "$output" != *"COPY-STALE"* ]]
+    [[ "$output" != *"COPY-MISSING"* ]]
+}

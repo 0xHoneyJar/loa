@@ -886,6 +886,36 @@ _refresh_copy_entry() {
       warn "  COPY-MISSING: $dest — run --reconcile"
       return 1
     fi
+    # #1177 (item G): existing regular file/dir at the destination — compare
+    # CONTENT against the submodule's current version. Pre-fix, any non-symlink
+    # dest was accepted as "ok" (return 0 below), so a settings.json stuck at a
+    # pre-#1045 allow-list drifted silently and --check-symlinks reported
+    # "healthy". Detect content drift here (fail-loud, mutate nothing).
+    local _drift=""
+    if [[ -d "$abs_target" ]]; then
+      diff -rq "$abs_target" "$abs_dest" >/dev/null 2>&1 || _drift="dir"
+    else
+      cmp -s "$abs_target" "$abs_dest" || _drift="file"
+    fi
+    if [[ -n "$_drift" ]]; then
+      warn "  COPY-DRIFT: $dest content differs from $target — run --reconcile"
+      if [[ "$_drift" == "dir" ]]; then
+        diff -rq "$abs_target" "$abs_dest" 2>&1 | sed 's/^/    /' || true
+      else
+        diff "$abs_dest" "$abs_target" 2>&1 | sed 's/^/    /' || true
+      fi
+      # For settings.json, a structural allow/deny diff names the exact
+      # missing/extra rules — the raw JSON diff obscures them behind
+      # whitespace/order noise. jq is a hard preflight dependency.
+      if [[ "$dest" == ".claude/settings.json" ]] && command -v jq >/dev/null 2>&1; then
+        local _adiff _ddiff
+        _adiff="$(diff <(jq -S '.permissions.allow // []' "$abs_dest" 2>/dev/null) <(jq -S '.permissions.allow // []' "$abs_target" 2>/dev/null) 2>/dev/null || true)"
+        _ddiff="$(diff <(jq -S '.permissions.deny // []' "$abs_dest" 2>/dev/null) <(jq -S '.permissions.deny // []' "$abs_target" 2>/dev/null) 2>/dev/null || true)"
+        [[ -n "$_adiff" ]] && { warn "  permissions.allow drift (< local, > submodule):"; printf '%s\n' "$_adiff" | sed 's/^/    /'; } || true
+        [[ -n "$_ddiff" ]] && { warn "  permissions.deny drift (< local, > submodule):"; printf '%s\n' "$_ddiff" | sed 's/^/    /'; } || true
+      fi
+      return 1
+    fi
     return 0
   fi
   # Apply: replace whatever is at the destination with a fresh copy.
@@ -966,8 +996,30 @@ verify_and_reconcile_symlinks() {
         ok=$((ok + 1))
       fi
     elif [[ -e "$full_link" ]]; then
-      # Exists but not a symlink — skip (user-owned file)
-      ok=$((ok + 1))
+      # Exists but not a symlink. Normally a legitimate user override — count
+      # as ok. EXCEPT framework-identity files that must NEVER degrade into a
+      # plain file: a plain-file CLAUDE.loa.md silently stops version/hash
+      # propagation on every future update (#1177 item G).
+      case "$link_path" in
+        .claude/loa/CLAUDE.loa.md)
+          stale=$((stale + 1))
+          warn "  DEGRADED: $link_path is a plain file but must be a framework symlink"
+          if [[ "$reconcile" == "true" ]]; then
+            local parent_dir resolved_target
+            parent_dir=$(dirname "$full_link")
+            mkdir -p "$parent_dir"
+            resolved_target=$(cd "$(dirname "$full_link")" 2>/dev/null && resolve_path_portable "$target" || echo "")
+            if [[ -n "$resolved_target" && -e "$resolved_target" ]]; then
+              ln -sf "$target" "$full_link"
+              fixed=$((fixed + 1))
+              log "  RESTORED: $link_path"
+            fi
+          fi
+          ;;
+        *)
+          ok=$((ok + 1))
+          ;;
+      esac
     else
       # Missing entirely
       stale=$((stale + 1))
@@ -1007,6 +1059,39 @@ verify_and_reconcile_symlinks() {
   return 0
 }
 
+# === Version Marker Staleness Check (#1177 item G, LEAD decision #3) ===
+# Advisory: compare .loa-version.json's .framework_version against the
+# submodule's ACTUAL pinned version. Fleet operators bump the .loa gitlink by
+# hand ("pointer-only" commits / `git submodule update --remote`) without
+# running update-loa.sh, so the marker drifts stale by up to ~85 releases while
+# the pin advances. This is invisible to git (the copy-set is gitignored) and
+# to the symlink/copy-set checks above. WARN-only — does NOT change the
+# --check-symlinks exit code; it is a supplementary detection surface for AC(c)
+# beyond the update path.
+check_version_marker_staleness() {
+  [[ -f "$VERSION_FILE" ]] || return 0
+  local submodule="${SUBMODULE_PATH:-.loa}"
+  # Only meaningful when the submodule is a real git working tree.
+  [[ -e "$submodule/.git" ]] || return 0
+
+  local marker_version actual_version
+  marker_version=$(jq -r '.framework_version // empty' "$VERSION_FILE" 2>/dev/null || echo "")
+  [[ -n "$marker_version" ]] || return 0
+
+  # Match create_manifest()'s marker source: `git describe --tags` (fallback to
+  # a short HEAD hash) per LEAD decision #3.
+  actual_version=$(git -C "$submodule" describe --tags 2>/dev/null \
+    || git -C "$submodule" rev-parse --short HEAD 2>/dev/null || echo "")
+  [[ -n "$actual_version" ]] || return 0
+
+  if [[ "$marker_version" != "$actual_version" ]]; then
+    warn "  MARKER-STALE: .loa-version.json framework_version '$marker_version' != submodule pin '$actual_version' — run update-loa.sh (a pointer-only .loa bump leaves the marker stale)"
+  else
+    log "  Version marker fresh: $marker_version"
+  fi
+  return 0
+}
+
 # === Check Symlinks Subcommand (Task 2.6) ===
 # Standalone health check: mount-submodule.sh --check-symlinks
 check_symlinks_subcommand() {
@@ -1015,10 +1100,19 @@ check_symlinks_subcommand() {
   log "  Symlink Health Check"
   log "======================================================================="
   echo ""
-  verify_and_reconcile_symlinks "false"
-  local result=$?
-  # #968: report #842 copy-set state too (stale symlink / missing dest)
+  # #1177 (item G): guard the call with `|| result=1` — a bare call under
+  # `set -e` (line 25) kills the whole script the instant verify returns 1
+  # (any dangling/missing symlink), so the copy-set check below never ran and
+  # `--check-symlinks` silently omitted all COPY-* drift. Mirror the idiom the
+  # --reconcile path (below) already uses.
+  local result=0
+  verify_and_reconcile_symlinks "false" || result=1
+  # #968: report #842 copy-set state too (stale symlink / missing dest / drift)
   refresh_copy_set "false" || result=1
+  # #1177 (item G, LEAD decision #3): advisory version-marker staleness check.
+  # WARN-only — deliberately does NOT flip `result` (a stale marker is a
+  # distinct axis of drift from broken symlinks/copies).
+  check_version_marker_staleness
   if [[ $result -eq 0 ]]; then
     log "All symlinks healthy."
   else
