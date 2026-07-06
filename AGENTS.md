@@ -79,4 +79,4 @@ Precedence: **NEVER > MUST > ALWAYS > SHOULD > MAY.** These are mechanically enf
 - **Beads-first:** task lifecycle is tracked via `br` (beads_rust); it is the source of truth, not ad-hoc TODOs.
 
 ## Context Intake (read FIRST)
-Before any substantive work, read `grimoires/loa/known-failures.md` — the operational log of degradation patterns and the workarounds that did NOT fix them. Recurrence count ≥ 3 means a failure class is structural; route through the upstream issue rather than retrying listed dead-ends.
+Before any substantive work, consult the known-failures **index**, not the full log. If `known_failures.surface_at_session_start` is true the `.claude/hooks/loa-kf-surface.sh` SessionStart hook has already printed a symptom → KF table into context; otherwise run `bash .claude/scripts/grimoire-index.sh` and read the `## kf` section of `grimoires/loa/INDEX.md`. Open `grimoires/loa/known-failures.md` at a matching `## KF-NNN:` heading only for its **Reading guide** (full read only when authoring or repairing an entry). Recurrence count ≥ 3 means a failure class is structural; route through the upstream issue rather than retrying listed dead-ends.

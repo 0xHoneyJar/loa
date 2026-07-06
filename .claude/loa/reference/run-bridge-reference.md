@@ -12,7 +12,12 @@ PREFLIGHT → JACK_IN → ITERATING ↔ ITERATING → FINALIZING → JACKED_OUT
           ITERATING (resume) or JACKED_OUT (abandon)
 ```
 
-Each iteration: Run sprint-plan → Bridgebuilder review → Parse findings → Flatline check → GitHub trail → Vision capture. Loop terminates when severity-weighted score drops below threshold for consecutive iterations (kaironic termination).
+Each iteration: Run sprint-plan → Bridgebuilder review → Parse findings → Flatline check → GitHub trail → Vision capture. Loop terminates one of two ways, both falling through to the same Finalization code path:
+
+- **Kaironic flatline** — severity-weighted score drops below threshold for `consecutive_flatline` consecutive iterations. Convergence; nothing left worth another pass.
+- **Max depth** — the loop exhausts `run_bridge.defaults.depth` (default 3) iterations without flatlining. The orchestrator prints a loud "MAX ITERATIONS REACHED" banner citing the empirical basis for the default — *code PRs plateau at 2 iters (cycles 102-114 record)* — plus both override mechanisms (`run_bridge.defaults.depth` in `.loa.config.yaml`, or `--depth N` on the CLI).
+
+`.finalization.termination_reason` (`"flatline"` or `"max_depth"`) in `.run/bridge-state.json` records which mode fired, since both are otherwise indistinguishable downstream. Backed by `bridge_termination_reason()` in `bridge-state.sh`.
 
 ## Usage
 
@@ -34,6 +39,8 @@ Check `.run/bridge-state.json`:
 | `HALTED` | Stopped due to error | Await `/run-bridge --resume` |
 | `FINALIZING` | Post-loop GT + RTFM | Continue autonomously |
 | `JACKED_OUT` | Completed | No action |
+
+`.finalization.termination_reason` distinguishes why the iteration loop stopped: `"flatline"` (kaironic convergence) or `"max_depth"` (depth cap exhausted — see the loud banner + evidence citation above).
 
 ## Key Components
 
@@ -82,6 +89,20 @@ post_pr_validation:
       auto_triage_blockers: true
       depth: 5                 # Bridge iteration depth
 ```
+
+> **Not the same knob**: this `depth: 5` is the post-PR wrapper's outer retry
+> count around one-shot `bridge-orchestrator.sh --depth 1` calls (see the
+> Kaironic termination pattern below), independent of `run_bridge.defaults.depth`
+> (default 3, documented above) — the longer cap reflects that post-PR review
+> loops converge differently than in-repo code-PR bridge loops. Don't read the
+> `5` here as contradicting the `3` default elsewhere in this doc.
+>
+> **Resume caveat**: resumed runs (`--resume`) re-resolve `DEPTH` from the
+> script's hardcoded default and CLI flags only — they do not reload
+> `run_bridge.defaults.depth` from config or from the persisted `.config.depth`.
+> A resumed run whose original invocation used a non-default depth must
+> re-pass the same `--depth N` flag, or the cap (and the banner's cited value)
+> will silently revert to 3. Tracked separately, not fixed by this change.
 
 ### Finding triage pipeline
 

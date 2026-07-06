@@ -437,6 +437,48 @@ EOF
 }
 
 # =============================================================================
+# Termination Reason (cycle-116 D5)
+# =============================================================================
+
+@test "bridge-state: bridge_termination_reason returns max_depth fresh after init" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-20260213-ff0005" 3
+    local result
+    result=$(bridge_termination_reason 2)
+    [ "$result" = "max_depth" ]
+}
+
+@test "bridge-state: bridge_termination_reason returns flatline after consecutive below-threshold iterations" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-20260213-ff0006" 3 false 0.05
+    update_flatline 100 1  # Initial score
+    update_flatline 3 2    # Below threshold
+    update_flatline 2 3    # Below threshold again → consecutive = 2
+
+    local result
+    result=$(bridge_termination_reason 2)
+    [ "$result" = "flatline" ]
+}
+
+@test "bridge-state: bridge_termination_reason returns max_depth when consecutive count resets" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-20260213-ff0007" 3 false 0.05
+    update_flatline 100 1  # Initial score
+    update_flatline 3 2    # Below threshold
+    update_flatline 50 3   # Above threshold again → consecutive resets to 0
+
+    local result
+    result=$(bridge_termination_reason 2)
+    [ "$result" = "max_depth" ]
+}
+
+# =============================================================================
 # Metrics
 # =============================================================================
 

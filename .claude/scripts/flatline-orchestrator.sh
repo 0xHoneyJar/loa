@@ -426,6 +426,27 @@ get_model_tertiary() {
     echo "$model"
 }
 
+# cycle-116 D3 (bd-c116-d3-tiering): per-stage tier routing opt-in.
+# advisor_strategy.stage_routing.flatline_scorer (default false) governs
+# whether score-mode cross-scoring dispatch is routed through the
+# advisor_strategy role/skill resolver (cheval.py:1069 role gate) instead
+# of the hardcoded --model pin. Default false => byte-identical to today.
+# Nested map leaves room for future per-stage keys without a schema churn.
+# Cached to avoid a per-score-call yq invocation.
+_CACHED_STAGE_ROUTING_SCORER=""
+_CACHED_STAGE_ROUTING_SCORER_SET=false
+is_stage_routing_scorer_enabled() {
+    if [[ "$_CACHED_STAGE_ROUTING_SCORER_SET" == true ]]; then
+        [[ "$_CACHED_STAGE_ROUTING_SCORER" == "true" ]]
+        return
+    fi
+    local v
+    v=$(read_config '.advisor_strategy.stage_routing.flatline_scorer' 'false')
+    _CACHED_STAGE_ROUTING_SCORER="$v"
+    _CACHED_STAGE_ROUTING_SCORER_SET=true
+    [[ "$v" == "true" ]]
+}
+
 get_max_iterations() {
     read_config '.flatline_protocol.max_iterations' '5'
 }
@@ -698,7 +719,17 @@ call_model() {
         local -a args=(
             --agent "$agent"
             --input "$input"
-            --model "$model_override"
+        )
+        # cycle-116 D3: score-mode per-stage tier routing. When the opt-in
+        # flag is set, omit --model and pass --role/--skill so cheval's
+        # advisor_strategy resolver (role gate) picks the tier. When unset
+        # (default), the argv is byte-identical to pre-D3: --model pin.
+        if [[ "$mode" == "score" ]] && is_stage_routing_scorer_enabled; then
+            args+=(--role implementation --skill flatline-scorer)
+        else
+            args+=(--model "$model_override")
+        fi
+        args+=(
             --output-format json
             --json-errors
             --timeout "$timeout"

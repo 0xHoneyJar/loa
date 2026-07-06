@@ -503,7 +503,6 @@
           {
             "type": "command",
             "command": ".claude/hooks/loa-kf-surface.sh",
-            "async": true,
             "once": true
           }
         ]

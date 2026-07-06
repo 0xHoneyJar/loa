@@ -21,6 +21,7 @@
 #   update_flatline         - Track consecutive flatline count
 #   update_metrics          - Accumulate totals
 #   is_flatlined            - Check flatline termination condition
+#   bridge_termination_reason - Distinguish flatline vs max-depth termination
 
 set -euo pipefail
 
@@ -580,6 +581,21 @@ is_flatlined() {
     echo "true"
   else
     echo "false"
+  fi
+}
+
+# cycle-116 D5: distinguish "converged via kaironic flatline" from "ran out
+# of allotted iterations" — both otherwise fall through to identical
+# Research Mode / Finalization code with no observable signal of which
+# happened. Pure query, safe to call after the iteration loop exits either
+# via the flatline `break` or via natural exhaustion (iteration > depth).
+bridge_termination_reason() {
+  local consecutive_required="${1:-2}"
+
+  if [[ "$(is_flatlined "$consecutive_required")" == "true" ]]; then
+    echo "flatline"
+  else
+    echo "max_depth"
   fi
 }
 

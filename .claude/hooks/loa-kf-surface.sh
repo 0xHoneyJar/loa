@@ -7,14 +7,24 @@
 # triaging. DEFAULT-OFF: gated on `known_failures.surface_at_session_start`
 # (default false) in .loa.config.yaml.
 #
+# STREAM ROUTING: Claude Code's SessionStart contract injects a hook's STDOUT
+#   (on exit 0) into the session as context; STDERR is transcript-only and never
+#   reaches the agent. This surface is only useful IN CONTEXT, so every ENABLED
+#   path — the healthy table AND the enabled-but-degraded WARNINGs — writes to
+#   STDOUT (an agent under the index-first intake contract must SEE that the KF
+#   surface is degraded so it falls back to regenerating the index). Sibling
+#   surfacing hooks (loa-l6-surface-handoffs.sh, loa-l7-surface-soul.sh) route
+#   the same way. The DISABLED path emits nothing at all.
+#
 # CONTRACT (loud-but-nonblocking — this is OBSERVABILITY, never a gate):
 #   - It MUST exit 0 in ALL paths. It MUST NOT block a session.
 #   - When the flag is DISABLED (or config/yq absent): emit NOTHING, exit 0.
 #   - When ENABLED but the surface is degraded — known-failures.md unreadable,
 #     or zero KF entries parsed — emit a visible "[KF-SURFACE] WARNING ..."
-#     to stderr and exit 0 (loud, so the operator notices a broken knowledge
-#     surface; never silent on an enabled-but-broken path).
-#   - When ENABLED and healthy: emit a compact symptom -> KF table, exit 0.
+#     to STDOUT and exit 0 (loud + in-context, so the agent notices a broken
+#     knowledge surface; never silent on an enabled-but-broken path).
+#   - When ENABLED and healthy: emit a compact symptom -> KF table to STDOUT,
+#     exit 0.
 #
 # TRUST BOUNDARY: known-failures.md bodies are UNTRUSTED at surfacing. Every
 #   field is control-byte-sanitized + length-capped before reaching session
@@ -62,7 +72,7 @@ if _kf_test_mode_active && [[ -n "${LOA_KNOWN_FAILURES_FILE:-}" ]]; then
 fi
 
 if [[ ! -r "$KF_FILE" ]]; then
-  echo "[KF-SURFACE] WARNING: known-failures.md is unreadable at ${KF_FILE} — the known-failures surface is enabled but degraded. Triage without it; check the file path." >&2
+  echo "[KF-SURFACE] WARNING: known-failures.md is unreadable at ${KF_FILE} — the known-failures surface is enabled but degraded. Triage without it; check the file path."
   exit 0
 fi
 
@@ -97,11 +107,12 @@ rows="$(awk '
 ' "$KF_FILE" 2>/dev/null || true)"
 
 if [[ -z "$rows" ]]; then
-  echo "[KF-SURFACE] WARNING: known-failures.md at ${KF_FILE} parsed ZERO KF entries — the surface is enabled but empty/malformed. Verify the file has ## KF-NNN: entries." >&2
+  echo "[KF-SURFACE] WARNING: known-failures.md at ${KF_FILE} parsed ZERO KF entries — the surface is enabled but empty/malformed. Verify the file has ## KF-NNN: entries."
   exit 0
 fi
 
-# --- healthy: emit a compact, sanitized symptom -> KF table to stderr --------
+# --- healthy: emit a compact, sanitized symptom -> KF table to stdout --------
+# stdout so the SessionStart contract injects it as context (see STREAM ROUTING).
 kf_count="$(printf '%s\n' "$rows" | grep -c . || true)"
 {
   echo "[KF-SURFACE] ${kf_count} known-failure entries (symptom -> KF · recurrence). Read grimoires/loa/known-failures.md before triaging; recurrence >= 3 = structural."
@@ -109,6 +120,6 @@ kf_count="$(printf '%s\n' "$rows" | grep -c . || true)"
     [[ -n "$id" ]] || continue
     printf '  - %s (rec %s): %s\n' "$(_san "$id")" "$(_san "${num:-?}")" "$(_san "${symptom:-}")"
   done <<< "$rows"
-} >&2
+}
 
 exit 0

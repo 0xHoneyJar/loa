@@ -22,7 +22,14 @@
 set -euo pipefail
 
 # Source bootstrap for PROJECT_ROOT and path-lib
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# perf(pass-5): dirname → parameter expansion (fork+exec eliminated).
+_gp_src="${BASH_SOURCE[0]}"
+case "${_gp_src}" in
+    */*) _gp_dir="${_gp_src%/*}"; [[ -n "${_gp_dir}" ]] || _gp_dir="/" ;;
+    *)   _gp_dir="." ;;
+esac
+SCRIPT_DIR="$(cd "${_gp_dir}" && pwd)"
+unset _gp_src _gp_dir
 source "${SCRIPT_DIR}/bootstrap.sh"
 source "${SCRIPT_DIR}/compat-lib.sh"
 

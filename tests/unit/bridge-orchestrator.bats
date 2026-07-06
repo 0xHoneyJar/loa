@@ -162,3 +162,101 @@ skip_if_deps_missing() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage:"* ]]
 }
+
+# Function-level tests for load_bridge_config()'s CLI > config > default
+# precedence (cycle-116 D5). Extract the function in isolation rather than
+# driving bridge_main() end to end, to avoid Finalization side effects
+# (butterfreezone-gen.sh, lore-discover.sh) that a full run would trigger.
+skip_if_yq_missing() {
+    command -v yq &>/dev/null || skip "yq not installed"
+}
+
+@test "orchestrator: load_bridge_config resolves hardcoded default 3 when config omits depth" {
+    skip_if_deps_missing
+    skip_if_yq_missing
+    cat > "$TEST_TMPDIR/.loa.config.yaml" <<'EOF'
+run_bridge:
+  enabled: true
+EOF
+    source <(sed -n '/^load_bridge_config()/,/^}/p' "$TEST_TMPDIR/.claude/scripts/bridge-orchestrator.sh")
+
+    CONFIG_FILE="$TEST_TMPDIR/.loa.config.yaml"
+    DEPTH=3
+    CLI_DEPTH=""
+    PER_SPRINT=false
+    CLI_PER_SPRINT=""
+    FLATLINE_THRESHOLD=0.05
+    CLI_FLATLINE_THRESHOLD=""
+    CONSECUTIVE_FLATLINE=2
+
+    load_bridge_config
+
+    [ "$DEPTH" = "3" ]
+}
+
+@test "orchestrator: load_bridge_config applies config-only depth override" {
+    skip_if_deps_missing
+    skip_if_yq_missing
+    cat > "$TEST_TMPDIR/.loa.config.yaml" <<'EOF'
+run_bridge:
+  enabled: true
+  defaults:
+    depth: 2
+EOF
+    source <(sed -n '/^load_bridge_config()/,/^}/p' "$TEST_TMPDIR/.claude/scripts/bridge-orchestrator.sh")
+
+    CONFIG_FILE="$TEST_TMPDIR/.loa.config.yaml"
+    DEPTH=3
+    CLI_DEPTH=""
+    PER_SPRINT=false
+    CLI_PER_SPRINT=""
+    FLATLINE_THRESHOLD=0.05
+    CLI_FLATLINE_THRESHOLD=""
+    CONSECUTIVE_FLATLINE=2
+
+    load_bridge_config
+
+    [ "$DEPTH" = "2" ]
+}
+
+@test "orchestrator: load_bridge_config lets CLI --depth win over config" {
+    skip_if_deps_missing
+    skip_if_yq_missing
+    cat > "$TEST_TMPDIR/.loa.config.yaml" <<'EOF'
+run_bridge:
+  enabled: true
+  defaults:
+    depth: 2
+EOF
+    source <(sed -n '/^load_bridge_config()/,/^}/p' "$TEST_TMPDIR/.claude/scripts/bridge-orchestrator.sh")
+
+    CONFIG_FILE="$TEST_TMPDIR/.loa.config.yaml"
+    DEPTH=4
+    CLI_DEPTH=4
+    PER_SPRINT=false
+    CLI_PER_SPRINT=""
+    FLATLINE_THRESHOLD=0.05
+    CLI_FLATLINE_THRESHOLD=""
+    CONSECUTIVE_FLATLINE=2
+
+    load_bridge_config
+
+    [ "$DEPTH" = "4" ]
+}
+
+# =============================================================================
+# Termination Reason (cycle-116 D5) — source-grep, matching existing
+# "SINGLE-ITERATION banner text present in source" style.
+# =============================================================================
+
+@test "orchestrator: MAX ITERATIONS REACHED banner present in source" {
+    grep -q 'MAX ITERATIONS REACHED' "$TEST_TMPDIR/.claude/scripts/bridge-orchestrator.sh"
+}
+
+@test "orchestrator: empirical plateau citation present in source" {
+    grep -q 'empirical: code PRs plateau at 2 iters (cycles 102-114 record)' "$TEST_TMPDIR/.claude/scripts/bridge-orchestrator.sh"
+}
+
+@test "orchestrator: finalization.termination_reason write present in source" {
+    grep -q 'finalization.termination_reason' "$TEST_TMPDIR/.claude/scripts/bridge-orchestrator.sh"
+}

@@ -723,6 +723,27 @@ bridge_main() {
     fi
   done
 
+  # cycle-116 D5: record which of the two termination modes fired — kaironic
+  # flatline (the `break` above) vs natural exhaustion of the depth cap —
+  # since both otherwise fall through silently to the same code below.
+  local term_reason
+  term_reason=$(bridge_termination_reason "$CONSECUTIVE_FLATLINE")
+  if command -v jq &>/dev/null && [[ -f "$BRIDGE_STATE_FILE" ]]; then
+    jq --arg reason "$term_reason" \
+      '.finalization.termination_reason = $reason' "$BRIDGE_STATE_FILE" > "$BRIDGE_STATE_FILE.tmp"
+    mv "$BRIDGE_STATE_FILE.tmp" "$BRIDGE_STATE_FILE"
+  fi
+
+  if [[ "$term_reason" == "max_depth" ]]; then
+    echo ""
+    echo "═══════════════════════════════════════════════════"
+    echo "  MAX ITERATIONS REACHED"
+    echo "  Depth cap ($DEPTH) exhausted without kaironic flatline"
+    echo "  empirical: code PRs plateau at 2 iters (cycles 102-114 record)"
+    echo "  Override: run_bridge.defaults.depth (.loa.config.yaml) or --depth N (CLI)"
+    echo "═══════════════════════════════════════════════════"
+  fi
+
   # cycle-114 FR-11: the per-iteration loop tags are loop-scoped — clear them so
   # the divergent-exploration (RESEARCHING) + finalization phases below, which
   # are explicitly NOT bridge iterations, are not mis-attributed in MODELINV.

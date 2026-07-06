@@ -1937,7 +1937,9 @@ run_bridge:
 
   # Default parameters
   defaults:
-    # Maximum bridge iterations (1-5)
+    # Maximum bridge iterations (1-5). Default 3 is empirical: code PRs
+    # (what /run-bridge iterates on) plateau at 2 iters (cycles 102-114
+    # record) — override here or with --depth N. See run-bridge-reference.md.
     depth: 3
     # Review after each sprint vs full plan
     per_sprint: false
@@ -2650,6 +2652,34 @@ qmd_context:
 #   # CI gate (cycle-108-schema-guard.yml) requires this enum to be co-edited
 #   # with the SKILL.md role field in a single commit.
 #   audited_review_skills: []
+#
+#   # Per-stage tier-routing opt-in (cycle-116 D3, bd-c116-d3-tiering).
+#   # Each key gates ONE dispatch stage: when true, that stage routes through
+#   # the advisor_strategy role/skill resolver (so per_skill_overrides + the
+#   # role defaults above govern its model) instead of a hardcoded --model pin.
+#   # Default-off (absent key == false) => byte-identical to pre-D3 dispatch.
+#   #
+#   # flatline_scorer gates Flatline score-mode cross-scoring in
+#   # flatline-orchestrator.sh. Flip true ONLY after the live A/B in
+#   # grimoires/loa/runbooks/model-tiering-per-stage.md clears for your models.
+#   # With the flag true and NO per_skill_override, flatline-scorer resolves to
+#   # its role default (implementation -> advisor). To actually demote it to the
+#   # cheaper executor tier, ALSO set the override below.
+#   stage_routing:
+#     flatline_scorer: false
+#
+#   # Worked example — demote flatline-scorer to executor once A/B-validated:
+#   #   per_skill_overrides:
+#   #     flatline-scorer: executor        # requires stage_routing.flatline_scorer: true to take effect
+#   #   stage_routing:
+#   #     flatline_scorer: true
+#   #
+#   # NOTE: advisor_strategy is the mechanism that actually GOVERNS dispatch.
+#   # The separate `workload_tier_map:` section (cycle-112) is an INFORMATIONAL
+#   # calibration memory only — it records the empirically-observed safe tier
+#   # per skill (with evidence_ref) but has zero dispatch consumers. Consult it
+#   # to decide a per_skill_overrides value; it will not change routing on its
+#   # own. See model-tiering-per-stage.md for why both surfaces exist.
 #
 #   # Benchmark substrate (cycle-108 sprint-2 T2.A).
 #   benchmark:

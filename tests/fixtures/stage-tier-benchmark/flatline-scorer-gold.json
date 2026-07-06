@@ -1,0 +1,55 @@
+{
+  "_comment": "cycle-116 D3 (bd-c116-d3-tiering) hand-labeled gold set for the flatline-scorer tier A/B. `improvements` is the exact input shape flatline-scorer consumes (see flatline-orchestrator.sh:1480 extract_json_content '{\"improvements\":[]}'). `gold` is the human-assigned reference per finding id: expected_band is the flatline-scorer persona's 0-1000 rubric bucket (800-1000 critical / 600-799 valuable / 400-599 nice-to-have / 0-399 low-value), would_integrate is the reference integrate/skip call. The A/B agreement metric (test_d3_flatline_scorer_tier_ab.py) scores a model by the fraction of findings whose would_integrate matches gold. Findings are chosen to be unambiguous so a competent scorer of EITHER tier should agree; disagreement is the quality signal the A/B is measuring.",
+  "improvements": [
+    {
+      "id": "IMP-001",
+      "title": "Add server-side input validation on the login endpoint",
+      "description": "The /login handler passes the raw `username` parameter into a string-concatenated SQL query. Add parameterized queries and reject inputs failing the username charset allowlist. This is an exploitable SQL-injection surface on an unauthenticated endpoint.",
+      "category": "security",
+      "severity": "critical"
+    },
+    {
+      "id": "IMP-002",
+      "title": "Fix race condition causing double charges in the payment webhook",
+      "description": "The Stripe webhook handler reads-then-writes the order's `paid` flag without a transaction or idempotency key. Concurrent webhook deliveries double-charge customers. Add an idempotency key check keyed on the Stripe event id.",
+      "category": "correctness",
+      "severity": "critical"
+    },
+    {
+      "id": "IMP-003",
+      "title": "Extract duplicated retry logic into a shared helper",
+      "description": "The same 12-line exponential-backoff retry block is copy-pasted in four API clients. Extracting it into one helper reduces drift risk and is a clear maintainability win, though not urgent.",
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "id": "IMP-004",
+      "title": "Add a structured-logging field for request latency",
+      "description": "Emitting a `latency_ms` field on the request-complete log line would improve observability. Modest effort, moderate value; nice-to-have rather than a gap.",
+      "category": "observability",
+      "severity": "low"
+    },
+    {
+      "id": "IMP-005",
+      "title": "Rewrite the entire billing module in a different language for elegance",
+      "description": "Proposes a full rewrite of a working, tested billing module in another language purely for stylistic preference. Enormous cost, no functional benefit, high regression risk against a revenue-critical path. Should not be integrated.",
+      "category": "refactor",
+      "severity": "low"
+    },
+    {
+      "id": "IMP-006",
+      "title": "Add a speculative plugin system for hypothetical future integrations",
+      "description": "Suggests building a generic plugin/extension framework for integrations that no one has requested and no roadmap item references. Textbook YAGNI; adds surface area and maintenance burden with no current consumer.",
+      "category": "architecture",
+      "severity": "low"
+    }
+  ],
+  "gold": {
+    "IMP-001": {"expected_band": [800, 1000], "would_integrate": true},
+    "IMP-002": {"expected_band": [800, 1000], "would_integrate": true},
+    "IMP-003": {"expected_band": [600, 799], "would_integrate": true},
+    "IMP-004": {"expected_band": [400, 599], "would_integrate": true},
+    "IMP-005": {"expected_band": [0, 399], "would_integrate": false},
+    "IMP-006": {"expected_band": [0, 399], "would_integrate": false}
+  }
+}
