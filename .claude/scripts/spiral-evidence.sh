@@ -677,7 +677,17 @@ _parse_sprint_paths() {
         # `\`spiral-harness.sh\`` (which is a reference, not a deliverable
         # declaration). Accepts `.claude/scripts/...`, `src/...`, etc.
         echo "$content" | grep -oE "\`[^\`]*/[^\`]+\.${ext_re}\`" 2>/dev/null | \
-            sed 's/^`//; s/`$//'
+            sed 's/^`//; s/`$//' | \
+            # False-positive guard (#1175): backtick prose also wraps shell
+            # commands (`bash tools/x.sh`, `yq -o=json ... file.yaml`) and CLI
+            # flags (`--inputs @/tmp/f.json`) that contain `/`+extension and
+            # matched as deliverable paths, failing cycles with
+            # IMPL_EVIDENCE_MISSING and inviting stub/symlink forgery.
+            # Real deliverable paths never contain whitespace or globs and
+            # never start with `-`/`@` in observed sprint corpora.
+            grep -v '[[:space:]]' | \
+            grep -v '[*]' | \
+            grep -vE '^[-@]'
         # Pattern 2: bare paths rooted at well-known *top-level* repo prefixes.
         # Anchored to start-of-line or whitespace/non-path-char to prevent
         # substring matches within longer paths — without the anchor,

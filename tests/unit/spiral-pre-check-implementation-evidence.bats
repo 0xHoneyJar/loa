@@ -364,3 +364,28 @@ EOF
     # New signal: distinct from IMPL_EVIDENCE_MISSING, indicates upstream gap
     [[ "$output" == *"IMPL_EVIDENCE_NO_SPRINT_PLAN"* ]]
 }
+
+# ─── EG-T-1175: command fragments in backtick prose are NOT deliverable paths ──
+# Regression for #1175: four production cycles failed IMPL_EVIDENCE_MISSING on
+# strings like `bash tools/immune-check.sh` and `npx tsx --test tests/*.test.ts`
+# extracted from sprint prose, inviting stub/symlink forgery from fix loops.
+
+@test "parser excludes backtick command fragments and CLI flags (#1175)" {
+    cat > "$TEST_DIR/sprint.md" <<'SPRINT'
+## Sprint 1: Test
+
+### Deliverables
+Real deliverable: `src/lib/game/fsm.ts`.
+Verify with `bash tools/immune-check.sh` then run
+`yq -o=json '.modules' packages/freeside-registry/registry.yaml` and
+`npx tsx --test tests/*.test.ts`. Pass `--inputs @/tmp/__loa_nonexistent__.json`
+to exercise the flag path. Glob-only ref: `src/**/*.test.ts`.
+SPRINT
+    run bash -c "source '$EVIDENCE_SH'; _parse_sprint_paths '$TEST_DIR/sprint.md' sprint-1"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"src/lib/game/fsm.ts"* ]]
+    [[ "$output" != *"immune-check.sh"* ]]
+    [[ "$output" != *"registry.yaml"* ]]
+    [[ "$output" != *'*.test.ts'* ]]
+    [[ "$output" != *"__loa_nonexistent__"* ]]
+}
