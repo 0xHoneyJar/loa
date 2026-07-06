@@ -1,0 +1,4 @@
+soul_identity_doc:
+  enabled: true
+  schema_mode: warn
+  surface_max_chars: 2000

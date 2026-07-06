@@ -390,6 +390,151 @@ check_deny_rules_active() {
   fi
 }
 
+# ---------------------------------------------------------------------------
+# Invariant 10: hook cache-prefix hygiene (bd-c116-d6-cache-prefix-4yq2, WARN-only)
+# ---------------------------------------------------------------------------
+# Mechanical backstop against volatile content ($(date), $RANDOM, $$, or
+# unsorted find/ls output) reaching a SessionStart/UserPromptSubmit hook's
+# stdout — that stdout becomes part of the model's cached prompt prefix, and
+# mutating it every session/turn defeats Anthropic prompt caching. Scans only
+# the entry-point scripts wired directly under .hooks.SessionStart[] and
+# .hooks.UserPromptSubmit[] in the LIVE .claude/settings.json — sourced
+# libraries are out of scope for this static scan (see
+# grimoires/loa/runbooks/hook-cache-prefix-hygiene.md for the by-hand audit
+# that traced into libraries). WARN, never ERROR: `date`/`mktemp` used only
+# for a file-write timestamp or path is legitimate and common (e.g.
+# check-updates.sh's cache-file timestamp) — every hit is reported with a
+# file:line for a human to judge, not auto-blocked.
+_hch_scan_script() {
+  # Reads one hook script (arg $1); prints "LINE: REASON" per suspect hit.
+  # Two-pass heuristic: (1) map heredoc bodies to safe (redirected to a file
+  # or pipe on the opener line) vs unsafe (bare `cat <<EOF`, reaches stdout);
+  # (2) scan for volatile constructs, deferring bare `var=$(volatile...)`
+  # assignments to their next usage site so a timestamp that only ever feeds
+  # a file-write heredoc isn't flagged at its assignment line.
+  awk '
+    { lines[NR] = $0 }
+    END {
+      n = NR
+      in_hd = 0; delim = ""; safe = 0
+      for (i = 1; i <= n; i++) {
+        line = lines[i]
+        if (in_hd) {
+          t = line; gsub(/^[ \t]+|[ \t]+$/, "", t)
+          if (t == delim) { hd[i] = 0; in_hd = 0; delim = "" }
+          else { hd[i] = safe ? 1 : 2 }
+          continue
+        }
+        hd[i] = 0
+        if (line ~ /<</) {
+          d = line
+          sub(/^.*<<-?[ \t]*/, "", d)
+          gsub(/["\047]/, "", d)
+          gsub(/[ \t;&|].*$/, "", d)
+          if (d ~ /^[A-Za-z_][A-Za-z0-9_]*$/) {
+            in_hd = 1
+            delim = d
+            safe = (line ~ /(>&2|[^<>]>[^&>]|>>)/) ? 1 : 0
+          }
+        }
+      }
+
+      delete watch
+      for (i = 1; i <= n; i++) {
+        line = lines[i]
+        stripped = line
+        gsub(/^[ \t]+/, "", stripped)
+        if (stripped ~ /^#/) continue
+
+        own_safe = (line ~ /(>&2|[^<>]>[^&>]|>>)/)
+        ctx_unsafe = (hd[i] == 2) || (hd[i] == 0 && !own_safe)
+
+        is_assign = 0; vname = ""
+        v = line
+        if (v ~ /^[ \t]*(local|declare|export)[ \t]+[A-Za-z_][A-Za-z0-9_]*=/ || v ~ /^[ \t]*[A-Za-z_][A-Za-z0-9_]*=/) {
+          sub(/^[ \t]*(local|declare|export)[ \t]+/, "", v)
+          sub(/^[ \t]*/, "", v)
+          sub(/=.*/, "", v)
+          if (v ~ /^[A-Za-z_][A-Za-z0-9_]*$/) { is_assign = 1; vname = v }
+        }
+
+        # NOTE: no \b (word-boundary) — mawk (the default /usr/bin/awk on
+        # many distros, unlike gawk) treats \b as a literal backspace, not a
+        # boundary assertion, and silently never matches. Boundaries are
+        # spelled out as an explicit non-word-char-or-end-of-line class.
+        has_date   = (line ~ /\$\([ \t]*date([^A-Za-z0-9_]|$)/) || (line ~ /`date([^A-Za-z0-9_]|$)/)
+        has_rand   = (line ~ /\$RANDOM([^A-Za-z0-9_]|$)/)
+        has_pid    = (line ~ /\$\$([^A-Za-z0-9_]|$)/)
+        has_mktmp  = (line ~ /\$\([ \t]*mktemp([^A-Za-z0-9_]|$)/) || (line ~ /`mktemp([^A-Za-z0-9_]|$)/)
+        has_findls = ((line ~ /\$\([ \t]*(find|ls)([^A-Za-z0-9_]|$)/) || (line ~ /`(find|ls)([^A-Za-z0-9_]|$)/)) && (line !~ /(^|[^A-Za-z0-9_])sort([^A-Za-z0-9_]|$)/)
+        hit = has_date || has_rand || has_pid || has_mktmp || has_findls
+
+        if (!hit) {
+          for (w in watch) {
+            pat = "[$][{]?" w "[}]?([^A-Za-z0-9_]|$)"
+            if (line ~ pat) {
+              if (ctx_unsafe) {
+                printf("%d: variable $%s (assigned line %d) may reach stdout unredirected\n", i, w, watch[w])
+              }
+              delete watch[w]
+            }
+          }
+          continue
+        }
+
+        if (is_assign && !own_safe) {
+          watch[vname] = i
+          continue
+        }
+
+        if (ctx_unsafe) {
+          reason = has_date ? "$(date)" : (has_rand ? "$RANDOM" : (has_pid ? "$$ (PID)" : (has_mktmp ? "$(mktemp)" : "unsorted find/ls")))
+          printf("%d: possible volatile %s reaching stdout unredirected\n", i, reason)
+        }
+      }
+    }
+  ' "$1"
+}
+
+check_hook_cache_hygiene() {
+  local live=".claude/settings.json"
+
+  if [[ ! -f "$live" ]]; then
+    report "WARN" "hook-cache-hygiene" "live settings.json missing — cache-hygiene not checkable"
+    return
+  fi
+
+  local cmds
+  cmds=$(jq -r '
+      ((.hooks.SessionStart // []) + (.hooks.UserPromptSubmit // []))
+      | .[].hooks[]?.command
+    ' "$live" 2>/dev/null | LC_ALL=C sort -u)
+
+  if [[ -z "$cmds" ]]; then
+    report "WARN" "hook-cache-hygiene" "no SessionStart/UserPromptSubmit hooks found to scan"
+    return
+  fi
+
+  local hits=0 scanned=0 cmd script_path hit_line
+  while IFS= read -r cmd; do
+    [[ -n "$cmd" ]] || continue
+    # Strip trailing CLI args (e.g. "check-updates.sh --notify") to get the
+    # script path itself.
+    script_path="${cmd%% *}"
+    [[ -f "$script_path" ]] || continue
+    scanned=$((scanned + 1))
+    while IFS= read -r hit_line; do
+      [[ -n "$hit_line" ]] || continue
+      report "WARN" "hook-cache-hygiene" "${script_path}:${hit_line}"
+      hits=$((hits + 1))
+    done < <(_hch_scan_script "$script_path")
+  done <<< "$cmds"
+
+  if [[ "$hits" -eq 0 ]]; then
+    report "PASS" "hook-cache-hygiene" "$scanned SessionStart/UserPromptSubmit hook script(s) scanned, no volatile-stdout patterns found"
+  fi
+}
+
 # ===========================================================================
 # Run all checks
 # ===========================================================================
@@ -419,6 +564,7 @@ check_required_files
 check_hook_executables
 check_hooks_json
 check_hooks_wiring
+check_hook_cache_hygiene
 check_safety_hook_tests
 check_deny_rules_active
 }
