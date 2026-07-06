@@ -18,6 +18,7 @@ Merge `settings.hooks.json` into your `~/.claude/settings.json`. The template in
 |-------|---------|--------|---------|
 | PreCompact | (all) | `pre-compact-marker.sh` | Save state before compaction |
 | UserPromptSubmit | (all) | `post-compact-reminder.sh` | Inject recovery after compaction |
+| UserPromptSubmit | (all) | `post-session-limit-reminder.sh` | Inject resume reminder after a session cap resets |
 | PreToolUse | Bash | `safety/block-destructive-bash.sh` | Block destructive commands |
 | PostToolUse | Bash | `audit/mutation-logger.sh` | Log mutating commands |
 | Stop | (all) | `safety/run-mode-stop-guard.sh` | Guard against premature exit |
@@ -36,6 +37,21 @@ Context recovery after compaction events.
    - Checks for compaction marker
    - If found: injects recovery reminder into context, deletes marker
    - One-shot delivery (won't repeat)
+
+## Session-Limit Recovery Hooks
+
+Recovery after a Claude session/usage cap resets.
+
+1. **Capture** (`../scripts/session-limit-capture.sh --raw '<error text>'`):
+   - Agent-invoked when a session-limit / usage-cap error string appears
+   - Parses the reset time (TZ-aware) and snapshots live run state into
+     `.run/session-limit-state.json`
+
+2. **UserPromptSubmit** (`post-session-limit-reminder.sh`):
+   - Runs on each user message; stays **silent while the cap is still in
+     effect** (leaves the marker in place, re-checked each prompt)
+   - Once the reset time has passed: injects a one-shot resume reminder
+     (sprint id + state) and deletes the marker
 
 ## Safety Hooks (v1.37.0)
 
@@ -131,6 +147,7 @@ Install: `bash .claude/scripts/install-deny-rules.sh --auto`
 |------|-------|---------|
 | `pre-compact-marker.sh` | PreCompact | Creates marker before compaction |
 | `post-compact-reminder.sh` | UserPromptSubmit | Injects reminder after compaction |
+| `post-session-limit-reminder.sh` | UserPromptSubmit | Injects resume reminder after a session cap resets |
 | `safety/block-destructive-bash.sh` | PreToolUse:Bash | Destructive command blocker |
 | `safety/run-mode-stop-guard.sh` | Stop | Premature exit guard |
 | `audit/mutation-logger.sh` | PostToolUse:Bash | Mutation audit logger |
@@ -147,6 +164,7 @@ Install: `bash .claude/scripts/install-deny-rules.sh --auto`
 |------|-------|---------|
 | `memory-writer.sh` | PostToolUse | Memory observation capture (requires memory config) — EXPERIMENTAL, unregistered |
 | `memory-inject.sh` | UserPromptSubmit | Memory injection on prompt (requires memory config) — EXPERIMENTAL, unregistered |
+| `safety/stop-input-probe.sh` | Stop | DIAGNOSTIC: dumps raw Stop input to `.run/stop-input-probe.jsonl`. Gated by `LOA_STOP_INPUT_PROBE=1`; merge into `settings.local.json` for ONE cap-hitting session to answer whether Stop input carries the session-limit text, then remove. Never in `settings.hooks.json`. |
 
 ### Configuration
 

@@ -20,6 +20,10 @@
           {
             "type": "command",
             "command": ".claude/hooks/post-compact-reminder.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/post-session-limit-reminder.sh"
           }
         ]
       }

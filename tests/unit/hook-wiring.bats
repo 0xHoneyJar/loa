@@ -24,7 +24,10 @@ setup() {
 # Hooks that are deliberately NOT wired (opt-in prototypes). Adding a script
 # to .claude/hooks/{safety,compliance}/ without wiring it OR parking it here
 # must fail W4 — that is the activation-gap fence.
-PARKED_HOOKS="implement-gate.sh"
+# stop-input-probe.sh (cycle-117 item A): DIAGNOSTIC, ships UNREGISTERED by
+# design — gated by LOA_STOP_INPUT_PROBE=1, merged into settings.local.json for
+# one cap-hitting session only, never into settings.hooks.json.
+PARKED_HOOKS="implement-gate.sh stop-input-probe.sh"
 
 @test "W1 bug-1002: every template PreToolUse command is wired in live settings.json" {
     local missing=0

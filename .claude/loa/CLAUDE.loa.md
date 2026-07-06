@@ -1,4 +1,4 @@
-<!-- @loa-managed: true | version: 1.180.0 | hash: 029cec359faa4bbefff4f2127ef49322e152936ca6145237ac6b06ad9f6aa778 -->
+<!-- @loa-managed: true | version: 1.180.0 | hash: 70c28bca066a99226312ebb4fcdc085df1681e27ac9a3ec894cf4344c0b97d90 -->
 <!-- WARNING: This file is managed by the Loa Framework. Do not edit directly. -->
 
 # Loa Framework Instructions
@@ -254,6 +254,14 @@ Read `sprints.current` for active sprint. Update `timestamps.last_activity` on e
 ## Post-Compact Recovery Hooks
 
 Automatic context recovery after compaction. PreCompact saves state, UserPromptSubmit injects recovery reminder (one-shot).
+
+**Reference**: `.claude/loa/reference/hooks-reference.md`
+
+## Session-Limit Recovery
+
+Recovery after a Claude session/usage cap resets. The capture CLI snapshots the reset time + live run state into `.run/session-limit-state.json`; a UserPromptSubmit hook stays silent until the reset passes, then injects a one-shot resume reminder.
+
+**When you see `hit your session limit` or `out of extra usage` in a tool/subagent result**, run `.claude/scripts/session-limit-capture.sh --raw '<full error text>'` to arm the resume reminder.
 
 **Reference**: `.claude/loa/reference/hooks-reference.md`
 

@@ -107,14 +107,33 @@
 # extra forks. Only a genuine terminal Stop pays the config read, and only an
 # operator who opted in (enabled+command) pays the dispatch.
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# cycle-117 item A: session-cap zombie exemption (bd-c117-a-session-cap-x04j)
+#
+# A background teammate stuck behind an exhausted Claude session cap can never
+# respond to TaskStop/SendMessage, so it stays listed in `background_tasks`
+# forever and the bg-task soft-block below traps every Stop attempt — a
+# deadlock. When an UNEXPIRED .run/session-limit-state.json is present (the
+# capture marker from session-limit-capture.sh, reset time not yet reached),
+# the bg-task block is swapped for ONE loud stderr advisory and falls through
+# to the remaining checks. Freshness (now < reset_at_epoch) is computed inside
+# the SAME single jq call via jq's builtin `now` — ZERO extra process spawns,
+# preserving the skill-loop spawn-elimination discipline on this file. A
+# malformed/expired/absent marker yields exempt=false → today's block is kept
+# (fail-open to the existing deadlock guard).
+# ---------------------------------------------------------------------------
 STOP_INPUT=""
 IFS= read -rd '' STOP_INPUT || true
 
 SPRINT_STATE_FILE=".run/sprint-plan-state.json"
 BRIDGE_STATE_FILE=".run/bridge-state.json"
 SIMSTIM_STATE_FILE=".run/simstim-state.json"
+SESSION_LIMIT_STATE_FILE=".run/session-limit-state.json"
 
 # Fast path: nothing to inspect — allow the stop without spawning anything.
+# (A session-limit marker alone, with no stdin and no run state, has nothing to
+# exempt: bg-task exemption only matters when stdin carries background_tasks.)
 if [[ -z "$STOP_INPUT" && ! -f "$SPRINT_STATE_FILE" && ! -f "$BRIDGE_STATE_FILE" && ! -f "$SIMSTIM_STATE_FILE" ]]; then
   exit 0
 fi
@@ -124,6 +143,7 @@ _sg_args=()
 if [[ -f "$SPRINT_STATE_FILE" ]]; then _sg_args+=(--rawfile s1 "$SPRINT_STATE_FILE"); else _sg_args+=(--arg s1 ""); fi
 if [[ -f "$BRIDGE_STATE_FILE" ]]; then _sg_args+=(--rawfile s2 "$BRIDGE_STATE_FILE"); else _sg_args+=(--arg s2 ""); fi
 if [[ -f "$SIMSTIM_STATE_FILE" ]]; then _sg_args+=(--rawfile s3 "$SIMSTIM_STATE_FILE"); else _sg_args+=(--arg s3 ""); fi
+if [[ -f "$SESSION_LIMIT_STATE_FILE" ]]; then _sg_args+=(--rawfile s4 "$SESSION_LIMIT_STATE_FILE"); else _sg_args+=(--arg s4 ""); fi
 
 mapfile -d '' -t _sg < <(
   jq -nj --arg stop "$STOP_INPUT" "${_sg_args[@]}" '
@@ -134,6 +154,7 @@ mapfile -d '' -t _sg < <(
     ($s1 | try fromjson catch null) as $j1 |
     ($s2 | try fromjson catch null) as $j2 |
     ($s3 | try fromjson catch null) as $j3 |
+    ($s4 | try fromjson catch null) as $j4 |
     [ ($d  | try ((.background_tasks // []) | length | tostring) catch "0"),
       ($d  | try ([.background_tasks[]? | (.id // .task_id // .)] | map(tostring) | join(", ")) catch ""),
       ($d  | try ((.session_crons // []) | length | tostring) catch "0"),
@@ -145,11 +166,16 @@ mapfile -d '' -t _sg < <(
       ($j3 | try ((.phase // "unknown") | sval) catch "unknown"),
       ($j1 | try ((.timestamps.last_activity // "") | sval) catch ""),
       ($j2 | try ((.timestamps.last_activity // "") | sval) catch ""),
-      ($j3 | try ((.timestamps.last_activity // .completed_at // "") | sval) catch "")
+      ($j3 | try ((.timestamps.last_activity // .completed_at // "") | sval) catch ""),
+      ($j4 | try (if . == null then "false"
+                  else ((.reset_at_epoch // 0) as $r
+                        | if (($r | type) == "number") and ($r > 0) and (now < $r)
+                          then "true" else "false" end)
+                  end) catch "false")
     ] | map(denul($z) | sub("\n+$"; "")) | join($z) + $z
   ' 2>/dev/null
 )
-if [[ "${#_sg[@]}" -ne 12 ]]; then
+if [[ "${#_sg[@]}" -ne 13 ]]; then
   # jq missing or catastrophic failure — a Stop guard must fail open.
   exit 0
 fi
@@ -165,12 +191,26 @@ phase="${_sg[8]}"
 sprint_ts="${_sg[9]}"
 bridge_ts="${_sg[10]}"
 simstim_ts="${_sg[11]}"
+session_limit_exempt="${_sg[12]}"
 
 if [[ "${bg_count:-0}" =~ ^[0-9]+$ ]] && [[ "${bg_count:-0}" -gt 0 ]]; then
-  cron_note=""
-  [[ "${cron_count:-0}" =~ ^[0-9]+$ ]] && [[ "${cron_count:-0}" -gt 0 ]] && cron_note=" (${cron_count} scheduled cron(s) will persist beyond this session)"
-  printf '%s\n' "{\"decision\": \"block\", \"reason\": \"${bg_count} background task(s) still running: [${bg_ids}]${cron_note}. Cancel them via TaskStop <id>, or wait for completion before stopping — background agents left running may be orphaned.\"}"
-  exit 0
+  if [[ "$session_limit_exempt" == "true" ]]; then
+    # cycle-117 item A: an unexpired session-cap marker is present, so these
+    # background tasks are presumed quota-zombied and cannot be stopped by the
+    # agent. Emit ONE loud advisory to stderr (stdout stays clean → no decision
+    # block) and fall through to the sprint/bridge/simstim checks below.
+    # loa:shortcut: all-or-nothing exemption while the marker is unexpired — the
+    # Stop input schema carries no per-task last-activity timestamp, so we
+    # cannot filter to only the zombied tasks. Upgrade trigger: if Claude Code
+    # adds a per-task timestamp to background_tasks[], exempt only tasks whose
+    # last activity predates the marker's hit_at instead of exempting all.
+    printf '%s\n' "[session-limit-active] ${bg_count} background task(s) presumed quota-zombied (.run/session-limit-state.json present, reset not yet reached) — NOT blocking stop; verify manually: [${bg_ids}]" >&2
+  else
+    cron_note=""
+    [[ "${cron_count:-0}" =~ ^[0-9]+$ ]] && [[ "${cron_count:-0}" -gt 0 ]] && cron_note=" (${cron_count} scheduled cron(s) will persist beyond this session)"
+    printf '%s\n' "{\"decision\": \"block\", \"reason\": \"${bg_count} background task(s) still running: [${bg_ids}]${cron_note}. Cancel them via TaskStop <id>, or wait for completion before stopping — background agents left running may be orphaned.\"}"
+    exit 0
+  fi
 fi
 
 # ---------------------------------------------------------------------------
