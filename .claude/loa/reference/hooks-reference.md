@@ -66,6 +66,8 @@ Enforces the Skill Invocation Matrix mechanically when `LOA_TEAM_MEMBER` is set 
 
 Detects active `/run`, `/run-bridge`, or `/simstim` execution and injects context reminder before stopping.
 
+cycle-117 item C: at the "no active runs" fallthrough it also fires a best-effort, operator-configurable push (`notifications.push_command` in `.loa.config.yaml`) exactly once per terminal gate (sprint JACKED_OUT/READY_FOR_HITL/HALTED, bridge JACKED_OUT/HALTED, simstim COMPLETED/AWAITING_HITL/HALTED) via `push-notify-lib.sh` — a side channel that never alters the hook's exit code or stdout contract.
+
 **Script**: `.claude/hooks/safety/run-mode-stop-guard.sh`
 
 ### PostToolUse:Bash — Audit Logger

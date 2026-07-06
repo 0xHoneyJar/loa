@@ -78,6 +78,35 @@
 # own (they are designed to outlive a session). Fail-open: malformed/absent
 # stdin or a missing jq → allow the stop (never crash a Stop guard).
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# cycle-117 item C: push-at-gate side channel (bd-c117-c-push-gate-eld2)
+#
+# When this guard reaches its "no active runs — allow stop" fallthrough, it
+# has observed a terminal gate: a Stop while a run/bridge/simstim state file
+# holds a TERMINAL state (sprint JACKED_OUT/READY_FOR_HITL/HALTED; bridge
+# JACKED_OUT/HALTED — bridge has no READY_FOR_HITL state; simstim COMPLETED/
+# AWAITING_HITL/HALTED). At exactly that moment it fires an operator-
+# configurable, best-effort external push command ONCE per distinct terminal
+# transition, so an operator can be paged when an autonomous run needs them.
+#
+# WHY side-channel only: the push is dispatched via push-notify-lib.sh with
+# all of the operator command's stdio redirected to /dev/null. It NEVER writes
+# to this hook's stdout and NEVER changes its exit code — the block/allow
+# contract above is untouched. A failed or slow command cannot trap the agent.
+#
+# WHY it sits AFTER every block-check and BEFORE the final `exit 0`: placement
+# is load-bearing. It only runs once bg-tasks / sprint-RUNNING /
+# bridge-ITERATING-FINALIZING / simstim-RUNNING-implementation have all failed
+# to match, so "never push while blocking" is structural, not a condition to
+# get wrong.
+#
+# SPAWN COST: the hot idle/active paths are untouched. The terminal-candidate
+# test is pure string comparison; if no candidate is terminal it exits before
+# sourcing the lib or reading config, so idle/RUNNING/ITERATING Stops pay zero
+# extra forks. Only a genuine terminal Stop pays the config read, and only an
+# operator who opted in (enabled+command) pays the dispatch.
+# ---------------------------------------------------------------------------
 STOP_INPUT=""
 IFS= read -rd '' STOP_INPUT || true
 
@@ -113,11 +142,14 @@ mapfile -d '' -t _sg < <(
       ($j2 | try ((.state // "UNKNOWN") | sval) catch "UNKNOWN"),
       ($j2 | try ((.current_iteration // 0) | sval) catch "0"),
       ($j3 | try ((.state // "UNKNOWN") | sval) catch "UNKNOWN"),
-      ($j3 | try ((.phase // "unknown") | sval) catch "unknown")
+      ($j3 | try ((.phase // "unknown") | sval) catch "unknown"),
+      ($j1 | try ((.timestamps.last_activity // "") | sval) catch ""),
+      ($j2 | try ((.timestamps.last_activity // "") | sval) catch ""),
+      ($j3 | try ((.timestamps.last_activity // .completed_at // "") | sval) catch "")
     ] | map(denul($z) | sub("\n+$"; "")) | join($z) + $z
   ' 2>/dev/null
 )
-if [[ "${#_sg[@]}" -ne 9 ]]; then
+if [[ "${#_sg[@]}" -ne 12 ]]; then
   # jq missing or catastrophic failure — a Stop guard must fail open.
   exit 0
 fi
@@ -130,6 +162,9 @@ bridge_state="${_sg[5]}"
 iteration="${_sg[6]}"
 simstim_state="${_sg[7]}"
 phase="${_sg[8]}"
+sprint_ts="${_sg[9]}"
+bridge_ts="${_sg[10]}"
+simstim_ts="${_sg[11]}"
 
 if [[ "${bg_count:-0}" =~ ^[0-9]+$ ]] && [[ "${bg_count:-0}" -gt 0 ]]; then
   cron_note=""
@@ -160,6 +195,85 @@ fi
 if [[ "$simstim_state" == "RUNNING" && "$phase" == "implementation" ]]; then
   printf '%s\n' "{\"decision\": \"block\", \"reason\": \"Simstim implementation phase is active (state=RUNNING, phase=${phase}). Complete or halt the current simstim workflow before stopping.\"}"
   exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# cycle-117 item C: push-at-gate side channel (see header). Runs ONLY here,
+# after every block-check has fallen through. Never touches stdout/exit code.
+# ---------------------------------------------------------------------------
+# Per-source terminal fingerprints (pure string compares — no forks). A
+# candidate is non-empty only when that source is in a TERMINAL state.
+_push_sprint_cand=""
+case "$state" in JACKED_OUT|READY_FOR_HITL|HALTED) _push_sprint_cand="${state}:${current}:${sprint_ts}" ;; esac
+_push_bridge_cand=""
+case "$bridge_state" in JACKED_OUT|HALTED) _push_bridge_cand="${bridge_state}:${iteration}:${bridge_ts}" ;; esac
+_push_simstim_cand=""
+case "$simstim_state" in COMPLETED|AWAITING_HITL|HALTED) _push_simstim_cand="${simstim_state}:${phase}:${simstim_ts}" ;; esac
+
+if [[ -n "$_push_sprint_cand" || -n "$_push_bridge_cand" || -n "$_push_simstim_cand" ]]; then
+  _push_lib="$(dirname "${BASH_SOURCE[0]}")/../../scripts/lib/push-notify-lib.sh"
+  if [[ -f "$_push_lib" ]]; then
+    # shellcheck source=/dev/null
+    . "$_push_lib"
+    # Config gate BEFORE any dedup slot is burned: disabled/empty command ->
+    # silent no-op, marker file untouched (AC row 3).
+    if push_notify_active; then
+      _push_marker=".run/push-last-state.json"
+      # Read prior per-source markers (one jq call; missing file -> empties).
+      _pm_sprint=""; _pm_bridge=""; _pm_simstim=""
+      if [[ -f "$_push_marker" ]]; then
+        mapfile -d '' -t _pm < <(
+          jq -nj --rawfile m "$_push_marker" '
+            def denul($z): . / $z | join("");
+            ([0] | implode) as $z |
+            ($m | try fromjson catch {}) as $j |
+            [ ($j.sprint_plan // ""), ($j.bridge // ""), ($j.simstim // "") ]
+            | map(denul($z)) | join($z) + $z
+          ' 2>/dev/null
+        )
+        if [[ "${#_pm[@]}" -eq 3 ]]; then
+          _pm_sprint="${_pm[0]}"; _pm_bridge="${_pm[1]}"; _pm_simstim="${_pm[2]}"
+        fi
+      fi
+
+      # Skip already-acked sources, fall through to the next fresh one. This
+      # per-source walk (not a single flat marker) is required: the state
+      # files are never archived after completion, so a stale terminal state
+      # from an old run must not permanently mask a later, different source.
+      _push_src=""; _push_fp=""; _push_msg=""; _push_state=""; _push_id=""
+      if [[ -n "$_push_sprint_cand" && "$_push_sprint_cand" != "$_pm_sprint" ]]; then
+        _push_src="sprint_plan"; _push_fp="$_push_sprint_cand"
+        _push_state="$state"; _push_id="$current"
+        _push_msg="${current} sprint-plan ${state}"
+      elif [[ -n "$_push_bridge_cand" && "$_push_bridge_cand" != "$_pm_bridge" ]]; then
+        _push_src="bridge"; _push_fp="$_push_bridge_cand"
+        _push_state="$bridge_state"; _push_id="iteration-${iteration}"
+        _push_msg="iteration-${iteration} bridge ${bridge_state}"
+      elif [[ -n "$_push_simstim_cand" && "$_push_simstim_cand" != "$_pm_simstim" ]]; then
+        _push_src="simstim"; _push_fp="$_push_simstim_cand"
+        _push_state="$simstim_state"; _push_id="${phase}"
+        _push_msg="${phase} simstim ${simstim_state}"
+      fi
+
+      if [[ -n "$_push_src" ]]; then
+        # Write the marker FIRST — a failed/slow command still counts as
+        # attempted once, so a permanently broken operator command cannot
+        # cause a retry storm on every subsequent Stop.
+        mkdir -p .run 2>/dev/null
+        _push_tmp="$(mktemp .run/push-last-state.json.XXXXXX 2>/dev/null || true)"
+        if [[ -n "$_push_tmp" ]]; then
+          if jq --arg k "$_push_src" --arg v "$_push_fp" '.[$k]=$v' "$_push_marker" 2>/dev/null > "$_push_tmp" \
+             || jq -n --arg k "$_push_src" --arg v "$_push_fp" '{($k):$v}' > "$_push_tmp" 2>/dev/null; then
+            mv -f "$_push_tmp" "$_push_marker" 2>/dev/null || rm -f "$_push_tmp" 2>/dev/null
+          else
+            rm -f "$_push_tmp" 2>/dev/null
+          fi
+        fi
+        # Dispatch (best-effort; always returns 0, stdio fully redirected).
+        push_notify "$_push_msg" "$_push_src" "$_push_state" "$_push_id"
+      fi
+    fi
+  fi
 fi
 
 # No active runs — allow stop

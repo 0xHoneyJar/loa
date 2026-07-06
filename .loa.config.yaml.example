@@ -536,6 +536,31 @@ run_mode:
     sprint_commit_pattern: '^feat\(sprint-'
 
 # -----------------------------------------------------------------------------
+# Notifications (cycle-117 item C)
+# -----------------------------------------------------------------------------
+# Operator-configurable external push, fired best-effort by the Stop-hook
+# push-at-gate when an autonomous run reaches a terminal gate (sprint
+# JACKED_OUT/READY_FOR_HITL/HALTED, bridge JACKED_OUT/HALTED, simstim
+# COMPLETED/AWAITING_HITL/HALTED). This is the SAME "run an operator command"
+# pattern reserved (but never wired) by spiral.harness.heartbeat.
+# phase_complete_hook below — this `notifications.push_command` is the first
+# instance the framework actually EXECUTES.
+#
+# TRUST: this file is operator-owned/trusted input. `command` is run via
+# `bash -c` — treat it exactly like a command you type yourself; do not point
+# it at agent- or PR-controlled data. It receives these env vars:
+#   LOA_PUSH_MESSAGE  short (<200 char) "<id> <source> <state>" summary
+#   LOA_PUSH_SOURCE   sprint_plan | bridge | simstim
+#   LOA_PUSH_STATE    the terminal state (e.g. JACKED_OUT)
+#   LOA_PUSH_ID       sprint id / iteration-N / simstim phase
+notifications:
+  push_command:
+    enabled: false               # opt-in; default is a silent no-op
+    command: ""                  # e.g. 'ntfy publish my-topic "$LOA_PUSH_MESSAGE"'
+                                 #  or  'osascript -e "display notification \"$LOA_PUSH_MESSAGE\""'
+    timeout_sec: 5               # hard cap; a slow command can never trap the agent
+
+# -----------------------------------------------------------------------------
 # BUTTERFREEZONE — Agent-Grounded README (v1.35.0)
 # -----------------------------------------------------------------------------
 # Generates BUTTERFREEZONE.md: a provenance-tagged, checksum-verified,
