@@ -446,3 +446,25 @@ system_prompt.*=.*\+|messages\[0\]\.content.*req\.
 - [ ] Are documents/URLs sanitized before LLM processing?
 - [ ] Is PII filtered before sending to external LLM APIs?
 - [ ] Are LLM errors handled without leaking context?
+
+## Documentation
+
+### Security-Specific Documentation Checks
+
+| Check | What to Verify | Severity |
+|-------|----------------|----------|
+| SECURITY.md | Security considerations documented | HIGH if auth changes |
+| Auth documentation | Login flows, token handling explained | HIGH |
+| API documentation | Endpoints, auth requirements listed | MEDIUM |
+| Crypto operations | Key handling, signing documented | CRITICAL |
+| Secrets handling | No secrets in docs, refs to vault/env | CRITICAL |
+
+### Red Flags for Documentation
+
+| Red Flag | Severity | Action |
+|----------|----------|--------|
+| Internal URLs in docs | HIGH | Remove before public release |
+| Hardcoded credentials in examples | CRITICAL | Replace with placeholders |
+| Detailed internal architecture | MEDIUM | Review for info leakage |
+| Unredacted logs/traces | HIGH | Scrub sensitive data |
+| API keys in code samples | CRITICAL | Use `YOUR_API_KEY` placeholder |

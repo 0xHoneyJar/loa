@@ -562,30 +562,7 @@ Load and synthesize context in priority order:
 
 **If reality files exist** (from /ride or cached):
 
-```markdown
-## What I've Learned From Your Codebase
-
-Based on analysis of your existing code:
-
-### Architecture
-[CODE:src/index.ts:1-50] Your application uses [pattern] architecture with:
-- [list key components with code references]
-
-### Existing Features
-From component inventory:
-- Feature A [CODE:src/features/a.ts:10-45]
-- Feature B [CODE:src/services/b.ts:1-100]
-
-### Current State
-From consistency report:
-- [summary of code consistency findings]
-
-### Proposed Additions
-Based on codebase analysis, the following would integrate well:
-- [suggested additions grounded in existing patterns]
-
----
-```
+Present the canonical codebase-understanding specimen from `resources/templates/context-understanding.md`.
 
 ### Step 1: Ingest All Context
 
@@ -641,48 +618,7 @@ Internally categorize discovered information:
 
 **For brownfield projects**, present codebase understanding FIRST:
 
-```markdown
-## What I've Learned From Your Codebase
-
-I've analyzed your existing codebase (N files, X lines).
-
-### Existing Architecture
-[CODE:src/index.ts:1-50] Your application uses [pattern] with:
-- Component A [CODE:src/components/a.tsx:10]
-- Service B [CODE:src/services/b.ts:1]
-
-### Implemented Features
-Based on code analysis:
-- User authentication [CODE:src/auth/index.ts:1-100]
-- Data persistence [CODE:src/db/client.ts:1-50]
-
----
-
-## What I've Learned From Your Documentation
-
-I've reviewed N files (X lines) from your context directory.
-
-### Problem & Vision
-> From vision.md:12-15: "exact quote from document..."
-
-I understand the core problem is [summary]. The vision is [summary].
-
-### Users & Stakeholders
-> From users.md:23-45: "description of personas..."
-
-You've defined N personas: [list with 1-line each].
-
-### Conflicts Noted
-- [if any conflicts between reality and context]
-
-### What I Still Need to Understand
-1. **Success Metrics**: What quantifiable outcomes define success?
-2. **Persona Priority**: Which user persona should we optimize for first?
-3. **Timeline**: What are the key milestones and deadlines?
-
-Should I proceed with these clarifying questions, or would you like to
-correct my understanding first?
-```
+Present the combined codebase + documentation understanding specimen in `resources/templates/context-understanding.md`.
 
 ## Step 0.5: Vision Registry Loading (v1.42.0)
 
@@ -742,23 +678,7 @@ Present matched visions to user using the template below, then process user deci
 
 ### Vision Presentation Template (Active Mode)
 
-For each matched vision, present:
-
-```markdown
----
-### Relevant Vision: [title]
-**Source**: [source field — e.g., "Bridge iteration 2, PR #100"]
-**Relevance**: Matched on tags: [matched_tags joined by ", "]
-**Score**: [score] (overlap: [overlap], references: [refs])
-
-> [sanitized insight text — max 500 chars, from vision_sanitize_text()]
-
-**What would you like to do with this vision?**
-- **Explore**: Mark for deeper analysis — may inspire requirements
-- **Defer**: Interesting but not relevant to current work
-- **Skip**: Not useful
----
-```
+For each matched vision, present using the presentation template in `resources/templates/vision-registry-templates.md`.
 
 **IMPORTANT**: The relevance explanation is template-based (tag match + score), NOT LLM-generated. Do not fabricate a narrative about why the vision is relevant — state the matched tags and score.
 
@@ -787,24 +707,7 @@ Log format (append to `grimoires/loa/a2a/trajectory/vision-decisions-{date}.json
 
 ### Step 0.5b: Shadow Graduation Prompt
 
-When the query script returns `graduation.ready: true`:
-
-```markdown
-## Vision Registry — Shadow Period Complete
-
-Over **N shadow cycles**, **M visions** matched your work context.
-
-The Vision Registry has been silently logging relevance matches during your
-planning sessions. Here's what was found:
-
-[summary of top matches from shadow logs]
-
-**Would you like to:**
-1. **Enable active mode** — Start seeing relevant visions during planning
-2. **Adjust thresholds** — Change tag overlap or max results settings
-3. **Keep shadow mode** — Continue silent logging for more data
-4. **Disable** — Turn off vision registry entirely
-```
+When the query script returns `graduation.ready: true`, present the shadow-graduation prompt in `resources/templates/vision-registry-templates.md`.
 
 On "Enable active mode": Update config via `yq eval '.vision_registry.shadow_mode = false' -i .loa.config.yaml`
 
@@ -858,89 +761,37 @@ ELSE IF phase not covered:
   → Iterate until user confirms phase is complete
 ```
 
+### Phase Transitions
+
+After each phase (1-7), run the Phase Transition Protocol
+(`resources/REFERENCE.md` §Phase Transition Protocol), substituting the
+phase-specific values below (`{THIS}` = current phase, `{NEXT}` = next phase,
+`{NEXT_NUM}` = next phase number):
+
+| After Phase | `{THIS}` | `{NEXT}` | `{NEXT_NUM}` |
+|-------------|----------|----------|--------------|
+| 1 | Problem & Vision | Goals & Success Metrics | 2 |
+| 2 | Goals & Success Metrics | User & Stakeholder Context | 3 |
+| 3 | User & Stakeholder Context | Functional Requirements | 4 |
+| 4 | Functional Requirements | Technical & Non-Functional | 5 |
+| 5 | Technical & Non-Functional | Scope & Prioritization | 6 |
+| 6 | Scope & Prioritization | Risks & Dependencies | 7 |
+| 7 | Risks & Dependencies | pre-generation review (terminal) | — |
+
 ### Phase 1: Problem & Vision
 - Core problem being solved
 - Product vision and mission
 - Why now? Why you?
-
-#### Phase 1 Transition
-
-When `gate_between` is true:
-1. Summarize what was learned in this phase (3-5 bullets, cited)
-2. State what carries forward to the next phase
-3. Present transition:
-   - If `routing_style` == "structured": Use AskUserQuestion:
-     question: "Phase 1 complete. Ready for Phase 2: Goals & Success Metrics?"
-     header: "Phase 1"
-     options:
-       - label: "Continue"
-         description: "Move to Goals & Success Metrics"
-       - label: "Go back"
-         description: "Revisit this phase — I have corrections"
-       - label: "Skip ahead"
-         description: "Jump to PRD generation — enough context gathered"
-   - If `routing_style` == "plain":
-     "Phase 1: Problem & Vision complete. Moving to Phase 2: Goals & Success Metrics. Continue, go back, or skip ahead?"
-4. WAIT for response. DO NOT auto-continue.
-
-When `gate_between` is false:
-One-line transition: "Moving to Phase 2: Goals & Success Metrics."
 
 ### Phase 2: Goals & Success Metrics
 - Business objectives
 - Quantifiable success criteria
 - Timeline and milestones
 
-#### Phase 2 Transition
-
-When `gate_between` is true:
-1. Summarize what was learned in this phase (3-5 bullets, cited)
-2. State what carries forward to the next phase
-3. Present transition:
-   - If `routing_style` == "structured": Use AskUserQuestion:
-     question: "Phase 2 complete. Ready for Phase 3: User & Stakeholder Context?"
-     header: "Phase 2"
-     options:
-       - label: "Continue"
-         description: "Move to User & Stakeholder Context"
-       - label: "Go back"
-         description: "Revisit this phase — I have corrections"
-       - label: "Skip ahead"
-         description: "Jump to PRD generation — enough context gathered"
-   - If `routing_style` == "plain":
-     "Phase 2: Goals & Success Metrics complete. Moving to Phase 3: User & Stakeholder Context. Continue, go back, or skip ahead?"
-4. WAIT for response. DO NOT auto-continue.
-
-When `gate_between` is false:
-One-line transition: "Moving to Phase 3: User & Stakeholder Context."
-
 ### Phase 3: User & Stakeholder Context
 - Primary and secondary personas
 - User journey and pain points
 - Stakeholder requirements
-
-#### Phase 3 Transition
-
-When `gate_between` is true:
-1. Summarize what was learned in this phase (3-5 bullets, cited)
-2. State what carries forward to the next phase
-3. Present transition:
-   - If `routing_style` == "structured": Use AskUserQuestion:
-     question: "Phase 3 complete. Ready for Phase 4: Functional Requirements?"
-     header: "Phase 3"
-     options:
-       - label: "Continue"
-         description: "Move to Functional Requirements"
-       - label: "Go back"
-         description: "Revisit this phase — I have corrections"
-       - label: "Skip ahead"
-         description: "Jump to PRD generation — enough context gathered"
-   - If `routing_style` == "plain":
-     "Phase 3: User & Stakeholder Context complete. Moving to Phase 4: Functional Requirements. Continue, go back, or skip ahead?"
-4. WAIT for response. DO NOT auto-continue.
-
-When `gate_between` is false:
-One-line transition: "Moving to Phase 4: Functional Requirements."
 
 ### Phase 4: Functional Requirements
 - Core features and capabilities
@@ -962,112 +813,22 @@ For high-precision requirements, use EARS notation from
 
 **When to use EARS**: Security-critical features, regulatory compliance, complex triggers.
 
-#### Phase 4 Transition
-
-When `gate_between` is true:
-1. Summarize what was learned in this phase (3-5 bullets, cited)
-2. State what carries forward to the next phase
-3. Present transition:
-   - If `routing_style` == "structured": Use AskUserQuestion:
-     question: "Phase 4 complete. Ready for Phase 5: Technical & Non-Functional?"
-     header: "Phase 4"
-     options:
-       - label: "Continue"
-         description: "Move to Technical & Non-Functional"
-       - label: "Go back"
-         description: "Revisit this phase — I have corrections"
-       - label: "Skip ahead"
-         description: "Jump to PRD generation — enough context gathered"
-   - If `routing_style` == "plain":
-     "Phase 4: Functional Requirements complete. Moving to Phase 5: Technical & Non-Functional. Continue, go back, or skip ahead?"
-4. WAIT for response. DO NOT auto-continue.
-
-When `gate_between` is false:
-One-line transition: "Moving to Phase 5: Technical & Non-Functional."
-
 ### Phase 5: Technical & Non-Functional
 - Performance requirements
 - Security and compliance
 - Integration requirements
 - Technical constraints
 
-#### Phase 5 Transition
-
-When `gate_between` is true:
-1. Summarize what was learned in this phase (3-5 bullets, cited)
-2. State what carries forward to the next phase
-3. Present transition:
-   - If `routing_style` == "structured": Use AskUserQuestion:
-     question: "Phase 5 complete. Ready for Phase 6: Scope & Prioritization?"
-     header: "Phase 5"
-     options:
-       - label: "Continue"
-         description: "Move to Scope & Prioritization"
-       - label: "Go back"
-         description: "Revisit this phase — I have corrections"
-       - label: "Skip ahead"
-         description: "Jump to PRD generation — enough context gathered"
-   - If `routing_style` == "plain":
-     "Phase 5: Technical & Non-Functional complete. Moving to Phase 6: Scope & Prioritization. Continue, go back, or skip ahead?"
-4. WAIT for response. DO NOT auto-continue.
-
-When `gate_between` is false:
-One-line transition: "Moving to Phase 6: Scope & Prioritization."
-
 ### Phase 6: Scope & Prioritization
 - MVP definition
 - Phase 1 vs future scope
 - Out of scope (explicit)
-
-#### Phase 6 Transition
-
-When `gate_between` is true:
-1. Summarize what was learned in this phase (3-5 bullets, cited)
-2. State what carries forward to the next phase
-3. Present transition:
-   - If `routing_style` == "structured": Use AskUserQuestion:
-     question: "Phase 6 complete. Ready for Phase 7: Risks & Dependencies?"
-     header: "Phase 6"
-     options:
-       - label: "Continue"
-         description: "Move to Risks & Dependencies"
-       - label: "Go back"
-         description: "Revisit this phase — I have corrections"
-       - label: "Skip ahead"
-         description: "Jump to PRD generation — enough context gathered"
-   - If `routing_style` == "plain":
-     "Phase 6: Scope & Prioritization complete. Moving to Phase 7: Risks & Dependencies. Continue, go back, or skip ahead?"
-4. WAIT for response. DO NOT auto-continue.
-
-When `gate_between` is false:
-One-line transition: "Moving to Phase 7: Risks & Dependencies."
 
 ### Phase 7: Risks & Dependencies
 - Technical risks
 - Business risks
 - External dependencies
 - Mitigation strategies
-
-#### Phase 7 Transition
-
-When `gate_between` is true:
-1. Summarize what was learned in this phase (3-5 bullets, cited)
-2. State what carries forward to PRD generation
-3. Present transition:
-   - If `routing_style` == "structured": Use AskUserQuestion:
-     question: "Phase 7 complete. Ready for pre-generation review?"
-     header: "Phase 7"
-     options:
-       - label: "Continue"
-         description: "Move to pre-generation summary"
-       - label: "Go back"
-         description: "Revisit this phase — I have corrections"
-   - If `routing_style` == "plain":
-     "Phase 7: Risks & Dependencies complete. Moving to pre-generation review. Continue or go back?"
-4. WAIT for response. DO NOT auto-continue.
-
-When `gate_between` is false:
-One-line transition: "Moving to PRD generation."
 
 ### Pre-Generation Gate
 
@@ -1128,25 +889,7 @@ For each explored vision, synthesize with the work context gathered from Phases 
 
 ### Present Proposals
 
-```markdown
----
-## Vision-Inspired Requirements (Experimental)
-
-The following requirements are inspired by architectural visions captured during
-previous bridge reviews. These are proposals — accept, modify, or reject each one.
-
-### Proposal 1: [short title]
-**Source**: [VISION-INSPIRED: vision-NNN] — "[vision title]"
-**Rationale**: [1-2 sentences connecting the vision insight to the current work context]
-
-> **Proposed Requirement**: [specific requirement text]
-
-**Decision**: Accept / Modify / Reject
-
-### Proposal 2: [short title]
-...
----
-```
+Present using the vision-inspired proposals specimen in `resources/templates/vision-registry-templates.md`.
 
 ### Process Decisions
 
@@ -1170,20 +913,7 @@ Log all decisions to `grimoires/loa/a2a/trajectory/vision-proposals-{date}.jsonl
 
 ### PRD Integration
 
-Accepted/modified proposals go in a dedicated PRD section:
-
-```markdown
-## 9. Vision-Inspired Requirements
-
-> These requirements were proposed by the Vision Registry based on patterns
-> observed in previous development cycles. Each traces to a source vision.
-
-### VR-1: [requirement title]
-**Source**: [VISION-INSPIRED: vision-NNN]
-[requirement text]
-
-> Sources: vision-NNN (bridge iteration N, PR #NNN), Phase X confirmation
-```
+Accepted/modified proposals go in a dedicated PRD section — use the PRD-integration specimen in `resources/templates/vision-registry-templates.md`.
 
 This section is clearly separated from user-driven requirements and carries full provenance.
 
@@ -1271,61 +1001,11 @@ Every claim about existing context must include citation:
 </grounding_requirements>
 
 <edge_cases>
-| Scenario | Behavior |
-|----------|----------|
-| No context directory | Create it, add README.md, proceed to full interview |
-| Empty context directory | Note it, proceed to full interview |
-| Only README.md exists | Treat as empty, proceed to full interview |
-| Contradictory information | List contradictions, ask developer to clarify |
-| Outdated information | Ask "Is this still accurate?" before using |
-| Very large files (>1000 lines) | Summarize key sections, note full file available |
-| Non-markdown files | Note existence, explain can't parse |
-| Partial coverage | Conduct mini-interviews for gaps only |
-| Developer disagrees with synthesis | Allow corrections, update understanding |
-| Reality conflicts with context | Reality wins, flag conflict for user review |
-| Stale reality (>7 days) | Prompt user to refresh or proceed with cached |
-| /ride failed | Log blocker, proceed without grounding (with warning) |
-| Brownfield detected but no reality | Present 3-option AskUserQuestion: Run /ride, Run /ride --enriched, Skip grounding |
-| Greenfield project | Skip codebase grounding entirely, no message |
+Edge-case handling table: see `resources/REFERENCE.md` §Edge Cases.
 </edge_cases>
 
 <visual_communication>
-## Visual Communication (Optional)
-
-Follow `.claude/protocols/visual-communication.md` for diagram standards.
-
-### When to Include Diagrams
-
-PRDs may benefit from visual aids for:
-- **User Journeys** (flowchart) - Show user flows through the product
-- **Process Flows** (flowchart) - Illustrate business processes
-- **Stakeholder Maps** (flowchart) - Show stakeholder relationships
-
-### Output Format
-
-If including diagrams, use Mermaid with preview URLs:
-
-```markdown
-### User Registration Journey
-
-```mermaid
-graph LR
-    A[Landing Page] --> B{Has Account?}
-    B -->|No| C[Sign Up Form]
-    B -->|Yes| D[Login]
-    C --> E[Email Verification]
-    E --> F[Onboarding]
-    F --> G[Dashboard]
-```
-
-> **Preview**: [View diagram](https://agents.craft.do/mermaid?code=...&theme=github)
-```
-
-### Theme Configuration
-
-Read theme from `.loa.config.yaml` visual_communication.theme setting.
-
-Diagram inclusion is **optional** for PRDs - use agent discretion based on complexity.
+Visual-communication guidance (when to include diagrams, Mermaid output format, theme configuration): see `resources/REFERENCE.md` §Visual Communication.
 </visual_communication>
 
 <post_completion>

@@ -644,24 +644,7 @@ Use detailed feedback template with:
 
 ### Approval Language
 
-**If documentation is complete:**
-```
-All good
-
-Documentation verification: PASS
-- CHANGELOG: All tasks documented
-- CLAUDE.md: [Updated/N/A]
-- Code comments: Adequate
-```
-
-**If documentation needs work:**
-```
-Changes required
-
-Documentation verification: FAIL
-- Missing CHANGELOG entry for Task X.Y
-- [specific file]: needs comment explaining [logic]
-```
+See `resources/REFERENCE.md` §Documentation Verification for the PASS/FAIL approval-language templates.
 </documentation_verification>
 
 <subagent_report_check>
@@ -716,14 +699,7 @@ If no subagent reports exist:
 
 ### Example Check
 
-```bash
-# Check for blocking issues
-grep -l "Verdict.*CRITICAL" grimoires/loa/a2a/subagent-reports/*.md 2>/dev/null
-grep -l "Verdict.*HIGH" grimoires/loa/a2a/subagent-reports/*.md 2>/dev/null
-grep -l "Verdict.*INSUFFICIENT" grimoires/loa/a2a/subagent-reports/*.md 2>/dev/null
-```
-
-If any match found, **block approval** until issues are resolved.
+See `resources/REFERENCE.md` §Subagent Report Check for the grep commands that surface blocking verdicts; if any match, **block approval** until issues are resolved.
 </subagent_report_check>
 
 <checklists>
@@ -752,45 +728,7 @@ See `resources/REFERENCE.md` for complete checklists:
 
 Check code for excessive complexity during every review. These are **blocking issues**.
 
-### Function Complexity
-
-| Check | Threshold | Finding |
-|-------|-----------|---------|
-| Function length | >50 lines | "Function too long: {file}:{line} ({X} lines). Split into smaller functions." |
-| Parameter count | >5 params | "Too many parameters: {func}() has {X} params. Use options object." |
-| Nesting depth | >3 levels | "Deep nesting: {file}:{line}. Refactor with early returns or extract." |
-| Cyclomatic complexity | >10 | "High complexity: {func}(). Simplify conditional logic." |
-
-### Code Duplication
-
-| Check | Threshold | Finding |
-|-------|-----------|---------|
-| Repeated patterns | >3 occurrences | "Duplicate code found in {file1}, {file2}, {file3}. Extract to shared function." |
-| Copy-paste code | >10 similar lines | "Near-duplicate blocks at {file}:{line1} and {file}:{line2}. DRY violation." |
-
-### Dependencies
-
-| Check | Issue | Finding |
-|-------|-------|---------|
-| Circular imports | Any | "Circular dependency: {A} → {B} → {A}. Restructure modules." |
-| Unnecessary deps | Unused | "Unused import: {file}:{line} imports {module} but never uses it." |
-| Heavy deps | For simple task | "Consider lighter alternative to {dep} for this use case." |
-
-### Naming Quality
-
-| Check | Issue | Finding |
-|-------|-------|---------|
-| Unclear names | Ambiguous | "Unclear name: {name} at {file}:{line}. Use descriptive name." |
-| Abbreviations | Non-standard | "Avoid abbreviation: '{abbr}' → '{full}' at {file}:{line}." |
-| Inconsistent | Style varies | "Inconsistent naming: {fileA} uses camelCase, {fileB} uses snake_case." |
-
-### Dead Code
-
-| Check | Issue | Finding |
-|-------|-------|---------|
-| Unused functions | Never called | "Dead code: {func}() at {file}:{line} is never called. Remove." |
-| Commented code | Large blocks | "Remove commented code at {file}:{lines}. Use version control." |
-| Unreachable code | After return | "Unreachable code after return at {file}:{line}." |
+See `resources/REFERENCE.md` §Complexity for the per-dimension threshold tables (Function Complexity, Code Duplication, Dependencies, Naming Quality, Dead Code).
 
 ### Review Integration
 
@@ -889,39 +827,7 @@ br sync --flush-only  # Export SQLite → JSONL before commit
 <visual_communication>
 ## Visual Communication (Optional)
 
-Follow `.claude/protocols/visual-communication.md` for diagram standards.
-
-### When to Include Diagrams
-
-Code review feedback may benefit from visual aids for:
-- **Code Flow** (flowchart) - Illustrate data or control flow issues
-- **Architecture Concerns** (flowchart) - Show structural problems
-
-### Output Format
-
-If including diagrams in feedback, use Mermaid with preview URLs:
-
-```markdown
-### Suggested Refactoring
-
-Current flow has unnecessary complexity:
-
-```mermaid
-graph TD
-    A[Input] --> B[Validate]
-    B --> C[Process]
-    C --> D[Transform]
-    D --> E[Output]
-```
-
-> **Preview**: [View diagram](https://agents.craft.do/mermaid?code=...&theme=github)
-```
-
-### Theme Configuration
-
-Read theme from `.loa.config.yaml` visual_communication.theme setting.
-
-Diagram inclusion is **optional** for code reviews - use when visual explanation helps.
+See `resources/REFERENCE.md` §Visual Communication — Mermaid diagram standards, when to include diagrams, output format, and theme configuration for review feedback. Diagram inclusion is optional; use when visual explanation helps.
 </visual_communication>
 
 <retrospective_postlude>
@@ -966,141 +872,8 @@ If no candidates found:
 - Log action: SKIPPED, candidates_found: 0
 - Exit silently
 
-### Step 3: Apply Lightweight Quality Gates
+### Steps 3-5, Error Handling, Session Limits
 
-For each candidate, evaluate these 4 gates:
-
-| Gate | Question | PASS Condition |
-|------|----------|----------------|
-| **Depth** | Required multiple investigation steps? | Not just a quick glance - involved analysis, comparison, tracing |
-| **Reusable** | Generalizable beyond this instance? | Applies to similar code patterns, not specific to this review |
-| **Trigger** | Can describe when to apply? | Clear code patterns or conditions that indicate this applies |
-| **Verified** | Solution confirmed working? | Fix verified or pattern validated in this session |
-
-**Scoring**: Each gate passed = 1 point. Max score = 4.
-
-**Threshold**: From config `surface_threshold` (default: 3)
-
-### Step 3.5: Sanitize Descriptions (REQUIRED)
-
-**CRITICAL**: Before logging or surfacing ANY candidate, sanitize descriptions to prevent sensitive data leakage.
-
-Apply these redaction patterns:
-
-| Pattern | Replacement |
-|---------|-------------|
-| API Keys (`sk-*`, `ghp_*`, `AKIA*`) | `[REDACTED_API_KEY]` |
-| Private Keys (`-----BEGIN...PRIVATE KEY-----`) | `[REDACTED_PRIVATE_KEY]` |
-| JWT Tokens (`eyJ...`) | `[REDACTED_JWT]` |
-| Webhook URLs (`hooks.slack.com/*`, `hooks.discord.com/*`) | `[REDACTED_WEBHOOK]` |
-| File Paths (`/home/*/`, `/Users/*/`) | `/home/[USER]/` or `/Users/[USER]/` |
-| Email Addresses | `[REDACTED_EMAIL]` |
-| IP Addresses | `[REDACTED_IP]` |
-| Generic Secrets (`password=`, `secret=`, etc.) | `$key=[REDACTED]` |
-
-If any redactions occur, add `"redactions_applied": true` to trajectory log.
-
-### Step 4: Log to Trajectory (ALWAYS)
-
-Write to `grimoires/loa/a2a/trajectory/retrospective-{YYYY-MM-DD}.jsonl`:
-
-```json
-{
-  "type": "invisible_retrospective",
-  "timestamp": "{ISO8601}",
-  "skill": "reviewing-code",
-  "action": "DETECTED|EXTRACTED|SKIPPED|DISABLED|ERROR",
-  "candidates_found": N,
-  "candidates_qualified": N,
-  "candidates": [
-    {
-      "id": "learning-{timestamp}-{hash}",
-      "signal": "error_resolution|multiple_attempts|unexpected_behavior|workaround|pattern_discovery",
-      "description": "Brief description of the review learning",
-      "score": N,
-      "gates_passed": ["depth", "reusable", "trigger", "verified"],
-      "gates_failed": [],
-      "qualified": true|false
-    }
-  ],
-  "extracted": ["learning-id-001"],
-  "latency_ms": N
-}
-```
-
-### Step 5: Surface Qualified Findings
-
-IF any candidates score >= `surface_threshold`:
-
-1. **Add to NOTES.md `## Learnings` section**:
-
-   **CRITICAL - Markdown Escape**: Before inserting description, escape these characters:
-   - `#` → `\#`, `*` → `\*`, `[` → `\[`, `]` → `\]`, `\n` → ` `
-
-   ```markdown
-   ## Learnings
-   - [{timestamp}] [reviewing-code] {ESCAPED Brief description} → skills-pending/{id}
-   ```
-
-   If `## Learnings` section doesn't exist, create it after `## Session Log`.
-
-2. **Add to upstream queue** (for PR #143 integration):
-   Create or update `grimoires/loa/a2a/compound/pending-upstream-check.json`:
-   ```json
-   {
-     "queued_learnings": [
-       {
-         "id": "learning-{timestamp}-{hash}",
-         "source": "invisible_retrospective",
-         "skill": "reviewing-code",
-         "queued_at": "{ISO8601}"
-       }
-     ]
-   }
-   ```
-
-3. **Show brief notification**:
-   ```
-   ────────────────────────────────────────────
-   Learning Captured
-   ────────────────────────────────────────────
-   Pattern: {brief description}
-   Score: {score}/4 gates passed
-
-   Added to: grimoires/loa/NOTES.md
-   ────────────────────────────────────────────
-   ```
-
-IF no candidates qualify:
-- Log action: SKIPPED
-- **NO user-visible output** (silent)
-
-### Error Handling
-
-On ANY error during postlude execution:
-
-1. Log to trajectory:
-   ```json
-   {
-     "type": "invisible_retrospective",
-     "timestamp": "{ISO8601}",
-     "skill": "reviewing-code",
-     "action": "ERROR",
-     "error": "{error message}",
-     "candidates_found": 0,
-     "candidates_qualified": 0
-   }
-   ```
-
-2. **Continue silently** - do NOT interrupt the main workflow
-3. Do NOT surface error to user
-
-### Session Limits
-
-Respect these limits from config:
-- `max_candidates`: Maximum candidates to evaluate per invocation (default: 5)
-- `max_extractions_per_session`: Maximum learnings to extract per session (default: 3)
-
-Track session extractions in trajectory log and skip extraction if limit reached.
+Before writing ANY learning content to disk, read `resources/RETROSPECTIVE.md` and apply its Step 3.5 sanitization (redact API keys/JWTs/secrets) first. That file holds the quality gates (Step 3), the sanitization patterns (Step 3.5), trajectory logging (Step 4), surfacing rules (Step 5), error handling, and session limits.
 
 </retrospective_postlude>
