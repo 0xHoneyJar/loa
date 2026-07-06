@@ -496,8 +496,20 @@ class Harness:
         return "allow", "", {}
 
     def validate_evidence_item(self, item: Dict[str, Any]) -> Tuple[bool, str]:
-        path = self.root / item.get("path", "")
-        label = item.get("path", "<missing path>")
+        rel = item.get("path", "")
+        label = rel or "<missing path>"
+        # F2 (codex/BB review): evidence is repository-scoped. Reject absolute
+        # paths and any path that escapes self.root after resolution — an
+        # agent-writable transition request must not satisfy a gate with a file
+        # outside the project (pathlib's `root / "/abs"` silently discards root).
+        if os.path.isabs(rel):
+            return False, f"evidence path must be repo-relative, not absolute: {label}"
+        root = self.root.resolve()
+        path = (root / rel).resolve()
+        try:
+            path.relative_to(root)
+        except ValueError:
+            return False, f"evidence path escapes repository root: {label}"
         optional = bool(item.get("optional"))
         if not path.exists():
             return (True, f"optional evidence missing: {label}") if optional else (False, f"missing evidence: {label}")

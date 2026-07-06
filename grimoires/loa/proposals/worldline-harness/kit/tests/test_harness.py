@@ -145,6 +145,27 @@ class HarnessTests(unittest.TestCase):
         self.assertEqual(sorted(seqs), list(range(1, len(seqs) + 1)), "seqs not contiguous 1..N")
         self.assertTrue(json.loads(self.run_h("verify").stdout)["ok"], "chain broke under concurrency")
 
+    def test_evidence_path_traversal_rejected(self):
+        # F2 (codex/BB): validate_evidence_item is repo-scoped. An absolute path
+        # or a ../ escape must be REJECTED, not silently satisfied by a file
+        # outside the project. Direct unit test of the guarded resolution.
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("loa_harness", str(SCRIPT))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        outside = self.tmp.parent / f"loa-f2-outside-{self.tmp.name}.txt"
+        outside.write_text("x" * 200, encoding="utf-8")
+        self.addCleanup(lambda: outside.unlink(missing_ok=True))
+        _, policy = mod.load_policy(self.tmp, str(POLICY))
+        h = mod.Harness(self.tmp, POLICY, policy)
+        ok_abs, msg_abs = h.validate_evidence_item({"path": str(outside), "min_bytes": 1})
+        self.assertFalse(ok_abs, f"absolute evidence path accepted: {msg_abs}")
+        ok_rel, msg_rel = h.validate_evidence_item({"path": f"../{outside.name}", "min_bytes": 1})
+        self.assertFalse(ok_rel, f"traversal evidence path accepted: {msg_rel}")
+        (self.tmp / "prd.md").write_text("y" * 200, encoding="utf-8")
+        ok_in, _ = h.validate_evidence_item({"path": "prd.md", "min_bytes": 1})
+        self.assertTrue(ok_in, "legit in-repo evidence path rejected")
+
 
 if __name__ == "__main__":
     unittest.main()
