@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.191.0] — 2026-07-06
+
 ## [1.180.0] — 2026-06-17 — Ponytail 1:1 Parity
 
 Closes the 8 ponytail v4.7.0 capability gaps found by a 21-agent grounded parity audit. loa already carried ponytail's core YAGNI doctrine (the 6-rung ladder, safety floor, one-runnable-check, `loa:shortcut:` marker, 5-tag taxonomy, C-PROC-011) via #1067 (~72%); this brings it to behavioral 1:1. Capability-mapped into loa's existing skills/constraints — no standalone `/ponytail*` port (which would duplicate `reviewing-code`/`auditing-security`/`/ride`). Full audit: `grimoires/loa/proposals/ponytail-parity-audit-2026-06-16.md`.
@@ -1256,6 +1258,8 @@ Full convergence trajectory: `grimoires/loa/a2a/trajectory/bridge-triage-2026-04
 - ATK-011: Blocks `unset LOA_TEAM_MEMBER` and `env -u` privilege escalation in Agent Teams
 
 ## [Unreleased]
+
+## [1.191.0] — 2026-07-06
 
 ## [1.94.0] — 2026-04-17
 
