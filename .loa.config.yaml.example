@@ -2569,6 +2569,46 @@ qmd_context:
 # Cron registration is done via /schedule pointing at the `invoke` subcommand.
 
 # -----------------------------------------------------------------------------
+# Session-cap post-reset fan-out — cycle-117 Wave-2 item B (bd-c117-b-fanout-5ggb)
+# -----------------------------------------------------------------------------
+# Translates configured session-limit reset windows into L3 ScheduleConfig
+# YAMLs (validated via scheduled-cycle-lib.sh's own `register` entry point,
+# per the "mutate only via lib entry points" invariant) plus real crontab
+# entries with deterministic off-:00/:30 per-repo minute jitter. Item A
+# (bd-c117-a-session-cap-x04j) owns .run/session-limit-state.json and writes
+# NO config here — this block belongs to item B alone.
+#
+# v1 SCOPE (read before enabling): every generated schedule's dispatch_contract
+# points at the SHIPPED NO-OP example-*.sh phase scripts (.claude/skills/
+# scheduled-cycle-template/contracts/) — `phases:` below is a LABEL only in
+# v1; every label resolves to the same placeholder scripts. Real Flatline /
+# Bridgebuilder / red-team dispatch is deliberately deferred to
+# bd-fanout-real-dispatch-9jv6 — bridgebuilder-review in particular is a
+# Claude Code SKILL with no standalone CLI entrypoint and cannot be fired
+# unattended from cron without new machinery. A post-reset run today produces
+# an audit trail only; it does NOT re-run any real review. Item A integration
+# (deciding what was actually in-flight at reset time) is an open design
+# point, not yet wired.
+#
+# session_cap:
+#   reset_windows: []                          # e.g. ["02:00 Australia/Melbourne"]
+#                                               #   "HH:MM <IANA-TZ>" strings
+#   post_reset_fanout:
+#     enabled: false                           # opt-in; false short-circuits install
+#     phases:                                  # v1: label only (see SCOPE note above)
+#       - flatline
+#       - bridgebuilder
+#       - red_team
+#     cron_jitter_min: 7                       # minute offset range [1, cron_jitter_min];
+#                                               #   integer 1..59, else defaults to 7
+#
+# To install/uninstall the fan-out schedules + crontab entries:
+#   .claude/scripts/session-cap-fanout.sh install [--dry-run]
+#   .claude/scripts/session-cap-fanout.sh uninstall   # alias: --off
+#   .claude/scripts/session-cap-fanout.sh status
+#   .claude/scripts/session-cap-fanout.sh show
+
+# -----------------------------------------------------------------------------
 # Audit-log daily snapshot — RPO 24h for L1/L2 chain-critical untracked logs
 # -----------------------------------------------------------------------------
 # Sprint 2C ships the producer side of the L1/L2 hash-chain recovery loop.

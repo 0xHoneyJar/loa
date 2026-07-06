@@ -52,6 +52,8 @@ The L3 chassis runs scheduled autonomous cycles via a 5-phase DispatchContract (
 
 **Reference**: `.claude/skills/scheduled-cycle-template/SKILL.md` (caller-facing usage) + `grimoires/loa/sdd.md` §5.5 (full API spec).
 
+**cycle-117 finding (session-cap-fanout, bd-c117-b-fanout-5ggb)**: `CronCreate` and a `.claude/scheduled_tasks.json` firing store were investigated as the mechanism for post-reset schedules and both ruled out — `CronCreate` jobs are explicitly session-scoped/non-durable (die with the authoring session) and no `scheduled_tasks.json` store exists on this platform. `.claude/scripts/session-cap-fanout.sh` uses the proven real-crontab pattern instead (cycle-098's `budget-reconcile-install.sh` / `audit-snapshot-install.sh`), registering each generated ScheduleConfig via `cycle_register` before installing the crontab entry.
+
 ## L4 Graduated-Trust (cycle-098 Sprint 4)
 
 The L4 primitive maintains a per-(scope, capability, actor) trust ledger where tier ratchets up by demonstrated alignment (operator grants) and ratchets down automatically on observed override (record_override → auto_drop + cooldown). Hash-chained for tamper detection; TRACKED in git for reconstructability. Library: `.claude/scripts/lib/graduated-trust-lib.sh`. Schemas: `.claude/data/trajectory-schemas/trust-events/`. Skill: `.claude/skills/graduated-trust/`.
