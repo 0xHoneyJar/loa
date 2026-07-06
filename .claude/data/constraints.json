@@ -586,6 +586,27 @@
       "severity": "high"
     },
     {
+      "id": "C-PROC-018",
+      "name": "always_read_before_write",
+      "category": "process",
+      "rule_type": "ALWAYS",
+      "text": "Read a state artifact (NOTES.md, a2a/ docs, MEMORY.md, contracts/*.yaml — any existing file) before Write/Edit",
+      "text_variants": {
+        "claude-loa-md": "ALWAYS Read a state artifact (NOTES.md, a2a/ docs, MEMORY.md, contracts/*.yaml — any existing file) before Write/Edit"
+      },
+      "why": "The Write tool rejects writes to un-Read existing files (~570 errors/month fleet-wide, issue #1177 item F) and blind writes clobber cross-session state.",
+      "order": 11,
+      "layers": [
+        {
+          "target": "claude-loa-md",
+          "section": "process_compliance_always",
+          "render_as": "table_row"
+        }
+      ],
+      "severity": "high",
+      "source_incident": "#1177"
+    },
+    {
       "id": "C-PROC-016",
       "name": "never_use_bug_for_features",
       "category": "process",

@@ -1,4 +1,4 @@
-<!-- @loa-managed: true | version: 1.180.0 | hash: b15c8bfa9c4804c12808e4c99800526425777eb130f36ae659929a65ac3433c3 -->
+<!-- @loa-managed: true | version: 1.180.0 | hash: 029cec359faa4bbefff4f2127ef49322e152936ca6145237ac6b06ad9f6aa778 -->
 <!-- WARNING: This file is managed by the Loa Framework. Do not edit directly. -->
 
 # Loa Framework Instructions
@@ -203,13 +203,14 @@ applies to tests too) — but never skip the check on logic that can break.
 
 | Rule | Why |
 |------|-----|
-<!-- @constraint-generated: start process_compliance_always | hash:345d40b9155bfc9c -->
+<!-- @constraint-generated: start process_compliance_always | hash:66dd674d9d03c67b -->
 <!-- DO NOT EDIT — generated from .claude/data/constraints.json -->
 | ALWAYS use `/run sprint-plan`, `/run sprint-N`, or `/bug` for implementation | Ensures review+audit cycle with circuit breaker protection. `/bug` enforces the same cycle for bug fixes. |
 | ALWAYS create beads tasks from sprint plan before implementation (if beads available) | Tasks without beads tracking are invisible to cross-session recovery |
 | ALWAYS complete the full implement → review → audit cycle | Partial cycles leave unreviewed code in the codebase |
 | ALWAYS check for existing sprint plan before writing code (Yield when construct declares `sprint: skip`) | Prevents ad-hoc implementation without requirements traceability |
 | ALWAYS validate bug eligibility before `/bug` implementation | Prevents feature work from bypassing PRD/SDD gates via `/bug`. Must reference observed failure, regression, or stack trace. |
+| ALWAYS Read a state artifact (NOTES.md, a2a/ docs, MEMORY.md, contracts/*.yaml — any existing file) before Write/Edit | The Write tool rejects writes to un-Read existing files (~570 errors/month fleet-wide, issue #1177 item F) and blind writes clobber cross-session state. |
 <!-- @constraint-generated: end process_compliance_always -->
 ### Permission Grants (MAY Rules)
 
