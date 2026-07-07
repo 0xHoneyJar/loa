@@ -25,6 +25,15 @@
 #   bug-triage: bug_id matches the bug-triaging ID grammar; its sibling
 #               .run/bugs/<id>/state.json has a schema_version; a PII scan
 #               via pii-filter.sh (skipped if unavailable)
+#   translation: citation-resolution anti-fabrication gate (C-D5, cycle-120).
+#               --file may be a single .md or a directory (validates every
+#               *.md under it). Every `(path:L##[-L##])` or bare table-cell
+#               `path:L##` citation must resolve to a real file under
+#               repo-root, grimoires/loa/, or grimoires/loa/reality/, with
+#               the cited start line within the target file's line count.
+#               WARN: translation-audit.md missing its grounding-audit
+#               section; Phase-4 Health Score >2pt off a recompute. info:
+#               [ASSUMPTION] tag count.
 #
 # Exit codes: 0 = pass, 1 = fail (repair text on stderr), 2 = usage error
 # =============================================================================
@@ -41,14 +50,15 @@ JSON_OUTPUT=false
 
 show_help() {
     cat <<EOF
-Usage: $SCRIPT_NAME --type prd|sdd|sprint|bug-triage --file <path> [--json]
+Usage: $SCRIPT_NAME --type prd|sdd|sprint|bug-triage|translation --file <path> [--json]
 
 Validate a Loa planning artifact against its skill-defined structural
 contract (grep-based, fail-closed).
 
 Options:
-  --type TYPE   Artifact type: prd | sdd | sprint | bug-triage (required)
-  --file PATH   Artifact file to validate (required)
+  --type TYPE   Artifact type: prd | sdd | sprint | bug-triage | translation (required)
+  --file PATH   Artifact file to validate (required). For --type translation,
+                may also be a directory (validates every *.md under it).
   --json        Emit a JSON result object to stdout
   -h, --help    Show this help message
 
@@ -76,11 +86,17 @@ if [[ -z "$TYPE" || -z "$FILE" ]]; then
 fi
 
 case "$TYPE" in
-    prd|sdd|sprint|bug-triage) ;;
-    *) echo "Error: --type must be one of prd|sdd|sprint|bug-triage (got: $TYPE)" >&2; exit 2 ;;
+    prd|sdd|sprint|bug-triage|translation) ;;
+    *) echo "Error: --type must be one of prd|sdd|sprint|bug-triage|translation (got: $TYPE)" >&2; exit 2 ;;
 esac
 
-if [[ ! -f "$FILE" ]]; then
+if [[ "$TYPE" == "translation" ]]; then
+    # translation accepts a single .md file OR a directory of them.
+    if [[ ! -e "$FILE" ]]; then
+        echo "Error: file not found: $FILE" >&2
+        exit 2
+    fi
+elif [[ ! -f "$FILE" ]]; then
     echo "Error: file not found: $FILE" >&2
     exit 2
 fi
@@ -291,11 +307,180 @@ validate_bug_triage() {
     fi
 }
 
+# =============================================================================
+# translation (C-D5, cycle-120)
+# =============================================================================
+# Resolution bases, in order — hygiene-report.md lives under reality/, other
+# /ride artifacts live directly under grimoires/loa/, and a citation may
+# already be qualified with either prefix (in which case the repo-root base
+# resolves it directly).
+_translation_find_report() {
+    local name="$1" base
+    for base in "$PROJECT_ROOT" "$PROJECT_ROOT/grimoires/loa" "$PROJECT_ROOT/grimoires/loa/reality"; do
+        if [[ -f "$base/$name" ]]; then
+            echo "$base/$name"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Citation-resolution scan for one file. Matches both `(path:L##[-L##])`
+# and bare table-cell `path:L##` with a single regex — the surrounding
+# parens/pipes are not part of the match, so one pass covers both forms.
+_validate_translation_citations() {
+    local f="$1" in_fence=false lineno=0 line
+    # Held in a single-quoted variable (never a bare literal in a =~/== RHS)
+    # so the parser never treats the backticks as command substitution.
+    local fence='```'
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        lineno=$((lineno + 1))
+
+        if [[ "$line" == "$fence"* || "$line" =~ ^[[:space:]]+${fence} ]]; then
+            [[ "$in_fence" == true ]] && in_fence=false || in_fence=true
+            continue
+        fi
+        [[ "$in_fence" == true ]] && continue
+
+        # markdown-link / bare-URL forms — skip wholesale to avoid false
+        # positives (a URL's "domain.tld/path:L##"-shaped substring is not
+        # a citation into this repo).
+        [[ "$line" == *'](http'* || "$line" == *'://'* ]] && continue
+
+        # R2 review (cycle-120): the incremental `while [[ =~ ]]` scan below is
+        # superlinear on a single very long path-dense line (LLM translation
+        # docs routinely carry wide tables / pasted logs on one unwrapped line),
+        # which would hang this MUST gate with no output. Cap line length; a
+        # citation the gate must resolve never needs 2000+ chars on one line.
+        # WARN rather than silently skip so an over-long line is visible.
+        if (( ${#line} > 2000 )); then
+            warnings+=("line ${lineno} exceeds 2000 chars — citation scan skipped for this line (wrap long tables/logs)")
+            continue
+        fi
+
+        local rest="$line"
+        while [[ "$rest" =~ ([A-Za-z0-9_./-]+\.[A-Za-z0-9]{1,6}):L([0-9]+)(-L[0-9]+)? ]]; do
+            local cited_path="${BASH_REMATCH[1]}"
+            local cited_startline="${BASH_REMATCH[2]}"
+            local match_full="${BASH_REMATCH[0]}"
+            rest="${rest#*"$match_full"}"
+
+            # {...}-placeholder citations (e.g. `{file}:L{N}`) never reach
+            # here — the regex requires a real dotted extension and real
+            # digits — but guard explicitly in case a brace rides along a
+            # real-looking path.
+            [[ "$cited_path" == *'{'* || "$cited_path" == *'}'* ]] && continue
+
+            local resolved="" base
+            for base in "$PROJECT_ROOT" "$PROJECT_ROOT/grimoires/loa" "$PROJECT_ROOT/grimoires/loa/reality"; do
+                if [[ -f "$base/$cited_path" ]]; then
+                    resolved="$base/$cited_path"
+                    break
+                fi
+            done
+
+            if [[ -z "$resolved" ]]; then
+                violations+=("CITATION UNRESOLVED: '$cited_path:L$cited_startline' cited at $f:$lineno does not resolve under repo-root, grimoires/loa/, or grimoires/loa/reality/ — fix the path or remove the citation")
+                continue
+            fi
+
+            local total_lines
+            total_lines=$(wc -l < "$resolved" | tr -d ' ')
+            if [[ "$total_lines" =~ ^[0-9]+$ ]] && (( cited_startline > total_lines )); then
+                violations+=("CITATION LINE OUT OF RANGE: '$cited_path:L$cited_startline' cited at $f:$lineno but $resolved has only $total_lines lines — fix the cited line number")
+            fi
+        done
+    done < "$f"
+}
+
+# translation-audit.md required-sections (WARN only): the grounding-audit
+# table (rendered as '## Grounding Summary' / '## Grounding Audit' per the
+# skill's template) must be present.
+_validate_translation_audit_sections() {
+    local f
+    for f in "$@"; do
+        [[ "$(basename -- "$f")" == "translation-audit.md" ]] || continue
+        if ! grep -qiE '^## Grounding (Summary|Audit)' -- "$f"; then
+            warnings+=("$f: no '## Grounding Summary' / '## Grounding Audit' section found — translation-audit.md must include the grounding-audit table")
+        fi
+    done
+}
+
+# Phase-4 Health Score recompute (WARN only, best-effort): only fires when
+# a stated 'Health Score' AND all three input reports (drift/consistency/
+# hygiene) are extractable — per SKILL.md:344-348's official formula.
+_validate_translation_health_score() {
+    local files=("$@")
+    (( ${#files[@]} == 0 )) && return 0
+
+    local combined
+    combined=$(cat "${files[@]}" 2>/dev/null || true)
+
+    local stated
+    stated=$(printf '%s\n' "$combined" | grep -oiE 'health score[^0-9]{0,10}[0-9]+(\.[0-9]+)?' | head -1 | grep -oE '[0-9]+(\.[0-9]+)?$' || true)
+    [[ -z "$stated" ]] && return 0
+
+    local drift_file consistency_file hygiene_file
+    drift_file=$(_translation_find_report "drift-report.md" || true)
+    consistency_file=$(_translation_find_report "consistency-report.md" || true)
+    hygiene_file=$(_translation_find_report "hygiene-report.md" || true)
+    [[ -z "$drift_file" || -z "$consistency_file" || -z "$hygiene_file" ]] && return 0
+
+    local drift consistency hygiene
+    drift=$(grep -oiE 'drift score:?[[:space:]]*[0-9]+(\.[0-9]+)?%' -- "$drift_file" | head -1 | grep -oE '[0-9]+(\.[0-9]+)?' || true)
+    consistency=$(grep -oiE 'consistency score:?[[:space:]]*[0-9]+(\.[0-9]+)?[[:space:]]*/[[:space:]]*10' -- "$consistency_file" | grep -oE '[0-9]+(\.[0-9]+)?[[:space:]]*/[[:space:]]*10' | head -1 | grep -oE '^[0-9]+(\.[0-9]+)?' || true)
+    hygiene=$(grep -oiE 'hygiene items:?[[:space:]]*[0-9]+' -- "$hygiene_file" | head -1 | grep -oE '[0-9]+$' || true)
+    [[ -z "$drift" || -z "$consistency" || -z "$hygiene" ]] && return 0
+
+    local recomputed diff
+    recomputed=$(awk -v d="$drift" -v c="$consistency" -v h="$hygiene" 'BEGIN {
+        hyg_capped = (h*5 > 100) ? 100 : h*5
+        printf "%.2f", (100-d)*0.5 + (c*10)*0.3 + (100-hyg_capped)*0.2
+    }')
+    diff=$(awk -v a="$stated" -v b="$recomputed" 'BEGIN { d=a-b; if (d<0) d=-d; printf "%.2f", d }')
+
+    if awk -v d="$diff" 'BEGIN { exit !(d > 2) }'; then
+        warnings+=("HEALTH SCORE MISMATCH: stated Health Score $stated differs from recomputed $recomputed (drift=$drift%, consistency=$consistency/10, hygiene=$hygiene items — Phase 4 formula) by more than 2 points")
+    fi
+}
+
+validate_translation() {
+    local target_files=()
+    if [[ -d "$FILE" ]]; then
+        while IFS= read -r f; do
+            target_files+=("$f")
+        done < <(find "$FILE" -type f -name '*.md' | sort)
+    else
+        target_files=("$FILE")
+    fi
+
+    if [[ ${#target_files[@]} -eq 0 ]]; then
+        violations+=("no *.md files found under $FILE")
+        return
+    fi
+
+    local f
+    for f in "${target_files[@]}"; do
+        _validate_translation_citations "$f"
+    done
+    _validate_translation_audit_sections "${target_files[@]}"
+    _validate_translation_health_score "${target_files[@]}"
+
+    local assumption_total=0 c
+    for f in "${target_files[@]}"; do
+        c=$(grep -oE '\[ASSUMPTION\]' -- "$f" | wc -l | tr -d ' ' || true)
+        [[ -z "$c" ]] && c=0
+        assumption_total=$((assumption_total + c))
+    done
+    info_lines+=("[ASSUMPTION] tags: $assumption_total")
+}
+
 case "$TYPE" in
     prd) validate_prd ;;
     sdd) validate_sdd ;;
     sprint) validate_sprint ;;
     bug-triage) validate_bug_triage ;;
+    translation) validate_translation ;;
 esac
 
 if [[ "$JSON_OUTPUT" == "true" ]]; then

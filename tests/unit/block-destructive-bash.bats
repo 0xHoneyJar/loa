@@ -1249,3 +1249,126 @@ hook_invoke() {
     [ "$status" -eq 2 ]
     [[ "$output" =~ "FR-SZ-REDIR" ]]
 }
+
+# =============================================================================
+# Group M — cycle-120 C-D3 inert-carrier fix (SAFE post-hoc content test)
+# D3(a): a carrier value is redacted only when it holds NEITHER the literal
+# 2-byte sequence `$(` NOR a backtick. A LONE `$` (dollar amount, $ENV mention,
+# trailing bare `$`) is now permitted inside a redacted value — captured with a
+# quote-BOUNDED class that cannot swallow past the closing quote (the failure
+# mode the adversarial panel rejected for the naive `\$[^(]` consuming ERE).
+# D3(b): the FR-2 segment extractor derives from _cmd_match (not raw $command),
+# so the gate and extractor read the same scrubbed text.
+# =============================================================================
+
+# --- MUST STILL BLOCK (prove on current code too; block before AND after) ----
+
+@test "C-D3a BLOCK: terminator-swallow — trailing \$ carrier then real && rm -rf /home" {
+    # Panel's attack: value ends in a bare `$` before its closing quote; a later
+    # quote is present, and a REAL `&& rm -rf` straddles. The bounded capture
+    # must NOT eat the closing quote (which would hide the real rm).
+    run hook_invoke 'git commit -m "price is $" && rm -rf /home/nonexistent-p1; echo "done"'
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "C-D3a BLOCK: double-dollar quoted \$\$(rm -rf /) (substring gate catches \$()" {
+    run hook_invoke 'git commit -m "$$(rm -rf /)"'
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "C-D3a BLOCK: double-dollar bare \$\$(rm -rf /)" {
+    run hook_invoke '$$(rm -rf /)'
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "C-D3a BLOCK: Case A heredoc-wrapped commit (find-exec-rm) — documented \$( limit" {
+    # $(cat <<'EOF' ... find -exec rm -rf ... EOF) contains `$(` → NOT redacted →
+    # still trips FR-2. Regex cannot parse subshell contents (#1047 refusal
+    # stands); this is the documented architectural limit, PINNED as BLOCK.
+    local cmd
+    cmd=$(printf 'git commit -m "$(cat <<%sEOF%s\ncleanup: find . -exec rm -rf {} +\nEOF\n)"' "'" "'")
+    run hook_invoke "$cmd"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2" ]]
+}
+
+@test "C-D3a BLOCK: backtick value with a ; separator (pins backtick-never-redacts)" {
+    # A backtick value is left INTACT (never redacted), so a real `; rm -rf /`
+    # inside it still reaches detection. This pins the load-bearing invariant
+    # that D3(a) guarantees for backtick values. (Note: backtick command-
+    # substitution WITHOUT a recognised separator — e.g. `\`rm -rf /\`` — remains
+    # the pre-existing, separately-tracked bd-bdb-backtick-bypass, uncaught in
+    # either direction; that is out of scope for C-D3 and unchanged here.)
+    run hook_invoke 'git commit -m "note `; rm -rf /`"'
+    [ "$status" -eq 2 ]
+}
+
+# --- cycle-120 R1 CRITICAL: decoy-flag re-anchor bypass (MUST BLOCK) ---------
+# A doubled flag literal inside the carrier value (`git commit -m "-m " && ...`)
+# used to let the pre-flag `[^;&|]*` prefix walk past the real opening quote and
+# re-anchor on the embedded `-m`, capturing `&& rm -rf "` as a redactable value.
+# Fixed by barring quotes from the prefix class (`[^;&|'"]*`). Reproduced live on
+# both HEAD and main before the fix; these pin it blocked go-forward.
+
+@test "C-D3 R1 BLOCK: decoy git -m re-anchor then rm -rf /" {
+    run hook_invoke 'git commit -m "-m " && rm -rf "/"'
+    [ "$status" -eq 2 ]
+}
+
+@test "C-D3 R1 BLOCK: decoy git --message re-anchor" {
+    run hook_invoke 'git commit --message "-m " && rm -rf "/home/nonexistent-p1"'
+    [ "$status" -eq 2 ]
+}
+
+@test "C-D3 R1 BLOCK: decoy br -d re-anchor" {
+    run hook_invoke 'br create -d "-d " && rm -rf "/home/nonexistent-p1"'
+    [ "$status" -eq 2 ]
+}
+
+@test "C-D3 R1 BLOCK: decoy bd -d re-anchor" {
+    run hook_invoke 'bd update -d "-d " && rm -rf "/home/nonexistent-p1"'
+    [ "$status" -eq 2 ]
+}
+
+@test "C-D3 R1 BLOCK: decoy gh --body re-anchor" {
+    run hook_invoke 'gh pr create --title "t" --body "--body " && rm -rf "/home/nonexistent-p1"'
+    [ "$status" -eq 2 ]
+}
+
+@test "C-D3 R1 BLOCK: decoy carrier + second rm compound (D3b net)" {
+    run hook_invoke 'git commit -m "-m " && rm -rf "/home/nonexistent-p1" && rm -rf /tmp/x'
+    [ "$status" -eq 2 ]
+}
+
+@test "C-D3b BLOCK: composite boundary-\$ carrier immediately followed by real && rm -rf" {
+    # Pins that the FR-2 gate and the segment extractor never disagree toward
+    # ALLOW: the git carrier value ends in a bare `$` (redacted), and the SAME
+    # statement carries a real `&& rm -rf <blocked-path>` that must still block.
+    run hook_invoke 'git commit -m "cost is $" && rm -rf /home/victim-c120'
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+# --- NEW ALLOW (false positives this fix closes) -----------------------------
+
+@test "C-D3a ALLOW: Case B — incidental \$5 + destructive phrase (find -exec rm -rf)" {
+    # Was a false positive: the `$5` blocked redaction, so `find . -exec rm -rf`
+    # inside the message tripped FR-2 (root `.`). Now the lone `$` is permitted.
+    run hook_invoke 'git commit -m "perf: saved $5/mo by replacing find . -exec rm -rf {} + with trash-cli"'
+    [ "$status" -eq 0 ]
+}
+
+@test "C-D3a ALLOW: Case C control — same message minus the \$ (already allowed)" {
+    run hook_invoke 'git commit -m "perf: saved money by replacing find . -exec rm -rf {} + with trash-cli"'
+    [ "$status" -eq 0 ]
+}
+
+@test "C-D3a ALLOW: \$ENV mention alongside rm -rf / in the same commit value" {
+    # `$PATH` is a lone `$` (no `$(`), so the value redacts and the incidental
+    # `rm -rf /` mention no longer false-positives.
+    run hook_invoke 'git commit -m "export $PATH before rm -rf / cleanup"'
+    [ "$status" -eq 0 ]
+}

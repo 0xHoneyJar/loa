@@ -2,13 +2,20 @@
 name: translate
 description: Translate technical documentation into executive-ready communications
 role: implementation
-allowed-tools: Read, Grep, Glob, Write
+# cycle-120 audit: Phase 5.5 runs validate-artifact.sh as a MUST gate, so the
+# skill needs scoped Bash to it — without this the gate prompts (or, per
+# skill-invariants.md, silently cannot fire). Scoped to the one script only.
+allowed-tools: Read, Grep, Glob, Write, Bash(.claude/scripts/validate-artifact.sh *)
 capabilities:
   schema_version: 1
   read_files: true
   search_code: true
   write_files: true
-  execute_commands: false
+  execute_commands:
+    allowed:
+      - command: ".claude/scripts/validate-artifact.sh"
+        args: ["*"]
+    deny_raw_shell: true
   web_access: false
   user_interaction: false
   agent_spawn: false
@@ -357,6 +364,14 @@ Create `EXECUTIVE-INDEX.md` with:
 4. **Consolidated Action Plan** (owner + timeline)
 5. **Investment Summary** (effort estimates)
 6. **Decisions Requested** (from leadership)
+
+### Phase 5.5: Citation-Resolution Validation (MUST)
+
+After the Phase 4/5 outputs are written, MUST run
+`.claude/scripts/validate-artifact.sh --type translation --file grimoires/loa/translations/`
+before proceeding to Phase 6; repair per its output on exit 1; exit 2
+(usage/file-not-found) is a validator FAILURE — fix the path and re-run, do
+not proceed.
 
 ### Phase 6: beads_rust Integration
 
