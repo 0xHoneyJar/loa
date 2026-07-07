@@ -165,27 +165,33 @@ fi
 # allowlisted carrier is command-substitution inside the value —
 # `git commit -m "$(rm -rf /)"`. $( and backtick are caught by the (-boundary
 # subshell branch of FR-2 (quote-independent). So we redact a carrier value
-# ONLY when it contains NEITHER $ NOR a backtick (stricter than just $( — a
-# strict superset, so never a false negative); anything with $ or backtick is
-# left INTACT and falls through to normal detection. (Backtick command-
-# substitution is itself a PRE-EXISTING, quote-independent bypass this fence
-# does NOT catch in either direction — tracked in bd-bdb-backtick-bypass;
-# leaving backtick values un-redacted keeps behaviour byte-identical, opening
-# nothing new.) An
+# ONLY when — POST-HOC CONTENT TEST (cycle-120 C-D3a) — it contains NEITHER the
+# literal 2-byte sequence `$(` NOR a backtick. A LONE `$` (a dollar amount, an
+# $ENV mention, a bare `$` right before the closing quote) is now permitted
+# inside a redacted value: the value is captured with a quote-BOUNDED class
+# (`'[^']*'` / `"[^"]*"`) that stops at the closing quote and therefore CANNOT
+# swallow past a string terminator — the failure mode the adversarial panel
+# rejected for the naive `\$[^(]` consuming ERE (a value ending in a bare `$`
+# would eat the closing quote + a following real `&& rm -rf`). A plain
+# substring gate then decides; anything holding `$(` or a backtick is left
+# INTACT and falls through to normal detection. The substring gate also rejects
+# `$$(…` (it contains the substring `$(`) — an ERE `\$[^(]` alternation would
+# have wrongly accepted it. (Backtick command-substitution is itself a
+# PRE-EXISTING, quote-independent bypass this fence does NOT catch in either
+# direction — tracked in bd-bdb-backtick-bypass; leaving backtick values
+# un-redacted keeps that behaviour byte-identical, opening nothing new.) An
 # INCOMPLETE allowlist therefore only PRESERVES a false positive (today's safe
 # behavior) — it can never open a bypass.
 #
 # Carrier exemption is PER-SEGMENT (bounded by ^ ; && || |): the scrub never
 # crosses a shell statement separator, so `echo 'safe' && rm -rf /` still
 # blocks the real second segment. Word-boundaries ((^|[^[:alnum:]_])git…) keep
-# `notgit commit -m '…'` from matching (anti-spoof). Modeled on the cycle-117-E
-# _fr2_cmd redirect-scrub idiom (sed -E on a local copy; replace with a single
-# SPACE, never empty). BSD/GNU ERE only — no \b (BSD libc lacks it; header §).
+# `notgit commit -m '…'` from matching (anti-spoof). echo/printf stays a sed
+# scrub (rest-of-segment, not a quoted value); the git/br/gh quoted-value
+# carriers use the content-gated bash loop `_bdb_scrub` below (replace the value
+# with a single SPACE, never empty). BSD/GNU ERE only — no \b (BSD libc lacks
+# it; header §).
 # -----------------------------------------------------------------------------
-# Inert value branches: single- OR double-quoted content free of $ and backtick.
-_bdb_bt='`'
-_bdb_qval="('[^'\$${_bdb_bt}]*'|\"[^\"\$${_bdb_bt}]*\")"
-
 # Bare echo/printf carrier: from a segment-start echo/printf to the end of its
 # segment. The rest-class excludes ; & | (segment separators — per-segment
 # scoping), $ and backtick (command-substitution — never redact past them), and
@@ -194,18 +200,53 @@ _bdb_qval="('[^'\$${_bdb_bt}]*'|\"[^\"\$${_bdb_bt}]*\")"
 # `echo x >> .run/cron.d/job.sh`).
 _bdb_sed_echo='s/(^|;|&&|\|\||\|)([[:space:]]*(sudo[[:space:]]+)?(echo|printf)[[:space:]]+)[^;&|<>$`]*/\1\2 /g'
 
-# Known-inert (command,flag) value carriers. [^;&|]* stays within one segment.
-_bdb_sed_git="s/((^|[^[:alnum:]_])git[[:space:]][^;&|]*commit[^;&|]*(-m|--message)[[:space:]]+)${_bdb_qval}/\\1 /g"
-_bdb_sed_brbd="s/((^|[^[:alnum:]_])(br|bd)[[:space:]][^;&|]*(create|update)[^;&|]*(-d|--description)[[:space:]]+)${_bdb_qval}/\\1 /g"
-_bdb_sed_gh="s/((^|[^[:alnum:]_])gh[[:space:]][^;&|]*(issue|pr)[^;&|]*create[^;&|]*(--body|--title)[[:space:]]+)${_bdb_qval}/\\1 /g"
+# Quoted-value carriers (git commit -m / br|bd … -d / gh … create --body|--title).
+# cycle-120 C-D3a: content-gated redaction. The value is captured with a
+# quote-BOUNDED permissive class (permits `$`, stops at the closing quote — no
+# terminator swallow); _bdb_scrub then applies the POST-HOC content gate. The
+# quoted value is the LAST capture group (no group follows it). [^;&|]* keeps
+# the prefix within one segment; (^|[^[:alnum:]_]) is the anti-spoof boundary.
+_bdb_qval_perm="('[^']*'|\"[^\"]*\")"
+_bdb_re_git="(^|[^[:alnum:]_])git[[:space:]][^;&|]*commit[^;&|]*(-m|--message)[[:space:]]+${_bdb_qval_perm}"
+_bdb_re_brbd="(^|[^[:alnum:]_])(br|bd)[[:space:]][^;&|]*(create|update)[^;&|]*(-d|--description)[[:space:]]+${_bdb_qval_perm}"
+_bdb_re_gh="(^|[^[:alnum:]_])gh[[:space:]][^;&|]*(issue|pr)[^;&|]*create[^;&|]*(--body|--title)[[:space:]]+${_bdb_qval_perm}"
 
-_cmd_match=$(printf '%s' "$command" | sed -E \
-  -e "$_bdb_sed_echo" \
-  -e "$_bdb_sed_git" \
-  -e "$_bdb_sed_brbd" \
-  -e "$_bdb_sed_gh" 2>/dev/null) || _cmd_match="$command"
-# Fail-safe: sed error/empty-out on a non-empty command → fall back to RAW
-# (stricter matching), never to an empty scrub that would silence every pattern.
+# _bdb_scrub <carrier-ere> <input> — echo the input with every carrier value
+# that passes the content gate replaced by a single SPACE (never empty, never
+# crossing a segment). A value containing `$(` (this catches `$$(` too — the
+# substring is present) or a backtick is left INTACT. bash =~ exposes no match
+# offset, so the split is by string slice on the matched text.
+_bdb_scrub() {
+  local re="$1" rest="$2" out="" m val inner pre po vi
+  while [[ "$rest" =~ $re ]]; do
+    m="${BASH_REMATCH[0]}"
+    vi=$(( ${#BASH_REMATCH[@]} - 1 ))   # trailing group = the quoted value
+    val="${BASH_REMATCH[$vi]}"
+    pre="${rest%%"$m"*}"                 # text before this match
+    rest="${rest#*"$m"}"                 # text after this match
+    inner="${val:1:${#val}-2}"          # strip the outer quotes
+    if [[ "$inner" == *'$('* || "$inner" == *'`'* ]]; then
+      out+="$pre$m"                     # command-sub value — leave INTACT
+    else
+      po="${m%"$val"}"                  # matched text minus the trailing value
+      out+="$pre$po "                   # value → single space
+    fi
+  done
+  printf '%s' "$out$rest"
+}
+
+# echo/printf scrub first (sed), then the content-gated quoted-value carriers
+# (bash loops, each guarded by a cheap literal test so the benign path pays
+# nothing beyond the substring check).
+_cmd_match=$(printf '%s' "$command" | sed -E -e "$_bdb_sed_echo" 2>/dev/null) || _cmd_match="$command"
+[[ -z "$_cmd_match" ]] && _cmd_match="$command"
+[[ "$_cmd_match" == *"git"* ]] && _cmd_match=$(_bdb_scrub "$_bdb_re_git" "$_cmd_match")
+if [[ "$_cmd_match" == *"br "* || "$_cmd_match" == *"bd "* ]]; then
+  _cmd_match=$(_bdb_scrub "$_bdb_re_brbd" "$_cmd_match")
+fi
+[[ "$_cmd_match" == *"gh "* ]] && _cmd_match=$(_bdb_scrub "$_bdb_re_gh" "$_cmd_match")
+# Fail-safe: an empty scrub on a non-empty command → fall back to RAW (stricter
+# matching), never to an empty scrub that would silence every pattern.
 [[ -z "$_cmd_match" ]] && _cmd_match="$command"
 
 # -----------------------------------------------------------------------------
@@ -749,9 +790,14 @@ if [[ "$command" == *"rm"* && "$command" == *"-"* ]] \
   # rm_segments `[^;&|)]*` class (below) from truncating a segment at the
   # first bare `&` and thereby dropping a catastrophic operand that FOLLOWS an
   # `&`-redirect (e.g. `rm -rf 2>&1 /`). `&&` separators survive both patterns
-  # ((a) needs `>` before the `&`, (b) needs `>` after). $command is left
-  # intact so emit_block's audit row records the operator's real text.
-  _fr2_cmd=$(printf '%s' "$command" | sed -E -e 's/[0-9]*>&[0-9]*/ /g' -e 's/&>>?[^[:space:]]*/ /g')
+  # ((a) needs `>` before the `&`, (b) needs `>` after). cycle-120 C-D3b:
+  # derive from $_cmd_match (the quote-blindness scrub-copy), NOT raw $command,
+  # so the FR-2 GATE (which tests _cmd_match via _match) and this segment
+  # EXTRACTOR read the SAME text — a redacted inert carrier can no longer feed
+  # the extractor an rm operand the gate never saw (gate/extractor can't
+  # disagree toward ALLOW). $command itself stays intact so emit_block's audit
+  # row still records the operator's real text.
+  _fr2_cmd=$(printf '%s' "$_cmd_match" | sed -E -e 's/[0-9]*>&[0-9]*/ /g' -e 's/&>>?[^[:space:]]*/ /g')
 
   # Collect ALL rm invocation segments (one per line).
   rm_segments=$(echo "$_fr2_cmd" | grep -oE '(^|;|&&|\|\||\||[[:space:]]|\(|'\''|")[[:space:]]*(sudo[[:space:]]+)?(/[^[:space:]]*/)?rm[[:space:]][^;&|)]*')
