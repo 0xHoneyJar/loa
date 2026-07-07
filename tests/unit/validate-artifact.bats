@@ -332,3 +332,123 @@ EOF
     [ "$status" -eq 1 ]
     [[ "$output" == *"no schema_version"* ]]
 }
+
+# =============================================================================
+# translation (C-D5, cycle-120)
+# =============================================================================
+
+@test "validate-artifact translation: resolving parenthesized citation passes" {
+    mkdir -p "${TEST_TMPDIR}/root/grimoires/loa"
+    printf 'line1\nline2\nline3\n' > "${TEST_TMPDIR}/root/grimoires/loa/drift-report.md"
+    cat > "${TEST_TMPDIR}/exec-index.md" <<'EOF'
+## Finding
+
+Drift confirmed (drift-report.md:L2).
+EOF
+    PROJECT_ROOT="${TEST_TMPDIR}/root" run "$SCRIPT" --type translation --file "${TEST_TMPDIR}/exec-index.md"
+    [ "$status" -eq 0 ]
+}
+
+@test "validate-artifact translation: resolving bare table-cell citation passes" {
+    mkdir -p "${TEST_TMPDIR}/root/grimoires/loa"
+    printf 'line1\nline2\nline3\n' > "${TEST_TMPDIR}/root/grimoires/loa/drift-report.md"
+    cat > "${TEST_TMPDIR}/audit.md" <<'EOF'
+| Component | Value | Source |
+|-----------|-------|--------|
+| Drift | 34% | drift-report.md:L2 |
+EOF
+    PROJECT_ROOT="${TEST_TMPDIR}/root" run "$SCRIPT" --type translation --file "${TEST_TMPDIR}/audit.md"
+    [ "$status" -eq 0 ]
+}
+
+@test "validate-artifact translation: fails when a cited path does not resolve" {
+    mkdir -p "${TEST_TMPDIR}/root/grimoires/loa"
+    cat > "${TEST_TMPDIR}/exec-index.md" <<'EOF'
+## Finding
+
+Ghost feature found (nonexistent-report.md:L1).
+EOF
+    PROJECT_ROOT="${TEST_TMPDIR}/root" run "$SCRIPT" --type translation --file "${TEST_TMPDIR}/exec-index.md"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"CITATION UNRESOLVED"* ]]
+    [[ "$output" == *"nonexistent-report.md:L1"* ]]
+}
+
+@test "validate-artifact translation: fails when the cited line is out of range" {
+    mkdir -p "${TEST_TMPDIR}/root/grimoires/loa"
+    printf 'line1\nline2\nline3\n' > "${TEST_TMPDIR}/root/grimoires/loa/drift-report.md"
+    cat > "${TEST_TMPDIR}/exec-index.md" <<'EOF'
+## Finding
+
+Drift confirmed (drift-report.md:L50).
+EOF
+    PROJECT_ROOT="${TEST_TMPDIR}/root" run "$SCRIPT" --type translation --file "${TEST_TMPDIR}/exec-index.md"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"CITATION LINE OUT OF RANGE"* ]]
+    [[ "$output" == *"drift-report.md:L50"* ]]
+}
+
+@test "validate-artifact translation: skips {...}-placeholder citations" {
+    mkdir -p "${TEST_TMPDIR}/root/grimoires/loa"
+    cat > "${TEST_TMPDIR}/template.md" <<'EOF'
+## Claim Format
+
+Every claim must end with a citation (file:L##).
+EOF
+    PROJECT_ROOT="${TEST_TMPDIR}/root" run "$SCRIPT" --type translation --file "${TEST_TMPDIR}/template.md"
+    [ "$status" -eq 0 ]
+}
+
+@test "validate-artifact translation: skips markdown-link / URL citation forms" {
+    mkdir -p "${TEST_TMPDIR}/root/grimoires/loa"
+    cat > "${TEST_TMPDIR}/exec-index.md" <<'EOF'
+## Finding
+
+See [the drift report](https://internal.example.com/reports/drift-report.md:L999) for detail.
+Also see https://internal.example.com/reports/drift-report.md:L999 directly.
+EOF
+    PROJECT_ROOT="${TEST_TMPDIR}/root" run "$SCRIPT" --type translation --file "${TEST_TMPDIR}/exec-index.md"
+    [ "$status" -eq 0 ]
+}
+
+@test "validate-artifact translation: resolves a citation under grimoires/loa/reality/ (hygiene-report.md)" {
+    mkdir -p "${TEST_TMPDIR}/root/grimoires/loa/reality"
+    printf 'line1\nline2\nline3\nline4\n' > "${TEST_TMPDIR}/root/grimoires/loa/reality/hygiene-report.md"
+    cat > "${TEST_TMPDIR}/exec-index.md" <<'EOF'
+## Finding
+
+Untracked artifact found (hygiene-report.md:L2).
+EOF
+    PROJECT_ROOT="${TEST_TMPDIR}/root" run "$SCRIPT" --type translation --file "${TEST_TMPDIR}/exec-index.md"
+    [ "$status" -eq 0 ]
+}
+
+@test "validate-artifact translation: WARNs when the stated Health Score mismatches the recompute" {
+    mkdir -p "${TEST_TMPDIR}/root/grimoires/loa/reality"
+    echo '## Drift Score: 34%' > "${TEST_TMPDIR}/root/grimoires/loa/drift-report.md"
+    echo '## Consistency Score: 6/10' > "${TEST_TMPDIR}/root/grimoires/loa/consistency-report.md"
+    echo '## Hygiene Items: 23' > "${TEST_TMPDIR}/root/grimoires/loa/reality/hygiene-report.md"
+    cat > "${TEST_TMPDIR}/exec-index.md" <<'EOF'
+## Weighted Health Score
+
+**Health Score: 90%** — calculated per the official formula.
+EOF
+    PROJECT_ROOT="${TEST_TMPDIR}/root" run "$SCRIPT" --type translation --file "${TEST_TMPDIR}/exec-index.md"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"WARN"* ]]
+    [[ "$output" == *"HEALTH SCORE MISMATCH"* ]]
+}
+
+@test "validate-artifact translation: --file accepts a directory and validates every *.md" {
+    mkdir -p "${TEST_TMPDIR}/root/grimoires/loa" "${TEST_TMPDIR}/translations"
+    printf 'line1\nline2\nline3\n' > "${TEST_TMPDIR}/root/grimoires/loa/drift-report.md"
+    cat > "${TEST_TMPDIR}/translations/a.md" <<'EOF'
+Drift confirmed (drift-report.md:L2).
+EOF
+    cat > "${TEST_TMPDIR}/translations/b.md" <<'EOF'
+Bad citation (nonexistent-report.md:L1).
+EOF
+    PROJECT_ROOT="${TEST_TMPDIR}/root" run "$SCRIPT" --type translation --file "${TEST_TMPDIR}/translations"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"CITATION UNRESOLVED"* ]]
+}

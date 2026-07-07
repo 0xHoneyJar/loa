@@ -358,6 +358,14 @@ Create `EXECUTIVE-INDEX.md` with:
 5. **Investment Summary** (effort estimates)
 6. **Decisions Requested** (from leadership)
 
+### Phase 5.5: Citation-Resolution Validation (MUST)
+
+After the Phase 4/5 outputs are written, MUST run
+`.claude/scripts/validate-artifact.sh --type translation --file grimoires/loa/translations/`
+before proceeding to Phase 6; repair per its output on exit 1; exit 2
+(usage/file-not-found) is a validator FAILURE — fix the path and re-run, do
+not proceed.
+
 ### Phase 6: beads_rust Integration
 
 For Strategic Liabilities found:
