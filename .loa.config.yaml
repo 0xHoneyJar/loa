@@ -37,7 +37,7 @@ advisor_strategy:
       openai: gpt-5.5-pro
       google: gemini-3.1-pro-preview
     executor:
-      anthropic: claude-sonnet-4-6
+      anthropic: claude-sonnet-5
       openai: gpt-5.3-codex
       google: gemini-2.5-pro
   # cycle-108 keys, populated cycle-116 D3 (bd-c116-d3-tiering). Additive
@@ -346,6 +346,9 @@ flatline_protocol:
     model: gpt-5.5-pro
     budget_cents: 200
     timeout_seconds: 600
+    # C-D6 (cycle-120, bd-4na9): dogfood the repair loop on our own review gate.
+    # Observability: adversarial-rejected sidecar + degraded-trajectory gate adversarial-review:code_review:repair-loop.
+    repair_loop: true
     # KF-011 sub-mode (c) mitigation (2026-05-17): Gemini-3.1-pro empty-content
     # on review-type prompts post cycle-109 T4.10. Adding claude-headless as a
     # 4th-line voice so quorum is reachable when Gemini is silent. KF-011
