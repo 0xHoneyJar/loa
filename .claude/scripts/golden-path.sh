@@ -88,6 +88,12 @@ _gp_sprint_is_complete() {
 # Check if a sprint has been reviewed (no findings or no required changes).
 # Detection: feedback file exists AND contains no "## Changes Required" or "## Findings" sections,
 # OR the sprint has already passed audit (which implies review was acceptable).
+#
+# C8 (cycle-119): structured-first. If the feedback file carries a LOA-VERDICT
+# machine trailer (C6), trust verdict-derive.sh's derived verdict instead of
+# the prose heuristic below. Legacy files (no trailer) are byte-identical to
+# pre-cycle-119 behavior — the trailer check is a no-op grep that falls
+# straight through when no trailer is present.
 _gp_sprint_is_reviewed() {
     local sprint_id="$1"
     local sprint_dir="${_GP_A2A_DIR}/${sprint_id}"
@@ -98,7 +104,16 @@ _gp_sprint_is_reviewed() {
     fi
 
     if [[ -f "${sprint_dir}/engineer-feedback.md" ]]; then
-        # If feedback file has no actionable findings, review passed
+        if [[ -x "${SCRIPT_DIR}/verdict-derive.sh" ]] && \
+           grep -q '<!-- LOA-VERDICT ' "${sprint_dir}/engineer-feedback.md" 2>/dev/null; then
+            local verdict_json verdict rc
+            verdict_json=$("${SCRIPT_DIR}/verdict-derive.sh" --file "${sprint_dir}/engineer-feedback.md" --gate review --json 2>/dev/null) && rc=0 || rc=$?
+            verdict=$(echo "${verdict_json}" | jq -r '.verdict // empty' 2>/dev/null) || verdict=""
+            [[ "${verdict}" == "APPROVED" ]] && return 0
+            return 1
+        fi
+
+        # Legacy prose logic (byte-identical to pre-cycle-119 behavior)
         if ! grep -qE "^## (Changes Required|Findings|Issues)" "${sprint_dir}/engineer-feedback.md" 2>/dev/null; then
             return 0
         fi
@@ -108,11 +123,23 @@ _gp_sprint_is_reviewed() {
 }
 
 # Check if a sprint has been audited
+#
+# C8 (cycle-119): structured-first, same shape as _gp_sprint_is_reviewed above.
 _gp_sprint_is_audited() {
     local sprint_id="$1"
     local sprint_dir="${_GP_A2A_DIR}/${sprint_id}"
 
     if [[ -f "${sprint_dir}/auditor-sprint-feedback.md" ]]; then
+        if [[ -x "${SCRIPT_DIR}/verdict-derive.sh" ]] && \
+           grep -q '<!-- LOA-VERDICT ' "${sprint_dir}/auditor-sprint-feedback.md" 2>/dev/null; then
+            local verdict_json verdict rc
+            verdict_json=$("${SCRIPT_DIR}/verdict-derive.sh" --file "${sprint_dir}/auditor-sprint-feedback.md" --gate audit --json 2>/dev/null) && rc=0 || rc=$?
+            verdict=$(echo "${verdict_json}" | jq -r '.verdict // empty' 2>/dev/null) || verdict=""
+            [[ "${verdict}" == "APPROVED" ]] && return 0
+            return 1
+        fi
+
+        # Legacy prose logic (byte-identical to pre-cycle-119 behavior)
         grep -q "APPROVED" "${sprint_dir}/auditor-sprint-feedback.md" 2>/dev/null
         return $?
     fi

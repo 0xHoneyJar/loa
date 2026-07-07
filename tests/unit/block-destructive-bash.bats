@@ -468,6 +468,89 @@ hook_invoke() {
 }
 
 # =============================================================================
+# Group C2 — C15/cycle-119 panel amendment: find ROOT ... -exec rm -rf {} +
+# classifies the FIND ROOT PATH (not the {} / + placeholder tokens) through
+# the SAME safe/dangerous/ambiguous ladder as any other rm operand.
+#
+# MUST-STILL-BLOCK fixtures (panel-mandated, added BEFORE the logic change —
+# these 4 already blocked pre-C15 via the old {}/+-as-ambiguous-operand path;
+# the panel requires proving that first, then confirming they still block
+# after root-path reclassification lands).
+# =============================================================================
+
+@test "C15 must-still-block: rm -rf \"\$UNSET/\" (unset-var-looking path)" {
+    run hook_invoke 'rm -rf "$UNSET/"'
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2" ]]
+}
+
+@test "C15 must-still-block: p='..'; rm -rf \"packages/\$p/dist\"" {
+    run hook_invoke "p='..'; rm -rf \"packages/\$p/dist\""
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2" ]]
+}
+
+@test "C15 must-still-block: find / -exec rm -rf {} + (dangerous root)" {
+    # Pre-C15 this blocks via FR-2-AMBIGUOUS (the {}/+ tokens misclassified as
+    # operands); post-C15 it blocks via FR-2-BLOCK (root "/" correctly
+    # classified as catastrophic). Either sub-code satisfies "must block".
+    run hook_invoke "find / -exec rm -rf {} +"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2" ]]
+}
+
+@test "C15 must-still-block: find \$DIR -exec rm -rf {} + (dollar-expansion root — NEVER allow)" {
+    run hook_invoke 'find $DIR -exec rm -rf {} +'
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2" ]]
+}
+
+# -----------------------------------------------------------------------------
+# New behavior (C15b): an explicit safe relative root (no $-expansion, not on
+# the dangerous list) allows the find-exec segment — the {} / + tokens are no
+# longer misclassified as ambiguous path operands.
+# -----------------------------------------------------------------------------
+
+@test "C15 find-exec ALLOW: find ./build -exec rm -rf {} + (explicit safe relative root)" {
+    run hook_invoke "find ./build -exec rm -rf {} +"
+    [ "$status" -eq 0 ]
+}
+
+@test "C15 find-exec ALLOW: find ./node_modules -exec rm -rf {} + allowed" {
+    run hook_invoke "find ./node_modules -exec rm -rf {} +"
+    [ "$status" -eq 0 ]
+}
+
+@test "C15 find-exec negative: find ./build -a -name foo -exec rm -rf {} + still root-classified safe (allowed)" {
+    run hook_invoke "find ./build -a -name foo -exec rm -rf {} +"
+    [ "$status" -eq 0 ]
+}
+
+@test "C15 find-exec negative: find /etc -exec rm -rf {} + still blocks (dangerous root)" {
+    run hook_invoke "find /etc -exec rm -rf {} +"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "C15 find-exec negative: find ../escape -exec rm -rf {} + still ambiguous-blocks (dotdot root)" {
+    run hook_invoke "find ../escape -exec rm -rf {} +"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2" ]]
+}
+
+@test "C15 find-exec negative: unrelated later segment keeps its own classification (no root leakage)" {
+    run hook_invoke "find ./build -exec rm -rf {} + ; rm -rf /etc"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "C15 find-exec negative: rm -rf {} standalone (no find) stays ambiguous — unchanged" {
+    run hook_invoke "rm -rf {}"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2" ]]
+}
+
+# =============================================================================
 # Group D — fail-open tests (FR-3 / NFR-3)
 # =============================================================================
 

@@ -636,3 +636,183 @@ cost-profile: heavy
     run "$VALIDATOR" --skill bridgebuilder-review
     [ "$status" -eq 0 ]
 }
+
+# =========================================================================
+# C13(a): role: review|audit MUST NOT declare model: or agent: frontmatter
+# =========================================================================
+
+@test "c119-C13a: role: review with model: frontmatter is ERROR" {
+    create_skill "review-with-model" "---
+name: reviewwithmodel
+description: Review skill that wrongly pins a model
+role: review
+model: haiku
+capabilities:
+  schema_version: 1
+  read_files: true
+  search_code: true
+  write_files: false
+  execute_commands: false
+  web_access: false
+  user_interaction: false
+  agent_spawn: false
+  task_management: false
+cost-profile: moderate
+---
+# Review With Model"
+
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill review-with-model
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"role: review MUST NOT declare model:"* ]]
+}
+
+@test "c119-C13a: role: review with agent: frontmatter is ERROR" {
+    create_skill "review-with-agent" "---
+name: reviewwithagent
+description: Review skill that wrongly pins an agent
+role: review
+agent: general-purpose
+capabilities:
+  schema_version: 1
+  read_files: true
+  search_code: true
+  write_files: false
+  execute_commands: false
+  web_access: false
+  user_interaction: false
+  agent_spawn: false
+  task_management: false
+cost-profile: moderate
+---
+# Review With Agent"
+
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill review-with-agent
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"role: review MUST NOT declare agent:"* ]]
+}
+
+@test "c119-C13a: role: audit with model: frontmatter is ERROR" {
+    create_skill "audit-with-model" "---
+name: auditwithmodel
+description: Audit-role skill that wrongly pins a model
+role: audit
+model: sonnet
+capabilities:
+  schema_version: 1
+  read_files: true
+  search_code: true
+  write_files: false
+  execute_commands: false
+  web_access: false
+  user_interaction: false
+  agent_spawn: false
+  task_management: false
+cost-profile: moderate
+---
+# Audit With Model"
+
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill audit-with-model
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"role: audit MUST NOT declare model:"* ]]
+}
+
+@test "c119-C13a: role: implementation with model: frontmatter passes (invariant scoped to review|audit)" {
+    create_skill "impl-with-model" "---
+name: implwithmodel
+description: Implementation skill that pins a valid model
+role: implementation
+model: haiku
+capabilities:
+  schema_version: 1
+  read_files: true
+  search_code: true
+  write_files: true
+  execute_commands: false
+  web_access: false
+  user_interaction: false
+  agent_spawn: false
+  task_management: false
+cost-profile: moderate
+---
+# Impl With Model"
+
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill impl-with-model
+    [ "$status" -eq 0 ]
+}
+
+# =========================================================================
+# C13(b): model: value must match the strict enum regex (typo guard)
+# =========================================================================
+
+@test "c119-C13b: model: sonet (typo) is ERROR" {
+    create_skill "typo-model" "---
+name: typomodel
+description: Skill with a typo'd model value
+role: implementation
+model: sonet
+capabilities:
+  schema_version: 1
+  read_files: true
+  search_code: true
+  write_files: false
+  execute_commands: false
+  web_access: false
+  user_interaction: false
+  agent_spawn: false
+  task_management: false
+cost-profile: moderate
+---
+# Typo Model"
+
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill typo-model
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Invalid model: 'sonet'"* ]]
+}
+
+@test "c119-C13b: model: haiku|sonnet|opus|fable|inherit|claude-* all pass regex" {
+    for m in haiku sonnet opus fable inherit claude-sonnet-5 claude-opus-4.8; do
+        create_skill "valid-model-$m" "---
+name: validmodel$m
+description: Skill with a valid model value
+role: implementation
+model: $m
+capabilities:
+  schema_version: 1
+  read_files: true
+  search_code: true
+  write_files: false
+  execute_commands: false
+  web_access: false
+  user_interaction: false
+  agent_spawn: false
+  task_management: false
+cost-profile: moderate
+---
+# Valid Model $m"
+
+        SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill "valid-model-$m"
+        [ "$status" -eq 0 ]
+    done
+}
+
+@test "c119-C13: skill with no model:/agent: and no role passes (no false positive)" {
+    create_skill "plain-skill" "---
+name: plainskill
+description: Skill with no model/agent/role frontmatter
+capabilities:
+  schema_version: 1
+  read_files: true
+  search_code: true
+  write_files: false
+  execute_commands: false
+  web_access: false
+  user_interaction: false
+  agent_spawn: false
+  task_management: false
+cost-profile: moderate
+---
+# Plain Skill"
+
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill plain-skill
+    [ "$status" -eq 0 ]
+}
