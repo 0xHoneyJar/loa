@@ -26,6 +26,11 @@
 # Escape hatches:
 #   LOA_ZONE_GUARD_BYPASS=1  → ALLOW + stderr WARN + trajectory log
 #   LOA_ZONE_GUARD_DISABLE=1 → ALLOW with no diagnostic (framework bootstrap only)
+#   .run/zone-guard-authorization.json (cycle-119) → framework-zone ALLOW with
+#       per-write audit when marker is valid (scope=framework, non-empty
+#       reason, unexpired RFC3339-Z expires_at, mtime ≤24h). The agent-usable
+#       equivalent of BYPASS for operator-directed framework self-development;
+#       env override for tests: LOA_ZONE_GUARD_AUTH_FILE.
 #
 # Path input (Claude Code PreToolUse hook contract):
 #   $CLAUDE_TOOL_FILE_PATH — the path being written
@@ -310,6 +315,46 @@ if [[ "${LOA_ZONE_GUARD_BYPASS:-}" == "1" ]]; then
     echo "[zone-write-guard] WARNING: LOA_ZONE_GUARD_BYPASS=1; allowing actor=${ACTOR} path=${TARGET} zone=${ZONE}" >&2
     _emit_decision "BYPASS" "operator-override-via-env"
     exit 0
+fi
+
+# cycle-119: file-based framework-dev authorization marker. Sanctioned path
+# for UPSTREAM (framework-repo) self-development sessions: agent tool calls
+# cannot deliver LOA_ZONE_GUARD_BYPASS into PreToolUse hook subprocesses (env
+# does not propagate from Bash tool calls into the harness), so the env hatch
+# documented in zones.yaml ("agents use LOA_ZONE_GUARD_BYPASS=1 when an
+# operator explicitly directs a change") was unreachable for exactly the
+# sessions it was written for. Trust argument (same as the perf pass-6 cache):
+# the marker lives in .run/ (State Zone) — anyone who can write it can already
+# edit zones.yaml, the policy file this guard trusts. Unlike the env hatch it
+# is AUDITED (reason logged per allowed write) and BOUNDED (expires_at
+# required, RFC3339 UTC "Z" form; plus a 24h file-mtime staleness cap).
+# Malformed / expired / stale / wrong-scope markers fall through to the
+# normal decision matrix — fail-closed. Tested by ZWG-T20..T24.
+if [[ "${ZONE}" == "framework" ]]; then
+    AUTH_FILE="${LOA_ZONE_GUARD_AUTH_FILE:-${PROJECT_ROOT}/.run/zone-guard-authorization.json}"
+    if [[ -f "${AUTH_FILE}" ]] && command -v jq >/dev/null 2>&1; then
+        _auth_row="$(jq -r 'select(type=="object"
+                              and .scope=="framework"
+                              and (.reason|type=="string") and ((.reason|length)>0)
+                              and (.expires_at|type=="string")
+                              and (.expires_at|test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")))
+                            | [.expires_at, .reason] | @tsv' "${AUTH_FILE}" 2>/dev/null)" || _auth_row=""
+        if [[ -n "${_auth_row}" ]]; then
+            _auth_expires="${_auth_row%%$'\t'*}"
+            _auth_reason="${_auth_row#*$'\t'}"
+            _auth_reason="$(printf '%s' "${_auth_reason}" | tr -d '"\\' | tr '\n\t' '  ')"
+            TZ=UTC0 printf -v _auth_now '%(%Y-%m-%dT%H:%M:%SZ)T' -1
+            printf -v _auth_epoch '%(%s)T' -1
+            _auth_mtime="$(stat -Lc '%Y' -- "${AUTH_FILE}" 2>/dev/null || stat -Lf '%m' -- "${AUTH_FILE}" 2>/dev/null || echo 0)"
+            if [[ "${_auth_mtime}" =~ ^[0-9]+$ ]] \
+               && (( _auth_epoch - _auth_mtime <= 86400 )) \
+               && [[ "${_auth_now}" < "${_auth_expires}" ]]; then
+                echo "[zone-write-guard] AUTHORIZED: framework-dev marker (${_auth_reason}) actor=${ACTOR} path=${TARGET}" >&2
+                _emit_decision "AUTHORIZED-MARKER" "${_auth_reason}"
+                exit 0
+            fi
+        fi
+    fi
 fi
 
 case "${ZONE}" in
