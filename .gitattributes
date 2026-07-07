@@ -61,6 +61,36 @@ grimoires/loa/ledger.json merge=ours
 .github/workflows/*.yaml merge=ours
 
 # =============================================================================
+# HOOK / SETTINGS CONFLICT SAFETY (Issue #1180)
+# =============================================================================
+# PreToolUse safety hooks execute LIVE from the working tree on every Bash
+# tool call. `git merge loa/main` (the /update-loa VENDORED flow) can splice
+# literal <<<<<<< conflict markers into these files when a downstream
+# customization diverges from an upstream edit — the corrupted script then
+# fails `bash -n`, and every subsequent Bash call dies at PreToolUse (#1180,
+# sonar-api v1.157.0→v1.180.0). `-merge` (the git-native "binary" driver)
+# converts a two-sided divergence into a reported CONFLICT (UU) that leaves
+# the pre-merge ("ours") content on disk untouched and still parseable,
+# instead of embedding markers. One-sided upstream-only updates (the common
+# case) are unaffected and still auto-merge cleanly. Complements
+# .claude/hooks/hook-guard.sh (fails a broken hook OPEN at runtime) and the
+# /update-loa Phase 5 conflict-resolution ordering guidance — this rule
+# prevents the corruption from landing in the first place, for the VENDORED
+# merge flow only. Does NOT propagate to submodule-mode consumers (.claude/
+# hooks and .claude/settings.json are copied, not merged, there — see
+# symlink-manifest.sh MANIFEST_COPY_DIRS/FILES) — not needed there either,
+# since that path never runs `git merge` over these files (#1180 fix
+# comment: "submodule and update.sh CLI paths are structurally immune").
+# NOTE: protection starts on the merge AFTER this rule has landed in a
+# downstream .gitattributes — the merge that FIRST introduces this rule
+# uses the pre-merge (ruleless) attributes for its own dispatch and is not
+# self-protecting (verified empirically; same bootstrap characteristic as
+# any new gitattributes rule).
+
+.claude/hooks/** -merge
+.claude/settings.json -merge
+
+# =============================================================================
 # LINE ENDING NORMALIZATION
 # =============================================================================
 # Ensure consistent line endings across platforms

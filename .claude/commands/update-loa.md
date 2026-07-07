@@ -175,6 +175,32 @@ Manual equivalent: bump the submodule pointer → `mount-submodule.sh
 `mount-submodule.sh --force` just to pick up an update — it deinits and
 re-adds the submodule destructively.
 
+### CI Drift Detection (optional)
+
+The #842 copy set (`.claude/hooks`, `.claude/settings.json`) is gitignored, so
+drift between a consumer's copy and its pinned `.loa` submodule produces no
+`git status`/CI-diff signal on its own (see KF-021,
+`grimoires/loa/known-failures.md`, and the decision doc at
+`grimoires/loa/proposals/copyset-ungitignore-decision-2026-07-07.md`).
+`mount-submodule.sh --check-symlinks` already detects this drift by content
+(not just missing/symlink checks) and exits non-zero on `COPY-DRIFT` /
+`COPY-STALE` / `COPY-MISSING` — it just isn't invoked automatically. To get a
+passive CI signal without any git-tracking change, add a step like this to
+an existing workflow (schedule or push-triggered):
+
+```yaml
+      - name: Check loa copy-set drift
+        run: .claude/scripts/mount-submodule.sh --check-symlinks
+        # Non-mutating (no --reconcile). Exits non-zero on COPY-DRIFT /
+        # COPY-STALE / COPY-MISSING so the job fails when the consumer's
+        # .claude/hooks or .claude/settings.json has drifted from the
+        # pinned .loa submodule content. Run `.claude/scripts/update-loa.sh`
+        # (or `mount-submodule.sh --reconcile`) locally to resync.
+```
+
+This is fully optional, additive, and reversible (delete the step to remove
+it) — it does not change any consumer's gitignore or copy-set behavior.
+
 ## Prerequisites
 
 - Working tree must be clean (no uncommitted changes)
