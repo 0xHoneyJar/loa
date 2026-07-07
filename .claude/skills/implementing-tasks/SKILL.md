@@ -476,7 +476,7 @@ Check `grimoires/loa/a2a/sprint-N/auditor-sprint-feedback.md`:
 - Update report with "Security Audit Feedback Addressed" section
 - Quote each audit issue with your fix and verification steps
 
-**If exists + "APPROVED - LETS FUCKING GO":**
+**If exists + "APPROVED - LET'S FUCKING GO":**
 - Sprint passed security audit
 - Proceed to check engineer feedback
 

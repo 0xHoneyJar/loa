@@ -812,15 +812,24 @@ if [[ "$command" == *"rm"* && "$command" == *"-"* ]] \
       # to the first primary/flag/paren token (-*, !, (, ), \-escaped).
       # Exactly one root => eligible; zero or many => _seg_find_root stays
       # empty and the segment falls to the untouched conservative ladder.
+      # NESTED-find disqualifier (R3 review catch, cycle-119): in
+      # `find <safe> -exec find <dangerous> ... -exec rm ...` the {} paths
+      # come from the INNER find's root, which this walk never reaches (it
+      # breaks at the first `-exec`). Any `find` token inside the span means
+      # the outer root does not govern the deletions => ineligible.
       read -r -a _find_span_toks <<<"${BASH_REMATCH[3]}"
       _find_root_count=0
+      _find_nested=0
+      for _ftok in ${_find_span_toks[@]+"${_find_span_toks[@]}"}; do
+        [[ "$_ftok" == "find" || "$_ftok" == */find ]] && _find_nested=1
+      done
       for _ftok in ${_find_span_toks[@]+"${_find_span_toks[@]}"}; do
         case "$_ftok" in
           -*|'!'*|'('*|')'*|'\'*) break ;;
           *) _find_root_count=$((_find_root_count + 1)); _seg_find_root="$_ftok" ;;
         esac
       done
-      [[ "$_find_root_count" -ne 1 ]] && _seg_find_root=""
+      [[ "$_find_root_count" -ne 1 || "$_find_nested" -eq 1 ]] && _seg_find_root=""
     fi
 
     rm_args_raw="${rm_segment#*rm}"

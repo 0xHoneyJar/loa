@@ -31,11 +31,16 @@ zones:
       - "grimoires/loa/known-failures.md"
 YAML
     export LOA_ZONES_FILE="$SCRATCH/zones.yaml"
+    # cycle-119 (R3 review): hermeticity against an ambient framework-dev
+    # authorization marker in the real repo's .run/ — the decision-matrix
+    # tests must pin the UNAUTHORIZED baseline regardless of live session
+    # state. ZWG-T20..T25 override this per-invocation with real fixtures.
+    export LOA_ZONE_GUARD_AUTH_FILE="$SCRATCH/no-marker.json"
 }
 
 teardown() {
     [[ -n "${SCRATCH:-}" && -d "$SCRATCH" ]] && rm -rf "$SCRATCH"
-    unset LOA_ZONES_FILE LOA_ACTOR LOA_ZONE_GUARD_BYPASS LOA_ZONE_GUARD_DISABLE LOA_REQUIRE_ZONES
+    unset LOA_ZONES_FILE LOA_ACTOR LOA_ZONE_GUARD_BYPASS LOA_ZONE_GUARD_DISABLE LOA_REQUIRE_ZONES LOA_ZONE_GUARD_AUTH_FILE
 }
 
 # ---- ZWG-T1..T6 decision matrix -----------------------------------------

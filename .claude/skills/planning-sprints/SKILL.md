@@ -308,7 +308,7 @@ Check if `grimoires/loa/a2a/auditor-sprint-feedback.md` exists:
 - Engineers must address feedback before new work
 - STOP: "The previous sprint has unresolved security issues. Engineers should run /implement to address grimoires/loa/a2a/auditor-sprint-feedback.md before planning new sprints."
 
-**If exists + "APPROVED - LETS FUCKING GO":**
+**If exists + "APPROVED - LET'S FUCKING GO":**
 - Previous sprint passed security audit
 - Safe to proceed with next sprint planning
 

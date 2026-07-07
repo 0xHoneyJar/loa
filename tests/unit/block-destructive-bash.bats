@@ -580,6 +580,35 @@ hook_invoke() {
     [ "$status" -eq 2 ]
 }
 
+# R3 review catch (cycle-119): nested find — the inner find's root governs
+# the {} deletions, but the token-walk classifies only the outer root.
+# Any `find` token inside the span disqualifies eligibility.
+
+@test "C15 nested-find MUST-BLOCK: find ./build -exec find / ... -exec rm -rf {} +" {
+    run hook_invoke "find ./build -exec find / -name x -exec rm -rf {} +"
+    [ "$status" -eq 2 ]
+}
+
+@test "C15 nested-find MUST-BLOCK: inner \$HOME root" {
+    run hook_invoke 'find ./build -exec find $HOME -name x -exec rm -rf {} +'
+    [ "$status" -eq 2 ]
+}
+
+@test "C15 nested-find MUST-BLOCK: inner glob root" {
+    run hook_invoke 'find ./build -exec find "*" -name x -exec rm -rf {} +'
+    [ "$status" -eq 2 ]
+}
+
+@test "C15 nested-find MUST-BLOCK: inner /usr/bin/find path form" {
+    run hook_invoke "find ./build -exec /usr/bin/find / -name x -exec rm -rf {} +"
+    [ "$status" -eq 2 ]
+}
+
+@test "C15 nested-find control: reversed order still blocks (dangerous outer root)" {
+    run hook_invoke "find / -exec find ./build -name x -exec rm -rf {} +"
+    [ "$status" -eq 2 ]
+}
+
 # =============================================================================
 # Group D — fail-open tests (FR-3 / NFR-3)
 # =============================================================================

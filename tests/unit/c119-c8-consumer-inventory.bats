@@ -174,6 +174,34 @@ EOF
     [ "$status" -eq 0 ]
 }
 
+@test "C8 inventory: spiral-evidence.sh CHANGES_REQUIRED wins over template's 'If APPROVED:' boilerplate (R4 review)" {
+    # The shipped sprint-audit-feedback.md template unconditionally retains a
+    # '**If APPROVED:**' Next Steps stanza; the loose APPROVED-substring check
+    # must not classify a CHANGES_REQUIRED audit as approved because of it.
+    source "${PROJECT_ROOT}/.claude/scripts/spiral-evidence.sh"
+    mkdir -p "${TEST_TMPDIR}/cycle-test2"
+    _init_flight_recorder "${TEST_TMPDIR}/cycle-test2"
+    cat > "${TEST_TMPDIR}/audit-cr.md" <<'EOF'
+# Security Audit — Sprint 1
+
+## Findings
+
+- [CRITICAL] SQL injection via string concatenation in src/db.ts:42
+
+## Verdict: CHANGES_REQUIRED
+
+## Next Steps
+
+**If APPROVED:**
+1. Sprint is cleared for deployment
+
+**If CHANGES_REQUIRED:**
+1. Address all CRITICAL findings
+EOF
+    run _verify_review_verdict "AUDIT" "${TEST_TMPDIR}/audit-cr.md"
+    [ "$status" -eq 1 ]
+}
+
 # =============================================================================
 # memory-bootstrap.sh:261-264 — extract_feedback() first-line skip
 # =============================================================================

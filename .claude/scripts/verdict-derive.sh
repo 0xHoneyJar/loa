@@ -141,11 +141,15 @@ if [[ "$trailer_count" -eq 0 ]]; then
 fi
 
 last_line=$(tail -n 1 -- "$FILE")
+# R2 review (cycle-119): tolerate CRLF files — strip one trailing \r before
+# every exact-string comparison below (first/last/trailer lines).
+last_line="${last_line%$'\r'}"
 
 if [[ "$trailer_count" -gt 1 ]]; then
     violations+=("multiple LOA-VERDICT trailers found ($trailer_count) — keep exactly one trailer, as the last line of the file")
 else
     trailer_line=$(grep '<!-- LOA-VERDICT ' -- "$FILE" | head -1)
+    trailer_line="${trailer_line%$'\r'}"
     if [[ "$trailer_line" != "$last_line" ]]; then
         violations+=("LOA-VERDICT trailer is not the last line of the file — move it to be the final line with nothing after it")
     fi
@@ -182,6 +186,7 @@ else
         fi
 
         first_line=$(head -n 1 -- "$FILE")
+        first_line="${first_line%$'\r'}"
         if [[ "$GATE" == "review" ]]; then
             if [[ "$t_verdict" == "APPROVED" && "$first_line" != "All good" ]]; then
                 violations+=("trailer says APPROVED but first line is not exactly 'All good' — set the first line to 'All good' or change verdict to CHANGES_REQUIRED")

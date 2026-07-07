@@ -104,7 +104,11 @@ validate_prd() {
                 NR > start && /^## / { exit }
                 NR > start { print }
             ' < "$FILE")
-            if ! printf '%s' "$body" | grep -qE '^> Sources:'; then
+            # R2 review (cycle-119): accept both the plain form ('> Sources:')
+            # and the bold form ('> **Sources**:') — discovering-requirements'
+            # <output_format> prescribes the bold form while its Phase-8
+            # example uses the plain one.
+            if ! printf '%s' "$body" | grep -qE '^> (\*\*)?Sources(\*\*)?:'; then
                 violations+=("PRD section '${heading# }' (line $lineno) has no '> Sources:' line in its body — add one per discovering-requirements Phase 8 template")
             fi
         done <<< "$sections"
@@ -168,15 +172,19 @@ validate_sdd() {
 # sprint
 # =============================================================================
 # Derived verbatim from planning-sprints/resources/templates/sprint-template.md.
+# R2 review (cycle-119): 'Security Considerations' appears only in the
+# template's Sprint-1 example (Sprint 2 omits it) — WARN-only, not required.
 SPRINT_REQUIRED_SECTIONS=(
     "Sprint Goal"
     "Deliverables"
     "Acceptance Criteria"
     "Technical Tasks"
     "Dependencies"
-    "Security Considerations"
     "Risks & Mitigation"
     "Success Metrics"
+)
+SPRINT_WARN_SECTIONS=(
+    "Security Considerations"
 )
 
 validate_sprint() {
@@ -202,6 +210,11 @@ validate_sprint() {
         for sec in "${SPRINT_REQUIRED_SECTIONS[@]}"; do
             if ! printf '%s' "$block" | grep -qE "^### ($sec)\$"; then
                 violations+=("sprint block '${heading# }' (line $lineno) is missing required section '### $sec' — see planning-sprints/resources/templates/sprint-template.md")
+            fi
+        done
+        for sec in "${SPRINT_WARN_SECTIONS[@]}"; do
+            if ! printf '%s' "$block" | grep -qE "^### ($sec)\$"; then
+                warnings+=("sprint block '${heading# }' (line $lineno) has no '### $sec' section — recommended for security-relevant sprints")
             fi
         done
     done <<< "$sprint_headings"

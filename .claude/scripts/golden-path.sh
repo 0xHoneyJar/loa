@@ -104,10 +104,13 @@ _gp_sprint_is_reviewed() {
     fi
 
     if [[ -f "${sprint_dir}/engineer-feedback.md" ]]; then
-        if [[ -x "${SCRIPT_DIR}/verdict-derive.sh" ]] && \
+        # R2 review (cycle-119): gate on -f + `bash <script>` (not -x) so a
+        # chmod-lost executable bit cannot silently drop a present trailer
+        # back to the legacy prose heuristic (which could reverse the verdict).
+        if [[ -f "${SCRIPT_DIR}/verdict-derive.sh" ]] && \
            grep -q '<!-- LOA-VERDICT ' "${sprint_dir}/engineer-feedback.md" 2>/dev/null; then
             local verdict_json verdict rc
-            verdict_json=$("${SCRIPT_DIR}/verdict-derive.sh" --file "${sprint_dir}/engineer-feedback.md" --gate review --json 2>/dev/null) && rc=0 || rc=$?
+            verdict_json=$(bash "${SCRIPT_DIR}/verdict-derive.sh" --file "${sprint_dir}/engineer-feedback.md" --gate review --json 2>/dev/null) && rc=0 || rc=$?
             verdict=$(echo "${verdict_json}" | jq -r '.verdict // empty' 2>/dev/null) || verdict=""
             [[ "${verdict}" == "APPROVED" ]] && return 0
             return 1
@@ -130,10 +133,11 @@ _gp_sprint_is_audited() {
     local sprint_dir="${_GP_A2A_DIR}/${sprint_id}"
 
     if [[ -f "${sprint_dir}/auditor-sprint-feedback.md" ]]; then
-        if [[ -x "${SCRIPT_DIR}/verdict-derive.sh" ]] && \
+        # R2 review (cycle-119): -f + bash invocation, same rationale as above.
+        if [[ -f "${SCRIPT_DIR}/verdict-derive.sh" ]] && \
            grep -q '<!-- LOA-VERDICT ' "${sprint_dir}/auditor-sprint-feedback.md" 2>/dev/null; then
             local verdict_json verdict rc
-            verdict_json=$("${SCRIPT_DIR}/verdict-derive.sh" --file "${sprint_dir}/auditor-sprint-feedback.md" --gate audit --json 2>/dev/null) && rc=0 || rc=$?
+            verdict_json=$(bash "${SCRIPT_DIR}/verdict-derive.sh" --file "${sprint_dir}/auditor-sprint-feedback.md" --gate audit --json 2>/dev/null) && rc=0 || rc=$?
             verdict=$(echo "${verdict_json}" | jq -r '.verdict // empty' 2>/dev/null) || verdict=""
             [[ "${verdict}" == "APPROVED" ]] && return 0
             return 1

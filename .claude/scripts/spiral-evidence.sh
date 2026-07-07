@@ -191,16 +191,21 @@ _verify_review_verdict() {
         return 1
     fi
 
-    if grep -qi "All good\|APPROVED" "$feedback"; then
+    # R4 review (cycle-119): check CHANGES_REQUIRED FIRST — the shipped
+    # audit template's Next Steps section retains boilerplate "**If
+    # APPROVED:**" text on every verdict, so the loose APPROVED-substring
+    # check must not run before the negative check (order now matches
+    # check-feedback-status.sh).
+    if grep -qi "CHANGES_REQUIRED\|Changes required" "$feedback"; then
+        _record_action "GATE_${phase}" "claude-opus" "verdict" "" "" "$feedback" \
+            "$(wc -c < "$feedback")" 0 0 "CHANGES_REQUIRED"
+        return 1
+    elif grep -qi "All good\|APPROVED" "$feedback"; then
         local checksum
         checksum=$(sha256_portable "$feedback" | awk '{print $1}')
         _record_action "GATE_${phase}" "claude-opus" "verdict" "" "$checksum" "$feedback" \
             "$(wc -c < "$feedback")" 0 0 "APPROVED"
         return 0
-    elif grep -qi "CHANGES_REQUIRED\|Changes required" "$feedback"; then
-        _record_action "GATE_${phase}" "claude-opus" "verdict" "" "" "$feedback" \
-            "$(wc -c < "$feedback")" 0 0 "CHANGES_REQUIRED"
-        return 1
     else
         _record_failure "$phase" "NO_VERDICT" "$feedback"
         echo "ERROR: No verdict found in: $feedback" >&2
