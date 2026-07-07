@@ -149,3 +149,40 @@ outperformed any single model tier. That is the mechanical-floor thesis, observe
 - Session cost of the cycle itself: ~6.3M subagent tokens across 44 agents
   (analysis 1.74M, panel 0.37M, implementation 2.29M, review 0.55M, audit + fixes remainder)
   — roughly 80% of it on Sonnet-tier pricing under Fable orchestration.
+
+## 10. Cycle-120 follow-up (2026-07-07, same arc)
+
+Executed the deferred beads with the same scout → design → adversarial-panel →
+implement → review → audit method (branch feat/cycle-120-mf-followups). Shipped:
+`claude-sonnet-5` in the cheval catalog (1M context / $3-15, verified via the
+claude-api reference — the design's 200K guess was a panel catch); the FR-2
+inert-carrier fix (bd-7qc2) via the panel-approved post-hoc content-test, NOT
+the naive consuming ERE the design proposed (a safety reviewer execution-proved
+that ERE would swallow past the closing quote); spiral-evidence structured-first
+verdict; the first citation-**resolution** gate (validate-artifact --type
+translation, bd-4ylz); the repair-loop dogfood flip; and the flatline-scorer
+gold-set 6→20 + live-fire fixture/runbook (execution deferred to bd-ge58).
+
+### bd-nh7u resolution (fan-out budget lint) — closed, no code
+Every repo-side orchestrator already carries a budget: red-team
+50K/200K/500K max-tokens + 20-attack cap; flatline max_iterations 5 +
+200¢/invocation; run-bridge 30K token_budget; spiral per-phase USD caps;
+jury-panel bounded by cheval per-call max_tokens. The 892K-token fan-out class
+that motivated the bead lives in **harness workflow sessions** (Claude Code
+subagent parallelism), where the repo has no enforcement point. A repo-side
+lint would therefore be decorative config — the E5 antipattern this methodology
+warns against. The mechanical defenses that actually apply are the
+agent-ergonomics fan-out budget rule (per-lens tool-use cap + short-circuit)
+and loa-scout delegation, both enforced at dispatch time, not repo-config time.
+Guidance stands; bead closed with this reasoning.
+
+### The pattern held again
+Layered independent verification kept paying: the design panel caught a
+context-window guess and REJECTED a hook approach that would have shipped a
+bypass; the review wave then execution-proved a *different*, pre-existing
+decoy-flag bypass (`git commit -m "-m " && rm -rf …`) that the fix's own header
+comment claimed was impossible — fixed at root (bar quotes from the carrier
+prefix) plus a contiguous-flag tail-consumer so multi-message commits stay
+allowed; the audit caught a MUST-gate wired into a skill with no Bash grant
+(the skill-invariants #553 class). 15 verified findings caught pre-merge across
+the three gates (2 design + 10 review incl. 1 CRITICAL + 3 audit incl. 1 HIGH).
