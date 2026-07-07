@@ -1447,6 +1447,22 @@ flatline_protocol:
     model: "gpt-5.3-codex"      # Dissenter model
     timeout_seconds: 60          # Per-call timeout
     budget_cents: 150            # Max cost per dissent call
+    # cycle-119 C14 (KF-004 repair loop) — default OFF.
+    # When true, a dissenter finding that fails validate_finding gets ONE
+    # bounded repair round-trip to the SAME model before being rejected:
+    # a normalization pre-pass (case-fold severity/category + whitespace
+    # trim only, no synonym mapping) runs first; if the finding still
+    # fails, only the offending finding JSON + the violated validation
+    # clause are sent back to the model. The repaired finding must be
+    # byte-identical to the original on every field except the one(s) it
+    # was authorized to fix, and re-enters the full validation pipeline
+    # (never just the failed clause) before being accepted. Rejected and
+    # repaired counts are recorded in the rejected-finding sidecar
+    # (grimoires/loa/a2a/<sprint_id>/adversarial-rejected-<type>.jsonl)
+    # and in the degraded-verdict trajectory record, so findings the
+    # dissenter model produced but that were silently dropped for a
+    # trivial schema mismatch (KF-004's original complaint) stay visible.
+    repair_loop: false
   security_audit:
     enabled: false               # Opt-in: enable for /audit-sprint
     model: "gpt-5.3-codex"      # Dissenter model
