@@ -1,11 +1,5 @@
-/**
- * MultiModelPipeline — orchestrates parallel multi-model reviews with consensus scoring.
- *
- * Executes N model reviews in parallel via Promise.allSettled(), scores findings
- * using dual-track consensus (convergence + diversity), and posts per-model
- * comments followed by a consensus summary.
- */
 import type { ReviewResponse } from "../ports/llm-provider.js";
+import type { VerdictQualityEnvelope } from "../ports/llm-provider.js";
 import type { IReviewPoster } from "../ports/review-poster.js";
 import type { IOutputSanitizer } from "../ports/output-sanitizer.js";
 import type { ILogger } from "../ports/logger.js";
@@ -136,6 +130,23 @@ export declare function formatChunkedReviewAnnotation(perModelResults: Array<{
         cross_chunk_pass?: boolean;
     };
 }>): string;
+/**
+ * Compute the aggregate verdict band across a multi-voice cohort.
+ *
+ * Single source of truth for the FAILED > DEGRADED > APPROVED promotion
+ * logic shared by the PR-comment banner (formatVerdictQualityHeader) and the
+ * degraded-verdict trajectory emitter (emitDegradedVerdictTrajectory).
+ *
+ * Returns null when there are no per-model results, or none carry a
+ * verdictQuality envelope (legacy / pre-T2.3 cheval) — a null band renders no
+ * banner and emits no trajectory record.
+ */
+export declare function computeVerdictBand(perModelResults: Array<{
+    verdictQuality?: {
+        status?: string;
+        chain_health?: string;
+    };
+}>): "APPROVED" | "DEGRADED" | "FAILED" | null;
 export declare function formatVerdictQualityHeader(perModelResults: Array<{
     provider: string;
     modelId: string;
@@ -146,4 +157,54 @@ export declare function formatVerdictQualityHeader(perModelResults: Array<{
         chain_health?: string;
     };
 }>): string;
+/**
+ * A degraded-verdict trajectory record — byte-compatible with the record
+ * shape written by degraded-verdict-lib.sh (cycle-117 item D). Field set and
+ * ordering intentionally mirror that bash writer and the schema at
+ * .claude/data/trajectory-schemas/degraded-verdict.schema.json
+ * (additionalProperties: false — do NOT add fields).
+ */
+export interface DegradedVerdictRecord {
+    gate: string;
+    verdict_band: "DEGRADED" | "FAILED";
+    degradation_reason: string;
+    degraded_legs?: string[];
+    model_exit_code: number | null;
+    sprint_id: string;
+    ts: string;
+}
+/**
+ * Append a degraded-verdict trajectory record when BB's aggregate multi-model
+ * verdict band is DEGRADED or FAILED. No-op for APPROVED/clean/no-envelope
+ * runs — mirrors degraded_verdict_maybe_emit's guard in the bash lib.
+ *
+ * The record is the SAME shape the 3 bash gate writers emit (adversarial-
+ * review.sh, red-team-code-vs-design.sh, flatline-orchestrator.sh via
+ * degraded-verdict-lib.sh) into the SAME date-sharded trajectory file, so a
+ * downstream reader sees one homogeneous channel regardless of runtime.
+ *
+ * Scope (per bd-bb-degraded-verdict-ts-b5bu): trajectory-record emit only.
+ * Paging is deferred — the bash writers page via push-notify-lib.sh, but BB
+ * already surfaces degradation directly in the PR comment via
+ * formatVerdictQualityHeader, a stronger operator-visible signal than a page.
+ *
+ * Fire-and-forget: never throws. A write failure is swallowed (mirrors the
+ * bash lib's "every function ALWAYS returns 0" contract and the appendFile
+ * try/catch precedent in depth-checker.ts). Unlike the bash lib this uses a
+ * single appendFile (no flock): a single-line JSON append is one write()
+ * syscall, atomic on POSIX under the OS write limit — adequate given BB runs
+ * one PR per invocation, not concurrent Node writers on one host.
+ */
+export declare function emitDegradedVerdictTrajectory(item: {
+    owner: string;
+    repo: string;
+    pr: {
+        number: number;
+    };
+}, perModelResults: Array<{
+    verdictQuality?: VerdictQualityEnvelope;
+}>, opts?: {
+    repoRoot?: string;
+    gate?: string;
+}): Promise<void>;
 //# sourceMappingURL=multi-model-pipeline.d.ts.map

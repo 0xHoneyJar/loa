@@ -146,6 +146,69 @@ if [[ -z "$command" ]]; then
 fi
 
 # -----------------------------------------------------------------------------
+# quote-blindness scrub (bd-bdb-quote-blindness-pt1g) — SAFE-BY-CONSTRUCTION.
+# Produce _cmd_match, a LOCAL scrub-copy of $command used SOLELY for the
+# block/allow decision below. $command itself is left byte-for-byte intact so
+# emit_block's audit row and every matched-substring extraction still record
+# the operator's real text.
+#
+# The fence is quote-blind: it sees a destructive TOKEN (rm -rf, DROP/TRUNCATE
+# TABLE, DELETE FROM, git branch -D, ...) inside an INERT data carrier — an
+# echo argument, a git commit message, a bead description, a gh PR body — and
+# blocks a harmless command. The GENERAL problem (deciding whether an arbitrary
+# quoted string will be executed) is NOT tractable in a regex fence — any
+# allowlist of *execution* shapes (ssh/su -c/sh -c/xargs/...) is unbounded and
+# reintroduces bypass (issue #1047). This is the INVERSE: a curated allowlist
+# of KNOWN-INERT data carriers, whose value we redact into the scrub-copy.
+#
+# Load-bearing bypass defense: the ONLY way to smuggle real danger through an
+# allowlisted carrier is command-substitution inside the value —
+# `git commit -m "$(rm -rf /)"`. $( and backtick are caught by the (-boundary
+# subshell branch of FR-2 (quote-independent). So we redact a carrier value
+# ONLY when it contains NEITHER $ NOR a backtick (stricter than just $( — a
+# strict superset, so never a false negative); anything with $ or backtick is
+# left INTACT and falls through to normal detection. (Backtick command-
+# substitution is itself a PRE-EXISTING, quote-independent bypass this fence
+# does NOT catch in either direction — tracked in bd-bdb-backtick-bypass;
+# leaving backtick values un-redacted keeps behaviour byte-identical, opening
+# nothing new.) An
+# INCOMPLETE allowlist therefore only PRESERVES a false positive (today's safe
+# behavior) — it can never open a bypass.
+#
+# Carrier exemption is PER-SEGMENT (bounded by ^ ; && || |): the scrub never
+# crosses a shell statement separator, so `echo 'safe' && rm -rf /` still
+# blocks the real second segment. Word-boundaries ((^|[^[:alnum:]_])git…) keep
+# `notgit commit -m '…'` from matching (anti-spoof). Modeled on the cycle-117-E
+# _fr2_cmd redirect-scrub idiom (sed -E on a local copy; replace with a single
+# SPACE, never empty). BSD/GNU ERE only — no \b (BSD libc lacks it; header §).
+# -----------------------------------------------------------------------------
+# Inert value branches: single- OR double-quoted content free of $ and backtick.
+_bdb_bt='`'
+_bdb_qval="('[^'\$${_bdb_bt}]*'|\"[^\"\$${_bdb_bt}]*\")"
+
+# Bare echo/printf carrier: from a segment-start echo/printf to the end of its
+# segment. The rest-class excludes ; & | (segment separators — per-segment
+# scoping), $ and backtick (command-substitution — never redact past them), and
+# < > (redirect operators — leave redirects + their targets intact so the FR-SZ
+# State-Zone write guard, which keys off the raw path, still fires on
+# `echo x >> .run/cron.d/job.sh`).
+_bdb_sed_echo='s/(^|;|&&|\|\||\|)([[:space:]]*(sudo[[:space:]]+)?(echo|printf)[[:space:]]+)[^;&|<>$`]*/\1\2 /g'
+
+# Known-inert (command,flag) value carriers. [^;&|]* stays within one segment.
+_bdb_sed_git="s/((^|[^[:alnum:]_])git[[:space:]][^;&|]*commit[^;&|]*(-m|--message)[[:space:]]+)${_bdb_qval}/\\1 /g"
+_bdb_sed_brbd="s/((^|[^[:alnum:]_])(br|bd)[[:space:]][^;&|]*(create|update)[^;&|]*(-d|--description)[[:space:]]+)${_bdb_qval}/\\1 /g"
+_bdb_sed_gh="s/((^|[^[:alnum:]_])gh[[:space:]][^;&|]*(issue|pr)[^;&|]*create[^;&|]*(--body|--title)[[:space:]]+)${_bdb_qval}/\\1 /g"
+
+_cmd_match=$(printf '%s' "$command" | sed -E \
+  -e "$_bdb_sed_echo" \
+  -e "$_bdb_sed_git" \
+  -e "$_bdb_sed_brbd" \
+  -e "$_bdb_sed_gh" 2>/dev/null) || _cmd_match="$command"
+# Fail-safe: sed error/empty-out on a non-empty command → fall back to RAW
+# (stricter matching), never to an empty scrub that would silence every pattern.
+[[ -z "$_cmd_match" ]] && _cmd_match="$command"
+
+# -----------------------------------------------------------------------------
 # perf pass-2 line-model helpers.
 #
 # `echo "$cmd" | grep -qE PAT` tests PAT against each LINE; bash [[ =~ ]]
@@ -157,11 +220,14 @@ fi
 # per line. Invalid-regex behavior also matches the old `grep -qE …
 # 2>/dev/null`: [[ =~ ]] returns non-zero silently.
 # -----------------------------------------------------------------------------
+# quote-blindness fix: derive the line model from the scrub-copy _cmd_match so
+# every pattern that goes through _match/_match_ci (P2-P9, P11, P12, FR-2 gate)
+# sees inert carrier values redacted, with ZERO change to their own regexes.
 _cmd_lines=()
-if [[ "$command" == *$'\n'* ]]; then
-  mapfile -t _cmd_lines <<<"${command%$'\n'}"
+if [[ "$_cmd_match" == *$'\n'* ]]; then
+  mapfile -t _cmd_lines <<<"${_cmd_match%$'\n'}"
 else
-  _cmd_lines=("$command")
+  _cmd_lines=("$_cmd_match")
 fi
 
 # _match <ere> — exit 0 iff any line matches; ≡ echo "$command" | grep -qE <ere>
@@ -387,7 +453,7 @@ fi  # ── end pass-8 git-family pre-filter ──
 # folding leaves \n untouched, so a literal absent from this folded whole
 # string is absent from every folded line.
 # -----------------------------------------------------------------------------
-_cmd_lc="${command,,}"
+_cmd_lc="${_cmd_match,,}"  # quote-blindness fix: fold the scrub-copy (see above)
 
 # -----------------------------------------------------------------------------
 # P8 — DROP DATABASE / DROP TABLE / DROP SCHEMA  (FR-1.4)
@@ -444,7 +510,11 @@ fi
 # -----------------------------------------------------------------------------
 delete_stmts=""
 if [[ "$_cmd_lc" == *"delete"* && "$_cmd_lc" == *"from"* ]]; then
-  delete_stmts=$(echo "$command" | grep -oiE '\bDELETE[[:space:]]+FROM[[:space:]]+("[^"]+"|`[^`]+`|[a-zA-Z_][a-zA-Z0-9_]*)[^;]*' 2>/dev/null)
+  # quote-blindness fix (step 3, CRITICAL): P10's raw grep does NOT go through
+  # _cmd_lines, so it must read the scrub-copy _cmd_match too — otherwise a
+  # DELETE FROM inside a redacted carrier value (e.g. git commit -m '…DELETE
+  # FROM users…') stays a false positive while everything else is fixed.
+  delete_stmts=$(echo "$_cmd_match" | grep -oiE '\bDELETE[[:space:]]+FROM[[:space:]]+("[^"]+"|`[^`]+`|[a-zA-Z_][a-zA-Z0-9_]*)[^;]*' 2>/dev/null)
 fi
 if [[ -n "$delete_stmts" ]]; then
   while IFS= read -r delete_stmt; do

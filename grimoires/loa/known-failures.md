@@ -1162,6 +1162,7 @@ If an operator reports surprise Anthropic charges while on a Max/Pro plan: **fir
 **First observed**: cycle-117 (2026-07-06) fleet audit of 7 hosaka repos
 **Recurrence count**: 1
 **Current workaround**: Detect content drift in _refresh_copy_entry check mode (cmp -s files, diff -rq dirs, jq -S allow/deny for settings.json); fix the set -e early-exit in check_symlinks_subcommand; hard-gate update_submodule with a post-refresh refresh_copy_set false + .loa-version.json read-back (LOA_UPDATE_SKIP_COPYSET_VERIFY=1 escapes loudly). Does NOT retroactively fix already-drifted repos — each must run update-loa.sh once. Un-gitignoring the copy set + upstream CLAUDE.loa.md header self-stamping remain open follow-ups.
+**Decision recorded (2026-07-07)**: cycle-118 follow-up (bd-copyset-ungitignore-decision-i1hb) evaluated the "un-gitignore the copy set" follow-up in full — see `grimoires/loa/proposals/copyset-ungitignore-decision-2026-07-07.md` for options A (un-gitignore fleet-wide) / B (optional CI `--check-symlinks` step) / C (status quo) with grounded tradeoffs. Recommendation: **B**, declining the fleet-wide un-gitignore for now (it's a one-way git-tracking migration that churns on every legitimate framework bump, not just drift). The optional CI-check snippet ships in `.claude/commands/update-loa.md`. Un-gitignoring stays OPEN pending explicit operator sign-off — no longer a silently-dangling TODO.
 **Upstream issue**: #1177 item G
 **Related visions / lore**: #842 (copy set), #968 (refresh extraction), #1045 (State-Zone allow-list)
 

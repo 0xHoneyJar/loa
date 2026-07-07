@@ -82,6 +82,29 @@ skip_if_deps_missing() {
     [ "$schema" = "1" ]
 }
 
+@test "bridge-state: init persists explicit consecutive_flatline (7th arg) into .config" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-20260213-a00004" 5 false 0.2 "feature/x" "" 4
+
+    local cf
+    cf=$(jq '.config.consecutive_flatline' "$TEST_TMPDIR/.run/bridge-state.json")
+    [ "$cf" = "4" ]
+}
+
+@test "bridge-state: init defaults consecutive_flatline to 2 when 7th arg omitted" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    # Legacy call shape (≤4 positional args) — protects the ~50 existing callers.
+    init_bridge_state "bridge-20260213-a00005" 3
+
+    local cf
+    cf=$(jq '.config.consecutive_flatline' "$TEST_TMPDIR/.run/bridge-state.json")
+    [ "$cf" = "2" ]
+}
+
 # =============================================================================
 # State Transitions
 # =============================================================================

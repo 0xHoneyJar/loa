@@ -2578,17 +2578,23 @@ qmd_context:
 # (bd-c117-a-session-cap-x04j) owns .run/session-limit-state.json and writes
 # NO config here — this block belongs to item B alone.
 #
-# v1 SCOPE (read before enabling): every generated schedule's dispatch_contract
-# points at the SHIPPED NO-OP example-*.sh phase scripts (.claude/skills/
-# scheduled-cycle-template/contracts/) — `phases:` below is a LABEL only in
-# v1; every label resolves to the same placeholder scripts. Real Flatline /
-# Bridgebuilder / red-team dispatch is deliberately deferred to
-# bd-fanout-real-dispatch-9jv6 — bridgebuilder-review in particular is a
-# Claude Code SKILL with no standalone CLI entrypoint and cannot be fired
-# unattended from cron without new machinery. A post-reset run today produces
-# an audit trail only; it does NOT re-run any real review. Item A integration
-# (deciding what was actually in-flight at reset time) is an open design
-# point, not yet wired.
+# SCOPE (read before enabling — bd-fanout-real-dispatch-9jv6, Tranche 1): the
+# `bridgebuilder` phase now dispatches a REAL review. Its dispatch_contract
+# points at .claude/skills/scheduled-cycle-template/contracts/session-cap-bb/,
+# whose FAIL-CLOSED decider fires bridgebuilder-review's headless entrypoint
+# (resources/entry.sh — a real CLI that spiral-harness.sh already runs
+# unattended; the prior "no standalone CLI entrypoint" claim was FALSE) only
+# when the captured session-limit snapshot shows sprint_plan/bridge state
+# RUNNING or HALTED. BB runs with no --pr, so it self-discovers open PRs and
+# dedups. ENABLING THIS ARMS UNATTENDED, ON-CRON POSTING OF LIVE PR REVIEW
+# COMMENTS — the `enabled: false` default below keeps it disarmed.
+#
+# The `flatline` and `red_team` phases REMAIN shipped no-op example-*.sh
+# placeholders (Tranche 2, deferred): unlike BB, both hard-require an explicit
+# --doc <path> and cannot resolve a target from the session-limit snapshot.
+# Wiring them needs an operator decision on current-state vs resume-exact
+# doc-targeting semantics — until then those labels produce an audit trail
+# only and do NOT re-run any real review.
 #
 # session_cap:
 #   reset_windows: []                          # e.g. ["02:00 Australia/Melbourne"]

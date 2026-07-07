@@ -294,6 +294,7 @@ init_bridge_state() {
   local flatline_threshold="${4:-0.05}"
   local branch="${5:-}"
   local repo="${6:-}"
+  local consecutive_flatline="${7:-2}"
 
   # Generate bridge_id if not provided
   if [[ -z "$bridge_id" ]]; then
@@ -319,6 +320,7 @@ init_bridge_state() {
     --argjson per_sprint "$per_sprint" \
     --arg branch "$branch" \
     --arg repo "$repo" \
+    --argjson consecutive_flatline "$consecutive_flatline" \
     --arg now "$now" \
     '{
       schema_version: $schema_version,
@@ -330,7 +332,8 @@ init_bridge_state() {
         flatline_threshold: $flatline_threshold,
         per_sprint: $per_sprint,
         branch: $branch,
-        repo: $repo
+        repo: $repo,
+        consecutive_flatline: $consecutive_flatline
       },
       timestamps: {
         started: $now,

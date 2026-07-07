@@ -39,12 +39,14 @@ DOWNSTREAM=false
 # lore_promote (cycle-061, #484) runs after release for every PR type when
 # enabled in config — turns the operator-triggered HARVEST consumer into a
 # spiral-driven step. Default-disabled in config; opt-in per repo.
-declare -A CYCLE_PHASES=( [classify]=1 [semver]=1 [changelog]=1 [gt_regen]=1 [rtfm]=1 [tag]=1 [release]=1 [lore_promote]=1 [notify]=1 )
-declare -A BUGFIX_PHASES=( [classify]=1 [semver]=1 [changelog]=1 [tag]=1 [release]=1 [lore_promote]=1 [notify]=1 )
-declare -A OTHER_PHASES=( [classify]=1 [semver]=1 [tag]=1 [lore_promote]=1 [notify]=1 )
+declare -A CYCLE_PHASES=( [classify]=1 [semver]=1 [version_bump]=1 [changelog]=1 [gt_regen]=1 [rtfm]=1 [tag]=1 [release]=1 [lore_promote]=1 [notify]=1 )
+declare -A BUGFIX_PHASES=( [classify]=1 [semver]=1 [version_bump]=1 [changelog]=1 [tag]=1 [release]=1 [lore_promote]=1 [notify]=1 )
+declare -A OTHER_PHASES=( [classify]=1 [semver]=1 [version_bump]=1 [tag]=1 [lore_promote]=1 [notify]=1 )
 
-# Ordered phase list
-PHASE_ORDER=(classify semver changelog gt_regen rtfm tag release lore_promote notify)
+# Ordered phase list. version_bump runs after semver and before tag so the
+# eventual annotated tag captures a commit whose framework markers already
+# name the new version (bd-...-header-self-stamp-ze52).
+PHASE_ORDER=(classify semver version_bump changelog gt_regen rtfm tag release lore_promote notify)
 
 # =============================================================================
 # Usage
@@ -119,6 +121,7 @@ init_state() {
       phases: {
         classify: {status: "pending", result: null},
         semver: {status: "pending", result: null},
+        version_bump: {status: "pending", result: null},
         changelog: {status: "pending", result: null},
         gt_regen: {status: "pending", result: null},
         rtfm: {status: "pending", result: null},
@@ -308,6 +311,103 @@ phase_semver() {
     echo "[SEMVER] Failed — semver calculation error"
     return 1
   fi
+}
+
+# =============================================================================
+# Framework version-marker self-stamp (bd-...-header-self-stamp-ze52)
+# =============================================================================
+# Loa's own release pipeline never re-stamped its own framework markers
+# (.loa-version.json + .claude/loa/CLAUDE.loa.md:1 header), so the header
+# drifted a full release behind on every cycle and was only ever caught up by
+# manual one-shot invocations of update-loa-bump-version.sh (df191ea0, 5ca083b0).
+#
+# This phase closes that gap by driving the already-built, unit-tested resolver
+# with the just-computed semver target — BEFORE the tag phase, so the annotated
+# tag captures a commit whose markers already name the new version.
+#
+# Runs only for loa's OWN repo. A downstream consumer's framework markers track
+# the UPSTREAM loa version they synced via /update-loa Phase 5.6 — never their
+# own local project semver — so this phase must not fire when DOWNSTREAM=true.
+phase_version_bump() {
+  update_phase "version_bump" "in_progress"
+
+  # Downstream guard: a consumer repo's CLAUDE.loa.md/.loa-version.json follow
+  # the upstream framework version, not this repo's own release cadence. Stamping
+  # their own local semver here would be semantically wrong.
+  if [[ "$DOWNSTREAM" == "true" ]]; then
+    update_phase "version_bump" "skipped" '{"reason": "downstream repo — framework markers tracked via /update-loa, not own release"}'
+    increment_metric "phases_skipped"
+    echo "[VERSION_BUMP] Downstream repo — skipped (markers sync via /update-loa)"
+    return 0
+  fi
+
+  local version
+  version=$(read_state '.phases.semver.result.next // empty')
+  if [[ -z "$version" ]]; then
+    update_phase "version_bump" "skipped" '{"reason": "no version from semver phase"}'
+    increment_metric "phases_skipped"
+    echo "[VERSION_BUMP] No version available — skipped"
+    return 0
+  fi
+
+  local bump_script="${SCRIPT_DIR}/update-loa-bump-version.sh"
+  if [[ ! -f "$bump_script" ]]; then
+    update_phase "version_bump" "skipped" '{"reason": "update-loa-bump-version.sh not found"}'
+    increment_metric "phases_skipped"
+    echo "[VERSION_BUMP] update-loa-bump-version.sh not found — skipped"
+    return 0
+  fi
+
+  if [[ "$DRY_RUN" == true ]]; then
+    echo "[VERSION_BUMP] Would sync framework markers to v${version} (dry-run)"
+    update_phase "version_bump" "completed" "{\"version\": \"${version}\", \"dry_run\": true}"
+    increment_metric "phases_completed"
+    return 0
+  fi
+
+  # Drive the existing idempotent resolver. bump_version_json /
+  # bump_claude_loa_header no-op when already at target and re-stamp the bug-989
+  # integrity hash via marker-utils.sh, so re-runs are safe.
+  if ! "$bump_script" --target "$version"; then
+    update_phase "version_bump" "failed" "{\"reason\": \"update-loa-bump-version.sh failed\", \"version\": \"${version}\"}"
+    log_error "version_bump" "update-loa-bump-version.sh --target ${version} exited non-zero"
+    increment_metric "phases_failed"
+    echo "[VERSION_BUMP] Failed — bump script exited non-zero (non-blocking per C-MERGE-003)"
+    return 0
+  fi
+
+  # Read-back verification: both markers must now equal the target and the
+  # header must not still carry the bootstrap PLACEHOLDER suffix. Fail loud but
+  # non-blocking (a marker gap must not halt a release — same convention as
+  # rtfm/gt_regen/lore_promote).
+  local vjson_ver header_line header_ver
+  vjson_ver=$(jq -r '.framework_version // ""' "${PROJECT_ROOT}/.loa-version.json" 2>/dev/null || echo "")
+  header_line=$(head -n 1 "${PROJECT_ROOT}/.claude/loa/CLAUDE.loa.md" 2>/dev/null || echo "")
+  header_ver=$(echo "$header_line" | sed -nE 's/.*version:[[:space:]]*([^[:space:]|]+).*/\1/p')
+
+  if [[ "$vjson_ver" != "$version" || "$header_ver" != "$version" || "$header_line" == *PLACEHOLDER* ]]; then
+    update_phase "version_bump" "failed" \
+      "$(jq -nc --arg v "$version" --arg vj "$vjson_ver" --arg h "$header_ver" \
+        '{reason: "read-back mismatch", expected: $v, version_json: $vj, header: $h}')"
+    log_error "version_bump" "read-back mismatch: expected ${version}, .loa-version.json=${vjson_ver}, CLAUDE.loa.md header=${header_ver}, placeholder=$([[ "$header_line" == *PLACEHOLDER* ]] && echo yes || echo no)"
+    increment_metric "phases_failed"
+    echo "[VERSION_BUMP] Read-back verification FAILED — expected v${version}, json=${vjson_ver} header=${header_ver} (non-blocking)"
+    return 0
+  fi
+
+  # Commit only when the bump produced changes (idempotent — a no-op re-run
+  # leaves a clean index and skips the commit; same guard as changelog/gt_regen).
+  git -C "$PROJECT_ROOT" add .loa-version.json .claude/loa/CLAUDE.loa.md 2>/dev/null || true
+  local committed=false
+  if ! git -C "$PROJECT_ROOT" diff --cached --quiet 2>/dev/null; then
+    git -C "$PROJECT_ROOT" commit -m "chore(release): v${version} — sync framework version markers" --quiet 2>/dev/null || true
+    committed=true
+  fi
+
+  update_phase "version_bump" "completed" \
+    "$(jq -nc --arg v "$version" --argjson c "$committed" '{version: $v, committed: $c}')"
+  increment_metric "phases_completed"
+  echo "[VERSION_BUMP] Synced framework markers to v${version} (committed: ${committed})"
 }
 
 # =============================================================================
@@ -1047,6 +1147,15 @@ phase_notify() {
         [[ -n "$curr" ]] && result_str="${curr} → ${next} (${bump})"
         ;;
       tag) result_str=$(read_state '.phases.tag.result.tag // ""') ;;
+      version_bump)
+        local vb_ver
+        vb_ver=$(read_state '.phases.version_bump.result.version // ""')
+        if [[ -n "$vb_ver" && "$vb_ver" != "null" ]]; then
+          result_str="v${vb_ver}"
+        else
+          result_str=$(read_state '.phases.version_bump.result.reason // ""')
+        fi
+        ;;
       rtfm)
         local gaps
         gaps=$(read_state '.phases.rtfm.result.gap_count // ""')

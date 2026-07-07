@@ -488,3 +488,68 @@ EOF
     run grep -qF 'ARMED with placeholder phases' "$FAKE_CRONTAB_FILE"
     [ "$status" -eq 0 ]
 }
+
+# -----------------------------------------------------------------------------
+# Per-phase stagger (bd-fanout-real-dispatch-9jv6 T1) — multiple phases in one
+# reset window MUST fire at distinct off-:00/:30 minutes, not simultaneously.
+# -----------------------------------------------------------------------------
+
+@test "stagger: phases in one reset window get DISTINCT cron minutes" {
+    cat > "$CONFIG_FILE" <<'EOF'
+session_cap:
+  reset_windows:
+    - "02:00 UTC"
+  post_reset_fanout:
+    enabled: true
+    phases: [flatline, bridgebuilder, red_team]
+EOF
+    run "$SCRIPT" install
+    [ "$status" -eq 0 ]
+
+    local m_fl m_bb m_rt
+    m_fl="$(awk '/w0:flatline/{print $1}' "$FAKE_CRONTAB_FILE")"
+    m_bb="$(awk '/w0:bridgebuilder/{print $1}' "$FAKE_CRONTAB_FILE")"
+    m_rt="$(awk '/w0:red_team/{print $1}' "$FAKE_CRONTAB_FILE")"
+    [ -n "$m_fl" ]
+    [ -n "$m_bb" ]
+    [ -n "$m_rt" ]
+    # All three DISTINCT (the bug: all shared one window-level minute).
+    [ "$m_fl" != "$m_bb" ]
+    [ "$m_bb" != "$m_rt" ]
+    [ "$m_fl" != "$m_rt" ]
+    # Off-:00/:30 property preserved for every staggered minute.
+    local m
+    for m in "$m_fl" "$m_bb" "$m_rt"; do
+        [ "$m" -ne 0 ]
+        [ "$m" -ne 30 ]
+    done
+}
+
+# -----------------------------------------------------------------------------
+# Contract wiring — bridgebuilder gets the REAL session-cap-bb contract + a
+# bumped timeout; flatline/red_team stay on the shipped no-op example scripts.
+# -----------------------------------------------------------------------------
+
+@test "install: bridgebuilder wires the real session-cap-bb contract + bumped timeout" {
+    cat > "$CONFIG_FILE" <<'EOF'
+session_cap:
+  reset_windows:
+    - "02:00 UTC"
+  post_reset_fanout:
+    enabled: true
+    phases: [flatline, bridgebuilder]
+EOF
+    run "$SCRIPT" install
+    [ "$status" -eq 0 ]
+
+    local bb="${SCHEDULES_DIR}/session-cap-fanout-w0-bridgebuilder.yaml"
+    local fl="${SCHEDULES_DIR}/session-cap-fanout-w0-flatline.yaml"
+    grep -q 'contracts/session-cap-bb/reader.sh'     "$bb"
+    grep -q 'contracts/session-cap-bb/decider.sh'    "$bb"
+    grep -q 'contracts/session-cap-bb/dispatcher.sh' "$bb"
+    grep -q 'timeout_seconds: 1800'                  "$bb"
+    # flatline stays on the shipped no-op example scripts + placeholder timeout.
+    grep -q 'example-dispatcher.sh'  "$fl"
+    grep -q 'timeout_seconds: 300'   "$fl"
+    ! grep -q 'session-cap-bb'       "$fl"
+}
