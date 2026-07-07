@@ -347,6 +347,17 @@ _validate_translation_citations() {
         # a citation into this repo).
         [[ "$line" == *'](http'* || "$line" == *'://'* ]] && continue
 
+        # R2 review (cycle-120): the incremental `while [[ =~ ]]` scan below is
+        # superlinear on a single very long path-dense line (LLM translation
+        # docs routinely carry wide tables / pasted logs on one unwrapped line),
+        # which would hang this MUST gate with no output. Cap line length; a
+        # citation the gate must resolve never needs 2000+ chars on one line.
+        # WARN rather than silently skip so an over-long line is visible.
+        if (( ${#line} > 2000 )); then
+            warnings+=("line ${lineno} exceeds 2000 chars — citation scan skipped for this line (wrap long tables/logs)")
+            continue
+        fi
+
         local rest="$line"
         while [[ "$rest" =~ ([A-Za-z0-9_./-]+\.[A-Za-z0-9]{1,6}):L([0-9]+)(-L[0-9]+)? ]]; do
             local cited_path="${BASH_REMATCH[1]}"

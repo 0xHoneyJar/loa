@@ -199,12 +199,24 @@ _verify_review_verdict() {
     # :655/676) — anything not literally "AUDIT" maps to "review".
     local _verdict_derive_script
     _verdict_derive_script="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/verdict-derive.sh"
-    if grep -q '<!-- LOA-VERDICT ' "$feedback" 2>/dev/null && [[ -x "$_verdict_derive_script" ]]; then
+    if grep -q '<!-- LOA-VERDICT ' "$feedback" 2>/dev/null; then
+        # R2 review (cycle-120): a trailer is PRESENT, so the caller expects the
+        # structured consistency check. If verdict-derive.sh is missing or lost
+        # its +x bit, do NOT silently degrade to the legacy prose heuristic
+        # (which cannot catch an APPROVED-with-high-severity trailer) — fail
+        # closed. Gate on existence + a bash invocation, not the executable bit,
+        # so a chmod-lost-but-present script still runs (mirrors the cycle-119
+        # golden-path fix).
+        if [[ ! -f "$_verdict_derive_script" ]]; then
+            _record_failure "$phase" "VERDICT_DERIVE_UNAVAILABLE" "$feedback"
+            echo "ERROR: LOA-VERDICT trailer present but verdict-derive.sh unavailable: $_verdict_derive_script" >&2
+            return 1
+        fi
         local _vd_gate="review"
         [[ "$phase" == "AUDIT" ]] && _vd_gate="audit"
 
         local _vd_json _vd_rc
-        _vd_json=$("$_verdict_derive_script" --file "$feedback" --gate "$_vd_gate" --json 2>/dev/null)
+        _vd_json=$(bash "$_verdict_derive_script" --file "$feedback" --gate "$_vd_gate" --json 2>/dev/null)
         _vd_rc=$?
 
         if [[ "$_vd_rc" -eq 0 ]]; then
