@@ -34,7 +34,7 @@ _classify() {
 }
 
 @test "T2.I: classifies cryptographic stratum (ed25519 / signature paths)" {
-    mkdir -p lib/crypto
+    mkdir -p lib/crypto docs
     echo "ed25519 stub" > lib/crypto/signing.py
     echo "audit-keys-bootstrap stub" > docs/audit-keys-bootstrap.md
     git add .

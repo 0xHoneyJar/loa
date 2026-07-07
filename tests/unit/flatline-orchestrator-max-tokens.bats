@@ -130,11 +130,12 @@ teardown() {
         false
     }
 
-    # Required warning string (exact substring per sprint AC).
-    # NN is the rounded KB value — match the structural pattern, not literal NN.
-    [[ "$combined_output" == *"recommend \`--per-call-max-tokens 4096\` to avoid Anthropic 60s server-side disconnect"* ]] || {
+    # Required warning string. The >100KB warning was rewritten when KF-002 was
+    # RESOLVED-STRUCTURAL (streaming transport + chunked dispatch replaced the
+    # "--per-call-max-tokens 4096" recommendation); assert the current message.
+    [[ "$combined_output" == *"Large documents are handled by the streaming transport default"* ]] || {
         echo "FAIL: missing >100KB warning. Expected substring:"
-        echo "  recommend \`--per-call-max-tokens 4096\` to avoid Anthropic 60s server-side disconnect"
+        echo "  Large documents are handled by the streaming transport default"
         echo "Actual output:"
         echo "$combined_output"
         false

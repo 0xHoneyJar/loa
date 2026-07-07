@@ -38,7 +38,20 @@ for _lic in valid_license.json grace_period_license.json expired_license.json \
     [[ -s "$_ELF_DIR/$_lic" ]] || { _ELF_ALL_PRESENT=false; break; }
 done
 if [[ -s "$_ELF_PUBKEY" && "$_ELF_ALL_PRESENT" == "true" ]]; then
-    return 0 2>/dev/null || exit 0
+    # Freshness guard: the generator computes expiry relative to now, but a
+    # presence-only cache let stale fixtures survive across days — the "valid"
+    # license would silently expire, breaking every date-sensitive test. Treat
+    # an already-expired "valid" fixture as absent and regenerate.
+    _ELF_VEXP="$(grep -oE '"expires_at"[[:space:]]*:[[:space:]]*"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]+Z"' "$_ELF_DIR/valid_license.json" 2>/dev/null \
+                 | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]+Z' | head -1)"
+    if [[ -n "$_ELF_VEXP" ]]; then
+        _ELF_VEXP_TS="$(date -u -d "$_ELF_VEXP" +%s 2>/dev/null \
+                        || date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$_ELF_VEXP" +%s 2>/dev/null || echo 0)"
+        if [[ "${_ELF_VEXP_TS:-0}" -gt "$(date -u +%s)" ]]; then
+            return 0 2>/dev/null || exit 0
+        fi
+    fi
+    # else: stale (expired or unparseable) → fall through to regenerate
 fi
 
 # Generate. Requires python3.
