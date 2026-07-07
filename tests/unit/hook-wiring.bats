@@ -134,13 +134,13 @@ EOF
     # cycle-119: LOA_ZONE_GUARD_AUTH_FILE=/dev/null isolates from any live
     # framework-dev authorization marker in the repo's .run/ (ZWG-T20..T25
     # cover marker behavior; these tests pin the UNAUTHORIZED baseline).
-    run bash -c 'echo "{\"tool_input\":{\"file_path\":\".claude/scripts/x.sh\"}}" | LOA_ZONE_GUARD_AUTH_FILE=/dev/null "$0"' \
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\".claude/scripts/x.sh\"}}" | LOA_ZONE_GUARD_AUTH_FILE=/dev/null LOA_ZONE_GUARD_TRAJECTORY_DIR=/nonexistent "$0"' \
         "$PROJECT_ROOT/.claude/hooks/safety/zone-write-guard.sh"
     # iter-2: Claude Code blocks on exit 2 (exit 1 = non-blocking hook error)
     [ "$status" -eq 2 ]
     [[ "$output" == *"BLOCKED"* ]]
 
-    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"grimoires/loa/NOTES.md\"}}" | LOA_ZONE_GUARD_AUTH_FILE=/dev/null "$0"' \
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"grimoires/loa/NOTES.md\"}}" | LOA_ZONE_GUARD_AUTH_FILE=/dev/null LOA_ZONE_GUARD_TRAJECTORY_DIR=/nonexistent "$0"' \
         "$PROJECT_ROOT/.claude/hooks/safety/zone-write-guard.sh"
     [ "$status" -eq 0 ]
 }
@@ -148,7 +148,7 @@ EOF
 @test "W8 bug-1002 audit: submodule physical prefix .loa/.claude/ classifies as framework (BLOCK)" {
     # In submodule mounts the .claude symlink resolves to .loa/.claude/ —
     # which matched no zone glob and fell through unclassified->ALLOW.
-    run bash -c 'echo "{\"tool_input\":{\"file_path\":\".loa/.claude/scripts/x.sh\"}}" | LOA_ZONE_GUARD_AUTH_FILE=/dev/null "$0"' \
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\".loa/.claude/scripts/x.sh\"}}" | LOA_ZONE_GUARD_AUTH_FILE=/dev/null LOA_ZONE_GUARD_TRAJECTORY_DIR=/nonexistent "$0"' \
         "$PROJECT_ROOT/.claude/hooks/safety/zone-write-guard.sh"
     [ "$status" -eq 2 ]
     [[ "$output" == *"BLOCKED"* ]]
@@ -161,7 +161,7 @@ EOF
     # bypass. Humans edit these outside the harness; agents need
     # LOA_ZONE_GUARD_BYPASS=1 under explicit operator direction.
     for f in ".claude/settings.json" ".claude/settings.local.json"; do
-        run bash -c "echo '{\"tool_input\":{\"file_path\":\"$f\"}}' | LOA_ZONE_GUARD_AUTH_FILE=/dev/null \"\$0\"" \
+        run bash -c "echo '{\"tool_input\":{\"file_path\":\"$f\"}}' | LOA_ZONE_GUARD_AUTH_FILE=/dev/null LOA_ZONE_GUARD_TRAJECTORY_DIR=/nonexistent \"\$0\"" \
             "$PROJECT_ROOT/.claude/hooks/safety/zone-write-guard.sh"
         [ "$status" -eq 2 ]
     done

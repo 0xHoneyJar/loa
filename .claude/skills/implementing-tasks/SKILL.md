@@ -235,8 +235,10 @@ See `resources/templates/implementation-report.md` for the structured
 **MUST**: immediately before writing the `COMPLETED` marker, run
 `.claude/scripts/validate-ac-verification.sh --report grimoires/loa/a2a/sprint-N/reviewer.md --sprint grimoires/loa/sprint.md`.
 Exit 0 → proceed. Exit 1 → fix the reported AC rows (exact repair text) and
-re-run before writing the marker. Script missing → fall back to the manual
-walk above (fail-open, pre-cycle-119 semantics).
+re-run before writing the marker. Exit 2 (usage error / file not found) →
+treat as a validator FAILURE, do NOT proceed: fix the report/sprint path and
+re-run. Script missing entirely → fall back to the manual walk above
+(fail-open, pre-cycle-119 semantics).
 
 ## Reproducibility (R - Reproducible Results)
 - Write tests with specific assertions: NOT "it works" → "returns 200 status, response includes user.id field"

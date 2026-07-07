@@ -92,9 +92,11 @@ Grimoire and state file locations configurable via `.loa.config.yaml`. Overrides
 ## Karpathy Principles (applies on EVERY turn, not just /implement)
 
 Adapted from [Andrej Karpathy's LLM coding observations](https://x.com/karpathy/status/2015883857489522876).
-The four principles apply to every code-touching turn in Loa — not just the
-two skills that embed `<karpathy_principles>` (`implementing-tasks`,
-`reviewing-code`). Detailed protocol: `.claude/protocols/karpathy-principles.md`.
+The four principles apply to every code-touching turn in Loa. This section is
+the canonical in-context statement — skills reference it rather than restating
+it (cycle-119). Detailed protocol: `.claude/protocols/karpathy-principles.md`.
+Mechanical agent hygiene (wait-loops, cd discipline, batch-Read-before-edit,
+fan-out budgets): `.claude/protocols/agent-ergonomics.md`.
 
 ### 1. Think Before Coding
 
@@ -304,6 +306,10 @@ The cheval Python substrate is the **unconditional** dispatch path for all multi
 **No runtime-flag rollback** — rollback is `git revert` per `grimoires/loa/runbooks/cycle-109-rollback.md`.
 
 **Reference**: `.claude/loa/reference/multi-model-reference.md`
+
+## Tiered Subagent Dispatch (cycle-119)
+
+Evidence-gathering fan-outs MAY dispatch `loa-scout` (`.claude/agents/loa-scout.md` — Haiku, read-only). Verdict-bearing work (review/audit/red-team/BB) NEVER runs on a pinned cheaper model: `validate-skill-capabilities.sh` rejects `model:`/`agent:` frontmatter on `role: review|audit` skills (Claude-harness twin of NFR-Sec1). Review/audit feedback files end with a machine `LOA-VERDICT` trailer; `verdict-derive.sh` enforces prose/trailer consistency and the one-way rule (critical+high>0 ⇒ CHANGES_REQUIRED — zero counts never force approval). Methodology: `grimoires/loa/reports/mechanical-floor-methodology-2026-07-07.md`.
 
 ## Invisible Prompt Enhancement
 

@@ -36,6 +36,10 @@ YAML
     # tests must pin the UNAUTHORIZED baseline regardless of live session
     # state. ZWG-T20..T25 override this per-invocation with real fixtures.
     export LOA_ZONE_GUARD_AUTH_FILE="$SCRATCH/no-marker.json"
+    # cycle-119 (audit): keep test decisions out of the PRODUCTION trajectory
+    # log — the marker mechanism's audit trail must contain only real writes.
+    export LOA_ZONE_GUARD_TRAJECTORY_DIR="$SCRATCH/trajectory"
+    mkdir -p "$SCRATCH/trajectory"
 }
 
 teardown() {

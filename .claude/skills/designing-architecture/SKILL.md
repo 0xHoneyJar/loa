@@ -338,7 +338,7 @@ When making architectural choices:
 <post_completion>
 ## Post-Completion Debrief
 
-After saving the SDD to `grimoires/loa/sdd.md`, MUST run `.claude/scripts/validate-artifact.sh --type sdd --file grimoires/loa/sdd.md` before the debrief; repair per its output on exit 1. ALWAYS present a structured debrief before the user decides to continue.
+After saving the SDD to `grimoires/loa/sdd.md`, MUST run `.claude/scripts/validate-artifact.sh --type sdd --file grimoires/loa/sdd.md` before the debrief; repair per its output on exit 1; exit 2 (usage/file-not-found) is a validator FAILURE — fix the path and re-run, do not proceed. ALWAYS present a structured debrief before the user decides to continue.
 
 ### Debrief Structure
 

@@ -280,7 +280,9 @@ ACTOR="${LOA_ACTOR:-project-work}"
 _emit_decision() {
     local decision="$1"
     local reason="$2"
-    local trajectory_dir="${PROJECT_ROOT}/grimoires/loa/a2a/trajectory"
+    # cycle-119 audit: test-mode override so bats suites don't pollute the
+    # production trajectory log (the marker's audit trail must stay clean).
+    local trajectory_dir="${LOA_ZONE_GUARD_TRAJECTORY_DIR:-${PROJECT_ROOT}/grimoires/loa/a2a/trajectory}"
     if [[ -d "${trajectory_dir}" ]]; then
         # perf pass-2: one bash strftime replaces two `date -u` spawns; the
         # log-file date is the timestamp's date field (identical format,

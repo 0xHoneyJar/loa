@@ -564,7 +564,7 @@ Diagram inclusion is **optional** for sprint plans - use agent discretion.
 <post_completion>
 ## Post-Completion Debrief
 
-After saving the Sprint Plan to `grimoires/loa/sprint.md`, MUST run `.claude/scripts/validate-artifact.sh --type sprint --file grimoires/loa/sprint.md` before the debrief; repair per its output on exit 1. ALWAYS present a structured debrief before the user decides to continue.
+After saving the Sprint Plan to `grimoires/loa/sprint.md`, MUST run `.claude/scripts/validate-artifact.sh --type sprint --file grimoires/loa/sprint.md` before the debrief; repair per its output on exit 1; exit 2 (usage/file-not-found) is a validator FAILURE — fix the path and re-run, do not proceed. ALWAYS present a structured debrief before the user decides to continue.
 
 ### Debrief Structure
 

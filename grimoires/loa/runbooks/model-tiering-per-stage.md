@@ -19,6 +19,25 @@
 - Regardless of the A/B outcome, **the flag stays false** until an operator
   decides otherwise with a `Tier-Change-Evidence:` citation.
 
+## Cycle-119 addendum: the Claude-harness layer
+
+Tiering now exists on TWO dispatch layers. This runbook covers the cheval
+(cross-model substrate) layer. The Claude-harness layer (cycle-119):
+
+- `.claude/agents/loa-scout.md` (Haiku, read-only) is dispatchable for
+  evidence-gathering fan-outs; anything verdict-bearing stays on the session
+  model.
+- `validate-skill-capabilities.sh` mechanically rejects `model:`/`agent:`
+  frontmatter on `role: review|audit` skills — the harness-layer twin of
+  NFR-Sec1's advisor hard-pin. A future skill pin requires: measured traffic +
+  a mechanical output gate + a `Tier-Change-Evidence:` citation (cycle-119
+  shipped ZERO skill pins on this evidence bar — see
+  `grimoires/loa/reports/mechanical-floor-methodology-2026-07-07.md` §5).
+- MODELINV envelopes now carry `calling_primitive` from flatline
+  (`flatline-<mode>`) and adversarial-review (`adversarial-<type>`) dispatches,
+  so `/loa status --economy` accumulates the per-skill evidence this runbook's
+  §"signals for a tier change" needs.
+
 ## Why this exists: five config surfaces, one governs dispatch
 
 Loa has accreted several parallel model-selection mechanisms. Knowing which one

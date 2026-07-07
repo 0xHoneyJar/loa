@@ -817,11 +817,17 @@ if [[ "$command" == *"rm"* && "$command" == *"-"* ]] \
       # come from the INNER find's root, which this walk never reaches (it
       # breaks at the first `-exec`). Any `find` token inside the span means
       # the outer root does not govern the deletions => ineligible.
+      # SYMLINK-FOLLOW disqualifier (audit catch, cycle-119): -L / -H /
+      # -follow make find traverse symlinks, so deletions can escape the
+      # classified root through a planted link ({} resolves OUTSIDE the safe
+      # tree). GNU find tolerates these after the root, where the leading-
+      # flag break below never sees them => scan the whole span.
       read -r -a _find_span_toks <<<"${BASH_REMATCH[3]}"
       _find_root_count=0
       _find_nested=0
       for _ftok in ${_find_span_toks[@]+"${_find_span_toks[@]}"}; do
         [[ "$_ftok" == "find" || "$_ftok" == */find ]] && _find_nested=1
+        [[ "$_ftok" == "-L" || "$_ftok" == "-H" || "$_ftok" == "-follow" ]] && _find_nested=1
       done
       for _ftok in ${_find_span_toks[@]+"${_find_span_toks[@]}"}; do
         case "$_ftok" in

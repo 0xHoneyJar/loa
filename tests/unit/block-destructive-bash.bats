@@ -609,6 +609,30 @@ hook_invoke() {
     [ "$status" -eq 2 ]
 }
 
+# Audit catch (cycle-119): -L / -H / -follow make find traverse symlinks, so
+# a planted link inside an allow-listed root lets {} resolve OUTSIDE it.
+# These shapes were blocked pre-cycle-119 and must stay blocked.
+
+@test "C15 symlink-follow MUST-BLOCK: find ./build -L -exec rm -rf {} +" {
+    run hook_invoke "find ./build -L -exec rm -rf {} +"
+    [ "$status" -eq 2 ]
+}
+
+@test "C15 symlink-follow MUST-BLOCK: find ./build -H -exec rm -rf {} +" {
+    run hook_invoke "find ./build -H -exec rm -rf {} +"
+    [ "$status" -eq 2 ]
+}
+
+@test "C15 symlink-follow MUST-BLOCK: find ./build -follow -exec rm -rf {} +" {
+    run hook_invoke "find ./build -follow -exec rm -rf {} +"
+    [ "$status" -eq 2 ]
+}
+
+@test "C15 symlink-follow MUST-BLOCK: -follow between primaries" {
+    run hook_invoke "find ./build -name '*.o' -follow -exec rm -rf {} +"
+    [ "$status" -eq 2 ]
+}
+
 # =============================================================================
 # Group D — fail-open tests (FR-3 / NFR-3)
 # =============================================================================

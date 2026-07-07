@@ -503,7 +503,9 @@ Invalid transitions (e.g., TRIAGE → AUDITING) must be rejected with an error.
 
 5. Apply PII redaction to both output files before final write
 6. MUST run `.claude/scripts/validate-artifact.sh --type bug-triage --file grimoires/loa/a2a/bug-{bug_id}/triage.md`;
-   repair per its output on exit 1 before proceeding to ledger registration
+   repair per its output on exit 1 before proceeding to ledger registration;
+   exit 2 (usage/file-not-found) is a validator FAILURE — fix the path and
+   re-run, do not proceed
 ```
 
 ### Ledger Registration
