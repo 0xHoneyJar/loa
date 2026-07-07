@@ -176,6 +176,35 @@ agent-ergonomics fan-out budget rule (per-lens tool-use cap + short-circuit)
 and loa-scout delegation, both enforced at dispatch time, not repo-config time.
 Guidance stands; bead closed with this reasoning.
 
+### Flatline-scorer tier A/B — evidence-gated, NOT flipped (bd-toag)
+Ran the pre-registered A/B live (5 trials/tier, Opus-4.8 advisor vs Sonnet-5
+executor, 20-item gold set, 8m52s, $-capped): all 11 cells passed.
+
+| Metric | advisor (Opus-4.8) | executor (Sonnet-5) |
+|--------|--------------------|---------------------|
+| would_integrate agreement (mean) | 0.90 | **0.93** |
+| band_hit_rate (mean) | 0.60 | 0.59 |
+
+Paired bootstrap: agreement mean_delta = −0.03, CI [−0.05, −0.01] (executor
+statistically **better** on the decision axis). Pre-registered rule (spec C-D1):
+`PASS ⇔ mean_delta ≤ 0.05 AND ci_upper ≤ 0.10 AND band_hit_rate within 0.05 AND
+both band_hit_rates ≥ 0.80`. First three clauses pass; the fourth fails —
+**both** tiers score band_hit_rate ≈ 0.60, well under 0.80. By the conjunction,
+the verdict is **NOT PASS → flag `stage_routing.flatline_scorer` stays false.**
+
+The honest read: on the axis the scorer actually gates (would_integrate), the
+cheaper tier is non-inferior — indeed superior. What blocks the flip is that
+*neither* tier hits the numeric-band calibration bar, so this run can't
+distinguish "cheap tier is good enough" from "the whole scorer's numeric
+calibration is loose / the gold bands are too tight." That is a gold-set design
+question, not a tier question. Per the pre-registered single-non-repeatable-
+attempt clause, re-attempting requires a materially larger/fresh gold set (new
+bead), not a re-run of this 20-item set hoping for a different bootstrap draw.
+This is the pre-registration discipline doing its job: the tempting move —
+"executor won on agreement, flip it" — is exactly the post-hoc rationalization
+the fourth clause exists to stop. Evidence recorded at
+`grimoires/loa/cycles/cycle-116-quality-per-token/d3-flatline-scorer-ab/outcomes-20260707T113653Z.jsonl`.
+
 ### The pattern held again
 Layered independent verification kept paying: the design panel caught a
 context-window guess and REJECTED a hook approach that would have shipped a
