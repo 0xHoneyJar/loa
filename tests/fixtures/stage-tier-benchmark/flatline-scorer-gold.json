@@ -1,5 +1,5 @@
 {
-  "_comment": "cycle-116 D3 (bd-c116-d3-tiering) hand-labeled gold set for the flatline-scorer tier A/B. `improvements` is the exact input shape flatline-scorer consumes (see flatline-orchestrator.sh:1480 extract_json_content '{\"improvements\":[]}'). `gold` is the human-assigned reference per finding id: expected_band is the flatline-scorer persona's 0-1000 rubric bucket (800-1000 critical / 600-799 valuable / 400-599 nice-to-have / 0-399 low-value), would_integrate is the reference integrate/skip call. The A/B agreement metric (test_d3_flatline_scorer_tier_ab.py) scores a model by the fraction of findings whose would_integrate matches gold. Findings are chosen to be unambiguous so a competent scorer of EITHER tier should agree; disagreement is the quality signal the A/B is measuring.",
+  "_comment": "cycle-116 D3 (bd-c116-d3-tiering) hand-labeled gold set for the flatline-scorer tier A/B. `improvements` is the exact input shape flatline-scorer consumes (see flatline-orchestrator.sh:1480 extract_json_content '{\"improvements\":[]}'). `gold` is the human-assigned reference per finding id: expected_band is the flatline-scorer persona's 0-1000 rubric bucket (800-1000 critical / 600-799 valuable / 400-599 nice-to-have / 0-399 low-value), would_integrate is the reference integrate/skip call. The A/B agreement metric (test_d3_flatline_scorer_tier_ab.py) scores a model by the fraction of findings whose would_integrate matches gold. Findings are chosen to be unambiguous so a competent scorer of EITHER tier should agree; disagreement is the quality signal the A/B is measuring. cycle-120 C-D1: expanded 6->20 entries. IMP-007..020 are self-contained rewrites of real MEDIUM/LOW/HIGH findings drawn from .run/bridge-reviews/*-findings.json (13 files scanned; pool tally 0 critical / 8 HIGH / 47 MEDIUM+LOW; zero critical findings existed in the pool, so IMP-007/008/009 are SYNTHESIZED textbook-clear critical exemplars per panel authorization -- see label_rationale for the per-entry provenance/rationale note the panel required. This is a DRAFT for lead review before the A/B run; would_integrate/expected_band calls are not yet lead-confirmed.",
   "improvements": [
     {
       "id": "IMP-001",
@@ -42,6 +42,104 @@
       "description": "Suggests building a generic plugin/extension framework for integrations that no one has requested and no roadmap item references. Textbook YAGNI; adds surface area and maintenance burden with no current consumer.",
       "category": "architecture",
       "severity": "low"
+    },
+    {
+      "id": "IMP-007",
+      "title": "Unauthenticated remote code execution via eval() on user-supplied plugin config",
+      "description": "The plugin loader passes a user-controllable configuration string directly into `eval()` to resolve dynamic settings, with no sandboxing, allowlist, or origin check. Any actor who can submit plugin config (including an unauthenticated upload path) can execute arbitrary code with the service's privileges. This is a complete remote-code-execution primitive on an unauthenticated surface, the most severe class of finding a reviewer can raise.",
+      "category": "security",
+      "severity": "critical"
+    },
+    {
+      "id": "IMP-008",
+      "title": "Path traversal in the file-download endpoint allows reading arbitrary files",
+      "description": "The `/download` endpoint builds the filesystem path by concatenating an unsanitized `filename` query parameter onto the storage root, with no normalization or containment check. A request containing `../../` sequences escapes the storage directory and can read any file readable by the service account (e.g. `/etc/passwd`, credential files, other tenants' data). Unauthenticated arbitrary file read is a critical, immediately exploitable data-exfiltration path.",
+      "category": "security",
+      "severity": "critical"
+    },
+    {
+      "id": "IMP-009",
+      "title": "Hardcoded admin credentials committed to a public configuration file",
+      "description": "A `config/defaults.yaml` file checked into the public repository contains a hardcoded admin username and password used as the fallback when no environment override is set. Any party with read access to the repository (which is public) has full administrative access to any deployment that has not explicitly overridden the default. This is a complete authentication-bypass / account-takeover primitive requiring no exploitation skill.",
+      "category": "security",
+      "severity": "critical"
+    },
+    {
+      "id": "IMP-010",
+      "title": "Global mutable state for credential provider lacks thread safety",
+      "description": "The credential-provider module keeps its cached provider instance and an initialized flag as module-level globals, mutated by the lazy-initialization function with no lock or atomic guard. The system currently runs single-threaded, so no failure has been observed, but the pattern is a latent race condition: if the module is ever invoked from async code, a thread pool, or a parallel test runner, two callers can interleave during initialization and end up with two different provider instances, one of which silently loses its state. The fix (a lock around lazy init, or a cache-based singleton factory) is small and removes the global mutable state entirely.",
+      "category": "resilience",
+      "severity": "high"
+    },
+    {
+      "id": "IMP-011",
+      "title": "grep -P (Perl-compatible regex) breaks the attribution engine on macOS and minimal Linux",
+      "description": "A shell script uses `grep -P` for word-boundary matching. GNU grep's `-P` flag is unavailable on macOS's shipped BSD grep and on minimal Linux distributions such as Alpine. Because the script also redirects grep's stderr to `/dev/null`, the resulting non-zero exit is silently swallowed rather than surfaced as an error — every affected user simply gets systematically degraded output with no indication anything went wrong. This is a portability defect that will reproduce for a large fraction of the developer-machine target audience, and the silent-failure aspect makes it worse than a hard crash.",
+      "category": "portability",
+      "severity": "high"
+    },
+    {
+      "id": "IMP-012",
+      "title": "Missing bash-version-guard causes a hard crash on macOS's system bash",
+      "description": "A shell script uses associative arrays (`declare -A`), a bash 4.0+ feature, but does not source the project's bash-version-guard helper that every sibling script uses to detect and reject bash 3.2 (the version macOS ships by default). Users who invoke this script directly on macOS's system bash will hit a raw `declare: -A: invalid option` failure with no actionable message, instead of the project's standard guarded error. The fix is a one-line source of the existing guard helper, consistent with how the rest of the codebase already handles this exact risk.",
+      "category": "portability",
+      "severity": "high"
+    },
+    {
+      "id": "IMP-013",
+      "title": "Inter-model content sanitizer passes suspicious content through unchanged, defeating its purpose",
+      "description": "The inter-model sanitizer is supposed to strip or neutralize content it flags as a prompt-injection risk before passing it between models in a multi-model review pipeline. On detection, however, the current implementation logs the detection but forwards the original, unmodified content to the downstream model anyway. This means the sanitizer provides observability into injection attempts but zero actual protection — the exact content it identified as dangerous still reaches the next model in the chain. This is a security control that appears to function (it detects) but does not perform its stated function (it does not sanitize).",
+      "category": "security",
+      "severity": "high"
+    },
+    {
+      "id": "IMP-014",
+      "title": "Encrypted credential store silently swallows all decryption exceptions",
+      "description": "The credential store's load path catches every exception raised during decryption (corrupted ciphertext, a mismatched encryption key, a filesystem permissions error) and returns an empty dict in all cases, with no logging and no distinguishing signal. From the caller's perspective, a store with lost or unreadable credentials looks identical to a store that was never populated. A user whose credentials silently stopped decrypting would have no way to learn why authentication started failing, since the failure mode presents as 'nothing configured' rather than 'something is broken'.",
+      "category": "observability",
+      "severity": "medium"
+    },
+    {
+      "id": "IMP-015",
+      "title": "Health check sends a real billable API request instead of a free liveness probe",
+      "description": "One provider's credential health check posts a real chat-completion request (a live message payload) to prove the API key is valid, and a 200 response means a real completion was generated and billed. The equivalent health checks for other providers use a free GET-based liveness endpoint instead. Every time this health check runs — which can happen frequently, e.g. on every session start — it consumes API credits purely to prove the credential works, when a free or deliberately-invalid request could prove the same thing at zero cost.",
+      "category": "cost",
+      "severity": "medium"
+    },
+    {
+      "id": "IMP-016",
+      "title": "Duplicated scoring loops for two construct types violate DRY",
+      "description": "An attribution engine has two scoring loops — one for one construct type and a near-identical one for another — that differ only in variable names and path patterns, roughly 80 lines of structurally identical logic. Whenever a new signal type needs to be added to the scoring logic (e.g. a new match heuristic), it must be added in both loops by hand, and the two copies are already at risk of drifting apart since nothing enforces they stay in sync. Extracting a single parameterized scoring function called once per construct type would cut the code roughly in half and remove the drift risk permanently.",
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "id": "IMP-017",
+      "title": "DotenvProvider caches parsed values with no invalidation strategy",
+      "description": "The provider that reads a local dotenv-style credentials file parses and caches its contents on first read, and never re-checks the file afterward. If the underlying file is rewritten later in the same process lifetime (for example, by a command that updates a stored credential), callers continue to receive the stale cached values rather than the new ones, with no error or warning that a write did not take effect. The fix — comparing file mtime against a cached mtime before trusting the cache, or an explicit invalidation hook on the write path — is small and removes a class of 'my change didn't take effect' confusion.",
+      "category": "correctness",
+      "severity": "medium"
+    },
+    {
+      "id": "IMP-018",
+      "title": "Missing test coverage for the ambiguous-attribution branch",
+      "description": "An attribution engine has a documented branch where two candidate matches score within a small margin of each other, in which case it should mark the result ambiguous and return both candidates for the caller to disambiguate. No test exercises this branch; the existing suite only covers the single-clear-winner path. Because the ambiguous branch changes the caller's routing behavior, an unnoticed regression there would silently degrade UX (users stop getting asked to disambiguate, or get asked when they shouldn't) without failing any existing test.",
+      "category": "test_coverage",
+      "severity": "medium"
+    },
+    {
+      "id": "IMP-019",
+      "title": "Hardcoded artifact list in a cleanup routine may drift as new artifact types are added",
+      "description": "A state-cleanup function enumerates a fixed, hardcoded list of five filenames to remove. If a future feature adds a new generated artifact to the same directory, this list will not know to remove it, and the cleanup routine will silently leave the new artifact behind rather than failing loudly. The suggested fix is to derive the list from an existing manifest, or invert the logic to an explicit preserve-list plus 'remove everything else matching a pattern', either of which removes the need to remember to update this function every time a new artifact type is introduced.",
+      "category": "maintainability",
+      "severity": "low"
+    },
+    {
+      "id": "IMP-020",
+      "title": "Unquoted heredoc for JSON output risks shell metacharacter corruption",
+      "description": "A script builds its final JSON output using an unquoted heredoc so that shell variables are interpolated into the JSON text directly. If any interpolated value (for example, a name sourced from a manifest file) contains shell metacharacters such as `$`, a backtick, or `!`, the resulting output can be corrupted or, in a worst case, trigger unintended command execution during interpolation. The values currently come from a constrained parsing step which limits practical risk today, but the pattern itself is fragile: any future caller that feeds a less-constrained value through the same heredoc inherits the exposure. Building the JSON with `jq --null-input --arg` instead would make the output correct-by-construction regardless of field content.",
+      "category": "correctness",
+      "severity": "low"
     }
   ],
   "gold": {
@@ -50,6 +148,42 @@
     "IMP-003": {"expected_band": [600, 799], "would_integrate": true},
     "IMP-004": {"expected_band": [400, 599], "would_integrate": true},
     "IMP-005": {"expected_band": [0, 399], "would_integrate": false},
-    "IMP-006": {"expected_band": [0, 399], "would_integrate": false}
+    "IMP-006": {"expected_band": [0, 399], "would_integrate": false},
+    "IMP-007": {"expected_band": [800, 1000], "would_integrate": true},
+    "IMP-008": {"expected_band": [800, 1000], "would_integrate": true},
+    "IMP-009": {"expected_band": [800, 1000], "would_integrate": true},
+    "IMP-010": {"expected_band": [600, 799], "would_integrate": true},
+    "IMP-011": {"expected_band": [600, 799], "would_integrate": true},
+    "IMP-012": {"expected_band": [600, 799], "would_integrate": true},
+    "IMP-013": {"expected_band": [600, 799], "would_integrate": true},
+    "IMP-014": {"expected_band": [400, 599], "would_integrate": true},
+    "IMP-015": {"expected_band": [400, 599], "would_integrate": true},
+    "IMP-016": {"expected_band": [400, 599], "would_integrate": true},
+    "IMP-017": {"expected_band": [400, 599], "would_integrate": true},
+    "IMP-018": {"expected_band": [400, 599], "would_integrate": true},
+    "IMP-019": {"expected_band": [0, 399], "would_integrate": false},
+    "IMP-020": {"expected_band": [0, 399], "would_integrate": false}
+  },
+  "label_rationale": {
+    "IMP-001": "Existing entry, unchanged: unauthenticated SQLi is textbook critical/integrate.",
+    "IMP-002": "Existing entry, unchanged: revenue-impacting double-charge race is textbook critical/integrate.",
+    "IMP-003": "Existing entry, unchanged: clear DRY win, real but non-urgent -> valuable.",
+    "IMP-004": "Existing entry, unchanged: modest-effort observability add -> nice-to-have.",
+    "IMP-005": "Existing entry, unchanged: full rewrite for style, no benefit -> low-value/skip.",
+    "IMP-006": "Existing entry, unchanged: speculative plugin system, textbook YAGNI -> low-value/skip.",
+    "IMP-007": "SYNTHESIZED critical exemplar -- no critical findings in bridge-reviews pool. Unauthenticated RCE via eval() on attacker-controlled input is the most severe, unambiguous class of finding; any competent reviewer of either tier integrates immediately.",
+    "IMP-008": "SYNTHESIZED critical exemplar -- no critical findings in bridge-reviews pool. Unauthenticated arbitrary file read via path traversal is a textbook, immediately-exploitable critical.",
+    "IMP-009": "SYNTHESIZED critical exemplar -- no critical findings in bridge-reviews pool. Hardcoded admin credentials in a public repo is a zero-skill full account-takeover primitive; unambiguous critical.",
+    "IMP-010": "Rewritten from bridge-20260213-8d24fa-iter1 HIGH 'Global mutable state for credential provider lacks thread safety'. Real but latent (single-threaded today) -> valuable, not critical.",
+    "IMP-011": "Rewritten from bridge-20260217-7c12d8-iter1 HIGH 'grep -P (Perl regex) breaks on macOS and minimal Linux'. Silent portability breakage across a large user segment -> valuable.",
+    "IMP-012": "Rewritten from bridge-20260217-7c12d8-iter1 HIGH 'Missing bash-version-guard.sh in construct-attribution.sh'. Hard crash on a supported platform, one-line fix -> valuable.",
+    "IMP-013": "Rewritten from bridge-20260214-c012evo-iter1 HIGH 'Inter-model sanitizer passes through content unchanged on detection, defeating the purpose'. A security control that doesn't perform its function is serious but the blast radius is scoped to the review pipeline, not an external unauthenticated user -> valuable rather than critical.",
+    "IMP-014": "Rewritten from bridge-20260213-8d24fa-iter1 MEDIUM 'EncryptedStore silently swallows all decryption exceptions'. Real observability gap with user-facing confusion -> nice-to-have.",
+    "IMP-015": "Rewritten from bridge-20260213-8d24fa-iter1 MEDIUM 'Anthropic health check sends a real API request that may consume credits'. Real recurring cost leak, bounded and cheap to fix -> nice-to-have.",
+    "IMP-016": "Rewritten from bridge-20260217-7c12d8-iter1 MEDIUM 'Duplicated scoring loops violate DRY'. Clear maintainability win, not urgent -> nice-to-have.",
+    "IMP-017": "Rewritten from bridge-20260213-8d24fa-iter1 MEDIUM 'DotenvProvider cache has no invalidation strategy'. Real correctness gap with a narrow trigger condition -> nice-to-have.",
+    "IMP-018": "Rewritten from bridge-20260217-7c12d8-iter1 MEDIUM 'No test coverage for disambiguation (ambiguous=true case)'. Real gap on a UX-affecting code path with a clear, boundable fix -> nice-to-have, consistent with its MEDIUM source severity.",
+    "IMP-019": "Rewritten from bridge-20260213-f305fix-iter1-adjacent LOW 'Hardcoded artifact list in clean_grimoire_state may drift'. Small, deferred hygiene item -> low-value/skip.",
+    "IMP-020": "Rewritten from bridge-20260217-7c12d8-iter1 LOW 'Unquoted heredoc for JSON output risks shell expansion'. Defense-in-depth hardening on an already-constrained input path -> low-value/skip."
   }
 }
