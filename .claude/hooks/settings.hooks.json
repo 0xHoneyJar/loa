@@ -2,6 +2,42 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "_comment": "Hook configuration for Loa. Merge into ~/.claude/settings.json",
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/scripts/check-updates.sh --notify",
+            "async": true,
+            "once": true
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/session-start/loa-l6-surface-handoffs.sh",
+            "async": true,
+            "once": true
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/session-start/loa-l7-surface-soul.sh",
+            "async": true,
+            "once": true
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/session-start/loa-run-mode-session-title.sh",
+            "async": true,
+            "once": true
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/loa-kf-surface.sh",
+            "once": true
+          }
+        ]
+      }
+    ],
     "PreCompact": [
       {
         "matcher": "",

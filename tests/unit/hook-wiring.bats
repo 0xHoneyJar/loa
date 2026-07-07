@@ -41,6 +41,18 @@ PARKED_HOOKS="implement-gate.sh stop-input-probe.sh"
     [ "$missing" -eq 0 ]
 }
 
+@test "W10 bd-hooks-template-sessionstart-parity: every template SessionStart command is wired in live settings.json" {
+    local missing=0
+    while IFS= read -r cmd; do
+        if ! jq -e --arg c "$cmd" \
+            '[.hooks.SessionStart[].hooks[].command] | index($c)' "$LIVE" >/dev/null; then
+            echo "template-wired but ABSENT from live: $cmd" >&2
+            missing=$((missing + 1))
+        fi
+    done < <(jq -r '.hooks.SessionStart[].hooks[].command' "$TEMPLATE" | sort -u)
+    [ "$missing" -eq 0 ]
+}
+
 @test "W2 bug-1002: zone-write-guard.sh is wired for Write and Edit in BOTH files" {
     for f in "$TEMPLATE" "$LIVE"; do
         for tool in Write Edit; do
