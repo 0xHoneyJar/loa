@@ -474,7 +474,7 @@ create_symlinks() {
   fi
 
   # Create .claude directory structure
-  mkdir -p .claude .claude/skills .claude/commands .claude/loa
+  mkdir -p .claude .claude/skills .claude/commands .claude/agents .claude/loa
 
   # Load authoritative manifest
   get_symlink_manifest "$SUBMODULE_PATH"
@@ -521,6 +521,17 @@ create_symlinks() {
     cmd_name=$(basename "$link_path")
     safe_symlink "$link_path" "$target"
     log "  Linked command: $cmd_name"
+  done
+
+  # Phase 4.5: Per-agent symlinks (dynamic from manifest; C12/A6 cycle-119)
+  step "Linking agents..."
+  for entry in ${MANIFEST_AGENT_SYMLINKS[@]+"${MANIFEST_AGENT_SYMLINKS[@]}"}; do
+    local link_path="${entry%%:*}"
+    local target="${entry#*:}"
+    local agent_name
+    agent_name=$(basename "$link_path")
+    safe_symlink "$link_path" "$target"
+    log "  Linked agent: $agent_name"
   done
 
   # #842: Phase 5 — COPY phase. Extracted to refresh_copy_set (#968) so
@@ -969,7 +980,7 @@ verify_and_reconcile_symlinks() {
 
   # Load authoritative manifest (DRY — single source of truth)
   get_symlink_manifest "$submodule" "$repo_root"
-  local -a all_symlinks=("${MANIFEST_DIR_SYMLINKS[@]}" "${MANIFEST_FILE_SYMLINKS[@]}" "${MANIFEST_SKILL_SYMLINKS[@]}" "${MANIFEST_CMD_SYMLINKS[@]}")
+  local -a all_symlinks=("${MANIFEST_DIR_SYMLINKS[@]}" "${MANIFEST_FILE_SYMLINKS[@]}" "${MANIFEST_SKILL_SYMLINKS[@]}" "${MANIFEST_CMD_SYMLINKS[@]}" ${MANIFEST_AGENT_SYMLINKS[@]+"${MANIFEST_AGENT_SYMLINKS[@]}"})
 
   step "Verifying ${#all_symlinks[@]} symlinks..."
 

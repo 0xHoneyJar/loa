@@ -444,7 +444,7 @@ eject_submodule() {
   get_symlink_manifest "$submodule_path" "$(pwd)"
 
   # Iterate all manifest entries — replace symlinks with real copies
-  for entry in "${MANIFEST_DIR_SYMLINKS[@]}" "${MANIFEST_FILE_SYMLINKS[@]}" "${MANIFEST_SKILL_SYMLINKS[@]}" "${MANIFEST_CMD_SYMLINKS[@]}"; do
+  for entry in "${MANIFEST_DIR_SYMLINKS[@]}" "${MANIFEST_FILE_SYMLINKS[@]}" "${MANIFEST_SKILL_SYMLINKS[@]}" "${MANIFEST_CMD_SYMLINKS[@]}" ${MANIFEST_AGENT_SYMLINKS[@]+"${MANIFEST_AGENT_SYMLINKS[@]}"}; do
     local link_path="${entry%%:*}"
     if [[ -L "$link_path" ]]; then
       # Resolve the real source path in the submodule

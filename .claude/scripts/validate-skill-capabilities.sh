@@ -100,6 +100,47 @@ is_write_capable_agent() {
     return 1
 }
 
+# --- Cycle-119 C13: model:/agent: frontmatter invariants ---
+# (a) role: review|audit is the Claude-harness twin of NFR-Sec1: these skills
+#     MUST NOT declare model: or agent: frontmatter (they run in-session,
+#     verdict-bearing, and must not be routed to a cheaper model/agent type).
+# (b) Any SKILL.md that declares model: must use one of these literal forms —
+#     catches typos (e.g. "sonet") that would otherwise silently fall back to
+#     the caller's inherited model.
+VALID_MODEL_REGEX='^(haiku|sonnet|opus|fable|inherit|claude-[a-z0-9.-]+)$'
+
+# Args: skill_name frontmatter role
+validate_skill_model_agent() {
+    local skill_name="$1"
+    local frontmatter="$2"
+    local role="$3"
+    local ok=true
+
+    local model_val agent_val
+    model_val=$(echo "$frontmatter" | yq eval '.model // ""' - 2>/dev/null) || model_val=""
+    agent_val=$(echo "$frontmatter" | yq eval '.agent // ""' - 2>/dev/null) || agent_val=""
+
+    if [[ "$role" == "review" || "$role" == "audit" ]]; then
+        if [[ -n "$model_val" && "$model_val" != "null" ]]; then
+            log_error "$skill_name" "role: $role MUST NOT declare model: frontmatter (cycle-119 C13a — Claude-harness twin of NFR-Sec1)"
+            ok=false
+        fi
+        if [[ -n "$agent_val" && "$agent_val" != "null" ]]; then
+            log_error "$skill_name" "role: $role MUST NOT declare agent: frontmatter (cycle-119 C13a — Claude-harness twin of NFR-Sec1)"
+            ok=false
+        fi
+    fi
+
+    if [[ -n "$model_val" && "$model_val" != "null" ]]; then
+        if ! [[ "$model_val" =~ $VALID_MODEL_REGEX ]]; then
+            log_error "$skill_name" "Invalid model: '$model_val' (must match $VALID_MODEL_REGEX — cycle-119 C13b, catches silent-inherit typos)"
+            ok=false
+        fi
+    fi
+
+    [[ "$ok" == "true" ]]
+}
+
 # --- Cycle-108 T1.D helpers ---
 
 is_valid_role() {
@@ -559,6 +600,11 @@ validate_skill() {
         if ! validate_skill_role "$skill_name" "$skill_md" "$frontmatter"; then
             has_error=true
         fi
+    fi
+
+    # --- cycle-119 C13: model:/agent: frontmatter invariants (always on) ---
+    if ! validate_skill_model_agent "$skill_name" "$frontmatter" "$declared_role"; then
+        has_error=true
     fi
 
     # # ICM-L2-INPUTS-LINT: advisory inputs manifest drift check (never fails the build)
