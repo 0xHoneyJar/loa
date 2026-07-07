@@ -86,6 +86,28 @@ LOA_ZONE_GUARD_BYPASS=1 <retry command>
 
 The bypass emits a stderr WARN + logs to trajectory. Don't bake it into your workflow — bypasses are for triage, not routine work.
 
+**Agent sessions (framework-repo self-development, cycle-119):** the env bypass
+cannot reach the hook from agent tool calls — env vars set in a Bash tool
+subshell do not propagate into the harness's PreToolUse hook subprocess. When
+an operator explicitly directs framework-zone changes (e.g. a framework-repo
+development cycle), create the **authorization marker** instead:
+
+```bash
+cat > .run/zone-guard-authorization.json <<'JSON'
+{"scope":"framework","reason":"<cycle + operator directive reference>","expires_at":"<RFC3339 UTC, e.g. 2026-07-08T04:00:00Z>"}
+JSON
+```
+
+Valid marker (scope `framework`, non-empty reason, unexpired `expires_at` in
+`...Z` form, file mtime within 24h) → framework-zone writes are ALLOWED and
+every write logs an `AUTHORIZED-MARKER` trajectory entry carrying the reason.
+Malformed, expired, stale, or wrong-scope markers are ignored (fail-closed to
+the normal decision matrix). Delete the marker when the directed work is done.
+Trust posture: the marker lives in `.run/` — the same State-Zone privilege
+domain as `zones.yaml` itself, so it grants no capability an agent didn't
+already have; it trades the silent env hatch for an audited, expiring one.
+Tests: `tests/unit/zone-write-guard.bats` ZWG-T20..T25.
+
 ### 3.2 "update-loa MUST NOT write project-zone paths"
 
 Something is invoking the hook with `LOA_ACTOR=update-loa` and trying to write a project-zone path. This means /update-loa or sync-constructs is attempting to pull a project-zone file from upstream. The hook blocks it — your project state is sovereign.
