@@ -488,7 +488,9 @@ a flat list silently degrades every downstream consumer (`get-ready-work.sh --gr
 ### Structural Validation (after creating beads)
 
 Cycles are always checked; the richer checks run when `bv` (beads_viewer) is installed
-and are skipped gracefully when it is not:
+and are skipped gracefully when it is not. bv is an OPTIONAL sidecar — Loa does not
+ship or require it; install via `.claude/scripts/beads/install-bv.sh` (or check with
+`--check-only`). Agents: never run bare `bv` (interactive TUI) — `--robot-*` flags only.
 
 ```bash
 # HARD check: the dependency graph must be a DAG
