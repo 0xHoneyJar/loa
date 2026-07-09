@@ -15,7 +15,8 @@
 # same shape), only their order differs, so downstream consumers (/implement,
 # /run) need no changes. Requires bv (beads_viewer) on PATH; falls back
 # silently to priority order when bv is absent or errors. Never runs bare `bv`
-# (that launches a TUI).
+# (that launches a TUI). SIDE EFFECT: bv's first run in a repo creates/updates a
+# root .gitignore entry for its .bv/ cache — expected, but worth knowing in CI.
 #
 # Part of Loa beads_rust integration
 

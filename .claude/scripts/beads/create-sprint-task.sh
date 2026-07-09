@@ -52,6 +52,13 @@ TITLE="${POSITIONAL[1]:-}"
 PRIORITY="${POSITIONAL[2]:-2}"
 TYPE="${POSITIONAL[3]:-task}"
 
+# An empty --deps value is neither edges nor an assertion — it would slip
+# through the edge-or-none rule unnoticed. Refuse it.
+if [ "$DEPS_SET" = true ] && [ -z "$DEPS" ]; then
+  echo "ERROR: --deps requires ids or 'none' (got an empty value)" >&2
+  exit 1
+fi
+
 if [ -z "$EPIC_ID" ] || [ -z "$TITLE" ]; then
   echo "Usage: create-sprint-task.sh <epic-id> \"Task title\" [priority] [type] [--deps <id1,id2|none>]" >&2
   echo "" >&2

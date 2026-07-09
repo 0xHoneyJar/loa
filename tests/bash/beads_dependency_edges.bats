@@ -115,3 +115,28 @@ teardown() {
         br show "$id" --json >/dev/null
     done <<< "$output"
 }
+
+@test "D9: --graph order differs from priority order when the graph demands it" {
+    command -v bv >/dev/null 2>&1 || skip "bv not installed"
+    # A LOW-priority blocker whose closure unblocks another bead, vs a
+    # HIGH-priority leaf that unblocks nothing. Priority order puts the leaf
+    # first; graph order must put the blocker first.
+    LEAF=$("$CREATE_TASK" "$EPIC_ID" "P0 leaf nothing depends on" 0 task --deps none | tail -1)
+    BLOCKER=$("$CREATE_TASK" "$EPIC_ID" "P3 blocker of downstream work" 3 task --deps none | tail -1)
+    "$CREATE_TASK" "$EPIC_ID" "Downstream, waits on blocker" 2 task --deps "$BLOCKER" >/dev/null
+
+    PRIORITY_FIRST=$("$GET_READY" 1 --ids-only)
+    GRAPH_FIRST=$("$GET_READY" 1 --ids-only --graph)
+
+    [ "$PRIORITY_FIRST" = "$LEAF" ]
+    [ "$GRAPH_FIRST" = "$BLOCKER" ]
+}
+
+@test "D10: empty --deps value is refused (neither edges nor an assertion)" {
+    BEFORE=$(br list --json | jq 'length')
+    run "$CREATE_TASK" "$EPIC_ID" "Sneaky task" 2 task --deps ""
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"empty value"* ]]
+    AFTER=$(br list --json | jq 'length')
+    [ "$BEFORE" -eq "$AFTER" ]
+}
