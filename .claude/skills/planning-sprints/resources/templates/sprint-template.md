@@ -49,10 +49,13 @@
 ### Technical Tasks
 
 <!-- Annotate each task with contributing goal(s): → **[G-1]** or → **[G-1, G-2]** -->
+<!-- Annotate each task's blockers: ⇐ {Task 1.1} or ⇐ none. This line becomes the
+     --deps flag when the task is created as a bead (edge-or-none rule) — it is what
+     makes the sprint an executable DAG instead of prose. -->
 
-- [ ] Task 1.1: {Specific technical task 1} → **[G-1]**
-- [ ] Task 1.2: {Specific technical task 2} → **[G-1, G-2]**
-- [ ] {Additional tasks...} → **[G-N]**
+- [ ] Task 1.1: {Specific technical task 1} → **[G-1]** ⇐ none
+- [ ] Task 1.2: {Specific technical task 2} → **[G-1, G-2]** ⇐ Task 1.1
+- [ ] {Additional tasks...} → **[G-N]** ⇐ {blockers | none}
 
 ### Dependencies
 - {Any dependencies on previous sprints or external factors}

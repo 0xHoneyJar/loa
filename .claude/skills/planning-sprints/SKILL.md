@@ -472,11 +472,33 @@ Use helper scripts for epic and task creation:
 # Create sprint epic
 EPIC_ID=$(.claude/scripts/beads/create-sprint-epic.sh "Sprint N: Theme" 1)
 
-# Create tasks under epic
-.claude/scripts/beads/create-sprint-task.sh "$EPIC_ID" "Task description" 2 task
+# Create tasks under epic — EVERY task declares its dependencies at creation
+TASK_A=$(.claude/scripts/beads/create-sprint-task.sh "$EPIC_ID" "Build auth middleware" 1 task --deps none)
+TASK_B=$(.claude/scripts/beads/create-sprint-task.sh "$EPIC_ID" "Wire login route" 2 task --deps "$TASK_A")
+```
 
-# Add blocking dependencies between tasks
-br dep add <blocked-task-id> <blocker-task-id>
+**Edge-or-none rule (REQUIRED):** every non-epic bead declares either `--deps <id1,id2>`
+(what blocks it) or `--deps none` (an explicit no-blockers assertion, recorded as the
+`deps:none` label). A sprint plan is an ordered list — the ordering knowledge exists NOW
+and is captured in one flag; retrofitting edges later costs O(n²) review. A task graph
+with edges is schedulable (topological order, parallel tracks, honest unblock counts);
+a flat list silently degrades every downstream consumer (`get-ready-work.sh --graph`,
+`bv --robot-plan` wave dispatch) into priority-only guessing.
+
+### Structural Validation (after creating beads)
+
+Cycles are always checked; the richer checks run when `bv` (beads_viewer) is installed
+and are skipped gracefully when it is not:
+
+```bash
+# HARD check: the dependency graph must be a DAG
+br dep cycles   # must report none
+
+# ADVISORY checks (bv): missing-dep suggestions, duplicates, plan structure
+if command -v bv &>/dev/null; then
+  CI=1 bv --robot-suggest   # review suggested edges/duplicates; apply what is real
+  CI=1 bv --robot-plan      # sanity-check the parallel tracks match plan intent
+fi
 ```
 
 ### Semantic Labels for Relationships
