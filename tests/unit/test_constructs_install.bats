@@ -291,7 +291,7 @@ EOF
 # Skill Symlinking Tests
 # =============================================================================
 
-@test "symlink_pack_skills creates symlinks in constructs/skills/" {
+@test "symlink_pack_skills creates skill symlinks in the skills dir (#153 layout)" {
     skip_if_not_implemented
 
     create_mock_pack "skill-link-pack"
@@ -299,12 +299,21 @@ EOF
     source "$INSTALL_SCRIPT"
     cd "$TEST_TMPDIR"
 
+    # Since #153 the function links pack skills FLAT into the Claude Code
+    # discovery dir (.claude/skills/<skill>), not constructs/skills/<pack>/.
+    # LOA_SKILLS_DIR points it at the test workspace instead of the live repo.
+    export LOA_SKILLS_DIR="$TEST_TMPDIR/.claude/skills"
+
     local linked
     linked=$(symlink_pack_skills "skill-link-pack")
 
-    # Check symlink was created
-    [ -L "$LOA_CONSTRUCTS_DIR/skills/skill-link-pack/test-skill" ]
+    # Check symlink was created at the discovery path and resolves into the pack
+    [ -L "$LOA_SKILLS_DIR/test-skill" ]
+    [ -e "$LOA_SKILLS_DIR/test-skill" ]
+    [[ "$(readlink "$LOA_SKILLS_DIR/test-skill")" == *"constructs/packs/skill-link-pack/skills/test-skill"* ]]
     [ "$linked" -eq 1 ]
+
+    unset LOA_SKILLS_DIR
 }
 
 @test "unlink_pack_skills removes skill symlinks" {
