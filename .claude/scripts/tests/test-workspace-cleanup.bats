@@ -16,10 +16,13 @@
 
 # Setup and teardown
 
-# sprint-bug-172 / bug-911: sha256_portable from compat-lib
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/compat-lib.sh"
-
 setup() {
+    # sprint-bug-172 / bug-911: sha256_portable from compat-lib. Sourced INSIDE
+    # setup (not at file top-level) via $BATS_TEST_DIRNAME — a top-level source
+    # using ${BASH_SOURCE[0]} is unreliable during bats' gather phase (dirname
+    # resolves to /tmp), which aborted the whole script-tests suite in CI.
+    source "$BATS_TEST_DIRNAME/../compat-lib.sh"
+
     # Create temporary test directory
     export TEST_DIR=$(mktemp -d)
     export PROJECT_ROOT="$TEST_DIR"
