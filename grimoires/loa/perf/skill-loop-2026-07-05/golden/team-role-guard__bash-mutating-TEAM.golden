@@ -1,0 +1,6 @@
+COMBO: team-role-guard__bash-mutating-TEAM
+EXIT: 2
+--- STDOUT ---
+--- STDERR ---
+BLOCKED [team-role-guard]: Git commit is lead-only in Agent Teams mode (C-TEAM-004). Report completed work to the lead via SendMessage.
+Teammate 'bench-mate' cannot perform this operation. Report to the team lead via SendMessage.

@@ -140,3 +140,81 @@ STUB
     grep -q 'degraded_reviews: \$degraded_reviews' "$psr"
     grep -q 'WARNING: \$degraded_count of \$sdd_count' "$psr"
 }
+
+# --- cycle-117 item D (#1177): degraded-verdict trajectory + page ----------
+# Reuses the LOA_RTCD_TEST_MODE stub-adapter seam (same as RTC-T5/T6) to
+# force the exact exit-12 / empty-content conditions, then asserts a
+# degraded-verdict-<DATE>.jsonl record ALSO lands (in an isolated dir via
+# LOA_DEGRADED_VERDICT_DIR, never the real repo tree) plus exactly one push
+# via a real (non-stubbed) push-notify-lib.sh dispatch — LOA_PUSH_CONFIG
+# points at a fixture enabling push_command with a command that appends a
+# marker line, the same mechanism an operator would configure for real.
+
+_write_push_fixture_config() {
+    local push_log="$1"
+    cat > "$FIX/push-config.yaml" <<YAML
+notifications:
+  push_command:
+    enabled: true
+    command: "printf '%s\n' \"\$LOA_PUSH_MESSAGE|\$LOA_PUSH_SOURCE|\$LOA_PUSH_STATE|\$LOA_PUSH_ID\" >> '$push_log'"
+    timeout_sec: 5
+YAML
+}
+
+@test "RTC-T9: adapter exit-12 (CHAIN_EXHAUSTED) -> degraded-verdict record + exactly one push" {
+    _require_seam
+    local traj_dir="$FIX/trajectory"
+    local push_log="$FIX/push.log"
+    _write_push_fixture_config "$push_log"
+    export LOA_PUSH_CONFIG="$FIX/push-config.yaml"
+    export LOA_DEGRADED_VERDICT_DIR="$traj_dir"
+
+    cat > "$FIX/stub/adapter" <<'STUB'
+#!/usr/bin/env bash
+echo "chain exhausted: all fallbacks failed" >&2
+exit 12
+STUB
+    chmod +x "$FIX/stub/adapter"
+    _run_gate "$FIX/stub/adapter"
+    [ "$status" -ne 0 ]
+
+    local traj
+    traj="$traj_dir/degraded-verdict-"*.jsonl
+    [ -f $traj ]
+    [ "$(jq -r '.gate' $traj)" = "red-team:code-vs-design" ]
+    [ "$(jq -r '.verdict_band' $traj)" = "DEGRADED" ]
+    [ "$(jq -r '.degradation_reason' $traj)" = "model_invocation_failed" ]
+    [ "$(jq -r '.model_exit_code' $traj)" = "12" ]
+    [ "$(jq -r '.sprint_id' $traj)" = "sprint-test" ]
+
+    [ -f "$push_log" ]
+    [ "$(wc -l < "$push_log")" -eq 1 ]
+}
+
+@test "RTC-T10: EMPTY model content -> degraded-verdict record (null exit code) + exactly one push" {
+    _require_seam
+    local traj_dir="$FIX/trajectory"
+    local push_log="$FIX/push.log"
+    _write_push_fixture_config "$push_log"
+    export LOA_PUSH_CONFIG="$FIX/push-config.yaml"
+    export LOA_DEGRADED_VERDICT_DIR="$traj_dir"
+
+    cat > "$FIX/stub/adapter" <<'STUB'
+#!/usr/bin/env bash
+printf '{"content": ""}'
+STUB
+    chmod +x "$FIX/stub/adapter"
+    _run_gate "$FIX/stub/adapter"
+    [ "$status" -ne 0 ]
+
+    local traj
+    traj="$traj_dir/degraded-verdict-"*.jsonl
+    [ -f $traj ]
+    [ "$(jq -r '.gate' $traj)" = "red-team:code-vs-design" ]
+    [ "$(jq -r '.verdict_band' $traj)" = "DEGRADED" ]
+    [ "$(jq -r '.degradation_reason' $traj)" = "empty_or_invalid_model_output" ]
+    [ "$(jq -r '.model_exit_code' $traj)" = "null" ]
+
+    [ -f "$push_log" ]
+    [ "$(wc -l < "$push_log")" -eq 1 ]
+}

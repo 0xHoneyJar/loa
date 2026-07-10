@@ -1,0 +1,74 @@
+name: REPO-MAP Drift Gate
+
+# cycle-116 D4 (bd-c116-d4-repo-map-x69d) — keep the committed
+# grimoires/loa/REPO-MAP.md in sync with loa's framework code under .claude/.
+# Mirrors agents-md-drift.yml's two-job shape.
+#
+# Two jobs, DELIBERATELY different severities for this first cycle:
+#   * checksum (BLOCKING): the sidecar must match sha256(REPO-MAP.md). This only
+#     fails if someone hand-edited REPO-MAP.md without regenerating — cheap,
+#     unambiguous, zero false positives.
+#   * regen-diff (ADVISORY): regenerates and diffs vs the committed map. The
+#     generator's input set is literally EVERY *.sh/*.py under .claude/ (600+
+#     files), so this trigger fires on nearly every framework PR. Making it
+#     blocking now would churn a single generated file on every concurrent PR
+#     and manufacture cross-PR merge conflicts on REPO-MAP.md. So for cycle-116
+#     it emits ::warning:: annotations (with the one-line fix) and exits 0.
+#     Revisit promoting this to blocking after a cycle of observed churn.
+
+on:
+  pull_request:
+    paths:
+      - '.claude/**/*.sh'
+      - '.claude/**/*.py'
+      - '.claude/scripts/repo-map-gen.sh'
+      - '.claude/scripts/lib/repo_map.py'
+      - 'grimoires/loa/REPO-MAP.md'
+      - 'grimoires/loa/REPO-MAP.md.checksum'
+      - '.github/workflows/repo-map-drift.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repo-map-drift-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lockfile-checksum:
+    name: REPO-MAP.md.checksum matches REPO-MAP.md SHA256 (blocking)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Verify checksum
+        run: |
+          set -euo pipefail
+          if [[ ! -f grimoires/loa/REPO-MAP.md || ! -f grimoires/loa/REPO-MAP.md.checksum ]]; then
+            echo "::error::REPO-MAP.md or its .checksum missing — run: bash .claude/scripts/repo-map-gen.sh"
+            exit 1
+          fi
+          recorded="$(tr -d '[:space:]' < grimoires/loa/REPO-MAP.md.checksum)"
+          computed="$(sha256sum grimoires/loa/REPO-MAP.md | awk '{print $1}')"
+          if [[ "$recorded" != "$computed" ]]; then
+            echo "::error::[REPO-MAP-DRIFT] REPO-MAP.md.checksum ($recorded) != sha256(REPO-MAP.md) ($computed). Regenerate: bash .claude/scripts/repo-map-gen.sh"
+            exit 1
+          fi
+          echo "REPO-MAP.md.checksum OK ($computed)"
+
+  regen-diff:
+    name: repo-map-gen --validate (regen drift, advisory)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: '3.13'
+      - name: Regenerate and warn (advisory only) on drift
+        run: |
+          set -uo pipefail
+          if bash .claude/scripts/repo-map-gen.sh --validate; then
+            echo "REPO-MAP.md consistent with .claude/ code."
+          else
+            echo "::warning::[REPO-MAP-DRIFT] REPO-MAP.md is stale vs .claude/ code (advisory this cycle). Fix: bash .claude/scripts/repo-map-gen.sh && git add grimoires/loa/REPO-MAP.md grimoires/loa/REPO-MAP.md.checksum"
+          fi
+          exit 0

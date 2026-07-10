@@ -175,6 +175,32 @@ Manual equivalent: bump the submodule pointer → `mount-submodule.sh
 `mount-submodule.sh --force` just to pick up an update — it deinits and
 re-adds the submodule destructively.
 
+### CI Drift Detection (optional)
+
+The #842 copy set (`.claude/hooks`, `.claude/settings.json`) is gitignored, so
+drift between a consumer's copy and its pinned `.loa` submodule produces no
+`git status`/CI-diff signal on its own (see KF-021,
+`grimoires/loa/known-failures.md`, and the decision doc at
+`grimoires/loa/proposals/copyset-ungitignore-decision-2026-07-07.md`).
+`mount-submodule.sh --check-symlinks` already detects this drift by content
+(not just missing/symlink checks) and exits non-zero on `COPY-DRIFT` /
+`COPY-STALE` / `COPY-MISSING` — it just isn't invoked automatically. To get a
+passive CI signal without any git-tracking change, add a step like this to
+an existing workflow (schedule or push-triggered):
+
+```yaml
+      - name: Check loa copy-set drift
+        run: .claude/scripts/mount-submodule.sh --check-symlinks
+        # Non-mutating (no --reconcile). Exits non-zero on COPY-DRIFT /
+        # COPY-STALE / COPY-MISSING so the job fails when the consumer's
+        # .claude/hooks or .claude/settings.json has drifted from the
+        # pinned .loa submodule content. Run `.claude/scripts/update-loa.sh`
+        # (or `mount-submodule.sh --reconcile`) locally to resync.
+```
+
+This is fully optional, additive, and reversible (delete the step to remove
+it) — it does not change any consumer's gitignore or copy-set behavior.
+
 ## Prerequisites
 
 - Working tree must be clean (no uncommitted changes)
@@ -214,10 +240,24 @@ git merge loa/main --no-commit
 > Phases 5.3 and 5.5 to inspect and fix collateral damage before the commit is created.
 > HEAD still points to the pre-merge branch tip during these phases.
 >
-> **Conflict handling**: If `git merge --no-commit` exits non-zero due to conflicts,
-> resolve conflicts first (see Phase 6), then proceed to Phase 5.3. The safeguard
-> operates on staged deletions (`--diff-filter=D`) which are present even during a
-> conflicted merge state — conflicted files show as "both modified", not as deletions.
+> **Conflict handling — resolve `.claude/hooks/**` and `.claude/settings.json` FIRST**:
+> If `git merge --no-commit` exits non-zero due to conflicts, resolve any conflict in
+> `.claude/hooks/**` and `.claude/settings.json` BEFORE touching any other conflicted
+> file and BEFORE running Phase 5.3 or issuing any further Bash call this session:
+>
+> ```bash
+> git checkout --theirs .claude/hooks/ .claude/settings.json && git add .claude/hooks/ .claude/settings.json
+> ```
+>
+> Why first: a hook file left with unresolved conflict markers no longer parses, and
+> Phase 5.3's own `git`/Bash calls re-trigger the same `PreToolUse:Bash` hook chain — a
+> corrupted `block-destructive-bash.sh` (or any wired hook) would then make EVERY
+> subsequent Bash call fail identically, bricking the session mid-merge (#1180). The
+> `.claude/hooks/hook-guard.sh` wrapper fails such a hook OPEN, but resolving hooks
+> first avoids relying on it. Then resolve remaining conflicts (see Phase 6) and
+> proceed to Phase 5.3. The safeguard operates on staged deletions (`--diff-filter=D`)
+> which are present even during a conflicted merge state — conflicted files show as
+> "both modified", not as deletions.
 
 ### Phase 5.3: Collateral Safeguard (v1.3.0, extended v1.40.0)
 
@@ -446,6 +486,22 @@ Recommend accepting upstream version:
 ```bash
 git checkout --theirs {filename}
 ```
+
+> **If Bash itself stops working (fully-bricked session, #1180)**: symptom — every
+> Bash call fails identically regardless of the command, because an unresolved
+> conflict left a wired hook (e.g. `.claude/hooks/safety/block-destructive-bash.sh`)
+> unparseable. You cannot fix this from inside Claude Code — its Bash tool is the
+> thing that is bricked. Open a real terminal OUTSIDE Claude Code and run, from the
+> repo root:
+>
+> ```bash
+> git checkout --theirs .claude/hooks/safety/block-destructive-bash.sh
+> ```
+>
+> (substitute the actual conflicted hook path). Do NOT prefix this with
+> `LOA_ACTOR=update-loa` — that variable is inert here: `zone-write-guard.sh` gates
+> Write/Edit only, never Bash, and this recovery bypasses Claude Code's tool layer by
+> running in a plain shell. Retrying inside the bricked session will not help.
 
 ### Project Identity Files (`CHANGELOG.md`, `README.md`)
 

@@ -258,6 +258,22 @@ memory_schema:
     check_on_session_start: true
 
 # -----------------------------------------------------------------------------
+# Known Failures surface (cycle-115)
+# -----------------------------------------------------------------------------
+# The operational log at grimoires/loa/known-failures.md records degradation
+# patterns the framework has hit. Its ## Index is generated (drift-proof) by
+# .claude/scripts/grimoire-index.sh from the ## KF-NNN: headings.
+known_failures:
+  # When true, the .claude/hooks/loa-kf-surface.sh SessionStart hook surfaces a
+  # compact symptom -> KF table (with numeric recurrence) at session start so an
+  # agent sees the failure log before triaging. DEFAULT-OFF: the hook is
+  # observability only — it always exits 0, never blocks a session, and emits
+  # NOTHING while this flag is false. When true it is loud-but-nonblocking: it
+  # warns visibly ([KF-SURFACE] WARNING) if the surface is enabled-but-degraded
+  # (known-failures.md unreadable or zero entries parsed).
+  surface_at_session_start: false
+
+# -----------------------------------------------------------------------------
 # Skills (v1.14.0)
 # -----------------------------------------------------------------------------
 skills:
@@ -518,6 +534,31 @@ run_mode:
     # conventional commit markers like "feat(sprint-1): implementation".
     # Override if your project uses a different commit convention.
     sprint_commit_pattern: '^feat\(sprint-'
+
+# -----------------------------------------------------------------------------
+# Notifications (cycle-117 item C)
+# -----------------------------------------------------------------------------
+# Operator-configurable external push, fired best-effort by the Stop-hook
+# push-at-gate when an autonomous run reaches a terminal gate (sprint
+# JACKED_OUT/READY_FOR_HITL/HALTED, bridge JACKED_OUT/HALTED, simstim
+# COMPLETED/AWAITING_HITL/HALTED). This is the SAME "run an operator command"
+# pattern reserved (but never wired) by spiral.harness.heartbeat.
+# phase_complete_hook below — this `notifications.push_command` is the first
+# instance the framework actually EXECUTES.
+#
+# TRUST: this file is operator-owned/trusted input. `command` is run via
+# `bash -c` — treat it exactly like a command you type yourself; do not point
+# it at agent- or PR-controlled data. It receives these env vars:
+#   LOA_PUSH_MESSAGE  short (<200 char) "<id> <source> <state>" summary
+#   LOA_PUSH_SOURCE   sprint_plan | bridge | simstim
+#   LOA_PUSH_STATE    the terminal state (e.g. JACKED_OUT)
+#   LOA_PUSH_ID       sprint id / iteration-N / simstim phase
+notifications:
+  push_command:
+    enabled: false               # opt-in; default is a silent no-op
+    command: ""                  # e.g. 'ntfy publish my-topic "$LOA_PUSH_MESSAGE"'
+                                 #  or  'osascript -e "display notification \"$LOA_PUSH_MESSAGE\""'
+    timeout_sec: 5               # hard cap; a slow command can never trap the agent
 
 # -----------------------------------------------------------------------------
 # BUTTERFREEZONE — Agent-Grounded README (v1.35.0)
@@ -1406,6 +1447,22 @@ flatline_protocol:
     model: "gpt-5.3-codex"      # Dissenter model
     timeout_seconds: 60          # Per-call timeout
     budget_cents: 150            # Max cost per dissent call
+    # cycle-119 C14 (KF-004 repair loop) — default OFF.
+    # When true, a dissenter finding that fails validate_finding gets ONE
+    # bounded repair round-trip to the SAME model before being rejected:
+    # a normalization pre-pass (case-fold severity/category + whitespace
+    # trim only, no synonym mapping) runs first; if the finding still
+    # fails, only the offending finding JSON + the violated validation
+    # clause are sent back to the model. The repaired finding must be
+    # byte-identical to the original on every field except the one(s) it
+    # was authorized to fix, and re-enters the full validation pipeline
+    # (never just the failed clause) before being accepted. Rejected and
+    # repaired counts are recorded in the rejected-finding sidecar
+    # (grimoires/loa/a2a/<sprint_id>/adversarial-rejected-<type>.jsonl)
+    # and in the degraded-verdict trajectory record, so findings the
+    # dissenter model produced but that were silently dropped for a
+    # trivial schema mismatch (KF-004's original complaint) stay visible.
+    repair_loop: false
   security_audit:
     enabled: false               # Opt-in: enable for /audit-sprint
     model: "gpt-5.3-codex"      # Dissenter model
@@ -1921,7 +1978,9 @@ run_bridge:
 
   # Default parameters
   defaults:
-    # Maximum bridge iterations (1-5)
+    # Maximum bridge iterations (1-5). Default 3 is empirical: code PRs
+    # (what /run-bridge iterates on) plateau at 2 iters (cycles 102-114
+    # record) — override here or with --depth N. See run-bridge-reference.md.
     depth: 3
     # Review after each sprint vs full plan
     per_sprint: false
@@ -2526,6 +2585,52 @@ qmd_context:
 # Cron registration is done via /schedule pointing at the `invoke` subcommand.
 
 # -----------------------------------------------------------------------------
+# Session-cap post-reset fan-out — cycle-117 Wave-2 item B (bd-c117-b-fanout-5ggb)
+# -----------------------------------------------------------------------------
+# Translates configured session-limit reset windows into L3 ScheduleConfig
+# YAMLs (validated via scheduled-cycle-lib.sh's own `register` entry point,
+# per the "mutate only via lib entry points" invariant) plus real crontab
+# entries with deterministic off-:00/:30 per-repo minute jitter. Item A
+# (bd-c117-a-session-cap-x04j) owns .run/session-limit-state.json and writes
+# NO config here — this block belongs to item B alone.
+#
+# SCOPE (read before enabling — bd-fanout-real-dispatch-9jv6, Tranche 1): the
+# `bridgebuilder` phase now dispatches a REAL review. Its dispatch_contract
+# points at .claude/skills/scheduled-cycle-template/contracts/session-cap-bb/,
+# whose FAIL-CLOSED decider fires bridgebuilder-review's headless entrypoint
+# (resources/entry.sh — a real CLI that spiral-harness.sh already runs
+# unattended; the prior "no standalone CLI entrypoint" claim was FALSE) only
+# when the captured session-limit snapshot shows sprint_plan/bridge state
+# RUNNING or HALTED. BB runs with no --pr, so it self-discovers open PRs and
+# dedups. ENABLING THIS ARMS UNATTENDED, ON-CRON POSTING OF LIVE PR REVIEW
+# COMMENTS — the `enabled: false` default below keeps it disarmed.
+#
+# The `flatline` and `red_team` phases REMAIN shipped no-op example-*.sh
+# placeholders (Tranche 2, deferred): unlike BB, both hard-require an explicit
+# --doc <path> and cannot resolve a target from the session-limit snapshot.
+# Wiring them needs an operator decision on current-state vs resume-exact
+# doc-targeting semantics — until then those labels produce an audit trail
+# only and do NOT re-run any real review.
+#
+# session_cap:
+#   reset_windows: []                          # e.g. ["02:00 Australia/Melbourne"]
+#                                               #   "HH:MM <IANA-TZ>" strings
+#   post_reset_fanout:
+#     enabled: false                           # opt-in; false short-circuits install
+#     phases:                                  # v1: label only (see SCOPE note above)
+#       - flatline
+#       - bridgebuilder
+#       - red_team
+#     cron_jitter_min: 7                       # minute offset range [1, cron_jitter_min];
+#                                               #   integer 1..59, else defaults to 7
+#
+# To install/uninstall the fan-out schedules + crontab entries:
+#   .claude/scripts/session-cap-fanout.sh install [--dry-run]
+#   .claude/scripts/session-cap-fanout.sh uninstall   # alias: --off
+#   .claude/scripts/session-cap-fanout.sh status
+#   .claude/scripts/session-cap-fanout.sh show
+
+# -----------------------------------------------------------------------------
 # Audit-log daily snapshot — RPO 24h for L1/L2 chain-critical untracked logs
 # -----------------------------------------------------------------------------
 # Sprint 2C ships the producer side of the L1/L2 hash-chain recovery loop.
@@ -2621,7 +2726,7 @@ qmd_context:
 #       # openai: gpt-5.5-pro              # optional cross-provider
 #       # google: gemini-3.1-pro-preview   # optional cross-provider
 #     executor:
-#       anthropic: claude-sonnet-4-6
+#       anthropic: claude-sonnet-5
 #       # openai: gpt-5.5
 #       # google: gemini-2.5-pro
 #
@@ -2634,6 +2739,34 @@ qmd_context:
 #   # CI gate (cycle-108-schema-guard.yml) requires this enum to be co-edited
 #   # with the SKILL.md role field in a single commit.
 #   audited_review_skills: []
+#
+#   # Per-stage tier-routing opt-in (cycle-116 D3, bd-c116-d3-tiering).
+#   # Each key gates ONE dispatch stage: when true, that stage routes through
+#   # the advisor_strategy role/skill resolver (so per_skill_overrides + the
+#   # role defaults above govern its model) instead of a hardcoded --model pin.
+#   # Default-off (absent key == false) => byte-identical to pre-D3 dispatch.
+#   #
+#   # flatline_scorer gates Flatline score-mode cross-scoring in
+#   # flatline-orchestrator.sh. Flip true ONLY after the live A/B in
+#   # grimoires/loa/runbooks/model-tiering-per-stage.md clears for your models.
+#   # With the flag true and NO per_skill_override, flatline-scorer resolves to
+#   # its role default (implementation -> advisor). To actually demote it to the
+#   # cheaper executor tier, ALSO set the override below.
+#   stage_routing:
+#     flatline_scorer: false
+#
+#   # Worked example — demote flatline-scorer to executor once A/B-validated:
+#   #   per_skill_overrides:
+#   #     flatline-scorer: executor        # requires stage_routing.flatline_scorer: true to take effect
+#   #   stage_routing:
+#   #     flatline_scorer: true
+#   #
+#   # NOTE: advisor_strategy is the mechanism that actually GOVERNS dispatch.
+#   # The separate `workload_tier_map:` section (cycle-112) is an INFORMATIONAL
+#   # calibration memory only — it records the empirically-observed safe tier
+#   # per skill (with evidence_ref) but has zero dispatch consumers. Consult it
+#   # to decide a per_skill_overrides value; it will not change routing on its
+#   # own. See model-tiering-per-stage.md for why both surfaces exist.
 #
 #   # Benchmark substrate (cycle-108 sprint-2 T2.A).
 #   benchmark:

@@ -1,0 +1,5 @@
+COMBO: cleanup-context__no-context-dir
+EXIT: 0
+--- STDOUT ---
+Context directory does not exist: __ROOT__/absent-context
+--- STDERR ---

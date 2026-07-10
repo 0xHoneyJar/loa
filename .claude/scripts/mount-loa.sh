@@ -2005,7 +2005,7 @@ Then re-run:
 
   # Create .claude directory and symlinks from authoritative manifest
   # (DRY — shared manifest eliminates inline duplication; Bridgebuilder Tension 1)
-  mkdir -p .claude .claude/skills .claude/commands .claude/loa
+  mkdir -p .claude .claude/skills .claude/commands .claude/agents .claude/loa
 
   local SUBMODULE_PATH=".loa"
 
@@ -2016,7 +2016,7 @@ Then re-run:
   get_symlink_manifest "$SUBMODULE_PATH" "$(pwd)"
 
   # Create all symlinks from manifest
-  for entry in "${MANIFEST_DIR_SYMLINKS[@]}" "${MANIFEST_FILE_SYMLINKS[@]}" "${MANIFEST_SKILL_SYMLINKS[@]}" "${MANIFEST_CMD_SYMLINKS[@]}"; do
+  for entry in "${MANIFEST_DIR_SYMLINKS[@]}" "${MANIFEST_FILE_SYMLINKS[@]}" "${MANIFEST_SKILL_SYMLINKS[@]}" "${MANIFEST_CMD_SYMLINKS[@]}" ${MANIFEST_AGENT_SYMLINKS[@]+"${MANIFEST_AGENT_SYMLINKS[@]}"}; do
     local link_path="${entry%%:*}"
     local target="${entry#*:}"
     local parent_dir

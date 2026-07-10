@@ -1,0 +1,57 @@
+name: AGENTS.md Drift Gate
+
+# OKF/ICM adoption cycle, Sprint 2 — keep the generated root AGENTS.md in sync
+# with its inputs (governance tables in .claude/loa/CLAUDE.loa.md, the command
+# surface, and the canonical .claude/data/golden-path.json), and machine-verify
+# the README command-count / Golden-Path claims (closes #1132, #1135,
+# #1143, #1149; version-surface parity #1130/#1124 deferred — separate surface). Mirrors model-registry-drift.yml.
+
+on:
+  pull_request:
+    paths:
+      - 'AGENTS.md'
+      - 'AGENTS.md.checksum'
+      - '.claude/scripts/agents-md-gen.sh'
+      - '.claude/data/golden-path.json'
+      - '.claude/loa/CLAUDE.loa.md'
+      - 'README.md'
+      - '.claude/commands/**'
+      - '.github/workflows/agents-md-drift.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agents-md-drift-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lockfile-checksum:
+    name: AGENTS.md.checksum matches AGENTS.md SHA256
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Verify checksum
+        run: |
+          set -euo pipefail
+          if [[ ! -f AGENTS.md || ! -f AGENTS.md.checksum ]]; then
+            echo "::error::AGENTS.md or AGENTS.md.checksum missing — run: bash .claude/scripts/agents-md-gen.sh"
+            exit 1
+          fi
+          recorded="$(tr -d '[:space:]' < AGENTS.md.checksum)"
+          computed="$(sha256sum AGENTS.md | awk '{print $1}')"
+          if [[ "$recorded" != "$computed" ]]; then
+            echo "::error::[DRIFT-AGENTS-MD] AGENTS.md.checksum ($recorded) != sha256(AGENTS.md) ($computed). Regenerate: bash .claude/scripts/agents-md-gen.sh"
+            exit 1
+          fi
+          echo "AGENTS.md.checksum OK ($computed)"
+
+  regen-and-consistency:
+    name: agents-md-gen --check (regen drift + README claims)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Regenerate AGENTS.md and verify no drift + README consistency
+        run: |
+          set -euo pipefail
+          bash .claude/scripts/agents-md-gen.sh --check

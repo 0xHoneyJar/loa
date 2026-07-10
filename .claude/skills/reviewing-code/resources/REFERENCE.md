@@ -188,3 +188,119 @@ After parallel reviews:
 2. ANY FAIL = Overall CHANGES REQUIRED
 3. ALL PASS = Overall APPROVED
 4. Combine issues into single feedback
+
+## Complexity
+
+Per-dimension complexity threshold tables (moved from the skill body; the BLOCK-approval verdict rules and the YAGNI over-engineering taxonomy remain in the skill body).
+
+### Function Complexity
+
+| Check | Threshold | Finding |
+|-------|-----------|---------|
+| Function length | >50 lines | "Function too long: {file}:{line} ({X} lines). Split into smaller functions." |
+| Parameter count | >5 params | "Too many parameters: {func}() has {X} params. Use options object." |
+| Nesting depth | >3 levels | "Deep nesting: {file}:{line}. Refactor with early returns or extract." |
+| Cyclomatic complexity | >10 | "High complexity: {func}(). Simplify conditional logic." |
+
+### Code Duplication
+
+| Check | Threshold | Finding |
+|-------|-----------|---------|
+| Repeated patterns | >3 occurrences | "Duplicate code found in {file1}, {file2}, {file3}. Extract to shared function." |
+| Copy-paste code | >10 similar lines | "Near-duplicate blocks at {file}:{line1} and {file}:{line2}. DRY violation." |
+
+### Dependencies
+
+| Check | Issue | Finding |
+|-------|-------|---------|
+| Circular imports | Any | "Circular dependency: {A} → {B} → {A}. Restructure modules." |
+| Unnecessary deps | Unused | "Unused import: {file}:{line} imports {module} but never uses it." |
+| Heavy deps | For simple task | "Consider lighter alternative to {dep} for this use case." |
+
+### Naming Quality
+
+| Check | Issue | Finding |
+|-------|-------|---------|
+| Unclear names | Ambiguous | "Unclear name: {name} at {file}:{line}. Use descriptive name." |
+| Abbreviations | Non-standard | "Avoid abbreviation: '{abbr}' → '{full}' at {file}:{line}." |
+| Inconsistent | Style varies | "Inconsistent naming: {fileA} uses camelCase, {fileB} uses snake_case." |
+
+### Dead Code
+
+| Check | Issue | Finding |
+|-------|-------|---------|
+| Unused functions | Never called | "Dead code: {func}() at {file}:{line} is never called. Remove." |
+| Commented code | Large blocks | "Remove commented code at {file}:{lines}. Use version control." |
+| Unreachable code | After return | "Unreachable code after return at {file}:{line}." |
+
+## Visual Communication
+
+Follow `.claude/protocols/visual-communication.md` for diagram standards.
+
+### When to Include Diagrams
+
+Code review feedback may benefit from visual aids for:
+- **Code Flow** (flowchart) - Illustrate data or control flow issues
+- **Architecture Concerns** (flowchart) - Show structural problems
+
+### Output Format
+
+If including diagrams in feedback, use Mermaid with preview URLs:
+
+```markdown
+### Suggested Refactoring
+
+Current flow has unnecessary complexity:
+
+```mermaid
+graph TD
+    A[Input] --> B[Validate]
+    B --> C[Process]
+    C --> D[Transform]
+    D --> E[Output]
+```
+
+> **Preview**: [View diagram](https://agents.craft.do/mermaid?code=...&theme=github)
+```
+
+### Theme Configuration
+
+Read theme from `.loa.config.yaml` visual_communication.theme setting.
+
+Diagram inclusion is **optional** for code reviews - use when visual explanation helps.
+
+## Documentation Verification
+
+Approval-language templates (moved from the skill body; the Documentation Checklist and Cannot-Approve-If blocking gates remain in the skill body).
+
+**If documentation is complete:**
+```
+All good
+
+Documentation verification: PASS
+- CHANGELOG: All tasks documented
+- CLAUDE.md: [Updated/N/A]
+- Code comments: Adequate
+```
+
+**If documentation needs work:**
+```
+Changes required
+
+Documentation verification: FAIL
+- Missing CHANGELOG entry for Task X.Y
+- [specific file]: needs comment explaining [logic]
+```
+
+## Subagent Report Check
+
+Example grep commands that surface blocking verdicts (moved from the skill body; the blocking/non-blocking verdict tables remain in the skill body).
+
+```bash
+# Check for blocking issues
+grep -l "Verdict.*CRITICAL" grimoires/loa/a2a/subagent-reports/*.md 2>/dev/null
+grep -l "Verdict.*HIGH" grimoires/loa/a2a/subagent-reports/*.md 2>/dev/null
+grep -l "Verdict.*INSUFFICIENT" grimoires/loa/a2a/subagent-reports/*.md 2>/dev/null
+```
+
+If any match found, **block approval** until issues are resolved.

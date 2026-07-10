@@ -24,7 +24,10 @@ setup() {
 # Hooks that are deliberately NOT wired (opt-in prototypes). Adding a script
 # to .claude/hooks/{safety,compliance}/ without wiring it OR parking it here
 # must fail W4 — that is the activation-gap fence.
-PARKED_HOOKS="implement-gate.sh"
+# stop-input-probe.sh (cycle-117 item A): DIAGNOSTIC, ships UNREGISTERED by
+# design — gated by LOA_STOP_INPUT_PROBE=1, merged into settings.local.json for
+# one cap-hitting session only, never into settings.hooks.json.
+PARKED_HOOKS="implement-gate.sh stop-input-probe.sh"
 
 @test "W1 bug-1002: every template PreToolUse command is wired in live settings.json" {
     local missing=0
@@ -35,6 +38,18 @@ PARKED_HOOKS="implement-gate.sh"
             missing=$((missing + 1))
         fi
     done < <(jq -r '.hooks.PreToolUse[].hooks[].command' "$TEMPLATE" | sort -u)
+    [ "$missing" -eq 0 ]
+}
+
+@test "W10 bd-hooks-template-sessionstart-parity: every template SessionStart command is wired in live settings.json" {
+    local missing=0
+    while IFS= read -r cmd; do
+        if ! jq -e --arg c "$cmd" \
+            '[.hooks.SessionStart[].hooks[].command] | index($c)' "$LIVE" >/dev/null; then
+            echo "template-wired but ABSENT from live: $cmd" >&2
+            missing=$((missing + 1))
+        fi
+    done < <(jq -r '.hooks.SessionStart[].hooks[].command' "$TEMPLATE" | sort -u)
     [ "$missing" -eq 0 ]
 }
 
@@ -116,13 +131,16 @@ EOF
     # Review iter-1 BLOCKING: the guard read CLAUDE_TOOL_FILE_PATH/$1 only —
     # under real hook execution (payload on stdin) TARGET was empty and every
     # write was ALLOWED. The wired gate was inert. Pin the stdin contract.
-    run bash -c 'echo "{\"tool_input\":{\"file_path\":\".claude/scripts/x.sh\"}}" | "$0"' \
+    # cycle-119: LOA_ZONE_GUARD_AUTH_FILE=/dev/null isolates from any live
+    # framework-dev authorization marker in the repo's .run/ (ZWG-T20..T25
+    # cover marker behavior; these tests pin the UNAUTHORIZED baseline).
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\".claude/scripts/x.sh\"}}" | LOA_ZONE_GUARD_AUTH_FILE=/dev/null LOA_ZONE_GUARD_TRAJECTORY_DIR=/nonexistent "$0"' \
         "$PROJECT_ROOT/.claude/hooks/safety/zone-write-guard.sh"
     # iter-2: Claude Code blocks on exit 2 (exit 1 = non-blocking hook error)
     [ "$status" -eq 2 ]
     [[ "$output" == *"BLOCKED"* ]]
 
-    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"grimoires/loa/NOTES.md\"}}" | "$0"' \
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"grimoires/loa/NOTES.md\"}}" | LOA_ZONE_GUARD_AUTH_FILE=/dev/null LOA_ZONE_GUARD_TRAJECTORY_DIR=/nonexistent "$0"' \
         "$PROJECT_ROOT/.claude/hooks/safety/zone-write-guard.sh"
     [ "$status" -eq 0 ]
 }
@@ -130,7 +148,7 @@ EOF
 @test "W8 bug-1002 audit: submodule physical prefix .loa/.claude/ classifies as framework (BLOCK)" {
     # In submodule mounts the .claude symlink resolves to .loa/.claude/ —
     # which matched no zone glob and fell through unclassified->ALLOW.
-    run bash -c 'echo "{\"tool_input\":{\"file_path\":\".loa/.claude/scripts/x.sh\"}}" | "$0"' \
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\".loa/.claude/scripts/x.sh\"}}" | LOA_ZONE_GUARD_AUTH_FILE=/dev/null LOA_ZONE_GUARD_TRAJECTORY_DIR=/nonexistent "$0"' \
         "$PROJECT_ROOT/.claude/hooks/safety/zone-write-guard.sh"
     [ "$status" -eq 2 ]
     [[ "$output" == *"BLOCKED"* ]]
@@ -143,7 +161,7 @@ EOF
     # bypass. Humans edit these outside the harness; agents need
     # LOA_ZONE_GUARD_BYPASS=1 under explicit operator direction.
     for f in ".claude/settings.json" ".claude/settings.local.json"; do
-        run bash -c "echo '{\"tool_input\":{\"file_path\":\"$f\"}}' | \"\$0\"" \
+        run bash -c "echo '{\"tool_input\":{\"file_path\":\"$f\"}}' | LOA_ZONE_GUARD_AUTH_FILE=/dev/null LOA_ZONE_GUARD_TRAJECTORY_DIR=/nonexistent \"\$0\"" \
             "$PROJECT_ROOT/.claude/hooks/safety/zone-write-guard.sh"
         [ "$status" -eq 2 ]
     done

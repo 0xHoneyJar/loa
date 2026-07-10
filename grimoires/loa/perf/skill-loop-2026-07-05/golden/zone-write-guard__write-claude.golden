@@ -1,0 +1,8 @@
+COMBO: zone-write-guard__write-claude
+EXIT: 2
+--- STDOUT ---
+--- STDERR ---
+[zone-write-guard] BLOCKED: actor=project-work path=.claude/scripts/bench-target.sh zone=framework
+  Reason: framework-zone is upstream-managed; use overrides or file upstream
+  Override: LOA_ZONE_GUARD_BYPASS=1 <retry command>
+  Reference: grimoires/loa/runbooks/zone-hygiene.md

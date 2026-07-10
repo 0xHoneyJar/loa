@@ -1,0 +1,24 @@
+label	child_spawns	breakdown
+block-destructive/bash-benign	1	jq x1
+block-destructive/bash-mutating	1	jq x1
+block-destructive/bash-destructive	2	jq x1, grep x1
+block-destructive/bash-blocked	9	sed x4, jq x2, mkdir x1, head x1, grep x1
+team-role-guard/bash-benign	0	
+team-role-guard/bash-mutating+TEAM	1	jq x1
+mutation-logger/bash-benign	1	jq x1
+mutation-logger/bash-mutating	2	stat x1, jq x1
+team-role-guard-write/write-grim	0	
+spiral-dispatch-guard/write-grim	0	
+zone-write-guard/write-grim	6	yq x1, stat x1, realpath x1, mv x1, mkdir x1, jq x1
+zone-write-guard/write-claude	3	stat x1, realpath x1, jq x1
+adversarial-gate/write-grim	0	
+adversarial-gate/write-completed	4	yq x3, jq x1
+write-mutation-logger/write-grim	1	jq x1
+karpathy-diff/write-grim-warn	5	yq x1, stat x1, mv x1, jq x1, awk x1
+team-skill-guard/skill-implement	0	
+spiral-skill-sentinel/skill-impl	0	
+run-mode-stop-guard/stop-idle	1	jq x1
+settings-cleanup/small	1	stat x1
+settings-cleanup/large	5	jq x3, stat x1, mv x1
+post-compact-reminder/no-marker	0	
+post-compact-reminder/marker	2	rm x1, jq x1

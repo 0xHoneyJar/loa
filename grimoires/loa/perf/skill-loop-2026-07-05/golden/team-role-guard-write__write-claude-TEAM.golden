@@ -1,0 +1,6 @@
+COMBO: team-role-guard-write__write-claude-TEAM
+EXIT: 2
+--- STDOUT ---
+--- STDERR ---
+BLOCKED [team-role-guard-write]: System Zone (.claude/) is read-only for teammates (C-TEAM-005).
+Teammate 'bench-mate' cannot modify framework files. Report to the team lead via SendMessage.

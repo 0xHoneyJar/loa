@@ -19,3 +19,8 @@ The State Zone (`grimoires/`, `.beads/`, `.ck/`, `.run/`) stores session-spannin
 - Configurable paths via `.loa.config.yaml`: `LOA_GRIMOIRE_DIR`, `LOA_BEADS_DIR`
 - Memory observations: `grimoires/loa/memory/observations.jsonl` — queried via `.claude/scripts/memory-query.sh`
 - In Agent Teams mode, only the lead writes to `.run/*.json` (teammates report via SendMessage)
+- Gitignore drift check: `.claude/scripts/validate-gitignore-state.sh` WARNs when a state path that should stay tracked (zones.yaml, ledger.json, known-failures.md, …) is swallowed by a `.gitignore` pattern (cycle-119; 168 failed-`git add` events/quarter fleet-wide)
+
+## OKF interop boundary (cycle: OKF/ICM adoption, 2026-06-28)
+
+OKF (Open Knowledge Format) **fail-soft consumption** — SPEC §5.3/§9: consumers MUST tolerate broken links and missing fields as "not-yet-written knowledge" — **MUST NOT be imported into any loa validator or decision gate.** Within loa, dangling internal references remain **defects** and grounding checks (cite `file:line`) stay **fail-closed**. OKF is supported only as a derived **export** projection (downstream of every gate) and, if ever ingested, only under the parse-soft / promote-strict ingest contract (`grimoires/loa/proposals/okf-ingest-contract-2026-06-28.md`). Rationale: PR #1155 analysis §7–§8.

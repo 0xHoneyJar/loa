@@ -1,0 +1,15 @@
+combo	version	runs	min_ms	mean_ms	p95_ms	max_ms
+zwg/write-grim-warm	old	20	10.309	24.250	29.225	29.513
+zwg/write-grim-warm	new	20	6.757	17.210	22.894	23.058
+zwg/write-claude-warm	old	20	15.174	24.277	27.182	28.541
+zwg/write-claude-warm	new	20	13.698	18.850	21.512	22.466
+zwg/edit-tests-warm	old	20	10.543	21.976	29.379	30.516
+zwg/edit-tests-warm	new	20	6.946	16.581	22.867	24.286
+kp/write-grim-warn-warm	old	20	12.617	17.557	28.122	31.291
+kp/write-grim-warn-warm	new	20	9.486	13.333	22.188	22.539
+kp/edit-tests-warn-warm	old	20	9.530	20.834	31.045	31.890
+kp/edit-tests-warn-warm	new	20	7.505	16.412	23.188	23.310
+zwg/write-grim-cold	old	20	11.570	23.064	27.638	27.789
+zwg/write-grim-cold	new	20	15.865	28.785	36.796	37.238
+kp/write-grim-warn-cold	old	20	10.819	24.780	32.948	33.108
+kp/write-grim-warn-cold	new	20	13.932	30.999	41.417	41.706

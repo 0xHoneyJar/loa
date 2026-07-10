@@ -31,8 +31,11 @@ zones:
       # wiring is guard-tracked — settings.local.json is Local-scope and
       # OVERRIDES project settings (hook keys included), so an agent write
       # there was a one-shot hook bypass. The HUMAN still edits these files
-      # freely (hooks only fire on agent tool calls); agents use
-      # LOA_ZONE_GUARD_BYPASS=1 when an operator explicitly directs a change.
+      # freely (hooks only fire on agent tool calls); for operator-directed
+      # changes, agents use LOA_ZONE_GUARD_BYPASS=1 (human terminal) or the
+      # audited expiring marker .run/zone-guard-authorization.json (agent
+      # sessions — env vars can't reach hook subprocesses from tool calls;
+      # see runbooks/zone-hygiene.md §3.1, cycle-119).
       # NB: tracked here for write-policy, not upstream-management provenance.
       - ".claude/settings.json"
       - ".claude/settings.local.json"

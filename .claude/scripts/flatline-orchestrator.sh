@@ -58,6 +58,13 @@ source "$SCRIPT_DIR/lib/context-isolation-lib.sh"
 # shellcheck source=lib/model-resolver.sh
 source "$SCRIPT_DIR/lib/model-resolver.sh"
 
+# cycle-117 item D (#1177): shared DEGRADED/FAILED trajectory + page helper.
+# Soft-sourced — a downstream repo mid-update (lib file absent) must not
+# break flatline; the degraded_verdict_maybe_emit call below is itself
+# guarded by a declare -F check.
+# shellcheck source=lib/degraded-verdict-lib.sh
+source "$SCRIPT_DIR/lib/degraded-verdict-lib.sh" 2>/dev/null || true
+
 # Cycle-104 sprint-2 T2.8 (FR-S2.5): voice-drop classifier. Distinguishes
 # cheval's CHAIN_EXHAUSTED (exit 12) from other failures so a voice whose
 # within-company fallback chain ran to end is DROPPED from consensus
@@ -426,6 +433,27 @@ get_model_tertiary() {
     echo "$model"
 }
 
+# cycle-116 D3 (bd-c116-d3-tiering): per-stage tier routing opt-in.
+# advisor_strategy.stage_routing.flatline_scorer (default false) governs
+# whether score-mode cross-scoring dispatch is routed through the
+# advisor_strategy role/skill resolver (cheval.py:1069 role gate) instead
+# of the hardcoded --model pin. Default false => byte-identical to today.
+# Nested map leaves room for future per-stage keys without a schema churn.
+# Cached to avoid a per-score-call yq invocation.
+_CACHED_STAGE_ROUTING_SCORER=""
+_CACHED_STAGE_ROUTING_SCORER_SET=false
+is_stage_routing_scorer_enabled() {
+    if [[ "$_CACHED_STAGE_ROUTING_SCORER_SET" == true ]]; then
+        [[ "$_CACHED_STAGE_ROUTING_SCORER" == "true" ]]
+        return
+    fi
+    local v
+    v=$(read_config '.advisor_strategy.stage_routing.flatline_scorer' 'false')
+    _CACHED_STAGE_ROUTING_SCORER="$v"
+    _CACHED_STAGE_ROUTING_SCORER_SET=true
+    [[ "$v" == "true" ]]
+}
+
 get_max_iterations() {
     read_config '.flatline_protocol.max_iterations' '5'
 }
@@ -644,6 +672,26 @@ aggregate_and_write_final_consensus() {
             local final_status
             final_status=$(jq -r '.status' "$target" 2>/dev/null || echo "?")  # check-no-swallowed-jq: ok (pending #1025 sweep)
             log "[vq-aggregate] wrote $target (status=$final_status, voices=${#vq_files[@]}/${#input_files[@]})"
+
+            # cycle-117 item D (#1177): uniform DEGRADED/FAILED trajectory
+            # record + page. $phase (prd/sdd/sprint) is the closest
+            # available identifier — flatline has no numbered sprint id, so
+            # it doubles as both the gate suffix and sprint_id. model_exit_code
+            # is lossy-compressed to the FIRST dropped voice's exit code when
+            # multiple voices drop (the schema has one scalar field, not a
+            # per-leg array — a known v1 limitation, not a bug).
+            if declare -F degraded_verdict_maybe_emit >/dev/null 2>&1; then
+                local _c117d_reason _c117d_mec
+                _c117d_reason=$(jq -r '.voices_dropped[0].reason // "unknown"' "$target" 2>/dev/null) || _c117d_reason="unknown"
+                _c117d_mec=$(jq -r '.voices_dropped[0].exit_code // "-"' "$target" 2>/dev/null) || _c117d_mec="-"
+                local -a _c117d_legs=()
+                while IFS= read -r _c117d_leg; do
+                    [[ -n "$_c117d_leg" ]] && _c117d_legs+=("$_c117d_leg")
+                done < <(jq -r '.voices_dropped[]?.voice // empty' "$target" 2>/dev/null)
+                degraded_verdict_maybe_emit "flatline:${phase}" "$final_status" \
+                    "$_c117d_reason" "$phase" "$_c117d_mec" \
+                    ${_c117d_legs[@]+"${_c117d_legs[@]}"}
+            fi
         fi
     fi
 
@@ -698,7 +746,22 @@ call_model() {
         local -a args=(
             --agent "$agent"
             --input "$input"
-            --model "$model_override"
+        )
+        # cycle-116 D3: score-mode per-stage tier routing. When the opt-in
+        # flag is set, omit --model and pass --role/--skill so cheval's
+        # advisor_strategy resolver (role gate) picks the tier. When unset
+        # (default), the argv is byte-identical to pre-D3: --model pin.
+        if [[ "$mode" == "score" ]] && is_stage_routing_scorer_enabled; then
+            args+=(--role implementation --skill flatline-scorer)
+        else
+            # cycle-119 C16 (model-economy D-6): --skill is a pre-existing
+            # cheval arg (cycle-108 T1.H) threaded into the MODELINV envelope
+            # as calling_primitive (cheval.py:1562,2126). Passing it here ends
+            # the 100%-(unattributed) state of the economy roll-up for every
+            # flatline dispatch. Additive: --model pin is unchanged.
+            args+=(--model "$model_override" --skill "flatline-${mode}")
+        fi
+        args+=(
             --output-format json
             --json-errors
             --timeout "$timeout"

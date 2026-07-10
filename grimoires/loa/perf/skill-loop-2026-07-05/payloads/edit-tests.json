@@ -1,0 +1,14 @@
+{
+  "session_id": "bench0000-0000-4000-8000-000000000000",
+  "transcript_path": "__ROOT__/transcript.jsonl",
+  "cwd": "__ROOT__",
+  "hook_event_name": "PreToolUse",
+  "permission_mode": "default",
+  "tool_name": "Edit",
+  "tool_input": {
+    "file_path": "__ROOT__/tests/unit/bench-example.bats",
+    "old_string": "@test \"placeholder\" {\n  run true\n  [ \"$status\" -eq 0 ]\n}",
+    "new_string": "@test \"placeholder renamed\" {\n  run true\n  [ \"$status\" -eq 0 ]\n  [ -z \"$output\" ]\n}"
+  },
+  "tool_response": { "filePath": "__ROOT__/tests/unit/bench-example.bats", "success": true }
+}

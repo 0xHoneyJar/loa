@@ -1,0 +1,13 @@
+{
+  "session_id": "bench0000-0000-4000-8000-000000000000",
+  "transcript_path": "__ROOT__/transcript.jsonl",
+  "cwd": "__ROOT__",
+  "hook_event_name": "PreToolUse",
+  "permission_mode": "default",
+  "tool_name": "Write",
+  "tool_input": {
+    "file_path": "__ROOT__/grimoires/loa/NOTES.md",
+    "content": "# Session Notes\n\n## Observations\n\n- Benchmark payload line 1\n- Benchmark payload line 2\n- Benchmark payload line 3\n\n## Blockers\n\nNone observed this session.\n"
+  },
+  "tool_response": { "filePath": "__ROOT__/grimoires/loa/NOTES.md", "success": true }
+}

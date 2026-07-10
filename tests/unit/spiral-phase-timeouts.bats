@@ -46,17 +46,17 @@ setup() {
 # =========================================================================
 
 @test "DISCOVERY_TIMEOUT default is 1200s (was 300s, too tight per #570)" {
-    run grep -E 'DISCOVERY_TIMEOUT=.*_read_harness_config.*"1200"' "$HARNESS"
+    run grep -E '_read_harness_config "spiral\.harness\.discovery_timeout_sec" "1200"' "$HARNESS"
     [ "$status" -eq 0 ]
 }
 
 @test "ARCHITECTURE_TIMEOUT default is 1200s" {
-    run grep -E 'ARCHITECTURE_TIMEOUT=.*_read_harness_config.*"1200"' "$HARNESS"
+    run grep -E '_read_harness_config "spiral\.harness\.architecture_timeout_sec" "1200"' "$HARNESS"
     [ "$status" -eq 0 ]
 }
 
 @test "PLANNING_TIMEOUT default is 600s" {
-    run grep -E 'PLANNING_TIMEOUT=.*_read_harness_config.*"600"' "$HARNESS"
+    run grep -E '_read_harness_config "spiral\.harness\.planning_timeout_sec" "600"' "$HARNESS"
     [ "$status" -eq 0 ]
 }
 

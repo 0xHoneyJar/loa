@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0xhoneyjar.github.io/loa/schemas/degraded-verdict.schema.json",
+  "title": "Degraded Verdict Trajectory Entry",
+  "description": "Schema for trajectory log entries emitted by degraded-verdict-lib.sh (cycle-117 item D, issue #1177) whenever a gate writer (adversarial-review.sh, red-team-code-vs-design.sh, flatline-orchestrator.sh) produces a non-APPROVED verdict band. A fully-clean run never produces a record — the emit helper (degraded_verdict_maybe_emit) no-ops for APPROVED/UNKNOWN bands, so verdict_band is restricted to DEGRADED/FAILED here by construction, not by this schema alone.",
+  "type": "object",
+  "required": ["gate", "verdict_band", "sprint_id", "ts"],
+  "additionalProperties": false,
+  "properties": {
+    "gate": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Identifies the writer and sub-mode that produced this record, e.g. \"adversarial-review:audit\", \"adversarial-review:review\", \"red-team:code-vs-design\", \"flatline:prd\" (flatline has no numbered sprint id, so $phase — prd/sdd/sprint — is the closest per-invocation identifier and is embedded here, not in sprint_id)."
+    },
+    "verdict_band": {
+      "type": "string",
+      "enum": ["DEGRADED", "FAILED"],
+      "description": "Never APPROVED or UNKNOWN — the emit helper no-ops for those bands so no record is ever written for a clean run."
+    },
+    "degradation_reason": {
+      "type": "string",
+      "description": "Free-text cause, e.g. \"model_invocation_failed\", \"empty_or_invalid_model_output\", or a voices_dropped[].reason value from the verdict-quality aggregator (EmptyContent, Other, etc.)."
+    },
+    "degraded_legs": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "Model/voice identifiers that dropped or failed on this gate invocation. Omitted entirely (not an empty array) when the writer has no leg identifiers available."
+    },
+    "model_exit_code": {
+      "type": ["integer", "null"],
+      "description": "Process exit code of the failing model invocation. null when no single exit code applies (e.g. an aggregate multi-voice DEGRADED with no failing exit captured). flatline's writer is lossy here by design: when more than one voice drops, only the FIRST dropped voice's exit_code survives this scalar field (the issue's schema has one field, not a per-leg array) — a known v1 limitation, not a bug."
+    },
+    "sprint_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Sprint identifier for adversarial-review/red-team gates; flatline has no numbered sprint, so its $phase (prd/sdd/sprint) is passed here instead."
+    },
+    "ts": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp when the record was emitted."
+    }
+  }
+}

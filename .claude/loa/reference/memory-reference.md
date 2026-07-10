@@ -4,6 +4,15 @@
 
 ## How It Works (v1.28.0)
 
+> **EXPERIMENTAL — not wired, do not rely on.** As of cycle-115 the
+> semantic-memory recall pipeline described below (Memory Writer Hook,
+> observations capture, progressive-disclosure query) is **not active**:
+> the `memory-inject.sh` / `memory-writer.sh` hooks are unregistered, the
+> vector DB is empty, and `observations.jsonl` holds a single hand-authored
+> entry (zero hook-generated entries). Treat this section as a design
+> sketch of an unrevived subsystem, not a feature you can depend on. The
+> `v1.28.0` / `v1.40.0` stamps below are historical provenance only.
+
 Session-spanning observation storage with progressive disclosure for cross-session recall.
 
 1. **Memory Writer Hook**: Captures observations from tool outputs when learning signals detected
@@ -49,6 +58,13 @@ Loa has two memory systems with distinct ownership. Neither should duplicate the
 | Cross-session technical context | observations.jsonl | `grimoires/loa/memory/` | Loa hooks |
 
 **Decision rule**: If the observation is about *how the user works* → auto-memory. If it's about *how the framework/code works* → observations.jsonl.
+
+> **Reality (cycle-115):** the `Loa hooks` owner in the table above is
+> aspirational. `observations.jsonl` is
+> **hand-authored, zero hook-generated entries** — the `memory-writer.sh`
+> capture hook is unregistered, so nothing
+> is written automatically. The ownership boundary describes the intended
+> design, not current behavior.
 
 The `memory-writer.sh` hook has a skip-list (`SKIP_PATTERNS`) to avoid writing observations that belong to auto-memory scope.
 

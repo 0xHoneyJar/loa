@@ -1,0 +1,13 @@
+{
+  "session_id": "bench0000-0000-4000-8000-000000000000",
+  "transcript_path": "__ROOT__/transcript.jsonl",
+  "cwd": "__ROOT__",
+  "hook_event_name": "PreToolUse",
+  "permission_mode": "default",
+  "tool_name": "Write",
+  "tool_input": {
+    "file_path": "__ROOT__/.claude/scripts/bench-target.sh",
+    "content": "#!/usr/bin/env bash\n# benchmark fixture — never executed\nset -euo pipefail\necho \"bench\"\n"
+  },
+  "tool_response": { "filePath": "__ROOT__/.claude/scripts/bench-target.sh", "success": true }
+}

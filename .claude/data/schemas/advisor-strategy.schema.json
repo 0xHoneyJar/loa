@@ -164,6 +164,11 @@
       "maximum": 1000,
       "default": 50,
       "description": "C7 carry-in / FR-8.6: per-CLI concurrency cap (N-slot semaphore). Default 50 (per-CLI safe values are discovered at sprint-2 T2.16 stress test and may seed model-config.yaml::headless_concurrency_limit per provider/model)."
+    },
+    "stage_routing": {
+      "type": "object",
+      "additionalProperties": {"type": "boolean"},
+      "description": "Cycle-116 D3 (bd-c116-d3-tiering): per-stage opt-in flags governing whether a specific dispatch stage routes through the advisor_strategy role/skill resolver instead of a hardcoded --model pin. Each value is a boolean; default-off (absent key => false). flatline_scorer: gates Flatline score-mode cross-scoring in flatline-orchestrator.sh call_model(). Nested map so future stages add a key without a schema-version bump. Additive/optional: absent => pre-D3 behavior."
     }
   }
 }

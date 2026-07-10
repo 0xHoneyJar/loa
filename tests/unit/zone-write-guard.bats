@@ -31,11 +31,20 @@ zones:
       - "grimoires/loa/known-failures.md"
 YAML
     export LOA_ZONES_FILE="$SCRATCH/zones.yaml"
+    # cycle-119 (R3 review): hermeticity against an ambient framework-dev
+    # authorization marker in the real repo's .run/ — the decision-matrix
+    # tests must pin the UNAUTHORIZED baseline regardless of live session
+    # state. ZWG-T20..T25 override this per-invocation with real fixtures.
+    export LOA_ZONE_GUARD_AUTH_FILE="$SCRATCH/no-marker.json"
+    # cycle-119 (audit): keep test decisions out of the PRODUCTION trajectory
+    # log — the marker mechanism's audit trail must contain only real writes.
+    export LOA_ZONE_GUARD_TRAJECTORY_DIR="$SCRATCH/trajectory"
+    mkdir -p "$SCRATCH/trajectory"
 }
 
 teardown() {
     [[ -n "${SCRATCH:-}" && -d "$SCRATCH" ]] && rm -rf "$SCRATCH"
-    unset LOA_ZONES_FILE LOA_ACTOR LOA_ZONE_GUARD_BYPASS LOA_ZONE_GUARD_DISABLE LOA_REQUIRE_ZONES
+    unset LOA_ZONES_FILE LOA_ACTOR LOA_ZONE_GUARD_BYPASS LOA_ZONE_GUARD_DISABLE LOA_REQUIRE_ZONES LOA_ZONE_GUARD_AUTH_FILE
 }
 
 # ---- ZWG-T1..T6 decision matrix -----------------------------------------
@@ -174,6 +183,77 @@ teardown() {
 @test "ZWG-T13: absolute path under PROJECT_ROOT is normalized" {
     CLAUDE_TOOL_FILE_PATH="${PROJECT_ROOT}/.claude/loa/CLAUDE.loa.md" \
     LOA_ACTOR="project-work" \
+    run "$HOOK"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"BLOCKED"* ]]
+}
+
+# ---- ZWG-T20..T25 framework-dev authorization marker (cycle-119) ---------
+
+_write_auth_marker() {
+    # $1 = expires_at, $2 = scope (default framework), $3 = reason
+    cat > "$SCRATCH/auth.json" <<JSON
+{"scope":"${2:-framework}","reason":"${3:-test-authorization}","expires_at":"$1"}
+JSON
+}
+
+@test "ZWG-T20: valid marker → framework write ALLOW with AUTHORIZED diagnostic" {
+    _write_auth_marker "2099-01-01T00:00:00Z"
+    CLAUDE_TOOL_FILE_PATH=".claude/skills/some-skill/SKILL.md" \
+    LOA_ACTOR="project-work" \
+    LOA_ZONE_GUARD_AUTH_FILE="$SCRATCH/auth.json" \
+    run "$HOOK"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"AUTHORIZED"* ]]
+}
+
+@test "ZWG-T21: expired marker → BLOCK falls through to decision matrix" {
+    _write_auth_marker "2020-01-01T00:00:00Z"
+    CLAUDE_TOOL_FILE_PATH=".claude/skills/some-skill/SKILL.md" \
+    LOA_ACTOR="project-work" \
+    LOA_ZONE_GUARD_AUTH_FILE="$SCRATCH/auth.json" \
+    run "$HOOK"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"BLOCKED"* ]]
+}
+
+@test "ZWG-T22: malformed marker JSON → BLOCK falls through" {
+    printf 'not json at all' > "$SCRATCH/auth.json"
+    CLAUDE_TOOL_FILE_PATH=".claude/skills/some-skill/SKILL.md" \
+    LOA_ACTOR="project-work" \
+    LOA_ZONE_GUARD_AUTH_FILE="$SCRATCH/auth.json" \
+    run "$HOOK"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"BLOCKED"* ]]
+}
+
+@test "ZWG-T23: wrong-scope marker → BLOCK falls through" {
+    _write_auth_marker "2099-01-01T00:00:00Z" "project"
+    CLAUDE_TOOL_FILE_PATH=".claude/skills/some-skill/SKILL.md" \
+    LOA_ACTOR="project-work" \
+    LOA_ZONE_GUARD_AUTH_FILE="$SCRATCH/auth.json" \
+    run "$HOOK"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"BLOCKED"* ]]
+}
+
+@test "ZWG-T24: stale marker (mtime older than 24h) → BLOCK despite future expiry" {
+    _write_auth_marker "2099-01-01T00:00:00Z"
+    touch -d "2 days ago" "$SCRATCH/auth.json" 2>/dev/null || \
+        touch -t 202001010000 "$SCRATCH/auth.json"
+    CLAUDE_TOOL_FILE_PATH=".claude/skills/some-skill/SKILL.md" \
+    LOA_ACTOR="project-work" \
+    LOA_ZONE_GUARD_AUTH_FILE="$SCRATCH/auth.json" \
+    run "$HOOK"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"BLOCKED"* ]]
+}
+
+@test "ZWG-T25: marker does NOT authorize project-zone writes for update-loa" {
+    _write_auth_marker "2099-01-01T00:00:00Z"
+    CLAUDE_TOOL_FILE_PATH="grimoires/loa/NOTES.md" \
+    LOA_ACTOR="update-loa" \
+    LOA_ZONE_GUARD_AUTH_FILE="$SCRATCH/auth.json" \
     run "$HOOK"
     [ "$status" -eq 2 ]
     [[ "$output" == *"BLOCKED"* ]]

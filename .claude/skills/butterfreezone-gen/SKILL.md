@@ -80,11 +80,15 @@ fi
 
 ### Default Mode (generate + validate)
 
-```bash
-# Generate BUTTERFREEZONE.md
-.claude/scripts/butterfreezone-gen.sh --verbose --json
+Chain generation and validation with `&&` — a single command, so validation
+cannot be skipped by stopping after generation (cycle-119 C17):
 
-# Check exit code
+```bash
+# Generate BUTTERFREEZONE.md, then validate it — one command, not skippable
+.claude/scripts/butterfreezone-gen.sh --verbose --json && \
+  .claude/scripts/butterfreezone-validate.sh --file BUTTERFREEZONE.md --json
+
+# Exit code from generation:
 # 0 = success
 # 2 = config error
 # 3 = Tier 3 bootstrap (limited output)

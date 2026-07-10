@@ -350,6 +350,289 @@ hook_invoke() {
     [[ "$output" =~ "FR-2" ]]
 }
 
+# -----------------------------------------------------------------------------
+# FR-2-REDIR (bd-c117-e-redirect-1pq8, issue #1177 item E): redirection
+# tokens in the rm segment must not be classified as rm operands.
+# -----------------------------------------------------------------------------
+
+@test "FR-2-REDIR: rm -rf ./build 2>/dev/null allowed (issue #1177 repro)" {
+    run hook_invoke "rm -rf ./build 2>/dev/null"
+    [ "$status" -eq 0 ]
+}
+
+@test "FR-2-REDIR: rm -rf dist/ >log 2>&1 allowed" {
+    run hook_invoke "rm -rf dist/ >log 2>&1"
+    [ "$status" -eq 0 ]
+}
+
+@test "FR-2-REDIR: rm -rf ./build 2> /dev/null (space-separated operator+target) allowed" {
+    run hook_invoke "rm -rf ./build 2> /dev/null"
+    [ "$status" -eq 0 ]
+}
+
+@test "FR-2-REDIR adversarial: rm -rf ./build 2> /dev/null dist/ (multi-operand, mid-redirect) allowed" {
+    run hook_invoke "rm -rf ./build 2> /dev/null dist/"
+    [ "$status" -eq 0 ]
+}
+
+@test "FR-2-REDIR negative: rm -rf \$HOME 2>/dev/null still blocks" {
+    run hook_invoke 'rm -rf $HOME 2>/dev/null'
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "FR-2-REDIR negative: rm -rf / >/dev/null 2>&1 still blocks" {
+    run hook_invoke "rm -rf / >/dev/null 2>&1"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "FR-2-REDIR negative: rm -rf ~/ &>/dev/null still blocks" {
+    run hook_invoke "rm -rf ~/ &>/dev/null"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "FR-2-REDIR negative: rm -rf * 2>/dev/null (glob + redirect) still blocks" {
+    run hook_invoke "rm -rf * 2>/dev/null"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "FR-2-REDIR negative: rm -rf ../foo stays ambiguous (no redirect present)" {
+    run hook_invoke "rm -rf ../foo"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-AMBIGUOUS" ]]
+}
+
+@test "FR-2-REDIR adversarial: quoted operand containing '>' is not mistaken for a redirect" {
+    run hook_invoke 'rm -rf "2>weird"'
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-AMBIGUOUS" ]]
+}
+
+@test "FR-2-REDIR adversarial: literal digit-named file '2' still classifies (not swallowed as fd)" {
+    run hook_invoke "rm -rf 2"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-AMBIGUOUS" ]]
+}
+
+# --- redirect BEFORE the operand: the &-scrub must not hide a catastrophic
+# --- operand that FOLLOWS the redirect (item-E blocker safety requirement).
+
+@test "FR-2-REDIR negative: rm -rf 2>&1 \$HOME (fd-dup BEFORE operand) still blocks" {
+    run hook_invoke 'rm -rf 2>&1 $HOME'
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "FR-2-REDIR negative: rm -rf 2>/dev/null / (redirect BEFORE root) still blocks" {
+    run hook_invoke "rm -rf 2>/dev/null /"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "FR-2-REDIR negative: rm -rf >/dev/null ~ (bare redirect BEFORE tilde) still blocks" {
+    run hook_invoke "rm -rf >/dev/null ~"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "FR-2-REDIR negative: rm -rf &>/dev/null * (&-redirect BEFORE glob) still blocks" {
+    run hook_invoke "rm -rf &>/dev/null *"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "FR-2-REDIR negative: x && rm -rf / (&& separator detection intact) still blocks" {
+    run hook_invoke "x && rm -rf /"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+# --- the safety/benign PAIR the review flagged as indistinguishable under the
+# --- old &-truncation: the scrub removes 2>&1 BEFORE extraction, so a trailing
+# --- catastrophic operand is no longer lost. Benign (no trailing operand) must
+# --- ALLOW; the same shape with /etc appended must BLOCK.
+
+@test "FR-2-REDIR negative: rm -rf dist/ >log 2>&1 /etc (operand after fd-dup) still blocks" {
+    run hook_invoke "rm -rf dist/ >log 2>&1 /etc"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "FR-2-REDIR negative: rm -rf node_modules/ 2>&1 / (operand after fd-dup) still blocks" {
+    run hook_invoke "rm -rf node_modules/ 2>&1 /"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+# =============================================================================
+# Group C2 — C15/cycle-119 panel amendment: find ROOT ... -exec rm -rf {} +
+# classifies the FIND ROOT PATH (not the {} / + placeholder tokens) through
+# the SAME safe/dangerous/ambiguous ladder as any other rm operand.
+#
+# MUST-STILL-BLOCK fixtures (panel-mandated, added BEFORE the logic change —
+# these 4 already blocked pre-C15 via the old {}/+-as-ambiguous-operand path;
+# the panel requires proving that first, then confirming they still block
+# after root-path reclassification lands).
+# =============================================================================
+
+@test "C15 must-still-block: rm -rf \"\$UNSET/\" (unset-var-looking path)" {
+    run hook_invoke 'rm -rf "$UNSET/"'
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2" ]]
+}
+
+@test "C15 must-still-block: p='..'; rm -rf \"packages/\$p/dist\"" {
+    run hook_invoke "p='..'; rm -rf \"packages/\$p/dist\""
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2" ]]
+}
+
+@test "C15 must-still-block: find / -exec rm -rf {} + (dangerous root)" {
+    # Pre-C15 this blocks via FR-2-AMBIGUOUS (the {}/+ tokens misclassified as
+    # operands); post-C15 it blocks via FR-2-BLOCK (root "/" correctly
+    # classified as catastrophic). Either sub-code satisfies "must block".
+    run hook_invoke "find / -exec rm -rf {} +"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2" ]]
+}
+
+@test "C15 must-still-block: find \$DIR -exec rm -rf {} + (dollar-expansion root — NEVER allow)" {
+    run hook_invoke 'find $DIR -exec rm -rf {} +'
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2" ]]
+}
+
+# -----------------------------------------------------------------------------
+# New behavior (C15b): an explicit safe relative root (no $-expansion, not on
+# the dangerous list) allows the find-exec segment — the {} / + tokens are no
+# longer misclassified as ambiguous path operands.
+# -----------------------------------------------------------------------------
+
+@test "C15 find-exec ALLOW: find ./build -exec rm -rf {} + (explicit safe relative root)" {
+    run hook_invoke "find ./build -exec rm -rf {} +"
+    [ "$status" -eq 0 ]
+}
+
+@test "C15 find-exec ALLOW: find ./node_modules -exec rm -rf {} + allowed" {
+    run hook_invoke "find ./node_modules -exec rm -rf {} +"
+    [ "$status" -eq 0 ]
+}
+
+@test "C15 find-exec negative: find ./build -a -name foo -exec rm -rf {} + still root-classified safe (allowed)" {
+    run hook_invoke "find ./build -a -name foo -exec rm -rf {} +"
+    [ "$status" -eq 0 ]
+}
+
+@test "C15 find-exec negative: find /etc -exec rm -rf {} + still blocks (dangerous root)" {
+    run hook_invoke "find /etc -exec rm -rf {} +"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "C15 find-exec negative: find ../escape -exec rm -rf {} + still ambiguous-blocks (dotdot root)" {
+    run hook_invoke "find ../escape -exec rm -rf {} +"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2" ]]
+}
+
+@test "C15 find-exec negative: unrelated later segment keeps its own classification (no root leakage)" {
+    run hook_invoke "find ./build -exec rm -rf {} + ; rm -rf /etc"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "C15 find-exec negative: rm -rf {} standalone (no find) stays ambiguous — unchanged" {
+    run hook_invoke "rm -rf {}"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2" ]]
+}
+
+# cycle-119 lead-review catch: find accepts MULTIPLE start paths. A first-
+# root-only capture allowed `find ./build /etc -exec rm -rf {} +` (the /etc
+# start point was invisible to classification). Eligibility now requires
+# EXACTLY ONE root via token-walk; these pin the multi-root attack shapes.
+
+@test "C15 multi-root MUST-BLOCK: find ./build /etc -exec rm -rf {} + (second root dangerous)" {
+    run hook_invoke "find ./build /etc -exec rm -rf {} +"
+    [ "$status" -eq 2 ]
+}
+
+@test "C15 multi-root MUST-BLOCK: find ./build ~/other -exec rm -rf {} + (tilde second root)" {
+    run hook_invoke "find ./build ~/other -exec rm -rf {} +"
+    [ "$status" -eq 2 ]
+}
+
+@test "C15 multi-root MUST-BLOCK: find ./build \$X -exec rm -rf {} + (dollar second root)" {
+    run hook_invoke 'find ./build $X -exec rm -rf {} +'
+    [ "$status" -eq 2 ]
+}
+
+@test "C15 single-root with primaries+args still allowed: find ./build -name '*.o' -exec rm -rf {} +" {
+    run hook_invoke "find ./build -name '*.o' -exec rm -rf {} +"
+    [ "$status" -eq 0 ]
+}
+
+@test "C15 zero-root MUST-BLOCK: find -name '*.o' -exec rm -rf {} + (GNU default-dot root, ineligible)" {
+    run hook_invoke "find -name '*.o' -exec rm -rf {} +"
+    [ "$status" -eq 2 ]
+}
+
+# R3 review catch (cycle-119): nested find — the inner find's root governs
+# the {} deletions, but the token-walk classifies only the outer root.
+# Any `find` token inside the span disqualifies eligibility.
+
+@test "C15 nested-find MUST-BLOCK: find ./build -exec find / ... -exec rm -rf {} +" {
+    run hook_invoke "find ./build -exec find / -name x -exec rm -rf {} +"
+    [ "$status" -eq 2 ]
+}
+
+@test "C15 nested-find MUST-BLOCK: inner \$HOME root" {
+    run hook_invoke 'find ./build -exec find $HOME -name x -exec rm -rf {} +'
+    [ "$status" -eq 2 ]
+}
+
+@test "C15 nested-find MUST-BLOCK: inner glob root" {
+    run hook_invoke 'find ./build -exec find "*" -name x -exec rm -rf {} +'
+    [ "$status" -eq 2 ]
+}
+
+@test "C15 nested-find MUST-BLOCK: inner /usr/bin/find path form" {
+    run hook_invoke "find ./build -exec /usr/bin/find / -name x -exec rm -rf {} +"
+    [ "$status" -eq 2 ]
+}
+
+@test "C15 nested-find control: reversed order still blocks (dangerous outer root)" {
+    run hook_invoke "find / -exec find ./build -name x -exec rm -rf {} +"
+    [ "$status" -eq 2 ]
+}
+
+# Audit catch (cycle-119): -L / -H / -follow make find traverse symlinks, so
+# a planted link inside an allow-listed root lets {} resolve OUTSIDE it.
+# These shapes were blocked pre-cycle-119 and must stay blocked.
+
+@test "C15 symlink-follow MUST-BLOCK: find ./build -L -exec rm -rf {} +" {
+    run hook_invoke "find ./build -L -exec rm -rf {} +"
+    [ "$status" -eq 2 ]
+}
+
+@test "C15 symlink-follow MUST-BLOCK: find ./build -H -exec rm -rf {} +" {
+    run hook_invoke "find ./build -H -exec rm -rf {} +"
+    [ "$status" -eq 2 ]
+}
+
+@test "C15 symlink-follow MUST-BLOCK: find ./build -follow -exec rm -rf {} +" {
+    run hook_invoke "find ./build -follow -exec rm -rf {} +"
+    [ "$status" -eq 2 ]
+}
+
+@test "C15 symlink-follow MUST-BLOCK: -follow between primaries" {
+    run hook_invoke "find ./build -name '*.o' -follow -exec rm -rf {} +"
+    [ "$status" -eq 2 ]
+}
+
 # =============================================================================
 # Group D — fail-open tests (FR-3 / NFR-3)
 # =============================================================================
@@ -874,5 +1157,218 @@ hook_invoke() {
 @test "SA-HIGH-3 negative: python3 -c reading a protected file allowed" {
     p=".run/cron.d/job.sh"
     run hook_invoke "python3 -c \"print(open('$p').read())\""
+    [ "$status" -eq 0 ]
+}
+
+# =============================================================================
+# Group L — quote-blindness fix (bd-bdb-quote-blindness-pt1g)
+# Destructive TOKENS inside KNOWN-INERT data carriers (echo/printf args, git
+# commit messages, bead descriptions, gh PR bodies) must ALLOW; the same token
+# inside an EXECUTION path ($(...), a separate segment, a non-allowlisted flag,
+# or a spoofed command name) must STAY BLOCKED. The scrub redacts a carrier
+# value ONLY when it contains neither $ nor a backtick — the load-bearing
+# bypass defense (command-substitution values fall through to the (-boundary).
+# =============================================================================
+
+# --- must flip to ALLOW (the false positives this fix closes) ----------------
+
+@test "quote-blind ALLOW: echo 'rm -rf is dangerous' (bare echo carrier)" {
+    run hook_invoke "echo 'rm -rf is dangerous'"
+    [ "$status" -eq 0 ]
+}
+
+@test "quote-blind ALLOW: bare echo mentioning TRUNCATE TABLE (unquoted)" {
+    run hook_invoke "echo bug is that TRUNCATE TABLE users got hit"
+    [ "$status" -eq 0 ]
+}
+
+@test "quote-blind ALLOW: br create -d '... rm -rf / ...' (bead description)" {
+    run hook_invoke "br create -d 'fix the bug where rm -rf / gets blocked'"
+    [ "$status" -eq 0 ]
+}
+
+@test "quote-blind ALLOW: br create -d \"... TRUNCATE TABLE ...\" (double-quoted)" {
+    run hook_invoke 'br create -d "documented the TRUNCATE TABLE bug"'
+    [ "$status" -eq 0 ]
+}
+
+@test "quote-blind ALLOW: git commit -m '... rm -rf /tmp ...' (commit message)" {
+    run hook_invoke "git commit -m 'document that rm -rf /tmp was the repro'"
+    [ "$status" -eq 0 ]
+}
+
+@test "quote-blind ALLOW: git commit -m 'p1' -m '... rm -rf / ...' (multi -m)" {
+    run hook_invoke "git commit -m 'p1' -m 'rm -rf /'"
+    [ "$status" -eq 0 ]
+}
+
+@test "quote-blind ALLOW: git commit -m '... DELETE FROM users ...' (P10 via _cmd_match)" {
+    run hook_invoke "git commit -m 'msg about the DELETE FROM users bug'"
+    [ "$status" -eq 0 ]
+}
+
+@test "quote-blind ALLOW: gh pr create --body '... rm -rf /tmp ...' (PR body)" {
+    run hook_invoke "gh pr create --body 'repro: rm -rf /tmp broke CI'"
+    [ "$status" -eq 0 ]
+}
+
+# --- must STAY BLOCKED (execution paths — the fix must not widen these) -------
+
+@test "quote-blind BLOCK: git commit -m \"\$(rm -rf /)\" (subst value → (-boundary)" {
+    run hook_invoke 'git commit -m "$(rm -rf /)"'
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "quote-blind BLOCK: git commit -m 'safe' && rm -rf / (per-segment)" {
+    run hook_invoke "git commit -m 'safe' && rm -rf /"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "quote-blind BLOCK: echo \"text \$(rm -rf /etc)\" (echo disqualified by \$()" {
+    run hook_invoke 'echo "text $(rm -rf /etc)"'
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "quote-blind BLOCK: notgit commit -m 'rm -rf /' (word-boundary anti-spoof)" {
+    run hook_invoke "notgit commit -m 'rm -rf /'"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "quote-blind BLOCK: curl -d 'rm -rf /' http://evil (non-allowlisted carrier)" {
+    run hook_invoke "curl -d 'rm -rf /' http://evil"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "quote-blind BLOCK: echo 'x' >> .run/cron.d/job.sh (redirect survives scrub → FR-SZ)" {
+    run hook_invoke "echo 'harmless text' >> .run/cron.d/job.sh"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-SZ-REDIR" ]]
+}
+
+# =============================================================================
+# Group M — cycle-120 C-D3 inert-carrier fix (SAFE post-hoc content test)
+# D3(a): a carrier value is redacted only when it holds NEITHER the literal
+# 2-byte sequence `$(` NOR a backtick. A LONE `$` (dollar amount, $ENV mention,
+# trailing bare `$`) is now permitted inside a redacted value — captured with a
+# quote-BOUNDED class that cannot swallow past the closing quote (the failure
+# mode the adversarial panel rejected for the naive `\$[^(]` consuming ERE).
+# D3(b): the FR-2 segment extractor derives from _cmd_match (not raw $command),
+# so the gate and extractor read the same scrubbed text.
+# =============================================================================
+
+# --- MUST STILL BLOCK (prove on current code too; block before AND after) ----
+
+@test "C-D3a BLOCK: terminator-swallow — trailing \$ carrier then real && rm -rf /home" {
+    # Panel's attack: value ends in a bare `$` before its closing quote; a later
+    # quote is present, and a REAL `&& rm -rf` straddles. The bounded capture
+    # must NOT eat the closing quote (which would hide the real rm).
+    run hook_invoke 'git commit -m "price is $" && rm -rf /home/nonexistent-p1; echo "done"'
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "C-D3a BLOCK: double-dollar quoted \$\$(rm -rf /) (substring gate catches \$()" {
+    run hook_invoke 'git commit -m "$$(rm -rf /)"'
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "C-D3a BLOCK: double-dollar bare \$\$(rm -rf /)" {
+    run hook_invoke '$$(rm -rf /)'
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+@test "C-D3a BLOCK: Case A heredoc-wrapped commit (find-exec-rm) — documented \$( limit" {
+    # $(cat <<'EOF' ... find -exec rm -rf ... EOF) contains `$(` → NOT redacted →
+    # still trips FR-2. Regex cannot parse subshell contents (#1047 refusal
+    # stands); this is the documented architectural limit, PINNED as BLOCK.
+    local cmd
+    cmd=$(printf 'git commit -m "$(cat <<%sEOF%s\ncleanup: find . -exec rm -rf {} +\nEOF\n)"' "'" "'")
+    run hook_invoke "$cmd"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2" ]]
+}
+
+@test "C-D3a BLOCK: backtick value with a ; separator (pins backtick-never-redacts)" {
+    # A backtick value is left INTACT (never redacted), so a real `; rm -rf /`
+    # inside it still reaches detection. This pins the load-bearing invariant
+    # that D3(a) guarantees for backtick values. (Note: backtick command-
+    # substitution WITHOUT a recognised separator — e.g. `\`rm -rf /\`` — remains
+    # the pre-existing, separately-tracked bd-bdb-backtick-bypass, uncaught in
+    # either direction; that is out of scope for C-D3 and unchanged here.)
+    run hook_invoke 'git commit -m "note `; rm -rf /`"'
+    [ "$status" -eq 2 ]
+}
+
+# --- cycle-120 R1 CRITICAL: decoy-flag re-anchor bypass (MUST BLOCK) ---------
+# A doubled flag literal inside the carrier value (`git commit -m "-m " && ...`)
+# used to let the pre-flag `[^;&|]*` prefix walk past the real opening quote and
+# re-anchor on the embedded `-m`, capturing `&& rm -rf "` as a redactable value.
+# Fixed by barring quotes from the prefix class (`[^;&|'"]*`). Reproduced live on
+# both HEAD and main before the fix; these pin it blocked go-forward.
+
+@test "C-D3 R1 BLOCK: decoy git -m re-anchor then rm -rf /" {
+    run hook_invoke 'git commit -m "-m " && rm -rf "/"'
+    [ "$status" -eq 2 ]
+}
+
+@test "C-D3 R1 BLOCK: decoy git --message re-anchor" {
+    run hook_invoke 'git commit --message "-m " && rm -rf "/home/nonexistent-p1"'
+    [ "$status" -eq 2 ]
+}
+
+@test "C-D3 R1 BLOCK: decoy br -d re-anchor" {
+    run hook_invoke 'br create -d "-d " && rm -rf "/home/nonexistent-p1"'
+    [ "$status" -eq 2 ]
+}
+
+@test "C-D3 R1 BLOCK: decoy bd -d re-anchor" {
+    run hook_invoke 'bd update -d "-d " && rm -rf "/home/nonexistent-p1"'
+    [ "$status" -eq 2 ]
+}
+
+@test "C-D3 R1 BLOCK: decoy gh --body re-anchor" {
+    run hook_invoke 'gh pr create --title "t" --body "--body " && rm -rf "/home/nonexistent-p1"'
+    [ "$status" -eq 2 ]
+}
+
+@test "C-D3 R1 BLOCK: decoy carrier + second rm compound (D3b net)" {
+    run hook_invoke 'git commit -m "-m " && rm -rf "/home/nonexistent-p1" && rm -rf /tmp/x'
+    [ "$status" -eq 2 ]
+}
+
+@test "C-D3b BLOCK: composite boundary-\$ carrier immediately followed by real && rm -rf" {
+    # Pins that the FR-2 gate and the segment extractor never disagree toward
+    # ALLOW: the git carrier value ends in a bare `$` (redacted), and the SAME
+    # statement carries a real `&& rm -rf <blocked-path>` that must still block.
+    run hook_invoke 'git commit -m "cost is $" && rm -rf /home/victim-c120'
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "FR-2-BLOCK" ]]
+}
+
+# --- NEW ALLOW (false positives this fix closes) -----------------------------
+
+@test "C-D3a ALLOW: Case B — incidental \$5 + destructive phrase (find -exec rm -rf)" {
+    # Was a false positive: the `$5` blocked redaction, so `find . -exec rm -rf`
+    # inside the message tripped FR-2 (root `.`). Now the lone `$` is permitted.
+    run hook_invoke 'git commit -m "perf: saved $5/mo by replacing find . -exec rm -rf {} + with trash-cli"'
+    [ "$status" -eq 0 ]
+}
+
+@test "C-D3a ALLOW: Case C control — same message minus the \$ (already allowed)" {
+    run hook_invoke 'git commit -m "perf: saved money by replacing find . -exec rm -rf {} + with trash-cli"'
+    [ "$status" -eq 0 ]
+}
+
+@test "C-D3a ALLOW: \$ENV mention alongside rm -rf / in the same commit value" {
+    # `$PATH` is a lone `$` (no `$(`), so the value redacts and the incidental
+    # `rm -rf /` mention no longer false-positives.
+    run hook_invoke 'git commit -m "export $PATH before rm -rf / cleanup"'
     [ "$status" -eq 0 ]
 }

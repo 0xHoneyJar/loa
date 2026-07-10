@@ -52,9 +52,13 @@ The L3 chassis runs scheduled autonomous cycles via a 5-phase DispatchContract (
 
 **Reference**: `.claude/skills/scheduled-cycle-template/SKILL.md` (caller-facing usage) + `grimoires/loa/sdd.md` §5.5 (full API spec).
 
+**cycle-117 finding (session-cap-fanout, bd-c117-b-fanout-5ggb)**: `CronCreate` and a `.claude/scheduled_tasks.json` firing store were investigated as the mechanism for post-reset schedules and both ruled out — `CronCreate` jobs are explicitly session-scoped/non-durable (die with the authoring session) and no `scheduled_tasks.json` store exists on this platform. `.claude/scripts/session-cap-fanout.sh` uses the proven real-crontab pattern instead (cycle-098's `budget-reconcile-install.sh` / `audit-snapshot-install.sh`), registering each generated ScheduleConfig via `cycle_register` before installing the crontab entry.
+
 ## L4 Graduated-Trust (cycle-098 Sprint 4)
 
 The L4 primitive maintains a per-(scope, capability, actor) trust ledger where tier ratchets up by demonstrated alignment (operator grants) and ratchets down automatically on observed override (record_override → auto_drop + cooldown). Hash-chained for tamper detection; TRACKED in git for reconstructability. Library: `.claude/scripts/lib/graduated-trust-lib.sh`. Schemas: `.claude/data/trajectory-schemas/trust-events/`. Skill: `.claude/skills/graduated-trust/`.
+
+> **⚠ STATUS: IMPLEMENTED-BUT-DORMANT.** All of FR-L4-1..8 shipped + tested (~70 bats; commit a15cd30c / PR #764) — transitions / integrity / seal (`trust_grant`, `trust_record_override`, `trust_verify_chain`, `trust_disable`) are live functions, not stubs (the constraints table below documents them). BUT L4 is `enabled: false` by default with **no runtime footprint** (no on-disk trust ledger, never ratcheted) — it is **NOT a live control**. Do not reason about graduated-trust as an active guarantee. Retained build-ahead for a future multi-tenant / standards-contribution path (relabel cycle OKF/ICM, 2026-06-28; PR #1155 analysis rec #6).
 
 ### Graduated-Trust Constraints
 

@@ -118,7 +118,7 @@ _maybe_apply_bedrock_forward_routing() {
 
     # Rewrite each alias whose target appears in the inverse map.
     local routed_config
-    routed_config="$(mktemp /tmp/loa-model-config-bedrock-routed.XXXXXX.yaml)"
+    routed_config="$(mktemp /tmp/loa-model-config-bedrock-routed.XXXXXX)"
     yq eval -o=json '.' "$CONFIG_FILE" \
         | jq --argjson inv "$invmap" '
             .aliases |= ( to_entries
