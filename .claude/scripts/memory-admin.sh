@@ -21,12 +21,14 @@ set -euo pipefail
 # Configuration
 # =============================================================================
 
-PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
-# Memory Stack relocated from .loa/ to .loa-state/ to avoid submodule collision (cycle-035)
-LOA_DIR="${PROJECT_ROOT}/.loa-state"
-DB_FILE="${LOA_DIR}/memory.db"
-EMBED_SCRIPT="${PROJECT_ROOT}/.claude/hooks/memory-utils/embed.py"
-CONFIG_FILE="${PROJECT_ROOT}/.loa.config.yaml"
+PROJECT_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+# Memory Stack relocated from .loa/ to .loa-state/ to avoid submodule collision (cycle-035).
+# Path vars honor pre-set env overrides (${VAR:-default}) so tests can redirect
+# the DB to a scratch dir; unset in production, so defaults apply unchanged.
+LOA_DIR="${LOA_DIR:-${PROJECT_ROOT}/.loa-state}"
+DB_FILE="${DB_FILE:-${LOA_DIR}/memory.db}"
+EMBED_SCRIPT="${EMBED_SCRIPT:-${PROJECT_ROOT}/.claude/hooks/memory-utils/embed.py}"
+CONFIG_FILE="${CONFIG_FILE:-${PROJECT_ROOT}/.loa.config.yaml}"
 
 # Python interpreter - prefer venv if available
 if [[ -x "${LOA_DIR}/venv/bin/python3" ]]; then
