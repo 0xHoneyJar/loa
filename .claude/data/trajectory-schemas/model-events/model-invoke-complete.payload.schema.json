@@ -24,24 +24,44 @@
     "models_succeeded": {
       "description": "Subset of models_requested that returned a usable response (after fallback resolution).",
       "type": "array",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     },
     "models_failed": {
-      "description": "Per-model failure record. Structurally compatible with the model-error.schema.json envelope but inlined here for audit-query ergonomics. The error_class enum is referenced from model-error.schema.json — keep in sync. cycle-104 Sprint 2 (T2.6): added optional 'provider' (per-entry provider) and 'missing_capabilities' (populated when error_class=CAPABILITY_MISS). Records appear in chain-walk order.",
+      "description": "Per-model failure record. Structurally compatible with the model-error.schema.json envelope but inlined here for audit-query ergonomics. The error_class enum is referenced from model-error.schema.json \u2014 keep in sync. cycle-104 Sprint 2 (T2.6): added optional 'provider' (per-entry provider) and 'missing_capabilities' (populated when error_class=CAPABILITY_MISS). Records appear in chain-walk order.",
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["model", "error_class", "message_redacted"],
+        "required": [
+          "model",
+          "error_class",
+          "message_redacted"
+        ],
         "additionalProperties": false,
         "properties": {
-          "model": { "type": "string", "minLength": 1 },
+          "model": {
+            "type": "string",
+            "minLength": 1
+          },
           "error_class": {
             "$ref": "loa://schemas/model-error/v1.0.0#/properties/error_class"
           },
-          "message_redacted": { "type": "string", "maxLength": 8192 },
-          "fallback_from": { "type": "string", "minLength": 1 },
-          "fallback_to": { "type": "string", "minLength": 1 },
-          "retryable": { "type": "boolean" },
+          "message_redacted": {
+            "type": "string",
+            "maxLength": 8192
+          },
+          "fallback_from": {
+            "type": "string",
+            "minLength": 1
+          },
+          "fallback_to": {
+            "type": "string",
+            "minLength": 1
+          },
+          "retryable": {
+            "type": "boolean"
+          },
           "provider": {
             "description": "cycle-104 Sprint 2 (T2.6 / FR-S2.3). Provider key for this entry (e.g. openai, anthropic, google). Optional for backward compat; new emitters MUST populate.",
             "type": "string",
@@ -50,7 +70,24 @@
           "missing_capabilities": {
             "description": "cycle-104 Sprint 2 (FR-S2.7). Populated when error_class=CAPABILITY_MISS; lists the capabilities the request required that this entry does not declare.",
             "type": "array",
-            "items": { "type": "string", "minLength": 1 }
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "estimated_input": {
+            "description": "cycle-114 preflight gate: estimated input tokens for this model at preempt time. Present only on PREFLIGHT_PREEMPT entries.",
+            "type": "integer",
+            "minimum": 0
+          },
+          "effective_input_ceiling": {
+            "description": "cycle-114 preflight gate: the empirically-safe input ceiling this model was measured against. Present only on PREFLIGHT_PREEMPT entries.",
+            "type": "integer",
+            "minimum": 1
+          },
+          "ceiling_stale": {
+            "description": "cycle-114 preflight gate: true when the ceiling's calibration probe has aged past its staleness window. Present only on PREFLIGHT_PREEMPT entries.",
+            "type": "boolean"
           }
         }
       }
@@ -60,10 +97,26 @@
       "type": "boolean"
     },
     "calling_primitive": {
-      "description": "Optional caller-context attribution per SDD section 4.4. Captures which L1-L7 primitive (if any) initiated the call. Null/absent for direct model-invoke CLI or persona-cheval calls.",
+      "description": "Optional caller-context attribution per SDD section 4.4 + cycle-112 D-6 (#931). Either an L1-L7 agent-network primitive tag, OR the skill/agent slug that initiated the call (cheval writes --skill, falling back to --agent \u2014 e.g. \"/review-sprint\", \"flatline-reviewer\"). Null/absent for direct model-invoke CLI calls.",
       "anyOf": [
-        { "type": "null" },
-        { "enum": ["L1", "L2", "L3", "L4", "L5", "L6", "L7"] }
+        {
+          "type": "null"
+        },
+        {
+          "enum": [
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5",
+            "L6",
+            "L7"
+          ]
+        },
+        {
+          "type": "string",
+          "pattern": "^/?[A-Za-z][A-Za-z0-9._:/-]{0,127}$"
+        }
       ]
     },
     "capability_class": {
@@ -101,13 +154,15 @@
       "type": "boolean"
     },
     "streaming": {
-      "description": "True iff the call used the Sprint 4A streaming transport (cycle-102 AC-4.5e). False if LOA_CHEVAL_DISABLE_STREAMING=1 routed the call through the legacy non-streaming http_post path. Additive field (Sprint 4A) — older audit entries written before this field existed will simply omit it; readers must handle absence as 'unknown' rather than 'false'.",
+      "description": "True iff the call used the Sprint 4A streaming transport (cycle-102 AC-4.5e). False if LOA_CHEVAL_DISABLE_STREAMING=1 routed the call through the legacy non-streaming http_post path. Additive field (Sprint 4A) \u2014 older audit entries written before this field existed will simply omit it; readers must handle absence as 'unknown' rather than 'false'.",
       "type": "boolean"
     },
     "final_model_id": {
       "description": "cycle-104 Sprint 2 (T2.6 / FR-S2.3). The model that produced the result, in provider:model_id form. May differ from models_requested[0] when within-company chain walked to a fallback entry. Null/absent when models_succeeded is empty (chain exhausted).",
       "anyOf": [
-        { "type": "null" },
+        {
+          "type": "null"
+        },
         {
           "type": "string",
           "pattern": "^[a-z][a-z0-9_]*:[a-zA-Z0-9._-]+$"
@@ -115,106 +170,196 @@
       ]
     },
     "transport": {
-      "description": "cycle-104 Sprint 2 (T2.6). Transport of the FINAL successful entry — derived from its adapter_kind. 'http' for streaming/non-streaming HTTP adapters; 'cli' for headless subprocess adapters (claude-headless, codex-headless, gemini-headless). Null/absent when chain exhausted.",
+      "description": "cycle-104 Sprint 2 (T2.6). Transport of the FINAL successful entry \u2014 derived from its adapter_kind. 'http' for streaming/non-streaming HTTP adapters; 'cli' for headless subprocess adapters (claude-headless, codex-headless, gemini-headless). Null/absent when chain exhausted.",
       "anyOf": [
-        { "type": "null" },
-        { "enum": ["http", "cli"] }
+        {
+          "type": "null"
+        },
+        {
+          "enum": [
+            "http",
+            "cli"
+          ]
+        }
       ]
     },
     "config_observed": {
-      "description": "cycle-104 Sprint 2 (T2.6). Audit-the-mode-source per PRD §1.3 axiom 2. Captures the operator-effective headless routing mode AND the precedence layer it came from (env > config > default), so audit consumers can prove which knob produced the chain walk shape.",
+      "description": "cycle-104 Sprint 2 (T2.6). Audit-the-mode-source per PRD \u00a71.3 axiom 2. Captures the operator-effective headless routing mode AND the precedence layer it came from (env > config > default), so audit consumers can prove which knob produced the chain walk shape.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["headless_mode", "headless_mode_source"],
+      "required": [
+        "headless_mode",
+        "headless_mode_source"
+      ],
       "properties": {
         "headless_mode": {
-          "enum": ["prefer-api", "prefer-cli", "api-only", "cli-only"]
+          "enum": [
+            "prefer-api",
+            "prefer-cli",
+            "api-only",
+            "cli-only"
+          ]
         },
         "headless_mode_source": {
-          "enum": ["env", "config", "default"]
+          "enum": [
+            "env",
+            "config",
+            "default"
+          ]
         }
       }
     },
     "role": {
-      "description": "cycle-108 sprint-1 T1.F. Caller's logical role at invocation time (PRD §5 FR-2). null/absent for legacy callers that did not pass --role.",
+      "description": "cycle-108 sprint-1 T1.F. Caller's logical role at invocation time (PRD \u00a75 FR-2). null/absent for legacy callers that did not pass --role.",
       "anyOf": [
-        { "type": "null" },
-        { "enum": ["planning", "review", "implementation"] }
+        {
+          "type": "null"
+        },
+        {
+          "enum": [
+            "planning",
+            "review",
+            "implementation"
+          ]
+        }
       ]
     },
     "tier": {
-      "description": "cycle-108 sprint-1 T1.F. Resolved tier — advisor or executor. Null/absent when advisor_strategy disabled or legacy path.",
+      "description": "cycle-108 sprint-1 T1.F. Resolved tier \u2014 advisor or executor. Null/absent when advisor_strategy disabled or legacy path.",
       "anyOf": [
-        { "type": "null" },
-        { "enum": ["advisor", "executor"] }
+        {
+          "type": "null"
+        },
+        {
+          "enum": [
+            "advisor",
+            "executor"
+          ]
+        }
       ]
     },
     "tier_source": {
       "description": "cycle-108 sprint-1 T1.F. Provenance of the tier decision: default (from defaults map), per_skill_override (explicit override), kill_switch (LOA_ADVISOR_STRATEGY_DISABLE or disabled-by-absence).",
       "anyOf": [
-        { "type": "null" },
-        { "enum": ["default", "per_skill_override", "kill_switch", "disabled_legacy"] }
+        {
+          "type": "null"
+        },
+        {
+          "enum": [
+            "default",
+            "per_skill_override",
+            "kill_switch",
+            "disabled_legacy"
+          ]
+        }
       ]
     },
     "tier_resolution": {
-      "description": "cycle-108 sprint-1 T1.F. Resolution mode at load time. 'static:<sha>' pins to .loa.config.yaml commit SHA (SDD §3.6, FR-9). 'dynamic' re-resolves per call. 'disabled' for legacy path.",
+      "description": "cycle-108 sprint-1 T1.F. Resolution mode at load time. 'static:<sha>' pins to .loa.config.yaml commit SHA (SDD \u00a73.6, FR-9). 'dynamic' re-resolves per call. 'disabled' for legacy path.",
       "anyOf": [
-        { "type": "null" },
-        { "type": "string", "pattern": "^(static:[0-9a-fA-F]{4,40}|static:UNKNOWN|dynamic|disabled)$" }
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^(static:[0-9a-fA-F]{4,40}|static:UNKNOWN|dynamic|disabled)$"
+        }
       ]
     },
     "sprint_kind": {
-      "description": "cycle-108 sprint-1 T1.F. Stratification label for benchmark grouping (e.g. 'glue', 'parser', 'cryptographic'). See SDD §8 taxonomy. Null/absent outside of replay context.",
+      "description": "cycle-108 sprint-1 T1.F. Stratification label for benchmark grouping (e.g. 'glue', 'parser', 'cryptographic'). See SDD \u00a78 taxonomy. Null/absent outside of replay context.",
       "anyOf": [
-        { "type": "null" },
-        { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" }
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,63}$"
+        }
       ]
     },
     "writer_version": {
-      "description": "cycle-108 sprint-1 T1.F (SDD §21.4, IMP-012). MODELINV envelope writer version. '1.2' for cycle-108+. Read from .claude/data/cycle-108/modelinv-writer-version SoT file. Null/absent for legacy v1.1 emitters.",
+      "description": "cycle-108 sprint-1 T1.F (SDD \u00a721.4, IMP-012). MODELINV envelope writer version. '1.2' for cycle-108+. Read from .claude/data/cycle-108/modelinv-writer-version SoT file. Null/absent for legacy v1.1 emitters.",
       "anyOf": [
-        { "type": "null" },
-        { "type": "string", "pattern": "^[0-9]+\\.[0-9]+$" }
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+$"
+        }
       ]
     },
     "invocation_chain": {
-      "description": "cycle-108 sprint-1 T1.F (SDD §20.5 ATK-A13). Parent skill / slash-command lineage of this cheval invocation (top-most caller first). Used for post-merge audit of skills claiming review-tier but invoked from non-review chains.",
+      "description": "cycle-108 sprint-1 T1.F (SDD \u00a720.5 ATK-A13). Parent skill / slash-command lineage of this cheval invocation (top-most caller first). Used for post-merge audit of skills claiming review-tier but invoked from non-review chains.",
       "anyOf": [
-        { "type": "null" },
+        {
+          "type": "null"
+        },
         {
           "type": "array",
-          "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
           "maxItems": 16
         }
       ]
     },
     "replay_marker": {
-      "description": "cycle-108 sprint-1 T1.F (SDD §20.10 ATK-A15). True when this invocation originates inside a benchmark replay context (LOA_REPLAY_CONTEXT=1). Rollup tool excludes replay-marked envelopes from prod queries by default.",
+      "description": "cycle-108 sprint-1 T1.F (SDD \u00a720.10 ATK-A15). True when this invocation originates inside a benchmark replay context (LOA_REPLAY_CONTEXT=1). Rollup tool excludes replay-marked envelopes from prod queries by default.",
       "anyOf": [
-        { "type": "null" },
-        { "type": "boolean" }
+        {
+          "type": "null"
+        },
+        {
+          "type": "boolean"
+        }
       ]
     },
     "pricing_snapshot": {
-      "description": "cycle-108 sprint-2 T2.J (SDD §20.9 ATK-A20). Pricing captured at invocation time from .claude/defaults/model-config.yaml::providers.<p>.models.<m>.pricing. Units: micro-USD per million tokens. Rollup tool reads pricing FROM envelopes (not current model-config), so historical pricing changes do not retroactively rewrite cost reports.",
+      "description": "cycle-108 sprint-2 T2.J (SDD \u00a720.9 ATK-A20). Pricing captured at invocation time from .claude/defaults/model-config.yaml::providers.<p>.models.<m>.pricing. Units: micro-USD per million tokens. Rollup tool reads pricing FROM envelopes (not current model-config), so historical pricing changes do not retroactively rewrite cost reports.",
       "anyOf": [
-        { "type": "null" },
+        {
+          "type": "null"
+        },
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["input_per_mtok", "output_per_mtok"],
+          "required": [
+            "input_per_mtok",
+            "output_per_mtok"
+          ],
           "properties": {
-            "input_per_mtok": { "type": "integer", "minimum": 0 },
-            "output_per_mtok": { "type": "integer", "minimum": 0 },
-            "reasoning_per_mtok": { "type": "integer", "minimum": 0 },
-            "per_task_micro_usd": { "type": "integer", "minimum": 0 },
-            "pricing_mode": { "enum": ["token", "task", "hybrid"] }
+            "input_per_mtok": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "output_per_mtok": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "reasoning_per_mtok": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "per_task_micro_usd": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "pricing_mode": {
+              "enum": [
+                "token",
+                "task",
+                "hybrid"
+              ]
+            }
           }
         }
       ]
     },
     "capability_evaluation": {
-      "description": "cycle-109 Sprint 1 T1.4 (SDD §3.3.1). Snapshot of the capability-aware substrate pre-flight gate decision for THIS invocation. Optional/additive — legacy emitters and unmigrated callers omit the field; v1.3 emitters populate when the pre-flight gate ran (whether it preempted, dispatched, or routed through chunking). preflight_decision enum: 'dispatch' = passthrough to chain walk; 'preempt' = exit 7 ContextTooLarge emitted before adapter dispatch; 'chunk' = (RETIRED #937/sprint-bug-211 — the loa_cheval.chunking dispatch path was deleted as dead+fail-closed; the enum value is RETAINED so historical envelopes still validate, but no current emitter produces it; oversized input now always preempts). effective_input_ceiling MAY be null when the head chain entry's model-config is still v2-shape (gate disabled but evaluation ran). recommended_for echoes the v3 capability surface verbatim (allow-all default `[review, audit, implementation, dissent, arbiter]` per SKP-004 v5 closure).",
+      "description": "cycle-109 Sprint 1 T1.4 (SDD \u00a73.3.1). Snapshot of the capability-aware substrate pre-flight gate decision for THIS invocation. Optional/additive \u2014 legacy emitters and unmigrated callers omit the field; v1.3 emitters populate when the pre-flight gate ran (whether it preempted, dispatched, or routed through chunking). preflight_decision enum: 'dispatch' = passthrough to chain walk; 'preempt' = exit 7 ContextTooLarge emitted before adapter dispatch; 'chunk' = (RETIRED #937/sprint-bug-211 \u2014 the loa_cheval.chunking dispatch path was deleted as dead+fail-closed; the enum value is RETAINED so historical envelopes still validate, but no current emitter produces it; oversized input now always preempts). effective_input_ceiling MAY be null when the head chain entry's model-config is still v2-shape (gate disabled but evaluation ran). recommended_for echoes the v3 capability surface verbatim (allow-all default `[review, audit, implementation, dissent, arbiter]` per SKP-004 v5 closure).",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -228,26 +373,48 @@
       "properties": {
         "effective_input_ceiling": {
           "anyOf": [
-            { "type": "null" },
-            { "type": "integer", "minimum": 1 }
+            {
+              "type": "null"
+            },
+            {
+              "type": "integer",
+              "minimum": 1
+            }
           ]
         },
-        "reasoning_class": { "type": "boolean" },
+        "reasoning_class": {
+          "type": "boolean"
+        },
         "recommended_for": {
           "type": "array",
           "items": {
-            "enum": ["review", "audit", "implementation", "dissent", "arbiter"]
+            "enum": [
+              "review",
+              "audit",
+              "implementation",
+              "dissent",
+              "arbiter"
+            ]
           }
         },
-        "ceiling_stale": { "type": "boolean" },
-        "estimated_input_tokens": { "type": "integer", "minimum": 0 },
+        "ceiling_stale": {
+          "type": "boolean"
+        },
+        "estimated_input_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
         "preflight_decision": {
-          "enum": ["dispatch", "preempt", "chunk"]
+          "enum": [
+            "dispatch",
+            "preempt",
+            "chunk"
+          ]
         }
       }
     },
     "verdict_quality": {
-      "description": "cycle-109 Sprint 2 T2.3 (SDD §3.3.1 v1.3 additive + §3.2 verdict-quality.schema.json). First-class envelope describing voices succeeded/dropped, chain health, and confidence for THIS substrate invocation. Inlined structurally rather than $ref'd so the MODELINV schema is self-contained — verdict-quality.schema.json remains the authority for envelope-alone validation in producer paths. Optional/additive: pre-T2.3 callers and consumers that don't yet emit the envelope simply omit the field. NFR-Rel-1: when present, the inline structure rejects status values outside {APPROVED, DEGRADED, FAILED} — `clean` is definitionally impossible.",
+      "description": "cycle-109 Sprint 2 T2.3 (SDD \u00a73.3.1 v1.3 additive + \u00a73.2 verdict-quality.schema.json). First-class envelope describing voices succeeded/dropped, chain health, and confidence for THIS substrate invocation. Inlined structurally rather than $ref'd so the MODELINV schema is self-contained \u2014 verdict-quality.schema.json remains the authority for envelope-alone validation in producer paths. Optional/additive: pre-T2.3 callers and consumers that don't yet emit the envelope simply omit the field. NFR-Rel-1: when present, the inline structure rejects status values outside {APPROVED, DEGRADED, FAILED} \u2014 `clean` is definitionally impossible.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -263,101 +430,232 @@
         "rationale"
       ],
       "properties": {
-        "status": { "enum": ["APPROVED", "DEGRADED", "FAILED"] },
-        "consensus_outcome": { "enum": ["consensus", "impossible"] },
-        "truncation_waiver_applied": { "type": "boolean" },
-        "voices_planned": { "type": "integer", "minimum": 1 },
-        "voices_succeeded": { "type": "integer", "minimum": 0 },
+        "status": {
+          "enum": [
+            "APPROVED",
+            "DEGRADED",
+            "FAILED"
+          ]
+        },
+        "consensus_outcome": {
+          "enum": [
+            "consensus",
+            "impossible"
+          ]
+        },
+        "truncation_waiver_applied": {
+          "type": "boolean"
+        },
+        "voices_planned": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "voices_succeeded": {
+          "type": "integer",
+          "minimum": 0
+        },
         "voices_succeeded_ids": {
           "type": "array",
-          "items": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]+$"
+          },
           "uniqueItems": true
         },
         "voices_dropped": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["voice", "reason", "exit_code", "blocker_risk"],
+            "required": [
+              "voice",
+              "reason",
+              "exit_code",
+              "blocker_risk"
+            ],
             "additionalProperties": false,
             "properties": {
-              "voice": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+              "voice": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9._-]+$"
+              },
               "reason": {
                 "enum": [
-                  "EmptyContent", "RateLimited", "ProviderUnavailable",
-                  "RetriesExhausted", "ContextTooLarge", "NoEligibleAdapter",
-                  "ChainExhausted", "InteractionPending", "Other"
+                  "EmptyContent",
+                  "RateLimited",
+                  "ProviderUnavailable",
+                  "RetriesExhausted",
+                  "ContextTooLarge",
+                  "NoEligibleAdapter",
+                  "ChainExhausted",
+                  "InteractionPending",
+                  "Other"
                 ]
               },
-              "exit_code": { "type": "integer", "minimum": 0, "maximum": 255 },
-              "blocker_risk": { "enum": ["unknown", "low", "med", "high"] },
+              "exit_code": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 255
+              },
+              "blocker_risk": {
+                "enum": [
+                  "unknown",
+                  "low",
+                  "med",
+                  "high"
+                ]
+              },
               "chain_walk": {
                 "type": "array",
-                "items": { "type": "string" }
+                "items": {
+                  "type": "string"
+                }
               }
             }
           }
         },
-        "chain_health": { "enum": ["ok", "degraded", "exhausted"] },
-        "confidence_floor": { "enum": ["high", "med", "low"] },
-        "rationale": { "type": "string", "minLength": 1, "maxLength": 1024 },
-        "single_voice_call": { "type": "boolean" },
-        "chunked": { "type": "boolean" },
-        "chunks_reviewed": { "type": "integer", "minimum": 0 },
-        "chunks_dropped": { "type": "integer", "minimum": 0 },
-        "chunks_aggregated_findings": { "type": "integer", "minimum": 0 }
+        "chain_health": {
+          "enum": [
+            "ok",
+            "degraded",
+            "exhausted"
+          ]
+        },
+        "confidence_floor": {
+          "enum": [
+            "high",
+            "med",
+            "low"
+          ]
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "single_voice_call": {
+          "type": "boolean"
+        },
+        "chunked": {
+          "type": "boolean"
+        },
+        "chunks_reviewed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "chunks_dropped": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "chunks_aggregated_findings": {
+          "type": "integer",
+          "minimum": 0
+        }
       }
     },
     "chunked_review": {
-      "description": "cycle-109 Sprint 4 T4.7 (SDD §3.3.1 v1.3 additive + §5.4). RETIRED #937/sprint-bug-211 — the loa_cheval.chunking package was deleted (dead + fail-closed). This field + its sub-properties are RETAINED so historical envelopes still validate; no current emitter populates it. Previously: snapshot of the chunked-review dispatch state when the pre-flight gate routed input through the chunking package. Operator-facing PR-comment header (T4.8) renders this distinctly from the overall verdict so chunk-count + per-chunk degradation is visible.",
+      "description": "cycle-109 Sprint 4 T4.7 (SDD \u00a73.3.1 v1.3 additive + \u00a75.4). RETIRED #937/sprint-bug-211 \u2014 the loa_cheval.chunking package was deleted (dead + fail-closed). This field + its sub-properties are RETAINED so historical envelopes still validate; no current emitter populates it. Previously: snapshot of the chunked-review dispatch state when the pre-flight gate routed input through the chunking package. Operator-facing PR-comment header (T4.8) renders this distinctly from the overall verdict so chunk-count + per-chunk degradation is visible.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["chunked"],
+      "required": [
+        "chunked"
+      ],
       "properties": {
-        "chunked": { "type": "boolean" },
-        "chunks_reviewed": { "type": "integer", "minimum": 0 },
-        "chunks_dropped": { "type": "integer", "minimum": 0 },
-        "chunks_with_findings": { "type": "integer", "minimum": 0 },
-        "chunks_aggregated_findings": { "type": "integer", "minimum": 0 },
-        "cross_chunk_pass": { "type": "boolean" }
+        "chunked": {
+          "type": "boolean"
+        },
+        "chunks_reviewed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "chunks_dropped": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "chunks_with_findings": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "chunks_aggregated_findings": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cross_chunk_pass": {
+          "type": "boolean"
+        }
       }
     },
     "streaming_recovery": {
-      "description": "cycle-109 Sprint 4 T4.7 (SDD §5.4.4 / IMP-014) + cycle-113 sprint-170 T3.1 (FR-C-1, SDD §4.2). Streaming-with-recovery telemetry: triggered = true when one of the three thresholds (first-token-deadline / empty-content-window / CoT-budget) aborted the stream. tokens_before_abort + reason populated only when triggered = true. config_applied (cycle-113 additive) is the snapshot of operator-configured thresholds in effect at call time — populated on EVERY streaming invocation (healthy or aborted) per I-3 so operators can audit threshold-config drift over time. Optional for back-compat with v1.3 readers (cycle-110 forward-compat contract; I-6).",
+      "description": "cycle-109 Sprint 4 T4.7 (SDD \u00a75.4.4 / IMP-014) + cycle-113 sprint-170 T3.1 (FR-C-1, SDD \u00a74.2). Streaming-with-recovery telemetry: triggered = true when one of the three thresholds (first-token-deadline / empty-content-window / CoT-budget) aborted the stream. tokens_before_abort + reason populated only when triggered = true. config_applied (cycle-113 additive) is the snapshot of operator-configured thresholds in effect at call time \u2014 populated on EVERY streaming invocation (healthy or aborted) per I-3 so operators can audit threshold-config drift over time. Optional for back-compat with v1.3 readers (cycle-110 forward-compat contract; I-6).",
       "type": "object",
       "additionalProperties": false,
-      "required": ["triggered"],
+      "required": [
+        "triggered"
+      ],
       "properties": {
-        "triggered": { "type": "boolean" },
+        "triggered": {
+          "type": "boolean"
+        },
         "tokens_before_abort": {
           "anyOf": [
-            { "type": "null" },
-            { "type": "integer", "minimum": 0 }
+            {
+              "type": "null"
+            },
+            {
+              "type": "integer",
+              "minimum": 0
+            }
           ]
         },
         "reason": {
           "anyOf": [
-            { "type": "null" },
-            { "enum": ["first_token_deadline", "empty_content_window", "cot_budget_exhausted"] }
+            {
+              "type": "null"
+            },
+            {
+              "enum": [
+                "first_token_deadline",
+                "empty_content_window",
+                "cot_budget_exhausted"
+              ]
+            }
           ]
         },
         "config_applied": {
           "description": "cycle-113 sprint-170 T3.1 (FR-C-1). Snapshot of recovery thresholds in effect at call time. Field names match the shipped library API (first_token_deadline_s / empty_content_window_tokens / cot_budget_tokens / reasoning_class) per cycle-113 operator-approved lib-wins naming. May include provider-specific observability extensions (e.g., thoughts_token_count for Google when usageMetadata.thoughtsTokenCount is present).",
           "type": "object",
           "properties": {
-            "first_token_deadline_s": { "type": "number", "minimum": 0 },
-            "empty_content_window_tokens": { "type": "integer", "minimum": 1 },
+            "first_token_deadline_s": {
+              "type": "number",
+              "minimum": 0
+            },
+            "empty_content_window_tokens": {
+              "type": "integer",
+              "minimum": 1
+            },
             "cot_budget_tokens": {
               "anyOf": [
-                { "type": "null" },
-                { "type": "integer", "minimum": 1 }
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "integer",
+                  "minimum": 1
+                }
               ]
             },
-            "reasoning_class": { "type": "boolean" },
+            "reasoning_class": {
+              "type": "boolean"
+            },
             "thoughts_token_count": {
               "description": "Google FR-B-3: observability-only post-hoc accounting from usageMetadata.thoughtsTokenCount. Absent when usageMetadata lacks this field (not all Gemini variants report it).",
               "anyOf": [
-                { "type": "null" },
-                { "type": "integer", "minimum": 0 }
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "integer",
+                  "minimum": 0
+                }
               ]
             }
           }
@@ -365,9 +663,13 @@
       }
     },
     "auth_type_resolved": {
-      "description": "Cycle-110 sprint-2b1 T2.8 (FR-3.4): auth_type bucket the resolver SELECTED for this invocation. Bedrock entries use aws_iam; HTTP-API providers use http_api; subscription-CLI providers use headless. **SELECTED, not FULFILLED**: this is the FIRST chain entry's auth_type after dispatch_preference filtering; on chain-walk failover the actually-succeeding entry may have a different auth_type (visible via final_model_id + model-config lookup). BB #907 iter-1 F-007 explicit clarification. v1.3 readers tolerate this additive field; absence means pre-cycle-110 entry — readers MUST default to http_api per cycle-110 SDD §3.4 backward-compat.",
+      "description": "Cycle-110 sprint-2b1 T2.8 (FR-3.4): auth_type bucket the resolver SELECTED for this invocation. Bedrock entries use aws_iam; HTTP-API providers use http_api; subscription-CLI providers use headless. **SELECTED, not FULFILLED**: this is the FIRST chain entry's auth_type after dispatch_preference filtering; on chain-walk failover the actually-succeeding entry may have a different auth_type (visible via final_model_id + model-config lookup). BB #907 iter-1 F-007 explicit clarification. v1.3 readers tolerate this additive field; absence means pre-cycle-110 entry \u2014 readers MUST default to http_api per cycle-110 SDD \u00a73.4 backward-compat.",
       "type": "string",
-      "enum": ["headless", "http_api", "aws_iam"]
+      "enum": [
+        "headless",
+        "http_api",
+        "aws_iam"
+      ]
     },
     "auth_type_selection_reason": {
       "description": "Cycle-110 sprint-2b1 T2.8 (FR-3.4): how the auth_type was chosen. explicit-dispatch_preference = operator set dispatch_preference to a concrete value; auto-band-comparison = auto-mode used warm-window stats; auto-cold-start-recommended_for = capability_evaluation.recommended_for hint; auto-cold-start-default-headless = no warm data and no hint, defaulted to headless when available.",
@@ -380,21 +682,34 @@
       ]
     },
     "auto_selection_inputs": {
-      "description": "Cycle-110 sprint-2b1 T2.8 (FR-3.4 / SDD §5.5 [Q7] resolution). C11 carry-in: canonical example shape pinned by tests/test_dispatch_filter.py::TestAutoResolutionEnvelopeShape. Present ONLY when auth_type_selection_reason == 'auto-band-comparison'. Aggregate-only counters; no operator content. NFR-Sec-4 redaction pass still runs as defense-in-depth.",
+      "description": "Cycle-110 sprint-2b1 T2.8 (FR-3.4 / SDD \u00a75.5 [Q7] resolution). C11 carry-in: canonical example shape pinned by tests/test_dispatch_filter.py::TestAutoResolutionEnvelopeShape. Present ONLY when auth_type_selection_reason == 'auto-band-comparison'. Aggregate-only counters; no operator content. NFR-Sec-4 redaction pass still runs as defense-in-depth.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
         "sample_n_per_bucket": {
           "type": "object",
-          "additionalProperties": { "type": "integer", "minimum": 0 }
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
         },
         "band_per_bucket": {
           "type": "object",
-          "additionalProperties": { "enum": ["green", "yellow", "red"] }
+          "additionalProperties": {
+            "enum": [
+              "green",
+              "yellow",
+              "red"
+            ]
+          }
         },
         "success_rate_per_bucket": {
           "type": "object",
-          "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 }
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
         }
       }
     },
@@ -404,16 +719,27 @@
       "minimum": 0
     },
     "semaphore_exhausted": {
-      "description": "Cycle-110 sprint-2b1 T2.8 (C12 carry-in): true when the headless-concurrency semaphore (sprint-2b2 T2.11) rejected the call after exhausting bounded retries; distinct from chain_exhausted. Future-compat — sprint-2b2 wires the actual emitter; sprint-2b1 only declares the schema slot so the readers can be coded against it now.",
+      "description": "Cycle-110 sprint-2b1 T2.8 (C12 carry-in): true when the headless-concurrency semaphore (sprint-2b2 T2.11) rejected the call after exhausting bounded retries; distinct from chain_exhausted. Future-compat \u2014 sprint-2b2 wires the actual emitter; sprint-2b1 only declares the schema slot so the readers can be coded against it now.",
       "type": "boolean"
     },
     "effort": {
-      "description": "Cycle-114 FR-8: reasoning-effort level requested for this invocation (Anthropic output_config.effort on Opus 4.5+/Sonnet 4.6). Optional — absent on calls that did not set effort (model default = high). Lets the Empirical Model Economy roll-up report cost-per-clean-output by (skill x model x effort).",
-      "enum": ["low", "medium", "high", "xhigh", "max"]
+      "description": "Cycle-114 FR-8: reasoning-effort level requested for this invocation (Anthropic output_config.effort on Opus 4.5+/Sonnet 4.6). Optional \u2014 absent on calls that did not set effort (model default = high). Lets the Empirical Model Economy roll-up report cost-per-clean-output by (skill x model x effort).",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ]
     },
     "loop_context": {
       "description": "cycle-114 FR-11 (sprint-4): orchestrator loop this invocation ran inside, for per-iteration cost telemetry. Set from LOA_LOOP_CONTEXT by the bridge/post-pr orchestrators. Absent for one-shot (non-loop) calls; readers treat absence as 'not in a tracked loop'. Additive/optional.",
-      "enum": ["bridge", "audit", "e2e", "spiral"]
+      "enum": [
+        "bridge",
+        "audit",
+        "e2e",
+        "spiral"
+      ]
     },
     "loop_iteration": {
       "description": "cycle-114 FR-11 (sprint-4): 1-based iteration index within loop_context, enabling cost-O(depth) analysis. Set from LOA_LOOP_ITERATION. Absent for one-shot calls.",

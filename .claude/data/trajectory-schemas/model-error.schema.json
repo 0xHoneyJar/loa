@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "loa://schemas/model-error/v1.0.0",
   "title": "Loa Typed Model Error (cycle-102 Sprint 1, AC-1.1)",
-  "description": "Anti-silent-degradation typed-error envelope. Every model failure surface (cheval, model-adapter shim, fallback walk, audit-emit payload) MUST conform. The 10 error_class values cover the cheval exception taxonomy (SDD section 4.1) plus probe-gate outcomes (LOCAL_NETWORK_FAILURE) and chain-exhaustion verdicts (FALLBACK_EXHAUSTED). UNKNOWN is the explicit escape hatch — it MUST populate original_exception with the full stacktrace so triage can reclassify into a typed class in a follow-up cycle.",
+  "description": "Anti-silent-degradation typed-error envelope. Every model failure surface (cheval, model-adapter shim, fallback walk, audit-emit payload) MUST conform. The 10 error_class values cover the cheval exception taxonomy (SDD section 4.1) plus probe-gate outcomes (LOCAL_NETWORK_FAILURE) and chain-exhaustion verdicts (FALLBACK_EXHAUSTED). UNKNOWN is the explicit escape hatch \u2014 it MUST populate original_exception with the full stacktrace so triage can reclassify into a typed class in a follow-up cycle.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -26,12 +26,18 @@
         "PROVIDER_OUTAGE",
         "LOCAL_NETWORK_FAILURE",
         "EMPTY_CONTENT",
-        "UNKNOWN"
+        "UNKNOWN",
+        "AUTH_REVOKED",
+        "PREFLIGHT_PREEMPT"
       ]
     },
     "severity": {
       "description": "Operator-visible severity. Maps to the exit-code table at SDD section 4.1: WARN -> exit 0 (advisory, fallback succeeded or probe-itself flake); ERROR -> reserved for future use (currently no scenario emits ERROR); BLOCKER -> chain exhaustion or unrecoverable config error -> non-zero exit.",
-      "enum": ["WARN", "ERROR", "BLOCKER"]
+      "enum": [
+        "WARN",
+        "ERROR",
+        "BLOCKER"
+      ]
     },
     "message_redacted": {
       "description": "Human-readable error message AFTER lib/log-redactor.{sh,py} scrubs API keys, tokens, file paths, emails, IPs, JWTs, etc. NFR-Sec-1. Cap chosen to bound audit payload size while preserving enough context for triage.",
@@ -58,12 +64,12 @@
       "minLength": 1
     },
     "fallback_to": {
-      "description": "Populated when this error caused a fallback. The model the call fell back to. Equal to the empty string is forbidden — use FALLBACK_EXHAUSTED with no fallback_to instead.",
+      "description": "Populated when this error caused a fallback. The model the call fell back to. Equal to the empty string is forbidden \u2014 use FALLBACK_EXHAUSTED with no fallback_to instead.",
       "type": "string",
       "minLength": 1
     },
     "original_exception": {
-      "description": "REQUIRED when error_class=UNKNOWN. Stacktrace + exception message from cheval/Python/etc. Used by triage cycles to reclassify into a typed class. SHOULD NOT be populated for any other error_class — typed classes already encode the failure mode. NFR-Sec-1 emitter contract (cycle-102 Sprint 1B T1B.1, HIGH security; closes BB iter-5 FIND-005): emitters MUST run this string through lib/log-redactor.{sh,py} BEFORE populating. The audit chain is hash-chain immutable per cycle-098; any token, key, prompt fragment, or PII that lands in this field is PERMANENT and unrecoverable. The 16384-byte cap (2x message_redacted's cap) bounds audit-payload size; the schema enforces only shape (string + maxLength). Semantic redaction is non-negotiable emitter responsibility — there is NO downstream lint that retroactively scrubs the chain. Sprint 1B T1.7 (audit_emit wiring) MUST land emitter-side redaction before any MODELINV writer ships; tests/unit/model-error-schema.bats X1 (T1B.1 contract pin) asserts a fake bearer-token shape is redacted before validation. Closes BB iter-4 FIND-003 (med, original_exception cap rationale) AND BB iter-5 FIND-005 (Anthropic single-model, re-classified HIGH).",
+      "description": "REQUIRED when error_class=UNKNOWN. Stacktrace + exception message from cheval/Python/etc. Used by triage cycles to reclassify into a typed class. SHOULD NOT be populated for any other error_class \u2014 typed classes already encode the failure mode. NFR-Sec-1 emitter contract (cycle-102 Sprint 1B T1B.1, HIGH security; closes BB iter-5 FIND-005): emitters MUST run this string through lib/log-redactor.{sh,py} BEFORE populating. The audit chain is hash-chain immutable per cycle-098; any token, key, prompt fragment, or PII that lands in this field is PERMANENT and unrecoverable. The 16384-byte cap (2x message_redacted's cap) bounds audit-payload size; the schema enforces only shape (string + maxLength). Semantic redaction is non-negotiable emitter responsibility \u2014 there is NO downstream lint that retroactively scrubs the chain. Sprint 1B T1.7 (audit_emit wiring) MUST land emitter-side redaction before any MODELINV writer ships; tests/unit/model-error-schema.bats X1 (T1B.1 contract pin) asserts a fake bearer-token shape is redacted before validation. Closes BB iter-4 FIND-003 (med, original_exception cap rationale) AND BB iter-5 FIND-005 (Anthropic single-model, re-classified HIGH).",
       "type": "string",
       "maxLength": 16384
     },
@@ -76,36 +82,64 @@
   "allOf": [
     {
       "if": {
-        "properties": { "error_class": { "const": "UNKNOWN" } },
-        "required": ["error_class"]
+        "properties": {
+          "error_class": {
+            "const": "UNKNOWN"
+          }
+        },
+        "required": [
+          "error_class"
+        ]
       },
       "then": {
-        "required": ["original_exception"]
+        "required": [
+          "original_exception"
+        ]
       }
     },
     {
       "if": {
-        "properties": { "error_class": { "not": { "const": "UNKNOWN" } } },
-        "required": ["error_class"]
+        "properties": {
+          "error_class": {
+            "not": {
+              "const": "UNKNOWN"
+            }
+          }
+        },
+        "required": [
+          "error_class"
+        ]
       },
       "then": {
-        "not": { "required": ["original_exception"] }
+        "not": {
+          "required": [
+            "original_exception"
+          ]
+        }
       }
     },
     {
       "if": {
-        "required": ["fallback_from"]
+        "required": [
+          "fallback_from"
+        ]
       },
       "then": {
-        "required": ["fallback_to"]
+        "required": [
+          "fallback_to"
+        ]
       }
     },
     {
       "if": {
-        "required": ["fallback_to"]
+        "required": [
+          "fallback_to"
+        ]
       },
       "then": {
-        "required": ["fallback_from"]
+        "required": [
+          "fallback_from"
+        ]
       }
     }
   ]

@@ -9,6 +9,13 @@ setup() {
     PROJECT_ROOT="$(cd "$BATS_TEST_DIR/../.." && pwd)"
     FIXTURES_DIR="$PROJECT_ROOT/tests/fixtures"
 
+    # #953: ensure license fixtures exist. The get_license_field tests read
+    # $FIXTURES_DIR/valid_license.json, which is GITIGNORED and generated on
+    # demand — on a fresh checkout (CI) this file runs alphabetically BEFORE
+    # any sibling that sources the generator, so it must generate its own.
+    # shellcheck source=../fixtures/ensure_license_fixtures.sh
+    source "$FIXTURES_DIR/ensure_license_fixtures.sh"
+
     # Source the library (will fail until implemented)
     if [[ -f "$PROJECT_ROOT/.claude/scripts/constructs-lib.sh" ]]; then
         source "$PROJECT_ROOT/.claude/scripts/constructs-lib.sh"

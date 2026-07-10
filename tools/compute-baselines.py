@@ -73,9 +73,14 @@ _DEFAULT_SC_BASELINES: Dict[str, Dict[str, float]] = {
 
 
 def _current_git_sha() -> str:
+    # git_sha_at_signing anchors the baseline manifest to the framework repo
+    # this tool ships in — resolve relative to THIS FILE, not the caller's
+    # CWD. CWD-relative resolution silently recorded "UNKNOWN" whenever the
+    # tool ran from a scratch/output directory outside any repo (T3.A).
+    repo_anchor = Path(__file__).resolve().parent.parent
     try:
         out = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
+            ["git", "-C", str(repo_anchor), "rev-parse", "HEAD"],
             capture_output=True, text=True, check=True, timeout=10,
         )
         return out.stdout.strip()

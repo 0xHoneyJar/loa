@@ -36,11 +36,13 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # === Logging ===
-log() { echo -e "${GREEN}[loa-submodule]${NC} $*"; }
-warn() { echo -e "${YELLOW}[loa-submodule]${NC} WARNING: $*"; }
-err() { echo -e "${RED}[loa-submodule]${NC} ERROR: $*" >&2; exit 1; }
-info() { echo -e "${CYAN}[loa-submodule]${NC} $*"; }
-step() { echo -e "${BLUE}[loa-submodule]${NC} -> $*"; }
+# printf, not echo -e (#1162): %b interprets escapes ONLY in the color codes;
+# message text goes through %s verbatim (backslash-/dash-safe).
+log()  { printf '%b[loa-submodule]%b %s\n' "$GREEN" "$NC" "$*"; }
+warn() { printf '%b[loa-submodule]%b WARNING: %s\n' "$YELLOW" "$NC" "$*"; }
+err()  { printf '%b[loa-submodule]%b ERROR: %s\n' "$RED" "$NC" "$*" >&2; exit 1; }
+info() { printf '%b[loa-submodule]%b %s\n' "$CYAN" "$NC" "$*"; }
+step() { printf '%b[loa-submodule]%b -> %s\n' "$BLUE" "$NC" "$*"; }
 
 # === Configuration ===
 LOA_REMOTE_URL="${LOA_UPSTREAM:-https://github.com/0xHoneyJar/loa.git}"
@@ -57,17 +59,28 @@ RECONCILE_SYMLINKS=false
 SOURCE_ONLY=false
 
 # === Argument Parsing ===
+# Guard for option-taking flags: a missing operand must fail loudly instead of
+# silently consuming the next flag (or an empty string) as the value (#1162).
+require_operand() {
+  if [[ -z "${2:-}" || "${2:-}" == -* ]]; then
+    err "Option $1 requires a value (got '${2:-}')"
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case $1 in
     --branch)
+      require_operand "$1" "${2:-}"
       LOA_BRANCH="$2"
       shift 2
       ;;
     --tag)
+      require_operand "$1" "${2:-}"
       LOA_TAG="$2"
       shift 2
       ;;
     --ref)
+      require_operand "$1" "${2:-}"
       LOA_REF="$2"
       shift 2
       ;;
@@ -427,8 +440,11 @@ validate_symlink_target() {
   repo_root=$(realpath "$repo_root" 2>/dev/null || echo "$repo_root")
   resolved_target=$(realpath "$resolved_target" 2>/dev/null || echo "$resolved_target")
 
-  # Check if resolved target starts with repo root
-  if [[ "$resolved_target" != "$repo_root"* ]]; then
+  # Check the resolved target is INSIDE the repo root. Compare against
+  # "$repo_root/" (or exact equality), not the bare prefix — a bare-prefix
+  # match accepts sibling directories like /home/x/repo-evil when repo_root
+  # is /home/x/repo (#1162 boundary bypass).
+  if [[ "$resolved_target" != "$repo_root" && "$resolved_target" != "$repo_root"/* ]]; then
     err "Security: Symlink target escapes repository bounds: $target"
     err "  Target resolves to: $resolved_target"
     err "  Repository root: $repo_root"
@@ -576,7 +592,7 @@ create_claude_md() {
     warn "CLAUDE.md exists without Loa import"
     info "Add this line at the top of CLAUDE.md:"
     echo ""
-    echo -e "  ${CYAN}@.claude/loa/CLAUDE.loa.md${NC}"
+    printf '  %b@.claude/loa/CLAUDE.loa.md%b\n' "$CYAN" "$NC"
     echo ""
     return 0
   fi

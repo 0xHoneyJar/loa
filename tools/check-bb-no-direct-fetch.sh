@@ -113,7 +113,15 @@ fi
 
 # The raw-HTTP patterns. Multi-line awk regex (one per OR-branch); each
 # line of source is tested against all of them.
-PATTERNS='fetch\(|https?\.request\(|https?\.get\(|require\(["'\'']undici["'\'']\)|from[[:space:]]+["'\'']undici["'\'']|from[[:space:]]+["'\'']node:https?["'\'']'
+#
+# CROSS-RUNTIME PARITY (v1.196.0): metacharacters are written as POSIX
+# character classes ([(], [.], [)]) rather than backslash escapes (\(, \.,
+# \)). In a DYNAMIC awk regex (passed via -v and used with `~`), gawk rejects
+# `\(` as "invalid regexp: Unmatched (" and aborts the whole scan — so the gate
+# fell through as "clean" (exit 0) on every gawk host (CI/ubuntu), silently
+# disabling the no-direct-fetch enforcement, while mawk (local) tolerated it.
+# Character classes match a literal char identically in mawk, gawk, and nawk.
+PATTERNS='fetch[(]|https?[.]request[(]|https?[.]get[(]|require[(]["'\'']undici["'\''][)]|from[[:space:]]+["'\'']undici["'\'']|from[[:space:]]+["'\'']node:https?["'\'']'
 
 SUPPRESS_MARKER='// check-bb-no-direct-fetch: ok'
 

@@ -23,6 +23,23 @@ setup() {
 CREATE TABLE issues (id TEXT PRIMARY KEY, owner TEXT);
 INSERT INTO issues VALUES ('test', 'me');
 SQL
+
+    # Hermetic `br` stub: these tests exercise the SQLite-layer schema
+    # inspection, not the binary. Without a stub, beads-health early-exits
+    # NOT_INSTALLED on runners without beads_rust (CI) and the migration
+    # check never runs — the suite passed locally but failed in CI (#953).
+    export STUB_BIN="$TMPDIR_TEST/bin"
+    mkdir -p "$STUB_BIN"
+    cat > "$STUB_BIN/br" <<'EOF'
+#!/usr/bin/env bash
+case "${1:-}" in
+    --version) echo "br 0.2.6 (stub)" ;;
+    doctor)    echo "HEALTH workspace: healthy"; exit 0 ;;
+    *)         exit 0 ;;
+esac
+EOF
+    chmod +x "$STUB_BIN/br"
+    export PATH="$STUB_BIN:$PATH"
 }
 
 teardown() {

@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.196.0] — 2026-07-10 — Mechanical Floor
+
+Names and documents the v1.181–v1.195 tag wave (everything since [1.180.0]) as one operator-facing release, and lands the release-readiness work itself: a green Shell Tests gate, the #1162 P1 installer hardening, and schema catch-ups. The throughline: **move quality enforcement from model attention into mechanical gates** — validators, verdict trailers, structural checks, and budget floors that hold even when a cheaper model is doing the work — then use those same gates to burn the chronic test-baseline debt to zero.
+
+### The Mechanical Floor arc (cycles 116–120; PRs #1178 #1182 #1183 #1188 #1189 #1191)
+- **Quality-per-token harness** (cycle-116): known-failures INDEX-first intake with SessionStart surfacing; skill token diet (−20.7%); generated `REPO-MAP.md` for code navigation; bridge `termination_reason`; cache-hygiene lint.
+- **Session economy** (cycle-117): copy-set drift gate, push-at-gate + push-notify, C-PROC-018 read-before-write, session-cap capture/resume, fan-out chassis, degraded-verdict paging.
+- **Hook parse-brick fix** (#1180 → #1183): `hook-guard.sh` fail-open wrapper around all safety hooks — a conflict-markered hook can no longer brick every Bash/Edit call.
+- **Mechanical floor** (cycle-119): machine-parseable `LOA-VERDICT` trailer on review/audit feedback + `verdict-derive.sh` one-way rule (findings can force CHANGES_REQUIRED; zero counts can never force approval); validators promoted to MUST gates; `loa-scout` (Haiku, read-only) for evidence fan-outs with a review/audit no-pin lint; zone-guard framework-dev authorization marker; −9,251 words off skills/commands.
+- **Follow-ups** (cycle-120): `claude-sonnet-5` in the cheval catalog (1M context) + executor tier retargeted to it; block-destructive quote-blindness carrier scrub incl. the decoy-flag `&&`-crossing bypass; spiral structured-first verdict; first citation-**resolution** anti-fabrication gate (`validate-artifact --type translation`); flatline repair-loop dogfood; flatline-scorer tier A/B run under a pre-registered rule — the flip was **held** despite the executor winning the decision axis, because both tiers missed the band-calibration bar.
+
+### Added (this release)
+- `registry.reserved_skill_names` restored to `.loa.config.yaml` — registry/pack skills can no longer shadow the 8 golden-path framework skills (`is_reserved_skill_name` was silently inert without it).
+- `check-installer-safety.sh` + `tests/unit/installer-safety.bats` (#1162): enforcing gate (exit 1 on findings, unlike the advisory draft in closed PR #1152) over the three audited installer patterns, with planted-pattern regression fixtures and behavioral guard tests.
+- `LOA_SKILLS_DIR` override for `symlink_pack_skills`/`unlink_pack_skills` — pack-skill linking is testable outside the live repo.
+- `AUTH_REVOKED` added to the model-error taxonomy (12 classes) — the cheval emitter has produced it since PR #1101; the schema now agrees.
+- `calling_primitive` schemas broadened: skill/agent slugs (`/review-sprint`, `adversarial-review:review`) valid alongside `L1`–`L7` tags, catching the schemas up to cycle-112 D-6 attribution; malformed values still rejected by pattern pin.
+- CI bats runs now use `--print-output-on-failure` — future failures carry their output.
+
+### Fixed (this release)
+- **Shell Tests baseline burned down 50 → ~0**: 28 test-rot/real-bug fixes (PR #1192 — incl. a BSD-incompatible mktemp in codegen, a `readonly` re-source abort, self-heal `--check-only` creating the file it was only meant to check, stale-license-fixture regeneration), 5 deferred judgment items (this release), and the CI-only cluster root-caused: fresh-checkout fixture-ordering (`get_license_field`), missing-`br` coupling (`beads-health-migration`), and a **real production bug** in `release-notes-gen.sh` — the Tier-3 `prev_tag` pipeline crashed under `set -eo pipefail` in any repo with no matching version tags, truncating generated release notes.
+- **#1162 P1 installer hardening** (`mount-loa.sh`, `mount-submodule.sh`): all `echo -e` output replaced with `printf '%b…%s'` (escapes interpreted only in color codes, never in user-supplied refs/paths); `require_operand` guards on every option-taking flag; repo-boundary comparison no longer accepts sibling directories (`/repo-evil` vs `/repo`).
+- **Version-stamp drift cured**: `.loa-version.json`, README badge, and the `CLAUDE.loa.md` header carry the release version (they had been pinned at 1.180.0 across 15 tags).
+
+### Merged community/agent PRs (this wave)
+- #1179 spiral evidence gate stops parsing command fragments as deliverable paths (closes #1175, 4 production incidents); #1110 cheval headless adapters walk instead of crash on un-execable argv; #1108 construct-index admits `construct.yaml`-only v4 packs (+ loud-warn when `yq` is unavailable).
+
+Per-tag inventory: GitHub Releases v1.181.0–v1.195.0. Migration notes: `docs/migration/v1.196-mechanical-floor.md`. Decision record: `docs/architecture/ADR-003-mechanical-floor.md`.
+
 ## [1.180.0] — 2026-06-17 — Ponytail 1:1 Parity
 
 Closes the 8 ponytail v4.7.0 capability gaps found by a 21-agent grounded parity audit. loa already carried ponytail's core YAGNI doctrine (the 6-rung ladder, safety floor, one-runnable-check, `loa:shortcut:` marker, 5-tag taxonomy, C-PROC-011) via #1067 (~72%); this brings it to behavioral 1:1. Capability-mapped into loa's existing skills/constraints — no standalone `/ponytail*` port (which would duplicate `reviewing-code`/`auditing-security`/`/ride`). Full audit: `grimoires/loa/proposals/ponytail-parity-audit-2026-06-16.md`.
