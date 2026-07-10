@@ -27,7 +27,8 @@
         "LOCAL_NETWORK_FAILURE",
         "EMPTY_CONTENT",
         "UNKNOWN",
-        "AUTH_REVOKED"
+        "AUTH_REVOKED",
+        "PREFLIGHT_PREEMPT"
       ]
     },
     "severity": {

@@ -74,6 +74,20 @@
               "type": "string",
               "minLength": 1
             }
+          },
+          "estimated_input": {
+            "description": "cycle-114 preflight gate: estimated input tokens for this model at preempt time. Present only on PREFLIGHT_PREEMPT entries.",
+            "type": "integer",
+            "minimum": 0
+          },
+          "effective_input_ceiling": {
+            "description": "cycle-114 preflight gate: the empirically-safe input ceiling this model was measured against. Present only on PREFLIGHT_PREEMPT entries.",
+            "type": "integer",
+            "minimum": 1
+          },
+          "ceiling_stale": {
+            "description": "cycle-114 preflight gate: true when the ceiling's calibration probe has aged past its staleness window. Present only on PREFLIGHT_PREEMPT entries.",
+            "type": "boolean"
           }
         }
       }
