@@ -16,71 +16,21 @@ cost-profile: heavy
 ---
 
 <input_guardrails>
-## Pre-Execution Validation
+## Pre-Execution Guardrails (mechanized — cycle-119)
 
-Before main skill execution, perform guardrail checks.
+Skip this section entirely when `.loa.config.yaml` has `guardrails.input.enabled: false` or env
+`LOA_GUARDRAILS_ENABLED=false`.
 
-### Step 1: Check Configuration
+Otherwise: write the user's invocation prompt/args to a temp file (Write tool), then run
+`.claude/scripts/guardrails-orchestrator.sh --skill deploying-infrastructure --mode ${LOA_RUN_MODE:-interactive} --file <temp-file>`
 
-Read `.loa.config.yaml`:
-```yaml
-guardrails:
-  input:
-    enabled: true|false
-```
+| Outcome | Action |
+|---------|--------|
+| JSON `action: "BLOCK"` | HALT; report the script's `reason` to the user |
+| JSON `action: "PROCEED"` or `"WARN"` | Continue (logging is handled by the script) |
+| Script missing, non-zero exit, or unparseable output | Continue — fail-open, preserving pre-cycle-119 semantics |
 
-**Exit Conditions**:
-- `guardrails.input.enabled: false` → Skip to skill execution
-- Environment `LOA_GUARDRAILS_ENABLED=false` → Skip to skill execution
-
-### Step 2: Run Danger Level Check
-
-**Script**: `.claude/scripts/danger-level-enforcer.sh --skill deploying-infrastructure --mode {mode}`
-
-**CRITICAL**: This is a **high** danger level skill.
-
-| Mode | Behavior |
-|------|----------|
-| Interactive | Require explicit confirmation |
-| Autonomous | BLOCK unless `--allow-high` flag |
-
-**On BLOCK (autonomous without flag)**:
-```
-🛑 Skill Blocked by Danger Level
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Skill: deploying-infrastructure
-Danger Level: high
-Mode: autonomous
-
-High-risk skills are blocked in autonomous mode.
-To allow, re-run with: /run sprint-N --allow-high
-```
-
-### Step 3: Run PII Filter
-
-**Script**: `.claude/scripts/pii-filter.sh`
-
-**CRITICAL for infrastructure**: Extra vigilance for:
-- Cloud credentials (AWS, GCP, Azure)
-- API keys and tokens
-- Database connection strings
-- SSH keys and certificates
-
-Log redaction count to trajectory.
-
-### Step 4: Run Injection Detection
-
-**Script**: `.claude/scripts/injection-detect.sh --threshold 0.7`
-
-Check for manipulation attempts.
-
-### Step 5: Log to Trajectory
-
-Write to `grimoires/loa/a2a/trajectory/guardrails-{date}.jsonl`.
-
-### Error Handling
-
-On error: Log to trajectory, **fail-open** (continue to skill).
+Never pass prompt text as a bash argv (quote-blindness FP class) — always via `--file`.
 </input_guardrails>
 
 # DevOps Crypto Architect Skill
@@ -135,40 +85,15 @@ The SDD specifies "PostgreSQL 15 with pgvector extension" (sdd.md:L123)
 ```
 </factual_grounding>
 
-<structured_memory_protocol>
-## Structured Memory Protocol
+<context_discipline>
+## Context Discipline
 
-### On Session Start
-1. Read `grimoires/loa/NOTES.md`
-2. Restore context from "Session Continuity" section
-3. Check for resolved blockers
-
-### During Execution
-1. Log decisions to "Decision Log"
-2. Add discovered issues to "Technical Debt"
-3. Update sub-goal status
-4. **Apply Tool Result Clearing** after each tool-heavy operation
-
-### Before Compaction / Session End
-1. Summarize session in "Session Continuity"
-2. Ensure all blockers documented
-3. Verify all raw tool outputs have been decayed
-</structured_memory_protocol>
-
-<tool_result_clearing>
-## Tool Result Clearing
-
-After tool-heavy operations (grep, cat, tree, API calls):
-1. **Synthesize**: Extract key info to NOTES.md or discovery/
-2. **Summarize**: Replace raw output with one-line summary
-3. **Clear**: Release raw data from active reasoning
-
-Example:
-```
-# Raw grep: 500 tokens -> After decay: 30 tokens
-"Found 47 AuthService refs across 12 files. Key locations in NOTES.md."
-```
-</tool_result_clearing>
+Follow `.claude/protocols/tool-result-clearing.md`. Thresholds: single result >2K tokens /
+accumulated >5K / full file >3K / session total >15K → extract findings (≤10 files, ≤20 words
+each, with file:line) to `grimoires/loa/NOTES.md`, then reason from the synthesis, not raw dumps.
+Session start: read NOTES.md "Session Continuity". Session end / pre-compaction: update it
+(decisions → Decision Log, discovered issues → Technical Debt).
+</context_discipline>
 
 <trajectory_logging>
 ## Trajectory Logging

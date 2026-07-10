@@ -149,33 +149,15 @@ During drift analysis, if `.claude/scripts/qmd-context-query.sh` exists and `qmd
 
 ---
 
-<attention_budget>
-## Attention Budget
+<context_discipline>
+## Context Discipline
 
-This skill follows the **Tool Result Clearing Protocol** (`.claude/protocols/tool-result-clearing.md`).
-
-### Token Thresholds
-
-| Context Type | Limit | Action |
-|--------------|-------|--------|
-| Single search result | 2,000 tokens | Apply 4-step clearing |
-| Accumulated results | 5,000 tokens | MANDATORY clearing |
-| Full file load | 3,000 tokens | Single file, synthesize immediately |
-| Session total | 15,000 tokens | STOP, synthesize to NOTES.md |
-
-### 4-Step Clearing
-
-1. **Extract**: Max 10 files, 20 words per finding, with `file:line` refs
-2. **Synthesize**: Write to `grimoires/loa/reality/` or NOTES.md
-3. **Clear**: Remove raw output from context
-4. **Summary**: `"Probe: N files → M relevant → reality/"`
-
-### RLM Pattern Alignment
-
-- **Retrieve**: Probe first, don't load eagerly
-- **Load**: JIT retrieval of relevant sections only
-- **Modify**: Synthesize to grimoire, clear working memory
-</attention_budget>
+Follow `.claude/protocols/tool-result-clearing.md`. Thresholds: single result >2K tokens /
+accumulated >5K / full file >3K / session total >15K → extract findings (≤10 files, ≤20 words
+each, with file:line) to `grimoires/loa/NOTES.md`, then reason from the synthesis, not raw dumps.
+Session start: read NOTES.md "Session Continuity". Session end / pre-compaction: update it
+(decisions → Decision Log, discovered issues → Technical Debt).
+</context_discipline>
 
 ---
 

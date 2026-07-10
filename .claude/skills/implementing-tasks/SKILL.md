@@ -35,144 +35,29 @@ inputs:
 ---
 
 <input_guardrails>
-## Pre-Execution Validation
+## Pre-Execution Guardrails (mechanized — cycle-119)
 
-Before main skill execution, perform guardrail checks.
+Skip this section entirely when `.loa.config.yaml` has `guardrails.input.enabled: false` or env
+`LOA_GUARDRAILS_ENABLED=false`.
 
-### Step 1: Check Configuration
+Otherwise: write the user's invocation prompt/args to a temp file (Write tool), then run
+`.claude/scripts/guardrails-orchestrator.sh --skill implementing-tasks --mode ${LOA_RUN_MODE:-interactive} --file <temp-file>`
 
-Read `.loa.config.yaml`:
-```yaml
-guardrails:
-  input:
-    enabled: true|false
-```
+| Outcome | Action |
+|---------|--------|
+| JSON `action: "BLOCK"` | HALT; report the script's `reason` to the user |
+| JSON `action: "PROCEED"` or `"WARN"` | Continue (logging is handled by the script) |
+| Script missing, non-zero exit, or unparseable output | Continue — fail-open, preserving pre-cycle-119 semantics |
 
-**Exit Conditions**:
-- `guardrails.input.enabled: false` → Skip to prompt enhancement
-- Environment `LOA_GUARDRAILS_ENABLED=false` → Skip to prompt enhancement
-
-### Step 2: Run Danger Level Check
-
-**Script**: `.claude/scripts/danger-level-enforcer.sh --skill implementing-tasks --mode {mode}`
-
-| Action | Behavior |
-|--------|----------|
-| PROCEED | Continue (moderate skill - allowed in all modes) |
-| WARN | Log warning, continue |
-| BLOCK | HALT execution, notify user |
-
-### Step 3: Run PII Filter
-
-**Script**: `.claude/scripts/pii-filter.sh`
-
-Detect and redact:
-- API keys, tokens, secrets
-- Email addresses, phone numbers
-- SSN, credit cards
-- Home directory paths
-
-Log redaction count to trajectory (never log PII values).
-
-### Step 4: Run Injection Detection
-
-**Script**: `.claude/scripts/injection-detect.sh --threshold 0.7`
-
-Check for:
-- Instruction override attempts
-- Role confusion attacks
-- Context manipulation
-- Encoding evasion
-
-**On DETECTED**: BLOCK execution, notify user.
-
-### Step 5: Log to Trajectory
-
-Write to `grimoires/loa/a2a/trajectory/guardrails-{date}.jsonl`.
-
-### Error Handling
-
-On error: Log to trajectory, **fail-open** (continue to skill).
+Never pass prompt text as a bash argv (quote-blindness FP class) — always via `--file`.
 </input_guardrails>
 
 <prompt_enhancement_prelude>
-## Invisible Prompt Enhancement
-
-Before executing main skill logic, apply automatic prompt enhancement to user's request.
-
-### Step 1: Check Configuration
-
-Read `.loa.config.yaml` invisible_mode setting:
-```yaml
-prompt_enhancement:
-  invisible_mode:
-    enabled: true|false
-```
-
-If `prompt_enhancement.invisible_mode.enabled: false` (or not set), skip to main skill logic with original prompt.
-
-### Step 2: Check Command Opt-Out
-
-If this command's frontmatter specifies `enhance: false`, skip enhancement.
-
-### Step 3: Analyze Prompt Quality (PTCF Framework)
-
-Analyze the user's prompt for PTCF components:
-
-| Component | Detection Patterns | Weight |
-|-----------|-------------------|--------|
-| **Persona** | "act as", "you are", "as a", "pretend", "assume the role" | 2 |
-| **Task** | create, review, analyze, fix, summarize, write, debug, refactor, build, implement, design | 3 |
-| **Context** | @mentions, file references (.ts, .js, .py), "given that", "based on", "from the", "in the" | 3 |
-| **Format** | "as bullets", "in JSON", "formatted as", "limit to", "step by step", "as a table" | 2 |
-
-Calculate score (0-10):
-- Task verb present: +3
-- Context present: +3
-- Format specified: +2
-- Persona defined: +2
-
-### Step 4: Enhance If Needed
-
-If score < `prompt_enhancement.auto_enhance_threshold` (default 4):
-
-1. **Classify task type**: debugging, code_review, refactoring, summarization, research, generation, general
-2. **Load template** from `.claude/skills/enhancing-prompts/resources/templates/{task_type}.yaml`
-3. **Apply template**:
-   - Prepend persona if missing
-   - Append format if missing
-   - Add constraints
-   - PRESERVE original text completely
-
-### Step 5: Log to Trajectory (Silent)
-
-Write to `grimoires/loa/a2a/trajectory/prompt-enhancement-{date}.jsonl`:
-```json
-{
-  "type": "prompt_enhancement",
-  "timestamp": "ISO8601",
-  "command": "implement",
-  "action": "ENHANCED|SKIP|DISABLED|OPT_OUT|ERROR",
-  "original_score": N,
-  "enhanced_score": N,
-  "components_added": ["persona", "format"],
-  "task_type": "generation",
-  "latency_ms": N
-}
-```
-
-### Step 6: Continue with Prompt
-
-Use the (potentially enhanced) prompt for main skill execution.
-
-**CRITICAL**: Never show enhancement output to user. All analysis is internal only.
-
-### Error Handling
-
-On ANY error during enhancement:
-- Log `action: "ERROR"` to trajectory
-- Use original prompt unchanged (silent passthrough)
-- Continue with main skill execution
+If `.loa.config.yaml` sets `prompt_enhancement.invisible_mode.enabled: true` and this command's
+frontmatter does not set `enhance: false`, silently apply the PTCF scoring + template flow from
+`.claude/skills/enhancing-prompts/SKILL.md` to the user's request before main logic (log per that
+skill; never show enhancement output). On any error, or when disabled: proceed with the original
+prompt unchanged.
 </prompt_enhancement_prelude>
 
 # Sprint Task Implementer
@@ -256,78 +141,15 @@ The SDD specifies "PostgreSQL 15 with pgvector extension" (sdd.md:L123)
 ```
 </factual_grounding>
 
-<structured_memory_protocol>
-## Structured Memory Protocol
+<context_discipline>
+## Context Discipline
 
-### On Session Start
-1. Read `grimoires/loa/NOTES.md`
-2. Restore context from "Session Continuity" section
-3. Check for resolved blockers
-
-### During Execution
-1. Log decisions to "Decision Log"
-2. Add discovered issues to "Technical Debt"
-3. Update sub-goal status
-4. **Apply Tool Result Clearing** after each tool-heavy operation
-
-### Before Compaction / Session End
-1. Summarize session in "Session Continuity"
-2. Ensure all blockers documented
-3. Verify all raw tool outputs have been decayed
-</structured_memory_protocol>
-
-<tool_result_clearing>
-## Tool Result Clearing
-
-After tool-heavy operations (grep, cat, tree, API calls):
-1. **Synthesize**: Extract key info to NOTES.md or discovery/
-2. **Summarize**: Replace raw output with one-line summary
-3. **Clear**: Release raw data from active reasoning
-
-Example:
-```
-# Raw grep: 500 tokens -> After decay: 30 tokens
-"Found 47 AuthService refs across 12 files. Key locations in NOTES.md."
-```
-</tool_result_clearing>
-
-<attention_budget>
-## Attention Budget
-
-This skill follows the **Tool Result Clearing Protocol** (`.claude/protocols/tool-result-clearing.md`).
-
-### Token Thresholds
-
-| Context Type | Limit | Action |
-|--------------|-------|--------|
-| Single search result | 2,000 tokens | Apply 4-step clearing |
-| Accumulated results | 5,000 tokens | MANDATORY clearing |
-| Full file load | 3,000 tokens | Single file, synthesize immediately |
-| Session total | 15,000 tokens | STOP, synthesize to NOTES.md |
-
-### Clearing Triggers for Implementation
-
-- [ ] Code search returning >20 matches
-- [ ] Dependency analysis >30 files
-- [ ] Test output >100 lines
-- [ ] Build output >50 lines
-- [ ] Any output exceeding 2K tokens
-
-### 4-Step Clearing
-
-1. **Extract**: Max 10 files, 20 words per finding, with `file:line` refs
-2. **Synthesize**: Write to `grimoires/loa/NOTES.md` under implementation context
-3. **Clear**: Do NOT keep raw results in working memory
-4. **Summary**: Keep only `"Impl: N files changed → M tests pass → NOTES.md"`
-
-### Semantic Decay Stages
-
-| Stage | Age | Format | Cost |
-|-------|-----|--------|------|
-| Active | 0-5 min | Full synthesis + snippets | ~200 tokens |
-| Decayed | 5-30 min | Paths only | ~12 tokens/file |
-| Archived | 30+ min | Single-line in trajectory | ~20 tokens |
-</attention_budget>
+Follow `.claude/protocols/tool-result-clearing.md`. Thresholds: single result >2K tokens /
+accumulated >5K / full file >3K / session total >15K → extract findings (≤10 files, ≤20 words
+each, with file:line) to `grimoires/loa/NOTES.md`, then reason from the synthesis, not raw dumps.
+Session start: read NOTES.md "Session Continuity". Session end / pre-compaction: update it
+(decisions → Decision Log, discovered issues → Technical Debt).
+</context_discipline>
 
 <trajectory_logging>
 ## Trajectory Logging
@@ -410,6 +232,14 @@ Karpathy-aligned: goal-driven verification, not just code written.
 See `resources/templates/implementation-report.md` for the structured
 `## AC Verification` template.
 
+**MUST**: immediately before writing the `COMPLETED` marker, run
+`.claude/scripts/validate-ac-verification.sh --report grimoires/loa/a2a/sprint-N/reviewer.md --sprint grimoires/loa/sprint.md`.
+Exit 0 → proceed. Exit 1 → fix the reported AC rows (exact repair text) and
+re-run before writing the marker. Exit 2 (usage error / file not found) →
+treat as a validator FAILURE, do NOT proceed: fix the report/sprint path and
+re-run. Script missing entirely → fall back to the manual walk above
+(fail-open, pre-cycle-119 semantics).
+
 ## Reproducibility (R - Reproducible Results)
 - Write tests with specific assertions: NOT "it works" → "returns 200 status, response includes user.id field"
 - Document specific file paths and line numbers: NOT "updated auth" → "src/auth/middleware.ts:42-67"
@@ -443,43 +273,8 @@ Tool-agnostic — the above are examples; run whatever the project configures.
 </uncertainty_protocol>
 
 <karpathy_principles>
-## Karpathy Principles (MANDATORY)
-
-Counter common LLM coding pitfalls with these four principles:
-
-### 1. Think Before Coding
-- Surface assumptions explicitly before implementing
-- When multiple interpretations exist, present options rather than choosing silently
-- Ask clarifying questions for ambiguous requirements
-- Push back when simpler alternatives exist
-
-### 2. Simplicity First
-- Write minimal code solving ONLY what was requested
-- No speculative features or "just in case" handling
-- No abstractions for single-use code
-- No premature configurability
-- If code could be 50 lines instead of 200, rewrite simpler
-
-### 3. Surgical Changes
-- Only modify lines necessary for the task
-- Match existing code style even if you'd do it differently
-- Don't "improve" adjacent code, comments, or formatting
-- Remove only imports/variables YOUR changes made unused
-- Don't clean up pre-existing issues (note them separately)
-
-### 4. Goal-Driven Execution
-- Define verifiable success criteria BEFORE starting
-- Transform tasks into testable outcomes
-- For each task: WHAT (deliverable), VERIFY (how to test), EVIDENCE (expected output)
-
-**Pre-Implementation Check:**
-- [ ] Assumptions listed in reasoning
-- [ ] Clarifications sought for ambiguities
-- [ ] Scope minimal (no speculative features)
-- [ ] Success criteria defined (testable)
-- [ ] Style will match existing code
-
-Reference: `.claude/protocols/karpathy-principles.md`
+Karpathy Principles are injected every session via `CLAUDE.loa.md`. Full protocol:
+`.claude/protocols/karpathy-principles.md`.
 </karpathy_principles>
 
 <grounding_requirements>
@@ -569,6 +364,8 @@ See: #961 K-3 / FR-4, PR #960 (companion: inline Karpathy in CLAUDE.loa.md),
 </karpathy_goal_driven_gate>
 
 <workflow>
+For wait-loops, cd hygiene, edit-anchor freshness, and fan-out budgets during this workflow, see `.claude/protocols/agent-ergonomics.md`.
+
 ## Phase -2: Beads-First Integration (v1.29.0)
 
 Beads task tracking is the EXPECTED DEFAULT. Check health and sync before implementation.
@@ -681,7 +478,7 @@ Check `grimoires/loa/a2a/sprint-N/auditor-sprint-feedback.md`:
 - Update report with "Security Audit Feedback Addressed" section
 - Quote each audit issue with your fix and verification steps
 
-**If exists + "APPROVED - LETS FUCKING GO":**
+**If exists + "APPROVED - LET'S FUCKING GO":**
 - Sprint passed security audit
 - Proceed to check engineer feedback
 
@@ -807,6 +604,10 @@ Key sections:
 - Known Limitations
 - Verification Steps
 
+**MUST**, immediately before writing any `COMPLETED` marker: run
+`.claude/scripts/validate-ac-verification.sh --report <reviewer.md> --sprint grimoires/loa/sprint.md`
+(see AC Verification Gate above for the full contract and fail-open fallback).
+
 ## Phase 4: Feedback Integration Loop
 
 1. Monitor for feedback files
@@ -878,6 +679,14 @@ Agent 2: "Implement Task 1.3 - read acceptance criteria, review patterns, implem
 2. Verify no conflicts between implementations
 3. Run integration tests across all changes
 4. Generate unified report
+
+## Evidence-Gathering Dispatch (cycle-119)
+
+Evidence-gathering fan-outs (e.g. Option A feedback checks, codebase surveys) MAY dispatch the
+`loa-scout` agent (haiku, read-only — `.claude/agents/loa-scout.md`) instead of a full Explore
+agent, to cut cost on pure read-and-report work. Implementation substeps (any Write/Edit) and
+anything verdict-bearing (feedback verdict classification, AC status determination, audit/review
+judgments) MUST stay in-session or on a full agent — never delegated to loa-scout.
 </parallel_execution>
 
 <output_format>
@@ -967,49 +776,9 @@ task-lifecycle / semantic-labels / session-end command reference (including
 </beads_workflow>
 
 <retrospective_postlude>
-## Invisible Retrospective
-
-After completing main skill logic, scan session for learning opportunities.
-
-**CRITICAL**: This postlude executes SILENTLY. Only surface findings that pass quality gates.
-
-### Step 1: Check Configuration
-
-Read `.loa.config.yaml`:
-```yaml
-invisible_retrospective:
-  enabled: true|false
-  skills:
-    implementing-tasks: true|false
-```
-
-**Exit Conditions** (skip all processing if any are true):
-- `invisible_retrospective.enabled: false` → Log action: DISABLED, exit
-- `invisible_retrospective.skills.implementing-tasks: false` → Log action: DISABLED, exit
-- **RECURSION GUARD**: If skill is `continuous-learning` → Exit silently (but this skill is `implementing-tasks`, so proceed)
-
-### Step 2: Scan Session for Learning Signals
-
-Search the current conversation for these patterns:
-
-| Signal | Detection Patterns | Weight |
-|--------|-------------------|--------|
-| Error Resolution | "error", "failed", "fixed", "resolved", "worked", "the issue was" | 3 |
-| Multiple Attempts | "tried", "attempted", "finally", "after several", "on the Nth try" | 3 |
-| Unexpected Behavior | "surprisingly", "actually", "turns out", "discovered", "realized" | 2 |
-| Workaround Found | "instead", "alternative", "workaround", "bypass", "the trick is" | 2 |
-| Pattern Discovery | "pattern", "convention", "always", "never", "this codebase" | 1 |
-
-**Scoring**: Sum weights for each candidate discovery.
-
-**Output**: List of candidate discoveries (max 5 per skill invocation, from config `max_candidates`)
-
-If no candidates found:
-- Log action: SKIPPED, candidates_found: 0
-- Exit silently
-
-### Steps 3-5 (quality gates, sanitization, logging, surfacing)
-
-Before writing ANY learning content to disk, read resources/RETROSPECTIVE.md and apply its Step 3.5 sanitization (redact API keys/JWTs/secrets) first. That file holds Step 3 (quality gates), Step 3.5 (sanitize descriptions), Step 4 (log to trajectory), Step 5 (surface qualified findings), Error Handling, and Session Limits.
-
+After main skill logic completes, if `.loa.config.yaml` `invisible_retrospective.enabled: true`
+(and not disabled for this skill under `invisible_retrospective.skills`), silently run the
+learning-signal scan per `.claude/skills/continuous-learning/SKILL.md` and its
+`resources/RETROSPECTIVE.md` (quality gates, sanitization, trajectory logging). Recursion guard:
+never when the active skill is continuous-learning itself.
 </retrospective_postlude>

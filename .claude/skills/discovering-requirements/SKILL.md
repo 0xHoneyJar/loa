@@ -35,83 +35,11 @@ zones:
 ---
 
 <prompt_enhancement_prelude>
-## Invisible Prompt Enhancement
-
-Before executing main skill logic, apply automatic prompt enhancement to user's request.
-
-### Step 1: Check Configuration
-
-Read `.loa.config.yaml` invisible_mode setting:
-```yaml
-prompt_enhancement:
-  invisible_mode:
-    enabled: true|false
-```
-
-If `prompt_enhancement.invisible_mode.enabled: false` (or not set), skip to main skill logic with original prompt.
-
-### Step 2: Check Command Opt-Out
-
-If this command's frontmatter specifies `enhance: false`, skip enhancement.
-
-### Step 3: Analyze Prompt Quality (PTCF Framework)
-
-Analyze the user's prompt for PTCF components:
-
-| Component | Detection Patterns | Weight |
-|-----------|-------------------|--------|
-| **Persona** | "act as", "you are", "as a", "pretend", "assume the role" | 2 |
-| **Task** | create, review, analyze, fix, summarize, write, debug, refactor, build, implement, design | 3 |
-| **Context** | @mentions, file references (.ts, .js, .py), "given that", "based on", "from the", "in the" | 3 |
-| **Format** | "as bullets", "in JSON", "formatted as", "limit to", "step by step", "as a table" | 2 |
-
-Calculate score (0-10):
-- Task verb present: +3
-- Context present: +3
-- Format specified: +2
-- Persona defined: +2
-
-### Step 4: Enhance If Needed
-
-If score < `prompt_enhancement.auto_enhance_threshold` (default 4):
-
-1. **Classify task type**: debugging, code_review, refactoring, summarization, research, generation, general
-2. **Load template** from `.claude/skills/enhancing-prompts/resources/templates/{task_type}.yaml`
-3. **Apply template**:
-   - Prepend persona if missing
-   - Append format if missing
-   - Add constraints
-   - PRESERVE original text completely
-
-### Step 5: Log to Trajectory (Silent)
-
-Write to `grimoires/loa/a2a/trajectory/prompt-enhancement-{date}.jsonl`:
-```json
-{
-  "type": "prompt_enhancement",
-  "timestamp": "ISO8601",
-  "command": "plan-and-analyze",
-  "action": "ENHANCED|SKIP|DISABLED|OPT_OUT|ERROR",
-  "original_score": N,
-  "enhanced_score": N,
-  "components_added": ["persona", "format"],
-  "task_type": "generation",
-  "latency_ms": N
-}
-```
-
-### Step 6: Continue with Prompt
-
-Use the (potentially enhanced) prompt for main skill execution.
-
-**CRITICAL**: Never show enhancement output to user. All analysis is internal only.
-
-### Error Handling
-
-On ANY error during enhancement:
-- Log `action: "ERROR"` to trajectory
-- Use original prompt unchanged (silent passthrough)
-- Continue with main skill execution
+If `.loa.config.yaml` sets `prompt_enhancement.invisible_mode.enabled: true` and this command's
+frontmatter does not set `enhance: false`, silently apply the PTCF scoring + template flow from
+`.claude/skills/enhancing-prompts/SKILL.md` to the user's request before main logic (log per that
+skill; never show enhancement output). On any error, or when disabled: proceed with the original
+prompt unchanged.
 </prompt_enhancement_prelude>
 
 <interview_config>
@@ -245,68 +173,15 @@ The SDD specifies "PostgreSQL 15 with pgvector extension" (sdd.md:L123)
 ```
 </factual_grounding>
 
-<structured_memory_protocol>
-## Structured Memory Protocol
+<context_discipline>
+## Context Discipline
 
-### On Session Start
-1. Read `grimoires/loa/NOTES.md`
-2. Restore context from "Session Continuity" section
-3. Check for resolved blockers
-
-### During Execution
-1. Log decisions to "Decision Log"
-2. Add discovered issues to "Technical Debt"
-3. Update sub-goal status
-4. **Apply Tool Result Clearing** after each tool-heavy operation
-
-### Before Compaction / Session End
-1. Summarize session in "Session Continuity"
-2. Ensure all blockers documented
-3. Verify all raw tool outputs have been decayed
-</structured_memory_protocol>
-
-<tool_result_clearing>
-## Tool Result Clearing
-
-After tool-heavy operations (grep, cat, tree, API calls):
-1. **Synthesize**: Extract key info to NOTES.md or discovery/
-2. **Summarize**: Replace raw output with one-line summary
-3. **Clear**: Release raw data from active reasoning
-
-Example:
-```
-# Raw grep: 500 tokens -> After decay: 30 tokens
-"Found 47 AuthService refs across 12 files. Key locations in NOTES.md."
-```
-</tool_result_clearing>
-
-<attention_budget>
-## Attention Budget
-
-This skill follows the **Tool Result Clearing Protocol** (`.claude/protocols/tool-result-clearing.md`).
-
-### Token Thresholds
-
-| Context Type | Limit | Action |
-|--------------|-------|--------|
-| Single search result | 2,000 tokens | Apply 4-step clearing |
-| Accumulated results | 5,000 tokens | MANDATORY clearing |
-| Full file load | 3,000 tokens | Single file, synthesize immediately |
-| Session total | 15,000 tokens | STOP, synthesize to NOTES.md |
-
-### Clearing Triggers for Discovery
-
-- [ ] Document search returning >10 files
-- [ ] Code analysis returning >20 matches
-- [ ] Any API/tool output >2K tokens
-
-### 4-Step Clearing
-
-1. **Extract**: Max 10 files, 20 words per finding
-2. **Synthesize**: Write to `grimoires/loa/NOTES.md`
-3. **Clear**: Remove raw output from context
-4. **Summary**: `"Discovery: N sources → M requirements → NOTES.md"`
-</attention_budget>
+Follow `.claude/protocols/tool-result-clearing.md`. Thresholds: single result >2K tokens /
+accumulated >5K / full file >3K / session total >15K → extract findings (≤10 files, ≤20 words
+each, with file:line) to `grimoires/loa/NOTES.md`, then reason from the synthesis, not raw dumps.
+Session start: read NOTES.md "Session Continuity". Session end / pre-compaction: update it
+(decisions → Decision Log, discovered issues → Technical Debt).
+</context_discipline>
 
 <trajectory_logging>
 ## Trajectory Logging
@@ -1011,7 +886,7 @@ Visual-communication guidance (when to include diagrams, Mermaid output format, 
 <post_completion>
 ## Post-Completion Debrief
 
-After saving the PRD to `grimoires/loa/prd.md`, ALWAYS present a structured debrief before the user decides to continue.
+After saving the PRD to `grimoires/loa/prd.md`, MUST run `.claude/scripts/validate-artifact.sh --type prd --file grimoires/loa/prd.md` before the debrief; repair per its output on exit 1; exit 2 (usage/file-not-found) is a validator FAILURE — fix the path and re-run, do not proceed. ALWAYS present a structured debrief before the user decides to continue.
 
 ### Debrief Structure
 

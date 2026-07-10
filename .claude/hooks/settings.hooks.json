@@ -2,6 +2,42 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "_comment": "Hook configuration for Loa. Merge into ~/.claude/settings.json",
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/scripts/check-updates.sh --notify",
+            "async": true,
+            "once": true
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/session-start/loa-l6-surface-handoffs.sh",
+            "async": true,
+            "once": true
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/session-start/loa-l7-surface-soul.sh",
+            "async": true,
+            "once": true
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/session-start/loa-run-mode-session-title.sh",
+            "async": true,
+            "once": true
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/loa-kf-surface.sh",
+            "once": true
+          }
+        ]
+      }
+    ],
     "PreCompact": [
       {
         "matcher": "",
@@ -20,6 +56,10 @@
           {
             "type": "command",
             "command": ".claude/hooks/post-compact-reminder.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/post-session-limit-reminder.sh"
           }
         ]
       }
@@ -30,11 +70,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/safety/block-destructive-bash.sh"
+            "command": ".claude/hooks/hook-guard.sh .claude/hooks/safety/block-destructive-bash.sh"
           },
           {
             "type": "command",
-            "command": ".claude/hooks/safety/team-role-guard.sh"
+            "command": ".claude/hooks/hook-guard.sh .claude/hooks/safety/team-role-guard.sh"
           }
         ]
       },
@@ -43,15 +83,15 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/safety/team-role-guard-write.sh"
+            "command": ".claude/hooks/hook-guard.sh .claude/hooks/safety/team-role-guard-write.sh"
           },
           {
             "type": "command",
-            "command": ".claude/hooks/safety/spiral-dispatch-guard.sh"
+            "command": ".claude/hooks/hook-guard.sh .claude/hooks/safety/spiral-dispatch-guard.sh"
           },
           {
             "type": "command",
-            "command": ".claude/hooks/safety/zone-write-guard.sh"
+            "command": ".claude/hooks/hook-guard.sh .claude/hooks/safety/zone-write-guard.sh"
           }
         ]
       },
@@ -60,7 +100,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/safety/adversarial-review-gate.sh"
+            "command": ".claude/hooks/hook-guard.sh .claude/hooks/safety/adversarial-review-gate.sh"
           }
         ]
       },
@@ -69,11 +109,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/safety/team-skill-guard.sh"
+            "command": ".claude/hooks/hook-guard.sh .claude/hooks/safety/team-skill-guard.sh"
           },
           {
             "type": "command",
-            "command": ".claude/hooks/safety/spiral-skill-sentinel.sh"
+            "command": ".claude/hooks/hook-guard.sh .claude/hooks/safety/spiral-skill-sentinel.sh"
           }
         ]
       }

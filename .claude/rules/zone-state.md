@@ -19,6 +19,7 @@ The State Zone (`grimoires/`, `.beads/`, `.ck/`, `.run/`) stores session-spannin
 - Configurable paths via `.loa.config.yaml`: `LOA_GRIMOIRE_DIR`, `LOA_BEADS_DIR`
 - Memory observations: `grimoires/loa/memory/observations.jsonl` — queried via `.claude/scripts/memory-query.sh`
 - In Agent Teams mode, only the lead writes to `.run/*.json` (teammates report via SendMessage)
+- Gitignore drift check: `.claude/scripts/validate-gitignore-state.sh` WARNs when a state path that should stay tracked (zones.yaml, ledger.json, known-failures.md, …) is swallowed by a `.gitignore` pattern (cycle-119; 168 failed-`git add` events/quarter fleet-wide)
 
 ## OKF interop boundary (cycle: OKF/ICM adoption, 2026-06-28)
 

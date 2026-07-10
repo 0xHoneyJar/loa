@@ -191,16 +191,72 @@ _verify_review_verdict() {
         return 1
     fi
 
-    if grep -qi "All good\|APPROVED" "$feedback"; then
+    # C-D4 (cycle-120): structured-first. When the feedback file carries the
+    # LOA-VERDICT machine trailer (C6) AND verdict-derive.sh is available,
+    # consume its parsed verdict instead of the prose heuristics below. The
+    # gate is derived from $phase: spiral-harness.sh calls this with "AUDIT"
+    # for the audit gate and "REVIEW" for the review gate (spiral-harness.sh
+    # :655/676) — anything not literally "AUDIT" maps to "review".
+    local _verdict_derive_script
+    # Path override is test-only (bats exercising the unavailable path); prod
+    # resolves it beside this library.
+    _verdict_derive_script="${LOA_VERDICT_DERIVE_SCRIPT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/verdict-derive.sh}"
+    if grep -q '<!-- LOA-VERDICT ' "$feedback" 2>/dev/null; then
+        # R2 review (cycle-120): a trailer is PRESENT, so the caller expects the
+        # structured consistency check. If verdict-derive.sh is missing or lost
+        # its +x bit, do NOT silently degrade to the legacy prose heuristic
+        # (which cannot catch an APPROVED-with-high-severity trailer) — fail
+        # closed. Gate on existence + a bash invocation, not the executable bit,
+        # so a chmod-lost-but-present script still runs (mirrors the cycle-119
+        # golden-path fix).
+        if [[ ! -f "$_verdict_derive_script" ]]; then
+            _record_failure "$phase" "VERDICT_DERIVE_UNAVAILABLE" "$feedback"
+            echo "ERROR: LOA-VERDICT trailer present but verdict-derive.sh unavailable: $_verdict_derive_script" >&2
+            return 1
+        fi
+        local _vd_gate="review"
+        [[ "$phase" == "AUDIT" ]] && _vd_gate="audit"
+
+        local _vd_json _vd_rc
+        _vd_json=$(bash "$_verdict_derive_script" --file "$feedback" --gate "$_vd_gate" --json 2>/dev/null)
+        _vd_rc=$?
+
+        if [[ "$_vd_rc" -eq 0 ]]; then
+            local _vd_verdict
+            _vd_verdict=$(echo "$_vd_json" | jq -r '.verdict // empty')
+            local checksum
+            checksum=$(sha256_portable "$feedback" | awk '{print $1}')
+            if [[ "$_vd_verdict" == "APPROVED" ]]; then
+                _record_action "GATE_${phase}" "claude-opus" "verdict" "" "$checksum" "$feedback" \
+                    "$(wc -c < "$feedback")" 0 0 "APPROVED"
+                return 0
+            else
+                _record_action "GATE_${phase}" "claude-opus" "verdict" "" "" "$feedback" \
+                    "$(wc -c < "$feedback")" 0 0 "CHANGES_REQUIRED"
+                return 1
+            fi
+        else
+            _record_failure "$phase" "INCONSISTENT_VERDICT" "$feedback"
+            echo "ERROR: Inconsistent LOA-VERDICT trailer in: $feedback" >&2
+            return 1
+        fi
+    fi
+
+    # R4 review (cycle-119): check CHANGES_REQUIRED FIRST — the shipped
+    # audit template's Next Steps section retains boilerplate "**If
+    # APPROVED:**" text on every verdict, so the loose APPROVED-substring
+    # check must not run before the negative check (order now matches
+    # check-feedback-status.sh).
+    if grep -qi "CHANGES_REQUIRED\|Changes required" "$feedback"; then
+        _record_action "GATE_${phase}" "claude-opus" "verdict" "" "" "$feedback" \
+            "$(wc -c < "$feedback")" 0 0 "CHANGES_REQUIRED"
+        return 1
+    elif grep -qi "All good\|APPROVED" "$feedback"; then
         local checksum
         checksum=$(sha256_portable "$feedback" | awk '{print $1}')
         _record_action "GATE_${phase}" "claude-opus" "verdict" "" "$checksum" "$feedback" \
             "$(wc -c < "$feedback")" 0 0 "APPROVED"
         return 0
-    elif grep -qi "CHANGES_REQUIRED\|Changes required" "$feedback"; then
-        _record_action "GATE_${phase}" "claude-opus" "verdict" "" "" "$feedback" \
-            "$(wc -c < "$feedback")" 0 0 "CHANGES_REQUIRED"
-        return 1
     else
         _record_failure "$phase" "NO_VERDICT" "$feedback"
         echo "ERROR: No verdict found in: $feedback" >&2

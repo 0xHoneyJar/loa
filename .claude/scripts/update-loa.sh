@@ -192,6 +192,45 @@ check_ledger_schema() {
   fi
 }
 
+# === Version-marker read-back assertion (#1177 item G) ===
+# Sourceable for unit testing. Hard-fails (err → exit 1) if the just-written
+# .loa-version.json does not read back the expected framework_version — no
+# PLACEHOLDER/empty/unchanged marker may survive a bump (AC-c).
+assert_version_marker() {
+  local expected="$1" file="${2:-$VERSION_FILE}"
+  if [[ -z "$expected" ]]; then
+    err "Refusing to accept .loa-version.json: computed framework_version is empty."
+  fi
+  local readback
+  readback=$(jq -r '.framework_version // ""' "$file" 2>/dev/null || echo "")
+  if [[ "$readback" != "$expected" ]]; then
+    err ".loa-version.json write verification FAILED: framework_version reads '$readback', expected '$expected'."
+  fi
+}
+
+# === Copy-set verification gate (#1177 item G) ===
+# Sourceable for unit testing. Runs the mount-submodule copy-set check
+# (refresh_copy_set false) after a refresh and HARD-FAILS (err → exit 1) on any
+# residual drift BEFORE the commit block, so a repo with unresolved copy-set
+# drift never gets a false "Update complete." (AC-a). One documented escape
+# hatch: LOA_UPDATE_SKIP_COPYSET_VERIFY=1 skips the gate LOUDLY (naming the
+# drift it skipped) for mixed-install-mode repos. Returns 0 when in sync (AC-d).
+verify_copyset_gate() {
+  if ! type refresh_copy_set &>/dev/null; then
+    return 0  # copy-set mechanism unavailable (older submodule) — nothing to gate
+  fi
+  local rc=0
+  refresh_copy_set "false" || rc=1
+  if [[ $rc -ne 0 ]]; then
+    if [[ "${LOA_UPDATE_SKIP_COPYSET_VERIFY:-0}" == "1" ]]; then
+      warn "LOA_UPDATE_SKIP_COPYSET_VERIFY=1 — SKIPPING the copy-set drift gate despite the COPY-* drift reported above; the on-disk copy set does NOT match the submodule (mixed-install-mode escape hatch)."
+      return 0
+    fi
+    err "Copy-set verification FAILED after refresh — drift remains (see COPY-* diagnostics above). Aborting before commit. Override with LOA_UPDATE_SKIP_COPYSET_VERIFY=1 for known mixed-install-mode repos."
+  fi
+  return 0
+}
+
 # === Submodule Update ===
 update_submodule() {
   step "Updating Loa submodule..."
@@ -235,6 +274,11 @@ update_submodule() {
 
   log "Submodule updated to: $new_version ($new_commit)"
 
+  # #1177 (item G): never write an empty framework_version marker (AC-c).
+  if [[ -z "$new_version" ]]; then
+    err "Refusing to write .loa-version.json: computed framework_version is empty (ref='$target_ref', commit='$new_commit')."
+  fi
+
   # Update .loa-version.json
   step "Updating version manifest..."
   local old_commit
@@ -249,7 +293,10 @@ update_submodule() {
      '.framework_version = $v | .submodule.commit = $c | .submodule.ref = $r | .last_sync = $t' \
      "$VERSION_FILE" > "$tmp_version" && mv "$tmp_version" "$VERSION_FILE"
 
-  log "Version manifest updated"
+  # #1177 (item G): read-back assertion — a write that silently failed (or a
+  # marker frozen at a stale/PLACEHOLDER value) must not survive a bump (AC-c).
+  assert_version_marker "$new_version"
+  log "Version manifest updated (verified: $new_version)"
 
   # Verify and reconcile symlinks
   local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -260,14 +307,24 @@ update_submodule() {
       source "$submodule_script" --source-only 2>/dev/null || true
       if type verify_and_reconcile_symlinks &>/dev/null; then
         step "Reconciling symlinks..."
-        verify_and_reconcile_symlinks
+        # #1177 (item G): surface a reconcile failure loudly instead of
+        # silently dying on set -e (line 19) or discarding the exit code.
+        if ! verify_and_reconcile_symlinks; then
+          err "Symlink reconcile FAILED (some links remain broken) — aborting before commit."
+        fi
       fi
       # #968: refresh the #842 copy set (hooks/, settings.json) so a
       # submodule bump propagates executor-sensitive paths without a
       # destructive --force re-mount.
       if type refresh_copy_set &>/dev/null; then
         step "Refreshing copy set..."
-        refresh_copy_set "true"
+        if ! refresh_copy_set "true"; then
+          err "Copy-set refresh FAILED — see COPY-* warnings above. Executor-sensitive paths (hooks/, settings.json) not propagated; aborting before commit."
+        fi
+        # #1177 (item G) HARD GATE: verify the just-refreshed copy set matches
+        # the checked-out submodule BEFORE committing (AC-a). Runs in the same
+        # invocation against already-on-disk state.
+        verify_copyset_gate
       fi
     fi
   fi
@@ -547,4 +604,9 @@ Run: mount-loa.sh"
   echo ""
 }
 
-main "$@"
+# #1177 (item G): run main only when executed directly, not when sourced.
+# Lets tests source the sourceable helpers (assert_version_marker,
+# verify_copyset_gate) without triggering a full update run.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
+fi

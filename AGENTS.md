@@ -50,6 +50,7 @@ Precedence: **NEVER > MUST > ALWAYS > SHOULD > MAY.** These are mechanically enf
 - ALWAYS complete the full implement → review → audit cycle
 - ALWAYS check for existing sprint plan before writing code (Yield when construct declares `sprint: skip`)
 - ALWAYS validate bug eligibility before `/bug` implementation
+- ALWAYS Read a state artifact (NOTES.md, a2a/ docs, MEMORY.md, contracts/*.yaml — any existing file) before Write/Edit
 - ALWAYS use `/run sprint-plan` (not direct `/implement`) within bridge iterations
 - ALWAYS post Bridgebuilder review as PR comment after each bridge iteration
 - ALWAYS ensure Grounded Truth claims cite `file:line` source references

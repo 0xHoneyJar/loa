@@ -36,6 +36,46 @@ Hooks are in `.claude/hooks/`. To enable, merge `settings.hooks.json` into `~/.c
 
 See `.claude/hooks/README.md` for full documentation.
 
+## Session-Limit Capture & Resume (cycle-117 item A)
+
+Recovery after the primary Claude session/usage cap — the analogue of
+Post-Compact Recovery for a quota reset rather than a compaction event.
+
+### How It Works
+
+1. **Capture** (`.claude/scripts/session-limit-capture.sh --raw '<error text>'`):
+   When a session-limit / usage-cap error string surfaces in a tool or subagent
+   result, the agent runs this CLI with the full error text (see the
+   "Session-Limit Recovery" trigger in `CLAUDE.loa.md`). It parses the reset
+   time (TZ-aware, via `session-limit-lib.sh`) and writes
+   `.run/session-limit-state.json` with `hit_at`, `reset_at` (ISO + offset),
+   `reset_at_epoch` (plain unix epoch), and an **embedded scalar snapshot** of
+   the live sprint-plan / bridge / simstim state (never bare path references, so
+   the resume context survives even if those files are later mutated/deleted).
+
+2. **UserPromptSubmit** (`.claude/hooks/post-session-limit-reminder.sh`):
+   A **conditional** one-shot (distinct from post-compact-reminder's
+   unconditional one-shot) — it stays SILENT on every prompt while
+   `now < reset_at_epoch`, leaving the marker in place to re-check next prompt.
+   Once `now >= reset_at_epoch` it injects a single resume reminder (sprint id +
+   state, allowlist-validated + sanitized) and deletes the marker. Fail-open
+   silent on an absent/malformed marker.
+
+### Parser scope (`session-limit-lib.sh`)
+
+GNU-`date`-only today (bats CI is ubuntu-only). On macOS the shape is still
+DETECTED but the reset math returns non-zero (capture no-ops) — see the
+`loa:shortcut` marker in the lib for the BSD/perl-tier upgrade trigger.
+
+### Diagnostic probe (`.claude/hooks/safety/stop-input-probe.sh`)
+
+Ships **UNREGISTERED**, default-OFF (gated by `LOA_STOP_INPUT_PROBE=1`). It
+appends the raw Stop-hook input to `.run/stop-input-probe.jsonl` to empirically
+answer whether Stop input ever carries the session-limit error text (static
+investigation found no such field). Merge it into `settings.local.json` for one
+cap-hitting session, record the result on the PR, then remove — do NOT wire it
+into `settings.hooks.json`.
+
 ## Safety Hooks (v1.37.0)
 
 ### PreToolUse:Bash — Destructive Command Blocking
@@ -65,6 +105,10 @@ Enforces the Skill Invocation Matrix mechanically when `LOA_TEAM_MEMBER` is set 
 ### Stop — Run Mode Guard
 
 Detects active `/run`, `/run-bridge`, or `/simstim` execution and injects context reminder before stopping.
+
+cycle-117 item C: at the "no active runs" fallthrough it also fires a best-effort, operator-configurable push (`notifications.push_command` in `.loa.config.yaml`) exactly once per terminal gate (sprint JACKED_OUT/READY_FOR_HITL/HALTED, bridge JACKED_OUT/HALTED, simstim COMPLETED/AWAITING_HITL/HALTED) via `push-notify-lib.sh` — a side channel that never alters the hook's exit code or stdout contract.
+
+cycle-117 item A: when an **unexpired** `.run/session-limit-state.json` is present (a session cap whose reset time has not yet passed), the background-task soft-block is swapped for a loud stderr advisory and falls through to the remaining checks — a quota-hung teammate cannot respond to TaskStop and would otherwise deadlock every Stop. Freshness (`now < reset_at_epoch`) is computed inside the guard's existing single jq call (jq builtin `now`, no extra spawn). An expired/absent/malformed marker keeps today's block (fail-open to the deadlock guard).
 
 **Script**: `.claude/hooks/safety/run-mode-stop-guard.sh`
 
@@ -122,6 +166,7 @@ See `.claude/hooks/settings.hooks.json` for the complete hook configuration.
 |-------|---------|--------|---------|
 | PreCompact | (all) | `pre-compact-marker.sh` | Save state before compaction |
 | UserPromptSubmit | (all) | `post-compact-reminder.sh` | Inject recovery after compaction |
+| UserPromptSubmit | (all) | `post-session-limit-reminder.sh` | Inject resume reminder after a session cap resets |
 | PreToolUse | Bash | `safety/block-destructive-bash.sh` | Block destructive commands |
 | PreToolUse | Bash | `safety/team-role-guard.sh` | Enforce lead-only ops in Agent Teams |
 | PreToolUse | Write | `safety/team-role-guard-write.sh` | Block teammate writes to System Zone, state files, and append-only files |
@@ -132,6 +177,7 @@ See `.claude/hooks/settings.hooks.json` for the complete hook configuration.
 | PostToolUse | Edit | `audit/write-mutation-logger.sh` | Log Edit tool file modifications |
 | Stop | (all) | `safety/run-mode-stop-guard.sh` | Guard against premature exit |
 | PreToolUse (opt-in, UNWIRED by default) | Write/Edit | `compliance/implement-gate.sh` | ADVISORY FR-7 prototype: App Zone write outside /implement — parked; wire manually per §implement-gate.sh |
+| Stop (opt-in, UNREGISTERED by default) | (all) | `safety/stop-input-probe.sh` | DIAGNOSTIC: gated by `LOA_STOP_INPUT_PROBE=1`; dumps raw Stop input to `.run/stop-input-probe.jsonl` for one cap-hitting session — never in `settings.hooks.json` |
 
 ## Compliance Hooks — Agent Hook Pattern (v1.40.0)
 
@@ -181,3 +227,7 @@ See `.claude/hooks/settings.hooks.json` for the complete hook configuration.
 Blocks 12 destructive shapes: `rm -rf` (context-aware: blocks `/`, `~`, `$HOME`, `*`, `.`, `./.git`; allows `./build`, `./node_modules`, `/tmp/*`), `git push --force`/`-f`, `git reset --hard`, `git clean -f`, `git branch -D`/force-delete, `git stash drop`/`clear`, `git checkout -- <path>`, SQL `DROP {DATABASE,TABLE,SCHEMA}`, `TRUNCATE`, `DELETE FROM` no-WHERE (multi-statement loop), `kubectl delete namespace`, `kubectl delete --all`/`-A`. Audit-log trail to `.run/audit.jsonl` on every block with sanitized command + matched substring. Ported from Anthropic DCG public pattern set (cycle-111).
 
 **Defense-in-depth posture (cycle-111)**: this hook is a fence against routine destructive mistakes by autonomous agents — NOT a hardened security boundary. Documented accepted bypass classes (cycle-111 SDD §11): newline statement separators, subshell wrapping (`bash -c '...'` quoted-differently, `$(...)`), eval/base64 decode, SQL comments containing WHERE, python scripts loaded from disk, jq absent from PATH. ERE flavor: GNU/BSD-compatible extensions (`\s`, `\b`), NOT strict POSIX. Latency budget: p95 < 80ms across 100 invocations (bash startup + jq + 13 grep passes).
+
+**Accepted false positives (quote-blindness residue, cycle-120 C-D3)**: the inert-carrier scrub redacts a known data carrier's value (git commit `-m`, `br`/`bd -d`, `gh … create --body/--title`, `echo`/`printf`) only when the value holds **neither `$(` nor a backtick**. A lone `$` (dollar amount, `$ENV` mention, trailing bare `$`) is now permitted inside a redacted value — so `git commit -m "saved $5 by dropping find . -exec rm -rf {} +"` correctly ALLOWs. One residual false positive is **accepted by design**:
+
+- **Case A — a `$(…)` command-substitution inside a carrier value** (e.g. a multi-line commit body wrapped in `$(cat <<'EOF' … find -exec rm -rf … EOF)`). The `$(` disqualifies the value from redaction (a regex fence cannot parse subshell contents without reintroducing the #1047 bypass), so a destructive *shape* mentioned inside that subshell body still trips FR-2 and blocks a genuinely safe commit. **Workaround**: paraphrase the destructive shape in the commit body (as the cycle-119 commits did — e.g. write "find-exec-rm" rather than the literal `find … -exec rm -rf`), or drop the `$(…)` wrapper. This is a preserved false positive, never a bypass: leaving `$(`/backtick values un-redacted is what keeps command-substitution smuggling (`git commit -m "$(rm -rf /)"`) caught. Backtick command-substitution itself remains the separately-tracked, uncaught pre-existing gap (bd-bdb-backtick-bypass).

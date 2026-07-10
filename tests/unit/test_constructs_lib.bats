@@ -113,14 +113,14 @@ teardown() {
     skip_if_not_implemented
 
     result=$(get_registry_skills_dir)
-    [[ "$result" == ".claude/registry/skills" ]]
+    [[ "$result" == ".claude/constructs/skills" ]]
 }
 
 @test "get_registry_packs_dir returns correct path" {
     skip_if_not_implemented
 
     result=$(get_registry_packs_dir)
-    [[ "$result" == ".claude/registry/packs" ]]
+    [[ "$result" == ".claude/constructs/packs" ]]
 }
 
 @test "get_cache_dir returns path under HOME/.loa" {
@@ -167,8 +167,8 @@ teardown() {
 @test "parse_iso_date handles future dates correctly" {
     skip_if_not_implemented
 
-    # A date in 2026
-    result=$(parse_iso_date "2026-06-15T00:00:00Z")
+    # A far-future date (fixed literal so the test never rots as real time passes)
+    result=$(parse_iso_date "2099-06-15T00:00:00Z")
 
     # Should be in the future (> current time)
     now=$(date +%s)

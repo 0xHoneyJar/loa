@@ -55,6 +55,12 @@ stderr_tmp=""
 # Source shared libraries (cycle-047 T3.3)
 source "$SCRIPT_DIR/lib/findings-lib.sh"
 source "$SCRIPT_DIR/lib/compliance-lib.sh"
+# cycle-117 item D (#1177): shared DEGRADED/FAILED trajectory + page helper.
+# Soft-sourced — a downstream repo mid-update (lib file absent) must not
+# break this gate; degraded_verdict_maybe_emit calls below are themselves
+# guarded by a declare -F check.
+# shellcheck source=lib/degraded-verdict-lib.sh
+source "$SCRIPT_DIR/lib/degraded-verdict-lib.sh" 2>/dev/null || true
 
 # =============================================================================
 # Logging
@@ -490,6 +496,13 @@ PROMPT
         jq -n --argjson code "$exit_code" --arg stderr_tail "$stderr_tail" \
             '{findings: [], summary: {total: 0, confirmed_divergence: 0, partial_implementation: 0, fully_implemented: 0, actionable: 0}, degraded: true, degradation_reason: "model_invocation_failed", model_exit_code: $code, stderr_tail: $stderr_tail}' > "$output_path"
         chmod 600 "$output_path"
+        # cycle-117 item D (#1177): this writer's structured record is by
+        # definition a degrade path (no verdict_quality envelope concept
+        # here) — verdict_band is hardcoded DEGRADED.
+        if declare -F degraded_verdict_maybe_emit >/dev/null 2>&1; then
+            degraded_verdict_maybe_emit "red-team:code-vs-design" "DEGRADED" \
+                "model_invocation_failed" "$sprint_id" "$exit_code" "$_opus_model_id"
+        fi
         exit 1
     fi
 
@@ -510,6 +523,14 @@ PROMPT
         mkdir -p "$(dirname "$output_path")"
         jq -n '{findings: [], summary: {total: 0, confirmed_divergence: 0, partial_implementation: 0, fully_implemented: 0, actionable: 0}, degraded: true, degradation_reason: "empty_or_invalid_model_output"}' > "$output_path"
         chmod 600 "$output_path"
+        # cycle-117 item D (#1177): no adapter-level exit code here (the
+        # model call itself returned 0; the CONTENT was empty/invalid) —
+        # pass "-" (no meaningful exit code), disambiguated by
+        # degradation_reason.
+        if declare -F degraded_verdict_maybe_emit >/dev/null 2>&1; then
+            degraded_verdict_maybe_emit "red-team:code-vs-design" "DEGRADED" \
+                "empty_or_invalid_model_output" "$sprint_id" "-" "$_opus_model_id"
+        fi
         exit 1
     fi
 

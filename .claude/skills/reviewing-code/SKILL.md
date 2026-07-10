@@ -48,52 +48,21 @@ inputs:
 ---
 
 <input_guardrails>
-## Pre-Execution Validation
+## Pre-Execution Guardrails (mechanized — cycle-119)
 
-Before main skill execution, perform guardrail checks.
+Skip this section entirely when `.loa.config.yaml` has `guardrails.input.enabled: false` or env
+`LOA_GUARDRAILS_ENABLED=false`.
 
-### Step 1: Check Configuration
+Otherwise: write the user's invocation prompt/args to a temp file (Write tool), then run
+`.claude/scripts/guardrails-orchestrator.sh --skill reviewing-code --mode ${LOA_RUN_MODE:-interactive} --file <temp-file>`
 
-Read `.loa.config.yaml`:
-```yaml
-guardrails:
-  input:
-    enabled: true|false
-```
+| Outcome | Action |
+|---------|--------|
+| JSON `action: "BLOCK"` | HALT; report the script's `reason` to the user |
+| JSON `action: "PROCEED"` or `"WARN"` | Continue (logging is handled by the script) |
+| Script missing, non-zero exit, or unparseable output | Continue — fail-open, preserving pre-cycle-119 semantics |
 
-**Exit Conditions**:
-- `guardrails.input.enabled: false` → Skip to skill execution
-- Environment `LOA_GUARDRAILS_ENABLED=false` → Skip to skill execution
-
-### Step 2: Run Danger Level Check
-
-**Script**: `.claude/scripts/danger-level-enforcer.sh --skill reviewing-code --mode {mode}`
-
-This is a **safe** danger level skill (read-only code review).
-
-| Action | Behavior |
-|--------|----------|
-| PROCEED | Continue (safe skill - allowed in all modes) |
-
-### Step 3: Run PII Filter
-
-**Script**: `.claude/scripts/pii-filter.sh`
-
-Detect and redact sensitive data in review scope.
-
-### Step 4: Run Injection Detection
-
-**Script**: `.claude/scripts/injection-detect.sh --threshold 0.7`
-
-Prevent manipulation of review scope.
-
-### Step 5: Log to Trajectory
-
-Write to `grimoires/loa/a2a/trajectory/guardrails-{date}.jsonl`.
-
-### Error Handling
-
-On error: Log to trajectory, **fail-open** (continue to skill).
+Never pass prompt text as a bash argv (quote-blindness FP class) — always via `--file`.
 </input_guardrails>
 
 # Senior Tech Lead Reviewer
@@ -215,70 +184,15 @@ The SDD specifies "PostgreSQL 15 with pgvector extension" (sdd.md:L123)
 ```
 </factual_grounding>
 
-<structured_memory_protocol>
-## Structured Memory Protocol
+<context_discipline>
+## Context Discipline
 
-### On Session Start
-1. Read `grimoires/loa/NOTES.md`
-2. Restore context from "Session Continuity" section
-3. Check for resolved blockers
-
-### During Execution
-1. Log decisions to "Decision Log"
-2. Add discovered issues to "Technical Debt"
-3. Update sub-goal status
-4. **Apply Tool Result Clearing** after each tool-heavy operation
-
-### Before Compaction / Session End
-1. Summarize session in "Session Continuity"
-2. Ensure all blockers documented
-3. Verify all raw tool outputs have been decayed
-</structured_memory_protocol>
-
-<tool_result_clearing>
-## Tool Result Clearing
-
-After tool-heavy operations (grep, cat, tree, API calls):
-1. **Synthesize**: Extract key info to NOTES.md or discovery/
-2. **Summarize**: Replace raw output with one-line summary
-3. **Clear**: Release raw data from active reasoning
-
-Example:
-```
-# Raw grep: 500 tokens -> After decay: 30 tokens
-"Found 47 AuthService refs across 12 files. Key locations in NOTES.md."
-```
-</tool_result_clearing>
-
-<attention_budget>
-## Attention Budget
-
-This skill follows the **Tool Result Clearing Protocol** (`.claude/protocols/tool-result-clearing.md`).
-
-### Token Thresholds
-
-| Context Type | Limit | Action |
-|--------------|-------|--------|
-| Single search result | 2,000 tokens | Apply 4-step clearing |
-| Accumulated results | 5,000 tokens | MANDATORY clearing |
-| Full file load | 3,000 tokens | Single file, synthesize immediately |
-| Session total | 15,000 tokens | STOP, synthesize to NOTES.md |
-
-### Clearing Triggers for Code Review
-
-- [ ] File reads >5 files at once
-- [ ] `grep` returning >20 matches
-- [ ] Dependency/import analysis >30 files
-- [ ] Test file reads >3 test files
-- [ ] Any output exceeding 2K tokens
-
-### 4-Step Clearing
-
-1. **Extract**: Max 10 files, 20 words per finding
-2. **Synthesize**: Write to `grimoires/loa/NOTES.md`
-3. **Clear**: Remove raw output from context
-4. **Summary**: `"Review: N files analyzed → M issues → NOTES.md"`
-</attention_budget>
+Follow `.claude/protocols/tool-result-clearing.md`. Thresholds: single result >2K tokens /
+accumulated >5K / full file >3K / session total >15K → extract findings (≤10 files, ≤20 words
+each, with file:line) to `grimoires/loa/NOTES.md`, then reason from the synthesis, not raw dumps.
+Session start: read NOTES.md "Session Continuity". Session end / pre-compaction: update it
+(decisions → Decision Log, discovered issues → Technical Debt).
+</context_discipline>
 
 <trajectory_logging>
 ## Trajectory Logging
@@ -521,10 +435,15 @@ Verify implementation follows the four principles:
   3. DO NOT update `sprint.md`
   4. Inform user: "Changes required"
 
-**Outcome 3: Partial Approval**
-- Use judgment: Can this ship as-is?
-- If NO → Request changes
-- If YES → Approve with improvement notes
+**Outcome 3: Partial Approval — Decision Table**
+
+| Condition | Verdict |
+|-----------|---------|
+| Any blocking concern (Adversarial Analysis) OR any critical/high finding | CHANGES_REQUIRED |
+| Zero blocking concerns + only medium/low accumulation | Reviewer judgment — document the rationale in Overall Assessment |
+
+Adversarial concerns (see `<adversarial_protocol>`) MUST each carry a `file:line` reference —
+a concern without one is not admissible toward the minimum-3 requirement.
 
 ## Phase 5: Feedback Generation
 
@@ -537,6 +456,17 @@ Key sections:
 - Previous Feedback Status
 - Incomplete Tasks
 - Next Steps
+
+**LOA-VERDICT trailer**: append as the LAST line of `engineer-feedback.md` (nothing after it):
+`<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED|CHANGES_REQUIRED","counts":{"critical":N,"high":N,"medium":N,"low":N},"sprint_id":"sprint-N","ts":"<ISO8601>"} -->`
+Prose and trailer MUST agree: approved files have first line exactly `All good` and MUST NOT
+contain a `## Changes Required`, `## Findings`, or `## Issues` heading. ONE-WAY rule:
+`counts.critical + counts.high > 0` forces `verdict: CHANGES_REQUIRED`; zero critical/high does
+NOT force APPROVED (Outcome 3 judgment still applies).
+
+**MUST self-check before finishing**: run
+`.claude/scripts/verdict-derive.sh --file grimoires/loa/a2a/sprint-{N}/engineer-feedback.md --gate review`
+and resolve any reported inconsistency before reporting completion to the user.
 </workflow>
 
 <parallel_execution>
@@ -831,49 +761,9 @@ See `resources/REFERENCE.md` §Visual Communication — Mermaid diagram standard
 </visual_communication>
 
 <retrospective_postlude>
-## Invisible Retrospective
-
-After completing main skill logic, scan session for learning opportunities.
-
-**CRITICAL**: This postlude executes SILENTLY. Only surface findings that pass quality gates.
-
-### Step 1: Check Configuration
-
-Read `.loa.config.yaml`:
-```yaml
-invisible_retrospective:
-  enabled: true|false
-  skills:
-    reviewing-code: true|false
-```
-
-**Exit Conditions** (skip all processing if any are true):
-- `invisible_retrospective.enabled: false` → Log action: DISABLED, exit
-- `invisible_retrospective.skills.reviewing-code: false` → Log action: DISABLED, exit
-- **RECURSION GUARD**: If skill is `continuous-learning` → Exit silently (but this skill is `reviewing-code`, so proceed)
-
-### Step 2: Scan Session for Learning Signals
-
-Search the current conversation for these patterns:
-
-| Signal | Detection Patterns | Weight |
-|--------|-------------------|--------|
-| Error Resolution | "bug", "issue", "fixed", "corrected", "the problem was" | 3 |
-| Multiple Attempts | "tried", "attempted", "finally", "after reviewing", "looked at" | 3 |
-| Unexpected Behavior | "surprisingly", "actually", "turns out", "noticed", "realized" | 2 |
-| Workaround Found | "instead", "alternative", "better approach", "refactor to" | 2 |
-| Pattern Discovery | "pattern", "convention", "code style", "always use", "prefer" | 1 |
-
-**Scoring**: Sum weights for each candidate discovery.
-
-**Output**: List of candidate discoveries (max 5 per skill invocation, from config `max_candidates`)
-
-If no candidates found:
-- Log action: SKIPPED, candidates_found: 0
-- Exit silently
-
-### Steps 3-5, Error Handling, Session Limits
-
-Before writing ANY learning content to disk, read `resources/RETROSPECTIVE.md` and apply its Step 3.5 sanitization (redact API keys/JWTs/secrets) first. That file holds the quality gates (Step 3), the sanitization patterns (Step 3.5), trajectory logging (Step 4), surfacing rules (Step 5), error handling, and session limits.
-
+After main skill logic completes, if `.loa.config.yaml` `invisible_retrospective.enabled: true`
+(and not disabled for this skill under `invisible_retrospective.skills`), silently run the
+learning-signal scan per `.claude/skills/continuous-learning/SKILL.md` and its
+`resources/RETROSPECTIVE.md` (quality gates, sanitization, trajectory logging). Recursion guard:
+never when the active skill is continuous-learning itself.
 </retrospective_postlude>

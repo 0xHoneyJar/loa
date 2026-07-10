@@ -153,6 +153,78 @@ skip_if_deps_missing() {
     [ "$status" -ne 0 ]
 }
 
+# Resume must restore run params frozen at JACK_IN from the persisted .config,
+# not silently revert to script defaults (3 / 0.05 / 2). Uses the same
+# function-extraction pattern as the load_bridge_config precedence tests.
+@test "orchestrator: resume restores depth/flatline/consecutive_flatline from persisted .config" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bootstrap.sh"
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+    # Seed a HALTED bridge with NON-default params (defaults are 3 / 0.05 / 2).
+    init_bridge_state "bridge-20260101-abcde5" 5 false 0.2 "feature/test-bridge" "" 4
+    update_bridge_state "JACK_IN"
+    update_bridge_state "ITERATING"
+    update_bridge_state "HALTED"
+
+    source <(sed -n '/^restore_bridge_config_from_state()/,/^}/p' "$TEST_TMPDIR/.claude/scripts/bridge-orchestrator.sh")
+
+    # Resume invocation with no CLI overrides — globals sit at hardcoded defaults.
+    DEPTH=3; CLI_DEPTH=""
+    PER_SPRINT=false; CLI_PER_SPRINT=""
+    FLATLINE_THRESHOLD=0.05
+    CONSECUTIVE_FLATLINE=2
+
+    restore_bridge_config_from_state
+
+    [ "$DEPTH" = "5" ]
+    [ "$PER_SPRINT" = "false" ]
+    [ "$FLATLINE_THRESHOLD" = "0.2" ]
+    [ "$CONSECUTIVE_FLATLINE" = "4" ]
+}
+
+@test "orchestrator: resume keeps re-passed CLI --depth over persisted .config depth" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bootstrap.sh"
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+    init_bridge_state "bridge-20260101-abcde6" 5 false 0.2 "feature/test-bridge" "" 4
+    update_bridge_state "JACK_IN"
+
+    source <(sed -n '/^restore_bridge_config_from_state()/,/^}/p' "$TEST_TMPDIR/.claude/scripts/bridge-orchestrator.sh")
+
+    # Operator re-passed --depth 7 on the resume invocation → CLI sentinel set.
+    DEPTH=7; CLI_DEPTH=7
+    PER_SPRINT=false; CLI_PER_SPRINT=""
+    FLATLINE_THRESHOLD=0.05
+    CONSECUTIVE_FLATLINE=2
+
+    restore_bridge_config_from_state
+
+    [ "$DEPTH" = "7" ]                 # CLI override wins over persisted 5
+    [ "$CONSECUTIVE_FLATLINE" = "4" ]  # no CLI flag → still restored from state
+}
+
+@test "orchestrator: resume falls back to defaults for old state files missing consecutive_flatline" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bootstrap.sh"
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+    init_bridge_state "bridge-20260101-abcde7" 5 false 0.2 "feature/test-bridge"
+    # Simulate a pre-fix state file: strip the new key entirely.
+    jq 'del(.config.consecutive_flatline)' "$TEST_TMPDIR/.run/bridge-state.json" > "$TEST_TMPDIR/.run/bridge-state.json.tmp"
+    mv "$TEST_TMPDIR/.run/bridge-state.json.tmp" "$TEST_TMPDIR/.run/bridge-state.json"
+
+    source <(sed -n '/^restore_bridge_config_from_state()/,/^}/p' "$TEST_TMPDIR/.claude/scripts/bridge-orchestrator.sh")
+
+    DEPTH=3; CLI_DEPTH=""
+    PER_SPRINT=false; CLI_PER_SPRINT=""
+    FLATLINE_THRESHOLD=0.05
+    CONSECUTIVE_FLATLINE=2
+
+    restore_bridge_config_from_state
+
+    [ "$DEPTH" = "5" ]                 # still restored
+    [ "$CONSECUTIVE_FLATLINE" = "2" ]  # missing key → // 2 fallback, no error
+}
+
 # =============================================================================
 # CLI > Config Precedence
 # =============================================================================

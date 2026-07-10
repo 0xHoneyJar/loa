@@ -75,6 +75,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-018](#kf-018-gemini-headless-cli-auth-tier-deprecated-gemini-code-assist-for-individuals-retired-gemini-voice-silently-drops-from-multi-model-review) | OPEN — MITIGATED-BY-WORKAROUND (upstream blocked on Antigravity CLI) | cheval gemini-headless adapter -> Flatline / Bridgebuilder / any google:* consumer | 1 |
 | [KF-019](#kf-019-confabulated-absence-an-agent-asserts-a-governed-capability-is-absent-when-the-config-sot-declares-it-present) | DOCUMENTED 2026-06-19 — detector shipped (sensing-confabulated-absence) | agent reasoning over capability availability (headless terminals + Flatline routing) | 1 |
 | [KF-020](#kf-020-claude--p-subscription-oauth-potential-per-token-billing-via-the-43333-auth-detection-bug-metering-policy-was-announced-then-paused) | OPEN — external/upstream; live exposure UNCONFIRMED | cheval claude-headless adapter — #43333 auth-detection bug surfacing/mitigation | 0 |
+| [KF-021](#kf-021-842968-copy-set-silently-drifts-gitignored-check-mode-content-blind) | OPEN → resolved by cycle-117 Wave-1 item G (#1177) | update-loa.sh / mount-submodule.sh submodule copy set | 1 |
 
 ---
 
@@ -1152,3 +1153,25 @@ If you are about to assert that a model path, terminal, or routing capability "d
 ### Reading guide
 
 If an operator reports surprise Anthropic charges while on a Max/Pro plan: **first verify which mechanism applies.** The metering *policy* was paused (2026-06-15/16) — do not cite it as current. The plausible live vector is the **#43333 auth-detection bug** (`claude -p` + OAuth + no `ANTHROPIC_API_KEY` billing as API) — and even that is `CLOSED` upstream, so **confirm it still reproduces on the current `claude` CLI before acting**. Distinct from KF-018 (tier-*death* / dead subscription). loa can only **surface** cost (plumb `total_cost_usd` → ledger; read it from the MODELINV envelope) and **avoid** the path (`api-only`); it cannot change upstream billing. Meta-lesson: this entry itself was first written with a confabulated current policy from stale secondary sources — when documenting an *external* fact, check primary sources for the latest state, exactly as KF-019 warns for internal capabilities.
+
+## KF-021: #842/#968 copy set silently drifts — gitignored + check-mode content-blind
+
+**Status**: OPEN → resolved by cycle-117 Wave-1 item G (#1177)
+**Feature**: update-loa.sh / mount-submodule.sh submodule copy set
+**Symptom**: The #842 copy set (.claude/hooks, .claude/settings.json — COPIED not symlinked because macOS hook executors can't traverse '..' symlinks) drifts from the pinned submodule with ZERO detection: (1) both paths are gitignored (mount-submodule.sh update_gitignore_for_submodule symlink_entries[]), so drift produces no git-diff/CI signal; (2) refresh_copy_set's check mode (_refresh_copy_entry) only detected symlink/missing dests, never CONTENT drift of an existing regular file/dir — so --check-symlinks reported 'healthy' for a settings.json stuck at a pre-#1045 (374-rule) allow-list vs the submodule's 382-rule payload; (3) check_symlinks_subcommand's bare verify_and_reconcile_symlinks call tripped set -e on any missing symlink, killing the script before the copy-set check ran; (4) update_submodule wrote .loa-version.json with no read-back and discarded refresh_copy_set's exit code, so drift produced a false 'Update complete.'. Root cause of the fleet-wide staleness: operators bump the .loa gitlink by hand ('pointer-only' / 'git submodule update --remote .loa') and never invoke update_submodule at all.
+**First observed**: cycle-117 (2026-07-06) fleet audit of 7 hosaka repos
+**Recurrence count**: 1
+**Current workaround**: Detect content drift in _refresh_copy_entry check mode (cmp -s files, diff -rq dirs, jq -S allow/deny for settings.json); fix the set -e early-exit in check_symlinks_subcommand; hard-gate update_submodule with a post-refresh refresh_copy_set false + .loa-version.json read-back (LOA_UPDATE_SKIP_COPYSET_VERIFY=1 escapes loudly). Does NOT retroactively fix already-drifted repos — each must run update-loa.sh once. Un-gitignoring the copy set + upstream CLAUDE.loa.md header self-stamping remain open follow-ups.
+**Decision recorded (2026-07-07)**: cycle-118 follow-up (bd-copyset-ungitignore-decision-i1hb) evaluated the "un-gitignore the copy set" follow-up in full — see `grimoires/loa/proposals/copyset-ungitignore-decision-2026-07-07.md` for options A (un-gitignore fleet-wide) / B (optional CI `--check-symlinks` step) / C (status quo) with grounded tradeoffs. Recommendation: **B**, declining the fleet-wide un-gitignore for now (it's a one-way git-tracking migration that churns on every legitimate framework bump, not just drift). The optional CI-check snippet ships in `.claude/commands/update-loa.md`. Un-gitignoring stays OPEN pending explicit operator sign-off — no longer a silently-dangling TODO.
+**Upstream issue**: #1177 item G
+**Related visions / lore**: #842 (copy set), #968 (refresh extraction), #1045 (State-Zone allow-list)
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-07-06 | Reproduced live (read-only) across 7 fleet repos; added content-drift detection + set-e fix + update_submodule hard gate + read-back assertion with fixture regression tests. | RESOLVED-STRUCTURAL — pre-fix HEAD reproduced (COPY-DRIFT count 0, script dies after '11 missing'); fixed path reaches COPY-DRIFT. 13+2+8 new/extended bats green. | .claude/scripts/mount-submodule.sh _refresh_copy_entry/check_symlinks_subcommand + .claude/scripts/update-loa.sh verify_copyset_gate/assert_version_marker; PR #1177 (cycle-117 item G) |
+
+### Reading guide
+
+Fleet evidence: crate+ledger settings.json stuck at 374 rules vs 382-rule pin (missing 8 State-Zone Write/Edit rules); carrefour --check-symlinks set-e early exit; mirror/ledger/seen .loa-version.json 1..~85 releases stale from manual pointer-only bumps.

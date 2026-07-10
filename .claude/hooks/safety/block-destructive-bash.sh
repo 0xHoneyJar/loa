@@ -146,6 +146,146 @@ if [[ -z "$command" ]]; then
 fi
 
 # -----------------------------------------------------------------------------
+# quote-blindness scrub (bd-bdb-quote-blindness-pt1g) — SAFE-BY-CONSTRUCTION.
+# Produce _cmd_match, a LOCAL scrub-copy of $command used SOLELY for the
+# block/allow decision below. $command itself is left byte-for-byte intact so
+# emit_block's audit row and every matched-substring extraction still record
+# the operator's real text.
+#
+# The fence is quote-blind: it sees a destructive TOKEN (rm -rf, DROP/TRUNCATE
+# TABLE, DELETE FROM, git branch -D, ...) inside an INERT data carrier — an
+# echo argument, a git commit message, a bead description, a gh PR body — and
+# blocks a harmless command. The GENERAL problem (deciding whether an arbitrary
+# quoted string will be executed) is NOT tractable in a regex fence — any
+# allowlist of *execution* shapes (ssh/su -c/sh -c/xargs/...) is unbounded and
+# reintroduces bypass (issue #1047). This is the INVERSE: a curated allowlist
+# of KNOWN-INERT data carriers, whose value we redact into the scrub-copy.
+#
+# Load-bearing bypass defense: the ONLY way to smuggle real danger through an
+# allowlisted carrier is command-substitution inside the value —
+# `git commit -m "$(rm -rf /)"`. $( and backtick are caught by the (-boundary
+# subshell branch of FR-2 (quote-independent). So we redact a carrier value
+# ONLY when — POST-HOC CONTENT TEST (cycle-120 C-D3a) — it contains NEITHER the
+# literal 2-byte sequence `$(` NOR a backtick. A LONE `$` (a dollar amount, an
+# $ENV mention, a bare `$` right before the closing quote) is now permitted
+# inside a redacted value: the value is captured with a quote-BOUNDED class
+# (`'[^']*'` / `"[^"]*"`) that stops at the closing quote and therefore CANNOT
+# swallow past a string terminator — the failure mode the adversarial panel
+# rejected for the naive `\$[^(]` consuming ERE (a value ending in a bare `$`
+# would eat the closing quote + a following real `&& rm -rf`). A plain
+# substring gate then decides; anything holding `$(` or a backtick is left
+# INTACT and falls through to normal detection. The substring gate also rejects
+# `$$(…` (it contains the substring `$(`) — an ERE `\$[^(]` alternation would
+# have wrongly accepted it. (Backtick command-substitution is itself a
+# PRE-EXISTING, quote-independent bypass this fence does NOT catch in either
+# direction — tracked in bd-bdb-backtick-bypass; leaving backtick values
+# un-redacted keeps that behaviour byte-identical, opening nothing new.) An
+# INCOMPLETE allowlist therefore only PRESERVES a false positive (today's safe
+# behavior) — it can never open a bypass.
+#
+# Carrier exemption is PER-SEGMENT (bounded by ^ ; && || |): the scrub never
+# crosses a shell statement separator, so `echo 'safe' && rm -rf /` still
+# blocks the real second segment. Word-boundaries ((^|[^[:alnum:]_])git…) keep
+# `notgit commit -m '…'` from matching (anti-spoof). echo/printf stays a sed
+# scrub (rest-of-segment, not a quoted value); the git/br/gh quoted-value
+# carriers use the content-gated bash loop `_bdb_scrub` below (replace the value
+# with a single SPACE, never empty). BSD/GNU ERE only — no \b (BSD libc lacks
+# it; header §).
+# -----------------------------------------------------------------------------
+# Bare echo/printf carrier: from a segment-start echo/printf to the end of its
+# segment. The rest-class excludes ; & | (segment separators — per-segment
+# scoping), $ and backtick (command-substitution — never redact past them), and
+# < > (redirect operators — leave redirects + their targets intact so the FR-SZ
+# State-Zone write guard, which keys off the raw path, still fires on
+# `echo x >> .run/cron.d/job.sh`).
+_bdb_sed_echo='s/(^|;|&&|\|\||\|)([[:space:]]*(sudo[[:space:]]+)?(echo|printf)[[:space:]]+)[^;&|<>$`]*/\1\2 /g'
+
+# Quoted-value carriers (git commit -m / br|bd … -d / gh … create --body|--title).
+# cycle-120 C-D3a: content-gated redaction. The value is captured with a
+# quote-BOUNDED permissive class (permits `$`, stops at the closing quote — no
+# terminator swallow); _bdb_scrub then applies the POST-HOC content gate. The
+# quoted value is the LAST capture group (no group follows it). [^;&|]* keeps
+# the prefix within one segment; (^|[^[:alnum:]_]) is the anti-spoof boundary.
+# cycle-120 R1 fix (CRITICAL): the pre-flag prefix classes ALSO exclude quotes
+# (`[^;&|'"]*`). Without that, POSIX leftmost-longest lets the prefix walk PAST
+# the real flag+opening-quote and re-anchor on a decoy flag literal embedded in
+# the value (`git commit -m "-m " && rm -rf "/"`), so the value capture spans
+# from the string's real closing quote to the NEXT quote — swallowing a live
+# `&& rm -rf "` into a redacted "carrier value". Barring quotes from the prefix
+# means a flag can only be matched before any quote in the segment is opened.
+_bdb_qval_perm="('[^']*'|\"[^\"]*\")"
+_bdb_re_git="(^|[^[:alnum:]_])git[[:space:]][^;&|'\"]*commit[^;&|'\"]*(-m|--message)[[:space:]]+${_bdb_qval_perm}"
+_bdb_re_brbd="(^|[^[:alnum:]_])(br|bd)[[:space:]][^;&|'\"]*(create|update)[^;&|'\"]*(-d|--description)[[:space:]]+${_bdb_qval_perm}"
+_bdb_re_gh="(^|[^[:alnum:]_])gh[[:space:]][^;&|'\"]*(issue|pr)[^;&|'\"]*create[^;&|'\"]*(--body|--title)[[:space:]]+${_bdb_qval_perm}"
+
+# Tail-run of contiguous message flags after the primary carrier match. A
+# single `git commit`/`gh create`/… can carry MULTIPLE `-m/--message`/`-d`/
+# `--body`… pairs (git concatenates multi-`-m` into paragraphs). The primary
+# regex, now that the prefix bars quotes (R1 fix), only anchors the FIRST pair;
+# this tail consumes further contiguous `flag <quoted-value>` pairs so all of a
+# genuine multi-flag message is redacted. It is anchored at the START of the
+# remaining text (`^[[:space:]]*flag …`), so it CANNOT cross a statement
+# separator: the moment the remainder begins with anything other than another
+# message flag (e.g. `&& rm -rf`), the tail stops and that text is left INTACT
+# for FR-2. This keeps multi-`-m` benign commits allowed WITHOUT reopening the
+# `&&`-crossing bypass.
+_bdb_re_tail="^[[:space:]]*(-m|--message|-d|--description|--body|--title)[[:space:]]+${_bdb_qval_perm}"
+
+# _bdb_scrub <carrier-ere> <input> — echo the input with every carrier value
+# that passes the content gate replaced by a single SPACE (never empty, never
+# crossing a segment). A value containing `$(` (this catches `$$(` too — the
+# substring is present) or a backtick is left INTACT. bash =~ exposes no match
+# offset, so the split is by string slice on the matched text.
+_bdb_scrub() {
+  local re="$1" rest="$2" out="" m val inner pre po vi
+  while [[ "$rest" =~ $re ]]; do
+    m="${BASH_REMATCH[0]}"
+    vi=$(( ${#BASH_REMATCH[@]} - 1 ))   # trailing group = the quoted value
+    val="${BASH_REMATCH[$vi]}"
+    pre="${rest%%"$m"*}"                 # text before this match
+    rest="${rest#*"$m"}"                 # text after this match
+    inner="${val:1:${#val}-2}"          # strip the outer quotes
+    if [[ "$inner" == *'$('* || "$inner" == *'`'* ]]; then
+      out+="$pre$m"                     # command-sub value — leave INTACT
+    else
+      po="${m%"$val"}"                  # matched text minus the trailing value
+      out+="$pre$po "                   # value → single space
+    fi
+    # Consume any contiguous trailing message-flag pairs (multi-`-m`), each
+    # content-gated the same way. Stops at the first non-flag token (separator
+    # or real content), so it never crosses a statement boundary.
+    while [[ "$rest" =~ $_bdb_re_tail ]]; do
+      m="${BASH_REMATCH[0]}"
+      vi=$(( ${#BASH_REMATCH[@]} - 1 ))
+      val="${BASH_REMATCH[$vi]}"
+      rest="${rest#"$m"}"
+      inner="${val:1:${#val}-2}"
+      if [[ "$inner" == *'$('* || "$inner" == *'`'* ]]; then
+        out+="$m"                       # command-sub value — leave INTACT
+      else
+        po="${m%"$val"}"
+        out+="$po "
+      fi
+    done
+  done
+  printf '%s' "$out$rest"
+}
+
+# echo/printf scrub first (sed), then the content-gated quoted-value carriers
+# (bash loops, each guarded by a cheap literal test so the benign path pays
+# nothing beyond the substring check).
+_cmd_match=$(printf '%s' "$command" | sed -E -e "$_bdb_sed_echo" 2>/dev/null) || _cmd_match="$command"
+[[ -z "$_cmd_match" ]] && _cmd_match="$command"
+[[ "$_cmd_match" == *"git"* ]] && _cmd_match=$(_bdb_scrub "$_bdb_re_git" "$_cmd_match")
+if [[ "$_cmd_match" == *"br "* || "$_cmd_match" == *"bd "* ]]; then
+  _cmd_match=$(_bdb_scrub "$_bdb_re_brbd" "$_cmd_match")
+fi
+[[ "$_cmd_match" == *"gh "* ]] && _cmd_match=$(_bdb_scrub "$_bdb_re_gh" "$_cmd_match")
+# Fail-safe: an empty scrub on a non-empty command → fall back to RAW (stricter
+# matching), never to an empty scrub that would silence every pattern.
+[[ -z "$_cmd_match" ]] && _cmd_match="$command"
+
+# -----------------------------------------------------------------------------
 # perf pass-2 line-model helpers.
 #
 # `echo "$cmd" | grep -qE PAT` tests PAT against each LINE; bash [[ =~ ]]
@@ -157,11 +297,14 @@ fi
 # per line. Invalid-regex behavior also matches the old `grep -qE …
 # 2>/dev/null`: [[ =~ ]] returns non-zero silently.
 # -----------------------------------------------------------------------------
+# quote-blindness fix: derive the line model from the scrub-copy _cmd_match so
+# every pattern that goes through _match/_match_ci (P2-P9, P11, P12, FR-2 gate)
+# sees inert carrier values redacted, with ZERO change to their own regexes.
 _cmd_lines=()
-if [[ "$command" == *$'\n'* ]]; then
-  mapfile -t _cmd_lines <<<"${command%$'\n'}"
+if [[ "$_cmd_match" == *$'\n'* ]]; then
+  mapfile -t _cmd_lines <<<"${_cmd_match%$'\n'}"
 else
-  _cmd_lines=("$command")
+  _cmd_lines=("$_cmd_match")
 fi
 
 # _match <ere> — exit 0 iff any line matches; ≡ echo "$command" | grep -qE <ere>
@@ -387,7 +530,7 @@ fi  # ── end pass-8 git-family pre-filter ──
 # folding leaves \n untouched, so a literal absent from this folded whole
 # string is absent from every folded line.
 # -----------------------------------------------------------------------------
-_cmd_lc="${command,,}"
+_cmd_lc="${_cmd_match,,}"  # quote-blindness fix: fold the scrub-copy (see above)
 
 # -----------------------------------------------------------------------------
 # P8 — DROP DATABASE / DROP TABLE / DROP SCHEMA  (FR-1.4)
@@ -444,7 +587,11 @@ fi
 # -----------------------------------------------------------------------------
 delete_stmts=""
 if [[ "$_cmd_lc" == *"delete"* && "$_cmd_lc" == *"from"* ]]; then
-  delete_stmts=$(echo "$command" | grep -oiE '\bDELETE[[:space:]]+FROM[[:space:]]+("[^"]+"|`[^`]+`|[a-zA-Z_][a-zA-Z0-9_]*)[^;]*' 2>/dev/null)
+  # quote-blindness fix (step 3, CRITICAL): P10's raw grep does NOT go through
+  # _cmd_lines, so it must read the scrub-copy _cmd_match too — otherwise a
+  # DELETE FROM inside a redacted carrier value (e.g. git commit -m '…DELETE
+  # FROM users…') stays a false positive while everything else is fixed.
+  delete_stmts=$(echo "$_cmd_match" | grep -oiE '\bDELETE[[:space:]]+FROM[[:space:]]+("[^"]+"|`[^`]+`|[a-zA-Z_][a-zA-Z0-9_]*)[^;]*' 2>/dev/null)
 fi
 if [[ -n "$delete_stmts" ]]; then
   while IFS= read -r delete_stmt; do
@@ -636,6 +783,29 @@ fi
 # - The ALLOW list now EXCLUDES `./`, `./*`, `./.git`, `./.ssh`, `./.env`
 #   (SKP-002 round-3 closure) — these were dangerous shapes that v1.0
 #   incorrectly hit the `^\./` allow-prefix.
+# - FR-2-REDIR (bd-c117-e, #1177): before segment extraction a scrub removes
+#   shell `&`-redirect operators (`2>&1`/`>&2` fd-dups, `&>file`/`&>>file`)
+#   from a LOCAL copy of the command, and a per-arg pre-pass below strips the
+#   remaining non-`&` redirects (`2>/dev/null`, `>log`, spaced `2> /dev/null`)
+#   so none are misclassified as rm operands. The scrub runs FIRST precisely
+#   so an `&` cannot truncate rm_segments and hide a catastrophic operand that
+#   FOLLOWS the redirect (`rm -rf 2>&1 /` — the `/` would otherwise be lost).
+#   `&&` command separators survive the scrub (fd-dup needs `>` before the `&`,
+#   `&>` needs `>` after), so multi-statement detection stays intact.
+# - C15/cycle-119 panel amendment: `find ROOT ... -exec rm -rf {} [+|\;]`
+#   shapes previously misclassified the {} / + PLACEHOLDER tokens (never real
+#   paths) as ambiguous rm operands, blocking even a fully safe root (e.g.
+#   `find ./build -exec rm -rf {} +`). When an rm segment's only non-flag
+#   operands are find-exec placeholders AND that segment is immediately
+#   preceded (same statement) by `find ROOT ... -exec`, the FIND ROOT is
+#   classified through this SAME ladder instead of the placeholders. A root
+#   containing `$` matches none of the ladder's branches (never a bypass —
+#   see _re_find_exec_prefix below), so it always falls to AMBIGUOUS, same as
+#   today: $-expansion roots are NEVER allowed. Backslash-semicolon
+#   (`-exec ... {} \;`) is not covered by the ALLOW path — the segment
+#   extraction below already stops at the bare `;` (pre-existing, unrelated
+#   to this change), so that shape keeps its prior conservative-block
+#   behavior unchanged.
 #
 # pass-2: gate + per-arg classification tests converted to [[ =~ ]]. The
 # per-arg tests match DIRECTLY (no line loop): $unquoted derives from
@@ -648,8 +818,25 @@ fi
 if [[ "$command" == *"rm"* && "$command" == *"-"* ]] \
    && _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*(sudo[[:space:]]+)?rm[[:space:]]+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r|--recursive[[:space:]]+--force|--force[[:space:]]+--recursive|-[a-zA-Z]*r[a-zA-Z]*[[:space:]]+-[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*[[:space:]]+-[a-zA-Z]*r)'; then
 
+  # FR-2-REDIR (bd-c117-e-redirect-1pq8, #1177 item E): scrub shell
+  # `&`-redirect operators from a LOCAL copy of the command BEFORE segment
+  # extraction. (a) `[0-9]*>&[0-9]*` — N>&M fd-dups (`2>&1`, `>&2`, `>&`);
+  # (b) `&>>?[^space]*` — `&>file` / `&>>file` operator+attached target.
+  # These are pure shell syntax, never rm operands. Scrubbing first stops the
+  # rm_segments `[^;&|)]*` class (below) from truncating a segment at the
+  # first bare `&` and thereby dropping a catastrophic operand that FOLLOWS an
+  # `&`-redirect (e.g. `rm -rf 2>&1 /`). `&&` separators survive both patterns
+  # ((a) needs `>` before the `&`, (b) needs `>` after). cycle-120 C-D3b:
+  # derive from $_cmd_match (the quote-blindness scrub-copy), NOT raw $command,
+  # so the FR-2 GATE (which tests _cmd_match via _match) and this segment
+  # EXTRACTOR read the SAME text — a redacted inert carrier can no longer feed
+  # the extractor an rm operand the gate never saw (gate/extractor can't
+  # disagree toward ALLOW). $command itself stays intact so emit_block's audit
+  # row still records the operator's real text.
+  _fr2_cmd=$(printf '%s' "$_cmd_match" | sed -E -e 's/[0-9]*>&[0-9]*/ /g' -e 's/&>>?[^[:space:]]*/ /g')
+
   # Collect ALL rm invocation segments (one per line).
-  rm_segments=$(echo "$command" | grep -oE '(^|;|&&|\|\||\||[[:space:]]|\(|'\''|")[[:space:]]*(sudo[[:space:]]+)?(/[^[:space:]]*/)?rm[[:space:]][^;&|)]*')
+  rm_segments=$(echo "$_fr2_cmd" | grep -oE '(^|;|&&|\|\||\||[[:space:]]|\(|'\''|")[[:space:]]*(sudo[[:space:]]+)?(/[^[:space:]]*/)?rm[[:space:]][^;&|)]*')
 
   # pass-2: per-arg EREs in variables (regex-in-variable is the safe [[ =~ ]]
   # form — inline |/(/$ are conditional-command parse hazards). Bytes are
@@ -659,52 +846,187 @@ if [[ "$command" == *"rm"* && "$command" == *"-"* ]] \
   _re_allow_exclude='^\./($|\*|\.|\.git$|\.git/|\.ssh$|\.ssh/|\.env)'
   _re_allow_list='^(\./[^/*.][^*]*|node_modules$|node_modules/|dist$|dist/|build$|build/|target$|target/|\.next$|\.next/|/tmp/.+|out$|out/|coverage$|coverage/)'
 
+  # C15/cycle-119: matches the text immediately preceding an rm segment
+  # (bounded to the SAME statement, via the identical boundary-alternation
+  # style used by every other pattern in this file) when it is a
+  # `find <span> -exec` prefix. `$`-anchored: nothing may sit between
+  # `-exec` and this rm invocation (sudo / an absolute /path/to/rm are
+  # consumed by the rm_segment extraction itself, not this prefix). Group 3
+  # is the FULL span between `find` and `-exec`; a token-walk below extracts
+  # the start-point roots from it — find accepts MULTIPLE start paths, so a
+  # single-token regex capture would classify only the first root and
+  # silently allow `find ./build /etc -exec ...` (lead-review catch,
+  # cycle-119). Eligibility requires EXACTLY ONE root; zero roots (GNU
+  # default `.`, or flags-before-root like `find -L root`) and multi-root
+  # shapes stay conservative-blocked.
+  _re_find_exec_prefix='(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*(sudo[[:space:]]+)?find[[:space:]]+([^;&|)]*)-exec$'
+  # Left-to-right cursor over _fr2_cmd so repeated identical rm segments each
+  # resolve against THEIR OWN preceding text, not the first occurrence's.
+  _fr2_remaining="$_fr2_cmd"
+
+  # FR-2-REDIR (bd-c117-e-redirect-1pq8, issue #1177 item E): syntactic
+  # redirect-token EREs for the rm_args strip loop below. Matched against
+  # the RAW token (before quote-stripping), so a genuinely-quoted operand
+  # like "2>weird" — which starts with a literal quote char, not a
+  # digit/operator — never matches and falls through unchanged to the
+  # existing ambiguous path. `&`-forms (`&>`, `&>>`, `N>&M`) need no branch
+  # here: the scrub above already removed them from the extraction input, so
+  # only non-`&` redirects (`2>/dev/null`, `>log`, spaced `2> /dev/null`)
+  # can reach this array.
+  _re_redir_bare='^([0-9]*(>>|>|<<<|<<|<))$'
+  _re_redir_attached='^([0-9]*(>>|>|<<<|<<|<))[^[:space:]]+$'
+
   any_block=0
   any_ambiguous=0
   matched_arg=""
 
   while IFS= read -r rm_segment; do
     [[ -z "$rm_segment" ]] && continue
+
+    # C15/cycle-119: isolate the text preceding THIS occurrence of rm_segment
+    # (cursor-advance so a later identical segment doesn't re-match the first
+    # occurrence's prefix), then test for a find-exec shape ending right here.
+    _seg_prefix="${_fr2_remaining%%"$rm_segment"*}"
+    _fr2_remaining="${_fr2_remaining#*"$rm_segment"}"
+    _seg_find_root=""
+    if [[ "$_seg_prefix" =~ $_re_find_exec_prefix ]]; then
+      # Token-walk the find span: start-point roots are the LEADING tokens up
+      # to the first primary/flag/paren token (-*, !, (, ), \-escaped).
+      # Exactly one root => eligible; zero or many => _seg_find_root stays
+      # empty and the segment falls to the untouched conservative ladder.
+      # NESTED-find disqualifier (R3 review catch, cycle-119): in
+      # `find <safe> -exec find <dangerous> ... -exec rm ...` the {} paths
+      # come from the INNER find's root, which this walk never reaches (it
+      # breaks at the first `-exec`). Any `find` token inside the span means
+      # the outer root does not govern the deletions => ineligible.
+      # SYMLINK-FOLLOW disqualifier (audit catch, cycle-119): -L / -H /
+      # -follow make find traverse symlinks, so deletions can escape the
+      # classified root through a planted link ({} resolves OUTSIDE the safe
+      # tree). GNU find tolerates these after the root, where the leading-
+      # flag break below never sees them => scan the whole span.
+      read -r -a _find_span_toks <<<"${BASH_REMATCH[3]}"
+      _find_root_count=0
+      _find_nested=0
+      for _ftok in ${_find_span_toks[@]+"${_find_span_toks[@]}"}; do
+        [[ "$_ftok" == "find" || "$_ftok" == */find ]] && _find_nested=1
+        [[ "$_ftok" == "-L" || "$_ftok" == "-H" || "$_ftok" == "-follow" ]] && _find_nested=1
+      done
+      for _ftok in ${_find_span_toks[@]+"${_find_span_toks[@]}"}; do
+        case "$_ftok" in
+          -*|'!'*|'('*|')'*|'\'*) break ;;
+          *) _find_root_count=$((_find_root_count + 1)); _seg_find_root="$_ftok" ;;
+        esac
+      done
+      [[ "$_find_root_count" -ne 1 || "$_find_nested" -eq 1 ]] && _seg_find_root=""
+    fi
+
     rm_args_raw="${rm_segment#*rm}"
     # shellcheck disable=SC2086,SC2206 — intentional word-split on rm args
     read -r -a rm_args <<<"$rm_args_raw"
 
-    for arg in "${rm_args[@]}"; do
-      # Skip flag tokens.
-      [[ "$arg" == -* ]] && continue
-      # Strip outer balanced quotes for pattern-matching (does NOT shell-parse).
-      unquoted="${arg#\'}"; unquoted="${unquoted%\'}"
-      unquoted="${unquoted#\"}"; unquoted="${unquoted%\"}"
-      # ..-segment escape → conservative block.
-      if [[ "$unquoted" =~ $_re_dotdot ]]; then
-        any_ambiguous=1; matched_arg="$arg"; continue
-      fi
-      # BLOCK list (catastrophic paths).
-      # cycle-114 FR-6: the home-root trailing-slash forms ($HOME/, ${HOME}/,
-      # ~/) are catastrophic-equivalent to bare $HOME/~ and must hit BLOCK, not
-      # the AMBIGUOUS fallback. A CHILD path (e.g. $HOME/projects, ~/subdir) is
-      # NOT matched here and correctly falls through to AMBIGUOUS. Mirrors the
-      # Claude Code 2.1.154 $HOME-trailing-slash fix.
-      if [[ "$unquoted" =~ $_re_block_list ]]; then
-        any_block=1; matched_arg="$arg"; break
-      fi
-      # ALLOW-EXCLUDE (was bypassing via `./` prefix).
-      if [[ "$unquoted" =~ $_re_allow_exclude ]]; then
-        any_ambiguous=1; matched_arg="$arg"; continue
-      fi
-      # ALLOW list (bounded subpaths).
-      if [[ "$unquoted" =~ $_re_allow_list ]]; then
+    # FR-2-REDIR: strip shell-redirect tokens before per-arg classification.
+    # A bare operator (empty tail, e.g. "2>", ">", "<<") consumes ITSELF
+    # plus the NEXT array element (the separate-word target of "2> /dev/null");
+    # an attached operator (non-empty tail glued on, e.g. "2>/dev/null",
+    # ">log", "2>&1") consumes only itself. A token that does not start
+    # with an optional fd-digit run immediately followed by an operator
+    # char is untouched — a real operand named "2" (no operator) or a
+    # filename with '>' NOT at the token start (e.g. "./build>x", one
+    # token because read -a doesn't split on it) is never mistaken for a
+    # redirect and falls through to the existing block/allow/ambiguous
+    # ladder unchanged.
+    rm_args_filtered=()
+    _skip_next=0
+    for ((_i = 0; _i < ${#rm_args[@]}; _i++)); do
+      _tok="${rm_args[_i]}"
+      if [[ $_skip_next -eq 1 ]]; then
+        _skip_next=0
         continue
       fi
-      # Ambiguous → conservative block.
-      any_ambiguous=1; matched_arg="$arg"
+      if [[ "$_tok" =~ $_re_redir_bare ]]; then
+        _skip_next=1
+        continue
+      fi
+      if [[ "$_tok" =~ $_re_redir_attached ]]; then
+        continue
+      fi
+      rm_args_filtered+=("$_tok")
     done
+    rm_args=(${rm_args_filtered[@]+"${rm_args_filtered[@]}"})
+
+    # C15/cycle-119: this segment is find-exec-governed ONLY when a root was
+    # detected AND every non-flag operand of THIS rm invocation is a find-exec
+    # placeholder ({}, +, \;, ;) — i.e. the rm has no operand of its own.
+    # Any segment with a real operand (find-exec or not) keeps the untouched
+    # per-arg ladder below, so this can never suppress a genuine dangerous arg.
+    _seg_placeholder_only=0
+    if [[ -n "$_seg_find_root" ]]; then
+      _seg_placeholder_only=1
+      for arg in "${rm_args[@]}"; do
+        [[ "$arg" == -* ]] && continue
+        case "$arg" in
+          '{}'|'+'|'\;'|';') ;;
+          *) _seg_placeholder_only=0 ;;
+        esac
+      done
+    fi
+
+    if [[ $_seg_placeholder_only -eq 1 ]]; then
+      # Classify the FIND ROOT through the EXACT SAME ladder as any rm operand
+      # (never a bypass path — see _re_find_exec_prefix comment: a `$`-bearing
+      # root matches none of these branches and falls to AMBIGUOUS, same as
+      # every other unrecognized shape).
+      unquoted="${_seg_find_root#\'}"; unquoted="${unquoted%\'}"
+      unquoted="${unquoted#\"}"; unquoted="${unquoted%\"}"
+      if [[ "$unquoted" =~ $_re_dotdot ]]; then
+        any_ambiguous=1; matched_arg="$_seg_find_root"
+      elif [[ "$unquoted" =~ $_re_block_list ]]; then
+        any_block=1; matched_arg="$_seg_find_root"
+      elif [[ "$unquoted" =~ $_re_allow_exclude ]]; then
+        any_ambiguous=1; matched_arg="$_seg_find_root"
+      elif [[ "$unquoted" =~ $_re_allow_list ]]; then
+        : # explicit safe relative root — allow this find-exec segment
+      else
+        any_ambiguous=1; matched_arg="$_seg_find_root"
+      fi
+    else
+      for arg in "${rm_args[@]}"; do
+        # Skip flag tokens.
+        [[ "$arg" == -* ]] && continue
+        # Strip outer balanced quotes for pattern-matching (does NOT shell-parse).
+        unquoted="${arg#\'}"; unquoted="${unquoted%\'}"
+        unquoted="${unquoted#\"}"; unquoted="${unquoted%\"}"
+        # ..-segment escape → conservative block.
+        if [[ "$unquoted" =~ $_re_dotdot ]]; then
+          any_ambiguous=1; matched_arg="$arg"; continue
+        fi
+        # BLOCK list (catastrophic paths).
+        # cycle-114 FR-6: the home-root trailing-slash forms ($HOME/, ${HOME}/,
+        # ~/) are catastrophic-equivalent to bare $HOME/~ and must hit BLOCK, not
+        # the AMBIGUOUS fallback. A CHILD path (e.g. $HOME/projects, ~/subdir) is
+        # NOT matched here and correctly falls through to AMBIGUOUS. Mirrors the
+        # Claude Code 2.1.154 $HOME-trailing-slash fix.
+        if [[ "$unquoted" =~ $_re_block_list ]]; then
+          any_block=1; matched_arg="$arg"; break
+        fi
+        # ALLOW-EXCLUDE (was bypassing via `./` prefix).
+        if [[ "$unquoted" =~ $_re_allow_exclude ]]; then
+          any_ambiguous=1; matched_arg="$arg"; continue
+        fi
+        # ALLOW list (bounded subpaths).
+        if [[ "$unquoted" =~ $_re_allow_list ]]; then
+          continue
+        fi
+        # Ambiguous → conservative block.
+        any_ambiguous=1; matched_arg="$arg"
+      done
+    fi
 
     [[ $any_block -eq 1 ]] && break
   done <<<"$rm_segments"
 
   if [[ $any_block -eq 1 ]]; then
-    emit_block "FR-2-BLOCK" "$matched_arg" "rm -rf on catastrophic path '$matched_arg' (system root / home / glob / current-dir). Refuse."
+    emit_block "FR-2-BLOCK" "$matched_arg" "rm -rf on catastrophic path '$matched_arg' (system root / home / glob / current-dir) refused. Use 'trash <path>' for a recoverable delete, or an explicit './<path>/' form scoped to a real subdirectory."
   elif [[ $any_ambiguous -eq 1 ]]; then
     emit_block "FR-2-AMBIGUOUS" "$matched_arg" "rm -rf on an unclear path '$matched_arg'. Use './path/' explicit form, 'trash', or remove targeted children."
   fi

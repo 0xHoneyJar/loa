@@ -11,7 +11,8 @@
 #
 # Output format: Each entry is "link_path:target_path" where target is relative from link parent.
 # Populates global arrays: MANIFEST_DIR_SYMLINKS, MANIFEST_FILE_SYMLINKS,
-#   MANIFEST_SKILL_SYMLINKS, MANIFEST_CMD_SYMLINKS, MANIFEST_CONSTRUCT_SYMLINKS
+#   MANIFEST_SKILL_SYMLINKS, MANIFEST_CMD_SYMLINKS, MANIFEST_AGENT_SYMLINKS,
+#   MANIFEST_CONSTRUCT_SYMLINKS
 #
 # Construct Extension (Sprint 50, vision-008):
 #   Construct packs can declare their own symlink requirements via .loa-construct-manifest.json
@@ -97,6 +98,20 @@ get_symlink_manifest() {
     done
   fi
 
+  # Phase 4.5: Per-agent symlinks (dynamic — discovered from submodule content)
+  # Mirrors Phase 4 (commands). C12/A6, cycle-119: .claude/agents/ (e.g. loa-scout.md)
+  # must be manifest-covered like skills/commands so mount/verify/eject stay in sync.
+  MANIFEST_AGENT_SYMLINKS=()
+  if [[ -d "${repo_root}/${submodule}/.claude/agents" ]]; then
+    for agent_file in "${repo_root}/${submodule}"/.claude/agents/*.md; do
+      if [[ -f "$agent_file" ]]; then
+        local agent_name
+        agent_name=$(basename "$agent_file")
+        MANIFEST_AGENT_SYMLINKS+=(".claude/agents/${agent_name}:../../${submodule}/.claude/agents/${agent_name}")
+      fi
+    done
+  fi
+
   # Phase 5: Construct pack symlinks (vision-008 — ecosystem extension point)
   # Discover .loa-construct-manifest.json files in construct pack directories
   # and merge validated entries into MANIFEST_CONSTRUCT_SYMLINKS.
@@ -108,7 +123,7 @@ get_symlink_manifest() {
 # Returns all entries combined for iteration
 get_all_manifest_entries() {
   get_symlink_manifest "$@"
-  ALL_MANIFEST_ENTRIES=("${MANIFEST_DIR_SYMLINKS[@]}" "${MANIFEST_FILE_SYMLINKS[@]}" "${MANIFEST_SKILL_SYMLINKS[@]}" "${MANIFEST_CMD_SYMLINKS[@]}" "${MANIFEST_CONSTRUCT_SYMLINKS[@]}")
+  ALL_MANIFEST_ENTRIES=("${MANIFEST_DIR_SYMLINKS[@]}" "${MANIFEST_FILE_SYMLINKS[@]}" "${MANIFEST_SKILL_SYMLINKS[@]}" "${MANIFEST_CMD_SYMLINKS[@]}" "${MANIFEST_AGENT_SYMLINKS[@]}" "${MANIFEST_CONSTRUCT_SYMLINKS[@]}")
 }
 
 # =============================================================================
@@ -129,7 +144,7 @@ _discover_construct_manifests() {
   # Build core link set for conflict detection (O(n) lookup via associative array)
   local -A _core_links=()
   local entry
-  for entry in "${MANIFEST_DIR_SYMLINKS[@]}" "${MANIFEST_FILE_SYMLINKS[@]}" "${MANIFEST_SKILL_SYMLINKS[@]}" "${MANIFEST_CMD_SYMLINKS[@]}"; do
+  for entry in "${MANIFEST_DIR_SYMLINKS[@]}" "${MANIFEST_FILE_SYMLINKS[@]}" "${MANIFEST_SKILL_SYMLINKS[@]}" "${MANIFEST_CMD_SYMLINKS[@]}" "${MANIFEST_AGENT_SYMLINKS[@]}"; do
     local link_path="${entry%%:*}"
     _core_links["$link_path"]=1
   done

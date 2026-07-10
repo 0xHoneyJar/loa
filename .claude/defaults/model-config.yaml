@@ -468,6 +468,24 @@ providers:
         pricing:
           input_per_mtok: 5000000    # $5.00 per million tokens
           output_per_mtok: 25000000  # $25.00 per million tokens
+      claude-sonnet-5:
+        # cycle-120 C-D2: cheval catalog entry for Claude Sonnet 5.
+        auth_type: http_api
+        dispatch_group: anthropic-claude
+        capabilities: [chat, tools, function_calling]
+        context_window: 1000000
+        token_param: max_tokens
+        # model max is 128K; 16K matches sonnet-4-6 default
+        max_output_tokens: 16000
+        fallback_chain:
+          - anthropic:claude-sonnet-4-6
+          - anthropic:claude-haiku-4-5-20251001
+          - anthropic:claude-headless
+        pricing:
+          # confirmed 2026-07-07 via claude-api reference (cached 2026-06-24);
+          # standard rate, intro $2/$10 through 2026-08-31
+          input_per_mtok: 3000000    # $3.00 per million tokens
+          output_per_mtok: 15000000  # $15.00 per million tokens
       claude-sonnet-4-6:
         # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
         auth_type: http_api
@@ -731,6 +749,7 @@ aliases:
   reviewer: "openai:gpt-5.5"
   reasoning: "openai:gpt-5.5"
   cheap: "anthropic:claude-sonnet-4-6"  # Budget-conscious model
+  claude-sonnet-5: "anthropic:claude-sonnet-5"  # Bare alias (cycle-120 C-D2)
   fable: "anthropic:claude-fable-5"     # Top intelligence tier (2026-06-10 intel-routing review)
   opus: "anthropic:claude-opus-4-8"     # High-quality model (retargeted 4-6→4-7 cycle-082; 4-7→4-8 cycle-114)
   # cycle-095 Sprint 2 (Task 2.3): tiny tier alias points at Haiku 4.5.

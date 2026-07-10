@@ -74,6 +74,13 @@ export const GENERATED_MODEL_REGISTRY: Record<string, GeneratedModelEntry> = {
     capabilities: ["chat", "function_calling", "tools"],
     pricing: { inputPerMtok: 3000000, outputPerMtok: 15000000 },
   },
+  "claude-sonnet-5": {
+    provider: "anthropic",
+    modelId: "claude-sonnet-5",
+    contextWindow: 1000000,
+    capabilities: ["chat", "function_calling", "tools"],
+    pricing: { inputPerMtok: 3000000, outputPerMtok: 15000000 },
+  },
   "us.anthropic.claude-haiku-4-5-20251001-v1:0": {
     provider: "bedrock",
     modelId: "us.anthropic.claude-haiku-4-5-20251001-v1:0",

@@ -184,6 +184,13 @@ heal_notes() {
         log "  NOTES.md is missing"
     fi
 
+    # An issue was detected. In check-only mode, report it (non-zero return so
+    # main() counts it and exits 1) without repairing — do NOT fall through to
+    # the recovery methods, which would create the file.
+    if [[ "$CHECK_ONLY" == "true" ]]; then
+        return 1
+    fi
+
     # Try recovery methods in priority order
     if recover_from_git_history "$NOTES_FILE"; then
         return 0

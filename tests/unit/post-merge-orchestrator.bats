@@ -471,7 +471,7 @@ CLEOF
     [ "$failed" -gt 0 ]
 }
 
-@test "post-merge-int: metrics tracking (completed + skipped + failed = 8)" {
+@test "post-merge-int: metrics tracking (completed + skipped + failed = 10)" {
     skip_if_deps_missing
 
     run "$TEST_SCRIPT" --pr 42 --type cycle --sha "$MERGE_SHA" --dry-run
@@ -482,8 +482,8 @@ CLEOF
     skipped=$(jq -r '.metrics.phases_skipped // 0' "$TEST_REPO/.run/post-merge-state.json")
     failed=$(jq -r '.metrics.phases_failed // 0' "$TEST_REPO/.run/post-merge-state.json")
     total=$((completed + skipped + failed))
-    # PHASE_ORDER has 9 phases: classify, semver, changelog, gt_regen, rtfm, tag, release, lore_promote, notify
-    [ "$total" -eq 9 ]
+    # PHASE_ORDER has 10 phases: classify, semver, version_bump, changelog, gt_regen, rtfm, tag, release, lore_promote, notify
+    [ "$total" -eq 10 ]
 }
 
 @test "post-merge-int: all flags combined" {

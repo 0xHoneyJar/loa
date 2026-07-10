@@ -22,7 +22,6 @@ capabilities:
   task_management: false
 cost-profile: heavy
 context: fork
-agent: Explore
 parallel_threshold: 2000
 audit_categories: 5
 timeout_minutes: 60
@@ -45,52 +44,21 @@ inputs:
 ---
 
 <input_guardrails>
-## Pre-Execution Validation
+## Pre-Execution Guardrails (mechanized — cycle-119)
 
-Before main skill execution, perform guardrail checks.
+Skip this section entirely when `.loa.config.yaml` has `guardrails.input.enabled: false` or env
+`LOA_GUARDRAILS_ENABLED=false`.
 
-### Step 1: Check Configuration
+Otherwise: write the user's invocation prompt/args to a temp file (Write tool), then run
+`.claude/scripts/guardrails-orchestrator.sh --skill auditing-security --mode ${LOA_RUN_MODE:-interactive} --file <temp-file>`
 
-Read `.loa.config.yaml`:
-```yaml
-guardrails:
-  input:
-    enabled: true|false
-```
+| Outcome | Action |
+|---------|--------|
+| JSON `action: "BLOCK"` | HALT; report the script's `reason` to the user |
+| JSON `action: "PROCEED"` or `"WARN"` | Continue (logging is handled by the script) |
+| Script missing, non-zero exit, or unparseable output | Continue — fail-open, preserving pre-cycle-119 semantics |
 
-**Exit Conditions**:
-- `guardrails.input.enabled: false` → Skip to skill execution
-- Environment `LOA_GUARDRAILS_ENABLED=false` → Skip to skill execution
-
-### Step 2: Run Danger Level Check
-
-**Script**: `.claude/scripts/danger-level-enforcer.sh --skill auditing-security --mode {mode}`
-
-This is a **safe** danger level skill (read-only security analysis).
-
-| Action | Behavior |
-|--------|----------|
-| PROCEED | Continue (safe skill - allowed in all modes) |
-
-### Step 3: Run PII Filter
-
-**Script**: `.claude/scripts/pii-filter.sh`
-
-Detect and redact sensitive data in audit scope.
-
-### Step 4: Run Injection Detection
-
-**Script**: `.claude/scripts/injection-detect.sh --threshold 0.7`
-
-Prevent manipulation of audit scope.
-
-### Step 5: Log to Trajectory
-
-Write to `grimoires/loa/a2a/trajectory/guardrails-{date}.jsonl`.
-
-### Error Handling
-
-On error: Log to trajectory, **fail-open** (continue to skill).
+Never pass prompt text as a bash argv (quote-blindness FP class) — always via `--file`.
 </input_guardrails>
 
 # Paranoid Cypherpunk Auditor
@@ -160,86 +128,15 @@ The SDD specifies "PostgreSQL 15 with pgvector extension" (sdd.md:L123)
 ```
 </factual_grounding>
 
-<structured_memory_protocol>
-## Structured Memory Protocol
+<context_discipline>
+## Context Discipline
 
-### On Session Start
-1. Read `grimoires/loa/NOTES.md`
-2. Restore context from "Session Continuity" section
-3. Check for resolved blockers
-
-### During Execution
-1. Log decisions to "Decision Log"
-2. Add discovered issues to "Technical Debt"
-3. Update sub-goal status
-4. **Apply Tool Result Clearing** after each tool-heavy operation
-
-### Before Compaction / Session End
-1. Summarize session in "Session Continuity"
-2. Ensure all blockers documented
-3. Verify all raw tool outputs have been decayed
-</structured_memory_protocol>
-
-<tool_result_clearing>
-## Tool Result Clearing
-
-After tool-heavy operations (grep, cat, tree, API calls):
-1. **Synthesize**: Extract key info to NOTES.md or discovery/
-2. **Summarize**: Replace raw output with one-line summary
-3. **Clear**: Release raw data from active reasoning
-
-Example:
-```
-# Raw grep: 500 tokens -> After decay: 30 tokens
-"Found 47 AuthService refs across 12 files. Key locations in NOTES.md."
-```
-</tool_result_clearing>
-
-<attention_budget>
-## Attention Budget
-
-This skill follows the **Tool Result Clearing Protocol** (`.claude/protocols/tool-result-clearing.md`).
-
-### Token Thresholds
-
-| Context Type | Limit | Action |
-|--------------|-------|--------|
-| Single search result | 2,000 tokens | Apply 4-step clearing |
-| Accumulated results | 5,000 tokens | MANDATORY clearing |
-| Full file load | 3,000 tokens | Single file, synthesize immediately |
-| Session total | 15,000 tokens | STOP, synthesize to NOTES.md |
-
-### Clearing Triggers for Auditing
-
-- [ ] `grep`/`ripgrep` returning >20 matches
-- [ ] `find` returning >30 files
-- [ ] `cat` on files >100 lines
-- [ ] Any search exceeding 2K tokens
-- [ ] Accumulated context exceeding 5K tokens
-
-### 4-Step Clearing
-
-1. **Extract**: Max 10 files, 20 words per finding, with `file:line` refs
-2. **Synthesize**: Write to `grimoires/loa/NOTES.md` under audit context
-3. **Clear**: Do NOT keep raw results in working memory
-4. **Summary**: Keep only `"Audit: N results → M high-signal → NOTES.md"`
-
-### Semantic Decay Stages
-
-| Stage | Age | Format | Cost |
-|-------|-----|--------|------|
-| Active | 0-5 min | Full synthesis + snippets | ~200 tokens |
-| Decayed | 5-30 min | Paths only | ~12 tokens/file |
-| Archived | 30+ min | Single-line in trajectory | ~20 tokens |
-
-### Compliance Checklist
-
-Before proceeding to next audit phase:
-- [ ] All search results under threshold OR cleared
-- [ ] High-signal findings in NOTES.md with `file:line` refs
-- [ ] Raw outputs removed from context
-- [ ] Trajectory entry logged if applicable
-</attention_budget>
+Follow `.claude/protocols/tool-result-clearing.md`. Thresholds: single result >2K tokens /
+accumulated >5K / full file >3K / session total >15K → extract findings (≤10 files, ≤20 words
+each, with file:line) to `grimoires/loa/NOTES.md`, then reason from the synthesis, not raw dumps.
+Session start: read NOTES.md "Session Continuity". Session end / pre-compaction: update it
+(decisions → Decision Log, discovered issues → Technical Debt).
+</context_discipline>
 
 <trajectory_logging>
 ## Trajectory Logging
@@ -286,7 +183,7 @@ All audit outputs go to the State Zone (`grimoires/loa/a2a/`) for proper trackin
 - Verdict: CHANGES_REQUIRED or APPROVED
 
 **Verdicts:**
-- Sprint audit: "CHANGES_REQUIRED" or "APPROVED - LETS FUCKING GO"
+- Sprint audit: "CHANGES_REQUIRED" or "APPROVED - LET'S FUCKING GO"
 - Deployment audit: "CHANGES_REQUIRED" or "APPROVED - LET'S FUCKING GO"
 
 ## Reproducibility (R - Reproducible Results)
@@ -579,15 +476,48 @@ grimoires/loa/a2a/
 mkdir -p "grimoires/loa/a2a/audits/$(date +%Y-%m-%d)/remediation"
 ```
 
+## Phase 2.5: Severity Tally (MUST — before Verdict)
+
+Before writing the Verdict section, count every finding from Phase 1 by severity into a literal
+table:
+
+| Severity | Count |
+|----------|-------|
+| Critical | {N} |
+| High | {N} |
+| Medium | {N} |
+| Low | {N} |
+
+**Worked examples** (severity classification per `resources/RUBRICS.md`):
+1. `SEC-IV` score 1 — "No input validation. User input flows directly to sensitive operations." →
+   tally as **CRITICAL** (direct exploit path, no mitigating control).
+2. `SEC-AZ` score 2 — "Weak authorization. Easy bypass or missing on critical routes." → tally as
+   **HIGH** (exploitable but requires a specific route/condition).
+3. `CQ-TC` score 3 — "Moderate coverage (40-60%). Critical paths tested." → tally as **MEDIUM**
+   (quality gap, not an active vulnerability).
+
+The tally table's counts feed the Verdict rule below. ONE-WAY rule: `critical + high > 0` forces
+`CHANGES_REQUIRED` — this is the only forcing condition. Zero critical/high does NOT itself force
+`APPROVED`; medium/low accumulation is still auditor judgment.
+
 ## Phase 3: Verdict
 
 **Sprint/Deployment Audit:**
-- If ANY CRITICAL or HIGH issues: "CHANGES_REQUIRED"
-- If only MEDIUM/LOW: "APPROVED - LETS FUCKING GO" (but note improvements)
+- If ANY CRITICAL or HIGH issues (per Phase 2.5 tally): "CHANGES_REQUIRED"
+- If only MEDIUM/LOW: "APPROVED - LET'S FUCKING GO" (but note improvements)
 
 **Codebase Audit:**
 - Overall Risk Level: CRITICAL/HIGH/MEDIUM/LOW
 - Recommendations: Immediate (24h), Short-term (1wk), Long-term (1mo)
+
+**LOA-VERDICT trailer**: append as the LAST line of the audit output file (nothing after it):
+`<!-- LOA-VERDICT {"gate":"audit","verdict":"APPROVED|CHANGES_REQUIRED","counts":{"critical":N,"high":N,"medium":N,"low":N},"sprint_id":"sprint-N","ts":"<ISO8601>"} -->`
+Prose and trailer MUST agree: approved sprint/deployment audits use the exact prose
+`APPROVED - LET'S FUCKING GO`.
+
+**MUST self-check before finishing**: run
+`.claude/scripts/verdict-derive.sh --file <audit-output-file> --gate audit`
+and resolve any reported inconsistency before reporting completion to the user.
 </workflow>
 
 <parallel_execution>
@@ -875,7 +805,7 @@ br label add <task-id> security-approved       # Passed audit
 | Label | Meaning | When to Apply |
 |-------|---------|---------------|
 | `security` | Has security-sensitive code | During review |
-| `security-approved` | Passed security audit | After "APPROVED - LETS FUCKING GO" |
+| `security-approved` | Passed security audit | After "APPROVED - LET'S FUCKING GO" |
 | `security-blocked` | Critical security issue | After "CHANGES_REQUIRED" |
 
 ### Logging Discovered Vulnerabilities
@@ -894,57 +824,9 @@ br sync --flush-only  # Export SQLite → JSONL before commit
 </beads_workflow>
 
 <retrospective_postlude>
-## Invisible Retrospective
-
-After completing main skill logic, scan session for learning opportunities.
-
-**CRITICAL**: This postlude executes SILENTLY. Only surface findings that pass quality gates.
-
-### Step 1: Check Configuration
-
-Read `.loa.config.yaml`:
-```yaml
-invisible_retrospective:
-  enabled: true|false
-  skills:
-    auditing-security: true|false
-```
-
-**Exit Conditions** (skip all processing if any are true):
-- `invisible_retrospective.enabled: false` → Log action: DISABLED, exit
-- `invisible_retrospective.skills.auditing-security: false` → Log action: DISABLED, exit
-- **RECURSION GUARD**: If skill is `continuous-learning` → Exit silently (but this skill is `auditing-security`, so proceed)
-
-### Step 2: Scan Session for Learning Signals
-
-Search the current conversation for these patterns:
-
-| Signal | Detection Patterns | Weight |
-|--------|-------------------|--------|
-| Error Resolution | "vulnerability", "security issue", "fixed", "patched", "remediated" | 3 |
-| Multiple Attempts | "tried", "attempted", "finally", "after several", "initially thought" | 3 |
-| Unexpected Behavior | "surprisingly", "actually", "turns out", "discovered", "realized" | 2 |
-| Workaround Found | "instead", "alternative", "workaround", "mitigation", "the fix is" | 2 |
-| Pattern Discovery | "pattern", "always check", "never allow", "security convention" | 1 |
-
-**Scoring**: Sum weights for each candidate discovery.
-
-**Output**: List of candidate discoveries (max 5 per skill invocation, from config `max_candidates`)
-
-If no candidates found:
-- Log action: SKIPPED, candidates_found: 0
-- Exit silently
-
-### Steps 3-5: Quality Gates, Sanitization, Logging, Surfacing
-
-Only reached when Step 2 found `candidates_found > 0` (the common zero-candidates
-path exits above and never needs this).
-
-**Before writing ANY learning content to disk, read `resources/RETROSPECTIVE.md`
-and apply its Step 3.5 sanitization (redact API keys/JWTs/secrets) first.**
-
-See `resources/RETROSPECTIVE.md` for the full Step 3 (quality gates), Step 3.5
-(sanitization), Step 4 (trajectory logging), Step 5 (surfacing qualified
-findings), error handling, and session limits procedure.
-
+After main skill logic completes, if `.loa.config.yaml` `invisible_retrospective.enabled: true`
+(and not disabled for this skill under `invisible_retrospective.skills`), silently run the
+learning-signal scan per `.claude/skills/continuous-learning/SKILL.md` and its
+`resources/RETROSPECTIVE.md` (quality gates, sanitization, trajectory logging). Recursion guard:
+never when the active skill is continuous-learning itself.
 </retrospective_postlude>

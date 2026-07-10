@@ -253,7 +253,8 @@ A working ScheduleConfig referencing them lives at `.claude/skills/scheduled-cyc
 | **Audit envelope (Sprint 1A)** | All five `cycle.*` events flow through `audit_emit` → JSONL with hash chain |
 | **Trust store auto-verify (Sprint 1.5 #690)** | Inherited via `audit_emit`'s pre-write check |
 | **Cost-budget enforcer L2 (Sprint 2)** | Compose-when-available pre-read gate; `budget_estimate_usd` flows from ScheduleConfig |
-| **`/schedule` (existing Loa)** | Cron registration; the L3 lib provides the *invocable* — `/schedule` provides the *firing* |
+| **`/schedule` (existing Loa)** | Cron registration; the L3 lib provides the *invocable* — `/schedule` provides the *firing*. Caveat (cycle-117): `/schedule`'s and `CronCreate`'s backing stores are session-scoped/non-durable on this platform — consumers needing a firing mechanism that survives past the authoring session should register a real crontab entry instead (see `session-cap-fanout.sh` below). |
+| **`session-cap-fanout.sh` (cycle-117 Wave-2 item B)** | Translates `session_cap.reset_windows × post_reset_fanout.phases` into one ScheduleConfig YAML per pair (validated via `register`) plus a real, marker-delimited crontab entry — v1 dispatch_contract is the shipped no-op example scripts (placeholder; real dispatch is bd-fanout-real-dispatch-9jv6) |
 | **Future L4 graduated-trust** | Will gate dispatcher phases by tier; not wired in 3D |
 
 ## Engineering invariants

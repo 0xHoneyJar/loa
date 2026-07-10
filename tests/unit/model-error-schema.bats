@@ -428,10 +428,12 @@ _validate_sh() {
     "$PYTHON_BIN" -I -c "import json, jsonschema; jsonschema.Draft202012Validator.check_schema(json.load(open('$SCHEMA')))"
 }
 
-@test "S2: schema enumerates exactly 10 error_class values (taxonomy pin)" {
+@test "S2: schema enumerates exactly 11 error_class values (taxonomy pin)" {
     local n
     n="$("$PYTHON_BIN" -I -c "import json; print(len(json.load(open('$SCHEMA'))['properties']['error_class']['enum']))")"
-    [ "$n" -eq 10 ]
+    # 11 = original 10 + PROVIDER_OUTAGE (added to the taxonomy). This pin is a
+    # deliberate tripwire: bump it (and review the addition) when the enum grows.
+    [ "$n" -eq 11 ]
 }
 
 # -----------------------------------------------------------------------------
