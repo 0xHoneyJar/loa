@@ -440,9 +440,15 @@ main() {
                 exit 0
                 ;;
             -*)
-                dx_unknown_flag "$1" "Usage: memory-query.sh [OPTIONS] [QUERY]" \
-                    --index --type --tags --since --limit --full --summary --session \
-                    --json --table --stats --lore --sort-by --significance --repo --help
+                # fresh-eyes r1 (bd-m1o6): dx-utils is sourced conditionally
+                # above, so the call must be guarded for partial installs.
+                if declare -F dx_unknown_flag >/dev/null 2>&1; then
+                    dx_unknown_flag "$1" "Usage: memory-query.sh [OPTIONS] [QUERY]" \
+                        --index --type --tags --since --limit --full --summary --session \
+                        --json --table --stats --lore --sort-by --significance --repo --help
+                else
+                    echo "Unknown option: $1" >&2
+                fi
                 usage
                 exit 1
                 ;;
