@@ -76,6 +76,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-019](#kf-019-confabulated-absence-an-agent-asserts-a-governed-capability-is-absent-when-the-config-sot-declares-it-present) | DOCUMENTED 2026-06-19 — detector shipped (sensing-confabulated-absence) | agent reasoning over capability availability (headless terminals + Flatline routing) | 1 |
 | [KF-020](#kf-020-claude--p-subscription-oauth-potential-per-token-billing-via-the-43333-auth-detection-bug-metering-policy-was-announced-then-paused) | OPEN — external/upstream; live exposure UNCONFIRMED | cheval claude-headless adapter — #43333 auth-detection bug surfacing/mitigation | 0 |
 | [KF-021](#kf-021-842968-copy-set-silently-drifts-gitignored-check-mode-content-blind) | OPEN → resolved by cycle-117 Wave-1 item G (#1177) | update-loa.sh / mount-submodule.sh submodule copy set | 1 |
+| [KF-022](#kf-022-br-sync-dirty-tracking-split-brain---status-counts-dirty-issues-the---flush-only-export-reads-as-dirty_count0) | OPEN-UPSTREAM | beads_rust (br) sync | 1 |
 
 ---
 
@@ -1175,3 +1176,24 @@ If an operator reports surprise Anthropic charges while on a Max/Pro plan: **fir
 ### Reading guide
 
 Fleet evidence: crate+ledger settings.json stuck at 374 rules vs 382-rule pin (missing 8 State-Zone Write/Edit rules); carrefour --check-symlinks set-e early exit; mirror/ledger/seen .loa-version.json 1..~85 releases stale from manual pointer-only bumps.
+
+## KF-022: br sync dirty-tracking split-brain: --status counts dirty issues the --flush-only export reads as dirty_count=0
+
+**Status**: OPEN-UPSTREAM
+**Feature**: beads_rust (br) sync
+**Symptom**: br sync --status reports 'Dirty issues: N / Database is newer (export recommended)' while br sync --flush-only exits 'Nothing to export (no dirty issues)' (verbose shows dirty_count=0); newly created issues are stranded in the DB and never reach issues.jsonl — silent data-loss risk if a later --rebuild/--import-only treats JSONL as authoritative. The status dirty counter also stays sticky AFTER a successful --force export.
+**First observed**: 2026-07-11 agent-ergonomics pass 1 (epic bd-m1o6 stranded)
+**Recurrence count**: 1
+**Current workaround**: br sync --flush-only --force exports everything (verified bd-m1o6 landed in JSONL); ignore the sticky --status dirty counter afterwards. beads-health.sh (R-003) now probes content currency instead of trusting mtime alone.
+**Upstream issue**: beads_rust v0.2.6 — same family as the known br list --json under-report; needs an upstream issue
+**Related visions / lore**: none
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-07-11 | br sync --flush-only (as recommended) | no-op: dirty_count=0 despite --status Dirty:1 | session transcript agent-ergonomics pass 1; bd-m1o6 absent from issues.jsonl until --force |
+
+### Reading guide
+
+Do NOT chase the health check: since R-003 (agent-ergonomics pass 1) beads-health DEGRADED/jsonl_stale is content-verified and truthful. If --status says dirty but --flush-only exports nothing, use --flush-only --force ONCE and verify the missing ids landed in .beads/issues.jsonl (grep the id). Never run --rebuild/--import-only while ids are DB-only — that destroys them.
