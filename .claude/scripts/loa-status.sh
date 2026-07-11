@@ -49,6 +49,7 @@ fi
 # Arguments
 JSON_OUTPUT=false
 VERSION_ONLY=false
+TRIAGE_MODE=false
 ECONOMY_MODE=false
 ECONOMY_ARGS=()
 UNKNOWN_ARGS=()
@@ -58,11 +59,15 @@ for arg in "$@"; do
     --economy) ECONOMY_MODE=true ;;
     --json) JSON_OUTPUT=true; ECONOMY_ARGS+=("--json") ;;
     --version) VERSION_ONLY=true ;;
+    --triage) TRIAGE_MODE=true ;;
     --help|-h)
-      echo "Usage: loa-status.sh [--json] [--version] [--economy [...]] [--help]"
+      echo "Usage: loa-status.sh [--json] [--triage] [--version] [--economy [...]] [--help]"
       echo ""
       echo "Options:"
       echo "  --json                Output JSON format"
+      echo "  --triage              One-call triage: workflow state + health (loa-doctor"
+      echo "                          --quick) + suggested next command. Combine with"
+      echo "                          --json for a machine-readable envelope."
       echo "  --version             Only show version info"
       echo "  --economy             Show model-economy roll-up (cycle-112 FR-2)"
       echo "                          Accepts: --window <h|d|m>, --skill <substr>,"
@@ -500,6 +505,45 @@ get_agent_network_json() {
 # === Main Logic ===
 
 main() {
+  # Triage mode (R-007, bd-m1o6): one call answering "where am I, is the
+  # system healthy, what next" — composes existing surfaces (workflow-state
+  # --json + loa-doctor --quick --json + suggested_command), no new logic.
+  if [[ "$TRIAGE_MODE" == "true" ]]; then
+    local workflow_json doctor_json
+    # Capture-then-validate: loa-doctor exits nonzero on DEGRADED *by design*
+    # (it doubles as a health gate), so 'cmd || echo fallback' would append a
+    # second JSON doc to perfectly valid output. Trust content, not exit code.
+    if [[ -x "$WORKFLOW_STATE_SCRIPT" ]]; then
+      workflow_json=$("$WORKFLOW_STATE_SCRIPT" --json 2>/dev/null) || true
+    else
+      workflow_json=''
+    fi
+    echo "$workflow_json" | jq -e 'type == "object"' >/dev/null 2>&1 || workflow_json='{}'
+    doctor_json=$(timeout 45 bash "${SCRIPT_DIR}/loa-doctor.sh" --quick --json 2>/dev/null) || true
+    echo "$doctor_json" | jq -e 'type == "object"' >/dev/null 2>&1 || doctor_json='{"status":"unavailable"}'
+    if [[ "$JSON_OUTPUT" == "true" ]]; then
+      jq -n --argjson s "$workflow_json" --argjson h "$doctor_json" \
+        '{schema_version: "1",
+          status: $s,
+          health: {status: ($h.status // "unavailable"),
+                   issues: ($h.issues // []),
+                   warnings: ($h.warnings // []),
+                   recommendations: ($h.recommendations // [])},
+          next: {suggested_command: ($s.suggested_command // "")}}'
+    else
+      local t_state t_suggested t_health
+      t_state=$(echo "$workflow_json" | jq -r '.state // "unknown"')
+      t_suggested=$(echo "$workflow_json" | jq -r '.suggested_command // ""')
+      t_health=$(echo "$doctor_json" | jq -r '.status // "unavailable"')
+      echo "Loa triage"
+      echo "  state:  ${t_state}"
+      echo "  health: ${t_health}"
+      [[ -n "$t_suggested" ]] && echo "  next:   ${t_suggested}"
+      echo "  detail: loa-status.sh --triage --json | loa-doctor.sh --json"
+    fi
+    exit 0
+  fi
+
   # Version-only mode
   if [[ "$VERSION_ONLY" == "true" ]]; then
     if [[ "$JSON_OUTPUT" == "true" ]]; then
