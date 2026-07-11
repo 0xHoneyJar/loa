@@ -27,10 +27,11 @@ setup() {
     [[ "$output" =~ "Usage:" ]]
 }
 
-@test "R-013: usage names the machine-readable alternatives" {
+@test "R-013: usage names the machine-readable alternatives (triage one-call + capabilities)" {
     run timeout 15 bash "$GP"
     [ "$status" -eq 2 ]
-    [[ "$output" =~ "loa-status.sh --json" ]]
+    [[ "$output" =~ "loa-status.sh --triage --json" ]]
+    [[ "$output" =~ "loa-capabilities.sh" ]]
 }
 
 @test "R-013: sourcing still works and defines the golden_* functions" {

@@ -1031,7 +1031,8 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
         echo "Then:    golden_detect_workflow_state | golden_suggest_command [--json] |"
         echo "         golden_resolve_truename <plan|build|review|ship> [override] |"
         echo "         golden_format_journey | golden_check_ship_ready | golden_menu_options [--json]"
-        echo "Machine-readable status: .claude/scripts/loa-status.sh --json | .claude/scripts/loa-doctor.sh --json"
+        echo "Machine-readable status: .claude/scripts/loa-status.sh --triage --json  (state + health + next, one call)"
+        echo "Script contract surface: .claude/scripts/loa-capabilities.sh --json"
     } >&2
     exit 2
 fi
