@@ -36,3 +36,32 @@ Intent-corpus recheck (the 17 useless_error entries): the 5 probed classes
 (bh-*, sb-*, vsc-*, cr-5, mq-4) now produce useful_hint-grade output —
 verified by the agent-ergonomics-unknown-flag.bats fixtures which encode one
 representative per script.
+
+---
+
+## FIX-FORWARD 2026-07-12 — R-002 security regression reversed (independent audit)
+
+The independent security audit (dispatched after operator asked "reviewed &
+audited?") **found R-002 shipped a security regression**: the "allow bounded
+hidden subdirs" behavior used a *denylist* of sensitive names, which leaked —
+`rm -rf ./.netrc / ./.npmrc / ./.pypirc / ./.git-credentials / ./.authinfo /
+./.password-store / ./.aws-old / ./.ssh-backup` were all NEWLY ALLOWED vs the
+pre-R-002 hook (verified by a 22-case pre-vs-post matrix). Classic
+denylist-whack-a-mole (bug #898); my own R-002 regression tests green-lit the
+vulnerability because they encoded my flawed intent, not an adversarial model.
+
+**Reversal**: `_re_allow_exclude` / `_re_allow_list` restored to pre-R-002
+bytes (block ALL `./.hidden` paths — an allowlist that fails SAFE). The S-1
+defect (message recommended a non-working form) is fixed in the FR-2 MESSAGES
+alone: they now name `trash` + `find <path> -mindepth 1 -delete` (works on
+hidden dirs), never a bogus accepted form. Net R-002 effect on the rm-gate:
+**message-only**, zero new deletion surface — verified byte-identical to the
+safe pre-R-002 baseline across the 22-case matrix. error_pedagogy uplift
+(90→~700) STANDS; the intent_inference "allow hidden dirs" uplift is
+WITHDRAWN. Fixtures flipped to pin the safe behavior + 7 adversarial
+credential-dir cases added.
+
+**Lesson (durable)**: an independent adversarial audit caught what 5 author
+fresh-eyes rounds + author-written tests did not — the author's tests can only
+be as adversarial as the author's threat model. This is why the review/audit
+gate must be independent.

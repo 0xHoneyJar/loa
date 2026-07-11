@@ -468,28 +468,58 @@ hook_invoke() {
 }
 
 # =============================================================================
-# Group R-002 — agent-ergonomics pass 1 (bd-m1o6): bounded hidden subdirs
-# ('./.name/…') are now ALLOWED, closing the FR-2-AMBIGUOUS self-contradiction
-# where the block message recommended the './path/' explicit form and the
-# allow-exclude regex then rejected every hidden path (live incident
-# 2026-07-10, './.loa/qmd/'). The named sensitive set MUST stay blocked.
+# Group R-002 (fix-forward 2026-07-12) — HIDDEN PATHS STAY BLOCKED.
+# R-002's original attempt to ALLOW bounded hidden subdirs used a denylist of
+# sensitive names; an independent security audit proved it leaked (rm -rf
+# ./.netrc / ./.npmrc / ./.git-credentials / ./.password-store etc. were
+# newly allowed — the denylist-whack-a-mole failure, bug #898). The fix
+# restores the pre-R-002 block-all-hidden behavior (an ALLOWLIST that fails
+# SAFE) and keeps ONLY R-002's honest message. These fixtures pin the SAFE
+# behavior and would FAIL against the regressed hook.
 # =============================================================================
 
-@test "R-002 ALLOW: rm -rf ./.loa/qmd/ (bounded hidden subdir) allowed" {
+@test "R-002 BLOCK: rm -rf ./.loa/qmd/ (hidden subdir) is conservatively blocked" {
     run hook_invoke "rm -rf ./.loa/qmd/"
-    [ "$status" -eq 0 ]
+    [ "$status" -eq 2 ]
 }
 
-@test "R-002 ALLOW: rm -rf ./.cache/foo allowed" {
+@test "R-002 BLOCK: rm -rf ./.cache/foo blocked" {
     run hook_invoke "rm -rf ./.cache/foo"
-    [ "$status" -eq 0 ]
+    [ "$status" -eq 2 ]
 }
 
-@test "R-002 ALLOW: rm -rf ./.loa-test-123/ allowed" {
-    run hook_invoke "rm -rf ./.loa-test-123/"
-    [ "$status" -eq 0 ]
+# --- credential/secret dirs the leaky denylist had newly ALLOWED (audit) ---
+@test "R-002 AUDIT: rm -rf ./.netrc blocked" {
+    run hook_invoke "rm -rf ./.netrc"
+    [ "$status" -eq 2 ]
 }
 
+@test "R-002 AUDIT: rm -rf ./.npmrc blocked" {
+    run hook_invoke "rm -rf ./.npmrc"
+    [ "$status" -eq 2 ]
+}
+
+@test "R-002 AUDIT: rm -rf ./.git-credentials blocked" {
+    run hook_invoke "rm -rf ./.git-credentials"
+    [ "$status" -eq 2 ]
+}
+
+@test "R-002 AUDIT: rm -rf ./.password-store blocked" {
+    run hook_invoke "rm -rf ./.password-store"
+    [ "$status" -eq 2 ]
+}
+
+@test "R-002 AUDIT: rm -rf ./.aws-old (near-miss of protected .aws) blocked" {
+    run hook_invoke "rm -rf ./.aws-old"
+    [ "$status" -eq 2 ]
+}
+
+@test "R-002 AUDIT: rm -rf ./.ssh-backup blocked" {
+    run hook_invoke "rm -rf ./.ssh-backup"
+    [ "$status" -eq 2 ]
+}
+
+# --- the catastrophic/dot-root set stays blocked (unchanged) ---
 @test "R-002 PROTECT: rm -rf ./.git/ still blocks" {
     run hook_invoke "rm -rf ./.git/"
     [ "$status" -eq 2 ]
@@ -498,11 +528,6 @@ hook_invoke() {
 
 @test "R-002 PROTECT: rm -rf ./.ssh/ still blocks" {
     run hook_invoke "rm -rf ./.ssh/"
-    [ "$status" -eq 2 ]
-}
-
-@test "R-002 PROTECT: rm -rf ./.aws/ still blocks" {
-    run hook_invoke "rm -rf ./.aws/"
     [ "$status" -eq 2 ]
 }
 
@@ -526,13 +551,21 @@ hook_invoke() {
     [ "$status" -eq 2 ]
 }
 
-@test "R-002 PEDAGOGY: FR-2-AMBIGUOUS names working alternatives (find/trash/hidden form)" {
+# --- visible project dirs stay allowed (the legitimate use case) ---
+@test "R-002 ALLOW: rm -rf ./build (visible subdir) still allowed" {
+    run hook_invoke "rm -rf ./build"
+    [ "$status" -eq 0 ]
+}
+
+@test "R-002 PEDAGOGY: FR-2-AMBIGUOUS names WORKING alternatives, not the bogus hidden form" {
     run hook_invoke "rm -rf unclear-relative-path"
     [ "$status" -eq 2 ]
     [[ "$output" =~ "FR-2-AMBIGUOUS" ]]
     [[ "$output" =~ "find" ]]
     [[ "$output" =~ "trash" ]]
-    [[ "$output" =~ "./.hidden-name/" ]]
+    [[ "$output" =~ "mindepth 1 -delete" ]]
+    # must NOT claim hidden dirs are an accepted rm target (the S-1 lie)
+    [[ ! "$output" =~ "'./.hidden-name/'" ]]
 }
 
 # =============================================================================
