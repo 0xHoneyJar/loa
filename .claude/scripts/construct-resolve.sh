@@ -34,6 +34,9 @@ if [[ -f "$SCRIPT_DIR/yq-safe.sh" ]]; then
     source "$SCRIPT_DIR/yq-safe.sh"
 fi
 
+# shellcheck source=lib/dx-utils.sh
+source "$SCRIPT_DIR/lib/dx-utils.sh"
+
 # =============================================================================
 # Configuration
 # =============================================================================
@@ -105,7 +108,11 @@ _parse_args() {
             --json) JSON_OUTPUT=true; shift ;;
             --index) INDEX_PATH="$2"; shift 2 ;;
             -h|--help) _usage; exit 0 ;;
-            *) echo "ERROR: Unknown flag: $1" >&2; exit 1 ;;
+            *)
+                dx_unknown_flag "$1" "Usage: construct-resolve.sh <subcommand> [args] [--json] [--index PATH]" \
+                    --json --index --help
+                exit 1
+                ;;
         esac
     done
 }

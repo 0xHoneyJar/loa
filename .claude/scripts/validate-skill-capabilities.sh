@@ -24,6 +24,9 @@ SKILLS_DIR="${SKILLS_DIR:-$PROJECT_ROOT/.claude/skills}"
 # shellcheck source=yq-safe.sh
 source "$SCRIPT_DIR/yq-safe.sh"
 
+# shellcheck source=lib/dx-utils.sh
+source "$SCRIPT_DIR/lib/dx-utils.sh"
+
 # --- CLI flags ---
 STRICT=false
 JSON_OUTPUT=false
@@ -41,7 +44,11 @@ while [[ $# -gt 0 ]]; do
             echo "  --skill    Validate single skill"
             exit 0
             ;;
-        *) echo "Unknown arg: $1" >&2; exit 2 ;;
+        *)
+            dx_unknown_flag "$1" "Usage: validate-skill-capabilities.sh [--strict] [--json] [--skill NAME]" \
+                --strict --json --skill --help
+            exit 2
+            ;;
     esac
 done
 
@@ -308,11 +315,18 @@ warnings=0
 passed=0
 results_json="[]"
 
-# --- Colors ---
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+# --- Colors (respect NO_COLOR — https://no-color.org/) ---
+if [[ -z "${NO_COLOR:-}" ]] && [[ -t 1 ]]; then
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    NC='\033[0m'
+else
+    RED=''
+    GREEN=''
+    YELLOW=''
+    NC=''
+fi
 
 log_error() {
     local skill="$1" msg="$2"

@@ -21,6 +21,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/bootstrap.sh"
 
+# shellcheck source=lib/dx-utils.sh
+if [[ -f "$SCRIPT_DIR/lib/dx-utils.sh" ]]; then
+  source "$SCRIPT_DIR/lib/dx-utils.sh"
+fi
+
 # =============================================================================
 # Bump Priority Map
 # =============================================================================
@@ -279,7 +284,15 @@ main() {
         echo "  --downstream  Filter out non-app commits (system-only, state-only, mixed-internal)"
         exit 0
         ;;
-      *) echo "ERROR: Unknown argument: $1" >&2; exit 2 ;;
+      *)
+        if declare -f dx_unknown_flag >/dev/null 2>&1; then
+          dx_unknown_flag "$1" "Usage: semver-bump.sh [--from-tag | --from-changelog] [--downstream]" \
+            --from-tag --from-changelog --downstream --help
+        else
+          echo "ERROR: Unknown argument: $1" >&2
+        fi
+        exit 2
+        ;;
     esac
   done
 

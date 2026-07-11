@@ -250,6 +250,91 @@ dx_list_errors_json() {
 }
 
 # =============================================================================
+# Unknown-Flag Helper (Pattern 4 applied to argument parsing: did-you-mean)
+# =============================================================================
+
+# Pure-bash Levenshtein edit distance, bounded to strings <=20 chars — this
+# is a "did you mean" nicety, not a general-purpose diff algorithm.
+# Args: $1 = string a, $2 = string b
+# Echoes: integer edit distance to stdout
+_dx_levenshtein() {
+    local a="$1" b="$2"
+    local la=${#a} lb=${#b}
+
+    if [[ ${la} -gt 20 ]] || [[ ${lb} -gt 20 ]]; then
+        echo 999
+        return 0
+    fi
+
+    local -a prev cur
+    local i j cost del ins sub min ca cb
+
+    for ((j = 0; j <= lb; j++)); do prev[j]=${j}; done
+
+    for ((i = 1; i <= la; i++)); do
+        cur[0]=${i}
+        ca="${a:i-1:1}"
+        for ((j = 1; j <= lb; j++)); do
+            cb="${b:j-1:1}"
+            if [[ "${ca}" == "${cb}" ]]; then
+                cost=0
+            else
+                cost=1
+            fi
+            del=$(( prev[j] + 1 ))
+            ins=$(( cur[j-1] + 1 ))
+            sub=$(( prev[j-1] + cost ))
+            min=${del}
+            [[ ${ins} -lt ${min} ]] && min=${ins}
+            [[ ${sub} -lt ${min} ]] && min=${sub}
+            cur[j]=${min}
+        done
+        for ((j = 0; j <= lb; j++)); do prev[j]=${cur[j]}; done
+    done
+
+    echo "${prev[lb]}"
+}
+
+# Report an unknown CLI flag with an educational nudge: the bad flag, a
+# best-guess correction, and the caller's usage line. A VALID_FLAG is
+# suggested when its edit distance from BAD_FLAG is <=2, or when it shares
+# a prefix of >=3 chars with BAD_FLAG. Like dx_error, this NEVER calls
+# exit — the caller decides.
+# Args: $1 = bad flag, $2 = usage line, $3.. = valid flags to suggest from
+dx_unknown_flag() {
+    local bad_flag="$1"
+    local usage_line="$2"
+    shift 2
+
+    printf "Unknown option: %s\n" "${bad_flag}" >&2
+
+    local flag dist prefix_len max_prefix k
+    local best_flag="" best_dist=999
+    for flag in "$@"; do
+        dist=$(_dx_levenshtein "${bad_flag}" "${flag}")
+
+        prefix_len=0
+        max_prefix=${#bad_flag}
+        [[ ${#flag} -lt ${max_prefix} ]] && max_prefix=${#flag}
+        for ((k = 0; k < max_prefix; k++)); do
+            [[ "${bad_flag:k:1}" == "${flag:k:1}" ]] || break
+            prefix_len=$((k + 1))
+        done
+
+        if { [[ ${dist} -le 2 ]] || [[ ${prefix_len} -ge 3 ]]; } && [[ ${dist} -lt ${best_dist} ]]; then
+            best_dist=${dist}
+            best_flag="${flag}"
+        fi
+    done
+
+    if [[ -n "${best_flag}" ]]; then
+        printf "Did you mean: %s?\n" "${best_flag}" >&2
+    fi
+
+    printf "%s\n" "${usage_line}" >&2
+}
+
+# =============================================================================
 # Formatted Output Helpers (Pattern 10: Sweat Every Word)
 # =============================================================================
 

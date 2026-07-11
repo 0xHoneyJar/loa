@@ -41,6 +41,9 @@ unset _bh_src _bh_dir
 # shellcheck source=../bash-version-guard.sh
 source "$SCRIPT_DIR/../bash-version-guard.sh"
 
+# shellcheck source=../lib/dx-utils.sh
+source "$SCRIPT_DIR/../lib/dx-utils.sh"
+
 # Allow PROJECT_ROOT override for testing
 if [[ -z "${PROJECT_ROOT:-}" ]]; then
     PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
@@ -101,7 +104,8 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         *)
-            echo "Unknown option: $1" >&2
+            dx_unknown_flag "$1" "Usage: beads-health.sh [--json|--verbose|--quick|--repair|--dry-run|--force]" \
+                --json --verbose --quick --repair --dry-run --force
             exit 1
             ;;
     esac
