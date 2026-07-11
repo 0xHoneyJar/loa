@@ -24,7 +24,10 @@ PROJECT_ROOT=$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || pwd
 VERSION_FILE="${PROJECT_ROOT}/.loa-version.json"
 
 usage() {
-  sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  # Print the comment header verbatim, stopping at the first code line —
+  # robust to header edits (fresh-eyes r4: a fixed sed range bled
+  # 'set -euo pipefail' into --help).
+  awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } /^$/ { print; next } { exit }' "${BASH_SOURCE[0]}"
 }
 
 framework_version() {
