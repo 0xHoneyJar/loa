@@ -62,3 +62,11 @@ teardown() {
     [ "$status" -eq 0 ]
     [ "$(echo "$output" | jq -r '.completed_sprints')" -eq 1 ]
 }
+
+@test "R-004 (fresh-eyes r2): zero-sprint plan yields total=0 completed=0, not a crash" {
+    printf '# Sprint Plan\nno sprints declared yet\n' > "$TMP_GRIMOIRE/sprint.md"
+    run bash -c "LOA_GRIMOIRE_DIR='$TMP_GRIMOIRE' timeout 30 bash '$WS' --json --no-cache 2>/dev/null"
+    [ "$status" -eq 0 ]
+    [ "$(echo "$output" | jq -r '.total_sprints')" -eq 0 ]
+    [ "$(echo "$output" | jq -r '.completed_sprints')" -eq 0 ]
+}

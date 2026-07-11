@@ -69,7 +69,13 @@ get_current_sprint() {
 # Function: Get sprint count from sprint.md
 get_total_sprints() {
     if [[ -f "${SPRINT_FILE}" ]]; then
-        grep -c "^## Sprint [0-9]" "${SPRINT_FILE}" 2>/dev/null || echo "0"
+        # fresh-eyes r2 (bd-m1o6): 'grep -c … || echo 0' emitted "0\n0" on a
+        # zero-match file — grep -c prints its own 0 AND exits 1, so the
+        # fallback printed a second one. Latent while consumers only compared
+        # strings; fatal once get_completed_sprints uses it arithmetically.
+        local n
+        n=$(grep -c "^## Sprint [0-9]" "${SPRINT_FILE}" 2>/dev/null || true)
+        echo "${n:-0}"
     else
         echo "0"
     fi
