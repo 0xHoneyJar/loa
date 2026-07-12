@@ -16,6 +16,12 @@
 #   --deps none       -> explicit no-blockers assertion (label deps:none)
 #   omitted           -> allowed (backward compatible), warns on stderr
 #
+# Failure contract: dependency ids are verified BEFORE the bead is created (a
+# bad id creates no orphan). If an edge or the deps:none label fails to WRITE
+# after creation, the script exits 1 — the task id is still printed on stdout
+# so the caller can repair (br dep add <task> <dep>) instead of retrying into
+# a duplicate.
+#
 # Part of Loa beads_rust integration
 
 set -euo pipefail
@@ -52,11 +58,22 @@ TITLE="${POSITIONAL[1]:-}"
 PRIORITY="${POSITIONAL[2]:-2}"
 TYPE="${POSITIONAL[3]:-task}"
 
-# An empty --deps value is neither edges nor an assertion — it would slip
-# through the edge-or-none rule unnoticed. Refuse it.
-if [ "$DEPS_SET" = true ] && [ -z "$DEPS" ]; then
-  echo "ERROR: --deps requires ids or 'none' (got an empty value)" >&2
-  exit 1
+# A --deps value that is empty (or trims to empty) is neither edges nor an
+# assertion — it would slip through the edge-or-none rule unnoticed. Refuse
+# it. Trimming here also makes '--deps " none "' a valid assertion. A value
+# starting with '-' is an omitted value that swallowed the next flag.
+if [ "$DEPS_SET" = true ]; then
+  DEPS="$(echo "$DEPS" | xargs)"
+  case "$DEPS" in
+    -*)
+      echo "ERROR: --deps requires a value, got flag-like '$DEPS' (comma-separated ids, or 'none')" >&2
+      exit 1
+      ;;
+  esac
+  if [ -z "$DEPS" ]; then
+    echo "ERROR: --deps requires ids or 'none' (got an empty value)" >&2
+    exit 1
+  fi
 fi
 
 if [ -z "$EPIC_ID" ] || [ -z "$TITLE" ]; then
@@ -86,18 +103,25 @@ if ! br show "$EPIC_ID" --json &>/dev/null; then
 fi
 
 # Verify dependencies BEFORE creating the task — a bad id must not leave an
-# orphan bead behind.
+# orphan bead behind. Comma-split tokens are trimmed; at least one non-empty
+# id must survive, or the value was noise like ',' / 'id,,' masquerading as
+# edges (the whitespace-only case was already refused above).
 DEP_IDS=()
 if [ "$DEPS_SET" = true ] && [ "$DEPS" != "none" ]; then
-  IFS=',' read -ra DEP_IDS <<< "$DEPS"
-  for DEP in "${DEP_IDS[@]}"; do
+  IFS=',' read -ra RAW_DEPS <<< "$DEPS"
+  for DEP in "${RAW_DEPS[@]}"; do
     DEP="$(echo "$DEP" | xargs)"  # trim whitespace
     [ -z "$DEP" ] && continue
     if ! br show "$DEP" --json &>/dev/null; then
       echo "ERROR: dependency $DEP not found — task not created" >&2
       exit 1
     fi
+    DEP_IDS+=("$DEP")
   done
+  if [ ${#DEP_IDS[@]} -eq 0 ]; then
+    echo "ERROR: --deps requires ids or 'none' (got an empty value)" >&2
+    exit 1
+  fi
 fi
 
 # Create the task
@@ -120,20 +144,33 @@ if [ -n "$SPRINT_LABEL" ]; then
   br label add "$TASK_ID" "$SPRINT_LABEL" 2>/dev/null || true
 fi
 
-# Record dependency edges (or the explicit no-blockers assertion)
+# Record dependency edges (or the explicit no-blockers assertion). A write
+# failure here must not be silent: a task reported as created-with-edges but
+# missing them would surface in `br ready` as falsely unblocked. Per the
+# failure contract above, print the task id and exit 1 so the caller repairs
+# instead of retrying into a duplicate.
 if [ "$DEPS_SET" = true ]; then
   if [ "$DEPS" = "none" ]; then
-    br label add "$TASK_ID" "deps:none" 2>/dev/null || true
+    if ! br label add "$TASK_ID" "deps:none" 2>/dev/null; then
+      echo "ERROR: $TASK_ID created but the deps:none assertion failed to record — repair with: br label add $TASK_ID deps:none" >&2
+      echo "$TASK_ID"
+      exit 1
+    fi
   else
+    EDGE_FAILURES=0
     for DEP in "${DEP_IDS[@]}"; do
-      DEP="$(echo "$DEP" | xargs)"
-      [ -z "$DEP" ] && continue
       if br dep add "$TASK_ID" "$DEP" >/dev/null 2>&1; then
         echo "  dep: $TASK_ID blocked-by $DEP" >&2
       else
-        echo "WARNING: failed to add dependency $TASK_ID -> $DEP" >&2
+        echo "ERROR: failed to add dependency edge $TASK_ID -> $DEP" >&2
+        EDGE_FAILURES=$((EDGE_FAILURES + 1))
       fi
     done
+    if [ "$EDGE_FAILURES" -gt 0 ]; then
+      echo "ERROR: $TASK_ID created but $EDGE_FAILURES dependency edge(s) missing — repair with: br dep add $TASK_ID <dep-id>" >&2
+      echo "$TASK_ID"
+      exit 1
+    fi
   fi
 else
   echo "note: no --deps declared for $TASK_ID (pass --deps none to assert no blockers)" >&2

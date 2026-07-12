@@ -22,17 +22,31 @@
 
 set -euo pipefail
 
-LIMIT=${1:-5}
+LIMIT=""
 IDS_ONLY=false
 GRAPH=false
 
-# Check flags
+# Flags and the positional limit are parsed independently — `--graph` as the
+# first argument must not become the limit (it would be interpolated into the
+# jq program and fail to compile). The limit is validated as a number for the
+# same reason.
 for arg in "$@"; do
   case "$arg" in
     --ids-only) IDS_ONLY=true ;;
     --graph)    GRAPH=true ;;
+    -*)
+      echo "ERROR: unknown flag '$arg'" >&2
+      echo "Usage: get-ready-work.sh [limit] [--ids-only] [--graph]" >&2
+      exit 1
+      ;;
+    ''|*[!0-9]*)
+      echo "ERROR: limit must be a non-negative integer (got '$arg')" >&2
+      exit 1
+      ;;
+    *) LIMIT="$arg" ;;
   esac
 done
+LIMIT="${LIMIT:-5}"
 
 # Navigate to project root
 cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
@@ -44,9 +58,11 @@ READY=$(br ready --json 2>/dev/null || echo "[]")
 # does not rank keep their priority order, after the ranked ones.
 if [ "$GRAPH" = true ] && [ "$READY" != "[]" ] && command -v bv &>/dev/null; then
   # Bound the git-history prologue so this stays snappy at session start.
+  # bv v0.18.0 nests recommendations under .triage (verified against the
+  # binary); the top-level fallback covers releases that flatten the envelope.
   BV_RANKS=$(CI=1 BV_ROBOT_HISTORY_TIMEOUT_MS="${BV_ROBOT_HISTORY_TIMEOUT_MS:-3000}" \
     bv --robot-triage 2>/dev/null \
-    | jq -c '[(.triage.recommendations // [])[].id]' 2>/dev/null || echo "[]")
+    | jq -c '[(.triage.recommendations // .recommendations // [])[].id]' 2>/dev/null || echo "[]")
   if [ "$BV_RANKS" != "[]" ] && [ -n "$BV_RANKS" ]; then
     READY=$(echo "$READY" | jq --argjson ranks "$BV_RANKS" '
       sort_by(
@@ -81,7 +97,7 @@ else
 fi
 
 if [ "$IDS_ONLY" = true ]; then
-  echo "$READY" | jq -r "$ORDER | limit($LIMIT; .[]) | .id"
+  echo "$READY" | jq -r --argjson limit "$LIMIT" "$ORDER | limit(\$limit; .[]) | .id"
 else
-  echo "$READY" | jq -r "$ORDER | limit($LIMIT; .[])"
+  echo "$READY" | jq -r --argjson limit "$LIMIT" "$ORDER | limit(\$limit; .[])"
 fi

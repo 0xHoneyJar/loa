@@ -7,7 +7,7 @@
 # get-ready-work.sh (graph-aware ranking via bv with a silent fallback to
 # priority order when bv is absent).
 #
-# D-series (D1-D8): each test runs against a throwaway br workspace in a temp
+# D-series: each test runs against a throwaway br workspace in a temp
 # git repo, so no estate store is touched. Tests skip when `br` is not on PATH
 # (mirrors the golden-runner skip convention).
 # =============================================================================
@@ -38,7 +38,7 @@ teardown() {
 @test "D1: positional-only call still works (backward compat) and warns about missing --deps" {
     run "$CREATE_TASK" "$EPIC_ID" "Legacy task" 2 task
     [ "$status" -eq 0 ]
-    TASK_ID="${lines[-1]}"
+    TASK_ID="$(echo "$output" | tail -1)"
     [[ "$TASK_ID" =~ ^[a-zA-Z0-9-]+$ ]]
     [[ "$output" == *"no --deps declared"* ]]
 }
@@ -46,7 +46,7 @@ teardown() {
 @test "D2: --deps none records the explicit no-blockers assertion as label deps:none" {
     run "$CREATE_TASK" "$EPIC_ID" "Independent task" 2 task --deps none
     [ "$status" -eq 0 ]
-    TASK_ID="${lines[-1]}"
+    TASK_ID="$(echo "$output" | tail -1)"
     run br label list "$TASK_ID"
     [[ "$output" == *"deps:none"* ]]
 }
@@ -139,4 +139,73 @@ teardown() {
     [[ "$output" == *"empty value"* ]]
     AFTER=$(br list --json | jq 'length')
     [ "$BEFORE" -eq "$AFTER" ]
+}
+
+@test "D11: whitespace-only and comma-only --deps values are refused (no task created)" {
+    BEFORE=$(br list --json | jq 'length')
+    run "$CREATE_TASK" "$EPIC_ID" "Sneaky whitespace" 2 task --deps "  "
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"empty value"* ]]
+    run "$CREATE_TASK" "$EPIC_ID" "Sneaky comma" 2 task --deps ","
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"empty value"* ]]
+    AFTER=$(br list --json | jq 'length')
+    [ "$BEFORE" -eq "$AFTER" ]
+}
+
+@test "D12: padded --deps ' none ' is recognized as the no-blockers assertion" {
+    run "$CREATE_TASK" "$EPIC_ID" "Padded none" 2 task --deps " none "
+    [ "$status" -eq 0 ]
+    TASK_ID="$(echo "$output" | tail -1)"
+    run br label list "$TASK_ID"
+    [[ "$output" == *"deps:none"* ]]
+}
+
+@test "D13: --deps followed by a flag (omitted value) is refused, not swallowed" {
+    BEFORE=$(br list --json | jq 'length')
+    run "$CREATE_TASK" "$EPIC_ID" "Flag eater" 2 task --deps --graph
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"flag-like"* ]]
+    AFTER=$(br list --json | jq 'length')
+    [ "$BEFORE" -eq "$AFTER" ]
+}
+
+@test "D14: a failed dependency-edge write exits nonzero and names the repair (no silent partial graph)" {
+    BLOCKER=$("$CREATE_TASK" "$EPIC_ID" "Real blocker" 1 task --deps none | tail -1)
+    # Shim br so `br dep add` fails while everything else passes through —
+    # simulates a post-creation write failure (db lock, race).
+    SHIM="$WORKDIR/brshim"; mkdir -p "$SHIM"
+    REAL_BR="$(command -v br)"
+    cat > "$SHIM/br" <<EOF
+#!/usr/bin/env bash
+if [ "\${1:-}" = "dep" ] && [ "\${2:-}" = "add" ]; then exit 1; fi
+exec "$REAL_BR" "\$@"
+EOF
+    chmod +x "$SHIM/br"
+    run env PATH="$SHIM:$PATH" "$CREATE_TASK" "$EPIC_ID" "Edge fail probe" 2 task --deps "$BLOCKER"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"dependency edge"* ]]
+    [[ "$output" == *"repair with"* ]]
+    # The task id is still on the last stdout line so the caller can repair
+    TASK_ID="$(echo "$output" | tail -1)"
+    br show "$TASK_ID" --json >/dev/null
+}
+
+@test "D15: get-ready-work.sh with flags but no numeric limit defaults to 5 (no jq compile error)" {
+    "$CREATE_TASK" "$EPIC_ID" "Limit probe" 1 task --deps none >/dev/null
+    run "$GET_READY" --ids-only
+    [ "$status" -eq 0 ]
+    [ -n "$output" ]
+    run "$GET_READY" --graph --ids-only
+    [ "$status" -eq 0 ]
+    [ -n "$output" ]
+}
+
+@test "D16: get-ready-work.sh rejects a non-numeric limit and unknown flags" {
+    run "$GET_READY" abc
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"non-negative integer"* ]]
+    run "$GET_READY" 5 --grpah
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"unknown flag"* ]]
 }

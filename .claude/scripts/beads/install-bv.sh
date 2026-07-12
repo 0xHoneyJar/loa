@@ -66,21 +66,14 @@ if command -v brew &> /dev/null; then
     fi
 fi
 
-# Method 2: Upstream install script (pinned to the official repo; cache-busted
-# per upstream README convention)
-if command -v curl &> /dev/null; then
-    echo "Trying upstream install script..."
-    if curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/beads_viewer/main/install.sh?$(date +%s)" | bash 2>/dev/null; then
-        if verify_install; then
-            exit 0
-        fi
-    fi
-fi
-
-# Method 3: go install (bv is Go)
+# Method 2: go install, pinned to a reviewed release (bv is Go). No raw
+# `curl | bash` of a mutable branch here: all HTTP in Loa routes through the
+# endpoint validator, and executing unpinned remote code is a supply-chain
+# hole either way. Bump BV_PIN deliberately when validating a newer release.
+BV_PIN="${BV_PIN:-v0.18.0}"
 if command -v go &> /dev/null; then
-    echo "Trying go install..."
-    if go install github.com/Dicklesworthstone/beads_viewer/cmd/bv@latest 2>/dev/null; then
+    echo "Trying go install (pinned $BV_PIN)..."
+    if go install "github.com/Dicklesworthstone/beads_viewer/cmd/bv@$BV_PIN" 2>/dev/null; then
         export PATH="$HOME/go/bin:$PATH"
         if verify_install; then
             exit 0
@@ -88,7 +81,7 @@ if command -v go &> /dev/null; then
     fi
 fi
 
-# Method 4: Check common binary locations
+# Method 3: Check common binary locations
 for dir in "$HOME/go/bin" "$HOME/.local/bin" "/usr/local/bin" "/opt/homebrew/bin"; do
     if [[ -x "$dir/bv" ]]; then
         export PATH="$dir:$PATH"
@@ -107,11 +100,11 @@ echo ""
 echo "  # Option 1: Homebrew (macOS/Linux)"
 echo "  brew install dicklesworthstone/tap/bv"
 echo ""
-echo "  # Option 2: Windows"
-echo "  scoop install bv   # see github.com/Dicklesworthstone/beads_viewer"
+echo "  # Option 2: go install (pinned)"
+echo "  go install github.com/Dicklesworthstone/beads_viewer/cmd/bv@$BV_PIN"
 echo ""
-echo "  # Option 3: Direct download / install script"
-echo "  https://github.com/Dicklesworthstone/beads_viewer#installation"
+echo "  # Option 3: Windows / direct download"
+echo "  scoop install bv   # or see github.com/Dicklesworthstone/beads_viewer#installation"
 echo ""
 echo "After installing, run: bv --version  (agents: bv --robot-help)"
 exit 1
