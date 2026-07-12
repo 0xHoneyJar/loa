@@ -563,3 +563,19 @@ known_failures:
   # warns visibly ([KF-SURFACE] WARNING) if the surface is enabled-but-degraded
   # (known-failures.md unreadable or zero entries parsed).
   surface_at_session_start: true
+
+# Skill registry / constructs integration.
+registry:
+  # Built-in framework skill names that a registry/pack skill MUST NOT shadow.
+  # is_reserved_skill_name() (constructs-lib.sh) reads this list; a registry
+  # skill matching one of these is filtered from `list`/`loadable` and blocked
+  # by `preload`. Mirrors the Golden-Path workflow skills in .claude/skills/.
+  reserved_skill_names:
+    - "discovering-requirements"
+    - "designing-architecture"
+    - "planning-sprints"
+    - "implementing-tasks"
+    - "reviewing-code"
+    - "auditing-security"
+    - "deploying-infrastructure"
+    - "translating-for-executives"

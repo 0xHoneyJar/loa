@@ -44,7 +44,18 @@ teardown() {
     run python3 "$SELECT" --stratifier-output stratifier.json --min-replays-per-stratum 3
     [ "$status" -eq 0 ]
     echo "$output" | grep -q '"selection_method": "deterministic"'
-    echo "$output" | grep -q '"total_selected": 12'
+    # Fixture: glue=4, parser=3, cryptographic=3, testing=2 candidates.
+    # Per-stratum truncation to min_replays(3) most-recent: 3+3+3+2 = 11
+    # (glue's 4th is dropped; underrepresented 'testing' keeps its 2 and is
+    # surfaced in the report — it does not block selection). The old
+    # "total_selected": 12 expected ALL candidates, contradicting the
+    # documented N-most-recent-per-stratum truncation.
+    echo "$output" | grep -q '"total_selected": 11'
+    # glue must contribute exactly its 3 most recent (aaa001 dropped)
+    echo "$output" | grep -q '"aaa004"'
+    ! echo "$output" | grep -q '"aaa001"'
+    # underrepresented stratum surfaced
+    echo "$output" | grep -q '"stratum": "testing"'
 }
 
 @test "T2.J: deterministic selection is byte-equal across runs" {

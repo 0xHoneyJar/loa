@@ -4,7 +4,10 @@
   "title": "MODELINV class.resolved Payload",
   "description": "Audit-event payload for a capability-class resolution decision. cycle-102 Sprint 1 (T1.4). Emitted by model-resolver on every class-addressed call (top-reasoning, top-non-reasoning, summarization, etc.). Captures the chosen model + the fallback chain considered, so audit-query can reconstruct routing decisions without rerunning the resolver. On cycle-detection failure, error_class=ROUTING_MISS + reason=cycle + cycle[] populated (per SDD line 705).",
   "type": "object",
-  "required": ["class_name", "outcome"],
+  "required": [
+    "class_name",
+    "outcome"
+  ],
   "additionalProperties": false,
   "properties": {
     "class_name": {
@@ -14,7 +17,11 @@
     },
     "outcome": {
       "description": "Resolution outcome. RESOLVED: a primary model was chosen and probed AVAILABLE. FALLBACK: the primary failed probe, a fallback was chosen. FAILED: chain exhausted or cycle detected.",
-      "enum": ["RESOLVED", "FALLBACK", "FAILED"]
+      "enum": [
+        "RESOLVED",
+        "FALLBACK",
+        "FAILED"
+      ]
     },
     "chosen_provider": {
       "description": "Provider of the chosen model (RESOLVED or FALLBACK outcomes).",
@@ -48,7 +55,12 @@
       "description": "Per-step probe outcome aligned with fallback_chain_considered (or singleton with primary). Used for triage when an unexpected model is chosen.",
       "type": "array",
       "items": {
-        "enum": ["AVAILABLE", "DEGRADED", "UNAVAILABLE", "FAIL"]
+        "enum": [
+          "AVAILABLE",
+          "DEGRADED",
+          "UNAVAILABLE",
+          "FAIL"
+        ]
       }
     },
     "error_class": {
@@ -64,13 +76,31 @@
     "cycle": {
       "description": "When reason=cycle, the visited-set that triggered cycle detection. Lets the auditor reconstruct the bad config without rerunning the resolver.",
       "type": "array",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     },
     "calling_primitive": {
-      "description": "Optional caller-context attribution per SDD section 4.4. Same semantics as model.invoke.complete.calling_primitive.",
+      "description": "Optional caller-context attribution per SDD section 4.4 + cycle-112 D-6 (#931). Same semantics as model.invoke.complete.calling_primitive (L1-L7 tag OR skill/agent slug OR null).",
       "anyOf": [
-        { "type": "null" },
-        { "enum": ["L1", "L2", "L3", "L4", "L5", "L6", "L7"] }
+        {
+          "type": "null"
+        },
+        {
+          "enum": [
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5",
+            "L6",
+            "L7"
+          ]
+        },
+        {
+          "type": "string",
+          "pattern": "^/?[A-Za-z][A-Za-z0-9._:/-]{0,127}$"
+        }
       ]
     }
   }

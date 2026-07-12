@@ -63,17 +63,19 @@ _make_kf_fixture() {
   echo "$f"
 }
 
-@test "TEST-1: generated INDEX.md kf section lists all 21 ## KF- headings" {
+@test "TEST-1: generated INDEX.md kf section lists all 22 ## KF- headings" {
   run bash "$GEN" --json
   [ "$status" -eq 0 ]
   local heads gen
   heads=$(grep -cE '^## KF-[0-9]+:' "$KF")
   gen=$(echo "$output" | jq -r '.counts.kf')
-  [ "$heads" -eq 21 ]
+  # 22 = 21 (through cycle-117 KF-021) + KF-022 (br sync dirty-tracking
+  # split-brain, agent-ergonomics pass 1, bd-m1o6)
+  [ "$heads" -eq 22 ]
   [ "$gen" -eq "$heads" ]
   # spot-check that the previously-missing ids are present (KF-021 added by
-  # cycle-117 item G, bd-c117-g-update-loa-e638)
-  for id in KF-009 KF-016 KF-017 KF-018 KF-019 KF-020 KF-021; do
+  # cycle-117 item G, bd-c117-g-update-loa-e638; KF-022 by bd-m1o6)
+  for id in KF-009 KF-016 KF-017 KF-018 KF-019 KF-020 KF-021 KF-022; do
     echo "$output" | jq -e --arg i "$id" '.families.kf[] | select(.id==$i)' >/dev/null
   done
 }

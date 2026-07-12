@@ -180,6 +180,21 @@ class ClaudeHeadlessAdapter(ProviderAdapter):
                         f"claude CLI not found on PATH (set CLAUDE_HEADLESS_BIN to override). "
                         f"Install with: npm install -g @anthropic-ai/claude-code. Original: {exc}"
                     ) from exc
+                except OSError as exc:
+                    # Spawn failure: ARG_MAX/E2BIG (oversized prompt on argv), ENOMEM,
+                    # "Exec format error", etc. → WALK the chain, never crash raw (bd-q0o;
+                    # FileNotFoundError handled above maps to ConfigError).
+                    raise ProviderUnavailableError(
+                        self.provider,
+                        f"claude -p spawn failed (ARG_MAX / ENOMEM / exec error?): {exc}",
+                    ) from exc
+                except ValueError as exc:
+                    # Untrusted prompt with an embedded NUL → subprocess raises ValueError
+                    # (NOT an OSError) → WALK, don't crash the chain (bd-q0o).
+                    raise ProviderUnavailableError(
+                        self.provider,
+                        f"claude -p got un-executable argv (embedded NUL in the prompt?): {exc}",
+                    ) from exc
         except _SemaphoreExhausted as exc:
             # C12 closure: distinct exit class so MODELINV records
             # semaphore_exhausted=true and the caller routes the failure

@@ -21,6 +21,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/bootstrap.sh"
 
+# shellcheck source=lib/dx-utils.sh
+if [[ -f "$SCRIPT_DIR/lib/dx-utils.sh" ]]; then
+  source "$SCRIPT_DIR/lib/dx-utils.sh"
+fi
+
 # =============================================================================
 # Bump Priority Map
 # =============================================================================
@@ -270,16 +275,29 @@ main() {
       --from-tag) source_mode="tag"; shift ;;
       --from-changelog) source_mode="changelog"; shift ;;
       --downstream) downstream=true; shift ;;
-      --help|-h)
+      --help|-h|help)
         echo "Usage: semver-bump.sh [--from-tag | --from-changelog] [--downstream]"
         echo "  Computes next semver from conventional commits."
         echo "  Output: JSON with current, next, bump, commits"
         echo ""
         echo "Options:"
         echo "  --downstream  Filter out non-app commits (system-only, state-only, mixed-internal)"
+        echo ""
+        echo "Exit codes:"
+        echo "  0  Success (JSON on stdout)"
+        echo "  1  No commits since last tag"
+        echo "  2  No version source found (no tags / no CHANGELOG match) or bad input"
         exit 0
         ;;
-      *) echo "ERROR: Unknown argument: $1" >&2; exit 2 ;;
+      *)
+        if declare -f dx_unknown_flag >/dev/null 2>&1; then
+          dx_unknown_flag "$1" "Usage: semver-bump.sh [--from-tag | --from-changelog] [--downstream]" \
+            --from-tag --from-changelog --downstream --help
+        else
+          echo "ERROR: Unknown argument: $1" >&2
+        fi
+        exit 2
+        ;;
     esac
   done
 

@@ -231,8 +231,21 @@ print(len(e), 'L1' in e and 'L7' in e and 'MODELINV' in e)
     [ "$status" -eq 0 ]
 }
 
-@test "MIC7: calling_primitive rejects MODELINV (only L1-L7 valid as caller)" {
-    payload='{"models_requested":["openai:m"],"models_succeeded":["openai:m"],"models_failed":[],"operator_visible_warn":false,"calling_primitive":"MODELINV"}'
+# Contract broadened (cycle-112 D-6 #931, schema catch-up in v1.196.0):
+# calling_primitive accepts L1-L7 primitive tags OR skill/agent slugs (cheval
+# writes --skill / --agent, e.g. "/review-sprint", "adversarial-review:review").
+# The pin now guards the slug PATTERN — malformed junk must still be rejected.
+@test "MIC7a: calling_primitive accepts a skill slug (cycle-112 D-6 attribution)" {
+    payload='{"models_requested":["openai:m"],"models_succeeded":["openai:m"],"models_failed":[],"operator_visible_warn":false,"calling_primitive":"adversarial-review:review"}'
+    run _validate "$MIC_SCHEMA" "$payload"
+    [ "$status" -eq 0 ]
+}
+
+@test "MIC7b: calling_primitive rejects malformed values (spaces / leading digit)" {
+    payload='{"models_requested":["openai:m"],"models_succeeded":["openai:m"],"models_failed":[],"operator_visible_warn":false,"calling_primitive":"not a primitive"}'
+    run _validate "$MIC_SCHEMA" "$payload"
+    [ "$status" -eq 78 ]
+    payload='{"models_requested":["openai:m"],"models_succeeded":["openai:m"],"models_failed":[],"operator_visible_warn":false,"calling_primitive":"9bad"}'
     run _validate "$MIC_SCHEMA" "$payload"
     [ "$status" -eq 78 ]
 }

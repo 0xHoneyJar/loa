@@ -131,7 +131,7 @@ jobs:
               exit 1
             fi
             echo "Running $count test files from tests/unit/ ..."
-            bats tests/unit/
+            bats --print-output-on-failure tests/unit/
           else
             if [ "$REQUIRE_TESTS" = "true" ]; then
               echo "ERROR: tests/unit/ directory required but not found (REQUIRE_TESTS=true)"
@@ -150,7 +150,7 @@ jobs:
               exit 1
             fi
             echo "Running $count test files from .claude/scripts/tests/ ..."
-            bats .claude/scripts/tests/
+            bats --print-output-on-failure .claude/scripts/tests/
           else
             if [ "$REQUIRE_TESTS" = "true" ]; then
               echo "ERROR: .claude/scripts/tests/ directory required but not found (REQUIRE_TESTS=true)"

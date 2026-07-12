@@ -193,3 +193,39 @@ STUB
     [ "$status" -eq 0 ]
     [[ "$output" == *"pr_type="* ]]
 }
+
+# =========================================================================
+# R-005 (bd-m1o6, agent-ergonomics pass 1): release merges are cycle-type.
+# Live incident 2026-07-10: PR #1201 (release/v1.196.0-mechanical-floor)
+# carried only fix/chore commits, classified non-cycle → simple-release
+# path auto-tagged a PATCH (v1.195.1) on the named-release commit,
+# requiring a manual delete+retag to v1.196.0.
+# =========================================================================
+
+@test "R-005: release/* branch-merge subject (the #1201 incident) → cycle" {
+    _stub_gh_empty
+    run "$WRAPPER" --merge-msg "Merge pull request #1201 from 0xHoneyJar/release/v1.196.0-mechanical-floor"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"pr_type=cycle"* ]]
+}
+
+@test "R-005: conventional release(...) subject → cycle" {
+    _stub_gh_empty
+    run "$WRAPPER" --merge-msg "release(v2.0.0): big milestone"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"pr_type=cycle"* ]]
+}
+
+@test "R-005: 'released-*' branch name does NOT false-positive" {
+    _stub_gh_empty
+    run "$WRAPPER" --merge-msg "Merge pull request #7 from acme/released-features-audit"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"pr_type=other"* ]]
+}
+
+@test "R-005: fix/* branch merge keeps pre-change classification (other)" {
+    _stub_gh_empty
+    run "$WRAPPER" --merge-msg "Merge pull request #900 from 0xHoneyJar/fix/some-bug"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"pr_type=other"* ]]
+}

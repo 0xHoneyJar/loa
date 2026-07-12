@@ -103,10 +103,10 @@ teardown() {
     run stash_with_guard "will-be-dropped" -- git stash drop
     [ "$status" -eq 11 ]
     [[ "$output" == *"STASH_SAFETY_VIOLATION"* ]]
-    # When callback drops the helper's own stash, pop fails (no entries
-    # found). Count delta happens to match (0 → 0), so the violation
-    # surfaces via the pop-failed branch.
-    [[ "$output" == *"stash pop failed"* ]]
+    # When the callback drops the helper's own stash, the guard catches it via
+    # the identity check ("top stash is not ours") before the pop — the count
+    # delta happens to match (0 → 0), so the earlier identity branch fires.
+    [[ "$output" == *"top stash is not ours"* ]]
 }
 
 # =========================================================================

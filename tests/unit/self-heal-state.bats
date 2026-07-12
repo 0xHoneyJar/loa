@@ -131,9 +131,12 @@ teardown() {
 @test "template NOTES.md has required sections" {
     cd "$TEST_DIR"
 
-    # Remove NOTES.md and prevent git recovery
+    # Remove NOTES.md AND commit the removal so it's absent from HEAD — this
+    # test exercises the *template* fallback, so git-history recovery
+    # (git show HEAD:NOTES.md) must not intercept and restore the older commit.
     rm grimoires/loa/NOTES.md
     git rm --cached grimoires/loa/NOTES.md --quiet 2>/dev/null || true
+    git commit -m "remove NOTES.md to force template recovery" --quiet 2>/dev/null || true
 
     run bash "$SCRIPT"
 

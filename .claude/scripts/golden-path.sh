@@ -1019,3 +1019,20 @@ golden_resolve_truename() {
             ;;
     esac
 }
+
+# R-013 (bd-m1o6, agent-ergonomics pass 1): this file is a sourced function
+# library — direct execution used to silently no-op with exit 0, which an
+# agent probing it like any other script could not distinguish from success.
+# Executed (not sourced) → teach the correct invocation instead.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    {
+        echo "golden-path.sh is a sourced function library, not an executable command."
+        echo "Usage:   source .claude/scripts/golden-path.sh"
+        echo "Then:    golden_detect_workflow_state | golden_suggest_command [--json] |"
+        echo "         golden_resolve_truename <plan|build|review|ship> [override] |"
+        echo "         golden_format_journey | golden_check_ship_ready | golden_menu_options [--json]"
+        echo "Machine-readable status: .claude/scripts/loa-status.sh --triage --json  (state + health + next, one call)"
+        echo "Script contract surface: .claude/scripts/loa-capabilities.sh --json"
+    } >&2
+    exit 2
+fi

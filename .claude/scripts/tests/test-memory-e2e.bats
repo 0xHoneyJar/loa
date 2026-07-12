@@ -12,7 +12,11 @@ setup() {
     export TEST_LOA_DIR="$PROJECT_ROOT/.loa-test-e2e-$$"
     export LOA_DIR="$TEST_LOA_DIR"
     export DB_FILE="$TEST_LOA_DIR/memory.db"
-    mkdir -p "$TEST_LOA_DIR"
+    # Trusted QMD_DIR override: keeps qmd-sync inside the temp dir (isolation)
+    # and skips the config-index_dir derivation, whose SECURITY warning would
+    # otherwise land on stderr and pollute bats' merged $output for jq asserts.
+    export QMD_DIR="$TEST_LOA_DIR/qmd"
+    mkdir -p "$TEST_LOA_DIR" "$QMD_DIR"
 
     # Source cross-platform time utilities
     # shellcheck source=../time-lib.sh

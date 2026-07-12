@@ -41,6 +41,13 @@ unset _bh_src _bh_dir
 # shellcheck source=../bash-version-guard.sh
 source "$SCRIPT_DIR/../bash-version-guard.sh"
 
+# shellcheck source=../lib/dx-utils.sh
+# Conditional (fresh-eyes r3, bd-m1o6): partial installs must not hard-fail
+# at source time; the dx_unknown_flag call site guards via declare -F.
+if [[ -f "$SCRIPT_DIR/../lib/dx-utils.sh" ]]; then
+    source "$SCRIPT_DIR/../lib/dx-utils.sh"
+fi
+
 # Allow PROJECT_ROOT override for testing
 if [[ -z "${PROJECT_ROOT:-}" ]]; then
     PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
@@ -100,8 +107,36 @@ while [[ $# -gt 0 ]]; do
             REPAIR_FORCE=true
             shift
             ;;
+        --help|-h|help)
+            # R-003 (bd-m1o6): '--help' previously hit the unknown-option
+            # branch — 'Unknown option: --help' was the reply to the most
+            # universal flag in existence.
+            echo "Usage: beads-health.sh [--json|--verbose|--quick|--repair|--dry-run|--force]"
+            echo ""
+            echo "Checks beads (br) task-tracking health: binary, init state, database,"
+            echo "schema/migrations, doctor, JSONL export freshness."
+            echo ""
+            echo "Options:"
+            echo "  --json     Machine-readable report on stdout"
+            echo "  --verbose  Extra diagnostic detail"
+            echo "  --quick    Skip slow checks"
+            echo "  --repair   Attempt migration repair when MIGRATION_NEEDED (--dry-run/--force pass through)"
+            echo ""
+            echo "Status ladder: HEALTHY < DEGRADED < UNHEALTHY < MIGRATION_NEEDED < NOT_INITIALIZED < NOT_INSTALLED"
+            echo ""
+            echo "Exit codes (gate semantics — consume the JSON, not the exit code):"
+            echo "  0  HEALTHY           1  NOT_INSTALLED   2  NOT_INITIALIZED"
+            echo "  3  MIGRATION_NEEDED  4  DEGRADED        5  UNHEALTHY"
+            exit 0
+            ;;
         *)
-            echo "Unknown option: $1" >&2
+            if declare -F dx_unknown_flag >/dev/null 2>&1; then
+                dx_unknown_flag "$1" "Usage: beads-health.sh [--json|--verbose|--quick|--repair|--dry-run|--force|--help]" \
+                    --json --verbose --quick --repair --dry-run --force --help
+            else
+                echo "Unknown option: $1" >&2
+                echo "Usage: beads-health.sh [--json|--verbose|--quick|--repair|--dry-run|--force|--help]" >&2
+            fi
             exit 1
             ;;
     esac
@@ -299,17 +334,35 @@ check_jsonl_sync() {
         CHECKS["jsonl"]="ok"
     fi
 
-    # Check staleness
-    local jsonl_mtime
+    # Check staleness. R-003 (bd-m1o6): mtime age alone produced a PERMANENT
+    # DEGRADED loop — 'br sync' on a content-current JSONL reports "hash
+    # unchanged" and never touches the mtime, so the recommendation this
+    # check emitted could not clear the condition it diagnosed (observed
+    # live 2026-07-11, 86h "stale" content-current export). When the mtime
+    # looks old, verify CONTENT currency via 'br sync --status' (read-only);
+    # if current, record a verified-current marker so the probe doesn't
+    # re-run on every health call, and use the newer of the two mtimes.
+    local marker_path="${BEADS_DIR}/.jsonl-verified-current"
+    local jsonl_mtime marker_mtime effective_mtime
     jsonl_mtime=$(stat -c%Y "${jsonl_path}" 2>/dev/null || stat -f%m "${jsonl_path}" 2>/dev/null || echo "0")  # perf(pass-5): GNU-first
+    marker_mtime=$(stat -c%Y "${marker_path}" 2>/dev/null || stat -f%m "${marker_path}" 2>/dev/null || echo "0")
+    effective_mtime="${jsonl_mtime}"
+    [[ ${marker_mtime} -gt ${effective_mtime} ]] && effective_mtime="${marker_mtime}"
     local now
     printf -v now '%(%s)T' -1  # perf(pass-5): builtin epoch (date fork+exec eliminated)
-    local age_hours=$(( (now - jsonl_mtime) / 3600 ))
+    local age_hours=$(( (now - effective_mtime) / 3600 ))
     CHECKS["jsonl_age_hours"]="${age_hours}"
 
     if [[ ${age_hours} -gt ${SYNC_STALE_HOURS} ]]; then
-        CHECKS["jsonl_stale"]="true"
-        RECOMMENDATIONS+=("JSONL is stale (${age_hours}h old) - run: br sync")
+        local sync_status=""
+        sync_status=$(timeout 10 br sync --status 2>/dev/null) || true
+        if echo "${sync_status}" | grep -qiE 'in.sync|current|hash unchanged|up.to.date'; then
+            CHECKS["jsonl_stale"]="false"
+            touch "${marker_path}" 2>/dev/null || true
+        else
+            CHECKS["jsonl_stale"]="true"
+            RECOMMENDATIONS+=("JSONL is stale (${age_hours}h old) - run: br sync --flush-only")
+        fi
     else
         CHECKS["jsonl_stale"]="false"
     fi

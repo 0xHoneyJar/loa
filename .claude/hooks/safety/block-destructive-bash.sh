@@ -843,6 +843,20 @@ if [[ "$command" == *"rm"* && "$command" == *"-"* ]] \
   # identical to the former grep -qE arguments.
   _re_dotdot='(^|/)\.\.(/|$)'
   _re_block_list='^(/|\$HOME|\$\{HOME\}|~|~/|/etc|/usr|/var|/home|\*|\.)$|^(/etc/|/usr/|/var/|/home/|~/|\$HOME/$|\$\{HOME\}/$)'
+  # HIDDEN PATHS ARE CONSERVATIVELY BLOCKED (bd-m1o6 fix-forward, 2026-07-12).
+  # R-002 originally tried to ALLOW bounded hidden subdirs via a *denylist* of
+  # sensitive names (.git .ssh .aws …). An independent security audit proved
+  # the denylist leaks: it newly allowed `rm -rf ./.netrc / ./.npmrc /
+  # ./.git-credentials / ./.password-store / ./.aws-old`, etc. — every hidden
+  # dir NOT enumerated. That is the classic denylist-whack-a-mole failure
+  # (see feedback_env_loader_allowlist_lesson / bug #898): a denylist fails
+  # UNSAFE (unlisted → allowed → data loss), whereas the allow_list below is
+  # an ALLOWLIST that fails SAFE (unlisted → blocked → mere friction). So the
+  # exclude/allow regexes are restored to the pre-R-002 bytes — the leading
+  # `\.` alternative in _re_allow_exclude blocks ALL `./.hidden` paths — and
+  # the S-1 defect (the message recommended a form that didn't work) is fixed
+  # in the FR-2 *messages* alone: they now name alternatives that actually
+  # work (`trash`, `find … -mindepth 1 -delete`) instead of a bogus form.
   _re_allow_exclude='^\./($|\*|\.|\.git$|\.git/|\.ssh$|\.ssh/|\.env)'
   _re_allow_list='^(\./[^/*.][^*]*|node_modules$|node_modules/|dist$|dist/|build$|build/|target$|target/|\.next$|\.next/|/tmp/.+|out$|out/|coverage$|coverage/)'
 
@@ -1026,9 +1040,9 @@ if [[ "$command" == *"rm"* && "$command" == *"-"* ]] \
   done <<<"$rm_segments"
 
   if [[ $any_block -eq 1 ]]; then
-    emit_block "FR-2-BLOCK" "$matched_arg" "rm -rf on catastrophic path '$matched_arg' (system root / home / glob / current-dir) refused. Use 'trash <path>' for a recoverable delete, or an explicit './<path>/' form scoped to a real subdirectory."
+    emit_block "FR-2-BLOCK" "$matched_arg" "rm -rf on catastrophic path '$matched_arg' (system root / home / glob / current-dir) refused. Accepted: an explicit relative VISIBLE subdirectory ('./name/'). Alternatives: 'trash <path>' (recoverable) or 'find <path> -mindepth 1 -delete' (contents only)."
   elif [[ $any_ambiguous -eq 1 ]]; then
-    emit_block "FR-2-AMBIGUOUS" "$matched_arg" "rm -rf on an unclear path '$matched_arg'. Use './path/' explicit form, 'trash', or remove targeted children."
+    emit_block "FR-2-AMBIGUOUS" "$matched_arg" "rm -rf on an unclear path '$matched_arg'. Accepted: explicit relative VISIBLE subdirs ('./name/'). Hidden paths ('./.name') and dot-roots are conservatively blocked — use 'trash <path>' (recoverable) or 'find <path> -mindepth 1 -delete' (contents only, works on hidden dirs too)."
   fi
   # else: every arg matched the allow list → fall through.
 fi

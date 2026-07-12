@@ -297,10 +297,12 @@ symlink_pack_skills() {
     local pack_slug="$1"
     local pack_dir="$(get_packs_dir)/$pack_slug"
     local skills_source="$pack_dir/skills"
-    # Use repo root to ensure correct path regardless of cwd
+    # Use repo root to ensure correct path regardless of cwd. LOA_SKILLS_DIR
+    # overrides the link destination (same convention as construct-index-gen);
+    # this is also what makes the function testable outside the live repo.
     local repo_root
     repo_root="$(cd "$SCRIPT_DIR/../.." && pwd)"
-    local skills_target="$repo_root/.claude/skills"
+    local skills_target="${LOA_SKILLS_DIR:-$repo_root/.claude/skills}"
     local linked=0
 
     # Check if pack has skills
@@ -354,10 +356,11 @@ unlink_pack_skills() {
     local pack_slug="$1"
     local pack_dir="$(get_packs_dir)/$pack_slug"
     local skills_source="$pack_dir/skills"
-    # Use repo root to ensure correct path regardless of cwd
+    # Use repo root to ensure correct path regardless of cwd (LOA_SKILLS_DIR
+    # override mirrors symlink_pack_skills — link/unlink must agree).
     local repo_root
     repo_root="$(cd "$SCRIPT_DIR/../.." && pwd)"
-    local skills_target="$repo_root/.claude/skills"
+    local skills_target="${LOA_SKILLS_DIR:-$repo_root/.claude/skills}"
 
     # Check if pack has skills directory
     if [[ ! -d "$skills_source" ]]; then

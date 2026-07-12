@@ -1,0 +1,36 @@
+{"id":"bh-help","exit_code":1,"outcome":"useless_error","transcript":"1 | out:(empty) | err:Unknown option: --help"}
+{"id":"bh-jsno","exit_code":1,"outcome":"useless_error","transcript":"1 | out:(empty) | err:Unknown option: --jsno"}
+{"id":"bh-format","exit_code":1,"outcome":"useless_error","transcript":"1 | out:(empty) | err:Unknown option: --format"}
+{"id":"bh-subcmd","exit_code":1,"outcome":"useless_error","transcript":"1 | out:(empty) | err:Unknown option: health"}
+{"id":"sb-fromgit","exit_code":2,"outcome":"useless_error","transcript":"2 | out:(empty) | err:ERROR: Unknown argument: --from-git"}
+{"id":"sb-help-bare","exit_code":2,"outcome":"useless_error","transcript":"2 | out:(empty) | err:ERROR: Unknown argument: help"}
+{"id":"sb-changelog","exit_code":2,"outcome":"useless_error","transcript":"2 | out:(empty) | err:ERROR: Unknown argument: --changelog"}
+{"id":"sb-json","exit_code":2,"outcome":"useless_error","transcript":"2 | out:(empty) | err:ERROR: Unknown argument: --json"}
+{"id":"mq-jsno","exit_code":1,"outcome":"useful_hint","transcript":"1 | out:Usage: memory-query.sh [OPTIONS] [QUERY] / Options incl. --json | err:Unknown option: --jsno"}
+{"id":"mq-full-missing","exit_code":1,"outcome":"useless_error","transcript":"1 | out:(empty) | err:(empty) - silent failure, no diagnostic text at all despite missing required ID"}
+{"id":"mq-dash-help","exit_code":1,"outcome":"useful_hint","transcript":"1 | out:Usage: memory-query.sh [OPTIONS] [QUERY] / Options incl. -h|--help | err:Unknown option: -help"}
+{"id":"mq-verbose","exit_code":1,"outcome":"useful_hint","transcript":"1 | out:Usage: memory-query.sh [OPTIONS] [QUERY] / full Options list | err:Unknown option: --verbose"}
+{"id":"vd-bare","exit_code":2,"outcome":"useful_hint","transcript":"2 | out:(empty) | err:Error: --file and --gate are required / Usage: verdict-derive.sh --file <feedback.md> --gate review|audit"}
+{"id":"vd-missing-gate","exit_code":2,"outcome":"useful_hint","transcript":"2 | out:(empty) | err:Error: --file and --gate are required / Usage shows --gate review|audit required"}
+{"id":"vd-gate-typo","exit_code":2,"outcome":"useful_hint","transcript":"2 | out:(empty) | err:Error: --gate must be 'review' or 'audit' (got: audti)"}
+{"id":"vd-flag-typo","exit_code":2,"outcome":"useful_hint","transcript":"2 | out:(empty) | err:Unknown option: --fiel / Usage shows --file PATH (required)"}
+{"id":"cr-bare","exit_code":1,"outcome":"useful_hint","transcript":"1 | out:(empty) | err:Usage: construct-resolve.sh <subcommand> [args] listing resolve/compose/list/capabilities"}
+{"id":"cr-subcmd-typo","exit_code":1,"outcome":"useful_hint","transcript":"1 | out:(empty) | err:ERROR: Unknown subcommand: reslove / Usage lists 'resolve <query>' correctly"}
+{"id":"cr-resolve-noquery","exit_code":1,"outcome":"useful_hint","transcript":"1 | out:(empty) | err:ERROR: resolve requires a <query> argument"}
+{"id":"cr-help-bare","exit_code":1,"outcome":"useful_hint","transcript":"1 | out:(empty) | err:ERROR: Unknown subcommand: help / Usage lists valid subcommands (help itself isn't one but -h/--help alias exists)"}
+{"id":"cr-compose-oneargv","exit_code":1,"outcome":"useful_hint","transcript":"1 | out:(empty) | err:ERROR: compose requires <source-slug> and <target-slug>"}
+{"id":"vsc-strict-typo","exit_code":2,"outcome":"useless_error","transcript":"2 | out:(empty) | err:Unknown arg: --strcit (no usage shown)"}
+{"id":"vsc-skill-missing","exit_code":1,"outcome":"useless_error","transcript":"1 | out:(empty) | err:.claude/scripts/validate-skill-capabilities.sh: line 36: $2: unbound variable -- raw bash crash under set -euo pipefail, not a designed message"}
+{"id":"vsc-verbose","exit_code":2,"outcome":"useless_error","transcript":"2 | out:(empty) | err:Unknown arg: --verbose (no usage shown)"}
+{"id":"vsc-help-bare","exit_code":2,"outcome":"useless_error","transcript":"2 | out:(empty) | err:Unknown arg: help (no usage shown)"}
+{"id":"vsc-skill-eq","exit_code":2,"outcome":"useless_error","transcript":"2 | out:(empty) | err:Unknown arg: --skill=beads-workflow (no usage shown)"}
+{"id":"bfz-dash-h","exit_code":2,"outcome":"useful_hint","transcript":"2 | out:Usage: butterfreezone-validate.sh [OPTIONS] listing --help | err:Unknown option: -h"}
+{"id":"bfz-quiet-typo","exit_code":2,"outcome":"useful_hint","transcript":"2 | out:Usage listing --quiet | err:Unknown option: --quite"}
+{"id":"bfz-verbose","exit_code":2,"outcome":"useful_hint","transcript":"2 | out:Usage: full options list (no --verbose exists) | err:Unknown option: --verbose"}
+{"id":"bfz-file-typo","exit_code":2,"outcome":"useful_hint","transcript":"2 | out:Usage listing --file PATH | err:Unknown option: --fil"}
+{"id":"bfz-subcmd","exit_code":2,"outcome":"useful_hint","transcript":"2 | out:Usage: butterfreezone-validate.sh [OPTIONS] (flags only, no subcommands) | err:Unknown option: validate"}
+{"id":"cmp-bare","exit_code":2,"outcome":"useful_hint","transcript":"2 | out:(empty) | err:ERROR: one of --merge-sha or --merge-msg is required / Usage shows both flags"}
+{"id":"cmp-sha-missing","exit_code":2,"outcome":"useful_hint","transcript":"2 | out:(empty) | err:ERROR: --merge-sha requires a value"}
+{"id":"cmp-typo-flag","exit_code":2,"outcome":"useful_hint","transcript":"2 | out:(empty) | err:ERROR: unknown argument: --mergesha / Usage shows --merge-sha <sha>"}
+{"id":"cmp-prnumber-only","exit_code":2,"outcome":"useful_hint","transcript":"2 | out:(empty) | err:ERROR: one of --merge-sha or --merge-msg is required / Usage shown"}
+{"id":"cmp-msg-missing","exit_code":2,"outcome":"useful_hint","transcript":"2 | out:(empty) | err:ERROR: --merge-msg requires a value"}

@@ -70,6 +70,12 @@
 # Strict mode is the caller's choice; we don't enforce it because some legacy
 # scripts source us under `set +e` and we shouldn't surprise them.
 
+# Idempotent-source guard: the vars below are `readonly` (line ~154), so a
+# second `source` of this file in the same shell would abort on reassignment.
+# Callers that source us more than once (e.g. setup() + test body) must be safe.
+[[ -n "${_OVERLAY_HELPER_SOURCED:-}" ]] && return 0
+_OVERLAY_HELPER_SOURCED=1
+
 _OVERLAY_HELPER_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _OVERLAY_HELPER_REPO_ROOT="$(cd "$_OVERLAY_HELPER_LIB_DIR/../../.." && pwd)"
 _OVERLAY_HELPER_HOOK="$_OVERLAY_HELPER_LIB_DIR/model-overlay-hook.py"

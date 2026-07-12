@@ -63,6 +63,18 @@ classify_pr_type() {
         return 0
     fi
 
+    # R-005 (bd-m1o6): release merges are cycle-type. A named-release PR is
+    # usually all fix/chore commits (the features shipped in the tags being
+    # rolled up), so nothing above matches and it fell to "other" →
+    # simple-release path → conventional PATCH auto-tag. Live incident
+    # 2026-07-10: PR #1201 (release/v1.196.0-mechanical-floor) was auto-tagged
+    # v1.195.1 and needed a manual delete+retag. Recognize both the
+    # branch-merge subject shape and conventional release(...):/release: prefixes.
+    if echo "$title" | grep -qE "from [^ ]+/release/|^[Rr]elease(\([^)]*\))?:"; then
+        echo "cycle"
+        return 0
+    fi
+
     if echo "$title" | grep -qE "^fix"; then
         echo "bugfix"
         return 0

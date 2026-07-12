@@ -24,6 +24,11 @@ if [[ -f "$SCRIPT_DIR/bootstrap.sh" ]]; then
     source "$SCRIPT_DIR/bootstrap.sh"
 fi
 
+# Source DX utilities if available
+if [[ -f "$SCRIPT_DIR/lib/dx-utils.sh" ]]; then
+    source "$SCRIPT_DIR/lib/dx-utils.sh"
+fi
+
 # Configuration
 PROJECT_ROOT="${PROJECT_ROOT:-$(pwd)}"
 
@@ -81,6 +86,20 @@ EOF
 # =============================================================================
 # Validation
 # =============================================================================
+
+# Guard against a value-taking flag being the last argument. Without this,
+# the arg parser's "shift 2" crashes under set -u/-e with EMPTY stdout+stderr
+# (exit 1, no diagnostic) — this prints an educational error and exits 2
+# instead. Args: $1 = flag name (e.g. "--full"), $2 = remaining arg count ($#).
+require_flag_value() {
+    local flag="$1"
+    local remaining="$2"
+    if [[ "$remaining" -lt 2 ]]; then
+        echo "Error: $flag requires a value" >&2
+        echo "Usage: memory-query.sh [OPTIONS] [QUERY]" >&2
+        exit 2
+    fi
+}
 
 check_observations_file() {
     if [[ ! -f "$OBSERVATIONS_FILE" ]]; then
@@ -358,27 +377,33 @@ main() {
                 shift
                 ;;
             --full)
+                require_flag_value "--full" "$#"
                 mode="full"
                 obs_id="${2:-}"
                 shift 2
                 ;;
             --type)
+                require_flag_value "--type" "$#"
                 filter_type="${2:-}"
                 shift 2
                 ;;
             --tags)
+                require_flag_value "--tags" "$#"
                 filter_tags="${2:-}"
                 shift 2
                 ;;
             --since)
+                require_flag_value "--since" "$#"
                 filter_date="${2:-}"
                 shift 2
                 ;;
             --session)
+                require_flag_value "--session" "$#"
                 filter_session="${2:-}"
                 shift 2
                 ;;
             --limit)
+                require_flag_value "--limit" "$#"
                 limit="${2:-10}"
                 shift 2
                 ;;
@@ -415,7 +440,15 @@ main() {
                 exit 0
                 ;;
             -*)
-                echo "Unknown option: $1" >&2
+                # fresh-eyes r1 (bd-m1o6): dx-utils is sourced conditionally
+                # above, so the call must be guarded for partial installs.
+                if declare -F dx_unknown_flag >/dev/null 2>&1; then
+                    dx_unknown_flag "$1" "Usage: memory-query.sh [OPTIONS] [QUERY]" \
+                        --index --type --tags --since --limit --full --summary --session \
+                        --json --table --stats --lore --sort-by --significance --repo --help
+                else
+                    echo "Unknown option: $1" >&2
+                fi
                 usage
                 exit 1
                 ;;

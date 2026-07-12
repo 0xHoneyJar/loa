@@ -69,21 +69,30 @@ get_current_sprint() {
 # Function: Get sprint count from sprint.md
 get_total_sprints() {
     if [[ -f "${SPRINT_FILE}" ]]; then
-        grep -c "^## Sprint [0-9]" "${SPRINT_FILE}" 2>/dev/null || echo "0"
+        # fresh-eyes r2 (bd-m1o6): 'grep -c … || echo 0' emitted "0\n0" on a
+        # zero-match file — grep -c prints its own 0 AND exits 1, so the
+        # fallback printed a second one. Latent while consumers only compared
+        # strings; fatal once get_completed_sprints uses it arithmetically.
+        local n
+        n=$(grep -c "^## Sprint [0-9]" "${SPRINT_FILE}" 2>/dev/null || true)
+        echo "${n:-0}"
     else
         echo "0"
     fi
 }
 
-# Function: Count completed sprints
+# Function: Count completed sprints — scoped to the CURRENT sprint plan.
+# R-004 (bd-m1o6): this used to count ALL historical a2a/sprint-* dirs with a
+# COMPLETED marker, while get_total_sprints counts only the current sprint.md
+# — after a few cycles the JSON reported nonsense like completed=100/total=1
+# (progress 95%), forcing consumers to distrust the counters.
 get_completed_sprints() {
-    local count=0
-    local sprint_dirs
+    local count=0 total i
     local a2a_dir="${_GRIMOIRE_DIR}/a2a"
-    sprint_dirs=$(find "${a2a_dir}" -maxdepth 1 -type d -name "sprint-*" 2>/dev/null || true)
+    total=$(get_total_sprints)
 
-    for dir in ${sprint_dirs}; do
-        if [[ -f "${dir}/COMPLETED" ]]; then
+    for ((i = 1; i <= total; i++)); do
+        if [[ -f "${a2a_dir}/sprint-${i}/COMPLETED" ]]; then
             count=$((count + 1))
         fi
     done
