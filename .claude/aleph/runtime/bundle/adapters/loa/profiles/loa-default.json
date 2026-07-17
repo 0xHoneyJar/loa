@@ -1,0 +1,260 @@
+{
+  "profile_format": "aleph-loa-profile/v1",
+  "id": "loa-default",
+  "host": "loa",
+  "runtime_requirements": {
+    "node_min_version": "20.0.0",
+    "required_capabilities": [
+      "native_slash_commands",
+      "native_skills",
+      "durable_file_io",
+      "fresh_context_workers",
+      "context_inheritance_control",
+      "read_only_worker_bundles",
+      "structured_worker_returns",
+      "exact_model_resolution",
+      "effort_controls",
+      "local_process_execution",
+      "human_authority_interaction"
+    ]
+  },
+  "paths": {
+    "run_root": "grimoires/loa/aleph/runs",
+    "installed_bundle_root": ".claude/aleph/runtime/bundle",
+    "install_lock": ".claude/aleph/install.lock.json"
+  },
+  "role_mappings": {
+    "orchestrator": {
+      "model_slot": "orchestration",
+      "effort": "high",
+      "context_policy": "full-run",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "interactive"
+    },
+    "intake-clerk": {
+      "model_slot": "mechanical",
+      "effort": "medium",
+      "context_policy": "blind-allowlist",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "eligible-pinned"
+    },
+    "extractor": {
+      "model_slot": "recall-critical",
+      "effort": "high",
+      "context_policy": "blind-allowlist",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "eligible-pinned"
+    },
+    "normalizer": {
+      "model_slot": "recall-critical",
+      "effort": "high",
+      "context_policy": "blind-allowlist",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "eligible-pinned"
+    },
+    "merge-judge": {
+      "model_slot": "judgment",
+      "effort": "xhigh",
+      "context_policy": "blind-allowlist",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "interactive"
+    },
+    "disposition-judge": {
+      "model_slot": "judgment",
+      "effort": "xhigh",
+      "context_policy": "blind-allowlist",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "interactive"
+    },
+    "evidence-role-judge": {
+      "model_slot": "judgment",
+      "effort": "xhigh",
+      "context_policy": "blind-allowlist",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "interactive"
+    },
+    "cluster-cartographer": {
+      "model_slot": "mechanical",
+      "effort": "medium",
+      "context_policy": "blind-allowlist",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "eligible-pinned"
+    },
+    "router": {
+      "model_slot": "judgment",
+      "effort": "xhigh",
+      "context_policy": "blind-allowlist",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "interactive"
+    },
+    "adversarial-panel": {
+      "model_slot": "adversarial",
+      "effort": "xhigh",
+      "context_policy": "fresh-blind-allowlist",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "eligible-pinned"
+    },
+    "convergent-reconciler": {
+      "model_slot": "judgment",
+      "effort": "xhigh",
+      "context_policy": "blind-allowlist",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "interactive"
+    },
+    "synthesist": {
+      "model_slot": "judgment",
+      "effort": "xhigh",
+      "context_policy": "blind-allowlist",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "interactive"
+    },
+    "assembler": {
+      "model_slot": "assembly",
+      "effort": "medium",
+      "context_policy": "blind-allowlist",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "interactive"
+    },
+    "conformance-runner": {
+      "model_slot": "assembly",
+      "effort": "medium",
+      "context_policy": "blind-allowlist",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "interactive"
+    },
+    "scribe": {
+      "model_slot": "orchestration",
+      "effort": "high",
+      "context_policy": "full-run",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "interactive"
+    },
+    "verifier-l1": {
+      "model_slot": "adversarial",
+      "effort": "xhigh",
+      "context_policy": "fresh-blind-allowlist",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "eligible-pinned"
+    },
+    "verifier-l2": {
+      "model_slot": "adversarial",
+      "effort": "xhigh",
+      "context_policy": "fresh-blind-allowlist",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "eligible-pinned"
+    },
+    "verifier-l3": {
+      "model_slot": "adversarial",
+      "effort": "xhigh",
+      "context_policy": "fresh-blind-allowlist",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "eligible-pinned"
+    },
+    "verifier-l4": {
+      "model_slot": "adversarial",
+      "effort": "xhigh",
+      "context_policy": "fresh-blind-allowlist",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "eligible-pinned"
+    },
+    "verifier-l5": {
+      "model_slot": "adversarial",
+      "effort": "xhigh",
+      "context_policy": "fresh-blind-allowlist",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "eligible-pinned"
+    },
+    "verifier-l6": {
+      "model_slot": "adversarial",
+      "effort": "xhigh",
+      "context_policy": "fresh-blind-allowlist",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "eligible-pinned"
+    },
+    "verifier-l7": {
+      "model_slot": "adversarial",
+      "effort": "xhigh",
+      "context_policy": "fresh-blind-allowlist",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "eligible-pinned"
+    },
+    "verifier-l8": {
+      "model_slot": "adversarial",
+      "effort": "xhigh",
+      "context_policy": "fresh-blind-allowlist",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "eligible-pinned"
+    },
+    "verifier-l9": {
+      "model_slot": "adversarial",
+      "effort": "xhigh",
+      "context_policy": "fresh-blind-allowlist",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "eligible-pinned"
+    },
+    "verifier-l10": {
+      "model_slot": "adversarial",
+      "effort": "xhigh",
+      "context_policy": "fresh-blind-allowlist",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "eligible-pinned"
+    }
+  },
+  "model_slots": {
+    "orchestration": {
+      "capability_class": "orchestration",
+      "exact_identity_required": true,
+      "fallback_allowed": false
+    },
+    "mechanical": {
+      "capability_class": "mechanical",
+      "exact_identity_required": true,
+      "fallback_allowed": false
+    },
+    "recall-critical": {
+      "capability_class": "recall-critical",
+      "exact_identity_required": true,
+      "fallback_allowed": false
+    },
+    "judgment": {
+      "capability_class": "judgment",
+      "exact_identity_required": true,
+      "fallback_allowed": false
+    },
+    "adversarial": {
+      "capability_class": "adversarial",
+      "exact_identity_required": true,
+      "fallback_allowed": false
+    },
+    "assembly": {
+      "capability_class": "assembly",
+      "exact_identity_required": true,
+      "fallback_allowed": false
+    }
+  }
+}

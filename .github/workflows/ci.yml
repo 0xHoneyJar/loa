@@ -46,6 +46,8 @@ jobs:
             "grimoires/loa/reality/"
             "grimoires/loa/analytics/"
             "grimoires/loa/research/"
+            "grimoires/loa/aleph/runs/"
+            "grimoires/loa/aleph/host-capabilities.json"
             "grimoires/pub/"
             ".claude/constructs/"
           )

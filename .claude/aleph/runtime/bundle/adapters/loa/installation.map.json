@@ -1,0 +1,22 @@
+{
+  "format": "aleph-loa-installation-map/v1",
+  "runtime_root": ".claude/aleph/runtime/bundle",
+  "record_path": ".claude/aleph/install.lock.json",
+  "exposures": [
+    {
+      "id": "command",
+      "source": "adapters/loa/command/loa-aleph.md",
+      "destination": ".claude/commands/loa-aleph.md"
+    },
+    {
+      "id": "skill",
+      "source": "adapters/loa/skill/loa-aleph/SKILL.md",
+      "destination": ".claude/skills/loa-aleph/SKILL.md"
+    },
+    {
+      "id": "launcher",
+      "source": "runtime-js/adapters/loa/src/launcher.js",
+      "destination": ".claude/aleph/bin/loa-aleph.mjs"
+    }
+  ]
+}

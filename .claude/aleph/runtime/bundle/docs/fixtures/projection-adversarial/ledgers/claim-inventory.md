@@ -1,0 +1,13 @@
+# Candidate-Claim Inventory - Projection Fixture
+
+| claim_id | normalized claim | packets | sources | claim_type | disposition | rationale | judged_by | verified | status |
+|----------|------------------|---------|---------|------------|-------------|-----------|-----------|----------|--------|
+| CC-201 | Threshold token holding unlocks the bounded membership channels. | source packet retained in accepted fixture | synthetic source | constraint | carried | Forms the accepted access primitive. | fixture authority | fixture accepted | active |
+| CC-202 | Membership supports holder, contributor, and core levels. | source packet retained in accepted fixture | synthetic source | design-intent | carried | Forms the accepted membership shape. | fixture authority | fixture accepted | active |
+| CC-203 | Token gating is associated with improved member retention in the bounded material. | source packets retained in accepted fixture | synthetic sources | factual | merged | Canonical bounded retention association. | fixture authority | fixture accepted | active |
+| CC-204 | The gate may use one token across levels or a distinct token per level. | source packet retained in accepted fixture | synthetic source | open-question | deferred | Requires a later architecture decision. | fixture authority | fixture accepted | active |
+| CC-205 | The corpus does not resolve whether a free membership tier should coexist with the gate. | source packets retained in accepted fixture | synthetic sources | open-question | unresolved | Opposed positions remain unresolved. | fixture authority | fixture accepted | active |
+| CC-206 | Referral rewards may use the project token or non-token points. | source packet retained in accepted fixture | synthetic source | open-question | unresolved | The corpus provides no selection criterion. | fixture authority | fixture accepted | active |
+| CC-207 | Token-gated membership is common across the external market. | source packet retained in accepted fixture | synthetic source | factual | backgrounded | The bounded material provides no market referent. | fixture authority | fixture accepted | active |
+| CC-208 | Using public wallet balances as a member-status signal can expose identifiable members' financial holdings. | source packet retained in accepted fixture | synthetic source | factual | carried | Retained as harm-bearing evidence while the active boundary bars it from projection support. | fixture authority | fixture accepted | active |
+| CC-209 | Gated perks form an intended referral loop. | source packet retained in accepted fixture | synthetic source | design-intent | merged | Canonical referral-loop claim. | fixture authority | fixture accepted | active |

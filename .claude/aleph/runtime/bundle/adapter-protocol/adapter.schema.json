@@ -1,0 +1,667 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Aleph host adapter manifest",
+  "description": "Protocol 1.0.0-provisional manifest for a host-only adapter that consumes one complete immutable Aleph Core.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "manifest_format",
+    "adapter",
+    "core_consumption",
+    "owned_paths",
+    "references",
+    "entrypoints",
+    "installation",
+    "capabilities",
+    "full_mode",
+    "profiles",
+    "evidence"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "../../adapter-protocol/adapter.schema.json"
+    },
+    "manifest_format": {
+      "const": "aleph-adapter-manifest/v1"
+    },
+    "adapter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "host",
+        "protocol_version",
+        "run_format_version",
+        "lifecycle"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "version": {
+          "$ref": "#/$defs/version"
+        },
+        "host": {
+          "$ref": "#/$defs/identifier"
+        },
+        "protocol_version": {
+          "const": "1.0.0-provisional"
+        },
+        "run_format_version": {
+          "const": "1.0.0-provisional"
+        },
+        "lifecycle": {
+          "$ref": "#/$defs/lifecycle"
+        }
+      }
+    },
+    "core_consumption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "allow_overrides",
+        "mutable_fetch",
+        "overrides",
+        "duplicates",
+        "transformations"
+      ],
+      "properties": {
+        "mode": {
+          "const": "immutable-complete-core"
+        },
+        "allow_overrides": {
+          "const": false
+        },
+        "mutable_fetch": {
+          "const": false
+        },
+        "overrides": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "duplicates": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "transformations": {
+          "type": "array",
+          "maxItems": 0
+        }
+      }
+    },
+    "owned_paths": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/repositoryPath"
+      }
+    },
+    "references": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/repositoryPath"
+      }
+    },
+    "entrypoints": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/entrypoint"
+      }
+    },
+    "installation": {
+      "$ref": "#/$defs/installation"
+    },
+    "capabilities": {
+      "$ref": "#/$defs/capabilities"
+    },
+    "full_mode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claimed"
+      ],
+      "properties": {
+        "claimed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "profiles": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/profile"
+      }
+    },
+    "evidence": {
+      "$ref": "#/$defs/lifecycleEvidence"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "adapter": {
+            "properties": {
+              "lifecycle": {
+                "const": "planned"
+              }
+            },
+            "required": [
+              "lifecycle"
+            ]
+          }
+        },
+        "required": [
+          "adapter"
+        ]
+      },
+      "then": {
+        "properties": {
+          "entrypoints": {
+            "items": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/entrypoint"
+                },
+                {
+                  "properties": {
+                    "state": {
+                      "const": "planned"
+                    },
+                    "path": {
+                      "type": "null"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "installation": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/installation"
+              },
+              {
+                "properties": {
+                  "state": {
+                    "const": "planned"
+                  },
+                  "path": {
+                    "type": "null"
+                  }
+                }
+              }
+            ]
+          },
+          "capabilities": {
+            "$ref": "#/$defs/plannedCapabilities"
+          },
+          "full_mode": {
+            "properties": {
+              "claimed": {
+                "const": false
+              }
+            }
+          },
+          "profiles": {
+            "maxItems": 0
+          },
+          "evidence": {
+            "properties": {
+              "implementation": {
+                "maxItems": 0
+              },
+              "validation": {
+                "maxItems": 0
+              },
+              "sanction": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "adapter": {
+            "properties": {
+              "lifecycle": {
+                "enum": [
+                  "implemented",
+                  "validated",
+                  "sanctioned"
+                ]
+              }
+            },
+            "required": [
+              "lifecycle"
+            ]
+          }
+        },
+        "required": [
+          "adapter"
+        ]
+      },
+      "then": {
+        "properties": {
+          "entrypoints": {
+            "items": {
+              "properties": {
+                "path": {
+                  "$ref": "#/$defs/repositoryPath"
+                }
+              }
+            }
+          },
+          "installation": {
+            "properties": {
+              "path": {
+                "$ref": "#/$defs/repositoryPath"
+              }
+            }
+          },
+          "full_mode": {
+            "properties": {
+              "claimed": {
+                "const": true
+              }
+            }
+          },
+          "evidence": {
+            "properties": {
+              "implementation": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "adapter": {
+            "properties": {
+              "lifecycle": {
+                "enum": [
+                  "validated",
+                  "sanctioned"
+                ]
+              }
+            },
+            "required": [
+              "lifecycle"
+            ]
+          }
+        },
+        "required": [
+          "adapter"
+        ]
+      },
+      "then": {
+        "properties": {
+          "evidence": {
+            "properties": {
+              "validation": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "adapter": {
+            "properties": {
+              "lifecycle": {
+                "const": "sanctioned"
+              }
+            },
+            "required": [
+              "lifecycle"
+            ]
+          }
+        },
+        "required": [
+          "adapter"
+        ]
+      },
+      "then": {
+        "properties": {
+          "evidence": {
+            "properties": {
+              "sanction": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?$"
+    },
+    "lifecycle": {
+      "type": "string",
+      "enum": [
+        "planned",
+        "implemented",
+        "validated",
+        "sanctioned"
+      ]
+    },
+    "repositoryPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+    },
+    "evidenceList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/repositoryPath"
+      }
+    },
+    "lifecycleEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "implementation",
+        "validation",
+        "sanction"
+      ],
+      "properties": {
+        "implementation": {
+          "$ref": "#/$defs/evidenceList"
+        },
+        "validation": {
+          "$ref": "#/$defs/evidenceList"
+        },
+        "sanction": {
+          "$ref": "#/$defs/evidenceList"
+        }
+      }
+    },
+    "entrypoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "state",
+        "path"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "slash-command",
+            "native-agent",
+            "executable",
+            "tool"
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/lifecycle"
+        },
+        "path": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/repositoryPath"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "installation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "path"
+      ],
+      "properties": {
+        "state": {
+          "$ref": "#/$defs/lifecycle"
+        },
+        "path": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/repositoryPath"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "evidence"
+      ],
+      "properties": {
+        "state": {
+          "$ref": "#/$defs/lifecycle"
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidenceList"
+        }
+      }
+    },
+    "plannedCapability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "evidence"
+      ],
+      "properties": {
+        "state": {
+          "const": "planned"
+        },
+        "evidence": {
+          "type": "array",
+          "maxItems": 0
+        }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "durable_file_io",
+        "frozen_corpus_snapshots",
+        "fresh_context_workers",
+        "blind_bundles",
+        "validated_structured_returns",
+        "single_writer_ledgers",
+        "deterministic_checker_invocation",
+        "human_authority_gates",
+        "durable_pause_resume",
+        "exact_model_identity",
+        "immutable_runtime_snapshot",
+        "host_model_effort_mapping",
+        "immutable_bundle_installation"
+      ],
+      "properties": {
+        "durable_file_io": {
+          "$ref": "#/$defs/capability"
+        },
+        "frozen_corpus_snapshots": {
+          "$ref": "#/$defs/capability"
+        },
+        "fresh_context_workers": {
+          "$ref": "#/$defs/capability"
+        },
+        "blind_bundles": {
+          "$ref": "#/$defs/capability"
+        },
+        "validated_structured_returns": {
+          "$ref": "#/$defs/capability"
+        },
+        "single_writer_ledgers": {
+          "$ref": "#/$defs/capability"
+        },
+        "deterministic_checker_invocation": {
+          "$ref": "#/$defs/capability"
+        },
+        "human_authority_gates": {
+          "$ref": "#/$defs/capability"
+        },
+        "durable_pause_resume": {
+          "$ref": "#/$defs/capability"
+        },
+        "exact_model_identity": {
+          "$ref": "#/$defs/capability"
+        },
+        "immutable_runtime_snapshot": {
+          "$ref": "#/$defs/capability"
+        },
+        "host_model_effort_mapping": {
+          "$ref": "#/$defs/capability"
+        },
+        "immutable_bundle_installation": {
+          "$ref": "#/$defs/capability"
+        }
+      }
+    },
+    "plannedCapabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "durable_file_io",
+        "frozen_corpus_snapshots",
+        "fresh_context_workers",
+        "blind_bundles",
+        "validated_structured_returns",
+        "single_writer_ledgers",
+        "deterministic_checker_invocation",
+        "human_authority_gates",
+        "durable_pause_resume",
+        "exact_model_identity",
+        "immutable_runtime_snapshot",
+        "host_model_effort_mapping",
+        "immutable_bundle_installation"
+      ],
+      "properties": {
+        "durable_file_io": {
+          "$ref": "#/$defs/plannedCapability"
+        },
+        "frozen_corpus_snapshots": {
+          "$ref": "#/$defs/plannedCapability"
+        },
+        "fresh_context_workers": {
+          "$ref": "#/$defs/plannedCapability"
+        },
+        "blind_bundles": {
+          "$ref": "#/$defs/plannedCapability"
+        },
+        "validated_structured_returns": {
+          "$ref": "#/$defs/plannedCapability"
+        },
+        "single_writer_ledgers": {
+          "$ref": "#/$defs/plannedCapability"
+        },
+        "deterministic_checker_invocation": {
+          "$ref": "#/$defs/plannedCapability"
+        },
+        "human_authority_gates": {
+          "$ref": "#/$defs/plannedCapability"
+        },
+        "durable_pause_resume": {
+          "$ref": "#/$defs/plannedCapability"
+        },
+        "exact_model_identity": {
+          "$ref": "#/$defs/plannedCapability"
+        },
+        "immutable_runtime_snapshot": {
+          "$ref": "#/$defs/plannedCapability"
+        },
+        "host_model_effort_mapping": {
+          "$ref": "#/$defs/plannedCapability"
+        },
+        "immutable_bundle_installation": {
+          "$ref": "#/$defs/plannedCapability"
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "state",
+        "path",
+        "runtime_requirements",
+        "model_mapping",
+        "effort_mapping",
+        "evidence"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "state": {
+          "$ref": "#/$defs/lifecycle"
+        },
+        "path": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/repositoryPath"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "runtime_requirements": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "model_mapping": {
+          "type": "object"
+        },
+        "effort_mapping": {
+          "type": "object"
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidenceList"
+        }
+      }
+    }
+  }
+}

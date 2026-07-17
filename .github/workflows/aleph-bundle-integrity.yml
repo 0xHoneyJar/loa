@@ -1,0 +1,68 @@
+name: Aleph bundle integrity
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.loa-aleph.lock.json'
+      - '.claude/aleph/**'
+      - '.claude/commands/loa-aleph*.md'
+      - '.claude/skills/loa-aleph/**'
+      - 'tools/aleph-release-ingest.py'
+      - '.github/workflows/aleph-bundle-integrity.yml'
+      - '.github/workflows/aleph-release-sync.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.loa-aleph.lock.json'
+      - '.claude/aleph/**'
+      - '.claude/commands/loa-aleph*.md'
+      - '.claude/skills/loa-aleph/**'
+      - 'tools/aleph-release-ingest.py'
+      - '.github/workflows/aleph-bundle-integrity.yml'
+      - '.github/workflows/aleph-release-sync.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify install and status (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Authenticate the pin and installed tree with Loa-owned code
+        run: |
+          set -euo pipefail
+          python3 tools/aleph-release-ingest.py verify-installed \
+            --root . \
+            --pin .loa-aleph.lock.json
+
+      - name: Run the authenticated upstream receipt verifier
+        run: |
+          set -euo pipefail
+          installer='.claude/aleph/runtime/bundle/runtime-js/adapters/loa/src/installer.js'
+          test -f "$installer"
+          env -u NODE_OPTIONS -u NODE_PATH \
+            node "$installer" verify-install --target . --json
+
+      - name: Smoke-test read-only status (start may remain capability-blocked)
+        run: |
+          set -euo pipefail
+          launcher='.claude/aleph/bin/loa-aleph.mjs'
+          test -f "$launcher"
+          env -u NODE_OPTIONS -u NODE_PATH node "$launcher" status

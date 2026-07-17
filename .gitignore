@@ -101,6 +101,12 @@ temp/
 grimoires/loa/context/*
 !grimoires/loa/context/README.md
 
+# Aleph runtime evidence (cycle-115)
+# Runs retain source corpora and authority/model receipts. They are local,
+# potentially sensitive evidence and must never enter the Loa template.
+grimoires/loa/aleph/runs/
+grimoires/loa/aleph/host-capabilities.json
+
 # ck semantic search state (embeddings cache, indexes)
 # Large machine-specific files that rebuild automatically
 .ck/
