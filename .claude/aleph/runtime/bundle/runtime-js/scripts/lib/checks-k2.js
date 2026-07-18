@@ -54,20 +54,31 @@ function existsPath(path, type = 'file') {
     const stat = lstatSync(path);
     return type === 'directory' ? stat.isDirectory() : stat.isFile();
 }
+function distillingArtifactsApply(model) {
+    return STATES.slice(2).some((state) => reachedState(model, state));
+}
 function checkLayout(results, model) {
     results.run('K2.1', 'layout', (fail) => {
         const baseFiles = [
             'run-manifest.md',
             'run-log.md',
             'corpus/manifest.md',
+        ];
+        for (const path of baseFiles) {
+            if (!existsPath(join(model.runDir, path)))
+                fail(`required path ${path} is missing`);
+        }
+        const distillingFiles = [
             'ledgers/extraction-criteria.md',
             'ledgers/packet-index.md',
             'ledgers/claim-inventory.md',
             'ledgers/disposition-ledger.md',
         ];
-        for (const path of baseFiles) {
-            if (!existsPath(join(model.runDir, path)))
-                fail(`required path ${path} is missing`);
+        if (distillingArtifactsApply(model)) {
+            for (const path of distillingFiles) {
+                if (!existsPath(join(model.runDir, path)))
+                    fail(`required path ${path} is missing`);
+            }
         }
         if (reachedState(model, 'ASSEMBLED') || STATES.slice(4).some((state) => reachedState(model, state))) {
             const assembledFiles = [
@@ -360,6 +371,9 @@ function checkIds(results, model) {
 }
 function checkClaimShape(results, model) {
     results.run('K2.6', 'claim table shape', (fail) => {
+        if (!model.claimDocument && !distillingArtifactsApply(model)) {
+            return 'claim inventory is not applicable before DISTILLING';
+        }
         const table = model.claimDocument
             ? findTableByFirstHeader(model.claimDocument.tables, 'claim id')
             : null;
@@ -490,6 +504,9 @@ function checkMerges(results, model) {
 function checkCriteria(results, model) {
     results.run('K2.9', 'criteria precede packets', (fail) => {
         if (!model.criteria) {
+            if (!distillingArtifactsApply(model)) {
+                return 'criteria chronology is not applicable before DISTILLING';
+            }
             fail('extraction-criteria.md is missing');
             return 'criteria chronology is valid';
         }

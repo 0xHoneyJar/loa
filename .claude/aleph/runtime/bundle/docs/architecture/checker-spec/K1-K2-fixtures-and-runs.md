@@ -56,13 +56,15 @@ scope.
 
 **Checks (scope = run id):**
 
-- K2.1 (`layout`): required paths exist: `run-manifest.md`, `run-log.md`,
-  `corpus/manifest.md`, `ledgers/extraction-criteria.md`,
-  `ledgers/packet-index.md`, `ledgers/claim-inventory.md`,
-  `ledgers/disposition-ledger.md`. Others (merge-map, evidence-roles,
-  clusters/, arms/, precis.md, verification/) are required **iff** the
-  manifest's state log shows the run reached the state that produces them
-  (state→artifact table hardcoded from doc 04's "Emits" column).
+- K2.1 (`layout`): `run-manifest.md`, `run-log.md`, and
+  `corpus/manifest.md` are always required. Once the manifest state log reaches
+  `DISTILLING`, the S1-S5 base artifacts are also required:
+  `ledgers/extraction-criteria.md`, `ledgers/packet-index.md`,
+  `ledgers/claim-inventory.md`, and `ledgers/disposition-ledger.md`. Others
+  (merge-map, evidence-roles, clusters/, arms/, precis.md, verification/) are
+  required **iff** the manifest's state log shows the run reached the state
+  that produces them (state→artifact table hardcoded from doc 04's "Emits"
+  column).
 - K2.2 (`manifest`, legacy predecessor format): manifest carries mode, doctrine_sha (40-hex), corpus
   hash, exactly one `run_id` (`RUN-<slug>`), exactly one `predecessor_run`
   (`none` or a different `RUN-<slug>`), and ≥1 state-log row; every state-log
@@ -100,19 +102,23 @@ scope.
   to local-home resolution is the manifest's typed `predecessor_run`: it names
   an external prior run whose directory/hash verification is outside this
   run-local checker.
-- K2.6 (`claim table shape`): claim-inventory rows have exactly 10 columns
+- K2.6 (`claim table shape`): once `DISTILLING` is reached, or whenever a claim
+  inventory already exists, claim-inventory rows have exactly 10 columns
   (template T3.2); exactly one disposition from the seven on `active` rows;
   `packets` non-empty; `sources` equals the union of the cited packets'
-  sources (recomputed).
+  sources (recomputed). Before `DISTILLING`, an absent claim inventory is not
+  yet applicable.
 - K2.7 (`accounting`): disposition-ledger counts equal recomputed counts
   over `active` inventory rows; total row equals inventory `active` count;
   all seven disposition rows present.
 - K2.8 (`merge provenance`): C8 semantics over the run's merge-map against
   the inventory (canonical source set ⊇ each absorbed set); absorbed claims
   carry disposition `merged`.
-- K2.9 (`criteria precede packets`): the extraction-criteria `written`
+- K2.9 (`criteria precede packets`): once `DISTILLING` is reached, or whenever
+  extraction criteria already exist, the extraction-criteria `written`
   timestamp ≤ the earliest run-log S2 entry; any criteria supersession row
-  has a matching re-extraction note (string presence, not semantics).
+  has a matching re-extraction note (string presence, not semantics). Before
+  `DISTILLING`, absent criteria are not yet applicable.
 - K2.10 (`status discipline`): every non-`active` status cell matches
   `superseded-by:⟨existing row id⟩` or `retracted:⟨nonempty⟩`; a
   `superseded-by` target must exist and be `active` or itself superseded
