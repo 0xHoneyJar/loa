@@ -1,0 +1,34 @@
+{
+  "name": "loa-aleph",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "npm@10.9.4",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "bundle:assemble": "node scripts/assemble-bundles.ts assemble",
+    "bundle:verify": "node scripts/assemble-bundles.ts verify",
+    "release:loa:package": "node packaging/package-loa-release.ts package",
+    "release:loa:verify": "node packaging/package-loa-release.ts verify",
+    "runtime:build": "node packaging/build-runtime-js.ts build",
+    "runtime:check": "node packaging/build-runtime-js.ts check",
+    "typecheck": "tsc --noEmit",
+    "validate:core": "node scripts/validate-core-boundary.ts",
+    "validate": "node scripts/validate-precis-fixtures.ts",
+    "validate:run": "node scripts/validate-run.ts",
+    "test:bundles": "node scripts/test-bundle-assembly.ts",
+    "test:loa-adapter": "node adapters/loa/tests/test-loa-adapter.ts",
+    "test:loa-installer": "node adapters/loa/tests/test-loa-installer.ts",
+    "test:release-package": "node packaging/test-loa-release-packaging.ts",
+    "test:runtime": "node packaging/test-runtime-js.ts",
+    "test:core-mutations": "node scripts/test-core-boundary-mutations.ts",
+    "test:mutations": "node scripts/test-conformance-mutations.ts",
+    "test": "npm run typecheck && npm run test:runtime && npm run validate:core && npm run test:loa-adapter && npm run test:loa-installer && npm run validate && node scripts/validate-run.ts --run docs/fixtures/evidence-role-adversarial && node scripts/validate-run.ts --run docs/fixtures/projection-adversarial && node scripts/validate-run.ts --run docs/fixtures/run-slice-2 && npm run test:mutations && npm run test:core-mutations && npm run test:bundles && npm run test:release-package"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.1",
+    "typescript": "7.0.2"
+  }
+}

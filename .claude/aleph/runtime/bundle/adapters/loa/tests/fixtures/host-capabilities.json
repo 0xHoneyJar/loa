@@ -1,0 +1,98 @@
+{
+  "host_format": "aleph-loa-host-capabilities/v1",
+  "host": {
+    "id": "loa",
+    "version": "fixture-simulated-host-1.0.0",
+    "build_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "capabilities": {
+    "native_slash_commands": true,
+    "native_skills": true,
+    "durable_file_io": true,
+    "fresh_context_workers": true,
+    "context_inheritance_control": true,
+    "read_only_worker_bundles": true,
+    "structured_worker_returns": true,
+    "exact_model_resolution": true,
+    "effort_controls": true,
+    "local_process_execution": true,
+    "human_authority_interaction": true
+  },
+  "models": {
+    "orchestration": {
+      "provider": "fixture-simulated-provider",
+      "model_id": "fixture-simulated-orchestration-model",
+      "resolved_version": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "immutable": true,
+      "context": "full-run",
+      "effort": "high",
+      "budget": "stage-pinned",
+      "cache": "exact-pinned-prefix",
+      "batch": "interactive",
+      "fallback": false
+    },
+    "mechanical": {
+      "provider": "fixture-simulated-provider",
+      "model_id": "fixture-simulated-mechanical-model",
+      "resolved_version": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "immutable": true,
+      "context": "blind-allowlist",
+      "effort": "medium",
+      "budget": "stage-pinned",
+      "cache": "exact-pinned-prefix",
+      "batch": "eligible-pinned",
+      "fallback": false
+    },
+    "recall-critical": {
+      "provider": "fixture-simulated-provider",
+      "model_id": "fixture-simulated-recall-model",
+      "resolved_version": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+      "immutable": true,
+      "context": "blind-allowlist",
+      "effort": "high",
+      "budget": "stage-pinned",
+      "cache": "exact-pinned-prefix",
+      "batch": "eligible-pinned",
+      "fallback": false
+    },
+    "judgment": {
+      "provider": "fixture-simulated-provider",
+      "model_id": "fixture-simulated-judgment-model",
+      "resolved_version": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+      "immutable": true,
+      "context": "blind-allowlist",
+      "effort": "xhigh",
+      "budget": "stage-pinned",
+      "cache": "exact-pinned-prefix",
+      "batch": "interactive",
+      "fallback": false
+    },
+    "adversarial": {
+      "provider": "fixture-simulated-provider",
+      "model_id": "fixture-simulated-adversarial-model",
+      "resolved_version": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+      "immutable": true,
+      "context": "fresh-blind-allowlist",
+      "effort": "xhigh",
+      "budget": "stage-pinned",
+      "cache": "exact-pinned-prefix",
+      "batch": "eligible-pinned",
+      "fallback": false
+    },
+    "assembly": {
+      "provider": "fixture-simulated-provider",
+      "model_id": "fixture-simulated-assembly-model",
+      "resolved_version": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+      "immutable": true,
+      "context": "blind-allowlist",
+      "effort": "medium",
+      "budget": "stage-pinned",
+      "cache": "exact-pinned-prefix",
+      "batch": "interactive",
+      "fallback": false
+    }
+  },
+  "simulation": {
+    "kind": "fixture-simulated"
+  }
+}

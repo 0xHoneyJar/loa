@@ -1,0 +1,267 @@
+{
+  "$schema": "../../adapter-protocol/adapter.schema.json",
+  "manifest_format": "aleph-adapter-manifest/v1",
+  "adapter": {
+    "id": "loa",
+    "version": "0.1.0-provisional",
+    "host": "loa",
+    "protocol_version": "1.0.0-provisional",
+    "run_format_version": "1.0.0-provisional",
+    "lifecycle": "implemented"
+  },
+  "core_consumption": {
+    "mode": "immutable-complete-core",
+    "allow_overrides": false,
+    "mutable_fetch": false,
+    "overrides": [],
+    "duplicates": [],
+    "transformations": []
+  },
+  "owned_paths": [
+    "adapters/loa/README.md",
+    "adapters/loa/adapter.manifest.json",
+    "adapters/loa/command/loa-aleph.md",
+    "adapters/loa/installation.map.json",
+    "adapters/loa/profiles/loa-default.json",
+    "adapters/loa/skill/loa-aleph/SKILL.md",
+    "adapters/loa/src/checker.ts",
+    "adapters/loa/src/cli.ts",
+    "adapters/loa/src/core-loader.ts",
+    "adapters/loa/src/fs.ts",
+    "adapters/loa/src/installer.ts",
+    "adapters/loa/src/intake.ts",
+    "adapters/loa/src/launcher.ts",
+    "adapters/loa/src/ledger-writer.ts",
+    "adapters/loa/src/preflight.ts",
+    "adapters/loa/src/run-control.ts",
+    "adapters/loa/src/runtime-snapshot.ts",
+    "adapters/loa/src/types.ts",
+    "adapters/loa/src/worker-bundle.ts",
+    "adapters/loa/src/worker-dispatch.ts",
+    "adapters/loa/src/worker-return.ts",
+    "adapters/loa/tests/fixtures/corpus/nested/source-b.txt",
+    "adapters/loa/tests/fixtures/corpus/source-a.md",
+    "adapters/loa/tests/fixtures/host-capabilities.json",
+    "adapters/loa/tests/fixtures/worker-returns/malformed.json",
+    "adapters/loa/tests/test-loa-adapter.ts",
+    "adapters/loa/tests/test-loa-installer.ts",
+    "adapters/loa/tsconfig.json",
+    "runtime-js/adapters/loa/src/checker.js",
+    "runtime-js/adapters/loa/src/cli.js",
+    "runtime-js/adapters/loa/src/core-loader.js",
+    "runtime-js/adapters/loa/src/fs.js",
+    "runtime-js/adapters/loa/src/installer.js",
+    "runtime-js/adapters/loa/src/intake.js",
+    "runtime-js/adapters/loa/src/launcher.js",
+    "runtime-js/adapters/loa/src/ledger-writer.js",
+    "runtime-js/adapters/loa/src/preflight.js",
+    "runtime-js/adapters/loa/src/run-control.js",
+    "runtime-js/adapters/loa/src/runtime-snapshot.js",
+    "runtime-js/adapters/loa/src/types.js",
+    "runtime-js/adapters/loa/src/worker-bundle.js",
+    "runtime-js/adapters/loa/src/worker-dispatch.js",
+    "runtime-js/adapters/loa/src/worker-return.js"
+  ],
+  "references": [
+    "adapter-protocol/README.md",
+    "adapter-protocol/capability-contract.md",
+    "docs/architecture/02-system-architecture.md",
+    "docs/architecture/04-pipeline-stages-and-dod.md",
+    "docs/architecture/08-runbook-agent-mode.md",
+    "docs/architecture/prompts/README.md",
+    "docs/architecture/prompts/orchestrator.md",
+    "docs/architecture/prompts/verifier-lenses.md",
+    "docs/architecture/prompts/workers-arms-synthesis.md",
+    "docs/architecture/prompts/workers-intake-extraction.md",
+    "docs/architecture/prompts/workers-judgment.md",
+    "docs/architecture/templates/README.md",
+    "docs/decisions/0004-core-adapter-and-bundle-boundary.md",
+    "scripts/validate-run.ts"
+  ],
+  "entrypoints": [
+    {
+      "id": "/loa-aleph",
+      "kind": "slash-command",
+      "state": "implemented",
+      "path": "adapters/loa/command/loa-aleph.md"
+    },
+    {
+      "id": "loa-aleph-orchestrator",
+      "kind": "native-agent",
+      "state": "implemented",
+      "path": "adapters/loa/skill/loa-aleph/SKILL.md"
+    },
+    {
+      "id": "loa-aleph-launcher",
+      "kind": "executable",
+      "state": "implemented",
+      "path": "adapters/loa/src/launcher.ts"
+    },
+    {
+      "id": "loa-aleph-runtime",
+      "kind": "tool",
+      "state": "implemented",
+      "path": "adapters/loa/src/cli.ts"
+    },
+    {
+      "id": "loa-aleph-preflight",
+      "kind": "tool",
+      "state": "implemented",
+      "path": "adapters/loa/src/preflight.ts"
+    }
+  ],
+  "installation": {
+    "state": "implemented",
+    "path": "adapters/loa/src/installer.ts"
+  },
+  "capabilities": {
+    "durable_file_io": {
+      "state": "implemented",
+      "evidence": [
+        "adapters/loa/src/fs.ts",
+        "adapters/loa/src/ledger-writer.ts",
+        "adapters/loa/src/run-control.ts",
+        "adapters/loa/tests/test-loa-adapter.ts"
+      ]
+    },
+    "frozen_corpus_snapshots": {
+      "state": "implemented",
+      "evidence": [
+        "adapters/loa/src/intake.ts",
+        "adapters/loa/tests/test-loa-adapter.ts"
+      ]
+    },
+    "fresh_context_workers": {
+      "state": "implemented",
+      "evidence": [
+        "adapters/loa/src/worker-dispatch.ts",
+        "adapters/loa/src/worker-return.ts",
+        "adapters/loa/tests/test-loa-adapter.ts"
+      ]
+    },
+    "blind_bundles": {
+      "state": "implemented",
+      "evidence": [
+        "adapters/loa/src/worker-bundle.ts",
+        "adapters/loa/tests/test-loa-adapter.ts"
+      ]
+    },
+    "validated_structured_returns": {
+      "state": "implemented",
+      "evidence": [
+        "adapters/loa/src/worker-return.ts",
+        "adapters/loa/tests/test-loa-adapter.ts"
+      ]
+    },
+    "single_writer_ledgers": {
+      "state": "implemented",
+      "evidence": [
+        "adapters/loa/src/ledger-writer.ts",
+        "adapters/loa/tests/test-loa-adapter.ts"
+      ]
+    },
+    "deterministic_checker_invocation": {
+      "state": "implemented",
+      "evidence": [
+        "adapters/loa/src/checker.ts",
+        "adapters/loa/tests/test-loa-adapter.ts",
+        "scripts/validate-run.ts"
+      ]
+    },
+    "human_authority_gates": {
+      "state": "implemented",
+      "evidence": [
+        "adapters/loa/src/cli.ts",
+        "adapters/loa/src/run-control.ts",
+        "adapters/loa/tests/test-loa-adapter.ts"
+      ]
+    },
+    "durable_pause_resume": {
+      "state": "implemented",
+      "evidence": [
+        "adapters/loa/src/cli.ts",
+        "adapters/loa/src/run-control.ts",
+        "adapters/loa/src/runtime-snapshot.ts",
+        "adapters/loa/tests/test-loa-adapter.ts"
+      ]
+    },
+    "exact_model_identity": {
+      "state": "implemented",
+      "evidence": [
+        "adapters/loa/profiles/loa-default.json",
+        "adapters/loa/src/preflight.ts",
+        "adapters/loa/src/runtime-snapshot.ts",
+        "adapters/loa/tests/test-loa-adapter.ts"
+      ]
+    },
+    "immutable_runtime_snapshot": {
+      "state": "implemented",
+      "evidence": [
+        "adapters/loa/src/runtime-snapshot.ts",
+        "adapters/loa/tests/test-loa-adapter.ts"
+      ]
+    },
+    "host_model_effort_mapping": {
+      "state": "implemented",
+      "evidence": [
+        "adapters/loa/profiles/loa-default.json",
+        "adapters/loa/src/preflight.ts",
+        "adapters/loa/src/runtime-snapshot.ts",
+        "adapters/loa/tests/test-loa-adapter.ts"
+      ]
+    },
+    "immutable_bundle_installation": {
+      "state": "implemented",
+      "evidence": [
+        "adapters/loa/installation.map.json",
+        "adapters/loa/src/installer.ts",
+        "adapters/loa/tests/test-loa-installer.ts"
+      ]
+    }
+  },
+  "full_mode": {
+    "claimed": true
+  },
+  "profiles": [
+    {
+      "id": "loa-default",
+      "state": "implemented",
+      "path": "adapters/loa/profiles/loa-default.json",
+      "runtime_requirements": [
+        "Node 20.0.0 or newer",
+        "all declared Loa host capabilities resolved true",
+        "all model slots resolved to immutable identities",
+        "no model or runtime fallback"
+      ],
+      "model_mapping": {
+        "orchestration": "orchestrator, scribe",
+        "mechanical": "intake-clerk, cluster-cartographer",
+        "recall-critical": "extractor, normalizer",
+        "judgment": "merge-judge, disposition-judge, evidence-role-judge, router, convergent-reconciler, synthesist",
+        "adversarial": "adversarial-panel, verifier-l1 through verifier-l10",
+        "assembly": "assembler, conformance-runner"
+      },
+      "effort_mapping": {
+        "medium": "intake-clerk, cluster-cartographer, assembler, conformance-runner",
+        "high": "orchestrator, scribe, extractor, normalizer",
+        "xhigh": "all judgment, adversarial, and verifier roles"
+      },
+      "evidence": [
+        "adapters/loa/profiles/loa-default.json",
+        "adapters/loa/src/preflight.ts",
+        "adapters/loa/src/runtime-snapshot.ts",
+        "adapters/loa/tests/test-loa-adapter.ts"
+      ]
+    }
+  ],
+  "evidence": {
+    "implementation": [
+      "adapters/loa/README.md",
+      "adapters/loa/src/preflight.ts",
+      "adapters/loa/tests/test-loa-adapter.ts",
+      "adapters/loa/tests/test-loa-installer.ts"
+    ],
+    "validation": [],
+    "sanction": []
+  }
+}

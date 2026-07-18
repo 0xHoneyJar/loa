@@ -1,0 +1,152 @@
+# Loa host adapter
+
+> **Lifecycle:** `implemented`
+>
+> This is structural implementation evidence only. The adapter has no accepted
+> replay, real-corpus validation, sanction, or authority permission to make
+> agent mode a sanctioned Aleph execution path. Manual mode remains the only
+> sanctioned path.
+
+This directory contains Loa-owned mechanics for executing the unchanged Core
+from one verified `aleph-for-loa` bundle. It does not carry local copies of
+Core prompts, templates, stage contracts, checkers, fixtures, or doctrine.
+Those files are reopened directly from the verified bundle and are pinned into
+each run's retained runtime snapshot.
+
+## Source and installation layout
+
+| Adapter source | Installed Loa path | Purpose |
+|----------------|--------------------|---------|
+| `command/loa-aleph.md` | `.claude/commands/loa-aleph.md` | Thin native `/loa-aleph` command |
+| `skill/loa-aleph/SKILL.md` | `.claude/skills/loa-aleph/SKILL.md` | Host orchestration and gate handoff |
+| `runtime-js/adapters/loa/src/launcher.js` | `.claude/aleph/bin/loa-aleph.mjs` | Node 20-compatible verifying dispatcher into the active bundle |
+| complete verified bundle | `.claude/aleph/runtime/bundle/` | Exact Core plus this adapter and original lock |
+| generated install receipt | `.claude/aleph/install.lock.json` | Managed paths and installed digests |
+
+[`installation.map.json`](installation.map.json) is the machine-readable form
+of this mapping. The installer stages and verifies all bytes before exposing
+the command. Updating an installation replaces the managed runtime and deletes
+managed paths that disappeared from the new mapping; it never deletes
+unmanaged Loa files or anything below `grimoires/loa/aleph/runs/`.
+The transient names `.claude/aleph-install.writer.lock*` and
+`.claude/aleph-install.transaction*` are reserved for adapter-owned install
+coordination and recovery. They are excluded from the final managed receipt
+and are cleaned after a successful or recovered installation; operators must
+not use those names for unrelated files.
+Installation safety assumes the target is mutated only by cooperating installer
+processes while this lock is held. The installer rejects observed symlinks and
+detects parent replacement, but it does not claim protection from a malicious
+same-identity process racing the host's pathname syscalls.
+
+## Command surface
+
+The installed command exposes exactly these operator actions:
+
+```text
+/loa-aleph start <files-or-directories...>
+/loa-aleph status [RUN-id]
+/loa-aleph resume <RUN-id>
+/loa-aleph validate <RUN-id>
+```
+
+`start` verifies the installation, host capability receipt, exact model
+resolution, profile, and bundle before it creates a run. It accepts only
+supported local regular files, walks directories deterministically, rejects
+links, unsupported inputs, and inputs that change during capture, copies exact
+bytes, inventories and hashes them, and then stops at the S0 human authority
+gate. The skill collects only the Core-required S0 scope, exclusions,
+sensitivity rulings, authority identity, and freeze decision. No downstream
+judgment is collected at intake.
+
+`status` is read-only. With no run ID it enumerates runs rather than resolving
+a mutable `latest` alias. `resume` and `validate` verify and dispatch through
+the run's retained original bundle and runtime snapshot, even when the active
+installation has since changed. `validate` invokes the checker bytes and
+command pinned by that run and preserves the complete result.
+
+The skill also has two internal, file-driven control surfaces for Core-required
+human stops; they are not additional `/loa-aleph` operator commands:
+
+```text
+node .claude/aleph/bin/loa-aleph.mjs --json --open-gate <request.json> RUN-id
+node .claude/aleph/bin/loa-aleph.mjs --json --authority-response <response.json> RUN-id
+```
+
+The first accepts exactly one persisted request for an S8 external-referent,
+S13 Precis-acceptance, P1 projection-commission, P3 projection-acceptance,
+budget-exhaustion, or suspected-contamination gate at its permitted Core
+stage. The second records the named human decision. Requests retain a
+path/selector/digest binding to the exact Core stage contract in the run-local
+bundle. Both transitions use prepared/committed journals; `resume` rolls a
+prepared after-image forward before doing any other work. A fixture-simulated
+response may exercise the halt mechanics but cannot confer Precis or
+projection acceptance.
+
+The S0 freeze is transaction-journaled as well: the authority response,
+retained/excluded corpus image, run state, and three canonical control
+artifacts are prepared before mutation and deterministically rolled forward on
+resume. Exact excluded bytes are deleted before the retained corpus is made
+read-only; a partial or foreign after-image fails closed.
+
+## Durable run mechanics
+
+Runs live at `grimoires/loa/aleph/runs/RUN-*`. Canonical Core artifacts remain
+the Markdown files defined by the bundled templates. Adapter mechanics are
+kept beneath each run's `control/` directory:
+
+- `run-state.json` holds exact Core, adapter, bundle, checker, protocol,
+  run-format, host, profile, model, stage, gate, halt, and resume pins;
+- `original-bundle.lock.json` retains the original generated lock;
+- `runtime/` retains the verified immutable bundle, profile, and exact host
+  capability receipt used by the run;
+- `corpus.snapshot.json` records frozen source paths, byte lengths, and
+  digests;
+- `worker-bundles/` and `worker-returns/` quarantine explicitly allowlisted
+  requests and untrusted returns; every real host crossing uses an immutable
+  `invocation.json`, exact native dispatch receipt, and separate structured
+  return accepted by `worker-dispatch.ts prepare|accept`;
+- `ledger-chain.jsonl` records orchestrator-only ledger appends, with prepared
+  ledger and human-authority transaction journals under `transactions/` for
+  deterministic resume-time rollback or roll-forward; and
+- `checks/` preserves exact checker invocations and reports.
+
+Workers receive copied, read-only allowlisted bundles, never the run root or a
+ledger-writing handle. Prompt parts, stage sections, and return contracts are
+byte-sliced from canonical Core files in the retained bundle. Returns stay in
+quarantine until their canonical output contract validates. Only the
+orchestrator-owned writer can append to canonical ledgers. Refuter calls
+require a newly attested context that cannot inherit the producer context.
+The installed skill hands the complete prepared invocation, unchanged, to
+Loa's native fresh-context/subagent primitive. The worker has one readable path
+and no writable paths; the orchestrator skill persists the primitive's receipt
+and structured JSON afterward. Missing native support is a hard failure, never
+an invitation to run the worker in the current conversation.
+
+Missing installation, isolation, exact model identity, runtime snapshot, or
+profile capability is a hard preflight failure. There is no fallback model and
+no degraded execution that may retain the `full-aleph` label.
+
+## Offline installation and checks
+
+The installer consumes a local bundle only and performs no network operation:
+
+```bash
+node adapters/loa/src/installer.ts install --bundle <bundle-dir> --target <loa-dir>
+node adapters/loa/src/installer.ts verify-install --target <loa-dir>
+node adapters/loa/src/preflight.ts --root . --capabilities adapters/loa/tests/fixtures/host-capabilities.json
+npx --no-install tsc -p adapters/loa/tsconfig.json
+node adapters/loa/tests/test-loa-adapter.ts
+node adapters/loa/tests/test-loa-installer.ts
+```
+
+The bundle carries the complete TypeScript source plus a deterministic ES2022
+projection under `runtime-js/`. The projection is generated only from the
+tracked source by `tsconfig.runtime.json`, is covered by the bundle lock, and
+lets the installed surface run on Node 20 without Bun, `tsx`, `npm install`, or
+network access. Source remains authoritative; release validation rejects drift
+between source and the committed projection.
+
+The checked-in capability receipt and every worker/authority response in the
+synthetic test are explicitly fixture-simulated. They establish implementation
+structure only; they are not a real replay, semantic acceptance, validation
+evidence, or sanction evidence.

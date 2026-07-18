@@ -11,7 +11,7 @@
 
 ## Quick Start
 
-Primary interface: 48+ commands fronted by **5 Golden Path commands** (zero-arg).
+Primary interface: 49+ commands fronted by **5 Golden Path commands** (zero-arg).
 
 ```
 /loa
@@ -29,7 +29,7 @@ Primary interface: 48+ commands fronted by **5 Golden Path commands** (zero-arg)
 
 ## Commands
 
-**5 Golden Path commands** (`/loa`, `/plan`, `/build`, `/review`, `/ship`) front **48 total commands** (truenames). See `PROCESS.md` for the full list; type `/loa` for orientation.
+**5 Golden Path commands** (`/loa`, `/plan`, `/build`, `/review`, `/ship`) front **49 total commands** (truenames). See `PROCESS.md` for the full list; type `/loa` for orientation.
 
 ## Project Governance
 

@@ -2,7 +2,7 @@
 
 <!-- AGENT-CONTEXT: Loa is an agent-driven development framework for Claude Code.
 Primary interface: 5 Golden Path commands (/loa, /plan, /build, /review, /ship).
-Power user interface: 48 slash commands (truenames).
+Power user interface: 49 slash commands (truenames).
 Architecture: Three-zone model (System: .claude/, State: grimoires/ + .beads/, App: src/).
 Configuration: .loa.config.yaml (user-owned, never modified by framework).
 Health check: /loa doctor
@@ -105,7 +105,7 @@ For fine-grained control, use the underlying commands directly:
 | 5.5 | `/audit-sprint sprint-N` | Security Approval |
 | 6 | `/deploy-production` | Infrastructure |
 
-**48 total commands.** Type `/loa` for the Golden Path or see [PROCESS.md](PROCESS.md) for all commands.
+**49 total commands.** Type `/loa` for the Golden Path or see [PROCESS.md](PROCESS.md) for all commands.
 
 ## The Agents
 
@@ -236,4 +236,3 @@ Commercial licenses are available for organizations that wish to use Loa without
 - [beads_rust](https://github.com/Dicklesworthstone/beads_rust)
 
 Ridden with [Loa](https://github.com/0xHoneyJar/loa)
-

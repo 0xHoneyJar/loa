@@ -1,0 +1,773 @@
+name: Aleph immutable release sync
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 4 * * *'
+
+# Preparation is the default authority. The propose job opts into only the two
+# write permissions needed to publish a human-reviewed branch and draft PR.
+# Repository deployment prerequisite: Actions must be allowed to create pull
+# requests with GITHUB_TOKEN. This workflow never approves, reviews, or merges
+# its proposal; a write user must approve the proposal's workflow runs.
+permissions:
+  contents: read
+
+concurrency:
+  group: aleph-immutable-release-sync
+  cancel-in-progress: false
+
+env:
+  ALEPH_UPSTREAM: 0xHoneyJar/loa-aleph
+  GH_API_VERSION: '2026-03-10'
+  GH_CLI_VERSION: 2.96.0
+  GH_CLI_LINUX_AMD64_SHA256: 83d5c2ccad5498f58bf6368acb1ab32588cf43ab3a4b1c301bf36328b1c8bd60
+
+jobs:
+  prepare:
+    name: Verify and seal candidate
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      changed: ${{ steps.discover.outputs.changed }}
+      tag: ${{ steps.discover.outputs.tag }}
+      digest: ${{ steps.discover.outputs.digest }}
+      commit: ${{ steps.discover.outputs.commit }}
+      current-digest: ${{ steps.discover.outputs.current-digest }}
+      current-commit: ${{ steps.discover.outputs.current-commit }}
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - name: Checkout trusted Loa verifier
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify the current installed pin offline
+        run: |
+          set -euo pipefail
+          python3 tools/aleph-release-ingest.py verify-installed \
+            --root . \
+            --pin .loa-aleph.lock.json
+
+      - name: Install checksum-pinned official GitHub CLI
+        id: gh-cli
+        env:
+          TOOL_ROOT: ${{ runner.temp }}/aleph-gh-cli
+        run: |
+          set -euo pipefail
+          archive="$TOOL_ROOT/gh_${GH_CLI_VERSION}_linux_amd64.tar.gz"
+          mkdir -p "$TOOL_ROOT"
+          ARCHIVE="$archive" python3 - <<'PY'
+          import hashlib
+          import os
+          import pathlib
+          import urllib.request
+
+          version = os.environ['GH_CLI_VERSION']
+          destination = pathlib.Path(os.environ['ARCHIVE'])
+          url = (
+              'https://github.com/cli/cli/releases/download/'
+              f'v{version}/gh_{version}_linux_amd64.tar.gz'
+          )
+          request = urllib.request.Request(
+              url,
+              headers={'User-Agent': 'loa-aleph-release-sync/1'},
+          )
+          digest = hashlib.sha256()
+          with urllib.request.urlopen(request, timeout=60) as response, destination.open('wb') as output:
+              if response.status != 200:
+                  raise SystemExit(f'GitHub CLI download returned HTTP {response.status}')
+              while chunk := response.read(1024 * 1024):
+                  digest.update(chunk)
+                  output.write(chunk)
+          actual = digest.hexdigest()
+          expected = os.environ['GH_CLI_LINUX_AMD64_SHA256']
+          if actual != expected:
+              destination.unlink(missing_ok=True)
+              raise SystemExit(
+                  f'GitHub CLI archive digest mismatch: expected {expected}, got {actual}'
+              )
+          PY
+          tar -xzf "$archive" -C "$TOOL_ROOT"
+          gh_bin="$TOOL_ROOT/gh_${GH_CLI_VERSION}_linux_amd64/bin/gh"
+          test -x "$gh_bin"
+          "$gh_bin" version
+          printf 'bin=%s\n' "$gh_bin" >> "$GITHUB_OUTPUT"
+
+      - name: Discover one exact immutable release and enforce anti-rollback
+        id: discover
+        env:
+          GH_BIN: ${{ steps.gh-cli.outputs.bin }}
+          GH_TOKEN: ${{ github.token }}
+          DISCOVERY_ROOT: ${{ runner.temp }}/aleph-release-discovery
+        run: |
+          set -euo pipefail
+          mkdir -p "$DISCOVERY_ROOT/pages"
+
+          complete=false
+          for page in $(seq 1 10); do
+            page_file="$DISCOVERY_ROOT/pages/$page.json"
+            "$GH_BIN" api \
+              --header "X-GitHub-Api-Version: $GH_API_VERSION" \
+              "repos/$ALEPH_UPSTREAM/releases?per_page=100&page=$page" \
+              > "$page_file"
+            count=$(PAGE_FILE="$page_file" python3 - <<'PY'
+          import json
+          import os
+
+          with open(os.environ['PAGE_FILE'], 'rb') as handle:
+              value = json.load(handle)
+          if not isinstance(value, list):
+              raise SystemExit('release-list API response is not an array')
+          print(len(value))
+          PY
+            )
+            if [ "$count" -lt 100 ]; then
+              complete=true
+              break
+            fi
+          done
+          if [ "$complete" != true ]; then
+            echo 'Release discovery exceeded the bounded 1,000-release scan' >&2
+            exit 1
+          fi
+
+          DISCOVERY_ROOT="$DISCOVERY_ROOT" python3 - <<'PY'
+          import json
+          import os
+          import pathlib
+          import re
+
+          root = pathlib.Path(os.environ['DISCOVERY_ROOT'])
+          family = re.compile(r'aleph-for-loa-sha256-([0-9a-f]{64})')
+          safe_version = re.compile(r'[0-9A-Za-z][0-9A-Za-z.+-]*')
+          sha256 = re.compile(r'sha256:[0-9a-f]{64}')
+          sha40 = re.compile(r'[0-9a-f]{40}')
+
+          releases = []
+          for page in sorted(root.joinpath('pages').glob('*.json'), key=lambda p: int(p.stem)):
+              with page.open('rb') as handle:
+                  value = json.load(handle)
+              if not isinstance(value, list):
+                  raise SystemExit(f'{page} is not an array')
+              releases.extend(value)
+
+          candidates = []
+          for release in releases:
+              if not isinstance(release, dict):
+                  raise SystemExit('release-list entry is not an object')
+              tag = release.get('tag_name')
+              match = family.fullmatch(tag) if isinstance(tag, str) else None
+              if not match:
+                  continue
+              if (
+                  release.get('draft') is not False
+                  or release.get('prerelease') is not True
+                  or release.get('immutable') is not True
+              ):
+                  raise SystemExit(f'Aleph-family release is not an immutable published prerelease: {tag}')
+              release_id = release.get('id')
+              if not isinstance(release_id, int) or isinstance(release_id, bool) or release_id < 1:
+                  raise SystemExit(f'Aleph-family release has an invalid id: {tag}')
+              assets = release.get('assets')
+              if not isinstance(assets, list) or len(assets) != 3:
+                  raise SystemExit(f'Aleph-family release must have exactly three assets: {tag}')
+
+              bundle_hex = match.group(1)
+              suffixes = {}
+              prefix = None
+              normalized_assets = []
+              marker = f'-sha256-{bundle_hex}'
+              for asset in assets:
+                  if not isinstance(asset, dict):
+                      raise SystemExit(f'{tag} has a malformed asset record')
+                  name = asset.get('name')
+                  if not isinstance(name, str) or not name.startswith('aleph-for-loa-'):
+                      raise SystemExit(f'{tag} has a malformed asset name')
+                  extension = next(
+                      (item for item in ('.release.json', '.sha256', '.tar.gz') if name.endswith(item)),
+                      None,
+                  )
+                  if extension is None:
+                      raise SystemExit(f'{tag} has an unexpected asset: {name}')
+                  stem = name[:-len(extension)]
+                  if marker not in stem or not stem.endswith(marker):
+                      raise SystemExit(f'{tag} asset does not bind its tag digest: {name}')
+                  asset_prefix = stem[:-len(marker)]
+                  version = asset_prefix.removeprefix('aleph-for-loa-')
+                  if asset_prefix == version or not safe_version.fullmatch(version):
+                      raise SystemExit(f'{tag} asset has an unsafe version component: {name}')
+                  if prefix is None:
+                      prefix = asset_prefix
+                  elif prefix != asset_prefix:
+                      raise SystemExit(f'{tag} asset filenames disagree on release version')
+                  if extension in suffixes:
+                      raise SystemExit(f'{tag} repeats asset extension {extension}')
+                  suffixes[extension] = name
+
+                  asset_id = asset.get('id')
+                  size = asset.get('size')
+                  digest = asset.get('digest')
+                  if (
+                      not isinstance(asset_id, int)
+                      or isinstance(asset_id, bool)
+                      or asset_id < 1
+                      or not isinstance(size, int)
+                      or isinstance(size, bool)
+                      or size < 1
+                      or size > 512 * 1024 * 1024
+                      or not isinstance(digest, str)
+                      or not sha256.fullmatch(digest)
+                      or asset.get('state') != 'uploaded'
+                  ):
+                      raise SystemExit(f'{tag} has malformed uploaded-asset metadata: {name}')
+                  normalized_assets.append({
+                      'id': asset_id,
+                      'name': name,
+                      'size': size,
+                      'digest': digest,
+                      'state': 'uploaded',
+                  })
+              if set(suffixes) != {'.release.json', '.sha256', '.tar.gz'}:
+                  raise SystemExit(f'{tag} does not have the exact three release asset kinds')
+              candidates.append({
+                  'id': release_id,
+                  'tag_name': tag,
+                  'target_commitish': release.get('target_commitish'),
+                  'draft': False,
+                  'prerelease': True,
+                  'immutable': True,
+                  'assets': sorted(normalized_assets, key=lambda item: item['name'].encode('utf-8')),
+              })
+
+          if not candidates:
+              raise SystemExit('no immutable aleph-for-loa release was found')
+          selected = max(candidates, key=lambda item: item['id'])
+          tag = selected['tag_name']
+          bundle_hex = family.fullmatch(tag).group(1)
+
+          with open('.loa-aleph.lock.json', 'rb') as handle:
+              current = json.load(handle)
+          try:
+              current_repository = current['repository']
+              current_tag = current['release']['tag']
+              current_commit = current['release']['commit']
+              current_digest = current['bundle']['digest']
+              current_assets = current['assets']
+          except (KeyError, TypeError) as error:
+              raise SystemExit(f'current Aleph pin is missing an anti-rollback field: {error}')
+          if current_repository != os.environ['ALEPH_UPSTREAM']:
+              raise SystemExit('current Aleph pin names a different upstream repository')
+          current_match = family.fullmatch(current_tag) if isinstance(current_tag, str) else None
+          if (
+              not current_match
+              or not isinstance(current_commit, str)
+              or not sha40.fullmatch(current_commit)
+              or current_digest != f'sha256:{current_match.group(1)}'
+          ):
+              raise SystemExit('current Aleph pin has malformed release identity')
+          if not isinstance(current_assets, list) or len(current_assets) != 3:
+              raise SystemExit('current Aleph pin must bind exactly three release assets')
+          normalized_current_assets = []
+          for asset in current_assets:
+              if (
+                  not isinstance(asset, dict)
+                  or set(asset) != {'name', 'digest'}
+                  or not isinstance(asset.get('name'), str)
+                  or not isinstance(asset.get('digest'), str)
+                  or not sha256.fullmatch(asset['digest'])
+              ):
+                  raise SystemExit('current Aleph pin has a malformed asset binding')
+              normalized_current_assets.append({
+                  'name': asset['name'],
+                  'digest': asset['digest'],
+              })
+          if len({item['name'] for item in normalized_current_assets}) != 3:
+              raise SystemExit('current Aleph pin repeats an asset name')
+          releases_by_tag = {item['tag_name']: item for item in candidates}
+          current_release = releases_by_tag.get(current_tag)
+          if current_release is None:
+              raise SystemExit('current pinned immutable release is outside the bounded discovery set')
+          current_api_assets = [
+              {'name': item['name'], 'digest': item['digest']}
+              for item in current_release['assets']
+          ]
+          by_name = lambda item: item['name'].encode('utf-8')
+          if sorted(normalized_current_assets, key=by_name) != sorted(current_api_assets, key=by_name):
+              raise SystemExit('current Aleph pin asset bindings differ from its immutable release API record')
+
+          root.joinpath('selected-release.json').write_text(
+              json.dumps(selected, sort_keys=True, separators=(',', ':')) + '\n',
+              encoding='utf-8',
+          )
+          root.joinpath('tag.txt').write_text(tag + '\n', encoding='ascii')
+          root.joinpath('digest.txt').write_text(bundle_hex + '\n', encoding='ascii')
+          root.joinpath('current-commit.txt').write_text(current_commit + '\n', encoding='ascii')
+          root.joinpath('current-digest.txt').write_text(current_digest + '\n', encoding='ascii')
+          root.joinpath('changed.txt').write_text(
+              ('false' if current_tag == tag else 'true') + '\n',
+              encoding='ascii',
+          )
+          PY
+
+          tag=$(<"$DISCOVERY_ROOT/tag.txt")
+          digest=$(<"$DISCOVERY_ROOT/digest.txt")
+          changed=$(<"$DISCOVERY_ROOT/changed.txt")
+
+          ref=$(
+            "$GH_BIN" api \
+              --header "X-GitHub-Api-Version: $GH_API_VERSION" \
+              "repos/$ALEPH_UPSTREAM/git/ref/tags/$tag" \
+              --jq '.object.type + " " + .object.sha'
+          )
+          type=${ref%% *}
+          commit=${ref#* }
+          for _ in $(seq 1 8); do
+            if [ "$type" = commit ]; then
+              break
+            fi
+            if [ "$type" != tag ] || [[ ! "$commit" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "Release tag did not resolve to a Git commit: $type $commit" >&2
+              exit 1
+            fi
+            ref=$(
+              "$GH_BIN" api \
+                --header "X-GitHub-Api-Version: $GH_API_VERSION" \
+                "repos/$ALEPH_UPSTREAM/git/tags/$commit" \
+                --jq '.object.type + " " + .object.sha'
+            )
+            type=${ref%% *}
+            commit=${ref#* }
+          done
+          if [ "$type" != commit ] || [[ ! "$commit" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'Release tag indirection exceeded the bounded resolver' >&2
+            exit 1
+          fi
+
+          if [ "$changed" = true ]; then
+            current_commit=$(<"$DISCOVERY_ROOT/current-commit.txt")
+            compare_file="$DISCOVERY_ROOT/compare.json"
+            "$GH_BIN" api \
+              --header "X-GitHub-Api-Version: $GH_API_VERSION" \
+              "repos/$ALEPH_UPSTREAM/compare/$current_commit...$commit" \
+              > "$compare_file"
+            CURRENT_COMMIT="$current_commit" CANDIDATE_COMMIT="$commit" \
+              COMPARE_FILE="$compare_file" python3 - <<'PY'
+          import json
+          import os
+
+          with open(os.environ['COMPARE_FILE'], 'rb') as handle:
+              value = json.load(handle)
+          expected_base = os.environ['CURRENT_COMMIT']
+          expected_head = os.environ['CANDIDATE_COMMIT']
+          if (
+              value.get('status') != 'ahead'
+              or value.get('base_commit', {}).get('sha') != expected_base
+              or value.get('merge_base_commit', {}).get('sha') != expected_base
+              or value.get('head_commit', {}).get('sha') != expected_head
+          ):
+              raise SystemExit('candidate release commit is not a strict descendant of the current pin')
+          PY
+          else
+            current_commit=$(<"$DISCOVERY_ROOT/current-commit.txt")
+            if [ "$commit" != "$current_commit" ]; then
+              echo 'Current immutable tag no longer resolves to its pinned commit' >&2
+              exit 1
+            fi
+          fi
+
+          printf 'changed=%s\n' "$changed" >> "$GITHUB_OUTPUT"
+          printf 'tag=%s\n' "$tag" >> "$GITHUB_OUTPUT"
+          printf 'digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
+          printf 'commit=%s\n' "$commit" >> "$GITHUB_OUTPUT"
+          printf 'current-digest=%s\n' "$(<"$DISCOVERY_ROOT/current-digest.txt")" >> "$GITHUB_OUTPUT"
+          printf 'current-commit=%s\n' "$(<"$DISCOVERY_ROOT/current-commit.txt")" >> "$GITHUB_OUTPUT"
+
+      - name: Verify immutable release and all three GitHub attestations
+        if: steps.discover.outputs.changed == 'true'
+        env:
+          GH_BIN: ${{ steps.gh-cli.outputs.bin }}
+          GH_TOKEN: ${{ github.token }}
+          DISCOVERY_ROOT: ${{ runner.temp }}/aleph-release-discovery
+          RELEASE_ROOT: ${{ runner.temp }}/aleph-release-assets
+          RELEASE_TAG: ${{ steps.discover.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RELEASE_ROOT"
+
+          "$GH_BIN" release verify "$RELEASE_TAG" --repo "$ALEPH_UPSTREAM"
+          "$GH_BIN" release download "$RELEASE_TAG" \
+            --repo "$ALEPH_UPSTREAM" \
+            --dir "$RELEASE_ROOT"
+
+          mapfile -t asset_names < <(
+            DISCOVERY_ROOT="$DISCOVERY_ROOT" python3 - <<'PY'
+          import json
+          import os
+
+          with open(os.path.join(os.environ['DISCOVERY_ROOT'], 'selected-release.json'), 'rb') as handle:
+              release = json.load(handle)
+          for asset in release['assets']:
+              print(asset['name'])
+          PY
+          )
+          if [ "${#asset_names[@]}" -ne 3 ]; then
+            echo 'Discovery did not yield exactly three asset names' >&2
+            exit 1
+          fi
+          for asset in "${asset_names[@]}"; do
+            "$GH_BIN" release verify-asset "$RELEASE_TAG" "$RELEASE_ROOT/$asset" \
+              --repo "$ALEPH_UPSTREAM"
+          done
+
+          "$GH_BIN" api \
+            --header "X-GitHub-Api-Version: $GH_API_VERSION" \
+            "repos/$ALEPH_UPSTREAM/releases/tags/$RELEASE_TAG" \
+            > "$DISCOVERY_ROOT/post-download-release.json"
+
+          DISCOVERY_ROOT="$DISCOVERY_ROOT" RELEASE_ROOT="$RELEASE_ROOT" python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import pathlib
+
+          discovery = pathlib.Path(os.environ['DISCOVERY_ROOT'])
+          release_root = pathlib.Path(os.environ['RELEASE_ROOT'])
+          with discovery.joinpath('selected-release.json').open('rb') as handle:
+              expected = json.load(handle)
+          with discovery.joinpath('post-download-release.json').open('rb') as handle:
+              actual = json.load(handle)
+          normalized = {
+              'id': actual.get('id'),
+              'tag_name': actual.get('tag_name'),
+              'target_commitish': actual.get('target_commitish'),
+              'draft': actual.get('draft'),
+              'prerelease': actual.get('prerelease'),
+              'immutable': actual.get('immutable'),
+              'assets': sorted(({
+                  'id': item.get('id'),
+                  'name': item.get('name'),
+                  'size': item.get('size'),
+                  'digest': item.get('digest'),
+                  'state': item.get('state'),
+              } for item in actual.get('assets', [])), key=lambda item: item['name'].encode('utf-8')),
+          }
+          if normalized != expected:
+              raise SystemExit('immutable release identity changed during download')
+          expected_assets = {item['name']: item for item in expected['assets']}
+          expected_names = set(expected_assets)
+          actual_names = set()
+          for path in release_root.iterdir():
+              if path.is_symlink() or not path.is_file():
+                  raise SystemExit(f'download produced a non-regular asset: {path.name}')
+              actual_names.add(path.name)
+              record = expected_assets.get(path.name)
+              if record is None:
+                  continue
+              digest = hashlib.sha256()
+              size = 0
+              with path.open('rb') as handle:
+                  while chunk := handle.read(1024 * 1024):
+                      size += len(chunk)
+                      digest.update(chunk)
+              if size != record['size'] or f'sha256:{digest.hexdigest()}' != record['digest']:
+                  raise SystemExit(f'downloaded asset bytes differ from API identity: {path.name}')
+          if actual_names != expected_names:
+              raise SystemExit('downloaded asset inventory differs from the exact release inventory')
+          PY
+
+      - name: Set up the pinned installation runtime
+        if: steps.discover.outputs.changed == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '20'
+
+      - name: Verify offline, authenticate installer, install, and seal
+        if: steps.discover.outputs.changed == 'true'
+        env:
+          RELEASE_ROOT: ${{ runner.temp }}/aleph-release-assets
+          ARTIFACT_ROOT: ${{ runner.temp }}/aleph-sync-artifact
+          BUNDLE_ROOT: ${{ runner.temp }}/aleph-authenticated-bundle
+          RELEASE_TAG: ${{ steps.discover.outputs.tag }}
+          RELEASE_COMMIT: ${{ steps.discover.outputs.commit }}
+        run: |
+          set -euo pipefail
+          candidate="$ARTIFACT_ROOT/candidate"
+          seal="$ARTIFACT_ROOT/candidate.seal.json"
+          pin="$candidate/.loa-aleph.lock.json"
+          mkdir -p "$candidate"
+
+          # From this point onward, release verification and candidate creation
+          # are offline. No upstream JavaScript executes until the Loa-owned
+          # verifier has authenticated the compiled installer in BUNDLE_ROOT.
+          python3 tools/aleph-release-ingest.py create-pin \
+            --release "$RELEASE_ROOT" \
+            --repository "$ALEPH_UPSTREAM" \
+            --tag "$RELEASE_TAG" \
+            --commit "$RELEASE_COMMIT" \
+            --output "$pin"
+          python3 tools/aleph-release-ingest.py verify-release \
+            --release "$RELEASE_ROOT" \
+            --pin "$pin" \
+            --bundle-out "$BUNDLE_ROOT"
+
+          installer="$BUNDLE_ROOT/runtime-js/adapters/loa/src/installer.js"
+          test -f "$installer"
+          env -u NODE_OPTIONS -u NODE_PATH \
+            node "$installer" install \
+              --bundle "$BUNDLE_ROOT" \
+              --target "$candidate" \
+              --json
+          env -u NODE_OPTIONS -u NODE_PATH \
+            node "$installer" verify-install \
+              --target "$candidate" \
+              --json
+
+          python3 tools/aleph-release-ingest.py verify-installed \
+            --root "$candidate" \
+            --pin "$pin"
+          python3 tools/aleph-release-ingest.py seal-candidate \
+            --candidate "$candidate" \
+            --pin "$pin" \
+            --output "$seal"
+          python3 tools/aleph-release-ingest.py verify-candidate \
+            --candidate "$candidate" \
+            --pin "$pin" \
+            --seal "$seal"
+
+      - name: Upload sealed candidate only
+        id: upload
+        if: steps.discover.outputs.changed == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: aleph-candidate-${{ steps.discover.outputs.digest }}
+          path: ${{ runner.temp }}/aleph-sync-artifact
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+
+  propose:
+    name: Propose sealed candidate for human review
+    needs: prepare
+    if: needs.prepare.outputs.changed == 'true' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout the exact trusted workflow revision
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Download this run's sealed candidate
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          artifact-ids: ${{ needs.prepare.outputs.artifact-id }}
+          path: ${{ runner.temp }}/aleph-sync-artifact
+          merge-multiple: true
+
+      - name: Revalidate and write only authorized paths
+        id: write
+        env:
+          ARTIFACT_ROOT: ${{ runner.temp }}/aleph-sync-artifact
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          RELEASE_COMMIT: ${{ needs.prepare.outputs.commit }}
+          BUNDLE_HEX: ${{ needs.prepare.outputs.digest }}
+        run: |
+          set -euo pipefail
+          candidate="$ARTIFACT_ROOT/candidate"
+          pin="$candidate/.loa-aleph.lock.json"
+          seal="$ARTIFACT_ROOT/candidate.seal.json"
+          test -f "$pin"
+          test -f "$seal"
+
+          # This is trusted Loa code from github.sha. It parses and hashes the
+          # candidate, but neither this step nor any later propose step runs it.
+          python3 tools/aleph-release-ingest.py verify-candidate \
+            --candidate "$candidate" \
+            --pin "$pin" \
+            --seal "$seal"
+          PIN="$pin" python3 - <<'PY'
+          import json
+          import os
+
+          with open(os.environ['PIN'], 'rb') as handle:
+              pin = json.load(handle)
+          if pin.get('repository') != os.environ['ALEPH_UPSTREAM']:
+              raise SystemExit('candidate pin repository differs from the authorized upstream')
+          if pin.get('release', {}).get('tag') != os.environ['RELEASE_TAG']:
+              raise SystemExit('candidate pin tag differs from the prepared release')
+          if pin.get('release', {}).get('commit') != os.environ['RELEASE_COMMIT']:
+              raise SystemExit('candidate pin commit differs from the prepared release')
+          if pin.get('bundle', {}).get('digest') != f"sha256:{os.environ['BUNDLE_HEX']}":
+              raise SystemExit('candidate pin bundle digest differs from the prepared release')
+          PY
+
+          branch="automation/aleph-bundle-$BUNDLE_HEX"
+          git switch -c "$branch"
+          python3 tools/aleph-release-ingest.py write-candidate \
+            --candidate "$candidate" \
+            --pin "$pin" \
+            --seal "$seal" \
+            --root .
+
+          if ! git diff --quiet HEAD -- .claude/settings.json .claude/checksums.json; then
+            echo 'Candidate touched an explicitly unauthorized settings/checksum path' >&2
+            exit 1
+          fi
+
+          python3 - <<'PY'
+          import subprocess
+
+          exact = {
+              '.loa-aleph.lock.json',
+              '.claude/commands/loa-aleph.md',
+              '.claude/skills/loa-aleph/SKILL.md',
+          }
+          prefix = '.claude/aleph/'
+          output = subprocess.check_output(
+              ['git', 'status', '--porcelain=v1', '-z', '--untracked-files=all']
+          )
+          entries = output.split(b'\0')
+          for entry in entries:
+              if not entry:
+                  continue
+              if len(entry) < 4 or entry[2:3] != b' ':
+                  raise SystemExit('cannot safely parse candidate git status')
+              path = entry[3:].decode('utf-8')
+              if ' -> ' in path:
+                  raise SystemExit(f'candidate status contains a rename: {path}')
+              if path not in exact and not path.startswith(prefix):
+                  raise SystemExit(f'candidate modified an unauthorized path: {path}')
+          PY
+
+          git add -A -- \
+            .loa-aleph.lock.json \
+            .claude/aleph \
+            .claude/commands/loa-aleph.md \
+            .claude/skills/loa-aleph/SKILL.md
+          git diff --quiet --
+          if ! git diff --cached --quiet -- .claude/settings.json .claude/checksums.json; then
+            echo 'Staged candidate contains an unauthorized settings/checksum path' >&2
+            exit 1
+          fi
+          git diff --cached --check
+
+          python3 - <<'PY'
+          import subprocess
+
+          exact = {
+              '.loa-aleph.lock.json',
+              '.claude/commands/loa-aleph.md',
+              '.claude/skills/loa-aleph/SKILL.md',
+          }
+          paths = subprocess.check_output(
+              ['git', 'diff', '--cached', '--name-only', '-z', '--diff-filter=ACDMRTUXB']
+          ).split(b'\0')
+          for raw in paths:
+              if not raw:
+                  continue
+              path = raw.decode('utf-8')
+              if path not in exact and not path.startswith('.claude/aleph/'):
+                  raise SystemExit(f'candidate staged an unauthorized path: {path}')
+          PY
+
+          # Git attributes and clean filters can transform bytes while staging.
+          # Recompare every sealed file to its exact stage-0 100644 index blob.
+          python3 tools/aleph-release-ingest.py verify-index \
+            --candidate "$candidate" \
+            --pin "$pin" \
+            --seal "$seal" \
+            --root .
+
+          if git diff --cached --quiet; then
+            printf 'changed=false\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git config user.name 'loa-aleph-release-sync[bot]'
+          git config user.email 'loa-aleph-release-sync[bot]@users.noreply.github.com'
+          git commit -m "chore(aleph): ingest bundle $BUNDLE_HEX"
+
+          remote_sha=$(
+            git ls-remote --heads origin "refs/heads/$branch" | awk 'NR == 1 {print $1}'
+          )
+          if [ -n "$remote_sha" ]; then
+            git fetch origin "refs/heads/$branch:refs/remotes/origin/$branch"
+            local_tree=$(git rev-parse 'HEAD^{tree}')
+            remote_tree=$(git rev-parse "refs/remotes/origin/$branch^{tree}")
+            if [ "$local_tree" != "$remote_tree" ]; then
+              echo "Existing digest branch has different bytes: $branch" >&2
+              exit 1
+            fi
+          else
+            git push origin "HEAD:refs/heads/$branch"
+          fi
+          printf 'changed=true\n' >> "$GITHUB_OUTPUT"
+          printf 'branch=%s\n' "$branch" >> "$GITHUB_OUTPUT"
+
+      - name: Open a digest-keyed draft pull request
+        if: steps.write.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.write.outputs.branch }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          RELEASE_COMMIT: ${{ needs.prepare.outputs.commit }}
+          BUNDLE_HEX: ${{ needs.prepare.outputs.digest }}
+          CURRENT_RELEASE_COMMIT: ${{ needs.prepare.outputs.current-commit }}
+          CURRENT_BUNDLE_DIGEST: ${{ needs.prepare.outputs.current-digest }}
+        run: |
+          set -euo pipefail
+          body="$RUNNER_TEMP/aleph-release-pr.md"
+          {
+            echo 'Automated immutable-release ingestion proposal.'
+            echo
+            echo "- Upstream: \`$ALEPH_UPSTREAM\`"
+            echo "- Immutable tag: \`$RELEASE_TAG\`"
+            echo "- Old commit: \`$CURRENT_RELEASE_COMMIT\`"
+            echo "- New commit: \`$RELEASE_COMMIT\`"
+            echo "- Old bundle digest: \`$CURRENT_BUNDLE_DIGEST\`"
+            echo "- New bundle digest: \`sha256:$BUNDLE_HEX\`"
+            echo "- Upstream comparison: https://github.com/$ALEPH_UPSTREAM/compare/$CURRENT_RELEASE_COMMIT...$RELEASE_COMMIT"
+            echo '- Adapter lifecycle: `implemented`'
+            echo '- Maturity: structural prerelease'
+            echo
+            echo 'The read-only preparation job verified the release and all three assets through GitHub attestations, then used the Loa-owned offline verifier before running the authenticated installer in a temporary root. The write-capable job revalidated the sealed candidate and staged only the authorized pin and managed paths.'
+            echo
+            echo 'This draft requires human review and is never auto-merged. Ingestion is not adapter validation or sanction evidence.'
+          } > "$body"
+
+          prs=$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --state open \
+            --head "$BRANCH" \
+            --json number,url \
+            --limit 2)
+          count=$(PRS="$prs" python3 - <<'PY'
+          import json
+          import os
+
+          value = json.loads(os.environ['PRS'])
+          if not isinstance(value, list) or len(value) > 1:
+              raise SystemExit('digest branch has an ambiguous open-PR set')
+          print(len(value))
+          PY
+          )
+          if [ "$count" -eq 0 ]; then
+            gh pr create \
+              --repo "$GITHUB_REPOSITORY" \
+              --base main \
+              --head "$BRANCH" \
+              --title "chore(aleph): ingest bundle $BUNDLE_HEX" \
+              --body-file "$body" \
+              --draft
+          else
+            echo 'The exact digest-keyed pull request is already open; leaving it for human review.'
+          fi

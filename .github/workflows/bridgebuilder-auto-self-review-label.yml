@@ -11,7 +11,7 @@
 # This workflow makes it automatic.
 #
 # Trigger: every PR open/sync/reopen/ready-for-review. Reads the PR's
-# changed-files list via `gh pr diff --name-only`. If any path matches
+# changed-files list via the paginated pull-request files API. If any path matches
 # the framework-path globs (`.claude/**`, `grimoires/**`, `.beads/**`,
 # `CLAUDE.md`, `.loa.config.yaml`), applies the label idempotently.
 # Non-framework PRs are no-ops.
@@ -56,14 +56,17 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Pull the PR's changed-files list. Use --name-only so we get
-          # one path per line. Cap at 3000 files (the BB review payload
-          # cap is much lower; if a PR has >3000 files, framework-path
-          # detection is going to find at least one match anyway).
-          changed=$(gh pr diff "$PR_NUMBER" --name-only --repo "${GITHUB_REPOSITORY}" 2>/dev/null | head -3000)
+          # Pull the PR's changed-files list, one filename per line. The diff
+          # endpoint returns HTTP 406 once a patch exceeds 20,000 lines even
+          # when the filename set is small, so use the paginated files endpoint.
+          # GitHub caps this endpoint at 3000 files, matching the prior bound.
+          changed=$(gh api --paginate \
+            -H 'Accept: application/vnd.github+json' \
+            "/repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files?per_page=100" \
+            --jq '.[].filename')
 
           if [[ -z "$changed" ]]; then
-            echo "no changed files reported by gh pr diff (empty PR or API hiccup)"
+            echo "no changed files reported by the pull-request files API (empty PR or API hiccup)"
             echo "matched=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
