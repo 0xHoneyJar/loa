@@ -81,6 +81,9 @@ MAX_TAR_BYTES = 64 * 1024 * 1024
 MAX_ENTRY_BYTES = 16 * 1024 * 1024
 MAX_FILE_COUNT = 4096
 MAX_JSON_BYTES = 4 * 1024 * 1024
+MAX_COMPARE_PAGE_BYTES = 32 * 1024 * 1024
+MAX_COMPARE_PAGES = 10
+MAX_COMPARE_COMMITS = 1000
 TAR_BLOCK = 512
 
 
@@ -252,6 +255,23 @@ def _parse_json(raw: bytes, label: str, *, canonical: bool) -> Any:
     if canonical and raw != _canonical_json_bytes(value):
         fail(f"{label} is not canonical JSON plus one LF")
     return value
+
+
+def _parse_api_json(raw: bytes, label: str) -> Any:
+    try:
+        text = raw.decode("utf-8", errors="strict")
+    except UnicodeDecodeError as error:
+        fail(f"{label} is not UTF-8: {error}")
+    try:
+        return json.loads(
+            text,
+            object_pairs_hook=_pairs_no_duplicates,
+            parse_constant=_reject_number,
+        )
+    except VerificationError:
+        raise
+    except (json.JSONDecodeError, UnicodeError) as error:
+        fail(f"{label} is invalid JSON: {error}")
 
 
 def _absolute(path: os.PathLike[str] | str) -> Path:
@@ -889,6 +909,150 @@ def _pin(raw: bytes) -> dict[str, Any]:
     if names != expected_names:
         fail("pin asset names disagree with pinned version and bundle digest")
     return value
+
+
+def _compare_count(value: Any, label: str, *, minimum: int = 0) -> int:
+    if type(value) is not int or value < minimum:
+        fail(f"{label} must be an integer >= {minimum}")
+    return value
+
+
+def _compare_object_commit(value: Any, label: str, length: int) -> str:
+    if not isinstance(value, dict):
+        fail(f"{label} must be an object")
+    commit = _commit(value.get("sha"), f"{label}.sha")
+    if len(commit) != length:
+        fail(f"{label}.sha uses a different Git object format")
+    return commit
+
+
+def _verify_compare_pages(
+        root: Path, expected_base: str, expected_head: str, page_size: int) -> int:
+    _directory(root, "compare-page directory")
+    base = _commit(expected_base, "expected compare base")
+    head = _commit(expected_head, "expected compare head")
+    if len(base) != len(head):
+        fail("expected compare base and head use different Git object formats")
+    if base == head:
+        fail("candidate release commit must differ from the current pin")
+    if page_size < 1 or page_size > 100:
+        fail("compare page size must be between 1 and 100")
+
+    files, directories = _inventory_tree(root, label="compare-page directory")
+    if directories:
+        fail("compare-page directory must not contain subdirectories")
+    page_numbers: list[int] = []
+    for path in files:
+        match = re.fullmatch(r"([1-9][0-9]*)\.json", path)
+        if not match:
+            fail(f"compare-page directory contains an unexpected file: {path}")
+        page_numbers.append(int(match.group(1)))
+    page_numbers.sort()
+    if not page_numbers or page_numbers != list(range(1, len(page_numbers) + 1)):
+        fail("compare pages must be a nonempty contiguous sequence starting at 1")
+    if len(page_numbers) > MAX_COMPARE_PAGES:
+        fail(f"compare response exceeds the {MAX_COMPARE_PAGES}-page bound")
+
+    pages: list[dict[str, Any]] = []
+    for number in page_numbers:
+        raw = _regular_bytes(
+            root / f"{number}.json",
+            f"compare page {number}",
+            MAX_COMPARE_PAGE_BYTES,
+        )
+        value = _parse_api_json(raw, f"compare page {number}")
+        if not isinstance(value, dict):
+            fail(f"compare page {number} must be an object")
+        pages.append(value)
+
+    first = pages[0]
+    if first.get("status") != "ahead":
+        fail("compare status must be ahead")
+    ahead = _compare_count(first.get("ahead_by"), "compare ahead_by", minimum=1)
+    behind = _compare_count(first.get("behind_by"), "compare behind_by")
+    total = _compare_count(first.get("total_commits"), "compare total_commits", minimum=1)
+    if behind != 0:
+        fail("compare response reports commits behind the current pin")
+    if ahead != total:
+        fail("compare ahead_by and total_commits disagree")
+    if total > MAX_COMPARE_COMMITS:
+        fail(f"compare response exceeds the {MAX_COMPARE_COMMITS}-commit bound")
+    if _compare_object_commit(first.get("base_commit"), "compare base_commit", len(base)) != base:
+        fail("compare base_commit does not match the current pin")
+    if _compare_object_commit(
+            first.get("merge_base_commit"), "compare merge_base_commit", len(base)) != base:
+        fail("compare merge base does not match the current pin")
+
+    expected_pages = (total + page_size - 1) // page_size
+    if len(pages) != expected_pages:
+        fail("compare pagination is incomplete or contains extra pages")
+
+    records: list[tuple[str, tuple[str, ...]]] = []
+    for page_number, page in enumerate(pages, start=1):
+        if page.get("status") != "ahead":
+            fail(f"compare page {page_number} status disagrees with page 1")
+        if (
+            _compare_count(page.get("ahead_by"), f"compare page {page_number} ahead_by", minimum=1)
+            != ahead
+            or _compare_count(page.get("behind_by"), f"compare page {page_number} behind_by")
+            != behind
+            or _compare_count(
+                page.get("total_commits"),
+                f"compare page {page_number} total_commits",
+                minimum=1,
+            ) != total
+        ):
+            fail(f"compare page {page_number} count metadata disagrees with page 1")
+        if _compare_object_commit(
+                page.get("base_commit"), f"compare page {page_number} base_commit", len(base)) != base:
+            fail(f"compare page {page_number} base_commit disagrees with page 1")
+        if _compare_object_commit(
+                page.get("merge_base_commit"),
+                f"compare page {page_number} merge_base_commit",
+                len(base),
+        ) != base:
+            fail(f"compare page {page_number} merge base disagrees with page 1")
+
+        commits = page.get("commits")
+        if not isinstance(commits, list):
+            fail(f"compare page {page_number} commits must be an array")
+        expected_count = min(page_size, total - ((page_number - 1) * page_size))
+        if len(commits) != expected_count:
+            fail(f"compare page {page_number} commit slice is truncated or oversized")
+        for record_number, record in enumerate(commits, start=1):
+            label = f"compare page {page_number} commit {record_number}"
+            commit = _compare_object_commit(record, label, len(base))
+            parents_value = record.get("parents")
+            if not isinstance(parents_value, list) or not parents_value:
+                fail(f"{label}.parents must be a nonempty array")
+            parents = tuple(
+                _compare_object_commit(parent, f"{label}.parents[{index}]", len(base))
+                for index, parent in enumerate(parents_value)
+            )
+            if len(set(parents)) != len(parents) or commit in parents:
+                fail(f"{label} has duplicate or self-referential parents")
+            records.append((commit, parents))
+
+    if len(records) != total:
+        fail("compare commit records do not cover total_commits")
+    commit_ids = [commit for commit, _ in records]
+    if len(set(commit_ids)) != len(commit_ids) or base in commit_ids:
+        fail("compare commit records repeat a commit or include the base")
+    if commit_ids[-1] != head:
+        fail("final compare commit does not match the candidate release commit")
+
+    all_commits = set(commit_ids)
+    seen: set[str] = set()
+    reachable = {base}
+    for commit, parents in records:
+        if any(parent in all_commits and parent not in seen for parent in parents):
+            fail("compare commit records are not parent-before-child ordered")
+        if any(parent in reachable for parent in parents):
+            reachable.add(commit)
+        seen.add(commit)
+    if head not in reachable:
+        fail("candidate release commit is not connected to the current pin")
+    return total
 
 
 def _release_directory(path: Path) -> tuple[list[str], dict[str, bytes]]:
@@ -1558,6 +1722,15 @@ def _parser() -> argparse.ArgumentParser:
     installed = subparsers.add_parser("verify-installed", help="verify the pinned installed tree")
     installed.add_argument("--root", required=True)
     installed.add_argument("--pin", required=True)
+
+    ancestry = subparsers.add_parser(
+        "verify-ancestry",
+        help="verify complete paginated GitHub compare records for a strict descendant",
+    )
+    ancestry.add_argument("--compare-pages", required=True)
+    ancestry.add_argument("--base", required=True)
+    ancestry.add_argument("--head", required=True)
+    ancestry.add_argument("--page-size", type=int, default=100)
     return parser
 
 
@@ -1599,6 +1772,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             verified = _verify_installed(_absolute(options.root), _absolute(options.pin),
                                          exact_candidate=False)
             print(f"PASS verify-installed {verified['bundle']['bundle']['digest']}")
+        elif options.command == "verify-ancestry":
+            count = _verify_compare_pages(
+                _absolute(options.compare_pages),
+                options.base,
+                options.head,
+                options.page_size,
+            )
+            print(f"PASS verify-ancestry {options.base}..{options.head} commits={count}")
         else:  # pragma: no cover - argparse enforces this.
             fail("unknown command")
         return 0

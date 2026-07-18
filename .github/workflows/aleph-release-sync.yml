@@ -350,28 +350,42 @@ jobs:
 
           if [ "$changed" = true ]; then
             current_commit=$(<"$DISCOVERY_ROOT/current-commit.txt")
-            compare_file="$DISCOVERY_ROOT/compare.json"
-            "$GH_BIN" api \
-              --header "X-GitHub-Api-Version: $GH_API_VERSION" \
-              "repos/$ALEPH_UPSTREAM/compare/$current_commit...$commit" \
-              > "$compare_file"
-            CURRENT_COMMIT="$current_commit" CANDIDATE_COMMIT="$commit" \
-              COMPARE_FILE="$compare_file" python3 - <<'PY'
+            compare_root="$DISCOVERY_ROOT/compare-pages"
+            mkdir -p "$compare_root"
+            for page in $(seq 1 10); do
+              page_file="$compare_root/$page.json"
+              "$GH_BIN" api \
+                --header "X-GitHub-Api-Version: $GH_API_VERSION" \
+                "repos/$ALEPH_UPSTREAM/compare/$current_commit...$commit?per_page=100&page=$page" \
+                > "$page_file"
+              complete=$(PAGE_FILE="$page_file" PAGE="$page" python3 - <<'PY'
           import json
           import os
 
-          with open(os.environ['COMPARE_FILE'], 'rb') as handle:
+          with open(os.environ['PAGE_FILE'], 'rb') as handle:
               value = json.load(handle)
-          expected_base = os.environ['CURRENT_COMMIT']
-          expected_head = os.environ['CANDIDATE_COMMIT']
-          if (
-              value.get('status') != 'ahead'
-              or value.get('base_commit', {}).get('sha') != expected_base
-              or value.get('merge_base_commit', {}).get('sha') != expected_base
-              or value.get('head_commit', {}).get('sha') != expected_head
-          ):
-              raise SystemExit('candidate release commit is not a strict descendant of the current pin')
+          if not isinstance(value, dict) or not isinstance(value.get('commits'), list):
+              raise SystemExit(f"compare page {os.environ['PAGE']} has no commit array")
+          total = value.get('total_commits')
+          if type(total) is not int or total < 1 or total > 1000:
+              raise SystemExit('compare total_commits is outside the bounded positive range')
+          expected_pages = (total + 99) // 100
+          print('true' if int(os.environ['PAGE']) >= expected_pages else 'false')
           PY
+              )
+              if [ "$complete" = true ]; then
+                break
+              fi
+            done
+            if [ "$complete" != true ]; then
+              echo 'Compare discovery exceeded the bounded 1,000-commit scan' >&2
+              exit 1
+            fi
+            python3 tools/aleph-release-ingest.py verify-ancestry \
+              --compare-pages "$compare_root" \
+              --base "$current_commit" \
+              --head "$commit" \
+              --page-size 100
           else
             current_commit=$(<"$DISCOVERY_ROOT/current-commit.txt")
             if [ "$commit" != "$current_commit" ]; then
