@@ -896,9 +896,7 @@ export async function runLoaAdapterTests(): Promise<LoaAdapterTestReport> {
         'frozen corpus manifest source IDs are malformed or out of order',
       );
       const conformance = pinnedCheckerReport(runDir);
-      const dueFailures = conformance.checks.filter((check) => (
-        check.status === 'FAIL' && (check.id === 'K2.2' || check.id === 'K2.5')
-      ));
+      const dueFailures = conformance.checks.filter((check) => check.status === 'FAIL');
       expect(
         dueFailures.length === 0,
         `S0 artifacts fail current-stage conformance: ${dueFailures.map((check) => check.message).join('; ')}`,
@@ -940,7 +938,7 @@ export async function runLoaAdapterTests(): Promise<LoaAdapterTestReport> {
         ];
         expect(statuses[0] === 1, 'installed start did not dispatch its fail-closed input check');
         expect(statuses[1] === 0 && statuses[2] === 0, 'installed status or resume dispatch failed');
-        expect(statuses[3] === 1, 'incomplete synthetic run unexpectedly passed installed validate');
+        expect(statuses[3] === 0, 'CORPUS-FROZEN synthetic run failed installed validate');
       } finally {
         console.log = priorLog;
         console.error = priorError;
