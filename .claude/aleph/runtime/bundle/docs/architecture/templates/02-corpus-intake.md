@@ -45,7 +45,8 @@ Column rules:
 
 ```markdown
 # Extraction Criteria — ⟨RUN-slug⟩
-- written: ⟨date/time⟩   <!-- must predate the first packet row -->
+<!-- The written timestamp must predate the first packet row. -->
+- written: ⟨date/time⟩
 - author: ⟨actor⟩
 
 ## Candidate-claim definition (this corpus)

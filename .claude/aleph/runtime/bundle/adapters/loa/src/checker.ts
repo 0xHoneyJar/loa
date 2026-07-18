@@ -172,7 +172,9 @@ function renderKernelReport(
   const start = section.indexOf('```markdown\n');
   const end = section.lastIndexOf('\n```');
   if (start < 0 || end <= start) throw new Error('Core kernel-report template is malformed');
-  let report = section.slice(start + '```markdown\n'.length, end);
+  let report = section
+    .slice(start + '```markdown\n'.length, end)
+    .replaceAll('⟨RUN-slug⟩', record.run_id);
   const fields: Record<string, string> = {
     checker_digest: record.checker_digest,
     checker_source_provenance: 'pinned immutable bundle lock',

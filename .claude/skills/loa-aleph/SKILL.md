@@ -62,6 +62,16 @@ prompt, templates, and output contract directly from that bundle. Do not make
 host-local copies or summaries. Ask the runtime to build each blind worker
 bundle, then prepare the native handoff:
 
+Write every stage output only to the exact Core path named by its stage
+contract and template. In particular, S1 finalizes `corpus/manifest.md` and
+writes `ledgers/extraction-criteria.md`; do not create a substitute
+`ledgers/source-inventory.md`. Strip template instruction comments before
+filling fields, and never retain an HTML comment inside a canonical field
+value. Before closing a stage, invoke the pinned checker and resolve every
+failure for an artifact or invariant due at that stage. Missing artifacts from
+future stages may remain incomplete; current-stage failures may not be
+deferred.
+
 ```text
 node <run-local-bundle>/runtime-js/adapters/loa/src/worker-dispatch.js prepare \
   --worker-bundle <sealed-worker-bundle> \

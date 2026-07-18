@@ -18,7 +18,7 @@ export function sha256(bytes) {
     return createHash('sha256').update(bytes).digest('hex');
 }
 export function parseTimestamp(value) {
-    const match = String(value || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?(?:Z| UTC|[+-]\d{2}:\d{2})?$/);
+    const match = String(value || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,9}))?)?)?(?:Z| UTC|[+-]\d{2}:\d{2})?$/);
     if (!match)
         return null;
     const parts = match.slice(1, 7).map((part) => Number(part || 0));
@@ -26,7 +26,8 @@ export function parseTimestamp(value) {
     if (month < 1 || month > 12 || day < 1 || day > 31
         || hour > 23 || minute > 59 || second > 59)
         return null;
-    return parts;
+    const fractionalNanoseconds = Number((match[7] || '').padEnd(9, '0'));
+    return [...parts, fractionalNanoseconds];
 }
 export function compareTimestamp(left, right) {
     for (let i = 0; i < Math.max(left.length, right.length); i++) {
@@ -252,7 +253,7 @@ export function firstRunLogEntry(document, stage) {
     if (!document)
         return null;
     for (let i = 0; i < document.lines.length; i++) {
-        const match = document.lines[i].match(/^##\s+(\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?(?:Z| UTC|[+-]\d{2}:\d{2})?)\s+[—-]\s+(S\d+[ab]?)\s+[—-]\s+(.+)$/);
+        const match = document.lines[i].match(/^##\s+(\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?)?(?:Z| UTC|[+-]\d{2}:\d{2})?)\s+[—-]\s+(S\d+[ab]?)\s+[—-]\s+(.+)$/);
         if (match && match[2].toUpperCase() === stage.toUpperCase()) {
             return { timestamp: match[1], event: match[3], line: i + 1 };
         }

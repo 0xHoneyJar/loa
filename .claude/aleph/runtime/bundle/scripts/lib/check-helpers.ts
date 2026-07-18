@@ -12,6 +12,7 @@ export type TimestampParts = readonly [
   hour: number,
   minute: number,
   second: number,
+  fractionalNanoseconds: number,
 ];
 
 export interface SourceLocation {
@@ -82,7 +83,7 @@ export function sha256(bytes: BinaryLike): string {
 
 export function parseTimestamp(value: unknown): TimestampParts | null {
   const match = String(value || '').trim().match(
-    /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?(?:Z| UTC|[+-]\d{2}:\d{2})?$/,
+    /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,9}))?)?)?(?:Z| UTC|[+-]\d{2}:\d{2})?$/,
   );
   if (!match) return null;
   const parts = match.slice(1, 7).map((part) => Number(part || 0)) as [
@@ -98,7 +99,8 @@ export function parseTimestamp(value: unknown): TimestampParts | null {
     month < 1 || month > 12 || day < 1 || day > 31
     || hour > 23 || minute > 59 || second > 59
   ) return null;
-  return parts;
+  const fractionalNanoseconds = Number((match[7] || '').padEnd(9, '0'));
+  return [...parts, fractionalNanoseconds];
 }
 
 export function compareTimestamp(
@@ -319,7 +321,7 @@ export function firstRunLogEntry(
   if (!document) return null;
   for (let i = 0; i < document.lines.length; i++) {
     const match = document.lines[i].match(
-      /^##\s+(\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?(?:Z| UTC|[+-]\d{2}:\d{2})?)\s+[—-]\s+(S\d+[ab]?)\s+[—-]\s+(.+)$/,
+      /^##\s+(\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?)?(?:Z| UTC|[+-]\d{2}:\d{2})?)\s+[—-]\s+(S\d+[ab]?)\s+[—-]\s+(.+)$/,
     );
     if (match && match[2].toUpperCase() === stage.toUpperCase()) {
       return { timestamp: match[1], event: match[3], line: i + 1 };

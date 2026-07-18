@@ -204,21 +204,22 @@ function templateBlock(
 }
 
 function insertTableRow(document: string, heading: string, row: string): string {
-  const headingAt = document.indexOf(heading);
+  const rendered = document.endsWith('\n') ? document : `${document}\n`;
+  const headingAt = rendered.indexOf(heading);
   if (headingAt < 0) throw new Error(`rendered Core template omits ${heading}`);
-  const firstPipe = document.indexOf('|', headingAt);
-  const firstEnd = document.indexOf('\n', firstPipe);
-  const delimiterEnd = document.indexOf('\n', firstEnd + 1);
+  const firstPipe = rendered.indexOf('|', headingAt);
+  const firstEnd = rendered.indexOf('\n', firstPipe);
+  const delimiterEnd = rendered.indexOf('\n', firstEnd + 1);
   if (firstPipe < 0 || firstEnd < 0 || delimiterEnd < 0) {
     throw new Error(`rendered Core template has malformed table under ${heading}`);
   }
   let insertion = delimiterEnd + 1;
-  while (document[insertion] === '|') {
-    const next = document.indexOf('\n', insertion);
+  while (rendered[insertion] === '|') {
+    const next = rendered.indexOf('\n', insertion);
     if (next < 0) break;
     insertion = next + 1;
   }
-  return `${document.slice(0, insertion)}${row}\n${document.slice(insertion)}`;
+  return `${rendered.slice(0, insertion)}${row}\n${rendered.slice(insertion)}`;
 }
 
 function renderRunManifest(
@@ -327,7 +328,11 @@ function renderCorpusManifest(
     'PENDING S0 HUMAN AUTHORITY',
   );
   for (const file of files) {
-    manifest += `| ${file.source_id} | design-note | ${safeTable(file.frozen_path.replace(/^corpus\//u, ''))} | ${file.scheme} | ${file.digest} | not-recorded | unverifiable | pending-authority | staged exact bytes; admission pending S0 authority |\n`;
+    manifest = insertTableRow(
+      manifest,
+      '## Source inventory',
+      `| ${file.source_id} | design-note | ${safeTable(file.frozen_path.replace(/^corpus\//u, ''))} | ${file.scheme} | ${file.digest} | not-recorded | unverifiable | pending-authority | staged exact bytes; admission pending S0 authority |`,
+    );
   }
   return manifest.endsWith('\n') ? manifest : `${manifest}\n`;
 }
@@ -368,7 +373,11 @@ function renderFrozenCorpusManifest(
     if (!ruling || ruling.decision !== 'admit-exact-bytes') {
       throw new Error(`frozen source ${file.source_id} has no admission ruling`);
     }
-    manifest += `| ${file.source_id} | design-note | ${safeTable(file.frozen_path.replace(/^corpus\//u, ''))} | ${file.scheme} | ${file.digest} | not-recorded | unverifiable | ${ruling.labels.join(',')} | admitted as exact bytes by S0 human authority; see control/gates/GATE-S0-response.json |\n`;
+    manifest = insertTableRow(
+      manifest,
+      '## Source inventory',
+      `| ${file.source_id} | design-note | ${safeTable(file.frozen_path.replace(/^corpus\//u, ''))} | ${file.scheme} | ${file.digest} | not-recorded | unverifiable | ${ruling.labels.join(',')} | admitted as exact bytes by S0 human authority; see control/gates/GATE-S0-response.json |`,
+    );
   }
   const stagedById = new Map(staged.files.map((file) => [file.source_id, file]));
   manifest += '\n## S0 exclusion rulings\n\n';

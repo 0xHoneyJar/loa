@@ -22,7 +22,7 @@ const PRECIS_CHECKER = join(REPO_ROOT, 'scripts', 'validate-precis-fixtures.ts')
 const RUN_CHECKER = join(REPO_ROOT, 'scripts', 'validate-run.ts');
 const EXPECTED_CASES = new Map<string, number>([
   ['K1', 5],
-  ['K2', 20],
+  ['K2', 21],
   ['K3', 8],
   ['K4/K5', 9],
   ['K6', 11],
@@ -478,6 +478,38 @@ addCase('K2', 'declared predecessor is an external run reference', (root) => {
     '- predecessor_run: RUN-prior-fixture',
   );
   requirePass(runFixture(root, relativePath), ['K2.2', 'K2.5']);
+});
+
+addCase('K2', 'RFC 3339 fractional timestamps remain ordered', (root) => {
+  const relativePath = join('docs', 'fixtures', 'run-slice-2');
+  const path = copyFixture('run-slice-2', root, relativePath);
+  replaceOnce(
+    join(path, 'run-manifest.md'),
+    '| 1 | DRAFT | 2026-07-16 08:00 UTC |',
+    '| 1 | DRAFT | 2026-07-16T08:00:00.123Z |',
+  );
+  replaceOnce(
+    join(path, 'run-manifest.md'),
+    '| 2 | CORPUS-FROZEN | 2026-07-16 08:20 UTC |',
+    '| 2 | CORPUS-FROZEN | 2026-07-16T08:00:00.456Z |',
+  );
+  replaceOnce(
+    join(path, 'ledgers', 'extraction-criteria.md'),
+    '- written: 2026-07-16 08:25 UTC',
+    '- written: 2026-07-16T08:25:00.123456789Z',
+  );
+  replaceOnce(
+    join(path, 'run-log.md'),
+    '## 2026-07-16 08:40 UTC — S2 — entry',
+    '## 2026-07-16T08:40:00.456Z — S2 — entry',
+  );
+  requirePass(runFixture(root, relativePath), ['K2.2', 'K2.9']);
+  replaceOnce(
+    join(path, 'run-manifest.md'),
+    '| 1 | DRAFT | 2026-07-16T08:00:00.123Z |',
+    '| 1 | DRAFT | 2026-07-16T08:00:00.789Z |',
+  );
+  requireFailure(runFixture(root, relativePath), 'K2.2');
 });
 
 addCase('K2', 'predecessor id cited outside manifest is dangling', (root) => {
