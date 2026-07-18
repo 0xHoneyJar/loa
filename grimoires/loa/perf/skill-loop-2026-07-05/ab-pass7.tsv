@@ -1,0 +1,19 @@
+# ab-pass7: karpathy-surgical-diff-check old vs new, warn regime, per-run alternation
+# default gate (production, KARPATHY_STATE_CACHE_MIN=262144): <256KB rows take the original path
+n=500	old	runs=20	mean=18.6	p95=28	min=10	max=28
+n=500	new	runs=20	mean=20.1	p95=32	min=10	max=33
+n=5000	old	runs=20	mean=42.9	p95=53	min=34	max=53
+n=5000	new	runs=20	mean=18.5	p95=24	min=14	max=25
+n=20000	old	runs=20	mean=118.1	p95=130	min=101	max=134
+n=20000	new	runs=20	mean=18.0	p95=24	min=13	max=24
+n=real(664)	old	runs=20	mean=21.3	p95=29	min=15	max=29
+n=real(664)	new	runs=20	mean=23.0	p95=32	min=16	max=32
+# forced-warm rows (gate=0): the warm-path floor below the gate, for the record
+n=500-FORCEDWARM	old	runs=20	mean=24.3	p95=29	min=14	max=29
+n=500-FORCEDWARM	new	runs=20	mean=31.0	p95=38	min=15	max=38
+n=real-FORCEDWARM(664)	old	runs=20	mean=23.4	p95=31	min=11	max=45
+n=real-FORCEDWARM(664)	new	runs=20	mean=27.1	p95=37	min=15	max=39
+n=5000+delta	old	runs=20	mean=43.9	p95=54	min=30	max=55
+n=5000+delta	new	runs=20	mean=26.1	p95=30	min=20	max=41
+n=500-COLD	old	runs=20	mean=20.6	p95=27	min=12	max=30
+n=500-COLD	new	runs=20	mean=23.1	p95=29	min=12	max=34

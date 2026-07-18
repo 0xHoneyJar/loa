@@ -171,6 +171,21 @@ class GeminiHeadlessAdapter(ProviderAdapter):
                         f"gemini CLI not found on PATH (set GEMINI_HEADLESS_BIN to override). "
                         f"Install with: npm install -g @google/gemini-cli. Original: {exc}"
                     ) from exc
+                except OSError as exc:
+                    # Spawn failure: ARG_MAX/E2BIG (oversized prompt on argv), ENOMEM,
+                    # "Exec format error", etc. → WALK the chain, never crash raw (bd-q0o;
+                    # FileNotFoundError handled above maps to ConfigError).
+                    raise ProviderUnavailableError(
+                        self.provider,
+                        f"gemini -p spawn failed (ARG_MAX / ENOMEM / exec error?): {exc}",
+                    ) from exc
+                except ValueError as exc:
+                    # Untrusted prompt with an embedded NUL → subprocess raises ValueError
+                    # (NOT an OSError) → WALK, don't crash the chain (bd-q0o).
+                    raise ProviderUnavailableError(
+                        self.provider,
+                        f"gemini -p got un-executable argv (embedded NUL in the prompt?): {exc}",
+                    ) from exc
         except _SemaphoreExhausted as exc:
             raise ProviderUnavailableError(
                 self.provider,

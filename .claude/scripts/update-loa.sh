@@ -192,7 +192,169 @@ check_ledger_schema() {
   fi
 }
 
+# === Version-marker read-back assertion (#1177 item G) ===
+# Sourceable for unit testing. Hard-fails (err → exit 1) if the just-written
+# .loa-version.json does not read back the expected framework_version — no
+# PLACEHOLDER/empty/unchanged marker may survive a bump (AC-c).
+assert_version_marker() {
+  local expected="$1" file="${2:-$VERSION_FILE}"
+  if [[ -z "$expected" ]]; then
+    err "Refusing to accept .loa-version.json: computed framework_version is empty."
+  fi
+  local readback
+  readback=$(jq -r '.framework_version // ""' "$file" 2>/dev/null || echo "")
+  if [[ "$readback" != "$expected" ]]; then
+    err ".loa-version.json write verification FAILED: framework_version reads '$readback', expected '$expected'."
+  fi
+}
+
+# === Copy-set verification gate (#1177 item G) ===
+# Sourceable for unit testing. Runs the mount-submodule copy-set check
+# (refresh_copy_set false) after a refresh and HARD-FAILS (err → exit 1) on any
+# residual drift BEFORE the commit block, so a repo with unresolved copy-set
+# drift never gets a false "Update complete." (AC-a). One documented escape
+# hatch: LOA_UPDATE_SKIP_COPYSET_VERIFY=1 skips the gate LOUDLY (naming the
+# drift it skipped) for mixed-install-mode repos. Returns 0 when in sync (AC-d).
+verify_copyset_gate() {
+  if ! type refresh_copy_set &>/dev/null; then
+    return 0  # copy-set mechanism unavailable (older submodule) — nothing to gate
+  fi
+  local copy_rc=0 aleph_rc=0 verify_aleph=false
+  # Keep the mixed-install-mode escape hatch scoped to COPY-* drift. Aleph is
+  # verified separately and can never be bypassed by that environment flag.
+  refresh_copy_set "false" "false" || copy_rc=1
+  if type refresh_aleph_install &>/dev/null; then
+    if type aleph_refresh_is_applicable &>/dev/null; then
+      aleph_refresh_is_applicable && verify_aleph=true
+    else
+      # Compatibility with an intermediate helper that has Aleph verification
+      # but predates the applicability predicate: fail closed by invoking it.
+      verify_aleph=true
+    fi
+  fi
+  if [[ "$verify_aleph" == "true" ]]; then
+    refresh_aleph_install "false" || aleph_rc=1
+  fi
+  if [[ $aleph_rc -ne 0 ]]; then
+    err "Aleph verification FAILED after refresh — aborting before commit."
+  fi
+  if [[ $copy_rc -ne 0 ]]; then
+    if [[ "${LOA_UPDATE_SKIP_COPYSET_VERIFY:-0}" == "1" ]]; then
+      warn "LOA_UPDATE_SKIP_COPYSET_VERIFY=1 — SKIPPING the copy-set drift gate despite the COPY-* drift reported above; the on-disk copy set does NOT match the submodule (mixed-install-mode escape hatch)."
+      return 0
+    fi
+    err "Copy-set verification FAILED after refresh — drift remains (see COPY-* diagnostics above). Aborting before commit. Override with LOA_UPDATE_SKIP_COPYSET_VERIFY=1 for known mixed-install-mode repos."
+  fi
+  return 0
+}
+
 # === Submodule Update ===
+aleph_selected_tree_bundle_state() {
+  local bundle_relative=".claude/aleph/runtime/bundle"
+  local expected_root actual_root head gitlink inventory
+
+  expected_root=$(cd "$SUBMODULE_PATH" 2>/dev/null && pwd -P) || return 2
+  actual_root=$(git -C "$SUBMODULE_PATH" rev-parse --show-toplevel 2>/dev/null) \
+    || return 2
+  actual_root=$(cd "$actual_root" 2>/dev/null && pwd -P) || return 2
+  [[ "$actual_root" == "$expected_root" ]] || return 2
+  head=$(git -C "$SUBMODULE_PATH" rev-parse HEAD 2>/dev/null) || return 2
+  gitlink=$(git ls-files --stage -- "$SUBMODULE_PATH" 2>/dev/null \
+    | awk '$1 == "160000" && $3 == "0" { print $2 }')
+  [[ -n "$gitlink" && "$head" == "$gitlink" ]] || return 2
+
+  inventory=$(git -C "$SUBMODULE_PATH" ls-tree -r --name-only HEAD -- \
+    "$bundle_relative" 2>/dev/null) || return 2
+  [[ -n "$inventory" ]] || return 1
+  return 0
+}
+
+refresh_submodule_mount_state() {
+  local submodule_script="$1"
+  local aleph_bundle="${SUBMODULE_PATH}/.claude/aleph/runtime/bundle"
+  local aleph_bundle_selected=false
+  local aleph_managed_present=false
+  local helpers_loaded=false
+  local saved_no_commit="$NO_COMMIT"
+  local helper_source_status=0
+  local pinned_bundle_state=0
+
+  aleph_selected_tree_bundle_state || pinned_bundle_state=$?
+  if [[ "$pinned_bundle_state" -eq 2 ]]; then
+    warn "Cannot establish Aleph bundle state from the selected parent-authorized Loa tree"
+    return 1
+  elif [[ "$pinned_bundle_state" -eq 0 ]]; then
+    aleph_bundle_selected=true
+  fi
+  if [[ "$aleph_bundle_selected" == "true" \
+    && ! -e "$aleph_bundle" && ! -L "$aleph_bundle" ]]; then
+    warn "Aleph bundle is tracked by the selected Loa tree but missing from the working tree"
+    return 1
+  elif [[ "$aleph_bundle_selected" != "true" \
+    && ( -e "$aleph_bundle" || -L "$aleph_bundle" ) ]]; then
+    warn "Aleph source bundle exists outside the selected Loa tree"
+    return 1
+  fi
+  if [[ -e ".claude/aleph" || -L ".claude/aleph"
+    || -e ".claude/commands/loa-aleph.md" || -L ".claude/commands/loa-aleph.md"
+    || -e ".claude/skills/loa-aleph" || -L ".claude/skills/loa-aleph" ]]; then
+    aleph_managed_present=true
+  fi
+  if [[ "$aleph_bundle_selected" != "true" \
+    && "$aleph_managed_present" == "true" ]]; then
+    warn "Aleph managed paths remain but the selected Loa version has no source bundle"
+    return 1
+  fi
+
+  if [[ -f "$submodule_script" ]] \
+    && grep -q "verify_and_reconcile_symlinks" "$submodule_script" 2>/dev/null; then
+    source "$submodule_script" --source-only 2>/dev/null || helper_source_status=$?
+    # mount-submodule.sh has its own NO_COMMIT option. Sourcing must not erase
+    # /update-loa's caller choice before the later commit branch.
+    NO_COMMIT="$saved_no_commit"
+    if [[ "$helper_source_status" -eq 0 ]]; then
+      helpers_loaded=true
+    elif [[ "$aleph_bundle_selected" == "true" ]]; then
+      warn "Aleph bundle is selected but mount helpers failed to load"
+      return 1
+    fi
+  elif [[ "$aleph_bundle_selected" == "true" ]]; then
+    warn "Aleph bundle is selected but mount helpers are unavailable"
+    return 1
+  fi
+
+  # Older Loa commits may not expose the modern mount helper surface. Preserve
+  # their legacy tolerance only while they also contain no Aleph bundle.
+  if [[ "$helpers_loaded" != "true" ]]; then
+    return 0
+  fi
+
+  if type verify_and_reconcile_symlinks &>/dev/null; then
+    step "Reconciling symlinks..."
+    if ! verify_and_reconcile_symlinks; then
+      err "Symlink reconcile FAILED (some links remain broken) — aborting before commit."
+    fi
+  fi
+  if [[ "$aleph_bundle_selected" == "true" ]] \
+    && { ! type refresh_copy_set &>/dev/null \
+      || ! type refresh_aleph_install &>/dev/null; }; then
+    warn "Aleph bundle is selected but its compatibility refresh helper is unavailable"
+    return 1
+  fi
+  # #968: refresh the #842 copy set (hooks/, settings.json) so a
+  # submodule bump propagates executor-sensitive paths without a
+  # destructive --force re-mount.
+  if type refresh_copy_set &>/dev/null; then
+    step "Refreshing copy set..."
+    if ! refresh_copy_set "true"; then
+      err "Copy-set or Aleph refresh FAILED — see diagnostics above. Aborting before commit."
+    fi
+  elif [[ "$aleph_bundle_selected" == "true" ]]; then
+    warn "Aleph bundle is selected but its compatibility refresh helper is unavailable"
+    return 1
+  fi
+}
+
 update_submodule() {
   step "Updating Loa submodule..."
 
@@ -235,6 +397,17 @@ update_submodule() {
 
   log "Submodule updated to: $new_version ($new_commit)"
 
+  # #1177 (item G): never write an empty framework_version marker (AC-c).
+  if [[ -z "$new_version" ]]; then
+    err "Refusing to write .loa-version.json: computed framework_version is empty (ref='$target_ref', commit='$new_commit')."
+  fi
+
+  # cycle-115: make the selected commit the superproject's explicit gitlink
+  # trust anchor before any bundled Node dependency may execute. --no-commit
+  # skips the commit but intentionally leaves this exact pin staged.
+  step "Pinning updated submodule in superproject index..."
+  git add "$SUBMODULE_PATH"
+
   # Update .loa-version.json
   step "Updating version manifest..."
   local old_commit
@@ -249,28 +422,18 @@ update_submodule() {
      '.framework_version = $v | .submodule.commit = $c | .submodule.ref = $r | .last_sync = $t' \
      "$VERSION_FILE" > "$tmp_version" && mv "$tmp_version" "$VERSION_FILE"
 
-  log "Version manifest updated"
+  # #1177 (item G): read-back assertion — a write that silently failed (or a
+  # marker frozen at a stale/PLACEHOLDER value) must not survive a bump (AC-c).
+  assert_version_marker "$new_version"
+  log "Version manifest updated (verified: $new_version)"
 
   # Verify and reconcile symlinks
   local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   local submodule_script="${script_dir}/mount-submodule.sh"
-  if [[ -f "$submodule_script" ]]; then
-    # Source verify_and_reconcile_symlinks if available
-    if grep -q "verify_and_reconcile_symlinks" "$submodule_script" 2>/dev/null; then
-      source "$submodule_script" --source-only 2>/dev/null || true
-      if type verify_and_reconcile_symlinks &>/dev/null; then
-        step "Reconciling symlinks..."
-        verify_and_reconcile_symlinks
-      fi
-      # #968: refresh the #842 copy set (hooks/, settings.json) so a
-      # submodule bump propagates executor-sensitive paths without a
-      # destructive --force re-mount.
-      if type refresh_copy_set &>/dev/null; then
-        step "Refreshing copy set..."
-        refresh_copy_set "true"
-      fi
-    fi
-  fi
+  refresh_submodule_mount_state "$submodule_script"
+  # #1177 (item G) HARD GATE: verify the just-refreshed copy set matches the
+  # checked-out submodule and independently reverify Aleph before committing.
+  verify_copyset_gate
 
   # === Ledger Schema Migration Check ===
   check_ledger_schema
@@ -547,4 +710,9 @@ Run: mount-loa.sh"
   echo ""
 }
 
-main "$@"
+# #1177 (item G): run main only when executed directly, not when sourced.
+# Lets tests source the sourceable helpers (assert_version_marker,
+# verify_copyset_gate) without triggering a full update run.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
+fi

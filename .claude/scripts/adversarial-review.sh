@@ -61,6 +61,13 @@ _LIB_CONTENT_PATH="$SCRIPT_DIR/lib-content.sh"
 # duplicate loading. See: Bridgebuilder Review Finding #1 (PR #235)
 source "$_LIB_CONTENT_PATH" 2>/dev/null || true
 
+# cycle-117 item D (#1177): shared DEGRADED/FAILED trajectory + page helper.
+# Same defensive `|| true` soft-source as the libs above — sourcing must not
+# fail under eval-based test sourcing or on a downstream repo mid-update.
+_DEGRADED_VERDICT_LIB_PATH="$SCRIPT_DIR/lib/degraded-verdict-lib.sh"
+# shellcheck source=lib/degraded-verdict-lib.sh
+source "$_DEGRADED_VERDICT_LIB_PATH" 2>/dev/null || true
+
 # Token budgets (with 80% safety margin per D-009)
 DEFAULT_PRIMARY_TOKEN_BUDGET=24000    # 80% of 30k
 DEFAULT_SECONDARY_TOKEN_BUDGET=12000  # 80% of 15k
@@ -91,6 +98,11 @@ load_adversarial_config() {
   CONF_MAX_FILE_BYTES=51200
   CONF_SECRET_SCANNING="true"
   CONF_SECRET_ALLOWLIST=()  # Patterns that should NOT be redacted
+  # cycle-119 C14 (KF-004 repair loop) — default OFF. Only wired under
+  # flatline_protocol.code_review in .loa.config.yaml.example per spec;
+  # loaded generically here (keyed by config_key like every other knob
+  # above) so a downstream repo can opt audit in independently.
+  CONF_REPAIR_LOOP="false"
 
   if [[ ! -f "$CONFIG_FILE" ]]; then
     log "Config file not found, using defaults"
@@ -118,6 +130,7 @@ load_adversarial_config() {
   CONF_MAX_FILE_LINES=$(yq eval ".flatline_protocol.context_escalation.max_file_lines // 500" "$CONFIG_FILE" 2>/dev/null || echo "500")
   CONF_MAX_FILE_BYTES=$(yq eval ".flatline_protocol.context_escalation.max_file_bytes // 51200" "$CONFIG_FILE" 2>/dev/null || echo "51200")
   CONF_SECRET_SCANNING=$(yq eval ".flatline_protocol.secret_scanning.enabled // true" "$CONFIG_FILE" 2>/dev/null || echo "true")
+  CONF_REPAIR_LOOP=$(yq eval ".flatline_protocol.${config_key}.repair_loop // false" "$CONFIG_FILE" 2>/dev/null || echo "false")
 
   # Security invariant: secret_scanning MUST be on. Override if config says false.
   if [[ "$CONF_SECRET_SCANNING" != "true" ]]; then
@@ -305,6 +318,12 @@ _validate_finding_reason() {
 #   {ts_utc, sprint_id, type, model, index, reject_reason, payload}
 # Caller MUST have ensured the sidecar parent dir exists and (optionally)
 # truncated the file at the start of process_findings.
+#
+# cycle-119 C14 (KF-004 repair loop): two OPTIONAL trailing args,
+# repair_attempted / repair_succeeded ("true"/"false"). Omitted (empty
+# string, the default) => neither key is added to the entry, so callers
+# that don't pass them (repair_loop disabled) get the byte-identical
+# legacy schema. Passed => booleans are added, per C14 contract item 5.
 _write_rejected_sidecar() {
   local sidecar_path="$1"
   local finding="$2"
@@ -313,6 +332,8 @@ _write_rejected_sidecar() {
   local sprint_id="$5"
   local type="$6"
   local model="$7"
+  local repair_attempted="${8:-}"
+  local repair_succeeded="${9:-}"
 
   [[ -n "$sidecar_path" ]] || return 0
 
@@ -324,8 +345,159 @@ _write_rejected_sidecar() {
     --arg t "$type" \
     --arg m "$model" \
     --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    '{ts_utc: $ts, sprint_id: $sid, type: $t, model: $m, index: $idx, reject_reason: $r, payload: $f}' \
+    --arg ra "$repair_attempted" \
+    --arg rs "$repair_succeeded" \
+    '{ts_utc: $ts, sprint_id: $sid, type: $t, model: $m, index: $idx, reject_reason: $r, payload: $f}
+     + (if $ra == "" then {} else {repair_attempted: ($ra == "true")} end)
+     + (if $rs == "" then {} else {repair_succeeded: ($rs == "true")} end)' \
     >> "$sidecar_path" 2>/dev/null || true
+}
+
+# =============================================================================
+# KF-004 Repair Loop (cycle-119 C14) — flag default OFF
+# =============================================================================
+# When flatline_protocol.code_review.repair_loop is true, a finding that
+# fails validate_finding gets ONE bounded repair round-trip to the SAME
+# model before being rejected. Four safety constraints (adversarial
+# design panel, non-negotiable):
+#   1. Normalization pre-pass BEFORE validate_finding: case-fold
+#      severity/category + whitespace trim ONLY — no synonym mapping.
+#      (_normalize_finding_for_validation, below.)
+#   2. On residual validation failure: ONE repair round-trip to the SAME
+#      model, sending ONLY the offending finding JSON + the violated
+#      clause text from _validate_finding_reason.
+#      (_repair_finding_via_model, below.)
+#   3. The repaired finding re-enters the FULL pipeline — validate_finding
+#      AND the anchor/hallucination stages — never just the failed clause.
+#      Wired into process_findings' main loop: a successful repair is
+#      pushed through validate_anchor exactly like any first-try-valid
+#      finding, and the hallucination filter runs unconditionally on the
+#      whole result array later in main().
+#   4. Byte-diff immutability guard: every field EXCEPT the violated
+#      one(s) must be byte-identical to the rejected original, else
+#      sidecar with reject_reason=repair-mutated-nonviolated-field.
+#      (_repair_diff_ok, below.)
+
+# _normalize_finding_for_validation <finding_json>
+# Case-fold + trim ONLY. severity -> upper (matches the uppercase enum);
+# category -> lower (matches the lowercase enum). No synonym mapping — a
+# model that emits "warning" instead of "ADVISORY" still gets rejected.
+# Absent keys stay absent (no null keys introduced).
+_normalize_finding_for_validation() {
+  local finding="$1"
+  echo "$finding" | jq '
+    (if has("severity") and (.severity | type) == "string"
+     then .severity |= (gsub("^\\s+|\\s+$"; "") | ascii_upcase)
+     else . end)
+    | (if has("category") and (.category | type) == "string"
+       then .category |= (gsub("^\\s+|\\s+$"; "") | ascii_downcase)
+       else . end)
+  ' 2>/dev/null
+}
+
+# _repair_violated_field <reject_reason>
+# Maps a _validate_finding_reason string to the single field name it
+# names as violated. Unknown/unmapped reasons yield "" (empty) — the
+# byte-diff guard then requires the repaired finding to be fully
+# identical to the original (no field is authorized to change).
+_repair_violated_field() {
+  local reason="$1"
+  case "$reason" in
+    missing-or-non-string-id)        echo "id" ;;
+    missing-severity|severity-not-in-enum*)  echo "severity" ;;
+    missing-category|category-not-in-enum*)  echo "category" ;;
+    missing-or-empty-description)    echo "description" ;;
+    missing-or-empty-failure_mode)   echo "failure_mode" ;;
+    *)                                echo "" ;;
+  esac
+}
+
+# _repair_diff_ok <original_json> <repaired_json> <allowed_field>
+# Structural-equality guard (jq ==, so key order/whitespace never counts
+# as a mutation): original and repaired must be identical after deleting
+# allowed_field from both. Catches added/removed keys AND changed values
+# on any field other than the one the model was authorized to touch.
+_repair_diff_ok() {
+  local original="$1"
+  local repaired="$2"
+  local allowed_field="$3"
+
+  jq -e -n --argjson orig "$original" --argjson rep "$repaired" --arg af "$allowed_field" '
+    ($orig | del(.[$af])) == ($rep | del(.[$af]))
+  ' >/dev/null 2>&1
+}
+
+# _repair_finding_via_model <finding_json> <type> <violated_clause> <model> <timeout>
+# ONE bounded repair round-trip to the SAME model. Sends ONLY the
+# offending finding JSON + the violated-clause reason text — never the
+# diff, never other findings (bounded cost, bounded blast radius per the
+# adversarial panel). Prints the repaired finding JSON on stdout; prints
+# nothing and returns non-zero on any failure (missing binary, timeout,
+# unparseable response) — caller treats that as "repair unavailable".
+#
+# Test seam: bats tests source this file and REDEFINE this function with
+# a mock responder (bash allows re-declaring a sourced function) — see
+# tests/unit/adversarial-review-repair-loop.bats. This real implementation
+# is only exercised in a live run with repair_loop enabled.
+_repair_finding_via_model() {
+  local finding_json="$1"
+  local type="$2"
+  local violated_clause="$3"
+  local model="$4"
+  local timeout="${5:-60}"
+
+  local workdir
+  workdir=$(mktemp -d "${TMPDIR:-/tmp}/adv-repair.XXXXXX") || return 1
+  local sys_file="$workdir/repair-system.txt"
+  local user_file="$workdir/repair-user.txt"
+
+  cat > "$sys_file" <<'EOF'
+You are repairing a single adversarial-review finding JSON object that
+failed schema validation. You will be given the finding object and the
+SPECIFIC violated validation clause. Return ONLY the corrected finding as
+a single JSON object on stdout — no markdown fences, no prose, no
+surrounding envelope. Change ONLY the field(s) needed to satisfy the
+stated violation. Every other field MUST remain byte-identical to the
+input (do not add, remove, or rename any field).
+EOF
+
+  if ! jq -n --argjson f "$finding_json" --arg vc "$violated_clause" \
+      '{finding: $f, violated_clause: $vc}' > "$user_file" 2>/dev/null; then
+    rm -rf "$workdir" 2>/dev/null || true
+    return 1
+  fi
+
+  local raw rc=0
+  raw=$(invoke_dissenter "$sys_file" "$user_file" "$model" "$timeout" "" "$type" 2>/dev/null) || rc=$?
+  rm -rf "$workdir" 2>/dev/null || true
+  [[ $rc -eq 0 ]] || return 1
+  [[ -n "$raw" ]] || return 1
+
+  local content
+  content=$(printf '%s' "$raw" | jq -r '.content // empty' 2>/dev/null) || return 1
+  [[ -n "$content" ]] || return 1
+
+  # Extract the first balanced JSON object from the (possibly
+  # fence-wrapped / prose-prefixed) content, mirroring process_findings'
+  # own reasoning-class-model tolerance (KF-011).
+  local extracted
+  extracted=$(printf '%s' "$content" | python3 -c '
+import sys, json
+text = sys.stdin.read()
+decoder = json.JSONDecoder()
+i = 0
+while i < len(text):
+    if text[i] == "{":
+        try:
+            obj, _ = decoder.raw_decode(text[i:])
+            print(json.dumps(obj))
+            break
+        except json.JSONDecodeError:
+            pass
+    i += 1
+' 2>/dev/null) || return 1
+  [[ -n "$extracted" ]] || return 1
+  printf '%s' "$extracted"
 }
 
 # =============================================================================
@@ -611,15 +783,18 @@ invoke_dissenter() {
   # call. Defaults empty for backward-compat with any pre-D-6 caller.
   local type="${6:-}"
 
-  # Build the skill string for /loa status --economy attribution.
-  # adversarial-review:review / adversarial-review:audit / etc. Empty
-  # when type wasn't supplied — model-adapter.sh treats absent --skill
-  # as no-op.
+  # Build the skill string for /loa status --economy attribution AND
+  # (cycle-119 C16 / D-6 slice) MODELINV calling_primitive attribution —
+  # model-adapter.sh forwards --skill straight through to cheval, which
+  # stamps it into the MODELINV envelope. Value is exactly `adversarial-
+  # <type>` (adversarial-review / adversarial-audit) per the C16 contract.
+  # Empty when type wasn't supplied — model-adapter.sh treats absent
+  # --skill as no-op.
   local -a skill_args=()
   if [[ -n "$type" ]]; then
     # bug-868 residue: also pass --phase so model-adapter logs the real
     # phase instead of its cosmetic "prd" default on review/audit calls.
-    skill_args=(--skill "adversarial-review:$type" --phase "$type")
+    skill_args=(--skill "adversarial-$type" --phase "$type")
   fi
 
   if [[ -n "$vq_sidecar" ]]; then
@@ -873,21 +1048,76 @@ while i < len(text):
   local validated_findings="[]"
   local i=0
   local rejected_count=0
+  # cycle-119 C14 (KF-004 repair loop) — only meaningful when the flag is
+  # on; stays 0 and is omitted from output metadata otherwise (flag OFF
+  # must be byte-identical legacy behavior).
+  local repaired_count=0
   while [[ $i -lt $finding_count ]]; do
     local finding
     finding=$(echo "$parsed" | jq ".findings[$i]")
 
-    if validate_finding "$finding" "$type"; then
+    # Constraint 1: normalization pre-pass BEFORE validate_finding —
+    # case-fold + trim ONLY, gated entirely behind the flag so disabled
+    # behavior never differs from pre-C14.
+    local candidate="$finding"
+    if [[ "${CONF_REPAIR_LOOP:-false}" == "true" ]]; then
+      candidate=$(_normalize_finding_for_validation "$finding")
+    fi
+
+    if validate_finding "$candidate" "$type"; then
       # Run anchor validation
       local validated
-      validated=$(validate_anchor "$finding" "$type" "$diff_files")
+      validated=$(validate_anchor "$candidate" "$type" "$diff_files")
       validated_findings=$(echo "$validated_findings" | jq --argjson f "$validated" '. + [$f]')
     else
       local reject_reason
-      reject_reason=$(_validate_finding_reason "$finding" "$type")
-      log "Rejected invalid finding at index $i: ${reject_reason:-unknown-reason}"
-      _write_rejected_sidecar "$rejected_sidecar" "$finding" "$reject_reason" "$i" "$sprint_id" "$type" "$model"
-      rejected_count=$((rejected_count + 1))
+      reject_reason=$(_validate_finding_reason "$candidate" "$type")
+
+      local repair_attempted="false" repair_succeeded="false"
+      local sidecar_reject_reason="$reject_reason"
+      local accepted_finding=""
+
+      if [[ "${CONF_REPAIR_LOOP:-false}" == "true" ]]; then
+        repair_attempted="true"
+        local violated_field
+        violated_field=$(_repair_violated_field "$reject_reason")
+        local repaired
+        if repaired=$(_repair_finding_via_model "$candidate" "$type" "$reject_reason" "$model" "${CONF_TIMEOUT:-60}") \
+           && [[ -n "$repaired" ]] \
+           && echo "$repaired" | jq empty >/dev/null 2>&1; then
+          if _repair_diff_ok "$candidate" "$repaired" "$violated_field"; then
+            # Constraint 3: repaired finding re-enters the FULL pipeline —
+            # validate_finding + validate_anchor here; the hallucination
+            # filter runs unconditionally on the whole result array later
+            # in main(), so a successful repair passes through it too.
+            if validate_finding "$repaired" "$type"; then
+              accepted_finding=$(validate_anchor "$repaired" "$type" "$diff_files")
+              repair_succeeded="true"
+            else
+              sidecar_reject_reason=$(_validate_finding_reason "$repaired" "$type")
+            fi
+          else
+            # Constraint 4: byte-diff immutability guard failed.
+            sidecar_reject_reason="repair-mutated-nonviolated-field"
+          fi
+        fi
+        # Repair call itself failed/unavailable: sidecar_reject_reason
+        # stays the original reject_reason — repair_attempted=true,
+        # repair_succeeded=false still records that a round-trip happened.
+      fi
+
+      if [[ "$repair_succeeded" == "true" ]]; then
+        validated_findings=$(echo "$validated_findings" | jq --argjson f "$accepted_finding" '. + [$f]')
+        repaired_count=$((repaired_count + 1))
+      else
+        log "Rejected invalid finding at index $i: ${sidecar_reject_reason:-unknown-reason}"
+        if [[ "${CONF_REPAIR_LOOP:-false}" == "true" ]]; then
+          _write_rejected_sidecar "$rejected_sidecar" "$finding" "$sidecar_reject_reason" "$i" "$sprint_id" "$type" "$model" "$repair_attempted" "$repair_succeeded"
+        else
+          _write_rejected_sidecar "$rejected_sidecar" "$finding" "$sidecar_reject_reason" "$i" "$sprint_id" "$type" "$model"
+        fi
+        rejected_count=$((rejected_count + 1))
+      fi
     fi
     i=$((i + 1))
   done
@@ -911,6 +1141,14 @@ while i < len(text):
     rejected_sidecar_rel="${rejected_sidecar#"$PROJECT_ROOT/"}"
   fi
 
+  # cycle-119 C14: repaired_count only appears in metadata when the flag
+  # is on — omitted entirely when off, so the envelope is byte-identical
+  # to pre-C14 output in the disabled (default) case.
+  local repair_metadata_json="{}"
+  if [[ "${CONF_REPAIR_LOOP:-false}" == "true" ]]; then
+    repair_metadata_json=$(jq -nc --argjson rc "$repaired_count" '{repaired_count: $rc}')
+  fi
+
   jq -n \
     --argjson findings "$validated_findings" \
     --arg type "$type" --arg model "$model" --arg sid "$sprint_id" \
@@ -919,11 +1157,12 @@ while i < len(text):
     --argjson cost "$cost" --argjson lat "$latency" \
     --argjson rejc "$rejected_count" \
     --arg rejs "$rejected_sidecar_rel" \
-    '{findings: $findings, metadata: {type: $type, model: $model, sprint_id: $sid,
+    --argjson repairmeta "$repair_metadata_json" \
+    '{findings: $findings, metadata: ({type: $type, model: $model, sprint_id: $sid,
       timestamp: $ts, tokens_input: $ti, tokens_output: $to, cost_usd: $cost,
       latency_ms: $lat, status: "reviewed", degraded: false,
       rejected_count: $rejc,
-      rejected_sidecar: (if $rejs == "" then null else $rejs end)}}'
+      rejected_sidecar: (if $rejs == "" then null else $rejs end)} + $repairmeta)}'
 }
 
 # =============================================================================
@@ -1195,6 +1434,10 @@ write_output() {
   local result_json="$1"
   local sprint_id="$2"
   local type="$3"
+  # cycle-117 item D (#1177): exit code of the last-attempted model in the
+  # fallback chain (0 when the winning attempt succeeded). Optional —
+  # callers that don't have one (none currently) get the "-" no-op default.
+  local api_exit_code="${4:--}"
 
   local output_dir="$PROJECT_ROOT/grimoires/loa/a2a/${sprint_id}"
   mkdir -p "$output_dir"
@@ -1245,6 +1488,67 @@ write_output() {
     done
     echo "$trajectory_entry" >> "$trajectory_file"
     rmdir "$lock_dir"
+  fi
+
+  # cycle-117 item D (#1177): uniform DEGRADED/FAILED trajectory record +
+  # page. Preferred signal: result_json.verdict_quality.status (the
+  # multi-voice aggregator's canonical classification, SDD §3.2.2).
+  # Fallback (no envelope — legacy/pre-T2.3 cheval emits, or the STATE-1
+  # api_failure short-circuit in process_findings which never reaches the
+  # aggregator): metadata.status == "api_failure" counts as DEGRADED for
+  # THIS signal regardless of type (review or audit) — deliberately
+  # broader than the pre-existing metadata.degraded field (audit-only,
+  # left untouched below), since a review-type API outage is exactly the
+  # crate 4-day-outage scenario this signal exists to catch.
+  local _c117d_band="" _c117d_reason="unknown" _c117d_mec="$api_exit_code"
+  local -a _c117d_legs=()
+  local _c117d_vq_status
+  _c117d_vq_status=$(echo "$result_json" | jq -r '.verdict_quality.status // empty' 2>/dev/null) || _c117d_vq_status=""
+  if [[ -n "$_c117d_vq_status" ]]; then
+    _c117d_band="$_c117d_vq_status"
+    _c117d_reason=$(echo "$result_json" | jq -r '.verdict_quality.voices_dropped[0].reason // "unknown"' 2>/dev/null) || _c117d_reason="unknown"
+    local _c117d_vq_mec
+    _c117d_vq_mec=$(echo "$result_json" | jq -r '.verdict_quality.voices_dropped[0].exit_code // empty' 2>/dev/null) || _c117d_vq_mec=""
+    [[ -n "$_c117d_vq_mec" ]] && _c117d_mec="$_c117d_vq_mec"
+    while IFS= read -r _c117d_leg; do
+      [[ -n "$_c117d_leg" ]] && _c117d_legs+=("$_c117d_leg")
+    done < <(echo "$result_json" | jq -r '.verdict_quality.voices_dropped[]?.voice // empty' 2>/dev/null)
+  else
+    local _c117d_meta_status
+    _c117d_meta_status=$(echo "$result_json" | jq -r '.metadata.status // empty' 2>/dev/null) || _c117d_meta_status=""
+    if [[ "$_c117d_meta_status" == "api_failure" ]]; then
+      _c117d_band="DEGRADED"
+      _c117d_reason=$(echo "$result_json" | jq -r '.metadata.error // "unknown"' 2>/dev/null) || _c117d_reason="unknown"
+      local _c117d_meta_model
+      _c117d_meta_model=$(echo "$result_json" | jq -r '.metadata.model // empty' 2>/dev/null) || _c117d_meta_model=""
+      [[ -n "$_c117d_meta_model" ]] && _c117d_legs+=("$_c117d_meta_model")
+    fi
+  fi
+
+  if [[ "$_c117d_band" == "DEGRADED" || "$_c117d_band" == "FAILED" ]] \
+     && declare -F degraded_verdict_maybe_emit >/dev/null 2>&1; then
+    degraded_verdict_maybe_emit "adversarial-review:${type}" "$_c117d_band" \
+      "$_c117d_reason" "$sprint_id" "$_c117d_mec" \
+      ${_c117d_legs[@]+"${_c117d_legs[@]}"}
+  fi
+
+  # cycle-119 C14 (KF-004 repair loop, #1177-D wiring): rejected+repaired
+  # counts feed the SAME uniform degraded-trajectory channel so "N
+  # findings still silently eaten even after a repair attempt" is visible
+  # without opening the sidecar. Gated on the flag AND rejected_count>0 —
+  # a clean run (or the flag OFF default) never reaches this; distinct
+  # gate suffix so it never collides with the api_failure/verdict_quality
+  # record above.
+  if [[ "${CONF_REPAIR_LOOP:-false}" == "true" ]] \
+     && declare -F degraded_verdict_maybe_emit >/dev/null 2>&1; then
+    local _c14_rejected _c14_repaired
+    _c14_rejected=$(echo "$result_json" | jq -r '.metadata.rejected_count // 0' 2>/dev/null) || _c14_rejected=0
+    _c14_repaired=$(echo "$result_json" | jq -r '.metadata.repaired_count // 0' 2>/dev/null) || _c14_repaired=0
+    if [[ "$_c14_rejected" =~ ^[0-9]+$ ]] && [[ "$_c14_rejected" -gt 0 ]]; then
+      degraded_verdict_maybe_emit "adversarial-review:${type}:repair-loop" "DEGRADED" \
+        "kf-004-repair-loop: ${_c14_rejected} rejected finding(s) survived repair (${_c14_repaired} repaired)" \
+        "$sprint_id" "-"
+    fi
   fi
 }
 
@@ -1537,7 +1841,7 @@ main() {
   result=$(_apply_hallucination_filter "$result" "$diff_file")
 
   # Write output
-  write_output "$result" "$sprint_id" "$type"
+  write_output "$result" "$sprint_id" "$type" "$api_exit"
 
   # Output to stdout
   echo "$result"

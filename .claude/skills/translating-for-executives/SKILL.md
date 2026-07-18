@@ -2,13 +2,20 @@
 name: translate
 description: Translate technical documentation into executive-ready communications
 role: implementation
-allowed-tools: Read, Grep, Glob, Write
+# cycle-120 audit: Phase 5.5 runs validate-artifact.sh as a MUST gate, so the
+# skill needs scoped Bash to it — without this the gate prompts (or, per
+# skill-invariants.md, silently cannot fire). Scoped to the one script only.
+allowed-tools: Read, Grep, Glob, Write, Bash(.claude/scripts/validate-artifact.sh *)
 capabilities:
   schema_version: 1
   read_files: true
   search_code: true
   write_files: true
-  execute_commands: false
+  execute_commands:
+    allowed:
+      - command: ".claude/scripts/validate-artifact.sh"
+        args: ["*"]
+    deny_raw_shell: true
   web_access: false
   user_interaction: false
   agent_spawn: false
@@ -17,83 +24,11 @@ cost-profile: moderate
 ---
 
 <prompt_enhancement_prelude>
-## Invisible Prompt Enhancement
-
-Before executing main skill logic, apply automatic prompt enhancement to user's request.
-
-### Step 1: Check Configuration
-
-Read `.loa.config.yaml` invisible_mode setting:
-```yaml
-prompt_enhancement:
-  invisible_mode:
-    enabled: true|false
-```
-
-If `prompt_enhancement.invisible_mode.enabled: false` (or not set), skip to main skill logic with original prompt.
-
-### Step 2: Check Command Opt-Out
-
-If this command's frontmatter specifies `enhance: false`, skip enhancement.
-
-### Step 3: Analyze Prompt Quality (PTCF Framework)
-
-Analyze the user's prompt for PTCF components:
-
-| Component | Detection Patterns | Weight |
-|-----------|-------------------|--------|
-| **Persona** | "act as", "you are", "as a", "pretend", "assume the role" | 2 |
-| **Task** | create, review, analyze, fix, summarize, write, debug, refactor, build, implement, design | 3 |
-| **Context** | @mentions, file references (.ts, .js, .py), "given that", "based on", "from the", "in the" | 3 |
-| **Format** | "as bullets", "in JSON", "formatted as", "limit to", "step by step", "as a table" | 2 |
-
-Calculate score (0-10):
-- Task verb present: +3
-- Context present: +3
-- Format specified: +2
-- Persona defined: +2
-
-### Step 4: Enhance If Needed
-
-If score < `prompt_enhancement.auto_enhance_threshold` (default 4):
-
-1. **Classify task type**: For /translate, default to `summarization` task type
-2. **Load template** from `.claude/skills/enhancing-prompts/resources/templates/summarization.yaml`
-3. **Apply template**:
-   - Prepend persona if missing
-   - Append format if missing
-   - Add constraints
-   - PRESERVE original text completely
-
-### Step 5: Log to Trajectory (Silent)
-
-Write to `grimoires/loa/a2a/trajectory/prompt-enhancement-{date}.jsonl`:
-```json
-{
-  "type": "prompt_enhancement",
-  "timestamp": "ISO8601",
-  "command": "translate",
-  "action": "ENHANCED|SKIP|DISABLED|OPT_OUT|ERROR",
-  "original_score": N,
-  "enhanced_score": N,
-  "components_added": ["persona", "format"],
-  "task_type": "summarization",
-  "latency_ms": N
-}
-```
-
-### Step 6: Continue with Prompt
-
-Use the (potentially enhanced) prompt for main skill execution.
-
-**CRITICAL**: Never show enhancement output to user. All analysis is internal only.
-
-### Error Handling
-
-On ANY error during enhancement:
-- Log `action: "ERROR"` to trajectory
-- Use original prompt unchanged (silent passthrough)
-- Continue with main skill execution
+If `.loa.config.yaml` sets `prompt_enhancement.invisible_mode.enabled: true` and this command's
+frontmatter does not set `enhance: false`, silently apply the PTCF scoring + template flow from
+`.claude/skills/enhancing-prompts/SKILL.md` to the user's request before main logic (log per that
+skill; never show enhancement output). On any error, or when disabled: proceed with the original
+prompt unchanged.
 </prompt_enhancement_prelude>
 
 # DevRel Translator Skill (Enterprise-Grade v2.0)
@@ -300,59 +235,15 @@ After processing heavy reports (500+ lines):
 | Repetitive structure | LOW | Summarize |
 </context_engineering>
 
-<structured_memory_protocol>
-## Structured Memory Protocol (Anthropic-Level)
+<context_discipline>
+## Context Discipline
 
-### On Session Start
-
-1. **Read NOTES.md**:
-   ```bash
-   cat grimoires/loa/NOTES.md
-   ```
-
-2. **Extract relevant context**:
-   - Technical debt from previous agents
-   - Blockers and dependencies
-   - Decision log entries
-   - Prior translation audiences/dates
-
-3. **Check beads_rust for related issues**:
-   ```bash
-   br list --label translation --label drift 2>/dev/null
-   ```
-
-### During Execution
-
-1. **Log translation decisions**:
-   ```markdown
-   ## Decision Log
-   | Date | Decision | Rationale | Audience |
-   |------|----------|-----------|----------|
-   | {now} | Emphasized compliance gaps | Board presentation | Board |
-   ```
-
-2. **Create beads_rust issues for Strategic Liabilities**:
-   ```bash
-   # When hygiene report reveals critical tech debt
-   br create "Strategic Liability: {Issue}" --priority 1
-   br label add <id> strategic-liability
-   br label add <id> from-ride
-   ```
-
-3. **Apply Tool Result Clearing** after each artifact
-
-### Before Completion
-
-1. **Update NOTES.md**:
-   ```markdown
-   ## Session Continuity
-   | Timestamp | Agent | Summary |
-   |-----------|-------|---------|
-   | {now} | translating-for-executives | Batch translated /ride for {audience} |
-   ```
-
-2. **Log trajectory** to `a2a/trajectory/translating-{date}.jsonl`
-</structured_memory_protocol>
+Follow `.claude/protocols/tool-result-clearing.md`. Thresholds: single result >2K tokens /
+accumulated >5K / full file >3K / session total >15K → extract findings (≤10 files, ≤20 words
+each, with file:line) to `grimoires/loa/NOTES.md`, then reason from the synthesis, not raw dumps.
+Session start: read NOTES.md "Session Continuity". Session end / pre-compaction: update it
+(decisions → Decision Log, discovered issues → Technical Debt).
+</context_discipline>
 
 <audience_adaptation_matrix>
 ## Audience Adaptation Matrix
@@ -473,6 +364,14 @@ Create `EXECUTIVE-INDEX.md` with:
 4. **Consolidated Action Plan** (owner + timeline)
 5. **Investment Summary** (effort estimates)
 6. **Decisions Requested** (from leadership)
+
+### Phase 5.5: Citation-Resolution Validation (MUST)
+
+After the Phase 4/5 outputs are written, MUST run
+`.claude/scripts/validate-artifact.sh --type translation --file grimoires/loa/translations/`
+before proceeding to Phase 6; repair per its output on exit 1; exit 2
+(usage/file-not-found) is a validator FAILURE — fix the path and re-run, do
+not proceed.
 
 ### Phase 6: beads_rust Integration
 

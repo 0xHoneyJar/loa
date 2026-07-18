@@ -113,6 +113,13 @@ for prov, prov_block in cfg['providers'].items():
             # that the CLI itself resolves). Acceptable; cw cross-check
             # is best-effort and skipped.
             continue
+        if sibling is m:
+            # Self-reference: the CLI's model identifier IS this entry's own
+            # YAML key (xai grok-*, cursor composer-*) — no separate http_api
+            # sibling exists to cross-check. Same tool-internal semantics as
+            # the unresolvable case; skip the parity check. The cycle guard
+            # below still catches A->B chains between DISTINCT cli entries.
+            continue
         sib_kind = sibling.get('kind', 'http_api')
         if sib_kind == 'cli':
             errors.append(f"{prov}.{name} cli_model={cli_model!r} resolves to "

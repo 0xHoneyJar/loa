@@ -55,28 +55,67 @@ san(){ printf '%s' "${1-}" | tr -d '\000-\010\013\014\016-\037\177' | tr '\t\n\r
 # Extract ONLY id-shaped outbound refs (never free prose), deduped, comma-joined.
 refs_of(){ grep -oE 'KF-[0-9]{3}|vision-[0-9]{3}|#[0-9]{2,5}|sha256:[a-f0-9]{8}' "${1}" 2>/dev/null | awk '!s[$0]++' | head -20 | paste -sd, - || true; }
 
-# TSV rows: family<TAB>id<TAB>status<TAB>title<TAB>relpath<TAB>refs
+# TSV rows: family<TAB>id<TAB>status<TAB>title<TAB>relpath<TAB>refs<TAB>symptom<TAB>recurrence
+# The kf family generates its rows FROM the ## KF-NNN: headings (source of truth,
+# complete) — the hand-maintained "## Index" table can no longer make the derived
+# Index drift. Each row's status/symptom/recurrence are parsed from the entry body.
 emit_kf(){
   local f="${G}/known-failures.md"; [[ -f "$f" ]] || return 0
-  local idx; idx="$(mktemp)"
-  # id->status lookup from the maintained "## Index" table (| [KF-NNN](#a) | status | ... |)
-  awk '/^## Index/{i=1;next} i&&/^## /{exit} i' "$f" \
-    | grep -E '^\| *\[KF-[0-9]+\]' \
-    | while IFS='|' read -r _ idcell st _feat _rec _rest; do
-        kid="$(printf '%s' "$idcell" | grep -oE 'KF-[0-9]+' | head -1)"
-        [[ -n "$kid" ]] && printf '%s\t%s\n' "$kid" "$(san "$st")"
-      done > "$idx"
-  # Index from the REAL entry headings (## KF-NNN: — source of truth, complete), deduped by id.
-  grep -E '^## KF-[0-9]+:' "$f" \
-    | awk '{ if(match($0,/KF-[0-9]+/)){k=substr($0,RSTART,RLENGTH); if(!s[k]++) print}}' \
-    | while IFS= read -r line; do
-        id="$(printf '%s' "$line" | grep -oE 'KF-[0-9]+' | head -1)"
-        title="$(printf '%s' "$line" | sed -E 's/^## KF-[0-9]+: *//')"
-        st="$(awk -F'\t' -v k="$id" '$1==k{print $2; exit}' "$idx")"
-        printf 'kf\t%s\t%s\t%s\tgrimoires/loa/known-failures.md\t\n' \
-          "$(san "$id")" "$(san "${st:-}")" "$(san "$title")"
-      done
-  rm -f "$idx"
+  # Parse per-id Status / Symptom / Recurrence from each entry body. We read the
+  # whole file once in awk: on a ## KF-NNN: heading we open a new entry; the first
+  # **Status**/**Symptom**/**Recurrence count** line of that entry wins. Recurrence
+  # is reduced to a leading integer (5+ -> 5, >=7 -> 7); non-numeric (many/every/
+  # n/a) -> "?". Bodies are UNTRUSTED — sanitized at surfacing by san().
+  local meta; meta="$(mktemp)"
+  awk '
+    function fieldval(line, label,   reA, reB, v) {
+      # Two field-line variants, both with an optional "- " list marker:
+      #   A) **Label**: value                 (colon outside the bold)
+      #   B) **Label[ (suffix)]:** value       (colon inside the bold; suffix
+      #      may contain spaces/parens/em-dash but no "*")
+      reA = "^(- )?\\*\\*" label "\\*\\*: ?"
+      reB = "^(- )?\\*\\*" label "[^*]*:\\*\\* ?"
+      if (line ~ reA) { v = line; sub(reA, "", v); return v }
+      if (line ~ reB) { v = line; sub(reB, "", v); return v }
+      return ""
+    }
+    /^## KF-[0-9]+:/ {
+      if (match($0, /KF-[0-9]+/)) { id = substr($0, RSTART, RLENGTH) }
+      else { id = "" }
+      title = $0; sub(/^## KF-[0-9]+: */, "", title)
+      if (id != "" && !(id in seen)) { order[++n] = id; seen[id] = 1; ttl[id] = title }
+      cur = id; next
+    }
+    cur != "" {
+      if (st[cur] == "") { v = fieldval($0, "Status");          if (v != "") { st[cur] = v; next } }
+      if (sy[cur] == "") { v = fieldval($0, "Symptom");         if (v != "") { sy[cur] = v; next } }
+      if (rc[cur] == "") { v = fieldval($0, "Recurrence count"); if (v != "") { rc[cur] = v; next } }
+    }
+    END {
+      for (i = 1; i <= n; i++) {
+        id = order[i]
+        r = rc[id]
+        # Numeric recurrence ONLY when the value LEADS with digits, after an
+        # optional run of comparison markers. ">=7" -> 7, "5+" -> 5,
+        # "≥ 7" -> 7. Non-numeric leads (many / every PR since dd54fe9c /
+        # n/a (cycle-102)) -> "?" — a digit is NEVER scraped from prose.
+        num = "?"
+        v = r
+        # peel a leading comparison prefix: ASCII >=~ , spaces, and the UTF-8
+        # >= glyph (bytes \342\211\245).
+        gsub(/^([>=~ ]|\342\211\245)+/, "", v)
+        if (match(v, /^[0-9]+/)) num = substr(v, RSTART, RLENGTH)
+        # TAB-delimited: id, status, title, symptom, recurrence
+        printf "%s\t%s\t%s\t%s\t%s\n", id, st[id], ttl[id], sy[id], num
+      }
+    }
+  ' "$f" > "$meta"
+  while IFS=$'\t' read -r id status title symptom recurrence; do
+    [[ -n "$id" ]] || continue
+    printf 'kf\t%s\t%s\t%s\tgrimoires/loa/known-failures.md\t\t%s\t%s\n' \
+      "$(san "$id")" "$(san "${status:-}")" "$(san "$title")" "$(san "${symptom:-}")" "$(san "${recurrence:-?}")"
+  done < "$meta"
+  rm -f "$meta"
 }
 emit_vision(){
   local d="${G}/visions/entries"; [[ -d "$d" ]] || return 0
@@ -130,7 +169,9 @@ collect(){ { emit_kf; emit_vision; emit_lore; emit_handoff; emit_obs; } | LC_ALL
 to_json(){
   collect | jq -R -s '
     [ split("\n")[] | select(length>0) | split("\t")
-      | {family:.[0], id:.[1], status:.[2], title:.[3], path:.[4], refs:(.[5]//""|if .=="" then [] else split(",") end)} ]
+      | {family:.[0], id:.[1], status:.[2], title:.[3], path:.[4],
+         refs:(.[5]//""|if .=="" then [] else split(",") end),
+         symptom:(.[6]//""), recurrence:(.[7]//"")} ]
     | { families: (group_by(.family) | map({key:.[0].family, value:.}) | from_entries),
         counts: (group_by(.family) | map({key:.[0].family, value:length}) | from_entries),
         total: length }
@@ -150,9 +191,17 @@ render_md(){
     [[ "$count" == "0" ]] && continue
     echo "## ${fam} (${count})"
     echo
-    echo "| ID | Status | Title | Path | Refs |"
-    echo "|----|--------|-------|------|------|"
-    echo "$json" | jq -r --arg f "$fam" 'def esc: gsub("\\|";"\\|"); .families[$f][] | "| \(.id|esc) | \(.status|esc) | \(.title|esc) | \(.path|esc) | \((.refs//[])|join(", ")|esc) |"'
+    if [[ "$fam" == "kf" ]]; then
+      # kf rows are generated from the ## KF-NNN: headings (source of truth) and
+      # carry a parsed Symptom + numeric Recurrence — drift-proof by construction.
+      echo "| ID | Status | Recurrence | Symptom | Title | Path |"
+      echo "|----|--------|------------|---------|-------|------|"
+      echo "$json" | jq -r --arg f "$fam" 'def esc: gsub("\\|";"\\|"); .families[$f][] | "| \(.id|esc) | \(.status|esc) | \((.recurrence//"")|esc) | \((.symptom//"")|esc) | \(.title|esc) | \(.path|esc) |"'
+    else
+      echo "| ID | Status | Title | Path | Refs |"
+      echo "|----|--------|-------|------|------|"
+      echo "$json" | jq -r --arg f "$fam" 'def esc: gsub("\\|";"\\|"); .families[$f][] | "| \(.id|esc) | \(.status|esc) | \(.title|esc) | \(.path|esc) | \((.refs//[])|join(", ")|esc) |"'
+    fi
     echo
   done
 }
@@ -169,15 +218,28 @@ case "$MODE" in
     rc=0
     bad="$(echo "$JSON" | jq -r '[.families[][] | select((.id|length)==0 or (.path|length)==0)] | length')"
     [[ "$bad" != "0" ]] && { echo "::error::[GRIMOIRE-INDEX] $bad entries missing id/path" >&2; rc=1; }
-    # KF Index-table coverage vs real headings — informational WARNING (hand-maintained
-    # table drift is a data issue, not a generator failure; do not bot-rewrite the
-    # append-only known-failures.md).
-    idx_rows=$(awk '/^## Index/{i=1;next} i&&/^## /{exit} i' "${G}/known-failures.md" 2>/dev/null | grep -cE '^\| *\[KF-[0-9]+\]' || true); idx_rows=${idx_rows:-0}
-    heads=$(echo "$JSON" | jq -r '.counts.kf // 0')
-    if [[ "$idx_rows" != "$heads" ]]; then
-      echo "::warning::[GRIMOIRE-INDEX] known-failures.md ## Index table lists ${idx_rows} KF rows but there are ${heads} ## KF- entries — Index table is stale (informational; repair the table)." >&2
+    # KF Index drift — FAIL-ON-DRIFT assertion (cycle-115 D1). The derived kf
+    # Index is now AUTHORITATIVE: one row is generated per ## KF-NNN: heading
+    # (source of truth). raw_heads is the literal heading count; gen_kf is the
+    # number of rows emitted (deduplicated by id). On a clean file these are
+    # equal. A mismatch means a heading id is DUPLICATED (two entries claiming
+    # one KF-NNN — a defect in the append-only log) or the generator silently
+    # dropped/added an entry — either way the derived Index no longer faithfully
+    # mirrors the headings. That is a hard error, not an informational warning.
+    raw_heads=$(grep -cE '^## KF-[0-9]+:' "${G}/known-failures.md" 2>/dev/null || true); raw_heads=${raw_heads:-0}
+    gen_kf=$(echo "$JSON" | jq -r '.counts.kf // 0')
+    if [[ "$raw_heads" != "$gen_kf" ]]; then
+      echo "::error::[GRIMOIRE-INDEX] generated kf Index has ${gen_kf} rows but known-failures.md has ${raw_heads} ## KF- headings — derived Index drifted from source of truth (duplicate heading id, or a dropped/added entry)." >&2
+      rc=1
     fi
-    [[ $rc -eq 0 ]] && log "grimoire-index: valid ($(echo "$JSON" | jq -r '.total') entries; kf=${heads}, index-table=${idx_rows})"
+    # The hand-maintained "## Index" table inside known-failures.md is being
+    # superseded by this derived Index; its staleness is informational only
+    # (human-edit scope, tracked separately) and does NOT fail validation.
+    hand_rows=$(awk '/^## Index/{i=1;next} i&&/^## /{exit} i' "${G}/known-failures.md" 2>/dev/null | grep -cE '^\| *\[KF-[0-9]+\]' || true); hand_rows=${hand_rows:-0}
+    if [[ "$hand_rows" != "$raw_heads" ]]; then
+      echo "::warning::[GRIMOIRE-INDEX] known-failures.md hand ## Index table lists ${hand_rows} KF rows but there are ${raw_heads} ## KF- entries — hand table is stale (informational; the derived Index is authoritative)." >&2
+    fi
+    [[ $rc -eq 0 ]] && log "grimoire-index: valid ($(echo "$JSON" | jq -r '.total') entries; kf=${gen_kf}, headings=${raw_heads}, hand-table=${hand_rows})"
     exit $rc ;;
   write)
     bad="$(echo "$JSON" | jq -r '[.families[][] | select((.id|length)==0 or (.path|length)==0 or (.family|test("[^a-z]")))] | length')"

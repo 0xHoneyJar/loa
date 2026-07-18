@@ -152,6 +152,16 @@ def test_is_clean_output_missing_vq():
     assert not economy.is_clean_output({})
 
 
+def test_is_clean_output_degraded_status_ok_chain():
+    # cycle-117 item D (#1177): the exact untested shape — status itself
+    # non-APPROVED (not just chain_health) must still fail clean. Pins
+    # "status: DEGRADED/FAILED cannot report clean/APPROVED" for the new
+    # degraded-verdict trajectory signal, which keys off this same status.
+    assert not economy.is_clean_output(
+        {"verdict_quality": {"status": "DEGRADED", "chain_health": "ok"}}
+    )
+
+
 def test_classify_verdict_known():
     assert economy.classify_verdict_quality({"verdict_quality": {"status": "DEGRADED"}}) == "DEGRADED"
     assert economy.classify_verdict_quality({"verdict_quality": {"status": "FAILED"}}) == "FAILED"

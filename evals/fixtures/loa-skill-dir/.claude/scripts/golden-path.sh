@@ -22,7 +22,14 @@
 set -euo pipefail
 
 # Source bootstrap for PROJECT_ROOT and path-lib
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# perf(pass-5): dirname → parameter expansion (fork+exec eliminated).
+_gp_src="${BASH_SOURCE[0]}"
+case "${_gp_src}" in
+    */*) _gp_dir="${_gp_src%/*}"; [[ -n "${_gp_dir}" ]] || _gp_dir="/" ;;
+    *)   _gp_dir="." ;;
+esac
+SCRIPT_DIR="$(cd "${_gp_dir}" && pwd)"
+unset _gp_src _gp_dir
 source "${SCRIPT_DIR}/bootstrap.sh"
 source "${SCRIPT_DIR}/compat-lib.sh"
 
@@ -81,6 +88,12 @@ _gp_sprint_is_complete() {
 # Check if a sprint has been reviewed (no findings or no required changes).
 # Detection: feedback file exists AND contains no "## Changes Required" or "## Findings" sections,
 # OR the sprint has already passed audit (which implies review was acceptable).
+#
+# C8 (cycle-119): structured-first. If the feedback file carries a LOA-VERDICT
+# machine trailer (C6), trust verdict-derive.sh's derived verdict instead of
+# the prose heuristic below. Legacy files (no trailer) are byte-identical to
+# pre-cycle-119 behavior — the trailer check is a no-op grep that falls
+# straight through when no trailer is present.
 _gp_sprint_is_reviewed() {
     local sprint_id="$1"
     local sprint_dir="${_GP_A2A_DIR}/${sprint_id}"
@@ -91,7 +104,19 @@ _gp_sprint_is_reviewed() {
     fi
 
     if [[ -f "${sprint_dir}/engineer-feedback.md" ]]; then
-        # If feedback file has no actionable findings, review passed
+        # R2 review (cycle-119): gate on -f + `bash <script>` (not -x) so a
+        # chmod-lost executable bit cannot silently drop a present trailer
+        # back to the legacy prose heuristic (which could reverse the verdict).
+        if [[ -f "${SCRIPT_DIR}/verdict-derive.sh" ]] && \
+           grep -q '<!-- LOA-VERDICT ' "${sprint_dir}/engineer-feedback.md" 2>/dev/null; then
+            local verdict_json verdict rc
+            verdict_json=$(bash "${SCRIPT_DIR}/verdict-derive.sh" --file "${sprint_dir}/engineer-feedback.md" --gate review --json 2>/dev/null) && rc=0 || rc=$?
+            verdict=$(echo "${verdict_json}" | jq -r '.verdict // empty' 2>/dev/null) || verdict=""
+            [[ "${verdict}" == "APPROVED" ]] && return 0
+            return 1
+        fi
+
+        # Legacy prose logic (byte-identical to pre-cycle-119 behavior)
         if ! grep -qE "^## (Changes Required|Findings|Issues)" "${sprint_dir}/engineer-feedback.md" 2>/dev/null; then
             return 0
         fi
@@ -101,11 +126,24 @@ _gp_sprint_is_reviewed() {
 }
 
 # Check if a sprint has been audited
+#
+# C8 (cycle-119): structured-first, same shape as _gp_sprint_is_reviewed above.
 _gp_sprint_is_audited() {
     local sprint_id="$1"
     local sprint_dir="${_GP_A2A_DIR}/${sprint_id}"
 
     if [[ -f "${sprint_dir}/auditor-sprint-feedback.md" ]]; then
+        # R2 review (cycle-119): -f + bash invocation, same rationale as above.
+        if [[ -f "${SCRIPT_DIR}/verdict-derive.sh" ]] && \
+           grep -q '<!-- LOA-VERDICT ' "${sprint_dir}/auditor-sprint-feedback.md" 2>/dev/null; then
+            local verdict_json verdict rc
+            verdict_json=$(bash "${SCRIPT_DIR}/verdict-derive.sh" --file "${sprint_dir}/auditor-sprint-feedback.md" --gate audit --json 2>/dev/null) && rc=0 || rc=$?
+            verdict=$(echo "${verdict_json}" | jq -r '.verdict // empty' 2>/dev/null) || verdict=""
+            [[ "${verdict}" == "APPROVED" ]] && return 0
+            return 1
+        fi
+
+        # Legacy prose logic (byte-identical to pre-cycle-119 behavior)
         grep -q "APPROVED" "${sprint_dir}/auditor-sprint-feedback.md" 2>/dev/null
         return $?
     fi
@@ -981,3 +1019,20 @@ golden_resolve_truename() {
             ;;
     esac
 }
+
+# R-013 (bd-m1o6, agent-ergonomics pass 1): this file is a sourced function
+# library — direct execution used to silently no-op with exit 0, which an
+# agent probing it like any other script could not distinguish from success.
+# Executed (not sourced) → teach the correct invocation instead.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    {
+        echo "golden-path.sh is a sourced function library, not an executable command."
+        echo "Usage:   source .claude/scripts/golden-path.sh"
+        echo "Then:    golden_detect_workflow_state | golden_suggest_command [--json] |"
+        echo "         golden_resolve_truename <plan|build|review|ship> [override] |"
+        echo "         golden_format_journey | golden_check_ship_ready | golden_menu_options [--json]"
+        echo "Machine-readable status: .claude/scripts/loa-status.sh --triage --json  (state + health + next, one call)"
+        echo "Script contract surface: .claude/scripts/loa-capabilities.sh --json"
+    } >&2
+    exit 2
+fi

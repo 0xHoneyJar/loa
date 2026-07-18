@@ -82,6 +82,29 @@ skip_if_deps_missing() {
     [ "$schema" = "1" ]
 }
 
+@test "bridge-state: init persists explicit consecutive_flatline (7th arg) into .config" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-20260213-a00004" 5 false 0.2 "feature/x" "" 4
+
+    local cf
+    cf=$(jq '.config.consecutive_flatline' "$TEST_TMPDIR/.run/bridge-state.json")
+    [ "$cf" = "4" ]
+}
+
+@test "bridge-state: init defaults consecutive_flatline to 2 when 7th arg omitted" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    # Legacy call shape (≤4 positional args) — protects the ~50 existing callers.
+    init_bridge_state "bridge-20260213-a00005" 3
+
+    local cf
+    cf=$(jq '.config.consecutive_flatline' "$TEST_TMPDIR/.run/bridge-state.json")
+    [ "$cf" = "2" ]
+}
+
 # =============================================================================
 # State Transitions
 # =============================================================================
@@ -434,6 +457,48 @@ EOF
     local consec
     consec=$(jq '.flatline.consecutive_below_threshold' "$TEST_TMPDIR/.run/bridge-state.json")
     [ "$consec" = "0" ]
+}
+
+# =============================================================================
+# Termination Reason (cycle-116 D5)
+# =============================================================================
+
+@test "bridge-state: bridge_termination_reason returns max_depth fresh after init" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-20260213-ff0005" 3
+    local result
+    result=$(bridge_termination_reason 2)
+    [ "$result" = "max_depth" ]
+}
+
+@test "bridge-state: bridge_termination_reason returns flatline after consecutive below-threshold iterations" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-20260213-ff0006" 3 false 0.05
+    update_flatline 100 1  # Initial score
+    update_flatline 3 2    # Below threshold
+    update_flatline 2 3    # Below threshold again → consecutive = 2
+
+    local result
+    result=$(bridge_termination_reason 2)
+    [ "$result" = "flatline" ]
+}
+
+@test "bridge-state: bridge_termination_reason returns max_depth when consecutive count resets" {
+    skip_if_deps_missing
+    source "$TEST_TMPDIR/.claude/scripts/bridge-state.sh"
+
+    init_bridge_state "bridge-20260213-ff0007" 3 false 0.05
+    update_flatline 100 1  # Initial score
+    update_flatline 3 2    # Below threshold
+    update_flatline 50 3   # Above threshold again → consecutive resets to 0
+
+    local result
+    result=$(bridge_termination_reason 2)
+    [ "$result" = "max_depth" ]
 }
 
 # =============================================================================

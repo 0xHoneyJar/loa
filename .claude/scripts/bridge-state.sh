@@ -21,6 +21,7 @@
 #   update_flatline         - Track consecutive flatline count
 #   update_metrics          - Accumulate totals
 #   is_flatlined            - Check flatline termination condition
+#   bridge_termination_reason - Distinguish flatline vs max-depth termination
 
 set -euo pipefail
 
@@ -293,6 +294,7 @@ init_bridge_state() {
   local flatline_threshold="${4:-0.05}"
   local branch="${5:-}"
   local repo="${6:-}"
+  local consecutive_flatline="${7:-2}"
 
   # Generate bridge_id if not provided
   if [[ -z "$bridge_id" ]]; then
@@ -318,6 +320,7 @@ init_bridge_state() {
     --argjson per_sprint "$per_sprint" \
     --arg branch "$branch" \
     --arg repo "$repo" \
+    --argjson consecutive_flatline "$consecutive_flatline" \
     --arg now "$now" \
     '{
       schema_version: $schema_version,
@@ -329,7 +332,8 @@ init_bridge_state() {
         flatline_threshold: $flatline_threshold,
         per_sprint: $per_sprint,
         branch: $branch,
-        repo: $repo
+        repo: $repo,
+        consecutive_flatline: $consecutive_flatline
       },
       timestamps: {
         started: $now,
@@ -580,6 +584,21 @@ is_flatlined() {
     echo "true"
   else
     echo "false"
+  fi
+}
+
+# cycle-116 D5: distinguish "converged via kaironic flatline" from "ran out
+# of allotted iterations" — both otherwise fall through to identical
+# Research Mode / Finalization code with no observable signal of which
+# happened. Pure query, safe to call after the iteration loop exits either
+# via the flatline `break` or via natural exhaustion (iteration > depth).
+bridge_termination_reason() {
+  local consecutive_required="${1:-2}"
+
+  if [[ "$(is_flatlined "$consecutive_required")" == "true" ]]; then
+    echo "flatline"
+  else
+    echo "max_depth"
   fi
 }
 

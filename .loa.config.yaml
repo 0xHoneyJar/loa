@@ -37,9 +37,37 @@ advisor_strategy:
       openai: gpt-5.5-pro
       google: gemini-3.1-pro-preview
     executor:
-      anthropic: claude-sonnet-4-6
+      anthropic: claude-sonnet-5
       openai: gpt-5.3-codex
       google: gemini-2.5-pro
+  # cycle-108 keys, populated cycle-116 D3 (bd-c116-d3-tiering). Additive
+  # no-op today: the role gate at cheval.py:1069 only fires when a caller
+  # passes --role AND omits --model, and no production dispatch site does
+  # (see grimoires/loa/runbooks/model-tiering-per-stage.md). Empty overrides
+  # keep every stage on its role default (all `advisor` above).
+  per_skill_overrides: {}
+  # NFR-Sec1 hard-pin: these skills MUST resolve to advisor tier regardless
+  # of any future per_skill_overrides edit. Loader enforces at load time
+  # (advisor_strategy.py §4b) + schema pins the enum. Values MUST be schema
+  # enum members (.claude/data/schemas/advisor-strategy.schema.json).
+  audited_review_skills:
+    - auditing-security
+    - bridgebuilder-review
+    - eval-running
+    - flatline-knowledge
+    - red-teaming
+    - reviewing-code
+    - rtfm-testing
+    - validating-construct-manifest
+  # cycle-116 D3: per-stage tier-routing opt-in. Nested map so future stages
+  # add a key without a schema churn. flatline_scorer=false => Flatline
+  # score-mode dispatch is byte-identical to pre-D3 (hardcoded --model pin
+  # in flatline-orchestrator.sh call_model). Flip true ONLY after the live
+  # A/B in the runbook clears; see model-tiering-per-stage.md. Cross-ref:
+  # workload_tier_map (informational calibration memory, not a dispatch
+  # consumer) records the same advisor/executor evidence per skill.
+  stage_routing:
+    flatline_scorer: false
 
 simstim:
   enabled: true
@@ -318,6 +346,9 @@ flatline_protocol:
     model: gpt-5.5-pro
     budget_cents: 200
     timeout_seconds: 600
+    # C-D6 (cycle-120, bd-4na9): dogfood the repair loop on our own review gate.
+    # Observability: adversarial-rejected sidecar + degraded-trajectory gate adversarial-review:code_review:repair-loop.
+    repair_loop: true
     # KF-011 sub-mode (c) mitigation (2026-05-17): Gemini-3.1-pro empty-content
     # on review-type prompts post cycle-109 T4.10. Adding claude-headless as a
     # 4th-line voice so quorum is reachable when Gemini is silent. KF-011
@@ -516,3 +547,35 @@ workload_tier_map:
       tier: advisor
       rationale: "simstim orchestrates the same review+audit pipeline as /run"
       evidence_ref: "default"
+
+# -----------------------------------------------------------------------------
+# Known Failures surface (cycle-115)
+# -----------------------------------------------------------------------------
+# The operational log at grimoires/loa/known-failures.md records degradation
+# patterns the framework has hit. Its ## Index is generated (drift-proof) by
+# .claude/scripts/grimoire-index.sh from the ## KF-NNN: headings.
+known_failures:
+  # When true, the .claude/hooks/loa-kf-surface.sh SessionStart hook surfaces a
+  # compact symptom -> KF table (with numeric recurrence) at session start so an
+  # agent sees the failure log before triaging. DEFAULT-OFF: the hook is
+  # observability only — it always exits 0, never blocks a session, and emits
+  # NOTHING while this flag is false. When true it is loud-but-nonblocking: it
+  # warns visibly ([KF-SURFACE] WARNING) if the surface is enabled-but-degraded
+  # (known-failures.md unreadable or zero entries parsed).
+  surface_at_session_start: true
+
+# Skill registry / constructs integration.
+registry:
+  # Built-in framework skill names that a registry/pack skill MUST NOT shadow.
+  # is_reserved_skill_name() (constructs-lib.sh) reads this list; a registry
+  # skill matching one of these is filtered from `list`/`loadable` and blocked
+  # by `preload`. Mirrors the Golden-Path workflow skills in .claude/skills/.
+  reserved_skill_names:
+    - "discovering-requirements"
+    - "designing-architecture"
+    - "planning-sprints"
+    - "implementing-tasks"
+    - "reviewing-code"
+    - "auditing-security"
+    - "deploying-infrastructure"
+    - "translating-for-executives"

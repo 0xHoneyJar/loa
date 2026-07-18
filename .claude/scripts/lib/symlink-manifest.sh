@@ -11,7 +11,13 @@
 #
 # Output format: Each entry is "link_path:target_path" where target is relative from link parent.
 # Populates global arrays: MANIFEST_DIR_SYMLINKS, MANIFEST_FILE_SYMLINKS,
-#   MANIFEST_SKILL_SYMLINKS, MANIFEST_CMD_SYMLINKS, MANIFEST_CONSTRUCT_SYMLINKS
+#   MANIFEST_SKILL_SYMLINKS, MANIFEST_CMD_SYMLINKS, MANIFEST_AGENT_SYMLINKS,
+#   MANIFEST_CONSTRUCT_SYMLINKS.
+#
+# `loa-aleph` is intentionally absent from the dynamic skill and command arrays.
+# Its offline installer owns the command, skill, launcher, runtime, and receipt as
+# one verified installation. Symlinking either exposure would make the installed
+# receipt fail closed and would split ownership across two update mechanisms.
 #
 # Construct Extension (Sprint 50, vision-008):
 #   Construct packs can declare their own symlink requirements via .loa-construct-manifest.json
@@ -80,6 +86,9 @@ get_symlink_manifest() {
       if [[ -d "$skill_dir" ]]; then
         local skill_name
         skill_name=$(basename "$skill_dir")
+        # cycle-115: receipt-managed by the pinned Aleph installer. This must be
+        # a real directory in the consumer tree, never a submodule symlink.
+        [[ "$skill_name" == "loa-aleph" ]] && continue
         MANIFEST_SKILL_SYMLINKS+=(".claude/skills/${skill_name}:../../${submodule}/.claude/skills/${skill_name}")
       fi
     done
@@ -92,7 +101,24 @@ get_symlink_manifest() {
       if [[ -f "$cmd_file" ]]; then
         local cmd_name
         cmd_name=$(basename "$cmd_file")
+        # cycle-115: receipt-managed by the pinned Aleph installer. This must be
+        # a real file in the consumer tree, never a submodule symlink.
+        [[ "$cmd_name" == "loa-aleph.md" ]] && continue
         MANIFEST_CMD_SYMLINKS+=(".claude/commands/${cmd_name}:../../${submodule}/.claude/commands/${cmd_name}")
+      fi
+    done
+  fi
+
+  # Phase 4.5: Per-agent symlinks (dynamic — discovered from submodule content)
+  # Mirrors Phase 4 (commands). C12/A6, cycle-119: .claude/agents/ (e.g. loa-scout.md)
+  # must be manifest-covered like skills/commands so mount/verify/eject stay in sync.
+  MANIFEST_AGENT_SYMLINKS=()
+  if [[ -d "${repo_root}/${submodule}/.claude/agents" ]]; then
+    for agent_file in "${repo_root}/${submodule}"/.claude/agents/*.md; do
+      if [[ -f "$agent_file" ]]; then
+        local agent_name
+        agent_name=$(basename "$agent_file")
+        MANIFEST_AGENT_SYMLINKS+=(".claude/agents/${agent_name}:../../${submodule}/.claude/agents/${agent_name}")
       fi
     done
   fi
@@ -108,7 +134,7 @@ get_symlink_manifest() {
 # Returns all entries combined for iteration
 get_all_manifest_entries() {
   get_symlink_manifest "$@"
-  ALL_MANIFEST_ENTRIES=("${MANIFEST_DIR_SYMLINKS[@]}" "${MANIFEST_FILE_SYMLINKS[@]}" "${MANIFEST_SKILL_SYMLINKS[@]}" "${MANIFEST_CMD_SYMLINKS[@]}" "${MANIFEST_CONSTRUCT_SYMLINKS[@]}")
+  ALL_MANIFEST_ENTRIES=("${MANIFEST_DIR_SYMLINKS[@]}" "${MANIFEST_FILE_SYMLINKS[@]}" "${MANIFEST_SKILL_SYMLINKS[@]}" "${MANIFEST_CMD_SYMLINKS[@]}" "${MANIFEST_AGENT_SYMLINKS[@]}" "${MANIFEST_CONSTRUCT_SYMLINKS[@]}")
 }
 
 # =============================================================================
@@ -129,7 +155,7 @@ _discover_construct_manifests() {
   # Build core link set for conflict detection (O(n) lookup via associative array)
   local -A _core_links=()
   local entry
-  for entry in "${MANIFEST_DIR_SYMLINKS[@]}" "${MANIFEST_FILE_SYMLINKS[@]}" "${MANIFEST_SKILL_SYMLINKS[@]}" "${MANIFEST_CMD_SYMLINKS[@]}"; do
+  for entry in "${MANIFEST_DIR_SYMLINKS[@]}" "${MANIFEST_FILE_SYMLINKS[@]}" "${MANIFEST_SKILL_SYMLINKS[@]}" "${MANIFEST_CMD_SYMLINKS[@]}" "${MANIFEST_AGENT_SYMLINKS[@]}"; do
     local link_path="${entry%%:*}"
     _core_links["$link_path"]=1
   done

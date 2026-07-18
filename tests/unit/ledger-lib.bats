@@ -572,7 +572,10 @@ source_lib() {
 
     init_ledger
     create_cycle "Test Cycle"
-    add_sprint "sprint-1"
+    local s1
+    s1=$(add_sprint "sprint-1")
+    # Issue #674 completeness gate: sprints must be completed before archiving
+    update_sprint_status "$s1" completed
 
     # Create some files to archive
     echo "# PRD" > grimoires/loa/prd.md
@@ -641,6 +644,10 @@ source_lib() {
     local s2
     s2=$(add_sprint "sprint-2")
     [[ "$s2" == "2" ]]
+
+    # Issue #674 completeness gate: complete sprints before archiving
+    update_sprint_status "$s1" completed
+    update_sprint_status "$s2" completed
 
     # Archive cycle 1
     archive_cycle "mvp-complete"

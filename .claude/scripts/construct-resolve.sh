@@ -34,6 +34,13 @@ if [[ -f "$SCRIPT_DIR/yq-safe.sh" ]]; then
     source "$SCRIPT_DIR/yq-safe.sh"
 fi
 
+# shellcheck source=lib/dx-utils.sh
+# Conditional, matching the yq-safe.sh pattern above — partial installs must
+# not hard-fail at source time (dx_unknown_flag callers guard via declare -f).
+if [[ -f "$SCRIPT_DIR/lib/dx-utils.sh" ]]; then
+    source "$SCRIPT_DIR/lib/dx-utils.sh"
+fi
+
 # =============================================================================
 # Configuration
 # =============================================================================
@@ -103,9 +110,25 @@ _parse_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --json) JSON_OUTPUT=true; shift ;;
-            --index) INDEX_PATH="$2"; shift 2 ;;
+            --index)
+                # fresh-eyes r1 (bd-m1o6): '--index' as last arg crashed on
+                # unbound $2 under set -u — same class as the R-010 fix.
+                if [[ -z "${2:-}" ]]; then
+                    echo "ERROR: --index requires a path" >&2
+                    echo "Usage: construct-resolve.sh <subcommand> [args] [--json] [--index PATH]" >&2
+                    exit 1
+                fi
+                INDEX_PATH="$2"; shift 2 ;;
             -h|--help) _usage; exit 0 ;;
-            *) echo "ERROR: Unknown flag: $1" >&2; exit 1 ;;
+            *)
+                if declare -F dx_unknown_flag >/dev/null 2>&1; then
+                    dx_unknown_flag "$1" "Usage: construct-resolve.sh <subcommand> [args] [--json] [--index PATH]" \
+                        --json --index --help
+                else
+                    echo "ERROR: Unknown flag: $1" >&2
+                fi
+                exit 1
+                ;;
         esac
     done
 }

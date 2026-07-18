@@ -258,3 +258,173 @@ _source_adv_review_helpers() {
     # adversarial-{type}.json file MUST carry the envelope.
     grep -q "verdict_quality" "$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
 }
+
+# =============================================================================
+# AV-10+: cycle-117 item D (#1177) — write_output emits a degraded-verdict
+# trajectory record + exactly one page for the crate 4-day-outage scenario
+# (forced api_exit_code != 0), and emits/pages NOTHING for a clean run.
+#
+# write_output is exercised for real (not just grepped) via a small
+# generated runner script — sourced adversarial-review.sh in a fresh bash
+# process, with push_notify stubbed AFTER sourcing (bash resolves functions
+# at call time, so the stub wins over degraded-verdict-lib.sh's real
+# push-notify-lib.sh definition) and LOA_DEGRADED_VERDICT_DIR redirected
+# into $BATS_TMP so the real repo's grimoires/loa/a2a/trajectory/ is never
+# touched by this new signal. write_output's own (pre-existing, untouched)
+# main-output write still lands under the real
+# grimoires/loa/a2a/<sprint_id>/ — cleaned up in teardown via $sprint_id.
+# =============================================================================
+
+_run_adv_write_output() {
+    local sprint_id="$1" type="$2" api_exit="$3" result_json="$4"
+    local runner="$BATS_TMP/runner-${sprint_id}.sh"
+    cat > "$runner" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+log() { :; }
+error() { printf '%s\n' "\$*" >&2; return 1; }
+main() { :; }
+source "$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
+push_notify() { echo "PUSH|\$1|\$2|\$3|\$4" >> "$BATS_TMP/pushlog-${sprint_id}.txt"; return 0; }
+export LOA_DEGRADED_VERDICT_DIR="$BATS_TMP/trajectory-${sprint_id}"
+write_output '$result_json' "$sprint_id" "$type" "$api_exit"
+EOF
+    bash "$runner"
+}
+
+_adv_test_sprint_ids=()
+
+teardown_adv_sprint_dirs() {
+    local sid
+    for sid in "${_adv_test_sprint_ids[@]:-}"; do
+        [[ -n "$sid" ]] && rm -rf "$PROJECT_ROOT/grimoires/loa/a2a/${sid}" 2>/dev/null
+    done
+}
+
+@test "AV10: write_output emits DEGRADED record + one page for review-type api_failure (crate outage)" {
+    _require_python_deps
+    local sprint_id="av10-test-$$"
+    _adv_test_sprint_ids+=("$sprint_id")
+    local result_json
+    result_json=$(jq -nc --arg sid "$sprint_id" '{
+        findings: [],
+        metadata: {type: "review", model: "gpt-5.5-pro", sprint_id: $sid,
+                   timestamp: "2026-07-06T00:00:00Z", status: "api_failure",
+                   degraded: false, error: "API call failed with exit code 3"}
+    }')
+
+    run _run_adv_write_output "$sprint_id" "review" "3" "$result_json"
+    [ "$status" -eq 0 ]
+
+    local traj
+    traj="$BATS_TMP/trajectory-${sprint_id}/degraded-verdict-"*.jsonl
+    [ -f $traj ]
+    [ "$(jq -r '.gate' $traj)" = "adversarial-review:review" ]
+    [ "$(jq -r '.verdict_band' $traj)" = "DEGRADED" ]
+    [ "$(jq -r '.sprint_id' $traj)" = "$sprint_id" ]
+    [ "$(jq -r '.model_exit_code' $traj)" = "3" ]
+    [ "$(jq -c '.degraded_legs' $traj)" = '["gpt-5.5-pro"]' ]
+
+    local pushlog="$BATS_TMP/pushlog-${sprint_id}.txt"
+    [ -f "$pushlog" ]
+    [ "$(wc -l < "$pushlog")" -eq 1 ]
+
+    teardown_adv_sprint_dirs
+}
+
+@test "AV11: write_output emits DEGRADED record for audit-type api_failure (pre-existing degraded=true path)" {
+    _require_python_deps
+    local sprint_id="av11-test-$$"
+    _adv_test_sprint_ids+=("$sprint_id")
+    local result_json
+    result_json=$(jq -nc --arg sid "$sprint_id" '{
+        findings: [],
+        metadata: {type: "audit", model: "gpt-5.5-pro", sprint_id: $sid,
+                   timestamp: "2026-07-06T00:00:00Z", status: "api_failure",
+                   degraded: true, error: "API call failed with exit code 5"}
+    }')
+
+    run _run_adv_write_output "$sprint_id" "audit" "5" "$result_json"
+    [ "$status" -eq 0 ]
+
+    local traj
+    traj="$BATS_TMP/trajectory-${sprint_id}/degraded-verdict-"*.jsonl
+    [ -f $traj ]
+    [ "$(jq -r '.gate' $traj)" = "adversarial-review:audit" ]
+    [ "$(jq -r '.verdict_band' $traj)" = "DEGRADED" ]
+    [ "$(jq -r '.model_exit_code' $traj)" = "5" ]
+
+    teardown_adv_sprint_dirs
+}
+
+@test "AV12: write_output emits a FAILED record from a multi-voice verdict_quality envelope" {
+    _require_python_deps
+    local sprint_id="av12-test-$$"
+    _adv_test_sprint_ids+=("$sprint_id")
+    local result_json
+    result_json=$(jq -nc --arg sid "$sprint_id" '{
+        findings: [],
+        metadata: {type: "audit", model: "opus", sprint_id: $sid,
+                   timestamp: "2026-07-06T00:00:00Z", status: "success"},
+        verdict_quality: {
+            status: "FAILED",
+            consensus_outcome: "consensus",
+            truncation_waiver_applied: false,
+            voices_planned: 2,
+            voices_succeeded: 1,
+            voices_succeeded_ids: ["opus"],
+            voices_dropped: [
+                {voice: "gemini-3.1-pro", reason: "EmptyContent", exit_code: 1, blocker_risk: "high"}
+            ],
+            chain_health: "degraded",
+            confidence_floor: "med",
+            rationale: "gemini dropped with high blocker_risk"
+        }
+    }')
+
+    run _run_adv_write_output "$sprint_id" "audit" "0" "$result_json"
+    [ "$status" -eq 0 ]
+
+    local traj
+    traj="$BATS_TMP/trajectory-${sprint_id}/degraded-verdict-"*.jsonl
+    [ -f $traj ]
+    [ "$(jq -r '.verdict_band' $traj)" = "FAILED" ]
+    [ "$(jq -r '.degradation_reason' $traj)" = "EmptyContent" ]
+    [ "$(jq -r '.model_exit_code' $traj)" = "1" ]
+    [ "$(jq -c '.degraded_legs' $traj)" = '["gemini-3.1-pro"]' ]
+
+    teardown_adv_sprint_dirs
+}
+
+@test "AV13: write_output emits NO degraded-verdict record and pages nothing for a clean APPROVED run" {
+    _require_python_deps
+    local sprint_id="av13-test-$$"
+    _adv_test_sprint_ids+=("$sprint_id")
+    local result_json
+    result_json=$(jq -nc --arg sid "$sprint_id" '{
+        findings: [],
+        metadata: {type: "review", model: "gpt-5.5-pro", sprint_id: $sid,
+                   timestamp: "2026-07-06T00:00:00Z", status: "success"},
+        verdict_quality: {
+            status: "APPROVED",
+            consensus_outcome: "consensus",
+            truncation_waiver_applied: false,
+            voices_planned: 1,
+            voices_succeeded: 1,
+            voices_succeeded_ids: ["gpt-5.5-pro"],
+            voices_dropped: [],
+            chain_health: "ok",
+            confidence_floor: "high",
+            rationale: "single-voice success"
+        }
+    }')
+
+    run _run_adv_write_output "$sprint_id" "review" "0" "$result_json"
+    [ "$status" -eq 0 ]
+
+    local traj_dir="$BATS_TMP/trajectory-${sprint_id}"
+    [ ! -d "$traj_dir" ] || [ -z "$(ls "$traj_dir" 2>/dev/null)" ]
+    [ ! -f "$BATS_TMP/pushlog-${sprint_id}.txt" ]
+
+    teardown_adv_sprint_dirs
+}

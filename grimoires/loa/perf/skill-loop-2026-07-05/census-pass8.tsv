@@ -1,0 +1,9 @@
+label	side	child_spawns	breakdown
+block-destructive/benign	old	2	jq x1, grep x1
+block-destructive/benign	new	1	jq x1
+block-destructive/mutating	old	2	jq x1, grep x1
+block-destructive/mutating	new	1	jq x1
+block-destructive/destructive	old	3	grep x2, jq x1
+block-destructive/destructive	new	2	jq x1, grep x1
+block-destructive/blocked	old	9	sed x4, jq x2, mkdir x1, head x1, grep x1
+block-destructive/blocked	new	9	sed x4, jq x2, mkdir x1, head x1, grep x1

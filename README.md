@@ -2,22 +2,22 @@
 
 <!-- AGENT-CONTEXT: Loa is an agent-driven development framework for Claude Code.
 Primary interface: 5 Golden Path commands (/loa, /plan, /build, /review, /ship).
-Power user interface: 48 slash commands (truenames).
+Power user interface: 49 slash commands (truenames).
 Architecture: Three-zone model (System: .claude/, State: grimoires/ + .beads/, App: src/).
 Configuration: .loa.config.yaml (user-owned, never modified by framework).
 Health check: /loa doctor
-Version: 1.180.0
+Version: 1.196.0
 -->
 
-[![Version](https://img.shields.io/badge/version-1.180.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.196.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE.md)
-[![Release](https://img.shields.io/badge/release-v1.173.0%20Opus%204.8-purple.svg)](CHANGELOG.md#11730---2026-06-01)
+[![Release](https://img.shields.io/badge/release-v1.196.0%20Mechanical%20Floor-purple.svg)](https://github.com/0xHoneyJar/loa/releases/tag/v1.196.0)
 
 > *"The Loa are pragmatic entities... They're not worshipped for salvation—they're worked with for practical results."*
 
 ## What Is This?
 
-Loa is an agent-driven development framework for [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) (Anthropic's official CLI). It adds 18 specialized AI agents, quality gates, persistent memory, and structured workflows on top of Claude Code — including a self-improving [spiral orchestrator](#spiral-autopoietic-orchestrator) that can autonomously plan, build, review, and learn across multiple development cycles. Works on macOS and Linux. Created by [@janitooor](https://github.com/deep-name) at [The Honey Jar](https://0xhoneyjar.xyz).
+Loa is an agent-driven development framework for [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) (Anthropic's official CLI). It adds 40 specialized skills, quality gates, persistent memory, and structured workflows on top of Claude Code — including a self-improving [spiral orchestrator](#spiral-autopoietic-orchestrator) that can autonomously plan, build, review, and learn across multiple development cycles. Works on macOS and Linux. Created by [@janitooor](https://github.com/deep-name) at [The Honey Jar](https://0xhoneyjar.xyz).
 
 ### Why "Loa"?
 
@@ -32,7 +32,7 @@ In William Gibson's Sprawl trilogy (*Neuromancer*, *Count Zero*), Loa are AI ent
 curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash
 
 # Or pin to a specific version
-curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash -s -- --tag v1.109.4
+curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash -s -- --tag v1.196.0
 
 # Start Claude Code
 claude
@@ -61,7 +61,7 @@ New project? See **[INSTALLATION.md](INSTALLATION.md#method-2-clone-template)** 
 **The solution**: Loa adds structure without ceremony. Each phase produces a traceable artifact (PRD, SDD, Sprint Plan, Code, Review, Audit) using specialized AI agents. Your code gets reviewed by a Tech Lead agent *and* a Security Auditor agent before it ships.
 
 **Key differentiators**:
-- **Multi-agent orchestration**: 18 specialized skills, not one general-purpose prompt
+- **Multi-agent orchestration**: 40 specialized skills, not one general-purpose prompt
 - **Quality gates**: Two-phase review (code + security) prevents unreviewed code from shipping
 - **Session persistence**: Beads task graph + persistent memory survive context clears
 - **Adversarial review**: Flatline Protocol uses cross-model dissent (Opus + GPT) for planning QA
@@ -105,11 +105,11 @@ For fine-grained control, use the underlying commands directly:
 | 5.5 | `/audit-sprint sprint-N` | Security Approval |
 | 6 | `/deploy-production` | Infrastructure |
 
-**48 total commands.** Type `/loa` for the Golden Path or see [PROCESS.md](PROCESS.md) for all commands.
+**49 total commands.** Type `/loa` for the Golden Path or see [PROCESS.md](PROCESS.md) for all commands.
 
 ## The Agents
 
-Eighteen specialized skills that ride alongside you:
+A selection of the specialized skills that ride alongside you:
 
 | Skill | Role |
 |-------|------|
@@ -236,4 +236,3 @@ Commercial licenses are available for organizations that wish to use Loa without
 - [beads_rust](https://github.com/Dicklesworthstone/beads_rust)
 
 Ridden with [Loa](https://github.com/0xHoneyJar/loa)
-

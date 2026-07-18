@@ -36,11 +36,13 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # === Logging ===
-log() { echo -e "${GREEN}[loa-submodule]${NC} $*"; }
-warn() { echo -e "${YELLOW}[loa-submodule]${NC} WARNING: $*"; }
-err() { echo -e "${RED}[loa-submodule]${NC} ERROR: $*" >&2; exit 1; }
-info() { echo -e "${CYAN}[loa-submodule]${NC} $*"; }
-step() { echo -e "${BLUE}[loa-submodule]${NC} -> $*"; }
+# printf, not echo -e (#1162): %b interprets escapes ONLY in the color codes;
+# message text goes through %s verbatim (backslash-/dash-safe).
+log()  { printf '%b[loa-submodule]%b %s\n' "$GREEN" "$NC" "$*"; }
+warn() { printf '%b[loa-submodule]%b WARNING: %s\n' "$YELLOW" "$NC" "$*"; }
+err()  { printf '%b[loa-submodule]%b ERROR: %s\n' "$RED" "$NC" "$*" >&2; exit 1; }
+info() { printf '%b[loa-submodule]%b %s\n' "$CYAN" "$NC" "$*"; }
+step() { printf '%b[loa-submodule]%b -> %s\n' "$BLUE" "$NC" "$*"; }
 
 # === Configuration ===
 LOA_REMOTE_URL="${LOA_UPSTREAM:-https://github.com/0xHoneyJar/loa.git}"
@@ -57,17 +59,28 @@ RECONCILE_SYMLINKS=false
 SOURCE_ONLY=false
 
 # === Argument Parsing ===
+# Guard for option-taking flags: a missing operand must fail loudly instead of
+# silently consuming the next flag (or an empty string) as the value (#1162).
+require_operand() {
+  if [[ -z "${2:-}" || "${2:-}" == -* ]]; then
+    err "Option $1 requires a value (got '${2:-}')"
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case $1 in
     --branch)
+      require_operand "$1" "${2:-}"
       LOA_BRANCH="$2"
       shift 2
       ;;
     --tag)
+      require_operand "$1" "${2:-}"
       LOA_TAG="$2"
       shift 2
       ;;
     --ref)
+      require_operand "$1" "${2:-}"
       LOA_REF="$2"
       shift 2
       ;;
@@ -427,8 +440,11 @@ validate_symlink_target() {
   repo_root=$(realpath "$repo_root" 2>/dev/null || echo "$repo_root")
   resolved_target=$(realpath "$resolved_target" 2>/dev/null || echo "$resolved_target")
 
-  # Check if resolved target starts with repo root
-  if [[ "$resolved_target" != "$repo_root"* ]]; then
+  # Check the resolved target is INSIDE the repo root. Compare against
+  # "$repo_root/" (or exact equality), not the bare prefix — a bare-prefix
+  # match accepts sibling directories like /home/x/repo-evil when repo_root
+  # is /home/x/repo (#1162 boundary bypass).
+  if [[ "$resolved_target" != "$repo_root" && "$resolved_target" != "$repo_root"/* ]]; then
     err "Security: Symlink target escapes repository bounds: $target"
     err "  Target resolves to: $resolved_target"
     err "  Repository root: $repo_root"
@@ -457,11 +473,366 @@ safe_symlink() {
 # Sourced from shared library: lib/symlink-manifest.sh
 # To add a new symlink target, change ONLY the library file — all consumers inherit.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ALEPH_MOUNT_SCRIPT_SOURCE="${BASH_SOURCE[0]}"
 source "${SCRIPT_DIR}/lib/symlink-manifest.sh"
 # Issue #660: GNU/BSD portable realpath. macOS/BSD lacks `realpath -m` and
 # the previous inline call silently produced empty strings on every macOS
 # operator's first reconcile, falsely declaring `0 fixed` for missing links.
 source "${SCRIPT_DIR}/lib/portable-realpath.sh"
+# cycle-115: portable hashing is used to authenticate the compiled Aleph
+# installer against the bundle lock before executing it.
+# shellcheck source=compat-lib.sh
+source "${SCRIPT_DIR}/compat-lib.sh"
+
+# === Aleph receipt-managed installation (cycle-115) ===
+#
+# The installed Aleph command, skill, launcher, runtime, and receipt form one
+# transactionally-managed unit. They cannot be ordinary submodule symlinks:
+# the adapter verifier deliberately rejects symlinks anywhere in its managed
+# paths. A bundle-less Loa version is a no-op only when no managed Aleph
+# destination remains from a newer version.
+ALEPH_BUNDLE_RELATIVE=".claude/aleph/runtime/bundle"
+ALEPH_INSTALLER_RELATIVE="runtime-js/adapters/loa/src/installer.js"
+ALEPH_RECEIPT_RELATIVE=".claude/aleph/install.lock.json"
+ALEPH_MANAGED_DESTINATIONS=(
+  ".claude/aleph"
+  ".claude/commands/loa-aleph.md"
+  ".claude/skills/loa-aleph"
+)
+
+aleph_path_exists() {
+  [[ -e "$1" || -L "$1" ]]
+}
+
+aleph_target_has_managed_paths() {
+  local repo_root="$1"
+  local destination
+  for destination in "${ALEPH_MANAGED_DESTINATIONS[@]}"; do
+    if aleph_path_exists "${repo_root}/${destination}"; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+aleph_path_components_are_real() {
+  local root="$1"
+  local relative="$2"
+  local current="$root"
+  local part
+  local -a parts=()
+
+  [[ -d "$root" && ! -L "$root" ]] || return 1
+  IFS='/' read -r -a parts <<< "$relative"
+  for part in "${parts[@]}"; do
+    [[ -n "$part" && "$part" != "." && "$part" != ".." ]] || return 1
+    current="${current}/${part}"
+    [[ -e "$current" && ! -L "$current" ]] || return 1
+  done
+  return 0
+}
+
+aleph_node() {
+  NODE_OPTIONS= NODE_PATH= node "$@"
+}
+
+aleph_node_is_supported() {
+  command -v node >/dev/null 2>&1 || return 1
+  local version major
+  version=$(aleph_node --version 2>/dev/null) || return 1
+  if [[ "$version" =~ ^v([0-9]+)\. ]]; then
+    major="${BASH_REMATCH[1]}"
+  else
+    return 1
+  fi
+  [[ "$major" -ge 20 ]]
+}
+
+aleph_source_path_is_real() {
+  local root="$1"
+  local relative="$2"
+
+  aleph_path_components_are_real "$root" "$relative" \
+    && [[ -f "${root}/${relative}" ]]
+}
+
+aleph_submodule_head_is_authorized() {
+  local repo_root="$1"
+  local submodule="$2"
+  local submodule_root="${repo_root}/${submodule}"
+  local expected_root actual_root head gitlink
+
+  expected_root=$(cd "$submodule_root" 2>/dev/null && pwd -P) || return 1
+  actual_root=$(git -C "$submodule_root" rev-parse --show-toplevel 2>/dev/null) || return 1
+  actual_root=$(cd "$actual_root" 2>/dev/null && pwd -P) || return 1
+  [[ "$actual_root" == "$expected_root" ]] || return 1
+
+  head=$(git -C "$submodule_root" rev-parse HEAD 2>/dev/null) || return 1
+  gitlink=$(git -C "$repo_root" ls-files --stage -- "$submodule" 2>/dev/null \
+    | awk '$1 == "160000" && $3 == "0" { print $2 }')
+  [[ -n "$gitlink" && "$head" == "$gitlink" ]]
+}
+
+# A pre-cycle-115 update-loa.sh process checks out the selected submodule and
+# writes its version receipt before it sources this newer mount helper, but it
+# does not stage the gitlink until after refresh_copy_set returns. Permit that
+# one migration corridor to establish the same trust anchor the new updater
+# stages explicitly. Every other detached/mismatched submodule state remains a
+# hard failure.
+aleph_stage_legacy_update_gitlink() {
+  local repo_root="$1"
+  local submodule="$2"
+  local submodule_root="${repo_root}/${submodule}"
+  local version_file="${repo_root}/.loa-version.json"
+  local helper_relative=".claude/scripts/mount-submodule.sh"
+  local expected_helper="${submodule_root}/${helper_relative}"
+  local current_helper
+  local head index_gitlink committed_gitlink recorded_commit
+  local expected_digest current_digest function_name
+  local in_update_submodule=false
+
+  for function_name in "${FUNCNAME[@]}"; do
+    if [[ "$function_name" == "update_submodule" ]]; then
+      in_update_submodule=true
+      break
+    fi
+  done
+  [[ "$in_update_submodule" == "true" ]] || return 1
+
+  head=$(git -C "$submodule_root" rev-parse HEAD 2>/dev/null) || return 1
+  index_gitlink=$(git -C "$repo_root" ls-files --stage -- "$submodule" 2>/dev/null \
+    | awk '$1 == "160000" && $3 == "0" { print $2 }')
+  committed_gitlink=$(git -C "$repo_root" ls-tree HEAD -- "$submodule" 2>/dev/null \
+    | awk '$1 == "160000" && $2 == "commit" { print $3 }')
+  [[ -n "$index_gitlink" && "$index_gitlink" == "$committed_gitlink" \
+    && "$head" != "$index_gitlink" ]] || return 1
+  git -C "$submodule_root" merge-base --is-ancestor \
+    "$index_gitlink" "$head" >/dev/null 2>&1 || return 1
+
+  [[ -f "$version_file" && ! -L "$version_file" ]] || return 1
+  recorded_commit=$(jq -r '.submodule.commit // empty' "$version_file" 2>/dev/null) \
+    || return 1
+  [[ "$recorded_commit" == "$head" ]] || return 1
+
+  git -C "$submodule_root" ls-files --error-unmatch -- \
+    "$helper_relative" >/dev/null 2>&1 || return 1
+  git -C "$submodule_root" diff --no-ext-diff --quiet HEAD -- \
+    "$helper_relative" || return 1
+  [[ -f "$expected_helper" && ! -L "$expected_helper" ]] || return 1
+  current_helper=$(cd "$(dirname "$ALEPH_MOUNT_SCRIPT_SOURCE")" 2>/dev/null \
+    && printf '%s/%s\n' "$(pwd -P)" "$(basename "$ALEPH_MOUNT_SCRIPT_SOURCE")") \
+    || return 1
+  [[ -f "$current_helper" ]] || return 1
+  expected_digest=$(sha256_portable "$expected_helper" 2>/dev/null | cut -d' ' -f1) \
+    || return 1
+  current_digest=$(sha256_portable "$current_helper" 2>/dev/null | cut -d' ' -f1) \
+    || return 1
+  [[ "$expected_digest" =~ ^[0-9a-f]{64}$ \
+    && "$current_digest" == "$expected_digest" ]] || return 1
+
+  git -C "$repo_root" add -- "$submodule" || return 1
+  aleph_submodule_head_is_authorized "$repo_root" "$submodule" || return 1
+  log "Staged selected Loa gitlink for first Aleph-bearing legacy update"
+  return 0
+}
+
+# Return 0 when the parent-authorized submodule tree contains Aleph bundle
+# inventory, 1 when that pinned tree contains no Aleph bundle at all, and 2
+# when authorization or the pinned inventory cannot be established. This tri-state
+# check prevents a deleted working-tree bundle from impersonating a legacy Loa
+# commit that genuinely predates Aleph.
+aleph_pinned_tree_bundle_state() {
+  local repo_root="$1"
+  local submodule="$2"
+  local submodule_root="${repo_root}/${submodule}"
+  local inventory
+
+  aleph_submodule_head_is_authorized "$repo_root" "$submodule" || return 2
+  inventory=$(git -C "$submodule_root" ls-tree -r --name-only HEAD -- \
+    "$ALEPH_BUNDLE_RELATIVE" 2>/dev/null) || return 2
+  [[ -n "$inventory" ]] || return 1
+  return 0
+}
+
+aleph_source_bundle_is_pinned() {
+  local repo_root="$1"
+  local submodule="$2"
+  local submodule_root="${repo_root}/${submodule}"
+  local lock_relative="${ALEPH_BUNDLE_RELATIVE}/bundle.lock.json"
+  local installer_relative="${ALEPH_BUNDLE_RELATIVE}/${ALEPH_INSTALLER_RELATIVE}"
+  local untracked symlink_path
+
+  if ! aleph_submodule_head_is_authorized "$repo_root" "$submodule"; then
+    warn "Aleph source is not at the parent-authorized submodule commit"
+    return 1
+  fi
+  symlink_path=$(find "${submodule_root}/${ALEPH_BUNDLE_RELATIVE}" \
+    -type l -print -quit 2>/dev/null) || {
+    warn "Aleph source bundle symlink scan failed"
+    return 1
+  }
+  if [[ -n "$symlink_path" ]]; then
+    warn "Aleph source bundle contains a symlink"
+    return 1
+  fi
+  if ! git -C "$submodule_root" ls-files --error-unmatch -- \
+    "$lock_relative" "$installer_relative" >/dev/null 2>&1; then
+    warn "Aleph bundle lock or compiled installer is not tracked by the pinned submodule"
+    return 1
+  fi
+  if ! git -C "$submodule_root" diff --no-ext-diff --quiet HEAD -- \
+    "$ALEPH_BUNDLE_RELATIVE"; then
+    warn "Aleph source bundle differs from the pinned submodule commit"
+    return 1
+  fi
+  untracked=$(git -C "$submodule_root" ls-files --others -- \
+    "$ALEPH_BUNDLE_RELATIVE" 2>/dev/null) || return 1
+  if [[ -n "$untracked" ]]; then
+    warn "Aleph source bundle contains files outside the pinned submodule inventory"
+    return 1
+  fi
+  return 0
+}
+
+aleph_verify_installer_pin() {
+  local bundle_root="$1"
+  local installer="${bundle_root}/${ALEPH_INSTALLER_RELATIVE}"
+  local lock="${bundle_root}/bundle.lock.json"
+  local expected actual
+
+  if ! aleph_source_path_is_real "$bundle_root" "$ALEPH_INSTALLER_RELATIVE"; then
+    warn "Aleph compiled installer is missing, non-regular, or symlinked: ${installer}"
+    return 1
+  fi
+  if [[ ! -f "$lock" || -L "$lock" ]]; then
+    warn "Aleph bundle lock is missing, non-regular, or symlinked: ${lock}"
+    return 1
+  fi
+
+  expected=$(jq -r --arg path "$ALEPH_INSTALLER_RELATIVE" \
+    '[.files[]? | select(.path == $path) | .digest] | if length == 1 then .[0] else empty end' \
+    "$lock" 2>/dev/null) || expected=""
+  actual=$(sha256_portable "$installer" 2>/dev/null | cut -d' ' -f1) || actual=""
+  if [[ ! "$expected" =~ ^sha256:[0-9a-f]{64}$ || "sha256:${actual}" != "$expected" ]]; then
+    warn "Aleph compiled installer digest does not match its pinned bundle lock"
+    return 1
+  fi
+  return 0
+}
+
+aleph_assert_real_installation() {
+  local repo_root="$1"
+  local aleph_root="${repo_root}/.claude/aleph"
+  local command_path="${repo_root}/.claude/commands/loa-aleph.md"
+  local skill_root="${repo_root}/.claude/skills/loa-aleph"
+
+  if [[ ! -d "$aleph_root" || -L "$aleph_root"
+    || ! -f "$command_path" || -L "$command_path"
+    || ! -d "$skill_root" || -L "$skill_root"
+    || ! -f "${skill_root}/SKILL.md" || -L "${skill_root}/SKILL.md" ]]; then
+    warn "Aleph installer did not produce real receipt-managed command, skill, and runtime paths"
+    return 1
+  fi
+  return 0
+}
+
+# Args: $1 = true to install/reconcile, false to verify only.
+refresh_aleph_install() {
+  local apply="${1:-true}"
+  local repo_root submodule bundle_relative bundle_root installer receipt
+  local pinned_bundle_state=0
+  repo_root=$(get_repo_root)
+  submodule="${SUBMODULE_PATH:-.loa}"
+  bundle_relative="${submodule}/${ALEPH_BUNDLE_RELATIVE}"
+  bundle_root="${repo_root}/${bundle_relative}"
+  installer="${bundle_root}/${ALEPH_INSTALLER_RELATIVE}"
+  receipt="${repo_root}/${ALEPH_RECEIPT_RELATIVE}"
+
+  if ! aleph_submodule_head_is_authorized "$repo_root" "$submodule"; then
+    if [[ "$apply" != "true" ]] \
+      || ! aleph_stage_legacy_update_gitlink "$repo_root" "$submodule"; then
+      warn "Aleph source is not at the parent-authorized submodule commit"
+      return 1
+    fi
+  fi
+  aleph_pinned_tree_bundle_state "$repo_root" "$submodule" \
+    || pinned_bundle_state=$?
+  if [[ "$pinned_bundle_state" -eq 2 ]]; then
+    warn "Cannot establish Aleph bundle state from the parent-authorized submodule tree"
+    return 1
+  fi
+
+  if [[ -L "$bundle_root" ]]; then
+    warn "Aleph source bundle root is symlinked; refusing to execute it"
+    return 1
+  fi
+  if [[ ! -e "$bundle_root" ]]; then
+    if [[ "$pinned_bundle_state" -eq 0 ]]; then
+      warn "Aleph bundle is tracked by the pinned submodule tree but missing from the working tree"
+      return 1
+    fi
+    if aleph_target_has_managed_paths "$repo_root"; then
+      warn "Aleph managed paths remain but this Loa version has no source bundle; refusing stale downgrade"
+      return 1
+    fi
+    log "Aleph runtime is not bundled in this Loa version; skipping"
+    return 0
+  fi
+  if [[ "$pinned_bundle_state" -ne 0 ]]; then
+    warn "Aleph source bundle exists outside the pinned submodule tree"
+    return 1
+  fi
+  if [[ ! -d "$bundle_root" ]] \
+    || ! aleph_path_components_are_real "$repo_root" "$bundle_relative"; then
+    warn "Aleph source bundle root is not a real directory: ${bundle_root}"
+    return 1
+  fi
+  if ! aleph_source_bundle_is_pinned "$repo_root" "$submodule"; then
+    return 1
+  fi
+  if ! aleph_node_is_supported; then
+    warn "Aleph installation requires Node.js 20 or newer"
+    return 1
+  fi
+  if ! aleph_verify_installer_pin "$bundle_root"; then
+    return 1
+  fi
+
+  if aleph_path_exists "$receipt"; then
+    if [[ ! -f "$receipt" || -L "$receipt" ]]; then
+      warn "Aleph installation receipt is not a real file"
+      return 1
+    fi
+    # Never repair over observed tamper. The new, submodule-pinned installer
+    # must authenticate the current installation before it may update it.
+    if ! aleph_node "$installer" verify-install --target "$repo_root"; then
+      warn "Existing Aleph installation failed integrity verification; refusing update"
+      return 1
+    fi
+  elif aleph_target_has_managed_paths "$repo_root"; then
+    warn "Aleph managed-path collision exists without a valid installation receipt"
+    return 1
+  elif [[ "$apply" != "true" ]]; then
+    warn "Aleph bundle is available but is not installed"
+    return 1
+  fi
+
+  if [[ "$apply" == "true" ]]; then
+    step "Installing verified Aleph runtime from pinned Loa submodule..."
+    if ! aleph_node "$installer" install --bundle "$bundle_root" --target "$repo_root"; then
+      warn "Aleph transactional installer failed"
+      return 1
+    fi
+  fi
+
+  if ! aleph_node "$installer" verify-install --target "$repo_root"; then
+    warn "Aleph installation failed post-install integrity verification"
+    return 1
+  fi
+  aleph_assert_real_installation "$repo_root" || return 1
+  log "Aleph installation verified"
+  return 0
+}
 
 # === Create Symlinks ===
 # Consumes get_symlink_manifest() — single source of truth for symlink topology.
@@ -474,7 +845,7 @@ create_symlinks() {
   fi
 
   # Create .claude directory structure
-  mkdir -p .claude .claude/skills .claude/commands .claude/loa
+  mkdir -p .claude .claude/skills .claude/commands .claude/agents .claude/loa
 
   # Load authoritative manifest
   get_symlink_manifest "$SUBMODULE_PATH"
@@ -523,9 +894,21 @@ create_symlinks() {
     log "  Linked command: $cmd_name"
   done
 
+  # Phase 4.5: Per-agent symlinks (dynamic from manifest; C12/A6 cycle-119)
+  step "Linking agents..."
+  for entry in ${MANIFEST_AGENT_SYMLINKS[@]+"${MANIFEST_AGENT_SYMLINKS[@]}"}; do
+    local link_path="${entry%%:*}"
+    local target="${entry#*:}"
+    local agent_name
+    agent_name=$(basename "$link_path")
+    safe_symlink "$link_path" "$target"
+    log "  Linked agent: $agent_name"
+  done
+
   # #842: Phase 5 — COPY phase. Extracted to refresh_copy_set (#968) so
   # --reconcile / --check-symlinks and update-loa.sh's submodule path can
-  # refresh these without a destructive --force re-mount.
+  # refresh these without a destructive --force re-mount. The helper also
+  # owns the Aleph compatibility hook used by pre-cycle-115 update scripts.
   refresh_copy_set "true"
 
   # Also link settings.local.json if it exists (not in manifest — optional file)
@@ -565,7 +948,7 @@ create_claude_md() {
     warn "CLAUDE.md exists without Loa import"
     info "Add this line at the top of CLAUDE.md:"
     echo ""
-    echo -e "  ${CYAN}@.claude/loa/CLAUDE.loa.md${NC}"
+    printf '  %b@.claude/loa/CLAUDE.loa.md%b\n' "$CYAN" "$NC"
     echo ""
     return 0
   fi
@@ -821,12 +1204,20 @@ update_gitignore_for_submodule() {
     ".claude/loa/learnings"
     ".claude/settings.json"
     ".claude/checksums.json"
+    # cycle-115: real files generated by the pinned Aleph installer.
+    ".claude/aleph"
+    ".claude/commands/loa-aleph.md"
+    ".claude/skills/loa-aleph"
   )
 
   # State and backup entries (not symlinks but must be gitignored)
   local state_entries=(
     ".loa-state/"
     ".claude.backup.*"
+    # cycle-115: the transactional Aleph installer may leave these exact
+    # recovery/coordination names after interruption.
+    ".claude/aleph-install.transaction*"
+    ".claude/aleph-install.writer.lock*"
   )
 
   # Add header if not present
@@ -886,6 +1277,36 @@ _refresh_copy_entry() {
       warn "  COPY-MISSING: $dest — run --reconcile"
       return 1
     fi
+    # #1177 (item G): existing regular file/dir at the destination — compare
+    # CONTENT against the submodule's current version. Pre-fix, any non-symlink
+    # dest was accepted as "ok" (return 0 below), so a settings.json stuck at a
+    # pre-#1045 allow-list drifted silently and --check-symlinks reported
+    # "healthy". Detect content drift here (fail-loud, mutate nothing).
+    local _drift=""
+    if [[ -d "$abs_target" ]]; then
+      diff -rq "$abs_target" "$abs_dest" >/dev/null 2>&1 || _drift="dir"
+    else
+      cmp -s "$abs_target" "$abs_dest" || _drift="file"
+    fi
+    if [[ -n "$_drift" ]]; then
+      warn "  COPY-DRIFT: $dest content differs from $target — run --reconcile"
+      if [[ "$_drift" == "dir" ]]; then
+        diff -rq "$abs_target" "$abs_dest" 2>&1 | sed 's/^/    /' || true
+      else
+        diff "$abs_dest" "$abs_target" 2>&1 | sed 's/^/    /' || true
+      fi
+      # For settings.json, a structural allow/deny diff names the exact
+      # missing/extra rules — the raw JSON diff obscures them behind
+      # whitespace/order noise. jq is a hard preflight dependency.
+      if [[ "$dest" == ".claude/settings.json" ]] && command -v jq >/dev/null 2>&1; then
+        local _adiff _ddiff
+        _adiff="$(diff <(jq -S '.permissions.allow // []' "$abs_dest" 2>/dev/null) <(jq -S '.permissions.allow // []' "$abs_target" 2>/dev/null) 2>/dev/null || true)"
+        _ddiff="$(diff <(jq -S '.permissions.deny // []' "$abs_dest" 2>/dev/null) <(jq -S '.permissions.deny // []' "$abs_target" 2>/dev/null) 2>/dev/null || true)"
+        [[ -n "$_adiff" ]] && { warn "  permissions.allow drift (< local, > submodule):"; printf '%s\n' "$_adiff" | sed 's/^/    /'; } || true
+        [[ -n "$_ddiff" ]] && { warn "  permissions.deny drift (< local, > submodule):"; printf '%s\n' "$_ddiff" | sed 's/^/    /'; } || true
+      fi
+      return 1
+    fi
     return 0
   fi
   # Apply: replace whatever is at the destination with a fresh copy.
@@ -902,8 +1323,21 @@ _refresh_copy_entry() {
   return 0
 }
 
+aleph_refresh_is_applicable() {
+  local repo_root="${1:-$(get_repo_root)}"
+  local submodule="${2:-${SUBMODULE_PATH:-.loa}}"
+  local aleph_source="${repo_root}/${submodule}/${ALEPH_BUNDLE_RELATIVE}"
+  local aleph_gitlink=""
+
+  aleph_gitlink=$(git -C "$repo_root" ls-files --stage -- "$submodule" 2>/dev/null \
+    | awk '$1 == "160000" && $3 == "0" { print $2 }')
+  [[ -n "$aleph_gitlink" || -e "$aleph_source" || -L "$aleph_source" ]] \
+    || aleph_target_has_managed_paths "$repo_root"
+}
+
 refresh_copy_set() {
   local apply="${1:-true}"
+  local include_aleph="${2:-true}"
   local repo_root
   repo_root=$(get_repo_root)
   local submodule="${SUBMODULE_PATH:-.loa}"
@@ -917,9 +1351,25 @@ refresh_copy_set() {
   done
   if [[ $issues -gt 0 ]]; then
     warn "Copy set: ${issues} issue(s)$([[ "$apply" != "true" ]] && echo " — run --reconcile")"
-    return 1
+    # Applying against an unhealthy copy set must stop before executing a newly
+    # selected bundled installer. Check mode is different: continue so one
+    # health pass reports Aleph tamper as well as COPY-* drift.
+    if [[ "$apply" == "true" ]]; then
+      return 1
+    fi
   fi
-  return 0
+
+  # cycle-115 compatibility boundary: older update-loa.sh processes already
+  # source the newly selected mount helper and call refresh_copy_set, but they
+  # cannot know about a newly added standalone Aleph hook. Transitively refresh
+  # here so the first update onto an Aleph-bearing Loa commit bootstraps the
+  # receipt-managed runtime and propagates failure. Skip only synthetic/non-
+  # mounted contexts with no gitlink, source bundle, or managed Aleph surface.
+  if [[ "$include_aleph" == "true" ]] \
+    && aleph_refresh_is_applicable "$repo_root" "$submodule"; then
+    refresh_aleph_install "$apply" || issues=$((issues + 1))
+  fi
+  [[ $issues -eq 0 ]]
 }
 
 # === Verify and Reconcile Symlinks (Task 2.6 — cycle-035 sprint-2) ===
@@ -939,7 +1389,7 @@ verify_and_reconcile_symlinks() {
 
   # Load authoritative manifest (DRY — single source of truth)
   get_symlink_manifest "$submodule" "$repo_root"
-  local -a all_symlinks=("${MANIFEST_DIR_SYMLINKS[@]}" "${MANIFEST_FILE_SYMLINKS[@]}" "${MANIFEST_SKILL_SYMLINKS[@]}" "${MANIFEST_CMD_SYMLINKS[@]}")
+  local -a all_symlinks=("${MANIFEST_DIR_SYMLINKS[@]}" "${MANIFEST_FILE_SYMLINKS[@]}" "${MANIFEST_SKILL_SYMLINKS[@]}" "${MANIFEST_CMD_SYMLINKS[@]}" ${MANIFEST_AGENT_SYMLINKS[@]+"${MANIFEST_AGENT_SYMLINKS[@]}"})
 
   step "Verifying ${#all_symlinks[@]} symlinks..."
 
@@ -966,8 +1416,30 @@ verify_and_reconcile_symlinks() {
         ok=$((ok + 1))
       fi
     elif [[ -e "$full_link" ]]; then
-      # Exists but not a symlink — skip (user-owned file)
-      ok=$((ok + 1))
+      # Exists but not a symlink. Normally a legitimate user override — count
+      # as ok. EXCEPT framework-identity files that must NEVER degrade into a
+      # plain file: a plain-file CLAUDE.loa.md silently stops version/hash
+      # propagation on every future update (#1177 item G).
+      case "$link_path" in
+        .claude/loa/CLAUDE.loa.md)
+          stale=$((stale + 1))
+          warn "  DEGRADED: $link_path is a plain file but must be a framework symlink"
+          if [[ "$reconcile" == "true" ]]; then
+            local parent_dir resolved_target
+            parent_dir=$(dirname "$full_link")
+            mkdir -p "$parent_dir"
+            resolved_target=$(cd "$(dirname "$full_link")" 2>/dev/null && resolve_path_portable "$target" || echo "")
+            if [[ -n "$resolved_target" && -e "$resolved_target" ]]; then
+              ln -sf "$target" "$full_link"
+              fixed=$((fixed + 1))
+              log "  RESTORED: $link_path"
+            fi
+          fi
+          ;;
+        *)
+          ok=$((ok + 1))
+          ;;
+      esac
     else
       # Missing entirely
       stale=$((stale + 1))
@@ -1007,6 +1479,39 @@ verify_and_reconcile_symlinks() {
   return 0
 }
 
+# === Version Marker Staleness Check (#1177 item G, LEAD decision #3) ===
+# Advisory: compare .loa-version.json's .framework_version against the
+# submodule's ACTUAL pinned version. Fleet operators bump the .loa gitlink by
+# hand ("pointer-only" commits / `git submodule update --remote`) without
+# running update-loa.sh, so the marker drifts stale by up to ~85 releases while
+# the pin advances. This is invisible to git (the copy-set is gitignored) and
+# to the symlink/copy-set checks above. WARN-only — does NOT change the
+# --check-symlinks exit code; it is a supplementary detection surface for AC(c)
+# beyond the update path.
+check_version_marker_staleness() {
+  [[ -f "$VERSION_FILE" ]] || return 0
+  local submodule="${SUBMODULE_PATH:-.loa}"
+  # Only meaningful when the submodule is a real git working tree.
+  [[ -e "$submodule/.git" ]] || return 0
+
+  local marker_version actual_version
+  marker_version=$(jq -r '.framework_version // empty' "$VERSION_FILE" 2>/dev/null || echo "")
+  [[ -n "$marker_version" ]] || return 0
+
+  # Match create_manifest()'s marker source: `git describe --tags` (fallback to
+  # a short HEAD hash) per LEAD decision #3.
+  actual_version=$(git -C "$submodule" describe --tags 2>/dev/null \
+    || git -C "$submodule" rev-parse --short HEAD 2>/dev/null || echo "")
+  [[ -n "$actual_version" ]] || return 0
+
+  if [[ "$marker_version" != "$actual_version" ]]; then
+    warn "  MARKER-STALE: .loa-version.json framework_version '$marker_version' != submodule pin '$actual_version' — run update-loa.sh (a pointer-only .loa bump leaves the marker stale)"
+  else
+    log "  Version marker fresh: $marker_version"
+  fi
+  return 0
+}
+
 # === Check Symlinks Subcommand (Task 2.6) ===
 # Standalone health check: mount-submodule.sh --check-symlinks
 check_symlinks_subcommand() {
@@ -1015,10 +1520,19 @@ check_symlinks_subcommand() {
   log "  Symlink Health Check"
   log "======================================================================="
   echo ""
-  verify_and_reconcile_symlinks "false"
-  local result=$?
-  # #968: report #842 copy-set state too (stale symlink / missing dest)
+  # #1177 (item G): guard the call with `|| result=1` — a bare call under
+  # `set -e` (line 25) kills the whole script the instant verify returns 1
+  # (any dangling/missing symlink), so the copy-set check below never ran and
+  # `--check-symlinks` silently omitted all COPY-* drift. Mirror the idiom the
+  # --reconcile path (below) already uses.
+  local result=0
+  verify_and_reconcile_symlinks "false" || result=1
+  # #968/cycle-115: report COPY-set and receipt-managed Aleph state.
   refresh_copy_set "false" || result=1
+  # #1177 (item G, LEAD decision #3): advisory version-marker staleness check.
+  # WARN-only — deliberately does NOT flip `result` (a stale marker is a
+  # distinct axis of drift from broken symlinks/copies).
+  check_version_marker_staleness
   if [[ $result -eq 0 ]]; then
     log "All symlinks healthy."
   else
@@ -1042,7 +1556,8 @@ main() {
     reconcile_rc=0
     verify_and_reconcile_symlinks "true" || reconcile_rc=1
     # #968: also refresh the #842 copy set (hooks/, settings.json), which
-    # the symlink walk above never touches.
+    # the symlink walk above never touches. cycle-115 Aleph refresh is part of
+    # this compatibility surface for already-running older update scripts.
     refresh_copy_set "true" || reconcile_rc=1
     exit $reconcile_rc
   fi

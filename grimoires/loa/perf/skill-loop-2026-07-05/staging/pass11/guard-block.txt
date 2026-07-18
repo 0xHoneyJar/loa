@@ -1,0 +1,23 @@
+# perf pass-11 (skill-loop, 2026-07-06): HIGH-002 fix (BB review of PR #1176).
+# Passes 2 & 8 introduced bash-4-only constructs into this fence (${x,,}
+# case-folding, `mapfile`); pre-loop it was bash-3.2-portable (echo|grep -i).
+# macOS ships bash 3.2. This guard runs BEFORE any bash-4 expansion executes
+# (bash 3.2 defers ${,,} validation and the mapfile builtin lookup to runtime,
+# so a runtime guard at the first executable line runs first and never reaches
+# them). If a bash >=4 exists (the framework already requires it — beads-health
+# etc. source bash-version-guard.sh), re-exec under it; stdin (the hook payload)
+# and argv survive exec. Otherwise FAIL CLOSED (exit 2 = block): a
+# destructive-command fence must never silently allow when it cannot evaluate.
+# The generic bash-version-guard.sh exits 1, which is a NON-blocking PreToolUse
+# hook error (fail-OPEN) — wrong direction for this hook, hence the inline form.
+if [ "${BASH_VERSINFO:-0}" -lt 4 ]; then
+    for _bh_cand in /opt/homebrew/bin/bash /usr/local/bin/bash /usr/bin/bash bash; do
+        if command -v "$_bh_cand" >/dev/null 2>&1; then
+            _bh_major="$("$_bh_cand" -c 'echo "${BASH_VERSINFO:-0}"' 2>/dev/null || echo 0)"
+            if [ "${_bh_major:-0}" -ge 4 ]; then exec "$_bh_cand" "$0" "$@"; fi
+        fi
+    done
+    echo "[block-destructive-bash] BLOCKED: bash >=4 required to evaluate the destructive-command fence (found ${BASH_VERSION:-unknown}); refusing to run degraded rather than allow a command unchecked. Install bash>=4 (macOS: brew install bash)." >&2
+    exit 2
+fi
+

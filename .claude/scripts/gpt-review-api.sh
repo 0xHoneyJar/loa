@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # GPT 5.2/5.3 API interaction for cross-model review
-# Usage: gpt-review-api.sh <review_type> <content_file> [options]
-# See: usage() or --help for full documentation
+# Usage: gpt-review-api.sh <review_type> <content_file> [options] (see --help)
 # Exit codes: 0=success 1=API 2=input 3=timeout 4=auth 5=format
 
 set -euo pipefail
@@ -276,8 +275,7 @@ main() {
   else [[ -n "$pf" && -f "$pf" ]] || { error "Re-review requires --previous"; exit 2; }
     sp=$(build_re_review_prompt "$iter" "$(cat "$pf")" "$ef"); fi
 
-  local raw; raw=$(cat "$cf")
-  local szw=""
+  local raw szw=""; raw=$(cat "$cf")
   if [[ "$SYSTEM_ZONE_ALERT" == "true" ]]; then
     local szf=""; szf=$(detect_system_zone_changes "$raw") && \
       szw="SYSTEM ZONE (.claude/) CHANGES DETECTED. Elevated scrutiny: $(echo "$szf" | tr '\n' ', ' | sed 's/,$//')"

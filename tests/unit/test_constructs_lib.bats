@@ -9,6 +9,13 @@ setup() {
     PROJECT_ROOT="$(cd "$BATS_TEST_DIR/../.." && pwd)"
     FIXTURES_DIR="$PROJECT_ROOT/tests/fixtures"
 
+    # #953: ensure license fixtures exist. The get_license_field tests read
+    # $FIXTURES_DIR/valid_license.json, which is GITIGNORED and generated on
+    # demand — on a fresh checkout (CI) this file runs alphabetically BEFORE
+    # any sibling that sources the generator, so it must generate its own.
+    # shellcheck source=../fixtures/ensure_license_fixtures.sh
+    source "$FIXTURES_DIR/ensure_license_fixtures.sh"
+
     # Source the library (will fail until implemented)
     if [[ -f "$PROJECT_ROOT/.claude/scripts/constructs-lib.sh" ]]; then
         source "$PROJECT_ROOT/.claude/scripts/constructs-lib.sh"
@@ -113,14 +120,14 @@ teardown() {
     skip_if_not_implemented
 
     result=$(get_registry_skills_dir)
-    [[ "$result" == ".claude/registry/skills" ]]
+    [[ "$result" == ".claude/constructs/skills" ]]
 }
 
 @test "get_registry_packs_dir returns correct path" {
     skip_if_not_implemented
 
     result=$(get_registry_packs_dir)
-    [[ "$result" == ".claude/registry/packs" ]]
+    [[ "$result" == ".claude/constructs/packs" ]]
 }
 
 @test "get_cache_dir returns path under HOME/.loa" {
@@ -167,8 +174,8 @@ teardown() {
 @test "parse_iso_date handles future dates correctly" {
     skip_if_not_implemented
 
-    # A date in 2026
-    result=$(parse_iso_date "2026-06-15T00:00:00Z")
+    # A far-future date (fixed literal so the test never rots as real time passes)
+    result=$(parse_iso_date "2099-06-15T00:00:00Z")
 
     # Should be in the future (> current time)
     now=$(date +%s)

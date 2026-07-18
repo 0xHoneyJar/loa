@@ -1,0 +1,36 @@
+COMBO: cleanup-context__full-archive
+EXIT: 0
+--- STDOUT ---
+Context Cleanup
+───────────────────────────────────────
+Source: __ROOT__/grimoires/loa/context
+Files to process: 5
+Directories to process: 1
+Archive to: grimoires/loa/archive/__DATE__-cycle-bench/context
+
+─────────────────────────────────────────
+Previous cycle context detected.
+
+Starting a new /plan-and-analyze will archive these files
+and clean the context directory for your new cycle.
+
+Options:
+  [Y] Archive and proceed (recommended)
+  [n] Keep context and proceed (files will be re-used)
+  [q] Abort /plan-and-analyze
+
+
+Proceeding with archive and cleanup...
+Archiving context files...
+✓ Archived 7 files to grimoires/loa/archive/__DATE__-cycle-bench/context
+Cleaning context directory...
+✓ Context cleaned - ready for next cycle
+
+Next steps:
+  1. Add new context files for your next feature
+  2. Run /plan-and-analyze to start a new development cycle
+
+Previous context archived at:
+  grimoires/loa/archive/__DATE__-cycle-bench/context
+--- STDERR ---
+__ROOT__/.claude/scripts/cleanup-context.sh: line 185: /dev/tty: No such device or address

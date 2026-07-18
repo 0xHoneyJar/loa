@@ -310,6 +310,13 @@ Prevent accidental pushes to upstream template.
 
 Inject relevant project memories before tool execution.
 
+> **EXPERIMENTAL — not wired, do not rely on.** As of cycle-115 the
+> `memory-inject.sh` / `memory-writer.sh` wiring is **dead/optional**: neither
+> hook is registered in `settings.hooks.json`, the vector DB is empty, and
+> `observations.jsonl` holds a single hand-authored entry (zero hook-generated
+> entries). The config block below is aspirational — enabling it does nothing
+> until the subsystem is revived. Do not treat memory injection as active.
+>
 > **Note**: This hook is part of the Loa Memory Stack. It requires initialization
 > via `memory-admin.sh init` and enabling in `.loa.config.yaml`.
 

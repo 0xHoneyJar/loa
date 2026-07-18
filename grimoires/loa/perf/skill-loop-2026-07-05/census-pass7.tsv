@@ -1,0 +1,8 @@
+cold-abovegate/old	3	stat x1, jq x1, awk x1
+cold-abovegate/new	6	stat x2, jq x2, mv x1, awk x1
+warm-fast/old	3	stat x1, jq x1, awk x1
+warm-fast/new	4	stat x2, mv x1, jq x1
+warm-delta/old	3	stat x1, jq x1, awk x1
+warm-delta/new	7	tail x2, stat x2, mv x1, jq x1, awk x1
+belowgate-cold/old	3	stat x1, jq x1, awk x1
+belowgate-cold/new	3	stat x1, jq x1, awk x1

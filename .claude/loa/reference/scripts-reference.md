@@ -2,6 +2,11 @@
 
 Core scripts in `.claude/scripts/`. Run any script with `--help` for usage details.
 
+> **Machine-readable contract**: `loa-capabilities.sh --json` lists the
+> agent-facing scripts with their JSON modes, help support, exit-code and env
+> conventions in one call — prefer it over grepping docs. One-call triage:
+> `loa-status.sh --triage --json` (state + health + next command).
+
 ## Core Scripts
 
 | Script | Purpose |

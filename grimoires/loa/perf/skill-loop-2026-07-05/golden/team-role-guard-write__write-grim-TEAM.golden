@@ -1,0 +1,6 @@
+COMBO: team-role-guard-write__write-grim-TEAM
+EXIT: 2
+--- STDOUT ---
+--- STDERR ---
+BLOCKED [team-role-guard-write]: 'grimoires/loa/NOTES.md' is append-only. Use Bash: echo "..." >> grimoires/loa/NOTES.md (POSIX atomic writes).
+Teammate 'bench-mate' must NOT use Write/Edit for append-only files — only Bash append (>>).

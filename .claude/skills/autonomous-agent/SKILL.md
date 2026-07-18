@@ -17,59 +17,21 @@ cost-profile: unbounded
 ---
 
 <input_guardrails>
-## Pre-Execution Validation
+## Pre-Execution Guardrails (mechanized — cycle-119)
 
-Before main skill execution, perform guardrail checks.
+Skip this section entirely when `.loa.config.yaml` has `guardrails.input.enabled: false` or env
+`LOA_GUARDRAILS_ENABLED=false`.
 
-### Step 1: Check Configuration
+Otherwise: write the user's invocation prompt/args to a temp file (Write tool), then run
+`.claude/scripts/guardrails-orchestrator.sh --skill autonomous-agent --mode ${LOA_RUN_MODE:-interactive} --file <temp-file>`
 
-Read `.loa.config.yaml`:
-```yaml
-guardrails:
-  input:
-    enabled: true|false
-```
+| Outcome | Action |
+|---------|--------|
+| JSON `action: "BLOCK"` | HALT; report the script's `reason` to the user |
+| JSON `action: "PROCEED"` or `"WARN"` | Continue (logging is handled by the script) |
+| Script missing, non-zero exit, or unparseable output | Continue — fail-open, preserving pre-cycle-119 semantics |
 
-**Exit Conditions**:
-- `guardrails.input.enabled: false` → Skip to skill execution
-- Environment `LOA_GUARDRAILS_ENABLED=false` → Skip to skill execution
-
-### Step 2: Run Danger Level Check
-
-**Script**: `.claude/scripts/danger-level-enforcer.sh --skill autonomous-agent --mode {mode}`
-
-**CRITICAL**: This is a **high** danger level skill (full orchestration control).
-
-| Mode | Behavior |
-|------|----------|
-| Interactive | Require explicit confirmation with reason |
-| Autonomous | BLOCK (high-risk skill requires --allow-high) |
-
-**Note**: The autonomous-agent skill is classified as `high` rather than `critical`
-because it operates through other skills that have their own guardrails.
-The orchestrator itself doesn't directly execute dangerous operations.
-
-### Step 3: Run PII Filter
-
-**Script**: `.claude/scripts/pii-filter.sh`
-
-Detect and redact sensitive data before orchestration begins.
-Important for multi-phase execution where data flows between skills.
-
-### Step 4: Run Injection Detection
-
-**Script**: `.claude/scripts/injection-detect.sh --threshold 0.65`
-
-**Lower threshold** (0.65 vs default 0.7) because autonomous orchestration
-has higher impact potential. More conservative detection.
-
-### Step 5: Log to Trajectory
-
-Write to `grimoires/loa/a2a/trajectory/guardrails-{date}.jsonl`.
-
-### Error Handling
-
-On error: Log to trajectory, **fail-open** (continue to skill).
+Never pass prompt text as a bash argv (quote-blindness FP class) — always via `--file`.
 </input_guardrails>
 
 <constraints>
@@ -1052,35 +1014,15 @@ IF state file (.run/post-pr-state.json) shows state == CONTEXT_CLEAR:
 **Full Specification:** `.claude/commands/post-pr-validation.md`
 </resume_support>
 
-<attention_budget>
-## Attention Budget
+<context_discipline>
+## Context Discipline
 
-This skill MUST enforce attention budget throughout ALL phases.
-
-### Thresholds
-
-| Context | Limit | Action |
-|---------|-------|--------|
-| Single search | 2,000 tokens | Apply TRC |
-| Accumulated | 5,000 tokens | MANDATORY TRC |
-| Session total | 15,000 tokens | Checkpoint & yield |
-
-### Tool Result Clearing
-
-After ANY tool returning >2K tokens:
-1. **Extract**: Max 10 files, 20 words each
-2. **Synthesize**: Write to NOTES.md
-3. **Clear**: Remove raw output
-4. **Summary**: Keep one-line reference
-
-### Semantic Decay
-
-| Stage | Age | Format |
-|-------|-----|--------|
-| Active | 0-5min | Full synthesis |
-| Decayed | 5-30min | Paths only |
-| Archived | 30+min | Single-line summary |
-</attention_budget>
+Follow `.claude/protocols/tool-result-clearing.md`. Thresholds: single result >2K tokens /
+accumulated >5K / full file >3K / session total >15K → extract findings (≤10 files, ≤20 words
+each, with file:line) to `grimoires/loa/NOTES.md`, then reason from the synthesis, not raw dumps.
+Session start: read NOTES.md "Session Continuity". Session end / pre-compaction: update it
+(decisions → Decision Log, discovered issues → Technical Debt).
+</context_discipline>
 
 <factual_grounding>
 ## Factual Grounding

@@ -63,12 +63,20 @@ actually tried, not just what someone *said* was tried.
 | [KF-006](#kf-006-t114-migrate-model-config-v2-schema-rejects-max_output_tokens) | RESOLVED 2026-05-10 (v2 schema modelEntry permits max_output_tokens + max_input_tokens) | T1.14 migrate-model-config v2 schema | every PR since dd54fe9c |
 | [KF-007](#kf-007-red-team-pipeline-hardcoded-single-model-evaluator-vestigial-config) | RESOLVED 2026-05-10 (multi-model evaluator) | red team pipeline hardcoded single-model evaluator | n/a — resolved in same session as discovery |
 | [KF-008](#kf-008-bridgebuilder-google-api-socketerror-on-large-request-bodies) | RESOLVED-architectural-complete — cycle-103 Sprint 1 unification (review-adapter path) + cycle-104 Sprint 3 T3.4 substrate-replay closure 2026-05-12 (4/4 trials clean at 297/302/317/539KB via cheval httpx). | bridgebuilder Google provider | 4 reproductions + 1 final non-reproduction |
+| [KF-009](#kf-009-cycle-108-advisor-strategy-substrate-shipped-pre-empirical-data) | DEGRADED-ACCEPTED | cycle-108 advisor-strategy benchmark — empirical resolution of decision-fork | 1 |
 | [KF-010](#kf-010-cheval-delegate-google-adapter-300s-process-timeout-on-concurrent-bb-runs) | RESOLVED 2026-05-16 (sprint-bug-165, issue #921) | bridgebuilder google + anthropic voices / `deriveTimeoutMs` predicate scope | 6 (single batch, 2026-05-16) |
 | [KF-011](#kf-011-adversarial-reviewsh-malformed-response-on-review-type-prompts-post-kf-002-closure) | **RESOLVED 2026-05-17** (sub-mode (b): parser raw_decode extracts prose-prefixed JSON — PR #933 `d9ec8cb5`; sub-mode (c): route-around via 4-voice fallback chain — PR #934 `ccd510b0`; structural sub-mode (c) Gemini streaming-recovery tracked at issue #935). | adversarial-review.sh review-type — JSON contract layer + Gemini streaming-recovery gap | 2 (initial obs sprint-166 review + repro on parser-fix branch) |
 | [KF-012](#kf-012-sha256sum-not-portable-to-bsd-macos-silent-empty-hash-cascade-into-validation-failures) | **RESOLVED-STRUCTURAL 2026-05-20** (sprint-bug-172 / #911: `sha256_portable` helper in compat-lib.sh + 38 production call sites migrated + CI scanner `tools/check-no-raw-sha256sum.sh` + `tests/unit/compat-lib-sha256.bats` + masked-PATH integration test). Structural analog of cycle-099 sprint-1E.c.3.c curl wrapper migration. | macOS / BSD users of `/butterfreezone-gen` + 37 other framework scripts | 1 (single observation, sprint-bug-172 closure) |
 | [KF-013](#kf-013-headless-cli-env-mode-selector-vars-defeat-subscription-oauth) | **RESOLVED 2026-05-20** (sprint-bug-173 / #894: `_HEADLESS_STRIPPED_AUTH_VARS` tuple extended with `GOOGLE_GENAI_USE_VERTEXAI` + `GOOGLE_GENAI_USE_GCA`; canonical scrub list mirrors `construct-k-hole/scripts/dig-search.ts`). | cheval headless CLI adapters (gemini / codex / claude) | 1 (single observation, sprint-bug-173 closure) |
 | [KF-014](#kf-014-pre-commit-beads-hook-fails-in-linked-git-worktrees) | **RESOLVED 2026-06-10** (sprint-bug-190 / #991: hook flushes from MAIN_REPO_ROOT subshell in worktrees; PCB-T7/T8/T9 pin it; live worktree-commit verification) | pre-commit beads flush in linked worktrees | 1 |
 | [KF-015](#kf-015-red-team-code-vs-designsh-silent-clean-gate-pass-on-degraded-runs) | **RESOLVED 2026-06-11** (sprint-bug-194 / #984+#985: trap script-scoped, empty/shape validation, degraded-record contract on model failure; RTC-T1..T7 pin all three defects) | red-team code-vs-design gate (silent-clean degraded run) | 4 (4/4 sprints, one downstream cycle) + 1 local repro |
+| [KF-016](#kf-016-compliance_profile-governs-only-fallback-not-initial-routing-bedrock-only-operators-silently-degrade-to-dead-anthropic-api) | RESOLVED-IN-FLIGHT 2026-06-13 (PR #1055 / issue #1054) | cheval model routing — providers.bedrock.compliance_profile + alias->provider map | 1 |
+| [KF-017](#kf-017-cross-model-substrate-all-voice-api_failure-authbilling-exhaustion-not-the-kf-002-empty-content-class) | DIAGNOSED 2026-06-15 — credential/billing root cause, api-only mitigation proven | cheval cross-model dispatch (adversarial-review / Flatline / Bridgebuilder) | 1 |
+| [KF-018](#kf-018-gemini-headless-cli-auth-tier-deprecated-gemini-code-assist-for-individuals-retired-gemini-voice-silently-drops-from-multi-model-review) | OPEN — MITIGATED-BY-WORKAROUND (upstream blocked on Antigravity CLI) | cheval gemini-headless adapter -> Flatline / Bridgebuilder / any google:* consumer | 1 |
+| [KF-019](#kf-019-confabulated-absence-an-agent-asserts-a-governed-capability-is-absent-when-the-config-sot-declares-it-present) | DOCUMENTED 2026-06-19 — detector shipped (sensing-confabulated-absence) | agent reasoning over capability availability (headless terminals + Flatline routing) | 1 |
+| [KF-020](#kf-020-claude--p-subscription-oauth-potential-per-token-billing-via-the-43333-auth-detection-bug-metering-policy-was-announced-then-paused) | OPEN — external/upstream; live exposure UNCONFIRMED | cheval claude-headless adapter — #43333 auth-detection bug surfacing/mitigation | 0 |
+| [KF-021](#kf-021-842968-copy-set-silently-drifts-gitignored-check-mode-content-blind) | OPEN → resolved by cycle-117 Wave-1 item G (#1177) | update-loa.sh / mount-submodule.sh submodule copy set | 1 |
+| [KF-022](#kf-022-br-sync-dirty-tracking-split-brain---status-counts-dirty-issues-the---flush-only-export-reads-as-dirty_count0) | OPEN-UPSTREAM | beads_rust (br) sync | 2 |
 
 ---
 
@@ -1123,7 +1131,7 @@ If you are about to assert that a model path, terminal, or routing capability "d
 
 ## KF-020: `claude -p` subscription OAuth — potential per-token billing via the #43333 auth-detection bug (metering *policy* was announced then PAUSED)
 
-- **Status:** OPEN — external/upstream; live exposure **UNCONFIRMED** (contingent on `claude-code#43333` still reproducing on the operator's current `claude` CLI). loa-side: surfacing + mitigation only.
+**Status**: OPEN — external/upstream; live exposure **UNCONFIRMED** (contingent on `claude-code#43333` still reproducing on the operator's current `claude` CLI). loa-side: surfacing + mitigation only.
 - **Feature:** cheval `claude-headless` adapter (`.claude/adapters/loa_cheval/providers/claude_headless_adapter.py`) — the within-company Anthropic chain terminal and council/Bridgebuilder Claude voice. Invoked as `claude -p <prompt> --output-format json` with `ANTHROPIC_API_KEY` stripped (`:161-164`), using Claude Code's OAuth store — the same command shape as the `claude-code#43333` reproduction (`:285-300`).
 - **Symptom (CORRECTED — see Attempts):** there are **two distinct mechanisms**, and only one is potentially live:
   1. **The #43333 auth-detection BUG (potential live vector).** `claude -p` with OAuth and no `ANTHROPIC_API_KEY` has been reported to route to per-token API billing instead of the Max/Pro subscription even when `subscriptionType: max` (sibling `#37686`: $1,800+ in two days). Issue opened 2026-04-04, **status CLOSED** — but its persistence on a *current* `claude` CLI is **not yet verified**. This is an auth-detection defect, not a policy.
@@ -1146,3 +1154,47 @@ If you are about to assert that a model path, terminal, or routing capability "d
 ### Reading guide
 
 If an operator reports surprise Anthropic charges while on a Max/Pro plan: **first verify which mechanism applies.** The metering *policy* was paused (2026-06-15/16) — do not cite it as current. The plausible live vector is the **#43333 auth-detection bug** (`claude -p` + OAuth + no `ANTHROPIC_API_KEY` billing as API) — and even that is `CLOSED` upstream, so **confirm it still reproduces on the current `claude` CLI before acting**. Distinct from KF-018 (tier-*death* / dead subscription). loa can only **surface** cost (plumb `total_cost_usd` → ledger; read it from the MODELINV envelope) and **avoid** the path (`api-only`); it cannot change upstream billing. Meta-lesson: this entry itself was first written with a confabulated current policy from stale secondary sources — when documenting an *external* fact, check primary sources for the latest state, exactly as KF-019 warns for internal capabilities.
+
+## KF-021: #842/#968 copy set silently drifts — gitignored + check-mode content-blind
+
+**Status**: OPEN → resolved by cycle-117 Wave-1 item G (#1177)
+**Feature**: update-loa.sh / mount-submodule.sh submodule copy set
+**Symptom**: The #842 copy set (.claude/hooks, .claude/settings.json — COPIED not symlinked because macOS hook executors can't traverse '..' symlinks) drifts from the pinned submodule with ZERO detection: (1) both paths are gitignored (mount-submodule.sh update_gitignore_for_submodule symlink_entries[]), so drift produces no git-diff/CI signal; (2) refresh_copy_set's check mode (_refresh_copy_entry) only detected symlink/missing dests, never CONTENT drift of an existing regular file/dir — so --check-symlinks reported 'healthy' for a settings.json stuck at a pre-#1045 (374-rule) allow-list vs the submodule's 382-rule payload; (3) check_symlinks_subcommand's bare verify_and_reconcile_symlinks call tripped set -e on any missing symlink, killing the script before the copy-set check ran; (4) update_submodule wrote .loa-version.json with no read-back and discarded refresh_copy_set's exit code, so drift produced a false 'Update complete.'. Root cause of the fleet-wide staleness: operators bump the .loa gitlink by hand ('pointer-only' / 'git submodule update --remote .loa') and never invoke update_submodule at all.
+**First observed**: cycle-117 (2026-07-06) fleet audit of 7 hosaka repos
+**Recurrence count**: 1
+**Current workaround**: Detect content drift in _refresh_copy_entry check mode (cmp -s files, diff -rq dirs, jq -S allow/deny for settings.json); fix the set -e early-exit in check_symlinks_subcommand; hard-gate update_submodule with a post-refresh refresh_copy_set false + .loa-version.json read-back (LOA_UPDATE_SKIP_COPYSET_VERIFY=1 escapes loudly). Does NOT retroactively fix already-drifted repos — each must run update-loa.sh once. Un-gitignoring the copy set + upstream CLAUDE.loa.md header self-stamping remain open follow-ups.
+**Decision recorded (2026-07-07)**: cycle-118 follow-up (bd-copyset-ungitignore-decision-i1hb) evaluated the "un-gitignore the copy set" follow-up in full — see `grimoires/loa/proposals/copyset-ungitignore-decision-2026-07-07.md` for options A (un-gitignore fleet-wide) / B (optional CI `--check-symlinks` step) / C (status quo) with grounded tradeoffs. Recommendation: **B**, declining the fleet-wide un-gitignore for now (it's a one-way git-tracking migration that churns on every legitimate framework bump, not just drift). The optional CI-check snippet ships in `.claude/commands/update-loa.md`. Un-gitignoring stays OPEN pending explicit operator sign-off — no longer a silently-dangling TODO.
+**Upstream issue**: #1177 item G
+**Related visions / lore**: #842 (copy set), #968 (refresh extraction), #1045 (State-Zone allow-list)
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-07-06 | Reproduced live (read-only) across 7 fleet repos; added content-drift detection + set-e fix + update_submodule hard gate + read-back assertion with fixture regression tests. | RESOLVED-STRUCTURAL — pre-fix HEAD reproduced (COPY-DRIFT count 0, script dies after '11 missing'); fixed path reaches COPY-DRIFT. 13+2+8 new/extended bats green. | .claude/scripts/mount-submodule.sh _refresh_copy_entry/check_symlinks_subcommand + .claude/scripts/update-loa.sh verify_copyset_gate/assert_version_marker; PR #1177 (cycle-117 item G) |
+
+### Reading guide
+
+Fleet evidence: crate+ledger settings.json stuck at 374 rules vs 382-rule pin (missing 8 State-Zone Write/Edit rules); carrefour --check-symlinks set-e early exit; mirror/ledger/seen .loa-version.json 1..~85 releases stale from manual pointer-only bumps.
+
+## KF-022: br sync dirty-tracking split-brain: --status counts dirty issues the --flush-only export reads as dirty_count=0
+
+**Status**: OPEN-UPSTREAM
+**Feature**: beads_rust (br) sync
+**Symptom**: br sync --status reports 'Dirty issues: N / Database is newer (export recommended)' while br sync --flush-only exits 'Nothing to export (no dirty issues)' (verbose shows dirty_count=0); newly created issues are stranded in the DB and never reach issues.jsonl — silent data-loss risk if a later --rebuild/--import-only treats JSONL as authoritative. The status dirty counter also stays sticky AFTER a successful --force export.
+**First observed**: 2026-07-11 agent-ergonomics pass 1 (epic bd-m1o6 stranded)
+**Recurrence count**: 2
+**Current workaround**: br sync --flush-only --force exports everything (verified bd-m1o6 landed in JSONL); ignore the sticky --status dirty counter afterwards. beads-health.sh (R-003) now probes content currency instead of trusting mtime alone.
+**Upstream issue**: beads_rust v0.2.6 — same family as the known br list --json under-report; needs an upstream issue
+**Related visions / lore**: none
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-07-11 | br sync --flush-only (as recommended) | no-op: dirty_count=0 despite --status Dirty:1 | session transcript agent-ergonomics pass 1; bd-m1o6 absent from issues.jsonl until --force |
+| 2026-07-11 | br create x5 then br sync --flush-only | recurred: new beads stranded until --force (2nd time same day) | agent-ergonomics pass 1 session; beads bd-5fpl..bd-y04d |
+
+### Reading guide
+
+Do NOT chase the health check: since R-003 (agent-ergonomics pass 1) beads-health DEGRADED/jsonl_stale is content-verified and truthful. If --status says dirty but --flush-only exports nothing, use --flush-only --force ONCE and verify the missing ids landed in .beads/issues.jsonl (grep the id). Never run --rebuild/--import-only while ids are DB-only — that destroys them.

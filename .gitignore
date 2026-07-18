@@ -101,6 +101,12 @@ temp/
 grimoires/loa/context/*
 !grimoires/loa/context/README.md
 
+# Aleph runtime evidence (cycle-115)
+# Runs retain source corpora and authority/model receipts. They are local,
+# potentially sensitive evidence and must never enter the Loa template.
+grimoires/loa/aleph/runs/
+grimoires/loa/aleph/host-capabilities.json
+
 # ck semantic search state (embeddings cache, indexes)
 # Large machine-specific files that rebuild automatically
 .ck/
@@ -306,6 +312,8 @@ grimoires/loa/ledger.json.bak*
 #   grimoires/loa/runbooks/           (framework-shipped runbooks)
 #   grimoires/loa/known-failures.md   (shared zone)
 #   grimoires/loa/ledger.json         (project sprint ledger)
+#   grimoires/loa/REPO-MAP.md(+.checksum)  (cycle-116 D4 derived symbol map; committed
+#                                      because .claude/ is fully tracked, unlike INDEX.md below)
 
 # OKF/ICM cycle Sprint 3: grimoire-index is a DERIVED artifact (regenerate on demand:
 # bash .claude/scripts/grimoire-index.sh). Not committed — it indexes partly-gitignored

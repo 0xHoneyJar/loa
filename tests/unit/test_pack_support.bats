@@ -341,7 +341,7 @@ EOF
     [[ "$status" -eq 0 ]]
 
     # Check meta file was created
-    [[ -f "$LOA_CONSTRUCTS_DIR/.registry-meta.json" ]]
+    [[ -f "$LOA_CONSTRUCTS_DIR/.constructs-meta.json" ]]
 }
 
 @test "registry-meta tracks installed skills" {
@@ -354,9 +354,9 @@ EOF
     [[ "$status" -eq 0 ]]
 
     # Check skill is tracked in meta
-    [[ -f "$LOA_CONSTRUCTS_DIR/.registry-meta.json" ]]
+    [[ -f "$LOA_CONSTRUCTS_DIR/.constructs-meta.json" ]]
     local meta_content
-    meta_content=$(cat "$LOA_CONSTRUCTS_DIR/.registry-meta.json")
+    meta_content=$(cat "$LOA_CONSTRUCTS_DIR/.constructs-meta.json")
     [[ "$meta_content" == *"tracked-skill"* ]] || [[ "$meta_content" == *"installed_skills"* ]]
 }
 
@@ -370,9 +370,9 @@ EOF
     [[ "$status" -eq 0 ]]
 
     # Check pack is tracked in meta
-    [[ -f "$LOA_CONSTRUCTS_DIR/.registry-meta.json" ]]
+    [[ -f "$LOA_CONSTRUCTS_DIR/.constructs-meta.json" ]]
     local meta_content
-    meta_content=$(cat "$LOA_CONSTRUCTS_DIR/.registry-meta.json")
+    meta_content=$(cat "$LOA_CONSTRUCTS_DIR/.constructs-meta.json")
     [[ "$meta_content" == *"tracked-pack"* ]] || [[ "$meta_content" == *"installed_packs"* ]]
 }
 
@@ -386,9 +386,9 @@ EOF
     [[ "$status" -eq 0 ]]
 
     # Check from_pack field
-    [[ -f "$LOA_CONSTRUCTS_DIR/.registry-meta.json" ]]
+    [[ -f "$LOA_CONSTRUCTS_DIR/.constructs-meta.json" ]]
     local meta_content
-    meta_content=$(cat "$LOA_CONSTRUCTS_DIR/.registry-meta.json")
+    meta_content=$(cat "$LOA_CONSTRUCTS_DIR/.constructs-meta.json")
     [[ "$meta_content" == *"from_pack"* ]] || [[ "$meta_content" == *"source-pack"* ]]
 }
 
@@ -401,9 +401,9 @@ EOF
     run "$LOADER" validate "$skill_dir"
     [[ "$status" -eq 0 ]]
 
-    [[ -f "$LOA_CONSTRUCTS_DIR/.registry-meta.json" ]]
+    [[ -f "$LOA_CONSTRUCTS_DIR/.constructs-meta.json" ]]
     local meta_content
-    meta_content=$(cat "$LOA_CONSTRUCTS_DIR/.registry-meta.json")
+    meta_content=$(cat "$LOA_CONSTRUCTS_DIR/.constructs-meta.json")
     [[ "$meta_content" == *"schema_version"* ]]
     [[ "$meta_content" == *"1"* ]]
 }

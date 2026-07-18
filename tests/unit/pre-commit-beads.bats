@@ -115,7 +115,10 @@ _stub_br_missing() {
     _stub_br_migration_bug
     cd "$TEST_REPO"
     run "$HOOK"
-    [ "$status" -eq 1 ]
+    # cycle-105 T2.1: on the known upstream migration-bug signature the hook
+    # emits the diagnostic but exits 0 so the commit proceeds (CI is the hard
+    # gate; operators repair at their convenience). Was exit 1 pre-cycle-105.
+    [ "$status" -eq 0 ]
     [[ "$output" == *"br migration error detected (upstream beads_rust"* ]]
     [[ "$output" == *"NOT NULL constraint failed: dirty_issues.marked_at"* ]]
 }
