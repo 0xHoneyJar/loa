@@ -202,11 +202,13 @@ synthetic preflight and implementation surfaces are documented and run
 separately in the selected package under `adapters/<adapter-id>/`.
 
 Repository tooling retains the Node 22.18 floor for direct TypeScript
-execution. Published Loa bundles additionally carry the locked, drift-checked
-ES2022 projection under `runtime-js/`; the installed `.mjs`/`.js` entrypoints
-run on Node 20 without a loader or dependency installation. A release is a
-structural prerelease unless and until the separate replay, validation, and
-sanction evidence exists.
+execution. All authored executable source is TypeScript. Published Loa bundles
+additionally carry the locked, drift-checked ES2022 projection under
+`runtime-js/`; `.gitattributes` marks that compiler output as generated, and
+the installed `.mjs`/`.js` entrypoints run on Node 20 without a loader or
+dependency installation. Repository tests reject authored JavaScript or
+source/projection drift. A release is a structural prerelease unless and until
+the separate replay, validation, and sanction evidence exists.
 
 A green deterministic command does not validate a semantic judgment, a
 projection rendering, a host adapter, agent mode, or v1 unless

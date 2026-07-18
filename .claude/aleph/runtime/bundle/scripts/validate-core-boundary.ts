@@ -905,7 +905,9 @@ export function validateCoreBoundary(
           fail(`packaging path is misclassified: ${path}`);
         }
       }
-      if (path === '.gitignore' || path.startsWith('.github/')) {
+      if (path === '.gitattributes'
+        || path === '.gitignore'
+        || path.startsWith('.github/')) {
         if (owner?.classification !== 'repository-administration') {
           fail(`repository administration path is misclassified: ${path}`);
         }
