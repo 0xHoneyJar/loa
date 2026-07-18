@@ -4,6 +4,9 @@ setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     TOOL="$REPO_ROOT/tools/aleph-release-ingest.py"
     PIN="$REPO_ROOT/.loa-aleph.lock.json"
+    PIN_BUNDLE_DIGEST="$(
+        jq -er '.bundle.digest | select(test("^sha256:[0-9a-f]{64}$"))' "$PIN"
+    )"
     COMPARE_FIXTURES="$REPO_ROOT/tests/fixtures/aleph-release-compare"
     FIX="$BATS_TEST_TMPDIR/aleph-ingest"
     mkdir -p "$FIX"
@@ -159,14 +162,14 @@ assert_ancestry_rejected() {
 @test "cycle-115 release ingestion: committed pin and installation verify offline" {
     run python3 "$TOOL" verify-installed --root "$REPO_ROOT" --pin "$PIN"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"PASS verify-installed sha256:dbd613c9564a5a96540a1bf5811cf1b3105a279ae27d4eaea481159a76727c29"* ]]
+    [ "$output" = "PASS verify-installed $PIN_BUNDLE_DIGEST" ]
 }
 
 @test "cycle-115 release ingestion: canonical reconstructed release verifies" {
     make_release "$FIX/release"
     run python3 "$TOOL" verify-release --release "$FIX/release" --pin "$PIN"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"PASS verify-release sha256:dbd613c9564a5a96540a1bf5811cf1b3105a279ae27d4eaea481159a76727c29"* ]]
+    [ "$output" = "PASS verify-release $PIN_BUNDLE_DIGEST" ]
 }
 
 @test "cycle-115 release ingestion: checksum and archive tamper fail closed" {
