@@ -4,6 +4,7 @@ setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     TOOL="$REPO_ROOT/tools/aleph-release-ingest.py"
     PIN="$REPO_ROOT/.loa-aleph.lock.json"
+    COMPARE_FIXTURES="$REPO_ROOT/tests/fixtures/aleph-release-compare"
     FIX="$BATS_TEST_TMPDIR/aleph-ingest"
     mkdir -p "$FIX"
 }
@@ -89,6 +90,70 @@ metadata = {
 )
 (output / metadata_name).write_bytes(module._canonical_json_bytes(metadata))
 PY
+}
+
+assert_ancestry_rejected() {
+    local case_name="$1"
+    local base="${2:-c86f0a02aa01d2b8304b62ff8406dcc31ad0af83}"
+    local head="${3:-dd3b6ce9ada397b8126c2283d23bd1073b1ff322}"
+    local page_size="${4:-100}"
+    run python3 "$TOOL" verify-ancestry \
+        --compare-pages "$COMPARE_FIXTURES/$case_name" \
+        --base "$base" \
+        --head "$head" \
+        --page-size "$page_size"
+    if [ "$status" -eq 0 ]; then
+        echo "expected ancestry fixture to fail: $case_name"
+        echo "$output"
+        return 1
+    fi
+}
+
+@test "cycle-115 release ingestion: real GitHub compare shape proves strict ancestry without head_commit" {
+    ! grep -R -q '"head_commit"' "$COMPARE_FIXTURES/real-no-head-commit"
+    run python3 "$TOOL" verify-ancestry \
+        --compare-pages "$COMPARE_FIXTURES/real-no-head-commit" \
+        --base c86f0a02aa01d2b8304b62ff8406dcc31ad0af83 \
+        --head dd3b6ce9ada397b8126c2283d23bd1073b1ff322
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"PASS verify-ancestry"* ]]
+    [[ "$output" == *"commits=1"* ]]
+}
+
+@test "cycle-115 release ingestion: complete paginated compare records are accepted" {
+    run python3 "$TOOL" verify-ancestry \
+        --compare-pages "$COMPARE_FIXTURES/paginated" \
+        --base 0ec1a8b54971784c4dbb27aef4220279071c521b \
+        --head dd3b6ce9ada397b8126c2283d23bd1073b1ff322 \
+        --page-size 1
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"commits=2"* ]]
+}
+
+@test "cycle-115 release ingestion: malformed and incomplete compare responses fail closed" {
+    assert_ancestry_rejected malformed
+    assert_ancestry_rejected truncated
+    assert_ancestry_rejected pagination-gap
+    assert_ancestry_rejected pagination-metadata-mismatch \
+        0ec1a8b54971784c4dbb27aef4220279071c521b \
+        dd3b6ce9ada397b8126c2283d23bd1073b1ff322 1
+}
+
+@test "cycle-115 release ingestion: non-descendant compare responses fail closed" {
+    assert_ancestry_rejected divergent
+    assert_ancestry_rejected behind
+    assert_ancestry_rejected unrelated
+    assert_ancestry_rejected wrong-base
+    assert_ancestry_rejected wrong-merge-base
+    assert_ancestry_rejected wrong-head
+}
+
+@test "cycle-115 release ingestion: invalid commit ordering and records fail closed" {
+    assert_ancestry_rejected unordered \
+        0ec1a8b54971784c4dbb27aef4220279071c521b \
+        c86f0a02aa01d2b8304b62ff8406dcc31ad0af83
+    assert_ancestry_rejected duplicate
+    assert_ancestry_rejected malformed-parent
 }
 
 @test "cycle-115 release ingestion: committed pin and installation verify offline" {
@@ -331,6 +396,9 @@ PY
     grep -q 'pull-requests: write' "$sync"
     grep -Fq 'GH_TOKEN: ${{ github.token }}' "$sync"
     grep -q 'verify-index' "$sync"
+    grep -q 'verify-ancestry' "$sync"
+    grep -Fq 'per_page=100&page=$page' "$sync"
+    ! grep -q 'head_commit' "$sync"
     [ "$(grep -c "'.claude/commands/loa-aleph\*\.md'" "$integrity")" -eq 2 ]
     grep -q 'node:.*\[' "$integrity"
     ! grep -Eq 'gh pr (merge|review)|--auto|enablePullRequestAutoMerge' "$sync"
