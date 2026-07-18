@@ -231,6 +231,11 @@ _parse_construct_manifest() {
   done
 }
 
+_path_has_traversal() {
+  local path="$1"
+  [[ "$path" == ".." || "$path" == ../* || "$path" == */../* || "$path" == */.. ]]
+}
+
 # Validate a single construct symlink entry and add if valid
 _validate_and_add_construct_entry() {
   local link="$1"
@@ -238,16 +243,21 @@ _validate_and_add_construct_entry() {
   local pack_name="$3"
   local repo_root="$4"
 
+  # Validation 0: Require explicit link and target values.
+  if [[ -z "$link" || -z "$target" || "$link" == "null" || "$target" == "null" ]]; then
+    echo "[symlink-manifest] REJECTED: Construct '$pack_name' declares an empty link or target" >&2
+    return 0
+  fi
+
   # Validation 1: Boundary enforcement — link must be under .claude/
   if [[ "$link" != .claude/* ]]; then
     echo "[symlink-manifest] REJECTED: Construct '$pack_name' declares link '$link' outside .claude/ boundary" >&2
     return 0
   fi
 
-  # Validation 2: Path sanitization — reject .. traversals in link path
-  # Covers: leading ../, mid-path /../, and trailing /.. (F-001)
-  if [[ "$link" == *../* ]] || [[ "$link" == */../* ]] || [[ "$link" == *.. ]]; then
-    echo "[symlink-manifest] REJECTED: Construct '$pack_name' link '$link' contains path traversal" >&2
+  # Validation 2: Path sanitization — reject traversal in both link and target.
+  if _path_has_traversal "$link" || _path_has_traversal "$target"; then
+    echo "[symlink-manifest] REJECTED: Construct '$pack_name' link or target contains path traversal (link='$link', target='$target')" >&2
     return 0
   fi
 
