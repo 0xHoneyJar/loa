@@ -26,6 +26,8 @@ setup() {
   [[ "$output" == *"NEVER"* ]]
   [[ "$output" == *"Three-Zone"* ]]
   [[ "$output" == *"known-failures.md"* ]]
+  [[ "$output" == *"Default PR reviewer:** @deep-name"* ]]
+  [[ "$output" != *"janitooor"* ]]
 }
 
 @test "agents-md-gen: carries the generated sentinel (operator-detection exclusion)" {

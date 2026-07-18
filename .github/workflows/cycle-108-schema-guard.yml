@@ -4,7 +4,7 @@
 # (Flatline IMP-010 atomic schema-enum seeding enforcement).
 #
 # Triggers on PRs touching cycle-108 protected surfaces. Asserts:
-#   1. PR has @janitooor as approver (or operator-equivalent)
+#   1. PR has the designated operator as approver (or operator-equivalent)
 #   2. No admin-bypass events on protected files in last 24h
 #   3. SKILL.md role: changes are atomically paired with audited_review_skills
 #      enum updates (no cross-commit splits)
@@ -160,40 +160,42 @@ jobs:
     name: Operator reviewer required
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
+    env:
+      OPERATOR_LOGIN: deep-name
     steps:
-      - name: Verify @janitooor is an approver
+      - name: Verify designated operator is an approver
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # BB iter-5 F002 closure: keep reviewers as a JSON array and check
-          # exact-login membership via jq. The previous `grep -q "janitooor"`
-          # substring match would admit any login containing the substring
-          # (e.g. `janitooor-fake`, `evil-janitooor-bot`) — trivial
+          # exact-login membership via jq. A substring match would admit any
+          # login containing the operator login, which is a trivial
           # impersonation surface.
           reviewers_json=$(gh pr view "${{ github.event.pull_request.number }}" \
             --repo "${{ github.repository }}" \
             --json reviews \
             --jq '[.reviews[] | select(.state == "APPROVED") | .author.login] | unique')
 
-          # Loosened slightly: pass if EITHER @janitooor is an approver OR
-          # the PR author IS @janitooor (operator can approve their own
-          # ATK-A17 mitigation; the GH branch protection still requires the
-          # approval via the standard PR review flow).
+          # Loosened slightly: pass if EITHER the designated operator is an
+          # approver OR the PR author IS the designated operator. This permits
+          # operator-authored ATK-A17 mitigation; GitHub branch protection
+          # still governs the standard PR review flow.
           pr_author="${{ github.event.pull_request.user.login }}"
 
-          if [[ "$pr_author" == "janitooor" ]]; then
-            echo "PR author is @janitooor; reviewer check passes."
+          if [[ "$pr_author" == "$OPERATOR_LOGIN" ]]; then
+            echo "PR author is @$OPERATOR_LOGIN; reviewer check passes."
             exit 0
           fi
 
           # Exact-login membership check (NOT substring).
-          if printf '%s' "$reviewers_json" | jq -e 'any(. == "janitooor")' >/dev/null; then
-            echo "@janitooor has approved this PR; reviewer check passes."
+          if printf '%s' "$reviewers_json" | jq -e --arg operator "$OPERATOR_LOGIN" \
+            'any(. == $operator)' >/dev/null; then
+            echo "@$OPERATOR_LOGIN has approved this PR; reviewer check passes."
             exit 0
           fi
 
           reviewers=$(printf '%s' "$reviewers_json" | jq -r 'join(",")')
-          echo "::error::cycle-108 protected-surface PR requires @janitooor approval."
+          echo "::error::cycle-108 protected-surface PR requires @$OPERATOR_LOGIN approval."
           echo "Current approvers: $reviewers"
           echo "PR author: $pr_author"
           exit 1

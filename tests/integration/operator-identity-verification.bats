@@ -23,7 +23,7 @@ schema_version: "1.0"
 operators:
   - id: deep-name
     display_name: "Deep Name"
-    github_handle: janitooor
+    github_handle: deep-name
     git_email: "deep-name@example.com"
     capabilities:
       - dispatch
@@ -62,7 +62,7 @@ teardown() {
     run operator_identity_lookup "deep-name"
     [[ "$status" -eq 0 ]]
     echo "$output" | grep -q "deep-name"
-    echo "$output" | grep -q "janitooor"
+    echo "$output" | grep -q '"github_handle":"deep-name"'
 }
 
 @test "operator-identity: lookup unknown operator fails" {
@@ -123,5 +123,11 @@ EOF
     local real="$PROJECT_ROOT/grimoires/loa/operators.md"
     LOA_OPERATORS_FILE="$real" run operator_identity_lookup "deep-name"
     [[ "$status" -eq 0 ]]
-    echo "$output" | grep -q "deep-name"
+    echo "$output" | grep -q '"github_handle":"deep-name"'
+}
+
+@test "operator-identity: reviewer workflow uses the current GitHub handle" {
+    local workflow="$PROJECT_ROOT/.github/workflows/cycle-108-schema-guard.yml"
+    grep -q '^      OPERATOR_LOGIN: deep-name$' "$workflow"
+    ! grep -q 'janitooor' "$workflow"
 }
