@@ -127,9 +127,14 @@ npm install
 npm test
 ```
 
-The checker implementation is strict TypeScript. Node 22.18 or newer executes
-the `.ts` entrypoints directly; the npm test sequence also runs `tsc --noEmit`
-before the deterministic fixture and mutation checks.
+All authored executable source is strict TypeScript. Node 22.18 or newer
+executes the `.ts` entrypoints directly. The tracked JavaScript under
+`runtime-js/` is deterministic ES2022 compiler output retained only for the
+dependency-free Node 20 release runtime, and `.gitattributes` excludes that
+generated tree from authored-language statistics. The npm test sequence runs
+`tsc --noEmit`, rejects JavaScript outside that generated tree, and verifies
+the committed projection byte-for-byte before the deterministic fixture and
+mutation checks.
 
 No endpoint is part of this product, and there is no final schema freeze beyond
 the accepted provisional v0 envelope.
