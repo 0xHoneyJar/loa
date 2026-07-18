@@ -2,12 +2,13 @@
 import { chmodSync, existsSync, lstatSync, readFileSync, } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { LOA_ADAPTER_ID, LOA_HOST_FORMAT, LOA_MODEL_SLOTS, LOA_REQUIRED_HOST_CAPABILITIES, } from './types.js';
+import { LOA_ADAPTER_ID, LOA_CLAUDE_CODE_DISPATCH_FORMAT, LOA_HOST_FORMAT, LOA_MODEL_SLOTS, LOA_REQUIRED_HOST_CAPABILITIES, } from './types.js';
 import { assertNoSymlinkComponents, readJsonFile, readStableRegularFile, sha256Digest, stableJson, stableJsonBytes, writeFileAtomic, writeJsonAtomic, } from './fs.js';
 import { readRunState } from './run-control.js';
 import { runtimeSnapshotPath, verifyRuntimeSnapshot, } from './runtime-snapshot.js';
 import { verifyWorkerBundle } from './worker-bundle.js';
-import { canonicalWorkerReturnRoot, validateWorkerReturn, } from './worker-return.js';
+import { canonicalWorkerReturnRoot, contractExemplarToJsonSchema, validateWorkerReturn, } from './worker-return.js';
+import { buildClaudeCodeWorkerPrompt, invokeClaudeCodeWorker, isProviderPinnedClaudeModelId, parseClaudeCodeStream, } from './claude-code-host.js';
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const INVOCATION_FORMAT = 'aleph-loa-native-worker-invocation/v1';
 const NATIVE_DISPATCH_FORMAT = 'aleph-loa-native-worker-dispatch/v1';
@@ -15,6 +16,7 @@ const INVOCATION_FILE = 'invocation.json';
 const CAPABILITIES_FILE = 'host-capabilities.json';
 const NATIVE_DISPATCH_FILE = 'native-dispatch.json';
 const NATIVE_RETURN_FILE = 'native-return.json';
+const EVENT_STREAM_FILE = 'claude-stream.jsonl';
 function isRecord(value) {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -54,6 +56,7 @@ function assertExactModelIdentity(value, slot) {
         'provider',
         'model_id',
         'resolved_version',
+        'identity_kind',
         'immutable',
         'context',
         'effort',
@@ -66,22 +69,39 @@ function assertExactModelIdentity(value, slot) {
         throw new Error(`Loa host model slot ${slot} fields are malformed`);
     }
     const model = value;
-    for (const field of fields.filter((field) => field !== 'immutable' && field !== 'fallback')) {
+    for (const field of fields.filter((field) => ![
+        'identity_kind',
+        'immutable',
+        'fallback',
+    ].includes(field))) {
         if (typeof model[field] !== 'string'
             || !model[field].trim()
             || /(?:^|[^a-z0-9])(?:latest|current|default|recommended|rolling|auto)(?:[^a-z0-9]|$)/iu.test(model[field])) {
             throw new Error(`Loa host model slot ${slot}.${field} is empty or mutable`);
         }
     }
-    if (!/^sha256:[0-9a-f]{64}$/u.test(String(model.resolved_version))) {
-        throw new Error(`Loa host model slot ${slot}.resolved_version is not content-addressed`);
-    }
     if (model.immutable !== true || model.fallback !== false) {
         throw new Error(`Loa host model slot ${slot} permits mutation or fallback`);
     }
+    const fixtureIdentity = model.identity_kind === 'fixture-simulated'
+        && /^sha256:[0-9a-f]{64}$/u.test(String(model.resolved_version));
+    const providerIdentity = model.identity_kind === 'provider-pinned-snapshot'
+        && model.resolved_version === model.model_id
+        && typeof model.model_id === 'string'
+        && isProviderPinnedClaudeModelId(model.model_id);
+    if (!(fixtureIdentity || providerIdentity)) {
+        throw new Error(`Loa host model slot ${slot} has no exact immutable identity`);
+    }
 }
 function assertHostCanDispatch(host, request) {
-    if (!exactKeys(host, ['host_format', 'host', 'capabilities', 'models', 'simulation'])
+    if (!exactKeys(host, [
+        'host_format',
+        'host',
+        'capabilities',
+        'models',
+        'runtime',
+        'simulation',
+    ])
         || host.host_format !== LOA_HOST_FORMAT
         || !exactKeys(host.host, ['id', 'version', 'build_id'])
         || host.host.id !== LOA_ADAPTER_ID
@@ -202,6 +222,7 @@ function verifyInvocation(workerBundleRoot, returnRoot) {
     const expectedBundleRoot = resolve(workerBundleRoot);
     const expectedDispatchPath = join(returnRoot, NATIVE_DISPATCH_FILE);
     const expectedReturnPath = join(returnRoot, NATIVE_RETURN_FILE);
+    const expectedEventStreamPath = join(returnRoot, EVENT_STREAM_FILE);
     const expectedCapabilitiesPath = join(returnRoot, CAPABILITIES_FILE);
     if (invocation.format !== INVOCATION_FORMAT
         || invocation.invocation_digest !== sha256Digest(stableJsonBytes(invocationProjection(invocation)))
@@ -219,9 +240,14 @@ function verifyInvocation(workerBundleRoot, returnRoot) {
         || invocation.inherit_context !== false
         || invocation.require_fresh_context !== true
         || invocation.require_exact_model_identity !== true
-        || !exactKeys(invocation.result, ['dispatch_receipt_path', 'structured_return_path'])
+        || !exactKeys(invocation.result, [
+            'dispatch_receipt_path',
+            'structured_return_path',
+            'event_stream_path',
+        ])
         || invocation.result.dispatch_receipt_path !== expectedDispatchPath
         || invocation.result.structured_return_path !== expectedReturnPath
+        || invocation.result.event_stream_path !== expectedEventStreamPath
         || !exactKeys(invocation.host_capability_receipt, ['path', 'digest'])
         || invocation.host_capability_receipt.path !== expectedCapabilitiesPath) {
         throw new Error('Loa native worker invocation envelope does not match its sealed worker bundle');
@@ -257,7 +283,8 @@ export function prepareLoaWorkerHandoff(options) {
     if (existsSync(join(returnRoot, INVOCATION_FILE))
         || existsSync(join(returnRoot, CAPABILITIES_FILE))
         || existsSync(join(returnRoot, NATIVE_DISPATCH_FILE))
-        || existsSync(join(returnRoot, NATIVE_RETURN_FILE))) {
+        || existsSync(join(returnRoot, NATIVE_RETURN_FILE))
+        || existsSync(join(returnRoot, EVENT_STREAM_FILE))) {
         throw new Error('Loa native worker handoff already exists; stale handoffs are never reused');
     }
     const capabilitiesPath = join(returnRoot, CAPABILITIES_FILE);
@@ -270,6 +297,7 @@ export function prepareLoaWorkerHandoff(options) {
     const invocationPath = join(returnRoot, INVOCATION_FILE);
     const nativeDispatchPath = join(returnRoot, NATIVE_DISPATCH_FILE);
     const nativeReturnPath = join(returnRoot, NATIVE_RETURN_FILE);
+    const eventStreamPath = join(returnRoot, EVENT_STREAM_FILE);
     const invocation = sealInvocation({
         format: INVOCATION_FORMAT,
         invocation_digest: '',
@@ -291,6 +319,7 @@ export function prepareLoaWorkerHandoff(options) {
         result: {
             dispatch_receipt_path: nativeDispatchPath,
             structured_return_path: nativeReturnPath,
+            event_stream_path: eventStreamPath,
         },
         simulation: binding.host.simulation,
     });
@@ -298,9 +327,15 @@ export function prepareLoaWorkerHandoff(options) {
     chmodSync(capabilitiesPath, 0o400);
     chmodSync(invocationPath, 0o400);
     verifyInvocation(workerBundleRoot, returnRoot);
-    return { invocation, invocationPath, nativeDispatchPath, nativeReturnPath };
+    return {
+        invocation,
+        invocationPath,
+        nativeDispatchPath,
+        nativeReturnPath,
+        eventStreamPath,
+    };
 }
-function readNativeDispatchRecord(path, invocation) {
+function readNativeDispatchRecord(path, invocation, host, structuredReturnBytes) {
     assertImmutableRegularFile(path, 'Loa native dispatch record');
     const loaded = canonicalFile(path, 'Loa native dispatch record');
     if (!exactKeys(loaded.value, [
@@ -308,6 +343,9 @@ function readNativeDispatchRecord(path, invocation) {
         'invocation_digest',
         'worker_bundle_digest',
         'host_capability_receipt_digest',
+        'event_stream_digest',
+        'structured_return_digest',
+        'host_evidence',
         'receipt',
     ])) {
         throw new Error('Loa native dispatch record fields are malformed');
@@ -317,6 +355,7 @@ function readNativeDispatchRecord(path, invocation) {
         || record.invocation_digest !== invocation.invocation_digest
         || record.worker_bundle_digest !== invocation.worker_bundle_digest
         || record.host_capability_receipt_digest !== invocation.host_capability_receipt.digest
+        || record.structured_return_digest !== sha256Digest(structuredReturnBytes)
         || !exactKeys(record.receipt, [
             'format',
             'call_id',
@@ -333,6 +372,117 @@ function readNativeDispatchRecord(path, invocation) {
     if (stableJson(record.receipt.simulation) !== stableJson(invocation.simulation)) {
         throw new Error('Loa native dispatch receipt lost or forged its simulation label');
     }
+    if (invocation.simulation !== null) {
+        if (record.host_evidence !== null || record.event_stream_digest !== null) {
+            throw new Error('fixture-simulated native dispatch forged live host evidence');
+        }
+        return record;
+    }
+    if (host.runtime === null
+        || record.host_evidence === null
+        || typeof record.event_stream_digest !== 'string'
+        || !/^sha256:[0-9a-f]{64}$/u.test(record.event_stream_digest)) {
+        throw new Error('live native dispatch omits Claude Code host evidence');
+    }
+    const evidence = record.host_evidence;
+    if (!exactKeys(evidence, [
+        'format',
+        'session_id',
+        'requested_model',
+        'observed_model',
+        'effort',
+        'claude_code_version',
+        'host_build_id',
+        'claude_executable_digest',
+        'sandbox_executable_digest',
+        'sandbox_policy_digest',
+        'prompt_digest',
+        'output_schema_digest',
+        'event_stream_digest',
+        'event_stream_byte_length',
+        'event_count',
+        'structured_output_digest',
+        'total_cost_usd',
+        'usage',
+        'model_usage',
+        'stop_reason',
+        'terminal_reason',
+    ])
+        || !exactKeys(evidence.usage, [
+            'input_tokens',
+            'output_tokens',
+            'cache_read_input_tokens',
+            'cache_creation_input_tokens',
+        ])
+        || !exactKeys(evidence.model_usage, [
+            'input_tokens',
+            'output_tokens',
+            'cache_read_input_tokens',
+            'cache_creation_input_tokens',
+            'cost_usd',
+            'context_window',
+            'max_output_tokens',
+        ])) {
+        throw new Error('Claude Code native dispatch evidence fields are malformed');
+    }
+    const eventPath = invocation.result.event_stream_path;
+    assertImmutableRegularFile(eventPath, 'Claude Code event stream');
+    const eventStream = readStableRegularFile(eventPath).bytes;
+    if (record.event_stream_digest !== sha256Digest(eventStream)
+        || evidence.event_stream_digest !== record.event_stream_digest
+        || evidence.event_stream_byte_length !== String(eventStream.byteLength)) {
+        throw new Error('Claude Code event stream changed after native dispatch');
+    }
+    const parsed = parseClaudeCodeStream(eventStream, invocation.model_identity.model_id, host.runtime.claude.version);
+    const contractPath = join(invocation.worker_bundle_root, 'contracts', 'output.json');
+    const contractBytes = readStableRegularFile(contractPath).bytes;
+    if (sha256Digest(contractBytes) !== invocation.request.output_contract.digest) {
+        throw new Error('Claude Code output contract changed after dispatch');
+    }
+    let contractExemplar;
+    try {
+        contractExemplar = JSON.parse(contractBytes.toString('utf8'));
+    }
+    catch {
+        throw new Error('Claude Code output contract is invalid JSON');
+    }
+    const expectedPromptDigest = sha256Digest(buildClaudeCodeWorkerPrompt(invocation));
+    const expectedSchemaDigest = sha256Digest(stableJsonBytes(contractExemplarToJsonSchema(contractExemplar)));
+    let structuredValue;
+    try {
+        structuredValue = JSON.parse(structuredReturnBytes.toString('utf8'));
+    }
+    catch {
+        throw new Error('Loa native structured return is invalid JSON');
+    }
+    if (stableJson(parsed.structuredOutput) !== stableJson(structuredValue)
+        || evidence.format !== LOA_CLAUDE_CODE_DISPATCH_FORMAT
+        || evidence.structured_output_digest !== sha256Digest(structuredReturnBytes)
+        || record.receipt.context_id !== evidence.session_id
+        || record.receipt.model_identity.model_id !== evidence.observed_model
+        || evidence.effort !== invocation.model_identity.effort
+        || evidence.host_build_id !== host.host.build_id
+        || evidence.claude_executable_digest !== host.runtime.claude.digest
+        || evidence.sandbox_executable_digest !== host.runtime.sandbox.digest
+        || evidence.sandbox_policy_digest !== host.runtime.sandbox.policy_digest
+        || evidence.prompt_digest !== expectedPromptDigest
+        || evidence.output_schema_digest !== expectedSchemaDigest
+        || stableJson({
+            session_id: evidence.session_id,
+            requested_model: evidence.requested_model,
+            observed_model: evidence.observed_model,
+            claude_code_version: evidence.claude_code_version,
+            event_stream_digest: evidence.event_stream_digest,
+            event_count: evidence.event_count,
+            structured_output_digest: evidence.structured_output_digest,
+            total_cost_usd: evidence.total_cost_usd,
+            usage: evidence.usage,
+            model_usage: evidence.model_usage,
+            stop_reason: evidence.stop_reason,
+            terminal_reason: evidence.terminal_reason,
+        }) !== stableJson(parsed.evidence)) {
+        throw new Error('Claude Code native dispatch evidence is not bound to its stream and return');
+    }
     return record;
 }
 /**
@@ -346,9 +496,11 @@ export function acceptLoaWorkerHandoff(options) {
     const invocation = verifyInvocation(workerBundleRoot, returnRoot);
     const dispatchRecordPath = join(returnRoot, NATIVE_DISPATCH_FILE);
     const nativeReturnPath = join(returnRoot, NATIVE_RETURN_FILE);
-    const dispatch = readNativeDispatchRecord(dispatchRecordPath, invocation);
     assertImmutableRegularFile(nativeReturnPath, 'Loa native structured return');
-    const raw = readStableRegularFile(nativeReturnPath).bytes;
+    const returned = canonicalFile(nativeReturnPath, 'Loa native structured return');
+    const raw = returned.bytes;
+    const host = pinnedHostBinding(workerBundleRoot, invocation.request).host;
+    const dispatch = readNativeDispatchRecord(dispatchRecordPath, invocation, host, raw);
     const validated = validateWorkerReturn({
         workerBundleRoot,
         returnRoot,
@@ -363,9 +515,57 @@ export function acceptLoaWorkerHandoff(options) {
     };
 }
 /**
- * Synchronous embedding interface retained for harnesses that already expose
- * a genuine Loa fresh-context primitive as a callback. No default or degraded
- * implementation exists.
+ * Execute an already prepared live handoff through the binary-attested Claude
+ * Code and bubblewrap binding. The raw stream and structured return remain in
+ * quarantine until the separate accept operation re-verifies them.
+ */
+export function dispatchPreparedClaudeCodeHandoff(options) {
+    const workerBundleRoot = resolve(options.workerBundleRoot);
+    const returnRoot = resolve(options.returnRoot);
+    const invocation = verifyInvocation(workerBundleRoot, returnRoot);
+    const binding = pinnedHostBinding(workerBundleRoot, invocation.request);
+    if (invocation.simulation !== null || binding.host.simulation !== null) {
+        throw new Error('live Claude Code dispatch rejects fixture-simulated handoffs');
+    }
+    for (const path of [
+        invocation.result.dispatch_receipt_path,
+        invocation.result.structured_return_path,
+        invocation.result.event_stream_path,
+    ]) {
+        if (existsSync(path)) {
+            throw new Error('Loa native worker result already exists; dispatch is never retried in place');
+        }
+    }
+    const completed = invokeClaudeCodeWorker(invocation, binding.host);
+    const returnBytes = stableJsonBytes(completed.structuredReturn);
+    const dispatchRecord = {
+        format: NATIVE_DISPATCH_FORMAT,
+        invocation_digest: invocation.invocation_digest,
+        worker_bundle_digest: invocation.worker_bundle_digest,
+        host_capability_receipt_digest: invocation.host_capability_receipt.digest,
+        event_stream_digest: completed.evidence.event_stream_digest,
+        structured_return_digest: sha256Digest(returnBytes),
+        host_evidence: completed.evidence,
+        receipt: completed.receipt,
+    };
+    writeFileAtomic(invocation.result.event_stream_path, completed.eventStream, 0o400);
+    writeFileAtomic(invocation.result.structured_return_path, returnBytes, 0o400);
+    writeJsonAtomic(invocation.result.dispatch_receipt_path, dispatchRecord, 0o400);
+    chmodSync(invocation.result.event_stream_path, 0o400);
+    chmodSync(invocation.result.structured_return_path, 0o400);
+    chmodSync(invocation.result.dispatch_receipt_path, 0o400);
+    readNativeDispatchRecord(invocation.result.dispatch_receipt_path, invocation, binding.host, returnBytes);
+    return {
+        receipt: completed.receipt,
+        evidence: completed.evidence,
+        dispatchRecordPath: invocation.result.dispatch_receipt_path,
+        structuredReturnPath: invocation.result.structured_return_path,
+        eventStreamPath: invocation.result.event_stream_path,
+    };
+}
+/**
+ * Synchronous embedding interface retained only for fixture-simulated
+ * harnesses. Live calls must use the binary-attested binding above.
  */
 export function dispatchLoaWorker(options) {
     if (!options.host || typeof options.host.invokeFreshContext !== 'function') {
@@ -385,15 +585,22 @@ export function dispatchLoaWorker(options) {
         !== stableJson(prepared.invocation.simulation)) {
         throw new Error('Loa fresh-context host lost or forged its simulation label');
     }
+    if (prepared.invocation.simulation === null) {
+        throw new Error('live callback dispatch is unsupported; use the attested Claude Code binding');
+    }
+    const returnBytes = stableJsonBytes(result.structured_return);
     const dispatchRecord = {
         format: NATIVE_DISPATCH_FORMAT,
         invocation_digest: prepared.invocation.invocation_digest,
         worker_bundle_digest: prepared.invocation.worker_bundle_digest,
         host_capability_receipt_digest: prepared.invocation.host_capability_receipt.digest,
+        event_stream_digest: null,
+        structured_return_digest: sha256Digest(returnBytes),
+        host_evidence: null,
         receipt: result.receipt,
     };
     writeJsonAtomic(prepared.nativeDispatchPath, dispatchRecord, 0o400);
-    writeJsonAtomic(prepared.nativeReturnPath, result.structured_return, 0o400);
+    writeFileAtomic(prepared.nativeReturnPath, returnBytes, 0o400);
     chmodSync(prepared.nativeDispatchPath, 0o400);
     chmodSync(prepared.nativeReturnPath, 0o400);
     const accepted = acceptLoaWorkerHandoff({
@@ -409,8 +616,8 @@ export function dispatchLoaWorker(options) {
 }
 function parseCli(argv) {
     const action = argv.shift();
-    if (action !== 'prepare' && action !== 'accept') {
-        throw new Error('worker handoff action must be prepare or accept');
+    if (action !== 'prepare' && action !== 'dispatch' && action !== 'accept') {
+        throw new Error('worker handoff action must be prepare, dispatch, or accept');
     }
     let workerBundleRoot = '';
     let returnRoot = '';
@@ -435,8 +642,8 @@ function parseCli(argv) {
     if (action === 'prepare' && !capabilitiesPath) {
         throw new Error('prepare requires --capabilities');
     }
-    if (action === 'accept' && capabilitiesPath) {
-        throw new Error('accept does not take a mutable capability receipt');
+    if (action !== 'prepare' && capabilitiesPath) {
+        throw new Error(`${action} does not take a mutable capability receipt`);
     }
     return { action, workerBundleRoot, returnRoot, capabilitiesPath, json };
 }
@@ -463,7 +670,28 @@ export function runWorkerDispatchCli(argv = process.argv.slice(2)) {
                 invocation_path: prepared.invocationPath,
                 native_dispatch_path: prepared.nativeDispatchPath,
                 native_return_path: prepared.nativeReturnPath,
+                event_stream_path: prepared.eventStreamPath,
                 simulation: prepared.invocation.simulation,
+            }, parsed.json);
+            return 0;
+        }
+        if (parsed.action === 'dispatch') {
+            const dispatched = dispatchPreparedClaudeCodeHandoff({
+                workerBundleRoot: parsed.workerBundleRoot,
+                returnRoot: parsed.returnRoot,
+            });
+            printResult({
+                format: 'aleph-loa-native-worker-dispatch-result/v1',
+                result: 'PASS',
+                call_id: dispatched.receipt.call_id,
+                context_id: dispatched.receipt.context_id,
+                model: dispatched.evidence.observed_model,
+                total_cost_usd: dispatched.evidence.total_cost_usd,
+                dispatch_record_path: dispatched.dispatchRecordPath,
+                structured_return_path: dispatched.structuredReturnPath,
+                event_stream_path: dispatched.eventStreamPath,
+                event_stream_digest: dispatched.evidence.event_stream_digest,
+                ledger_write: false,
             }, parsed.json);
             return 0;
         }

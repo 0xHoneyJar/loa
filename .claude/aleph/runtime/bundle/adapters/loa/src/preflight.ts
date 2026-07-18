@@ -27,6 +27,10 @@ import {
   LOA_ROLE_IDS,
   LOA_RUN_ROOT,
 } from './types.ts';
+import {
+  parseLoaProfile,
+  validateResolvedHost,
+} from './runtime-snapshot.ts';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const DEFAULT_ROOT = resolve(dirname(SCRIPT_PATH), '../../..');
@@ -37,9 +41,15 @@ const INSTALLATION_MAP_PATH = `${ADAPTER_ROOT}/installation.map.json`;
 const COMMAND_PATH = `${ADAPTER_ROOT}/command/loa-aleph.md`;
 const SKILL_PATH = `${ADAPTER_ROOT}/skill/loa-aleph/SKILL.md`;
 const PROFILE_PATH = `${ADAPTER_ROOT}/profiles/loa-default.json`;
+const CLAUDE_CODE_HOST_PATH = `${ADAPTER_ROOT}/src/claude-code-host.ts`;
 const CLI_PATH = `${ADAPTER_ROOT}/src/cli.ts`;
+const HOST_ATTESTATION_PATH = `${ADAPTER_ROOT}/src/host-attestation.ts`;
 const LAUNCHER_PATH = `${ADAPTER_ROOT}/src/launcher.ts`;
+const WORKER_DISPATCH_PATH = `${ADAPTER_ROOT}/src/worker-dispatch.ts`;
+const COMPILED_CLAUDE_CODE_HOST_PATH = 'runtime-js/adapters/loa/src/claude-code-host.js';
+const COMPILED_HOST_ATTESTATION_PATH = 'runtime-js/adapters/loa/src/host-attestation.js';
 const COMPILED_LAUNCHER_PATH = 'runtime-js/adapters/loa/src/launcher.js';
+const COMPILED_WORKER_DISPATCH_PATH = 'runtime-js/adapters/loa/src/worker-dispatch.js';
 const INSTALLER_PATH = `${ADAPTER_ROOT}/src/installer.ts`;
 const PREFLIGHT_PATH = `${ADAPTER_ROOT}/src/preflight.ts`;
 
@@ -69,11 +79,17 @@ const REQUIRED_ADAPTER_PATHS = [
   COMMAND_PATH,
   SKILL_PATH,
   PROFILE_PATH,
+  CLAUDE_CODE_HOST_PATH,
   CLI_PATH,
+  HOST_ATTESTATION_PATH,
   LAUNCHER_PATH,
+  WORKER_DISPATCH_PATH,
   INSTALLER_PATH,
   PREFLIGHT_PATH,
+  COMPILED_CLAUDE_CODE_HOST_PATH,
+  COMPILED_HOST_ATTESTATION_PATH,
   COMPILED_LAUNCHER_PATH,
+  COMPILED_WORKER_DISPATCH_PATH,
 ] as const;
 
 const REQUIRED_CORE_PATHS = [
@@ -275,12 +291,21 @@ function fallbackProblems(value: unknown, scope = 'value'): string[] {
   if (!isRecord(value)) return problems;
   for (const [key, item] of Object.entries(value)) {
     const childScope = `${scope}.${key}`;
-    if (key.toLowerCase().includes('fallback')) {
+    const lower = key.toLowerCase();
+    if (lower.includes('fallback')) {
+      const disablingControl = /(?:^|_)(?:disable|no)(?:_[a-z0-9]+)*_fallback$/u.test(lower)
+        && item === '1';
       const disabledString = typeof item === 'string'
         && ['disabled', 'forbidden', 'none'].includes(item.toLowerCase());
       const disabledCollection = (Array.isArray(item) && item.length === 0)
         || (isRecord(item) && Object.keys(item).length === 0);
-      if (!(item === false || item === null || disabledString || disabledCollection)) {
+      const disabledPolicy = isRecord(item) && item.allowed === false;
+      if (!(item === false
+        || item === null
+        || disablingControl
+        || disabledString
+        || disabledCollection
+        || disabledPolicy)) {
         problems.push(`${childScope} enables or leaves a fallback unresolved`);
       }
     }
@@ -825,7 +850,14 @@ function validateHostCapabilities(
       return;
     }
     const value = readJson(capabilitiesPath);
-    if (!exactKeys(value, ['host_format', 'host', 'capabilities', 'models', 'simulation'])
+    if (!exactKeys(value, [
+      'host_format',
+      'host',
+      'capabilities',
+      'models',
+      'runtime',
+      'simulation',
+    ])
       || !isRecord(value)) {
       fail('host capabilities top-level fields are malformed');
       return;
@@ -869,6 +901,7 @@ function validateHostCapabilities(
           'provider',
           'model_id',
           'resolved_version',
+          'identity_kind',
           'immutable',
           'context',
           'effort',
@@ -893,7 +926,13 @@ function validateHostCapabilities(
             fail(`resolved model slot ${slot} has empty or aliased ${field}`);
           }
         }
-        if (!immutableResolvedIdentity(model.resolved_version)
+        const validFixtureIdentity = simulation !== null
+          && model.identity_kind === 'fixture-simulated'
+          && immutableResolvedIdentity(model.resolved_version);
+        const validLiveIdentity = simulation === null
+          && model.identity_kind === 'provider-pinned-snapshot'
+          && model.resolved_version === model.model_id;
+        if (!(validFixtureIdentity || validLiveIdentity)
           || model.immutable !== true
           || model.fallback !== false) {
           fail(`resolved model slot ${slot} is mutable, aliased, or fallback-enabled`);
@@ -925,6 +964,13 @@ function validateHostCapabilities(
             );
           }
         }
+      }
+    }
+    if (profile) {
+      try {
+        validateResolvedHost(value, parseLoaProfile(profile), { allowSimulation: true });
+      } catch (error) {
+        fail(`host attestation: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
     for (const problem of fallbackProblems(value, 'host')) fail(problem);

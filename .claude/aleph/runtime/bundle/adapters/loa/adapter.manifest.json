@@ -25,9 +25,11 @@
     "adapters/loa/profiles/loa-default.json",
     "adapters/loa/skill/loa-aleph/SKILL.md",
     "adapters/loa/src/checker.ts",
+    "adapters/loa/src/claude-code-host.ts",
     "adapters/loa/src/cli.ts",
     "adapters/loa/src/core-loader.ts",
     "adapters/loa/src/fs.ts",
+    "adapters/loa/src/host-attestation.ts",
     "adapters/loa/src/installer.ts",
     "adapters/loa/src/intake.ts",
     "adapters/loa/src/launcher.ts",
@@ -43,13 +45,16 @@
     "adapters/loa/tests/fixtures/corpus/source-a.md",
     "adapters/loa/tests/fixtures/host-capabilities.json",
     "adapters/loa/tests/fixtures/worker-returns/malformed.json",
+    "adapters/loa/tests/test-claude-code-host.ts",
     "adapters/loa/tests/test-loa-adapter.ts",
     "adapters/loa/tests/test-loa-installer.ts",
     "adapters/loa/tsconfig.json",
     "runtime-js/adapters/loa/src/checker.js",
+    "runtime-js/adapters/loa/src/claude-code-host.js",
     "runtime-js/adapters/loa/src/cli.js",
     "runtime-js/adapters/loa/src/core-loader.js",
     "runtime-js/adapters/loa/src/fs.js",
+    "runtime-js/adapters/loa/src/host-attestation.js",
     "runtime-js/adapters/loa/src/installer.js",
     "runtime-js/adapters/loa/src/intake.js",
     "runtime-js/adapters/loa/src/launcher.js",
@@ -108,6 +113,12 @@
       "kind": "tool",
       "state": "implemented",
       "path": "adapters/loa/src/preflight.ts"
+    },
+    {
+      "id": "loa-aleph-host-attestation",
+      "kind": "tool",
+      "state": "implemented",
+      "path": "adapters/loa/src/host-attestation.ts"
     }
   ],
   "installation": {
@@ -134,8 +145,10 @@
     "fresh_context_workers": {
       "state": "implemented",
       "evidence": [
+        "adapters/loa/src/claude-code-host.ts",
         "adapters/loa/src/worker-dispatch.ts",
         "adapters/loa/src/worker-return.ts",
+        "adapters/loa/tests/test-claude-code-host.ts",
         "adapters/loa/tests/test-loa-adapter.ts"
       ]
     },
@@ -149,7 +162,9 @@
     "validated_structured_returns": {
       "state": "implemented",
       "evidence": [
+        "adapters/loa/src/claude-code-host.ts",
         "adapters/loa/src/worker-return.ts",
+        "adapters/loa/tests/test-claude-code-host.ts",
         "adapters/loa/tests/test-loa-adapter.ts"
       ]
     },
@@ -189,15 +204,20 @@
       "state": "implemented",
       "evidence": [
         "adapters/loa/profiles/loa-default.json",
+        "adapters/loa/src/claude-code-host.ts",
+        "adapters/loa/src/host-attestation.ts",
         "adapters/loa/src/preflight.ts",
         "adapters/loa/src/runtime-snapshot.ts",
+        "adapters/loa/tests/test-claude-code-host.ts",
         "adapters/loa/tests/test-loa-adapter.ts"
       ]
     },
     "immutable_runtime_snapshot": {
       "state": "implemented",
       "evidence": [
+        "adapters/loa/src/claude-code-host.ts",
         "adapters/loa/src/runtime-snapshot.ts",
+        "adapters/loa/tests/test-claude-code-host.ts",
         "adapters/loa/tests/test-loa-adapter.ts"
       ]
     },
@@ -205,8 +225,10 @@
       "state": "implemented",
       "evidence": [
         "adapters/loa/profiles/loa-default.json",
+        "adapters/loa/src/claude-code-host.ts",
         "adapters/loa/src/preflight.ts",
         "adapters/loa/src/runtime-snapshot.ts",
+        "adapters/loa/tests/test-claude-code-host.ts",
         "adapters/loa/tests/test-loa-adapter.ts"
       ]
     },
@@ -248,8 +270,10 @@
       },
       "evidence": [
         "adapters/loa/profiles/loa-default.json",
+        "adapters/loa/src/claude-code-host.ts",
         "adapters/loa/src/preflight.ts",
         "adapters/loa/src/runtime-snapshot.ts",
+        "adapters/loa/tests/test-claude-code-host.ts",
         "adapters/loa/tests/test-loa-adapter.ts"
       ]
     }
@@ -257,7 +281,10 @@
   "evidence": {
     "implementation": [
       "adapters/loa/README.md",
+      "adapters/loa/src/claude-code-host.ts",
+      "adapters/loa/src/host-attestation.ts",
       "adapters/loa/src/preflight.ts",
+      "adapters/loa/tests/test-claude-code-host.ts",
       "adapters/loa/tests/test-loa-adapter.ts",
       "adapters/loa/tests/test-loa-installer.ts"
     ],

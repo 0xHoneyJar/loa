@@ -23,6 +23,7 @@
       "provider": "fixture-simulated-provider",
       "model_id": "fixture-simulated-orchestration-model",
       "resolved_version": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "identity_kind": "fixture-simulated",
       "immutable": true,
       "context": "full-run",
       "effort": "high",
@@ -35,6 +36,7 @@
       "provider": "fixture-simulated-provider",
       "model_id": "fixture-simulated-mechanical-model",
       "resolved_version": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "identity_kind": "fixture-simulated",
       "immutable": true,
       "context": "blind-allowlist",
       "effort": "medium",
@@ -47,6 +49,7 @@
       "provider": "fixture-simulated-provider",
       "model_id": "fixture-simulated-recall-model",
       "resolved_version": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+      "identity_kind": "fixture-simulated",
       "immutable": true,
       "context": "blind-allowlist",
       "effort": "high",
@@ -59,6 +62,7 @@
       "provider": "fixture-simulated-provider",
       "model_id": "fixture-simulated-judgment-model",
       "resolved_version": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+      "identity_kind": "fixture-simulated",
       "immutable": true,
       "context": "blind-allowlist",
       "effort": "xhigh",
@@ -71,6 +75,7 @@
       "provider": "fixture-simulated-provider",
       "model_id": "fixture-simulated-adversarial-model",
       "resolved_version": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+      "identity_kind": "fixture-simulated",
       "immutable": true,
       "context": "fresh-blind-allowlist",
       "effort": "xhigh",
@@ -83,6 +88,7 @@
       "provider": "fixture-simulated-provider",
       "model_id": "fixture-simulated-assembly-model",
       "resolved_version": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+      "identity_kind": "fixture-simulated",
       "immutable": true,
       "context": "blind-allowlist",
       "effort": "medium",
@@ -92,6 +98,7 @@
       "fallback": false
     }
   },
+  "runtime": null,
   "simulation": {
     "kind": "fixture-simulated"
   }

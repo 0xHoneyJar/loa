@@ -41,6 +41,10 @@ import {
   readVerifiedBundleLock,
   verifyAndLoadLoaBundle,
 } from './core-loader.ts';
+import {
+  isProviderPinnedClaudeModelId,
+  validateClaudeCodeHostCapabilities,
+} from './claude-code-host.ts';
 
 export interface LoadedLoaProfile {
   path: string;
@@ -243,11 +247,16 @@ export function loadLoaProfile(path: string): LoadedLoaProfile {
   };
 }
 
-function validateModelIdentity(value: unknown, slot: string): ExactModelIdentity {
+function validateModelIdentity(
+  value: unknown,
+  slot: string,
+  fixtureSimulated: boolean,
+): ExactModelIdentity {
   const keys = [
     'provider',
     'model_id',
     'resolved_version',
+    'identity_kind',
     'immutable',
     'context',
     'effort',
@@ -258,12 +267,26 @@ function validateModelIdentity(value: unknown, slot: string): ExactModelIdentity
   ] as const;
   if (!exactKeys(value, keys)) throw new Error(`model slot ${slot} fields are malformed`);
   const record = value as Record<string, unknown>;
-  for (const key of keys.filter((key) => !['immutable', 'fallback'].includes(key))) {
+  for (const key of keys.filter((key) => ![
+    'identity_kind',
+    'immutable',
+    'fallback',
+  ].includes(key))) {
     exactImmutableLabel(record[key], `model slot ${slot}.${key}`);
   }
-  contentAddressedIdentity(record.resolved_version, `model slot ${slot}.resolved_version`);
   if (record.immutable !== true || record.fallback !== false) {
     throw new Error(`model slot ${slot} permits mutable identity or fallback`);
+  }
+  if (fixtureSimulated) {
+    if (record.identity_kind !== 'fixture-simulated') {
+      throw new Error(`model slot ${slot} is simulated but claims a live identity`);
+    }
+    contentAddressedIdentity(record.resolved_version, `model slot ${slot}.resolved_version`);
+  } else if (record.identity_kind !== 'provider-pinned-snapshot'
+    || record.resolved_version !== record.model_id
+    || typeof record.model_id !== 'string'
+    || !isProviderPinnedClaudeModelId(record.model_id)) {
+    throw new Error(`model slot ${slot} is not a provider-pinned snapshot identity`);
   }
   return record as unknown as ExactModelIdentity;
 }
@@ -278,6 +301,7 @@ export function validateResolvedHost(
     'host',
     'capabilities',
     'models',
+    'runtime',
     'simulation',
   ])) {
     throw new Error('Loa host-capability receipt fields are malformed');
@@ -303,13 +327,21 @@ export function validateResolvedHost(
       throw new Error(`Loa host capability ${capability} is unavailable`);
     }
   }
+  const simulation = receipt.simulation;
+  if (simulation !== null) {
+    if (!options.allowSimulation
+      || !exactKeys(simulation, ['kind'])
+      || (simulation as Record<string, unknown>).kind !== 'fixture-simulated') {
+      throw new Error('simulated host capabilities are not allowed for this invocation');
+    }
+  }
   if (!isRecord(receipt.models)
     || !exactStrings(Object.keys(receipt.models), LOA_MODEL_SLOTS)) {
     throw new Error('Loa host model resolution is incomplete');
   }
   const modelRecord = receipt.models;
   const models = Object.fromEntries(LOA_MODEL_SLOTS.map((slot) => (
-    [slot, validateModelIdentity(modelRecord[slot], slot)]
+    [slot, validateModelIdentity(modelRecord[slot], slot, simulation !== null)]
   ))) as Record<LoaModelSlot, ExactModelIdentity>;
   const mechanicFields = [
     ['effort', 'effort'],
@@ -329,26 +361,21 @@ export function validateResolvedHost(
       }
     }
   }
-  const simulation = receipt.simulation;
-  if (simulation !== null) {
-    if (!options.allowSimulation
-      || !exactKeys(simulation, ['kind'])
-      || (simulation as Record<string, unknown>).kind !== 'fixture-simulated') {
-      throw new Error('simulated host capabilities are not allowed for this invocation');
-    }
-  }
   if (!versionAtLeast(process.version, profile.runtime_requirements.node_min_version)) {
     throw new Error(
       `Node ${process.version} is below required ${profile.runtime_requirements.node_min_version}`,
     );
   }
-  return {
+  const parsed: LoaHostCapabilities = {
     host_format: LOA_HOST_FORMAT,
     host: host as LoaHostCapabilities['host'],
     capabilities: receipt.capabilities as Record<LoaRequiredHostCapability, true>,
     models,
+    runtime: receipt.runtime as LoaHostCapabilities['runtime'],
     simulation: simulation as LoaHostCapabilities['simulation'],
   };
+  validateClaudeCodeHostCapabilities(parsed);
+  return parsed;
 }
 
 function runtimeSnapshotDigest(snapshot: Omit<RuntimeSnapshot, 'tree_digest'>): string {

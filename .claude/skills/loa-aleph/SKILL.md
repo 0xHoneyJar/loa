@@ -13,9 +13,24 @@ node .claude/aleph/bin/loa-aleph.mjs --json <start|status|resume|validate> ...
 
 For a new run, provide the exact host-capability receipt at
 `grimoires/loa/aleph/host-capabilities.json`, or pass its unmanaged path with
-`--capabilities`. Never create that receipt from a guessed model alias. A
-missing exact host, model, effort, isolation, or runtime capability is a
-preflight failure without fallback.
+`--capabilities`. For a live run, create that receipt only with the entrypoint
+inside the installed verified bundle:
+
+```text
+node .claude/aleph/runtime/bundle/runtime-js/adapters/loa/src/host-attestation.js attest \
+  --profile .claude/aleph/runtime/bundle/adapters/loa/profiles/loa-default.json \
+  --output grimoires/loa/aleph/host-capabilities.json \
+  --model claude-opus-4-8 \
+  --provider amazon-bedrock \
+  --json
+```
+
+The command requires `AWS_BEARER_TOKEN_BEDROCK`, `AWS_REGION`, and
+`CLAUDE_CODE_USE_BEDROCK`, attests the exact Claude Code and bubblewrap
+binaries, and makes schema-constrained model probes. Never hand-author the
+receipt, invent a model SHA, substitute an alias, or overwrite an existing
+receipt. A missing exact host, model, effort, isolation, or runtime capability
+is a preflight failure without fallback.
 
 After `start`, present the persisted S0 request to the human. Collect only the
 scope, exclusions, per-source sensitivity rulings, human authority identity,
@@ -56,33 +71,29 @@ node <run-local-bundle>/runtime-js/adapters/loa/src/worker-dispatch.js prepare \
 ```
 
 `prepare` verifies both the sealed worker bundle and the retained exact host
-capability receipt. It writes a canonical, read-only `invocation.json`. Pass
-that JSON object, unchanged, to Loa's native fresh-context/subagent primitive.
-Do not translate it into a broader prompt, add inherited conversation, expose
-another readable path, add a writable path, or substitute a model alias. The
-primitive must support every requested mechanic, including the exact resolved
-model identity and effort. If that primitive or any mechanic is unavailable,
-stop with a preflight failure. There is no in-conversation worker, fake worker,
-default model, retry downgrade, or other fallback.
+capability receipt. It writes a canonical, read-only `invocation.json`. Do not
+translate it into a broader prompt, add inherited conversation, expose another
+readable path, add a writable path, or substitute a model alias.
 
-The worker itself has `readable_paths=[<sealed-worker-bundle>]` and
-`writable_paths=[]`. After the native call returns, this installed skill, in
-the orchestrator context, persists the host result at the two exact paths in
-`invocation.json`:
+Dispatch that prepared invocation through the binary-attested host binding:
 
-- `native-dispatch.json` is canonical JSON with exactly `format`,
-  `invocation_digest`, `worker_bundle_digest`,
-  `host_capability_receipt_digest`, and `receipt`. Its `format` is
-  `aleph-loa-native-worker-dispatch/v1`. The three digests are copied exactly
-  from the invocation, and `receipt` contains exactly the native context ID,
-  producer-context ID, fresh/no-inherited-context flags, read-only filesystem
-  attestation, exact resolved model identity, and simulation marker required by
-  `aleph-loa-worker-dispatch/v1`.
-- `native-return.json` is the worker's structured JSON value, serialized as
-  canonical JSON. The skill writes it; the worker never receives a file handle.
+```text
+node <run-local-bundle>/runtime-js/adapters/loa/src/worker-dispatch.js dispatch \
+  --worker-bundle <sealed-worker-bundle> \
+  --return-root <run>/control/worker-returns/<CALL-id> \
+  --json
+```
 
-Write both result files atomically and remove all write bits before `accept`.
-They are immutable handoff evidence, not scratch files.
+`dispatch` starts the pinned Claude Code executable as a fresh,
+nonpersistent process inside the pinned bubblewrap policy. The worker receives
+only the sealed bundle mounted read-only at `/worker`; it has no durable
+writable path and no inherited conversation. The command rejects any binary
+drift, model mismatch, fallback, refusal, permission denial, malformed or
+truncated stream, unapproved tool, or incomplete `StructuredOutput` return. It
+writes immutable `claude-stream.jsonl`, `native-return.json`, and
+`native-dispatch.json` evidence in quarantine. Do not create or modify those
+files manually. If dispatch fails, stop; there is no in-conversation worker,
+fake worker, default model, retry downgrade, or other fallback.
 
 Then accept the handoff:
 
@@ -94,11 +105,12 @@ node <run-local-bundle>/runtime-js/adapters/loa/src/worker-dispatch.js accept \
 ```
 
 `accept` re-verifies the bundle, immutable invocation, retained host receipt,
-and exact native dispatch binding before it quarantines and validates the raw
-return against the bundled Core contract. It exposes no ledger-writing API.
-Only a separately authenticated return with a passing validation report may be
-given to the orchestrator's single ledger writer. A refuter always receives a
-new context that does not inherit or reuse the producer context.
+raw event stream, structured return, and exact dispatch binding before it
+validates the return against the bundled Core contract. It exposes no
+ledger-writing API. Only a separately authenticated return with a passing
+validation report may be given to the orchestrator's single ledger writer. A
+refuter always receives a new context that does not inherit or reuse the
+producer context.
 
 Stop whenever the adapter reports `BLOCKED`. Human authority responses are
 never model-generated. Any capability receipt, native dispatch receipt,

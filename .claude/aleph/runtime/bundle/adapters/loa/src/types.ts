@@ -12,6 +12,9 @@ export const LOA_WORKER_VALIDATION_FORMAT = 'aleph-loa-worker-validation/v1';
 export const LOA_LEDGER_RECEIPT_FORMAT = 'aleph-loa-ledger-receipt/v1';
 export const LOA_CHECK_RECORD_FORMAT = 'aleph-loa-check-record/v1';
 export const LOA_COMMAND_RESULT_FORMAT = 'aleph-loa-command-result/v1';
+export const LOA_CLAUDE_CODE_RUNTIME_FORMAT = 'aleph-loa-claude-code-runtime/v1';
+export const LOA_CLAUDE_CODE_PROBE_FORMAT = 'aleph-loa-claude-code-probe/v1';
+export const LOA_CLAUDE_CODE_DISPATCH_FORMAT = 'aleph-loa-claude-code-dispatch/v1';
 
 export const LOA_RUN_ROOT = 'grimoires/loa/aleph/runs';
 export const LOA_INSTALLED_BUNDLE_ROOT = '.claude/aleph/runtime/bundle';
@@ -145,6 +148,7 @@ export interface ExactModelIdentity {
   provider: string;
   model_id: string;
   resolved_version: string;
+  identity_kind: 'provider-pinned-snapshot' | 'fixture-simulated';
   immutable: true;
   context: string;
   effort: string;
@@ -152,6 +156,78 @@ export interface ExactModelIdentity {
   cache: string;
   batch: string;
   fallback: false;
+}
+
+export interface HostExecutableIdentity {
+  path: string;
+  version: string;
+  digest: string;
+}
+
+export interface ClaudeCodeUsageEvidence {
+  input_tokens: string;
+  output_tokens: string;
+  cache_read_input_tokens: string;
+  cache_creation_input_tokens: string;
+}
+
+export interface ClaudeCodeModelUsageEvidence extends ClaudeCodeUsageEvidence {
+  cost_usd: number;
+  context_window: string;
+  max_output_tokens: string;
+}
+
+export interface ClaudeCodeProbeEvidence {
+  format: typeof LOA_CLAUDE_CODE_PROBE_FORMAT;
+  slots: LoaModelSlot[];
+  requested_model: string;
+  observed_model: string;
+  effort: string;
+  session_id: string;
+  claude_code_version: string;
+  event_stream: string;
+  event_stream_digest: string;
+  event_count: string;
+  structured_output_digest: string;
+  total_cost_usd: number;
+  usage: ClaudeCodeUsageEvidence;
+  model_usage: ClaudeCodeModelUsageEvidence;
+  stop_reason: 'tool_use';
+  terminal_reason: 'completed';
+}
+
+export interface ClaudeCodeRuntimeAttestation {
+  format: typeof LOA_CLAUDE_CODE_RUNTIME_FORMAT;
+  provider: 'amazon-bedrock';
+  attested_at: string;
+  claude: HostExecutableIdentity;
+  sandbox: HostExecutableIdentity & {
+    kind: 'bubblewrap';
+    policy_digest: string;
+    read_only_mounts: Array<{
+      source: string;
+      destination: string;
+    }>;
+  };
+  fallback_policy: {
+    allowed: false;
+    controls: {
+      CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK: '1';
+      CLAUDE_CODE_NO_MODEL_FALLBACK: '1';
+      CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK: '1';
+    };
+  };
+  credential_environment: [
+    'AWS_BEARER_TOKEN_BEDROCK',
+    'AWS_REGION',
+    'CLAUDE_CODE_USE_BEDROCK',
+  ];
+  dispatch: {
+    timeout_ms: string;
+    max_output_bytes: string;
+    max_budget_usd: string;
+  };
+  probes: ClaudeCodeProbeEvidence[];
 }
 
 export interface LoaHostCapabilities {
@@ -163,6 +239,7 @@ export interface LoaHostCapabilities {
   };
   capabilities: Record<LoaRequiredHostCapability, true>;
   models: Record<LoaModelSlot, ExactModelIdentity>;
+  runtime: ClaudeCodeRuntimeAttestation | null;
   simulation: null | {
     kind: 'fixture-simulated';
   };
@@ -389,6 +466,30 @@ export interface WorkerDispatchReceipt {
   simulation: null | {
     kind: 'fixture-simulated';
   };
+}
+
+export interface ClaudeCodeDispatchEvidence {
+  format: typeof LOA_CLAUDE_CODE_DISPATCH_FORMAT;
+  session_id: string;
+  requested_model: string;
+  observed_model: string;
+  effort: string;
+  claude_code_version: string;
+  host_build_id: string;
+  claude_executable_digest: string;
+  sandbox_executable_digest: string;
+  sandbox_policy_digest: string;
+  prompt_digest: string;
+  output_schema_digest: string;
+  event_stream_digest: string;
+  event_stream_byte_length: string;
+  event_count: string;
+  structured_output_digest: string;
+  total_cost_usd: number;
+  usage: ClaudeCodeUsageEvidence;
+  model_usage: ClaudeCodeModelUsageEvidence;
+  stop_reason: 'tool_use';
+  terminal_reason: 'completed';
 }
 
 export interface WorkerValidationReport {

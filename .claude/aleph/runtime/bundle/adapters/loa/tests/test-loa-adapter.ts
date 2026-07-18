@@ -558,6 +558,23 @@ export async function runLoaAdapterTests(): Promise<LoaAdapterTestReport> {
       }
       const skill = readFileSync(join(context.loaRoot, INSTALL_EXPOSURES[1].destination), 'utf8');
       expect(skill.includes('.claude/aleph/bin/loa-aleph.mjs'), 'skill does not resolve launcher');
+      expect(
+        existsSync(join(
+          runtimeRoot,
+          'runtime-js',
+          'adapters',
+          'loa',
+          'src',
+          'host-attestation.js',
+        )),
+        'installed bundle omits the compiled host attestation entrypoint',
+      );
+      expect(
+        skill.includes('host-attestation.js attest')
+          && skill.includes('worker-dispatch.js dispatch')
+          && skill.includes('worker-dispatch.js accept'),
+        'skill does not require the attested prepare-dispatch-accept path',
+      );
       expect(skill.includes('fixture-simulated'), 'skill omits simulation evidence boundary');
     });
 
@@ -1510,6 +1527,9 @@ export async function runLoaAdapterTests(): Promise<LoaAdapterTestReport> {
         invocation_digest: prepared.invocation.invocation_digest,
         worker_bundle_digest: prepared.invocation.worker_bundle_digest,
         host_capability_receipt_digest: prepared.invocation.host_capability_receipt.digest,
+        event_stream_digest: null,
+        structured_return_digest: sha256Digest(stableJsonBytes(raw)),
+        host_evidence: null,
         receipt: nativeReceipt,
       };
       writeFileSync(prepared.nativeDispatchPath, stableJsonBytes(nativeDispatch), { mode: 0o400 });
@@ -1553,6 +1573,9 @@ export async function runLoaAdapterTests(): Promise<LoaAdapterTestReport> {
         invocation_digest: `sha256:${'0'.repeat(64)}`,
         worker_bundle_digest: tampered.invocation.worker_bundle_digest,
         host_capability_receipt_digest: tampered.invocation.host_capability_receipt.digest,
+        event_stream_digest: null,
+        structured_return_digest: sha256Digest(stableJsonBytes(raw)),
+        host_evidence: null,
         receipt: tamperedReceipt,
       }), { mode: 0o400 });
       writeFileSync(tampered.nativeReturnPath, stableJsonBytes(raw), { mode: 0o400 });

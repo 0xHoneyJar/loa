@@ -3,6 +3,7 @@ import { dirname, join, resolve } from 'node:path';
 import { LOA_ADAPTER_ID, LOA_HOST_FORMAT, LOA_MODEL_SLOTS, LOA_PROFILE_FORMAT, LOA_REQUIRED_HOST_CAPABILITIES, LOA_ROLE_IDS, LOA_RUNTIME_SNAPSHOT_FORMAT, } from './types.js';
 import { assertSafeRelativePath, digestFile, digestTreeRecords, makeTreeReadOnly, readJsonFile, readStableRegularFile, sha256Digest, stableJsonBytes, utf8Compare, writeFileAtomic, writeJsonAtomic, } from './fs.js';
 import { readLockedFile, readVerifiedBundleLock, verifyAndLoadLoaBundle, } from './core-loader.js';
+import { isProviderPinnedClaudeModelId, validateClaudeCodeHostCapabilities, } from './claude-code-host.js';
 function isRecord(value) {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -178,11 +179,12 @@ export function loadLoaProfile(path) {
         digest: sha256Digest(bytes),
     };
 }
-function validateModelIdentity(value, slot) {
+function validateModelIdentity(value, slot, fixtureSimulated) {
     const keys = [
         'provider',
         'model_id',
         'resolved_version',
+        'identity_kind',
         'immutable',
         'context',
         'effort',
@@ -194,12 +196,27 @@ function validateModelIdentity(value, slot) {
     if (!exactKeys(value, keys))
         throw new Error(`model slot ${slot} fields are malformed`);
     const record = value;
-    for (const key of keys.filter((key) => !['immutable', 'fallback'].includes(key))) {
+    for (const key of keys.filter((key) => ![
+        'identity_kind',
+        'immutable',
+        'fallback',
+    ].includes(key))) {
         exactImmutableLabel(record[key], `model slot ${slot}.${key}`);
     }
-    contentAddressedIdentity(record.resolved_version, `model slot ${slot}.resolved_version`);
     if (record.immutable !== true || record.fallback !== false) {
         throw new Error(`model slot ${slot} permits mutable identity or fallback`);
+    }
+    if (fixtureSimulated) {
+        if (record.identity_kind !== 'fixture-simulated') {
+            throw new Error(`model slot ${slot} is simulated but claims a live identity`);
+        }
+        contentAddressedIdentity(record.resolved_version, `model slot ${slot}.resolved_version`);
+    }
+    else if (record.identity_kind !== 'provider-pinned-snapshot'
+        || record.resolved_version !== record.model_id
+        || typeof record.model_id !== 'string'
+        || !isProviderPinnedClaudeModelId(record.model_id)) {
+        throw new Error(`model slot ${slot} is not a provider-pinned snapshot identity`);
     }
     return record;
 }
@@ -209,6 +226,7 @@ export function validateResolvedHost(value, profile, options = {}) {
         'host',
         'capabilities',
         'models',
+        'runtime',
         'simulation',
     ])) {
         throw new Error('Loa host-capability receipt fields are malformed');
@@ -234,12 +252,20 @@ export function validateResolvedHost(value, profile, options = {}) {
             throw new Error(`Loa host capability ${capability} is unavailable`);
         }
     }
+    const simulation = receipt.simulation;
+    if (simulation !== null) {
+        if (!options.allowSimulation
+            || !exactKeys(simulation, ['kind'])
+            || simulation.kind !== 'fixture-simulated') {
+            throw new Error('simulated host capabilities are not allowed for this invocation');
+        }
+    }
     if (!isRecord(receipt.models)
         || !exactStrings(Object.keys(receipt.models), LOA_MODEL_SLOTS)) {
         throw new Error('Loa host model resolution is incomplete');
     }
     const modelRecord = receipt.models;
-    const models = Object.fromEntries(LOA_MODEL_SLOTS.map((slot) => ([slot, validateModelIdentity(modelRecord[slot], slot)])));
+    const models = Object.fromEntries(LOA_MODEL_SLOTS.map((slot) => ([slot, validateModelIdentity(modelRecord[slot], slot, simulation !== null)])));
     const mechanicFields = [
         ['effort', 'effort'],
         ['context_policy', 'context'],
@@ -256,24 +282,19 @@ export function validateResolvedHost(value, profile, options = {}) {
             }
         }
     }
-    const simulation = receipt.simulation;
-    if (simulation !== null) {
-        if (!options.allowSimulation
-            || !exactKeys(simulation, ['kind'])
-            || simulation.kind !== 'fixture-simulated') {
-            throw new Error('simulated host capabilities are not allowed for this invocation');
-        }
-    }
     if (!versionAtLeast(process.version, profile.runtime_requirements.node_min_version)) {
         throw new Error(`Node ${process.version} is below required ${profile.runtime_requirements.node_min_version}`);
     }
-    return {
+    const parsed = {
         host_format: LOA_HOST_FORMAT,
         host: host,
         capabilities: receipt.capabilities,
         models,
+        runtime: receipt.runtime,
         simulation: simulation,
     };
+    validateClaudeCodeHostCapabilities(parsed);
+    return parsed;
 }
 function runtimeSnapshotDigest(snapshot) {
     return sha256Digest(stableJsonBytes(snapshot));

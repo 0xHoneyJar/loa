@@ -131,6 +131,69 @@ function exemplarAlternatives(example) {
     }
     return [example];
 }
+function nonemptyStringSchema() {
+    return {
+        type: 'string',
+        pattern: '^[\\s\\S]*\\S[\\s\\S]*$',
+    };
+}
+/**
+ * Convert the canonical Core exemplar into the stricter JSON Schema accepted
+ * by Claude Code. The existing post-return validator remains authoritative;
+ * this schema prevents malformed shapes from leaving the model boundary.
+ */
+export function contractExemplarToJsonSchema(example) {
+    if (example === null) {
+        return {
+            anyOf: [
+                { type: 'null' },
+                nonemptyStringSchema(),
+            ],
+        };
+    }
+    if (typeof example === 'string') {
+        if (example === '')
+            return nonemptyStringSchema();
+        const alternatives = exemplarAlternatives(example);
+        if (alternatives.length === 1) {
+            return {
+                type: 'string',
+                pattern: literalPattern(alternatives[0]).source,
+            };
+        }
+        return {
+            anyOf: alternatives.map((alternative) => ({
+                type: 'string',
+                pattern: literalPattern(alternative).source,
+            })),
+        };
+    }
+    if (typeof example === 'number') {
+        return example >= 0
+            ? { type: 'integer', minimum: 0 }
+            : { type: 'integer' };
+    }
+    if (typeof example === 'boolean')
+        return { type: 'boolean' };
+    if (Array.isArray(example)) {
+        return {
+            type: 'array',
+            items: example.length > 0
+                ? contractExemplarToJsonSchema(example[0])
+                : nonemptyStringSchema(),
+        };
+    }
+    if (isRecord(example)) {
+        const properties = Object.fromEntries(Object.entries(example).map(([key, value]) => [key, contractExemplarToJsonSchema(value)]));
+        return {
+            type: 'object',
+            additionalProperties: false,
+            properties,
+            required: Object.keys(example),
+        };
+    }
+    throw new Error(`Core contract exemplar contains unsupported ${typeof example}`);
+}
 function validateContractString(value, example, path, errors) {
     if (!validateRequiredString(value, path, errors))
         return;
