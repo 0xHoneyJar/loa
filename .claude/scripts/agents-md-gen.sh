@@ -124,7 +124,7 @@ HDR
 | App | `src/`, `lib/`, `app/` | Confirm writes |
 
 ## Conventions
-- **Default PR reviewer:** @janitooor (always request review).
+- **Default PR reviewer:** @deep-name (always request review).
 - **Branch from `main`**; never commit directly to the default branch.
 - **Commit trailer:** end commit messages with `Co-Authored-By: Claude <noreply@anthropic.com>`.
 - **Beads-first:** task lifecycle is tracked via `br` (beads_rust); it is the source of truth, not ad-hoc TODOs.

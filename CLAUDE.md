@@ -44,8 +44,8 @@ sweeps of `.claude/`.
 
 ## Team & Ownership
 
-- **Primary maintainer**: @janitooor
-- **Default PR reviewer**: @janitooor — always request review from them
+- **Primary maintainer**: @deep-name
+- **Default PR reviewer**: @deep-name — always request review from them
 - **Repo**: 0xHoneyJar/loa
 - **CODEOWNERS**: `.github/CODEOWNERS` handles auto-assignment on GitHub
 

@@ -318,7 +318,7 @@ bash evals/harness/tests/test-compare.sh
 ### Monitoring Recommendations
 
 1. **Required status check**: Add `Run Eval Suites` to branch protection rules so regressions block merge
-2. **CODEOWNERS for baselines**: Add `evals/baselines/ @janitooor` to `.github/CODEOWNERS` so baseline changes require explicit approval
+2. **CODEOWNERS for baselines**: Add `evals/baselines/ @deep-name` to `.github/CODEOWNERS` so baseline changes require explicit approval
 3. **Scheduled runs** (optional): Add a cron-triggered workflow to catch drift on main between PRs
 
 ## Operational Runbook

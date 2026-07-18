@@ -3,7 +3,7 @@ schema_version: "1.0"
 operators:
   - id: deep-name
     display_name: "Deep Name"
-    github_handle: janitooor
+    github_handle: deep-name
     git_email: "121614318+deep-name@users.noreply.github.com"
     capabilities:
       - dispatch
