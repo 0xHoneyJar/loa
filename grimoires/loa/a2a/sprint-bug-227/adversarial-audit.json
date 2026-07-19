@@ -1,0 +1,41 @@
+{
+  "findings": [],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-bug-227",
+    "timestamp": "2026-07-19T01:05:14Z",
+    "tokens_input": 48120,
+    "tokens_output": 693,
+    "cost_usd": 0,
+    "latency_ms": 17213,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 1,
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-bug-227/adversarial-rejected-audit.jsonl",
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "hallucination_filter": {
+      "applied": false,
+      "downgraded": 0,
+      "reason": "no_findings"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 1,
+    "voices_succeeded": 1,
+    "voices_succeeded_ids": [
+      "codex-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (1/1 succeeded); chain_health=ok",
+    "single_voice_call": true,
+    "status": "APPROVED"
+  }
+}
