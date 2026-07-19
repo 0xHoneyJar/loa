@@ -336,7 +336,7 @@ qualify_flatline_content() {
         --arg reason "$reason" \
         --arg agent "$agent" \
         --arg phase "$phase" \
-        '{voice: $voice, reason: $reason, agent: $agent, phase: $phase}')"
+        '{voice: $voice, reason: $reason, agent: $agent, phase: $phase}')" || true
     return 1
 }
 
@@ -635,28 +635,47 @@ declare -A MODEL_TO_PROVIDER_ID=(
 # logic), and writes the aggregated multi-voice envelope to
 # final_consensus.json alongside the existing phase artifacts.
 #
+# Output path helpers are overrideable so tests and concurrent callers can use
+# an isolated evidence directory instead of mutating the phase-global default.
+flatline_output_dir() {
+    printf '%s\n' "${LOA_FLATLINE_OUTPUT_DIR_OVERRIDE:-$PROJECT_ROOT/grimoires/loa/a2a/flatline}"
+}
+
+final_consensus_path() {
+    local phase="$1"
+    printf '%s/%s-final_consensus.json\n' "$(flatline_output_dir)" "$phase"
+}
+
+invalidate_final_consensus() {
+    local phase="$1"
+    local target
+    target=$(final_consensus_path "$phase")
+    mkdir -p "$(dirname "$target")"
+    rm -f "$target"
+}
+
 # Usage: aggregate_and_write_final_consensus <phase> <expected-count> <file1> [<file2> ...]
-# Files are phase1 output JSON files; each is expected to carry a
-# verdict_quality field (legacy / pre-T2.3 cheval emits omit the field;
-# such voices are silently skipped from the aggregate).
+# Files are Phase 1 output JSON files. Every content-qualified input must carry
+# a canonical single-voice verdict_quality field; absence fails closed.
 #
-# Fail-soft: missing python module / empty input / aggregator error
-# logs a warning but does NOT abort the orchestrator. The final
-# consensus calculation runs regardless.
+# Fail-closed: missing verdict quality, an unavailable Python aggregator, or
+# malformed output returns non-zero so main cannot publish a clean result.
 aggregate_and_write_final_consensus() {
     local phase="$1"
     local expected_voices_count="$2"
     shift 2
     local -a input_files=("$@")
 
-    local output_dir="$PROJECT_ROOT/grimoires/loa/a2a/flatline"
+    local output_dir
+    output_dir=$(flatline_output_dir)
     mkdir -p "$output_dir"
-    local target="$output_dir/${phase}-final_consensus.json"
+    local target
+    target=$(final_consensus_path "$phase")
 
     # A consensus artifact describes only the current run. Clear a prior result
     # before any fail-soft return so stale APPROVED evidence cannot survive a
     # later run with no usable inputs or a failed aggregation.
-    rm -f "$target"
+    invalidate_final_consensus "$phase"
 
     if [[ ${#input_files[@]} -eq 0 ]]; then
         log "[vq-aggregate] no input files supplied — skipping"
@@ -691,8 +710,8 @@ aggregate_and_write_final_consensus() {
     done
 
     if [[ ${#vq_files[@]} -eq 0 ]]; then
-        log "[vq-aggregate] no verdict_quality envelopes found in inputs — skipping ${target##*/} (legacy / pre-T2.3 cheval emits)"
-        return 0
+        log "[vq-aggregate] no verdict_quality envelopes found in qualified inputs"
+        return 1
     fi
 
     # Shell out to the canonical Python aggregator. PYTHONPATH points at
@@ -708,12 +727,26 @@ aggregate_and_write_final_consensus() {
         python3 -m loa_cheval.verdict.aggregate \
             --expected-voices-count "$expected_voices_count" \
             "${vq_files[@]}" 2>&1) || agg_rc=$?
+    local aggregate_status=0
     if [[ $agg_rc -ne 0 ]]; then
         log "[vq-aggregate] aggregator failed (rc=$agg_rc): $agg_out"
+        aggregate_status=1
     else
-        printf '%s\n' "$agg_out" | jq . > "$target" 2>/dev/null || {
+        local publish_tmp=""
+        if ! publish_tmp=$(mktemp "${target}.XXXXXX"); then
+            log "[vq-aggregate] unable to allocate atomic publication file"
+            aggregate_status=1
+        elif ! printf '%s\n' "$agg_out" | jq . > "$publish_tmp" 2>/dev/null; then
             log "[vq-aggregate] aggregator output not valid JSON; skipping write"
-        }
+            rm -f "$publish_tmp"
+            aggregate_status=1
+        elif ! mv "$publish_tmp" "$target"; then
+            log "[vq-aggregate] atomic publication failed"
+            rm -f "$publish_tmp"
+            aggregate_status=1
+        else
+            :
+        fi
         if [[ -s "$target" ]]; then
             local final_status
             final_status=$(jq -r '.status' "$target" 2>/dev/null || echo "?")  # check-no-swallowed-jq: ok (pending #1025 sweep)
@@ -746,6 +779,52 @@ aggregate_and_write_final_consensus() {
     for c in "${cleanup_files[@]}"; do
         rm -f "$c" 2>/dev/null || true
     done
+    return "$aggregate_status"
+}
+
+# Production Phase 1 participation boundary. Tests call this exact helper so a
+# future deletion of main's qualification wiring cannot leave the suite green.
+declare -a QUALIFIED_REVIEW_FILES=()
+EXPECTED_REVIEW_VOICES=0
+FLATLINE_VERDICT_QUALITY=""
+
+qualify_and_aggregate_reviews() {
+    local phase="$1"
+    local gpt_review_file="$2"
+    local opus_review_file="$3"
+    local tertiary_review_file="${4:-}"
+
+    EXPECTED_REVIEW_VOICES=2
+    [[ -n "$tertiary_review_file" ]] && EXPECTED_REVIEW_VOICES=3
+    QUALIFIED_REVIEW_FILES=()
+    FLATLINE_VERDICT_QUALITY=""
+
+    if qualify_flatline_content "$gpt_review_file" "flatline-reviewer" "gpt-review" "$phase"; then
+        QUALIFIED_REVIEW_FILES+=("$gpt_review_file")
+    fi
+    if qualify_flatline_content "$opus_review_file" "flatline-reviewer" "opus-review" "$phase"; then
+        QUALIFIED_REVIEW_FILES+=("$opus_review_file")
+    fi
+    if [[ -n "$tertiary_review_file" ]] && \
+       qualify_flatline_content "$tertiary_review_file" "flatline-reviewer" "tertiary-review" "$phase"; then
+        QUALIFIED_REVIEW_FILES+=("$tertiary_review_file")
+    fi
+
+    if [[ ${#QUALIFIED_REVIEW_FILES[@]} -eq 0 ]]; then
+        invalidate_final_consensus "$phase"
+        return 3
+    fi
+
+    if ! aggregate_and_write_final_consensus \
+        "$phase" "$EXPECTED_REVIEW_VOICES" "${QUALIFIED_REVIEW_FILES[@]}"; then
+        return 3
+    fi
+
+    local target
+    target=$(final_consensus_path "$phase")
+    if ! FLATLINE_VERDICT_QUALITY=$(jq -c . "$target" 2>/dev/null); then
+        return 3
+    fi
 }
 
 # Unified model call: routes through model-invoke (direct) or model-adapter.sh (legacy)
@@ -2315,7 +2394,9 @@ main() {
         exit 0
     fi
 
-    # Phase 1: Independent Reviews (review mode)
+    # Phase 1: Independent Reviews (review mode). Invalidate the previous
+    # phase artifact before any provider/config failure can occur.
+    invalidate_final_consensus "$phase"
     local phase1_output
     phase1_output=$(run_phase1 "$doc" "$phase" "$context_file" "$DEFAULT_MODEL_TIMEOUT" "$budget")
 
@@ -2335,26 +2416,18 @@ main() {
     # canonical adversarial cohort voices that compute_blocker_risk and
     # the schema-conformance suite (T2.8) anchor on. Skeptic / tertiary
     # paths are inferential, not first-class voices.
-    local expected_review_voices=2
-    [[ -n "$tertiary_review_file" ]] && expected_review_voices=3
-
-    local -a vq_phase1_files=()
-    if qualify_flatline_content "$gpt_review_file" "flatline-reviewer" "gpt-review" "$phase"; then
-        vq_phase1_files+=("$gpt_review_file")
-    fi
-    if qualify_flatline_content "$opus_review_file" "flatline-reviewer" "opus-review" "$phase"; then
-        vq_phase1_files+=("$opus_review_file")
-    fi
-    if [[ -n "$tertiary_review_file" ]] && \
-       qualify_flatline_content "$tertiary_review_file" "flatline-reviewer" "tertiary-review" "$phase"; then
-        vq_phase1_files+=("$tertiary_review_file")
-    fi
-    if [[ ${#vq_phase1_files[@]} -eq 0 ]]; then
-        aggregate_and_write_final_consensus "$phase" "$expected_review_voices" || true
-        error "No Phase 1 review voice produced schema-valid content"
+    if ! qualify_and_aggregate_reviews \
+        "$phase" "$gpt_review_file" "$opus_review_file" "$tertiary_review_file"; then
+        error "Phase 1 content-qualified verdict quorum could not be produced"
         exit 3
     fi
-    aggregate_and_write_final_consensus "$phase" "$expected_review_voices" "${vq_phase1_files[@]}" || true
+
+    local flatline_verdict_status
+    flatline_verdict_status=$(jq -r '.status' <<< "$FLATLINE_VERDICT_QUALITY")
+    if [[ "$flatline_verdict_status" != "APPROVED" ]]; then
+        log "Phase 1 verdict quality is $flatline_verdict_status; skipping Phase 2"
+        skip_consensus=true
+    fi
 
     # Check budget before Phase 2
     if ! check_budget 100 "$budget"; then
@@ -2604,6 +2677,7 @@ main() {
         --arg mode "$execution_mode" \
         --arg mode_reason "$mode_reason" \
         --arg run_id "${run_id:-}" \
+        --argjson verdict_quality "$FLATLINE_VERDICT_QUALITY" \
         --argjson tertiary_model "$(if [[ -n "${tertiary_model_output:-}" ]]; then jq -n --arg m "$tertiary_model_output" '$m'; else echo 'null'; fi)" \
         --arg tertiary_status "$tertiary_status_output" \
         --argjson latency_ms "$total_latency_ms" \
@@ -2613,6 +2687,7 @@ main() {
             phase: $phase,
             document: $doc,
             domain: $domain,
+            verdict_quality: $verdict_quality,
             tertiary_model_used: $tertiary_model,
             tertiary_status: $tertiary_status,
             execution: {
@@ -2651,6 +2726,10 @@ main() {
         log "Flatline: 2-model ($primary_model_name + $secondary_model_name)"
     fi
     log "Flatline Protocol complete. Cost: $TOTAL_COST cents, Latency: ${total_latency_ms}ms"
+
+    if [[ "$flatline_verdict_status" != "APPROVED" ]]; then
+        exit 6
+    fi
 }
 
 # Only invoke main when executed directly; sourcing exposes functions for tests.

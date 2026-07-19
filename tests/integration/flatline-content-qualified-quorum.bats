@@ -10,12 +10,12 @@ setup() {
     # shellcheck disable=SC1090
     source "$ORCH"
     export TEMP_DIR="$SCRATCH"
+    export LOA_FLATLINE_OUTPUT_DIR_OVERRIDE="$SCRATCH/output"
     log() { :; }
     log_trajectory() { :; }
 }
 
 teardown() {
-    rm -f "$PROJECT_ROOT/grimoires/loa/a2a/flatline/sprint-final_consensus.json"
     [[ -n "${SCRATCH:-}" && -d "$SCRATCH" ]] && rm -rf "$SCRATCH"
 }
 
@@ -53,24 +53,15 @@ write_voice() {
         'Reviewing the sprint plan. Delivering the Flatline review as required.'
     write_voice "$third" "codex-headless" '{"improvements":[]}'
 
-    local -a qualified=()
-    local spec label file
-    for spec in "first:$first" "cursor:$cursor" "third:$third"; do
-        label="${spec%%:*}"
-        file="${spec#*:}"
-        if qualify_flatline_content "$file" "flatline-reviewer" "$label" "sprint"; then
-            qualified+=("$file")
-        fi
-    done
+    qualify_and_aggregate_reviews "sprint" "$first" "$cursor" "$third"
 
-    [ "${#qualified[@]}" -eq 2 ]
-    aggregate_and_write_final_consensus "sprint" 3 "${qualified[@]}"
-
-    local consensus="$PROJECT_ROOT/grimoires/loa/a2a/flatline/sprint-final_consensus.json"
+    [ "${#QUALIFIED_REVIEW_FILES[@]}" -eq 2 ]
+    local consensus="$LOA_FLATLINE_OUTPUT_DIR_OVERRIDE/sprint-final_consensus.json"
     [ "$(jq -r '.voices_planned' "$consensus")" -eq 3 ]
     [ "$(jq -r '.voices_succeeded' "$consensus")" -eq 2 ]
     [ "$(jq -r '.chain_health' "$consensus")" = "degraded" ]
     [ "$(jq -r '.status' "$consensus")" != "APPROVED" ]
+    [ "$(jq -r '.status' <<< "$FLATLINE_VERDICT_QUALITY")" = "DEGRADED" ]
 }
 
 @test "CQ-2: three schema-valid voices retain APPROVED 3-of-3 quorum" {
@@ -81,25 +72,50 @@ write_voice() {
     write_voice "$second" "cursor-headless" '{"improvements":[]}'
     write_voice "$third" "codex-headless" '{"improvements":[]}'
 
-    local file
-    for file in "$first" "$second" "$third"; do
-        qualify_flatline_content "$file" "flatline-reviewer" "voice" "sprint"
-    done
-    aggregate_and_write_final_consensus "sprint" 3 "$first" "$second" "$third"
+    qualify_and_aggregate_reviews "sprint" "$first" "$second" "$third"
 
-    local consensus="$PROJECT_ROOT/grimoires/loa/a2a/flatline/sprint-final_consensus.json"
+    local consensus="$LOA_FLATLINE_OUTPUT_DIR_OVERRIDE/sprint-final_consensus.json"
     [ "$(jq -r '.voices_planned' "$consensus")" -eq 3 ]
     [ "$(jq -r '.voices_succeeded' "$consensus")" -eq 3 ]
     [ "$(jq -r '.chain_health' "$consensus")" = "ok" ]
     [ "$(jq -r '.status' "$consensus")" = "APPROVED" ]
+    [ "$(jq -r '.status' <<< "$FLATLINE_VERDICT_QUALITY")" = "APPROVED" ]
 }
 
-@test "CQ-3: a run with no qualified voices removes stale APPROVED consensus" {
-    local consensus="$PROJECT_ROOT/grimoires/loa/a2a/flatline/sprint-final_consensus.json"
+@test "CQ-3: phase start removes stale APPROVED consensus before provider work" {
+    local consensus="$LOA_FLATLINE_OUTPUT_DIR_OVERRIDE/sprint-final_consensus.json"
     mkdir -p "$(dirname "$consensus")"
     printf '%s\n' '{"status":"APPROVED","voices_planned":3,"voices_succeeded":3}' > "$consensus"
 
-    aggregate_and_write_final_consensus "sprint" 3
+    invalidate_final_consensus "sprint"
 
     [ ! -e "$consensus" ]
+}
+
+@test "CQ-4: malformed multi-success input cannot impersonate one clean voice" {
+    local forged="$SCRATCH/forged.json"
+    write_voice "$forged" "forged" '{"improvements":[]}'
+    jq '
+      .verdict_quality.voices_planned = 3 |
+      .verdict_quality.voices_succeeded = 3 |
+      .verdict_quality.voices_succeeded_ids = ["forged-a", "forged-b", "forged-c"] |
+      .verdict_quality.single_voice_call = false
+    ' "$forged" > "$SCRATCH/forged.tmp"
+    mv "$SCRATCH/forged.tmp" "$forged"
+
+    run qualify_and_aggregate_reviews "sprint" "$forged" "" ""
+
+    [ "$status" -ne 0 ]
+    [ ! -e "$LOA_FLATLINE_OUTPUT_DIR_OVERRIDE/sprint-final_consensus.json" ]
+}
+
+@test "CQ-5: main embeds canonical verdict and skips scoring when it is not APPROVED" {
+    run rg -n 'if ! qualify_and_aggregate_reviews' "$ORCH"
+    [ "$status" -eq 0 ]
+
+    run rg -n -- '--argjson verdict_quality "\$FLATLINE_VERDICT_QUALITY"' "$ORCH"
+    [ "$status" -eq 0 ]
+
+    run rg -n 'Phase 1 verdict quality is .* skipping Phase 2' "$ORCH"
+    [ "$status" -eq 0 ]
 }

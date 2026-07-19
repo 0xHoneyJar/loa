@@ -153,13 +153,32 @@ teardown() {
 
 @test "evidence: verify_flatline passes for valid consensus" {
     _init_flight_recorder "$TEST_TMPDIR/cycle-test"
-    echo '{"consensus_summary":{"high_consensus_count":5,"blocker_count":3}}' > "$TEST_TMPDIR/flatline.json"
+    echo '{"consensus_summary":{"high_consensus_count":5,"blocker_count":3},"verdict_quality":{"status":"APPROVED"}}' > "$TEST_TMPDIR/flatline.json"
 
     local result
     result=$(_verify_flatline_output "PRD" "$TEST_TMPDIR/flatline.json")
     [ $? -eq 0 ]
     [[ "$result" == *"high=5"* ]]
     [[ "$result" == *"blockers=3"* ]]
+}
+
+@test "evidence: verify_flatline rejects consumer-visible DEGRADED verdict" {
+    _init_flight_recorder "$TEST_TMPDIR/cycle-test"
+    echo '{"consensus_summary":{"high_consensus_count":0,"blocker_count":0},"verdict_quality":{"status":"DEGRADED"}}' > "$TEST_TMPDIR/degraded-flatline.json"
+
+    run _verify_flatline_output "PRD" "$TEST_TMPDIR/degraded-flatline.json"
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"DEGRADED"* ]]
+}
+
+@test "evidence: verify_flatline rejects output with no verdict quality" {
+    _init_flight_recorder "$TEST_TMPDIR/cycle-test"
+    echo '{"consensus_summary":{"high_consensus_count":0,"blocker_count":0}}' > "$TEST_TMPDIR/no-verdict-quality.json"
+
+    run _verify_flatline_output "PRD" "$TEST_TMPDIR/no-verdict-quality.json"
+
+    [ "$status" -eq 1 ]
 }
 
 @test "evidence: verify_flatline fails for missing file" {

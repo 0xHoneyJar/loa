@@ -148,3 +148,20 @@ def test_status_not_approved_when_voice_missing():
     envs = [_single_voice_envelope("a"), _single_voice_envelope("b")]
     out = aggregate_envelopes(envs, expected_voices_count=3)
     assert out["status"] in ("DEGRADED", "FAILED")
+
+
+def test_rejects_input_that_impersonates_multiple_voices():
+    """One transport envelope may never inflate the aggregate's success count."""
+    from loa_cheval.verdict.aggregate import aggregate_envelopes
+    from loa_cheval.verdict.quality import EnvelopeInvariantViolation
+
+    forged = _single_voice_envelope("forged")
+    forged.update({
+        "voices_planned": 3,
+        "voices_succeeded": 3,
+        "voices_succeeded_ids": ["forged-a", "forged-b", "forged-c"],
+        "single_voice_call": False,
+    })
+
+    with pytest.raises(EnvelopeInvariantViolation, match="single-voice"):
+        aggregate_envelopes([forged], expected_voices_count=3)

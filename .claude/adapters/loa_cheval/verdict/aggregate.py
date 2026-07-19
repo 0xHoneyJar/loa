@@ -51,12 +51,39 @@ import copy
 from typing import Any, Dict, List, Optional
 
 from .consensus import classify_consensus
-from .quality import emit_envelope_with_status
+from .quality import (
+    EnvelopeInvariantViolation,
+    compute_verdict_status,
+    emit_envelope_with_status,
+    validate_invariants,
+)
 
 
 _CHAIN_HEALTH_OK = "ok"
 _CHAIN_HEALTH_DEGRADED = "degraded"
 _CHAIN_HEALTH_EXHAUSTED = "exhausted"
+
+
+def validate_single_voice_envelope(envelope: Dict[str, Any]) -> None:
+    """Reject inputs that do not represent exactly one planned voice."""
+    if envelope.get("voices_planned") != 1:
+        raise EnvelopeInvariantViolation(
+            "single-voice input must have voices_planned == 1; "
+            f"got {envelope.get('voices_planned')!r}"
+        )
+    if envelope.get("single_voice_call") is not True:
+        raise EnvelopeInvariantViolation(
+            "single-voice input must have single_voice_call == true"
+        )
+
+    validate_invariants(envelope)
+
+    expected_status = compute_verdict_status(envelope)
+    if envelope.get("status") != expected_status:
+        raise EnvelopeInvariantViolation(
+            "single-voice input status does not match canonical status; "
+            f"got {envelope.get('status')!r}, expected {expected_status!r}"
+        )
 
 
 def aggregate_envelopes(
@@ -68,10 +95,9 @@ def aggregate_envelopes(
 
     Args:
       envelopes: list of validated verdict_quality envelopes, one per
-        voice. Each MUST have ``voices_planned == 1`` (single-voice)
-        though this is not strictly enforced — non-conforming inputs
-        will produce a structurally-valid aggregate but the semantics
-        may be surprising.
+        voice. Each MUST have ``voices_planned == 1`` and
+        ``single_voice_call == True``; non-conforming inputs fail closed
+        before aggregation.
       findings_per_voice: optional (T2.9). When provided, the multi-voice
         ``consensus_outcome`` is computed via
         ``loa_cheval.verdict.consensus.classify_consensus`` per SDD
@@ -101,6 +127,9 @@ def aggregate_envelopes(
             "aggregate_envelopes requires at least one input envelope "
             "(verdict-quality.schema.json requires voices_planned >= 1)"
         )
+
+    for envelope in envelopes:
+        validate_single_voice_envelope(envelope)
 
     # Deep-copy inputs to avoid mutating caller's data — callers may
     # keep references for per-voice logging downstream.
