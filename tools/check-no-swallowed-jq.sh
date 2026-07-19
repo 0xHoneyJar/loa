@@ -106,20 +106,62 @@ _is_script() {
 }
 
 AWK_SCAN=$(cat <<'AWK'
-# Step 1: skip line-leading comments.
+BEGIN {
+    in_heredoc = 0
+    hd_term = ""
+    hd_dash = 0
+}
+
+function _line_has_swallowed_jq(line) {
+    return (line ~ /(^|[^[:alnum:]_])jq[[:space:]].*\|\|[[:space:]]*(echo|printf)([^[:alnum:]_]|$)/)
+}
+
+function _start_heredoc(line,    rest, term) {
+    if (match(line, /<<-?[[:space:]]*['"]?[A-Za-z_][A-Za-z0-9_]*['"]?/)) {
+        hd_dash = (substr(line, RSTART, 3) == "<<-")
+        rest = substr(line, RSTART + (hd_dash ? 3 : 2), RLENGTH - (hd_dash ? 3 : 2))
+        gsub(/^[[:space:]]+/, "", rest)
+        term = rest
+        if (substr(term, 1, 1) == "\047" || substr(term, 1, 1) == "\"") term = substr(term, 2)
+        if (substr(term, length(term), 1) == "\047" || substr(term, length(term), 1) == "\"") term = substr(term, 1, length(term) - 1)
+        sub(/[[:space:]].*$/, "", term)
+        if (term != "") {
+            hd_term = term
+            in_heredoc = 1
+        }
+    }
+}
+
+# Step 1: when in a heredoc body, skip fixture/documentation text until the
+# terminator. Without this, --root scans of bats tests can flag planted bad
+# examples instead of executable scanner code.
+in_heredoc {
+    if ($0 == hd_term) { in_heredoc = 0; next }
+    if (hd_dash) {
+        no_tabs = $0
+        gsub(/^\t+/, "", no_tabs)
+        if (no_tabs == hd_term) { in_heredoc = 0; next }
+    }
+    next
+}
+
+# Step 2: skip line-leading comments.
 /^[[:space:]]*#/ { next }
 
-# Step 2: skip lines with the suppression marker. Requires `#` leader so
+# Step 3: skip lines with the suppression marker. Requires `#` leader so
 # string-literal mentions don't silence real invocations.
 /#[^\n]*check-no-swallowed-jq:[[:space:]]*ok/ { next }
 
-# Step 3: match a jq invocation followed by `|| echo` / `|| printf` on the
+# Step 4: match a jq invocation followed by `|| echo` / `|| printf` on the
 # same line. LHS word-boundary so identifiers like `dijq` don't match; jq
 # must be followed by whitespace (an invocation always has arguments, and
 # this keeps `jq_strict` from matching). RHS word-boundary on echo/printf
 # so `echo_handler` doesn't match.
-/(^|[^[:alnum:]_])jq[[:space:]].*\|\|[[:space:]]*(echo|printf)([^[:alnum:]_]|$)/ {
-    print FILENAME ":" NR ":" $0
+{
+    if (_line_has_swallowed_jq($0)) {
+        print FILENAME ":" NR ":" $0
+    }
+    _start_heredoc($0)
 }
 AWK
 )
