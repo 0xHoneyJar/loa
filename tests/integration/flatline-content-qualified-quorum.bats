@@ -90,6 +90,20 @@ write_voice() {
     invalidate_final_consensus "sprint"
 
     [ ! -e "$consensus" ]
+
+    local invalidate_line phase1_line
+    invalidate_line="$(awk '
+      /# Phase 1: Independent Reviews/ { in_main = 1 }
+      in_main && /invalidate_final_consensus "\$phase"/ { print NR; exit }
+    ' "$ORCH")"
+    phase1_line="$(awk '
+      /# Phase 1: Independent Reviews/ { in_main = 1 }
+      in_main && /phase1_output=\$\(run_phase1/ { print NR; exit }
+    ' "$ORCH")"
+
+    [ -n "$invalidate_line" ]
+    [ -n "$phase1_line" ]
+    [ "$invalidate_line" -lt "$phase1_line" ]
 }
 
 @test "CQ-4: malformed multi-success input cannot impersonate one clean voice" {
@@ -117,5 +131,11 @@ write_voice() {
     [ "$status" -eq 0 ]
 
     run rg -n 'Phase 1 verdict quality is .* skipping Phase 2' "$ORCH"
+    [ "$status" -eq 0 ]
+
+    run rg -n 'skip_consensus=true' "$ORCH"
+    [ "$status" -eq 0 ]
+
+    run rg -n 'exit 6' "$ORCH"
     [ "$status" -eq 0 ]
 }

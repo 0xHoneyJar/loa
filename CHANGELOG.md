@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Flatline content-qualified quorum** (#1227): schema-invalid exit-0 review prose can no longer count as a successful voice or flow into Phase 2 as an empty review. Planned cohort size is preserved, stale consensus is invalidated before provider work, single-voice verdict envelopes are validated, Cursor structured inference uses read-only `ask` mode, and consumer gates now require canonical `verdict_quality.status: APPROVED`.
+- **Flatline content-qualified quorum** (#1227): schema-invalid exit-0 review prose can no longer count as a successful voice or flow into Phase 2 as an empty review. Planned cohort size is preserved, stale consensus is invalidated before provider work, single-voice verdict envelopes are validated against the canonical schema before aggregation, Cursor structured inference uses read-only `ask` mode, and consumer gates now require canonical `verdict_quality.status: APPROVED`.
 
 ## [1.196.0] — 2026-07-10 — Mechanical Floor
 
