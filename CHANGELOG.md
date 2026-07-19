@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Flatline content-qualified quorum** (#1227): schema-invalid exit-0 review prose can no longer count as a successful voice or flow into Phase 2 as an empty review. Planned cohort size is preserved, stale consensus is invalidated before provider work, single-voice verdict envelopes are validated against the canonical schema before aggregation, Cursor structured inference uses read-only `ask` mode, and consumer gates now require canonical `verdict_quality.status: APPROVED`.
+
 ## [1.196.0] — 2026-07-10 — Mechanical Floor
 
 Names and documents the v1.181–v1.195 tag wave (everything since [1.180.0]) as one operator-facing release, and lands the release-readiness work itself: a green Shell Tests gate, the #1162 P1 installer hardening, and schema catch-ups. The throughline: **move quality enforcement from model attention into mechanical gates** — validators, verdict trailers, structural checks, and budget floors that hold even when a cheaper model is doing the work — then use those same gates to burn the chronic test-baseline debt to zero.

@@ -2,7 +2,7 @@
 
 Covers:
   - registry dispatch on type='cursor-headless'
-  - command construction (model, --mode plan, --sandbox enabled, --trust, no -f, cli_model)
+  - command construction (model, --mode ask, --sandbox enabled, --trust, no -f, cli_model)
   - single-JSON output parsing (result content, usage, session_id, model fallback)
   - error classification (resource_exhausted on exit-0, auth, is_error, generic, timeout,
     output-cap, spawn OSError, semaphore exhaustion, missing CLI)
@@ -103,7 +103,7 @@ class TestRegistryDispatch:
 class TestCommandConstruction:
     def test_readonly_sandboxed_no_force(self):
         cmd = _adapter()._build_command(_req(), ModelConfig(context_window=200000))
-        assert "--mode" in cmd and cmd[cmd.index("--mode") + 1] == "plan"
+        assert "--mode" in cmd and cmd[cmd.index("--mode") + 1] == "ask"
         assert "--sandbox" in cmd and cmd[cmd.index("--sandbox") + 1] == "enabled"
         assert "--trust" in cmd
         assert "-f" not in cmd and "--force" not in cmd and "--yolo" not in cmd

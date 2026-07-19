@@ -148,3 +148,44 @@ def test_status_not_approved_when_voice_missing():
     envs = [_single_voice_envelope("a"), _single_voice_envelope("b")]
     out = aggregate_envelopes(envs, expected_voices_count=3)
     assert out["status"] in ("DEGRADED", "FAILED")
+
+
+def test_rejects_input_that_impersonates_multiple_voices():
+    """One transport envelope may never inflate the aggregate's success count."""
+    from loa_cheval.verdict.aggregate import aggregate_envelopes
+    from loa_cheval.verdict.quality import EnvelopeInvariantViolation
+
+    forged = _single_voice_envelope("forged")
+    forged.update({
+        "voices_planned": 3,
+        "voices_succeeded": 3,
+        "voices_succeeded_ids": ["forged-a", "forged-b", "forged-c"],
+        "single_voice_call": False,
+    })
+
+    with pytest.raises(EnvelopeInvariantViolation, match="single-voice"):
+        aggregate_envelopes([forged], expected_voices_count=3)
+
+
+def test_rejects_input_missing_required_schema_field():
+    """Permissive classifier defaults must not turn a partial shape APPROVED."""
+    from loa_cheval.verdict.aggregate import aggregate_envelopes
+    from loa_cheval.verdict.quality import EnvelopeInvariantViolation
+
+    incomplete = _single_voice_envelope("incomplete")
+    del incomplete["chain_health"]
+
+    with pytest.raises(EnvelopeInvariantViolation, match="verdict-quality schema"):
+        aggregate_envelopes([incomplete], expected_voices_count=1)
+
+
+def test_rejects_input_with_invalid_schema_enum():
+    """Canonical enum validation runs before status reconciliation."""
+    from loa_cheval.verdict.aggregate import aggregate_envelopes
+    from loa_cheval.verdict.quality import EnvelopeInvariantViolation
+
+    malformed = _single_voice_envelope("malformed")
+    malformed["confidence_floor"] = "certain"
+
+    with pytest.raises(EnvelopeInvariantViolation, match="verdict-quality schema"):
+        aggregate_envelopes([malformed], expected_voices_count=1)

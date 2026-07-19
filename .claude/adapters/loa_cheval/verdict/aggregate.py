@@ -48,15 +48,173 @@ directly.
 from __future__ import annotations
 
 import copy
+import json
+import re
+from functools import lru_cache
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .consensus import classify_consensus
-from .quality import emit_envelope_with_status
+from .quality import (
+    EnvelopeInvariantViolation,
+    compute_verdict_status,
+    emit_envelope_with_status,
+    validate_invariants,
+)
 
 
 _CHAIN_HEALTH_OK = "ok"
 _CHAIN_HEALTH_DEGRADED = "degraded"
 _CHAIN_HEALTH_EXHAUSTED = "exhausted"
+
+
+@lru_cache(maxsize=1)
+def _verdict_quality_schema() -> Dict[str, Any]:
+    """Load the canonical verdict-quality schema once, failing closed."""
+    schema_path = (
+        Path(__file__).resolve().parents[3]
+        / "data"
+        / "schemas"
+        / "verdict-quality.schema.json"
+    )
+    try:
+        with schema_path.open(encoding="utf-8") as schema_file:
+            return json.load(schema_file)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise EnvelopeInvariantViolation(
+            f"verdict-quality schema unavailable or invalid: {exc}"
+        ) from exc
+
+
+def _validate_schema_subset(value: Any, schema: Dict[str, Any], path: str = "<root>") -> None:
+    """Validate every keyword used by verdict-quality.schema.json.
+
+    Installed adapters use jsonschema. This standard-library twin preserves
+    the same fail-closed contract for bootstrap/test environments where the
+    declared dependency has not been installed yet.
+    """
+    expected_type = schema.get("type")
+    type_matches = {
+        "object": isinstance(value, dict),
+        "array": isinstance(value, list),
+        "string": isinstance(value, str),
+        "integer": isinstance(value, int) and not isinstance(value, bool),
+        "boolean": isinstance(value, bool),
+    }
+    if expected_type and not type_matches.get(expected_type, False):
+        raise EnvelopeInvariantViolation(
+            f"verdict-quality schema violation at {path}: expected {expected_type}"
+        )
+
+    if "enum" in schema and value not in schema["enum"]:
+        raise EnvelopeInvariantViolation(
+            f"verdict-quality schema violation at {path}: {value!r} is not an allowed value"
+        )
+
+    if isinstance(value, dict):
+        required = schema.get("required", [])
+        missing = [key for key in required if key not in value]
+        if missing:
+            raise EnvelopeInvariantViolation(
+                f"verdict-quality schema violation at {path}: "
+                f"missing required field(s) {missing!r}"
+            )
+        properties = schema.get("properties", {})
+        if schema.get("additionalProperties") is False:
+            extras = sorted(set(value) - set(properties))
+            if extras:
+                raise EnvelopeInvariantViolation(
+                    f"verdict-quality schema violation at {path}: "
+                    f"unexpected field(s) {extras!r}"
+                )
+        for key, child in value.items():
+            if key in properties:
+                _validate_schema_subset(child, properties[key], f"{path}.{key}")
+
+    if isinstance(value, list):
+        if schema.get("uniqueItems"):
+            encoded = [json.dumps(item, sort_keys=True) for item in value]
+            if len(set(encoded)) != len(encoded):
+                raise EnvelopeInvariantViolation(
+                    f"verdict-quality schema violation at {path}: items must be unique"
+                )
+        item_schema = schema.get("items")
+        if item_schema:
+            for index, item in enumerate(value):
+                _validate_schema_subset(item, item_schema, f"{path}[{index}]")
+
+    if isinstance(value, str):
+        if len(value) < schema.get("minLength", 0):
+            raise EnvelopeInvariantViolation(
+                f"verdict-quality schema violation at {path}: string is too short"
+            )
+        if "maxLength" in schema and len(value) > schema["maxLength"]:
+            raise EnvelopeInvariantViolation(
+                f"verdict-quality schema violation at {path}: string is too long"
+            )
+        if "pattern" in schema and re.search(schema["pattern"], value) is None:
+            raise EnvelopeInvariantViolation(
+                f"verdict-quality schema violation at {path}: pattern mismatch"
+            )
+
+    if isinstance(value, int) and not isinstance(value, bool):
+        if "minimum" in schema and value < schema["minimum"]:
+            raise EnvelopeInvariantViolation(
+                f"verdict-quality schema violation at {path}: below minimum"
+            )
+        if "maximum" in schema and value > schema["maximum"]:
+            raise EnvelopeInvariantViolation(
+                f"verdict-quality schema violation at {path}: above maximum"
+            )
+
+
+def _validate_against_verdict_schema(envelope: Dict[str, Any]) -> None:
+    schema = _verdict_quality_schema()
+    try:
+        import jsonschema
+    except ImportError:
+        _validate_schema_subset(envelope, schema)
+        return
+
+    validator_cls = jsonschema.validators.validator_for(schema)
+    validator_cls.check_schema(schema)
+    validation_error = next(iter(validator_cls(schema).iter_errors(envelope)), None)
+    if validation_error is not None:
+        location = ".".join(str(part) for part in validation_error.absolute_path)
+        location = location or "<root>"
+        raise EnvelopeInvariantViolation(
+            "single-voice input violates verdict-quality schema at "
+            f"{location}: {validation_error.message}"
+        )
+
+
+def validate_single_voice_envelope(envelope: Dict[str, Any]) -> None:
+    """Reject inputs that are not schema-valid, canonical single voices."""
+    if not isinstance(envelope, dict):
+        raise EnvelopeInvariantViolation(
+            f"single-voice input must be an object; got {type(envelope).__name__}"
+        )
+
+    _validate_against_verdict_schema(envelope)
+
+    if envelope.get("voices_planned") != 1:
+        raise EnvelopeInvariantViolation(
+            "single-voice input must have voices_planned == 1; "
+            f"got {envelope.get('voices_planned')!r}"
+        )
+    if envelope.get("single_voice_call") is not True:
+        raise EnvelopeInvariantViolation(
+            "single-voice input must have single_voice_call == true"
+        )
+
+    validate_invariants(envelope)
+
+    expected_status = compute_verdict_status(envelope)
+    if envelope.get("status") != expected_status:
+        raise EnvelopeInvariantViolation(
+            "single-voice input status does not match canonical status; "
+            f"got {envelope.get('status')!r}, expected {expected_status!r}"
+        )
 
 
 def aggregate_envelopes(
@@ -68,10 +226,9 @@ def aggregate_envelopes(
 
     Args:
       envelopes: list of validated verdict_quality envelopes, one per
-        voice. Each MUST have ``voices_planned == 1`` (single-voice)
-        though this is not strictly enforced — non-conforming inputs
-        will produce a structurally-valid aggregate but the semantics
-        may be surprising.
+        voice. Each MUST have ``voices_planned == 1`` and
+        ``single_voice_call == True``; non-conforming inputs fail closed
+        before aggregation.
       findings_per_voice: optional (T2.9). When provided, the multi-voice
         ``consensus_outcome`` is computed via
         ``loa_cheval.verdict.consensus.classify_consensus`` per SDD
@@ -101,6 +258,9 @@ def aggregate_envelopes(
             "aggregate_envelopes requires at least one input envelope "
             "(verdict-quality.schema.json requires voices_planned >= 1)"
         )
+
+    for envelope in envelopes:
+        validate_single_voice_envelope(envelope)
 
     # Deep-copy inputs to avoid mutating caller's data — callers may
     # keep references for per-voice logging downstream.

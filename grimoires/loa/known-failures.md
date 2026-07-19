@@ -77,6 +77,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-020](#kf-020-claude--p-subscription-oauth-potential-per-token-billing-via-the-43333-auth-detection-bug-metering-policy-was-announced-then-paused) | OPEN — external/upstream; live exposure UNCONFIRMED | cheval claude-headless adapter — #43333 auth-detection bug surfacing/mitigation | 0 |
 | [KF-021](#kf-021-842968-copy-set-silently-drifts-gitignored-check-mode-content-blind) | OPEN → resolved by cycle-117 Wave-1 item G (#1177) | update-loa.sh / mount-submodule.sh submodule copy set | 1 |
 | [KF-022](#kf-022-br-sync-dirty-tracking-split-brain---status-counts-dirty-issues-the---flush-only-export-reads-as-dirty_count0) | OPEN-UPSTREAM | beads_rust (br) sync | 2 |
+| [KF-023](#kf-023-flatline-counts-schema-invalid-exit-0-content-as-a-successful-voice) | RESOLVED-IN-FLIGHT 2026-07-18 (#1227 / sprint-bug-227) | Flatline Phase 1 content qualification | 1 downstream mechanical reproduction |
 
 ---
 
@@ -1198,3 +1199,27 @@ Fleet evidence: crate+ledger settings.json stuck at 374 rules vs 382-rule pin (m
 ### Reading guide
 
 Do NOT chase the health check: since R-003 (agent-ergonomics pass 1) beads-health DEGRADED/jsonl_stale is content-verified and truthful. If --status says dirty but --flush-only exports nothing, use --flush-only --force ONCE and verify the missing ids landed in .beads/issues.jsonl (grep the id). Never run --rebuild/--import-only while ids are DB-only — that destroys them.
+
+---
+
+## KF-023: Flatline counts schema-invalid exit-0 content as a successful voice
+
+**Status**: RESOLVED-IN-FLIGHT 2026-07-18 (issue [#1227](https://github.com/0xHoneyJar/loa/issues/1227), sprint-bug-227)
+**Feature**: `.claude/scripts/flatline-orchestrator.sh` Phase 1 review aggregation and the Cursor headless review path
+**Symptom**: A headless model returns exit 0 plus a clean single-voice `verdict_quality` envelope, but its `.content` is prose that does not satisfy the `flatline-reviewer` JSON contract. Flatline aggregates verdict quality before content validation and reports `voices_succeeded: 3`, `chain_health: ok`, `status: APPROVED`; later normalization substitutes `{"improvements":[]}`. The council headline is clean even though one voice did not produce a review.
+**First observed**: 2026-07-18 (`0xHoneyJar/sonar-api`, Loa v1.198.7, Cursor Grok 4.5 as the secondary voice)
+**Recurrence count**: 1 downstream mechanical reproduction
+**Current workaround**: Halt the consuming sprint and inspect raw `.content`; do not accept transport-level 3/3 as evidence of epistemic 3/3. The sprint-bug-227 fix qualifies response content before aggregation and preserves the original planned denominator.
+**Upstream issue**: [#1227](https://github.com/0xHoneyJar/loa/issues/1227)
+**Related visions / lore**: KF-004 and KF-015 are the same false-clean family at adjacent layers; #1166 guards transport-level voice loss but did not cover content-invalid success envelopes.
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-07-18 | Run Flatline with Fable, Cursor Grok 4.5, and GPT-5.6 Sol; trust clean transport verdict-quality envelopes | DID NOT WORK — Cursor returned planning narration, but final consensus reported clean APPROVED 3/3 | downstream `sonar-api/.run/evidence/sonar-score-agent-dream-outcome/flatline-mechanical-probe.md`; issue #1227 |
+| 2026-07-18 | Add pre-aggregation normalization/schema qualification; pass planned count separately to the canonical aggregator; use Cursor read-only `ask` mode | RESOLVED-IN-FLIGHT — hermetic regression produces DEGRADED 2/3 for invalid prose and preserves APPROVED 3/3 for valid content; live Cursor Grok 4.5 ask-mode probe returned valid `improvements` JSON | sprint-bug-227; `tests/integration/flatline-content-qualified-quorum.bats`; Cursor session `23f4abf9-d41e-48a0-97f5-f6de7d7ccb06` |
+
+### Reading guide
+
+When Flatline reports a clean quorum, do not equate exit 0 with a usable review. Verify the orchestrator contains `qualify_flatline_content` before `aggregate_and_write_final_consensus`. If absent, the branch predates #1227 and can still false-green. After the fix, `voices_planned` remains the configured cohort size while only schema-qualified review content contributes to `voices_succeeded`; a rejected voice emits `consensus.voice_rejected` with a bounded reason. Do not restore the old default-substitution-before-quorum order.

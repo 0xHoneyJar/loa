@@ -147,8 +147,17 @@ echo "=== validate_agent_response tests ==="
 # Test 16: Valid flatline-reviewer
 assert_exit "Valid flatline-reviewer" 0 validate_agent_response '{"improvements":[{"id":"IMP-001","description":"test","priority":"HIGH"}]}' "flatline-reviewer"
 
-# Test 17: Empty flatline-reviewer (valid — 0 findings)
-assert_exit "Empty flatline-reviewer" 0 validate_agent_response '{"improvements":[]}' "flatline-reviewer"
+# Test 17: Bare empty flatline-reviewer is hollow and rejected
+assert_exit "Bare empty flatline-reviewer rejected" 1 validate_agent_response '{"improvements":[]}' "flatline-reviewer"
+
+# Test 17b: Reasoned empty flatline-reviewer is valid
+assert_exit "Reasoned empty flatline-reviewer" 0 validate_agent_response '{"improvements":[],"summary":"0 improvements identified","no_findings_reason":"The acceptance criteria, dependencies, and rollback path are complete and internally consistent.","reviewed_sections":["Acceptance Criteria","Dependencies","Rollback"]}' "flatline-reviewer"
+
+# Test 17c: Empty response with generic short reason is rejected
+assert_exit "Empty flatline-reviewer short reason rejected" 1 validate_agent_response '{"improvements":[],"no_findings_reason":"No issues.","reviewed_sections":["Plan"]}' "flatline-reviewer"
+
+# Test 17d: Empty response without reviewed sections is rejected
+assert_exit "Empty flatline-reviewer missing sections rejected" 1 validate_agent_response '{"improvements":[],"no_findings_reason":"The document appears complete after a review of its stated requirements and operational gates.","reviewed_sections":[]}' "flatline-reviewer"
 
 # Test 18: Missing improvements array
 assert_exit "Missing improvements array" 1 validate_agent_response '{"results":[]}' "flatline-reviewer"

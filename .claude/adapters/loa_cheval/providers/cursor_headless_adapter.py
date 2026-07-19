@@ -20,7 +20,7 @@ Design notes:
     dissenter modes are single-pass, so this is correct.
   - SECURITY: the prompt is UNTRUSTED (it carries the diff/content under review).
     cursor-agent -p has full tool access by default, so the adapter hardens every
-    call: `--mode plan` (read-only — analyze, no edits), `--sandbox enabled` (OS
+    call: `--mode ask` (read-only Q&A), `--sandbox enabled` (OS
     confinement), an isolated empty working directory, and NEVER `-f`/`--yolo`
     (force-allow). Verified empirically: without `-f`, cursor denies tool execution
     ("rejected by sandbox policy"). Tools are not forwarded; this is pure inference.
@@ -179,7 +179,7 @@ class CursorHeadlessAdapter(ProviderAdapter):
         )
 
         # Isolated empty cwd so a (denied) tool call has nothing to reach. Combined
-        # with --mode plan + --sandbox enabled, this is defense-in-depth for the
+        # with --mode ask + --sandbox enabled, this is defense-in-depth for the
         # untrusted prompt.
         workspace = tempfile.mkdtemp(prefix="loa-cursor-ws-")
 
@@ -298,7 +298,8 @@ class CursorHeadlessAdapter(ProviderAdapter):
     def _build_command(self, request: CompletionRequest, model_config) -> List[str]:
         """Build the cursor-agent argv. Read-only, sandboxed, no force-allow."""
         cli_model = (model_config.extra or {}).get("cli_model") or request.model
-        # --mode plan: read-only (analyze, no edits). --sandbox enabled: OS confinement.
+        # --mode ask: read-only Q&A for structured inference. --sandbox enabled:
+        # OS confinement.
         # --trust: skip the interactive Workspace-Trust prompt for the empty cwd.
         # NEVER -f/--yolo. Tools are not forwarded — this is pure inference.
         return [
@@ -309,7 +310,7 @@ class CursorHeadlessAdapter(ProviderAdapter):
             "--model",
             cli_model,
             "--mode",
-            "plan",
+            "ask",
             "--sandbox",
             "enabled",
             "--trust",

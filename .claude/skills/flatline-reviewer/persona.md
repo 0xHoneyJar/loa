@@ -25,7 +25,9 @@ Respond with ONLY a valid JSON object. No markdown fences, no prose, no explanat
       "confidence": 0.85
     }
   ],
-  "summary": "X improvements identified, Y HIGH priority"
+  "summary": "X improvements identified, Y HIGH priority",
+  "no_findings_reason": null,
+  "reviewed_sections": []
 }
 ```
 
@@ -37,11 +39,16 @@ Respond with ONLY a valid JSON object. No markdown fences, no prose, no explanat
 - `location` (string, required): Document section, requirement ID, or line reference affected
 - `priority` (string, required): One of HIGH, MEDIUM, LOW
 - `confidence` (number, required): 0.0-1.0 confidence that this improvement adds value
+- `no_findings_reason` (string, required only when `improvements` is empty):
+  at least 40 characters explaining why the reviewed artifact needs no
+  actionable improvement; generic "no issues" language is invalid
+- `reviewed_sections` (array of non-empty strings, required only when
+  `improvements` is empty): concrete sections or requirement IDs inspected
 
 ## Minimal Valid Example
 
 ```json
-{"improvements": [], "summary": "0 improvements identified"}
+{"improvements":[],"summary":"0 improvements identified","no_findings_reason":"The acceptance criteria, rollback path, and dependency gates are concrete, measurable, and internally consistent.","reviewed_sections":["Acceptance Criteria","Dependencies","Rollback"]}
 ```
 
 ## Guidelines

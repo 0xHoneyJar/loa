@@ -165,6 +165,14 @@ _verify_flatline_output() {
         return 1
     fi
 
+    local verdict_status
+    verdict_status=$(jq -r '.verdict_quality.status // "MISSING"' "$output")
+    if [[ "$verdict_status" != "APPROVED" ]]; then
+        _record_failure "$phase" "FLATLINE_VERDICT_NOT_APPROVED" "$verdict_status"
+        echo "ERROR: Flatline verdict quality is $verdict_status (expected APPROVED)" >&2
+        return 1
+    fi
+
     local high blockers
     high=$(jq '.consensus_summary.high_consensus_count // 0' "$output")
     blockers=$(jq '.consensus_summary.blocker_count // 0' "$output")

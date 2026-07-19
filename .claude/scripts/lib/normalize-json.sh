@@ -219,6 +219,30 @@ validate_agent_response() {
       # Validate each improvement has required fields
       local count
       count=$(echo "$json" | jq '.improvements | length' 2>/dev/null || echo "0")
+      # An empty finding set is valid only when the reviewer proves it did
+      # substantive work. A bare {"improvements":[]} (or generic summary)
+      # is indistinguishable from truncation/refusal/default normalization and
+      # must not count toward council quorum.
+      if [[ "$count" -eq 0 ]]; then
+        validate_json_field "$json" "no_findings_reason" "string" || errors=$((errors + 1))
+        validate_json_field "$json" "reviewed_sections" "array" || errors=$((errors + 1))
+
+        local reason_len sections_count
+        reason_len=$(echo "$json" | jq -r '.no_findings_reason // "" | length' 2>/dev/null || echo "0")
+        sections_count=$(echo "$json" | jq -r '.reviewed_sections // [] | length' 2>/dev/null || echo "0")
+
+        if [[ "$reason_len" -lt 40 ]]; then
+          echo "ERROR: empty flatline-reviewer response requires no_findings_reason of at least 40 characters" >&2
+          errors=$((errors + 1))
+        fi
+        if [[ "$sections_count" -lt 1 ]]; then
+          echo "ERROR: empty flatline-reviewer response requires at least one reviewed_sections entry" >&2
+          errors=$((errors + 1))
+        elif ! echo "$json" | jq -e 'all(.reviewed_sections[]; type == "string" and length > 0)' &>/dev/null; then
+          echo "ERROR: reviewed_sections entries must be non-empty strings" >&2
+          errors=$((errors + 1))
+        fi
+      fi
       for ((i = 0; i < count; i++)); do
         local item
         item=$(echo "$json" | jq ".improvements[$i]" 2>/dev/null)
