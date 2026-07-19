@@ -1,0 +1,36 @@
+{
+  "findings": [],
+  "metadata": {
+    "type": "review",
+    "model": "codex-headless",
+    "sprint_id": "sprint-bug-227",
+    "timestamp": "2026-07-19T00:28:21Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "model_attempts": [
+      "codex-headless:clean"
+    ],
+    "final_model": "codex-headless",
+    "hallucination_filter": {
+      "applied": false,
+      "downgraded": 0,
+      "reason": "no_findings"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 1,
+    "voices_succeeded": 1,
+    "voices_succeeded_ids": [
+      "codex-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (1/1 succeeded); chain_health=ok",
+    "single_voice_call": true,
+    "status": "APPROVED"
+  }
+}
