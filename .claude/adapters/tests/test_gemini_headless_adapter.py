@@ -158,9 +158,14 @@ QUOTA_ERROR_JSON = json.dumps(
 
 
 class TestRegistryDispatch:
-    def test_get_adapter_returns_gemini_headless_adapter(self):
+    def test_gemini_headless_terminal_routes_to_agy_after_repoint(self):
+        # FR-5 repoint (loa#1096, #1089): the gemini-headless registry key now backs
+        # onto AgyHeadlessAdapter (the gemini-cli's individual Code Assist tier is dead).
+        # GeminiHeadlessAdapter is kept for reference + constructed directly in the rest
+        # of this suite, which still exercises the gemini-cli adapter's own behavior.
+        from loa_cheval.providers.agy_headless_adapter import AgyHeadlessAdapter
         adapter = get_adapter(_make_config())
-        assert isinstance(adapter, GeminiHeadlessAdapter)
+        assert isinstance(adapter, AgyHeadlessAdapter)
 
 
 # ---------------------------------------------------------------------------

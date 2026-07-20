@@ -324,16 +324,17 @@ providers:
         dispatch_group: google-gemini
         kind: cli
         capabilities: [chat]            # No tools, no structured_json, no thinking
-        # #881 close: gemini CLI dispatches gemini-3.1-pro-preview, which
-        # advertises 1048576-token context per Google's published spec
-        # (matches the http_api gemini-3.1-pro-preview entry in this file).
+        # FR-5 repoint (loa#1096, #1089): this terminal dispatches via `agy -p`
+        # (Antigravity CLI) after Google retired the gemini-cli's individual Code
+        # Assist tier (IneligibleTier). agy's Gemini models advertise 1048576-token
+        # context (Google's published spec).
         context_window: 1048576
-        # No pricing entry — CLI uses operator's Google AI Studio subscription.
-        # cycle-104 sprint-2 T2.11 amendment: cli_model is the model
-        # passed to `gemini --model <name>`. Maps to the real Gemini
-        # model id the CLI accepts.
+        # No pricing entry — agy uses the operator's OAuth-authed Antigravity subscription.
+        # cli_model is the agy `--model` LABEL (human-readable, from `agy models`),
+        # NOT an api id (spike T4.1) — agy rejects gemini-cli model ids. Swap to
+        # "Gemini 3.5 Flash (High)" etc. to change the served Gemini model.
         extra:
-          cli_model: gemini-3.1-pro-preview
+          cli_model: "Gemini 3.1 Pro (High)"
 
   anthropic:
     type: anthropic
