@@ -24,11 +24,13 @@ CACHE_MANAGER="${PROJECT_ROOT}/.claude/scripts/cache-manager.sh"
 # Arguments
 JSON_OUTPUT=false
 USE_CACHE=true
+STALE_CHECK=true
 for arg in "$@"; do
     case "$arg" in
         --json) JSON_OUTPUT=true ;;
         --cache) USE_CACHE=true ;;
         --no-cache) USE_CACHE=false ;;
+        --no-stale-check) STALE_CHECK=false ;;
     esac
 done
 
@@ -345,11 +347,64 @@ store_cache() {
 }
 
 # Main logic
+# Function: detect a fossil worktree (#1233)
+#
+# A linked worktree parked on a branch whose cycle already merged, archived and
+# tagged keeps reporting `complete` and suggesting /deploy-production forever:
+# the cache key is built from LOCAL files only, so origin/main advancing never
+# invalidates the verdict. Probe the remote-tracking ref for the archived
+# status that post-merge now actually writes (#1234).
+#
+# Echoes the stale cycle id and returns 0 when stale; returns 1 otherwise.
+# Uses only the existing remote-tracking ref — no network, no new credentials.
+_is_stale_worktree() {
+    command -v jq >/dev/null 2>&1 || return 1
+
+    # Primary checkouts are never fossils — only linked worktrees are.
+    local git_dir common_dir
+    git_dir=$(git -C "${PROJECT_ROOT}" rev-parse --git-dir 2>/dev/null) || return 1
+    common_dir=$(git -C "${PROJECT_ROOT}" rev-parse --git-common-dir 2>/dev/null) || return 1
+    [[ "${git_dir}" != "${common_dir}" ]] || return 1
+
+    local active_cycle
+    active_cycle=$(jq -r '.active_cycle // ""' "${LEDGER_FILE}" 2>/dev/null) || return 1
+    [[ -n "${active_cycle}" ]] || return 1
+
+    # Ledger path relative to the repo root — never hard-coded, so
+    # LOA_GRIMOIRE_DIR keeps working.
+    local repo_root ledger_rel
+    repo_root=$(git -C "${PROJECT_ROOT}" rev-parse --show-toplevel 2>/dev/null) || return 1
+    ledger_rel="${LEDGER_FILE#"${repo_root}"/}"
+    [[ "${ledger_rel}" != "${LEDGER_FILE}" ]] || return 1
+
+    local remote_status
+    remote_status=$(git -C "${PROJECT_ROOT}" show "origin/main:${ledger_rel}" 2>/dev/null \
+        | jq -r --arg cycle "${active_cycle}" \
+            'first(.cycles[] | select((.cycle_id // .id) == $cycle) | .status) // ""' 2>/dev/null) || return 1
+
+    [[ "${remote_status}" == "archived" ]] || return 1
+    printf '%s' "${active_cycle}"
+}
+
 main() {
     local state
     local total_sprints
     local completed_sprints
     local current_sprint=""
+
+    # #1233: run the staleness probe BEFORE the cache lookup, and bypass the
+    # cache entirely when stale — otherwise the fossil verdict is served from
+    # the very cache whose key cannot see origin/main move.
+    local is_stale="false"
+    local stale_cycle=""
+    if [[ "${STALE_CHECK}" == "true" ]]; then
+        if stale_cycle=$(_is_stale_worktree); then
+            is_stale="true"
+            USE_CACHE=false
+        else
+            stale_cycle=""
+        fi
+    fi
 
     # Check semantic cache first (RLM pattern)
     local cache_key=""
@@ -399,6 +454,13 @@ main() {
     progress=$(get_progress_percentage "${state}" "${total_sprints}" "${completed_sprints}")
     description=$(get_state_description "${state}" "${current_sprint}")
 
+    # #1233: a fossil worktree's real next step is removing the worktree, not
+    # re-deploying a cycle that already shipped.
+    if [[ "${is_stale}" == "true" ]]; then
+        suggested_command="git worktree remove $(basename "${PROJECT_ROOT}")"
+        description="[STALE WORKTREE] Cycle ${stale_cycle} is already archived on origin/main. ${description}"
+    fi
+
     # Build JSON result (used for both output and caching)
     local json_result
     json_result=$(cat <<EOF
@@ -410,6 +472,8 @@ main() {
   "completed_sprints": ${completed_sprints},
   "progress_percent": ${progress},
   "suggested_command": "${suggested_command}",
+  "stale": ${is_stale},
+  "stale_cycle": "${stale_cycle}",
   "files": {
     "prd_exists": $([ -f "${PRD_FILE}" ] && echo "true" || echo "false"),
     "sdd_exists": $([ -f "${SDD_FILE}" ] && echo "true" || echo "false"),
