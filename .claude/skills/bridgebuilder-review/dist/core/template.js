@@ -79,11 +79,13 @@ export class PRReviewTemplate {
         const items = [];
         for (const { owner, repo } of this.config.repos) {
             const prs = await this.git.listOpenPRs(owner, repo);
-            for (const pr of prs.slice(0, this.config.maxPrs)) {
-                // Skip PRs that don't match --pr filter
-                if (this.config.targetPr != null && pr.number !== this.config.targetPr) {
-                    continue;
-                }
+            // #1206: select BEFORE truncating. maxPrs is a batch cap for "review
+            // whatever is open"; an explicit --pr is a request for one specific PR
+            // and must not be eaten by that cap when it sits outside the window.
+            const selected = this.config.targetPr != null
+                ? prs.filter((pr) => pr.number === this.config.targetPr)
+                : prs.slice(0, this.config.maxPrs);
+            for (const pr of selected) {
                 const files = await this.git.getPRFiles(owner, repo, pr.number);
                 // Canonical hash: sha256(headSha + "\n" + sorted filenames)
                 // Excludes patch content — only structural identity
@@ -96,6 +98,12 @@ export class PRReviewTemplate {
                 const hash = await this.hasher.sha256(hashInput);
                 items.push({ owner, repo, pr, files, hash });
             }
+        }
+        // #1206: a --pr that matches nothing across every configured repo is an
+        // operator error, not an empty batch. Returning [] here made the run exit
+        // 0 with reviewed=0 skipped=0 errors=0 — indistinguishable from success.
+        if (this.config.targetPr != null && items.length === 0) {
+            throw new Error(`TargetPrNotFound: --pr ${this.config.targetPr} matched no open PR in any configured repo`);
         }
         return items;
     }

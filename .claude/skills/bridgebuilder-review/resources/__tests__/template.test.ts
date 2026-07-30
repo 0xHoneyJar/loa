@@ -202,6 +202,45 @@ describe("PRReviewTemplate", () => {
 
       assert.equal(items.length, 2);
     });
+
+    // cycle-123 T1.2 (#1206): an explicit --pr outside the first maxPrs
+    // entries was truncated BEFORE the filter saw it, so the run exited 0
+    // reporting reviewed=0 skipped=0 errors=0 — a success-shaped no-op.
+    const threePrProvider = () =>
+      mockGitProvider({
+        listOpenPRs: async () => [
+          { number: 1, title: "PR1", headSha: "a", baseBranch: "main", labels: [], author: "u" },
+          { number: 2, title: "PR2", headSha: "b", baseBranch: "main", labels: [], author: "u" },
+          { number: 3, title: "PR3", headSha: "c", baseBranch: "main", labels: [], author: "u" },
+        ],
+      });
+
+    it("selects an explicit targetPr beyond the maxPrs window", async () => {
+      const config = mockConfig({ maxPrs: 2, targetPr: 3 });
+      const template = new PRReviewTemplate(threePrProvider(), mockHasher(), config);
+      const items = await template.resolveItems();
+
+      assert.equal(items.length, 1);
+      assert.equal(items[0].pr.number, 3);
+    });
+
+    it("still applies maxPrs when targetPr is unset", async () => {
+      const config = mockConfig({ maxPrs: 2 });
+      const template = new PRReviewTemplate(threePrProvider(), mockHasher(), config);
+      const items = await template.resolveItems();
+
+      assert.equal(items.length, 2);
+    });
+
+    it("throws a named error when targetPr matches nothing", async () => {
+      const config = mockConfig({ maxPrs: 2, targetPr: 99 });
+      const template = new PRReviewTemplate(threePrProvider(), mockHasher(), config);
+
+      await assert.rejects(
+        () => template.resolveItems(),
+        (err: Error) => err.message.includes("99"),
+      );
+    });
   });
 
   describe("buildConvergenceSystemPrompt", () => {
