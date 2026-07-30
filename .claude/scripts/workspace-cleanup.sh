@@ -13,6 +13,11 @@ set -euo pipefail
 
 # sprint-bug-172 / bug-911: sha256_portable from compat-lib
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/compat-lib.sh"
+# #1197: the GNU-only missing-path flag on realpath is unsupported by BSD
+# realpath, which exits 1 with "illegal option", so every path-validation
+# branch failed on Darwin and Phase 0.0 HARD-FAILED (main() gates on
+# `|| exit 3`). Mirrors mount-submodule.sh's pairing beside compat-lib.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/portable-realpath.sh"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Require bash 4.0+ (associative arrays)
@@ -461,8 +466,12 @@ validate_single_path() {
 
     # Verify realpath is under grimoire
     local real_path grimoire_real
-    real_path=$(realpath -m "$full_path" 2>/dev/null) || return 1
-    grimoire_real=$(realpath -m "$GRIMOIRE_DIR" 2>/dev/null) || return 1
+    # `|| return 1` preserved deliberately: these are the security sites, and
+    # an unresolvable path must stay fail-closed. (compat-lib's
+    # get_canonical_path is NOT used here — it never returns non-zero, which
+    # would silently drop that property.)
+    real_path=$(resolve_path_portable "$full_path" 2>/dev/null) || return 1
+    grimoire_real=$(resolve_path_portable "$GRIMOIRE_DIR" 2>/dev/null) || return 1
 
     if [[ "$real_path" != "$grimoire_real"/* && "$real_path" != "$grimoire_real" ]]; then
         return 1
@@ -1028,7 +1037,16 @@ validate_grimoire_path() {
 
     # Check realpath doesn't escape expected location
     local real_path
-    real_path=$(realpath -m "$path")
+    real_path=$(resolve_path_portable "$path") || {
+        error "Could not resolve grimoire path: $path"
+        return 1
+    }
+    # Never fall through to comparing against an empty string — that would
+    # match nothing and reject a legitimate path for the wrong reason.
+    if [[ -z "$real_path" ]]; then
+        error "Empty resolution for grimoire path: $path"
+        return 1
+    fi
 
     if [[ "$real_path" != *"grimoires"* ]]; then
         error "Grimoire path outside expected location: $path"

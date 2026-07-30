@@ -551,3 +551,145 @@ EOF
     # Should report partial state in JSON
     [[ "$output" == *"partial_state"* ]] || [[ "$output" == *"failed"* ]]
 }
+
+# =============================================================================
+# cycle-123 T2.2 (#1197) — GNU-only realpath flag broke every path-validation
+# branch on Darwin.
+#
+# Corrected severity (the issue as filed said "silently skips"): main() gates
+# on `validate_grimoire_path … || exit 3` and autonomous-agent/SKILL.md takes
+# the `3)` branch, so Phase 0.0 HARD-FAILS with
+# "HALT: Workspace cleanup security validation failed". Worse than filed.
+#
+# Ground rule 6: the BSD stub carries a faithfulness positive control.
+# =============================================================================
+
+# BSD realpath: rejects the GNU missing-path flag, resolves via pure shell so
+# the stub works on hosts without /usr/bin/realpath (Bridgebuilder F007).
+_install_bsd_realpath_stub() {
+    export STUB_BIN="$TEST_DIR/stub-bin"
+    mkdir -p "$STUB_BIN"
+    cat > "$STUB_BIN/realpath" <<'STUB'
+#!/usr/bin/env bash
+for a in "$@"; do
+    if [[ "$a" == -m* || "$a" == --canonicalize-missing ]]; then
+        echo "realpath: illegal option -- m" >&2
+        exit 1
+    fi
+done
+target="${1:-}"
+[[ -n "$target" ]] || exit 1
+if [[ -d "$target" ]]; then
+    cd "$target" 2>/dev/null && pwd
+elif [[ -e "$target" ]]; then
+    parent="$(cd "$(dirname "$target")" 2>/dev/null && pwd)"
+    [[ -n "$parent" ]] && echo "$parent/$(basename "$target")"
+else
+    exit 1
+fi
+STUB
+    chmod +x "$STUB_BIN/realpath"
+}
+
+# A realpath that fails EVERY argument form. NOTE: this alone does NOT make
+# resolution fail — resolve_path_portable intentionally falls back to pure-shell
+# resolution (cd parent + append basename), which is precisely the robustness
+# Bridgebuilder F007 added for macOS hosts with no /usr/bin/realpath. Used
+# below only to show the script survives a realpath-less host.
+_install_always_failing_realpath_stub() {
+    export STUB_BIN="$TEST_DIR/stub-bin"
+    mkdir -p "$STUB_BIN"
+    printf '%s\n' '#!/usr/bin/env bash' 'echo "realpath: total failure" >&2' 'exit 1' \
+        > "$STUB_BIN/realpath"
+    chmod +x "$STUB_BIN/realpath"
+}
+
+@test "T2.2 AC-1: no GNU-only realpath flag remains in workspace-cleanup.sh" {
+    run bash -c "grep -c -F 'realpath -m' '$SCRIPT' || true"
+    [[ "$output" == "0" ]] || {
+        echo "expected 0 occurrences; got: $output"
+        return 1
+    }
+}
+
+@test "T2.2 AC-2: --dry-run --json exits 0 under a BSD realpath stub" {
+    cd "$TEST_DIR"
+    _install_bsd_realpath_stub
+    echo "content" > grimoires/loa/prd.md
+
+    run env PATH="$STUB_BIN:$PATH" bash "$SCRIPT" --grimoire grimoires/loa --dry-run --json
+    [[ "$status" -eq 0 ]] || {
+        echo "expected exit 0 under BSD realpath; got $status"
+        echo "output: $output"
+        return 1
+    }
+}
+
+@test "T2.2 AC-3: no bogus 'outside expected location' under a BSD realpath stub" {
+    cd "$TEST_DIR"
+    _install_bsd_realpath_stub
+    echo "content" > grimoires/loa/prd.md
+
+    run env PATH="$STUB_BIN:$PATH" bash "$SCRIPT" --grimoire grimoires/loa --dry-run --json
+    [[ ! "$output" == *"Grimoire path outside expected location"* ]] || {
+        echo "valid path rejected: $output"
+        return 1
+    }
+}
+
+@test "T2.2 AC-4: no 'illegal option' leaks to stderr" {
+    cd "$TEST_DIR"
+    _install_bsd_realpath_stub
+    echo "content" > grimoires/loa/prd.md
+
+    run env PATH="$STUB_BIN:$PATH" bash "$SCRIPT" --grimoire grimoires/loa --dry-run --json
+    [[ ! "$output" == *"illegal option"* ]] || {
+        echo "BSD rejection leaked through: $output"
+        return 1
+    }
+}
+
+# AC-5 as drafted in the plan asked for exit 3 under a realpath that fails
+# every form. That is unachievable BY DESIGN and would be wrong to enforce:
+# resolve_path_portable falls back to pure-shell resolution, so a VALID path on
+# a realpath-less host still resolves — removing that would re-break the exact
+# macOS hosts Bridgebuilder F007 fixed. Split into the two properties that
+# actually matter.
+@test "T2.2 AC-5a: a realpath-less host still completes (pure-shell fallback)" {
+    cd "$TEST_DIR"
+    _install_always_failing_realpath_stub
+    echo "content" > grimoires/loa/prd.md
+
+    run env PATH="$STUB_BIN:$PATH" bash "$SCRIPT" --grimoire grimoires/loa --dry-run --json
+    [[ "$status" -eq 0 ]] || {
+        echo "valid path on a realpath-less host was rejected; got $status: $output"
+        return 1
+    }
+}
+
+@test "T2.2 AC-5b: fail-closed preserved — an unresolvable path is rejected" {
+    cd "$TEST_DIR"
+    _install_bsd_realpath_stub
+
+    # Parent directory does not exist, so resolve_path_portable returns 1 and
+    # the security sites' `|| return 1` must fire. The fix must not trade a
+    # Darwin HALT for a silent accept.
+    run env PATH="$STUB_BIN:$PATH" bash "$SCRIPT" \
+        --grimoire "$TEST_DIR/nonexistent-parent/grimoires/loa" --dry-run --json
+    [[ "$status" -ne 0 ]] || {
+        echo "unresolvable path was ACCEPTED (fail-closed property lost): $output"
+        return 1
+    }
+}
+
+@test "T2.2 AC-6: stub faithfulness — the GNU flag is genuinely rejected" {
+    cd "$TEST_DIR"
+    _install_bsd_realpath_stub
+
+    run env PATH="$STUB_BIN:$PATH" realpath -m "$TEST_DIR/nonexistent/path"
+    [[ "$status" -ne 0 ]] || {
+        echo "stub accepted the GNU flag — this suite would prove nothing"
+        return 1
+    }
+    [[ "$output" == *"illegal option"* ]]
+}
