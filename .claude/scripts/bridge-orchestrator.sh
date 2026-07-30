@@ -16,13 +16,14 @@
 #   --from PHASE             Start from phase (sprint-plan)
 #   --single-iteration       Process one iteration then exit (Issue #473)
 #   --no-silent-noop-detect  Disable post-loop no-findings check (Issue #473)
+#   --allow-empty            Accept a bridge that legitimately did no work (#1174)
 #   --help                   Show help
 #
 # Exit Codes:
 #   0 - Complete (JACKED_OUT) or single-iteration step complete
 #   1 - Halted (circuit breaker or error)
 #   2 - Config error
-#   3 - Silent no-op detected (no findings produced)
+#   3 - Zero work detected at finalization (no findings, no work metrics)
 
 set -euo pipefail
 
@@ -55,6 +56,12 @@ SINGLE_ITERATION=false
 # clear error explaining that the skill layer did not act on the
 # SIGNAL:* lines. Prevents silent JACKED_OUT with 0 findings.
 DETECT_SILENT_NOOP=true
+
+# Issue #1174: opt-in escape hatch for a bridge that legitimately had nothing
+# to do. Without it the zero-work gate cannot tell "nothing to do" from
+# "nobody drove me" and must assume the latter. Env-first so callers can set it
+# without rewriting their argv.
+ALLOW_EMPTY="${ALLOW_EMPTY:-false}"
 
 # CLI-explicit tracking (for CLI > config precedence)
 CLI_DEPTH=""
@@ -124,13 +131,16 @@ Options:
                              pair with --resume to advance step by step
   --no-silent-noop-detect    Disable post-loop check that fails when the run
                              produced zero findings (Issue #473; for tests/CI)
+  --allow-empty              Accept a bridge that legitimately did no work:
+                             finalize to JACKED_OUT instead of halting (#1174)
   --help                     Show help
 
 Exit Codes:
   0  Complete (JACKED_OUT) or single-iteration step complete
   1  Halted (circuit breaker or error)
   2  Config error
-  3  Silent no-op detected (no findings produced; see --no-silent-noop-detect)
+  3  Zero work at finalization: no findings for this bridge and every work
+     metric at 0 (see --allow-empty, --no-silent-noop-detect)
 USAGE
   exit "${1:-0}"
 }
@@ -167,6 +177,11 @@ while [[ $# -gt 0 ]]; do
     --no-silent-noop-detect)
       # Issue #473: opt out of the post-run no-findings check (for tests, CI)
       DETECT_SILENT_NOOP=false
+      shift
+      ;;
+    --allow-empty)
+      # Issue #1174: assert that an empty bridge is the expected outcome
+      ALLOW_EMPTY=true
       shift
       ;;
     --from)
@@ -388,6 +403,71 @@ is_butterfreezone_enabled() {
   local hook_enabled
   hook_enabled=$(yq '.butterfreezone.hooks.run_bridge // true' "$CONFIG_FILE" 2>/dev/null || echo "true")
   [[ "$enabled" == "true" ]] && [[ "$hook_enabled" == "true" ]]
+}
+
+# =============================================================================
+# Zero-Work Gate (Issue #1174, extends Issue #473)
+# =============================================================================
+
+# Refuse to finalize a bridge that shows no evidence of having been driven.
+# The #473 detector counted any *.json under .run/bridge-reviews — leftovers
+# from earlier bridges included — and consulted no work metrics, so a run whose
+# SIGNAL:* lines nobody intercepted reached JACKED_OUT with 0 sprints and
+# 0 findings. Evidence of work is now either a findings file belonging to THIS
+# bridge_id, or a non-zero work metric in the state file. Neither means nobody
+# drove the run: HALT loudly rather than report green.
+# Mirrors detect_silent_noop_flatline() in flatline-orchestrator.sh.
+#
+# Globals: DETECT_SILENT_NOOP, ALLOW_EMPTY, PROJECT_ROOT, BRIDGE_STATE_FILE, DEPTH
+# Returns: 0 when work is evident; exits 3 (state HALTED) when it is not.
+detect_zero_work() {
+  if [[ "${DETECT_SILENT_NOOP:-true}" != "true" || "${ALLOW_EMPTY:-false}" == "true" ]]; then
+    return 0
+  fi
+
+  local bridge_id
+  bridge_id=$(jq -r '.bridge_id // ""' "$BRIDGE_STATE_FILE" 2>/dev/null) || bridge_id=""
+
+  # Scope to this bridge: a prior bridge's findings prove nothing about this one.
+  local findings_dir="$PROJECT_ROOT/.run/bridge-reviews"
+  local findings_count=0
+  if [[ -n "$bridge_id" && -d "$findings_dir" ]]; then
+    findings_count=$(find "$findings_dir" -maxdepth 1 \
+      -name "${bridge_id}-iter*-findings.json" -type f 2>/dev/null | wc -l | tr -d ' ')
+  fi
+
+  # One jq read for every work signal the state file carries.
+  local work_units
+  work_units=$(jq '
+    [ (.metrics.total_sprints_executed // 0),
+      (.metrics.total_findings_addressed // 0) ]
+    + [ (.iterations // [])[] | (.bridgebuilder.total_findings // 0) ]
+    | add // 0' "$BRIDGE_STATE_FILE" 2>/dev/null) || work_units=0
+  [[ "$work_units" =~ ^[0-9]+$ ]] || work_units=0
+
+  if [[ "$findings_count" -gt 0 || "$work_units" -gt 0 ]]; then
+    return 0
+  fi
+
+  echo "" >&2
+  echo "ERROR: Bridge completed ${DEPTH:-?} iterations with no evidence of work:" >&2
+  echo "       no ${bridge_id:-<unknown>}-iter*-findings.json and every work metric at 0." >&2
+  echo "" >&2
+  echo "This usually means the calling skill did not act on the SIGNAL:*" >&2
+  echo "lines emitted by the orchestrator. The orchestrator emits signals" >&2
+  echo "on stdout expecting the skill to intercept them and perform the" >&2
+  echo "work (read diff, write review, post to GitHub). If the script ran" >&2
+  echo "without a skill on the other end, signals just printed and the" >&2
+  echo "actual review never happened." >&2
+  echo "" >&2
+  echo "Options:" >&2
+  echo "  1. Invoke via the /run-bridge skill (not bare shell pipe)" >&2
+  echo "  2. Use --single-iteration to drive one iteration at a time" >&2
+  echo "  3. Pass --no-silent-noop-detect if this is intentional (tests)" >&2
+  echo "  4. Pass --allow-empty if this bridge genuinely had nothing to do" >&2
+  echo "" >&2
+  update_bridge_state "HALTED"
+  exit 3
 }
 
 # =============================================================================
@@ -1076,36 +1156,8 @@ bridge_main() {
     mv "$BRIDGE_STATE_FILE.tmp" "$BRIDGE_STATE_FILE"
   fi
 
-  # Issue #473: silent-no-op detection. If the full-depth run completed but
-  # .run/bridge-reviews/ contains no findings files, the SIGNAL:* lines fired
-  # but no skill acted on them. Fail loud instead of claiming JACKED_OUT
-  # with 0 findings — silent success is the worst kind of failure.
-  if [[ "$DETECT_SILENT_NOOP" == "true" ]]; then
-    local findings_dir="$PROJECT_ROOT/.run/bridge-reviews"
-    local findings_count=0
-    if [[ -d "$findings_dir" ]]; then
-      findings_count=$(find "$findings_dir" -name '*.json' -type f 2>/dev/null | wc -l | tr -d ' ')
-    fi
-    if [[ "$findings_count" -eq 0 ]]; then
-      echo "" >&2
-      echo "ERROR: Bridge completed $DEPTH iterations but produced no findings files." >&2
-      echo "" >&2
-      echo "This usually means the calling skill did not act on the SIGNAL:*" >&2
-      echo "lines emitted by the orchestrator. The orchestrator emits signals" >&2
-      echo "on stdout expecting the skill to intercept them and perform the" >&2
-      echo "work (read diff, write review, post to GitHub). If the script ran" >&2
-      echo "without a skill on the other end, signals just printed and the" >&2
-      echo "actual review never happened." >&2
-      echo "" >&2
-      echo "Options:" >&2
-      echo "  1. Invoke via the /run-bridge skill (not bare shell pipe)" >&2
-      echo "  2. Use --single-iteration to drive one iteration at a time" >&2
-      echo "  3. Pass --no-silent-noop-detect if this is intentional (tests)" >&2
-      echo "" >&2
-      update_bridge_state "HALTED"
-      exit 3
-    fi
-  fi
+  # Issue #1174 (extends #473): silent success is the worst kind of failure.
+  detect_zero_work
 
   update_bridge_state "JACKED_OUT"
 

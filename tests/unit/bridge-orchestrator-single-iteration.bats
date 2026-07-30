@@ -80,3 +80,139 @@ teardown() {
 @test "bridge-orchestrator: SINGLE_ITERATION defaults to false" {
     grep -q '^SINGLE_ITERATION=false' "$SCRIPT"
 }
+
+# =============================================================================
+# Issue #1174 — finalization is gated on evidence of work
+# =============================================================================
+# The #473 detector counted ANY *.json under .run/bridge-reviews (including
+# leftovers from prior bridges) and looked at no work metrics at all, so a run
+# nobody drove reached JACKED_OUT with 0 sprints and 0 findings.
+
+# Write a FINALIZING bridge state file into the sandbox.
+#   $1 = bridge_id, $2 = total_sprints_executed, $3 = total_findings_addressed
+_write_bridge_state() {
+    cat > "$PROJECT_ROOT/.run/bridge-state.json" <<EOF
+{
+  "schema_version": 1,
+  "bridge_id": "$1",
+  "state": "FINALIZING",
+  "config": {"depth": 3, "mode": "full", "flatline_threshold": 0.05,
+             "per_sprint": false, "branch": "main", "repo": "",
+             "consecutive_flatline": 2},
+  "timestamps": {"started": "2026-01-01T00:00:00Z",
+                 "last_activity": "2026-01-01T00:00:00Z"},
+  "iterations": [],
+  "flatline": {"initial_score": 0, "last_score": 0,
+               "consecutive_below_threshold": 0},
+  "metrics": {
+    "total_sprints_executed": $2,
+    "total_files_changed": 0,
+    "total_findings_addressed": $3,
+    "total_visions_captured": 0
+  },
+  "finalization": {"ground_truth_updated": false, "rtfm_passed": true,
+                   "pr_url": null}
+}
+EOF
+}
+
+# Source the extracted detector next to the real state machine and run it
+# exactly as the finalization path does: gate, then transition.
+#   $1 = extra shell prelude (env assignments), may be empty
+_run_detector() {
+    run bash -c "
+        export PROJECT_ROOT='$PROJECT_ROOT'
+        export DEPTH=3
+        export DETECT_SILENT_NOOP=true
+        $1
+        source '$BATS_TEST_DIRNAME/../../.claude/scripts/bridge-state.sh'
+        awk '/^detect_zero_work\\(\\)/,/^}$/' '$SCRIPT' > '$PROJECT_ROOT/detector.sh'
+        source '$PROJECT_ROOT/detector.sh'
+        detect_zero_work && update_bridge_state JACKED_OUT
+    "
+}
+
+_state() {
+    jq -r '.state' "$PROJECT_ROOT/.run/bridge-state.json"
+}
+
+# T8 (AC-1): zero work metrics + no findings file for this bridge → exit 3
+@test "bridge-orchestrator: detect_zero_work exits 3 when nothing was driven" {
+    _write_bridge_state "bridge-20260101-aaaaaa" 0 0
+    _run_detector ""
+    [ "$status" -eq 3 ]
+}
+
+# T9 (AC-2): that same run HALTs and never claims JACKED_OUT
+@test "bridge-orchestrator: zero-work run lands in HALTED, not JACKED_OUT" {
+    _write_bridge_state "bridge-20260101-aaaaaa" 0 0
+    _run_detector ""
+    [ "$status" -eq 3 ]
+    [ "$(_state)" = "HALTED" ]
+}
+
+# T10 (AC-3): a findings file from a DIFFERENT bridge is not evidence of work
+@test "bridge-orchestrator: prior-bridge findings file does not satisfy the gate" {
+    _write_bridge_state "bridge-20260101-aaaaaa" 0 0
+    mkdir -p "$PROJECT_ROOT/.run/bridge-reviews"
+    echo '{"findings":[]}' > \
+        "$PROJECT_ROOT/.run/bridge-reviews/bridge-20251201-bbbbbb-iter1-findings.json"
+    _run_detector ""
+    [ "$status" -eq 3 ]
+    [ "$(_state)" = "HALTED" ]
+}
+
+# T11: a findings file from THIS bridge IS evidence of work (glob must match)
+@test "bridge-orchestrator: current-bridge findings file satisfies the gate" {
+    _write_bridge_state "bridge-20260101-aaaaaa" 0 0
+    mkdir -p "$PROJECT_ROOT/.run/bridge-reviews"
+    echo '{"findings":[]}' > \
+        "$PROJECT_ROOT/.run/bridge-reviews/bridge-20260101-aaaaaa-iter1-findings.json"
+    _run_detector ""
+    [ "$status" -eq 0 ]
+    [ "$(_state)" = "JACKED_OUT" ]
+}
+
+# T12 (AC-4): a non-zero work metric is evidence of work
+@test "bridge-orchestrator: total_sprints_executed >= 1 finalizes to JACKED_OUT" {
+    _write_bridge_state "bridge-20260101-aaaaaa" 1 0
+    _run_detector ""
+    [ "$status" -eq 0 ]
+    [ "$(_state)" = "JACKED_OUT" ]
+}
+
+# T12b: per-iteration Bridgebuilder findings also count as work, even when the
+# rolled-up metrics are still 0 (the conjunct reads all three work signals).
+@test "bridge-orchestrator: iteration bridgebuilder findings count as work" {
+    _write_bridge_state "bridge-20260101-aaaaaa" 0 0
+    jq '.iterations = [{"bridgebuilder": {"total_findings": 7}}]' \
+        "$PROJECT_ROOT/.run/bridge-state.json" > "$PROJECT_ROOT/s.json"
+    mv "$PROJECT_ROOT/s.json" "$PROJECT_ROOT/.run/bridge-state.json"
+    _run_detector ""
+    [ "$status" -eq 0 ]
+    [ "$(_state)" = "JACKED_OUT" ]
+}
+
+# T13 (AC-5): --allow-empty is a recognized flag and usage() lists it
+@test "bridge-orchestrator: --allow-empty is parsed and documented in usage" {
+    run "$SCRIPT" --allow-empty --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--allow-empty"* ]]
+}
+
+# T14 (AC-6): --allow-empty opts a legitimately empty run out of the gate
+@test "bridge-orchestrator: ALLOW_EMPTY=true finalizes a zero-work bridge" {
+    _write_bridge_state "bridge-20260101-aaaaaa" 0 0
+    _run_detector "export ALLOW_EMPTY=true"
+    [ "$status" -eq 0 ]
+    [ "$(_state)" = "JACKED_OUT" ]
+}
+
+# T15: the gate message keeps its actionable options, including --allow-empty
+@test "bridge-orchestrator: zero-work error names --allow-empty as an option" {
+    _write_bridge_state "bridge-20260101-aaaaaa" 0 0
+    _run_detector ""
+    [ "$status" -eq 3 ]
+    [[ "$output" == *"--allow-empty"* ]]
+    [[ "$output" == *"Invoke via the /run-bridge skill"* ]]
+}
