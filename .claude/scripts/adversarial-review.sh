@@ -121,16 +121,16 @@ load_adversarial_config() {
     config_key="security_audit"
   fi
 
-  CONF_ENABLED=$(yq eval ".flatline_protocol.${config_key}.enabled // false" "$CONFIG_FILE" 2>/dev/null || echo "false")
-  CONF_MODEL=$(yq eval ".flatline_protocol.${config_key}.model // \"gpt-5.3-codex\"" "$CONFIG_FILE" 2>/dev/null || echo "gpt-5.3-codex")
-  CONF_TIMEOUT=$(yq eval ".flatline_protocol.${config_key}.timeout_seconds // 60" "$CONFIG_FILE" 2>/dev/null || echo "60")
-  CONF_BUDGET_CENTS=$(yq eval ".flatline_protocol.${config_key}.budget_cents // 150" "$CONFIG_FILE" 2>/dev/null || echo "150")
-  CONF_ESCALATION_ENABLED=$(yq eval ".flatline_protocol.context_escalation.enabled // true" "$CONFIG_FILE" 2>/dev/null || echo "true")
-  CONF_SECONDARY_BUDGET=$(yq eval ".flatline_protocol.context_escalation.secondary_token_budget // $DEFAULT_SECONDARY_TOKEN_BUDGET" "$CONFIG_FILE" 2>/dev/null || echo "$DEFAULT_SECONDARY_TOKEN_BUDGET")
-  CONF_MAX_FILE_LINES=$(yq eval ".flatline_protocol.context_escalation.max_file_lines // 500" "$CONFIG_FILE" 2>/dev/null || echo "500")
-  CONF_MAX_FILE_BYTES=$(yq eval ".flatline_protocol.context_escalation.max_file_bytes // 51200" "$CONFIG_FILE" 2>/dev/null || echo "51200")
-  CONF_SECRET_SCANNING=$(yq eval ".flatline_protocol.secret_scanning.enabled // true" "$CONFIG_FILE" 2>/dev/null || echo "true")
-  CONF_REPAIR_LOOP=$(yq eval ".flatline_protocol.${config_key}.repair_loop // false" "$CONFIG_FILE" 2>/dev/null || echo "false")
+  CONF_ENABLED=$(yq eval ".flatline_protocol.${config_key}.enabled // false" "$CONFIG_FILE" 2>/dev/null || echo "false")  # check-no-swallowed-jq: ok (pending #1025 sweep)
+  CONF_MODEL=$(yq eval ".flatline_protocol.${config_key}.model // \"gpt-5.3-codex\"" "$CONFIG_FILE" 2>/dev/null || echo "gpt-5.3-codex")  # check-no-swallowed-jq: ok (pending #1025 sweep)
+  CONF_TIMEOUT=$(yq eval ".flatline_protocol.${config_key}.timeout_seconds // 60" "$CONFIG_FILE" 2>/dev/null || echo "60")  # check-no-swallowed-jq: ok (pending #1025 sweep)
+  CONF_BUDGET_CENTS=$(yq eval ".flatline_protocol.${config_key}.budget_cents // 150" "$CONFIG_FILE" 2>/dev/null || echo "150")  # check-no-swallowed-jq: ok (pending #1025 sweep)
+  CONF_ESCALATION_ENABLED=$(yq eval ".flatline_protocol.context_escalation.enabled // true" "$CONFIG_FILE" 2>/dev/null || echo "true")  # check-no-swallowed-jq: ok (pending #1025 sweep)
+  CONF_SECONDARY_BUDGET=$(yq eval ".flatline_protocol.context_escalation.secondary_token_budget // $DEFAULT_SECONDARY_TOKEN_BUDGET" "$CONFIG_FILE" 2>/dev/null || echo "$DEFAULT_SECONDARY_TOKEN_BUDGET")  # check-no-swallowed-jq: ok (pending #1025 sweep)
+  CONF_MAX_FILE_LINES=$(yq eval ".flatline_protocol.context_escalation.max_file_lines // 500" "$CONFIG_FILE" 2>/dev/null || echo "500")  # check-no-swallowed-jq: ok (pending #1025 sweep)
+  CONF_MAX_FILE_BYTES=$(yq eval ".flatline_protocol.context_escalation.max_file_bytes // 51200" "$CONFIG_FILE" 2>/dev/null || echo "51200")  # check-no-swallowed-jq: ok (pending #1025 sweep)
+  CONF_SECRET_SCANNING=$(yq eval ".flatline_protocol.secret_scanning.enabled // true" "$CONFIG_FILE" 2>/dev/null || echo "true")  # check-no-swallowed-jq: ok (pending #1025 sweep)
+  CONF_REPAIR_LOOP=$(yq eval ".flatline_protocol.${config_key}.repair_loop // false" "$CONFIG_FILE" 2>/dev/null || echo "false")  # check-no-swallowed-jq: ok (pending #1025 sweep)
 
   # Security invariant: secret_scanning MUST be on. Override if config says false.
   if [[ "$CONF_SECRET_SCANNING" != "true" ]]; then
@@ -1742,8 +1742,8 @@ main() {
     else
       # No explicit fallback_chain — fall back to flatline_protocol.models.*
       local m_secondary m_tertiary
-      m_secondary=$(yq eval ".flatline_protocol.models.secondary // \"\"" "$CONFIG_FILE" 2>/dev/null || echo "")
-      m_tertiary=$(yq eval ".flatline_protocol.models.tertiary // \"\"" "$CONFIG_FILE" 2>/dev/null || echo "")
+      m_secondary=$(yq eval ".flatline_protocol.models.secondary // \"\"" "$CONFIG_FILE" 2>/dev/null || echo "")  # check-no-swallowed-jq: ok (pending #1025 sweep)
+      m_tertiary=$(yq eval ".flatline_protocol.models.tertiary // \"\"" "$CONFIG_FILE" 2>/dev/null || echo "")  # check-no-swallowed-jq: ok (pending #1025 sweep)
       [[ -n "$m_secondary" && "$m_secondary" != "null" ]] && fallback_chain+=("$m_secondary")
       [[ -n "$m_tertiary" && "$m_tertiary" != "null" ]] && fallback_chain+=("$m_tertiary")
     fi

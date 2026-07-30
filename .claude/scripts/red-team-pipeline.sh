@@ -70,7 +70,7 @@ load_surface_context() {
         for cat in $focus; do
             cat=$(echo "$cat" | tr -d ' ')
             local surface_data
-            surface_data=$(yq ".surfaces.\"$cat\"" "$ATTACK_SURFACES" 2>/dev/null || echo "")
+            surface_data=$(yq ".surfaces.\"$cat\"" "$ATTACK_SURFACES" 2>/dev/null || echo "")  # check-no-swallowed-jq: ok (pending #1025 sweep)
             if [[ -n "$surface_data" && "$surface_data" != "null" ]]; then
                 surfaces_content="${surfaces_content}## ${cat}\n${surface_data}\n\n"
             fi
@@ -78,11 +78,11 @@ load_surface_context() {
         if [[ -n "$surfaces_content" ]]; then
             printf '%b' "$surfaces_content" > "$output_file"
         else
-            yq '.surfaces' "$ATTACK_SURFACES" > "$output_file" 2>/dev/null || echo "" > "$output_file"
+            yq '.surfaces' "$ATTACK_SURFACES" > "$output_file" 2>/dev/null || echo "" > "$output_file"  # check-no-swallowed-jq: ok (pending #1025 sweep)
         fi
     else
         # Load all surfaces
-        yq '.surfaces' "$ATTACK_SURFACES" > "$output_file" 2>/dev/null || echo "" > "$output_file"
+        yq '.surfaces' "$ATTACK_SURFACES" > "$output_file" 2>/dev/null || echo "" > "$output_file"  # check-no-swallowed-jq: ok (pending #1025 sweep)
     fi
 }
 
@@ -169,7 +169,7 @@ resolve_adapter_mode() {
         routing_enabled=false
     elif [[ -f "$CONFIG_FILE" ]]; then
         local v
-        v=$(yq '.hounfour.flatline_routing // false' "$CONFIG_FILE" 2>/dev/null || echo "false")
+        v=$(yq '.hounfour.flatline_routing // false' "$CONFIG_FILE" 2>/dev/null || echo "false")  # check-no-swallowed-jq: ok (pending #1025 sweep)
         [[ "$v" == "true" ]] && routing_enabled=true
     fi
 
@@ -202,9 +202,9 @@ init_budget() {
         BUDGET_LIMIT="$budget_override"
     else
         case "$execution_mode" in
-            quick)    BUDGET_LIMIT=$(yq '.red_team.budgets.quick_max_tokens // 50000' "$CONFIG_FILE" 2>/dev/null || echo 50000) ;;
-            standard) BUDGET_LIMIT=$(yq '.red_team.budgets.standard_max_tokens // 200000' "$CONFIG_FILE" 2>/dev/null || echo 200000) ;;
-            deep)     BUDGET_LIMIT=$(yq '.red_team.budgets.deep_max_tokens // 500000' "$CONFIG_FILE" 2>/dev/null || echo 500000) ;;
+            quick)    BUDGET_LIMIT=$(yq '.red_team.budgets.quick_max_tokens // 50000' "$CONFIG_FILE" 2>/dev/null || echo 50000) ;;  # check-no-swallowed-jq: ok (pending #1025 sweep)
+            standard) BUDGET_LIMIT=$(yq '.red_team.budgets.standard_max_tokens // 200000' "$CONFIG_FILE" 2>/dev/null || echo 200000) ;;  # check-no-swallowed-jq: ok (pending #1025 sweep)
+            deep)     BUDGET_LIMIT=$(yq '.red_team.budgets.deep_max_tokens // 500000' "$CONFIG_FILE" 2>/dev/null || echo 500000) ;;  # check-no-swallowed-jq: ok (pending #1025 sweep)
             *)        BUDGET_LIMIT=200000 ;;
         esac
     fi
@@ -404,16 +404,16 @@ run_phase1_attacks() {
 # false, falls back to single-call behavior with `evaluator_primary`.
 get_evaluator_multi_model_enabled() {
     local val
-    val=$(yq '.red_team.models.evaluator_multi_model // true' "$CONFIG_FILE" 2>/dev/null || echo "true")
+    val=$(yq '.red_team.models.evaluator_multi_model // true' "$CONFIG_FILE" 2>/dev/null || echo "true")  # check-no-swallowed-jq: ok (pending #1025 sweep)
     [[ "$val" == "true" ]]
 }
 
 get_evaluator_models() {
     # Returns one model alias per line, primary → secondary → tertiary.
     # Defaults cover all 3 providers (anthropic + openai + google).
-    yq '.red_team.models.evaluator_primary // "claude-opus-4-7"' "$CONFIG_FILE" 2>/dev/null || echo "claude-opus-4-7"
-    yq '.red_team.models.evaluator_secondary // "gpt-5.5-pro"' "$CONFIG_FILE" 2>/dev/null || echo "gpt-5.5-pro"
-    yq '.red_team.models.evaluator_tertiary // "gemini-3.1-pro"' "$CONFIG_FILE" 2>/dev/null || echo "gemini-3.1-pro"
+    yq '.red_team.models.evaluator_primary // "claude-opus-4-7"' "$CONFIG_FILE" 2>/dev/null || echo "claude-opus-4-7"  # check-no-swallowed-jq: ok (pending #1025 sweep)
+    yq '.red_team.models.evaluator_secondary // "gpt-5.5-pro"' "$CONFIG_FILE" 2>/dev/null || echo "gpt-5.5-pro"  # check-no-swallowed-jq: ok (pending #1025 sweep)
+    yq '.red_team.models.evaluator_tertiary // "gemini-3.1-pro"' "$CONFIG_FILE" 2>/dev/null || echo "gemini-3.1-pro"  # check-no-swallowed-jq: ok (pending #1025 sweep)
 }
 
 run_phase2_validation() {
@@ -521,7 +521,7 @@ run_phase2_validation() {
         else
             # Single-model evaluator (legacy behavior; opt-in via config).
             local single_model
-            single_model=$(yq '.red_team.models.evaluator_primary // "gpt-5.5-pro"' "$CONFIG_FILE" 2>/dev/null || echo "gpt-5.5-pro")
+            single_model=$(yq '.red_team.models.evaluator_primary // "gpt-5.5-pro"' "$CONFIG_FILE" 2>/dev/null || echo "gpt-5.5-pro")  # check-no-swallowed-jq: ok (pending #1025 sweep)
             log "Phase 2: Single-model evaluator (multi_model disabled in config) — model=$single_model"
             "$MODEL_ADAPTER" \
                 --role evaluator \

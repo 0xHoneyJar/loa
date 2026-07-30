@@ -723,3 +723,75 @@ commands:
     [ "$(jq '.constructs[0].commands | length' "$TEST_OUTPUT")" -eq 1 ]
     [ "$(jq '.constructs[0].tags | length' "$TEST_OUTPUT")" -eq 1 ]
 }
+
+# =============================================================================
+# T20: malformed SKILL.md frontmatter WARNS per capability site (#1065)
+# =============================================================================
+# Pre-fix the aggregate_capabilities yq calls defaulted on a non-zero exit with
+# no diagnostic, so a pack declaring write_files: true was indexed as all-false
+# with exit 0 — silent capability collapse (KF-004/KF-015 class).
+
+@test "T20: malformed SKILL.md frontmatter warns per capability site (#1065)" {
+    create_mock_pack "badfm-pack" '{
+      "name": "Bad Frontmatter Pack",
+      "slug": "badfm-pack",
+      "version": "1.0.0",
+      "skills": [
+        {"slug": "skill-broken", "path": "skills/skill-broken/"}
+      ],
+      "commands": [],
+      "events": {}
+    }'
+
+    # `capabilities:` is present (so aggregation is entered) but the block is
+    # not parseable YAML — every yq call in aggregate_capabilities exits 1.
+    create_mock_skill "skill-broken" "---
+name: broken
+description: Malformed capability block
+capabilities:
+  schema_version: 3
+  read_files: [unclosed
+  write_files: true
+  execute_commands:
+    allowed:
+      - command: git
+---
+# Broken"
+
+    # NOT --quiet: the warnings are the fix.
+    run "$SCRIPT" --json --output "$TEST_OUTPUT"
+    [ "$status" -eq 0 ]                                                       # resilient: generator does not halt
+    [[ "$output" == *"capabilities.schema_version: extraction failed"* ]]     # numeric site
+    [[ "$output" == *"capabilities.read_files: extraction failed"* ]]         # boolean site
+    [[ "$output" == *"capabilities.execute_commands type: extraction failed"* ]]
+
+    # Resilient defaults preserved verbatim.
+    local caps
+    caps=$(jq -c '.constructs[0].aggregated_capabilities' "$TEST_OUTPUT")
+    [ "$(echo "$caps" | jq '.schema_version')" = "0" ]
+    [ "$(echo "$caps" | jq '.read_files')" = "false" ]
+    [ "$(echo "$caps" | jq '.execute_commands')" = "false" ]
+}
+
+# =============================================================================
+# T21: malformed construct.yaml WARNS on the name/version/description overlay (#1065)
+# =============================================================================
+# The writes/reads/gates/events overlay sites already warned (#1012); the three
+# identity fields swallowed to "" and silently kept the manifest values.
+
+@test "T21: malformed construct.yaml warns on the identity overlay sites (#1065)" {
+    create_mock_pack "badcy-pack" "$SPARSE_MANIFEST"
+    create_mock_construct_yaml "badcy-pack" 'name: Overlay Name
+version: 2.0.0
+tags: [broken'
+
+    run "$SCRIPT" --json --output "$TEST_OUTPUT"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"construct.yaml name: extraction failed"* ]]
+    [[ "$output" == *"construct.yaml version: extraction failed"* ]]
+    [[ "$output" == *"construct.yaml description: extraction failed"* ]]
+
+    # Resilient default is the empty string, so the manifest values survive.
+    [ "$(jq -r '.constructs[0].name' "$TEST_OUTPUT")" = "Sparse Pack" ]
+    [ "$(jq -r '.constructs[0].version' "$TEST_OUTPUT")" = "0.1.0" ]
+}

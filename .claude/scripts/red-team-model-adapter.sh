@@ -265,7 +265,7 @@ is_routing_enabled() {
         return 1
     fi
     local value
-    value=$(yq '.hounfour.flatline_routing // false' "$CONFIG_FILE" 2>/dev/null || echo "false")
+    value=$(yq '.hounfour.flatline_routing // false' "$CONFIG_FILE" 2>/dev/null || echo "false")  # check-no-swallowed-jq: ok (pending #1025 sweep)
     [[ "$value" == "true" ]]
 }
 

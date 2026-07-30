@@ -202,7 +202,7 @@ aggregate_capabilities() {
 
         # Get schema_version
         local sv
-        sv=$(yq eval '.capabilities.schema_version // 0' "$tmp_fm" 2>/dev/null || echo "0")
+        sv=$(_strict_or_default "0" "capabilities.schema_version" yq eval '.capabilities.schema_version // 0' "$tmp_fm")
         if [[ "$sv" -gt "$agg_schema_version" ]] 2>/dev/null; then
             agg_schema_version="$sv"
         fi
@@ -210,7 +210,7 @@ aggregate_capabilities() {
         # Union semantics: if ANY skill has true, aggregate is true
         local val
         for field in read_files search_code write_files web_access user_interaction agent_spawn task_management; do
-            val=$(yq eval ".capabilities.$field // false" "$tmp_fm" 2>/dev/null || echo "false")
+            val=$(_strict_or_default "false" "capabilities.$field" yq eval ".capabilities.$field // false" "$tmp_fm")
             if [[ "$val" == "true" ]]; then
                 eval "agg_${field}=true"
             fi
@@ -218,10 +218,10 @@ aggregate_capabilities() {
 
         # Special handling for execute_commands
         local exec_type
-        exec_type=$(yq eval '.capabilities.execute_commands | type' "$tmp_fm" 2>/dev/null || echo "!!null")
+        exec_type=$(_strict_or_default "!!null" "capabilities.execute_commands type" yq eval '.capabilities.execute_commands | type' "$tmp_fm")
 
         if [[ "$exec_type" == "!!bool" || "$exec_type" == "boolean" ]]; then
-            val=$(yq eval '.capabilities.execute_commands' "$tmp_fm" 2>/dev/null || echo "false")
+            val=$(_strict_or_default "false" "capabilities.execute_commands" yq eval '.capabilities.execute_commands' "$tmp_fm")
             if [[ "$val" == "true" ]]; then
                 agg_execute_commands="true"
             fi
@@ -230,7 +230,7 @@ aggregate_capabilities() {
                 agg_execute_commands_is_object="true"
                 # Merge allowed lists
                 local new_allowed
-                new_allowed=$(yq eval -o=json '.capabilities.execute_commands.allowed // []' "$tmp_fm" 2>/dev/null || echo "[]")
+                new_allowed=$(_strict_or_default "[]" "capabilities.execute_commands.allowed" yq eval -o=json '.capabilities.execute_commands.allowed // []' "$tmp_fm")
                 if [[ "$new_allowed" != "[]" && "$new_allowed" != "null" ]]; then
                     agg_allowed_commands=$(jq -n --argjson existing "$agg_allowed_commands" --argjson new_cmds "$new_allowed" '$existing + $new_cmds | unique_by(.command)')
                 fi
@@ -363,9 +363,9 @@ process_pack() {
 
         # construct.yaml fields win on overlap
         local cy_name cy_version cy_description
-        cy_name=$(yq eval '.name // ""' "$construct_yaml" 2>/dev/null || echo "")
-        cy_version=$(yq eval '.version // ""' "$construct_yaml" 2>/dev/null || echo "")
-        cy_description=$(yq eval '.description // ""' "$construct_yaml" 2>/dev/null || echo "")
+        cy_name=$(_strict_or_default "" "construct.yaml name" yq eval '.name // ""' "$construct_yaml")
+        cy_version=$(_strict_or_default "" "construct.yaml version" yq eval '.version // ""' "$construct_yaml")
+        cy_description=$(_strict_or_default "" "construct.yaml description" yq eval '.description // ""' "$construct_yaml")
 
         [[ -n "$cy_name" && "$cy_name" != "null" ]] && name="$cy_name"
         [[ -n "$cy_version" && "$cy_version" != "null" ]] && version="$cy_version"

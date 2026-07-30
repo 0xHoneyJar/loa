@@ -2105,9 +2105,9 @@ main() {
         # Apply token budget per execution mode (separate from cost budget used in review mode)
         local rt_token_budget
         case "$rt_execution_mode" in
-            quick)    rt_token_budget=$(yq '.red_team.budgets.quick_max_tokens // 50000' "$CONFIG_FILE" 2>/dev/null || echo 50000) ;;
-            standard) rt_token_budget=$(yq '.red_team.budgets.standard_max_tokens // 200000' "$CONFIG_FILE" 2>/dev/null || echo 200000) ;;
-            deep)     rt_token_budget=$(yq '.red_team.budgets.deep_max_tokens // 500000' "$CONFIG_FILE" 2>/dev/null || echo 500000) ;;
+            quick)    rt_token_budget=$(yq '.red_team.budgets.quick_max_tokens // 50000' "$CONFIG_FILE" 2>/dev/null || echo 50000) ;;  # check-no-swallowed-jq: ok (pending #1025 sweep)
+            standard) rt_token_budget=$(yq '.red_team.budgets.standard_max_tokens // 200000' "$CONFIG_FILE" 2>/dev/null || echo 200000) ;;  # check-no-swallowed-jq: ok (pending #1025 sweep)
+            deep)     rt_token_budget=$(yq '.red_team.budgets.deep_max_tokens // 500000' "$CONFIG_FILE" 2>/dev/null || echo 500000) ;;  # check-no-swallowed-jq: ok (pending #1025 sweep)
         esac
         log "Red team mode: execution=$rt_execution_mode, depth=$rt_depth, token_budget=$rt_token_budget"
     fi
@@ -2282,8 +2282,8 @@ main() {
         # generates off-target attacks that the primary scores 0 across the
         # board. Detect that pattern and halt rather than returning noise.
         local rtg_threshold rtg_min_attacks
-        rtg_threshold=$(yq -r '.red_team.grounding_failure.opus_zero_threshold // 0.8' "$CONFIG_FILE" 2>/dev/null || echo "0.8")
-        rtg_min_attacks=$(yq -r '.red_team.grounding_failure.min_attacks // 3' "$CONFIG_FILE" 2>/dev/null || echo "3")
+        rtg_threshold=$(yq -r '.red_team.grounding_failure.opus_zero_threshold // 0.8' "$CONFIG_FILE" 2>/dev/null || echo "0.8")  # check-no-swallowed-jq: ok (pending #1025 sweep)
+        rtg_min_attacks=$(yq -r '.red_team.grounding_failure.min_attacks // 3' "$CONFIG_FILE" 2>/dev/null || echo "3")  # check-no-swallowed-jq: ok (pending #1025 sweep)
 
         local grounding_stats
         grounding_stats=$(echo "$final_result" | compute_grounding_stats "$rtg_threshold" "$rtg_min_attacks")
@@ -2485,7 +2485,7 @@ main() {
     # =========================================================================
 
     local arbiter_enabled
-    arbiter_enabled=$(yq eval '.flatline_protocol.autonomous_arbiter.enabled // false' "$PROJECT_ROOT/.loa.config.yaml" 2>/dev/null || echo "false")
+    arbiter_enabled=$(yq eval '.flatline_protocol.autonomous_arbiter.enabled // false' "$PROJECT_ROOT/.loa.config.yaml" 2>/dev/null || echo "false")  # check-no-swallowed-jq: ok (pending #1025 sweep)
 
     if [[ "$arbiter_enabled" == "true" && "${SIMSTIM_AUTONOMOUS:-0}" == "1" ]]; then
         local disputed_count blocker_count
@@ -2554,7 +2554,7 @@ main() {
                 log "Arbiter: trying $try_model (attempt $cascade_attempts)"
 
                 local max_arbiter_tokens
-                max_arbiter_tokens=$(yq eval '.flatline_protocol.autonomous_arbiter.max_arbiter_tokens // 4000' "$PROJECT_ROOT/.loa.config.yaml" 2>/dev/null || echo "4000")
+                max_arbiter_tokens=$(yq eval '.flatline_protocol.autonomous_arbiter.max_arbiter_tokens // 4000' "$PROJECT_ROOT/.loa.config.yaml" 2>/dev/null || echo "4000")  # check-no-swallowed-jq: ok (pending #1025 sweep)
 
                 arbiter_result=$("$SCRIPT_DIR/model-adapter.sh" \
                     --mode "review" \

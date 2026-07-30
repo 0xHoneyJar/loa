@@ -105,10 +105,10 @@ get_retention_days() {
     if [[ -f "$CONFIG_FILE" ]] && command -v yq &>/dev/null; then
         case "$classification" in
             INTERNAL)
-                yq ".red_team.safety.retention_days_internal // $default_internal" "$CONFIG_FILE" 2>/dev/null || echo "$default_internal"
+                yq ".red_team.safety.retention_days_internal // $default_internal" "$CONFIG_FILE" 2>/dev/null || echo "$default_internal"  # check-no-swallowed-jq: ok (pending #1025 sweep)
                 ;;
             *)
-                yq ".red_team.safety.retention_days_restricted // $default_restricted" "$CONFIG_FILE" 2>/dev/null || echo "$default_restricted"
+                yq ".red_team.safety.retention_days_restricted // $default_restricted" "$CONFIG_FILE" 2>/dev/null || echo "$default_restricted"  # check-no-swallowed-jq: ok (pending #1025 sweep)
                 ;;
         esac
     else

@@ -146,3 +146,38 @@ SH
     [[ "$output" == *"marker-open.sh:5:"* ]]
     [[ "$output" != *"fixture-text"* ]]
 }
+
+# =============================================================================
+# YQ1/YQ2 — non-vacuity of the construct-index-gen.sh enforcement (#1065)
+# =============================================================================
+# #1065 asked only for construct-index-gen.sh to join ENFORCED_FILES. That alone
+# passes for the wrong reason: every swallow site in that file is a yq call, and
+# the matcher only knew jq — a fence reporting safety it does not provide. YQ1
+# pins that the scanner can actually SEE a yq swallow in that file when run in
+# default (enforced-set) mode.
+
+@test "YQ1: a fresh yq swallow in construct-index-gen.sh is FLAGGED in default mode (#1065)" {
+    local fake_root="$BATS_TEST_TMPDIR/fake-root"
+    mkdir -p "$fake_root/.claude/scripts"
+    cp "$PROJECT_ROOT/.claude/scripts/construct-index-gen.sh" \
+       "$fake_root/.claude/scripts/construct-index-gen.sh"
+    # A regression of exactly the shape this task removed. The marker keeps the
+    # fixture STRING from being read as a real site if this tree is ever scanned.
+    local regression='sv=$(yq eval ".capabilities.schema_version" "$tmp_fm" 2>/dev/null || echo "0")'  # check-no-swallowed-jq: ok (fixture text, not an executed call)
+    printf '%s\n' "$regression" >> "$fake_root/.claude/scripts/construct-index-gen.sh"
+
+    cd "$fake_root"
+    run "$SCANNER"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"construct-index-gen.sh"* ]]
+}
+
+@test "YQ2: the real enforced set — construct-index-gen.sh included — is clean (#1065)" {
+    cd "$PROJECT_ROOT"
+    run "$SCANNER"
+    [ "$status" -eq 0 ]
+    # Guard against a silently empty scan (the enforced-set glob resolving to
+    # nothing would also exit 0 with a different message).
+    [[ "$output" == *"no output-swallowing jq shapes on the enforced set"* ]]
+    grep -q 'construct-index-gen\.sh' "$SCANNER"
+}

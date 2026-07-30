@@ -2,7 +2,7 @@
 # =============================================================================
 # tools/check-no-swallowed-jq.sh
 #
-# sprint-bug-208 / #1025 — tripwire scan: NO output-swallowing jq shapes on
+# sprint-bug-208 / #1025 — tripwire scan: NO output-swallowing jq/yq shapes on
 # gate-critical scripts. The shape `jq … 2>/dev/null || echo <default>` (and
 # its `|| echo`-without-stderr-suppression variant) converts a jq parse or
 # extraction failure into a clean default with exit 0 — the literal mechanism
@@ -30,10 +30,13 @@
 #      Un-migrated legacy sites on the enforced set carry this marker with a
 #      tracking note (`pending #1025 sweep`); NEW sites are flagged at PR
 #      time. Use sparingly, with reviewer rationale.
-#   5. Match: a jq invocation followed on the same line by `|| echo` or
+#   5. Match: a jq OR yq invocation followed on the same line by `|| echo` or
 #      `|| printf`. `2>/dev/null` is deliberately NOT required for the
 #      match — stderr suppression only hides diagnostics; the `||` default
-#      is what swallows the verdict.
+#      is what swallows the verdict. yq joined the matcher in cycle-123
+#      (#1065): construct-index-gen.sh's swallow sites are ALL yq, so a
+#      jq-only matcher made its enforcement vacuous — a fence reporting
+#      safety it did not provide.
 #
 # **Tripwire scope (NOT exhaustive defense)**: same caveats as
 # check-no-raw-sha256sum.sh — variable-expanded/eval/printf-assembled jq,
@@ -59,8 +62,8 @@ set -euo pipefail
 
 # Gate-critical scripts where the swallow shape is forbidden — the #1025
 # scoped enforcement set (adversarial-review, flatline-orchestrator,
-# scoring-engine, post-pr-triage; red-team-* resolved by the
-# extension-agnostic glob below).
+# scoring-engine, post-pr-triage, construct-index-gen; red-team-* resolved by
+# the extension-agnostic glob below).
 # Paths are repo-root-relative; default mode assumes invocation from the
 # project root (as CI does).
 ENFORCED_FILES=(
@@ -68,6 +71,7 @@ ENFORCED_FILES=(
     ".claude/scripts/flatline-orchestrator.sh"
     ".claude/scripts/scoring-engine.sh"
     ".claude/scripts/post-pr-triage.sh"
+    ".claude/scripts/construct-index-gen.sh"
 )
 
 QUIET=0
@@ -118,7 +122,7 @@ BEGIN {
 }
 
 function _line_has_swallowed_jq(line) {
-    return (line ~ /(^|[^[:alnum:]_])jq[[:space:]].*\|\|[[:space:]]*(echo|printf)([^[:alnum:]_]|$)/)
+    return (line ~ /(^|[^[:alnum:]_])[jy]q[[:space:]].*\|\|[[:space:]]*(echo|printf)([^[:alnum:]_]|$)/)
 }
 
 # The command word governing a heredoc whose << starts at pos rs — used to
