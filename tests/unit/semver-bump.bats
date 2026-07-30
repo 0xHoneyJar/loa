@@ -135,13 +135,80 @@ EOF
     [ "$current" = "3.1.0" ]
 }
 
-@test "semver-bump: errors when no version source found" {
+# FLIPPED by cycle-123 T1.3 (#1235). This assertion previously encoded the
+# bug as intended behavior: auto mode exited 2 on a greenfield repo, and
+# post-merge.yml's Compute-semver step swallows that (`|| echo '{}'`), so
+# every merge skipped tag/CHANGELOG/release forever while reporting green.
+# Auto mode now BOOTSTRAPS. The explicit --from-tag / --from-changelog arms
+# still exit 2 — pinned by the two tests below.
+@test "semver-bump: auto mode bootstraps the first version when no version source exists" {
     skip_if_deps_missing
 
     make_commit "initial commit"
 
     run "$TEST_SCRIPT"
-    [ "$status" -ne 0 ]
+    [ "$status" -eq 0 ]
+    [ "$(echo "$output" | jq -r '.current')" = "0.0.0" ]
+    [ "$(echo "$output" | jq -r '.next')" = "0.1.0" ]
+    [ "$(echo "$output" | jq -r '.bump')" = "initial" ]
+    [ "$(echo "$output" | jq -r '.commits | length')" -eq 0 ]
+}
+
+@test "semver-bump: --from-tag still exits 2 on a greenfield repo" {
+    skip_if_deps_missing
+
+    make_commit "initial commit"
+
+    run "$TEST_SCRIPT" --from-tag
+    [ "$status" -eq 2 ]
+}
+
+@test "semver-bump: --from-changelog still exits 2 on a greenfield repo" {
+    skip_if_deps_missing
+
+    make_commit "initial commit"
+
+    run "$TEST_SCRIPT" --from-changelog
+    [ "$status" -eq 2 ]
+}
+
+@test "semver-bump: LOA_INITIAL_VERSION overrides the bootstrap version" {
+    skip_if_deps_missing
+
+    make_commit "initial commit"
+
+    LOA_INITIAL_VERSION=1.0.0 run "$TEST_SCRIPT"
+    [ "$status" -eq 0 ]
+    [ "$(echo "$output" | jq -r '.next')" = "1.0.0" ]
+    [ "$(echo "$output" | jq -r '.bump')" = "initial" ]
+}
+
+@test "semver-bump: bump is never 'initial' again once a tag exists" {
+    skip_if_deps_missing
+
+    make_commit "initial commit"
+    make_tag "0.1.0"
+    make_commit "fix: something real"
+
+    run "$TEST_SCRIPT"
+    [ "$status" -eq 0 ]
+    [ "$(echo "$output" | jq -r '.current')" = "0.1.0" ]
+    [ "$(echo "$output" | jq -r '.bump')" != "initial" ]
+}
+
+# The post-merge.yml Compute-semver step reads `.next` and skips tagging when
+# it is empty. This emulates that step on a greenfield repo (#1235's actual
+# production symptom) and asserts the tag step would NOT be skipped.
+@test "semver-bump: post-merge Compute-semver emulation yields a non-empty NEXT on a greenfield repo" {
+    skip_if_deps_missing
+
+    make_commit "initial commit"
+
+    local result next
+    result=$("$TEST_SCRIPT" 2>/dev/null || echo '{}')
+    next=$(echo "$result" | jq -r '.next // empty')
+    [ -n "$next" ]
+    [ "$next" = "0.1.0" ]
 }
 
 @test "semver-bump: errors when no commits since tag" {

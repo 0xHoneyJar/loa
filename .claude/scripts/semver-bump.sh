@@ -286,7 +286,8 @@ main() {
         echo "Exit codes:"
         echo "  0  Success (JSON on stdout)"
         echo "  1  No commits since last tag"
-        echo "  2  No version source found (no tags / no CHANGELOG match) or bad input"
+        echo "  2  Explicit --from-tag/--from-changelog found no source, or bad input"
+        echo "     (auto mode instead bootstraps: current 0.0.0 -> LOA_INITIAL_VERSION or 0.1.0)"
         exit 0
         ;;
       *)
@@ -331,8 +332,17 @@ main() {
           exit 2
         fi
       else
-        echo "ERROR: No version source found (no tags, no CHANGELOG)" >&2
-        exit 2
+        # cycle-123 T1.3 (#1235): greenfield repo — no tags, no CHANGELOG.
+        # Exiting 2 here was terminal in practice: post-merge.yml's Compute
+        # semver step swallows failure (`|| echo '{}'`), so NEXT came back
+        # empty and tag/CHANGELOG/release/GT were skipped on every merge,
+        # forever, while the workflow reported green. Bootstrap the first
+        # version instead. Explicit --from-tag / --from-changelog still
+        # exit 2: asking for a source that does not exist is an error.
+        jq -n \
+          --arg next "${LOA_INITIAL_VERSION:-0.1.0}" \
+          '{current: "0.0.0", next: $next, bump: "initial", commits: []}'
+        exit 0
       fi
       ;;
   esac
