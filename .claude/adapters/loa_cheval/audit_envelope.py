@@ -419,7 +419,9 @@ def _trust_store_status() -> str:
     pubkey.
 
     INVALID: trust-store has populated keys/revocations but the
-    root_signature does not verify (or is missing).
+    root_signature does not verify (or is missing), OR the file exists but
+    cannot be read/parsed (issue #1211 — absent is bootstrap, unreadable is
+    not).
 
     Cached per-process by (path, mtime, size, sha256); recomputed when ANY
     component of the key changes (F4 bridgebuilder hardening).
@@ -452,8 +454,13 @@ def _trust_store_status() -> str:
         if not sig and not keys and not revs:
             bootstrap_pending = True
     except Exception:
-        # Unreadable trust-store: treat as BOOTSTRAP-PENDING (graceful).
-        bootstrap_pending = True
+        # Issue #1211: a store file that EXISTS but cannot be read or parsed is
+        # NOT a pre-bootstrap store — downgrading it to BOOTSTRAP-PENDING made
+        # _check_trust_store permit writes and default verification on a store
+        # nobody can validate. Fall through to root-signature verification,
+        # which fails closed (INVALID). Only an ABSENT file (returned above) is
+        # BOOTSTRAP-PENDING. Mirrors bash _audit_trust_store_status.
+        pass
 
     if bootstrap_pending:
         status = "BOOTSTRAP-PENDING"
@@ -519,6 +526,31 @@ def _read_trust_cutoff(*, strict_verify: bool = False) -> Optional[str]:
                 "a readable trust-store cutoff (ATK-4)"
             )
         return None
+
+
+def _read_revoked_at(key_id: str) -> Optional[str]:
+    """
+    Read revocations[].revoked_at for <key_id> from the active trust-store.
+
+    Issue #1211: revocations[] is inside the root-signed core but was never
+    consulted at verify time, so a revoked writer key kept verifying. Returns
+    the ISO-8601 string, or None when the writer is not revoked. Modeled on
+    _read_trust_cutoff; an unreadable store cannot reach here (it is INVALID
+    and blocked by _check_trust_store).
+    """
+    ts_path = _trust_store_path()
+    if not ts_path.is_file():
+        return None
+    try:
+        import yaml
+        with ts_path.open("r", encoding="utf-8") as f:
+            doc = yaml.safe_load(f) or {}
+        for entry in doc.get("revocations") or []:
+            if entry.get("writer_id") == key_id:
+                return (entry.get("revoked_at") or "").strip() or None
+    except Exception:  # pragma: no cover — defensive
+        return None
+    return None
 
 
 def _ts_ge_cutoff(ts_utc: str, cutoff: Optional[str]) -> bool:
@@ -607,6 +639,17 @@ def audit_verify_chain(log_path: PathLike, *, verify_for_merge: bool = False) ->
                         )
 
                 if sig_b64 and kid:
+                    # #1211: revocation is enforced with the SAME comparator as
+                    # the trust cutoff — entries at or after revoked_at are
+                    # rejected, earlier ones stay grandfathered (runbook
+                    # audit-keys-bootstrap.md).
+                    revoked_at = _read_revoked_at(kid)
+                    if _ts_ge_cutoff(ts_utc, revoked_at):
+                        return False, (
+                            f"BROKEN line {lineno}: [KEY-REVOKED] "
+                            f"signing_key_id={kid} revoked at {revoked_at} "
+                            f"(ts={ts_utc})"
+                        )
                     pubkey_pem = _resolve_pubkey_pem(
                         kid,
                         allow_local_fallback=not strict_verify,

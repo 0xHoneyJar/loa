@@ -423,6 +423,8 @@ _audit_ts_cache_key() {
 # requiring the maintainer-offline-root-key ceremony at install time.
 # Once any keys[] or revocations[] entries land, the trust-store MUST be
 # signed by the pinned root key — otherwise the trust-store is INVALID.
+# Issue #1211: BOOTSTRAP-PENDING is for an ABSENT or empty-and-unsigned store
+# only. A store that is present but unparseable is INVALID (fail closed).
 # -----------------------------------------------------------------------------
 _audit_trust_store_status() {
     local trust_store="${LOA_TRUST_STORE_FILE:-${_LOA_AUDIT_TRUST_STORE_DEFAULT}}"
@@ -458,7 +460,11 @@ try:
     with open(sys.argv[1]) as f:
         doc = yaml.safe_load(f) or {}
 except Exception:
-    print("BOOTSTRAP-PENDING")
+    # Issue #1211: the file EXISTS but cannot be read or parsed. That is NOT a
+    # pre-bootstrap store — routing it to the permissive state let writes and
+    # default verification proceed on a store nobody can validate. Route to
+    # root-signature verification instead, which fails closed (INVALID).
+    print("NEEDS_VERIFY")
     sys.exit(0)
 sig = ((doc.get("root_signature") or {}).get("signature") or "").strip()
 keys = doc.get("keys") or []
@@ -748,6 +754,47 @@ PY
 }
 
 # -----------------------------------------------------------------------------
+# _audit_revoked_at <writer_id> — read revocations[].revoked_at for <writer_id>
+# from the active trust-store. Prints the ISO-8601 string on stdout; empty when
+# the writer is not revoked or the store is missing. Modeled on
+# _audit_trust_cutoff (issue #1211: revocations[] is root-signed but was never
+# consulted at verify time, so revoking a key revoked nothing).
+# -----------------------------------------------------------------------------
+_audit_revoked_at() {
+    local writer_id="$1"
+    local trust_store="${LOA_TRUST_STORE_FILE:-${_LOA_AUDIT_TRUST_STORE_DEFAULT}}"
+    [[ -f "$trust_store" ]] || return 0
+    if command -v yq >/dev/null 2>&1; then
+        local revoked
+        # yq v4 has no --arg; pass the writer id via env() (same shape as
+        # _audit_pubkey_for_key_id).
+        revoked="$(LOA_REVOKED_KID="$writer_id" yq -r \
+            '.revocations[]? | select(.writer_id == env(LOA_REVOKED_KID)) | .revoked_at // ""' \
+            "$trust_store" 2>/dev/null || true)"
+        [[ "$revoked" == "null" ]] && revoked=""
+        printf '%s' "$revoked"
+        return 0
+    fi
+    # Python fallback for environments without yq.
+    python3 - "$trust_store" "$writer_id" <<'PY' 2>/dev/null || true
+import sys
+try:
+    import yaml
+except ImportError:
+    sys.exit(0)
+try:
+    with open(sys.argv[1]) as f:
+        doc = yaml.safe_load(f) or {}
+except Exception:
+    sys.exit(0)
+for entry in doc.get("revocations") or []:
+    if entry.get("writer_id") == sys.argv[2]:
+        print((entry.get("revoked_at") or ""), end="")
+        break
+PY
+}
+
+# -----------------------------------------------------------------------------
 # _audit_ts_ge_cutoff <ts_utc> <cutoff_iso8601>
 # Returns 0 if ts_utc >= cutoff (post-cutoff), 1 otherwise.
 # Empty cutoff => returns 1 (no cutoff configured = grandfather all).
@@ -853,6 +900,16 @@ audit_verify_chain() {
             fi
 
             if [[ -n "$sig_b64" && -n "$kid" ]]; then
+                # #1211: revocation reuses the trust-cutoff comparator — entries
+                # at or after revoked_at are rejected, earlier ones stay
+                # grandfathered (runbooks/audit-keys-bootstrap.md).
+                local revoked_at
+                revoked_at="$(_audit_revoked_at "$kid")"
+                if _audit_ts_ge_cutoff "$ts_utc" "$revoked_at"; then
+                    echo "BROKEN line $lineno: [KEY-REVOKED] signing_key_id=$kid revoked at $revoked_at (ts=$ts_utc)" >&2
+                    return 1
+                fi
+
                 local pubkey_pem canonical
                 if ! pubkey_pem="$(_audit_pubkey_for_key_id "$kid" "$strict" 2>/dev/null)"; then
                     echo "BROKEN line $lineno: cannot resolve public key for signing_key_id=$kid" >&2
