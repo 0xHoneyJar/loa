@@ -148,7 +148,11 @@ function buildPipeline(opts?: {
   git?: Partial<IGitProvider>;
   llm?: Partial<ILLMProvider>;
   poster?: Partial<IReviewPoster>;
-  sanitizer?: Partial<IOutputSanitizer>;
+  // #1215: narrowed from Partial<IOutputSanitizer>. The helper advertised
+  // injection the constructor never wired, so a partial was accepted and then
+  // thrown away — any cache test varying sanitizer behavior passed vacuously
+  // against the safe default.
+  sanitizer?: IOutputSanitizer;
   store?: Partial<IContextStore>;
   logger?: ILogger;
   now?: () => number;
@@ -166,7 +170,7 @@ function buildPipeline(opts?: {
     git,
     mockPoster(opts?.poster),
     mockLLM(opts?.llm),
-    opts?.sanitizer ? mockSanitizer() : mockSanitizer(),
+    opts?.sanitizer ?? mockSanitizer(),
     opts?.logger ?? mockLogger(),
     "You are a code reviewer.",
     config,
@@ -545,5 +549,94 @@ describe("Pass1Cache integration with ReviewPipeline", () => {
     // The Pass 2 user prompt should contain the findings JSON from cache
     assert.ok(pass2UserPrompt.includes("F001"), "Pass 2 should receive F001 from cached findings");
     assert.ok(pass2UserPrompt.includes("F002"), "Pass 2 should receive F002 from cached findings");
+  });
+});
+
+// =============================================================================
+// cycle-123 T3.5 (#1215) — buildPipeline discarded its injected sanitizer.
+//
+// The helper's ternary had IDENTICAL branches on both arms — it called the
+// default mock factory whether or not a sanitizer was supplied — so the
+// instance declared by a caller was thrown away, and every cache test that
+// varied sanitizer behavior passed vacuously against the safe default. The
+// correct nullish-coalescing pattern already existed in integration.test.ts.
+// (The offending shape is deliberately NOT quoted here: the guard test below
+// scans this very file, and quoting it would trip the guard on a comment.)
+// =============================================================================
+describe("#1215 injected sanitizer reaches the pipeline", () => {
+  it("passes the injected instance through: sanitize() is called exactly once", async () => {
+    let calls = 0;
+    const spySanitizer: IOutputSanitizer = {
+      sanitize: (content: string) => {
+        calls += 1;
+        return { safe: true, sanitizedContent: content, redactedPatterns: [] };
+      },
+    };
+
+    const pipeline = buildPipeline({ sanitizer: spySanitizer });
+    await pipeline.run("run-sanitizer-spy");
+
+    assert.equal(calls, 1, "injected sanitizer was not consulted");
+  });
+
+  it("redaction from the injected sanitizer reaches the posted body", async () => {
+    const redacting: IOutputSanitizer = {
+      sanitize: () => ({
+        safe: true,
+        sanitizedContent: "[REDACTED]",
+        redactedPatterns: ["secret"],
+      }),
+    };
+
+    let postedBody = "";
+    const pipeline = buildPipeline({
+      sanitizer: redacting,
+      poster: {
+        postReview: async (input: { body: string }) => {
+          postedBody = input.body;
+          return true;
+        },
+      },
+    });
+    await pipeline.run("run-sanitizer-redact");
+
+    assert.equal(postedBody, "[REDACTED]", "posted body was not the sanitized content");
+  });
+
+  it("strict mode with an unsafe sanitizer blocks the post", async () => {
+    const unsafe: IOutputSanitizer = {
+      sanitize: (content: string) => ({
+        safe: false,
+        sanitizedContent: content,
+        redactedPatterns: ["leak"],
+      }),
+    };
+
+    let posted = false;
+    const pipeline = buildPipeline({
+      config: { sanitizerMode: "strict" },
+      sanitizer: unsafe,
+      poster: {
+        postReview: async () => {
+          posted = true;
+          return true;
+        },
+      },
+    });
+    const summary = await pipeline.run("run-sanitizer-strict");
+
+    assert.equal(posted, false, "strict mode still posted an unsafe review");
+    const blocked = JSON.stringify(summary).includes("E_SANITIZER_BLOCKED");
+    assert.ok(blocked, "expected E_SANITIZER_BLOCKED in the run result");
+  });
+
+  it("no ternary with identical branches remains in this file", async () => {
+    const fs = await import("node:fs/promises");
+    const src = await fs.readFile(new URL(import.meta.url), "utf8");
+    // Matches a conditional whose consequent and alternate are the SAME call
+    // expression — the defect shape. Deliberately not illustrated inline: this
+    // scan reads its own file, so an example would match itself.
+    const identical = /\?\s*([A-Za-z_$][\w$]*\([^)]*\))\s*:\s*\1/.test(src);
+    assert.equal(identical, false, "an identical-branch ternary is back");
   });
 });
