@@ -318,6 +318,24 @@ check_hooks_wiring() {
 
   local gaps=0
 
+  # (0) #1172: bare-relative hook commands fail OPEN in worktrees nested under
+  # .claude/worktrees/ — Claude Code anchors hook cwd to an intermediate
+  # .claude directory, the path resolves to a non-existent double-nested one,
+  # and because hook errors are non-blocking the fences just stop firing. Every
+  # command must carry the repo-root anchor.
+  local f bare
+  for f in "$template" "$live"; do
+    bare=$(jq -r '[.hooks[][].hooks[].command]
+      | map(select(test("(^|\\s)\\.claude/"))) | .[]' "$f" 2>/dev/null || true)
+    if [[ -n "$bare" ]]; then
+      while IFS= read -r cmd; do
+        [[ -n "$cmd" ]] || continue
+        report "ERROR" "hooks-wiring" "bare-relative hook command in ${f} (fails open in nested worktrees, #1172): ${cmd}"
+        gaps=$((gaps + 1))
+      done <<< "$bare"
+    fi
+  done
+
   # (a) template -> live parity
   local cmd
   while IFS= read -r cmd; do

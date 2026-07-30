@@ -166,3 +166,88 @@ EOF
         [ "$status" -eq 2 ]
     done
 }
+
+# =============================================================================
+# cycle-123 T3.2 (#1172) — bare-relative hook commands fail open in worktrees.
+#
+# All 26 live commands (and 22 template) were bare-relative. In a worktree
+# nested under .claude/worktrees/, Claude Code anchors hook cwd to an
+# intermediate .claude directory, so /bin/sh resolves `.claude/hooks/...` to a
+# non-existent double-nested path. Hook errors are NON-BLOCKING, so the
+# destructive-bash fence, the team-role guard and the mutation audit trail
+# silently stopped running for the whole session — a security fence that
+# reports nothing when it disappears.
+#
+# Mitigation, not root-cause fix: the underlying issue is Claude Code's
+# project-root resolution for worktrees under .claude/worktrees/ (upstream).
+# =============================================================================
+
+@test "W11 #1172: no hook command is bare-relative in either file" {
+    for f in "$LIVE" "$TEMPLATE"; do
+        run jq -r '[.hooks[][].hooks[].command]
+            | map(select(test("(^|\\s)\\.claude/"))) | length' "$f"
+        [[ "$output" == "0" ]] || {
+            echo "$f has $output unanchored .claude/ path(s):"
+            jq -r '[.hooks[][].hooks[].command]
+                | map(select(test("(^|\\s)\\.claude/"))) | .[]' "$f"
+            return 1
+        }
+    done
+}
+
+@test "W12 #1172: every live hook command resolves from all four cwds" {
+    local repo wt
+    repo="$BATS_TEST_TMPDIR/repo"
+    mkdir -p "$repo/.claude/worktrees"
+    git -C "$repo" init --quiet 2>/dev/null || git init --quiet "$repo"
+    git -C "$repo" config user.email t@t.com
+    git -C "$repo" config user.name t
+
+    # Mirror the real script tree so resolution is meaningful.
+    ( cd "$PROJECT_ROOT" && jq -r '[.hooks[][].hooks[].command] | .[]' "$LIVE" ) \
+        | tr ' ' '\n' | grep '\.claude/' | sed 's|.*/\.claude/|.claude/|' | sort -u \
+        > "$BATS_TEST_TMPDIR/paths.txt"
+    while IFS= read -r rel; do
+        [[ -n "$rel" ]] || continue
+        mkdir -p "$repo/$(dirname "$rel")"
+        printf '#!/usr/bin/env bash\nexit 0\n' > "$repo/$rel"
+        chmod +x "$repo/$rel"
+    done < "$BATS_TEST_TMPDIR/paths.txt"
+
+    git -C "$repo" add -A >/dev/null 2>&1
+    git -C "$repo" commit -qm init >/dev/null 2>&1
+    wt="$repo/.claude/worktrees/wt1"
+    git -C "$repo" worktree add --quiet "$wt" -b wt1 2>/dev/null || skip "worktree unsupported"
+
+    # The two failing cwds are <repo>/.claude and <repo>/.claude/worktrees.
+    local cwd
+    for cwd in "$repo" "$wt" "$repo/.claude" "$repo/.claude/worktrees"; do
+        while IFS= read -r rel; do
+            [[ -n "$rel" ]] || continue
+            local anchored resolved
+            anchored='$(git rev-parse --show-toplevel 2>/dev/null || echo .)/'"$rel"
+            resolved=$( cd "$cwd" && eval "printf '%s' \"$anchored\"" )
+            [[ -x "$resolved" ]] || {
+                echo "from cwd=$cwd, '$rel' resolved to a non-executable: $resolved"
+                return 1
+            }
+        done < "$BATS_TEST_TMPDIR/paths.txt"
+    done
+}
+
+@test "W13 #1172: in a non-git tree the anchor falls back to cwd-relative" {
+    local plain="$BATS_TEST_TMPDIR/plain"
+    mkdir -p "$plain/.claude/hooks"
+    printf '#!/usr/bin/env bash\nexit 0\n' > "$plain/.claude/hooks/x.sh"
+    chmod +x "$plain/.claude/hooks/x.sh"
+
+    local resolved
+    resolved=$( cd "$plain" && \
+        eval 'printf "%s" "$(git rev-parse --show-toplevel 2>/dev/null || echo .)/.claude/hooks/x.sh"' )
+    # Outside a repo the anchor degrades to `.`, preserving today's behavior.
+    [[ "$resolved" == "./.claude/hooks/x.sh" || "$resolved" == "$plain/.claude/hooks/x.sh" ]] || {
+        echo "unexpected fallback resolution: $resolved"
+        return 1
+    }
+    ( cd "$plain" && [[ -x "$resolved" ]] )
+}
