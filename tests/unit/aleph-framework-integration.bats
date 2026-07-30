@@ -35,18 +35,27 @@ fi
 operation="${2:?operation required}"
 shift 2
 target=""
+bundle=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --target) target="$2"; shift 2 ;;
-        --bundle) shift 2 ;;
+        --bundle) bundle="$2"; shift 2 ;;
         *) shift ;;
     esac
 done
 [[ -n "$target" ]] || exit 91
 printf '%s\n' "$operation" >> "${MOCK_NODE_LOG:?}"
+[[ -n "$bundle" ]] && printf 'bundle=%s target=%s\n' "$bundle" "$target" >> "${MOCK_NODE_LOG}"
 
 case "$operation" in
     install)
+        # #1232: the pinned upstream installer refuses when the bundle lives
+        # under the target (always true in submodule mode, since --target is
+        # the repo root). MOCK_ALEPH_FAIL forces it deterministically.
+        if [[ -n "${MOCK_ALEPH_FAIL:-}" ]]; then
+            echo "bundle and target directories may not overlap" >&2
+            exit 90
+        fi
         mkdir -p "$target/.claude/aleph/bin" \
             "$target/.claude/aleph/runtime/bundle" \
             "$target/.claude/commands" \
@@ -654,4 +663,117 @@ run_mount_function() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"differs from its pinned Git inventory"* ]]
     [ ! -s "$MOCK_NODE_LOG" ]
+}
+
+# =============================================================================
+# cycle-123 T2.4 (#1232) — a refused Aleph install must not kill the mount.
+#
+# The pinned upstream installer aborts submodule-mode installs with "bundle and
+# target directories may not overlap" (the bundle always lives under the repo
+# root passed as --target). That failure propagated through an UNGUARDED
+# refresh_copy_set under `set -euo pipefail`, aborting create_symlinks, so
+# main() never reached create_claude_md / create_config / create_manifest /
+# create_commit — the reported partial install.
+#
+# PARTIAL BLOCK: installer.ts/installer.js are an sha256-pinned immutable
+# upstream ingest and are NOT touched. This is the crash-safety wrapper only;
+# "Aleph runtime can never install in submodule mode" is tracked separately so
+# this fix does not silently normalize Aleph-less mounts.
+# =============================================================================
+
+@test "T2.4 AC-1: create_symlinks survives a refused Aleph install with a warning" {
+    prepare_legacy_update_transition
+
+    # export (not a prefix assignment): create_symlinks passes SUBMODULE_PATH
+    # into get_symlink_manifest, and under `set -u` an unexported value is
+    # unbound there.
+    run bash -c "cd '$FIX' && export SUBMODULE_PATH='.loa' MOCK_ALEPH_FAIL=1 \
+        && source '$MOUNT' --source-only && create_symlinks"
+    [[ "$status" -eq 0 ]] || {
+        echo "create_symlinks aborted on a refused Aleph install; got $status"
+        echo "output: $output"
+        return 1
+    }
+    [[ "$output" == *"Copy-set/Aleph refresh failed"* ]] || {
+        echo "no warning naming the copy-set/Aleph failure: $output"
+        return 1
+    }
+    [[ "$output" == *"--reconcile"* ]]
+}
+
+@test "T2.4 AC-6: refresh_copy_set still returns non-zero on Aleph failure" {
+    prepare_legacy_update_transition
+
+    # The advisory treatment is scoped to the initial-mount CALL SITE. The
+    # helper itself must keep failing loudly, so --reconcile and update-loa.sh
+    # continue to surface a broken refresh.
+    MOCK_ALEPH_FAIL=1 run_mount_function "refresh_copy_set true"
+    [[ "$status" -ne 0 ]] || {
+        echo "refresh_copy_set swallowed the Aleph failure — --reconcile would now lie"
+        return 1
+    }
+}
+
+@test "T2.4 AC-3: the inherited lock is released when this process owns it" {
+    prepare_legacy_update_transition
+    mkdir -p "$FIX/.claude"
+
+    # `exec` preserves the PID, so a lock written by mount-loa.sh carries the
+    # same $$ this script sees.
+    run bash -c "cd '$FIX' && SUBMODULE_PATH='.loa' source '$MOUNT' --source-only \
+        && echo \$\$ > .claude/.mount-lock \
+        && _release_inherited_mount_lock \
+        && test ! -f .claude/.mount-lock"
+    [[ "$status" -eq 0 ]] || {
+        echo "own-pid lock was not released; output: $output"
+        return 1
+    }
+}
+
+@test "T2.4 AC-4: releasing is idempotent and safe when no lock exists" {
+    prepare_legacy_update_transition
+    mkdir -p "$FIX/.claude"
+
+    # The EXIT trap fires on the Aleph-failure path too, where a previous run
+    # may already have removed the lock. Absent lock must be a no-op, not an error.
+    run bash -c "cd '$FIX' && SUBMODULE_PATH='.loa' source '$MOUNT' --source-only \
+        && rm -f .claude/.mount-lock && _release_inherited_mount_lock"
+    [[ "$status" -eq 0 ]] || {
+        echo "release failed with no lock present; output: $output"
+        return 1
+    }
+}
+
+@test "T2.4 AC-5: a lock owned by a DIFFERENT pid is left untouched" {
+    prepare_legacy_update_transition
+    mkdir -p "$FIX/.claude"
+    # PID 1 is never this process.
+    printf '1\n' > "$FIX/.claude/.mount-lock"
+
+    run bash -c "cd '$FIX' && SUBMODULE_PATH='.loa' source '$MOUNT' --source-only \
+        && _release_inherited_mount_lock"
+    [[ -f "$FIX/.claude/.mount-lock" ]] || {
+        echo "another process's lock was deleted — pid matching failed"
+        return 1
+    }
+    [[ "$(cat "$FIX/.claude/.mount-lock")" == "1" ]]
+}
+
+@test "T2.4 AC-3b: the EXIT trap is registered inside main() AFTER the SOURCE_ONLY return" {
+    # A top-level trap would leak into update-loa.sh's shell, which sources this
+    # file for its helpers and owns its own lock. Ordering is the contract.
+    run bash -c "sed -n '/^main() {/,/^}/p' '$MOUNT' \
+        | grep -n 'SOURCE_ONLY\|trap _release_inherited_mount_lock EXIT'"
+    [[ "$status" -eq 0 ]]
+    local source_only_line trap_line
+    source_only_line=$(echo "$output" | grep 'SOURCE_ONLY' | head -1 | cut -d: -f1)
+    trap_line=$(echo "$output" | grep 'trap _release_inherited_mount_lock' | head -1 | cut -d: -f1)
+    [[ -n "$source_only_line" && -n "$trap_line" ]] || {
+        echo "could not locate both markers inside main(): $output"
+        return 1
+    }
+    [[ "$trap_line" -gt "$source_only_line" ]] || {
+        echo "trap registered BEFORE the SOURCE_ONLY return (would leak into update-loa.sh)"
+        return 1
+    }
 }

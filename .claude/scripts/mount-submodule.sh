@@ -909,7 +909,21 @@ create_symlinks() {
   # --reconcile / --check-symlinks and update-loa.sh's submodule path can
   # refresh these without a destructive --force re-mount. The helper also
   # owns the Aleph compatibility hook used by pre-cycle-115 update scripts.
-  refresh_copy_set "true"
+  #
+  # #1232: on the INITIAL mount this call is advisory, not fatal. The pinned
+  # Aleph installer refuses submodule-mode installs ("bundle and target
+  # directories may not overlap" — the bundle always lives under the repo root
+  # passed as --target), and under `set -euo pipefail` that failure aborted
+  # create_symlinks, so main() never reached create_claude_md / create_config /
+  # create_manifest / create_commit. The result was the reported partial
+  # install: symlinks present, no CLAUDE.md, no config, no commit.
+  #
+  # The fatal contract is UNCHANGED for --reconcile (:1531, :1561) and for
+  # update-loa.sh (:225, :349): those are explicit refresh requests, where
+  # silence would hide a real regression.
+  if ! refresh_copy_set "true"; then
+    warn "Copy-set/Aleph refresh failed during initial mount — mount continuing. Run 'mount-submodule.sh --reconcile' to retry the copy set."
+  fi
 
   # Also link settings.local.json if it exists (not in manifest — optional file)
   if [[ -f "$SUBMODULE_PATH/.claude/settings.local.json" ]]; then
@@ -1541,12 +1555,31 @@ check_symlinks_subcommand() {
   exit $result
 }
 
+# #1232 (secondary): mount-loa.sh acquires .claude/.mount-lock and registers an
+# EXIT trap, then `exec`s into this script — which discards that trap, so the
+# lock survived until the NEXT mount's stale sweep reaped it. `exec` preserves
+# the PID, so the inherited lock is identifiable by content and safe to release
+# here. Pid-matched: never removes a lock another process owns.
+_release_inherited_mount_lock() {
+  local lock_file=".claude/.mount-lock"
+  [[ -f "$lock_file" ]] || return 0
+  local lock_pid
+  lock_pid=$(cat "$lock_file" 2>/dev/null || echo "")
+  [[ "$lock_pid" == "$$" ]] || return 0
+  rm -f "$lock_file"
+}
+
 # === Main ===
 main() {
   # Route to subcommands
   if [[ "$SOURCE_ONLY" == "true" ]]; then
     return 0
   fi
+
+  # Registered AFTER the SOURCE_ONLY early return on purpose: a top-level trap
+  # would leak into update-loa.sh's shell, which sources this file for its
+  # helpers and must not have its own lock released underneath it.
+  trap _release_inherited_mount_lock EXIT
   if [[ "$CHECK_SYMLINKS" == "true" ]]; then
     check_symlinks_subcommand
   fi
