@@ -593,6 +593,22 @@ phase_bridgebuilder_review() {
 
   if [[ "$convergence_state" == "FLATLINE" ]]; then
     log_success "Kaironic convergence reached after $iter iteration(s) — FLATLINE"
+  elif [[ "$convergence_state" == "DEGRADED" ]]; then
+    # Issue #1036: post-pr-triage.sh records this state (and exits 3) when a
+    # findings artifact failed to parse — sprint-bug-210/#1025. The triage exit
+    # is deliberately treated as non-fatal above, so before this arm existed the
+    # run fell through to the generic non-converged message and handed off with
+    # no distinct signal that findings coverage was incomplete.
+    # Visibility only: the phase status and the iteration guard are unchanged
+    # (whether this should halt is tracked on #969).
+    local degraded_reason
+    degraded_reason=$(jq -r '.reason // "findings artifact parse failure(s)"' "$convergence_file" 2>/dev/null || echo "unknown")
+    log_error "Bridgebuilder triage is DEGRADED after $iter iteration(s) — see $convergence_file (reason: $degraded_reason)"
+    log_error "Findings coverage is INCOMPLETE; this is not a clean convergence. Inspect $convergence_file before merging."
+    "$STATE_SCRIPT" set bridgebuilder_convergence_state DEGRADED \
+      || log_error "could not record bridgebuilder_convergence_state (continuing best-effort)"
+    "$STATE_SCRIPT" add-marker PR-BB-DEGRADED \
+      || log_error "could not create the degraded triage marker (continuing best-effort)"
   else
     log_info "Max iterations ($max_iters) reached without flatline; continuing with final state"
   fi
@@ -749,6 +765,13 @@ run_orchestration() {
 
     "$STATE_BRIDGEBUILDER_REVIEW")
       if [[ "$(get_state)" != "$STATE_HALTED" ]]; then
+        # Issue #1036: the handoff must name a degraded triage pass; otherwise
+        # the operator reads READY_FOR_HITL as "everything was reviewed".
+        local bb_convergence
+        bb_convergence=$("$STATE_SCRIPT" get bridgebuilder_convergence_state 2>/dev/null || echo "")
+        if [[ "$bb_convergence" == "DEGRADED" ]]; then
+          log_error "Handing off with DEGRADED Bridgebuilder triage (marker PR-BB-DEGRADED) — findings coverage is incomplete; review .run/bridge-triage-convergence.json before merging."
+        fi
         update_state "$STATE_READY_FOR_HITL"
         log_success "Post-PR validation complete - READY_FOR_HITL"
         return 0
