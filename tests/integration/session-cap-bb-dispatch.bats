@@ -160,6 +160,76 @@ _write_state() {  # $1 sprint_plan.state  $2 bridge.state
 }
 
 # -----------------------------------------------------------------------------
+# cwd-independence (#1213) — the L3 executor runs phase scripts under `env -i`
+# with NO cd, so both scripts must anchor on their own location, never on cwd.
+# -----------------------------------------------------------------------------
+
+# Builds a 5-deep copy of reader.sh (<root>/.claude/skills/<skill>/contracts/
+# session-cap-bb/) plus an empty <root>/.run/, and echoes the reader path.
+_fixture_reader() {  # $1 fixture root
+    local dir="$1/.claude/skills/scheduled-cycle-template/contracts/session-cap-bb"
+    mkdir -p "$dir" "$1/.run"
+    cp "${CDIR}/reader.sh" "${dir}/reader.sh"
+    printf '%s' "${dir}/reader.sh"
+}
+
+@test "dispatcher: from a cwd outside the repo with no repo override, derives owner/repo from the git origin" {
+    _write_state RUNNING NONE
+    export LOA_SESSION_CAP_STATE_FILE="$STATE_FILE"
+    export LOA_SESSION_CAP_BB_ENTRY="$MOCK_ENTRY"
+    unset LOA_SESSION_CAP_BB_REPO
+    cd "$TEST_DIR"
+    run "${CDIR}/reader.sh"   cid-origin sched 0 '[]'
+    [ "$status" -eq 0 ]
+    run "${CDIR}/decider.sh"  cid-origin sched 1 '[]'
+    [ "$status" -eq 0 ]
+    run "${CDIR}/dispatcher.sh" cid-origin sched 2 '[]'
+    [ "$status" -eq 0 ]
+
+    local out="${TMPDIR}/loa-session-cap-bb.cid-origin/dispatcher.json"
+    run jq -r '.dispatched' "$out"
+    [ "$output" = "true" ]
+    run jq -r '.repo' "$out"
+    [ "$output" = "0xHoneyJar/loa" ]
+}
+
+@test "reader: from an unrelated cwd, defaults the state file under its OWN repo root" {
+    local froot="${TEST_DIR}/fixture-present"
+    local rdr
+    rdr="$(_fixture_reader "$froot")"
+    jq -nc '{active_run_state_snapshot:{sprint_plan:{state:"RUNNING"},
+                                        bridge:{state:"NONE"}}}' \
+        > "${froot}/.run/session-limit-state.json"
+    unset LOA_SESSION_CAP_STATE_FILE
+    cd "$TEST_DIR"
+    run "$rdr" cid-fixture sched 0 '[]'
+    [ "$status" -eq 0 ]
+    local emitted="$output"
+    run jq -r '.state_present' <<<"$emitted"
+    [ "$output" = "true" ]
+    run jq -r '.sprint_plan_state' <<<"$emitted"
+    [ "$output" = "RUNNING" ]
+}
+
+@test "reader: no state file under its own repo root => exit 0, state_present:false (cwd decoy ignored)" {
+    local froot="${TEST_DIR}/fixture-absent"
+    local rdr
+    rdr="$(_fixture_reader "$froot")"
+    # Decoy in the CALLER's cwd: a cwd-relative default would read this and
+    # wrongly report a captured session.
+    mkdir -p "${TEST_DIR}/.run"
+    jq -nc '{active_run_state_snapshot:{sprint_plan:{state:"RUNNING"},
+                                        bridge:{state:"NONE"}}}' \
+        > "${TEST_DIR}/.run/session-limit-state.json"
+    unset LOA_SESSION_CAP_STATE_FILE
+    cd "$TEST_DIR"
+    run "$rdr" cid-fixture-absent sched 0 '[]'
+    [ "$status" -eq 0 ]
+    run jq -r '.state_present' <<<"$output"
+    [ "$output" = "false" ]
+}
+
+# -----------------------------------------------------------------------------
 # lib invoke — dry-run (cycle.start only) + full (7 records) with mock entry
 # -----------------------------------------------------------------------------
 

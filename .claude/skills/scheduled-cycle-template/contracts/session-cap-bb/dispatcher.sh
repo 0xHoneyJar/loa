@@ -17,6 +17,10 @@ cycle_id="${1:?cycle_id required}"
 schedule_id="${2:?schedule_id required}"
 
 _here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Repo root is 5 levels up in BOTH install layouts (vendored .claude/skills/...
+# and submodule .loa/skills/...); L3 runs phases with no cd, so origin lookup
+# must target this root instead of the caller's cwd.
+REPO_ROOT="$(cd "${_here}/../../../../.." && pwd)"
 _sanitize() { printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '_'; }
 HANDOFF_DIR="${TMPDIR:-/tmp}/loa-session-cap-bb.$(_sanitize "$cycle_id")"
 mkdir -p "$HANDOFF_DIR"
@@ -39,7 +43,7 @@ fi
 # Resolve owner/repo: explicit override wins, else derive from the git origin.
 repo="${LOA_SESSION_CAP_BB_REPO:-}"
 if [[ -z "$repo" ]]; then
-    url="$(git remote get-url origin 2>/dev/null || true)"
+    url="$(git -C "$REPO_ROOT" remote get-url origin 2>/dev/null || true)"
     repo="$(printf '%s' "$url" | sed -E 's#\.git$##; s#^.*[:/]([^/]+/[^/]+)$#\1#')"
 fi
 if [[ -z "$repo" ]]; then

@@ -22,7 +22,16 @@ _sanitize() { printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '_'; }
 HANDOFF_DIR="${TMPDIR:-/tmp}/loa-session-cap-bb.$(_sanitize "$cycle_id")"
 mkdir -p "$HANDOFF_DIR"
 
-STATE_FILE="${LOA_SESSION_CAP_STATE_FILE:-.run/session-limit-state.json}"
+# The L3 executor runs phase scripts under `env -i` with NO cd, so the default
+# state path is anchored on this script's own location, never on the caller's
+# cwd (a cwd-relative default made the marker invisible and read as "nothing was
+# in flight"). Repo root is 5 levels up in BOTH install layouts —
+# .claude/skills/<skill>/contracts/<contract>/ vendored and .loa/skills/... as a
+# submodule — and `pwd` is logical, so a symlinked skills/ keeps that depth.
+_here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${_here}/../../../../.." && pwd)"
+
+STATE_FILE="${LOA_SESSION_CAP_STATE_FILE:-${REPO_ROOT}/.run/session-limit-state.json}"
 
 emit() { printf '%s' "$1" | tee "${HANDOFF_DIR}/reader.json"; }
 
