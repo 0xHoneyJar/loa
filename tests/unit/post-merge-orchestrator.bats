@@ -457,18 +457,24 @@ CLEOF
     [[ "$output" == *"notify"* ]]
 }
 
-@test "post-merge-int: state file records errors on semver failure" {
+# FLIPPED by cycle-123 T1.3 (#1235), same reason as the flip in
+# tests/unit/semver-bump.bats: this asserted "no tags and no changelog →
+# semver fails" — the greenfield defect itself, which stopped every merge in a
+# fresh repo from ever tagging. Auto mode now bootstraps to 0.1.0, so semver
+# SUCCEEDS here and nothing fails. The state-file metric is still asserted,
+# just against the corrected outcome.
+@test "post-merge-int: state file records a successful semver bootstrap on a greenfield repo" {
     skip_if_deps_missing
 
-    # No tags and no changelog → semver will fail
-    # But we need commits since there's no tag
     run "$TEST_SCRIPT" --pr 42 --type bugfix --sha "$MERGE_SHA" --dry-run
     [ "$status" -eq 0 ]
 
-    # phases_failed should be > 0 since semver can't find a version
-    local failed
+    local failed next
     failed=$(jq -r '.metrics.phases_failed // 0' "$TEST_REPO/.run/post-merge-state.json")
-    [ "$failed" -gt 0 ]
+    [ "$failed" -eq 0 ]
+
+    next=$(jq -r '.phases.semver.result.next // empty' "$TEST_REPO/.run/post-merge-state.json")
+    [ -n "$next" ]
 }
 
 @test "post-merge-int: metrics tracking (completed + skipped + failed = 10)" {

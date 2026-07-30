@@ -1232,39 +1232,69 @@ archive_cycle_in_ledger() {
   local now
   now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   local ledger_lock="${ledger}.lock"
-  local active_cycle=""
+
+  # #1234 D2: resolution happens inside the flock (deliberate — it prevents a
+  # race), but a subshell cannot export a variable to its parent. The parent
+  # therefore used to see an EMPTY id, log "Archived cycle " and commit
+  # whatever was staged under that blank subject. Carry the resolved id out
+  # through a result file instead.
+  local result_file
+  result_file=$(mktemp "${TMPDIR:-/tmp}/loa-archive-id.XXXXXX")
 
   (
-    flock -w 5 200 || { echo "[LEDGER] Lock timeout — skipping" >&2; return 1; }
+    flock -w 5 200 || { echo "[LEDGER] Lock timeout — skipping" >&2; exit 1; }
 
-    # Find active cycle inside lock to prevent race condition
-    active_cycle=$(jq -r '.cycles[] | select(.status == "active") | .id' "$ledger" 2>/dev/null || echo "")
+    # #1234 D1: the ledger's top-level pointer is the single source of truth.
+    # A `status == "active"` scan returns EVERY active entry newline-joined
+    # (this repo carries dozens of stale ones), which then poisoned both the
+    # jq selector and the commit subject. Scan only as a compatibility
+    # fallback for ledgers predating the pointer, and take the first match.
+    local active_cycle=""
+    active_cycle=$(jq -r '.active_cycle // empty' "$ledger" 2>/dev/null || echo "")
+    if [[ -z "$active_cycle" ]] && ! jq -e 'has("active_cycle")' "$ledger" >/dev/null 2>&1; then
+      active_cycle=$(jq -r 'first(.cycles[] | select(.status == "active") | (.cycle_id // .id)) // empty' \
+        "$ledger" 2>/dev/null || echo "")
+    fi
     if [[ -z "$active_cycle" ]]; then
-      echo "[LEDGER] No active cycle found — skipping"
-      return 0
+      echo "[LEDGER] No active cycle to archive — skipping"
+      exit 0
     fi
 
     # Issue #674: pre-archive gate — count sprints whose status is not
-    # "completed". Skip-and-continue (return 0) on incomplete state so the
-    # post-merge pipeline doesn't fail on cycle PRs whose remaining sprints
-    # are still in flight. The cycle remains `active` until every sprint
-    # closes; subsequent merges retry the gate idempotently.
+    # "completed". Skip-and-continue on incomplete state so the post-merge
+    # pipeline doesn't fail on cycle PRs whose remaining sprints are still in
+    # flight. The cycle remains `active` until every sprint closes;
+    # subsequent merges retry the gate idempotently.
+    #
+    # #1234 D4: `objects` guards legacy `sprints` arrays of plain strings
+    # (which raise "Cannot index string with string"), and the old
+    # `|| echo "0"` swallow is GONE — it converted any jq failure, including
+    # an unparseable ledger, into "zero incomplete sprints" and archived
+    # anyway. That is the KF-004 shape.
     local incomplete_count
-    incomplete_count=$(jq -r --arg cycle "$active_cycle" \
-      '[(.cycles[] | select(.id == $cycle)).sprints[]? | select(.status != "completed")] | length' \
-      "$ledger" 2>/dev/null || echo "0")
+    if ! incomplete_count=$(jq -r --arg cycle "$active_cycle" \
+      '[(.cycles[] | select((.cycle_id // .id) == $cycle)).sprints[]? | objects | select(.status != "completed")] | length' \
+      "$ledger" 2>&1); then
+      echo "[LEDGER] Sprint-completeness gate failed for ${active_cycle}: ${incomplete_count}" >&2
+      exit 1
+    fi
 
     if [[ "${incomplete_count:-0}" -gt 0 ]]; then
       echo "[LEDGER] Cycle ${active_cycle} has ${incomplete_count} incomplete sprint(s); skipping archive"
-      return 0
+      exit 0
     fi
 
-    jq --arg cycle "$active_cycle" --arg now "$now" '
+    # #1234 D3: -a preserves the \uXXXX escaping the ledger is written with;
+    # without it the rewrite churns every non-ASCII byte in the file.
+    # The top-level pointer is nulled in the SAME rewrite, so a cycle can
+    # never be archived while still being pointed at.
+    jq -a --arg cycle "$active_cycle" --arg now "$now" '
       .cycles = [.cycles[] |
-        if .id == $cycle then
+        if (.cycle_id // .id) == $cycle then
           .status = "archived" | .archived_at = $now
         else . end
       ]
+      | (if has("active_cycle") then .active_cycle = null else . end)
     ' "$ledger" > "${ledger}.tmp"
 
     if [[ -s "${ledger}.tmp" ]]; then
@@ -1272,21 +1302,38 @@ archive_cycle_in_ledger() {
     else
       rm -f "${ledger}.tmp"
       echo "[LEDGER] Failed to update ledger — skipping"
-      return 1
+      exit 1
     fi
+
+    printf '%s' "$active_cycle" > "$result_file"
   ) 200>"$ledger_lock"
 
   local flock_exit=$?
-  if [[ "$flock_exit" -eq 0 ]]; then
-    echo "[LEDGER] Archived cycle ${active_cycle}"
 
-    # Commit the ledger change
-    git -C "$PROJECT_ROOT" add "$ledger" 2>/dev/null
-    if ! git -C "$PROJECT_ROOT" diff --cached --quiet 2>/dev/null; then
-      git -C "$PROJECT_ROOT" commit -m "chore(ledger): archive ${active_cycle} after merge" --quiet 2>/dev/null || true
-    fi
-  else
+  local archived_cycle=""
+  [[ -f "$result_file" ]] && archived_cycle=$(cat "$result_file" 2>/dev/null || echo "")
+  rm -f "$result_file"
+
+  if [[ "$flock_exit" -ne 0 ]]; then
     echo "[LEDGER] Failed to update ledger — skipping"
+    return 0
+  fi
+
+  # Empty id = nothing was archived (no active cycle, or the #674 gate
+  # skipped). Committing here is what produced the blank-subject commits of
+  # unrelated staged churn.
+  if [[ -z "$archived_cycle" ]]; then
+    return 0
+  fi
+
+  echo "[LEDGER] Archived cycle ${archived_cycle}"
+
+  # Commit the ledger change — pathspec-limited so a dirty index elsewhere is
+  # never swept into an "archive" commit.
+  git -C "$PROJECT_ROOT" add "$ledger" 2>/dev/null
+  if ! git -C "$PROJECT_ROOT" diff --cached --quiet -- "$ledger" 2>/dev/null; then
+    git -C "$PROJECT_ROOT" commit -m "chore(ledger): archive ${archived_cycle} after merge" \
+      --quiet -- "$ledger" 2>/dev/null || true
   fi
 }
 

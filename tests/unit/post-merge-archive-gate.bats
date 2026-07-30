@@ -210,3 +210,196 @@ _invoke_archive() {
     cycle_status=$(jq -r '.cycles[0].status' "$TEST_REPO/grimoires/loa/ledger.json")
     [[ "$cycle_status" == "archived" ]]
 }
+
+# =============================================================================
+# cycle-123 T1.1 (#1234) — the four archival defects.
+#
+# The five scenarios above all PASS on the broken code because none of them
+# inspects the COMMIT. In production (post-merge runs 30503075975 and
+# 30506809255) the function logged "[LEDGER] Archived cycle " with a BLANK id
+# and committed unrelated staged churn under that blank-id subject, while
+# cycle-121/cycle-122 stayed status=active forever.
+# =============================================================================
+
+# Pointer + two active entries. Exercises D1 (pointer-first resolution): a
+# `status == "active"` scan returns BOTH ids newline-joined.
+_write_ledger_multi_active() {
+    jq -n '{
+        schema_version: 1,
+        global_sprint_counter: 200,
+        active_cycle: "cycle-test-002",
+        cycles: [
+            {id: "cycle-test-001", status: "active", started: "2026-04-01T00:00:00Z", sprints: []},
+            {id: "cycle-test-002", status: "active", started: "2026-05-01T00:00:00Z", sprints: [{global_id: 100, status: "completed"}]},
+            {id: "cycle-test-003", status: "active", started: "2026-06-01T00:00:00Z", sprints: []}
+        ]
+    }' > "$1"
+}
+
+# `sprints` as an array of plain STRINGS (46 such entries exist in the real
+# ledger). `.sprints[]? | select(.status != ...)` raises
+# "Cannot index string with string" on these — swallowed by `|| echo "0"`.
+_write_ledger_legacy_sprints() {
+    jq -n '{
+        schema_version: 1,
+        global_sprint_counter: 200,
+        active_cycle: "cycle-legacy-001",
+        cycles: [{
+            id: "cycle-legacy-001",
+            status: "active",
+            started: "2026-05-01T00:00:00Z",
+            sprints: ["sprint-1", "sprint-2"]
+        }]
+    }' > "$1"
+}
+
+# ASCII-escaped (`jq -a`) serialization. A rewrite without -a re-emits these
+# as raw UTF-8, churning bytes the writer deliberately escaped.
+_write_ledger_ascii_escaped() {
+    jq -na '{
+        schema_version: 1,
+        global_sprint_counter: 200,
+        active_cycle: "cycle-esc-001",
+        cycles: [{
+            id: "cycle-esc-001",
+            status: "active",
+            started: "2026-05-01T00:00:00Z",
+            label: "café — naïve résumé",
+            sprints: [{global_id: 100, status: "completed"}]
+        }]
+    }' > "$1"
+}
+
+_commit_count() { git -C "$TEST_REPO" rev-list --count HEAD; }
+_commit_subject() { git -C "$TEST_REPO" log -1 --format=%s; }
+
+@test "archive-gate D2: commit subject carries a NON-EMPTY cycle id" {
+    skip_if_deps_missing
+    _write_ledger_with_sprints "$TEST_REPO/grimoires/loa/ledger.json" "completed"
+
+    run _invoke_archive
+    [[ "$status" -eq 0 ]]
+
+    local subject
+    subject=$(_commit_subject)
+    [[ "$subject" == "chore(ledger): archive cycle-test-001 after merge" ]] || {
+        echo "Expected exact subject with non-empty id; got: '$subject'"
+        return 1
+    }
+}
+
+@test "archive-gate D2: stdout never logs a blank 'Archived cycle' line" {
+    skip_if_deps_missing
+    _write_ledger_with_sprints "$TEST_REPO/grimoires/loa/ledger.json" "completed"
+
+    run _invoke_archive
+    [[ ! "$output" =~ Archived\ cycle\ *$ ]] || {
+        echo "Blank-id archival line present: '$output'"
+        return 1
+    }
+    [[ "$output" == *"Archived cycle cycle-test-001"* ]]
+}
+
+@test "archive-gate D2: no active cycle + staged churn creates ZERO commits" {
+    skip_if_deps_missing
+    jq -n '{schema_version: 1, active_cycle: null, cycles: []}' \
+        > "$TEST_REPO/grimoires/loa/ledger.json"
+
+    echo "unrelated" > "$TEST_REPO/other.txt"
+    git -C "$TEST_REPO" add other.txt
+
+    local before after
+    before=$(_commit_count)
+    run _invoke_archive
+    [[ "$status" -eq 0 ]]
+    after=$(_commit_count)
+
+    [[ "$before" == "$after" ]] || {
+        echo "Expected 0 new commits; went $before -> $after ('$(_commit_subject)')"
+        return 1
+    }
+}
+
+@test "archive-gate D1: pointer wins over a status scan; other active entries untouched" {
+    skip_if_deps_missing
+    local ledger="$TEST_REPO/grimoires/loa/ledger.json"
+    _write_ledger_multi_active "$ledger"
+
+    local before_001 before_003
+    before_001=$(jq -c '.cycles[] | select(.id == "cycle-test-001")' "$ledger")
+    before_003=$(jq -c '.cycles[] | select(.id == "cycle-test-003")' "$ledger")
+
+    run _invoke_archive
+    [[ "$status" -eq 0 ]]
+
+    [[ "$(jq -r '.cycles[] | select(.id == "cycle-test-002") | .status' "$ledger")" == "archived" ]] || {
+        echo "Pointed-to cycle not archived; output: $output"
+        return 1
+    }
+    [[ "$(jq -c '.cycles[] | select(.id == "cycle-test-001")' "$ledger")" == "$before_001" ]]
+    [[ "$(jq -c '.cycles[] | select(.id == "cycle-test-003")' "$ledger")" == "$before_003" ]]
+    [[ "$(_commit_subject)" == "chore(ledger): archive cycle-test-002 after merge" ]]
+}
+
+@test "archive-gate: archived cycle gets archived_at and the pointer is nulled" {
+    skip_if_deps_missing
+    local ledger="$TEST_REPO/grimoires/loa/ledger.json"
+    _write_ledger_with_sprints "$ledger" "completed"
+
+    run _invoke_archive
+    [[ "$status" -eq 0 ]]
+
+    [[ "$(jq -r '.cycles[0].status' "$ledger")" == "archived" ]]
+    [[ "$(jq -r '.cycles[0].archived_at' "$ledger")" != "null" ]]
+    [[ "$(jq -r '.active_cycle' "$ledger")" == "null" ]] || {
+        echo "Pointer still set: $(jq -r '.active_cycle' "$ledger")"
+        return 1
+    }
+}
+
+@test "archive-gate D3: \\uXXXX escapes survive the rewrite" {
+    skip_if_deps_missing
+    local ledger="$TEST_REPO/grimoires/loa/ledger.json"
+    _write_ledger_ascii_escaped "$ledger"
+
+    local before_escapes
+    before_escapes=$(grep -c '\\u00e9' "$ledger")
+    [[ "$before_escapes" -gt 0 ]] || skip "fixture did not produce \\u escapes"
+
+    run _invoke_archive
+    [[ "$status" -eq 0 ]]
+
+    local after_escapes
+    after_escapes=$(grep -c '\\u00e9' "$ledger")
+    [[ "$after_escapes" == "$before_escapes" ]] || {
+        echo "Escapes churned: $before_escapes -> $after_escapes"
+        return 1
+    }
+}
+
+@test "archive-gate D4: legacy string sprints do not raise a jq index error" {
+    skip_if_deps_missing
+    _write_ledger_legacy_sprints "$TEST_REPO/grimoires/loa/ledger.json"
+
+    run _invoke_archive
+    [[ ! "$output" == *"Cannot index string with string"* ]] || {
+        echo "jq index error surfaced: $output"
+        return 1
+    }
+}
+
+@test "archive-gate D4: a real gate failure is reported, not swallowed as zero" {
+    skip_if_deps_missing
+    # Malformed JSON: the completeness gate's jq must fail loudly rather than
+    # `|| echo "0"` into "zero incomplete sprints" and archive regardless.
+    printf '{"active_cycle": "cycle-broken", "cycles": [ MALFORMED' \
+        > "$TEST_REPO/grimoires/loa/ledger.json"
+
+    local before
+    before=$(_commit_count)
+    run _invoke_archive
+    [[ "$(_commit_count)" == "$before" ]] || {
+        echo "Archived despite an unparseable ledger ('$(_commit_subject)')"
+        return 1
+    }
+}
