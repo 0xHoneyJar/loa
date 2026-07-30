@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.200.0] — 2026-07-30
+
 ## [1.196.0] — 2026-07-10 — Mechanical Floor
 
 Names and documents the v1.181–v1.195 tag wave (everything since [1.180.0]) as one operator-facing release, and lands the release-readiness work itself: a green Shell Tests gate, the #1162 P1 installer hardening, and schema catch-ups. The throughline: **move quality enforcement from model attention into mechanical gates** — validators, verdict trailers, structural checks, and budget floors that hold even when a cheaper model is doing the work — then use those same gates to burn the chronic test-baseline debt to zero.
@@ -1285,6 +1287,8 @@ Full convergence trajectory: `grimoires/loa/a2a/trajectory/bridge-triage-2026-04
 - ATK-011: Blocks `unset LOA_TEAM_MEMBER` and `env -u` privilege escalation in Agent Teams
 
 ## [Unreleased]
+
+## [1.200.0] — 2026-07-30
 
 ## [1.94.0] — 2026-04-17
 
