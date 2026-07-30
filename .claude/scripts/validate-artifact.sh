@@ -270,7 +270,11 @@ BUG_ID_REGEX='^[0-9]{8}-(i[0-9]+-)?[0-9a-f]{6}$'
 
 validate_bug_triage() {
     local bug_id
-    bug_id=$(grep -m1 -E '^\s*-\s*\*\*bug_id\*\*:' -- "$FILE" | sed -E 's/^\s*-\s*\*\*bug_id\*\*:\s*//' | xargs || true)
+    # POSIX classes, not the GNU whitespace shorthand (#1216): BSD sed and a
+    # BSD grep without REG_ENHANCED read that shorthand as a literal 's', so
+    # on macOS the selector missed and the strip was a no-op — the validator
+    # rejected its own shipped template.
+    bug_id=$(grep -m1 -E '^[[:space:]]*-[[:space:]]*\*\*bug_id\*\*:' -- "$FILE" | sed -E 's/^[[:space:]]*-[[:space:]]*\*\*bug_id\*\*:[[:space:]]*//' | xargs || true)
 
     if [[ -z "$bug_id" ]]; then
         violations+=("no '**bug_id**:' line found in $FILE — see bug-triaging/resources/templates/triage.md")
