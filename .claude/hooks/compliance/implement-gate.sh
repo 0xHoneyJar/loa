@@ -218,7 +218,7 @@ check_implementation_active() {
             else
                 # Fallback if compat-lib not loaded: try GNU then macOS
                 last_epoch=$(date -d "$last_activity" +%s 2>/dev/null ||
-                             date -jf '%Y-%m-%dT%H:%M:%SZ' "$last_activity" +%s 2>/dev/null) || last_epoch=0
+                             date -juf '%Y-%m-%dT%H:%M:%SZ' "$last_activity" +%s 2>/dev/null) || last_epoch=0
             fi
             if [[ $now -gt 0 && $last_epoch -gt 0 ]]; then
                 local age=$((now - last_epoch))

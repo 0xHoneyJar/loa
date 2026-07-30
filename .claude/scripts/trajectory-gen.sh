@@ -192,7 +192,7 @@ compute_age_label() {
     fi
 
     local ts_epoch now_epoch diff_seconds
-    ts_epoch=$(date -d "$ts" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%SZ" "$ts" +%s 2>/dev/null || echo "0")
+    ts_epoch=$(date -d "$ts" +%s 2>/dev/null || date -ju -f "%Y-%m-%dT%H:%M:%SZ" "$ts" +%s 2>/dev/null || echo "0")
     now_epoch=$(date +%s)
     diff_seconds=$((now_epoch - ts_epoch))
 
@@ -223,7 +223,7 @@ is_stale() {
         return 1  # Unknown is not "stale" — it's absent
     fi
     local ts_epoch now_epoch diff_days
-    ts_epoch=$(date -d "$ts" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%SZ" "$ts" +%s 2>/dev/null || echo "0")
+    ts_epoch=$(date -d "$ts" +%s 2>/dev/null || date -ju -f "%Y-%m-%dT%H:%M:%SZ" "$ts" +%s 2>/dev/null || echo "0")
     now_epoch=$(date +%s)
     diff_days=$(( (now_epoch - ts_epoch) / 86400 ))
     [[ $diff_days -ge $threshold_days ]]

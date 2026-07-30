@@ -692,7 +692,7 @@ cleanup_snapshots() {
 
         local created_epoch
         created_epoch=$(date -d "$created_at" +%s 2>/dev/null || \
-                        date -j -f "%Y-%m-%dT%H:%M:%SZ" "$created_at" +%s 2>/dev/null || echo "0")
+                        date -ju -f "%Y-%m-%dT%H:%M:%SZ" "$created_at" +%s 2>/dev/null || echo "0")
 
         if [[ $created_epoch -lt $cutoff_epoch ]]; then
             local snapshot_id

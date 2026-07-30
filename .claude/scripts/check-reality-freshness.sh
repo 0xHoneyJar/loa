@@ -80,7 +80,7 @@ else
 fi
 
 # Calculate days since generation
-GENERATED_EPOCH=$(date -d "$GENERATED_AT" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%SZ" "$GENERATED_AT" +%s 2>/dev/null || echo 0)
+GENERATED_EPOCH=$(date -d "$GENERATED_AT" +%s 2>/dev/null || date -ju -f "%Y-%m-%dT%H:%M:%SZ" "$GENERATED_AT" +%s 2>/dev/null || echo 0)
 NOW_EPOCH=$(date +%s)
 
 if [[ $GENERATED_EPOCH -eq 0 ]]; then

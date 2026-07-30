@@ -43,7 +43,7 @@ cycle108_within_window() {
     if command -v gdate >/dev/null 2>&1; then
         anchor_epoch="$(gdate -d "$anchor_ts" +%s 2>/dev/null)"
     else
-        anchor_epoch="$(date -d "$anchor_ts" +%s 2>/dev/null || date -j -f '%Y-%m-%dT%H:%M:%SZ' "$anchor_ts" +%s 2>/dev/null)"
+        anchor_epoch="$(date -d "$anchor_ts" +%s 2>/dev/null || date -ju -f '%Y-%m-%dT%H:%M:%SZ' "$anchor_ts" +%s 2>/dev/null)"
     fi
     [ -n "$anchor_epoch" ] || return 1
     now_epoch="$(date -u +%s)"

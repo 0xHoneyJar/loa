@@ -241,7 +241,7 @@ check_opt_out() {
         expires_epoch=$(date -d "${expires_at}" +%s 2>/dev/null || echo "0")
     else
         # BSD date (macOS)
-        expires_epoch=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "${expires_at}" +%s 2>/dev/null || echo "0")
+        expires_epoch=$(date -ju -f "%Y-%m-%dT%H:%M:%SZ" "${expires_at}" +%s 2>/dev/null || echo "0")
     fi
 
     if [[ ${now_epoch} -gt ${expires_epoch} ]]; then

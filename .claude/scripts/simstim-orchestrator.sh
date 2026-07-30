@@ -724,8 +724,8 @@ sync_run_mode() {
     if [[ -n "$impl_started_at" && -n "$run_mode_last_activity" ]]; then
         # Convert to epoch for comparison (try GNU date first, then BSD date)
         local impl_epoch run_epoch
-        impl_epoch=$(date -d "$impl_started_at" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%SZ" "$impl_started_at" +%s 2>/dev/null || echo "0")
-        run_epoch=$(date -d "$run_mode_last_activity" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%SZ" "$run_mode_last_activity" +%s 2>/dev/null || echo "0")
+        impl_epoch=$(date -d "$impl_started_at" +%s 2>/dev/null || date -ju -f "%Y-%m-%dT%H:%M:%SZ" "$impl_started_at" +%s 2>/dev/null || echo "0")
+        run_epoch=$(date -d "$run_mode_last_activity" +%s 2>/dev/null || date -ju -f "%Y-%m-%dT%H:%M:%SZ" "$run_mode_last_activity" +%s 2>/dev/null || echo "0")
 
         if [[ "$run_epoch" -lt "$impl_epoch" ]]; then
             increment_sync_attempts

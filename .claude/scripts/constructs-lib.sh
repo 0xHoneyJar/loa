@@ -237,7 +237,7 @@ parse_iso_date() {
 
     # BSD date (macOS)
     # Try with Z suffix format
-    date -j -f "%Y-%m-%dT%H:%M:%SZ" "$iso_date" +%s 2>/dev/null && return 0
+    date -ju -f "%Y-%m-%dT%H:%M:%SZ" "$iso_date" +%s 2>/dev/null && return 0
     # Try without Z suffix
     date -j -f "%Y-%m-%dT%H:%M:%S" "$clean_date" +%s 2>/dev/null && return 0
 
@@ -544,7 +544,7 @@ check_pack_staleness() {
         installed_epoch=$(_date_to_epoch "$installed_at" 2>/dev/null) || return 1
     else
         installed_epoch=$(date -d "$installed_at" +%s 2>/dev/null ||
-                         date -jf '%Y-%m-%dT%H:%M:%SZ' "$installed_at" +%s 2>/dev/null) || return 1
+                         date -juf '%Y-%m-%dT%H:%M:%SZ' "$installed_at" +%s 2>/dev/null) || return 1
     fi
 
     age_seconds=$((now - installed_epoch))

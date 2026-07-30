@@ -455,7 +455,7 @@ _date_to_epoch() {
   # Tier 2: macOS date -jf
   if [[ "$_COMPAT_OS" == "darwin" ]]; then
     # Try with 'Z' suffix format first, then without
-    date -jf '%Y-%m-%dT%H:%M:%SZ' "$timestamp" +%s 2>/dev/null && return 0
+    date -juf '%Y-%m-%dT%H:%M:%SZ' "$timestamp" +%s 2>/dev/null && return 0
     date -jf '%Y-%m-%dT%H:%M:%S' "$timestamp" +%s 2>/dev/null && return 0
   fi
 
