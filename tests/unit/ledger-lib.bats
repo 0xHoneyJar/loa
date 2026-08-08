@@ -675,3 +675,105 @@ source_lib() {
     next_sprint=$(echo "$status_json" | jq -r '.next_sprint_number')
     [[ "$next_sprint" == "4" ]]
 }
+
+# =============================================================================
+# Write-Guard Tests (bug 20260808-a008c6: ledger blanked to 1 byte, exit 0)
+#
+# Incident shape: update_sprint_status was called with a local label
+# ("sprint-1") instead of a numeric global id. `jq --argjson id "sprint-1"`
+# exits 2 with no stdout, the $() masks the failure, and _write_ledger
+# faithfully atomic-writes the resulting empty string as a 1-byte newline —
+# then every layer returns 0. These tests pin the property: no invalid write
+# attempt may modify the ledger file, and no caller may report success when
+# the write failed.
+# =============================================================================
+
+@test "_write_ledger refuses empty content and leaves ledger untouched" {
+    skip_if_deps_missing
+    source_lib
+
+    init_ledger
+    create_cycle "Test Cycle"
+
+    local before
+    before=$(cat grimoires/loa/ledger.json)
+
+    run _write_ledger ""
+    [[ "$status" -ne 0 ]]
+    [[ -n "$output" ]]  # fails loudly, not silently
+
+    local after
+    after=$(cat grimoires/loa/ledger.json)
+    [[ "$after" == "$before" ]]
+}
+
+@test "_write_ledger refuses unparseable content and leaves ledger untouched" {
+    skip_if_deps_missing
+    source_lib
+
+    init_ledger
+    create_cycle "Test Cycle"
+
+    local before
+    before=$(cat grimoires/loa/ledger.json)
+
+    run _write_ledger '{not valid json'
+    [[ "$status" -ne 0 ]]
+    [[ -n "$output" ]]
+
+    local after
+    after=$(cat grimoires/loa/ledger.json)
+    [[ "$after" == "$before" ]]
+}
+
+@test "update_sprint_status with non-numeric id fails loudly and preserves ledger (incident repro)" {
+    skip_if_deps_missing
+    source_lib
+
+    init_ledger
+    create_cycle "Test Cycle"
+    add_sprint "sprint-1"
+
+    local before
+    before=$(cat grimoires/loa/ledger.json)
+
+    # The incident call shape: local label passed where a global id belongs
+    run update_sprint_status "sprint-1" "completed"
+    [[ "$status" -ne 0 ]]
+    [[ -n "$output" ]]
+
+    # The ledger must be byte-identical and still valid JSON
+    local after
+    after=$(cat grimoires/loa/ledger.json)
+    [[ "$after" == "$before" ]]
+    jq empty grimoires/loa/ledger.json
+}
+
+@test "update_sprint_status propagates lock-timeout failure and preserves ledger" {
+    skip_if_deps_missing
+    source_lib
+    if ! command -v flock >/dev/null 2>&1; then
+        skip "flock not available"
+    fi
+
+    init_ledger
+    create_cycle "Test Cycle"
+    add_sprint "sprint-1"
+
+    local before
+    before=$(cat grimoires/loa/ledger.json)
+
+    # Hold the lock in a background process for longer than LEDGER_LOCK_TIMEOUT (5s)
+    ( flock -x 200; sleep 7 ) 200>grimoires/loa/ledger.json.lock &
+    local lock_pid=$!
+    sleep 1  # let the holder acquire
+
+    run update_sprint_status 1 "completed"
+    [[ "$status" -ne 0 ]]
+
+    local after
+    after=$(cat grimoires/loa/ledger.json)
+    [[ "$after" == "$before" ]]
+
+    wait "$lock_pid" 2>/dev/null || true
+}

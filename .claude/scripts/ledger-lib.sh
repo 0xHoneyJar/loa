@@ -149,6 +149,16 @@ _write_ledger() {
     ledger_path=$(get_ledger_path)
     local lock_file="${ledger_path}.lock"
 
+    # GUARD (bug 20260808-a008c6): refuse empty/unparseable content BEFORE
+    # touching lock, backup, or ledger. An empty string here previously
+    # passed through the last_updated jq stamp (jq on empty input emits
+    # nothing and exits 0) and truncated the ledger to a 1-byte newline
+    # while every caller reported success.
+    if [[ -z "$content" ]] || ! echo "$content" | jq empty 2>/dev/null; then
+        echo "ERROR: refusing to write empty or unparseable ledger content" >&2
+        return $LEDGER_ERROR
+    fi
+
     # Ensure parent directory exists
     mkdir -p "$(dirname "$ledger_path")"
 
@@ -167,6 +177,12 @@ _write_ledger() {
     # Update last_updated timestamp
     local updated_content
     updated_content=$(echo "$content" | jq --arg ts "$(now_iso)" '.last_updated = $ts')
+    if [[ -z "$updated_content" ]]; then
+        echo "ERROR: timestamp stamping produced empty content, aborting write" >&2
+        flock -u 9
+        exec 9>&-
+        return $LEDGER_ERROR
+    fi
 
     # SECURITY (HIGH-001): Atomic write via temp file + mv
     local tmp_file="${ledger_path}.tmp.$$"
@@ -376,7 +392,7 @@ EOF
     ledger_content=$(jq --argjson cycle "$cycle_json" --arg id "$cycle_id" \
         '.cycles += [$cycle] | .active_cycle = $id' "$ledger_path")
 
-    _write_ledger "$ledger_content"
+    _write_ledger "$ledger_content" || return $LEDGER_ERROR
 
     echo "$cycle_id"
     return $LEDGER_OK
@@ -415,7 +431,7 @@ update_cycle_field() {
     ledger_content=$(jq --arg id "$cycle_id" --arg field "$field" --arg value "$value" \
         '(.cycles[] | select(.id == $id))[$field] = $value' "$ledger_path")
 
-    _write_ledger "$ledger_content"
+    _write_ledger "$ledger_content" || return $LEDGER_ERROR
     return $LEDGER_OK
 }
 
@@ -456,7 +472,7 @@ allocate_sprint_number() {
     local ledger_content
     ledger_content=$(jq '.next_sprint_number += 1' "$ledger_path")
 
-    _write_ledger "$ledger_content"
+    _write_ledger "$ledger_content" || return $LEDGER_ERROR
 
     echo "$current"
     return $LEDGER_OK
@@ -508,7 +524,7 @@ EOF
     ledger_content=$(jq --arg cycle_id "$active_cycle" --argjson sprint "$sprint_json" \
         '(.cycles[] | select(.id == $cycle_id)).sprints += [$sprint]' "$ledger_path")
 
-    _write_ledger "$ledger_content"
+    _write_ledger "$ledger_content" || return $LEDGER_ERROR
 
     echo "$global_id"
     return $LEDGER_OK
@@ -586,19 +602,34 @@ update_sprint_status() {
     local now
     now=$(now_iso)
 
+    # GUARD (bug 20260808-a008c6): a non-numeric id (e.g. a local label like
+    # "sprint-1") makes `jq --argjson` exit with no output; the $() masked
+    # that and the empty result blanked the ledger. Resolve labels via
+    # resolve_sprint BEFORE calling this function.
+    if [[ ! "$global_id" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: update_sprint_status requires a numeric global sprint id (got '$global_id')" >&2
+        return $LEDGER_SPRINT_NOT_FOUND
+    fi
+
     local ledger_content
     if [[ "$status" == "completed" ]]; then
         # Set completed timestamp
         ledger_content=$(jq --argjson id "$global_id" --arg status "$status" --arg completed "$now" \
             '(.cycles[].sprints[] | select(.global_id == $id)) |= (.status = $status | .completed = $completed)' \
-            "$ledger_path")
+            "$ledger_path") || {
+            echo "ERROR: failed to build updated ledger content" >&2
+            return $LEDGER_ERROR
+        }
     else
         ledger_content=$(jq --argjson id "$global_id" --arg status "$status" \
             '(.cycles[].sprints[] | select(.global_id == $id)).status = $status' \
-            "$ledger_path")
+            "$ledger_path") || {
+            echo "ERROR: failed to build updated ledger content" >&2
+            return $LEDGER_ERROR
+        }
     fi
 
-    _write_ledger "$ledger_content"
+    _write_ledger "$ledger_content" || return $LEDGER_ERROR
     return $LEDGER_OK
 }
 
@@ -819,7 +850,7 @@ archive_cycle() {
         '(.cycles[] | select(.id == $id)) |= (.status = "archived" | .archived = $archived | .archive_path = $path) | .active_cycle = null' \
         "$ledger_path")
 
-    _write_ledger "$ledger_content"
+    _write_ledger "$ledger_content" || return $LEDGER_ERROR
 
     echo "$archive_path"
     return $LEDGER_OK
