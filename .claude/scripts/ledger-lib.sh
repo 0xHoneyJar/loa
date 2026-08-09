@@ -149,13 +149,16 @@ _write_ledger() {
     ledger_path=$(get_ledger_path)
     local lock_file="${ledger_path}.lock"
 
-    # GUARD (bug 20260808-a008c6): refuse empty/unparseable content BEFORE
-    # touching lock, backup, or ledger. An empty string here previously
+    # GUARD (bug 20260808-a008c6): refuse empty/unparseable/wrong-shape content
+    # BEFORE touching lock, backup, or ledger. An empty string here previously
     # passed through the last_updated jq stamp (jq on empty input emits
     # nothing and exits 0) and truncated the ledger to a 1-byte newline
-    # while every caller reported success.
-    if [[ -z "$content" ]] || ! echo "$content" | jq empty 2>/dev/null; then
-        echo "ERROR: refusing to write empty or unparseable ledger content" >&2
+    # while every caller reported success. printf (not echo) so flag-like
+    # content cannot be eaten; -es pins the shape to exactly one JSON object
+    # (multi-document streams and bare scalars pass a plain `jq empty`).
+    if [[ -z "$content" ]] || \
+       ! printf '%s' "$content" | jq -es 'length == 1 and (.[0] | type == "object")' >/dev/null 2>&1; then
+        echo "ERROR: refusing to write empty, unparseable, or non-object ledger content" >&2
         return $LEDGER_ERROR
     fi
 
@@ -176,7 +179,7 @@ _write_ledger() {
 
     # Update last_updated timestamp
     local updated_content
-    updated_content=$(echo "$content" | jq --arg ts "$(now_iso)" '.last_updated = $ts')
+    updated_content=$(printf '%s' "$content" | jq --arg ts "$(now_iso)" '.last_updated = $ts')
     if [[ -z "$updated_content" ]]; then
         echo "ERROR: timestamp stamping produced empty content, aborting write" >&2
         flock -u 9

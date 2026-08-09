@@ -763,10 +763,19 @@ source_lib() {
     local before
     before=$(cat grimoires/loa/ledger.json)
 
-    # Hold the lock in a background process for longer than LEDGER_LOCK_TIMEOUT (5s)
-    ( flock -x 200; sleep 7 ) 200>grimoires/loa/ledger.json.lock &
+    # Hold the lock in a background process for far longer than
+    # LEDGER_LOCK_TIMEOUT (5s); killed at test end rather than waited for.
+    ( flock -x 200; sleep 30 ) 200>grimoires/loa/ledger.json.lock &
     local lock_pid=$!
-    sleep 1  # let the holder acquire
+    # Confirm the holder actually owns the lock before proceeding (a blind
+    # sleep races a slow subshell spawn and flakes in the other direction).
+    local i
+    for i in $(seq 1 50); do
+        if ! flock -n grimoires/loa/ledger.json.lock true 2>/dev/null; then
+            break
+        fi
+        sleep 0.1
+    done
 
     run update_sprint_status 1 "completed"
     [[ "$status" -ne 0 ]]
@@ -775,5 +784,30 @@ source_lib() {
     after=$(cat grimoires/loa/ledger.json)
     [[ "$after" == "$before" ]]
 
+    kill "$lock_pid" 2>/dev/null || true
     wait "$lock_pid" 2>/dev/null || true
+}
+
+@test "_write_ledger refuses non-object and multi-document JSON content" {
+    skip_if_deps_missing
+    source_lib
+
+    init_ledger
+    create_cycle "Test Cycle"
+
+    local before
+    before=$(cat grimoires/loa/ledger.json)
+
+    run _write_ledger 'null'
+    [[ "$status" -ne 0 ]]
+
+    run _write_ledger '"a bare scalar"'
+    [[ "$status" -ne 0 ]]
+
+    run _write_ledger '{} {"a": 1}'
+    [[ "$status" -ne 0 ]]
+
+    local after
+    after=$(cat grimoires/loa/ledger.json)
+    [[ "$after" == "$before" ]]
 }
