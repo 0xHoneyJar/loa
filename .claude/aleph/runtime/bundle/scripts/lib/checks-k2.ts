@@ -28,7 +28,14 @@ import {
   tableCells,
   isSeparatorRow,
 } from './markdown.ts';
-import { DISPOSITIONS } from './run-model.ts';
+import {
+  CURRENT_RUN_FORMAT_VERSION,
+  DISPOSITIONS,
+  EXACT_EVIDENCE_FORMAT,
+  EXACT_EVIDENCE_JOIN_POLICIES,
+  forwardExecutionIdentityProblems,
+  LEGACY_RUN_FORMAT_VERSION,
+} from './run-model.ts';
 import type {
   IdentifierFamily,
   MarkdownTableRow,
@@ -36,6 +43,7 @@ import type {
 import type { ResultCollector } from './results.ts';
 import type {
   Disposition,
+  ExactEvidenceFragmentRow,
   RunModel,
   RunRow,
 } from './run-model.ts';
@@ -121,8 +129,28 @@ function existsPath(path: string, type: 'file' | 'directory' = 'file'): boolean 
   return type === 'directory' ? stat.isDirectory() : stat.isFile();
 }
 
+function distillingArtifactSignals(model: RunModel): string[] {
+  const signals: string[] = [];
+  if (model.packetDocument) signals.push('ledgers/packet-index.md');
+  if (model.packets.length > 0) signals.push('packet rows');
+  if (firstRunLogEntry(model.runLog, 'S2')) signals.push('run-log S2 entry');
+  if (model.exactEvidence.format) signals.push('exact_evidence_format');
+  if (
+    model.exactEvidence.recordTable
+    || model.exactEvidence.fragmentTable
+    || model.exactEvidence.transformationTable
+  ) {
+    signals.push('exact-evidence tables');
+  }
+  return signals;
+}
+
 function distillingArtifactsApply(model: RunModel): boolean {
-  return STATES.slice(2).some((state) => reachedState(model, state));
+  return STATES.slice(2).some((state) => reachedState(model, state))
+    || (
+      model.manifest?.runFormatVersion === CURRENT_RUN_FORMAT_VERSION
+      && distillingArtifactSignals(model).length > 0
+    );
 }
 
 function checkLayout(results: ResultCollector, model: RunModel): void {
@@ -226,6 +254,30 @@ function checkManifest(results: ResultCollector, model: RunModel): void {
     if (!/^[a-fA-F0-9]{40}$/.test(manifest.doctrineSha)) {
       fail('doctrine_sha must be exactly 40 hexadecimal characters');
     }
+    const runFormatFields = manifest.lines.filter(
+      (line) => /^\s*-\s*run[_ -]format[_ -]version\s*:/i.test(line),
+    );
+    if (
+      manifest.runFormatVersion === CURRENT_RUN_FORMAT_VERSION
+      && runFormatFields.length !== 1
+    ) {
+      fail(`run_format_version must be defined exactly once; found ${runFormatFields.length}`);
+    } else if (runFormatFields.length > 1) {
+      fail(`run_format_version must be defined at most once; found ${runFormatFields.length}`);
+    }
+    if (
+      manifest.runFormatVersion
+      && ![
+        LEGACY_RUN_FORMAT_VERSION,
+        CURRENT_RUN_FORMAT_VERSION,
+      ].includes(manifest.runFormatVersion)
+    ) {
+      fail(
+        `run_format_version "${manifest.runFormatVersion}" is unsupported; expected `
+        + `${LEGACY_RUN_FORMAT_VERSION} or ${CURRENT_RUN_FORMAT_VERSION}`,
+      );
+    }
+    for (const problem of forwardExecutionIdentityProblems(manifest)) fail(problem);
     if (!manifest.corpusHash.trim()) fail('corpus_hash is missing');
     if (manifest.states.length === 0) {
       fail('state log has no rows');
@@ -290,6 +342,14 @@ function checkManifest(results: ResultCollector, model: RunModel): void {
       const threshold = STATES.indexOf(state);
       return manifest.states.some((row) => STATES.indexOf(row.values.state.trim()) >= threshold);
     };
+    const distillingSignals = distillingArtifactSignals(model);
+    if (
+      manifest.runFormatVersion === CURRENT_RUN_FORMAT_VERSION
+      && distillingSignals.length > 0
+      && !hasStateAtOrAfter('DISTILLING')
+    ) {
+      fail(`state log understates DISTILLING; observed ${distillingSignals.join(', ')}`);
+    }
     if (hasStateAtOrAfter('CORPUS-FROZEN')) {
       const s0 = manifest.signoffs.find((row) => /\bS0\b/i.test(row.values.gate));
       if (!s0 || !positiveDecision(s0.values.decision)) {
@@ -325,7 +385,7 @@ function checkManifest(results: ResultCollector, model: RunModel): void {
         );
       }
     }
-    return 'mode, hashes, ordered states, BLOCKED re-entry, and sign-offs are valid';
+    return 'mode, forward identity, stage consistency, ordered states, BLOCKED re-entry, and sign-offs are valid';
   });
 }
 
@@ -409,6 +469,546 @@ function checkPackets(results: ResultCollector, model: RunModel): void {
     return unverified.size
       ? `packet references resolve; scheme(s) ${[...unverified].sort().join(', ')} unverified`
       : 'all packet locators reopen source spans and hashes match';
+  });
+}
+
+interface MdLineLocator {
+  start: number;
+  end: number;
+}
+
+function parseMdLineLocator(value: string): MdLineLocator | null {
+  const match = value.match(/^L(\d+)-L(\d+)$/);
+  if (!match) return null;
+  const start = Number(match[1]);
+  const end = Number(match[2]);
+  return start >= 1 && end >= start ? { start, end } : null;
+}
+
+function canonicalBase64(value: string): Buffer | null {
+  const encoded = value.trim();
+  if (
+    !encoded
+    || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded)
+  ) {
+    return null;
+  }
+  const decoded = Buffer.from(encoded, 'base64');
+  return decoded.toString('base64') === encoded ? decoded : null;
+}
+
+function exactSha256(value: string): string | null {
+  const match = value.match(/^sha256:([a-f0-9]{64})$/);
+  return match ? match[1] : null;
+}
+
+function framedExactEvidenceHash(fragments: readonly Buffer[]): string {
+  const parts: Buffer[] = [
+    Buffer.from(`${EXACT_EVIDENCE_FORMAT}\0`, 'utf8'),
+  ];
+  for (const fragment of fragments) {
+    const length = Buffer.alloc(8);
+    length.writeBigUInt64BE(BigInt(fragment.byteLength));
+    parts.push(length, fragment);
+  }
+  return sha256(Buffer.concat(parts));
+}
+
+function firstByteDifference(left: Buffer, right: Buffer): number {
+  const limit = Math.min(left.byteLength, right.byteLength);
+  for (let index = 0; index < limit; index++) {
+    if (left[index] !== right[index]) return index;
+  }
+  return left.byteLength === right.byteLength ? -1 : limit;
+}
+
+function packetIdList(value: string): string[] | null {
+  const parts = value.split(',').map((part) => part.trim());
+  if (parts.length === 0 || parts.some((part) => !/^PKT-\d+$/.test(part))) {
+    return null;
+  }
+  return parts;
+}
+
+function checkExactEvidence(results: ResultCollector, model: RunModel): void {
+  results.run('K2.13', 'exact evidence and ordered fragments', (fail) => {
+    const exact = model.exactEvidence;
+    const runFormatVersion = model.manifest?.runFormatVersion || '';
+    const isLegacyRun = (
+      runFormatVersion === ''
+      || runFormatVersion === LEGACY_RUN_FORMAT_VERSION
+    );
+    const isCurrentRun = runFormatVersion === CURRENT_RUN_FORMAT_VERSION;
+    const tablesPresent = Boolean(
+      exact.recordTable || exact.fragmentTable || exact.transformationTable,
+    );
+    if (!isLegacyRun && !isCurrentRun) {
+      fail(
+        `exact-evidence activation cannot determine unsupported run_format_version `
+        + `"${runFormatVersion || '(blank)'}"`,
+      );
+      return 'run format selects the exact-evidence contract';
+    }
+    if (isLegacyRun) {
+      if (exact.format || tablesPresent) {
+        fail(
+          `legacy run format ${runFormatVersion || '(pre-versioned)'} must not be `
+          + `reinterpreted as ${EXACT_EVIDENCE_FORMAT}`,
+        );
+      }
+      return `legacy run format ${runFormatVersion || '(pre-versioned)'} retains K2.4 behavior`;
+    }
+    if (!exact.format) {
+      if (tablesPresent) {
+        fail('exact-evidence tables require an exact_evidence_format declaration');
+      }
+      if (distillingArtifactsApply(model)) {
+        fail(
+          `run format ${CURRENT_RUN_FORMAT_VERSION} requires `
+          + `exact_evidence_format ${EXACT_EVIDENCE_FORMAT} once DISTILLING is reached`,
+        );
+      }
+      return `exact evidence is not applicable before DISTILLING in run format ${CURRENT_RUN_FORMAT_VERSION}`;
+    }
+    if (exact.format !== EXACT_EVIDENCE_FORMAT) {
+      fail(
+        `exact_evidence_format "${exact.format}" is unsupported; expected ${EXACT_EVIDENCE_FORMAT}`,
+      );
+      return 'versioned exact-evidence structure is valid';
+    }
+    if (!exact.recordTable) fail('exact evidence record table is missing or has the wrong header');
+    if (!exact.fragmentTable) fail('ordered fragment table is missing or has the wrong header');
+    if (!exact.transformationTable) {
+      fail('evidence transformation table is missing or has the wrong header');
+    }
+
+    const recordByKey = new Map<string, RunModel['exactEvidence']['records'][number]>();
+    const fragmentByKey = new Map<string, ExactEvidenceFragmentRow>();
+    const transformKeys = new Set<string>();
+    const fragmentsByEvidence = new Map<string, ExactEvidenceFragmentRow[]>();
+    const packetCoverage = new Map<string, string>();
+    const sourceBytes = new Map<string, Buffer>();
+    const observedByFragment = new Map<string, Buffer>();
+    const degradedUnverifiedSchemes = new Set<string>();
+    const sources = makeIndexes(model).SRC;
+    const packets = makeIndexes(model).PKT;
+
+    for (const record of exact.records) {
+      const { evidenceKey } = record.values;
+      if (!/^EVID-\d+$/.test(evidenceKey)) {
+        fail(`${evidenceKey || 'evidence row'} evidence_key must be EVID-<digits> at ${location(record)}`);
+      }
+      if (recordByKey.has(evidenceKey)) {
+        fail(`${evidenceKey || 'evidence row'} is defined more than once at ${location(record)}`);
+      } else if (evidenceKey) {
+        recordByKey.set(evidenceKey, record);
+      }
+    }
+
+    for (const fragment of exact.fragments) {
+      const {
+        fragmentKey,
+        evidenceKey,
+        packetId,
+        fragmentOrder,
+        sourceId,
+        locator,
+        sourceRelation,
+        byteRole,
+        fragmentHash,
+        exactBytesBase64,
+      } = fragment.values;
+      if (!/^FRAG-\d+$/.test(fragmentKey)) {
+        fail(`${fragmentKey || 'fragment row'} fragment_key must be FRAG-<digits> at ${location(fragment)}`);
+      }
+      if (fragmentByKey.has(fragmentKey)) {
+        fail(`${fragmentKey || 'fragment row'} is defined more than once at ${location(fragment)}`);
+      } else if (fragmentKey) {
+        fragmentByKey.set(fragmentKey, fragment);
+      }
+      if (!recordByKey.has(evidenceKey)) {
+        fail(`${fragmentKey || 'fragment row'} references missing evidence_key ${evidenceKey || '(blank)'}`);
+      }
+      const order = Number(fragmentOrder);
+      if (!Number.isInteger(order) || order < 1) {
+        fail(`${fragmentKey || 'fragment row'} fragment_order must be a positive integer`);
+      }
+      if (sourceRelation !== 'frozen-source') {
+        fail(`${fragmentKey || 'fragment row'} source_relation must be frozen-source`);
+      }
+      if (byteRole !== 'exact-source-bytes') {
+        fail(
+          `${fragmentKey || 'fragment row'} byte_role "${byteRole || '(blank)'}" cannot substitute rendered or normalized text for exact-source-bytes`,
+        );
+      }
+
+      const source = sources.get(sourceId);
+      const packet = packets.get(packetId);
+      if (!source) {
+        fail(`${fragmentKey || 'fragment row'} source ${sourceId || '(blank)'} does not resolve`);
+      }
+      if (!packet) {
+        fail(`${fragmentKey || 'fragment row'} packet ${packetId || '(blank)'} does not resolve`);
+      }
+      const locatorParts = parseMdLineLocator(locator);
+      if (!locatorParts) {
+        fail(`${fragmentKey || 'fragment row'} locator "${locator}" is not L<start>-L<end>`);
+      }
+
+      let observed: Buffer | null = null;
+      if (source) {
+        const scheme = source.values.scheme.replace(/`/g, '').trim();
+        if (scheme !== 'md-lines') {
+          fail(
+            `${fragmentKey || 'fragment row'} exact evidence requires a mechanically verified md-lines source, found ${scheme || '(blank)'}`,
+          );
+        }
+        const sourcePath = sourceFilePath(model.runDir, source.values.locus);
+        if (!sourcePath || !existsPath(sourcePath)) {
+          fail(
+            `${fragmentKey || 'fragment row'} frozen source locus "${source.values.locus}" is not a readable file`,
+          );
+        } else {
+          let frozenBytes = sourceBytes.get(sourceId);
+          if (!frozenBytes) {
+            frozenBytes = readFileSync(sourcePath);
+            sourceBytes.set(sourceId, frozenBytes);
+            const declaredSourceHash = exactSha256(source.values.contentHash);
+            if (!declaredSourceHash) {
+              fail(`${sourceId} content_hash must be sha256:<lowercase hex> for exact evidence`);
+            } else if (sha256(frozenBytes) !== declaredSourceHash) {
+              fail(`${sourceId} content_hash does not match the frozen source bytes`);
+            }
+          }
+          if (locatorParts) {
+            const span = mdLineSpan(sourcePath, locatorParts.start, locatorParts.end);
+            if (!span?.bytes) {
+              fail(
+                `${fragmentKey || 'fragment row'} locator ${locator} is outside ${sourceId}'s ${span?.lineCount ?? 0} lines`,
+              );
+            } else {
+              observed = span.bytes;
+              observedByFragment.set(fragmentKey, observed);
+            }
+          }
+        }
+      }
+
+      const exactBytes = canonicalBase64(exactBytesBase64);
+      if (!exactBytes) {
+        fail(`${fragmentKey || 'fragment row'} exact_bytes_base64 is not canonical base64`);
+      } else if (observed && !exactBytes.equals(observed)) {
+        const offset = firstByteDifference(exactBytes, observed);
+        fail(
+          `${fragmentKey || 'fragment row'} exact bytes differ from frozen source at byte ${offset}`,
+        );
+      }
+
+      const declaredFragmentHash = exactSha256(fragmentHash);
+      if (!declaredFragmentHash) {
+        fail(`${fragmentKey || 'fragment row'} fragment_hash must be sha256:<lowercase hex>`);
+      } else {
+        if (observed && sha256(observed) !== declaredFragmentHash) {
+          fail(`${fragmentKey || 'fragment row'} fragment_hash does not match exact source bytes`);
+        }
+        if (exactBytes && sha256(exactBytes) !== declaredFragmentHash) {
+          fail(`${fragmentKey || 'fragment row'} fragment_hash does not match exact_bytes_base64`);
+        }
+      }
+
+      if (packet) {
+        if (
+          packet.values.sourceId !== sourceId
+          || packet.values.locator !== locator
+          || exactSha256(packet.values.spanHash) !== declaredFragmentHash
+        ) {
+          fail(
+            `${fragmentKey || 'fragment row'} packet ${packetId} does not bind the same source, locator, and fragment hash`,
+          );
+        }
+      }
+      const group = fragmentsByEvidence.get(evidenceKey) || [];
+      group.push(fragment);
+      fragmentsByEvidence.set(evidenceKey, group);
+    }
+
+    for (const record of exact.records) {
+      const {
+        evidenceKey,
+        packetIds: packetIdsValue,
+        evidenceState,
+        fragmentCount,
+        joinPolicy,
+        exactEvidenceHash,
+        degradedSourceId,
+        degradedSourceLocator,
+        degradationReason,
+      } = record.values;
+      const fragments = fragmentsByEvidence.get(evidenceKey) || [];
+      const count = Number(fragmentCount);
+      if (!Number.isInteger(count) || count < 0) {
+        fail(`${evidenceKey || 'evidence row'} fragment_count must be a non-negative integer`);
+      }
+
+      if (evidenceState === 'degraded-non-exact') {
+        if (packetIdsValue !== 'none') {
+          fail(`${evidenceKey} degraded evidence must not claim packet_ids`);
+        }
+        if (count !== 0 || fragments.length !== 0) {
+          fail(`${evidenceKey} degraded evidence must have zero exact fragments`);
+        }
+        if (joinPolicy !== 'not-applicable') {
+          fail(`${evidenceKey} degraded evidence join_policy must be not-applicable`);
+        }
+        if (exactEvidenceHash !== 'none') {
+          fail(`${evidenceKey} degraded evidence must not claim an exact_evidence_hash`);
+        }
+        const source = sources.get(degradedSourceId);
+        if (!degradedSourceId || degradedSourceId === 'none') {
+          fail(`${evidenceKey} degraded evidence requires a degraded_source_id`);
+        } else if (!source) {
+          fail(`${evidenceKey} degraded source ${degradedSourceId} does not resolve`);
+        }
+        if (!degradedSourceLocator || degradedSourceLocator === 'none') {
+          fail(`${evidenceKey} degraded evidence requires a degraded_source_locator`);
+        }
+        if (source) {
+          const scheme = source.values.scheme.replace(/`/g, '').trim();
+          const sourcePath = sourceFilePath(model.runDir, source.values.locus);
+          if (!sourcePath || !existsPath(sourcePath)) {
+            fail(
+              `${evidenceKey} degraded source ${degradedSourceId} locus `
+              + `"${source.values.locus}" is not a readable file`,
+            );
+          } else {
+            let frozenBytes = sourceBytes.get(degradedSourceId);
+            if (!frozenBytes) {
+              frozenBytes = readFileSync(sourcePath);
+              sourceBytes.set(degradedSourceId, frozenBytes);
+            }
+            const declaredSourceHash = exactSha256(source.values.contentHash);
+            if (!declaredSourceHash) {
+              fail(`${degradedSourceId} content_hash must be sha256:<lowercase hex>`);
+            } else if (sha256(frozenBytes) !== declaredSourceHash) {
+              fail(`${degradedSourceId} content_hash does not match the frozen source bytes`);
+            }
+          }
+          if (!scheme) {
+            fail(`${degradedSourceId} has no declared locator scheme`);
+          } else if (
+            scheme === 'md-lines'
+            && degradedSourceLocator !== 'none'
+            && !parseMdLineLocator(degradedSourceLocator)
+          ) {
+            fail(
+              `${evidenceKey} degraded locator "${degradedSourceLocator}" `
+              + 'is not L<start>-L<end>',
+            );
+          } else if (
+            scheme === 'md-lines'
+            && sourcePath
+            && existsPath(sourcePath)
+            && degradedSourceLocator !== 'none'
+          ) {
+            const locator = parseMdLineLocator(degradedSourceLocator);
+            if (locator) {
+              const span = mdLineSpan(sourcePath, locator.start, locator.end);
+              if (!span?.bytes) {
+                fail(
+                  `${evidenceKey} degraded locator ${degradedSourceLocator} is outside `
+                  + `${degradedSourceId}'s ${span?.lineCount ?? 0} lines`,
+                );
+              }
+            }
+          } else if (
+            scheme === 'chat-msg'
+            && degradedSourceLocator !== 'none'
+            && !/^M[1-9]\d*(?::S[1-9]\d*)?$/.test(degradedSourceLocator)
+          ) {
+            fail(
+              `${evidenceKey} degraded locator "${degradedSourceLocator}" `
+              + 'is not M<n> or M<n>:S<k>',
+            );
+          } else if (scheme !== 'md-lines') {
+            degradedUnverifiedSchemes.add(scheme);
+          }
+        }
+        if (!degradationReason || degradationReason === 'none') {
+          fail(`${evidenceKey} degraded evidence requires a degradation_reason`);
+        }
+        continue;
+      }
+
+      if (evidenceState !== 'exact') {
+        fail(`${evidenceKey || 'evidence row'} evidence_state must be exact or degraded-non-exact`);
+        continue;
+      }
+      if (degradationReason !== 'none') {
+        fail(`${evidenceKey} exact evidence degradation_reason must be none`);
+      }
+      if (degradedSourceId !== 'none' || degradedSourceLocator !== 'none') {
+        fail(`${evidenceKey} exact evidence degraded source provenance must be none`);
+      }
+      if (!EXACT_EVIDENCE_JOIN_POLICIES.includes(
+        joinPolicy as typeof EXACT_EVIDENCE_JOIN_POLICIES[number],
+      )) {
+        fail(`${evidenceKey} join_policy "${joinPolicy || '(blank)'}" is undeclared`);
+      }
+      if (count !== fragments.length) {
+        fail(`${evidenceKey} fragment_count ${fragmentCount} does not match ${fragments.length} fragment row(s)`);
+      }
+      const orders = fragments.map((fragment) => Number(fragment.values.fragmentOrder));
+      const expectedOrders = fragments.map((_, index) => index + 1);
+      if (orders.some((order, index) => order !== expectedOrders[index])) {
+        fail(`${evidenceKey} fragment rows must appear in explicit fragment_order 1..${fragments.length}`);
+      }
+      const declaredPackets = packetIdList(packetIdsValue);
+      if (!declaredPackets) {
+        fail(`${evidenceKey} packet_ids must be a comma-separated ordered PKT list`);
+      } else {
+        const fragmentPackets = fragments.map((fragment) => fragment.values.packetId);
+        if (
+          declaredPackets.length !== fragmentPackets.length
+          || declaredPackets.some((packetId, index) => packetId !== fragmentPackets[index])
+        ) {
+          fail(`${evidenceKey} packet_ids do not match fragment packet order`);
+        }
+        for (const packetId of declaredPackets) {
+          const prior = packetCoverage.get(packetId);
+          if (prior) {
+            fail(`${packetId} is claimed by both ${prior} and ${evidenceKey}`);
+          } else {
+            packetCoverage.set(packetId, evidenceKey);
+          }
+        }
+      }
+
+      if (joinPolicy === 'single-fragment' && fragments.length !== 1) {
+        fail(`${evidenceKey} single-fragment join requires exactly one fragment`);
+      }
+      if (joinPolicy === 'adjacent-fragments') {
+        if (fragments.length < 2) {
+          fail(`${evidenceKey} adjacent-fragments join requires at least two fragments`);
+        }
+        for (let index = 1; index < fragments.length; index++) {
+          const previous = fragments[index - 1].values;
+          const current = fragments[index].values;
+          const previousLocator = parseMdLineLocator(previous.locator);
+          const currentLocator = parseMdLineLocator(current.locator);
+          if (
+            previous.sourceId !== current.sourceId
+            || !previousLocator
+            || !currentLocator
+            || previousLocator.end + 1 !== currentLocator.start
+          ) {
+            fail(`${evidenceKey} adjacent-fragments join contains a non-adjacent fragment boundary`);
+          }
+        }
+      }
+      if (joinPolicy === 'separate-fragments' && fragments.length < 2) {
+        fail(`${evidenceKey} separate-fragments join requires at least two fragments`);
+      }
+
+      const orderedBytes = fragments.map(
+        (fragment) => observedByFragment.get(fragment.values.fragmentKey),
+      );
+      const declaredEvidenceHash = exactSha256(exactEvidenceHash);
+      if (!declaredEvidenceHash) {
+        fail(`${evidenceKey} exact_evidence_hash must be sha256:<lowercase hex>`);
+      } else if (orderedBytes.every((bytes): bytes is Buffer => Boolean(bytes))) {
+        const actual = framedExactEvidenceHash(orderedBytes);
+        if (actual !== declaredEvidenceHash) {
+          fail(`${evidenceKey} exact_evidence_hash does not match ordered framed fragment bytes`);
+        }
+      }
+    }
+
+    for (const packet of model.packets) {
+      if (!packetCoverage.has(packet.values.packetId)) {
+        fail(
+          `${packet.values.packetId} lacks an exact evidence record; rendered or normalized text cannot substitute for exact evidence`,
+        );
+      }
+    }
+
+    const transformationsByEvidence = new Map<string, number>();
+    for (const transformation of exact.transformations) {
+      const {
+        transformKey,
+        evidenceKey,
+        outputRole,
+        predecessorExactEvidenceHash,
+        effectiveExactEvidenceHash,
+        outputText,
+        outputTextHash,
+      } = transformation.values;
+      if (!/^XFORM-\d+$/.test(transformKey)) {
+        fail(`${transformKey || 'transformation row'} transform_key must be XFORM-<digits> at ${location(transformation)}`);
+      }
+      if (transformKeys.has(transformKey)) {
+        fail(`${transformKey || 'transformation row'} is defined more than once at ${location(transformation)}`);
+      }
+      transformKeys.add(transformKey);
+      const record = recordByKey.get(evidenceKey);
+      if (!record) {
+        fail(`${transformKey || 'transformation row'} references missing evidence_key ${evidenceKey || '(blank)'}`);
+        continue;
+      }
+      transformationsByEvidence.set(
+        evidenceKey,
+        (transformationsByEvidence.get(evidenceKey) || 0) + 1,
+      );
+      if (!['rendered', 'normalized'].includes(outputRole)) {
+        fail(`${transformKey} output_role must be rendered or normalized`);
+      }
+      if (!outputText) fail(`${transformKey} output_text must not be empty`);
+      const declaredOutputHash = exactSha256(outputTextHash);
+      if (!declaredOutputHash) {
+        fail(`${transformKey} output_text_hash must be sha256:<lowercase hex>`);
+      } else if (sha256(Buffer.from(outputText, 'utf8')) !== declaredOutputHash) {
+        fail(`${transformKey} output_text_hash does not match UTF-8 output_text`);
+      }
+
+      if (record.values.evidenceState === 'degraded-non-exact') {
+        if (outputRole !== 'rendered') {
+          fail(`${transformKey} degraded evidence may record rendered text only`);
+        }
+        if (
+          predecessorExactEvidenceHash !== 'none'
+          || effectiveExactEvidenceHash !== 'none'
+        ) {
+          fail(`${transformKey} degraded evidence must not claim exact predecessor/effective hashes`);
+        }
+        continue;
+      }
+      const exactHash = exactSha256(record.values.exactEvidenceHash);
+      if (
+        !exactHash
+        || exactSha256(predecessorExactEvidenceHash) !== exactHash
+      ) {
+        fail(`${transformKey} predecessor_exact_evidence_hash does not match ${evidenceKey}`);
+      }
+      if (
+        !exactHash
+        || exactSha256(effectiveExactEvidenceHash) !== exactHash
+      ) {
+        fail(`${transformKey} changes exact evidence identity during ${outputRole || 'transformation'}`);
+      }
+    }
+    for (const record of exact.records) {
+      if (
+        record.values.evidenceState === 'degraded-non-exact'
+        && !transformationsByEvidence.has(record.values.evidenceKey)
+      ) {
+        fail(`${record.values.evidenceKey} degraded evidence requires a rendered transformation row`);
+      }
+    }
+
+    return degradedUnverifiedSchemes.size > 0
+      ? `exact fragments reopen frozen bytes; degraded scheme(s) ${
+        [...degradedUnverifiedSchemes].sort().join(', ')
+      } are structurally checked but not mechanically reopened`
+      : 'exact fragments reopen frozen bytes; degraded source loci reopen and order, joins, hashes, and transformation identities are valid';
   });
 }
 
@@ -1017,4 +1617,5 @@ export function runK2(results: ResultCollector, model: RunModel, root: string): 
   checkStatuses(results, model);
   checkPrecis(results, model);
   checkKernelReport(results, model);
+  checkExactEvidence(results, model);
 }

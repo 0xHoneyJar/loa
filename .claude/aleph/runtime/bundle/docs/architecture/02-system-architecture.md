@@ -93,7 +93,7 @@ runs/<run-id>/
     sources/…                # the source files themselves, span-addressable
   ledgers/
     extraction-criteria.md   # inclusion rules recorded before extraction
-    packet-index.md          # every packet with re-entry coordinates
+    packet-index.md          # packets + versioned exact-evidence fragments
     claim-inventory.md       # candidate claims + dispositions (the §4 table)
     disposition-ledger.md    # the §5 summary accounting
     merge-map.md             # duplicate/merge map with provenance
@@ -229,7 +229,7 @@ Traceability is only as strong as the IDs. Proposed scheme (provisional):
 |----|-------|-------------|-----------|
 | `RUN-<slug>` | a run | S0 | the run directory |
 | `SRC-NNN` | a source in the corpus | S1 | a file (or file section) in `corpus/sources/` |
-| `PKT-NNNN` | a packet: a contiguous source span elevated during extraction | S2 | `SRC-NNN` + span locator + content hash |
+| `PKT-NNNN` | a packet: one contiguous source fragment elevated during extraction | S2 | `SRC-NNN` + span locator + content hash |
 | `CC-NNN` | a candidate claim | S3 | ≥1 `PKT-NNNN` |
 | `NB-N` | a negative boundary | S5 | one row in `ledgers/negative-boundaries.md` |
 | `PC-N` | a structural pre-cluster tag | S7 | a tag written against packet/claim ids — never a document |
@@ -251,17 +251,25 @@ Rules (extending the wedge's existing `SRC`/`CC`/`STM` practice):
    validates its shape but does not claim to locate or hash-verify the prior
    run directory.
 2. **Packet IDs are re-entry coordinates, not citations** (routing doctrine
-   §9). A packet record must carry enough to *reopen the exact source span*:
-   source ID, a span locator appropriate to the source format, and a content
-   hash of the span so drift is detectable. The concrete locator scheme per
-   source format (markdown line ranges, chat-export message indices, PDF page
-   +offset) is an open question to settle in the run-fixture slice — see
-   [`12-risks-open-questions-do-not-build.md`](12-risks-open-questions-do-not-build.md).
-3. **IDs are stable within a run.** Re-running a stage must not re-number
+   §9). A packet record carries one contiguous source fragment: source ID, a
+   locator appropriate to the source format, and a content hash so drift is
+   detectable. A versioned exact-evidence extension in `packet-index.md` may
+   group one or more packet-backed fragments in explicit order. Its exact
+   bytes, rendered text, and normalized text are different field roles.
+   Discontiguous fragments remain separate records; a declared join policy
+   describes presentation and may not invent bytes between them.
+3. **Exact evidence is byte identity, not readable resemblance.** An exact
+   fragment reopens the frozen source, matches its declared fragment hash, and
+   carries canonical base64 of those bytes. Curly/straight punctuation,
+   ligatures/expanded characters, newline changes, normalization, and display
+   rendering are not byte-identical substitutions. The exact-evidence digest
+   is computed over ordered length-framed fragment bytes, so order and
+   boundaries remain part of identity.
+4. **IDs are stable within a run.** Re-running a stage must not re-number
    surviving entities. Mechanism (proposed): IDs are assigned once, recorded
    in the ledger with the content hash of the underlying unit; a re-run
    matches by hash, reuses the ID, and appends rather than rewrites.
-4. **IDs are never reused.** A retracted packet/claim keeps its ID with a
+5. **IDs are never reused.** A retracted packet/claim keeps its ID with a
    superseding note; the ID never points at new content.
 
 ## 3. The run state machine

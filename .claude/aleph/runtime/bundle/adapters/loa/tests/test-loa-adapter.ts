@@ -3,6 +3,7 @@
 import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
 import {
   chmodSync,
+  cpSync,
   copyFileSync,
   existsSync,
   lstatSync,
@@ -78,6 +79,8 @@ import {
   runDirectory,
   runtimeSnapshotPath,
   updateRunState,
+  verifyRetainedRuntimeIdentity,
+  verifyRunControl,
   writeRunState,
 } from '../src/run-control.ts';
 import {
@@ -339,7 +342,8 @@ function corpusSourceRows(runDir: string): string[][] {
   return table.rows.map((row) => row.cells);
 }
 
-function pinnedCheckerReport(runDir: string): {
+function pinnedCheckerReport(runDir: string, targetRunDir = runDir): {
+  result: string;
   checks: Array<{ id: string; status: string; message: string }>;
 } {
   const runtime = readRuntime(runDir);
@@ -349,7 +353,7 @@ function pinnedCheckerReport(runDir: string): {
     '--root',
     runtime.bundle.root,
     '--run',
-    runDir,
+    targetRunDir,
     '--json',
   ], {
     cwd: runtime.bundle.root,
@@ -359,8 +363,98 @@ function pinnedCheckerReport(runDir: string): {
   expect(!result.error, `pinned checker failed to start: ${String(result.error)}`);
   expect(result.stdout.trim().length > 0, `pinned checker returned no JSON: ${result.stderr}`);
   return JSON.parse(result.stdout) as {
+    result: string;
     checks: Array<{ id: string; status: string; message: string }>;
   };
+}
+
+function prepareTxtExactEvidenceIntegrationRun(
+  sourceRunDir: string,
+  destination: string,
+  source: CorpusSnapshot['files'][number],
+): string {
+  cpSync(sourceRunDir, destination, { recursive: true });
+  rmSync(join(destination, 'verification'), { recursive: true, force: true });
+
+  const sourceBytes = readFileSync(join(destination, source.frozen_path));
+  const newline = sourceBytes.indexOf(0x0a);
+  const exactBytes = sourceBytes.subarray(0, newline >= 0 ? newline + 1 : sourceBytes.length);
+  const rendered = exactBytes.toString('utf8').replace(/\n$/u, '');
+  const length = Buffer.alloc(8);
+  length.writeBigUInt64BE(BigInt(exactBytes.byteLength));
+  const fragmentHash = sha256Digest(exactBytes);
+  const evidenceHash = sha256Digest(Buffer.concat([
+    Buffer.from('aleph-exact-evidence/v1\0', 'utf8'),
+    length,
+    exactBytes,
+  ]));
+
+  const manifestPath = join(destination, 'run-manifest.md');
+  const manifest = readFileSync(manifestPath, 'utf8');
+  const frozenState = manifest.match(/^\| (\d+) \| CORPUS-FROZEN \|[^\n]+$/mu);
+  expect(frozenState !== null, 'integration run has no CORPUS-FROZEN state row');
+  const distillingRow = `| ${String(Number(frozenState[1]) + 1)} | DISTILLING | 2040-01-02T03:06:00.000Z | fixture-runner | .txt exact-evidence integration |`;
+  writeFileSync(
+    manifestPath,
+    manifest.replace(frozenState[0], `${frozenState[0]}\n${distillingRow}`),
+  );
+  const runLogPath = join(destination, 'run-log.md');
+  const runLog = readFileSync(runLogPath, 'utf8');
+  writeFileSync(
+    runLogPath,
+    `${runLog}${runLog.endsWith('\n') ? '' : '\n'}\n`
+      + '## 2040-01-02T03:05:30.000Z — S1 — exit\n\n'
+      + 'Fixture extraction criteria committed before packetization.\n\n'
+      + '## 2040-01-02T03:06:00.000Z — S2 — entry\n\n'
+      + 'Fixture packetization began from the frozen .txt source.\n',
+  );
+
+  const ledgers = join(destination, 'ledgers');
+  mkdirSync(ledgers, { recursive: true });
+  writeFileSync(
+    join(ledgers, 'extraction-criteria.md'),
+    '# Extraction Criteria\n\n'
+      + '- written: 2040-01-02T03:05:30.000Z\n\n'
+      + 'Admit the first complete source line for mechanical exact-evidence integration.\n',
+  );
+  writeFileSync(
+    join(ledgers, 'packet-index.md'),
+    `# Packet Index — ${RUN_ID}\n\n`
+      + '- exact_evidence_format: aleph-exact-evidence/v1\n\n'
+      + '## Packets\n\n'
+      + '| packet_id | source_id | locator | span_hash | quote | criterion | status |\n'
+      + '|-----------|-----------|---------|-----------|-------|-----------|--------|\n'
+      + `| PKT-9001 | ${source.source_id} | L1-L1 | ${fragmentHash} | ${rendered} | 1 | active |\n\n`
+      + '## Exact evidence records\n\n'
+      + '| evidence_key | packet_ids | evidence_state | fragment_count | join_policy | exact_evidence_hash | degraded_source_id | degraded_source_locator | degradation_reason |\n'
+      + '|--------------|------------|----------------|----------------|-------------|---------------------|--------------------|-------------------------|--------------------|\n'
+      + `| EVID-9001 | PKT-9001 | exact | 1 | single-fragment | ${evidenceHash} | none | none | none |\n\n`
+      + '## Ordered fragments\n\n'
+      + '| fragment_key | evidence_key | packet_id | fragment_order | source_id | locator | source_relation | byte_role | fragment_hash | exact_bytes_base64 |\n'
+      + '|--------------|--------------|-----------|----------------|-----------|---------|-----------------|-----------|---------------|--------------------|\n'
+      + `| FRAG-9001 | EVID-9001 | PKT-9001 | 1 | ${source.source_id} | L1-L1 | frozen-source | exact-source-bytes | ${fragmentHash} | ${exactBytes.toString('base64')} |\n\n`
+      + '## Evidence transformations\n\n'
+      + '| transform_key | evidence_key | output_role | predecessor_exact_evidence_hash | effective_exact_evidence_hash | output_text | output_text_hash |\n'
+      + '|---------------|--------------|-------------|---------------------------------|-------------------------------|-------------|------------------|\n'
+      + `| XFORM-9001 | EVID-9001 | rendered | ${evidenceHash} | ${evidenceHash} | ${rendered} | ${sha256Digest(rendered)} |\n\n`
+      + '## Per-source completion\n\n'
+      + '| source_id | walked | packets | declared complete by | note |\n'
+      + '|-----------|--------|---------|----------------------|------|\n'
+      + `| ${source.source_id} | yes | PKT-9001 | fixture-extractor | .txt md-lines exact-evidence integration |\n`,
+  );
+  writeFileSync(
+    join(ledgers, 'claim-inventory.md'),
+    '# Candidate-Claim Inventory\n\n'
+      + '| claim_id | normalized claim | packets | sources | claim_type | disposition | rationale | judged_by | verified | status |\n'
+      + '|----------|------------------|---------|---------|------------|-------------|-----------|-----------|----------|--------|\n',
+  );
+  writeFileSync(
+    join(ledgers, 'disposition-ledger.md'),
+    '# Disposition Ledger\n\n'
+      + '| disposition | count | claim_ids |\n'
+      + '|-------------|-------|-----------|\n',
+  );
+  return destination;
 }
 
 function exactWithheldInventory(
@@ -781,6 +875,119 @@ export async function runLoaAdapterTests(): Promise<LoaAdapterTestReport> {
       assertFixtureBoundary(readRunState(context.runDir), context.runDir);
     });
 
+    runCase(results, 'run manifest cannot downgrade or diverge from retained execution identity', () => {
+      const { runDir } = requireRun(context);
+      const manifestPath = join(runDir, 'run-manifest.md');
+      const originalManifest = readFileSync(manifestPath, 'utf8');
+      const originalState = readRunState(runDir);
+      const restore = (): void => {
+        writeFileSync(manifestPath, originalManifest);
+        writeRunState(runDir, structuredClone(originalState));
+      };
+      try {
+        writeFileSync(
+          manifestPath,
+          originalManifest.replace(
+            '- run_format_version: 1.1.0-provisional',
+            '- run_format_version: 1.0.0-provisional',
+          ),
+        );
+        const downgraded = dispatchLoaCommand(['resume', RUN_ID], startOptions(context));
+        expect(downgraded.result === 'FAIL', 'retained 1.1 run accepted a 1.0 manifest downgrade');
+        expect(
+          downgraded.errors.some((error) => /run_format_version.*retained run authority/iu.test(error)),
+          `downgrade failure omitted retained identity diagnostic: ${downgraded.errors.join('; ')}`,
+        );
+        restore();
+
+        writeFileSync(
+          manifestPath,
+          originalManifest.replace('- run_format_version: 1.1.0-provisional\n', ''),
+        );
+        let checkerInvoked = false;
+        const removed = dispatchLoaCommand(['validate', RUN_ID], {
+          ...startOptions(context),
+          checkerSpawn: () => {
+            checkerInvoked = true;
+            throw new Error('checker must not run after manifest identity removal');
+          },
+        });
+        expect(removed.result === 'FAIL', 'retained 1.1 run accepted a missing manifest version');
+        expect(!checkerInvoked, 'version removal reached the pinned checker');
+        expect(
+          removed.errors.some((error) => /run_format_version.*retained run authority/iu.test(error)),
+          `version-removal failure omitted retained identity diagnostic: ${removed.errors.join('; ')}`,
+        );
+        restore();
+
+        writeFileSync(
+          manifestPath,
+          originalManifest.replace(
+            /^- core_digest:.*\n/mu,
+            '',
+          ),
+        );
+        expectThrows(
+          () => verifyRunControl(runDir),
+          /retained Loa run authority:.*core_digest/iu,
+          'deleted forward Core identity pin',
+        );
+        restore();
+
+        writeFileSync(
+          manifestPath,
+          originalManifest.replace(
+            /^- checker_digest:.*$/mu,
+            `- checker_digest: sha256:${'0'.repeat(64)}`,
+          ),
+        );
+        expectThrows(
+          () => verifyRunControl(runDir),
+          /checker_digest.*retained run authority/iu,
+          'changed forward checker identity pin',
+        );
+        restore();
+
+        const changedLockRefState = structuredClone(originalState);
+        changedLockRefState.identity.bundle.lock_ref = 'control/alternate-bundle.lock.json';
+        writeRunState(runDir, changedLockRefState);
+        writeFileSync(
+          manifestPath,
+          originalManifest.replace(
+            /^- bundle_lock_ref:.*$/mu,
+            '- bundle_lock_ref: control/alternate-bundle.lock.json',
+          ),
+        );
+        expectThrows(
+          () => verifyRunControl(runDir),
+          /original bundle lock reference disagrees with pinned run identity/iu,
+          'bundle lock reference diverged from retained authority path',
+        );
+        restore();
+
+        const changedState = structuredClone(originalState);
+        changedState.identity.host.version = '0.1.1-provisional';
+        writeRunState(runDir, changedState);
+        writeFileSync(
+          manifestPath,
+          originalManifest.replace(
+            /^- host_identity:.*$/mu,
+            `- host_identity: ${changedState.identity.host.id}`
+              + `@${changedState.identity.host.version}`
+              + `+${changedState.identity.host.build_id}`,
+          ),
+        );
+        const rebound = verifyRunControl(runDir);
+        expectThrows(
+          () => verifyRetainedRuntimeIdentity(runDir, rebound),
+          /retained runtime snapshot identity disagrees/iu,
+          'run-state and manifest host identity diverged from retained runtime',
+        );
+      } finally {
+        restore();
+      }
+    });
+
     runCase(results, 'checker publication recovers a prepared result before the next invocation', () => {
       const { runDir } = requireRun(context);
       const transactionPath = join(
@@ -851,6 +1058,7 @@ export async function runLoaAdapterTests(): Promise<LoaAdapterTestReport> {
       expect(readFileSync(join(runDir, records[0].frozen_path)).equals(context.sourceABytes), 'source A frozen bytes differ');
       expect(readFileSync(join(runDir, records[1].frozen_path)).equals(context.sourceBBytes), 'nested source B frozen bytes differ');
       expect(records[1].relative_path === 'source-b.txt', 'nested directory intake lost the source-local path');
+      expect(records[1].scheme === 'md-lines', 'new .txt intake did not use the Core md-lines scheme');
       expect(records[0].digest === sha256Digest(context.sourceABytes), 'source A inventory hash is wrong');
       expect(records[1].digest === sha256Digest(context.sourceBBytes), 'source B inventory hash is wrong');
 
@@ -895,6 +1103,10 @@ export async function runLoaAdapterTests(): Promise<LoaAdapterTestReport> {
         frozenRows.map((row) => row[0]).join(',') === 'SRC-001,SRC-002',
         'frozen corpus manifest source IDs are malformed or out of order',
       );
+      expect(
+        frozenRows.every((row) => row[3] === 'md-lines'),
+        'frozen textual intake did not declare the Core md-lines scheme',
+      );
       const conformance = pinnedCheckerReport(runDir);
       const dueFailures = conformance.checks.filter((check) => check.status === 'FAIL');
       expect(
@@ -913,6 +1125,31 @@ export async function runLoaAdapterTests(): Promise<LoaAdapterTestReport> {
       expect(state.execution.core_state === 'CORPUS-FROZEN', 'S0 response advanced beyond corpus freeze');
       expect(state.execution.gate?.status === 'approved', 'S0 response was not durably recorded');
       assertFixtureBoundary(state, runDir);
+    });
+
+    runCase(results, 'non-markdown UTF-8 intake reopens as exact Core md-lines evidence', () => {
+      const { runDir, corpus } = requireRun(context);
+      const source = corpus.files.find((file) => file.relative_path === 'source-b.txt');
+      expect(source !== undefined, 'fixture .txt source is missing from the captured corpus');
+      expect(source.scheme === 'md-lines', 'fixture .txt source is not declared as Core md-lines');
+      expect(
+        readFileSync(join(runDir, source.frozen_path)).equals(context.sourceBBytes),
+        'fixture .txt source bytes changed before exact-evidence integration',
+      );
+      const integrationRun = prepareTxtExactEvidenceIntegrationRun(
+        runDir,
+        join(context.tempRoot, 'txt-exact-evidence-integration'),
+        source,
+      );
+      const report = pinnedCheckerReport(runDir, integrationRun);
+      const failures = report.checks.filter((check) => check.status === 'FAIL');
+      expect(report.result === 'PASS', `pinned checker rejected .txt exact evidence: ${failures.map((check) => check.message).join('; ')}`);
+      const exactCheck = report.checks.find((check) => check.id === 'K2.13');
+      expect(
+        exactCheck?.status === 'PASS'
+          && /exact fragments reopen frozen bytes/iu.test(exactCheck.message),
+        '.txt integration did not pass the intended K2.13 exact-byte invariant',
+      );
     });
 
     await runAsyncCase(results, 'installed launcher dynamically dispatches all four command operations', async () => {

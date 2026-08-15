@@ -10,6 +10,14 @@ export const DISPOSITIONS = [
     'judged-non-load-bearing',
     'unresolved',
 ];
+export const EXACT_EVIDENCE_FORMAT = 'aleph-exact-evidence/v1';
+export const LEGACY_RUN_FORMAT_VERSION = '1.0.0-provisional';
+export const CURRENT_RUN_FORMAT_VERSION = '1.1.0-provisional';
+export const EXACT_EVIDENCE_JOIN_POLICIES = [
+    'single-fragment',
+    'adjacent-fragments',
+    'separate-fragments',
+];
 export function walkFiles(root) {
     const files = [];
     function visit(directory) {
@@ -60,14 +68,36 @@ function parseManifest(document) {
         return null;
     const stateTable = findTable(document.tables, ['#', 'state', 'entered', 'actor', 'note']);
     const signoffTable = findTable(document.tables, ['gate', 'decision', 'by', 'date', 'reference']);
+    const executionProfile = parseFieldTable(document.tables);
     const runId = document.bullets.fields.get('run id') || '';
     return {
         ...document,
         mode: document.bullets.fields.get('mode') || '',
         doctrineSha: document.bullets.fields.get('doctrine sha') || '',
         corpusHash: document.bullets.fields.get('corpus hash') || '',
+        runFormatVersion: document.bullets.fields.get('run format version') || '',
         runId,
         predecessorRun: document.bullets.fields.get('predecessor run') || '',
+        forwardIdentity: {
+            coreId: document.bullets.fields.get('core id') || '',
+            coreVersion: document.bullets.fields.get('core version') || '',
+            coreDigest: document.bullets.fields.get('core digest') || '',
+            adapterId: document.bullets.fields.get('adapter id') || '',
+            adapterVersion: document.bullets.fields.get('adapter version') || '',
+            adapterDigest: document.bullets.fields.get('adapter digest') || '',
+            bundleId: document.bullets.fields.get('bundle id') || '',
+            bundleDigest: document.bullets.fields.get('bundle digest') || '',
+            bundleLockRef: document.bullets.fields.get('bundle lock ref') || '',
+            checkerDigest: document.bullets.fields.get('checker digest') || '',
+            adapterProtocolVersion: document.bullets.fields.get('adapter protocol version') || '',
+            hostIdentity: document.bullets.fields.get('host identity') || '',
+            runtimeSnapshotRef: document.bullets.fields.get('runtime snapshot ref') || '',
+            runtimeSnapshotDigest: document.bullets.fields.get('runtime snapshot digest') || '',
+            modelIds: executionProfile.fields.get('model ids (per role, exact strings; or "human")') || '',
+            adapterProfile: executionProfile.fields.get('adapter profile id + digest') || '',
+            modelExecutionMapping: executionProfile.fields.get('model/context/effort mapping actually used') || '',
+        },
+        executionProfile,
         runIdRow: {
             file: document.relativePath,
             line: document.bullets.locations.get('run id') || 1,
@@ -76,6 +106,179 @@ function parseManifest(document) {
         states: rowObjects(stateTable, ['number', 'state', 'entered', 'actor', 'note']),
         signoffs: rowObjects(signoffTable, ['gate', 'decision', 'by', 'date', 'reference']),
     };
+}
+const FORWARD_IDENTITY_BULLET_FIELDS = [
+    'core_id',
+    'core_version',
+    'core_digest',
+    'adapter_id',
+    'adapter_version',
+    'adapter_digest',
+    'bundle_id',
+    'bundle_digest',
+    'bundle_lock_ref',
+    'checker_digest',
+    'adapter_protocol_version',
+    'host_identity',
+    'runtime_snapshot_ref',
+    'runtime_snapshot_digest',
+];
+const FORWARD_IDENTITY_PROFILE_FIELDS = [
+    ['model_ids', 'model ids (per role, exact strings; or "human")'],
+    ['adapter profile ID + digest', 'adapter profile id + digest'],
+    ['model/context/effort mapping actually used', 'model/context/effort mapping actually used'],
+];
+const IDENTITY_IDENTIFIER = /^[a-z][a-z0-9-]*$/;
+const IDENTITY_VERSION = /^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?$/;
+const IDENTITY_DIGEST = /^sha256:[a-f0-9]{64}$/;
+const MUTABLE_IDENTITY_ALIAS = /(?:^|[-_.:/])(?:alias|auto|current|default|latest|main|master|recommended|rolling|stable)(?:$|[-_.:/])/i;
+function bulletFieldCount(manifest, field) {
+    const pattern = new RegExp(`^\\s*-\\s*${field.split('_').join('[_ -]')}\\s*:`, 'i');
+    return manifest.lines.filter((line) => pattern.test(line)).length;
+}
+function profileFieldCount(manifest, field) {
+    return manifest.executionProfile.table?.rows.filter((row) => (row.cells.length >= 2
+        && row.cells[0]
+            .replace(/[`*]/g, '')
+            .replace(/_/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .toLowerCase() === field)).length || 0;
+}
+function exactIdentityLabel(value) {
+    return value.length > 0
+        && value === value.trim()
+        && !/[\u0000-\u001f\u007f]/.test(value)
+        && !MUTABLE_IDENTITY_ALIAS.test(value);
+}
+function normalizedRunReference(value) {
+    if (IDENTITY_DIGEST.test(value))
+        return true;
+    if (!value || value.startsWith('/') || value.includes('\\') || value.includes('\0')) {
+        return false;
+    }
+    const segments = value.split('/');
+    return segments.every((segment) => segment.length > 0 && segment !== '.' && segment !== '..');
+}
+function exactJsonIdentity(value) {
+    if (typeof value === 'string')
+        return exactIdentityLabel(value);
+    if (typeof value === 'boolean')
+        return true;
+    if (typeof value === 'number')
+        return Number.isFinite(value);
+    if (Array.isArray(value))
+        return value.length > 0 && value.every(exactJsonIdentity);
+    if (typeof value !== 'object' || value === null)
+        return false;
+    const entries = Object.entries(value);
+    return entries.length > 0
+        && entries.every(([key, entry]) => (key.length > 0
+            && !/[\u0000-\u001f\u007f]/.test(key)
+            && exactJsonIdentity(entry)));
+}
+function exactJsonObject(value) {
+    try {
+        const parsed = JSON.parse(value);
+        return typeof parsed === 'object'
+            && parsed !== null
+            && !Array.isArray(parsed)
+            && exactJsonIdentity(parsed);
+    }
+    catch {
+        return false;
+    }
+}
+export function forwardExecutionIdentityProblems(manifest) {
+    if (manifest.runFormatVersion !== CURRENT_RUN_FORMAT_VERSION)
+        return [];
+    const problems = [];
+    for (const display of FORWARD_IDENTITY_BULLET_FIELDS) {
+        const count = bulletFieldCount(manifest, display);
+        if (count !== 1) {
+            problems.push(`${display} must be defined exactly once; found ${count}`);
+        }
+    }
+    for (const [display, field] of FORWARD_IDENTITY_PROFILE_FIELDS) {
+        const count = profileFieldCount(manifest, field);
+        if (count !== 1) {
+            problems.push(`${display} must be defined exactly once; found ${count}`);
+        }
+    }
+    const identity = manifest.forwardIdentity;
+    for (const [field, value] of [
+        ['core_id', identity.coreId],
+        ['adapter_id', identity.adapterId],
+        ['bundle_id', identity.bundleId],
+    ]) {
+        if (!IDENTITY_IDENTIFIER.test(value)) {
+            problems.push(`${field} must be a lowercase immutable identifier`);
+        }
+    }
+    for (const [field, value] of [
+        ['core_version', identity.coreVersion],
+        ['adapter_version', identity.adapterVersion],
+        ['adapter_protocol_version', identity.adapterProtocolVersion],
+    ]) {
+        if (!IDENTITY_VERSION.test(value)) {
+            problems.push(`${field} must be an exact semantic version`);
+        }
+    }
+    for (const [field, value] of [
+        ['core_digest', identity.coreDigest],
+        ['adapter_digest', identity.adapterDigest],
+        ['bundle_digest', identity.bundleDigest],
+        ['checker_digest', identity.checkerDigest],
+        ['runtime_snapshot_digest', identity.runtimeSnapshotDigest],
+    ]) {
+        if (!IDENTITY_DIGEST.test(value)) {
+            problems.push(`${field} must be sha256:<lowercase hex>`);
+        }
+    }
+    if (!normalizedRunReference(identity.bundleLockRef)) {
+        problems.push('bundle_lock_ref must be a normalized run-relative or content-addressed reference');
+    }
+    if (!normalizedRunReference(identity.runtimeSnapshotRef)) {
+        problems.push('runtime_snapshot_ref must be a normalized run-relative reference');
+    }
+    if (!exactIdentityLabel(identity.hostIdentity)) {
+        problems.push('host_identity must be exact and must not be a mutable alias');
+    }
+    if (manifest.mode === 'manual') {
+        if (identity.adapterId !== 'core-manual') {
+            problems.push('manual forward-format runs must use adapter_id core-manual');
+        }
+        if (identity.hostIdentity !== 'human-operator') {
+            problems.push('manual forward-format runs must use host_identity human-operator');
+        }
+        if (identity.modelIds !== 'human') {
+            problems.push('manual forward-format runs must use model_ids human');
+        }
+        if (identity.adapterProfile !== 'n/a (core-manual)') {
+            problems.push('manual forward-format runs must use adapter profile n/a (core-manual)');
+        }
+        if (identity.modelExecutionMapping !== 'n/a (manual)') {
+            problems.push('manual forward-format runs must use model execution mapping n/a (manual)');
+        }
+    }
+    else {
+        if (identity.adapterId === 'core-manual') {
+            problems.push('agent and hybrid forward-format runs must name a real host adapter');
+        }
+        if (!exactJsonObject(identity.modelIds)) {
+            problems.push('model_ids must be a nonempty exact JSON object for agent or hybrid runs');
+        }
+        if (!/^.+ @ sha256:[a-f0-9]{64}$/.test(identity.adapterProfile)) {
+            problems.push('adapter profile ID + digest must include an exact sha256 digest');
+        }
+        if (!exactJsonObject(identity.modelExecutionMapping)) {
+            problems.push('model/context/effort mapping must be a nonempty exact JSON object');
+        }
+    }
+    return problems;
+}
+export function loadRunManifest(runDir) {
+    return parseManifest(readDocument(runDir, 'run-manifest.md'));
 }
 function parseCorpus(document) {
     if (!document)
@@ -101,6 +304,89 @@ function parsePackets(document) {
     return rowObjects(table, [
         'packetId', 'sourceId', 'locator', 'spanHash', 'quote', 'criterion', 'status',
     ]);
+}
+function parseExactEvidence(document) {
+    if (!document) {
+        return {
+            format: '',
+            records: [],
+            fragments: [],
+            transformations: [],
+            recordTable: null,
+            fragmentTable: null,
+            transformationTable: null,
+        };
+    }
+    const recordTable = findTable(document.tables, [
+        'evidence key',
+        'packet ids',
+        'evidence state',
+        'fragment count',
+        'join policy',
+        'exact evidence hash',
+        'degraded source id',
+        'degraded source locator',
+        'degradation reason',
+    ]);
+    const fragmentTable = findTable(document.tables, [
+        'fragment key',
+        'evidence key',
+        'packet id',
+        'fragment order',
+        'source id',
+        'locator',
+        'source relation',
+        'byte role',
+        'fragment hash',
+        'exact bytes base64',
+    ]);
+    const transformationTable = findTable(document.tables, [
+        'transform key',
+        'evidence key',
+        'output role',
+        'predecessor exact evidence hash',
+        'effective exact evidence hash',
+        'output text',
+        'output text hash',
+    ]);
+    return {
+        format: document.bullets.fields.get('exact evidence format') || '',
+        records: rowObjects(recordTable, [
+            'evidenceKey',
+            'packetIds',
+            'evidenceState',
+            'fragmentCount',
+            'joinPolicy',
+            'exactEvidenceHash',
+            'degradedSourceId',
+            'degradedSourceLocator',
+            'degradationReason',
+        ]),
+        fragments: rowObjects(fragmentTable, [
+            'fragmentKey',
+            'evidenceKey',
+            'packetId',
+            'fragmentOrder',
+            'sourceId',
+            'locator',
+            'sourceRelation',
+            'byteRole',
+            'fragmentHash',
+            'exactBytesBase64',
+        ]),
+        transformations: rowObjects(transformationTable, [
+            'transformKey',
+            'evidenceKey',
+            'outputRole',
+            'predecessorExactEvidenceHash',
+            'effectiveExactEvidenceHash',
+            'outputText',
+            'outputTextHash',
+        ]),
+        recordTable,
+        fragmentTable,
+        transformationTable,
+    };
 }
 function parseClaims(document) {
     if (!document)
@@ -300,6 +586,7 @@ export function loadRun(runDir) {
         corpus: parseCorpus(get('corpus/manifest.md')),
         criteria,
         packets: parsePackets(packetDocument),
+        exactEvidence: parseExactEvidence(packetDocument),
         claims: parseClaims(claimDocument),
         dispositionRows: parseDispositionRows(dispositionDocument),
         merges: parseMerges(mergeDocument),

@@ -50,7 +50,7 @@
           "const": "1.0.0-provisional"
         },
         "run_format_version": {
-          "const": "1.0.0-provisional"
+          "const": "1.1.0-provisional"
         },
         "lifecycle": {
           "$ref": "#/$defs/lifecycle"

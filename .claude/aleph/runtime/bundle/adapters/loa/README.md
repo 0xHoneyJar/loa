@@ -108,6 +108,11 @@ artifacts are prepared before mutation and deterministically rolled forward on
 resume. Exact excluded bytes are deleted before the retained corpus is made
 read-only; a partial or foreign after-image fails closed.
 
+New captures label every currently supported UTF-8 line-addressable text input
+with Core's `md-lines` scheme, independent of filename extension. Historical
+snapshots that recorded `text-lines` are not rewritten; their original pinned
+bundle/runtime remains authoritative.
+
 ## Durable run mechanics
 
 Runs live at `grimoires/loa/aleph/runs/RUN-*`. Canonical Core artifacts remain
@@ -129,6 +134,21 @@ kept beneath each run's `control/` directory:
   ledger and human-authority transaction journals under `transactions/` for
   deterministic resume-time rollback or roll-forward; and
 - `checks/` preserves exact checker invocations and reports.
+
+Every new Loa run renders the Core-defined forward identity into
+`run-manifest.md`. Before status, resume, authority transitions, or validation,
+Loa parses that manifest through Core and compares its run ID, format, Core,
+adapter, bundle, checker, protocol, host, profile, model, and runtime pins to
+`control/run-state.json` plus `control/original-bundle.lock.json`. Resume and
+validation additionally verify the retained runtime snapshot and bind its
+bundle, host, profile, and role-model mapping back to run state. The manifest
+cannot select compatibility: a retained 1.1 run that declares 1.0, removes the
+version, or changes a pin fails before the pinned checker runs.
+
+Retained 1.0 runs are not migrated and are not resumed by substituting this
+adapter. They continue under their original immutable bundle, runtime, and
+checker. The current repository's explicit legacy fixture checks document that
+boundary; they are not a downgrade path for a newly created run.
 
 Workers receive copied, read-only allowlisted bundles, never the run root or a
 ledger-writing handle. Prompt parts, stage sections, and return contracts are

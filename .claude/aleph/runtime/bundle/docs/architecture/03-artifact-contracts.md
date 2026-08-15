@@ -38,7 +38,11 @@ Artifacts 1–14 belong to the distillation engine, 15–17 to verification,
   state it interrupted (or by run end); all execution pins are exact, never
   aliases such as "latest"; the original bundle and runtime snapshot govern
   every resumption. Historical fixtures retain their recorded predecessor
-  format rather than being silently repinned to current bytes.
+  format rather than being silently repinned to current bytes. Forward-format
+  Core checking validates the manifest's declared identity structure; a host
+  adapter separately binds those declarations to retained execution authority
+  and must reject version removal, downgrade, or pin disagreement before
+  invoking the run's pinned checker.
 
 ## 2. Corpus manifest and source inventory (`corpus/manifest.md`)
 
@@ -86,13 +90,51 @@ Artifacts 1–14 belong to the distillation engine, 15–17 to verification,
   extraction — the re-entry coordinates everything else resolves to.
 - **Producer → consumer:** S2 → S3 (claims), S7 (pre-clustering), routing
   cards, auditors ("why this cluster?" reopens packets).
-- **Fields per packet:** `PKT-NNNN`; `SRC-NNN`; span locator; span content
-  hash; verbatim-or-tight-quote of the span (bounded length); extraction note
-  (which criterion admitted it).
-- **Invariants:** every packet resolves to a reopenable span whose hash
-  matches; packets carry **no** disposition, no cluster verdicts, no stance
-  (the four-layer model's layer 1 is stance-neutral); packet IDs stable under
-  re-runs (hash-matched, per the ID rules).
+- **Legacy fields per packet:** `PKT-NNNN`; `SRC-NNN`; span locator; span
+  content hash; quote/display preview; extraction note (which criterion
+  admitted it). Historical `1.0.0-provisional` and pre-versioned packet
+  ledgers without an `exact_evidence_format` marker retain this predecessor
+  interpretation and are never silently migrated.
+- **Compatibility:** run format `1.1.0-provisional` makes the versioned
+  exact-evidence extension mandatory whenever the run reaches S2. Existing
+  runs remain governed by their original bundle/runtime pins; their packet
+  bytes are not reinterpreted. Absence of the marker is permitted only for
+  the predecessor run format (or pre-versioned historical artifacts), not as
+  an optional capability switch in a new run.
+- **Versioned exact-evidence extension:** a packet ledger that declares
+  `exact_evidence_format: aleph-exact-evidence/v1` also contains:
+  - evidence records with ordered packet IDs, `exact` or
+    `degraded-non-exact` state, fragment count, join policy, exact-evidence
+    hash, degraded source ID/locator, and degradation reason;
+  - fragment records with ledger-local key, evidence key, packet ID, explicit
+    order, source ID, locator, `frozen-source` relation,
+    `exact-source-bytes` role, fragment hash, and canonical base64 bytes; and
+  - transformation records with `rendered` or `normalized` role, predecessor
+    and effective exact-evidence hashes, output text, and output-text hash.
+- **Join-policy vocabulary:** `single-fragment` means exactly one fragment;
+  `adjacent-fragments` means two or more consecutive `md-lines` fragments in
+  one source; `separate-fragments` means two or more ordered fragments that
+  remain visibly separate. `not-applicable` is reserved for
+  `degraded-non-exact` records. No policy inserts hidden bytes.
+- **Exact-evidence digest:** SHA-256 over the UTF-8 domain
+  `aleph-exact-evidence/v1` plus NUL, followed by each fragment in declared
+  order as unsigned 64-bit big-endian byte length plus the exact fragment
+  bytes. This framing preserves fragment order and boundaries without
+  pretending that discontiguous fragments form one source string.
+- **Invariants:** every exact fragment resolves to a frozen source row and
+  file; source, packet, locator, fragment hash, and canonical base64 bytes
+  agree; every packet in the versioned form is covered exactly once; fragment
+  order and join policy are valid; and rendered/normalized transformations
+  preserve the predecessor/effective exact-evidence identity. A degraded
+  record has no packet, fragment, join, or exact hash; it must retain a source
+  ID, source-local locator, rendered transformation, and reason so the
+  non-exact rendering remains durably tied to what was degraded.
+  Packets carry **no** disposition, cluster verdict, or stance; packet IDs
+  remain stable under re-runs.
+- **Verification boundary:** deterministic PASS proves source-byte and
+  structural fidelity only. It does not prove entailment, packetization
+  quality, normalization quality, atomicity, extraction completeness, source
+  trustworthiness, or correct interpretation.
 
 ## 5. Candidate-claim inventory (`ledgers/claim-inventory.md`)
 
@@ -111,8 +153,9 @@ Artifacts 1–14 belong to the distillation engine, 15–17 to verification,
   one disposition; seven-disposition coverage per corpus where applicable;
   ledger accounting balances; C1–C8 cross-section consistency); additionally —
   every claim's provenance set is non-empty and resolves through packets to
-  sources; normalized statements contain no external facts absent from the
-  provenance spans (spot-checked by T2, not mechanically).
+  sources; normalized statements remain separate from exact evidence and
+  contain no external facts absent from the provenance spans (spot-checked by
+  T2, not mechanically).
 - **Note on claim type:** this is a *proposed* extension to the §4 table. It
   must earn its place via a fixture; if it turns out to be prose-policing bait
   it gets dropped. It is deliberately **not** the disposition axis and not the

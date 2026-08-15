@@ -5,9 +5,23 @@
 ```markdown
 # Packet Index — ⟨RUN-slug⟩
 
+- exact_evidence_format: aleph-exact-evidence/v1
+
 ## Packets
 | packet_id | source_id | locator | span_hash | quote | criterion | status |
 |-----------|-----------|---------|-----------|-------|-----------|--------|
+
+## Exact evidence records
+| evidence_key | packet_ids | evidence_state | fragment_count | join_policy | exact_evidence_hash | degraded_source_id | degraded_source_locator | degradation_reason |
+|--------------|------------|----------------|----------------|-------------|---------------------|--------------------|-------------------------|--------------------|
+
+## Ordered fragments
+| fragment_key | evidence_key | packet_id | fragment_order | source_id | locator | source_relation | byte_role | fragment_hash | exact_bytes_base64 |
+|--------------|--------------|-----------|----------------|-----------|---------|-----------------|-----------|---------------|--------------------|
+
+## Evidence transformations
+| transform_key | evidence_key | output_role | predecessor_exact_evidence_hash | effective_exact_evidence_hash | output_text | output_text_hash |
+|---------------|--------------|-------------|---------------------------------|-------------------------------|-------------|------------------|
 
 ## Per-source completion  <!-- one row per source; S2 DoD needs every row -->
 | source_id | walked | packets | declared complete by | note |
@@ -18,13 +32,44 @@ Column rules:
 
 - `locator` uses the source's scheme from the corpus manifest (`L118-L131`,
   `M14:S2`). `span_hash` = sha256 of the exact span bytes at freeze.
-- `quote`: tight verbatim quote, ≤ ~60 words; longer spans quote the
-  load-bearing sentence(s) and rely on the locator for the rest.
+- In `aleph-exact-evidence/v1`, use one packet per exact fragment. `quote` is
+  a bounded display preview only and is never exact evidence. Run format
+  `1.1.0-provisional` requires this marker and the three versioned tables once
+  S2 is reached. Historical `1.0.0-provisional` and pre-versioned packet
+  ledgers without the marker retain their predecessor behavior and are not
+  reinterpreted.
 - `criterion`: the admission-criterion number from T2.2. A walked span that
   matched an exclusion class gets **no row** (that is the recorded
   two-level boundary); a span refused by a classifier gets a row with
   `criterion = refusal-blocked` so completeness accounting still balances.
 - `status`: `active` | `superseded-by:PKT-xxxx` | `retracted:⟨reason⟩`.
+- `evidence_state`: `exact` | `degraded-non-exact`. Every packet appears in
+  exactly one `exact` evidence record. A degraded record uses `packet_ids =
+  none`, `fragment_count = 0`, `join_policy = not-applicable`,
+  `exact_evidence_hash = none`, an existing `degraded_source_id`, a locator
+  under that source's declared scheme, and a nonempty reason. Exact records
+  use `none` for both degraded provenance fields.
+- `join_policy`: `single-fragment` (exactly one);
+  `adjacent-fragments` (two or more consecutive `md-lines` fragments in one
+  source); `separate-fragments` (two or more ordered fragments kept visibly
+  separate). No policy inserts hidden bytes.
+- Every fragment has a positive explicit order, a source and packet binding,
+  `source_relation = frozen-source`, `byte_role = exact-source-bytes`, the
+  fragment SHA-256, and canonical base64 of the exact located bytes. Version
+  1 supports exact reopening only for `md-lines`; unsupported locator schemes
+  use `degraded-non-exact` until a separately reviewed verifier exists.
+- `exact_evidence_hash` is SHA-256 over UTF-8
+  `aleph-exact-evidence/v1` plus NUL followed, in declared order, by each
+  fragment encoded as an unsigned 64-bit big-endian byte length plus its exact
+  bytes. Length framing preserves boundaries without silently joining source
+  text.
+- A transformation's `output_role` is `rendered` or `normalized`; its output
+  text has its own UTF-8 SHA-256. For exact evidence, both predecessor and
+  effective exact-evidence hashes equal the evidence record hash. A
+  transformation records mechanical identity, not semantic adequacy.
+- A degraded transformation is rendered and explicitly non-exact. Its source
+  binding does not prove the rendering matches inaccessible bytes, OCR,
+  layout, or source meaning, and it cannot support a packet as exact evidence.
 
 <!-- example -->
 | PKT-0007 | SRC-101 | L5-L8 | sha256:aa10… | "Gating appears to improve member retention: members who must hold to stay in tend to stick around longer…" | 1 | active |
@@ -41,6 +86,9 @@ Column rules:
 
 - `packets`: comma-joined `PKT-…` (≥1). `sources`: derived union of those
   packets' `SRC-…` — kept denormalized because Précis §4 renders from it.
+- `normalized claim` is semantic restatement, never an exact-evidence field.
+  Normalization must leave every cited packet's exact fragment records and
+  predecessor/effective exact-evidence hashes unchanged.
 - `claim_type` (provisional set, Q5): `factual` | `design-intent` |
   `constraint` | `preference` | `open-question`.
 - `disposition`: exactly one of the seven (`carried`, `merged`, `deferred`,

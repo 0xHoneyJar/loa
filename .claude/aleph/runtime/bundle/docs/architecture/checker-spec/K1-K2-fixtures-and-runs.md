@@ -58,14 +58,15 @@ scope.
 
 - K2.1 (`layout`): `run-manifest.md`, `run-log.md`, and
   `corpus/manifest.md` are always required. Once the manifest state log reaches
-  `DISTILLING`, the S1-S5 base artifacts are also required:
+  `DISTILLING`, or mechanically observable S2 evidence establishes that floor
+  for a current-format run, the S1-S5 base artifacts are also required:
   `ledgers/extraction-criteria.md`, `ledgers/packet-index.md`,
   `ledgers/claim-inventory.md`, and `ledgers/disposition-ledger.md`. Others
   (merge-map, evidence-roles, clusters/, arms/, precis.md, verification/) are
   required **iff** the manifest's state log shows the run reached the state
   that produces them (state→artifact table hardcoded from doc 04's "Emits"
   column).
-- K2.2 (`manifest`, legacy predecessor format): manifest carries mode, doctrine_sha (40-hex), corpus
+- K2.2 (`manifest`): every format carries mode, doctrine_sha (40-hex), corpus
   hash, exactly one `run_id` (`RUN-<slug>`), exactly one `predecessor_run`
   (`none` or a different `RUN-<slug>`), and ≥1 state-log row; every state-log
   transition follows an edge of the
@@ -74,10 +75,28 @@ scope.
   the state it interrupted (or by run end); timestamps never move backwards;
   S0 approval predates the first S2 packetization entry; and each
   `PROJECTION-ACCEPTED` cycle has a positive P3 sign-off row.
-  Decision 0004's forward run format additionally requires exact
-  Core/adapter/bundle/checker/protocol/run-format/host/model/runtime pins.
+  In a current-format run, mechanically observable S2 evidence — including a
+  packet index or packet rows, an S2 run-log entry, the exact-evidence marker,
+  or exact-evidence tables — cannot coexist with a state log that stops before
+  `DISTILLING`.
+  Decision 0004's `1.1.0-provisional` forward run format additionally requires
+  exactly one structurally valid Core ID/version/digest; adapter
+  ID/version/digest; bundle ID/digest/lock reference; checker digest;
+  adapter-protocol and run-format version; host identity; model identities and
+  realized mapping; adapter-profile ID/digest; and runtime-snapshot
+  reference/digest. These are mechanical identity and shape checks only.
   The accepted `run-slice-2` golden predates that format and is not silently
-  migrated; the first new-format run fixture must extend K2.2 in lockstep.
+  migrated; `exact-evidence-fragments` is the first complete forward-format
+  fixture.
+
+  A host-neutral checker cannot authenticate a removed or downgraded mutable
+  manifest version against historical provenance that is absent from the run's
+  Core bytes. A live adapter must therefore compare the Core-parsed manifest to
+  its retained run state, original bundle lock, and immutable runtime identity
+  before invoking the pinned checker. Existing 1.0 runs remain governed by
+  their original immutable bundle/runtime/checker; this current-repository
+  legacy fixture exercise is not permission for a new 1.1 run to self-select
+  legacy validation.
 - K2.3 (`forbidden tokens`, fixture runs only): the fixture-layer
   absolute-forbidden token scan (same zero-tolerance semantics, same token
   list as the existing checker) applied to every canonical Core file of a run directory
@@ -134,6 +153,34 @@ scope.
   every result field is PASS/FAIL; explicitly historical or superseded reports
   may retain their retired JavaScript command; a run whose manifest reached
   VERIFIED must have a PASS report from the TypeScript checker.
+- K2.13 (`exact evidence and ordered fragments`): retained
+  `1.0.0-provisional` and pre-versioned historical runs without
+  `exact_evidence_format` preserve the legacy K2.4 interpretation and are not
+  reinterpreted. In run format `1.1.0-provisional`, the marker is mandatory
+  once `DISTILLING` is reached and must equal
+  `aleph-exact-evidence/v1`; its absence is a failure, not a legacy fallback.
+  The packet index must contain exact-evidence, ordered-fragment, and
+  transformation tables. Every packet is covered exactly once by an `exact`
+  evidence record. Every fragment resolves through its source row and packet
+  to a readable frozen `md-lines` span; the whole-source content hash, locator
+  bounds, canonical base64 bytes, fragment hash, explicit table/order value,
+  ordered packet list, and framed exact-evidence hash must agree.
+  `single-fragment`, `adjacent-fragments`, and `separate-fragments` are the
+  only exact join policies; they describe relationship/presentation and add no
+  bytes. Rendered/normalized transformations have their own text hashes and
+  must preserve equal predecessor/effective exact-evidence hashes. A
+  `degraded-non-exact` record has no packet, fragment, join, or exact hash and
+  requires an existing source ID whose frozen locus and whole-source hash
+  resolve, a structurally valid source-local locator, a rendered
+  transformation, and a reason. For `md-lines`, Core also verifies that the
+  declared line range is within the frozen source. Schemes with known grammar
+  but no Core reopener remain explicitly structurally checked but mechanically
+  unverified. None of these checks compare degraded rendered text to exact
+  bytes or claim that rendering is faithful.
+
+K2.13 proves only frozen-source byte fidelity and declared structure. It does
+not prove semantic entailment, good packetization, good normalization, correct
+interpretation, atomicity, complete extraction, or source trustworthiness.
 
 **False-positive guards:** prose mentions like "no `CC-999` exists" are NOT
 exempt — same context-free strictness as the existing forbidden-token scan;
@@ -155,4 +202,13 @@ inventory row with two dispositions → K2.6; ledger total off by one
 → K2.7; absorbed claim missing a source in canonical set → K2.8; criteria
 timestamp after first S2 log entry → K2.9; `superseded-by:PKT-0999`
 (nonexistent) → K2.10; §4 in precis.md missing one active claim → K2.11.
-Clean golden run → exit 0.
+The Slice-1 K2.13 battery additionally mutates curly quotation bytes, a
+ligature, newline bytes, fragment row order, an undeclared join, a normalized
+  byte role substituted for exact evidence, a missing frozen source file, a
+  fragment hash, locator bounds, a normalization event's effective exact hash,
+  new-format marker activation, forward-identity completeness, suppressed
+  `DISTILLING` with retained S2 evidence, degraded locator bounds, a missing
+  degraded frozen locus, and degraded exact-claim constraints. Each must fail
+  its named K2 invariant. The pre-versioned
+golden remains a positive legacy lock; the `1.1.0-provisional` exact-evidence
+fixture is the positive current-format lock.

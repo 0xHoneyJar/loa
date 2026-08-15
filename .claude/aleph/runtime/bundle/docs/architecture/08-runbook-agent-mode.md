@@ -106,19 +106,27 @@ h. Run-log the stage exit with counts and spend. Commit the run
 
 Stage-specific amplifications (read with doc 04):
 
-- **S0:** normalize losslessly. Chat exports keep speaker structure and
-  ordering; do not "clean" filler — the extraction criteria handle noise, not
-  the intake. Surface sensitivity candidates conservatively (better to ask
-  about ten harmless spans than miss one PII leak).
+- **S0:** preserve source bytes losslessly. Chat exports keep newline bytes,
+  punctuation, ligatures, speaker structure, ordering, and filler; do not
+  "clean" them — the extraction criteria handle noise, not the intake. If
+  only a rendering is available, mark it degraded rather than exact. Surface
+  sensitivity candidates conservatively (better to ask about ten harmless
+  spans than miss one PII leak).
 - **S1:** write the criteria before you have opinions. If while drafting them
   you catch yourself already classifying content, stop and write the
   *criterion* the instinct implies instead.
 - **S2:** over-extract rather than pre-filter; the disposition ledger is where
   non-load-bearing material goes to be recorded, not the cutting-room floor.
   Walk every source to the end; declare per-source completion explicitly.
+  Reopen exact bytes for every ordered fragment, use one packet per fragment,
+  declare the Core join policy, and keep display text separate. A
+  `degraded-non-exact` rendering is not a packet; retain its source ID,
+  source-local locator, reason, and rendered transformation.
 - **S3:** a restatement must be entailed by its packets. If you need context
   from elsewhere in the source to state the claim faithfully, widen the
-  packet (new locator) — do not import unpacketed context invisibly.
+  packet (new locator) — do not import unpacketed context invisibly. Write
+  normalized claim text separately and leave exact fragments, order, and
+  evidence identity unchanged.
 - **S4:** when in doubt, don't merge — two similar-but-distinct claims cost a
   little compactness; one lazy merge costs a contradiction its visibility.
 - **S5:** the seven dispositions are the only vocabulary. "Sort of carried"
@@ -160,7 +168,10 @@ On waking into an existing run: restore and verify the exact original bundle
 lock and immutable runtime snapshot, then read the manifest and run log, verify
 ledger hashes, find the first unmet DoD item, and continue from there. Never
 substitute a newer Core, adapter, checker, model, or runtime in place. If the
-directory contradicts the log or the original execution identity is
+manifest version or any forward identity pin disagrees with the retained run
+state, original lock, or runtime snapshot, stop; the manifest cannot select a
+weaker compatibility mode. If the directory contradicts the log or the
+original execution identity is
 unavailable, stop and flag — never reconcile by guessing. If you are a
 different agent than the one that started the run, say so in the run log and
 carry on; the pinned files, not your predecessor's memory, are the run.

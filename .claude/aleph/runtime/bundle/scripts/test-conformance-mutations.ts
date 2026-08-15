@@ -23,6 +23,7 @@ const RUN_CHECKER = join(REPO_ROOT, 'scripts', 'validate-run.ts');
 const EXPECTED_CASES = new Map<string, number>([
   ['K1', 5],
   ['K2', 22],
+  ['K2E', 21],
   ['K3', 8],
   ['K4/K5', 9],
   ['K6', 11],
@@ -32,6 +33,7 @@ const options = {
   json: false,
   help: false,
   error: '',
+  group: '',
 };
 
 type CheckStatus = 'PASS' | 'FAIL';
@@ -71,18 +73,26 @@ type FixtureMutation = (fixturePath: string, root: string) => void;
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
-for (const arg of process.argv.slice(2)) {
+const argv = process.argv.slice(2);
+for (let index = 0; index < argv.length; index++) {
+  const arg = argv[index];
   if (arg === '--json') options.json = true;
   else if (arg === '--help' || arg === '-h') options.help = true;
+  else if (arg === '--group') options.group = argv[++index] || '';
+  else if (arg.startsWith('--group=')) options.group = arg.slice('--group='.length);
   else options.error = `unknown argument "${arg}"`;
 }
 
 if (options.help) {
-  console.log('Usage: node scripts/test-conformance-mutations.ts [--json]');
+  console.log('Usage: node scripts/test-conformance-mutations.ts [--group GROUP] [--json]');
   process.exit(0);
 }
 if (options.error) {
   console.error(options.error);
+  process.exit(2);
+}
+if (options.group && !EXPECTED_CASES.has(options.group)) {
+  console.error(`unknown mutation group "${options.group}"`);
   process.exit(2);
 }
 
@@ -151,6 +161,30 @@ function removeLine(path: string, pattern: RegExp): void {
   const index = lines.findIndex((line) => pattern.test(line));
   if (index < 0) throw new Error(`${path} has no line matching ${pattern}`);
   lines.splice(index, 1);
+  writeFileSync(path, lines.join('\n'));
+}
+
+function replaceEncodedUtf8(path: string, before: string, after: string): void {
+  replaceOnce(
+    path,
+    Buffer.from(before, 'utf8').toString('base64'),
+    Buffer.from(after, 'utf8').toString('base64'),
+  );
+}
+
+function swapAdjacentLines(
+  path: string,
+  firstPrefix: string,
+  secondPrefix: string,
+): void {
+  const text = readFileSync(path, 'utf8');
+  const lines = text.split('\n');
+  const first = lines.findIndex((line) => line.startsWith(firstPrefix));
+  const second = lines.findIndex((line) => line.startsWith(secondPrefix));
+  if (first < 0 || second !== first + 1) {
+    throw new Error(`${path} does not contain adjacent rows ${firstPrefix} / ${secondPrefix}`);
+  }
+  [lines[first], lines[second]] = [lines[second], lines[first]];
   writeFileSync(path, lines.join('\n'));
 }
 
@@ -324,21 +358,30 @@ function addFailureCase(
   fixture: string,
   expectedId: string,
   mutate: FixtureMutation,
+  messagePattern: RegExp | null = null,
 ): void {
   addCase(group, name, (root) => {
     const relativePath = join('docs', 'fixtures', fixture);
     const fixturePath = copyFixture(fixture, root, relativePath);
     mutate(fixturePath, root);
-    requireFailure(runFixture(root, relativePath), expectedId);
+    const report = requireFailure(runFixture(root, relativePath), expectedId);
+    if (messagePattern) requireCheck(report, expectedId, 'FAIL', messagePattern);
   });
 }
 
-function runBaseline(name: string, fixture: string, ids: readonly string[]): void {
+function runBaseline(
+  name: string,
+  fixture: string,
+  ids: readonly string[],
+  messagePatterns: ReadonlyMap<string, RegExp> = new Map(),
+  prepare: FixtureMutation | null = null,
+): void {
   const root = sandbox(`baseline-${name}`);
   const relativePath = join('docs', 'fixtures', fixture);
   try {
-    copyFixture(fixture, root, relativePath);
-    requirePass(runFixture(root, relativePath), ids);
+    const fixturePath = copyFixture(fixture, root, relativePath);
+    prepare?.(fixturePath, root);
+    requirePass(runFixture(root, relativePath), ids, messagePatterns);
     baselineResults.push({ name, status: 'PASS' });
     if (!options.json) console.log(`PASS baseline ${name}`);
   } catch (error) {
@@ -715,6 +758,386 @@ addFailureCase('K2', 'Precis section 4 omits an active claim', 'run-slice-2', 'K
   removeLine(join(path, 'precis.md'), /^\| CC-114 \|/);
 });
 
+// K2E: adopted calibration Slice 1 exact-byte and ordered-fragment failures.
+addFailureCase(
+  'K2E',
+  'curly-quote drift',
+  'exact-evidence-fragments',
+  'K2.13',
+  (path) => {
+    replaceEncodedUtf8(
+      join(path, 'ledgers', 'packet-index.md'),
+      'The console recorded “exact” status for the ﬂow.\n',
+      'The console recorded "exact" status for the ﬂow.\n',
+    );
+  },
+  /FRAG-0301 exact bytes differ from frozen source/,
+);
+
+addFailureCase(
+  'K2E',
+  'ligature drift',
+  'exact-evidence-fragments',
+  'K2.13',
+  (path) => {
+    replaceEncodedUtf8(
+      join(path, 'ledgers', 'packet-index.md'),
+      'The console recorded “exact” status for the ﬂow.\n',
+      'The console recorded “exact” status for the flow.\n',
+    );
+  },
+  /FRAG-0301 exact bytes differ from frozen source/,
+);
+
+addFailureCase(
+  'K2E',
+  'newline-byte change',
+  'exact-evidence-fragments',
+  'K2.13',
+  (path) => {
+    replaceEncodedUtf8(
+      join(path, 'ledgers', 'packet-index.md'),
+      'The console recorded “exact” status for the ﬂow.\n',
+      'The console recorded “exact” status for the ﬂow.\r\n',
+    );
+  },
+  /FRAG-0301 exact bytes differ from frozen source/,
+);
+
+addFailureCase(
+  'K2E',
+  'fragment order swap',
+  'exact-evidence-fragments',
+  'K2.13',
+  (path) => {
+    swapAdjacentLines(
+      join(path, 'ledgers', 'packet-index.md'),
+      '| FRAG-0304 |',
+      '| FRAG-0305 |',
+    );
+  },
+  /EVID-0303 fragment rows must appear in explicit fragment_order/,
+);
+
+addFailureCase(
+  'K2E',
+  'undeclared fragment join',
+  'exact-evidence-fragments',
+  'K2.13',
+  (path) => {
+    replaceOnce(
+      join(path, 'ledgers', 'packet-index.md'),
+      '| EVID-0303 | PKT-0304, PKT-0305 | exact | 2 | separate-fragments |',
+      '| EVID-0303 | PKT-0304, PKT-0305 | exact | 2 | |',
+    );
+  },
+  /EVID-0303 join_policy "\(blank\)" is undeclared/,
+);
+
+addFailureCase(
+  'K2E',
+  'normalized text substitutes for exact evidence',
+  'exact-evidence-fragments',
+  'K2.13',
+  (path) => {
+    replaceOnce(
+      join(path, 'ledgers', 'packet-index.md'),
+      '| FRAG-0301 | EVID-0301 | PKT-0301 | 1 | SRC-301 | L3-L3 | frozen-source | exact-source-bytes |',
+      '| FRAG-0301 | EVID-0301 | PKT-0301 | 1 | SRC-301 | L3-L3 | frozen-source | normalized-text |',
+    );
+  },
+  /FRAG-0301 byte_role "normalized-text" cannot substitute/,
+);
+
+addFailureCase(
+  'K2E',
+  'missing frozen source bytes',
+  'exact-evidence-fragments',
+  'K2.13',
+  (path) => {
+    rmSync(join(path, 'corpus', 'sources', 'SRC-301-exact-evidence.md'));
+  },
+  /FRAG-0301 frozen source locus .* is not a readable file/,
+);
+
+addFailureCase(
+  'K2E',
+  'changed fragment hash',
+  'exact-evidence-fragments',
+  'K2.13',
+  (path) => {
+    replaceOnce(
+      join(path, 'ledgers', 'packet-index.md'),
+      '| exact-source-bytes | sha256:725fc130d2473090f51c7456b74d34683b57793729f80ccea7b56aeb92931cfe | QWRqYWNlbnQgZnJhZ21lbnQgb25lLgo= |',
+      '| exact-source-bytes | sha256:025fc130d2473090f51c7456b74d34683b57793729f80ccea7b56aeb92931cfe | QWRqYWNlbnQgZnJhZ21lbnQgb25lLgo= |',
+    );
+  },
+  /FRAG-0302 fragment_hash does not match exact source bytes/,
+);
+
+addFailureCase(
+  'K2E',
+  'invalid exact-fragment locator bounds',
+  'exact-evidence-fragments',
+  'K2.13',
+  (path) => {
+    replaceOnce(
+      join(path, 'ledgers', 'packet-index.md'),
+      '| FRAG-0304 | EVID-0303 | PKT-0304 | 1 | SRC-301 | L5-L5 |',
+      '| FRAG-0304 | EVID-0303 | PKT-0304 | 1 | SRC-301 | L99-L99 |',
+    );
+  },
+  /FRAG-0304 locator L99-L99 is outside SRC-301/,
+);
+
+addFailureCase(
+  'K2E',
+  'normalization changes exact evidence identity',
+  'exact-evidence-fragments',
+  'K2.13',
+  (path) => {
+    replaceOnce(
+      join(path, 'ledgers', 'packet-index.md'),
+      '| XFORM-0302 | EVID-0301 | normalized | sha256:0ca32f456702bd71ce592fd5c3b29785fe1a3bf8c699bd558b2a1d9f472b0e2b | sha256:0ca32f456702bd71ce592fd5c3b29785fe1a3bf8c699bd558b2a1d9f472b0e2b |',
+      '| XFORM-0302 | EVID-0301 | normalized | sha256:0ca32f456702bd71ce592fd5c3b29785fe1a3bf8c699bd558b2a1d9f472b0e2b | sha256:1ca32f456702bd71ce592fd5c3b29785fe1a3bf8c699bd558b2a1d9f472b0e2b |',
+    );
+  },
+  /XFORM-0302 changes exact evidence identity during normalized/,
+);
+
+addFailureCase(
+  'K2E',
+  'current run omits exact-evidence activation marker',
+  'exact-evidence-fragments',
+  'K2.13',
+  (path) => {
+    removeLine(
+      join(path, 'ledgers', 'packet-index.md'),
+      /^- exact_evidence_format: aleph-exact-evidence\/v1$/,
+    );
+  },
+  /run format 1\.1\.0-provisional requires exact_evidence_format aleph-exact-evidence\/v1/,
+);
+
+addCase('K2E', 'current run requires complete forward execution identity', (root) => {
+  const requiredFields = [
+    'core_id',
+    'core_version',
+    'core_digest',
+    'adapter_id',
+    'adapter_version',
+    'adapter_digest',
+    'bundle_id',
+    'bundle_digest',
+    'bundle_lock_ref',
+    'checker_digest',
+    'adapter_protocol_version',
+    'host_identity',
+    'runtime_snapshot_ref',
+    'runtime_snapshot_digest',
+  ];
+  for (const field of requiredFields) {
+    const relativePath = join(
+      'docs',
+      'fixtures',
+      `exact-evidence-missing-${field.replaceAll('_', '-')}`,
+    );
+    const path = copyFixture('exact-evidence-fragments', root, relativePath);
+    removeLine(
+      join(path, 'run-manifest.md'),
+      new RegExp(`^- ${field}:`),
+    );
+    const report = requireFailure(runFixture(root, relativePath), 'K2.2');
+    requireCheck(
+      report,
+      'K2.2',
+      'FAIL',
+      new RegExp(`${field} must be defined exactly once`),
+    );
+  }
+
+  const profileRows = [
+    ['model_ids', /^\| model_ids \(per role, exact strings; or "human"\) \|/],
+    ['adapter profile ID + digest', /^\| adapter profile ID \+ digest \|/],
+    ['model/context/effort mapping actually used', /^\| model\/context\/effort mapping actually used \|/],
+  ] as const;
+  for (const [field, pattern] of profileRows) {
+    const relativePath = join(
+      'docs',
+      'fixtures',
+      `exact-evidence-missing-${field.replaceAll(/[^A-Za-z0-9]+/g, '-').toLowerCase()}`,
+    );
+    const path = copyFixture('exact-evidence-fragments', root, relativePath);
+    removeLine(join(path, 'run-manifest.md'), pattern);
+    const report = requireFailure(runFixture(root, relativePath), 'K2.2');
+    requireCheck(
+      report,
+      'K2.2',
+      'FAIL',
+      new RegExp(`${field.replace(/[+/]/g, '\\$&')} must be defined exactly once`),
+    );
+  }
+});
+
+addCase('K2E', 'S2 evidence cannot be hidden by suppressing DISTILLING', (root) => {
+  const relativePath = join('docs', 'fixtures', 'exact-evidence-state-suppressed');
+  const path = copyFixture('exact-evidence-fragments', root, relativePath);
+  removeLine(
+    join(path, 'run-manifest.md'),
+    /^\| 3 \| DISTILLING \| 2026-08-13 09:20 UTC \|/,
+  );
+  removeLine(
+    join(path, 'ledgers', 'packet-index.md'),
+    /^- exact_evidence_format: aleph-exact-evidence\/v1$/,
+  );
+  replaceRegexOnce(
+    join(path, 'ledgers', 'packet-index.md'),
+    /\n## Exact evidence records[\s\S]*?\n## Per-source completion\n/u,
+    '\n## Per-source completion\n',
+  );
+  const report = requireFailure(runFixture(root, relativePath), 'K2.2');
+  requireCheck(
+    report,
+    'K2.2',
+    'FAIL',
+    /state log understates DISTILLING/,
+  );
+  requireCheck(
+    report,
+    'K2.13',
+    'FAIL',
+    /run format 1\.1\.0-provisional requires exact_evidence_format aleph-exact-evidence\/v1/,
+  );
+});
+
+addFailureCase(
+  'K2E',
+  'degraded evidence missing source binding',
+  'exact-evidence-fragments',
+  'K2.13',
+  (path) => {
+    replaceOnce(
+      join(path, 'ledgers', 'packet-index.md'),
+      '| EVID-0304 | none | degraded-non-exact | 0 | not-applicable | none | SRC-301 | L10-L10 |',
+      '| EVID-0304 | none | degraded-non-exact | 0 | not-applicable | none | none | L10-L10 |',
+    );
+  },
+  /EVID-0304 degraded evidence requires a degraded_source_id/,
+);
+
+addFailureCase(
+  'K2E',
+  'degraded evidence references nonexistent source',
+  'exact-evidence-fragments',
+  'K2.13',
+  (path) => {
+    replaceOnce(
+      join(path, 'ledgers', 'packet-index.md'),
+      '| EVID-0304 | none | degraded-non-exact | 0 | not-applicable | none | SRC-301 | L10-L10 |',
+      '| EVID-0304 | none | degraded-non-exact | 0 | not-applicable | none | SRC-999 | L10-L10 |',
+    );
+  },
+  /EVID-0304 degraded source SRC-999 does not resolve/,
+);
+
+addFailureCase(
+  'K2E',
+  'degraded evidence has invalid source locator',
+  'exact-evidence-fragments',
+  'K2.13',
+  (path) => {
+    replaceOnce(
+      join(path, 'ledgers', 'packet-index.md'),
+      '| EVID-0304 | none | degraded-non-exact | 0 | not-applicable | none | SRC-301 | L10-L10 |',
+      '| EVID-0304 | none | degraded-non-exact | 0 | not-applicable | none | SRC-301 | L0-L0 |',
+    );
+  },
+  /EVID-0304 degraded locator "L0-L0" is not L<start>-L<end>/,
+);
+
+addFailureCase(
+  'K2E',
+  'degraded md-lines locator is outside the frozen source',
+  'exact-evidence-fragments',
+  'K2.13',
+  (path) => {
+    replaceOnce(
+      join(path, 'ledgers', 'packet-index.md'),
+      '| EVID-0304 | none | degraded-non-exact | 0 | not-applicable | none | SRC-301 | L10-L10 |',
+      '| EVID-0304 | none | degraded-non-exact | 0 | not-applicable | none | SRC-301 | L999-L999 |',
+    );
+  },
+  /EVID-0304 degraded locator L999-L999 is outside SRC-301/,
+);
+
+addFailureCase(
+  'K2E',
+  'degraded source locus is not readable',
+  'exact-evidence-fragments',
+  'K2.13',
+  (path) => {
+    replaceOnce(
+      join(path, 'corpus', 'manifest.md'),
+      '| SRC-301 | design-note | sources/SRC-301-exact-evidence.md | md-lines | sha256:f53ee9454205a5ca11c300add045a2cccf2748063383b68c79029b65fa831e6c | 2026-08-13 | model-generated | none | synthetic bytes selected to exercise the exact-evidence format |',
+      '| SRC-301 | design-note | sources/SRC-301-exact-evidence.md | md-lines | sha256:f53ee9454205a5ca11c300add045a2cccf2748063383b68c79029b65fa831e6c | 2026-08-13 | model-generated | none | synthetic bytes selected to exercise the exact-evidence format |\n'
+        + '| SRC-302 | design-note | sources/SRC-302-missing.md | md-lines | sha256:f53ee9454205a5ca11c300add045a2cccf2748063383b68c79029b65fa831e6c | 2026-08-13 | model-generated | none | missing degraded source fixture |',
+    );
+    replaceOnce(
+      join(path, 'ledgers', 'packet-index.md'),
+      '| EVID-0304 | none | degraded-non-exact | 0 | not-applicable | none | SRC-301 | L10-L10 |',
+      '| EVID-0304 | none | degraded-non-exact | 0 | not-applicable | none | SRC-302 | L10-L10 |',
+    );
+  },
+  /EVID-0304 degraded source SRC-302 locus "sources\/SRC-302-missing\.md" is not a readable file/,
+);
+
+addFailureCase(
+  'K2E',
+  'degraded evidence claims exact packet',
+  'exact-evidence-fragments',
+  'K2.13',
+  (path) => {
+    replaceOnce(
+      join(path, 'ledgers', 'packet-index.md'),
+      '| EVID-0304 | none | degraded-non-exact |',
+      '| EVID-0304 | PKT-0301 | degraded-non-exact |',
+    );
+  },
+  /EVID-0304 degraded evidence must not claim packet_ids/,
+);
+
+addFailureCase(
+  'K2E',
+  'degraded evidence claims exact hash',
+  'exact-evidence-fragments',
+  'K2.13',
+  (path) => {
+    replaceOnce(
+      join(path, 'ledgers', 'packet-index.md'),
+      '| EVID-0304 | none | degraded-non-exact | 0 | not-applicable | none |',
+      '| EVID-0304 | none | degraded-non-exact | 0 | not-applicable | sha256:0ca32f456702bd71ce592fd5c3b29785fe1a3bf8c699bd558b2a1d9f472b0e2b |',
+    );
+  },
+  /EVID-0304 degraded evidence must not claim an exact_evidence_hash/,
+);
+
+addFailureCase(
+  'K2E',
+  'degraded evidence claims exact fragment bytes',
+  'exact-evidence-fragments',
+  'K2.13',
+  (path) => {
+    const ledger = join(path, 'ledgers', 'packet-index.md');
+    const text = readFileSync(ledger, 'utf8');
+    const exactLine = text.split('\n').find((line) => line.startsWith('| FRAG-0301 |'));
+    if (!exactLine) throw new Error('exact fixture has no FRAG-0301 row');
+    const degradedLine = exactLine
+      .replace('| FRAG-0301 | EVID-0301 |', '| FRAG-0399 | EVID-0304 |');
+    writeFileSync(ledger, text.replace(exactLine, `${exactLine}\n${degradedLine}`));
+  },
+  /EVID-0304 degraded evidence must have zero exact fragments/,
+);
+
 // K3: the K3.4 and K3.6 cases mutate the two seeded issue-18 patterns.
 addFailureCase('K3', 'unknown evidence role', 'evidence-role-adversarial', 'K3.1', (path) => {
   replaceOnce(
@@ -984,23 +1407,63 @@ function verifyDeclaredCounts(): void {
 try {
   verifyDeclaredCounts();
 
-  runBaseline(
-    'golden run',
-    'run-slice-2',
-    ['K2.1', 'K2.12', 'K3.1', 'K3.8', 'K4.1', 'K4.6', 'K5.1', 'K5.4', 'K6.10'],
-  );
-  runBaseline(
-    'evidence roles',
-    'evidence-role-adversarial',
-    ['K3.1', 'K3.2', 'K3.3', 'K3.4', 'K3.5', 'K3.6', 'K3.7', 'K3.8'],
-  );
-  runBaseline(
-    'projection',
-    'projection-adversarial',
-    ['K6.1', 'K6.2', 'K6.3', 'K6.4', 'K6.5', 'K6.6', 'K6.7', 'K6.8', 'K6.9', 'K6.10'],
-  );
+  if (!options.group || ['K2', 'K4/K5'].includes(options.group)) {
+    runBaseline(
+      'golden run',
+      'run-slice-2',
+      ['K2.1', 'K2.12', 'K3.1', 'K3.8', 'K4.1', 'K4.6', 'K5.1', 'K5.4', 'K6.10'],
+    );
+  }
+  if (!options.group || options.group === 'K2E') {
+    runBaseline(
+      'legacy packet behavior',
+      'run-slice-2',
+      ['K2.13'],
+      new Map([
+        ['K2.13', /legacy run format \(pre-versioned\) retains K2\.4 behavior/],
+      ]),
+    );
+    runBaseline(
+      'explicit 1.0 legacy packet behavior',
+      'run-slice-2',
+      ['K2.13'],
+      new Map([
+        ['K2.13', /legacy run format 1\.0\.0-provisional retains K2\.4 behavior/],
+      ]),
+      (path) => {
+        replaceOnce(
+          join(path, 'run-manifest.md'),
+          '- doctrine_sha: 2dc3549a0c6f3fed660b10743198409945c70b64',
+          '- doctrine_sha: 2dc3549a0c6f3fed660b10743198409945c70b64\n'
+            + '- run_format_version: 1.0.0-provisional',
+        );
+      },
+    );
+    runBaseline(
+      'exact evidence',
+      'exact-evidence-fragments',
+      ['K2.4', 'K2.13'],
+    );
+  }
+  if (!options.group || options.group === 'K3') {
+    runBaseline(
+      'evidence roles',
+      'evidence-role-adversarial',
+      ['K3.1', 'K3.2', 'K3.3', 'K3.4', 'K3.5', 'K3.6', 'K3.7', 'K3.8'],
+    );
+  }
+  if (!options.group || options.group === 'K6') {
+    runBaseline(
+      'projection',
+      'projection-adversarial',
+      ['K6.1', 'K6.2', 'K6.3', 'K6.4', 'K6.5', 'K6.6', 'K6.7', 'K6.8', 'K6.9', 'K6.10'],
+    );
+  }
 
-  for (const test of cases) {
+  const selectedCases = options.group
+    ? cases.filter((test) => test.group === options.group)
+    : cases;
+  for (const test of selectedCases) {
     const root = sandbox(`${test.group}-${test.name}`);
     try {
       test.execute(root);
@@ -1031,7 +1494,9 @@ try {
 const failedBaselines = baselineResults.filter((record) => record.status === 'FAIL');
 const failedCases = caseResults.filter((record) => record.status === 'FAIL');
 const passedCases = caseResults.filter((record) => record.status === 'PASS').length;
-const expectedTotal = [...EXPECTED_CASES.values()].reduce((sum, value) => sum + value, 0);
+const expectedTotal = options.group
+  ? EXPECTED_CASES.get(options.group) || 0
+  : [...EXPECTED_CASES.values()].reduce((sum, value) => sum + value, 0);
 const result = failedBaselines.length === 0
   && failedCases.length === 0
   && passedCases === expectedTotal

@@ -68,8 +68,8 @@ all ledgers final.
 - **Actor:** Intake Clerk + the user; **authority gate** on scope.
 - **Blind-context rule:** none (nothing downstream exists yet) — but the
   intake conversation must not record dispositions or conclusions.
-- **Work:** normalize file formats losslessly (no summarizing, no cleaning
-  that changes meaning); assign provisional source groupings; surface
+- **Work:** preserve source bytes losslessly (no summarizing, cleaning,
+  newline conversion, or character substitution); assign provisional source groupings; surface
   sensitivity flags (PII, confidential) for the user to rule on; draft the
   scope statement (what is in, what is explicitly out); estimate size and
   propose budgets.
@@ -113,11 +113,24 @@ all ledgers final.
   scope-of-run chatter, no prior packets from other sources (prevents
   cross-source anchoring), no disposition vocabulary.
 - **Work:** walk each source exhaustively; for each admitted span record
-  locator + hash + tight quote + which criterion admitted it. Over-extraction
-  is the safe direction: a useless packet costs a `judged-non-load-bearing`
-  disposition later; a missed span costs completeness silently.
+  one or more ordered exact fragments, each with source + locator + hash +
+  exact base64 bytes, plus a separate display preview and the criterion that
+  admitted it. Use one packet per fragment. Declare `single-fragment`,
+  `adjacent-fragments`, or `separate-fragments`; never hide inserted text
+  between fragments. If exact bytes cannot be obtained, record a
+  source-bound `degraded-non-exact` rendering with its source locator, reason,
+  and no packet rather than reconstructing evidence. Over-extraction is the safe direction: a useless
+  packet costs a `judged-non-load-bearing` disposition later; a missed span
+  costs completeness silently.
 - **DoD:**
   - [ ] ⚙ every packet resolves (locator + hash) to its source span
+  - [ ] ⚙ every exact fragment's bytes and hash reopen against the frozen
+        source; fragment order, packet binding, join policy, and exact-evidence
+        digest verify
+  - [ ] ⚙ rendered/normalized transformations remain separate and preserve
+        predecessor/effective exact-evidence identity
+  - [ ] ⚙ degraded renderings retain source/locator provenance while claiming
+        no packet, fragment, or exact hash
   - [ ] ⚙ no packet carries stance/disposition/cluster vocabulary
   - [ ] ⚖ coverage spot-check: harness re-extracts N randomly sampled source
         segments blind and diffs against the index; misses beyond the
@@ -129,7 +142,8 @@ all ledgers final.
 
 - **Purpose:** turn packets into individually stated candidate claims —
   restated once, neutrally, with provenance.
-- **Inputs:** packet index (+ read-only corpus access for context windows
+- **Inputs:** packet index, including exact-evidence fragment and
+  transformation records (+ read-only corpus access for context windows
   around a packet).
 - **Outputs:** `ledgers/claim-inventory.md` (claims + provenance + claim type;
   dispositions still blank).
@@ -139,7 +153,9 @@ all ledgers final.
 - **Work:** one packet may yield zero, one, or several claims; several packets
   may support one claim (recorded, not merged yet). The neutral restatement
   must be entailed by the packet spans — adding outside knowledge here is the
-  fabrication failure mode.
+  fabrication failure mode. Normalization writes only normalized claim text;
+  it never edits, replaces, or relabels source fragments, display text, or
+  exact-evidence hashes.
 - **DoD:**
   - [ ] ⚙ every claim has ≥1 packet; every packet either yielded claims or is
         marked `no-claim` with one of the recorded criteria-reasons

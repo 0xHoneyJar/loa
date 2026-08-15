@@ -38,7 +38,7 @@
 |------|------------------|----------------------|
 | [`01-run-control.md`](01-run-control.md) | run manifest · run log · kernel report | `run-manifest.md`, `run-log.md`, `verification/kernel-report.md` |
 | [`02-corpus-intake.md`](02-corpus-intake.md) | corpus manifest · extraction criteria | `corpus/manifest.md`, `ledgers/extraction-criteria.md` |
-| [`03-extraction-claims.md`](03-extraction-claims.md) | packet index · claim inventory · disposition ledger · merge map | `ledgers/…` |
+| [`03-extraction-claims.md`](03-extraction-claims.md) | packet/exact-evidence index · claim inventory · disposition ledger · merge map | `ledgers/…` |
 | [`04-evidence-boundaries.md`](04-evidence-boundaries.md) | evidence roles · negative boundaries · unresolved queue · external referents | `ledgers/…` |
 | [`05-clustering-routing.md`](05-clustering-routing.md) | pre-cluster tags · route-cluster card · routing log | `clusters/…` |
 | [`06-arms-synthesis.md`](06-arms-synthesis.md) | stress-test matrix · reconciliation table · cluster synthesis · Précis assembly map | `arms/…`, `synthesis/…` |

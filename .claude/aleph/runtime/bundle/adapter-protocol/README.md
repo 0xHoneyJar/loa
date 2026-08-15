@@ -2,7 +2,7 @@
 
 > **Protocol version:** `1.0.0-provisional`
 >
-> **Run-format version:** `1.0.0-provisional`
+> **Run-format version:** `1.1.0-provisional`
 > **Status:** accepted foundation; the Loa host adapter is implemented but not
 > validated or sanctioned, while the other registered host remains planned
 
@@ -107,3 +107,9 @@ Before S0 closes, every new run must pin:
 Aliases such as `latest` are invalid. Core, adapter, checker, bundle, model, or
 runtime changes apply only to successor runs. A paused run resumes from its
 original verified bundle and runtime snapshot.
+
+Run format `1.1.0-provisional` is the first format in which a run that reaches
+S2 must declare `exact_evidence_format: aleph-exact-evidence/v1` and persist
+the corresponding exact-evidence tables. Retained `1.0.0-provisional` and
+pre-versioned historical runs keep their original packet interpretation under
+their pinned bundle/runtime; they are not migrated or reinterpreted.
