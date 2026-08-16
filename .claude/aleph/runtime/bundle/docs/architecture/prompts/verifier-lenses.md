@@ -25,16 +25,41 @@ output.
 ```json
 { "verdict": "upheld|refuted|cannot-determine",
   "rationale": "", "attacks_tried": [""],
-  "evidence_ids": [""], "missing_for_determination": null, "flags": [] }
+  "evidence_ids": [""],
+  "candidate_evidence": [{ "start_byte": 0, "end_byte": 0,
+    "source_locator": "", "exact_bytes_base64": "" }],
+  "missing_for_determination": null, "flags": [] }
 ```
+
+Only L1 uses `candidate_evidence`; every other lens returns an empty array.
 
 ## Lens charters
 
 ### L1 — coverage (S2 DoD)
-Attempt to find spans in the attached source segment that meet the attached
-criteria but have no packet. **Shown:** one source segment, criteria, the
-packet rows for that segment. **Withheld:** the rest of the run.
-`refuted` = you found a qualifying unpacketed span (list locators).
+Attempt to find spans in the complete attached frozen source that meet the
+attached criteria but are absent from the admitted packet evidence. **Shown:**
+one frozen source, its S1 criteria, primary walk accounting, and admitted
+packet/exact-evidence records for that source. **Withheld:** the rest of the
+run, producer rationale or hidden context, expected answers, calibration
+decisions, and any assertion that the extractor was correct.
+
+The orchestrator records the terminal primary cursor and Core review-basis
+digest for exactly these mechanically supplied inputs. That binding identifies
+what was reviewed; it does not prove fresh-context isolation or reviewer
+independence.
+
+Map the common verdict to the Core gap result:
+
+- `upheld` → `no-gap-candidate-found`;
+- `refuted` → `gap-candidate-found`;
+- `cannot-determine` → `cannot-determine`.
+
+For `gap-candidate-found`, populate `candidate_evidence` with each proposed
+source position and exact source-local locator/evidence candidate. For the
+other two results, return an empty array. You do not create packet IDs or write
+canonical ledgers, so an open candidate has no proposed packet or reconciliation
+event ID yet. For `cannot-determine`, name what prevented review. A
+no-gap result is semantic reviewer judgment, not deterministic recall proof.
 
 ### L2 — entailment (S3 DoD)
 Attempt to show the normalized claim is NOT entailed by its packets: added

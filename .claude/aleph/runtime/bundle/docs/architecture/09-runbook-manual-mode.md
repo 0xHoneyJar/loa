@@ -54,13 +54,41 @@ deeply, write down the criteria your instincts are using — honesty beats
 ritual purity.
 
 **S2 (packets).** Walk each source top to bottom with the criteria beside
-you. A packet row by hand uses every T3.1 field:
+you. Maintain `ledgers/source-walk.md` beside the packet index. Record
+contiguous zero-based half-open UTF-8 byte intervals from byte zero onward;
+classify each interval as admitted, no-candidate-observed, excluded, deferred,
+or unsupported. Record a next-work cursor whenever you stop. If two candidate
+events share one source position, give them one shared-position key and
+contiguous ordinals. If you stop after processing the first, the cursor remains
+at that position and points to ordinal 2; if you commit the siblings
+uninterrupted, do not fabricate an intermediate cursor. Do not advance to the
+next line until every shared sibling is committed. A packet row by hand uses
+every T3.1 field:
 `PKT-0042 | SRC-003 | L118-L131 | sha256:<hex> | "tight quote..." | 2 |
 active`. Canonical line ranges (or declared message locators for chat exports)
-are your locators; compute the span hash over the frozen bytes. Do a whole
-source in one sitting where possible — split
+are your locators; compute the span hash over the frozen bytes. For the
+versioned exact-evidence form, use one packet per fragment, copy each exact
+fragment as canonical base64, record explicit order, and declare
+`single-fragment`, `adjacent-fragments`, or `separate-fragments`. The quote is
+only a display preview. Never substitute normalized punctuation, ligatures,
+whitespace, or newlines; record unavailable bytes as degraded and non-exact
+with their source ID, source-local locator, and reason instead of creating a
+packet. Do a whole source in one sitting where possible — split
 sittings are where spans get skipped; if you must split, mark the exact
-resume point.
+next-work byte/event, predecessor record, and source hash. After the primary
+walk, perform a separate gap-review pass from the frozen source, criteria,
+walk, and packet evidence. Record the terminal primary cursor and recomputed
+review-basis digest before the result. Prefer a genuinely independent reviewer. If the
+same human must review in a later sitting, record that this is temporal
+separation, not proven fresh-context independence. Record no-gap-candidate,
+located gap-candidate, or cannot-determine. Validate and append any found
+candidate before closing the source; before reconciliation an open candidate
+has no packet/event IDs. Its reconciliation event must match the candidate
+coordinates and lie within the packet's exact fragment. A same-position
+reconciliation takes the next contiguous event ordinal without backdating a
+primary cursor or changing the primary review basis. Open or indeterminate
+results block S2. Neither a source-end cursor, review-basis digest, nor your
+no-gap result proves perfect recall or independent process isolation.
 
 **S3–S4 (claims, merges).** Draft claims on one pass, merge on a second,
 separate pass over the whole inventory (the barrier matters by hand too —
@@ -116,7 +144,9 @@ self-check worksheet (§4). For the ⚖ items, manual mode substitutes **sampled
 self-audit**: pick the samples doc 06 §3 marks exhaustive (all exclusions,
 all contradictions, all big merges) plus a handful per disposition class, and
 re-derive each cold before comparing. Record what you sampled — the sampling
-record is part of the honesty, not paperwork.
+record is part of the honesty, not paperwork. A same-person S2 gap review or
+S12 self-audit remains a documented manual limitation and must not be described
+as independently isolated.
 
 **S13 (acceptance).** Same as agent mode: branch, PR, independent audit,
 authority acceptance. Manual work gets no audit discount.

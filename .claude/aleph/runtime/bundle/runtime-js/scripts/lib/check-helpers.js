@@ -62,7 +62,12 @@ export function mdLineSpan(path, start, end) {
     if (bytes.length === 0)
         lineCount = 0;
     if (start < 1 || end < start || end > lineCount) {
-        return { bytes: null, lineCount };
+        return {
+            bytes: null,
+            lineCount,
+            startByte: null,
+            endByte: null,
+        };
     }
     const startOffset = starts[start - 1];
     let endOffset;
@@ -74,7 +79,12 @@ export function mdLineSpan(path, start, end) {
             ? bytes.length - 1
             : bytes.length;
     }
-    return { bytes: bytes.subarray(startOffset, endOffset), lineCount };
+    return {
+        bytes: bytes.subarray(startOffset, endOffset),
+        lineCount,
+        startByte: startOffset,
+        endByte: endOffset,
+    };
 }
 export function makeIndexes(model) {
     const maps = {

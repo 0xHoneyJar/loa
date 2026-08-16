@@ -23,6 +23,8 @@ export interface SourceLocation {
 export interface MdLineSpan {
   bytes: Buffer | null;
   lineCount: number;
+  startByte: number | null;
+  endByte: number | null;
 }
 
 type RunManifest = NonNullable<RunModel['manifest']>;
@@ -135,7 +137,12 @@ export function mdLineSpan(path: string, start: number, end: number): MdLineSpan
   if (bytes.length > 0 && bytes[bytes.length - 1] === 0x0a) lineCount -= 1;
   if (bytes.length === 0) lineCount = 0;
   if (start < 1 || end < start || end > lineCount) {
-    return { bytes: null, lineCount };
+    return {
+      bytes: null,
+      lineCount,
+      startByte: null,
+      endByte: null,
+    };
   }
   const startOffset = starts[start - 1];
   let endOffset;
@@ -146,7 +153,12 @@ export function mdLineSpan(path: string, start: number, end: number): MdLineSpan
       ? bytes.length - 1
       : bytes.length;
   }
-  return { bytes: bytes.subarray(startOffset, endOffset), lineCount };
+  return {
+    bytes: bytes.subarray(startOffset, endOffset),
+    lineCount,
+    startByte: startOffset,
+    endByte: endOffset,
+  };
 }
 
 export function makeIndexes(model: RunModel): DefinitionIndexes {
