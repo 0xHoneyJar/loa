@@ -2,7 +2,7 @@
 
 > **Protocol version:** `1.0.0-provisional`
 >
-> **Run-format version:** `1.0.0-provisional`
+> **Run-format version:** `1.3.0-provisional`
 > **Status:** accepted foundation; the Loa host adapter is implemented but not
 > validated or sanctioned, while the other registered host remains planned
 
@@ -107,3 +107,23 @@ Before S0 closes, every new run must pin:
 Aliases such as `latest` are invalid. Core, adapter, checker, bundle, model, or
 runtime changes apply only to successor runs. A paused run resumes from its
 original verified bundle and runtime snapshot.
+
+Run format `1.1.0-provisional` is the first format in which a run that reaches
+S2 must declare `exact_evidence_format: aleph-exact-evidence/v1` and persist
+the corresponding exact-evidence tables. Retained `1.0.0-provisional` and
+pre-versioned historical runs keep their original packet interpretation under
+their pinned bundle/runtime; they are not migrated or reinterpreted.
+
+Run format `1.2.0-provisional` retains the complete 1.1 exact-evidence
+contract and additionally requires `ledgers/source-walk.md` once S2 begins.
+That Core ledger records frozen-byte traversal intervals, extraction events,
+shared-position ordinals, next-work cursors, fresh gap-review results, and
+per-source closure. Review rows bind the terminal primary cursor and Core
+review-basis digest; open findings contain no future canonical IDs. Structural
+closure proves accounting only; it does not prove perfect recall, actual
+context isolation, or the semantic correctness of a gap reviewer.
+
+Run format `1.3.0-provisional` retains the complete 1.2 exact-evidence and
+source-walk contracts and additionally requires `ledgers/lineage.md` once S2
+begins. Durable packet and claim rows remain `active`; their currentness is
+derived from append-only unit-lineage events rather than status rewrites.

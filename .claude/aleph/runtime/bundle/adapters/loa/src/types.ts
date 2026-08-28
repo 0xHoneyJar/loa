@@ -329,6 +329,8 @@ export interface FrozenSourceRecord {
   byte_length: string;
   digest: string;
   mode: string;
+  // New captures use Core md-lines. text-lines remains readable only for
+  // historical snapshots governed by their original pinned runtime.
   scheme: 'md-lines' | 'text-lines';
 }
 

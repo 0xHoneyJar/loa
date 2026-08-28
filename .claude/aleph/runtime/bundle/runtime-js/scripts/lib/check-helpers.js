@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute, join, normalize, relative, resolve } from 'node:path';
 import { idsIn, normalizeHeader } from './markdown.js';
+import { usesLineage } from './run-model.js';
+import { lineageCurrentClaims } from './lineage.js';
 export function location(row) {
     const located = row;
     return `${located.file}:${located.line}`;
@@ -62,7 +64,12 @@ export function mdLineSpan(path, start, end) {
     if (bytes.length === 0)
         lineCount = 0;
     if (start < 1 || end < start || end > lineCount) {
-        return { bytes: null, lineCount };
+        return {
+            bytes: null,
+            lineCount,
+            startByte: null,
+            endByte: null,
+        };
     }
     const startOffset = starts[start - 1];
     let endOffset;
@@ -74,7 +81,12 @@ export function mdLineSpan(path, start, end) {
             ? bytes.length - 1
             : bytes.length;
     }
-    return { bytes: bytes.subarray(startOffset, endOffset), lineCount };
+    return {
+        bytes: bytes.subarray(startOffset, endOffset),
+        lineCount,
+        startByte: startOffset,
+        endByte: endOffset,
+    };
 }
 export function makeIndexes(model) {
     const maps = {
@@ -211,6 +223,9 @@ export function duplicateDefinitions(model) {
     return duplicates;
 }
 export function activeClaims(model) {
+    if (usesLineage(model.manifest?.runFormatVersion || '')) {
+        return lineageCurrentClaims(model);
+    }
     return model.claims.filter((claim) => claim.values.status === 'active');
 }
 export function activeRows(rows) {

@@ -3,7 +3,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute, join, normalize, relative, resolve } from 'node:path';
 import { idsIn, normalizeHeader } from './markdown.ts';
 import type { IdentifierFamily, MarkdownTableRow } from './markdown.ts';
+import { usesLineage } from './run-model.ts';
 import type { RouteCard, RunDocument, RunModel } from './run-model.ts';
+import { lineageCurrentClaims } from './lineage.ts';
 
 export type TimestampParts = readonly [
   year: number,
@@ -23,6 +25,8 @@ export interface SourceLocation {
 export interface MdLineSpan {
   bytes: Buffer | null;
   lineCount: number;
+  startByte: number | null;
+  endByte: number | null;
 }
 
 type RunManifest = NonNullable<RunModel['manifest']>;
@@ -135,7 +139,12 @@ export function mdLineSpan(path: string, start: number, end: number): MdLineSpan
   if (bytes.length > 0 && bytes[bytes.length - 1] === 0x0a) lineCount -= 1;
   if (bytes.length === 0) lineCount = 0;
   if (start < 1 || end < start || end > lineCount) {
-    return { bytes: null, lineCount };
+    return {
+      bytes: null,
+      lineCount,
+      startByte: null,
+      endByte: null,
+    };
   }
   const startOffset = starts[start - 1];
   let endOffset;
@@ -146,7 +155,12 @@ export function mdLineSpan(path: string, start: number, end: number): MdLineSpan
       ? bytes.length - 1
       : bytes.length;
   }
-  return { bytes: bytes.subarray(startOffset, endOffset), lineCount };
+  return {
+    bytes: bytes.subarray(startOffset, endOffset),
+    lineCount,
+    startByte: startOffset,
+    endByte: endOffset,
+  };
 }
 
 export function makeIndexes(model: RunModel): DefinitionIndexes {
@@ -275,6 +289,9 @@ export function duplicateDefinitions(model: RunModel): DuplicateDefinition[] {
 }
 
 export function activeClaims(model: RunModel): RunModel['claims'] {
+  if (usesLineage(model.manifest?.runFormatVersion || '')) {
+    return lineageCurrentClaims(model);
+  }
   return model.claims.filter((claim) => claim.values.status === 'active');
 }
 

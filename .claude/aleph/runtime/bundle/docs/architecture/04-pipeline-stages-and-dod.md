@@ -68,8 +68,8 @@ all ledgers final.
 - **Actor:** Intake Clerk + the user; **authority gate** on scope.
 - **Blind-context rule:** none (nothing downstream exists yet) — but the
   intake conversation must not record dispositions or conclusions.
-- **Work:** normalize file formats losslessly (no summarizing, no cleaning
-  that changes meaning); assign provisional source groupings; surface
+- **Work:** preserve source bytes losslessly (no summarizing, cleaning,
+  newline conversion, or character substitution); assign provisional source groupings; surface
   sensitivity flags (PII, confidential) for the user to rule on; draft the
   scope statement (what is in, what is explicitly out); estimate size and
   propose budgets.
@@ -104,45 +104,103 @@ all ledgers final.
 ## S2 — Extraction pass (packetization)
 
 - **Purpose:** elevate every span that meets the criteria into a packet with
-  re-entry coordinates. This is where completeness is won or lost: a span
-  never packetized is invisible to every later guarantee.
+  re-entry coordinates while recording a complete structural source walk and
+  then testing primary recall with a separate fresh gap review.
 - **Inputs:** frozen corpus; extraction criteria. Nothing else.
-- **Outputs:** `ledgers/packet-index.md`.
-- **Actor:** Extractors (fan out per source).
+- **Outputs:** `ledgers/packet-index.md`; `ledgers/source-walk.md`.
+- **Actor:** Extractors (fan out per source), fresh gap reviewers, and the
+  orchestrator as the only canonical ledger writer.
 - **Blind-context rule (hard):** extractors see corpus + criteria only — no
   scope-of-run chatter, no prior packets from other sources (prevents
   cross-source anchoring), no disposition vocabulary.
-- **Work:** walk each source exhaustively; for each admitted span record
-  locator + hash + tight quote + which criterion admitted it. Over-extraction
-  is the safe direction: a useless packet costs a `judged-non-load-bearing`
-  disposition later; a missed span costs completeness silently.
+- **Work:** walk each source in source order. Append contiguous half-open UTF-8
+  byte intervals for admitted, non-candidate-observed, excluded, deferred, or
+  unsupported regions. Record packet-producing events separately, including
+  shared-position keys and contiguous event ordinals when more than one event
+  occurs at one position. When bounded work stops with work remaining, record
+  a next-work cursor bound to the frozen source hash; a pause between
+  shared-position siblings stays at the same byte position and names the next
+  ordinal. Siblings committed uninterrupted need no intermediate cursor. For
+  each admitted span,
+  record one or more ordered exact fragments with source + locator + hash +
+  exact base64 bytes, plus a separate display preview and the criterion that
+  admitted it. Use one packet per fragment. Declare `single-fragment`,
+  `adjacent-fragments`, or `separate-fragments`; never hide inserted text
+  between fragments. If exact bytes cannot be obtained, record a source-bound
+  `degraded-non-exact` rendering with its source locator, reason, and no packet
+  rather than reconstructing evidence. After the primary walk, dispatch a
+  distinct fresh-context coverage reviewer over the frozen source, criteria,
+  walk accounting, and admitted exact evidence. The reviewer returns no gap
+  candidate, a located gap candidate, or cannot-determine; it never writes the
+  canonical ledgers. Before recording the result, the orchestrator binds it to
+  the terminal primary cursor and the Core review-basis digest. The
+  orchestrator validates any candidate under Slice-1 exact-evidence rules and
+  appends the packet/event or leaves the finding open with no future canonical
+  IDs. A same-position reconciliation appends the next contiguous event
+  ordinal without rewriting primary walk or cursor history.
+  Over-extraction is the safe direction: a useless packet costs a
+  `judged-non-load-bearing` disposition later; a missed span costs
+  completeness silently.
 - **DoD:**
   - [ ] ⚙ every packet resolves (locator + hash) to its source span
+  - [ ] ⚙ every exact fragment's bytes and hash reopen against the frozen
+        source; fragment order, packet binding, join policy, and exact-evidence
+        digest verify
+  - [ ] ⚙ rendered/normalized transformations remain separate and preserve
+        predecessor/effective exact-evidence identity
+  - [ ] ⚙ degraded renderings retain source/locator provenance while claiming
+        no packet, fragment, or exact hash
+  - [ ] ⚙ primary walk intervals begin at source byte zero, are ordered,
+        contain no hole or undeclared overlap, and reach the exact source end
+        before that source is marked complete
+  - [ ] ⚙ every packet has one committed extraction event; same-position
+        events have one shared key with unique contiguous ordinals; each event
+        lies within exactly one exact fragment for its packet
+  - [ ] ⚙ every recorded next-work cursor is source/hash bound, monotonic, in
+        bounds, uses a Core cursor reason, and cannot skip an open interval or
+        same-position sibling; equal-byte shared cursors cannot regress
+        ordinal, while uninterrupted siblings require no intermediate cursor
+  - [ ] ⚙ exclusions reference frozen S1 exclusion classes; deferred and
+        unsupported regions remain reasoned and visibly open or validly closed
+  - [ ] ⚙ every source has a distinct gap-review record; found candidates are
+        bound to the terminal primary review basis and reconciled through exact
+        evidence, while true open findings with no packet/event IDs and
+        cannot-determine results block completion
   - [ ] ⚙ no packet carries stance/disposition/cluster vocabulary
-  - [ ] ⚖ coverage spot-check: harness re-extracts N randomly sampled source
-        segments blind and diffs against the index; misses beyond the
-        per-slice threshold send the source back for re-extraction
-  - [ ] ⚙ per-source completion recorded in the run log (every source either
-        fully walked or explicitly deferred with reason + authority note)
+  - [ ] ⚖ fresh gap review attacks primary recall from sealed inputs; a
+        no-gap result is recorded model judgment, not deterministic proof
+  - [ ] ⚙ per-source completion is recorded in the source-walk ledger; S2
+        cannot exit while any source is blocked, and a blocked final cursor
+        cannot sit behind already committed primary work
+
+**Boundary:** checker-clean structural walk closure means every frozen byte has
+a declared traversal state and the independent gap-review procedure is
+recorded. It does not mean the extractor or reviewer achieved perfect semantic
+recall.
 
 ## S3 — Candidate-claim normalization
 
 - **Purpose:** turn packets into individually stated candidate claims —
   restated once, neutrally, with provenance.
-- **Inputs:** packet index (+ read-only corpus access for context windows
+- **Inputs:** packet index, including exact-evidence fragment and
+  transformation records (+ read-only corpus access for context windows
   around a packet).
 - **Outputs:** `ledgers/claim-inventory.md` (claims + provenance + claim type;
-  dispositions still blank).
+  dispositions still blank); in run format 1.3, S3 structural identity outcomes
+  append to `ledgers/lineage.md`.
 - **Actor:** Normalizers (fan out per packet batch).
 - **Blind-context rule:** normalizers do not assign dispositions and do not
   see other batches' outputs mid-pass (dedup is S4's job, done globally).
 - **Work:** one packet may yield zero, one, or several claims; several packets
   may support one claim (recorded, not merged yet). The neutral restatement
   must be entailed by the packet spans — adding outside knowledge here is the
-  fabrication failure mode.
+  fabrication failure mode. Normalization writes only normalized claim text;
+  it never edits, replaces, or relabels source fragments, display text, or
+  exact-evidence hashes.
 - **DoD:**
-  - [ ] ⚙ every claim has ≥1 packet; every packet either yielded claims or is
-        marked `no-claim` with one of the recorded criteria-reasons
+  - [ ] ⚙ every claim has ≥1 packet; every packet either yielded claims or has
+        an explicit structural lineage closure; a true zero-claim packet uses
+        the `no-claim` lineage event
   - [ ] ⚖ entailment spot-check: sampled claims re-derived from their packets
         alone by fresh verifiers; non-entailed restatements fail the batch
   - [ ] ⚙ claim IDs unique, hash-stable
@@ -151,15 +209,18 @@ all ledgers final.
 
 - **Purpose:** compact by normalization; kill duplicate conviction.
 - **Inputs:** full claim inventory.
-- **Outputs:** `ledgers/merge-map.md`; inventory updated (absorbed claims keep
-  rows and get `merged`).
+- **Outputs:** `ledgers/merge-map.md`; for run format 1.3, each merge or
+  duplicate also appends one lineage event and materializes a new canonical
+  successor claim while every predecessor row remains immutable history.
 - **Actor:** Normalizer-Judge (global pass — this stage is a barrier).
 - **Work:** near-duplicates merge with all provenance retained; genuinely
   contradictory claims are *never* merged (they stay separate, flagged for
   S5/S9); the corroboration note distinguishes independent support from
   restatement.
 - **DoD:**
-  - [ ] ⚙ C8 provenance superset holds for every merge row
+  - [ ] ⚙ C8 provenance superset holds for every merge row; in 1.3 every
+        merge/duplicate map row matches one typed lineage event whose new
+        successor conserves predecessor packet provenance
   - [ ] ⚖ merge-precision spot-check: sampled merges defended to a refuter
         ("argue these are different claims"); refuted merges are unwound
   - [ ] ⚖ contradiction sweep: harness searches the inventory for
@@ -179,7 +240,9 @@ all ledgers final.
 - **Blind-context rule:** judges see the claim, its packets, the scope, and
   the criteria — not other judges' calls on unrelated batches.
 - **DoD:**
-  - [ ] ⚙ every claim exactly one disposition; accounting balances
+  - [ ] ⚙ every current research claim exactly one disposition; in 1.3 this
+        population is the lineage-current claim set, while historical
+        predecessors require no fabricated new disposition; accounting balances
   - [ ] ⚙ every `excluded-with-reason` has a reason; every exclusion citing
         scope maps to a negative boundary
   - [ ] ⚙ contradiction pairs from S4 are not silently resolved (each side

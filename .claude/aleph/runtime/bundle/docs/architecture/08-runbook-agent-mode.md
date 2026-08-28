@@ -93,7 +93,11 @@ c. Dispatch workers with goal + constraints + output schema. Serial
 d. Validate outputs at the schema boundary. If the host lacks native
    constrained output, use the pinned Core fallback in the runner
    capability contract. Append only its passing canonical value, and
-   serialize appends into the ledgers yourself (single-writer rule).
+   serialize appends into the ledgers yourself (single-writer rule). In S2,
+   packet/evidence rows, their extraction event, and the next-work cursor are
+   one logical commit: never expose a cursor advance without the records it
+   advances past, or a packet without its walk/event accounting. Persist the
+   worker's Core-defined cursor reason unchanged.
 e. Run the stage's ⚙ self-checks (and the kernel where it applies).
 f. Dispatch the stage's ⚖ verifications to fresh panels. Apply
    consequences as superseding entries.
@@ -106,19 +110,48 @@ h. Run-log the stage exit with counts and spend. Commit the run
 
 Stage-specific amplifications (read with doc 04):
 
-- **S0:** normalize losslessly. Chat exports keep speaker structure and
-  ordering; do not "clean" filler — the extraction criteria handle noise, not
-  the intake. Surface sensitivity candidates conservatively (better to ask
-  about ten harmless spans than miss one PII leak).
+- **S0:** preserve source bytes losslessly. Chat exports keep newline bytes,
+  punctuation, ligatures, speaker structure, ordering, and filler; do not
+  "clean" them — the extraction criteria handle noise, not the intake. If
+  only a rendering is available, mark it degraded rather than exact. Surface
+  sensitivity candidates conservatively (better to ask about ten harmless
+  spans than miss one PII leak).
 - **S1:** write the criteria before you have opinions. If while drafting them
   you catch yourself already classifying content, stop and write the
   *criterion* the instinct implies instead.
 - **S2:** over-extract rather than pre-filter; the disposition ledger is where
   non-load-bearing material goes to be recorded, not the cutting-room floor.
-  Walk every source to the end; declare per-source completion explicitly.
+  Walk every source in frozen-byte order and append primary intervals for
+  admitted, non-candidate, excluded, deferred, and unsupported regions. Keep
+  interval coverage contiguous from byte zero. Record packet-producing events
+  separately; when events share a position, assign one shared-position key and
+  contiguous ordinals. When bounded work stops or reaches source end, persist
+  a cursor naming the next unprocessed byte/event. A pause after shared
+  ordinal 1 resumes at that same position with ordinal 2, never at the next
+  line; uninterrupted siblings need no intermediate cursor, and cursor
+  history at one shared position never regresses in ordinal. Reopen exact
+  bytes for every
+  ordered fragment, use one packet per fragment, declare the Core join policy,
+  and require every event interval to lie inside exactly one bound fragment.
+  A `degraded-non-exact` rendering is not a packet; retain its source ID,
+  source-local locator, reason, and rendered transformation. Once the primary
+  walk reaches source end, dispatch the L1
+  coverage lens in a distinct fresh context with only the frozen source, S1
+  criteria, primary walk, and admitted exact evidence. A found candidate is a
+  proposal: record the terminal primary cursor and Core review-basis digest,
+  then validate and commit the packet/event as single writer, or leave it open
+  with no packet/event IDs. Reconciliation requires candidate/event coordinate
+  equality plus containment in the packet's exact fragment. A same-position
+  reconciliation appends the next event ordinal without backdating a primary
+  cursor or changing the primary review basis.
+  `cannot-determine` blocks completion. Neither source-end nor a no-gap result
+  is a claim of perfect recall, and the basis digest does not prove host
+  isolation.
 - **S3:** a restatement must be entailed by its packets. If you need context
   from elsewhere in the source to state the claim faithfully, widen the
-  packet (new locator) — do not import unpacketed context invisibly.
+  packet (new locator) — do not import unpacketed context invisibly. Write
+  normalized claim text separately and leave exact fragments, order, and
+  evidence identity unchanged.
 - **S4:** when in doubt, don't merge — two similar-but-distinct claims cost a
   little compactness; one lazy merge costs a contradiction its visibility.
 - **S5:** the seven dispositions are the only vocabulary. "Sort of carried"
@@ -158,9 +191,17 @@ Stage-specific amplifications (read with doc 04):
 
 On waking into an existing run: restore and verify the exact original bundle
 lock and immutable runtime snapshot, then read the manifest and run log, verify
-ledger hashes, find the first unmet DoD item, and continue from there. Never
+ledger hashes, and in S2 reopen the last committed source-walk cursor as the
+next work position/event. Confirm that its predecessor packet/evidence/walk
+records are committed before advancing, and confirm that a blocked completion
+row does not name a historical cursor behind already committed primary work.
+Then find the first unmet DoD item and
+continue from there. Never
 substitute a newer Core, adapter, checker, model, or runtime in place. If the
-directory contradicts the log or the original execution identity is
+manifest version or any forward identity pin disagrees with the retained run
+state, original lock, or runtime snapshot, stop; the manifest cannot select a
+weaker compatibility mode. If the directory contradicts the log or the
+original execution identity is
 unavailable, stop and flag — never reconcile by guessing. If you are a
 different agent than the one that started the run, say so in the run log and
 carry on; the pinned files, not your predecessor's memory, are the run.

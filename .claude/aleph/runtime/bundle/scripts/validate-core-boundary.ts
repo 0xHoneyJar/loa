@@ -262,6 +262,15 @@ function parseJson(path: string): unknown {
   return JSON.parse(readFileSync(path, 'utf8')) as unknown;
 }
 
+function nestedValue(value: unknown, path: readonly string[]): unknown {
+  let current = value;
+  for (const property of path) {
+    if (!isRecord(current)) return undefined;
+    current = current[property];
+  }
+  return current;
+}
+
 function gitInventory(root: string): { paths: string[]; error: string } {
   const result = spawnSync(
     'git',
@@ -998,6 +1007,16 @@ export function validateCoreBoundary(
       const schema = parseJson(join(root, schemaPath));
       if (!isRecord(schema) || schema.$schema !== 'https://json-schema.org/draft/2020-12/schema') {
         fail('adapter.schema.json is not a Draft 2020-12 schema');
+      }
+      const schemaRunFormatVersion = nestedValue(schema, [
+        'properties',
+        'adapter',
+        'properties',
+        'run_format_version',
+        'const',
+      ]);
+      if (schemaRunFormatVersion !== manifest.core.run_format_version) {
+        fail('adapter.schema.json run-format version disagrees with Core and adapter manifests');
       }
     } catch (error) {
       fail(`adapter.schema.json is malformed: ${

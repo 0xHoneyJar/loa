@@ -69,9 +69,12 @@ export function parseTables(text, file = '') {
     return tables;
 }
 export function findTable(tables, expectedHeader) {
+    return findTables(tables, expectedHeader)[0] || null;
+}
+export function findTables(tables, expectedHeader) {
     const expected = expectedHeader.map(normalizeHeader);
-    return tables.find((table) => (table.normalizedHeader.length === expected.length
-        && table.normalizedHeader.every((cell, index) => cell === expected[index]))) || null;
+    return tables.filter((table) => (table.normalizedHeader.length === expected.length
+        && table.normalizedHeader.every((cell, index) => cell === expected[index])));
 }
 export function findTableByFirstHeader(tables, ...names) {
     const expected = new Set(names.map(normalizeHeader));

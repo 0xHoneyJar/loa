@@ -241,6 +241,20 @@ const cases: MutationCase[] = [
     },
   },
   {
+    name: 'adapter schema run format diverges from manifests',
+    expectedCheck: 'CB5',
+    mutate: (root) => {
+      const path = join(root, 'adapter-protocol', 'adapter.schema.json');
+      const schema = readJson(path);
+      const properties = schema.properties as Record<string, unknown>;
+      const adapter = properties.adapter as Record<string, unknown>;
+      const adapterProperties = adapter.properties as Record<string, unknown>;
+      const runFormat = adapterProperties.run_format_version as Record<string, unknown>;
+      runFormat.const = '1.2.0-provisional';
+      writeJson(path, schema);
+    },
+  },
+  {
     name: 'Loa profile requires Hermes runtime',
     expectedCheck: 'CB8',
     mutate: (root) => {

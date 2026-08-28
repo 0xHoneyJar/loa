@@ -57,8 +57,8 @@ function validateUtf8(bytes, path) {
     if (bytes.includes(0))
         throw new Error(`source contains NUL bytes: ${path}`);
 }
-function sourceScheme(path) {
-    return extname(path).toLowerCase() === '.md' ? 'md-lines' : 'text-lines';
+function sourceScheme(_path) {
+    return 'md-lines';
 }
 function paddedSourceId(index) {
     return `SRC-${String(index).padStart(3, '0')}`;

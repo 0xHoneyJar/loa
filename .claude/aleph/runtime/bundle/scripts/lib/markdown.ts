@@ -119,11 +119,18 @@ export function findTable(
   tables: readonly MarkdownTable[],
   expectedHeader: readonly string[],
 ): MarkdownTable | null {
+  return findTables(tables, expectedHeader)[0] || null;
+}
+
+export function findTables(
+  tables: readonly MarkdownTable[],
+  expectedHeader: readonly string[],
+): MarkdownTable[] {
   const expected = expectedHeader.map(normalizeHeader);
-  return tables.find((table) => (
+  return tables.filter((table) => (
     table.normalizedHeader.length === expected.length
     && table.normalizedHeader.every((cell, index) => cell === expected[index])
-  )) || null;
+  ));
 }
 
 export function findTableByFirstHeader(

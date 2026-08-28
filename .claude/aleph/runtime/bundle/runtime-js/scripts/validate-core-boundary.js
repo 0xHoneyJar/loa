@@ -90,6 +90,15 @@ function rank(value) {
 function parseJson(path) {
     return JSON.parse(readFileSync(path, 'utf8'));
 }
+function nestedValue(value, path) {
+    let current = value;
+    for (const property of path) {
+        if (!isRecord(current))
+            return undefined;
+        current = current[property];
+    }
+    return current;
+}
 function gitInventory(root) {
     const result = spawnSync('git', ['-C', root, 'ls-files', '-z', '--cached', '--others', '--exclude-standard'], { encoding: 'buffer', maxBuffer: 32 * 1024 * 1024 });
     if (result.status !== 0) {
@@ -760,6 +769,16 @@ export function validateCoreBoundary(options = {}) {
             const schema = parseJson(join(root, schemaPath));
             if (!isRecord(schema) || schema.$schema !== 'https://json-schema.org/draft/2020-12/schema') {
                 fail('adapter.schema.json is not a Draft 2020-12 schema');
+            }
+            const schemaRunFormatVersion = nestedValue(schema, [
+                'properties',
+                'adapter',
+                'properties',
+                'run_format_version',
+                'const',
+            ]);
+            if (schemaRunFormatVersion !== manifest.core.run_format_version) {
+                fail('adapter.schema.json run-format version disagrees with Core and adapter manifests');
             }
         }
         catch (error) {

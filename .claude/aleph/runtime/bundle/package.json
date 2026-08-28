@@ -29,7 +29,8 @@
     "test:worker-return": "node scripts/test-worker-return-contract.ts",
     "test:core-mutations": "node scripts/test-core-boundary-mutations.ts",
     "test:mutations": "node scripts/test-conformance-mutations.ts",
-    "test": "npm run typecheck && npm run test:runtime && npm run validate:core && npm run test:worker-return && npm run test:loa-host && npm run test:loa-adapter && npm run test:loa-installer && npm run validate && node scripts/validate-run.ts --run docs/fixtures/evidence-role-adversarial && node scripts/validate-run.ts --run docs/fixtures/projection-adversarial && node scripts/validate-run.ts --run docs/fixtures/run-slice-2 && npm run test:mutations && npm run test:core-mutations && npm run test:bundles && npm run test:release-package"
+    "test": "npm run typecheck && npm run test:runtime && npm run validate:core && npm run test:worker-return && npm run test:loa-host && npm run test:loa-adapter && npm run test:loa-installer && npm run validate && node scripts/validate-run.ts --run docs/fixtures/evidence-role-adversarial && node scripts/validate-run.ts --run docs/fixtures/projection-adversarial && node scripts/validate-run.ts --run docs/fixtures/run-slice-2 && npm run test:mutations && npm run test:lineage-mutations && npm run test:core-mutations && npm run test:bundles && npm run test:release-package",
+    "test:lineage-mutations": "node scripts/test-lineage-mutations.ts"
   },
   "devDependencies": {
     "@types/node": "22.20.1",
