@@ -63,7 +63,7 @@ locally.
 
 | spec | check groups | motivating fixture | roadmap slice |
 |------|--------------|--------------------|---------------|
-| [`K1-K2-fixtures-and-runs.md`](K1-K2-fixtures-and-runs.md) | K1 discovered-fixtures; K2 run-directory | golden run `docs/fixtures/run-slice-2/` | 9 (K2), 12 (K1) |
+| [`K1-K2-fixtures-and-runs.md`](K1-K2-fixtures-and-runs.md) | K1 discovered-fixtures; K2 run-directory | golden run `docs/fixtures/run-slice-2/` + `docs/fixtures/exact-evidence-fragments/` | 9 (K2), 12 (K1), calibration Slice 1 |
 | [`K3-evidence-roles.md`](K3-evidence-roles.md) | K3 | evidence-role fixture | 10 |
 | [`K4-K5-route-cards-and-gate.md`](K4-K5-route-cards-and-gate.md) | K4 cards; K5 taint gate | routed-corpus fixture | 11 |
 | [`K6-projection-trace.md`](K6-projection-trace.md) | K6 | first projection fixture | 16 |

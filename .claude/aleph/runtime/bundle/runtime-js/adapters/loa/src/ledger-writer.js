@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, readdirSync, } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { LOA_LEDGER_RECEIPT_FORMAT, } from './types.js';
+import { CORE_STAGES, LOA_LEDGER_RECEIPT_FORMAT, } from './types.js';
 import { assertNoSymlinkComponents, assertPathWithin, assertSafeRelativePath, nextDecimal, sha256Digest, stableJson, stableJsonBytes, writeFileAtomic, } from './fs.js';
 import { acquireDurableProcessLock, readRunState, updateRunState, } from './run-control.js';
 import { ValidatedWorkerReturn } from './worker-return.js';
@@ -23,6 +23,11 @@ function defaultClock() {
 function canonicalRunPath(path) {
     return CANONICAL_FILES.has(path)
         || CANONICAL_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
+const LINEAGE_LEDGER_PATH = 'ledgers/lineage.md';
+const LATE_LINEAGE_HALT_CODE = 'LATE_UNIT_LINEAGE_CORRECTION';
+function lineageStageIndex(stage) {
+    return CORE_STAGES.indexOf(stage);
 }
 function appendedBytes(before, addition) {
     if (!addition.trim())
@@ -324,7 +329,39 @@ export class LedgerWriter {
             }
             if (matches[0])
                 return matches[0];
-            const state = readRunState(this.runDir);
+            let state = readRunState(this.runDir);
+            if (relativePath === LINEAGE_LEDGER_PATH) {
+                const stage = state.execution.stage;
+                const stageIndex = lineageStageIndex(stage);
+                const s2Index = lineageStageIndex('S2');
+                const s4Index = lineageStageIndex('S4');
+                if (stageIndex < s2Index) {
+                    throw new Error(`Core lineage write window has not opened at stage ${stage}; expected S2-S4`);
+                }
+                if (stageIndex > s4Index) {
+                    const blockedAt = this.clock.now();
+                    const existingHalt = state.execution.halt;
+                    if (existingHalt !== null && existingHalt.code !== LATE_LINEAGE_HALT_CODE) {
+                        throw new Error(`Core late-correction boundary refused new lineage append at retained stage ${stage}; `
+                            + `existing halt ${existingHalt.code} is preserved`);
+                    }
+                    if (state.execution.core_state !== 'BLOCKED' || existingHalt === null) {
+                        state = updateRunState(this.runDir, blockedAt, (draft) => {
+                            draft.execution.core_state = 'BLOCKED';
+                            draft.execution.halt = {
+                                code: LATE_LINEAGE_HALT_CODE,
+                                reason: `new unit lineage is forbidden after S4; retained stage is ${stage}`,
+                                at: blockedAt,
+                                blocking: true,
+                            };
+                        });
+                    }
+                    throw new Error(`Core late-correction boundary BLOCKED new lineage append at retained stage ${stage}`);
+                }
+                if (state.execution.halt !== null) {
+                    throw new Error(`blocked run cannot append lineage at stage ${stage}`);
+                }
+            }
             if (state.ledger.writer_id !== 'loa-orchestrator') {
                 throw new Error('run does not designate the Loa orchestrator as ledger writer');
             }

@@ -38,7 +38,11 @@ Artifacts 1–14 belong to the distillation engine, 15–17 to verification,
   state it interrupted (or by run end); all execution pins are exact, never
   aliases such as "latest"; the original bundle and runtime snapshot govern
   every resumption. Historical fixtures retain their recorded predecessor
-  format rather than being silently repinned to current bytes.
+  format rather than being silently repinned to current bytes. Forward-format
+  Core checking validates the manifest's declared identity structure; a host
+  adapter separately binds those declarations to retained execution authority
+  and must reject version removal, downgrade, or pin disagreement before
+  invoking the run's pinned checker.
 
 ## 2. Corpus manifest and source inventory (`corpus/manifest.md`)
 
@@ -86,13 +90,117 @@ Artifacts 1–14 belong to the distillation engine, 15–17 to verification,
   extraction — the re-entry coordinates everything else resolves to.
 - **Producer → consumer:** S2 → S3 (claims), S7 (pre-clustering), routing
   cards, auditors ("why this cluster?" reopens packets).
-- **Fields per packet:** `PKT-NNNN`; `SRC-NNN`; span locator; span content
-  hash; verbatim-or-tight-quote of the span (bounded length); extraction note
-  (which criterion admitted it).
-- **Invariants:** every packet resolves to a reopenable span whose hash
-  matches; packets carry **no** disposition, no cluster verdicts, no stance
-  (the four-layer model's layer 1 is stance-neutral); packet IDs stable under
-  re-runs (hash-matched, per the ID rules).
+- **Legacy fields per packet:** `PKT-NNNN`; `SRC-NNN`; span locator; span
+  content hash; quote/display preview; extraction note (which criterion
+  admitted it). Historical `1.0.0-provisional` and pre-versioned packet
+  ledgers without an `exact_evidence_format` marker retain this predecessor
+  interpretation and are never silently migrated.
+- **Compatibility:** run format `1.1.0-provisional` makes the versioned
+  exact-evidence extension mandatory whenever the run reaches S2. Existing
+  runs remain governed by their original bundle/runtime pins; their packet
+  bytes are not reinterpreted. Absence of the marker is permitted only for
+  the predecessor run format (or pre-versioned historical artifacts), not as
+  an optional capability switch in a new run.
+- **Versioned exact-evidence extension:** a packet ledger that declares
+  `exact_evidence_format: aleph-exact-evidence/v1` also contains:
+  - evidence records with ordered packet IDs, `exact` or
+    `degraded-non-exact` state, fragment count, join policy, exact-evidence
+    hash, degraded source ID/locator, and degradation reason;
+  - fragment records with ledger-local key, evidence key, packet ID, explicit
+    order, source ID, locator, `frozen-source` relation,
+    `exact-source-bytes` role, fragment hash, and canonical base64 bytes; and
+  - transformation records with `rendered` or `normalized` role, predecessor
+    and effective exact-evidence hashes, output text, and output-text hash.
+- **Join-policy vocabulary:** `single-fragment` means exactly one fragment;
+  `adjacent-fragments` means two or more consecutive `md-lines` fragments in
+  one source; `separate-fragments` means two or more ordered fragments that
+  remain visibly separate. `not-applicable` is reserved for
+  `degraded-non-exact` records. No policy inserts hidden bytes.
+- **Exact-evidence digest:** SHA-256 over the UTF-8 domain
+  `aleph-exact-evidence/v1` plus NUL, followed by each fragment in declared
+  order as unsigned 64-bit big-endian byte length plus the exact fragment
+  bytes. This framing preserves fragment order and boundaries without
+  pretending that discontiguous fragments form one source string.
+- **Invariants:** every exact fragment resolves to a frozen source row and
+  file; source, packet, locator, fragment hash, and canonical base64 bytes
+  agree; every packet in the versioned form is covered exactly once; fragment
+  order and join policy are valid; and rendered/normalized transformations
+  preserve the predecessor/effective exact-evidence identity. A degraded
+  record has no packet, fragment, join, or exact hash; it must retain a source
+  ID, source-local locator, rendered transformation, and reason so the
+  non-exact rendering remains durably tied to what was degraded.
+  Packets carry **no** disposition, cluster verdict, or stance; packet IDs
+  remain stable under re-runs.
+- **Verification boundary:** deterministic PASS proves source-byte and
+  structural fidelity only. It does not prove entailment, packetization
+  quality, normalization quality, atomicity, extraction completeness, source
+  trustworthiness, or correct interpretation.
+
+## 4a. Source-walk ledger (`ledgers/source-walk.md`)
+
+- **Purpose:** make primary traversal, interruption, resume, independent gap
+  review, and final per-source accounting mechanically reconstructable without
+  treating packet existence as proof of exhaustive recall.
+- **Producer → consumer:** S2 extractors propose ordered walk records and
+  cursors; the orchestrator validates and appends them as single writer; a
+  distinct fresh-context gap reviewer records semantic gap results; K2 and
+  auditors consume the final ledger.
+- **Activation:** run format `1.2.0-provisional` and every later registered
+  cumulative format, including `1.3.0-provisional` and
+  `1.4.0-provisional`, require
+  `source_walk_format: aleph-source-walk/v1` and
+  `source_position_format: zero-based-utf8-byte-half-open/v1` once S2 begins.
+  The prior `1.1.0-provisional` exact-evidence fixture remains a 1.1 artifact
+  and is not migrated.
+- **Primary walk intervals:** ordered, non-overlapping half-open frozen-byte
+  intervals with outcome `admitted`, `no-candidate-observed`, `excluded`,
+  `deferred`, or `unsupported`; packet and frozen S1 criterion references
+  where applicable; producer invocation; and explicit closure state/reason.
+- **Extraction events:** packet-producing events have exact byte positions,
+  origin `primary` or `gap-reconciliation`, invocation identity, and commit
+  status. Events at one source position share a key and unique contiguous
+  ordinals; this is the only allowed same-position multiplicity and does not
+  permit arbitrary interval overlap. Core maps each exact `md-lines` fragment
+  to absolute frozen-byte bounds and requires the event interval to be
+  contained in exactly one fragment for its packet. An unmappable exact
+  locator blocks the 1.2 exact-position contract.
+- **Resume cursors:** are actual traversal/checkpoint records that identify the
+  **next unprocessed** source byte/event and bind it to the source hash plus
+  predecessor walk/event records. If work pauses between same-position
+  siblings, the cursor stays at that position and advances only the event
+  ordinal. Siblings committed without interruption need no fabricated
+  intermediate cursor. Every recorded same-position cursor remains strict,
+  and cursor history cannot regress in ordinal. Cursor reasons are the Core
+  values `initial`, `progress`, `bounded-pause`,
+  `resumed-shared-position`, and `source-complete`.
+- **Fresh gap reviews:** record distinct producer/reviewer invocation
+  identities and one result:
+  `no-gap-candidate-found`, `gap-candidate-found`, or `cannot-determine`.
+  Each row names a same-source terminal primary cursor and a Core-recomputed
+  digest over the frozen source identity, exact S1 criteria bytes, ordered
+  primary walk/events, associated primary packet exact-evidence identities,
+  and that cursor. The digest excludes the review result and all gap
+  reconciliation additions. A post-review reconciliation event may append at
+  an existing exact shared position with the next contiguous ordinal; it does
+  not backdate a primary cursor, move the primary frontier, or change the
+  review basis. A found candidate stays `open` with
+  `proposed_packet_id = none` and `reconciliation_event_id = none` until the
+  orchestrator validates Slice-1 exact evidence and appends its one committed
+  reconciliation event. The candidate and event intervals must be equal, and
+  the event must be contained in the proposed packet's exact fragment.
+  `cannot-determine` blocks source completion.
+- **Completion:** one row per source binds exact source hash/length, final
+  cursor, all gap-review records, and `complete` or `blocked`. `complete`
+  requires contiguous coverage from byte zero through source end, no open
+  deferred/unsupported interval or pending shared event, and no open or
+  indeterminate gap finding. For `blocked`, the named final cursor is checked
+  against committed primary walk/event state as the actual current frontier;
+  historical checkpoints are not subjected to that final-frontier rule.
+- **Verification boundary:** K2 proves structural walk closure and that an
+  inspectable review-basis record exists. It cannot prove that the extractor
+  found every qualifying assertion, that a reviewer returning no candidate
+  was semantically correct, or that declared distinct contexts were actually
+  isolated. Adapter dispatch receipts remain the process-isolation evidence.
 
 ## 5. Candidate-claim inventory (`ledgers/claim-inventory.md`)
 
@@ -111,18 +219,124 @@ Artifacts 1–14 belong to the distillation engine, 15–17 to verification,
   one disposition; seven-disposition coverage per corpus where applicable;
   ledger accounting balances; C1–C8 cross-section consistency); additionally —
   every claim's provenance set is non-empty and resolves through packets to
-  sources; normalized statements contain no external facts absent from the
-  provenance spans (spot-checked by T2, not mechanically).
+  sources; normalized statements remain separate from exact evidence and
+  contain no external facts absent from the provenance spans (spot-checked by
+  T2, not mechanically).
 - **Note on claim type:** this is a *proposed* extension to the §4 table. It
   must earn its place via a fixture; if it turns out to be prose-policing bait
   it gets dropped. It is deliberately **not** the disposition axis and not the
   shape vector — collapsing axes is the named historical mistake.
 
+## 5a. Unit-lineage ledger (`ledgers/lineage.md`)
+
+- **Purpose:** preserve append-only packet/claim identity history while deriving a
+  structural current view without rewriting predecessor rows.
+- **Activation:** run format `1.3.0-provisional` and every later registered
+  cumulative format, including `1.4.0-provisional`, require
+  `lineage_format: aleph-lineage/v1` once S2 begins. Historical 1.0-1.2
+  runs retain their pinned status/merge interpretation and are not migrated.
+- **Fields:** `LIN-NNNN`; owner stage (S2-S4); one type from `split`,
+  `merge`, `replace`, `supersede`, `duplicate`, `reject`, `exclude`,
+  `no-claim`; predecessor IDs; successor IDs or `none`; inspectable basis;
+  establishing actor/invocation. Events are atomic transformations, not
+  unrelated pairwise edges.
+- **Cardinality:** split 1→2+ (PKT or CC); merge 2+→1 (CC); replace/supersede
+  1→1 (same unit family); duplicate 2+→1 (CC); reject/exclude 1→0 (PKT or CC);
+  no-claim 1→0 (PKT only). There is no generic N→M type; complex history
+  composes ordinary events. A successor may have multiple truthful incoming
+  events, while a predecessor is terminalized once.
+- **Currentness:** `lineage-current` is derived mechanically as a valid durable
+  PKT/CC definition that never appears as a lineage predecessor. It is not the
+  broader architectural EFFECTIVE state. In 1.3 and later cumulative formats,
+  packet/claim `status = active`
+  means the durable row is admitted/readable; it does not mean identity-current.
+- **Provenance:** packet→claim derivation remains claim provenance, not
+  replacement lineage. Merge/duplicate create a new successor CC whose packet
+  provenance conserves the predecessor union. Claim split successors each have
+  valid provenance and conserve predecessor provenance in aggregate. A
+  lineage-current claim may cite only lineage-current packets.
+- **S5/Précis boundary:** current S5 accounting and current Précis compilation
+  use lineage-current claims. Historical predecessors remain inspectable and do
+  not receive fabricated new dispositions merely to satisfy current accounting.
+- **Late-correction boundary:** canonical lineage appends are owned by S2-S4.
+  If the retained run has already reached S5 or later and a newly discovered
+  unit correction would require another lineage event, the orchestrator must
+  set the run BLOCKED before any canonical lineage append. Existing historical
+  lineage remains readable; Slice 3 does not infer or persist descendant
+  STALE/INVALIDATED state, rewind checkpoints, or resume an earlier stage.
+- **Boundary:** K2 checks structure and provenance conservation only. Semantic
+  correctness of a split/merge/duplicate/replacement remains model/human
+  judgment. Generic STALE/INVALIDATED propagation, artifact revision, rewind,
+  cross-run reuse, and accepted-run correction remain outside this format.
+
+## 5b. Typed-relation ledger (`ledgers/relations.md`)
+
+- **Purpose:** retain reviewed, projection-neutral semantic relations between
+  lineage-current packets/claims or an exact frozen source locus without
+  converting context into support, disposition, ambiguity lifecycle, or
+  lineage.
+- **Activation and write window:** run format `1.4.0-provisional` adds
+  capability `typed-relations` cumulatively over 1.0–1.3. The artifact uses
+  exactly one `relation_format: aleph-relations/v1` marker and one canonical
+  table. Before S4 closure it may be absent or marker plus empty table.
+  Canonical rows are serialized only at the S4 closure barrier and are
+  read-only after closure/S5. Static K2.16 checks retained state; it does not
+  prove the historical append instant.
+- **Exact table:** `relation_id | owner_stage | family | type | source_kind |
+  source_id | target_kind | target_id | target_source_id | target_locator |
+  target_span_hash | record_state | null_reason | basis_packet_ids |
+  proposed_by | review_subject_digest | reviewed_by`. No target scheme,
+  timestamp, append stage, authority, correction, replacement, supersession,
+  version, status, support, or evidence-role field exists.
+- **Vocabulary:** families are `claim-dependency`, `source-context`,
+  `formal-reference`, and `discourse`. Their closed subtypes are,
+  respectively, `semantic-prerequisite`;
+  `antecedent-context`/`qualifier-context`/`configuration-context`;
+  `structural-anchor`/`notation-definition`; and
+  `continuation-context`/`parallel-contrast-context`.
+- **States:** `asserted`, `unresolved-target`, `explicitly-absent`, and
+  `indeterminate`. Asserted rows use one concrete `CC`, `PKT`, or
+  `source-locus` target and `null_reason = none`. Every other state uses
+  `target_kind = null` and `none` in all target-value fields. Unresolved
+  reasons are `unresolved-in-frozen-corpus`, `outside-frozen-corpus`, or
+  `target-not-materialized`; explicit absence uses only
+  `bounded-review-found-none`; indeterminate uses
+  `insufficient-frozen-context`, `conflicting-durable-representations`, or
+  `unsupported-source-structure`. `not-applicable` is review-only and creates
+  no canonical row.
+- **Endpoints:** sources are `CC` or `PKT`; every durable source/target is
+  lineage-current at S4 closure. A `source-locus` derives its scheme from the
+  frozen `SRC-*` manifest row, uses an already Core-defined deterministic
+  locator, reopens exact bytes, and matches `target_span_hash`. On this Core
+  base `md-lines` is the sole positive reopener; asserted `chat-msg` loci fail
+  closed. Historical endpoints are rejected, and the checker never chooses or
+  substitutes a successor.
+- **Review binding:** `review_subject_digest` is SHA-256 over the UTF-8 compact
+  JSON `aleph-relation-review-subject/v1` object containing, in fixed order,
+  the 14 pre-review fields from `owner_stage` through `proposed_by`, with
+  `basis_packet_ids` preserved as an ordered JSON array. The cited verifier
+  target is exactly `relation-review-subject:<digest>` and its verdict must be
+  `upheld`. Any changed digested field requires a new proposal, digest, and
+  verdict.
+- **Graph rules:** all durable self-edges are forbidden.
+  `semantic-prerequisite`, `antecedent-context`, all formal-reference edges,
+  `continuation-context`, and `parallel-contrast-context` are acyclic in their
+  named subgraphs. Qualifier/configuration cycles are structurally permitted;
+  a mixed cycle is permitted only when no prohibited subgraph itself cycles.
+  Semantic review, not K2, decides whether a permitted cycle or relation is
+  justified.
+- **Boundary:** a relation never proves, supports, corroborates, contradicts,
+  supplies independent evidence, changes evidence-role accounting, or decides
+  disposition. S6 remains the separate `CC x SRC` evidence-role contract.
+
 ## 6. Disposition-ledger summary (`ledgers/disposition-ledger.md`)
 
-Unchanged from the wedge (Précis §5): per-disposition counts and claim-id
-lists; totals equal the inventory; every claim appears exactly once. Exists as
-its own ledger so the accounting is checkable before the Précis is assembled.
+Précis §5 records per-disposition counts and claim-id lists. In predecessor
+formats, totals retain their original active-row interpretation. In run format
+1.3 and later cumulative formats, totals equal the lineage-current claim population and every lineage-current
+claim appears exactly once; historical predecessors remain in durable history
+without fabricated current dispositions. Exists as its own ledger so accounting
+is checkable before the Précis is assembled.
 
 ## 7. Duplicate/merge map (`ledgers/merge-map.md`)
 
@@ -262,6 +476,10 @@ keeps deferred/unresolved claims visible with what would resolve them.
   ([`06-verification-and-conformance.md`](06-verification-and-conformance.md) §4);
   `cannot-determine` is a first-class outcome that propagates to `unresolved`,
   never silently to "pass".
+- **Typed-relation target:** a relation verdict names exactly one complete
+  proposed subject as `relation-review-subject:sha256:<64 lowercase hex>`.
+  Only `upheld` may be cited by a canonical REL row. `refuted` and
+  `cannot-determine` remain retained verdicts but cannot authorize that row.
 
 ## 16. Kernel report (`verification/kernel-report.md`)
 
@@ -339,7 +557,7 @@ mode never has to produce them.
 
 | # | Invariant | Today | Under this plan |
 |---|-----------|-------|-----------------|
-| X1 | Every ID resolves to its fixed home; no phantoms, no duplicate definitions | C1–C7 for `CC`/`SRC`/`STM` in fixtures | generalized to `RUN`/`SRC`/`PKT`/`CC`/`NB`/`PC`/`RC`/`REF`/`STM`/`VER`/`PRJ` across a run directory |
+| X1 | Every ID resolves to its fixed home; no phantoms, no duplicate definitions | C1–C7 for `CC`/`SRC`/`STM` in fixtures | generalized to `RUN`/`SRC`/`PKT`/`CC`/`REL`/`NB`/`PC`/`RC`/`REF`/`STM`/`VER`/`PRJ` across a run directory |
 | X2 | Accounting balances (inventory ↔ ledger ↔ sections) | enforced | unchanged, plus evidence-role coverage accounting |
 | X3 | Corpus is blind; answer-key leakage fails | enforced | generalized: later-stage vocabulary may not leak into earlier-stage artifacts |
 | X4 | Merges retain provenance | C8 | unchanged, plus per-source roles retained |
@@ -348,3 +566,13 @@ mode never has to produce them.
 | X7 | Externally-dependent outputs carry taint until referents resolve | doctrine only | computable over `REF` records + provenance cones |
 | X8 | Verifier verdicts append, never edit | — | new |
 | X9 | Kernel green before VERIFIED; authority before ACCEPTED | culture | recorded in manifest, checked |
+
+### Run-format 1.3+ duplicate/merge identity rule
+
+For `1.3.0-provisional` and later cumulative formats, every S4 duplicate or merge decision has two
+cooperating records: the merge map records the semantic/corroboration judgment,
+and `ledgers/lineage.md` records the identity transformation. The canonical
+claim is a newly materialized successor CC; no predecessor claim is mutated in
+place. The merge map therefore names that successor as `canonical` and its
+predecessors as `absorbs`. Absorption is not itself an S5 `merged`
+disposition. Historical predecessor formats retain their pinned behavior.

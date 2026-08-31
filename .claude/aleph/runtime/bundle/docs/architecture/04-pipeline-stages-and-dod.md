@@ -68,8 +68,8 @@ all ledgers final.
 - **Actor:** Intake Clerk + the user; **authority gate** on scope.
 - **Blind-context rule:** none (nothing downstream exists yet) — but the
   intake conversation must not record dispositions or conclusions.
-- **Work:** normalize file formats losslessly (no summarizing, no cleaning
-  that changes meaning); assign provisional source groupings; surface
+- **Work:** preserve source bytes losslessly (no summarizing, cleaning,
+  newline conversion, or character substitution); assign provisional source groupings; surface
   sensitivity flags (PII, confidential) for the user to rule on; draft the
   scope statement (what is in, what is explicitly out); estimate size and
   propose budgets.
@@ -104,45 +104,114 @@ all ledgers final.
 ## S2 — Extraction pass (packetization)
 
 - **Purpose:** elevate every span that meets the criteria into a packet with
-  re-entry coordinates. This is where completeness is won or lost: a span
-  never packetized is invisible to every later guarantee.
+  re-entry coordinates while recording a complete structural source walk and
+  then testing primary recall with a separate fresh gap review.
 - **Inputs:** frozen corpus; extraction criteria. Nothing else.
-- **Outputs:** `ledgers/packet-index.md`.
-- **Actor:** Extractors (fan out per source).
+- **Outputs:** `ledgers/packet-index.md`; `ledgers/source-walk.md`; retained
+  packet-level relation proposals when a separately bounded relation task is
+  legal from the same one-source context (never canonical REL rows).
+- **Actor:** Extractors (fan out per source), fresh gap reviewers, and the
+  orchestrator as the only canonical ledger writer.
 - **Blind-context rule (hard):** extractors see corpus + criteria only — no
   scope-of-run chatter, no prior packets from other sources (prevents
   cross-source anchoring), no disposition vocabulary.
-- **Work:** walk each source exhaustively; for each admitted span record
-  locator + hash + tight quote + which criterion admitted it. Over-extraction
-  is the safe direction: a useless packet costs a `judged-non-load-bearing`
-  disposition later; a missed span costs completeness silently.
+- **Relation boundary:** S2 may propose context, formal-reference, or discourse
+  relations only from its legal one-source packet context. It cannot inspect
+  another source, propose a cross-source relation, or create claim dependency
+  before claims exist.
+- **Work:** walk each source in source order. Append contiguous half-open UTF-8
+  byte intervals for admitted, non-candidate-observed, excluded, deferred, or
+  unsupported regions. Record packet-producing events separately, including
+  shared-position keys and contiguous event ordinals when more than one event
+  occurs at one position. When bounded work stops with work remaining, record
+  a next-work cursor bound to the frozen source hash; a pause between
+  shared-position siblings stays at the same byte position and names the next
+  ordinal. Siblings committed uninterrupted need no intermediate cursor. For
+  each admitted span,
+  record one or more ordered exact fragments with source + locator + hash +
+  exact base64 bytes, plus a separate display preview and the criterion that
+  admitted it. Use one packet per fragment. Declare `single-fragment`,
+  `adjacent-fragments`, or `separate-fragments`; never hide inserted text
+  between fragments. If exact bytes cannot be obtained, record a source-bound
+  `degraded-non-exact` rendering with its source locator, reason, and no packet
+  rather than reconstructing evidence. After the primary walk, dispatch a
+  distinct fresh-context coverage reviewer over the frozen source, criteria,
+  walk accounting, and admitted exact evidence. The reviewer returns no gap
+  candidate, a located gap candidate, or cannot-determine; it never writes the
+  canonical ledgers. Before recording the result, the orchestrator binds it to
+  the terminal primary cursor and the Core review-basis digest. The
+  orchestrator validates any candidate under Slice-1 exact-evidence rules and
+  appends the packet/event or leaves the finding open with no future canonical
+  IDs. A same-position reconciliation appends the next contiguous event
+  ordinal without rewriting primary walk or cursor history.
+  Over-extraction is the safe direction: a useless packet costs a
+  `judged-non-load-bearing` disposition later; a missed span costs
+  completeness silently.
 - **DoD:**
   - [ ] ⚙ every packet resolves (locator + hash) to its source span
+  - [ ] ⚙ every exact fragment's bytes and hash reopen against the frozen
+        source; fragment order, packet binding, join policy, and exact-evidence
+        digest verify
+  - [ ] ⚙ rendered/normalized transformations remain separate and preserve
+        predecessor/effective exact-evidence identity
+  - [ ] ⚙ degraded renderings retain source/locator provenance while claiming
+        no packet, fragment, or exact hash
+  - [ ] ⚙ primary walk intervals begin at source byte zero, are ordered,
+        contain no hole or undeclared overlap, and reach the exact source end
+        before that source is marked complete
+  - [ ] ⚙ every packet has one committed extraction event; same-position
+        events have one shared key with unique contiguous ordinals; each event
+        lies within exactly one exact fragment for its packet
+  - [ ] ⚙ every recorded next-work cursor is source/hash bound, monotonic, in
+        bounds, uses a Core cursor reason, and cannot skip an open interval or
+        same-position sibling; equal-byte shared cursors cannot regress
+        ordinal, while uninterrupted siblings require no intermediate cursor
+  - [ ] ⚙ exclusions reference frozen S1 exclusion classes; deferred and
+        unsupported regions remain reasoned and visibly open or validly closed
+  - [ ] ⚙ every source has a distinct gap-review record; found candidates are
+        bound to the terminal primary review basis and reconciled through exact
+        evidence, while true open findings with no packet/event IDs and
+        cannot-determine results block completion
   - [ ] ⚙ no packet carries stance/disposition/cluster vocabulary
-  - [ ] ⚖ coverage spot-check: harness re-extracts N randomly sampled source
-        segments blind and diffs against the index; misses beyond the
-        per-slice threshold send the source back for re-extraction
-  - [ ] ⚙ per-source completion recorded in the run log (every source either
-        fully walked or explicitly deferred with reason + authority note)
+  - [ ] ⚖ fresh gap review attacks primary recall from sealed inputs; a
+        no-gap result is recorded model judgment, not deterministic proof
+  - [ ] ⚙ per-source completion is recorded in the source-walk ledger; S2
+        cannot exit while any source is blocked, and a blocked final cursor
+        cannot sit behind already committed primary work
+
+**Boundary:** checker-clean structural walk closure means every frozen byte has
+a declared traversal state and the independent gap-review procedure is
+recorded. It does not mean the extractor or reviewer achieved perfect semantic
+recall.
 
 ## S3 — Candidate-claim normalization
 
 - **Purpose:** turn packets into individually stated candidate claims —
   restated once, neutrally, with provenance.
-- **Inputs:** packet index (+ read-only corpus access for context windows
+- **Inputs:** packet index, including exact-evidence fragment and
+  transformation records (+ read-only corpus access for context windows
   around a packet).
 - **Outputs:** `ledgers/claim-inventory.md` (claims + provenance + claim type;
-  dispositions still blank).
+  dispositions still blank); in run format 1.3 and later, S3 structural
+  identity outcomes append to `ledgers/lineage.md`; retained claim-level
+  relation proposals may be returned but are not canonical REL rows.
 - **Actor:** Normalizers (fan out per packet batch).
 - **Blind-context rule:** normalizers do not assign dispositions and do not
   see other batches' outputs mid-pass (dedup is S4's job, done globally).
+- **Relation boundary:** S3 may propose any legally typed claim relation
+  available from the current packet/claim batch and its legal source context.
+  It may not inspect another batch merely to discover relations. Global,
+  cross-batch, or cross-source relation judgment belongs to S4.
 - **Work:** one packet may yield zero, one, or several claims; several packets
   may support one claim (recorded, not merged yet). The neutral restatement
   must be entailed by the packet spans — adding outside knowledge here is the
-  fabrication failure mode.
+  fabrication failure mode. Normalization writes only normalized claim text;
+  it never edits, replaces, or relabels source fragments, display text, or
+  exact-evidence hashes.
 - **DoD:**
-  - [ ] ⚙ every claim has ≥1 packet; every packet either yielded claims or is
-        marked `no-claim` with one of the recorded criteria-reasons
+  - [ ] ⚙ every claim has ≥1 packet; every packet either yielded claims or has
+        an explicit structural lineage closure; a true zero-claim packet uses
+        the `no-claim` lineage event
   - [ ] ⚖ entailment spot-check: sampled claims re-derived from their packets
         alone by fresh verifiers; non-entailed restatements fail the batch
   - [ ] ⚙ claim IDs unique, hash-stable
@@ -151,25 +220,54 @@ all ledgers final.
 
 - **Purpose:** compact by normalization; kill duplicate conviction.
 - **Inputs:** full claim inventory.
-- **Outputs:** `ledgers/merge-map.md`; inventory updated (absorbed claims keep
-  rows and get `merged`).
-- **Actor:** Normalizer-Judge (global pass — this stage is a barrier).
+- **Outputs:** `ledgers/merge-map.md`; for run format 1.3 and later, each merge or
+  duplicate also appends one lineage event and materializes a new canonical
+  successor claim while every predecessor row remains immutable history. In
+  run format 1.4, S4 also emits the one canonical
+  `ledgers/relations.md` table at closure.
+- **Actor:** Normalizer-Judge, relation producers, fresh relation reviewers,
+  and the orchestrator as sole canonical writer (global pass — this stage is a
+  barrier).
 - **Work:** near-duplicates merge with all provenance retained; genuinely
   contradictory claims are *never* merged (they stay separate, flagged for
   S5/S9); the corroboration note distinguishes independent support from
   restatement.
+- **Relation closure:** challenge accumulated S2/S3 proposals against the
+  lineage-current inventory. S4 owns any of the eight relation types when the
+  judgment requires global, cross-batch, cross-source, or otherwise
+  unavailable legal context. Producers propose only; fresh reviewers never
+  write the ledger; the orchestrator recomputes each exact review-subject
+  digest, requires the exact `upheld` VER target, resolves structural
+  conflicts, and serializes canonical REL rows only at the closure barrier.
+  S4 does not acquire disposition, evidence-role, routing, ambiguity,
+  duplicate/overlap relation, or human-authority responsibility.
 - **DoD:**
-  - [ ] ⚙ C8 provenance superset holds for every merge row
+  - [ ] ⚙ C8 provenance superset holds for every merge row; in 1.3 every
+        merge/duplicate map row matches one typed lineage event whose new
+        successor conserves predecessor packet provenance
   - [ ] ⚖ merge-precision spot-check: sampled merges defended to a refuter
         ("argue these are different claims"); refuted merges are unwound
   - [ ] ⚖ contradiction sweep: harness searches the inventory for
         incompatible pairs the mapper missed; found pairs get flagged rows
+  - [ ] ⚙ every canonical REL row has the exact 17 fields, legal taxonomy,
+        typed state/endpoint/provenance, lineage-current durable endpoints,
+        recomputed review-subject digest, and one exact upheld VER target
+  - [ ] ⚙ prohibited relation subgraphs are acyclic, self-edges and
+        duplicate/conflicting scopes fail, and qualifier/configuration mixed
+        cycles do not trigger a false global-DAG rule
+  - [ ] ⚖ fresh relation review attacks missing/over-broad/wrong
+        type/target, context-as-support, qualifier loss, wrong semantic locus,
+        outside-corpus invention, explicit absence from incomplete context,
+        and unjustified permitted cycles
+  - [ ] ⚙ canonical relation bytes are absent/empty before closure, written
+        only at S4 closure, and refused unchanged after closure; retained K2
+        state does not claim historical intra-S4 timing
 
 ## S5 — Disposition pass
 
 - **Purpose:** resolve every candidate claim into exactly one of the seven
   dispositions, with reasons where the doctrine demands them.
-- **Inputs:** claim inventory + merge map + scope statement + negative-boundary
+- **Inputs:** claim inventory + merge map + read-only relation ledger + scope statement + negative-boundary
   drafts. **Not** the routing/cluster layers (which do not exist yet — the
   four-layer model keeps disposition upstream of stance).
 - **Outputs:** completed inventory; `ledgers/disposition-ledger.md`;
@@ -178,8 +276,12 @@ all ledgers final.
 - **Actor:** Disposition Judges (fan out per claim batch) + harness review.
 - **Blind-context rule:** judges see the claim, its packets, the scope, and
   the criteria — not other judges' calls on unrelated batches.
+- **Relation boundary:** relations may supply challenge context but never
+  mechanically select or change a disposition. S5 never rewrites REL rows.
 - **DoD:**
-  - [ ] ⚙ every claim exactly one disposition; accounting balances
+  - [ ] ⚙ every current research claim exactly one disposition; in 1.3 this
+        population is the lineage-current claim set, while historical
+        predecessors require no fabricated new disposition; accounting balances
   - [ ] ⚙ every `excluded-with-reason` has a reason; every exclusion citing
         scope maps to a negative boundary
   - [ ] ⚙ contradiction pairs from S4 are not silently resolved (each side
@@ -193,9 +295,12 @@ all ledgers final.
 
 - **Purpose:** type every claim×source edge; declare removal effects for
   load-bearing support (artifact 8; issue #18's ALEPH-EVIDENCE-ROLE-001).
-- **Inputs:** inventory, merge map, source trust classes.
+- **Inputs:** inventory, merge map, read-only relation ledger, source trust classes.
 - **Outputs:** `ledgers/evidence-roles.md`.
 - **Actor:** Evidence-Role Judges.
+- **Relation boundary:** no REL family or multiplicity becomes
+  load-bearing/corroborative/contradictory support. S6 independently judges
+  the `CC x SRC` evidence-role surface and never rewrites REL rows.
 - **DoD:**
   - [ ] ⚙ role-coverage accounting: every carried claim has qualifying support
         or an explicit synthesis/inference marker with uncertainty
@@ -371,9 +476,9 @@ S13. A projection is never "done" by the renderer's say-so.
 |-------|-------|----------|---------|----------------|
 | S0 | manifest, frozen corpus | — | — | scope + sensitivity |
 | S1 | inventory, criteria | yes (criteria before packets) | — | — |
-| S2 | packet index | — | per source | — |
-| S3 | claim inventory (no dispositions) | — | per packet batch | — |
-| S4 | merge map | yes (global) | — | — |
+| S2 | packet index; retained one-source relation proposals | — | per source | — |
+| S3 | claim inventory (no dispositions); retained batch-local relation proposals | — | per packet batch | — |
+| S4 | merge map; lineage closure; canonical relation ledger | yes (global) | relation production/review may fan out under bounded bundles | — |
 | S5 | dispositions, boundaries, queue | — | per claim batch | — |
 | S6 | evidence roles | — | per claim batch | — |
 | S7 | pre-cluster tags | yes | — | — |

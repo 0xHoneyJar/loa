@@ -1,9 +1,11 @@
 import { existsSync, linkSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
+import { forwardExecutionIdentityProblems, loadRunManifest, } from '../../../scripts/lib/run-model.js';
 import { CORE_RUN_STATES, CORE_STAGES, LOA_ADAPTER_ID, LOA_BUNDLE_ID, LOA_RUN_ROOT, LOA_RUN_STATE_FORMAT, } from './types.js';
-import { assertNoSymlinkComponents, assertPathWithin, assertSafeRelativePath, nextDecimal, readJsonFile, sha256Digest, stableJsonBytes, utf8Compare, writeFileAtomic, writeJsonAtomic, } from './fs.js';
+import { assertNoSymlinkComponents, assertPathWithin, assertSafeRelativePath, nextDecimal, readJsonFile, sha256Digest, stableJson, stableJsonBytes, utf8Compare, writeFileAtomic, writeJsonAtomic, } from './fs.js';
 import { verifyCorpusSnapshot } from './intake.js';
 import { extractMarkdownHeading, readLockedFile, verifyAndLoadLoaBundle, } from './core-loader.js';
+import { loadLoaProfile, verifyRuntimeSnapshot, } from './runtime-snapshot.js';
 export const RUN_CONTROL_PATH = 'control/run-state.json';
 export const ORIGINAL_BUNDLE_LOCK_PATH = 'control/original-bundle.lock.json';
 export const RUNTIME_SNAPSHOT_PATH = 'control/runtime/snapshot.json';
@@ -423,6 +425,9 @@ export function initializeRunControl(options) {
 }
 export function verifyOriginalBundleLock(runDir, state) {
     const current = state || readRunState(runDir);
+    if (current.identity.bundle.lock_ref !== ORIGINAL_BUNDLE_LOCK_PATH) {
+        throw new Error('original bundle lock reference disagrees with pinned run identity');
+    }
     const lockPath = join(resolve(runDir), current.identity.bundle.lock_ref);
     const raw = readFileSync(lockPath);
     let value;
@@ -435,17 +440,111 @@ export function verifyOriginalBundleLock(runDir, state) {
     const lock = value;
     if (!isRecord(lock)
         || lock.lock_digest !== current.identity.bundle.lock_digest
+        || lock.bundle?.id !== current.identity.bundle.id
+        || lock.bundle?.version !== current.identity.bundle.version
+        || lock.bundle?.payload_digest !== current.identity.bundle.payload_digest
         || lock.bundle?.digest !== current.identity.bundle.digest
+        || lock.core?.id !== current.identity.core.id
+        || lock.core?.version !== current.identity.core.version
         || lock.core?.tree_digest !== current.identity.core.tree_digest
+        || lock.adapter?.id !== current.identity.adapter.id
+        || lock.adapter?.version !== current.identity.adapter.version
+        || lock.adapter?.lifecycle !== current.identity.adapter.lifecycle
         || lock.adapter?.tree_digest !== current.identity.adapter.tree_digest
-        || lock.checker_digest !== current.identity.checker_digest) {
+        || lock.checker_digest !== current.identity.checker_digest
+        || lock.adapter_protocol_version !== current.identity.adapter_protocol_version
+        || lock.run_format_version !== current.identity.run_format_version) {
         throw new Error('original bundle lock disagrees with pinned run identity');
     }
     return lock;
 }
+const PROGRESS_CORE_RUN_STATES = CORE_RUN_STATES.filter((state) => state !== 'BLOCKED');
+function retainedManifestStateFloor(state) {
+    const stageIndex = CORE_STAGES.indexOf(state.execution.stage);
+    const retainedStateIndex = state.execution.core_state === 'BLOCKED'
+        ? -1
+        : PROGRESS_CORE_RUN_STATES.indexOf(state.execution.core_state);
+    if (stageIndex >= CORE_STAGES.indexOf('S2')
+        || retainedStateIndex >= PROGRESS_CORE_RUN_STATES.indexOf('DISTILLING')) {
+        return 'DISTILLING';
+    }
+    if (stageIndex >= CORE_STAGES.indexOf('S1')
+        || retainedStateIndex >= PROGRESS_CORE_RUN_STATES.indexOf('CORPUS-FROZEN')) {
+        return 'CORPUS-FROZEN';
+    }
+    return 'DRAFT';
+}
+function verifyRunManifestAuthority(runDir, state, lock) {
+    const manifest = loadRunManifest(resolve(runDir));
+    if (!manifest)
+        throw new Error('Core run manifest is missing or unreadable');
+    const expectedModels = stableJson(state.identity.models);
+    const comparisons = [
+        ['run_id', manifest.runId, state.run_id],
+        ['mode', manifest.mode, state.mode],
+        ['doctrine_sha', manifest.doctrineSha, lock.provenance.vcs.commit],
+        ['run_format_version', manifest.runFormatVersion, state.identity.run_format_version],
+        ['core_id', manifest.forwardIdentity.coreId, state.identity.core.id],
+        ['core_version', manifest.forwardIdentity.coreVersion, state.identity.core.version],
+        ['core_digest', manifest.forwardIdentity.coreDigest, state.identity.core.tree_digest],
+        ['adapter_id', manifest.forwardIdentity.adapterId, state.identity.adapter.id],
+        ['adapter_version', manifest.forwardIdentity.adapterVersion, state.identity.adapter.version],
+        ['adapter_digest', manifest.forwardIdentity.adapterDigest, state.identity.adapter.tree_digest],
+        ['bundle_id', manifest.forwardIdentity.bundleId, state.identity.bundle.id],
+        ['bundle_digest', manifest.forwardIdentity.bundleDigest, state.identity.bundle.digest],
+        ['bundle_lock_ref', manifest.forwardIdentity.bundleLockRef, state.identity.bundle.lock_ref],
+        ['checker_digest', manifest.forwardIdentity.checkerDigest, state.identity.checker_digest],
+        [
+            'adapter_protocol_version',
+            manifest.forwardIdentity.adapterProtocolVersion,
+            state.identity.adapter_protocol_version,
+        ],
+        [
+            'host_identity',
+            manifest.forwardIdentity.hostIdentity,
+            `${state.identity.host.id}@${state.identity.host.version}+${state.identity.host.build_id}`,
+        ],
+        [
+            'runtime_snapshot_ref',
+            manifest.forwardIdentity.runtimeSnapshotRef,
+            state.identity.runtime.snapshot_ref,
+        ],
+        [
+            'runtime_snapshot_digest',
+            manifest.forwardIdentity.runtimeSnapshotDigest,
+            state.identity.runtime.digest,
+        ],
+        ['model_ids', manifest.forwardIdentity.modelIds, expectedModels],
+        [
+            'adapter profile ID + digest',
+            manifest.forwardIdentity.adapterProfile,
+            `${state.identity.profile.id} @ ${state.identity.profile.digest}`,
+        ],
+        [
+            'model/context/effort mapping actually used',
+            manifest.forwardIdentity.modelExecutionMapping,
+            expectedModels,
+        ],
+    ];
+    const problems = forwardExecutionIdentityProblems(manifest);
+    for (const [field, actual, expected] of comparisons) {
+        if (actual !== expected)
+            problems.push(`${field} disagrees with retained run authority`);
+    }
+    if (problems.length > 0) {
+        throw new Error(`Core run manifest identity disagrees with retained Loa run authority: ${problems.join('; ')}`);
+    }
+    const minimumState = retainedManifestStateFloor(state);
+    const minimumIndex = PROGRESS_CORE_RUN_STATES.indexOf(minimumState);
+    const reachedFloor = manifest.states.some((row) => (PROGRESS_CORE_RUN_STATES.indexOf(row.values.state.trim()) >= minimumIndex));
+    if (!reachedFloor) {
+        throw new Error(`Core run manifest state understates retained execution stage ${state.execution.stage}: expected ${minimumState} or later`);
+    }
+}
 export function verifyRunControl(runDir) {
     const state = readRunState(runDir);
-    verifyOriginalBundleLock(runDir, state);
+    const lock = verifyOriginalBundleLock(runDir, state);
+    verifyRunManifestAuthority(runDir, state, lock);
     const corpus = verifyCorpusSnapshot(runDir);
     if (corpus.run_id !== state.run_id
         || corpus.tree_digest !== state.corpus.tree_digest
@@ -453,6 +552,29 @@ export function verifyRunControl(runDir) {
         throw new Error('corpus snapshot disagrees with run state');
     }
     return state;
+}
+export function verifyRetainedRuntimeIdentity(runDir, state) {
+    const current = state || verifyRunControl(runDir);
+    if (current.identity.runtime.snapshot_ref !== RUNTIME_SNAPSHOT_PATH) {
+        throw new Error('run-state runtime snapshot reference is not canonical');
+    }
+    const runtime = verifyRuntimeSnapshot(runtimeSnapshotPath(runDir), {
+        allowSimulation: current.full_mode === 'fixture-simulated',
+    });
+    const profile = loadLoaProfile(runtime.profile.path);
+    const runtimeModels = mapModels(profile.value, runtime.host);
+    if (runtime.run_id !== current.run_id
+        || runtime.tree_digest !== current.identity.runtime.digest
+        || runtime.bundle.id !== current.identity.bundle.id
+        || runtime.bundle.digest !== current.identity.bundle.digest
+        || runtime.bundle.lock_digest !== current.identity.bundle.lock_digest
+        || runtime.profile.id !== current.identity.profile.id
+        || runtime.profile.digest !== current.identity.profile.digest
+        || !stableJsonBytes(runtime.host.host).equals(stableJsonBytes(current.identity.host))
+        || !stableJsonBytes(runtimeModels).equals(stableJsonBytes(current.identity.models))) {
+        throw new Error('retained runtime snapshot identity disagrees with pinned run authority');
+    }
+    return runtime;
 }
 function validGateId(value) {
     return /^GATE-[A-Za-z0-9]+(?:[._-][A-Za-z0-9]+)*$/u.test(value);

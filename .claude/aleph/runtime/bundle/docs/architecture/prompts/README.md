@@ -71,6 +71,12 @@ output is one possible host mechanism, not a Core requirement. Conventions:
   record;
 - every object carries `flags: string[]` for anomalies (empty when none) —
   this is where rule-1 injection notes land.
+- typed-relation producer objects carry every canonical pre-review field in
+  T3.3b, except `relation_id` and `reviewed_by`, plus a rationale kept outside
+  the canonical row. `basis_packet_ids` is an ordered array. The producer and
+  orchestrator independently serialize the fixed-order compact JSON
+  `aleph-relation-review-subject/v1` subject and compare the full lowercase
+  `sha256:` digest before review; changing any field starts a new subject.
 
 ## Adapter profile mapping
 

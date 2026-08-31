@@ -85,8 +85,8 @@ function main(): number {
   const results: CaseResult[] = [];
   const contracts = outputContracts();
 
-  runCase(results, 'all thirteen pinned prompt contracts accept a valid materialization', () => {
-    expect(contracts.length === 13, `expected 13 output contracts, found ${contracts.length}`);
+  runCase(results, 'all fourteen pinned prompt contracts accept a valid materialization', () => {
+    expect(contracts.length === 14, `expected 14 output contracts, found ${contracts.length}`);
     contracts.forEach((contract, index) => {
       const validation = validateWorkerReturnContract(
         json(materialize(contract)),
@@ -97,6 +97,29 @@ function main(): number {
         `contract ${String(index + 1)} rejected valid data: ${validation.errors.join('; ')}`,
       );
     });
+  });
+
+  runCase(results, 'typed-relation producer contract closes adopted vocabularies', () => {
+    const relationContract = contracts.find((candidate) => (
+      typeof candidate === 'object'
+      && candidate !== null
+      && 'relation_proposals' in candidate
+    ));
+    expect(relationContract, 'typed-relation producer contract was not discovered');
+    const validRelation = materialize(relationContract) as {
+      relation_proposals: Array<Record<string, WorkerJsonValue>>;
+    };
+    expect(
+      validateWorkerReturnContract(json(validRelation), relationContract).result === 'PASS',
+      'valid typed-relation producer materialization failed',
+    );
+    validRelation.relation_proposals[0].family = 'evidence-support';
+    const invalid = validateWorkerReturnContract(json(validRelation), relationContract);
+    expect(invalid.result === 'FAIL', 'undeclared relation family passed');
+    expect(
+      invalid.errors.some((error) => /Core literals/u.test(error)),
+      'undeclared relation family omitted its closed-vocabulary diagnostic',
+    );
   });
 
   runCase(results, 'schema projection closes objects and requires every key', () => {

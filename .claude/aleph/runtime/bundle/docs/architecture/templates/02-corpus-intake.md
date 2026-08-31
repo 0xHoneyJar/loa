@@ -11,7 +11,7 @@
 ## Span-addressing schemes in use
 | scheme id | applies to | locator format |
 |-----------|------------|----------------|
-| md-lines | markdown/plain files | `L⟨start⟩-L⟨end⟩` of the frozen file |
+| md-lines | UTF-8 line-addressable text files | `L⟨start⟩-L⟨end⟩`; one-based inclusive complete lines, including the following LF unless the span ends on the final line |
 | chat-msg | conversation exports | `M⟨n⟩` (1-based message index) or `M⟨n⟩:S⟨k⟩` (sentence k within message n) |
 | ⟨add per format; propose new schemes in the same PR that first needs them⟩ | | |
 
@@ -37,6 +37,11 @@ Column rules:
   later belongs to a successor run whose manifest names this run; never append
   it to the frozen corpus. A post-freeze authority resolution belongs in the
   current run's manifest sign-off table, not in a new source row.
+- `content_hash` is over the exact frozen file bytes. Intake must not replace
+  newline bytes, punctuation characters, ligatures, or other characters while
+  producing a source that later exact-evidence fragments address. If exact
+  source bytes are unavailable, record the degradation and do not claim a
+  byte-exact source.
 
 <!-- example -->
 | SRC-101 | deep-research-output | sources/access-model.md | md-lines | sha256:9f31… | 2026-06 | model-generated | none | core access-model research named by scope |

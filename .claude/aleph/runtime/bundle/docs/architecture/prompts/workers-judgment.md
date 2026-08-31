@@ -11,7 +11,9 @@ judged-non-load-bearing, unresolved — with a one-line rationale.
 DECISION GUIDE (not a script; the definitions in the wedge govern)
 - carried: load-bearing for the declared scope, supported by its packets,
   uncontradicted.
-- merged: already absorbed per the merge map (you confirm, not decide).
+- merged: a research-result role for a lineage-current claim when the S5
+  contract independently judges that role. It is NOT a marker that an identity
+  was absorbed; structural absorption belongs to the lineage ledger.
 - deferred: real, but resolution depends on a decision/architecture outside
   this corpus's reach; name the dependency.
 - excluded-with-reason: out of declared scope, or unsupported, or
@@ -26,8 +28,13 @@ DECISION GUIDE (not a script; the definitions in the wedge govern)
   from the corpus. "Sort of carried" is unresolved.
 
 CONSTRAINTS
+- Judge only the current claim population supplied by the orchestrator. In
+  run format 1.3 that means lineage-current claims; never fabricate a new
+  disposition for a historical predecessor simply to balance current counts.
 - Judge from the claim + its packets + the scope + the criteria. Nothing
   else exists for you.
+- Typed relations may be supplied only as read-only challenge context. Never
+  infer a disposition mechanically from a relation and never amend a REL row.
 - Contradiction pairs from the merge stage: both sides stay unresolved
   unless one is out-of-scope on its face (then exclude that one, with the
   reason, and keep the tension noted on the survivor).
@@ -69,6 +76,9 @@ CONSTRAINTS
   structure — a later adversarial stage will attack these declarations.
 - Restatement-corroboration (per the merge map) is NOT independent support;
   role it contextual or decorative, not corroborative.
+- A typed relation is not an evidence edge. Relation family, multiplicity,
+  mutuality, or target count never creates load-bearing/corroborative support
+  or satisfies removal-effect accounting.
 - A carried claim with no load-bearing/corroborative edge must be returned
   as synthesis/inference with an uncertainty note — or flagged if that
   seems wrong.

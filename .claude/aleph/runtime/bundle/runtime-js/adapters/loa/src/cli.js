@@ -6,8 +6,8 @@ import { LOA_COMMAND_RESULT_FORMAT, LOA_INSTALL_LOCK_PATH, LOA_INSTALLED_BUNDLE_
 import { extractFirstFence, extractMarkdownHeading, readLockedFile, readVerifiedBundleLock, verifyAndLoadLoaBundle, } from './core-loader.js';
 import { readJsonFile, makeTreeOwnerWritable, nextDecimal, sha256Digest, stableJson, stableJsonBytes, writeFileAtomic, writeJsonAtomic, } from './fs.js';
 import { applyCorpusFreeze, planCorpusFreeze, snapshotCorpus, verifyCorpusSnapshot, } from './intake.js';
-import { acquireDurableProcessLock, createRunDirectory, initializeRunControl, listRunIds, openHumanAuthorityGate, readRunState, recordHumanAuthorityDecision, recoverPendingAuthorityTransactions, runDirectory, runtimeSnapshotPath, stateCheckpointDigest, verifyRunControl, writeRunState, } from './run-control.js';
-import { captureRuntimeSnapshot, defaultProfilePath, loadLoaProfile, validateResolvedHost, verifyRuntimeSnapshot, } from './runtime-snapshot.js';
+import { acquireDurableProcessLock, createRunDirectory, initializeRunControl, listRunIds, openHumanAuthorityGate, readRunState, recordHumanAuthorityDecision, recoverPendingAuthorityTransactions, runDirectory, runtimeSnapshotPath, stateCheckpointDigest, verifyRetainedRuntimeIdentity, verifyRunControl, writeRunState, } from './run-control.js';
+import { captureRuntimeSnapshot, defaultProfilePath, loadLoaProfile, validateResolvedHost, } from './runtime-snapshot.js';
 import { invokePinnedChecker, } from './checker.js';
 import { verifyLoaInstallation } from './installer.js';
 import { runLoaPreflight } from './preflight.js';
@@ -209,8 +209,9 @@ function renderFrozenCorpusManifest(bundle, state, staged, frozen, response) {
             return false;
         if (line.startsWith('| ⟨add per format;'))
             return false;
-        return line !== '| md-lines | markdown/plain files | `L⟨start⟩-L⟨end⟩` of the frozen file |'
-            || schemes.has('md-lines');
+        if (line.startsWith('| md-lines |'))
+            return schemes.has('md-lines');
+        return true;
     }).join('\n');
     if (schemes.has('text-lines')) {
         manifest = insertTableRow(manifest, '## Span-addressing schemes in use', '| text-lines | UTF-8 text files | `L⟨start⟩-L⟨end⟩` of the frozen file |');
@@ -319,6 +320,7 @@ export function startLoaRun(inputs, options = {}) {
         });
         const pinnedBundle = verifyAndLoadLoaBundle(runtime.bundle.root);
         writeCanonicalDraft(pinnedBundle, runDir, state, corpus, now);
+        verifyRetainedRuntimeIdentity(runDir, verifyRunControl(runDir));
         return result('start', 'BLOCKED', {
             run_id: runId,
             full_mode: state.full_mode,
@@ -354,10 +356,10 @@ export function statusLoaRun(runId, options = {}) {
     const loaRoot = resolve(options.loaRoot || process.cwd());
     try {
         if (!runId) {
-            const runs = listRunIds(loaRoot).map((id) => stateSummary(readRunState(runDirectory(loaRoot, id))));
+            const runs = listRunIds(loaRoot).map((id) => stateSummary(verifyRunControl(runDirectory(loaRoot, id))));
             return result('status', 'PASS', { details: { runs } });
         }
-        const state = readRunState(runDirectory(loaRoot, runId));
+        const state = verifyRunControl(runDirectory(loaRoot, runId));
         return result('status', state.execution.halt ? 'BLOCKED' : 'PASS', {
             run_id: runId,
             full_mode: state.full_mode,
@@ -382,13 +384,7 @@ export function resumeLoaRun(runId, options = {}) {
         recoverPendingAuthorityTransactions(runDir, options.clock);
         recoverPendingLedgerTransactions(runDir, options.clock);
         const state = verifyRunControl(runDir);
-        const runtime = verifyRuntimeSnapshot(runtimeSnapshotPath(runDir), {
-            allowSimulation: options.allowSimulation || state.full_mode === 'fixture-simulated',
-        });
-        if (runtime.tree_digest !== state.identity.runtime.digest
-            || runtime.bundle.digest !== state.identity.bundle.digest) {
-            throw new Error('run-local runtime snapshot disagrees with run state');
-        }
+        const runtime = verifyRetainedRuntimeIdentity(runDir, state);
         if (state.full_mode === 'fixture-simulated'
             && ['ACCEPTED', 'PROJECTION-ACCEPTED'].includes(state.execution.core_state)) {
             throw new Error('fixture-simulated execution cannot carry acceptance state');
@@ -597,15 +593,7 @@ export function recordS0AuthorityResponse(runId, response, options = {}) {
         const runDir = runDirectory(loaRoot, runId);
         release = acquireS0TransactionLock(runDir, options.clock?.now() || new Date().toISOString(), false);
         const prior = verifyRunControl(runDir);
-        const runtime = verifyRuntimeSnapshot(runtimeSnapshotPath(runDir), {
-            allowSimulation: options.allowSimulation
-                || prior.full_mode === 'fixture-simulated'
-                || Boolean(response.simulation),
-        });
-        if (runtime.tree_digest !== prior.identity.runtime.digest
-            || runtime.bundle.digest !== prior.identity.bundle.digest) {
-            throw new Error('run-local runtime snapshot disagrees with run state');
-        }
+        const runtime = verifyRetainedRuntimeIdentity(runDir, prior);
         if (prior.execution.stage !== 'S0'
             || prior.execution.gate?.status !== 'awaiting-authority') {
             throw new Error('run is not awaiting its S0 authority response');
@@ -680,13 +668,7 @@ export function openGenericHumanAuthorityGate(runId, gate, options = {}) {
         const runDir = runDirectory(loaRoot, runId);
         recoverPendingAuthorityTransactions(runDir, options.clock);
         const prior = verifyRunControl(runDir);
-        const runtime = verifyRuntimeSnapshot(runtimeSnapshotPath(runDir), {
-            allowSimulation: options.allowSimulation || prior.full_mode === 'fixture-simulated',
-        });
-        if (runtime.tree_digest !== prior.identity.runtime.digest
-            || runtime.bundle.digest !== prior.identity.bundle.digest) {
-            throw new Error('run-local runtime snapshot disagrees with run state');
-        }
+        verifyRetainedRuntimeIdentity(runDir, prior);
         const state = openHumanAuthorityGate(runDir, gate);
         return result('resume', 'BLOCKED', {
             run_id: runId,
@@ -710,15 +692,7 @@ export function recordGenericHumanAuthorityResponse(runId, decision, options = {
         const runDir = runDirectory(loaRoot, runId);
         recoverPendingAuthorityTransactions(runDir, options.clock);
         const prior = verifyRunControl(runDir);
-        const runtime = verifyRuntimeSnapshot(runtimeSnapshotPath(runDir), {
-            allowSimulation: options.allowSimulation
-                || prior.full_mode === 'fixture-simulated'
-                || decision.simulation !== null,
-        });
-        if (runtime.tree_digest !== prior.identity.runtime.digest
-            || runtime.bundle.digest !== prior.identity.bundle.digest) {
-            throw new Error('run-local runtime snapshot disagrees with run state');
-        }
+        verifyRetainedRuntimeIdentity(runDir, prior);
         const state = recordHumanAuthorityDecision(runDir, decision);
         return result('resume', state.execution.halt ? 'BLOCKED' : 'PASS', {
             run_id: runId,
