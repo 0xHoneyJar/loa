@@ -1,4 +1,5 @@
 import type { BundleLock } from '../../../scripts/lib/bundle-format.ts';
+import type { RestrictionTuple } from '../../../scripts/lib/internal-ambiguity.ts';
 
 export const LOA_ADAPTER_ID = 'loa';
 export const LOA_BUNDLE_ID = 'aleph-for-loa';
@@ -59,6 +60,10 @@ export const LOA_ROLE_IDS = [
   'extractor',
   'normalizer',
   'merge-judge',
+  'ambiguity-producer',
+  'ambiguity-reviewer',
+  'material-impact-producer',
+  'material-impact-reviewer',
   'disposition-judge',
   'evidence-role-judge',
   'cluster-cartographer',
@@ -329,6 +334,8 @@ export interface FrozenSourceRecord {
   byte_length: string;
   digest: string;
   mode: string;
+  // New captures use Core md-lines. text-lines remains readable only for
+  // historical snapshots governed by their original pinned runtime.
   scheme: 'md-lines' | 'text-lines';
 }
 
@@ -438,6 +445,8 @@ export interface WorkerRequest {
   blind_policy: CoreBlindPolicy;
   allowlist: WorkerAttachment[];
   withheld: WithheldSelector[];
+  procedural_restrictions: RestrictionTuple[];
+  downstream_operations: RestrictionTuple[];
   task_line: string;
   output_contract: {
     core_path: string;

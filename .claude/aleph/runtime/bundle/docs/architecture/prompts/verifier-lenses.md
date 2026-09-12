@@ -25,16 +25,41 @@ output.
 ```json
 { "verdict": "upheld|refuted|cannot-determine",
   "rationale": "", "attacks_tried": [""],
-  "evidence_ids": [""], "missing_for_determination": null, "flags": [] }
+  "evidence_ids": [""],
+  "candidate_evidence": [{ "start_byte": 0, "end_byte": 0,
+    "source_locator": "", "exact_bytes_base64": "" }],
+  "missing_for_determination": null, "flags": [] }
 ```
+
+Only L1 uses `candidate_evidence`; every other lens returns an empty array.
 
 ## Lens charters
 
 ### L1 — coverage (S2 DoD)
-Attempt to find spans in the attached source segment that meet the attached
-criteria but have no packet. **Shown:** one source segment, criteria, the
-packet rows for that segment. **Withheld:** the rest of the run.
-`refuted` = you found a qualifying unpacketed span (list locators).
+Attempt to find spans in the complete attached frozen source that meet the
+attached criteria but are absent from the admitted packet evidence. **Shown:**
+one frozen source, its S1 criteria, primary walk accounting, and admitted
+packet/exact-evidence records for that source. **Withheld:** the rest of the
+run, producer rationale or hidden context, expected answers, calibration
+decisions, and any assertion that the extractor was correct.
+
+The orchestrator records the terminal primary cursor and Core review-basis
+digest for exactly these mechanically supplied inputs. That binding identifies
+what was reviewed; it does not prove fresh-context isolation or reviewer
+independence.
+
+Map the common verdict to the Core gap result:
+
+- `upheld` → `no-gap-candidate-found`;
+- `refuted` → `gap-candidate-found`;
+- `cannot-determine` → `cannot-determine`.
+
+For `gap-candidate-found`, populate `candidate_evidence` with each proposed
+source position and exact source-local locator/evidence candidate. For the
+other two results, return an empty array. You do not create packet IDs or write
+canonical ledgers, so an open candidate has no proposed packet or reconciliation
+event ID yet. For `cannot-determine`, name what prevented review. A
+no-gap result is semantic reviewer judgment, not deterministic recall proof.
 
 ### L2 — entailment (S3 DoD)
 Attempt to show the normalized claim is NOT entailed by its packets: added
@@ -48,6 +73,26 @@ hedge strength, or contradictory). Also check the corroboration label:
 argue `independent` is actually restatement. **Shown:** the merge row + all
 member claims + their packet quotes + source kinds. **Withheld:** the rest
 of the merge map.
+
+### L3R — typed-relation semantic challenge (S4 closure)
+Attack exactly one complete proposed relation subject. Test for a missing
+required relation, over-broad scope, wrong family/subtype, wrong source,
+wrong existing/current target, context disguised as support, lost qualifier
+or antecedent, unjustified permitted cycle, exact legal locus aimed at the
+wrong semantic span, invented outside-corpus target, and explicit absence from
+incomplete context. **Shown:** the complete proposed subject and its digest;
+source unit and packet basis; only the bounded current-unit summaries and
+exact loci needed to test candidate targets; lineage-current inventory.
+**Withheld:** producer rationale/hidden context, SRC-001 answer keys, final
+relation density, external facts, and downstream dispositions/evidence roles.
+
+The verdict target is exactly
+`relation-review-subject:<review_subject_digest>`. `upheld` may authorize only
+that unchanged subject. `refuted` recommends exactly `revise` (with a complete
+new subject requiring a new digest/review), `reject`, or `not-applicable`.
+`cannot-determine` cannot authorize the subject. If indeterminate canonical
+state should be retained, review that complete indeterminate proposal
+separately. You never write `ledgers/relations.md`.
 
 ### L4 — disposition-refuter (S5 DoD)
 Argue the OPPOSITE disposition is more faithful to the packets and scope.

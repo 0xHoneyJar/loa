@@ -144,6 +144,23 @@ merge-map row exists.
 
 ## Discovered fixtures and run kernels
 
+Run format `1.5.0-provisional` adds K2.17 retained-state validation for the
+internal-ambiguity lifecycle. It checks activation, the exact T5.1/T5.2/T5.3
+tables, frozen-expression reopening, search basis, candidate grammar and
+currentness, explicit C1 relation eligibility, the legal state matrix,
+single-headed history, exact verifier binding, material-impact subjects,
+pinned Core requirement refs, Core action projection, authority
+request/response binding, `selected_candidate_ref = none`, M/Q sequencing,
+terminal/nonterminal C2 state, observation withholding references, and C1
+retained-state consistency.
+
+K2.17 is structural only. It does not detect ambiguity, select a candidate,
+judge search or material-impact adequacy, infer affected relations or
+propagation, validate truth, prove semantic reviewer independence, grant human
+authority, or confer acceptance or sanction. The temporal write/refusal and
+crash-recovery propositions are tested separately through the Loa process
+suite; final retained-state validation cannot prove them by itself.
+
 Every non-legacy directory directly under `docs/fixtures/` declares one
 `aleph-fixture` block. K1 validates the declaration/ranges and dispatches by
 kind. The current suite contains:
@@ -154,6 +171,8 @@ kind. The current suite contains:
 | `evidence-role-adversarial` | `evidence-role` | K3.1-K3.8 |
 | `projection-adversarial` | `projection` | K6.1-K6.10 |
 | `run-slice-2` | `run` | K2.1-K6.10 |
+| `exact-evidence-fragments` | `run` | K2.1-K2.14; 1.1 compatibility lock |
+| `source-walk-accounting` | `run` | K2.1-K2.14; 1.2 source-walk lock |
 
 The run kernel checks:
 
@@ -168,7 +187,10 @@ scans; a `control/` directory nested anywhere else is not excluded.
   forbidden tokens, source-span hashes, global `RUN` through `PRJ` ID integrity,
   claim shape,
   disposition accounting, merge provenance, criteria chronology, append-ledger
-  status chains, exact Précis projection, and kernel-report honesty.
+  status chains, exact Précis projection, kernel-report honesty,
+  exact-evidence/ordered-fragment fidelity, and 1.2 frozen-byte source-walk,
+  event-to-fragment position, shared-position, next-work frontier,
+  review-basis, gap-review, and per-source closure accounting.
 - **K3:** evidence-edge shape/resolution, removal effects, support coverage,
   decorative/unresolved-source exclusions, contradiction preservation, and
   inference-marker resolution.
@@ -200,6 +222,13 @@ printing, exiting, writing, spawning, or using the network. It returns:
 
 `result` is `PASS` only when every applicable record has `status: PASS`.
 Human mode prints the same records as `PASS/FAIL <scope> <id> <message>`.
+
+K2.14 PASS establishes only that the frozen source coordinate space and
+declared S2 procedure are structurally accounted for. It does not establish
+that the primary extractor found every qualifying assertion, that a gap
+reviewer's judgment was correct, that declared contexts were actually isolated,
+or that any semantic validation, sanction, acceptance, production, golden, or
+v1 gate has been met.
 
 ### Durable cross-group mutation record
 

@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { basename, dirname, join, resolve, } from 'node:path';
 import { LOA_WORKER_VALIDATION_FORMAT, } from './types.js';
 import { assertNoSymlinkComponents, sha256Digest, stableJson, stableJsonBytes, writeFileAtomic, writeJsonAtomic, } from './fs.js';
-import { verifyWorkerBundle } from './worker-bundle.js';
+import { assertWorkerRoleIsolation, verifyWorkerBundle, } from './worker-bundle.js';
 import { contractExemplarToJsonSchema, validateWorkerReturnContract, } from '../../../scripts/lib/worker-return-contract.js';
 export { contractExemplarToJsonSchema };
 const VALIDATED_TOKEN = Symbol('validated-worker-return');
@@ -130,6 +130,7 @@ function parseRaw(raw) {
     }
 }
 export function validateWorkerDispatch(request, receipt) {
+    assertWorkerRoleIsolation(request.role, request.kind, request.isolation?.producer_context_id);
     if (receipt.format !== 'aleph-loa-worker-dispatch/v1'
         || receipt.call_id !== request.call_id
         || !receipt.context_id
@@ -145,7 +146,6 @@ export function validateWorkerDispatch(request, receipt) {
         throw new Error('worker dispatch receipt has an invalid simulation marker');
     }
     if (request.kind === 'refuter'
-        && request.isolation.producer_context_id
         && receipt.context_id === request.isolation.producer_context_id) {
         throw new Error('fresh-context refuter reused the producer context');
     }

@@ -1,9 +1,12 @@
 import { existsSync, linkSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
+import { proceduralAuthorityRequestJson, proceduralAuthorityResponseJson, validateProceduralAuthorityRequest, validateProceduralAuthorityResponse, PROCEDURAL_FOLLOWUP_REASONS, } from '../../../scripts/lib/internal-ambiguity.js';
+import { forwardExecutionIdentityProblems, loadRunManifest, } from '../../../scripts/lib/run-model.js';
 import { CORE_RUN_STATES, CORE_STAGES, LOA_ADAPTER_ID, LOA_BUNDLE_ID, LOA_RUN_ROOT, LOA_RUN_STATE_FORMAT, } from './types.js';
-import { assertNoSymlinkComponents, assertPathWithin, assertSafeRelativePath, nextDecimal, readJsonFile, sha256Digest, stableJsonBytes, utf8Compare, writeFileAtomic, writeJsonAtomic, } from './fs.js';
+import { assertNoSymlinkComponents, assertPathWithin, assertSafeRelativePath, nextDecimal, readJsonFile, sha256Digest, stableJson, stableJsonBytes, utf8Compare, writeFileAtomic, writeJsonAtomic, } from './fs.js';
 import { verifyCorpusSnapshot } from './intake.js';
 import { extractMarkdownHeading, readLockedFile, verifyAndLoadLoaBundle, } from './core-loader.js';
+import { loadLoaProfile, verifyRuntimeSnapshot, } from './runtime-snapshot.js';
 export const RUN_CONTROL_PATH = 'control/run-state.json';
 export const ORIGINAL_BUNDLE_LOCK_PATH = 'control/original-bundle.lock.json';
 export const RUNTIME_SNAPSHOT_PATH = 'control/runtime/snapshot.json';
@@ -423,6 +426,9 @@ export function initializeRunControl(options) {
 }
 export function verifyOriginalBundleLock(runDir, state) {
     const current = state || readRunState(runDir);
+    if (current.identity.bundle.lock_ref !== ORIGINAL_BUNDLE_LOCK_PATH) {
+        throw new Error('original bundle lock reference disagrees with pinned run identity');
+    }
     const lockPath = join(resolve(runDir), current.identity.bundle.lock_ref);
     const raw = readFileSync(lockPath);
     let value;
@@ -435,17 +441,111 @@ export function verifyOriginalBundleLock(runDir, state) {
     const lock = value;
     if (!isRecord(lock)
         || lock.lock_digest !== current.identity.bundle.lock_digest
+        || lock.bundle?.id !== current.identity.bundle.id
+        || lock.bundle?.version !== current.identity.bundle.version
+        || lock.bundle?.payload_digest !== current.identity.bundle.payload_digest
         || lock.bundle?.digest !== current.identity.bundle.digest
+        || lock.core?.id !== current.identity.core.id
+        || lock.core?.version !== current.identity.core.version
         || lock.core?.tree_digest !== current.identity.core.tree_digest
+        || lock.adapter?.id !== current.identity.adapter.id
+        || lock.adapter?.version !== current.identity.adapter.version
+        || lock.adapter?.lifecycle !== current.identity.adapter.lifecycle
         || lock.adapter?.tree_digest !== current.identity.adapter.tree_digest
-        || lock.checker_digest !== current.identity.checker_digest) {
+        || lock.checker_digest !== current.identity.checker_digest
+        || lock.adapter_protocol_version !== current.identity.adapter_protocol_version
+        || lock.run_format_version !== current.identity.run_format_version) {
         throw new Error('original bundle lock disagrees with pinned run identity');
     }
     return lock;
 }
+const PROGRESS_CORE_RUN_STATES = CORE_RUN_STATES.filter((state) => state !== 'BLOCKED');
+function retainedManifestStateFloor(state) {
+    const stageIndex = CORE_STAGES.indexOf(state.execution.stage);
+    const retainedStateIndex = state.execution.core_state === 'BLOCKED'
+        ? -1
+        : PROGRESS_CORE_RUN_STATES.indexOf(state.execution.core_state);
+    if (stageIndex >= CORE_STAGES.indexOf('S2')
+        || retainedStateIndex >= PROGRESS_CORE_RUN_STATES.indexOf('DISTILLING')) {
+        return 'DISTILLING';
+    }
+    if (stageIndex >= CORE_STAGES.indexOf('S1')
+        || retainedStateIndex >= PROGRESS_CORE_RUN_STATES.indexOf('CORPUS-FROZEN')) {
+        return 'CORPUS-FROZEN';
+    }
+    return 'DRAFT';
+}
+function verifyRunManifestAuthority(runDir, state, lock) {
+    const manifest = loadRunManifest(resolve(runDir));
+    if (!manifest)
+        throw new Error('Core run manifest is missing or unreadable');
+    const expectedModels = stableJson(state.identity.models);
+    const comparisons = [
+        ['run_id', manifest.runId, state.run_id],
+        ['mode', manifest.mode, state.mode],
+        ['doctrine_sha', manifest.doctrineSha, lock.provenance.vcs.commit],
+        ['run_format_version', manifest.runFormatVersion, state.identity.run_format_version],
+        ['core_id', manifest.forwardIdentity.coreId, state.identity.core.id],
+        ['core_version', manifest.forwardIdentity.coreVersion, state.identity.core.version],
+        ['core_digest', manifest.forwardIdentity.coreDigest, state.identity.core.tree_digest],
+        ['adapter_id', manifest.forwardIdentity.adapterId, state.identity.adapter.id],
+        ['adapter_version', manifest.forwardIdentity.adapterVersion, state.identity.adapter.version],
+        ['adapter_digest', manifest.forwardIdentity.adapterDigest, state.identity.adapter.tree_digest],
+        ['bundle_id', manifest.forwardIdentity.bundleId, state.identity.bundle.id],
+        ['bundle_digest', manifest.forwardIdentity.bundleDigest, state.identity.bundle.digest],
+        ['bundle_lock_ref', manifest.forwardIdentity.bundleLockRef, state.identity.bundle.lock_ref],
+        ['checker_digest', manifest.forwardIdentity.checkerDigest, state.identity.checker_digest],
+        [
+            'adapter_protocol_version',
+            manifest.forwardIdentity.adapterProtocolVersion,
+            state.identity.adapter_protocol_version,
+        ],
+        [
+            'host_identity',
+            manifest.forwardIdentity.hostIdentity,
+            `${state.identity.host.id}@${state.identity.host.version}+${state.identity.host.build_id}`,
+        ],
+        [
+            'runtime_snapshot_ref',
+            manifest.forwardIdentity.runtimeSnapshotRef,
+            state.identity.runtime.snapshot_ref,
+        ],
+        [
+            'runtime_snapshot_digest',
+            manifest.forwardIdentity.runtimeSnapshotDigest,
+            state.identity.runtime.digest,
+        ],
+        ['model_ids', manifest.forwardIdentity.modelIds, expectedModels],
+        [
+            'adapter profile ID + digest',
+            manifest.forwardIdentity.adapterProfile,
+            `${state.identity.profile.id} @ ${state.identity.profile.digest}`,
+        ],
+        [
+            'model/context/effort mapping actually used',
+            manifest.forwardIdentity.modelExecutionMapping,
+            expectedModels,
+        ],
+    ];
+    const problems = forwardExecutionIdentityProblems(manifest);
+    for (const [field, actual, expected] of comparisons) {
+        if (actual !== expected)
+            problems.push(`${field} disagrees with retained run authority`);
+    }
+    if (problems.length > 0) {
+        throw new Error(`Core run manifest identity disagrees with retained Loa run authority: ${problems.join('; ')}`);
+    }
+    const minimumState = retainedManifestStateFloor(state);
+    const minimumIndex = PROGRESS_CORE_RUN_STATES.indexOf(minimumState);
+    const reachedFloor = manifest.states.some((row) => (PROGRESS_CORE_RUN_STATES.indexOf(row.values.state.trim()) >= minimumIndex));
+    if (!reachedFloor) {
+        throw new Error(`Core run manifest state understates retained execution stage ${state.execution.stage}: expected ${minimumState} or later`);
+    }
+}
 export function verifyRunControl(runDir) {
     const state = readRunState(runDir);
-    verifyOriginalBundleLock(runDir, state);
+    const lock = verifyOriginalBundleLock(runDir, state);
+    verifyRunManifestAuthority(runDir, state, lock);
     const corpus = verifyCorpusSnapshot(runDir);
     if (corpus.run_id !== state.run_id
         || corpus.tree_digest !== state.corpus.tree_digest
@@ -453,6 +553,29 @@ export function verifyRunControl(runDir) {
         throw new Error('corpus snapshot disagrees with run state');
     }
     return state;
+}
+export function verifyRetainedRuntimeIdentity(runDir, state) {
+    const current = state || verifyRunControl(runDir);
+    if (current.identity.runtime.snapshot_ref !== RUNTIME_SNAPSHOT_PATH) {
+        throw new Error('run-state runtime snapshot reference is not canonical');
+    }
+    const runtime = verifyRuntimeSnapshot(runtimeSnapshotPath(runDir), {
+        allowSimulation: current.full_mode === 'fixture-simulated',
+    });
+    const profile = loadLoaProfile(runtime.profile.path);
+    const runtimeModels = mapModels(profile.value, runtime.host);
+    if (runtime.run_id !== current.run_id
+        || runtime.tree_digest !== current.identity.runtime.digest
+        || runtime.bundle.id !== current.identity.bundle.id
+        || runtime.bundle.digest !== current.identity.bundle.digest
+        || runtime.bundle.lock_digest !== current.identity.bundle.lock_digest
+        || runtime.profile.id !== current.identity.profile.id
+        || runtime.profile.digest !== current.identity.profile.digest
+        || !stableJsonBytes(runtime.host.host).equals(stableJsonBytes(current.identity.host))
+        || !stableJsonBytes(runtimeModels).equals(stableJsonBytes(current.identity.models))) {
+        throw new Error('retained runtime snapshot identity disagrees with pinned run authority');
+    }
+    return runtime;
 }
 function validGateId(value) {
     return /^GATE-[A-Za-z0-9]+(?:[._-][A-Za-z0-9]+)*$/u.test(value);
@@ -467,6 +590,7 @@ const AUTHORITY_TRANSACTION_FORMAT = 'aleph-loa-authority-transaction/v1';
 const AUTHORITY_LOCK_FORMAT = 'aleph-loa-authority-lock/v1';
 const CORE_STAGE_CONTRACT_PATH = 'docs/architecture/04-pipeline-stages-and-dod.md';
 const GATE_STAGE_RULES = {
+    'internal-ambiguity-procedural-decision': ['S4'],
     'external-referent-resolution': ['S8'],
     'precis-acceptance': ['S13'],
     'projection-commission': ['P1'],
@@ -474,6 +598,19 @@ const GATE_STAGE_RULES = {
     'budget-exhaustion': CORE_STAGES,
     'suspected-contamination': CORE_STAGES,
 };
+function authorityArtifactBytes(transaction) {
+    if (transaction.operation === 'open-gate'
+        && transaction.artifact.format
+            === 'aleph-internal-ambiguity-authority-request/v1') {
+        return Buffer.from(proceduralAuthorityRequestJson(transaction.artifact), 'utf8');
+    }
+    if (transaction.operation === 'record-decision'
+        && transaction.artifact.format
+            === 'aleph-internal-ambiguity-authority-response/v1') {
+        return Buffer.from(proceduralAuthorityResponseJson(transaction.artifact), 'utf8');
+    }
+    return stableJsonBytes(transaction.artifact);
+}
 function defaultAuthorityClock() {
     return { now: () => new Date().toISOString() };
 }
@@ -566,11 +703,13 @@ function parseAuthorityTransaction(path) {
             'gate_id',
             'operation',
             'prepared_at',
+            'prior_gate_id',
             'run_id',
             'stage',
             'state_after',
             'state_before_checkpoint',
             'status',
+            'transition_reason',
         ]
         : [
             'artifact',
@@ -580,11 +719,13 @@ function parseAuthorityTransaction(path) {
             'gate_id',
             'operation',
             'prepared_at',
+            'prior_gate_id',
             'run_id',
             'stage',
             'state_after',
             'state_before_checkpoint',
             'status',
+            'transition_reason',
         ];
     if (!isRecord(value)
         || Object.keys(value).sort(utf8Compare).join('\0') !== expectedKeys.join('\0')
@@ -594,6 +735,13 @@ function parseAuthorityTransaction(path) {
         || typeof value.run_id !== 'string'
         || typeof value.gate_id !== 'string'
         || !validGateId(value.gate_id)
+        || !(value.prior_gate_id === null
+            || (typeof value.prior_gate_id === 'string' && validGateId(value.prior_gate_id)))
+        || !(value.transition_reason === null
+            || (typeof value.transition_reason === 'string'
+                && PROCEDURAL_FOLLOWUP_REASONS.includes(value.transition_reason)))
+        || ((value.prior_gate_id === null) !== (value.transition_reason === null))
+        || (value.transition_reason !== null && value.operation !== 'open-gate')
         || typeof value.stage !== 'string'
         || !CORE_STAGES.includes(value.stage)
         || typeof value.artifact_ref !== 'string'
@@ -609,11 +757,15 @@ function parseAuthorityTransaction(path) {
     const transaction = value;
     assertLoaRunState(transaction.state_after);
     if (transaction.state_after.run_id !== transaction.run_id
-        || transaction.state_after.execution.stage !== transaction.stage
-        || transaction.state_after.execution.resume.checkpoint_digest
-            !== stateCheckpointDigest(transaction.state_after)
-        || transaction.artifact_digest !== sha256Digest(stableJsonBytes(transaction.artifact))) {
-        throw new Error(`authority transaction after-image is inconsistent: ${path}`);
+        || transaction.state_after.execution.stage !== transaction.stage) {
+        throw new Error(`authority transaction after-image run/stage is inconsistent: ${path}`);
+    }
+    if (transaction.state_after.execution.resume.checkpoint_digest
+        !== stateCheckpointDigest(transaction.state_after)) {
+        throw new Error(`authority transaction after-image checkpoint is inconsistent: ${path}`);
+    }
+    if (transaction.artifact_digest !== sha256Digest(authorityArtifactBytes(transaction))) {
+        throw new Error(`authority transaction artifact digest is inconsistent: ${path}`);
     }
     const expectedRef = transaction.operation === 'open-gate'
         ? `control/gates/${transaction.gate_id}-request.json`
@@ -640,7 +792,7 @@ function applyAuthorityTransaction(runDir, transactionPath, transaction, committ
         }
     }
     else {
-        writeJsonAtomic(artifactPath, transaction.artifact);
+        writeFileAtomic(artifactPath, authorityArtifactBytes(transaction));
     }
     const current = readRunState(runDir);
     const checkpoint = current.execution.resume.checkpoint_digest;
@@ -719,22 +871,57 @@ export function openHumanAuthorityGate(runDir, options) {
             throw new Error(`human authority gate already exists: ${options.gateId}`);
         }
         const current = readRunState(root);
-        if (current.execution.gate?.status === 'awaiting-authority') {
-            throw new Error(`human authority gate ${current.execution.gate.id} is already awaiting a response`);
+        const priorGate = current.execution.gate;
+        const followup = options.proceduralFollowup || null;
+        if (followup) {
+            if (options.gateType !== 'internal-ambiguity-procedural-decision'
+                || !validGateId(followup.priorGateId)
+                || !PROCEDURAL_FOLLOWUP_REASONS.includes(followup.reason)
+                || !priorGate
+                || priorGate.id !== followup.priorGateId
+                || priorGate.type !== options.gateType
+                || priorGate.status === 'declined') {
+                throw new Error('procedural follow-up does not match the retained predecessor gate');
+            }
+            const replacesUnanswered = followup.reason === 'material-impact-revision'
+                || followup.reason === 'presentation-only-replacement';
+            if (replacesUnanswered
+                ? !['awaiting-authority', 'approved'].includes(priorGate.status)
+                : priorGate.status !== 'approved') {
+                throw new Error('procedural follow-up predecessor gate is in the wrong state');
+            }
+        }
+        else if (priorGate?.status === 'awaiting-authority') {
+            throw new Error(`human authority gate ${priorGate.id} is already awaiting a response`);
         }
         assertGatePrerequisites(current, options.gateType, options.stage);
-        const contract = stageContractBinding(root, current, options.stage);
-        const artifact = {
-            format: 'aleph-loa-authority-request/v1',
-            gate_id: options.gateId,
-            gate_type: options.gateType,
-            run_id: current.run_id,
-            stage: options.stage,
-            requested_at: options.now,
-            core_stage_contract: contract,
-            request: options.request,
-        };
+        const artifact = options.gateType === 'internal-ambiguity-procedural-decision'
+            ? options.request
+            : {
+                format: 'aleph-loa-authority-request/v1',
+                gate_id: options.gateId,
+                gate_type: options.gateType,
+                run_id: current.run_id,
+                stage: options.stage,
+                requested_at: options.now,
+                core_stage_contract: stageContractBinding(root, current, options.stage),
+                request: options.request,
+            };
+        if (options.gateType === 'internal-ambiguity-procedural-decision') {
+            const request = artifact;
+            validateProceduralAuthorityRequest(request);
+            if (request.request_id !== options.gateId
+                || request.run_id !== current.run_id
+                || request.stage !== 'S4'
+                || request.requested_at !== options.now) {
+                throw new Error('internal-ambiguity authority request does not match the retained run/gate');
+            }
+        }
         const after = transitionedState(current, options.now, (draft) => {
+            if (followup?.reason === 'actual-resume-after-suspensive-block'
+                && draft.execution.core_state === 'BLOCKED') {
+                draft.execution.core_state = 'DISTILLING';
+            }
             draft.execution.stage_status = 'awaiting-authority';
             draft.execution.gate = {
                 id: options.gateId,
@@ -756,9 +943,26 @@ export function openHumanAuthorityGate(runDir, options) {
             status: 'prepared',
             run_id: current.run_id,
             gate_id: options.gateId,
+            prior_gate_id: followup?.priorGateId || null,
+            transition_reason: followup?.reason || null,
             stage: options.stage,
             artifact_ref: requestRef,
-            artifact_digest: sha256Digest(stableJsonBytes(artifact)),
+            artifact_digest: sha256Digest(authorityArtifactBytes({
+                format: AUTHORITY_TRANSACTION_FORMAT,
+                operation: 'open-gate',
+                status: 'prepared',
+                run_id: current.run_id,
+                gate_id: options.gateId,
+                prior_gate_id: followup?.priorGateId || null,
+                transition_reason: followup?.reason || null,
+                stage: options.stage,
+                artifact_ref: requestRef,
+                artifact_digest: `sha256:${'0'.repeat(64)}`,
+                artifact,
+                state_before_checkpoint: current.execution.resume.checkpoint_digest,
+                state_after: after,
+                prepared_at: options.now,
+            })),
             artifact,
             state_before_checkpoint: current.execution.resume.checkpoint_digest,
             state_after: after,
@@ -846,22 +1050,49 @@ export function recordHumanAuthorityDecision(runDir, decision) {
         const requestPath = join(root, gate.request_ref);
         if (!existsSync(requestPath))
             throw new Error('human authority gate request disappeared');
-        const requestDigest = sha256Digest(readFileSync(requestPath));
-        const artifact = {
-            format: 'aleph-loa-authority-response/v1',
-            gate_id: decision.gateId,
-            gate_type: gate.type,
-            run_id: current.run_id,
-            stage: current.execution.stage,
-            request_ref: gate.request_ref,
-            request_digest: requestDigest,
-            authority: { kind: 'human', identity: decision.authorityIdentity },
-            decision: decision.decision,
-            approved_state: decision.approvedState ?? null,
-            recorded_at: decision.recordedAt,
-            simulation: decision.simulation,
-            response: decision.response,
-        };
+        const requestBytes = readFileSync(requestPath);
+        const requestDigest = sha256Digest(requestBytes);
+        let proceduralAction = null;
+        const artifact = gate.type === 'internal-ambiguity-procedural-decision'
+            ? decision.response
+            : {
+                format: 'aleph-loa-authority-response/v1',
+                gate_id: decision.gateId,
+                gate_type: gate.type,
+                run_id: current.run_id,
+                stage: current.execution.stage,
+                request_ref: gate.request_ref,
+                request_digest: requestDigest,
+                authority: { kind: 'human', identity: decision.authorityIdentity },
+                decision: decision.decision,
+                approved_state: decision.approvedState ?? null,
+                recorded_at: decision.recordedAt,
+                simulation: decision.simulation,
+                response: decision.response,
+            };
+        if (gate.type === 'internal-ambiguity-procedural-decision') {
+            if (decision.decision !== 'approve' || decision.approvedState !== undefined) {
+                throw new Error('internal-ambiguity procedural responses use one Core-selected action, not generic state approval');
+            }
+            let request;
+            try {
+                request = JSON.parse(requestBytes.toString('utf8'));
+            }
+            catch {
+                throw new Error('internal-ambiguity authority request is not valid JSON');
+            }
+            const canonicalRequest = validateProceduralAuthorityRequest(request);
+            if (!canonicalRequest.equals(requestBytes)) {
+                throw new Error('internal-ambiguity authority request retained bytes are not canonical');
+            }
+            const response = artifact;
+            validateProceduralAuthorityResponse(request, requestBytes, response);
+            if (response.authority.identity !== decision.authorityIdentity
+                || response.recorded_at !== decision.recordedAt) {
+                throw new Error('internal-ambiguity authority response identity or timestamp mismatch');
+            }
+            proceduralAction = response.selected_action;
+        }
         const after = transitionedState(current, decision.recordedAt, (draft) => {
             if (decision.simulation !== null)
                 draft.full_mode = 'fixture-simulated';
@@ -869,7 +1100,16 @@ export function recordHumanAuthorityDecision(runDir, decision) {
                 throw new Error('human authority gate disappeared during update');
             draft.execution.gate.status = decision.decision === 'approve' ? 'approved' : 'declined';
             draft.execution.gate.response_ref = responseRef;
-            if (decision.decision === 'approve') {
+            if (proceduralAction !== null) {
+                draft.execution.stage_status = 'awaiting-authority';
+                draft.execution.halt = {
+                    code: 'S4_C2_RESPONSE_APPLICATION_REQUIRED',
+                    reason: `${proceduralAction} response is retained but has not yet been applied exactly once to T5.3`,
+                    at: decision.recordedAt,
+                    blocking: true,
+                };
+            }
+            else if (decision.decision === 'approve') {
                 draft.execution.stage_status = 'closed';
                 draft.execution.halt = null;
                 if (decision.approvedState)
@@ -890,9 +1130,26 @@ export function recordHumanAuthorityDecision(runDir, decision) {
             status: 'prepared',
             run_id: current.run_id,
             gate_id: decision.gateId,
+            prior_gate_id: null,
+            transition_reason: null,
             stage: current.execution.stage,
             artifact_ref: responseRef,
-            artifact_digest: sha256Digest(stableJsonBytes(artifact)),
+            artifact_digest: sha256Digest(authorityArtifactBytes({
+                format: AUTHORITY_TRANSACTION_FORMAT,
+                operation: 'record-decision',
+                status: 'prepared',
+                run_id: current.run_id,
+                gate_id: decision.gateId,
+                prior_gate_id: null,
+                transition_reason: null,
+                stage: current.execution.stage,
+                artifact_ref: responseRef,
+                artifact_digest: `sha256:${'0'.repeat(64)}`,
+                artifact,
+                state_before_checkpoint: current.execution.resume.checkpoint_digest,
+                state_after: after,
+                prepared_at: decision.recordedAt,
+            })),
             artifact,
             state_before_checkpoint: current.execution.resume.checkpoint_digest,
             state_after: after,

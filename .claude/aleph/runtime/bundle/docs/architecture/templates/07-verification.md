@@ -26,6 +26,15 @@ superseding ledger rows citing this `VER` id (verdicts never edit ledgers);
 quorum panels produce one verdict file per member plus a one-line quorum
 summary in the stage folder's `README.md`.
 
+For a typed-relation review, `target` is exactly
+`relation-review-subject:sha256:<64 lowercase hex>`, identifying one complete
+pre-canonical relation subject. Only `upheld` may be cited by a REL row.
+`refuted` recommends `revise`, `reject`, or `not-applicable`; a revision is a
+new complete subject/digest/review. `cannot-determine` cannot authorize the
+original row; retaining an indeterminate canonical assessment requires its
+own complete proposal and upheld verdict. Exact target binding proves neither
+semantic correctness nor fresh-context independence.
+
 <!-- example -->
 | target | ledgers/claim-inventory.md CC-107 |
 | lens | disposition-refuter |

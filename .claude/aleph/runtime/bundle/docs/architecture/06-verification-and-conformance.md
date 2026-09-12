@@ -40,7 +40,7 @@ stay green).
 | Increment | Check group (names provisional) | Motivating fixture (doc 10 slice) | What it enforces |
 |-----------|--------------------------------|-----------------------------------|------------------|
 | K1 | discovered-fixtures mode | none (pure generalization) | today's checks over any `docs/fixtures/*/` set, per-fixture expectations declared in the fixture README rather than hardcoded — the checker doc already lists this as deferred |
-| K2 | `RUN-*`: run-directory mode | hand-authored golden run | layout present; manifest well-formed; state log ordered; fixed-home ID integrity across `RUN` through `PRJ`; ledger accounting |
+| K2 | `RUN-*`: run-directory mode | hand-authored golden run + exact-evidence fixture | layout present; manifest well-formed; state log ordered; fixed-home ID integrity across `RUN` through `PRJ`; ledger accounting; frozen-byte exact fragments, order, joins, and transformation identity |
 | K3 | `E-*`: evidence-role checks | evidence-role fixture | role-coverage accounting; bounded role vocabulary; decorative-never-counts; unresolved-source-never-confirms; removal-effect declarations present for load-bearing edges; merge keeps per-source roles |
 | K4 | `RC-*`: route-card checks | routed-corpus fixture | card invariants (≥1 packet ID; IDs resolve; closed posture set; pending-referent ⇒ `REF` row); tags-not-documents; the smallest manual-mode invariant, now enforced |
 | K5 | `G-*`: gate checks | same fixture as K4 | taint computation: no "externally complete" marker while an unresolved `REF` sits in the provenance cone |

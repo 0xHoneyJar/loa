@@ -6,7 +6,7 @@
     "version": "0.1.0-provisional",
     "host": "loa",
     "protocol_version": "1.0.0-provisional",
-    "run_format_version": "1.0.0-provisional",
+    "run_format_version": "1.5.0-provisional",
     "lifecycle": "implemented"
   },
   "core_consumption": {
@@ -48,6 +48,7 @@
     "adapters/loa/tests/test-claude-code-host.ts",
     "adapters/loa/tests/test-loa-adapter.ts",
     "adapters/loa/tests/test-loa-installer.ts",
+    "adapters/loa/tests/test-slice5-process.ts",
     "adapters/loa/tsconfig.json",
     "runtime-js/adapters/loa/src/checker.js",
     "runtime-js/adapters/loa/src/claude-code-host.js",
@@ -77,6 +78,7 @@
     "docs/architecture/prompts/orchestrator.md",
     "docs/architecture/prompts/verifier-lenses.md",
     "docs/architecture/prompts/workers-arms-synthesis.md",
+    "docs/architecture/prompts/workers-internal-ambiguity.md",
     "docs/architecture/prompts/workers-intake-extraction.md",
     "docs/architecture/prompts/workers-judgment.md",
     "docs/architecture/templates/README.md",
@@ -119,6 +121,12 @@
       "kind": "tool",
       "state": "implemented",
       "path": "adapters/loa/src/host-attestation.ts"
+    },
+    {
+      "id": "loa-aleph-worker-handoff",
+      "kind": "tool",
+      "state": "implemented",
+      "path": "adapters/loa/src/worker-dispatch.ts"
     }
   ],
   "installation": {
@@ -258,14 +266,14 @@
       "model_mapping": {
         "orchestration": "orchestrator, scribe",
         "mechanical": "intake-clerk, cluster-cartographer",
-        "recall-critical": "extractor, normalizer",
-        "judgment": "merge-judge, disposition-judge, evidence-role-judge, router, convergent-reconciler, synthesist",
-        "adversarial": "adversarial-panel, verifier-l1 through verifier-l10",
+        "recall-critical": "extractor, normalizer, ambiguity-producer",
+        "judgment": "merge-judge, material-impact-producer, disposition-judge, evidence-role-judge, router, convergent-reconciler, synthesist",
+        "adversarial": "ambiguity-reviewer, material-impact-reviewer, adversarial-panel, verifier-l1 through verifier-l10",
         "assembly": "assembler, conformance-runner"
       },
       "effort_mapping": {
         "medium": "intake-clerk, cluster-cartographer, assembler, conformance-runner",
-        "high": "orchestrator, scribe, extractor, normalizer",
+        "high": "orchestrator, scribe, extractor, normalizer, ambiguity-producer",
         "xhigh": "all judgment, adversarial, and verifier roles"
       },
       "evidence": [

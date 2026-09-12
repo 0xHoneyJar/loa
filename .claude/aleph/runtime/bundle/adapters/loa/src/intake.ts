@@ -113,8 +113,8 @@ function validateUtf8(bytes: Buffer, path: string): void {
   if (bytes.includes(0)) throw new Error(`source contains NUL bytes: ${path}`);
 }
 
-function sourceScheme(path: string): FrozenSourceRecord['scheme'] {
-  return extname(path).toLowerCase() === '.md' ? 'md-lines' : 'text-lines';
+function sourceScheme(_path: string): FrozenSourceRecord['scheme'] {
+  return 'md-lines';
 }
 
 function paddedSourceId(index: number): string {

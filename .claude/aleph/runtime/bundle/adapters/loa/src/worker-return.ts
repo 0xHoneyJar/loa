@@ -20,7 +20,10 @@ import {
   writeFileAtomic,
   writeJsonAtomic,
 } from './fs.ts';
-import { verifyWorkerBundle } from './worker-bundle.ts';
+import {
+  assertWorkerRoleIsolation,
+  verifyWorkerBundle,
+} from './worker-bundle.ts';
 import {
   contractExemplarToJsonSchema,
   validateWorkerReturnContract,
@@ -189,6 +192,11 @@ export function validateWorkerDispatch(
   request: WorkerRequest,
   receipt: WorkerDispatchReceipt,
 ): void {
+  assertWorkerRoleIsolation(
+    request.role,
+    request.kind,
+    request.isolation?.producer_context_id,
+  );
   if (receipt.format !== 'aleph-loa-worker-dispatch/v1'
     || receipt.call_id !== request.call_id
     || !receipt.context_id
@@ -204,7 +212,6 @@ export function validateWorkerDispatch(
     throw new Error('worker dispatch receipt has an invalid simulation marker');
   }
   if (request.kind === 'refuter'
-    && request.isolation.producer_context_id
     && receipt.context_id === request.isolation.producer_context_id) {
     throw new Error('fresh-context refuter reused the producer context');
   }

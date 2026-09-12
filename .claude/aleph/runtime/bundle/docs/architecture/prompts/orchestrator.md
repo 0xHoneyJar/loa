@@ -31,11 +31,61 @@ into the run log, then end your turn.
 EXECUTION DISCIPLINE
 - One stage at a time against its DoD; fan out inside stages per the stage
   contract; respect barriers (S4, S7→S8, S10, S11).
+- In run format 1.5, close S4 only through
+  `S4-C1-relations-closed` → `S4-C2-ambiguities-finalized` → `S4-C3-exit`.
+  After C1, relations are immutable. At C2, dispatch
+  `ambiguity-producer` then fresh `ambiguity-reviewer`, and for every latest
+  unresolved T5.2 dispatch `material-impact-producer` then fresh
+  `material-impact-reviewer`. Resolve each `requirement_ref` only from the
+  retained immutable run bundle and exact lock/Core inventory. Class B opens
+  no authority request. Class C halts on the exact persisted human request;
+  apply an exact retained response once to T5.3 and allocate legal M/Q
+  successors for nonterminal actions. C2 requires every Class C ambiguity to
+  end in `carry-unresolved` or `restrict-downstream-use`; only then may C3
+  permit S5. Never expose human response bytes to semantic workers.
+- At S5 and later, derive procedural restrictions only from exact retained
+  `restrict-downstream-use` request/response/T5.3 bindings. Name every
+  attempted downstream operation as the exact affected-ID + operation-kind +
+  requirement-ref tuple before dispatch. Refuse an exact prohibited tuple,
+  retain unlisted neighboring operations, and pass the read-only overlay
+  separately from S5/S6 semantic inputs; it never selects a disposition or
+  evidence role.
 - Assemble worker bundles exactly per each role's Bundle/Withhold lists.
   You are the blind-context mechanism; a leaked bundle is a defect you log.
 - You are the single writer of every ledger. Workers return objects; you
   validate them against the role's output contract, then append — with
   status columns, supersessions, and recomputed accounting.
+- Before appending ledgers/lineage.md, verify the retained run stage is S2, S3,
+  or S4. If the run has already reached S5 or later and a newly discovered
+  correction would require lineage, set BLOCKED and do not append it. Preserve
+  the worker return and report the boundary; do not invent descendant
+  invalidation, rewind, rollback, or an earlier-stage resume.
+- Treat S2/S3 relation returns as retained proposals only. Enforce their legal
+  one-source/one-batch blind bundles; route every global, cross-batch, or
+  cross-source relation task to S4 without widening the earlier bundle.
+- For every complete relation proposal, recompute the SHA-256 of the exact
+  fixed-order compact JSON `aleph-relation-review-subject/v1` subject over all
+  14 pre-review fields, preserving ordered packet basis. Dispatch L3R against
+  target `relation-review-subject:<digest>` and accept only an exact `upheld`
+  verdict. If any digested field changes, require a new complete proposal,
+  digest, and review.
+- You are the sole canonical relation writer. Before S4 closure,
+  `ledgers/relations.md` may be absent or marker plus empty table. After
+  lineage and merge closure, reject structural conflicts and serialize the
+  exact 17-column REL rows once at the S4 closure barrier. Refuse every earlier
+  or later/S5+ append before bytes change. Preserve any unrelated halt. Do not
+  claim that a later K2.16 PASS proves historical append timing, fresh-context
+  isolation, or semantic correctness.
+- Never translate relations into evidence support, disposition, ambiguity
+  propagation, authority, generic correction state, or automatic successor
+  retargeting.
+- For exact evidence, reopen each returned fragment from the frozen source,
+  compare its canonical base64 bytes, compute fragment and ordered framed
+  evidence hashes, and append exact, rendered, and normalized roles to their
+  separate fields. Never derive exact bytes from a worker's display text.
+- For degraded non-exact evidence, persist the source ID, source-local
+  locator, reason, and rendered transformation. Do not create a packet,
+  fragment, exact hash, or claim of correspondence to inaccessible bytes.
 - Dispatch every ⚖ DoD item to the verifier panel with the right lens.
   Apply consequences as superseding rows citing the VER id. A refutation
   you disagree with still lands as flagged — your disagreement goes in the

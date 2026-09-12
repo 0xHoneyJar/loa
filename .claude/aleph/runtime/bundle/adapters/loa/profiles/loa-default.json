@@ -64,6 +64,38 @@
       "cache_policy": "exact-pinned-prefix",
       "batch_policy": "interactive"
     },
+    "ambiguity-producer": {
+      "model_slot": "recall-critical",
+      "effort": "high",
+      "context_policy": "blind-allowlist",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "eligible-pinned"
+    },
+    "ambiguity-reviewer": {
+      "model_slot": "adversarial",
+      "effort": "xhigh",
+      "context_policy": "fresh-blind-allowlist",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "eligible-pinned"
+    },
+    "material-impact-producer": {
+      "model_slot": "judgment",
+      "effort": "xhigh",
+      "context_policy": "blind-allowlist",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "interactive"
+    },
+    "material-impact-reviewer": {
+      "model_slot": "adversarial",
+      "effort": "xhigh",
+      "context_policy": "fresh-blind-allowlist",
+      "budget_policy": "stage-pinned",
+      "cache_policy": "exact-pinned-prefix",
+      "batch_policy": "eligible-pinned"
+    },
     "disposition-judge": {
       "model_slot": "judgment",
       "effort": "xhigh",

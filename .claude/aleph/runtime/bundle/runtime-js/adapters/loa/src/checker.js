@@ -3,8 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { join, resolve } from 'node:path';
 import { LOA_CHECK_RECORD_FORMAT, } from './types.js';
 import { extractMarkdownHeading, readLockedFile, verifyAndLoadLoaBundle, } from './core-loader.js';
-import { runtimeSnapshotPath, verifyRuntimeSnapshot, } from './runtime-snapshot.js';
-import { acquireDurableProcessLock, verifyRunControl, } from './run-control.js';
+import { acquireDurableProcessLock, verifyRetainedRuntimeIdentity, verifyRunControl, } from './run-control.js';
 import { readStableRegularFile, makeTreeOwnerWritable, makeTreeReadOnly, sha256Digest, stableJsonBytes, writeFileAtomic, writeJsonAtomic, } from './fs.js';
 const CHECKER_LOCK_FORMAT = 'aleph-loa-checker-lock/v1';
 const CHECKER_TRANSACTION_FORMAT = 'aleph-loa-checker-transaction/v1';
@@ -288,14 +287,7 @@ function withCheckerLock(runDir, acquiredAt, operation) {
 export function invokePinnedChecker(options) {
     const runDir = resolve(options.runDir);
     const state = verifyRunControl(runDir);
-    const runtime = verifyRuntimeSnapshot(runtimeSnapshotPath(runDir), {
-        allowSimulation: options.allowSimulation,
-    });
-    if (runtime.run_id !== state.run_id
-        || runtime.tree_digest !== state.identity.runtime.digest
-        || runtime.bundle.digest !== state.identity.bundle.digest) {
-        throw new Error('runtime snapshot disagrees with pinned run identity');
-    }
+    const runtime = verifyRetainedRuntimeIdentity(runDir, state);
     const bundle = verifyAndLoadLoaBundle(runtime.bundle.root);
     if (bundle.lock.checker_digest !== state.identity.checker_digest) {
         throw new Error('pinned checker digest disagrees with the verified runtime bundle');
