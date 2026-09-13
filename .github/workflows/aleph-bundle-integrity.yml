@@ -4,6 +4,7 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - '.gitattributes'
       - '.loa-aleph.lock.json'
       - '.claude/aleph/**'
       - '.claude/commands/loa-aleph*.md'
@@ -14,6 +15,7 @@ on:
   push:
     branches: [main]
     paths:
+      - '.gitattributes'
       - '.loa-aleph.lock.json'
       - '.claude/aleph/**'
       - '.claude/commands/loa-aleph*.md'

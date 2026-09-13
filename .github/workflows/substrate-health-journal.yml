@@ -1,9 +1,11 @@
 name: Substrate Health Journal
 
-# cycle-109 Sprint 5 T5.7 — daily substrate-health journal cron.
+# cycle-109 Sprint 5 T5.7 — substrate-health journal.
 #
-# Runs `python -m loa_cheval.journal --window 24h` once per day at 00:05 UTC
-# (offset by 5 min so it doesn't compete with rollover cron jobs at HH:00).
+# Manual-only until production MODELINV log retrieval is wired (cycle-110).
+# Fresh runners have no log; an unconditional cron only repeats the precheck
+# failure. Restore the daily 00:05 UTC schedule after adding log retrieval.
+# Runs `python -m loa_cheval.journal --window 24h`.
 # Appends a day-section to grimoires/loa/substrate-health/YYYY-MM.md if not
 # already present, then opens a PR labeled `auto-journal` on the
 # `substrate-health/journal` branch for operator review.
@@ -16,9 +18,6 @@ name: Substrate Health Journal
 # is a no-op and the workflow exits clean without opening a PR.
 
 on:
-  schedule:
-    # Daily 00:05 UTC — see file header for rationale
-    - cron: '5 0 * * *'
   workflow_dispatch:
     # Operator-on-demand trigger (e.g., catch-up after CI outage)
     inputs:
