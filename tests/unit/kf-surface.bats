@@ -5,7 +5,7 @@
 # Covers the drift-proof generated KF Index + the default-OFF, loud-but-
 # nonblocking loa-kf-surface.sh SessionStart hook.
 #
-# TEST-1  generated INDEX.md kf section lists all 23 ## KF- headings (no drift)
+# TEST-1  generated INDEX.md kf section lists every live ## KF- heading (no drift)
 # TEST-2  generated kf rows carry a Symptom column + numeric recurrence
 # TEST-3  --validate PASSES on the real repo (generated == heading count)
 # TEST-4  --validate FAILS (non-zero) on a planted heading/index mismatch
@@ -63,17 +63,15 @@ _make_kf_fixture() {
   echo "$f"
 }
 
-@test "TEST-1: generated INDEX.md kf section lists all 23 ## KF- headings" {
+@test "TEST-1: generated INDEX.md kf section lists every live ## KF- heading" {
   run bash "$GEN" --json
   [ "$status" -eq 0 ]
   local heads gen
-  heads=$(grep -cE '^## KF-[0-9]+:' "$KF")
-  gen=$(echo "$output" | jq -r '.counts.kf')
-  # 23 = 21 (through cycle-117 KF-021) + KF-022 (br sync dirty-tracking
-  # split-brain, agent-ergonomics pass 1, bd-m1o6) + KF-023 (Flatline
-  # content-qualified quorum, #1227).
-  [ "$heads" -eq 23 ]
-  [ "$gen" -eq "$heads" ]
+  # Compare every heading ID; sorting retains duplicates and ignores order.
+  heads=$(sed -nE 's/^## (KF-[0-9]+):.*/\1/p' "$KF" | LC_ALL=C sort)
+  gen=$(echo "$output" | jq -r '.families.kf[].id' | LC_ALL=C sort)
+  [ -n "$heads" ]
+  [ "$gen" = "$heads" ]
   # spot-check that the previously-missing ids are present (KF-021 added by
   # cycle-117 item G, bd-c117-g-update-loa-e638; KF-022 by bd-m1o6;
   # KF-023 by #1227)
