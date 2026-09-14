@@ -370,6 +370,14 @@
       "subtests_passed": null,
       "log_sha256": "5f19806e30cb8dd8095077ec0750bc0f98014d535631a1a8f90051b261997401",
       "log": "ci-repair-final-gates.log"
+    },
+    {
+      "suite": "publication-tooling-failure-log",
+      "passed": 8,
+      "skipped": 0,
+      "subtests_passed": null,
+      "log_sha256": "cf793263c1860950217d3fc3d8b08409b53433cc7046b4b6a9c02d3ebb754bbf",
+      "log": "ci-publication-metadata-gates.log"
     }
   ],
   "validation_note": "Suite counts overlap and must not be summed. The final F4 scorer change was followed by the 97 shell, 92 focused Python and 116 parser runs; unaffected Python paths retain the broad CI selection result. Hosted run 34823549793 confirms the broad Python and integration selections on a3a7281. The subsequent portable ledger lock, KF fixture and generated-map correction is parent-tested by the four appended suites; earlier peer reviews retain their recorded hashes.",
@@ -502,7 +510,7 @@
     "evals/fixtures/loa-skill-dir/.claude/scripts/mount-loa.sh": "3e4fcfe61193b9b3f1c2037490814b94903cfc9b4f3ecd9e32e29940e03620f5",
     "grimoires/loa/REPO-MAP.md": "0fd0803ce6cd3722a8147edfaf849ddb5cd097d1c4eb38839d9e233fbeb335b8",
     "grimoires/loa/REPO-MAP.md.checksum": "25ebc16cf7fe257b43ff3f34017f8cf224ea14a021b0c1f43d612dc95b889697",
-    "grimoires/loa/known-failures.md": "16bc854171277bbf5a14a460158fd0e253156095f41fd40235fc7fa202777787",
+    "grimoires/loa/known-failures.md": "da231787a82855034088c8659e6208586229e2d1533aa6670d3a966250a58c92",
     "grimoires/loa/runbooks/post-merge-candidates.md": "936ee0bfbce82055c9f0c56f8913132e8083be8547dfde3e05b7c0f0313d6d01",
     "tests/integration/audit-envelope-signing.bats": "51a3bc5462eb49da5e44ed82dcd1b70555ceb76b3ed059bc1ad08dc916a18c50",
     "tests/integration/audit-snapshot.bats": "c2daa336c42f9f79ad37388323430623f84710066c3a7ccfd92dc4de9bb522f9",
@@ -658,5 +666,6 @@
       }
     },
     "hosted_follow_up": "Pending on the next pushed commit."
-  }
+  },
+  "publication_tooling_note": "KF-031 records the failed legacy gh pr edit GraphQL call and verified REST body update. This documentation-only follow-up reruns all eight KF surface tests; the portable ledger source remains as tested in 73facd11."
 }

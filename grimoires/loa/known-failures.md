@@ -1368,3 +1368,27 @@ Inspect the selected interpreter and validator before repeating failures. Do not
 ### Reading guide
 
 Run the portability contract alongside shell behavior tests. Do not replace named allocation with an explicit nested unlock: inherited descriptors share the same lock. A generated-map check can be advisory in its own workflow and still mandatory in the full unit suite.
+
+---
+
+## KF-031: legacy GitHub CLI PR editing requests a deprecated Projects field
+
+**Status**: RESOLVED-BY-WORKAROUND — REST update and exact body readback verified
+**Feature**: Local `gh pr edit --body-file` publication tooling
+**Symptom**: Updating a PR body fails with a Projects-classic deprecation error at `repository.pullRequest.projectCards`, before the requested description is applied.
+**First observed**: PR #1251 description update, 2026-09-14
+**Recurrence count**: 1 local invocation
+**Current workaround**: Submit the same body through `gh api --method PATCH .../pulls/<number> --input -` as structured JSON, then verify the returned body, head and draft status.
+**Upstream issue**: Local CLI/API compatibility; observed during PR #1251
+**Related visions / lore**: A failed convenience command does not establish that the underlying service operation is unavailable
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-09-14 | `gh pr edit 1251 --body-file ...` | Failed on the deprecated `projectCards` GraphQL field. | PR #1251, head `73facd1167ffea0a3ad19850fd43a63e61c97666` |
+| 2026-09-14 | PATCH the same body through the REST pull-request endpoint | Succeeded; body bytes, exact head and draft status matched the intended update. | Same PR/head; retained `pr-body.md` |
+
+### Reading guide
+
+Do not repeat the failed GraphQL convenience call or infer a missing repository permission. Use the authorized REST operation with structured input and verify its returned identity and content.
